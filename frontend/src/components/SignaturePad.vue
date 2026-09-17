@@ -1,0 +1,14 @@
+<script setup lang="ts">
+import { ref, onMounted, watch } from 'vue'
+const props = defineProps<{ modelValue: string; disabled?: boolean }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string]; complete: [] }>()
+const canvas = ref<HTMLCanvasElement>(); let drawing = false
+function paint() { const c = canvas.value?.getContext('2d'); if (!c || !canvas.value) return; c.clearRect(0,0,800,240); if (props.modelValue) { const image = new Image(); image.onload = () => c.drawImage(image,0,0,800,240); image.src = props.modelValue } }
+function point(e: PointerEvent) { const r = canvas.value!.getBoundingClientRect(); return [(e.clientX-r.left)*800/r.width, (e.clientY-r.top)*240/r.height] as const }
+function begin(e: PointerEvent) { if (props.disabled) return; drawing = true; canvas.value!.setPointerCapture(e.pointerId); const c = canvas.value!.getContext('2d')!; c.beginPath(); c.lineWidth = 3; c.lineCap = 'round'; c.moveTo(...point(e)) }
+function move(e: PointerEvent) { if (!drawing) return; const c = canvas.value!.getContext('2d')!; c.lineTo(...point(e)); c.stroke() }
+function end() { if (!drawing) return; drawing = false; emit('update:modelValue', canvas.value!.toDataURL('image/png')); emit('complete') }
+function clear() { emit('update:modelValue',''); emit('complete') }
+onMounted(paint); watch(() => props.modelValue, paint)
+</script>
+<template><div class="signature"><label>负责人签名 *</label><canvas ref="canvas" width="800" height="240" aria-label="手写签名" @pointerdown="begin" @pointermove="move" @pointerup="end" @pointercancel="end"/><button v-if="!disabled" @click="clear">清除签名</button></div></template>

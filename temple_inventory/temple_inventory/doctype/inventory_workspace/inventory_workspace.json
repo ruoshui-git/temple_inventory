@@ -1,0 +1,148 @@
+{
+  "doctype": "DocType",
+  "name": "Inventory Workspace",
+  "module": "Temple Inventory",
+  "autoname": "prompt",
+  "track_changes": 1,
+  "field_order": [
+    "company",
+    "movement_kind",
+    "posting_date",
+    "posting_time",
+    "source_type",
+    "donor_source",
+    "purpose",
+    "recipient",
+    "activity",
+    "responsible_person",
+    "loan_reference",
+    "notes",
+    "signature",
+    "state_json",
+    "revision",
+    "stock_entry",
+    "sync_error"
+  ],
+  "fields": [
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "movement_kind",
+      "fieldtype": "Select",
+      "label": "Movement",
+      "options": "Receive\nIssue\nTransfer\nLoan\nReturn\nDamage\nLoss",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "label": "Date"
+    },
+    {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "label": "Time"
+    },
+    {
+      "fieldname": "source_type",
+      "fieldtype": "Data",
+      "label": "Source Type"
+    },
+    {
+      "fieldname": "donor_source",
+      "fieldtype": "Data",
+      "label": "Donor / Source"
+    },
+    {
+      "fieldname": "purpose",
+      "fieldtype": "Data",
+      "label": "Purpose"
+    },
+    {
+      "fieldname": "recipient",
+      "fieldtype": "Data",
+      "label": "Recipient"
+    },
+    {
+      "fieldname": "activity",
+      "fieldtype": "Link",
+      "label": "Activity",
+      "options": "Inventory Activity"
+    },
+    {
+      "fieldname": "responsible_person",
+      "fieldtype": "Link",
+      "label": "Responsible Person",
+      "options": "User"
+    },
+    {
+      "fieldname": "loan_reference",
+      "fieldtype": "Link",
+      "label": "Loan Reference",
+      "options": "Stock Entry"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "signature",
+      "fieldtype": "Signature",
+      "label": "Signature"
+    },
+    {
+      "fieldname": "state_json",
+      "fieldtype": "JSON",
+      "label": "Editing State",
+      "hidden": 1
+    },
+    {
+      "fieldname": "revision",
+      "fieldtype": "Int",
+      "label": "Revision",
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "fieldname": "stock_entry",
+      "fieldtype": "Link",
+      "label": "Stock Entry",
+      "options": "Stock Entry",
+      "read_only": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "sync_error",
+      "fieldtype": "Small Text",
+      "label": "Validation",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Stock User",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    }
+  ]
+}

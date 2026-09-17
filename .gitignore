@@ -58,3 +58,7 @@ jspm_packages/
 # Source of truth: frontend/, temple_inventory/www/inventory.py
 temple_inventory/public/frontend
 temple_inventory/www/inventory.html
+
+# Browser test artifacts
+frontend/test-results/
+frontend/playwright-report/

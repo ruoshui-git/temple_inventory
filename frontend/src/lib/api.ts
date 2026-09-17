@@ -1,0 +1,43 @@
+import { ref } from 'vue'
+export const sessionExpired = ref(false)
+export class ApiError extends Error { constructor(message: string, public status: number, public kind = '') { super(message) } }
+export async function request(path: string, args: Record<string, unknown> = {}, form?: FormData): Promise<any> {
+  const r = await fetch(`/api/method/${path}`, { method: 'POST', credentials: 'same-origin', headers: {
+    ...(!form ? { 'Content-Type': 'application/json' } : {}), 'X-Frappe-CSRF-Token': (window as any).csrf_token || ''
+  }, body: form || JSON.stringify(args) })
+  const body = await r.json()
+  if (!r.ok || body.exc) {
+    if (r.status === 401 || body.exc_type === 'AuthenticationError' || body.exc_type === 'CSRFTokenError') sessionExpired.value = true
+    let message = body.message || '操作失败'
+    try { const messages = JSON.parse(body._server_messages || '[]'); message = messages.map((m: any) => typeof m === 'string' ? JSON.parse(m).message : m.message).join('\n') || message } catch { /* use server message */ }
+    throw new ApiError(String(message).replace(/<[^>]*>/g, ''), r.status, body.exc_type)
+  }
+  return body.message
+}
+export const api = (method: string, args: Record<string, unknown> = {}) => request(`temple_inventory.inventory_api.${method}`, args)
+export const workspaceApi = (method: string, args: Record<string, unknown> = {}) => request(`temple_inventory.workspace_api.${method}`, args)
+export async function refreshSession() {
+  const r = await fetch('/api/method/temple_inventory.inventory_api.session_info', { credentials: 'same-origin' })
+  if (!r.ok) throw new Error('请先完成登录')
+  const { message: d } = await r.json()
+  ;(window as any).csrf_token = d.csrf_token
+  sessionExpired.value = false
+}
+export async function upload(file: File, doctype: string, docname: string) {
+  const form = new FormData()
+  form.append('file', file); form.append('doctype', doctype); form.append('docname', docname); form.append('is_private', '1')
+  return request('upload_file', {}, form)
+}
+export const labels: Record<string, string> = { Receive: '入库', Issue: '出库', Transfer: '转移', Loan: '借出', Return: '归还', Damage: '损坏', Loss: '遗失' }
+export function warehouseLabel(name: string, tree: any[]): string {
+  const node = tree.find(w => w.name === name)
+  if (!node) return name || '未选择位置'
+  const parent = tree.find(w => w.name === node.parent_warehouse)
+  return parent && parent.warehouse_type === 'Room' ? `${parent.warehouse_name} / ${node.warehouse_name}` : node.warehouse_name
+}
+export function roomFor(name: string, tree: any[]): string {
+  let node = tree.find(w => w.name === name)
+  const seen = new Set()
+  while (node && !seen.has(node.name)) { if (node.warehouse_type === 'Room') return node.name; seen.add(node.name); node = tree.find(w => w.name === node.parent_warehouse) }
+  return name || ''
+}

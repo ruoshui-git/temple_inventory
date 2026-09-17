@@ -1,0 +1,30 @@
+<script setup lang="ts">
+import { ref, watch, onMounted } from 'vue'
+import { api, workspaceApi, upload } from '../lib/api'
+const props = defineProps<{ boot: any; barcode?: string }>()
+const emit = defineEmits<{ select: [item: any]; close: [] }>()
+const query = ref(props.barcode || ''), category = ref(''), rows = ref<any[]>([]), total = ref(0), start = ref(0), error = ref(''), busy = ref(false)
+const creating = ref(!!props.barcode), unitDialog = ref(false), categoryDialog = ref(false), unitName = ref(''), whole = ref(true), categoryName = ref('')
+const item = ref({ item_name: '', item_group: props.boot.item_groups[0]?.name || '', stock_uom: props.boot.uoms[0]?.name || '', barcode: props.barcode || '', description: '', has_batch_no: false, has_expiry_date: false })
+const photo = ref<File>(), created = ref(''), recent = ref<any[]>([])
+let sequence = 0
+async function search(offset = 0) { const seq = ++sequence; try { const d = await api('search_items', { search: query.value, category: category.value, start: offset }); if (seq !== sequence) return; rows.value = d.results; total.value = d.total; start.value = offset } catch(e: any) { error.value = e.message } }
+async function select(code: string) { busy.value = true; try { const d = await workspaceApi('item_detail', { item_code: code }); const key = `ti-recent:${props.boot.user}`; const codes = [code, ...JSON.parse(localStorage.getItem(key) || '[]').filter((c: string) => c !== code)].slice(0,8); localStorage.setItem(key, JSON.stringify(codes)); emit('select',d) } catch(e: any) { error.value = e.message } finally { busy.value = false } }
+async function create() { if (busy.value) return; busy.value = true; error.value = ''; try { if (!created.value) { const d = await api('create_item', { data: item.value }); created.value = d.item_code } if (photo.value) { const file = await upload(photo.value,'Item',created.value); await api('set_item_image',{item_code:created.value,image:file.file_url}); photo.value = undefined } await select(created.value) } catch(e: any) { error.value = e.message } finally { busy.value = false } }
+async function createUnit() { try { const d = await api('create_uom',{uom_name:unitName.value,must_be_whole_number:whole.value}); if (!props.boot.uoms.some((u:any)=>u.name===d.name)) props.boot.uoms.push(d); item.value.stock_uom=d.name; unitDialog.value=false } catch(e:any) {error.value=e.message} }
+async function createCategory() { try {const d=await api('create_item_group',{name:categoryName.value}); props.boot.item_groups.push(d); item.value.item_group=d.name; categoryDialog.value=false} catch(e:any){error.value=e.message} }
+watch([query,category],()=>search())
+onMounted(async()=>{ void search(); try {const codes=JSON.parse(localStorage.getItem(`ti-recent:${props.boot.user}`)||'[]'); for(const code of codes) {try {recent.value.push(await workspaceApi('item_detail',{item_code:code}))} catch { /* no longer accessible */ }} } catch { /* no recent list */ }})
+</script>
+<template>
+<div class="drawer-backdrop"><aside class="drawer wide" role="dialog" aria-modal="true" aria-label="选择物品"><button class="drawer-close" @click="emit('close')">×</button>
+<h2>{{ creating ? '创建新物品' : '添加物品' }}</h2><p v-if="error" class="error">{{ error }}</p>
+<template v-if="!creating"><input v-model="query" placeholder="搜索名称、编号、条码"><select v-model="category"><option value="">全部类别</option><option v-for="g in boot.item_groups" :value="g.name">{{g.item_group_name}}</option></select>
+<template v-if="!query && recent.length"><h3>最近使用</h3><button v-for="r in recent" class="selection-row" :disabled="busy" @click="select(r.item_code)">{{r.item_name}} · {{r.item_code}}</button></template>
+<h3>搜索结果</h3><button v-for="r in rows" :key="r.item_code" class="selection-row" :disabled="busy" @click="select(r.item_code)"><img v-if="r.image" :src="r.image" class="thumb">{{r.item_name}} <small>{{r.item_code}} · {{r.item_group}}</small></button>
+<p v-if="!rows.length">没有找到物品</p><div class="toolbar"><button :disabled="start===0" @click="search(start-30)">上一页</button><span>{{total}} 项</span><button :disabled="start+30>=total" @click="search(start+30)">下一页</button></div><button v-if="boot.capabilities.Item" @click="creating=true; item.barcode=barcode || ''">＋创建新物品</button></template>
+<form v-else @submit.prevent="create"><fieldset :disabled="busy || !!created"><label>名称 *<input v-model="item.item_name" required></label><label>类别<select v-model="item.item_group" required><option v-for="g in boot.item_groups" :value="g.name">{{g.item_group_name}}</option></select></label><button type="button" v-if="boot.capabilities.Item" @click="categoryDialog=true">新建类别</button><label>默认单位 *<select v-model="item.stock_uom" required><option v-for="u in boot.uoms" :value="u.name">{{u.uom_name}}</option></select></label><button type="button" v-if="boot.capabilities.UOM" @click="unitDialog=true">＋新建单位</button><label>条码<input v-model="item.barcode"></label><label>备注<textarea v-model="item.description"/></label><label><input type="checkbox" v-model="item.has_batch_no" :disabled="!boot.batch.enabled">批次追踪</label><label v-if="item.has_batch_no"><input type="checkbox" v-model="item.has_expiry_date">需要有效期</label><p v-if="!boot.batch.enabled" class="warn">{{boot.batch.error}}</p></fieldset>
+<label>照片<input type="file" accept="image/*" capture="environment" @change="photo=($event.target as HTMLInputElement).files?.[0]"></label><button class="primary" :disabled="busy">{{created ? '重试照片上传并使用' : '创建并使用'}}</button><button type="button" @click="creating=false">返回搜索</button></form>
+<div v-if="unitDialog || categoryDialog" class="nested-dialog"><form @submit.prevent="unitDialog ? createUnit() : createCategory()"><h3>{{unitDialog?'新建单位':'新建类别'}}</h3><template v-if="unitDialog"><input v-model="unitName" required placeholder="单位名称"><label><input type="checkbox" v-model="whole">必须为整数</label></template><input v-else v-model="categoryName" required placeholder="类别名称"><button>创建并选择</button><button type="button" @click="unitDialog=false;categoryDialog=false">取消</button></form></div>
+</aside></div>
+</template>

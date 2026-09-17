@@ -27,7 +27,7 @@
     "fieldname": "ti_source_type",
     "fieldtype": "Select",
     "label": "Source Type",
-    "options": "\nDonation\nPurchase\nInternal\nOther",
+    "options": "\nDonation\nPurchase\nReturned\nInternal\nOther",
     "insert_after": "ti_movement_kind",
     "module": "Temple Inventory",
     "name": "Stock Entry-ti_source_type"

@@ -1,0 +1,3 @@
+import {defineConfig} from '@playwright/test'
+import {existsSync} from 'node:fs'
+export default defineConfig({testDir:'tests/browser',workers:1,timeout:45000,use:{baseURL:'http://127.0.0.1:8080',viewport:{width:390,height:844},launchOptions:{executablePath:process.env.CHROMIUM_PATH || (existsSync('/usr/bin/chromium-headless-shell')?'/usr/bin/chromium-headless-shell':undefined),args:['--no-sandbox','--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream',...(process.env.SCAN_VIDEO?[`--use-file-for-fake-video-capture=${process.env.SCAN_VIDEO}`]:[])]},permissions:['camera']},webServer:{command:'yarn dev --host 127.0.0.1 --port 8080',url:'http://127.0.0.1:8080',reuseExistingServer:true}})

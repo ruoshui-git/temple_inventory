@@ -1,0 +1,1 @@
+{"actions":[],"doctype":"DocType","editable_grid":1,"fields":[{"fieldname":"warehouse","fieldtype":"Link","in_list_view":1,"label":"Warehouse","options":"Warehouse","reqd":1}],"istable":1,"module":"Temple Inventory","name":"Temple Inventory Allowed Warehouse","permissions":[]}

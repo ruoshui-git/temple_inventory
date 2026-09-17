@@ -1,5 +1,5 @@
 app_name = "temple_inventory"
-app_title = "Temple Inventory"
+app_title = "物资管理"
 app_publisher = "Ruoshui"
 app_description = "Custom Inventory Frontend For ERPNext"
 app_email = "ruoshuim@gmail.com"
@@ -21,24 +21,25 @@ fixtures = [
 doc_events = {
 	"Stock Entry": {
 		"before_submit": "temple_inventory.stock.validate_stock_entry_submission",
+		"before_validate": "temple_inventory.stock.protect_workspace_entry",
 	}
 }
 
 # Apps
 # ------------------
 
-required_apps = []
+required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "temple_inventory",
-# 		"logo": "/assets/temple_inventory/logo.png",
-# 		"title": "Temple Inventory",
-# 		"route": "/temple_inventory",
-# 		"has_permission": "temple_inventory.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "temple_inventory",
+		"logo": "/assets/temple_inventory/logo.png",
+		"title": "物资管理",
+		"route": "/inventory",
+		"has_permission": "temple_inventory.api.permission.has_app_permission"
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -70,7 +71,7 @@ required_apps = []
 # Svg Icons
 # ------------------
 # include app icons in desk
-# app_include_icons = "temple_inventory/public/icons.svg"
+app_include_icons = "temple_inventory/public/icons.svg"
 
 # Home Pages
 # ----------
@@ -281,3 +282,8 @@ required_apps = []
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+has_permission = {"Inventory Workspace": "temple_inventory.workspace_permissions.has_permission"}
+permission_query_conditions = {"Inventory Workspace": "temple_inventory.workspace_permissions.query_conditions"}
+
+extend_doctype_class = {"File": ["temple_inventory.file.InventoryFileMixin"]}

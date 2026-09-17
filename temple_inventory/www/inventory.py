@@ -11,6 +11,8 @@ so this module is what puts `csrf_token` (and friends) on the page for
 frappe-ui's request layer to pick up.
 """
 
+from urllib.parse import urlencode
+
 import frappe
 
 # Never cache the SPA shell: it references hashed asset filenames, so a cached
@@ -19,6 +21,12 @@ no_cache = 1
 
 
 def get_context(context):
+	if frappe.session.user == "Guest":
+		frappe.flags.redirect_location = "/login?" + urlencode({"redirect-to": frappe.request.path})
+		raise frappe.Redirect(http_status_code=302)
+	from temple_inventory.inventory_api import _require_stock
+
+	_require_stock()
 	context.boot = {
 		"csrf_token": frappe.sessions.get_csrf_token(),
 		"user": frappe.session.user,

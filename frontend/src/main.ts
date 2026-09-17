@@ -3,5 +3,8 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { router } from './router'
 import './style.css'
+import { refreshSession, sessionExpired } from './lib/api'
 
-createApp(App).use(router).mount('#app')
+refreshSession().catch(() => { sessionExpired.value = true }).finally(() => {
+  createApp(App).use(router).mount('#app')
+})
