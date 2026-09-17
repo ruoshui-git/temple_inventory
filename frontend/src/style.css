@@ -1,0 +1,4 @@
+/* Single entry point: emits @tailwind base/components/utilities plus the Inter
+   font import. Do not add the @tailwind directives here again, that would
+   emit every layer twice. */
+@import 'frappe-ui/style.css';

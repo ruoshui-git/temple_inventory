@@ -1,0 +1,11 @@
+{
+  "name": "temple_inventory",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Delegates the frontend build inside frontend/ so that `bench build --app temple_inventory` works.",
+  "scripts": {
+    "postinstall": "cd frontend && yarn install",
+    "dev": "cd frontend && yarn dev",
+    "build": "cd frontend && yarn build"
+  }
+}

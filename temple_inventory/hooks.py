@@ -5,6 +5,15 @@ app_description = "Custom Inventory Frontend For ERPNext"
 app_email = "ruoshuim@gmail.com"
 app_license = "mit"
 
+# Website Route Rules
+# -------------------
+# Send every /inventory/* path to the Vue single page app entry point
+# (temple_inventory/www/inventory.html, produced by `yarn build` in frontend/).
+# Without this, a refresh on a client side route inside the SPA would 404.
+website_route_rules = [
+	{"from_route": "/inventory/<path:app_path>", "to_route": "inventory"},
+]
+
 # Apps
 # ------------------
 
