@@ -14,6 +14,16 @@ website_route_rules = [
 	{"from_route": "/inventory/<path:app_path>", "to_route": "inventory"},
 ]
 
+fixtures = [
+	{"dt": "Custom Field", "filters": [["module", "=", "Temple Inventory"]]},
+]
+
+doc_events = {
+	"Stock Entry": {
+		"before_submit": "temple_inventory.stock.validate_stock_entry_submission",
+	}
+}
+
 # Apps
 # ------------------
 

@@ -1,10 +1,1 @@
-import frappe
-
-
-@frappe.whitelist()
-def hello():
-    return {
-        "message": "Hello from Temple Inventory!",
-        "site": frappe.local.site,
-        "user": frappe.session.user,
-    }
+from temple_inventory.inventory_api import *  # noqa: F403
