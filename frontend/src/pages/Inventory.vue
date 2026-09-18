@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Scanner from '../components/Scanner.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import { api, request } from '../lib/api'
+import { detectInstallPlatform, installInstructions, installPwa, isStandalone } from '../lib/pwa'
 const router = useRouter()
 const route = useRoute()
 const manager=ref(false), canWarehouse=ref(false)
@@ -14,7 +15,7 @@ type Line = { item_code: string; qty: number; uom?: string; warehouse?: string; 
 const page = computed<string>(() => { const view = String(route.query.view || ''); return view === 'stock' ? 'inventory' : view === 'attention' || view === 'scan' || view === 'programs' ? view : 'home' })
 const movementKind = ref('Receive'), items = ref<Item[]>([]), warehouses = ref<any[]>([]), groups = ref<any[]>([]), settings = ref<any>({}), programs = ref<any[]>([])
 const query = ref(''), loading = ref(false), programsLoading = ref(false), error = ref(''), notice = ref(''), unfinishedCount = ref(0), lines = ref<Line[]>([]), selectedCode = ref(''), qty = ref(1), fromWarehouse = ref(''), toWarehouse = ref(''), leaseProgram = ref('')
-const responsible = ref(''), recipient = ref(''), purpose = ref(''), donor = ref(''), notes = ref(''), signature = ref(''), setupCompany = ref(''), setupRoot = ref('寺院仓库'), programName = ref('')
+const installDialog = ref(false), responsible = ref(''), recipient = ref(''), purpose = ref(''), donor = ref(''), notes = ref(''), signature = ref(''), setupCompany = ref(''), setupRoot = ref('寺院仓库'), programName = ref('')
 const drawer = ref<'item' | 'warehouse' | 'new-item' | 'category' | 'uom' | 'settings' | ''>(''); const drawerTarget = ref<any>(null); const selectorQuery = ref(''); const selectorRows = ref<any[]>([]); const selectorTotal = ref(0); const drawerWidth = ref(480); const showNewItem = ref(false), newName = ref(''), newUom = ref('件'), newGroup = ref(''), newCode = ref(''), newImage = ref<File | undefined>(), newCategory = ref(''), newBarcode = ref(''), newBatchTracking = ref(false)
 const canvas = ref<HTMLCanvasElement>(); const video = ref<HTMLVideoElement>(); let drawing = false; 
 const leafWarehouses = computed(() => warehouses.value.filter(w => !w.is_group))
@@ -43,6 +44,9 @@ async function saveProgram() { if (!programName.value) return; try { await api('
 async function lookup(code: string) { try { const r = await api('scan', { value: code }); if (r.item_code) await router.push(`/item/${encodeURIComponent(r.item_code)}`); else error.value='未找到物品，请从入库工作区创建。' } catch(e:any){error.value=e.message} }
 function camera(){navigate('scan')}
 function stopCamera(){}
+const installPlatform = computed(() => typeof navigator === 'undefined' ? 'other' : detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints))
+const installHelp = computed(() => installInstructions(installPlatform.value))
+async function install() { if (!(await installPwa())) installDialog.value = true }
 
 async function initializeSetup() { loading.value = true; try { await api('setup', { company: setupCompany.value, root_warehouse_name: setupRoot.value }); await boot(); navigate(); notice.value = '库存结构已建立' } catch (e: any) { error.value = e.message } finally { loading.value = false } }
 async function openDrawer(kind: any, target: any = null) { drawer.value = kind; drawerTarget.value = target; selectorQuery.value = ''; if (kind === 'item') await loadSelector('search_items'); if (kind === 'warehouse') await loadSelector('search_warehouses') }
@@ -69,7 +73,7 @@ onMounted(boot)
           @click="openMovement('Return')">归还</button></div>
       <div class="home-links"><RouterLink class="selection-row" to="/history">库存记录</RouterLink><RouterLink class="selection-row" to="/history?status=unfinished">未完成记录 <b v-if="unfinishedCount">{{unfinishedCount}}</b></RouterLink><button @click="navigate('stock')">查看库存</button><button
           @click="navigate('attention')">待处理</button><button @click="camera()">扫码</button><button
-          @click="navigate('programs')">借用项目</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div>
+          @click="navigate('programs')">借用项目</button><button v-if="!isStandalone" @click="install">安装到手机</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div>
     </section>
     <section v-else-if="page === 'inventory' || page === 'attention'"><div class="page-title"><button @click="navigate()">‹ 返回</button><h1>{{ page === 'attention' ? '待处理' : '查看库存' }}</h1></div><input v-model="query" placeholder="搜索名称或库存编号" @keyup.enter="load(page === 'attention')"><button @click="load(page === 'attention')">搜索</button><LoadingIndicator v-if="loading" text="正在加载库存…" /><template v-else><article v-for="item in activeItems" :key="item.item_code" class="item-card" role="link" tabindex="0" @click="router.push('/item/' + encodeURIComponent(item.item_code))" @keyup.enter="router.push('/item/' + encodeURIComponent(item.item_code))"><img v-if="item.image" :src="item.image"><div><b>{{ item.item_code }} · {{ item.item_name }}</b><p>{{ item.item_group }} · 可用 {{ item.available_stock }} {{ item.stock_uom }}　总计 {{ item.total_stock }}</p><small v-if="item.on_loan_qty">借出 {{ item.on_loan_qty }}</small><small v-if="item.pending_qty || item.needs_attention" class="warn"> 待处理</small></div></article><p v-if="!activeItems.length" class="empty-state">{{ page === 'attention' ? '暂无待处理物品' : '暂无库存物品' }}</p></template></section>
     <section v-else-if="page === 'movement'">
@@ -122,6 +126,7 @@ onMounted(boot)
       </div><label>公司<input v-model="setupCompany"></label><label>寺院根仓库名称<input v-model="setupRoot"></label><button
         class="primary setup-button" :disabled="loading" @click="initializeSetup">建立库存结构</button>
     </section>
+    <div v-if="installDialog" class="modal" role="dialog" aria-modal="true"><section><h2>安装物资管理</h2><p>{{ installHelp }}</p><button class="primary" @click="installDialog = false">知道了</button></section></div>
     <div v-if="drawer" class="drawer-backdrop" @click.self="closeDrawer">
       <aside class="drawer" :style="{ width: drawerWidth + 'px' }">
         <div class="drawer-resize" @pointerdown="resizeDrawer"></div><button class="drawer-close"

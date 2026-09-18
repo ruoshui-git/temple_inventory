@@ -1,8 +1,10 @@
 import { fileURLToPath, URL } from 'node:url'
+import fs from 'node:fs'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import frappeui from 'frappe-ui/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // `frappe-ui/vite` is the official Frappe UI plugin. Beyond bundling, it wires
 // up everything a frontend inside a Frappe app needs:
@@ -23,6 +25,48 @@ export default defineConfig({
       frontendRoute: '/inventory',
     }),
     vue(),
+    VitePWA({
+      registerType: 'prompt',
+      injectRegister: null,
+      manifest: {
+        id: '/',
+        name: '物资管理',
+        short_name: '物资管理',
+        description: '寺院物资管理',
+        lang: 'zh-CN',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#f7f5ef',
+        theme_color: '#9b571d',
+        icons: [
+          { src: '/assets/temple_inventory/frontend/pwa-icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/assets/temple_inventory/frontend/pwa-icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/assets/temple_inventory/frontend/pwa-icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: false,
+        skipWaiting: false,
+        navigateFallback: null,
+        inlineWorkboxRuntime: true,
+        modifyURLPrefix: { '': '/assets/temple_inventory/frontend/' },
+        globPatterns: ['assets/**/*.{js,css,woff,woff2,ttf,otf}', 'pwa-icons/**/*.{png,svg}'],
+      },
+    }),
+    {
+      name: 'temple-inventory-pwa-manifest-path',
+      closeBundle: {
+        order: 'post',
+        handler() {
+          const workerPath = fileURLToPath(new URL('../temple_inventory/public/frontend/sw.js', import.meta.url))
+          if (!fs.existsSync(workerPath)) return
+          const worker = fs.readFileSync(workerPath, 'utf8')
+          fs.writeFileSync(workerPath, worker.replaceAll('url:"manifest.webmanifest"', 'url:"/assets/temple_inventory/frontend/manifest.webmanifest"'))
+        },
+      },
+    },
   ],
   server: {
     // Vite's default host is `localhost`, which resolves to IPv6 `::1` only in

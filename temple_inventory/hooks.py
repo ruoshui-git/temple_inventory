@@ -290,3 +290,5 @@ has_permission = {"Inventory Workspace": "temple_inventory.workspace_permissions
 permission_query_conditions = {"Inventory Workspace": "temple_inventory.workspace_permissions.query_conditions"}
 
 extend_doctype_class = {"File": ["temple_inventory.file.InventoryFileMixin"]}
+
+page_renderer = ["temple_inventory.pwa.ServiceWorkerPage"]
