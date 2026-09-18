@@ -40,7 +40,7 @@ META = (
 	"notes",
 	"signature",
 )
-STATE = ("items", "sections", "from_warehouse", "to_warehouse", "lease_program_warehouse")
+STATE = ("items", "sections", "from_warehouse", "to_warehouse", "lease_program_warehouse", "posting_time_mode")
 
 
 def _get(name, write=False, lock=False):
@@ -82,6 +82,7 @@ def _editable(doc, revision):
 
 def _payload(doc):
 	p = {**{key: doc.get(key) for key in META}, **_loads(doc.state_json, {})}
+	p.setdefault("posting_time_mode", "current")
 	for key in ("posting_date", "posting_time"):
 		if p.get(key) is not None:
 			if key == "posting_time":
@@ -101,7 +102,9 @@ def _put(doc, data):
 		**{key: data.get(key, old.get(key)) for key in META},
 		**{
 			key: data.get(
-				key, _loads(doc.state_json, {}).get(key, [] if key in ("items", "sections") else "")
+				key, _loads(doc.state_json, {}).get(
+					key, [] if key in ("items", "sections") else "current" if key == "posting_time_mode" else ""
+				)
 			)
 			for key in STATE
 		},
@@ -177,6 +180,9 @@ def _prepare(doc):
 	settings = _settings()
 	if not p.get("items"):
 		frappe.throw(_("Add at least one item"))
+	if p.get("posting_time_mode", "current") != "manual":
+		p["posting_date"] = nowdate()
+		p["posting_time"] = nowtime()
 	if p["movement_kind"] == "Loan":
 		p["to_warehouse"] = p.get("lease_program_warehouse") or settings.default_lease_program_warehouse
 	if p["movement_kind"] == "Damage":
@@ -294,7 +300,7 @@ def _prepare(doc):
 			)
 			if rate:
 				row.update(basic_rate=rate, set_basic_rate_manually=1)
-			elif p.get("source_type") == "Donation":
+			else:
 				row["allow_zero_valuation_rate"] = 1
 	return p, rows
 
@@ -309,6 +315,7 @@ def _sync(doc):
 	else:
 		entry = frappe.new_doc("Stock Entry")
 	entry.flags.workspace_service = True
+	doc.posting_date, doc.posting_time = payload["posting_date"], payload["posting_time"]
 	entry.update(
 		{
 			"company": doc.company,
@@ -331,7 +338,7 @@ def _sync(doc):
 
 def _try_sync(doc):
 	frappe.db.savepoint("workspace_sync")
-	original = (doc.stock_entry, doc.state_json)
+	original = (doc.stock_entry, doc.state_json, doc.posting_date, doc.posting_time)
 	messages = len(frappe.local.message_log or [])
 	try:
 		_sync(doc)
@@ -342,7 +349,7 @@ def _try_sync(doc):
 		frappe.LinkValidationError,
 	) as exc:
 		frappe.db.rollback(save_point="workspace_sync")
-		doc.stock_entry, doc.state_json = original
+		doc.stock_entry, doc.state_json, doc.posting_date, doc.posting_time = original
 		doc.sync_error = str(exc)
 		frappe.local.message_log = (frappe.local.message_log or [])[:messages]
 

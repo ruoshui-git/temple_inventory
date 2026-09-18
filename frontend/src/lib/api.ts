@@ -11,7 +11,7 @@ export async function request(path: string, args: Record<string, unknown> = {}, 
     let message = body.message || '操作失败'
     try { const messages = JSON.parse(body._server_messages || '[]'); message = messages.map((m: any) => typeof m === 'string' ? JSON.parse(m).message : m.message).join('\n') || message } catch { /* use server message */ }
     const clean = String(message).replace(/<[^>]*>/g, '')
-    const translated = clean.includes('MandatoryError') || /Mandatory|mandatory|required/i.test(clean) ? '请填写所有必填字段' : clean.includes('Permission') || /Not permitted|permission denied/i.test(clean) ? '您没有执行此操作的权限' : clean.includes('ValidationError') ? '请检查表单内容' : clean || '操作失败'
+    const translated = body.exc_type === 'MandatoryError' || clean.includes('MandatoryError') ? '请填写所有必填字段' : clean.includes('Permission') || /Not permitted|permission denied/i.test(clean) ? '您没有执行此操作的权限' : clean || '操作失败'
     throw new ApiError(translated, r.status, body.exc_type)
   }
   return body.message

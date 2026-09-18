@@ -53,7 +53,7 @@ onMounted(load)
       <button @click="action('save_allowed_warehouses', { warehouses: allowed })">保存允许的位置</button>
       <h2>添加房间 / 位置</h2>
       <form @submit.prevent="action('configure_warehouse', fresh)">
-        <label>名称<input v-model="fresh.warehouse_name" required></label>
+        <label>名称 <span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span><input v-model="fresh.warehouse_name" required></label>
         <label>上级仓库<select v-model="fresh.parent_warehouse"><option v-for="warehouse in (boot.physical_tree || boot.warehouse_tree).filter((row: any) => row.is_group)" :key="warehouse.name" :value="warehouse.name">{{ warehouse.warehouse_name }}</option></select></label>
         <label>分类<select v-model="fresh.warehouse_type"><option value="Room">房间</option><option value="Location">位置</option></select></label>
         <label><input v-model="fresh.is_group" type="checkbox">包含下级位置（组仓库）</label>

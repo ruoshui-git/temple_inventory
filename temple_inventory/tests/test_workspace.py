@@ -244,6 +244,13 @@ class WorkspaceTests(unittest.TestCase):
 			self.assertEqual(row.s_warehouse, self.a)
 			self.assertEqual(row.t_warehouse, self.b)
 
+	def test_zero_valuation_without_source_or_rate(self):
+		for source_type in ("Purchase", ""):
+			d = self.create(source_type=source_type)
+			self.assertFalse(d["sync_error"], d["sync_error"])
+			row = frappe.get_doc("Stock Entry", d["stock_entry"]).items[0]
+			self.assertEqual(row.allow_zero_valuation_rate, 1)
+
 	def test_zero_donation_and_existing_valuation(self):
 		d = self.create()
 		self.assertFalse(d["sync_error"], d["sync_error"])

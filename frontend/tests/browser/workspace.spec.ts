@@ -15,7 +15,7 @@ test.beforeEach(async({page})=>{
    case 'lease_programs':result=[];break
    case 'responsible_people':result=[{name:boot.user,full_name:'王某'}];break
    case 'activities':result=[];break
-   case 'create_workspace':result=workspace;break
+   case 'create_workspace':workspace={...workspace,data:args.data,revision:workspace.revision+1};result=workspace;break
    case 'load_workspace':result=workspace;break
    case 'save_workspace':workspace={...workspace,data:args.data,revision:workspace.revision+1,stock_entry:args.data.items.length?'STE-test':null};result=workspace;break
    case 'confirm_workspace':workspace={...workspace,docstatus:1,revision:workspace.revision+1};result=workspace;break
@@ -32,20 +32,20 @@ test.beforeEach(async({page})=>{
 test('mobile receiving retains state through item selection, autosaves and confirms',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  await page.goto('/inventory/new/Receive');await expect(page.getByRole('heading',{name:'入库',exact:true})).toBeVisible()
- await page.getByLabel('捐赠人 / 来源').fill('张三')
+ await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await page.getByLabel('捐赠人 / 来源').fill('张三')
  await page.getByRole('button',{name:'＋添加物品',exact:true}).click()
  await page.getByRole('button',{name:/大米/}).click()
- await page.getByLabel('数量',{exact:true}).fill('3')
+ await page.getByRole('dialog',{name:'数量与位置'}).getByRole('spinbutton').fill('3')
  await page.getByRole('button',{name:'添加',exact:true}).click()
  await expect(page.getByText('3 Nos',{exact:false})).toBeVisible()
- await expect(page.getByRole('status')).toHaveText('✓ 已保存')
- await page.reload();await expect(page.getByLabel('捐赠人 / 来源')).toHaveValue('张三');await expect(page.getByText('3 Nos',{exact:false})).toBeVisible()
+ await expect(page.getByRole('status')).toHaveText('✓ 已保存');await expect(page).toHaveURL(/\/inventory\/workspace\/IW-test$/)
+ await page.reload();await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await expect(page.getByLabel('捐赠人 / 来源')).toHaveValue('张三');await expect(page.getByText('3 Nos',{exact:false})).toBeVisible()
  await page.getByLabel('手写签名').scrollIntoViewIfNeeded();const box=await page.getByLabel('手写签名').boundingBox();await page.mouse.move(box!.x+20,box!.y+30);await page.mouse.down();await page.mouse.move(box!.x+130,box!.y+70,{steps:5});await page.mouse.up()
  await page.getByRole('button',{name:'查看确认摘要'}).click();await expect(page.getByText('✓ 已签名',{exact:true})).toBeVisible();await page.getByRole('button',{name:'确认入库',exact:true}).click();await expect(page.getByRole('status')).toHaveText('已完成 ✓');expect(errors).toEqual([])
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
 })
 test('unknown scanned code prefills inline creation and preserves donor',async({page})=>{
- await page.goto('/inventory/new/Receive');await page.getByLabel('捐赠人 / 来源').fill('张三');await page.getByRole('button',{name:'▣ 连续扫码'}).click();await page.getByLabel('条码 / 编号 / 扫码枪').fill('999999');await page.getByRole('button',{name:'查找',exact:true}).click();await expect(page.getByRole('heading',{name:'创建新物品'})).toBeVisible();await expect(page.getByLabel('条码',{exact:true})).toHaveValue('999999');await page.getByRole('button',{name:'×',exact:true}).click();await expect(page.getByLabel('捐赠人 / 来源')).toHaveValue('张三')
+ await page.goto('/inventory/new/Receive');await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await page.getByLabel('捐赠人 / 来源').fill('张三');await page.getByRole('button',{name:'▣ 连续扫码'}).click();await page.getByLabel('条码 / 编号 / 扫码枪').fill('999999');await page.getByRole('button',{name:'查找',exact:true}).click();await expect(page.getByRole('heading',{name:'创建新物品'})).toBeVisible();await expect(page.getByLabel('条码',{exact:true})).toHaveValue('999999');await page.getByRole('button',{name:'×',exact:true}).click();await expect(page.getByLabel('捐赠人 / 来源')).toHaveValue('张三')
 })
 test('real Framework scanner decodes camera frames without BarcodeDetector',async({page})=>{
  test.skip(!process.env.SCAN_VIDEO,'Set SCAN_VIDEO to a Y4M containing barcode 6931234567890')

@@ -5,7 +5,9 @@ from collections import defaultdict
 from datetime import date
 
 import frappe
+from erpnext.stock.utils import get_stock_balance
 from frappe import _
+from frappe.utils import flt
 
 MOVEMENT_TYPES = {
 	"Receive": "Material Receipt",
@@ -619,8 +621,18 @@ def scan(value, context=None):
 
 
 @frappe.whitelist()
-def search_items(search=None, start=0, page_length=30, category=None):
+def search_items(
+	search=None,
+	start=0,
+	page_length=30,
+	category=None,
+	warehouse=None,
+	in_stock_only=False,
+	posting_date=None,
+	posting_time=None,
+):
 	_require_stock()
+	settings = _settings()
 	filters = {"disabled": 0, "is_stock_item": 1}
 	if category:
 		filters["item_group"] = category
@@ -640,6 +652,33 @@ def search_items(search=None, start=0, page_length=30, category=None):
 			r
 			for r in rows
 			if term in f"{r.item_code} {r.item_name} {r.item_group}".lower() or r.name in barcode_items
+		]
+	if frappe.utils.cint(in_stock_only):
+		allowed = _allowed_warehouses(settings)
+		if warehouse and warehouse not in allowed:
+			frappe.throw(_("Choose an allowed physical warehouse"), frappe.PermissionError)
+		warehouses = [warehouse] if warehouse else list(allowed)
+		bins = frappe.get_all(
+			"Bin",
+			filters={"item_code": ("in", [row.name for row in rows]), "warehouse": ("in", warehouses or [""])},
+			fields=["item_code", "warehouse", "actual_qty"],
+			limit_page_length=0,
+		)
+		stock = defaultdict(dict)
+		for bin_row in bins:
+			qty = flt(bin_row.actual_qty)
+			if posting_date and posting_time:
+				qty = flt(get_stock_balance(bin_row.item_code, bin_row.warehouse, posting_date, posting_time))
+			if qty > 1e-8:
+				stock[bin_row.item_code][bin_row.warehouse] = qty
+		rows = [
+			{
+				**row,
+				"warehouse_stock": stock.get(row.name, {}),
+				"available_qty": sum(stock.get(row.name, {}).values()),
+			}
+			for row in rows
+			if stock.get(row.name)
 		]
 	return _page(rows, page_length, start)
 

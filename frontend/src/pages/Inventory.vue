@@ -96,11 +96,11 @@ onMounted(boot)
           v-model.number="line.qty" type="number" min="0.01"><label>{{ movementKind === 'Receive' ? '入库位置' : '出库位置' }}<button
             class="selector-button" @click="openDrawer('warehouse', line)">{{ line.warehouse ||
             '请选择'}}</button></label><small>类别：{{ itemFor(line)?.item_group }}</small><button
-          @click="lines.splice(index, 1)">移除</button></div><label>负责人<input v-model="responsible" required></label><label
+          @click="lines.splice(index, 1)">移除</button></div><label>负责人 <span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span><input v-model="responsible" required></label><label
         v-if="movementKind === 'Loan' || movementKind === 'Return'">借用人<input v-model="recipient"></label><label>用途<input
           v-model="purpose"></label><label v-if="movementKind === 'Receive'">来源 / 捐赠人<input
           v-model="donor"></label><label>备注<textarea v-model="notes" /></label>
-      <div class="signature"><span>手写签名（提交时必填）</span><canvas ref="canvas" width="600" height="180" @pointerdown="begin"
+      <div class="signature"><span>手写签名 <span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span></span><canvas ref="canvas" width="600" height="180" @pointerdown="begin"
           @pointermove="draw" @pointerup="end" @pointerleave="end"></canvas><button
           @click="clearSignature">清除签名</button></div>
       <div class="submit-row"><button @click="saveMovement(false)">保存草稿</button><button class="primary"
@@ -135,12 +135,12 @@ onMounted(boot)
         </section>
         <section v-else-if="drawer === 'new-item'">
           <h2>新建物品</h2><label>自动编号（可修改）<input v-model="newCode"></label><label>名称<input
-              v-model="newName"></label><label>基础单位<select v-model="newUom">
+              v-model="newName"></label><label>基础单位 <span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span><select v-model="newUom" required>
               <option v-for="u in (settings.uoms || [])" :key="u.name" :value="u.name">{{ u.uom_name }}</option>
-            </select></label><button @click="drawer = 'uom'">新建单位</button><label>类别<select v-model="newGroup">
+            </select></label><button @click="drawer = 'uom'">新建单位</button><label>类别 <span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span><select v-model="newGroup" required>
               <option v-for="g in groups" :key="g.name" :value="g.name">{{ g.item_group_name }}</option>
             </select></label><button @click="drawer = 'category'">新建类别</button><label>条码<input v-model="newBarcode"
-              placeholder="可手动输入或扫码" /></label><label>图片（可选）<input type="file" accept="image/*"
+              placeholder="可手动输入或扫码" /></label><label>图片<input type="file" accept="image/*"
               @change="newImage = ($event.target as HTMLInputElement).files?.[0]"></label><label><input
               v-model="newBatchTracking" type="checkbox" :disabled="!settings.batch?.enabled"> 启用批次与有效期追踪</label>
           <p v-if="!settings.batch?.enabled" class="warn">{{ settings.batch?.error }} <a
