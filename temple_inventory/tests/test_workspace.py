@@ -116,6 +116,18 @@ class WorkspaceTests(unittest.TestCase):
 			api.save_workspace(d["name"], d["revision"], {"notes": "Stale"})
 		self.assertEqual(d2["revision"], d["revision"] + 1)
 
+	def test_delete_draft_removes_workspace_and_unsubmitted_entry(self):
+		empty = api.create_workspace(frappe.generate_hash(length=16), "Receive", {"notes": "Empty draft"})
+		self.assertTrue(api.delete_draft(empty["name"])["deleted"])
+		self.assertFalse(frappe.db.exists("Inventory Workspace", empty["name"]))
+
+		draft = self.create()
+		entry = draft["stock_entry"]
+		self.assertTrue(entry)
+		self.assertTrue(api.delete_draft(draft["name"])["deleted"])
+		self.assertFalse(frappe.db.exists("Inventory Workspace", draft["name"]))
+		self.assertFalse(frappe.db.exists("Stock Entry", entry))
+
 	def test_multi_room_draft_and_idempotent_submit(self):
 		d = self.create(
 			items=[

@@ -479,10 +479,11 @@ def delete_draft(name):
 		if entry.docstatus:
 			frappe.throw("已提交的库存记录不能删除")
 		entry.flags.workspace_service = True
-		entry.delete(ignore_permissions=True)
+		entry.delete(ignore_permissions=True, force=True)
 	for file_name in frappe.get_all("File", filters={"attached_to_doctype": doc.doctype, "attached_to_name": doc.name}, pluck="name"):
 		frappe.delete_doc("File", file_name, ignore_permissions=True, force=True)
-	frappe.delete_doc(doc.doctype, doc.name, ignore_permissions=True, force=True)
+	doc.flags.workspace_service = True
+	doc.delete(ignore_permissions=True, force=True)
 	return {"deleted": True, "name": name}
 
 
