@@ -15,7 +15,7 @@ type Line = { item_code: string; qty: number; uom?: string; warehouse?: string; 
 const page = computed<string>(() => { const view = String(route.query.view || ''); return view === 'stock' ? 'inventory' : view === 'attention' || view === 'scan' || view === 'programs' ? view : 'home' })
 const movementKind = ref('Receive'), items = ref<Item[]>([]), warehouses = ref<any[]>([]), groups = ref<any[]>([]), settings = ref<any>({}), programs = ref<any[]>([])
 const query = ref(''), loading = ref(false), programsLoading = ref(false), error = ref(''), notice = ref(''), unfinishedCount = ref(0), lines = ref<Line[]>([]), selectedCode = ref(''), qty = ref(1), fromWarehouse = ref(''), toWarehouse = ref(''), leaseProgram = ref('')
-const installDialog = ref(false), responsible = ref(''), recipient = ref(''), purpose = ref(''), donor = ref(''), notes = ref(''), signature = ref(''), setupCompany = ref(''), setupRoot = ref('寺院仓库'), programName = ref('')
+const installDialog = ref(false), responsible = ref(''), recipient = ref(''), purpose = ref(''), donor = ref(''), notes = ref(''), signature = ref(''), programName = ref('')
 const drawer = ref<'item' | 'warehouse' | 'new-item' | 'category' | 'uom' | 'settings' | ''>(''); const drawerTarget = ref<any>(null); const selectorQuery = ref(''); const selectorRows = ref<any[]>([]); const selectorTotal = ref(0); const drawerWidth = ref(480); const showNewItem = ref(false), newName = ref(''), newUom = ref('件'), newGroup = ref(''), newCode = ref(''), newImage = ref<File | undefined>(), newCategory = ref(''), newBarcode = ref(''), newBatchTracking = ref(false)
 const canvas = ref<HTMLCanvasElement>(); const video = ref<HTMLVideoElement>(); let drawing = false; 
 const leafWarehouses = computed(() => warehouses.value.filter(w => !w.is_group))
@@ -24,7 +24,7 @@ const activeItems = computed(() => items.value.filter(i => !query.value || `${i.
 const selectedItem = computed(() => items.value.find(i => i.item_code === selectedCode.value))
 const labels: Record<string, string> = { Receive: '入库', Issue: '出库 / 发放', Transfer: '转移', Loan: '借出', Return: '归还' }
 async function load(attention = false) { loading.value = true; error.value = ''; try { items.value = await api('inventory', { search: query.value || undefined, needs_attention: attention }) } catch (e: any) { error.value = e.message } finally { loading.value = false } }
-async function boot() { try { const d = await api('bootstrap'); settings.value = {...d.settings,uoms:d.uoms,batch:d.batch}; manager.value=d.is_manager; unfinishedCount.value=d.unfinished_count||0;canWarehouse.value=d.capabilities.Warehouse; warehouses.value = d.warehouses; groups.value = d.item_groups; responsible.value = d.user; setupCompany.value = d.settings.company || ''; await load(); await loadPrograms() } catch (e: any) { error.value = e.message } }
+async function boot() { try { const d = await api('bootstrap'); settings.value = {...d.settings,uoms:d.uoms,batch:d.batch}; manager.value=d.is_manager; unfinishedCount.value=d.unfinished_count||0;canWarehouse.value=d.capabilities.Warehouse; warehouses.value = d.warehouses; groups.value = d.item_groups; responsible.value = d.user; await load(); await loadPrograms() } catch (e: any) { error.value = e.message } }
 async function loadPrograms() { programsLoading.value = true; try { programs.value = await api('lease_programs') } catch (e: any) { error.value = e.message } finally { programsLoading.value = false } }
 function navigate(view = '') { void router.push({ path: '/', query: view ? { view } : {} }) }
 function openMovement(kind: string) { void router.push(`/new/${kind}`) }
@@ -48,7 +48,7 @@ const installPlatform = computed(() => typeof navigator === 'undefined' ? 'other
 const installHelp = computed(() => installInstructions(installPlatform.value))
 async function install() { if (!(await installPwa())) installDialog.value = true }
 
-async function initializeSetup() { loading.value = true; try { await api('setup', { company: setupCompany.value, root_warehouse_name: setupRoot.value }); await boot(); navigate(); notice.value = '库存结构已建立' } catch (e: any) { error.value = e.message } finally { loading.value = false } }
+
 async function openDrawer(kind: any, target: any = null) { drawer.value = kind; drawerTarget.value = target; selectorQuery.value = ''; if (kind === 'item') await loadSelector('search_items'); if (kind === 'warehouse') await loadSelector('search_warehouses') }
 async function loadSelector(method: string, start = 0) { try { const d = await api(method, { search: selectorQuery.value, start, page_length: 30 }); selectorRows.value = d.results; selectorTotal.value = d.total } catch (e: any) { error.value = e.message } }
 function selectDrawer(row: any) { if (drawer.value === 'item') selectedCode.value = row.item_code; else if (drawerTarget.value) drawerTarget.value.warehouse = row.name; else if (movementKind.value === 'Receive') toWarehouse.value = row.name; else fromWarehouse.value = row.name; drawer.value = '' }
@@ -119,12 +119,6 @@ onMounted(boot)
       <div class="page-title"><button @click="stopCamera(); navigate()">‹ 返回</button>
         <h1>扫码</h1>
       </div><p class="empty-state">请将条码置于取景框内；若无法使用摄像头，可在扫描器中手动输入编码。</p><Scanner @scan="lookup" @close="navigate()"/>
-    </section>
-    <section v-else-if="page === 'setup'">
-      <div class="page-title"><button @click="navigate()">‹ 返回</button>
-        <h1>库存设置</h1>
-      </div><label>公司<input v-model="setupCompany"></label><label>寺院根仓库名称<input v-model="setupRoot"></label><button
-        class="primary setup-button" :disabled="loading" @click="initializeSetup">建立库存结构</button>
     </section>
     <div v-if="installDialog" class="modal" role="dialog" aria-modal="true"><section><h2>安装物资管理</h2><p>{{ installHelp }}</p><button class="primary" @click="installDialog = false">知道了</button></section></div>
     <div v-if="drawer" class="drawer-backdrop" @click.self="closeDrawer">

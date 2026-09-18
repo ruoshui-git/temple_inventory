@@ -12,7 +12,16 @@ import frappe
 from frappe.utils import nowdate
 
 from temple_inventory import workspace_api as api
-from temple_inventory.inventory_api import bootstrap, create_uom, inventory, save_allowed_warehouses
+from temple_inventory.inventory_api import (
+	DEFAULT_LOCATION_NAME,
+	bootstrap,
+	create_uom,
+	initialization_status,
+	initialize_warehouses,
+	inventory,
+	repair_settings,
+	save_allowed_warehouses,
+)
 
 SIGNATURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH2kAAAAASUVORK5CYII="
 
@@ -26,6 +35,9 @@ class WorkspaceTests(unittest.TestCase):
 			frappe.db.get_single_value("Temple Inventory Settings", "company")
 			or frappe.get_all("Company", pluck="name")[0]
 		)
+		for warehouse_type in ("Room", "Location"):
+			if not frappe.db.exists("Warehouse Type", warehouse_type):
+				frappe.get_doc({"doctype": "Warehouse Type", "name": warehouse_type}).insert()
 
 		def warehouse(label, parent=None, group=0, typ=None):
 			return (
@@ -103,6 +115,57 @@ class WorkspaceTests(unittest.TestCase):
 		d = self.signed(self.create())
 		self.assertFalse(d["sync_error"], d["sync_error"])
 		return api.confirm_workspace(d["name"], d["revision"])
+
+	def test_initialization_required_and_example_structures(self):
+		settings = frappe.get_single("Temple Inventory Settings")
+		settings.company = self.company
+		settings.root_warehouse = None
+		settings.pending_warehouse = None
+		settings.leased_warehouse = None
+		settings.default_lease_program_warehouse = None
+		settings.damaged_warehouse = None
+		settings.set("allowed_warehouses", [])
+		settings.save()
+		result = initialize_warehouses(self.company, 0)
+		self.assertEqual(result["rooms"], [])
+		status = initialization_status()
+		self.assertFalse(status["blockers"])
+		self.assertIn(DEFAULT_LOCATION_NAME, [row.warehouse_name for row in status["physical_warehouses"]])
+		self.assertTrue(status["allowed_warehouses"])
+		initialize_warehouses(self.company, 1)
+		second = frappe.db.get_value("Warehouse", {"company": self.company, "warehouse_name": "第2寺院"}, "name")
+		self.assertTrue(second)
+		for label in ("A02", "A04", "D03"):
+			self.assertTrue(
+				frappe.db.exists(
+					"Warehouse", {"company": self.company, "warehouse_name": label, "parent_warehouse": second}
+				)
+			)
+
+	def test_repair_settings_enables_batch_and_allowlist(self):
+		initialize_warehouses(self.company, 0)
+		settings = frappe.get_single("Temple Inventory Settings")
+		settings.set("allowed_warehouses", [])
+		settings.save()
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 0)
+		self.assertTrue(initialization_status()["warnings"])
+		repair_settings()
+		self.assertTrue(frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item"))
+		self.assertTrue(frappe.get_single("Temple Inventory Settings").allowed_warehouses)
+
+	def test_initialization_reports_missing_erpnext(self):
+		with patch.object(frappe, "get_installed_apps", return_value=["frappe", "temple_inventory"]):
+			status = initialization_status()
+		self.assertTrue(status["setup_required"])
+		self.assertEqual(status["blockers"][0]["code"], "erpnext")
+
+	def test_initialization_reports_missing_or_ambiguous_company(self):
+		with patch.object(frappe, "get_all", return_value=[]):
+			status = initialization_status()
+		self.assertEqual(status["blockers"][0]["code"], "company")
+		with patch.object(frappe, "get_all", return_value=["One", "Two"]):
+			status = initialization_status()
+		self.assertEqual(status["blockers"][0]["code"], "company_selection")
 
 	def test_incomplete_retry_and_revision(self):
 		token = frappe.generate_hash(length=16)
