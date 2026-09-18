@@ -10,7 +10,9 @@ export async function request(path: string, args: Record<string, unknown> = {}, 
     if (r.status === 401 || body.exc_type === 'AuthenticationError' || body.exc_type === 'CSRFTokenError') sessionExpired.value = true
     let message = body.message || '操作失败'
     try { const messages = JSON.parse(body._server_messages || '[]'); message = messages.map((m: any) => typeof m === 'string' ? JSON.parse(m).message : m.message).join('\n') || message } catch { /* use server message */ }
-    throw new ApiError(String(message).replace(/<[^>]*>/g, ''), r.status, body.exc_type)
+    const clean = String(message).replace(/<[^>]*>/g, '')
+    const translated = clean.includes('MandatoryError') || /Mandatory|mandatory|required/i.test(clean) ? '请填写所有必填字段' : clean.includes('Permission') || /Not permitted|permission denied/i.test(clean) ? '您没有执行此操作的权限' : clean.includes('ValidationError') ? '请检查表单内容' : clean || '操作失败'
+    throw new ApiError(translated, r.status, body.exc_type)
   }
   return body.message
 }
@@ -32,8 +34,16 @@ export const labels: Record<string, string> = { Receive: '入库', Issue: '出�
 export function warehouseLabel(name: string, tree: any[]): string {
   const node = tree.find(w => w.name === name)
   if (!node) return name || '未选择位置'
-  const parent = tree.find(w => w.name === node.parent_warehouse)
-  return parent && parent.warehouse_type === 'Room' ? `${parent.warehouse_name} / ${node.warehouse_name}` : node.warehouse_name
+  const parts = [node.warehouse_name]
+  let parent = tree.find(w => w.name === node.parent_warehouse)
+  const seen = new Set<string>()
+  while (parent && !seen.has(parent.name)) {
+    seen.add(parent.name)
+    if (parent.warehouse_name === '第1寺院' || parent.warehouse_name === '第2寺院') { parts.unshift(parent.warehouse_name); break }
+    if (!parent.is_group || parent.warehouse_type === 'Room') parts.unshift(parent.warehouse_name)
+    parent = tree.find(w => w.name === parent.parent_warehouse)
+  }
+  return parts.join(' / ')
 }
 export function roomFor(name: string, tree: any[]): string {
   let node = tree.find(w => w.name === name)

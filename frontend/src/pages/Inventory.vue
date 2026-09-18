@@ -11,7 +11,7 @@ type Item = { item_code: string; item_name: string; item_group: string; stock_uo
 type Line = { item_code: string; qty: number; uom?: string; warehouse?: string; from_warehouse?: string; to_warehouse?: string }
 const page = ref<'home' | 'inventory' | 'attention' | 'movement' | 'scan' | 'setup' | 'programs'>('home')
 const movementKind = ref('Receive'), items = ref<Item[]>([]), warehouses = ref<any[]>([]), groups = ref<any[]>([]), settings = ref<any>({}), programs = ref<any[]>([])
-const query = ref(''), loading = ref(false), error = ref(''), notice = ref(''), lines = ref<Line[]>([]), selectedCode = ref(''), qty = ref(1), fromWarehouse = ref(''), toWarehouse = ref(''), leaseProgram = ref('')
+const query = ref(''), loading = ref(false), error = ref(''), notice = ref(''), unfinishedCount = ref(0), lines = ref<Line[]>([]), selectedCode = ref(''), qty = ref(1), fromWarehouse = ref(''), toWarehouse = ref(''), leaseProgram = ref('')
 const responsible = ref(''), recipient = ref(''), purpose = ref(''), donor = ref(''), notes = ref(''), signature = ref(''), setupCompany = ref(''), setupRoot = ref('寺院仓库'), programName = ref('')
 const drawer = ref<'item' | 'warehouse' | 'new-item' | 'category' | 'uom' | 'settings' | ''>(''); const drawerTarget = ref<any>(null); const selectorQuery = ref(''); const selectorRows = ref<any[]>([]); const selectorTotal = ref(0); const drawerWidth = ref(480); const showNewItem = ref(false), newName = ref(''), newUom = ref('件'), newGroup = ref(''), newCode = ref(''), newImage = ref<File | undefined>(), newCategory = ref(''), newBarcode = ref(''), newBatchTracking = ref(false)
 const canvas = ref<HTMLCanvasElement>(); const video = ref<HTMLVideoElement>(); let drawing = false; 
@@ -21,7 +21,7 @@ const activeItems = computed(() => items.value.filter(i => !query.value || `${i.
 const selectedItem = computed(() => items.value.find(i => i.item_code === selectedCode.value))
 const labels: Record<string, string> = { Receive: '入库', Issue: '出库 / 发放', Transfer: '转移', Loan: '借出', Return: '归还' }
 async function load(attention = false) { loading.value = true; error.value = ''; try { items.value = await api('inventory', { search: query.value || undefined, needs_attention: attention }) } catch (e: any) { error.value = e.message } finally { loading.value = false } }
-async function boot() { try { const d = await api('bootstrap'); settings.value = {...d.settings,uoms:d.uoms,batch:d.batch}; manager.value=d.is_manager;canWarehouse.value=d.capabilities.Warehouse; warehouses.value = d.warehouses; groups.value = d.item_groups; responsible.value = d.user; setupCompany.value = d.settings.company || ''; await load(); await loadPrograms() } catch (e: any) { error.value = e.message } }
+async function boot() { try { const d = await api('bootstrap'); settings.value = {...d.settings,uoms:d.uoms,batch:d.batch}; manager.value=d.is_manager; unfinishedCount.value=d.unfinished_count||0;canWarehouse.value=d.capabilities.Warehouse; warehouses.value = d.warehouses; groups.value = d.item_groups; responsible.value = d.user; setupCompany.value = d.settings.company || ''; await load(); await loadPrograms() } catch (e: any) { error.value = e.message } }
 async function loadPrograms() { try { programs.value = await api('lease_programs') } catch (e: any) { error.value = e.message } }
 function openMovement(kind: string) { void router.push(`/new/${kind}`) }
 function addLine() { const item = selectedItem.value; if (!item || qty.value <= 0) return; const warehouse = movementKind.value === 'Receive' ? toWarehouse.value : fromWarehouse.value; const existing = lines.value.find(line => line.item_code === item.item_code && line.warehouse === warehouse); if (existing) existing.qty += Number(qty.value); else lines.value.push({ item_code: item.item_code, qty: Number(qty.value), uom: item.stock_uom, warehouse }); selectedCode.value = ''; qty.value = 1 }
@@ -63,7 +63,7 @@ onMounted(boot)
       <h2>借用管理</h2>
       <div class="quick-grid"><button @click="openMovement('Loan')">借出</button><button
           @click="openMovement('Return')">归还</button></div>
-      <div class="home-links"><RouterLink class="selection-row" to="/history">库存记录 / 未完成记录</RouterLink><button @click="page = 'inventory'; load()">查看库存</button><button
+      <div class="home-links"><RouterLink class="selection-row" to="/history">库存记录</RouterLink><RouterLink class="selection-row" to="/history?status=unfinished">未完成记录 <b v-if="unfinishedCount">{{unfinishedCount}}</b></RouterLink><button @click="page = 'inventory'; load()">查看库存</button><button
           @click="page = 'attention'; load(true)">待处理</button><button @click="page = 'scan'; camera()">扫码</button><button
           @click="page = 'programs'; loadPrograms()">借用项目</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div>
     </section>
@@ -115,7 +115,7 @@ onMounted(boot)
       <div class="page-title"><button @click="page = 'home'">‹ 返回</button>
         <h1>借用项目</h1>
       </div>
-      <p>每个项目是 Leased 下可存放物品的子仓库。</p>
+      <p>在此可创建借出物资相关的活动/项目。</p>
       <div v-if="canWarehouse" class="add-line"><input v-model="programName" placeholder="例如：2026 暑期舞蹈"><button
           @click="saveProgram">创建项目</button></div>
       <div v-for="p in programs" :key="p.name" class="line">{{ p.warehouse_name }}</div>

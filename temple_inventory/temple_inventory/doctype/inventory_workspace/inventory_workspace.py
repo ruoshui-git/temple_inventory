@@ -9,4 +9,6 @@ class InventoryWorkspace(Document):
 			frappe.throw("Use the inventory workspace to edit this record", frappe.PermissionError)
 
 	def on_trash(self):
+		if self.flags.workspace_service or self.flags.reset_service:
+			return
 		frappe.throw("Inventory workspaces are retained for audit", frappe.PermissionError)

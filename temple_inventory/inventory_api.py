@@ -18,6 +18,16 @@ MOVEMENT_TYPES = {
 	"Loss": "Material Issue",
 }
 
+SYSTEM_WAREHOUSE_NAMES = {
+	"root_warehouse": "寺院仓库",
+	"pending_warehouse": "无具体位置",
+	"leased_warehouse": "借出",
+	"default_lease_program_warehouse": "无具体项目",
+	"damaged_warehouse": "损坏",
+}
+TEMPLE_NAMES = ("第1寺院", "第2寺院")
+SECOND_TEMPLE_ROOMS = ("A02", "A04", "A14", "B01b", "C01", "C02", "C03", "D01", "D02", "D03")
+
 
 def _loads(value, default=None):
 	return json.loads(value) if isinstance(value, str) else (value if value is not None else default)
@@ -81,6 +91,104 @@ def _allowed_warehouses(settings=None):
 		for row in settings.get("allowed_warehouses", [])
 		if row.warehouse in visible and not visible[row.warehouse].is_group
 	}
+
+
+def _system_warehouse_names(settings=None):
+	settings = settings or _settings()
+	return {name for field in SYSTEM_WAREHOUSE_NAMES if (name := settings.get(field))}
+
+
+def _physical_warehouses(settings=None):
+	settings = settings or _settings()
+	visible = _visible_warehouses(settings)
+	system = _system_warehouse_names(settings)
+	leased = visible.get(settings.leased_warehouse)
+	return {
+		name: row
+		for name, row in visible.items()
+		if not row.is_group
+		and name not in system
+		and not (leased and row.lft >= leased.lft and row.rgt <= leased.rgt)
+	}
+
+
+def _physical_tree(settings=None):
+	settings = settings or _settings()
+	visible = _visible_warehouses(settings)
+	physical = _physical_warehouses(settings)
+	keep = set(physical)
+	for name, row in visible.items():
+		if row.warehouse_name in TEMPLE_NAMES:
+			keep.add(name)
+		parent = row.parent_warehouse
+		while parent and parent in visible:
+			if parent in keep:
+				break
+			if visible[parent].warehouse_name in TEMPLE_NAMES:
+				keep.add(parent)
+			break
+			parent = visible[parent].parent_warehouse
+	return {name: row for name, row in visible.items() if name in keep}
+
+
+def _warehouse_by_label(label, company, parent=None):
+	filters = {"warehouse_name": label, "company": company}
+	if parent:
+		filters["parent_warehouse"] = parent
+	return frappe.db.get_value("Warehouse", filters, "name")
+
+
+def _ensure_warehouse(label, company, parent=None, is_group=0, warehouse_type=None):
+	name = _warehouse_by_label(label, company, parent)
+	if name:
+		doc = frappe.get_doc("Warehouse", name)
+		changed = False
+		if int(doc.is_group or 0) != int(is_group):
+			doc.is_group = is_group
+			changed = True
+		if warehouse_type is not None and doc.warehouse_type != warehouse_type:
+			doc.warehouse_type = warehouse_type
+			changed = True
+		if changed:
+			doc.save(ignore_permissions=True)
+		return name
+	doc = frappe.get_doc({
+		"doctype": "Warehouse", "warehouse_name": label, "company": company,
+		"parent_warehouse": parent, "is_group": is_group, "warehouse_type": warehouse_type,
+	}).insert(ignore_permissions=True)
+	return doc.name
+
+
+def ensure_seed_structure(company=None):
+	"""Create the fixed temple structure without touching unrelated ERPNext data."""
+	company = company or frappe.db.get_single_value("Temple Inventory Settings", "company")
+	if not company:
+		company = frappe.get_all("Company", pluck="name", limit_page_length=1)[0]
+	root = _ensure_warehouse("寺院仓库", company, is_group=1)
+	_ensure_warehouse("第1寺院", company, root, is_group=1)
+	second = _ensure_warehouse("第2寺院", company, root, is_group=1)
+	for label in SECOND_TEMPLE_ROOMS:
+		_ensure_warehouse(label, company, second, warehouse_type="Room")
+	pending = _ensure_warehouse("无具体位置", company, root)
+	leased = _ensure_warehouse("借出", company, root, is_group=1)
+	default = _ensure_warehouse("无具体项目", company, leased)
+	damaged = _ensure_warehouse("损坏", company, root)
+	settings = _settings()
+	settings.company = company
+	settings.root_warehouse = root
+	settings.pending_warehouse = pending
+	settings.leased_warehouse = leased
+	settings.default_lease_program_warehouse = default
+	settings.damaged_warehouse = damaged
+	settings.set("allowed_warehouses", [])
+	for label in SECOND_TEMPLE_ROOMS:
+		settings.append("allowed_warehouses", {"warehouse": _warehouse_by_label(label, company, second)})
+	settings.save(ignore_permissions=True)
+	roles = {root: "寺院仓库", pending: "无具体位置", leased: "借出", default: "无具体项目", damaged: "损坏"}
+	if frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
+		for name, role in roles.items():
+			frappe.db.set_value("Warehouse", name, "ti_system_role", role, update_modified=False)
+	return {"root": root, "company": company, "rooms": list(SECOND_TEMPLE_ROOMS)}
 
 
 def _page(rows, page_length=30, start=0):
@@ -172,50 +280,94 @@ def _validate_movement_warehouses(payload, settings):
 
 
 @frappe.whitelist()
+def _sync_system_roles(settings):
+	if not settings.company or not frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
+		return
+	changed = False
+	for field, label in SYSTEM_WAREHOUSE_NAMES.items():
+		names = frappe.get_all("Warehouse", filters={"company": settings.company, "ti_system_role": label}, pluck="name", limit_page_length=2)
+		if len(names) == 1 and settings.get(field) != names[0]:
+			settings.set(field, names[0])
+			changed = True
+	if changed:
+		settings.save(ignore_permissions=True)
+
+
+@frappe.whitelist()
+def readiness():
+	if frappe.session.user == "Guest":
+		return {"ready": False, "can_repair": False, "issues": [{"code": "login", "message": "请先登录"}]}
+	settings = _settings()
+	_sync_system_roles(settings)
+	issues = []
+	if not settings.company or not frappe.db.exists("Company", settings.company):
+		issues.append({"code": "company", "message": "尚未配置公司"})
+	visible = _visible_warehouses(settings) if settings.company else {}
+	for field, label in SYSTEM_WAREHOUSE_NAMES.items():
+		name = settings.get(field)
+		if not name or name not in visible:
+			issues.append({"code": field, "message": f"缺少系统仓库：{label}"})
+	room_names = {row.warehouse_name for row in visible.values()}
+	for label in TEMPLE_NAMES:
+		if label not in room_names:
+			issues.append({"code": "temple", "message": f"缺少寺院：{label}"})
+	for label in SECOND_TEMPLE_ROOMS:
+		row = next((r for r in visible.values() if r.warehouse_name == label), None)
+		if not row or row.is_group or row.warehouse_type != "Room":
+			issues.append({"code": "room", "message": f"第2寺院房间配置不完整：{label}"})
+	if not frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item"):
+		issues.append({"code": "batch", "message": "尚未启用批次功能"})
+	physical = _physical_warehouses(settings)
+	allowed = _allowed_warehouses(settings)
+	if not physical or not set(physical).intersection(allowed):
+		issues.append({"code": "allowed_warehouses", "message": "尚未配置可操作的实体仓库"})
+	if not frappe.has_permission("Stock Entry", "read"):
+		issues.append({"code": "permission", "message": "当前用户没有库存读取权限"})
+	return {"ready": not issues, "can_repair": "System Manager" in frappe.get_roles(), "issues": issues}
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_readiness(company=None):
+	_require_manager()
+	result = ensure_seed_structure(company)
+	stock = frappe.get_single("Stock Settings")
+	if not stock.enable_serial_and_batch_no_for_item:
+		stock.enable_serial_and_batch_no_for_item = 1
+		stock.save(ignore_permissions=True)
+	return {"structure": result, "readiness": readiness()}
+
+
+@frappe.whitelist()
 def bootstrap():
 	_require_stock()
 	settings = _settings()
 	groups = frappe.get_list(
 		"Item Group", filters={"is_group": 0}, fields=["name", "item_group_name"], limit_page_length=0
 	)
-	setup_required = not settings.root_warehouse
 	batch_enabled = frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item")
-	batch_error = (
-		None
-		if batch_enabled
-		else _("Ask an administrator to enable Serial / Batch No for Item in Stock Settings.")
-	)
+	visible = _visible_warehouses(settings)
+	physical = _physical_warehouses(settings)
+	unfinished_count = frappe.db.sql(
+		"""select count(*) from `tabInventory Workspace` iw
+		left join `tabStock Entry` se on se.name = iw.stock_entry
+		where iw.company=%s and (iw.stock_entry is null or se.docstatus=0)""",
+		settings.company,
+	)[0][0]
 	return {
 		"user": frappe.session.user,
 		"is_manager": "System Manager" in frappe.get_roles(),
-		"capabilities": {
-			dt: frappe.has_permission(dt, "create")
-			for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")
-		},
-		"warehouse_tree": list(_visible_warehouses(settings).values()),
-		"setup_required": setup_required,
-		"batch": {
-			"enabled": bool(batch_enabled),
-			"error": batch_error,
-			"settings_url": "/app/stock-settings",
-		},
-		"settings": {
-			key: settings.get(key)
-			for key in (
-				"company",
-				"root_warehouse",
-				"pending_warehouse",
-				"leased_warehouse",
-				"default_lease_program_warehouse",
-				"damaged_warehouse",
-				"photo_required",
-			)
-		},
+		"readiness": readiness(),
+		"unfinished_count": unfinished_count,
+		"capabilities": {dt: frappe.has_permission(dt, "create") for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")},
+		"warehouse_tree": list(visible.values()),
+		"physical_warehouses": list(physical.values()),
+		"physical_tree": list(_physical_tree(settings).values()),
+		"setup_required": not settings.root_warehouse,
+		"batch": {"enabled": bool(batch_enabled), "error": None if batch_enabled else "请在库存设置中启用批次功能", "settings_url": "/app/stock-settings"},
+		"settings": {key: settings.get(key) for key in set(SYSTEM_WAREHOUSE_NAMES) | {"company", "photo_required"}},
 		"warehouses": list(_allowed_warehouses(settings).values()),
 		"item_groups": groups,
-		"uoms": frappe.get_list(
-			"UOM", fields=["name", "uom_name"], order_by="uom_name", limit_page_length=100
-		),
+		"uoms": frappe.get_list("UOM", fields=["name", "uom_name"], order_by="uom_name", limit_page_length=100),
 	}
 
 
@@ -577,84 +729,9 @@ def outstanding_loans():
 
 
 @frappe.whitelist()
-def setup(company, root_warehouse_name):
+def setup(company=None, root_warehouse_name=None):
 	_require_manager()
-	if not company or not root_warehouse_name:
-		frappe.throw(_("Company and temple root warehouse are required"))
-	settings = _settings()
-	settings.company = company
-	root = frappe.get_doc(
-		{"doctype": "Warehouse", "warehouse_name": root_warehouse_name, "company": company, "is_group": 1}
-	)
-	root.insert(ignore_if_duplicate=True, ignore_permissions=False)
-	root_name = frappe.db.get_value(
-		"Warehouse", {"warehouse_name": root_warehouse_name, "company": company}, "name"
-	)
-	settings.root_warehouse = root_name
-	for label, field, group in (
-		("待确认位置", "pending_warehouse", 0),
-		("Leased", "leased_warehouse", 1),
-		("Damaged", "damaged_warehouse", 0),
-	):
-		name = frappe.db.get_value("Warehouse", {"warehouse_name": label, "company": company}, "name")
-		if not name:
-			name = (
-				frappe.get_doc(
-					{
-						"doctype": "Warehouse",
-						"warehouse_name": label,
-						"company": company,
-						"parent_warehouse": root_name,
-						"is_group": group,
-					}
-				)
-				.insert(ignore_permissions=False)
-				.name
-			)
-		elif frappe.db.get_value("Warehouse", name, "parent_warehouse") != root_name:
-			frappe.throw(_("A warehouse named {0} already exists outside this temple root").format(label))
-		elif group and not frappe.db.get_value("Warehouse", name, "is_group"):
-			if frappe.db.get_value("Bin", {"warehouse": name, "actual_qty": ("!=", 0)}):
-				frappe.throw(
-					_("Existing Leased warehouse contains stock. Move it first, then run setup again.")
-				)
-			doc = frappe.get_doc("Warehouse", name)
-			doc.is_group = 1
-			doc.save()
-		settings.set(field, name)
-	default = frappe.db.get_value(
-		"Warehouse",
-		{
-			"warehouse_name": "General Lease",
-			"company": company,
-			"parent_warehouse": settings.leased_warehouse,
-		},
-		"name",
-	)
-	if not default:
-		default = (
-			frappe.get_doc(
-				{
-					"doctype": "Warehouse",
-					"warehouse_name": "General Lease",
-					"company": company,
-					"parent_warehouse": settings.leased_warehouse,
-					"is_group": 0,
-				}
-			)
-			.insert(ignore_permissions=False)
-			.name
-		)
-	settings.default_lease_program_warehouse = default
-	if not settings.allowed_warehouses:
-		for name in (settings.pending_warehouse, settings.damaged_warehouse, default):
-			settings.append("allowed_warehouses", {"warehouse": name})
-	settings.save()
-	return {
-		"root_warehouse": root_name,
-		"leased_warehouse": settings.leased_warehouse,
-		"default_lease_program_warehouse": default,
-	}
+	return ensure_seed_structure(company)
 
 
 @frappe.whitelist(methods=["GET", "POST"])

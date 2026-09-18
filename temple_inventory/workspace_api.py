@@ -12,7 +12,7 @@ from erpnext.stock.doctype.batch.batch import get_batch_qty
 from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
-from frappe.utils import cint, flt, getdate, nowdate, nowtime
+from frappe.utils import cint, flt, getdate, nowdate, nowtime, get_time
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
@@ -84,7 +84,11 @@ def _payload(doc):
 	p = {**{key: doc.get(key) for key in META}, **_loads(doc.state_json, {})}
 	for key in ("posting_date", "posting_time"):
 		if p.get(key) is not None:
-			p[key] = str(p[key])
+			if key == "posting_time":
+				t = get_time(p[key])
+				p[key] = t.strftime("%H:%M:%S")
+			else:
+				p[key] = str(p[key])
 	return p
 
 
@@ -465,14 +469,35 @@ def batches(item_code, warehouse=None):
 	return rows
 
 
+@frappe.whitelist(methods=["POST"])
+def delete_draft(name):
+	doc = _get(name, write=True, lock=True)
+	if _status(doc):
+		frappe.throw("已完成的记录不能删除")
+	if doc.stock_entry:
+		entry = frappe.get_doc("Stock Entry", doc.stock_entry)
+		if entry.docstatus:
+			frappe.throw("已提交的库存记录不能删除")
+		entry.flags.workspace_service = True
+		entry.delete(ignore_permissions=True)
+	for file_name in frappe.get_all("File", filters={"attached_to_doctype": doc.doctype, "attached_to_name": doc.name}, pluck="name"):
+		frappe.delete_doc("File", file_name, ignore_permissions=True, force=True)
+	frappe.delete_doc(doc.doctype, doc.name, ignore_permissions=True, force=True)
+	return {"deleted": True, "name": name}
+
+
 @frappe.whitelist()
-def activities(search=None):
+def activities(search=None, status=None, activity_type=None, start=0, page_length=100):
 	_require_stock()
+	filters = {"title": ("like", f"%{search or ''}%")}
+	if status:
+		filters["status"] = status
+	if activity_type:
+		filters["activity_type"] = activity_type
 	return frappe.get_list(
-		"Inventory Activity",
-		filters={"title": ("like", f"%{search or ''}%")},
+		"Inventory Activity", filters=filters,
 		fields=["name", "title", "status", "activity_type", "start_date", "end_date"],
-		limit_page_length=100,
+		limit_start=int(start or 0), limit_page_length=min(int(page_length or 100), 100),
 		order_by="modified desc",
 	)
 
@@ -531,10 +556,14 @@ def remove_attachment(name, file_name):
 
 
 @frappe.whitelist()
-def history(filters=None, start=0, page_length=30):
+def history(filters=None, start=0, page_length=30, status_group="all"):
 	_require_stock()
 	f = _loads(filters, {})
 	allowed = _visible_warehouses()
+	if status_group == "unfinished":
+		f["docstatus"] = "0"
+	elif status_group == "completed":
+		f["docstatus"] = {"in": [1, 2]}
 	results = []
 	linked = set()
 	for row in frappe.get_list(
@@ -581,12 +610,12 @@ def history(filters=None, start=0, page_length=30):
 		for key in ("movement_kind", "source_type", "activity", "responsible_person", "purpose"):
 			if f.get(key) and r.get(key) != f[key]:
 				return False
-		if (
-			f.get("docstatus") is not None
-			and str(f["docstatus"]) != ""
-			and r["docstatus"] != cint(f["docstatus"])
-		):
-			return False
+		if f.get("docstatus") is not None and f.get("docstatus") != "":
+			if isinstance(f["docstatus"], dict):
+				if r["docstatus"] not in f["docstatus"].get("in", []):
+					return False
+			elif r["docstatus"] != cint(f["docstatus"]):
+				return False
 		for key in ("donor_source", "recipient"):
 			if f.get(key) and f[key].lower() not in (r.get(key) or "").lower():
 				return False
@@ -615,7 +644,10 @@ def history(filters=None, start=0, page_length=30):
 		return True
 
 	rows = sorted((r for r in results if matches(r)), key=lambda r: r["modified"], reverse=True)
-	return _page(rows, page_length, start)
+	page = _page(rows, page_length, start)
+	if status_group != "unfinished":
+		page["unfinished_count"] = sum(1 for r in results if r["docstatus"] == 0)
+	return page
 
 
 def _from_entry(doc):

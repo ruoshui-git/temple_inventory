@@ -106,5 +106,16 @@
     "insert_after": "ti_loan_reference",
     "module": "Temple Inventory",
     "name": "Stock Entry-ti_signature"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Warehouse",
+    "fieldname": "ti_system_role",
+    "fieldtype": "Select",
+    "label": "物资管理系统用途",
+    "options": "\\n寺院仓库\\n无具体位置\\n借出\\n无具体项目\\n损坏",
+    "insert_after": "warehouse_type",
+    "module": "Temple Inventory",
+    "name": "Warehouse-ti_system_role"
   }
 ]

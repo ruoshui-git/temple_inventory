@@ -14,6 +14,8 @@ website_route_rules = [
 	{"from_route": "/inventory/<path:app_path>", "to_route": "inventory"},
 ]
 
+after_migrate = ["temple_inventory.deployment.after_migrate"]
+
 fixtures = [
 	{"dt": "Custom Field", "filters": [["module", "=", "Temple Inventory"]]},
 ]
