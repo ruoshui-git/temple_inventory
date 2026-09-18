@@ -37,7 +37,7 @@ add_to_apps_screen = [
 		"logo": "/assets/temple_inventory/logo.png",
 		"title": "物资管理",
 		"route": "/inventory",
-		"has_permission": "temple_inventory.api.permission.has_app_permission"
+		"has_permission": "temple_inventory.api.has_app_permission"
 	}
 ]
 
@@ -68,10 +68,11 @@ add_to_apps_screen = [
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
+
 # Svg Icons
 # ------------------
 # include app icons in desk
-app_include_icons = "temple_inventory/public/icons.svg"
+# app_include_icons = "temple_inventory/public/logo.png"
 
 # Home Pages
 # ----------
