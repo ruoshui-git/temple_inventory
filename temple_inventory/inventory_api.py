@@ -159,21 +159,67 @@ def _ensure_warehouse(label, company, parent=None, is_group=0, warehouse_type=No
 	return doc.name
 
 
-def ensure_seed_structure(company=None):
-	"""Create the fixed temple structure without touching unrelated ERPNext data."""
+def _company_or_throw(company=None):
 	company = company or frappe.db.get_single_value("Temple Inventory Settings", "company")
 	if not company:
-		company = frappe.get_all("Company", pluck="name", limit_page_length=1)[0]
+		company = frappe.db.get_value("Company", {}, "name")
+	if not company or not frappe.db.exists("Company", company):
+		frappe.throw(_("Create an ERPNext Company before initializing inventory"))
+	return company
+
+
+def _set_system_roles(settings, names):
+	if not frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
+		return
+	for name, role in names.items():
+		frappe.db.set_value("Warehouse", name, "ti_system_role", role, update_modified=False)
+
+
+def ensure_system_structure(company=None):
+	"""Repair only mandatory system warehouses; preserve optional rooms and permissions."""
+	company = _company_or_throw(company)
+	settings = _settings()
+	root = _ensure_warehouse("寺院仓库", company, is_group=1)
+	pending = _ensure_warehouse("无具体位置", company, root)
+	leased = _ensure_warehouse("借出", company, root, is_group=1)
+	default = _ensure_warehouse("无具体项目", company, leased)
+	damaged = _ensure_warehouse("损坏", company, root)
+	settings.company = company
+	settings.root_warehouse = root
+	settings.pending_warehouse = pending
+	settings.leased_warehouse = leased
+	settings.default_lease_program_warehouse = default
+	settings.damaged_warehouse = damaged
+	settings.save(ignore_permissions=True)
+	_set_system_roles(
+		settings,
+		{
+			root: "寺院仓库",
+			pending: "无具体位置",
+			leased: "借出",
+			default: "无具体项目",
+			damaged: "损坏",
+		},
+	)
+	return {"root": root, "company": company, "rooms": []}
+
+
+def ensure_seed_structure(company=None):
+	"""Create the starter template exactly once during explicit first-time setup."""
+	company = _company_or_throw(company)
+	settings = _settings()
+	if getattr(settings, "initial_seed_completed", 0):
+		return ensure_system_structure(company)
 	root = _ensure_warehouse("寺院仓库", company, is_group=1)
 	_ensure_warehouse("第1寺院", company, root, is_group=1)
 	second = _ensure_warehouse("第2寺院", company, root, is_group=1)
 	for label in SECOND_TEMPLE_ROOMS:
 		_ensure_warehouse(label, company, second, warehouse_type="Room")
+
 	pending = _ensure_warehouse("无具体位置", company, root)
 	leased = _ensure_warehouse("借出", company, root, is_group=1)
 	default = _ensure_warehouse("无具体项目", company, leased)
 	damaged = _ensure_warehouse("损坏", company, root)
-	settings = _settings()
 	settings.company = company
 	settings.root_warehouse = root
 	settings.pending_warehouse = pending
@@ -183,11 +229,18 @@ def ensure_seed_structure(company=None):
 	settings.set("allowed_warehouses", [])
 	for label in SECOND_TEMPLE_ROOMS:
 		settings.append("allowed_warehouses", {"warehouse": _warehouse_by_label(label, company, second)})
+	settings.set("initial_seed_completed", 1)
 	settings.save(ignore_permissions=True)
-	roles = {root: "寺院仓库", pending: "无具体位置", leased: "借出", default: "无具体项目", damaged: "损坏"}
-	if frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
-		for name, role in roles.items():
-			frappe.db.set_value("Warehouse", name, "ti_system_role", role, update_modified=False)
+	_set_system_roles(
+		settings,
+		{
+			root: "寺院仓库",
+			pending: "无具体位置",
+			leased: "借出",
+			default: "无具体项目",
+			damaged: "损坏",
+		},
+	)
 	return {"root": root, "company": company, "rooms": list(SECOND_TEMPLE_ROOMS)}
 
 
@@ -300,36 +353,46 @@ def readiness():
 	settings = _settings()
 	_sync_system_roles(settings)
 	issues = []
-	if not settings.company or not frappe.db.exists("Company", settings.company):
-		issues.append({"code": "company", "message": "尚未配置公司"})
-	visible = _visible_warehouses(settings) if settings.company else {}
-	for field, label in SYSTEM_WAREHOUSE_NAMES.items():
-		name = settings.get(field)
-		if not name or name not in visible:
-			issues.append({"code": field, "message": f"缺少系统仓库：{label}"})
-	room_names = {row.warehouse_name for row in visible.values()}
-	for label in TEMPLE_NAMES:
-		if label not in room_names:
-			issues.append({"code": "temple", "message": f"缺少寺院：{label}"})
-	for label in SECOND_TEMPLE_ROOMS:
-		row = next((r for r in visible.values() if r.warehouse_name == label), None)
-		if not row or row.is_group or row.warehouse_type != "Room":
-			issues.append({"code": "room", "message": f"第2寺院房间配置不完整：{label}"})
-	if not frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item"):
-		issues.append({"code": "batch", "message": "尚未启用批次功能"})
-	physical = _physical_warehouses(settings)
-	allowed = _allowed_warehouses(settings)
-	if not physical or not set(physical).intersection(allowed):
-		issues.append({"code": "allowed_warehouses", "message": "尚未配置可操作的实体仓库"})
+	company_valid = bool(settings.company and frappe.db.exists("Company", settings.company))
+	if not company_valid:
+		issues.append({"code": "company", "message": "请先在 ERPNext 创建并选择公司"})
+	if company_valid and not getattr(settings, "initial_seed_completed", 0):
+		issues.append({"code": "setup", "message": "请在库存设置中建立初始仓库结构"})
+	visible = _visible_warehouses(settings) if company_valid else {}
+	if company_valid and getattr(settings, "initial_seed_completed", 0):
+		for field, label in SYSTEM_WAREHOUSE_NAMES.items():
+			name = settings.get(field)
+			if not name or name not in visible:
+				issues.append({"code": field, "message": f"缺少系统仓库：{label}"})
+	if company_valid:
+		if not frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item"):
+			issues.append({"code": "batch", "message": "尚未启用批次功能"})
+		physical = _physical_warehouses(settings)
+		allowed = _allowed_warehouses(settings)
+		if not physical or not set(physical).intersection(allowed):
+			issues.append({"code": "allowed_warehouses", "message": "尚未配置可操作的实体仓库"})
 	if not frappe.has_permission("Stock Entry", "read"):
 		issues.append({"code": "permission", "message": "当前用户没有库存读取权限"})
-	return {"ready": not issues, "can_repair": "System Manager" in frappe.get_roles(), "issues": issues}
+	can_repair = (
+		"System Manager" in frappe.get_roles()
+		and company_valid
+		and bool(getattr(settings, "initial_seed_completed", 0))
+	)
+	return {
+		"ready": not issues,
+		"can_repair": can_repair,
+		"setup_required": company_valid and not getattr(settings, "initial_seed_completed", 0),
+		"issues": issues,
+	}
 
 
 @frappe.whitelist(methods=["POST"])
 def repair_readiness(company=None):
 	_require_manager()
-	result = ensure_seed_structure(company)
+	settings = _settings()
+	if not getattr(settings, "initial_seed_completed", 0):
+		frappe.throw(_("Run initial inventory setup before repairing the warehouse structure"))
+	result = ensure_system_structure(company)
 	stock = frappe.get_single("Stock Settings")
 	if not stock.enable_serial_and_batch_no_for_item:
 		stock.enable_serial_and_batch_no_for_item = 1
@@ -362,7 +425,12 @@ def bootstrap():
 		"warehouse_tree": list(visible.values()),
 		"physical_warehouses": list(physical.values()),
 		"physical_tree": list(_physical_tree(settings).values()),
-		"setup_required": not settings.root_warehouse,
+		"setup_required": not getattr(settings, "initial_seed_completed", 0),
+		"companies": (
+			frappe.get_all("Company", pluck="name", limit_page_length=0)
+			if "System Manager" in frappe.get_roles()
+			else []
+		),
 		"batch": {"enabled": bool(batch_enabled), "error": None if batch_enabled else "请在库存设置中启用批次功能", "settings_url": "/app/stock-settings"},
 		"settings": {key: settings.get(key) for key in set(SYSTEM_WAREHOUSE_NAMES) | {"company", "photo_required"}},
 		"warehouses": list(_allowed_warehouses(settings).values()),
@@ -731,6 +799,9 @@ def outstanding_loans():
 @frappe.whitelist()
 def setup(company=None, root_warehouse_name=None):
 	_require_manager()
+	settings = _settings()
+	if getattr(settings, "initial_seed_completed", 0):
+		return ensure_system_structure(company)
 	return ensure_seed_structure(company)
 
 

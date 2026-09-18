@@ -24,7 +24,7 @@
 
 4. 原 Notion 单位不创建为 ERPNext UOM，而是追加到物品名称：
    绿色古风裙裤(男) + 套 -> 绿色古风裙裤(男)（套）
-   ERPNext Stock UOM 统一使用 Nos。
+   ERPNext Stock UOM 统一使用自定义单位“数量”，并允许小数。
 
 5. 原 Notion 编号 A01/B01/C01/D01... 保存到“旧物品编号”。
 
@@ -83,7 +83,7 @@ from frappe.utils.file_manager import save_file
 # ---------------------------------------------------------------------------
 
 ITEM_CODE_SERIES = "ITM-.######"
-DEFAULT_STOCK_UOM = "Nos"
+DEFAULT_STOCK_UOM = "数量"
 
 ROOT_ITEM_GROUP = "寺院物资"
 PERFORMANCE_PARENT_GROUP = "演出用品"
@@ -233,15 +233,25 @@ def _ensure_custom_fields():
 
 def _ensure_standard_stock_uom(stock_uom: str = DEFAULT_STOCK_UOM):
     """
-    所有演出用品统一使用一个 ERPNext 标准库存单位。
-    原 Notion 的“套/件/盒/双……”只保留在物品名称中，
-    不创建新的 UOM 主数据。
+    所有演出用品统一使用自定义库存单位“数量”。
+
+    原 Notion 的“套/件/盒/双……”只保留在物品名称中。
+    “数量”允许小数，用于支持例如 9.5 双这类真实库存情况。
     """
-    if not frappe.db.exists("UOM", stock_uom):
-        frappe.throw(
-            f"找不到统一库存单位 UOM：{stock_uom}。"
-            "建议使用 ERPNext 默认的 Nos；请先确认该 UOM 存在。"
-        )
+    if frappe.db.exists("UOM", stock_uom):
+        doc = frappe.get_doc("UOM", stock_uom)
+        if cint(doc.must_be_whole_number):
+            doc.must_be_whole_number = 0
+            doc.save(ignore_permissions=True)
+        return
+
+    frappe.get_doc(
+        {
+            "doctype": "UOM",
+            "uom_name": stock_uom,
+            "must_be_whole_number": 0,
+        }
+    ).insert(ignore_permissions=True)
 
 
 def _append_source_uom_to_name(item_name: str, source_uom: str) -> str:
@@ -518,17 +528,34 @@ def _create_opening_stock_reconciliation(
                 "warehouse": warehouse,
                 "qty": qty,
                 "valuation_rate": flt(default_valuation_rate),
+                "allow_zero_valuation_rate": 1,
             }
         )
 
     if not items:
         return None
 
+    temporary_opening_account = frappe.db.get_value(
+        "Account",
+        {
+            "company": company,
+            "account_name": "Temporary Opening",
+            "is_group": 0,
+        },
+        "name",
+    )
+
+    if not temporary_opening_account:
+        frappe.throw(
+            f"找不到公司 {company} 的 Temporary Opening 账户。"
+        )
+
     doc = frappe.get_doc(
         {
             "doctype": "Stock Reconciliation",
             "company": company,
-            "purpose": "Stock Reconciliation",
+            "purpose": "Opening Stock",
+            "expense_account": temporary_opening_account,
             "posting_date": nowdate(),
             "items": items,
             "remarks": (
@@ -669,22 +696,27 @@ def run(
             {_clean(r.get("uom")) for r in source_rows if _clean(r.get("uom"))}
         )
         standard_uom_exists = bool(frappe.db.exists("UOM", DEFAULT_STOCK_UOM))
+        standard_uom_allows_fraction = (
+            not cint(frappe.db.get_value("UOM", DEFAULT_STOCK_UOM, "must_be_whole_number"))
+            if standard_uom_exists
+            else None
+        )
 
         result = {
-            "status": "dry-run-ok" if standard_uom_exists else "dry-run-error",
+            "status": "dry-run-ok",
             "source_rows": len(source_rows),
             "manifest_rows": len(manifest_rows),
             "item_groups": TYPE_TO_ITEM_GROUP,
             "warehouse": f"{SITE_WAREHOUSE_LABEL} / {ROOM_WAREHOUSE_LABEL}",
             "stock_uom": DEFAULT_STOCK_UOM,
             "stock_uom_exists": standard_uom_exists,
+            "stock_uom_allows_fraction": standard_uom_allows_fraction,
             "source_uoms_preserved_in_item_name": source_uoms,
+            "note": (
+                "正式导入时，如“数量”UOM不存在会自动创建；"
+                "如已存在但设置为必须整数，会自动改为允许小数。"
+            ),
         }
-
-        if not standard_uom_exists:
-            frappe.throw(
-                f"dry-run 失败：找不到统一库存单位 {DEFAULT_STOCK_UOM}。"
-            )
         frappe.msgprint(frappe.as_json(result, indent=2))
         return result
 
