@@ -904,18 +904,6 @@ def outstanding_loan_items():
 
 
 
-@frappe.whitelist(methods=["POST"])
-def start_sample_install(company=None):
-	_require_manager()
-	from temple_inventory.sample_install import enqueue_sample_install
-	return enqueue_sample_install(company or _settings().company)
-
-@frappe.whitelist()
-def sample_install_status():
-	_require_manager()
-	settings=_settings()
-	return {"status":settings.sample_data_status or "Not Installed", "version":settings.sample_data_version, "error":settings.sample_data_error}
-
 
 @frappe.whitelist(methods=["GET", "POST"])
 def session_info():

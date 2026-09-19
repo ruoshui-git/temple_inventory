@@ -31,3 +31,34 @@ Pre-commit is configured to use the following tools for checking and formatting 
 ### License
 
 mit
+
+### Development sample reset
+
+For a disposable development site only, rebuild the complete site database and load
+all Temple Inventory sample catalog, opening stock, images, and representative
+inventory movements:
+
+```bash
+./apps/temple_inventory/scripts/reset-development-samples --site development.localhost
+```
+
+The command requires `developer_mode=1` and an exact `RESET <site>` confirmation.
+It permanently removes all database records, does not create a backup, and must
+never be used on a production site. Progress, server errors, and tracebacks are
+shown directly in the terminal and written to `logs/temple-sample-reset-*.log`.
+
+### Development sample merge
+
+To add missing sample Items, images, warehouses, zero-balance opening stock, and
+production-style sample movements to an existing development site, run this
+non-whitelisted function from `bench console`:
+
+```python
+from temple_inventory.setup.merge_sample_data import run
+report = run(company="Org")
+```
+
+The merge requires `developer_mode=1`, runs as Administrator, preserves existing
+non-zero balances and primary images, and prints/returns a structured
+`completed` or `completed_with_errors` report. It is not exposed in Desk, HTTP,
+or background jobs.

@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Recreate a disposable Frappe site, then synchronously install Temple Inventory samples.
+set -Eeuo pipefail
+
+usage() {
+	cat <<'USAGE'
+Usage: reset-development-samples --site SITE [options]
+
+This permanently erases the complete SITE database. It is only for developer_mode sites.
+
+Options:
+  --site SITE                 Required exact site name.
+  --company NAME              Default: Org
+  --abbr ABBR                 Default: O
+  --country COUNTRY           Default: United States
+  --currency CURRENCY         Default: USD
+  --chart-of-accounts NAME    Default: Standard
+  --fiscal-year-start DATE    Default: current-year-01-01
+  --fiscal-year-end DATE      Default: current-year-12-31
+  -h, --help                  Show this help.
+USAGE
+}
+
+site=""
+company="Org"
+abbr="O"
+country="United States"
+currency="USD"
+chart_of_accounts="Standard"
+current_year=$(date -u +%Y)
+fiscal_year_start="${current_year}-01-01"
+fiscal_year_end="${current_year}-12-31"
+
+while (($#)); do
+	case "$1" in
+		--site) site=${2:?--site requires a value}; shift 2 ;;
+		--company) company=${2:?--company requires a value}; shift 2 ;;
+		--abbr) abbr=${2:?--abbr requires a value}; shift 2 ;;
+		--country) country=${2:?--country requires a value}; shift 2 ;;
+		--currency) currency=${2:?--currency requires a value}; shift 2 ;;
+		--chart-of-accounts) chart_of_accounts=${2:?--chart-of-accounts requires a value}; shift 2 ;;
+		--fiscal-year-start) fiscal_year_start=${2:?--fiscal-year-start requires a value}; shift 2 ;;
+		--fiscal-year-end) fiscal_year_end=${2:?--fiscal-year-end requires a value}; shift 2 ;;
+		-h|--help) usage; exit 0 ;;
+		*) printf '未知参数：%s\n' "$1" >&2; usage >&2; exit 2 ;;
+	esac
+done
+
+if [[ ! "$site" =~ ^[A-Za-z0-9.-]+$ ]]; then
+	printf '%s\n' '必须通过 --site 指定一个准确、不含通配符的站点名称。' >&2
+	exit 2
+fi
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+bench_root=$(cd -- "$script_dir/../../.." && pwd)
+bench="$bench_root/bench"
+python="$bench_root/env/bin/python"
+site_config="$bench_root/sites/$site/site_config.json"
+
+if [[ ! -x "$bench" || ! -x "$python" || ! -f "$site_config" ]]; then
+	printf '%s\n' '无法定位 Bench、Python 环境或指定站点配置。' >&2
+	exit 2
+fi
+
+printf '目标站点：%s\n' "$site"
+PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.assert_development_site
+
+cat <<WARNING
+
+警告：此操作将永久删除站点 ${site} 的整个数据库。
+其中包括用户、公司、系统设置、库存、业务记录和所有其他数据库数据。
+此命令仅用于 disposable 的开发站点；不会自动创建备份，也不会删除站点文件目录。
+WARNING
+read -r -p "输入 RESET ${site} 继续：" confirmation
+if [[ "$confirmation" != "RESET $site" ]]; then
+	printf '%s\n' '确认文本不匹配；没有执行任何破坏性操作。' >&2
+	exit 1
+fi
+
+log_dir="$bench_root/logs"
+mkdir -p "$log_dir"
+log_file="$log_dir/temple-sample-reset-$(date -u +%Y%m%dT%H%M%SZ).log"
+kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end")
+
+run_reset() {
+	printf '[temple-sample] 数据库重装：开始\n'
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes
+	printf '[temple-sample] 数据库重装：完成\n'
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs"
+}
+
+set +e
+run_reset 2>&1 | tee "$log_file"
+status=${PIPESTATUS[0]}
+set -e
+printf '完整输出已保存到：%s\n' "$log_file"
+exit "$status"

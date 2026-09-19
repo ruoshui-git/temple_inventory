@@ -8,8 +8,6 @@ const error = ref('')
 const notice = ref('')
 const allowed = ref<string[]>([])
 const fresh = ref({ warehouse_name: '', parent_warehouse: '', warehouse_type: '房间', is_group: false })
-const sampleBusy = ref(false)
-async function installSamples() { sampleBusy.value = true; try { await api('start_sample_install', { company: boot.value.settings.company }); notice.value = '样例数据安装已排队'; await load() } catch (e: any) { error.value = e.message } finally { sampleBusy.value = false } }
 
 async function load() {
   try {
@@ -43,7 +41,7 @@ onMounted(load)
     <p v-if="notice" class="notice">{{ notice }}</p>
     <LoadingIndicator v-if="!boot && !error" text="正在加载设置…" />
     <template v-else-if="boot?.is_manager">
-      <h2>完整样例数据</h2><p>仅可在没有库存流水和业务记录的站点安装。</p><button class="primary" :disabled="sampleBusy || boot?.settings.sample_data_status === 'Installing'" @click="installSamples">{{sampleBusy ? '正在排队…' : `安装完整样例数据（${boot?.settings.sample_data_status || '未安装'}）`}}</button><h2>房间与位置</h2>
+      <h2>房间与位置</h2>
       <p>分类不会改变仓库层级或库存。只有叶子仓库可以存放物品。</p>
       <article v-for="warehouse in boot.warehouse_tree" :key="warehouse.name" class="selection-row">
         <b>{{ warehouseLabel(warehouse.name, boot.warehouse_tree) }} {{ warehouse.is_group ? '（组）' : '' }}</b>
