@@ -5,14 +5,13 @@ const tree=[{name:'root',warehouse_name:'寺院仓库',is_group:1,lft:1,rgt:8},{
 const item={item_code:'RICE',item_name:'大米',item_group:'食品',stock_uom:'Nos',has_batch_no:false,uoms:[],stock:[{warehouse:'shelf',actual_qty:8}],total_stock:8,available_stock:8,history:[]}
 const boot={user:'volunteer@example.invalid',is_manager:true,capabilities:{Item:true,UOM:true,Batch:true,'Inventory Activity':true,Warehouse:true},settings:{company:'Temple',root_warehouse:'root',pending_warehouse:'shelf'},warehouse_tree:tree,warehouses:tree.filter(w=>!w.is_group),item_groups:[{name:'食品',item_group_name:'食品'}],uoms:[{name:'Nos',uom_name:'Nos'}],batch:{enabled:true}}
 test.beforeEach(async({page})=>{
- let workspace:any={name:'IW-test',revision:1,docstatus:0,stock_entry:null,sync_error:'',attachments:[],data:{movement_kind:'Receive',posting_date:'2026-09-17',posting_time:'12:00:00',source_type:'Donation',responsible_person:boot.user,signature:'',notes:'',items:[],sections:[]}}
+ let workspace:any={name:'IW-test',revision:1,docstatus:0,stock_entry:null,sync_error:'',attachments:[],data:{movement_kind:'Receive',posting_date:'2026-09-17',posting_time:'12:00:00',source_text:'Donation',responsible_person:boot.user,recorder_signature:'',notes:'',items:[],sections:[]}}
  await page.route('**/api/method/**',async route=>{
   const method=route.request().url().split('.').pop();let args:any={};try{args=route.request().postDataJSON()||{}}catch{}
   let result:any
   switch(method){
    case 'bootstrap':result=boot;break
    case 'inventory':result=[];break
-   case 'lease_programs':result=[];break
    case 'responsible_people':result=[{name:boot.user,full_name:'王某'}];break
    case 'activities':result=[];break
    case 'create_workspace':workspace={...workspace,data:args.data,revision:workspace.revision+1};result=workspace;break
@@ -32,20 +31,20 @@ test.beforeEach(async({page})=>{
 test('mobile receiving retains state through item selection, autosaves and confirms',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  await page.goto('/inventory/new/Receive');await expect(page.getByRole('heading',{name:'入库',exact:true})).toBeVisible()
- await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await page.getByLabel('捐赠人 / 来源').fill('张三')
+ await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await page.getByLabel('来源').fill('张三');await page.getByLabel('无独立鉴证人').check()
  await page.getByRole('button',{name:'＋添加物品',exact:true}).click()
  await page.getByRole('button',{name:/大米/}).click()
  await page.getByRole('dialog',{name:'数量与位置'}).getByRole('spinbutton').fill('3')
  await page.getByRole('button',{name:'添加',exact:true}).click()
  await expect(page.getByText('3 Nos',{exact:false})).toBeVisible()
  await expect(page.getByRole('status')).toHaveText('✓ 已保存');await expect(page).toHaveURL(/\/inventory\/workspace\/IW-test$/)
- await page.reload();await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await expect(page.getByLabel('捐赠人 / 来源')).toHaveValue('张三');await expect(page.getByText('3 Nos',{exact:false})).toBeVisible()
+ await page.reload();await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await expect(page.getByLabel('来源')).toHaveValue('张三');await expect(page.getByText('3 Nos',{exact:false})).toBeVisible()
  await page.getByLabel('手写签名').scrollIntoViewIfNeeded();const box=await page.getByLabel('手写签名').boundingBox();await page.mouse.move(box!.x+20,box!.y+30);await page.mouse.down();await page.mouse.move(box!.x+130,box!.y+70,{steps:5});await page.mouse.up()
  await page.getByRole('button',{name:'查看确认摘要'}).click();await expect(page.getByText('✓ 已签名',{exact:true})).toBeVisible();await page.getByRole('button',{name:'确认入库',exact:true}).click();await expect(page.getByRole('status')).toHaveText('已完成 ✓');expect(errors).toEqual([])
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
 })
 test('unknown scanned code prefills inline creation and preserves donor',async({page})=>{
- await page.goto('/inventory/new/Receive');await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await page.getByLabel('捐赠人 / 来源').fill('张三');await page.getByRole('button',{name:'▣ 连续扫码'}).click();await page.getByLabel('条码 / 编号 / 扫码枪').fill('999999');await page.getByRole('button',{name:'查找',exact:true}).click();await expect(page.getByRole('heading',{name:'创建新物品'})).toBeVisible();await expect(page.getByLabel('条码',{exact:true})).toHaveValue('999999');await page.getByRole('button',{name:'×',exact:true}).click();await expect(page.getByLabel('捐赠人 / 来源')).toHaveValue('张三')
+ await page.goto('/inventory/new/Receive');await page.getByRole('button',{name:'添加详细信息',exact:true}).click();await page.getByLabel('来源').fill('张三');await page.getByLabel('无独立鉴证人').check();await page.getByRole('button',{name:'▣ 连续扫码'}).click();await page.getByLabel('条码 / 编号 / 扫码枪').fill('999999');await page.getByRole('button',{name:'查找',exact:true}).click();await expect(page.getByRole('heading',{name:'创建新物品'})).toBeVisible();await expect(page.getByLabel('条码',{exact:true})).toHaveValue('999999');await page.getByRole('button',{name:'×',exact:true}).click();await expect(page.getByLabel('来源')).toHaveValue('张三')
 })
 test('real Framework scanner decodes camera frames without BarcodeDetector',async({page})=>{
  test.skip(!process.env.SCAN_VIDEO,'Set SCAN_VIDEO to a Y4M containing barcode 6931234567890')

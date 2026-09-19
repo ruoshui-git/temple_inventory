@@ -24,6 +24,7 @@ doc_events = {
 	"Stock Entry": {
 		"before_submit": "temple_inventory.stock.validate_stock_entry_submission",
 		"before_validate": "temple_inventory.stock.protect_workspace_entry",
+		"on_cancel": "temple_inventory.stock.propagate_stock_entry_cancellation",
 	}
 }
 

@@ -17,14 +17,20 @@ MOVEMENT_TYPES = {
 	"Return": "Material Transfer",
 	"Damage": "Material Transfer",
 	"Loss": "Material Issue",
+	"Repair": "Material Transfer",
+	"Disposal": "Material Issue",
 }
 
 SYSTEM_WAREHOUSE_NAMES = {
 	"root_warehouse": "寺院仓库",
-	"pending_warehouse": "无具体位置",
+	"pending_warehouse": "未定位",
 	"leased_warehouse": "借出",
-	"default_lease_program_warehouse": "无具体项目",
-	"damaged_warehouse": "损坏",
+	"default_lease_program_warehouse": "借出",
+	"damaged_warehouse": "损坏待处理",
+	"virtual_root_warehouse": "虚拟库房",
+	"physical_root_warehouse": "实体库房",
+	"loan_warehouse": "借出",
+	"unlocated_warehouse": "未定位",
 }
 DEFAULT_LOCATION_NAME = "未分类库位"
 TEMPLE_NAMES = ("第1寺院", "第2寺院")
@@ -116,7 +122,7 @@ def _system_warehouse_names(settings=None):
 def _physical_warehouses(settings=None):
 	settings = settings or _settings()
 	visible = _visible_warehouses(settings)
-	system = _system_warehouse_names(settings)
+	system = _system_warehouse_names(settings) - {settings.get("unlocated_warehouse") or settings.get("pending_warehouse")}
 	leased = visible.get(settings.leased_warehouse)
 	return {
 		name: row
@@ -190,6 +196,11 @@ def _ensure_warehouse(label, company, parent=None, is_group=0, warehouse_type=No
 	if name:
 		doc = frappe.get_doc("Warehouse", name)
 		changed = False
+		if frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
+			valid_roles = set((frappe.db.get_value("Custom Field", "Warehouse-ti_system_role", "options") or "").splitlines())
+			if doc.get("ti_system_role") and doc.ti_system_role not in valid_roles:
+				doc.ti_system_role = None
+				changed = True
 		for field, value in (
 			("parent_warehouse", parent),
 			("is_group", is_group),
@@ -230,23 +241,20 @@ def _ensure_warehouse(label, company, parent=None, is_group=0, warehouse_type=No
 def _resolve_system_warehouses(company, settings=None):
 	settings = settings or _settings()
 	rows = _warehouse_map(company)
-	for row in rows.values():
-		row["ti_system_role"] = frappe.db.get_value("Warehouse", row.name, "ti_system_role")
-	names = {}
-	root = settings.root_warehouse if settings.root_warehouse in rows else None
-	root = root or _find_role_warehouse(rows, SYSTEM_WAREHOUSE_NAMES["root_warehouse"])
-	root = root or _find_label_warehouse(rows, SYSTEM_WAREHOUSE_NAMES["root_warehouse"])
-	names["root_warehouse"] = root
-	for field in ("pending_warehouse", "leased_warehouse", "damaged_warehouse"):
-		name = settings.get(field) if settings.get(field) in rows else None
-		name = name or _find_role_warehouse(rows, SYSTEM_WAREHOUSE_NAMES[field])
-		name = name or _find_label_warehouse(rows, SYSTEM_WAREHOUSE_NAMES[field], root)
-		names[field] = name
-	field = "default_lease_program_warehouse"
-	name = settings.get(field) if settings.get(field) in rows else None
-	name = name or _find_role_warehouse(rows, SYSTEM_WAREHOUSE_NAMES[field])
-	name = name or _find_label_warehouse(rows, SYSTEM_WAREHOUSE_NAMES[field], names["leased_warehouse"])
-	names[field] = name
+	for row in rows.values(): row["ti_system_role"] = frappe.db.get_value("Warehouse", row.name, "ti_system_role")
+	def find(field, label, parent=None):
+		configured=settings.get(field)
+		return configured if configured in rows else (_find_role_warehouse(rows,label) or _find_label_warehouse(rows,label,parent))
+	names={}
+	names["root_warehouse"] = find("root_warehouse", "寺院仓库")
+	names["virtual_root_warehouse"] = find("virtual_root_warehouse", "虚拟库房", names["root_warehouse"])
+	names["physical_root_warehouse"] = find("physical_root_warehouse", "实体库房", names["root_warehouse"])
+	names["loan_warehouse"] = find("loan_warehouse", "借出", names["virtual_root_warehouse"])
+	names["leased_warehouse"] = names["loan_warehouse"] or find("leased_warehouse", "借出", names["root_warehouse"])
+	names["damaged_warehouse"] = find("damaged_warehouse", "损坏待处理", names["virtual_root_warehouse"]) or find("damaged_warehouse", "损坏", names["root_warehouse"])
+	names["unlocated_warehouse"] = find("unlocated_warehouse", "未定位", names["virtual_root_warehouse"]) or find("pending_warehouse", "未定位", names["root_warehouse"])
+	names["pending_warehouse"] = names["unlocated_warehouse"]
+	names["default_lease_program_warehouse"] = names["loan_warehouse"]
 	return names, rows
 
 
@@ -254,7 +262,7 @@ def _physical_leaves(rows, names):
 	root, leased = rows.get(names.get("root_warehouse")), rows.get(names.get("leased_warehouse"))
 	if not root:
 		return {}
-	system = {name for name in names.values() if name}
+	system = {name for name in names.values() if name} - {names.get("unlocated_warehouse") or names.get("pending_warehouse")}
 	return {
 		name: row
 		for name, row in rows.items()
@@ -284,37 +292,41 @@ def _allow_warehouses(settings, warehouses):
 
 
 def _ensure_warehouse_types():
-	for name in ("Room", "Location"):
+	for name in ("地点", "房间", "库位", "虚拟"):
 		if not frappe.db.exists("Warehouse Type", name):
 			frappe.get_doc({"doctype": "Warehouse Type", "name": name}).insert(ignore_permissions=True)
 
 
 def _create_structure(company, include_examples=False):
+	"""Create the canonical warehouse tree; safe to run repeatedly on a clean site."""
 	_ensure_warehouse_types()
 	settings = _settings()
 	rows = _warehouse_map(company)
-	root = _ensure_warehouse("寺院仓库", company, is_group=1, role="寺院仓库", rows=rows)
-	pending = _ensure_warehouse("无具体位置", company, root, role="无具体位置", rows=rows)
-	leased = _ensure_warehouse("借出", company, root, is_group=1, role="借出", rows=rows)
-	default = _ensure_warehouse("无具体项目", company, leased, role="无具体项目", rows=rows)
-	damaged = _ensure_warehouse("损坏", company, root, role="损坏", rows=rows)
-	default_location = _ensure_warehouse(DEFAULT_LOCATION_NAME, company, root, warehouse_type="Room", rows=rows)
-	names = {
-		"root_warehouse": root,
-		"pending_warehouse": pending,
-		"leased_warehouse": leased,
-		"default_lease_program_warehouse": default,
-		"damaged_warehouse": damaged,
-	}
+	root = _ensure_warehouse("寺院仓库", company, is_group=1, rows=rows)
+	virtual = _ensure_warehouse("虚拟库房", company, root, is_group=1, warehouse_type="虚拟", rows=rows)
+	loan = _ensure_warehouse("借出", company, virtual, warehouse_type="虚拟", rows=rows)
+	damaged = _ensure_warehouse("损坏待处理", company, virtual, warehouse_type="虚拟", rows=rows)
+	unlocated = _ensure_warehouse("未定位", company, virtual, warehouse_type="虚拟", rows=rows)
+	physical = _ensure_warehouse("实体库房", company, root, is_group=1, warehouse_type="地点", rows=rows)
+	names = {"root_warehouse":root, "virtual_root_warehouse":virtual, "physical_root_warehouse":physical,
+		"leased_warehouse":loan, "default_lease_program_warehouse":loan, "loan_warehouse":loan,
+		"damaged_warehouse":damaged, "unlocated_warehouse":unlocated, "pending_warehouse":unlocated}
 	_save_system_links(settings, company, names)
-	allowed = [default_location]
+	allowed=[]
 	if include_examples:
-		_ensure_warehouse("第1寺院", company, root, is_group=1, rows=rows)
-		second = _ensure_warehouse("第2寺院", company, root, is_group=1, rows=rows)
-		for label in SECOND_TEMPLE_ROOMS:
-			allowed.append(_ensure_warehouse(label, company, second, warehouse_type="Room", rows=rows))
+		for site in TEMPLE_NAMES:
+			site_name = _ensure_warehouse(site, company, physical, is_group=1, warehouse_type="地点", rows=rows)
+			if site == "第2寺院":
+				for room in SECOND_TEMPLE_ROOMS:
+					room_name = _ensure_warehouse(room, company, site_name, is_group=1, warehouse_type="房间", rows=rows)
+					allowed.append(_ensure_warehouse(f"{room} / 未指定", company, room_name, warehouse_type="库位", rows=rows))
+			else:
+				allowed.append(_ensure_warehouse(f"{site} / 未指定", company, site_name, warehouse_type="库位", rows=rows))
+	else:
+		default_site = _ensure_warehouse("第1寺院", company, physical, is_group=1, warehouse_type="地点", rows=rows)
+		allowed.append(_ensure_warehouse("第1寺院 / 未指定", company, default_site, warehouse_type="库位", rows=rows))
 	_allow_warehouses(settings, allowed)
-	return {"company": company, "root": root, "rooms": list(SECOND_TEMPLE_ROOMS) if include_examples else []}
+	return {"company":company, "root":root, "rooms":list(SECOND_TEMPLE_ROOMS) if include_examples else []}
 
 
 @frappe.whitelist()
@@ -446,14 +458,18 @@ def _item_code():
 def _entry_fields(payload):
 	return {
 		"ti_movement_kind": payload["movement_kind"],
-		"ti_source_type": payload.get("source_type"),
-		"ti_donor_source": payload.get("donor_source"),
-		"ti_purpose": payload.get("purpose"),
+		"ti_source_text": payload.get("source_text"),
+		"ti_purpose_text": payload.get("purpose_text"),
 		"ti_activity": payload.get("activity"),
-		"ti_recipient": payload.get("recipient"),
+		"ti_borrower": payload.get("borrower"),
 		"ti_responsible_person": payload.get("responsible_person") or frappe.session.user,
-		"ti_loan_reference": payload.get("loan_reference"),
-		"ti_signature": payload.get("signature"),
+		"ti_recorder_signature": payload.get("recorder_signature"),
+		"ti_reviewer_name": payload.get("reviewer_name"),
+		"ti_no_independent_reviewer": payload.get("no_independent_reviewer"),
+		"ti_workspace": payload.get("workspace"),
+		"ti_loan": payload.get("loan_record"),
+		"ti_return": payload.get("return_record"),
+		"ti_loss": payload.get("loss_record"),
 		"remarks": payload.get("notes"),
 	}
 
@@ -469,7 +485,7 @@ def _entry_items(payload):
 		}
 		if movement == "Receive":
 			item["t_warehouse"] = row.get("warehouse") or payload.get("to_warehouse")
-		elif movement in {"Issue", "Loss"}:
+		elif movement in {"Issue", "Loss", "Disposal"}:
 			item["s_warehouse"] = row.get("warehouse") or payload.get("from_warehouse")
 		else:
 			item["s_warehouse"] = row.get("from_warehouse") or payload.get("from_warehouse")
@@ -488,7 +504,7 @@ def _validate_movement_warehouses(payload, settings):
 			("t_warehouse",)
 			if movement == "Receive"
 			else ("s_warehouse",)
-			if movement in {"Issue", "Loss"}
+			if movement in {"Issue", "Loss", "Disposal"}
 			else ("s_warehouse", "t_warehouse")
 		)
 		for field in fields:
@@ -693,6 +709,44 @@ def search_warehouses(search=None, start=0, page_length=30):
 
 
 @frappe.whitelist()
+def resolve_room_leaf(room):
+    """Resolve a Room group to its canonical <Room> / 未指定 leaf."""
+    _require_stock()
+    room = (room or "").strip()
+    if not room:
+        frappe.throw(_("Room is required"))
+    visible = _visible_warehouses()
+    doc = visible.get(room) or next(
+        (row for row in visible.values() if row.warehouse_name == room),
+        None,
+    )
+    if not doc:
+        frappe.throw(_("Room is outside the temple inventory structure"), frappe.PermissionError)
+    if not doc.is_group:
+        if doc.name in _allowed_warehouses():
+            return {"room": doc.name, "warehouse": doc.name}
+        frappe.throw(_("Choose a warehouse inside the temple inventory structure"), frappe.PermissionError)
+    preferred = next(
+        (
+            row for row in visible.values()
+            if row.parent_warehouse == doc.name
+            and not row.is_group
+            and row.warehouse_name == f"{doc.warehouse_name} / 未指定"
+        ),
+        None,
+    )
+    leaf = preferred or next(
+        (row for row in visible.values() if row.parent_warehouse == doc.name and not row.is_group),
+        None,
+    )
+    if not leaf:
+        frappe.throw(_("Room has no default leaf warehouse"))
+    if leaf.name not in _allowed_warehouses():
+        frappe.throw(_("Room default leaf is not allowed"), frappe.PermissionError)
+    return {"room": doc.name, "warehouse": leaf.name}
+
+
+@frappe.whitelist()
 def search_uoms(search=None, start=0, page_length=30):
 	_require_stock()
 	rows = frappe.get_list("UOM", fields=["name", "uom_name"], order_by="uom_name")
@@ -835,103 +889,32 @@ def set_item_image(item_code, image):
 
 
 @frappe.whitelist()
-def lease_programs():
+def outstanding_loan_items():
 	_require_stock()
-	settings = _settings()
-	if not settings.leased_warehouse:
-		return []
-	return [
-		row
-		for row in _allowed_warehouses(settings).values()
-		if row.parent_warehouse == settings.leased_warehouse
-	]
+	rows=[]
+	for loan in frappe.get_all("Inventory Loan", filters={"docstatus":1}, fields=["name","posting_datetime","borrower","activity"]):
+		for item in frappe.get_all("Inventory Loan Item", filters={"parent":loan.name,"parenttype":"Inventory Loan"}, fields=["name","item_code","qty","uom","batch_no","original_warehouse","activity"]):
+			returned = frappe.db.sql("""select coalesce(sum(ri.qty),0) from `tabInventory Return Item` ri join `tabInventory Return` r on r.name=ri.parent where r.docstatus=1 and ri.loan_item=%s and ri.outcome='Returned'""", item.name)[0][0]
+			damaged = frappe.db.sql("""select coalesce(sum(ri.qty),0) from `tabInventory Return Item` ri join `tabInventory Return` r on r.name=ri.parent where r.docstatus=1 and ri.loan_item=%s and ri.outcome='Damaged'""", item.name)[0][0]
+			lost = frappe.db.sql("""select coalesce(sum(li.qty),0) from `tabInventory Loss Item` li join `tabInventory Loss` l on l.name=li.parent where l.docstatus=1 and li.original_loan_item=%s""", item.name)[0][0]
+			outstanding=flt(item.qty)-flt(returned)-flt(damaged)-flt(lost)
+			if outstanding>0:
+				rows.append({"loan":loan.name,"loan_item":item.name,"item_code":item.item_code,"batch_no":item.batch_no,"uom":item.uom,"activity":item.activity or loan.activity,"borrower":loan.borrower,"original_warehouse":item.original_warehouse,"loan_date":loan.posting_datetime,"loaned":item.qty,"returned":returned,"damaged":damaged,"lost":lost,"outstanding":outstanding})
+	return rows
 
+
+
+@frappe.whitelist(methods=["POST"])
+def start_sample_install(company=None):
+	_require_manager()
+	from temple_inventory.sample_install import enqueue_sample_install
+	return enqueue_sample_install(company or _settings().company)
 
 @frappe.whitelist()
-def save_lease_program(name, warehouse=None):
-	_require_stock()
-	settings, name = _settings(), (name or "").strip()
-	if not settings.leased_warehouse or not name:
-		frappe.throw(_("Set up leased programs and provide a program name first"))
-	if warehouse:
-		doc = frappe.get_doc("Warehouse", warehouse)
-		if doc.parent_warehouse != settings.leased_warehouse:
-			frappe.throw(_("Only direct lease programs can be changed here"))
-		doc.warehouse_name = name
-		doc.save()
-	else:
-		doc = frappe.get_doc(
-			{
-				"doctype": "Warehouse",
-				"warehouse_name": name,
-				"company": settings.company,
-				"parent_warehouse": settings.leased_warehouse,
-				"is_group": 0,
-			}
-		)
-		doc.insert()
-	return {"name": doc.name, "warehouse_name": doc.warehouse_name}
-
-
-@frappe.whitelist()
-def save_movement(data, submit=False):
-	from temple_inventory.workspace_api import confirm_workspace, create_workspace, save_workspace
-
-	payload = _loads(data, {})
-	if payload.get("workspace"):
-		result = save_workspace(payload["workspace"], payload["revision"], payload)
-	else:
-		result = create_workspace(
-			payload.get("request_id") or frappe.generate_hash(length=32),
-			payload.get("movement_kind"),
-			payload,
-		)
-	if frappe.utils.cint(submit):
-		result = confirm_workspace(result["name"], result["revision"])
-	return {
-		"name": result.get("stock_entry") or result["name"],
-		"workspace": result["name"],
-		"revision": result["revision"],
-		"docstatus": result["docstatus"],
-	}
-
-
-@frappe.whitelist()
-def outstanding_loans():
-	_require_stock()
-	loans = frappe.get_list(
-		"Stock Entry",
-		filters={"docstatus": 1, "ti_movement_kind": "Loan"},
-		fields=["name", "posting_date", "ti_recipient", "ti_purpose", "ti_responsible_person"],
-		order_by="posting_date desc",
-	)
-	outcomes = frappe.get_list(
-		"Stock Entry",
-		filters={"docstatus": 1, "ti_loan_reference": ("is", "set")},
-		fields=["name", "ti_loan_reference"],
-	)
-	outcome_ids = {row.name: row.ti_loan_reference for row in outcomes}
-	rows = frappe.get_all(
-		"Stock Entry Detail",
-		filters={"parent": ("in", list(outcome_ids) or [""])},
-		fields=["parent", "item_code", "qty"],
-	)
-	resolved = defaultdict(lambda: defaultdict(float))
-	for row in rows:
-		resolved[outcome_ids[row.parent]][row.item_code] += row.qty
-	result = []
-	for loan in loans:
-		loan_rows = frappe.get_all(
-			"Stock Entry Detail", filters={"parent": loan.name}, fields=["item_code", "qty", "uom"]
-		)
-		remaining = [
-			{"item_code": row.item_code, "qty": row.qty - resolved[loan.name][row.item_code], "uom": row.uom}
-			for row in loan_rows
-		]
-		remaining = [row for row in remaining if row["qty"] > 0]
-		if remaining:
-			result.append({**loan, "items": remaining})
-	return result
+def sample_install_status():
+	_require_manager()
+	settings=_settings()
+	return {"status":settings.sample_data_status or "Not Installed", "version":settings.sample_data_version, "error":settings.sample_data_error}
 
 
 @frappe.whitelist(methods=["GET", "POST"])
@@ -947,7 +930,7 @@ def configure_warehouse(
 	_require_manager()
 	settings = _settings()
 	visible = _visible_warehouses(settings)
-	if warehouse_type not in ("Room", "Location", ""):
+	if warehouse_type not in ("地点", "房间", "库位", "虚拟", "Room", "Location", ""):
 		frappe.throw(_("Choose Room or Location"))
 	if warehouse:
 		if warehouse not in visible:
@@ -968,4 +951,6 @@ def configure_warehouse(
 				"is_group": frappe.utils.cint(is_group),
 			}
 		).insert()
+		if warehouse_type == "房间" and frappe.utils.cint(is_group):
+			frappe.get_doc({"doctype":"Warehouse","warehouse_name":f"{warehouse_name} / 未指定","parent_warehouse":doc.name,"company":settings.company,"warehouse_type":"库位","is_group":0}).insert()
 	return {"name": doc.name}

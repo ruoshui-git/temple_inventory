@@ -15,7 +15,7 @@
     "fieldname": "ti_movement_kind",
     "fieldtype": "Select",
     "label": "Temple Movement",
-    "options": "Receive\nIssue\nTransfer\nLoan\nReturn\nDamage\nLoss",
+    "options": "Receive\nIssue\nTransfer\nLoan\nReturn\nDamage\nLoss\nRepair\nDisposal",
     "insert_after": "ti_section",
     "module": "Temple Inventory",
     "in_list_view": 1,
@@ -24,33 +24,22 @@
   {
     "doctype": "Custom Field",
     "dt": "Stock Entry",
-    "fieldname": "ti_source_type",
-    "fieldtype": "Select",
-    "label": "Source Type",
-    "options": "\nDonation\nPurchase\nReturned\nInternal\nOther",
+    "fieldname": "ti_source_text",
+    "fieldtype": "Data",
+    "label": "来源",
     "insert_after": "ti_movement_kind",
     "module": "Temple Inventory",
-    "name": "Stock Entry-ti_source_type"
+    "name": "Stock Entry-ti_source_text"
   },
   {
     "doctype": "Custom Field",
     "dt": "Stock Entry",
-    "fieldname": "ti_donor_source",
+    "fieldname": "ti_purpose_text",
     "fieldtype": "Data",
-    "label": "Donor / Source",
-    "insert_after": "ti_source_type",
+    "label": "用途",
+    "insert_after": "ti_source_text",
     "module": "Temple Inventory",
-    "name": "Stock Entry-ti_donor_source"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Entry",
-    "fieldname": "ti_purpose",
-    "fieldtype": "Data",
-    "label": "Purpose",
-    "insert_after": "ti_donor_source",
-    "module": "Temple Inventory",
-    "name": "Stock Entry-ti_purpose"
+    "name": "Stock Entry-ti_purpose_text"
   },
   {
     "doctype": "Custom Field",
@@ -59,7 +48,7 @@
     "fieldtype": "Link",
     "label": "Inventory Activity",
     "options": "Inventory Activity",
-    "insert_after": "ti_purpose",
+    "insert_after": "ti_purpose_text",
     "module": "Temple Inventory",
     "in_list_view": 1,
     "name": "Stock Entry-ti_activity"
@@ -67,12 +56,12 @@
   {
     "doctype": "Custom Field",
     "dt": "Stock Entry",
-    "fieldname": "ti_recipient",
+    "fieldname": "ti_borrower",
     "fieldtype": "Data",
-    "label": "Recipient / Borrower",
+    "label": "借用方",
     "insert_after": "ti_activity",
     "module": "Temple Inventory",
-    "name": "Stock Entry-ti_recipient"
+    "name": "Stock Entry-ti_borrower"
   },
   {
     "doctype": "Custom Field",
@@ -81,31 +70,39 @@
     "fieldtype": "Link",
     "label": "Responsible Person",
     "options": "User",
-    "insert_after": "ti_recipient",
+    "insert_after": "ti_borrower",
     "module": "Temple Inventory",
     "name": "Stock Entry-ti_responsible_person"
   },
   {
     "doctype": "Custom Field",
     "dt": "Stock Entry",
-    "fieldname": "ti_loan_reference",
-    "fieldtype": "Link",
-    "label": "Loan Reference",
-    "options": "Stock Entry",
+    "fieldname": "ti_recorder_signature",
+    "fieldtype": "Signature",
+    "label": "记录人签名",
     "insert_after": "ti_responsible_person",
     "module": "Temple Inventory",
-    "in_list_view": 1,
-    "name": "Stock Entry-ti_loan_reference"
+    "name": "Stock Entry-ti_recorder_signature"
   },
   {
     "doctype": "Custom Field",
     "dt": "Stock Entry",
-    "fieldname": "ti_signature",
-    "fieldtype": "Signature",
-    "label": "Signature",
-    "insert_after": "ti_loan_reference",
+    "fieldname": "ti_reviewer_name",
+    "fieldtype": "Data",
+    "label": "鉴证人",
+    "insert_after": "ti_recorder_signature",
     "module": "Temple Inventory",
-    "name": "Stock Entry-ti_signature"
+    "name": "Stock Entry-ti_reviewer_name"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_no_independent_reviewer",
+    "fieldtype": "Check",
+    "label": "无独立鉴证人",
+    "insert_after": "ti_reviewer_name",
+    "module": "Temple Inventory",
+    "name": "Stock Entry-ti_no_independent_reviewer"
   },
   {
     "doctype": "Custom Field",
@@ -113,9 +110,49 @@
     "fieldname": "ti_system_role",
     "fieldtype": "Select",
     "label": "物资管理系统用途",
-    "options": "\\n寺院仓库\\n无具体位置\\n借出\\n无具体项目\\n损坏",
+    "options": "寺院仓库\n虚拟库房\n实体库房\n借出\n损坏待处理\n未定位\n库位\n无具体位置\n无具体项目\n损坏",
     "insert_after": "warehouse_type",
     "module": "Temple Inventory",
     "name": "Warehouse-ti_system_role"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_workspace",
+    "fieldtype": "Link",
+    "label": "Inventory Workspace",
+    "insert_after": "ti_movement_kind",
+    "options": "Inventory Workspace",
+    "name": "Stock Entry-ti_workspace"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_loan",
+    "fieldtype": "Link",
+    "label": "Inventory Loan",
+    "insert_after": "ti_workspace",
+    "options": "Inventory Loan",
+    "name": "Stock Entry-ti_loan"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_return",
+    "fieldtype": "Link",
+    "label": "Inventory Return",
+    "insert_after": "ti_loan",
+    "options": "Inventory Return",
+    "name": "Stock Entry-ti_return"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_loss",
+    "fieldtype": "Link",
+    "label": "Inventory Loss",
+    "insert_after": "ti_return",
+    "options": "Inventory Loss",
+    "name": "Stock Entry-ti_loss"
   }
 ]

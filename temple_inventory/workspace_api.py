@@ -30,17 +30,24 @@ META = (
 	"movement_kind",
 	"posting_date",
 	"posting_time",
-	"source_type",
-	"donor_source",
-	"purpose",
-	"recipient",
+	"source_text",
+	"purpose_text",
+	"borrower",
 	"activity",
 	"responsible_person",
-	"loan_reference",
 	"notes",
-	"signature",
+	"recorder_signature",
+	"reviewer_name",
+	"borrower_same_as_reviewer",
+	"no_independent_reviewer",
+	"reviewer_note",
+	"reviewer_signature",
+	"recorded_by",
+	"loan_record",
+	"return_record",
+	"loss_record",
 )
-STATE = ("items", "sections", "from_warehouse", "to_warehouse", "lease_program_warehouse", "posting_time_mode")
+STATE = ("items", "sections", "from_warehouse", "to_warehouse", "posting_time_mode")
 
 
 def _get(name, write=False, lock=False):
@@ -95,6 +102,9 @@ def _payload(doc):
 
 def _put(doc, data):
 	data = _loads(data, {})
+	# The creator is immutable; clients cannot reassign the audit owner.
+	data["recorded_by"] = doc.recorded_by or frappe.session.user
+
 	if data.get("movement_kind", doc.movement_kind) != doc.movement_kind:
 		frappe.throw(_("Movement type cannot change"))
 	old = _payload(doc)
@@ -118,15 +128,16 @@ def _put(doc, data):
 			row.pop("from_warehouse", None)
 			row.pop("to_warehouse", None)
 	# An old signature cannot be carried forward to changed transaction contents.
-	if doc.signature and any(old.get(key) != new.get(key) for key in (*META, *STATE) if key != "signature"):
-		new["signature"] = ""
+	if doc.recorder_signature and any(old.get(key) != new.get(key) for key in (*META, *STATE) if key != "recorder_signature"):
+		new["recorder_signature"] = ""
+		new["reviewer_signature"] = ""
 	for key in META:
 		doc.set(key, new[key])
 	doc.state_json = json.dumps({key: new[key] for key in STATE}, ensure_ascii=False)
 	if len(doc.state_json) > 1_000_000:
 		frappe.throw(_("Transaction is too large"))
-	if doc.signature and (
-		not doc.signature.startswith("data:image/png;base64,") or len(doc.signature) > 500_000
+	if doc.recorder_signature and (
+		not doc.recorder_signature.startswith("data:image/png;base64,") or len(doc.recorder_signature) > 500_000
 	):
 		frappe.throw(_("Invalid signature image"))
 	# Enforce access even for incomplete drafts, before storing JSON.
@@ -140,14 +151,11 @@ def _put(doc, data):
 	for section in new.get("sections", []):
 		if section.get("warehouse") and section["warehouse"] not in allowed:
 			frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
-	for key in ("from_warehouse", "to_warehouse", "lease_program_warehouse"):
+	for key in ("from_warehouse", "to_warehouse"):
 		if new.get(key) and new[key] not in allowed:
 			frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
-	for key in ("activity", "loan_reference"):
-		if new.get(key):
-			frappe.get_doc(
-				"Inventory Activity" if key == "activity" else "Stock Entry", new[key]
-			).check_permission("read")
+	if new.get("activity"):
+		frappe.get_doc("Inventory Activity", new["activity"]).check_permission("read")
 
 
 def _save(doc):
@@ -175,6 +183,26 @@ def _serialize(doc):
 	}
 
 
+def _system_leaf(settings, candidates):
+	for name in candidates:
+		if not name:
+			continue
+		row = frappe.db.get_value("Warehouse", name, ["is_group", "warehouse_name"], as_dict=True)
+		if not row:
+			continue
+		if not row.is_group:
+			return name
+		child = frappe.db.get_value(
+			"Warehouse",
+			{"parent_warehouse": name, "is_group": 0},
+			"name",
+			order_by="lft asc",
+		)
+		if child:
+			return child
+	return None
+
+
 def _prepare(doc):
 	p = copy.deepcopy(_payload(doc))
 	settings = _settings()
@@ -184,10 +212,40 @@ def _prepare(doc):
 		p["posting_date"] = nowdate()
 		p["posting_time"] = nowtime()
 	if p["movement_kind"] == "Loan":
-		p["to_warehouse"] = p.get("lease_program_warehouse") or settings.default_lease_program_warehouse
-	if p["movement_kind"] == "Damage":
-		p["to_warehouse"] = settings.damaged_warehouse
+		p["to_warehouse"] = _system_leaf(settings, (settings.get("loan_warehouse"), settings.get("leased_warehouse"), settings.get("default_lease_program_warehouse")))
+	if p["movement_kind"] in ("Damage",):
+		p["to_warehouse"] = settings.get("damaged_warehouse")
+	if p["movement_kind"] == "Repair":
+		p["from_warehouse"] = settings.get("damaged_warehouse")
+	if p["movement_kind"] == "Disposal":
+		p["from_warehouse"] = settings.get("damaged_warehouse")
+	# Resolve loan rows and atomically enforce outstanding quantities for Return/Loss.
+	if p["movement_kind"] in ("Return", "Damage", "Loss"):
+		agg=defaultdict(float)
+		for row in p.get("items", []):
+			loan_item=row.get("loan_item") or row.get("original_loan_item")
+			if not loan_item: continue
+			frappe.db.sql("select name from `tabInventory Loan Item` where name=%s for update", loan_item)
+			li=frappe.db.get_value("Inventory Loan Item", loan_item, ["parent","item_code","batch_no","original_warehouse","uom","qty"], as_dict=True)
+			if not li or frappe.db.get_value("Inventory Loan", li.parent, "docstatus") != 1: frappe.throw("借出明细不存在或未提交")
+			returned=frappe.db.sql("select coalesce(sum(ri.qty),0) from `tabInventory Return Item` ri join `tabInventory Return` r on r.name=ri.parent where r.docstatus=1 and ri.loan_item=%s and ri.outcome in ('Returned','Damaged')", loan_item)[0][0]
+			lost=frappe.db.sql("select coalesce(sum(li.qty),0) from `tabInventory Loss Item` li join `tabInventory Loss` l on l.name=li.parent where l.docstatus=1 and li.original_loan_item=%s", loan_item)[0][0]
+			agg[loan_item]+=flt(row.get("qty")); outstanding=flt(li.qty)-flt(returned)-flt(lost)
+			if flt(row.get("qty"))<=0 or agg[loan_item]>outstanding+1e-8: frappe.throw("归还或遗失数量超过未结数量")
+			row["item_code"]=li.item_code; row["uom"]=row.get("uom") or li.uom; row["batch_no"]=row.get("batch_no") or li.batch_no
+			if p["movement_kind"] in ("Return","Damage"): row["from_warehouse"]=_system_leaf(settings, (settings.get("loan_warehouse"), settings.get("leased_warehouse"), settings.get("default_lease_program_warehouse"))) or li.original_warehouse
+			else: row["warehouse"]=_system_leaf(settings, (settings.get("loan_warehouse"), settings.get("leased_warehouse"), settings.get("default_lease_program_warehouse"))) or li.original_warehouse
+			if p["movement_kind"] == "Return":
+				if row.get("outcome") == "Damaged": row["to_warehouse"] = settings.get("damaged_warehouse")
+				else: row["to_warehouse"] = row.get("to_warehouse") or li.original_warehouse
 	allowed = _allowed_warehouses(settings)
+	physical = {name: row for name, row in _visible_warehouses(settings).items() if not row.is_group}
+	for name in (settings.get("unlocated_warehouse"), settings.get("pending_warehouse")):
+		if name and name in physical: allowed[name] = physical[name]
+	if p["movement_kind"] in ("Loan", "Return", "Damage", "Loss", "Repair", "Disposal"):
+		loan_system = _system_leaf(settings, (settings.get("loan_warehouse"), settings.get("leased_warehouse"), settings.get("default_lease_program_warehouse")))
+		for name in (loan_system, settings.get("damaged_warehouse")):
+			if name: allowed[name] = frappe.get_doc("Warehouse", name)
 	requested = defaultdict(float)
 	requested_batch = defaultdict(float)
 	for row in p["items"]:
@@ -215,11 +273,23 @@ def _prepare(doc):
 		):
 			frappe.throw(_("Stock unit requires a whole number"))
 		mapped = _entry_items({**p, "items": [row]})[0]
+		loan_wh = _system_leaf(settings, (settings.get("loan_warehouse"), settings.get("leased_warehouse"), settings.get("default_lease_program_warehouse")))
+		damaged_wh = settings.get("damaged_warehouse")
+		if p["movement_kind"] == "Return":
+			if not (row.get("loan_item") or row.get("original_loan_item")) or mapped.get("s_warehouse") != loan_wh:
+				frappe.throw("归还必须引用借出明细并从借出库出库")
+			if row.get("outcome") == "Damaged" and mapped.get("t_warehouse") != damaged_wh:
+				frappe.throw("损坏归还必须进入损坏待处理")
+		if p["movement_kind"] == "Loss" and row.get("original_loan_item") and mapped.get("s_warehouse") != loan_wh:
+			frappe.throw("借出遗失必须从借出库出库")
+		reserved_system = {name for name in (loan_wh, damaged_wh) if name}
+		if p["movement_kind"] in ("Receive", "Issue", "Transfer") and any(mapped.get(key) in reserved_system for key in ("s_warehouse", "t_warehouse")):
+			frappe.throw("普通库存操作不能使用系统虚拟库")
 		required = (
 			("t_warehouse",)
 			if p["movement_kind"] == "Receive"
 			else ("s_warehouse",)
-			if p["movement_kind"] in ("Issue", "Loss")
+			if p["movement_kind"] in ("Issue", "Loss", "Disposal")
 			else ("s_warehouse", "t_warehouse")
 		)
 		for key in required:
@@ -374,6 +444,7 @@ def create_workspace(request_id, movement_kind, data=None):
 			"posting_date": nowdate(),
 			"posting_time": nowtime(),
 			"responsible_person": frappe.session.user,
+			"recorded_by": frappe.session.user,
 			"state_json": "{}",
 			"revision": 1,
 		}
@@ -401,20 +472,57 @@ def save_workspace(name, revision, data):
 	return _serialize(doc)
 
 
+def _audit_check(doc):
+	if (doc.recorded_by or doc.responsible_person) != frappe.session.user:
+		frappe.throw("记录人必须是创建该记录的用户")
+	if not doc.recorder_signature:
+		frappe.throw("记录人签名为必填")
+	if not doc.no_independent_reviewer and (not doc.reviewer_name or not doc.reviewer_signature):
+		frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
+
+
+def _create_business_record(doc, payload, entry):
+	kind=doc.movement_kind
+	if kind not in ("Loan", "Return", "Loss"):
+		return
+	common={"company":doc.company,"posting_datetime":f"{doc.posting_date} {doc.posting_time}","recorded_by":doc.recorded_by or frappe.session.user,"reviewer_name":doc.reviewer_name,"no_independent_reviewer":doc.no_independent_reviewer,"reviewer_note":doc.reviewer_note,"recorder_signature":doc.recorder_signature,"reviewer_signature":doc.reviewer_signature,"workspace":doc.name,"stock_entry":entry.name}
+	if kind=="Loan":
+		record=frappe.get_doc({"doctype":"Inventory Loan",**common,"borrower":doc.reviewer_name if doc.borrower_same_as_reviewer else doc.borrower,"activity":doc.activity,"purpose":doc.purpose_text,"notes":doc.notes,"items":[{"item_code":r["item_code"],"qty":r["qty"],"uom":r.get("uom"),"batch_no":r.get("batch_no"),"original_warehouse":r.get("from_warehouse") or r.get("warehouse"),"activity":doc.activity} for r in payload.get("items",[])]})
+		record.flags.workspace_service = True
+		record.insert(ignore_permissions=True); doc.loan_record=record.name; return record
+	elif kind=="Return":
+		record=frappe.get_doc({"doctype":"Inventory Return",**common,"borrower":doc.borrower,"activity":doc.activity,"notes":doc.notes,"items":[{"loan_item":r.get("loan_item") or r.get("original_loan_item"),"qty":r["qty"],"outcome":r.get("outcome") or ("Damaged" if doc.movement_kind=="Damage" else "Returned"),"target_warehouse":r.get("to_warehouse") or r.get("warehouse")} for r in payload.get("items",[]) ]})
+		record.flags.workspace_service = True
+		record.insert(ignore_permissions=True); doc.return_record=record.name; return record
+	else:
+		record=frappe.get_doc({"doctype":"Inventory Loss",**common,"borrower":doc.borrower,"activity":doc.activity,"notes":doc.notes,"items":[{"item_code":r["item_code"],"qty":r["qty"],"uom":r.get("uom"),"source_warehouse":r.get("from_warehouse") or r.get("warehouse"),"batch_no":r.get("batch_no"),"original_loan_item":r.get("original_loan_item"),"reason":r.get("reason")} for r in payload.get("items",[])]})
+		record.flags.workspace_service = True
+		record.insert(ignore_permissions=True); doc.loss_record=record.name; return record
+
+
 @frappe.whitelist(methods=["POST"])
 def confirm_workspace(name, revision):
 	doc = _get(name, write=True, lock=True)
 	if _status(doc) == 1:
 		return _serialize(doc)
 	_editable(doc, revision)
-	if not doc.responsible_person or not doc.signature:
-		frappe.throw(_("Responsible person and signature are required"))
+	_audit_check(doc)
 	if not frappe.db.get_value("User", doc.responsible_person, "enabled") or not set(
 		frappe.get_roles(doc.responsible_person)
 	) & {"Stock User", "Stock Manager", "System Manager"}:
 		frappe.throw(_("Choose an enabled inventory user"))
 	entry = _sync(doc)
+	business = _create_business_record(doc, _payload(doc), entry)
+	if business:
+		entry.flags.workspace_service = True
+		entry.update({"ti_workspace": doc.name, "ti_loan": doc.loan_record, "ti_return": doc.return_record, "ti_loss": doc.loss_record})
+		entry.save(ignore_permissions=True)
 	entry.submit()
+	if business:
+		for business_row, entry_row in zip(business.items, entry.items):
+			business_row.stock_entry_detail = entry_row.name
+		business.save(ignore_permissions=True)
+		business.submit()
 	doc.revision += 1
 	_save(doc)
 	return _serialize(doc)
@@ -615,7 +723,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		)
 
 	def matches(r):
-		for key in ("movement_kind", "source_type", "activity", "responsible_person", "purpose"):
+		for key in ("movement_kind", "source_text", "activity", "responsible_person", "purpose_text", "borrower"):
 			if f.get(key) and r.get(key) != f[key]:
 				return False
 		if f.get("docstatus") is not None and f.get("docstatus") != "":
@@ -624,7 +732,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 					return False
 			elif r["docstatus"] != cint(f["docstatus"]):
 				return False
-		for key in ("donor_source", "recipient"):
+		for key in ("source_text", "borrower"):
 			if f.get(key) and f[key].lower() not in (r.get(key) or "").lower():
 				return False
 		if f.get("date_from") and str(r.get("posting_date") or "") < f["date_from"]:
@@ -662,11 +770,11 @@ def _from_entry(doc):
 	p = {
 		key: doc.get("ti_" + key)
 		for key in META
-		if key not in ("posting_date", "posting_time", "notes", "signature")
+		if key not in ("posting_date", "posting_time", "notes", "recorder_signature")
 	}
 	p.update(
 		activity=doc.ti_activity,
-		signature=doc.ti_signature,
+		recorder_signature=doc.ti_recorder_signature,
 		notes=doc.remarks,
 		posting_date=str(doc.posting_date),
 		posting_time=str(doc.posting_time),

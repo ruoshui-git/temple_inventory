@@ -59,9 +59,13 @@ class WorkspaceTests(unittest.TestCase):
 		self.room = warehouse("Room", self.root, 1, "Room")
 		self.a = warehouse("A", self.room, typ="Location")
 		self.b = warehouse("B", self.root, typ="Room")
+		self.loan = warehouse("Loan", self.root, typ="Location")
 		settings = frappe.get_single("Temple Inventory Settings")
 		settings.company = self.company
 		settings.root_warehouse = self.root
+		settings.loan_warehouse = self.loan
+		settings.leased_warehouse = self.loan
+		settings.default_lease_program_warehouse = self.loan
 		settings.set("allowed_warehouses", [{"warehouse": self.a}, {"warehouse": self.b}])
 		settings.save()
 		self.item = (
@@ -90,7 +94,7 @@ class WorkspaceTests(unittest.TestCase):
 			frappe.generate_hash(length=16),
 			kind,
 			{
-				"source_type": "Donation",
+				"source_text": "Donation", "no_independent_reviewer": 1,
 				"items": [
 					{
 						"id": "line-1",
@@ -108,7 +112,7 @@ class WorkspaceTests(unittest.TestCase):
 
 	def signed(self, d):
 		p = copy.deepcopy(d["data"])
-		p["signature"] = SIGNATURE
+		p["recorder_signature"] = SIGNATURE
 		return api.save_workspace(d["name"], d["revision"], p)
 
 	def confirmed(self):
@@ -217,7 +221,7 @@ class WorkspaceTests(unittest.TestCase):
 		p = copy.deepcopy(d["data"])
 		p["notes"] = "Changed after signing"
 		d = api.save_workspace(d["name"], d["revision"], p)
-		self.assertFalse(d["data"]["signature"])
+		self.assertFalse(d["data"]["recorder_signature"])
 		doc = frappe.get_doc("Stock Entry", d["stock_entry"])
 		doc.remarks = "Bypass"
 		with self.assertRaises(frappe.PermissionError):
@@ -237,16 +241,32 @@ class WorkspaceTests(unittest.TestCase):
 
 	def test_transfer_and_loan_return_mappings(self):
 		self.confirmed()
-		for kind in ("Transfer", "Loan", "Return"):
-			d = self.create(kind, lease_program_warehouse=self.b)
-			self.assertFalse(d["sync_error"], d["sync_error"])
-			row = frappe.get_doc("Stock Entry", d["stock_entry"]).items[0]
-			self.assertEqual(row.s_warehouse, self.a)
-			self.assertEqual(row.t_warehouse, self.b)
+		transfer = self.create(
+			"Transfer",
+			items=[{"id": "transfer", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a, "to_warehouse": self.b}],
+		)
+		self.assertFalse(transfer["sync_error"], transfer["sync_error"])
+		row = frappe.get_doc("Stock Entry", transfer["stock_entry"]).items[0]
+		self.assertEqual(row.s_warehouse, self.a)
+		self.assertEqual(row.t_warehouse, self.b)
+
+		loan = self.create("Loan", borrower="Test borrower", items=[{"id": "loan", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a}])
+		loan = self.signed(loan)
+		loan = api.confirm_workspace(loan["name"], loan["revision"])
+		loan_item = frappe.get_all("Inventory Loan Item", filters={"parent": loan["data"]["loan_record"]}, pluck="name")[0]
+		loan_entry = frappe.get_doc("Stock Entry", loan["stock_entry"])
+		self.assertTrue(loan_entry.items[0].t_warehouse)
+
+		returned = self.create("Return", items=[{"id": "return", "item_code": self.item, "qty": 1, "uom": "Nos", "loan_item": loan_item, "outcome": "Returned", "to_warehouse": self.a}])
+		returned = self.signed(returned)
+		returned = api.confirm_workspace(returned["name"], returned["revision"])
+		return_entry = frappe.get_doc("Stock Entry", returned["stock_entry"])
+		self.assertEqual(return_entry.items[0].s_warehouse, loan_entry.items[0].t_warehouse)
+		self.assertEqual(return_entry.items[0].t_warehouse, self.a)
 
 	def test_zero_valuation_without_source_or_rate(self):
-		for source_type in ("Purchase", ""):
-			d = self.create(source_type=source_type)
+		for source_text in ("Purchase", ""):
+			d = self.create(source_text=source_text)
 			self.assertFalse(d["sync_error"], d["sync_error"])
 			row = frappe.get_doc("Stock Entry", d["stock_entry"]).items[0]
 			self.assertEqual(row.allow_zero_valuation_rate, 1)
@@ -291,8 +311,8 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(api.batches(self.item, self.a)[0]["qty"], 2)
 
 	def test_history_filters_and_leaf_rejection(self):
-		d = self.create(donor_source="A Donor")
-		result = api.history({"donor_source": "A Donor", "room": self.room, "movement_kind": "Receive"})
+		d = self.create(source_text="A Donor")
+		result = api.history({"source_text": "A Donor", "room": self.room, "movement_kind": "Receive"})
 		self.assertEqual(result["total"], 1)
 		d = self.create(
 			items=[{"id": "bad", "item_code": self.item, "qty": 2, "warehouse": self.room, "uom": "Nos"}]

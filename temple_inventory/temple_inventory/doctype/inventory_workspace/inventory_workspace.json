@@ -9,18 +9,25 @@
     "movement_kind",
     "posting_date",
     "posting_time",
-    "source_type",
-    "donor_source",
-    "purpose",
-    "recipient",
+    "source_text",
+    "purpose_text",
+    "borrower",
+    "recorded_by",
+    "reviewer_name",
+    "borrower_same_as_reviewer",
+    "no_independent_reviewer",
+    "reviewer_note",
+    "recorder_signature",
+    "reviewer_signature",
     "activity",
     "responsible_person",
-    "loan_reference",
     "notes",
-    "signature",
     "state_json",
     "revision",
     "stock_entry",
+    "loan_record",
+    "return_record",
+    "loss_record",
     "sync_error"
   ],
   "fields": [
@@ -35,7 +42,7 @@
       "fieldname": "movement_kind",
       "fieldtype": "Select",
       "label": "Movement",
-      "options": "Receive\nIssue\nTransfer\nLoan\nReturn\nDamage\nLoss",
+      "options": "Receive\nIssue\nTransfer\nLoan\nReturn\nDamage\nLoss\nRepair\nDisposal",
       "reqd": 1,
       "in_list_view": 1
     },
@@ -50,24 +57,79 @@
       "label": "Time"
     },
     {
-      "fieldname": "source_type",
+      "fieldname": "source_text",
       "fieldtype": "Data",
-      "label": "Source Type"
+      "label": "Source"
     },
     {
-      "fieldname": "donor_source",
-      "fieldtype": "Data",
-      "label": "Donor / Source"
-    },
-    {
-      "fieldname": "purpose",
+      "fieldname": "purpose_text",
       "fieldtype": "Data",
       "label": "Purpose"
     },
     {
-      "fieldname": "recipient",
+      "fieldname": "borrower",
       "fieldtype": "Data",
-      "label": "Recipient"
+      "label": "Borrower"
+    },
+    {
+      "fieldname": "recorded_by",
+      "fieldtype": "Link",
+      "label": "Recorded By",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewer_name",
+      "fieldtype": "Data",
+      "label": "Reviewer"
+    },
+    {
+      "fieldname": "borrower_same_as_reviewer",
+      "fieldtype": "Check",
+      "label": "Borrower Same as Reviewer",
+      "default": "0"
+    },
+    {
+      "fieldname": "no_independent_reviewer",
+      "fieldtype": "Check",
+      "label": "No Independent Reviewer",
+      "default": "0"
+    },
+    {
+      "fieldname": "reviewer_note",
+      "fieldtype": "Small Text",
+      "label": "Reviewer Note"
+    },
+    {
+      "fieldname": "recorder_signature",
+      "fieldtype": "Signature",
+      "label": "Recorder Signature"
+    },
+    {
+      "fieldname": "reviewer_signature",
+      "fieldtype": "Signature",
+      "label": "Reviewer Signature"
+    },
+    {
+      "fieldname": "loan_record",
+      "fieldtype": "Link",
+      "label": "Inventory Loan",
+      "options": "Inventory Loan",
+      "read_only": 1
+    },
+    {
+      "fieldname": "return_record",
+      "fieldtype": "Link",
+      "label": "Inventory Return",
+      "options": "Inventory Return",
+      "read_only": 1
+    },
+    {
+      "fieldname": "loss_record",
+      "fieldtype": "Link",
+      "label": "Inventory Loss",
+      "options": "Inventory Loss",
+      "read_only": 1
     },
     {
       "fieldname": "activity",
@@ -82,20 +144,9 @@
       "options": "User"
     },
     {
-      "fieldname": "loan_reference",
-      "fieldtype": "Link",
-      "label": "Loan Reference",
-      "options": "Stock Entry"
-    },
-    {
       "fieldname": "notes",
       "fieldtype": "Small Text",
       "label": "Notes"
-    },
-    {
-      "fieldname": "signature",
-      "fieldtype": "Signature",
-      "label": "Signature"
     },
     {
       "fieldname": "state_json",

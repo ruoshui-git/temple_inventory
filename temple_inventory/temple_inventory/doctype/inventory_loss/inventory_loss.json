@@ -1,0 +1,141 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "format:TI-{YYYY}-{#####}",
+  "creation": "",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "company",
+    "posting_datetime",
+    "borrower",
+    "activity",
+    "notes",
+    "recorded_by",
+    "reviewer_name",
+    "no_independent_reviewer",
+    "reviewer_note",
+    "recorder_signature",
+    "reviewer_signature",
+    "workspace",
+    "stock_entry",
+    "items"
+  ],
+  "fields": [
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "posting_datetime",
+      "fieldtype": "Datetime",
+      "label": "Posting Time",
+      "reqd": 1
+    },
+    {
+      "fieldname": "borrower",
+      "fieldtype": "Data",
+      "label": "Borrower"
+    },
+    {
+      "fieldname": "activity",
+      "fieldtype": "Link",
+      "label": "Activity",
+      "options": "Inventory Activity"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "recorded_by",
+      "fieldtype": "Link",
+      "label": "Recorded By",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "reviewer_name",
+      "fieldtype": "Data",
+      "label": "Reviewer"
+    },
+    {
+      "fieldname": "no_independent_reviewer",
+      "fieldtype": "Check",
+      "label": "No Independent Reviewer",
+      "default": "0"
+    },
+    {
+      "fieldname": "reviewer_note",
+      "fieldtype": "Small Text",
+      "label": "Reviewer Note"
+    },
+    {
+      "fieldname": "recorder_signature",
+      "fieldtype": "Signature",
+      "label": "Recorder Signature"
+    },
+    {
+      "fieldname": "reviewer_signature",
+      "fieldtype": "Signature",
+      "label": "Reviewer Signature"
+    },
+    {
+      "fieldname": "workspace",
+      "fieldtype": "Link",
+      "label": "Workspace",
+      "options": "Inventory Workspace",
+      "read_only": 1
+    },
+    {
+      "fieldname": "stock_entry",
+      "fieldtype": "Link",
+      "label": "Stock Entry",
+      "options": "Stock Entry",
+      "read_only": 1
+    },
+    {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "label": "Items",
+      "options": "Inventory Loss Item",
+      "reqd": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 0,
+  "module": "Temple Inventory",
+  "name": "Inventory Loss",
+  "permissions": [
+    {
+      "role": "Stock User",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1,
+      "cancel": 0
+    },
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1,
+      "cancel": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1,
+      "cancel": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC"
+}

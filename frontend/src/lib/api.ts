@@ -30,7 +30,7 @@ export async function upload(file: File, doctype: string, docname: string) {
   form.append('file', file); form.append('doctype', doctype); form.append('docname', docname); form.append('is_private', '1')
   return request('upload_file', {}, form)
 }
-export const labels: Record<string, string> = { Receive: '入库', Issue: '出库', Transfer: '转移', Loan: '借出', Return: '归还', Damage: '损坏', Loss: '遗失' }
+export const labels: Record<string, string> = { Receive: '入库', Issue: '出库', Transfer: '转移', Loan: '借出', Return: '归还', Damage: '标记损坏', Loss: '记录遗失', Repair: '修复归库', Disposal: '正式报废' }
 export function warehouseLabel(name: string, tree: any[]): string {
   const node = tree.find(w => w.name === name)
   if (!node) return name || '未选择位置'

@@ -1,0 +1,77 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "hash",
+  "creation": "",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "item_code",
+    "qty",
+    "uom",
+    "source_warehouse",
+    "batch_no",
+    "original_loan_item",
+    "reason",
+    "stock_entry_detail"
+  ],
+  "fields": [
+    {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "label": "Item",
+      "options": "Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "label": "Quantity",
+      "reqd": 1
+    },
+    {
+      "fieldname": "uom",
+      "fieldtype": "Link",
+      "label": "UOM",
+      "options": "UOM",
+      "reqd": 1
+    },
+    {
+      "fieldname": "source_warehouse",
+      "fieldtype": "Link",
+      "label": "Source Warehouse",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "batch_no",
+      "fieldtype": "Link",
+      "label": "Batch",
+      "options": "Batch"
+    },
+    {
+      "fieldname": "original_loan_item",
+      "fieldtype": "Link",
+      "label": "Original Loan Item",
+      "options": "Inventory Loan Item"
+    },
+    {
+      "fieldname": "reason",
+      "fieldtype": "Small Text",
+      "label": "Reason"
+    },
+    {
+      "fieldname": "stock_entry_detail",
+      "fieldtype": "Link",
+      "label": "Stock Entry Detail",
+      "options": "Stock Entry Detail"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 1,
+  "module": "Temple Inventory",
+  "name": "Inventory Loss Item",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC"
+}

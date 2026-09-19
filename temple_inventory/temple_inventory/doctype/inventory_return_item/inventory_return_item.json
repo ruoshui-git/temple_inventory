@@ -1,0 +1,63 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "hash",
+  "creation": "",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "loan_item",
+    "qty",
+    "outcome",
+    "target_warehouse",
+    "row_note",
+    "stock_entry_detail"
+  ],
+  "fields": [
+    {
+      "fieldname": "loan_item",
+      "fieldtype": "Link",
+      "label": "Loan Item",
+      "options": "Inventory Loan Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "label": "Quantity",
+      "reqd": 1
+    },
+    {
+      "fieldname": "outcome",
+      "fieldtype": "Select",
+      "label": "Outcome",
+      "options": "Returned\nDamaged",
+      "reqd": 1
+    },
+    {
+      "fieldname": "target_warehouse",
+      "fieldtype": "Link",
+      "label": "Target Warehouse",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "row_note",
+      "fieldtype": "Small Text",
+      "label": "Note"
+    },
+    {
+      "fieldname": "stock_entry_detail",
+      "fieldtype": "Link",
+      "label": "Stock Entry Detail",
+      "options": "Stock Entry Detail"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 1,
+  "module": "Temple Inventory",
+  "name": "Inventory Return Item",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC"
+}

@@ -311,8 +311,10 @@ def _resolve_a04_warehouse() -> str:
 
     room_doc = frappe.get_doc("Warehouse", room)
     if cint(room_doc.is_group):
-        frappe.throw(f"{room} 是 Group Warehouse，不能直接存放库存。")
-
+        leaf = frappe.db.get_value("Warehouse", {"warehouse_name": f"{ROOM_WAREHOUSE_LABEL} / 未指定", "parent_warehouse": room}, "name")
+        if not leaf:
+            frappe.throw(f"{room} 缺少默认库位")
+        return leaf
     return room
 
 
@@ -487,6 +489,27 @@ def _upload_images(
                 item.save(ignore_permissions=True)
 
 
+def _upload_assets(asset_manifest_json: str, asset_root: str, legacy_to_item: Dict[str, str]):
+    payload = json.loads(Path(asset_manifest_json).read_text(encoding="utf-8"))
+    rows = [row for row in payload.get("images", []) if row.get("dataset") == "costumes"]
+    grouped = defaultdict(list)
+    for row in rows: grouped[_clean(row["key"])].append(row)
+    for legacy_code, asset_rows in grouped.items():
+        item_code = legacy_to_item.get(legacy_code)
+        if not item_code: frappe.throw(f"资产 manifest 中的 {legacy_code} 没有对应 Item。")
+        primary_url = None
+        for row in asset_rows:
+            path = Path(asset_root) / row["output"]
+            if not path.is_file(): frappe.throw(f"找不到优化图片：{path}")
+            file_doc = _get_or_upload_file(item_code, str(path))
+            if row.get("primary"): primary_url = file_doc.file_url
+        if primary_url:
+            item = frappe.get_doc("Item", item_code)
+            if item.image != primary_url:
+                item.image = primary_url
+                item.save(ignore_permissions=True)
+
+
 # ---------------------------------------------------------------------------
 # 开仓库存
 # ---------------------------------------------------------------------------
@@ -581,6 +604,8 @@ def run(
     source_csv: str,
     image_manifest_csv: Optional[str] = None,
     image_dir: Optional[str] = None,
+    asset_manifest_json: Optional[str] = None,
+    asset_root: Optional[str] = None,
     create_opening_stock: int = 0,
     submit_opening_stock: int = 0,
     default_valuation_rate: float = 0,
@@ -741,7 +766,9 @@ def run(
         else:
             updated_or_existing += 1
 
-    if manifest_rows:
+    if asset_manifest_json:
+        _upload_assets(asset_manifest_json, asset_root or str(Path(asset_manifest_json).parent), legacy_to_item)
+    elif manifest_rows:
         if not image_dir:
             frappe.throw("传入了 image_manifest_csv，但没有传 image_dir。")
         _upload_images(manifest_rows, legacy_to_item, image_dir)
@@ -755,8 +782,6 @@ def run(
             default_valuation_rate=default_valuation_rate,
             submit_opening_stock=bool(cint(submit_opening_stock)),
         )
-
-    frappe.db.commit()
 
     result = {
         "status": "ok",
