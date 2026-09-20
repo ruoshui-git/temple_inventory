@@ -176,8 +176,8 @@ class WorkspaceTests(unittest.TestCase):
 			SimpleNamespace(item_code="ITEM-1", warehouse="pending", actual_qty=2),
 		]
 		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_list", return_value=[item]), patch.object(inventory_service.frappe, "get_all", return_value=bins):
-			rows = inventory(item_group="Group A")
-			leaf_rows = inventory(warehouse="leaf_b", item_group="Group A")
+			rows = inventory(item_group="Group A")["results"]
+			leaf_rows = inventory(warehouse="leaf_b", item_group="Group A")["results"]
 		self.assertEqual(rows[0]["warehouse_stock"], {"leaf_a": 3, "pending": 2})
 		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"unlocated", "missing_description", "missing_photo"})
 		self.assertEqual(leaf_rows, [])

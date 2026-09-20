@@ -42,6 +42,24 @@ def _loads(value, default=None):
 	return json.loads(value) if isinstance(value, str) else (value if value is not None else default)
 
 
+def _selection_values(value):
+	"""Normalize scalar/JSON/list filter input without treating punctuation as a delimiter."""
+	if value in (None, "", []):
+		return []
+	if isinstance(value, str):
+		try:
+			values = json.loads(value)
+		except json.JSONDecodeError:
+			values = value
+	else:
+		values = value
+	if isinstance(values, (tuple, set)):
+		values = list(values)
+	if not isinstance(values, list):
+		values = [values]
+	return [str(item).strip() for item in values if str(item).strip()]
+
+
 def _erpnext_installed():
 	return "erpnext" in frappe.get_installed_apps()
 
@@ -446,6 +464,23 @@ def _descendants(warehouse, warehouse_map):
 	}
 
 
+def _selected_leaf_warehouses(selection, warehouse_map, empty_means_all=True):
+	"""Validate visible warehouse nodes and return their de-duplicated leaf union."""
+	values = _selection_values(selection)
+	if not values and empty_means_all:
+		return {name for name, row in warehouse_map.items() if not row.is_group}
+	if any(value not in warehouse_map for value in values):
+		frappe.throw(_("请选择寺院库存范围内的位置"), frappe.PermissionError)
+	leaves = set()
+	for value in values:
+		node = warehouse_map[value]
+		if node.is_group:
+			leaves.update(_descendants(value, warehouse_map))
+		else:
+			leaves.add(value)
+	return leaves
+
+
 def _item_code():
 	frappe.db.sql("select field from `tabSingles` where doctype=%s for update", "Temple Inventory Settings")
 	settings = _settings()
@@ -576,16 +611,12 @@ def bootstrap():
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, item_group=None, needs_attention=False):
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, start=0, page_length=50, warehouses=None, item_groups=None):
 	_require_stock()
 	settings = _settings()
 	warehouse_map = _visible_warehouses(settings)
 	_raise_on_group_stock(warehouse_map)
-	selected = (
-		_descendants(warehouse, warehouse_map)
-		if warehouse
-		else set(name for name, row in warehouse_map.items() if not row.is_group)
-	)
+	selected = _selected_leaf_warehouses(warehouses if warehouses is not None else warehouse, warehouse_map)
 	bins = frappe.get_all(
 		"Bin",
 		filters={"warehouse": ("in", list(selected) or [""])},
@@ -596,7 +627,8 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 		if row.warehouse in selected:
 			balances[row.item_code][row.warehouse] += row.actual_qty
 	filters = {"disabled": 0, "is_stock_item": 1}
-	if item_group: filters["item_group"] = item_group
+	groups = _selection_values(item_groups if item_groups is not None else item_group)
+	if groups: filters["item_group"] = ("in", groups)
 	items = frappe.get_list(
 		"Item",
 		filters=filters,
@@ -604,8 +636,8 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 		limit_page_length=0,
 	)
 	if search:
-		matching = {r.item_code for r in search_items(search, page_length=100)["results"]}
-		items = [r for r in items if r.item_code in matching]
+		term = str(search).lower()
+		items = [r for r in items if term in f"{r.item_code} {r.item_name} {r.item_group}".lower()]
 	reserved = _descendants(settings.leased_warehouse, warehouse_map) | {
 		settings.damaged_warehouse,
 		settings.pending_warehouse,
@@ -646,7 +678,8 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 				"attention_reasons": attention_reasons,
 			}
 		)
-	return result
+	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
+	return _page(result, page_length, start)
 
 
 @frappe.whitelist()
@@ -974,16 +1007,15 @@ def configure_warehouse(
 
 
 @frappe.whitelist()
-def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=50):
+def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=50, warehouses=None, item_groups=None):
 	"""Return positive, visible batch balances aggregated by batch."""
 	_require_stock()
-	warehouses = _visible_warehouses(_settings())
-	_raise_on_group_stock(warehouses)
-	if warehouse and warehouse not in warehouses:
-		frappe.throw(_("请选择寺院库存范围内的位置"), frappe.PermissionError)
-	selected = _descendants(warehouse, warehouses) if warehouse else {n for n, w in warehouses.items() if not w.is_group}
+	visible_warehouses = _visible_warehouses(_settings())
+	_raise_on_group_stock(visible_warehouses)
+	selected = _selected_leaf_warehouses(warehouses if warehouses is not None else warehouse, visible_warehouses)
 	filters = {"disabled": 0}
-	if item_group: filters["item_group"] = item_group
+	groups = _selection_values(item_groups if item_groups is not None else item_group)
+	if groups: filters["item_group"] = ("in", groups)
 	items = {r.name: r for r in frappe.get_all("Item", filters=filters, fields=["name", "item_code", "item_name", "item_group", "stock_uom"], limit_page_length=0)}
 	as_of, rows = getdate(nowdate()), []
 	for batch in frappe.get_all("Batch", filters={"disabled": 0, "expiry_date": ("is", "set")}, fields=["name", "item", "expiry_date"], limit_page_length=0):

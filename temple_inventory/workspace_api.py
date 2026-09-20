@@ -24,6 +24,7 @@ from temple_inventory.inventory_api import (
 	_require_stock,
 	_settings,
 	_visible_warehouses,
+	_selected_leaf_warehouses,
 )
 
 META = (
@@ -734,7 +735,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		)
 
 	def matches(r):
-		for key in ("movement_kind", "source_text", "activity", "responsible_person", "handler_name", "purpose_text", "borrower"):
+		for key in ("movement_kind", "activity", "responsible_person", "handler_name", "purpose_text"):
 			if f.get(key) and r.get(key) != f[key]:
 				return False
 		if f.get("docstatus") is not None and f.get("docstatus") != "":
@@ -752,11 +753,12 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			return False
 		if f.get("item_code") and not any(i["item_code"] == f["item_code"] for i in r["items"]):
 			return False
-		if f.get("room"):
-			room = allowed.get(f["room"])
-			if not room:
+		rooms = f.get("rooms", f.get("room"))
+		if rooms:
+			try:
+				descendants = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False)
+			except frappe.PermissionError:
 				return False
-			descendants = {n for n, w in allowed.items() if w.lft >= room.lft and w.rgt <= room.rgt}
 			if not any(
 				w in descendants
 				for i in r["items"]
