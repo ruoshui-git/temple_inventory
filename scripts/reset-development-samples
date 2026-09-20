@@ -74,6 +74,7 @@ fi
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 bench_root=$(cd -- "$script_dir/../../.." && pwd)
+cd -- "$bench_root"
 bench="$bench_root/bench"
 if [[ ! -x "$bench" ]]; then
 	bench=$(command -v bench || true)

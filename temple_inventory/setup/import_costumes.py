@@ -457,7 +457,7 @@ def _get_or_upload_file(item_code: str, image_path: str):
         "Item",
         item_code,
         decode=False,
-        is_private=0,
+        is_private=1,
     )
 
 

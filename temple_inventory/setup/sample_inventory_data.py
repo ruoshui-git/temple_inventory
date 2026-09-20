@@ -44,6 +44,7 @@ AS_OF_DATE = "2026-09-18"
 # temple_inventory/setup/sample_images/approved_images/ITM-xxxxxx.jpg
 # SAMPLE_IMAGE_DIR = Path(__file__).resolve().parent / "sample_assets" / "images" / "general"
 SAMPLE_IMAGE_DIR = Path(__file__).resolve().parent / "sample_assets" / "images"
+SAMPLE_ASSET_ROOT = Path(__file__).resolve().parent / "sample_assets"
 SAMPLE_IMAGE_MANIFEST = Path(__file__).resolve().parent / "sample_assets" / "manifest.json"
 
 CATEGORIES = [('食品', '食品、饮料、调味品及其他可食用物资。'), ('餐具与耗材', '餐盘、杯子、餐盒、一次性手套等日常使用或一次性消耗物资。'), ('佛事用品', '海青、居士服、僧帽、香、念珠等佛事及宗教活动相关用品。'), ('家具与大型用品', '桌椅、垃圾桶、储物箱等体积较大的通用用品。'), ('节日装饰', '灯笼、莲花、大型金属骨架装饰、彩灯等节日或活动装饰用品。'), ('电子与科技', '电脑周边、数据线、扩展坞、UPS、摄像头及小型电子设备。'), ('建筑维护', '灯泡、窗帘、吊顶材料、空调过滤材料等建筑及设施维护用品。'), ('园艺与户外', '肥料、耙子及园林、草坪、户外维护相关物资。'), ('工具与设备', '手工具、电动或燃油设备、电池、油壶等维修及作业设备。'), ('美妆个护', '眼影、腮红、口红、粉底、润唇膏等美妆及个人护理用品。'), ('药品与健康', '药膏、洗手液及其他健康、卫生、急救相关物资。'), ('服装与纺织品', '冬季裤装、保暖手套等非佛事用途的普通服装及纺织品。')]
@@ -696,11 +697,11 @@ def _attach_approved_images(
             })
             continue
 
-        rel_file = entry.get("output", "").split("/", 1)[-1]
+        rel_file = entry.get("output", "")
         if not rel_file:
             frappe.throw(f"图片 manifest 中的 {sample_key} 缺少 output")
 
-        image_path = SAMPLE_IMAGE_DIR / rel_file
+        image_path = SAMPLE_ASSET_ROOT / rel_file
         if not image_path.is_file():
             frappe.throw(f"找不到优化图片：{image_path}")
 
@@ -713,7 +714,7 @@ def _attach_approved_images(
             content,
             "Item",
             actual_item_code,
-            is_private=0,
+            is_private=1,
             df="image",
         )
 
