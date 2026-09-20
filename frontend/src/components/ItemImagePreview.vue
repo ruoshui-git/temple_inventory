@@ -57,9 +57,11 @@ onBeforeUnmount(cancelHover)
     <button ref="button" type="button" class="image-thumb-button" :aria-label="'预览' + alt" :aria-expanded="open" @mouseenter="scheduleHover" @focus="show(false)" @click="show(false)">
       <img :src="src" :alt="alt" loading="lazy" width="52" height="52">
     </button>
-    <span v-if="open" ref="popover" class="image-popover" role="dialog" :aria-label="alt" :style="popoverStyle" @mouseenter="cancelHover">
-      <img :src="src" :alt="alt">
-      <button type="button" aria-label="关闭图片预览" @click="close()">关闭</button>
+    <span v-if="open" class="image-preview-backdrop" @click.self="close(false)">
+      <span ref="popover" class="image-popover" role="dialog" :aria-label="alt" :style="popoverStyle" @mouseenter="cancelHover">
+        <img :src="src" :alt="alt">
+        <button type="button" class="image-preview-close" aria-label="关闭图片预览" @click="close()">×</button>
+      </span>
     </span>
   </span>
 </template>

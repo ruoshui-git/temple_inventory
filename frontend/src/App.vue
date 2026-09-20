@@ -4,6 +4,8 @@ import { useRoute } from 'vue-router'
 import { FrappeUIProvider } from 'frappe-ui'
 import { api, refreshSession, sessionExpired } from './lib/api'
 import { applyUpdate, registerPwa, updateAvailable } from './lib/pwa'
+import ApplicationShell from './components/ApplicationShell.vue'
+import ToastHost from './components/ToastHost.vue'
 
 const route = useRoute()
 const status = ref<any>()
@@ -13,6 +15,7 @@ const selectedCompany = ref('')
 const setupBusy = ref(false)
 const repairBusy = ref(false)
 const contentKey = ref(0)
+const focusedFlow = () => /^\/(new|workspace|entry)\//.test(route.path)
 
 async function check() {
   checking.value = true
@@ -103,11 +106,13 @@ onMounted(() => { void check(); void registerPwa() })
         <p v-else>请联系系统管理员处理这些设置。</p>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
-      <RouterView :key="`${route.fullPath}-${contentKey}`" />
+      <ApplicationShell v-if="!focusedFlow()"><RouterView :key="contentKey" /></ApplicationShell>
+      <RouterView v-else :key="contentKey" />
     </template>
     <div v-if="sessionExpired" class="modal auth-modal" role="alertdialog" aria-modal="true">
       <section><h2>请重新登录</h2><p>未保存的输入仍保留在此窗口。请在新窗口登录后返回继续保存。</p><a href="/login?redirect-to=%2Finventory%2Fauth-complete" target="_blank" rel="noopener">打开 Frappe 登录</a><button @click="resume">继续保存</button><p v-if="error" class="error">{{ error }}</p></section>
     </div>
     <div v-if="updateAvailable" class="pwa-update" role="alert"><span>发现新版本，保存完成后可以更新。</span><button class="primary" @click="applyUpdate">更新并重新加载</button></div>
+    <ToastHost />
   </FrappeUIProvider>
 </template>

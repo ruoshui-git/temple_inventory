@@ -1,10 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
 export const router = createRouter({ history: createWebHistory('/inventory'), routes: [
   { path: '/', component: () => import('./pages/Inventory.vue') },
+	{ path: '/loans', component: () => import('./pages/Loans.vue') },
+	{ path: '/loans/:name', component: () => import('./pages/LoanDetail.vue') },
+	{ path: '/warehouses', component: () => import('./pages/Warehouses.vue') },
+	{ path: '/more', component: () => import('./pages/More.vue') },
+	{ path: '/pending', component: () => import('./pages/Pending.vue') },
   { path: '/new/:kind', component: () => import('./pages/Workspace.vue') },
   { path: '/workspace/:name', component: () => import('./pages/Workspace.vue') },
   { path: '/entry/:entry', component: () => import('./pages/Workspace.vue') },
-  { path: '/settings', component: () => import('./pages/Settings.vue') },
+	{ path: '/settings', redirect: '/warehouses' },
   { path: '/history', component: () => import('./pages/History.vue') },
   { path: '/expiry', component: () => import('./pages/Expiry.vue') },
   { path: '/item/:code', component: () => import('./pages/ItemDetail.vue') },

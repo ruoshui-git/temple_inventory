@@ -25,6 +25,7 @@ from temple_inventory.inventory_api import (
 	_settings,
 	_visible_warehouses,
 	_selected_leaf_warehouses,
+	outstanding_loan_items,
 )
 
 META = (
@@ -560,19 +561,51 @@ def item_detail(item_code):
 			leased and w.lft >= leased.lft and w.rgt <= leased.rgt
 		)
 
+	files = frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": "Item", "attached_to_name": item.name},
+		fields=["name", "file_url", "file_name", "content_type", "creation"],
+		order_by="creation asc, name asc",
+		limit_page_length=0,
+	)
+	image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
+	images, seen = [], set()
+	for file in files:
+		is_image = str(file.content_type or "").startswith("image/") or str(file.file_name or "").lower().endswith(image_extensions)
+		if is_image and file.file_url and file.file_url not in seen:
+			images.append({"file_url": file.file_url, "file_name": file.file_name, "is_primary": file.file_url == item.image})
+			seen.add(file.file_url)
+	if item.image and item.image not in seen:
+		images.insert(0, {"file_url": item.image, "file_name": item.image.rsplit("/", 1)[-1], "is_primary": True})
+	elif item.image:
+		images.sort(key=lambda row: not row["is_primary"])
+	batch_rows = []
+	if item.has_batch_no:
+		for batch in frappe.get_all("Batch", filters={"item": item.name, "disabled": 0}, fields=["name", "expiry_date"], limit_page_length=50):
+			qty = sum(flt(get_batch_qty(batch_no=batch.name, warehouse=name, item_code=item.name)) for name in warehouses)
+			if qty > 0:
+				batch_rows.append({"batch_no": batch.name, "expiry_date": batch.expiry_date, "qty": qty})
+	active_loans = [row for row in outstanding_loan_items() if row["item_code"] == item.name]
 	return {
 		"item_code": item.name,
 		"item_name": item.item_name,
 		"item_group": item.item_group,
 		"stock_uom": item.stock_uom,
 		"image": item.image,
+		"images": images,
 		"description": item.description,
+		"barcodes": [row.barcode for row in item.barcodes],
 		"has_batch_no": item.has_batch_no,
 		"has_expiry_date": item.has_expiry_date,
 		"uoms": [{"uom": u.uom, "conversion_factor": u.conversion_factor} for u in item.uoms],
 		"stock": bins,
 		"total_stock": sum(r.actual_qty for r in bins),
 		"available_stock": sum(r.actual_qty for r in bins if not reserved(r.warehouse)),
+		"on_loan_qty": sum(r.actual_qty for r in bins if leased and r.warehouse in warehouses and warehouses[r.warehouse].lft >= leased.lft and warehouses[r.warehouse].rgt <= leased.rgt),
+		"damaged_qty": sum(r.actual_qty for r in bins if r.warehouse == settings.damaged_warehouse),
+		"pending_qty": sum(r.actual_qty for r in bins if r.warehouse == settings.pending_warehouse),
+		"batches": batch_rows,
+		"active_loans": active_loans[:20],
 		"history": history(filters={"item_code": item_code}, page_length=10)["results"],
 	}
 
@@ -773,6 +806,12 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 
 	rows = sorted((r for r in results if matches(r)), key=lambda r: r["modified"], reverse=True)
 	page = _page(rows, page_length, start)
+	if status_group == "unfinished":
+		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)
+	elif status_group == "completed":
+		page["overall_total"] = sum(1 for row in results if row["docstatus"] in (1, 2))
+	else:
+		page["overall_total"] = len(results)
 	if status_group != "unfinished":
 		page["unfinished_count"] = sum(1 for r in results if r["docstatus"] == 0)
 	return page

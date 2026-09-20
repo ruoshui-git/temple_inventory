@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Combobox } from 'frappe-ui'
 import { api, labels, warehouseLabel, workspaceApi } from '../lib/api'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
-import WarehouseTreeFilter from '../components/WarehouseTreeFilter.vue'
+import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 
 const route = useRoute()
@@ -14,6 +14,7 @@ const router = useRouter()
 const boot = ref<any>()
 const rows = ref<any[]>([])
 const total = ref(0)
+const overallTotal = ref(0)
 const unfinishedCount = ref(0)
 const start = ref(0)
 const error = ref('')
@@ -22,7 +23,8 @@ const refreshing = ref(false)
 const activities = ref<any[]>([])
 const filterOpen = ref(false)
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null)
-const pageLength = 30
+const sentinel = ref<HTMLElement>()
+const pageLength = 25
 const statusGroup = ref(route.query.status === 'unfinished' ? 'unfinished' : 'completed')
 const filters = ref({
   search: '',
@@ -43,6 +45,7 @@ const activityOptions = computed(() => activities.value.map(activity => ({
   value: activity.name,
 })))
 const activeCount = computed(() => Object.values(filters.value).reduce((count, value) => count + (Array.isArray(value) ? value.length : value ? 1 : 0), 0))
+const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabel(row.name, boot.value?.warehouse_tree || []), parent: row.parent_warehouse })))
 const chips = computed(() => [
   ...filters.value.rooms.map(value => ({ key: 'rooms', value, label: warehouseLabel(value, boot.value?.warehouse_tree || []) })),
   ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : []),
@@ -70,10 +73,11 @@ let sequence = 0
 let syncingRoute = false
 let restoringRoute = false
 let previousText = ''
+let observer: IntersectionObserver | undefined
 function queryState() {
   return { ...filters.value, start: start.value || undefined, status: statusGroup.value === 'unfinished' ? 'unfinished' : undefined }
 }
-async function load(offset = start.value, debounceText = false) {
+async function load(offset = start.value, debounceText = false, append = false) {
   if (timer) clearTimeout(timer)
   controller?.abort()
   const current = ++sequence
@@ -91,8 +95,9 @@ async function load(offset = start.value, debounceText = false) {
         status_group: statusGroup.value,
       }, controller?.signal)
       if (current !== sequence) return
-      rows.value = data.results || []
+      rows.value = append ? [...rows.value, ...(data.results || []).filter((row: any) => !rows.value.some(old => old.name === row.name))] : (data.results || [])
       total.value = data.total || 0
+		overallTotal.value = data.overall_total || 0
       unfinishedCount.value = data.unfinished_count || 0
       syncingRoute = true
       await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
@@ -161,10 +166,16 @@ onMounted(async () => {
     activities.value = await workspaceApi('activities')
     applyQuery(route.query as Record<string, unknown>)
     await load(start.value)
+    await nextTick()
+    observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value) void load(rows.value.length, false, true)
+    }, { rootMargin: '240px' })
+    if (sentinel.value) observer.observe(sentinel.value)
   } catch (cause: any) {
     error.value = cause.message
   }
 })
+onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
 </script>
 
 <template>
@@ -172,15 +183,15 @@ onMounted(async () => {
     <header><RouterLink to="/">‹ 首页</RouterLink><h1>{{ statusGroup === 'unfinished' ? '未完成记录' : '库存记录' }}</h1></header>
     <nav class="toolbar" aria-label="记录状态"><button type="button" :class="{ primary: statusGroup === 'completed' }" @click="selectGroup('completed')">库存记录</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">未完成记录 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
     <p v-if="error" class="error">{{ error }}</p>
-    <div class="list-layout">
+    <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
-        <WarehouseTreeFilter v-model="filters.rooms" :options="boot?.physical_tree || []" :tree="boot?.warehouse_tree || []" />
+        <HierarchyAutocomplete v-model="filters.rooms" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置" :options="warehouseOptions" :tree="boot?.warehouse_tree || []" />
         <fieldset><legend>交易类型</legend><label v-for="(label, kind) in labels" :key="kind"><input v-model="filters.movement_kind" type="radio" :value="kind">{{ label }}</label></fieldset>
         <fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset>
         <fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<Combobox v-model="filters.activity" :options="activityOptions" placeholder="搜索活动" aria-label="搜索活动" /></label><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset>
       </ResponsiveFilterPanel>
       <div class="results-column">
-        <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…" aria-label="搜索记录、来源、物品"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `${total} 条记录` }}</span></div>
+        <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…" aria-label="搜索记录、来源、物品"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部记录 ${overallTotal}` }}</span></div>
         <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载记录…" />
         <template v-else>
@@ -188,7 +199,7 @@ onMounted(async () => {
           <div class="mobile-cards"><article v-for="row in rows" :key="row.name" class="selection-row"><RouterLink :to="row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b><p>{{ row.posting_date }} · {{ row.items?.length || 0 }} 行 · {{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</p><small>{{ row.handler_name || row.responsible_person }}</small></RouterLink><button v-if="statusGroup === 'unfinished'" type="button" @click="deleteDraft(row.name)">删除草稿</button></article></div>
           <p v-if="!rows.length" class="empty-state">{{ statusGroup === 'unfinished' ? '暂无未完成记录' : '暂无库存记录' }}</p>
         </template>
-        <nav class="toolbar pagination" aria-label="记录分页"><button type="button" :disabled="start === 0 || busy" @click="load(start - pageLength)">上一页</button><span>{{ total ? start + 1 : 0 }}–{{ Math.min(start + pageLength, total) }} / {{ total }}</span><button type="button" :disabled="start + pageLength >= total || busy" @click="load(start + pageLength)">下一页</button></nav>
+        <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button" :disabled="busy" @click="load(rows.length, false, true)">{{busy?'正在加载…':'加载更多'}}</button>
       </div>
     </div>
   </main>

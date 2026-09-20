@@ -1,86 +1,34 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Scanner from '../components/Scanner.vue'
-import LoadingIndicator from '../components/LoadingIndicator.vue'
-import ActiveFilterChips from '../components/ActiveFilterChips.vue'
-import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
-import WarehouseTreeFilter from '../components/WarehouseTreeFilter.vue'
+import { api, warehouseLabel } from '../lib/api'
+import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
-import { api, request, warehouseLabel } from '../lib/api'
-import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
-import { detectInstallPlatform, installInstructions, installPwa, isStandalone } from '../lib/pwa'
-const router = useRouter(), route = useRoute()
-const manager = ref(false), bootstrapData = ref<any>(), query = ref(''), loading = ref(false), refreshing = ref(false), error = ref(''), notice = ref(''), unfinishedCount = ref(0), items = ref<any[]>([]), total = ref(0), start = ref(0), pageLength = 50, filterOpen = ref(false), expanded = ref<Record<string, boolean>>({}), installDialog = ref(false)
-const warehouses = ref<string[]>([]), itemGroups = ref<string[]>([])
-const page = computed(() => { const view = String(route.query.view || ''); return view === 'stock' ? 'inventory' : view === 'attention' || view === 'scan' ? view : 'home' })
-const labels: Record<string, string> = { Receive: '入库', Issue: '出库 / 发放', Transfer: '转移', Loan: '借出', Return: '归还', Damage: '标记损坏', Loss: '记录遗失', Repair: '修复归库', Disposal: '正式报废' }
-const activeCount = computed(() => warehouses.value.length + itemGroups.value.length + (query.value ? 1 : 0))
-const chips = computed(() => [ ...warehouses.value.map(value => ({ key: 'warehouses', value, label: warehouseLabel(value, bootstrapData.value?.warehouse_tree || []) })), ...itemGroups.value.map(value => ({ key: 'itemGroups', value, label: bootstrapData.value?.item_groups?.find((g: any) => g.name === value)?.item_group_name || value })), ...(query.value ? [{ key: 'query', label: `搜索：${query.value}` }] : []) ])
-const locationSummary = (item: any) => Object.entries(item.warehouse_stock || {}).filter(([, qty]) => Number(qty) !== 0).map(([name, qty]) => `${warehouseLabel(name, bootstrapData.value?.warehouse_tree || [])}：${qty} ${item.stock_uom}`)
-const visibleLocations = (item: any) => { const all = locationSummary(item); return expanded.value[item.item_code] ? all : all.slice(0, 2) }
-function setQuery(value: string) { query.value = value; start.value = 0 }
-function clearAll() { query.value = ''; warehouses.value = []; itemGroups.value = []; start.value = 0 }
-function removeChip(chip: any) { if (chip.key === 'warehouses') warehouses.value = warehouses.value.filter(v => v !== chip.value); else if (chip.key === 'itemGroups') itemGroups.value = itemGroups.value.filter(v => v !== chip.value); else query.value = ''; start.value = 0 }
-let syncingUrl = false
-function syncUrl() { syncingUrl = true; void router.replace({ query: { ...route.query, ...serializeFilterQuery({ search: query.value, warehouses: warehouses.value, item_groups: itemGroups.value, start: start.value || undefined }) } }).finally(() => { syncingUrl = false }) }
-let timer: number | undefined
-let requestController: AbortController | undefined
-let requestSequence = 0
-async function load(attention = page.value === 'attention') {
-  if (!bootstrapData.value) return
-  if (timer) window.clearTimeout(timer)
-  requestController?.abort()
-  const current = ++requestSequence
-  requestController = new AbortController()
-  const run = async () => {
-    refreshing.value = items.value.length > 0
-    if (!items.value.length) loading.value = true
-    error.value = ''
-    syncUrl()
-    try {
-      const data = await api('inventory', {
-        search: query.value || undefined,
-        warehouses: warehouses.value.length ? warehouses.value : undefined,
-        item_groups: itemGroups.value.length ? itemGroups.value : undefined,
-        needs_attention: attention,
-        start: start.value,
-        page_length: pageLength,
-      }, requestController?.signal)
-      if (current !== requestSequence) return
-      items.value = data.results || []
-      total.value = data.total || 0
-    } catch (e: any) {
-      if (current === requestSequence && e?.name !== 'AbortError') error.value = e.message
-    } finally {
-      if (current === requestSequence) {
-        loading.value = false
-        refreshing.value = false
-      }
-    }
-  }
-  if (query.value) timer = window.setTimeout(() => void run(), 300)
-  else await run()
-}
-async function boot() { try { const data = await api('bootstrap'); bootstrapData.value = data; manager.value = !!data.is_manager; unfinishedCount.value = data.unfinished_count || 0; const hydrated = hydrateFilterQuery(route.query as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [], start: '0' }); query.value = hydrated.search as string; warehouses.value = hydrated.warehouses as string[]; itemGroups.value = hydrated.item_groups as string[]; start.value = Number(hydrated.start) || 0; await load() } catch (e: any) { error.value = e.message } }
-async function logout() { await request('logout'); window.location.href = '/login?redirect-to=%2Finventory' }
-function navigate(view = '') { void router.push({ path: '/', query: view ? { view } : {} }) }; function openMovement(kind: string) { void router.push('/new/' + kind) }
-async function lookup(code: string) { try { const result = await api('scan', { value: code }); if (result.item_code) await router.push('/item/' + encodeURIComponent(result.item_code)); else error.value = '未找到物品，请从入库工作区创建。' } catch (e: any) { error.value = e.message } }
-const installPlatform = computed(() => typeof navigator === 'undefined' ? 'other' : detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)); const installHelp = computed(() => installInstructions(installPlatform.value)); async function install() { if (!(await installPwa())) installDialog.value = true }
-watch([query, warehouses, itemGroups], () => { if (bootstrapData.value) { start.value = 0; void load() } }, { deep: true })
-watch(() => route.query, current => {
-  if (syncingUrl || !bootstrapData.value) return
-  const hydrated = hydrateFilterQuery(current as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [], start: '0' })
-  const changed = !sameFilterValue(query.value, hydrated.search) || !sameFilterValue(warehouses.value, hydrated.warehouses) || !sameFilterValue(itemGroups.value, hydrated.item_groups) || start.value !== Number(hydrated.start || 0)
-  if (!changed) return
-  query.value = String(hydrated.search || '')
-  warehouses.value = hydrated.warehouses as string[]
-  itemGroups.value = hydrated.item_groups as string[]
-  start.value = Number(hydrated.start) || 0
-}, { deep: true })
-watch(() => route.query.view, (view, previous) => { if (view !== previous && (view === 'stock' || view === 'attention')) void load(view === 'attention') })
-onMounted(boot)
+import LoadingIndicator from '../components/LoadingIndicator.vue'
+import Scanner from '../components/Scanner.vue'
+import { hydrateFilterQuery, serializeFilterQuery } from '../composables/filters'
+const route = useRoute(), router = useRouter()
+const boot = ref<any>(), rows = ref<any[]>([]), total = ref(0), overall = ref<number | null>(null), error = ref(''), loading = ref(false), loadingMore = ref(false), selection = ref(false), selected = ref<string[]>([]), filterOpen = ref(false), scanner = ref(false)
+const filters = ref({ search: '', warehouses: [] as string[], item_groups: [] as string[] })
+const sentinel = ref<HTMLElement>()
+const mode = computed(() => String(route.query.mode || 'current'))
+const modes = [{ key: 'current', label: '当前库存' }, { key: 'catalog', label: '全部物品' }, { key: 'expiry', label: '效期批次' }]
+const categoryOptions = computed(() => (boot.value?.item_groups || []).map((row: any) => ({ ...row, label: row.item_group_name, parent: row.parent_item_group })))
+const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabel(row.name, boot.value?.warehouse_tree || []), parent: row.parent_warehouse })))
+let controller: AbortController | undefined
+let observer: IntersectionObserver | undefined
+async function load(append = false) { if (!boot.value || mode.value === 'expiry') return; controller?.abort(); controller = new AbortController(); append ? loadingMore.value = true : loading.value = true; error.value = ''; try { const data = await api('inventory', { ...filters.value, mode: mode.value, warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined, item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined, start: append ? rows.value.length : 0, page_length: 25 }, controller.signal); const incoming = data.results || []; rows.value = append ? [...rows.value, ...incoming.filter((row: any) => !rows.value.some(old => old.item_code === row.item_code))] : incoming; total.value = data.total || 0; overall.value = data.overall_total } catch (e: any) { if (e?.name !== 'AbortError') error.value = e.message } finally { loading.value = false; loadingMore.value = false } }
+function setMode(key: string) { if (key === 'expiry') void router.push({ path: '/expiry', query: route.query }); else void router.replace({ query: { ...route.query, mode: key === 'current' ? undefined : key } }) }
+function clearFilters() { filters.value = { search: '', warehouses: [], item_groups: [] } }
+function operation(kind: string) { void router.push(`/new/${kind}`) }
+function selectedOperation(kind: string) { if (!selected.value.length) return operation(kind); sessionStorage.setItem(`ti-seed:${kind}`, JSON.stringify({ items: selected.value })); void router.push(`/new/${kind}`) }
+async function scan(value: string) { const result = await api('scan', { value }); if (result.item_code) await router.push(`/item/${encodeURIComponent(result.item_code)}`); else { sessionStorage.setItem('ti-unknown-barcode', value); await router.push('/new/Receive') } }
+function toggle(code: string) { selected.value = selected.value.includes(code) ? selected.value.filter(value => value !== code) : [...selected.value, code] }
+watch([filters, mode], () => { if (boot.value) { void router.replace({ query: { ...route.query, ...serializeFilterQuery(filters.value) } }); void load() } }, { deep: true })
+watch(() => route.query, query => { const data = hydrateFilterQuery(query as Record<string, unknown>, filters.value); if (JSON.stringify(data) !== JSON.stringify(filters.value)) filters.value = data }, { deep: true })
+onMounted(async () => { try { boot.value = await api('bootstrap'); filters.value = hydrateFilterQuery(route.query as Record<string, unknown>, filters.value); await load(); await nextTick(); const savedY = Number(sessionStorage.getItem('ti:inventory-scroll') || 0); if (savedY) window.scrollTo(0, savedY); observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !loadingMore.value && !loading.value) void load(true) }, { rootMargin: '240px' }); if (sentinel.value) observer.observe(sentinel.value) } catch (e: any) { error.value = e.message } })
+onBeforeUnmount(() => { sessionStorage.setItem('ti:inventory-scroll', String(window.scrollY)); controller?.abort(); observer?.disconnect() })
 </script>
-<template><main class="app-shell wide-shell"><header><button @click="logout">退出登录</button><button class="brand" @click="navigate()">寺院库存</button><span v-if="notice" class="notice">{{ notice }}</span></header><p v-if="error" class="error">{{ error }}</p>
-<section v-if="page === 'home'" class="hero"><p class="eyebrow">库存与资产管理</p><h1>今天需要处理什么？</h1><h2>库存操作</h2><div class="quick-grid"><button v-for="kind in ['Receive','Issue','Transfer']" :key="kind" @click="openMovement(kind)">{{ labels[kind] }}</button></div><h2>借用管理</h2><div class="quick-grid"><button @click="openMovement('Loan')">借出</button><button @click="openMovement('Return')">归还</button><button @click="openMovement('Loss')">记录遗失</button></div><h2>损坏处理</h2><div class="quick-grid"><button @click="openMovement('Damage')">标记损坏</button><button @click="openMovement('Repair')">修复归库</button><button @click="openMovement('Disposal')">正式报废</button></div><div class="home-links"><RouterLink class="selection-row" to="/history">库存记录</RouterLink><RouterLink class="selection-row" to="/history?status=unfinished">未完成记录 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></RouterLink><button @click="navigate('stock')">查看库存</button><button @click="navigate('attention')">待处理</button><RouterLink class="selection-row" to="/expiry">有效期</RouterLink><button @click="navigate('scan')">扫码</button><button v-if="!isStandalone" @click="install">安装到手机</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div></section>
-<section v-else-if="page === 'inventory' || page === 'attention'" class="list-page"><div class="page-title"><button @click="navigate()">‹ 返回</button><h1>{{ page === 'attention' ? '待处理' : '查看库存' }}</h1></div><div class="list-layout"><ResponsiveFilterPanel v-model:open="filterOpen" :count="activeCount"><WarehouseTreeFilter v-model="warehouses" :options="bootstrapData?.physical_tree || []" :tree="bootstrapData?.warehouse_tree || []"/><fieldset class="category-filter"><legend>物品类别</legend><label v-for="group in bootstrapData?.item_groups || []" :key="group.name"><input v-model="itemGroups" type="checkbox" :value="group.name">{{ group.item_group_name }}</label></fieldset></ResponsiveFilterPanel><div class="results-column"><div class="result-toolbar"><input v-model="query" type="search" placeholder="搜索名称或库存编号" aria-label="搜索名称或库存编号"><button class="mobile-filter-button" type="button" @click="filterOpen = true">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `${total} 条结果` }}</span></div><ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll"/><p v-if="page === 'attention'" class="empty-state">这里显示需要补充资料或整理位置的物品：库存仍在“未定位”，或物品缺少说明/系统要求的照片。处理完成后，物品会自动从此列表消失。</p><LoadingIndicator v-if="loading" text="正在加载库存…"/><template v-else><div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">物品</th><th scope="col">类别</th><th scope="col">可用</th><th scope="col">总计</th><th scope="col">位置</th><th scope="col">状态</th></tr></thead><tbody><tr v-for="item in items" :key="item.item_code"><td><div class="item-identity"><ItemImagePreview :src="item.image" :alt="item.item_name"/><RouterLink :to="`/item/${encodeURIComponent(item.item_code)}`"><b>{{ item.item_name }}</b><small>{{ item.item_code }}</small></RouterLink></div></td><td>{{ item.item_group }}</td><td class="quantity">{{ item.available_stock }} {{ item.stock_uom }}</td><td class="quantity">{{ item.total_stock }} {{ item.stock_uom }}</td><td><span v-for="location in visibleLocations(item)" :key="location" class="location-line">{{ location }}</span><button v-if="locationSummary(item).length > 2" type="button" class="inline-link" @click="expanded[item.item_code] = !expanded[item.item_code]">{{ expanded[item.item_code] ? '收起位置' : `另有 ${locationSummary(item).length - 2} 个位置` }}</button></td><td><span v-for="reason in item.attention_reasons || []" :key="reason.code" class="reason-badge warn">{{ reason.label }}</span></td></tr></tbody></table></div><div class="mobile-cards"><article v-for="item in items" :key="item.item_code" class="item-card"><ItemImagePreview :src="item.image" :alt="item.item_name"/><div><RouterLink :to="`/item/${encodeURIComponent(item.item_code)}`"><b>{{ item.item_code }} · {{ item.item_name }}</b></RouterLink><p>{{ item.item_group }} · 可用 {{ item.available_stock }} {{ item.stock_uom}} · 总计 {{ item.total_stock }}</p><small v-for="location in visibleLocations(item)" :key="location" class="location-line">{{ location }}</small><small v-for="reason in item.attention_reasons || []" :key="reason.code" class="warn">{{ reason.label }}</small></div></article></div><p v-if="!items.length" class="empty-state">{{ page === 'attention' ? '暂无待处理物品' : '暂无库存物品' }}</p></template><nav v-if="total > pageLength" class="pagination" aria-label="库存分页"><button :disabled="start === 0 || loading" @click="start = Math.max(0, start - pageLength); load()">上一页</button><span>{{ start + 1 }}–{{ Math.min(start + pageLength, total) }} / {{ total }}</span><button :disabled="start + pageLength >= total || loading" @click="start += pageLength; load()">下一页</button></nav></div></div></section><section v-else-if="page === 'scan'"><div class="page-title"><button @click="navigate()">‹ 返回</button><h1>扫码</h1></div><p class="empty-state">请将条码置于取景框内；若无法使用摄像头，可在扫描器中手动输入编码。</p><Scanner @scan="lookup" @close="navigate()"/></section><div v-if="installDialog" class="modal" role="dialog" aria-modal="true"><section><h2>安装物资管理</h2><p>{{ installHelp }}</p><button class="primary" @click="installDialog = false">知道了</button></section></div></main></template>
+<template>
+  <section class="inventory-destination wide-shell"><header class="page-heading"><div><h1>库存</h1><p>查看当前物资、产品目录和效期批次</p></div><RouterLink v-if="boot?.pending_count" class="pending-notice" to="/pending">待处理 {{ boot.pending_count }}</RouterLink></header><nav class="inventory-modes" aria-label="库存视图"><button v-for="item in modes" :key="item.key" type="button" :class="{ active: mode === item.key }" @click="setMode(item.key)">{{ item.label }}</button></nav><div class="list-layout desktop-list-layout"><aside class="filter-sidebar" :class="{ open: filterOpen }"><header><h2>筛选</h2><button class="inline-link" type="button" @click="clearFilters">清除全部</button></header><HierarchyAutocomplete v-model="filters.warehouses" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置" :options="warehouseOptions" :tree="boot?.warehouse_tree || []"/><HierarchyAutocomplete v-model="filters.item_groups" title="物品类别" placeholder="搜索或浏览物品类别" :options="categoryOptions" :tree="boot?.item_groups || []"/></aside><div class="results-column"><div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或条码" aria-label="搜索物品或条码"><button type="button" aria-label="扫描条码" @click="scanner = true">扫描</button><button class="mobile-filter-button" type="button" @click="filterOpen = !filterOpen">筛选</button><button type="button" @click="selection = !selection; selected = []">{{ selection ? '完成选择' : '选择' }}</button><details class="new-operation"><summary>新建库存操作</summary><button v-for="kind in ['Receive', 'Issue', 'Transfer']" :key="kind" type="button" @click="operation(kind)">{{ ({Receive:'入库',Issue:'出库',Transfer:'转移'} as any)[kind] }}</button></details></div><p aria-live="polite">已加载 {{ rows.length }} · 筛选结果 {{ total }}<template v-if="overall !== null"> · 全部库存物品 {{ overall }}</template></p><p v-if="error" class="error">{{ error }}</p><LoadingIndicator v-if="loading" text="正在加载库存…"/><div v-else class="inventory-results"><article v-for="item in rows" :key="item.item_code" class="item-card"><label v-if="selection" class="selection-check"><input type="checkbox" :checked="selected.includes(item.item_code)" :aria-label="`选择 ${item.item_name}`" @change="toggle(item.item_code)"></label><ItemImagePreview :src="item.image" :alt="item.item_name"/><RouterLink :to="`/item/${encodeURIComponent(item.item_code)}`"><b>{{ item.item_name }}</b><small>{{ item.item_code }} · {{ item.item_group }}</small><p>可用 {{ item.available_stock }} {{ item.stock_uom }} · 总计 {{ item.total_stock }} {{ item.stock_uom }}</p><p>借出 {{ item.on_loan_qty }} · 损坏 {{ item.damaged_qty }} · 未定位 {{ item.pending_qty }}</p></RouterLink></article><p v-if="!rows.length" class="empty-state">暂无符合条件的物品</p></div><div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button" :disabled="loadingMore" @click="load(true)">{{ loadingMore ? '正在加载…' : '加载更多' }}</button></div></div><div v-if="selection && selected.length" class="context-action-bar" role="toolbar" aria-label="已选物品操作"><span>已选 {{ selected.length }} 项</span><button v-for="kind in ['Receive', 'Issue', 'Transfer', 'Loan']" :key="kind" type="button" @click="selectedOperation(kind)">{{ ({Receive:'入库',Issue:'出库',Transfer:'转移',Loan:'借出'} as any)[kind] }}</button></div><button class="mobile-fab" aria-label="新建库存操作" @click="operation('Receive')">＋</button><Scanner v-if="scanner" @scan="scan" @close="scanner = false"/></section>
+</template>

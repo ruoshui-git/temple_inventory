@@ -173,7 +173,8 @@ def _physical_tree(settings=None):
 			for leaf in physical
 		):
 			keep.add(name)
-	return {name: row for name, row in visible.items() if name in keep}
+	# The physical root is a boundary, not a browseable operational warehouse.
+	return {name: row for name, row in visible.items() if name in keep and name != physical_root}
 
 
 def _warehouse_by_label(label, company, parent=None):
@@ -582,8 +583,14 @@ def _raise_on_group_stock(warehouses):
 def bootstrap():
 	_require_stock()
 	settings = _settings()
+	# Browse filters need the complete structured hierarchy.  Leaf-only results
+	# make parent selection impossible and tempt clients to infer ancestry from
+	# display names.
 	groups = frappe.get_list(
-		"Item Group", filters={"is_group": 0}, fields=["name", "item_group_name"], limit_page_length=0
+		"Item Group",
+		fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"],
+		order_by="lft",
+		limit_page_length=0,
 	)
 	batch_enabled = frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item")
 	visible = _visible_warehouses(settings)
@@ -594,12 +601,24 @@ def bootstrap():
 		where iw.company=%s and (iw.stock_entry is null or se.docstatus=0)""",
 		settings.company,
 	)[0][0]
+	pending_rows = frappe.get_all(
+		"Bin",
+		filters={"warehouse": ("in", [settings.damaged_warehouse, settings.pending_warehouse]), "actual_qty": (">", 0)},
+		fields=["warehouse", "item_code"],
+		limit_page_length=0,
+	)
+	damaged_count = len({row.item_code for row in pending_rows if row.warehouse == settings.damaged_warehouse})
+	unlocated_count = len({row.item_code for row in pending_rows if row.warehouse == settings.pending_warehouse})
 	return {
 		"user": frappe.session.user,
 		"is_manager": "System Manager" in frappe.get_roles(),
 		"initialization": initialization_status(),
 		"unfinished_count": unfinished_count,
+		"damaged_pending_count": damaged_count,
+		"unlocated_pending_count": unlocated_count,
+		"pending_count": len({row.item_code for row in pending_rows}),
 		"capabilities": {dt: frappe.has_permission(dt, "create") for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")},
+		"can_edit_item": frappe.has_permission("Item", "write"),
 		"warehouse_tree": list(visible.values()),
 		"physical_warehouses": list(physical.values()),
 		"physical_tree": list(_physical_tree(settings).values()),
@@ -617,7 +636,37 @@ def bootstrap():
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, start=0, page_length=50, warehouses=None, item_groups=None):
+def warehouse_summaries():
+	"""Aggregated physical-tree summaries; never add incompatible UOMs."""
+	_require_stock()
+	settings = _settings()
+	visible = _visible_warehouses(settings)
+	physical = _physical_tree(settings)
+	leaves = {name: row for name, row in physical.items() if not row.is_group}
+	items = {row.name: row for row in frappe.get_all("Item", fields=["name", "stock_uom", "item_group"], limit_page_length=0)}
+	by_leaf = defaultdict(lambda: {"items": set(), "uoms": defaultdict(float), "groups": set()})
+	for row in frappe.get_all("Bin", filters={"warehouse": ("in", list(leaves) or [""]), "actual_qty": (">", 0)}, fields=["warehouse", "item_code", "actual_qty"], limit_page_length=0):
+		item = items.get(row.item_code)
+		if not item:
+			continue
+		by_leaf[row.warehouse]["items"].add(row.item_code)
+		by_leaf[row.warehouse]["uoms"][item.stock_uom] += flt(row.actual_qty)
+		by_leaf[row.warehouse]["groups"].add(item.item_group)
+	result = []
+	for name, node in physical.items():
+		included = [leaf for leaf, row in leaves.items() if leaf == name or (node.is_group and row.lft > node.lft and row.rgt < node.rgt)]
+		product_ids, quantities, groups = set(), defaultdict(float), set()
+		for leaf in included:
+			product_ids.update(by_leaf[leaf]["items"])
+			groups.update(by_leaf[leaf]["groups"])
+			for uom, qty in by_leaf[leaf]["uoms"].items():
+				quantities[uom] += qty
+		result.append({"warehouse": name, "distinct_products": len(product_ids), "quantities": [{"uom": uom, "qty": qty} for uom, qty in sorted(quantities.items())], "item_groups": sorted(groups)[:4], "additional_groups": max(0, len(groups) - 4)})
+	return result
+
+
+@frappe.whitelist()
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None):
 	_require_stock()
 	settings = _settings()
 	warehouse_map = _visible_warehouses(settings)
@@ -634,7 +683,11 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			balances[row.item_code][row.warehouse] += row.actual_qty
 	filters = {"disabled": 0, "is_stock_item": 1}
 	groups = _selection_values(item_groups if item_groups is not None else item_group)
-	if groups: filters["item_group"] = ("in", groups)
+	if groups:
+		group_rows = frappe.get_all("Item Group", filters={"name": ("in", groups)}, fields=["name", "lft", "rgt"])
+		all_groups = frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
+		groups = [row.name for row in all_groups if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in group_rows)]
+		filters["item_group"] = ("in", groups or [""])
 	items = frappe.get_list(
 		"Item",
 		filters=filters,
@@ -651,17 +704,16 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 	result = []
 	for item in items:
 		stock = balances.get(item.name, {})
-		total, pending = sum(stock.values()), stock.get(settings.pending_warehouse, 0)
-		missing_description = not item.description
-		missing_photo = bool(settings.photo_required and not item.image)
-		missing = missing_description or missing_photo
-		if not total and not needs_attention:
+		total, pending, damaged = sum(stock.values()), stock.get(settings.pending_warehouse, 0), stock.get(settings.damaged_warehouse, 0)
+		if not total and mode != "catalog" and not needs_attention:
 			continue
-		if needs_attention and not (pending or missing):
+		# Operational pending is physical stock only.  Catalog completeness is
+		# valuable, but never creates a pending row or badge.
+		if needs_attention and not (pending or damaged):
 			continue
 		attention_reasons = ([] if not pending else [{"code": "unlocated", "label": _("未定位 {0}").format(pending)}])
-		if missing_description: attention_reasons.append({"code": "missing_description", "label": _("缺少说明")})
-		if missing_photo: attention_reasons.append({"code": "missing_photo", "label": _("缺少照片")})
+		if damaged:
+			attention_reasons.append({"code": "damaged", "label": _("损坏 {0}").format(damaged)})
 		result.append(
 			{
 				"item_code": item.item_code,
@@ -677,15 +729,25 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 					for key, qty in stock.items()
 					if key in _descendants(settings.leased_warehouse, warehouse_map)
 				),
-				"damaged_qty": stock.get(settings.damaged_warehouse, 0),
+				"damaged_qty": damaged,
 				"pending_qty": pending,
 				"warehouse_stock": dict(stock),
-				"needs_attention": bool(pending or missing),
+				"needs_attention": bool(pending or damaged),
 				"attention_reasons": attention_reasons,
 			}
 		)
 	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
-	return _page(result, page_length, start)
+	# overall_total retains fixed permissions and mode but deliberately removes
+	# removable text/category/location filters.
+	has_removable_filters = bool(search or _selection_values(warehouses if warehouses is not None else warehouse) or _selection_values(item_groups if item_groups is not None else item_group))
+	overall = len(result)
+	if has_removable_filters:
+		# Reapply the same fixed mode/permission predicates while removing only
+		# user facets. This keeps the displayed overall count meaningful.
+		overall = inventory(mode=mode, needs_attention=needs_attention, start=0, page_length=1)["total"]
+	page = _page(result, page_length, start)
+	page["overall_total"] = overall
+	return page
 
 
 @frappe.whitelist()
@@ -956,6 +1018,34 @@ def set_item_image(item_code, image):
 	return {"item_code": item.name, "image": item.image}
 
 
+@frappe.whitelist(methods=["POST"])
+def update_item(item_code, data):
+	"""Guarded master-data edit; stock identity/tracking fields stay immutable here."""
+	_require_stock()
+	item = frappe.get_doc("Item", item_code)
+	item.check_permission("write")
+	payload = _loads(data, {})
+	for field in ("item_name", "item_group", "description", "image"):
+		if field in payload:
+			setattr(item, field, payload[field])
+	if "item_group" in payload and payload["item_group"]:
+		frappe.get_doc("Item Group", payload["item_group"]).check_permission("read")
+	if "barcodes" in payload:
+		values = []
+		seen = set()
+		for value in payload["barcodes"] or []:
+			barcode = str(value).strip()
+			if barcode and barcode not in seen:
+				other = frappe.db.get_value("Item Barcode", {"barcode": barcode}, "parent")
+				if other and other != item.name:
+					frappe.throw(_("Barcode already belongs to another item"))
+				seen.add(barcode)
+				values.append({"barcode": barcode})
+		item.set("barcodes", values)
+	item.save()
+	return {"item_code": item.name, "item_name": item.item_name, "item_group": item.item_group, "description": item.description, "image": item.image, "barcodes": [row.barcode for row in item.barcodes]}
+
+
 @frappe.whitelist()
 def outstanding_loan_items():
 	_require_stock()
@@ -969,6 +1059,62 @@ def outstanding_loan_items():
 			if outstanding>0:
 				rows.append({"loan":loan.name,"loan_item":item.name,"item_code":item.item_code,"batch_no":item.batch_no,"uom":item.uom,"activity":item.activity or loan.activity,"borrower":loan.borrower,"original_warehouse":item.original_warehouse,"loan_date":loan.posting_datetime,"loaned":item.qty,"returned":returned,"damaged":damaged,"lost":lost,"outstanding":outstanding})
 	return rows
+
+
+@frappe.whitelist()
+def loan_items(search=None, start=0, page_length=25):
+	"""Backward-compatible, server-paged chooser contract for return/loss."""
+	rows = outstanding_loan_items()
+	if search:
+		term = str(search).lower()
+		rows = [row for row in rows if term in " ".join(str(row.get(field) or "") for field in ("loan", "item_code", "borrower", "activity")).lower()]
+	rows.sort(key=lambda row: (str(row.get("loan_date") or ""), row["loan_item"]), reverse=True)
+	return {**_page(rows, page_length, start), "overall_total": len(rows)}
+
+
+def _outstanding_loan_rows():
+	"""Return permitted submitted loan lines with submitted outcomes only."""
+	return outstanding_loan_items()
+
+
+@frappe.whitelist()
+def loans(search=None, start=0, page_length=25):
+	"""Page active loans by parent transaction, never by a flat item line."""
+	_require_stock()
+	grouped = {}
+	for row in _outstanding_loan_rows():
+		loan = grouped.setdefault(row["loan"], {
+			"name": row["loan"], "borrower": row["borrower"], "activity": row["activity"],
+			"loan_date": row["loan_date"], "items": [], "outstanding_lines": 0,
+		})
+		item = frappe.db.get_value("Item", row["item_code"], ["item_name", "image"], as_dict=True) or {}
+		loan["items"].append({**row, "item_name": item.get("item_name", row["item_code"]), "image": item.get("image")})
+		loan["outstanding_lines"] += 1
+	rows = list(grouped.values())
+	if search:
+		term = str(search).lower()
+		rows = [row for row in rows if term in " ".join([
+			str(row["name"]), str(row.get("borrower") or ""), str(row.get("activity") or ""),
+			*[(str(item["item_code"]) + " " + str(item.get("item_name") or "")) for item in row["items"]],
+		]).lower()]
+	rows.sort(key=lambda row: (str(row.get("loan_date") or ""), row["name"]), reverse=True)
+	return {**_page(rows, page_length, start), "overall_total": len(grouped)}
+
+
+@frappe.whitelist()
+def loan_detail(name):
+	_require_stock()
+	loan = frappe.get_doc("Inventory Loan", name)
+	loan.check_permission("read")
+	rows = [row for row in _outstanding_loan_rows() if row["loan"] == loan.name]
+	for row in rows:
+		item = frappe.get_doc("Item", row["item_code"])
+		item.check_permission("read")
+		row.update({"item_name": item.item_name, "image": item.image, "item_group": item.item_group})
+	return {
+		"name": loan.name, "borrower": loan.borrower, "activity": loan.activity,
+		"posting_datetime": loan.posting_datetime, "items": rows,
+	}
 
 
 
@@ -986,16 +1132,22 @@ def configure_warehouse(
 	_require_manager()
 	settings = _settings()
 	visible = _visible_warehouses(settings)
+	physical_root = visible.get(settings.physical_root_warehouse)
+	def physical_group(name):
+		row = visible.get(name)
+		return bool(row and physical_root and row.lft >= physical_root.lft and row.rgt <= physical_root.rgt and row.is_group)
 	if warehouse_type not in ("地点", "房间", "库位", "虚拟", "Room", "Location", ""):
 		frappe.throw(_("Choose Room or Location"))
 	if warehouse:
-		if warehouse not in visible:
+		if warehouse not in visible or warehouse in _system_warehouse_names(settings):
 			frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
 		doc = frappe.get_doc("Warehouse", warehouse)
+		if warehouse_name and warehouse_name.strip() and warehouse_name.strip() != doc.warehouse_name:
+			doc.warehouse_name = warehouse_name.strip()
 		doc.warehouse_type = warehouse_type
 		doc.save()
 	else:
-		if parent_warehouse not in visible or not visible[parent_warehouse].is_group:
+		if not physical_group(parent_warehouse):
 			frappe.throw(_("Choose a parent group under the temple root"))
 		doc = frappe.get_doc(
 			{
@@ -1013,7 +1165,7 @@ def configure_warehouse(
 
 
 @frappe.whitelist()
-def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=50, warehouses=None, item_groups=None):
+def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None):
 	"""Return positive, visible batch balances aggregated by batch."""
 	_require_stock()
 	visible_warehouses = _visible_warehouses(_settings())
@@ -1021,8 +1173,11 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 	selected = _selected_leaf_warehouses(warehouses if warehouses is not None else warehouse, visible_warehouses)
 	filters = {"disabled": 0}
 	groups = _selection_values(item_groups if item_groups is not None else item_group)
-	if groups: filters["item_group"] = ("in", groups)
-	items = {r.name: r for r in frappe.get_all("Item", filters=filters, fields=["name", "item_code", "item_name", "item_group", "stock_uom"], limit_page_length=0)}
+	if groups:
+		parents = frappe.get_all("Item Group", filters={"name": ("in", groups)}, fields=["lft", "rgt"])
+		groups = [row.name for row in frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0) if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in parents)]
+		filters["item_group"] = ("in", groups or [""])
+	items = {r.name: r for r in frappe.get_all("Item", filters=filters, fields=["name", "item_code", "item_name", "item_group", "stock_uom", "image"], limit_page_length=0)}
 	as_of, rows = getdate(nowdate()), []
 	for batch in frappe.get_all("Batch", filters={"disabled": 0, "expiry_date": ("is", "set")}, fields=["name", "item", "expiry_date"], limit_page_length=0):
 		item, expiry = items.get(batch.item), getdate(batch.expiry_date)
@@ -1030,6 +1185,10 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 		if search and search.lower() not in f"{batch.name} {item.item_code} {item.item_name}".lower(): continue
 		locations = [{"warehouse": w, "qty": flt(get_batch_qty(batch_no=batch.name, warehouse=w, item_code=item.name))} for w in selected]
 		locations = [row for row in locations if row["qty"] > 0]
-		if locations: rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "stock_uom": item.stock_uom, "expiry_date": str(expiry), "days_to_expiry": (expiry-as_of).days, "total_qty": sum(row["qty"] for row in locations), "locations": locations})
+		if locations: rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "image": item.image, "stock_uom": item.stock_uom, "expiry_date": str(expiry), "days_to_expiry": (expiry-as_of).days, "total_qty": sum(row["qty"] for row in locations), "locations": locations})
 	rows.sort(key=lambda row: (row["expiry_date"], row["item_code"]), reverse=str(sort).lower() == "desc")
-	return {**_page(rows, page_length, start), "as_of": str(as_of)}
+	has_removable_filters = bool(search or expiry_from or expiry_to or _selection_values(warehouses if warehouses is not None else warehouse) or _selection_values(item_groups if item_groups is not None else item_group))
+	overall_total = len(rows)
+	if has_removable_filters:
+		overall_total = expiring_batches(sort=sort, start=0, page_length=1)["total"]
+	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of)}

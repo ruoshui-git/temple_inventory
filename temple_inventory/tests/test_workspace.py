@@ -197,10 +197,12 @@ class WorkspaceTests(unittest.TestCase):
 			SimpleNamespace(item_code="ITEM-1", warehouse="pending", actual_qty=2),
 		]
 		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_list", return_value=[item]), patch.object(inventory_service.frappe, "get_all", return_value=bins):
-			rows = inventory(item_group="Group A")["results"]
-			leaf_rows = inventory(warehouse="leaf_b", item_group="Group A")["results"]
+			rows = inventory()["results"]
+			leaf_rows = inventory(warehouse="leaf_b")["results"]
 		self.assertEqual(rows[0]["warehouse_stock"], {"leaf_a": 3, "pending": 2})
-		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"unlocated", "missing_description", "missing_photo"})
+		# Operational Pending is physical damaged/unlocated stock only; catalog
+		# completeness no longer produces a pending reason.
+		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"unlocated"})
 		self.assertEqual(leaf_rows, [])
 
 	def test_inventory_rejects_nonzero_group_stock(self):
@@ -242,6 +244,7 @@ class WorkspaceTests(unittest.TestCase):
 		def get_all(doctype, *args, **kwargs):
 			if doctype == "Item": return [item]
 			if doctype == "Batch": return batches
+			if doctype == "Item Group": return [SimpleNamespace(name="Group A", lft=1, rgt=2)]
 			raise AssertionError(doctype)
 		def batch_qty(batch_no, warehouse, item_code, **kwargs):
 			return {("B-OLD", "leaf_a"): 2, ("B-OLD", "leaf_b"): 1, ("B-NEW", "leaf_a"): 4}.get((batch_no, warehouse), 0)

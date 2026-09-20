@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, warehouseLabel } from '../lib/api'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
-import WarehouseTreeFilter from '../components/WarehouseTreeFilter.vue'
+import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
+import ItemImagePreview from '../components/ItemImagePreview.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,10 +17,12 @@ const error = ref('')
 const busy = ref(false)
 const refreshing = ref(false)
 const total = ref(0)
+const overallTotal = ref(0)
 const start = ref(0)
-const pageLength = 50
+const pageLength = 25
 const filterOpen = ref(false)
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null)
+const sentinel = ref<HTMLElement>()
 const filters = ref({
   search: '',
   warehouses: [] as string[],
@@ -28,6 +31,8 @@ const filters = ref({
   expiry_to: '',
   sort: 'asc',
 })
+const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabel(row.name, boot.value?.warehouse_tree || []), parent: row.parent_warehouse })))
+const categoryOptions = computed(() => (boot.value?.item_groups || []).map((row: any) => ({ ...row, label: row.item_group_name, parent: row.parent_item_group })))
 
 const activeCount = computed(() =>
   filters.value.warehouses.length +
@@ -67,7 +72,8 @@ let controller: AbortController | undefined
 let sequence = 0
 let syncingRoute = false
 let restoringRoute = false
-async function load() {
+let observer: IntersectionObserver | undefined
+async function load(append = false) {
   if (!boot.value) return
   if (timer) clearTimeout(timer)
   controller?.abort()
@@ -82,12 +88,13 @@ async function load() {
         ...filters.value,
         warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined,
         item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined,
-        start: start.value,
+        start: append ? rows.value.length : start.value,
         page_length: pageLength,
       }, controller?.signal)
       if (current !== sequence) return
-      rows.value = data.results || []
+      rows.value = append ? [...rows.value, ...(data.results || []).filter((row: any) => !rows.value.some(old => old.batch_no === row.batch_no))] : (data.results || [])
       total.value = data.total || 0
+		overallTotal.value = data.overall_total || 0
       syncingRoute = true
       void router.replace({
         query: { ...route.query, ...serializeFilterQuery({ ...filters.value, start: start.value || undefined }) },
@@ -108,11 +115,6 @@ async function load() {
 function days(value: number) {
   return value < 0 ? `${value} 天` : value === 0 ? '今天到期' : `还有 ${value} 天`
 }
-function next(delta: number) {
-  start.value = Math.max(0, start.value + delta * pageLength)
-  void load()
-}
-
 watch(filters, () => {
   const preserveStart = restoringRoute
   restoringRoute = false
@@ -153,33 +155,40 @@ onMounted(async () => {
     }
     start.value = Number(hydrated.start) || 0
     await load()
+    await nextTick()
+    observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value) void load(true)
+    }, { rootMargin: '240px' })
+    if (sentinel.value) observer.observe(sentinel.value)
   } catch (cause: any) {
     error.value = cause.message
   }
 })
+onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
 </script>
 
 <template>
   <main class="app-shell wide-shell">
-    <header><RouterLink to="/">‹ 首页</RouterLink><h1>有效期</h1></header>
+    <header class="page-heading"><div><h1>库存</h1><p>效期批次</p></div></header>
+    <nav class="inventory-modes" aria-label="库存视图"><RouterLink to="/">当前库存</RouterLink><RouterLink to="/?mode=catalog">全部物品</RouterLink><RouterLink class="active" to="/expiry">效期批次</RouterLink></nav>
     <p v-if="error" class="error">{{ error }}</p>
-    <div class="list-layout">
+    <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
-        <WarehouseTreeFilter v-model="filters.warehouses" :options="boot?.physical_tree || []" :tree="boot?.warehouse_tree || []" />
-        <fieldset class="category-filter"><legend>物品类别</legend><label v-for="group in boot?.item_groups || []" :key="group.name"><input v-model="filters.item_groups" type="checkbox" :value="group.name">{{ group.item_group_name }}</label></fieldset>
+        <HierarchyAutocomplete v-model="filters.warehouses" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置" :options="warehouseOptions" :tree="boot?.warehouse_tree || []" />
+        <HierarchyAutocomplete v-model="filters.item_groups" title="物品类别" placeholder="搜索或浏览物品类别" :options="categoryOptions" :tree="boot?.item_groups || []" />
         <fieldset><legend>到期日期</legend><label>到期从<input v-model="filters.expiry_from" type="date"></label><label>到期至<input v-model="filters.expiry_to" type="date"></label></fieldset>
         <fieldset><legend>排序</legend><label><input v-model="filters.sort" type="radio" value="asc">最近到期优先</label><label><input v-model="filters.sort" type="radio" value="desc">最晚到期优先</label></fieldset>
       </ResponsiveFilterPanel>
       <div class="results-column">
-        <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或批次" aria-label="搜索物品或批次"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `${total} 条结果` }}</span></div>
+        <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或批次" aria-label="搜索物品或批次"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部效期批次 ${overallTotal}` }}</span></div>
         <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载有效期…" />
         <template v-else>
-          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">物品 / 批次</th><th scope="col">类别</th><th scope="col">到期日期</th><th scope="col">剩余</th><th scope="col">数量</th><th scope="col">位置</th></tr></thead><tbody><tr v-for="row in rows" :key="row.batch_no"><td><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.batch_no }}</small></td><td>{{ row.item_group }}</td><td>{{ row.expiry_date }}</td><td :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</td><td class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</td><td><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseLabel(location.warehouse, boot?.warehouse_tree || []) }}：{{ location.qty }}</span></td></tr></tbody></table></div>
-          <div class="mobile-cards"><article v-for="row in rows" :key="row.batch_no" class="item-card"><div><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</span></p></div></article></div>
+          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">物品 / 批次</th><th scope="col">类别</th><th scope="col">到期日期</th><th scope="col">剩余</th><th scope="col">数量</th><th scope="col">位置</th></tr></thead><tbody><tr v-for="row in rows" :key="row.batch_no"><td><div class="item-identity"><ItemImagePreview :src="row.image" :alt="row.item_name"/><span><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.batch_no }}</small></span></div></td><td>{{ row.item_group }}</td><td>{{ row.expiry_date }}</td><td :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</td><td class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</td><td><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseLabel(location.warehouse, boot?.warehouse_tree || []) }}：{{ location.qty }}</span></td></tr></tbody></table></div>
+          <div class="mobile-cards"><article v-for="row in rows" :key="row.batch_no" class="item-card"><ItemImagePreview :src="row.image" :alt="row.item_name"/><div><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</span></p></div></article></div>
           <p v-if="!rows.length" class="empty-state">暂无有库存的有效期批次</p>
         </template>
-        <nav v-if="total > pageLength" class="pagination" aria-label="有效期分页"><button :disabled="start === 0 || busy" @click="next(-1)">上一页</button><span>{{ start + 1 }}–{{ Math.min(start + pageLength, total) }} / {{ total }}</span><button :disabled="start + pageLength >= total || busy" @click="next(1)">下一页</button></nav>
+        <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" :disabled="busy" @click="load(true)">{{busy?'正在加载…':'加载更多'}}</button>
       </div>
     </div>
   </main>

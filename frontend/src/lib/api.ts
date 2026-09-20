@@ -34,16 +34,22 @@ export const labels: Record<string, string> = { Receive: '入库', Issue: '出�
 export function warehouseLabel(name: string, tree: any[]): string {
   const node = tree.find(w => w.name === name)
   if (!node) return name || '未选择位置'
+  // Labels derive from structured ancestry, never sample temple names or the
+  // ERPNext company suffix embedded in `name`.
+  if (node.warehouse_name === '未指定') {
+    const parent = tree.find(w => w.name === node.parent_warehouse)
+    if (parent?.warehouse_type === 'Room') return `${parent.warehouse_name} / 房间内，未细分到货架`
+    return `${parent?.warehouse_name || ''} / 寺院内，未分配房间`.replace(/^\s*\/\s*/, '')
+  }
   const parts = [node.warehouse_name]
   let parent = tree.find(w => w.name === node.parent_warehouse)
   const seen = new Set<string>()
   while (parent && !seen.has(parent.name)) {
     seen.add(parent.name)
-    if (parent.warehouse_name === '第1寺院' || parent.warehouse_name === '第2寺院') { parts.unshift(parent.warehouse_name); break }
-    if (!parent.is_group || parent.warehouse_type === 'Room') parts.unshift(parent.warehouse_name)
+    if (parent.warehouse_name && parent.warehouse_type !== '虚拟') parts.unshift(parent.warehouse_name)
     parent = tree.find(w => w.name === parent.parent_warehouse)
   }
-  return parts.join(' / ')
+  return parts.filter(part => !['实体库房', '寺院仓库'].includes(part)).join(' / ') || node.warehouse_name
 }
 export function roomFor(name: string, tree: any[]): string {
   let node = tree.find(w => w.name === name)
