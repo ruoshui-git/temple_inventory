@@ -35,6 +35,9 @@ META = (
 	"borrower",
 	"activity",
 	"responsible_person",
+	"handler_name",
+	"handler_signature",
+	"borrower_is_handler_or_witness",
 	"notes",
 	"recorder_signature",
 	"reviewer_name",
@@ -102,8 +105,9 @@ def _payload(doc):
 
 def _put(doc, data):
 	data = _loads(data, {})
-	# The creator is immutable; clients cannot reassign the audit owner.
+	# The creator is immutable; clients cannot reassign server-controlled audit metadata.
 	data["recorded_by"] = doc.recorded_by or frappe.session.user
+	data["responsible_person"] = doc.responsible_person or frappe.session.user
 
 	if data.get("movement_kind", doc.movement_kind) != doc.movement_kind:
 		frappe.throw(_("Movement type cannot change"))
@@ -127,8 +131,12 @@ def _put(doc, data):
 			row["warehouse"] = row.get("warehouse") or row.get("from_warehouse")
 			row.pop("from_warehouse", None)
 			row.pop("to_warehouse", None)
-	# An old signature cannot be carried forward to changed transaction contents.
-	if doc.recorder_signature and any(old.get(key) != new.get(key) for key in (*META, *STATE) if key != "recorder_signature"):
+	# A signature cannot be carried forward to changed transaction contents.
+	changed_keys = (*META, *STATE)
+	if doc.handler_signature and any(old.get(key) != new.get(key) for key in changed_keys if key != "handler_signature"):
+		new["handler_signature"] = ""
+		new["reviewer_signature"] = ""
+	if doc.recorder_signature and any(old.get(key) != new.get(key) for key in changed_keys if key != "recorder_signature"):
 		new["recorder_signature"] = ""
 		new["reviewer_signature"] = ""
 	for key in META:
@@ -136,10 +144,10 @@ def _put(doc, data):
 	doc.state_json = json.dumps({key: new[key] for key in STATE}, ensure_ascii=False)
 	if len(doc.state_json) > 1_000_000:
 		frappe.throw(_("Transaction is too large"))
-	if doc.recorder_signature and (
-		not doc.recorder_signature.startswith("data:image/png;base64,") or len(doc.recorder_signature) > 500_000
-	):
-		frappe.throw(_("Invalid signature image"))
+	for field in ("handler_signature", "reviewer_signature", "recorder_signature"):
+		signature = doc.get(field)
+		if signature and (not signature.startswith("data:image/png;base64,") or len(signature) > 500_000):
+			frappe.throw(_("Invalid signature image"))
 	# Enforce access even for incomplete drafts, before storing JSON.
 	allowed = _visible_warehouses()
 	for row in new["items"]:
@@ -444,6 +452,9 @@ def create_workspace(request_id, movement_kind, data=None):
 			"posting_date": nowdate(),
 			"posting_time": nowtime(),
 			"responsible_person": frappe.session.user,
+			"handler_name": "",
+			"handler_signature": "",
+			"borrower_is_handler_or_witness": 1,
 			"recorded_by": frappe.session.user,
 			"state_json": "{}",
 			"revision": 1,
@@ -473,21 +484,25 @@ def save_workspace(name, revision, data):
 
 
 def _audit_check(doc):
-	if (doc.recorded_by or doc.responsible_person) != frappe.session.user:
-		frappe.throw("记录人必须是创建该记录的用户")
-	if not doc.recorder_signature:
-		frappe.throw("记录人签名为必填")
+	if (doc.recorded_by or frappe.session.user) != frappe.session.user:
+		frappe.throw("系统记录用户不能修改")
+	if not doc.handler_name:
+		frappe.throw("经手人为必填")
+	if not doc.handler_signature:
+		frappe.throw("经手人签名为必填")
 	if not doc.no_independent_reviewer and (not doc.reviewer_name or not doc.reviewer_signature):
 		frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
+	if doc.movement_kind == "Loan" and not doc.borrower_is_handler_or_witness and not doc.borrower:
+		frappe.throw("未选择借用方是经手人或鉴证人时，借用方为必填")
 
 
 def _create_business_record(doc, payload, entry):
 	kind=doc.movement_kind
 	if kind not in ("Loan", "Return", "Loss"):
 		return
-	common={"company":doc.company,"posting_datetime":f"{doc.posting_date} {doc.posting_time}","recorded_by":doc.recorded_by or frappe.session.user,"reviewer_name":doc.reviewer_name,"no_independent_reviewer":doc.no_independent_reviewer,"reviewer_note":doc.reviewer_note,"recorder_signature":doc.recorder_signature,"reviewer_signature":doc.reviewer_signature,"workspace":doc.name,"stock_entry":entry.name}
+	common={"company":doc.company,"posting_datetime":f"{doc.posting_date} {doc.posting_time}","recorded_by":doc.recorded_by or frappe.session.user,"handler_name":doc.handler_name,"handler_signature":doc.handler_signature,"borrower_is_handler_or_witness":doc.borrower_is_handler_or_witness,"reviewer_name":doc.reviewer_name,"no_independent_reviewer":doc.no_independent_reviewer,"reviewer_note":doc.reviewer_note,"recorder_signature":doc.recorder_signature,"reviewer_signature":doc.reviewer_signature,"workspace":doc.name,"stock_entry":entry.name}
 	if kind=="Loan":
-		record=frappe.get_doc({"doctype":"Inventory Loan",**common,"borrower":doc.reviewer_name if doc.borrower_same_as_reviewer else doc.borrower,"activity":doc.activity,"purpose":doc.purpose_text,"notes":doc.notes,"items":[{"item_code":r["item_code"],"qty":r["qty"],"uom":r.get("uom"),"batch_no":r.get("batch_no"),"original_warehouse":r.get("from_warehouse") or r.get("warehouse"),"activity":doc.activity} for r in payload.get("items",[])]})
+		record=frappe.get_doc({"doctype":"Inventory Loan",**common,"borrower":doc.borrower if not doc.borrower_is_handler_or_witness else "","activity":doc.activity,"purpose":doc.purpose_text,"notes":doc.notes,"items":[{"item_code":r["item_code"],"qty":r["qty"],"uom":r.get("uom"),"batch_no":r.get("batch_no"),"original_warehouse":r.get("from_warehouse") or r.get("warehouse"),"activity":doc.activity} for r in payload.get("items",[])]})
 		record.flags.workspace_service = True
 		record.insert(ignore_permissions=True); doc.loan_record=record.name; return record
 	elif kind=="Return":
@@ -507,10 +522,6 @@ def confirm_workspace(name, revision):
 		return _serialize(doc)
 	_editable(doc, revision)
 	_audit_check(doc)
-	if not frappe.db.get_value("User", doc.responsible_person, "enabled") or not set(
-		frappe.get_roles(doc.responsible_person)
-	) & {"Stock User", "Stock Manager", "System Manager"}:
-		frappe.throw(_("Choose an enabled inventory user"))
 	entry = _sync(doc)
 	business = _create_business_record(doc, _payload(doc), entry)
 	if business:
@@ -723,7 +734,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		)
 
 	def matches(r):
-		for key in ("movement_kind", "source_text", "activity", "responsible_person", "purpose_text", "borrower"):
+		for key in ("movement_kind", "source_text", "activity", "responsible_person", "handler_name", "purpose_text", "borrower"):
 			if f.get(key) and r.get(key) != f[key]:
 				return False
 		if f.get("docstatus") is not None and f.get("docstatus") != "":

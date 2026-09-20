@@ -5,9 +5,10 @@ from collections import defaultdict
 from datetime import date
 
 import frappe
+from erpnext.stock.doctype.batch.batch import get_batch_qty
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, getdate, nowdate
 
 MOVEMENT_TYPES = {
 	"Receive": "Material Receipt",
@@ -325,6 +326,7 @@ def _create_structure(company, include_examples=False):
 	else:
 		default_site = _ensure_warehouse("第1寺院", company, physical, is_group=1, warehouse_type="地点", rows=rows)
 		allowed.append(_ensure_warehouse("第1寺院 / 未指定", company, default_site, warehouse_type="库位", rows=rows))
+		allowed.append(_ensure_warehouse(DEFAULT_LOCATION_NAME, company, default_site, warehouse_type="库位", rows=rows))
 	_allow_warehouses(settings, allowed)
 	return {"company":company, "root":root, "rooms":list(SECOND_TEMPLE_ROOMS) if include_examples else []}
 
@@ -462,8 +464,12 @@ def _entry_fields(payload):
 		"ti_purpose_text": payload.get("purpose_text"),
 		"ti_activity": payload.get("activity"),
 		"ti_borrower": payload.get("borrower"),
-		"ti_responsible_person": payload.get("responsible_person") or frappe.session.user,
+		"ti_responsible_person": frappe.session.user,
 		"ti_recorder_signature": payload.get("recorder_signature"),
+		"ti_handler_name": payload.get("handler_name"),
+		"ti_handler_signature": payload.get("handler_signature"),
+		"ti_borrower_is_handler_or_witness": payload.get("borrower_is_handler_or_witness"),
+		"ti_reviewer_signature": payload.get("reviewer_signature"),
 		"ti_reviewer_name": payload.get("reviewer_name"),
 		"ti_no_independent_reviewer": payload.get("no_independent_reviewer"),
 		"ti_workspace": payload.get("workspace"),
@@ -517,6 +523,21 @@ def _validate_movement_warehouses(payload, settings):
 
 
 @frappe.whitelist()
+def _raise_on_group_stock(warehouses):
+	group_names = [name for name, row in warehouses.items() if row.is_group]
+	if not group_names:
+		return
+	bad = frappe.get_all(
+		"Bin",
+		filters={"warehouse": ("in", group_names), "actual_qty": ("!=", 0)},
+		fields=["warehouse", "actual_qty"],
+		limit_page_length=1,
+	)
+	if bad:
+		frappe.throw(_("检测到库存位于分组仓库（{0}）。请由管理员将库存修复到叶子库位后再查看库存。").format(bad[0].warehouse))
+
+
+@frappe.whitelist()
 def bootstrap():
 	_require_stock()
 	settings = _settings()
@@ -555,10 +576,11 @@ def bootstrap():
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, needs_attention=False):
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False):
 	_require_stock()
 	settings = _settings()
 	warehouse_map = _visible_warehouses(settings)
+	_raise_on_group_stock(warehouse_map)
 	selected = (
 		_descendants(warehouse, warehouse_map)
 		if warehouse
@@ -574,6 +596,7 @@ def inventory(search=None, warehouse=None, needs_attention=False):
 		if row.warehouse in selected:
 			balances[row.item_code][row.warehouse] += row.actual_qty
 	filters = {"disabled": 0, "is_stock_item": 1}
+	if item_group: filters["item_group"] = item_group
 	items = frappe.get_list(
 		"Item",
 		filters=filters,
@@ -591,11 +614,16 @@ def inventory(search=None, warehouse=None, needs_attention=False):
 	for item in items:
 		stock = balances.get(item.name, {})
 		total, pending = sum(stock.values()), stock.get(settings.pending_warehouse, 0)
-		missing = not item.description or (settings.photo_required and not item.image)
+		missing_description = not item.description
+		missing_photo = bool(settings.photo_required and not item.image)
+		missing = missing_description or missing_photo
 		if not total and not needs_attention:
 			continue
 		if needs_attention and not (pending or missing):
 			continue
+		attention_reasons = ([] if not pending else [{"code": "unlocated", "label": _("未定位 {0}").format(pending)}])
+		if missing_description: attention_reasons.append({"code": "missing_description", "label": _("缺少说明")})
+		if missing_photo: attention_reasons.append({"code": "missing_photo", "label": _("缺少照片")})
 		result.append(
 			{
 				"item_code": item.item_code,
@@ -615,6 +643,7 @@ def inventory(search=None, warehouse=None, needs_attention=False):
 				"pending_qty": pending,
 				"warehouse_stock": dict(stock),
 				"needs_attention": bool(pending or missing),
+				"attention_reasons": attention_reasons,
 			}
 		)
 	return result
@@ -942,3 +971,27 @@ def configure_warehouse(
 		if warehouse_type == "房间" and frappe.utils.cint(is_group):
 			frappe.get_doc({"doctype":"Warehouse","warehouse_name":f"{warehouse_name} / 未指定","parent_warehouse":doc.name,"company":settings.company,"warehouse_type":"库位","is_group":0}).insert()
 	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=50):
+	"""Return positive, visible batch balances aggregated by batch."""
+	_require_stock()
+	warehouses = _visible_warehouses(_settings())
+	_raise_on_group_stock(warehouses)
+	if warehouse and warehouse not in warehouses:
+		frappe.throw(_("请选择寺院库存范围内的位置"), frappe.PermissionError)
+	selected = _descendants(warehouse, warehouses) if warehouse else {n for n, w in warehouses.items() if not w.is_group}
+	filters = {"disabled": 0}
+	if item_group: filters["item_group"] = item_group
+	items = {r.name: r for r in frappe.get_all("Item", filters=filters, fields=["name", "item_code", "item_name", "item_group", "stock_uom"], limit_page_length=0)}
+	as_of, rows = getdate(nowdate()), []
+	for batch in frappe.get_all("Batch", filters={"disabled": 0, "expiry_date": ("is", "set")}, fields=["name", "item", "expiry_date"], limit_page_length=0):
+		item, expiry = items.get(batch.item), getdate(batch.expiry_date)
+		if not item or (expiry_from and expiry < getdate(expiry_from)) or (expiry_to and expiry > getdate(expiry_to)): continue
+		if search and search.lower() not in f"{batch.name} {item.item_code} {item.item_name}".lower(): continue
+		locations = [{"warehouse": w, "qty": flt(get_batch_qty(batch_no=batch.name, warehouse=w, item_code=item.name))} for w in selected]
+		locations = [row for row in locations if row["qty"] > 0]
+		if locations: rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "stock_uom": item.stock_uom, "expiry_date": str(expiry), "days_to_expiry": (expiry-as_of).days, "total_qty": sum(row["qty"] for row in locations), "locations": locations})
+	rows.sort(key=lambda row: (row["expiry_date"], row["item_code"]), reverse=str(sort).lower() == "desc")
+	return {**_page(rows, page_length, start), "as_of": str(as_of)}

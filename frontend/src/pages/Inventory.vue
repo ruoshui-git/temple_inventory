@@ -3,12 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Scanner from '../components/Scanner.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
-import { api, request } from '../lib/api'
+import { api, request, warehouseLabel } from '../lib/api'
 import { detectInstallPlatform, installInstructions, installPwa, isStandalone } from '../lib/pwa'
 
 const router = useRouter()
 const route = useRoute()
 const manager = ref(false)
+const bootstrapData = ref<any>()
 const query = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -16,6 +17,8 @@ const notice = ref('')
 const unfinishedCount = ref(0)
 const items = ref<any[]>([])
 const installDialog = ref(false)
+const warehouse = ref('')
+const itemGroup = ref('')
 
 const page = computed(() => {
   const view = String(route.query.view || '')
@@ -38,7 +41,7 @@ async function load(attention = false) {
   loading.value = true
   error.value = ''
   try {
-    items.value = await api('inventory', { search: query.value || undefined, needs_attention: attention })
+    items.value = await api('inventory', { search: query.value || undefined, warehouse: warehouse.value || undefined, item_group: itemGroup.value || undefined, needs_attention: attention })
   } catch (e: any) {
     error.value = e.message
   } finally {
@@ -48,6 +51,7 @@ async function load(attention = false) {
 async function boot() {
   try {
     const data = await api('bootstrap')
+    bootstrapData.value = data
     manager.value = !!data.is_manager
     unfinishedCount.value = data.unfinished_count || 0
     await load()
@@ -101,9 +105,9 @@ onMounted(boot)
       <div class="quick-grid"><button @click="openMovement('Loan')">借出</button><button
           @click="openMovement('Return')">归还</button><button @click="openMovement('Loss')">记录遗失</button></div><h2>损坏处理</h2><div class="quick-grid"><button @click="openMovement('Damage')">标记损坏</button><button @click="openMovement('Repair')">修复归库</button><button @click="openMovement('Disposal')">正式报废</button></div>
       <div class="home-links"><RouterLink class="selection-row" to="/history">库存记录</RouterLink><RouterLink class="selection-row" to="/history?status=unfinished">未完成记录 <b v-if="unfinishedCount">{{unfinishedCount}}</b></RouterLink><button @click="navigate('stock')">查看库存</button><button
-          @click="navigate('attention')">待处理</button><button @click="camera()">扫码</button><button v-if="!isStandalone" @click="install">安装到手机</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div>
+          @click="navigate('attention')">待处理</button><RouterLink class="selection-row" to="/expiry">有效期</RouterLink><button @click="camera()">扫码</button><button v-if="!isStandalone" @click="install">安装到手机</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div>
     </section>
-    <section v-else-if="page === 'inventory' || page === 'attention'"><div class="page-title"><button @click="navigate()">‹ 返回</button><h1>{{ page === 'attention' ? '待处理' : '查看库存' }}</h1></div><input v-model="query" placeholder="搜索名称或库存编号" @keyup.enter="load(page === 'attention')"><button @click="load(page === 'attention')">搜索</button><LoadingIndicator v-if="loading" text="正在加载库存…" /><template v-else><article v-for="item in activeItems" :key="item.item_code" class="item-card" role="link" tabindex="0" @click="router.push('/item/' + encodeURIComponent(item.item_code))" @keyup.enter="router.push('/item/' + encodeURIComponent(item.item_code))"><img v-if="item.image" :src="item.image"><div><b>{{ item.item_code }} · {{ item.item_name }}</b><p>{{ item.item_group }} · 可用 {{ item.available_stock }} {{ item.stock_uom }}　总计 {{ item.total_stock }}</p><small v-if="item.on_loan_qty">借出 {{ item.on_loan_qty }}</small><small v-if="item.pending_qty || item.needs_attention" class="warn"> 待处理</small></div></article><p v-if="!activeItems.length" class="empty-state">{{ page === 'attention' ? '暂无待处理物品' : '暂无库存物品' }}</p></template></section>
+    <section v-else-if="page === 'inventory' || page === 'attention'"><div class="page-title"><button @click="navigate()">‹ 返回</button><h1>{{ page === 'attention' ? '待处理' : '查看库存' }}</h1></div><input v-model="query" placeholder="搜索名称或库存编号" @keyup.enter="load(page === 'attention')"><div class="form-grid"><label>仓库 / 位置<select v-model="warehouse"><option value="">全部</option><option v-for="w in bootstrapData?.physical_tree||[]" :value="w.name">{{warehouseLabel(w.name, bootstrapData.warehouse_tree)}}</option></select></label><label>物品类别<select v-model="itemGroup"><option value="">全部</option><option v-for="g in bootstrapData?.item_groups||[]" :key="g.name" :value="g.name">{{g.item_group_name}}</option></select></label></div><button @click="load(page === 'attention')">搜索</button><p v-if="page === 'attention'" class="empty-state">这里显示需要补充资料或整理位置的物品：库存仍在“未定位”，或物品缺少说明/系统要求的照片。处理完成后，物品会自动从此列表消失。</p><LoadingIndicator v-if="loading" text="正在加载库存…" /><template v-else><article v-for="item in activeItems" :key="item.item_code" class="item-card" role="link" tabindex="0" @click="router.push('/item/' + encodeURIComponent(item.item_code))" @keyup.enter="router.push('/item/' + encodeURIComponent(item.item_code))"><img v-if="item.image" :src="item.image"><div><b>{{ item.item_code }} · {{ item.item_name }}</b><p>{{ item.item_group }} · 可用 {{ item.available_stock }} {{ item.stock_uom }}　总计 {{ item.total_stock }}</p><small v-if="item.on_loan_qty">借出 {{ item.on_loan_qty }}</small><small v-for="(qty, location) in item.warehouse_stock||{}" :key="location">{{warehouseLabel(String(location), bootstrapData.warehouse_tree)}}：{{qty}} {{item.stock_uom}}</small><small v-for="reason in item.attention_reasons||[]" :key="reason.code" class="warn">{{reason.label}} </small></div></article><p v-if="!activeItems.length" class="empty-state">{{ page === 'attention' ? '暂无待处理物品' : '暂无库存物品' }}</p></template></section>
         <section v-else-if="page === 'scan'">
       <div class="page-title"><button @click="stopCamera(); navigate()">‹ 返回</button>
         <h1>扫码</h1>

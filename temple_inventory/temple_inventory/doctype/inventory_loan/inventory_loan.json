@@ -9,10 +9,13 @@
     "company",
     "posting_datetime",
     "borrower",
+    "borrower_is_handler_or_witness",
     "activity",
     "purpose",
     "notes",
     "recorded_by",
+    "handler_signature",
+    "handler_name",
     "reviewer_name",
     "no_independent_reviewer",
     "reviewer_note",
@@ -39,8 +42,7 @@
     {
       "fieldname": "borrower",
       "fieldtype": "Data",
-      "label": "Borrower",
-      "reqd": 1
+      "label": "Borrower"
     },
     {
       "fieldname": "activity",
@@ -111,6 +113,22 @@
       "label": "Items",
       "options": "Inventory Loan Item",
       "reqd": 1
+    },
+    {
+      "fieldname": "handler_name",
+      "fieldtype": "Data",
+      "label": "Handler"
+    },
+    {
+      "fieldname": "handler_signature",
+      "fieldtype": "Signature",
+      "label": "Handler Signature"
+    },
+    {
+      "fieldname": "borrower_is_handler_or_witness",
+      "fieldtype": "Check",
+      "label": "Borrower Is Handler Or Witness",
+      "default": "1"
     }
   ],
   "index_web_pages_for_search": 1,

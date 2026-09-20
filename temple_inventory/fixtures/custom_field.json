@@ -154,5 +154,45 @@
     "insert_after": "ti_return",
     "options": "Inventory Loss",
     "name": "Stock Entry-ti_loss"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_handler_name",
+    "fieldtype": "Data",
+    "label": "经手人",
+    "insert_after": "ti_borrower",
+    "module": "Temple Inventory",
+    "name": "Stock Entry-ti_handler_name"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_handler_signature",
+    "fieldtype": "Signature",
+    "label": "经手人签名",
+    "insert_after": "ti_handler_name",
+    "module": "Temple Inventory",
+    "name": "Stock Entry-ti_handler_signature"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_borrower_is_handler_or_witness",
+    "fieldtype": "Check",
+    "label": "借用方是经手人或鉴证人",
+    "insert_after": "ti_handler_signature",
+    "module": "Temple Inventory",
+    "name": "Stock Entry-ti_borrower_is_handler_or_witness"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "ti_reviewer_signature",
+    "fieldtype": "Signature",
+    "label": "鉴证人签名",
+    "insert_after": "ti_no_independent_reviewer",
+    "module": "Temple Inventory",
+    "name": "Stock Entry-ti_reviewer_signature"
   }
 ]

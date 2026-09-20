@@ -7,13 +7,13 @@ from frappe import _
 def validate_stock_entry_submission(doc, method=None):
 	if not doc.get("ti_movement_kind"):
 		return
-	if doc.ti_responsible_person and not frappe.db.get_value("User", doc.ti_responsible_person, "enabled"):
-		frappe.throw(_("Responsible person must be an enabled user"))
 	missing = []
-	if not doc.get("ti_responsible_person"):
-		missing.append(_("Responsible Person"))
-	if not doc.get("ti_recorder_signature"):
-		missing.append(_("Signature"))
+	if not doc.get("ti_handler_name"):
+		missing.append(_("Handler"))
+	if not doc.get("ti_handler_signature"):
+		missing.append(_("Handler Signature"))
+	if not doc.get("ti_no_independent_reviewer") and (not doc.get("ti_reviewer_name") or not doc.get("ti_reviewer_signature")):
+		missing.append(_("Independent Witness and Signature"))
 	if missing:
 		frappe.throw(
 			_("{0} is required before submitting this inventory movement.").format(", ".join(missing))

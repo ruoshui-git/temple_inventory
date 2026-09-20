@@ -6,19 +6,23 @@ No production stock or existing documents are changed.
 
 import copy
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import frappe
 from frappe.utils import nowdate
 
+from temple_inventory import inventory_api as inventory_service
 from temple_inventory import workspace_api as api
 from temple_inventory.inventory_api import (
 	DEFAULT_LOCATION_NAME,
+	MOVEMENT_TYPES,
 	bootstrap,
 	create_uom,
 	initialization_status,
 	initialize_warehouses,
 	inventory,
+	expiring_batches,
 	repair_settings,
 	save_allowed_warehouses,
 )
@@ -94,7 +98,7 @@ class WorkspaceTests(unittest.TestCase):
 			frappe.generate_hash(length=16),
 			kind,
 			{
-				"source_text": "Donation", "no_independent_reviewer": 1,
+				"source_text": "Donation", "no_independent_reviewer": 1, "handler_name": "测试经手人", "borrower_is_handler_or_witness": 1,
 				"items": [
 					{
 						"id": "line-1",
@@ -113,6 +117,8 @@ class WorkspaceTests(unittest.TestCase):
 	def signed(self, d):
 		p = copy.deepcopy(d["data"])
 		p["recorder_signature"] = SIGNATURE
+		p["handler_name"] = p.get("handler_name") or "测试经手人"
+		p["handler_signature"] = SIGNATURE
 		return api.save_workspace(d["name"], d["revision"], p)
 
 	def confirmed(self):
@@ -145,6 +151,113 @@ class WorkspaceTests(unittest.TestCase):
 					"Warehouse", {"company": self.company, "warehouse_name": label, "parent_warehouse": second}
 				)
 			)
+
+	def _mock_inventory_context(self):
+		warehouses = {
+			"root": SimpleNamespace(name="root", warehouse_name="Root", parent_warehouse=None, lft=1, rgt=20, is_group=1),
+			"room": SimpleNamespace(name="room", warehouse_name="Room", parent_warehouse="root", lft=2, rgt=9, is_group=1),
+			"leaf_a": SimpleNamespace(name="leaf_a", warehouse_name="Room / A", parent_warehouse="room", lft=3, rgt=4, is_group=0),
+			"leaf_b": SimpleNamespace(name="leaf_b", warehouse_name="Room / B", parent_warehouse="room", lft=5, rgt=6, is_group=0),
+			"pending": SimpleNamespace(name="pending", warehouse_name="未定位", parent_warehouse="root", lft=10, rgt=11, is_group=0),
+			"lease": SimpleNamespace(name="lease", warehouse_name="借出", parent_warehouse="root", lft=12, rgt=15, is_group=1),
+			"damaged": SimpleNamespace(name="损坏", warehouse_name="损坏", parent_warehouse="root", lft=16, rgt=17, is_group=0),
+		}
+		settings = SimpleNamespace(
+			company=self.company, pending_warehouse="pending", unlocated_warehouse="pending",
+			damaged_warehouse="damaged", leased_warehouse="lease", photo_required=1,
+		)
+		return warehouses, settings
+
+	def test_inventory_filters_reasons_and_leaf_selection(self):
+		warehouses, settings = self._mock_inventory_context()
+		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="待处理物品", item_group="Group A", stock_uom="Nos", image=None, description=None)
+		bins = [
+			SimpleNamespace(item_code="ITEM-1", warehouse="leaf_a", actual_qty=3),
+			SimpleNamespace(item_code="ITEM-1", warehouse="pending", actual_qty=2),
+		]
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_list", return_value=[item]), patch.object(inventory_service.frappe, "get_all", return_value=bins):
+			rows = inventory(item_group="Group A")
+			leaf_rows = inventory(warehouse="leaf_b", item_group="Group A")
+		self.assertEqual(rows[0]["warehouse_stock"], {"leaf_a": 3, "pending": 2})
+		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"unlocated", "missing_description", "missing_photo"})
+		self.assertEqual(leaf_rows, [])
+
+	def test_inventory_rejects_nonzero_group_stock(self):
+		warehouses, settings = self._mock_inventory_context()
+		bad = SimpleNamespace(warehouse="room", actual_qty=1)
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service.frappe, "get_all", return_value=[bad]):
+			with self.assertRaises(frappe.ValidationError):
+				inventory()
+
+	def test_expiry_aggregates_filters_sorts_and_paginates(self):
+		warehouses, settings = self._mock_inventory_context()
+		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="批次物品", item_group="Group A", stock_uom="Nos")
+		batches = [
+			SimpleNamespace(name="B-OLD", item="ITEM-1", expiry_date="2099-01-01"),
+			SimpleNamespace(name="B-NEW", item="ITEM-1", expiry_date="2099-02-01"),
+			SimpleNamespace(name="B-ZERO", item="ITEM-1", expiry_date="2099-03-01"),
+		]
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Item": return [item]
+			if doctype == "Batch": return batches
+			raise AssertionError(doctype)
+		def batch_qty(batch_no, warehouse, item_code, **kwargs):
+			return {("B-OLD", "leaf_a"): 2, ("B-OLD", "leaf_b"): 1, ("B-NEW", "leaf_a"): 4}.get((batch_no, warehouse), 0)
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_all", side_effect=get_all), patch.object(inventory_service, "get_batch_qty", side_effect=batch_qty):
+			page = expiring_batches(item_group="Group A", sort="desc", start=0, page_length=1)
+			second_page = expiring_batches(item_group="Group A", sort="desc", start=1, page_length=1)
+		self.assertEqual(page["total"], 2)
+		self.assertEqual(page["results"][0]["batch_no"], "B-NEW")
+		self.assertEqual(page["results"][0]["total_qty"], 4)
+		self.assertEqual(second_page["results"][0]["batch_no"], "B-OLD")
+		self.assertEqual(len(second_page["results"][0]["locations"]), 2)
+
+	def test_expiry_applies_search_date_and_warehouse_filters(self):
+		warehouses, settings = self._mock_inventory_context()
+		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="过滤物品", item_group="Group A", stock_uom="Nos")
+		batch = SimpleNamespace(name="B-FILTER", item="ITEM-1", expiry_date="2099-01-01")
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Item": return [item]
+			if doctype == "Batch": return [batch]
+			raise AssertionError(doctype)
+		def batch_qty(batch_no, warehouse, item_code, **kwargs):
+			return 3 if warehouse == "leaf_a" else 0
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_all", side_effect=get_all), patch.object(inventory_service, "get_batch_qty", side_effect=batch_qty):
+			self.assertEqual(expiring_batches(search="no-match")["total"], 0)
+			self.assertEqual(expiring_batches(expiry_from="2100-01-01")["total"], 0)
+			self.assertEqual(expiring_batches(warehouse="leaf_b")["total"], 0)
+
+	def test_expiry_reports_overdue_days(self):
+		warehouses, settings = self._mock_inventory_context()
+		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="过期物品", item_group="Group A", stock_uom="Nos")
+		batch = SimpleNamespace(name="B-EXPIRED", item="ITEM-1", expiry_date="2000-01-01")
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Item": return [item]
+			if doctype == "Batch": return [batch]
+			raise AssertionError(doctype)
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_all", side_effect=get_all), patch.object(inventory_service, "get_batch_qty", return_value=2):
+			result = expiring_batches()
+		self.assertLess(result["results"][0]["days_to_expiry"], 0)
+
+	def test_all_movement_kinds_carry_canonical_audit_fields(self):
+		with patch.object(api, "_try_sync"):
+			metadata = api.create_workspace(frappe.generate_hash(length=16), "Receive", {"recorded_by": "Guest", "responsible_person": "Guest", "handler_name": "测试经手人", "handler_signature": SIGNATURE, "items": []})
+			self.assertEqual(metadata["data"]["recorded_by"], frappe.session.user)
+			self.assertEqual(metadata["data"]["responsible_person"], frappe.session.user)
+			for kind in MOVEMENT_TYPES:
+				draft = api.create_workspace(
+					frappe.generate_hash(length=16),
+					kind,
+					{"handler_name": "测试经手人", "handler_signature": SIGNATURE, "borrower_is_handler_or_witness": 1, "items": []},
+				)
+				self.assertEqual(draft["data"]["handler_name"], "测试经手人")
+				self.assertEqual(draft["data"]["handler_signature"], SIGNATURE)
+				self.assertEqual(draft["data"]["borrower_is_handler_or_witness"], 1)
+
+	def test_expiry_requires_stock_permission(self):
+		with patch.object(inventory_service, "_require_stock", side_effect=frappe.PermissionError):
+			with self.assertRaises(frappe.PermissionError):
+				expiring_batches()
 
 	def test_repair_settings_enables_batch_and_allowlist(self):
 		initialize_warehouses(self.company, 0)
@@ -222,6 +335,7 @@ class WorkspaceTests(unittest.TestCase):
 		p["notes"] = "Changed after signing"
 		d = api.save_workspace(d["name"], d["revision"], p)
 		self.assertFalse(d["data"]["recorder_signature"])
+		self.assertFalse(d["data"]["handler_signature"])
 		doc = frappe.get_doc("Stock Entry", d["stock_entry"])
 		doc.remarks = "Bypass"
 		with self.assertRaises(frappe.PermissionError):
