@@ -65,10 +65,12 @@ bench --site <你的站点> execute \
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import frappe
@@ -85,7 +87,6 @@ from frappe.utils.file_manager import save_file
 ITEM_CODE_SERIES = "ITM-.######"
 DEFAULT_STOCK_UOM = "数量"
 
-ROOT_ITEM_GROUP = "寺院物资"
 PERFORMANCE_PARENT_GROUP = "演出用品"
 
 TYPE_TO_ITEM_GROUP = {
@@ -219,8 +220,7 @@ def _ensure_item_groups():
             "请检查站点的 Item Group 根节点名称。"
         )
 
-    _ensure_item_group(ROOT_ITEM_GROUP, root_parent, 1)
-    _ensure_item_group(PERFORMANCE_PARENT_GROUP, ROOT_ITEM_GROUP, 1)
+    _ensure_item_group(PERFORMANCE_PARENT_GROUP, root_parent, 1)
 
     for leaf in TYPE_TO_ITEM_GROUP.values():
         _ensure_item_group(leaf, PERFORMANCE_PARENT_GROUP, 0)
@@ -335,7 +335,10 @@ def _new_item_code() -> str:
     使用 Frappe naming series 生成并保留全局 ITM 编号。
     make_autoname 会使用 Series 表，因此不会仅靠扫描现有 Item 猜下一个编号。
     """
-    return make_autoname(ITEM_CODE_SERIES)
+    while True:
+        item_code = make_autoname(ITEM_CODE_SERIES)
+        if not frappe.db.exists("Item", item_code):
+            return item_code
 
 
 # ---------------------------------------------------------------------------
@@ -387,15 +390,19 @@ def _upsert_item(row: dict, update_existing_items: bool) -> Tuple[str, bool]:
 
     item_code = _new_item_code()
 
-    doc = frappe.get_doc(
-        {
-            "doctype": "Item",
-            "item_code": item_code,
-            **values,
-        }
-    )
-    doc.insert(ignore_permissions=True)
-    return doc.name, True
+    while True:
+        doc = frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": item_code,
+                **values,
+            }
+        )
+        try:
+            doc.insert(ignore_permissions=True)
+            return doc.name, True
+        except frappe.DuplicateEntryError:
+            item_code = _new_item_code()
 
 
 # ---------------------------------------------------------------------------

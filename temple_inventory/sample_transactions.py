@@ -20,6 +20,9 @@ def _confirm(kind, sequence, rows, **extra):
 		"items": rows,
 		"no_independent_reviewer": 1,
 		"recorder_signature": SIGNATURE,
+		"handler_name": "样例经手人",
+		"handler_signature": SIGNATURE,
+		"borrower_is_handler_or_witness": 0 if extra.get("borrower") else 1,
 		"recorded_by": frappe.session.user,
 		"posting_time_mode": "current",
 		**extra,
@@ -60,7 +63,7 @@ def _loan_item_for_workspace(workspace):
 
 
 def install_representative_transactions(company):
-	"""Create the required 14 submitted inventory movements through production services."""
+	"""Create the required 15 submitted inventory movements through production services."""
 	settings = _settings()
 	leaves = sorted(row.warehouse for row in settings.get("allowed_warehouses", []) if row.warehouse)
 	if len(leaves) < 2:
@@ -123,7 +126,7 @@ def install_representative_transactions(company):
 		borrower="样例借用方三",
 		purpose_text="样例借出遗失",
 	)
-	add("Damage", "damage-01", [{**base, "qty": 2, "warehouse": source}], purpose_text="样例普通损坏")
+	add("Damage", "damage-01", [{**base, "qty": 2, "from_warehouse": source}], purpose_text="样例普通损坏")
 	add("Loss", "loss-01", [{**base, "warehouse": destination}], purpose_text="样例普通遗失")
 	add(
 		"Repair",
@@ -152,7 +155,7 @@ def install_representative_transactions(company):
 			"Disposal": 1,
 		}
 	)
-	if len(created) != 14 or counts != expected_counts:
+	if len(created) != sum(expected_counts.values()) or counts != expected_counts:
 		frappe.throw(f"样例事务数量或类型不符合要求：{dict(counts)}")
 	outstanding = [
 		row

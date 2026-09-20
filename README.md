@@ -47,6 +47,26 @@ It permanently removes all database records, does not create a backup, and must
 never be used on a production site. Progress, server errors, and tracebacks are
 shown directly in the terminal and written to `logs/temple-sample-reset-*.log`.
 
+The site name is configurable and must already exist in this Bench:
+
+```bash
+./apps/temple_inventory/scripts/reset-development-samples --site inventory-demo
+```
+
+For a disposable presentation site that is not configured with `developer_mode=1`,
+both explicit override flags are required:
+
+```bash
+./apps/temple_inventory/scripts/reset-development-samples \
+	--site inventory-demo \
+	--allow-non-developer \
+	--yes-i-understand-this-is-destructive
+```
+
+This still permanently reinstalls the database and is not appropriate for a live
+production site. Use a separate disposable presentation site or the non-destructive
+sample merge workflow instead.
+
 ### Development sample merge
 
 To add missing sample Items, images, warehouses, zero-balance opening stock, and

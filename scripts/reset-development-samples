@@ -6,7 +6,7 @@ usage() {
 	cat <<'USAGE'
 Usage: reset-development-samples --site SITE [options]
 
-This permanently erases the complete SITE database. It is only for developer_mode sites.
+This permanently erases the complete SITE database. It is intended for disposable sites.
 
 Options:
   --site SITE                 Required exact site name.
@@ -17,6 +17,12 @@ Options:
   --chart-of-accounts NAME    Default: Standard
   --fiscal-year-start DATE    Default: current-year-01-01
   --fiscal-year-end DATE      Default: current-year-12-31
+  --db-root-username NAME     Default: MARIADB_ROOT_USERNAME or root
+  --db-root-password PASSWORD Default: MARIADB_ROOT_PASSWORD or 123
+  --admin-password PASSWORD   Default: ADMIN_PASSWORD or admin
+	--allow-non-developer       Permit sites without developer_mode=1.
+	--yes-i-understand-this-is-destructive
+															Required with --allow-non-developer.
   -h, --help                  Show this help.
 USAGE
 }
@@ -30,6 +36,11 @@ chart_of_accounts="Standard"
 current_year=$(date -u +%Y)
 fiscal_year_start="${current_year}-01-01"
 fiscal_year_end="${current_year}-12-31"
+db_root_username="${MARIADB_ROOT_USERNAME:-root}"
+db_root_password="${MARIADB_ROOT_PASSWORD:-123}"
+admin_password="${ADMIN_PASSWORD:-admin}"
+allow_non_developer=0
+destructive_ack=0
 
 while (($#)); do
 	case "$1" in
@@ -41,6 +52,11 @@ while (($#)); do
 		--chart-of-accounts) chart_of_accounts=${2:?--chart-of-accounts requires a value}; shift 2 ;;
 		--fiscal-year-start) fiscal_year_start=${2:?--fiscal-year-start requires a value}; shift 2 ;;
 		--fiscal-year-end) fiscal_year_end=${2:?--fiscal-year-end requires a value}; shift 2 ;;
+		--db-root-username) db_root_username=${2:?--db-root-username requires a value}; shift 2 ;;
+		--db-root-password) db_root_password=${2:?--db-root-password requires a value}; shift 2 ;;
+		--admin-password) admin_password=${2:?--admin-password requires a value}; shift 2 ;;
+		--allow-non-developer) allow_non_developer=1; shift ;;
+		--yes-i-understand-this-is-destructive) destructive_ack=1; shift ;;
 		-h|--help) usage; exit 0 ;;
 		*) printf '未知参数：%s\n' "$1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -51,19 +67,31 @@ if [[ ! "$site" =~ ^[A-Za-z0-9.-]+$ ]]; then
 	exit 2
 fi
 
+if ((allow_non_developer && !destructive_ack)); then
+	printf '%s\n' '--yes-i-understand-this-is-destructive is required with --allow-non-developer.' >&2
+	exit 2
+fi
+
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 bench_root=$(cd -- "$script_dir/../../.." && pwd)
 bench="$bench_root/bench"
+if [[ ! -x "$bench" ]]; then
+	bench=$(command -v bench || true)
+fi
 python="$bench_root/env/bin/python"
 site_config="$bench_root/sites/$site/site_config.json"
 
 if [[ ! -x "$bench" || ! -x "$python" || ! -f "$site_config" ]]; then
-	printf '%s\n' '无法定位 Bench、Python 环境或指定站点配置。' >&2
+	printf '%s\n' '无法定位 Bench、Python 环境或指定站点配置：' >&2
+	printf '  bench: %s\n' "${bench:-<not found>}" >&2
+	printf '  python: %s\n' "$python" >&2
+	printf '  site config: %s\n' "$site_config" >&2
 	exit 2
 fi
 
 printf '目标站点：%s\n' "$site"
-PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.assert_development_site
+preflight_kwargs=$("$python" -c 'import json, sys; print(json.dumps({"allow_non_developer": int(sys.argv[1])}))' "$allow_non_developer")
+PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.assert_development_site --kwargs "$preflight_kwargs"
 
 cat <<WARNING
 
@@ -71,6 +99,14 @@ cat <<WARNING
 其中包括用户、公司、系统设置、库存、业务记录和所有其他数据库数据。
 此命令仅用于 disposable 的开发站点；不会自动创建备份，也不会删除站点文件目录。
 WARNING
+if ((allow_non_developer)); then
+	cat <<WARNING
+
+!!! NON-DEVELOPER SITE OVERRIDE !!!
+The site does not require developer_mode=1 because --allow-non-developer was used.
+This command will still permanently erase the complete database.
+WARNING
+fi
 read -r -p "输入 RESET ${site} 继续：" confirmation
 if [[ "$confirmation" != "RESET $site" ]]; then
 	printf '%s\n' '确认文本不匹配；没有执行任何破坏性操作。' >&2
@@ -80,12 +116,21 @@ fi
 log_dir="$bench_root/logs"
 mkdir -p "$log_dir"
 log_file="$log_dir/temple-sample-reset-$(date -u +%Y%m%dT%H%M%SZ).log"
-kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end")
+kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end", "allow_non_developer"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end" "$allow_non_developer")
 
 run_reset() {
 	printf '[temple-sample] 数据库重装：开始\n'
-	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes \
+		--db-root-username "$db_root_username" \
+		--db-root-password "$db_root_password" \
+		--admin-password "$admin_password"
 	printf '[temple-sample] 数据库重装：完成\n'
+	printf '[temple-sample] 清理旧后台任务：开始\n'
+	PYTHONUNBUFFERED=1 "$bench" purge-jobs --site "$site"
+	printf '[temple-sample] 清理旧后台任务：完成\n'
+	printf '\n========================================\n'
+	printf 'Administrator password: %s\n' "$admin_password"
+	printf '========================================\n\n'
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs"
 }
 
