@@ -9,7 +9,7 @@ Usage: reset-development-samples --site SITE [options]
 This permanently erases the complete SITE database. It is intended for disposable sites.
 
 Options:
-  --site SITE                 Required exact site name.
+	--site SITE                 Required exact site name.
   --company NAME              Default: Org
   --abbr ABBR                 Default: O
   --country COUNTRY           Default: United States
@@ -58,12 +58,12 @@ while (($#)); do
 		--allow-non-developer) allow_non_developer=1; shift ;;
 		--yes-i-understand-this-is-destructive) destructive_ack=1; shift ;;
 		-h|--help) usage; exit 0 ;;
-		*) printf '未知参数：%s\n' "$1" >&2; usage >&2; exit 2 ;;
+		*) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
 	esac
 done
 
 if [[ ! "$site" =~ ^[A-Za-z0-9.-]+$ ]]; then
-	printf '%s\n' '必须通过 --site 指定一个准确、不含通配符的站点名称。' >&2
+	printf '%s\n' 'You must provide one exact site name with --site.' >&2
 	exit 2
 fi
 
@@ -79,25 +79,38 @@ if [[ ! -x "$bench" ]]; then
 	bench=$(command -v bench || true)
 fi
 python="$bench_root/env/bin/python"
+if [[ ! -x "$python" ]]; then
+	python=$(command -v python3 || command -v python || true)
+fi
 site_config="$bench_root/sites/$site/site_config.json"
 
-if [[ ! -x "$bench" || ! -x "$python" || ! -f "$site_config" ]]; then
-	printf '%s\n' '无法定位 Bench、Python 环境或指定站点配置：' >&2
-	printf '  bench: %s\n' "${bench:-<not found>}" >&2
-	printf '  python: %s\n' "$python" >&2
-	printf '  site config: %s\n' "$site_config" >&2
+missing=0
+if [[ ! -x "$bench" ]]; then
+	printf '  Missing executable Bench: %s\n' "${bench:-<not found>}" >&2
+	missing=1
+fi
+if [[ ! -x "$python" ]]; then
+	printf '  Missing usable Python: %s\n' "${python:-<not found>}" >&2
+	missing=1
+fi
+if [[ ! -f "$site_config" ]]; then
+	printf '  Missing site config: %s\n' "$site_config" >&2
+	missing=1
+fi
+if ((missing)); then
+	printf '%s\n' 'Could not find the Bench, Python, or site config required by reset.' >&2
 	exit 2
 fi
 
-printf '目标站点：%s\n' "$site"
+printf 'Target site: %s\n' "$site"
 preflight_kwargs=$("$python" -c 'import json, sys; print(json.dumps({"allow_non_developer": int(sys.argv[1])}))' "$allow_non_developer")
 PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.assert_development_site --kwargs "$preflight_kwargs"
 
 cat <<WARNING
 
-警告：此操作将永久删除站点 ${site} 的整个数据库。
-其中包括用户、公司、系统设置、库存、业务记录和所有其他数据库数据。
-此命令仅用于 disposable 的开发站点；不会自动创建备份，也不会删除站点文件目录。
+WARNING: This permanently deletes the entire database for site ${site}.
+This includes users, companies, settings, stock, business records, and all other data.
+Use this only for a disposable site. No backup is created and the site files are not deleted.
 WARNING
 if ((allow_non_developer)); then
 	cat <<WARNING
@@ -107,9 +120,9 @@ The site does not require developer_mode=1 because --allow-non-developer was use
 This command will still permanently erase the complete database.
 WARNING
 fi
-read -r -p "输入 RESET ${site} 继续：" confirmation
+read -r -p "Type RESET ${site} to continue: " confirmation
 if [[ "$confirmation" != "RESET $site" ]]; then
-	printf '%s\n' '确认文本不匹配；没有执行任何破坏性操作。' >&2
+	printf '%s\n' 'Confirmation did not match; no destructive action was taken.' >&2
 	exit 1
 fi
 
@@ -119,15 +132,15 @@ log_file="$log_dir/temple-sample-reset-$(date -u +%Y%m%dT%H%M%SZ).log"
 kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end", "allow_non_developer"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end" "$allow_non_developer")
 
 run_reset() {
-	printf '[temple-sample] 数据库重装：开始\n'
+	printf '[temple-sample] Reinstall: start\n'
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes \
 		--db-root-username "$db_root_username" \
 		--db-root-password "$db_root_password" \
 		--admin-password "$admin_password"
-	printf '[temple-sample] 数据库重装：完成\n'
-	printf '[temple-sample] 清理旧后台任务：开始\n'
+	printf '[temple-sample] Reinstall: complete\n'
+	printf '[temple-sample] Purging old background jobs: start\n'
 	PYTHONUNBUFFERED=1 "$bench" purge-jobs --site "$site"
-	printf '[temple-sample] 清理旧后台任务：完成\n'
+	printf '[temple-sample] Purging old background jobs: complete\n'
 	printf '\n========================================\n'
 	printf 'Administrator password: %s\n' "$admin_password"
 	printf '========================================\n\n'
@@ -138,5 +151,5 @@ set +e
 run_reset 2>&1 | tee "$log_file"
 status=${PIPESTATUS[0]}
 set -e
-printf '完整输出已保存到：%s\n' "$log_file"
+printf 'Full output saved to: %s\n' "$log_file"
 exit "$status"
