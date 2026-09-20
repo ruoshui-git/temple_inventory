@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 export const sessionExpired = ref(false)
 export class ApiError extends Error { constructor(message: string, public status: number, public kind = '') { super(message) } }
-export async function request(path: string, args: Record<string, unknown> = {}, form?: FormData): Promise<any> {
+export async function request(path: string, args: Record<string, unknown> = {}, form?: FormData, signal?: AbortSignal): Promise<any> {
   const r = await fetch(`/api/method/${path}`, { method: 'POST', credentials: 'same-origin', headers: {
     ...(!form ? { 'Content-Type': 'application/json' } : {}), 'X-Frappe-CSRF-Token': (window as any).csrf_token || ''
-  }, body: form || JSON.stringify(args) })
+  }, body: form || JSON.stringify(args), signal })
   const body = await r.json()
   if (!r.ok || body.exc) {
     if (r.status === 401 || body.exc_type === 'AuthenticationError' || body.exc_type === 'CSRFTokenError') sessionExpired.value = true
@@ -16,8 +16,8 @@ export async function request(path: string, args: Record<string, unknown> = {}, 
   }
   return body.message
 }
-export const api = (method: string, args: Record<string, unknown> = {}) => request(`temple_inventory.inventory_api.${method}`, args)
-export const workspaceApi = (method: string, args: Record<string, unknown> = {}) => request(`temple_inventory.workspace_api.${method}`, args)
+export const api = (method: string, args: Record<string, unknown> = {}, signal?: AbortSignal) => request(`temple_inventory.inventory_api.${method}`, args, undefined, signal)
+export const workspaceApi = (method: string, args: Record<string, unknown> = {}, signal?: AbortSignal) => request(`temple_inventory.workspace_api.${method}`, args, undefined, signal)
 export async function refreshSession() {
   const r = await fetch('/api/method/temple_inventory.inventory_api.session_info', { credentials: 'same-origin' })
   if (!r.ok) throw new Error('请先完成登录')

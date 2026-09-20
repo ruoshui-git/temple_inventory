@@ -93,6 +93,27 @@ class WorkspaceTests(unittest.TestCase):
 		frappe.clear_document_cache("Temple Inventory Settings", "Temple Inventory Settings")
 		frappe.local.message_log = []
 
+	def test_filter_selection_expands_groups_and_deduplicates_children(self):
+		warehouses = {
+			"root": SimpleNamespace(name="root", lft=1, rgt=10, is_group=1),
+			"room": SimpleNamespace(name="room", lft=2, rgt=7, is_group=1),
+			"leaf_a": SimpleNamespace(name="leaf_a", lft=3, rgt=4, is_group=0),
+			"leaf_b": SimpleNamespace(name="leaf_b", lft=5, rgt=6, is_group=0),
+			"other": SimpleNamespace(name="other", lft=8, rgt=9, is_group=0),
+		}
+		self.assertEqual(
+			inventory_service._selected_leaf_warehouses(["room", "leaf_a"], warehouses), {"leaf_a", "leaf_b"}
+		)
+		self.assertEqual(inventory_service._selected_leaf_warehouses([], warehouses), {"leaf_a", "leaf_b", "other"})
+		with self.assertRaises(frappe.PermissionError):
+			inventory_service._selected_leaf_warehouses(["missing"], warehouses)
+
+	def test_filter_array_parser_does_not_split_punctuation(self):
+		self.assertEqual(
+			inventory_service._selection_values('["Room / A, east", "Room / B"]'), ["Room / A, east", "Room / B"]
+		)
+		self.assertEqual(inventory_service._selection_values("Room / A, east"), ["Room / A, east"])
+
 	def create(self, kind="Receive", **data):
 		return api.create_workspace(
 			frappe.generate_hash(length=16),
@@ -188,6 +209,27 @@ class WorkspaceTests(unittest.TestCase):
 		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service.frappe, "get_all", return_value=[bad]):
 			with self.assertRaises(frappe.ValidationError):
 				inventory()
+
+	def test_inventory_paginates_complete_search_results_without_a_hundred_row_cap(self):
+		warehouses, settings = self._mock_inventory_context()
+		items = [
+			SimpleNamespace(
+				name=f"ITEM-{index}", item_code=f"ITEM-{index}", item_name=f"物品 {index}",
+				item_group="Group A", stock_uom="Nos", image=None, description="说明"
+			)
+			for index in range(105)
+		]
+		bins = [SimpleNamespace(item_code=item.name, warehouse="leaf_a", actual_qty=1) for item in items]
+		with patch.object(inventory_service, "_require_stock"), patch.object(
+			inventory_service, "_settings", return_value=settings
+		), patch.object(
+			inventory_service, "_visible_warehouses", return_value=warehouses
+		), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(
+			inventory_service.frappe, "get_list", return_value=items
+		), patch.object(inventory_service.frappe, "get_all", return_value=bins):
+			page = inventory(search="物品", start=100, page_length=5)
+		self.assertEqual(page["total"], 105)
+		self.assertEqual(len(page["results"]), 5)
 
 	def test_expiry_aggregates_filters_sorts_and_paginates(self):
 		warehouses, settings = self._mock_inventory_context()

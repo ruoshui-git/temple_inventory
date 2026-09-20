@@ -8,7 +8,7 @@ import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import WarehouseTreeFilter from '../components/WarehouseTreeFilter.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
 import { api, request, warehouseLabel } from '../lib/api'
-import { hydrateFilterQuery, serializeFilterQuery } from '../composables/filters'
+import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import { detectInstallPlatform, installInstructions, installPwa, isStandalone } from '../lib/pwa'
 const router = useRouter(), route = useRoute()
 const manager = ref(false), bootstrapData = ref<any>(), query = ref(''), loading = ref(false), refreshing = ref(false), error = ref(''), notice = ref(''), unfinishedCount = ref(0), items = ref<any[]>([]), total = ref(0), start = ref(0), pageLength = 50, filterOpen = ref(false), expanded = ref<Record<string, boolean>>({}), installDialog = ref(false)
@@ -22,15 +22,64 @@ const visibleLocations = (item: any) => { const all = locationSummary(item); ret
 function setQuery(value: string) { query.value = value; start.value = 0 }
 function clearAll() { query.value = ''; warehouses.value = []; itemGroups.value = []; start.value = 0 }
 function removeChip(chip: any) { if (chip.key === 'warehouses') warehouses.value = warehouses.value.filter(v => v !== chip.value); else if (chip.key === 'itemGroups') itemGroups.value = itemGroups.value.filter(v => v !== chip.value); else query.value = ''; start.value = 0 }
-function syncUrl() { void router.replace({ query: { ...route.query, ...serializeFilterQuery({ search: query.value, warehouses: warehouses.value, item_groups: itemGroups.value, start: start.value || undefined }) } }) }
+let syncingUrl = false
+function syncUrl() { syncingUrl = true; void router.replace({ query: { ...route.query, ...serializeFilterQuery({ search: query.value, warehouses: warehouses.value, item_groups: itemGroups.value, start: start.value || undefined }) } }).finally(() => { syncingUrl = false }) }
 let timer: number | undefined
-async function load(attention = page.value === 'attention') { if (!bootstrapData.value) return; if (timer) window.clearTimeout(timer); const wait = query.value ? 300 : 0; timer = window.setTimeout(async () => { refreshing.value = items.value.length > 0; if (!items.value.length) loading.value = true; error.value = ''; syncUrl(); try { const data = await api('inventory', { search: query.value || undefined, warehouses: warehouses.value.length ? warehouses.value : undefined, item_groups: itemGroups.value.length ? itemGroups.value : undefined, needs_attention: attention, start: start.value, page_length: pageLength }); items.value = data.results || []; total.value = data.total || 0 } catch (e: any) { error.value = e.message } finally { loading.value = false; refreshing.value = false } }, wait) }
+let requestController: AbortController | undefined
+let requestSequence = 0
+async function load(attention = page.value === 'attention') {
+  if (!bootstrapData.value) return
+  if (timer) window.clearTimeout(timer)
+  requestController?.abort()
+  const current = ++requestSequence
+  requestController = new AbortController()
+  const run = async () => {
+    refreshing.value = items.value.length > 0
+    if (!items.value.length) loading.value = true
+    error.value = ''
+    syncUrl()
+    try {
+      const data = await api('inventory', {
+        search: query.value || undefined,
+        warehouses: warehouses.value.length ? warehouses.value : undefined,
+        item_groups: itemGroups.value.length ? itemGroups.value : undefined,
+        needs_attention: attention,
+        start: start.value,
+        page_length: pageLength,
+      }, requestController?.signal)
+      if (current !== requestSequence) return
+      items.value = data.results || []
+      total.value = data.total || 0
+    } catch (e: any) {
+      if (current === requestSequence && e?.name !== 'AbortError') error.value = e.message
+    } finally {
+      if (current === requestSequence) {
+        loading.value = false
+        refreshing.value = false
+      }
+    }
+  }
+  if (query.value) timer = window.setTimeout(() => void run(), 300)
+  else await run()
+}
 async function boot() { try { const data = await api('bootstrap'); bootstrapData.value = data; manager.value = !!data.is_manager; unfinishedCount.value = data.unfinished_count || 0; const hydrated = hydrateFilterQuery(route.query as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [], start: '0' }); query.value = hydrated.search as string; warehouses.value = hydrated.warehouses as string[]; itemGroups.value = hydrated.item_groups as string[]; start.value = Number(hydrated.start) || 0; await load() } catch (e: any) { error.value = e.message } }
 async function logout() { await request('logout'); window.location.href = '/login?redirect-to=%2Finventory' }
 function navigate(view = '') { void router.push({ path: '/', query: view ? { view } : {} }) }; function openMovement(kind: string) { void router.push('/new/' + kind) }
 async function lookup(code: string) { try { const result = await api('scan', { value: code }); if (result.item_code) await router.push('/item/' + encodeURIComponent(result.item_code)); else error.value = '未找到物品，请从入库工作区创建。' } catch (e: any) { error.value = e.message } }
 const installPlatform = computed(() => typeof navigator === 'undefined' ? 'other' : detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)); const installHelp = computed(() => installInstructions(installPlatform.value)); async function install() { if (!(await installPwa())) installDialog.value = true }
-watch([query, warehouses, itemGroups], () => { if (bootstrapData.value) { start.value = 0; void load() } }, { deep: true }); watch(() => route.query.view, (view, previous) => { if (view !== previous && (view === 'stock' || view === 'attention')) void load(view === 'attention') }); onMounted(boot)
+watch([query, warehouses, itemGroups], () => { if (bootstrapData.value) { start.value = 0; void load() } }, { deep: true })
+watch(() => route.query, current => {
+  if (syncingUrl || !bootstrapData.value) return
+  const hydrated = hydrateFilterQuery(current as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [], start: '0' })
+  const changed = !sameFilterValue(query.value, hydrated.search) || !sameFilterValue(warehouses.value, hydrated.warehouses) || !sameFilterValue(itemGroups.value, hydrated.item_groups) || start.value !== Number(hydrated.start || 0)
+  if (!changed) return
+  query.value = String(hydrated.search || '')
+  warehouses.value = hydrated.warehouses as string[]
+  itemGroups.value = hydrated.item_groups as string[]
+  start.value = Number(hydrated.start) || 0
+}, { deep: true })
+watch(() => route.query.view, (view, previous) => { if (view !== previous && (view === 'stock' || view === 'attention')) void load(view === 'attention') })
+onMounted(boot)
 </script>
 <template><main class="app-shell wide-shell"><header><button @click="logout">退出登录</button><button class="brand" @click="navigate()">寺院库存</button><span v-if="notice" class="notice">{{ notice }}</span></header><p v-if="error" class="error">{{ error }}</p>
 <section v-if="page === 'home'" class="hero"><p class="eyebrow">库存与资产管理</p><h1>今天需要处理什么？</h1><h2>库存操作</h2><div class="quick-grid"><button v-for="kind in ['Receive','Issue','Transfer']" :key="kind" @click="openMovement(kind)">{{ labels[kind] }}</button></div><h2>借用管理</h2><div class="quick-grid"><button @click="openMovement('Loan')">借出</button><button @click="openMovement('Return')">归还</button><button @click="openMovement('Loss')">记录遗失</button></div><h2>损坏处理</h2><div class="quick-grid"><button @click="openMovement('Damage')">标记损坏</button><button @click="openMovement('Repair')">修复归库</button><button @click="openMovement('Disposal')">正式报废</button></div><div class="home-links"><RouterLink class="selection-row" to="/history">库存记录</RouterLink><RouterLink class="selection-row" to="/history?status=unfinished">未完成记录 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></RouterLink><button @click="navigate('stock')">查看库存</button><button @click="navigate('attention')">待处理</button><RouterLink class="selection-row" to="/expiry">有效期</RouterLink><button @click="navigate('scan')">扫码</button><button v-if="!isStandalone" @click="install">安装到手机</button><button v-if="manager" @click="router.push('/settings')">库存设置</button></div></section>

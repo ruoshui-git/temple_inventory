@@ -1,15 +1,195 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, workspaceApi, labels, warehouseLabel } from '../lib/api'
-import LoadingIndicator from '../components/LoadingIndicator.vue'; import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'; import WarehouseTreeFilter from '../components/WarehouseTreeFilter.vue'; import ActiveFilterChips from '../components/ActiveFilterChips.vue'
-const route=useRoute(),router=useRouter(),boot=ref<any>(),rows=ref<any[]>([]),total=ref(0),unfinishedCount=ref(0),start=ref(0),error=ref(''),busy=ref(true),activities=ref<any[]>([]),filterOpen=ref(false),pageLength=30
-const statusGroup=ref(route.query.status==='unfinished'?'unfinished':'completed'); const filters=ref({search:'',movement_kind:'',date_from:'',date_to:'',source_text:'',purpose_text:'',activity:'',handler_name:'',rooms:[] as string[]})
-const activeCount=computed(()=>Object.entries(filters.value).reduce((n,[,v])=>n+(Array.isArray(v)?v.length:v?1:0),0)); const activityTypeLabel=(t:string)=>({Distribution:'分发',Event:'活动',Performance:'演出','Religious Activity':'宗教活动',Maintenance:'维护',Other:'其他'} as any)[t]||t
-const chips=computed(()=>[...filters.value.rooms.map(value=>({key:'rooms',value,label:warehouseLabel(value,boot.value?.warehouse_tree||[])})),...(filters.value.search?[{key:'search',label:`搜索：${filters.value.search}`}]:[]),...(filters.value.movement_kind?[{key:'movement_kind',label:labels[filters.value.movement_kind]}]:[]),...(filters.value.activity?[{key:'activity',label:'活动：'+filters.value.activity}]:[])])
-function removeChip(chip:any){if(chip.key==='rooms')filters.value.rooms=filters.value.rooms.filter(v=>v!==chip.value);else if(chip.key==='movement_kind')filters.value.movement_kind='';else if(chip.key==='activity')filters.value.activity='';else filters.value.search=''} function clearAll(){filters.value={search:'',movement_kind:'',date_from:'',date_to:'',source_text:'',purpose_text:'',activity:'',handler_name:'',rooms:[]};start.value=0}
-async function load(offset=start.value){busy.value=true;error.value='';try{const d=await workspaceApi('history',{filters:{...filters.value,rooms:filters.value.rooms.length?filters.value.rooms:undefined},start:offset,page_length:pageLength,status_group:statusGroup.value});rows.value=d.results||[];total.value=d.total||0;unfinishedCount.value=d.unfinished_count||0;start.value=offset}catch(e:any){error.value=e.message}finally{busy.value=false}}
-async function selectGroup(group:string){statusGroup.value=group;start.value=0;await router.replace({query:group==='unfinished'?{status:'unfinished'}:{}});load(0)} async function deleteDraft(name:string){if(!window.confirm('确定删除这条未完成记录吗？此操作无法撤销。'))return;try{await workspaceApi('delete_draft',{name});await load()}catch(e:any){error.value=e.message}}
-let timer:number|undefined;watch(filters,()=>{start.value=0;if(timer)window.clearTimeout(timer);timer=window.setTimeout(()=>load(0),filters.value.search?300:0)},{deep:true});watch(()=>route.query.status,status=>{const next=status==='unfinished'?'unfinished':'completed';if(next!==statusGroup.value){statusGroup.value=next;load(0)}});onMounted(async()=>{try{boot.value=await api('bootstrap');activities.value=await workspaceApi('activities');await load(0)}catch(e:any){error.value=e.message}})
+import { Combobox } from 'frappe-ui'
+import { api, labels, warehouseLabel, workspaceApi } from '../lib/api'
+import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
+import LoadingIndicator from '../components/LoadingIndicator.vue'
+import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
+import WarehouseTreeFilter from '../components/WarehouseTreeFilter.vue'
+import ActiveFilterChips from '../components/ActiveFilterChips.vue'
+
+const route = useRoute()
+const router = useRouter()
+const boot = ref<any>()
+const rows = ref<any[]>([])
+const total = ref(0)
+const unfinishedCount = ref(0)
+const start = ref(0)
+const error = ref('')
+const busy = ref(true)
+const refreshing = ref(false)
+const activities = ref<any[]>([])
+const filterOpen = ref(false)
+const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null)
+const pageLength = 30
+const statusGroup = ref(route.query.status === 'unfinished' ? 'unfinished' : 'completed')
+const filters = ref({
+  search: '',
+  movement_kind: '',
+  date_from: '',
+  date_to: '',
+  source_text: '',
+  purpose_text: '',
+  activity: '',
+  handler_name: '',
+  rooms: [] as string[],
+})
+
+const activityTypeLabel = (value: string) =>
+  ({ Distribution: '分发', Event: '活动', Performance: '演出', 'Religious Activity': '宗教活动', Maintenance: '维护', Other: '其他' } as Record<string, string>)[value] || value
+const activityOptions = computed(() => activities.value.map(activity => ({
+  label: `${activity.title}（${activityTypeLabel(activity.activity_type)}）`,
+  value: activity.name,
+})))
+const activeCount = computed(() => Object.values(filters.value).reduce((count, value) => count + (Array.isArray(value) ? value.length : value ? 1 : 0), 0))
+const chips = computed(() => [
+  ...filters.value.rooms.map(value => ({ key: 'rooms', value, label: warehouseLabel(value, boot.value?.warehouse_tree || []) })),
+  ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : []),
+  ...(filters.value.movement_kind ? [{ key: 'movement_kind', label: labels[filters.value.movement_kind] || filters.value.movement_kind }] : []),
+  ...(filters.value.date_from ? [{ key: 'date_from', label: `开始：${filters.value.date_from}` }] : []),
+  ...(filters.value.date_to ? [{ key: 'date_to', label: `结束：${filters.value.date_to}` }] : []),
+  ...(filters.value.source_text ? [{ key: 'source_text', label: `来源：${filters.value.source_text}` }] : []),
+  ...(filters.value.purpose_text ? [{ key: 'purpose_text', label: `用途：${filters.value.purpose_text}` }] : []),
+  ...(filters.value.activity ? [{ key: 'activity', label: `活动：${activityOptions.value.find(option => option.value === filters.value.activity)?.label || filters.value.activity}` }] : []),
+  ...(filters.value.handler_name ? [{ key: 'handler_name', label: `经手人：${filters.value.handler_name}` }] : []),
+])
+
+function removeChip(chip: any) {
+  if (chip.key === 'rooms') filters.value.rooms = filters.value.rooms.filter(value => value !== chip.value)
+  else (filters.value as any)[chip.key] = ''
+}
+function clearAll() {
+  filters.value = { search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] }
+  start.value = 0
+}
+
+let timer: ReturnType<typeof setTimeout> | undefined
+let controller: AbortController | undefined
+let sequence = 0
+let syncingRoute = false
+let restoringRoute = false
+let previousText = ''
+function queryState() {
+  return { ...filters.value, start: start.value || undefined, status: statusGroup.value === 'unfinished' ? 'unfinished' : undefined }
+}
+async function load(offset = start.value, debounceText = false) {
+  if (timer) clearTimeout(timer)
+  controller?.abort()
+  const current = ++sequence
+  controller = new AbortController()
+  start.value = Math.max(0, offset)
+  const run = async () => {
+    refreshing.value = rows.value.length > 0
+    busy.value = rows.value.length === 0
+    error.value = ''
+    try {
+      const data = await workspaceApi('history', {
+        filters: { ...filters.value, rooms: filters.value.rooms.length ? filters.value.rooms : undefined },
+        start: start.value,
+        page_length: pageLength,
+        status_group: statusGroup.value,
+      }, controller?.signal)
+      if (current !== sequence) return
+      rows.value = data.results || []
+      total.value = data.total || 0
+      unfinishedCount.value = data.unfinished_count || 0
+      syncingRoute = true
+      await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
+      syncingRoute = false
+    } catch (cause: any) {
+      syncingRoute = false
+      if (current === sequence && cause?.name !== 'AbortError') error.value = cause.message
+    } finally {
+      if (current === sequence) {
+        busy.value = false
+        refreshing.value = false
+      }
+    }
+  }
+  if (debounceText) timer = setTimeout(() => void run(), 300)
+  else await run()
+}
+
+async function selectGroup(group: string) {
+  statusGroup.value = group
+  start.value = 0
+  await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
+  void load(0)
+}
+async function deleteDraft(name: string) {
+  if (!window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return
+  try { await workspaceApi('delete_draft', { name }); await load() } catch (cause: any) { error.value = cause.message }
+}
+function applyQuery(query: Record<string, unknown>) {
+  const hydrated = hydrateFilterQuery(query, {
+    search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] as string[], start: '0',
+  })
+  const next = {
+    search: String(hydrated.search || ''), movement_kind: String(hydrated.movement_kind || ''), date_from: String(hydrated.date_from || ''),
+    date_to: String(hydrated.date_to || ''), source_text: String(hydrated.source_text || ''), purpose_text: String(hydrated.purpose_text || ''),
+    activity: String(hydrated.activity || ''), handler_name: String(hydrated.handler_name || ''), rooms: hydrated.rooms as string[],
+  }
+  const changed = Object.keys(next).some(key => !sameFilterValue((filters.value as any)[key], (next as any)[key]))
+  const nextStatus = query.status === 'unfinished' ? 'unfinished' : 'completed'
+  const nextStart = Number(hydrated.start) || 0
+  if (!changed && nextStatus === statusGroup.value && start.value === nextStart) return false
+  restoringRoute = true
+  filters.value = next
+  previousText = [next.search, next.source_text, next.purpose_text, next.handler_name].join("\u0000")
+  statusGroup.value = nextStatus
+  start.value = nextStart
+  void nextTick(() => { restoringRoute = false })
+  return true
+}
+
+watch(filters, () => {
+  if (!boot.value || restoringRoute) return
+  const text = [filters.value.search, filters.value.source_text, filters.value.purpose_text, filters.value.handler_name].join('\u0000')
+  const debounceText = text !== previousText
+  previousText = text
+  start.value = 0
+  void load(0, debounceText)
+}, { deep: true })
+watch(() => route.query, query => {
+  if (!syncingRoute && applyQuery(query as Record<string, unknown>)) void load(start.value)
+}, { deep: true })
+
+onMounted(async () => {
+  try {
+    boot.value = await api('bootstrap')
+    activities.value = await workspaceApi('activities')
+    applyQuery(route.query as Record<string, unknown>)
+    await load(start.value)
+  } catch (cause: any) {
+    error.value = cause.message
+  }
+})
 </script>
-<template><main class="app-shell wide-shell"><header><RouterLink to="/">‹ 首页</RouterLink><h1>{{statusGroup==='unfinished'?'未完成记录':'库存记录'}}</h1></header><nav class="toolbar"><button :class="{primary:statusGroup==='completed'}" @click="selectGroup('completed')">库存记录</button><button :class="{primary:statusGroup==='unfinished'}" @click="selectGroup('unfinished')">未完成记录 <b v-if="unfinishedCount">{{unfinishedCount}}</b></button></nav><p v-if="error" class="error">{{error}}</p><div class="list-layout"><ResponsiveFilterPanel v-model:open="filterOpen" :count="activeCount"><WarehouseTreeFilter v-model="filters.rooms" :options="boot?.physical_tree||[]" :tree="boot?.warehouse_tree||[]"/><fieldset><legend>交易类型</legend><label v-for="(label,kind) in labels" :key="kind"><input v-model="filters.movement_kind" type="radio" :value="kind">{{label}}</label></fieldset><fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset><fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<input v-model="filters.activity" list="activity-options" placeholder="搜索活动"></label><datalist id="activity-options"><option v-for="a in activities" :key="a.name" :value="a.name">{{a.title}}（{{activityTypeLabel(a.activity_type)}}）</option></datalist><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset></ResponsiveFilterPanel><div class="results-column"><div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…"><button class="mobile-filter-button" @click="filterOpen=true">筛选<span v-if="activeCount">（{{activeCount}}）</span></button><span>{{total}} 条记录</span></div><ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll"/><LoadingIndicator v-if="busy" text="正在加载记录…"/><template v-else><div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th>类型 / 描述</th><th>日期</th><th>物品行数</th><th>状态</th><th>经手人</th><th>操作</th></tr></thead><tbody><tr v-for="r in rows" :key="r.name"><td><RouterLink :to="r.legacy?`/entry/${encodeURIComponent(r.name)}`:`/workspace/${r.name}`"><b>{{labels[r.movement_kind]}} · {{r.source_text||r.purpose_text||r.activity||r.name}}</b></RouterLink></td><td>{{r.posting_date}}</td><td>{{r.items?.length||0}}</td><td>{{r.docstatus===0?'编辑中':r.docstatus===1?'已完成':'已取消'}}</td><td>{{r.handler_name||r.responsible_person}}</td><td><button v-if="statusGroup==='unfinished'" type="button" @click="deleteDraft(r.name)">删除草稿</button></td></tr></tbody></table></div><div class="mobile-cards"><article v-for="r in rows" :key="r.name" class="selection-row"><RouterLink :to="r.legacy?`/entry/${encodeURIComponent(r.name)}`:`/workspace/${r.name}`"><b>{{labels[r.movement_kind]}} · {{r.source_text||r.purpose_text||r.activity||r.name}}</b><p>{{r.posting_date}} · {{r.items?.length||0}} 行 · {{r.docstatus===0?'编辑中':r.docstatus===1?'已完成':'已取消'}}</p><small>{{r.handler_name||r.responsible_person}}</small></RouterLink><button v-if="statusGroup==='unfinished'" @click="deleteDraft(r.name)">删除草稿</button></article></div><p v-if="!rows.length" class="empty-state">{{statusGroup==='unfinished'?'暂无未完成记录':'暂无库存记录'}}</p></template><div class="toolbar"><button :disabled="start===0||busy" @click="load(start-pageLength)">上一页</button><span>{{total}} 条记录</span><button :disabled="start+pageLength>=total||busy" @click="load(start+pageLength)">下一页</button></div></div></div></main></template>
+
+<template>
+  <main class="app-shell wide-shell">
+    <header><RouterLink to="/">‹ 首页</RouterLink><h1>{{ statusGroup === 'unfinished' ? '未完成记录' : '库存记录' }}</h1></header>
+    <nav class="toolbar" aria-label="记录状态"><button type="button" :class="{ primary: statusGroup === 'completed' }" @click="selectGroup('completed')">库存记录</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">未完成记录 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
+    <p v-if="error" class="error">{{ error }}</p>
+    <div class="list-layout">
+      <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
+        <WarehouseTreeFilter v-model="filters.rooms" :options="boot?.physical_tree || []" :tree="boot?.warehouse_tree || []" />
+        <fieldset><legend>交易类型</legend><label v-for="(label, kind) in labels" :key="kind"><input v-model="filters.movement_kind" type="radio" :value="kind">{{ label }}</label></fieldset>
+        <fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset>
+        <fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<Combobox v-model="filters.activity" :options="activityOptions" placeholder="搜索活动" aria-label="搜索活动" /></label><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset>
+      </ResponsiveFilterPanel>
+      <div class="results-column">
+        <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…" aria-label="搜索记录、来源、物品"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `${total} 条记录` }}</span></div>
+        <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+        <LoadingIndicator v-if="busy && !rows.length" text="正在加载记录…" />
+        <template v-else>
+          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">类型 / 描述</th><th scope="col">日期</th><th scope="col">物品行数</th><th scope="col">状态</th><th scope="col">经手人</th><th scope="col">操作</th></tr></thead><tbody><tr v-for="row in rows" :key="row.name"><td><RouterLink :to="row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b></RouterLink></td><td>{{ row.posting_date }}</td><td>{{ row.items?.length || 0 }}</td><td>{{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</td><td>{{ row.handler_name || row.responsible_person }}</td><td><button v-if="statusGroup === 'unfinished'" type="button" @click="deleteDraft(row.name)">删除草稿</button></td></tr></tbody></table></div>
+          <div class="mobile-cards"><article v-for="row in rows" :key="row.name" class="selection-row"><RouterLink :to="row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b><p>{{ row.posting_date }} · {{ row.items?.length || 0 }} 行 · {{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</p><small>{{ row.handler_name || row.responsible_person }}</small></RouterLink><button v-if="statusGroup === 'unfinished'" type="button" @click="deleteDraft(row.name)">删除草稿</button></article></div>
+          <p v-if="!rows.length" class="empty-state">{{ statusGroup === 'unfinished' ? '暂无未完成记录' : '暂无库存记录' }}</p>
+        </template>
+        <nav class="toolbar pagination" aria-label="记录分页"><button type="button" :disabled="start === 0 || busy" @click="load(start - pageLength)">上一页</button><span>{{ total ? start + 1 : 0 }}–{{ Math.min(start + pageLength, total) }} / {{ total }}</span><button type="button" :disabled="start + pageLength >= total || busy" @click="load(start + pageLength)">下一页</button></nav>
+      </div>
+    </div>
+  </main>
+</template>

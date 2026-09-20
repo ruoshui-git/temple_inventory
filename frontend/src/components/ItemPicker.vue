@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
 import { api, workspaceApi, upload } from '../lib/api'
+import { Combobox } from 'frappe-ui'
 const props = defineProps<{
   boot: any
   barcode?: string
@@ -15,6 +16,8 @@ const creating = ref(!!props.barcode), unitDialog = ref(false), categoryDialog =
 const item = ref({ item_name: '', item_group: props.boot.item_groups[0]?.name || '', stock_uom: props.boot.uoms[0]?.name || '', barcode: props.barcode || '', description: '', has_batch_no: false, has_expiry_date: false })
 const photo = ref<File>(), created = ref(''), recent = ref<any[]>([]), recentLoading = ref(true)
 const warehouseRows = computed(() => props.boot.warehouses || props.boot.physical_warehouses || [])
+const categoryOptions = computed(() => [{ label: '全部类别', value: '' }, ...props.boot.item_groups.map((group: any) => ({ label: group.item_group_name, value: group.name }))])
+const warehouseOptions = computed(() => [{ label: '所有有库存仓库', value: '' }, ...warehouseRows.value.map((warehouse: any) => ({ label: warehouse.warehouse_name, value: warehouse.name }))])
 let sequence = 0
 async function search(offset = 0) {
   const seq = ++sequence
@@ -68,8 +71,8 @@ onMounted(async () => {
 <h2>{{ creating ? '创建新物品' : '添加物品' }}</h2><p v-if="error" class="error">{{ error }}</p>
 <template v-if="!creating">
 <label>搜索物品<input v-model="query" placeholder="搜索名称、编号、条码"></label>
-<label>类别<select v-model="category"><option value="">全部类别</option><option v-for="g in boot.item_groups" :value="g.name">{{g.item_group_name}}</option></select></label>
-<label v-if="stockOnly">仓库筛选<select v-model="selectedWarehouse" @change="emit('warehouse-change', selectedWarehouse)"><option value="">所有有库存仓库</option><option v-for="w in warehouseRows" :value="w.name">{{w.warehouse_name}}</option></select></label>
+<label>类别<Combobox v-model="category" :options="categoryOptions" placeholder="全部类别" aria-label="类别" /></label>
+<label v-if="stockOnly">仓库筛选<Combobox v-model="selectedWarehouse" :options="warehouseOptions" placeholder="所有有库存仓库" aria-label="仓库筛选" @update:model-value="emit('warehouse-change', String($event || ''))" /></label>
 <section v-if="!query && (recentLoading || recent.length)" class="recent-items" aria-label="最近使用"><h3>最近使用</h3><div class="recent-strip"><span v-if="recentLoading" class="recent-placeholder">正在加载最近物品…</span><button v-for="r in recent" :key="r.item_code" class="recent-item" :disabled="busy" @click="select(r.item_code)"><img v-if="r.image" :src="r.image" class="thumb"><span>{{r.item_name}}<small>{{r.item_code}}</small></span></button></div></section>
 <h3>搜索结果</h3><button v-for="r in rows" :key="r.item_code" class="selection-row compact-selection" :disabled="busy" @click="select(r.item_code)"><img v-if="r.image" :src="r.image" class="thumb"><span><b>{{r.item_name}}</b><small>{{r.item_code}} · {{r.item_group}}<template v-if="stockOnly"> · 可用 {{r.available_qty}} {{r.stock_uom}}</template></small></span></button>
 <p v-if="!rows.length && !recentLoading">没有找到物品</p><div class="toolbar"><button :disabled="start===0" @click="search(start-30)">上一页</button><span>{{total}} 项</span><button :disabled="start+30>=total" @click="search(start+30)">下一页</button></div><button v-if="boot.capabilities.Item" @click="creating=true; item.barcode=barcode || ''">＋创建新物品</button></template>

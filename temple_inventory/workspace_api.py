@@ -692,6 +692,10 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		f["docstatus"] = "0"
 	elif status_group == "completed":
 		f["docstatus"] = {"in": [1, 2]}
+	rooms = f.get("rooms", f.get("room"))
+	# Validate and expand once for the whole query. This avoids repeated work
+	# and makes an invalid location a permission error instead of an empty list.
+	selected_rooms = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False) if rooms else None
 	results = []
 	linked = set()
 	for row in frappe.get_list(
@@ -735,7 +739,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		)
 
 	def matches(r):
-		for key in ("movement_kind", "activity", "responsible_person", "handler_name", "purpose_text"):
+		for key in ("movement_kind", "activity", "responsible_person", "handler_name"):
 			if f.get(key) and r.get(key) != f[key]:
 				return False
 		if f.get("docstatus") is not None and f.get("docstatus") != "":
@@ -744,7 +748,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 					return False
 			elif r["docstatus"] != cint(f["docstatus"]):
 				return False
-		for key in ("source_text", "borrower"):
+		for key in ("source_text", "purpose_text", "borrower"):
 			if f.get(key) and f[key].lower() not in (r.get(key) or "").lower():
 				return False
 		if f.get("date_from") and str(r.get("posting_date") or "") < f["date_from"]:
@@ -753,14 +757,9 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			return False
 		if f.get("item_code") and not any(i["item_code"] == f["item_code"] for i in r["items"]):
 			return False
-		rooms = f.get("rooms", f.get("room"))
-		if rooms:
-			try:
-				descendants = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False)
-			except frappe.PermissionError:
-				return False
+		if selected_rooms is not None:
 			if not any(
-				w in descendants
+				w in selected_rooms
 				for i in r["items"]
 				for w in (i.get("warehouse"), i.get("from_warehouse"), i.get("to_warehouse"))
 			):

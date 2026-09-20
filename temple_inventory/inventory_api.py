@@ -157,17 +157,22 @@ def _physical_tree(settings=None):
 	visible = _visible_warehouses(settings)
 	physical = _physical_warehouses(settings)
 	keep = set(physical)
-	for name, row in visible.items():
-		if row.warehouse_name in TEMPLE_NAMES:
-			keep.add(name)
-		parent = row.parent_warehouse
+	physical_root = settings.get("physical_root_warehouse")
+	for name in physical:
+		parent = visible[name].parent_warehouse
 		while parent and parent in visible:
-			if parent in keep:
+			keep.add(parent)
+			if parent == physical_root:
 				break
-			if visible[parent].warehouse_name in TEMPLE_NAMES:
-				keep.add(parent)
-			break
 			parent = visible[parent].parent_warehouse
+	# Preserve the readable temple labels when a deployment has them, while
+	# keeping lease/virtual branches out of the browse facet.
+	for name, row in visible.items():
+		if row.warehouse_name in TEMPLE_NAMES and any(
+			leaf in physical and visible[leaf].lft >= row.lft and visible[leaf].rgt <= row.rgt
+			for leaf in physical
+		):
+			keep.add(name)
 	return {name: row for name, row in visible.items() if name in keep}
 
 
@@ -439,8 +444,9 @@ def repair_settings():
 		_allow_warehouses(settings, physical)
 	stock = frappe.get_single("Stock Settings")
 	if not stock.enable_serial_and_batch_no_for_item:
-		stock.enable_serial_and_batch_no_for_item = 1
-		stock.save(ignore_permissions=True)
+		# Update only the setting we own. Saving the whole singleton can validate
+		# unrelated stale links (for example a removed ERPNext default warehouse).
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
 	return {"status": initialization_status()}
 
 def _page(rows, page_length=30, start=0):
