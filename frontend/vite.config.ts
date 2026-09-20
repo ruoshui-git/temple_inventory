@@ -25,6 +25,14 @@ export default defineConfig({
       frontendRoute: '/inventory',
     }),
     vue(),
+    {
+      name: 'temple-inventory-zxing-local-wasm',
+      enforce: 'pre',
+      transform(code, id) {
+        if (!id.endsWith('/zxing-wasm/dist/es/share.js')) return
+        return code.replace(/return n \? `https:\/\/fastly\.jsdelivr\.net\/npm\/zxing-wasm@[^`]+` : t \+ e;/, 'return t + e;')
+      },
+    },
     VitePWA({
       registerType: 'prompt',
       injectRegister: null,
@@ -52,7 +60,7 @@ export default defineConfig({
         navigateFallback: null,
         inlineWorkboxRuntime: true,
         modifyURLPrefix: { '': '/assets/temple_inventory/frontend/' },
-        globPatterns: ['assets/**/*.{js,css,woff,woff2,ttf,otf}', 'pwa-icons/**/*.{png,svg}'],
+        globPatterns: ['assets/**/*.{js,css,wasm,woff,woff2,ttf,otf}', 'pwa-icons/**/*.{png,svg}'],
       },
     }),
     {
