@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 
-type Node = { name: string; label?: string; parent?: string; parent_warehouse?: string; parent_item_group?: string; is_group?: number | boolean; lft?: number; rgt?: number }
+type Node = { name: string; label?: string; parent?: string; parent_warehouse?: string; parent_item_group?: string; is_group?: number | boolean; lft?: number; rgt?: number; count?: number }
 const props = withDefaults(defineProps<{ modelValue: string[]; options: Node[]; placeholder: string; title: string; tree?: Node[] }>(), { tree: () => [] })
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const open = ref(false)
@@ -17,7 +17,7 @@ const children = (node: Node) => nodes.value.filter(child => parentOf(child) ===
 const descendants = (node: Node) => nodes.value.filter(child => child.name !== node.name && Number(child.lft) >= Number(node.lft) && Number(child.rgt) <= Number(node.rgt))
 const leaves = (node: Node) => node.is_group ? descendants(node).filter(child => !child.is_group) : [node]
 const normalize = (value: string) => value.toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim()
-const path = (node: Node) => { const values = [node.label || node.name]; let parent = byName.value.get(parentOf(node)); const seen = new Set<string>(); while (parent && !seen.has(parent.name)) { seen.add(parent.name); values.unshift(parent.label || parent.name); parent = byName.value.get(parentOf(parent)) } return values.join(' / ') }
+const path = (node: Node) => { if (node.label?.includes(' / ')) return node.label; const values = [node.label || node.name]; let parent = byName.value.get(parentOf(node)); const seen = new Set<string>(); while (parent && !seen.has(parent.name)) { seen.add(parent.name); values.unshift(parent.label || parent.name); parent = byName.value.get(parentOf(parent)) } return values.join(' / ') }
 const matches = (node: Node) => !term.value || normalize(`${node.name} ${node.label || ''} ${path(node)} 未指定`).includes(normalize(term.value))
 const visible = (node: Node) => matches(node) || descendants(node).some(matches)
 function depth(node: Node) {
@@ -63,12 +63,12 @@ function activate() { open.value = true; void nextTick(() => input.value?.focus(
 <template>
   <section class="hierarchy-facet">
     <header><h3>{{ title }}</h3><span>{{ modelValue.length }} 项已选</span><button type="button" class="inline-link" :disabled="!modelValue.length" @click="clear">清除本项</button></header>
-    <div v-if="modelValue.length" class="facet-chips"><button v-for="name in modelValue" :key="name" type="button" @click="remove(name)">{{ path(byName.get(name) || { name }) }} ×</button></div>
+    <div v-if="modelValue.length" class="facet-chips"><button v-for="name in modelValue" :key="name" type="button" :aria-label="`移除 ${path(byName.get(name) || { name })}`" @click="remove(name)">× <span>{{ path(byName.get(name) || { name }) }}</span></button></div>
     <div class="facet-input"><input ref="input" v-model="term" type="search" :placeholder="placeholder" :aria-label="title" @focus="open = true" @click="open = true" @keydown.esc="open = false"><button type="button" aria-label="浏览选项" @click="activate">⌄</button></div>
     <div v-if="open" class="facet-suggestions" role="listbox" :aria-label="`${title}建议`">
       <p v-if="!nodes.length" class="field-hint">暂无可选项目</p>
       <p v-else-if="!roots.some(visible)" class="field-hint">没有匹配的项目</p>
-      <ul v-else class="hierarchy-list"><li v-for="node in displayNodes" :key="node.name"><div class="hierarchy-row" :style="{ paddingInlineStart: `${0.3 + depth(node) * 1.5}rem` }"><button v-if="children(node).length" type="button" class="tree-toggle" :aria-expanded="expanded.has(node.name) || !!term" @click="expanded.has(node.name) ? expanded.delete(node.name) : expanded.add(node.name)">{{ expanded.has(node.name) || term ? '−' : '+' }}</button><span v-else class="tree-spacer"></span><label><input type="checkbox" :checked="!!(node.is_group ? leaves(node).every(selected) : selected(node))" :indeterminate="partial(node)" @change="toggle(node)"><span>{{ node.label || node.name }}</span></label></div></li></ul>
+      <ul v-else class="hierarchy-list"><li v-for="node in displayNodes" :key="node.name"><div class="hierarchy-row" :style="{ paddingInlineStart: `${0.3 + depth(node) * 1.5}rem` }"><button v-if="children(node).length" type="button" class="tree-toggle" :aria-expanded="expanded.has(node.name) || !!term" @click="expanded.has(node.name) ? expanded.delete(node.name) : expanded.add(node.name)">{{ expanded.has(node.name) || term ? '−' : '+' }}</button><span v-else class="tree-spacer"></span><label><input type="checkbox" :checked="!!(node.is_group ? leaves(node).every(selected) : selected(node))" :indeterminate="partial(node)" @change="toggle(node)"><span>{{ node.label || node.name }}</span><small v-if="node.count !== undefined" class="facet-result-count">{{ node.count }}</small></label></div></li></ul>
     </div>
   </section>
 </template>

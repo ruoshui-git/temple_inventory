@@ -28,6 +28,7 @@
     "state_json",
     "revision",
     "stock_entry",
+    "stock_reconciliation",
     "loan_record",
     "return_record",
     "loss_record",
@@ -45,7 +46,7 @@
       "fieldname": "movement_kind",
       "fieldtype": "Select",
       "label": "Movement",
-      "options": "Receive\nIssue\nTransfer\nLoan\nReturn\nDamage\nLoss\nRepair\nDisposal",
+      "options": "Receive\nIssue\nTransfer\nReconcile\nLoan\nReturn\nDamage\nLoss\nRepair\nDisposal",
       "reqd": 1,
       "in_list_view": 1
     },
@@ -169,6 +170,14 @@
       "fieldtype": "Link",
       "label": "Stock Entry",
       "options": "Stock Entry",
+      "read_only": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "stock_reconciliation",
+      "fieldtype": "Link",
+      "label": "Stock Reconciliation",
+      "options": "Stock Reconciliation",
       "read_only": 1,
       "unique": 1
     },

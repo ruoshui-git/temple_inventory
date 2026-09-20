@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{ open?: boolean; count?: number; title?:
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const invoker = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
+const previousOverflow = ref('')
 const titleId = 'filter-title-' + Math.random().toString(36).slice(2)
 const drawerTitleId = titleId + '-drawer'
 
@@ -43,15 +44,20 @@ function keydown(event: KeyboardEvent) {
 }
 watch(() => props.open, async value => {
   if (value) {
+    previousOverflow.value = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     // Pages may use their own visible mobile trigger so the sidebar trigger
     // can stay out of the desktop grid. Preserve that trigger for close.
     if (!invoker.value && document.activeElement instanceof HTMLElement) invoker.value = document.activeElement
     await nextTick()
     panel.value?.querySelector<HTMLElement>('button,input,select,textarea,[tabindex="0"]')?.focus()
+  } else if (previousOverflow.value !== '') {
+    document.body.style.overflow = previousOverflow.value
+    previousOverflow.value = ''
   }
 })
 onMounted(() => window.addEventListener('keydown', keydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', keydown))
+onBeforeUnmount(() => { window.removeEventListener('keydown', keydown); document.body.style.overflow = previousOverflow.value })
 defineExpose({ openPanel, close })
 </script>
 

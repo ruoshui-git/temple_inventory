@@ -141,13 +141,16 @@ def _system_warehouse_names(settings=None):
 def _physical_warehouses(settings=None):
 	settings = settings or _settings()
 	visible = _visible_warehouses(settings)
-	system = _system_warehouse_names(settings) - {settings.get("unlocated_warehouse") or settings.get("pending_warehouse")}
+	system = _system_warehouse_names(settings)
 	leased = visible.get(settings.leased_warehouse)
+	virtual = visible.get(settings.virtual_root_warehouse)
 	return {
 		name: row
 		for name, row in visible.items()
 		if not row.is_group
 		and name not in system
+		and row.warehouse_type not in ("虚拟", "Virtual")
+		and not (virtual and row.lft >= virtual.lft and row.rgt <= virtual.rgt)
 		and not (leased and row.lft >= leased.lft and row.rgt <= leased.rgt)
 	}
 
@@ -162,17 +165,13 @@ def _physical_tree(settings=None):
 		parent = visible[name].parent_warehouse
 		while parent and parent in visible:
 			keep.add(parent)
-			if parent == physical_root:
+			if parent == physical_root or parent in _system_warehouse_names(settings):
 				break
 			parent = visible[parent].parent_warehouse
-	# Preserve the readable temple labels when a deployment has them, while
-	# keeping lease/virtual branches out of the browse facet.
-	for name, row in visible.items():
-		if row.warehouse_name in TEMPLE_NAMES and any(
-			leaf in physical and visible[leaf].lft >= row.lft and visible[leaf].rgt <= row.rgt
-			for leaf in physical
-		):
-			keep.add(name)
+	# Roots and virtual/system branches are boundaries, never browse options.
+	keep -= _system_warehouse_names(settings)
+	keep.discard(settings.get("root_warehouse"))
+	keep.discard(settings.get("physical_root_warehouse"))
 	# The physical root is a boundary, not a browseable operational warehouse.
 	return {name: row for name, row in visible.items() if name in keep and name != physical_root}
 
@@ -595,6 +594,7 @@ def bootstrap():
 	batch_enabled = frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item")
 	visible = _visible_warehouses(settings)
 	physical = _physical_warehouses(settings)
+	physical_leaves = [name for name, row in _physical_tree(settings).items() if not row.is_group and name in _allowed_warehouses(settings) and frappe.has_permission("Warehouse", "read", name)]
 	unfinished_count = frappe.db.sql(
 		"""select count(*) from `tabInventory Workspace` iw
 		left join `tabStock Entry` se on se.name = iw.stock_entry
@@ -607,6 +607,7 @@ def bootstrap():
 		fields=["warehouse", "item_code"],
 		limit_page_length=0,
 	)
+	pending_total = inventory(needs_attention=1, mode="current", start=0, page_length=1)["total"]
 	damaged_count = len({row.item_code for row in pending_rows if row.warehouse == settings.damaged_warehouse})
 	unlocated_count = len({row.item_code for row in pending_rows if row.warehouse == settings.pending_warehouse})
 	return {
@@ -616,8 +617,12 @@ def bootstrap():
 		"unfinished_count": unfinished_count,
 		"damaged_pending_count": damaged_count,
 		"unlocated_pending_count": unlocated_count,
-		"pending_count": len({row.item_code for row in pending_rows}),
+		"pending_count": pending_total,
 		"capabilities": {dt: frappe.has_permission(dt, "create") for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")},
+		"can_read_reconciliations": frappe.has_permission("Stock Reconciliation", "read"),
+		"can_create_stock_entry": frappe.has_permission("Stock Entry", "create"),
+		"can_reconcile_stock": bool(physical_leaves and frappe.has_permission("Stock Reconciliation", "create") and frappe.has_permission("Stock Reconciliation", "submit")),
+		"reconciliation_warehouses": physical_leaves,
 		"can_edit_item": frappe.has_permission("Item", "write"),
 		"warehouse_tree": list(visible.values()),
 		"physical_warehouses": list(physical.values()),
@@ -681,19 +686,23 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 	for row in bins:
 		if row.warehouse in selected:
 			balances[row.item_code][row.warehouse] += row.actual_qty
-	filters = {"disabled": 0, "is_stock_item": 1}
+	base_filters = {"disabled": 0, "is_stock_item": 1}
+	filters = dict(base_filters)
 	groups = _selection_values(item_groups if item_groups is not None else item_group)
+	all_items = frappe.get_list(
+		"Item",
+		filters=base_filters,
+		fields=["name", "item_code", "item_name", "item_group", "stock_uom", "image", "description", "has_batch_no"],
+		limit_page_length=0,
+	)
 	if groups:
 		group_rows = frappe.get_all("Item Group", filters={"name": ("in", groups)}, fields=["name", "lft", "rgt"])
 		all_groups = frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
 		groups = [row.name for row in all_groups if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in group_rows)]
 		filters["item_group"] = ("in", groups or [""])
-	items = frappe.get_list(
-		"Item",
-		filters=filters,
-		fields=["name", "item_code", "item_name", "item_group", "stock_uom", "image", "description"],
-		limit_page_length=0,
-	)
+	items = all_items
+	if groups:
+		items = [item for item in items if item.item_group in groups]
 	if search:
 		term = str(search).lower()
 		items = [r for r in items if term in f"{r.item_code} {r.item_name} {r.item_group}".lower()]
@@ -722,6 +731,7 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 				"stock_uom": item.stock_uom,
 				"image": item.image,
 				"description": item.description,
+				"has_batch_no": item.has_batch_no,
 				"total_stock": total,
 				"available_stock": sum(qty for key, qty in stock.items() if key not in reserved),
 				"on_loan_qty": sum(
@@ -737,17 +747,96 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			}
 		)
 	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
+	# Facets count distinct result rows, not quantity. Parent warehouse counts are
+	# deduplicated unions of permitted descendant leaves.
+	warehouse_matches = defaultdict(set)
+	group_matches = defaultdict(set)
+	all_leaves = _selected_leaf_warehouses(None, warehouse_map)
+	facet_bins = frappe.get_all(
+		"Bin",
+		filters={"warehouse": ("in", list(all_leaves) or [""])},
+		fields=["item_code", "warehouse", "actual_qty"],
+	)
+	facet_balances = defaultdict(lambda: defaultdict(float))
+	for row in facet_bins:
+		facet_balances[row.item_code][row.warehouse] += row.actual_qty
+	def included(item, stock):
+		total = sum(stock.values())
+		pending_qty = stock.get(settings.pending_warehouse, 0)
+		damaged_qty = stock.get(settings.damaged_warehouse, 0)
+		return not (needs_attention and not (pending_qty or damaged_qty)) and not (not needs_attention and mode != "catalog" and not total)
+	for item in items:
+		stock = facet_balances.get(item.name, {})
+		if included(item, stock):
+			for name, qty in stock.items():
+				if flt(qty) > 0:
+					warehouse_matches[name].add(item.item_code)
+	for item in all_items:
+		if search and str(search).lower() not in f"{item.item_code} {item.item_name} {item.item_group}".lower():
+			continue
+		stock = balances.get(item.name, {})
+		if included(item, stock):
+			group_matches[item.item_group].add(item.item_code)
+	physical_nodes = _physical_tree(settings)
+	for name, node in physical_nodes.items():
+		if node.is_group:
+			leaves = [leaf for leaf, leaf_row in physical_nodes.items() if not leaf_row.is_group and leaf_row.lft >= node.lft and leaf_row.rgt <= node.rgt]
+			warehouse_matches[name] = set().union(*(warehouse_matches.get(leaf, set()) for leaf in leaves)) if leaves else set()
+	facet_counts = {"warehouses": {name: len(values) for name, values in warehouse_matches.items()}, "item_groups": {}}
+	all_groups = frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
+	for group in all_groups:
+		group_name = getattr(group, "name", None)
+		if not group_name:
+			continue
+		members = [key for key in group_matches if any(getattr(row, "name", None) == key and row.lft >= group.lft and row.rgt <= group.rgt for row in all_groups)]
+		facet_counts["item_groups"][group_name] = len(set().union(*(group_matches.get(key, set()) for key in members))) if members else 0
 	# overall_total retains fixed permissions and mode but deliberately removes
 	# removable text/category/location filters.
 	has_removable_filters = bool(search or _selection_values(warehouses if warehouses is not None else warehouse) or _selection_values(item_groups if item_groups is not None else item_group))
 	overall = len(result)
 	if has_removable_filters:
-		# Reapply the same fixed mode/permission predicates while removing only
-		# user facets. This keeps the displayed overall count meaningful.
-		overall = inventory(mode=mode, needs_attention=needs_attention, start=0, page_length=1)["total"]
+		# Reapply only fixed permission/mode predicates locally. This avoids a
+		# recursive endpoint call while keeping overall_total independent of the
+		# removable search/category/location facets.
+		all_items = frappe.get_list(
+			"Item",
+			filters=base_filters,
+			fields=["name"],
+			limit_page_length=0,
+		)
+		all_leaves = _selected_leaf_warehouses(None, warehouse_map)
+		all_bins = frappe.get_all(
+			"Bin",
+			filters={"warehouse": ("in", list(all_leaves) or [""])},
+			fields=["item_code", "warehouse", "actual_qty"],
+		)
+		all_balances = defaultdict(lambda: defaultdict(float))
+		for row in all_bins:
+			all_balances[row.item_code][row.warehouse] += row.actual_qty
+		if mode == "catalog":
+			overall = len(all_items)
+		else:
+			overall = 0
+			for item in all_items:
+				stock = all_balances.get(item.name, {})
+				total = sum(stock.values())
+				pending_qty = stock.get(settings.pending_warehouse, 0)
+				damaged_qty = stock.get(settings.damaged_warehouse, 0)
+				if needs_attention and not (pending_qty or damaged_qty):
+					continue
+				if not needs_attention and not total:
+					continue
+				overall += 1
 	page = _page(result, page_length, start)
 	page["overall_total"] = overall
+	page["facets"] = facet_counts
 	return page
+
+
+@frappe.whitelist()
+def pending(search=None, start=0, page_length=25):
+	"""The Pending browser uses the exact inventory attention predicate and grouping."""
+	return inventory(search=search, needs_attention=1, mode="current", start=start, page_length=page_length)
 
 
 @frappe.whitelist()
@@ -1049,15 +1138,42 @@ def update_item(item_code, data):
 @frappe.whitelist()
 def outstanding_loan_items():
 	_require_stock()
-	rows=[]
-	for loan in frappe.get_all("Inventory Loan", filters={"docstatus":1}, fields=["name","posting_datetime","borrower","activity"]):
-		for item in frappe.get_all("Inventory Loan Item", filters={"parent":loan.name,"parenttype":"Inventory Loan"}, fields=["name","item_code","qty","uom","batch_no","original_warehouse","activity"]):
-			returned = frappe.db.sql("""select coalesce(sum(ri.qty),0) from `tabInventory Return Item` ri join `tabInventory Return` r on r.name=ri.parent where r.docstatus=1 and ri.loan_item=%s and ri.outcome='Returned'""", item.name)[0][0]
-			damaged = frappe.db.sql("""select coalesce(sum(ri.qty),0) from `tabInventory Return Item` ri join `tabInventory Return` r on r.name=ri.parent where r.docstatus=1 and ri.loan_item=%s and ri.outcome='Damaged'""", item.name)[0][0]
-			lost = frappe.db.sql("""select coalesce(sum(li.qty),0) from `tabInventory Loss Item` li join `tabInventory Loss` l on l.name=li.parent where l.docstatus=1 and li.original_loan_item=%s""", item.name)[0][0]
-			outstanding=flt(item.qty)-flt(returned)-flt(damaged)-flt(lost)
-			if outstanding>0:
-				rows.append({"loan":loan.name,"loan_item":item.name,"item_code":item.item_code,"batch_no":item.batch_no,"uom":item.uom,"activity":item.activity or loan.activity,"borrower":loan.borrower,"original_warehouse":item.original_warehouse,"loan_date":loan.posting_datetime,"loaned":item.qty,"returned":returned,"damaged":damaged,"lost":lost,"outstanding":outstanding})
+	return [row for row in _all_loan_rows() if flt(row["outstanding"]) > 0]
+
+
+def _all_loan_rows(loan_names=None):
+	query = """
+		select l.name as loan, li.name as loan_item, li.item_code, li.batch_no, li.uom,
+			li.activity as item_activity, l.activity, l.borrower, li.original_warehouse,
+			l.posting_datetime as loan_date, l.posting_datetime, li.qty as loaned,
+			coalesce(rt.returned, 0) as returned, coalesce(rt.damaged, 0) as damaged,
+			coalesce(ls.lost, 0) as lost
+		from `tabInventory Loan` l
+		join `tabInventory Loan Item` li on li.parent=l.name and li.parenttype='Inventory Loan'
+		left join (
+			select ri.loan_item,
+				sum(case when ri.outcome='Returned' then ri.qty else 0 end) as returned,
+				sum(case when ri.outcome='Damaged' then ri.qty else 0 end) as damaged
+			from `tabInventory Return Item` ri join `tabInventory Return` r on r.name=ri.parent and r.docstatus=1
+			group by ri.loan_item
+		) rt on rt.loan_item=li.name
+		left join (
+			select li.original_loan_item, sum(li.qty) as lost
+			from `tabInventory Loss Item` li join `tabInventory Loss` l on l.name=li.parent and l.docstatus=1
+			group by li.original_loan_item
+		) ls on ls.original_loan_item=li.name
+		where l.docstatus=1
+	"""
+	params = {}
+	if loan_names is not None:
+		if not loan_names:
+			return []
+		query += " and l.name in %(loan_names)s"
+		params["loan_names"] = tuple(loan_names)
+	rows = frappe.db.sql(query, params, as_dict=True)
+	for row in rows:
+		row["activity"] = row.pop("item_activity") or row.get("activity")
+		row["outstanding"] = flt(row["loaned"]) - flt(row["returned"]) - flt(row["damaged"]) - flt(row["lost"])
 	return rows
 
 
@@ -1081,24 +1197,52 @@ def _outstanding_loan_rows():
 def loans(search=None, start=0, page_length=25):
 	"""Page active loans by parent transaction, never by a flat item line."""
 	_require_stock()
+	filters = {"docstatus": 1}
+	or_filters = None
+	if search:
+		term = f"%{str(search).strip()}%"
+		or_filters = [{"name": ["like", term]}, {"borrower": ["like", term]}, {"activity": ["like", term]}]
+		item_codes = frappe.get_all(
+			"Item",
+			or_filters=[{"name": ["like", term]}, {"item_name": ["like", term]}],
+			pluck="name",
+			limit_page_length=200,
+		)
+		if item_codes:
+			loan_parents = frappe.get_all("Inventory Loan Item", filters={"item_code": ("in", item_codes)}, pluck="parent", limit_page_length=500)
+			or_filters.append({"name": ("in", loan_parents or [""])})
+	parents = frappe.get_list(
+		"Inventory Loan",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "borrower", "activity", "posting_datetime"],
+		order_by="posting_datetime desc, name desc",
+		start=max(cint(start or 0), 0),
+		limit_page_length=min(max(cint(page_length or 25), 1), 100),
+	)
+	parent_names = [row.name for row in parents]
 	grouped = {}
-	for row in _outstanding_loan_rows():
+	for row in _all_loan_rows(parent_names):
+		if flt(row["loaned"]) - flt(row["returned"]) - flt(row["damaged"]) - flt(row["lost"]) <= 0:
+			continue
 		loan = grouped.setdefault(row["loan"], {
 			"name": row["loan"], "borrower": row["borrower"], "activity": row["activity"],
 			"loan_date": row["loan_date"], "items": [], "outstanding_lines": 0,
 		})
-		item = frappe.db.get_value("Item", row["item_code"], ["item_name", "image"], as_dict=True) or {}
-		loan["items"].append({**row, "item_name": item.get("item_name", row["item_code"]), "image": item.get("image")})
+		loan["items"].append(dict(row))
 		loan["outstanding_lines"] += 1
-	rows = list(grouped.values())
-	if search:
-		term = str(search).lower()
-		rows = [row for row in rows if term in " ".join([
-			str(row["name"]), str(row.get("borrower") or ""), str(row.get("activity") or ""),
-			*[(str(item["item_code"]) + " " + str(item.get("item_name") or "")) for item in row["items"]],
-		]).lower()]
+	rows = [next((dict(parent) for parent in parents if parent.name == name), {"name": name}) for name in grouped]
+	for loan in rows:
+		loan.update(grouped[loan["name"]])
+	item_codes = {item["item_code"] for loan in rows for item in loan["items"]}
+	item_map = {row.name: row for row in frappe.get_all("Item", filters={"name": ("in", list(item_codes) or [""])}, fields=["name", "item_name", "image"], limit_page_length=min(max(len(item_codes), 1), 1000))}
+	for loan in rows:
+		for item in loan["items"]:
+			meta = item_map.get(item["item_code"]) or {}
+			item["item_name"] = meta.get("item_name", item["item_code"])
+			item["image"] = meta.get("image")
 	rows.sort(key=lambda row: (str(row.get("loan_date") or ""), row["name"]), reverse=True)
-	return {**_page(rows, page_length, start), "overall_total": len(grouped)}
+	return {"results": rows, "total": frappe.db.count("Inventory Loan", filters=filters, distinct=True) if not search else len(rows), "start": int(start or 0), "page_length": min(max(int(page_length or 25), 1), 100), "overall_total": frappe.db.count("Inventory Loan", filters=filters, distinct=True) if not search else len(rows)}
 
 
 @frappe.whitelist()
@@ -1106,7 +1250,7 @@ def loan_detail(name):
 	_require_stock()
 	loan = frappe.get_doc("Inventory Loan", name)
 	loan.check_permission("read")
-	rows = [row for row in _outstanding_loan_rows() if row["loan"] == loan.name]
+	rows = [row for row in _all_loan_rows() if row["loan"] == loan.name]
 	for row in rows:
 		item = frappe.get_doc("Item", row["item_code"])
 		item.check_permission("read")
@@ -1114,6 +1258,7 @@ def loan_detail(name):
 	return {
 		"name": loan.name, "borrower": loan.borrower, "activity": loan.activity,
 		"posting_datetime": loan.posting_datetime, "items": rows,
+		"attachments": frappe.get_all("File", filters={"attached_to_doctype": "Inventory Loan", "attached_to_name": loan.name}, fields=["name", "file_name", "file_url", "content_type", "file_size", "is_private"], order_by="creation asc, name asc"),
 	}
 
 
@@ -1168,27 +1313,56 @@ def configure_warehouse(
 def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None):
 	"""Return positive, visible batch balances aggregated by batch."""
 	_require_stock()
-	visible_warehouses = _visible_warehouses(_settings())
+	settings = _settings()
+	visible_warehouses = _visible_warehouses(settings)
 	_raise_on_group_stock(visible_warehouses)
 	selected = _selected_leaf_warehouses(warehouses if warehouses is not None else warehouse, visible_warehouses)
-	filters = {"disabled": 0}
-	groups = _selection_values(item_groups if item_groups is not None else item_group)
-	if groups:
-		parents = frappe.get_all("Item Group", filters={"name": ("in", groups)}, fields=["lft", "rgt"])
-		groups = [row.name for row in frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0) if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in parents)]
-		filters["item_group"] = ("in", groups or [""])
-	items = {r.name: r for r in frappe.get_all("Item", filters=filters, fields=["name", "item_code", "item_name", "item_group", "stock_uom", "image"], limit_page_length=0)}
-	as_of, rows = getdate(nowdate()), []
+	all_selected = _selected_leaf_warehouses(None, visible_warehouses)
+	all_groups = frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
+	selected_groups = _selection_values(item_groups if item_groups is not None else item_group)
+	group_names = set(selected_groups)
+	if selected_groups:
+		parents = [row for row in all_groups if row.name in selected_groups]
+		group_names = {row.name for row in all_groups if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in parents)}
+	items = {r.name: r for r in frappe.get_all("Item", filters={"disabled": 0}, fields=["name", "item_code", "item_name", "item_group", "stock_uom", "image"], limit_page_length=0)}
+	as_of, all_rows = getdate(nowdate()), []
 	for batch in frappe.get_all("Batch", filters={"disabled": 0, "expiry_date": ("is", "set")}, fields=["name", "item", "expiry_date"], limit_page_length=0):
 		item, expiry = items.get(batch.item), getdate(batch.expiry_date)
-		if not item or (expiry_from and expiry < getdate(expiry_from)) or (expiry_to and expiry > getdate(expiry_to)): continue
-		if search and search.lower() not in f"{batch.name} {item.item_code} {item.item_name}".lower(): continue
-		locations = [{"warehouse": w, "qty": flt(get_batch_qty(batch_no=batch.name, warehouse=w, item_code=item.name))} for w in selected]
+		if not item:
+			continue
+		locations = [{"warehouse": w, "qty": flt(get_batch_qty(batch_no=batch.name, warehouse=w, item_code=item.name))} for w in all_selected]
 		locations = [row for row in locations if row["qty"] > 0]
-		if locations: rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "image": item.image, "stock_uom": item.stock_uom, "expiry_date": str(expiry), "days_to_expiry": (expiry-as_of).days, "total_qty": sum(row["qty"] for row in locations), "locations": locations})
+		if locations:
+			all_rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "image": getattr(item, "image", None), "stock_uom": item.stock_uom, "expiry_date": str(expiry), "days_to_expiry": (expiry-as_of).days, "locations": locations})
+	def matches(row, selected_locations, selected_group_names=None):
+		if selected_group_names and row["item_group"] not in selected_group_names:
+			return False
+		if search and search.lower() not in f"{row['batch_no']} {row['item_code']} {row['item_name']}".lower():
+			return False
+		expiry = getdate(row["expiry_date"])
+		if expiry_from and expiry < getdate(expiry_from):
+			return False
+		if expiry_to and expiry > getdate(expiry_to):
+			return False
+		return any(location["warehouse"] in selected_locations for location in row["locations"])
+	rows = []
+	for row in all_rows:
+		if not matches(row, selected, group_names if selected_groups else None):
+			continue
+		copy_row = {**row, "locations": [location for location in row["locations"] if location["warehouse"] in selected], "total_qty": sum(location["qty"] for location in row["locations"] if location["warehouse"] in selected)}
+		rows.append(copy_row)
 	rows.sort(key=lambda row: (row["expiry_date"], row["item_code"]), reverse=str(sort).lower() == "desc")
-	has_removable_filters = bool(search or expiry_from or expiry_to or _selection_values(warehouses if warehouses is not None else warehouse) or _selection_values(item_groups if item_groups is not None else item_group))
-	overall_total = len(rows)
-	if has_removable_filters:
-		overall_total = expiring_batches(sort=sort, start=0, page_length=1)["total"]
-	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of)}
+	warehouse_facet = defaultdict(set)
+	group_facet = defaultdict(set)
+	for row in rows:
+		group_facet[row["item_group"]].add(row["batch_no"])
+		for location in row["locations"]:
+			warehouse_facet[location["warehouse"]].add(row["batch_no"])
+	physical_nodes = _physical_tree(settings)
+	for name, node in physical_nodes.items():
+		if node.is_group:
+			leaves = [leaf for leaf, leaf_row in physical_nodes.items() if not leaf_row.is_group and leaf_row.lft >= node.lft and leaf_row.rgt <= node.rgt]
+			warehouse_facet[name] = set().union(*(warehouse_facet.get(leaf, set()) for leaf in leaves)) if leaves else set()
+	facets = {"warehouses": {name: len(values) for name, values in warehouse_facet.items()}, "item_groups": {name: len(values) for name, values in group_facet.items()}}
+	overall_total = len(all_rows)
+	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of), "facets": facets}

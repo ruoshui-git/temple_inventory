@@ -24,6 +24,7 @@ from temple_inventory.inventory_api import (
 	_require_stock,
 	_settings,
 	_visible_warehouses,
+	_physical_tree,
 	_selected_leaf_warehouses,
 	outstanding_loan_items,
 )
@@ -52,7 +53,7 @@ META = (
 	"return_record",
 	"loss_record",
 )
-STATE = ("items", "sections", "from_warehouse", "to_warehouse", "posting_time_mode")
+STATE = ("items", "sections", "from_warehouse", "to_warehouse", "posting_time_mode", "warehouse", "mode")
 
 
 def _get(name, write=False, lock=False):
@@ -66,6 +67,8 @@ def _get(name, write=False, lock=False):
 		frappe.throw(_("Workspace belongs to another company"), frappe.PermissionError)
 	if doc.stock_entry:
 		frappe.get_doc("Stock Entry", doc.stock_entry).check_permission("write" if write else "read")
+	if doc.get("stock_reconciliation"):
+		frappe.get_doc("Stock Reconciliation", doc.stock_reconciliation).check_permission("write" if write else "read")
 	# JSON state does not get automatic Link-field User Permission checks.
 	state = _loads(doc.state_json, {})
 	allowed = _visible_warehouses()
@@ -79,7 +82,11 @@ def _get(name, write=False, lock=False):
 
 
 def _status(doc):
-	return cint(frappe.db.get_value("Stock Entry", doc.stock_entry, "docstatus")) if doc.stock_entry else 0
+	if doc.stock_entry:
+		return cint(frappe.db.get_value("Stock Entry", doc.stock_entry, "docstatus"))
+	if doc.get("stock_reconciliation"):
+		return cint(frappe.db.get_value("Stock Reconciliation", doc.stock_reconciliation, "docstatus"))
+	return 0
 
 
 def _editable(doc, revision):
@@ -181,6 +188,7 @@ def _serialize(doc):
 		"name": doc.name,
 		"revision": doc.revision,
 		"stock_entry": doc.stock_entry,
+		"stock_reconciliation": doc.get("stock_reconciliation"),
 		"docstatus": _status(doc),
 		"sync_error": doc.sync_error,
 		"data": _payload(doc),
@@ -469,6 +477,203 @@ def create_workspace(request_id, movement_kind, data=None):
 	return _serialize(doc)
 
 
+def _reconciliation_capability():
+	_require_stock()
+	if not frappe.has_permission("Stock Reconciliation", "create") or not frappe.has_permission("Stock Reconciliation", "submit"):
+		frappe.throw("您没有发起盘点调整的权限", frappe.PermissionError)
+	allowed = _allowed_warehouses()
+	leaves = {name for name, row in _physical_tree().items() if not row.is_group and name in allowed and frappe.has_permission("Warehouse", "read", name)}
+	if not leaves:
+		frappe.throw("没有可用于盘点的实体库位", frappe.PermissionError)
+	return leaves
+
+
+def _reconciliation_item(item, warehouse, posting_date, posting_time):
+	code = item.get("item_code")
+	if not code:
+		frappe.throw("盘点物品不能为空")
+	doc = frappe.get_doc("Item", code)
+	doc.check_permission("read")
+	if cint(doc.has_serial_no):
+		frappe.throw(f"{code} 是序列号物品，当前盘点流程暂不支持序列号计数")
+	batch_no = item.get("batch_no") or ""
+	if doc.has_batch_no and not batch_no:
+		frappe.throw(f"{doc.item_name} 需要选择批次后才能盘点")
+	qty = flt(get_batch_qty(batch_no=batch_no, warehouse=warehouse, item_code=code, posting_date=posting_date, posting_time=posting_time)) if batch_no else flt(get_stock_balance(code, warehouse, posting_date, posting_time))
+	counted_qty = item.get("counted_qty")
+	return {"item_code": code, "item_name": doc.item_name, "image": doc.image, "warehouse": warehouse, "uom": doc.stock_uom, "ledger_qty": qty, "counted_qty": counted_qty, "count_state": item.get("count_state") or ("counted" if counted_qty not in (None, "") else ""), "batch_no": batch_no}
+
+
+def _paged_rows(doctype, filters, fields, page_size=200):
+	start = 0
+	while True:
+		page = frappe.get_all(doctype, filters=filters, fields=fields, start=start, limit_page_length=page_size)
+		for row in page:
+			yield row
+		if len(page) < page_size:
+			break
+		start += len(page)
+
+
+def _whole_location_items(items, warehouse, posting_date, posting_time):
+	known = {(row.get("item_code"), row.get("batch_no") or "") for row in items}
+	for row in _paged_rows("Bin", {"warehouse": warehouse, "actual_qty": (">", 0)}, ["item_code"]):
+		item_doc = frappe.get_doc("Item", row.item_code)
+		batch_numbers = [""]
+		if item_doc.has_batch_no:
+			batch_numbers = [batch.name for batch in _paged_rows("Batch", {"item": row.item_code, "disabled": 0}, ["name"]) if flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=row.item_code, posting_date=posting_date, posting_time=posting_time)) > 0]
+		for batch_no in batch_numbers:
+			key = (row.item_code, batch_no)
+			if key in known:
+				continue
+			item = _reconciliation_item({"item_code": row.item_code, "batch_no": batch_no, "counted_qty": ""}, warehouse, posting_date, posting_time)
+			item["unreviewed"] = True
+			items.append(item)
+			known.add(key)
+	return items
+
+
+@frappe.whitelist()
+def reconciliation_batches(item_code, warehouse):
+	_require_stock()
+	allowed = _reconciliation_capability()
+	if warehouse not in allowed:
+		frappe.throw("盘点库位无权访问", frappe.PermissionError)
+	item = frappe.get_doc("Item", item_code)
+	item.check_permission("read")
+	if not item.has_batch_no:
+		return []
+	return [{"batch_no": batch.name, "expiry_date": batch.expiry_date, "qty": flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=item_code))} for batch in _paged_rows("Batch", {"item": item_code, "disabled": 0}, ["name", "expiry_date"]) if flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=item_code)) > 0]
+
+
+def _validate_reconciliation_items(items):
+	seen = set()
+	for row in items:
+		key = (row.get("item_code"), row.get("batch_no") or "")
+		if key in seen:
+			frappe.throw("同一物品与批次只能有一行盘点数量")
+		if row.get("count_state") not in (None, "", "counted", "not_found"):
+			frappe.throw("盘点行状态无效")
+		if row.get("count_state") == "not_found" and row.get("counted_qty") not in (0, 0.0, "0", "0.0"):
+			frappe.throw("未找到的盘点行必须计为 0")
+		seen.add(key)
+
+
+@frappe.whitelist(methods=["POST"])
+def create_reconciliation(request_id, data=None):
+	leaves = _reconciliation_capability()
+	if not re.fullmatch(r"[A-Za-z0-9-]{8,80}", request_id or ""):
+		frappe.throw("Invalid request")
+	name = "IW-" + hashlib.sha256((frappe.session.user + ":reconcile:" + request_id).encode()).hexdigest()[:24]
+	frappe.db.sql("select name from `tabUser` where name=%s for update", frappe.session.user)
+	if frappe.db.exists("Inventory Workspace", name):
+		return _serialize(_get(name))
+	payload = _loads(data, {})
+	warehouse = payload.get("warehouse")
+	if warehouse not in leaves:
+		frappe.throw("盘点必须选择一个允许的实体叶子库位", frappe.PermissionError)
+	posting_date, posting_time = payload.get("posting_date") or nowdate(), payload.get("posting_time") or nowtime()
+	items = [_reconciliation_item(row, warehouse, posting_date, posting_time) for row in payload.get("items", [])]
+	if payload.get("mode") == "whole":
+		items = _whole_location_items(items, warehouse, posting_date, posting_time)
+	_validate_reconciliation_items(items)
+	doc = frappe.get_doc({"doctype": "Inventory Workspace", "name": name, "company": _settings().company, "movement_kind": "Reconcile", "posting_date": posting_date, "posting_time": posting_time, "recorded_by": frappe.session.user, "responsible_person": frappe.session.user, "state_json": "{}", "revision": 1})
+	_put(doc, {**payload, "items": items, "warehouse": warehouse, "posting_date": posting_date, "posting_time": posting_time, "mode": payload.get("mode") or "selective", "notes": payload.get("notes") or ""})
+	_save(doc)
+	return _serialize(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def save_reconciliation(name, revision, data):
+	leaves = _reconciliation_capability()
+	doc = _get(name, write=True, lock=True)
+	if doc.movement_kind != "Reconcile":
+		frappe.throw("不是盘点工作区")
+	_editable(doc, revision)
+	payload = _loads(data, {})
+	warehouse = payload.get("warehouse") or _loads(doc.state_json, {}).get("warehouse")
+	if warehouse not in leaves:
+		frappe.throw("盘点库位无权访问", frappe.PermissionError)
+	posting_date = payload.get("posting_date") or doc.posting_date or nowdate()
+	posting_time = payload.get("posting_time") or doc.posting_time or nowtime()
+	old = _payload(doc)
+	items = [_reconciliation_item(row, warehouse, posting_date, posting_time) for row in payload.get("items", [])]
+	if warehouse == old.get("warehouse") and str(posting_date) == str(doc.posting_date) and str(posting_time) == str(doc.posting_time):
+		previous = {(row.get("item_code"), row.get("batch_no") or ""): row for row in old.get("items", [])}
+		for row in items:
+			prior = previous.get((row.get("item_code"), row.get("batch_no") or ""))
+			if prior:
+				row["ledger_qty"] = prior.get("ledger_qty", row["ledger_qty"])
+	if payload.get("mode") == "whole":
+		items = _whole_location_items(items, warehouse, posting_date, posting_time)
+	_validate_reconciliation_items(items)
+	_put(doc, {**payload, "items": items, "warehouse": warehouse, "posting_date": posting_date, "posting_time": posting_time})
+	doc.revision += 1
+	_save(doc)
+	return _serialize(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def confirm_reconciliation(name, revision):
+	leaves = _reconciliation_capability()
+	doc = _get(name, write=True, lock=True)
+	if doc.movement_kind != "Reconcile":
+		frappe.throw("不是盘点工作区")
+	if _status(doc) == 1:
+		return _serialize(doc)
+	_editable(doc, revision)
+	_audit_check(doc)
+	payload = _payload(doc)
+	warehouse = payload.get("warehouse")
+	if warehouse not in leaves:
+		frappe.throw("盘点库位无权访问", frappe.PermissionError)
+	if payload.get("mode") == "whole" and any(row.get("count_state") not in ("counted", "not_found") or row.get("counted_qty") in (None, "") for row in payload.get("items", [])):
+		frappe.throw("整库盘点必须逐项标记已盘点或未找到并计为 0")
+	lines = []
+	for row in payload.get("items", []):
+		if row.get("counted_qty") in (None, ""):
+			continue
+		counted = flt(row.get("counted_qty"))
+		baseline = flt(get_batch_qty(batch_no=row.get("batch_no"), warehouse=warehouse, item_code=row["item_code"], posting_date=doc.posting_date or nowdate(), posting_time=doc.posting_time or nowtime())) if row.get("batch_no") else flt(get_stock_balance(row["item_code"], warehouse, doc.posting_date or nowdate(), doc.posting_time or nowtime()))
+		if abs(baseline - flt(row.get("ledger_qty"))) > 1e-8:
+			frappe.throw(f"{row['item_code']} 的账面数量已变化，请更新账面数量后重新检查")
+		line = {"item_code": row["item_code"], "warehouse": warehouse, "qty": counted, "stock_uom": row.get("uom")}
+		if row.get("batch_no"):
+			line["batch_no"] = row["batch_no"]
+			line["use_serial_batch_fields"] = 1
+		lines.append(line)
+	if not lines:
+		frappe.throw("请至少完成一行盘点")
+	reconciliation = frappe.get_doc({"doctype": "Stock Reconciliation", "company": doc.company, "purpose": "Stock Reconciliation", "posting_date": doc.posting_date or nowdate(), "posting_time": doc.posting_time or nowtime(), "items": lines})
+	reconciliation.check_permission("create")
+	reconciliation.insert()
+	reconciliation.check_permission("submit")
+	reconciliation.submit()
+	doc.stock_reconciliation = reconciliation.name
+	doc.revision += 1
+	_save(doc)
+	return _serialize(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def refresh_reconciliation_baseline(name, revision):
+	leaves = _reconciliation_capability()
+	doc = _get(name, write=True, lock=True)
+	if doc.movement_kind != "Reconcile":
+		frappe.throw("不是盘点工作区")
+	_editable(doc, revision)
+	payload = _payload(doc)
+	warehouse = payload.get("warehouse")
+	if warehouse not in leaves:
+		frappe.throw("盘点库位无权访问", frappe.PermissionError)
+	for row in payload.get("items", []):
+		row["ledger_qty"] = flt(get_batch_qty(batch_no=row.get("batch_no"), warehouse=warehouse, item_code=row["item_code"], posting_date=doc.posting_date or nowdate(), posting_time=doc.posting_time or nowtime())) if row.get("batch_no") else flt(get_stock_balance(row["item_code"], warehouse, doc.posting_date or nowdate(), doc.posting_time or nowtime()))
+	_put(doc, payload)
+	doc.revision += 1
+	_save(doc)
+	return _serialize(doc)
+
+
 @frappe.whitelist()
 def load_workspace(name):
 	return _serialize(_get(name))
@@ -564,7 +769,7 @@ def item_detail(item_code):
 	files = frappe.get_all(
 		"File",
 		filters={"attached_to_doctype": "Item", "attached_to_name": item.name},
-		fields=["name", "file_url", "file_name", "content_type", "creation"],
+		fields=["name", "file_url", "file_name", "content_type", "file_size", "creation"],
 		order_by="creation asc, name asc",
 		limit_page_length=0,
 	)
@@ -593,6 +798,8 @@ def item_detail(item_code):
 		"stock_uom": item.stock_uom,
 		"image": item.image,
 		"images": images,
+		"attachments": [dict(file) for file in files],
+		"can_edit": item.has_permission("write"),
 		"description": item.description,
 		"barcodes": [row.barcode for row in item.barcodes],
 		"has_batch_no": item.has_batch_no,
@@ -608,6 +815,24 @@ def item_detail(item_code):
 		"active_loans": active_loans[:20],
 		"history": history(filters={"item_code": item_code}, page_length=10)["results"],
 	}
+
+
+@frappe.whitelist(methods=["POST"])
+def remove_item_attachment(item_code, file_name, clear_primary=0):
+	_require_stock()
+	item = frappe.get_doc("Item", item_code)
+	item.check_permission("write")
+	file = frappe.get_doc("File", file_name)
+	file.check_permission("delete")
+	if file.attached_to_doctype != "Item" or file.attached_to_name != item.name:
+		frappe.throw("附件不属于此物品", frappe.PermissionError)
+	if file.file_url == item.image:
+		if not cint(clear_primary):
+			frappe.throw("主图正在使用此文件，请先替换主图或明确清除主图")
+		item.image = ""
+		item.save()
+	file.delete()
+	return item_detail(item_code)
 
 
 @frappe.whitelist()
@@ -694,13 +919,24 @@ def responsible_people():
 
 
 def validate_attachment(doc, method=None):
-	if doc.attached_to_doctype != "Inventory Workspace":
-		return
-	workspace = _get(doc.attached_to_name, write=True, lock=True)
-	if _status(workspace):
-		frappe.throw(_("Attachments of completed transactions cannot change"))
-	if method != "on_trash":
-		doc.is_private = 1
+	if doc.attached_to_doctype == "Inventory Workspace":
+		workspace = _get(doc.attached_to_name, write=True, lock=True)
+		if _status(workspace):
+			frappe.throw(_("Attachments of completed transactions cannot change"))
+		if method != "on_trash":
+			doc.is_private = 1
+	elif doc.attached_to_doctype == "Item":
+		item = frappe.get_doc("Item", doc.attached_to_name)
+		item.check_permission("write")
+		if method != "on_trash":
+			doc.is_private = 1
+	elif doc.attached_to_doctype in ("Stock Entry", "Stock Reconciliation"):
+		transaction = frappe.get_doc(doc.attached_to_doctype, doc.attached_to_name)
+		transaction.check_permission("write")
+		if transaction.docstatus:
+			frappe.throw(_("已完成的库存记录附件不能修改"))
+		if method != "on_trash":
+			doc.is_private = 1
 
 
 @frappe.whitelist(methods=["POST"])
@@ -729,10 +965,31 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 	# Validate and expand once for the whole query. This avoids repeated work
 	# and makes an invalid location a permission error instead of an empty list.
 	selected_rooms = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False) if rooms else None
+	page_start = max(cint(start or 0), 0)
+	requested_length = min(max(cint(page_length or 30), 1), 100)
+	# Keep parent reads bounded. Child rows are still permission-filtered below;
+	# this cap prevents a movement browse request from materializing the entire
+	# site's document history in Python.
+	candidate_limit = min(max(page_start + requested_length, requested_length * 20, 200), 1000)
+	base_filters = {"company": _settings().company}
+	if f.get("date_from"):
+		base_filters["posting_date"] = [">=", f["date_from"]]
+	if f.get("date_to"):
+		base_filters["posting_date"] = ["between", [f.get("date_from") or "1900-01-01", f["date_to"]]]
+	workspace_filters = {"company": _settings().company}
+	if f.get("date_from"):
+		workspace_filters["posting_date"] = [">=", f["date_from"]]
+	if f.get("date_to"):
+		workspace_filters["posting_date"] = ["between", [f.get("date_from") or "1900-01-01", f["date_to"]]]
+	if f.get("docstatus") in (0, "0"):
+		base_filters["docstatus"] = 0
+	elif isinstance(f.get("docstatus"), dict):
+		base_filters["docstatus"] = ["in", f["docstatus"].get("in", [1, 2])]
 	results = []
 	linked = set()
+	linked_reconciliations = set()
 	for row in frappe.get_list(
-		"Inventory Workspace", filters={"company": _settings().company}, fields=["name"], limit_page_length=0
+		"Inventory Workspace", filters=workspace_filters, fields=["name", "modified"], order_by="modified desc", limit_page_length=candidate_limit
 	):
 		try:
 			doc = _get(row.name)
@@ -740,25 +997,35 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			continue
 		p = _payload(doc)
 		linked.add(doc.stock_entry)
-		results.append(
-			{
-				"name": doc.name,
-				"stock_entry": doc.stock_entry,
-				"docstatus": _status(doc),
-				"modified": str(doc.modified),
-				**p,
-			}
-		)
+		if doc.get("stock_reconciliation"):
+			linked_reconciliations.add(doc.stock_reconciliation)
+		entry_result = {
+			"name": doc.name,
+			"stock_entry": doc.stock_entry,
+			"stock_reconciliation": doc.get("stock_reconciliation"),
+			"docstatus": _status(doc),
+			"modified": str(doc.modified),
+			**p,
+		}
+		if doc.get("stock_reconciliation"):
+			entry_result["movement_kind"] = "盘点调整"
+		results.append(entry_result)
 	for row in frappe.get_list(
 		"Stock Entry",
-		filters={"company": _settings().company, "ti_movement_kind": ("is", "set")},
-		fields=["name"],
-		limit_page_length=0,
+		filters=base_filters,
+		fields=["name", "modified"],
+		order_by="modified desc",
+		limit_page_length=candidate_limit,
 	):
 		if row.name in linked:
 			continue
 		doc = frappe.get_doc("Stock Entry", row.name)
 		if any(w and w not in allowed for r in doc.items for w in (r.s_warehouse, r.t_warehouse)):
+			continue
+		try:
+			for line in doc.items:
+				frappe.get_doc("Item", line.item_code).check_permission("read")
+		except frappe.PermissionError:
 			continue
 		results.append(
 			{
@@ -770,9 +1037,49 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 				**_from_entry(doc),
 			}
 		)
+	for row in frappe.get_list(
+		"Stock Reconciliation",
+		filters=base_filters,
+		fields=["name", "modified"],
+		order_by="modified desc",
+		limit_page_length=candidate_limit,
+	):
+		if row.name in linked_reconciliations:
+			continue
+		doc = frappe.get_doc("Stock Reconciliation", row.name)
+		try:
+			doc.check_permission("read")
+		except frappe.PermissionError:
+			continue
+		items = []
+		for line in doc.items:
+			if line.warehouse not in allowed or frappe.db.get_value("Warehouse", line.warehouse, "is_group"):
+				continue
+			try:
+				frappe.get_doc("Item", line.item_code).check_permission("read")
+			except frappe.PermissionError:
+				continue
+			items.append({"id": line.name, "item_code": line.item_code, "qty": line.qty, "uom": getattr(line, "stock_uom", None) or getattr(line, "uom", None), "warehouse": line.warehouse, "batch_no": line.batch_no})
+		if not items:
+			continue
+		results.append({
+			"name": doc.name,
+			"legacy": True,
+			"document_type": "Stock Reconciliation",
+			"stock_reconciliation": doc.name,
+			"docstatus": doc.docstatus,
+			"modified": str(doc.modified),
+			"movement_kind": "盘点调整" if doc.purpose == "Stock Reconciliation" else "期初库存",
+			"purpose_text": doc.purpose,
+			"posting_date": str(doc.posting_date),
+			"posting_time": str(doc.posting_time or ""),
+			"items": items,
+		})
 
 	def matches(r):
 		for key in ("movement_kind", "activity", "responsible_person", "handler_name"):
+			if f.get(key) and key == "movement_kind" and f[key] == "盘点调整" and r.get(key) in ("盘点调整", "期初库存"):
+				continue
 			if f.get(key) and r.get(key) != f[key]:
 				return False
 		if f.get("docstatus") is not None and f.get("docstatus") != "":
@@ -817,15 +1124,35 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 	return page
 
 
-def _from_entry(doc):
+def _entry_movement_kind(doc):
+	# App-authored semantics win; direct ERPNext entries use purpose unless the
+	# complete permitted direction unambiguously crosses the damaged leaf.
+	if doc.get("ti_movement_kind"):
+		return doc.get("ti_movement_kind")
+	standard = {"Material Receipt": "Receive", "Material Issue": "Issue", "Material Transfer": "Transfer"}.get(doc.purpose, "Transfer")
+	if doc.purpose != "Material Transfer":
+		return standard
+	damaged = _settings().damaged_warehouse
+	allowed = _allowed_warehouses()
+	rows = [row for row in doc.items if row.s_warehouse or row.t_warehouse]
+	if rows and all(row.t_warehouse == damaged and row.s_warehouse != damaged for row in rows):
+		return "Damage"
+	if rows and all(row.s_warehouse == damaged and row.t_warehouse in allowed for row in rows):
+		return "Repair"
+	return standard
+
+
+def _from_entry(doc, movement_kind=None):
+	movement_kind = movement_kind or _entry_movement_kind(doc)
 	p = {
 		key: doc.get("ti_" + key)
 		for key in META
 		if key not in ("posting_date", "posting_time", "notes", "recorder_signature")
 	}
+	p["movement_kind"] = movement_kind
 	p.update(
-		activity=doc.ti_activity,
-		recorder_signature=doc.ti_recorder_signature,
+		activity=doc.get("ti_activity"),
+		recorder_signature=doc.get("ti_recorder_signature"),
 		notes=doc.remarks,
 		posting_date=str(doc.posting_date),
 		posting_time=str(doc.posting_time),
@@ -838,7 +1165,7 @@ def _from_entry(doc):
 			"qty": r.qty,
 			"uom": r.uom,
 			"batch_no": r.batch_no,
-			"warehouse": r.t_warehouse if doc.ti_movement_kind == "Receive" else r.s_warehouse,
+			"warehouse": r.t_warehouse if movement_kind == "Receive" else r.s_warehouse,
 			"from_warehouse": r.s_warehouse,
 			"to_warehouse": r.t_warehouse,
 		}
@@ -850,14 +1177,18 @@ def _from_entry(doc):
 @frappe.whitelist(methods=["POST"])
 def open_entry(name):
 	_require_stock()
+	if not frappe.db.exists("Stock Entry", name) and frappe.db.exists("Stock Reconciliation", name):
+		return open_reconciliation(name)
 	frappe.db.sql("select name from `tabStock Entry` where name=%s for update", name)
 	entry = frappe.get_doc("Stock Entry", name)
 	entry.check_permission("read")
-	if entry.company != _settings().company or not entry.ti_movement_kind:
+	if entry.company != _settings().company:
 		frappe.throw(_("Not a temple inventory transaction"), frappe.PermissionError)
 	allowed = _visible_warehouses()
 	if any(w and w not in allowed for r in entry.items for w in (r.s_warehouse, r.t_warehouse)):
 		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
+	if not entry.ti_movement_kind:
+		return {"name": name, "stock_entry": name, "docstatus": entry.docstatus, "data": _from_entry(entry), "attachments": frappe.get_all("File", filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name}, fields=["name", "file_name", "file_url"])}
 	existing = frappe.db.get_value("Inventory Workspace", {"stock_entry": name}, "name")
 	if existing:
 		return _serialize(_get(existing))
@@ -898,3 +1229,22 @@ def open_entry(name):
 		fdoc.is_private = 1
 		fdoc.save()
 	return _serialize(doc)
+
+
+@frappe.whitelist()
+def open_reconciliation(name):
+	_require_stock()
+	doc = frappe.get_doc("Stock Reconciliation", name)
+	doc.check_permission("read")
+	if doc.company != _settings().company:
+		frappe.throw("盘点记录不属于当前公司", frappe.PermissionError)
+	allowed = _allowed_warehouses()
+	items = []
+	for row in doc.items:
+		if row.warehouse not in allowed or frappe.db.get_value("Warehouse", row.warehouse, "is_group"):
+			continue
+		frappe.get_doc("Item", row.item_code).check_permission("read")
+		items.append({"id": row.name, "item_code": row.item_code, "qty": row.qty, "counted_qty": row.qty, "ledger_qty": getattr(row, "current_qty", row.qty), "difference_qty": getattr(row, "quantity_difference", 0), "uom": getattr(row, "stock_uom", None) or getattr(row, "uom", None), "warehouse": row.warehouse, "batch_no": row.batch_no})
+	if not items:
+		frappe.throw("没有可查看的盘点明细", frappe.PermissionError)
+	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": frappe.get_all("File", filters={"attached_to_doctype": "Stock Reconciliation", "attached_to_name": name}, fields=["name", "file_name", "file_url", "is_private"])}

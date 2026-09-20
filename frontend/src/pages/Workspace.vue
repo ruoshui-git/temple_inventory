@@ -17,7 +17,7 @@ const picker = ref(false), loanPicker = ref(false), scanner = ref(false), unknow
 const catalog = ref<Record<string, any>>({}), activities = ref<any[]>([])
 const seedQueue = ref<any[]>([])
 const review = ref(false), activityDialog = ref(false), activitySearch = ref(''), detailsOpen = ref(false)
-const currentRoom = ref(''), currentLocation = ref(''), currentTo = ref(''), lastScannedWarehouse = ref('')
+const currentRoom = ref(''), currentLocation = ref(''), currentTo = ref(''), lastScannedWarehouse = ref(''), scopeGroup = ref('')
 const chosen = ref<any>(), line = ref<any>(), editingIndex = ref(-1), batchRows = ref<any[]>([])
 const activity = ref({ title: '', activity_type: 'Other', start_date: '', end_date: '', description: '' })
 const activityTypeLabel = (t: string) => ({ Distribution: '分发', Event: '活动', Performance: '演出', 'Religious Activity': '宗教活动', Maintenance: '维护', Other: '其他' } as any)[t] || t
@@ -27,11 +27,18 @@ let applying = false, editVersion = 0
 const readonly = computed(() => !!record.value?.docstatus)
 const tree = computed<any[]>(() => boot.value?.warehouse_tree || [])
 const allowed = computed<any[]>(() => boot.value?.warehouses || boot.value?.physical_warehouses || [])
+const inScope = (name: string) => {
+  if (!scopeGroup.value) return true
+  const group = tree.value.find((node: any) => node.name === scopeGroup.value)
+  const node = tree.value.find((item: any) => item.name === name)
+  return Boolean(group && node && Number(node.lft) >= Number(group.lft) && Number(node.rgt) <= Number(group.rgt))
+}
+const scopedAllowed = computed(() => allowed.value.filter(w => inScope(w.name)))
 const rooms = computed(() => {
-  const names = new Set(allowed.value.map(w => roomFor(w.name, tree.value)))
+  const names = new Set(scopedAllowed.value.map(w => roomFor(w.name, tree.value)))
   return [...names].map(name => tree.value.find(w => w.name === name)).filter(Boolean)
 })
-const locations = computed(() => allowed.value.filter(w => !currentRoom.value || roomFor(w.name, tree.value) === currentRoom.value))
+const locations = computed(() => scopedAllowed.value.filter(w => !currentRoom.value || roomFor(w.name, tree.value) === currentRoom.value))
 const isReceive = computed(() => form.value?.movement_kind === 'Receive')
 const isIssue = computed(() => ['Issue', 'Loss', 'Disposal'].includes(form.value?.movement_kind))
 const isTransfer = computed(() => ['Transfer', 'Loan', 'Return', 'Damage', 'Repair'].includes(form.value?.movement_kind))
@@ -120,6 +127,12 @@ async function load() {
     else if (route.params.entry) d = await workspaceApi('open_entry', { name: route.params.entry })
     else {
       const kind = String(route.params.kind || 'Receive'), key = sessionStorage.getItem(`ti-new:${kind}`) || crypto.randomUUID()
+      const scopeKey = `ti-scope:${kind}`
+      const scope = sessionStorage.getItem(scopeKey)
+      if (scope) {
+        try { scopeGroup.value = JSON.parse(scope).group || '' } catch { scopeGroup.value = '' }
+        sessionStorage.removeItem(scopeKey)
+      }
       sessionStorage.setItem(`ti-new:${kind}`, key); newRequestId.value = key
       const now = new Date(), pad = (n: number) => String(n).padStart(2, '0')
       d = { name: '', revision: 0, stock_entry: null, docstatus: 0, sync_error: '', attachments: [], data: {
@@ -133,7 +146,7 @@ async function load() {
       }
     }
     record.value = d; applying = true; form.value = d.data; applying = false; dirty.value = false; conflict.value = false; saveStatus.value = d.name ? '✓ 已保存' : '正在创建草稿…'
-    const physical = allowed.value
+    const physical = scopedAllowed.value.length ? scopedAllowed.value : allowed.value
     const requestedLocation = String(route.query.warehouse || '')
     currentLocation.value = physical.some((row: any) => row.name === requestedLocation) ? requestedLocation : physical[0]?.name || ''
     if (isIssue.value && currentLocation.value) lastScannedWarehouse.value = currentLocation.value
@@ -241,7 +254,7 @@ async function confirm() {
   try {
     await queue.flush(); if (dirty.value) throw new Error('请先保存所有修改')
     const d = await workspaceApi('confirm_workspace', { name: record.value.name, revision: record.value.revision })
-    record.value = d; applying = true; form.value = d.data; applying = false; review.value = false; scanner.value = false; saveStatus.value = '已完成 ✓'
+    record.value = d; applying = true; form.value = d.data; applying = false; review.value = false; scanner.value = false; saveStatus.value = '已完成 ✓'; window.dispatchEvent(new Event('ti:refresh-shell'))
     if (form.value.movement_kind === 'Return') {
       const outstanding = await api('outstanding_loan_items')
       const candidate = outstanding.find((row:any) => row.loan_item)
@@ -251,7 +264,7 @@ async function confirm() {
 }
 function beforeUnload(e: BeforeUnloadEvent) { if (dirty.value) { e.preventDefault(); e.returnValue = '' } }
 watch(sessionExpired, v => { if (v) scanner.value = false; else if (dirty.value) queue.schedule(true) })
-async function deleteDraft() { if (!record.value?.name || !window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return; try { await queue.flush(); await workspaceApi('delete_draft', { name: record.value.name }); await router.replace('/history?status=unfinished') } catch (e: any) { error.value = e.message } }
+async function deleteDraft() { if (!record.value?.name || !window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return; try { await queue.flush(); await workspaceApi('delete_draft', { name: record.value.name }); window.dispatchEvent(new Event('ti:refresh-shell')); await router.replace('/history?status=unfinished') } catch (e: any) { error.value = e.message } }
 onBeforeRouteLeave(async () => { await queue.flush(); if (dirty.value) return window.confirm('还有尚未保存的修改。确定离开？') })
 onMounted(() => { void load(); window.addEventListener('beforeunload', beforeUnload) })
 onBeforeUnmount(() => { queue.dispose(); window.removeEventListener('beforeunload', beforeUnload) })
