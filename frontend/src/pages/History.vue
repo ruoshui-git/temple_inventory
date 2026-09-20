@@ -67,7 +67,7 @@ function removeChip(chip: any) {
   else (filters.value as any)[chip.key] = ''
 }
 function clearAll() {
-  filters.value = { search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] }
+  filters.value = { search: '', movement_kind: 'Receive', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] }
   start.value = 0
 }
 function operation(kind: string) { void router.push(`/new/${kind}`) }
@@ -123,6 +123,8 @@ async function load(offset = start.value, debounceText = false, append = false) 
 
 async function selectGroup(group: string) {
   statusGroup.value = group
+  if (group === 'unfinished') filters.value.movement_kind = ''
+  else if (!filters.value.movement_kind) filters.value.movement_kind = 'Receive'
   start.value = 0
   await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
   void load(0)
@@ -133,10 +135,10 @@ async function deleteDraft(name: string) {
 }
 function applyQuery(query: Record<string, unknown>) {
   const hydrated = hydrateFilterQuery(query, {
-    search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] as string[], start: '0',
+    search: '', movement_kind: 'Receive', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] as string[], start: '0',
   })
   const next = {
-    search: String(hydrated.search || ''), movement_kind: String(hydrated.movement_kind || ''), date_from: String(hydrated.date_from || ''),
+    search: String(hydrated.search || ''), movement_kind: String(hydrated.movement_kind || 'Receive'), date_from: String(hydrated.date_from || ''),
     date_to: String(hydrated.date_to || ''), source_text: String(hydrated.source_text || ''), purpose_text: String(hydrated.purpose_text || ''),
     activity: String(hydrated.activity || ''), handler_name: String(hydrated.handler_name || ''), rooms: hydrated.rooms as string[],
   }
@@ -185,8 +187,8 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
 
 <template>
   <main class="app-shell wide-shell">
-    <header><RouterLink to="/more">‹ 更多</RouterLink><h1>{{ statusGroup === 'unfinished' ? '草稿' : '货物流动' }}</h1></header>
-    <nav class="toolbar movement-modes" aria-label="货物流动类型"><button v-for="kind in ['Receive', 'Issue', 'Transfer', '盘点调整']" :key="kind" type="button" :class="{ primary: filters.movement_kind === kind }" @click="filters.movement_kind = filters.movement_kind === kind ? '' : kind">{{ labels[kind] }}</button><button v-if="boot?.can_reconcile_stock" type="button" @click="router.push('/reconcile/new')">盘点</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">草稿 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
+    <header class="browse-back"><RouterLink to="/more">‹ 更多</RouterLink></header>
+    <nav class="toolbar movement-modes" aria-label="货物流动类型"><button v-for="kind in primaryKinds" :key="kind" type="button" :class="{ primary: filters.movement_kind === kind }" @click="filters.movement_kind = kind; statusGroup = 'completed'">{{ labels[kind] }}</button><button v-if="boot?.can_reconcile_stock" type="button" @click="router.push('/reconcile/new')">盘点</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">草稿 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
     <p v-if="error" class="error">{{ error }}</p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">

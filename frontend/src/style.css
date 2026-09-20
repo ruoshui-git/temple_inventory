@@ -37,3 +37,5 @@ button,a,input,select{touch-action:manipulation}button{cursor:pointer;min-height
 .facet-chips{overflow:visible;flex-wrap:wrap}.facet-chips button{white-space:normal}
 .tree-toggle,.tree-spacer{width:24px;min-width:24px;padding:2px}
 .scanner-engine{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;color:#6b6257;font-size:11px}.scanner-engine button{min-height:44px;padding:7px 10px;font-size:12px}.scanner-camera video{width:100%;height:auto;max-height:60vh;min-height:0;object-fit:contain}
+/* Compact desktop browse chrome. */
+.shell-page-title{max-width:1180px;margin:0 auto;padding:10px 24px 0}.shell-page-title h1{margin:0;font-size:24px}.browse-back{margin-bottom:8px}.result-toolbar{position:sticky;top:0;z-index:4;background:#f7f5ef;padding:8px 0}.inventory-modes{position:sticky;top:0;z-index:5;background:#f7f5ef;padding:6px 0}.inventory-destination>.page-heading{display:none}

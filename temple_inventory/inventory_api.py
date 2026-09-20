@@ -621,6 +621,17 @@ def bootstrap():
 		"capabilities": {dt: frappe.has_permission(dt, "create") for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")},
 		"can_read_reconciliations": frappe.has_permission("Stock Reconciliation", "read"),
 		"can_create_stock_entry": frappe.has_permission("Stock Entry", "create"),
+		"stock_operation_capabilities": {
+			"Receive": frappe.has_permission("Stock Entry", "create"),
+			"Issue": frappe.has_permission("Stock Entry", "create"),
+			"Transfer": frappe.has_permission("Stock Entry", "create"),
+			"Loan": frappe.has_permission("Stock Entry", "create"),
+			"Return": frappe.has_permission("Stock Entry", "create"),
+			"Damage": frappe.has_permission("Stock Entry", "create"),
+			"Loss": frappe.has_permission("Stock Entry", "create"),
+			"Repair": frappe.has_permission("Stock Entry", "create"),
+			"Disposal": frappe.has_permission("Stock Entry", "create"),
+		},
 		"can_reconcile_stock": bool(physical_leaves and frappe.has_permission("Stock Reconciliation", "create") and frappe.has_permission("Stock Reconciliation", "submit")),
 		"reconciliation_warehouses": physical_leaves,
 		"can_edit_item": frappe.has_permission("Item", "write"),
@@ -671,7 +682,7 @@ def warehouse_summaries():
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None):
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, pending_mode=None):
 	_require_stock()
 	settings = _settings()
 	warehouse_map = _visible_warehouses(settings)
@@ -746,6 +757,9 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 				"attention_reasons": attention_reasons,
 			}
 		)
+	if pending_mode in ("damaged", "unlocated"):
+		key = "damaged_qty" if pending_mode == "damaged" else "pending_qty"
+		result = [row for row in result if flt(row[key]) > 0]
 	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
 	# Facets count distinct result rows, not quantity. Parent warehouse counts are
 	# deduplicated unions of permitted descendant leaves.
@@ -824,6 +838,10 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 				damaged_qty = stock.get(settings.damaged_warehouse, 0)
 				if needs_attention and not (pending_qty or damaged_qty):
 					continue
+				if pending_mode == "damaged" and not damaged_qty:
+					continue
+				if pending_mode == "unlocated" and not pending_qty:
+					continue
 				if not needs_attention and not total:
 					continue
 				overall += 1
@@ -834,9 +852,20 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 
 
 @frappe.whitelist()
-def pending(search=None, start=0, page_length=25):
-	"""The Pending browser uses the exact inventory attention predicate and grouping."""
-	return inventory(search=search, needs_attention=1, mode="current", start=start, page_length=page_length)
+def pending(search=None, mode="all", start=0, page_length=25, warehouses=None, item_groups=None):
+	"""Return one server-paged actionable grouping, never a mixed page filtered in the UI."""
+	if mode not in ("all", "damaged", "unlocated"):
+		frappe.throw(_("Invalid pending mode"))
+	return inventory(
+		search=search,
+		needs_attention=1,
+		mode="current",
+		start=start,
+		page_length=page_length,
+		warehouses=warehouses,
+		item_groups=item_groups,
+		pending_mode=mode,
+	)
 
 
 @frappe.whitelist()
