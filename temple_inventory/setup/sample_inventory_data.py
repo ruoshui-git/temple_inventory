@@ -15,13 +15,13 @@ ERPNext / Frappe Phase 1 样本库存导入脚本
 2. 创建 Item 时动态分配 ITM-xxxxxx：先检测系统中现有最大编号，再顺序递增；样本数据中的 ITM-xxxxxx 仅作为内部样本键。
 3. 自动创建缺失的仓库层级：第1寺院、第2寺院为组仓库，A02/A04/... 为第2寺院下的实际仓库。
 4. 创建 Batch，包括已经过期的测试批次。
-5. 使用 Stock Entry / Material Receipt + is_opening=Yes 建立初始库存，并自动使用公司的 Temporary Opening 账户作为 Difference Account。
-6. 批次物品也加入同一个 Stock Reconciliation 草稿；故意过期的测试批次在最终提交前需要人工确认 ERPNext 的有效期校验。
+5. 使用 Stock Reconciliation（Purpose=Opening Stock）建立初始库存，并自动使用公司的 Temporary Opening 账户作为 Difference Account。
+6. 批次物品按所需历史过账日期分组创建 Stock Reconciliation 草稿；脚本会自动确保这些日期所属的 Fiscal Year 已存在并分配给当前 Company。
 7. 默认不会重复建立已有库存：如果该物品在对应仓库已有非零库存，脚本会跳过。
    因此最适合空白测试站点或刚 reinstall 的站点。
 8. 如果 setup/sample_images/approved_images.json 存在，则把人工审核通过的图片作为公开 File 附件上传并设置为 Item.image。
 
-ERPNext v15+ 使用 Serial and Batch Bundle。脚本通过 Stock Entry 的 batch_no /
+ERPNext v15+ 使用 Serial and Batch Bundle。脚本通过 Stock Reconciliation Item 的 batch_no /
 use_serial_batch_fields 让 ERPNext 自己创建相关 Bundle，而不是直接写 Stock Ledger。
 """
 
@@ -42,7 +42,8 @@ AS_OF_DATE = "2026-09-18"
 # 图片工具 finalize 后，把整个 image_review 目录复制/改名为本模块旁的 sample_images：
 # temple_inventory/setup/sample_images/approved_images.json
 # temple_inventory/setup/sample_images/approved_images/ITM-xxxxxx.jpg
-SAMPLE_IMAGE_DIR = Path(__file__).resolve().parent / "sample_assets" / "images" / "general"
+# SAMPLE_IMAGE_DIR = Path(__file__).resolve().parent / "sample_assets" / "images" / "general"
+SAMPLE_IMAGE_DIR = Path(__file__).resolve().parent / "sample_assets" / "images"
 SAMPLE_IMAGE_MANIFEST = Path(__file__).resolve().parent / "sample_assets" / "manifest.json"
 
 CATEGORIES = [('食品', '食品、饮料、调味品及其他可食用物资。'), ('餐具与耗材', '餐盘、杯子、餐盒、一次性手套等日常使用或一次性消耗物资。'), ('佛事用品', '海青、居士服、僧帽、香、念珠等佛事及宗教活动相关用品。'), ('家具与大型用品', '桌椅、垃圾桶、储物箱等体积较大的通用用品。'), ('节日装饰', '灯笼、莲花、大型金属骨架装饰、彩灯等节日或活动装饰用品。'), ('电子与科技', '电脑周边、数据线、扩展坞、UPS、摄像头及小型电子设备。'), ('建筑维护', '灯泡、窗帘、吊顶材料、空调过滤材料等建筑及设施维护用品。'), ('园艺与户外', '肥料、耙子及园林、草坪、户外维护相关物资。'), ('工具与设备', '手工具、电动或燃油设备、电池、油壶等维修及作业设备。'), ('美妆个护', '眼影、腮红、口红、粉底、润唇膏等美妆及个人护理用品。'), ('药品与健康', '药膏、洗手液及其他健康、卫生、急救相关物资。'), ('服装与纺织品', '冬季裤装、保暖手套等非佛事用途的普通服装及纺织品。')]
@@ -405,6 +406,86 @@ def _stock_already_exists(item_code: str, warehouse: str, batch_no: str | None =
     return abs(flt(qty)) > 0.000001
 
 
+def _fiscal_year_covers_date(fiscal_year_doc, posting_date, company: str) -> bool:
+    """Return True when an existing Fiscal Year covers the date and applies to company."""
+    posting_date = getdate(posting_date)
+    if not (getdate(fiscal_year_doc.year_start_date) <= posting_date <= getdate(fiscal_year_doc.year_end_date)):
+        return False
+
+    # ERPNext treats an empty company table as generally applicable.
+    companies = {row.company for row in (fiscal_year_doc.get("companies") or []) if row.company}
+    return not companies or company in companies
+
+
+def _ensure_fiscal_year_for_date(posting_date, company: str) -> str:
+    """Ensure a usable Fiscal Year exists for one historical posting date.
+
+    The sample data assumes a calendar-year fiscal year when a missing historical
+    year must be created. Existing Fiscal Years are always reused when they already
+    cover the date.
+    """
+    posting_date = getdate(posting_date)
+
+    candidates = frappe.get_all(
+        "Fiscal Year",
+        filters={
+            "year_start_date": ["<=", posting_date],
+            "year_end_date": [">=", posting_date],
+            "disabled": 0,
+        },
+        pluck="name",
+    )
+
+    for name in candidates:
+        doc = frappe.get_doc("Fiscal Year", name)
+        if _fiscal_year_covers_date(doc, posting_date, company):
+            return doc.name
+
+    # If a matching date range already exists but is only assigned to other companies,
+    # reuse that Fiscal Year and add this company instead of creating an overlapping year.
+    for name in candidates:
+        doc = frappe.get_doc("Fiscal Year", name)
+        companies = {row.company for row in (doc.get("companies") or []) if row.company}
+        if company not in companies:
+            doc.append("companies", {"company": company})
+            doc.save(ignore_permissions=True)
+            return doc.name
+
+    # No Fiscal Year covers the date at all. For this sample/test dataset, create
+    # the corresponding calendar year. This is correct for Org's current setup.
+    year = posting_date.year
+    start_date = date(year, 1, 1)
+    end_date = date(year, 12, 31)
+
+    name = str(year)
+    if frappe.db.exists("Fiscal Year", name):
+        name = f"{year} - {company}"
+        suffix = 2
+        while frappe.db.exists("Fiscal Year", name):
+            name = f"{year} - {company} {suffix}"
+            suffix += 1
+
+    doc = frappe.get_doc({
+        "doctype": "Fiscal Year",
+        "year": name,
+        "year_start_date": start_date,
+        "year_end_date": end_date,
+        "companies": [{"company": company}],
+    })
+    doc.insert(ignore_permissions=True)
+    return doc.name
+
+
+def _ensure_fiscal_years_for_dates(company: str, posting_dates) -> list[str]:
+    """Ensure every Stock Reconciliation posting date has a Fiscal Year."""
+    names = []
+    for posting_date in sorted({str(getdate(d)) for d in posting_dates}):
+        name = _ensure_fiscal_year_for_date(posting_date, company)
+        if name not in names:
+            names.append(name)
+    return names
+
+
 def _get_temporary_opening_account(company: str) -> str:
     """
     返回该公司的 Temporary Opening / Temporary 类型非组账户。
@@ -458,7 +539,7 @@ def _find_existing_sample_reconciliation(company: str) -> str | None:
             "company": company,
             "docstatus": 0,
             "purpose": "Opening Stock",
-            # "remarks": SAMPLE_RECONCILIATION_REMARKS,
+            # "remarks": ["like", f"{SAMPLE_RECONCILIATION_REMARKS}%"],
         },
         "name",
     )
@@ -468,11 +549,12 @@ def _create_opening_stock(
     company: str,
     item_code_map: dict[str, str],
 ) -> dict:
-    """Create and submit opening-stock reconciliations with valid batch dates.
+    """Create draft opening-stock reconciliations with valid historical dates.
 
-    Expired batches are posted historically before their expiry; current/future
-    batches and non-batch items use AS_OF_DATE. Separate documents are used
-    because a Stock Reconciliation has one posting date for all rows.
+    Expired batches are dated before their expiry; current/future batches and
+    non-batch items use AS_OF_DATE. Separate draft documents are used because a
+    Stock Reconciliation has one posting date for all rows. Required historical
+    Fiscal Years are created/assigned automatically before the drafts are inserted.
     """
     existing = _find_existing_sample_reconciliation(company)
     if existing:
@@ -534,6 +616,8 @@ def _create_opening_stock(
             "原因": "没有需要建立的初始库存行",
         }
 
+    fiscal_years = _ensure_fiscal_years_for_dates(company, grouped_rows.keys())
+
     names = []
     for posting_date in sorted(grouped_rows):
         doc = frappe.get_doc({
@@ -544,11 +628,12 @@ def _create_opening_stock(
             "posting_time": "12:00:00",
             "set_posting_time": 1,
             "expense_account": opening_account,
-            "remarks": f"{SAMPLE_RECONCILIATION_REMARKS}（{posting_date}）",
+            # "remarks": f"{SAMPLE_RECONCILIATION_REMARKS}（{posting_date}）",
             "items": grouped_rows[posting_date],
         })
+        # Deliberately leave as Draft. Stock is not posted until reviewed and
+        # submitted through the UI.
         doc.insert(ignore_permissions=True)
-        doc.submit()
         names.append(doc.name)
 
     return {
@@ -558,7 +643,8 @@ def _create_opening_stock(
         "row_count": sum(len(rows) for rows in grouped_rows.values()),
         "skipped": skipped,
         "purpose": "Opening Stock",
-        "status": "Submitted",
+        "status": "Draft",
+        "fiscal_years": fiscal_years,
     }
 
 
@@ -698,7 +784,7 @@ def import_sample_data(
         "Stock Reconciliation": stock_result.get("stock_reconciliation"),
         "新建 Stock Reconciliation": stock_result.get("created", False),
         "Stock Reconciliation 行数": stock_result.get("row_count", 0),
-        "库存凭证模式": "Stock Reconciliation（已提交）",
+        "库存凭证模式": "Stock Reconciliation（草稿）",
         "跳过库存行数量": len(stock_result.get("skipped", [])),
         "库存结果": stock_result,
         "已附加图片数量": len(image_result["attached"]),

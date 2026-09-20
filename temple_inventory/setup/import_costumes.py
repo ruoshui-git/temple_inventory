@@ -96,7 +96,7 @@ TYPE_TO_ITEM_GROUP = {
 }
 
 SITE_WAREHOUSE_LABEL = "第2寺院"
-ROOM_WAREHOUSE_LABEL = "A04"
+ROOM_WAREHOUSE_LABEL = "A04 / 未指定"
 
 CUSTOM_FIELDS = {
     "Item": [
@@ -287,6 +287,7 @@ def _resolve_warehouse_by_label(label: str, parent_name: Optional[str] = None) -
     matches = frappe.get_all(
         "Warehouse",
         filters=filters,
+        # fields=["name", "warehouse_name", "parent_warehouse", "is_group"],
         fields=["name", "warehouse_name", "parent_warehouse", "is_group"],
         limit_page_length=20,
     )
@@ -307,7 +308,8 @@ def _resolve_warehouse_by_label(label: str, parent_name: Optional[str] = None) -
 
 def _resolve_a04_warehouse() -> str:
     site = _resolve_warehouse_by_label(SITE_WAREHOUSE_LABEL)
-    room = _resolve_warehouse_by_label(ROOM_WAREHOUSE_LABEL, parent_name=site)
+    room = _resolve_warehouse_by_label(ROOM_WAREHOUSE_LABEL)
+    # room = _resolve_warehouse_by_label(ROOM_WAREHOUSE_LABEL, parent_name=site)
 
     room_doc = frappe.get_doc("Warehouse", room)
     if cint(room_doc.is_group):
