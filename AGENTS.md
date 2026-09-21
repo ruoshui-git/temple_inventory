@@ -228,6 +228,20 @@ root:
 bench --site development.localhost execute temple_inventory.tests.test_workspace.run
 ```
 
+The official Frappe development container runs MariaDB and Redis as separate
+Docker Compose services. `mariadb`, `redis-cache`, and `redis-queue` are the
+expected internal service hostnames; do not replace `mariadb` with `localhost`.
+Codex's default restricted network sandbox may be unable to resolve these
+Docker-internal names and can report `MySQLdb.OperationalError: Unknown server
+host 'mariadb'` even when the development stack is healthy. If that happens,
+rerun the backend command with approved escalated/unsandboxed execution so it
+can use the Dev Container network before reporting a database or setup failure.
+Confirm with `getent hosts mariadb` and a real `bench` invocation when needed.
+Distinguish database connectivity failures from test failures reached after a
+successful connection. A trailing `NameError` from `bench execute` can be
+secondary fallback noise when the invoked test function first raises its own
+failure; report the original test results and traceback.
+
 This test entry point uses savepoints and rolls its records and settings back.
 Add or update focused tests for changed invariants, especially permissions,
 warehouse restrictions, idempotency, revision conflicts, autosave, signature
