@@ -73,9 +73,3 @@ frontend/playwright-report/
 temple_inventory/setup/costumes-data/images/
 temple_inventory/setup/sample_images/
 
-# Only canonical sample inputs and generated assets are tracked.
-temple_inventory/setup/costumes-data/items_staging.csv
-temple_inventory/setup/costumes-data/opening_stock_A04_staging.csv
-temple_inventory/setup/costumes-data/migration_config.json
-temple_inventory/setup/costumes-data/import_costumes_old.py
-temple_inventory/setup/costumes-data/upload_costumes.py

@@ -24,7 +24,7 @@
 
 4. 原 Notion 单位不创建为 ERPNext UOM，而是追加到物品名称：
    绿色古风裙裤(男) + 套 -> 绿色古风裙裤(男)（套）
-   ERPNext Stock UOM 统一使用自定义单位“数量”，并允许小数。
+    ERPNext Stock UOM 统一使用标准单位“Nos”。
 
 5. 原 Notion 编号 A01/B01/C01/D01... 保存到“旧物品编号”。
 
@@ -85,7 +85,7 @@ from frappe.utils.file_manager import save_file
 # ---------------------------------------------------------------------------
 
 ITEM_CODE_SERIES = "ITM-.######"
-DEFAULT_STOCK_UOM = "数量"
+DEFAULT_STOCK_UOM = "Nos"
 
 PERFORMANCE_PARENT_GROUP = "演出用品"
 
@@ -233,25 +233,12 @@ def _ensure_custom_fields():
 
 def _ensure_standard_stock_uom(stock_uom: str = DEFAULT_STOCK_UOM):
     """
-    所有演出用品统一使用自定义库存单位“数量”。
+    所有演出用品统一使用 ERPNext 标准库存单位“Nos”。
 
     原 Notion 的“套/件/盒/双……”只保留在物品名称中。
-    “数量”允许小数，用于支持例如 9.5 双这类真实库存情况。
     """
-    if frappe.db.exists("UOM", stock_uom):
-        doc = frappe.get_doc("UOM", stock_uom)
-        if cint(doc.must_be_whole_number):
-            doc.must_be_whole_number = 0
-            doc.save(ignore_permissions=True)
-        return
-
-    frappe.get_doc(
-        {
-            "doctype": "UOM",
-            "uom_name": stock_uom,
-            "must_be_whole_number": 0,
-        }
-    ).insert(ignore_permissions=True)
+    if not frappe.db.exists("UOM", stock_uom):
+        frappe.throw(f"找不到 ERPNext 标准 UOM：{stock_uom}")
 
 
 def _append_source_uom_to_name(item_name: str, source_uom: str) -> str:
@@ -747,8 +734,8 @@ def run(
             "stock_uom_allows_fraction": standard_uom_allows_fraction,
             "source_uoms_preserved_in_item_name": source_uoms,
             "note": (
-                "正式导入时，如“数量”UOM不存在会自动创建；"
-                "如已存在但设置为必须整数，会自动改为允许小数。"
+                "正式导入时只使用 ERPNext 标准 UOM Nos；"
+                "原始单位仅保留在物品名称中。"
             ),
         }
         frappe.msgprint(frappe.as_json(result, indent=2))

@@ -64,21 +64,4 @@ both explicit override flags are required:
 ```
 
 This still permanently reinstalls the database and is not appropriate for a live
-production site. Use a separate disposable presentation site or the non-destructive
-sample merge workflow instead.
-
-### Development sample merge
-
-To add missing sample Items, images, warehouses, zero-balance opening stock, and
-production-style sample movements to an existing development site, run this
-non-whitelisted function from `bench console`:
-
-```python
-from temple_inventory.setup.merge_sample_data import run
-report = run(company="Org")
-```
-
-The merge requires `developer_mode=1`, runs as Administrator, preserves existing
-non-zero balances and primary images, and prints/returns a structured
-`completed` or `completed_with_errors` report. It is not exposed in Desk, HTTP,
-or background jobs.
+production site. Use a separate disposable presentation site.
