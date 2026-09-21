@@ -5,8 +5,8 @@ import { api } from '../lib/api'
 import { warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
-import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
 import WarehouseSelector from '../components/WarehouseSelector.vue'
+import CategorySelector from '../components/CategorySelector.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
@@ -37,24 +37,29 @@ const filters = ref({
   search: '',
   warehouses: [] as string[],
   item_groups: [] as string[],
-  expiry_from: '',
-  expiry_to: '',
   expiry_window: '',
-  expiry_days: '',
+  expiry_days: '30',
   sort: 'asc',
 })
-const expiryWindowLabels: Record<string, string> = { overdue: '已过期', '7': '未来7天', '30': '未来30天', '90': '未来90天', custom: '自定义天数' }
+const expiryWindows = [
+  { value: 'overdue_within', prefix: '已过期', suffix: '天以下' },
+  { value: 'overdue_beyond', prefix: '已过期', suffix: '天以上' },
+  { value: 'remaining_within', prefix: '还剩', suffix: '天以下' },
+  { value: 'remaining_beyond', prefix: '还剩', suffix: '天以上' },
+]
 const routeValidationError = ref('')
 const warehouseRows = computed(() => boot.value?.physical_tree || [])
 const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
-const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups').map((row: any) => ({ ...row, count: facetCounts.value.item_groups[row.name], label: row.item_group_name, parent: row.parent_item_group })))
+const expiryDays = computed(() => /^[1-9]\d*$/.test(filters.value.expiry_days) ? filters.value.expiry_days : '30')
+const expiryWindowLabel = (value = filters.value.expiry_window) => {
+  const mode = expiryWindows.find(option => option.value === value)
+  return mode ? `${mode.prefix}${expiryDays.value}${mode.suffix}` : ''
+}
 
 const activeCount = computed(() =>
   filters.value.warehouses.length +
   filters.value.item_groups.length +
   (filters.value.search ? 1 : 0) +
-  (filters.value.expiry_from ? 1 : 0) +
-  (filters.value.expiry_to ? 1 : 0) +
   (filters.value.expiry_window ? 1 : 0),
 )
 const inventoryQuery = computed(() => serializeFilterQuery({
@@ -74,28 +79,15 @@ const chips = computed(() => [
     label: boot.value?.item_groups?.find((group: any) => group.name === value)?.item_group_name || value,
   })),
   ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : []),
-  ...(filters.value.expiry_from ? [{ key: 'expiry_from', label: `起始：${filters.value.expiry_from}` }] : []),
-  ...(filters.value.expiry_to ? [{ key: 'expiry_to', label: `截止：${filters.value.expiry_to}` }] : []),
-  ...(filters.value.expiry_window ? [{ key: 'expiry_window', label: expiryWindowLabels[filters.value.expiry_window] || '效期窗口' }] : []),
+  ...(filters.value.expiry_window ? [{ key: 'expiry_window', label: expiryWindowLabel() }] : []),
 ])
 
 function setExpiryWindow(window: string) {
   filters.value.expiry_window = window
-  filters.value.expiry_days = window === 'custom' ? filters.value.expiry_days : ''
-  filters.value.expiry_from = ''
-  filters.value.expiry_to = ''
-}
-function setExactDate(key: 'expiry_from' | 'expiry_to', value: string) {
-  filters.value[key] = value
-  if (value) {
-    filters.value.expiry_window = ''
-    filters.value.expiry_days = ''
-  }
+  if (window && !/^[1-9]\d*$/.test(filters.value.expiry_days)) filters.value.expiry_days = '30'
 }
 function normalizeExpiryDays() {
-  if (filters.value.expiry_days === '') return
-  const days = Number(filters.value.expiry_days)
-  if (!Number.isInteger(days) || days < 0 || days > 3650) filters.value.expiry_days = ''
+  if (!/^[1-9]\d*$/.test(filters.value.expiry_days)) filters.value.expiry_days = '30'
 }
 
 function removeChip(chip: any) {
@@ -104,7 +96,7 @@ function removeChip(chip: any) {
   else (filters.value as any)[chip.key] = ''
 }
 function clearAll() {
-  filters.value = { search: '', warehouses: [], item_groups: [], expiry_from: '', expiry_to: '', expiry_window: '', expiry_days: '', sort: 'asc' }
+  filters.value = { search: '', warehouses: [], item_groups: [], expiry_window: '', expiry_days: '30', sort: 'asc' }
   start.value = 0
 }
 
@@ -128,6 +120,7 @@ async function load(append = false) {
     try {
       const data = await api('expiring_batches', {
         ...filters.value,
+        expiry_days: filters.value.expiry_window ? expiryDays.value : undefined,
         warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined,
         item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined,
         start: append ? rows.value.length : start.value,
@@ -140,7 +133,7 @@ async function load(append = false) {
 		overallTotal.value = data.overall_total || 0
       syncingRoute = true
       void router.replace({
-        query: { ...route.query, ...serializeFilterQuery({ ...filters.value, start: start.value || undefined }) },
+        query: { ...route.query, ...serializeFilterQuery({ ...filters.value, expiry_days: filters.value.expiry_window ? expiryDays.value : undefined, start: start.value || undefined }) },
       }).finally(() => { syncingRoute = false })
     } catch (cause: any) {
       if (current === sequence && cause?.name !== 'AbortError') error.value = cause.message
@@ -165,13 +158,13 @@ watch(filters, () => {
 
 watch(() => route.query, query => {
   if (syncingRoute || !boot.value) return
-  const hydrated = hydrateFilterQuery(query as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [] as string[], expiry_from: '', expiry_to: '', expiry_window: '', expiry_days: '', sort: 'asc', start: '0' })
+  const hydrated = hydrateFilterQuery(query as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [] as string[], expiry_window: '', expiry_days: '30', sort: 'asc', start: '0' })
   const requestedWindow = String(hydrated.expiry_window || '')
   const requestedDays = String(hydrated.expiry_days || '')
-  const validWindow = requestedWindow === '' || Object.prototype.hasOwnProperty.call(expiryWindowLabels, requestedWindow)
-  const validDays = requestedDays === '' || (/^\d+$/.test(requestedDays) && Number(requestedDays) <= 3650)
-  if (!validWindow || (requestedWindow === 'custom' && !validDays)) routeValidationError.value = '效期窗口参数无效，已清除无效值。'
-  const next = { search: String(hydrated.search || ''), warehouses: hydrated.warehouses as string[], item_groups: hydrated.item_groups as string[], expiry_from: requestedWindow ? '' : String(hydrated.expiry_from || ''), expiry_to: requestedWindow ? '' : String(hydrated.expiry_to || ''), expiry_window: validWindow ? requestedWindow : '', expiry_days: validWindow && requestedWindow === 'custom' && validDays ? requestedDays : '', sort: String(hydrated.sort || 'asc') }
+  const validWindow = requestedWindow === '' || expiryWindows.some(option => option.value === requestedWindow)
+  const validDays = /^[1-9]\d*$/.test(requestedDays)
+  if (!validWindow || !validDays) routeValidationError.value = '效期范围参数无效，已恢复为默认值。'
+  const next = { search: String(hydrated.search || ''), warehouses: hydrated.warehouses as string[], item_groups: hydrated.item_groups as string[], expiry_window: validWindow ? requestedWindow : '', expiry_days: validDays ? requestedDays : '30', sort: String(hydrated.sort || 'asc') }
   const changed = Object.keys(next).some(key => !sameFilterValue((filters.value as any)[key], (next as any)[key]))
   if (!changed && start.value === (Number(hydrated.start) || 0)) return
   restoringRoute = true
@@ -186,10 +179,8 @@ onMounted(async () => {
       search: '',
       warehouses: [] as string[],
       item_groups: [] as string[],
-      expiry_from: '',
-      expiry_to: '',
       expiry_window: '',
-      expiry_days: '',
+      expiry_days: '30',
       sort: 'asc',
       start: '0',
     })
@@ -197,10 +188,8 @@ onMounted(async () => {
       search: String(hydrated.search || ''),
       warehouses: hydrated.warehouses as string[],
       item_groups: hydrated.item_groups as string[],
-      expiry_from: String(hydrated.expiry_from || ''),
-      expiry_to: String(hydrated.expiry_to || ''),
       expiry_window: String(hydrated.expiry_window || ''),
-      expiry_days: String(hydrated.expiry_days || ''),
+      expiry_days: /^[1-9]\d*$/.test(String(hydrated.expiry_days || '')) ? String(hydrated.expiry_days) : '30',
       sort: String(hydrated.sort || 'asc'),
     }
     start.value = Number(hydrated.start) || 0
@@ -221,14 +210,13 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
 
 <template>
   <main class="inventory-destination wide-shell">
-    <nav class="inventory-modes" aria-label="库存视图"><RouterLink :to="{ path: '/', query: inventoryQuery }">当前库存</RouterLink><RouterLink :to="{ path: '/', query: { ...inventoryQuery, mode: 'catalog' } }">全部物品</RouterLink><RouterLink class="active" :to="{ path: '/expiry', query: { ...inventoryQuery, expiry_from: filters.expiry_from || undefined, expiry_to: filters.expiry_to || undefined, sort: filters.sort !== 'asc' ? filters.sort : undefined } }">效期批次</RouterLink></nav>
+    <nav class="inventory-modes" aria-label="库存视图"><RouterLink :to="{ path: '/', query: inventoryQuery }">当前库存</RouterLink><RouterLink :to="{ path: '/', query: { ...inventoryQuery, mode: 'catalog' } }">全部物品</RouterLink><RouterLink class="active" :to="{ path: '/expiry', query: { ...inventoryQuery, ...(filters.expiry_window ? { expiry_window: filters.expiry_window, expiry_days: expiryDays } : {}), sort: filters.sort !== 'asc' ? filters.sort : undefined } }">效期批次</RouterLink></nav>
     <p v-if="error || routeValidationError" class="error">{{ error || routeValidationError }} <button type="button" @click="load()">重试</button></p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
         <WarehouseSelector v-model="filters.warehouses" :rows="warehouseRows" :counts="facetCounts.warehouses" />
-        <HierarchyAutocomplete v-model="filters.item_groups" title="物品类别" placeholder="搜索或浏览物品类别" :options="categoryOptions" :tree="(boot?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups')" />
-        <fieldset class="choice-list"><legend>效期范围</legend><label class="choice-row"><input type="radio" value="" :checked="!filters.expiry_window" @change="setExpiryWindow('')">全部效期</label><label v-for="(label, value) in expiryWindowLabels" :key="value" class="choice-row"><input type="radio" :value="value" :checked="filters.expiry_window === value" @change="setExpiryWindow(value)">{{ label }}</label><label v-if="filters.expiry_window === 'custom'">未来天数<input v-model="filters.expiry_days" type="number" min="0" max="3650" step="1" inputmode="numeric" @input="normalizeExpiryDays"></label></fieldset>
-        <fieldset><legend>精确到期日期</legend><label>到期从<input :value="filters.expiry_from" type="date" @input="setExactDate('expiry_from', ($event.target as HTMLInputElement).value)"></label><label>到期至<input :value="filters.expiry_to" type="date" @input="setExactDate('expiry_to', ($event.target as HTMLInputElement).value)"></label></fieldset>
+        <CategorySelector v-model="filters.item_groups" :rows="boot?.item_groups || []" :counts="facetCounts.item_groups" />
+        <fieldset class="choice-list"><legend>效期范围</legend><label class="choice-row"><input type="radio" value="" :checked="!filters.expiry_window" @change="setExpiryWindow('')">全部效期</label><label v-for="option in expiryWindows" :key="option.value" class="choice-row"><input type="radio" :value="option.value" :checked="filters.expiry_window === option.value" @change="setExpiryWindow(option.value)">{{ option.prefix }}{{ expiryDays }}{{ option.suffix }}</label><label v-if="filters.expiry_window">天数<input v-model="filters.expiry_days" type="number" min="1" step="1" inputmode="numeric" @change="normalizeExpiryDays"></label></fieldset>
         <fieldset class="choice-list"><legend>排序</legend><label class="choice-row"><input v-model="filters.sort" type="radio" value="asc">最近到期优先</label><label class="choice-row"><input v-model="filters.sort" type="radio" value="desc">最晚到期优先</label></fieldset>
       </ResponsiveFilterPanel>
       <div ref="resultsPane" class="results-column">

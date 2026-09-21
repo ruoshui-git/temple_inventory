@@ -1352,6 +1352,8 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		for row in parent_rows:
 			if row.name in physical_nodes and physical_nodes[row.name].is_group:
 				warehouse_facets[row.name] = int(row.total)
+	for name in physical_nodes:
+		warehouse_facets.setdefault(name, 0)
 	all_groups = frappe.get_list("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
 	group_rows = frappe.db.sql(
 		"select parent.name, count(distinct candidates.name) as total from (" + group_sql + ") candidates "
@@ -2551,7 +2553,7 @@ def _expiring_batches_database_page(
 	)
 	overall_total = int(overall_rows[0].total if overall_rows else 0)
 	warehouse_facet_rows = frappe.db.sql(
-		"select warehouse, count(*) as total from (" + all_sql + ") candidates "
+		"select warehouse, batch_no from (" + all_sql + ") candidates "
 		"group by batch_no, warehouse having sum(qty) > 0",
 		all_params,
 		as_dict=True,
@@ -2566,6 +2568,8 @@ def _expiring_batches_database_page(
 				*(warehouse_facets.get(leaf, set()) for leaf, leaf_row in physical_nodes.items()
 				  if not leaf_row.is_group and leaf_row.lft >= node.lft and leaf_row.rgt <= node.rgt)
 			)
+	for name in physical_nodes:
+		warehouse_facets.setdefault(name, set())
 	group_sql, group_params = _expiring_batch_candidate_query(selected, None, search, expiry_from, expiry_to, expiry_before)
 	group_facet_rows = frappe.db.sql(
 		"select item_group, batch_no from (" + group_sql + ") candidates "
@@ -2599,23 +2603,37 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 	"""Return positive, visible batch balances aggregated by batch."""
 	_require_stock()
 	window = str(expiry_window or "").strip().lower()
-	if window not in {"", "overdue", "7", "30", "90", "custom"}:
+	threshold_windows = {"overdue_within", "overdue_beyond", "remaining_within", "remaining_beyond"}
+	expiry_before = None
+	if window not in {"", "overdue", "7", "30", "90", "custom"} | threshold_windows:
 		frappe.throw(_("Invalid expiry window"))
-	if window == "custom":
+	if window in threshold_windows:
+		valid_days = str(expiry_days).strip().lstrip("+").isdigit() if expiry_days not in (None, "") else False
+		if not valid_days or int(expiry_days) <= 0:
+			frappe.throw(_("Expiry days must be a positive integer"))
+		if expiry_from or expiry_to:
+			frappe.throw(_("Choose either an expiry window or exact dates"))
+		days, today = int(expiry_days), nowdate()
+		if window == "overdue_within":
+			expiry_from, expiry_to = add_days(today, -days), add_days(today, -1)
+		elif window == "overdue_beyond":
+			expiry_to = add_days(today, -days)
+		elif window == "remaining_within":
+			expiry_from, expiry_to = today, add_days(today, days)
+		else:  # remaining_beyond
+			expiry_from = add_days(today, days)
+	elif window == "custom":
 		valid_days = str(expiry_days).strip().lstrip("+").isdigit() if expiry_days not in (None, "") else False
 		if not valid_days or not 0 <= int(expiry_days) <= 3650:
 			frappe.throw(_("Custom expiry days must be an integer from 0 to 3650"))
 	elif expiry_days not in (None, ""):
 		frappe.throw(_("Expiry days are only valid for a custom window"))
-	if window and (expiry_from or expiry_to):
+	if window and window not in threshold_windows and (expiry_from or expiry_to):
 		frappe.throw(_("Choose either an expiry window or exact dates"))
 	if window == "overdue":
 		expiry_before = nowdate()
-	elif window:
-		expiry_before = None
+	elif window and window not in threshold_windows:
 		expiry_from, expiry_to = nowdate(), add_days(nowdate(), cint(expiry_days or window))
-	else:
-		expiry_before = None
 	settings = _settings()
 	visible_warehouses = _visible_warehouses(settings)
 	_raise_on_group_stock(visible_warehouses)

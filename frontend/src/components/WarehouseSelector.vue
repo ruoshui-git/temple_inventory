@@ -18,7 +18,10 @@ const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 
 // The display list excludes fallback leaves; the complete tree is retained for
 // parent selection and backend-compatible descendant expansion.
-const options = computed(() => warehouseFilterOptions(props.rows, props.counts))
+const options = computed(() => warehouseFilterOptions(props.rows, props.counts)
+  // Counts are unavailable before the first result response; only an explicit
+  // zero suppresses an option.
+  .filter(option => option.count !== 0))
 const tree = computed(() => props.rows.map(row => ({
   ...row,
   // HierarchyAutocomplete also uses its tree for selected-chip paths.  Raw

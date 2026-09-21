@@ -7,7 +7,6 @@ import { warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
-import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
 import WarehouseSelector from '../components/WarehouseSelector.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
@@ -36,7 +35,6 @@ const operationCaps = computed(() => boot.value?.stock_operation_capabilities ||
 const canMove = computed(() => ['Receive', 'Issue', 'Transfer', 'Loan', 'Return', 'Damage', 'Loss', 'Repair', 'Disposal'].some(kind => operationCaps.value[kind]))
 const movementActions = computed(() => ['Receive', 'Issue', 'Transfer'].filter(kind => operationCaps.value[kind]).map(kind => ({ kind, label: labels[kind] })))
 const primaryKinds = ['Receive', 'Issue', 'Transfer', '盘点调整']
-const specialKinds = ['Damage', 'Loss', 'Repair', 'Disposal', 'Loan', 'Return']
 const filters = ref({
   search: '',
   movement_kind: '',
@@ -205,7 +203,6 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
         <WarehouseSelector v-model="filters.rooms" :rows="warehouseRows" :counts="facets.warehouses" />
-        <fieldset class="choice-list"><legend>交易类型</legend><label v-for="kind in primaryKinds" :key="kind" class="choice-row"><input v-model="filters.movement_kind" type="radio" :value="kind">{{ labels[kind] }}</label><label v-if="specialKinds.includes(filters.movement_kind)">其他类型<select v-model="filters.movement_kind"><option value="">全部类型</option><option v-for="kind in specialKinds" :key="kind" :value="kind">{{ labels[kind] }}</option></select></label><label v-else>其他类型<select aria-label="其他类型" @change="filters.movement_kind = ($event.target as HTMLSelectElement).value"><option value="">选择特殊类型</option><option v-for="kind in specialKinds" :key="kind" :value="kind">{{ labels[kind] }}</option></select></label></fieldset>
         <fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset>
         <fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<Combobox v-model="filters.activity" :options="activityOptions" placeholder="搜索活动" aria-label="搜索活动" /></label><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset>
       </ResponsiveFilterPanel>

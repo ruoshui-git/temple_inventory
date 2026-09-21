@@ -3,8 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../lib/api'
 import { warehousePresentation } from '../lib/warehousePresenter'
-import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
 import WarehouseSelector from '../components/WarehouseSelector.vue'
+import CategorySelector from '../components/CategorySelector.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import Scanner from '../components/Scanner.vue'
@@ -24,10 +24,10 @@ const operationCaps = computed(() => boot.value?.stock_operation_capabilities ||
 const canMove = computed(() => ['Receive', 'Issue', 'Transfer', 'Loan', 'Return', 'Damage', 'Loss', 'Repair', 'Disposal'].some(kind => operationCaps.value[kind]))
 const primaryActions = computed(() => ['Receive', 'Issue', 'Transfer'].filter(kind => operationCaps.value[kind]))
 const modes = [{ key: 'current', label: '当前库存' }, { key: 'catalog', label: '全部物品' }, { key: 'expiry', label: '效期批次' }]
-const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.parent_item_group).map((row: any) => ({ ...row, count: facetCounts.value.item_groups[row.name], label: row.item_group_name, parent: row.parent_item_group })))
 const warehouseRows = computed(() => boot.value?.physical_tree || [])
 const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
-const chips = computed(() => [...filters.value.warehouses.map(value => ({ key: 'warehouses', value, label: warehouseText(value) })), ...filters.value.item_groups.map(value => ({ key: 'item_groups', value, label: categoryOptions.value.find((row: any) => row.name === value)?.label || value })), ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : [])])
+const categoryText = (name: string) => boot.value?.item_groups?.find((row: any) => row.name === name)?.item_group_name || name
+const chips = computed(() => [...filters.value.warehouses.map(value => ({ key: 'warehouses', value, label: warehouseText(value) })), ...filters.value.item_groups.map(value => ({ key: 'item_groups', value, label: categoryText(value) })), ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : [])])
 let controller: AbortController | undefined, observer: IntersectionObserver | undefined, timer: ReturnType<typeof setTimeout> | undefined
 let sequence = 0, syncingRoute = false
 watch(filterOpen, value => { if (value && document.activeElement instanceof HTMLElement) filterInvoker.value = document.activeElement; document.body.style.overflow = value ? 'hidden' : ''; if (!value) void nextTick(() => filterInvoker.value?.focus()) })
@@ -62,9 +62,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer); sessionStorage.setItem('
           <h2>筛选</h2><button class="inline-link" type="button" @click="clearFilters">清除全部</button>
         </header>
         <WarehouseSelector v-model="filters.warehouses" :rows="warehouseRows" :counts="facetCounts.warehouses" />
-        <HierarchyAutocomplete v-model="filters.item_groups" title="物品类别" placeholder="搜索或浏览物品类别"
-          :options="categoryOptions"
-          :tree="(boot?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups')" /><button
+        <CategorySelector v-model="filters.item_groups" :rows="boot?.item_groups || []" :counts="facetCounts.item_groups" /><button
           class="primary mobile-filter-done" type="button" @click="filterOpen = false">完成</button>
       </aside>
       <div ref="resultsPane" class="results-column">
