@@ -3,11 +3,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Combobox } from 'frappe-ui'
 import { api, labels, workspaceApi } from '../lib/api'
-import { warehouseFilterOptions, warehousePresentation } from '../lib/warehousePresenter'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
+import WarehouseSelector from '../components/WarehouseSelector.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
 
@@ -57,7 +58,6 @@ const activityOptions = computed(() => activities.value.map(activity => ({
 const activeCount = computed(() => Object.values(filters.value).reduce((count, value) => count + (Array.isArray(value) ? value.length : value ? 1 : 0), 0))
 const warehouseRows = computed(() => boot.value?.physical_tree || [])
 const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
-const warehouseOptions = computed(() => warehouseFilterOptions(warehouseRows.value, facets.value.warehouses))
 const chips = computed(() => [
   ...filters.value.rooms.map(value => ({ key: 'rooms', value, label: warehouseText(value) })),
   ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : []),
@@ -204,7 +204,7 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
     <p v-if="error" class="error" role="alert">{{ error }} <button type="button" @click="load(start)">重试</button></p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
-        <HierarchyAutocomplete v-model="filters.rooms" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置" :options="warehouseOptions" :tree="warehouseOptions" />
+        <WarehouseSelector v-model="filters.rooms" :rows="warehouseRows" :counts="facets.warehouses" />
         <fieldset class="choice-list"><legend>交易类型</legend><label v-for="kind in primaryKinds" :key="kind" class="choice-row"><input v-model="filters.movement_kind" type="radio" :value="kind">{{ labels[kind] }}</label><label v-if="specialKinds.includes(filters.movement_kind)">其他类型<select v-model="filters.movement_kind"><option value="">全部类型</option><option v-for="kind in specialKinds" :key="kind" :value="kind">{{ labels[kind] }}</option></select></label><label v-else>其他类型<select aria-label="其他类型" @change="filters.movement_kind = ($event.target as HTMLSelectElement).value"><option value="">选择特殊类型</option><option v-for="kind in specialKinds" :key="kind" :value="kind">{{ labels[kind] }}</option></select></label></fieldset>
         <fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset>
         <fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<Combobox v-model="filters.activity" :options="activityOptions" placeholder="搜索活动" aria-label="搜索活动" /></label><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset>

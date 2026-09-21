@@ -2,8 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../lib/api'
-import { warehouseFilterOptions, warehousePresentation } from '../lib/warehousePresenter'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
+import WarehouseSelector from '../components/WarehouseSelector.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import Scanner from '../components/Scanner.vue'
@@ -26,7 +27,6 @@ const modes = [{ key: 'current', label: '当前库存' }, { key: 'catalog', labe
 const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.parent_item_group).map((row: any) => ({ ...row, count: facetCounts.value.item_groups[row.name], label: row.item_group_name, parent: row.parent_item_group })))
 const warehouseRows = computed(() => boot.value?.physical_tree || [])
 const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
-const warehouseOptions = computed(() => warehouseFilterOptions(warehouseRows.value, facetCounts.value.warehouses))
 const chips = computed(() => [...filters.value.warehouses.map(value => ({ key: 'warehouses', value, label: warehouseText(value) })), ...filters.value.item_groups.map(value => ({ key: 'item_groups', value, label: categoryOptions.value.find((row: any) => row.name === value)?.label || value })), ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : [])])
 let controller: AbortController | undefined, observer: IntersectionObserver | undefined, timer: ReturnType<typeof setTimeout> | undefined
 let sequence = 0, syncingRoute = false
@@ -61,8 +61,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer); sessionStorage.setItem('
         <header>
           <h2>筛选</h2><button class="inline-link" type="button" @click="clearFilters">清除全部</button>
         </header>
-        <HierarchyAutocomplete v-model="filters.warehouses" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置"
-          :options="warehouseOptions" :tree="warehouseRows" />
+        <WarehouseSelector v-model="filters.warehouses" :rows="warehouseRows" :counts="facetCounts.warehouses" />
         <HierarchyAutocomplete v-model="filters.item_groups" title="物品类别" placeholder="搜索或浏览物品类别"
           :options="categoryOptions"
           :tree="(boot?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups')" /><button

@@ -141,6 +141,17 @@ class WorkspaceTests(unittest.TestCase):
 		with patch.object(inventory_service, "_visible_warehouses", return_value=rows), patch.object(inventory_service, "_system_warehouse_names", return_value={"loan"}):
 			self.assertEqual(set(inventory_service._physical_tree(settings)), {"room"})
 
+	def test_warehouse_group_creation_can_use_the_physical_root_as_its_parent(self):
+		settings = SimpleNamespace(physical_root_warehouse="physical")
+		rows = {
+			"physical": SimpleNamespace(name="physical", lft=1, rgt=6, is_group=1, warehouse_type="地点"),
+			"site": SimpleNamespace(name="site", lft=2, rgt=5, is_group=1, warehouse_type="地点"),
+		}
+		with patch.object(inventory_service, "_visible_warehouses", return_value=rows), patch.object(inventory_service, "_system_warehouse_names", return_value=set()), patch.object(inventory_service.frappe, "has_permission", return_value=True):
+			self.assertEqual(inventory_service._physical_parent(settings, "physical", allow_physical_root=True).name, "physical")
+			with self.assertRaises(frappe.PermissionError):
+				inventory_service._physical_parent(settings, "physical")
+
 	def test_warehouse_management_status_handles_stale_roots_without_a_tree(self):
 		settings = SimpleNamespace(company=self.company, root_warehouse="missing", physical_root_warehouse="also missing")
 		with patch.object(inventory_service, "_allowed_warehouses", return_value={}):

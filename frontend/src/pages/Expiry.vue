@@ -2,10 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../lib/api'
-import { warehouseFilterOptions, warehousePresentation } from '../lib/warehousePresenter'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
+import WarehouseSelector from '../components/WarehouseSelector.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
@@ -46,7 +47,6 @@ const expiryWindowLabels: Record<string, string> = { overdue: '已过期', '7': 
 const routeValidationError = ref('')
 const warehouseRows = computed(() => boot.value?.physical_tree || [])
 const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
-const warehouseOptions = computed(() => warehouseFilterOptions(warehouseRows.value, facetCounts.value.warehouses))
 const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups').map((row: any) => ({ ...row, count: facetCounts.value.item_groups[row.name], label: row.item_group_name, parent: row.parent_item_group })))
 
 const activeCount = computed(() =>
@@ -225,7 +225,7 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
     <p v-if="error || routeValidationError" class="error">{{ error || routeValidationError }} <button type="button" @click="load()">重试</button></p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
-        <HierarchyAutocomplete v-model="filters.warehouses" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置" :options="warehouseOptions" :tree="warehouseOptions" />
+        <WarehouseSelector v-model="filters.warehouses" :rows="warehouseRows" :counts="facetCounts.warehouses" />
         <HierarchyAutocomplete v-model="filters.item_groups" title="物品类别" placeholder="搜索或浏览物品类别" :options="categoryOptions" :tree="(boot?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups')" />
         <fieldset class="choice-list"><legend>效期范围</legend><label class="choice-row"><input type="radio" value="" :checked="!filters.expiry_window" @change="setExpiryWindow('')">全部效期</label><label v-for="(label, value) in expiryWindowLabels" :key="value" class="choice-row"><input type="radio" :value="value" :checked="filters.expiry_window === value" @change="setExpiryWindow(value)">{{ label }}</label><label v-if="filters.expiry_window === 'custom'">未来天数<input v-model="filters.expiry_days" type="number" min="0" max="3650" step="1" inputmode="numeric" @input="normalizeExpiryDays"></label></fieldset>
         <fieldset><legend>精确到期日期</legend><label>到期从<input :value="filters.expiry_from" type="date" @input="setExactDate('expiry_from', ($event.target as HTMLInputElement).value)"></label><label>到期至<input :value="filters.expiry_to" type="date" @input="setExactDate('expiry_to', ($event.target as HTMLInputElement).value)"></label></fieldset>

@@ -2331,11 +2331,12 @@ def configure_warehouse(
 	return {"name": doc.name}
 
 
-def _physical_parent(settings, parent, semantic_type=None):
+def _physical_parent(settings, parent, semantic_type=None, allow_physical_root=False):
 	visible = _visible_warehouses(settings)
 	root = visible.get(settings.physical_root_warehouse)
 	row = visible.get(parent)
-	if not root or not row or not row.is_group or row.name == root.name or not (row.lft > root.lft and row.rgt < root.rgt):
+	inside_root = row and root and row.lft > root.lft and row.rgt < root.rgt
+	if not root or not row or not row.is_group or not (inside_root or (allow_physical_root and row.name == root.name)):
 		frappe.throw(_("Choose a physical group under the configured root"), frappe.PermissionError)
 	if (
 		row.name in _system_warehouse_names(settings)
@@ -2376,9 +2377,36 @@ def _create_semantic_warehouse(parent, label, semantic_type):
 	return {"node": logical, "warehouses": [doc.name]}
 
 
+def _create_warehouse_group(parent, label):
+	"""Create an organisational physical-warehouse branch, never a stock leaf."""
+	_require_manager()
+	settings = _settings()
+	label = str(label or "").strip()
+	if not label:
+		frappe.throw(_("Warehouse name is required"))
+	parent_row = _physical_parent(settings, parent, allow_physical_root=True)
+	if frappe.db.exists("Warehouse", {"warehouse_name": label, "parent_warehouse": parent_row.name, "company": settings.company}):
+		frappe.throw(_("A warehouse with this name already exists"), frappe.DuplicateEntryError)
+	doc = frappe.get_doc({
+		"doctype": "Warehouse",
+		"warehouse_name": label,
+		"parent_warehouse": parent_row.name,
+		"company": settings.company,
+		"warehouse_type": "地点",
+		"is_group": 1,
+	}).insert()
+	logical = next(row for row in _user_facing_warehouse_presentation(settings) if row["name"] == doc.name)
+	return {"node": logical, "warehouses": [doc.name]}
+
+
 @frappe.whitelist(methods=["POST"])
 def create_room(parent, label):
 	return _create_semantic_warehouse(parent, label, "room")
+
+
+@frappe.whitelist(methods=["POST"])
+def create_warehouse(parent, label):
+	return _create_warehouse_group(parent, label)
 
 
 @frappe.whitelist(methods=["POST"])
