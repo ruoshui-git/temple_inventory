@@ -10,7 +10,7 @@ describe('inventory browse contracts', () => {
   ]
 
   it('uses friendly unspecified labels without duplicating the room or company suffix', () => {
-    expect(warehouseLabel('unspecified', tree)).toBe('A02 / 房间内，未细分到货架')
+    expect(warehouseLabel('unspecified', tree)).toBe('A02 / 无货位')
     expect(warehouseLabel('shelf', tree)).toBe('A02 / 东架')
     expect(warehouseLabel('root', tree)).toBe('寺院仓库')
   })
@@ -23,7 +23,7 @@ describe('inventory browse contracts', () => {
 
   it('exposes structured warehouse labels for display, search, and selection roles', () => {
     expect(warehouseLabelContract('unspecified', tree)).toMatchObject({
-      local_label: 'A02 / 未指定', full_label: 'A02 / 房间内，未细分到货架', role: 'leaf', warehouse_type: 'Location',
+      local_label: '无货位', full_label: 'A02 / 无货位', role: 'leaf', warehouse_type: 'Location',
     })
     expect(warehouseLabelContract('unspecified', tree).search_text).toContain('a02')
     expect(warehouseLabelContract('room', tree).role).toBe('group')

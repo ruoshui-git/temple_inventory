@@ -6,6 +6,7 @@ import LoadingIndicator from '../components/LoadingIndicator.vue'
 import Scanner from '../components/Scanner.vue'
 import SignaturePad from '../components/SignaturePad.vue'
 import AttachmentList from '../components/AttachmentList.vue'
+import { toast } from '../lib/toast'
 
 const route = useRoute(), router = useRouter()
 const requestId = crypto.randomUUID().replaceAll('-', '')
@@ -66,7 +67,7 @@ async function persistNow() {
   catch (cause: any) { error.value = cause.message } finally { saving.value = false }
 }
 function persist() { persistChain = persistChain.then(persistNow); return persistChain }
-async function confirm() { review.value = false; await persist(); if (error.value || !record.value?.name) return; try { saving.value = true; conflict.value = false; adopt(await workspaceApi('confirm_reconciliation', { name: record.value.name, revision: record.value.revision })); window.dispatchEvent(new Event('ti:refresh-shell')) } catch (cause: any) { error.value = cause.message; conflict.value = String(cause.message || '').includes('账面数量') } finally { saving.value = false } }
+async function confirm() { review.value = false; await persist(); if (error.value || !record.value?.name) return; try { saving.value = true; conflict.value = false; adopt(await workspaceApi('confirm_reconciliation', { name: record.value.name, revision: record.value.revision })); toast('盘点已完成'); window.dispatchEvent(new Event('ti:refresh-shell')) } catch (cause: any) { error.value = cause.message; conflict.value = String(cause.message || '').includes('账面数量') } finally { saving.value = false } }
 async function refreshBaseline() { if (!record.value?.name) return; try { saving.value = true; adopt(await workspaceApi('refresh_reconciliation_baseline', { name: record.value.name, revision: record.value.revision })); conflict.value = false; error.value = '' } catch (cause: any) { error.value = cause.message } finally { saving.value = false } }
 async function attach(event: Event) { if (!record.value?.name) { await persist(); if (!record.value?.name) return }; for (const file of Array.from((event.target as HTMLInputElement).files || [])) await upload(file, 'Inventory Workspace', record.value.name); adopt(await workspaceApi('load_workspace', { name: record.value.name })) }
 async function uploadAttachmentFiles(files: File[]) { if (!record.value?.name) { await persist(); if (!record.value?.name) return }; for (const file of files) await upload(file, 'Inventory Workspace', record.value.name); adopt(await workspaceApi('load_workspace', { name: record.value.name })) }

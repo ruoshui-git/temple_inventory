@@ -60,7 +60,9 @@ function showUpdateIfReady(worker: ServiceWorker | null, controller: ServiceWork
 }
 
 export async function registerPwa() {
-  if (registered || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  // The dev server has no built /temple-inventory-sw.js of its own; registering here would
+  // only reattach a stale production worker and block Vite HMR reloads with cached responses.
+  if (import.meta.env.DEV || registered || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
   registered = true
   try {
     registration = await navigator.serviceWorker.register('/temple-inventory-sw.js', {

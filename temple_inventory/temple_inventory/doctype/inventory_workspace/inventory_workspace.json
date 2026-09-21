@@ -15,13 +15,28 @@
     "borrower_is_handler_or_witness",
     "recorded_by",
     "handler_signature",
+    "handler_attested_digest",
+    "handler_current_digest",
+    "handler_signature_status",
+    "handler_confirmed_at",
+    "handler_confirmed_by",
     "handler_name",
     "reviewer_name",
     "borrower_same_as_reviewer",
     "no_independent_reviewer",
     "reviewer_note",
     "recorder_signature",
+    "recorder_attested_digest",
+    "recorder_current_digest",
+    "recorder_signature_status",
+    "recorder_confirmed_at",
+    "recorder_confirmed_by",
     "reviewer_signature",
+    "reviewer_attested_digest",
+    "reviewer_current_digest",
+    "reviewer_signature_status",
+    "reviewer_confirmed_at",
+    "reviewer_confirmed_by",
     "activity",
     "responsible_person",
     "notes",
@@ -202,6 +217,120 @@
       "fieldtype": "Check",
       "label": "Borrower Is Handler Or Witness",
       "default": "1"
+    },
+    {
+      "fieldname": "handler_attested_digest",
+      "fieldtype": "Data",
+      "label": "Handler Attested Digest",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "handler_current_digest",
+      "fieldtype": "Data",
+      "label": "Handler Current Digest",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "handler_signature_status",
+      "fieldtype": "Select",
+      "options": "absent\nvalid\nstale",
+      "default": "absent",
+      "label": "Handler Signature Status",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "handler_confirmed_at",
+      "fieldtype": "Datetime",
+      "label": "Handler Confirmed At",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "handler_confirmed_by",
+      "fieldtype": "Link",
+      "options": "User",
+      "label": "Handler Confirmed By",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorder_attested_digest",
+      "fieldtype": "Data",
+      "label": "Recorder Attested Digest",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorder_current_digest",
+      "fieldtype": "Data",
+      "label": "Recorder Current Digest",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorder_signature_status",
+      "fieldtype": "Select",
+      "options": "absent\nvalid\nstale",
+      "default": "absent",
+      "label": "Recorder Signature Status",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorder_confirmed_at",
+      "fieldtype": "Datetime",
+      "label": "Recorder Confirmed At",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "recorder_confirmed_by",
+      "fieldtype": "Link",
+      "options": "User",
+      "label": "Recorder Confirmed By",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewer_attested_digest",
+      "fieldtype": "Data",
+      "label": "Reviewer Attested Digest",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewer_current_digest",
+      "fieldtype": "Data",
+      "label": "Reviewer Current Digest",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewer_signature_status",
+      "fieldtype": "Select",
+      "options": "absent\nvalid\nstale",
+      "default": "absent",
+      "label": "Reviewer Signature Status",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewer_confirmed_at",
+      "fieldtype": "Datetime",
+      "label": "Reviewer Confirmed At",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "reviewer_confirmed_by",
+      "fieldtype": "Link",
+      "options": "User",
+      "label": "Reviewer Confirmed By",
+      "hidden": 1,
+      "read_only": 1
     }
   ],
   "permissions": [

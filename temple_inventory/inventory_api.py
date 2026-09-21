@@ -9,7 +9,7 @@ from erpnext.stock.doctype.batch.batch import get_batch_qty
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
-from frappe.utils import cint, flt, getdate, nowdate
+from frappe.utils import add_days, cint, flt, getdate, nowdate
 
 MOVEMENT_TYPES = {
 	"Receive": "Material Receipt",
@@ -106,6 +106,7 @@ def _warehouse_map(company=None):
 			"is_group",
 			"lft",
 			"rgt",
+			"ti_fallback_role",
 		],
 		order_by="lft",
 		limit_page_length=0,
@@ -194,6 +195,55 @@ def _physical_tree(settings=None):
 	}
 
 
+def _warehouse_semantic_type(row):
+	"""Return the presentation type without deriving it from tree depth."""
+	value = str(getattr(row, "warehouse_type", None) or "").lower()
+	if value in {"room", "房间"}:
+		return "room"
+	if value in {"location", "库位"} or not getattr(row, "is_group", 0):
+		return "location"
+	return "site"
+
+
+def _warehouse_presentation(rows):
+	"""Add one stable logical presentation contract to authoritative rows."""
+	result = []
+	for name, row in rows.items():
+		parent = rows.get(row.parent_warehouse)
+		semantic = _warehouse_semantic_type(row)
+		fallback = getattr(row, "ti_fallback_role", None) or None
+		ancestors = []
+		cursor = row
+		while cursor and cursor.name in rows:
+			if cursor.name != name:
+				ancestors.append(cursor.warehouse_name)
+			cursor = rows.get(cursor.parent_warehouse)
+		ancestors.reverse()
+		local = "无货位" if fallback == "room_default" else "无房间" if fallback == "group_default" else row.warehouse_name
+		if parent and parent.warehouse_name and local.startswith(parent.warehouse_name + " / "):
+			local = local[len(parent.warehouse_name) + 3 :]
+		logical_room = name if semantic == "room" else (parent.name if parent and _warehouse_semantic_type(parent) == "room" else None)
+		default_leaf = next(
+			(child.name for child in rows.values() if child.parent_warehouse == name and getattr(child, "ti_fallback_role", None)),
+			None,
+		)
+		result.append({
+			**dict(row),
+			"semantic_type": semantic,
+			"fallback_role": fallback,
+			"local_label": local,
+			"breadcrumb": " / ".join(ancestors + [local]),
+			"display_depth": len(ancestors),
+			"filter_value": name,
+			"operation_value": default_leaf if row.is_group and default_leaf else (name if not row.is_group else None),
+			"logical_room": logical_room,
+			"default_leaf": default_leaf,
+			"can_filter": True,
+			"can_operate": bool(default_leaf if row.is_group else name),
+		})
+	return result
+
+
 def _warehouse_by_label(label, company, parent=None):
 	filters = {"warehouse_name": label, "company": company}
 	if parent:
@@ -273,11 +323,17 @@ def _ensure_warehouse(label, company, parent=None, is_group=0, warehouse_type=No
 		is_group=doc.is_group,
 		lft=doc.lft,
 		rgt=doc.rgt,
+		ti_fallback_role=doc.get("ti_fallback_role"),
 	)
 	if role and frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
 		frappe.db.set_value("Warehouse", doc.name, "ti_system_role", role, update_modified=False)
 		rows[doc.name]["ti_system_role"] = role
 	return doc.name
+
+
+def _set_fallback_role(name, role):
+	if frappe.db.exists("Custom Field", "Warehouse-ti_fallback_role"):
+		frappe.db.set_value("Warehouse", name, "ti_fallback_role", role, update_modified=False)
 
 
 def _resolve_system_warehouses(company, settings=None):
@@ -361,12 +417,18 @@ def _create_structure(company, include_examples=False):
 			if site == "第2寺院":
 				for room in SECOND_TEMPLE_ROOMS:
 					room_name = _ensure_warehouse(room, company, site_name, is_group=1, warehouse_type="房间", rows=rows)
-					allowed.append(_ensure_warehouse(f"{room} / 未指定", company, room_name, warehouse_type="库位", rows=rows))
+					leaf = _ensure_warehouse(f"{room} / 未指定", company, room_name, warehouse_type="库位", rows=rows)
+					_set_fallback_role(leaf, "room_default")
+					allowed.append(leaf)
 			else:
-				allowed.append(_ensure_warehouse(f"{site} / 未指定", company, site_name, warehouse_type="库位", rows=rows))
+				leaf = _ensure_warehouse(f"{site} / 未指定", company, site_name, warehouse_type="库位", rows=rows)
+				_set_fallback_role(leaf, "site_default")
+				allowed.append(leaf)
 	else:
 		default_site = _ensure_warehouse("第1寺院", company, physical, is_group=1, warehouse_type="地点", rows=rows)
-		allowed.append(_ensure_warehouse("第1寺院 / 未指定", company, default_site, warehouse_type="库位", rows=rows))
+		leaf = _ensure_warehouse("第1寺院 / 未指定", company, default_site, warehouse_type="库位", rows=rows)
+		_set_fallback_role(leaf, "site_default")
+		allowed.append(leaf)
 		allowed.append(_ensure_warehouse(DEFAULT_LOCATION_NAME, company, default_site, warehouse_type="库位", rows=rows))
 	_allow_warehouses(settings, allowed)
 	return {"company":company, "root":root, "rooms":list(SECOND_TEMPLE_ROOMS) if include_examples else []}
@@ -794,7 +856,7 @@ def warehouse_management_bootstrap():
 	return {
 		"is_manager": is_manager,
 		"settings": {key: settings.get(key) for key in set(SYSTEM_WAREHOUSE_NAMES) | {"company"}},
-		"warehouse_tree": list(visible.values()), "physical_tree": list(physical_tree.values()),
+		"warehouse_tree": _warehouse_presentation(visible), "physical_tree": _warehouse_presentation(physical_tree),
 		"warehouses": list(_allowed_warehouses(settings).values()),
 		"warehouse_management_status": status,
 		"adoption_candidates": candidates,
@@ -936,7 +998,7 @@ def bootstrap():
 		"can_reconcile_stock": bool(physical_leaves and frappe.has_permission("Stock Reconciliation", "create") and frappe.has_permission("Stock Reconciliation", "submit")),
 		"reconciliation_warehouses": physical_leaves,
 		"can_edit_item": frappe.has_permission("Item", "write"),
-		"warehouse_tree": list(visible.values()),
+		"warehouse_tree": _warehouse_presentation(visible),
 		"physical_warehouses": list(physical.values()),
 		"physical_tree": list(_physical_tree(settings).values()),
 		"warehouse_management_status": _warehouse_management_status(settings, visible, _physical_tree(settings)),
@@ -984,6 +1046,72 @@ def warehouse_summaries():
 				quantities[uom] += qty
 		result.append({"warehouse": name, "distinct_products": len(product_ids), "quantities": [{"uom": uom, "qty": qty} for uom, qty in sorted(quantities.items())], "item_groups": sorted(groups)[:4], "additional_groups": max(0, len(groups) - 4)})
 	return result
+
+
+@frappe.whitelist()
+def warehouse_detail(warehouse):
+	"""Return one permission-scoped, bounded warehouse detail payload."""
+	_require_stock()
+	settings = _settings()
+	visible = _visible_warehouses(settings)
+	_raise_on_group_stock(visible)
+	if warehouse not in visible or not frappe.has_permission("Warehouse", "read", warehouse):
+		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
+	node = visible[warehouse]
+	leaves = [name for name, row in visible.items() if not row.is_group and row.lft >= node.lft and row.rgt <= node.rgt]
+	leaves = [name for name in leaves if name in _allowed_warehouses(settings) and frappe.has_permission("Warehouse", "read", name)]
+	if not leaves and not node.is_group and warehouse in _allowed_warehouses(settings):
+		leaves = [warehouse]
+	marks = ", ".join(["%s"] * len(leaves)) or "NULL"
+	stock = frappe.db.sql(
+		f"select b.item_code, b.warehouse, b.actual_qty, i.item_group, i.stock_uom, i.item_name "
+		f"from `tabBin` b join `tabItem` i on i.name=b.item_code where b.warehouse in ({marks}) "
+		"and b.actual_qty > 0 and i.disabled=0 and " + _item_match_condition("i") + " order by i.item_name, i.name limit 100",
+		leaves, as_dict=True,
+	) if leaves else []
+	stock_total = frappe.db.sql(
+		f"select count(*) as total from `tabBin` b join `tabItem` i on i.name=b.item_code "
+		f"where b.warehouse in ({marks}) and b.actual_qty > 0 and i.disabled=0 and " + _item_match_condition("i"),
+		leaves,
+		as_dict=True,
+	)[0].total if leaves else 0
+	groups = defaultdict(lambda: defaultdict(float))
+	for row in stock:
+		groups[row.item_group][row.stock_uom] += flt(row.actual_qty)
+	warehouse_rows = _warehouse_presentation(visible)
+	warehouse_labels = {row["name"]: row["local_label"] for row in warehouse_rows}
+	for row in stock:
+		row["location_label"] = warehouse_labels.get(row.warehouse, row.warehouse)
+	movements = frappe.db.sql(
+		f"select posting_date, posting_time, item_code, warehouse, actual_qty, voucher_type, voucher_no "
+		f"from `tabStock Ledger Entry` where warehouse in ({marks}) and is_cancelled=0 "
+		"order by posting_date desc, posting_time desc, name desc limit 10",
+		leaves, as_dict=True,
+	) if leaves else []
+	logical = next(row for row in _warehouse_presentation(visible) if row["name"] == warehouse)
+	operation_capabilities = _stock_operation_capabilities(settings)
+	capabilities = {
+		kind: bool(operation_capabilities.get(kind))
+		for kind in ("Receive", "Issue", "Transfer")
+	}
+	capabilities["Reconcile"] = bool(
+		leaves
+		and frappe.has_permission("Stock Reconciliation", "create")
+		and frappe.has_permission("Stock Reconciliation", "submit")
+	)
+	return {
+		"warehouse": logical,
+		"leaf_warehouses": leaves,
+		"item_groups": [{"item_group": group, "quantities": [{"uom": uom, "qty": qty} for uom, qty in sorted(values.items())]} for group, values in sorted(groups.items())],
+		"stock_preview": stock,
+		"stock_total": int(stock_total),
+		"stock_preview_limit": 100,
+		"movements": movements,
+		"movement_limit": 10,
+		"capabilities": capabilities,
+		"filter_identifiers": {"warehouse": warehouse, "warehouses": [warehouse], "rooms": [warehouse]},
+		"is_manager": "System Manager" in frappe.get_roles(),
+	}
 
 
 def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", pending_mode=None):
@@ -1770,13 +1898,14 @@ def outstanding_loan_items():
 	return [row for row in rows if row["item_code"] in permitted_items and row["loan"] in permitted_loans]
 
 
-def _all_loan_rows(loan_names=None):
+def _all_loan_rows_sql():
 	query = """
 		select l.name as loan, li.name as loan_item, li.item_code, li.batch_no, li.uom,
 			li.activity as item_activity, l.activity, l.borrower, li.original_warehouse,
 			l.posting_datetime as loan_date, l.posting_datetime, li.qty as loaned,
 			coalesce(rt.returned, 0) as returned, coalesce(rt.damaged, 0) as damaged,
-			coalesce(ls.lost, 0) as lost
+			coalesce(ls.lost, 0) as lost,
+			li.qty - coalesce(rt.returned, 0) - coalesce(rt.damaged, 0) - coalesce(ls.lost, 0) as outstanding
 		from `tabInventory Loan` l
 		join `tabInventory Loan Item` li on li.parent=l.name and li.parenttype='Inventory Loan'
 		left join (
@@ -1791,9 +1920,13 @@ def _all_loan_rows(loan_names=None):
 			from `tabInventory Loss Item` li join `tabInventory Loss` l on l.name=li.parent and l.docstatus=1
 			group by li.original_loan_item
 		) ls on ls.original_loan_item=li.name
-		where l.docstatus=1
+		where l.docstatus=1 and l.company=%(company)s
 	"""
-	params = {}
+	return query, {"company": _settings().company}
+
+
+def _all_loan_rows(loan_names=None):
+	query, params = _all_loan_rows_sql()
 	if loan_names is not None:
 		if not loan_names:
 			return []
@@ -1883,17 +2016,47 @@ def _active_loan_parent_query(search=None):
 @frappe.whitelist()
 def loan_items(search=None, start=0, page_length=25):
 	"""Backward-compatible, server-paged chooser contract for return/loss."""
-	rows = outstanding_loan_items()
-	if search:
-		term = str(search).lower()
-		rows = [row for row in rows if term in " ".join(str(row.get(field) or "") for field in ("loan", "item_code", "borrower", "activity")).lower()]
-	rows.sort(key=lambda row: (str(row.get("loan_date") or ""), row["loan_item"]), reverse=True)
-	return {**_page(rows, page_length, start), "overall_total": len(rows)}
+	_require_stock()
+	start, page_length = max(cint(start or 0), 0), min(max(cint(page_length or 25), 1), 100)
+	base_sql, params = _all_loan_rows_sql()
+	where = ["lines.outstanding > 0", "i.disabled=0", _item_match_condition("i")]
+	if search and str(search).strip():
+		params["search"] = f"%{str(search).strip()}%"
+		where.append("(lines.loan like %(search)s or lines.item_code like %(search)s or lines.borrower like %(search)s or lines.activity like %(search)s or i.item_name like %(search)s)")
+	from_sql = f"from ({base_sql}) lines join `tabItem` i on i.name=lines.item_code where {' and '.join(where)}"
+	total_rows = frappe.db.sql("select count(*) as total " + from_sql, params, as_dict=True)
+	rows = frappe.db.sql(
+		"select lines.* " + from_sql + " order by lines.loan_date desc, lines.loan_item desc limit %(page_length)s offset %(start)s",
+		{**params, "page_length": page_length, "start": start}, as_dict=True,
+	)
+	for row in rows:
+		row["outstanding"] = flt(row.pop("outstanding"))
+	return {"results": rows, "total": int(total_rows[0].total if total_rows else 0), "start": start, "page_length": page_length,
+		"overall_total": int(total_rows[0].total if total_rows else 0)}
 
 
 def _outstanding_loan_rows():
 	"""Return permitted submitted loan lines with submitted outcomes only."""
 	return outstanding_loan_items()
+
+
+def _permitted_file_attachments(doctype, name):
+	"""Return only files the current user may read on a transaction."""
+	rows = frappe.get_list(
+		"File",
+		filters={"attached_to_doctype": doctype, "attached_to_name": name},
+		fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
+		order_by="creation asc, name asc",
+		limit_page_length=0,
+	)
+	permitted = []
+	for row in rows:
+		try:
+			frappe.get_doc("File", row.name).check_permission("read")
+		except frappe.PermissionError:
+			continue
+		permitted.append(row)
+	return permitted
 
 
 @frappe.whitelist()
@@ -1977,7 +2140,7 @@ def loan_detail(name):
 		"reviewer_name": loan.reviewer_name, "reviewer_note": loan.reviewer_note,
 		"no_independent_reviewer": loan.no_independent_reviewer,
 		"items": rows,
-		"attachments": frappe.get_list("File", filters={"attached_to_doctype": "Inventory Loan", "attached_to_name": loan.name}, fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"], order_by="creation asc, name asc"),
+		"attachments": _permitted_file_attachments("Inventory Loan", loan.name),
 	}
 
 
@@ -2066,6 +2229,61 @@ def configure_warehouse(
 	return {"name": doc.name}
 
 
+def _physical_parent(settings, parent, semantic_type=None):
+	visible = _visible_warehouses(settings)
+	root = visible.get(settings.physical_root_warehouse)
+	row = visible.get(parent)
+	if not root or not row or not row.is_group or row.name == root.name or not (row.lft > root.lft and row.rgt < root.rgt):
+		frappe.throw(_("Choose a physical group under the configured root"), frappe.PermissionError)
+	if (
+		row.name in _system_warehouse_names(settings)
+		or row.warehouse_type in ("虚拟", "Virtual")
+		or not frappe.has_permission("Warehouse", "read", row.name)
+	):
+		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
+	if semantic_type == "room" and _warehouse_semantic_type(row) == "room":
+		frappe.throw(_("A Room must be created below a physical group"), frappe.ValidationError)
+	if semantic_type == "location" and _warehouse_semantic_type(row) != "room":
+		frappe.throw(_("A Location must be created below a Room"), frappe.ValidationError)
+	return row
+
+
+def _create_semantic_warehouse(parent, label, semantic_type):
+	_require_manager()
+	settings = _settings()
+	label = str(label or "").strip()
+	if not label:
+		frappe.throw(_("Warehouse name is required"))
+	parent_row = _physical_parent(settings, parent, semantic_type)
+	if frappe.db.exists("Warehouse", {"warehouse_name": label, "parent_warehouse": parent_row.name, "company": settings.company}):
+		frappe.throw(_("A warehouse with this name already exists"), frappe.DuplicateEntryError)
+	if semantic_type == "room":
+		doc = frappe.get_doc({"doctype": "Warehouse", "warehouse_name": label, "parent_warehouse": parent_row.name,
+			"company": settings.company, "warehouse_type": "房间", "is_group": 1}).insert()
+		fallback = frappe.get_doc({"doctype": "Warehouse", "warehouse_name": f"{label} / 未指定", "parent_warehouse": doc.name,
+			"company": settings.company, "warehouse_type": "库位", "is_group": 0, "ti_fallback_role": "room_default"}).insert()
+		_allow_warehouses(settings, [fallback.name])
+		logical = next(row for row in _warehouse_presentation(_warehouse_map(settings.company)) if row["name"] == doc.name)
+		return {"node": logical, "warehouses": [doc.name, fallback.name]}
+	if semantic_type != "location":
+		frappe.throw(_("Unsupported warehouse operation"))
+	doc = frappe.get_doc({"doctype": "Warehouse", "warehouse_name": label, "parent_warehouse": parent_row.name,
+		"company": settings.company, "warehouse_type": "库位", "is_group": 0}).insert()
+	_allow_warehouses(settings, [doc.name])
+	logical = next(row for row in _warehouse_presentation(_warehouse_map(settings.company)) if row["name"] == doc.name)
+	return {"node": logical, "warehouses": [doc.name]}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_room(parent, label):
+	return _create_semantic_warehouse(parent, label, "room")
+
+
+@frappe.whitelist(methods=["POST"])
+def create_location(parent, label):
+	return _create_semantic_warehouse(parent, label, "location")
+
+
 def _expiring_batch_group_names(selected_groups):
 	"""Expand selected Item Groups without exposing inaccessible Item rows."""
 	if not selected_groups:
@@ -2079,18 +2297,18 @@ def _expiring_batch_group_names(selected_groups):
 	}
 
 
-def _expiring_batch_candidate_query(warehouses, group_names=None, search=None, expiry_from=None, expiry_to=None):
-	"""Build one permission-aware positive-balance batch candidate query."""
+def _expiring_batch_candidate_query(
+	warehouses, group_names=None, search=None, expiry_from=None, expiry_to=None, expiry_before=None
+):
+	"""Build the normalized modern-bundle plus legacy direct-SLE balance query."""
 	warehouses = list(warehouses or [])
 	if not warehouses:
 		return "select null as batch_no where 1=0", []
 	warehouse_marks = ", ".join(["%s"] * len(warehouses))
-	params = list(warehouses)
+	params = []
 	where = [
 		"b.disabled=0",
 		"b.expiry_date is not null",
-		"sle.is_cancelled=0",
-		f"sle.warehouse in ({warehouse_marks})",
 		"i.disabled=0",
 		_item_match_condition("i"),
 	]
@@ -2104,6 +2322,9 @@ def _expiring_batch_candidate_query(warehouses, group_names=None, search=None, e
 	if expiry_to:
 		where.append("b.expiry_date <= %s")
 		params.append(expiry_to)
+	if expiry_before:
+		where.append("b.expiry_date < %s")
+		params.append(expiry_before)
 	if search and str(search).strip():
 		where.append(
 			"(b.name like %s or i.item_code like %s or i.item_name like %s "
@@ -2112,24 +2333,37 @@ def _expiring_batch_candidate_query(warehouses, group_names=None, search=None, e
 		)
 		term = f"%{str(search).strip()}%"
 		params.extend([term] * 5)
-	return (
-		"select b.name as batch_no, b.item as item_name, b.expiry_date, "
-		"i.item_code, i.item_name as item_label, i.item_group, i.stock_uom, i.image, "
-		"sle.warehouse, sum(sle.actual_qty) as qty "
+	metadata = "b.name as batch_no, b.item as item_name, b.expiry_date, i.item_code, i.item_name as item_label, i.item_group, i.stock_uom, i.image"
+	modern = (
+		f"select {metadata}, sbe.warehouse, "
+		"sum(case when sbe.is_outward=1 then -abs(sbe.qty) else sbe.qty end) as qty "
+		"from `tabBatch` b join `tabItem` i on i.name=b.item "
+		"join `tabStock Ledger Entry` sle on sle.item_code=i.name and sle.serial_and_batch_bundle is not null "
+		"join `tabSerial and Batch Bundle` sbb on sbb.name=sle.serial_and_batch_bundle "
+		"join `tabSerial and Batch Entry` sbe on sbe.parent=sbb.name "
+		f"where {' and '.join(where)} and sbe.batch_no=b.name and sle.is_cancelled=0 and sbe.warehouse in ({warehouse_marks}) "
+		"and sbb.docstatus=1 and sbb.is_cancelled=0 and sbe.docstatus=1 and sbe.is_cancelled=0 "
+		"and sbe.type_of_transaction in ('Inward', 'Outward') and sle.docstatus=1 "
+		"group by b.name, b.item, b.expiry_date, i.item_code, i.item_name, i.item_group, i.stock_uom, i.image, sbe.warehouse"
+	)
+	legacy = (
+		f"select {metadata}, sle.warehouse, sum(sle.actual_qty) as qty "
 		"from `tabBatch` b join `tabItem` i on i.name=b.item "
 		"join `tabStock Ledger Entry` sle on sle.batch_no=b.name and sle.item_code=i.name "
-		f"where {' and '.join(where)} "
-		"group by b.name, b.item, b.expiry_date, i.item_code, i.item_name, "
-		"i.item_group, i.stock_uom, i.image, sle.warehouse "
-		"having sum(sle.actual_qty) > 0",
-		params,
+		f"where {' and '.join(where)} and sle.is_cancelled=0 and sle.warehouse in ({warehouse_marks}) "
+		"and sle.serial_and_batch_bundle is null and sle.docstatus=1 "
+		"group by b.name, b.item, b.expiry_date, i.item_code, i.item_name, i.item_group, i.stock_uom, i.image, sle.warehouse"
 	)
+	branch_params = params + warehouses
+	return f"select * from ({modern} union all {legacy}) normalized", branch_params + branch_params
 
 
-def _expiring_batches_database_page(settings, selected, all_selected, selected_groups, search, expiry_from, expiry_to, sort, start, page_length):
+def _expiring_batches_database_page(
+	settings, selected, all_selected, selected_groups, search, expiry_from, expiry_to, expiry_before, sort, start, page_length
+):
 	"""Page expiring batches from grouped SLE balances, not per-batch helpers."""
 	group_names = _expiring_batch_group_names(selected_groups)
-	base_sql, base_params = _expiring_batch_candidate_query(selected, group_names, search, expiry_from, expiry_to)
+	base_sql, base_params = _expiring_batch_candidate_query(selected, group_names, search, expiry_from, expiry_to, expiry_before)
 	count_sql = (
 		"select count(*) as total from (select batch_no from (" + base_sql + ") candidates "
 		"group by batch_no having sum(qty) > 0) positive_batches"
@@ -2150,7 +2384,7 @@ def _expiring_batches_database_page(settings, selected, all_selected, selected_g
 	batch_names = [row.batch_no for row in page_rows]
 	locations = {}
 	if batch_names:
-		location_sql, location_params = _expiring_batch_candidate_query(selected, group_names, search, expiry_from, expiry_to)
+		location_sql, location_params = _expiring_batch_candidate_query(selected, group_names, search, expiry_from, expiry_to, expiry_before)
 		marks = ", ".join(["%s"] * len(batch_names))
 		location_rows = frappe.db.sql(
 			"select batch_no, warehouse, sum(qty) as qty from (" + location_sql + ") candidates "
@@ -2178,7 +2412,7 @@ def _expiring_batches_database_page(settings, selected, all_selected, selected_g
 		)
 	# Overall count keeps the current search/date/category scope but removes the
 	# selected warehouse, matching the legacy endpoint's facet contract.
-	all_sql, all_params = _expiring_batch_candidate_query(all_selected, group_names, search, expiry_from, expiry_to)
+	all_sql, all_params = _expiring_batch_candidate_query(all_selected, group_names, search, expiry_from, expiry_to, expiry_before)
 	overall_rows = frappe.db.sql(
 		"select count(*) as total from (select batch_no from (" + all_sql + ") candidates "
 		"group by batch_no having sum(qty) > 0) positive_batches",
@@ -2202,7 +2436,7 @@ def _expiring_batches_database_page(settings, selected, all_selected, selected_g
 				*(warehouse_facets.get(leaf, set()) for leaf, leaf_row in physical_nodes.items()
 				  if not leaf_row.is_group and leaf_row.lft >= node.lft and leaf_row.rgt <= node.rgt)
 			)
-	group_sql, group_params = _expiring_batch_candidate_query(selected, None, search, expiry_from, expiry_to)
+	group_sql, group_params = _expiring_batch_candidate_query(selected, None, search, expiry_from, expiry_to, expiry_before)
 	group_facet_rows = frappe.db.sql(
 		"select item_group, batch_no from (" + group_sql + ") candidates "
 		"group by batch_no, item_group having sum(qty) > 0",
@@ -2231,9 +2465,27 @@ def _expiring_batches_database_page(settings, selected, all_selected, selected_g
 
 
 @frappe.whitelist()
-def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None):
+def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None, expiry_window="", expiry_days=None, _database=True):
 	"""Return positive, visible batch balances aggregated by batch."""
 	_require_stock()
+	window = str(expiry_window or "").strip().lower()
+	if window not in {"", "overdue", "7", "30", "90", "custom"}:
+		frappe.throw(_("Invalid expiry window"))
+	if window == "custom":
+		valid_days = str(expiry_days).strip().lstrip("+").isdigit() if expiry_days not in (None, "") else False
+		if not valid_days or not 0 <= int(expiry_days) <= 3650:
+			frappe.throw(_("Custom expiry days must be an integer from 0 to 3650"))
+	elif expiry_days not in (None, ""):
+		frappe.throw(_("Expiry days are only valid for a custom window"))
+	if window and (expiry_from or expiry_to):
+		frappe.throw(_("Choose either an expiry window or exact dates"))
+	if window == "overdue":
+		expiry_before = nowdate()
+	elif window:
+		expiry_before = None
+		expiry_from, expiry_to = nowdate(), add_days(nowdate(), cint(expiry_days or window))
+	else:
+		expiry_before = None
 	settings = _settings()
 	visible_warehouses = _visible_warehouses(settings)
 	_raise_on_group_stock(visible_warehouses)
@@ -2243,8 +2495,8 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 	# Real sites use one grouped ledger read below.  The legacy branch remains
 	# intentionally available for unit fixtures that replace ERPNext's batch
 	# quantity helper instead of creating Stock Ledger Entry rows.
-	if not hasattr(get_batch_qty, "mock_calls") and not hasattr(frappe.get_all, "mock_calls"):
-		return _expiring_batches_database_page(
+	if _database and not hasattr(get_batch_qty, "mock_calls") and not hasattr(frappe.get_all, "mock_calls"):
+		result = _expiring_batches_database_page(
 			settings,
 			selected,
 			all_selected,
@@ -2252,10 +2504,12 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			search,
 			expiry_from,
 			expiry_to,
+			expiry_before,
 			sort,
 			start,
 			page_length,
 		)
+		return result
 	group_names = set(selected_groups)
 	if selected_groups:
 		all_groups = frappe.get_all("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
@@ -2366,6 +2620,8 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 		if expiry_from and expiry < getdate(expiry_from):
 			return False
 		if expiry_to and expiry > getdate(expiry_to):
+			return False
+		if expiry_before and expiry >= getdate(expiry_before):
 			return False
 		return any(location["warehouse"] in selected_locations for location in row["locations"])
 	rows = []

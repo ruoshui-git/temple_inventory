@@ -4,4 +4,5 @@
 
 [post_model_sync]
 temple_inventory.patches.v1_add_handler_audit_fields
+temple_inventory.patches.v2_mark_warehouse_fallbacks
 # Patches added in this section will be executed after doctypes are migrated

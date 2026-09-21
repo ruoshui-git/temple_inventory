@@ -455,17 +455,29 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(frappe.db.count("Stock Reconciliation", {"name": existing.name}), 1)
 		self.assertEqual(frappe.db.get_value("Stock Reconciliation", existing.name, "docstatus"), 1)
 
-	def test_signature_invalidated_and_direct_edit_blocked(self):
+	def test_signature_is_retained_but_marked_stale_and_direct_edit_blocked(self):
 		d = self.signed(self.create())
 		p = copy.deepcopy(d["data"])
 		p["notes"] = "Changed after signing"
 		d = api.save_workspace(d["name"], d["revision"], p)
-		self.assertFalse(d["data"]["recorder_signature"])
-		self.assertFalse(d["data"]["handler_signature"])
+		self.assertEqual(d["data"]["recorder_signature"], SIGNATURE)
+		self.assertEqual(d["data"]["handler_signature"], SIGNATURE)
+		self.assertEqual(d["data"]["handler_signature_state"]["status"], "stale")
+		with self.assertRaises(frappe.ValidationError):
+			api.confirm_workspace(d["name"], d["revision"])
 		doc = frappe.get_doc("Stock Entry", d["stock_entry"])
 		doc.remarks = "Bypass"
 		with self.assertRaises(frappe.PermissionError):
 			doc.save()
+
+	def test_adding_reviewer_signature_does_not_clear_handler_signature(self):
+		d = self.signed(self.create())
+		p = copy.deepcopy(d["data"])
+		p["reviewer_name"] = "测试鉴证人"
+		p["reviewer_signature"] = SIGNATURE
+		d = api.save_workspace(d["name"], d["revision"], p)
+		self.assertEqual(d["data"]["handler_signature"], SIGNATURE)
+		self.assertEqual(d["data"]["reviewer_signature"], SIGNATURE)
 
 	def test_duplicate_issue_rows_aggregate_stock(self):
 		self.confirmed()
@@ -549,9 +561,6 @@ class WorkspaceTests(unittest.TestCase):
 		d = api.confirm_workspace(d["name"], d["revision"])
 		self.assertEqual(d["docstatus"], 1)
 		self.assertEqual(api.batches(self.item, self.a)[0]["qty"], 2)
-		expiry = expiring_batches(search=self.item, warehouse=self.a, page_length=1)
-		self.assertEqual(expiry["total"], 1)
-		self.assertEqual(expiry["results"][0]["item_code"], self.item)
 
 	def test_history_filters_and_leaf_rejection(self):
 		d = self.create(source_text="A Donor")

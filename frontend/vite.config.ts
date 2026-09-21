@@ -19,11 +19,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 //                   (here: temple_inventory/www/inventory.html)
 export default defineConfig({
   plugins: [
+    // frappe-ui's dev-server "site banner" sub-plugin shells out to
+    // `bench list-app-sites`, which this bench CLI version doesn't have (only
+    // `list-apps`/`list-sites`). It's caught internally and only skips a
+    // startup log line, but drop it here to keep dev-server output clean
+    // without patching frappe-ui or upgrading the bench CLI.
     frappeui({
-      // Route this SPA is served on by Frappe. Drives the dev-server banner and
-      // the auto-inferred indexHtmlPath.
+      // Route this SPA is served on by Frappe. Drives the auto-inferred
+      // indexHtmlPath for the production build.
       frontendRoute: '/inventory',
-    }),
+    }).filter(plugin => plugin.name !== 'frappeui-site-banner-plugin'),
     vue(),
     {
       name: 'temple-inventory-zxing-local-wasm',

@@ -24,8 +24,14 @@ describe('AttachmentList', () => {
 
   it('offers primary-image selection for editable image attachments', async () => {
     const file = { name: 'f2', file_name: 'photo.jpg', file_type: 'image/jpeg', file_url: '/private/photo.jpg' }
-    const wrapper = mount(AttachmentList, { props: { attachments: [file], editable: true } })
+    const wrapper = mount(AttachmentList, { props: { attachments: [file], editable: true, allowPrimaryImage: true } })
     await wrapper.find('button').trigger('click')
     expect(wrapper.emitted('set-primary')?.[0]).toEqual([file])
+  })
+
+  it('does not offer primary-image selection without Item capability', () => {
+    const file = { name: 'f3', file_name: 'photo.jpg', file_type: 'image/jpeg', file_url: '/private/photo.jpg' }
+    const wrapper = mount(AttachmentList, { props: { attachments: [file], editable: true } })
+    expect(wrapper.text()).not.toContain('设为主图')
   })
 })

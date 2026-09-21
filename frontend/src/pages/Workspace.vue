@@ -73,16 +73,26 @@ function changed(immediate = false) {
   if (applying || readonly.value) return
   editVersion++; dirty.value = true; saveStatus.value = '尚未保存'; queue.schedule(immediate)
 }
-function invalidate() { if (form.value) { form.value.handler_signature = ''; form.value.reviewer_signature = '' } }
-function setNoIndependentReviewer(value: boolean) { if (!form.value) return; form.value.no_independent_reviewer = value; if (value) { form.value.reviewer_name = ''; form.value.reviewer_signature = '' }; invalidate(); changed(true) }
-function setBorrowerDeclaration(value: boolean) { if (!form.value) return; form.value.borrower_is_handler_or_witness = value; if (value) form.value.borrower = ''; invalidate(); changed(true) }
-function markManualTime() { if (form.value && form.value.posting_time_mode !== 'manual') form.value.posting_time_mode = 'manual'; invalidate() }
+function invalidate() { /* Drawings remain visible; the server marks them stale by digest. */ }
+function setNoIndependentReviewer(value: boolean) { if (!form.value) return; form.value.no_independent_reviewer = value; changed(true) }
+function setBorrowerDeclaration(value: boolean) { if (!form.value) return; form.value.borrower_is_handler_or_witness = value; if (value) form.value.borrower = ''; changed(true) }
+function markManualTime() { if (form.value && form.value.posting_time_mode !== 'manual') form.value.posting_time_mode = 'manual' }
 function setCurrentTime() {
   if (!form.value) return
   const now = new Date(), pad = (n: number) => String(n).padStart(2, '0')
   form.value.posting_date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
   form.value.posting_time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
-  form.value.posting_time_mode = 'current'; invalidate(); changed(true)
+  form.value.posting_time_mode = 'current'; changed(true)
+}
+const signatureState = (signer: string) => form.value?.[`${signer}_signature_state`] || { status: form.value?.[`${signer}_signature`] ? 'valid' : 'absent' }
+async function reconfirmSignature(signer: string) {
+  if (!record.value?.name || !form.value?.[`${signer}_signature`]) return
+  try {
+    await queue.flush()
+    if (dirty.value || conflict.value) { error.value = '请先保存当前修改'; return }
+    const result = await workspaceApi('reconfirm_signature', { name: record.value.name, revision: record.value.revision, signer })
+    record.value = result; applying = true; form.value = result.data; applying = false; saveStatus.value = '✓ 已保存'
+  } catch (cause: any) { error.value = cause.message }
 }
 watch(form, () => changed(), { deep: true, flush: 'sync' })
 
@@ -123,6 +133,7 @@ async function load() {
   try {
     boot.value = await api('bootstrap')
     activities.value = await workspaceApi('activities')
+    let scopedWarehouse = ''
     let d: any
     if (route.params.name) d = await workspaceApi('load_workspace', { name: route.params.name })
     else if (route.params.entry) d = await workspaceApi('open_entry', { name: route.params.entry })
@@ -131,7 +142,11 @@ async function load() {
       const scopeKey = `ti-scope:${kind}`
       const scope = sessionStorage.getItem(scopeKey)
       if (scope) {
-        try { scopeGroup.value = JSON.parse(scope).group || '' } catch { scopeGroup.value = '' }
+        try {
+          const parsedScope = JSON.parse(scope)
+          scopeGroup.value = parsedScope.group || ''
+          scopedWarehouse = parsedScope.warehouse || ''
+        } catch { scopeGroup.value = '' }
         sessionStorage.removeItem(scopeKey)
       }
       sessionStorage.setItem(`ti-new:${kind}`, key); newRequestId.value = key
@@ -148,7 +163,7 @@ async function load() {
     }
     record.value = d; applying = true; form.value = d.data; applying = false; dirty.value = false; conflict.value = false; saveStatus.value = d.name ? '✓ 已保存' : '正在创建草稿…'
     const physical = scopedAllowed.value.length ? scopedAllowed.value : allowed.value
-    const requestedLocation = String(route.query.warehouse || '')
+    const requestedLocation = String(route.query.warehouse || scopedWarehouse || '')
     currentLocation.value = physical.some((row: any) => row.name === requestedLocation) ? requestedLocation : physical[0]?.name || ''
     if (isIssue.value && currentLocation.value) lastScannedWarehouse.value = currentLocation.value
     currentRoom.value = roomFor(currentLocation.value, tree.value); currentTo.value = boot.value.settings.loan_warehouse || boot.value.settings.leased_warehouse || boot.value.settings.default_lease_program_warehouse || ''
@@ -257,7 +272,7 @@ async function confirm() {
   try {
     await queue.flush(); if (dirty.value) throw new Error('请先保存所有修改')
     const d = await workspaceApi('confirm_workspace', { name: record.value.name, revision: record.value.revision })
-    record.value = d; applying = true; form.value = d.data; applying = false; review.value = false; scanner.value = false; saveStatus.value = '已完成 ✓'; window.dispatchEvent(new Event('ti:refresh-shell'))
+    record.value = d; applying = true; form.value = d.data; applying = false; review.value = false; scanner.value = false; saveStatus.value = '已完成 ✓'; toast(`${labels[form.value.movement_kind]}已完成`); window.dispatchEvent(new Event('ti:refresh-shell'))
     if (form.value.movement_kind === 'Return') {
       const outstanding = await api('outstanding_loan_items')
       const candidate = outstanding.find((row:any) => row.loan_item)
@@ -284,7 +299,7 @@ onBeforeUnmount(() => { queue.dispose(); window.removeEventListener('beforeunloa
 <p v-if="record.sync_error && form.items?.length" class="error">{{record.sync_error}}</p><p v-if="!form.items?.length" class="empty-state">尚未添加物品，请点击“添加物品”开始。</p><section v-for="g in groups" :key="g.location" class="location-section"><h2>📍 {{label(g.room)}}</h2><h3 v-if="g.location !== g.room">{{leafLabel(g.location)}}</h3><p v-if="!g.lines.length">尚未添加物品</p><article v-for="r in g.lines" :key="r.id" class="item-card"><img v-if="catalog[r.item_code]?.image" :src="catalog[r.item_code].image"><div><b>{{catalog[r.item_code]?.item_name||r.item_code}}</b><p>{{r.qty}} {{r.uom}} <small>{{r.item_code}}</small></p><p v-if="r.batch_no">批次 {{r.batch_no}}</p><p v-if="r.expiry_date">到期 {{r.expiry_date}}</p><p v-if="isTransfer">→ {{label(r.to_warehouse)}}</p></div><div v-if="!readonly"><button type="button" @click="editLine(r.index)">编辑</button><button type="button" @click="removeLine(r.index)">移除</button></div></article></section>
 <section class="details-panel"><button v-if="!readonly" type="button" @click="detailsOpen=!detailsOpen">{{detailsOpen?'收起详细信息':'添加详细信息'}}</button><div v-if="detailsOpen || readonly" class="details-content"><fieldset :disabled="readonly||confirming" @input="invalidate"><div class="form-grid"><label v-if="isReceive">来源<input v-model="form.source_text" placeholder="例如：捐赠、采购或内部调拨"></label><label v-if="!isReceive">用途<input v-model="form.purpose_text" list="purposes"><datalist id="purposes"><option v-for="p in ['分发','活动/演出','内部使用','对外捐赠','损坏/报废','其他']">{{p}}</option></datalist></label><label v-if="['Return','Loss'].includes(form.movement_kind) || (form.movement_kind==='Loan' && !form.borrower_is_handler_or_witness)">借用方<input v-model="form.borrower" :readonly="form.movement_kind==='Return' && !!form.items?.length" placeholder="姓名、单位或团体"></label><label>活动<button type="button" class="selector-button" @click="activityDialog=true">{{activities.find((a:any)=>a.name===form.activity)?.title||'选择活动'}}</button></label><label>备注<textarea v-model="form.notes"/></label></div></fieldset></div></section>
 <fieldset :disabled="readonly||confirming"><label v-if="form.movement_kind==='Loan'" class="checkbox"><input type="checkbox" :checked="form.borrower_is_handler_or_witness" @change="setBorrowerDeclaration(($event.target as HTMLInputElement).checked)"> 借用方是经手人或鉴证人</label><label>经手人 <span v-html="requiredMark"/><input v-model="form.handler_name" required placeholder="请输入姓名或称谓" @input="changed(true)"></label><SignaturePad label="经手人签名" v-model="form.handler_signature" :disabled="readonly||confirming" @complete="changed(true)"/><label class="checkbox"><input type="checkbox" :checked="form.no_independent_reviewer" @change="setNoIndependentReviewer(($event.target as HTMLInputElement).checked)" :disabled="readonly||confirming"> 无独立鉴证人</label><template v-if="!form.no_independent_reviewer"><label>鉴证人 <span v-html="requiredMark"/><input v-model="form.reviewer_name" required @input="changed(true)"></label><SignaturePad label="鉴证人签名" v-model="form.reviewer_signature" :disabled="readonly||confirming" @complete="changed(true)"/></template></fieldset><button v-if="!readonly" class="primary confirm-button" :disabled="confirming||conflict" @click="showReview">提交</button><small v-if="!readonly" class="muted">系统记录用户：{{ form.recorded_by || boot.user }}</small><p v-if="record.stock_entry">库存记录：{{record.stock_entry}} <a v-if="boot.is_manager" :href="`/app/stock-entry/${encodeURIComponent(record.stock_entry)}`">管理员查看</a></p>
-<LoanItemPicker v-if="loanPicker" :tree="tree" @select="selectLoanItem" @close="loanPicker=false"/><ItemPicker v-if="picker" :boot="boot" :barcode="unknown" :stock-only="isIssue" :warehouse="lastScannedWarehouse" :posting-date="postingTimeMode==='manual' ? form.posting_date : undefined" :posting-time="postingTimeMode==='manual' ? form.posting_time : undefined" @warehouse-change="lastScannedWarehouse=$event" @select="selectItem" @close="picker=false;unknown=''"/>
+<p v-if="signatureState('handler').status === 'stale'" class="error">签名仍保留，但内容已更改，请重新确认后提交。<button type="button" @click="reconfirmSignature('handler')">重新确认经手人签名</button></p><LoanItemPicker v-if="loanPicker" :tree="tree" @select="selectLoanItem" @close="loanPicker=false"/><ItemPicker v-if="picker" :boot="boot" :barcode="unknown" :stock-only="isIssue" :warehouse="lastScannedWarehouse" :posting-date="postingTimeMode==='manual' ? form.posting_date : undefined" :posting-time="postingTimeMode==='manual' ? form.posting_time : undefined" @warehouse-change="lastScannedWarehouse=$event" @select="selectItem" @close="picker=false;unknown=''"/>
 <div v-if="chosen && line" class="drawer-backdrop"><aside class="drawer wide" role="dialog" aria-modal="true" aria-label="数量与位置"><div class="compact-selection"><img v-if="chosen.image" :src="chosen.image" :alt="chosen.item_name" class="thumb"><div><h2>{{chosen.item_name}}</h2><p>{{chosen.item_code}} · 总库存 {{chosen.total_stock}} {{chosen.stock_uom}}</p></div></div><form @submit.prevent="addLine"><label>数量 <span v-html="requiredMark"/><input type="number" min="0.000001" step="any" v-model.number="line.qty" required></label><label>单位 <span v-html="requiredMark"/><select v-model="line.uom" required><option :value="chosen.stock_uom">{{chosen.stock_uom}}</option><option v-for="u in chosen.uoms.filter((u:any)=>u.uom!==chosen.stock_uom)" :value="u.uom">{{u.uom}} ({{u.conversion_factor}} {{chosen.stock_uom}})</option></select></label><label v-if="isReceive">入库位置 <span v-html="requiredMark"/><select v-model="line.warehouse" required><option v-for="w in allowed" :value="w.name">{{label(w.name)}}</option></select></label><template v-else-if="form.movement_kind==='Return'"><p>来源位置：{{label(boot.settings.loan_warehouse)}}（系统借出库）</p></template><template v-else><h3>各位置库存</h3><button type="button" v-for="s in sourceOptions" @click="line.from_warehouse=s.warehouse;loadBatches()">{{label(s.warehouse)}} · {{s.actual_qty}} {{chosen.stock_uom}}</button><label>来源位置 <span v-html="requiredMark"/><select v-model="line.from_warehouse" required @change="loadBatches"><option value="">请选择有库存的位置</option><option v-for="s in sourceOptions" :value="s.warehouse">{{label(s.warehouse)}} · {{s.actual_qty}} {{chosen.stock_uom}}</option></select></label></template><label v-if="form.movement_kind==='Return'">结果<select v-model="line.outcome" @change="line.to_warehouse = line.outcome==='Damaged' ? boot.settings.damaged_warehouse : line.to_warehouse"><option value="Returned">正常归还</option><option value="Damaged">损坏待处理</option></select></label><label v-if="isTransfer && form.movement_kind!=='Loan'">目标位置 <span v-html="requiredMark"/><select v-model="line.to_warehouse" required><option v-for="w in allowed" :value="w.name">{{label(w.name)}}</option></select></label><template v-if="chosen.has_batch_no"><label v-if="isReceive && boot.capabilities.Batch"><input type="checkbox" v-model="line.new_batch" @change="line.batch_no=''">创建新批次</label><template v-if="line.new_batch"><label>批次编号（留空自动生成）<input v-model="line.batch_no"></label><label>生产日期<input type="date" v-model="line.manufacturing_date"></label><label>到期日期 <span v-if="chosen.has_expiry_date" v-html="requiredMark"/><input type="date" v-model="line.expiry_date" :required="!!chosen.has_expiry_date"></label></template><label v-else>批次 <span v-html="requiredMark"/><select v-model="line.batch_no" required><option value="">请选择批次</option><option v-for="b in batchRows" :value="b.name">{{b.name}} · {{b.expiry_date||'无到期日期'}} {{b.qty!=null?`· 库存 ${b.qty}`:''}}</option></select></label></template><button class="primary">{{editingIndex>=0?'更新':'添加'}}</button><button type="button" @click="chosen=undefined;line=undefined">取消</button></form></aside></div>
 <div v-if="activityDialog" class="modal"><section role="dialog" aria-modal="true"><h2>选择活动</h2><label>搜索活动<input v-model="activitySearch"></label><div v-for="a in activities.filter((a:any)=>!activitySearch||a.title.includes(activitySearch))" :key="a.name"><button type="button" @click="form.activity=a.name;activityDialog=false;changed(true)">{{a.title}}（{{activityTypeLabel(a.activity_type)}}）</button></div><form v-if="!readonly && boot.capabilities['Inventory Activity']" @submit.prevent="createActivity"><h3>新建活动</h3><label>名称 <span v-html="requiredMark"/><input v-model="activity.title" required></label><label>类型 <span v-html="requiredMark"/><select v-model="activity.activity_type" required><option v-for="t in ['Distribution','Event','Performance','Religious Activity','Maintenance','Other']" :value="t">{{activityTypeLabel(t)}}</option></select></label><label>开始日期<input type="date" v-model="activity.start_date"></label><label>结束日期<input type="date" v-model="activity.end_date"></label><label>说明<textarea v-model="activity.description"/></label><button>创建并选择</button><button type="button" @click="activityDialog=false">取消</button></form></section></div>
 <div v-if="review" class="modal"><section><h2>确认{{labels[form.movement_kind]}}</h2><p>{{postingTimeMode==='manual' ? `${form.posting_date} ${form.posting_time}` : '提交时使用当前时间'}}</p><p>{{form.source_text||form.purpose_text||form.borrower||''}}</p><p>{{form.items.length}} 行物品</p><div class="review-items"><div v-for="line in form.items" :key="line.id" class="compact-selection"><img v-if="catalog[line.item_code]?.image" :src="catalog[line.item_code].image" :alt="catalog[line.item_code]?.item_name" class="thumb"><span><b>{{catalog[line.item_code]?.item_name||line.item_code}}</b><small>{{line.qty}} {{line.uom}}<template v-if="line.batch_no"> · 批次 {{line.batch_no}}</template></small></span></div></div><p v-for="(qty,uom) in totals">{{qty}} {{uom}}</p><p v-for="g in groups">{{label(g.location)}} · {{g.lines.length}} 行</p><p>活动：{{form.activity||'无'}}</p><p>附件：{{record.attachments?.length||0}}</p><p>经手人：{{form.handler_name || '未填写'}}</p><p>系统记录用户：{{form.recorded_by || boot.user}}</p><p>鉴证人：{{form.no_independent_reviewer ? '无独立鉴证人' : (form.reviewer_name || '未填写')}}</p><p>{{form.handler_signature?'✓ 经手人已签名':'经手人尚未签名'}}</p><p v-if="error" class="error">{{error}}</p><button :disabled="confirming" @click="review=false">返回修改</button><button class="primary" :disabled="confirming" @click="confirm">{{confirming?'正在确认…':`确认${labels[form.movement_kind]}`}}</button></section></div>

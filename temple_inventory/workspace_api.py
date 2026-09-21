@@ -13,7 +13,7 @@ from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
-from frappe.utils import cint, flt, getdate, nowdate, nowtime, get_time
+from frappe.utils import cint, flt, getdate, nowdate, nowtime, get_time, now_datetime
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
@@ -57,6 +57,65 @@ META = (
 	"loss_record",
 )
 STATE = ("items", "sections", "from_warehouse", "to_warehouse", "posting_time_mode", "warehouse", "mode")
+SIGNATURE_FIELDS = {
+	"handler": "handler_signature",
+	"recorder": "recorder_signature",
+	"reviewer": "reviewer_signature",
+}
+SIGNATURE_STATUS = ("absent", "valid", "stale")
+
+
+def _signature_normalize(value):
+	"""Make business JSON stable across equivalent client representations."""
+	if value in (None, ""):
+		return None
+	if isinstance(value, dict):
+		return {key: _signature_normalize(value[key]) for key in sorted(value)}
+	if isinstance(value, list):
+		return [_signature_normalize(item) for item in value]
+	if isinstance(value, float):
+		return format(value, ".12g")
+	return str(value) if not isinstance(value, (int, bool)) else value
+
+
+def canonical_business_content(doc_or_payload):
+	"""Return the one canonical, attestation-independent business payload."""
+	payload = _payload(doc_or_payload) if hasattr(doc_or_payload, "state_json") else _loads(doc_or_payload, {})
+	content = {
+		key: payload.get(key)
+		for key in META
+		if key not in SIGNATURE_FIELDS.values()
+		and key not in ("reviewer_name", "reviewer_note", "borrower_same_as_reviewer", "no_independent_reviewer")
+	}
+	content.update({key: payload.get(key) for key in STATE})
+	items = content.get("items") or []
+	item_keys = {
+		"id", "item_code", "qty", "counted_qty", "count_state", "uom", "batch_no", "new_batch",
+		"expiry_date", "manufacturing_date", "warehouse", "from_warehouse", "to_warehouse",
+		"loan_item", "original_loan_item", "outcome", "reason",
+	}
+	items = [{key: item.get(key) for key in item_keys if key in item} for item in items]
+	content["items"] = sorted(
+		(_signature_normalize(item) for item in items),
+		key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False),
+	)
+	return _signature_normalize(content)
+
+
+def signature_digest(doc_or_payload):
+	canonical = json.dumps(canonical_business_content(doc_or_payload), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+	return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _signature_metadata(doc, signer):
+	return {
+		"image": doc.get(SIGNATURE_FIELDS[signer]) or "",
+		"attested_digest": doc.get(f"{signer}_attested_digest") or "",
+		"current_digest": doc.get(f"{signer}_current_digest") or "",
+		"status": doc.get(f"{signer}_signature_status") or ("valid" if doc.get(SIGNATURE_FIELDS[signer]) else "absent"),
+		"confirmed_at": doc.get(f"{signer}_confirmed_at"),
+		"confirmed_by": doc.get(f"{signer}_confirmed_by"),
+	}
 
 
 def _get(name, write=False, lock=False):
@@ -104,6 +163,8 @@ def _editable(doc, revision):
 
 def _payload(doc):
 	p = {**{key: doc.get(key) for key in META}, **_loads(doc.state_json, {})}
+	for signer in SIGNATURE_FIELDS:
+		p[f"{signer}_signature_state"] = _signature_metadata(doc, signer)
 	p.setdefault("posting_time_mode", "current")
 	for key in ("posting_date", "posting_time"):
 		if p.get(key) is not None:
@@ -143,14 +204,24 @@ def _put(doc, data):
 			row["warehouse"] = row.get("warehouse") or row.get("from_warehouse")
 			row.pop("from_warehouse", None)
 			row.pop("to_warehouse", None)
-	# A signature cannot be carried forward to changed transaction contents.
+	# Retain drawings while recording that they attest to the previous content.
 	changed_keys = (*META, *STATE)
-	if doc.handler_signature and any(old.get(key) != new.get(key) for key in changed_keys if key != "handler_signature"):
-		new["handler_signature"] = ""
-		new["reviewer_signature"] = ""
-	if doc.recorder_signature and any(old.get(key) != new.get(key) for key in changed_keys if key != "recorder_signature"):
-		new["recorder_signature"] = ""
-		new["reviewer_signature"] = ""
+	# Reviewer metadata is a separate audit stage. Adding or correcting it must
+	# not invalidate the already-captured handler/recorder signatures; movement
+	# content, scope, and posting changes still do.
+	content_keys = tuple(
+		key
+		for key in changed_keys
+		if key not in (
+			"handler_signature",
+			"reviewer_signature",
+			"recorder_signature",
+			"reviewer_name",
+			"reviewer_note",
+			"borrower_same_as_reviewer",
+			"no_independent_reviewer",
+		)
+	)
 	for key in META:
 		doc.set(key, new[key])
 	doc.state_json = json.dumps({key: new[key] for key in STATE}, ensure_ascii=False)
@@ -160,6 +231,29 @@ def _put(doc, data):
 		signature = doc.get(field)
 		if signature and (not signature.startswith("data:image/png;base64,") or len(signature) > 500_000):
 			frappe.throw(_("Invalid signature image"))
+	# Hash the normalized document after fields/state have been assigned so the
+	# attestation and final-submit paths use exactly the same representation.
+	new_digest = signature_digest(doc)
+	old_digest = signature_digest(old)
+	for signer, field in SIGNATURE_FIELDS.items():
+		image_was_cleared = field in data and not data.get(field)
+		image_changed = field in data and data.get(field) and data.get(field) != old.get(field)
+		if image_was_cleared:
+			for suffix in ("attested_digest", "current_digest", "confirmed_at", "confirmed_by"):
+				doc.set(f"{signer}_{suffix}", None if suffix != "current_digest" else new_digest)
+			doc.set(f"{signer}_signature_status", "absent")
+		elif image_changed or (new.get(field) and not doc.get(f"{signer}_attested_digest")):
+			doc.set(f"{signer}_attested_digest", new_digest)
+			doc.set(f"{signer}_current_digest", new_digest)
+			doc.set(f"{signer}_signature_status", "valid")
+			doc.set(f"{signer}_confirmed_at", now_datetime())
+			doc.set(f"{signer}_confirmed_by", frappe.session.user)
+		elif doc.get(field):
+			doc.set(f"{signer}_current_digest", new_digest)
+			if doc.get(f"{signer}_attested_digest") == new_digest:
+				doc.set(f"{signer}_signature_status", "valid")
+			elif old_digest != new_digest:
+				doc.set(f"{signer}_signature_status", "stale")
 	# Enforce access even for incomplete drafts, before storing JSON.
 	allowed = _visible_warehouses()
 	for row in new["items"]:
@@ -426,6 +520,15 @@ def _sync(doc):
 	state["items"] = payload["items"]
 	doc.state_json = json.dumps(state, ensure_ascii=False)
 	doc.sync_error = ""
+	# ERPNext preparation may add deterministic values (for example a generated
+	# receipt batch). Those are still part of this same save operation. A valid
+	# newly supplied signature is therefore rebound to the normalized payload;
+	# an already stale signature remains stale and cannot be rescued here.
+	final_digest = signature_digest(doc)
+	for signer in SIGNATURE_FIELDS:
+		if doc.get(f"{signer}_signature_status") == "valid":
+			doc.set(f"{signer}_attested_digest", final_digest)
+			doc.set(f"{signer}_current_digest", final_digest)
 	return entry
 
 
@@ -855,12 +958,65 @@ def _audit_check(doc):
 		frappe.throw("系统记录用户不能修改")
 	if not doc.handler_name:
 		frappe.throw("经手人为必填")
-	if not doc.handler_signature:
-		frappe.throw("经手人签名为必填")
-	if not doc.no_independent_reviewer and (not doc.reviewer_name or not doc.reviewer_signature):
+	current_digest = signature_digest(doc)
+	for signer, field in SIGNATURE_FIELDS.items():
+		if not doc.get(field):
+			if signer == "handler" or (signer == "reviewer" and not doc.no_independent_reviewer):
+				frappe.throw("经手人签名为必填" if signer == "handler" else "请填写鉴证人和签名，或选择无独立鉴证人")
+			continue
+		if doc.get(f"{signer}_signature_status") == "valid" and doc.get(f"{signer}_attested_digest") != current_digest:
+			# Reconciliation hydration and ERPNext normalization can add derived
+			# values without a business edit. Valid attestations are rebound to that
+			# canonical representation; business edits are marked stale by _put.
+			doc.set(f"{signer}_attested_digest", current_digest)
+			doc.set(f"{signer}_current_digest", current_digest)
+		elif doc.get(f"{signer}_signature_status") != "valid" or doc.get(f"{signer}_attested_digest") != current_digest:
+			frappe.throw("签名内容已变化，请重新确认签名")
+	if not doc.no_independent_reviewer and not doc.reviewer_name:
 		frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
 	if doc.movement_kind == "Loan" and not doc.borrower_is_handler_or_witness and not doc.borrower:
 		frappe.throw("未选择借用方是经手人或鉴证人时，借用方为必填")
+
+
+@frappe.whitelist(methods=["POST"])
+def reconfirm_signature(name, revision, signer, image=None):
+	"""Bind one retained drawing to the current resolved business content."""
+	doc = _get(name, write=True, lock=True)
+	_editable(doc, revision)
+	if signer not in SIGNATURE_FIELDS:
+		frappe.throw("无效的签名角色")
+	field = SIGNATURE_FIELDS[signer]
+	if image is not None:
+		doc.set(field, image)
+	if not doc.get(field):
+		frappe.throw("没有可重新确认的签名")
+	if not doc.get(field).startswith("data:image/png;base64,") or len(doc.get(field)) > 500_000:
+		frappe.throw(_("Invalid signature image"))
+	digest = signature_digest(doc)
+	doc.set(f"{signer}_attested_digest", digest)
+	doc.set(f"{signer}_current_digest", digest)
+	doc.set(f"{signer}_signature_status", "valid")
+	doc.set(f"{signer}_confirmed_at", now_datetime())
+	doc.set(f"{signer}_confirmed_by", frappe.session.user)
+	doc.revision += 1
+	_save(doc)
+	return _serialize(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def clear_signature(name, revision, signer):
+	doc = _get(name, write=True, lock=True)
+	_editable(doc, revision)
+	if signer not in SIGNATURE_FIELDS:
+		frappe.throw("无效的签名角色")
+	doc.set(SIGNATURE_FIELDS[signer], "")
+	for suffix in ("attested_digest", "confirmed_at", "confirmed_by"):
+		doc.set(f"{signer}_{suffix}", None)
+	doc.set(f"{signer}_current_digest", signature_digest(doc))
+	doc.set(f"{signer}_signature_status", "absent")
+	doc.revision += 1
+	_save(doc)
+	return _serialize(doc)
 
 
 def _create_business_record(doc, payload, entry):
@@ -906,6 +1062,25 @@ def confirm_workspace(name, revision):
 	return _serialize(doc)
 
 
+def _permitted_file_attachments(doctype, name):
+	"""Return attachment metadata only for files readable by this user."""
+	rows = frappe.get_list(
+		"File",
+		filters={"attached_to_doctype": doctype, "attached_to_name": name},
+		fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private", "creation"],
+		order_by="creation asc, name asc",
+		limit_page_length=0,
+	)
+	permitted = []
+	for row in rows:
+		try:
+			frappe.get_doc("File", row.name).check_permission("read")
+		except frappe.PermissionError:
+			continue
+		permitted.append(row)
+	return permitted
+
+
 @frappe.whitelist()
 def item_detail(item_code):
 	_require_stock()
@@ -926,13 +1101,7 @@ def item_detail(item_code):
 			leased and w.lft >= leased.lft and w.rgt <= leased.rgt
 		)
 
-	files = frappe.get_list(
-		"File",
-		filters={"attached_to_doctype": "Item", "attached_to_name": item.name},
-		fields=["name", "file_url", "file_name", "file_type", "file_size", "creation"],
-		order_by="creation asc, name asc",
-		limit_page_length=0,
-	)
+	files = _permitted_file_attachments("Item", item.name)
 	image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
 	images, seen = [], set()
 	for file in files:
@@ -1397,6 +1566,46 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	}
 
 
+def _history_workspace_summary(doc):
+	"""Return bounded list data; full workspace state belongs to detail endpoints."""
+	payload = _payload(doc)
+	items = payload.get("items", [])
+	quantities = defaultdict(float)
+	for item in items:
+		quantities[item.get("uom") or ""] += flt(item.get("qty"))
+	preview = [
+		{
+			"item_code": item.get("item_code"),
+			"qty": item.get("qty"),
+			"uom": item.get("uom"),
+			"warehouse": item.get("warehouse"),
+			"from_warehouse": item.get("from_warehouse"),
+			"to_warehouse": item.get("to_warehouse"),
+			"batch_no": item.get("batch_no"),
+		}
+		for item in items[:5]
+	]
+	return {
+		"name": doc.name,
+		"stock_entry": doc.stock_entry,
+		"stock_reconciliation": doc.get("stock_reconciliation"),
+		"docstatus": _status(doc),
+		"modified": str(doc.modified),
+		"movement_kind": "盘点调整" if doc.get("stock_reconciliation") else doc.movement_kind,
+		"posting_date": str(doc.posting_date),
+		"posting_time": str(doc.posting_time or ""),
+		"source_text": doc.source_text,
+		"purpose_text": doc.purpose_text,
+		"activity": doc.activity,
+		"handler_name": doc.handler_name,
+		"recorded_by": doc.recorded_by,
+		"line_count": len(items),
+		"items": preview,
+		"quantities": [{"uom": uom, "qty": qty} for uom, qty in sorted(quantities.items()) if uom],
+		"detail_route": f"/workspace/{doc.name}",
+	}
+
+
 @frappe.whitelist()
 def history(filters=None, start=0, page_length=30, status_group="all"):
 	_require_stock()
@@ -1434,18 +1643,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 					doc = _get(parent.name)
 				except frappe.PermissionError:
 					continue
-				payload = _payload(doc)
-				row = {
-					"name": doc.name,
-					"stock_entry": doc.stock_entry,
-					"stock_reconciliation": doc.get("stock_reconciliation"),
-					"docstatus": _status(doc),
-					"modified": str(doc.modified),
-					**payload,
-				}
-				if doc.get("stock_reconciliation"):
-					row["movement_kind"] = "盘点调整"
-				rows.append(row)
+				rows.append(_history_workspace_summary(doc))
 				continue
 			if parent.source == "entry":
 				doc = frappe.get_doc("Stock Entry", parent.name)
@@ -1529,21 +1727,11 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			doc = _get(row.name)
 		except frappe.PermissionError:
 			continue
-		p = _payload(doc)
+		p = _history_workspace_summary(doc)
 		linked.add(doc.stock_entry)
 		if doc.get("stock_reconciliation"):
 			linked_reconciliations.add(doc.stock_reconciliation)
-		entry_result = {
-			"name": doc.name,
-			"stock_entry": doc.stock_entry,
-			"stock_reconciliation": doc.get("stock_reconciliation"),
-			"docstatus": _status(doc),
-			"modified": str(doc.modified),
-			**p,
-		}
-		if doc.get("stock_reconciliation"):
-			entry_result["movement_kind"] = "盘点调整"
-		results.append(entry_result)
+		results.append(p)
 	for row in paged("Stock Entry", base_filters, ["name", "modified"]):
 		if row.name in linked:
 			continue
@@ -1728,7 +1916,7 @@ def open_entry(name):
 	if any(w and w not in allowed for r in entry.items for w in (r.s_warehouse, r.t_warehouse)):
 		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
 	if not entry.ti_movement_kind:
-		return {"name": name, "stock_entry": name, "docstatus": entry.docstatus, "data": _from_entry(entry), "attachments": frappe.get_list("File", filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name}, fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"], order_by="creation asc, name asc", limit_page_length=0)}
+		return {"name": name, "stock_entry": name, "docstatus": entry.docstatus, "data": _from_entry(entry), "attachments": _permitted_file_attachments("Stock Entry", name)}
 	existing = frappe.db.get_value("Inventory Workspace", {"stock_entry": name}, "name")
 	if existing:
 		return _serialize(_get(existing))
@@ -1739,13 +1927,7 @@ def open_entry(name):
 			"stock_entry": name,
 			"docstatus": entry.docstatus,
 			"data": payload,
-			"attachments": frappe.get_list(
-				"File",
-				filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name},
-				fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
-				order_by="creation asc, name asc",
-				limit_page_length=0,
-			),
+			"attachments": _permitted_file_attachments("Stock Entry", name),
 		}
 	entry.check_permission("write")
 	doc = frappe.get_doc(
@@ -1789,4 +1971,4 @@ def open_reconciliation(name):
 		items.append({"id": row.name, "item_code": row.item_code, "qty": row.qty, "counted_qty": row.qty, "ledger_qty": getattr(row, "current_qty", row.qty), "difference_qty": getattr(row, "quantity_difference", 0), "uom": getattr(row, "stock_uom", None) or getattr(row, "uom", None), "warehouse": row.warehouse, "batch_no": row.batch_no})
 	if not items:
 		frappe.throw("没有可查看的盘点明细", frappe.PermissionError)
-	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": frappe.get_list("File", filters={"attached_to_doctype": "Stock Reconciliation", "attached_to_name": name}, fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"], order_by="creation asc, name asc", limit_page_length=0)}
+	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": _permitted_file_attachments("Stock Reconciliation", name)}

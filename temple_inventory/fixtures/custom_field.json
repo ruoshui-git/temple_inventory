@@ -117,6 +117,17 @@
   },
   {
     "doctype": "Custom Field",
+    "dt": "Warehouse",
+    "fieldname": "ti_fallback_role",
+    "fieldtype": "Select",
+    "label": "逻辑回退库位角色",
+    "options": "room_default\nsite_default\nphysical_default",
+    "insert_after": "ti_system_role",
+    "module": "Temple Inventory",
+    "name": "Warehouse-ti_fallback_role"
+  },
+  {
+    "doctype": "Custom Field",
     "dt": "Stock Entry",
     "fieldname": "ti_workspace",
     "fieldtype": "Link",
