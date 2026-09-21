@@ -2121,14 +2121,14 @@ def loan_items(search=None, start=0, page_length=25):
 	_require_stock()
 	start, page_length = max(cint(start or 0), 0), min(max(cint(page_length or 25), 1), 100)
 	base_sql, params = _all_loan_rows_sql()
-	where = ["lines.outstanding > 0", "i.disabled=0", _item_match_condition("i")]
+	where = ["loan_lines.outstanding > 0", "i.disabled=0", _item_match_condition("i")]
 	if search and str(search).strip():
 		params["search"] = f"%{str(search).strip()}%"
-		where.append("(lines.loan like %(search)s or lines.item_code like %(search)s or lines.borrower like %(search)s or lines.activity like %(search)s or i.item_name like %(search)s)")
-	from_sql = f"from ({base_sql}) lines join `tabItem` i on i.name=lines.item_code where {' and '.join(where)}"
+		where.append("(loan_lines.loan like %(search)s or loan_lines.item_code like %(search)s or loan_lines.borrower like %(search)s or loan_lines.activity like %(search)s or i.item_name like %(search)s)")
+	from_sql = f"from ({base_sql}) as loan_lines join `tabItem` i on i.name=loan_lines.item_code where {' and '.join(where)}"
 	total_rows = frappe.db.sql("select count(*) as total " + from_sql, params, as_dict=True)
 	rows = frappe.db.sql(
-		"select lines.* " + from_sql + " order by lines.loan_date desc, lines.loan_item desc limit %(page_length)s offset %(start)s",
+		"select loan_lines.* " + from_sql + " order by loan_lines.loan_date desc, loan_lines.loan_item desc limit %(page_length)s offset %(start)s",
 		{**params, "page_length": page_length, "start": start}, as_dict=True,
 	)
 	for row in rows:

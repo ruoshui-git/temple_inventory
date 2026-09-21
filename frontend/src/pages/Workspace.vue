@@ -194,14 +194,23 @@ async function load() {
     saveStatus.value = d.name ? '✓ 已保存' : '尚未保存'
   } catch (e: any) { error.value = e.message; saveStatus.value = '加载失败' }
 }
-function selectLoanItem(row:any) {
-  loanPicker.value=false
-  chosen.value = undefined; line.value = {id:crypto.randomUUID(), item_code:row.item_code, qty:row.outstanding, uom:row.uom, batch_no:row.batch_no || '', loan_item:row.loan_item, original_loan_item:row.loan_item, from_warehouse:boot.value.settings.loan_warehouse, to_warehouse:row.original_warehouse, outcome:'Returned', warehouse:boot.value.settings.loan_warehouse}
-  form.value.borrower = row.borrower; form.value.activity = row.activity || ''; changed(true)
+async function selectLoanItem(row:any) {
+  try {
+    const item = row.detail || catalog.value[row.item_code] || await workspaceApi('item_detail', { item_code: row.item_code })
+    catalog.value[row.item_code] = item
+    loanPicker.value = false; picker.value = false; editingIndex.value = -1; chosen.value = item
+    line.value = {id:crypto.randomUUID(), item_code:row.item_code, qty:row.outstanding, uom:row.uom, batch_no:row.batch_no || '', loan_item:row.loan_item, original_loan_item:row.loan_item, from_warehouse:boot.value.settings.loan_warehouse, to_warehouse:row.original_warehouse, outcome:'Returned', warehouse:boot.value.settings.loan_warehouse}
+    form.value.borrower = row.borrower; form.value.activity = row.activity || ''; changed(true)
+    await loadBatches()
+    return true
+  } catch (cause: any) {
+    error.value = cause.message || '无法加载物品详情'
+    return false
+  }
 }
 async function configureSeed(seed: any) {
-  if (seed.loan_item) selectLoanItem(seed)
-  else await selectItem(seed.detail || catalog.value[seed.item_code])
+  if (seed.loan_item && !(await selectLoanItem(seed))) return
+  if (!seed.loan_item) await selectItem(seed.detail || catalog.value[seed.item_code])
   seedQueue.value = seedQueue.value.filter(item => item !== seed)
 }
 async function selectItem(item: any) {

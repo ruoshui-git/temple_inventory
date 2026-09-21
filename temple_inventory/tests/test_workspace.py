@@ -508,6 +508,9 @@ class WorkspaceTests(unittest.TestCase):
 		loan_item = frappe.get_all("Inventory Loan Item", filters={"parent": loan["data"]["loan_record"]}, pluck="name")[0]
 		loan_entry = frappe.get_doc("Stock Entry", loan["stock_entry"])
 		self.assertTrue(loan_entry.items[0].t_warehouse)
+		picker = inventory_service.loan_items()
+		picked_line = next(row for row in picker["results"] if row["loan_item"] == loan_item)
+		self.assertEqual(picked_line["outstanding"], 1)
 
 		returned = self.create("Return", items=[{"id": "return", "item_code": self.item, "qty": 1, "uom": "Nos", "loan_item": loan_item, "outcome": "Returned", "to_warehouse": self.a}])
 		returned = self.signed(returned)
