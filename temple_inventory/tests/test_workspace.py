@@ -5,6 +5,7 @@ No production stock or existing documents are changed.
 """
 
 import copy
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -113,6 +114,40 @@ class WorkspaceTests(unittest.TestCase):
 			inventory_service._selection_values('["Room / A, east", "Room / B"]'), ["Room / A, east", "Room / B"]
 		)
 		self.assertEqual(inventory_service._selection_values("Room / A, east"), ["Room / A, east"])
+
+	def test_loans_accepts_rpc_string_paging_after_active_parent_selection(self):
+		parents = [
+			frappe._dict(name="loan-3", borrower="甲", activity="活动", posting_datetime="2026-01-03"),
+			frappe._dict(name="loan-2", borrower="乙", activity="活动", posting_datetime="2026-01-02"),
+			frappe._dict(name="loan-1", borrower="丙", activity="活动", posting_datetime="2026-01-01"),
+		]
+		def rows(names):
+			return [frappe._dict(loan=name, loan_item=f"{name}-item", item_code=self.item, loaned=1, returned=0, damaged=0, lost=0, outstanding=1, borrower=name, activity="活动", loan_date="2026-01-01", uom="Nos") for name in names]
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_active_loan_parent_query", return_value=("1=1", {})), patch.object(inventory_service, "_all_loan_rows", side_effect=rows), patch.object(inventory_service.frappe.db, "sql", side_effect=[[frappe._dict(total=3)], [parents[1]]]), patch.object(inventory_service.frappe, "get_list", return_value=[frappe._dict(name=self.item, item_name="Test item", image=None)]):
+			result = inventory_service.loans(search="Test", start="1", page_length="1")
+		self.assertEqual(result["start"], 1)
+		self.assertEqual(result["page_length"], 1)
+		self.assertEqual(result["total"], 3)
+		self.assertEqual([row["name"] for row in result["results"]], ["loan-2"])
+
+	def test_physical_tree_keeps_an_empty_group_for_management(self):
+		settings = SimpleNamespace(root_warehouse="root", physical_root_warehouse="physical", leased_warehouse="loan")
+		rows = {
+			"root": SimpleNamespace(name="root", lft=1, rgt=8, is_group=1, warehouse_type=None),
+			"physical": SimpleNamespace(name="physical", lft=2, rgt=7, is_group=1, warehouse_type="地点"),
+			"room": SimpleNamespace(name="room", lft=3, rgt=4, is_group=1, warehouse_type="房间"),
+			"loan": SimpleNamespace(name="loan", lft=5, rgt=6, is_group=1, warehouse_type="虚拟"),
+		}
+		with patch.object(inventory_service, "_visible_warehouses", return_value=rows), patch.object(inventory_service, "_system_warehouse_names", return_value={"loan"}):
+			self.assertEqual(set(inventory_service._physical_tree(settings)), {"room"})
+
+	def test_warehouse_management_status_handles_stale_roots_without_a_tree(self):
+		settings = SimpleNamespace(company=self.company, root_warehouse="missing", physical_root_warehouse="also missing")
+		with patch.object(inventory_service, "_allowed_warehouses", return_value={}):
+			status = inventory_service._warehouse_management_status(settings, {}, {})
+		self.assertEqual(status[0]["code"], "stale_root")
+		self.assertEqual(status[0]["action"]["type"], "repair")
+		self.assertEqual(status[0]["action"]["operation"], "repair_root")
 
 	def create(self, kind="Receive", **data):
 		return api.create_workspace(
@@ -232,6 +267,12 @@ class WorkspaceTests(unittest.TestCase):
 			page = inventory(search="物品", start=100, page_length=5)
 		self.assertEqual(page["total"], 105)
 		self.assertEqual(len(page["results"]), 5)
+
+	def test_inventory_catalog_uses_database_paging_on_real_site(self):
+		page = inventory(mode="catalog", search=self.item, start=0, page_length=1)
+		self.assertEqual(page["total"], 1)
+		self.assertEqual([row["item_code"] for row in page["results"]], [self.item])
+		self.assertIn("facets", page)
 
 	def test_expiry_aggregates_filters_sorts_and_paginates(self):
 		warehouses, settings = self._mock_inventory_context()
@@ -374,6 +415,46 @@ class WorkspaceTests(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			api.save_workspace(d["name"], result["revision"], result["data"])
 
+	def test_reconciliation_reuses_inserted_draft_on_retry(self):
+		settings = frappe.get_single("Temple Inventory Settings")
+		settings.physical_root_warehouse = self.root
+		settings.save()
+		frappe.db.set_value("Item", self.item, "valuation_rate", 1)
+		payload = {
+			"warehouse": self.a,
+			"mode": "selective",
+			"posting_date": nowdate(),
+			"posting_time": "12:00:00",
+			"handler_name": "盘点经手人",
+			"handler_signature": SIGNATURE,
+			"no_independent_reviewer": 1,
+			"items": [{"item_code": self.item, "counted_qty": 1}],
+		}
+		draft = api.create_reconciliation(
+			frappe.generate_hash(length=16), json.dumps(payload, ensure_ascii=False)
+		)
+		meta = frappe.get_meta("Stock Reconciliation")
+		existing_data = {
+			"doctype": "Stock Reconciliation",
+			"company": self.company,
+			"purpose": "Stock Reconciliation",
+			"posting_date": payload["posting_date"],
+			"posting_time": payload["posting_time"],
+			"items": [{"item_code": self.item, "warehouse": self.a, "qty": 1, "stock_uom": "Nos", "valuation_rate": 1}],
+		}
+		if meta.has_field("ti_workspace"):
+			existing_data["ti_workspace"] = draft["name"]
+		existing = frappe.get_doc(existing_data).insert(
+			set_name=api._reconciliation_document_name(draft["name"]) if not meta.has_field("ti_workspace") else None
+		)
+		if meta.has_field("ti_workspace"):
+			self.assertEqual(frappe.db.get_value("Stock Reconciliation", {"ti_workspace": draft["name"]}, "name"), existing.name)
+		result = api.confirm_reconciliation(draft["name"], draft["revision"])
+		linked_names = frappe.get_all("Stock Reconciliation", filters={"ti_workspace": draft["name"]}, pluck="name") if meta.has_field("ti_workspace") else []
+		self.assertEqual(result["stock_reconciliation"], existing.name, linked_names)
+		self.assertEqual(frappe.db.count("Stock Reconciliation", {"name": existing.name}), 1)
+		self.assertEqual(frappe.db.get_value("Stock Reconciliation", existing.name, "docstatus"), 1)
+
 	def test_signature_invalidated_and_direct_edit_blocked(self):
 		d = self.signed(self.create())
 		p = copy.deepcopy(d["data"])
@@ -468,11 +549,24 @@ class WorkspaceTests(unittest.TestCase):
 		d = api.confirm_workspace(d["name"], d["revision"])
 		self.assertEqual(d["docstatus"], 1)
 		self.assertEqual(api.batches(self.item, self.a)[0]["qty"], 2)
+		expiry = expiring_batches(search=self.item, warehouse=self.a, page_length=1)
+		self.assertEqual(expiry["total"], 1)
+		self.assertEqual(expiry["results"][0]["item_code"], self.item)
 
 	def test_history_filters_and_leaf_rejection(self):
 		d = self.create(source_text="A Donor")
+		sql_page = api.history({"source_text": "A Donor", "movement_kind": "Receive"}, page_length=1)
+		self.assertEqual(sql_page["total"], 1)
+		self.assertEqual(sql_page["results"][0]["name"], d["name"])
+		search_page = api.history({"search": "A Donor"}, page_length=1)
+		self.assertEqual(search_page["total"], 1)
+		self.assertEqual(search_page["results"][0]["name"], d["name"])
 		result = api.history({"source_text": "A Donor", "room": self.room, "movement_kind": "Receive"})
 		self.assertEqual(result["total"], 1)
+		page = api.history(page_length=1)
+		self.assertGreaterEqual(page["total"], 1)
+		self.assertEqual(len(page["results"]), 1)
+		self.assertGreaterEqual(page["facets"]["movement_kind"].get("Receive", 0), 1)
 		d = self.create(
 			items=[{"id": "bad", "item_code": self.item, "qty": 2, "warehouse": self.room, "uom": "Nos"}]
 		)
@@ -520,6 +614,10 @@ class WorkspaceTests(unittest.TestCase):
 		names = frappe.get_list("Inventory Workspace", pluck="name")
 		self.assertIn(visible["name"], names)
 		self.assertNotIn(hidden["name"], names)
+		history_page = api.history(page_length=100)
+		history_names = {row["name"] for row in history_page["results"]}
+		self.assertIn(visible["name"], history_names)
+		self.assertNotIn(hidden["name"], history_names)
 		draft = api.create_workspace(frappe.generate_hash(length=16), "Receive", {"notes": "Volunteer draft"})
 		self.assertEqual(draft["docstatus"], 0)
 		unit = create_uom("Unit " + self.token, True)
@@ -569,10 +667,29 @@ class WorkspaceTests(unittest.TestCase):
 			}
 		).insert()
 		self.assertTrue(file.is_private)
+		attachment = next(row for row in api.load_workspace(d["name"])["attachments"] if row["name"] == file.name)
+		self.assertIn("file_type", attachment)
+		self.assertIn("file_size", attachment)
 		d = self.signed(d)
 		api.confirm_workspace(d["name"], d["revision"])
 		with self.assertRaises(frappe.ValidationError):
 			api.remove_attachment(d["name"], file.name)
+
+	def test_item_detail_uses_file_type_for_attachments(self):
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "item-note.txt",
+				"content": "test",
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+			}
+		).insert()
+
+		detail = api.item_detail(self.item)
+
+		attachment = next(row for row in detail["attachments"] if row["name"] == file.name)
+		self.assertIn("file_type", attachment)
 
 
 def run():

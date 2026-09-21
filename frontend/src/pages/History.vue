@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Combobox } from 'frappe-ui'
-import { api, labels, warehouseLabel, workspaceApi } from '../lib/api'
+import { api, labels, warehouseLabelContract, workspaceApi } from '../lib/api'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
@@ -17,6 +17,7 @@ const rows = ref<any[]>([])
 const total = ref(0)
 const overallTotal = ref(0)
 const unfinishedCount = ref(0)
+const facets = ref<Record<string, Record<string, number>>>({ movement_kind: {}, warehouses: {}, item_groups: {} })
 const start = ref(0)
 const error = ref('')
 const busy = ref(true)
@@ -25,9 +26,13 @@ const activities = ref<any[]>([])
 const filterOpen = ref(false)
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null)
 const sentinel = ref<HTMLElement>()
+const resultsPane = ref<HTMLElement>()
+const scrollKey = 'temple_inventory.scroll.movements'
 const pageLength = 25
 const statusGroup = ref(route.query.status === 'unfinished' ? 'unfinished' : 'completed')
-const canMove = computed(() => Boolean(boot.value?.can_create_stock_entry))
+const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {})
+const canMove = computed(() => ['Receive', 'Issue', 'Transfer', 'Loan', 'Return', 'Damage', 'Loss', 'Repair', 'Disposal'].some(kind => operationCaps.value[kind]))
+const movementActions = computed(() => ['Receive', 'Issue', 'Transfer'].filter(kind => operationCaps.value[kind]).map(kind => ({ kind, label: labels[kind] })))
 const primaryKinds = ['Receive', 'Issue', 'Transfer', '盘点调整']
 const specialKinds = ['Damage', 'Loss', 'Repair', 'Disposal', 'Loan', 'Return']
 const filters = ref({
@@ -49,9 +54,10 @@ const activityOptions = computed(() => activities.value.map(activity => ({
   value: activity.name,
 })))
 const activeCount = computed(() => Object.values(filters.value).reduce((count, value) => count + (Array.isArray(value) ? value.length : value ? 1 : 0), 0))
-const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabel(row.name, boot.value?.warehouse_tree || []), parent: row.parent_warehouse })))
+const warehouseText = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
+const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).full_label, search_text: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).search_text, parent: row.parent_warehouse })))
 const chips = computed(() => [
-  ...filters.value.rooms.map(value => ({ key: 'rooms', value, label: warehouseLabel(value, boot.value?.warehouse_tree || []) })),
+  ...filters.value.rooms.map(value => ({ key: 'rooms', value, label: warehouseText(value) })),
   ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : []),
   ...(filters.value.movement_kind ? [{ key: 'movement_kind', label: labels[filters.value.movement_kind] || filters.value.movement_kind }] : []),
   ...(filters.value.date_from ? [{ key: 'date_from', label: `开始：${filters.value.date_from}` }] : []),
@@ -67,8 +73,9 @@ function removeChip(chip: any) {
   else (filters.value as any)[chip.key] = ''
 }
 function clearAll() {
-  filters.value = { search: '', movement_kind: 'Receive', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] }
+  filters.value = { search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] }
   start.value = 0
+  resultsPane.value?.scrollTo({ top: 0 })
 }
 function operation(kind: string) { void router.push(`/new/${kind}`) }
 
@@ -104,6 +111,7 @@ async function load(offset = start.value, debounceText = false, append = false) 
       total.value = data.total || 0
 		overallTotal.value = data.overall_total || 0
       unfinishedCount.value = data.unfinished_count || 0
+      facets.value = data.facets || { movement_kind: {}, warehouses: {}, item_groups: {} }
       syncingRoute = true
       await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
       syncingRoute = false
@@ -131,14 +139,14 @@ async function selectGroup(group: string) {
 }
 async function deleteDraft(name: string) {
   if (!window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return
-  try { await workspaceApi('delete_draft', { name }); await load() } catch (cause: any) { error.value = cause.message }
+  try { await workspaceApi('delete_draft', { name }); window.dispatchEvent(new Event('ti:refresh-shell')); await load() } catch (cause: any) { error.value = cause.message }
 }
 function applyQuery(query: Record<string, unknown>) {
   const hydrated = hydrateFilterQuery(query, {
-    search: '', movement_kind: 'Receive', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] as string[], start: '0',
+    search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] as string[], start: '0',
   })
   const next = {
-    search: String(hydrated.search || ''), movement_kind: String(hydrated.movement_kind || 'Receive'), date_from: String(hydrated.date_from || ''),
+    search: String(hydrated.search || ''), movement_kind: String(hydrated.movement_kind || ''), date_from: String(hydrated.date_from || ''),
     date_to: String(hydrated.date_to || ''), source_text: String(hydrated.source_text || ''), purpose_text: String(hydrated.purpose_text || ''),
     activity: String(hydrated.activity || ''), handler_name: String(hydrated.handler_name || ''), rooms: hydrated.rooms as string[],
   }
@@ -178,18 +186,20 @@ onMounted(async () => {
       if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value) void load(rows.value.length, false, true)
     }, { rootMargin: '240px' })
     if (sentinel.value) observer.observe(sentinel.value)
+    const saved = Number(sessionStorage.getItem(scrollKey) || 0)
+    if (saved) resultsPane.value?.scrollTo({ top: saved })
   } catch (cause: any) {
     error.value = cause.message
   }
 })
-onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
+onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (resultsPane.value) sessionStorage.setItem(scrollKey, String(resultsPane.value.scrollTop)) })
 </script>
 
 <template>
   <main class="app-shell wide-shell">
     <header class="browse-back"><RouterLink to="/more">‹ 更多</RouterLink></header>
-    <nav class="toolbar movement-modes" aria-label="货物流动类型"><button v-for="kind in primaryKinds" :key="kind" type="button" :class="{ primary: filters.movement_kind === kind }" @click="filters.movement_kind = kind; statusGroup = 'completed'">{{ labels[kind] }}</button><button v-if="boot?.can_reconcile_stock" type="button" @click="router.push('/reconcile/new')">盘点</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">草稿 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
-    <p v-if="error" class="error">{{ error }}</p>
+    <nav class="toolbar movement-modes" aria-label="货物流动类型"><button v-for="kind in primaryKinds" :key="kind" type="button" :class="{ primary: filters.movement_kind === kind }" @click="filters.movement_kind = kind; statusGroup = 'completed'">{{ labels[kind] }}<b v-if="facets.movement_kind[kind]">（{{ facets.movement_kind[kind] }}）</b></button><button v-if="boot?.can_reconcile_stock" type="button" @click="router.push('/reconcile/new')">盘点</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">草稿 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
+    <p v-if="error" class="error" role="alert">{{ error }} <button type="button" @click="load(start)">重试</button></p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
         <HierarchyAutocomplete v-model="filters.rooms" title="仓库 / 位置" placeholder="搜索或浏览仓库 / 位置" :options="warehouseOptions" :tree="warehouseOptions" />
@@ -197,7 +207,7 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
         <fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset>
         <fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<Combobox v-model="filters.activity" :options="activityOptions" placeholder="搜索活动" aria-label="搜索活动" /></label><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset>
       </ResponsiveFilterPanel>
-      <div class="results-column">
+      <div ref="resultsPane" class="results-column">
         <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…" aria-label="搜索记录、来源、物品"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部记录 ${overallTotal}` }}</span></div>
         <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载记录…" />
@@ -209,6 +219,6 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
         <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button" :disabled="busy" @click="load(rows.length, false, true)">{{busy?'正在加载…':'加载更多'}}</button>
       </div>
     </div>
-    <FloatingActionMenu v-if="canMove || boot?.can_reconcile_stock" :actions="[{ kind: 'Receive', label: '入库' }, { kind: 'Issue', label: '出库' }, { kind: 'Transfer', label: '转移' }, ...(boot?.can_reconcile_stock ? [{ kind: 'Reconcile', label: '盘点' }] : [])]" @select="kind => kind === 'Reconcile' ? router.push('/reconcile/new') : operation(kind)"/>
+    <FloatingActionMenu v-if="canMove || boot?.can_reconcile_stock" :actions="[...movementActions, ...(boot?.can_reconcile_stock ? [{ kind: 'Reconcile', label: '盘点' }] : [])]" @select="kind => kind === 'Reconcile' ? router.push('/reconcile/new') : operation(kind)"/>
   </main>
 </template>

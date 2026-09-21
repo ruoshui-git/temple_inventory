@@ -8,7 +8,18 @@ const trigger = ref<HTMLButtonElement>()
 function close() { open.value = false }
 function onKeydown(event: KeyboardEvent) { if (event.key === 'Escape') { close(); void trigger.value?.focus() } }
 function onPointerdown(event: PointerEvent) { if (!(event.target instanceof Node) || !((event.currentTarget as Document).querySelector('.floating-action-menu') as HTMLElement)?.contains(event.target)) close() }
-function choose(kind: string) { close(); emit('select', kind) }
+function move(event: KeyboardEvent, direction: number) {
+  const menu = (event.currentTarget as HTMLElement).closest('[role="menu"]')
+  const buttons = menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')) : []
+  const index = buttons.indexOf(event.currentTarget as HTMLButtonElement)
+  buttons[(index + direction + buttons.length) % buttons.length]?.focus()
+}
+function edge(event: KeyboardEvent, last = false) {
+  const menu = (event.currentTarget as HTMLElement).closest('[role="menu"]')
+  const buttons = menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')) : []
+  buttons[last ? buttons.length - 1 : 0]?.focus()
+}
+function choose(kind: string) { close(); void trigger.value?.focus(); emit('select', kind) }
 onMounted(() => { document.addEventListener('keydown', onKeydown); document.addEventListener('pointerdown', onPointerdown) })
 onBeforeUnmount(() => { document.removeEventListener('keydown', onKeydown); document.removeEventListener('pointerdown', onPointerdown) })
 </script>
@@ -16,7 +27,7 @@ onBeforeUnmount(() => { document.removeEventListener('keydown', onKeydown); docu
 <template>
   <div class="floating-action-menu">
     <div v-if="open" class="floating-actions" role="menu" :aria-label="label">
-      <button v-for="action in props.actions" :key="action.kind" type="button" role="menuitem" @click="choose(action.kind)">{{ action.label }}</button>
+      <button v-for="action in props.actions" :key="action.kind" type="button" role="menuitem" @keydown.down.prevent="move($event, 1)" @keydown.up.prevent="move($event, -1)" @keydown.home.prevent="edge($event)" @keydown.end.prevent="edge($event, true)" @click="choose(action.kind)">{{ action.label }}</button>
     </div>
     <button ref="trigger" type="button" class="action-fab" :aria-expanded="open" :aria-label="label" @click="open = !open">＋</button>
   </div>

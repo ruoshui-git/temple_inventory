@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { warehouseLabel } from '../lib/api'
+import { warehouseLabelContract } from '../lib/api'
 
 type Node = {
   name: string
@@ -32,7 +32,7 @@ const leaves = computed(() => props.nodes.filter(node =>
 const normalizedSearch = computed(() => props.searchTerm?.trim().toLowerCase() || '')
 const selfMatches = computed(() => {
   if (!normalizedSearch.value) return true
-  return (props.node.name + ' ' + (props.node.warehouse_name || '') + ' ' + warehouseLabel(props.node.name, props.tree))
+  return warehouseLabelContract(props.node.name, props.tree).search_text
     .toLowerCase()
     .includes(normalizedSearch.value)
 })
@@ -42,7 +42,7 @@ const visible = computed(() => selfMatches.value || children.value.some(child =>
     (node.rgt || 0) <= (child.rgt || 0),
   )
   return descendants.some(node =>
-    (node.name + ' ' + (node.warehouse_name || '') + ' ' + warehouseLabel(node.name, props.tree))
+    warehouseLabelContract(node.name, props.tree).search_text
       .toLowerCase()
       .includes(normalizedSearch.value),
   )
@@ -91,7 +91,7 @@ function toggle() {
     <div class="tree-row">
       <button v-if="children.length" type="button" class="tree-toggle" :aria-expanded="expanded" :aria-label="(expanded ? '收起' : '展开') + ' ' + (node.warehouse_name || node.name)" @click="expanded = !expanded">{{ expanded ? '−' : '+' }}</button>
       <span v-else class="tree-spacer" aria-hidden="true"></span>
-      <label><input type="checkbox" :checked="checked" :indeterminate="indeterminate" @change="toggle"><span>{{ warehouseLabel(node.name, tree) }}</span><small v-if="node.is_group">分组</small></label>
+      <label><input type="checkbox" :checked="checked" :indeterminate="indeterminate" @change="toggle"><span>{{ warehouseLabelContract(node.name, tree).full_label }}</span><small v-if="node.is_group">分组</small></label>
     </div>
     <ul v-if="children.length && (expanded || searchTerm)" class="tree-children">
       <WarehouseTreeNode v-for="child in children" :key="child.name" :node="child" :nodes="nodes" :tree="tree" :model-value="modelValue" :search-term="searchTerm" @update:model-value="emit('update:modelValue', $event)" />

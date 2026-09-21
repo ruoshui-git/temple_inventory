@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { labels, warehouseLabel } from '../src/lib/api'
+import { labels, warehouseLabel, warehouseLabelContract } from '../src/lib/api'
 
 describe('inventory browse contracts', () => {
   const tree = [
@@ -19,5 +19,13 @@ describe('inventory browse contracts', () => {
     expect(labels.Reconcile).toBe('盘点')
     expect(labels['盘点调整']).toBe('盘点调整')
     expect(labels.Receive).toBe('入库')
+  })
+
+  it('exposes structured warehouse labels for display, search, and selection roles', () => {
+    expect(warehouseLabelContract('unspecified', tree)).toMatchObject({
+      local_label: 'A02 / 未指定', full_label: 'A02 / 房间内，未细分到货架', role: 'leaf', warehouse_type: 'Location',
+    })
+    expect(warehouseLabelContract('unspecified', tree).search_text).toContain('a02')
+    expect(warehouseLabelContract('room', tree).role).toBe('group')
   })
 })

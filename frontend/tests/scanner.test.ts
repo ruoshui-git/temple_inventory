@@ -3,20 +3,29 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { sessionExpired } from '../src/lib/api'
 import Scanner from '../src/components/Scanner.vue'
 
-const state = vi.hoisted(() => ({ starts: [] as string[], stops: 0, callbacks: [] as ((value: string) => void)[] }))
+const state = vi.hoisted(() => ({
+  starts: [] as string[],
+  stops: 0,
+  callbacks: [] as ((value: string) => void)[],
+  errors: [] as ((error: unknown) => void)[],
+  startError: undefined as Error | undefined,
+}))
 vi.mock('../src/lib/scanner', () => ({
   cameraError: (error: any) => String(error?.message || error),
   ScannerService: class {
     engineId = (localStorage.getItem('temple_inventory.scanner_engine') as any) || 'frappe'
     get engineLabel() { return this.engineId === 'frappe' ? 'Frappe 内置' : 'ZXing-WASM' }
-    async start(_container: HTMLElement, callback: (value: string) => void) { state.starts.push(this.engineId); state.callbacks.push(callback) }
+    async start(_container: HTMLElement, callback: (value: string) => void, onError: (error: unknown) => void) {
+      if (state.startError) { const error = state.startError; state.startError = undefined; throw error }
+      state.starts.push(this.engineId); state.callbacks.push(callback); state.errors.push(onError)
+    }
     async stop() { state.stops++ }
     async selectEngine(id: any) { state.stops++; this.engineId = id; localStorage.setItem('temple_inventory.scanner_engine', id) }
   },
 }))
 
 beforeEach(() => {
-  vi.clearAllMocks(); state.starts.length = 0; state.stops = 0; state.callbacks.length = 0
+  vi.clearAllMocks(); state.starts.length = 0; state.stops = 0; state.callbacks.length = 0; state.errors.length = 0; state.startError = undefined
   localStorage.clear(); sessionExpired.value = false
   Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
   Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn() }, configurable: true })
@@ -52,5 +61,30 @@ describe('Scanner component', () => {
     sessionExpired.value = false; await flushPromises(); expect(state.starts.length).toBe(initialStarts + 2)
     await wrapper.find('.toolbar button').trigger('click'); await flushPromises(); expect(state.stops).toBe(3)
     wrapper.unmount(); await flushPromises(); expect(state.stops).toBe(4)
+  })
+
+  it('keeps manual entry available and reports an asynchronous error after switching engines', async () => {
+    const wrapper = mount(Scanner); await flushPromises()
+    await wrapper.find('.scanner-engine button').trigger('click'); await flushPromises()
+    state.errors[1](new Error('camera lost')); await flushPromises()
+    expect(wrapper.text()).toContain('camera lost')
+    await wrapper.find('input').setValue('MANUAL-1'); await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('scan')).toContainEqual(['MANUAL-1'])
+    wrapper.unmount()
+  })
+
+  it('shows an initial startup failure and retries without losing manual entry', async () => {
+    state.startError = new Error('initial camera failure')
+    const wrapper = mount(Scanner)
+    await flushPromises()
+    expect(wrapper.text()).toContain('initial camera failure')
+    expect(wrapper.find('form').exists()).toBe(true)
+    const retry = wrapper.findAll('button').find(button => button.text() === '重试相机')
+    expect(retry).toBeDefined()
+    await retry!.trigger('click')
+    await flushPromises()
+    expect(state.starts).toEqual(['frappe'])
+    expect(wrapper.text()).not.toContain('initial camera failure')
+    wrapper.unmount()
   })
 })

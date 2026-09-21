@@ -20,7 +20,7 @@ function decoded(value: string) {
 async function start() {
   if (starting.value || disposed || props.paused || sessionExpired.value || !area.value) return
   starting.value = true; error.value = ''
-  try { await service.start(area.value, decoded) }
+  try { await service.start(area.value, decoded, e => { if (!disposed) error.value = cameraError(e) }) }
   catch (e) { if (!disposed) error.value = cameraError(e) }
   finally { starting.value = false }
 }
@@ -31,7 +31,7 @@ async function switchEngine() {
   starting.value = true; error.value = ''
   try {
     await service.selectEngine(next); engineId.value = service.engineId; engineLabel.value = service.engineLabel
-    if (!props.paused && !sessionExpired.value) await service.start(area.value!, decoded)
+    if (!props.paused && !sessionExpired.value) await service.start(area.value!, decoded, e => { if (!disposed) error.value = cameraError(e) })
   } catch (e) { if (!disposed) error.value = cameraError(e) }
   finally { starting.value = false }
 }

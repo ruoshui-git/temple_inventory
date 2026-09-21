@@ -157,6 +157,17 @@
   },
   {
     "doctype": "Custom Field",
+    "dt": "Stock Reconciliation",
+    "fieldname": "ti_workspace",
+    "fieldtype": "Link",
+    "label": "Inventory Workspace",
+    "insert_after": "purpose",
+    "options": "Inventory Workspace",
+    "module": "Temple Inventory",
+    "name": "Stock Reconciliation-ti_workspace"
+  },
+  {
+    "doctype": "Custom Field",
     "dt": "Stock Entry",
     "fieldname": "ti_handler_name",
     "fieldtype": "Data",

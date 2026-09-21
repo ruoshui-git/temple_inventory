@@ -1,8 +1,7 @@
-import { prepareZXingModule, readBarcodes } from 'zxing-wasm/reader'
 import zxingWasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url'
 
 export type ScannerEngineId = 'frappe' | 'zxing-wasm'
-export interface ScannerEngine { readonly id: ScannerEngineId; readonly label: string; start(container: HTMLElement, onScan: (value: string) => void): Promise<void>; stop(): Promise<void> }
+export interface ScannerEngine { readonly id: ScannerEngineId; readonly label: string; start(container: HTMLElement, onScan: (value: string) => void, onError?: (error: unknown) => void): Promise<void>; stop(): Promise<void> }
 
 const scripts = new Map<string, Promise<void>>()
 function load(src: string) {
@@ -41,75 +40,120 @@ export class FrappeScannerEngine implements ScannerEngine {
   readonly id = 'frappe' as const; readonly label = 'Frappe 内置'
   private scanner: any; private startPromise?: Promise<any>; private container?: HTMLElement
   private generation = 0
-  async start(container: HTMLElement, onScan: (value: string) => void) {
-    const generation = ++this.generation
-    this.container = container
-    const Scanner = await loadScanner()
-    if (generation !== this.generation) return
+	async start(container: HTMLElement, onScan: (value: string) => void) {
+		const generation = ++this.generation
+		this.container = container
+		const Scanner = await loadScanner()
+		if (generation !== this.generation) return
     const scanner = new Scanner({ container, multiple: true, on_scan: (result: any) => onScan(String(result?.decodedText || '')) })
     this.scanner = scanner
     const handler = new (window as any).Html5Qrcode(scanner.scan_area_id)
     const original = handler.start.bind(handler)
-    handler.start = (...args: any[]) => { this.startPromise = original(...args); return this.startPromise }
-    scanner.handler = handler
-    scanner.start_scan()
-    await this.startPromise
-    if (generation !== this.generation) await this.stop()
-  }
-  async stop() {
-    this.generation++
-    const active = this.scanner; this.scanner = undefined
-    try { await this.startPromise; if (active?.handler?.isScanning) await active.handler.stop(); active?.handler?.clear() }
+		handler.start = (...args: any[]) => { this.startPromise = original(...args); return this.startPromise }
+		scanner.handler = handler
+		try {
+			const result = scanner.start_scan()
+			if (!this.startPromise && result && typeof result.then === 'function') this.startPromise = result
+		} catch (error) {
+			this.startPromise = Promise.reject(error)
+		}
+		await this.startPromise
+		if (generation !== this.generation) await this.stop()
+	}
+	async stop() {
+		this.generation++
+		const active = this.scanner; this.scanner = undefined
+		try {
+			// Do not await an unresolved startup: camera teardown must be cancellable.
+			// Consume a later rejection so it cannot become an unhandled promise.
+			this.startPromise?.catch(() => undefined)
+			if (active?.handler?.isScanning) await active.handler.stop()
+			active?.handler?.clear()
+		}
     finally { this.startPromise = undefined; this.container?.replaceChildren(); this.container = undefined }
   }
 }
 
 let zxingReady: Promise<unknown> | undefined
+let zxingModule: Promise<typeof import('zxing-wasm/reader')> | undefined
+function loadZXing() {
+  if (!zxingModule) {
+    zxingModule = import('zxing-wasm/reader').catch(error => { zxingModule = undefined; throw error })
+  }
+  return zxingModule
+}
 function prepareReader() {
-  return zxingReady ||= Promise.resolve(prepareZXingModule({ fireImmediately: true, overrides: { locateFile: () => zxingWasmUrl } })).catch(error => { zxingReady = undefined; throw error })
+	return zxingReady ||= loadZXing().then(({ prepareZXingModule }) => prepareZXingModule({ fireImmediately: true, overrides: { locateFile: () => zxingWasmUrl } })).catch(error => { zxingReady = undefined; throw error })
 }
 
 export class ZxingWasmScannerEngine implements ScannerEngine {
   readonly id = 'zxing-wasm' as const; readonly label = 'ZXing-WASM'
   private video?: HTMLVideoElement; private stream?: MediaStream; private container?: HTMLElement; private startup?: Promise<void>
-  private generation = 0; private timer?: ReturnType<typeof setTimeout>; private decoding = false
-  async start(container: HTMLElement, onScan: (value: string) => void) {
+  private canvas?: HTMLCanvasElement; private context?: CanvasRenderingContext2D; private cancelVideoWait?: () => void
+  private generation = 0; private timer?: ReturnType<typeof setTimeout>; private decoding = false; private lastDecodeError = 0
+  async start(container: HTMLElement, onScan: (value: string) => void, onError?: (error: unknown) => void) {
     await this.stop(); const generation = ++this.generation; this.container = container
-    this.startup = this.startInternal(container, generation, onScan)
+    this.startup = this.startInternal(container, generation, onScan, onError)
     try { await this.startup } catch (error) { this.startup = undefined; await this.stop(); throw error } finally { this.startup = undefined }
   }
-  private async startInternal(container: HTMLElement, generation: number, onScan: (value: string) => void) {
+  private async startInternal(container: HTMLElement, generation: number, onScan: (value: string) => void, onError?: (error: unknown) => void) {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' } } })
     if (generation !== this.generation) { stream.getTracks().forEach(track => track.stop()); return }
     this.stream = stream
     const video = document.createElement('video'); video.muted = true; video.autoplay = true; video.playsInline = true; video.srcObject = stream
     container.replaceChildren(video); this.video = video
-    await this.waitForVideo(video); await video.play(); await prepareReader(); this.scheduleDecode(generation, onScan)
+    await this.waitForVideo(video); if (generation !== this.generation) return
+    await video.play(); if (generation !== this.generation) return
+    await prepareReader(); this.scheduleDecode(generation, onScan, onError)
   }
   private waitForVideo(video: HTMLVideoElement) {
     if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
     return new Promise<void>((resolve, reject) => {
       const done = () => { cleanup(); resolve() }; const timer = setTimeout(() => { cleanup(); reject(new Error('相机视频未准备好，请重试')) }, 10000)
       const cleanup = () => { clearTimeout(timer); video.removeEventListener('loadedmetadata', done); video.removeEventListener('canplay', done) }
+      this.cancelVideoWait = () => { cleanup(); resolve() }
       video.addEventListener('loadedmetadata', done, { once: true }); video.addEventListener('canplay', done, { once: true })
     })
   }
-  private scheduleDecode(generation: number, onScan: (value: string) => void) { if (generation === this.generation && this.video) this.timer = setTimeout(() => void this.decode(generation, onScan), 250) }
-  private async decode(generation: number, onScan: (value: string) => void) {
+  private reportDecodeError(error: unknown, generation: number, onError?: (error: unknown) => void) {
+    if (generation === this.generation && Date.now() - this.lastDecodeError > 2000) {
+      this.lastDecodeError = Date.now(); onError?.(error)
+    }
+  }
+  private scheduleDecode(generation: number, onScan: (value: string) => void, onError?: (error: unknown) => void) {
+    if (generation === this.generation && this.video) {
+      this.timer = setTimeout(() => {
+        // decode has a few browser APIs (canvas/video) outside the WASM call
+        // that can throw synchronously. Never create an unhandled rejection
+        // from the timer; the component must retain manual entry and retry.
+        void this.decode(generation, onScan, onError).catch(error => this.reportDecodeError(error, generation, onError))
+      }, 250)
+    }
+  }
+  private async decode(generation: number, onScan: (value: string) => void, onError?: (error: unknown) => void) {
     if (generation !== this.generation || !this.video || this.decoding) return
     const video = this.video; const width = video.videoWidth || video.clientWidth; const height = video.videoHeight || video.clientHeight
-    if (!width || !height) { this.scheduleDecode(generation, onScan); return }
-    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; const context = canvas.getContext('2d')
-    if (!context) throw new Error('浏览器不支持画布读取，请改用 Frappe 内置。')
+    if (!width || !height) { this.scheduleDecode(generation, onScan, onError); return }
+    const canvas = this.canvas ||= document.createElement('canvas'); canvas.width = width; canvas.height = height
+    if (!this.context) this.context = canvas.getContext('2d') || undefined
+    const context = this.context
+    if (!context) { this.reportDecodeError(new Error('浏览器不支持画布读取，请改用 Frappe 内置。'), generation, onError); return }
     context.drawImage(video, 0, 0, width, height); this.decoding = true
-    try { const results = await readBarcodes(context.getImageData(0, 0, width, height), { maxNumberOfSymbols: 1 }); if (generation === this.generation && results[0]?.text) onScan(results[0].text) }
-    finally { this.decoding = false; this.scheduleDecode(generation, onScan) }
+    try {
+      const { readBarcodes } = await loadZXing(); const results = await readBarcodes(context.getImageData(0, 0, width, height), { maxNumberOfSymbols: 1 })
+      if (generation === this.generation && results[0]?.text) onScan(results[0].text)
+    } catch (error) {
+      // A damaged frame can fail repeatedly. Keep scanning but do not turn the
+      // panel into a 4 Hz error announcer.
+      this.reportDecodeError(error, generation, onError)
+    }
+    finally { this.decoding = false; if (generation === this.generation) this.scheduleDecode(generation, onScan, onError) }
   }
   async stop() {
     this.generation++; if (this.timer) clearTimeout(this.timer); this.timer = undefined
-    try { await this.startup } catch { /* cleanup continues after failed startup */ }
+    this.cancelVideoWait?.(); this.cancelVideoWait = undefined
     this.video?.pause(); if (this.video) this.video.srcObject = null; this.stream?.getTracks().forEach(track => track.stop())
-    this.stream = undefined; this.video = undefined; this.container?.replaceChildren(); this.container = undefined; this.decoding = false
+    this.stream = undefined; this.video = undefined; this.canvas = undefined; this.context = undefined; this.container?.replaceChildren(); this.container = undefined; this.decoding = false; this.lastDecodeError = 0
   }
 }
 
@@ -126,7 +170,7 @@ export class ScannerService {
   get engineId() { return this.selected }
   get engineLabel() { return this.selected === 'frappe' ? 'Frappe 内置' : 'ZXing-WASM' }
   private enqueue<T>(operation: () => Promise<T>) { const next = this.queue.then(operation, operation); this.queue = next.then(() => undefined, () => undefined); return next }
-  start(container: HTMLElement, onScan: (value: string) => void) {
+  start(container: HTMLElement, onScan: (value: string) => void, onError?: (error: unknown) => void) {
     const generation = ++this.generation
     return this.enqueue(async () => {
       if (generation !== this.generation) return
@@ -134,7 +178,7 @@ export class ScannerService {
       await this.active?.stop(); if (generation !== this.generation) return
       const engine = this.factories[this.selected](); this.active = engine
       try {
-        await engine.start(container, onScan)
+        await engine.start(container, onScan, onError)
         if (generation !== this.generation) { if (this.active === engine) this.active = undefined; await engine.stop() }
       } catch (error) { if (this.active === engine) this.active = undefined; await engine.stop(); throw error }
     })

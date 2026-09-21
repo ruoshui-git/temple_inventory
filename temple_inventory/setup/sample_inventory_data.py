@@ -16,7 +16,7 @@ ERPNext / Frappe Phase 1 样本库存导入脚本
 3. 自动创建缺失的仓库层级：第1寺院、第2寺院为组仓库，A02/A04/... 为第2寺院下的实际仓库。
 4. 创建 Batch，包括已经过期的测试批次。
 5. 使用 Stock Reconciliation（Purpose=Opening Stock）建立初始库存，并自动使用公司的 Temporary Opening 账户作为 Difference Account。
-6. 批次物品按所需历史过账日期分组创建 Stock Reconciliation 草稿；脚本会自动确保这些日期所属的 Fiscal Year 已存在并分配给当前 Company。
+6. 批次物品按所需历史过账日期分组创建 Stock Reconciliation；脚本会自动确保这些日期所属的 Fiscal Year 已存在并分配给当前 Company，并默认提交库存凭证。
 7. 默认不会重复建立已有库存：如果该物品在对应仓库已有非零库存，脚本会跳过。
    因此最适合空白测试站点或刚 reinstall 的站点。
 8. 如果 setup/sample_images/approved_images.json 存在，则把人工审核通过的图片作为公开 File 附件上传并设置为 Item.image。
@@ -527,44 +527,67 @@ def _get_temporary_opening_account(company: str) -> str:
     )
 
 
-SAMPLE_RECONCILIATION_REMARKS = "Phase 1 样本初始库存自动导入"
-
-
-def _find_existing_sample_reconciliation(company: str) -> str | None:
+def _find_existing_sample_reconciliation(
+    company: str,
+    item_code_map: dict[str, str],
+) -> str | None:
     """
-    防止重复运行脚本时创建多个相同的 Stock Reconciliation 草稿。
+    防止重复运行脚本时创建多个相同的通用样本 Stock Reconciliation。
+
+    Stock Reconciliation 没有稳定可用的 remarks 字段，因此按子表中的 Item
+    Code 区分导入来源。服装导入只包含服装 Item，不会阻止通用导入。
     """
-    return frappe.db.get_value(
+    candidates = frappe.get_all(
         "Stock Reconciliation",
         {
             "company": company,
             "docstatus": 0,
             "purpose": "Opening Stock",
-            # "remarks": ["like", f"{SAMPLE_RECONCILIATION_REMARKS}%"],
         },
-        "name",
+        pluck="name",
     )
+    if not candidates:
+        return None
+
+    generic_item_codes = set(item_code_map.values())
+    rows = frappe.get_all(
+        "Stock Reconciliation Item",
+        filters={"parent": ["in", candidates]},
+        fields=["parent", "item_code"],
+        limit_page_length=0,
+    )
+    for row in rows:
+        if row.item_code in generic_item_codes:
+            return row.parent
+    return None
 
 
 def _create_opening_stock(
     company: str,
     item_code_map: dict[str, str],
+    submit_stock: int | bool = 1,
 ) -> dict:
-    """Create draft opening-stock reconciliations with valid historical dates.
+    """Create opening-stock reconciliations with valid historical dates.
 
     Expired batches are dated before their expiry; current/future batches and
-    non-batch items use AS_OF_DATE. Separate draft documents are used because a
+    non-batch items use AS_OF_DATE. Separate documents are used because a
     Stock Reconciliation has one posting date for all rows. Required historical
-    Fiscal Years are created/assigned automatically before the drafts are inserted.
+    Fiscal Years are created/assigned automatically before the documents are inserted.
+    Documents are submitted by default; pass ``submit_stock=0`` to leave drafts.
     """
-    existing = _find_existing_sample_reconciliation(company)
+    existing = _find_existing_sample_reconciliation(company, item_code_map)
     if existing:
+        existing_doc = frappe.get_doc("Stock Reconciliation", existing)
+        if int(submit_stock):
+            existing_doc.submit()
         return {
             "stock_reconciliation": existing,
             "stock_reconciliations": [existing],
             "created": False,
             "row_count": frappe.db.count("Stock Reconciliation Item", {"parent": existing}),
             "skipped": [],
+            "status": "Submitted" if int(submit_stock) else "Draft",
+            "submitted": bool(int(submit_stock)),
             "原因": "已存在本样本数据创建的 Stock Reconciliation 草稿",
         }
 
@@ -629,12 +652,11 @@ def _create_opening_stock(
             "posting_time": "12:00:00",
             "set_posting_time": 1,
             "expense_account": opening_account,
-            # "remarks": f"{SAMPLE_RECONCILIATION_REMARKS}（{posting_date}）",
             "items": grouped_rows[posting_date],
         })
-        # Deliberately leave as Draft. Stock is not posted until reviewed and
-        # submitted through the UI.
         doc.insert(ignore_permissions=True)
+        if int(submit_stock):
+            doc.submit()
         names.append(doc.name)
 
     return {
@@ -644,7 +666,8 @@ def _create_opening_stock(
         "row_count": sum(len(rows) for rows in grouped_rows.values()),
         "skipped": skipped,
         "purpose": "Opening Stock",
-        "status": "Draft",
+        "status": "Submitted" if int(submit_stock) else "Draft",
+        "submitted": bool(int(submit_stock)),
         "fiscal_years": fiscal_years,
     }
 
@@ -735,6 +758,7 @@ def _attach_approved_images(
 def import_sample_data(
     company: str | None = None,
     create_stock: int | bool = 1,
+    submit_stock: int | bool = 1,
     attach_images: int | bool = 1,
     replace_images: int | bool = 0,
 ):
@@ -748,6 +772,9 @@ def import_sample_data(
 
     只建 master data，不建立库存：
       ... --kwargs "{'company': 'My Company', 'create_stock': 0}"
+
+        建立库存但保留 Stock Reconciliation 草稿：
+            ... --kwargs "{'company': 'My Company', 'submit_stock': 0}"
     """
     company = _get_company(company)
 
@@ -766,6 +793,7 @@ def import_sample_data(
         stock_result = _create_opening_stock(
             company,
             item_code_map,
+            submit_stock=submit_stock,
         )
 
     image_result = {"attached": [], "skipped": []}
@@ -785,7 +813,7 @@ def import_sample_data(
         "Stock Reconciliation": stock_result.get("stock_reconciliation"),
         "新建 Stock Reconciliation": stock_result.get("created", False),
         "Stock Reconciliation 行数": stock_result.get("row_count", 0),
-        "库存凭证模式": "Stock Reconciliation（草稿）",
+        "库存凭证模式": "Stock Reconciliation（已提交）" if stock_result.get("submitted") else "Stock Reconciliation（草稿）",
         "跳过库存行数量": len(stock_result.get("skipped", [])),
         "库存结果": stock_result,
         "已附加图片数量": len(image_result["attached"]),

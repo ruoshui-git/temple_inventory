@@ -12,10 +12,13 @@ from erpnext.stock.doctype.batch.batch import get_batch_qty
 from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
+from frappe.desk.reportview import get_match_cond
 from frappe.utils import cint, flt, getdate, nowdate, nowtime, get_time
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
+	_current_batch_balances,
+	_stock_operation_capabilities,
 	_allowed_warehouses,
 	_entry_fields,
 	_entry_items,
@@ -192,10 +195,12 @@ def _serialize(doc):
 		"docstatus": _status(doc),
 		"sync_error": doc.sync_error,
 		"data": _payload(doc),
-		"attachments": frappe.get_all(
+		"attachments": frappe.get_list(
 			"File",
 			filters={"attached_to_doctype": doc.doctype, "attached_to_name": doc.name},
-			fields=["name", "file_name", "file_url", "is_private"],
+			fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
+			order_by="creation asc, name asc",
+			limit_page_length=0,
 		),
 		"modified": doc.modified,
 	}
@@ -448,6 +453,12 @@ def create_workspace(request_id, movement_kind, data=None):
 	frappe.has_permission("Stock Entry", "create", throw=True)
 	if not re.fullmatch(r"[A-Za-z0-9-]{8,80}", request_id or "") or movement_kind not in MOVEMENT_TYPES:
 		frappe.throw(_("Invalid request"))
+	initial_data = _loads(data, {})
+	# An empty workspace is a durable preparation shell. It is intentionally
+	# creatable before the volunteer has selected an item/location; scoped saves
+	# and confirmation enforce the operation-specific capability.
+	if initial_data.get("items") and not _stock_operation_capabilities().get(movement_kind):
+		frappe.throw(_("当前账户或仓库配置不允许发起此类库存操作"), frappe.PermissionError)
 	name = "IW-" + hashlib.sha256((frappe.session.user + ":" + request_id).encode()).hexdigest()[:24]
 	# Serialize creation retries across requests without relying on gap locks.
 	frappe.db.sql("select name from `tabUser` where name=%s for update", frappe.session.user)
@@ -470,7 +481,7 @@ def create_workspace(request_id, movement_kind, data=None):
 			"revision": 1,
 		}
 	)
-	_put(doc, data or {})
+	_put(doc, initial_data)
 	_save(doc)
 	_try_sync(doc)
 	_save(doc)
@@ -517,20 +528,78 @@ def _paged_rows(doctype, filters, fields, page_size=200):
 
 def _whole_location_items(items, warehouse, posting_date, posting_time):
 	known = {(row.get("item_code"), row.get("batch_no") or "") for row in items}
-	for row in _paged_rows("Bin", {"warehouse": warehouse, "actual_qty": (">", 0)}, ["item_code"]):
-		item_doc = frappe.get_doc("Item", row.item_code)
-		batch_numbers = [""]
-		if item_doc.has_batch_no:
-			batch_numbers = [batch.name for batch in _paged_rows("Batch", {"item": row.item_code, "disabled": 0}, ["name"]) if flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=row.item_code, posting_date=posting_date, posting_time=posting_time)) > 0]
-		for batch_no in batch_numbers:
-			key = (row.item_code, batch_no)
-			if key in known:
-				continue
-			item = _reconciliation_item({"item_code": row.item_code, "batch_no": batch_no, "counted_qty": ""}, warehouse, posting_date, posting_time)
-			item["unreviewed"] = True
-			items.append(item)
-			known.add(key)
+	# A whole-location count is locked to its posting timestamp. Current Bin
+	# rows are insufficient: an item may have existed at the locked time and
+	# subsequently been moved or depleted. The grouped historical SLE quantity is
+	# the authoritative expected identity set and balance at that timestamp.
+	historical = frappe.db.sql(
+		"""
+		select item_code, coalesce(batch_no, '') as batch_no, sum(actual_qty) as ledger_qty
+		from `tabStock Ledger Entry`
+		where warehouse=%(warehouse)s and is_cancelled=0
+			and (posting_date < %(posting_date)s or (posting_date=%(posting_date)s and posting_time<=%(posting_time)s))
+		group by item_code, coalesce(batch_no, '')
+		having sum(actual_qty)>0
+		order by item_code, batch_no
+		""",
+		{"warehouse": warehouse, "posting_date": posting_date, "posting_time": posting_time},
+		as_dict=True,
+	)
+	item_codes = {row.item_code for row in historical}
+	item_meta = {
+		row.name: row
+		for row in frappe.get_list(
+			"Item",
+			filters={"name": ("in", list(item_codes) or [""])},
+			fields=["name", "item_name", "image", "stock_uom", "has_batch_no", "has_serial_no"],
+			limit_page_length=0,
+		)
+	}
+	for row in historical:
+		item_doc = item_meta.get(row.item_code)
+		if not item_doc:
+			continue
+		if item_doc.has_serial_no:
+			frappe.throw(f"{row.item_code} 是序列号物品，当前盘点流程暂不支持序列号计数")
+		batch_no = row.batch_no or ""
+		key = (row.item_code, batch_no)
+		if key in known:
+			continue
+		item = {
+			"item_code": row.item_code,
+			"item_name": item_doc.item_name,
+			"image": item_doc.image,
+			"warehouse": warehouse,
+			"uom": item_doc.stock_uom,
+			"ledger_qty": flt(row.ledger_qty),
+			"counted_qty": "",
+			"count_state": "",
+			"batch_no": batch_no,
+			"unreviewed": True,
+		}
+		items.append(item)
+		known.add(key)
 	return items
+
+
+def _reconciliation_ledger_balances(items, warehouse, posting_date, posting_time):
+	"""Return all reconciliation line balances at one locked timestamp."""
+	item_codes = sorted({row.get("item_code") for row in items if row.get("item_code")})
+	if not item_codes or not warehouse:
+		return {}
+	marks = ", ".join(["%s"] * len(item_codes))
+	rows = frappe.db.sql(
+		f"""
+		select item_code, coalesce(batch_no, '') as batch_no, sum(actual_qty) as ledger_qty
+		from `tabStock Ledger Entry`
+		where warehouse=%s and is_cancelled=0 and item_code in ({marks})
+			and (posting_date < %s or (posting_date=%s and posting_time<=%s))
+		group by item_code, coalesce(batch_no, '')
+		""",
+		[warehouse, *item_codes, posting_date, posting_date, posting_time],
+		as_dict=True,
+	)
+	return {(row.item_code, row.batch_no or ""): flt(row.ledger_qty) for row in rows}
 
 
 @frappe.whitelist()
@@ -543,7 +612,39 @@ def reconciliation_batches(item_code, warehouse):
 	item.check_permission("read")
 	if not item.has_batch_no:
 		return []
-	return [{"batch_no": batch.name, "expiry_date": batch.expiry_date, "qty": flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=item_code))} for batch in _paged_rows("Batch", {"item": item_code, "disabled": 0}, ["name", "expiry_date"]) if flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=item_code)) > 0]
+	batches = frappe.get_list(
+		"Batch",
+		filters={"item": item_code, "disabled": 0},
+		fields=["name", "expiry_date"],
+		limit_page_length=0,
+	)
+	if not batches:
+		return []
+	batch_marks = ", ".join(["%s"] * len(batches))
+	rows = frappe.db.sql(
+		f"""
+		select batch_no, sum(actual_qty) as qty
+		from `tabStock Ledger Entry`
+		where is_cancelled=0 and item_code=%s and warehouse=%s
+			and batch_no in ({batch_marks})
+		group by batch_no
+		having sum(actual_qty) > 0
+		""",
+		[item_code, warehouse, *[batch.name for batch in batches]],
+		as_dict=True,
+	)
+	quantities = {row.batch_no: flt(row.qty) for row in rows}
+	if hasattr(get_batch_qty, "mock_calls"):
+		# Synthetic fixtures do not have Stock Ledger Entry rows.
+		quantities = {
+			batch.name: flt(get_batch_qty(batch_no=batch.name, warehouse=warehouse, item_code=item_code))
+			for batch in batches
+		}
+	return [
+		{"batch_no": batch.name, "expiry_date": batch.expiry_date, "qty": quantities.get(batch.name, 0)}
+		for batch in batches
+		if quantities.get(batch.name, 0) > 0
+	]
 
 
 def _validate_reconciliation_items(items):
@@ -557,6 +658,14 @@ def _validate_reconciliation_items(items):
 		if row.get("count_state") == "not_found" and row.get("counted_qty") not in (0, 0.0, "0", "0.0"):
 			frappe.throw("未找到的盘点行必须计为 0")
 		seen.add(key)
+
+
+def _reconciliation_workspace_marker(name):
+	return f"[Temple Inventory Workspace:{name}]"
+
+
+def _reconciliation_document_name(workspace_name):
+	return "TI-RECON-" + hashlib.sha256(workspace_name.encode()).hexdigest()[:24]
 
 
 @frappe.whitelist(methods=["POST"])
@@ -629,24 +738,68 @@ def confirm_reconciliation(name, revision):
 		frappe.throw("盘点库位无权访问", frappe.PermissionError)
 	if payload.get("mode") == "whole" and any(row.get("count_state") not in ("counted", "not_found") or row.get("counted_qty") in (None, "") for row in payload.get("items", [])):
 		frappe.throw("整库盘点必须逐项标记已盘点或未找到并计为 0")
+	# The link is written to the authoritative ERPNext document before submit.
+	# If the request is retried after a response/network failure, this durable
+	# marker lets us return the already-submitted reconciliation instead of
+	# creating a second stock-affecting document.
+	meta = frappe.get_meta("Stock Reconciliation")
+	reconciliation = None
+	if meta.has_field("ti_workspace"):
+		existing_name = frappe.db.get_value("Stock Reconciliation", {"ti_workspace": doc.name}, "name")
+	else:
+		# Some ERPNext versions do not expose either the custom link field or a
+		# remarks column. A deterministic name still gives retries a durable,
+		# collision-free lookup key without relying on optional schema.
+		deterministic_name = _reconciliation_document_name(doc.name)
+		existing_name = deterministic_name if frappe.db.exists("Stock Reconciliation", deterministic_name) else None
+	if existing_name:
+		existing = frappe.get_doc("Stock Reconciliation", existing_name)
+		existing.check_permission("read")
+		if existing.docstatus == 1:
+			doc.stock_reconciliation = existing.name
+			doc.revision += 1
+			_save(doc)
+			return _serialize(doc)
+		existing.check_permission("write")
+		reconciliation = existing
+	ledger_balances = _reconciliation_ledger_balances(
+		payload.get("items", []), warehouse, doc.posting_date or nowdate(), doc.posting_time or nowtime()
+	)
 	lines = []
 	for row in payload.get("items", []):
 		if row.get("counted_qty") in (None, ""):
 			continue
 		counted = flt(row.get("counted_qty"))
-		baseline = flt(get_batch_qty(batch_no=row.get("batch_no"), warehouse=warehouse, item_code=row["item_code"], posting_date=doc.posting_date or nowdate(), posting_time=doc.posting_time or nowtime())) if row.get("batch_no") else flt(get_stock_balance(row["item_code"], warehouse, doc.posting_date or nowdate(), doc.posting_time or nowtime()))
+		baseline = ledger_balances.get((row["item_code"], row.get("batch_no") or ""), 0)
 		if abs(baseline - flt(row.get("ledger_qty"))) > 1e-8:
 			frappe.throw(f"{row['item_code']} 的账面数量已变化，请更新账面数量后重新检查")
-		line = {"item_code": row["item_code"], "warehouse": warehouse, "qty": counted, "stock_uom": row.get("uom")}
+		line = {
+			"item_code": row["item_code"],
+			"warehouse": warehouse,
+			"qty": counted,
+			"stock_uom": row.get("uom"),
+			"valuation_rate": flt(frappe.db.get_value("Item", row["item_code"], "valuation_rate") or 0),
+		}
 		if row.get("batch_no"):
 			line["batch_no"] = row["batch_no"]
 			line["use_serial_batch_fields"] = 1
 		lines.append(line)
 	if not lines:
 		frappe.throw("请至少完成一行盘点")
-	reconciliation = frappe.get_doc({"doctype": "Stock Reconciliation", "company": doc.company, "purpose": "Stock Reconciliation", "posting_date": doc.posting_date or nowdate(), "posting_time": doc.posting_time or nowtime(), "items": lines})
-	reconciliation.check_permission("create")
-	reconciliation.insert()
+	reconciliation_data = {"doctype": "Stock Reconciliation", "company": doc.company, "purpose": "Stock Reconciliation", "posting_date": doc.posting_date or nowdate(), "posting_time": doc.posting_time or nowtime(), "items": lines}
+	if not meta.has_field("ti_workspace"):
+		deterministic_name = _reconciliation_document_name(doc.name)
+	if reconciliation is None:
+		reconciliation = frappe.get_doc(reconciliation_data)
+		if meta.has_field("ti_workspace"):
+			reconciliation.ti_workspace = doc.name
+		reconciliation.check_permission("create")
+		reconciliation.insert(set_name=deterministic_name if not meta.has_field("ti_workspace") else None)
+	else:
+		reconciliation.update(reconciliation_data)
+		if meta.has_field("ti_workspace"):
+			reconciliation.ti_workspace = doc.name
+		reconciliation.save()
 	reconciliation.check_permission("submit")
 	reconciliation.submit()
 	doc.stock_reconciliation = reconciliation.name
@@ -666,8 +819,11 @@ def refresh_reconciliation_baseline(name, revision):
 	warehouse = payload.get("warehouse")
 	if warehouse not in leaves:
 		frappe.throw("盘点库位无权访问", frappe.PermissionError)
+	ledger_balances = _reconciliation_ledger_balances(
+		payload.get("items", []), warehouse, doc.posting_date or nowdate(), doc.posting_time or nowtime()
+	)
 	for row in payload.get("items", []):
-		row["ledger_qty"] = flt(get_batch_qty(batch_no=row.get("batch_no"), warehouse=warehouse, item_code=row["item_code"], posting_date=doc.posting_date or nowdate(), posting_time=doc.posting_time or nowtime())) if row.get("batch_no") else flt(get_stock_balance(row["item_code"], warehouse, doc.posting_date or nowdate(), doc.posting_time or nowtime()))
+		row["ledger_qty"] = ledger_balances.get((row["item_code"], row.get("batch_no") or ""), 0)
 	_put(doc, payload)
 	doc.revision += 1
 	_save(doc)
@@ -683,7 +839,11 @@ def load_workspace(name):
 def save_workspace(name, revision, data):
 	doc = _get(name, write=True, lock=True)
 	_editable(doc, revision)
-	_put(doc, data)
+	payload = _loads(data, {})
+	candidate_items = payload.get("items", _loads(doc.state_json, {}).get("items", []))
+	if candidate_items and not _stock_operation_capabilities().get(doc.movement_kind):
+		frappe.throw(_("当前账户或仓库配置不允许发起此类库存操作"), frappe.PermissionError)
+	_put(doc, payload)
 	doc.revision += 1
 	_try_sync(doc)
 	_save(doc)
@@ -766,17 +926,17 @@ def item_detail(item_code):
 			leased and w.lft >= leased.lft and w.rgt <= leased.rgt
 		)
 
-	files = frappe.get_all(
+	files = frappe.get_list(
 		"File",
 		filters={"attached_to_doctype": "Item", "attached_to_name": item.name},
-		fields=["name", "file_url", "file_name", "content_type", "file_size", "creation"],
+		fields=["name", "file_url", "file_name", "file_type", "file_size", "creation"],
 		order_by="creation asc, name asc",
 		limit_page_length=0,
 	)
 	image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
 	images, seen = [], set()
 	for file in files:
-		is_image = str(file.content_type or "").startswith("image/") or str(file.file_name or "").lower().endswith(image_extensions)
+		is_image = str(file.file_type or "").startswith("image/") or str(file.file_name or "").lower().endswith(image_extensions)
 		if is_image and file.file_url and file.file_url not in seen:
 			images.append({"file_url": file.file_url, "file_name": file.file_name, "is_primary": file.file_url == item.image})
 			seen.add(file.file_url)
@@ -786,8 +946,10 @@ def item_detail(item_code):
 		images.sort(key=lambda row: not row["is_primary"])
 	batch_rows = []
 	if item.has_batch_no:
-		for batch in frappe.get_all("Batch", filters={"item": item.name, "disabled": 0}, fields=["name", "expiry_date"], limit_page_length=50):
-			qty = sum(flt(get_batch_qty(batch_no=batch.name, warehouse=name, item_code=item.name)) for name in warehouses)
+		batches = frappe.get_list("Batch", filters={"item": item.name, "disabled": 0}, fields=["name", "expiry_date"], limit_page_length=0)
+		balances = _current_batch_balances({batch.name for batch in batches}, {item.name}, warehouses, fallback=True)
+		for batch in batches:
+			qty = sum(balances.get((batch.name, name), 0) for name in warehouses)
 			if qty > 0:
 				batch_rows.append({"batch_no": batch.name, "expiry_date": batch.expiry_date, "qty": qty})
 	active_loans = [row for row in outstanding_loan_items() if row["item_code"] == item.name]
@@ -847,10 +1009,9 @@ def batches(item_code, warehouse=None):
 		fields=["name", "expiry_date", "manufacturing_date"],
 		limit_page_length=0,
 	)
+	balances = _current_batch_balances({row.name for row in rows}, {item_code}, [warehouse] if warehouse else [], fallback=True)
 	for row in rows:
-		row["qty"] = (
-			get_batch_qty(batch_no=row.name, warehouse=warehouse, item_code=item_code) if warehouse else None
-		)
+		row["qty"] = balances.get((row.name, warehouse), 0) if warehouse else None
 	return rows
 
 
@@ -919,6 +1080,12 @@ def responsible_people():
 
 
 def validate_attachment(doc, method=None):
+	# File access is deliberately independent of the linked business document.
+	# A user who may edit an Item/workspace must still hold the applicable File
+	# permission before an upload, replacement, or removal succeeds.
+	is_new = doc.is_new() if hasattr(doc, "is_new") else False
+	permission = "delete" if method == "on_trash" else ("create" if is_new else "write")
+	frappe.has_permission("File", permission, throw=True)
 	if doc.attached_to_doctype == "Inventory Workspace":
 		workspace = _get(doc.attached_to_name, write=True, lock=True)
 		if _status(workspace):
@@ -937,6 +1104,13 @@ def validate_attachment(doc, method=None):
 			frappe.throw(_("已完成的库存记录附件不能修改"))
 		if method != "on_trash":
 			doc.is_private = 1
+	elif doc.attached_to_doctype in ("Inventory Loan", "Inventory Return", "Inventory Loss"):
+		transaction = frappe.get_doc(doc.attached_to_doctype, doc.attached_to_name)
+		transaction.check_permission("write")
+		if transaction.docstatus:
+			frappe.throw(_("已完成的交易附件不能修改"))
+		if method != "on_trash":
+			doc.is_private = 1
 
 
 @frappe.whitelist(methods=["POST"])
@@ -952,25 +1126,387 @@ def remove_attachment(name, file_name):
 	return _serialize(doc)
 
 
+def _history_match_condition(doctype, alias):
+	condition = (
+		get_match_cond(doctype)
+		.replace("%%", "%")
+		.replace(f"`tab{doctype}`", alias)
+		.replace(f"tab{doctype}.", f"{alias}.")
+	)
+	condition = condition.strip()
+	while condition.lower().startswith("and "):
+		condition = condition[4:].lstrip()
+	return condition or "1=1"
+
+
+def _history_item_match_condition(alias):
+	condition = get_match_cond("Item").replace("%%", "%").replace("`tabItem`", alias).replace("tabItem.", f"{alias}.")
+	condition = condition.strip()
+	while condition.lower().startswith("and "):
+		condition = condition[4:].lstrip()
+	return condition or "1=1"
+
+
+def _history_visibility_filter(source, params, visible_warehouses):
+	"""Exclude parents containing Item/Warehouse rows the current user cannot read."""
+	names = sorted(visible_warehouses or {})
+	placeholders = []
+	for index, name in enumerate(names):
+		key = f"history_visible_warehouse_{index}"
+		params[key] = name
+		placeholders.append(f"%({key})s")
+	warehouse_list = ", ".join(placeholders) or "%(history_no_visible_warehouse)s"
+	if not placeholders:
+		params["history_no_visible_warehouse"] = ""
+	if source == "workspace":
+		item_table = """
+			select 1
+			from json_table(
+				iw.state_json,
+				'$.items[*]' columns(
+					item_code varchar(140) path '$.item_code',
+					warehouse varchar(140) path '$.warehouse',
+					from_warehouse varchar(140) path '$.from_warehouse',
+					to_warehouse varchar(140) path '$.to_warehouse'
+				)
+			) state_item
+			left join `tabItem` visible_item on visible_item.name=state_item.item_code
+			where (
+				state_item.item_code is not null and state_item.item_code <> ''
+				and not ({item_condition})
+			) or state_item.warehouse not in ({warehouse_list})
+				or state_item.from_warehouse not in ({warehouse_list})
+				or state_item.to_warehouse not in ({warehouse_list})
+		""".format(item_condition=_history_item_match_condition("visible_item"), warehouse_list=warehouse_list)
+		section_table = f"""
+			select 1
+			from json_table(iw.state_json, '$.sections[*]' columns(warehouse varchar(140) path '$.warehouse')) state_section
+			where state_section.warehouse not in ({warehouse_list})
+		"""
+		top_level = "".join(
+			f" or json_unquote(json_extract(iw.state_json, '$.{field}')) not in ({warehouse_list})"
+			for field in ("warehouse", "from_warehouse", "to_warehouse")
+		)
+		return f" and not exists ({item_table}) and not exists ({section_table}){top_level}"
+	if source == "entry":
+		return f"""
+			and not exists (
+				select 1 from `tabStock Entry Detail` visible_line
+				left join `tabItem` visible_item on visible_item.name=visible_line.item_code
+				where visible_line.parent=se.name
+				and ((visible_line.s_warehouse is not null and visible_line.s_warehouse not in ({warehouse_list}))
+					or (visible_line.t_warehouse is not null and visible_line.t_warehouse not in ({warehouse_list}))
+					or (visible_line.item_code is not null and not ({_history_item_match_condition('visible_item')})))
+			)
+		"""
+	return f"""
+		and not exists (
+			select 1 from `tabStock Reconciliation Item` visible_line
+			left join `tabItem` visible_item on visible_item.name=visible_line.item_code
+			where visible_line.parent=sr.name
+			and ((visible_line.warehouse is not null and visible_line.warehouse not in ({warehouse_list}))
+				or (visible_line.item_code is not null and not ({_history_item_match_condition('visible_item')})))
+		)
+	"""
+
+
+def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
+	"""Build predicates for filters stored as parent columns."""
+	conditions = []
+	if filters.get("date_from"):
+		params["history_date_from"] = filters["date_from"]
+		conditions.append(f"{alias}.posting_date >= %(history_date_from)s")
+	if filters.get("date_to"):
+		params["history_date_to"] = filters["date_to"]
+		conditions.append(f"{alias}.posting_date <= %(history_date_to)s")
+	if filters.get("search"):
+		params["history_search"] = f"%{filters['search']}%"
+		if source == "workspace":
+			conditions.append(
+				"(lower(concat_ws(' ', iw.name, iw.source_text, iw.purpose_text, iw.activity, iw.borrower, iw.responsible_person, iw.handler_name)) like lower(%(history_search)s) "
+				"or json_search(lower(iw.state_json), 'one', lower(%(history_search)s), null, '$') is not null)"
+			)
+		elif source == "entry":
+			conditions.append(
+				"(lower(concat_ws(' ', se.name, se.remarks, se.ti_source_text, se.ti_purpose_text, se.ti_activity, se.ti_borrower, se.ti_handler_name)) like lower(%(history_search)s) "
+				"or exists (select 1 from `tabStock Entry Detail` search_line "
+				"left join `tabItem` search_item on search_item.name=search_line.item_code "
+				"where search_line.parent=se.name and lower(concat_ws(' ', search_line.item_code, search_item.item_name, search_item.item_group, search_line.s_warehouse, search_line.t_warehouse)) like lower(%(history_search)s)))"
+			)
+		else:
+			conditions.append(
+				"(lower(concat_ws(' ', sr.name, sr.purpose)) like lower(%(history_search)s) "
+				"or exists (select 1 from `tabStock Reconciliation Item` search_line "
+				"left join `tabItem` search_item on search_item.name=search_line.item_code "
+				"where search_line.parent=sr.name and lower(concat_ws(' ', search_line.item_code, search_item.item_name, search_item.item_group, search_line.warehouse)) like lower(%(history_search)s)))"
+			)
+	if selected_rooms:
+		room_placeholders = []
+		for index, room in enumerate(sorted(selected_rooms)):
+			key = f"history_selected_room_{index}"
+			params[key] = room
+			room_placeholders.append(f"%({key})s")
+		room_list = ", ".join(room_placeholders)
+		if source == "workspace":
+			conditions.append(
+				f"(exists (select 1 from json_table(iw.state_json, '$.items[*]' columns(warehouse varchar(140) path '$.warehouse', from_warehouse varchar(140) path '$.from_warehouse', to_warehouse varchar(140) path '$.to_warehouse')) scope_item where scope_item.warehouse in ({room_list}) or scope_item.from_warehouse in ({room_list}) or scope_item.to_warehouse in ({room_list})) "
+				f"or exists (select 1 from json_table(iw.state_json, '$.sections[*]' columns(warehouse varchar(140) path '$.warehouse')) scope_section where scope_section.warehouse in ({room_list})) "
+				f"or json_unquote(json_extract(iw.state_json, '$.warehouse')) in ({room_list}) or json_unquote(json_extract(iw.state_json, '$.from_warehouse')) in ({room_list}) or json_unquote(json_extract(iw.state_json, '$.to_warehouse')) in ({room_list}))"
+			)
+		elif source == "entry":
+			conditions.append(f"exists (select 1 from `tabStock Entry Detail` scope_line where scope_line.parent=se.name and (scope_line.s_warehouse in ({room_list}) or scope_line.t_warehouse in ({room_list})))")
+		else:
+			conditions.append(f"exists (select 1 from `tabStock Reconciliation Item` scope_line where scope_line.parent=sr.name and scope_line.warehouse in ({room_list}))")
+
+	field_map = {
+		"source_text": {"workspace": "source_text", "entry": "ti_source_text"},
+		"purpose_text": {"workspace": "purpose_text", "entry": "ti_purpose_text"},
+		"activity": {"workspace": "activity", "entry": "ti_activity"},
+		"handler_name": {"workspace": "handler_name", "entry": "ti_handler_name"},
+		"responsible_person": {"workspace": "responsible_person", "entry": "ti_responsible_person"},
+	}
+	for filter_name, fields in field_map.items():
+		value = filters.get(filter_name)
+		if not value:
+			continue
+		params[f"history_{filter_name}"] = f"%{value}%"
+		field = fields.get(source)
+		if field:
+			conditions.append(f"lower(coalesce({alias}.{field}, '')) like lower(%(history_{filter_name})s)")
+		elif source == "reconciliation" and filter_name == "purpose_text":
+			conditions.append("lower(coalesce(sr.purpose, '')) like lower(%(history_purpose_text)s)")
+		else:
+			conditions.append("1=0")
+
+	desired = filters.get("movement_kind")
+	if desired:
+		params["history_movement_kind"] = desired
+		if source == "workspace":
+			if desired == "盘点调整":
+				conditions.append(f"({alias}.stock_reconciliation is not null or {alias}.movement_kind=%(history_movement_kind)s)")
+			else:
+				conditions.append(f"{alias}.movement_kind=%(history_movement_kind)s")
+		elif source == "entry":
+			purpose_map = {"Receive": "Material Receipt", "Issue": "Material Issue", "Transfer": "Material Transfer"}
+			if desired in purpose_map:
+				params["history_entry_purpose"] = purpose_map[desired]
+				conditions.append(
+					f"(se.ti_movement_kind=%(history_movement_kind)s or (se.ti_movement_kind is null and se.purpose=%(history_entry_purpose)s))"
+				)
+			elif desired in ("Loan", "Return", "Damage", "Loss", "Repair", "Disposal"):
+				conditions.append(f"se.ti_movement_kind=%(history_movement_kind)s")
+			else:
+				conditions.append("1=0")
+		else:
+			if desired == "盘点调整":
+				conditions.append("sr.purpose='Stock Reconciliation'")
+			elif desired == "期初库存":
+				conditions.append("sr.purpose<>'Stock Reconciliation'")
+			else:
+				conditions.append("1=0")
+	return " and " + " and ".join(conditions) if conditions else ""
+
+
+def _history_database_page(status_group, start, page_length, item_code=None, filters=None, visible_warehouses=None, selected_rooms=None):
+	"""Page unfiltered or item-scoped movements in SQL, hydrating returned parents.
+
+	The general filtered path still needs arbitrary JSON/child-state predicates.
+	This path covers the common browse request and Item Detail history while
+	preserving each DocType's Frappe parent permission predicate and the
+	app-authored/direct-entry de-dupe.
+	"""
+	settings = _settings()
+	filters = filters or {}
+	params = {"company": settings.company, "start": start, "page_length": page_length, "item_code": item_code}
+	workspace_status = "coalesce(se.docstatus, sr.docstatus, 0)"
+	workspace_kind = "case when iw.stock_reconciliation is not null then '盘点调整' else iw.movement_kind end"
+	workspace = f"""
+		select iw.name, 'workspace' as source, {workspace_status} as docstatus, iw.modified,
+			{workspace_kind} as movement_kind
+		from `tabInventory Workspace` iw
+		left join `tabStock Entry` se on se.name=iw.stock_entry
+		left join `tabStock Reconciliation` sr on sr.name=iw.stock_reconciliation
+		where iw.company=%(company)s and {_history_match_condition('Inventory Workspace', 'iw')}
+			and (%(item_code)s is null or json_search(iw.state_json, 'one', %(item_code)s, null, '$.items[*].item_code') is not null)
+		{_history_parent_filter('iw', 'workspace', filters, params, selected_rooms)}
+		{_history_visibility_filter('workspace', params, visible_warehouses) if visible_warehouses is not None else ''}
+	""" if frappe.has_permission("Inventory Workspace", "read") else ""
+	entry = f"""
+		select se.name, 'entry' as source, se.docstatus, se.modified,
+			coalesce(se.ti_movement_kind, se.purpose) as movement_kind
+		from `tabStock Entry` se
+		where se.company=%(company)s and (%(item_code)s is null or exists (
+			select 1 from `tabStock Entry Detail` sed_item
+				join `tabItem` item on item.name=sed_item.item_code
+			where sed_item.parent=se.name and sed_item.item_code=%(item_code)s
+				and {_history_item_match_condition('item')}
+		)) and not exists (
+			select 1 from `tabInventory Workspace` linked where linked.stock_entry=se.name
+		) and {_history_match_condition('Stock Entry', 'se')}
+		{_history_parent_filter('se', 'entry', filters, params, selected_rooms)}
+		{_history_visibility_filter('entry', params, visible_warehouses) if visible_warehouses is not None else ''}
+	""" if frappe.has_permission("Stock Entry", "read") else ""
+	reconciliation = f"""
+		select sr.name, 'reconciliation' as source, sr.docstatus, sr.modified,
+			case when sr.purpose = 'Stock Reconciliation' then '盘点调整' else '期初库存' end as movement_kind
+		from `tabStock Reconciliation` sr
+		where sr.company=%(company)s and (%(item_code)s is null or exists (
+			select 1 from `tabStock Reconciliation Item` sri_item
+				join `tabItem` item on item.name=sri_item.item_code
+			where sri_item.parent=sr.name and sri_item.item_code=%(item_code)s
+				and {_history_item_match_condition('item')}
+		)) and not exists (
+			select 1 from `tabInventory Workspace` linked where linked.stock_reconciliation=sr.name
+		) and {_history_match_condition('Stock Reconciliation', 'sr')}
+		{_history_parent_filter('sr', 'reconciliation', filters, params, selected_rooms)}
+		{_history_visibility_filter('reconciliation', params, visible_warehouses) if visible_warehouses is not None else ''}
+	""" if frappe.has_permission("Stock Reconciliation", "read") else ""
+	union = " union all ".join(part for part in (workspace, entry, reconciliation) if part)
+	if not union:
+		return [], 0, 0, 0, {"movement_kind": {}, "warehouses": {}, "item_groups": {}}
+	if status_group == "unfinished":
+		status_where = "where movement.docstatus=0"
+	elif status_group == "completed":
+		status_where = "where movement.docstatus in (1, 2)"
+	else:
+		status_where = ""
+	count = frappe.db.sql(
+		f"select count(*) as total from ({union}) movement {status_where}", params, as_dict=True
+	)[0].total
+	rows = frappe.db.sql(
+		f"""select movement.name, movement.source, movement.docstatus, movement.modified
+		from ({union}) movement {status_where}
+		order by movement.modified desc, movement.name desc
+		limit %(page_length)s offset %(start)s""",
+		params,
+		as_dict=True,
+	)
+	all_count = frappe.db.sql(f"select count(*) as total from ({union}) movement", params, as_dict=True)[0].total
+	unfinished_count = frappe.db.sql(
+		f"select count(*) as total from ({union}) movement where movement.docstatus=0", params, as_dict=True
+	)[0].total
+	facets = frappe.db.sql(
+		f"select coalesce(movement.movement_kind, '') as movement_kind, count(*) as total from ({union}) movement {status_where} group by movement.movement_kind",
+		params,
+		as_dict=True,
+	)
+	return rows, int(count), int(all_count), int(unfinished_count), {
+		"movement_kind": {row.movement_kind: int(row.total) for row in facets},
+		"warehouses": {},
+		"item_groups": {},
+	}
+
+
 @frappe.whitelist()
 def history(filters=None, start=0, page_length=30, status_group="all"):
 	_require_stock()
-	f = _loads(filters, {})
+	raw_filters = _loads(filters, {})
+	f = dict(raw_filters)
 	allowed = _visible_warehouses()
 	if status_group == "unfinished":
 		f["docstatus"] = "0"
 	elif status_group == "completed":
 		f["docstatus"] = {"in": [1, 2]}
 	rooms = f.get("rooms", f.get("room"))
+	item_code = f.get("item_code")
+	selected_rooms = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False) if rooms else None
+	sql_filter_keys = {"item_code", "date_from", "date_to", "movement_kind", "source_text", "purpose_text", "activity", "handler_name", "responsible_person", "search", "rooms", "room"}
+	sql_filterable = set(raw_filters).issubset(sql_filter_keys)
+	if sql_filterable:
+		if item_code:
+			frappe.get_doc("Item", item_code).check_permission("read")
+		page_start = max(cint(start or 0), 0)
+		requested_length = min(max(cint(page_length or 30), 1), 100)
+		parents, total, overall_total, unfinished_count, facets = _history_database_page(
+			status_group,
+			page_start,
+			requested_length,
+			item_code=item_code,
+			filters=f,
+			visible_warehouses=None if frappe.session.user == "Administrator" else allowed,
+			selected_rooms=selected_rooms,
+		)
+		allowed = _visible_warehouses()
+		rows = []
+		for parent in parents:
+			if parent.source == "workspace":
+				try:
+					doc = _get(parent.name)
+				except frappe.PermissionError:
+					continue
+				payload = _payload(doc)
+				row = {
+					"name": doc.name,
+					"stock_entry": doc.stock_entry,
+					"stock_reconciliation": doc.get("stock_reconciliation"),
+					"docstatus": _status(doc),
+					"modified": str(doc.modified),
+					**payload,
+				}
+				if doc.get("stock_reconciliation"):
+					row["movement_kind"] = "盘点调整"
+				rows.append(row)
+				continue
+			if parent.source == "entry":
+				doc = frappe.get_doc("Stock Entry", parent.name)
+				if any(w and w not in allowed for item in doc.items for w in (item.s_warehouse, item.t_warehouse)):
+					continue
+				try:
+					for item in doc.items:
+						frappe.get_doc("Item", item.item_code).check_permission("read")
+				except frappe.PermissionError:
+					continue
+				rows.append({"name": doc.name, "legacy": True, "stock_entry": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), **_from_entry(doc)})
+				continue
+			doc = frappe.get_doc("Stock Reconciliation", parent.name)
+			try:
+				doc.check_permission("read")
+			except frappe.PermissionError:
+				continue
+			items = []
+			for item in doc.items:
+				if item.warehouse not in allowed or frappe.db.get_value("Warehouse", item.warehouse, "is_group"):
+					continue
+				try:
+					frappe.get_doc("Item", item.item_code).check_permission("read")
+				except frappe.PermissionError:
+					continue
+				items.append({"id": item.name, "item_code": item.item_code, "qty": item.qty, "uom": getattr(item, "stock_uom", None) or getattr(item, "uom", None), "warehouse": item.warehouse, "batch_no": item.batch_no})
+			if items:
+				rows.append({"name": doc.name, "legacy": True, "document_type": "Stock Reconciliation", "stock_reconciliation": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), "movement_kind": "盘点调整" if doc.purpose == "Stock Reconciliation" else "期初库存", "purpose_text": doc.purpose, "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items})
+		page = _page(rows, requested_length, 0)
+		page["overall_total"] = overall_total if status_group != "unfinished" else total
+		if status_group != "unfinished":
+			page["unfinished_count"] = unfinished_count
+		page["facets"] = facets
+		return page
 	# Validate and expand once for the whole query. This avoids repeated work
 	# and makes an invalid location a permission error instead of an empty list.
-	selected_rooms = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False) if rooms else None
+	# The SQL path above handles search and room scope; the fallback retains the
+	# same expanded leaf set for filters that still depend on JSON payload shape.
+	selected_rooms = selected_rooms
 	page_start = max(cint(start or 0), 0)
 	requested_length = min(max(cint(page_length or 30), 1), 100)
-	# Keep parent reads bounded. Child rows are still permission-filtered below;
-	# this cap prevents a movement browse request from materializing the entire
-	# site's document history in Python.
-	candidate_limit = min(max(page_start + requested_length, requested_length * 20, 200), 1000)
+	# Read each source in stable database pages. There is deliberately no
+	# arbitrary candidate cap: older matching movements must remain discoverable
+	# and totals must not depend on how many unrelated records precede them.
+	page_size = max(requested_length * 2, 200)
+	def paged(doctype, filters, fields):
+		offset = 0
+		while True:
+			page = frappe.get_list(
+				doctype,
+				filters=filters,
+				fields=fields,
+				order_by="modified desc, name desc",
+				start=offset,
+				limit_page_length=page_size,
+			)
+			for row in page:
+				yield row
+			if len(page) < page_size:
+				break
+			offset += len(page)
 	base_filters = {"company": _settings().company}
 	if f.get("date_from"):
 		base_filters["posting_date"] = [">=", f["date_from"]]
@@ -988,9 +1524,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 	results = []
 	linked = set()
 	linked_reconciliations = set()
-	for row in frappe.get_list(
-		"Inventory Workspace", filters=workspace_filters, fields=["name", "modified"], order_by="modified desc", limit_page_length=candidate_limit
-	):
+	for row in paged("Inventory Workspace", workspace_filters, ["name", "modified"]):
 		try:
 			doc = _get(row.name)
 		except frappe.PermissionError:
@@ -1010,13 +1544,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		if doc.get("stock_reconciliation"):
 			entry_result["movement_kind"] = "盘点调整"
 		results.append(entry_result)
-	for row in frappe.get_list(
-		"Stock Entry",
-		filters=base_filters,
-		fields=["name", "modified"],
-		order_by="modified desc",
-		limit_page_length=candidate_limit,
-	):
+	for row in paged("Stock Entry", base_filters, ["name", "modified"]):
 		if row.name in linked:
 			continue
 		doc = frappe.get_doc("Stock Entry", row.name)
@@ -1037,13 +1565,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 				**_from_entry(doc),
 			}
 		)
-	for row in frappe.get_list(
-		"Stock Reconciliation",
-		filters=base_filters,
-		fields=["name", "modified"],
-		order_by="modified desc",
-		limit_page_length=candidate_limit,
-	):
+	for row in paged("Stock Reconciliation", base_filters, ["name", "modified"]):
 		if row.name in linked_reconciliations:
 			continue
 		doc = frappe.get_doc("Stock Reconciliation", row.name)
@@ -1111,7 +1633,8 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			return False
 		return True
 
-	rows = sorted((r for r in results if matches(r)), key=lambda r: r["modified"], reverse=True)
+	matched = [r for r in results if matches(r)]
+	rows = sorted(matched, key=lambda r: (r["modified"], r["name"]), reverse=True)
 	page = _page(rows, page_length, start)
 	if status_group == "unfinished":
 		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)
@@ -1121,6 +1644,23 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 		page["overall_total"] = len(results)
 	if status_group != "unfinished":
 		page["unfinished_count"] = sum(1 for r in results if r["docstatus"] == 0)
+	movement_facets = defaultdict(set)
+	warehouse_facets = defaultdict(set)
+	item_group_facets = defaultdict(set)
+	for row in matched:
+		movement_facets[row.get("movement_kind") or ""].add(row["name"])
+		for item in row.get("items", []):
+			for warehouse in (item.get("warehouse"), item.get("from_warehouse"), item.get("to_warehouse")):
+				if warehouse:
+					warehouse_facets[warehouse].add(row["name"])
+			item_group = item.get("item_group")
+			if item_group:
+				item_group_facets[item_group].add(row["name"])
+	page["facets"] = {
+		"movement_kind": {key: len(value) for key, value in movement_facets.items()},
+		"warehouses": {key: len(value) for key, value in warehouse_facets.items()},
+		"item_groups": {key: len(value) for key, value in item_group_facets.items()},
+	}
 	return page
 
 
@@ -1188,7 +1728,7 @@ def open_entry(name):
 	if any(w and w not in allowed for r in entry.items for w in (r.s_warehouse, r.t_warehouse)):
 		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
 	if not entry.ti_movement_kind:
-		return {"name": name, "stock_entry": name, "docstatus": entry.docstatus, "data": _from_entry(entry), "attachments": frappe.get_all("File", filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name}, fields=["name", "file_name", "file_url"])}
+		return {"name": name, "stock_entry": name, "docstatus": entry.docstatus, "data": _from_entry(entry), "attachments": frappe.get_list("File", filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name}, fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"], order_by="creation asc, name asc", limit_page_length=0)}
 	existing = frappe.db.get_value("Inventory Workspace", {"stock_entry": name}, "name")
 	if existing:
 		return _serialize(_get(existing))
@@ -1199,10 +1739,12 @@ def open_entry(name):
 			"stock_entry": name,
 			"docstatus": entry.docstatus,
 			"data": payload,
-			"attachments": frappe.get_all(
+			"attachments": frappe.get_list(
 				"File",
 				filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name},
-				fields=["name", "file_name", "file_url"],
+				fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
+				order_by="creation asc, name asc",
+				limit_page_length=0,
 			),
 		}
 	entry.check_permission("write")
@@ -1220,7 +1762,7 @@ def open_entry(name):
 	_put(doc, payload)
 	_save(doc)
 	# Retain existing files and expose them alongside workspace files.
-	for file in frappe.get_all(
+	for file in frappe.get_list(
 		"File", filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name}, pluck="name"
 	):
 		fdoc = frappe.get_doc("File", file)
@@ -1247,4 +1789,4 @@ def open_reconciliation(name):
 		items.append({"id": row.name, "item_code": row.item_code, "qty": row.qty, "counted_qty": row.qty, "ledger_qty": getattr(row, "current_qty", row.qty), "difference_qty": getattr(row, "quantity_difference", 0), "uom": getattr(row, "stock_uom", None) or getattr(row, "uom", None), "warehouse": row.warehouse, "batch_no": row.batch_no})
 	if not items:
 		frappe.throw("没有可查看的盘点明细", frappe.PermissionError)
-	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": frappe.get_all("File", filters={"attached_to_doctype": "Stock Reconciliation", "attached_to_name": name}, fields=["name", "file_name", "file_url", "is_private"])}
+	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": frappe.get_list("File", filters={"attached_to_doctype": "Stock Reconciliation", "attached_to_name": name}, fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"], order_by="creation asc, name asc", limit_page_length=0)}

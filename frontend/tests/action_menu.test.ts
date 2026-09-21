@@ -26,4 +26,18 @@ describe('browse action contracts', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[role="menu"]').exists()).toBe(false)
   })
+
+  it('supports cyclic arrow-key navigation and restores the FAB after choosing', async () => {
+    const wrapper = mount(FloatingActionMenu, { attachTo: document.body, props: { actions: [{ kind: 'Receive', label: '入库' }, { kind: 'Issue', label: '出库' }] } })
+    await wrapper.find('.action-fab').trigger('click')
+    const actions = wrapper.findAll<HTMLButtonElement>('[role="menuitem"]')
+    await actions[0].trigger('focus')
+    await actions[0].trigger('keydown', { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(actions[1].element)
+    await actions[1].trigger('keydown', { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(actions[0].element)
+    await actions[0].trigger('click')
+    expect(document.activeElement).toBe(wrapper.find('.action-fab').element)
+    wrapper.unmount()
+  })
 })

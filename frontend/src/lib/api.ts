@@ -56,6 +56,26 @@ export function warehouseLabel(name: string, tree: any[]): string {
   }
   return parts.filter(part => !['实体库房', '寺院仓库'].includes(part)).join(' / ') || node.warehouse_name
 }
+export type WarehouseLabelContract = {
+  local_label: string
+  full_label: string
+  search_text: string
+  role: 'group' | 'leaf'
+  warehouse_type: string
+}
+/** Structured warehouse display/search contract shared by new picker surfaces. */
+export function warehouseLabelContract(name: string, tree: any[]): WarehouseLabelContract {
+  const node = tree.find(row => row.name === name)
+  const full_label = warehouseLabel(name, tree)
+  const local_label = String(node?.warehouse_name || node?.name || name || '未选择位置').replace(node?.company ? new RegExp(`\\s-\\s${String(node.company).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}$`) : /$^/, '').trim()
+  return {
+    local_label,
+    full_label,
+    search_text: `${name} ${node?.warehouse_name || ''} ${local_label} ${full_label}`.toLowerCase(),
+    role: node?.is_group ? 'group' : 'leaf',
+    warehouse_type: String(node?.warehouse_type || ''),
+  }
+}
 export function roomFor(name: string, tree: any[]): string {
   let node = tree.find(w => w.name === name)
   const seen = new Set()

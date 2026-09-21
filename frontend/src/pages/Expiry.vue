@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, warehouseLabel } from '../lib/api'
+import { api, warehouseLabelContract } from '../lib/api'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
@@ -23,9 +23,13 @@ const facetCounts = ref<any>({ warehouses: {}, item_groups: {} })
 const start = ref(0)
 const pageLength = 25
 const filterOpen = ref(false)
-const canMove = computed(() => Boolean(boot.value?.can_create_stock_entry))
+const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {})
+const canMove = computed(() => ['Receive', 'Issue', 'Transfer', 'Loan', 'Return', 'Damage', 'Loss', 'Repair', 'Disposal'].some(kind => operationCaps.value[kind]))
+const movementActions = computed(() => ['Receive', 'Issue', 'Transfer'].filter(kind => operationCaps.value[kind]).map(kind => ({ kind, label: ({ Receive: '入库', Issue: '出库', Transfer: '转移' } as any)[kind] })))
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null)
 const sentinel = ref<HTMLElement>()
+const resultsPane = ref<HTMLElement>()
+const scrollKey = 'temple_inventory.scroll.expiry'
 const filters = ref({
   search: '',
   warehouses: [] as string[],
@@ -34,7 +38,8 @@ const filters = ref({
   expiry_to: '',
   sort: 'asc',
 })
-const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, count: facetCounts.value.warehouses[row.name], label: warehouseLabel(row.name, boot.value?.warehouse_tree || []), parent: row.parent_warehouse })))
+const warehouseText = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
+const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, count: facetCounts.value.warehouses[row.name], label: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).full_label, search_text: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).search_text, parent: row.parent_warehouse })))
 const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups').map((row: any) => ({ ...row, count: facetCounts.value.item_groups[row.name], label: row.item_group_name, parent: row.parent_item_group })))
 
 const activeCount = computed(() =>
@@ -44,11 +49,16 @@ const activeCount = computed(() =>
   (filters.value.expiry_from ? 1 : 0) +
   (filters.value.expiry_to ? 1 : 0),
 )
+const inventoryQuery = computed(() => serializeFilterQuery({
+  search: filters.value.search,
+  warehouses: filters.value.warehouses,
+  item_groups: filters.value.item_groups,
+}))
 const chips = computed(() => [
   ...filters.value.warehouses.map(value => ({
     key: 'warehouses',
     value,
-    label: warehouseLabel(value, boot.value?.warehouse_tree || []),
+    label: warehouseText(value),
   })),
   ...filters.value.item_groups.map(value => ({
     key: 'item_groups',
@@ -124,6 +134,7 @@ watch(filters, () => {
   const preserveStart = restoringRoute
   restoringRoute = false
   if (!preserveStart) start.value = 0
+  if (!preserveStart) resultsPane.value?.scrollTo({ top: 0 })
   void load()
 }, { deep: true })
 
@@ -165,17 +176,19 @@ onMounted(async () => {
       if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value) void load(true)
     }, { rootMargin: '240px' })
     if (sentinel.value) observer.observe(sentinel.value)
+    const saved = Number(sessionStorage.getItem(scrollKey) || 0)
+    if (saved) resultsPane.value?.scrollTo({ top: saved })
   } catch (cause: any) {
     error.value = cause.message
   }
 })
-onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
+onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (resultsPane.value) sessionStorage.setItem(scrollKey, String(resultsPane.value.scrollTop)) })
 </script>
 
 <template>
   <main class="app-shell wide-shell">
     <header class="page-heading"><div><h1>库存</h1><p>效期批次</p></div></header>
-    <nav class="inventory-modes" aria-label="库存视图"><RouterLink to="/">当前库存</RouterLink><RouterLink to="/?mode=catalog">全部物品</RouterLink><RouterLink class="active" to="/expiry">效期批次</RouterLink></nav>
+    <nav class="inventory-modes" aria-label="库存视图"><RouterLink :to="{ path: '/', query: inventoryQuery }">当前库存</RouterLink><RouterLink :to="{ path: '/', query: { ...inventoryQuery, mode: 'catalog' } }">全部物品</RouterLink><RouterLink class="active" :to="{ path: '/expiry', query: { ...inventoryQuery, expiry_from: filters.expiry_from || undefined, expiry_to: filters.expiry_to || undefined, sort: filters.sort !== 'asc' ? filters.sort : undefined } }">效期批次</RouterLink></nav>
     <p v-if="error" class="error">{{ error }}</p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
@@ -184,17 +197,17 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect() })
         <fieldset><legend>到期日期</legend><label>到期从<input v-model="filters.expiry_from" type="date"></label><label>到期至<input v-model="filters.expiry_to" type="date"></label></fieldset>
         <fieldset><legend>排序</legend><label><input v-model="filters.sort" type="radio" value="asc">最近到期优先</label><label><input v-model="filters.sort" type="radio" value="desc">最晚到期优先</label></fieldset>
       </ResponsiveFilterPanel>
-      <div class="results-column">
+      <div ref="resultsPane" class="results-column">
         <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或批次" aria-label="搜索物品或批次"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部效期批次 ${overallTotal}` }}</span></div>
         <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载有效期…" />
         <template v-else>
-          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">物品 / 批次</th><th scope="col">类别</th><th scope="col">到期日期</th><th scope="col">剩余</th><th scope="col">数量</th><th scope="col">位置</th></tr></thead><tbody><tr v-for="row in rows" :key="row.batch_no"><td><div class="item-identity"><ItemImagePreview :src="row.image" :alt="row.item_name"/><RouterLink :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.batch_no }}</small></RouterLink></div></td><td>{{ row.item_group }}</td><td>{{ row.expiry_date }}</td><td :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</td><td class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</td><td><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseLabel(location.warehouse, boot?.warehouse_tree || []) }}：{{ location.qty }}</span></td></tr></tbody></table></div>
+          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">物品 / 批次</th><th scope="col">类别</th><th scope="col">到期日期</th><th scope="col">剩余</th><th scope="col">数量</th><th scope="col">位置</th></tr></thead><tbody><tr v-for="row in rows" :key="row.batch_no"><td><div class="item-identity"><ItemImagePreview :src="row.image" :alt="row.item_name"/><RouterLink :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.batch_no }}</small></RouterLink></div></td><td>{{ row.item_group }}</td><td>{{ row.expiry_date }}</td><td :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</td><td class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</td><td><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseText(location.warehouse) }}：{{ location.qty }}</span></td></tr></tbody></table></div>
           <div class="mobile-cards"><article v-for="row in rows" :key="row.batch_no" class="item-card"><ItemImagePreview :src="row.image" :alt="row.item_name"/><div><RouterLink :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ days(row.days_to_expiry) }}</span></p></RouterLink></div></article></div>
           <p v-if="!rows.length" class="empty-state">暂无有库存的有效期批次</p>
         </template>
         <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" :disabled="busy" @click="load(true)">{{busy?'正在加载…':'加载更多'}}</button>
       </div>
-    </div><FloatingActionMenu v-if="canMove" :actions="[{ kind: 'Receive', label: '入库' }, { kind: 'Issue', label: '出库' }, { kind: 'Transfer', label: '转移' }]" @select="operation"/>
+    </div><FloatingActionMenu v-if="canMove" :actions="movementActions" @select="operation"/>
   </main>
 </template>
