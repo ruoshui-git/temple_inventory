@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, warehouseLabelContract } from '../lib/api'
+import { api } from '../lib/api'
+import { warehouseFilterOptions, warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
@@ -43,8 +44,9 @@ const filters = ref({
 })
 const expiryWindowLabels: Record<string, string> = { overdue: '已过期', '7': '未来7天', '30': '未来30天', '90': '未来90天', custom: '自定义天数' }
 const routeValidationError = ref('')
-const warehouseText = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
-const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, count: facetCounts.value.warehouses[row.name], label: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).full_label, search_text: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).search_text, parent: row.parent_warehouse })))
+const warehouseRows = computed(() => boot.value?.physical_tree || [])
+const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
+const warehouseOptions = computed(() => warehouseFilterOptions(warehouseRows.value, facetCounts.value.warehouses))
 const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.name !== 'All Item Groups').map((row: any) => ({ ...row, count: facetCounts.value.item_groups[row.name], label: row.item_group_name, parent: row.parent_item_group })))
 
 const activeCount = computed(() =>

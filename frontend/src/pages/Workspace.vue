@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { api, workspaceApi, upload, labels, warehouseLabelContract, roomFor, sessionExpired } from '../lib/api'
+import { api, workspaceApi, upload, labels, roomFor, sessionExpired } from '../lib/api'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import { SaveQueue } from '../lib/autosave'
 import Scanner from '../components/Scanner.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
@@ -65,8 +66,8 @@ const sourceOptions = computed(() => {
   const names = new Set(allowed.value.map(w => w.name))
   return (chosen.value?.stock || []).filter((row: any) => names.has(row.warehouse) && Number(row.actual_qty) > 0)
 })
-const label = (name: string) => warehouseLabelContract(name, tree.value).full_label
-const leafLabel = (name: string) => tree.value.find(w => w.name === name)?.warehouse_name || label(name)
+const label = (name: string) => warehousePresentation(name, tree.value).breadcrumb
+const leafLabel = (name: string) => warehousePresentation(name, tree.value).localLabel
 const requiredMark = '<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span>'
 
 function changed(immediate = false) {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, warehouseLabelContract } from '../lib/api'
+import { api } from '../lib/api'
+import { warehouseFilterOptions, warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, serializeFilterQuery } from '../composables/filters'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import HierarchyAutocomplete from '../components/HierarchyAutocomplete.vue'
@@ -12,8 +13,9 @@ const boot = ref<any>(), rows = ref<any[]>([]), total = ref(0), overall = ref(0)
 const error = ref(''), loading = ref(false), loadingMore = ref(false), mode = ref<'all' | 'damaged' | 'unlocated'>(route.query.mode === 'unlocated' ? 'unlocated' : route.query.mode === 'all' ? 'all' : 'damaged')
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {})
 const filters = ref({ search: '', warehouses: [] as string[], item_groups: [] as string[] })
-const warehouseText = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
-const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).full_label, search_text: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).search_text, count: facets.value.warehouses[row.name], parent: row.parent_warehouse })))
+const warehouseRows = computed(() => boot.value?.physical_tree || [])
+const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
+const warehouseOptions = computed(() => warehouseFilterOptions(warehouseRows.value, facets.value.warehouses))
 const categoryOptions = computed(() => (boot.value?.item_groups || []).filter((row: any) => row.parent_item_group).map((row: any) => ({ ...row, label: row.item_group_name, count: facets.value.item_groups[row.name], parent: row.parent_item_group })))
 const chips = computed(() => [
   ...filters.value.warehouses.map(value => ({ key: 'warehouses', value, label: warehouseText(value) })),

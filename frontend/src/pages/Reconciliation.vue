@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, upload, workspaceApi, warehouseLabelContract } from '../lib/api'
+import { api, upload, workspaceApi } from '../lib/api'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import Scanner from '../components/Scanner.vue'
 import SignaturePad from '../components/SignaturePad.vue'
@@ -17,7 +18,7 @@ const reviewDialog = ref<HTMLElement>(), reviewTrigger = ref<HTMLElement>()
 const audit = ref({ handler_name: '', handler_signature: '', no_independent_reviewer: true, reviewer_name: '', reviewer_signature: '' })
 const readonly = computed(() => Boolean(record.value?.stock_reconciliation || record.value?.docstatus === 1 || !boot.value?.can_reconcile_stock))
 const leaves = computed(() => (boot.value?.physical_tree || []).filter((row: any) => (boot.value?.reconciliation_warehouses || []).includes(row.name)))
-const warehouseLabel = (name: string, _tree?: any[]) => warehouseLabelContract(name, _tree || boot.value?.warehouse_tree || []).full_label
+const warehouseLabel = (name: string, _tree?: any[]) => warehousePresentation(name, _tree || boot.value?.warehouse_tree || []).breadcrumb
 const countedRows = computed(() => rows.value.filter(row => row.count_state === 'counted' || row.count_state === 'not_found' || row.counted_qty !== ''))
 const discrepancyRows = computed(() => countedRows.value.filter(row => Number(row.counted_qty) !== Number(row.ledger_qty)))
 const uomSummary = computed(() => countedRows.value.reduce((summary: Record<string, { increase: number; decrease: number }>, row) => { const uom = row.uom || ''; summary[uom] ||= { increase: 0, decrease: 0 }; const delta = Number(row.counted_qty) - Number(row.ledger_qty); if (delta > 0) summary[uom].increase += delta; if (delta < 0) summary[uom].decrease += Math.abs(delta); return summary }, {}))

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { api, warehouseLabelContract } from '../lib/api'
+import { api } from '../lib/api'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 
 const boot = ref<any>()
@@ -10,7 +11,7 @@ const allowed = ref<string[]>([])
 const selected = ref('')
 const expanded = ref<Record<string, boolean>>({})
 const fresh = ref({ warehouse_name: '', parent_warehouse: '', warehouse_type: '房间', is_group: false })
-const label = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
+const label = (name: string) => warehousePresentation(name, boot.value?.warehouse_tree || []).breadcrumb
 
 const rows = computed(() => {
   const tree = boot.value?.warehouse_tree || []
@@ -74,7 +75,7 @@ onMounted(load)
       <div class="settings-layout">
         <nav class="warehouse-settings-tree" aria-label="仓库层级">
           <div v-for="warehouse in visibleRows" :key="warehouse.name" class="settings-node" :class="{ selected: selected === warehouse.name }" :style="{ paddingLeft: (12 + warehouse.depth * 18) + 'px' }" role="button" tabindex="0" @click="selected = warehouse.name" @keydown.enter.prevent="selected = warehouse.name" @keydown.space.prevent="selected = warehouse.name">
-            <button v-if="warehouse.is_group" type="button" class="tree-toggle" :aria-label="(expanded[warehouse.name] ? '收起' : '展开') + ' ' + warehouse.warehouse_name" @click.stop="toggle(warehouse.name)">{{ expanded[warehouse.name] ? '−' : '+' }}</button><span v-else class="tree-spacer"></span>{{ warehouse.warehouse_name }}<small v-if="warehouse.is_group">分组</small>
+            <button v-if="warehouse.is_group" type="button" class="tree-toggle" :aria-label="(expanded[warehouse.name] ? '收起' : '展开') + ' ' + (warehouse.local_label || warehouse.warehouse_name)" @click.stop="toggle(warehouse.name)">{{ expanded[warehouse.name] ? '−' : '+' }}</button><span v-else class="tree-spacer"></span>{{ warehouse.local_label || warehouse.warehouse_name }}<small v-if="warehouse.is_group">分组</small>
           </div>
         </nav>
         <section v-if="selectedWarehouse" class="settings-detail" aria-live="polite">

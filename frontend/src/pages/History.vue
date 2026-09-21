@@ -2,7 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Combobox } from 'frappe-ui'
-import { api, labels, warehouseLabelContract, workspaceApi } from '../lib/api'
+import { api, labels, workspaceApi } from '../lib/api'
+import { warehouseFilterOptions, warehousePresentation } from '../lib/warehousePresenter'
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from '../composables/filters'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
@@ -54,8 +55,9 @@ const activityOptions = computed(() => activities.value.map(activity => ({
   value: activity.name,
 })))
 const activeCount = computed(() => Object.values(filters.value).reduce((count, value) => count + (Array.isArray(value) ? value.length : value ? 1 : 0), 0))
-const warehouseText = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
-const warehouseOptions = computed(() => (boot.value?.physical_tree || []).map((row: any) => ({ ...row, label: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).full_label, search_text: warehouseLabelContract(row.name, boot.value?.warehouse_tree || []).search_text, parent: row.parent_warehouse })))
+const warehouseRows = computed(() => boot.value?.physical_tree || [])
+const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
+const warehouseOptions = computed(() => warehouseFilterOptions(warehouseRows.value, facets.value.warehouses))
 const chips = computed(() => [
   ...filters.value.rooms.map(value => ({ key: 'rooms', value, label: warehouseText(value) })),
   ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : []),

@@ -9,6 +9,15 @@ const rows = [
   { name: 'group-fallback', warehouse_name: '未指定', parent: 'root', is_group: 0, fallback_role: 'group_default' },
 ]
 
+const productionPayload = [
+  { name: 'temple', warehouse_name: '寺院仓库', is_group: 1, semantic_type: 'group' },
+  { name: 'physical', warehouse_name: '实体库房', parent: 'temple', is_group: 1, semantic_type: 'group' },
+  { name: 'site', warehouse_name: '第2寺院', parent: 'physical', is_group: 1, semantic_type: 'group' },
+  { name: 'room-a02', warehouse_name: 'A02', parent: 'site', is_group: 1, semantic_type: 'room', operation_value: 'fallback-a02' },
+  { name: 'fallback-a02', warehouse_name: 'A02 / 未指定', parent: 'room-a02', is_group: 0, fallback_role: 'room_default', operation_value: 'fallback-a02' },
+  { name: 'shelf-d01', warehouse_name: 'D01', parent: 'site', is_group: 0, semantic_type: 'location', operation_value: 'shelf-d01' },
+]
+
 describe('warehouse presenter', () => {
   it('uses local labels while retaining breadcrumbs and structured values', () => {
     const row = presentWarehouse(rows[1], rows)
@@ -31,5 +40,12 @@ describe('warehouse presenter', () => {
     expect(row.filterValue).toBe('room')
     expect(row.operationValue).toBeNull()
     expect(row.canOperate).toBe(false)
+  })
+
+  it('keeps infrastructure out of the logical browse contract', () => {
+    const visible = presentWarehouses(productionPayload)
+    expect(visible.map(row => row.localLabel)).toEqual(['第2寺院', 'A02', 'D01'])
+    expect(visible.some(row => row.localLabel === '无货位')).toBe(false)
+    expect(presentWarehouse(productionPayload[3], productionPayload).breadcrumb).toBe('第2寺院 / A02')
   })
 })

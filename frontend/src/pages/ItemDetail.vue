@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, upload, workspaceApi, warehouseLabelContract } from '../lib/api'
+import { api, upload, workspaceApi } from '../lib/api'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
 import AttachmentList from '../components/AttachmentList.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
@@ -12,7 +13,7 @@ const route = useRoute(), router = useRouter(), item = ref<any>(), boot = ref<an
 const selectedImage = computed(() => item.value?.images?.find((image: any) => image.file_url === chosen.value) || item.value?.images?.[0])
 const itemGroups = computed(() => (boot.value?.item_groups || []).filter((group: any) => group.name !== 'All Item Groups'))
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {})
-const warehouseText = (name: string) => warehouseLabelContract(name, boot.value?.warehouse_tree || []).full_label
+const warehouseText = (name: string) => warehousePresentation(name, boot.value?.warehouse_tree || []).breadcrumb
 function operation(kind: string) { sessionStorage.setItem(`ti-seed:${kind}`, JSON.stringify({ items: [item.value?.item_code] })); void router.push(`/new/${kind}`) }
 function addBarcode(value: string) { const codes = String(item.value?.barcodes || '').split(/[\n,]/).map((code: string) => code.trim()).filter(Boolean); if (!codes.includes(value)) item.value.barcodes = [...codes, value].join('\n'); scanner.value = false }
 async function saveEdit() { if (!item.value) return; saving.value = true; try { const value = await api('update_item', { item_code: item.value.item_code, data: { item_name: item.value.item_name, item_group: item.value.item_group, description: item.value.description, image: item.value.image, barcodes: String(item.value.barcodes || '').split(/[\n,]/).map((code: string) => code.trim()).filter(Boolean) } }); Object.assign(item.value, value, { barcodes: (value.barcodes || []).join('\n') }); editing.value = false; toast('物品资料已保存') } catch (cause: any) { error.value = cause.message; toast(cause.message, 'error') } finally { saving.value = false } }

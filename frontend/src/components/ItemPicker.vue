@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
 import { api, workspaceApi, upload } from '../lib/api'
+import { warehousePresentation } from '../lib/warehousePresenter'
 import { Combobox } from 'frappe-ui'
 import Scanner from './Scanner.vue'
 const props = defineProps<{
@@ -19,7 +20,7 @@ const photo = ref<File>(), created = ref(''), recent = ref<any[]>([]), recentLoa
 const scannerTarget = ref<'search' | 'barcode' | ''>('')
 const warehouseRows = computed(() => props.boot.warehouses || props.boot.physical_warehouses || [])
 const categoryOptions = computed(() => [{ label: '全部类别', value: '' }, ...props.boot.item_groups.map((group: any) => ({ label: group.item_group_name, value: group.name }))])
-const warehouseOptions = computed(() => [{ label: '所有有库存仓库', value: '' }, ...warehouseRows.value.map((warehouse: any) => ({ label: warehouse.warehouse_name, value: warehouse.name }))])
+const warehouseOptions = computed(() => [{ label: '所有有库存仓库', value: '' }, ...warehouseRows.value.map((warehouse: any) => ({ label: warehousePresentation(warehouse.name, props.boot.warehouse_tree || []).breadcrumb, value: warehouse.name }))])
 let sequence = 0
 async function search(offset = 0, append = false) {
   const seq = ++sequence

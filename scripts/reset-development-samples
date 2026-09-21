@@ -153,4 +153,18 @@ run_reset 2>&1 | tee "$log_file"
 status=${PIPESTATUS[0]}
 set -e
 printf 'Full output saved to: %s\n' "$log_file"
-exit "$status"
+if ((status)); then
+	exit "$status"
+fi
+
+printf '[temple-sample] Warehouse contract verification: start\n'
+set +e
+verification=$(PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.inventory_api.verify_development_sample 2>&1)
+verification_status=$?
+set -e
+printf '%s\n' "$verification"
+if ((verification_status)); then
+	printf '[temple-sample] Warehouse contract verification: FAILED\n' >&2
+	exit "$verification_status"
+fi
+printf '[temple-sample] Warehouse contract verification: complete\n'

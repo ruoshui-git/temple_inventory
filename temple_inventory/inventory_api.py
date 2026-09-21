@@ -244,6 +244,21 @@ def _warehouse_presentation(rows):
 	return result
 
 
+def _user_facing_warehouse_presentation(settings=None, rows=None):
+	"""Return only the physical topology intended for volunteer-facing UI."""
+	settings = settings or _settings()
+	physical = rows if rows is not None else _physical_tree(settings)
+	presentation = _warehouse_presentation(physical)
+	visible_names = set(physical)
+	# The configured physical root is deliberately absent from this payload.
+	# Re-root its immediate children as well; otherwise consumers that construct
+	# a tree from ``parent_warehouse`` cannot reach any visible top-level node.
+	for row in presentation:
+		if row.get("parent_warehouse") not in visible_names:
+			row["parent_warehouse"] = None
+	return presentation
+
+
 def _warehouse_by_label(label, company, parent=None):
 	filters = {"warehouse_name": label, "company": company}
 	if parent:
@@ -262,8 +277,12 @@ def _company_or_throw(company=None):
 def _set_system_roles(settings, names):
 	if not frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
 		return
+	frappe.db.sql("update `tabWarehouse` set ti_system_role=null where company=%s", settings.company)
 	for name, role in names.items():
-		frappe.db.set_value("Warehouse", name, "ti_system_role", role, update_modified=False)
+		frappe.db.sql(
+			"update `tabWarehouse` set ti_system_role=%s where name=%s",
+			(role, name),
+		)
 
 
 def _find_role_warehouse(rows, role):
@@ -333,7 +352,27 @@ def _ensure_warehouse(label, company, parent=None, is_group=0, warehouse_type=No
 
 def _set_fallback_role(name, role):
 	if frappe.db.exists("Custom Field", "Warehouse-ti_fallback_role"):
-		frappe.db.set_value("Warehouse", name, "ti_fallback_role", role, update_modified=False)
+		frappe.db.sql(
+			"update `tabWarehouse` set ti_fallback_role=%s where name=%s",
+			(role, name),
+		)
+
+
+def _canonicalize_fallback_roles(company, fallback_roles):
+	"""Set fallback roles after the final Warehouse nested-set update.
+
+	In this Frappe version, creating a later Warehouse can copy a custom value
+	from a newly-created fallback leaf onto an ancestor.  Assigning all roles
+	last makes the development-sample contract deterministic.
+	"""
+	if not frappe.db.exists("Custom Field", "Warehouse-ti_fallback_role"):
+		return
+	frappe.db.sql("update `tabWarehouse` set ti_fallback_role=null where company=%s", company)
+	for name, role in fallback_roles:
+		frappe.db.sql(
+			"update `tabWarehouse` set ti_fallback_role=%s where name=%s and company=%s",
+			(role, name, company),
+		)
 
 
 def _resolve_system_warehouses(company, settings=None):
@@ -411,6 +450,7 @@ def _create_structure(company, include_examples=False):
 		"damaged_warehouse":damaged, "unlocated_warehouse":unlocated, "pending_warehouse":unlocated}
 	_save_system_links(settings, company, names)
 	allowed=[]
+	fallback_roles = []
 	if include_examples:
 		for site in TEMPLE_NAMES:
 			site_name = _ensure_warehouse(site, company, physical, is_group=1, warehouse_type="地点", rows=rows)
@@ -418,18 +458,19 @@ def _create_structure(company, include_examples=False):
 				for room in SECOND_TEMPLE_ROOMS:
 					room_name = _ensure_warehouse(room, company, site_name, is_group=1, warehouse_type="房间", rows=rows)
 					leaf = _ensure_warehouse(f"{room} / 未指定", company, room_name, warehouse_type="库位", rows=rows)
-					_set_fallback_role(leaf, "room_default")
+					fallback_roles.append((leaf, "room_default"))
 					allowed.append(leaf)
 			else:
 				leaf = _ensure_warehouse(f"{site} / 未指定", company, site_name, warehouse_type="库位", rows=rows)
-				_set_fallback_role(leaf, "site_default")
+				fallback_roles.append((leaf, "group_default"))
 				allowed.append(leaf)
 	else:
 		default_site = _ensure_warehouse("第1寺院", company, physical, is_group=1, warehouse_type="地点", rows=rows)
 		leaf = _ensure_warehouse("第1寺院 / 未指定", company, default_site, warehouse_type="库位", rows=rows)
-		_set_fallback_role(leaf, "site_default")
+		fallback_roles.append((leaf, "group_default"))
 		allowed.append(leaf)
 		allowed.append(_ensure_warehouse(DEFAULT_LOCATION_NAME, company, default_site, warehouse_type="库位", rows=rows))
+	_canonicalize_fallback_roles(company, fallback_roles)
 	_allow_warehouses(settings, allowed)
 	return {"company":company, "root":root, "rooms":list(SECOND_TEMPLE_ROOMS) if include_examples else []}
 
@@ -500,6 +541,66 @@ def initialization_status():
 		"warehouse_names": names,
 		"physical_warehouses": list(physical.values()),
 		"allowed_warehouses": list(allowed),
+	}
+
+
+def verify_development_sample():
+	"""Validate the clean sample contract after reset-development-samples."""
+	settings = _settings()
+	rows = _warehouse_map(settings.company)
+	physical = _physical_tree(settings)
+	presentation = _user_facing_warehouse_presentation(settings, physical)
+	infrastructure = set(SYSTEM_WAREHOUSE_NAMES.values()) | {"寺院仓库", "实体库房", "虚拟库房"}
+	issues = []
+	if not physical:
+		issues.append("实体仓库树为空")
+	if not {"第1寺院", "第2寺院"}.issubset({row["warehouse_name"] for row in presentation}):
+		issues.append("缺少样例寺院分组")
+	if not any(row["warehouse_name"] == "A02" and row["semantic_type"] == "room" for row in presentation):
+		issues.append("缺少 A02 房间")
+	for row in presentation:
+		if row["warehouse_name"] in infrastructure or any(name in row["breadcrumb"] for name in infrastructure):
+			issues.append(f"用户树暴露基础设施节点：{row['name']}")
+	for name, row in rows.items():
+		role = row.get("ti_fallback_role")
+		if row.warehouse_name.endswith(" / 未指定") and not role:
+			issues.append(f"回退库位缺少角色：{name}")
+		if role and role not in {"room_default", "group_default"}:
+			issues.append(f"非规范回退角色：{name}={role}")
+		if role and not row.warehouse_name.endswith(" / 未指定"):
+			issues.append(f"非回退仓库带有回退角色：{name}={role}")
+		if role == "room_default":
+			parent = rows.get(row.parent_warehouse)
+			if not parent or str(parent.warehouse_type or "").lower() not in {"room", "房间"}:
+				issues.append(f"房间回退角色的上级不是房间：{name}")
+		if role == "group_default":
+			parent = rows.get(row.parent_warehouse)
+			if not parent or str(parent.warehouse_type or "").lower() in {"room", "房间"}:
+				issues.append(f"分组回退角色的上级是房间或不存在：{name}")
+	duplicates = frappe.db.sql(
+		"""select parent_warehouse, warehouse_name, count(*) as total
+		from `tabWarehouse` where company=%s and warehouse_name like %s
+		group by parent_warehouse, warehouse_name having count(*) > 1""",
+		(settings.company, "% / 未指定"),
+		as_dict=True,
+	)
+	if duplicates:
+		issues.append("同一上级存在重复回退库位")
+	allowed = _allowed_warehouses(settings)
+	if any(row.is_group for row in allowed.values()):
+		issues.append("允许操作仓库包含分组仓库")
+	roles = defaultdict(int)
+	for row in rows.values():
+		if row.get("ti_fallback_role"):
+			roles[row.ti_fallback_role] += 1
+	if issues:
+		frappe.throw("样例仓库验证失败：" + "；".join(sorted(set(issues))))
+	return {
+		"company": settings.company,
+		"physical_groups": sum(1 for row in presentation if row["is_group"]),
+		"rooms": sum(1 for row in presentation if row["semantic_type"] == "room"),
+		"fallback_roles": dict(roles),
+		"allowed_leaves": len(allowed),
 	}
 
 
@@ -856,7 +957,8 @@ def warehouse_management_bootstrap():
 	return {
 		"is_manager": is_manager,
 		"settings": {key: settings.get(key) for key in set(SYSTEM_WAREHOUSE_NAMES) | {"company"}},
-		"warehouse_tree": _warehouse_presentation(visible), "physical_tree": _warehouse_presentation(physical_tree),
+		"warehouse_tree": _user_facing_warehouse_presentation(settings, physical_tree),
+		"physical_tree": _user_facing_warehouse_presentation(settings, physical_tree),
 		"warehouses": list(_allowed_warehouses(settings).values()),
 		"warehouse_management_status": status,
 		"adoption_candidates": candidates,
@@ -998,9 +1100,9 @@ def bootstrap():
 		"can_reconcile_stock": bool(physical_leaves and frappe.has_permission("Stock Reconciliation", "create") and frappe.has_permission("Stock Reconciliation", "submit")),
 		"reconciliation_warehouses": physical_leaves,
 		"can_edit_item": frappe.has_permission("Item", "write"),
-		"warehouse_tree": _warehouse_presentation(visible),
+		"warehouse_tree": _user_facing_warehouse_presentation(settings),
 		"physical_warehouses": list(physical.values()),
-		"physical_tree": list(_physical_tree(settings).values()),
+		"physical_tree": _user_facing_warehouse_presentation(settings),
 		"warehouse_management_status": _warehouse_management_status(settings, visible, _physical_tree(settings)),
 		"pending_summary_error": pending_error,
 		"companies": (
@@ -1078,7 +1180,7 @@ def warehouse_detail(warehouse):
 	groups = defaultdict(lambda: defaultdict(float))
 	for row in stock:
 		groups[row.item_group][row.stock_uom] += flt(row.actual_qty)
-	warehouse_rows = _warehouse_presentation(visible)
+	warehouse_rows = _user_facing_warehouse_presentation(settings)
 	warehouse_labels = {row["name"]: row["local_label"] for row in warehouse_rows}
 	for row in stock:
 		row["location_label"] = warehouse_labels.get(row.warehouse, row.warehouse)
@@ -1088,7 +1190,7 @@ def warehouse_detail(warehouse):
 		"order by posting_date desc, posting_time desc, name desc limit 10",
 		leaves, as_dict=True,
 	) if leaves else []
-	logical = next(row for row in _warehouse_presentation(visible) if row["name"] == warehouse)
+	logical = next(row for row in _user_facing_warehouse_presentation(settings) if row["name"] == warehouse)
 	operation_capabilities = _stock_operation_capabilities(settings)
 	capabilities = {
 		kind: bool(operation_capabilities.get(kind))
@@ -2263,14 +2365,14 @@ def _create_semantic_warehouse(parent, label, semantic_type):
 		fallback = frappe.get_doc({"doctype": "Warehouse", "warehouse_name": f"{label} / 未指定", "parent_warehouse": doc.name,
 			"company": settings.company, "warehouse_type": "库位", "is_group": 0, "ti_fallback_role": "room_default"}).insert()
 		_allow_warehouses(settings, [fallback.name])
-		logical = next(row for row in _warehouse_presentation(_warehouse_map(settings.company)) if row["name"] == doc.name)
+		logical = next(row for row in _user_facing_warehouse_presentation(settings) if row["name"] == doc.name)
 		return {"node": logical, "warehouses": [doc.name, fallback.name]}
 	if semantic_type != "location":
 		frappe.throw(_("Unsupported warehouse operation"))
 	doc = frappe.get_doc({"doctype": "Warehouse", "warehouse_name": label, "parent_warehouse": parent_row.name,
 		"company": settings.company, "warehouse_type": "库位", "is_group": 0}).insert()
 	_allow_warehouses(settings, [doc.name])
-	logical = next(row for row in _warehouse_presentation(_warehouse_map(settings.company)) if row["name"] == doc.name)
+	logical = next(row for row in _user_facing_warehouse_presentation(settings) if row["name"] == doc.name)
 	return {"node": logical, "warehouses": [doc.name]}
 
 

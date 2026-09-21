@@ -121,7 +121,7 @@
     "fieldname": "ti_fallback_role",
     "fieldtype": "Select",
     "label": "逻辑回退库位角色",
-    "options": "room_default\nsite_default\nphysical_default",
+    "options": "room_default\ngroup_default",
     "insert_after": "ti_system_role",
     "module": "Temple Inventory",
     "name": "Warehouse-ti_fallback_role"

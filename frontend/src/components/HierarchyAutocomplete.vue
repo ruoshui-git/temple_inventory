@@ -15,7 +15,10 @@ const allNodes = computed(() => props.tree.length ? props.tree : nodes.value)
 const byName = computed(() => new Map(allNodes.value.map(node => [node.name, node])))
 const roots = computed(() => nodes.value.filter(node => !nodes.value.some(parent => parent.name === parentOf(node))))
 const children = (node: Node) => nodes.value.filter(child => parentOf(child) === node.name)
-const descendants = (node: Node) => nodes.value.filter(child => child.name !== node.name && Number(child.lft) >= Number(node.lft) && Number(child.rgt) <= Number(node.rgt))
+// ``options`` intentionally omits presentation-only fallback leaves.  Keep
+// using the complete tree for selection math so a group with only ``无货位``
+// or ``无房间`` still has a real selectable descendant.
+const descendants = (node: Node) => allNodes.value.filter(child => child.name !== node.name && Number(child.lft) >= Number(node.lft) && Number(child.rgt) <= Number(node.rgt))
 const leaves = (node: Node) => node.is_group ? descendants(node).filter(child => !child.is_group) : [node]
 const normalize = (value: string) => value.toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim()
 const path = (node: Node) => { if (node.label?.includes(' / ')) return node.label; const values = [node.label || node.name]; let parent = byName.value.get(parentOf(node)); const seen = new Set<string>(); while (parent && !seen.has(parent.name)) { seen.add(parent.name); values.unshift(parent.label || parent.name); parent = byName.value.get(parentOf(parent)) } return values.join(' / ') }
