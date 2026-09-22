@@ -10,6 +10,7 @@ import DetailPopover from '../components/DetailPopover.vue'
 import IconButton from '../components/IconButton.vue'
 import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import SortableDataTable, { type SortState } from '../components/SortableDataTable.vue'
+import WarehousePreview from '../components/WarehousePreview.vue'
 import WarehouseSelector from '../components/WarehouseSelector.vue'
 import { returnToOpener } from '../lib/navigation'
 
@@ -23,6 +24,8 @@ type HistoryFilters = {
   source_warehouses: string[]
   destination_warehouses: string[]
 }
+type WarehouseRole = 'source' | 'destination'
+type MovementWarehouseColumn = { key: string; label: string; role: WarehouseRole; sortable?: boolean }
 
 const props = withDefaults(defineProps<{ destination?: Destination }>(), { destination: 'movements' })
 const route = useRoute()
@@ -59,13 +62,25 @@ const filters = ref<HistoryFilters>({
   search: '', posting_date: '', movement_kind: '', item_groups: [], warehouses: [], source_warehouses: [], destination_warehouses: [],
 })
 
-const movementColumns = [
+const movementWarehouseColumns = computed<MovementWarehouseColumn[]>(() => {
+  if (movementKind.value === 'Receive') {
+    return [{ key: 'destination_warehouses', label: '入库位置', role: 'destination' }]
+  }
+  if (movementKind.value === 'Issue') {
+    return [{ key: 'source_warehouses', label: '出库位置', role: 'source' }]
+  }
+  return [
+    { key: 'source_warehouses', label: '来源位置', role: 'source' },
+    { key: 'destination_warehouses', label: '去向位置', role: 'destination' },
+  ]
+})
+const movementColumns = computed(() => [
   { key: 'posting_date', label: '日期', sortable: true, initialOrder: 'desc' as const },
   { key: 'line_count', label: '物品行数', sortable: true },
-  { key: 'location_count', label: '位置数量', sortable: true },
+  ...movementWarehouseColumns.value,
   { key: 'category_count', label: '相关类别', sortable: true },
   { key: 'status', label: '状态' },
-]
+])
 const adjustmentColumns = [
   { key: 'movement_kind', label: '类型', sortable: true },
   { key: 'posting_date', label: '日期', sortable: true, initialOrder: 'desc' as const },
@@ -80,7 +95,7 @@ const draftColumns = [
   { key: 'status', label: '状态' },
   { key: 'actions', label: '操作' },
 ]
-const sortColumns = computed(() => props.destination === 'adjustments' ? adjustmentColumns : props.destination === 'drafts' ? draftColumns : movementColumns)
+const sortColumns = computed(() => props.destination === 'adjustments' ? adjustmentColumns : props.destination === 'drafts' ? draftColumns : movementColumns.value)
 const activeCount = computed(() => (
   (filters.value.search ? 1 : 0) +
   (filters.value.posting_date ? 1 : 0) +
@@ -89,6 +104,12 @@ const activeCount = computed(() => (
   filters.value.source_warehouses.length + filters.value.destination_warehouses.length
 ))
 const warehouseText = (name: string) => warehousePresentation(name, warehouseRows.value).breadcrumb
+function locationsFor(row: any, role: WarehouseRole) {
+  return (row.locations || []).filter((location: any) => location.roles?.includes(role))
+}
+function warehouseColumnLabel(role: WarehouseRole) {
+  return movementWarehouseColumns.value.find(column => column.role === role)?.label || '位置'
+}
 const chips = computed(() => [
   ...filters.value.warehouses.map(value => ({ key: 'warehouses', value, label: warehouseText(value) })),
   ...filters.value.source_warehouses.map(value => ({ key: 'source_warehouses', value, label: `来源：${warehouseText(value)}` })),
@@ -350,10 +371,11 @@ onBeforeUnmount(() => {
             <template #cell-movement_kind="{ row }">{{ row.movement_kind === '盘点调整' ? '库存盘点' : labels[row.movement_kind] || row.movement_kind }}</template>
             <template #cell-status="{ row }">{{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</template>
             <template #cell-line_count="{ row }">{{ row.line_count ?? 0 }}</template>
-            <template #cell-location_count="{ row }">
-              <DetailPopover :label="`查看 ${row.location_count ?? 0} 个位置`" :trigger-text="String(row.location_count ?? 0)">
-                <span v-for="location in row.locations || []" :key="location.warehouse">{{ warehouseText(location.warehouse) }}<br></span>
-              </DetailPopover>
+            <template #cell-source_warehouses="{ row }">
+              <WarehousePreview :locations="locationsFor(row, 'source')" :tree="warehouseRows" :label="warehouseColumnLabel('source')" />
+            </template>
+            <template #cell-destination_warehouses="{ row }">
+              <WarehousePreview :locations="locationsFor(row, 'destination')" :tree="warehouseRows" :label="warehouseColumnLabel('destination')" />
             </template>
             <template #cell-category_count="{ row }">
               <DetailPopover :label="`查看 ${row.category_count ?? 0} 个类别`" :trigger-text="String(row.category_count ?? 0)">
@@ -369,10 +391,16 @@ onBeforeUnmount(() => {
                   <b v-if="props.destination !== 'movements'">{{ row.movement_kind === '盘点调整' ? '库存盘点' : labels[row.movement_kind] || row.movement_kind }}</b>
                   <b v-else>{{ row.posting_date }}</b>
                   <p v-if="props.destination === 'adjustments'">{{ row.posting_date }} · 增加 {{ row.increase_line_count ?? 0 }} 行 · 减少 {{ row.decrease_line_count ?? 0 }} 行</p>
-                  <p v-else-if="props.destination === 'movements'">物品 {{ row.line_count ?? 0 }} 行 · 位置 {{ row.location_count ?? 0 }} 个 · 类别 {{ row.category_count ?? 0 }} 个</p>
+                  <p v-else-if="props.destination === 'movements'">物品 {{ row.line_count ?? 0 }} 行 · 类别 {{ row.category_count ?? 0 }} 个</p>
                   <p v-else>{{ row.posting_date }} · {{ row.line_count ?? 0 }} 行</p>
                   <small>{{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</small>
                 </RouterLink>
+                <div v-if="props.destination === 'movements'" class="movement-card-warehouses">
+                  <div v-for="column in movementWarehouseColumns" :key="column.key" class="movement-card-warehouse">
+                    <small>{{ column.label }}</small>
+                    <WarehousePreview :locations="locationsFor(row, column.role)" :tree="warehouseRows" :label="column.label" />
+                  </div>
+                </div>
                 <button v-if="props.destination === 'drafts'" data-row-control type="button" @click="deleteDraft(row.name)">删除草稿</button>
               </article>
             </template>
@@ -386,3 +414,21 @@ onBeforeUnmount(() => {
     <button v-else-if="props.destination === 'adjustments' && boot?.can_reconcile_stock" type="button" class="action-fab" aria-label="新建盘点调整" @click="router.push('/reconcile/new')">＋</button>
   </main>
 </template>
+
+<style scoped>
+.movement-card-warehouses {
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.movement-card-warehouse {
+  display: grid;
+  gap: 3px;
+}
+
+.movement-card-warehouse > small {
+  color: #6b6257;
+  font-weight: 600;
+}
+</style>

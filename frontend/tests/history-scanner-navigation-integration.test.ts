@@ -149,4 +149,93 @@ describe('Task 04 history, scanner, and navigation integration', () => {
     await wrapper.find('[data-row-control]').trigger('click')
     expect(state.push).not.toHaveBeenCalledWith('/workspace/IW-1')
   })
+
+  it.each([
+    ['Receive', ['入库位置']],
+    ['Issue', ['出库位置']],
+    ['Transfer', ['来源位置', '去向位置']],
+  ])('shows role-specific warehouse columns for %s movements', async (kind, expectedLabels) => {
+    state.route.path = '/inventory/movements'
+    state.route.query = { kind }
+    state.api.mockImplementation(async (method: string) => method === 'bootstrap' ? {
+      physical_tree: [],
+      item_groups: [],
+      stock_operation_capabilities: {},
+    } : {})
+    state.workspaceApi.mockImplementation(async (method: string) => method === 'history' ? {
+      results: [],
+      total: 0,
+      overall_total: 0,
+      facets: { movement_kind: {}, warehouses: {}, source_warehouses: {}, destination_warehouses: {}, item_groups: {} },
+    } : {})
+    Object.defineProperty(window, 'IntersectionObserver', { value: class { observe() {} disconnect() {} }, configurable: true })
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { value: vi.fn(), configurable: true })
+
+    const wrapper = mount(History, { props: { destination: 'movements' }, global: globals })
+    await flushPromises()
+
+    const headings = wrapper.findAll('.sortable-data-table-desktop th').map(column => column.text())
+    expect(headings).not.toContain('位置数量')
+    for (const label of expectedLabels) expect(headings).toContain(label)
+    wrapper.unmount()
+  })
+
+  it('separates transfer warehouse roles and expands previews without activating the row', async () => {
+    state.route.path = '/inventory/movements'
+    state.route.query = { kind: 'Transfer' }
+    const warehouses = [
+      { name: 'SRC-1', breadcrumb: '东厢房 / 一架' },
+      { name: 'SRC-2', breadcrumb: '东厢房 / 二架' },
+      { name: 'SRC-3', breadcrumb: '东厢房 / 三架' },
+      { name: 'DEST-1', breadcrumb: '西厢房 / 四架' },
+    ]
+    state.api.mockImplementation(async (method: string) => method === 'bootstrap' ? {
+      physical_tree: warehouses,
+      item_groups: [],
+      stock_operation_capabilities: {},
+    } : {})
+    state.workspaceApi.mockImplementation(async (method: string) => method === 'history' ? {
+      results: [{
+        name: 'IW-transfer',
+        posting_date: '2026-09-20',
+        line_count: 3,
+        category_count: 1,
+        docstatus: 1,
+        locations: [
+          { warehouse: 'SRC-1', roles: ['source'] },
+          { warehouse: 'SRC-2', roles: ['source'] },
+          { warehouse: 'SRC-3', roles: ['source'] },
+          { warehouse: 'DEST-1', roles: ['destination'] },
+        ],
+      }],
+      total: 1,
+      overall_total: 1,
+      facets: { movement_kind: {}, warehouses: {}, source_warehouses: {}, destination_warehouses: {}, item_groups: {} },
+    } : {})
+    Object.defineProperty(window, 'IntersectionObserver', { value: class { observe() {} disconnect() {} }, configurable: true })
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { value: vi.fn(), configurable: true })
+
+    const wrapper = mount(History, { props: { destination: 'movements' }, global: globals, attachTo: document.body })
+    await flushPromises()
+
+    const cells = wrapper.findAll('.sortable-data-table-desktop tbody tr').at(0)!.findAll('td')
+    expect(cells[2].text()).toContain('东厢房 / 一架')
+    expect(cells[2].text()).toContain('东厢房 / 二架')
+    expect(cells[2].text()).not.toContain('东厢房 / 三架')
+    expect(cells[2].text()).not.toContain('西厢房 / 四架')
+    expect(cells[2].get('button').text()).toBe('+1')
+    expect(cells[3].text()).toContain('西厢房 / 四架')
+    expect(cells[3].text()).not.toContain('东厢房 / 一架')
+
+    const mobileWarehouses = wrapper.findAll('.movement-card-warehouse')
+    expect(mobileWarehouses.map(section => section.text())).toEqual([
+      expect.stringContaining('来源位置'),
+      expect.stringContaining('去向位置'),
+    ])
+    await mobileWarehouses[0].get('button').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('东厢房 / 三架')
+    expect(state.push).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
 })
