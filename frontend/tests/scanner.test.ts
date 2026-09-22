@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
 vi.mock('../src/lib/scanner', () => ({
   cameraError: (error: any) => String(error?.message || error),
   ScannerService: class {
-    engineId = (localStorage.getItem('temple_inventory.scanner_engine') as any) || 'frappe'
+    engineId = (localStorage.getItem('temple_inventory.scanner_engine') as any) || 'zxing-wasm'
     get engineLabel() { return this.engineId === 'frappe' ? 'Frappe 内置' : 'ZXing-WASM' }
     async start(_container: HTMLElement, callback: (value: string) => void, onError: (error: unknown) => void) {
       if (state.startError) { const error = state.startError; state.startError = undefined; throw error }
@@ -55,23 +55,23 @@ describe('Scanner component', () => {
     continuous.unmount()
   })
 
-  it('defaults to Frappe, renders the opposite engine, and suppresses duplicates for both engines', async () => {
+  it('defaults to ZXing-WASM, renders the opposite engine, and suppresses duplicates for both engines', async () => {
     const wrapper = mount(Scanner); await flushPromises()
-    expect(wrapper.text()).toContain('扫描引擎：Frappe 内置')
-    expect(wrapper.text()).toContain('切换到 ZXing-WASM')
+    expect(wrapper.text()).toContain('扫描引擎：ZXing-WASM')
+    expect(wrapper.text()).toContain('切换到 Frappe 内置')
     state.callbacks[0]('123'); state.callbacks[0]('123'); expect(wrapper.emitted('scan')).toEqual([['123']])
     await wrapper.find('.scanner-engine button').trigger('click'); await flushPromises()
-    expect(state.starts).toEqual(['frappe', 'zxing-wasm']); expect(state.stops).toBe(1)
-    expect(wrapper.text()).toContain('切换到 Frappe 内置')
+    expect(state.starts).toEqual(['zxing-wasm', 'frappe']); expect(state.stops).toBe(1)
+    expect(wrapper.text()).toContain('切换到 ZXing-WASM')
     state.callbacks[1]('123'); expect(wrapper.emitted('scan')).toHaveLength(1)
     wrapper.unmount(); await flushPromises(); expect(state.stops).toBe(2)
   })
 
   it('persists engine choice, rejects invalid preferences, and keeps manual entry usable', async () => {
     localStorage.setItem('temple_inventory.scanner_engine', 'invalid')
-    const wrapper = mount(Scanner); await flushPromises(); expect(wrapper.text()).toContain('Frappe 内置')
+    const wrapper = mount(Scanner); await flushPromises(); expect(wrapper.text()).toContain('ZXing-WASM')
     await wrapper.find('.scanner-engine button').trigger('click'); await flushPromises(); wrapper.unmount()
-    const remounted = mount(Scanner); await flushPromises(); expect(remounted.text()).toContain('ZXing-WASM')
+    const remounted = mount(Scanner); await flushPromises(); expect(remounted.text()).toContain('Frappe 内置')
     await remounted.find('input').setValue('A001'); await remounted.find('form').trigger('submit')
     expect(remounted.emitted('scan')).toEqual([['A001']]); remounted.unmount()
   })
@@ -106,7 +106,7 @@ describe('Scanner component', () => {
     expect(retry).toBeDefined()
     await retry!.trigger('click')
     await flushPromises()
-    expect(state.starts).toEqual(['frappe'])
+    expect(state.starts).toEqual(['zxing-wasm'])
     expect(wrapper.text()).not.toContain('initial camera failure')
     wrapper.unmount()
   })

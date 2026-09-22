@@ -164,7 +164,7 @@ export class ScannerService {
   private selected: ScannerEngineId; private active?: ScannerEngine; private queue = Promise.resolve(); private factories: ScannerEngineFactories; private generation = 0
   constructor(factories: Partial<ScannerEngineFactories> = {}) {
     let stored: string | null = null; try { stored = localStorage.getItem(STORAGE_KEY) } catch { /* storage may be unavailable */ }
-    this.selected = validEngine(stored) ? stored : 'frappe'
+    this.selected = validEngine(stored) ? stored : 'zxing-wasm'
     this.factories = { frappe: () => new FrappeScannerEngine(), 'zxing-wasm': () => new ZxingWasmScannerEngine(), ...factories }
   }
   get engineId() { return this.selected }

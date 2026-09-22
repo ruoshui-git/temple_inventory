@@ -8,8 +8,8 @@ export type ScannerPresentation = 'inline' | 'modal' | 'continuous'
 const props = withDefaults(defineProps<{ paused?: boolean; presentation?: ScannerPresentation }>(), { presentation: 'inline' })
 const emit = defineEmits<{ scan: [value: string]; close: [] }>()
 const area = ref<HTMLElement>(), panel = ref<HTMLElement>(), closeButton = ref<HTMLButtonElement>(), error = ref(''), manual = ref(''), starting = ref(false)
-const engineId = ref<ScannerEngineId>('frappe')
-const engineLabel = ref('Frappe 内置')
+const engineId = ref<ScannerEngineId>('zxing-wasm')
+const engineLabel = ref('ZXing-WASM')
 const service = new ScannerService()
 const titleId = `scanner-title-${Math.random().toString(36).slice(2)}`
 let disposed = false, last = '', lastTime = 0, opener: HTMLElement | null = null, previousOverflow = ''
@@ -19,7 +19,22 @@ function decoded(value: string) {
   value = value.trim()
   if (!value || props.paused || sessionExpired.value || disposed) return
   if (value === last && Date.now() - lastTime < 2000) return
-  last = value; lastTime = Date.now(); emit('scan', value); manual.value = ''
+  last = value; lastTime = Date.now(); notifyScan(); emit('scan', value); manual.value = ''
+}
+function notifyScan() {
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+  if (!AudioContextClass) return
+  try {
+    const context = new AudioContextClass()
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    oscillator.type = 'sine'; oscillator.frequency.value = 880
+    gain.gain.setValueAtTime(0.08, context.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.12)
+    oscillator.connect(gain); gain.connect(context.destination)
+    oscillator.start(); oscillator.stop(context.currentTime + 0.12)
+    oscillator.addEventListener('ended', () => { void context.close() }, { once: true })
+  } catch { /* Audio notification is optional. */ }
 }
 function focusables() {
   return panel.value ? Array.from(panel.value.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')) : []
