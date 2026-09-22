@@ -10,6 +10,8 @@ import ResponsiveFilterPanel from '../components/ResponsiveFilterPanel.vue'
 import WarehouseSelector from '../components/WarehouseSelector.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
+import SortableDataTable, { type SortState } from '../components/SortableDataTable.vue'
+import { returnToOpener } from '../lib/navigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +32,16 @@ const sentinel = ref<HTMLElement>()
 const resultsPane = ref<HTMLElement>()
 const scrollKey = 'temple_inventory.scroll.movements'
 const pageLength = 25
+const defaultSort: SortState = { sort_by: 'posting_date', sort_order: 'desc' }
+const sort = ref<SortState>({ ...defaultSort })
+const sortColumns = [
+  { key: 'title', label: '类型 / 描述', sortable: true, initialOrder: 'asc' as const },
+  { key: 'posting_date', label: '日期', sortable: true, initialOrder: 'desc' as const },
+  { key: 'source', label: '来源' },
+  { key: 'line_count', label: '物品行数', sortable: true, initialOrder: 'desc' as const },
+  { key: 'status', label: '状态' },
+  { key: 'actions', label: '操作' },
+]
 const statusGroup = ref(route.query.status === 'unfinished' ? 'unfinished' : 'completed')
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {})
 const canMove = computed(() => ['Receive', 'Issue', 'Transfer', 'Loan', 'Return', 'Damage', 'Loss', 'Repair', 'Disposal'].some(kind => operationCaps.value[kind]))
@@ -87,7 +99,8 @@ let restoringRoute = false
 let previousText = ''
 let observer: IntersectionObserver | undefined
 function queryState() {
-  return { ...filters.value, start: start.value || undefined, status: statusGroup.value === 'unfinished' ? 'unfinished' : undefined }
+  const sortQuery = JSON.stringify(sort.value) === JSON.stringify(defaultSort) ? {} : sort.value
+  return { ...filters.value, start: start.value || undefined, status: statusGroup.value === 'unfinished' ? 'unfinished' : undefined, ...sortQuery }
 }
 async function load(offset = start.value, debounceText = false, append = false) {
   if (timer) clearTimeout(timer)
@@ -105,6 +118,7 @@ async function load(offset = start.value, debounceText = false, append = false) 
         start: start.value,
         page_length: pageLength,
         status_group: statusGroup.value,
+        ...sort.value,
       }, controller?.signal)
       if (current !== sequence) return
       rows.value = append ? [...rows.value, ...(data.results || []).filter((row: any) => !rows.value.some(old => old.name === row.name))] : (data.results || [])
@@ -113,7 +127,7 @@ async function load(offset = start.value, debounceText = false, append = false) 
       unfinishedCount.value = data.unfinished_count || 0
       facets.value = data.facets || { movement_kind: {}, warehouses: {}, item_groups: {} }
       syncingRoute = true
-      await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
+      await router.replace({ query: { ...route.query, sort_by: undefined, sort_order: undefined, ...serializeFilterQuery(queryState()) } })
       syncingRoute = false
     } catch (cause: any) {
       syncingRoute = false
@@ -134,12 +148,8 @@ async function selectGroup(group: string) {
   if (group === 'unfinished') filters.value.movement_kind = ''
   else if (!filters.value.movement_kind) filters.value.movement_kind = 'Receive'
   start.value = 0
-  await router.replace({ query: { ...route.query, ...serializeFilterQuery(queryState()) } })
+  await router.replace({ query: { ...route.query, sort_by: undefined, sort_order: undefined, ...serializeFilterQuery(queryState()) } })
   void load(0)
-}
-async function deleteDraft(name: string) {
-  if (!window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return
-  try { await workspaceApi('delete_draft', { name }); window.dispatchEvent(new Event('ti:refresh-shell')); await load() } catch (cause: any) { error.value = cause.message }
 }
 function applyQuery(query: Record<string, unknown>) {
   const hydrated = hydrateFilterQuery(query, {
@@ -150,15 +160,21 @@ function applyQuery(query: Record<string, unknown>) {
     date_to: String(hydrated.date_to || ''), source_text: String(hydrated.source_text || ''), purpose_text: String(hydrated.purpose_text || ''),
     activity: String(hydrated.activity || ''), handler_name: String(hydrated.handler_name || ''), rooms: hydrated.rooms as string[],
   }
+  const requestedSort = String(query.sort_by || '')
+  const requestedOrder = String(query.sort_order || '')
+  const validSort = ['title', 'posting_date', 'line_count'].includes(requestedSort) && ['asc', 'desc'].includes(requestedOrder)
+  const nextSort = validSort ? { sort_by: requestedSort, sort_order: requestedOrder } as SortState : { ...defaultSort }
   const changed = Object.keys(next).some(key => !sameFilterValue((filters.value as any)[key], (next as any)[key]))
   const nextStatus = query.status === 'unfinished' ? 'unfinished' : 'completed'
   const nextStart = Number(hydrated.start) || 0
-  if (!changed && nextStatus === statusGroup.value && start.value === nextStart) return false
+  const sortChanged = sort.value.sort_by !== nextSort.sort_by || sort.value.sort_order !== nextSort.sort_order
+  if (!changed && nextStatus === statusGroup.value && start.value === nextStart && !sortChanged) return false
   restoringRoute = true
   filters.value = next
   previousText = [next.search, next.source_text, next.purpose_text, next.handler_name].join("\u0000")
   statusGroup.value = nextStatus
   start.value = nextStart
+  sort.value = nextSort
   void nextTick(() => { restoringRoute = false })
   return true
 }
@@ -170,6 +186,13 @@ watch(filters, () => {
   previousText = text
   start.value = 0
   void load(0, debounceText)
+}, { deep: true })
+watch(sort, () => {
+  if (!boot.value || restoringRoute) return
+  start.value = 0
+  rows.value = []
+  resultsPane.value?.scrollTo({ top: 0 })
+  void load(0)
 }, { deep: true })
 watch(() => route.query, query => {
   if (!syncingRoute && applyQuery(query as Record<string, unknown>)) void load(start.value)
@@ -193,11 +216,24 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (resultsPane.value) sessionStorage.setItem(scrollKey, String(resultsPane.value.scrollTop)) })
+function activate(row: any) {
+  const path = row.document_type === 'Stock Reconciliation' ? `/reconcile/${encodeURIComponent(row.name)}` : row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`
+  void router.push(path)
+}
+function close() { void returnToOpener(router, '/more') }
+async function deleteDraft(name: string) {
+  if (!window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return
+  try {
+    await workspaceApi('delete_draft', { name })
+    window.dispatchEvent(new Event('ti:refresh-shell'))
+    await returnToOpener(router, '/movements?status=unfinished')
+  } catch (cause: any) { error.value = cause.message }
+}
 </script>
 
 <template>
   <main class="app-shell wide-shell">
-    <header class="browse-back"><RouterLink to="/more">‹ 更多</RouterLink></header>
+    <header class="browse-back"><button type="button" @click="close">‹ 更多</button></header>
     <nav class="toolbar movement-modes" aria-label="货物流动类型"><button v-for="kind in primaryKinds" :key="kind" type="button" :class="{ primary: filters.movement_kind === kind }" @click="filters.movement_kind = kind; statusGroup = 'completed'">{{ labels[kind] }}<b v-if="facets.movement_kind[kind]">（{{ facets.movement_kind[kind] }}）</b></button><button v-if="boot?.can_reconcile_stock" type="button" @click="router.push('/reconcile/new')">盘点</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">草稿 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
     <p v-if="error" class="error" role="alert">{{ error }} <button type="button" @click="load(start)">重试</button></p>
     <div class="list-layout desktop-list-layout">
@@ -211,8 +247,14 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
         <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载记录…" />
         <template v-else>
-          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">类型 / 描述</th><th scope="col">日期</th><th scope="col">来源</th><th scope="col">物品行数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody><tr v-for="row in rows" :key="row.name"><td><RouterLink :to="row.document_type === 'Stock Reconciliation' ? `/reconcile/${encodeURIComponent(row.name)}` : row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] || row.movement_kind }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b></RouterLink></td><td>{{ row.posting_date }}</td><td>{{ row.document_type === 'Stock Reconciliation' ? 'ERPNext · 盘点' : row.legacy ? 'ERPNext' : '本应用' }}</td><td>{{ row.line_count ?? row.items?.length ?? 0 }}</td><td>{{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</td><td><button v-if="statusGroup === 'unfinished'" type="button" @click="deleteDraft(row.name)">删除草稿</button></td></tr></tbody></table></div>
-          <div class="mobile-cards"><article v-for="row in rows" :key="row.name" class="selection-row"><RouterLink :to="row.document_type === 'Stock Reconciliation' ? `/reconcile/${encodeURIComponent(row.name)}` : row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] || row.movement_kind }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b><p>{{ row.posting_date }} · {{ row.line_count ?? row.items?.length ?? 0 }} 行 · {{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</p><small>{{ row.handler_name || row.responsible_person }}</small></RouterLink><button v-if="statusGroup === 'unfinished'" type="button" @click="deleteDraft(row.name)">删除草稿</button></article></div>
+          <SortableDataTable :rows="rows" :columns="sortColumns" row-key="name" :sort="sort" @sort="value => { sort = value }" @activate="activate">
+            <template #cell-title="{ row }"><RouterLink data-row-action :to="row.document_type === 'Stock Reconciliation' ? `/reconcile/${encodeURIComponent(row.name)}` : row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] || row.movement_kind }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b></RouterLink></template>
+            <template #cell-source="{ row }">{{ row.document_type === 'Stock Reconciliation' ? 'ERPNext · 盘点' : row.legacy ? 'ERPNext' : '本应用' }}</template>
+            <template #cell-status="{ row }">{{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</template>
+            <template #cell-line_count="{ row }">{{ row.line_count ?? row.items?.length ?? 0 }}</template>
+            <template #cell-actions="{ row }"><button v-if="statusGroup === 'unfinished'" data-row-control type="button" @click="deleteDraft(row.name)">删除草稿</button></template>
+            <template #mobile-row="{ row }"><article tabindex="0"><RouterLink data-row-action :to="row.document_type === 'Stock Reconciliation' ? `/reconcile/${encodeURIComponent(row.name)}` : row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`"><b>{{ labels[row.movement_kind] || row.movement_kind }} · {{ row.source_text || row.purpose_text || row.activity || row.name }}</b><p>{{ row.posting_date }} · {{ row.line_count ?? row.items?.length ?? 0 }} 行 · {{ row.docstatus === 0 ? '编辑中' : row.docstatus === 1 ? '已完成' : '已取消' }}</p><small>{{ row.handler_name || row.responsible_person }}</small></RouterLink><button v-if="statusGroup === 'unfinished'" data-row-control type="button" @click="deleteDraft(row.name)">删除草稿</button></article></template>
+          </SortableDataTable>
           <p v-if="!rows.length" class="empty-state">{{ statusGroup === 'unfinished' ? '暂无未完成记录' : '暂无库存记录' }}</p>
         </template>
         <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button" :disabled="busy" @click="load(rows.length, false, true)">{{busy?'正在加载…':'加载更多'}}</button>

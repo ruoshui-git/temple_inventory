@@ -11,6 +11,7 @@ import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
+import SortableDataTable, { type SortState } from '../components/SortableDataTable.vue'
 import { formatExpiryDuration } from '../lib/duration'
 
 const route = useRoute()
@@ -39,8 +40,17 @@ const filters = ref({
   item_groups: [] as string[],
   expiry_window: '',
   expiry_days: '30',
-  sort: 'asc',
 })
+const defaultSort: SortState = { sort_by: 'expiry_date', sort_order: 'asc' }
+const sort = ref<SortState>({ ...defaultSort })
+const sortColumns = [
+  { key: 'item_name', label: '物品 / 批次', sortable: true, initialOrder: 'asc' as const },
+  { key: 'item_group', label: '类别' },
+  { key: 'expiry_date', label: '到期日期', sortable: true, initialOrder: 'asc' as const },
+  { key: 'days_to_expiry', label: '剩余' },
+  { key: 'total_qty', label: '数量', sortable: true, initialOrder: 'desc' as const },
+  { key: 'locations', label: '位置' },
+]
 const expiryWindows = [
   { value: 'overdue_within', prefix: '已过期', suffix: '天以下' },
   { value: 'overdue_beyond', prefix: '已过期', suffix: '天以上' },
@@ -67,6 +77,9 @@ const inventoryQuery = computed(() => serializeFilterQuery({
   warehouses: filters.value.warehouses,
   item_groups: filters.value.item_groups,
 }))
+const sortQuery = () => JSON.stringify(sort.value) === JSON.stringify(defaultSort)
+  ? { sort_by: undefined, sort_order: undefined }
+  : { sort_by: sort.value.sort_by, sort_order: sort.value.sort_order }
 const chips = computed(() => [
   ...filters.value.warehouses.map(value => ({
     key: 'warehouses',
@@ -96,7 +109,7 @@ function removeChip(chip: any) {
   else (filters.value as any)[chip.key] = ''
 }
 function clearAll() {
-  filters.value = { search: '', warehouses: [], item_groups: [], expiry_window: '', expiry_days: '30', sort: 'asc' }
+  filters.value = { search: '', warehouses: [], item_groups: [], expiry_window: '', expiry_days: '30' }
   start.value = 0
 }
 
@@ -107,6 +120,7 @@ let syncingRoute = false
 let restoringRoute = false
 let observer: IntersectionObserver | undefined
 function operation(kind: string) { void router.push(`/new/${kind}`) }
+function applySort(value: SortState) { sort.value = value; rows.value = []; start.value = 0; observer?.disconnect(); if (sentinel.value) observer?.observe(sentinel.value) }
 async function load(append = false) {
   if (!boot.value) return
   if (timer) clearTimeout(timer)
@@ -120,6 +134,7 @@ async function load(append = false) {
     try {
       const data = await api('expiring_batches', {
         ...filters.value,
+        ...sort.value,
         expiry_days: filters.value.expiry_window ? expiryDays.value : undefined,
         warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined,
         item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined,
@@ -133,7 +148,7 @@ async function load(append = false) {
 		overallTotal.value = data.overall_total || 0
       syncingRoute = true
       void router.replace({
-        query: { ...route.query, ...serializeFilterQuery({ ...filters.value, expiry_days: filters.value.expiry_window ? expiryDays.value : undefined, start: start.value || undefined }) },
+        query: { ...route.query, sort: undefined, ...serializeFilterQuery({ ...filters.value, expiry_days: filters.value.expiry_window ? expiryDays.value : undefined, start: start.value || undefined }), ...sortQuery() },
       }).finally(() => { syncingRoute = false })
     } catch (cause: any) {
       if (current === sequence && cause?.name !== 'AbortError') error.value = cause.message
@@ -148,7 +163,7 @@ async function load(append = false) {
   else await run()
 }
 
-watch(filters, () => {
+watch([filters, sort], () => {
   const preserveStart = restoringRoute
   restoringRoute = false
   if (!preserveStart) start.value = 0
@@ -158,18 +173,25 @@ watch(filters, () => {
 
 watch(() => route.query, query => {
   if (syncingRoute || !boot.value) return
-  const hydrated = hydrateFilterQuery(query as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [] as string[], expiry_window: '', expiry_days: '30', sort: 'asc', start: '0' })
+  const hydrated = hydrateFilterQuery(query as Record<string, unknown>, { search: '', warehouses: [] as string[], item_groups: [] as string[], expiry_window: '', expiry_days: '30', start: '0' })
   const requestedWindow = String(hydrated.expiry_window || '')
   const requestedDays = String(hydrated.expiry_days || '')
   const validWindow = requestedWindow === '' || expiryWindows.some(option => option.value === requestedWindow)
   const validDays = /^[1-9]\d*$/.test(requestedDays)
   if (!validWindow || !validDays) routeValidationError.value = '效期范围参数无效，已恢复为默认值。'
-  const next = { search: String(hydrated.search || ''), warehouses: hydrated.warehouses as string[], item_groups: hydrated.item_groups as string[], expiry_window: validWindow ? requestedWindow : '', expiry_days: validDays ? requestedDays : '30', sort: String(hydrated.sort || 'asc') }
+  const next = { search: String(hydrated.search || ''), warehouses: hydrated.warehouses as string[], item_groups: hydrated.item_groups as string[], expiry_window: validWindow ? requestedWindow : '', expiry_days: validDays ? requestedDays : '30' }
   const changed = Object.keys(next).some(key => !sameFilterValue((filters.value as any)[key], (next as any)[key]))
-  if (!changed && start.value === (Number(hydrated.start) || 0)) return
+  const sortBy = String(query.sort_by || 'expiry_date')
+  const sortOrder = String(query.sort_order || query.sort || 'asc')
+  const nextSort = ['item_name', 'expiry_date', 'total_qty'].includes(sortBy) && ['asc', 'desc'].includes(sortOrder)
+    ? { sort_by: sortBy, sort_order: sortOrder as 'asc' | 'desc' }
+    : { ...defaultSort }
+  const sortChanged = sort.value.sort_by !== nextSort.sort_by || sort.value.sort_order !== nextSort.sort_order
+  if (!changed && start.value === (Number(hydrated.start) || 0) && !sortChanged) return
   restoringRoute = true
   filters.value = next
   start.value = Number(hydrated.start) || 0
+  sort.value = nextSort
 }, { deep: true })
 
 onMounted(async () => {
@@ -181,7 +203,6 @@ onMounted(async () => {
       item_groups: [] as string[],
       expiry_window: '',
       expiry_days: '30',
-      sort: 'asc',
       start: '0',
     })
     filters.value = {
@@ -190,8 +211,10 @@ onMounted(async () => {
       item_groups: hydrated.item_groups as string[],
       expiry_window: String(hydrated.expiry_window || ''),
       expiry_days: /^[1-9]\d*$/.test(String(hydrated.expiry_days || '')) ? String(hydrated.expiry_days) : '30',
-      sort: String(hydrated.sort || 'asc'),
     }
+    const sortBy = String(route.query.sort_by || 'expiry_date')
+    const sortOrder = String(route.query.sort_order || route.query.sort || 'asc')
+    if (['item_name', 'expiry_date', 'total_qty'].includes(sortBy) && ['asc', 'desc'].includes(sortOrder)) sort.value = { sort_by: sortBy, sort_order: sortOrder as 'asc' | 'desc' }
     start.value = Number(hydrated.start) || 0
     await load()
     await nextTick()
@@ -210,22 +233,26 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
 
 <template>
   <main class="inventory-destination wide-shell">
-    <nav class="inventory-modes" aria-label="库存视图"><RouterLink :to="{ path: '/', query: inventoryQuery }">当前库存</RouterLink><RouterLink :to="{ path: '/', query: { ...inventoryQuery, mode: 'catalog' } }">全部物品</RouterLink><RouterLink class="active" :to="{ path: '/expiry', query: { ...inventoryQuery, ...(filters.expiry_window ? { expiry_window: filters.expiry_window, expiry_days: expiryDays } : {}), sort: filters.sort !== 'asc' ? filters.sort : undefined } }">效期批次</RouterLink></nav>
+    <nav class="inventory-modes" aria-label="库存视图"><RouterLink :to="{ path: '/', query: inventoryQuery }">当前库存</RouterLink><RouterLink :to="{ path: '/', query: { ...inventoryQuery, mode: 'catalog' } }">全部物品</RouterLink><RouterLink class="active" :to="{ path: '/expiry', query: { ...inventoryQuery, ...(filters.expiry_window ? { expiry_window: filters.expiry_window, expiry_days: expiryDays } : {}), ...sortQuery() } }">效期批次</RouterLink></nav>
     <p v-if="error || routeValidationError" class="error">{{ error || routeValidationError }} <button type="button" @click="load()">重试</button></p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
         <WarehouseSelector v-model="filters.warehouses" :rows="warehouseRows" :counts="facetCounts.warehouses" />
         <CategorySelector v-model="filters.item_groups" :rows="boot?.item_groups || []" :counts="facetCounts.item_groups" />
         <fieldset class="choice-list"><legend>效期范围</legend><label class="choice-row"><input type="radio" value="" :checked="!filters.expiry_window" @change="setExpiryWindow('')">全部效期</label><label v-for="option in expiryWindows" :key="option.value" class="choice-row"><input type="radio" :value="option.value" :checked="filters.expiry_window === option.value" @change="setExpiryWindow(option.value)">{{ option.prefix }}{{ expiryDays }}{{ option.suffix }}</label><label v-if="filters.expiry_window">天数<input v-model="filters.expiry_days" type="number" min="1" step="1" inputmode="numeric" @change="normalizeExpiryDays"></label></fieldset>
-        <fieldset class="choice-list"><legend>排序</legend><label class="choice-row"><input v-model="filters.sort" type="radio" value="asc">最近到期优先</label><label class="choice-row"><input v-model="filters.sort" type="radio" value="desc">最晚到期优先</label></fieldset>
       </ResponsiveFilterPanel>
       <div ref="resultsPane" class="results-column">
         <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或批次" aria-label="搜索物品或批次"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部效期批次 ${overallTotal}` }}</span></div>
         <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载有效期…" />
         <template v-else>
-          <div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th scope="col">物品 / 批次</th><th scope="col">类别</th><th scope="col">到期日期</th><th scope="col">剩余</th><th scope="col">数量</th><th scope="col">位置</th></tr></thead><tbody><tr v-for="row in rows" :key="row.batch_no" :class="{ 'expiry-overdue-row': row.days_to_expiry < 0 }"><td><div class="item-identity"><ItemImagePreview :src="row.image" :alt="row.item_name"/><RouterLink :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.batch_no }}</small></RouterLink></div></td><td>{{ row.item_group }}</td><td>{{ row.expiry_date }}</td><td :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</td><td class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</td><td><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseText(location.warehouse) }}：{{ location.qty }}</span></td></tr></tbody></table></div>
-          <div class="mobile-cards"><article v-for="row in rows" :key="row.batch_no" class="item-card" :class="{ 'expiry-overdue-row': row.days_to_expiry < 0 }"><ItemImagePreview :src="row.image" :alt="row.item_name"/><div><RouterLink :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</span></p></RouterLink></div></article></div>
+          <SortableDataTable :rows="rows" :columns="sortColumns" row-key="batch_no" :sort="sort" @sort="applySort" @activate="row => router.push(`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`)">
+            <template #cell-item_name="{ row }"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.batch_no }}</small></RouterLink></template>
+            <template #cell-days_to_expiry="{ row }"><span :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</span></template>
+            <template #cell-total_qty="{ row }"><span class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</span></template>
+            <template #cell-locations="{ row }"><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseText(location.warehouse) }}：{{ location.qty }}</span></template>
+            <template #mobile-row="{ row }"><article class="item-card" tabindex="0" :class="{ 'expiry-overdue-row': row.days_to_expiry < 0 }"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</span></p></RouterLink></article></template>
+          </SortableDataTable>
           <p v-if="!rows.length" class="empty-state">暂无有库存的有效期批次</p>
         </template>
         <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" :disabled="busy" @click="load(true)">{{busy?'正在加载…':'加载更多'}}</button>

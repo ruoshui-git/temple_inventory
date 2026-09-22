@@ -640,6 +640,18 @@ def _page(rows, page_length=30, start=0):
 	}
 
 
+def _sort_state(sort_by, sort_order, columns, default_column=None, default_order="asc"):
+	if sort_by is None and sort_order is None:
+		return None
+	column = str(sort_by or default_column or "").strip()
+	if column not in columns:
+		frappe.throw(_("Invalid sort column"))
+	order = str(sort_order or default_order).strip().lower()
+	if order not in ("asc", "desc"):
+		frappe.throw(_("Invalid sort direction"))
+	return column, order
+
+
 def _bin_balances(warehouses, item_names=None):
 	"""Aggregate Bin balances once, leaving Item permission filtering to callers."""
 	warehouses = list(warehouses or [])
@@ -1216,13 +1228,17 @@ def warehouse_detail(warehouse):
 	}
 
 
-def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", pending_mode=None):
+def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", pending_mode=None, leased_warehouses=None):
 	"""Build the permission-aware SQL candidate set used by Inventory paging."""
 	warehouses = list(warehouses or [])
 	if not warehouses:
 		return "select null as name where 1=0", []
 	warehouse_marks = ", ".join(["%s"] * len(warehouses))
-	params = [settings.pending_warehouse, settings.damaged_warehouse, *warehouses]
+	leased_warehouses = sorted(set(leased_warehouses or set()) & set(warehouses))
+	reserved_warehouses = sorted(set(leased_warehouses) | {settings.pending_warehouse, settings.damaged_warehouse})
+	leased_marks = ", ".join(["%s"] * len(leased_warehouses)) or "''"
+	reserved_marks = ", ".join(["%s"] * len(reserved_warehouses)) or "''"
+	params = [settings.pending_warehouse, settings.damaged_warehouse, *leased_warehouses, *reserved_warehouses, *warehouses]
 	where = [
 		"i.disabled=0",
 		"i.is_stock_item=1",
@@ -1253,7 +1269,9 @@ def _inventory_item_candidate_query(warehouses, settings, group_names=None, sear
 		"i.description, i.has_batch_no, "
 		"coalesce(sum(b.actual_qty), 0) as total_stock, "
 		"coalesce(sum(case when b.warehouse=%s then b.actual_qty else 0 end), 0) as pending_qty, "
-		"coalesce(sum(case when b.warehouse=%s then b.actual_qty else 0 end), 0) as damaged_qty "
+		"coalesce(sum(case when b.warehouse=%s then b.actual_qty else 0 end), 0) as damaged_qty, "
+		f"coalesce(sum(case when b.warehouse in ({leased_marks}) then b.actual_qty else 0 end), 0) as on_loan_qty, "
+		f"coalesce(sum(case when b.warehouse not in ({reserved_marks}) then b.actual_qty else 0 end), 0) as available_stock "
 		"from `tabItem` i left join `tabBin` b on b.item_code=i.name "
 		f"and b.warehouse in ({warehouse_marks}) "
 		f"where {' and '.join(where)} "
@@ -1263,19 +1281,25 @@ def _inventory_item_candidate_query(warehouses, settings, group_names=None, sear
 	)
 
 
-def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, pending_mode):
+def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, pending_mode, sort_state):
 	selected_groups = _selection_values(item_groups if item_groups is not None else item_group)
 	group_names = _expiring_batch_group_names(selected_groups)
+	leased = _descendants(settings.leased_warehouse, warehouse_map)
 	base_sql, base_params = _inventory_item_candidate_query(
-		selected, settings, group_names, search, bool(needs_attention), mode, pending_mode
+		selected, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased
 	)
 	count_rows = frappe.db.sql("select count(*) as total from (" + base_sql + ") candidates", base_params, as_dict=True)
 	total = int(count_rows[0].total if count_rows else 0)
 	requested_start = max(cint(start or 0), 0)
 	requested_length = min(max(cint(page_length or 25), 1), 100)
+	order_sql = "lower(item_name) asc, item_code asc"
+	if sort_state:
+		column, direction = sort_state
+		expression = {"item_name": "lower(item_name)", "available_stock": "available_stock", "total_stock": "total_stock", "on_loan_qty": "on_loan_qty", "damaged_qty": "damaged_qty"}[column]
+		order_sql = f"{expression} {direction}, lower(item_name) asc, item_code asc"
 	page_rows = frappe.db.sql(
-		"select * from (" + base_sql + ") candidates order by item_name, name limit %s offset %s",
-		base_params + [requested_length, requested_start],
+		"select * from (" + base_sql + f") candidates order by {order_sql} limit %s offset %s",
+		[*base_params, requested_length, requested_start],
 		as_dict=True,
 	)
 	item_names = {row.name for row in page_rows}
@@ -1313,7 +1337,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		})
 	all_leaves = _selected_leaf_warehouses(None, warehouse_map)
 	all_sql, all_params = _inventory_item_candidate_query(
-		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode
+		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased
 	)
 	overall_rows = frappe.db.sql("select count(*) as total from (" + all_sql + ") candidates", all_params, as_dict=True)
 	overall = int(overall_rows[0].total if overall_rows else 0)
@@ -1328,7 +1352,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 	)
 	warehouse_facets = {row.warehouse: int(row.total) for row in warehouse_facet_rows}
 	group_sql, group_params = _inventory_item_candidate_query(
-		selected, settings, None, search, bool(needs_attention), mode, pending_mode
+		selected, settings, None, search, bool(needs_attention), mode, pending_mode, leased
 	)
 	group_facet_rows = frappe.db.sql(
 		"select item_group, count(*) as total from (" + group_sql + ") candidates group by item_group",
@@ -1376,8 +1400,9 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, pending_mode=None):
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, pending_mode=None, sort_by=None, sort_order=None):
 	_require_stock()
+	sort_state = _sort_state(sort_by, sort_order, {"item_name", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"}, "item_name")
 	settings = _settings()
 	warehouse_map = _visible_warehouses(settings)
 	_raise_on_group_stock(warehouse_map)
@@ -1396,6 +1421,7 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			warehouses,
 			item_groups,
 			pending_mode,
+			sort_state,
 		)
 	bins = _bin_balances(selected)
 	balances = defaultdict(lambda: defaultdict(float))
@@ -1477,6 +1503,9 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 		key = "damaged_qty" if pending_mode == "damaged" else "pending_qty"
 		result = [row for row in result if flt(row[key]) > 0]
 	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
+	if sort_state:
+		column, direction = sort_state
+		result.sort(key=lambda row: row[column] if column != "item_name" else str(row[column]).lower(), reverse=direction == "desc")
 	# Facets count distinct result rows, not quantity. Parent warehouse counts are
 	# deduplicated unions of permitted descendant leaves.
 	warehouse_matches = defaultdict(set)
@@ -2491,7 +2520,7 @@ def _expiring_batch_candidate_query(
 
 
 def _expiring_batches_database_page(
-	settings, selected, all_selected, selected_groups, search, expiry_from, expiry_to, expiry_before, sort, start, page_length
+	settings, selected, all_selected, selected_groups, search, expiry_from, expiry_to, expiry_before, legacy_order, sort_state, start, page_length
 ):
 	"""Page expiring batches from grouped SLE balances, not per-batch helpers."""
 	group_names = _expiring_batch_group_names(selected_groups)
@@ -2504,15 +2533,20 @@ def _expiring_batches_database_page(
 	total = int(count_rows[0].total if count_rows else 0)
 	requested_start = max(cint(start or 0), 0)
 	requested_length = min(max(cint(page_length or 25), 1), 100)
-	direction = "desc" if str(sort).lower() == "desc" else "asc"
+	if sort_state:
+		column, direction = sort_state
+		expression = {"item_name": "lower(item_label)", "expiry_date": "expiry_date", "total_qty": "total_qty"}[column]
+		order_sql = f"{expression} {direction}, expiry_date asc, item_code asc, batch_no asc"
+	else:
+		order_sql = f"expiry_date {legacy_order}, item_code asc, batch_no asc"
 	page_sql = (
-		"select batch_no, item_name, expiry_date, item_code, item_label, item_group, stock_uom, image "
+		"select batch_no, item_name, expiry_date, item_code, item_label, item_group, stock_uom, image, sum(qty) as total_qty "
 		"from (" + base_sql + ") candidates group by batch_no, item_name, expiry_date, item_code, "
 		"item_label, item_group, stock_uom, image having sum(qty) > 0 "
-		f"order by expiry_date {direction}, item_code {direction}, batch_no {direction} "
+		f"order by {order_sql} "
 		"limit %s offset %s"
 	)
-	page_rows = frappe.db.sql(page_sql, base_params + [requested_length, requested_start], as_dict=True)
+	page_rows = frappe.db.sql(page_sql, [*base_params, requested_length, requested_start], as_dict=True)
 	batch_names = [row.batch_no for row in page_rows]
 	locations = {}
 	if batch_names:
@@ -2539,7 +2573,7 @@ def _expiring_batches_database_page(
 				"expiry_date": str(row.expiry_date),
 				"days_to_expiry": (getdate(row.expiry_date) - getdate(nowdate())).days,
 				"locations": locations.get(row.batch_no, []),
-				"total_qty": sum(location["qty"] for location in locations.get(row.batch_no, [])),
+				"total_qty": flt(row.total_qty),
 			}
 		)
 	# Overall count keeps the current search/date/category scope but removes the
@@ -2599,9 +2633,13 @@ def _expiring_batches_database_page(
 
 
 @frappe.whitelist()
-def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None, expiry_window="", expiry_days=None, _database=True):
+def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None, expiry_window="", expiry_days=None, _database=True, sort_by=None, sort_order=None):
 	"""Return positive, visible batch balances aggregated by batch."""
 	_require_stock()
+	sort_state = _sort_state(sort_by, sort_order, {"item_name", "expiry_date", "total_qty"}, "expiry_date")
+	legacy_order = str(sort).strip().lower()
+	if legacy_order not in ("asc", "desc"):
+		frappe.throw(_("Invalid sort direction"))
 	window = str(expiry_window or "").strip().lower()
 	threshold_windows = {"overdue_within", "overdue_beyond", "remaining_within", "remaining_beyond"}
 	expiry_before = None
@@ -2653,7 +2691,8 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			expiry_from,
 			expiry_to,
 			expiry_before,
-			sort,
+			legacy_order,
+			sort_state,
 			start,
 			page_length,
 		)
@@ -2778,7 +2817,12 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			continue
 		copy_row = {**row, "locations": [location for location in row["locations"] if location["warehouse"] in selected], "total_qty": sum(location["qty"] for location in row["locations"] if location["warehouse"] in selected)}
 		rows.append(copy_row)
-	rows.sort(key=lambda row: (row["expiry_date"], row["item_code"]), reverse=str(sort).lower() == "desc")
+	rows.sort(key=lambda row: (row["expiry_date"], row["item_code"], row["batch_no"]))
+	if sort_state:
+		column, direction = sort_state
+		rows.sort(key=lambda row: str(row[column]).lower() if column == "item_name" else row[column], reverse=direction == "desc")
+	else:
+		rows.sort(key=lambda row: row["expiry_date"], reverse=legacy_order == "desc")
 	# Self-facet exclusion: warehouse counts retain the category/search/date
 	# predicates but ignore selected warehouses; category counts do the inverse.
 	warehouse_facet = defaultdict(set)

@@ -32,6 +32,29 @@ beforeEach(() => {
 })
 
 describe('Scanner component', () => {
+  it('teleports modal presentation, traps focus, restores body scroll and opener, and stops on close', async () => {
+    const opener = document.createElement('button'); opener.textContent = 'open'; document.body.append(opener); opener.focus()
+    document.body.style.overflow = 'scroll'
+    const wrapper = mount(Scanner, { props: { presentation: 'modal' } }); await flushPromises()
+    const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
+    expect(dialog).toBeTruthy(); expect(dialog.getAttribute('aria-modal')).toBe('true'); expect(dialog.textContent).toContain('扫描条码')
+    expect(document.body.style.overflow).toBe('hidden'); expect(document.activeElement?.textContent).toContain('关闭相机')
+    await dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }))
+    await (document.body.querySelector('.scanner-modal .toolbar button') as HTMLButtonElement).click(); await flushPromises()
+    expect(state.stops).toBeGreaterThan(0); expect(document.body.style.overflow).toBe('scroll'); expect(document.activeElement).toBe(opener)
+    wrapper.unmount(); opener.remove()
+  })
+
+  it('closes modal on Escape and backdrop click, while continuous stays nonmodal and pauses', async () => {
+    const modal = mount(Scanner, { props: { presentation: 'modal' } }); await flushPromises()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await flushPromises()
+    expect(modal.emitted('close')).toHaveLength(1); modal.unmount()
+    const continuous = mount(Scanner, { props: { presentation: 'continuous' } }); await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull(); expect(continuous.text()).toContain('连续扫码')
+    await continuous.setProps({ paused: true }); await flushPromises(); expect(state.stops).toBeGreaterThan(0)
+    continuous.unmount()
+  })
+
   it('defaults to Frappe, renders the opposite engine, and suppresses duplicates for both engines', async () => {
     const wrapper = mount(Scanner); await flushPromises()
     expect(wrapper.text()).toContain('扫描引擎：Frappe 内置')

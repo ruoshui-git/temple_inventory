@@ -11,6 +11,7 @@ import LoanItemPicker from '../components/LoanItemPicker.vue'
 import SignaturePad from '../components/SignaturePad.vue'
 import AttachmentList from '../components/AttachmentList.vue'
 import { toast } from '../lib/toast'
+import { returnToOpener } from '../lib/navigation'
 
 const route = useRoute(), router = useRouter()
 const boot = ref<any>(), record = ref<any>(), form = ref<any>(), error = ref(''), saveStatus = ref('正在加载…')
@@ -104,6 +105,7 @@ async function adoptWorkspaceRoute(name: string, movementKind: string) {
     else if (!dirty.value) error.value = '已保存，但无法打开记录页面，请刷新重试'
   } catch (e: any) { error.value = e?.message || '已保存，但无法打开记录页面，请刷新重试' }
 }
+function close() { void returnToOpener(router, '/movements') }
 
 const queue = new SaveQueue(async () => {
   if (!record.value || readonly.value) return
@@ -292,19 +294,19 @@ async function confirm() {
 }
 function beforeUnload(e: BeforeUnloadEvent) { if (dirty.value) { e.preventDefault(); e.returnValue = '' } }
 watch(sessionExpired, v => { if (v) scanner.value = false; else if (dirty.value) queue.schedule(true) })
-async function deleteDraft() { if (!record.value?.name || !window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return; try { await queue.flush(); await workspaceApi('delete_draft', { name: record.value.name }); window.dispatchEvent(new Event('ti:refresh-shell')); await router.replace('/history?status=unfinished') } catch (e: any) { error.value = e.message } }
+async function deleteDraft() { if (!record.value?.name || !window.confirm('确定删除这条未完成记录吗？此操作无法撤销。')) return; try { await queue.flush(); await workspaceApi('delete_draft', { name: record.value.name }); window.dispatchEvent(new Event('ti:refresh-shell')); await returnToOpener(router, '/movements?status=unfinished') } catch (e: any) { error.value = e.message } }
 onBeforeRouteLeave(async () => { await queue.flush(); if (dirty.value) return window.confirm('还有尚未保存的修改。确定离开？') })
 onMounted(() => { void load(); window.addEventListener('beforeunload', beforeUnload) })
 onBeforeUnmount(() => { queue.dispose(); window.removeEventListener('beforeunload', beforeUnload) })
 </script>
 <template>
-<main class="app-shell workspace"><header><RouterLink to="/">‹ 首页</RouterLink><h1>{{labels[form?.movement_kind]||'库存记录'}}</h1><button v-if="!readonly && record?.name" @click="deleteDraft">删除草稿</button><span role="status">{{readonly ? (record.docstatus===1?'已完成 ✓':'已取消') : saveStatus}}</span></header>
+<main class="app-shell workspace"><header><button type="button" @click="close">‹ 首页</button><h1>{{labels[form?.movement_kind]||'库存记录'}}</h1><button v-if="!readonly && record?.name" @click="deleteDraft">删除草稿</button><span role="status">{{readonly ? (record.docstatus===1?'已完成 ✓':'已取消') : saveStatus}}</span></header>
 <p v-if="error" class="error" role="alert">{{error}}</p><div v-if="conflict" class="error">记录已在其他窗口修改。当前输入仍保留在页面中，请复制需要保留的内容后重新打开记录。<button @click="load">重新加载</button></div><button v-else-if="dirty && !saving" @click="queue.schedule(true)">重试保存</button>
 <LoadingIndicator v-if="!form || !boot" text="正在加载工作区…" /><template v-else>
 <fieldset :disabled="readonly || confirming"><div class="form-grid"><label>日期 <span v-html="requiredMark"/><input type="date" v-model="form.posting_date" required @input="markManualTime"></label><label>时间 <span v-html="requiredMark"/><input type="time" step="1" v-model="form.posting_time" required @input="markManualTime"></label><button v-if="postingTimeMode==='manual'" type="button" @click="setCurrentTime">使用当前时间</button><p v-else class="field-hint">提交时使用当前时间</p></div></fieldset>
 <div v-if="!isIssue && !readonly" class="location-bar"><label>当前房间<select v-model="currentRoom" @change="currentLocation=locations[0]?.name||''"><option v-for="r in rooms" :value="r.name">{{label(r.name)}}</option></select></label><label v-if="locations.length>1">当前位置<select v-model="currentLocation"><option v-for="w in locations" :value="w.name">{{label(w.name)}}</option></select></label><button v-if="form.items?.length" type="button" @click="currentLocation='';currentRoom=''">新增仓库/位置</button></div>
 <div v-if="!readonly" class="toolbar workspace-tools"><button type="button" @click="form.movement_kind==='Return' ? loanPicker=true : picker=true;unknown=''">＋添加物品</button><button v-if="form.movement_kind==='Loss'" type="button" @click="loanPicker=true">从未结借出选择</button><button type="button" @click="scanner=!scanner">▣ 连续扫码</button><span v-if="isIssue && lastScannedWarehouse" class="filter-chip">出库仓库：{{label(lastScannedWarehouse)}} <button type="button" @click="lastScannedWarehouse=''">清除</button></span></div>
-<Scanner v-if="scanner && !readonly" :paused="!!chosen||picker||scanBusy" @scan="scan" @close="scanner=false"/><ul v-if="scanner"><li v-for="text in recentScans.slice(0,5)">✓ {{text}}</li></ul>
+<Scanner v-if="scanner && !readonly" presentation="continuous" :paused="!!chosen||picker||scanBusy||sessionExpired" @scan="scan" @close="scanner=false"/><ul v-if="scanner"><li v-for="text in recentScans.slice(0,5)">✓ {{text}}</li></ul>
 <section v-if="seedQueue.length && !readonly" class="seed-queue"><h2>待配置物品</h2><p class="field-hint">请为每项确认数量和实际库存位置后再加入记录。</p><button v-for="seed in seedQueue" :key="seed.loan_item || seed.item_code" type="button" class="selection-row" @click="configureSeed(seed)"><img v-if="seed.detail?.image" :src="seed.detail.image" class="thumb"><b>{{seed.detail?.item_name || seed.item_code}}</b><small>{{seed.loan_item ? `未结 ${seed.outstanding} ${seed.uom}` : '选择数量和位置'}}</small></button></section>
 <p v-if="record.sync_error && form.items?.length" class="error">{{record.sync_error}}</p><p v-if="!form.items?.length" class="empty-state">尚未添加物品，请点击“添加物品”开始。</p><section v-for="g in groups" :key="g.location" class="location-section"><h2>📍 {{label(g.room)}}</h2><h3 v-if="g.location !== g.room">{{leafLabel(g.location)}}</h3><p v-if="!g.lines.length">尚未添加物品</p><article v-for="r in g.lines" :key="r.id" class="item-card"><img v-if="catalog[r.item_code]?.image" :src="catalog[r.item_code].image"><div><b>{{catalog[r.item_code]?.item_name||r.item_code}}</b><p>{{r.qty}} {{r.uom}} <small>{{r.item_code}}</small></p><p v-if="r.batch_no">批次 {{r.batch_no}}</p><p v-if="r.expiry_date">到期 {{r.expiry_date}}</p><p v-if="isTransfer">→ {{label(r.to_warehouse)}}</p></div><div v-if="!readonly"><button type="button" @click="editLine(r.index)">编辑</button><button type="button" @click="removeLine(r.index)">移除</button></div></article></section>
 <section class="details-panel"><button v-if="!readonly" type="button" @click="detailsOpen=!detailsOpen">{{detailsOpen?'收起详细信息':'添加详细信息'}}</button><div v-if="detailsOpen || readonly" class="details-content"><fieldset :disabled="readonly||confirming" @input="invalidate"><div class="form-grid"><label v-if="isReceive">来源<input v-model="form.source_text" placeholder="例如：捐赠、采购或内部调拨"></label><label v-if="!isReceive">用途<input v-model="form.purpose_text" list="purposes"><datalist id="purposes"><option v-for="p in ['分发','活动/演出','内部使用','对外捐赠','损坏/报废','其他']">{{p}}</option></datalist></label><label v-if="['Return','Loss'].includes(form.movement_kind) || (form.movement_kind==='Loan' && !form.borrower_is_handler_or_witness)">借用方<input v-model="form.borrower" :readonly="form.movement_kind==='Return' && !!form.items?.length" placeholder="姓名、单位或团体"></label><label>活动<button type="button" class="selector-button" @click="activityDialog=true">{{activities.find((a:any)=>a.name===form.activity)?.title||'选择活动'}}</button></label><label>备注<textarea v-model="form.notes"/></label></div></fieldset></div></section>

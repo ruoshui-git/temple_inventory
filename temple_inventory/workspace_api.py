@@ -13,22 +13,23 @@ from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
-from frappe.utils import cint, flt, getdate, nowdate, nowtime, get_time, now_datetime
+from frappe.utils import cint, flt, get_time, getdate, now_datetime, nowdate, nowtime
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
-	_current_batch_balances,
-	_stock_operation_capabilities,
 	_allowed_warehouses,
+	_current_batch_balances,
 	_entry_fields,
 	_entry_items,
 	_loads,
 	_page,
-	_require_stock,
-	_settings,
-	_visible_warehouses,
 	_physical_tree,
+	_require_stock,
 	_selected_leaf_warehouses,
+	_settings,
+	_sort_state,
+	_stock_operation_capabilities,
+	_visible_warehouses,
 	outstanding_loan_items,
 )
 
@@ -1476,7 +1477,13 @@ def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
 	return " and " + " and ".join(conditions) if conditions else ""
 
 
-def _history_database_page(status_group, start, page_length, item_code=None, filters=None, visible_warehouses=None, selected_rooms=None):
+def _history_title(row):
+	kind = row.get("movement_kind") or ""
+	description = next((row.get(key) for key in ("source_text", "purpose_text", "activity", "name") if row.get(key)), row.get("name", ""))
+	return f"{kind} {description}".strip()
+
+
+def _history_database_page(status_group, start, page_length, item_code=None, filters=None, visible_warehouses=None, selected_rooms=None, sort_state=None):
 	"""Page unfiltered or item-scoped movements in SQL, hydrating returned parents.
 
 	The general filtered path still needs arbitrary JSON/child-state predicates.
@@ -1491,7 +1498,9 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	workspace_kind = "case when iw.stock_reconciliation is not null then '盘点调整' else iw.movement_kind end"
 	workspace = f"""
 		select iw.name, 'workspace' as source, {workspace_status} as docstatus, iw.modified,
-			{workspace_kind} as movement_kind
+			{workspace_kind} as movement_kind, iw.posting_date,
+			(select count(*) from json_table(iw.state_json, '$.items[*]' columns(item_code varchar(140) path '$.item_code')) state_count) as line_count,
+			concat_ws(' ', {workspace_kind}, coalesce(nullif(iw.source_text, ''), nullif(iw.purpose_text, ''), nullif(iw.activity, ''), iw.name)) as title
 		from `tabInventory Workspace` iw
 		left join `tabStock Entry` se on se.name=iw.stock_entry
 		left join `tabStock Reconciliation` sr on sr.name=iw.stock_reconciliation
@@ -1502,7 +1511,9 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	""" if frappe.has_permission("Inventory Workspace", "read") else ""
 	entry = f"""
 		select se.name, 'entry' as source, se.docstatus, se.modified,
-			coalesce(se.ti_movement_kind, se.purpose) as movement_kind
+			coalesce(se.ti_movement_kind, se.purpose) as movement_kind, se.posting_date,
+			(select count(*) from `tabStock Entry Detail` line_count where line_count.parent=se.name) as line_count,
+			concat_ws(' ', coalesce(se.ti_movement_kind, se.purpose), coalesce(nullif(se.ti_source_text, ''), nullif(se.ti_purpose_text, ''), nullif(se.ti_activity, ''), se.name)) as title
 		from `tabStock Entry` se
 		where se.company=%(company)s and (%(item_code)s is null or exists (
 			select 1 from `tabStock Entry Detail` sed_item
@@ -1517,7 +1528,9 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	""" if frappe.has_permission("Stock Entry", "read") else ""
 	reconciliation = f"""
 		select sr.name, 'reconciliation' as source, sr.docstatus, sr.modified,
-			case when sr.purpose = 'Stock Reconciliation' then '盘点调整' else '期初库存' end as movement_kind
+			case when sr.purpose = 'Stock Reconciliation' then '盘点调整' else '期初库存' end as movement_kind, sr.posting_date,
+			(select count(*) from `tabStock Reconciliation Item` line_count where line_count.parent=sr.name) as line_count,
+			concat_ws(' ', case when sr.purpose = 'Stock Reconciliation' then '盘点调整' else '期初库存' end, coalesce(nullif(sr.purpose, ''), sr.name)) as title
 		from `tabStock Reconciliation` sr
 		where sr.company=%(company)s and (%(item_code)s is null or exists (
 			select 1 from `tabStock Reconciliation Item` sri_item
@@ -1542,10 +1555,17 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	count = frappe.db.sql(
 		f"select count(*) as total from ({union}) movement {status_where}", params, as_dict=True
 	)[0].total
+	if sort_state:
+		column, direction = sort_state
+		expression = {"title": "lower(movement.title)", "posting_date": "movement.posting_date", "line_count": "movement.line_count"}[column]
+		order_sql = f"{expression} {direction}, movement.modified desc, movement.name desc"
+	else:
+		order_sql = "movement.modified desc, movement.name desc"
 	rows = frappe.db.sql(
-		f"""select movement.name, movement.source, movement.docstatus, movement.modified
+		f"""select movement.name, movement.source, movement.docstatus, movement.modified,
+			movement.title, movement.posting_date, movement.line_count
 		from ({union}) movement {status_where}
-		order by movement.modified desc, movement.name desc
+		order by {order_sql}
 		limit %(page_length)s offset %(start)s""",
 		params,
 		as_dict=True,
@@ -1592,6 +1612,7 @@ def _history_workspace_summary(doc):
 		"docstatus": _status(doc),
 		"modified": str(doc.modified),
 		"movement_kind": "盘点调整" if doc.get("stock_reconciliation") else doc.movement_kind,
+		"title": _history_title({"movement_kind": "盘点调整" if doc.get("stock_reconciliation") else doc.movement_kind, "source_text": doc.source_text, "purpose_text": doc.purpose_text, "activity": doc.activity, "name": doc.name}),
 		"posting_date": str(doc.posting_date),
 		"posting_time": str(doc.posting_time or ""),
 		"source_text": doc.source_text,
@@ -1607,8 +1628,9 @@ def _history_workspace_summary(doc):
 
 
 @frappe.whitelist()
-def history(filters=None, start=0, page_length=30, status_group="all"):
+def history(filters=None, start=0, page_length=30, status_group="all", sort_by=None, sort_order=None):
 	_require_stock()
+	sort_state = _sort_state(sort_by, sort_order, {"title", "posting_date", "line_count"}, "title")
 	raw_filters = _loads(filters, {})
 	f = dict(raw_filters)
 	allowed = _visible_warehouses()
@@ -1634,6 +1656,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			filters=f,
 			visible_warehouses=None if frappe.session.user == "Administrator" else allowed,
 			selected_rooms=selected_rooms,
+			sort_state=sort_state,
 		)
 		allowed = _visible_warehouses()
 		rows = []
@@ -1654,7 +1677,10 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 						frappe.get_doc("Item", item.item_code).check_permission("read")
 				except frappe.PermissionError:
 					continue
-				rows.append({"name": doc.name, "legacy": True, "stock_entry": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), **_from_entry(doc)})
+				entry_row = {"name": doc.name, "legacy": True, "stock_entry": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), **_from_entry(doc)}
+				entry_row["line_count"] = len(doc.items)
+				entry_row["title"] = _history_title(entry_row)
+				rows.append(entry_row)
 				continue
 			doc = frappe.get_doc("Stock Reconciliation", parent.name)
 			try:
@@ -1671,8 +1697,19 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 					continue
 				items.append({"id": item.name, "item_code": item.item_code, "qty": item.qty, "uom": getattr(item, "stock_uom", None) or getattr(item, "uom", None), "warehouse": item.warehouse, "batch_no": item.batch_no})
 			if items:
-				rows.append({"name": doc.name, "legacy": True, "document_type": "Stock Reconciliation", "stock_reconciliation": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), "movement_kind": "盘点调整" if doc.purpose == "Stock Reconciliation" else "期初库存", "purpose_text": doc.purpose, "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items})
-		page = _page(rows, requested_length, 0)
+				reconciliation_row = {"name": doc.name, "legacy": True, "document_type": "Stock Reconciliation", "stock_reconciliation": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), "movement_kind": "盘点调整" if doc.purpose == "Stock Reconciliation" else "期初库存", "purpose_text": doc.purpose, "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items, "line_count": len(items)}
+				reconciliation_row["title"] = _history_title(reconciliation_row)
+				rows.append(reconciliation_row)
+		if sort_state:
+			rows.sort(key=lambda row: (str(row.get("modified") or ""), row["name"]), reverse=True)
+			column, direction = sort_state
+			rows.sort(key=lambda row: str(row.get(column) or "").lower() if column == "title" else row.get(column) or "", reverse=direction == "desc")
+		page = {
+			"results": rows,
+			"total": total,
+			"start": page_start,
+			"page_length": requested_length,
+		}
 		page["overall_total"] = overall_total if status_group != "unfinished" else total
 		if status_group != "unfinished":
 			page["unfinished_count"] = unfinished_count
@@ -1743,8 +1780,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 				frappe.get_doc("Item", line.item_code).check_permission("read")
 		except frappe.PermissionError:
 			continue
-		results.append(
-			{
+		entry_row = {
 				"name": doc.name,
 				"legacy": True,
 				"stock_entry": doc.name,
@@ -1752,7 +1788,9 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 				"modified": str(doc.modified),
 				**_from_entry(doc),
 			}
-		)
+		entry_row["line_count"] = len(doc.items)
+		entry_row["title"] = _history_title(entry_row)
+		results.append(entry_row)
 	for row in paged("Stock Reconciliation", base_filters, ["name", "modified"]):
 		if row.name in linked_reconciliations:
 			continue
@@ -1772,7 +1810,7 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			items.append({"id": line.name, "item_code": line.item_code, "qty": line.qty, "uom": getattr(line, "stock_uom", None) or getattr(line, "uom", None), "warehouse": line.warehouse, "batch_no": line.batch_no})
 		if not items:
 			continue
-		results.append({
+		reconciliation_row = {
 			"name": doc.name,
 			"legacy": True,
 			"document_type": "Stock Reconciliation",
@@ -1784,7 +1822,10 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 			"posting_date": str(doc.posting_date),
 			"posting_time": str(doc.posting_time or ""),
 			"items": items,
-		})
+			"line_count": len(items),
+		}
+		reconciliation_row["title"] = _history_title(reconciliation_row)
+		results.append(reconciliation_row)
 
 	def matches(r):
 		for key in ("movement_kind", "activity", "responsible_person", "handler_name"):
@@ -1823,6 +1864,9 @@ def history(filters=None, start=0, page_length=30, status_group="all"):
 
 	matched = [r for r in results if matches(r)]
 	rows = sorted(matched, key=lambda r: (r["modified"], r["name"]), reverse=True)
+	if sort_state:
+		column, direction = sort_state
+		rows.sort(key=lambda row: str(row.get(column) or "").lower() if column == "title" else row.get(column) or "", reverse=direction == "desc")
 	page = _page(rows, page_length, start)
 	if status_group == "unfinished":
 		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)

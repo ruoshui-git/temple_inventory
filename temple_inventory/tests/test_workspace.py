@@ -20,10 +20,10 @@ from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
 	bootstrap,
 	create_uom,
+	expiring_batches,
 	initialization_status,
 	initialize_warehouses,
 	inventory,
-	expiring_batches,
 	repair_settings,
 	save_allowed_warehouses,
 )
@@ -285,6 +285,59 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual([row["item_code"] for row in page["results"]], [self.item])
 		self.assertIn("facets", page)
 
+	def test_inventory_fallback_sort_columns_and_validation(self):
+		warehouses, settings = self._mock_inventory_context()
+		warehouses["lease_leaf"] = SimpleNamespace(
+			name="lease_leaf", warehouse_name="Loan / A", parent_warehouse="lease", lft=13, rgt=14, is_group=0
+		)
+		items = [
+			SimpleNamespace(name="ITEM-A", item_code="ITEM-A", item_name="Same", item_group="Group A", stock_uom="Nos", image=None, description=None),
+			SimpleNamespace(name="ITEM-B", item_code="ITEM-B", item_name="Same", item_group="Group A", stock_uom="Nos", image=None, description=None),
+			SimpleNamespace(name="ITEM-C", item_code="ITEM-C", item_name="Zed", item_group="Group A", stock_uom="Nos", image=None, description=None),
+		]
+		bins = [
+			SimpleNamespace(item_code="ITEM-A", warehouse="leaf_a", actual_qty=5),
+			SimpleNamespace(item_code="ITEM-A", warehouse="damaged", actual_qty=2),
+			SimpleNamespace(item_code="ITEM-B", warehouse="leaf_a", actual_qty=2),
+			SimpleNamespace(item_code="ITEM-B", warehouse="lease_leaf", actual_qty=4),
+			SimpleNamespace(item_code="ITEM-C", warehouse="pending", actual_qty=3),
+		]
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Bin":
+				return bins
+			if doctype in ("Item Group", "Item Barcode"):
+				return []
+			raise AssertionError(doctype)
+		with patch.object(inventory_service, "_require_stock"), patch.object(
+			inventory_service, "_settings", return_value=settings
+		), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(
+			inventory_service, "_raise_on_group_stock"
+		), patch.object(inventory_service, "_physical_tree", return_value={}), patch.object(
+			inventory_service.frappe, "get_list", return_value=items
+		), patch.object(inventory_service.frappe, "get_all", side_effect=get_all):
+			for column in ("item_name", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"):
+				ascending = inventory(sort_by=column, sort_order="asc")["results"]
+				descending = inventory(sort_by=column, sort_order="desc")["results"]
+				def values(rows):
+					return [
+						str(row[column]).lower() if column == "item_name" else row[column]
+						for row in rows
+					]
+				self.assertEqual(values(ascending), sorted(values(ascending)))
+				self.assertEqual(values(descending), sorted(values(descending), reverse=True))
+			self.assertEqual(
+				[row["item_code"] for row in inventory(sort_by="item_name", sort_order="desc")["results"][-2:]],
+				["ITEM-A", "ITEM-B"],
+			)
+			self.assertEqual(
+				inventory(sort_by="total_stock", sort_order="desc", page_length=1)["results"][0]["item_code"],
+				"ITEM-A",
+			)
+			with self.assertRaises(frappe.ValidationError):
+				inventory(sort_by="unknown", sort_order="asc")
+			with self.assertRaises(frappe.ValidationError):
+				inventory(sort_by="item_name", sort_order="sideways")
+
 	def test_expiry_aggregates_filters_sorts_and_paginates(self):
 		warehouses, settings = self._mock_inventory_context()
 		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="批次物品", item_group="Group A", stock_uom="Nos")
@@ -294,9 +347,12 @@ class WorkspaceTests(unittest.TestCase):
 			SimpleNamespace(name="B-ZERO", item="ITEM-1", expiry_date="2099-03-01"),
 		]
 		def get_all(doctype, *args, **kwargs):
-			if doctype == "Item": return [item]
-			if doctype == "Batch": return batches
-			if doctype == "Item Group": return [SimpleNamespace(name="Group A", lft=1, rgt=2)]
+			if doctype == "Item":
+				return [item]
+			if doctype == "Batch":
+				return batches
+			if doctype == "Item Group":
+				return [SimpleNamespace(name="Group A", lft=1, rgt=2)]
 			raise AssertionError(doctype)
 		def batch_qty(batch_no, warehouse, item_code, **kwargs):
 			return {("B-OLD", "leaf_a"): 2, ("B-OLD", "leaf_b"): 1, ("B-NEW", "leaf_a"): 4}.get((batch_no, warehouse), 0)
@@ -309,13 +365,54 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(second_page["results"][0]["batch_no"], "B-OLD")
 		self.assertEqual(len(second_page["results"][0]["locations"]), 2)
 
+	def test_expiry_new_sort_columns_and_validation(self):
+		warehouses, settings = self._mock_inventory_context()
+		items = [
+			SimpleNamespace(name="ITEM-A", item_code="ITEM-A", item_name="Zulu", item_group="Group A", stock_uom="Nos"),
+			SimpleNamespace(name="ITEM-B", item_code="ITEM-B", item_name="alpha", item_group="Group A", stock_uom="Nos"),
+		]
+		batches = [
+			SimpleNamespace(name="B-A", item="ITEM-A", expiry_date="2099-01-01"),
+			SimpleNamespace(name="B-B", item="ITEM-B", expiry_date="2099-02-01"),
+		]
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Item":
+				return items
+			if doctype == "Batch":
+				return batches
+			if doctype == "Item Group":
+				return []
+			raise AssertionError(doctype)
+		def batch_qty(batch_no, warehouse, item_code, **kwargs):
+			return {("B-A", "leaf_a"): 1, ("B-B", "leaf_a"): 5}.get((batch_no, warehouse), 0)
+		with patch.object(inventory_service, "_require_stock"), patch.object(
+			inventory_service, "_settings", return_value=settings
+		), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(
+			inventory_service, "_raise_on_group_stock"
+		), patch.object(inventory_service, "_physical_tree", return_value={}), patch.object(
+			inventory_service.frappe, "get_all", side_effect=get_all
+		), patch.object(inventory_service, "get_batch_qty", side_effect=batch_qty):
+			self.assertEqual(
+				expiring_batches(sort_by="item_name", sort_order="asc")["results"][0]["batch_no"], "B-B"
+			)
+			self.assertEqual(
+				expiring_batches(sort_by="total_qty", sort_order="desc", page_length=1)["results"][0]["batch_no"],
+				"B-B",
+			)
+			with self.assertRaises(frappe.ValidationError):
+				expiring_batches(sort_by="unknown", sort_order="asc")
+			with self.assertRaises(frappe.ValidationError):
+				expiring_batches(sort_by="expiry_date", sort_order="sideways")
+
 	def test_expiry_applies_search_date_and_warehouse_filters(self):
 		warehouses, settings = self._mock_inventory_context()
 		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="过滤物品", item_group="Group A", stock_uom="Nos")
 		batch = SimpleNamespace(name="B-FILTER", item="ITEM-1", expiry_date="2099-01-01")
 		def get_all(doctype, *args, **kwargs):
-			if doctype == "Item": return [item]
-			if doctype == "Batch": return [batch]
+			if doctype == "Item":
+				return [item]
+			if doctype == "Batch":
+				return [batch]
 			raise AssertionError(doctype)
 		def batch_qty(batch_no, warehouse, item_code, **kwargs):
 			return 3 if warehouse == "leaf_a" else 0
@@ -329,8 +426,10 @@ class WorkspaceTests(unittest.TestCase):
 		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="过期物品", item_group="Group A", stock_uom="Nos")
 		batch = SimpleNamespace(name="B-EXPIRED", item="ITEM-1", expiry_date="2000-01-01")
 		def get_all(doctype, *args, **kwargs):
-			if doctype == "Item": return [item]
-			if doctype == "Batch": return [batch]
+			if doctype == "Item":
+				return [item]
+			if doctype == "Batch":
+				return [batch]
 			raise AssertionError(doctype)
 		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_all", side_effect=get_all), patch.object(inventory_service, "get_batch_qty", return_value=2):
 			result = expiring_batches()
@@ -594,6 +693,44 @@ class WorkspaceTests(unittest.TestCase):
 			items=[{"id": "bad", "item_code": self.item, "qty": 2, "warehouse": self.room, "uom": "Nos"}]
 		)
 		self.assertIn("leaf warehouse", d["sync_error"])
+
+	def test_history_sort_columns_pagination_and_validation(self):
+		source = f"Sort Source {self.token}"
+		first = self.create(
+			source_text=f"{source} B", posting_date="2098-01-02", posting_time_mode="manual"
+		)
+		second = self.create(
+			source_text=f"{source} A",
+			posting_date="2098-01-01",
+			posting_time_mode="manual",
+			items=[
+				{"id": "line-a", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a, "to_warehouse": self.b},
+				{"id": "line-b", "item_code": self.item, "qty": 2, "uom": "Nos", "from_warehouse": self.a, "to_warehouse": self.b},
+			],
+		)
+		self.assertNotEqual(first["name"], second["name"])
+		stored = frappe.get_all(
+			"Inventory Workspace",
+			filters={"name": ("in", [first["name"], second["name"]])},
+			fields=["name", "posting_date", "source_text"],
+		)
+		self.assertEqual(len(stored), 2, stored)
+		filters = {}
+		for column in ("title", "posting_date", "line_count"):
+			ascending = api.history(filters, sort_by=column, sort_order="asc", page_length=100)["results"]
+			descending = api.history(filters, sort_by=column, sort_order="desc", page_length=100)["results"]
+			def values(rows):
+				return [str(row[column]).lower() if column == "title" else row[column] for row in rows]
+			self.assertEqual(values(ascending), sorted(values(ascending)))
+			self.assertEqual(values(descending), sorted(values(descending), reverse=True))
+		self.assertTrue({first["name"], second["name"]}.issubset({row["name"] for row in ascending}))
+		page = api.history(filters, sort_by="posting_date", sort_order="desc", page_length=1)
+		self.assertGreaterEqual(page["total"], 2)
+		self.assertEqual(page["results"][0]["name"], first["name"])
+		with self.assertRaises(frappe.ValidationError):
+			api.history(filters, sort_by="unknown", sort_order="asc")
+		with self.assertRaises(frappe.ValidationError):
+			api.history(filters, sort_by="title", sort_order="sideways")
 
 	def test_guest_denied_and_bootstrap_read_only(self):
 		with patch.object(

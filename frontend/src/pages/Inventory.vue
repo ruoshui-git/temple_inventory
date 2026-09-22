@@ -6,6 +6,7 @@ import { warehousePresentation } from '../lib/warehousePresenter'
 import WarehouseSelector from '../components/WarehouseSelector.vue'
 import CategorySelector from '../components/CategorySelector.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
+import SortableDataTable, { type SortState } from '../components/SortableDataTable.vue'
 import LoadingIndicator from '../components/LoadingIndicator.vue'
 import Scanner from '../components/Scanner.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
@@ -16,9 +17,21 @@ import { toast } from '../lib/toast'
 const route = useRoute(), router = useRouter()
 const boot = ref<any>(), rows = ref<any[]>([]), total = ref(0), overall = ref<number | null>(null), facetCounts = ref<any>({ warehouses: {}, item_groups: {} })
 const error = ref(''), loading = ref(false), loadingMore = ref(false), filterOpen = ref(false)
-const selection = ref(false), selected = ref<string[]>([]), scanner = ref(false), unknownBarcodePrompt = ref('')
+const selection = ref(false), selected = ref<string[]>([]), scanner = ref(false), scanBusy = ref(false), unknownBarcodePrompt = ref('')
 const resultsPane = ref<HTMLElement>(), sentinel = ref<HTMLElement>(), filterInvoker = ref<HTMLElement>()
+const start = ref(0)
 const filters = ref({ search: '', warehouses: [] as string[], item_groups: [] as string[] })
+const defaultSort: SortState = { sort_by: 'item_name', sort_order: 'asc' }
+const sort = ref<SortState>({ ...defaultSort })
+const sortColumns = computed(() => [
+  { key: 'item_name', label: '物品', sortable: true, initialOrder: 'asc' as const },
+  { key: 'item_group', label: '类别' },
+  { key: 'available_stock', label: '可用', sortable: true, initialOrder: 'desc' as const },
+  { key: 'total_stock', label: '总计', sortable: true, initialOrder: 'desc' as const },
+  { key: 'on_loan_qty', label: '借出', sortable: true, initialOrder: 'desc' as const },
+  { key: 'damaged_qty', label: '损坏', sortable: true, initialOrder: 'desc' as const },
+  ...(selection.value ? [{ key: 'selection', label: '选择' }] : []),
+])
 const mode = computed(() => String(route.query.mode || 'current'))
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {})
 const canMove = computed(() => ['Receive', 'Issue', 'Transfer', 'Loan', 'Return', 'Damage', 'Loss', 'Repair', 'Disposal'].some(kind => operationCaps.value[kind]))
@@ -30,8 +43,11 @@ const categoryText = (name: string) => boot.value?.item_groups?.find((row: any) 
 const chips = computed(() => [...filters.value.warehouses.map(value => ({ key: 'warehouses', value, label: warehouseText(value) })), ...filters.value.item_groups.map(value => ({ key: 'item_groups', value, label: categoryText(value) })), ...(filters.value.search ? [{ key: 'search', label: `搜索：${filters.value.search}` }] : [])])
 let controller: AbortController | undefined, observer: IntersectionObserver | undefined, timer: ReturnType<typeof setTimeout> | undefined
 let sequence = 0, syncingRoute = false
+const sortQuery = () => JSON.stringify(sort.value) === JSON.stringify(defaultSort)
+  ? { sort_by: undefined, sort_order: undefined }
+  : { sort_by: sort.value.sort_by, sort_order: sort.value.sort_order }
 watch(filterOpen, value => { if (value && document.activeElement instanceof HTMLElement) filterInvoker.value = document.activeElement; document.body.style.overflow = value ? 'hidden' : ''; if (!value) void nextTick(() => filterInvoker.value?.focus()) })
-async function load(append = false) { controller?.abort(); controller = new AbortController(); const current = ++sequence; append ? loadingMore.value = true : loading.value = true; error.value = ''; try { if (mode.value === 'expiry') { await router.replace({ path: '/expiry', query: { ...route.query, ...serializeFilterQuery(filters.value) } }); return } const data = await api('inventory', { ...filters.value, mode: mode.value, warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined, item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined, start: append ? rows.value.length : 0, page_length: 25 }, controller.signal); if (current !== sequence) return; const incoming = data.results || []; rows.value = append ? [...rows.value, ...incoming.filter((row: any) => !rows.value.some(old => old.item_code === row.item_code))] : incoming; total.value = Number(data.total || 0); overall.value = data.overall_total ?? null; facetCounts.value = data.facets || facetCounts.value } catch (cause: any) { if (cause?.name !== 'AbortError' && current === sequence) error.value = cause.message } finally { if (current === sequence) { loading.value = false; loadingMore.value = false } } }
+async function load(append = false) { controller?.abort(); controller = new AbortController(); const current = ++sequence; append ? loadingMore.value = true : loading.value = true; error.value = ''; try { if (mode.value === 'expiry') { await router.replace({ path: '/expiry', query: { ...route.query, ...serializeFilterQuery(filters.value), ...sortQuery() } }); return } const data = await api('inventory', { ...filters.value, mode: mode.value, warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined, item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined, start: append ? rows.value.length : 0, page_length: 25, ...sort.value }, controller.signal); if (current !== sequence) return; const incoming = data.results || []; rows.value = append ? [...rows.value, ...incoming.filter((row: any) => !rows.value.some(old => old.item_code === row.item_code))] : incoming; total.value = Number(data.total || 0); overall.value = data.overall_total ?? null; facetCounts.value = data.facets || facetCounts.value } catch (cause: any) { if (cause?.name !== 'AbortError' && current === sequence) error.value = cause.message } finally { if (current === sequence) { loading.value = false; loadingMore.value = false } } }
 function scheduleLoad() { if (timer) clearTimeout(timer); timer = setTimeout(() => void load(), 280) }
 function setMode(key: string) { if (key === 'expiry') void router.push({ path: '/expiry', query: { ...route.query, ...serializeFilterQuery(filters.value) } }); else void router.replace({ query: { ...route.query, mode: key === 'current' ? undefined : key } }) }
 function removeChip(chip: any) { if (chip.key === 'warehouses' || chip.key === 'item_groups') (filters.value as any)[chip.key] = (filters.value as any)[chip.key].filter((value: string) => value !== chip.value); else filters.value.search = '' }
@@ -44,12 +60,13 @@ function toggleSelection() {
   selection.value = !selection.value
   if (!selection.value) selected.value = []
 }
-async function scan(value: string) { const result = await api('scan', { value }); if (result.item_code) await router.push(`/item/${encodeURIComponent(result.item_code)}`); else unknownBarcodePrompt.value = value }
+function applySort(value: SortState) { sort.value = value; rows.value = []; start.value = 0; observer?.disconnect(); if (sentinel.value) observer?.observe(sentinel.value) }
+async function scan(value: string) { if (scanBusy.value) return; scanBusy.value = true; try { const result = await api('scan', { value }); scanner.value = false; if (result.item_code) await router.push(`/item/${encodeURIComponent(result.item_code)}`); else unknownBarcodePrompt.value = value } catch (cause: any) { error.value = cause.message || '条码查询失败' } finally { scanBusy.value = false } }
 async function createUnknownItem() { const value = unknownBarcodePrompt.value; unknownBarcodePrompt.value = ''; sessionStorage.setItem('ti-unknown-barcode', value); await router.push('/new/Receive') }
 function dismissUnknownItem() { unknownBarcodePrompt.value = ''; toast('未找到该条码对应的物品', 'warning') }
-watch([filters, mode], () => { if (!boot.value) return; resultsPane.value?.scrollTo({ top: 0 }); if (!syncingRoute) { syncingRoute = true; void router.replace({ query: { ...route.query, mode: mode.value === 'current' ? undefined : mode.value, ...serializeFilterQuery(filters.value) } }).finally(() => { syncingRoute = false }) } scheduleLoad() }, { deep: true })
-watch(() => route.query, query => { const next = hydrateFilterQuery(query as Record<string, unknown>, filters.value); if (JSON.stringify(next) !== JSON.stringify(filters.value)) filters.value = next }, { deep: true })
-onMounted(async () => { try { boot.value = await api('bootstrap'); filters.value = hydrateFilterQuery(route.query as Record<string, unknown>, filters.value); await load(); await nextTick(); const saved = Number(sessionStorage.getItem('ti:inventory-results-scroll') || 0); if (saved) resultsPane.value?.scrollTo({ top: saved }); observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !loadingMore.value && !loading.value) void load(true) }, { root: resultsPane.value, rootMargin: '240px' }); if (sentinel.value) observer.observe(sentinel.value) } catch (cause: any) { error.value = cause.message } })
+watch([filters, mode, sort], () => { if (!boot.value) return; resultsPane.value?.scrollTo({ top: 0 }); if (!syncingRoute) { syncingRoute = true; void router.replace({ query: { ...route.query, mode: mode.value === 'current' ? undefined : mode.value, ...serializeFilterQuery(filters.value), ...sortQuery() } }).finally(() => { syncingRoute = false }) } scheduleLoad() }, { deep: true })
+watch(() => route.query, query => { const next = hydrateFilterQuery(query as Record<string, unknown>, filters.value); if (JSON.stringify(next) !== JSON.stringify(filters.value)) filters.value = next; const sortBy = String(query.sort_by || defaultSort.sort_by), sortOrder = String(query.sort_order || defaultSort.sort_order); if (['item_name', 'available_stock', 'total_stock', 'on_loan_qty', 'damaged_qty'].includes(sortBy) && ['asc', 'desc'].includes(sortOrder) && (sort.value.sort_by !== sortBy || sort.value.sort_order !== sortOrder)) sort.value = { sort_by: sortBy, sort_order: sortOrder as 'asc' | 'desc' } }, { deep: true })
+onMounted(async () => { try { boot.value = await api('bootstrap'); filters.value = hydrateFilterQuery(route.query as Record<string, unknown>, filters.value); const sortBy = String(route.query.sort_by || defaultSort.sort_by), sortOrder = String(route.query.sort_order || defaultSort.sort_order); if (['item_name', 'available_stock', 'total_stock', 'on_loan_qty', 'damaged_qty'].includes(sortBy) && ['asc', 'desc'].includes(sortOrder)) sort.value = { sort_by: sortBy, sort_order: sortOrder as 'asc' | 'desc' }; await load(); await nextTick(); const saved = Number(sessionStorage.getItem('ti:inventory-results-scroll') || 0); if (saved) resultsPane.value?.scrollTo({ top: saved }); observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !loadingMore.value && !loading.value) void load(true) }, { root: resultsPane.value, rootMargin: '240px' }); if (sentinel.value) observer.observe(sentinel.value) } catch (cause: any) { error.value = cause.message } })
 onBeforeUnmount(() => { if (timer) clearTimeout(timer); sessionStorage.setItem('ti:inventory-results-scroll', String(resultsPane.value?.scrollTop || 0)); controller?.abort(); observer?.disconnect() })
 </script>
 <template>
@@ -75,48 +92,15 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer); sessionStorage.setItem('
         <p v-if="error" class="error">{{ error }} <button type="button" @click="load()">重试</button></p>
         <LoadingIndicator v-if="loading" text="正在加载库存…" />
         <div v-else class="inventory-results">
-          <div class="inventory-table-wrap">
-            <table class="inventory-table">
-              <thead>
-                <tr>
-                  <th>物品</th>
-                  <th>类别</th>
-                  <th>可用</th>
-                  <th>总计</th>
-                  <th>借出</th>
-                  <th>损坏</th>
-                  <th v-if="selection">选择</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in rows" :key="item.item_code">
-                  <td class="item-identity">
-                    <ItemImagePreview :src="item.image" :alt="item.item_name" />
-                    <RouterLink :to="`/item/${encodeURIComponent(item.item_code)}`"><b>{{ item.item_name }}</b><small>{{
-                        item.item_code }}</small></RouterLink>
-                  </td>
-                  <td>{{ item.item_group }}</td>
-                  <td class="quantity available-quantity"><b>{{ item.available_stock }} {{ item.stock_uom }}</b></td>
-                  <td class="quantity">{{ item.total_stock }} {{ item.stock_uom }}</td>
-                  <td class="quantity">{{ item.on_loan_qty }} {{ item.stock_uom }}</td>
-                  <td class="quantity">{{ item.damaged_qty }} {{ item.stock_uom }}</td>
-                  <td v-if="selection"><input type="checkbox" :checked="selected.includes(item.item_code)"
-                      :aria-label="`选择 ${item.item_name}`" @change="toggle(item.item_code)"></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="mobile-cards">
-            <article v-for="item in rows" :key="item.item_code" class="item-card">
-              <ItemImagePreview :src="item.image" :alt="item.item_name" />
-              <RouterLink :to="`/item/${encodeURIComponent(item.item_code)}`"><b>{{ item.item_name }}</b><small>{{
-                  item.item_code }} · {{ item.item_group }}</small><strong class="available-quantity">可用 {{
-                    item.available_stock }} {{ item.stock_uom }}</strong><small>总计 {{ item.total_stock }} {{
-                  item.stock_uom }}</small></RouterLink><input v-if="selection" type="checkbox"
-                :checked="selected.includes(item.item_code)" :aria-label="`选择 ${item.item_name}`"
-                @change="toggle(item.item_code)">
-            </article>
-          </div>
+          <SortableDataTable :rows="rows" :columns="sortColumns" row-key="item_code" :sort="sort" :selection-mode="selection" :selected-keys="selected" @sort="applySort" @activate="item => router.push(`/item/${encodeURIComponent(item.item_code)}`)" @toggle="item => toggle(item.item_code)">
+            <template #cell-item_name="{ row }"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}`"><b>{{ row.item_name }}</b><small>{{ row.item_code }}</small></RouterLink></template>
+            <template #cell-available_stock="{ row }"><span class="quantity available-quantity"><b>{{ row.available_stock }} {{ row.stock_uom }}</b></span></template>
+            <template #cell-total_stock="{ row }"><span class="quantity">{{ row.total_stock }} {{ row.stock_uom }}</span></template>
+            <template #cell-on_loan_qty="{ row }"><span class="quantity">{{ row.on_loan_qty }} {{ row.stock_uom }}</span></template>
+            <template #cell-damaged_qty="{ row }"><span class="quantity">{{ row.damaged_qty }} {{ row.stock_uom }}</span></template>
+            <template #cell-selection="{ row }"><input data-row-control type="checkbox" :checked="selected.includes(row.item_code)" :aria-label="`选择 ${row.item_name}`" @change="toggle(row.item_code)"></template>
+            <template #mobile-row="{ row }"><article class="item-card" tabindex="0"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}`"><b>{{ row.item_name }}</b><small>{{ row.item_code }} · {{ row.item_group }}</small><strong class="available-quantity">可用 {{ row.available_stock }} {{ row.stock_uom }}</strong><small>总计 {{ row.total_stock }} {{ row.stock_uom }}</small></RouterLink><input v-if="selection" data-row-control type="checkbox" :checked="selected.includes(row.item_code)" :aria-label="`选择 ${row.item_name}`" @change="toggle(row.item_code)"></article></template>
+          </SortableDataTable>
           <p v-if="!rows.length" class="empty-state">暂无符合条件的物品</p>
         </div>
         <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button"
@@ -133,7 +117,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer); sessionStorage.setItem('
     <FloatingActionMenu v-if="canMove"
       :actions="primaryActions.map(kind => ({ kind, label: ({ Receive: '入库', Issue: '出库', Transfer: '转移' } as any)[kind] }))"
       @select="operation" />
-    <Scanner v-if="scanner" @scan="scan" @close="scanner = false" />
+    <Scanner v-if="scanner" presentation="modal" :paused="scanBusy" @scan="scan" @close="scanner = false" />
     <div v-if="unknownBarcodePrompt" class="modal" role="presentation" @click.self="dismissUnknownItem">
       <section role="dialog" aria-modal="true" aria-labelledby="unknown-barcode-title">
         <h2 id="unknown-barcode-title">未找到物品</h2>
