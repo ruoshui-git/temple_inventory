@@ -19,6 +19,10 @@ function show(fromHover = false) {
   if (!fromHover) pinned.value = true
   void nextTick(positionPreview)
 }
+function toggle() {
+  if (open.value && pinned.value) close()
+  else show(false)
+}
 function positionPreview() {
   if (!button.value || !popover.value || window.innerWidth <= 600) return
   const rect = button.value.getBoundingClientRect()
@@ -33,9 +37,9 @@ function scheduleHover() {
   cancelHover()
   timer = setTimeout(() => show(true), 280)
 }
-function leave() {
+function scheduleDismiss() {
   cancelHover()
-  if (!pinned.value) open.value = false
+  if (!pinned.value) timer = setTimeout(() => close(false), 160)
 }
 function close(restore = true) {
   cancelHover()
@@ -53,14 +57,13 @@ onBeforeUnmount(cancelHover)
 </script>
 
 <template>
-  <span v-if="props.src" class="image-preview" @mouseleave="leave" @keydown="keydown">
-    <button ref="button" type="button" class="image-thumb-button" :aria-label="'预览' + alt" :aria-expanded="open" @mouseenter="scheduleHover" @focus="show(false)" @click="show(false)">
+  <span v-if="props.src" class="image-preview" @keydown="keydown">
+    <button ref="button" type="button" class="image-thumb-button" :aria-label="'预览' + alt" :aria-expanded="open" @mouseenter="scheduleHover" @mouseleave="scheduleDismiss" @focus="show(true)" @focusout="scheduleDismiss" @click="toggle">
       <img :src="src" :alt="alt" loading="lazy" width="52" height="52">
     </button>
     <span v-if="open" class="image-preview-backdrop" @click.self="close(false)">
-      <span ref="popover" class="image-popover" role="dialog" :aria-label="alt" :style="popoverStyle" @mouseenter="cancelHover">
+      <span ref="popover" class="image-popover" role="dialog" :aria-label="alt" :style="popoverStyle" @mouseenter="cancelHover" @mouseleave="scheduleDismiss">
         <img :src="src" :alt="alt">
-        <button type="button" class="image-preview-close" aria-label="关闭图片预览" @click="close()">×</button>
       </span>
     </span>
   </span>

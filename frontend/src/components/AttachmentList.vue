@@ -31,8 +31,8 @@ function isImage(file: Attachment) {
 <template>
   <section class="attachments" :aria-label="title">
     <h2 v-if="showTitle">{{ title }}<template v-if="attachments.length"> · {{ attachments.length }}</template></h2>
-    <label v-if="editable" class="file-button">上传文件或拍照
-      <input type="file" :accept="accept" multiple capture="environment" @change="choose">
+    <label v-if="editable" class="file-button">选择文件或照片
+      <input type="file" :accept="accept" multiple @change="choose">
     </label>
     <div class="attachment-grid">
       <article v-for="file in attachments" :key="file.name">

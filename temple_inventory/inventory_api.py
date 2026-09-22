@@ -1299,7 +1299,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		order_sql = f"{expression} {direction}, lower(item_name) asc, item_code asc"
 	page_rows = frappe.db.sql(
 		"select * from (" + base_sql + f") candidates order by {order_sql} limit %s offset %s",
-		[*base_params, requested_length, requested_start],
+		base_params + [requested_length, requested_start],
 		as_dict=True,
 	)
 	item_names = {row.name for row in page_rows}
@@ -2546,7 +2546,7 @@ def _expiring_batches_database_page(
 		f"order by {order_sql} "
 		"limit %s offset %s"
 	)
-	page_rows = frappe.db.sql(page_sql, [*base_params, requested_length, requested_start], as_dict=True)
+	page_rows = frappe.db.sql(page_sql, base_params + [requested_length, requested_start], as_dict=True)
 	batch_names = [row.batch_no for row in page_rows]
 	locations = {}
 	if batch_names:

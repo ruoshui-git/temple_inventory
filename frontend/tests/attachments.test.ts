@@ -3,10 +3,12 @@ import { mount } from '@vue/test-utils'
 import AttachmentList from '../src/components/AttachmentList.vue'
 
 describe('AttachmentList', () => {
-  it('uses the shared upload contract and exposes camera fallback input', async () => {
+  it('uses the shared upload contract without forcing camera capture', async () => {
     const wrapper = mount(AttachmentList, { props: { editable: true } })
     const input = wrapper.find('input[type="file"]')
-    expect(input.attributes('capture')).toBe('environment')
+    expect(input.attributes('capture')).toBeUndefined()
+    expect(input.attributes('multiple')).toBeDefined()
+    expect(input.attributes('accept')).toContain('image/*')
     const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
     Object.defineProperty(input.element, 'files', { value: [file] })
     await input.trigger('change')
