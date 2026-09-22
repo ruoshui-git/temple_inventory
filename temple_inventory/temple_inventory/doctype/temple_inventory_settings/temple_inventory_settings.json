@@ -3,10 +3,6 @@
   "doctype": "DocType",
   "field_order": [
     "company",
-    "code_section",
-    "code_prefix",
-    "code_digits",
-    "next_number",
     "warehouse_section",
     "root_warehouse",
     "pending_warehouse",
@@ -29,32 +25,6 @@
       "fieldtype": "Link",
       "label": "Company",
       "options": "Company",
-      "reqd": 1
-    },
-    {
-      "fieldname": "code_section",
-      "fieldtype": "Section Break",
-      "label": "Item Code"
-    },
-    {
-      "default": "TI-",
-      "fieldname": "code_prefix",
-      "fieldtype": "Data",
-      "label": "Code Prefix",
-      "reqd": 1
-    },
-    {
-      "default": "4",
-      "fieldname": "code_digits",
-      "fieldtype": "Int",
-      "label": "Code Digits",
-      "reqd": 1
-    },
-    {
-      "default": "1",
-      "fieldname": "next_number",
-      "fieldtype": "Int",
-      "label": "Next Number",
       "reqd": 1
     },
     {

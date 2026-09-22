@@ -12,7 +12,7 @@ ERPNext / Frappe Phase 1 样本库存导入脚本
 
 说明：
 1. 创建/更新 Item Group（分类）及其 Description。
-2. 创建 Item 时动态分配 ITM-xxxxxx：先检测系统中现有最大编号，再顺序递增；样本数据中的 ITM-xxxxxx 仅作为内部样本键。
+2. 创建 Item 时通过 Temple Inventory 的共享并发安全分配器生成 ITM-xxxxxx；样本数据中的 ITM-xxxxxx 仅作为内部样本键。
 3. 自动创建缺失的仓库层级：第1寺院、第2寺院为组仓库，A02/A04/... 为第2寺院下的实际仓库。
 4. 创建 Batch，包括已经过期的测试批次。
 5. 使用 Stock Reconciliation（Purpose=Opening Stock）建立初始库存，并自动使用公司的 Temporary Opening 账户作为 Difference Account。
@@ -30,11 +30,11 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import json
-import re
 
 import frappe
 from frappe.utils import flt, getdate
 from frappe.utils.file_manager import save_file
+from temple_inventory.item_code import allocate_item_code
 
 
 AS_OF_DATE = "2026-09-18"
@@ -216,28 +216,6 @@ def _ensure_item_groups() -> None:
         doc.insert(ignore_permissions=True)
 
 
-_ITEM_CODE_RE = re.compile(r"^ITM-(\d{6})$")
-
-
-def _detect_next_item_counter() -> int:
-    """
-    扫描现有 Item Code，找出符合 ITM-###### 的最大编号，然后 +1。
-    不符合格式的 Item Code 不参与计数。
-    """
-    max_counter = 0
-    for item_code in frappe.get_all("Item", pluck="name"):
-        match = _ITEM_CODE_RE.match(item_code or "")
-        if match:
-            max_counter = max(max_counter, int(match.group(1)))
-    return max_counter + 1
-
-
-def _format_item_code(counter: int) -> str:
-    if counter > 999999:
-        frappe.throw("ITM 编号已经超过 ITM-999999，请调整 Item Code 编号规则。")
-    return f"ITM-{counter:06d}"
-
-
 def _find_existing_sample_item(item_name: str, item_group: str) -> str | None:
     """
     脚本重复运行时，用 item_name + item_group 唯一匹配既有样本物品。
@@ -258,18 +236,6 @@ def _find_existing_sample_item(item_name: str, item_group: str) -> str | None:
     )
 
 
-def _allocate_next_item_code(counter: int) -> tuple[str, int]:
-    """
-    从 counter 开始寻找第一个未使用的 ITM-######。
-    每次实际插入前都会调用，避免编号跳号、并发插入或旧数据造成冲突。
-    """
-    while True:
-        item_code = _format_item_code(counter)
-        if not frappe.db.exists("Item", item_code):
-            return item_code, counter + 1
-        counter += 1
-
-
 def _ensure_items() -> dict[str, str]:
     """
     创建样本 Item，并返回 {样本键: 实际 ERPNext Item Code}。
@@ -279,23 +245,17 @@ def _ensure_items() -> dict[str, str]:
 
     新编号策略：
     1. 若相同 item_name + item_group 已存在，则直接复用，保证重复运行幂等。
-    2. 只有遇到第一个真正需要新建的物品时，才扫描现有 ITM-###### 最大值。
-    3. 新物品从最大值 + 1 开始连续递增。
-    4. 每次 insert 前再次检查候选编号；若发生 DuplicateEntryError，继续向后寻找。
+    2. 新物品统一通过共享并发安全分配器取得 ITM-######。
+    3. 每次 insert 前再次检查候选编号；若发生 DuplicateEntryError，继续使用共享分配器。
     """
     sample_to_actual: dict[str, str] = {}
-    next_counter: int | None = None
-
     for sample_key, name, category, default_room, batched, rate, source, note in ITEMS:
         existing_code = _find_existing_sample_item(name, category)
         if existing_code:
             sample_to_actual[sample_key] = existing_code
             continue
 
-        if next_counter is None:
-            next_counter = _detect_next_item_counter()
-
-        item_code, next_counter = _allocate_next_item_code(next_counter)
+        item_code = allocate_item_code()
 
         doc = frappe.get_doc({
             "doctype": "Item",
@@ -320,7 +280,7 @@ def _ensure_items() -> dict[str, str]:
                 doc.insert(ignore_permissions=True)
                 break
             except frappe.DuplicateEntryError:
-                item_code, next_counter = _allocate_next_item_code(next_counter)
+                item_code = allocate_item_code()
                 doc.name = None
 
         sample_to_actual[sample_key] = item_code

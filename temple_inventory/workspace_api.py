@@ -22,6 +22,7 @@ from temple_inventory.inventory_api import (
 	_entry_fields,
 	_entry_items,
 	_loads,
+	_selection_values,
 	_page,
 	_physical_tree,
 	_require_stock,
@@ -1087,13 +1088,13 @@ def item_detail(item_code):
 	_require_stock()
 	item = frappe.get_doc("Item", item_code)
 	item.check_permission("read")
-	warehouses = _visible_warehouses()
+	settings = _settings()
+	warehouses = _allowed_warehouses(settings)
 	bins = frappe.get_all(
 		"Bin",
 		filters={"item_code": item_code, "warehouse": ("in", list(warehouses) or [""])},
 		fields=["warehouse", "actual_qty"],
 	)
-	settings = _settings()
 	leased = warehouses.get(settings.leased_warehouse)
 
 	def reserved(name):
@@ -1119,9 +1120,22 @@ def item_detail(item_code):
 		batches = frappe.get_list("Batch", filters={"item": item.name, "disabled": 0}, fields=["name", "expiry_date"], limit_page_length=0)
 		balances = _current_batch_balances({batch.name for batch in batches}, {item.name}, warehouses, fallback=True)
 		for batch in batches:
-			qty = sum(balances.get((batch.name, name), 0) for name in warehouses)
+			locations = [
+				{"warehouse": name, "qty": balances.get((batch.name, name), 0)}
+				for name in sorted(warehouses)
+				if balances.get((batch.name, name), 0) > 0
+			]
+			qty = sum(row["qty"] for row in locations)
 			if qty > 0:
-				batch_rows.append({"batch_no": batch.name, "expiry_date": batch.expiry_date, "qty": qty})
+				expiry = getdate(batch.expiry_date) if batch.expiry_date else None
+				batch_rows.append({
+					"batch_no": batch.name,
+					"expiry_date": batch.expiry_date,
+					"days_to_expiry": (expiry - getdate(nowdate())).days if expiry else None,
+					"total_qty": qty,
+					"qty": qty,
+					"locations": locations,
+				})
 	active_loans = [row for row in outstanding_loan_items() if row["item_code"] == item.name]
 	return {
 		"item_code": item.name,
@@ -1344,20 +1358,22 @@ def _history_visibility_filter(source, params, visible_warehouses):
 			where (
 				state_item.item_code is not null and state_item.item_code <> ''
 				and not ({item_condition})
-			) or state_item.warehouse not in ({warehouse_list})
-				or state_item.from_warehouse not in ({warehouse_list})
-				or state_item.to_warehouse not in ({warehouse_list})
+			) or (
+				(
+					(iw.stock_reconciliation is not null or iw.movement_kind='Reconcile') and coalesce(state_item.warehouse, state_item.to_warehouse, state_item.from_warehouse) is not null
+					or (iw.stock_reconciliation is null and iw.movement_kind='Receive' and coalesce(state_item.to_warehouse, state_item.warehouse) is not null)
+					or (iw.stock_reconciliation is null and iw.movement_kind in ('Issue', 'Loss', 'Disposal') and coalesce(state_item.from_warehouse, state_item.warehouse) is not null)
+					or (iw.stock_reconciliation is null and iw.movement_kind in ('Transfer', 'Loan', 'Return', 'Damage', 'Repair') and (state_item.from_warehouse is not null or state_item.to_warehouse is not null))
+				)
+				and (
+					((iw.stock_reconciliation is not null or iw.movement_kind='Reconcile') and coalesce(state_item.warehouse, state_item.to_warehouse, state_item.from_warehouse) not in ({warehouse_list}))
+					or (iw.stock_reconciliation is null and iw.movement_kind='Receive' and coalesce(state_item.to_warehouse, state_item.warehouse) not in ({warehouse_list}))
+					or (iw.stock_reconciliation is null and iw.movement_kind in ('Issue', 'Loss', 'Disposal') and coalesce(state_item.from_warehouse, state_item.warehouse) not in ({warehouse_list}))
+					or (iw.stock_reconciliation is null and iw.movement_kind in ('Transfer', 'Loan', 'Return', 'Damage', 'Repair') and (state_item.from_warehouse not in ({warehouse_list}) or state_item.to_warehouse not in ({warehouse_list})))
+				)
+			)
 		""".format(item_condition=_history_item_match_condition("visible_item"), warehouse_list=warehouse_list)
-		section_table = f"""
-			select 1
-			from json_table(iw.state_json, '$.sections[*]' columns(warehouse varchar(140) path '$.warehouse')) state_section
-			where state_section.warehouse not in ({warehouse_list})
-		"""
-		top_level = "".join(
-			f" or json_unquote(json_extract(iw.state_json, '$.{field}')) not in ({warehouse_list})"
-			for field in ("warehouse", "from_warehouse", "to_warehouse")
-		)
-		return f" and not exists ({item_table}) and not exists ({section_table}){top_level}"
+		return f" and not exists ({item_table})"
 	if source == "entry":
 		return f"""
 			and not exists (
@@ -1389,6 +1405,9 @@ def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
 	if filters.get("date_to"):
 		params["history_date_to"] = filters["date_to"]
 		conditions.append(f"{alias}.posting_date <= %(history_date_to)s")
+	if filters.get("posting_date"):
+		params["history_posting_date"] = filters["posting_date"]
+		conditions.append(f"{alias}.posting_date = %(history_posting_date)s")
 	if filters.get("search"):
 		params["history_search"] = f"%{filters['search']}%"
 		if source == "workspace":
@@ -1428,6 +1447,42 @@ def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
 		else:
 			conditions.append(f"exists (select 1 from `tabStock Reconciliation Item` scope_line where scope_line.parent=sr.name and scope_line.warehouse in ({room_list}))")
 
+	warehouse_filters = (
+		("warehouses", ("warehouse", "from_warehouse", "to_warehouse")),
+		("source_warehouses", ("from_warehouse",)),
+		("destination_warehouses", ("to_warehouse",)),
+	)
+	for filter_name, fields in warehouse_filters:
+		values = filters.get(filter_name)
+		if not values:
+			continue
+		warehouse_list = _history_filter_params(values, filter_name, params)
+		if source == "workspace":
+			line_fields = ", ".join(f"{field} varchar(140) path '$.{field}'" for field in fields)
+			checks = " or ".join(f"scope_line.{field} in ({warehouse_list})" for field in fields)
+			conditions.append(f"exists (select 1 from json_table(iw.state_json, '$.items[*]' columns({line_fields})) scope_line where {checks})")
+		elif source == "entry":
+			checks = []
+			for field in fields:
+				column = {"warehouse": None, "from_warehouse": "s_warehouse", "to_warehouse": "t_warehouse"}[field]
+				if column is None:
+					checks.extend((f"scope_line.s_warehouse in ({warehouse_list})", f"scope_line.t_warehouse in ({warehouse_list})"))
+					continue
+				checks.append(f"scope_line.{column} in ({warehouse_list})")
+			conditions.append(f"exists (select 1 from `tabStock Entry Detail` scope_line where scope_line.parent=se.name and ({' or '.join(checks)}))")
+		else:
+			conditions.append(f"exists (select 1 from `tabStock Reconciliation Item` scope_line where scope_line.parent=sr.name and scope_line.warehouse in ({warehouse_list}))")
+
+	item_group_names = filters.get("item_groups")
+	if item_group_names:
+		group_list = _history_filter_params(item_group_names, "item_group", params)
+		if source == "workspace":
+			conditions.append(f"exists (select 1 from json_table(iw.state_json, '$.items[*]' columns(item_code varchar(140) path '$.item_code')) scope_line join `tabItem` scope_item on scope_item.name=scope_line.item_code where scope_item.item_group in ({group_list}))")
+		elif source == "entry":
+			conditions.append(f"exists (select 1 from `tabStock Entry Detail` scope_line join `tabItem` scope_item on scope_item.name=scope_line.item_code where scope_line.parent=se.name and scope_item.item_group in ({group_list}))")
+		else:
+			conditions.append(f"exists (select 1 from `tabStock Reconciliation Item` scope_line join `tabItem` scope_item on scope_item.name=scope_line.item_code where scope_line.parent=sr.name and scope_item.item_group in ({group_list}))")
+
 	field_map = {
 		"source_text": {"workspace": "source_text", "entry": "ti_source_text"},
 		"purpose_text": {"workspace": "purpose_text", "entry": "ti_purpose_text"},
@@ -1448,32 +1503,34 @@ def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
 		else:
 			conditions.append("1=0")
 
-	desired = filters.get("movement_kind")
-	if desired:
-		params["history_movement_kind"] = desired
-		if source == "workspace":
-			if desired == "盘点调整":
-				conditions.append(f"({alias}.stock_reconciliation is not null or {alias}.movement_kind=%(history_movement_kind)s)")
+	desired_kinds = _selection_values(filters.get("movement_kind"))
+	if desired_kinds:
+		kind_conditions = []
+		purpose_map = {"Receive": "Material Receipt", "Issue": "Material Issue", "Transfer": "Material Transfer"}
+		for index, desired in enumerate(desired_kinds):
+			kind_key = f"history_movement_kind_{index}"
+			params[kind_key] = desired
+			if source == "workspace":
+				if desired == "盘点调整":
+					kind_conditions.append(f"({alias}.stock_reconciliation is not null or {alias}.movement_kind='Reconcile')")
+				elif desired != "期初库存":
+					kind_conditions.append(f"{alias}.movement_kind=%({kind_key})s")
+			elif source == "entry":
+				if desired in purpose_map:
+					purpose_key = f"history_entry_purpose_{index}"
+					params[purpose_key] = purpose_map[desired]
+					kind_conditions.append(
+						f"(se.ti_movement_kind=%({kind_key})s or "
+						f"(se.ti_movement_kind is null and se.purpose=%({purpose_key})s))"
+					)
+				elif desired in ("Loan", "Return", "Damage", "Loss", "Repair", "Disposal"):
+					kind_conditions.append(f"se.ti_movement_kind=%({kind_key})s")
 			else:
-				conditions.append(f"{alias}.movement_kind=%(history_movement_kind)s")
-		elif source == "entry":
-			purpose_map = {"Receive": "Material Receipt", "Issue": "Material Issue", "Transfer": "Material Transfer"}
-			if desired in purpose_map:
-				params["history_entry_purpose"] = purpose_map[desired]
-				conditions.append(
-					f"(se.ti_movement_kind=%(history_movement_kind)s or (se.ti_movement_kind is null and se.purpose=%(history_entry_purpose)s))"
-				)
-			elif desired in ("Loan", "Return", "Damage", "Loss", "Repair", "Disposal"):
-				conditions.append(f"se.ti_movement_kind=%(history_movement_kind)s")
-			else:
-				conditions.append("1=0")
-		else:
-			if desired == "盘点调整":
-				conditions.append("sr.purpose='Stock Reconciliation'")
-			elif desired == "期初库存":
-				conditions.append("sr.purpose<>'Stock Reconciliation'")
-			else:
-				conditions.append("1=0")
+				if desired == "盘点调整":
+					kind_conditions.append("sr.purpose='Stock Reconciliation'")
+				elif desired == "期初库存":
+					kind_conditions.append("sr.purpose<>'Stock Reconciliation'")
+		conditions.append(f"({' or '.join(kind_conditions)})" if kind_conditions else "1=0")
 	return " and " + " and ".join(conditions) if conditions else ""
 
 
@@ -1481,6 +1538,92 @@ def _history_title(row):
 	kind = row.get("movement_kind") or ""
 	description = next((row.get(key) for key in ("source_text", "purpose_text", "activity", "name") if row.get(key)), row.get("name", ""))
 	return f"{kind} {description}".strip()
+
+
+def _history_filter_params(values, prefix, params):
+	"""Return a parameterized SQL ``IN`` list for a normalized selection."""
+	marks = []
+	for index, value in enumerate(values or []):
+		key = f"history_{prefix}_{index}"
+		params[key] = value
+		marks.append(f"%({key})s")
+	if not marks:
+		params["history_empty_selection"] = ""
+		return "%(history_empty_selection)s"
+	return ", ".join(marks)
+
+
+def _history_allowed_selection(value, visible, allowed):
+	"""Validate a visible selection and reduce it to permitted leaf warehouses."""
+	values = _selection_values(value)
+	if any(selection not in visible for selection in values):
+		frappe.throw(_("请选择寺院库存范围内的位置"), frappe.PermissionError)
+	for selection in values:
+		if not visible[selection].is_group and selection not in allowed:
+			frappe.throw(_("请选择有权限的库存位置"), frappe.PermissionError)
+	return _selected_leaf_warehouses(values, visible, empty_means_all=False) & set(allowed)
+
+
+def _history_facets(union, status_where, params):
+	"""Build permission-filtered parent counts for warehouse and group facets."""
+	parents = frappe.db.sql(
+		f"select movement.name, movement.source, movement.movement_kind from ({union}) movement {status_where}",
+		params,
+		as_dict=True,
+	)
+	by_source = defaultdict(list)
+	for parent in parents:
+		by_source[parent.source].append(parent)
+	parent_sets = {source: {row.name for row in rows} for source, rows in by_source.items()}
+	lines_by_parent = defaultdict(list)
+	for source, doctype, fields in (
+		("entry", "Stock Entry Detail", ["parent", "item_code", "s_warehouse", "t_warehouse"]),
+		("reconciliation", "Stock Reconciliation Item", ["parent", "item_code", "warehouse"]),
+	):
+		if not parent_sets.get(source):
+			continue
+		for line in frappe.get_all(doctype, filters={"parent": ("in", sorted(parent_sets[source]))}, fields=fields, limit_page_length=0):
+			lines_by_parent[(source, line.parent)].append(line)
+	workspace_states = {}
+	if parent_sets.get("workspace"):
+		workspace_states = {
+			row.name: row.state_json for row in frappe.get_all("Inventory Workspace", filters={"name": ("in", sorted(parent_sets["workspace"]))}, fields=["name", "state_json"], limit_page_length=0)
+		}
+	for parent in by_source.get("workspace", []):
+		state = _loads(workspace_states.get(parent.name), {}) or {}
+		lines_by_parent[("workspace", parent.name)].extend(state.get("items") or [])
+	item_codes = {
+		line.get("item_code") for lines in lines_by_parent.values() for line in lines
+		if (line.get("item_code") if isinstance(line, dict) else getattr(line, "item_code", None))
+	}
+	item_meta = {
+		row.name: row for row in frappe.get_list("Item", filters={"name": ("in", sorted(item_codes) or [""])}, fields=["name", "item_group"], limit_page_length=0)
+	}
+	facet_sets = {key: defaultdict(set) for key in ("warehouses", "source_warehouses", "destination_warehouses", "item_groups")}
+	for parent in parents:
+		for line in lines_by_parent.get((parent.source, parent.name), []):
+			get = line.get if isinstance(line, dict) else lambda key, default=None: getattr(line, key, default)
+			kind = parent.movement_kind or ""
+			if parent.source == "reconciliation" or kind in ("盘点调整", "期初库存"):
+				locations = [(get("warehouse"), "warehouse")]
+			elif kind == "Receive":
+				locations = [(get("to_warehouse") or get("warehouse"), "destination")]
+			elif kind in ("Issue", "Loss", "Disposal"):
+				locations = [(get("s_warehouse") or get("from_warehouse") or get("warehouse"), "source")]
+			else:
+				locations = [(get("s_warehouse") or get("from_warehouse"), "source"), (get("t_warehouse") or get("to_warehouse"), "destination")]
+			for warehouse, role in locations:
+				if warehouse:
+					facet_sets["warehouses"][warehouse].add(parent.name)
+					if role == "source":
+						facet_sets["source_warehouses"][warehouse].add(parent.name)
+					elif role == "destination":
+						facet_sets["destination_warehouses"][warehouse].add(parent.name)
+			code = get("item_code")
+			group = get("item_group") or (item_meta.get(code) or {}).get("item_group")
+			if group:
+				facet_sets["item_groups"][group].add(parent.name)
+	return {key: {value: len(names) for value, names in sorted(values.items())} for key, values in facet_sets.items()}
 
 
 def _history_database_page(status_group, start, page_length, item_code=None, filters=None, visible_warehouses=None, selected_rooms=None, sort_state=None):
@@ -1495,7 +1638,7 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	filters = filters or {}
 	params = {"company": settings.company, "start": start, "page_length": page_length, "item_code": item_code}
 	workspace_status = "coalesce(se.docstatus, sr.docstatus, 0)"
-	workspace_kind = "case when iw.stock_reconciliation is not null then '盘点调整' else iw.movement_kind end"
+	workspace_kind = "case when iw.stock_reconciliation is not null or iw.movement_kind='Reconcile' then '盘点调整' else iw.movement_kind end"
 	workspace = f"""
 		select iw.name, 'workspace' as source, {workspace_status} as docstatus, iw.modified,
 			{workspace_kind} as movement_kind, iw.posting_date,
@@ -1545,7 +1688,7 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	""" if frappe.has_permission("Stock Reconciliation", "read") else ""
 	union = " union all ".join(part for part in (workspace, entry, reconciliation) if part)
 	if not union:
-		return [], 0, 0, 0, {"movement_kind": {}, "warehouses": {}, "item_groups": {}}
+		return [], 0, 0, 0, {"movement_kind": {}, "warehouses": {}, "source_warehouses": {}, "destination_warehouses": {}, "item_groups": {}}
 	if status_group == "unfinished":
 		status_where = "where movement.docstatus=0"
 	elif status_group == "completed":
@@ -1557,10 +1700,15 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	)[0].total
 	if sort_state:
 		column, direction = sort_state
-		expression = {"title": "lower(movement.title)", "posting_date": "movement.posting_date", "line_count": "movement.line_count"}[column]
+		expression = {
+			"title": "lower(movement.title)", "posting_date": "movement.posting_date", "line_count": "movement.line_count",
+			"location_count": "movement.line_count", "category_count": "movement.line_count",
+			"increase_line_count": "movement.line_count", "decrease_line_count": "movement.line_count",
+			"movement_kind": "movement.movement_kind",
+		}[column]
 		order_sql = f"{expression} {direction}, movement.modified desc, movement.name desc"
 	else:
-		order_sql = "movement.modified desc, movement.name desc"
+		order_sql = "movement.posting_date desc, movement.modified desc, movement.name desc"
 	rows = frappe.db.sql(
 		f"""select movement.name, movement.source, movement.docstatus, movement.modified,
 			movement.title, movement.posting_date, movement.line_count
@@ -1579,11 +1727,92 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 		params,
 		as_dict=True,
 	)
+	warehouse_facets = _history_facets(union, status_where, params)
 	return rows, int(count), int(all_count), int(unfinished_count), {
 		"movement_kind": {row.movement_kind: int(row.total) for row in facets},
-		"warehouses": {},
-		"item_groups": {},
+		**warehouse_facets,
 	}
+
+
+def _history_aggregate(row):
+	"""Add stable location/category summaries and signed item deltas."""
+	items = row.get("_all_items") or row.get("items") or []
+	kind = row.get("movement_kind") or ""
+	is_reconciliation = bool(row.get("stock_reconciliation") or row.get("document_type") == "Stock Reconciliation" or kind in ("盘点调整", "期初库存"))
+	location_roles = defaultdict(set)
+	categories = defaultdict(int)
+	deltas = defaultdict(float)
+	for item in items:
+		group = item.get("item_group")
+		if group:
+			categories[group] += 1
+		if kind == "Receive":
+			locations = ((item.get("to_warehouse") or item.get("warehouse"), "destination"),)
+		elif kind in ("Issue", "Loss", "Disposal"):
+			locations = ((item.get("from_warehouse") or item.get("warehouse"), "source"),)
+		elif kind in ("Transfer", "Loan", "Return", "Damage", "Repair"):
+			locations = ((item.get("from_warehouse"), "source"), (item.get("to_warehouse"), "destination"))
+		else:
+			locations = ((item.get("warehouse"), "warehouse"),)
+		for warehouse, role in locations:
+			if warehouse:
+				location_roles[warehouse].add(role)
+		qty = flt(item.get("qty"))
+		if item.get("item_code") and item.get("item_code") == row.get("_item_code"):
+			uom = item.get("uom") or ""
+			if kind == "Receive":
+				deltas[(item.get("to_warehouse") or item.get("warehouse"), uom)] += qty
+			elif kind in ("Issue", "Loss", "Disposal"):
+				deltas[(item.get("from_warehouse") or item.get("warehouse"), uom)] -= qty
+			elif kind in ("Transfer", "Loan", "Return", "Damage", "Repair"):
+				deltas[(item.get("from_warehouse"), uom)] -= qty
+				deltas[(item.get("to_warehouse"), uom)] += qty
+			elif is_reconciliation:
+				difference = item.get("quantity_difference")
+				if difference in (None, ""):
+					difference = flt(item.get("qty")) - flt(item.get("current_qty"))
+				deltas[(item.get("warehouse"), uom)] += flt(difference)
+	row["line_count"] = len(items)
+	row["location_count"] = len(location_roles)
+	row["locations"] = [{"warehouse": warehouse, "roles": sorted(roles)} for warehouse, roles in sorted(location_roles.items())]
+	row["category_count"] = len(categories)
+	row["categories"] = [{"item_group": group, "line_count": count} for group, count in sorted(categories.items())]
+	row["increase_line_count"] = 0
+	row["decrease_line_count"] = 0
+	if is_reconciliation:
+		def difference(item):
+			value = item.get("quantity_difference")
+			return flt(value) if value not in (None, "") else flt(item.get("qty")) - flt(item.get("current_qty"))
+		row["increase_line_count"] = sum(1 for item in items if difference(item) > 0)
+		row["decrease_line_count"] = sum(1 for item in items if difference(item) < 0)
+	row["item_changes"] = [{"warehouse": warehouse, "delta": delta, "uom": uom} for (warehouse, uom), delta in sorted(deltas.items()) if warehouse and delta]
+	row.pop("_item_code", None)
+	return row
+
+
+def _history_trim_items(rows):
+	"""Keep the legacy bounded item preview while aggregating full child rows."""
+	for row in rows:
+		all_items = row.pop("_all_items", None)
+		if all_items is not None:
+			row["items"] = all_items[:5]
+
+
+def _history_hydrate_item_metadata(rows):
+	"""Fill category/UOM metadata for direct ERPNext rows in one permission-safe batch."""
+	codes = {item.get("item_code") for row in rows for item in (row.get("items") or []) if item.get("item_code")}
+	if not codes:
+		return
+	metadata = {
+		row.name: row for row in frappe.get_list("Item", filters={"name": ("in", sorted(codes))},
+			fields=["name", "item_group", "stock_uom"], limit_page_length=0)
+	}
+	for row in rows:
+		for item in row.get("_all_items") or row.get("items") or []:
+			meta = metadata.get(item.get("item_code"))
+			if meta:
+				item.setdefault("item_group", meta.item_group)
+				item.setdefault("uom", meta.stock_uom)
 
 
 def _history_workspace_summary(doc):
@@ -1605,14 +1834,15 @@ def _history_workspace_summary(doc):
 		}
 		for item in items[:5]
 	]
-	return {
+	return _history_aggregate({
 		"name": doc.name,
+		"document_type": "Stock Reconciliation" if doc.get("stock_reconciliation") or doc.movement_kind == "Reconcile" else "Stock Entry",
 		"stock_entry": doc.stock_entry,
 		"stock_reconciliation": doc.get("stock_reconciliation"),
 		"docstatus": _status(doc),
 		"modified": str(doc.modified),
-		"movement_kind": "盘点调整" if doc.get("stock_reconciliation") else doc.movement_kind,
-		"title": _history_title({"movement_kind": "盘点调整" if doc.get("stock_reconciliation") else doc.movement_kind, "source_text": doc.source_text, "purpose_text": doc.purpose_text, "activity": doc.activity, "name": doc.name}),
+		"movement_kind": "盘点调整" if doc.get("stock_reconciliation") or doc.movement_kind == "Reconcile" else doc.movement_kind,
+		"title": _history_title({"movement_kind": "盘点调整" if doc.get("stock_reconciliation") or doc.movement_kind == "Reconcile" else doc.movement_kind, "source_text": doc.source_text, "purpose_text": doc.purpose_text, "activity": doc.activity, "name": doc.name}),
 		"posting_date": str(doc.posting_date),
 		"posting_time": str(doc.posting_time or ""),
 		"source_text": doc.source_text,
@@ -1624,25 +1854,44 @@ def _history_workspace_summary(doc):
 		"items": preview,
 		"quantities": [{"uom": uom, "qty": qty} for uom, qty in sorted(quantities.items()) if uom],
 		"detail_route": f"/workspace/{doc.name}",
-	}
+		"_all_items": [dict(item) for item in items],
+	})
 
 
 @frappe.whitelist()
 def history(filters=None, start=0, page_length=30, status_group="all", sort_by=None, sort_order=None):
 	_require_stock()
-	sort_state = _sort_state(sort_by, sort_order, {"title", "posting_date", "line_count"}, "title")
+	sort_state = _sort_state(sort_by, sort_order, {"title", "posting_date", "line_count", "location_count", "category_count", "increase_line_count", "decrease_line_count", "movement_kind"}, "posting_date", "desc")
 	raw_filters = _loads(filters, {})
 	f = dict(raw_filters)
-	allowed = _visible_warehouses()
+	visible_warehouses = _visible_warehouses()
+	allowed = _allowed_warehouses()
 	if status_group == "unfinished":
 		f["docstatus"] = "0"
 	elif status_group == "completed":
 		f["docstatus"] = {"in": [1, 2]}
 	rooms = f.get("rooms", f.get("room"))
 	item_code = f.get("item_code")
-	selected_rooms = _selected_leaf_warehouses(rooms, allowed, empty_means_all=False) if rooms else None
-	sql_filter_keys = {"item_code", "date_from", "date_to", "movement_kind", "source_text", "purpose_text", "activity", "handler_name", "responsible_person", "search", "rooms", "room"}
-	sql_filterable = set(raw_filters).issubset(sql_filter_keys)
+	selected_rooms = _history_allowed_selection(rooms, visible_warehouses, allowed) if rooms else None
+	for filter_name in ("warehouses", "source_warehouses", "destination_warehouses"):
+		if f.get(filter_name):
+			f[filter_name] = _history_allowed_selection(f[filter_name], visible_warehouses, allowed)
+	if f.get("item_groups"):
+		selected_groups = _selection_values(f["item_groups"])
+		all_groups = frappe.get_list("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
+		by_name = {row.name: row for row in all_groups}
+		if any(value not in by_name for value in selected_groups):
+			frappe.throw(_("Invalid item group"), frappe.PermissionError)
+		parents = [by_name[value] for value in selected_groups]
+		f["item_groups"] = sorted(
+			row.name for row in all_groups if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in parents)
+		)
+	sql_filter_keys = {"item_code", "date_from", "date_to", "posting_date", "movement_kind", "source_text", "purpose_text", "activity", "handler_name", "responsible_person", "search", "rooms", "room", "warehouses", "source_warehouses", "destination_warehouses", "item_groups"}
+	# Summary-only sort keys require hydrated child metadata. Keep the database
+	# path for the ordinary browse/default sort, and use the complete fallback
+	# for these keys so the sort is based on the actual aggregate values.
+	summary_sort = {"location_count", "category_count", "increase_line_count", "decrease_line_count"}
+	sql_filterable = set(raw_filters).issubset(sql_filter_keys) and (not sort_state or sort_state[0] not in summary_sort)
 	if sql_filterable:
 		if item_code:
 			frappe.get_doc("Item", item_code).check_permission("read")
@@ -1654,11 +1903,11 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			requested_length,
 			item_code=item_code,
 			filters=f,
-			visible_warehouses=None if frappe.session.user == "Administrator" else allowed,
+			visible_warehouses=allowed,
 			selected_rooms=selected_rooms,
 			sort_state=sort_state,
 		)
-		allowed = _visible_warehouses()
+		allowed = _allowed_warehouses()
 		rows = []
 		for parent in parents:
 			if parent.source == "workspace":
@@ -1677,7 +1926,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 						frappe.get_doc("Item", item.item_code).check_permission("read")
 				except frappe.PermissionError:
 					continue
-				entry_row = {"name": doc.name, "legacy": True, "stock_entry": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), **_from_entry(doc)}
+				entry_row = {"name": doc.name, "legacy": True, "document_type": "Stock Entry", "stock_entry": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), **_from_entry(doc)}
 				entry_row["line_count"] = len(doc.items)
 				entry_row["title"] = _history_title(entry_row)
 				rows.append(entry_row)
@@ -1695,15 +1944,24 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 					frappe.get_doc("Item", item.item_code).check_permission("read")
 				except frappe.PermissionError:
 					continue
-				items.append({"id": item.name, "item_code": item.item_code, "qty": item.qty, "uom": getattr(item, "stock_uom", None) or getattr(item, "uom", None), "warehouse": item.warehouse, "batch_no": item.batch_no})
+				items.append({"id": item.name, "item_code": item.item_code, "qty": item.qty, "current_qty": getattr(item, "current_qty", None), "quantity_difference": getattr(item, "quantity_difference", None), "uom": getattr(item, "stock_uom", None) or getattr(item, "uom", None), "warehouse": item.warehouse, "batch_no": item.batch_no})
 			if items:
 				reconciliation_row = {"name": doc.name, "legacy": True, "document_type": "Stock Reconciliation", "stock_reconciliation": doc.name, "docstatus": doc.docstatus, "modified": str(doc.modified), "movement_kind": "盘点调整" if doc.purpose == "Stock Reconciliation" else "期初库存", "purpose_text": doc.purpose, "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items, "line_count": len(items)}
 				reconciliation_row["title"] = _history_title(reconciliation_row)
 				rows.append(reconciliation_row)
+		_history_hydrate_item_metadata(rows)
+		for row in rows:
+			if "_all_items" not in row:
+				row["_all_items"] = row.pop("items", [])
+		for row in rows:
+			row["_item_code"] = item_code
+			_history_aggregate(row)
 		if sort_state:
 			rows.sort(key=lambda row: (str(row.get("modified") or ""), row["name"]), reverse=True)
 			column, direction = sort_state
-			rows.sort(key=lambda row: str(row.get(column) or "").lower() if column == "title" else row.get(column) or "", reverse=direction == "desc")
+			numeric = {"line_count", "location_count", "category_count", "increase_line_count", "decrease_line_count"}
+			rows.sort(key=lambda row: float(row.get(column) or 0) if column in numeric else str(row.get(column) or "").lower(), reverse=direction == "desc")
+		_history_trim_items(rows)
 		page = {
 			"results": rows,
 			"total": total,
@@ -1783,6 +2041,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 		entry_row = {
 				"name": doc.name,
 				"legacy": True,
+				"document_type": "Stock Entry",
 				"stock_entry": doc.name,
 				"docstatus": doc.docstatus,
 				"modified": str(doc.modified),
@@ -1807,7 +2066,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 				frappe.get_doc("Item", line.item_code).check_permission("read")
 			except frappe.PermissionError:
 				continue
-			items.append({"id": line.name, "item_code": line.item_code, "qty": line.qty, "uom": getattr(line, "stock_uom", None) or getattr(line, "uom", None), "warehouse": line.warehouse, "batch_no": line.batch_no})
+			items.append({"id": line.name, "item_code": line.item_code, "qty": line.qty, "current_qty": getattr(line, "current_qty", None), "quantity_difference": getattr(line, "quantity_difference", None), "uom": getattr(line, "stock_uom", None) or getattr(line, "uom", None), "warehouse": line.warehouse, "batch_no": line.batch_no})
 		if not items:
 			continue
 		reconciliation_row = {
@@ -1829,7 +2088,9 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 
 	def matches(r):
 		for key in ("movement_kind", "activity", "responsible_person", "handler_name"):
-			if f.get(key) and key == "movement_kind" and f[key] == "盘点调整" and r.get(key) in ("盘点调整", "期初库存"):
+			if key == "movement_kind" and f.get(key):
+				if r.get(key) not in _selection_values(f[key]):
+					return False
 				continue
 			if f.get(key) and r.get(key) != f[key]:
 				return False
@@ -1846,6 +2107,8 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			return False
 		if f.get("date_to") and str(r.get("posting_date") or "") > f["date_to"]:
 			return False
+		if f.get("posting_date") and str(r.get("posting_date") or "") != str(f["posting_date"]):
+			return False
 		if f.get("item_code") and not any(i["item_code"] == f["item_code"] for i in r["items"]):
 			return False
 		if selected_rooms is not None:
@@ -1855,6 +2118,14 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 				for w in (i.get("warehouse"), i.get("from_warehouse"), i.get("to_warehouse"))
 			):
 				return False
+		for key, role in (("warehouses", None), ("source_warehouses", "source"), ("destination_warehouses", "destination")):
+			selected = f.get(key)
+			if selected:
+				values = set(_selection_values(selected))
+				if not any(location["warehouse"] in values and (role is None or role in location["roles"]) for location in r.get("locations", [])):
+					return False
+		if f.get("item_groups") and not any(category["item_group"] in _selection_values(f["item_groups"]) for category in r.get("categories", [])):
+			return False
 		if (
 			f.get("search")
 			and f["search"].lower() not in json.dumps(r, default=str, ensure_ascii=False).lower()
@@ -1862,12 +2133,26 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			return False
 		return True
 
+	_history_hydrate_item_metadata(results)
+	for row in results:
+		row["_all_items"] = list(row.get("items") or [])
+		_history_aggregate(row)
 	matched = [r for r in results if matches(r)]
-	rows = sorted(matched, key=lambda r: (r["modified"], r["name"]), reverse=True)
+	for row in matched:
+		row["_item_code"] = item_code
+		_history_aggregate(row)
+	rows = sorted(matched, key=lambda r: (str(r.get("posting_date") or ""), r["modified"], r["name"]), reverse=True)
 	if sort_state:
 		column, direction = sort_state
-		rows.sort(key=lambda row: str(row.get(column) or "").lower() if column == "title" else row.get(column) or "", reverse=direction == "desc")
+		numeric = {"line_count", "location_count", "category_count", "increase_line_count", "decrease_line_count"}
+		rows.sort(
+			key=lambda row: float(row.get(column) or 0)
+			if column in numeric
+			else str(row.get(column) or "").lower(),
+			reverse=direction == "desc",
+		)
 	page = _page(rows, page_length, start)
+	_history_trim_items(page["results"])
 	if status_group == "unfinished":
 		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)
 	elif status_group == "completed":
@@ -1878,19 +2163,24 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 		page["unfinished_count"] = sum(1 for r in results if r["docstatus"] == 0)
 	movement_facets = defaultdict(set)
 	warehouse_facets = defaultdict(set)
+	source_warehouse_facets = defaultdict(set)
+	destination_warehouse_facets = defaultdict(set)
 	item_group_facets = defaultdict(set)
 	for row in matched:
 		movement_facets[row.get("movement_kind") or ""].add(row["name"])
-		for item in row.get("items", []):
-			for warehouse in (item.get("warehouse"), item.get("from_warehouse"), item.get("to_warehouse")):
-				if warehouse:
-					warehouse_facets[warehouse].add(row["name"])
-			item_group = item.get("item_group")
-			if item_group:
-				item_group_facets[item_group].add(row["name"])
+		for location in row.get("locations", []):
+			warehouse_facets[location["warehouse"]].add(row["name"])
+			if "source" in location["roles"]:
+				source_warehouse_facets[location["warehouse"]].add(row["name"])
+			if "destination" in location["roles"]:
+				destination_warehouse_facets[location["warehouse"]].add(row["name"])
+		for category in row.get("categories", []):
+			item_group_facets[category["item_group"]].add(row["name"])
 	page["facets"] = {
 		"movement_kind": {key: len(value) for key, value in movement_facets.items()},
 		"warehouses": {key: len(value) for key, value in warehouse_facets.items()},
+		"source_warehouses": {key: len(value) for key, value in source_warehouse_facets.items()},
+		"destination_warehouses": {key: len(value) for key, value in destination_warehouse_facets.items()},
 		"item_groups": {key: len(value) for key, value in item_group_facets.items()},
 	}
 	return page

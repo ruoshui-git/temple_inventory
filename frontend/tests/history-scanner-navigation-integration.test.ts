@@ -80,7 +80,7 @@ describe('Task 04 history, scanner, and navigation integration', () => {
   it('uses a modal scanner for one-shot item barcode editing and closes after decode', async () => {
     const wrapper = mount(ItemDetail, { global: globals })
     await flushPromises()
-    await clickText(wrapper, '编辑')
+    await wrapper.get('button[aria-label="编辑"]').trigger('click')
     await clickText(wrapper, '扫描添加条码')
     expect(wrapper.findComponent(scanner).props('presentation')).toBe('modal')
     await wrapper.findComponent(scanner).vm.$emit('scan', 'CODE-1')
@@ -127,8 +127,8 @@ describe('Task 04 history, scanner, and navigation integration', () => {
   })
 
   it('sorts History through the server and isolates draft controls from row activation', async () => {
-    state.route.path = '/inventory/movements'
-    state.route.query = { status: 'unfinished' }
+    state.route.path = '/inventory/drafts'
+    state.route.query = {}
     state.api.mockImplementation(async (method: string) => method === 'bootstrap' ? { stock_operation_capabilities: {} } : {})
     state.workspaceApi.mockImplementation(async (method: string) => {
       if (method === 'activities') return []
@@ -138,18 +138,15 @@ describe('Task 04 history, scanner, and navigation integration', () => {
     Object.defineProperty(window, 'IntersectionObserver', { value: class { observe() {} disconnect() {} }, configurable: true })
     const scrollTo = vi.fn()
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', { value: scrollTo, configurable: true })
-    const wrapper = mount(History, { global: globals })
+    const wrapper = mount(History, { props: { destination: 'drafts' }, global: globals })
     await flushPromises()
     expect(state.workspaceApi.mock.calls.find(call => call[0] === 'history')?.[1]).toMatchObject({ sort_by: 'posting_date', sort_order: 'desc' })
     await wrapper.find('.sortable-data-table th button').trigger('click')
     await flushPromises()
-    expect(state.workspaceApi.mock.calls.at(-1)?.[1]).toMatchObject({ sort_by: 'title', sort_order: 'asc' })
-    expect(state.replace).toHaveBeenCalledWith(expect.objectContaining({ query: expect.objectContaining({ sort_by: 'title', sort_order: 'asc' }) }))
+    expect(state.workspaceApi.mock.calls.at(-1)?.[1]).toMatchObject({ sort_by: 'movement_kind', sort_order: 'asc' })
+    expect(state.replace).toHaveBeenCalledWith(expect.objectContaining({ query: expect.objectContaining({ sort_by: 'movement_kind', sort_order: 'asc' }) }))
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     await wrapper.find('[data-row-control]').trigger('click')
     expect(state.push).not.toHaveBeenCalledWith('/workspace/IW-1')
-    scrollTo.mockClear()
-    await clickText(wrapper, '入库')
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0 })
   })
 })

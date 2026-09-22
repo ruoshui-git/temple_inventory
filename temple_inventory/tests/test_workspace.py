@@ -115,6 +115,39 @@ class WorkspaceTests(unittest.TestCase):
 		)
 		self.assertEqual(inventory_service._selection_values("Room / A, east"), ["Room / A, east"])
 
+	def test_history_aggregate_reports_roles_categories_and_signed_changes(self):
+		row = {
+			"movement_kind": "Transfer",
+			"items": [
+				{"item_code": "ITEM-1", "item_group": "食品", "qty": 3, "uom": "Nos", "from_warehouse": "A", "to_warehouse": "B"},
+				{"item_code": "ITEM-1", "item_group": "食品", "qty": 2, "uom": "Nos", "from_warehouse": "A", "to_warehouse": "B"},
+			],
+			"_item_code": "ITEM-1",
+		}
+		api._history_aggregate(row)
+		self.assertEqual(row["line_count"], 2)
+		self.assertEqual(row["location_count"], 2)
+		self.assertEqual(row["locations"], [{"warehouse": "A", "roles": ["source"]}, {"warehouse": "B", "roles": ["destination"]}])
+		self.assertEqual(row["categories"], [{"item_group": "食品", "line_count": 2}])
+		self.assertEqual(row["item_changes"], [{"warehouse": "A", "delta": -5.0, "uom": "Nos"}, {"warehouse": "B", "delta": 5.0, "uom": "Nos"}])
+
+	def test_history_aggregate_uses_reconciliation_difference_fallback(self):
+		row = {
+			"movement_kind": "盘点调整",
+			"document_type": "Stock Reconciliation",
+			"items": [{"item_code": "ITEM-1", "qty": 4, "current_qty": 7, "uom": "Nos", "warehouse": "A"}],
+			"_item_code": "ITEM-1",
+		}
+		api._history_aggregate(row)
+		self.assertEqual(row["increase_line_count"], 0)
+		self.assertEqual(row["decrease_line_count"], 1)
+		self.assertEqual(row["item_changes"], [{"warehouse": "A", "delta": -3.0, "uom": "Nos"}])
+
+	def test_create_item_rejects_client_item_code(self):
+		with patch.object(inventory_service, "_require_stock"):
+			with self.assertRaises(frappe.ValidationError):
+				inventory_service.create_item({"item_code": "ITM-000001", "item_name": "恶意编号", "stock_uom": "Nos", "item_group": "All Item Groups"})
+
 	def test_loans_accepts_rpc_string_paging_after_active_parent_selection(self):
 		parents = [
 			frappe._dict(name="loan-3", borrower="甲", activity="活动", posting_datetime="2026-01-03"),
@@ -716,7 +749,15 @@ class WorkspaceTests(unittest.TestCase):
 		)
 		self.assertEqual(len(stored), 2, stored)
 		filters = {}
-		for column in ("title", "posting_date", "line_count"):
+		for column in (
+			"title",
+			"posting_date",
+			"line_count",
+			"location_count",
+			"category_count",
+			"increase_line_count",
+			"decrease_line_count",
+		):
 			ascending = api.history(filters, sort_by=column, sort_order="asc", page_length=100)["results"]
 			descending = api.history(filters, sort_by=column, sort_order="desc", page_length=100)["results"]
 			def values(rows):

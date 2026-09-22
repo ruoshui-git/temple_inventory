@@ -9,9 +9,9 @@ import WarehouseSelector from '../components/WarehouseSelector.vue'
 import CategorySelector from '../components/CategorySelector.vue'
 import ActiveFilterChips from '../components/ActiveFilterChips.vue'
 import FloatingActionMenu from '../components/FloatingActionMenu.vue'
-import LoadingIndicator from '../components/LoadingIndicator.vue'
 import ItemImagePreview from '../components/ItemImagePreview.vue'
 import SortableDataTable, { type SortState } from '../components/SortableDataTable.vue'
+import IconButton from '../components/IconButton.vue'
 import { formatExpiryDuration } from '../lib/duration'
 
 const route = useRoute()
@@ -21,6 +21,7 @@ const rows = ref<any[]>([])
 const error = ref('')
 const busy = ref(false)
 const refreshing = ref(false)
+const appending = ref(false)
 const total = ref(0)
 const overallTotal = ref(0)
 const facetCounts = ref<any>({ warehouses: {}, item_groups: {} })
@@ -72,11 +73,6 @@ const activeCount = computed(() =>
   (filters.value.search ? 1 : 0) +
   (filters.value.expiry_window ? 1 : 0),
 )
-const inventoryQuery = computed(() => serializeFilterQuery({
-  search: filters.value.search,
-  warehouses: filters.value.warehouses,
-  item_groups: filters.value.item_groups,
-}))
 const sortQuery = () => JSON.stringify(sort.value) === JSON.stringify(defaultSort)
   ? { sort_by: undefined, sort_order: undefined }
   : { sort_by: sort.value.sort_by, sort_order: sort.value.sort_order }
@@ -119,9 +115,11 @@ let sequence = 0
 let syncingRoute = false
 let restoringRoute = false
 let observer: IntersectionObserver | undefined
+let mediaQuery: MediaQueryList | undefined
 let lastRequestKey = ''
 function operation(kind: string) { void router.push(`/new/${kind}`) }
-function applySort(value: SortState) { sort.value = value; rows.value = []; start.value = 0; observer?.disconnect(); if (sentinel.value) observer?.observe(sentinel.value) }
+function applySort(value: SortState) { sort.value = value; start.value = 0 }
+function setupObserver() { observer?.disconnect(); observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value && !refreshing.value && !appending.value) void load(true) }, { root: mediaQuery?.matches ? resultsScroll.value : null, rootMargin: '240px' }); if (sentinel.value) observer.observe(sentinel.value) }
 async function load(append = false) {
   if (!boot.value) return
   if (timer) clearTimeout(timer)
@@ -129,8 +127,9 @@ async function load(append = false) {
   const current = ++sequence
   controller = new AbortController()
   const run = async () => {
-    refreshing.value = rows.value.length > 0
-    busy.value = rows.value.length === 0
+    appending.value = append
+    refreshing.value = !append && rows.value.length > 0
+    busy.value = !append && rows.value.length === 0
     error.value = ''
     try {
       const data = await api('expiring_batches', {
@@ -157,6 +156,7 @@ async function load(append = false) {
       if (current === sequence) {
         busy.value = false
         refreshing.value = false
+        appending.value = false
       }
     }
   }
@@ -223,22 +223,22 @@ onMounted(async () => {
     start.value = Number(hydrated.start) || 0
     await load()
     await nextTick()
-    observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value) void load(true)
-    }, { root: resultsScroll.value, rootMargin: '240px' })
-    if (sentinel.value) observer.observe(sentinel.value)
+    if (typeof window.matchMedia === 'function') {
+      mediaQuery = window.matchMedia('(min-width: 1024px)')
+      mediaQuery.addEventListener('change', setupObserver)
+    }
+    setupObserver()
     const saved = Number(sessionStorage.getItem(scrollKey) || 0)
     if (saved) resultsScroll.value?.scrollTo({ top: saved })
   } catch (cause: any) {
     error.value = cause.message
   }
 })
-onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (resultsScroll.value) sessionStorage.setItem(scrollKey, String(resultsScroll.value.scrollTop)) })
+onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); mediaQuery?.removeEventListener('change', setupObserver); if (resultsScroll.value) sessionStorage.setItem(scrollKey, String(resultsScroll.value.scrollTop)) })
 </script>
 
 <template>
   <main class="inventory-destination wide-shell viewport-list-root">
-    <nav class="inventory-modes mobile-inventory-modes" aria-label="库存视图"><RouterLink :to="{ path: '/', query: inventoryQuery }">当前库存</RouterLink><RouterLink :to="{ path: '/', query: { ...inventoryQuery, mode: 'catalog' } }">全部物品</RouterLink><RouterLink class="active" :to="{ path: '/expiry', query: { ...inventoryQuery, ...(filters.expiry_window ? { expiry_window: filters.expiry_window, expiry_days: expiryDays } : {}), ...sortQuery() } }">效期批次</RouterLink></nav>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
         <WarehouseSelector v-model="filters.warehouses" :rows="warehouseRows" :counts="facetCounts.warehouses" />
@@ -246,20 +246,17 @@ onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (results
         <fieldset class="choice-list" aria-labelledby="expiry-range-heading"><div class="expiry-range-heading"><h3 id="expiry-range-heading">效期范围</h3><label>天数<input v-model="filters.expiry_days" type="number" min="1" step="1" inputmode="numeric" @change="normalizeExpiryDays" @blur="normalizeExpiryDays"></label></div><label class="choice-row"><input type="radio" value="" :checked="!filters.expiry_window" @change="setExpiryWindow('')">全部效期</label><label v-for="option in expiryWindows" :key="option.value" class="choice-row"><input type="radio" :value="option.value" :checked="filters.expiry_window === option.value" @change="setExpiryWindow(option.value)">{{ option.prefix }}{{ expiryDays }}{{ option.suffix }}</label></fieldset>
       </ResponsiveFilterPanel>
       <div class="results-column">
-        <div class="results-chrome"><div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或批次" aria-label="搜索物品或批次"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部效期批次 ${overallTotal}` }}</span></div><ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" /></div>
-        <div ref="resultsScroll" class="results-scroll"><p v-if="error || routeValidationError" class="error">{{ error || routeValidationError }} <button type="button" @click="load()">重试</button></p>
-        <LoadingIndicator v-if="busy && !rows.length" text="正在加载有效期…" />
-        <template v-else>
-          <SortableDataTable :rows="rows" :columns="sortColumns" row-key="batch_no" :sort="sort" @sort="applySort" @activate="row => router.push(`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`)">
+        <div class="results-chrome"><div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索物品或批次" aria-label="搜索物品或批次"><IconButton class="mobile-filter-button" :label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'" title="筛选" @click="filterPanel?.openPanel($event)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" /></svg><span v-if="activeCount" class="icon-count">{{ activeCount }}</span></IconButton><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部效期批次 ${overallTotal}` }}</span></div><ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" /></div>
+        <div ref="resultsScroll" class="results-scroll">
+          <SortableDataTable :rows="rows" :columns="sortColumns" row-key="batch_no" :sort="sort" :loading="busy || refreshing" :loading-more="appending" :error="error || routeValidationError" empty-message="暂无有库存的有效期批次" @sort="applySort" @activate="row => router.push(`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`)">
+            <template #error>{{ error || routeValidationError }} <button type="button" @click="load()">重试</button></template>
             <template #cell-item_name="{ row }"><div class="primary-cell"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b class="primary-text">{{ row.item_name }}</b><small class="secondary-text">{{ row.item_code }} · {{ row.batch_no }}</small></RouterLink></div></template>
             <template #cell-days_to_expiry="{ row }"><span :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</span></template>
             <template #cell-total_qty="{ row }"><span class="quantity">{{ row.total_qty }} {{ row.stock_uom }}</span></template>
             <template #cell-locations="{ row }"><span v-for="location in row.locations" :key="location.warehouse" class="location-line">{{ warehouseText(location.warehouse) }}：{{ location.qty }}</span></template>
-            <template #mobile-row="{ row }"><article class="item-card" tabindex="0" :class="{ 'expiry-overdue-row': row.days_to_expiry < 0 }"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</span></p></RouterLink></article></template>
+            <template #mobile-row="{ row }"><article class="item-card result-card" tabindex="0" :class="{ 'expiry-overdue-row': row.days_to_expiry < 0 }"><span data-row-control><ItemImagePreview :src="row.image" :alt="row.item_name" /></span><RouterLink data-row-action :to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"><b>{{ row.item_code }} · {{ row.item_name }}</b><p>{{ row.item_group }} · 批次 {{ row.batch_no }} · {{ row.total_qty }} {{ row.stock_uom }}</p><p>到期 {{ row.expiry_date }} · <span :class="{ warn: row.days_to_expiry < 0 }">{{ formatExpiryDuration(row.days_to_expiry) }}</span></p></RouterLink></article></template>
           </SortableDataTable>
-          <p v-if="!rows.length" class="empty-state">暂无有库存的有效期批次</p>
-        </template>
-        <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" :disabled="busy" @click="load(true)">{{busy?'正在加载…':'加载更多'}}</button></div>
+        <div ref="sentinel" aria-hidden="true"></div></div>
       </div>
     </div><FloatingActionMenu v-if="canMove" :actions="movementActions" @select="operation"/>
   </main>

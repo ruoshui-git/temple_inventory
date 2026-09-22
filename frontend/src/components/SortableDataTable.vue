@@ -17,9 +17,13 @@ const props = withDefaults(defineProps<{
   columns: DataTableColumn[]
   rowKey: string
   sort: SortState
+  loading?: boolean
+  loadingMore?: boolean
+  error?: string
+  emptyMessage?: string
   selectionMode?: boolean
   selectedKeys?: Array<string | number>
-}>(), { selectionMode: false, selectedKeys: () => [] })
+}>(), { selectionMode: false, selectedKeys: () => [], loading: false, loadingMore: false, error: '', emptyMessage: '暂无记录' })
 const emit = defineEmits<{ sort: [state: SortState]; activate: [row: TRow]; toggle: [row: TRow] }>()
 const selected = computed(() => new Set(props.selectedKeys.map(String)))
 const valueFor = (row: TRow) => row[props.rowKey]
@@ -57,12 +61,18 @@ function action(event: MouseEvent, row: TRow) {
           <button v-if="column.sortable" type="button" :aria-label="`按${column.label}排序`" @click="sortColumn(column)">{{ column.label }} <span v-if="sort.sort_by === column.key" aria-hidden="true">{{ sort.sort_order === 'asc' ? '↑' : '↓' }}</span><span v-else class="sr-only">可排序</span></button>
           <span v-else>{{ column.label }}</span>
         </th></tr></thead>
-        <tbody><tr v-for="row in rows" :key="String(valueFor(row))" :class="{ selected: isSelected(row) }" :aria-selected="selectionMode ? isSelected(row) : undefined" tabindex="0" @click="activate(row, $event)" @keydown="activateKey(row, $event)">
+        <tbody><tr v-if="loading" class="table-state"><td :colspan="columns.length" role="status">正在更新记录…</td></tr><tr v-else-if="error" class="table-state table-error"><td :colspan="columns.length" role="alert"><slot name="error">{{ error }}</slot></td></tr><tr v-else-if="!rows.length" class="table-state"><td :colspan="columns.length">{{ emptyMessage }}</td></tr><tr v-for="row in rows" v-else :key="String(valueFor(row))" :class="{ selected: isSelected(row) }" :aria-selected="selectionMode ? isSelected(row) : undefined" tabindex="0" @click="activate(row, $event)" @keydown="activateKey(row, $event)">
           <td v-for="column in columns" :key="column.key" :class="column.cellClass"><slot :name="`cell-${column.key}`" :row="row" :column="column">{{ row[column.key] }}</slot></td>
-        </tr></tbody>
+        </tr><tr v-if="loadingMore" class="table-state"><td :colspan="columns.length" role="status">正在加载更多记录…</td></tr></tbody>
       </table>
     </div>
-    <div class="sortable-data-table-mobile"><div v-for="row in rows" :key="String(valueFor(row))" class="sortable-mobile-row" :class="{ selected: isSelected(row) }" @click="activate(row, $event)" @keydown="activateKey(row, $event)"><slot name="mobile-row" :row="row" :selected="isSelected(row)" :activate="(event: Event) => activate(row, event)" :activate-key="(event: KeyboardEvent) => activateKey(row, event)" :action="(event: MouseEvent) => action(event, row)"><article tabindex="0"><span v-for="column in columns" :key="column.key"><b>{{ column.label }}</b> {{ row[column.key] }}</span></article></slot></div></div>
+    <div class="sortable-data-table-mobile">
+      <div v-if="loading" class="mobile-loading" role="status">正在更新记录…</div>
+      <div v-else-if="error" class="mobile-loading table-error" role="alert"><slot name="error">{{ error }}</slot></div>
+      <div v-else-if="!rows.length" class="mobile-loading">{{ emptyMessage }}</div>
+      <template v-else><div v-for="row in rows" :key="String(valueFor(row))" class="sortable-mobile-row" :class="{ selected: isSelected(row) }" @click="activate(row, $event)" @keydown="activateKey(row, $event)"><slot name="mobile-row" :row="row" :selected="isSelected(row)" :activate="(event: Event) => activate(row, event)" :activate-key="(event: KeyboardEvent) => activateKey(row, event)" :action="(event: MouseEvent) => action(event, row)"><article tabindex="0"><span v-for="column in columns" :key="column.key"><b>{{ column.label }}</b> {{ row[column.key] }}</span></article></slot></div></template>
+      <div v-if="loadingMore" class="mobile-loading" role="status">正在加载更多记录…</div>
+    </div>
   </div>
 </template>
 

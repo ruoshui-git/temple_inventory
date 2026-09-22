@@ -67,7 +67,6 @@ from __future__ import annotations
 import csv
 import json
 import os
-import re
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -75,16 +74,15 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.model.naming import make_autoname
 from frappe.utils import cint, flt, nowdate
 from frappe.utils.file_manager import save_file
+from temple_inventory.item_code import allocate_item_code
 
 
 # ---------------------------------------------------------------------------
 # 固定配置
 # ---------------------------------------------------------------------------
 
-ITEM_CODE_SERIES = "ITM-.######"
 DEFAULT_STOCK_UOM = "Nos"
 
 PERFORMANCE_PARENT_GROUP = "演出用品"
@@ -318,14 +316,7 @@ def _find_existing_item_by_legacy_code(legacy_code: str) -> Optional[str]:
 
 
 def _new_item_code() -> str:
-    """
-    使用 Frappe naming series 生成并保留全局 ITM 编号。
-    make_autoname 会使用 Series 表，因此不会仅靠扫描现有 Item 猜下一个编号。
-    """
-    while True:
-        item_code = make_autoname(ITEM_CODE_SERIES)
-        if not frappe.db.exists("Item", item_code):
-            return item_code
+    return allocate_item_code()
 
 
 # ---------------------------------------------------------------------------
