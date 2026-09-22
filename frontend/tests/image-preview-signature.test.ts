@@ -29,6 +29,29 @@ describe('ItemImagePreview', () => {
     expect(button.attributes('aria-expanded')).toBe('false')
     vi.useRealTimers()
   })
+
+  it('keeps the hover preview open while crossing the gap between thumbnail and popout', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(ItemImagePreview, { props: { src: '/photo.jpg', alt: '物品' } })
+    const button = wrapper.get('button.image-thumb-button')
+    await button.trigger('mouseenter')
+    await vi.advanceTimersByTimeAsync(280)
+
+    vi.spyOn(button.element, 'getBoundingClientRect').mockReturnValue({ left: 20, right: 72, top: 20, bottom: 72, width: 52, height: 52, x: 20, y: 20, toJSON: () => ({}) })
+    const panel = wrapper.get('.image-popover')
+    vi.spyOn(panel.element, 'getBoundingClientRect').mockReturnValue({ left: 20, right: 220, top: 80, bottom: 280, width: 200, height: 200, x: 20, y: 80, toJSON: () => ({}) })
+
+    await button.trigger('mouseleave')
+    document.dispatchEvent(new PointerEvent('pointermove', { clientX: 40, clientY: 76 }))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(button.attributes('aria-expanded')).toBe('true')
+
+    document.dispatchEvent(new PointerEvent('pointermove', { clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(160)
+    expect(button.attributes('aria-expanded')).toBe('false')
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
 })
 
 describe('SignaturePad', () => {
