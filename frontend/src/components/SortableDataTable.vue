@@ -53,7 +53,7 @@ function action(event: MouseEvent, row: TRow) {
   <div class="sortable-data-table">
     <div class="sortable-data-table-desktop">
       <table>
-        <thead><tr><th v-for="column in columns" :key="column.key" scope="col" :class="column.headerClass" :aria-sort="column.sortable ? (sort.sort_by === column.key ? (sort.sort_order === 'asc' ? 'ascending' : 'descending') : 'none') : undefined">
+        <thead class="sortable-data-table-head"><tr><th v-for="column in columns" :key="column.key" scope="col" :class="column.headerClass" :aria-sort="column.sortable ? (sort.sort_by === column.key ? (sort.sort_order === 'asc' ? 'ascending' : 'descending') : 'none') : undefined">
           <button v-if="column.sortable" type="button" :aria-label="`按${column.label}排序`" @click="sortColumn(column)">{{ column.label }} <span v-if="sort.sort_by === column.key" aria-hidden="true">{{ sort.sort_order === 'asc' ? '↑' : '↓' }}</span><span v-else class="sr-only">可排序</span></button>
           <span v-else>{{ column.label }}</span>
         </th></tr></thead>
@@ -69,7 +69,14 @@ function action(event: MouseEvent, row: TRow) {
 <style scoped>
 .sortable-data-table-mobile { display: none }
 .sortable-data-table table { width: 100%; border-collapse: collapse }
-.sortable-data-table th, .sortable-data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee8db }
+.sortable-data-table th, .sortable-data-table td { padding: 12px; text-align: left; vertical-align: middle; border-bottom: 1px solid #eee8db }
+.sortable-data-table-head { position: sticky; top: 0; z-index: 2 }
+.sortable-data-table th { background: #fff }
+.sortable-data-table :deep(.primary-cell) { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.sortable-data-table :deep(.primary-cell > [data-row-control]) { flex: none }
+.sortable-data-table :deep(.primary-cell > [data-row-action]) { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere }
+.sortable-data-table :deep(.primary-cell .primary-text), .sortable-data-table :deep(.primary-cell .secondary-text) { display: block }
+.sortable-data-table :deep(.primary-cell .secondary-text) { color: #6b6257; font-size: 0.875em }
 .sortable-data-table th button { min-height: 36px; padding: 6px 8px; border: 0; background: transparent; font-weight: 700 }
 .sortable-data-table tbody tr { cursor: pointer; outline: none }
 .sortable-data-table tbody tr:hover, .sortable-data-table tbody tr:focus-visible, .sortable-data-table tbody tr.selected, .sortable-data-table-mobile article:hover, .sortable-data-table-mobile article:focus-visible, .sortable-mobile-row.selected > * { background: #eee8db }

@@ -60,4 +60,19 @@ describe('SortableDataTable', () => {
     })
     expect(wrapper.get('.sortable-mobile-row').classes()).toContain('selected')
   })
+
+  it('exposes sticky header and primary-cell hooks without changing row contracts', () => {
+    const wrapper = mount(SortableDataTable, {
+      props: { rows, columns, rowKey: 'id', sort: { sort_by: 'status', sort_order: 'asc' } },
+      slots: {
+        'cell-name': () => h('div', { class: 'primary-cell' }, [
+          h('span', { class: 'primary-text' }, '一号'),
+          h('small', { class: 'secondary-text' }, '1'),
+        ]),
+      },
+    })
+    expect(wrapper.find('thead').classes()).toContain('sortable-data-table-head')
+    expect(wrapper.find('.primary-cell .primary-text').text()).toBe('一号')
+    expect(wrapper.find('.primary-cell .secondary-text').text()).toBe('1')
+  })
 })

@@ -136,7 +136,8 @@ describe('Task 04 history, scanner, and navigation integration', () => {
       return {}
     })
     Object.defineProperty(window, 'IntersectionObserver', { value: class { observe() {} disconnect() {} }, configurable: true })
-    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { value: vi.fn(), configurable: true })
+    const scrollTo = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { value: scrollTo, configurable: true })
     const wrapper = mount(History, { global: globals })
     await flushPromises()
     expect(state.workspaceApi.mock.calls.find(call => call[0] === 'history')?.[1]).toMatchObject({ sort_by: 'posting_date', sort_order: 'desc' })
@@ -147,5 +148,8 @@ describe('Task 04 history, scanner, and navigation integration', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     await wrapper.find('[data-row-control]').trigger('click')
     expect(state.push).not.toHaveBeenCalledWith('/workspace/IW-1')
+    scrollTo.mockClear()
+    await clickText(wrapper, '入库')
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 })
   })
 })

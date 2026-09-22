@@ -35,6 +35,18 @@ beforeEach(() => {
 })
 
 describe('Inventory and Expiry integrations', () => {
+  it('keeps browse chrome outside the dedicated results scroll and uses shared primary cells', async () => {
+    const inventory = mount(Inventory, { global: globals }); await flushPromises()
+    expect(inventory.find('.results-chrome').exists()).toBe(true)
+    expect(inventory.find('.results-scroll').exists()).toBe(true)
+    expect(inventory.find('.primary-cell .primary-text').text()).toBe('一号')
+    state.route.path = '/expiry'
+    const expiry = mount(Expiry, { global: globals }); await flushPromises()
+    expect(expiry.find('.results-chrome').exists()).toBe(true)
+    expect(expiry.find('.results-scroll').exists()).toBe(true)
+    expect(expiry.find('.primary-cell .secondary-text').text()).toBe('A001 · B001')
+  })
+
   it('requests Inventory default sort, reverses it, resets rows, and serializes non-default state', async () => {
     const wrapper = mount(Inventory, { global: globals }); await flushPromises()
     const request = state.api.mock.calls.find(call => call[0] === 'inventory')

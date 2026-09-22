@@ -29,7 +29,7 @@ const activities = ref<any[]>([])
 const filterOpen = ref(false)
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null)
 const sentinel = ref<HTMLElement>()
-const resultsPane = ref<HTMLElement>()
+const resultsScroll = ref<HTMLElement>()
 const scrollKey = 'temple_inventory.scroll.movements'
 const pageLength = 25
 const defaultSort: SortState = { sort_by: 'posting_date', sort_order: 'desc' }
@@ -87,7 +87,7 @@ function removeChip(chip: any) {
 function clearAll() {
   filters.value = { search: '', movement_kind: '', date_from: '', date_to: '', source_text: '', purpose_text: '', activity: '', handler_name: '', rooms: [] }
   start.value = 0
-  resultsPane.value?.scrollTo({ top: 0 })
+  resultsScroll.value?.scrollTo({ top: 0 })
 }
 function operation(kind: string) { void router.push(`/new/${kind}`) }
 
@@ -148,6 +148,7 @@ async function selectGroup(group: string) {
   if (group === 'unfinished') filters.value.movement_kind = ''
   else if (!filters.value.movement_kind) filters.value.movement_kind = 'Receive'
   start.value = 0
+  resultsScroll.value?.scrollTo({ top: 0 })
   await router.replace({ query: { ...route.query, sort_by: undefined, sort_order: undefined, ...serializeFilterQuery(queryState()) } })
   void load(0)
 }
@@ -185,13 +186,14 @@ watch(filters, () => {
   const debounceText = text !== previousText
   previousText = text
   start.value = 0
+  resultsScroll.value?.scrollTo({ top: 0 })
   void load(0, debounceText)
 }, { deep: true })
 watch(sort, () => {
   if (!boot.value || restoringRoute) return
   start.value = 0
   rows.value = []
-  resultsPane.value?.scrollTo({ top: 0 })
+  resultsScroll.value?.scrollTo({ top: 0 })
   void load(0)
 }, { deep: true })
 watch(() => route.query, query => {
@@ -207,15 +209,15 @@ onMounted(async () => {
     await nextTick()
     observer = new IntersectionObserver(entries => {
       if (entries.some(entry => entry.isIntersecting) && rows.value.length < total.value && !busy.value) void load(rows.value.length, false, true)
-    }, { rootMargin: '240px' })
+    }, { root: resultsScroll.value, rootMargin: '240px' })
     if (sentinel.value) observer.observe(sentinel.value)
     const saved = Number(sessionStorage.getItem(scrollKey) || 0)
-    if (saved) resultsPane.value?.scrollTo({ top: saved })
+    if (saved) resultsScroll.value?.scrollTo({ top: saved })
   } catch (cause: any) {
     error.value = cause.message
   }
 })
-onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (resultsPane.value) sessionStorage.setItem(scrollKey, String(resultsPane.value.scrollTop)) })
+onBeforeUnmount(() => { controller?.abort(); observer?.disconnect(); if (resultsScroll.value) sessionStorage.setItem(scrollKey, String(resultsScroll.value.scrollTop)) })
 function activate(row: any) {
   const path = row.document_type === 'Stock Reconciliation' ? `/reconcile/${encodeURIComponent(row.name)}` : row.legacy ? `/entry/${encodeURIComponent(row.name)}` : `/workspace/${row.name}`
   void router.push(path)
@@ -232,19 +234,18 @@ async function deleteDraft(name: string) {
 </script>
 
 <template>
-  <main class="app-shell wide-shell">
+  <main class="app-shell wide-shell viewport-list-root">
     <header class="browse-back"><button type="button" @click="close">‹ 更多</button></header>
     <nav class="toolbar movement-modes" aria-label="货物流动类型"><button v-for="kind in primaryKinds" :key="kind" type="button" :class="{ primary: filters.movement_kind === kind }" @click="filters.movement_kind = kind; statusGroup = 'completed'">{{ labels[kind] }}<b v-if="facets.movement_kind[kind]">（{{ facets.movement_kind[kind] }}）</b></button><button v-if="boot?.can_reconcile_stock" type="button" @click="router.push('/reconcile/new')">盘点</button><button type="button" :class="{ primary: statusGroup === 'unfinished' }" @click="selectGroup('unfinished')">草稿 <b v-if="unfinishedCount">{{ unfinishedCount }}</b></button></nav>
-    <p v-if="error" class="error" role="alert">{{ error }} <button type="button" @click="load(start)">重试</button></p>
     <div class="list-layout desktop-list-layout">
       <ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen" :count="activeCount">
         <WarehouseSelector v-model="filters.rooms" :rows="warehouseRows" :counts="facets.warehouses" />
         <fieldset><legend>日期</legend><label>开始日期<input v-model="filters.date_from" type="date"></label><label>结束日期<input v-model="filters.date_to" type="date"></label></fieldset>
         <fieldset><legend>记录详情</legend><label>来源<input v-model="filters.source_text" placeholder="包含文字"></label><label>用途<input v-model="filters.purpose_text" placeholder="包含文字"></label><label>活动<Combobox v-model="filters.activity" :options="activityOptions" placeholder="搜索活动" aria-label="搜索活动" /></label><label>经手人<input v-model="filters.handler_name" placeholder="按姓名筛选"></label></fieldset>
       </ResponsiveFilterPanel>
-      <div ref="resultsPane" class="results-column">
-        <div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…" aria-label="搜索记录、来源、物品"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部记录 ${overallTotal}` }}</span></div>
-        <ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+      <div class="results-column">
+        <div class="results-chrome"><div class="result-toolbar"><input v-model="filters.search" type="search" placeholder="搜索记录、来源、物品…" aria-label="搜索记录、来源、物品"><button class="mobile-filter-button" type="button" @click="filterPanel?.openPanel($event)">筛选<span v-if="activeCount">（{{ activeCount }}）</span></button><span aria-live="polite">{{ refreshing ? '正在更新…' : `已加载 ${rows.length} · 筛选结果 ${total} · 全部记录 ${overallTotal}` }}</span></div><ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" /></div>
+        <div ref="resultsScroll" class="results-scroll"><p v-if="error" class="error" role="alert">{{ error }} <button type="button" @click="load(start)">重试</button></p>
         <LoadingIndicator v-if="busy && !rows.length" text="正在加载记录…" />
         <template v-else>
           <SortableDataTable :rows="rows" :columns="sortColumns" row-key="name" :sort="sort" @sort="value => { sort = value }" @activate="activate">
@@ -257,7 +258,7 @@ async function deleteDraft(name: string) {
           </SortableDataTable>
           <p v-if="!rows.length" class="empty-state">{{ statusGroup === 'unfinished' ? '暂无未完成记录' : '暂无库存记录' }}</p>
         </template>
-        <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button" :disabled="busy" @click="load(rows.length, false, true)">{{busy?'正在加载…':'加载更多'}}</button>
+        <div ref="sentinel" aria-hidden="true"></div><button v-if="rows.length < total" type="button" :disabled="busy" @click="load(rows.length, false, true)">{{busy?'正在加载…':'加载更多'}}</button></div>
       </div>
     </div>
     <FloatingActionMenu v-if="canMove || boot?.can_reconcile_stock" :actions="[...movementActions, ...(boot?.can_reconcile_stock ? [{ kind: 'Reconcile', label: '盘点' }] : [])]" @select="kind => kind === 'Reconcile' ? router.push('/reconcile/new') : operation(kind)"/>

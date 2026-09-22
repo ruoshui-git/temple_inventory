@@ -43,3 +43,46 @@ button,a,input,select{touch-action:manipulation}button{cursor:pointer;min-height
 .expiry-overdue-row{background:#fff0ee;color:#8f241b}.expiry-overdue-row a,.expiry-overdue-row small{color:#8f241b}
 button:not(:disabled):hover,button:not(:disabled):focus-visible{border-color:#8a5a1e;box-shadow:0 4px 10px #5b3a2324}.primary:not(:disabled):hover,.primary:not(:disabled):focus-visible{background:#704326!important;border-color:#704326}.context-action-bar button{background:#fff;color:#40250f}.context-action-bar button:not(:disabled):hover,.context-action-bar button:not(:disabled):focus-visible{background:#eee8db;color:#40250f}.shell-context{align-self:center;color:#6b4d00;font-size:14px;font-weight:700;white-space:nowrap}.inventory-destination,.wide-shell{width:min(100%,1440px);margin-inline:auto}@media(max-width:600px){.shell-context{display:none}}
 input[type=radio],input[type=checkbox]{width:auto;flex:none;margin:0 8px 0 0}.choice-list{display:grid;gap:8px}.choice-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:8px;min-height:44px;padding:10px 8px;line-height:1.45;border-radius:8px;cursor:pointer}.choice-row:hover{background:#eee8db}.choice-row:focus-within{outline:3px solid #d99a48;outline-offset:1px}
+
+/* Viewport-locked browse pages keep chrome and result scrolling separate. */
+:root{--mobile-nav-height:0px}
+.desktop-inventory-context{display:flex!important;align-items:center;gap:2px!important;flex:0 1 auto!important;padding-left:14px;border-left:1px solid #d8d2c5}
+.desktop-inventory-context a{padding:6px 9px;font-size:13px;color:#6b6257}
+.desktop-inventory-context a[aria-current=page]{background:#eee8db;color:#40250f;font-weight:700}
+.viewport-list-root{box-sizing:border-box}
+.results-chrome{min-width:0}
+.results-scroll{min-height:0;overflow:auto;overscroll-behavior:contain}
+.expiry-range-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+.expiry-range-heading h3{margin:0;font-weight:700}
+.expiry-range-heading label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650}
+.expiry-range-heading input{width:76px;margin:0;padding:8px}
+@media(min-width:1024px){
+	.shell-content{padding-bottom:0}
+	.viewport-list-root{display:flex;flex-direction:column;height:calc(100dvh - var(--shell-header-height, 0px));min-height:0;overflow:hidden}
+	.viewport-list-root.app-shell{min-height:0;padding-top:0}
+	.viewport-list-root>.inventory-modes{display:none}
+	.desktop-list-layout{height:auto;min-height:0;flex:1;grid-template-rows:minmax(0,1fr);align-items:stretch}
+	.viewport-list-root>.desktop-list-layout{min-height:0}
+	.desktop-list-layout>.filter-sidebar{position:static;max-height:none;overflow:auto;min-height:0}
+	.desktop-list-layout>.results-column{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:hidden}
+	.desktop-list-layout>.results-column>.results-scroll{min-height:0;overflow:auto}
+	.desktop-list-layout>.results-column>.results-chrome .result-toolbar,.desktop-list-layout>.results-column>.results-chrome .inventory-modes{position:static}
+	.movement-modes{flex-wrap:nowrap;overflow-x:auto;min-height:48px;margin:4px 0 8px}
+}
+@media(max-width:1023px){
+	.desktop-inventory-context{display:none!important}
+	.viewport-list-root{height:auto;min-height:0;overflow:visible}
+	.viewport-list-root.app-shell{min-height:0}
+	.mobile-inventory-modes{position:static;display:flex;overflow-x:auto;flex-wrap:nowrap;white-space:nowrap;margin:8px 0 12px;padding:0}
+	.mobile-inventory-modes>*{flex:none}
+	.results-scroll{overflow:visible}
+	.result-toolbar{position:static}
+	.desktop-list-layout>.results-column{overflow:visible}
+	.shell-content{padding-bottom:calc(var(--mobile-nav-height) + 8px)}
+	.mobile-nav{padding:7px 8px max(8px, env(safe-area-inset-bottom));}
+	.mobile-nav a{display:flex;min-height:56px;align-items:center;justify-content:center;gap:3px;flex-direction:column;padding:4px 3px;font-size:12px;line-height:1.1}
+	.mobile-nav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
+	.mobile-nav svg:last-child{stroke-width:3}
+	.floating-action-menu{bottom:calc(var(--mobile-nav-height) + 16px)}
+	.context-action-bar{bottom:calc(var(--mobile-nav-height) + 10px)}
+}
