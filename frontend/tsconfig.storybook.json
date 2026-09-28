@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/components/InventoryCardGrid.vue",
+    "src/components/InventoryCardGrid.stories.ts",
+    "src/components/QuantitySummary.vue",
+    "src/components/QuantitySummary.stories.ts",
+    "src/components/ActiveFilterChips.vue",
+    "src/components/ActiveFilterChips.stories.ts",
+    "src/components/DetailPopover.vue",
+    "src/components/DetailPopover.stories.ts"
+  ]
+}

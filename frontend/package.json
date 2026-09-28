@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@10.34.6",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -14,7 +15,9 @@
     "format:check": "prettier --check \"src/**/*.vue\"",
     "type-check": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "storybook": "storybook dev -p 6006 --host 0.0.0.0",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "frappe-ui": "1.0.0-beta.72",
@@ -24,6 +27,10 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@storybook/addon-a11y": "10.6.0",
+    "@storybook/addon-docs": "10.6.0",
+    "@storybook/addon-mcp": "10.6.0",
+    "@storybook/vue3-vite": "10.6.0",
     "@types/node": "^24.13.5",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/test-utils": "2.4.6",
@@ -31,6 +38,7 @@
     "jsdom": "^30.1.0",
     "postcss": "^8.5.28",
     "prettier": "^3.9.9",
+    "storybook": "10.6.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.3",
     "vite": "^7.3.6",

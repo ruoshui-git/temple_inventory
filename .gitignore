@@ -73,3 +73,5 @@ frontend/playwright-report/
 temple_inventory/setup/costumes-data/images/
 temple_inventory/setup/sample_images/
 
+/frontend/debug-storybook.log
+/frontend/storybook-static/

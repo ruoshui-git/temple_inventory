@@ -154,6 +154,20 @@ into the ERPNext documents described above; it must not introduce parallel stock
 attachment, scanner, or audit subsystems. Store transaction attachments through
 Frappe's standard private `File` records.
 
+## Storybook UI workflow
+
+Reusable frontend UI should be developed and reviewed in Storybook when a
+relevant story exists. For substantial visual or interaction changes, inspect
+the component's stories first, add representative states when missing, and
+prefer isolated component work before routed-page integration. Keep story data
+static or mocked, preserve application behavior and API contracts, and never
+replace production Frappe/ERPNext data access with Storybook fixtures. Use the
+local Storybook MCP server when available.
+
+Use docs-list/docs-show when component documentation is available.
+Use existing stories as the reference states for component behavior.
+When changing a reusable component, update or add representative stories.
+
 ## Security and server-side rules
 
 Never treat frontend visibility, disabled controls, or supplied JSON as
