@@ -65,6 +65,7 @@ SIGNATURE_FIELDS = {
 	"reviewer": "reviewer_signature",
 }
 SIGNATURE_STATUS = ("absent", "valid", "stale")
+SIGNER_LABELS = {"handler": "经手人", "recorder": "记录人", "reviewer": "鉴证人"}
 
 
 def _signature_normalize(value):
@@ -445,8 +446,6 @@ def _prepare(doc):
 			batch.check_permission("read")
 			if batch.item != item.name or batch.disabled:
 				frappe.throw(_("Batch is disabled or belongs to another item"))
-			if batch.expiry_date and getdate(batch.expiry_date) < getdate(p["posting_date"]):
-				frappe.throw(_("This batch is expired"))
 			if (
 				batch.manufacturing_date
 				and batch.expiry_date
@@ -973,7 +972,7 @@ def _audit_check(doc):
 			doc.set(f"{signer}_attested_digest", current_digest)
 			doc.set(f"{signer}_current_digest", current_digest)
 		elif doc.get(f"{signer}_signature_status") != "valid" or doc.get(f"{signer}_attested_digest") != current_digest:
-			frappe.throw("签名内容已变化，请重新确认签名")
+			frappe.throw(f"{SIGNER_LABELS[signer]}签名内容已变化，请重新确认")
 	if not doc.no_independent_reviewer and not doc.reviewer_name:
 		frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
 	if doc.movement_kind == "Loan" and not doc.borrower_is_handler_or_witness and not doc.borrower:
@@ -1785,7 +1784,18 @@ def _history_aggregate(row):
 			return flt(value) if value not in (None, "") else flt(item.get("qty")) - flt(item.get("current_qty"))
 		row["increase_line_count"] = sum(1 for item in items if difference(item) > 0)
 		row["decrease_line_count"] = sum(1 for item in items if difference(item) < 0)
-	row["item_changes"] = [{"warehouse": warehouse, "delta": delta, "uom": uom} for (warehouse, uom), delta in sorted(deltas.items()) if warehouse and delta]
+	valid_deltas = [
+		((warehouse, uom), delta)
+		for (warehouse, uom), delta in deltas.items()
+		if warehouse and delta
+	]
+	row["item_changes"] = [
+		{"warehouse": warehouse, "delta": delta, "uom": uom}
+		for (warehouse, uom), delta in sorted(
+			valid_deltas,
+			key=lambda change: (str(change[0][0]), str(change[0][1] or "")),
+		)
+	]
 	row.pop("_item_code", None)
 	return row
 
@@ -2249,44 +2259,22 @@ def open_entry(name):
 	allowed = _visible_warehouses()
 	if any(w and w not in allowed for r in entry.items for w in (r.s_warehouse, r.t_warehouse)):
 		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
-	if not entry.ti_movement_kind:
-		return {"name": name, "stock_entry": name, "docstatus": entry.docstatus, "data": _from_entry(entry), "attachments": _permitted_file_attachments("Stock Entry", name)}
 	existing = frappe.db.get_value("Inventory Workspace", {"stock_entry": name}, "name")
 	if existing:
 		return _serialize(_get(existing))
 	payload = _from_entry(entry)
-	if entry.docstatus:
-		return {
-			"name": name,
-			"stock_entry": name,
-			"docstatus": entry.docstatus,
-			"data": payload,
-			"attachments": _permitted_file_attachments("Stock Entry", name),
-		}
-	entry.check_permission("write")
-	doc = frappe.get_doc(
-		{
-			"doctype": "Inventory Workspace",
-			"name": "IW-" + hashlib.sha256(name.encode()).hexdigest()[:24],
-			"company": entry.company,
-			"movement_kind": entry.ti_movement_kind,
-			"stock_entry": name,
-			"revision": 1,
-			"state_json": "{}",
-		}
-	)
-	_put(doc, payload)
-	_save(doc)
-	# Retain existing files and expose them alongside workspace files.
-	for file in frappe.get_list(
-		"File", filters={"attached_to_doctype": "Stock Entry", "attached_to_name": name}, pluck="name"
-	):
-		fdoc = frappe.get_doc("File", file)
-		fdoc.check_permission("write")
-		fdoc.attached_to_doctype, fdoc.attached_to_name = doc.doctype, doc.name
-		fdoc.is_private = 1
-		fdoc.save()
-	return _serialize(doc)
+	# Viewing a direct ERPNext draft must never claim it for the workspace
+	# lifecycle. It remains a first-class Desk record and is presented read-only
+	# in the volunteer app with an explicit route back to Desk.
+	return {
+		"name": name,
+		"stock_entry": name,
+		"docstatus": entry.docstatus,
+		"direct_entry": True,
+		"desk_url": f"/app/stock-entry/{name}",
+		"data": payload,
+		"attachments": _permitted_file_attachments("Stock Entry", name),
+	}
 
 
 @frappe.whitelist()

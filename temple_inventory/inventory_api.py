@@ -10,9 +10,10 @@ from erpnext.stock.doctype.batch.batch import get_batch_qty
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
+from frappe.model.naming import validate_name as validate_document_name
 from frappe.utils import add_days, cint, flt, getdate, nowdate
 
-from temple_inventory.item_code import allocate_item_code
+from temple_inventory.item_code import allocate_item_code, suggest_item_code as preview_item_code
 
 MOVEMENT_TYPES = {
 	"Receive": "Material Receipt",
@@ -423,12 +424,58 @@ def _save_system_links(settings, company, names):
 
 
 def _allow_warehouses(settings, warehouses):
+	# Warehouse insert hooks can update this singleton while a structure-creation
+	# operation still holds an older document instance.
+	settings.reload()
 	existing = {row.warehouse for row in settings.get("allowed_warehouses", []) if row.warehouse}
 	for warehouse in warehouses:
 		if warehouse and warehouse not in existing:
 			settings.append("allowed_warehouses", {"warehouse": warehouse})
 			existing.add(warehouse)
 	settings.save(ignore_permissions=True)
+
+
+def _warehouse_is_below(name, ancestor):
+	"""Use stable parent links so this also works during Warehouse insert hooks."""
+	seen = set()
+	cursor = name
+	while cursor and cursor not in seen:
+		if cursor == ancestor:
+			return True
+		seen.add(cursor)
+		cursor = frappe.db.get_value("Warehouse", cursor, "parent_warehouse")
+	return False
+
+
+def sync_desk_warehouse_allowlist(doc, method=None):
+	"""Admit a Desk-created physical leaf exactly once.
+
+	Manual removal from the allowlist remains durable because ordinary updates do
+	not re-add an already-existing eligible leaf. A move/type change that makes a
+	previously ineligible Warehouse eligible is treated like discovery.
+	"""
+	if not frappe.db.exists("DocType", "Temple Inventory Settings"):
+		return
+	settings = _settings()
+	eligible = bool(
+		settings.company
+		and doc.company == settings.company
+		and settings.physical_root_warehouse
+		and not cint(doc.is_group)
+		and _warehouse_is_below(doc.parent_warehouse, settings.physical_root_warehouse)
+	)
+	if not eligible:
+		return
+	before = doc.get_doc_before_save() if not doc.is_new() else None
+	if before:
+		was_eligible = bool(
+			before.company == settings.company
+			and not cint(before.is_group)
+			and _warehouse_is_below(before.parent_warehouse, settings.physical_root_warehouse)
+		)
+		if was_eligible:
+			return
+	_allow_warehouses(settings, [doc.name])
 
 
 def _ensure_warehouse_types():
@@ -876,6 +923,38 @@ def _warehouse_management_status(settings, visible, physical_tree):
 		status.append({"code": "no_operational_leaves", "level": "warning", "message": "尚未允许任何叶子库位用于库存操作。"})
 	if physical_tree and not any(frappe.has_permission("Warehouse", "read", name) for name in physical_tree):
 		status.append({"code": "inaccessible", "level": "warning", "message": "当前用户没有查看实体仓库的权限。"})
+	invalid_types = []
+	rooms_without_locations = []
+	for name, row in physical_tree.items():
+		warehouse_type = str(row.warehouse_type or "").lower()
+		if (row.is_group and warehouse_type in {"location", "库位"}) or (
+			not row.is_group and warehouse_type in {"room", "房间", "site", "地点", "virtual", "虚拟"}
+		):
+			invalid_types.append(row.warehouse_name or name)
+		if row.is_group and warehouse_type in {"room", "房间"}:
+			has_location = any(
+				child.parent_warehouse == name
+				and not child.is_group
+				for child in physical_tree.values()
+			)
+			if not has_location:
+				rooms_without_locations.append(row.warehouse_name or name)
+	if invalid_types:
+		status.append({
+			"code": "invalid_warehouse_type",
+			"level": "warning",
+			"message": "以下仓库类型与分组设置不兼容：{0}。叶子仓库不能标记为房间/地点/虚拟，分组仓库不能标记为库位。".format(
+				"、".join(invalid_types[:5])
+			),
+		})
+	if rooms_without_locations:
+		status.append({
+			"code": "rooms_without_locations",
+			"level": "warning",
+			"message": "以下房间尚无可存放库存的 Location/库位：{0}。".format(
+				"、".join(rooms_without_locations[:5])
+			),
+		})
 	group_names = [name for name, row in visible.items() if row.is_group]
 	if group_names and frappe.get_all("Bin", filters={"warehouse": ("in", group_names), "actual_qty": ("!=", 0)}, pluck="warehouse", limit_page_length=1):
 		status.append({"code": "group_stock", "level": "error", "message": "检测到分组仓库存有库存；请先由管理员修复到叶子库位。"})
@@ -1984,17 +2063,76 @@ def create_item_group(name):
 	return {"name": group.name, "item_group_name": group.item_group_name}
 
 
+def _require_item_creation():
+	_require_stock()
+	frappe.has_permission("Item", "create", throw=True)
+
+
+def _normalized_item_code(item_code):
+	return str(item_code or "").strip()
+
+
+def _item_code_availability(item_code):
+	item_code = _normalized_item_code(item_code)
+	if not item_code:
+		return {"item_code": "", "available": False, "reason": "required", "message": "请输入物品编号"}
+	if len(item_code) > 140:
+		return {
+			"item_code": item_code,
+			"available": False,
+			"reason": "too_long",
+			"message": "物品编号不能超过 140 个字符",
+		}
+	try:
+		validate_document_name("Item", item_code)
+	except frappe.NameError:
+		return {
+			"item_code": item_code,
+			"available": False,
+			"reason": "invalid",
+			"message": "物品编号格式无效，请勿使用 < 或 > 字符",
+		}
+	if frappe.db.exists("Item", item_code):
+		return {
+			"item_code": item_code,
+			"available": False,
+			"reason": "exists",
+			"message": "此物品编号已存在。请输入其他编号，或使用自动编号。",
+		}
+	return {"item_code": item_code, "available": True, "reason": None, "message": "此编号可用"}
+
+
+@frappe.whitelist()
+def suggest_item_code():
+	"""Preview an unused generated code without consuming the naming series."""
+	_require_item_creation()
+	return {"item_code": preview_item_code()}
+
+
+@frappe.whitelist()
+def check_item_code(item_code):
+	_require_item_creation()
+	return _item_code_availability(item_code)
+
+
 @frappe.whitelist()
 def create_item(data):
-	_require_stock()
+	_require_item_creation()
 	payload = _loads(data, {})
-	if payload.get("item_code"):
-		frappe.throw(_("Item Code is allocated by the server and cannot be supplied"))
 	if not payload.get("item_name") or not payload.get("stock_uom") or not payload.get("item_group"):
 		frappe.throw(_("Name, unit, and category are required"))
-	item_code = allocate_item_code()
-	if frappe.db.exists("Item", item_code):
-		frappe.throw(_("Item Code already exists"))
+	if "item_code" in payload:
+		availability = _item_code_availability(payload.get("item_code"))
+		if not availability["available"]:
+			exception = (
+				frappe.DuplicateEntryError
+				if availability["reason"] == "exists"
+				else frappe.ValidationError
+			)
+			frappe.throw(_(availability["message"]), exception)
+		item_code = availability["item_code"]
+	else:
+		item_code = allocate_item_code()
 	if payload.get("has_batch_no") and not frappe.db.get_single_value(
 		"Stock Settings", "enable_serial_and_batch_no_for_item"
 	):
@@ -2018,7 +2156,15 @@ def create_item(data):
 			"uoms": payload.get("uoms") or [],
 		}
 	)
-	item.insert()
+	try:
+		item.insert()
+	except frappe.DuplicateEntryError:
+		if frappe.db.exists("Item", item_code):
+			frappe.throw(
+				_("此物品编号已存在。请输入其他编号，或使用自动编号。"),
+				frappe.DuplicateEntryError,
+			)
+		raise
 	return {"item_code": item.name}
 
 

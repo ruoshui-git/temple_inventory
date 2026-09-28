@@ -16,6 +16,18 @@ copy in Chinese unless localization is explicitly part of the request. Preserve
 touch-friendly controls, accessible labels and status messages, narrow-screen
 behavior, direct camera capture where available, and non-camera fallbacks.
 
+## UI/UX decision record
+
+Before changing user-facing behavior, read the root-level
+`UI_UX_DECISIONS.md`. Treat its current rules as authoritative context. If a new
+user instruction conflicts with a recorded decision, explicitly report the
+conflict and which instruction supersedes it rather than silently changing the
+behavior.
+
+Update `UI_UX_DECISIONS.md` in the same change whenever a durable UX decision is
+added or superseded. Keep it concise, record supersessions in its dated log, and
+preserve unrelated working-tree changes.
+
 ## Application map
 
 - `temple_inventory/inventory_api.py` contains catalog, inventory, setup, scan,

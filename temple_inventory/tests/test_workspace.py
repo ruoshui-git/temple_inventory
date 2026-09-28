@@ -68,6 +68,7 @@ class WorkspaceTests(unittest.TestCase):
 		settings = frappe.get_single("Temple Inventory Settings")
 		settings.company = self.company
 		settings.root_warehouse = self.root
+		settings.physical_root_warehouse = self.root
 		settings.loan_warehouse = self.loan
 		settings.leased_warehouse = self.loan
 		settings.default_lease_program_warehouse = self.loan
@@ -143,10 +144,107 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(row["decrease_line_count"], 1)
 		self.assertEqual(row["item_changes"], [{"warehouse": "A", "delta": -3.0, "uom": "Nos"}])
 
-	def test_create_item_rejects_client_item_code(self):
-		with patch.object(inventory_service, "_require_stock"):
-			with self.assertRaises(frappe.ValidationError):
-				inventory_service.create_item({"item_code": "ITM-000001", "item_name": "恶意编号", "stock_uom": "Nos", "item_group": "All Item Groups"})
+	def test_history_aggregate_ignores_missing_warehouse_before_sorting(self):
+		row = {
+			"movement_kind": "Transfer",
+			"items": [
+				{
+					"item_code": "ITEM-1",
+					"qty": 2,
+					"uom": "Nos",
+					"from_warehouse": None,
+					"to_warehouse": "B",
+				}
+			],
+			"_item_code": "ITEM-1",
+		}
+		api._history_aggregate(row)
+		self.assertEqual(
+			row["item_changes"],
+			[{"warehouse": "B", "delta": 2.0, "uom": "Nos"}],
+		)
+
+	def test_item_code_suggestion_does_not_advance_series_and_skips_occupied_code(self):
+		before = frappe.db.sql("select current from `tabSeries` where name=%s", "ITM-")
+		first = inventory_service.suggest_item_code()["item_code"]
+		created = inventory_service.create_item(
+			{
+				"item_code": first,
+				"item_name": f"Suggested item {self.token}",
+				"stock_uom": "Nos",
+				"item_group": "All Item Groups",
+			}
+		)
+		second = inventory_service.suggest_item_code()["item_code"]
+		after = frappe.db.sql("select current from `tabSeries` where name=%s", "ITM-")
+		self.assertEqual(created["item_code"], first)
+		self.assertNotEqual(second, first)
+		self.assertEqual(after, before)
+
+	def test_create_item_accepts_trimmed_custom_code_and_preserves_selected_uom(self):
+		uom = create_uom(f"TI UOM {self.token}")["name"]
+		code = f"EXCEL-{self.token}"
+		result = inventory_service.create_item(
+			{
+				"item_code": f"  {code}  ",
+				"item_name": f"Imported item {self.token}",
+				"stock_uom": uom,
+				"item_group": "All Item Groups",
+			}
+		)
+		doc = frappe.get_doc("Item", result["item_code"])
+		self.assertEqual(result["item_code"], code)
+		self.assertEqual(doc.stock_uom, uom)
+
+	def test_create_item_reports_existing_custom_code_consistently(self):
+		invalid = inventory_service.check_item_code("BAD<CODE")
+		self.assertFalse(invalid["available"])
+		self.assertEqual(invalid["reason"], "invalid")
+		with self.assertRaisesRegex(frappe.DuplicateEntryError, "此物品编号已存在"):
+			inventory_service.create_item(
+				{
+					"item_code": self.item,
+					"item_name": "Duplicate item",
+					"stock_uom": "Nos",
+					"item_group": "All Item Groups",
+				}
+			)
+
+	def test_create_item_normalizes_a_concurrent_duplicate_collision(self):
+		def duplicate_insert():
+			raise frappe.DuplicateEntryError
+
+		with (
+			patch.object(inventory_service, "_require_item_creation"),
+			patch.object(inventory_service.frappe.db, "exists", side_effect=[False, True]),
+			patch.object(
+				inventory_service.frappe,
+				"get_doc",
+				return_value=SimpleNamespace(insert=duplicate_insert),
+			),
+		):
+			with self.assertRaisesRegex(frappe.DuplicateEntryError, "此物品编号已存在"):
+				inventory_service.create_item(
+					{
+						"item_code": f"RACE-{self.token}",
+						"item_name": "Concurrent item",
+						"stock_uom": "Nos",
+						"item_group": "All Item Groups",
+					}
+				)
+
+	def test_create_item_without_a_code_keeps_automatic_allocation(self):
+		allocated = f"AUTO-{self.token}"
+		with patch.object(inventory_service, "allocate_item_code", return_value=allocated) as allocator:
+			result = inventory_service.create_item(
+				{
+					"item_name": f"Legacy caller item {self.token}",
+					"stock_uom": "Nos",
+					"item_group": "All Item Groups",
+				}
+			)
+		self.assertEqual(result["item_code"], allocated)
+		allocator.assert_called_once_with()
 
 	def test_loans_accepts_rpc_string_paging_after_active_parent_selection(self):
 		parents = [
@@ -622,6 +720,30 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(d["data"]["handler_signature"], SIGNATURE)
 		self.assertEqual(d["data"]["reviewer_signature"], SIGNATURE)
 
+	def test_each_stale_signature_can_be_reconfirmed_before_submit(self):
+		d = self.signed(self.create())
+		payload = copy.deepcopy(d["data"])
+		payload.update(
+			no_independent_reviewer=0,
+			reviewer_name="测试鉴证人",
+			reviewer_signature=SIGNATURE,
+		)
+		d = api.save_workspace(d["name"], d["revision"], payload)
+		payload = copy.deepcopy(d["data"])
+		payload["notes"] = "签名后修改业务内容"
+		d = api.save_workspace(d["name"], d["revision"], payload)
+		for signer in ("handler", "recorder", "reviewer"):
+			self.assertEqual(d["data"][f"{signer}_signature_state"]["status"], "stale")
+		d = api.reconfirm_signature(d["name"], d["revision"], "handler")
+		self.assertEqual(d["data"]["handler_signature_state"]["status"], "valid")
+		self.assertEqual(d["data"]["reviewer_signature_state"]["status"], "stale")
+		with self.assertRaisesRegex(frappe.ValidationError, "记录人签名内容已变化"):
+			api.confirm_workspace(d["name"], d["revision"])
+		d = api.reconfirm_signature(d["name"], d["revision"], "recorder")
+		d = api.reconfirm_signature(d["name"], d["revision"], "reviewer")
+		result = api.confirm_workspace(d["name"], d["revision"])
+		self.assertEqual(result["docstatus"], 1)
+
 	def test_duplicate_issue_rows_aggregate_stock(self):
 		self.confirmed()
 		d = self.create(
@@ -707,6 +829,127 @@ class WorkspaceTests(unittest.TestCase):
 		d = api.confirm_workspace(d["name"], d["revision"])
 		self.assertEqual(d["docstatus"], 1)
 		self.assertEqual(api.batches(self.item, self.a)[0]["qty"], 2)
+
+	def test_expired_donation_batch_can_be_received(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.has_expiry_date = 1
+		item.save()
+		d = self.create(
+			items=[
+				{
+					"id": "expired-donation",
+					"item_code": self.item,
+					"qty": 1,
+					"warehouse": self.a,
+					"uom": "Nos",
+					"new_batch": True,
+					"manufacturing_date": "1999-01-01",
+					"expiry_date": "2000-01-01",
+				}
+			]
+		)
+		self.assertFalse(d["sync_error"], d["sync_error"])
+		signed = self.signed(d)
+		result = api.confirm_workspace(signed["name"], signed["revision"])
+		self.assertEqual(result["docstatus"], 1)
+		batch = frappe.get_doc("Batch", result["data"]["items"][0]["batch_no"])
+		self.assertEqual(str(batch.expiry_date), "2000-01-01")
+		existing = self.create(
+			items=[
+				{
+					"id": "existing-expired-donation",
+					"item_code": self.item,
+					"qty": 1,
+					"warehouse": self.a,
+					"uom": "Nos",
+					"batch_no": batch.name,
+				}
+			]
+		)
+		self.assertFalse(existing["sync_error"], existing["sync_error"])
+		existing = self.signed(existing)
+		self.assertEqual(
+			api.confirm_workspace(existing["name"], existing["revision"])["docstatus"], 1
+		)
+
+	def test_direct_desk_entry_is_not_claimed_by_open_entry(self):
+		entry = frappe.get_doc(
+			{
+				"doctype": "Stock Entry",
+				"company": self.company,
+				"stock_entry_type": "Material Receipt",
+				"purpose": "Material Receipt",
+				"ti_movement_kind": "Receive",
+				"items": [
+					{
+						"item_code": self.item,
+						"qty": 1,
+						"t_warehouse": self.a,
+						"allow_zero_valuation_rate": 1,
+					}
+				],
+			}
+		).insert()
+		opened = api.open_entry(entry.name)
+		self.assertTrue(opened["direct_entry"])
+		self.assertFalse(frappe.db.exists("Inventory Workspace", {"stock_entry": entry.name}))
+		entry.reload()
+		entry.remarks = "仍由 ERPNext 直接编辑"
+		entry.save()
+		entry.submit()
+		self.assertEqual(entry.docstatus, 1)
+
+	def test_desk_created_location_is_added_to_allowed_warehouses(self):
+		location = frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": f"TI Desk Location {self.token}",
+				"company": self.company,
+				"parent_warehouse": self.room,
+				"is_group": 0,
+				"warehouse_type": "Location",
+			}
+		).insert()
+		inventory_service.sync_desk_warehouse_allowlist(location)
+		settings = frappe.get_single("Temple Inventory Settings")
+		self.assertIn(location.name, {row.warehouse for row in settings.allowed_warehouses})
+		settings.set("allowed_warehouses", [
+			{"warehouse": row.warehouse}
+			for row in settings.allowed_warehouses
+			if row.warehouse != location.name
+		])
+		settings.save()
+		from temple_inventory.patches.v3_allow_existing_physical_locations import execute
+
+		execute()
+		settings.reload()
+		self.assertIn(location.name, {row.warehouse for row in settings.allowed_warehouses})
+		settings.set("allowed_warehouses", [
+			{"warehouse": row.warehouse}
+			for row in settings.allowed_warehouses
+			if row.warehouse != location.name
+		])
+		settings.save()
+		location.warehouse_name += " Renamed"
+		location.save()
+		settings.reload()
+		self.assertNotIn(location.name, {row.warehouse for row in settings.allowed_warehouses})
+
+	def test_desk_created_untyped_physical_leaf_is_added_to_allowed_warehouses(self):
+		location = frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": f"TI Desk Untyped {self.token}",
+				"company": self.company,
+				"parent_warehouse": self.room,
+				"is_group": 0,
+			}
+		).insert()
+		inventory_service.sync_desk_warehouse_allowlist(location)
+		settings = frappe.get_single("Temple Inventory Settings")
+		self.assertIn(location.name, {row.warehouse for row in settings.allowed_warehouses})
 
 	def test_history_filters_and_leaf_rejection(self):
 		d = self.create(source_text="A Donor")

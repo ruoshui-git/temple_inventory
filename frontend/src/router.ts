@@ -19,6 +19,7 @@ export const router = createRouter({ history: createWebHistory('/inventory'), ro
 	{ path: '/movements', component: () => import('./pages/History.vue'), props: { destination: 'movements' } },
   { path: '/expiry', component: () => import('./pages/Expiry.vue') },
   { path: '/item/:code', component: () => import('./pages/ItemDetail.vue') },
+  { path: '/items/new', component: () => import('./pages/NewItem.vue') },
   { path: '/auth-complete', component: { template: '<main class="app-shell"><h1>登录成功</h1><p>请返回原窗口并点击「继续保存」。</p></main>' } },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ] })

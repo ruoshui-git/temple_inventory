@@ -49,22 +49,16 @@ const sortColumns = computed(() => [
 ]);
 const mode = computed(() => String(route.query.mode || "current"));
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
-const canMove = computed(() =>
-	[
-		"Receive",
-		"Issue",
-		"Transfer",
-		"Loan",
-		"Return",
-		"Damage",
-		"Loss",
-		"Repair",
-		"Disposal",
-	].some((kind) => operationCaps.value[kind]),
-);
 const primaryActions = computed(() =>
 	["Receive", "Issue", "Transfer"].filter((kind) => operationCaps.value[kind]),
 );
+const fabActions = computed(() => [
+	...(boot.value?.capabilities?.Item ? [{ kind: "CreateItem", label: "新建物品" }] : []),
+	...primaryActions.value.map((kind) => ({
+		kind,
+		label: ({ Receive: "入库", Issue: "出库", Transfer: "转移" } as any)[kind],
+	})),
+]);
 const warehouseRows = computed(() => boot.value?.physical_tree || []);
 const warehouseText = (name: string) =>
 	warehousePresentation(name, warehouseRows.value).breadcrumb;
@@ -159,7 +153,7 @@ function clearFilters() {
 	filters.value = { search: "", warehouses: [], item_groups: [] };
 }
 function operation(kind: string) {
-	void router.push(`/new/${kind}`);
+	void router.push(kind === "CreateItem" ? "/items/new" : `/new/${kind}`);
 }
 function selectedOperation(kind: string) {
 	if (!selected.value.length) return operation(kind);
@@ -219,7 +213,7 @@ async function createUnknownItem() {
 	const value = unknownBarcodePrompt.value;
 	unknownBarcodePrompt.value = "";
 	sessionStorage.setItem("ti-unknown-barcode", value);
-	await router.push("/new/Receive");
+	await router.push("/items/new");
 }
 function dismissUnknownItem() {
 	unknownBarcodePrompt.value = "";
@@ -472,16 +466,7 @@ onBeforeUnmount(() => {
 				</button></template
 			>
 		</div>
-		<FloatingActionMenu
-			v-if="canMove"
-			:actions="
-				primaryActions.map((kind) => ({
-					kind,
-					label: ({ Receive: '入库', Issue: '出库', Transfer: '转移' } as any)[kind],
-				}))
-			"
-			@select="operation"
-		/>
+		<FloatingActionMenu v-if="fabActions.length" :actions="fabActions" @select="operation" />
 		<Scanner
 			v-if="scanner"
 			presentation="modal"

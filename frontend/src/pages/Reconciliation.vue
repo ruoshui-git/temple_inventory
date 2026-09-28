@@ -36,9 +36,11 @@ const reviewDialog = ref<HTMLElement>(),
 const audit = ref({
 	handler_name: "",
 	handler_signature: "",
+	handler_signature_state: { status: "absent" },
 	no_independent_reviewer: true,
 	reviewer_name: "",
 	reviewer_signature: "",
+	reviewer_signature_state: { status: "absent" },
 });
 const readonly = computed(() =>
 	Boolean(
@@ -78,6 +80,18 @@ const uomSummary = computed(() =>
 		{},
 	),
 );
+const signatureIssues = computed(() => {
+	const issues = [];
+	if (!audit.value.handler_signature) issues.push("经手人签名尚未完成");
+	else if (audit.value.handler_signature_state?.status !== "valid")
+		issues.push("经手人签名内容已变化，请重新确认");
+	if (!audit.value.no_independent_reviewer || audit.value.reviewer_signature) {
+		if (!audit.value.reviewer_signature) issues.push("鉴证人签名尚未完成");
+		else if (audit.value.reviewer_signature_state?.status !== "valid")
+			issues.push("鉴证人签名内容已变化，请重新确认");
+	}
+	return issues;
+});
 
 function adopt(data: any) {
 	record.value = data;
@@ -96,9 +110,15 @@ function adopt(data: any) {
 	audit.value = {
 		handler_name: payload.handler_name || "",
 		handler_signature: payload.handler_signature || "",
+		handler_signature_state: payload.handler_signature_state || {
+			status: payload.handler_signature ? "valid" : "absent",
+		},
 		no_independent_reviewer: payload.no_independent_reviewer !== false,
 		reviewer_name: payload.reviewer_name || "",
 		reviewer_signature: payload.reviewer_signature || "",
+		reviewer_signature_state: payload.reviewer_signature_state || {
+			status: payload.reviewer_signature ? "valid" : "absent",
+		},
 	};
 }
 async function load() {
@@ -235,6 +255,23 @@ function persist() {
 	persistChain = persistChain.then(persistNow);
 	return persistChain;
 }
+async function reconfirmSignature(signer: "handler" | "reviewer") {
+	if (!record.value?.name || !(audit.value as any)[`${signer}_signature`]) return;
+	await persist();
+	if (error.value) return;
+	try {
+		adopt(
+			await workspaceApi("reconfirm_signature", {
+				name: record.value.name,
+				revision: record.value.revision,
+				signer,
+			}),
+		);
+		error.value = "";
+	} catch (cause: any) {
+		error.value = cause.message;
+	}
+}
 async function confirm() {
 	review.value = false;
 	await persist();
@@ -275,11 +312,17 @@ async function refreshBaseline() {
 		saving.value = false;
 	}
 }
-function showReview() {
+async function showReview() {
+	await persist();
+	if (error.value) return;
 	if (
 		!rows.value.some((row) => row.count_state === "counted" || row.count_state === "not_found")
 	) {
 		error.value = "请至少确认一行盘点数量";
+		return;
+	}
+	if (signatureIssues.value.length) {
+		error.value = signatureIssues.value.join("；");
 		return;
 	}
 	review.value = true;
@@ -387,6 +430,7 @@ function trapReview(event: KeyboardEvent) {
 				{{ uom || "未指定单位" }}：增加 {{ summary.increase }}，减少 {{ summary.decrease }}
 			</p>
 			<p v-if="record?.attachments?.length">已附 {{ record.attachments.length }} 个文件。</p>
+			<p v-for="issue in signatureIssues" :key="issue" class="error">{{ issue }}</p>
 			<p v-if="conflict" class="error">账面数量已变化，请先更新账面数量。</p>
 			<div class="detail-actions">
 				<button type="button" :disabled="saving" @click="review = false">取消</button
@@ -570,7 +614,23 @@ function trapReview(event: KeyboardEvent) {
 							:required="!readonly"
 							:disabled="readonly"
 							@complete="persist"
-						/><label v-if="!readonly"
+						/>
+						<p v-if="audit.handler_signature_state?.status === 'valid'" class="muted">
+							✓ 经手人签名适用于当前内容
+						</p>
+						<p
+							v-else-if="audit.handler_signature_state?.status === 'stale'"
+							class="error"
+						>
+							经手人签名仍保留，但盘点内容已更改。<button
+								type="button"
+								:disabled="readonly || saving"
+								@click="reconfirmSignature('handler')"
+							>
+								重新确认经手人签名
+							</button>
+						</p>
+						<label v-if="!readonly"
 							><input
 								v-model="audit.no_independent_reviewer"
 								type="checkbox"
@@ -581,25 +641,44 @@ function trapReview(event: KeyboardEvent) {
 						<p v-else>
 							{{ audit.no_independent_reviewer ? "无独立鉴证人" : "有独立鉴证人" }}
 						</p>
-						<template v-if="!audit.no_independent_reviewer"
+						<template v-if="!audit.no_independent_reviewer || audit.reviewer_signature"
 							><label
 								>鉴证人<span
-									v-if="!readonly"
+									v-if="!readonly && !audit.no_independent_reviewer"
 									class="required-mark"
 									aria-hidden="true"
 									>*</span
 								><input
 									v-model="audit.reviewer_name"
 									:readonly="readonly"
-									:required="!readonly"
+									:required="!readonly && !audit.no_independent_reviewer"
 									@change="persist" /></label
 							><SignaturePad
 								label="鉴证人签名"
 								v-model="audit.reviewer_signature"
-								:required="!readonly"
+								:required="!readonly && !audit.no_independent_reviewer"
 								:disabled="readonly"
 								@complete="persist"
-						/></template>
+							/>
+							<p
+								v-if="audit.reviewer_signature_state?.status === 'valid'"
+								class="muted"
+							>
+								✓ 鉴证人签名适用于当前内容
+							</p>
+							<p
+								v-else-if="audit.reviewer_signature_state?.status === 'stale'"
+								class="error"
+							>
+								鉴证人签名仍保留，但盘点内容已更改。<button
+									type="button"
+									:disabled="readonly || saving"
+									@click="reconfirmSignature('reviewer')"
+								>
+									重新确认鉴证人签名
+								</button>
+							</p></template
+						>
 					</section>
 					<div v-if="!readonly" class="submit-row">
 						<button type="button" @click="persist">保存盘点</button

@@ -4,8 +4,17 @@ import frappe
 from frappe import _
 
 
+def workspace_for_stock_entry(doc):
+	"""Return the authoritative workspace owner, if this entry has one."""
+	if doc.is_new() or not doc.name or not frappe.db.exists("DocType", "Inventory Workspace"):
+		return None
+	return frappe.db.get_value("Inventory Workspace", {"stock_entry": doc.name}, "name")
+
+
 def validate_stock_entry_submission(doc, method=None):
-	if not doc.get("ti_movement_kind"):
+	# Temple metadata is optional on direct ERPNext entries. Signature policy is
+	# enforced only for entries actually owned by a revision-checked workspace.
+	if not workspace_for_stock_entry(doc):
 		return
 	missing = []
 	if not doc.get("ti_handler_name"):
@@ -23,7 +32,7 @@ def validate_stock_entry_submission(doc, method=None):
 def protect_workspace_entry(doc, method=None):
 	if doc.is_new() or doc.flags.workspace_service or not frappe.db.exists("DocType", "Inventory Workspace"):
 		return
-	if frappe.db.exists("Inventory Workspace", {"stock_entry": doc.name}) and doc.docstatus != 2:
+	if workspace_for_stock_entry(doc) and doc.docstatus != 2:
 		frappe.throw(
 			_("Edit and confirm this transaction in the inventory workspace"), frappe.PermissionError
 		)

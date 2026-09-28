@@ -68,7 +68,7 @@ const newRequestId = ref("");
 let applying = false,
 	editVersion = 0;
 
-const readonly = computed(() => !!record.value?.docstatus);
+const readonly = computed(() => !!record.value?.docstatus || !!record.value?.direct_entry);
 const tree = computed<any[]>(() => boot.value?.warehouse_tree || []);
 const allowed = computed<any[]>(
 	() => boot.value?.warehouses || boot.value?.physical_warehouses || [],
@@ -140,6 +140,17 @@ const label = (name: string) => warehousePresentation(name, tree.value).breadcru
 const leafLabel = (name: string) => warehousePresentation(name, tree.value).localLabel;
 const requiredMark =
 	'<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span>';
+const signerLabels: Record<string, string> = {
+	handler: "经手人",
+	recorder: "记录人",
+	reviewer: "鉴证人",
+};
+const today = () => {
+	const value = new Date();
+	const pad = (part: number) => String(part).padStart(2, "0");
+	return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+};
+const isExpiredDate = (value: string) => Boolean(value && value < today());
 
 function changed(immediate = false) {
 	if (applying || readonly.value) return;
@@ -179,6 +190,19 @@ const signatureState = (signer: string) =>
 	form.value?.[`${signer}_signature_state`] || {
 		status: form.value?.[`${signer}_signature`] ? "valid" : "absent",
 	};
+const signatureIssues = computed(() => {
+	if (!form.value) return [];
+	const signers = ["handler"];
+	if (!form.value.no_independent_reviewer || form.value.reviewer_signature)
+		signers.push("reviewer");
+	if (form.value.recorder_signature) signers.push("recorder");
+	return signers.flatMap((signer) => {
+		if (!form.value[`${signer}_signature`]) return [`${signerLabels[signer]}签名尚未完成`];
+		return signatureState(signer).status === "valid"
+			? []
+			: [`${signerLabels[signer]}签名内容已变化，请重新确认`];
+	});
+});
 async function reconfirmSignature(signer: string) {
 	if (!record.value?.name || !form.value?.[`${signer}_signature`]) return;
 	try {
@@ -197,6 +221,7 @@ async function reconfirmSignature(signer: string) {
 		form.value = result.data;
 		applying = false;
 		saveStatus.value = "✓ 已保存";
+		error.value = "";
 	} catch (cause: any) {
 		error.value = cause.message;
 	}
@@ -613,6 +638,10 @@ function addLine() {
 	}
 	invalidate();
 	const row = { ...line.value };
+	if (row.batch_no && !row.expiry_date) {
+		const batch = batchRows.value.find((candidate: any) => candidate.name === row.batch_no);
+		if (batch?.expiry_date) row.expiry_date = batch.expiry_date;
+	}
 	if (!isReceive.value) row.warehouse = row.from_warehouse;
 	if (editingIndex.value >= 0) form.value.items.splice(editingIndex.value, 1, row);
 	else form.value.items.unshift(row);
@@ -705,6 +734,10 @@ async function showReview() {
 		error.value = record.value.sync_error;
 		return;
 	}
+	if (signatureIssues.value.length) {
+		error.value = signatureIssues.value.join("；");
+		return;
+	}
 	review.value = true;
 }
 async function confirm() {
@@ -785,7 +818,13 @@ onBeforeUnmount(() => {
 			<button v-if="!readonly && record?.name" type="button" @click="deleteDraft">
 				删除草稿</button
 			><span role="status">{{
-				readonly ? (record.docstatus === 1 ? "已完成 ✓" : "已取消") : saveStatus
+				readonly
+					? record.direct_entry
+						? "ERPNext 记录"
+						: record.docstatus === 1
+							? "已完成 ✓"
+							: "已取消"
+					: saveStatus
 			}}</span>
 		</header>
 		<p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -801,7 +840,11 @@ onBeforeUnmount(() => {
 			重试保存
 		</button>
 		<LoadingIndicator v-if="!form || !boot" text="正在加载工作区…" /><template v-else
-			><form @submit.prevent="showReview">
+			><p v-if="record.direct_entry" class="field-hint">
+				这是直接在 ERPNext 创建的库存记录。请在
+				<a :href="record.desk_url">ERPNext Stock Entry</a> 中编辑或提交。
+			</p>
+			<form @submit.prevent="showReview">
 				<fieldset :disabled="readonly || confirming">
 					<div class="form-grid">
 						<label
@@ -930,7 +973,12 @@ onBeforeUnmount(() => {
 								{{ r.qty }} {{ r.uom }} <small>{{ r.item_code }}</small>
 							</p>
 							<p v-if="r.batch_no">批次 {{ r.batch_no }}</p>
-							<p v-if="r.expiry_date">到期 {{ r.expiry_date }}</p>
+							<p v-if="r.expiry_date">
+								到期 {{ r.expiry_date }}
+								<strong v-if="isExpiredDate(r.expiry_date)" class="error"
+									>· 已过期</strong
+								>
+							</p>
 							<p v-if="isTransfer">→ {{ label(r.to_warehouse) }}</p>
 						</div>
 						<div v-if="!readonly">
@@ -1033,7 +1081,19 @@ onBeforeUnmount(() => {
 						:required="true"
 						:disabled="readonly || confirming"
 						@complete="changed(true)"
-					/><label class="checkbox"
+					/>
+					<p v-if="signatureState('handler').status === 'valid'" class="muted">
+						✓ 经手人签名适用于当前内容
+					</p>
+					<p v-else-if="signatureState('handler').status === 'stale'" class="error">
+						经手人签名仍保留，但内容已更改。<button
+							type="button"
+							@click="reconfirmSignature('handler')"
+						>
+							重新确认经手人签名
+						</button>
+					</p>
+					<label class="checkbox"
 						><input
 							type="checkbox"
 							:checked="form.no_independent_reviewer"
@@ -1045,19 +1105,49 @@ onBeforeUnmount(() => {
 							:disabled="readonly || confirming"
 						/>
 						无独立鉴证人</label
-					><template v-if="!form.no_independent_reviewer"
+					><template v-if="!form.no_independent_reviewer || form.reviewer_signature"
 						><label
-							>鉴证人 <span v-html="requiredMark" /><input
+							>鉴证人
+							<span
+								v-if="!form.no_independent_reviewer"
+								v-html="requiredMark" /><input
 								v-model="form.reviewer_name"
-								required
+								:required="!form.no_independent_reviewer"
 								@input="changed(true)" /></label
 						><SignaturePad
 							label="鉴证人签名"
 							v-model="form.reviewer_signature"
-							:required="true"
+							:required="!form.no_independent_reviewer"
 							:disabled="readonly || confirming"
 							@complete="changed(true)"
-					/></template>
+						/>
+						<p v-if="signatureState('reviewer').status === 'valid'" class="muted">
+							✓ 鉴证人签名适用于当前内容
+						</p>
+						<p v-else-if="signatureState('reviewer').status === 'stale'" class="error">
+							鉴证人签名仍保留，但内容已更改。<button
+								type="button"
+								@click="reconfirmSignature('reviewer')"
+							>
+								重新确认鉴证人签名
+							</button>
+						</p></template
+					><template v-if="form.recorder_signature"
+						><SignaturePad
+							label="记录人签名"
+							v-model="form.recorder_signature"
+							:disabled="readonly || confirming"
+							@complete="changed(true)"
+						/>
+						<p v-if="signatureState('recorder').status === 'stale'" class="error">
+							记录人签名仍保留，但内容已更改。<button
+								type="button"
+								@click="reconfirmSignature('recorder')"
+							>
+								重新确认记录人签名
+							</button>
+						</p></template
+					>
 				</fieldset>
 				<button
 					v-if="!readonly"
@@ -1072,18 +1162,13 @@ onBeforeUnmount(() => {
 				<p v-if="record.stock_entry">
 					库存记录：{{ record.stock_entry }}
 					<a
-						v-if="boot.is_manager"
-						:href="`/app/stock-entry/${encodeURIComponent(record.stock_entry)}`"
-						>管理员查看</a
+						v-if="boot.is_manager || record.direct_entry"
+						:href="
+							record.desk_url ||
+							`/app/stock-entry/${encodeURIComponent(record.stock_entry)}`
+						"
+						>在 ERPNext 查看</a
 					>
-				</p>
-				<p v-if="signatureState('handler').status === 'stale'" class="error">
-					签名仍保留，但内容已更改，请重新确认后提交。<button
-						type="button"
-						@click="reconfirmSignature('handler')"
-					>
-						重新确认经手人签名
-					</button>
 				</p>
 			</form>
 			<LoanItemPicker
@@ -1238,6 +1323,7 @@ onBeforeUnmount(() => {
 									<option value="">请选择批次</option>
 									<option v-for="b in batchRows" :value="b.name">
 										{{ b.name }} · {{ b.expiry_date || "无到期日期" }}
+										{{ isExpiredDate(b.expiry_date) ? "· 已过期" : "" }}
 										{{ b.qty != null ? `· 库存 ${b.qty}` : "" }}
 									</option>
 								</select></label
@@ -1337,6 +1423,8 @@ onBeforeUnmount(() => {
 									>{{ line.qty }} {{ line.uom
 									}}<template v-if="line.batch_no">
 										· 批次 {{ line.batch_no }}</template
+									><template v-if="isExpiredDate(line.expiry_date)">
+										· 已过期</template
 									></small
 								></span
 							>
@@ -1356,6 +1444,7 @@ onBeforeUnmount(() => {
 						}}
 					</p>
 					<p>{{ form.handler_signature ? "✓ 经手人已签名" : "经手人尚未签名" }}</p>
+					<p v-for="issue in signatureIssues" :key="issue" class="error">{{ issue }}</p>
 					<p v-if="error" class="error">{{ error }}</p>
 					<button type="button" :disabled="confirming" @click="review = false">
 						返回修改</button

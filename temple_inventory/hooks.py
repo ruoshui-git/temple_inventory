@@ -25,7 +25,11 @@ doc_events = {
 		"before_submit": "temple_inventory.stock.validate_stock_entry_submission",
 		"before_validate": "temple_inventory.stock.protect_workspace_entry",
 		"on_cancel": "temple_inventory.stock.propagate_stock_entry_cancellation",
-	}
+	},
+	"Warehouse": {
+		"after_insert": "temple_inventory.inventory_api.sync_desk_warehouse_allowlist",
+		"on_update": "temple_inventory.inventory_api.sync_desk_warehouse_allowlist",
+	},
 }
 
 # Apps
@@ -290,6 +294,9 @@ add_to_apps_screen = [
 has_permission = {"Inventory Workspace": "temple_inventory.workspace_permissions.has_permission"}
 permission_query_conditions = {"Inventory Workspace": "temple_inventory.workspace_permissions.query_conditions"}
 
-extend_doctype_class = {"File": ["temple_inventory.file.InventoryFileMixin"]}
+extend_doctype_class = {
+	"File": ["temple_inventory.file.InventoryFileMixin"],
+	"Stock Entry": ["temple_inventory.stock_entry.InventoryStockEntryMixin"],
+}
 
 page_renderer = ["temple_inventory.pwa.ServiceWorkerPage"]
