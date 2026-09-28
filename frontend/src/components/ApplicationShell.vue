@@ -212,9 +212,11 @@ onBeforeUnmount(() => {
 <template>
 	<div class="application-shell">
 		<header ref="shellHeader" class="desktop-nav">
-			<h1 class="shell-brand" :class="{ 'sr-only': detailRoute }">
-				{{ detailRoute ? "物资管理" : browseTitle }}
-			</h1>
+			<div class="shell-brand-slot">
+				<h1 class="shell-brand" :class="{ 'sr-only': detailRoute }">
+					{{ detailRoute ? "物资管理" : browseTitle }}
+				</h1>
+			</div>
 			<nav aria-label="主导航">
 				<RouterLink
 					v-for="item in destinations"

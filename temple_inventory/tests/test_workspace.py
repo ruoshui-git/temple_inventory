@@ -277,10 +277,11 @@ class WorkspaceTests(unittest.TestCase):
 	def test_physical_tree_keeps_an_empty_group_for_management(self):
 		settings = SimpleNamespace(root_warehouse="root", physical_root_warehouse="physical", leased_warehouse="loan")
 		rows = {
-			"root": SimpleNamespace(name="root", lft=1, rgt=8, is_group=1, warehouse_type=None),
-			"physical": SimpleNamespace(name="physical", lft=2, rgt=7, is_group=1, warehouse_type="地点"),
-			"room": SimpleNamespace(name="room", lft=3, rgt=4, is_group=1, warehouse_type="房间"),
-			"loan": SimpleNamespace(name="loan", lft=5, rgt=6, is_group=1, warehouse_type="虚拟"),
+			"root": SimpleNamespace(name="root", parent_warehouse=None, lft=1, rgt=12, is_group=1, warehouse_type=None),
+			"physical": SimpleNamespace(name="physical", parent_warehouse="root", lft=2, rgt=11, is_group=1, warehouse_type="地点"),
+			"room": SimpleNamespace(name="room", parent_warehouse="physical", lft=3, rgt=6, is_group=1, warehouse_type="房间"),
+			"loan": SimpleNamespace(name="loan", parent_warehouse="physical", lft=7, rgt=8, is_group=1, warehouse_type="虚拟"),
+			"orphan": SimpleNamespace(name="orphan", parent_warehouse=None, lft=9, rgt=10, is_group=1, warehouse_type="地点"),
 		}
 		with patch.object(inventory_service, "_visible_warehouses", return_value=rows), patch.object(inventory_service, "_system_warehouse_names", return_value={"loan"}):
 			self.assertEqual(set(inventory_service._physical_tree(settings)), {"room"})
@@ -979,6 +980,30 @@ class WorkspaceTests(unittest.TestCase):
 		).insert()
 		inventory_service.sync_desk_warehouse_allowlist(location)
 		self.assertFalse(frappe.db.get_value("Warehouse", location.name, "ti_fallback_role"))
+
+	def test_warehouse_metadata_repair_is_physical_tree_scoped(self):
+		outside_group = frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": f"TI Outside Metadata {self.token}",
+				"company": self.company,
+				"is_group": 1,
+				"ti_fallback_role": "room_default",
+			}
+		).insert()
+		frappe.db.set_value("Warehouse", self.room, "ti_fallback_role", "room_default", update_modified=False)
+
+		issues = inventory_service._warehouse_metadata_issues()
+
+		self.assertEqual([row["warehouse"] for row in issues], [self.room])
+		remaining = inventory_service.repair_warehouse_metadata(self.room)
+		self.assertEqual(remaining, [])
+		self.assertFalse(frappe.db.get_value("Warehouse", self.room, "ti_fallback_role"))
+		self.assertNotIn(outside_group.name, inventory_service._physical_tree())
+		self.assertIn(
+			self.room,
+			{row["name"] for row in inventory_service._user_facing_warehouse_presentation()},
+		)
 
 	def test_history_filters_and_leaf_rejection(self):
 		d = self.create(source_text="A Donor")

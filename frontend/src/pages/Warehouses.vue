@@ -18,7 +18,8 @@ const router = useRouter(),
 	error = ref(""),
 	search = ref(""),
 	dialog = ref<CreationKind | null>(null),
-	saving = ref(false);
+	saving = ref(false),
+	repairing = ref("");
 const form = ref({ parent: "", label: "", parentSearch: "" }),
 	expanded = ref(new Set<string>()),
 	list = ref<HTMLElement>(),
@@ -197,6 +198,21 @@ async function load() {
 		loading.value = false;
 	}
 }
+async function repairMetadata(warehouse: string) {
+	if (repairing.value) return;
+	repairing.value = warehouse;
+	error.value = "";
+	try {
+		await api("repair_warehouse_metadata", { warehouse });
+		toast("仓库显示信息已修复");
+		await load();
+	} catch (cause: any) {
+		error.value = cause.message;
+		toast(cause.message, "error");
+	} finally {
+		repairing.value = "";
+	}
+}
 async function save() {
 	if (saving.value || !form.value.label.trim() || !form.value.parent || !dialog.value) return;
 	saving.value = true;
@@ -254,6 +270,26 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onDialogKeydown));
 			><p v-if="error" class="error" role="alert">
 				{{ error }} <button type="button" @click="load">重试</button>
 			</p>
+			<section
+				v-if="boot?.is_manager && boot?.warehouse_metadata_issues?.length"
+				class="warehouse-metadata-repair"
+				aria-labelledby="warehouse-metadata-title"
+			>
+				<h2 id="warehouse-metadata-title">仓库显示信息待修复</h2>
+				<div v-for="issue in boot.warehouse_metadata_issues" :key="issue.warehouse">
+					<p>
+						<strong>{{ issue.warehouse_name }}</strong
+						>：{{ issue.message }}
+					</p>
+					<button
+						type="button"
+						:disabled="Boolean(repairing)"
+						@click="repairMetadata(issue.warehouse)"
+					>
+						{{ repairing === issue.warehouse ? "正在修复…" : "修复显示信息" }}
+					</button>
+				</div>
+			</section>
 			<p v-if="!error && !visibleRows.length" class="empty-state">暂无可查看的仓库。</p>
 			<div
 				v-else
@@ -373,6 +409,25 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onDialogKeydown));
 .warehouse-search input {
 	margin: 0;
 	min-width: 220px;
+}
+.warehouse-metadata-repair {
+	margin: 12px 0;
+	padding: 12px;
+	border-inline-start: 4px solid #a66b35;
+	background: #fffaf2;
+}
+.warehouse-metadata-repair h2,
+.warehouse-metadata-repair p {
+	margin: 0 0 8px;
+}
+.warehouse-metadata-repair > div {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+.warehouse-metadata-repair button {
+	flex: none;
 }
 .warehouse-list {
 	overflow: auto;

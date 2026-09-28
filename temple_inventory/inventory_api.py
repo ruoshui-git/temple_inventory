@@ -188,10 +188,24 @@ def _physical_tree(settings=None):
 	if not root or not root.is_group:
 		return {}
 	system = _system_warehouse_names(settings)
+	descendants = set()
+	for name, row in visible.items():
+		seen = {name}
+		parent_name = row.parent_warehouse
+		while parent_name and parent_name not in seen:
+			if parent_name == physical_root:
+				descendants.add(name)
+				break
+			seen.add(parent_name)
+			parent = visible.get(parent_name)
+			if not parent:
+				break
+			parent_name = parent.parent_warehouse
 	return {
 		name: row
 		for name, row in visible.items()
 		if name != physical_root
+		and name in descendants
 		and name not in system
 		and row.lft > root.lft
 		and row.rgt < root.rgt
@@ -1028,6 +1042,59 @@ def _warehouse_management_status(settings, visible, physical_tree):
 	if group_names and frappe.get_all("Bin", filters={"warehouse": ("in", group_names), "actual_qty": ("!=", 0)}, pluck="warehouse", limit_page_length=1):
 		status.append({"code": "group_stock", "level": "error", "message": "检测到分组仓库存有库存；请先由管理员修复到叶子库位。"})
 	return status
+
+
+def _warehouse_metadata_issues(settings=None):
+	"""Find invalid fallback roles that cause physical-tree rows to disappear in the UI."""
+	settings = settings or _settings()
+	physical = _physical_tree(settings)
+	issues = []
+	for name, row in physical.items():
+		role = getattr(row, "ti_fallback_role", None)
+		if not role:
+			continue
+		if row.is_group:
+			issues.append({
+				"warehouse": name,
+				"warehouse_name": row.warehouse_name,
+				"message": "分组仓库带有回退库位标记，导致该仓库不显示。",
+				"suggested_role": None,
+			})
+			continue
+		parent = physical.get(row.parent_warehouse)
+		if not parent or row.warehouse_name != f"{parent.warehouse_name} / 未指定":
+			continue
+		parent_type = str(parent.warehouse_type or "").lower()
+		if parent_type in {"room", "房间"}:
+			expected_role = "room_default"
+		elif parent_type in {"location", "库位", "site", "地点"}:
+			expected_role = "group_default"
+		else:
+			continue
+		if role != expected_role:
+			issues.append({
+				"warehouse": name,
+				"warehouse_name": row.warehouse_name,
+				"message": "回退库位标记与上级仓库类型不一致。",
+				"suggested_role": expected_role,
+			})
+	return issues
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_warehouse_metadata(warehouse):
+	"""Repair only an unambiguous fallback-role issue inside the physical tree."""
+	_require_manager()
+	if not frappe.get_meta("Warehouse").has_field("ti_fallback_role"):
+		frappe.throw(_("Warehouse fallback metadata is not installed"))
+	issues = {row["warehouse"]: row for row in _warehouse_metadata_issues()}
+	issue = issues.get(warehouse)
+	if not issue:
+		frappe.throw(_("Choose a Warehouse with a repairable metadata issue"), frappe.PermissionError)
+	frappe.db.set_value(
+		"Warehouse", warehouse, "ti_fallback_role", issue["suggested_role"], update_modified=False
+	)
+	return _warehouse_metadata_issues()
 
 
 def _stock_operation_capabilities(settings=None):
