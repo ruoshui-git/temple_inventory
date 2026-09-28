@@ -7,13 +7,16 @@ No production stock or existing documents are changed.
 import copy
 import json
 import unittest
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import frappe
-from frappe.utils import nowdate
+from openpyxl import load_workbook
+from frappe.utils import getdate, nowdate
 
 from temple_inventory import inventory_api as inventory_service
+from temple_inventory import reporting
 from temple_inventory import workspace_api as api
 from temple_inventory.inventory_api import (
 	DEFAULT_LOCATION_NAME,
@@ -1117,6 +1120,52 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(frappe.db.get_value("Stock Entry", confirmed["stock_entry"], "docstatus"), 1)
 		with self.assertRaises(frappe.ValidationError):
 			api.movement_overview({"movement_kinds": ["Unknown"]})
+
+	def test_report_exports_use_complete_permission_scoped_data(self):
+		self.confirmed()
+		period, movement_sheets = reporting._movement_sheets(
+			{
+				"period_key": "custom",
+				"date_from": nowdate(),
+				"date_to": nowdate(),
+				"movement_kinds": ["Receive"],
+			}
+		)
+		self.assertEqual(period["key"], "custom")
+		self.assertEqual([sheet[0] for sheet in movement_sheets], ["动作汇总", "物品汇总", "记录明细"])
+		details = movement_sheets[-1][2]
+		row = next(row for row in details if row["item_code"] == self.item)
+		self.assertEqual(row["movement_kind_label"], "入库")
+		self.assertEqual(row["stock_qty"], 4)
+		self.assertEqual(row["recorder_name"], "测试记录人")
+		stock_rows = reporting._stock_rows({"warehouses": [self.room]})
+		stock = next(row for row in stock_rows if row["item_code"] == self.item)
+		self.assertEqual(stock["qty"], 4)
+		self.assertNotIn(self.company, stock["warehouse_label"])
+		current_sheets = reporting._current_stock_sheets({"warehouses": [self.room]})
+		self.assertEqual(current_sheets[0][2][0]["available_qty"], 4)
+		self.assertTrue(reporting._xlsx_bytes(current_sheets).startswith(b"PK"))
+		csv = reporting._csv_bytes(current_sheets[-1][1], current_sheets[-1][2])
+		self.assertTrue(csv.startswith(b"\xef\xbb\xbf"))
+		injection_csv = reporting._csv_bytes((("value", "值"),), [{"value": "=2+2"}])
+		self.assertIn(b"'=2+2", injection_csv)
+		workbook = load_workbook(BytesIO(reporting._xlsx_bytes(movement_sheets)))
+		self.assertTrue(workbook["记录明细"]["A2"].is_date)
+
+	def test_report_expiry_ranges_and_validation(self):
+		with patch.object(reporting, "nowdate", return_value="2026-09-28"):
+			self.assertEqual(
+				reporting._expiry_bounds({"expiry_window": "remaining_within", "expiry_days": "30"}),
+				(getdate("2026-09-28"), getdate("2026-10-28")),
+			)
+			self.assertEqual(
+				reporting._expiry_bounds({"expiry_from": "2026-10-01", "expiry_to": "2026-10-31"}),
+				(getdate("2026-10-01"), getdate("2026-10-31")),
+			)
+		with self.assertRaises(frappe.ValidationError):
+			reporting._expiry_bounds({"expiry_window": "remaining_within", "expiry_days": "0"})
+		with self.assertRaises(frappe.ValidationError):
+			reporting._expiry_bounds({"expiry_from": "2026-11-01", "expiry_to": "2026-10-01"})
 
 	def test_guest_denied_and_bootstrap_read_only(self):
 		with patch.object(

@@ -20,6 +20,34 @@ export async function request(path: string, args: Record<string, unknown> = {}, 
 }
 export const api = (method: string, args: Record<string, unknown> = {}, signal?: AbortSignal) => request(`temple_inventory.inventory_api.${method}`, args, undefined, signal)
 export const workspaceApi = (method: string, args: Record<string, unknown> = {}, signal?: AbortSignal) => request(`temple_inventory.workspace_api.${method}`, args, undefined, signal)
+export type ReportType = 'movement' | 'current_stock' | 'warehouse_stock' | 'expiry'
+export type ExportFormat = 'xlsx' | 'csv'
+export async function downloadReport(reportType: ReportType, exportFormat: ExportFormat, filters: Record<string, unknown>) {
+  const response = await fetch('/api/method/temple_inventory.reporting.export_report', {
+    method: 'POST', credentials: 'same-origin', headers: {
+      'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || ''
+    }, body: JSON.stringify({ report_type: reportType, export_format: exportFormat, filters })
+  })
+  if (!response.ok) {
+    let message = `导出失败（${response.status}）`
+    try {
+      const body = await response.json()
+      message = String(body.message || message).replace(/<[^>]*>/g, '')
+      if (response.status === 401 || body.exc_type === 'AuthenticationError' || body.exc_type === 'CSRFTokenError') sessionExpired.value = true
+    } catch { /* retain status-based message */ }
+    throw new ApiError(message, response.status, 'ExportError')
+  }
+  const blob = await response.blob()
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  const quoted = disposition.match(/filename="([^"]+)"/i)?.[1]
+  let filename = `temple-inventory-report.${exportFormat}`
+  try { filename = encoded ? decodeURIComponent(encoded) : quoted || filename } catch { filename = quoted || filename }
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove()
+  URL.revokeObjectURL(url)
+}
 export async function refreshSession() {
   const r = await fetch('/api/method/temple_inventory.inventory_api.session_info', { credentials: 'same-origin' })
   if (!r.ok) throw new Error('请先完成登录')

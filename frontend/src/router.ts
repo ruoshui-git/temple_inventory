@@ -7,6 +7,7 @@ export const router = createRouter({ history: createWebHistory('/inventory'), ro
 	{ path: '/warehouses', component: () => import('./pages/Warehouses.vue') },
 	{ path: '/warehouses/:warehouse', component: () => import('./pages/WarehouseDetail.vue') },
 	{ path: '/more', component: () => import('./pages/More.vue') },
+	{ path: '/reports', component: () => import('./pages/Reports.vue') },
 	{ path: '/pending', component: () => import('./pages/Pending.vue') },
 	{ path: '/drafts', component: () => import('./pages/History.vue'), props: { destination: 'drafts' } },
   { path: '/new/:kind', component: () => import('./pages/Workspace.vue') },

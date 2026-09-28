@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "../lib/api";
 import { presentWarehouse, type WarehouseRecord } from "../lib/warehousePresenter";
 import LoadingIndicator from "../components/LoadingIndicator.vue";
+import ExportDialog from "../components/ExportDialog.vue";
 import { returnToOpener } from "../lib/navigation";
 const route = useRoute(),
 	router = useRouter(),
@@ -12,6 +13,7 @@ const route = useRoute(),
 	error = ref(""),
 	stockError = ref(""),
 	movementsError = ref(""),
+	exportOpen = ref(false),
 	stockLoading = ref(true),
 	movementsLoading = ref(true);
 const node = computed(() => detail.value?.warehouse || detail.value?.node || detail.value),
@@ -92,6 +94,7 @@ onMounted(async () => {
 					{{ presented.breadcrumb }}
 				</p>
 			</div>
+			<button type="button" @click="exportOpen = true">导出库存</button>
 		</header>
 		<p v-if="error" class="error">
 			{{ error }} <button type="button" @click="router.go(0)">重试</button>
@@ -191,6 +194,13 @@ onMounted(async () => {
 				</button>
 			</section>
 		</template>
+		<ExportDialog
+			v-model:open="exportOpen"
+			report-type="warehouse_stock"
+			:filters="{ warehouses: [queryValue] }"
+			title="导出仓库库存"
+			:summary="`导出 ${presented?.breadcrumb || presented?.localLabel || '当前仓库'} 及其下属位置的库存。`"
+		/>
 	</section>
 </template>
 <style scoped>

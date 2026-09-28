@@ -14,6 +14,7 @@ import SortableDataTable, { type SortState } from "../components/SortableDataTab
 import IconButton from "../components/IconButton.vue";
 import { formatExpiryDuration } from "../lib/duration";
 import QuantitySummary from "../components/QuantitySummary.vue";
+import ExportDialog from "../components/ExportDialog.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -33,6 +34,7 @@ const facetCounts = ref<any>({ warehouses: {}, item_groups: {} });
 const start = ref(0);
 const pageLength = 25;
 const filterOpen = ref(false);
+const exportOpen = ref(false);
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
 const canMove = computed(() =>
 	[
@@ -105,6 +107,12 @@ const sortQuery = () =>
 	JSON.stringify(sort.value) === JSON.stringify(defaultSort)
 		? { sort_by: undefined, sort_order: undefined }
 		: { sort_by: sort.value.sort_by, sort_order: sort.value.sort_order };
+const exportFilters = computed(() => ({
+	...filters.value,
+	...sort.value,
+	warehouses: filters.value.warehouses,
+	item_groups: filters.value.item_groups,
+}));
 const chips = computed(() => [
 	...filters.value.warehouses.map((value) => ({
 		key: "warehouses",
@@ -452,6 +460,7 @@ onBeforeUnmount(() => {
 							><span v-if="activeCount" class="icon-count">{{
 								activeCount
 							}}</span></IconButton
+						><button type="button" @click="exportOpen = true">导出</button
 						><span aria-live="polite">{{
 							refreshing
 								? "正在更新…"
@@ -550,5 +559,12 @@ onBeforeUnmount(() => {
 			</div>
 		</div>
 		<FloatingActionMenu v-if="canMove" :actions="movementActions" @select="operation" />
+		<ExportDialog
+			v-model:open="exportOpen"
+			report-type="expiry"
+			:filters="exportFilters"
+			title="导出效期风险"
+			summary="沿用当前搜索、类别、位置、效期范围和排序条件，按批次与位置导出。"
+		/>
 	</main>
 </template>

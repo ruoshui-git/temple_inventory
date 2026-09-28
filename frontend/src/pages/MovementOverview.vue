@@ -11,6 +11,7 @@ import MovementPeriodSelector, {
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import SortableDataTable, { type SortState } from "../components/SortableDataTable.vue";
 import WarehouseSelector from "../components/WarehouseSelector.vue";
+import ExportDialog from "../components/ExportDialog.vue";
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from "../composables/filters";
 import { api, labels, workspaceApi } from "../lib/api";
 import { warehousePresentation } from "../lib/warehousePresenter";
@@ -68,6 +69,7 @@ const appending = ref(false);
 const error = ref("");
 const appendError = ref("");
 const filterOpen = ref(false);
+const exportOpen = ref(false);
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null);
 const resultsScroll = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
@@ -176,6 +178,7 @@ function requestFilters() {
 			: undefined,
 	};
 }
+const exportFilters = computed(() => ({ ...requestFilters(), ...sort.value }));
 function routeQuery() {
 	return {
 		...serializeFilterQuery({
@@ -434,6 +437,7 @@ onBeforeUnmount(() => {
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M4 6h16M7 12h10M10 18h4" /></svg
 						></IconButton>
+						<button type="button" @click="exportOpen = true">导出</button>
 						<span aria-live="polite">{{
 							refreshing
 								? "正在更新…"
@@ -550,6 +554,13 @@ onBeforeUnmount(() => {
 				</div>
 			</div>
 		</div>
+		<ExportDialog
+			v-model:open="exportOpen"
+			report-type="movement"
+			:filters="exportFilters"
+			title="导出货物流动"
+			summary="沿用当前时间、动作、物品类别、位置、搜索和排序条件，包含汇总与记录明细。"
+		/>
 	</main>
 </template>
 

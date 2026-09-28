@@ -86,4 +86,14 @@ describe('ApplicationShell navigation contract', () => {
     await nextTick()
     expect(wrapper.find('nav.desktop-inventory-context').exists()).toBe(false)
   })
+
+  it('treats the report center as part of More', async () => {
+    route.path = '/reports'
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    })
+    await nextTick()
+    expect(wrapper.find('.shell-brand').text()).toBe('报表与导出')
+    expect(wrapper.find('nav[aria-label="主导航"] a[aria-current="page"]').text()).toBe('更多')
+  })
 })

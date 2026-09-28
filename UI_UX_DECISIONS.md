@@ -33,6 +33,13 @@ in the same change. Keep implementation details in code or task notes, not here.
   inclusive date ranges. Each stock action keeps its own complete-result,
   stock-UOM summary and observer-paged Item breakdown; opening stock and
   reconciliation remain under `盘点调整`.
+- `报表与导出` lives under `更多` as the complete report catalog. Inventory,
+  expiry, warehouse detail, and movement views also offer a contextual export
+  dialog that preserves the current filters without changing page state.
+- Reports use stable report-specific columns rather than a mobile column
+  builder. XLSX contains applicable summaries and detail sheets; CSV contains
+  the flat detail data, and both export every permission-filtered match rather
+  than only loaded rows.
 
 ## Feedback
 
@@ -99,6 +106,8 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-09-28:** A report hub plus contextual export dialogs establishes the
+  reporting entry points and fixed-column XLSX/CSV behavior.
 - **2026-09-28:** The default `货物流动` overview and its independent action
   summaries supersede defaulting that destination directly to the Receive list.
 - **2026-09-28:** The remembered, card-first Inventory view and complete

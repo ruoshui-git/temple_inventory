@@ -32,7 +32,12 @@ const activeDestination = computed(() => {
 		return "/adjustments";
 	if (route.path.startsWith("/loans") || route.path === "/new/Loan") return "/loans";
 	if (route.path.startsWith("/warehouses") || route.path === "/settings") return "/warehouses";
-	if (route.path === "/more" || route.path === "/drafts" || route.path === "/pending")
+	if (
+		route.path === "/more" ||
+		route.path === "/reports" ||
+		route.path === "/drafts" ||
+		route.path === "/pending"
+	)
 		return "/more";
 	return "/";
 });
@@ -155,6 +160,7 @@ const browseTitle = computed(() => {
 	if (route.path === "/pending") return "待处理";
 	if (route.path === "/warehouses") return "仓库";
 	if (route.path === "/more") return "更多";
+	if (route.path === "/reports") return "报表与导出";
 	return "物资管理";
 });
 const detailRoute = computed(() =>

@@ -24,6 +24,7 @@ async function install() {
 </script>
 <template>
 	<section class="app-shell">
+		<RouterLink class="selection-row" to="/reports">报表与导出</RouterLink>
 		<RouterLink class="selection-row" to="/drafts"
 			>草稿 <b v-if="boot?.unfinished_count">{{ boot.unfinished_count }}</b></RouterLink
 		><RouterLink class="selection-row" to="/pending"

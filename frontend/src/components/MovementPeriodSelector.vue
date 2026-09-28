@@ -18,8 +18,9 @@ const props = withDefaults(
 		dateTo?: string;
 		resolvedFrom?: string;
 		resolvedTo?: string;
+		showResolved?: boolean;
 	}>(),
-	{ dateFrom: "", dateTo: "", resolvedFrom: "", resolvedTo: "" },
+	{ dateFrom: "", dateTo: "", resolvedFrom: "", resolvedTo: "", showResolved: true },
 );
 const emit = defineEmits<{
 	"update:periodKey": [value: MovementPeriodKey];
@@ -106,7 +107,9 @@ function setMode(value: Mode) {
 					@input="emit('update:dateTo', ($event.target as HTMLInputElement).value)"
 			/></label>
 		</div>
-		<small class="resolved-period" aria-live="polite">{{ resolvedText }}</small>
+		<small v-if="showResolved" class="resolved-period" aria-live="polite">{{
+			resolvedText
+		}}</small>
 	</section>
 </template>
 

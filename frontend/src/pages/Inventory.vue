@@ -14,6 +14,7 @@ import IconButton from "../components/IconButton.vue";
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import QuantitySummary from "../components/QuantitySummary.vue";
 import InventoryCardGrid from "../components/InventoryCardGrid.vue";
+import ExportDialog from "../components/ExportDialog.vue";
 import { hydrateFilterQuery, serializeFilterQuery } from "../composables/filters";
 import { toast } from "../lib/toast";
 
@@ -28,7 +29,8 @@ const boot = ref<any>(),
 const error = ref(""),
 	loading = ref(false),
 	loadingMore = ref(false),
-	filterOpen = ref(false);
+	filterOpen = ref(false),
+	exportOpen = ref(false);
 const selection = ref(false),
 	selected = ref<string[]>([]),
 	scanner = ref(false),
@@ -61,6 +63,12 @@ const sortColumns = computed(() => [
 	...(selection.value ? [{ key: "selection", label: "选择" }] : []),
 ]);
 const mode = computed(() => String(route.query.mode || "current"));
+const exportFilters = computed(() => ({
+	...filters.value,
+	...sort.value,
+	warehouses: filters.value.warehouses,
+	item_groups: filters.value.item_groups,
+}));
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
 const primaryActions = computed(() =>
 	["Receive", "Issue", "Transfer"].filter((kind) => operationCaps.value[kind]),
@@ -371,6 +379,12 @@ onBeforeUnmount(() => {
 							@click="toggleSelection"
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M5 12l4 4L19 6M4 21h16" /></svg></IconButton
+						><button
+							v-if="mode === 'current'"
+							type="button"
+							@click="exportOpen = true"
+						>
+							导出</button
 						><span aria-live="polite"
 							>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部
 							{{ overall ?? total }}</span
@@ -592,6 +606,13 @@ onBeforeUnmount(() => {
 				</div>
 			</section>
 		</div>
+		<ExportDialog
+			v-model:open="exportOpen"
+			report-type="current_stock"
+			:filters="exportFilters"
+			title="导出当前库存"
+			summary="沿用当前搜索、类别、仓库和排序条件，包含物品汇总与批次明细。"
+		/>
 	</section>
 </template>
 

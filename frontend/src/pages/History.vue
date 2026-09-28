@@ -16,6 +16,7 @@ import SortableDataTable, { type SortState } from "../components/SortableDataTab
 import WarehousePreview from "../components/WarehousePreview.vue";
 import WarehouseSelector from "../components/WarehouseSelector.vue";
 import QuantitySummary from "../components/QuantitySummary.vue";
+import ExportDialog from "../components/ExportDialog.vue";
 import { returnToOpener } from "../lib/navigation";
 
 type Destination = "movements" | "adjustments" | "drafts";
@@ -64,6 +65,7 @@ const busy = ref(true);
 const refreshing = ref(false);
 const appending = ref(false);
 const filterOpen = ref(false);
+const exportOpen = ref(false);
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null);
 const sentinel = ref<HTMLElement>();
 const resultsScroll = ref<HTMLElement>();
@@ -287,6 +289,12 @@ function requestFilters() {
 	}
 	return base;
 }
+const exportFilters = computed(() => ({
+	...requestFilters(),
+	movement_kind: undefined,
+	movement_kinds: movementKind.value ? [movementKind.value] : undefined,
+	...sort.value,
+}));
 function routeQuery() {
 	const queryFilters: Record<string, unknown> = {
 		search: filters.value.search,
@@ -674,6 +682,13 @@ onBeforeUnmount(() => {
 								activeCount
 							}}</span></IconButton
 						>
+						<button
+							v-if="props.destination === 'movements'"
+							type="button"
+							@click="exportOpen = true"
+						>
+							导出
+						</button>
 						<span aria-live="polite">{{
 							refreshing
 								? "正在更新…"
@@ -847,6 +862,14 @@ onBeforeUnmount(() => {
 		>
 			＋
 		</button>
+		<ExportDialog
+			v-if="props.destination === 'movements'"
+			v-model:open="exportOpen"
+			report-type="movement"
+			:filters="exportFilters"
+			:title="`导出${labels[movementKind] || '货物流动'}`"
+			summary="沿用当前时间、动作、来源或去向位置、类别、搜索和排序条件。"
+		/>
 	</main>
 </template>
 

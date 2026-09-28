@@ -1918,7 +1918,18 @@ def _movement_overview_rows(filters):
 			"docstatus": 1,
 			"posting_date": ["between", [period["date_from"], period["date_to"]]],
 		},
-		fields=["name", "posting_date", "purpose", "ti_movement_kind"],
+		fields=[
+			"name",
+			"posting_date",
+			"purpose",
+			"ti_movement_kind",
+			"ti_source_text",
+			"ti_purpose_text",
+			"ti_activity",
+			"ti_recorder_name",
+			"ti_handler_name",
+			"ti_reviewer_name",
+		],
 		order_by="posting_date desc, name desc",
 		limit_page_length=0,
 	)
@@ -1994,6 +2005,16 @@ def _movement_overview_rows(filters):
 		requested_warehouses = _history_allowed_selection(
 			filters["warehouses"], visible, readable_leaves
 		)
+	requested_sources = set()
+	if filters.get("source_warehouses"):
+		requested_sources = _history_allowed_selection(
+			filters["source_warehouses"], visible, readable_leaves
+		)
+	requested_destinations = set()
+	if filters.get("destination_warehouses"):
+		requested_destinations = _history_allowed_selection(
+			filters["destination_warehouses"], visible, readable_leaves
+		)
 	search = str(filters.get("search") or "").strip().lower()
 	result = []
 	for line in lines:
@@ -2002,7 +2023,12 @@ def _movement_overview_rows(filters):
 		entry = entry_by_name[line.parent]
 		item = items[line.item_code]
 		kind = entry["movement_kind"]
-		if search and search not in f"{item.name} {item.item_name}".lower():
+		if search and search not in (
+			f"{item.name} {item.item_name} {entry['name']} {entry.get('ti_source_text') or ''} "
+			f"{entry.get('ti_purpose_text') or ''} {entry.get('ti_activity') or ''} "
+			f"{entry.get('ti_recorder_name') or ''} {entry.get('ti_handler_name') or ''} "
+			f"{entry.get('ti_reviewer_name') or ''}"
+		).lower():
 			continue
 		if requested_groups and item.item_group not in requested_groups:
 			continue
@@ -2016,6 +2042,10 @@ def _movement_overview_rows(filters):
 			)
 			if not any(warehouse in requested_warehouses for warehouse in warehouses):
 				continue
+		if requested_sources and line.s_warehouse not in requested_sources:
+			continue
+		if requested_destinations and line.t_warehouse not in requested_destinations:
+			continue
 		stock_qty = line.transfer_qty
 		if stock_qty is None:
 			stock_qty = flt(line.qty) * flt(line.conversion_factor or 1)
@@ -2033,6 +2063,12 @@ def _movement_overview_rows(filters):
 				"stock_qty": abs(flt(stock_qty)),
 				"s_warehouse": line.s_warehouse,
 				"t_warehouse": line.t_warehouse,
+				"source_text": entry.get("ti_source_text"),
+				"purpose_text": entry.get("ti_purpose_text"),
+				"activity": entry.get("ti_activity"),
+				"recorder_name": entry.get("ti_recorder_name"),
+				"handler_name": entry.get("ti_handler_name"),
+				"reviewer_name": entry.get("ti_reviewer_name"),
 			}
 		)
 	return period, result
