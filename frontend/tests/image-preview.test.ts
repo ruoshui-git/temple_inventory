@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ItemImagePreview from '../src/components/ItemImagePreview.vue'
-import SignaturePad from '../src/components/SignaturePad.vue'
 
 describe('ItemImagePreview', () => {
   it('toggles a clicked preview and dismisses it outside or with Escape without a close glyph', async () => {
@@ -51,15 +50,5 @@ describe('ItemImagePreview', () => {
     expect(button.attributes('aria-expanded')).toBe('false')
     wrapper.unmount()
     vi.useRealTimers()
-  })
-})
-
-describe('SignaturePad', () => {
-  it('uses a required validity control only for required signatures', () => {
-    const required = mount(SignaturePad, { props: { modelValue: '', required: true } })
-    const optional = mount(SignaturePad, { props: { modelValue: '', required: false } })
-    expect(required.get('input[type="text"]').attributes('required')).toBeDefined()
-    expect(optional.get('input[type="text"]').attributes('required')).toBeUndefined()
-    expect(optional.text()).not.toContain('*')
   })
 })

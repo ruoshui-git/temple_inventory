@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { FrappeUIProvider } from "frappe-ui";
 import { api, refreshSession, sessionExpired } from "./lib/api";
+import { routeInstanceKey } from "./lib/navigation";
 import { applyUpdate, registerPwa, updateAvailable } from "./lib/pwa";
 import ApplicationShell from "./components/ApplicationShell.vue";
 import ToastHost from "./components/ToastHost.vue";
@@ -15,6 +16,7 @@ const selectedCompany = ref("");
 const setupBusy = ref(false);
 const repairBusy = ref(false);
 const contentKey = ref(0);
+const contentRouteKey = computed(() => routeInstanceKey(route.path, contentKey.value));
 const focusedFlow = () => /^\/(new|workspace|entry)\//.test(route.path);
 
 async function check() {
@@ -141,9 +143,9 @@ onMounted(() => {
 				<p v-if="error" class="error">{{ error }}</p>
 			</section>
 			<ApplicationShell v-if="!focusedFlow()"
-				><RouterView :key="contentKey"
+				><RouterView :key="contentRouteKey"
 			/></ApplicationShell>
-			<RouterView v-else :key="contentKey" />
+			<RouterView v-else :key="contentRouteKey" />
 		</template>
 		<div v-if="sessionExpired" class="modal auth-modal" role="alertdialog" aria-modal="true">
 			<section>

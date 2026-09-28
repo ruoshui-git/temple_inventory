@@ -1,4 +1,4 @@
-"""Submission validation that also protects Desk/API use."""
+"""Protect workspace-owned Stock Entries across Desk and API use."""
 
 import frappe
 from frappe import _
@@ -9,24 +9,6 @@ def workspace_for_stock_entry(doc):
 	if doc.is_new() or not doc.name or not frappe.db.exists("DocType", "Inventory Workspace"):
 		return None
 	return frappe.db.get_value("Inventory Workspace", {"stock_entry": doc.name}, "name")
-
-
-def validate_stock_entry_submission(doc, method=None):
-	# Temple metadata is optional on direct ERPNext entries. Signature policy is
-	# enforced only for entries actually owned by a revision-checked workspace.
-	if not workspace_for_stock_entry(doc):
-		return
-	missing = []
-	if not doc.get("ti_handler_name"):
-		missing.append(_("Handler"))
-	if not doc.get("ti_handler_signature"):
-		missing.append(_("Handler Signature"))
-	if not doc.get("ti_no_independent_reviewer") and (not doc.get("ti_reviewer_name") or not doc.get("ti_reviewer_signature")):
-		missing.append(_("Independent Witness and Signature"))
-	if missing:
-		frappe.throw(
-			_("{0} is required before submitting this inventory movement.").format(", ".join(missing))
-		)
 
 
 def protect_workspace_entry(doc, method=None):

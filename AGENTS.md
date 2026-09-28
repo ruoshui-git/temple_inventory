@@ -11,10 +11,8 @@ changes, avoid broad formatting-only diffs, and do not modify ERPNext or Frappe
 core. Prefer extending the current model with structured fields and small custom
 DocTypes over building parallel subsystems.
 
-The volunteer-facing application is Chinese and mobile-first. Keep user-facing
-copy in Chinese unless localization is explicitly part of the request. Preserve
-touch-friendly controls, accessible labels and status messages, narrow-screen
-behavior, direct camera capture where available, and non-camera fallbacks.
+User-facing language, responsive behavior, accessibility, and interaction rules
+belong in `UI_UX_DECISIONS.md`; do not duplicate them here.
 
 ## UI/UX decision record
 
@@ -94,9 +92,7 @@ Preserve these lifecycle properties:
 - Writes use optimistic `revision` checks and reject stale saves.
 - Frontend autosaves are serialized and retain changes made during an in-flight
   save.
-- The UI clearly distinguishes saving, saved, unsaved/error, conflict, and
-  completed states.
-- A signature is invalidated when transaction contents change.
+- User-visible lifecycle states follow `UI_UX_DECISIONS.md`.
 - Submitted stock-affecting records and completed workspaces are not silently
   rewritten.
 - Corrections use traceable, ERPNext-compatible cancellation, reversal, or
@@ -115,7 +111,8 @@ implementation without a concrete need.
 
 Store values that will be filtered, grouped, reported, or queried in structured
 fields, not only in Notes. This includes source type, donor/source, purpose,
-activity, recipient or borrower, responsible person, and warehouse/location.
+activity, recipient or borrower, responsible person, recorder, handler,
+reviewer, and warehouse/location.
 Notes are supplemental context.
 
 `Inventory Activity` is contextual metadata and may be linked from multiple
@@ -149,37 +146,13 @@ individual costume serialization is outside the current design. Use ERPNext
 Batch tracking when batch or expiry handling is applicable. Store item images
 through the standard Frappe File and ERPNext Item image fields.
 
-## Transaction UX invariants
+## Frontend boundaries
 
-The custom UI translates volunteer concepts into valid ERPNext operations.
-Volunteers should not need to understand Stock Entry purpose labels, DocType
-navigation, batch-module navigation, draft/submitted terminology, or group/leaf
-warehouse mechanics.
-
-Preserve the transaction being entered when supporting data is missing:
-
-- A newly created Item is immediately usable in the current transaction.
-- A newly created UOM is immediately selected or available.
-- A newly created Batch continues the same receiving flow.
-- An unknown barcode offers Item creation with the barcode prefilled.
-- Creating an Activity returns to and updates the current transaction.
-
-Search, browsing, camera barcode scanning, and hardware-scanner/manual entry are
-equivalent item-selection paths and must converge on the same workflow. Scanning
-is not a separate inventory subsystem. Release camera resources when scanning is
-paused, closed, or unmounted, and keep manual entry usable when camera access or
-browser APIs are unavailable.
-
-Visually group transaction lines by Room and Location. Do not default to an
-unrestricted warehouse selector on every row. Receiving normally starts with
-one destination location but may contain multiple location sections; stock-out
-operations may draw from multiple source locations in one logical operation.
-
-Transactions may have multiple attachments through Frappe's standard private
-File attachments. Keep direct mobile camera capture where supported.
-Responsible-person and handwritten-signature data belong with the transaction.
-Signatures may be absent during editing but can be required before final
-confirmation for accountable operations.
+All interaction, layout, feedback, form-state, and warehouse-presentation rules
+are owned by `UI_UX_DECISIONS.md`. The custom frontend translates those concepts
+into the ERPNext documents described above; it must not introduce parallel stock,
+attachment, scanner, or audit subsystems. Store transaction attachments through
+Frappe's standard private `File` records.
 
 ## Security and server-side rules
 
@@ -258,8 +231,8 @@ failure; report the original test results and traceback.
 
 This test entry point uses savepoints and rolls its records and settings back.
 Add or update focused tests for changed invariants, especially permissions,
-warehouse restrictions, idempotency, revision conflicts, autosave, signature
-invalidation, scanner lifecycle, and explicit confirmation.
+warehouse restrictions, idempotency, revision conflicts, autosave, scanner
+lifecycle, and explicit confirmation.
 
 Use targeted Ruff or pre-commit checks for touched files. Avoid `--all-files`
 when it would rewrite unrelated code. If a required check cannot run because of

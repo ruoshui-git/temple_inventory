@@ -1,5 +1,9 @@
 import type { RouteLocationRaw, Router } from 'vue-router'
 
+export function routeInstanceKey(path: string, contentVersion = 0): string {
+  return `${contentVersion}:${path}`
+}
+
 export function returnToOpener(router: Router, fallback: RouteLocationRaw): Promise<void> | void {
   try {
     if (typeof window !== 'undefined') {

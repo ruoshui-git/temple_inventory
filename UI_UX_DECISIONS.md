@@ -60,6 +60,9 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 - ERPNext is the source of truth. Compatible warehouses created through ERPNext
   must appear in the app; do not require creation through the custom UI.
+- Compatibility requires membership below the configured physical warehouse
+  root. Warehouses outside that root remain hidden and are not automatically
+  moved or offered for adoption.
 - `Warehouse Type` expresses physical meaning (`Room` or `Location`), while
   `is_group` expresses hierarchy. Do not infer type from depth or naming.
 - Stock is held only in leaf warehouses. Group warehouses remain navigable
@@ -69,14 +72,26 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 - The custom workspace is optional convenience, not a requirement for stock
   documents created and managed directly in ERPNext.
+- Volunteers use domain language and do not need to understand Stock Entry
+  purposes, DocType navigation, batch screens, or group/leaf mechanics.
+- Group lines by room and location. Receiving starts with one destination but may
+  add multiple location sections; stock-out operations may use multiple sources.
 - Expired batches may be received, including expired donations; show their state
   without blocking the operation solely because they are expired.
-- A transaction-changing edit invalidates its signature. If reconfirmation is
-  required, the signature control must remain visible and actionable.
+- Handwritten signatures and attestation controls are not part of the workflow.
+- Every movement and reconciliation form ends with optional text fields for
+  记录人, 经手人, and 鉴证人. These never block saving or confirmation.
+- The system `recorded_by` user is captured separately from the optional 记录人
+  text because the person entering data may differ from the on-site recorder.
 - Supporting-data creation returns to the current transaction without losing its
   draft or context.
 
 ## Supersession log
+
+- **2026-09-28:** Optional recorder/handler/reviewer text fields supersede all
+  handwritten-signature, independent-witness, and re-confirmation rules.
+- **2026-09-28:** Only warehouses beneath the configured physical root appear in
+  the app; out-of-root Desk warehouses remain hidden.
 
 - **2026-09-28:** Editable Item Codes supersede the server-only allocation rule.
   Preview-only automatic suggestions were chosen to avoid gaps from abandoned
@@ -87,4 +102,3 @@ in the same change. Keep implementation details in code or task notes, not here.
 - **2026-09-28:** A dedicated routed page supersedes the standalone
   drawer-over-empty-page item-creation layout; the transaction ItemPicker keeps
   its contextual drawer.
-

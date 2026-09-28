@@ -28,9 +28,6 @@ from temple_inventory.inventory_api import (
 	save_allowed_warehouses,
 )
 
-SIGNATURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH2kAAAAASUVORK5CYII="
-
-
 class WorkspaceTests(unittest.TestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
@@ -115,6 +112,22 @@ class WorkspaceTests(unittest.TestCase):
 			inventory_service._selection_values('["Room / A, east", "Room / B"]'), ["Room / A, east", "Room / B"]
 		)
 		self.assertEqual(inventory_service._selection_values("Room / A, east"), ["Room / A, east"])
+
+	def test_sample_opening_rows_merge_non_batch_duplicates_and_split_batches(self):
+		from temple_inventory.setup.sample_inventory_data import _opening_reconciliation_documents
+
+		documents = _opening_reconciliation_documents([
+			{"item_code": "PLAIN", "warehouse": "sample-a", "qty": 6, "valuation_rate": 2},
+			{"item_code": "PLAIN", "warehouse": "sample-a", "qty": 3, "valuation_rate": 2},
+			{"item_code": "BATCHED", "warehouse": "sample-b", "batch_no": "B-1", "qty": 4, "valuation_rate": 5},
+			{"item_code": "BATCHED", "warehouse": "sample-b", "batch_no": "B-2", "qty": 7, "valuation_rate": 5},
+		])
+		self.assertEqual(len(documents), 2)
+		for rows in documents:
+			pairs = [(row["item_code"], row["warehouse"]) for row in rows]
+			self.assertEqual(len(pairs), len(set(pairs)))
+		plain = next(row for rows in documents for row in rows if row["item_code"] == "PLAIN")
+		self.assertEqual(plain["qty"], 9)
 
 	def test_history_aggregate_reports_roles_categories_and_signed_changes(self):
 		row = {
@@ -296,7 +309,10 @@ class WorkspaceTests(unittest.TestCase):
 			frappe.generate_hash(length=16),
 			kind,
 			{
-				"source_text": "Donation", "no_independent_reviewer": 1, "handler_name": "测试经手人", "borrower_is_handler_or_witness": 1,
+				"source_text": "Donation",
+				"recorder_name": "测试记录人",
+				"handler_name": "测试经手人",
+				"reviewer_name": "测试鉴证人",
 				"items": [
 					{
 						"id": "line-1",
@@ -312,15 +328,15 @@ class WorkspaceTests(unittest.TestCase):
 			},
 		)
 
-	def signed(self, d):
+	def with_people(self, d):
 		p = copy.deepcopy(d["data"])
-		p["recorder_signature"] = SIGNATURE
+		p["recorder_name"] = p.get("recorder_name") or "测试记录人"
 		p["handler_name"] = p.get("handler_name") or "测试经手人"
-		p["handler_signature"] = SIGNATURE
+		p["reviewer_name"] = p.get("reviewer_name") or "测试鉴证人"
 		return api.save_workspace(d["name"], d["revision"], p)
 
 	def confirmed(self):
-		d = self.signed(self.create())
+		d = self.with_people(self.create())
 		self.assertFalse(d["sync_error"], d["sync_error"])
 		return api.confirm_workspace(d["name"], d["revision"])
 
@@ -568,18 +584,20 @@ class WorkspaceTests(unittest.TestCase):
 
 	def test_all_movement_kinds_carry_canonical_audit_fields(self):
 		with patch.object(api, "_try_sync"):
-			metadata = api.create_workspace(frappe.generate_hash(length=16), "Receive", {"recorded_by": "Guest", "responsible_person": "Guest", "handler_name": "测试经手人", "handler_signature": SIGNATURE, "items": []})
+			metadata = api.create_workspace(frappe.generate_hash(length=16), "Receive", {"recorded_by": "Guest", "responsible_person": "Guest", "recorder_name": "记录甲", "handler_name": "经手乙", "reviewer_name": "鉴证丙", "items": []})
 			self.assertEqual(metadata["data"]["recorded_by"], frappe.session.user)
 			self.assertEqual(metadata["data"]["responsible_person"], frappe.session.user)
+			self.assertEqual(metadata["data"]["recorder_name"], "记录甲")
 			for kind in MOVEMENT_TYPES:
 				draft = api.create_workspace(
 					frappe.generate_hash(length=16),
 					kind,
-					{"handler_name": "测试经手人", "handler_signature": SIGNATURE, "borrower_is_handler_or_witness": 1, "items": []},
+					{"recorder_name": "记录甲", "handler_name": "经手乙", "reviewer_name": "鉴证丙", "items": []},
 				)
-				self.assertEqual(draft["data"]["handler_name"], "测试经手人")
-				self.assertEqual(draft["data"]["handler_signature"], SIGNATURE)
-				self.assertEqual(draft["data"]["borrower_is_handler_or_witness"], 1)
+				self.assertEqual(draft["data"]["recorder_name"], "记录甲")
+				self.assertEqual(draft["data"]["handler_name"], "经手乙")
+				self.assertEqual(draft["data"]["reviewer_name"], "鉴证丙")
+				self.assertEqual(draft["data"]["recorded_by"], frappe.session.user)
 
 	def test_expiry_requires_stock_permission(self):
 		with patch.object(inventory_service, "_require_stock", side_effect=frappe.PermissionError):
@@ -644,13 +662,9 @@ class WorkspaceTests(unittest.TestCase):
 		)
 		self.assertFalse(d["sync_error"], d["sync_error"])
 		self.assertFalse(frappe.db.exists("Stock Ledger Entry", {"voucher_no": d["stock_entry"]}))
-		with self.assertRaises(frappe.ValidationError):
-			api.confirm_workspace(d["name"], d["revision"])
-		signed = self.signed(d)
-		self.assertEqual(d["stock_entry"], signed["stock_entry"])
-		result = api.confirm_workspace(d["name"], signed["revision"])
+		result = api.confirm_workspace(d["name"], d["revision"])
 		self.assertEqual(result["docstatus"], 1)
-		again = api.confirm_workspace(d["name"], signed["revision"])
+		again = api.confirm_workspace(d["name"], result["revision"])
 		self.assertEqual(result["stock_entry"], again["stock_entry"])
 		self.assertEqual(frappe.db.count("Stock Ledger Entry", {"voucher_no": result["stock_entry"]}), 2)
 		with self.assertRaises(frappe.ValidationError):
@@ -666,9 +680,9 @@ class WorkspaceTests(unittest.TestCase):
 			"mode": "selective",
 			"posting_date": nowdate(),
 			"posting_time": "12:00:00",
+			"recorder_name": "盘点记录人",
 			"handler_name": "盘点经手人",
-			"handler_signature": SIGNATURE,
-			"no_independent_reviewer": 1,
+			"reviewer_name": "盘点鉴证人",
 			"items": [{"item_code": self.item, "counted_qty": 1}],
 		}
 		draft = api.create_reconciliation(
@@ -683,6 +697,13 @@ class WorkspaceTests(unittest.TestCase):
 			"posting_time": payload["posting_time"],
 			"items": [{"item_code": self.item, "warehouse": self.a, "qty": 1, "stock_uom": "Nos", "valuation_rate": 1}],
 		}
+		temporary_account = frappe.db.get_value(
+			"Account",
+			{"company": self.company, "account_type": "Temporary", "is_group": 0, "disabled": 0},
+			"name",
+		)
+		if temporary_account:
+			existing_data["expense_account"] = temporary_account
 		if meta.has_field("ti_workspace"):
 			existing_data["ti_workspace"] = draft["name"]
 		existing = frappe.get_doc(existing_data).insert(
@@ -696,53 +717,23 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(frappe.db.count("Stock Reconciliation", {"name": existing.name}), 1)
 		self.assertEqual(frappe.db.get_value("Stock Reconciliation", existing.name, "docstatus"), 1)
 
-	def test_signature_is_retained_but_marked_stale_and_direct_edit_blocked(self):
-		d = self.signed(self.create())
+	def test_people_fields_are_optional_and_do_not_control_submission(self):
+		d = self.create(recorder_name="", handler_name="", reviewer_name="")
+		result = api.confirm_workspace(d["name"], d["revision"])
+		self.assertEqual(result["docstatus"], 1)
+		self.assertEqual(result["data"]["recorded_by"], frappe.session.user)
+		for field in ("recorder_name", "handler_name", "reviewer_name"):
+			self.assertFalse(result["data"].get(field))
+
+	def test_workspace_stock_entry_remains_protected_from_direct_edit(self):
+		d = self.create()
 		p = copy.deepcopy(d["data"])
-		p["notes"] = "Changed after signing"
+		p["notes"] = "Changed before submission"
 		d = api.save_workspace(d["name"], d["revision"], p)
-		self.assertEqual(d["data"]["recorder_signature"], SIGNATURE)
-		self.assertEqual(d["data"]["handler_signature"], SIGNATURE)
-		self.assertEqual(d["data"]["handler_signature_state"]["status"], "stale")
-		with self.assertRaises(frappe.ValidationError):
-			api.confirm_workspace(d["name"], d["revision"])
 		doc = frappe.get_doc("Stock Entry", d["stock_entry"])
 		doc.remarks = "Bypass"
 		with self.assertRaises(frappe.PermissionError):
 			doc.save()
-
-	def test_adding_reviewer_signature_does_not_clear_handler_signature(self):
-		d = self.signed(self.create())
-		p = copy.deepcopy(d["data"])
-		p["reviewer_name"] = "测试鉴证人"
-		p["reviewer_signature"] = SIGNATURE
-		d = api.save_workspace(d["name"], d["revision"], p)
-		self.assertEqual(d["data"]["handler_signature"], SIGNATURE)
-		self.assertEqual(d["data"]["reviewer_signature"], SIGNATURE)
-
-	def test_each_stale_signature_can_be_reconfirmed_before_submit(self):
-		d = self.signed(self.create())
-		payload = copy.deepcopy(d["data"])
-		payload.update(
-			no_independent_reviewer=0,
-			reviewer_name="测试鉴证人",
-			reviewer_signature=SIGNATURE,
-		)
-		d = api.save_workspace(d["name"], d["revision"], payload)
-		payload = copy.deepcopy(d["data"])
-		payload["notes"] = "签名后修改业务内容"
-		d = api.save_workspace(d["name"], d["revision"], payload)
-		for signer in ("handler", "recorder", "reviewer"):
-			self.assertEqual(d["data"][f"{signer}_signature_state"]["status"], "stale")
-		d = api.reconfirm_signature(d["name"], d["revision"], "handler")
-		self.assertEqual(d["data"]["handler_signature_state"]["status"], "valid")
-		self.assertEqual(d["data"]["reviewer_signature_state"]["status"], "stale")
-		with self.assertRaisesRegex(frappe.ValidationError, "记录人签名内容已变化"):
-			api.confirm_workspace(d["name"], d["revision"])
-		d = api.reconfirm_signature(d["name"], d["revision"], "recorder")
-		d = api.reconfirm_signature(d["name"], d["revision"], "reviewer")
-		result = api.confirm_workspace(d["name"], d["revision"])
-		self.assertEqual(result["docstatus"], 1)
 
 	def test_duplicate_issue_rows_aggregate_stock(self):
 		self.confirmed()
@@ -768,7 +759,7 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(row.t_warehouse, self.b)
 
 		loan = self.create("Loan", borrower="Test borrower", items=[{"id": "loan", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a}])
-		loan = self.signed(loan)
+		loan = self.with_people(loan)
 		loan = api.confirm_workspace(loan["name"], loan["revision"])
 		loan_item = frappe.get_all("Inventory Loan Item", filters={"parent": loan["data"]["loan_record"]}, pluck="name")[0]
 		loan_entry = frappe.get_doc("Stock Entry", loan["stock_entry"])
@@ -778,7 +769,7 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(picked_line["outstanding"], 1)
 
 		returned = self.create("Return", items=[{"id": "return", "item_code": self.item, "qty": 1, "uom": "Nos", "loan_item": loan_item, "outcome": "Returned", "to_warehouse": self.a}])
-		returned = self.signed(returned)
+		returned = self.with_people(returned)
 		returned = api.confirm_workspace(returned["name"], returned["revision"])
 		return_entry = frappe.get_doc("Stock Entry", returned["stock_entry"])
 		self.assertEqual(return_entry.items[0].s_warehouse, loan_entry.items[0].t_warehouse)
@@ -825,7 +816,7 @@ class WorkspaceTests(unittest.TestCase):
 		)
 		self.assertFalse(d["sync_error"], d["sync_error"])
 		self.assertTrue(d["data"]["items"][0]["batch_no"])
-		d = self.signed(d)
+		d = self.with_people(d)
 		d = api.confirm_workspace(d["name"], d["revision"])
 		self.assertEqual(d["docstatus"], 1)
 		self.assertEqual(api.batches(self.item, self.a)[0]["qty"], 2)
@@ -851,8 +842,8 @@ class WorkspaceTests(unittest.TestCase):
 			]
 		)
 		self.assertFalse(d["sync_error"], d["sync_error"])
-		signed = self.signed(d)
-		result = api.confirm_workspace(signed["name"], signed["revision"])
+		with_people = self.with_people(d)
+		result = api.confirm_workspace(with_people["name"], with_people["revision"])
 		self.assertEqual(result["docstatus"], 1)
 		batch = frappe.get_doc("Batch", result["data"]["items"][0]["batch_no"])
 		self.assertEqual(str(batch.expiry_date), "2000-01-01")
@@ -869,7 +860,7 @@ class WorkspaceTests(unittest.TestCase):
 			]
 		)
 		self.assertFalse(existing["sync_error"], existing["sync_error"])
-		existing = self.signed(existing)
+		existing = self.with_people(existing)
 		self.assertEqual(
 			api.confirm_workspace(existing["name"], existing["revision"])["docstatus"], 1
 		)
@@ -950,6 +941,44 @@ class WorkspaceTests(unittest.TestCase):
 		inventory_service.sync_desk_warehouse_allowlist(location)
 		settings = frappe.get_single("Temple Inventory Settings")
 		self.assertIn(location.name, {row.warehouse for row in settings.allowed_warehouses})
+
+	def test_desk_leaf_outside_physical_root_is_ignored(self):
+		outside_group = frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": f"TI Outside Group {self.token}",
+				"company": self.company,
+				"is_group": 1,
+			}
+		).insert()
+		location = frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": f"TI Outside Location {self.token}",
+				"company": self.company,
+				"parent_warehouse": outside_group.name,
+				"is_group": 0,
+			}
+		).insert()
+		inventory_service.sync_desk_warehouse_allowlist(location)
+		settings = frappe.get_single("Temple Inventory Settings")
+		self.assertNotIn(location.name, {row.warehouse for row in settings.allowed_warehouses})
+		self.assertNotIn(location.name, inventory_service._physical_tree(settings))
+
+	def test_ordinary_desk_leaf_cannot_keep_a_fallback_role(self):
+		location = frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": f"TI Ordinary Location {self.token}",
+				"company": self.company,
+				"parent_warehouse": self.room,
+				"is_group": 0,
+				"warehouse_type": "Location",
+				"ti_fallback_role": "room_default",
+			}
+		).insert()
+		inventory_service.sync_desk_warehouse_allowlist(location)
+		self.assertFalse(frappe.db.get_value("Warehouse", location.name, "ti_fallback_role"))
 
 	def test_history_filters_and_leaf_rejection(self):
 		d = self.create(source_text="A Donor")
@@ -1114,7 +1143,7 @@ class WorkspaceTests(unittest.TestCase):
 		attachment = next(row for row in api.load_workspace(d["name"])["attachments"] if row["name"] == file.name)
 		self.assertIn("file_type", attachment)
 		self.assertIn("file_size", attachment)
-		d = self.signed(d)
+		d = self.with_people(d)
 		api.confirm_workspace(d["name"], d["revision"])
 		with self.assertRaises(frappe.ValidationError):
 			api.remove_attachment(d["name"], file.name)

@@ -13,7 +13,6 @@ class InventoryReturn(Document):
     def validate(self):
         if not self.items: frappe.throw("归还至少需要一项")
         if not self.recorded_by: self.recorded_by=frappe.session.user
-        if not self.no_independent_reviewer and (not self.reviewer_name or not self.reviewer_signature): frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
         for row in self.items:
             if row.qty <= 0 or not row.loan_item: frappe.throw("归还必须引用借出明细")
             if row.outcome == "Damaged" and not frappe.db.get_value("Warehouse", row.target_warehouse, "warehouse_name") == "损坏待处理": frappe.throw("损坏归还必须进入损坏待处理")

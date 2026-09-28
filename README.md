@@ -35,8 +35,10 @@ mit
 ### Development sample reset
 
 For a disposable development site only, rebuild the complete site database and load
-all Temple Inventory sample catalog, opening stock, images, and representative
-inventory movements:
+the Temple Inventory catalog, opening stock, images, and representative inventory
+movements. General demonstration stock and transactions are isolated below the
+`样例物品` branch; costume catalog and opening stock are treated as real data and
+are loaded into the configured A04 location:
 
 ```bash
 ./apps/temple_inventory/scripts/reset-development-samples --site development.localhost

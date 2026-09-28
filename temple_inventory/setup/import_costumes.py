@@ -519,8 +519,9 @@ def _create_opening_stock_reconciliation(
     company: Optional[str],
     default_valuation_rate: float,
     submit_opening_stock: bool,
+    opening_warehouse: Optional[str] = None,
 ) -> Optional[str]:
-    warehouse = _resolve_a04_warehouse()
+    warehouse = opening_warehouse or _resolve_a04_warehouse()
     company = company or _get_default_company()
 
     items = []
@@ -568,10 +569,7 @@ def _create_opening_stock_reconciliation(
             "expense_account": temporary_opening_account,
             "posting_date": nowdate(),
             "items": items,
-            "remarks": (
-                "Notion 演出用品初始库存导入；"
-                f"全部初始数量位于 {SITE_WAREHOUSE_LABEL} / {ROOM_WAREHOUSE_LABEL}。"
-            ),
+            "remarks": f"Notion 演出用品初始库存导入；全部初始数量位于 {warehouse}。",
         }
     )
     doc.insert(ignore_permissions=True)
@@ -599,6 +597,7 @@ def run(
     company: Optional[str] = None,
     update_existing_items: int = 1,
     dry_run: int = 0,
+    opening_warehouse: Optional[str] = None,
 ):
     """
     主导入函数。
@@ -677,7 +676,7 @@ def run(
         frappe.throw("存在未配置的 notion_type：" + "、".join(bad_types))
 
     # dry-run 也检查 warehouse / 图片目录是否完整。
-    if create_opening_stock or dry_run:
+    if (create_opening_stock or dry_run) and not opening_warehouse:
         _resolve_a04_warehouse()
 
     if manifest_rows and image_dir:
@@ -719,7 +718,7 @@ def run(
             "source_rows": len(source_rows),
             "manifest_rows": len(manifest_rows),
             "item_groups": TYPE_TO_ITEM_GROUP,
-            "warehouse": f"{SITE_WAREHOUSE_LABEL} / {ROOM_WAREHOUSE_LABEL}",
+            "warehouse": opening_warehouse or f"{SITE_WAREHOUSE_LABEL} / {ROOM_WAREHOUSE_LABEL}",
             "stock_uom": DEFAULT_STOCK_UOM,
             "stock_uom_exists": standard_uom_exists,
             "stock_uom_allows_fraction": standard_uom_allows_fraction,
@@ -768,6 +767,7 @@ def run(
             company=company,
             default_valuation_rate=default_valuation_rate,
             submit_opening_stock=bool(cint(submit_opening_stock)),
+            opening_warehouse=opening_warehouse,
         )
 
     result = {

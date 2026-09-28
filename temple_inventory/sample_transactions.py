@@ -6,9 +6,6 @@ import frappe
 from frappe.utils import flt
 
 
-SIGNATURE = "data:image/png;base64,AA=="
-
-
 def _settings():
 	return frappe.get_single("Temple Inventory Settings")
 
@@ -18,11 +15,9 @@ def _confirm(kind, sequence, rows, **extra):
 
 	data = {
 		"items": rows,
-		"no_independent_reviewer": 1,
-		"recorder_signature": SIGNATURE,
+		"recorder_name": "样例记录人",
 		"handler_name": "样例经手人",
-		"handler_signature": SIGNATURE,
-		"borrower_is_handler_or_witness": 0 if extra.get("borrower") else 1,
+		"reviewer_name": "样例鉴证人",
 		"recorded_by": frappe.session.user,
 		"posting_time_mode": "current",
 		**extra,
@@ -62,10 +57,10 @@ def _loan_item_for_workspace(workspace):
 	return frappe.db.get_value("Inventory Loan Item", {"parent": loan_item}, "name")
 
 
-def install_representative_transactions(company):
+def install_representative_transactions(company, sample_warehouses):
 	"""Create the required 15 submitted inventory movements through production services."""
 	settings = _settings()
-	leaves = sorted(row.warehouse for row in settings.get("allowed_warehouses", []) if row.warehouse)
+	leaves = sorted(sample_warehouses or [])
 	if len(leaves) < 2:
 		frappe.throw("样例交易需要至少两个实体库位")
 

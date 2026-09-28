@@ -13,7 +13,6 @@ class InventoryLoss(Document):
     def validate(self):
         if not self.items: frappe.throw("遗失至少需要一项")
         if not self.recorded_by: self.recorded_by=frappe.session.user
-        if not self.no_independent_reviewer and (not self.reviewer_name or not self.reviewer_signature): frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
         for row in self.items:
             if row.qty <= 0 or not row.source_warehouse: frappe.throw("遗失数量和来源仓库为必填")
             if row.original_loan_item:

@@ -8,7 +8,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.09.final"
+VERSION = "2026.09.real-costumes"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -148,6 +148,7 @@ def install_sample_data(company=None):
 		_progress("期初库存：开始")
 		_progress("样例图片：开始")
 		general_result = import_sample_data(company=company, create_stock=1, attach_images=1)
+		sample_warehouses = general_result["样例仓库"]["leaves"]
 		_progress("样例图片：完成")
 		_progress("期初库存：完成")
 		_progress("通用目录与批次：完成")
@@ -155,7 +156,7 @@ def install_sample_data(company=None):
 		from temple_inventory.setup.import_costumes import run as import_costumes
 
 		setup_root = Path(__file__).resolve().parent / "setup"
-		_progress("服装目录、期初库存和图片：开始")
+		_progress("服装正式目录、A04 期初库存和图片：开始")
 		costume_result = import_costumes(
 			source_csv=str(setup_root / "costumes-data" / "costumes_source_normalized.csv"),
 			company=company,
@@ -164,12 +165,12 @@ def install_sample_data(company=None):
 			create_opening_stock=1,
 			submit_opening_stock=1,
 		)
-		_progress("服装目录、期初库存和图片：完成")
+		_progress("服装正式目录、A04 期初库存和图片：完成")
 
 		from temple_inventory.sample_transactions import install_representative_transactions
 
 		_progress("样例库存事务：开始")
-		transaction_result = install_representative_transactions(company)
+		transaction_result = install_representative_transactions(company, sample_warehouses)
 		_progress("样例库存事务：完成")
 		_assert_leaf_stock(settings)
 		_progress("叶子库位库存校验：完成")

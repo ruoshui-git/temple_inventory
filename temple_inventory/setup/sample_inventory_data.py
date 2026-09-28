@@ -57,6 +57,9 @@ OPENING_STOCK = [('ITM-000004', '白砂糖 50磅袋', 'C03', 18, 29.0, '', '', '
 
 BATCH_SPECS = {'ITM-000001': [('BAT-000001', '2025-01-15', '2025-08-31', 6), ('BAT-000002', '2025-09-01', '2026-06-30', 9), ('BAT-000003', '2026-04-10', '2027-03-31', 17)], 'ITM-000002': [('BAT-000004', '2025-02-01', '2025-12-31', 24), ('BAT-000005', '2025-11-01', '2026-08-31', 18), ('BAT-000006', '2026-06-15', '2027-05-31', 42)], 'ITM-000003': [('BAT-000007', '2025-05-01', '2026-05-31', 4), ('BAT-000008', '2026-01-15', '2027-01-31', 11), ('BAT-000009', '2026-08-01', '2028-02-29', 8)], 'ITM-000005': [('BAT-000010', '2025-01-10', '2025-10-31', 35), ('BAT-000011', '2025-08-15', '2026-07-31', 48), ('BAT-000012', '2026-05-20', '2027-04-30', 96)], 'ITM-000061': [('BAT-000013', '2024-10-01', '2025-09-30', 8), ('BAT-000014', '2025-08-01', '2026-08-31', 11), ('BAT-000015', '2026-05-01', '2027-11-30', 21)], 'ITM-000062': [('BAT-000016', '2025-03-01', '2026-03-31', 24), ('BAT-000017', '2026-01-01', '2027-08-31', 60), ('BAT-000018', '2026-06-01', '2028-04-30', 84)]}
 
+SAMPLE_WAREHOUSE_GROUP = "样例物品"
+SAMPLE_WAREHOUSE_LEAVES = ("样例库位一", "样例库位二")
+
 
 def _get_company(company: str | None = None) -> str:
     if company:
@@ -86,6 +89,70 @@ def _find_warehouse(warehouse_name: str, company: str) -> str | None:
         {"warehouse_name": warehouse_name, "company": company},
         "name",
     )
+
+
+def ensure_sample_warehouses(company: str) -> dict[str, object]:
+    """Create one isolated sample branch with two stock-holding leaves."""
+    from temple_inventory.inventory_api import _allow_warehouses, _canonicalize_fallback_roles
+
+    settings = frappe.get_single("Temple Inventory Settings")
+    if not settings.physical_root_warehouse:
+        frappe.throw("请先配置实体库房根节点")
+    group = frappe.db.get_value(
+        "Warehouse",
+        {
+            "warehouse_name": SAMPLE_WAREHOUSE_GROUP,
+            "company": company,
+            "parent_warehouse": settings.physical_root_warehouse,
+            "is_group": 1,
+        },
+        "name",
+    )
+    if not group:
+        group = frappe.get_doc({
+            "doctype": "Warehouse",
+            "warehouse_name": SAMPLE_WAREHOUSE_GROUP,
+            "company": company,
+            "parent_warehouse": settings.physical_root_warehouse,
+            "warehouse_type": "地点",
+            "is_group": 1,
+            "ti_fallback_role": None,
+        }).insert(ignore_permissions=True).name
+    leaves = []
+    for label in SAMPLE_WAREHOUSE_LEAVES:
+        leaf = frappe.db.get_value(
+            "Warehouse",
+            {"warehouse_name": label, "company": company, "parent_warehouse": group},
+            "name",
+        )
+        if not leaf:
+            leaf = frappe.get_doc({
+                "doctype": "Warehouse",
+                "warehouse_name": label,
+                "company": company,
+                "parent_warehouse": group,
+                "warehouse_type": "库位",
+                "is_group": 0,
+                "ti_fallback_role": None,
+            }).insert(ignore_permissions=True).name
+        leaves.append(leaf)
+    fallback_rows = frappe.db.sql(
+        """select child.name,
+            case when lower(parent.warehouse_type) in ('room', '房间')
+                then 'room_default' else 'group_default' end as fallback_role
+        from `tabWarehouse` child
+        join `tabWarehouse` parent on parent.name=child.parent_warehouse
+        where child.company=%s and child.is_group=0
+            and child.warehouse_name=concat(parent.warehouse_name, ' / 未指定')""",
+        (company,),
+        as_dict=True,
+    )
+    _canonicalize_fallback_roles(
+        company,
+        [(row.name, row.fallback_role) for row in fallback_rows],
+    )
+    _allow_warehouses(settings, leaves)
+    return {"group": group, "leaves": leaves}
 
 
 def _ensure_warehouses(company: str) -> None:
@@ -522,9 +589,48 @@ def _find_existing_sample_reconciliation(
     return None
 
 
+def _opening_reconciliation_documents(rows: list[dict]) -> list[list[dict]]:
+    """Merge true duplicates, then partition rows to satisfy ERPNext uniqueness.
+
+    Stock Reconciliation rejects duplicate Item/Warehouse pairs even when the
+    rows point at different batches. Non-batch duplicates represent quantities
+    that used to be split across real rooms, so they are summed after isolation.
+    Distinct batches remain distinct and are placed in separate documents.
+    """
+    merged: dict[tuple[str, str, str], dict] = {}
+    for source in rows:
+        row = dict(source)
+        key = (row["item_code"], row["warehouse"], row.get("batch_no") or "")
+        existing = merged.get(key)
+        if not existing:
+            merged[key] = row
+            continue
+        old_qty = flt(existing["qty"])
+        added_qty = flt(row["qty"])
+        total_qty = old_qty + added_qty
+        total_value = old_qty * flt(existing.get("valuation_rate")) + added_qty * flt(row.get("valuation_rate"))
+        existing["qty"] = total_qty
+        existing["valuation_rate"] = total_value / total_qty if total_qty else 0
+
+    documents: list[list[dict]] = []
+    occupied_pairs: list[set[tuple[str, str]]] = []
+    for row in merged.values():
+        pair = (row["item_code"], row["warehouse"])
+        for index, occupied in enumerate(occupied_pairs):
+            if pair not in occupied:
+                documents[index].append(row)
+                occupied.add(pair)
+                break
+        else:
+            documents.append([row])
+            occupied_pairs.append({pair})
+    return documents
+
+
 def _create_opening_stock(
     company: str,
     item_code_map: dict[str, str],
+    sample_warehouses: list[str],
     submit_stock: int | bool = 1,
 ) -> dict:
     """Create opening-stock reconciliations with valid historical dates.
@@ -568,7 +674,7 @@ def _create_opening_stock(
         note,
     ) in OPENING_STOCK:
         item_code = item_code_map[sample_key]
-        warehouse = _get_warehouse(room_code, company)
+        warehouse = sample_warehouses[(int(sample_key.split("-")[-1]) - 1) % len(sample_warehouses)]
         if _stock_already_exists(item_code, warehouse, batch_no or None):
             skipped.append({
                 "item_code": item_code,
@@ -604,20 +710,21 @@ def _create_opening_stock(
 
     names = []
     for posting_date in sorted(grouped_rows):
-        doc = frappe.get_doc({
-            "doctype": "Stock Reconciliation",
-            "company": company,
-            "purpose": "Opening Stock",
-            "posting_date": posting_date,
-            "posting_time": "12:00:00",
-            "set_posting_time": 1,
-            "expense_account": opening_account,
-            "items": grouped_rows[posting_date],
-        })
-        doc.insert(ignore_permissions=True)
-        if int(submit_stock):
-            doc.submit()
-        names.append(doc.name)
+        for document_rows in _opening_reconciliation_documents(grouped_rows[posting_date]):
+            doc = frappe.get_doc({
+                "doctype": "Stock Reconciliation",
+                "company": company,
+                "purpose": "Opening Stock",
+                "posting_date": posting_date,
+                "posting_time": "12:00:00",
+                "set_posting_time": 1,
+                "expense_account": opening_account,
+                "items": document_rows,
+            })
+            doc.insert(ignore_permissions=True)
+            if int(submit_stock):
+                doc.submit()
+            names.append(doc.name)
 
     return {
         "stock_reconciliation": names[0],
@@ -739,6 +846,8 @@ def import_sample_data(
     company = _get_company(company)
 
     _ensure_warehouses(company)
+    sample_branch = ensure_sample_warehouses(company)
+    sample_warehouses = sample_branch["leaves"]
     _ensure_item_groups()
     item_code_map = _ensure_items()
     _ensure_batches(item_code_map)
@@ -753,6 +862,7 @@ def import_sample_data(
         stock_result = _create_opening_stock(
             company,
             item_code_map,
+            sample_warehouses,
             submit_stock=submit_stock,
         )
 
@@ -766,6 +876,7 @@ def import_sample_data(
     return {
         "company": company,
         "仓库定义数量": len(WAREHOUSE_METADATA),
+        "样例仓库": sample_branch,
         "分类数量": len(CATEGORIES),
         "物品数量": len(ITEMS),
         "Item Code 映射": item_code_map,

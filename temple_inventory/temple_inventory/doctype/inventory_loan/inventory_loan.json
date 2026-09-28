@@ -9,18 +9,13 @@
     "company",
     "posting_datetime",
     "borrower",
-    "borrower_is_handler_or_witness",
     "activity",
     "purpose",
     "notes",
     "recorded_by",
-    "handler_signature",
+    "recorder_name",
     "handler_name",
     "reviewer_name",
-    "no_independent_reviewer",
-    "reviewer_note",
-    "recorder_signature",
-    "reviewer_signature",
     "workspace",
     "stock_entry",
     "items"
@@ -73,27 +68,6 @@
       "label": "Reviewer"
     },
     {
-      "fieldname": "no_independent_reviewer",
-      "fieldtype": "Check",
-      "label": "No Independent Reviewer",
-      "default": "0"
-    },
-    {
-      "fieldname": "reviewer_note",
-      "fieldtype": "Small Text",
-      "label": "Reviewer Note"
-    },
-    {
-      "fieldname": "recorder_signature",
-      "fieldtype": "Signature",
-      "label": "Recorder Signature"
-    },
-    {
-      "fieldname": "reviewer_signature",
-      "fieldtype": "Signature",
-      "label": "Reviewer Signature"
-    },
-    {
       "fieldname": "workspace",
       "fieldtype": "Link",
       "label": "Workspace",
@@ -120,15 +94,9 @@
       "label": "Handler"
     },
     {
-      "fieldname": "handler_signature",
-      "fieldtype": "Signature",
-      "label": "Handler Signature"
-    },
-    {
-      "fieldname": "borrower_is_handler_or_witness",
-      "fieldtype": "Check",
-      "label": "Borrower Is Handler Or Witness",
-      "default": "1"
+      "fieldname": "recorder_name",
+      "fieldtype": "Data",
+      "label": "Recorder"
     }
   ],
   "index_web_pages_for_search": 1,

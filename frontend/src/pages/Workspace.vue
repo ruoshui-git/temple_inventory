@@ -8,7 +8,6 @@ import Scanner from "../components/Scanner.vue";
 import LoadingIndicator from "../components/LoadingIndicator.vue";
 import ItemPicker from "../components/ItemPicker.vue";
 import LoanItemPicker from "../components/LoanItemPicker.vue";
-import SignaturePad from "../components/SignaturePad.vue";
 import AttachmentList from "../components/AttachmentList.vue";
 import { toast } from "../lib/toast";
 import { returnToOpener } from "../lib/navigation";
@@ -140,11 +139,6 @@ const label = (name: string) => warehousePresentation(name, tree.value).breadcru
 const leafLabel = (name: string) => warehousePresentation(name, tree.value).localLabel;
 const requiredMark =
 	'<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">必填</span>';
-const signerLabels: Record<string, string> = {
-	handler: "经手人",
-	recorder: "记录人",
-	reviewer: "鉴证人",
-};
 const today = () => {
 	const value = new Date();
 	const pad = (part: number) => String(part).padStart(2, "0");
@@ -159,20 +153,7 @@ function changed(immediate = false) {
 	saveStatus.value = "尚未保存";
 	queue.schedule(immediate);
 }
-function invalidate() {
-	/* Drawings remain visible; the server marks them stale by digest. */
-}
-function setNoIndependentReviewer(value: boolean) {
-	if (!form.value) return;
-	form.value.no_independent_reviewer = value;
-	changed(true);
-}
-function setBorrowerDeclaration(value: boolean) {
-	if (!form.value) return;
-	form.value.borrower_is_handler_or_witness = value;
-	if (value) form.value.borrower = "";
-	changed(true);
-}
+function invalidate() {}
 function markManualTime() {
 	if (form.value && form.value.posting_time_mode !== "manual")
 		form.value.posting_time_mode = "manual";
@@ -185,46 +166,6 @@ function setCurrentTime() {
 	form.value.posting_time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 	form.value.posting_time_mode = "current";
 	changed(true);
-}
-const signatureState = (signer: string) =>
-	form.value?.[`${signer}_signature_state`] || {
-		status: form.value?.[`${signer}_signature`] ? "valid" : "absent",
-	};
-const signatureIssues = computed(() => {
-	if (!form.value) return [];
-	const signers = ["handler"];
-	if (!form.value.no_independent_reviewer || form.value.reviewer_signature)
-		signers.push("reviewer");
-	if (form.value.recorder_signature) signers.push("recorder");
-	return signers.flatMap((signer) => {
-		if (!form.value[`${signer}_signature`]) return [`${signerLabels[signer]}签名尚未完成`];
-		return signatureState(signer).status === "valid"
-			? []
-			: [`${signerLabels[signer]}签名内容已变化，请重新确认`];
-	});
-});
-async function reconfirmSignature(signer: string) {
-	if (!record.value?.name || !form.value?.[`${signer}_signature`]) return;
-	try {
-		await queue.flush();
-		if (dirty.value || conflict.value) {
-			error.value = "请先保存当前修改";
-			return;
-		}
-		const result = await workspaceApi("reconfirm_signature", {
-			name: record.value.name,
-			revision: record.value.revision,
-			signer,
-		});
-		record.value = result;
-		applying = true;
-		form.value = result.data;
-		applying = false;
-		saveStatus.value = "✓ 已保存";
-		error.value = "";
-	} catch (cause: any) {
-		error.value = cause.message;
-	}
 }
 watch(form, () => changed(), { deep: true, flush: "sync" });
 
@@ -337,8 +278,7 @@ async function load() {
 					posting_time: `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
 					posting_time_mode: "current",
 					handler_name: "",
-					handler_signature: "",
-					borrower_is_handler_or_witness: kind === "Loan",
+					recorder_name: "",
 					activity: "",
 					notes: "",
 					source_text: "",
@@ -346,8 +286,6 @@ async function load() {
 					borrower: "",
 					recorded_by: boot.value.user,
 					reviewer_name: "",
-					no_independent_reviewer: false,
-					reviewer_signature: "",
 					loan_record: "",
 					return_record: "",
 					loss_record: "",
@@ -734,10 +672,6 @@ async function showReview() {
 		error.value = record.value.sync_error;
 		return;
 	}
-	if (signatureIssues.value.length) {
-		error.value = signatureIssues.value.join("；");
-		return;
-	}
 	review.value = true;
 }
 async function confirm() {
@@ -1017,20 +951,13 @@ onBeforeUnmount(() => {
 										</option>
 									</datalist></label
 								><label
-									v-if="
-										['Return', 'Loss'].includes(form.movement_kind) ||
-										(form.movement_kind === 'Loan' &&
-											!form.borrower_is_handler_or_witness)
-									"
+									v-if="['Loan', 'Return', 'Loss'].includes(form.movement_kind)"
 									>借用方
 									<span
 										v-if="form.movement_kind === 'Loan'"
 										v-html="requiredMark" /><input
 										v-model="form.borrower"
-										:required="
-											form.movement_kind === 'Loan' &&
-											!form.borrower_is_handler_or_witness
-										"
+										:required="form.movement_kind === 'Loan'"
 										:readonly="
 											form.movement_kind === 'Return' && !!form.items?.length
 										"
@@ -1059,95 +986,17 @@ onBeforeUnmount(() => {
 					@upload="uploadAttachmentFiles"
 					@remove="removeAttachmentFile"
 				/>
-				<fieldset :disabled="readonly || confirming">
-					<label v-if="form.movement_kind === 'Loan'" class="checkbox"
-						><input
-							type="checkbox"
-							:checked="form.borrower_is_handler_or_witness"
-							@change="
-								setBorrowerDeclaration(($event.target as HTMLInputElement).checked)
-							"
-						/>
-						借用方是经手人或鉴证人</label
-					><label
-						>经手人 <span v-html="requiredMark" /><input
-							v-model="form.handler_name"
-							required
-							placeholder="请输入姓名或称谓"
-							@input="changed(true)" /></label
-					><SignaturePad
-						label="经手人签名"
-						v-model="form.handler_signature"
-						:required="true"
-						:disabled="readonly || confirming"
-						@complete="changed(true)"
-					/>
-					<p v-if="signatureState('handler').status === 'valid'" class="muted">
-						✓ 经手人签名适用于当前内容
-					</p>
-					<p v-else-if="signatureState('handler').status === 'stale'" class="error">
-						经手人签名仍保留，但内容已更改。<button
-							type="button"
-							@click="reconfirmSignature('handler')"
-						>
-							重新确认经手人签名
-						</button>
-					</p>
-					<label class="checkbox"
-						><input
-							type="checkbox"
-							:checked="form.no_independent_reviewer"
-							@change="
-								setNoIndependentReviewer(
-									($event.target as HTMLInputElement).checked,
-								)
-							"
-							:disabled="readonly || confirming"
-						/>
-						无独立鉴证人</label
-					><template v-if="!form.no_independent_reviewer || form.reviewer_signature"
-						><label
-							>鉴证人
-							<span
-								v-if="!form.no_independent_reviewer"
-								v-html="requiredMark" /><input
-								v-model="form.reviewer_name"
-								:required="!form.no_independent_reviewer"
-								@input="changed(true)" /></label
-						><SignaturePad
-							label="鉴证人签名"
-							v-model="form.reviewer_signature"
-							:required="!form.no_independent_reviewer"
-							:disabled="readonly || confirming"
-							@complete="changed(true)"
-						/>
-						<p v-if="signatureState('reviewer').status === 'valid'" class="muted">
-							✓ 鉴证人签名适用于当前内容
-						</p>
-						<p v-else-if="signatureState('reviewer').status === 'stale'" class="error">
-							鉴证人签名仍保留，但内容已更改。<button
-								type="button"
-								@click="reconfirmSignature('reviewer')"
-							>
-								重新确认鉴证人签名
-							</button>
-						</p></template
-					><template v-if="form.recorder_signature"
-						><SignaturePad
-							label="记录人签名"
-							v-model="form.recorder_signature"
-							:disabled="readonly || confirming"
-							@complete="changed(true)"
-						/>
-						<p v-if="signatureState('recorder').status === 'stale'" class="error">
-							记录人签名仍保留，但内容已更改。<button
-								type="button"
-								@click="reconfirmSignature('recorder')"
-							>
-								重新确认记录人签名
-							</button>
-						</p></template
-					>
+				<fieldset class="transaction-people" :disabled="readonly || confirming">
+					<legend>现场人员（可选）</legend>
+					<label
+						>记录人<input v-model="form.recorder_name" @input="changed(true)"
+					/></label>
+					<label
+						>经手人<input v-model="form.handler_name" @input="changed(true)"
+					/></label>
+					<label
+						>鉴证人<input v-model="form.reviewer_name" @input="changed(true)"
+					/></label>
 				</fieldset>
 				<button
 					v-if="!readonly"
@@ -1434,17 +1283,10 @@ onBeforeUnmount(() => {
 					<p v-for="g in groups">{{ label(g.location) }} · {{ g.lines.length }} 行</p>
 					<p>活动：{{ form.activity || "无" }}</p>
 					<p>附件：{{ record.attachments?.length || 0 }}</p>
+					<p>记录人：{{ form.recorder_name || "未填写" }}</p>
 					<p>经手人：{{ form.handler_name || "未填写" }}</p>
 					<p>系统记录用户：{{ form.recorded_by || boot.user }}</p>
-					<p>
-						鉴证人：{{
-							form.no_independent_reviewer
-								? "无独立鉴证人"
-								: form.reviewer_name || "未填写"
-						}}
-					</p>
-					<p>{{ form.handler_signature ? "✓ 经手人已签名" : "经手人尚未签名" }}</p>
-					<p v-for="issue in signatureIssues" :key="issue" class="error">{{ issue }}</p>
+					<p>鉴证人：{{ form.reviewer_name || "未填写" }}</p>
 					<p v-if="error" class="error">{{ error }}</p>
 					<button type="button" :disabled="confirming" @click="review = false">
 						返回修改</button

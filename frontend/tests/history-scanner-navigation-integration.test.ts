@@ -5,7 +5,7 @@ import ItemDetail from '../src/pages/ItemDetail.vue'
 import Reconciliation from '../src/pages/Reconciliation.vue'
 import Workspace from '../src/pages/Workspace.vue'
 import History from '../src/pages/History.vue'
-import { returnToOpener } from '../src/lib/navigation'
+import { returnToOpener, routeInstanceKey } from '../src/lib/navigation'
 
 vi.mock('frappe-ui', () => ({ Combobox: defineComponent({ template: '<input />' }) }))
 
@@ -44,7 +44,6 @@ const globals = {
     LoadingIndicator: child,
     ItemImagePreview: child,
     AttachmentList: child,
-    SignaturePad: child,
     ItemPicker: child,
     LoanItemPicker: child,
     FloatingActionMenu: child,
@@ -77,6 +76,12 @@ beforeEach(() => {
 })
 
 describe('Task 04 history, scanner, and navigation integration', () => {
+  it('uses separate page instances for list destinations but not query-only changes', () => {
+    expect(routeInstanceKey('/movements')).not.toBe(routeInstanceKey('/adjustments'))
+    expect(routeInstanceKey('/adjustments')).not.toBe(routeInstanceKey('/drafts'))
+    expect(routeInstanceKey('/movements')).toBe(routeInstanceKey('/movements'))
+  })
+
   it('uses a modal scanner for one-shot item barcode editing and closes after decode', async () => {
     const wrapper = mount(ItemDetail, { global: globals })
     await flushPromises()
@@ -99,6 +104,10 @@ describe('Task 04 history, scanner, and navigation integration', () => {
     })
     const wrapper = mount(Reconciliation, { global: globals })
     await flushPromises()
+    expect(wrapper.text()).toContain('现场人员（可选）')
+    for (const label of ['记录人', '经手人', '鉴证人']) {
+      expect(wrapper.findAll('label').some(node => node.text().includes(label))).toBe(true)
+    }
     await clickText(wrapper, '扫描')
     expect(wrapper.findComponent(scanner).props('presentation')).toBe('modal')
     await wrapper.findComponent(scanner).vm.$emit('scan', 'CODE-1')
@@ -118,6 +127,10 @@ describe('Task 04 history, scanner, and navigation integration', () => {
     state.workspaceApi.mockImplementation(async (method: string) => method === 'activities' ? [] : {})
     const wrapper = mount(Workspace, { global: globals })
     await flushPromises()
+    expect(wrapper.text()).toContain('现场人员（可选）')
+    for (const label of ['记录人', '经手人', '鉴证人']) {
+      expect(wrapper.findAll('label').some(node => node.text().includes(label))).toBe(true)
+    }
     await clickText(wrapper, '▣ 连续扫码')
     expect(wrapper.findComponent(scanner).props('presentation')).toBe('continuous')
 

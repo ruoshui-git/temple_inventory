@@ -13,7 +13,6 @@ class InventoryLoan(Document):
     def validate(self):
         if not self.items: frappe.throw("借出至少需要一项")
         if not self.recorded_by: self.recorded_by=frappe.session.user
-        if not self.no_independent_reviewer and (not self.reviewer_name or not self.reviewer_signature): frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
         for row in self.items:
             if row.qty <= 0 or not row.original_warehouse: frappe.throw("借出数量和原始库位为必填")
     def on_update_after_submit(self):

@@ -13,7 +13,7 @@ from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
-from frappe.utils import cint, flt, get_time, getdate, now_datetime, nowdate, nowtime
+from frappe.utils import cint, flt, get_time, getdate, nowdate, nowtime
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
@@ -43,82 +43,16 @@ META = (
 	"borrower",
 	"activity",
 	"responsible_person",
+	"recorder_name",
 	"handler_name",
-	"handler_signature",
-	"borrower_is_handler_or_witness",
 	"notes",
-	"recorder_signature",
 	"reviewer_name",
-	"borrower_same_as_reviewer",
-	"no_independent_reviewer",
-	"reviewer_note",
-	"reviewer_signature",
 	"recorded_by",
 	"loan_record",
 	"return_record",
 	"loss_record",
 )
 STATE = ("items", "sections", "from_warehouse", "to_warehouse", "posting_time_mode", "warehouse", "mode")
-SIGNATURE_FIELDS = {
-	"handler": "handler_signature",
-	"recorder": "recorder_signature",
-	"reviewer": "reviewer_signature",
-}
-SIGNATURE_STATUS = ("absent", "valid", "stale")
-SIGNER_LABELS = {"handler": "经手人", "recorder": "记录人", "reviewer": "鉴证人"}
-
-
-def _signature_normalize(value):
-	"""Make business JSON stable across equivalent client representations."""
-	if value in (None, ""):
-		return None
-	if isinstance(value, dict):
-		return {key: _signature_normalize(value[key]) for key in sorted(value)}
-	if isinstance(value, list):
-		return [_signature_normalize(item) for item in value]
-	if isinstance(value, float):
-		return format(value, ".12g")
-	return str(value) if not isinstance(value, (int, bool)) else value
-
-
-def canonical_business_content(doc_or_payload):
-	"""Return the one canonical, attestation-independent business payload."""
-	payload = _payload(doc_or_payload) if hasattr(doc_or_payload, "state_json") else _loads(doc_or_payload, {})
-	content = {
-		key: payload.get(key)
-		for key in META
-		if key not in SIGNATURE_FIELDS.values()
-		and key not in ("reviewer_name", "reviewer_note", "borrower_same_as_reviewer", "no_independent_reviewer")
-	}
-	content.update({key: payload.get(key) for key in STATE})
-	items = content.get("items") or []
-	item_keys = {
-		"id", "item_code", "qty", "counted_qty", "count_state", "uom", "batch_no", "new_batch",
-		"expiry_date", "manufacturing_date", "warehouse", "from_warehouse", "to_warehouse",
-		"loan_item", "original_loan_item", "outcome", "reason",
-	}
-	items = [{key: item.get(key) for key in item_keys if key in item} for item in items]
-	content["items"] = sorted(
-		(_signature_normalize(item) for item in items),
-		key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False),
-	)
-	return _signature_normalize(content)
-
-
-def signature_digest(doc_or_payload):
-	canonical = json.dumps(canonical_business_content(doc_or_payload), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-	return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def _signature_metadata(doc, signer):
-	return {
-		"image": doc.get(SIGNATURE_FIELDS[signer]) or "",
-		"attested_digest": doc.get(f"{signer}_attested_digest") or "",
-		"current_digest": doc.get(f"{signer}_current_digest") or "",
-		"status": doc.get(f"{signer}_signature_status") or ("valid" if doc.get(SIGNATURE_FIELDS[signer]) else "absent"),
-		"confirmed_at": doc.get(f"{signer}_confirmed_at"),
-		"confirmed_by": doc.get(f"{signer}_confirmed_by"),
-	}
 
 
 def _get(name, write=False, lock=False):
@@ -166,8 +100,6 @@ def _editable(doc, revision):
 
 def _payload(doc):
 	p = {**{key: doc.get(key) for key in META}, **_loads(doc.state_json, {})}
-	for signer in SIGNATURE_FIELDS:
-		p[f"{signer}_signature_state"] = _signature_metadata(doc, signer)
 	p.setdefault("posting_time_mode", "current")
 	for key in ("posting_date", "posting_time"):
 		if p.get(key) is not None:
@@ -207,56 +139,11 @@ def _put(doc, data):
 			row["warehouse"] = row.get("warehouse") or row.get("from_warehouse")
 			row.pop("from_warehouse", None)
 			row.pop("to_warehouse", None)
-	# Retain drawings while recording that they attest to the previous content.
-	changed_keys = (*META, *STATE)
-	# Reviewer metadata is a separate audit stage. Adding or correcting it must
-	# not invalidate the already-captured handler/recorder signatures; movement
-	# content, scope, and posting changes still do.
-	content_keys = tuple(
-		key
-		for key in changed_keys
-		if key not in (
-			"handler_signature",
-			"reviewer_signature",
-			"recorder_signature",
-			"reviewer_name",
-			"reviewer_note",
-			"borrower_same_as_reviewer",
-			"no_independent_reviewer",
-		)
-	)
 	for key in META:
 		doc.set(key, new[key])
 	doc.state_json = json.dumps({key: new[key] for key in STATE}, ensure_ascii=False)
 	if len(doc.state_json) > 1_000_000:
 		frappe.throw(_("Transaction is too large"))
-	for field in ("handler_signature", "reviewer_signature", "recorder_signature"):
-		signature = doc.get(field)
-		if signature and (not signature.startswith("data:image/png;base64,") or len(signature) > 500_000):
-			frappe.throw(_("Invalid signature image"))
-	# Hash the normalized document after fields/state have been assigned so the
-	# attestation and final-submit paths use exactly the same representation.
-	new_digest = signature_digest(doc)
-	old_digest = signature_digest(old)
-	for signer, field in SIGNATURE_FIELDS.items():
-		image_was_cleared = field in data and not data.get(field)
-		image_changed = field in data and data.get(field) and data.get(field) != old.get(field)
-		if image_was_cleared:
-			for suffix in ("attested_digest", "current_digest", "confirmed_at", "confirmed_by"):
-				doc.set(f"{signer}_{suffix}", None if suffix != "current_digest" else new_digest)
-			doc.set(f"{signer}_signature_status", "absent")
-		elif image_changed or (new.get(field) and not doc.get(f"{signer}_attested_digest")):
-			doc.set(f"{signer}_attested_digest", new_digest)
-			doc.set(f"{signer}_current_digest", new_digest)
-			doc.set(f"{signer}_signature_status", "valid")
-			doc.set(f"{signer}_confirmed_at", now_datetime())
-			doc.set(f"{signer}_confirmed_by", frappe.session.user)
-		elif doc.get(field):
-			doc.set(f"{signer}_current_digest", new_digest)
-			if doc.get(f"{signer}_attested_digest") == new_digest:
-				doc.set(f"{signer}_signature_status", "valid")
-			elif old_digest != new_digest:
-				doc.set(f"{signer}_signature_status", "stale")
 	# Enforce access even for incomplete drafts, before storing JSON.
 	allowed = _visible_warehouses()
 	for row in new["items"]:
@@ -521,15 +408,6 @@ def _sync(doc):
 	state["items"] = payload["items"]
 	doc.state_json = json.dumps(state, ensure_ascii=False)
 	doc.sync_error = ""
-	# ERPNext preparation may add deterministic values (for example a generated
-	# receipt batch). Those are still part of this same save operation. A valid
-	# newly supplied signature is therefore rebound to the normalized payload;
-	# an already stale signature remains stale and cannot be rescued here.
-	final_digest = signature_digest(doc)
-	for signer in SIGNATURE_FIELDS:
-		if doc.get(f"{signer}_signature_status") == "valid":
-			doc.set(f"{signer}_attested_digest", final_digest)
-			doc.set(f"{signer}_current_digest", final_digest)
 	return entry
 
 
@@ -577,9 +455,9 @@ def create_workspace(request_id, movement_kind, data=None):
 			"posting_date": nowdate(),
 			"posting_time": nowtime(),
 			"responsible_person": frappe.session.user,
+			"recorder_name": "",
 			"handler_name": "",
-			"handler_signature": "",
-			"borrower_is_handler_or_witness": 1,
+			"reviewer_name": "",
 			"recorded_by": frappe.session.user,
 			"state_json": "{}",
 			"revision": 1,
@@ -835,7 +713,6 @@ def confirm_reconciliation(name, revision):
 	if _status(doc) == 1:
 		return _serialize(doc)
 	_editable(doc, revision)
-	_audit_check(doc)
 	payload = _payload(doc)
 	warehouse = payload.get("warehouse")
 	if warehouse not in leaves:
@@ -954,89 +831,79 @@ def save_workspace(name, revision, data):
 	return _serialize(doc)
 
 
-def _audit_check(doc):
-	if (doc.recorded_by or frappe.session.user) != frappe.session.user:
-		frappe.throw("系统记录用户不能修改")
-	if not doc.handler_name:
-		frappe.throw("经手人为必填")
-	current_digest = signature_digest(doc)
-	for signer, field in SIGNATURE_FIELDS.items():
-		if not doc.get(field):
-			if signer == "handler" or (signer == "reviewer" and not doc.no_independent_reviewer):
-				frappe.throw("经手人签名为必填" if signer == "handler" else "请填写鉴证人和签名，或选择无独立鉴证人")
-			continue
-		if doc.get(f"{signer}_signature_status") == "valid" and doc.get(f"{signer}_attested_digest") != current_digest:
-			# Reconciliation hydration and ERPNext normalization can add derived
-			# values without a business edit. Valid attestations are rebound to that
-			# canonical representation; business edits are marked stale by _put.
-			doc.set(f"{signer}_attested_digest", current_digest)
-			doc.set(f"{signer}_current_digest", current_digest)
-		elif doc.get(f"{signer}_signature_status") != "valid" or doc.get(f"{signer}_attested_digest") != current_digest:
-			frappe.throw(f"{SIGNER_LABELS[signer]}签名内容已变化，请重新确认")
-	if not doc.no_independent_reviewer and not doc.reviewer_name:
-		frappe.throw("请填写鉴证人和签名，或选择无独立鉴证人")
-	if doc.movement_kind == "Loan" and not doc.borrower_is_handler_or_witness and not doc.borrower:
-		frappe.throw("未选择借用方是经手人或鉴证人时，借用方为必填")
-
-
-@frappe.whitelist(methods=["POST"])
-def reconfirm_signature(name, revision, signer, image=None):
-	"""Bind one retained drawing to the current resolved business content."""
-	doc = _get(name, write=True, lock=True)
-	_editable(doc, revision)
-	if signer not in SIGNATURE_FIELDS:
-		frappe.throw("无效的签名角色")
-	field = SIGNATURE_FIELDS[signer]
-	if image is not None:
-		doc.set(field, image)
-	if not doc.get(field):
-		frappe.throw("没有可重新确认的签名")
-	if not doc.get(field).startswith("data:image/png;base64,") or len(doc.get(field)) > 500_000:
-		frappe.throw(_("Invalid signature image"))
-	digest = signature_digest(doc)
-	doc.set(f"{signer}_attested_digest", digest)
-	doc.set(f"{signer}_current_digest", digest)
-	doc.set(f"{signer}_signature_status", "valid")
-	doc.set(f"{signer}_confirmed_at", now_datetime())
-	doc.set(f"{signer}_confirmed_by", frappe.session.user)
-	doc.revision += 1
-	_save(doc)
-	return _serialize(doc)
-
-
-@frappe.whitelist(methods=["POST"])
-def clear_signature(name, revision, signer):
-	doc = _get(name, write=True, lock=True)
-	_editable(doc, revision)
-	if signer not in SIGNATURE_FIELDS:
-		frappe.throw("无效的签名角色")
-	doc.set(SIGNATURE_FIELDS[signer], "")
-	for suffix in ("attested_digest", "confirmed_at", "confirmed_by"):
-		doc.set(f"{signer}_{suffix}", None)
-	doc.set(f"{signer}_current_digest", signature_digest(doc))
-	doc.set(f"{signer}_signature_status", "absent")
-	doc.revision += 1
-	_save(doc)
-	return _serialize(doc)
-
-
 def _create_business_record(doc, payload, entry):
-	kind=doc.movement_kind
+	kind = doc.movement_kind
 	if kind not in ("Loan", "Return", "Loss"):
 		return
-	common={"company":doc.company,"posting_datetime":f"{doc.posting_date} {doc.posting_time}","recorded_by":doc.recorded_by or frappe.session.user,"handler_name":doc.handler_name,"handler_signature":doc.handler_signature,"borrower_is_handler_or_witness":doc.borrower_is_handler_or_witness,"reviewer_name":doc.reviewer_name,"no_independent_reviewer":doc.no_independent_reviewer,"reviewer_note":doc.reviewer_note,"recorder_signature":doc.recorder_signature,"reviewer_signature":doc.reviewer_signature,"workspace":doc.name,"stock_entry":entry.name}
-	if kind=="Loan":
-		record=frappe.get_doc({"doctype":"Inventory Loan",**common,"borrower":doc.borrower if not doc.borrower_is_handler_or_witness else "","activity":doc.activity,"purpose":doc.purpose_text,"notes":doc.notes,"items":[{"item_code":r["item_code"],"qty":r["qty"],"uom":r.get("uom"),"batch_no":r.get("batch_no"),"original_warehouse":r.get("from_warehouse") or r.get("warehouse"),"activity":doc.activity} for r in payload.get("items",[])]})
+	common = {
+		"company": doc.company,
+		"posting_datetime": f"{doc.posting_date} {doc.posting_time}",
+		"recorded_by": doc.recorded_by or frappe.session.user,
+		"recorder_name": doc.get("recorder_name"),
+		"handler_name": doc.get("handler_name"),
+		"reviewer_name": doc.get("reviewer_name"),
+		"workspace": doc.name,
+		"stock_entry": entry.name,
+	}
+	if kind == "Loan":
+		record = frappe.get_doc({
+			"doctype": "Inventory Loan",
+			**common,
+			"borrower": doc.borrower,
+			"activity": doc.activity,
+			"purpose": doc.purpose_text,
+			"notes": doc.notes,
+			"items": [{
+				"item_code": row["item_code"],
+				"qty": row["qty"],
+				"uom": row.get("uom"),
+				"batch_no": row.get("batch_no"),
+				"original_warehouse": row.get("from_warehouse") or row.get("warehouse"),
+				"activity": doc.activity,
+			} for row in payload.get("items", [])],
+		})
 		record.flags.workspace_service = True
-		record.insert(ignore_permissions=True); doc.loan_record=record.name; return record
-	elif kind=="Return":
-		record=frappe.get_doc({"doctype":"Inventory Return",**common,"borrower":doc.borrower,"activity":doc.activity,"notes":doc.notes,"items":[{"loan_item":r.get("loan_item") or r.get("original_loan_item"),"qty":r["qty"],"outcome":r.get("outcome") or ("Damaged" if doc.movement_kind=="Damage" else "Returned"),"target_warehouse":r.get("to_warehouse") or r.get("warehouse")} for r in payload.get("items",[]) ]})
+		record.insert(ignore_permissions=True)
+		doc.loan_record = record.name
+		return record
+	if kind == "Return":
+		record = frappe.get_doc({
+			"doctype": "Inventory Return",
+			**common,
+			"borrower": doc.borrower,
+			"activity": doc.activity,
+			"notes": doc.notes,
+			"items": [{
+				"loan_item": row.get("loan_item") or row.get("original_loan_item"),
+				"qty": row["qty"],
+				"outcome": row.get("outcome") or "Returned",
+				"target_warehouse": row.get("to_warehouse") or row.get("warehouse"),
+			} for row in payload.get("items", [])],
+		})
 		record.flags.workspace_service = True
-		record.insert(ignore_permissions=True); doc.return_record=record.name; return record
-	else:
-		record=frappe.get_doc({"doctype":"Inventory Loss",**common,"borrower":doc.borrower,"activity":doc.activity,"notes":doc.notes,"items":[{"item_code":r["item_code"],"qty":r["qty"],"uom":r.get("uom"),"source_warehouse":r.get("from_warehouse") or r.get("warehouse"),"batch_no":r.get("batch_no"),"original_loan_item":r.get("original_loan_item"),"reason":r.get("reason")} for r in payload.get("items",[])]})
-		record.flags.workspace_service = True
-		record.insert(ignore_permissions=True); doc.loss_record=record.name; return record
+		record.insert(ignore_permissions=True)
+		doc.return_record = record.name
+		return record
+	record = frappe.get_doc({
+		"doctype": "Inventory Loss",
+		**common,
+		"borrower": doc.borrower,
+		"activity": doc.activity,
+		"notes": doc.notes,
+		"items": [{
+			"item_code": row["item_code"],
+			"qty": row["qty"],
+			"uom": row.get("uom"),
+			"source_warehouse": row.get("from_warehouse") or row.get("warehouse"),
+			"batch_no": row.get("batch_no"),
+			"original_loan_item": row.get("original_loan_item"),
+			"reason": row.get("reason"),
+		} for row in payload.get("items", [])],
+	})
+	record.flags.workspace_service = True
+	record.insert(ignore_permissions=True)
+	doc.loss_record = record.name
+	return record
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1045,7 +912,6 @@ def confirm_workspace(name, revision):
 	if _status(doc) == 1:
 		return _serialize(doc)
 	_editable(doc, revision)
-	_audit_check(doc)
 	entry = _sync(doc)
 	business = _create_business_record(doc, _payload(doc), entry)
 	if business:
@@ -2219,12 +2085,11 @@ def _from_entry(doc, movement_kind=None):
 	p = {
 		key: doc.get("ti_" + key)
 		for key in META
-		if key not in ("posting_date", "posting_time", "notes", "recorder_signature")
+		if key not in ("posting_date", "posting_time", "notes")
 	}
 	p["movement_kind"] = movement_kind
 	p.update(
 		activity=doc.get("ti_activity"),
-		recorder_signature=doc.get("ti_recorder_signature"),
 		notes=doc.remarks,
 		posting_date=str(doc.posting_date),
 		posting_time=str(doc.posting_time),
