@@ -9,6 +9,7 @@ import WarehouseSelector from "../components/WarehouseSelector.vue";
 import CategorySelector from "../components/CategorySelector.vue";
 import LoadingIndicator from "../components/LoadingIndicator.vue";
 import { returnToOpener } from "../lib/navigation";
+import QuantitySummary from "../components/QuantitySummary.vue";
 
 const route = useRoute(),
 	router = useRouter();
@@ -16,7 +17,8 @@ const boot = ref<any>(),
 	rows = ref<any[]>([]),
 	total = ref(0),
 	overall = ref(0),
-	facets = ref<any>({ warehouses: {}, item_groups: {} });
+	facets = ref<any>({ warehouses: {}, item_groups: {} }),
+	quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
 const error = ref(""),
 	loading = ref(false),
 	loadingMore = ref(false),
@@ -31,6 +33,10 @@ const sentinel = ref<HTMLElement>();
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
 const filters = ref({ search: "", warehouses: [] as string[], item_groups: [] as string[] });
 const warehouseRows = computed(() => boot.value?.physical_tree || []);
+const summaryMetrics = computed(() => [
+	{ key: "damaged_qty", label: "损坏", quantities: quantityTotals.value.damaged_qty || [] },
+	{ key: "pending_qty", label: "未定位", quantities: quantityTotals.value.pending_qty || [] },
+]);
 const warehouseText = (name: string) =>
 	warehousePresentation(name, warehouseRows.value).breadcrumb;
 const chips = computed(() => [
@@ -75,8 +81,10 @@ async function load(append = false) {
 		total.value = Number(data.total || 0);
 		overall.value = Number(data.overall_total || 0);
 		facets.value = data.facets || facets.value;
+		quantityTotals.value = data.quantity_totals || {};
 	} catch (cause: any) {
 		error.value = cause.message;
+		if (!append) quantityTotals.value = {};
 	} finally {
 		loading.value = false;
 		loadingMore.value = false;
@@ -192,6 +200,7 @@ onBeforeUnmount(() => {
 					>
 				</div>
 				<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+				<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
 				<p v-if="error" class="error">
 					{{ error }} <button type="button" @click="load()">重试</button>
 				</p>

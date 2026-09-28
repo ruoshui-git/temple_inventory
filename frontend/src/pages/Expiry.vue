@@ -13,6 +13,7 @@ import ItemImagePreview from "../components/ItemImagePreview.vue";
 import SortableDataTable, { type SortState } from "../components/SortableDataTable.vue";
 import IconButton from "../components/IconButton.vue";
 import { formatExpiryDuration } from "../lib/duration";
+import QuantitySummary from "../components/QuantitySummary.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -24,6 +25,10 @@ const refreshing = ref(false);
 const appending = ref(false);
 const total = ref(0);
 const overallTotal = ref(0);
+const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
+const summaryMetrics = computed(() => [
+	{ key: "total_qty", label: "批次库存", quantities: quantityTotals.value.total_qty || [] },
+]);
 const facetCounts = ref<any>({ warehouses: {}, item_groups: {} });
 const start = ref(0);
 const pageLength = 25;
@@ -220,6 +225,7 @@ async function load(append = false) {
 			total.value = data.total || 0;
 			facetCounts.value = data.facets || facetCounts.value;
 			overallTotal.value = data.overall_total || 0;
+			quantityTotals.value = data.quantity_totals || {};
 			syncingRoute = true;
 			void router
 				.replace({
@@ -240,7 +246,10 @@ async function load(append = false) {
 					syncingRoute = false;
 				});
 		} catch (cause: any) {
-			if (current === sequence && cause?.name !== "AbortError") error.value = cause.message;
+			if (current === sequence && cause?.name !== "AbortError") {
+				error.value = cause.message;
+				if (!append) quantityTotals.value = {};
+			}
 		} finally {
 			if (current === sequence) {
 				busy.value = false;
@@ -450,6 +459,7 @@ onBeforeUnmount(() => {
 						}}</span>
 					</div>
 					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+					<QuantitySummary :metrics="summaryMetrics" :loading="busy || refreshing" />
 				</div>
 				<div ref="resultsScroll" class="results-scroll">
 					<SortableDataTable

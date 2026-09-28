@@ -12,6 +12,8 @@ import ActiveFilterChips from "../components/ActiveFilterChips.vue";
 import FloatingActionMenu from "../components/FloatingActionMenu.vue";
 import IconButton from "../components/IconButton.vue";
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
+import QuantitySummary from "../components/QuantitySummary.vue";
+import InventoryCardGrid from "../components/InventoryCardGrid.vue";
 import { hydrateFilterQuery, serializeFilterQuery } from "../composables/filters";
 import { toast } from "../lib/toast";
 
@@ -21,7 +23,8 @@ const boot = ref<any>(),
 	rows = ref<any[]>([]),
 	total = ref(0),
 	overall = ref<number | null>(null),
-	facetCounts = ref<any>({ warehouses: {}, item_groups: {} });
+	facetCounts = ref<any>({ warehouses: {}, item_groups: {} }),
+	quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
 const error = ref(""),
 	loading = ref(false),
 	loadingMore = ref(false),
@@ -38,6 +41,16 @@ const start = ref(0);
 const filters = ref({ search: "", warehouses: [] as string[], item_groups: [] as string[] });
 const defaultSort: SortState = { sort_by: "item_name", sort_order: "asc" };
 const sort = ref<SortState>({ ...defaultSort });
+const view = ref<"card" | "table">("card");
+const viewStorageKey = "temple_inventory.inventory.view";
+const summaryMetrics = computed(() =>
+	[
+		["available_stock", "可用"],
+		["total_stock", "总计"],
+		["on_loan_qty", "借出"],
+		["damaged_qty", "损坏"],
+	].map(([key, label]) => ({ key, label, quantities: quantityTotals.value[key] || [] })),
+);
 const sortColumns = computed(() => [
 	{ key: "item_name", label: "物品", sortable: true, initialOrder: "asc" as const },
 	{ key: "item_group", label: "类别" },
@@ -129,8 +142,12 @@ async function load(append = false) {
 		total.value = Number(data.total || 0);
 		overall.value = data.overall_total ?? null;
 		facetCounts.value = data.facets || facetCounts.value;
+		quantityTotals.value = data.quantity_totals || {};
 	} catch (cause: any) {
-		if (cause?.name !== "AbortError" && current === sequence) error.value = cause.message;
+		if (cause?.name !== "AbortError" && current === sequence) {
+			error.value = cause.message;
+			if (!append) quantityTotals.value = {};
+		}
 	} finally {
 		if (current === sequence) {
 			loading.value = false;
@@ -178,6 +195,17 @@ function toggleSelection() {
 function applySort(value: SortState) {
 	sort.value = value;
 	start.value = 0;
+}
+function setView(value: "card" | "table") {
+	view.value = value;
+	try {
+		localStorage.setItem(viewStorageKey, value);
+	} catch {
+		// Storage is optional; the in-memory choice still applies.
+	}
+}
+function toggleSortOrder() {
+	sort.value = { ...sort.value, sort_order: sort.value.sort_order === "asc" ? "desc" : "asc" };
 }
 function setupObserver() {
 	observer?.disconnect();
@@ -263,6 +291,12 @@ watch(
 );
 onMounted(async () => {
 	try {
+		try {
+			const savedView = localStorage.getItem(viewStorageKey);
+			if (savedView === "card" || savedView === "table") view.value = savedView;
+		} catch {
+			view.value = "card";
+		}
 		boot.value = await api("bootstrap");
 		filters.value = hydrateFilterQuery(route.query as Record<string, unknown>, filters.value);
 		const sortBy = String(route.query.sort_by || defaultSort.sort_by),
@@ -343,10 +377,77 @@ onBeforeUnmount(() => {
 						>
 					</div>
 					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+					<div class="inventory-view-controls" role="group" aria-label="库存显示方式">
+						<button
+							type="button"
+							:aria-pressed="view === 'card'"
+							@click="setView('card')"
+						>
+							卡片
+						</button>
+						<button
+							type="button"
+							:aria-pressed="view === 'table'"
+							@click="setView('table')"
+						>
+							表格
+						</button>
+						<label v-if="view === 'card'"
+							>排序
+							<select
+								:value="sort.sort_by"
+								@change="
+									applySort({
+										sort_by: ($event.target as HTMLSelectElement).value,
+										sort_order: sort.sort_order,
+									})
+								"
+							>
+								<option value="item_name">物品名称</option>
+								<option value="available_stock">可用</option>
+								<option value="total_stock">总计</option>
+								<option value="on_loan_qty">借出</option>
+								<option value="damaged_qty">损坏</option>
+							</select>
+						</label>
+						<button
+							v-if="view === 'card'"
+							type="button"
+							:aria-label="
+								sort.sort_order === 'asc'
+									? '当前升序，切换为降序'
+									: '当前降序，切换为升序'
+							"
+							@click="toggleSortOrder"
+						>
+							{{ sort.sort_order === "asc" ? "升序 ↑" : "降序 ↓" }}
+						</button>
+					</div>
+					<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
 				</div>
 				<div ref="resultsScroll" class="results-scroll">
 					<div class="inventory-results">
+						<InventoryCardGrid
+							v-if="view === 'card'"
+							:rows="rows"
+							:loading="loading"
+							:loading-more="loadingMore"
+							:error="error"
+							:selection-mode="selection"
+							:selected-keys="selected"
+							@activate="
+								(item) =>
+									router.push(`/item/${encodeURIComponent(item.item_code)}`)
+							"
+							@toggle="(item) => toggle(item.item_code)"
+						>
+							<template #error
+								>{{ error }}
+								<button type="button" @click="load()">重试</button></template
+							>
+						</InventoryCardGrid>
 						<SortableDataTable
+							v-else
 							:rows="rows"
 							:columns="sortColumns"
 							row-key="item_code"
@@ -493,3 +594,32 @@ onBeforeUnmount(() => {
 		</div>
 	</section>
 </template>
+
+<style scoped>
+.inventory-view-controls {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding-top: 8px;
+}
+.inventory-view-controls button[aria-pressed="true"] {
+	border-color: #8d5b2f;
+	background: #8d5b2f;
+	color: white;
+}
+.inventory-view-controls label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+}
+.inventory-view-controls select {
+	min-width: 112px;
+}
+@media (max-width: 640px) {
+	.inventory-view-controls label {
+		margin-left: 0;
+	}
+}
+</style>

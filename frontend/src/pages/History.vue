@@ -12,6 +12,7 @@ import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import SortableDataTable, { type SortState } from "../components/SortableDataTable.vue";
 import WarehousePreview from "../components/WarehousePreview.vue";
 import WarehouseSelector from "../components/WarehouseSelector.vue";
+import QuantitySummary from "../components/QuantitySummary.vue";
 import { returnToOpener } from "../lib/navigation";
 
 type Destination = "movements" | "adjustments" | "drafts";
@@ -41,6 +42,7 @@ const boot = ref<any>();
 const rows = ref<any[]>([]);
 const total = ref(0);
 const overallTotal = ref(0);
+const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
 const facets = ref<Record<string, Record<string, number>>>({
 	movement_kind: {},
 	warehouses: {},
@@ -119,6 +121,41 @@ const sortColumns = computed(() =>
 			? draftColumns
 			: movementColumns.value,
 );
+const summaryMetrics = computed(() => {
+	if (props.destination === "adjustments")
+		return [
+			{
+				key: "increase_qty",
+				label: "增加",
+				quantities: quantityTotals.value.increase_qty || [],
+			},
+			{
+				key: "decrease_qty",
+				label: "减少",
+				quantities: quantityTotals.value.decrease_qty || [],
+			},
+		];
+	if (props.destination === "drafts")
+		return [
+			{
+				key: "draft_action_qty",
+				label: "草稿操作量",
+				quantities: quantityTotals.value.draft_action_qty || [],
+			},
+		];
+	return [
+		{
+			key: "moved_qty",
+			label:
+				movementKind.value === "Receive"
+					? "入库数量"
+					: movementKind.value === "Issue"
+						? "出库数量"
+						: "转移数量",
+			quantities: quantityTotals.value.moved_qty || [],
+		},
+	];
+});
 const activeCount = computed(
 	() =>
 		(filters.value.search ? 1 : 0) +
@@ -290,6 +327,7 @@ async function load(append = false, debounce = false) {
 				: incoming;
 			total.value = Number(data.total || 0);
 			overallTotal.value = Number(data.overall_total || 0);
+			quantityTotals.value = data.quantity_totals || {};
 			facets.value = data.facets || facets.value;
 			if (!append) {
 				syncingRoute = true;
@@ -300,7 +338,10 @@ async function load(append = false, debounce = false) {
 			syncingRoute = false;
 			if (current === sequence && cause?.name !== "AbortError") {
 				if (append) appendError.value = cause.message;
-				else error.value = cause.message;
+				else {
+					error.value = cause.message;
+					quantityTotals.value = {};
+				}
 			}
 		} finally {
 			if (current === sequence) {
@@ -572,6 +613,7 @@ onBeforeUnmount(() => {
 						}}</span>
 					</div>
 					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+					<QuantitySummary :metrics="summaryMetrics" :loading="busy || refreshing" />
 				</div>
 				<div ref="resultsScroll" class="results-scroll">
 					<SortableDataTable

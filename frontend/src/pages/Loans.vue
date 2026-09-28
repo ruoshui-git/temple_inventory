@@ -11,6 +11,7 @@ import CategorySelector from "../components/CategorySelector.vue";
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import ItemImagePreview from "../components/ItemImagePreview.vue";
 import IconButton from "../components/IconButton.vue";
+import QuantitySummary from "../components/QuantitySummary.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +19,7 @@ const boot = ref<any>();
 const activities = ref<any[]>([]);
 const rows = ref<any[]>([]);
 const total = ref(0);
+const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
 const error = ref("");
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -49,6 +51,14 @@ const statusLabel = (value: string) =>
 			string
 		>
 	)[value] || value;
+const summaryMetrics = computed(() => [
+	{ key: "loaned_qty", label: "借出", quantities: quantityTotals.value.loaned_qty || [] },
+	{
+		key: "outstanding_qty",
+		label: "未归还",
+		quantities: quantityTotals.value.outstanding_qty || [],
+	},
+]);
 const activityOptions = computed(() =>
 	activities.value.map((activity) => ({ label: activity.title, value: activity.name })),
 );
@@ -114,6 +124,7 @@ async function load(append = false) {
 				]
 			: incoming;
 		total.value = Number(data.total || 0);
+		quantityTotals.value = data.quantity_totals || {};
 		if (!append) {
 			syncingRoute = true;
 			await router.replace({
@@ -129,7 +140,10 @@ async function load(append = false) {
 		}
 	} catch (cause: any) {
 		syncingRoute = false;
-		if (current === sequence) error.value = cause.message;
+		if (current === sequence) {
+			error.value = cause.message;
+			if (!append) quantityTotals.value = {};
+		}
 	} finally {
 		if (current === sequence) {
 			loading.value = false;
@@ -307,6 +321,7 @@ onBeforeUnmount(() => {
 						>
 					</div>
 					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+					<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
 				</div>
 				<div ref="resultsScroll" class="results-scroll">
 					<SortableDataTable

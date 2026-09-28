@@ -129,6 +129,17 @@ const totals = computed(() => {
 		result[row.uom] = (result[row.uom] || 0) + Number(row.qty || 0);
 	return result;
 });
+const lineStockEquivalent = computed(() => {
+	if (!chosen.value || !line.value || !(Number(line.value.qty) > 0)) return null;
+	const factor =
+		line.value.uom === chosen.value.stock_uom
+			? 1
+			: Number(
+					chosen.value.uoms.find((row: any) => row.uom === line.value.uom)
+						?.conversion_factor || 0,
+				);
+	return factor ? Number(line.value.qty) * factor : null;
+});
 const sourceOptions = computed(() => {
 	const names = new Set(allowed.value.map((w) => w.name));
 	return (chosen.value?.stock || []).filter(
@@ -1081,7 +1092,15 @@ onBeforeUnmount(() => {
 									{{ u.uom }} ({{ u.conversion_factor }} {{ chosen.stock_uom }})
 								</option>
 							</select></label
-						><label v-if="isReceive"
+						>
+						<p
+							v-if="line.uom !== chosen.stock_uom && lineStockEquivalent != null"
+							class="field-hint"
+							aria-live="polite"
+						>
+							相当于 {{ lineStockEquivalent }} {{ chosen.stock_uom }}
+						</p>
+						<label v-if="isReceive"
 							>入库位置 <span v-html="requiredMark" /><select
 								v-model="line.warehouse"
 								required

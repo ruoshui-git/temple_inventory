@@ -1695,6 +1695,33 @@ def _history_workspace_summary(doc):
 	"""Return bounded list data; full workspace state belongs to detail endpoints."""
 	payload = _payload(doc)
 	items = payload.get("items", [])
+	summary_items = [dict(item) for item in items]
+	if _status(doc) == 1 and doc.get("stock_entry") and frappe.db.exists("Stock Entry", doc.stock_entry):
+		entry = frappe.get_doc("Stock Entry", doc.stock_entry)
+		summary_items = [
+			{
+				"item_code": item.item_code,
+				"qty": item.qty,
+				"uom": item.uom,
+				"stock_uom": item.stock_uom,
+				"stock_qty": item.transfer_qty,
+			}
+			for item in entry.items
+		]
+	elif _status(doc) == 1 and doc.get("stock_reconciliation") and frappe.db.exists(
+		"Stock Reconciliation", doc.stock_reconciliation
+	):
+		reconciliation = frappe.get_doc("Stock Reconciliation", doc.stock_reconciliation)
+		summary_items = [
+			{
+				"item_code": item.item_code,
+				"qty": item.qty,
+				"current_qty": getattr(item, "current_qty", None),
+				"quantity_difference": getattr(item, "quantity_difference", None),
+				"stock_uom": getattr(item, "stock_uom", None),
+			}
+			for item in reconciliation.items
+		]
 	quantities = defaultdict(float)
 	for item in items:
 		quantities[item.get("uom") or ""] += flt(item.get("qty"))
@@ -1730,8 +1757,82 @@ def _history_workspace_summary(doc):
 		"items": preview,
 		"quantities": [{"uom": uom, "qty": qty} for uom, qty in sorted(quantities.items()) if uom],
 		"detail_route": f"/workspace/{doc.name}",
-		"_all_items": [dict(item) for item in items],
+		"_all_items": summary_items,
 	})
+
+
+def _history_quantity_totals(rows):
+	"""Return page totals in Item stock UOM without double-counting transfers."""
+	item_codes = {
+		item.get("item_code")
+		for row in rows
+		for item in row.get("_all_items") or row.get("items") or []
+		if item.get("item_code")
+	}
+	items = {
+		row.name: row.stock_uom
+		for row in frappe.get_list(
+			"Item",
+			filters={"name": ("in", sorted(item_codes) or [""])},
+			fields=["name", "stock_uom"],
+			limit_page_length=0,
+		)
+	}
+	conversion_rows = frappe.get_all(
+		"UOM Conversion Detail",
+		filters={"parenttype": "Item", "parent": ("in", sorted(item_codes) or [""])},
+		fields=["parent", "uom", "conversion_factor"],
+		limit_page_length=0,
+	)
+	factors = {(row.parent, row.uom): flt(row.conversion_factor) for row in conversion_rows}
+	totals = {
+		"moved_qty": defaultdict(float),
+		"increase_qty": defaultdict(float),
+		"decrease_qty": defaultdict(float),
+		"draft_action_qty": defaultdict(float),
+	}
+	for row in rows:
+		if cint(row.get("docstatus")) == 2:
+			continue
+		is_adjustment = row.get("document_type") == "Stock Reconciliation" or row.get("movement_kind") in (
+			"盘点调整",
+			"期初库存",
+		)
+		for item in row.get("_all_items") or row.get("items") or []:
+			item_code = item.get("item_code")
+			stock_uom = item.get("stock_uom") or items.get(item_code)
+			if not item_code or not stock_uom:
+				continue
+			if is_adjustment:
+				difference = item.get("quantity_difference")
+				if difference is None:
+					counted = item.get("counted_qty", item.get("qty"))
+					current = item.get("ledger_qty", item.get("current_qty"))
+					difference = flt(counted) - flt(current)
+				if cint(row.get("docstatus")) == 0:
+					totals["draft_action_qty"][stock_uom] += abs(flt(difference))
+				elif flt(difference) > 0:
+					totals["increase_qty"][stock_uom] += flt(difference)
+				elif flt(difference) < 0:
+					totals["decrease_qty"][stock_uom] += abs(flt(difference))
+				continue
+			stock_qty = item.get("stock_qty")
+			if stock_qty is None:
+				uom = item.get("uom") or stock_uom
+				factor = 1 if uom == stock_uom else factors.get((item_code, uom), 0)
+				if not factor:
+					frappe.throw(_("Unit is not configured for {0}").format(item_code))
+				stock_qty = flt(item.get("qty")) * factor
+			metric = "draft_action_qty" if cint(row.get("docstatus")) == 0 else "moved_qty"
+			totals[metric][stock_uom] += abs(flt(stock_qty))
+	return {
+		key: [
+			{"uom": uom, "qty": flt(qty)}
+			for uom, qty in sorted(values.items())
+			if uom and abs(flt(qty)) > 1e-9
+		]
+		for key, values in totals.items()
+	}
 
 
 @frappe.whitelist()
@@ -1767,7 +1868,10 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 	# path for the ordinary browse/default sort, and use the complete fallback
 	# for these keys so the sort is based on the actual aggregate values.
 	summary_sort = {"location_count", "category_count", "increase_line_count", "decrease_line_count"}
-	sql_filterable = set(raw_filters).issubset(sql_filter_keys) and (not sort_state or sort_state[0] not in summary_sort)
+	# Quantity summaries require the complete hydrated, permission-filtered row
+	# set. Keep one authoritative path until the database pager exposes the same
+	# unpaged aggregate contract.
+	sql_filterable = False
 	if sql_filterable:
 		if item_code:
 			frappe.get_doc("Item", item_code).check_permission("read")
@@ -1861,6 +1965,8 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 	# and totals must not depend on how many unrelated records precede them.
 	page_size = max(requested_length * 2, 200)
 	def paged(doctype, filters, fields):
+		if not frappe.has_permission(doctype, "read"):
+			return
 		offset = 0
 		while True:
 			page = frappe.get_list(
@@ -2028,6 +2134,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			reverse=direction == "desc",
 		)
 	page = _page(rows, page_length, start)
+	page["quantity_totals"] = _history_quantity_totals(matched)
 	_history_trim_items(page["results"])
 	if status_group == "unfinished":
 		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)
@@ -2101,6 +2208,8 @@ def _from_entry(doc, movement_kind=None):
 			"item_code": r.item_code,
 			"qty": r.qty,
 			"uom": r.uom,
+			"stock_uom": r.stock_uom,
+			"stock_qty": r.transfer_qty,
 			"batch_no": r.batch_no,
 			"warehouse": r.t_warehouse if movement_kind == "Receive" else r.s_warehouse,
 			"from_warehouse": r.s_warehouse,

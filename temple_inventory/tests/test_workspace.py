@@ -426,6 +426,7 @@ class WorkspaceTests(unittest.TestCase):
 			page = inventory(search="物品", start=100, page_length=5)
 		self.assertEqual(page["total"], 105)
 		self.assertEqual(len(page["results"]), 5)
+		self.assertEqual(page["quantity_totals"]["total_stock"], [{"uom": "Nos", "qty": 105.0}])
 
 	def test_inventory_catalog_uses_database_paging_on_real_site(self):
 		page = inventory(mode="catalog", search=self.item, start=0, page_length=1)
@@ -512,6 +513,8 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(page["results"][0]["total_qty"], 4)
 		self.assertEqual(second_page["results"][0]["batch_no"], "B-OLD")
 		self.assertEqual(len(second_page["results"][0]["locations"]), 2)
+		self.assertEqual(page["quantity_totals"]["total_qty"], [{"uom": "Nos", "qty": 7.0}])
+		self.assertEqual(second_page["quantity_totals"], page["quantity_totals"])
 
 	def test_expiry_new_sort_columns_and_validation(self):
 		warehouses, settings = self._mock_inventory_context()

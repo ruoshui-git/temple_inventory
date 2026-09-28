@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../lib/api";
 import {
@@ -10,6 +10,7 @@ import {
 import { toast } from "../lib/toast";
 import LoadingIndicator from "../components/LoadingIndicator.vue";
 import FloatingActionMenu from "../components/FloatingActionMenu.vue";
+import QuantitySummary from "../components/QuantitySummary.vue";
 type CreationKind = "warehouse" | "room" | "location";
 type ParentOption = PresentedWarehouse & { pickerLabel: string; pickerDepth: number };
 const router = useRouter(),
@@ -20,6 +21,11 @@ const router = useRouter(),
 	dialog = ref<CreationKind | null>(null),
 	saving = ref(false),
 	repairing = ref("");
+const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
+const summaryLoading = ref(false);
+const summaryMetrics = computed(() => [
+	{ key: "stock_qty", label: "现有库存", quantities: quantityTotals.value.stock_qty || [] },
+]);
 const form = ref({ parent: "", label: "", parentSearch: "" }),
 	expanded = ref(new Set<string>()),
 	list = ref<HTMLElement>(),
@@ -27,6 +33,7 @@ const form = ref({ parent: "", label: "", parentSearch: "" }),
 	labelInput = ref<HTMLInputElement>(),
 	rowRefs = new Map<string, HTMLElement>();
 let previousFocus: HTMLElement | null = null;
+let summaryTimer: ReturnType<typeof setTimeout> | undefined;
 const rawRows = computed<WarehouseRecord[]>(
 	() => boot.value?.physical_tree || boot.value?.warehouse_tree || [],
 );
@@ -192,12 +199,32 @@ async function load() {
 	try {
 		boot.value = await api("warehouse_management_bootstrap");
 		rows.value.forEach((row) => expanded.value.add(row.name));
+		await loadSummary();
 	} catch (cause: any) {
 		error.value = cause.message;
 	} finally {
 		loading.value = false;
 	}
 }
+async function loadSummary() {
+	if (!boot.value) return;
+	summaryLoading.value = true;
+	try {
+		const data = await api("warehouse_page_summary", {
+			warehouses: filtered.value.map((row) => row.name),
+		});
+		quantityTotals.value = data.quantity_totals || {};
+	} catch (cause: any) {
+		error.value = cause.message;
+		quantityTotals.value = {};
+	} finally {
+		summaryLoading.value = false;
+	}
+}
+watch(search, () => {
+	if (summaryTimer) clearTimeout(summaryTimer);
+	summaryTimer = setTimeout(() => void loadSummary(), 220);
+});
 async function repairMetadata(warehouse: string) {
 	if (repairing.value) return;
 	repairing.value = warehouse;
@@ -253,7 +280,10 @@ onMounted(() => {
 	);
 	window.addEventListener("keydown", onDialogKeydown);
 });
-onBeforeUnmount(() => window.removeEventListener("keydown", onDialogKeydown));
+onBeforeUnmount(() => {
+	if (summaryTimer) clearTimeout(summaryTimer);
+	window.removeEventListener("keydown", onDialogKeydown);
+});
 </script>
 <template>
 	<section class="app-shell wide-shell warehouse-page">
@@ -290,6 +320,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onDialogKeydown));
 					</button>
 				</div>
 			</section>
+			<QuantitySummary :metrics="summaryMetrics" :loading="summaryLoading" />
 			<p v-if="!error && !visibleRows.length" class="empty-state">暂无可查看的仓库。</p>
 			<div
 				v-else

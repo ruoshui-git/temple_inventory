@@ -29,6 +29,7 @@ function expiryRows() { return [{ batch_no: 'B001', item_code: 'A001', item_name
 
 beforeEach(() => {
   state.route.query = {}; state.route.path = '/'; state.api.mockReset(); state.replace.mockClear(); state.push.mockClear()
+  localStorage.clear()
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', { value: vi.fn(), configurable: true })
   Object.defineProperty(window, 'IntersectionObserver', { value: class { observe() {} disconnect() {} }, configurable: true })
   state.api.mockImplementation(async (method: string) => method === 'bootstrap' ? { item_groups: [], physical_tree: [], stock_operation_capabilities: {} } : method === 'inventory' ? { results: inventoryRows(), total: 1, overall_total: 1, facets: {} } : { results: expiryRows(), total: 1, overall_total: 1, facets: {} })
@@ -39,6 +40,7 @@ describe('Inventory and Expiry integrations', () => {
     const inventory = mount(Inventory, { global: globals }); await flushPromises()
     expect(inventory.find('.results-chrome').exists()).toBe(true)
     expect(inventory.find('.results-scroll').exists()).toBe(true)
+    await inventory.find('button[aria-pressed="false"]').trigger('click')
     expect(inventory.find('.primary-cell .primary-text').text()).toBe('一号')
     state.route.path = '/expiry'
     const expiry = mount(Expiry, { global: globals }); await flushPromises()
@@ -51,6 +53,7 @@ describe('Inventory and Expiry integrations', () => {
     const wrapper = mount(Inventory, { global: globals }); await flushPromises()
     const request = state.api.mock.calls.find(call => call[0] === 'inventory')
     expect(request[1]).toMatchObject({ sort_by: 'item_name', sort_order: 'asc' })
+    await wrapper.find('button[aria-pressed="false"]').trigger('click')
     await wrapper.find('.sortable-data-table th button').trigger('click'); await settle()
     expect(state.api.mock.calls.some(call => call[0] === 'inventory' && call[1].sort_by === 'item_name' && call[1].sort_order === 'desc')).toBe(true)
     expect(state.replace).toHaveBeenCalledWith(expect.objectContaining({ query: expect.objectContaining({ sort_by: 'item_name', sort_order: 'desc' }) }))

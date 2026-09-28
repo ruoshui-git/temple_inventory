@@ -22,6 +22,13 @@ in the same change. Keep implementation details in code or task notes, not here.
   such as selecting or creating an Item during a transaction.
 - Back and cancel actions must have a predictable destination and must not
   silently discard an in-progress transaction.
+- Inventory defaults to an image-forward card view when no browser preference
+  exists. Users may switch to the sortable table, and the browser remembers the
+  valid local choice. Cards emphasize available stock while always retaining
+  total, loaned, and damaged quantities.
+- List quantity summaries describe the complete permission-filtered result, not
+  only loaded pages. Group quantities by each Item's stock UOM and never combine
+  incompatible UOMs into one total.
 
 ## Feedback
 
@@ -88,6 +95,9 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-09-28:** The remembered, card-first Inventory view and complete
+  filter-aware per-stock-UOM summaries supersede the table-only Inventory
+  presentation and record-count-only list chrome.
 - **2026-09-28:** Optional recorder/handler/reviewer text fields supersede all
   handwritten-signature, independent-witness, and re-confirmation rules.
 - **2026-09-28:** Only warehouses beneath the configured physical root appear in
