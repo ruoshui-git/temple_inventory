@@ -8,6 +8,9 @@ import ActiveFilterChips from "../components/ActiveFilterChips.vue";
 import CategorySelector from "../components/CategorySelector.vue";
 import DetailPopover from "../components/DetailPopover.vue";
 import IconButton from "../components/IconButton.vue";
+import MovementPeriodSelector, {
+	type MovementPeriodKey,
+} from "../components/MovementPeriodSelector.vue";
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import SortableDataTable, { type SortState } from "../components/SortableDataTable.vue";
 import WarehousePreview from "../components/WarehousePreview.vue";
@@ -19,6 +22,9 @@ type Destination = "movements" | "adjustments" | "drafts";
 type HistoryFilters = {
 	search: string;
 	posting_date: string;
+	period_key: MovementPeriodKey;
+	date_from: string;
+	date_to: string;
 	movement_kind: string;
 	item_groups: string[];
 	warehouses: string[];
@@ -43,6 +49,7 @@ const rows = ref<any[]>([]);
 const total = ref(0);
 const overallTotal = ref(0);
 const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
+const resolvedPeriod = ref({ date_from: "", date_to: "" });
 const facets = ref<Record<string, Record<string, number>>>({
 	movement_kind: {},
 	warehouses: {},
@@ -74,6 +81,9 @@ const scrollKey = computed(() => `temple_inventory.scroll.${props.destination}`)
 const filters = ref<HistoryFilters>({
 	search: "",
 	posting_date: "",
+	period_key: "last_30_days",
+	date_from: "",
+	date_to: "",
 	movement_kind: "",
 	item_groups: [],
 	warehouses: [],
@@ -159,7 +169,7 @@ const summaryMetrics = computed(() => {
 const activeCount = computed(
 	() =>
 		(filters.value.search ? 1 : 0) +
-		(filters.value.posting_date ? 1 : 0) +
+		(props.destination !== "movements" && filters.value.posting_date ? 1 : 0) +
 		(props.destination === "adjustments" && filters.value.movement_kind ? 1 : 0) +
 		filters.value.item_groups.length +
 		filters.value.warehouses.length +
@@ -196,7 +206,7 @@ const chips = computed(() => [
 		label: `类别：${value}`,
 	})),
 	...(filters.value.search ? [{ key: "search", label: `搜索：${filters.value.search}` }] : []),
-	...(filters.value.posting_date
+	...(props.destination !== "movements" && filters.value.posting_date
 		? [{ key: "posting_date", label: `日期：${filters.value.posting_date}` }]
 		: []),
 	...(props.destination === "adjustments" && filters.value.movement_kind
@@ -222,6 +232,9 @@ function clearAll() {
 	filters.value = {
 		search: "",
 		posting_date: "",
+		period_key: "last_30_days",
+		date_from: "",
+		date_to: "",
 		movement_kind: "",
 		item_groups: [],
 		warehouses: [],
@@ -232,7 +245,19 @@ function clearAll() {
 function requestFilters() {
 	const base: Record<string, unknown> = {
 		search: filters.value.search || undefined,
-		posting_date: filters.value.posting_date || undefined,
+		posting_date:
+			props.destination === "movements"
+				? undefined
+				: filters.value.posting_date || undefined,
+		period_key: props.destination === "movements" ? filters.value.period_key : undefined,
+		date_from:
+			props.destination === "movements" && filters.value.period_key === "custom"
+				? filters.value.date_from
+				: undefined,
+		date_to:
+			props.destination === "movements" && filters.value.period_key === "custom"
+				? filters.value.date_to
+				: undefined,
 		item_groups: filters.value.item_groups.length ? filters.value.item_groups : undefined,
 	};
 	if (props.destination === "movements") {
@@ -265,7 +290,16 @@ function requestFilters() {
 function routeQuery() {
 	const queryFilters: Record<string, unknown> = {
 		search: filters.value.search,
-		posting_date: filters.value.posting_date,
+		posting_date: props.destination === "movements" ? undefined : filters.value.posting_date,
+		period: props.destination === "movements" ? filters.value.period_key : undefined,
+		date_from:
+			props.destination === "movements" && filters.value.period_key === "custom"
+				? filters.value.date_from
+				: undefined,
+		date_to:
+			props.destination === "movements" && filters.value.period_key === "custom"
+				? filters.value.date_to
+				: undefined,
 		item_groups: filters.value.item_groups,
 		warehouses: filters.value.warehouses,
 		source_warehouses: filters.value.source_warehouses,
@@ -328,6 +362,11 @@ async function load(append = false, debounce = false) {
 			total.value = Number(data.total || 0);
 			overallTotal.value = Number(data.overall_total || 0);
 			quantityTotals.value = data.quantity_totals || {};
+			if (data.resolved_period)
+				resolvedPeriod.value = {
+					date_from: data.resolved_period.date_from || "",
+					date_to: data.resolved_period.date_to || "",
+				};
 			facets.value = data.facets || facets.value;
 			if (!append) {
 				syncingRoute = true;
@@ -362,6 +401,9 @@ function applyQuery(query: Record<string, unknown>) {
 	const hydrated = hydrateFilterQuery(query, {
 		search: "",
 		posting_date: "",
+		period: "last_30_days",
+		date_from: "",
+		date_to: "",
 		movement_kind: "",
 		item_groups: [] as string[],
 		warehouses: [] as string[],
@@ -369,9 +411,27 @@ function applyQuery(query: Record<string, unknown>) {
 		destination_warehouses: [] as string[],
 		start: "0",
 	});
+	const legacyDate =
+		props.destination === "movements" ? String(hydrated.posting_date || "") : "";
+	const requestedPeriod = legacyDate ? "custom" : String(hydrated.period || "last_30_days");
+	const validPeriods = [
+		"today",
+		"last_7_days",
+		"last_30_days",
+		"last_365_days",
+		"this_week",
+		"this_month",
+		"this_year",
+		"custom",
+	];
 	const next: HistoryFilters = {
 		search: String(hydrated.search || ""),
-		posting_date: String(hydrated.posting_date || ""),
+		posting_date: props.destination === "movements" ? "" : String(hydrated.posting_date || ""),
+		period_key: (validPeriods.includes(requestedPeriod)
+			? requestedPeriod
+			: "last_30_days") as MovementPeriodKey,
+		date_from: legacyDate || String(hydrated.date_from || ""),
+		date_to: legacyDate || String(hydrated.date_to || ""),
 		movement_kind:
 			props.destination === "adjustments" &&
 			["盘点调整", "期初库存"].includes(String(hydrated.movement_kind))
@@ -521,7 +581,7 @@ onBeforeUnmount(() => {
 				v-model:open="filterOpen"
 				:count="activeCount"
 			>
-				<fieldset>
+				<fieldset v-if="props.destination !== 'movements'">
 					<legend>日期</legend>
 					<input v-model="filters.posting_date" type="date" aria-label="日期" />
 				</fieldset>
@@ -588,6 +648,14 @@ onBeforeUnmount(() => {
 			</ResponsiveFilterPanel>
 			<div class="results-column">
 				<div class="results-chrome">
+					<MovementPeriodSelector
+						v-if="props.destination === 'movements'"
+						v-model:period-key="filters.period_key"
+						v-model:date-from="filters.date_from"
+						v-model:date-to="filters.date_to"
+						:resolved-from="resolvedPeriod.date_from"
+						:resolved-to="resolvedPeriod.date_to"
+					/>
 					<div class="result-toolbar">
 						<input
 							v-model="filters.search"

@@ -16,7 +16,7 @@ export const router = createRouter({ history: createWebHistory('/inventory'), ro
   { path: '/entry/:entry', component: () => import('./pages/Workspace.vue') },
 	{ path: '/settings', redirect: '/warehouses' },
 	{ path: '/history', redirect: to => to.query.status === 'unfinished' ? { path: '/drafts', query: { ...to.query, status: undefined } } : { path: '/movements', query: { ...to.query, kind: to.query.kind || to.query.movement_kind, movement_kind: undefined } } },
-	{ path: '/movements', component: () => import('./pages/History.vue'), props: { destination: 'movements' } },
+	{ path: '/movements', component: () => import('./pages/Movements.vue') },
   { path: '/expiry', component: () => import('./pages/Expiry.vue') },
   { path: '/item/:code', component: () => import('./pages/ItemDetail.vue') },
   { path: '/items/new', component: () => import('./pages/NewItem.vue') },

@@ -79,7 +79,9 @@ describe('ApplicationShell navigation contract', () => {
     })
     await nextTick()
     expect(wrapper.findAll('nav.desktop-inventory-context a[aria-current="page"]')).toHaveLength(1)
-    expect(wrapper.find('nav.desktop-inventory-context a[aria-current="page"]').text()).toBe('入库')
+    expect(wrapper.findAll('nav.desktop-inventory-context a').map(link => link.text())).toEqual(['概览', '入库', '出库', '转移'])
+    expect(wrapper.find('nav.desktop-inventory-context a[aria-current="page"]').text()).toBe('概览')
+    expect(wrapper.find('.shell-brand').text()).toBe('货物流动概览')
     route.path = '/adjustments'
     await nextTick()
     expect(wrapper.find('nav.desktop-inventory-context').exists()).toBe(false)

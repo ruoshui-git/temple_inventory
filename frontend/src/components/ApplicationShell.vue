@@ -44,7 +44,9 @@ const inventorySharedQuery = computed<LocationQueryRaw>(() => ({
 }));
 const movementSharedQuery = computed<LocationQueryRaw>(() => ({
 	search: route.query.search,
-	posting_date: route.query.posting_date,
+	period: route.query.period,
+	date_from: route.query.date_from,
+	date_to: route.query.date_to,
 	item_groups: route.query.item_groups,
 	sort_by: route.query.sort_by,
 	sort_order: route.query.sort_order,
@@ -78,6 +80,12 @@ const contextItems = computed<ContextItem[]>(() => {
 		];
 	if (route.path === "/movements" || route.path === "/history")
 		return [
+			{
+				key: "overview",
+				label: "概览",
+				path: "/movements",
+				query: movementSharedQuery.value,
+			},
 			{
 				key: "Receive",
 				label: "入库",
@@ -120,7 +128,7 @@ const contextKey = computed(() => {
 	if (route.path === "/expiry") return "expiry";
 	if (route.path === "/movements" || route.path === "/history") {
 		const requested = String(route.query.kind || route.query.movement_kind || "");
-		return ["Issue", "Transfer"].includes(requested) ? requested : "Receive";
+		return ["Receive", "Issue", "Transfer"].includes(requested) ? requested : "overview";
 	}
 	if (route.path === "/loans")
 		return route.query.status === "settled" ? "settled" : "outstanding";
@@ -131,9 +139,16 @@ const browseTitle = computed(() => {
 	if (route.path === "/") return contextKey.value === "catalog" ? "全部物品" : "当前库存";
 	if (route.path === "/expiry") return "效期批次";
 	if (route.path === "/movements" || route.path === "/history")
-		return ({ Receive: "入库", Issue: "出库", Transfer: "转移" } as Record<string, string>)[
-			contextKey.value
-		];
+		return (
+			(
+				{
+					overview: "货物流动概览",
+					Receive: "入库",
+					Issue: "出库",
+					Transfer: "转移",
+				} as Record<string, string>
+			)[contextKey.value] || "货物流动概览"
+		);
 	if (route.path === "/adjustments") return "盘点调整";
 	if (route.path === "/drafts") return "草稿";
 	if (route.path === "/loans") return contextKey.value === "settled" ? "已结借用" : "未结借用";

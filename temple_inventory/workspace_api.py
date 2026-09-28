@@ -13,7 +13,7 @@ from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
-from frappe.utils import cint, flt, get_time, getdate, nowdate, nowtime
+from frappe.utils import add_days, cint, flt, get_time, getdate, nowdate, nowtime
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
@@ -53,6 +53,67 @@ META = (
 	"loss_record",
 )
 STATE = ("items", "sections", "from_warehouse", "to_warehouse", "posting_time_mode", "warehouse", "mode")
+
+MOVEMENT_OVERVIEW_KINDS = (
+	"Receive",
+	"Issue",
+	"Transfer",
+	"Loan",
+	"Return",
+	"Damage",
+	"Loss",
+	"Repair",
+	"Disposal",
+)
+MOVEMENT_PERIOD_KEYS = {
+	"today",
+	"last_7_days",
+	"last_30_days",
+	"last_365_days",
+	"this_week",
+	"this_month",
+	"this_year",
+	"custom",
+}
+
+
+def _movement_period(filters, default=False):
+	"""Resolve an inclusive movement period using the server's current date."""
+	key = str(filters.get("period_key") or ("last_30_days" if default else "")).strip()
+	if not key:
+		return None
+	if key not in MOVEMENT_PERIOD_KEYS:
+		key = "last_30_days" if default else ""
+	if not key:
+		return None
+	today = getdate(nowdate())
+	if key == "custom":
+		date_from, date_to = str(filters.get("date_from") or ""), str(filters.get("date_to") or "")
+		try:
+			start, end = getdate(date_from), getdate(date_to)
+		except Exception:
+			frappe.throw(_("Invalid custom date range"))
+		if not date_from or not date_to or str(start) != date_from or str(end) != date_to:
+			frappe.throw(_("Invalid custom date range"))
+		if start > end:
+			frappe.throw(_("Start date cannot be after end date"))
+	else:
+		end = today
+		if key == "today":
+			start = today
+		elif key == "last_7_days":
+			start = getdate(add_days(today, -6))
+		elif key == "last_30_days":
+			start = getdate(add_days(today, -29))
+		elif key == "last_365_days":
+			start = getdate(add_days(today, -364))
+		elif key == "this_week":
+			start = getdate(add_days(today, -today.weekday()))
+		elif key == "this_month":
+			start = today.replace(day=1)
+		else:
+			start = today.replace(month=1, day=1)
+	return {"key": key, "date_from": str(start), "date_to": str(end)}
 
 
 def _get(name, write=False, lock=False):
@@ -1835,12 +1896,266 @@ def _history_quantity_totals(rows):
 	}
 
 
+def _movement_entry_kind(row):
+	kind = str(row.get("ti_movement_kind") or "").strip()
+	if kind in MOVEMENT_OVERVIEW_KINDS:
+		return kind
+	return {
+		"Material Receipt": "Receive",
+		"Material Issue": "Issue",
+		"Material Transfer": "Transfer",
+	}.get(row.get("purpose"))
+
+
+def _movement_overview_rows(filters):
+	"""Return permission-safe submitted movement lines for overview/export reuse."""
+	settings = _settings()
+	period = _movement_period(filters, default=True)
+	entries = frappe.get_list(
+		"Stock Entry",
+		filters={
+			"company": settings.company,
+			"docstatus": 1,
+			"posting_date": ["between", [period["date_from"], period["date_to"]]],
+		},
+		fields=["name", "posting_date", "purpose", "ti_movement_kind"],
+		order_by="posting_date desc, name desc",
+		limit_page_length=0,
+	)
+	entries = [dict(row, movement_kind=_movement_entry_kind(row)) for row in entries]
+	entries = [row for row in entries if row["movement_kind"]]
+	if not entries:
+		return period, []
+	entry_by_name = {row["name"]: row for row in entries}
+	lines = frappe.get_all(
+		"Stock Entry Detail",
+		filters={"parent": ("in", sorted(entry_by_name))},
+		fields=[
+			"name",
+			"parent",
+			"item_code",
+			"s_warehouse",
+			"t_warehouse",
+			"transfer_qty",
+			"qty",
+			"conversion_factor",
+			"stock_uom",
+		],
+		limit_page_length=0,
+	)
+	item_codes = sorted({line.item_code for line in lines if line.item_code})
+	items = {
+		row.name: row
+		for row in frappe.get_list(
+			"Item",
+			filters={"name": ("in", item_codes or [""])},
+			fields=["name", "item_name", "item_group", "stock_uom", "image"],
+			limit_page_length=0,
+		)
+	}
+	visible = _visible_warehouses(settings)
+	readable_leaves = {
+		name
+		for name, warehouse in visible.items()
+		if not warehouse.is_group and frappe.has_permission("Warehouse", "read", name)
+	}
+	by_parent = defaultdict(list)
+	for line in lines:
+		by_parent[line.parent].append(line)
+	eligible_parents = {
+		name
+		for name, parent_lines in by_parent.items()
+		if parent_lines
+		and all(line.item_code in items for line in parent_lines)
+		and all(
+			not warehouse or warehouse in readable_leaves
+			for line in parent_lines
+			for warehouse in (line.s_warehouse, line.t_warehouse)
+		)
+	}
+	requested_groups = _selection_values(filters.get("item_groups"))
+	if requested_groups:
+		all_groups = frappe.get_list(
+			"Item Group", fields=["name", "lft", "rgt"], limit_page_length=0
+		)
+		groups_by_name = {row.name: row for row in all_groups}
+		if any(group not in groups_by_name for group in requested_groups):
+			frappe.throw(_("Invalid item group"), frappe.PermissionError)
+		parents = [groups_by_name[group] for group in requested_groups]
+		requested_groups = {
+			row.name
+			for row in all_groups
+			if any(row.lft >= parent.lft and row.rgt <= parent.rgt for parent in parents)
+		}
+	else:
+		requested_groups = set()
+	requested_warehouses = set()
+	if filters.get("warehouses"):
+		requested_warehouses = _history_allowed_selection(
+			filters["warehouses"], visible, readable_leaves
+		)
+	search = str(filters.get("search") or "").strip().lower()
+	result = []
+	for line in lines:
+		if line.parent not in eligible_parents:
+			continue
+		entry = entry_by_name[line.parent]
+		item = items[line.item_code]
+		kind = entry["movement_kind"]
+		if search and search not in f"{item.name} {item.item_name}".lower():
+			continue
+		if requested_groups and item.item_group not in requested_groups:
+			continue
+		if requested_warehouses:
+			warehouses = (
+				(line.t_warehouse,)
+				if kind == "Receive"
+				else (line.s_warehouse,)
+				if kind in ("Issue", "Loss", "Disposal")
+				else (line.s_warehouse, line.t_warehouse)
+			)
+			if not any(warehouse in requested_warehouses for warehouse in warehouses):
+				continue
+		stock_qty = line.transfer_qty
+		if stock_qty is None:
+			stock_qty = flt(line.qty) * flt(line.conversion_factor or 1)
+		result.append(
+			{
+				"line_name": line.name,
+				"entry": line.parent,
+				"posting_date": str(entry["posting_date"]),
+				"movement_kind": kind,
+				"item_code": item.name,
+				"item_name": item.item_name,
+				"item_group": item.item_group,
+				"stock_uom": line.stock_uom or item.stock_uom,
+				"image": item.image,
+				"stock_qty": abs(flt(stock_qty)),
+				"s_warehouse": line.s_warehouse,
+				"t_warehouse": line.t_warehouse,
+			}
+		)
+	return period, result
+
+
+def _movement_action_summaries(rows):
+	quantities = {kind: defaultdict(float) for kind in MOVEMENT_OVERVIEW_KINDS}
+	items = {kind: set() for kind in MOVEMENT_OVERVIEW_KINDS}
+	records = {kind: set() for kind in MOVEMENT_OVERVIEW_KINDS}
+	for row in rows:
+		kind = row["movement_kind"]
+		quantities[kind][row["stock_uom"]] += row["stock_qty"]
+		items[kind].add(row["item_code"])
+		records[kind].add(row["entry"])
+	return [
+		{
+			"movement_kind": kind,
+			"quantities": [
+				{"uom": uom, "qty": flt(qty)}
+				for uom, qty in sorted(quantities[kind].items())
+				if uom and abs(flt(qty)) > 1e-9
+			],
+			"item_count": len(items[kind]),
+			"record_count": len(records[kind]),
+		}
+		for kind in MOVEMENT_OVERVIEW_KINDS
+	]
+
+
+@frappe.whitelist()
+def movement_overview(filters=None, start=0, page_length=25, sort_by="last_posting_date", sort_order="desc"):
+	"""Summarize submitted stock movements without creating a parallel ledger."""
+	_require_stock()
+	f = dict(_loads(filters, {}))
+	requested_kinds = _selection_values(f.get("movement_kinds"))
+	if any(kind not in MOVEMENT_OVERVIEW_KINDS for kind in requested_kinds):
+		frappe.throw(_("Invalid movement kind"))
+	column, direction = _sort_state(
+		sort_by,
+		sort_order,
+		{"item_name", "item_code", "record_count", "last_posting_date"},
+		"last_posting_date",
+		"desc",
+	)
+	period, all_rows = _movement_overview_rows(f)
+	action_summaries = _movement_action_summaries(all_rows)
+	selected_rows = [
+		row for row in all_rows if not requested_kinds or row["movement_kind"] in requested_kinds
+	]
+	by_item = {}
+	for row in selected_rows:
+		item = by_item.setdefault(
+			row["item_code"],
+			{
+				"item_code": row["item_code"],
+				"item_name": row["item_name"],
+				"item_group": row["item_group"],
+				"image": row["image"],
+				"stock_uom": row["stock_uom"],
+				"movement_totals": defaultdict(float),
+				"_movement_records": defaultdict(set),
+				"_records": set(),
+				"last_posting_date": row["posting_date"],
+			},
+		)
+		item["movement_totals"][row["movement_kind"]] += row["stock_qty"]
+		item["_movement_records"][row["movement_kind"]].add(row["entry"])
+		item["_records"].add(row["entry"])
+		item["last_posting_date"] = max(item["last_posting_date"], row["posting_date"])
+	results = []
+	for item in by_item.values():
+		item["movement_totals"] = {
+			kind: flt(qty) for kind, qty in item["movement_totals"].items() if abs(flt(qty)) > 1e-9
+		}
+		item["movement_record_counts"] = {
+			kind: len(records) for kind, records in item.pop("_movement_records").items()
+		}
+		item["record_count"] = len(item.pop("_records"))
+		results.append(item)
+	results.sort(key=lambda row: str(row["item_code"]).lower())
+	results.sort(
+		key=lambda row: float(row[column]) if column == "record_count" else str(row[column]).lower(),
+		reverse=direction == "desc",
+	)
+	page_start = max(cint(start or 0), 0)
+	requested_length = min(max(cint(page_length or 25), 1), 100)
+	page_rows = results[page_start : page_start + requested_length]
+	facet_records = {
+		"movement_kinds": defaultdict(set),
+		"item_groups": defaultdict(set),
+		"warehouses": defaultdict(set),
+	}
+	for row in all_rows:
+		facet_records["movement_kinds"][row["movement_kind"]].add(row["entry"])
+		facet_records["item_groups"][row["item_group"]].add(row["item_code"])
+		for warehouse in (row["s_warehouse"], row["t_warehouse"]):
+			if warehouse:
+				facet_records["warehouses"][warehouse].add(row["entry"])
+	return {
+		"resolved_period": period,
+		"action_summaries": action_summaries,
+		"results": page_rows,
+		"total": len(results),
+		"start": page_start,
+		"page_length": requested_length,
+		"facets": {
+			key: {value: len(names) for value, names in sorted(values.items())}
+			for key, values in facet_records.items()
+		},
+	}
+
+
 @frappe.whitelist()
 def history(filters=None, start=0, page_length=30, status_group="all", sort_by=None, sort_order=None):
 	_require_stock()
 	sort_state = _sort_state(sort_by, sort_order, {"title", "posting_date", "line_count", "location_count", "category_count", "increase_line_count", "decrease_line_count", "movement_kind"}, "posting_date", "desc")
 	raw_filters = _loads(filters, {})
 	f = dict(raw_filters)
+	resolved_period = _movement_period(f)
+	if resolved_period:
+		f["date_from"] = resolved_period["date_from"]
+		f["date_to"] = resolved_period["date_to"]
+		f.pop("posting_date", None)
 	visible_warehouses = _visible_warehouses()
 	allowed = _allowed_warehouses()
 	if status_group == "unfinished":
@@ -2135,6 +2450,8 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 		)
 	page = _page(rows, page_length, start)
 	page["quantity_totals"] = _history_quantity_totals(matched)
+	if resolved_period:
+		page["resolved_period"] = resolved_period
 	_history_trim_items(page["results"])
 	if status_group == "unfinished":
 		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)

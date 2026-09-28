@@ -29,6 +29,10 @@ in the same change. Keep implementation details in code or task notes, not here.
 - List quantity summaries describe the complete permission-filtered result, not
   only loaded pages. Group quantities by each Item's stock UOM and never combine
   incompatible UOMs into one total.
+- `货物流动` opens on a mobile-first overview with rolling, natural, and custom
+  inclusive date ranges. Each stock action keeps its own complete-result,
+  stock-UOM summary and observer-paged Item breakdown; opening stock and
+  reconciliation remain under `盘点调整`.
 
 ## Feedback
 
@@ -95,6 +99,8 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-09-28:** The default `货物流动` overview and its independent action
+  summaries supersede defaulting that destination directly to the Receive list.
 - **2026-09-28:** The remembered, card-first Inventory view and complete
   filter-aware per-stock-UOM summaries supersede the table-only Inventory
   presentation and record-count-only list chrome.

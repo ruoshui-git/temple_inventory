@@ -1073,6 +1073,51 @@ class WorkspaceTests(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			api.history(filters, sort_by="title", sort_order="sideways")
 
+	def test_movement_period_resolution(self):
+		with patch.object(api, "nowdate", return_value="2026-09-28"):
+			self.assertEqual(
+				api._movement_period({}, default=True),
+				{"key": "last_30_days", "date_from": "2026-08-30", "date_to": "2026-09-28"},
+			)
+			self.assertEqual(
+				api._movement_period({"period_key": "this_week"}),
+				{"key": "this_week", "date_from": "2026-09-28", "date_to": "2026-09-28"},
+			)
+			self.assertEqual(
+				api._movement_period({"period_key": "this_year"}),
+				{"key": "this_year", "date_from": "2026-01-01", "date_to": "2026-09-28"},
+			)
+		with self.assertRaises(frappe.ValidationError):
+			api._movement_period(
+				{"period_key": "custom", "date_from": "2026-09-29", "date_to": "2026-09-28"}
+			)
+
+	def test_movement_overview_summarizes_submitted_entries(self):
+		confirmed = self.confirmed()
+		page = api.movement_overview(
+			{"period_key": "custom", "date_from": nowdate(), "date_to": nowdate()}
+		)
+		self.assertEqual(page["resolved_period"]["key"], "custom")
+		self.assertIn(self.item, {row["item_code"] for row in page["results"]})
+		receive = next(row for row in page["action_summaries"] if row["movement_kind"] == "Receive")
+		self.assertGreaterEqual(receive["item_count"], 1)
+		self.assertGreaterEqual(receive["record_count"], 1)
+		self.assertIn({"uom": "Nos", "qty": 4.0}, receive["quantities"])
+		self.assertEqual(len(page["action_summaries"]), len(api.MOVEMENT_OVERVIEW_KINDS))
+		filtered = api.movement_overview(
+			{
+				"period_key": "custom",
+				"date_from": nowdate(),
+				"date_to": nowdate(),
+				"movement_kinds": ["Issue"],
+			}
+		)
+		self.assertFalse(filtered["results"])
+		self.assertEqual(filtered["action_summaries"], page["action_summaries"])
+		self.assertEqual(frappe.db.get_value("Stock Entry", confirmed["stock_entry"], "docstatus"), 1)
+		with self.assertRaises(frappe.ValidationError):
+			api.movement_overview({"movement_kinds": ["Unknown"]})
+
 	def test_guest_denied_and_bootstrap_read_only(self):
 		with patch.object(
 			frappe.model.document.Document, "save", side_effect=AssertionError("Read mutated settings")
