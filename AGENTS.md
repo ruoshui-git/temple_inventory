@@ -202,7 +202,7 @@ and a 110-character line length. TypeScript and Vue use the existing project
 configuration. Format only touched code unless a broader reformat is explicitly
 requested.
 
-Write maintainable production source code, not minified or code-golfed code. Use descriptive variable and function names, conventional whitespace, and normal line wrapping. Do not manually optimize code for fewer lines or characters. Format Python with Ruff and frontend files with Prettier before finishing.
+Write maintainable production source code, not minified or code-golfed code. Use descriptive variable and function names, conventional whitespace, and normal line wrapping. Do not manually optimize code for fewer lines or characters. Format Python with Ruff and frontend files with Prettier before finishing. No need to check for whitespacing after using the formatter.
 
 ## Validation policy
 
