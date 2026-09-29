@@ -260,17 +260,3 @@ export const DesktopScrolled: Story = {
   args: { initiallyScrolled: true },
   globals: { viewport: { value: "desktop", isRotated: false } },
 };
-export const Mobile: Story = {
-  args: { mobile: true },
-  globals: { viewport: { value: "mobile", isRotated: false } },
-};
-export const MobileExpiry: Story = {
-  name: "Mobile · Expiry Batches",
-  args: { mobile: true, initialPage: "expiry" },
-  globals: { viewport: { value: "mobile", isRotated: false } },
-};
-export const MobileScrolled: Story = {
-  name: "Mobile Scrolled",
-  args: { mobile: true, initiallyScrolled: true },
-  globals: { viewport: { value: "mobile", isRotated: false } },
-};

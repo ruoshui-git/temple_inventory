@@ -35,6 +35,10 @@ type Story = StoryObj<typeof meta>;
 
 export const FewFilters: Story = {};
 
+export const WithoutPageClear: Story = {
+  args: { showClear: false },
+};
+
 export const ManyFilters: Story = {
   args: { chips: manyFilters },
 };

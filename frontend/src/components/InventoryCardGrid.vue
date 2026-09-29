@@ -12,6 +12,7 @@ const props = withDefaults(
 		selectionMode?: boolean;
 		selectedKeys?: string[];
 		warehouseLabel?: (name: string) => string;
+		compactMobile?: boolean;
 	}>(),
 	{
 		loading: false,
@@ -19,6 +20,7 @@ const props = withDefaults(
 		error: "",
 		selectionMode: false,
 		selectedKeys: () => [],
+		compactMobile: false,
 	},
 );
 const emit = defineEmits<{
@@ -71,7 +73,13 @@ const expiryBadge = (row: InventoryCardRow) => {
 		<slot name="error">{{ error }}</slot>
 	</div>
 	<div v-else-if="!rows.length" class="card-state">暂无符合条件的物品</div>
-	<div v-else class="inventory-card-grid" role="list" aria-label="库存卡片">
+	<div
+		v-else
+		class="inventory-card-grid"
+		:class="{ 'compact-mobile': compactMobile }"
+		role="list"
+		aria-label="库存卡片"
+	>
 		<article
 			v-for="row in rows"
 			:key="row.item_code"
@@ -358,6 +366,58 @@ const expiryBadge = (row: InventoryCardRow) => {
 	.inventory-card-grid {
 		grid-template-columns: 1fr;
 		padding: 8px 0;
+	}
+	.inventory-card-grid.compact-mobile {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		padding: 4px 0 12px;
+	}
+	.compact-mobile .inventory-card-body {
+		gap: 5px;
+		padding: 8px;
+	}
+	.compact-mobile .inventory-card-primary {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 5px;
+	}
+	.compact-mobile .inventory-card-name {
+		font-size: 13px;
+		line-height: 1.3;
+	}
+	.compact-mobile .inventory-card-available > small,
+	.compact-mobile .inventory-card-description {
+		display: none;
+	}
+	.compact-mobile .inventory-card-available strong {
+		font-size: 20px;
+	}
+	.compact-mobile .inventory-card-code {
+		overflow: hidden;
+		font-size: 10px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.compact-mobile .inventory-card-details {
+		align-items: center;
+		gap: 4px;
+	}
+	.compact-mobile .inventory-card-details :deep(.detail-popover-trigger),
+	.compact-mobile .batch-badge,
+	.compact-mobile .expiry-badge {
+		min-height: 22px;
+		padding: 1px 6px;
+		font-size: 9px;
+	}
+	.compact-mobile .inventory-card-totals {
+		gap: 2px 7px;
+		font-size: 10px;
+	}
+	.compact-mobile .inventory-card-totals > small {
+		display: none;
+	}
+	.compact-mobile .inventory-card-expiry {
+		min-height: 14px;
+		font-size: 10px;
 	}
 	.inventory-card-image,
 	.inventory-card-image :deep(.image-thumb-button img) {

@@ -2,8 +2,26 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import QuantitySummary from "../src/components/QuantitySummary.vue";
 import InventoryCardGrid from "../src/components/InventoryCardGrid.vue";
+import { batches, items } from "../src/explorations/inventory/fixtures";
 
 describe("quantity summaries and Inventory cards", () => {
+  it("keeps Inventory item-level while expiry fixtures remain batch-level", () => {
+    const itemRows = items.filter((item) => item.code === "ITM-000161");
+    const batchRows = batches.filter(
+      (batch) => batch.item.code === "ITM-000161",
+    );
+    expect(itemRows).toHaveLength(1);
+    expect(batchRows.map((batch) => batch.code)).toEqual([
+      "ITM-000161-A",
+      "ITM-000161-B",
+      "ITM-000161-C",
+    ]);
+    expect(new Set(batchRows.map((batch) => batch.expiry)).size).toBe(3);
+    expect(batchRows.reduce((total, batch) => total + batch.quantity, 0)).toBe(
+      itemRows[0].total,
+    );
+  });
+
   it("keeps incompatible UOM totals separate", () => {
     const wrapper = mount(QuantitySummary, {
       props: {
@@ -121,5 +139,28 @@ describe("quantity summaries and Inventory cards", () => {
     expect(cards[3].text()).toContain("0 批次");
     expect(cards[3].find(".inventory-card-expiry").exists()).toBe(false);
     expect(cards[4].text()).toContain("批次管理");
+  });
+
+  it("enables the compact two-column mobile mode only when requested", () => {
+    const row = {
+      item_code: "ITEM-1",
+      item_name: "口罩",
+      item_group: "医疗防护",
+      stock_uom: "包",
+      available_stock: 8,
+      total_stock: 12,
+      on_loan_qty: 3,
+      damaged_qty: 1,
+    };
+    const defaultWrapper = mount(InventoryCardGrid, { props: { rows: [row] } });
+    const compactWrapper = mount(InventoryCardGrid, {
+      props: { rows: [row], compactMobile: true },
+    });
+    expect(defaultWrapper.find(".inventory-card-grid").classes()).not.toContain(
+      "compact-mobile",
+    );
+    expect(compactWrapper.find(".inventory-card-grid").classes()).toContain(
+      "compact-mobile",
+    );
   });
 });

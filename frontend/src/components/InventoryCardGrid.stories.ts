@@ -54,6 +54,11 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const CompactMobile: Story = {
+  args: { compactMobile: true },
+  globals: { viewport: { value: "mobile", isRotated: false } },
+};
+
 export const Loading: Story = {
   args: { rows: [], loading: true },
 };

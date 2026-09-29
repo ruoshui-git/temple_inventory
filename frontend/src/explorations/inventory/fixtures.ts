@@ -177,6 +177,41 @@ export const items: InventoryItem[] = Array.from({ length: 3 }, (_, variant) =>
       const code = `ITM-${String(161 + variant * seeds.length + index).padStart(6, "0")}`;
       const quantity = available + loaned + damaged;
       const tracked = [0, 2, 8, 14].includes(index);
+      const trackedBatches =
+        variant === 0 && index === 0
+          ? [
+              {
+                code: `${code}-A`,
+                expiry: "2026-09-20",
+                quantity: Math.floor(quantity / 4),
+              },
+              {
+                code: `${code}-B`,
+                expiry: "2026-10-12",
+                quantity: Math.floor(quantity / 4),
+              },
+              {
+                code: `${code}-C`,
+                expiry: "2027-03-15",
+                quantity: quantity - Math.floor(quantity / 4) * 2,
+              },
+            ]
+          : tracked
+            ? [
+                {
+                  code: `${code}-A`,
+                  expiry: index === 8 ? "2026-09-15" : "2026-10-12",
+                  quantity: Math.floor(quantity / 3),
+                },
+                {
+                  code: `${code}-B`,
+                  expiry: "2027-03-15",
+                  quantity: quantity - Math.floor(quantity / 3),
+                },
+              ]
+            : index === 6
+              ? [{ code: `${code}-A`, quantity }]
+              : [];
       return {
         code,
         name: name + (variant ? ["", " · 小号", " · 大号"][variant] : ""),
@@ -194,22 +229,7 @@ export const items: InventoryItem[] = Array.from({ length: 3 }, (_, variant) =>
             : index % 3 === 0
               ? ["hall-shelf", "hall-cabinet", "kitchen-shelf"]
               : ["hall-shelf"],
-        batches: tracked
-          ? [
-              {
-                code: `${code}-A`,
-                expiry: index === 8 ? "2026-09-15" : "2026-10-12",
-                quantity: Math.floor(quantity / 3),
-              },
-              {
-                code: `${code}-B`,
-                expiry: "2027-03-15",
-                quantity: quantity - Math.floor(quantity / 3),
-              },
-            ]
-          : index === 6
-            ? [{ code: `${code}-A`, quantity }]
-            : [],
+        batches: trackedBatches,
       };
     },
   ),

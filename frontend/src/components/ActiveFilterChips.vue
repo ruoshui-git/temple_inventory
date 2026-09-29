@@ -5,7 +5,9 @@ export interface FilterChip {
 	label: string;
 	value?: string;
 }
-const props = defineProps<{ chips: FilterChip[] }>();
+const props = withDefaults(defineProps<{ chips: FilterChip[]; showClear?: boolean }>(), {
+	showClear: true,
+});
 const emit = defineEmits<{ remove: [chip: FilterChip]; clear: [] }>();
 const expanded = ref(false);
 const overflowTrigger = ref<HTMLButtonElement>();
@@ -46,7 +48,9 @@ async function toggleOverflow() {
 			@click="toggleOverflow"
 		>
 			{{ expanded ? "收起" : `另有 ${hiddenCount} 项` }}</button
-		><button type="button" class="clear-filters" @click="emit('clear')">清除全部</button>
+		><button v-if="showClear" type="button" class="clear-filters" @click="emit('clear')">
+			清除全部
+		</button>
 	</div>
 </template>
 

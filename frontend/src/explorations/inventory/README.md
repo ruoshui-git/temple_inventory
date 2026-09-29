@@ -1,10 +1,8 @@
 # Inventory redesign exploration
 
-Review `Explorations/Inventory Redesign` for desktop/mobile item and batch pages,
-responsive wide and laptop Card View canvases, missing-image/long-name states,
-scrolled states, and the batch empty state. Review `Explorations/Inventory Filter`
-for the filter's default, expanded, selected, more-condition, expiry-primary, and
-mobile states. The mobile canvas has an explicit 390px frame so it also works
+Review `Explorations/Inventory Redesign` for the desktop item and batch pages and
+the dedicated `Mobile Inventory` and `Mobile Expiry` groups for the redesigned
+mobile states. The mobile canvas has an explicit 390 × 844 frame so it also works
 without the viewport toolbar.
 
 This folder is imported only by Storybook. It makes no Frappe calls and does not
@@ -12,9 +10,11 @@ mount the production page, shell, router, or camera. Destination and operation
 links expose their existing destination in a labeled preview. The scan preview
 accepts fixture codes such as `ITM-000161` and preserves the search field.
 
-Production reuse is limited to `warehousePresentation`. The shell, navigation,
-filter panel, summary, toolbar, cards, tables, icons, and modal presentation belong
-exclusively to this exploration.
+The mobile composition reuses `InventoryCardGrid`, `ActiveFilterChips`,
+`ItemImagePreview`, `warehousePresentation`, and the exploration filter/icon
+primitives. Opt-in props leave existing production rendering unchanged. Shell,
+fixture state, compact rows, summaries, expiry rows, and dialogs remain isolated
+from routed production pages and APIs.
 
 ## Reference adaptations
 
@@ -30,11 +30,20 @@ deliberately use the missing-image placeholder.
   `库存列表` and `效期批次`.
 - Keep `有库存`, `需关注`, and all expiry windows inside their pages as filters.
 - Use one filter trigger: it reveals a secondary sidebar beside desktop navigation
-  and a bottom modal on mobile. Warehouse and category selectors are searchable,
-  independently expandable trees rather than dropdowns.
+  and a full-screen filter on mobile. Warehouse and category selectors are
+  searchable, independently expandable trees rather than dropdowns. Mobile browse
+  chips omit `清除全部`; that action exists inside the full-screen filter only.
 - Put sorting directly in the desktop table headers instead of a separate select.
 - Keep item-code sorting independent from item-name sorting.
 - Keep item rows in `库存列表`; show one row per batch in `效期批次`.
+- Mobile Inventory uses a two-column image-forward Card View and a denser list
+  view. Its collapsed summary shows only unitless comparison aggregates and
+  reveals one stock-UOM breakdown at a time. The compact scrolled state keeps
+  browse controls and the view switch but never the summary.
+- Mobile expiry is fundamentally batch-level. `ITM-000161` deliberately has three
+  batches with distinct dates and quantities; Inventory renders the Item once,
+  while Expiry renders all three batch rows. `即将到期` means 0–30 remaining days
+  and never includes expired batches.
 - Use large square, lazy-loaded, contained images in both item and expiry Card
   Views. A roughly 230px minimum card target naturally gives the wide canvas six
   columns, then adds or removes columns with the available result width.
@@ -50,9 +59,9 @@ deliberately use the missing-image placeholder.
 
 Fixture date: **2026-09-29**. Rooms and category groups are browse-only parents;
 items reference leaf locations/categories. Parent selection matches descendants.
-Future expiry windows are cumulative and exclude expired batches. The fixture-wide
-attention count is 12 (expired plus the next 30 days); undated batches appear only
-under `全部` and `无效期`, and unbatched items never appear in the batch page.
+Future expiry windows are cumulative and exclude expired batches. Undated batches
+remain available to the desktop `无效期` filter but do not appear in the mobile
+expiry results; unbatched items never appear in either batch page.
 
 ## Manual review
 
@@ -73,7 +82,11 @@ under `全部` and `无效期`, and unbatched items never appear in the batch pa
    grid adds or removes columns as its result area changes. Inspect lazy images,
    missing images, two-line names, chips, unit labels, and 10,081 quantities.
    Table view intentionally scrolls horizontally on small screens.
+9. Compare all six named Mobile Inventory stories and all six Mobile Expiry
+   stories. Confirm search/scan/filter stay on one row, the filter clear action is
+   dialog-only, summary cards disappear in scrolled states, and the three
+   `ITM-000161` batches remain separate.
 
-Storybook play checks cover search, view switching, hierarchy semantics, filter
-opening, page switching, and header sorting. Browser/device comparison remains
-manual; no browser automation is used.
+Storybook play checks cover search, view switching, hierarchy semantics, filters,
+mobile sticky states, two-column cards, and batch-level expiry identity.
+Browser/device comparison remains manual; no browser automation is used.
