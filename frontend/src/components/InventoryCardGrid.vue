@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import ItemImagePreview from "./ItemImagePreview.vue";
 import DetailPopover from "./DetailPopover.vue";
+import type { InventoryCardRow } from "../lib/inventoryTypes";
 
 const props = withDefaults(
 	defineProps<{
-		rows: any[];
+		rows: InventoryCardRow[];
 		loading?: boolean;
 		loadingMore?: boolean;
 		error?: string;
@@ -20,27 +21,48 @@ const props = withDefaults(
 		selectedKeys: () => [],
 	},
 );
-const emit = defineEmits<{ activate: [row: any]; toggle: [row: any] }>();
+const emit = defineEmits<{
+	activate: [row: InventoryCardRow];
+	toggle: [row: InventoryCardRow];
+}>();
 
-function activate(row: any, event: Event) {
+function activate(row: InventoryCardRow, event: Event) {
 	if (event.target instanceof Element && event.target.closest("[data-card-control]")) return;
 	if (props.selectionMode) emit("toggle", row);
 	else emit("activate", row);
 }
-function activateKey(row: any, event: KeyboardEvent) {
+function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 	if (event.key !== "Enter" && event.key !== " ") return;
 	event.preventDefault();
 	activate(row, event);
 }
 const formatQuantity = (value: number) =>
 	new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(Number(value || 0));
-const locations = (row: any) =>
+const locations = (row: InventoryCardRow) =>
 	Object.entries(row.warehouse_stock || {}).filter(([, quantity]) => Number(quantity) !== 0);
-const description = (row: any) =>
+const description = (row: InventoryCardRow) =>
 	String(row.description || "")
 		.replace(/<[^>]*>/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();
+const batchLabel = (row: InventoryCardRow) =>
+	typeof row.batch_count === "number"
+		? `${row.batch_count} 批次`
+		: row.has_batch_no
+			? "批次管理"
+			: "";
+const expiryTone = (row: InventoryCardRow) => {
+	if (row.nearest_expiry_days == null) return "";
+	if (row.nearest_expiry_days < 0) return "danger";
+	if (row.nearest_expiry_days <= 30) return "warning";
+	return "";
+};
+const expiryBadge = (row: InventoryCardRow) => {
+	if (row.nearest_expiry_days == null) return "";
+	if (row.nearest_expiry_days < 0) return "含过期批次";
+	if (row.nearest_expiry_days <= 30) return "即将到期";
+	return "";
+};
 </script>
 
 <template>
@@ -90,7 +112,7 @@ const description = (row: any) =>
 					{{ description(row) }}
 				</p>
 				<div
-					v-if="locations(row).length || row.has_batch_no"
+					v-if="locations(row).length || batchLabel(row)"
 					class="inventory-card-details"
 					data-card-control
 				>
@@ -106,7 +128,10 @@ const description = (row: any) =>
 							{{ row.stock_uom }}
 						</p>
 					</DetailPopover>
-					<span v-if="row.has_batch_no" class="batch-badge">批次管理</span>
+					<span v-if="batchLabel(row)" class="batch-badge">{{ batchLabel(row) }}</span>
+					<span v-if="expiryBadge(row)" class="expiry-badge" :class="expiryTone(row)">{{
+						expiryBadge(row)
+					}}</span>
 				</div>
 				<div class="inventory-card-totals">
 					<span
@@ -120,8 +145,12 @@ const description = (row: any) =>
 					>
 					<small>{{ row.stock_uom }}</small>
 				</div>
-				<p v-if="row.expiry_status" class="inventory-card-expiry" :class="row.expiry_tone">
-					{{ row.expiry_status }}
+				<p
+					v-if="row.nearest_expiry_date"
+					class="inventory-card-expiry"
+					:class="expiryTone(row)"
+				>
+					最近效期 {{ row.nearest_expiry_date }}
 				</p>
 			</div>
 		</article>
@@ -261,7 +290,8 @@ const description = (row: any) =>
 	font-size: 12px;
 }
 .inventory-card-details :deep(.detail-popover-trigger),
-.batch-badge {
+.batch-badge,
+.expiry-badge {
 	min-height: 26px;
 	padding: 2px 7px;
 	border: 1px solid #dfebf4;
@@ -269,6 +299,16 @@ const description = (row: any) =>
 	background: #f2f7fb;
 	color: #476b88;
 	font-size: 11px;
+}
+.expiry-badge.warning {
+	border-color: transparent;
+	background: #fff3e6;
+	color: #9a541b;
+}
+.expiry-badge.danger {
+	border-color: transparent;
+	background: #fff0ed;
+	color: #a63e33;
 }
 .inventory-card-totals {
 	margin-top: auto;

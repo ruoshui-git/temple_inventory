@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import frappe
 from openpyxl import load_workbook
-from frappe.utils import getdate, nowdate
+from frappe.utils import add_days, getdate, nowdate
 
 from temple_inventory import inventory_api as inventory_service
 from temple_inventory import reporting
@@ -401,6 +401,97 @@ class WorkspaceTests(unittest.TestCase):
 		# completeness no longer produces a pending reason.
 		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"unlocated"})
 		self.assertEqual(leaf_rows, [])
+
+	def test_inventory_adds_scoped_batch_count_and_nearest_expiry(self):
+		warehouses, settings = self._mock_inventory_context()
+		expired = str(add_days(nowdate(), -2))
+		future = str(add_days(nowdate(), 10))
+		items = [
+			SimpleNamespace(
+				name="ITEM-BATCH",
+				item_code="ITEM-BATCH",
+				item_name="批次物品",
+				item_group="Group A",
+				stock_uom="Nos",
+				image=None,
+				description=None,
+				has_batch_no=1,
+			),
+			SimpleNamespace(
+				name="ITEM-EMPTY",
+				item_code="ITEM-EMPTY",
+				item_name="空批次物品",
+				item_group="Group A",
+				stock_uom="Nos",
+				image=None,
+				description=None,
+				has_batch_no=1,
+			),
+		]
+		batches = [
+			SimpleNamespace(name="B-EXPIRED", item="ITEM-BATCH", expiry_date=expired, disabled=0),
+			SimpleNamespace(name="B-FUTURE", item="ITEM-BATCH", expiry_date=future, disabled=0),
+			SimpleNamespace(name="B-UNDATED", item="ITEM-BATCH", expiry_date=None, disabled=0),
+			SimpleNamespace(name="B-ZERO", item="ITEM-BATCH", expiry_date=future, disabled=0),
+			SimpleNamespace(name="B-DISABLED", item="ITEM-BATCH", expiry_date=expired, disabled=1),
+		]
+		bins = [
+			SimpleNamespace(item_code="ITEM-BATCH", warehouse="leaf_a", actual_qty=5),
+			SimpleNamespace(item_code="ITEM-BATCH", warehouse="leaf_b", actual_qty=2),
+		]
+
+		def get_list(doctype, *args, **kwargs):
+			if doctype == "Item":
+				return items
+			if doctype == "Batch":
+				self.assertEqual(kwargs["filters"]["disabled"], 0)
+				return [row for row in batches if not row.disabled]
+			if doctype == "Item Group":
+				return []
+			raise AssertionError(doctype)
+
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Bin":
+				return bins
+			if doctype in ("Item Group", "Item Barcode"):
+				return []
+			raise AssertionError(doctype)
+
+		def batch_qty(batch_no, warehouse, item_code, **kwargs):
+			return {
+				("B-EXPIRED", "leaf_a"): 1,
+				("B-FUTURE", "leaf_a"): 2,
+				("B-FUTURE", "leaf_b"): 2,
+				("B-UNDATED", "leaf_a"): 2,
+				("B-DISABLED", "leaf_a"): 9,
+			}.get((batch_no, warehouse), 0)
+
+		with patch.object(inventory_service, "_require_stock"), patch.object(
+			inventory_service, "_settings", return_value=settings
+		), patch.object(
+			inventory_service, "_visible_warehouses", return_value=warehouses
+		), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(
+			inventory_service, "_physical_tree", return_value={}
+		), patch.object(
+			inventory_service.frappe, "get_list", side_effect=get_list
+		), patch.object(
+			inventory_service.frappe, "get_all", side_effect=get_all
+		), patch.object(inventory_service, "get_batch_qty", side_effect=batch_qty):
+			page = inventory(mode="catalog")
+			leaf_page = inventory(mode="catalog", warehouse="leaf_b")
+
+		rows = {row["item_code"]: row for row in page["results"]}
+		self.assertEqual(page["as_of"], str(getdate(nowdate())))
+		self.assertEqual(rows["ITEM-BATCH"]["batch_count"], 3)
+		self.assertEqual(rows["ITEM-BATCH"]["nearest_expiry_date"], expired)
+		self.assertEqual(rows["ITEM-BATCH"]["nearest_expiry_days"], -2)
+		self.assertEqual(rows["ITEM-EMPTY"]["batch_count"], 0)
+		self.assertIsNone(rows["ITEM-EMPTY"]["nearest_expiry_date"])
+		self.assertIsNone(rows["ITEM-EMPTY"]["nearest_expiry_days"])
+		leaf_row = next(row for row in leaf_page["results"] if row["item_code"] == "ITEM-BATCH")
+		self.assertEqual(leaf_row["batch_count"], 1)
+		self.assertEqual(leaf_row["nearest_expiry_date"], future)
+		self.assertEqual(leaf_row["nearest_expiry_days"], 10)
 
 	def test_inventory_rejects_nonzero_group_stock(self):
 		warehouses, settings = self._mock_inventory_context()

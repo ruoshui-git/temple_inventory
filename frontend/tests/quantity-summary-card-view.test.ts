@@ -53,4 +53,73 @@ describe("quantity summaries and Inventory cards", () => {
     });
     expect(wrapper.emitted("activate")).toBeUndefined();
   });
+
+  it("renders real batch counts and server-relative expiry states", () => {
+    const base = {
+      item_group: "食品",
+      stock_uom: "件",
+      available_stock: 1,
+      total_stock: 1,
+      on_loan_qty: 0,
+      damaged_qty: 0,
+      has_batch_no: true,
+    };
+    const wrapper = mount(InventoryCardGrid, {
+      props: {
+        rows: [
+          {
+            ...base,
+            item_code: "EXPIRED",
+            item_name: "过期物品",
+            batch_count: 3,
+            nearest_expiry_date: "2026-09-20",
+            nearest_expiry_days: -9,
+          },
+          {
+            ...base,
+            item_code: "SOON",
+            item_name: "临期物品",
+            batch_count: 2,
+            nearest_expiry_date: "2026-10-10",
+            nearest_expiry_days: 11,
+          },
+          {
+            ...base,
+            item_code: "LATER",
+            item_name: "远期物品",
+            batch_count: 1,
+            nearest_expiry_date: "2027-01-01",
+            nearest_expiry_days: 94,
+          },
+          {
+            ...base,
+            item_code: "EMPTY",
+            item_name: "无批次库存",
+            batch_count: 0,
+            nearest_expiry_date: null,
+            nearest_expiry_days: null,
+          },
+          {
+            ...base,
+            item_code: "LEGACY",
+            item_name: "旧版响应",
+          },
+        ],
+      },
+    });
+    const cards = wrapper.findAll(".inventory-visual-card");
+    expect(cards[0].text()).toContain("3 批次");
+    expect(cards[0].text()).toContain("含过期批次");
+    expect(cards[0].text()).toContain("最近效期 2026-09-20");
+    expect(cards[0].find(".expiry-badge.danger").exists()).toBe(true);
+    expect(cards[1].text()).toContain("2 批次");
+    expect(cards[1].text()).toContain("即将到期");
+    expect(cards[1].find(".expiry-badge.warning").exists()).toBe(true);
+    expect(cards[2].text()).toContain("1 批次");
+    expect(cards[2].text()).toContain("最近效期 2027-01-01");
+    expect(cards[2].find(".expiry-badge").exists()).toBe(false);
+    expect(cards[3].text()).toContain("0 批次");
+    expect(cards[3].find(".inventory-card-expiry").exists()).toBe(false);
+    expect(cards[4].text()).toContain("批次管理");
+  });
 });

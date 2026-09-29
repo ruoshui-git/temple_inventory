@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../lib/api";
 import { warehousePresentation } from "../lib/warehousePresenter";
+import type { InventoryCardRow } from "../lib/inventoryTypes";
 import WarehouseSelector from "../components/WarehouseSelector.vue";
 import CategorySelector from "../components/CategorySelector.vue";
 import ItemImagePreview from "../components/ItemImagePreview.vue";
@@ -21,7 +22,7 @@ import { toast } from "../lib/toast";
 const route = useRoute(),
 	router = useRouter();
 const boot = ref<any>(),
-	rows = ref<any[]>([]),
+	rows = ref<InventoryCardRow[]>([]),
 	total = ref(0),
 	overall = ref<number | null>(null),
 	facetCounts = ref<any>({ warehouses: {}, item_groups: {} }),
@@ -146,12 +147,12 @@ async function load(append = false) {
 			controller.signal,
 		);
 		if (current !== sequence) return;
-		const incoming = data.results || [];
+		const incoming: InventoryCardRow[] = data.results || [];
 		rows.value = append
 			? [
 					...rows.value,
 					...incoming.filter(
-						(row: any) => !rows.value.some((old) => old.item_code === row.item_code),
+						(row) => !rows.value.some((old) => old.item_code === row.item_code),
 					),
 				]
 			: incoming;
@@ -565,7 +566,7 @@ onBeforeUnmount(() => {
 								><div class="primary-cell">
 									<span data-row-control
 										><ItemImagePreview
-											:src="row.image"
+											:src="row.image || undefined"
 											:alt="row.item_name" /></span
 									><RouterLink
 										data-row-action
@@ -609,7 +610,7 @@ onBeforeUnmount(() => {
 								><article class="item-card result-card" tabindex="0">
 									<span data-row-control
 										><ItemImagePreview
-											:src="row.image"
+											:src="row.image || undefined"
 											:alt="row.item_name" /></span
 									><RouterLink
 										data-row-action

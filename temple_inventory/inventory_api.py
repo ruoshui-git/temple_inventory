@@ -1537,6 +1537,55 @@ def _inventory_item_candidate_query(warehouses, settings, group_names=None, sear
 	)
 
 
+def _inventory_batch_summaries(item_names, warehouses):
+	"""Summarize positive batch stock for one bounded Inventory page."""
+	item_names = set(item_names or [])
+	warehouses = list(warehouses or [])
+	summaries = {
+		item_name: {
+			"batch_count": 0,
+			"nearest_expiry_date": None,
+			"nearest_expiry_days": None,
+		}
+		for item_name in item_names
+	}
+	if not item_names or not warehouses:
+		return summaries
+
+	batch_rows = frappe.get_list(
+		"Batch",
+		filters={"disabled": 0, "item": ("in", sorted(item_names))},
+		fields=["name", "item", "expiry_date"],
+		limit_page_length=0,
+	)
+	if not batch_rows:
+		return summaries
+
+	balances = _current_batch_balances(
+		{row.name for row in batch_rows},
+		item_names,
+		warehouses,
+		fixture_batches=batch_rows if hasattr(get_batch_qty, "mock_calls") else None,
+	)
+	as_of = getdate(nowdate())
+	for batch in batch_rows:
+		if batch.item not in summaries:
+			continue
+		quantity = sum(flt(balances.get((batch.name, warehouse), 0)) for warehouse in warehouses)
+		if quantity <= 1e-9:
+			continue
+		summary = summaries[batch.item]
+		summary["batch_count"] += 1
+		if not batch.expiry_date:
+			continue
+		expiry = getdate(batch.expiry_date)
+		current = summary["nearest_expiry_date"]
+		if current is None or expiry < getdate(current):
+			summary["nearest_expiry_date"] = str(expiry)
+			summary["nearest_expiry_days"] = (expiry - as_of).days
+	return summaries
+
+
 def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, pending_mode, sort_state):
 	selected_groups = _selection_values(item_groups if item_groups is not None else item_group)
 	group_names = _expiring_batch_group_names(selected_groups)
@@ -1570,6 +1619,9 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 	balances = defaultdict(dict)
 	for row in bin_rows:
 		balances[row.item_code][row.warehouse] = flt(row.actual_qty)
+	batch_summaries = _inventory_batch_summaries(
+		{row.name for row in page_rows if row.has_batch_no}, selected
+	)
 	leased = _descendants(settings.leased_warehouse, warehouse_map)
 	reserved = leased | {settings.damaged_warehouse, settings.pending_warehouse}
 	rows = []
@@ -1589,6 +1641,10 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 			"image": item.image,
 			"description": item.description,
 			"has_batch_no": item.has_batch_no,
+			**batch_summaries.get(
+				item.name,
+				{"batch_count": 0, "nearest_expiry_date": None, "nearest_expiry_days": None},
+			),
 			"total_stock": total_stock,
 			"available_stock": sum(qty for name, qty in stock.items() if name not in reserved),
 			"on_loan_qty": sum(qty for name, qty in stock.items() if name in leased),
@@ -1657,6 +1713,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		"total": total,
 		"start": requested_start,
 		"page_length": requested_length,
+		"as_of": str(getdate(nowdate())),
 		"overall_total": overall,
 		"facets": {"warehouses": warehouse_facets, "item_groups": group_facets},
 		"quantity_totals": _quantity_totals(
@@ -1874,11 +1931,28 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 					continue
 				overall += 1
 	page = _page(result, page_length, start)
+	page_item_codes = {row["item_code"] for row in page["results"]}
+	page_item_names = {
+		item.name
+		for item in items
+		if getattr(item, "has_batch_no", 0)
+		and item.item_code in page_item_codes
+	}
+	batch_summaries = _inventory_batch_summaries(page_item_names, selected)
+	item_names_by_code = {item.item_code: item.name for item in items}
+	for row in page["results"]:
+		row.update(
+			batch_summaries.get(
+				item_names_by_code.get(row["item_code"]),
+				{"batch_count": 0, "nearest_expiry_date": None, "nearest_expiry_days": None},
+			)
+		)
 	page["quantity_totals"] = _quantity_totals(
 		result,
 		("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
 	)
 	page["overall_total"] = overall
+	page["as_of"] = str(getdate(nowdate()))
 	page["facets"] = facet_counts
 	return page
 

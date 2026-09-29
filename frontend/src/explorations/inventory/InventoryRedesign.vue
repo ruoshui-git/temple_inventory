@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import InventoryCardGrid from "../../components/InventoryCardGrid.vue";
+import type { InventoryCardRow } from "../../lib/inventoryTypes";
 import { warehousePresentation } from "../../lib/warehousePresenter";
 import cardBatteries from "./assets/card-batteries.png";
 import cardCamera from "./assets/card-camera.png";
@@ -197,7 +198,7 @@ const currentResults = computed(() =>
 	page.value === "list" ? filteredItems.value : filteredBatches.value,
 );
 const shownItems = computed(() => filteredItems.value.slice(0, limit.value));
-const storyCardRows = computed(() =>
+const storyCardRows = computed<InventoryCardRow[]>(() =>
 	shownItems.value.map((item) => {
 		const status = expiryStatus(item);
 		return {
@@ -213,8 +214,9 @@ const storyCardRows = computed(() =>
 			stock_uom: item.uom,
 			warehouse_stock: Object.fromEntries(item.locations.map((location) => [location, 1])),
 			has_batch_no: Boolean(item.batches.length),
-			expiry_status: status ? `最近效期 ${status.date}` : "",
-			expiry_tone: status?.expired ? "danger" : status?.soon ? "warning" : "",
+			batch_count: item.batches.length,
+			nearest_expiry_date: status?.date || null,
+			nearest_expiry_days: daysFromFixtureDate(status?.date),
 		};
 	}),
 );
