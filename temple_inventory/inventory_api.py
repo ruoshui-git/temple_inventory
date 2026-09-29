@@ -1890,9 +1890,9 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		all_unfiltered_params,
 		as_dict=True,
 	)
-	_, all_expiry_items = _inventory_expiry_scope(
+	all_expiry_items = _inventory_expiry_scope(
 		all_candidate_rows, all_leaves, expiry_filter, expiry_days, custom_from, custom_to
-	)
+	)[1]
 	all_sql, all_params = _inventory_item_candidate_query(
 		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased,
 		all_expiry_items if expiry_filter["window"] else None,
@@ -1917,9 +1917,9 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		group_unfiltered_params,
 		as_dict=True,
 	)
-	_, group_expiry_items = _inventory_expiry_scope(
+	group_expiry_items = _inventory_expiry_scope(
 		group_candidate_rows, selected, expiry_filter, expiry_days, custom_from, custom_to
-	)
+	)[1]
 	group_sql, group_params = _inventory_item_candidate_query(
 		selected, settings, None, search, bool(needs_attention), mode, pending_mode, leased,
 		group_expiry_items if expiry_filter["window"] else None,

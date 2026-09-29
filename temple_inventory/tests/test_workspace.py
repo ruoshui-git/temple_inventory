@@ -528,6 +528,79 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual([row["item_code"] for row in page["results"]], [self.item])
 		self.assertIn("facets", page)
 
+	def test_inventory_database_page_translates_damaged_attention_reason(self):
+		warehouses, settings = self._mock_inventory_context()
+		item = SimpleNamespace(
+			name="ITEM-DAMAGED",
+			item_code="ITEM-DAMAGED",
+			item_name="损坏物品",
+			item_group="Group A",
+			stock_uom="Nos",
+			image=None,
+			description=None,
+			has_batch_no=0,
+		)
+		summary = SimpleNamespace(
+			stock_uom="Nos",
+			available_stock=0,
+			total_stock=2,
+			on_loan_qty=0,
+			damaged_qty=2,
+			pending_qty=0,
+		)
+		sql_results = [
+			[item],
+			[SimpleNamespace(total=1)],
+			[summary],
+			[item],
+			[item],
+			[SimpleNamespace(total=1)],
+			[],
+			[item],
+			[SimpleNamespace(item_group="Group A", total=1)],
+			[],
+		]
+		with patch.object(
+			inventory_service, "_inventory_item_candidate_query", return_value=("select 1", [])
+		), patch.object(
+			inventory_service, "_inventory_expiry_scope", return_value=({}, {item.name})
+		), patch.object(
+			inventory_service, "_bin_balances", return_value=[
+				SimpleNamespace(item_code=item.name, warehouse="damaged", actual_qty=2)
+			]
+		), patch.object(
+			inventory_service, "_inventory_batch_summaries", return_value={}
+		), patch.object(
+			inventory_service, "_physical_tree", return_value={}
+		), patch.object(
+			inventory_service.frappe.db, "sql", side_effect=sql_results
+		), patch.object(
+			inventory_service.frappe, "get_list", return_value=[]
+		):
+			page = inventory_service._inventory_database_page(
+				settings,
+				warehouses,
+				{"leaf_a", "damaged"},
+				None,
+				None,
+				1,
+				"current",
+				0,
+				25,
+				None,
+				None,
+				None,
+				None,
+				{"window": "", "include_undated": True},
+				30,
+				None,
+				None,
+			)
+
+		reasons = page["results"][0]["attention_reasons"]
+		self.assertEqual([reason["code"] for reason in reasons], ["damaged"])
+		self.assertIn("损坏", reasons[0]["label"])
+
 	def test_inventory_fallback_sort_columns_and_validation(self):
 		warehouses, settings = self._mock_inventory_context()
 		warehouses["lease_leaf"] = SimpleNamespace(

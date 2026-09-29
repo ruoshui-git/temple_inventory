@@ -68,17 +68,17 @@ const loanSharedQuery = computed<LocationQueryRaw>(() => ({
 	sort_order: route.query.sort_order,
 }));
 
+const inventoryContextItems = computed<ContextItem[]>(() => [
+	{ key: "current", label: "当前库存", path: "/", query: inventorySharedQuery.value },
+	{
+		key: "expiry",
+		label: "效期批次",
+		path: "/expiry",
+		query: inventorySharedQuery.value,
+	},
+]);
 const contextItems = computed<ContextItem[]>(() => {
-	if (route.path === "/" || route.path === "/expiry")
-		return [
-			{ key: "current", label: "当前库存", path: "/", query: inventorySharedQuery.value },
-			{
-				key: "expiry",
-				label: "效期批次",
-				path: "/expiry",
-				query: inventorySharedQuery.value,
-			},
-		];
+	if (route.path === "/" || route.path === "/expiry") return inventoryContextItems.value;
 	if (route.path === "/movements" || route.path === "/history")
 		return [
 			{
@@ -178,7 +178,7 @@ watch(contextItems, () => {
 watch(
 	() => route.path,
 	(path) => {
-		if (path === "/" || path === "/expiry") inventoryExpanded.value = true;
+		inventoryExpanded.value = path === "/" || path === "/expiry";
 	},
 );
 onMounted(() => {
@@ -255,16 +255,18 @@ onBeforeUnmount(() => {
 					>
 					<div
 						v-if="
-							contextItems.length &&
-							activeDestination === item.path &&
-							(activeDestination !== '/' || inventoryExpanded)
+							item.key === 'inventory'
+								? inventoryExpanded
+								: contextItems.length && activeDestination === item.path
 						"
 						class="desktop-inventory-context"
 						role="navigation"
 						aria-label="当前视图"
 					>
 						<RouterLink
-							v-for="contextItem in contextItems"
+							v-for="contextItem in item.key === 'inventory'
+								? inventoryContextItems
+								: contextItems"
 							:key="contextItem.key"
 							:to="{ path: contextItem.path, query: contextItem.query }"
 							:aria-current="contextKey === contextItem.key ? 'page' : undefined"

@@ -106,6 +106,33 @@ describe("ApplicationShell navigation contract", () => {
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });
 
+  it("expands Inventory destinations while another desktop module is active", async () => {
+    route.path = "/movements";
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+    await wrapper.find("button.inventory-parent").trigger("click");
+
+    const contexts = wrapper.findAll(".desktop-inventory-context");
+    expect(contexts).toHaveLength(2);
+    expect(contexts[0].findAll("a").map((link) => link.text())).toEqual([
+      "库存列表",
+      "效期批次",
+    ]);
+    expect(
+      contexts[0].findAll("a").map((link) => link.attributes("data-to")),
+    ).toEqual(["/", "/expiry"]);
+    expect(contexts[1].findAll("a").map((link) => link.text())).toEqual([
+      "概览",
+      "入库",
+      "出库",
+      "转移",
+    ]);
+  });
+
   it("treats the report center as part of More", async () => {
     route.path = "/reports";
     const wrapper = mount(ApplicationShell, {

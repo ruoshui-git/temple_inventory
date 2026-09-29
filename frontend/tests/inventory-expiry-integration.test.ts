@@ -3,6 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { reactive, defineComponent } from "vue";
 import Inventory from "../src/pages/Inventory.vue";
 import Expiry from "../src/pages/Expiry.vue";
+import InventoryFilterPanel from "../src/components/InventoryFilterPanel.vue";
 
 const state = vi.hoisted(() => ({
   route: { query: {} as Record<string, any>, path: "/" },
@@ -105,6 +106,64 @@ beforeEach(() => {
 });
 
 describe("Inventory and Expiry integrations", () => {
+  it("restores bootstrap-dependent filters and actions when retry succeeds", async () => {
+    let bootstrapAttempts = 0;
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap") {
+        bootstrapAttempts += 1;
+        if (bootstrapAttempts === 1) throw new Error("初始化失败");
+        return {
+          item_groups: [{ name: "供品", item_group_name: "供品" }],
+          physical_tree: [
+            {
+              name: "主殿 - T",
+              warehouse_name: "主殿",
+              local_label: "主殿",
+              is_group: 0,
+            },
+          ],
+          stock_operation_capabilities: {
+            Receive: true,
+            Issue: true,
+            Transfer: true,
+          },
+        };
+      }
+      return {
+        results: inventoryRows(),
+        total: 1,
+        overall_total: 1,
+        facets: {},
+      };
+    });
+
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    expect(wrapper.text()).toContain("初始化失败");
+
+    const retry = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "重试");
+    expect(retry).toBeDefined();
+    await retry!.trigger("click");
+    await flushPromises();
+
+    expect(bootstrapAttempts).toBe(2);
+    const filterPanel = wrapper.findComponent(InventoryFilterPanel);
+    expect(filterPanel.props("warehouses")).toEqual([
+      expect.objectContaining({ name: "主殿 - T", label: "主殿" }),
+    ]);
+    expect(filterPanel.props("categories")).toEqual([
+      expect.objectContaining({ name: "供品", label: "供品" }),
+    ]);
+    expect(
+      wrapper
+        .findAll(".inventory-heading-actions button")
+        .map((button) => button.text()),
+    ).toEqual(expect.arrayContaining(["↓ 入库", "↑ 出库", "⇄ 转移"]));
+    expect(wrapper.text()).not.toContain("初始化失败");
+  });
+
   it("keeps browse chrome outside the dedicated results scroll and uses shared primary cells", async () => {
     const inventory = mount(Inventory, { global: globals });
     await flushPromises();

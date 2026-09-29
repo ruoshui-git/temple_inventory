@@ -393,6 +393,18 @@ function hydrateInventoryFilters(query: Record<string, unknown>) {
 function onResultsScroll() {
 	compact.value = (resultsScroll.value?.scrollTop || 0) > 80;
 }
+async function initializeInventory() {
+	error.value = "";
+	try {
+		if (!boot.value) {
+			boot.value = await api("bootstrap");
+			window.dispatchEvent(new CustomEvent("ti:refresh-shell"));
+		}
+		await load();
+	} catch (cause: any) {
+		error.value = cause.message;
+	}
+}
 watch(
 	[filters, sort],
 	() => {
@@ -449,40 +461,35 @@ watch(
 );
 onMounted(async () => {
 	try {
-		try {
-			const savedView = localStorage.getItem(viewStorageKey);
-			if (savedView === "card" || savedView === "table") view.value = savedView;
-		} catch {
-			view.value = "card";
-		}
-		boot.value = await api("bootstrap");
-		filters.value = hydrateInventoryFilters(route.query as Record<string, unknown>);
-		const sortBy = String(route.query.sort_by || defaultSort.sort_by),
-			sortOrder = String(route.query.sort_order || defaultSort.sort_order);
-		if (
-			[
-				"item_name",
-				"item_code",
-				"available_stock",
-				"total_stock",
-				"on_loan_qty",
-				"damaged_qty",
-			].includes(sortBy) &&
-			["asc", "desc"].includes(sortOrder)
-		)
-			sort.value = { sort_by: sortBy, sort_order: sortOrder as "asc" | "desc" };
-		await load();
-		await nextTick();
-		const saved = Number(sessionStorage.getItem("ti:inventory-results-scroll") || 0);
-		if (saved) resultsScroll.value?.scrollTo({ top: saved });
-		if (typeof window.matchMedia === "function") {
-			mediaQuery = window.matchMedia("(min-width: 1024px)");
-			mediaQuery.addEventListener("change", setupObserver);
-		}
-		setupObserver();
-	} catch (cause: any) {
-		error.value = cause.message;
+		const savedView = localStorage.getItem(viewStorageKey);
+		if (savedView === "card" || savedView === "table") view.value = savedView;
+	} catch {
+		view.value = "card";
 	}
+	filters.value = hydrateInventoryFilters(route.query as Record<string, unknown>);
+	const sortBy = String(route.query.sort_by || defaultSort.sort_by),
+		sortOrder = String(route.query.sort_order || defaultSort.sort_order);
+	if (
+		[
+			"item_name",
+			"item_code",
+			"available_stock",
+			"total_stock",
+			"on_loan_qty",
+			"damaged_qty",
+		].includes(sortBy) &&
+		["asc", "desc"].includes(sortOrder)
+	)
+		sort.value = { sort_by: sortBy, sort_order: sortOrder as "asc" | "desc" };
+	await initializeInventory();
+	await nextTick();
+	const saved = Number(sessionStorage.getItem("ti:inventory-results-scroll") || 0);
+	if (saved) resultsScroll.value?.scrollTo({ top: saved });
+	if (typeof window.matchMedia === "function") {
+		mediaQuery = window.matchMedia("(min-width: 1024px)");
+		mediaQuery.addEventListener("change", setupObserver);
+	}
+	setupObserver();
 });
 onBeforeUnmount(() => {
 	if (timer) clearTimeout(timer);
@@ -674,7 +681,9 @@ onBeforeUnmount(() => {
 						>
 							<template #error
 								>{{ error }}
-								<button type="button" @click="load()">重试</button></template
+								<button type="button" @click="initializeInventory">
+									重试
+								</button></template
 							>
 						</InventoryCardGrid>
 						<SortableDataTable
@@ -698,7 +707,9 @@ onBeforeUnmount(() => {
 						>
 							<template #error
 								>{{ error }}
-								<button type="button" @click="load()">重试</button></template
+								<button type="button" @click="initializeInventory">
+									重试
+								</button></template
 							>
 							<template #cell-item_name="{ row }"
 								><div class="primary-cell">
