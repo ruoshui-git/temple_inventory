@@ -5,16 +5,17 @@ import { api } from "../lib/api";
 import { warehousePresentation } from "../lib/warehousePresenter";
 import { hydrateFilterQuery, sameFilterValue, serializeFilterQuery } from "../composables/filters";
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
-import WarehouseSelector from "../components/WarehouseSelector.vue";
-import CategorySelector from "../components/CategorySelector.vue";
 import ActiveFilterChips from "../components/ActiveFilterChips.vue";
 import FloatingActionMenu from "../components/FloatingActionMenu.vue";
 import ItemImagePreview from "../components/ItemImagePreview.vue";
 import SortableDataTable, { type SortState } from "../components/SortableDataTable.vue";
-import IconButton from "../components/IconButton.vue";
 import { formatExpiryDuration } from "../lib/duration";
-import QuantitySummary from "../components/QuantitySummary.vue";
 import ExportDialog from "../components/ExportDialog.vue";
+import InventoryIcon from "../components/InventoryIcon.vue";
+import InventoryFilterPanel, {
+	type InventoryFilterNode,
+	type InventoryFilterState,
+} from "../components/InventoryFilterPanel.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -27,14 +28,15 @@ const appending = ref(false);
 const total = ref(0);
 const overallTotal = ref(0);
 const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
-const summaryMetrics = computed(() => [
-	{ key: "total_qty", label: "批次库存", quantities: quantityTotals.value.total_qty || [] },
-]);
-const facetCounts = ref<any>({ warehouses: {}, item_groups: {} });
+const facetCounts = ref<any>({ warehouses: {}, item_groups: {}, expiry: {} });
 const start = ref(0);
 const pageLength = 25;
 const filterOpen = ref(false);
+const desktopFilterOpen = ref(false);
 const exportOpen = ref(false);
+const compact = ref(false);
+const view = ref<"card" | "table">("table");
+const viewStorageKey = "temple_inventory.expiry.view";
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
 const canMove = computed(() =>
 	[
@@ -65,8 +67,11 @@ const filters = ref({
 	search: "",
 	warehouses: [] as string[],
 	item_groups: [] as string[],
-	expiry_window: "",
+	in_stock: true,
+	expiry_window: "all",
 	expiry_days: "30",
+	expiry_from_days: "-30",
+	expiry_to_days: "30",
 });
 const defaultSort: SortState = { sort_by: "expiry_date", sort_order: "asc" };
 const sort = ref<SortState>({ ...defaultSort });
@@ -79,29 +84,89 @@ const sortColumns = [
 	{ key: "locations", label: "位置" },
 ];
 const expiryWindows = [
-	{ value: "overdue_within", prefix: "已过期", suffix: "天以下" },
-	{ value: "overdue_beyond", prefix: "已过期", suffix: "天以上" },
-	{ value: "remaining_within", prefix: "还剩", suffix: "天以下" },
-	{ value: "remaining_beyond", prefix: "还剩", suffix: "天以上" },
+	"all",
+	"overdue_within",
+	"overdue_beyond",
+	"remaining_within",
+	"remaining_beyond",
+	"none",
+	"custom",
 ];
 const routeValidationError = ref("");
 const warehouseRows = computed(() => boot.value?.physical_tree || []);
+const warehouseNodes = computed<InventoryFilterNode[]>(() =>
+	warehouseRows.value.map((row: any) => ({
+		name: row.name,
+		label: row.local_label || row.warehouse_name || row.name,
+		parent: row.parent_warehouse,
+		isGroup: Boolean(row.is_group),
+		count: facetCounts.value.warehouses?.[row.name],
+	})),
+);
+const categoryNodes = computed<InventoryFilterNode[]>(() =>
+	(boot.value?.item_groups || []).map((row: any) => ({
+		name: row.name,
+		label: row.item_group_name || row.name,
+		parent: row.parent_item_group,
+		isGroup: Boolean(row.is_group),
+		count: facetCounts.value.item_groups?.[row.name],
+	})),
+);
+const panelFilters = computed<InventoryFilterState>({
+	get: () => ({
+		warehouses: filters.value.warehouses,
+		categories: filters.value.item_groups,
+		inStock: filters.value.in_stock,
+		expiry: filters.value.expiry_window as InventoryFilterState["expiry"],
+		expiryDays: filters.value.expiry_days,
+		expiryFromDays: filters.value.expiry_from_days,
+		expiryToDays: filters.value.expiry_to_days,
+	}),
+	set: (value) => {
+		filters.value = {
+			...filters.value,
+			warehouses: value.warehouses,
+			item_groups: value.categories,
+			in_stock: value.inStock,
+			expiry_window: value.expiry,
+			expiry_days: value.expiryDays || "30",
+			expiry_from_days: value.expiryFromDays || "",
+			expiry_to_days: value.expiryToDays || "",
+		};
+	},
+});
+const customError = computed(() => {
+	if (filters.value.expiry_window !== "custom") return "";
+	const from = Number(filters.value.expiry_from_days),
+		to = Number(filters.value.expiry_to_days);
+	if (!Number.isInteger(from) || !Number.isInteger(to)) return "请输入完整的整数范围";
+	if (from < -3650 || to > 3650 || from > to) return "范围须为 -3650 至 3650，且起始不大于结束";
+	return "";
+});
 const warehouseText = (name: string) =>
 	warehousePresentation(name, warehouseRows.value).breadcrumb;
 const expiryDays = computed(() =>
 	/^[1-9]\d*$/.test(filters.value.expiry_days) ? filters.value.expiry_days : "30",
 );
-const expiryWindowLabel = (value = filters.value.expiry_window) => {
-	const mode = expiryWindows.find((option) => option.value === value);
-	return mode ? `${mode.prefix}${expiryDays.value}${mode.suffix}` : "";
-};
+const expiryWindowLabel = (value = filters.value.expiry_window) =>
+	(
+		({
+			overdue_within: `已过期 ${expiryDays.value} 天以下`,
+			overdue_beyond: `已过期 ${expiryDays.value} 天以上`,
+			remaining_within: `还剩 ${expiryDays.value} 天以下`,
+			remaining_beyond: `还剩 ${expiryDays.value} 天以上`,
+			none: "无效期",
+			custom: `自定义 ${filters.value.expiry_from_days} – ${filters.value.expiry_to_days} 天`,
+		}) as Record<string, string>
+	)[value] || "全部效期";
 
 const activeCount = computed(
 	() =>
 		filters.value.warehouses.length +
 		filters.value.item_groups.length +
 		(filters.value.search ? 1 : 0) +
-		(filters.value.expiry_window ? 1 : 0),
+		(!filters.value.in_stock ? 1 : 0) +
+		(filters.value.expiry_window !== "all" ? 1 : 0),
 );
 const sortQuery = () =>
 	JSON.stringify(sort.value) === JSON.stringify(defaultSort)
@@ -127,16 +192,11 @@ const chips = computed(() => [
 			value,
 	})),
 	...(filters.value.search ? [{ key: "search", label: `搜索：${filters.value.search}` }] : []),
-	...(filters.value.expiry_window ? [{ key: "expiry_window", label: expiryWindowLabel() }] : []),
+	...(!filters.value.in_stock ? [{ key: "in_stock", label: "包含零库存" }] : []),
+	...(filters.value.expiry_window !== "all"
+		? [{ key: "expiry_window", label: expiryWindowLabel() }]
+		: []),
 ]);
-
-function setExpiryWindow(window: string) {
-	filters.value.expiry_window = window;
-	if (window && !/^[1-9]\d*$/.test(filters.value.expiry_days)) filters.value.expiry_days = "30";
-}
-function normalizeExpiryDays() {
-	if (!/^[1-9]\d*$/.test(filters.value.expiry_days)) filters.value.expiry_days = "30";
-}
 
 function removeChip(chip: any) {
 	if (chip.key === "warehouses")
@@ -147,6 +207,8 @@ function removeChip(chip: any) {
 		filters.value.item_groups = filters.value.item_groups.filter(
 			(value) => value !== chip.value,
 		);
+	else if (chip.key === "in_stock") filters.value.in_stock = true;
+	else if (chip.key === "expiry_window") filters.value.expiry_window = "all";
 	else (filters.value as any)[chip.key] = "";
 }
 function clearAll() {
@@ -154,8 +216,11 @@ function clearAll() {
 		search: "",
 		warehouses: [],
 		item_groups: [],
-		expiry_window: "",
+		in_stock: true,
+		expiry_window: "all",
 		expiry_days: "30",
+		expiry_from_days: "-30",
+		expiry_to_days: "30",
 	};
 	start.value = 0;
 }
@@ -174,6 +239,22 @@ function operation(kind: string) {
 function applySort(value: SortState) {
 	sort.value = value;
 	start.value = 0;
+}
+function setView(value: "card" | "table") {
+	view.value = value;
+	try {
+		localStorage.setItem(viewStorageKey, value);
+	} catch {
+		/* optional */
+	}
+}
+function openFilters(event: Event) {
+	if (window.matchMedia("(min-width: 1024px)").matches)
+		desktopFilterOpen.value = !desktopFilterOpen.value;
+	else filterPanel.value?.openPanel(event);
+}
+function onResultsScroll() {
+	compact.value = (resultsScroll.value?.scrollTop || 0) > 80;
 }
 function setupObserver() {
 	observer?.disconnect();
@@ -194,6 +275,7 @@ function setupObserver() {
 }
 async function load(append = false) {
 	if (!boot.value) return;
+	if (customError.value) return;
 	if (timer) clearTimeout(timer);
 	controller?.abort();
 	const current = ++sequence;
@@ -209,7 +291,18 @@ async function load(append = false) {
 				{
 					...filters.value,
 					...sort.value,
-					expiry_days: filters.value.expiry_window ? expiryDays.value : undefined,
+					in_stock: filters.value.in_stock ? 1 : 0,
+					expiry_window:
+						filters.value.expiry_window === "all" ? "" : filters.value.expiry_window,
+					expiry_days: expiryDays.value,
+					expiry_from_days:
+						filters.value.expiry_window === "custom"
+							? filters.value.expiry_from_days
+							: undefined,
+					expiry_to_days:
+						filters.value.expiry_window === "custom"
+							? filters.value.expiry_to_days
+							: undefined,
 					warehouses: filters.value.warehouses.length
 						? filters.value.warehouses
 						: undefined,
@@ -242,9 +335,11 @@ async function load(append = false) {
 						sort: undefined,
 						...serializeFilterQuery({
 							...filters.value,
-							expiry_days: filters.value.expiry_window
-								? expiryDays.value
-								: undefined,
+							in_stock: filters.value.in_stock ? undefined : 0,
+							expiry_window:
+								filters.value.expiry_window === "all"
+									? undefined
+									: filters.value.expiry_window,
 							start: start.value || undefined,
 						}),
 						...sortQuery(),
@@ -275,7 +370,6 @@ watch(
 	() => {
 		const requestKey = JSON.stringify({
 			...filters.value,
-			expiry_days: filters.value.expiry_window ? expiryDays.value : undefined,
 			sort: sort.value,
 		});
 		if (requestKey === lastRequestKey) return;
@@ -297,15 +391,16 @@ watch(
 			search: "",
 			warehouses: [] as string[],
 			item_groups: [] as string[],
-			expiry_window: "",
+			in_stock: true,
+			expiry_window: "all",
 			expiry_days: "30",
+			expiry_from_days: "-30",
+			expiry_to_days: "30",
 			start: "0",
 		});
-		const requestedWindow = String(hydrated.expiry_window || "");
+		const requestedWindow = String(hydrated.expiry_window || "all");
 		const requestedDays = String(hydrated.expiry_days || "");
-		const validWindow =
-			requestedWindow === "" ||
-			expiryWindows.some((option) => option.value === requestedWindow);
+		const validWindow = expiryWindows.includes(requestedWindow);
 		const validDays = /^[1-9]\d*$/.test(requestedDays);
 		if (!validWindow || !validDays)
 			routeValidationError.value = "效期范围参数无效，已恢复为默认值。";
@@ -313,8 +408,11 @@ watch(
 			search: String(hydrated.search || ""),
 			warehouses: hydrated.warehouses as string[],
 			item_groups: hydrated.item_groups as string[],
-			expiry_window: validWindow ? requestedWindow : "",
+			in_stock: !["0", "false"].includes(String((query as any).in_stock ?? "1")),
+			expiry_window: validWindow ? requestedWindow : "all",
 			expiry_days: validDays ? requestedDays : "30",
+			expiry_from_days: String(hydrated.expiry_from_days ?? "-30"),
+			expiry_to_days: String(hydrated.expiry_to_days ?? "30"),
 		};
 		const changed = Object.keys(next).some(
 			(key) => !sameFilterValue((filters.value as any)[key], (next as any)[key]),
@@ -340,27 +438,38 @@ watch(
 
 onMounted(async () => {
 	try {
+		try {
+			const savedView = localStorage.getItem(viewStorageKey);
+			if (savedView === "card" || savedView === "table") view.value = savedView;
+		} catch {
+			view.value = "table";
+		}
 		boot.value = await api("bootstrap");
 		const hydrated = hydrateFilterQuery(route.query as Record<string, unknown>, {
 			search: "",
 			warehouses: [] as string[],
 			item_groups: [] as string[],
-			expiry_window: "",
+			in_stock: true,
+			expiry_window: "all",
 			expiry_days: "30",
+			expiry_from_days: "-30",
+			expiry_to_days: "30",
 			start: "0",
 		});
 		filters.value = {
 			search: String(hydrated.search || ""),
 			warehouses: hydrated.warehouses as string[],
 			item_groups: hydrated.item_groups as string[],
-			expiry_window: String(hydrated.expiry_window || ""),
+			in_stock: !["0", "false"].includes(String(route.query.in_stock ?? "1")),
+			expiry_window: String(hydrated.expiry_window || "all"),
 			expiry_days: /^[1-9]\d*$/.test(String(hydrated.expiry_days || ""))
 				? String(hydrated.expiry_days)
 				: "30",
+			expiry_from_days: String(hydrated.expiry_from_days ?? "-30"),
+			expiry_to_days: String(hydrated.expiry_to_days ?? "30"),
 		};
 		lastRequestKey = JSON.stringify({
 			...filters.value,
-			expiry_days: filters.value.expiry_window ? expiryDays.value : undefined,
 			sort: sort.value,
 		});
 		const sortBy = String(route.query.sort_by || "expiry_date");
@@ -394,84 +503,138 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<main class="inventory-destination wide-shell viewport-list-root">
-		<div class="list-layout desktop-list-layout">
+	<main class="inventory-destination wide-shell viewport-list-root expiry-desktop-page">
+		<div
+			class="list-layout desktop-list-layout"
+			:class="{ 'filters-open': desktopFilterOpen }"
+		>
 			<ResponsiveFilterPanel
 				ref="filterPanel"
 				v-model:open="filterOpen"
 				:count="activeCount"
 			>
-				<WarehouseSelector
-					v-model="filters.warehouses"
-					:rows="warehouseRows"
-					:counts="facetCounts.warehouses"
+				<InventoryFilterPanel
+					v-model="panelFilters"
+					:warehouses="warehouseNodes"
+					:categories="categoryNodes"
+					:expiry-counts="facetCounts.expiry"
+					:custom-error="customError"
+					expiry-primary
 				/>
-				<CategorySelector
-					v-model="filters.item_groups"
-					:rows="boot?.item_groups || []"
-					:counts="facetCounts.item_groups"
-				/>
-				<fieldset class="choice-list" aria-labelledby="expiry-range-heading">
-					<div class="expiry-range-heading">
-						<h3 id="expiry-range-heading">效期范围</h3>
-						<label
-							>天数<input
-								v-model="filters.expiry_days"
-								type="number"
-								min="1"
-								step="1"
-								inputmode="numeric"
-								@change="normalizeExpiryDays"
-								@blur="normalizeExpiryDays"
-						/></label>
-					</div>
-					<label class="choice-row"
-						><input
-							type="radio"
-							value=""
-							:checked="!filters.expiry_window"
-							@change="setExpiryWindow('')"
-						/>全部效期</label
-					><label v-for="option in expiryWindows" :key="option.value" class="choice-row"
-						><input
-							type="radio"
-							:value="option.value"
-							:checked="filters.expiry_window === option.value"
-							@change="setExpiryWindow(option.value)"
-						/>{{ option.prefix }}{{ expiryDays }}{{ option.suffix }}</label
-					>
-				</fieldset>
 			</ResponsiveFilterPanel>
-			<div class="results-column">
+			<div class="results-column" :class="{ compact }">
 				<div class="results-chrome">
+					<div class="inventory-heading">
+						<div class="inventory-title">
+							<h1>效期批次</h1>
+							<span>{{ total }} 个批次</span>
+						</div>
+						<div class="inventory-heading-actions">
+							<button type="button" @click="exportOpen = true">导出</button>
+						</div>
+					</div>
 					<div class="result-toolbar">
-						<input
-							v-model="filters.search"
-							type="search"
-							placeholder="搜索物品或批次"
-							aria-label="搜索物品或批次"
-						/><IconButton
-							class="mobile-filter-button"
-							:label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'"
-							title="筛选"
-							@click="filterPanel?.openPanel($event)"
-							><svg aria-hidden="true" viewBox="0 0 24 24">
-								<path d="M4 6h16M7 12h10M10 18h4" /></svg
-							><span v-if="activeCount" class="icon-count">{{
-								activeCount
-							}}</span></IconButton
-						><button type="button" @click="exportOpen = true">导出</button
-						><span aria-live="polite">{{
+						<b class="compact-identity">效期批次</b>
+						<label class="inventory-search"
+							><span aria-hidden="true">⌕</span
+							><input
+								v-model="filters.search"
+								type="search"
+								placeholder="搜索物品或批次"
+								aria-label="搜索物品或批次"
+						/></label>
+						<button
+							type="button"
+							class="inventory-filter-button"
+							:class="{ active: desktopFilterOpen || filterOpen }"
+							:aria-expanded="desktopFilterOpen || filterOpen"
+							@click="openFilters($event)"
+						>
+							<InventoryIcon name="filter" /><span>筛选</span
+							><b v-if="activeCount">{{ activeCount }}</b>
+						</button>
+						<div
+							class="inventory-view-controls"
+							role="group"
+							aria-label="效期显示方式"
+						>
+							<button
+								type="button"
+								:aria-pressed="view === 'card'"
+								@click="setView('card')"
+							>
+								<InventoryIcon name="card" /><span>卡片</span>
+							</button>
+							<button
+								type="button"
+								:aria-pressed="view === 'table'"
+								@click="setView('table')"
+							>
+								<InventoryIcon name="table" /><span>表格</span>
+							</button>
+						</div>
+					</div>
+					<div class="inventory-filter-strip">
+						<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+						<span v-if="!chips.length" class="no-filters"
+							>全部仓库 · 全部类别 · 全部效期</span
+						>
+						<span class="inventory-result-count" aria-live="polite">{{
 							refreshing
 								? "正在更新…"
-								: `已加载 ${rows.length} · 筛选结果 ${total} · 全部效期批次 ${overallTotal}`
+								: `已加载 ${rows.length} · 筛选结果 ${total} · 全部 ${overallTotal}`
 						}}</span>
 					</div>
-					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
-					<QuantitySummary :metrics="summaryMetrics" :loading="busy || refreshing" />
 				</div>
-				<div ref="resultsScroll" class="results-scroll">
+				<div ref="resultsScroll" class="results-scroll" @scroll.passive="onResultsScroll">
+					<div
+						v-if="view === 'card'"
+						class="expiry-card-grid"
+						:aria-busy="busy || refreshing"
+					>
+						<RouterLink
+							v-for="row in rows"
+							:key="row.batch_no"
+							class="expiry-batch-card"
+							:class="{
+								overdue: row.days_to_expiry < 0,
+								soon: row.days_to_expiry >= 0 && row.days_to_expiry <= 30,
+							}"
+							:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
+						>
+							<img
+								v-if="row.image"
+								:src="row.image"
+								:alt="row.item_name"
+								loading="lazy"
+								decoding="async"
+							/><span v-else class="expiry-card-placeholder"
+								><InventoryIcon name="box"
+							/></span>
+							<div>
+								<small>{{ row.item_group }}</small>
+								<h3>{{ row.item_name }}</h3>
+								<p>{{ row.item_code }} · {{ row.batch_no }}</p>
+								<strong>{{ row.total_qty }} {{ row.stock_uom }}</strong>
+								<p class="expiry-date">
+									{{ row.expiry_date ? `到期 ${row.expiry_date}` : "无效期"
+									}}<span v-if="row.days_to_expiry != null">
+										· {{ formatExpiryDuration(row.days_to_expiry) }}</span
+									>
+								</p>
+								<p
+									v-for="location in row.locations"
+									:key="location.warehouse"
+									class="location-line"
+								>
+									{{ warehouseText(location.warehouse) }}：{{ location.qty }}
+								</p>
+							</div>
+						</RouterLink>
+						<p v-if="!busy && !rows.length" class="empty-state">暂无符合条件的批次</p>
+					</div>
 					<SortableDataTable
+						v-else
 						:rows="rows"
 						:columns="sortColumns"
 						row-key="batch_no"
@@ -479,7 +642,7 @@ onBeforeUnmount(() => {
 						:loading="busy || refreshing"
 						:loading-more="appending"
 						:error="error || routeValidationError"
-						empty-message="暂无有库存的有效期批次"
+						empty-message="暂无符合条件的批次"
 						@sort="applySort"
 						@activate="
 							(row) =>
@@ -508,9 +671,16 @@ onBeforeUnmount(() => {
 								>
 							</div></template
 						>
+						<template #cell-expiry_date="{ row }"
+							><span :class="{ warn: row.days_to_expiry < 0 }">{{
+								row.expiry_date || "无效期"
+							}}</span></template
+						>
 						<template #cell-days_to_expiry="{ row }"
 							><span :class="{ warn: row.days_to_expiry < 0 }">{{
-								formatExpiryDuration(row.days_to_expiry)
+								row.days_to_expiry == null
+									? "—"
+									: formatExpiryDuration(row.days_to_expiry)
 							}}</span></template
 						>
 						<template #cell-total_qty="{ row }"
@@ -532,11 +702,7 @@ onBeforeUnmount(() => {
 								tabindex="0"
 								:class="{ 'expiry-overdue-row': row.days_to_expiry < 0 }"
 							>
-								<span data-row-control
-									><ItemImagePreview
-										:src="row.image"
-										:alt="row.item_name" /></span
-								><RouterLink
+								<RouterLink
 									data-row-action
 									:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
 									><b>{{ row.item_code }} · {{ row.item_name }}</b>
@@ -545,15 +711,22 @@ onBeforeUnmount(() => {
 										{{ row.total_qty }} {{ row.stock_uom }}
 									</p>
 									<p>
-										到期 {{ row.expiry_date }} ·
-										<span :class="{ warn: row.days_to_expiry < 0 }">{{
-											formatExpiryDuration(row.days_to_expiry)
-										}}</span>
+										{{ row.expiry_date ? `到期 ${row.expiry_date}` : "无效期"
+										}}<span v-if="row.days_to_expiry != null">
+											· {{ formatExpiryDuration(row.days_to_expiry) }}</span
+										>
 									</p></RouterLink
 								>
 							</article></template
 						>
 					</SortableDataTable>
+					<p
+						v-if="view === 'card' && (error || routeValidationError)"
+						class="inline-error"
+					>
+						{{ error || routeValidationError }}
+						<button type="button" @click="load()">重试</button>
+					</p>
 					<div ref="sentinel" aria-hidden="true"></div>
 				</div>
 			</div>
@@ -563,8 +736,301 @@ onBeforeUnmount(() => {
 			v-model:open="exportOpen"
 			report-type="expiry"
 			:filters="exportFilters"
-			title="导出效期风险"
-			summary="沿用当前搜索、类别、位置、效期范围和排序条件，按批次与位置导出。"
+			title="导出效期批次"
+			summary="沿用当前搜索、类别、位置、库存和效期条件，按批次与位置导出。"
 		/>
 	</main>
 </template>
+
+<style scoped>
+.expiry-desktop-page {
+	color: #343c46;
+	background: #f8f7f4;
+}
+.inventory-heading {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.inventory-title {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+}
+.inventory-title h1 {
+	margin: 0;
+	color: #202b39;
+	font-size: 25px;
+	font-weight: 750;
+	line-height: 1.2;
+}
+.inventory-title span,
+.inventory-result-count,
+.no-filters {
+	color: #7b8087;
+	font-size: 12px;
+}
+.inventory-heading-actions {
+	display: flex;
+	gap: 7px;
+	margin-left: auto;
+}
+.inventory-heading-actions button {
+	min-height: 31px;
+	padding: 5px 9px;
+	color: #916236;
+}
+.result-toolbar {
+	gap: 7px;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+}
+.compact-identity {
+	display: none;
+	font-size: 17px;
+	white-space: nowrap;
+}
+.compact .inventory-heading {
+	display: none;
+}
+.compact .compact-identity {
+	display: block;
+}
+.compact .results-chrome {
+	padding-top: 9px;
+}
+.inventory-search {
+	display: flex;
+	min-width: 120px;
+	height: 36px;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	padding: 0 10px;
+	border: 1px solid #e0e2e4;
+	border-radius: 6px;
+	background: #fff;
+	color: #7b8492;
+}
+.inventory-search:focus-within {
+	outline: 2px solid #946c3f;
+}
+.inventory-search input {
+	width: 100%;
+	min-width: 0;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.inventory-filter-button {
+	display: flex;
+	min-height: 34px;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+.inventory-filter-button b {
+	display: grid;
+	min-width: 18px;
+	height: 18px;
+	place-items: center;
+	border-radius: 50%;
+	background: #ede4d6;
+	color: #855e33;
+	font-size: 10px;
+}
+.inventory-filter-button.active {
+	border-color: #c8b69b;
+	background: #f5f0e8;
+}
+.inventory-view-controls {
+	display: flex;
+	align-items: center;
+	flex: none;
+	gap: 0;
+	padding: 2px;
+	border-radius: 7px;
+	background: #eeebe5;
+}
+.inventory-view-controls button {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-height: 28px;
+	padding: 3px 8px;
+	border: 0;
+	background: transparent;
+	color: #85817b;
+}
+.inventory-view-controls button[aria-pressed="true"] {
+	background: #fff;
+	color: #665038;
+	box-shadow: 0 1px 3px #473a2115;
+}
+.inventory-filter-strip {
+	display: flex;
+	min-height: 40px;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 0;
+}
+.inventory-filter-strip :deep(.active-filter-chips) {
+	min-width: 0;
+	flex: 1;
+	margin: 0;
+}
+.inventory-result-count {
+	margin-left: auto;
+	white-space: nowrap;
+}
+.expiry-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+	gap: 12px;
+	padding: 12px;
+}
+.expiry-batch-card {
+	display: grid;
+	grid-template-columns: 64px 1fr;
+	gap: 12px;
+	min-height: 126px;
+	padding: 12px;
+	border: 1px solid var(--border-color, #e2e8f0);
+	border-radius: 10px;
+	color: inherit;
+	text-decoration: none;
+	background: #fff;
+}
+.expiry-batch-card:hover,
+.expiry-batch-card:focus-visible {
+	border-color: #94a3b8;
+	box-shadow: 0 3px 12px rgb(15 23 42 / 0.08);
+	outline: none;
+}
+.expiry-batch-card.overdue {
+	border-left: 3px solid #dc2626;
+}
+.expiry-batch-card.soon {
+	border-left: 3px solid #d97706;
+}
+.expiry-batch-card img,
+.expiry-card-placeholder {
+	width: 64px;
+	height: 64px;
+	border-radius: 8px;
+	object-fit: cover;
+	background: #f1f5f9;
+	display: grid;
+	place-items: center;
+}
+.expiry-batch-card h3 {
+	margin: 2px 0;
+	font-size: 14px;
+	line-height: 1.3;
+}
+.expiry-batch-card p,
+.expiry-batch-card small {
+	margin: 2px 0;
+	color: #64748b;
+	font-size: 12px;
+}
+.expiry-batch-card strong {
+	font-size: 15px;
+}
+.expiry-date {
+	margin-top: 8px !important;
+}
+.location-line {
+	display: block;
+}
+.empty-state,
+.inline-error {
+	padding: 24px;
+	color: #64748b;
+}
+@media (min-width: 1024px) {
+	.expiry-desktop-page {
+		width: 100%;
+		max-width: none;
+		padding: 0 16px;
+	}
+	.desktop-list-layout {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
+	}
+	.desktop-list-layout.filters-open {
+		grid-template-columns: 250px minmax(0, 1fr);
+		margin-left: -16px;
+	}
+	.desktop-list-layout:not(.filters-open) :deep(.filter-sidebar) {
+		display: none;
+	}
+	.desktop-list-layout.filters-open :deep(.filter-sidebar) {
+		display: block;
+		padding: 14px 12px;
+		border-right: 1px solid #e4ded5;
+		border-radius: 0;
+		background: #fbfaf7;
+		box-shadow: none;
+	}
+	.filters-open .results-column {
+		padding-left: 16px;
+	}
+	.results-chrome {
+		padding-top: 14px;
+	}
+	.results-scroll {
+		border: 1px solid #ece9e2;
+		border-radius: 8px 8px 0 0;
+		background: #fff;
+	}
+	.results-scroll :deep(.sortable-data-table table) {
+		font-size: 14px;
+	}
+	.results-scroll :deep(.sortable-data-table th) {
+		background: #f2f2f0;
+		color: #7a7d84;
+		font-size: 12px;
+	}
+	.results-scroll :deep(.sortable-data-table td) {
+		height: 57px;
+		padding: 5px 10px;
+	}
+}
+@media (max-width: 1023px) {
+	.expiry-desktop-page {
+		padding: 14px;
+	}
+	.inventory-heading {
+		display: none;
+	}
+	.inventory-filter-button span {
+		display: none;
+	}
+	.inventory-result-count {
+		width: 100%;
+		margin-left: 0;
+	}
+	.inventory-filter-strip {
+		flex-wrap: wrap;
+	}
+	.expiry-card-grid {
+		grid-template-columns: 1fr;
+		padding: 8px 0;
+	}
+	.expiry-batch-card {
+		grid-template-columns: 52px 1fr;
+	}
+	.expiry-batch-card img,
+	.expiry-card-placeholder {
+		width: 52px;
+		height: 52px;
+	}
+}
+</style>

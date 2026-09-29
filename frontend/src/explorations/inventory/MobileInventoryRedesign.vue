@@ -13,7 +13,7 @@ import cardMask from "./assets/card-mask.png";
 import cardThermos from "./assets/card-thermos.png";
 import cardTissues from "./assets/card-tissues.png";
 import cardTray from "./assets/card-tray.png";
-import ExplorationIcon from "./ExplorationIcon.vue";
+import ExplorationIcon from "../../components/InventoryIcon.vue";
 import {
 	batches,
 	categories,
@@ -29,7 +29,7 @@ import InventoryFilterPanel, {
 	type ExpiryFilter,
 	type InventoryFilterNode,
 	type InventoryFilterState,
-} from "./InventoryFilterPanel.vue";
+} from "../../components/InventoryFilterPanel.vue";
 import MobileExpiryList from "./MobileExpiryList.vue";
 import MobileInventoryList from "./MobileInventoryList.vue";
 import MobileInventorySummary, { type MobileSummaryMetric } from "./MobileInventorySummary.vue";

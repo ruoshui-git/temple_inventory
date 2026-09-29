@@ -491,8 +491,7 @@ const renderComposition = (args: CompositionArgs) => ({
 					<a href="#" @click.prevent>更多</a>
 				</nav>
 				<nav class="desktop-inventory-context" aria-label="当前视图">
-					<a aria-current="page" href="#" @click.prevent>当前库存</a>
-					<a href="#" @click.prevent>全部物品</a>
+					<a aria-current="page" href="#" @click.prevent>库存列表</a>
 					<a href="#" @click.prevent>效期批次</a>
 				</nav>
 				<div class="shell-actions">
@@ -606,8 +605,7 @@ const renderComposition = (args: CompositionArgs) => ({
 			</main>
 
 			<nav class="mobile-context-nav" aria-label="当前视图">
-				<a aria-current="page" href="#" @click.prevent>当前库存</a>
-				<a href="#" @click.prevent>全部物品</a>
+				<a aria-current="page" href="#" @click.prevent>库存列表</a>
 				<a href="#" @click.prevent>效期批次</a>
 			</nav>
 			<nav class="mobile-nav" aria-label="主导航">

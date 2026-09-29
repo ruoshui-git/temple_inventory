@@ -4,18 +4,21 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "../lib/api";
 import { warehousePresentation } from "../lib/warehousePresenter";
 import type { InventoryCardRow } from "../lib/inventoryTypes";
-import WarehouseSelector from "../components/WarehouseSelector.vue";
-import CategorySelector from "../components/CategorySelector.vue";
 import ItemImagePreview from "../components/ItemImagePreview.vue";
 import SortableDataTable, { type SortState } from "../components/SortableDataTable.vue";
 import Scanner from "../components/Scanner.vue";
 import ActiveFilterChips from "../components/ActiveFilterChips.vue";
 import FloatingActionMenu from "../components/FloatingActionMenu.vue";
-import IconButton from "../components/IconButton.vue";
 import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import QuantitySummary from "../components/QuantitySummary.vue";
 import InventoryCardGrid from "../components/InventoryCardGrid.vue";
 import ExportDialog from "../components/ExportDialog.vue";
+import DetailPopover from "../components/DetailPopover.vue";
+import InventoryIcon from "../components/InventoryIcon.vue";
+import InventoryFilterPanel, {
+	type InventoryFilterNode,
+	type InventoryFilterState,
+} from "../components/InventoryFilterPanel.vue";
 import { hydrateFilterQuery, serializeFilterQuery } from "../composables/filters";
 import { toast } from "../lib/toast";
 
@@ -33,6 +36,7 @@ const error = ref(""),
 	desktopFilterOpen = ref(false),
 	filterOpen = ref(false),
 	exportOpen = ref(false);
+const compact = ref(false);
 const selection = ref(false),
 	selected = ref<string[]>([]),
 	scanner = ref(false),
@@ -42,7 +46,16 @@ const resultsScroll = ref<HTMLElement>(),
 	sentinel = ref<HTMLElement>();
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null);
 const start = ref(0);
-const filters = ref({ search: "", warehouses: [] as string[], item_groups: [] as string[] });
+const filters = ref({
+	search: "",
+	warehouses: [] as string[],
+	item_groups: [] as string[],
+	in_stock: true,
+	expiry_window: "all",
+	expiry_days: "30",
+	expiry_from_days: "-30",
+	expiry_to_days: "30",
+});
 const defaultSort: SortState = { sort_by: "item_name", sort_order: "asc" };
 const sort = ref<SortState>({ ...defaultSort });
 const view = ref<"card" | "table">("card");
@@ -53,24 +66,33 @@ const summaryMetrics = computed(() =>
 		["total_stock", "总计"],
 		["on_loan_qty", "借出"],
 		["damaged_qty", "损坏"],
-	].map(([key, label]) => ({ key, label, quantities: quantityTotals.value[key] || [] })),
+	].map(([key, label], index) => ({
+		key,
+		label,
+		icon: ["box", "total", "loan", "warning"][index],
+		tone: ["available", "total", "loaned", "damaged"][index],
+		quantities: quantityTotals.value[key] || [],
+	})),
 );
 const sortColumns = computed(() => [
 	{ key: "item_name", label: "物品", sortable: true, initialOrder: "asc" as const },
-	{ key: "item_group", label: "类别" },
-	{ key: "available_stock", label: "可用", sortable: true, initialOrder: "desc" as const },
+	{ key: "item_code", label: "物品编码 / 类别", sortable: true, initialOrder: "asc" as const },
+	{ key: "available_stock", label: "可用数量", sortable: true, initialOrder: "desc" as const },
 	{ key: "total_stock", label: "总计", sortable: true, initialOrder: "desc" as const },
 	{ key: "on_loan_qty", label: "借出", sortable: true, initialOrder: "desc" as const },
 	{ key: "damaged_qty", label: "损坏", sortable: true, initialOrder: "desc" as const },
+	{ key: "details", label: "库位 / 批次信息" },
+	{ key: "open", label: "" },
 	...(selection.value ? [{ key: "selection", label: "选择" }] : []),
 ]);
-const mode = computed(() => String(route.query.mode || "current"));
-const pageTitle = computed(() => (mode.value === "catalog" ? "全部物品" : "库存列表"));
+const pageTitle = "库存列表";
 const activeFilterCount = computed(
 	() =>
 		filters.value.warehouses.length +
 		filters.value.item_groups.length +
-		Number(Boolean(filters.value.search)),
+		Number(Boolean(filters.value.search)) +
+		Number(!filters.value.in_stock) +
+		Number(filters.value.expiry_window !== "all"),
 );
 const exportFilters = computed(() => ({
 	...filters.value,
@@ -90,6 +112,55 @@ const fabActions = computed(() => [
 	})),
 ]);
 const warehouseRows = computed(() => boot.value?.physical_tree || []);
+const warehouseNodes = computed<InventoryFilterNode[]>(() =>
+	warehouseRows.value.map((row: any) => ({
+		name: row.name,
+		label: row.local_label || row.warehouse_name || row.name,
+		parent: row.parent_warehouse,
+		isGroup: Boolean(row.is_group),
+		count: facetCounts.value.warehouses?.[row.name],
+	})),
+);
+const categoryNodes = computed<InventoryFilterNode[]>(() =>
+	(boot.value?.item_groups || []).map((row: any) => ({
+		name: row.name,
+		label: row.item_group_name || row.name,
+		parent: row.parent_item_group,
+		isGroup: Boolean(row.is_group),
+		count: facetCounts.value.item_groups?.[row.name],
+	})),
+);
+const panelFilters = computed<InventoryFilterState>({
+	get: () => ({
+		warehouses: filters.value.warehouses,
+		categories: filters.value.item_groups,
+		inStock: filters.value.in_stock,
+		expiry: filters.value.expiry_window as InventoryFilterState["expiry"],
+		expiryDays: filters.value.expiry_days,
+		expiryFromDays: filters.value.expiry_from_days,
+		expiryToDays: filters.value.expiry_to_days,
+	}),
+	set: (value) => {
+		filters.value = {
+			...filters.value,
+			warehouses: value.warehouses,
+			item_groups: value.categories,
+			in_stock: value.inStock,
+			expiry_window: value.expiry,
+			expiry_days: value.expiryDays || "30",
+			expiry_from_days: value.expiryFromDays || "",
+			expiry_to_days: value.expiryToDays || "",
+		};
+	},
+});
+const customError = computed(() => {
+	if (filters.value.expiry_window !== "custom") return "";
+	const from = Number(filters.value.expiry_from_days),
+		to = Number(filters.value.expiry_to_days);
+	if (!Number.isInteger(from) || !Number.isInteger(to)) return "请输入完整的整数范围";
+	if (from < -3650 || to > 3650 || from > to) return "范围须为 -3650 至 3650，且起始不大于结束";
+	return "";
+});
 const warehouseText = (name: string) =>
 	warehousePresentation(name, warehouseRows.value).breadcrumb;
 const categoryText = (name: string) =>
@@ -106,6 +177,16 @@ const chips = computed(() => [
 		label: categoryText(value),
 	})),
 	...(filters.value.search ? [{ key: "search", label: `搜索：${filters.value.search}` }] : []),
+	...(!filters.value.in_stock ? [{ key: "in_stock", label: "包含零库存" }] : []),
+	...(filters.value.expiry_window !== "all"
+		? [
+				{
+					key: "expiry_window",
+					label:
+						filters.value.expiry_window === "none" ? "效期：无效期" : "效期：已筛选",
+				},
+			]
+		: []),
 ]);
 let controller: AbortController | undefined,
 	observer: IntersectionObserver | undefined,
@@ -118,24 +199,28 @@ const sortQuery = () =>
 		? { sort_by: undefined, sort_order: undefined }
 		: { sort_by: sort.value.sort_by, sort_order: sort.value.sort_order };
 async function load(append = false) {
+	if (customError.value) return;
 	controller?.abort();
 	controller = new AbortController();
 	const current = ++sequence;
 	append ? (loadingMore.value = true) : (loading.value = true);
 	error.value = "";
 	try {
-		if (mode.value === "expiry") {
-			await router.replace({
-				path: "/expiry",
-				query: { ...route.query, ...serializeFilterQuery(filters.value), ...sortQuery() },
-			});
-			return;
-		}
 		const data = await api(
 			"inventory",
 			{
 				...filters.value,
-				mode: mode.value,
+				in_stock: filters.value.in_stock ? 1 : 0,
+				expiry_window:
+					filters.value.expiry_window === "all" ? "" : filters.value.expiry_window,
+				expiry_from_days:
+					filters.value.expiry_window === "custom"
+						? filters.value.expiry_from_days
+						: undefined,
+				expiry_to_days:
+					filters.value.expiry_window === "custom"
+						? filters.value.expiry_to_days
+						: undefined,
 				warehouses: filters.value.warehouses.length ? filters.value.warehouses : undefined,
 				item_groups: filters.value.item_groups.length
 					? filters.value.item_groups
@@ -181,10 +266,21 @@ function removeChip(chip: any) {
 		(filters.value as any)[chip.key] = (filters.value as any)[chip.key].filter(
 			(value: string) => value !== chip.value,
 		);
+	else if (chip.key === "in_stock") filters.value.in_stock = true;
+	else if (chip.key === "expiry_window") filters.value.expiry_window = "all";
 	else filters.value.search = "";
 }
 function clearFilters() {
-	filters.value = { search: "", warehouses: [], item_groups: [] };
+	filters.value = {
+		search: "",
+		warehouses: [],
+		item_groups: [],
+		in_stock: true,
+		expiry_window: "all",
+		expiry_days: "30",
+		expiry_from_days: "-30",
+		expiry_to_days: "30",
+	};
 }
 function operation(kind: string) {
 	void router.push(kind === "CreateItem" ? "/items/new" : `/new/${kind}`);
@@ -269,8 +365,36 @@ function dismissUnknownItem() {
 	unknownBarcodePrompt.value = "";
 	toast("未找到该条码对应的物品", "warning");
 }
+function hydrateInventoryFilters(query: Record<string, unknown>) {
+	const hydrated = hydrateFilterQuery(query, filters.value) as typeof filters.value;
+	hydrated.in_stock =
+		String(query.mode || "") === "catalog"
+			? false
+			: !["0", "false"].includes(String(query.in_stock ?? "1"));
+	const requestedWindow = String(query.expiry_window || "all");
+	hydrated.expiry_window = [
+		"all",
+		"overdue_within",
+		"overdue_beyond",
+		"remaining_within",
+		"remaining_beyond",
+		"none",
+		"custom",
+	].includes(requestedWindow)
+		? requestedWindow
+		: "all";
+	const requestedDays = String(query.expiry_days || "30");
+	hydrated.expiry_days =
+		/^\d+$/.test(requestedDays) && Number(requestedDays) >= 1 && Number(requestedDays) <= 3650
+			? requestedDays
+			: "30";
+	return hydrated;
+}
+function onResultsScroll() {
+	compact.value = (resultsScroll.value?.scrollTop || 0) > 80;
+}
 watch(
-	[filters, mode, sort],
+	[filters, sort],
 	() => {
 		if (!boot.value) return;
 		resultsScroll.value?.scrollTo({ top: 0 });
@@ -280,8 +404,15 @@ watch(
 				.replace({
 					query: {
 						...route.query,
-						mode: mode.value === "current" ? undefined : mode.value,
-						...serializeFilterQuery(filters.value),
+						mode: undefined,
+						...serializeFilterQuery({
+							...filters.value,
+							in_stock: filters.value.in_stock ? undefined : 0,
+							expiry_window:
+								filters.value.expiry_window === "all"
+									? undefined
+									: filters.value.expiry_window,
+						}),
 						...sortQuery(),
 					},
 				})
@@ -296,14 +427,19 @@ watch(
 watch(
 	() => route.query,
 	(query) => {
-		const next = hydrateFilterQuery(query as Record<string, unknown>, filters.value);
+		const next = hydrateInventoryFilters(query as Record<string, unknown>);
 		if (JSON.stringify(next) !== JSON.stringify(filters.value)) filters.value = next;
 		const sortBy = String(query.sort_by || defaultSort.sort_by),
 			sortOrder = String(query.sort_order || defaultSort.sort_order);
 		if (
-			["item_name", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"].includes(
-				sortBy,
-			) &&
+			[
+				"item_name",
+				"item_code",
+				"available_stock",
+				"total_stock",
+				"on_loan_qty",
+				"damaged_qty",
+			].includes(sortBy) &&
 			["asc", "desc"].includes(sortOrder) &&
 			(sort.value.sort_by !== sortBy || sort.value.sort_order !== sortOrder)
 		)
@@ -320,13 +456,18 @@ onMounted(async () => {
 			view.value = "card";
 		}
 		boot.value = await api("bootstrap");
-		filters.value = hydrateFilterQuery(route.query as Record<string, unknown>, filters.value);
+		filters.value = hydrateInventoryFilters(route.query as Record<string, unknown>);
 		const sortBy = String(route.query.sort_by || defaultSort.sort_by),
 			sortOrder = String(route.query.sort_order || defaultSort.sort_order);
 		if (
-			["item_name", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"].includes(
-				sortBy,
-			) &&
+			[
+				"item_name",
+				"item_code",
+				"available_stock",
+				"total_stock",
+				"on_loan_qty",
+				"damaged_qty",
+			].includes(sortBy) &&
 			["asc", "desc"].includes(sortOrder)
 		)
 			sort.value = { sort_by: sortBy, sort_order: sortOrder as "asc" | "desc" };
@@ -361,18 +502,15 @@ onBeforeUnmount(() => {
 			:class="{ 'filters-open': desktopFilterOpen }"
 		>
 			<ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen">
-				<WarehouseSelector
-					v-model="filters.warehouses"
-					:rows="warehouseRows"
-					:counts="facetCounts.warehouses"
-				/>
-				<CategorySelector
-					v-model="filters.item_groups"
-					:rows="boot?.item_groups || []"
-					:counts="facetCounts.item_groups"
+				<InventoryFilterPanel
+					v-model="panelFilters"
+					:warehouses="warehouseNodes"
+					:categories="categoryNodes"
+					:expiry-counts="facetCounts.expiry"
+					:custom-error="customError"
 				/>
 			</ResponsiveFilterPanel>
-			<div class="results-column">
+			<div class="results-column" :class="{ compact }">
 				<div class="results-chrome">
 					<div class="inventory-heading">
 						<div class="inventory-title">
@@ -401,13 +539,7 @@ onBeforeUnmount(() => {
 							>
 								⇄ 转移
 							</button>
-							<button
-								v-if="mode === 'current'"
-								type="button"
-								@click="exportOpen = true"
-							>
-								导出
-							</button>
+							<button type="button" @click="exportOpen = true">导出</button>
 							<button
 								v-if="boot?.capabilities?.Item"
 								type="button"
@@ -419,6 +551,7 @@ onBeforeUnmount(() => {
 						</div>
 					</div>
 					<div class="result-toolbar">
+						<b class="compact-identity">{{ pageTitle }}</b>
 						<label class="inventory-search"
 							><span aria-hidden="true">⌕</span
 							><input
@@ -427,28 +560,28 @@ onBeforeUnmount(() => {
 								placeholder="搜索物品或条码"
 								aria-label="搜索物品或条码"
 						/></label>
-						<IconButton label="扫描条码" @click="scanner = true"
-							><svg aria-hidden="true" viewBox="0 0 24 24">
-								<path
-									d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 12h10M8 9v6m3-6v6m3-6v6m3-6v6"
-								/></svg></IconButton
-						><button
+						<button
+							class="toolbar-action"
+							aria-label="扫描条码"
+							@click="scanner = true"
+						>
+							<InventoryIcon name="scan" /><span>扫码</span>
+						</button>
+						<button
 							type="button"
 							class="inventory-filter-button"
 							:class="{ active: desktopFilterOpen || filterOpen }"
 							:aria-expanded="desktopFilterOpen || filterOpen"
 							@click="openFilters($event)"
 						>
-							<svg aria-hidden="true" viewBox="0 0 24 24">
-								<path d="M4 6h16M7 12h10M10 18h4" /></svg
-							><span>筛选</span
+							<InventoryIcon name="filter" />
+							<span>筛选</span
 							><b v-if="activeFilterCount">{{ activeFilterCount }}</b></button
-						><IconButton
-							:label="selection ? '完成选择' : '选择物品'"
-							@click="toggleSelection"
-							><svg aria-hidden="true" viewBox="0 0 24 24">
-								<path d="M5 12l4 4L19 6M4 21h16" /></svg
-						></IconButton>
+						><button class="toolbar-action" @click="toggleSelection">
+							<InventoryIcon name="select" /><span>{{
+								selection ? "完成" : "选择"
+							}}</span>
+						</button>
 						<div
 							class="inventory-view-controls"
 							role="group"
@@ -459,18 +592,22 @@ onBeforeUnmount(() => {
 								:aria-pressed="view === 'card'"
 								@click="setView('card')"
 							>
-								卡片
+								<InventoryIcon name="card" /><span>卡片</span>
 							</button>
 							<button
 								type="button"
 								:aria-pressed="view === 'table'"
 								@click="setView('table')"
 							>
-								表格
+								<InventoryIcon name="table" /><span>表格</span>
 							</button>
 						</div>
 					</div>
-					<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
+					<QuantitySummary
+						v-if="!compact"
+						:metrics="summaryMetrics"
+						:loading="loading"
+					/>
 					<div class="inventory-filter-strip">
 						<ActiveFilterChips
 							:chips="chips"
@@ -496,6 +633,7 @@ onBeforeUnmount(() => {
 								"
 							>
 								<option value="item_name">物品名称</option>
+								<option value="item_code">物品编码</option>
 								<option value="available_stock">可用</option>
 								<option value="total_stock">总计</option>
 								<option value="on_loan_qty">借出</option>
@@ -517,7 +655,7 @@ onBeforeUnmount(() => {
 						</button>
 					</div>
 				</div>
-				<div ref="resultsScroll" class="results-scroll">
+				<div ref="resultsScroll" class="results-scroll" @scroll.passive="onResultsScroll">
 					<div class="inventory-results">
 						<InventoryCardGrid
 							v-if="view === 'card'"
@@ -572,11 +710,16 @@ onBeforeUnmount(() => {
 										data-row-action
 										:to="`/item/${encodeURIComponent(row.item_code)}`"
 										><b class="primary-text">{{ row.item_name }}</b
-										><small class="secondary-text">{{
-											row.item_code
+										><small v-if="row.description" class="secondary-text">{{
+											String(row.description).replace(/<[^>]*>/g, " ")
 										}}</small></RouterLink
 									>
 								</div></template
+							>
+							<template #cell-item_code="{ row }"
+								><span class="item-code-cell"
+									>{{ row.item_code }}<small>{{ row.item_group }}</small></span
+								></template
 							>
 							<template #cell-available_stock="{ row }"
 								><span class="quantity available-quantity"
@@ -598,6 +741,24 @@ onBeforeUnmount(() => {
 									>{{ row.damaged_qty }} {{ row.stock_uom }}</span
 								></template
 							>
+							<template #cell-details="{ row }">
+								<div class="table-details" data-row-control>
+									<DetailPopover
+										v-if="Object.keys(row.warehouse_stock || {}).length"
+										:label="`${row.item_name}的仓库位置`"
+										:trigger-text="`${Object.keys(row.warehouse_stock || {}).length} 个库位`"
+									>
+										<p v-for="(qty, name) in row.warehouse_stock" :key="name">
+											{{ warehouseText(String(name)) }}：{{ qty }}
+											{{ row.stock_uom }}
+										</p>
+									</DetailPopover>
+									<span v-if="row.has_batch_no" class="table-batch-count"
+										>{{ row.batch_count ?? "—" }} 批次</span
+									>
+								</div>
+							</template>
+							<template #cell-open><InventoryIcon name="open" /></template>
 							<template #cell-selection="{ row }"
 								><input
 									data-row-control
@@ -715,11 +876,36 @@ onBeforeUnmount(() => {
 	background: #eeebe5;
 }
 .inventory-view-controls button {
+	display: flex;
+	align-items: center;
+	gap: 5px;
 	min-height: 28px;
 	padding: 3px 8px;
 	border: 0;
 	background: transparent;
 	color: #85817b;
+}
+.toolbar-action,
+.inventory-filter-button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 34px;
+	white-space: nowrap;
+}
+.compact-identity {
+	display: none;
+	font-size: 17px;
+	white-space: nowrap;
+}
+.compact .inventory-heading {
+	display: none;
+}
+.compact .compact-identity {
+	display: block;
+}
+.compact .results-chrome {
+	padding-top: 9px;
 }
 .inventory-view-controls button[aria-pressed="true"] {
 	background: #fff;
@@ -856,6 +1042,22 @@ onBeforeUnmount(() => {
 	min-height: 34px;
 	white-space: nowrap;
 }
+.item-code-cell {
+	display: flex;
+	flex-direction: column;
+}
+.item-code-cell small {
+	color: #7b8087;
+}
+.table-details {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.table-batch-count {
+	color: #476b88;
+	font-size: 11px;
+}
 
 @media (min-width: 1024px) {
 	.inventory-desktop-page {
@@ -912,6 +1114,10 @@ onBeforeUnmount(() => {
 		height: 57px;
 		padding: 5px 10px;
 		border-bottom-color: #f0f0ed;
+	}
+	.inventory-results :deep(.sortable-data-table th),
+	.inventory-results :deep(.sortable-data-table td) {
+		padding-inline: 10px;
 	}
 	.inventory-fab {
 		display: none;

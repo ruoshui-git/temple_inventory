@@ -122,6 +122,13 @@ describe("quantity summaries and Inventory cards", () => {
             item_code: "LEGACY",
             item_name: "旧版响应",
           },
+          {
+            ...base,
+            item_code: "UNBATCHED",
+            item_name: "非批次物品",
+            has_batch_no: false,
+            batch_count: 0,
+          },
         ],
       },
     });
@@ -139,6 +146,11 @@ describe("quantity summaries and Inventory cards", () => {
     expect(cards[3].text()).toContain("0 批次");
     expect(cards[3].find(".inventory-card-expiry").exists()).toBe(false);
     expect(cards[4].text()).toContain("批次管理");
+    expect(cards[5].text()).not.toContain("0 批次");
+    expect(cards[5].text()).not.toContain("批次管理");
+    expect(wrapper.findComponent({ name: "ItemImagePreview" }).exists()).toBe(
+      false,
+    );
   });
 
   it("enables the compact two-column mobile mode only when requested", () => {

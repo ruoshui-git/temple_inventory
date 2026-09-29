@@ -558,12 +558,12 @@ class WorkspaceTests(unittest.TestCase):
 		), patch.object(inventory_service, "_physical_tree", return_value={}), patch.object(
 			inventory_service.frappe, "get_list", return_value=items
 		), patch.object(inventory_service.frappe, "get_all", side_effect=get_all):
-			for column in ("item_name", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"):
+			for column in ("item_name", "item_code", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"):
 				ascending = inventory(sort_by=column, sort_order="asc")["results"]
 				descending = inventory(sort_by=column, sort_order="desc")["results"]
 				def values(rows):
 					return [
-						str(row[column]).lower() if column == "item_name" else row[column]
+						str(row[column]).lower() if column in {"item_name", "item_code"} else row[column]
 						for row in rows
 					]
 				self.assertEqual(values(ascending), sorted(values(ascending)))
@@ -1253,10 +1253,46 @@ class WorkspaceTests(unittest.TestCase):
 				reporting._expiry_bounds({"expiry_from": "2026-10-01", "expiry_to": "2026-10-31"}),
 				(getdate("2026-10-01"), getdate("2026-10-31")),
 			)
+			self.assertEqual(
+				reporting._expiry_bounds({"expiry_window": "overdue_beyond", "expiry_days": "30"}),
+				(None, getdate("2026-08-28")),
+			)
+			self.assertEqual(
+				reporting._expiry_bounds({"expiry_window": "remaining_beyond", "expiry_days": "30"}),
+				(getdate("2026-10-29"), None),
+			)
+			self.assertEqual(
+				reporting._expiry_bounds({"expiry_window": "custom", "expiry_from_days": "-2", "expiry_to_days": "4"}),
+				(getdate("2026-09-26"), getdate("2026-10-02")),
+			)
 		with self.assertRaises(frappe.ValidationError):
 			reporting._expiry_bounds({"expiry_window": "remaining_within", "expiry_days": "0"})
 		with self.assertRaises(frappe.ValidationError):
 			reporting._expiry_bounds({"expiry_from": "2026-11-01", "expiry_to": "2026-10-01"})
+		with self.assertRaises(frappe.ValidationError):
+			reporting._expiry_bounds({"expiry_window": "custom", "expiry_from_days": "2", "expiry_to_days": "-2"})
+
+	def test_expiry_windows_are_inclusive_non_overlapping_and_count_distinct_entities(self):
+		rows = [
+			{"item": "A", "expiry_date": "2026-08-28"},
+			{"item": "B", "expiry_date": "2026-08-29"},
+			{"item": "B", "expiry_date": "2026-09-27"},
+			{"item": "C", "expiry_date": "2026-09-28"},
+			{"item": "D", "expiry_date": "2026-10-28"},
+			{"item": "E", "expiry_date": "2026-10-29"},
+			{"item": "F", "expiry_date": None},
+		]
+		with patch.object(inventory_service, "nowdate", return_value="2026-09-28"):
+			counts = inventory_service._expiry_bucket_counts(rows, "item", 30, -1, 0)
+		self.assertEqual(counts, {
+			"all": 6,
+			"overdue_within": 1,
+			"overdue_beyond": 1,
+			"remaining_within": 2,
+			"remaining_beyond": 1,
+			"none": 1,
+			"custom": 2,
+		})
 
 	def test_guest_denied_and_bootstrap_read_only(self):
 		with patch.object(

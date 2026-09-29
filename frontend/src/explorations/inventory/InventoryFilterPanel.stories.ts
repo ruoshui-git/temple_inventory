@@ -4,7 +4,7 @@ import { ref } from "vue";
 import InventoryFilterPanel, {
   type InventoryFilterNode,
   type InventoryFilterState,
-} from "./InventoryFilterPanel.vue";
+} from "../../components/InventoryFilterPanel.vue";
 import { categories, items, warehouses } from "./fixtures";
 
 type StoryArgs = {
@@ -120,7 +120,8 @@ export const Selected: Story = {
       warehouses: ["hall"],
       categories: ["厨房用品"],
       inStock: true,
-      expiry: "90",
+      expiry: "remaining_within",
+      expiryDays: "90",
     },
   },
   play: async ({ canvas }) => {
@@ -140,8 +141,12 @@ export const Selected: Story = {
 export const MoreConditions: Story = {
   play: async ({ canvas }) => {
     await userEvent.click(canvas.getByRole("button", { name: /更多条件/ }));
-    await userEvent.click(canvas.getByRole("radio", { name: "90 天内" }));
-    await expect(canvas.getByRole("radio", { name: "90 天内" })).toBeChecked();
+    await userEvent.click(
+      canvas.getByRole("radio", { name: /还剩 30 天以下/ }),
+    );
+    await expect(
+      canvas.getByRole("radio", { name: /还剩 30 天以下/ }),
+    ).toBeChecked();
   },
 };
 
@@ -151,7 +156,7 @@ export const ExpiryPrimary: Story = {
       warehouses: [],
       categories: [],
       inStock: true,
-      expiry: "attention",
+      expiry: "overdue_within",
     },
     expiryPrimary: true,
   },

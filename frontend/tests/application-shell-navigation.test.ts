@@ -43,7 +43,7 @@ describe("ApplicationShell navigation contract", () => {
     });
     const labels = wrapper
       .find('nav[aria-label="主导航"]')
-      .findAll(":scope > a")
+      .findAll(":scope > a, :scope > button")
       .map((link) => link.text());
     expect(labels).toEqual([
       "库存",
@@ -61,11 +61,11 @@ describe("ApplicationShell navigation contract", () => {
     });
     const brand = wrapper.find(".shell-brand").element;
     expect(wrapper.find(".desktop-nav").element.children[0]).toBe(brand);
-    expect(wrapper.find(".shell-brand").text()).toBe("物寺院物资");
+    expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
     route.path = "/adjustments";
     await nextTick();
     expect(wrapper.find(".shell-brand").element).toBe(brand);
-    expect(wrapper.find(".shell-brand").text()).toBe("物寺院物资");
+    expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
   });
 
   it("shows the complete Inventory context on Expiry and selects exactly one item", async () => {
@@ -77,7 +77,6 @@ describe("ApplicationShell navigation contract", () => {
     const context = wrapper.find(".desktop-inventory-context");
     expect(context.findAll("a").map((link) => link.text())).toEqual([
       "库存列表",
-      "全部物品",
       "效期批次",
     ]);
     expect(context.findAll('a[aria-current="page"]')).toHaveLength(1);
@@ -113,7 +112,7 @@ describe("ApplicationShell navigation contract", () => {
       global: { stubs: { RouterLink } },
     });
     await nextTick();
-    expect(wrapper.find(".shell-brand").text()).toBe("物寺院物资");
+    expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
     expect(
       wrapper.find('nav[aria-label="主导航"] a[aria-current="page"]').text(),
     ).toBe("更多");

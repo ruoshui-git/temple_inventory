@@ -365,6 +365,21 @@ def _movement_sheets(filters):
 
 def _current_stock_sheets(filters):
 	rows = _stock_rows(filters)
+	window = str(filters.get("expiry_window") or "").strip().lower()
+	if window and window != "all":
+		start, end = _expiry_bounds(filters)
+		matching_items = set()
+		for row in rows:
+			if window == "none":
+				if not row["expiry_date"]:
+					matching_items.add(row["item_code"])
+				continue
+			if not row["expiry_date"]:
+				continue
+			expiry = getdate(row["expiry_date"])
+			if (not start or expiry >= start) and (not end or expiry <= end):
+				matching_items.add(row["item_code"])
+		rows = [row for row in rows if row["item_code"] in matching_items]
 	by_item = defaultdict(lambda: {"qty": 0.0, "batches": set(), "expiries": []})
 	by_batch = defaultdict(lambda: {"qty": 0.0, "locations": []})
 	meta = {}
@@ -444,30 +459,47 @@ def _expiry_bounds(filters):
 		if (start and str(start) != date_from) or (end and str(end) != date_to) or (start and end and start > end):
 			frappe.throw(_("Invalid expiry date range"))
 		return start, end
-	if not window:
+	if not window or window == "all" or window == "none":
 		return None, None
-	valid = {"overdue_within", "overdue_beyond", "remaining_within", "remaining_beyond"}
+	valid = {"overdue_within", "overdue_beyond", "remaining_within", "remaining_beyond", "custom"}
 	if window not in valid:
 		frappe.throw(_("Invalid expiry window"))
-	days_text = str(filters.get("expiry_days") or "").strip()
-	if not days_text.isdigit() or int(days_text) <= 0:
-		frappe.throw(_("Expiry days must be a positive integer"))
-	days = int(days_text)
 	today = getdate(nowdate())
+	if window == "custom":
+		values = (filters.get("expiry_from_days"), filters.get("expiry_to_days"))
+		if any(value in (None, "") or not str(value).strip().lstrip("-").isdigit() for value in values):
+			frappe.throw(_("Custom expiry bounds must be integers"))
+		start_days, end_days = (int(value) for value in values)
+		if not -3650 <= start_days <= end_days <= 3650:
+			frappe.throw(_("Custom expiry bounds must be between -3650 and 3650 in ascending order"))
+		return getdate(add_days(today, start_days)), getdate(add_days(today, end_days))
+	days_text = str(filters.get("expiry_days") or "").strip()
+	if not days_text.isdigit() or not 1 <= int(days_text) <= 3650:
+		frappe.throw(_("Expiry days must be an integer from 1 to 3650"))
+	days = int(days_text)
 	if window == "overdue_within":
 		return getdate(add_days(today, -days)), getdate(add_days(today, -1))
 	if window == "overdue_beyond":
-		return None, getdate(add_days(today, -days))
+		return None, getdate(add_days(today, -(days + 1)))
 	if window == "remaining_within":
 		return today, getdate(add_days(today, days))
-	return getdate(add_days(today, days)), None
+	return getdate(add_days(today, days + 1)), None
 
 
 def _expiry_sheets(filters):
 	start, end = _expiry_bounds(filters)
+	window = str(filters.get("expiry_window") or "").strip().lower()
 	rows = []
 	for row in _stock_rows(filters):
-		if not row["batch_no"] or not row["expiry_date"]:
+		if not row["batch_no"]:
+			continue
+		if window == "none":
+			if not row["expiry_date"]:
+				rows.append({**row, "days_to_expiry": ""})
+			continue
+		if window != "none" and not row["expiry_date"]:
+			if not window or window == "all":
+				rows.append({**row, "days_to_expiry": ""})
 			continue
 		expiry = getdate(row["expiry_date"])
 		if start and expiry < start:

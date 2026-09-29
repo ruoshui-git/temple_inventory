@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import ItemImagePreview from "./ItemImagePreview.vue";
 import DetailPopover from "./DetailPopover.vue";
 import type { InventoryCardRow } from "../lib/inventoryTypes";
 
@@ -48,11 +47,11 @@ const description = (row: InventoryCardRow) =>
 		.replace(/\s+/g, " ")
 		.trim();
 const batchLabel = (row: InventoryCardRow) =>
-	typeof row.batch_count === "number"
-		? `${row.batch_count} 批次`
-		: row.has_batch_no
-			? "批次管理"
-			: "";
+	!row.has_batch_no
+		? ""
+		: typeof row.batch_count === "number"
+			? `${row.batch_count} 批次`
+			: "批次管理";
 const expiryTone = (row: InventoryCardRow) => {
 	if (row.nearest_expiry_days == null) return "";
 	if (row.nearest_expiry_days < 0) return "danger";
@@ -90,8 +89,14 @@ const expiryBadge = (row: InventoryCardRow) => {
 			@keydown="activateKey(row, $event)"
 			@click="activate(row, $event)"
 		>
-			<div class="inventory-card-image" data-card-control>
-				<ItemImagePreview v-if="row.image" :src="row.image" :alt="row.item_name" />
+			<div class="inventory-card-image">
+				<img
+					v-if="row.image"
+					:src="row.image"
+					:alt="row.item_name"
+					loading="lazy"
+					decoding="async"
+				/>
 				<div v-else class="inventory-card-placeholder" aria-hidden="true">
 					<span>□</span><small>暂无图片</small>
 				</div>
@@ -202,16 +207,7 @@ const expiryBadge = (row: InventoryCardRow) => {
 	overflow: hidden;
 	background: #fff;
 }
-.inventory-card-image :deep(.image-preview),
-.inventory-card-image :deep(.image-thumb-button) {
-	display: block;
-	width: 100%;
-	height: 100%;
-	padding: 0;
-	border: 0;
-	border-radius: 0;
-}
-.inventory-card-image :deep(.image-thumb-button img) {
+.inventory-card-image > img {
 	width: 100%;
 	height: 100%;
 	object-fit: contain;

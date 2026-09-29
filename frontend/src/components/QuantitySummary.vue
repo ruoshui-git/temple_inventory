@@ -1,6 +1,13 @@
 <script setup lang="ts">
+import InventoryIcon from "./InventoryIcon.vue";
 export type Quantity = { uom: string; qty: number };
-export type QuantityMetric = { key: string; label: string; quantities: Quantity[] };
+export type QuantityMetric = {
+	key: string;
+	label: string;
+	quantities: Quantity[];
+	icon?: string;
+	tone?: string;
+};
 
 withDefaults(defineProps<{ metrics: QuantityMetric[]; loading?: boolean; label?: string }>(), {
 	loading: false,
@@ -13,8 +20,15 @@ const formatQuantity = (value: number) =>
 
 <template>
 	<section class="quantity-summary" :aria-label="label" aria-live="polite" :aria-busy="loading">
-		<article v-for="metric in metrics" :key="metric.key" class="quantity-summary-metric">
-			<span class="metric-icon" aria-hidden="true"></span>
+		<article
+			v-for="metric in metrics"
+			:key="metric.key"
+			class="quantity-summary-metric"
+			:class="metric.tone"
+		>
+			<span v-if="metric.icon" class="metric-icon" aria-hidden="true"
+				><InventoryIcon :name="metric.icon"
+			/></span>
 			<div>
 				<small>{{ metric.label }}</small>
 				<div v-if="loading" class="quantity-summary-loading">正在更新…</div>
@@ -50,11 +64,29 @@ const formatQuantity = (value: number) =>
 	min-width: 0;
 }
 .metric-icon {
+	display: grid;
 	width: 29px;
 	height: 29px;
 	flex: none;
 	border-radius: 50%;
 	background: #f2f5f3;
+	place-items: center;
+}
+.metric-icon :deep(svg) {
+	width: 18px;
+	height: 18px;
+}
+.quantity-summary-metric.available {
+	color: #14804e;
+}
+.quantity-summary-metric.total {
+	color: #775f3e;
+}
+.quantity-summary-metric.loaned {
+	color: #b66b20;
+}
+.quantity-summary-metric.damaged {
+	color: #b24d42;
 }
 .quantity-summary-metric small {
 	display: block;

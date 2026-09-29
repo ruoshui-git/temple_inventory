@@ -28,7 +28,7 @@ deliberately use the missing-image placeholder.
 - Use actual destinations; omit suppliers and other invented areas.
 - Keep one highlighted `库存` parent with exactly two child destinations:
   `库存列表` and `效期批次`.
-- Keep `有库存`, `需关注`, and all expiry windows inside their pages as filters.
+- Keep `有库存` and all expiry windows inside their pages as filters; there is no separate `需关注` concept.
 - Use one filter trigger: it reveals a secondary sidebar beside desktop navigation
   and a full-screen filter on mobile. Warehouse and category selectors are
   searchable, independently expandable trees rather than dropdowns. Mobile browse

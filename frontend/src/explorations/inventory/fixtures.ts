@@ -260,14 +260,17 @@ export function matchesExpiry(expiry: string | undefined, filter: string) {
   if (filter === "none") return !expiry;
   const days = daysFromFixtureDate(expiry);
   if (days === null) return false;
-  if (filter === "attention") return days < 0 || days <= 30;
-  if (filter === "expired") return days < 0;
+  if (filter === "overdue_within") return days >= -30 && days <= -1;
+  if (filter === "overdue_beyond") return days <= -31;
+  if (filter === "remaining_within") return days >= 0 && days <= 30;
+  if (filter === "remaining_beyond") return days >= 31;
+  if (filter === "custom") return days >= -30 && days <= 30;
   const window = Number(filter);
   return days >= 0 && days <= window;
 }
 
-export const attentionBatchCount = batches.filter((batch) =>
-  matchesExpiry(batch.expiry, "attention"),
+export const expiryNavigationCount = batches.filter(
+  (batch) => batch.quantity > 0,
 ).length;
 
 export function expiryStatus(item: InventoryItem) {

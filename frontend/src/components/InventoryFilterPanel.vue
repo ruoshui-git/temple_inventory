@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import ExplorationIcon from "./ExplorationIcon.vue";
+import InventoryIcon from "./InventoryIcon.vue";
 
-export type ExpiryFilter = "attention" | "all" | "expired" | "30" | "90" | "180" | "none";
+export type ExpiryFilter =
+	| "all"
+	| "overdue_within"
+	| "overdue_beyond"
+	| "remaining_within"
+	| "remaining_beyond"
+	| "none"
+	| "custom";
 export type InventoryFilterState = {
 	warehouses: string[];
 	categories: string[];
 	inStock: boolean;
 	expiry: ExpiryFilter;
+	expiryDays?: string;
+	expiryFromDays?: string;
+	expiryToDays?: string;
 };
 export type InventoryFilterNode = {
 	name: string;
@@ -23,6 +33,8 @@ const props = withDefaults(
 		warehouses: InventoryFilterNode[];
 		categories: InventoryFilterNode[];
 		expiryPrimary?: boolean;
+		expiryCounts?: Partial<Record<ExpiryFilter, number>>;
+		customError?: string;
 	}>(),
 	{ expiryPrimary: false },
 );
@@ -41,14 +53,14 @@ const expandedCategoryNodes = ref(
 	new Set(props.categories.filter((node) => node.isGroup).map((node) => node.name)),
 );
 
-const expiryOptions: Array<{ value: ExpiryFilter; label: string; hint?: string }> = [
-	{ value: "attention", label: "需关注", hint: "已过期及未来 30 天" },
-	{ value: "all", label: "全部" },
-	{ value: "expired", label: "已过期" },
-	{ value: "30", label: "30 天内" },
-	{ value: "90", label: "90 天内" },
-	{ value: "180", label: "180 天内" },
+const expiryOptions: Array<{ value: ExpiryFilter; label: string }> = [
+	{ value: "all", label: "全部效期" },
+	{ value: "overdue_within", label: "已过期天数以下" },
+	{ value: "overdue_beyond", label: "已过期天数以上" },
+	{ value: "remaining_within", label: "还剩天数以下" },
+	{ value: "remaining_beyond", label: "还剩天数以上" },
 	{ value: "none", label: "无效期" },
+	{ value: "custom", label: "自定义" },
 ];
 
 function update(patch: Partial<InventoryFilterState>) {
@@ -170,7 +182,24 @@ function clearSection(key: "warehouses" | "categories") {
 	update({ [key]: [] });
 }
 function clearAll() {
-	emit("update:modelValue", { warehouses: [], categories: [], inStock: false, expiry: "all" });
+	emit("update:modelValue", {
+		warehouses: [],
+		categories: [],
+		inStock: false,
+		expiry: "all",
+		expiryDays: props.modelValue.expiryDays || "30",
+		expiryFromDays: props.modelValue.expiryFromDays || "-30",
+		expiryToDays: props.modelValue.expiryToDays || "30",
+	});
+}
+function expiryLabel(option: { value: ExpiryFilter; label: string }) {
+	if (
+		["overdue_within", "overdue_beyond", "remaining_within", "remaining_beyond"].includes(
+			option.value,
+		)
+	)
+		return option.label.replace("天数", `${props.modelValue.expiryDays || "30"} 天`);
+	return option.label;
 }
 </script>
 
@@ -183,7 +212,7 @@ function clearAll() {
 					:aria-expanded="warehouseOpen"
 					@click="warehouseOpen = !warehouseOpen"
 				>
-					<ExplorationIcon name="warehouse" />
+					<InventoryIcon name="warehouse" />
 					<span>仓库 / 位置</span>
 					<small v-if="modelValue.warehouses.length"
 						>{{ modelValue.warehouses.length }} 项</small
@@ -205,7 +234,7 @@ function clearAll() {
 			</div>
 			<div v-if="warehouseOpen" class="filter-section-body">
 				<label class="filter-search"
-					><ExplorationIcon name="search" /><input
+					><InventoryIcon name="search" /><input
 						v-model="warehouseTerm"
 						type="search"
 						placeholder="搜索仓库或位置"
@@ -261,7 +290,7 @@ function clearAll() {
 					:aria-expanded="categoryOpen"
 					@click="categoryOpen = !categoryOpen"
 				>
-					<ExplorationIcon name="card" />
+					<InventoryIcon name="card" />
 					<span>物品类别</span>
 					<small v-if="modelValue.categories.length"
 						>{{ modelValue.categories.length }} 项</small
@@ -283,7 +312,7 @@ function clearAll() {
 			</div>
 			<div v-if="categoryOpen" class="filter-section-body">
 				<label class="filter-search"
-					><ExplorationIcon name="search" /><input
+					><InventoryIcon name="search" /><input
 						v-model="categoryTerm"
 						type="search"
 						placeholder="搜索物品类别"
@@ -341,7 +370,17 @@ function clearAll() {
 		>
 
 		<section v-if="expiryPrimary" class="expiry-section">
-			<h3>效期</h3>
+			<div class="expiry-heading">
+				<h3>效期范围</h3>
+				<label
+					>天数<input
+						:value="modelValue.expiryDays || '30'"
+						type="number"
+						min="1"
+						max="3650"
+						@input="update({ expiryDays: ($event.target as HTMLInputElement).value })"
+				/></label>
+			</div>
 			<div class="expiry-options">
 				<label
 					v-for="option in expiryOptions"
@@ -352,19 +391,38 @@ function clearAll() {
 						:name="`primary-expiry-${instanceId}`"
 						:value="option.value"
 						:checked="modelValue.expiry === option.value"
-						@change="update({ expiry: option.value })"
-					/><span
-						>{{ option.label
-						}}<small v-if="option.hint">{{ option.hint }}</small></span
-					></label
-				>
+						@change="update({ expiry: option.value })" /><span>{{
+						expiryLabel(option)
+					}}</span
+					><small class="option-count">{{ expiryCounts?.[option.value] ?? "—" }}</small
+					><span v-if="option.value === 'custom'" class="custom-range">
+						<input
+							:value="modelValue.expiryFromDays || ''"
+							type="number"
+							aria-label="自定义效期起始天数"
+							@input="
+								update({
+									expiryFromDays: ($event.target as HTMLInputElement).value,
+								})
+							"
+						/><span>–</span
+						><input
+							:value="modelValue.expiryToDays || ''"
+							type="number"
+							aria-label="自定义效期结束天数"
+							@input="
+								update({ expiryToDays: ($event.target as HTMLInputElement).value })
+							"
+						/> </span
+				></label>
 			</div>
+			<p v-if="customError" class="custom-error" role="alert">{{ customError }}</p>
 		</section>
 
 		<section v-else class="filter-section more-section">
 			<div class="filter-section-heading">
 				<button type="button" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen">
-					<ExplorationIcon name="filter" /><span>更多条件</span
+					<InventoryIcon name="filter" /><span>更多条件</span
 					><small v-if="modelValue.expiry !== 'all'">1 项</small
 					><span
 						class="disclosure-triangle"
@@ -374,12 +432,22 @@ function clearAll() {
 				</button>
 			</div>
 			<div v-if="moreOpen" class="filter-section-body expiry-section">
-				<h3>效期</h3>
+				<div class="expiry-heading">
+					<h3>效期范围</h3>
+					<label
+						>天数<input
+							:value="modelValue.expiryDays || '30'"
+							type="number"
+							min="1"
+							max="3650"
+							@input="
+								update({ expiryDays: ($event.target as HTMLInputElement).value })
+							"
+					/></label>
+				</div>
 				<div class="expiry-options">
 					<label
-						v-for="option in expiryOptions.filter(
-							(item) => item.value !== 'attention',
-						)"
+						v-for="option in expiryOptions"
 						:key="option.value"
 						:class="{ selected: modelValue.expiry === option.value }"
 						><input
@@ -387,10 +455,36 @@ function clearAll() {
 							:name="`more-expiry-${instanceId}`"
 							:value="option.value"
 							:checked="modelValue.expiry === option.value"
-							@change="update({ expiry: option.value })"
-						/><span>{{ option.label }}</span></label
-					>
+							@change="update({ expiry: option.value })" /><span>{{
+							expiryLabel(option)
+						}}</span
+						><small class="option-count">{{
+							expiryCounts?.[option.value] ?? "—"
+						}}</small
+						><span v-if="option.value === 'custom'" class="custom-range">
+							<input
+								:value="modelValue.expiryFromDays || ''"
+								type="number"
+								aria-label="自定义效期起始天数"
+								@input="
+									update({
+										expiryFromDays: ($event.target as HTMLInputElement).value,
+									})
+								"
+							/><span>–</span
+							><input
+								:value="modelValue.expiryToDays || ''"
+								type="number"
+								aria-label="自定义效期结束天数"
+								@input="
+									update({
+										expiryToDays: ($event.target as HTMLInputElement).value,
+									})
+								"
+							/> </span
+					></label>
 				</div>
+				<p v-if="customError" class="custom-error" role="alert">{{ customError }}</p>
 			</div>
 		</section>
 
@@ -618,6 +712,66 @@ function clearAll() {
 }
 .stock-filter small {
 	color: #817a71;
+	font-size: 11px;
+}
+.expiry-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 11px 5px;
+}
+.expiry-heading h3 {
+	margin: 0;
+	font-size: 13px;
+}
+.expiry-heading label {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	color: #777870;
+	font-size: 12px;
+}
+.expiry-heading input,
+.custom-range input {
+	width: 58px;
+	height: 30px;
+	padding: 3px 5px;
+	border: 1px solid #ddd7cd;
+	border-radius: 6px;
+}
+.expiry-options {
+	display: grid;
+	padding: 4px 10px 10px;
+}
+.expiry-options > label {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 7px;
+	min-height: 36px;
+	padding: 4px 3px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.expiry-options > label:hover,
+.expiry-options > label.selected {
+	background: #f5f1eb;
+}
+.option-count {
+	color: #8b8379;
+	font-size: 11px;
+}
+.custom-range {
+	grid-column: 2 / -1;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding-bottom: 4px;
+}
+.custom-error {
+	margin: -3px 12px 10px;
+	color: #a63e33;
 	font-size: 11px;
 }
 .expiry-section {

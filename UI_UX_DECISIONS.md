@@ -74,6 +74,30 @@ in the same change. Keep implementation details in code or task notes, not here.
   and releases the camera.
 - Camera, hardware-scanner, and manual entry paths converge on the same workflow.
 
+## Inventory and expiry browsing
+
+- `全部物品` is not a separate Inventory destination. `有库存` is a filter on
+  the main `库存列表`; old `mode=catalog` links hydrate that filter for
+  compatibility and are rewritten to the canonical query form.
+- Desktop Inventory and Expiry use the compact story density, shared filter
+  panel, icon-plus-text controls, and a header that condenses after 80px of
+  result scrolling. The existing mobile page layout remains unchanged.
+- Expiry uses one shared positive day threshold for the four standard,
+  non-overlapping relative windows. `无效期` is explicit. `自定义` accepts an
+  independent inclusive signed range from -3650 to 3650 days, where negative
+  values are past dates; invalid input remains visible and is not requested.
+- Expiry option counts describe the complete current scope and exclude only the
+  expiry choice itself: distinct items on Inventory and distinct batches on
+  Expiry. There is no `需关注` expiry concept.
+- Batch-tracked items show the real batch count, including `0 批次`. Items that
+  do not track batches never show a batch badge. Older API rows may show the
+  neutral `批次管理` fallback only when batch tracking is enabled.
+- Card images are ordinary lazy-loaded images and never open a preview. Table
+  thumbnails retain the interactive image preview.
+- The desktop `库存` navigation parent is an accessible expand/collapse button
+  containing only `库存列表` and `效期批次`. The app mark is neutral at rest and
+  receives its tint only on hover or keyboard focus.
+
 ## Warehouses
 
 - ERPNext is the source of truth. Compatible warehouses created through ERPNext
@@ -111,6 +135,8 @@ in the same change. Keep implementation details in code or task notes, not here.
   filters, table/card switch, and inventory cards. This desktop-only adoption
   does not supersede the existing mobile layout; mobile redesign remains
   deferred.
+- **2026-09-29:** The compact desktop Inventory/Expiry contract above supersedes
+  the separate `全部物品` destination and any `需关注` expiry shortcut.
 - **2026-09-28:** A report hub plus contextual export dialogs establishes the
   reporting entry points and fixed-column XLSX/CSV behavior.
 - **2026-09-28:** The default `货物流动` overview and its independent action

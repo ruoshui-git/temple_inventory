@@ -12,15 +12,15 @@ import cardMask from "./assets/card-mask.png";
 import cardThermos from "./assets/card-thermos.png";
 import cardTissues from "./assets/card-tissues.png";
 import cardTray from "./assets/card-tray.png";
-import ExplorationIcon from "./ExplorationIcon.vue";
+import ExplorationIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel, {
 	type ExpiryFilter,
 	type InventoryFilterNode,
 	type InventoryFilterState,
-} from "./InventoryFilterPanel.vue";
+} from "../../components/InventoryFilterPanel.vue";
 import InventoryItemDetails from "./InventoryItemDetails.vue";
 import {
-	attentionBatchCount,
+	expiryNavigationCount,
 	batches,
 	categories,
 	daysFromFixtureDate,
@@ -64,7 +64,7 @@ const selectedCategories = ref<string[]>([]);
 const listInStock = ref(true);
 const listExpiry = ref<ExpiryFilter>("all");
 const expiryInStock = ref(true);
-const batchExpiry = ref<ExpiryFilter>("attention");
+const batchExpiry = ref<ExpiryFilter>("all");
 const itemSort = ref<ItemSortKey>("default");
 const itemSortDirection = ref<"asc" | "desc">("asc");
 const batchSort = ref<BatchSortKey>("expiry");
@@ -231,6 +231,9 @@ const panelFilters = computed<InventoryFilterState>({
 		categories: selectedCategories.value,
 		inStock: page.value === "list" ? listInStock.value : expiryInStock.value,
 		expiry: page.value === "list" ? listExpiry.value : batchExpiry.value,
+		expiryDays: "30",
+		expiryFromDays: "-30",
+		expiryToDays: "30",
 	}),
 	set: (value) => {
 		selectedWarehouses.value = value.warehouses;
@@ -264,13 +267,13 @@ const categoryNodes = computed<InventoryFilterNode[]>(() =>
 	})),
 );
 const expiryLabels: Record<ExpiryFilter, string> = {
-	attention: "效期：需关注",
 	all: "",
-	expired: "效期：已过期",
-	"30": "效期：30 天内",
-	"90": "效期：90 天内",
-	"180": "效期：180 天内",
+	overdue_within: "效期：已过期 30 天以下",
+	overdue_beyond: "效期：已过期 30 天以上",
+	remaining_within: "效期：还剩 30 天以下",
+	remaining_beyond: "效期：还剩 30 天以上",
 	none: "效期：无效期",
+	custom: "效期：自定义",
 };
 const activeCount = computed(
 	() =>
@@ -337,7 +340,15 @@ function openFilters() {
 }
 function clearFilters() {
 	search.value = "";
-	panelFilters.value = { warehouses: [], categories: [], inStock: false, expiry: "all" };
+	panelFilters.value = {
+		warehouses: [],
+		categories: [],
+		inStock: false,
+		expiry: "all",
+		expiryDays: "30",
+		expiryFromDays: "-30",
+		expiryToDays: "30",
+	};
 }
 function removeChip(key: string, value: string) {
 	if (key === "warehouse")
@@ -513,7 +524,7 @@ onBeforeUnmount(() => observer?.disconnect());
 							:aria-current="page === 'expiry' ? 'page' : undefined"
 							@click="setPage('expiry')"
 						>
-							效期批次 <span class="nav-badge">{{ attentionBatchCount }}</span>
+							效期批次 <span class="nav-badge">{{ expiryNavigationCount }}</span>
 						</button>
 					</div>
 					<a
@@ -602,7 +613,7 @@ onBeforeUnmount(() => observer?.disconnect());
 							:aria-current="page === 'expiry' ? 'page' : undefined"
 							@click="setPage('expiry')"
 						>
-							效期批次 <span>{{ attentionBatchCount }}</span>
+							效期批次 <span>{{ expiryNavigationCount }}</span>
 						</button>
 					</nav>
 					<div class="exploration-toolbar">
@@ -1088,17 +1099,7 @@ onBeforeUnmount(() => observer?.disconnect());
 								class="inventory-visual-card batch-visual-card"
 								role="listitem"
 							>
-								<button
-									class="inventory-card-image"
-									:aria-label="`查看 ${batch.item.name}，批次 ${batch.code}`"
-									@click="
-										preview(
-											batch.item.name,
-											`/item/${batch.item.code}?batch=${batch.code}`,
-											batch.item,
-										)
-									"
-								>
+								<div class="inventory-card-image">
 									<img
 										v-if="cardImage(batch.item)"
 										:src="cardImage(batch.item)"
@@ -1109,7 +1110,7 @@ onBeforeUnmount(() => observer?.disconnect());
 									<span v-else class="inventory-card-placeholder">
 										<ExplorationIcon name="box" /><small>暂无图片</small>
 									</span>
-								</button>
+								</div>
 								<div class="inventory-card-body">
 									<div class="inventory-card-primary">
 										<button

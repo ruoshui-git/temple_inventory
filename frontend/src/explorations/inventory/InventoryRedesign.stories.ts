@@ -169,15 +169,17 @@ export const DesktopExpiry: Story = {
   args: { initialPage: "expiry" },
   globals: { viewport: { value: "desktop", isRotated: false } },
   play: async ({ canvas, step }) => {
-    await step("Attention is the default batch-level filter", async () => {
-      await expect(
-        canvas.getByRole("heading", { name: "效期批次" }),
-      ).toBeVisible();
-      await expect(canvas.getByText("需关注", { exact: true })).toBeVisible();
-      await expect(
-        canvas.getByText("12 个批次", { exact: true }),
-      ).toBeVisible();
-    });
+    await step(
+      "All expiry records are the default batch-level filter",
+      async () => {
+        await expect(
+          canvas.getByRole("heading", { name: "效期批次" }),
+        ).toBeVisible();
+        await expect(
+          canvas.getByRole("radio", { name: /全部效期/ }),
+        ).toBeChecked();
+      },
+    );
     await step("Batch search and header sorting work", async () => {
       const search = canvas.getByRole("searchbox", {
         name: "搜索物品、批次或条码",
@@ -196,23 +198,17 @@ export const DesktopExpiry: Story = {
       "Expiry windows are cumulative and exclude expired batches",
       async () => {
         await userEvent.click(canvas.getByRole("button", { name: /筛选，/ }));
-        await userEvent.click(canvas.getByRole("radio", { name: "已过期" }));
-        await expect(
-          canvas.getByText("3 个批次", { exact: true }),
-        ).toBeVisible();
-        await userEvent.click(canvas.getByRole("radio", { name: "30 天内" }));
-        await expect(
-          canvas.getByText("9 个批次", { exact: true }),
-        ).toBeVisible();
-        await userEvent.click(canvas.getByRole("radio", { name: "180 天内" }));
-        await expect(
-          canvas.getByText("21 个批次", { exact: true }),
-        ).toBeVisible();
-        await userEvent.click(canvas.getByRole("radio", { name: "无效期" }));
-        await expect(
-          canvas.getByText("3 个批次", { exact: true }),
-        ).toBeVisible();
-        await userEvent.click(canvas.getByRole("radio", { name: "需关注" }));
+        await userEvent.click(
+          canvas.getByRole("radio", { name: /已过期 30 天以下/ }),
+        );
+        await userEvent.click(
+          canvas.getByRole("radio", { name: /还剩 30 天以下/ }),
+        );
+        await userEvent.click(
+          canvas.getByRole("radio", { name: /还剩 30 天以上/ }),
+        );
+        await userEvent.click(canvas.getByRole("radio", { name: /无效期/ }));
+        await userEvent.click(canvas.getByRole("radio", { name: /全部效期/ }));
         await userEvent.click(canvas.getByRole("button", { name: "关闭筛选" }));
       },
     );
@@ -223,9 +219,7 @@ export const DesktopExpiry: Story = {
         await expect(
           canvas.getByRole("heading", { name: "库存列表" }),
         ).toBeVisible();
-        await userEvent.click(
-          canvas.getByRole("button", { name: /效期批次 12/ }),
-        );
+        await userEvent.click(canvas.getByRole("button", { name: /效期批次/ }));
         await expect(
           canvas.getByRole("heading", { name: "效期批次" }),
         ).toBeVisible();

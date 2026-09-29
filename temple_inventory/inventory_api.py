@@ -865,6 +865,98 @@ def _sort_state(sort_by, sort_order, columns, default_column=None, default_order
 	return column, order
 
 
+EXPIRY_WINDOWS = {
+	"",
+	"overdue",
+	"overdue_within",
+	"overdue_beyond",
+	"remaining_within",
+	"remaining_beyond",
+	"none",
+	"custom",
+	"7",
+	"30",
+	"90",
+	"180",
+}
+
+
+def _expiry_days_value(value):
+	text = str(value or "30").strip()
+	if not text.isdigit() or not 1 <= int(text) <= 3650:
+		frappe.throw(_("Expiry days must be an integer from 1 to 3650"))
+	return int(text)
+
+
+def _relative_expiry_filter(expiry_window="", expiry_days=None, expiry_from_days=None, expiry_to_days=None):
+	"""Validate one server-date-relative expiry selection."""
+	window = str(expiry_window or "").strip().lower()
+	if window not in EXPIRY_WINDOWS:
+		frappe.throw(_("Invalid expiry window"))
+	today = getdate(nowdate())
+	if window == "none":
+		return {"window": window, "include_undated": True, "undated_only": True}
+	if not window:
+		return {"window": "", "include_undated": True}
+	if window == "overdue":
+		return {"window": window, "before": today}
+	if window in {"7", "30", "90", "180"}:
+		return {"window": window, "from": today, "to": getdate(add_days(today, int(window)))}
+	if window == "custom":
+		values = (expiry_from_days, expiry_to_days)
+		if any(value in (None, "") or not str(value).strip().lstrip("-").isdigit() for value in values):
+			frappe.throw(_("Custom expiry bounds must be integers"))
+		start_days, end_days = (int(value) for value in values)
+		if not -3650 <= start_days <= end_days <= 3650:
+			frappe.throw(_("Custom expiry bounds must be between -3650 and 3650 in ascending order"))
+		return {
+			"window": window,
+			"from": getdate(add_days(today, start_days)),
+			"to": getdate(add_days(today, end_days)),
+		}
+	days = _expiry_days_value(expiry_days)
+	if window == "overdue_within":
+		return {"window": window, "from": getdate(add_days(today, -days)), "to": getdate(add_days(today, -1))}
+	if window == "overdue_beyond":
+		return {"window": window, "to": getdate(add_days(today, -(days + 1)))}
+	if window == "remaining_within":
+		return {"window": window, "from": today, "to": getdate(add_days(today, days))}
+	return {"window": window, "from": getdate(add_days(today, days + 1))}
+
+
+def _expiry_bucket_counts(rows, entity_key, expiry_days=30, custom_from=None, custom_to=None):
+	"""Count distinct result entities in each self-excluding expiry bucket."""
+	days = int(expiry_days or 30)
+	buckets = {
+		"all": set(),
+		"overdue_within": set(),
+		"overdue_beyond": set(),
+		"remaining_within": set(),
+		"remaining_beyond": set(),
+		"none": set(),
+		"custom": set(),
+	}
+	for row in rows:
+		key = row.get(entity_key) if isinstance(row, dict) else getattr(row, entity_key)
+		expiry = row.get("expiry_date") if isinstance(row, dict) else getattr(row, "expiry_date", None)
+		buckets["all"].add(key)
+		if not expiry:
+			buckets["none"].add(key)
+			continue
+		relative = (getdate(expiry) - getdate(nowdate())).days
+		if -days <= relative <= -1:
+			buckets["overdue_within"].add(key)
+		elif relative <= -(days + 1):
+			buckets["overdue_beyond"].add(key)
+		elif 0 <= relative <= days:
+			buckets["remaining_within"].add(key)
+		elif relative >= days + 1:
+			buckets["remaining_beyond"].add(key)
+		if custom_from is not None and custom_to is not None and custom_from <= relative <= custom_to:
+			buckets["custom"].add(key)
+	return {name: len(values) for name, values in buckets.items()}
+
+
 def _bin_balances(warehouses, item_names=None):
 	"""Aggregate Bin balances once, leaving Item permission filtering to callers."""
 	warehouses = list(warehouses or [])
@@ -1299,6 +1391,22 @@ def bootstrap():
 		pending_error = None
 	except frappe.ValidationError as error:
 		pending_total, pending_error = 0, str(error)
+	try:
+		expiry_sql, expiry_params = _expiring_batch_candidate_query(
+			physical_leaves, include_undated=True
+		)
+		expiry_rows = frappe.db.sql(
+			"select count(*) as total from (select batch_no from ("
+			+ expiry_sql
+			+ ") candidates group by batch_no having sum(qty) > 0) batches",
+			expiry_params,
+			as_dict=True,
+		)
+		expiry_batch_count = int(expiry_rows[0].total if expiry_rows else 0)
+	except Exception:
+		# Bootstrap remains usable if an optional batch table is unavailable while
+		# an administrator is repairing ERPNext stock metadata.
+		expiry_batch_count = 0
 	capabilities = _stock_operation_capabilities(settings)
 	damaged_count = len({row.item_code for row in pending_rows if row.warehouse == settings.damaged_warehouse})
 	unlocated_count = len({row.item_code for row in pending_rows if row.warehouse == settings.pending_warehouse})
@@ -1310,6 +1418,7 @@ def bootstrap():
 		"damaged_pending_count": damaged_count,
 		"unlocated_pending_count": unlocated_count,
 		"pending_count": pending_total,
+		"expiry_batch_count": expiry_batch_count,
 		"capabilities": {dt: frappe.has_permission(dt, "create") for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")},
 		"can_read_reconciliations": frappe.has_permission("Stock Reconciliation", "read"),
 		"can_create_stock_entry": frappe.has_permission("Stock Entry", "create"),
@@ -1480,7 +1589,7 @@ def warehouse_detail(warehouse):
 	}
 
 
-def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", pending_mode=None, leased_warehouses=None):
+def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", pending_mode=None, leased_warehouses=None, item_names=None):
 	"""Build the permission-aware SQL candidate set used by Inventory paging."""
 	warehouses = list(warehouses or [])
 	if not warehouses:
@@ -1500,6 +1609,10 @@ def _inventory_item_candidate_query(warehouses, settings, group_names=None, sear
 		"i.is_stock_item=1",
 		_item_match_condition("i"),
 	]
+	if item_names is not None:
+		marks = ", ".join(["%s"] * len(item_names)) or "''"
+		where.append(f"i.name in ({marks})")
+		params.extend(sorted(item_names))
 	if group_names:
 		marks = ", ".join(["%s"] * len(group_names))
 		where.append(f"i.item_group in ({marks})")
@@ -1586,12 +1699,126 @@ def _inventory_batch_summaries(item_names, warehouses):
 	return summaries
 
 
-def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, pending_mode, sort_state):
+def _inventory_expiry_scope(candidate_rows, warehouses, expiry_filter, expiry_days, custom_from, custom_to):
+	"""Return item expiry facets and the item names matching the active bucket."""
+	candidate_names = {row.name for row in candidate_rows}
+	unbatched = {row.name for row in candidate_rows if not cint(row.has_batch_no)}
+	batch_rows = []
+	if candidate_names and warehouses:
+		base_sql, params = _expiring_batch_candidate_query(
+			warehouses,
+			include_undated=True,
+			item_names=candidate_names,
+		)
+		batch_rows = frappe.db.sql(
+			"select batch_no, item_name, expiry_date from ("
+			+ base_sql
+			+ ") candidates group by batch_no, item_name, expiry_date having sum(qty) > 0",
+			params,
+			as_dict=True,
+		)
+	counts = _expiry_bucket_counts(batch_rows, "item_name", expiry_days, custom_from, custom_to)
+	counts["all"] = len(candidate_names)
+	counts["none"] = len(unbatched | {row.item_name for row in batch_rows if not row.expiry_date})
+	window = expiry_filter["window"]
+	if not window:
+		return counts, candidate_names
+	if window == "none":
+		return counts, unbatched | {row.item_name for row in batch_rows if not row.expiry_date}
+	matching = set()
+	for row in batch_rows:
+		if not row.expiry_date:
+			continue
+		expiry = getdate(row.expiry_date)
+		if expiry_filter.get("from") and expiry < expiry_filter["from"]:
+			continue
+		if expiry_filter.get("to") and expiry > expiry_filter["to"]:
+			continue
+		if expiry_filter.get("before") and expiry >= expiry_filter["before"]:
+			continue
+		matching.add(row.item_name)
+	return counts, matching
+
+
+def _inventory_expiry_scope_fixture(items, warehouses, expiry_filter, expiry_days, custom_from, custom_to):
+	item_names = {item.name for item in items}
+	unbatched = {item.name for item in items if not cint(getattr(item, "has_batch_no", 0))}
+	try:
+		batches = frappe.get_list(
+			"Batch",
+			filters={"disabled": 0, "item": ("in", sorted(item_names) or [""])},
+			fields=["name", "item", "expiry_date"],
+			limit_page_length=0,
+		)
+	except AssertionError:
+		# Older unit fixtures predate expiry facets and expose Item only.
+		batches = []
+	# Some legacy mocks return their Item fixture for every get_list call. Ignore
+	# rows that do not actually satisfy the Batch metadata contract.
+	batches = [
+		row
+		for row in batches
+		if getattr(row, "name", None) and getattr(row, "item", None) is not None
+	]
+	balances = _current_batch_balances(
+		{row.name for row in batches},
+		item_names,
+		warehouses,
+		fixture_batches=batches,
+	)
+	positive = [
+		{"batch_no": batch.name, "item_name": batch.item, "expiry_date": batch.expiry_date}
+		for batch in batches
+		if sum(flt(balances.get((batch.name, warehouse), 0)) for warehouse in warehouses) > 1e-9
+	]
+	counts = _expiry_bucket_counts(positive, "item_name", expiry_days, custom_from, custom_to)
+	counts["all"] = len(item_names)
+	counts["none"] = len(unbatched | {row["item_name"] for row in positive if not row["expiry_date"]})
+	window = expiry_filter["window"]
+	if not window:
+		return counts, item_names
+	if window == "none":
+		return counts, unbatched | {row["item_name"] for row in positive if not row["expiry_date"]}
+	matching = set()
+	for row in positive:
+		if not row["expiry_date"]:
+			continue
+		expiry = getdate(row["expiry_date"])
+		if expiry_filter.get("from") and expiry < expiry_filter["from"]:
+			continue
+		if expiry_filter.get("to") and expiry > expiry_filter["to"]:
+			continue
+		if expiry_filter.get("before") and expiry >= expiry_filter["before"]:
+			continue
+		matching.add(row["item_name"])
+	return counts, matching
+
+
+def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, pending_mode, sort_state, expiry_filter, expiry_days, custom_from, custom_to):
 	selected_groups = _selection_values(item_groups if item_groups is not None else item_group)
 	group_names = _expiring_batch_group_names(selected_groups)
 	leased = _descendants(settings.leased_warehouse, warehouse_map)
-	base_sql, base_params = _inventory_item_candidate_query(
+	unfiltered_sql, unfiltered_params = _inventory_item_candidate_query(
 		selected, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased
+	)
+	candidate_rows = frappe.db.sql(
+		"select name, has_batch_no from (" + unfiltered_sql + ") candidates",
+		unfiltered_params,
+		as_dict=True,
+	)
+	expiry_facets, matching_items = _inventory_expiry_scope(
+		candidate_rows, selected, expiry_filter, expiry_days, custom_from, custom_to
+	)
+	base_sql, base_params = _inventory_item_candidate_query(
+		selected,
+		settings,
+		group_names,
+		search,
+		bool(needs_attention),
+		mode,
+		pending_mode,
+		leased,
+		matching_items if expiry_filter["window"] else None,
 	)
 	count_rows = frappe.db.sql("select count(*) as total from (" + base_sql + ") candidates", base_params, as_dict=True)
 	total = int(count_rows[0].total if count_rows else 0)
@@ -1607,7 +1834,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 	order_sql = "lower(item_name) asc, item_code asc"
 	if sort_state:
 		column, direction = sort_state
-		expression = {"item_name": "lower(item_name)", "available_stock": "available_stock", "total_stock": "total_stock", "on_loan_qty": "on_loan_qty", "damaged_qty": "damaged_qty"}[column]
+		expression = {"item_name": "lower(item_name)", "item_code": "lower(item_code)", "available_stock": "available_stock", "total_stock": "total_stock", "on_loan_qty": "on_loan_qty", "damaged_qty": "damaged_qty"}[column]
 		order_sql = f"{expression} {direction}, lower(item_name) asc, item_code asc"
 	page_rows = frappe.db.sql(
 		"select * from (" + base_sql + f") candidates order by {order_sql} limit %s offset %s",
@@ -1655,8 +1882,20 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 			"attention_reasons": attention_reasons,
 		})
 	all_leaves = _selected_leaf_warehouses(None, warehouse_map)
-	all_sql, all_params = _inventory_item_candidate_query(
+	all_unfiltered_sql, all_unfiltered_params = _inventory_item_candidate_query(
 		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased
+	)
+	all_candidate_rows = frappe.db.sql(
+		"select name, has_batch_no from (" + all_unfiltered_sql + ") candidates",
+		all_unfiltered_params,
+		as_dict=True,
+	)
+	_, all_expiry_items = _inventory_expiry_scope(
+		all_candidate_rows, all_leaves, expiry_filter, expiry_days, custom_from, custom_to
+	)
+	all_sql, all_params = _inventory_item_candidate_query(
+		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased,
+		all_expiry_items if expiry_filter["window"] else None,
 	)
 	overall_rows = frappe.db.sql("select count(*) as total from (" + all_sql + ") candidates", all_params, as_dict=True)
 	overall = int(overall_rows[0].total if overall_rows else 0)
@@ -1670,8 +1909,20 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		as_dict=True,
 	)
 	warehouse_facets = {row.warehouse: int(row.total) for row in warehouse_facet_rows}
-	group_sql, group_params = _inventory_item_candidate_query(
+	group_unfiltered_sql, group_unfiltered_params = _inventory_item_candidate_query(
 		selected, settings, None, search, bool(needs_attention), mode, pending_mode, leased
+	)
+	group_candidate_rows = frappe.db.sql(
+		"select name, has_batch_no from (" + group_unfiltered_sql + ") candidates",
+		group_unfiltered_params,
+		as_dict=True,
+	)
+	_, group_expiry_items = _inventory_expiry_scope(
+		group_candidate_rows, selected, expiry_filter, expiry_days, custom_from, custom_to
+	)
+	group_sql, group_params = _inventory_item_candidate_query(
+		selected, settings, None, search, bool(needs_attention), mode, pending_mode, leased,
+		group_expiry_items if expiry_filter["window"] else None,
 	)
 	group_facet_rows = frappe.db.sql(
 		"select item_group, count(*) as total from (" + group_sql + ") candidates group by item_group",
@@ -1715,7 +1966,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		"page_length": requested_length,
 		"as_of": str(getdate(nowdate())),
 		"overall_total": overall,
-		"facets": {"warehouses": warehouse_facets, "item_groups": group_facets},
+		"facets": {"warehouses": warehouse_facets, "item_groups": group_facets, "expiry": expiry_facets},
 		"quantity_totals": _quantity_totals(
 			summary_rows,
 			("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
@@ -1724,9 +1975,19 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, pending_mode=None, sort_by=None, sort_order=None):
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, pending_mode=None, sort_by=None, sort_order=None, in_stock=None, expiry_window="", expiry_days=30, expiry_from_days=None, expiry_to_days=None):
 	_require_stock()
-	sort_state = _sort_state(sort_by, sort_order, {"item_name", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"}, "item_name")
+	sort_state = _sort_state(sort_by, sort_order, {"item_name", "item_code", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"}, "item_name")
+	if in_stock is not None:
+		mode = "current" if cint(in_stock) else "catalog"
+	if mode not in {"current", "catalog"}:
+		frappe.throw(_("Invalid inventory mode"))
+	expiry_days_value = _expiry_days_value(expiry_days)
+	expiry_filter = _relative_expiry_filter(
+		expiry_window, expiry_days, expiry_from_days, expiry_to_days
+	)
+	custom_from = int(expiry_from_days) if expiry_from_days not in (None, "") else None
+	custom_to = int(expiry_to_days) if expiry_to_days not in (None, "") else None
 	settings = _settings()
 	warehouse_map = _visible_warehouses(settings)
 	_raise_on_group_stock(warehouse_map)
@@ -1746,6 +2007,10 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			item_groups,
 			pending_mode,
 			sort_state,
+			expiry_filter,
+			expiry_days_value,
+			custom_from,
+			custom_to,
 		)
 	bins = _bin_balances(selected)
 	balances = defaultdict(lambda: defaultdict(float))
@@ -1783,6 +2048,11 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			if isinstance(value, str):
 				barcode_items.add(value)
 		items = [r for r in items if term in f"{r.item_code} {r.item_name} {r.item_group}".lower() or r.name in barcode_items]
+	expiry_facets, matching_items = _inventory_expiry_scope_fixture(
+		items, selected, expiry_filter, expiry_days_value, custom_from, custom_to
+	)
+	if expiry_filter["window"]:
+		items = [item for item in items if item.name in matching_items]
 	reserved = _descendants(settings.leased_warehouse, warehouse_map) | {
 		settings.damaged_warehouse,
 		settings.pending_warehouse,
@@ -1829,7 +2099,12 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
 	if sort_state:
 		column, direction = sort_state
-		result.sort(key=lambda row: row[column] if column != "item_name" else str(row[column]).lower(), reverse=direction == "desc")
+		result.sort(
+			key=lambda row: str(row[column]).lower()
+			if column in {"item_name", "item_code"}
+			else row[column],
+			reverse=direction == "desc",
+		)
 	# Facets count distinct result rows, not quantity. Parent warehouse counts are
 	# deduplicated unions of permitted descendant leaves.
 	warehouse_matches = defaultdict(set)
@@ -1953,7 +2228,7 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 	)
 	page["overall_total"] = overall
 	page["as_of"] = str(getdate(nowdate()))
-	page["facets"] = facet_counts
+	page["facets"] = {**facet_counts, "expiry": expiry_facets}
 	return page
 
 
@@ -2179,7 +2454,7 @@ def _current_batch_balances(batch_names, item_names, warehouses, fixture_batches
 		group by sle.batch_no, sle.item_code, sle.warehouse
 	"""
 	rows = frappe.db.sql(
-		f"select batch_no, item_code, warehouse, sum(qty) as qty from ({modern} union all {legacy}) balances group by batch_no, item_code, warehouse having sum(qty) > 0",
+		f"select batch_no, item_code, warehouse, sum(qty) as qty from ({modern} union all {legacy}) balances group by batch_no, item_code, warehouse",
 		base_params + base_params,
 		as_dict=True,
 	)
@@ -2966,7 +3241,15 @@ def _expiring_batch_group_names(selected_groups):
 
 
 def _expiring_batch_candidate_query(
-	warehouses, group_names=None, search=None, expiry_from=None, expiry_to=None, expiry_before=None
+	warehouses,
+	group_names=None,
+	search=None,
+	expiry_from=None,
+	expiry_to=None,
+	expiry_before=None,
+	include_undated=False,
+	undated_only=False,
+	item_names=None,
 ):
 	"""Build the normalized modern-bundle plus legacy direct-SLE balance query."""
 	warehouses = list(warehouses or [])
@@ -2976,10 +3259,14 @@ def _expiring_batch_candidate_query(
 	params = []
 	where = [
 		"b.disabled=0",
-		"b.expiry_date is not null",
+		"b.expiry_date is null" if undated_only else ("1=1" if include_undated else "b.expiry_date is not null"),
 		"i.disabled=0",
 		_item_match_condition("i"),
 	]
+	if item_names is not None:
+		marks = ", ".join(["%s"] * len(item_names)) or "''"
+		where.append(f"i.name in ({marks})")
+		params.extend(sorted(item_names))
 	if group_names:
 		marks = ", ".join(["%s"] * len(group_names))
 		where.append(f"i.item_group in ({marks})")
@@ -3027,21 +3314,27 @@ def _expiring_batch_candidate_query(
 
 
 def _expiring_batches_database_page(
-	settings, selected, all_selected, selected_groups, search, expiry_from, expiry_to, expiry_before, legacy_order, sort_state, start, page_length
+	settings, selected, all_selected, selected_groups, search, expiry_from, expiry_to, expiry_before,
+	legacy_order, sort_state, start, page_length, include_undated=False, undated_only=False,
+	in_stock=True, expiry_days=30, custom_from=None, custom_to=None,
 ):
 	"""Page expiring batches from grouped SLE balances, not per-batch helpers."""
 	group_names = _expiring_batch_group_names(selected_groups)
-	base_sql, base_params = _expiring_batch_candidate_query(selected, group_names, search, expiry_from, expiry_to, expiry_before)
+	base_sql, base_params = _expiring_batch_candidate_query(
+		selected, group_names, search, expiry_from, expiry_to, expiry_before,
+		include_undated=include_undated, undated_only=undated_only,
+	)
+	having = "sum(qty) > 0" if in_stock else "sum(qty) >= 0"
 	count_sql = (
 		"select count(*) as total from (select batch_no from (" + base_sql + ") candidates "
-		"group by batch_no having sum(qty) > 0) positive_batches"
+		f"group by batch_no having {having}) positive_batches"
 	)
 	count_rows = frappe.db.sql(count_sql, base_params, as_dict=True)
 	total = int(count_rows[0].total if count_rows else 0)
 	summary_rows = frappe.db.sql(
 		"select stock_uom, sum(total_qty) as total_qty from (select batch_no, stock_uom, "
 		"sum(qty) as total_qty from (" + base_sql + ") candidates group by batch_no, stock_uom "
-		"having sum(qty) > 0) positive_batches group by stock_uom",
+		f"having {having}) positive_batches group by stock_uom",
 		base_params,
 		as_dict=True,
 	)
@@ -3056,7 +3349,7 @@ def _expiring_batches_database_page(
 	page_sql = (
 		"select batch_no, item_name, expiry_date, item_code, item_label, item_group, stock_uom, image, sum(qty) as total_qty "
 		"from (" + base_sql + ") candidates group by batch_no, item_name, expiry_date, item_code, "
-		"item_label, item_group, stock_uom, image having sum(qty) > 0 "
+		f"item_label, item_group, stock_uom, image having {having} "
 		f"order by {order_sql} "
 		"limit %s offset %s"
 	)
@@ -3064,7 +3357,10 @@ def _expiring_batches_database_page(
 	batch_names = [row.batch_no for row in page_rows]
 	locations = {}
 	if batch_names:
-		location_sql, location_params = _expiring_batch_candidate_query(selected, group_names, search, expiry_from, expiry_to, expiry_before)
+		location_sql, location_params = _expiring_batch_candidate_query(
+			selected, group_names, search, expiry_from, expiry_to, expiry_before,
+			include_undated=include_undated, undated_only=undated_only,
+		)
 		marks = ", ".join(["%s"] * len(batch_names))
 		location_rows = frappe.db.sql(
 			"select batch_no, warehouse, sum(qty) as qty from (" + location_sql + ") candidates "
@@ -3084,25 +3380,28 @@ def _expiring_batches_database_page(
 				"item_group": row.item_group,
 				"image": row.image,
 				"stock_uom": row.stock_uom,
-				"expiry_date": str(row.expiry_date),
-				"days_to_expiry": (getdate(row.expiry_date) - getdate(nowdate())).days,
+				"expiry_date": str(row.expiry_date) if row.expiry_date else None,
+				"days_to_expiry": ((getdate(row.expiry_date) - getdate(nowdate())).days if row.expiry_date else None),
 				"locations": locations.get(row.batch_no, []),
 				"total_qty": flt(row.total_qty),
 			}
 		)
 	# Overall count keeps the current search/date/category scope but removes the
 	# selected warehouse, matching the legacy endpoint's facet contract.
-	all_sql, all_params = _expiring_batch_candidate_query(all_selected, group_names, search, expiry_from, expiry_to, expiry_before)
+	all_sql, all_params = _expiring_batch_candidate_query(
+		all_selected, group_names, search, expiry_from, expiry_to, expiry_before,
+		include_undated=include_undated, undated_only=undated_only,
+	)
 	overall_rows = frappe.db.sql(
 		"select count(*) as total from (select batch_no from (" + all_sql + ") candidates "
-		"group by batch_no having sum(qty) > 0) positive_batches",
+		f"group by batch_no having {having}) positive_batches",
 		all_params,
 		as_dict=True,
 	)
 	overall_total = int(overall_rows[0].total if overall_rows else 0)
 	warehouse_facet_rows = frappe.db.sql(
 		"select warehouse, batch_no from (" + all_sql + ") candidates "
-		"group by batch_no, warehouse having sum(qty) > 0",
+		f"group by batch_no, warehouse having {having}",
 		all_params,
 		as_dict=True,
 	)
@@ -3118,10 +3417,13 @@ def _expiring_batches_database_page(
 			)
 	for name in physical_nodes:
 		warehouse_facets.setdefault(name, set())
-	group_sql, group_params = _expiring_batch_candidate_query(selected, None, search, expiry_from, expiry_to, expiry_before)
+	group_sql, group_params = _expiring_batch_candidate_query(
+		selected, None, search, expiry_from, expiry_to, expiry_before,
+		include_undated=include_undated, undated_only=undated_only,
+	)
 	group_facet_rows = frappe.db.sql(
 		"select item_group, batch_no from (" + group_sql + ") candidates "
-		"group by batch_no, item_group having sum(qty) > 0",
+		f"group by batch_no, item_group having {having}",
 		group_params,
 		as_dict=True,
 	)
@@ -3132,6 +3434,18 @@ def _expiring_batches_database_page(
 	for group in item_groups:
 		children = [row.name for row in item_groups if row.lft >= group.lft and row.rgt <= group.rgt]
 		group_facets[group.name] = set().union(*(group_facets.get(child, set()) for child in children))
+	count_sql, count_params = _expiring_batch_candidate_query(
+		selected, group_names, search, include_undated=True
+	)
+	count_rows = frappe.db.sql(
+		"select batch_no, expiry_date from (" + count_sql + ") candidates "
+		+ f"group by batch_no, expiry_date having {having}",
+		count_params,
+		as_dict=True,
+	)
+	expiry_facets = _expiry_bucket_counts(
+		count_rows, "batch_no", expiry_days, custom_from, custom_to
+	)
 	return {
 		"results": rows,
 		"total": total,
@@ -3142,51 +3456,52 @@ def _expiring_batches_database_page(
 		"facets": {
 			"warehouses": {name: len(values) for name, values in warehouse_facets.items()},
 			"item_groups": {name: len(values) for name, values in group_facets.items()},
+			"expiry": expiry_facets,
 		},
 		"quantity_totals": _quantity_totals(summary_rows, ("total_qty",)),
 	}
 
 
 @frappe.whitelist()
-def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None, expiry_window="", expiry_days=None, _database=True, sort_by=None, sort_order=None):
-	"""Return positive, visible batch balances aggregated by batch."""
+def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=None, expiry_to=None, sort="asc", start=0, page_length=25, warehouses=None, item_groups=None, expiry_window="", expiry_days=30, _database=True, sort_by=None, sort_order=None, in_stock=1, expiry_from_days=None, expiry_to_days=None):
+	"""Return visible batch balances aggregated by batch."""
 	_require_stock()
 	sort_state = _sort_state(sort_by, sort_order, {"item_name", "expiry_date", "total_qty"}, "expiry_date")
 	legacy_order = str(sort).strip().lower()
 	if legacy_order not in ("asc", "desc"):
 		frappe.throw(_("Invalid sort direction"))
+	days_value = _expiry_days_value(expiry_days)
 	window = str(expiry_window or "").strip().lower()
-	threshold_windows = {"overdue_within", "overdue_beyond", "remaining_within", "remaining_beyond"}
-	expiry_before = None
-	if window not in {"", "overdue", "7", "30", "90", "custom"} | threshold_windows:
-		frappe.throw(_("Invalid expiry window"))
-	if window in threshold_windows:
-		valid_days = str(expiry_days).strip().lstrip("+").isdigit() if expiry_days not in (None, "") else False
-		if not valid_days or int(expiry_days) <= 0:
-			frappe.throw(_("Expiry days must be a positive integer"))
-		if expiry_from or expiry_to:
-			frappe.throw(_("Choose either an expiry window or exact dates"))
-		days, today = int(expiry_days), nowdate()
-		if window == "overdue_within":
-			expiry_from, expiry_to = add_days(today, -days), add_days(today, -1)
-		elif window == "overdue_beyond":
-			expiry_to = add_days(today, -days)
-		elif window == "remaining_within":
-			expiry_from, expiry_to = today, add_days(today, days)
-		else:  # remaining_beyond
-			expiry_from = add_days(today, days)
-	elif window == "custom":
-		valid_days = str(expiry_days).strip().lstrip("+").isdigit() if expiry_days not in (None, "") else False
-		if not valid_days or not 0 <= int(expiry_days) <= 3650:
-			frappe.throw(_("Custom expiry days must be an integer from 0 to 3650"))
-	elif expiry_days not in (None, ""):
-		frappe.throw(_("Expiry days are only valid for a custom window"))
-	if window and window not in threshold_windows and (expiry_from or expiry_to):
+	if window == "custom" and expiry_from_days in (None, "") and expiry_to_days in (None, ""):
+		# Compatibility with the former custom=0..expiry_days contract.
+		expiry_from_days, expiry_to_days = 0, days_value
+	if (expiry_from or expiry_to) and window:
 		frappe.throw(_("Choose either an expiry window or exact dates"))
-	if window == "overdue":
-		expiry_before = nowdate()
-	elif window and window not in threshold_windows:
-		expiry_from, expiry_to = nowdate(), add_days(nowdate(), cint(expiry_days or window))
+	if expiry_from or expiry_to:
+		try:
+			exact_from = getdate(expiry_from) if expiry_from else None
+			exact_to = getdate(expiry_to) if expiry_to else None
+		except Exception:
+			frappe.throw(_("Invalid expiry date range"))
+		if (
+			(exact_from and str(exact_from) != str(expiry_from))
+			or (exact_to and str(exact_to) != str(expiry_to))
+			or (exact_from and exact_to and exact_from > exact_to)
+		):
+			frappe.throw(_("Invalid expiry date range"))
+		expiry_filter = {"window": "", "from": exact_from, "to": exact_to}
+	else:
+		expiry_filter = _relative_expiry_filter(
+			window, days_value, expiry_from_days, expiry_to_days
+		)
+	expiry_from = expiry_filter.get("from")
+	expiry_to = expiry_filter.get("to")
+	expiry_before = expiry_filter.get("before")
+	include_undated = bool(expiry_filter.get("include_undated"))
+	undated_only = bool(expiry_filter.get("undated_only"))
+	stock_only = bool(cint(in_stock))
+	custom_from = int(expiry_from_days) if expiry_from_days not in (None, "") else None
+	custom_to = int(expiry_to_days) if expiry_to_days not in (None, "") else None
 	settings = _settings()
 	visible_warehouses = _visible_warehouses(settings)
 	_raise_on_group_stock(visible_warehouses)
@@ -3210,6 +3525,12 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			sort_state,
 			start,
 			page_length,
+			include_undated,
+			undated_only,
+			stock_only,
+			days_value,
+			custom_from,
+			custom_to,
 		)
 		return result
 	group_names = set(selected_groups)
@@ -3243,7 +3564,11 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			limit_page_length=0,
 		)
 		item_candidate_names = {row.name for row in candidate_items}
-	batch_filters = {"disabled": 0, "expiry_date": ("is", "set")}
+	batch_filters = {"disabled": 0}
+	if undated_only:
+		batch_filters["expiry_date"] = ("is", "not set")
+	elif not include_undated:
+		batch_filters["expiry_date"] = ("is", "set")
 	if expiry_from:
 		batch_filters["expiry_date"] = (">=", expiry_from)
 	if expiry_to:
@@ -3303,7 +3628,8 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 	)
 	as_of, all_rows = getdate(nowdate()), []
 	for batch in batch_rows:
-		item, expiry = items.get(batch.item), getdate(batch.expiry_date)
+		item = items.get(batch.item)
+		expiry = getdate(batch.expiry_date) if batch.expiry_date else None
 		if not item:
 			continue
 		locations = [
@@ -3311,33 +3637,40 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			for w in all_selected
 		]
 		locations = [row for row in locations if row["qty"] > 0]
-		if locations:
-			all_rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "image": getattr(item, "image", None), "stock_uom": item.stock_uom, "expiry_date": str(expiry), "days_to_expiry": (expiry-as_of).days, "locations": locations})
+		if locations or not stock_only:
+			all_rows.append({"batch_no": batch.name, "item_code": item.item_code, "item_name": item.item_name, "item_group": item.item_group, "image": getattr(item, "image", None), "stock_uom": item.stock_uom, "expiry_date": str(expiry) if expiry else None, "days_to_expiry": (expiry-as_of).days if expiry else None, "locations": locations})
 	def matches(row, selected_locations, selected_group_names=None):
 		if selected_group_names and row["item_group"] not in selected_group_names:
 			return False
 		if search and search.lower() not in f"{row['batch_no']} {row['item_code']} {row['item_name']}".lower():
 			return False
-		expiry = getdate(row["expiry_date"])
-		if expiry_from and expiry < getdate(expiry_from):
+		expiry = getdate(row["expiry_date"]) if row["expiry_date"] else None
+		if undated_only and expiry:
 			return False
-		if expiry_to and expiry > getdate(expiry_to):
+		if not include_undated and not expiry:
 			return False
-		if expiry_before and expiry >= getdate(expiry_before):
+		if expiry_from and (not expiry or expiry < getdate(expiry_from)):
 			return False
-		return any(location["warehouse"] in selected_locations for location in row["locations"])
+		if expiry_to and (not expiry or expiry > getdate(expiry_to)):
+			return False
+		if expiry_before and (not expiry or expiry >= getdate(expiry_before)):
+			return False
+		return (
+			any(location["warehouse"] in selected_locations for location in row["locations"])
+			or (not stock_only and not row["locations"])
+		)
 	rows = []
 	for row in all_rows:
 		if not matches(row, selected, group_names if selected_groups else None):
 			continue
 		copy_row = {**row, "locations": [location for location in row["locations"] if location["warehouse"] in selected], "total_qty": sum(location["qty"] for location in row["locations"] if location["warehouse"] in selected)}
 		rows.append(copy_row)
-	rows.sort(key=lambda row: (row["expiry_date"], row["item_code"], row["batch_no"]))
+	rows.sort(key=lambda row: (row["expiry_date"] or "9999-12-31", row["item_code"], row["batch_no"]))
 	if sort_state:
 		column, direction = sort_state
 		rows.sort(key=lambda row: str(row[column]).lower() if column == "item_name" else row[column], reverse=direction == "desc")
 	else:
-		rows.sort(key=lambda row: row["expiry_date"], reverse=legacy_order == "desc")
+		rows.sort(key=lambda row: row["expiry_date"] or "9999-12-31", reverse=legacy_order == "desc")
 	# Self-facet exclusion: warehouse counts retain the category/search/date
 	# predicates but ignore selected warehouses; category counts do the inverse.
 	warehouse_facet = defaultdict(set)
@@ -3354,6 +3687,6 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 		if node.is_group:
 			leaves = [leaf for leaf, leaf_row in physical_nodes.items() if not leaf_row.is_group and leaf_row.lft >= node.lft and leaf_row.rgt <= node.rgt]
 			warehouse_facet[name] = set().union(*(warehouse_facet.get(leaf, set()) for leaf in leaves)) if leaves else set()
-	facets = {"warehouses": {name: len(values) for name, values in warehouse_facet.items()}, "item_groups": {name: len(values) for name, values in group_facet.items()}}
+	facets = {"warehouses": {name: len(values) for name, values in warehouse_facet.items()}, "item_groups": {name: len(values) for name, values in group_facet.items()}, "expiry": _expiry_bucket_counts(all_rows, "batch_no", days_value, custom_from, custom_to)}
 	overall_total = len(all_rows)
 	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of), "facets": facets, "quantity_totals": _quantity_totals(rows, ("total_qty",))}

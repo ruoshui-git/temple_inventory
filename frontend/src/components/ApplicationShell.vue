@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, type LocationQueryRaw } from "vue-router";
 import { api, request } from "../lib/api";
+import InventoryIcon from "./InventoryIcon.vue";
 
 type Destination = {
 	key: "inventory" | "movements" | "adjustments" | "loans" | "warehouses" | "more";
@@ -12,6 +13,7 @@ type ContextItem = { key: string; label: string; path: string; query: LocationQu
 
 const route = useRoute();
 const boot = ref<any>();
+const inventoryExpanded = ref(route.path === "/" || route.path === "/expiry");
 const destinations: Destination[] = [
 	{ key: "inventory", label: "库存", path: "/" },
 	{ key: "movements", label: "货物流动", path: "/movements" },
@@ -71,12 +73,6 @@ const contextItems = computed<ContextItem[]>(() => {
 		return [
 			{ key: "current", label: "当前库存", path: "/", query: inventorySharedQuery.value },
 			{
-				key: "catalog",
-				label: "全部物品",
-				path: "/",
-				query: { ...inventorySharedQuery.value, mode: "catalog" },
-			},
-			{
 				key: "expiry",
 				label: "效期批次",
 				path: "/expiry",
@@ -129,7 +125,7 @@ const contextItems = computed<ContextItem[]>(() => {
 });
 
 const contextKey = computed(() => {
-	if (route.path === "/") return route.query.mode === "catalog" ? "catalog" : "current";
+	if (route.path === "/") return "current";
 	if (route.path === "/expiry") return "expiry";
 	if (route.path === "/movements" || route.path === "/history") {
 		const requested = String(route.query.kind || route.query.movement_kind || "");
@@ -141,6 +137,7 @@ const contextKey = computed(() => {
 });
 
 const pending = computed(() => Number(boot.value?.pending_count || 0));
+const expiryCount = computed(() => Number(boot.value?.expiry_batch_count || 0));
 const mobileNav = ref<HTMLElement>();
 const mobileContextNav = ref<HTMLElement>();
 let mobileNavObserver: ResizeObserver | undefined;
@@ -178,6 +175,12 @@ async function logout() {
 watch(contextItems, () => {
 	void observeContextNav();
 });
+watch(
+	() => route.path,
+	(path) => {
+		if (path === "/" || path === "/expiry") inventoryExpanded.value = true;
+	},
+);
 onMounted(() => {
 	void refresh();
 	window.addEventListener("ti:refresh-shell", refresh);
@@ -200,21 +203,35 @@ onBeforeUnmount(() => {
 	<div class="application-shell">
 		<aside class="desktop-nav">
 			<RouterLink class="shell-brand" to="/" aria-label="寺院物资首页">
-				<span aria-hidden="true">物</span><b>寺院物资</b>
+				<span aria-hidden="true"><InventoryIcon name="box" /></span><b>寺院物资</b>
 			</RouterLink>
 			<nav aria-label="主导航" class="desktop-module-navigation">
 				<template v-for="item in destinations" :key="item.path">
+					<button
+						v-if="item.key === 'inventory'"
+						type="button"
+						class="inventory-parent"
+						:class="{ active: activeDestination === '/' }"
+						:aria-expanded="inventoryExpanded"
+						@click="inventoryExpanded = !inventoryExpanded"
+					>
+						<svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+							<path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10" />
+						</svg>
+						<span>库存</span
+						><i
+							class="module-chevron"
+							:class="{ collapsed: !inventoryExpanded }"
+							aria-hidden="true"
+						></i>
+					</button>
 					<RouterLink
+						v-else
 						:to="item.path"
-						:class="{ 'inventory-parent': item.key === 'inventory' }"
 						:aria-current="activeDestination === item.path ? 'page' : undefined"
 						><svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
 							<path
-								v-if="item.key === 'inventory'"
-								d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10"
-							/>
-							<path
-								v-else-if="item.key === 'movements'"
+								v-if="item.key === 'movements'"
 								d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3 3m-3-3 3-3"
 							/>
 							<path
@@ -232,17 +249,16 @@ onBeforeUnmount(() => {
 							<path v-else d="M5 12h.01M12 12h.01M19 12h.01" />
 						</svg>
 						<span>{{ item.label }}</span
-						><i
-							v-if="item.key === 'inventory'"
-							class="module-chevron"
-							aria-hidden="true"
-						></i
 						><b v-if="item.key === 'more' && pending" class="nav-badge">{{
 							pending
 						}}</b></RouterLink
 					>
 					<div
-						v-if="contextItems.length && activeDestination === item.path"
+						v-if="
+							contextItems.length &&
+							activeDestination === item.path &&
+							(activeDestination !== '/' || inventoryExpanded)
+						"
 						class="desktop-inventory-context"
 						role="navigation"
 						aria-label="当前视图"
@@ -252,9 +268,14 @@ onBeforeUnmount(() => {
 							:key="contextItem.key"
 							:to="{ path: contextItem.path, query: contextItem.query }"
 							:aria-current="contextKey === contextItem.key ? 'page' : undefined"
-							>{{
+							><span>{{
 								contextItem.key === "current" ? "库存列表" : contextItem.label
-							}}</RouterLink
+							}}</span
+							><b
+								v-if="contextItem.key === 'expiry' && expiryCount"
+								class="nav-badge"
+								>{{ expiryCount }}</b
+							></RouterLink
 						>
 					</div>
 				</template>
@@ -357,24 +378,37 @@ onBeforeUnmount(() => {
 		height: 32px;
 		place-items: center;
 		border-radius: 9px;
-		background: #b68b5d;
-		color: #fff;
+		border: 1px solid #d8d0c5;
+		background: transparent;
+		color: #68727d;
 		font-size: 14px;
+	}
+	.shell-brand:hover > span,
+	.shell-brand:focus-visible > span {
+		background: #f3ece2;
+		color: #80572f;
+		border-color: #cdbda8;
 	}
 	.desktop-module-navigation {
 		display: grid;
 		flex: none;
 		gap: 6px;
 	}
-	.desktop-module-navigation > a {
+	.desktop-module-navigation > a,
+	.desktop-module-navigation > button {
 		display: flex;
 		align-items: center;
 		min-height: 42px;
 		padding: 8px 12px;
 		border-radius: 7px;
 		color: #5f5b55;
+		border: 0;
+		background: transparent;
+		font: inherit;
+		text-align: left;
 	}
-	.desktop-module-navigation > a[aria-current="page"] {
+	.desktop-module-navigation > a[aria-current="page"],
+	.desktop-module-navigation > button.active {
 		background: #f3ece2;
 		color: #80572f;
 		font-weight: 650;
@@ -397,6 +431,9 @@ onBeforeUnmount(() => {
 		border-bottom: 4px solid transparent;
 		border-left: 6px solid currentColor;
 		transform: rotate(90deg);
+	}
+	.module-chevron.collapsed {
+		transform: rotate(0deg);
 	}
 	.nav-badge {
 		margin-left: auto;
