@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ItemImagePreview from "./ItemImagePreview.vue";
+import DetailPopover from "./DetailPopover.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -9,6 +10,7 @@ const props = withDefaults(
 		error?: string;
 		selectionMode?: boolean;
 		selectedKeys?: string[];
+		warehouseLabel?: (name: string) => string;
 	}>(),
 	{
 		loading: false,
@@ -30,6 +32,15 @@ function activateKey(row: any, event: KeyboardEvent) {
 	event.preventDefault();
 	activate(row, event);
 }
+const formatQuantity = (value: number) =>
+	new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(Number(value || 0));
+const locations = (row: any) =>
+	Object.entries(row.warehouse_stock || {}).filter(([, quantity]) => Number(quantity) !== 0);
+const description = (row: any) =>
+	String(row.description || "")
+		.replace(/<[^>]*>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
 </script>
 
 <template>
@@ -38,25 +49,32 @@ function activateKey(row: any, event: KeyboardEvent) {
 		<slot name="error">{{ error }}</slot>
 	</div>
 	<div v-else-if="!rows.length" class="card-state">暂无符合条件的物品</div>
-	<div v-else class="inventory-card-grid">
+	<div v-else class="inventory-card-grid" role="list" aria-label="库存卡片">
 		<article
 			v-for="row in rows"
 			:key="row.item_code"
 			class="inventory-visual-card"
 			:class="{ selected: selectedKeys.includes(row.item_code) }"
+			role="listitem"
 			tabindex="0"
 			@keydown="activateKey(row, $event)"
 			@click="activate(row, $event)"
 		>
 			<div class="inventory-card-image" data-card-control>
 				<ItemImagePreview v-if="row.image" :src="row.image" :alt="row.item_name" />
-				<div v-else class="inventory-card-placeholder" aria-hidden="true">物</div>
+				<div v-else class="inventory-card-placeholder" aria-hidden="true">
+					<span>□</span><small>暂无图片</small>
+				</div>
 			</div>
 			<div class="inventory-card-body">
-				<div class="inventory-card-heading">
-					<div>
-						<b>{{ row.item_name }}</b>
-						<small>{{ row.item_code }} · {{ row.item_group }}</small>
+				<div class="inventory-card-primary">
+					<b class="inventory-card-name">{{ row.item_name }}</b>
+					<div class="inventory-card-available">
+						<small>可用</small>
+						<span
+							><strong>{{ formatQuantity(row.available_stock) }}</strong
+							><small>{{ row.stock_uom }}</small></span
+						>
 					</div>
 					<input
 						v-if="selectionMode"
@@ -67,14 +85,44 @@ function activateKey(row: any, event: KeyboardEvent) {
 						@change="emit('toggle', row)"
 					/>
 				</div>
-				<strong class="inventory-card-available"
-					>可用 {{ row.available_stock }} {{ row.stock_uom }}</strong
+				<p class="inventory-card-code">{{ row.item_code }} · {{ row.item_group }}</p>
+				<p v-if="description(row)" class="inventory-card-description">
+					{{ description(row) }}
+				</p>
+				<div
+					v-if="locations(row).length || row.has_batch_no"
+					class="inventory-card-details"
+					data-card-control
 				>
-				<div class="inventory-card-secondary">
-					<span>总计 {{ row.total_stock }} {{ row.stock_uom }}</span>
-					<span>借出 {{ row.on_loan_qty }} {{ row.stock_uom }}</span>
-					<span>损坏 {{ row.damaged_qty }} {{ row.stock_uom }}</span>
+					<DetailPopover
+						v-if="locations(row).length"
+						:label="`${row.item_name}的仓库位置`"
+						:trigger-text="`${locations(row).length} 个库位`"
+					>
+						<p v-for="[name, quantity] in locations(row)" :key="name">
+							{{ warehouseLabel?.(name) || name }}<br />{{
+								formatQuantity(Number(quantity))
+							}}
+							{{ row.stock_uom }}
+						</p>
+					</DetailPopover>
+					<span v-if="row.has_batch_no" class="batch-badge">批次管理</span>
 				</div>
+				<div class="inventory-card-totals">
+					<span
+						>总计 <b>{{ formatQuantity(row.total_stock) }}</b></span
+					>
+					<span
+						>借出 <b>{{ formatQuantity(row.on_loan_qty) }}</b></span
+					>
+					<span :class="{ damaged: Number(row.damaged_qty) !== 0 }"
+						>损坏 <b>{{ formatQuantity(row.damaged_qty) }}</b></span
+					>
+					<small>{{ row.stock_uom }}</small>
+				</div>
+				<p v-if="row.expiry_status" class="inventory-card-expiry" :class="row.expiry_tone">
+					{{ row.expiry_status }}
+				</p>
 			</div>
 		</article>
 	</div>
@@ -84,17 +132,25 @@ function activateKey(row: any, event: KeyboardEvent) {
 <style scoped>
 .inventory-card-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-	gap: 14px;
+	grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+	grid-auto-rows: 1fr;
+	gap: 12px;
 	padding: 12px;
+	background: #f8f7f4;
 }
 .inventory-visual-card {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
 	overflow: hidden;
-	border: 1px solid #e4dccf;
-	border-radius: 16px;
+	border: 1px solid #ebe8e1;
+	border-radius: 8px;
 	background: white;
-	box-shadow: 0 3px 14px rgb(67 48 26 / 8%);
 	cursor: pointer;
+}
+.inventory-visual-card:hover {
+	border-color: #c8b69b;
+	box-shadow: 0 4px 14px rgb(67 48 26 / 8%);
 }
 .inventory-visual-card:focus-visible,
 .inventory-visual-card.selected {
@@ -104,8 +160,10 @@ function activateKey(row: any, event: KeyboardEvent) {
 .inventory-card-image {
 	display: grid;
 	place-items: center;
-	height: 170px;
-	background: #f5efe5;
+	width: 100%;
+	aspect-ratio: 1 / 1;
+	overflow: hidden;
+	background: #fff;
 }
 .inventory-card-image :deep(.image-preview),
 .inventory-card-image :deep(.image-thumb-button) {
@@ -118,46 +176,136 @@ function activateKey(row: any, event: KeyboardEvent) {
 }
 .inventory-card-image :deep(.image-thumb-button img) {
 	width: 100%;
-	height: 170px;
-	object-fit: cover;
+	height: 100%;
+	object-fit: contain;
 }
 .inventory-card-placeholder {
 	display: grid;
 	place-items: center;
-	width: 72px;
-	height: 72px;
-	border-radius: 50%;
-	background: #e4d5bf;
-	color: #80684d;
-	font-size: 30px;
+	gap: 8px;
+	color: #aaa397;
+	font-size: 42px;
+}
+.inventory-card-placeholder small {
+	font-size: 12px;
 }
 .inventory-card-body {
-	display: grid;
-	gap: 10px;
-	padding: 14px;
-}
-.inventory-card-heading {
 	display: flex;
-	justify-content: space-between;
-	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	flex-direction: column;
+	gap: 7px;
+	padding: 10px 12px 12px;
 }
-.inventory-card-heading b,
-.inventory-card-heading small {
-	display: block;
+.inventory-card-primary {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 9px;
 }
-.inventory-card-heading small,
-.inventory-card-secondary {
-	color: #71675c;
+.inventory-card-name {
+	display: -webkit-box;
+	overflow: hidden;
+	color: #252e3a;
+	font-size: 15px;
+	font-weight: 700;
+	line-height: 1.4;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+.inventory-card-primary > input {
+	margin: 3px 0 0;
 }
 .inventory-card-available {
-	font-size: 1.15rem;
-	color: #386641;
-}
-.inventory-card-secondary {
 	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	color: #14804e;
+}
+.inventory-card-available > small {
+	color: #7f8991;
+	font-size: 10px;
+	line-height: 1.2;
+}
+.inventory-card-available > span {
+	display: flex;
+	align-items: baseline;
+	gap: 3px;
+}
+.inventory-card-available strong {
+	font-size: 24px;
+	line-height: 1.1;
+}
+.inventory-card-available span small {
+	font-size: 10px;
+	font-weight: 550;
+}
+.inventory-card-code,
+.inventory-card-description {
+	margin: -2px 0 0;
+	color: #87909a;
+	font-size: 12px;
+}
+.inventory-card-description {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+.inventory-card-details,
+.inventory-card-totals {
+	display: flex;
+	align-items: baseline;
 	flex-wrap: wrap;
-	gap: 5px 12px;
-	font-size: 0.86rem;
+	gap: 4px 12px;
+	font-size: 12px;
+}
+.inventory-card-details :deep(.detail-popover-trigger),
+.batch-badge {
+	min-height: 26px;
+	padding: 2px 7px;
+	border: 1px solid #dfebf4;
+	border-radius: 20px;
+	background: #f2f7fb;
+	color: #476b88;
+	font-size: 11px;
+}
+.inventory-card-totals {
+	margin-top: auto;
+	color: #717984;
+	font-variant-numeric: tabular-nums;
+}
+.inventory-card-totals b {
+	color: #4d545d;
+	font-weight: 600;
+}
+.inventory-card-totals .damaged,
+.inventory-card-totals .damaged b {
+	color: #b24d42;
+}
+.inventory-card-totals small {
+	color: #8b9299;
+	font-size: 10px;
+}
+.inventory-card-expiry {
+	margin: -2px 0 0;
+	color: #7c858f;
+	font-size: 11px;
+}
+.inventory-card-expiry.warning {
+	color: #9a541b;
+}
+.inventory-card-expiry.danger {
+	color: #a63e33;
+}
+.inventory-card-details p {
+	margin: 0 0 8px;
+}
+.inventory-card-details p:last-child {
+	margin-bottom: 0;
+}
+.inventory-card-primary:has(input) {
+	grid-template-columns: minmax(0, 1fr) auto auto;
 }
 .card-state {
 	padding: 24px;
@@ -173,7 +321,7 @@ function activateKey(row: any, event: KeyboardEvent) {
 	}
 	.inventory-card-image,
 	.inventory-card-image :deep(.image-thumb-button img) {
-		height: 190px;
+		height: 100%;
 	}
 }
 </style>

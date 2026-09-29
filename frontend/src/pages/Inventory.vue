@@ -29,6 +29,7 @@ const boot = ref<any>(),
 const error = ref(""),
 	loading = ref(false),
 	loadingMore = ref(false),
+	desktopFilterOpen = ref(false),
 	filterOpen = ref(false),
 	exportOpen = ref(false);
 const selection = ref(false),
@@ -63,6 +64,13 @@ const sortColumns = computed(() => [
 	...(selection.value ? [{ key: "selection", label: "选择" }] : []),
 ]);
 const mode = computed(() => String(route.query.mode || "current"));
+const pageTitle = computed(() => (mode.value === "catalog" ? "全部物品" : "库存列表"));
+const activeFilterCount = computed(
+	() =>
+		filters.value.warehouses.length +
+		filters.value.item_groups.length +
+		Number(Boolean(filters.value.search)),
+);
 const exportFilters = computed(() => ({
 	...filters.value,
 	...sort.value,
@@ -215,6 +223,11 @@ function setView(value: "card" | "table") {
 function toggleSortOrder() {
 	sort.value = { ...sort.value, sort_order: sort.value.sort_order === "asc" ? "desc" : "asc" };
 }
+function openFilters(event: Event) {
+	if (window.matchMedia("(min-width: 1024px)").matches)
+		desktopFilterOpen.value = !desktopFilterOpen.value;
+	else filterPanel.value?.openPanel(event);
+}
 function setupObserver() {
 	observer?.disconnect();
 	observer = new IntersectionObserver(
@@ -341,8 +354,11 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-	<section class="inventory-destination wide-shell viewport-list-root">
-		<div class="list-layout desktop-list-layout">
+	<section class="inventory-destination viewport-list-root inventory-desktop-page">
+		<div
+			class="list-layout desktop-list-layout"
+			:class="{ 'filters-open': desktopFilterOpen }"
+		>
 			<ResponsiveFilterPanel ref="filterPanel" v-model:open="filterOpen">
 				<WarehouseSelector
 					v-model="filters.warehouses"
@@ -357,56 +373,117 @@ onBeforeUnmount(() => {
 			</ResponsiveFilterPanel>
 			<div class="results-column">
 				<div class="results-chrome">
+					<div class="inventory-heading">
+						<div class="inventory-title">
+							<h1>{{ pageTitle }}</h1>
+							<span>{{ total }} 件物品</span>
+						</div>
+						<div class="inventory-heading-actions">
+							<button
+								v-if="operationCaps.Receive"
+								type="button"
+								@click="operation('Receive')"
+							>
+								↓ 入库
+							</button>
+							<button
+								v-if="operationCaps.Issue"
+								type="button"
+								@click="operation('Issue')"
+							>
+								↑ 出库
+							</button>
+							<button
+								v-if="operationCaps.Transfer"
+								type="button"
+								@click="operation('Transfer')"
+							>
+								⇄ 转移
+							</button>
+							<button
+								v-if="mode === 'current'"
+								type="button"
+								@click="exportOpen = true"
+							>
+								导出
+							</button>
+							<button
+								v-if="boot?.capabilities?.Item"
+								type="button"
+								class="primary"
+								@click="operation('CreateItem')"
+							>
+								＋ 新建物品
+							</button>
+						</div>
+					</div>
 					<div class="result-toolbar">
-						<input
-							v-model="filters.search"
-							type="search"
-							placeholder="搜索物品或条码"
-							aria-label="搜索物品或条码"
-						/><IconButton label="扫描条码" @click="scanner = true"
+						<label class="inventory-search"
+							><span aria-hidden="true">⌕</span
+							><input
+								v-model="filters.search"
+								type="search"
+								placeholder="搜索物品或条码"
+								aria-label="搜索物品或条码"
+						/></label>
+						<IconButton label="扫描条码" @click="scanner = true"
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path
 									d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 12h10M8 9v6m3-6v6m3-6v6m3-6v6"
 								/></svg></IconButton
-						><IconButton
-							class="mobile-filter-button"
-							label="筛选"
-							@click="filterPanel?.openPanel($event)"
-							><svg aria-hidden="true" viewBox="0 0 24 24">
-								<path d="M4 6h16M7 12h10M10 18h4" /></svg></IconButton
+						><button
+							type="button"
+							class="inventory-filter-button"
+							:class="{ active: desktopFilterOpen || filterOpen }"
+							:aria-expanded="desktopFilterOpen || filterOpen"
+							@click="openFilters($event)"
+						>
+							<svg aria-hidden="true" viewBox="0 0 24 24">
+								<path d="M4 6h16M7 12h10M10 18h4" /></svg
+							><span>筛选</span
+							><b v-if="activeFilterCount">{{ activeFilterCount }}</b></button
 						><IconButton
 							:label="selection ? '完成选择' : '选择物品'"
 							@click="toggleSelection"
 							><svg aria-hidden="true" viewBox="0 0 24 24">
-								<path d="M5 12l4 4L19 6M4 21h16" /></svg></IconButton
-						><button
-							v-if="mode === 'current'"
-							type="button"
-							@click="exportOpen = true"
+								<path d="M5 12l4 4L19 6M4 21h16" /></svg
+						></IconButton>
+						<div
+							class="inventory-view-controls"
+							role="group"
+							aria-label="库存显示方式"
 						>
-							导出</button
-						><span aria-live="polite"
+							<button
+								type="button"
+								:aria-pressed="view === 'card'"
+								@click="setView('card')"
+							>
+								卡片
+							</button>
+							<button
+								type="button"
+								:aria-pressed="view === 'table'"
+								@click="setView('table')"
+							>
+								表格
+							</button>
+						</div>
+					</div>
+					<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
+					<div class="inventory-filter-strip">
+						<ActiveFilterChips
+							:chips="chips"
+							@remove="removeChip"
+							@clear="clearFilters"
+						/>
+						<span v-if="!chips.length" class="no-filters"
+							>全部仓库 · 全部类别 · 全部状态</span
+						>
+						<span class="inventory-result-count" aria-live="polite"
 							>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部
 							{{ overall ?? total }}</span
 						>
-					</div>
-					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
-					<div class="inventory-view-controls" role="group" aria-label="库存显示方式">
-						<button
-							type="button"
-							:aria-pressed="view === 'card'"
-							@click="setView('card')"
-						>
-							卡片
-						</button>
-						<button
-							type="button"
-							:aria-pressed="view === 'table'"
-							@click="setView('table')"
-						>
-							表格
-						</button>
-						<label v-if="view === 'card'"
+						<label v-if="view === 'card'" class="inventory-sort"
 							>排序
 							<select
 								:value="sort.sort_by"
@@ -427,6 +504,7 @@ onBeforeUnmount(() => {
 						<button
 							v-if="view === 'card'"
 							type="button"
+							class="sort-direction"
 							:aria-label="
 								sort.sort_order === 'asc'
 									? '当前升序，切换为降序'
@@ -437,7 +515,6 @@ onBeforeUnmount(() => {
 							{{ sort.sort_order === "asc" ? "升序 ↑" : "降序 ↓" }}
 						</button>
 					</div>
-					<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
 				</div>
 				<div ref="resultsScroll" class="results-scroll">
 					<div class="inventory-results">
@@ -449,6 +526,7 @@ onBeforeUnmount(() => {
 							:error="error"
 							:selection-mode="selection"
 							:selected-keys="selected"
+							:warehouse-label="warehouseText"
 							@activate="
 								(item) =>
 									router.push(`/item/${encodeURIComponent(item.item_code)}`)
@@ -581,7 +659,12 @@ onBeforeUnmount(() => {
 				</button></template
 			>
 		</div>
-		<FloatingActionMenu v-if="fabActions.length" :actions="fabActions" @select="operation" />
+		<FloatingActionMenu
+			v-if="fabActions.length"
+			class="inventory-fab"
+			:actions="fabActions"
+			@select="operation"
+		/>
 		<Scanner
 			v-if="scanner"
 			presentation="modal"
@@ -617,30 +700,238 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.inventory-desktop-page {
+	color: #343c46;
+	background: #f8f7f4;
+}
 .inventory-view-controls {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
-	gap: 6px;
-	padding-top: 8px;
+	flex: none;
+	gap: 0;
+	padding: 2px;
+	border-radius: 7px;
+	background: #eeebe5;
+}
+.inventory-view-controls button {
+	min-height: 28px;
+	padding: 3px 8px;
+	border: 0;
+	background: transparent;
+	color: #85817b;
 }
 .inventory-view-controls button[aria-pressed="true"] {
-	border-color: #8d5b2f;
-	background: #8d5b2f;
-	color: white;
+	background: #fff;
+	color: #665038;
+	box-shadow: 0 1px 3px #473a2115;
 }
-.inventory-view-controls label {
+.inventory-heading {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.inventory-title {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+}
+.inventory-title h1 {
+	margin: 0;
+	color: #202b39;
+	font-size: 25px;
+	font-weight: 750;
+	line-height: 1.2;
+}
+.inventory-title span,
+.inventory-result-count,
+.no-filters {
+	color: #7b8087;
+	font-size: 12px;
+}
+.inventory-heading-actions {
+	display: flex;
+	gap: 7px;
+	margin-left: auto;
+}
+.inventory-heading-actions button {
+	min-height: 31px;
+	padding: 5px 9px;
+	color: #916236;
+}
+.inventory-heading-actions .primary {
+	border-color: #ae8051;
+	background: #ae8051;
+	color: #fff;
+}
+.result-toolbar {
+	gap: 7px;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+}
+.inventory-search {
+	display: flex;
+	min-width: 120px;
+	height: 36px;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	padding: 0 10px;
+	border: 1px solid #e0e2e4;
+	border-radius: 6px;
+	background: #fff;
+	color: #7b8492;
+}
+.inventory-search:focus-within {
+	outline: 2px solid #946c3f;
+}
+.inventory-search input {
+	width: 100%;
+	min-width: 0;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.inventory-filter-button {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	white-space: nowrap;
+}
+.inventory-filter-button svg {
+	width: 20px;
+	height: 20px;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-width: 1.8;
+}
+.inventory-filter-button b {
+	display: grid;
+	min-width: 18px;
+	height: 18px;
+	place-items: center;
+	border-radius: 50%;
+	background: #ede4d6;
+	color: #855e33;
+	font-size: 10px;
+}
+.inventory-filter-button.active {
+	border-color: #c8b69b;
+	background: #f5f0e8;
+}
+.inventory-filter-strip {
+	display: flex;
+	min-height: 40px;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 0;
+}
+.inventory-filter-strip :deep(.active-filter-chips) {
+	min-width: 0;
+	flex: 1;
+	margin: 0;
+}
+.inventory-result-count {
 	margin-left: auto;
+	white-space: nowrap;
 }
-.inventory-view-controls select {
+.inventory-sort {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+.inventory-sort select {
 	min-width: 112px;
+	padding-block: 6px;
 }
-@media (max-width: 640px) {
-	.inventory-view-controls label {
+.sort-direction {
+	min-height: 34px;
+	white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+	.inventory-desktop-page {
+		width: 100%;
+		max-width: none;
+		padding: 0 16px;
+	}
+	.desktop-list-layout {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
+	}
+	.desktop-list-layout.filters-open {
+		grid-template-columns: 250px minmax(0, 1fr);
+		margin-left: -16px;
+	}
+	.desktop-list-layout:not(.filters-open) :deep(.filter-sidebar) {
+		display: none;
+	}
+	.desktop-list-layout.filters-open :deep(.filter-sidebar) {
+		display: block;
+		padding: 14px 12px;
+		border-right: 1px solid #e4ded5;
+		border-radius: 0;
+		background: #fbfaf7;
+		box-shadow: none;
+	}
+	.desktop-list-layout.filters-open :deep(.filter-sidebar h2) {
+		color: #202b39;
+		font-size: 20px;
+	}
+	.results-column {
+		padding-left: 0;
+	}
+	.filters-open .results-column {
+		padding-left: 16px;
+	}
+	.results-chrome {
+		padding-top: 14px;
+	}
+	.results-scroll {
+		border: 1px solid #ece9e2;
+		border-radius: 8px 8px 0 0;
+		background: #fff;
+	}
+	.inventory-results :deep(.sortable-data-table table) {
+		font-size: 14px;
+	}
+	.inventory-results :deep(.sortable-data-table th) {
+		background: #f2f2f0;
+		color: #7a7d84;
+		font-size: 12px;
+	}
+	.inventory-results :deep(.sortable-data-table td) {
+		height: 57px;
+		padding: 5px 10px;
+		border-bottom-color: #f0f0ed;
+	}
+	.inventory-fab {
+		display: none;
+	}
+}
+@media (max-width: 1023px) {
+	.inventory-desktop-page {
+		padding: 14px;
+	}
+	.inventory-heading {
+		display: none;
+	}
+	.inventory-filter-button span {
+		display: none;
+	}
+	.inventory-result-count {
+		width: 100%;
 		margin-left: 0;
+	}
+	.inventory-filter-strip {
+		flex-wrap: wrap;
 	}
 }
 </style>

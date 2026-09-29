@@ -8,6 +8,9 @@
     "src/components/ActiveFilterChips.vue",
     "src/components/ActiveFilterChips.stories.ts",
     "src/components/DetailPopover.vue",
-    "src/components/DetailPopover.stories.ts"
+    "src/components/DetailPopover.stories.ts",
+    "src/components/InventoryComposition.stories.ts",
+    "src/explorations/inventory/**/*.ts",
+    "src/explorations/inventory/**/*.vue"
   ]
 }

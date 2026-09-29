@@ -106,6 +106,11 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-09-29:** The finalized Inventory redesign story is the visual source of
+  truth for the production desktop Inventory shell, browse chrome, summaries,
+  filters, table/card switch, and inventory cards. This desktop-only adoption
+  does not supersede the existing mobile layout; mobile redesign remains
+  deferred.
 - **2026-09-28:** A report hub plus contextual export dialogs establishes the
   reporting entry points and fixed-column XLSX/CSV behavior.
 - **2026-09-28:** The default `货物流动` overview and its independent action

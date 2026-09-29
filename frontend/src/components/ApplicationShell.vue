@@ -140,45 +140,14 @@ const contextKey = computed(() => {
 	return "";
 });
 
-const browseTitle = computed(() => {
-	if (route.path === "/") return contextKey.value === "catalog" ? "全部物品" : "当前库存";
-	if (route.path === "/expiry") return "效期批次";
-	if (route.path === "/movements" || route.path === "/history")
-		return (
-			(
-				{
-					overview: "货物流动概览",
-					Receive: "入库",
-					Issue: "出库",
-					Transfer: "转移",
-				} as Record<string, string>
-			)[contextKey.value] || "货物流动概览"
-		);
-	if (route.path === "/adjustments") return "盘点调整";
-	if (route.path === "/drafts") return "草稿";
-	if (route.path === "/loans") return contextKey.value === "settled" ? "已结借用" : "未结借用";
-	if (route.path === "/pending") return "待处理";
-	if (route.path === "/warehouses") return "仓库";
-	if (route.path === "/more") return "更多";
-	if (route.path === "/reports") return "报表与导出";
-	return "物资管理";
-});
-const detailRoute = computed(() =>
-	/^\/(item|workspace|entry|new|reconcile|loans\/[^/]+|warehouses\/[^/]+)/.test(route.path),
-);
 const pending = computed(() => Number(boot.value?.pending_count || 0));
-const shellHeader = ref<HTMLElement>();
 const mobileNav = ref<HTMLElement>();
 const mobileContextNav = ref<HTMLElement>();
-let headerObserver: ResizeObserver | undefined;
 let mobileNavObserver: ResizeObserver | undefined;
 let mobileContextObserver: ResizeObserver | undefined;
 
 function updateLayoutHeights() {
-	document.documentElement.style.setProperty(
-		"--shell-header-height",
-		`${shellHeader.value?.offsetHeight || 0}px`,
-	);
+	document.documentElement.style.setProperty("--shell-header-height", "0px");
 	document.documentElement.style.setProperty(
 		"--mobile-nav-height",
 		`${mobileNav.value?.offsetHeight || 0}px`,
@@ -212,16 +181,13 @@ watch(contextItems, () => {
 onMounted(() => {
 	void refresh();
 	window.addEventListener("ti:refresh-shell", refresh);
-	headerObserver = new ResizeObserver(updateLayoutHeights);
 	mobileNavObserver = new ResizeObserver(updateLayoutHeights);
 	mobileContextObserver = new ResizeObserver(updateLayoutHeights);
-	if (shellHeader.value) headerObserver.observe(shellHeader.value);
 	if (mobileNav.value) mobileNavObserver.observe(mobileNav.value);
 	void observeContextNav();
 });
 onBeforeUnmount(() => {
 	window.removeEventListener("ti:refresh-shell", refresh);
-	headerObserver?.disconnect();
 	mobileNavObserver?.disconnect();
 	mobileContextObserver?.disconnect();
 	document.documentElement.style.removeProperty("--shell-header-height");
@@ -232,45 +198,78 @@ onBeforeUnmount(() => {
 
 <template>
 	<div class="application-shell">
-		<header ref="shellHeader" class="desktop-nav">
-			<div class="shell-brand-slot">
-				<h1 class="shell-brand" :class="{ 'sr-only': detailRoute }">
-					{{ detailRoute ? "物资管理" : browseTitle }}
-				</h1>
-			</div>
-			<nav aria-label="主导航">
-				<RouterLink
-					v-for="item in destinations"
-					:key="item.path"
-					:to="item.path"
-					:aria-current="activeDestination === item.path ? 'page' : undefined"
-					>{{ item.label }}</RouterLink
-				>
-			</nav>
-			<nav
-				v-if="contextItems.length"
-				class="desktop-inventory-context"
-				aria-label="当前视图"
-			>
-				<RouterLink
-					v-for="item in contextItems"
-					:key="item.key"
-					:to="{ path: item.path, query: item.query }"
-					:aria-current="contextKey === item.key ? 'page' : undefined"
-					>{{ item.label }}</RouterLink
-				>
+		<aside class="desktop-nav">
+			<RouterLink class="shell-brand" to="/" aria-label="寺院物资首页">
+				<span aria-hidden="true">物</span><b>寺院物资</b>
+			</RouterLink>
+			<nav aria-label="主导航" class="desktop-module-navigation">
+				<template v-for="item in destinations" :key="item.path">
+					<RouterLink
+						:to="item.path"
+						:class="{ 'inventory-parent': item.key === 'inventory' }"
+						:aria-current="activeDestination === item.path ? 'page' : undefined"
+						><svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+							<path
+								v-if="item.key === 'inventory'"
+								d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10"
+							/>
+							<path
+								v-else-if="item.key === 'movements'"
+								d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3 3m-3-3 3-3"
+							/>
+							<path
+								v-else-if="item.key === 'adjustments'"
+								d="M4 6h10m4 0h2M4 12h2m4 0h10M4 18h7m4 0h5M14 4v4M6 10v4m5 2v4"
+							/>
+							<path
+								v-else-if="item.key === 'loans'"
+								d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"
+							/>
+							<path
+								v-else-if="item.key === 'warehouses'"
+								d="m3 10 9-7 9 7v10H3V10Zm4 10v-6h10v6M7 10h10"
+							/>
+							<path v-else d="M5 12h.01M12 12h.01M19 12h.01" />
+						</svg>
+						<span>{{ item.label }}</span
+						><i
+							v-if="item.key === 'inventory'"
+							class="module-chevron"
+							aria-hidden="true"
+						></i
+						><b v-if="item.key === 'more' && pending" class="nav-badge">{{
+							pending
+						}}</b></RouterLink
+					>
+					<div
+						v-if="contextItems.length && activeDestination === item.path"
+						class="desktop-inventory-context"
+						role="navigation"
+						aria-label="当前视图"
+					>
+						<RouterLink
+							v-for="contextItem in contextItems"
+							:key="contextItem.key"
+							:to="{ path: contextItem.path, query: contextItem.query }"
+							:aria-current="contextKey === contextItem.key ? 'page' : undefined"
+							>{{
+								contextItem.key === "current" ? "库存列表" : contextItem.label
+							}}</RouterLink
+						>
+					</div>
+				</template>
 			</nav>
 			<div class="shell-actions">
-				<RouterLink
-					v-if="pending"
-					class="pending-notice"
-					to="/pending"
-					:aria-label="`待处理 ${pending} 项`"
-					>待处理 <b>{{ pending }}</b></RouterLink
-				>
-				<button type="button" @click="logout">退出登录</button>
+				<span class="user-avatar" aria-hidden="true">{{
+					String(boot?.user || "用").slice(0, 1)
+				}}</span>
+				<div>
+					<b>{{ boot?.user || "当前用户" }}</b
+					><small>物资管理</small>
+				</div>
+				<button type="button" @click="logout">退出</button>
 			</div>
-		</header>
+		</aside>
 		<main class="shell-content"><slot /></main>
 		<nav
 			v-if="contextItems.length"
@@ -321,3 +320,155 @@ onBeforeUnmount(() => {
 		</nav>
 	</div>
 </template>
+
+<style scoped>
+@media (min-width: 1024px) {
+	.application-shell {
+		display: grid;
+		grid-template-columns: 156px minmax(0, 1fr);
+		height: 100dvh;
+		overflow: hidden;
+		background: #f8f7f4;
+	}
+	.desktop-nav {
+		position: static;
+		display: flex;
+		min-width: 0;
+		max-width: none;
+		flex-direction: column;
+		gap: 0;
+		margin: 0;
+		padding: 17px 10px;
+		border-right: 1px solid #ebe6de;
+		background: #f7f5f1;
+	}
+	.shell-brand {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+		padding: 0 5px 25px;
+		color: #343c46;
+		font-size: 17px;
+		line-height: 1.4;
+	}
+	.shell-brand > span {
+		display: grid;
+		width: 30px;
+		height: 32px;
+		place-items: center;
+		border-radius: 9px;
+		background: #b68b5d;
+		color: #fff;
+		font-size: 14px;
+	}
+	.desktop-module-navigation {
+		display: grid;
+		flex: none;
+		gap: 6px;
+	}
+	.desktop-module-navigation > a {
+		display: flex;
+		align-items: center;
+		min-height: 42px;
+		padding: 8px 12px;
+		border-radius: 7px;
+		color: #5f5b55;
+	}
+	.desktop-module-navigation > a[aria-current="page"] {
+		background: #f3ece2;
+		color: #80572f;
+		font-weight: 650;
+	}
+	.desktop-nav-icon {
+		width: 20px;
+		height: 20px;
+		flex: none;
+		fill: none;
+		stroke: currentColor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 1.8;
+	}
+	.module-chevron {
+		width: 0;
+		height: 0;
+		margin-left: auto;
+		border-top: 4px solid transparent;
+		border-bottom: 4px solid transparent;
+		border-left: 6px solid currentColor;
+		transform: rotate(90deg);
+	}
+	.nav-badge {
+		margin-left: auto;
+		padding: 0 6px;
+		border-radius: 10px;
+		background: #f2dfc9;
+		color: #8b5b2f;
+		font-size: 11px;
+	}
+	.desktop-inventory-context {
+		display: grid !important;
+		gap: 3px !important;
+		padding: 0 0 4px 23px;
+		border: 0;
+	}
+	.desktop-inventory-context a {
+		min-height: 34px;
+		padding: 6px 9px;
+		border-radius: 6px;
+		color: #756f67;
+		font-size: 13px;
+	}
+	.desktop-inventory-context a[aria-current="page"] {
+		background: #e8ded0;
+		color: #81552c;
+		font-weight: 700;
+	}
+	.shell-actions {
+		display: grid;
+		grid-template-columns: 32px minmax(0, 1fr);
+		gap: 9px;
+		align-items: center;
+		margin-top: auto;
+		padding: 12px 4px 0;
+	}
+	.user-avatar {
+		display: grid;
+		width: 32px;
+		height: 32px;
+		place-items: center;
+		border-radius: 50%;
+		background: #e5e0d7;
+	}
+	.shell-actions div {
+		min-width: 0;
+		overflow: hidden;
+		font-size: 12px;
+	}
+	.shell-actions b,
+	.shell-actions small {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.shell-actions small {
+		color: #817a70;
+		font-size: 10px;
+	}
+	.shell-actions button {
+		grid-column: 1 / -1;
+		min-height: 30px;
+		padding: 3px 8px;
+		border-color: transparent;
+		background: transparent;
+		color: #756f67;
+		font-size: 12px;
+	}
+	.shell-content {
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+}
+</style>

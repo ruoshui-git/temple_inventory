@@ -42,10 +42,11 @@ describe("quantity summaries and Inventory cards", () => {
         selectionMode: true,
       },
     });
-    expect(wrapper.text()).toContain("可用 8 kg");
-    expect(wrapper.text()).toContain("总计 12 kg");
-    expect(wrapper.text()).toContain("借出 3 kg");
-    expect(wrapper.text()).toContain("损坏 1 kg");
+    expect(wrapper.find(".inventory-card-available").text()).toBe("可用8kg");
+    expect(wrapper.find(".inventory-card-totals").text()).toContain("总计 12");
+    expect(wrapper.find(".inventory-card-totals").text()).toContain("借出 3");
+    expect(wrapper.find(".inventory-card-totals").text()).toContain("损坏 1");
+    expect(wrapper.find(".inventory-card-totals").text()).toContain("kg");
     await wrapper.find(".inventory-visual-card").trigger("click");
     expect(wrapper.emitted("toggle")?.[0]?.[0]).toMatchObject({
       item_code: "ITEM-1",

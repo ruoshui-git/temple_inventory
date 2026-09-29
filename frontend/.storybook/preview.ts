@@ -22,6 +22,11 @@ const preview: Preview = {
           styles: { width: "1440px", height: "900px" },
           type: "desktop",
         },
+        wideDesktop: {
+          name: "Wide desktop 1774 x 900",
+          styles: { width: "1774px", height: "900px" },
+          type: "desktop",
+        },
       },
     },
   },
