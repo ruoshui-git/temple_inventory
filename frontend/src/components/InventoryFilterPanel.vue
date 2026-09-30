@@ -788,10 +788,11 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	gap: 6px;
 }
 .expiry-options label {
-	display: flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 6px;
-	min-height: 38px;
+	min-height: 40px;
 	padding: 6px 8px;
 	border: 1px solid #e5dfd5;
 	border-radius: 7px;
@@ -807,6 +808,32 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
+}
+.expiry-options label input[type="radio"] {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+.expiry-options label:focus-within {
+	outline: 2px solid #946c3f;
+	outline-offset: 2px;
+}
+.expiry-options .custom-range {
+	grid-column: 1 / -1;
+	justify-self: end;
+}
+.expiry-options .option-count {
+	justify-self: end;
+}
+.expiry-options {
+	grid-template-columns: 1fr;
+	gap: 4px;
 }
 .expiry-options small {
 	color: #7c746b;

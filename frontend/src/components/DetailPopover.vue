@@ -5,10 +5,12 @@ defineProps<{ label: string; triggerText?: string }>();
 
 const open = ref(false);
 const pinned = ref(false);
+const mobile = ref(false);
 const trigger = ref<HTMLButtonElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
 const panelStyle = ref<Record<string, string>>({});
 let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+let mediaQuery: MediaQueryList | undefined;
 
 function cancelDismiss() {
 	if (dismissTimer) clearTimeout(dismissTimer);
@@ -57,6 +59,10 @@ function scheduleDismiss() {
 	if (!pinned.value) dismissTimer = setTimeout(hide, 120);
 }
 
+function showOnHover() {
+	if (!mobile.value) show();
+}
+
 function toggle() {
 	if (open.value && pinned.value) hide();
 	else show(true);
@@ -79,7 +85,17 @@ function handleViewportChange() {
 	if (open.value) positionPanel();
 }
 
+function handleMediaChange(event: MediaQueryListEvent) {
+	mobile.value = event.matches;
+	if (mobile.value && open.value && !pinned.value) hide();
+}
+
 onMounted(() => {
+	if (typeof window.matchMedia === "function") {
+		mediaQuery = window.matchMedia("(max-width: 1023px)");
+		mobile.value = mediaQuery.matches;
+		mediaQuery.addEventListener?.("change", handleMediaChange);
+	}
 	document.addEventListener("pointerdown", handleDocumentPointer);
 	document.addEventListener("keydown", handleKeydown);
 	window.addEventListener("resize", handleViewportChange);
@@ -92,6 +108,7 @@ onBeforeUnmount(() => {
 	document.removeEventListener("keydown", handleKeydown);
 	window.removeEventListener("resize", handleViewportChange);
 	window.removeEventListener("scroll", handleViewportChange, true);
+	mediaQuery?.removeEventListener?.("change", handleMediaChange);
 });
 </script>
 
@@ -103,7 +120,7 @@ onBeforeUnmount(() => {
 			class="detail-popover-trigger"
 			:aria-expanded="open"
 			:aria-label="label"
-			@mouseenter="show()"
+			@mouseenter="showOnHover"
 			@mouseleave="scheduleDismiss"
 			@focus="show()"
 			@blur="scheduleDismiss"

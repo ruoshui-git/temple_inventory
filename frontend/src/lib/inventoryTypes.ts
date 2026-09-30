@@ -12,6 +12,11 @@ export interface InventoryCardRow {
   warehouse_stock?: Record<string, number>;
   has_batch_no?: boolean | number;
   batch_count?: number;
+  batches?: Array<{
+    batch_no: string;
+    qty: number;
+    expiry_date?: string | null;
+  }>;
   nearest_expiry_date?: string | null;
   nearest_expiry_days?: number | null;
 }

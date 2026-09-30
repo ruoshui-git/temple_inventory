@@ -37,6 +37,7 @@ const exportOpen = ref(false);
 const compact = ref(false);
 const view = ref<"card" | "table">("table");
 const viewStorageKey = "temple_inventory.expiry.view";
+const itemGroupRoot = "All Item Groups";
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
 const canMove = computed(() =>
 	[
@@ -104,13 +105,15 @@ const warehouseNodes = computed<InventoryFilterNode[]>(() =>
 	})),
 );
 const categoryNodes = computed<InventoryFilterNode[]>(() =>
-	(boot.value?.item_groups || []).map((row: any) => ({
-		name: row.name,
-		label: row.item_group_name || row.name,
-		parent: row.parent_item_group,
-		isGroup: Boolean(row.is_group),
-		count: facetCounts.value.item_groups?.[row.name],
-	})),
+	(boot.value?.item_groups || [])
+		.filter((row: any) => row.name !== itemGroupRoot)
+		.map((row: any) => ({
+			name: row.name,
+			label: row.item_group_name || row.name,
+			parent: row.parent_item_group === itemGroupRoot ? undefined : row.parent_item_group,
+			isGroup: Boolean(row.is_group),
+			count: facetCounts.value.item_groups?.[row.name],
+		})),
 );
 const panelFilters = computed<InventoryFilterState>({
 	get: () => ({
@@ -407,7 +410,9 @@ watch(
 		const next = {
 			search: String(hydrated.search || ""),
 			warehouses: hydrated.warehouses as string[],
-			item_groups: hydrated.item_groups as string[],
+			item_groups: (hydrated.item_groups as string[]).filter(
+				(value) => value !== itemGroupRoot,
+			),
 			in_stock: !["0", "false"].includes(String((query as any).in_stock ?? "1")),
 			expiry_window: validWindow ? requestedWindow : "all",
 			expiry_days: validDays ? requestedDays : "30",
@@ -459,7 +464,9 @@ onMounted(async () => {
 		filters.value = {
 			search: String(hydrated.search || ""),
 			warehouses: hydrated.warehouses as string[],
-			item_groups: hydrated.item_groups as string[],
+			item_groups: (hydrated.item_groups as string[]).filter(
+				(value) => value !== itemGroupRoot,
+			),
 			in_stock: !["0", "false"].includes(String(route.query.in_stock ?? "1")),
 			expiry_window: String(hydrated.expiry_window || "all"),
 			expiry_days: /^[1-9]\d*$/.test(String(hydrated.expiry_days || ""))
@@ -530,6 +537,27 @@ onBeforeUnmount(() => {
 							<span>{{ total }} 个批次</span>
 						</div>
 						<div class="inventory-heading-actions">
+							<button
+								v-if="operationCaps.Receive"
+								type="button"
+								@click="operation('Receive')"
+							>
+								↓ 入库
+							</button>
+							<button
+								v-if="operationCaps.Issue"
+								type="button"
+								@click="operation('Issue')"
+							>
+								↑ 出库
+							</button>
+							<button
+								v-if="operationCaps.Transfer"
+								type="button"
+								@click="operation('Transfer')"
+							>
+								⇄ 转移
+							</button>
 							<button type="button" @click="exportOpen = true">导出</button>
 						</div>
 					</div>
@@ -731,7 +759,12 @@ onBeforeUnmount(() => {
 				</div>
 			</div>
 		</div>
-		<FloatingActionMenu v-if="canMove" :actions="movementActions" @select="operation" />
+		<FloatingActionMenu
+			v-if="canMove"
+			class="expiry-fab"
+			:actions="movementActions"
+			@select="operation"
+		/>
 		<ExportDialog
 			v-model:open="exportOpen"
 			report-type="expiry"
@@ -996,11 +1029,14 @@ onBeforeUnmount(() => {
 	.results-scroll :deep(.sortable-data-table th) {
 		background: #f2f2f0;
 		color: #7a7d84;
-		font-size: 12px;
+		font-size: 14px;
 	}
 	.results-scroll :deep(.sortable-data-table td) {
 		height: 57px;
 		padding: 5px 10px;
+	}
+	.expiry-fab {
+		display: none;
 	}
 }
 @media (max-width: 1023px) {

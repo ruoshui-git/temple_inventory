@@ -171,6 +171,9 @@ async function logout() {
 	await request("logout");
 	window.location.href = "/login?redirect-to=%2Finventory";
 }
+function closeNavigationContext() {
+	inventoryExpanded.value = false;
+}
 
 watch(contextItems, () => {
 	void observeContextNav();
@@ -229,6 +232,7 @@ onBeforeUnmount(() => {
 						v-else
 						:to="item.path"
 						:aria-current="activeDestination === item.path ? 'page' : undefined"
+						@click="closeNavigationContext"
 						><svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
 							<path
 								v-if="item.key === 'movements'"
@@ -374,6 +378,18 @@ onBeforeUnmount(() => {
 		font-size: 17px;
 		line-height: 1.4;
 	}
+	.shell-brand,
+	.shell-brand:hover,
+	.shell-brand:focus-visible,
+	.shell-brand[aria-current="page"] {
+		background: transparent;
+		color: #343c46;
+		font-weight: 800;
+	}
+	.shell-brand:focus-visible {
+		outline: 2px solid #946c3f;
+		outline-offset: 2px;
+	}
 	.shell-brand > span {
 		display: grid;
 		width: 30px;
@@ -385,19 +401,21 @@ onBeforeUnmount(() => {
 		color: #68727d;
 		font-size: 14px;
 	}
-	.shell-brand:hover > span,
-	.shell-brand:focus-visible > span {
-		background: #f3ece2;
-		color: #80572f;
-		border-color: #cdbda8;
-	}
 	.desktop-module-navigation {
 		display: grid;
-		flex: none;
+		flex: 1;
+		min-height: 0;
 		gap: 6px;
+		align-content: start;
+		overflow-x: hidden;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
 	}
 	.desktop-module-navigation > a,
 	.desktop-module-navigation > button {
+		position: relative;
+		z-index: 1;
 		display: flex;
 		align-items: center;
 		min-height: 42px;

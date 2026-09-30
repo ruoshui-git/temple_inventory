@@ -92,11 +92,17 @@ in the same change. Keep implementation details in code or task notes, not here.
 - Batch-tracked items show the real batch count, including `0 批次`. Items that
   do not track batches never show a batch badge. Older API rows may show the
   neutral `批次管理` fallback only when batch tracking is enabled.
+- Inventory batch badges expose the scoped batch number, quantity, and expiry
+  details on desktop hover/focus and mobile click/tap. `效期范围` choices are
+  full-width highlighted rows with native radio semantics but no visible radio
+  icon; `All Item Groups` is hidden while its descendants remain selectable.
+- Expiry keeps the same Receive/Issue/Transfer heading actions as Inventory on
+  desktop and retains the mobile action FAB as the responsive fallback.
 - Card images are ordinary lazy-loaded images and never open a preview. Table
   thumbnails retain the interactive image preview.
 - The desktop `库存` navigation parent is an accessible expand/collapse button
-  containing only `库存列表` and `效期批次`. The app mark is neutral at rest and
-  receives its tint only on hover or keyboard focus.
+  containing only `库存列表` and `效期批次`. The app mark remains neutral in
+  active, hover, and focus states; keyboard focus still has a visible outline.
 
 ## Warehouses
 
@@ -129,6 +135,13 @@ in the same change. Keep implementation details in code or task notes, not here.
   draft or context.
 
 ## Supersession log
+
+- **2026-09-30:** Batch-summary detail popouts, stacked expiry choices, hidden
+  `All Item Groups`, and responsive Expiry primary actions extend the compact
+  Inventory/Expiry browsing contract.
+- **2026-09-30:** Desktop primary navigation and filter sidebars scroll within
+  the shell viewport; the `寺院物资` brand never receives navigation selection
+  or hover tint.
 
 - **2026-09-29:** The finalized Inventory redesign story is the visual source of
   truth for the production desktop Inventory shell, browse chrome, summaries,

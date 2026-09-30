@@ -1657,6 +1657,7 @@ def _inventory_batch_summaries(item_names, warehouses):
 	summaries = {
 		item_name: {
 			"batch_count": 0,
+			"batches": [],
 			"nearest_expiry_date": None,
 			"nearest_expiry_days": None,
 		}
@@ -1689,6 +1690,13 @@ def _inventory_batch_summaries(item_names, warehouses):
 			continue
 		summary = summaries[batch.item]
 		summary["batch_count"] += 1
+		summary["batches"].append(
+			{
+				"batch_no": batch.name,
+				"qty": quantity,
+				"expiry_date": str(batch.expiry_date) if batch.expiry_date else None,
+			}
+		)
 		if not batch.expiry_date:
 			continue
 		expiry = getdate(batch.expiry_date)
@@ -1696,6 +1704,10 @@ def _inventory_batch_summaries(item_names, warehouses):
 		if current is None or expiry < getdate(current):
 			summary["nearest_expiry_date"] = str(expiry)
 			summary["nearest_expiry_days"] = (expiry - as_of).days
+	for summary in summaries.values():
+		summary["batches"].sort(
+			key=lambda row: (row["expiry_date"] or "9999-12-31", row["batch_no"])
+		)
 	return summaries
 
 
@@ -1870,7 +1882,12 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 			"has_batch_no": item.has_batch_no,
 			**batch_summaries.get(
 				item.name,
-				{"batch_count": 0, "nearest_expiry_date": None, "nearest_expiry_days": None},
+				{
+					"batch_count": 0,
+					"batches": [],
+					"nearest_expiry_date": None,
+					"nearest_expiry_days": None,
+				},
 			),
 			"total_stock": total_stock,
 			"available_stock": sum(qty for name, qty in stock.items() if name not in reserved),
@@ -2219,7 +2236,12 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 		row.update(
 			batch_summaries.get(
 				item_names_by_code.get(row["item_code"]),
-				{"batch_count": 0, "nearest_expiry_date": None, "nearest_expiry_days": None},
+				{
+					"batch_count": 0,
+					"batches": [],
+					"nearest_expiry_date": None,
+					"nearest_expiry_days": None,
+				},
 			)
 		)
 	page["quantity_totals"] = _quantity_totals(

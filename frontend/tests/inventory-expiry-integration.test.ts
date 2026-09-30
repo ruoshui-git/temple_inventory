@@ -106,6 +106,76 @@ beforeEach(() => {
 });
 
 describe("Inventory and Expiry integrations", () => {
+  it("hides the ERPNext item-group root and sanitizes legacy selection", async () => {
+    state.route.query = { item_groups: "All Item Groups" };
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            item_groups: [
+              {
+                name: "All Item Groups",
+                item_group_name: "All Item Groups",
+                is_group: 1,
+              },
+              {
+                name: "daily",
+                item_group_name: "生活物资",
+                parent_item_group: "All Item Groups",
+                is_group: 1,
+              },
+              {
+                name: "food",
+                item_group_name: "食品",
+                parent_item_group: "daily",
+                is_group: 0,
+              },
+            ],
+            physical_tree: [],
+            stock_operation_capabilities: {},
+          }
+        : { results: inventoryRows(), total: 1, overall_total: 1, facets: {} },
+    );
+
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    const categories = wrapper
+      .findComponent(InventoryFilterPanel)
+      .props("categories") as any[];
+    expect(categories.map((node) => node.name)).toEqual(["daily", "food"]);
+    expect(categories[0].parent).toBeUndefined();
+    expect(categories[1].parent).toBe("daily");
+    const inventoryRequest = state.api.mock.calls.find(
+      (call) => call[0] === "inventory",
+    );
+    expect(inventoryRequest?.[1].item_groups).toBeUndefined();
+  });
+
+  it("shows Expiry primary actions and keeps the mobile action fallback", async () => {
+    state.route.path = "/expiry";
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            item_groups: [],
+            physical_tree: [],
+            stock_operation_capabilities: {
+              Receive: true,
+              Issue: true,
+              Transfer: true,
+            },
+          }
+        : { results: expiryRows(), total: 1, overall_total: 1, facets: {} },
+    );
+
+    const wrapper = mount(Expiry, { global: globals });
+    await flushPromises();
+    expect(
+      wrapper
+        .findAll(".inventory-heading-actions button")
+        .map((button) => button.text()),
+    ).toEqual(["↓ 入库", "↑ 出库", "⇄ 转移", "导出"]);
+    expect(wrapper.find(".expiry-fab").exists()).toBe(true);
+  });
+
   it("restores bootstrap-dependent filters and actions when retry succeeds", async () => {
     let bootstrapAttempts = 0;
     state.api.mockImplementation(async (method: string) => {

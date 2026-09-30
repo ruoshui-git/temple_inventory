@@ -485,11 +485,24 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(rows["ITEM-BATCH"]["batch_count"], 3)
 		self.assertEqual(rows["ITEM-BATCH"]["nearest_expiry_date"], expired)
 		self.assertEqual(rows["ITEM-BATCH"]["nearest_expiry_days"], -2)
+		self.assertEqual(
+			rows["ITEM-BATCH"]["batches"],
+			[
+				{"batch_no": "B-EXPIRED", "qty": 1.0, "expiry_date": expired},
+				{"batch_no": "B-FUTURE", "qty": 4.0, "expiry_date": future},
+				{"batch_no": "B-UNDATED", "qty": 2.0, "expiry_date": None},
+			],
+		)
 		self.assertEqual(rows["ITEM-EMPTY"]["batch_count"], 0)
+		self.assertEqual(rows["ITEM-EMPTY"]["batches"], [])
 		self.assertIsNone(rows["ITEM-EMPTY"]["nearest_expiry_date"])
 		self.assertIsNone(rows["ITEM-EMPTY"]["nearest_expiry_days"])
 		leaf_row = next(row for row in leaf_page["results"] if row["item_code"] == "ITEM-BATCH")
 		self.assertEqual(leaf_row["batch_count"], 1)
+		self.assertEqual(
+			leaf_row["batches"],
+			[{"batch_no": "B-FUTURE", "qty": 2.0, "expiry_date": future}],
+		)
 		self.assertEqual(leaf_row["nearest_expiry_date"], future)
 		self.assertEqual(leaf_row["nearest_expiry_days"], 10)
 

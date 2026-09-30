@@ -60,6 +60,7 @@ const defaultSort: SortState = { sort_by: "item_name", sort_order: "asc" };
 const sort = ref<SortState>({ ...defaultSort });
 const view = ref<"card" | "table">("card");
 const viewStorageKey = "temple_inventory.inventory.view";
+const itemGroupRoot = "All Item Groups";
 const summaryMetrics = computed(() =>
 	[
 		["available_stock", "可用"],
@@ -122,13 +123,15 @@ const warehouseNodes = computed<InventoryFilterNode[]>(() =>
 	})),
 );
 const categoryNodes = computed<InventoryFilterNode[]>(() =>
-	(boot.value?.item_groups || []).map((row: any) => ({
-		name: row.name,
-		label: row.item_group_name || row.name,
-		parent: row.parent_item_group,
-		isGroup: Boolean(row.is_group),
-		count: facetCounts.value.item_groups?.[row.name],
-	})),
+	(boot.value?.item_groups || [])
+		.filter((row: any) => row.name !== itemGroupRoot)
+		.map((row: any) => ({
+			name: row.name,
+			label: row.item_group_name || row.name,
+			parent: row.parent_item_group === itemGroupRoot ? undefined : row.parent_item_group,
+			isGroup: Boolean(row.is_group),
+			count: facetCounts.value.item_groups?.[row.name],
+		})),
 );
 const panelFilters = computed<InventoryFilterState>({
 	get: () => ({
@@ -367,6 +370,7 @@ function dismissUnknownItem() {
 }
 function hydrateInventoryFilters(query: Record<string, unknown>) {
 	const hydrated = hydrateFilterQuery(query, filters.value) as typeof filters.value;
+	hydrated.item_groups = hydrated.item_groups.filter((value) => value !== itemGroupRoot);
 	hydrated.in_stock =
 		String(query.mode || "") === "catalog"
 			? false
@@ -764,7 +768,18 @@ onBeforeUnmount(() => {
 											{{ row.stock_uom }}
 										</p>
 									</DetailPopover>
-									<span v-if="row.has_batch_no" class="table-batch-count"
+									<DetailPopover
+										v-if="row.has_batch_no && row.batches?.length"
+										:label="`${row.item_name}的批次信息`"
+										:trigger-text="`${row.batch_count ?? row.batches.length} 批次`"
+									>
+										<p v-for="batch in row.batches" :key="batch.batch_no">
+											批次 {{ batch.batch_no }} · 数量 {{ batch.qty }}
+											{{ row.stock_uom }} ·
+											{{ batch.expiry_date || "无效期" }}
+										</p>
+									</DetailPopover>
+									<span v-else-if="row.has_batch_no" class="table-batch-count"
 										>{{ row.batch_count ?? "—" }} 批次</span
 									>
 								</div>
@@ -1119,7 +1134,7 @@ onBeforeUnmount(() => {
 	.inventory-results :deep(.sortable-data-table th) {
 		background: #f2f2f0;
 		color: #7a7d84;
-		font-size: 12px;
+		font-size: 14px;
 	}
 	.inventory-results :deep(.sortable-data-table td) {
 		height: 57px;

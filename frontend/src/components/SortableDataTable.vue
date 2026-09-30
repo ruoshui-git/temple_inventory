@@ -242,6 +242,8 @@ function action(event: MouseEvent, row: TRow) {
 	padding: 6px 8px;
 	border: 0;
 	background: transparent;
+	font: inherit;
+	font-size: inherit;
 	font-weight: 700;
 }
 .sortable-data-table tbody tr {

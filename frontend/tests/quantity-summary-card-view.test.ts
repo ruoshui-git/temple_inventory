@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import QuantitySummary from "../src/components/QuantitySummary.vue";
 import InventoryCardGrid from "../src/components/InventoryCardGrid.vue";
+import DetailPopover from "../src/components/DetailPopover.vue";
 import { batches, items } from "../src/explorations/inventory/fixtures";
 
 describe("quantity summaries and Inventory cards", () => {
@@ -173,6 +174,40 @@ describe("quantity summaries and Inventory cards", () => {
     );
     expect(compactWrapper.find(".inventory-card-grid").classes()).toContain(
       "compact-mobile",
+    );
+  });
+
+  it("opens scoped batch details from the inventory badge", async () => {
+    const wrapper = mount(InventoryCardGrid, {
+      props: {
+        rows: [
+          {
+            item_code: "ITEM-BATCH",
+            item_name: "批次物品",
+            item_group: "食品",
+            stock_uom: "件",
+            available_stock: 3,
+            total_stock: 3,
+            on_loan_qty: 0,
+            damaged_qty: 0,
+            has_batch_no: true,
+            batch_count: 2,
+            batches: [
+              { batch_no: "B-001", qty: 2, expiry_date: "2026-10-01" },
+              { batch_no: "B-002", qty: 1, expiry_date: null },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.findComponent(DetailPopover).text()).toBe("2 批次");
+    await wrapper.find(".detail-popover-trigger").trigger("click");
+    expect(document.body.textContent).toContain(
+      "批次 B-001 · 数量 2 件 · 2026-10-01",
+    );
+    expect(document.body.textContent).toContain(
+      "批次 B-002 · 数量 1 件 · 无效期",
     );
   });
 });

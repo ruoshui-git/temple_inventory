@@ -19,8 +19,9 @@ vi.mock("vue-router", () => ({ useRoute: () => route }));
 
 const RouterLink = defineComponent({
   props: ["to", "ariaCurrent"],
+  emits: ["click"],
   template:
-    '<a :data-to="typeof to === \'string\' ? to : to.path" :aria-current="ariaCurrent"><slot /></a>',
+    '<a :data-to="typeof to === \'string\' ? to : to.path" :aria-current="ariaCurrent" @click="$emit(\'click\', $event)"><slot /></a>',
 });
 
 describe("ApplicationShell navigation contract", () => {
@@ -62,6 +63,9 @@ describe("ApplicationShell navigation contract", () => {
     const brand = wrapper.find(".shell-brand").element;
     expect(wrapper.find(".desktop-nav").element.children[0]).toBe(brand);
     expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
+    expect(
+      wrapper.find(".shell-brand").attributes("aria-current"),
+    ).toBeUndefined();
     route.path = "/adjustments";
     await nextTick();
     expect(wrapper.find(".shell-brand").element).toBe(brand);
@@ -131,6 +135,28 @@ describe("ApplicationShell navigation contract", () => {
       "出库",
       "转移",
     ]);
+
+    const warehouse = wrapper
+      .find('nav[aria-label="主导航"]')
+      .findAll(":scope > a")
+      .find((link) => link.text() === "仓库");
+    expect(warehouse).toBeDefined();
+    await warehouse!.trigger("click");
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+
+    route.path = "/warehouses";
+    await nextTick();
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(0);
+    expect(
+      wrapper.find('nav[aria-label="主导航"] a[aria-current="page"]').text(),
+    ).toBe("仓库");
+
+    route.path = "/warehouses/warehouse-1";
+    await nextTick();
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(0);
+    expect(
+      wrapper.find('nav[aria-label="主导航"] a[aria-current="page"]').text(),
+    ).toBe("仓库");
   });
 
   it("treats the report center as part of More", async () => {

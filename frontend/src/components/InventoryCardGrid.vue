@@ -64,6 +64,7 @@ const expiryBadge = (row: InventoryCardRow) => {
 	if (row.nearest_expiry_days <= 30) return "即将到期";
 	return "";
 };
+const batchDetails = (row: InventoryCardRow) => row.batches || [];
 </script>
 
 <template>
@@ -141,7 +142,19 @@ const expiryBadge = (row: InventoryCardRow) => {
 							{{ row.stock_uom }}
 						</p>
 					</DetailPopover>
-					<span v-if="batchLabel(row)" class="batch-badge">{{ batchLabel(row) }}</span>
+					<DetailPopover
+						v-if="batchLabel(row) && batchDetails(row).length"
+						:label="`${row.item_name}的批次信息`"
+						:trigger-text="batchLabel(row)"
+					>
+						<p v-for="batch in batchDetails(row)" :key="batch.batch_no">
+							批次 {{ batch.batch_no }} · 数量 {{ formatQuantity(batch.qty) }}
+							{{ row.stock_uom }} · {{ batch.expiry_date || "无效期" }}
+						</p>
+					</DetailPopover>
+					<span v-else-if="batchLabel(row)" class="batch-badge">{{
+						batchLabel(row)
+					}}</span>
 					<span v-if="expiryBadge(row)" class="expiry-badge" :class="expiryTone(row)">{{
 						expiryBadge(row)
 					}}</span>
