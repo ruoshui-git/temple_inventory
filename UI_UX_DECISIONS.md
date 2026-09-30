@@ -97,7 +97,12 @@ in the same change. Keep implementation details in code or task notes, not here.
   full-width highlighted rows with native radio semantics but no visible radio
   icon; `All Item Groups` is hidden while its descendants remain selectable.
 - Expiry keeps the same Receive/Issue/Transfer heading actions as Inventory on
-  desktop and retains the mobile action FAB as the responsive fallback.
+  desktop; mobile browse actions live in the accessible top-right overflow menu.
+- Mobile Inventory and Expiry browse pages use the v2 responsive shell below
+  1024px: card-first Inventory with a compact list alternative, batch-level
+  Expiry rows, complete-scope summary cards, and compact-on-scroll chrome.
+  Inventory headline totals intentionally sum numeric per-UOM values as a
+  unitless comparison figure; tapping a summary exposes the exact UOM values.
 - Card images are ordinary lazy-loaded images and never open a preview. Table
   thumbnails retain the interactive image preview.
 - The desktop `库存` navigation parent is an accessible expand/collapse button
@@ -143,6 +148,10 @@ in the same change. Keep implementation details in code or task notes, not here.
   the shell viewport; the `寺院物资` brand never receives navigation selection
   or hover tint.
 
+- **2026-09-30:** The mobile v2 Inventory and Expiry mockups supersede the
+  deferred mobile layout and mobile action FAB. The production mobile shell
+  uses top-right overflow actions, server-scoped summaries, and quick expiry
+  filters; Item and batch detail routes remain unchanged.
 - **2026-09-29:** The finalized Inventory redesign story is the visual source of
   truth for the production desktop Inventory shell, browse chrome, summaries,
   filters, table/card switch, and inventory cards. This desktop-only adoption

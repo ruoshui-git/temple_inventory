@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { reactive, defineComponent } from "vue";
+import { readFileSync } from "node:fs";
 import Inventory from "../src/pages/Inventory.vue";
 import Expiry from "../src/pages/Expiry.vue";
 import InventoryFilterPanel from "../src/components/InventoryFilterPanel.vue";
@@ -85,6 +86,7 @@ beforeEach(() => {
   state.replace.mockClear();
   state.push.mockClear();
   localStorage.clear();
+  sessionStorage.clear();
   Object.defineProperty(HTMLElement.prototype, "scrollTo", {
     value: vi.fn(),
     configurable: true,
@@ -106,6 +108,176 @@ beforeEach(() => {
 });
 
 describe("Inventory and Expiry integrations", () => {
+  it("locks mobile browse pages to the shell viewport and keeps results scrollable", () => {
+    const inventory = readFileSync("src/pages/Inventory.vue", "utf8");
+    const expiry = readFileSync("src/pages/Expiry.vue", "utf8");
+    for (const source of [inventory, expiry]) {
+      expect(source).toMatch(
+        /height:\s*calc\([\s\S]*100dvh[\s\S]*--mobile-nav-height/,
+      );
+      expect(source).toMatch(
+        /\.mobile-(?:inventory|expiry)-page\s*\{[\s\S]*height:\s*100%[\s\S]*min-height:\s*0[\s\S]*overflow:\s*hidden/,
+      );
+      expect(source).toMatch(
+        /\.mobile-results\s*\{[\s\S]*min-height:\s*0[\s\S]*flex:\s*1[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/,
+      );
+      expect(source).toMatch(/\.mobile-browse-header\s*\{[\s\S]*margin:\s*0/);
+    }
+  });
+
+  it("renders a unitless Inventory headline and expands exact per-UOM details", async () => {
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            item_groups: [],
+            physical_tree: [],
+            stock_operation_capabilities: {},
+          }
+        : {
+            results: inventoryRows(),
+            total: 1,
+            overall_total: 1,
+            facets: {},
+            quantity_totals: {
+              available_stock: [
+                { uom: "Nos", qty: 4 },
+                { uom: "包", qty: 6 },
+              ],
+            },
+          },
+    );
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    const firstSummary = wrapper.find(".mobile-summary-card");
+    expect(firstSummary.text()).toContain("10");
+    await firstSummary.trigger("click");
+    expect(wrapper.find(".mobile-summary-details").text()).toContain("Nos");
+    expect(wrapper.find(".mobile-summary-details").text()).toContain("包");
+  });
+
+  it("switches the production Inventory mobile card and list views", async () => {
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    expect(wrapper.find(".mobile-results .inventory-card-grid").exists()).toBe(
+      true,
+    );
+    await wrapper.findAll(".mobile-result-controls button")[0].trigger("click");
+    expect(
+      wrapper.find(".mobile-results .mobile-inventory-list").exists(),
+    ).toBe(true);
+  });
+
+  it("maps Expiry quick filters and renders complete summary details for separate batches", async () => {
+    state.route.path = "/expiry";
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            item_groups: [],
+            physical_tree: [],
+            stock_operation_capabilities: {},
+          }
+        : {
+            results: [
+              { ...expiryRows()[0], batch_no: "B001" },
+              { ...expiryRows()[0], batch_no: "B002" },
+            ],
+            total: 2,
+            overall_total: 2,
+            facets: { expiry: { all: 2 } },
+            expiry_summary: {
+              expiring_soon: 4,
+              expired: 2,
+              within_7_days: 1,
+              days_8_to_30: 3,
+              average_remaining_days: 12,
+            },
+          },
+    );
+    const wrapper = mount(Expiry, { global: globals });
+    await flushPromises();
+    await wrapper.find(".mobile-summary-card").trigger("click");
+    expect(wrapper.find(".mobile-summary-details").text()).toContain("7 天内");
+    expect(wrapper.findAll(".mobile-expiry-result-row")).toHaveLength(2);
+    const quick = wrapper.findAll(".expiry-quick-filters button");
+    await quick[1].trigger("click");
+    let request = state.api.mock.calls
+      .filter((call) => call[0] === "expiring_batches")
+      .at(-1);
+    expect(request?.[1].expiry_window).toBe("remaining_within");
+    await quick[2].trigger("click");
+    request = state.api.mock.calls
+      .filter((call) => call[0] === "expiring_batches")
+      .at(-1);
+    expect(request?.[1].expiry_window).toBe("overdue");
+    await quick[0].trigger("click");
+    request = state.api.mock.calls
+      .filter((call) => call[0] === "expiring_batches")
+      .at(-1);
+    expect(request?.[1].expiry_window).toBe("");
+  });
+
+  it("compacts mobile browse chrome while retaining the compact page title", async () => {
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    const results = wrapper.find<HTMLElement>(".mobile-results");
+    Object.defineProperty(results.element, "scrollTop", {
+      value: 100,
+      configurable: true,
+    });
+    await results.trigger("scroll");
+    expect(wrapper.find(".mobile-inventory-page").classes()).toContain(
+      "compact",
+    );
+    expect(wrapper.find(".compact-page-title").exists()).toBe(true);
+    Object.defineProperty(results.element, "scrollTop", {
+      value: 0,
+      configurable: true,
+    });
+    await results.trigger("scroll");
+    expect(wrapper.find(".mobile-inventory-page").classes()).not.toContain(
+      "compact",
+    );
+  });
+
+  it("restores Inventory compact state from a saved mobile scroll position", async () => {
+    sessionStorage.setItem("ti:inventory-results-scroll", "120");
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    expect(wrapper.find(".mobile-inventory-page").classes()).toContain(
+      "compact",
+    );
+    expect(wrapper.find(".compact-page-title").exists()).toBe(true);
+  });
+
+  it("compacts and restores the Expiry mobile header with its results scroll", async () => {
+    state.route.path = "/expiry";
+    const wrapper = mount(Expiry, { global: globals });
+    await flushPromises();
+    const results = wrapper.find<HTMLElement>(".mobile-results");
+    Object.defineProperty(results.element, "scrollTop", {
+      value: 100,
+      configurable: true,
+    });
+    await results.trigger("scroll");
+    expect(wrapper.find(".mobile-expiry-page").classes()).toContain("compact");
+    Object.defineProperty(results.element, "scrollTop", {
+      value: 0,
+      configurable: true,
+    });
+    await results.trigger("scroll");
+    expect(wrapper.find(".mobile-expiry-page").classes()).not.toContain(
+      "compact",
+    );
+  });
+
+  it("restores Expiry compact state from a saved scroll position", async () => {
+    state.route.path = "/expiry";
+    sessionStorage.setItem("temple_inventory.scroll.expiry", "120");
+    const wrapper = mount(Expiry, { global: globals });
+    await flushPromises();
+    expect(wrapper.find(".mobile-expiry-page").classes()).toContain("compact");
+  });
+
   it("hides the ERPNext item-group root and sanitizes legacy selection", async () => {
     state.route.query = { item_groups: "All Item Groups" };
     state.api.mockImplementation(async (method: string) =>
@@ -150,7 +322,7 @@ describe("Inventory and Expiry integrations", () => {
     expect(inventoryRequest?.[1].item_groups).toBeUndefined();
   });
 
-  it("shows Expiry primary actions and keeps the mobile action fallback", async () => {
+  it("shows Expiry primary actions and permission-filtered overflow actions", async () => {
     state.route.path = "/expiry";
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
@@ -173,7 +345,35 @@ describe("Inventory and Expiry integrations", () => {
         .findAll(".inventory-heading-actions button")
         .map((button) => button.text()),
     ).toEqual(["↓ 入库", "↑ 出库", "⇄ 转移", "导出"]);
-    expect(wrapper.find(".expiry-fab").exists()).toBe(true);
+    expect(wrapper.find(".action-fab").exists()).toBe(false);
+    const overflow = wrapper.find(".overflow-action-trigger");
+    await overflow.trigger("click");
+    expect(
+      wrapper.findAll('[role="menuitem"]').map((item) => item.text()),
+    ).toEqual(["入库", "出库", "转移", "导出"]);
+  });
+
+  it("filters Inventory overflow actions by capabilities and keeps Export last", async () => {
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            item_groups: [],
+            physical_tree: [],
+            capabilities: { Item: true },
+            stock_operation_capabilities: {
+              Receive: true,
+              Issue: false,
+              Transfer: true,
+            },
+          }
+        : { results: inventoryRows(), total: 1, overall_total: 1, facets: {} },
+    );
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    await wrapper.find(".overflow-action-trigger").trigger("click");
+    expect(
+      wrapper.findAll('[role="menuitem"]').map((item) => item.text()),
+    ).toEqual(["新建物品", "入库", "转移", "导出"]);
   });
 
   it("restores bootstrap-dependent filters and actions when retry succeeds", async () => {

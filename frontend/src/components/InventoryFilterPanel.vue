@@ -4,6 +4,7 @@ import InventoryIcon from "./InventoryIcon.vue";
 
 export type ExpiryFilter =
 	| "all"
+	| "overdue"
 	| "overdue_within"
 	| "overdue_beyond"
 	| "remaining_within"

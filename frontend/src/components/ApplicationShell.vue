@@ -299,7 +299,7 @@ onBeforeUnmount(() => {
 		</aside>
 		<main class="shell-content"><slot /></main>
 		<nav
-			v-if="contextItems.length"
+			v-if="contextItems.length && route.path !== '/' && route.path !== '/expiry'"
 			ref="mobileContextNav"
 			class="mobile-context-nav"
 			aria-label="当前视图"

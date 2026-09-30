@@ -957,6 +957,42 @@ def _expiry_bucket_counts(rows, entity_key, expiry_days=30, custom_from=None, cu
 	return {name: len(values) for name, values in buckets.items()}
 
 
+def _expiry_summary(rows, entity_key="batch_no"):
+	"""Summarize dated, positive-stock batches across the complete active scope."""
+	seen = set()
+	counts = {
+		"expiring_soon": set(),
+		"expired": set(),
+		"within_7_days": set(),
+		"days_8_to_30": set(),
+	}
+	remaining_days = []
+	today = getdate(nowdate())
+	for row in rows:
+		key = row.get(entity_key) if isinstance(row, dict) else getattr(row, entity_key, None)
+		expiry = row.get("expiry_date") if isinstance(row, dict) else getattr(row, "expiry_date", None)
+		if not key or not expiry or key in seen:
+			continue
+		seen.add(key)
+		days = (getdate(expiry) - today).days
+		if days < 0:
+			counts["expired"].add(key)
+		elif days <= 30:
+			counts["expiring_soon"].add(key)
+			remaining_days.append(days)
+			if days <= 7:
+				counts["within_7_days"].add(key)
+			else:
+				counts["days_8_to_30"].add(key)
+	return {
+		name: len(values) for name, values in counts.items()
+	} | {
+		"average_remaining_days": int(sum(remaining_days) / len(remaining_days) + 0.5)
+		if remaining_days
+		else None
+	}
+
+
 def _bin_balances(warehouses, item_names=None):
 	"""Aggregate Bin balances once, leaving Item permission filtering to callers."""
 	warehouses = list(warehouses or [])
@@ -3468,6 +3504,17 @@ def _expiring_batches_database_page(
 	expiry_facets = _expiry_bucket_counts(
 		count_rows, "batch_no", expiry_days, custom_from, custom_to
 	)
+	# Summary cards intentionally ignore the selected expiry bucket while
+	# retaining the active search, category, warehouse, and stock scope.
+	summary_sql, summary_params = _expiring_batch_candidate_query(
+		selected, group_names, search, include_undated=True
+	)
+	summary_batch_rows = frappe.db.sql(
+		"select batch_no, expiry_date from (" + summary_sql + ") candidates "
+		f"group by batch_no, expiry_date having {having}",
+		summary_params,
+		as_dict=True,
+	)
 	return {
 		"results": rows,
 		"total": total,
@@ -3480,6 +3527,7 @@ def _expiring_batches_database_page(
 			"item_groups": {name: len(values) for name, values in group_facets.items()},
 			"expiry": expiry_facets,
 		},
+		"expiry_summary": _expiry_summary(summary_batch_rows),
 		"quantity_totals": _quantity_totals(summary_rows, ("total_qty",)),
 	}
 
@@ -3589,12 +3637,8 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 	batch_filters = {"disabled": 0}
 	if undated_only:
 		batch_filters["expiry_date"] = ("is", "not set")
-	elif not include_undated:
-		batch_filters["expiry_date"] = ("is", "set")
-	if expiry_from:
-		batch_filters["expiry_date"] = (">=", expiry_from)
-	if expiry_to:
-		batch_filters["expiry_date"] = ("between", [expiry_from or "1900-01-01", expiry_to])
+	# Fetch all batches once so the mobile summary can ignore the selected
+	# expiry bucket while preserving the same search/category/stock scope.
 	batch_or_filters = None
 	if item_candidate_names is not None:
 		if search:
@@ -3682,7 +3726,17 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			or (not stock_only and not row["locations"])
 		)
 	rows = []
+	summary_scope_rows = []
 	for row in all_rows:
+		if (
+			(not group_names or row["item_group"] in group_names)
+			and (not search or search.lower() in f"{row['batch_no']} {row['item_code']} {row['item_name']}".lower())
+			and (
+				any(location["warehouse"] in selected for location in row["locations"])
+				or (not stock_only and not row["locations"])
+			)
+		):
+			summary_scope_rows.append(row)
 		if not matches(row, selected, group_names if selected_groups else None):
 			continue
 		copy_row = {**row, "locations": [location for location in row["locations"] if location["warehouse"] in selected], "total_qty": sum(location["qty"] for location in row["locations"] if location["warehouse"] in selected)}
@@ -3710,5 +3764,5 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			leaves = [leaf for leaf, leaf_row in physical_nodes.items() if not leaf_row.is_group and leaf_row.lft >= node.lft and leaf_row.rgt <= node.rgt]
 			warehouse_facet[name] = set().union(*(warehouse_facet.get(leaf, set()) for leaf in leaves)) if leaves else set()
 	facets = {"warehouses": {name: len(values) for name, values in warehouse_facet.items()}, "item_groups": {name: len(values) for name, values in group_facet.items()}, "expiry": _expiry_bucket_counts(all_rows, "batch_no", days_value, custom_from, custom_to)}
-	overall_total = len(all_rows)
-	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of), "facets": facets, "quantity_totals": _quantity_totals(rows, ("total_qty",))}
+	overall_total = sum(1 for row in all_rows if matches(row, all_selected, group_names if selected_groups else None))
+	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of), "facets": facets, "expiry_summary": _expiry_summary(summary_scope_rows), "quantity_totals": _quantity_totals(rows, ("total_qty",))}

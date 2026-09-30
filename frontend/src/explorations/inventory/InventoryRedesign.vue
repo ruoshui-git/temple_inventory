@@ -268,6 +268,7 @@ const categoryNodes = computed<InventoryFilterNode[]>(() =>
 );
 const expiryLabels: Record<ExpiryFilter, string> = {
 	all: "",
+	overdue: "效期：已过期",
 	overdue_within: "效期：已过期 30 天以下",
 	overdue_beyond: "效期：已过期 30 天以上",
 	remaining_within: "效期：还剩 30 天以下",

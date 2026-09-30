@@ -87,6 +87,16 @@ describe("ApplicationShell navigation contract", () => {
     expect(context.find('a[aria-current="page"]').text()).toBe("效期批次");
   });
 
+  it("leaves Inventory and Expiry tabs to the production page on mobile", async () => {
+    route.path = "/expiry";
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+    expect(wrapper.find(".mobile-context-nav").exists()).toBe(false);
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+  });
+
   it("normalizes default context state and gives Adjustments no subnavigation", async () => {
     route.path = "/movements";
     route.query = {};

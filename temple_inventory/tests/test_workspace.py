@@ -766,6 +766,33 @@ class WorkspaceTests(unittest.TestCase):
 			result = expiring_batches()
 		self.assertLess(result["results"][0]["days_to_expiry"], 0)
 
+	def test_expiry_summary_ignores_selected_window_and_counts_distinct_batches(self):
+		warehouses, settings = self._mock_inventory_context()
+		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="汇总物品", item_group="Group A", stock_uom="Nos")
+		batches = [
+			SimpleNamespace(name="B-EXPIRED", item="ITEM-1", expiry_date=str(add_days(nowdate(), -2))),
+			SimpleNamespace(name="B-7", item="ITEM-1", expiry_date=str(add_days(nowdate(), 2))),
+			SimpleNamespace(name="B-8-30", item="ITEM-1", expiry_date=str(add_days(nowdate(), 10))),
+			SimpleNamespace(name="B-LATER", item="ITEM-1", expiry_date=str(add_days(nowdate(), 31))),
+			SimpleNamespace(name="B-ZERO", item="ITEM-1", expiry_date=str(add_days(nowdate(), 3))),
+		]
+		def get_all(doctype, *args, **kwargs):
+			if doctype == "Item":
+				return [item]
+			if doctype == "Batch":
+				return batches
+			raise AssertionError(doctype)
+		def batch_qty(batch_no, warehouse, item_code, **kwargs):
+			return 0 if batch_no == "B-ZERO" else 1
+		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_all", side_effect=get_all), patch.object(inventory_service, "get_batch_qty", side_effect=batch_qty):
+			result = expiring_batches(expiry_window="remaining_within", expiry_days=2)
+		self.assertEqual(result["total"], 1)
+		self.assertEqual(result["expiry_summary"]["expired"], 1)
+		self.assertEqual(result["expiry_summary"]["expiring_soon"], 2)
+		self.assertEqual(result["expiry_summary"]["within_7_days"], 1)
+		self.assertEqual(result["expiry_summary"]["days_8_to_30"], 1)
+		self.assertEqual(result["expiry_summary"]["average_remaining_days"], 6)
+
 	def test_all_movement_kinds_carry_canonical_audit_fields(self):
 		with patch.object(api, "_try_sync"):
 			metadata = api.create_workspace(frappe.generate_hash(length=16), "Receive", {"recorded_by": "Guest", "responsible_person": "Guest", "recorder_name": "记录甲", "handler_name": "经手乙", "reviewer_name": "鉴证丙", "items": []})
