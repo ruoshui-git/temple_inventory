@@ -17,6 +17,7 @@ import WarehousePreview from "../components/WarehousePreview.vue";
 import WarehouseSelector from "../components/WarehouseSelector.vue";
 import QuantitySummary from "../components/QuantitySummary.vue";
 import ExportDialog from "../components/ExportDialog.vue";
+import CompactFilterSection from "../components/CompactFilterSection.vue";
 import { returnToOpener } from "../lib/navigation";
 
 type Destination = "movements" | "adjustments" | "drafts";
@@ -65,6 +66,7 @@ const busy = ref(true);
 const refreshing = ref(false);
 const appending = ref(false);
 const filterOpen = ref(false);
+const desktopFilterOpen = ref(false);
 const exportOpen = ref(false);
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null);
 const sentinel = ref<HTMLElement>();
@@ -243,6 +245,11 @@ function clearAll() {
 		source_warehouses: [],
 		destination_warehouses: [],
 	};
+}
+function openFilters(event?: Event) {
+	if (typeof window !== "undefined" && window.matchMedia?.("(min-width: 1024px)").matches)
+		desktopFilterOpen.value = !desktopFilterOpen.value;
+	else filterPanel.value?.openPanel(event);
 }
 function requestFilters() {
 	const base: Record<string, unknown> = {
@@ -426,6 +433,7 @@ function applyQuery(query: Record<string, unknown>) {
 		"today",
 		"last_7_days",
 		"last_30_days",
+		"last_90_days",
 		"last_365_days",
 		"this_week",
 		"this_month",
@@ -583,13 +591,32 @@ onBeforeUnmount(() => {
 		<header v-if="props.destination === 'drafts'" class="browse-back">
 			<button type="button" @click="close">‹ 更多</button>
 		</header>
-		<div class="list-layout desktop-list-layout">
+		<div
+			class="list-layout desktop-list-layout compact-filter-layout"
+			:class="{ 'filters-open': desktopFilterOpen }"
+		>
 			<ResponsiveFilterPanel
 				ref="filterPanel"
 				v-model:open="filterOpen"
 				:count="activeCount"
+				clearable
+				@clear="clearAll"
 			>
-				<fieldset v-if="props.destination !== 'movements'">
+				<CompactFilterSection
+					v-if="props.destination === 'drafts'"
+					title="日期"
+					icon="calendar"
+					:collapsible="false"
+				>
+					<label class="sr-only" for="drafts-posting-date">日期</label>
+					<input
+						id="drafts-posting-date"
+						v-model="filters.posting_date"
+						type="date"
+						aria-label="日期"
+					/>
+				</CompactFilterSection>
+				<fieldset v-else-if="props.destination !== 'movements'">
 					<legend>日期</legend>
 					<input v-model="filters.posting_date" type="date" aria-label="日期" />
 				</fieldset>
@@ -613,46 +640,56 @@ onBeforeUnmount(() => {
 						/>库存盘点</label
 					>
 				</fieldset>
-				<CategorySelector
-					v-model="filters.item_groups"
-					:rows="boot?.item_groups || []"
-					:counts="facets.item_groups"
-				/>
-				<WarehouseSelector
-					v-if="props.destination === 'movements' && movementKind === 'Receive'"
-					v-model="filters.destination_warehouses"
-					:rows="warehouseRows"
-					:counts="facets.destination_warehouses"
-					title="入库位置"
-				/>
-				<WarehouseSelector
-					v-else-if="props.destination === 'movements' && movementKind === 'Issue'"
-					v-model="filters.source_warehouses"
-					:rows="warehouseRows"
-					:counts="facets.source_warehouses"
-					title="出库位置"
-				/>
-				<template v-else-if="props.destination === 'movements'">
-					<WarehouseSelector
-						v-model="filters.source_warehouses"
-						:rows="warehouseRows"
-						:counts="facets.source_warehouses"
-						title="来源位置"
+				<CompactFilterSection title="物品类别" icon="card">
+					<CategorySelector
+						v-model="filters.item_groups"
+						:rows="boot?.item_groups || []"
+						:counts="facets.item_groups"
+						embedded
 					/>
+				</CompactFilterSection>
+				<CompactFilterSection title="仓库 / 位置" icon="warehouse">
 					<WarehouseSelector
+						v-if="props.destination === 'movements' && movementKind === 'Receive'"
 						v-model="filters.destination_warehouses"
 						:rows="warehouseRows"
 						:counts="facets.destination_warehouses"
-						title="去向位置"
+						title="入库位置"
+						embedded
 					/>
-				</template>
-				<WarehouseSelector
-					v-else
-					v-model="filters.warehouses"
-					:rows="warehouseRows"
-					:counts="facets.warehouses"
-					title="位置"
-				/>
+					<WarehouseSelector
+						v-else-if="props.destination === 'movements' && movementKind === 'Issue'"
+						v-model="filters.source_warehouses"
+						:rows="warehouseRows"
+						:counts="facets.source_warehouses"
+						title="出库位置"
+						embedded
+					/>
+					<template v-else-if="props.destination === 'movements'">
+						<WarehouseSelector
+							v-model="filters.source_warehouses"
+							:rows="warehouseRows"
+							:counts="facets.source_warehouses"
+							title="来源位置"
+							embedded
+						/>
+						<WarehouseSelector
+							v-model="filters.destination_warehouses"
+							:rows="warehouseRows"
+							:counts="facets.destination_warehouses"
+							title="去向位置"
+							embedded
+						/>
+					</template>
+					<WarehouseSelector
+						v-else
+						v-model="filters.warehouses"
+						:rows="warehouseRows"
+						:counts="facets.warehouses"
+						title="位置"
+						embedded
+					/>
+				</CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column">
 				<div class="results-chrome">
@@ -671,11 +708,21 @@ onBeforeUnmount(() => {
 							placeholder="搜索记录或物品"
 							aria-label="搜索记录或物品"
 						/>
+						<button
+							type="button"
+							class="toolbar-action desktop-filter-button mobile-filter-button"
+							:aria-expanded="desktopFilterOpen"
+							@click="openFilters($event)"
+						>
+							筛选<span v-if="activeCount" class="filter-count">{{
+								activeCount
+							}}</span>
+						</button>
 						<IconButton
 							class="mobile-filter-button"
 							:label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'"
 							title="筛选"
-							@click="filterPanel?.openPanel($event)"
+							@click="openFilters($event)"
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M4 6h16M7 12h10M10 18h4" /></svg
 							><span v-if="activeCount" class="icon-count">{{

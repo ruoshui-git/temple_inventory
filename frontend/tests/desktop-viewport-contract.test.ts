@@ -22,14 +22,17 @@ describe("desktop shell viewport contract", () => {
   });
 
   it("keeps desktop filters inside the constrained page viewport", () => {
-    expect(globalStyles).toContain(
-      ".desktop-list-layout{min-height:0;overflow:hidden}",
+    expect(globalStyles).toMatch(
+      /\.desktop-list-layout\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/,
     );
-    expect(globalStyles).toContain(
-      ".desktop-list-layout>.filter-sidebar{position:static;box-sizing:border-box;height:100%;max-height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}",
+    expect(globalStyles).toMatch(
+      /\.desktop-list-layout\s*>\s*\.filter-sidebar\s*\{[\s\S]*?position:\s*static;[\s\S]*?box-sizing:\s*border-box;[\s\S]*?height:\s*100%;[\s\S]*?max-height:\s*100%;[\s\S]*?min-height:\s*0;[\s\S]*?overflow-x:\s*hidden;[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior:\s*contain;?/,
     );
-    expect(globalStyles).toContain(
-      ".desktop-list-layout>.results-column{display:grid",
+    expect(globalStyles).toMatch(
+      /\.desktop-list-layout\s*>\s*\.results-column\s*\{[\s\S]*?display:\s*grid;/,
+    );
+    expect(globalStyles).toMatch(
+      /@media\s*\(max-width:\s*1023px\)[\s\S]*?\.filter-drawer-done\s*\{[\s\S]*?display:\s*block;/,
     );
   });
 });

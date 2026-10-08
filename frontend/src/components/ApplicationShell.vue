@@ -26,6 +26,8 @@ const destinations: Destination[] = [
 const activeDestination = computed(() => {
 	if (
 		route.path === "/movements" ||
+		route.path === "/movements/items" ||
+		route.path === "/movements/records" ||
 		route.path === "/history" ||
 		["Receive", "Issue", "Transfer"].includes(String(route.params.kind || ""))
 	)
@@ -50,13 +52,9 @@ const inventorySharedQuery = computed<LocationQueryRaw>(() => ({
 	item_groups: route.query.item_groups,
 }));
 const movementSharedQuery = computed<LocationQueryRaw>(() => ({
-	search: route.query.search,
-	period: route.query.period,
-	date_from: route.query.date_from,
-	date_to: route.query.date_to,
-	item_groups: route.query.item_groups,
-	sort_by: route.query.sort_by,
-	sort_order: route.query.sort_order,
+	// Keep the complete canonical movement query when switching the two ledger
+	// views.  Repeated kind/warehouse/status values must survive as arrays.
+	...route.query,
 }));
 const loanSharedQuery = computed<LocationQueryRaw>(() => ({
 	search: route.query.search,
@@ -79,31 +77,24 @@ const inventoryContextItems = computed<ContextItem[]>(() => [
 ]);
 const contextItems = computed<ContextItem[]>(() => {
 	if (route.path === "/" || route.path === "/expiry") return inventoryContextItems.value;
-	if (route.path === "/movements" || route.path === "/history")
+	if (
+		route.path === "/movements" ||
+		route.path === "/movements/items" ||
+		route.path === "/movements/records" ||
+		route.path === "/history"
+	)
 		return [
 			{
-				key: "overview",
-				label: "概览",
-				path: "/movements",
+				key: "items",
+				label: "明细",
+				path: "/movements/items",
 				query: movementSharedQuery.value,
 			},
 			{
-				key: "Receive",
-				label: "入库",
-				path: "/movements",
-				query: { ...movementSharedQuery.value, kind: "Receive" },
-			},
-			{
-				key: "Issue",
-				label: "出库",
-				path: "/movements",
-				query: { ...movementSharedQuery.value, kind: "Issue" },
-			},
-			{
-				key: "Transfer",
-				label: "转移",
-				path: "/movements",
-				query: { ...movementSharedQuery.value, kind: "Transfer" },
+				key: "records",
+				label: "记录",
+				path: "/movements/records",
+				query: movementSharedQuery.value,
 			},
 		];
 	if (route.path === "/loans")
@@ -127,9 +118,20 @@ const contextItems = computed<ContextItem[]>(() => {
 const contextKey = computed(() => {
 	if (route.path === "/") return "current";
 	if (route.path === "/expiry") return "expiry";
-	if (route.path === "/movements" || route.path === "/history") {
+	if (
+		route.path === "/movements" ||
+		route.path === "/movements/items" ||
+		route.path === "/movements/records" ||
+		route.path === "/history"
+	) {
 		const requested = String(route.query.kind || route.query.movement_kind || "");
-		return ["Receive", "Issue", "Transfer"].includes(requested) ? requested : "overview";
+		return route.path === "/movements/records"
+			? "records"
+			: route.path === "/movements/items"
+				? "items"
+				: ["Receive", "Issue", "Transfer"].includes(requested)
+					? requested
+					: "items";
 	}
 	if (route.path === "/loans")
 		return route.query.status === "settled" ? "settled" : "outstanding";

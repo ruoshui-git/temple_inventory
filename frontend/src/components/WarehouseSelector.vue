@@ -14,11 +14,13 @@ const props = withDefaults(
 		counts?: Record<string, number>;
 		title?: string;
 		placeholder?: string;
+		embedded?: boolean;
 	}>(),
 	{
 		counts: () => ({}),
 		title: "仓库 / 位置",
 		placeholder: "搜索或浏览仓库 / 位置",
+		embedded: false,
 	},
 );
 const emit = defineEmits<{ "update:modelValue": [value: string[]] }>();
@@ -46,6 +48,7 @@ const tree = computed(() =>
 		:model-value="modelValue"
 		:title="title"
 		:placeholder="placeholder"
+		:embedded="embedded"
 		:options="options"
 		:tree="tree"
 		@update:model-value="emit('update:modelValue', $event)"

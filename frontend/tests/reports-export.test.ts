@@ -52,6 +52,12 @@ describe("reports and exports", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("报表与导出");
     expect(wrapper.find('[aria-pressed="true"]').text()).toContain("货物流动");
+    expect(
+      wrapper.findAll(".compact-filter-section").length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      wrapper.find(".compact-filter-field input[type='search']").exists(),
+    ).toBe(true);
     await wrapper.find(".report-actions button").trigger("click");
     await flushPromises();
     expect(state.downloadReport).toHaveBeenCalledWith(

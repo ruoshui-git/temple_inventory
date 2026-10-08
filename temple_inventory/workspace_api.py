@@ -65,10 +65,12 @@ MOVEMENT_OVERVIEW_KINDS = (
 	"Repair",
 	"Disposal",
 )
+MOVEMENT_LEDGER_KINDS = MOVEMENT_OVERVIEW_KINDS + ("Reconcile",)
 MOVEMENT_PERIOD_KEYS = {
 	"today",
 	"last_7_days",
 	"last_30_days",
+	"last_90_days",
 	"last_365_days",
 	"this_week",
 	"this_month",
@@ -105,6 +107,8 @@ def _movement_period(filters, default=False):
 			start = getdate(add_days(today, -6))
 		elif key == "last_30_days":
 			start = getdate(add_days(today, -29))
+		elif key == "last_90_days":
+			start = getdate(add_days(today, -89))
 		elif key == "last_365_days":
 			start = getdate(add_days(today, -364))
 		elif key == "this_week":
@@ -950,7 +954,7 @@ def _create_business_record(doc, payload, entry):
 		**common,
 		"borrower": doc.borrower,
 		"activity": doc.activity,
-		"notes": doc.notes,
+		"notes": doc.get("notes") or "",
 		"items": [{
 			"item_code": row["item_code"],
 			"qty": row["qty"],
@@ -1157,6 +1161,23 @@ def activities(search=None, status=None, activity_type=None, start=0, page_lengt
 		limit_start=int(start or 0), limit_page_length=min(int(page_length or 100), 100),
 		order_by="modified desc",
 	)
+
+
+@frappe.whitelist()
+def movement_filter_options(search=None, item_search=None, start=0, page_length=100):
+	"""Return display-safe Item and activity choices for movement filters."""
+	_require_stock()
+	term = str(item_search or search or "").strip()
+	item_filters = {}
+	item_or_filters = None
+	if term:
+		item_or_filters = [{"name": ("like", f"%{term}%")}, {"item_name": ("like", f"%{term}%")}]
+	items = frappe.get_list("Item", filters=item_filters, or_filters=item_or_filters, fields=["name", "item_name", "item_group", "image"], limit_start=cint(start or 0), limit_page_length=min(cint(page_length or 100), 100), order_by="item_name asc")
+	activity_or_filters = None
+	if term:
+		activity_or_filters = [{"name": ("like", f"%{term}%")}, {"title": ("like", f"%{term}%")}]
+	activities = frappe.get_list("Inventory Activity", filters={}, or_filters=activity_or_filters, fields=["name", "title"], limit_page_length=100, order_by="title asc")
+	return {"items": items, "activities": activities}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1727,29 +1748,52 @@ def _history_aggregate(row):
 	return row
 
 
-def _history_trim_items(rows):
+def _history_trim_items(rows, keep_all=False):
 	"""Keep the legacy bounded item preview while aggregating full child rows."""
 	for row in rows:
 		all_items = row.pop("_all_items", None)
 		if all_items is not None:
-			row["items"] = all_items[:5]
+			row["items"] = all_items if keep_all else all_items[:5]
 
 
 def _history_hydrate_item_metadata(rows):
 	"""Fill category/UOM metadata for direct ERPNext rows in one permission-safe batch."""
-	codes = {item.get("item_code") for row in rows for item in (row.get("items") or []) if item.get("item_code")}
+	item_rows = [row.get("_all_items") or row.get("items") or [] for row in rows]
+	codes = {
+		item.get("item_code")
+		for items in item_rows
+		for item in items
+		if item.get("item_code")
+	}
 	if not codes:
 		return
 	metadata = {
-		row.name: row for row in frappe.get_list("Item", filters={"name": ("in", sorted(codes))},
-			fields=["name", "item_group", "stock_uom"], limit_page_length=0)
+		row.name: row for row in frappe.get_list(
+			"Item",
+			filters={"name": ("in", sorted(codes))},
+			fields=["name", "item_name", "item_group", "stock_uom", "image"],
+			limit_page_length=0,
+		)
 	}
-	for row in rows:
-		for item in row.get("_all_items") or row.get("items") or []:
+	for items in item_rows:
+		for item in items:
 			meta = metadata.get(item.get("item_code"))
 			if meta:
-				item.setdefault("item_group", meta.item_group)
-				item.setdefault("uom", meta.stock_uom)
+				# Item is the authoritative catalog record. Workspace/legacy payloads
+				# can contain stale snapshots, so replace rather than fill blanks.
+				item["item_name"] = meta.item_name
+				item["item_group"] = meta.item_group
+				item["uom"] = meta.stock_uom
+				item["stock_uom"] = meta.stock_uom
+				item["image"] = meta.image
+			else:
+				# Permission-filtered Item reads must not expose a workspace snapshot
+				# for an Item the caller cannot read.
+				item["item_name"] = item.get("item_code") or ""
+				item["item_group"] = ""
+				item["image"] = ""
+				item["uom"] = item.get("uom") if item.get("uom") == item.get("stock_uom") else ""
+				item["stock_uom"] = ""
 
 
 def _history_workspace_summary(doc):
@@ -1761,11 +1805,16 @@ def _history_workspace_summary(doc):
 		entry = frappe.get_doc("Stock Entry", doc.stock_entry)
 		summary_items = [
 			{
+				"id": item.name,
 				"item_code": item.item_code,
 				"qty": item.qty,
 				"uom": item.uom,
 				"stock_uom": item.stock_uom,
 				"stock_qty": item.transfer_qty,
+				"from_warehouse": item.s_warehouse,
+				"to_warehouse": item.t_warehouse,
+				"s_warehouse": item.s_warehouse,
+				"t_warehouse": item.t_warehouse,
 			}
 			for item in entry.items
 		]
@@ -1775,14 +1824,24 @@ def _history_workspace_summary(doc):
 		reconciliation = frappe.get_doc("Stock Reconciliation", doc.stock_reconciliation)
 		summary_items = [
 			{
+				"id": item.name,
 				"item_code": item.item_code,
 				"qty": item.qty,
 				"current_qty": getattr(item, "current_qty", None),
 				"quantity_difference": getattr(item, "quantity_difference", None),
 				"stock_uom": getattr(item, "stock_uom", None),
+				"warehouse": item.warehouse,
 			}
 			for item in reconciliation.items
 		]
+	for index, item in enumerate(summary_items):
+		payload_item = items[index] if index < len(items) else {}
+		if not item.get("warehouse"):
+			item["warehouse"] = payload_item.get("warehouse")
+		if not item.get("from_warehouse"):
+			item["from_warehouse"] = payload_item.get("from_warehouse")
+		if not item.get("to_warehouse"):
+			item["to_warehouse"] = payload_item.get("to_warehouse")
 	quantities = defaultdict(float)
 	for item in items:
 		quantities[item.get("uom") or ""] += flt(item.get("qty"))
@@ -1812,6 +1871,7 @@ def _history_workspace_summary(doc):
 		"source_text": doc.source_text,
 		"purpose_text": doc.purpose_text,
 		"activity": doc.activity,
+		"notes": doc.get("notes") or "",
 		"handler_name": doc.handler_name,
 		"recorded_by": doc.recorded_by,
 		"line_count": len(items),
@@ -2182,7 +2242,7 @@ def movement_overview(filters=None, start=0, page_length=25, sort_by="last_posti
 
 
 @frappe.whitelist()
-def history(filters=None, start=0, page_length=30, status_group="all", sort_by=None, sort_order=None):
+def history(filters=None, start=0, page_length=30, status_group="all", sort_by=None, sort_order=None, include_items=False):
 	_require_stock()
 	sort_state = _sort_state(sort_by, sort_order, {"title", "posting_date", "line_count", "location_count", "category_count", "increase_line_count", "decrease_line_count", "movement_kind"}, "posting_date", "desc")
 	raw_filters = _loads(filters, {})
@@ -2292,7 +2352,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			column, direction = sort_state
 			numeric = {"line_count", "location_count", "category_count", "increase_line_count", "decrease_line_count"}
 			rows.sort(key=lambda row: float(row.get(column) or 0) if column in numeric else str(row.get(column) or "").lower(), reverse=direction == "desc")
-		_history_trim_items(rows)
+		_history_trim_items(rows, keep_all=bool(include_items))
 		page = {
 			"results": rows,
 			"total": total,
@@ -2488,7 +2548,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 	page["quantity_totals"] = _history_quantity_totals(matched)
 	if resolved_period:
 		page["resolved_period"] = resolved_period
-	_history_trim_items(page["results"])
+	_history_trim_items(page["results"], keep_all=bool(include_items))
 	if status_group == "unfinished":
 		page["overall_total"] = sum(1 for row in results if row["docstatus"] == 0)
 	elif status_group == "completed":
@@ -2520,6 +2580,271 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 		"item_groups": {key: len(value) for key, value in item_group_facets.items()},
 	}
 	return page
+
+
+def _movement_history_records(filters, docstatuses=None):
+	"""Load the complete permission-scoped parent set for the movement ledger."""
+	requested = _selection_values(filters.get("movement_kinds"))
+	base_filters = dict(filters)
+	base_filters.pop("movement_kinds", None)
+	if requested:
+		base_filters["movement_kind"] = ["盘点调整" if value == "Reconcile" else value for value in requested]
+	rows = []
+	start = 0
+	while True:
+		page = history(
+			filters=base_filters,
+			start=start,
+			page_length=100,
+			status_group="all",
+			include_items=True,
+		)
+		batch = page.get("results") or []
+		rows.extend(batch)
+		start += len(batch)
+		if not batch or start >= int(page.get("total") or 0):
+			break
+	allowed_statuses = set(cint(status) for status in (docstatuses if docstatuses is not None else [0, 1, 2]))
+	result = [row for row in rows if cint(row.get("docstatus")) in allowed_statuses and row.get("movement_kind") != "期初库存"]
+	for row in result:
+		if not row.get("detail_route"):
+			row["detail_route"] = f"/reconcile/{row['name']}" if row.get("document_type") == "Stock Reconciliation" else f"/entry/{row['name']}"
+	return result
+
+
+def _ledger_kind(row):
+	kind = row.get("movement_kind") or ""
+	return "Reconcile" if kind == "盘点调整" or row.get("document_type") == "Stock Reconciliation" else kind
+
+
+def _ledger_difference(item):
+	difference = item.get("quantity_difference")
+	if difference in (None, ""):
+		difference = flt(item.get("qty")) - flt(item.get("current_qty"))
+	return flt(difference)
+
+
+def _ledger_item_rows(records):
+	items = []
+	for record in records:
+		kind = _ledger_kind(record)
+		for item in record.get("items") or []:
+			if kind == "Reconcile":
+				quantity = _ledger_difference(item)
+				if not quantity:
+					continue
+				stock_quantity = quantity
+				from_warehouse = ""
+				to_warehouse = item.get("warehouse") or ""
+			else:
+				quantity = flt(item.get("qty"))
+				stock_quantity = flt(item.get("stock_qty"))
+				if not stock_quantity:
+					stock_quantity = quantity
+				from_warehouse = item.get("from_warehouse") or item.get("s_warehouse") or (item.get("warehouse") if kind in ("Issue", "Loss", "Disposal") else "")
+				to_warehouse = item.get("to_warehouse") or item.get("t_warehouse") or (item.get("warehouse") if kind == "Receive" else "")
+			if kind in ("Issue", "Loss", "Disposal"):
+				stock_quantity = -abs(stock_quantity)
+			elif kind == "Reconcile":
+				stock_quantity = quantity
+			else:
+				stock_quantity = abs(stock_quantity)
+			items.append(
+				{
+					"id": item.get("id") or item.get("name") or f"{record.get('name', '')}:{len(items)}",
+					"posting_date": record.get("posting_date", ""),
+					"posting_time": record.get("posting_time", ""),
+					"movement_kind": kind,
+					"item_code": item.get("item_code", ""),
+					"item_name": item.get("item_name") or item.get("item_code", ""),
+					"item_group": item.get("item_group", ""),
+					"image": item.get("image", ""),
+					"qty": quantity,
+					"uom": item.get("uom") or item.get("stock_uom") or "",
+					"stock_qty": stock_quantity,
+					"stock_uom": item.get("stock_uom") or item.get("uom") or "",
+					"from_warehouse": from_warehouse,
+					"to_warehouse": to_warehouse,
+					"source_warehouse": from_warehouse,
+					"destination_warehouse": to_warehouse,
+					"record_name": record.get("name", ""),
+					"entry": record.get("name", ""),
+					"document_type": record.get("document_type", "Stock Entry"),
+					"docstatus": cint(record.get("docstatus")),
+					"detail_route": record.get("detail_route") or "",
+					"activity": record.get("activity", ""),
+					"source_text": record.get("source_text", ""),
+					"purpose_text": record.get("purpose_text", ""),
+					"notes": record.get("notes", "") or record.get("title", ""),
+				}
+			)
+	return items
+
+
+def _facet_value_present(value):
+	return value is not None and value != ""
+
+
+def _ledger_line_facets(items, key):
+	"""Count matching movement lines, retaining zero as a valid docstatus value."""
+	values = defaultdict(int)
+	for item in items:
+		value = item.get(key)
+		if _facet_value_present(value):
+			values[value] += 1
+	return {value: count for value, count in sorted(values.items(), key=lambda pair: str(pair[0]))}
+
+
+def _ledger_record_facets(items, key):
+	"""Count distinct parent records for operation-level facets."""
+	values = defaultdict(set)
+	for item in items:
+		value = item.get(key)
+		if _facet_value_present(value):
+			values[value].add(item.get("record_name") or item.get("entry") or item.get("name"))
+	return {value: len(records) for value, records in sorted(values.items(), key=lambda pair: str(pair[0]))}
+
+
+def _ledger_activity_titles(items):
+	names = {item.get("activity") for item in items if item.get("activity")}
+	if not names:
+		return
+	titles = {row.name: row.title for row in frappe.get_list("Inventory Activity", filters={"name": ("in", sorted(names))}, fields=["name", "title"], limit_page_length=0)}
+	for item in items:
+		if item.get("activity"):
+			item["activity_title"] = titles.get(item["activity"], item["activity"])
+
+
+@frappe.whitelist()
+def movement_items(filters=None, start=0, page_length=30):
+	"""Return posted, item-level stock effects for the movement detail ledger."""
+	_require_stock()
+	filters = dict(_loads(filters, {}))
+	filters.setdefault("period_key", "this_month")
+	requested = _selection_values(filters.get("movement_kinds"))
+	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
+		frappe.throw(_("Invalid movement kind"))
+	filters.pop("movement_kinds", None)
+	records = _movement_history_records(filters, docstatuses=[1])
+	all_items = _ledger_item_rows(records)
+	_ledger_activity_titles(all_items)
+	items = all_items
+	if requested:
+		items = [item for item in items if item["movement_kind"] in requested]
+	items.sort(key=lambda item: (str(item.get("posting_date") or ""), str(item.get("posting_time") or ""), item["record_name"]), reverse=True)
+	page_start = max(cint(start or 0), 0)
+	length = min(max(cint(page_length or 30), 1), 100)
+	period = _movement_period(filters, default=True)
+	return {
+		"results": items[page_start : page_start + length],
+		"total": len(items),
+		"all_total": len(all_items),
+		"start": page_start,
+		"page_length": length,
+		"resolved_period": period,
+		"facets": {
+			"movement_kind": _ledger_line_facets(all_items, "movement_kind"),
+			"item_groups": _ledger_line_facets(all_items, "item_group"),
+			"source_warehouses": _ledger_line_facets(all_items, "source_warehouse"),
+			"destination_warehouses": _ledger_line_facets(all_items, "destination_warehouse"),
+		},
+	}
+
+
+@frappe.whitelist()
+def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
+	"""Return operation-level movement records, including optional drafts/cancellations."""
+	_require_stock()
+	filters = dict(_loads(filters, {}))
+	filters.setdefault("period_key", "this_month")
+	requested = _selection_values(filters.get("movement_kinds"))
+	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
+		frappe.throw(_("Invalid movement kind"))
+	filters.pop("movement_kinds", None)
+	if docstatuses is None:
+		statuses = [0, 1]
+	else:
+		statuses = [cint(value) for value in _selection_values(docstatuses)]
+		if any(status not in (0, 1, 2) for status in statuses):
+			frappe.throw(_("Invalid document status"))
+	all_records = _movement_history_records(filters, docstatuses=statuses)
+	all_records = [record for record in all_records if _ledger_kind(record) != "Reconcile" or _ledger_item_rows([record])]
+	# Build the complete permission-scoped record set first.  Kind selection is
+	# applied only to the returned rows; facets must remain useful for the other
+	# action chips and therefore exclude only the action selection itself.
+	records = all_records
+	all_record_items = _ledger_item_rows(all_records)
+	_ledger_activity_titles(all_record_items)
+	activity_titles = {item.get("activity"): item.get("activity_title") for item in all_record_items if item.get("activity")}
+	result = []
+	for record in records:
+		kind = _ledger_kind(record)
+		items = _ledger_item_rows([record])
+		if kind == "Reconcile" and not items:
+			continue
+		quantities = defaultdict(float)
+		for item in items:
+			quantities[item["stock_uom"]] += abs(flt(item["stock_qty"]))
+		locations = []
+		for item in items:
+			if item["source_warehouse"] and item["source_warehouse"] not in locations:
+				locations.append(item["source_warehouse"])
+			if item["destination_warehouse"] and item["destination_warehouse"] not in locations:
+				locations.append(item["destination_warehouse"])
+		sources = list(dict.fromkeys(item["source_warehouse"] for item in items if item["source_warehouse"]))
+		destinations = list(dict.fromkeys(item["destination_warehouse"] for item in items if item["destination_warehouse"]))
+		result.append(
+			{
+				"record_name": record.get("name", ""),
+				"entry": record.get("name", ""),
+				"document_type": record.get("document_type", "Stock Entry"),
+				"movement_kind": kind,
+				"docstatus": cint(record.get("docstatus")),
+				"posting_date": record.get("posting_date", ""),
+				"posting_time": record.get("posting_time", ""),
+				"line_count": len(items),
+				"quantities": [{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(quantities.items()) if uom],
+				"source_warehouse": items[0]["source_warehouse"] if items else "",
+				"destination_warehouse": items[0]["destination_warehouse"] if items else "",
+				"locations": locations,
+				"source_warehouses": sources,
+				"destination_warehouses": destinations,
+				"activity": record.get("activity", ""),
+				"activity_title": activity_titles.get(record.get("activity"), record.get("activity", "")),
+				"notes": record.get("notes", "") or record.get("title", ""),
+				"source_text": record.get("source_text", ""),
+				"detail_route": record.get("detail_route") or "",
+			}
+		)
+	result.sort(key=lambda row: (str(row.get("posting_date") or ""), str(row.get("posting_time") or ""), row["record_name"]), reverse=True)
+	filtered_result = (
+		[row for row in result if row["movement_kind"] in requested] if requested else result
+	)
+	page_start = max(cint(start or 0), 0)
+	length = min(max(cint(page_length or 30), 1), 100)
+	period = _movement_period(filters, default=True)
+	# Facets are calculated over all matching records, not only the current page.
+	source_facet_rows = []
+	destination_facet_rows = []
+	for row in result:
+		for warehouse in row.get("source_warehouses") or []:
+			source_facet_rows.append({"source_warehouse": warehouse, "record_name": row["record_name"]})
+		for warehouse in row.get("destination_warehouses") or []:
+			destination_facet_rows.append({"destination_warehouse": warehouse, "record_name": row["record_name"]})
+	return {
+		"results": filtered_result[page_start : page_start + length],
+		"total": len(filtered_result),
+		"all_total": len(all_records),
+		"start": page_start,
+		"page_length": length,
+		"resolved_period": period,
+		"facets": {
+			"movement_kind": _ledger_record_facets(result, "movement_kind"),
+			"docstatus": _ledger_record_facets(result, "docstatus"),
+			"source_warehouses": _ledger_record_facets(source_facet_rows, "source_warehouse"),
+			"destination_warehouses": _ledger_record_facets(destination_facet_rows, "destination_warehouse"),
+		},
+	}
 
 
 def _entry_movement_kind(doc):

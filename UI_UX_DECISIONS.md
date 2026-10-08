@@ -49,6 +49,33 @@ in the same change. Keep implementation details in code or task notes, not here.
 - Distinguish loading, saving, saved, conflict, and failure states where work is
   asynchronous or durable.
 
+## Shared compact filters
+
+- Inventory, Expiry, 货物流动, 借用, 待处理, 草稿, and list-level browse pages
+  use the same compact filter sections and hierarchy styling. Desktop filters
+  occupy a 250px rail; mobile filters use one focus-safe drawer with an enabled
+  count and immediate application, plus 清空/完成 actions. Reports keep filters inline, and 仓库 retains a
+  search field rather than a filter sidebar.
+- Hierarchy and async single-select controls close on outside pointer, Escape,
+  Tab/focus leaving, and component unmount. Selection is committed before blur
+  can close a suggestion list.
+
+## Movement browsing
+
+- Compact movement headers keep the selected period controls and resolved date
+  range visible while title/count condense after result scrolling. The rolling
+  period menu is body-teleported and anchored to its trigger so shell overflow
+  cannot clip it.
+- Movement-kind chips live inside result chrome. All, non-zero kinds, and any
+  selected zero kind remain visible; other zero-count kinds collapse behind an
+  accessible `无记录 N` control. Kind selection is multi-select OR and 全部
+  clears it.
+- ERPNext Item metadata is authoritative whenever the caller has Item read
+  permission: movement rows overwrite stale workspace values for name, image,
+  group, and stock UOM. Unauthorized Items expose no catalog snapshot beyond
+  their code. Raw posting time stays unchanged in APIs/exports; the UI shows
+  `HH:MM`.
+
 ## Item creation
 
 - Item Code is an editable ERPNext-compatible identifier. New forms preview the
@@ -140,6 +167,19 @@ in the same change. Keep implementation details in code or task notes, not here.
   draft or context.
 
 ## Supersession log
+
+- **2026-09-30:** 货物流动桌面明细/记录共用 Inventory 紧凑结果壳：可收起的
+  250px 高级筛选栏、结果滚动超过 80px 后压缩页头、独立移动端筛选抽屉；明细
+  采用物品/从/到/关联记录列，记录采用稳定的多单位数量和状态邻接标记。
+- **2026-09-30:** 货物流动桌面页 now defaults to separate `明细` and `记录`
+  views. Movement kinds, including `库存调整`, are filters rather than
+  navigation destinations; operation records retain optional draft/cancelled
+  status filters and exports include the complete filtered result.
+
+- **2026-09-30:** All list browse filters share the compact 250px rail/mobile
+  drawer interaction contract, including close-on-leave dropdown behavior and
+  complete-result filter counts. Movement Item metadata follows permission-
+  scoped ERPNext Item records rather than workspace snapshots.
 
 - **2026-09-30:** Batch-summary detail popouts, stacked expiry choices, hidden
   `All Item Groups`, and responsive Expiry primary actions extend the compact

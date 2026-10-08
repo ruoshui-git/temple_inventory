@@ -210,6 +210,7 @@ function applyQuery(query: Record<string, unknown>) {
 		"today",
 		"last_7_days",
 		"last_30_days",
+		"last_90_days",
 		"last_365_days",
 		"this_week",
 		"this_month",

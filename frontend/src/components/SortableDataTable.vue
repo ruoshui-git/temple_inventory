@@ -137,7 +137,7 @@ function action(event: MouseEvent, row: TRow) {
 						v-for="row in rows"
 						v-else
 						:key="String(valueFor(row))"
-						:class="{ selected: isSelected(row) }"
+						:class="{ selected: isSelected(row), cancelled: row.docstatus === 2 }"
 						:aria-selected="selectionMode ? isSelected(row) : undefined"
 						tabindex="0"
 						@click="activate(row, $event)"
@@ -166,7 +166,7 @@ function action(event: MouseEvent, row: TRow) {
 					v-for="row in rows"
 					:key="String(valueFor(row))"
 					class="sortable-mobile-row"
-					:class="{ selected: isSelected(row) }"
+					:class="{ selected: isSelected(row), cancelled: row.docstatus === 2 }"
 					@click="activate(row, $event)"
 					@keydown="activateKey(row, $event)"
 				>

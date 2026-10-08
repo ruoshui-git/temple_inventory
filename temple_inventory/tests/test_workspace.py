@@ -1294,10 +1294,135 @@ class WorkspaceTests(unittest.TestCase):
 				api._movement_period({"period_key": "this_year"}),
 				{"key": "this_year", "date_from": "2026-01-01", "date_to": "2026-09-28"},
 			)
+			self.assertEqual(
+				api._movement_period({"period_key": "last_90_days"}),
+				{"key": "last_90_days", "date_from": "2026-07-01", "date_to": "2026-09-28"},
+			)
 		with self.assertRaises(frappe.ValidationError):
 			api._movement_period(
 				{"period_key": "custom", "date_from": "2026-09-29", "date_to": "2026-09-28"}
 			)
+
+	def test_movement_filter_options_searches_codes_and_titles(self):
+		options = api.movement_filter_options(search=self.item, page_length=1)
+		self.assertEqual(options["items"][0]["name"], self.item)
+		self.assertIn("item_name", options["items"][0])
+		self.assertIn("title", options.get("activities", [{}])[0] if options.get("activities") else {"title": ""})
+
+	def test_movement_ledger_normalizes_signed_lines_and_zero_reconciliation(self):
+		rows = [{"name": "R1", "movement_kind": "Receive", "document_type": "Stock Entry", "docstatus": 1, "items": [{"id": "L1", "item_code": "ITM-1", "qty": 2, "uom": "Nos", "stock_qty": 2, "stock_uom": "Nos", "warehouse": "A01"}]}]
+		lines = api._ledger_item_rows(rows)
+		self.assertEqual(lines[0]["stock_qty"], 2)
+		self.assertEqual(lines[0]["destination_warehouse"], "A01")
+		zero = [{"name": "R2", "movement_kind": "盘点调整", "document_type": "Stock Reconciliation", "items": [{"item_code": "ITM-1", "qty": 4, "current_qty": 4, "uom": "Nos", "stock_uom": "Nos", "warehouse": "A01"}]}]
+		self.assertEqual(api._ledger_item_rows(zero), [])
+
+	def test_movement_item_metadata_overwrites_stale_values_and_hides_unreadable_items(self):
+		rows = [
+			{
+				"_all_items": [
+					{
+						"item_code": "ITEM-A",
+						"item_name": "旧名称",
+						"item_group": "旧类别",
+						"stock_uom": "旧单位",
+						"image": "/private/old.png",
+					},
+					{
+						"item_code": "ITEM-HIDDEN",
+						"item_name": "不应泄露",
+						"item_group": "隐藏类别",
+						"stock_uom": "Nos",
+						"image": "/private/hidden.png",
+					},
+				]
+			}
+		]
+		with patch.object(
+			frappe,
+			"get_list",
+			return_value=[
+				frappe._dict(
+					name="ITEM-A",
+					item_name="权威名称",
+					item_group="权威类别",
+					stock_uom="包",
+					image="/files/current.png",
+				)
+			],
+		):
+			api._history_hydrate_item_metadata(rows)
+		self.assertEqual(rows[0]["_all_items"][0]["item_name"], "权威名称")
+		self.assertEqual(rows[0]["_all_items"][0]["item_group"], "权威类别")
+		self.assertEqual(rows[0]["_all_items"][0]["stock_uom"], "包")
+		self.assertEqual(rows[0]["_all_items"][0]["image"], "/files/current.png")
+		self.assertEqual(rows[0]["_all_items"][1]["item_name"], "ITEM-HIDDEN")
+		self.assertEqual(rows[0]["_all_items"][1]["item_group"], "")
+		self.assertEqual(rows[0]["_all_items"][1]["image"], "")
+
+	def test_movement_ledger_endpoints_count_lines_records_and_preserve_flows(self):
+		records = [
+			{
+				"name": "REC-COMPLETE",
+				"movement_kind": "Receive",
+				"document_type": "Stock Entry",
+				"docstatus": 1,
+				"posting_date": "2026-09-28",
+				"posting_time": "10:00:00",
+				"activity": "ACT-1",
+				"notes": "workspace note",
+				"detail_route": "/entry/REC-COMPLETE",
+				"items": [
+					{"id": "L1", "item_code": "ITEM-A", "item_name": "A", "item_group": "食品", "qty": 2, "uom": "盒", "stock_qty": 4, "stock_uom": "Nos", "to_warehouse": "WH-A"},
+					{"id": "L2", "item_code": "ITEM-B", "item_name": "B", "item_group": "食品", "qty": 1, "uom": "包", "stock_qty": 3, "stock_uom": "Nos", "to_warehouse": "WH-B"},
+				],
+			},
+			{
+				"name": "REC-DRAFT",
+				"movement_kind": "Issue",
+				"document_type": "Stock Entry",
+				"docstatus": 0,
+				"posting_date": "2026-09-27",
+				"posting_time": "09:00:00",
+				"items": [{"id": "L3", "item_code": "ITEM-A", "qty": 1, "uom": "Nos", "stock_qty": 1, "stock_uom": "Nos", "from_warehouse": "WH-A"}],
+			},
+			{
+				"name": "REC-ZERO",
+				"movement_kind": "盘点调整",
+				"document_type": "Stock Reconciliation",
+				"docstatus": 1,
+				"items": [{"id": "L4", "item_code": "ITEM-A", "qty": 5, "current_qty": 5, "stock_uom": "Nos", "warehouse": "WH-A"}],
+			},
+		]
+		def scoped_records(filters, docstatuses=None):
+			allowed = set(docstatuses if docstatuses is not None else [0, 1, 2])
+			return [row for row in records if row.get("docstatus") in allowed]
+		def hydrate_activity(items):
+			for item in items:
+				if item.get("activity"):
+					item["activity_title"] = "法会活动"
+		with patch.object(api, "_movement_history_records", side_effect=scoped_records), patch.object(api, "_ledger_activity_titles", side_effect=hydrate_activity):
+			items = api.movement_items({"period_key": "this_month"}, page_length=1)
+			self.assertEqual(items["total"], 2)
+			self.assertEqual(items["all_total"], 2)
+			self.assertEqual(items["facets"]["movement_kind"]["Receive"], 2)
+			self.assertEqual(items["results"][0]["detail_route"], "/entry/REC-COMPLETE")
+			self.assertEqual(items["results"][0]["notes"], "workspace note")
+			receive = api.movement_items({"movement_kinds": ["Receive"]}, page_length=100)
+			self.assertEqual(receive["total"], 2)
+			record_page = api.movement_records({"period_key": "this_month"}, page_length=100)
+			self.assertEqual(record_page["total"], 2)
+			self.assertEqual(record_page["facets"]["movement_kind"]["Receive"], 1)
+			self.assertEqual(record_page["facets"]["source_warehouses"], {"WH-A": 1})
+			self.assertEqual(record_page["facets"]["destination_warehouses"], {"WH-A": 1, "WH-B": 1})
+			self.assertEqual(record_page["results"][0]["notes"], "workspace note")
+			self.assertEqual(record_page["results"][0]["activity"], "ACT-1")
+			self.assertEqual(record_page["results"][0]["activity_title"], "法会活动")
+			drafts = api.movement_records({}, page_length=100, docstatuses=[0])
+			self.assertEqual(drafts["total"], 1)
+			self.assertEqual(drafts["facets"]["docstatus"], {0: 1})
+		with self.assertRaises(frappe.ValidationError):
+			api.movement_records({}, docstatuses=[3])
 
 	def test_movement_overview_summarizes_submitted_entries(self):
 		confirmed = self.confirmed()
@@ -1355,6 +1480,49 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertIn(b"'=2+2", injection_csv)
 		workbook = load_workbook(BytesIO(reporting._xlsx_bytes(movement_sheets)))
 		self.assertTrue(workbook["记录明细"]["A2"].is_date)
+
+	def test_movement_record_export_hydrates_activity_and_all_location_semantics(self):
+		records = [
+			{
+				"name": "REC-LOAN",
+				"movement_kind": "Loan",
+				"document_type": "Stock Entry",
+				"docstatus": 2,
+				"activity": "ACT-1",
+				"items": [
+					{"item_code": "A", "qty": 1, "uom": "Nos", "stock_qty": 1, "stock_uom": "Nos", "from_warehouse": "WH-A", "to_warehouse": "Leased"},
+					{"item_code": "B", "qty": 2, "uom": "Nos", "stock_qty": 2, "stock_uom": "Nos", "from_warehouse": "WH-B", "to_warehouse": "Leased"},
+				],
+			},
+			{
+				"name": "REC-RETURN",
+				"movement_kind": "Return",
+				"document_type": "Stock Entry",
+				"docstatus": 1,
+				"activity": "ACT-1",
+				"items": [{"item_code": "A", "qty": 1, "uom": "Nos", "stock_qty": 1, "stock_uom": "Nos", "from_warehouse": "Leased", "to_warehouse": "WH-A"}],
+			},
+		]
+		seen_statuses = []
+		def scoped(filters, docstatuses=None):
+			seen_statuses.append(docstatuses)
+			return [row for row in records if row["docstatus"] in set(docstatuses or [])]
+		def hydrate(items):
+			for item in items:
+				item["activity_title"] = "法会活动"
+		labels = [
+			{"name": "WH-A", "breadcrumb": "甲库"},
+			{"name": "WH-B", "breadcrumb": "乙库"},
+		]
+		with patch.object(reporting, "_movement_history_records", side_effect=scoped), patch.object(reporting, "_ledger_activity_titles", side_effect=hydrate), patch.object(reporting, "_user_facing_warehouse_presentation", return_value=labels):
+			period, sheets = reporting._movement_record_sheets({"period_key": "this_month", "docstatuses": [2]})
+		self.assertEqual(seen_statuses, [[2]])
+		self.assertEqual(period["key"], "this_month")
+		row = sheets[0][2][0]
+		self.assertEqual(row["docstatus_label"], "已取消")
+		self.assertEqual(row["activity_title"], "法会活动")
+		self.assertEqual(row["destination_warehouse"], "借出")
+		self.assertEqual(row["source_warehouse"], "甲库、乙库")
 
 	def test_report_expiry_ranges_and_validation(self):
 		with patch.object(reporting, "nowdate", return_value="2026-09-28"):

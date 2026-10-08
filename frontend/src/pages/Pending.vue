@@ -10,6 +10,8 @@ import CategorySelector from "../components/CategorySelector.vue";
 import LoadingIndicator from "../components/LoadingIndicator.vue";
 import { returnToOpener } from "../lib/navigation";
 import QuantitySummary from "../components/QuantitySummary.vue";
+import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
+import CompactFilterSection from "../components/CompactFilterSection.vue";
 
 const route = useRoute(),
 	router = useRouter();
@@ -30,6 +32,9 @@ const error = ref(""),
 				: "damaged",
 	);
 const sentinel = ref<HTMLElement>();
+const filterOpen = ref(false);
+const desktopFilterOpen = ref(false);
+const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null);
 const operationCaps = computed(() => boot.value?.stock_operation_capabilities || {});
 const filters = ref({ search: "", warehouses: [] as string[], item_groups: [] as string[] });
 const warehouseRows = computed(() => boot.value?.physical_tree || []);
@@ -104,6 +109,11 @@ function removeChip(chip: any) {
 function clearFilters() {
 	filters.value = { search: "", warehouses: [], item_groups: [] };
 }
+function openFilters(event?: Event) {
+	if (typeof window !== "undefined" && window.matchMedia?.("(min-width: 1024px)").matches)
+		desktopFilterOpen.value = !desktopFilterOpen.value;
+	else filterPanel.value?.openPanel(event);
+}
 function close() {
 	void returnToOpener(router, "/");
 }
@@ -174,28 +184,56 @@ onBeforeUnmount(() => {
 				未定位
 			</button>
 		</nav>
-		<div class="list-layout">
-			<aside class="filter-sidebar">
-				<WarehouseSelector
-					v-model="filters.warehouses"
-					:rows="warehouseRows"
-					:counts="facets.warehouses"
-					placeholder="搜索仓库 / 位置"
-				/><CategorySelector
-					v-model="filters.item_groups"
-					:rows="boot?.item_groups || []"
-					:counts="facets.item_groups"
-					placeholder="搜索物品类别"
-				/><button type="button" class="inline-link" @click="clearFilters">清除筛选</button>
-			</aside>
+		<div
+			class="list-layout desktop-list-layout compact-filter-layout pending-list-layout"
+			:class="{ 'filters-open': desktopFilterOpen }"
+		>
+			<ResponsiveFilterPanel
+				ref="filterPanel"
+				v-model:open="filterOpen"
+				:count="filters.warehouses.length + filters.item_groups.length"
+				clearable
+				@clear="clearFilters"
+			>
+				<CompactFilterSection title="仓库 / 位置" icon="warehouse">
+					<WarehouseSelector
+						v-model="filters.warehouses"
+						:rows="warehouseRows"
+						embedded
+						:counts="facets.warehouses"
+						placeholder="搜索仓库 / 位置"
+					/>
+				</CompactFilterSection>
+				<CompactFilterSection title="物品类别" icon="card">
+					<CategorySelector
+						v-model="filters.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+						:counts="facets.item_groups"
+						placeholder="搜索物品类别"
+					/>
+				</CompactFilterSection>
+			</ResponsiveFilterPanel>
 			<div class="results-column">
-				<div class="result-toolbar">
+				<div class="result-toolbar results-chrome">
 					<input
 						v-model="filters.search"
 						type="search"
 						placeholder="搜索物品或编号"
 						aria-label="搜索待处理物品"
-					/><span aria-live="polite"
+					/><button
+						type="button"
+						class="toolbar-action desktop-filter-button mobile-filter-button"
+						:aria-expanded="desktopFilterOpen"
+						:aria-label="`筛选，${filters.warehouses.length + filters.item_groups.length} 项已启用`"
+						@click="openFilters($event)"
+					>
+						筛选<span
+							v-if="filters.warehouses.length + filters.item_groups.length"
+							class="filter-count"
+							>{{ filters.warehouses.length + filters.item_groups.length }}</span
+						></button
+					><span aria-live="polite"
 						>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部 {{ overall }}</span
 					>
 				</div>

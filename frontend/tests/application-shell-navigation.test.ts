@@ -21,7 +21,7 @@ const RouterLink = defineComponent({
   props: ["to", "ariaCurrent"],
   emits: ["click"],
   template:
-    '<a :data-to="typeof to === \'string\' ? to : to.path" :aria-current="ariaCurrent" @click="$emit(\'click\', $event)"><slot /></a>',
+    "<a :data-to=\"typeof to === 'string' ? to : to.path\" :data-query=\"typeof to === 'string' ? '' : JSON.stringify(to.query)\" :aria-current=\"ariaCurrent\" @click=\"$emit('click', $event)\"><slot /></a>",
 });
 
 describe("ApplicationShell navigation contract", () => {
@@ -111,10 +111,10 @@ describe("ApplicationShell navigation contract", () => {
       wrapper
         .findAll(".desktop-inventory-context a")
         .map((link) => link.text()),
-    ).toEqual(["概览", "入库", "出库", "转移"]);
+    ).toEqual(["明细", "记录"]);
     expect(
       wrapper.find('.desktop-inventory-context a[aria-current="page"]').text(),
-    ).toBe("概览");
+    ).toBe("明细");
     route.path = "/adjustments";
     await nextTick();
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
@@ -140,10 +140,8 @@ describe("ApplicationShell navigation contract", () => {
       contexts[0].findAll("a").map((link) => link.attributes("data-to")),
     ).toEqual(["/", "/expiry"]);
     expect(contexts[1].findAll("a").map((link) => link.text())).toEqual([
-      "概览",
-      "入库",
-      "出库",
-      "转移",
+      "明细",
+      "记录",
     ]);
 
     const warehouse = wrapper
@@ -179,5 +177,34 @@ describe("ApplicationShell navigation contract", () => {
     expect(
       wrapper.find('nav[aria-label="主导航"] a[aria-current="page"]').text(),
     ).toBe("更多");
+  });
+
+  it("carries every movement filter across detail and record tabs", async () => {
+    route.path = "/movements/items";
+    route.query = {
+      kind: ["Loan", "Return"],
+      item_code: "ITM-1",
+      item_groups: ["食品"],
+      source_warehouses: ["A"],
+      destination_warehouses: ["B"],
+      activity: "ACT-1",
+      period: "last_90_days",
+      date_from: "2026-07-01",
+      date_to: "2026-09-28",
+      search: "相机",
+      docstatuses: [0, 1],
+    };
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+    const record = wrapper
+      .findAll(".desktop-inventory-context a")
+      .find((link) => link.text() === "记录");
+    expect(record?.attributes("data-query")).toContain('"item_code":"ITM-1"');
+    expect(record?.attributes("data-query")).toContain(
+      '"kind":["Loan","Return"]',
+    );
+    expect(record?.attributes("data-query")).toContain('"docstatuses":[0,1]');
   });
 });

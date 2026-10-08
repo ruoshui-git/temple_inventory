@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Combobox } from "frappe-ui";
 import { api, workspaceApi } from "../lib/api";
 import { hydrateFilterQuery, serializeFilterQuery } from "../composables/filters";
 import ActiveFilterChips from "../components/ActiveFilterChips.vue";
@@ -12,11 +11,14 @@ import ResponsiveFilterPanel from "../components/ResponsiveFilterPanel.vue";
 import ItemImagePreview from "../components/ItemImagePreview.vue";
 import IconButton from "../components/IconButton.vue";
 import QuantitySummary from "../components/QuantitySummary.vue";
+import MovementLookup from "../components/MovementLookup.vue";
+import CompactFilterSection from "../components/CompactFilterSection.vue";
 
 const route = useRoute();
 const router = useRouter();
 const boot = ref<any>();
 const activities = ref<any[]>([]);
+const activityQuery = ref("");
 const rows = ref<any[]>([]);
 const total = ref(0);
 const quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>({});
@@ -24,6 +26,7 @@ const error = ref("");
 const loading = ref(false);
 const loadingMore = ref(false);
 const filterOpen = ref(false);
+const desktopFilterOpen = ref(false);
 const sentinel = ref<HTMLElement>();
 const resultsScroll = ref<HTMLElement>();
 const filterPanel = ref<InstanceType<typeof ResponsiveFilterPanel> | null>(null);
@@ -165,6 +168,11 @@ function removeChip(chip: any) {
 function clearFilters() {
 	filters.value = { search: "", loan_date: "", item_groups: [], warehouses: [], activity: "" };
 }
+function openFilters(event?: Event) {
+	if (typeof window !== "undefined" && window.matchMedia?.("(min-width: 1024px)").matches)
+		desktopFilterOpen.value = !desktopFilterOpen.value;
+	else filterPanel.value?.openPanel(event);
+}
 function setupObserver() {
 	observer?.disconnect();
 	observer = new IntersectionObserver(
@@ -188,7 +196,7 @@ watch(
 	[filters, status, sort],
 	() => {
 		if (boot.value) {
-			resultsScroll.value?.scrollTo({ top: 0 });
+			resultsScroll.value?.scrollTo?.({ top: 0 });
 			scheduleLoad();
 		}
 	},
@@ -225,10 +233,16 @@ watch(
 );
 onMounted(async () => {
 	try {
-		[boot.value, activities.value] = await Promise.all([
+		const [bootstrap, activityData] = await Promise.all([
 			api("bootstrap"),
 			workspaceApi("activities"),
 		]);
+		boot.value = bootstrap;
+		activities.value = Array.isArray(activityData)
+			? activityData
+			: Array.isArray(activityData?.results)
+				? activityData.results
+				: [];
 		const hydrated = hydrateFilterQuery(route.query as Record<string, unknown>, {
 			search: "",
 			loan_date: "",
@@ -270,33 +284,50 @@ onBeforeUnmount(() => {
 
 <template>
 	<section class="app-shell wide-shell viewport-list-root">
-		<div class="list-layout desktop-list-layout">
+		<div
+			class="list-layout desktop-list-layout compact-filter-layout"
+			:class="{ 'filters-open': desktopFilterOpen }"
+		>
 			<ResponsiveFilterPanel
 				ref="filterPanel"
 				v-model:open="filterOpen"
 				:count="activeCount"
+				clearable
+				@clear="clearFilters"
 			>
-				<fieldset>
-					<legend>借出日期</legend>
-					<input v-model="filters.loan_date" type="date" aria-label="借出日期" />
-				</fieldset>
-				<WarehouseSelector
-					v-model="filters.warehouses"
-					:rows="boot?.physical_tree || []"
-					placeholder="原始借出位置"
-				/>
-				<CategorySelector
-					v-model="filters.item_groups"
-					:rows="boot?.item_groups || []"
-					placeholder="物品类别"
-				/>
-				<label
-					>相关活动<Combobox
-						v-model="filters.activity"
-						:options="activityOptions"
-						placeholder="搜索活动"
-						aria-label="搜索活动"
-				/></label>
+				<CompactFilterSection title="借出日期" icon="calendar" :collapsible="false">
+					<fieldset>
+						<input v-model="filters.loan_date" type="date" aria-label="借出日期" />
+					</fieldset>
+				</CompactFilterSection>
+				<CompactFilterSection title="原始借出位置" icon="warehouse">
+					<WarehouseSelector
+						v-model="filters.warehouses"
+						:rows="boot?.physical_tree || []"
+						embedded
+						placeholder="原始借出位置"
+					/>
+				</CompactFilterSection>
+				<CompactFilterSection title="物品类别" icon="card">
+					<CategorySelector
+						v-model="filters.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+						placeholder="物品类别"
+					/>
+				</CompactFilterSection>
+				<CompactFilterSection title="相关活动" icon="calendar">
+					<label
+						><span class="sr-only">相关活动</span
+						><MovementLookup
+							v-model="filters.activity"
+							v-model:query="activityQuery"
+							:options="activityOptions"
+							placeholder="搜索活动"
+							aria-label="搜索活动"
+							@update:query="activityQuery = String($event || '')"
+					/></label>
+				</CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column">
 				<div class="results-chrome">
@@ -306,11 +337,20 @@ onBeforeUnmount(() => {
 							type="search"
 							placeholder="搜索借用方、记录、活动或物品"
 							aria-label="搜索借用记录"
-						/><IconButton
+						/><button
+							type="button"
+							class="toolbar-action desktop-filter-button"
+							:aria-expanded="desktopFilterOpen"
+							@click="openFilters($event)"
+						>
+							筛选<span v-if="activeCount" class="filter-count">{{
+								activeCount
+							}}</span></button
+						><IconButton
 							class="mobile-filter-button"
 							:label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'"
 							title="筛选"
-							@click="filterPanel?.openPanel($event)"
+							@click="openFilters($event)"
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M4 6h16M7 12h10M10 18h4" /></svg
 							><span v-if="activeCount" class="icon-count">{{

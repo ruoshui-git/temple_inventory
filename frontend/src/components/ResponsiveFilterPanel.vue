@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-const props = withDefaults(defineProps<{ open?: boolean; count?: number; title?: string }>(), {
-	open: false,
-	count: 0,
-	title: "筛选",
-});
-const emit = defineEmits<{ "update:open": [value: boolean] }>();
+const props = withDefaults(
+	defineProps<{ open?: boolean; count?: number; title?: string; clearable?: boolean }>(),
+	{
+		open: false,
+		count: 0,
+		title: "筛选",
+		clearable: false,
+	},
+);
+const emit = defineEmits<{ "update:open": [value: boolean]; clear: [] }>();
 const invoker = ref<HTMLElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
+const isMobile = ref(false);
 const previousOverflow = ref("");
 const titleId = "filter-title-" + Math.random().toString(36).slice(2);
-const drawerTitleId = titleId + "-drawer";
 
 function close() {
 	emit("update:open", false);
@@ -19,6 +23,8 @@ function close() {
 }
 function openPanel(event?: Event) {
 	if (event?.currentTarget instanceof HTMLElement) invoker.value = event.currentTarget;
+	if (typeof window !== "undefined" && typeof window.matchMedia === "function")
+		isMobile.value = !window.matchMedia("(min-width: 1024px)").matches;
 	emit("update:open", true);
 }
 function keydown(event: KeyboardEvent) {
@@ -46,6 +52,11 @@ function keydown(event: KeyboardEvent) {
 		first.focus();
 	}
 }
+function onPointerDown(event: PointerEvent) {
+	if (!props.open || !(event.target instanceof Node)) return;
+	if (panel.value?.contains(event.target)) return;
+	close();
+}
 watch(
 	() => props.open,
 	async (value) => {
@@ -66,9 +77,15 @@ watch(
 		}
 	},
 );
-onMounted(() => window.addEventListener("keydown", keydown));
+onMounted(() => {
+	if (typeof window !== "undefined" && typeof window.matchMedia === "function")
+		isMobile.value = !window.matchMedia("(min-width: 1024px)").matches;
+	window.addEventListener("keydown", keydown);
+	document.addEventListener("pointerdown", onPointerDown);
+});
 onBeforeUnmount(() => {
 	window.removeEventListener("keydown", keydown);
+	document.removeEventListener("pointerdown", onPointerDown);
 	document.body.style.overflow = previousOverflow.value;
 });
 defineExpose({ openPanel, close });
@@ -78,27 +95,33 @@ defineExpose({ openPanel, close });
 	<button type="button" class="filter-trigger" @click="openPanel($event)">
 		筛选<span v-if="count" class="filter-count">{{ count }}</span>
 	</button>
-	<aside class="filter-sidebar" :aria-labelledby="titleId">
-		<h2 :id="titleId">{{ title }}</h2>
-		<slot />
-	</aside>
-	<Teleport to="body">
-		<div v-if="open" class="filter-drawer-backdrop" @click.self="close">
-			<aside
-				ref="panel"
-				class="filter-drawer"
-				role="dialog"
-				aria-modal="true"
-				:aria-labelledby="drawerTitleId"
-				@keydown="keydown"
+	<Teleport to="body" :disabled="!isMobile">
+		<aside
+			ref="panel"
+			class="filter-sidebar filter-drawer"
+			data-filter-surface="compact"
+			:class="{ 'filter-drawer-open': open }"
+			:role="open && isMobile ? 'dialog' : undefined"
+			:aria-modal="open && isMobile ? 'true' : undefined"
+			:aria-labelledby="titleId"
+			@keydown="keydown"
+		>
+			<h2 :id="titleId">{{ title }}</h2>
+			<slot />
+			<button
+				v-if="clearable"
+				type="button"
+				class="clear-all-filters compact-filter-clear"
+				@click="emit('clear')"
 			>
-				<header>
-					<h2 :id="drawerTitleId">{{ title }}</h2>
-					<button type="button" aria-label="关闭筛选" @click="close">关闭筛选</button>
-				</header>
-				<slot />
-				<button type="button" class="primary filter-done" @click="close">完成</button>
-			</aside>
-		</div>
+				清空全部筛选
+			</button>
+			<button type="button" class="primary filter-done filter-drawer-done" @click="close">
+				完成
+			</button>
+		</aside>
+	</Teleport>
+	<Teleport to="body">
+		<div v-if="open && isMobile" class="filter-drawer-backdrop" @click.self="close"></div>
 	</Teleport>
 </template>

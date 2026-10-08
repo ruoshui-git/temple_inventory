@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import InventoryIcon from "./InventoryIcon.vue";
+import CompactFilterSection from "./CompactFilterSection.vue";
 
 export type ExpiryFilter =
 	| "all"
@@ -205,35 +206,17 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 </script>
 
 <template>
-	<div class="inventory-filter-panel">
-		<section class="filter-section">
-			<div class="filter-section-heading">
-				<button
-					type="button"
-					:aria-expanded="warehouseOpen"
-					@click="warehouseOpen = !warehouseOpen"
-				>
-					<InventoryIcon name="warehouse" />
-					<span>仓库 / 位置</span>
-					<small v-if="modelValue.warehouses.length"
-						>{{ modelValue.warehouses.length }} 项</small
-					>
-					<span
-						class="disclosure-triangle"
-						:class="{ expanded: warehouseOpen }"
-						aria-hidden="true"
-					></span>
-				</button>
-				<button
-					v-if="modelValue.warehouses.length"
-					type="button"
-					class="section-clear"
-					@click="clearSection('warehouses')"
-				>
-					清除
-				</button>
-			</div>
-			<div v-if="warehouseOpen" class="filter-section-body">
+	<div class="inventory-filter-panel compact-filter-sections">
+		<CompactFilterSection
+			title="仓库 / 位置"
+			icon="warehouse"
+			:count="modelValue.warehouses.length ? `${modelValue.warehouses.length} 项` : 0"
+			:initial-open="warehouseOpen"
+			:clearable="Boolean(modelValue.warehouses.length)"
+			@clear="clearSection('warehouses')"
+			@toggle="warehouseOpen = $event"
+		>
+			<div class="filter-section-body">
 				<label class="filter-search"
 					><InventoryIcon name="search" /><input
 						v-model="warehouseTerm"
@@ -282,36 +265,18 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 					</li>
 				</ul>
 			</div>
-		</section>
+		</CompactFilterSection>
 
-		<section class="filter-section">
-			<div class="filter-section-heading">
-				<button
-					type="button"
-					:aria-expanded="categoryOpen"
-					@click="categoryOpen = !categoryOpen"
-				>
-					<InventoryIcon name="card" />
-					<span>物品类别</span>
-					<small v-if="modelValue.categories.length"
-						>{{ modelValue.categories.length }} 项</small
-					>
-					<span
-						class="disclosure-triangle"
-						:class="{ expanded: categoryOpen }"
-						aria-hidden="true"
-					></span>
-				</button>
-				<button
-					v-if="modelValue.categories.length"
-					type="button"
-					class="section-clear"
-					@click="clearSection('categories')"
-				>
-					清除
-				</button>
-			</div>
-			<div v-if="categoryOpen" class="filter-section-body">
+		<CompactFilterSection
+			title="物品类别"
+			icon="card"
+			:count="modelValue.categories.length ? `${modelValue.categories.length} 项` : 0"
+			:initial-open="categoryOpen"
+			:clearable="Boolean(modelValue.categories.length)"
+			@clear="clearSection('categories')"
+			@toggle="categoryOpen = $event"
+		>
+			<div class="filter-section-body">
 				<label class="filter-search"
 					><InventoryIcon name="search" /><input
 						v-model="categoryTerm"
@@ -360,7 +325,7 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 					</li>
 				</ul>
 			</div>
-		</section>
+		</CompactFilterSection>
 
 		<label class="stock-filter"
 			><input

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 type Node = {
 	name: string;
@@ -19,9 +19,10 @@ const props = withDefaults(
 		options: Node[];
 		placeholder: string;
 		title: string;
+		embedded?: boolean;
 		tree?: Node[];
 	}>(),
-	{ tree: () => [] },
+	{ embedded: false, tree: () => [] },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string[]] }>();
 const open = ref(false);
@@ -189,11 +190,40 @@ function activate() {
 	open.value = true;
 	void nextTick(() => input.value?.focus());
 }
+function closeIfOutside(event: PointerEvent) {
+	if (event.target instanceof Node && !root.value?.contains(event.target)) open.value = false;
+}
+const root = ref<HTMLElement | null>(null);
+function onDocumentKeydown(event: KeyboardEvent) {
+	if (!open.value) return;
+	if (event.key === "Escape") {
+		event.preventDefault();
+		open.value = false;
+		input.value?.focus();
+	}
+}
+function onFocusout(event: FocusEvent) {
+	if (event.relatedTarget instanceof Node && root.value?.contains(event.relatedTarget)) return;
+	open.value = false;
+}
+onMounted(() => {
+	document.addEventListener("pointerdown", closeIfOutside);
+	document.addEventListener("keydown", onDocumentKeydown);
+});
+onBeforeUnmount(() => {
+	document.removeEventListener("pointerdown", closeIfOutside);
+	document.removeEventListener("keydown", onDocumentKeydown);
+});
 </script>
 
 <template>
-	<section class="hierarchy-facet">
-		<header>
+	<section
+		ref="root"
+		class="hierarchy-facet"
+		:class="{ 'hierarchy-facet-embedded': embedded }"
+		@focusout="onFocusout"
+	>
+		<header v-if="!embedded">
 			<h3>{{ title }}</h3>
 			<span>{{ modelValue.length }} 项已选</span
 			><button

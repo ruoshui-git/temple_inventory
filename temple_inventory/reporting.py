@@ -26,11 +26,16 @@ from temple_inventory.inventory_api import (
 	_visible_warehouses,
 )
 from temple_inventory.workspace_api import (
+	MOVEMENT_LEDGER_KINDS,
 	MOVEMENT_OVERVIEW_KINDS,
+	_ledger_activity_titles,
+	_ledger_item_rows,
+	_movement_history_records,
 	_movement_overview_rows,
+	_movement_period,
 )
 
-REPORT_TYPES = {"movement", "current_stock", "warehouse_stock", "expiry"}
+REPORT_TYPES = {"movement", "movement_records", "current_stock", "warehouse_stock", "expiry"}
 EXPORT_FORMATS = {"xlsx", "csv"}
 MOVEMENT_LABELS = {
 	"Receive": "入库",
@@ -42,6 +47,7 @@ MOVEMENT_LABELS = {
 	"Loss": "记录遗失",
 	"Repair": "修复归库",
 	"Disposal": "正式报废",
+	"Reconcile": "库存调整",
 }
 
 MOVEMENT_SUMMARY_COLUMNS = (
@@ -69,6 +75,8 @@ MOVEMENT_DETAIL_COLUMNS = (
 	("item_code", "物品编码"),
 	("item_name", "物品名称"),
 	("item_group", "类别"),
+	("qty", "交易数量"),
+	("uom", "交易单位"),
 	("stock_qty", "数量"),
 	("stock_uom", "单位"),
 	("source_warehouse", "来源位置"),
@@ -79,6 +87,19 @@ MOVEMENT_DETAIL_COLUMNS = (
 	("recorder_name", "记录人"),
 	("handler_name", "经手人"),
 	("reviewer_name", "鉴证人"),
+	("notes", "备注"),
+)
+MOVEMENT_RECORD_COLUMNS = (
+	("posting_date", "日期"),
+	("record_name", "记录编号"),
+	("movement_kind_label", "类型"),
+	("docstatus_label", "状态"),
+	("line_count", "物品行数"),
+	("quantities", "数量"),
+	("source_warehouse", "来源位置"),
+	("destination_warehouse", "去向位置"),
+	("activity_title", "活动"),
+	("notes", "备注"),
 )
 CURRENT_SUMMARY_COLUMNS = (
 	("item_code", "物品编码"),
@@ -363,6 +384,86 @@ def _movement_sheets(filters):
 	]
 
 
+def _movement_ledger_sheets(filters):
+	"""Export every matching posted movement line, independent of UI paging."""
+	filters = {"period_key": "this_month", **filters}
+	period = _movement_period(filters, default=True)
+	requested = _selection_values(filters.get("movement_kinds")) or list(MOVEMENT_LEDGER_KINDS)
+	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
+		frappe.throw(_("Invalid movement kind"))
+	records = _movement_history_records({**filters, "movement_kinds": requested}, docstatuses=[1])
+	rows = _ledger_item_rows(records)
+	_ledger_activity_titles(rows)
+	settings = _settings()
+	warehouse_labels = {
+		row["name"]: row["breadcrumb"]
+		for row in _user_facing_warehouse_presentation(settings, _physical_tree(settings))
+	}
+	for row in rows:
+		row["movement_kind_label"] = MOVEMENT_LABELS[row["movement_kind"]]
+		row["source_warehouse"] = warehouse_labels.get(row.get("source_warehouse"), "")
+		row["destination_warehouse"] = warehouse_labels.get(row.get("destination_warehouse"), "")
+		if row["movement_kind"] == "Loan":
+			row["destination_warehouse"] = "借出"
+		elif row["movement_kind"] == "Return":
+			row["source_warehouse"] = "借出"
+		row["activity_title"] = row.get("activity_title") or row.get("activity") or ""
+	rows.sort(key=lambda row: (row.get("posting_date", ""), row.get("posting_time", ""), row.get("record_name", "")), reverse=True)
+	return period, [("记录明细", MOVEMENT_DETAIL_COLUMNS, rows)]
+
+
+def _movement_record_sheets(filters):
+	filters = {"period_key": "this_month", **filters}
+	period = _movement_period(filters, default=True)
+	requested = _selection_values(filters.get("movement_kinds")) or list(MOVEMENT_LEDGER_KINDS)
+	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
+		frappe.throw(_("Invalid movement kind"))
+	statuses = [cint(value) for value in _selection_values(filters.get("docstatuses"))] if filters.get("docstatuses") is not None else [0, 1]
+	if any(status not in (0, 1, 2) for status in statuses):
+		frappe.throw(_("Invalid document status"))
+	records = _movement_history_records({**filters, "movement_kinds": requested}, docstatuses=statuses)
+	rows = []
+	settings = _settings()
+	warehouse_labels = {row["name"]: row["breadcrumb"] for row in _user_facing_warehouse_presentation(settings, _physical_tree(settings))}
+	all_record_items = _ledger_item_rows(records)
+	_ledger_activity_titles(all_record_items)
+	activity_titles = {
+		item.get("record_name"): item.get("activity_title")
+		for item in all_record_items
+		if item.get("record_name")
+	}
+	for record in records:
+		kind = "Reconcile" if record.get("movement_kind") in ("盘点调整", "Reconcile") else record.get("movement_kind")
+		items = _ledger_item_rows([record])
+		if kind == "Reconcile" and not items:
+			continue
+		quantities = defaultdict(float)
+		for item in items:
+			quantities[item["stock_uom"]] += abs(flt(item["stock_qty"]))
+		sources = list(dict.fromkeys(item.get("source_warehouse") for item in items if item.get("source_warehouse")))
+		destinations = list(dict.fromkeys(item.get("destination_warehouse") for item in items if item.get("destination_warehouse")))
+		source = "、".join(warehouse_labels.get(value, "") for value in sources if warehouse_labels.get(value, ""))
+		destination = "、".join(warehouse_labels.get(value, "") for value in destinations if warehouse_labels.get(value, ""))
+		if kind == "Loan": destination = "借出"
+		if kind == "Return": source = "借出"
+		rows.append({
+			"posting_date": record.get("posting_date", ""),
+			"record_name": record.get("name", ""),
+			"movement_kind_label": MOVEMENT_LABELS[kind],
+			"docstatus_label": {0: "草稿", 2: "已取消"}.get(cint(record.get("docstatus")), ""),
+			"line_count": len(items),
+			"quantities": " · ".join(f"{flt(qty):g} {uom}" for uom, qty in sorted(quantities.items()) if uom),
+			"source_warehouse": source,
+			"destination_warehouse": destination,
+			"activity_title": next(
+				(item.get("activity_title") for item in items if item.get("activity_title")),
+				activity_titles.get(record.get("name"), record.get("activity", "")),
+			),
+			"notes": record.get("notes", "") or record.get("title", ""),
+		})
+	return period, [("记录明细", MOVEMENT_RECORD_COLUMNS, rows)]
+
+
 def _current_stock_sheets(filters):
 	rows = _stock_rows(filters)
 	window = str(filters.get("expiry_window") or "").strip().lower()
@@ -584,7 +685,9 @@ def export_report(report_type, export_format, filters=None):
 	f = _validated_filters(filters)
 	period = None
 	if report_type == "movement":
-		period, sheets = _movement_sheets(f)
+		period, sheets = _movement_ledger_sheets(f)
+	elif report_type == "movement_records":
+		period, sheets = _movement_record_sheets(f)
 	elif report_type == "current_stock":
 		sheets = _current_stock_sheets(f)
 	elif report_type == "warehouse_stock":
@@ -593,6 +696,7 @@ def export_report(report_type, export_format, filters=None):
 		sheets = _expiry_sheets(f)
 	names = {
 		"movement": "货物流动",
+		"movement_records": "货物流动记录",
 		"current_stock": "当前库存",
 		"warehouse_stock": "仓库库存",
 		"expiry": "效期风险",

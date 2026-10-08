@@ -288,7 +288,7 @@ onBeforeUnmount(() => {
 <template>
 	<section class="app-shell wide-shell warehouse-page">
 		<header>
-			<label class="warehouse-search"
+			<label class="warehouse-search compact-search-field"
 				>搜索仓库<input
 					v-model="search"
 					type="search"

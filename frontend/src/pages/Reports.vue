@@ -6,6 +6,7 @@ import MovementPeriodSelector, {
 	type MovementPeriodKey,
 } from "../components/MovementPeriodSelector.vue";
 import WarehouseSelector from "../components/WarehouseSelector.vue";
+import CompactFilterSection from "../components/CompactFilterSection.vue";
 import { api, downloadReport, labels, type ExportFormat, type ReportType } from "../lib/api";
 import { warehousePresentation } from "../lib/warehousePresenter";
 
@@ -37,6 +38,12 @@ const reportCards: Array<{
 		title: "货物流动",
 		description: "按时间、动作、类别和位置汇总已完成的库存流动。",
 		columns: "动作汇总、物品汇总、日期、记录、物品、数量、来源及去向位置和记录人员",
+	},
+	{
+		type: "movement_records",
+		title: "货物流动记录",
+		description: "导出入库、转移、借用和库存调整等操作记录。",
+		columns: "日期、记录编号、类型、状态、物品行数、数量、流向、活动和备注",
 	},
 	{
 		type: "current_stock",
@@ -103,7 +110,8 @@ function normalizedExpiryDays() {
 	if (!/^[1-9]\d*$/.test(expiry.value.expiry_days)) expiry.value.expiry_days = "30";
 }
 function reportFilters() {
-	if (reportType.value === "movement") return { ...movement.value };
+	if (reportType.value === "movement" || reportType.value === "movement_records")
+		return { ...movement.value };
 	if (reportType.value === "current_stock") return { ...stock.value };
 	if (reportType.value === "warehouse_stock") return { ...warehouse.value };
 	return {
@@ -185,105 +193,146 @@ onMounted(async () => {
 				</div>
 			</header>
 
-			<div v-if="reportType === 'movement'" class="report-form">
-				<MovementPeriodSelector
-					v-model:period-key="movement.period_key"
-					v-model:date-from="movement.date_from"
-					v-model:date-to="movement.date_to"
-					:show-resolved="false"
-				/>
-				<label>搜索物品<input v-model="movement.search" type="search" /></label>
-				<fieldset class="choice-list">
-					<legend>动作</legend>
-					<label v-for="kind in movementKinds" :key="kind" class="choice-row">
-						<input
-							type="checkbox"
-							:checked="movement.movement_kinds.includes(kind)"
-							@change="toggleMovement(kind)"
-						/>{{ labels[kind] }}
-					</label>
-				</fieldset>
-				<CategorySelector v-model="movement.item_groups" :rows="boot?.item_groups || []" />
-				<WarehouseSelector
-					v-model="movement.warehouses"
-					:rows="warehouseRows"
-					title="位置"
-				/>
-			</div>
-
-			<div v-else-if="reportType === 'current_stock'" class="report-form">
-				<label>搜索物品<input v-model="stock.search" type="search" /></label>
-				<CategorySelector v-model="stock.item_groups" :rows="boot?.item_groups || []" />
-				<WarehouseSelector v-model="stock.warehouses" :rows="warehouseRows" />
-			</div>
-
-			<div v-else-if="reportType === 'warehouse_stock'" class="report-form">
-				<label
-					>仓库 / 位置
-					<select
-						:value="warehouse.warehouses[0] || ''"
-						required
-						@change="setWarehouse(($event.target as HTMLSelectElement).value)"
-					>
-						<option value="">请选择一个仓库或位置</option>
-						<option
-							v-for="option in warehouseOptions"
-							:key="option.value"
-							:value="option.value"
-						>
-							{{ option.label }}
-						</option>
-					</select></label
-				>
-				<label>搜索物品<input v-model="warehouse.search" type="search" /></label>
-				<CategorySelector
-					v-model="warehouse.item_groups"
-					:rows="boot?.item_groups || []"
-				/>
-			</div>
-
-			<div v-else class="report-form">
-				<label>搜索物品或批次<input v-model="expiry.search" type="search" /></label>
-				<CategorySelector v-model="expiry.item_groups" :rows="boot?.item_groups || []" />
-				<WarehouseSelector v-model="expiry.warehouses" :rows="warehouseRows" />
-				<fieldset class="choice-list expiry-report-range">
-					<legend>效期范围</legend>
-					<label class="choice-row"
-						><input v-model="expiryMode" type="radio" value="all" />全部效期</label
-					>
-					<label
-						v-for="option in [
-							{ value: 'overdue_within', label: '已过期指定天数以内' },
-							{ value: 'overdue_beyond', label: '已过期指定天数以上' },
-							{ value: 'remaining_within', label: '未来指定天数内到期' },
-							{ value: 'remaining_beyond', label: '超过指定天数后到期' },
-						]"
-						:key="option.value"
-						class="choice-row"
-					>
-						<input v-model="expiryMode" type="radio" :value="option.value" />{{
-							option.label
-						}}
-					</label>
-					<label class="choice-row"
-						><input
-							v-model="expiryMode"
-							type="radio"
-							value="exact"
-						/>准确日期范围</label
-					>
-					<label v-if="expiryMode !== 'all' && expiryMode !== 'exact'"
-						>天数<input
-							v-model="expiry.expiry_days"
-							type="number"
-							min="1"
-							@blur="normalizedExpiryDays"
+			<div
+				v-if="reportType === 'movement' || reportType === 'movement_records'"
+				class="compact-filter-form"
+			>
+				<CompactFilterSection title="时间范围" icon="calendar" :collapsible="false">
+					<MovementPeriodSelector
+						v-model:period-key="movement.period_key"
+						v-model:date-from="movement.date_from"
+						v-model:date-to="movement.date_to"
+						:show-resolved="false"
+					/>
+				</CompactFilterSection>
+				<CompactFilterSection title="条件" icon="filter">
+					<label class="compact-filter-field"
+						>搜索物品<input v-model="movement.search" type="search"
 					/></label>
-					<div v-if="expiryMode === 'exact'" class="exact-date-grid">
-						<label>开始日期<input v-model="expiry.expiry_from" type="date" /></label>
-						<label>结束日期<input v-model="expiry.expiry_to" type="date" /></label>
-					</div>
-				</fieldset>
+					<fieldset class="choice-list">
+						<legend>动作</legend>
+						<label v-for="kind in movementKinds" :key="kind" class="choice-row">
+							<input
+								type="checkbox"
+								:checked="movement.movement_kinds.includes(kind)"
+								@change="toggleMovement(kind)"
+							/>{{ labels[kind] }}
+						</label>
+					</fieldset>
+					<CategorySelector
+						v-model="movement.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+					/>
+					<WarehouseSelector
+						v-model="movement.warehouses"
+						:rows="warehouseRows"
+						title="位置"
+						embedded
+					/>
+				</CompactFilterSection>
+			</div>
+
+			<div v-else-if="reportType === 'current_stock'" class="compact-filter-form">
+				<CompactFilterSection title="库存筛选" icon="filter">
+					<label class="compact-filter-field"
+						>搜索物品<input v-model="stock.search" type="search"
+					/></label>
+					<CategorySelector
+						v-model="stock.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+					/>
+					<WarehouseSelector v-model="stock.warehouses" :rows="warehouseRows" embedded />
+				</CompactFilterSection>
+			</div>
+
+			<div v-else-if="reportType === 'warehouse_stock'" class="compact-filter-form">
+				<CompactFilterSection title="仓库报表筛选" icon="warehouse">
+					<label
+						>仓库 / 位置
+						<select
+							:value="warehouse.warehouses[0] || ''"
+							required
+							@change="setWarehouse(($event.target as HTMLSelectElement).value)"
+						>
+							<option value="">请选择一个仓库或位置</option>
+							<option
+								v-for="option in warehouseOptions"
+								:key="option.value"
+								:value="option.value"
+							>
+								{{ option.label }}
+							</option>
+						</select></label
+					>
+					<label class="compact-filter-field"
+						>搜索物品<input v-model="warehouse.search" type="search"
+					/></label>
+					<CategorySelector
+						v-model="warehouse.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+					/>
+				</CompactFilterSection>
+			</div>
+
+			<div v-else class="compact-filter-form">
+				<CompactFilterSection title="效期筛选" icon="calendar">
+					<label class="compact-filter-field"
+						>搜索物品或批次<input v-model="expiry.search" type="search"
+					/></label>
+					<CategorySelector
+						v-model="expiry.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+					/>
+					<WarehouseSelector
+						v-model="expiry.warehouses"
+						:rows="warehouseRows"
+						embedded
+					/>
+					<fieldset class="choice-list expiry-report-range">
+						<legend>效期范围</legend>
+						<label class="choice-row"
+							><input v-model="expiryMode" type="radio" value="all" />全部效期</label
+						>
+						<label
+							v-for="option in [
+								{ value: 'overdue_within', label: '已过期指定天数以内' },
+								{ value: 'overdue_beyond', label: '已过期指定天数以上' },
+								{ value: 'remaining_within', label: '未来指定天数内到期' },
+								{ value: 'remaining_beyond', label: '超过指定天数后到期' },
+							]"
+							:key="option.value"
+							class="choice-row"
+						>
+							<input v-model="expiryMode" type="radio" :value="option.value" />{{
+								option.label
+							}}
+						</label>
+						<label class="choice-row"
+							><input
+								v-model="expiryMode"
+								type="radio"
+								value="exact"
+							/>准确日期范围</label
+						>
+						<label v-if="expiryMode !== 'all' && expiryMode !== 'exact'"
+							>天数<input
+								v-model="expiry.expiry_days"
+								type="number"
+								min="1"
+								@blur="normalizedExpiryDays"
+						/></label>
+						<div v-if="expiryMode === 'exact'" class="exact-date-grid">
+							<label
+								>开始日期<input v-model="expiry.expiry_from" type="date"
+							/></label>
+							<label>结束日期<input v-model="expiry.expiry_to" type="date" /></label>
+						</div>
+					</fieldset>
+				</CompactFilterSection>
 			</div>
 
 			<section class="fixed-columns">
@@ -345,11 +394,11 @@ onMounted(async () => {
 .report-builder h2 {
 	margin-top: 0;
 }
-.report-form {
+.compact-filter-form {
 	display: grid;
 	gap: 16px;
 }
-.report-form > label,
+.compact-filter-form > label,
 .exact-date-grid label {
 	display: grid;
 	gap: 6px;

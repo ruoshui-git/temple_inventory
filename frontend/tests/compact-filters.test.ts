@@ -1,0 +1,134 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { h, nextTick } from "vue";
+import { mount } from "@vue/test-utils";
+import CategorySelector from "../src/components/CategorySelector.vue";
+import CompactFilterSection from "../src/components/CompactFilterSection.vue";
+import HierarchyAutocomplete from "../src/components/HierarchyAutocomplete.vue";
+import MovementLookup from "../src/components/MovementLookup.vue";
+import ResponsiveFilterPanel from "../src/components/ResponsiveFilterPanel.vue";
+
+const optionRows = [
+  { name: "root", label: "仓库", is_group: 1, lft: 1, rgt: 4 },
+  { name: "leaf", label: "A01", parent: "root", is_group: 0, lft: 2, rgt: 3 },
+];
+
+describe("shared compact filter primitives", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+  });
+  afterEach(() => {
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+  });
+
+  it("provides shared heading, count, collapse, per-section clear, and body controls", async () => {
+    const wrapper = mount(CompactFilterSection, {
+      props: { title: "仓库 / 位置", count: "2 项", clearable: true },
+      slots: { default: "<input aria-label='位置搜索' />" },
+    });
+    expect(wrapper.find(".compact-filter-section-heading").text()).toContain(
+      "2 项",
+    );
+    expect(wrapper.find("input").exists()).toBe(true);
+    await wrapper.find(".compact-filter-section-toggle").trigger("click");
+    expect(wrapper.find(".compact-filter-section").classes()).not.toContain(
+      "is-open",
+    );
+    await wrapper.find(".compact-filter-section-clear").trigger("click");
+    expect(wrapper.emitted("clear")).toHaveLength(1);
+    await nextTick();
+  });
+
+  it("keeps one section card and heading when a hierarchy filter is embedded", () => {
+    const wrapper = mount(CompactFilterSection, {
+      props: { title: "物品类别" },
+      slots: {
+        default: h(CategorySelector, {
+          modelValue: [],
+          rows: optionRows.map((row) => ({
+            ...row,
+            item_group_name: row.label,
+          })),
+          embedded: true,
+        }),
+      },
+    });
+    expect(wrapper.findAll(".compact-filter-section")).toHaveLength(1);
+    expect(wrapper.findAll(".hierarchy-facet")).toHaveLength(1);
+    expect(wrapper.findAll(".hierarchy-facet header")).toHaveLength(0);
+    expect(wrapper.findAll("h3")).toHaveLength(0);
+  });
+
+  it("closes MovementLookup on outside pointer, Escape, focus leave, and unmount", async () => {
+    const wrapper = mount(MovementLookup, {
+      props: { modelValue: "", options: [{ label: "物品一", value: "ITM-1" }] },
+    });
+    await wrapper.find("input").trigger("focus");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await nextTick();
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    await wrapper.find("input").trigger("focus");
+    await wrapper.find("input").trigger("keydown", { key: "Escape" });
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    await wrapper.find("input").trigger("focus");
+    await wrapper
+      .find(".movement-lookup")
+      .trigger("focusout", { relatedTarget: null });
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("closes HierarchyAutocomplete on outside pointer, Escape, focus leave, and unmount", async () => {
+    const wrapper = mount(HierarchyAutocomplete, {
+      props: {
+        modelValue: [],
+        title: "仓库",
+        placeholder: "搜索仓库",
+        options: optionRows,
+        tree: optionRows,
+      },
+    });
+    await wrapper.find("input").trigger("focus");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await nextTick();
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    await wrapper.find("input").trigger("focus");
+    await wrapper.find("input").trigger("keydown", { key: "Escape" });
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("uses one real mobile dialog surface with backdrop and focus return", async () => {
+    const wrapper = mount(ResponsiveFilterPanel, {
+      props: { open: false, count: 2, clearable: true },
+      slots: { default: "<input aria-label='筛选条件' />" },
+    });
+    await wrapper.find(".filter-trigger").trigger("click");
+    await wrapper.setProps({ open: true });
+    await nextTick();
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.querySelector("input")?.getAttribute("aria-label")).toBe(
+      "筛选条件",
+    );
+    expect(document.body.querySelector(".filter-dialog-proxy")).toBeNull();
+    expect(
+      document.body.querySelector(".filter-drawer-backdrop"),
+    ).not.toBeNull();
+    (
+      document.body.querySelector(".filter-drawer-backdrop") as HTMLElement
+    ).click();
+    await nextTick();
+    expect(wrapper.emitted("update:open")?.at(-1)).toEqual([false]);
+    wrapper.unmount();
+  });
+});
