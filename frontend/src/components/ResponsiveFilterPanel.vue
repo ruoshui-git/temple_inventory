@@ -13,9 +13,23 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:open": [value: boolean]; clear: [] }>();
 const invoker = ref<HTMLElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
-const isMobile = ref(false);
-const previousOverflow = ref("");
+const isMobile = ref(
+	typeof window === "undefined" || typeof window.matchMedia !== "function"
+		? true
+		: !window.matchMedia("(min-width: 1024px)").matches,
+);
+const previousBodyOverflow = ref("");
+const previousDocumentOverflow = ref("");
+let mediaQuery: MediaQueryList | undefined;
 const titleId = "filter-title-" + Math.random().toString(36).slice(2);
+
+function syncSurface(event?: MediaQueryListEvent | MediaQueryList) {
+	if (event) {
+		isMobile.value = !event.matches;
+		return;
+	}
+	if (mediaQuery) isMobile.value = !mediaQuery.matches;
+}
 
 function close() {
 	emit("update:open", false);
@@ -61,8 +75,10 @@ watch(
 	() => props.open,
 	async (value) => {
 		if (value) {
-			previousOverflow.value = document.body.style.overflow;
+			previousBodyOverflow.value = document.body.style.overflow;
+			previousDocumentOverflow.value = document.documentElement.style.overflow;
 			document.body.style.overflow = "hidden";
+			document.documentElement.style.overflow = "hidden";
 			// Pages may use their own visible mobile trigger so the sidebar trigger
 			// can stay out of the desktop grid. Preserve that trigger for close.
 			if (!invoker.value && document.activeElement instanceof HTMLElement)
@@ -72,21 +88,36 @@ watch(
 				?.querySelector<HTMLElement>('button,input,select,textarea,[tabindex="0"]')
 				?.focus();
 		} else {
-			document.body.style.overflow = previousOverflow.value;
-			previousOverflow.value = "";
+			document.body.style.overflow = previousBodyOverflow.value;
+			document.documentElement.style.overflow = previousDocumentOverflow.value;
+			previousBodyOverflow.value = "";
+			previousDocumentOverflow.value = "";
 		}
 	},
+	{ immediate: true },
 );
 onMounted(() => {
-	if (typeof window !== "undefined" && typeof window.matchMedia === "function")
-		isMobile.value = !window.matchMedia("(min-width: 1024px)").matches;
+	if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+		mediaQuery = window.matchMedia("(min-width: 1024px)");
+		syncSurface(mediaQuery);
+		if (typeof mediaQuery.addEventListener === "function")
+			mediaQuery.addEventListener("change", syncSurface);
+		else mediaQuery.addListener(syncSurface);
+	}
 	window.addEventListener("keydown", keydown);
 	document.addEventListener("pointerdown", onPointerDown);
 });
 onBeforeUnmount(() => {
+	if (mediaQuery) {
+		if (typeof mediaQuery.removeEventListener === "function")
+			mediaQuery.removeEventListener("change", syncSurface);
+		else mediaQuery.removeListener(syncSurface);
+		mediaQuery = undefined;
+	}
 	window.removeEventListener("keydown", keydown);
 	document.removeEventListener("pointerdown", onPointerDown);
-	document.body.style.overflow = previousOverflow.value;
+	document.body.style.overflow = previousBodyOverflow.value;
+	document.documentElement.style.overflow = previousDocumentOverflow.value;
 });
 defineExpose({ openPanel, close });
 </script>
@@ -104,6 +135,7 @@ defineExpose({ openPanel, close });
 			:role="open && isMobile ? 'dialog' : undefined"
 			:aria-modal="open && isMobile ? 'true' : undefined"
 			:aria-labelledby="titleId"
+			:data-filter-open="open && isMobile ? 'true' : 'false'"
 			@keydown="keydown"
 		>
 			<h2 :id="titleId">{{ title }}</h2>

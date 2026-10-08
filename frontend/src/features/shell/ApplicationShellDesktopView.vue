@@ -125,18 +125,15 @@ const emit = defineEmits<{
 	</aside>
 </template>
 
-<style>
+<style scoped>
 @media (min-width: 1024px) {
-	.application-shell {
-		display: grid;
-		grid-template-columns: 156px minmax(0, 1fr);
-		height: 100dvh;
-		overflow: hidden;
-		background: #f8f7f4;
-	}
 	.desktop-nav {
 		position: static;
 		display: flex;
+		align-items: stretch;
+		box-sizing: border-box;
+		height: 100%;
+		min-height: 0;
 		min-width: 0;
 		max-width: none;
 		flex-direction: column;
@@ -298,10 +295,6 @@ const emit = defineEmits<{
 		background: transparent;
 		color: #756f67;
 		font-size: 12px;
-	}
-	.shell-content {
-		min-height: 0;
-		overflow: hidden;
 	}
 }
 </style>

@@ -51,12 +51,27 @@ const {
 	</div>
 </template>
 
-<style>
+<style scoped>
 .application-shell {
 	min-height: 100dvh;
 }
 
 .shell-content {
 	min-width: 0;
+}
+
+@media (min-width: 1024px) {
+	.application-shell {
+		display: grid;
+		grid-template-columns: 156px minmax(0, 1fr);
+		height: 100dvh;
+		min-height: 0;
+		overflow: hidden;
+		background: #f8f7f4;
+	}
+	.shell-content {
+		min-height: 0;
+		overflow: hidden;
+	}
 }
 </style>

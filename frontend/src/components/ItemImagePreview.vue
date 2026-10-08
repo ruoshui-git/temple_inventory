@@ -125,4 +125,23 @@ onBeforeUnmount(() => {
 			</span>
 		</span>
 	</span>
+	<span v-else class="image-placeholder" role="img" aria-label="暂无图片">暂无图片</span>
 </template>
+
+<style scoped>
+.image-placeholder {
+	display: inline-grid;
+	box-sizing: border-box;
+	width: 52px;
+	height: 52px;
+	flex: none;
+	place-items: center;
+	border: 1px solid #e4ded5;
+	border-radius: 8px;
+	background: #f5f1ea;
+	color: #8a8176;
+	font-size: 10px;
+	line-height: 1.2;
+	text-align: center;
+}
+</style>

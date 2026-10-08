@@ -219,6 +219,12 @@ describe("movement ledger", () => {
     page();
     const wrapper = mount(Movements, { global: globals });
     await flushPromises();
+    expect(
+      wrapper.find(".movement-item-cell .image-placeholder").exists(),
+    ).toBe(true);
+    expect(
+      wrapper.find(".movement-item-cell .image-thumb-button").exists(),
+    ).toBe(false);
     expect(wrapper.findAll(".movement-kind-chip")).toHaveLength(10);
     expect(wrapper.text()).toContain("关联记录");
     expect(wrapper.text()).toContain("从");

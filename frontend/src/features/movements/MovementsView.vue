@@ -333,17 +333,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						<template #cell-item="{ row }"
 							><div class="movement-item-cell">
 								<ItemImagePreview
-									v-if="row.image"
-									:src="row.image"
+									:src="row.image || undefined"
 									:alt="row.item_name"
 								/>
 								<span
-									v-else
-									class="movement-thumb movement-thumb-placeholder"
-									role="img"
-									aria-label="暂无图片"
-									>暂无图片</span
-								><span
 									>{{ row.item_name }}<small>{{ row.item_code }}</small></span
 								>
 							</div></template
@@ -407,17 +400,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								</div>
 								<div v-if="mode === 'items'" class="movement-item-cell">
 									<ItemImagePreview
-										v-if="row.image"
-										:src="row.image"
+										:src="row.image || undefined"
 										:alt="row.item_name"
 									/>
 									<span
-										v-else
-										class="movement-thumb movement-thumb-placeholder"
-										role="img"
-										aria-label="暂无图片"
-										>暂无图片</span
-									><span
 										>{{ row.item_name
 										}}<small>{{ row.item_code }}</small></span
 									>
@@ -744,27 +730,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	gap: 7px;
 	min-width: 150px;
 }
-.movement-thumb {
-	width: 32px;
-	height: 32px;
-	object-fit: cover;
-	border-radius: 5px;
-	float: left;
-	margin-right: 7px;
-}
-.movement-thumb-placeholder {
+.movement-item-cell > :deep(.image-preview),
+.movement-item-cell > :deep(.image-placeholder) {
 	display: inline-grid;
-	place-items: center;
 	flex: none;
-	width: 52px;
-	height: 52px;
-	margin: 0;
-	border: 1px solid #e4ded5;
-	border-radius: 8px;
-	background: #f5f1ea;
-	color: #8a8176;
-	font-size: 10px;
-	text-align: center;
 }
 .movement-badge,
 .status-badge {

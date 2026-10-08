@@ -117,6 +117,10 @@ describe("shared compact filter primitives", () => {
     await nextTick();
     const dialog = document.body.querySelector('[role="dialog"]');
     expect(dialog).not.toBeNull();
+    expect(dialog?.classList.contains("filter-drawer-open")).toBe(true);
+    expect(dialog?.getAttribute("data-filter-open")).toBe("true");
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     expect(dialog?.querySelector("input")?.getAttribute("aria-label")).toBe(
       "筛选条件",
     );
@@ -129,6 +133,9 @@ describe("shared compact filter primitives", () => {
     ).click();
     await nextTick();
     expect(wrapper.emitted("update:open")?.at(-1)).toEqual([false]);
+    await wrapper.setProps({ open: false });
+    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("");
     wrapper.unmount();
   });
 });
