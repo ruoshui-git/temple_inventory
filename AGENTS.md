@@ -233,6 +233,31 @@ requested.
 
 Write maintainable production source code, not minified or code-golfed code. Use descriptive variable and function names, conventional whitespace, and normal line wrapping. Do not manually optimize code for fewer lines or characters. Format Python with Ruff and frontend files with Prettier before finishing. No need to check for whitespacing after using the formatter.
 
+## Implementation delegation workflow
+
+For tasks that require actual implementation, delegate the implementation to a
+`gpt-5.6-luna` subagent. Use `high` reasoning effort by default; use `medium`
+for straightforward mechanical changes and `xhigh` or `max` when the scope or
+risk warrants it. Give the subagent the complete implementation scope and
+instruct it to run all applicable formatting, type-checking, and tests itself.
+The primary agent should preserve its context for coordination and the final
+review instead of duplicating the delegated checks.
+
+After the subagent finishes, the primary agent must inspect the resulting diff
+and independently check it for completeness against the user's request,
+acceptance criteria, repository instructions, and change scope. If work is
+missing or incorrect, send the findings back to the same subagent and let it
+continue when practical; spawn a replacement `gpt-5.6-luna` subagent only when
+that is more effective. Repeat until the implementation is complete or a real
+blocker must be reported.
+
+While an implementation or test subagent is running, do useful independent work
+only when it can proceed in parallel without conflicting with the delegated
+changes. Otherwise, wait for the subagent with long wait intervals instead of
+polling frequently or making token-consuming status calls. The primary agent
+remains responsible for the final completeness assessment and user-facing
+report.
+
 ## Validation policy
 
 Use proportionate, focused checks. Do **not** launch Playwright, Chromium, camera
