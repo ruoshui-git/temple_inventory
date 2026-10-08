@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, nextTick, reactive } from "vue";
+import { defineComponent, h, nextTick, reactive, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import ApplicationShell from "../src/components/ApplicationShell.vue";
 
@@ -13,6 +13,10 @@ const state = vi.hoisted(() => ({
   request: vi.fn(),
 }));
 const route = reactive(state.route);
+const shellMedia = vi.hoisted(() => ({
+  matches: true,
+  listener: undefined as ((event: MediaQueryListEvent) => void) | undefined,
+}));
 
 vi.mock("../src/lib/api", () => ({ api: state.api, request: state.request }));
 vi.mock("vue-router", () => ({ useRoute: () => route }));
@@ -35,6 +39,23 @@ describe("ApplicationShell navigation contract", () => {
         observe() {}
         disconnect() {}
       },
+    });
+    shellMedia.matches = true;
+    shellMedia.listener = undefined;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        get matches() {
+          return shellMedia.matches;
+        },
+        addEventListener: (
+          _name: string,
+          callback: (event: MediaQueryListEvent) => void,
+        ) => {
+          shellMedia.listener = callback;
+        },
+        removeEventListener: () => undefined,
+      }),
     });
   });
 
@@ -60,6 +81,7 @@ describe("ApplicationShell navigation contract", () => {
     const wrapper = mount(ApplicationShell, {
       global: { stubs: { RouterLink } },
     });
+    await nextTick();
     const brand = wrapper.find(".shell-brand").element;
     expect(wrapper.find(".desktop-nav").element.children[0]).toBe(brand);
     expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
@@ -89,12 +111,13 @@ describe("ApplicationShell navigation contract", () => {
 
   it("leaves Inventory and Expiry tabs to the production page on mobile", async () => {
     route.path = "/expiry";
+    shellMedia.matches = false;
     const wrapper = mount(ApplicationShell, {
       global: { stubs: { RouterLink } },
     });
     await nextTick();
     expect(wrapper.find(".mobile-context-nav").exists()).toBe(false);
-    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+    expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });
 
   it("normalizes default context state and gives Adjustments no subnavigation", async () => {
@@ -206,5 +229,112 @@ describe("ApplicationShell navigation contract", () => {
       '"kind":["Loan","Return"]',
     );
     expect(record?.attributes("data-query")).toContain('"docstatuses":[0,1]');
+  });
+
+  it("mounts exactly one shell surface while crossing the shared breakpoint", async () => {
+    const originalMatchMedia = window.matchMedia;
+    let matches = false;
+    let listener: ((event: MediaQueryListEvent) => void) | undefined;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        get matches() {
+          return matches;
+        },
+        addEventListener: (
+          _name: string,
+          callback: (event: MediaQueryListEvent) => void,
+        ) => {
+          listener = callback;
+        },
+        removeEventListener: () => undefined,
+      }),
+    });
+    try {
+      const wrapper = mount(ApplicationShell, {
+        global: { stubs: { RouterLink } },
+      });
+      await nextTick();
+      expect(wrapper.find(".desktop-nav").exists()).toBe(false);
+      expect(wrapper.find(".mobile-nav").exists()).toBe(true);
+      matches = true;
+      listener?.({ matches: true } as MediaQueryListEvent);
+      await nextTick();
+      expect(wrapper.find(".desktop-nav").exists()).toBe(true);
+      expect(wrapper.find(".mobile-nav").exists()).toBe(false);
+      wrapper.unmount();
+    } finally {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
+  it("retains the routed slot instance while crossing the shared breakpoint", async () => {
+    let slotInstanceSequence = 0;
+    const StatefulSlot = defineComponent({
+      name: "StatefulSlot",
+      setup() {
+        const count = ref(0);
+        const instanceId = ++slotInstanceSequence;
+        return { count, instanceId };
+      },
+      template:
+        '<button class="slot-state" :data-instance="instanceId" @click="count++">{{ count }}</button>',
+    });
+    const originalMatchMedia = window.matchMedia;
+    let matches = false;
+    let listener: ((event: MediaQueryListEvent) => void) | undefined;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        get matches() {
+          return matches;
+        },
+        addEventListener: (
+          _name: string,
+          callback: (event: MediaQueryListEvent) => void,
+        ) => {
+          listener = callback;
+        },
+        removeEventListener: () => undefined,
+      }),
+    });
+    try {
+      const wrapper = mount(ApplicationShell, {
+        slots: { default: () => h(StatefulSlot) },
+        global: { stubs: { RouterLink } },
+      });
+      await nextTick();
+      const slot = wrapper.findComponent(StatefulSlot);
+      const slotInstanceId = slot
+        .find(".slot-state")
+        .attributes("data-instance");
+      await slot.find(".slot-state").trigger("click");
+      expect(slot.text()).toBe("1");
+      expect(wrapper.findAll(".desktop-nav")).toHaveLength(0);
+      expect(wrapper.findAll(".mobile-nav")).toHaveLength(1);
+
+      matches = true;
+      listener?.({ matches: true } as MediaQueryListEvent);
+      await nextTick();
+
+      expect(
+        wrapper
+          .findComponent(StatefulSlot)
+          .find(".slot-state")
+          .attributes("data-instance"),
+      ).toBe(slotInstanceId);
+      expect(wrapper.findComponent(StatefulSlot).text()).toBe("1");
+      expect(wrapper.findAll(".desktop-nav")).toHaveLength(1);
+      expect(wrapper.findAll(".mobile-nav")).toHaveLength(0);
+      wrapper.unmount();
+    } finally {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
   });
 });

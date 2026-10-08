@@ -11,6 +11,10 @@ const state = vi.hoisted(() => ({
   workspaceApi: vi.fn(),
 }));
 const route = reactive(state.route);
+const media = vi.hoisted(() => ({
+  matches: true,
+  listener: undefined as ((event: MediaQueryListEvent) => void) | undefined,
+}));
 vi.mock("vue-router", () => ({
   useRoute: () => route,
   useRouter: () => ({ replace: state.replace, push: state.push }),
@@ -84,6 +88,23 @@ describe("movement ledger", () => {
       stock_operation_capabilities: { Receive: true },
     });
     state.workspaceApi.mockReset();
+    media.matches = true;
+    media.listener = undefined;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        get matches() {
+          return media.matches;
+        },
+        addEventListener: (
+          _name: string,
+          callback: (event: MediaQueryListEvent) => void,
+        ) => {
+          media.listener = callback;
+        },
+        removeEventListener: () => undefined,
+      }),
+    });
   });
   it("loads line rows and restores item filters and legacy kinds", async () => {
     route.query = {
@@ -204,10 +225,6 @@ describe("movement ledger", () => {
     expect(wrapper.text()).toContain("到");
     const originalMatchMedia = window.matchMedia;
     try {
-      Object.defineProperty(window, "matchMedia", {
-        configurable: true,
-        value: () => ({ matches: true }),
-      });
       await wrapper.find(".movement-filter-button").trigger("click");
       expect(wrapper.find(".desktop-list-layout").classes()).toContain(
         "filters-open",
@@ -216,10 +233,9 @@ describe("movement ledger", () => {
       expect(wrapper.find(".desktop-list-layout").classes()).not.toContain(
         "filters-open",
       );
-      Object.defineProperty(window, "matchMedia", {
-        configurable: true,
-        value: () => ({ matches: false }),
-      });
+      media.matches = false;
+      media.listener?.({ matches: false } as MediaQueryListEvent);
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await wrapper.find(".movement-filter-button").trigger("click");
       await flushPromises();
       expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { reactive, defineComponent } from "vue";
+import { reactive, defineComponent, nextTick } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import Loans from "../src/pages/Loans.vue";
 import Pending from "../src/pages/Pending.vue";
@@ -63,6 +63,7 @@ describe("compact desktop filter rails", () => {
       "filters-open",
     );
     await wrapper.find(".desktop-filter-button").trigger("click");
+    await nextTick();
     expect(wrapper.find(".compact-filter-layout").classes()).toContain(
       "filters-open",
     );

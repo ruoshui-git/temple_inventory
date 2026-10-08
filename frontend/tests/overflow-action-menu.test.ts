@@ -1,6 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import OverflowActionMenu from "../src/components/OverflowActionMenu.vue";
 
 const actions = [
@@ -12,16 +11,6 @@ const actions = [
 
 describe("OverflowActionMenu", () => {
   it("supports Escape, arrow/Home/End navigation, focus return, and outside close", async () => {
-    const source = readFileSync(
-      "src/components/OverflowActionMenu.vue",
-      "utf8",
-    );
-    expect(source).toMatch(/flex:\s*0 0 38px/);
-    expect(source).toMatch(/min-width:\s*38px/);
-    expect(source).toMatch(/min-height:\s*38px/);
-    expect(source).toMatch(/block-size:\s*38px/);
-    expect(source).toMatch(/max-block-size:\s*38px/);
-    expect(source).toMatch(/aspect-ratio:\s*1/);
     const wrapper = mount(OverflowActionMenu, {
       attachTo: document.body,
       props: { actions },

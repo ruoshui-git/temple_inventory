@@ -1,0 +1,186 @@
+<script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
+import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
+import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
+import WarehouseSelector from "../../components/WarehouseSelector.vue";
+import CategorySelector from "../../components/CategorySelector.vue";
+import LoadingIndicator from "../../components/LoadingIndicator.vue";
+import QuantitySummary from "../../components/QuantitySummary.vue";
+import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
+import CompactFilterSection from "../../components/CompactFilterSection.vue";
+import { type PendingController } from "./usePendingController";
+
+const props = defineProps<{
+	controller: PendingController;
+	surface: ResponsiveSurface;
+}>();
+const {
+	scrollResetToken,
+	boot,
+	rows,
+	total,
+	overall,
+	facets,
+	quantityTotals,
+	error,
+	loading,
+	loadingMore,
+	mode,
+	filterOpen,
+	desktopFilterOpen,
+	operationCaps,
+	filters,
+	warehouseRows,
+	summaryMetrics,
+	warehouseText,
+	chips,
+	load,
+	begin,
+	removeChip,
+	clearFilters,
+	close,
+} = props.controller;
+const surface = toRef(props, "surface");
+const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
+const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
+const sentinel = ref<HTMLElement>();
+const infiniteScroll = useInfiniteScroll({
+	hasMore: () => rows.value.length < total.value,
+	isLoading: () => loading.value || loadingMore.value,
+	onLoadMore: () => load(true),
+});
+onMounted(async () => {
+	await nextTick();
+	infiniteScroll.connect(null, sentinel.value);
+});
+onBeforeUnmount(() => infiniteScroll.disconnect());
+</script>
+
+<template>
+	<section class="app-shell wide-shell">
+		<header>
+			<button type="button" @click="close">‹ 库存</button>
+			<h1>待处理</h1>
+		</header>
+		<nav class="inventory-modes" aria-label="待处理类型">
+			<button type="button" :class="{ active: mode === 'all' }" @click="mode = 'all'">
+				全部</button
+			><button
+				type="button"
+				:class="{ active: mode === 'damaged' }"
+				@click="mode = 'damaged'"
+			>
+				损坏</button
+			><button
+				type="button"
+				:class="{ active: mode === 'unlocated' }"
+				@click="mode = 'unlocated'"
+			>
+				未定位
+			</button>
+		</nav>
+		<div
+			class="list-layout desktop-list-layout compact-filter-layout pending-list-layout"
+			:class="{ 'filters-open': desktopFilterOpen }"
+		>
+			<ResponsiveFilterPanel
+				ref="filterPanel"
+				v-model:open="filterOpen"
+				:count="filters.warehouses.length + filters.item_groups.length"
+				clearable
+				@clear="clearFilters"
+			>
+				<CompactFilterSection title="仓库 / 位置" icon="warehouse">
+					<WarehouseSelector
+						v-model="filters.warehouses"
+						:rows="warehouseRows"
+						embedded
+						:counts="facets.warehouses"
+						placeholder="搜索仓库 / 位置"
+					/>
+				</CompactFilterSection>
+				<CompactFilterSection title="物品类别" icon="card">
+					<CategorySelector
+						v-model="filters.item_groups"
+						:rows="boot?.item_groups || []"
+						embedded
+						:counts="facets.item_groups"
+						placeholder="搜索物品类别"
+					/>
+				</CompactFilterSection>
+			</ResponsiveFilterPanel>
+			<div class="results-column">
+				<div class="result-toolbar results-chrome">
+					<input
+						v-model="filters.search"
+						type="search"
+						placeholder="搜索物品或编号"
+						aria-label="搜索待处理物品"
+					/><button
+						type="button"
+						class="toolbar-action desktop-filter-button mobile-filter-button"
+						:aria-expanded="desktopFilterOpen"
+						:aria-label="`筛选，${filters.warehouses.length + filters.item_groups.length} 项已启用`"
+						@click="openFilters($event)"
+					>
+						筛选<span
+							v-if="filters.warehouses.length + filters.item_groups.length"
+							class="filter-count"
+							>{{ filters.warehouses.length + filters.item_groups.length }}</span
+						></button
+					><span aria-live="polite"
+						>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部 {{ overall }}</span
+					>
+				</div>
+				<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+				<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
+				<p v-if="error" class="error">
+					{{ error }} <button type="button" @click="load()">重试</button>
+				</p>
+				<LoadingIndicator v-if="loading && !rows.length" text="正在加载待处理物品…" />
+				<article
+					v-for="row in rows"
+					:key="row.item_code"
+					class="selection-row result-card"
+				>
+					<RouterLink :to="`/item/${encodeURIComponent(row.item_code)}`"
+						><b>{{ row.item_name }}</b
+						><small
+							>损坏 {{ row.damaged_qty }} · 未定位 {{ row.pending_qty }}
+							{{ row.stock_uom }}</small
+						></RouterLink
+					>
+					<div class="detail-actions">
+						<button
+							v-if="row.pending_qty && operationCaps.Transfer"
+							type="button"
+							@click="begin(row, 'Transfer')"
+						>
+							分配到位置</button
+						><button
+							v-if="row.damaged_qty && operationCaps.Repair"
+							type="button"
+							@click="begin(row, 'Repair')"
+						>
+							修复归库</button
+						><button
+							v-if="row.damaged_qty && operationCaps.Disposal"
+							type="button"
+							@click="begin(row, 'Disposal')"
+						>
+							正式报废
+						</button>
+					</div>
+				</article>
+				<p v-if="!rows.length && !error && !loading" class="empty-state">
+					暂无{{
+						mode === "all" ? "待处理" : mode === "damaged" ? "损坏" : "未定位"
+					}}库存
+				</p>
+				<div ref="sentinel" aria-hidden="true"></div>
+				<div v-if="loadingMore" class="mobile-loading" role="status">正在加载…</div>
+			</div>
+		</div>
+	</section>
+</template>

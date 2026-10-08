@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { reactive, defineComponent } from "vue";
-import { readFileSync } from "node:fs";
 import Inventory from "../src/pages/Inventory.vue";
 import Expiry from "../src/pages/Expiry.vue";
 import InventoryFilterPanel from "../src/components/InventoryFilterPanel.vue";
@@ -15,6 +14,10 @@ const state = vi.hoisted(() => ({
   push: vi.fn(),
 }));
 const route = reactive(state.route);
+const media = vi.hoisted(() => ({
+  matches: false,
+  listener: undefined as ((event: MediaQueryListEvent) => void) | undefined,
+}));
 vi.mock("../src/lib/api", () => ({ api: state.api }));
 vi.mock("vue-router", () => ({
   useRoute: () => route,
@@ -48,6 +51,26 @@ const settle = async () => {
   await new Promise((resolve) => setTimeout(resolve, 320));
   await flushPromises();
 };
+
+function setSurface(surface: "desktop" | "mobile") {
+  media.matches = surface === "desktop";
+  media.listener = undefined;
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => ({
+      get matches() {
+        return media.matches;
+      },
+      addEventListener: (
+        _name: string,
+        callback: (event: MediaQueryListEvent) => void,
+      ) => {
+        media.listener = callback;
+      },
+      removeEventListener: () => undefined,
+    }),
+  });
+}
 
 function inventoryRows() {
   return [
@@ -87,6 +110,7 @@ beforeEach(() => {
   state.push.mockClear();
   localStorage.clear();
   sessionStorage.clear();
+  setSurface("mobile");
   Object.defineProperty(HTMLElement.prototype, "scrollTo", {
     value: vi.fn(),
     configurable: true,
@@ -108,21 +132,28 @@ beforeEach(() => {
 });
 
 describe("Inventory and Expiry integrations", () => {
-  it("locks mobile browse pages to the shell viewport and keeps results scrollable", () => {
-    const inventory = readFileSync("src/pages/Inventory.vue", "utf8");
-    const expiry = readFileSync("src/pages/Expiry.vue", "utf8");
-    for (const source of [inventory, expiry]) {
-      expect(source).toMatch(
-        /height:\s*calc\([\s\S]*100dvh[\s\S]*--mobile-nav-height/,
-      );
-      expect(source).toMatch(
-        /\.mobile-(?:inventory|expiry)-page\s*\{[\s\S]*height:\s*100%[\s\S]*min-height:\s*0[\s\S]*overflow:\s*hidden/,
-      );
-      expect(source).toMatch(
-        /\.mobile-results\s*\{[\s\S]*min-height:\s*0[\s\S]*flex:\s*1[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/,
-      );
-      expect(source).toMatch(/\.mobile-browse-header\s*\{[\s\S]*margin:\s*0/);
-    }
+  it("mounts dedicated Inventory and Expiry surface boundaries", async () => {
+    const inventory = mount(Inventory, { global: globals });
+    const expiry = mount(Expiry, { global: globals, props: {} });
+    await flushPromises();
+    expect(
+      inventory.findComponent({ name: "InventoryMobileView" }).exists(),
+    ).toBe(true);
+    expect(
+      inventory.findComponent({ name: "InventoryDesktopView" }).exists(),
+    ).toBe(false);
+    expect(inventory.find(".mobile-results").exists()).toBe(true);
+    expect(inventory.find(".desktop-list-layout").exists()).toBe(false);
+    expect(expiry.findComponent({ name: "ExpiryMobileView" }).exists()).toBe(
+      true,
+    );
+    expect(expiry.findComponent({ name: "ExpiryDesktopView" }).exists()).toBe(
+      false,
+    );
+    expect(expiry.find(".mobile-results").exists()).toBe(true);
+    expect(expiry.find(".desktop-list-layout").exists()).toBe(false);
+    inventory.unmount();
+    expiry.unmount();
   });
 
   it("renders a unitless Inventory headline and expands exact per-UOM details", async () => {
@@ -200,16 +231,19 @@ describe("Inventory and Expiry integrations", () => {
     expect(wrapper.findAll(".mobile-expiry-result-row")).toHaveLength(2);
     const quick = wrapper.findAll(".expiry-quick-filters button");
     await quick[1].trigger("click");
+    await flushPromises();
     let request = state.api.mock.calls
       .filter((call) => call[0] === "expiring_batches")
       .at(-1);
     expect(request?.[1].expiry_window).toBe("remaining_within");
     await quick[2].trigger("click");
+    await flushPromises();
     request = state.api.mock.calls
       .filter((call) => call[0] === "expiring_batches")
       .at(-1);
     expect(request?.[1].expiry_window).toBe("overdue");
     await quick[0].trigger("click");
+    await flushPromises();
     request = state.api.mock.calls
       .filter((call) => call[0] === "expiring_batches")
       .at(-1);
@@ -279,6 +313,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("hides the ERPNext item-group root and sanitizes legacy selection", async () => {
+    setSurface("desktop");
     state.route.query = { item_groups: "All Item Groups" };
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
@@ -323,6 +358,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("shows Expiry primary actions and permission-filtered overflow actions", async () => {
+    setSurface("desktop");
     state.route.path = "/expiry";
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
@@ -346,14 +382,20 @@ describe("Inventory and Expiry integrations", () => {
         .map((button) => button.text()),
     ).toEqual(["↓ 入库", "↑ 出库", "⇄ 转移", "导出"]);
     expect(wrapper.find(".action-fab").exists()).toBe(false);
-    const overflow = wrapper.find(".overflow-action-trigger");
+    wrapper.unmount();
+    setSurface("mobile");
+    const mobile = mount(Expiry, { global: globals });
+    await flushPromises();
+    const overflow = mobile.find(".overflow-action-trigger");
     await overflow.trigger("click");
     expect(
-      wrapper.findAll('[role="menuitem"]').map((item) => item.text()),
+      mobile.findAll('[role="menuitem"]').map((item) => item.text()),
     ).toEqual(["入库", "出库", "转移", "导出"]);
+    mobile.unmount();
   });
 
   it("filters Inventory overflow actions by capabilities and keeps Export last", async () => {
+    setSurface("mobile");
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
         ? {
@@ -377,6 +419,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("restores bootstrap-dependent filters and actions when retry succeeds", async () => {
+    setSurface("desktop");
     let bootstrapAttempts = 0;
     state.api.mockImplementation(async (method: string) => {
       if (method === "bootstrap") {
@@ -435,6 +478,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("keeps browse chrome outside the dedicated results scroll and uses shared primary cells", async () => {
+    setSurface("desktop");
     const inventory = mount(Inventory, { global: globals });
     await flushPromises();
     expect(inventory.find(".results-chrome").exists()).toBe(true);
@@ -452,6 +496,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("requests Inventory default sort, reverses it, resets rows, and serializes non-default state", async () => {
+    setSurface("desktop");
     const wrapper = mount(Inventory, { global: globals });
     await flushPromises();
     const request = state.api.mock.calls.find(
@@ -489,6 +534,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("keeps Inventory scanner modal lookup pending and handles known and unknown results", async () => {
+    setSurface("desktop");
     state.api.mockImplementation(async (method: string, payload?: any) => {
       if (method === "bootstrap")
         return {
@@ -522,6 +568,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("keeps the Inventory scanner open after a lookup failure", async () => {
+    setSurface("desktop");
     state.api.mockImplementation(async (method: string) => {
       if (method === "bootstrap")
         return {
@@ -547,6 +594,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("hydrates Expiry legacy sort, removes the sidebar sorter, and sends canonical sort state", async () => {
+    setSurface("desktop");
     state.route.path = "/expiry";
     state.route.query = { sort: "desc" };
     const wrapper = mount(Expiry, { global: globals });
@@ -572,6 +620,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("uses Expiry first-click directions and resets to the default canonical sort", async () => {
+    setSurface("desktop");
     state.route.path = "/expiry";
     const wrapper = mount(Expiry, { global: globals });
     await flushPromises();
@@ -606,6 +655,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("hydrates Expiry when browser navigation changes only the sort", async () => {
+    setSurface("desktop");
     state.route.path = "/expiry";
     mount(Expiry, { global: globals });
     await flushPromises();
@@ -618,6 +668,7 @@ describe("Inventory and Expiry integrations", () => {
   });
 
   it("shows server expiry counts and blocks an invalid signed custom range", async () => {
+    setSurface("desktop");
     state.route.path = "/expiry";
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"

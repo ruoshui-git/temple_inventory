@@ -154,6 +154,35 @@ into the ERPNext documents described above; it must not introduce parallel stock
 attachment, scanner, or audit subsystems. Store transaction attachments through
 Frappe's standard private `File` records.
 
+### Responsive frontend architecture
+
+Routed pages under `frontend/src/pages/` are coordinators. Feature-owned
+controllers under `frontend/src/features/<domain>/` own API calls, route-query
+synchronisation, filters, permissions, pagination, selection, exports, and
+persistent state. Presentation components receive typed state and emit user
+intentions; they do not fetch data, mutate route queries directly, or duplicate
+permission and business rules.
+
+Use `frontend/src/composables/useResponsiveLayout.ts` for every responsive
+branch. The shared breakpoint is 1024px, and the initial no-DOM state is
+mobile-first. A coordinator mounts exactly one active surface through the
+shared layout contract; a viewport change may unmount the inactive view but
+must retain the controller and its loaded rows, filters, selection, dialogs,
+errors, and scroll-restoration state.
+
+Pair `DesktopView` and `MobileView` components only when layout or interaction
+is materially different. Keep same-flow forms and detail screens as one
+adaptive view when CSS/layout changes are sufficient. Keep filters, scanners,
+dialogs, cards, summaries, attachment controls, warehouse presenters, and
+action menus shared. Infinite-scroll observers belong to the mounted surface
+and should use the shared `useInfiniteScroll` list-surface contract.
+
+When changing a responsive feature, test the coordinator and both surfaces:
+initial breakpoint selection, listener cleanup, state retention across a
+breakpoint change, loading/error/empty states, sorting, keyboard and row
+activation, selection, filters, exports, query preservation, and load-more
+behaviour. Do not edit generated files under `public/frontend/`.
+
 ## Storybook UI workflow
 
 Reusable frontend UI should be developed and reviewed in Storybook when a
