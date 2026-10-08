@@ -24,7 +24,7 @@ import type { SortState } from "../../components/SortableDataTable.vue";
 
 import { returnToOpener } from "../../lib/navigation";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-type Destination = "movements" | "adjustments" | "drafts";
+type Destination = "movements" | "drafts";
 
 export function useHistoryController(destination: Destination = "movements") {
   type HistoryFilters = {
@@ -63,6 +63,7 @@ export function useHistoryController(destination: Destination = "movements") {
   const quantityTotals = ref<
     Record<string, Array<{ uom: string; qty: number }>>
   >({});
+  const columnSummaries = ref<Record<string, any>>({});
   const resolvedPeriod = ref({ date_from: "", date_to: "" });
   const facets = ref<Record<string, Record<string, number>>>({
     movement_kind: {},
@@ -141,23 +142,26 @@ export function useHistoryController(destination: Destination = "movements") {
       sortable: true,
       initialOrder: "desc" as const,
     },
-    { key: "line_count", label: "物品行数", sortable: true },
+    {
+      key: "line_count",
+      label: "物品行数",
+      sortable: true,
+      summary: "line_count",
+    },
+    {
+      key: "moved_qty",
+      label: "数量",
+      summary: "moved_qty",
+    },
     ...movementWarehouseColumns.value,
-    { key: "category_count", label: "相关类别", sortable: true },
+    {
+      key: "category_count",
+      label: "相关类别",
+      sortable: true,
+      summary: "category_count",
+    },
     { key: "status", label: "状态" },
   ]);
-  const adjustmentColumns = [
-    { key: "movement_kind", label: "类型", sortable: true },
-    {
-      key: "posting_date",
-      label: "日期",
-      sortable: true,
-      initialOrder: "desc" as const,
-    },
-    { key: "increase_line_count", label: "增加物品行数", sortable: true },
-    { key: "decrease_line_count", label: "减少物品行数", sortable: true },
-    { key: "status", label: "状态" },
-  ];
   const draftColumns = [
     { key: "movement_kind", label: "类型", sortable: true },
     {
@@ -166,31 +170,24 @@ export function useHistoryController(destination: Destination = "movements") {
       sortable: true,
       initialOrder: "desc" as const,
     },
-    { key: "line_count", label: "物品行数", sortable: true },
+    {
+      key: "line_count",
+      label: "物品行数",
+      sortable: true,
+      summary: "line_count",
+    },
+    {
+      key: "draft_action_qty",
+      label: "操作数量",
+      summary: "draft_action_qty",
+    },
     { key: "status", label: "状态" },
     { key: "actions", label: "操作" },
   ];
   const sortColumns = computed(() =>
-    props.destination === "adjustments"
-      ? adjustmentColumns
-      : props.destination === "drafts"
-        ? draftColumns
-        : movementColumns.value,
+    props.destination === "drafts" ? draftColumns : movementColumns.value,
   );
   const summaryMetrics = computed(() => {
-    if (props.destination === "adjustments")
-      return [
-        {
-          key: "increase_qty",
-          label: "增加",
-          quantities: quantityTotals.value.increase_qty || [],
-        },
-        {
-          key: "decrease_qty",
-          label: "减少",
-          quantities: quantityTotals.value.decrease_qty || [],
-        },
-      ];
     if (props.destination === "drafts")
       return [
         {
@@ -212,13 +209,22 @@ export function useHistoryController(destination: Destination = "movements") {
       },
     ];
   });
+  function formatQuantities(
+    values: Array<{ uom: string; qty: number }> | undefined,
+  ) {
+    return (
+      (values || [])
+        .map(
+          (value) =>
+            `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(value.qty)} ${value.uom}`,
+        )
+        .join(" · ") || "—"
+    );
+  }
   const activeCount = computed(
     () =>
       (filters.value.search ? 1 : 0) +
       (props.destination !== "movements" && filters.value.posting_date
-        ? 1
-        : 0) +
-      (props.destination === "adjustments" && filters.value.movement_kind
         ? 1
         : 0) +
       filters.value.item_groups.length +
@@ -265,17 +271,6 @@ export function useHistoryController(destination: Destination = "movements") {
       : []),
     ...(props.destination !== "movements" && filters.value.posting_date
       ? [{ key: "posting_date", label: `日期：${filters.value.posting_date}` }]
-      : []),
-    ...(props.destination === "adjustments" && filters.value.movement_kind
-      ? [
-          {
-            key: "movement_kind",
-            label:
-              filters.value.movement_kind === "盘点调整"
-                ? "类型：库存盘点"
-                : "类型：期初库存",
-          },
-        ]
       : []),
   ]);
 
@@ -354,14 +349,6 @@ export function useHistoryController(destination: Destination = "movements") {
           ? filters.value.destination_warehouses
           : undefined;
       }
-    } else if (props.destination === "adjustments") {
-      base.movement_kind = filters.value.movement_kind || [
-        "盘点调整",
-        "期初库存",
-      ];
-      base.warehouses = filters.value.warehouses.length
-        ? filters.value.warehouses
-        : undefined;
     } else {
       base.movement_kind = undefined;
       base.warehouses = filters.value.warehouses.length
@@ -401,10 +388,7 @@ export function useHistoryController(destination: Destination = "movements") {
       warehouses: filters.value.warehouses,
       source_warehouses: filters.value.source_warehouses,
       destination_warehouses: filters.value.destination_warehouses,
-      movement_kind:
-        props.destination === "adjustments"
-          ? filters.value.movement_kind
-          : undefined,
+      movement_kind: undefined,
       start: start.value || undefined,
     };
     return {
@@ -430,9 +414,6 @@ export function useHistoryController(destination: Destination = "movements") {
 
   function operation(kind: string) {
     void router.push(`/new/${kind}`);
-  }
-  function openReconciliation() {
-    return router.push("/reconcile/new");
   }
 
   function activate(row: any) {
@@ -499,6 +480,7 @@ export function useHistoryController(destination: Destination = "movements") {
         total.value = Number(data.total || 0);
         overallTotal.value = Number(data.overall_total || 0);
         quantityTotals.value = data.quantity_totals || {};
+        columnSummaries.value = data.column_summaries || {};
         if (data.resolved_period)
           resolvedPeriod.value = {
             date_from: data.resolved_period.date_from || "",
@@ -577,11 +559,7 @@ export function useHistoryController(destination: Destination = "movements") {
         : "last_30_days") as MovementPeriodKey,
       date_from: legacyDate || String(hydrated.date_from || ""),
       date_to: legacyDate || String(hydrated.date_to || ""),
-      movement_kind:
-        props.destination === "adjustments" &&
-        ["盘点调整", "期初库存"].includes(String(hydrated.movement_kind))
-          ? String(hydrated.movement_kind)
-          : "",
+      movement_kind: "",
       item_groups: hydrated.item_groups as string[],
       warehouses: hydrated.warehouses as string[],
       source_warehouses: hydrated.source_warehouses as string[],
@@ -682,6 +660,7 @@ export function useHistoryController(destination: Destination = "movements") {
     total,
     overallTotal,
     quantityTotals,
+    columnSummaries,
     resolvedPeriod,
     facets,
     start,
@@ -704,10 +683,10 @@ export function useHistoryController(destination: Destination = "movements") {
     filters,
     movementWarehouseColumns,
     movementColumns,
-    adjustmentColumns,
     draftColumns,
     sortColumns,
     summaryMetrics,
+    formatQuantities,
     activeCount,
     warehouseText,
     locationsFor,
@@ -722,7 +701,6 @@ export function useHistoryController(destination: Destination = "movements") {
     load,
     applyQuery,
     operation,
-    openReconciliation,
     activate,
     deleteDraft,
     close,

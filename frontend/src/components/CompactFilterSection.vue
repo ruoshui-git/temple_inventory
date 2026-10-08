@@ -73,6 +73,8 @@ function toggle() {
 	align-items: center;
 	gap: 4px;
 	padding: 2px 7px 2px 2px;
+	/* Reset browser/global heading margins so collapsed filters stay compact. */
+	margin: 0;
 }
 .compact-filter-section-toggle {
 	display: flex;

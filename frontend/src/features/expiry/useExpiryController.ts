@@ -41,6 +41,7 @@ export function useExpiryController() {
   const quantityTotals = ref<
     Record<string, Array<{ uom: string; qty: number }>>
   >({});
+  const columnSummaries = ref<Record<string, any>>({});
   const facetCounts = ref<any>({ warehouses: {}, item_groups: {}, expiry: {} });
   const start = ref(0);
   const pageLength = 25;
@@ -149,6 +150,7 @@ export function useExpiryController() {
     {
       key: "total_qty",
       label: "数量",
+      summary: "total_qty",
       sortable: true,
       initialOrder: "desc" as const,
     },
@@ -446,6 +448,7 @@ export function useExpiryController() {
         facetCounts.value = data.facets || facetCounts.value;
         overallTotal.value = data.overall_total || 0;
         quantityTotals.value = data.quantity_totals || {};
+        columnSummaries.value = data.column_summaries || {};
         expirySummary.value = {
           ...expirySummary.value,
           ...(data.expiry_summary || {}),
@@ -646,6 +649,7 @@ export function useExpiryController() {
     total,
     overallTotal,
     quantityTotals,
+    columnSummaries,
     facetCounts,
     start,
     pageLength,

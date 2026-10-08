@@ -17,6 +17,7 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import ItemImagePreview from "../../components/ItemImagePreview.vue";
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
+import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import { type MovementsController, type Kind } from "./useMovementsController";
 
 const props = defineProps<{
@@ -38,6 +39,7 @@ const {
 	total,
 	allTotal,
 	counts,
+	columnSummaries,
 	resolved,
 	busy,
 	loadingMore,
@@ -86,6 +88,7 @@ const {
 	applyRouteQuery,
 } = props.controller;
 const surface = toRef(props, "surface");
+const summaryOpen = ref(false);
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const scrollRoot = ref<HTMLElement>();
@@ -196,6 +199,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 			<div class="results-column" :class="{ compact }">
 				<header class="movement-ledger-header results-chrome">
 					<div class="movement-heading">
+						<b class="compact-heading"
+							>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</b
+						>
 						<div v-if="!compact" class="movement-title">
 							<h1>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</h1>
 							<span class="movement-count"
@@ -209,12 +215,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							:resolved-from="resolved.date_from"
 							:resolved-to="resolved.date_to"
 							variant="ledger"
+							:compact="compact"
 						/>
 					</div>
 					<div class="result-toolbar movement-ledger-actions">
-						<b class="compact-identity"
-							>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</b
-						>
 						<label class="movement-search"
 							><span aria-hidden="true">⌕</span
 							><input
@@ -238,6 +242,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							><b v-if="activeFilterCount"> {{ activeFilterCount }}</b></button
 						><button type="button" class="toolbar-action" @click="exportOpen = true">
 							<InventoryIcon name="download" /><span>导出</span>
+						</button>
+						<button
+							type="button"
+							class="toolbar-action column-summary-trigger"
+							@click="summaryOpen = true"
+						>
+							Σ <span>列汇总</span>
 						</button>
 						<details v-if="mode === 'records'" class="new-record-menu">
 							<summary class="primary toolbar-action">
@@ -312,10 +323,12 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						:surface="surface"
 						:rows="rows"
 						:columns="tableColumns"
+						:column-summaries="columnSummaries"
 						:row-key="rowKey"
 						:sort="tableSort"
 						:loading="busy"
 						:loading-more="loadingMore"
+						:show-summary="false"
 						:error="error"
 						empty-message="所选时间和筛选条件下暂无记录"
 						@activate="openRow"
@@ -469,6 +482,12 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</div>
 			</div>
 		</div>
+		<ColumnSummaryDialog
+			v-model:open="summaryOpen"
+			:columns="tableColumns"
+			:summaries="columnSummaries"
+			:loading="busy"
+		/>
 		<ExportDialog
 			v-model:open="exportOpen"
 			:report-type="mode === 'items' ? 'movement' : 'movement_records'"
@@ -575,8 +594,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	flex: 1;
 	margin: 0;
 }
-.compact-identity {
+.compact-heading {
 	display: none;
+	color: #202b39;
 	font-size: 17px;
 	white-space: nowrap;
 }
@@ -672,6 +692,12 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	border-color: #d1c4e6;
 	background: #f5f1fb;
 	color: #624e8a;
+}
+.movement-kind-chip[data-tone="opening"],
+.movement-badge[data-kind="Opening"] {
+	border-color: #c7d9d1;
+	background: #eef7f3;
+	color: #356c59;
 }
 .kind-icon {
 	font-size: 15px;
@@ -877,7 +903,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.movement-ledger .compact .movement-heading {
 		gap: 8px;
-		padding-block: 4px;
+		padding-block: 2px;
 	}
 	.movement-ledger .compact .movement-title h1 {
 		font-size: 17px;
@@ -885,14 +911,47 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	.movement-ledger .compact .movement-title {
 		display: none;
 	}
+	.movement-ledger .compact .compact-heading {
+		display: block;
+	}
 	.movement-ledger .compact .movement-count {
 		font-size: 11px;
 	}
-	.movement-ledger .compact .compact-identity {
-		display: block;
-	}
 	.movement-ledger .compact .movement-ledger-header {
-		padding-top: 9px;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-areas: "heading heading" "actions chips";
+		gap: 3px;
+		padding-block: 4px;
+	}
+	.movement-ledger .compact .movement-heading {
+		grid-area: heading;
+		min-width: 0;
+		flex-direction: row;
+		align-items: center;
+	}
+	.movement-ledger .compact .movement-ledger-actions {
+		grid-area: actions;
+		justify-content: flex-start;
+		flex-wrap: nowrap;
+		gap: 4px;
+		overflow-x: auto;
+	}
+	.movement-ledger .compact .movement-kind-chips {
+		grid-area: chips;
+		min-width: 0;
+		flex-wrap: nowrap;
+		padding-block: 3px;
+		overflow-x: auto;
+	}
+	.movement-ledger .compact .movement-ledger-actions > * {
+		min-height: 30px;
+	}
+	.movement-ledger .compact .movement-search {
+		height: 30px;
+		min-width: 120px;
+	}
+	.movement-ledger .compact .movement-kind-chips button {
+		padding-block: 4px;
 	}
 }
 @media (max-width: 800px) {
@@ -906,6 +965,53 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.movement-search {
 		min-width: 140px;
+	}
+}
+@media (max-width: 1023px) {
+	.movement-ledger .results-column.compact .movement-ledger-header {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-areas: "heading heading" "actions chips";
+		gap: 3px;
+		padding-block: 4px;
+	}
+	.movement-ledger .results-column.compact .movement-heading {
+		grid-area: heading;
+		min-width: 0;
+		flex-direction: row;
+		align-items: center;
+		gap: 5px;
+	}
+	.movement-ledger .results-column.compact .movement-title {
+		display: none;
+	}
+	.movement-ledger .results-column.compact .compact-heading {
+		display: block;
+		font-size: 15px;
+	}
+	.movement-ledger .results-column.compact .movement-ledger-actions {
+		grid-area: actions;
+		justify-content: flex-start;
+		flex-wrap: nowrap;
+		gap: 4px;
+		overflow-x: auto;
+	}
+	.movement-ledger .results-column.compact .movement-kind-chips {
+		grid-area: chips;
+		min-width: 0;
+		flex-wrap: nowrap;
+		padding-block: 3px;
+		overflow-x: auto;
+	}
+	.movement-ledger .results-column.compact .movement-ledger-actions > * {
+		min-height: 30px;
+	}
+	.movement-ledger .results-column.compact .movement-search {
+		height: 30px;
+		min-width: 100px;
+	}
+	.movement-ledger .results-column.compact .movement-kind-chips button {
+		padding-block: 4px;
 	}
 }
 </style>

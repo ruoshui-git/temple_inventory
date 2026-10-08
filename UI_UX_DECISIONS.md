@@ -168,6 +168,13 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-10-08:** `列汇总` is a shared, on-demand result analysis surface on every
+  sortable data table. Existing Inventory/Expiry business summary cards remain
+  in place; column summaries add complete filtered-result totals and show a
+  unitless comparison alongside the authoritative per-UOM breakdown. Movement
+  records include both inventory reconciliation and read-only opening-stock
+  records; adjustment is no longer a top-level navigation destination.
+
 - **2026-09-30:** 货物流动桌面明细/记录共用 Inventory 紧凑结果壳：可收起的
   250px 高级筛选栏、结果滚动超过 80px 后压缩页头、独立移动端筛选抽屉；明细
   采用物品/从/到/关联记录列，记录采用稳定的多单位数量和状态邻接标记。

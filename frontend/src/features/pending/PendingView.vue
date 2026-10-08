@@ -110,7 +110,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 					/>
 				</CompactFilterSection>
 			</ResponsiveFilterPanel>
-			<div class="results-column">
+			<div
+				class="results-column pending-results"
+				:class="{ 'is-refreshing': loading && rows.length }"
+				:aria-busy="loading || loadingMore"
+			>
 				<div class="result-toolbar results-chrome">
 					<input
 						v-model="filters.search"
@@ -139,6 +143,16 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 					{{ error }} <button type="button" @click="load()">重试</button>
 				</p>
 				<LoadingIndicator v-if="loading && !rows.length" text="正在加载待处理物品…" />
+				<div
+					v-if="loading && !rows.length"
+					class="pending-loading-skeleton"
+					aria-hidden="true"
+				>
+					<i v-for="index in 3" :key="index"></i>
+				</div>
+				<div v-if="loading && rows.length" class="list-refresh-overlay" role="status">
+					<span class="loading-spinner" aria-hidden="true"></span>正在更新待处理物品…
+				</div>
 				<article
 					v-for="row in rows"
 					:key="row.item_code"
@@ -173,14 +187,58 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						</button>
 					</div>
 				</article>
-				<p v-if="!rows.length && !error && !loading" class="empty-state">
+				<p v-if="!rows.length && !error && !loading && !loadingMore" class="empty-state">
 					暂无{{
 						mode === "all" ? "待处理" : mode === "damaged" ? "损坏" : "未定位"
 					}}库存
 				</p>
 				<div ref="sentinel" aria-hidden="true"></div>
-				<div v-if="loadingMore" class="mobile-loading" role="status">正在加载…</div>
+				<div v-if="loadingMore" class="mobile-loading" role="status">
+					<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
+					>正在加载更多…
+				</div>
 			</div>
 		</div>
 	</section>
 </template>
+<style scoped>
+.list-refresh-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 253 249 / 60%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.pending-results {
+	position: relative;
+}
+.pending-results.is-refreshing > article {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.pending-loading-skeleton {
+	display: grid;
+	gap: 8px;
+	margin-top: 10px;
+}
+.pending-loading-skeleton i {
+	display: block;
+	height: 42px;
+	border-radius: 9px;
+	background: #f0ebe3;
+}
+.loading-spinner-small {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	vertical-align: -3px;
+	border-width: 2px;
+}
+</style>

@@ -17,7 +17,7 @@ describe("MobileExpiryResults", () => {
     const loading = mount(MobileExpiryResults, {
       props: { rows: [], loading: true },
     });
-    expect(loading.text()).toContain("正在更新记录");
+    expect(loading.text()).toContain("正在加载记录");
     const appending = mount(MobileExpiryResults, {
       props: { rows: [row], loadingMore: true },
     });

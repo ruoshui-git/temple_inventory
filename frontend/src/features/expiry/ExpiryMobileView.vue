@@ -8,6 +8,7 @@ import MobileExpiryResults from "../../components/MobileExpiryResults.vue";
 import MobileInventorySummary from "../../components/MobileInventorySummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { type ExpiryController } from "./useExpiryController";
+import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 
 const props = defineProps<{ controller: ExpiryController }>();
 const {
@@ -27,6 +28,8 @@ const {
 	expirySummary,
 	mobileExpiryMetrics,
 	filters,
+	sortColumns,
+	columnSummaries,
 	routeValidationError,
 	warehouseText,
 	activeCount,
@@ -40,6 +43,11 @@ const {
 	onResultsScroll,
 	load,
 } = props.controller;
+const summaryOpen = ref(false);
+function selectOverflow(kind: string) {
+	if (kind === "ColumnSummary") summaryOpen.value = true;
+	else void operation(kind);
+}
 const surface: "desktop" | "mobile" = "mobile";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
@@ -77,7 +85,13 @@ onBeforeUnmount(() => {
 						<h1>效期批次</h1>
 						<span>{{ total }} 个批次</span>
 					</div>
-					<OverflowActionMenu :actions="overflowActions" @select="operation" />
+					<OverflowActionMenu
+						:actions="[
+							...overflowActions,
+							{ kind: 'ColumnSummary', label: 'Σ 列汇总' },
+						]"
+						@select="selectOverflow"
+					/>
 				</div>
 				<nav class="mobile-subnav" aria-label="库存页面">
 					<RouterLink :to="{ path: '/', query: expiryTabQuery }">库存列表</RouterLink>
@@ -164,7 +178,7 @@ onBeforeUnmount(() => {
 			>
 				<MobileExpiryResults
 					:rows="rows"
-					:loading="busy"
+					:loading="busy || refreshing"
 					:loading-more="appending"
 					:error="error || routeValidationError"
 					:warehouse-label="warehouseText"
@@ -174,6 +188,12 @@ onBeforeUnmount(() => {
 				<div ref="mobileSentinel" aria-hidden="true"></div>
 			</section>
 		</div>
+		<ColumnSummaryDialog
+			v-model:open="summaryOpen"
+			:columns="sortColumns"
+			:summaries="columnSummaries"
+			:loading="busy || refreshing"
+		/>
 	</main>
 </template>
 <style scoped>

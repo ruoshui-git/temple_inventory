@@ -36,6 +36,13 @@ describe("shared compact filter primitives", () => {
     expect(wrapper.find(".compact-filter-section-heading").text()).toContain(
       "2 项",
     );
+    expect(
+      parseFloat(
+        getComputedStyle(
+          wrapper.find(".compact-filter-section-heading").element,
+        ).margin,
+      ),
+    ).toBe(0);
     expect(wrapper.find("input").exists()).toBe(true);
     await wrapper.find(".compact-filter-section-toggle").trigger("click");
     expect(wrapper.find(".compact-filter-section").classes()).not.toContain(
@@ -83,6 +90,25 @@ describe("shared compact filter primitives", () => {
       .find(".movement-lookup")
       .trigger("focusout", { relatedTarget: null });
     expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("shows a spinner and busy state while MovementLookup options refresh", async () => {
+    const wrapper = mount(MovementLookup, {
+      props: {
+        modelValue: "",
+        options: [{ label: "物品一", value: "ITM-1" }],
+        loading: true,
+      },
+    });
+    await wrapper.find("input").trigger("focus");
+    expect(wrapper.find('[role="listbox"]').attributes("aria-busy")).toBe(
+      "true",
+    );
+    expect(wrapper.find(".loading-spinner-small").exists()).toBe(true);
+    expect(
+      wrapper.find('[role="option"]').attributes("disabled"),
+    ).toBeDefined();
     wrapper.unmount();
   });
 

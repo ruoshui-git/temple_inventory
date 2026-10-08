@@ -23,7 +23,8 @@ export type Kind =
   | "Loss"
   | "Repair"
   | "Disposal"
-  | "Reconcile";
+  | "Reconcile"
+  | "Opening";
 export function useMovementsController() {
   type Mode = "items" | "records";
   type Filters = {
@@ -62,10 +63,12 @@ export function useMovementsController() {
     "Repair",
     "Disposal",
     "Reconcile",
+    "Opening",
   ];
   const kindLabels: Record<string, string> = {
     ...labels,
     Reconcile: "库存调整",
+    Opening: "期初库存",
   };
   const boot = ref<any>();
   const itemOptions = ref<any[]>([]);
@@ -80,6 +83,7 @@ export function useMovementsController() {
   const total = ref(0);
   const allTotal = ref(0);
   const counts = ref<Record<string, number>>({});
+  const columnSummaries = ref<Record<string, any>>({});
   const resolved = ref({ date_from: "", date_to: "" });
   const busy = ref(true);
   const loadingMore = ref(false);
@@ -113,6 +117,7 @@ export function useMovementsController() {
     kinds.filter(
       (kind) =>
         kind !== "Reconcile" &&
+        kind !== "Opening" &&
         boot.value?.stock_operation_capabilities?.[kind],
     ),
   );
@@ -128,6 +133,7 @@ export function useMovementsController() {
       Repair: { label: "修复", icon: "✦", tone: "repair" },
       Disposal: { label: "报废", icon: "×", tone: "disposal" },
       Reconcile: { label: "库存调整", icon: "±", tone: "reconcile" },
+      Opening: { label: "期初库存", icon: "○", tone: "opening" },
     };
   const visibleKinds = computed(() =>
     kinds.filter(
@@ -151,7 +157,7 @@ export function useMovementsController() {
           { key: "date", label: "日期" },
           { key: "item", label: "物品" },
           { key: "action", label: "动作" },
-          { key: "quantity", label: "数量" },
+          { key: "quantity", label: "数量", summary: "quantity" },
           { key: "from", label: "从" },
           { key: "to", label: "到" },
           { key: "record", label: "关联记录" },
@@ -161,8 +167,8 @@ export function useMovementsController() {
           { key: "date", label: "日期" },
           { key: "record", label: "记录编号" },
           { key: "action", label: "类型" },
-          { key: "line_count", label: "物品行数" },
-          { key: "quantity", label: "数量" },
+          { key: "line_count", label: "物品行数", summary: "line_count" },
+          { key: "quantity", label: "数量", summary: "quantity" },
           { key: "flow", label: "流向" },
           { key: "activity", label: "活动" },
           { key: "notes", label: "备注" },
@@ -443,6 +449,7 @@ export function useMovementsController() {
       total.value = Number(data.total || 0);
       allTotal.value = Number(data.all_total ?? data.total ?? 0);
       counts.value = data.facets?.movement_kind || {};
+      columnSummaries.value = data.column_summaries || {};
       resolved.value = data.resolved_period || resolved.value;
     } catch (cause: any) {
       if (current === sequence.value && cause?.name !== "AbortError")
@@ -605,6 +612,7 @@ export function useMovementsController() {
     total,
     allTotal,
     counts,
+    columnSummaries,
     resolved,
     busy,
     loadingMore,

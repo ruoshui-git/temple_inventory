@@ -4,13 +4,7 @@ import { api, request } from "../../lib/api";
 
 export function useApplicationShellController() {
   type Destination = {
-    key:
-      | "inventory"
-      | "movements"
-      | "adjustments"
-      | "loans"
-      | "warehouses"
-      | "more";
+    key: "inventory" | "movements" | "loans" | "warehouses" | "more";
     label: string;
     path: string;
   };
@@ -27,7 +21,6 @@ export function useApplicationShellController() {
   const destinations: Destination[] = [
     { key: "inventory", label: "库存", path: "/" },
     { key: "movements", label: "货物流动", path: "/movements" },
-    { key: "adjustments", label: "盘点调整", path: "/adjustments" },
     { key: "loans", label: "借用", path: "/loans" },
     { key: "warehouses", label: "仓库", path: "/warehouses" },
     { key: "more", label: "更多", path: "/more" },
@@ -42,8 +35,7 @@ export function useApplicationShellController() {
       ["Receive", "Issue", "Transfer"].includes(String(route.params.kind || ""))
     )
       return "/movements";
-    if (route.path === "/adjustments" || route.path.startsWith("/reconcile"))
-      return "/adjustments";
+    if (route.path.startsWith("/reconcile")) return "/movements";
     if (route.path.startsWith("/loans") || route.path === "/new/Loan")
       return "/loans";
     if (route.path.startsWith("/warehouses") || route.path === "/settings")

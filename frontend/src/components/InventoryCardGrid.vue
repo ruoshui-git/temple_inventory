@@ -68,15 +68,26 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 </script>
 
 <template>
-	<div v-if="loading" class="card-state" role="status">正在更新记录…</div>
+	<div v-if="loading && rows.length" class="card-refresh-overlay" role="status">
+		<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
+	</div>
+	<div v-if="loading && !rows.length" class="card-state loading-state" role="status">
+		<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
+		><i v-for="index in 3" :key="index"></i>
+	</div>
 	<div v-else-if="error" class="card-state error" role="alert">
 		<slot name="error">{{ error }}</slot>
 	</div>
-	<div v-else-if="!rows.length" class="card-state">暂无符合条件的物品</div>
+	<div v-else-if="!loading && !loadingMore && !rows.length" class="card-state">
+		暂无符合条件的物品
+	</div>
 	<div
 		v-else
 		class="inventory-card-grid"
-		:class="{ 'compact-mobile': compactMobile }"
+		:class="{
+			'compact-mobile': compactMobile,
+			'is-refreshing': loading && rows.length,
+		}"
 		role="list"
 		aria-label="库存卡片"
 	>
@@ -181,7 +192,10 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 			</div>
 		</article>
 	</div>
-	<div v-if="loadingMore" class="card-state" role="status">正在加载更多记录…</div>
+	<div v-if="loadingMore" class="card-state" role="status">
+		<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
+		>正在加载更多记录…
+	</div>
 </template>
 
 <style scoped>
@@ -192,6 +206,40 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	gap: 12px;
 	padding: 12px;
 	background: #f8f7f4;
+}
+.card-refresh-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 253 249 / 58%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.card-refresh-overlay ~ .inventory-card-grid.is-refreshing {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.inventory-results,
+.inventory-card-grid {
+	position: relative;
+}
+.loading-state {
+	display: grid;
+	justify-items: center;
+	gap: 10px;
+	min-height: 190px;
+}
+.loading-state i {
+	display: block;
+	width: min(92%, 360px);
+	height: 42px;
+	border-radius: 9px;
+	background: #f0ebe3;
 }
 .inventory-visual-card {
 	display: flex;

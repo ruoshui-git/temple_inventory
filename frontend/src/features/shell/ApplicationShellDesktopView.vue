@@ -3,7 +3,7 @@ import type { LocationQueryRaw } from "vue-router";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 
 export interface ShellDestination {
-	key: "inventory" | "movements" | "adjustments" | "loans" | "warehouses" | "more";
+	key: "inventory" | "movements" | "loans" | "warehouses" | "more";
 	label: string;
 	path: string;
 }
@@ -67,10 +67,6 @@ const emit = defineEmits<{
 						<path
 							v-if="item.key === 'movements'"
 							d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3 3m-3-3 3-3"
-						/>
-						<path
-							v-else-if="item.key === 'adjustments'"
-							d="M4 6h10m4 0h2M4 12h2m4 0h10M4 18h7m4 0h5M14 4v4M6 10v4m5 2v4"
 						/>
 						<path
 							v-else-if="item.key === 'loans'"

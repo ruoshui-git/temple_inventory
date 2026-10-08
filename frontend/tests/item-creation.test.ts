@@ -92,6 +92,37 @@ describe("item creation entry points", () => {
     ).toBeTruthy();
   });
 
+  it("keeps existing item rows visible while search results refresh", async () => {
+    const pending: Array<(value: any) => void> = [];
+    state.api.mockImplementation((method: string) => {
+      if (method === "search_items")
+        return new Promise((resolve) => pending.push(resolve));
+      return creationApi(method);
+    });
+    const wrapper = mount(ItemPicker, { props: { boot: boot() } });
+    await flushPromises();
+    pending.shift()?.({
+      results: [
+        { item_code: "ITM-1", item_name: "一号物品", item_group: "杂项" },
+      ],
+      total: 1,
+    });
+    await flushPromises();
+    await wrapper
+      .find('input[placeholder="搜索名称、编号、条码"]')
+      .setValue("二号");
+    await flushPromises();
+    expect(wrapper.find(".compact-selection").exists()).toBe(true);
+    expect(wrapper.find(".item-picker-refresh").exists()).toBe(true);
+    expect(wrapper.find(".item-picker-results").attributes("aria-busy")).toBe(
+      "true",
+    );
+    pending.shift()?.({ results: [], total: 0 });
+    await flushPromises();
+    expect(wrapper.find(".compact-selection").exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it("uses a dedicated standalone page instead of a drawer", async () => {
     state.api.mockImplementation(creationApi);
     const wrapper = mount(NewItem);

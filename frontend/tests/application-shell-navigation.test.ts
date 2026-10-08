@@ -59,7 +59,7 @@ describe("ApplicationShell navigation contract", () => {
     });
   });
 
-  it("keeps all six primary destinations in the agreed order", () => {
+  it("keeps all five primary destinations in the agreed order", () => {
     const wrapper = mount(ApplicationShell, {
       global: { stubs: { RouterLink } },
     });
@@ -67,14 +67,7 @@ describe("ApplicationShell navigation contract", () => {
       .find('nav[aria-label="主导航"]')
       .findAll(":scope > a, :scope > button")
       .map((link) => link.text());
-    expect(labels).toEqual([
-      "库存",
-      "货物流动",
-      "盘点调整",
-      "借用",
-      "仓库",
-      "更多",
-    ]);
+    expect(labels).toEqual(["库存", "货物流动", "借用", "仓库", "更多"]);
   });
 
   it("keeps the product brand ahead of the primary navigation on every route", async () => {
@@ -88,7 +81,7 @@ describe("ApplicationShell navigation contract", () => {
     expect(
       wrapper.find(".shell-brand").attributes("aria-current"),
     ).toBeUndefined();
-    route.path = "/adjustments";
+    route.path = "/movements/records";
     await nextTick();
     expect(wrapper.find(".shell-brand").element).toBe(brand);
     expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
@@ -120,7 +113,7 @@ describe("ApplicationShell navigation contract", () => {
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });
 
-  it("normalizes default context state and gives Adjustments no subnavigation", async () => {
+  it("normalizes default movement context state", async () => {
     route.path = "/movements";
     route.query = {};
     const wrapper = mount(ApplicationShell, {
@@ -138,7 +131,7 @@ describe("ApplicationShell navigation contract", () => {
     expect(
       wrapper.find('.desktop-inventory-context a[aria-current="page"]').text(),
     ).toBe("明细");
-    route.path = "/adjustments";
+    route.path = "/warehouses";
     await nextTick();
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });

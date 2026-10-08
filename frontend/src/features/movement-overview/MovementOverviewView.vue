@@ -28,6 +28,7 @@ const {
 	rows,
 	total,
 	summaries,
+	columnSummaries,
 	facets,
 	resolved,
 	busy,
@@ -185,6 +186,7 @@ onBeforeUnmount(() => {
 						:surface="surface"
 						:rows="rows"
 						:columns="columns"
+						:column-summaries="columnSummaries"
 						row-key="item_code"
 						:sort="sort"
 						:loading="busy || refreshing"

@@ -2,7 +2,7 @@
 import HistoryPage from "../features/history/HistoryPage.vue";
 
 const props = defineProps<{
-	destination?: "movements" | "adjustments" | "drafts";
+	destination?: "movements" | "drafts";
 }>();
 </script>
 

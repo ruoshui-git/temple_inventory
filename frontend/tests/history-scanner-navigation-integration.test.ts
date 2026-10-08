@@ -143,10 +143,10 @@ beforeEach(() => {
 
 describe("Task 04 history, scanner, and navigation integration", () => {
   it("uses separate page instances for list destinations but not query-only changes", () => {
-    expect(routeInstanceKey("/movements")).not.toBe(
-      routeInstanceKey("/adjustments"),
+    expect(routeInstanceKey("/movements/items")).not.toBe(
+      routeInstanceKey("/movements/records"),
     );
-    expect(routeInstanceKey("/adjustments")).not.toBe(
+    expect(routeInstanceKey("/movements/records")).not.toBe(
       routeInstanceKey("/drafts"),
     );
     expect(routeInstanceKey("/movements")).toBe(routeInstanceKey("/movements"));
@@ -269,6 +269,7 @@ describe("Task 04 history, scanner, and navigation integration", () => {
               posting_date: "2026-09-01",
               line_count: 2,
               docstatus: 0,
+              draft_action_qty: [{ uom: "Nos", qty: 3 }],
               source_text: "Donation",
             },
           ],
@@ -299,6 +300,12 @@ describe("Task 04 history, scanner, and navigation integration", () => {
     expect(
       state.workspaceApi.mock.calls.find((call) => call[0] === "history")?.[1],
     ).toMatchObject({ sort_by: "posting_date", sort_order: "desc" });
+    expect(
+      wrapper
+        .findAll(".sortable-data-table-desktop th")
+        .map((column) => column.text()),
+    ).toContain("操作数量");
+    expect(wrapper.text()).toContain("3 Nos");
     await wrapper.find(".sortable-data-table th button").trigger("click");
     await flushPromises();
     expect(state.workspaceApi.mock.calls.at(-1)?.[1]).toMatchObject({
@@ -450,13 +457,13 @@ describe("Task 04 history, scanner, and navigation integration", () => {
       .findAll(".sortable-data-table-desktop tbody tr")
       .at(0)!
       .findAll("td");
-    expect(cells[2].text()).toContain("东厢房 / 一架");
-    expect(cells[2].text()).toContain("东厢房 / 二架");
-    expect(cells[2].text()).not.toContain("东厢房 / 三架");
-    expect(cells[2].text()).not.toContain("西厢房 / 四架");
-    expect(cells[2].get("button").text()).toBe("+1");
-    expect(cells[3].text()).toContain("西厢房 / 四架");
-    expect(cells[3].text()).not.toContain("东厢房 / 一架");
+    expect(cells[3].text()).toContain("东厢房 / 一架");
+    expect(cells[3].text()).toContain("东厢房 / 二架");
+    expect(cells[3].text()).not.toContain("东厢房 / 三架");
+    expect(cells[3].text()).not.toContain("西厢房 / 四架");
+    expect(cells[3].get("button").text()).toBe("+1");
+    expect(cells[4].text()).toContain("西厢房 / 四架");
+    expect(cells[4].text()).not.toContain("东厢房 / 一架");
 
     wrapper.unmount();
     media.matches = false;

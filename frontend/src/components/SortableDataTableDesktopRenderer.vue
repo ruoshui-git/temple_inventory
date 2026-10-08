@@ -39,7 +39,14 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 </script>
 
 <template>
-	<div class="sortable-data-table-desktop">
+	<div
+		class="sortable-data-table-desktop"
+		:class="{ 'is-refreshing': loading && rows.length }"
+		:aria-busy="loading || loadingMore"
+	>
+		<div v-if="loading && rows.length" class="table-refresh-overlay" role="status">
+			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
+		</div>
 		<table>
 			<thead class="sortable-data-table-head">
 				<tr>
@@ -75,20 +82,27 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 				</tr>
 			</thead>
 			<tbody>
-				<tr v-if="loading" class="table-state">
-					<td :colspan="columns.length" role="status">正在更新记录…</td>
+				<tr v-if="loading && !rows.length" class="table-state table-loading" role="status">
+					<td :colspan="columns.length">
+						<div class="table-loading-content">
+							<span class="loading-spinner" aria-hidden="true"></span
+							><span>正在加载记录…</span>
+						</div>
+						<div class="table-skeleton" aria-hidden="true">
+							<i v-for="index in 3" :key="index"></i>
+						</div>
+					</td>
 				</tr>
 				<tr v-else-if="error" class="table-state table-error">
 					<td :colspan="columns.length" role="alert">
 						<slot name="error">{{ error }}</slot>
 					</td>
 				</tr>
-				<tr v-else-if="!rows.length" class="table-state">
+				<tr v-else-if="!loading && !loadingMore && !rows.length" class="table-state">
 					<td :colspan="columns.length">{{ emptyMessage }}</td>
 				</tr>
 				<tr
 					v-for="row in rows"
-					v-else
 					:key="String(valueFor(row))"
 					:class="{ selected: isSelected(row), cancelled: row.docstatus === 2 }"
 					:aria-selected="selectionMode ? isSelected(row) : undefined"
@@ -103,7 +117,13 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 					</td>
 				</tr>
 				<tr v-if="loadingMore" class="table-state">
-					<td :colspan="columns.length" role="status">正在加载更多记录…</td>
+					<td :colspan="columns.length" role="status">
+						<span
+							class="loading-spinner loading-spinner-small"
+							aria-hidden="true"
+						></span
+						>正在加载更多记录…
+					</td>
 				</tr>
 			</tbody>
 		</table>
@@ -114,6 +134,76 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 .sortable-data-table-desktop table {
 	width: 100%;
 	border-collapse: collapse;
+}
+.sortable-data-table-desktop {
+	position: relative;
+}
+.sortable-data-table-desktop.is-refreshing table {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.table-refresh-overlay {
+	position: absolute;
+	inset: 44px 0 0;
+	z-index: 3;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 253 249 / 45%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.table-loading td {
+	min-height: 96px;
+}
+.table-loading-content {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 72px;
+	font-weight: 700;
+}
+.table-skeleton {
+	display: grid;
+	gap: 8px;
+	padding: 0 18px 12px;
+}
+.table-skeleton i {
+	display: block;
+	height: 10px;
+	border-radius: 5px;
+	background: linear-gradient(90deg, #eee8df 20%, #faf7f0 50%, #eee8df 80%);
+	background-size: 200% 100%;
+	animation: table-skeleton 1.2s ease-in-out infinite;
+}
+.table-skeleton i:nth-child(2) {
+	width: 82%;
+}
+.table-skeleton i:nth-child(3) {
+	width: 64%;
+}
+.loading-spinner-small {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	vertical-align: -3px;
+	border-width: 2px;
+}
+@keyframes table-skeleton {
+	to {
+		background-position: -200% 0;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.sortable-data-table-desktop * {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
 }
 .sortable-data-table-desktop th,
 .sortable-data-table-desktop td {

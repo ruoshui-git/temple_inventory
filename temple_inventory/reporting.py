@@ -48,6 +48,7 @@ MOVEMENT_LABELS = {
 	"Repair": "修复归库",
 	"Disposal": "正式报废",
 	"Reconcile": "库存调整",
+	"Opening": "期初库存",
 }
 
 MOVEMENT_SUMMARY_COLUMNS = (
@@ -433,9 +434,13 @@ def _movement_record_sheets(filters):
 		if item.get("record_name")
 	}
 	for record in records:
-		kind = "Reconcile" if record.get("movement_kind") in ("盘点调整", "Reconcile") else record.get("movement_kind")
+		kind = (
+			"Reconcile"
+			if record.get("movement_kind") in ("盘点调整", "Reconcile")
+			else "Opening" if record.get("movement_kind") in ("期初库存", "Opening") else record.get("movement_kind")
+		)
 		items = _ledger_item_rows([record])
-		if kind == "Reconcile" and not items:
+		if kind in ("Reconcile", "Opening") and not items:
 			continue
 		quantities = defaultdict(float)
 		for item in items:

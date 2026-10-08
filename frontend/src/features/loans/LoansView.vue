@@ -26,6 +26,7 @@ const {
 	rows,
 	total,
 	quantityTotals,
+	columnSummaries,
 	error,
 	loading,
 	loadingMore,
@@ -37,6 +38,7 @@ const {
 	columns,
 	statusLabel,
 	summaryMetrics,
+	formatQuantities,
 	activityOptions,
 	activeCount,
 	chips,
@@ -154,6 +156,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						:surface="surface"
 						:rows="rows"
 						:columns="columns"
+						:column-summaries="columnSummaries"
 						row-key="name"
 						:sort="sort"
 						:loading="loading"
@@ -172,6 +175,12 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						}}</template>
 						<template #cell-loan_status="{ row }">{{
 							statusLabel(row.loan_status)
+						}}</template>
+						<template #cell-loaned_qty="{ row }">{{
+							formatQuantities(row.loaned_qty)
+						}}</template>
+						<template #cell-outstanding_qty="{ row }">{{
+							formatQuantities(row.outstanding_qty)
 						}}</template>
 						<template #mobile-row="{ row }"
 							><article class="result-card" tabindex="0">
@@ -193,6 +202,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 										/>
 										{{ item.item_name }} {{ item.outstanding }}
 										{{ item.uom }}</span
+									><span>借出数量：{{ formatQuantities(row.loaned_qty) }}</span
+									><span
+										>未归还数量：{{
+											formatQuantities(row.outstanding_qty)
+										}}</span
 									></RouterLink
 								>
 							</article></template

@@ -65,7 +65,7 @@ MOVEMENT_OVERVIEW_KINDS = (
 	"Repair",
 	"Disposal",
 )
-MOVEMENT_LEDGER_KINDS = MOVEMENT_OVERVIEW_KINDS + ("Reconcile",)
+MOVEMENT_LEDGER_KINDS = MOVEMENT_OVERVIEW_KINDS + ("Reconcile", "Opening")
 MOVEMENT_PERIOD_KEYS = {
 	"today",
 	"last_7_days",
@@ -1458,9 +1458,15 @@ def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
 			kind_key = f"history_movement_kind_{index}"
 			params[kind_key] = desired
 			if source == "workspace":
-				if desired == "盘点调整":
-					kind_conditions.append(f"({alias}.stock_reconciliation is not null or {alias}.movement_kind='Reconcile')")
-				elif desired != "期初库存":
+				if desired in ("盘点调整", "Reconcile"):
+					kind_conditions.append(
+						f"(({alias}.movement_kind='Reconcile') or exists (select 1 from `tabStock Reconciliation` kind_sr where kind_sr.name={alias}.stock_reconciliation and kind_sr.purpose='Stock Reconciliation'))"
+					)
+				elif desired in ("期初库存", "Opening"):
+					kind_conditions.append(
+						f"exists (select 1 from `tabStock Reconciliation` kind_sr where kind_sr.name={alias}.stock_reconciliation and kind_sr.purpose<>'Stock Reconciliation')"
+					)
+				else:
 					kind_conditions.append(f"{alias}.movement_kind=%({kind_key})s")
 			elif source == "entry":
 				if desired in purpose_map:
@@ -1473,9 +1479,9 @@ def _history_parent_filter(alias, source, filters, params, selected_rooms=None):
 				elif desired in ("Loan", "Return", "Damage", "Loss", "Repair", "Disposal"):
 					kind_conditions.append(f"se.ti_movement_kind=%({kind_key})s")
 			else:
-				if desired == "盘点调整":
+				if desired in ("盘点调整", "Reconcile"):
 					kind_conditions.append("sr.purpose='Stock Reconciliation'")
-				elif desired == "期初库存":
+				elif desired in ("期初库存", "Opening"):
 					kind_conditions.append("sr.purpose<>'Stock Reconciliation'")
 		conditions.append(f"({' or '.join(kind_conditions)})" if kind_conditions else "1=0")
 	return " and " + " and ".join(conditions) if conditions else ""
@@ -1585,7 +1591,7 @@ def _history_database_page(status_group, start, page_length, item_code=None, fil
 	filters = filters or {}
 	params = {"company": settings.company, "start": start, "page_length": page_length, "item_code": item_code}
 	workspace_status = "coalesce(se.docstatus, sr.docstatus, 0)"
-	workspace_kind = "case when iw.stock_reconciliation is not null or iw.movement_kind='Reconcile' then '盘点调整' else iw.movement_kind end"
+	workspace_kind = "case when iw.movement_kind='Reconcile' or exists (select 1 from `tabStock Reconciliation` kind_sr where kind_sr.name=iw.stock_reconciliation and kind_sr.purpose='Stock Reconciliation') then '盘点调整' when exists (select 1 from `tabStock Reconciliation` kind_sr where kind_sr.name=iw.stock_reconciliation and kind_sr.purpose<>'Stock Reconciliation') then '期初库存' else iw.movement_kind end"
 	workspace = f"""
 		select iw.name, 'workspace' as source, {workspace_status} as docstatus, iw.modified,
 			{workspace_kind} as movement_kind, iw.posting_date,
@@ -1800,6 +1806,14 @@ def _history_workspace_summary(doc):
 	"""Return bounded list data; full workspace state belongs to detail endpoints."""
 	payload = _payload(doc)
 	items = payload.get("items", [])
+	movement_kind = doc.movement_kind
+	if doc.get("stock_reconciliation") and frappe.db.exists(
+		"Stock Reconciliation", doc.stock_reconciliation
+	):
+		purpose = frappe.db.get_value("Stock Reconciliation", doc.stock_reconciliation, "purpose")
+		movement_kind = "盘点调整" if purpose == "Stock Reconciliation" else "期初库存"
+	elif movement_kind == "Reconcile":
+		movement_kind = "盘点调整"
 	summary_items = [dict(item) for item in items]
 	if _status(doc) == 1 and doc.get("stock_entry") and frappe.db.exists("Stock Entry", doc.stock_entry):
 		entry = frappe.get_doc("Stock Entry", doc.stock_entry)
@@ -1864,8 +1878,8 @@ def _history_workspace_summary(doc):
 		"stock_reconciliation": doc.get("stock_reconciliation"),
 		"docstatus": _status(doc),
 		"modified": str(doc.modified),
-		"movement_kind": "盘点调整" if doc.get("stock_reconciliation") or doc.movement_kind == "Reconcile" else doc.movement_kind,
-		"title": _history_title({"movement_kind": "盘点调整" if doc.get("stock_reconciliation") or doc.movement_kind == "Reconcile" else doc.movement_kind, "source_text": doc.source_text, "purpose_text": doc.purpose_text, "activity": doc.activity, "name": doc.name}),
+		"movement_kind": movement_kind,
+		"title": _history_title({"movement_kind": movement_kind, "source_text": doc.source_text, "purpose_text": doc.purpose_text, "activity": doc.activity, "name": doc.name}),
 		"posting_date": str(doc.posting_date),
 		"posting_time": str(doc.posting_time or ""),
 		"source_text": doc.source_text,
@@ -1913,12 +1927,16 @@ def _history_quantity_totals(rows):
 		"draft_action_qty": defaultdict(float),
 	}
 	for row in rows:
+		row["moved_qty"] = []
+		row["draft_action_qty"] = []
 		if cint(row.get("docstatus")) == 2:
 			continue
 		is_adjustment = row.get("document_type") == "Stock Reconciliation" or row.get("movement_kind") in (
 			"盘点调整",
 			"期初库存",
 		)
+		row_totals = defaultdict(float)
+		row_metric = None
 		for item in row.get("_all_items") or row.get("items") or []:
 			item_code = item.get("item_code")
 			stock_uom = item.get("stock_uom") or items.get(item_code)
@@ -1932,6 +1950,8 @@ def _history_quantity_totals(rows):
 					difference = flt(counted) - flt(current)
 				if cint(row.get("docstatus")) == 0:
 					totals["draft_action_qty"][stock_uom] += abs(flt(difference))
+					row_metric = "draft_action_qty"
+					row_totals[stock_uom] += abs(flt(difference))
 				elif flt(difference) > 0:
 					totals["increase_qty"][stock_uom] += flt(difference)
 				elif flt(difference) < 0:
@@ -1946,6 +1966,14 @@ def _history_quantity_totals(rows):
 				stock_qty = flt(item.get("qty")) * factor
 			metric = "draft_action_qty" if cint(row.get("docstatus")) == 0 else "moved_qty"
 			totals[metric][stock_uom] += abs(flt(stock_qty))
+			row_metric = metric
+			row_totals[stock_uom] += abs(flt(stock_qty))
+		if row_metric:
+			row[row_metric] = [
+				{"uom": uom, "qty": flt(qty)}
+				for uom, qty in sorted(row_totals.items())
+				if uom and abs(flt(qty)) > 1e-9
+			]
 	return {
 		key: [
 			{"uom": uom, "qty": flt(qty)}
@@ -1953,6 +1981,17 @@ def _history_quantity_totals(rows):
 			if uom and abs(flt(qty)) > 1e-9
 		]
 		for key, values in totals.items()
+	}
+
+
+def _column_summaries_from_quantities(quantity_totals):
+	return {
+		key: {
+			"type": "quantity",
+			"unitless_total": flt(sum(flt(value.get("qty")) for value in values or [])),
+			"by_uom": values or [],
+		}
+		for key, values in quantity_totals.items()
 	}
 
 
@@ -2158,6 +2197,61 @@ def _movement_action_summaries(rows):
 	]
 
 
+def _grouped_quantity_summary(rows):
+	labels = {
+		"Receive": "入库",
+		"Issue": "出库",
+		"Transfer": "转移",
+		"Loan": "借出",
+		"Return": "归还",
+		"Damage": "损坏",
+		"Loss": "遗失",
+		"Repair": "修复归库",
+		"Disposal": "正式报废",
+		"Reconcile": "库存调整",
+		"Opening": "期初库存",
+	}
+	groups = defaultdict(lambda: defaultdict(float))
+	for row in rows:
+		kind = row.get("movement_kind") or ""
+		groups[kind][row.get("stock_uom") or ""] += flt(row.get("stock_qty"))
+	return {
+		"type": "grouped_quantity",
+		"unitless_total": flt(sum(flt(row.get("stock_qty")) for row in rows)),
+		"groups": [
+			{
+				"key": kind,
+				"label": labels.get(kind, kind),
+				"by_uom": [{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(values.items()) if uom],
+			}
+			for kind, values in sorted(groups.items())
+		],
+	}
+
+
+def _column_quantity_summary(rows, quantity_key="stock_qty", uom_key="stock_uom"):
+	"""Serialize a complete-result quantity total with an explicit UOM breakdown."""
+	by_uom = defaultdict(float)
+	for row in rows:
+		uom = row.get(uom_key) or row.get("uom")
+		if uom:
+			by_uom[uom] += flt(row.get(quantity_key))
+	values = [{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(by_uom.items()) if abs(flt(qty)) > 1e-9]
+	return {"type": "quantity", "unitless_total": flt(sum(by_uom.values())), "by_uom": values}
+
+
+def _record_quantity_summary(rows):
+	"""Aggregate the absolute quantity values rendered in operation-level rows."""
+	by_uom = defaultdict(float)
+	for row in rows:
+		for quantity in row.get("quantities") or []:
+			uom = quantity.get("uom")
+			if uom:
+				by_uom[uom] += abs(flt(quantity.get("qty")))
+	values = [{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(by_uom.items()) if abs(flt(qty)) > 1e-9]
+	return {"type": "quantity", "unitless_total": flt(sum(by_uom.values())), "by_uom": values}
+
+
 @frappe.whitelist()
 def movement_overview(filters=None, start=0, page_length=25, sort_by="last_posting_date", sort_order="desc"):
 	"""Summarize submitted stock movements without creating a parallel ledger."""
@@ -2230,6 +2324,7 @@ def movement_overview(filters=None, start=0, page_length=25, sort_by="last_posti
 	return {
 		"resolved_period": period,
 		"action_summaries": action_summaries,
+		"column_summaries": {"record_count": {"type": "number", "value": sum(row.get("record_count", 0) for row in results)}, "movement_totals": _grouped_quantity_summary(selected_rows)},
 		"results": page_rows,
 		"total": len(results),
 		"start": page_start,
@@ -2546,6 +2641,11 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 		)
 	page = _page(rows, page_length, start)
 	page["quantity_totals"] = _history_quantity_totals(matched)
+	page["column_summaries"] = {
+		**_column_summaries_from_quantities(page["quantity_totals"]),
+		"line_count": {"type": "number", "value": sum(row.get("line_count", 0) for row in matched)},
+		"category_count": {"type": "number", "value": sum(row.get("category_count", 0) for row in matched)},
+	}
 	if resolved_period:
 		page["resolved_period"] = resolved_period
 	_history_trim_items(page["results"], keep_all=bool(include_items))
@@ -2588,7 +2688,10 @@ def _movement_history_records(filters, docstatuses=None):
 	base_filters = dict(filters)
 	base_filters.pop("movement_kinds", None)
 	if requested:
-		base_filters["movement_kind"] = ["盘点调整" if value == "Reconcile" else value for value in requested]
+		base_filters["movement_kind"] = [
+			"盘点调整" if value == "Reconcile" else "期初库存" if value == "Opening" else value
+			for value in requested
+		]
 	rows = []
 	start = 0
 	while True:
@@ -2605,7 +2708,7 @@ def _movement_history_records(filters, docstatuses=None):
 		if not batch or start >= int(page.get("total") or 0):
 			break
 	allowed_statuses = set(cint(status) for status in (docstatuses if docstatuses is not None else [0, 1, 2]))
-	result = [row for row in rows if cint(row.get("docstatus")) in allowed_statuses and row.get("movement_kind") != "期初库存"]
+	result = [row for row in rows if cint(row.get("docstatus")) in allowed_statuses]
 	for row in result:
 		if not row.get("detail_route"):
 			row["detail_route"] = f"/reconcile/{row['name']}" if row.get("document_type") == "Stock Reconciliation" else f"/entry/{row['name']}"
@@ -2614,7 +2717,13 @@ def _movement_history_records(filters, docstatuses=None):
 
 def _ledger_kind(row):
 	kind = row.get("movement_kind") or ""
-	return "Reconcile" if kind == "盘点调整" or row.get("document_type") == "Stock Reconciliation" else kind
+	if kind == "盘点调整":
+		return "Reconcile"
+	if kind == "期初库存":
+		return "Opening"
+	if row.get("document_type") == "Stock Reconciliation":
+		return "Opening" if row.get("purpose_text") == "Opening Stock" else "Reconcile"
+	return kind
 
 
 def _ledger_difference(item):
@@ -2629,7 +2738,7 @@ def _ledger_item_rows(records):
 	for record in records:
 		kind = _ledger_kind(record)
 		for item in record.get("items") or []:
-			if kind == "Reconcile":
+			if kind in ("Reconcile", "Opening"):
 				quantity = _ledger_difference(item)
 				if not quantity:
 					continue
@@ -2645,7 +2754,7 @@ def _ledger_item_rows(records):
 				to_warehouse = item.get("to_warehouse") or item.get("t_warehouse") or (item.get("warehouse") if kind == "Receive" else "")
 			if kind in ("Issue", "Loss", "Disposal"):
 				stock_quantity = -abs(stock_quantity)
-			elif kind == "Reconcile":
+			elif kind in ("Reconcile", "Opening"):
 				stock_quantity = quantity
 			else:
 				stock_quantity = abs(stock_quantity)
@@ -2748,6 +2857,9 @@ def movement_items(filters=None, start=0, page_length=30):
 			"source_warehouses": _ledger_line_facets(all_items, "source_warehouse"),
 			"destination_warehouses": _ledger_line_facets(all_items, "destination_warehouse"),
 		},
+		"column_summaries": {
+			"quantity": _column_quantity_summary(items),
+		},
 	}
 
 
@@ -2768,7 +2880,11 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 		if any(status not in (0, 1, 2) for status in statuses):
 			frappe.throw(_("Invalid document status"))
 	all_records = _movement_history_records(filters, docstatuses=statuses)
-	all_records = [record for record in all_records if _ledger_kind(record) != "Reconcile" or _ledger_item_rows([record])]
+	all_records = [
+		record
+		for record in all_records
+		if _ledger_kind(record) not in ("Reconcile", "Opening") or _ledger_item_rows([record])
+	]
 	# Build the complete permission-scoped record set first.  Kind selection is
 	# applied only to the returned rows; facets must remain useful for the other
 	# action chips and therefore exclude only the action selection itself.
@@ -2780,7 +2896,7 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 	for record in records:
 		kind = _ledger_kind(record)
 		items = _ledger_item_rows([record])
-		if kind == "Reconcile" and not items:
+		if kind in ("Reconcile", "Opening") and not items:
 			continue
 		quantities = defaultdict(float)
 		for item in items:
@@ -2843,6 +2959,10 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 			"docstatus": _ledger_record_facets(result, "docstatus"),
 			"source_warehouses": _ledger_record_facets(source_facet_rows, "source_warehouse"),
 			"destination_warehouses": _ledger_record_facets(destination_facet_rows, "destination_warehouse"),
+		},
+		"column_summaries": {
+			"line_count": {"type": "number", "value": sum(row.get("line_count", 0) for row in filtered_result)},
+			"quantity": _record_quantity_summary(filtered_result),
 		},
 	}
 
@@ -2945,4 +3065,4 @@ def open_reconciliation(name):
 		items.append({"id": row.name, "item_code": row.item_code, "qty": row.qty, "counted_qty": row.qty, "ledger_qty": getattr(row, "current_qty", row.qty), "difference_qty": getattr(row, "quantity_difference", 0), "uom": getattr(row, "stock_uom", None) or getattr(row, "uom", None), "warehouse": row.warehouse, "batch_no": row.batch_no})
 	if not items:
 		frappe.throw("没有可查看的盘点明细", frappe.PermissionError)
-	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": _permitted_file_attachments("Stock Reconciliation", name)}
+	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile" if doc.purpose == "Stock Reconciliation" else "Opening", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": _permitted_file_attachments("Stock Reconciliation", name)}

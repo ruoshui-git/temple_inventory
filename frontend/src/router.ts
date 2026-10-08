@@ -3,11 +3,6 @@ export const router = createRouter({
   history: createWebHistory("/inventory"),
   routes: [
     { path: "/", component: () => import("./pages/Inventory.vue") },
-    {
-      path: "/adjustments",
-      component: () => import("./pages/History.vue"),
-      props: { destination: "adjustments" },
-    },
     { path: "/loans", component: () => import("./pages/Loans.vue") },
     { path: "/loans/:name", component: () => import("./pages/LoanDetail.vue") },
     { path: "/warehouses", component: () => import("./pages/Warehouses.vue") },

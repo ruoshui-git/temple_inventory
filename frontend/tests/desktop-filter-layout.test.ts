@@ -71,6 +71,44 @@ describe("compact desktop filter rails", () => {
   it("collapses and opens Loans desktop filters", async () => {
     await assertToggle(mount(Loans, { global: globals }));
   });
+  it("renders loan quantity columns from per-UOM row values", async () => {
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      if (method === "loans")
+        return {
+          results: [
+            {
+              name: "LOAN-1",
+              borrower: "借用方",
+              loan_date: "2026-10-01",
+              line_count: 1,
+              outstanding_lines: 1,
+              loan_status: "Outstanding",
+              loaned_qty: [{ uom: "Nos", qty: 2 }],
+              outstanding_qty: [{ uom: "Nos", qty: 1 }],
+              items: [],
+            },
+          ],
+          total: 1,
+          quantity_totals: {
+            loaned_qty: [{ uom: "Nos", qty: 2 }],
+            outstanding_qty: [{ uom: "Nos", qty: 1 }],
+          },
+          column_summaries: {},
+        };
+      return [];
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    expect(wrapper.text()).toContain("借出数量");
+    expect(wrapper.text()).toContain("2 Nos");
+    expect(wrapper.text()).toContain("1 Nos");
+  });
   it("collapses and opens Pending desktop filters", async () => {
     await assertToggle(mount(Pending, { global: globals }));
   });

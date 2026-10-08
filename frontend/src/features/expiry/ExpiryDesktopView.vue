@@ -9,6 +9,7 @@ import SortableDataTable from "../../components/SortableDataTable.vue";
 import { formatExpiryDuration } from "../../lib/duration";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
+import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import { type ExpiryController } from "./useExpiryController";
 
 const props = defineProps<{ controller: ExpiryController }>();
@@ -21,6 +22,7 @@ const {
 	appending,
 	total,
 	overallTotal,
+	columnSummaries,
 	facetCounts,
 	filterOpen,
 	desktopFilterOpen,
@@ -48,6 +50,7 @@ const {
 	onResultsScroll,
 	load,
 } = props.controller;
+const summaryOpen = ref(false);
 const surface: "desktop" | "mobile" = "desktop";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
@@ -148,6 +151,9 @@ onBeforeUnmount(() => {
 							<InventoryIcon name="filter" /><span>筛选</span
 							><b v-if="activeCount">{{ activeCount }}</b>
 						</button>
+						<button type="button" class="toolbar-action" @click="summaryOpen = true">
+							Σ <span>列汇总</span>
+						</button>
 						<div
 							class="inventory-view-controls"
 							role="group"
@@ -185,54 +191,83 @@ onBeforeUnmount(() => {
 					<div
 						v-if="view === 'card'"
 						class="expiry-card-grid"
+						:class="{ 'is-refreshing': (busy || refreshing) && rows.length }"
 						:aria-busy="busy || refreshing"
 					>
-						<RouterLink
-							v-for="row in rows"
-							:key="row.batch_no"
-							class="expiry-batch-card"
-							:class="{
-								overdue: row.days_to_expiry < 0,
-								soon: row.days_to_expiry >= 0 && row.days_to_expiry <= 30,
-							}"
-							:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
+						<div
+							v-if="(busy || refreshing) && rows.length"
+							class="expiry-refresh-overlay"
+							role="status"
 						>
-							<img
-								v-if="row.image"
-								:src="row.image"
-								:alt="row.item_name"
-								loading="lazy"
-								decoding="async"
-							/><span v-else class="expiry-card-placeholder"
-								><InventoryIcon name="box"
-							/></span>
-							<div>
-								<small>{{ row.item_group }}</small>
-								<h3>{{ row.item_name }}</h3>
-								<p>{{ row.item_code }} · {{ row.batch_no }}</p>
-								<strong>{{ row.total_qty }} {{ row.stock_uom }}</strong>
-								<p class="expiry-date">
-									{{ row.expiry_date ? `到期 ${row.expiry_date}` : "无效期"
-									}}<span v-if="row.days_to_expiry != null">
-										· {{ formatExpiryDuration(row.days_to_expiry) }}</span
+							<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
+						</div>
+						<div
+							v-if="busy && !rows.length"
+							class="expiry-loading-state"
+							role="status"
+						>
+							<span class="loading-spinner" aria-hidden="true"></span
+							><b>正在加载记录…</b><i v-for="index in 3" :key="index"></i>
+						</div>
+						<template v-if="!busy">
+							<RouterLink
+								v-for="row in rows"
+								:key="row.batch_no"
+								class="expiry-batch-card"
+								:class="{
+									overdue: row.days_to_expiry < 0,
+									soon: row.days_to_expiry >= 0 && row.days_to_expiry <= 30,
+								}"
+								:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
+							>
+								<img
+									v-if="row.image"
+									:src="row.image"
+									:alt="row.item_name"
+									loading="lazy"
+									decoding="async"
+								/><span v-else class="expiry-card-placeholder"
+									><InventoryIcon name="box"
+								/></span>
+								<div>
+									<small>{{ row.item_group }}</small>
+									<h3>{{ row.item_name }}</h3>
+									<p>{{ row.item_code }} · {{ row.batch_no }}</p>
+									<strong>{{ row.total_qty }} {{ row.stock_uom }}</strong>
+									<p class="expiry-date">
+										{{ row.expiry_date ? `到期 ${row.expiry_date}` : "无效期"
+										}}<span v-if="row.days_to_expiry != null">
+											· {{ formatExpiryDuration(row.days_to_expiry) }}</span
+										>
+									</p>
+									<p
+										v-for="location in row.locations"
+										:key="location.warehouse"
+										class="location-line"
 									>
-								</p>
-								<p
-									v-for="location in row.locations"
-									:key="location.warehouse"
-									class="location-line"
-								>
-									{{ warehouseText(location.warehouse) }}：{{ location.qty }}
-								</p>
-							</div>
-						</RouterLink>
-						<p v-if="!busy && !rows.length" class="empty-state">暂无符合条件的批次</p>
+										{{ warehouseText(location.warehouse) }}：{{ location.qty }}
+									</p>
+								</div>
+							</RouterLink>
+						</template>
+						<p v-if="!busy && !refreshing && !rows.length" class="empty-state">
+							暂无符合条件的批次
+						</p>
+						<div v-if="appending" class="expiry-loading-more" role="status">
+							<span
+								class="loading-spinner loading-spinner-small"
+								aria-hidden="true"
+							></span
+							>正在加载更多记录…
+						</div>
 					</div>
 					<SortableDataTable
 						:surface="surface"
 						v-else
 						:rows="rows"
 						:columns="sortColumns"
+						:column-summaries="columnSummaries"
+						:show-summary="false"
 						row-key="batch_no"
 						:sort="sort"
 						:loading="busy || refreshing"
@@ -321,10 +356,63 @@ onBeforeUnmount(() => {
 					<div ref="sentinel" aria-hidden="true"></div>
 				</div>
 			</div>
+			<ColumnSummaryDialog
+				v-model:open="summaryOpen"
+				:columns="sortColumns"
+				:summaries="columnSummaries"
+				:loading="busy || refreshing"
+			/>
 		</div>
 	</main>
 </template>
 <style scoped>
+.expiry-card-grid {
+	position: relative;
+}
+.expiry-refresh-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 253 249 / 58%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.expiry-card-grid.is-refreshing > .expiry-batch-card {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.expiry-loading-state {
+	display: grid;
+	grid-column: 1 / -1;
+	justify-items: center;
+	gap: 10px;
+	min-height: 190px;
+}
+.expiry-loading-state i {
+	width: min(92%, 360px);
+	height: 42px;
+	border-radius: 9px;
+	background: #f0ebe3;
+}
+.expiry-loading-more {
+	grid-column: 1 / -1;
+	padding: 12px;
+	text-align: center;
+	color: #704d2e;
+}
+.loading-spinner-small {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	vertical-align: -3px;
+	border-width: 2px;
+}
 @media (min-width: 1024px) {
 	.expiry-desktop-page {
 		width: 100%;

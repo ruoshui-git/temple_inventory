@@ -38,7 +38,8 @@ export function useInventoryController() {
     facetCounts = ref<any>({ warehouses: {}, item_groups: {} }),
     quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>(
       {},
-    );
+    ),
+    columnSummaries = ref<Record<string, any>>({});
   const error = ref(""),
     loading = ref(false),
     loadingMore = ref(false),
@@ -99,24 +100,28 @@ export function useInventoryController() {
     {
       key: "available_stock",
       label: "可用数量",
+      summary: "available_stock",
       sortable: true,
       initialOrder: "desc" as const,
     },
     {
       key: "total_stock",
       label: "总计",
+      summary: "total_stock",
       sortable: true,
       initialOrder: "desc" as const,
     },
     {
       key: "on_loan_qty",
       label: "借出",
+      summary: "on_loan_qty",
       sortable: true,
       initialOrder: "desc" as const,
     },
     {
       key: "damaged_qty",
       label: "损坏",
+      summary: "damaged_qty",
       sortable: true,
       initialOrder: "desc" as const,
     },
@@ -339,10 +344,12 @@ export function useInventoryController() {
       overall.value = data.overall_total ?? null;
       facetCounts.value = data.facets || facetCounts.value;
       quantityTotals.value = data.quantity_totals || {};
+      columnSummaries.value = data.column_summaries || {};
     } catch (cause: any) {
       if (cause?.name !== "AbortError" && current === sequence) {
         error.value = cause.message;
         if (!append) quantityTotals.value = {};
+        if (!append) columnSummaries.value = {};
       }
     } finally {
       if (current === sequence) {
@@ -612,6 +619,7 @@ export function useInventoryController() {
     overall,
     facetCounts,
     quantityTotals,
+    columnSummaries,
     error,
     loading,
     loadingMore,

@@ -1,8 +1,9 @@
 <script setup lang="ts" generic="TRow extends Record<string, any>">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useResponsiveLayout, type ResponsiveSurface } from "../composables/useResponsiveLayout";
 import SortableDataTableDesktopRenderer from "./SortableDataTableDesktopRenderer.vue";
 import SortableDataTableMobileRenderer from "./SortableDataTableMobileRenderer.vue";
+import ColumnSummaryDialog, { type ColumnSummary } from "./ColumnSummaryDialog.vue";
 
 export type SortOrder = "asc" | "desc";
 export interface DataTableColumn {
@@ -12,6 +13,8 @@ export interface DataTableColumn {
 	initialOrder?: SortOrder;
 	headerClass?: string;
 	cellClass?: string;
+	/** Key in the complete-result column_summaries response. */
+	summary?: string;
 }
 export interface SortState {
 	sort_by: string;
@@ -32,6 +35,8 @@ const props = withDefaults(
 		selectedKeys?: Array<string | number>;
 		/** Force one renderer when the parent owns the responsive surface. */
 		surface?: ResponsiveSurface;
+		columnSummaries?: ColumnSummary;
+		showSummary?: boolean;
 	}>(),
 	{
 		selectionMode: false,
@@ -41,8 +46,11 @@ const props = withDefaults(
 		error: "",
 		emptyMessage: "暂无记录",
 		surface: undefined,
+		columnSummaries: () => ({}),
+		showSummary: true,
 	},
 );
+const summaryOpen = ref(false);
 const emit = defineEmits<{
 	sort: [state: SortState];
 	activate: [row: TRow];
@@ -55,7 +63,22 @@ const resolvedSurface = computed<ResponsiveSurface>(
 </script>
 
 <template>
-	<div class="sortable-data-table" :data-surface="resolvedSurface">
+	<div
+		class="sortable-data-table"
+		:data-surface="resolvedSurface"
+		:aria-busy="loading || loadingMore"
+	>
+		<div v-if="showSummary" class="sortable-data-table-toolbar">
+			<button type="button" class="column-summary-trigger" @click="summaryOpen = true">
+				Σ <span>列汇总</span>
+			</button>
+		</div>
+		<ColumnSummaryDialog
+			v-model:open="summaryOpen"
+			:columns="columns"
+			:summaries="columnSummaries"
+			:loading="loading"
+		/>
 		<SortableDataTableDesktopRenderer
 			v-if="resolvedSurface === 'desktop'"
 			:rows="rows"
@@ -102,5 +125,36 @@ const resolvedSurface = computed<ResponsiveSurface>(
 <style scoped>
 .sortable-data-table {
 	min-width: 0;
+}
+.sortable-data-table[aria-busy="true"] {
+	position: relative;
+}
+.sortable-data-table-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	min-height: 0;
+	margin: 0 0 6px;
+}
+.column-summary-trigger {
+	min-height: 36px;
+	padding: 6px 10px;
+	border: 1px solid #ded6ca;
+	border-radius: 7px;
+	background: #fff;
+	color: #634d35;
+	font-weight: 650;
+}
+@media (max-width: 1023px) {
+	.column-summary-trigger {
+		width: 38px;
+		padding: 6px 0;
+	}
+	.column-summary-trigger span {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
 }
 </style>

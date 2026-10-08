@@ -80,13 +80,23 @@ onBeforeUnmount(() => {
 			@input="onInput"
 			@keydown="onKeydown"
 		/>
-		<div v-if="open" class="movement-lookup-options" role="listbox">
-			<span v-if="loading" class="movement-lookup-status">正在搜索…</span>
+		<div
+			v-if="open"
+			class="movement-lookup-options"
+			:class="{ 'is-loading': loading }"
+			role="listbox"
+			:aria-busy="loading"
+		>
+			<span v-if="loading" class="movement-lookup-status" role="status"
+				><span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
+				>正在搜索…</span
+			>
 			<button
 				v-for="option in options"
 				:key="option.value"
 				type="button"
 				role="option"
+				:disabled="loading"
 				:aria-selected="option.value === modelValue"
 				@click="select(option)"
 			>
@@ -128,6 +138,9 @@ onBeforeUnmount(() => {
 .movement-lookup-options button:hover,
 .movement-lookup-options button[aria-selected="true"] {
 	background: #fff0d9;
+}
+.movement-lookup-options.is-loading button {
+	opacity: 0.55;
 }
 .movement-lookup-status {
 	padding: 8px;

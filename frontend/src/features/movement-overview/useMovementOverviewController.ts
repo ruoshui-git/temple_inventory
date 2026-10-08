@@ -71,6 +71,7 @@ export function useMovementOverviewController() {
   const rows = ref<any[]>([]);
   const total = ref(0);
   const summaries = ref<ActionSummary[]>([]);
+  const columnSummaries = ref<Record<string, any>>({});
   const facets = ref<Record<string, Record<string, number>>>({
     movement_kinds: {},
     item_groups: {},
@@ -103,8 +104,13 @@ export function useMovementOverviewController() {
   const columns = [
     { key: "item_name", label: "物品", sortable: true },
     { key: "item_group", label: "类别" },
-    { key: "movement_totals", label: "动作明细" },
-    { key: "record_count", label: "相关记录", sortable: true },
+    { key: "movement_totals", label: "动作明细", summary: "movement_totals" },
+    {
+      key: "record_count",
+      label: "相关记录",
+      sortable: true,
+      summary: "record_count",
+    },
     {
       key: "last_posting_date",
       label: "最近变动",
@@ -365,6 +371,7 @@ export function useMovementOverviewController() {
           : incoming;
         total.value = Number(data.total || 0);
         summaries.value = data.action_summaries || [];
+        columnSummaries.value = data.column_summaries || {};
         facets.value = data.facets || facets.value;
         resolved.value = {
           date_from: data.resolved_period?.date_from || "",
@@ -444,6 +451,7 @@ export function useMovementOverviewController() {
     rows,
     total,
     summaries,
+    columnSummaries,
     facets,
     resolved,
     busy,

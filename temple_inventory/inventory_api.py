@@ -853,6 +853,18 @@ def _quantity_totals(rows, fields):
 	return {field: _quantity_list(values) for field, values in totals.items()}
 
 
+def _column_summaries(quantity_totals):
+	"""Serialize complete-result quantity totals for the shared summary dialog."""
+	return {
+		field: {
+			"type": "quantity",
+			"unitless_total": flt(sum(flt(row.get("qty")) for row in values or [])),
+			"by_uom": values or [],
+		}
+		for field, values in quantity_totals.items()
+	}
+
+
 def _sort_state(sort_by, sort_order, columns, default_column=None, default_order="asc"):
 	if sort_by is None and sort_order is None:
 		return None
@@ -2012,6 +2024,10 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 	)
 	for row in group_rows:
 		group_facets[row.name] = int(row.total)
+	quantity_totals = _quantity_totals(
+		summary_rows,
+		("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
+	)
 	return {
 		"results": rows,
 		"total": total,
@@ -2020,10 +2036,8 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		"as_of": str(getdate(nowdate())),
 		"overall_total": overall,
 		"facets": {"warehouses": warehouse_facets, "item_groups": group_facets, "expiry": expiry_facets},
-		"quantity_totals": _quantity_totals(
-			summary_rows,
-			("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
-		),
+		"quantity_totals": quantity_totals,
+		"column_summaries": _column_summaries(quantity_totals),
 	}
 
 
@@ -2284,6 +2298,7 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 		result,
 		("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
 	)
+	page["column_summaries"] = _column_summaries(page["quantity_totals"])
 	page["overall_total"] = overall
 	page["as_of"] = str(getdate(nowdate()))
 	page["facets"] = {**facet_counts, "expiry": expiry_facets}
@@ -3023,6 +3038,25 @@ def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, 
 		if (status == "outstanding" and loan_status == "Settled") or (status == "settled" and loan_status != "Settled"):
 			continue
 		parent = {"name": name, "borrower": parent_rows[0].get("borrower"), "loan_date": parent_rows[0]["loan_date"], "activity": parent_rows[0].get("activity"), "activity_title": (activities.get(parent_rows[0].get("activity")) or {}).get("title"), "line_count": len(parent_rows), "outstanding_lines": outstanding_lines, "loan_status": loan_status, "items": full_items[:5]}
+		parent_quantities = {"loaned_qty": defaultdict(float), "outstanding_qty": defaultdict(float)}
+		for row in parent_rows:
+			meta = items[row["item_code"]]
+			uom = row.get("uom") or meta.stock_uom
+			factor = 1 if uom == meta.stock_uom else conversion_factors.get((row["item_code"], uom), 0)
+			if not factor:
+				frappe.throw(_("Unit is not configured for {0}").format(row["item_code"]))
+			parent_quantities["loaned_qty"][meta.stock_uom] += flt(row["loaned"]) * factor
+			parent_quantities["outstanding_qty"][meta.stock_uom] += max(flt(row["outstanding"]), 0) * factor
+		parent.update(
+			{
+				key: [
+					{"uom": uom_name, "qty": flt(qty)}
+					for uom_name, qty in sorted(values.items())
+					if uom_name and abs(flt(qty)) > 1e-9
+				]
+				for key, values in parent_quantities.items()
+			}
+		)
 		parents.append(parent)
 
 	def sort_value(row):
@@ -3046,7 +3080,8 @@ def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, 
 			facets["item_groups"][items[row["item_code"]].item_group].add(parent["name"])
 			if row.get("activity"):
 				facets["activities"][row["activity"]].add(parent["name"])
-	return {"results": parents[start:start + page_length], "total": len(parents), "overall_total": len(parents), "start": start, "page_length": page_length, "has_more": start + page_length < len(parents), "facets": {key: {value: len(names) for value, names in sorted(values.items())} for key, values in facets.items()}, "quantity_totals": {key: _quantity_list(values) for key, values in quantity_values.items()}}
+	quantity_totals = {key: _quantity_list(values) for key, values in quantity_values.items()}
+	return {"results": parents[start:start + page_length], "total": len(parents), "overall_total": len(parents), "start": start, "page_length": page_length, "has_more": start + page_length < len(parents), "facets": {key: {value: len(names) for value, names in sorted(values.items())} for key, values in facets.items()}, "quantity_totals": quantity_totals, "column_summaries": {**_column_summaries(quantity_totals), "line_count": {"type": "number", "value": sum(row.get("line_count", 0) for row in parents)}, "outstanding_lines": {"type": "number", "value": sum(row.get("outstanding_lines", 0) for row in parents)}}}
 
 
 @frappe.whitelist()
@@ -3060,7 +3095,7 @@ def loans(search=None, status="outstanding", loan_date=None, item_groups=None, w
 		parents = frappe.db.sql(f"select name, borrower, activity, posting_datetime from `tabInventory Loan` where {where} order by posting_datetime desc, name desc limit %(page_length)s offset %(start)s", {**params, "start": cint(start or 0), "page_length": cint(page_length or 25)}, as_dict=True)
 		rows = _all_loan_rows([row.name for row in parents])
 		by_loan = {row["loan"]: row for row in rows}
-		return {"results": [dict(row, items=[by_loan[row.name]] if row.name in by_loan else []) for row in parents], "total": int(total), "overall_total": int(total), "start": cint(start or 0), "page_length": cint(page_length or 25), "quantity_totals": {"loaned_qty": [], "outstanding_qty": []}}
+		return {"results": [dict(row, items=[by_loan[row.name]] if row.name in by_loan else []) for row in parents], "total": int(total), "overall_total": int(total), "start": cint(start or 0), "page_length": cint(page_length or 25), "quantity_totals": {"loaned_qty": [], "outstanding_qty": []}, "column_summaries": {"loaned_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "outstanding_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "line_count": {"type": "number", "value": 0}, "outstanding_lines": {"type": "number", "value": 0}}}
 	try:
 		settings = _settings()
 	except (frappe.DoesNotExistError, ValueError):
@@ -3069,7 +3104,7 @@ def loans(search=None, status="outstanding", loan_date=None, item_groups=None, w
 		total = frappe.db.sql(f"select count(*) as total from `tabInventory Loan` where {where}", params, as_dict=True)[0].total
 		parents = frappe.db.sql(f"select name, borrower, activity, posting_datetime from `tabInventory Loan` where {where} order by posting_datetime desc, name desc limit %(page_length)s offset %(start)s", {**params, "start": cint(start or 0), "page_length": cint(page_length or 25)}, as_dict=True)
 		grouped = {row["loan"]: row for row in _all_loan_rows([row.name for row in parents])}
-		return {"results": [dict(row, items=[grouped[row.name]] if row.name in grouped else []) for row in parents], "total": int(total), "overall_total": int(total), "start": cint(start or 0), "page_length": cint(page_length or 25), "quantity_totals": {"loaned_qty": [], "outstanding_qty": []}}
+		return {"results": [dict(row, items=[grouped[row.name]] if row.name in grouped else []) for row in parents], "total": int(total), "overall_total": int(total), "start": cint(start or 0), "page_length": cint(page_length or 25), "quantity_totals": {"loaned_qty": [], "outstanding_qty": []}, "column_summaries": {"loaned_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "outstanding_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "line_count": {"type": "number", "value": 0}, "outstanding_lines": {"type": "number", "value": 0}}}
 	return _loans_modern(settings, search, status, loan_date, item_groups, warehouses, activity, sort_by, sort_order, start, page_length)
 
 
@@ -3515,6 +3550,7 @@ def _expiring_batches_database_page(
 		summary_params,
 		as_dict=True,
 	)
+	quantity_totals = _quantity_totals(summary_rows, ("total_qty",))
 	return {
 		"results": rows,
 		"total": total,
@@ -3528,7 +3564,8 @@ def _expiring_batches_database_page(
 			"expiry": expiry_facets,
 		},
 		"expiry_summary": _expiry_summary(summary_batch_rows),
-		"quantity_totals": _quantity_totals(summary_rows, ("total_qty",)),
+		"quantity_totals": quantity_totals,
+		"column_summaries": _column_summaries(quantity_totals),
 	}
 
 
@@ -3765,4 +3802,5 @@ def expiring_batches(search=None, warehouse=None, item_group=None, expiry_from=N
 			warehouse_facet[name] = set().union(*(warehouse_facet.get(leaf, set()) for leaf in leaves)) if leaves else set()
 	facets = {"warehouses": {name: len(values) for name, values in warehouse_facet.items()}, "item_groups": {name: len(values) for name, values in group_facet.items()}, "expiry": _expiry_bucket_counts(all_rows, "batch_no", days_value, custom_from, custom_to)}
 	overall_total = sum(1 for row in all_rows if matches(row, all_selected, group_names if selected_groups else None))
-	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of), "facets": facets, "expiry_summary": _expiry_summary(summary_scope_rows), "quantity_totals": _quantity_totals(rows, ("total_qty",))}
+	quantity_totals = _quantity_totals(rows, ("total_qty",))
+	return {**_page(rows, page_length, start), "overall_total": overall_total, "as_of": str(as_of), "facets": facets, "expiry_summary": _expiry_summary(summary_scope_rows), "quantity_totals": quantity_totals, "column_summaries": _column_summaries(quantity_totals)}

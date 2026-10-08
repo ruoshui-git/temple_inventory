@@ -52,7 +52,7 @@ const {
 } = props.controller;
 </script>
 <template>
-	<section class="app-shell wide-shell warehouse-page">
+	<section class="app-shell wide-shell warehouse-page" :aria-busy="loading">
 		<header>
 			<label class="warehouse-search compact-search-field"
 				>搜索仓库<input
@@ -62,7 +62,8 @@ const {
 					aria-label="搜索仓库、房间或货位"
 			/></label>
 		</header>
-		<LoadingIndicator v-if="loading" text="正在加载仓库…" /><template v-else
+		<LoadingIndicator v-if="loading && !visibleRows.length" text="正在加载仓库…" /><template
+			v-else
 			><p v-if="error" class="error" role="alert">
 				{{ error }} <button type="button" @click="load">重试</button>
 			</p>
@@ -87,9 +88,18 @@ const {
 				</div>
 			</section>
 			<QuantitySummary :metrics="summaryMetrics" :loading="summaryLoading" />
-			<p v-if="!error && !visibleRows.length" class="empty-state">暂无可查看的仓库。</p>
+			<p v-if="!loading && !error && !visibleRows.length" class="empty-state">
+				暂无可查看的仓库。
+			</p>
 			<div
-				v-else
+				v-if="loading && visibleRows.length"
+				class="warehouse-refresh-overlay"
+				role="status"
+			>
+				<span class="loading-spinner" aria-hidden="true"></span>正在更新仓库…
+			</div>
+			<div
+				v-if="!loading || visibleRows.length"
 				ref="list"
 				class="warehouse-list"
 				tabindex="-1"
@@ -268,6 +278,22 @@ const {
 	color: #805022;
 	font-size: 12px;
 	margin-right: 12px;
+}
+.warehouse-page {
+	position: relative;
+}
+.warehouse-refresh-overlay {
+	position: absolute;
+	inset: 76px 0 0;
+	z-index: 2;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(247 245 239 / 62%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
 }
 .warehouse-dialog {
 	max-width: 460px;

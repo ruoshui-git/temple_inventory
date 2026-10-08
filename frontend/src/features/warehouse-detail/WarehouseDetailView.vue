@@ -50,10 +50,10 @@ const {
 			><p v-if="presented && !presented.canOperate" class="notice">
 				当前仓库暂时不能执行库存操作，请联系管理员检查配置。
 			</p>
-			<section class="warehouse-detail-section">
+			<section class="warehouse-detail-section" :aria-busy="stockLoading">
 				<h2>库存分类</h2>
-				<p v-if="!groups.length" class="empty-state">暂无库存分类</p>
-				<div v-else class="summary-grid">
+				<p v-if="!stockLoading && !groups.length" class="empty-state">暂无库存分类</p>
+				<div v-if="groups.length" class="summary-grid">
 					<article v-for="group in groups" :key="group.item_group || group.name">
 						<strong>{{ group.item_group || group.name }}</strong
 						><span
@@ -66,7 +66,7 @@ const {
 					</article>
 				</div>
 			</section>
-			<section class="warehouse-detail-section">
+			<section class="warehouse-detail-section" :aria-busy="stockLoading">
 				<div class="section-heading">
 					<h2>当前库存</h2>
 					<RouterLink :to="link('/')">查看全部库存</RouterLink>
@@ -74,9 +74,20 @@ const {
 				<p v-if="stockError" class="error">
 					{{ stockError }} <button type="button" @click="loadStock">重试</button>
 				</p>
-				<LoadingIndicator v-else-if="stockLoading" text="正在加载库存…" />
-				<p v-else-if="!stock.length" class="empty-state">当前没有库存</p>
-				<div v-else class="detail-list">
+				<LoadingIndicator v-if="stockLoading && !stock.length" text="正在加载库存…" />
+				<div
+					v-if="stockLoading && stock.length"
+					class="detail-refresh-overlay"
+					role="status"
+				>
+					<span class="loading-spinner" aria-hidden="true"></span>正在更新库存…
+				</div>
+				<p v-if="!stockLoading && !stock.length" class="empty-state">当前没有库存</p>
+				<div
+					v-if="stock.length"
+					class="detail-list"
+					:class="{ 'is-refreshing': stockLoading }"
+				>
 					<article
 						v-for="row in stock.slice(0, 20)"
 						:key="row.name || `${row.item_code}-${row.warehouse}-${row.batch_no}`"
@@ -97,7 +108,7 @@ const {
 					共 {{ detail.stock_total }} 条记录
 				</p>
 			</section>
-			<section class="warehouse-detail-section">
+			<section class="warehouse-detail-section" :aria-busy="movementsLoading">
 				<div class="section-heading">
 					<h2>最近动态</h2>
 					<RouterLink :to="link('/movements')">查看历史</RouterLink>
@@ -106,9 +117,25 @@ const {
 					{{ movementsError }}
 					<button type="button" @click="loadMovements">重试</button>
 				</p>
-				<LoadingIndicator v-else-if="movementsLoading" text="正在加载动态…" />
-				<p v-else-if="!movements.length" class="empty-state">暂无最近动态</p>
-				<div v-else class="detail-list">
+				<LoadingIndicator
+					v-if="movementsLoading && !movements.length"
+					text="正在加载动态…"
+				/>
+				<div
+					v-if="movementsLoading && movements.length"
+					class="detail-refresh-overlay"
+					role="status"
+				>
+					<span class="loading-spinner" aria-hidden="true"></span>正在更新动态…
+				</div>
+				<p v-if="!movementsLoading && !movements.length" class="empty-state">
+					暂无最近动态
+				</p>
+				<div
+					v-if="movements.length"
+					class="detail-list"
+					:class="{ 'is-refreshing': movementsLoading }"
+				>
 					<article v-for="row in movements.slice(0, 10)" :key="row.name">
 						<strong>{{ row.movement_kind || row.type || "库存变动" }}</strong
 						><span
@@ -167,11 +194,25 @@ const {
 	margin-left: auto;
 }
 .warehouse-detail-section {
+	position: relative;
 	margin: 18px 0;
 	padding: 18px;
 	background: #fff;
 	border-radius: 14px;
 	box-shadow: 0 2px 10px #1720330c;
+}
+.detail-refresh-overlay {
+	position: absolute;
+	inset: 58px 18px 18px;
+	z-index: 1;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 255 255 / 65%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
 }
 .section-heading {
 	display: flex;
@@ -201,6 +242,10 @@ const {
 .detail-list {
 	display: grid;
 	gap: 8px;
+}
+.detail-list.is-refreshing {
+	opacity: 0.55;
+	pointer-events: none;
 }
 .detail-list article {
 	display: grid;

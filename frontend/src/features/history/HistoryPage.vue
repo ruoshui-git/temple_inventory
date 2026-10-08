@@ -2,7 +2,7 @@
 import { useHistoryController } from "./useHistoryController";
 import HistoryView from "./HistoryView.vue";
 
-const props = defineProps<{ destination?: "movements" | "adjustments" | "drafts" }>();
+const props = defineProps<{ destination?: "movements" | "drafts" }>();
 const controller = useHistoryController(props.destination || "movements");
 const surface = controller.surface;
 </script>

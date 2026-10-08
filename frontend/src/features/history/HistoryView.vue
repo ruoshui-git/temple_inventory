@@ -30,6 +30,7 @@ const {
 	total,
 	overallTotal,
 	quantityTotals,
+	columnSummaries,
 	resolvedPeriod,
 	facets,
 	start,
@@ -52,10 +53,10 @@ const {
 	filters,
 	movementWarehouseColumns,
 	movementColumns,
-	adjustmentColumns,
 	draftColumns,
 	sortColumns,
 	summaryMetrics,
+	formatQuantities,
 	activeCount,
 	warehouseText,
 	locationsFor,
@@ -69,7 +70,6 @@ const {
 	load,
 	applyQuery,
 	operation,
-	openReconciliation,
 	activate,
 	deleteDraft,
 	close,
@@ -135,26 +135,6 @@ onBeforeUnmount(() => {
 				<fieldset v-else-if="destination !== 'movements'">
 					<legend>日期</legend>
 					<input v-model="filters.posting_date" type="date" aria-label="日期" />
-				</fieldset>
-				<fieldset v-if="destination === 'adjustments'">
-					<legend>类型</legend>
-					<label
-						><input v-model="filters.movement_kind" type="radio" value="" />全部</label
-					>
-					<label
-						><input
-							v-model="filters.movement_kind"
-							type="radio"
-							value="期初库存"
-						/>期初库存</label
-					>
-					<label
-						><input
-							v-model="filters.movement_kind"
-							type="radio"
-							value="盘点调整"
-						/>库存盘点</label
-					>
 				</fieldset>
 				<CompactFilterSection title="物品类别" icon="card">
 					<CategorySelector
@@ -268,16 +248,11 @@ onBeforeUnmount(() => {
 						:columns="sortColumns"
 						row-key="name"
 						:sort="sort"
+						:column-summaries="columnSummaries"
 						:loading="busy || refreshing"
 						:loading-more="appending"
 						:error="error"
-						:empty-message="
-							destination === 'drafts'
-								? '暂无草稿'
-								: destination === 'adjustments'
-									? '暂无盘点调整记录'
-									: '暂无货物流动记录'
-						"
+						:empty-message="destination === 'drafts' ? '暂无草稿' : '暂无货物流动记录'"
 						@sort="sort = $event"
 						@activate="activate"
 					>
@@ -298,6 +273,12 @@ onBeforeUnmount(() => {
 									: "已取消"
 						}}</template>
 						<template #cell-line_count="{ row }">{{ row.line_count ?? 0 }}</template>
+						<template #cell-moved_qty="{ row }">{{
+							formatQuantities(row.moved_qty)
+						}}</template>
+						<template #cell-draft_action_qty="{ row }">{{
+							formatQuantities(row.draft_action_qty)
+						}}</template>
 						<template #cell-source_warehouses="{ row }">
 							<WarehousePreview
 								:locations="locationsFor(row, 'source')"
@@ -353,17 +334,15 @@ onBeforeUnmount(() => {
 											: labels[row.movement_kind] || row.movement_kind
 									}}</b>
 									<b v-else>{{ row.posting_date }}</b>
-									<p v-if="destination === 'adjustments'">
-										{{ row.posting_date }} · 增加
-										{{ row.increase_line_count ?? 0 }} 行 · 减少
-										{{ row.decrease_line_count ?? 0 }} 行
-									</p>
-									<p v-else-if="destination === 'movements'">
+									<p v-if="destination === 'movements'">
 										物品 {{ row.line_count ?? 0 }} 行 · 类别
-										{{ row.category_count ?? 0 }} 个
+										{{ row.category_count ?? 0 }} 个 · 数量
+										{{ formatQuantities(row.moved_qty) }}
 									</p>
 									<p v-else>
-										{{ row.posting_date }} · {{ row.line_count ?? 0 }} 行
+										{{ row.posting_date }} · {{ row.line_count ?? 0 }} 行 ·
+										操作数量
+										{{ formatQuantities(row.draft_action_qty) }}
 									</p>
 									<small>{{
 										row.docstatus === 0
@@ -414,15 +393,6 @@ onBeforeUnmount(() => {
 			class="action-fab"
 			:aria-label="`新建${labels[movementKind]}`"
 			@click="operation(movementKind)"
-		>
-			＋
-		</button>
-		<button
-			v-else-if="destination === 'adjustments' && boot?.can_reconcile_stock"
-			type="button"
-			class="action-fab"
-			aria-label="新建盘点调整"
-			@click="openReconciliation"
 		>
 			＋
 		</button>

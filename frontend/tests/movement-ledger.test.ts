@@ -225,7 +225,7 @@ describe("movement ledger", () => {
     expect(
       wrapper.find(".movement-item-cell .image-thumb-button").exists(),
     ).toBe(false);
-    expect(wrapper.findAll(".movement-kind-chip")).toHaveLength(10);
+    expect(wrapper.findAll(".movement-kind-chip")).toHaveLength(11);
     expect(wrapper.text()).toContain("关联记录");
     expect(wrapper.text()).toContain("从");
     expect(wrapper.text()).toContain("到");
@@ -252,7 +252,11 @@ describe("movement ledger", () => {
       });
     }
     expect(wrapper.find(".movement-heading").exists()).toBe(true);
-    expect(wrapper.find(".compact-identity").exists()).toBe(true);
+    expect(wrapper.find(".compact-heading").exists()).toBe(true);
+    expect(
+      wrapper.find(".movement-ledger-actions .column-summary-trigger").exists(),
+    ).toBe(true);
+    expect(wrapper.find(".sortable-data-table-toolbar").exists()).toBe(false);
     const resultScroll = wrapper.find(".results-scroll");
     Object.defineProperty(resultScroll.element, "scrollTop", {
       value: 81,
@@ -332,9 +336,14 @@ describe("movement ledger", () => {
     });
     await scroll.trigger("scroll");
     expect(wrapper.find(".movement-heading").exists()).toBe(true);
-    expect(wrapper.find(".resolved-period").exists()).toBe(true);
+    expect(wrapper.find(".period-compact-resolved").exists()).toBe(true);
     expect(wrapper.find(".movement-title").exists()).toBe(false);
-    expect(wrapper.find(".compact-identity").isVisible()).toBe(true);
+    expect(wrapper.find(".compact-heading").isVisible()).toBe(true);
+    expect(
+      wrapper
+        .find(".movement-ledger-actions .column-summary-trigger")
+        .isVisible(),
+    ).toBe(true);
     const zeroToggle = wrapper.find(".movement-zero-kinds-toggle");
     await zeroToggle.trigger("click");
     expect(hiddenZero.attributes("style")).not.toContain("display: none");

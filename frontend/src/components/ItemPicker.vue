@@ -27,7 +27,8 @@ const query = ref(props.barcode || ""),
 	start = ref(0),
 	error = ref(""),
 	busy = ref(false),
-	appending = ref(false);
+	appending = ref(false),
+	searchLoading = ref(false);
 const creating = ref(!!props.barcode);
 const recent = ref<any[]>([]),
 	recentLoading = ref(true);
@@ -56,6 +57,8 @@ async function search(offset = 0, append = false) {
 	if (append && appending.value) return;
 	const seq = ++sequence;
 	if (append) appending.value = true;
+	else searchLoading.value = true;
+	error.value = "";
 	try {
 		const d = await api("search_items", {
 			search: query.value,
@@ -81,7 +84,10 @@ async function search(offset = 0, append = false) {
 	} catch (e: any) {
 		error.value = e.message;
 	} finally {
-		if (seq === sequence) appending.value = false;
+		if (seq === sequence) {
+			appending.value = false;
+			searchLoading.value = false;
+		}
 	}
 }
 function drawerScroll(event: Event) {
@@ -201,10 +207,15 @@ onBeforeUnmount(() => observer?.disconnect());
 					v-if="!query && (recentLoading || recent.length)"
 					class="recent-items"
 					aria-label="最近使用"
+					:aria-busy="recentLoading"
 				>
 					<h3>最近使用</h3>
 					<div class="recent-strip">
-						<span v-if="recentLoading" class="recent-placeholder"
+						<span v-if="recentLoading" class="recent-placeholder" role="status"
+							><span
+								class="loading-spinner loading-spinner-small"
+								aria-hidden="true"
+							></span
 							>正在加载最近物品…</span
 						><button
 							v-for="r in recent"
@@ -219,28 +230,57 @@ onBeforeUnmount(() => observer?.disconnect());
 						</button>
 					</div>
 				</section>
-				<h3>搜索结果</h3>
-				<button
-					v-for="r in rows"
-					:key="r.item_code"
-					class="selection-row compact-selection"
-					:disabled="busy"
-					@click="select(r.item_code)"
+				<section
+					class="item-picker-results"
+					:class="{ 'is-refreshing': searchLoading && rows.length }"
+					:aria-busy="searchLoading || appending"
+					aria-label="搜索结果"
 				>
-					<img v-if="r.image" :src="r.image" class="thumb" /><span
-						><b>{{ r.item_name }}</b
-						><small
-							>{{ r.item_code }} · {{ r.item_group
-							}}<template v-if="stockOnly">
-								· 可用 {{ r.available_qty }} {{ r.stock_uom }}</template
-							></small
-						></span
+					<div
+						v-if="searchLoading && rows.length"
+						class="item-picker-refresh"
+						role="status"
 					>
-				</button>
-				<p v-if="!rows.length && !recentLoading">没有找到物品</p>
-				<p>已加载 {{ rows.length }} · 筛选结果 {{ total }}</p>
-				<div ref="sentinel" aria-hidden="true"></div>
-				<div v-if="appending" class="mobile-loading" role="status">正在加载更多结果…</div>
+						<span class="loading-spinner" aria-hidden="true"></span>正在更新搜索结果…
+					</div>
+					<div
+						v-if="searchLoading && !rows.length"
+						class="item-picker-initial-loading"
+						role="status"
+					>
+						<span class="loading-spinner" aria-hidden="true"></span
+						><b>正在搜索物品…</b>
+						<i v-for="index in 3" :key="index"></i>
+					</div>
+					<h3>搜索结果</h3>
+					<button
+						v-for="r in rows"
+						:key="r.item_code"
+						class="selection-row compact-selection"
+						:disabled="busy || searchLoading"
+						@click="select(r.item_code)"
+					>
+						<img v-if="r.image" :src="r.image" class="thumb" /><span
+							><b>{{ r.item_name }}</b
+							><small
+								>{{ r.item_code }} · {{ r.item_group
+								}}<template v-if="stockOnly">
+									· 可用 {{ r.available_qty }} {{ r.stock_uom }}</template
+								></small
+							></span
+						>
+					</button>
+					<p v-if="!searchLoading && !rows.length && !error">没有找到物品</p>
+					<p>已加载 {{ rows.length }} · 筛选结果 {{ total }}</p>
+					<div ref="sentinel" aria-hidden="true"></div>
+					<div v-if="appending" class="mobile-loading" role="status">
+						<span
+							class="loading-spinner loading-spinner-small"
+							aria-hidden="true"
+						></span
+						>正在加载更多结果…
+					</div>
+				</section>
 			</template>
 			<ItemCreateForm
 				v-else
@@ -254,3 +294,39 @@ onBeforeUnmount(() => observer?.disconnect());
 		</aside>
 	</div>
 </template>
+
+<style scoped>
+.item-picker-results {
+	position: relative;
+}
+.item-picker-results.is-refreshing > :not(.item-picker-refresh) {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.item-picker-refresh {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 255 255 / 62%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.item-picker-initial-loading {
+	display: grid;
+	justify-items: center;
+	gap: 8px;
+	min-height: 150px;
+}
+.item-picker-initial-loading i {
+	display: block;
+	width: 92%;
+	height: 32px;
+	border-radius: 8px;
+	background: #f0ebe3;
+}
+</style>

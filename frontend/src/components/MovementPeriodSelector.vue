@@ -19,6 +19,7 @@ const props = withDefaults(
 		resolvedTo?: string;
 		showResolved?: boolean;
 		variant?: "legacy" | "ledger";
+		compact?: boolean;
 	}>(),
 	{
 		dateFrom: "",
@@ -27,6 +28,7 @@ const props = withDefaults(
 		resolvedTo: "",
 		showResolved: true,
 		variant: "legacy",
+		compact: false,
 	},
 );
 const emit = defineEmits<{
@@ -64,6 +66,11 @@ const resolvedText = computed(() =>
 	props.resolvedFrom && props.resolvedTo
 		? `${props.resolvedFrom} 至 ${props.resolvedTo}`
 		: "正在解析日期范围…",
+);
+const selectedLabel = computed(
+	() =>
+		[...natural, ...rolling].find((choice) => choice.key === props.periodKey)?.label ||
+		(props.periodKey === "custom" ? "自定义" : "时间范围"),
 );
 function setCustom() {
 	if (!props.dateFrom && props.resolvedFrom) emit("update:dateFrom", props.resolvedFrom);
@@ -195,7 +202,7 @@ onBeforeUnmount(() => {
 			</button>
 		</div>
 		<div
-			v-else-if="variant === 'ledger'"
+			v-else-if="variant === 'ledger' && !compact"
 			class="period-choices"
 			role="group"
 			aria-label="时间范围"
@@ -250,6 +257,69 @@ onBeforeUnmount(() => {
 				</div>
 			</Teleport>
 		</div>
+		<div v-else-if="variant === 'ledger' && compact" class="period-compact">
+			<details
+				ref="more"
+				class="period-more"
+				:open="moreOpen"
+				aria-haspopup="menu"
+				:aria-expanded="moreOpen"
+			>
+				<summary
+					ref="moreTrigger"
+					tabindex="0"
+					aria-controls="movement-period-more-menu"
+					@click.prevent="toggleMore"
+				>
+					{{ selectedLabel }} ▾
+				</summary>
+			</details>
+			<span class="period-compact-resolved">{{ resolvedText }}</span>
+			<Teleport to="body">
+				<div
+					v-if="moreOpen"
+					ref="portalMenu"
+					id="movement-period-more-menu"
+					class="period-more-menu-portal period-compact-menu"
+					role="menu"
+					aria-label="时间范围"
+					:style="menuStyle"
+				>
+					<strong>自然时间</strong>
+					<button
+						v-for="choice in natural"
+						:key="choice.key"
+						type="button"
+						role="menuitemradio"
+						:aria-checked="periodKey === choice.key"
+						@click="selectRolling(choice.key)"
+					>
+						{{ choice.label }}
+					</button>
+					<strong>滚动时间</strong>
+					<button
+						v-for="choice in rolling"
+						:key="choice.key"
+						type="button"
+						role="menuitemradio"
+						:aria-checked="periodKey === choice.key"
+						@click="selectRolling(choice.key)"
+					>
+						{{ choice.label }}
+					</button>
+					<button
+						type="button"
+						role="menuitem"
+						@click="
+							setCustom();
+							closeMore(true);
+						"
+					>
+						自定义
+					</button>
+				</div>
+			</Teleport>
+		</div>
 		<div v-if="mode === 'custom'" class="custom-period">
 			<label
 				>开始日期<input
@@ -265,9 +335,12 @@ onBeforeUnmount(() => {
 					@input="emit('update:dateTo', ($event.target as HTMLInputElement).value)"
 			/></label>
 		</div>
-		<small v-if="showResolved" class="resolved-period" aria-live="polite">{{
-			resolvedText
-		}}</small>
+		<small
+			v-if="showResolved && !(variant === 'ledger' && compact)"
+			class="resolved-period"
+			aria-live="polite"
+			>{{ resolvedText }}</small
+		>
 	</section>
 </template>
 <style scoped>
@@ -288,6 +361,40 @@ onBeforeUnmount(() => {
 }
 .movement-period-ledger .resolved-period {
 	flex: none;
+}
+.period-compact {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 6px;
+}
+.period-compact .period-more summary {
+	min-height: 30px;
+	padding: 5px 8px;
+	border: 1px solid #dfd4c4;
+	border-radius: 6px;
+	background: #fff;
+	color: #5e4b36;
+	font-weight: 650;
+	white-space: nowrap;
+}
+.period-compact-resolved {
+	overflow: hidden;
+	color: #6b6257;
+	font-size: 11px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.period-compact-menu {
+	grid-template-columns: 1fr;
+	min-width: 180px;
+	max-height: min(70dvh, 420px);
+	overflow: auto;
+}
+.period-compact-menu strong {
+	padding: 4px 10px;
+	color: #7a6a58;
+	font-size: 11px;
 }
 .period-mode,
 .period-choices {

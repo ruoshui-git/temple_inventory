@@ -11,6 +11,7 @@ import InventoryCardGrid from "../../components/InventoryCardGrid.vue";
 import DetailPopover from "../../components/DetailPopover.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
+import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import { type InventoryController } from "./useInventoryController";
 
 const props = defineProps<{ controller: InventoryController }>();
@@ -21,6 +22,7 @@ const {
 	total,
 	overall,
 	facetCounts,
+	columnSummaries,
 	error,
 	loading,
 	loadingMore,
@@ -58,6 +60,7 @@ const {
 	onResultsScroll,
 	initializeInventory,
 } = props.controller;
+const summaryOpen = ref(false);
 const surface: "desktop" | "mobile" = "desktop";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
@@ -168,6 +171,9 @@ onBeforeUnmount(() => {
 							<InventoryIcon name="filter" />
 							<span>筛选</span
 							><b v-if="activeFilterCount">{{ activeFilterCount }}</b></button
+						><button type="button" class="toolbar-action" @click="summaryOpen = true">
+							Σ <span>列汇总</span>
+						</button>
 						><button class="toolbar-action" @click="toggleSelection">
 							<InventoryIcon name="select" /><span>{{
 								selection ? "完成" : "选择"
@@ -272,6 +278,8 @@ onBeforeUnmount(() => {
 							v-else
 							:rows="rows"
 							:columns="sortColumns"
+							:column-summaries="columnSummaries"
+							:show-summary="false"
 							row-key="item_code"
 							:sort="sort"
 							:loading="loading"
@@ -400,6 +408,12 @@ onBeforeUnmount(() => {
 				</div>
 			</div>
 		</div>
+		<ColumnSummaryDialog
+			v-model:open="summaryOpen"
+			:columns="sortColumns"
+			:summaries="columnSummaries"
+			:loading="loading"
+		/>
 	</section>
 </template>
 <style scoped>

@@ -29,6 +29,7 @@ export function useLoansController() {
   const quantityTotals = ref<
     Record<string, Array<{ uom: string; qty: number }>>
   >({});
+  const columnSummaries = ref<Record<string, any>>({});
   const error = ref("");
   const loading = ref(false);
   const loadingMore = ref(false);
@@ -54,8 +55,24 @@ export function useLoansController() {
       initialOrder: "desc" as const,
     },
     { key: "borrower", label: "借用方", sortable: true },
-    { key: "line_count", label: "物品行数", sortable: true },
-    { key: "outstanding_lines", label: "未结物品行数", sortable: true },
+    {
+      key: "line_count",
+      label: "物品行数",
+      sortable: true,
+      summary: "line_count",
+    },
+    {
+      key: "outstanding_lines",
+      label: "未结物品行数",
+      sortable: true,
+      summary: "outstanding_lines",
+    },
+    { key: "loaned_qty", label: "借出数量", summary: "loaned_qty" },
+    {
+      key: "outstanding_qty",
+      label: "未归还数量",
+      summary: "outstanding_qty",
+    },
     { key: "activity_title", label: "相关活动" },
     { key: "loan_status", label: "状态", sortable: true },
   ];
@@ -79,6 +96,18 @@ export function useLoansController() {
       quantities: quantityTotals.value.outstanding_qty || [],
     },
   ]);
+  function formatQuantities(
+    values: Array<{ uom: string; qty: number }> | undefined,
+  ) {
+    return (
+      (values || [])
+        .map(
+          (value) =>
+            `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(value.qty)} ${value.uom}`,
+        )
+        .join(" · ") || "—"
+    );
+  }
   const activityOptions = computed(() =>
     activities.value.map((activity) => ({
       label: activity.title,
@@ -148,6 +177,7 @@ export function useLoansController() {
         : incoming;
       total.value = Number(data.total || 0);
       quantityTotals.value = data.quantity_totals || {};
+      columnSummaries.value = data.column_summaries || {};
       if (!append) {
         syncingRoute = true;
         await router.replace({
@@ -310,6 +340,7 @@ export function useLoansController() {
     rows,
     total,
     quantityTotals,
+    columnSummaries,
     error,
     loading,
     loadingMore,
@@ -321,6 +352,7 @@ export function useLoansController() {
     columns,
     statusLabel,
     summaryMetrics,
+    formatQuantities,
     activityOptions,
     activeCount,
     chips,

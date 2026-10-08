@@ -36,13 +36,29 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 </script>
 
 <template>
-	<div class="sortable-data-table-mobile">
-		<div v-if="loading" class="mobile-loading" role="status">正在更新记录…</div>
+	<div
+		class="sortable-data-table-mobile"
+		:class="{ 'is-refreshing': loading && rows.length }"
+		:aria-busy="loading || loadingMore"
+	>
+		<div v-if="loading && rows.length" class="mobile-refresh-overlay" role="status">
+			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
+		</div>
+		<div
+			v-if="loading && !rows.length"
+			class="mobile-loading mobile-initial-loading"
+			role="status"
+		>
+			<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
+			><i v-for="index in 3" :key="index"></i>
+		</div>
 		<div v-else-if="error" class="mobile-loading table-error" role="alert">
 			<slot name="error">{{ error }}</slot>
 		</div>
-		<div v-else-if="!rows.length" class="mobile-loading">{{ emptyMessage }}</div>
-		<template v-else
+		<div v-else-if="!loading && !loadingMore && !rows.length && !error" class="mobile-loading">
+			{{ emptyMessage }}
+		</div>
+		<template v-if="rows.length"
 			><div
 				v-for="row in rows"
 				:key="String(valueFor(row))"
@@ -66,7 +82,10 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 				</slot>
 			</div></template
 		>
-		<div v-if="loadingMore" class="mobile-loading" role="status">正在加载更多记录…</div>
+		<div v-if="loadingMore" class="mobile-loading" role="status">
+			<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
+			>正在加载更多记录…
+		</div>
 	</div>
 </template>
 
@@ -78,6 +97,58 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 	border-radius: 10px;
 	cursor: pointer;
 	outline: none;
+}
+.sortable-data-table-mobile {
+	position: relative;
+}
+.sortable-data-table-mobile.is-refreshing > :not(.mobile-refresh-overlay) {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.mobile-refresh-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 253 249 / 55%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.mobile-initial-loading {
+	display: grid;
+	justify-items: center;
+	gap: 10px;
+	min-height: 150px;
+	font-weight: 700;
+}
+.mobile-initial-loading i {
+	display: block;
+	width: min(92%, 360px);
+	height: 34px;
+	border-radius: 8px;
+	background: #f0ebe3;
+}
+.mobile-initial-loading i + i {
+	opacity: 0.7;
+}
+.loading-spinner-small {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	vertical-align: -3px;
+	border-width: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+	.sortable-data-table-mobile * {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
 }
 .sortable-mobile-row {
 	outline: none;

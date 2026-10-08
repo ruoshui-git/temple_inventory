@@ -19,6 +19,11 @@
     "storybook": "storybook dev -p 6006 --host 0.0.0.0",
     "build-storybook": "storybook build"
   },
+  "pnpm": {
+    "patchedDependencies": {
+      "vitest@5.0.2": "patches/vitest@5.0.2.patch"
+    }
+  },
   "dependencies": {
     "frappe-ui": "1.0.0-beta.72",
     "vue": "^3.5.42",
@@ -43,7 +48,7 @@
     "typescript": "~5.9.3",
     "vite": "^7.3.6",
     "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^5.0.1",
+    "vitest": "5.0.2",
     "vue-tsc": "^3.3.11",
     "workbox-build": "7.4.1",
     "workbox-window": "7.4.1"

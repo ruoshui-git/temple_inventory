@@ -118,4 +118,67 @@ describe("SortableDataTable", () => {
     expect(wrapper.find(".primary-cell .primary-text").text()).toBe("一号");
     expect(wrapper.find(".primary-cell .secondary-text").text()).toBe("1");
   });
+
+  it("keeps rows visible during refresh and exposes distinct initial/append states", () => {
+    const refreshing = mount(SortableDataTable, {
+      props: {
+        rows,
+        columns,
+        rowKey: "id",
+        sort: { sort_by: "status", sort_order: "asc" },
+        loading: true,
+        loadingMore: true,
+        surface: "desktop",
+      },
+    });
+    expect(refreshing.find("tbody tr").text()).toContain("一号");
+    expect(refreshing.find(".table-refresh-overlay").text()).toContain(
+      "正在更新",
+    );
+    expect(refreshing.attributes("aria-busy")).toBe("true");
+
+    const initial = mount(SortableDataTable, {
+      props: {
+        rows: [],
+        columns,
+        rowKey: "id",
+        sort: { sort_by: "status", sort_order: "asc" },
+        loading: true,
+        surface: "desktop",
+      },
+    });
+    expect(initial.text()).toContain("正在加载记录");
+    expect(initial.text()).not.toContain("暂无记录");
+    expect(initial.find(".table-skeleton").exists()).toBe(true);
+  });
+
+  it("shows the empty state only after loading finishes", () => {
+    const wrapper = mount(SortableDataTable, {
+      props: {
+        rows: [],
+        columns,
+        rowKey: "id",
+        sort: { sort_by: "status", sort_order: "asc" },
+        loading: false,
+        surface: "mobile",
+      },
+    });
+    expect(wrapper.text()).toContain("暂无记录");
+    expect(wrapper.attributes("aria-busy")).toBe("false");
+  });
+
+  it("keeps mobile rows visible alongside a refresh error", () => {
+    const wrapper = mount(SortableDataTable, {
+      props: {
+        rows,
+        columns,
+        rowKey: "id",
+        sort: { sort_by: "status", sort_order: "asc" },
+        surface: "mobile",
+        error: "更新失败",
+      },
+    });
+    expect(wrapper.find(".sortable-mobile-row").exists()).toBe(true);
+    expect(wrapper.find('[role="alert"]').text()).toContain("更新失败");
+  });
 });

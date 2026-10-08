@@ -534,6 +534,10 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(page["total"], 105)
 		self.assertEqual(len(page["results"]), 5)
 		self.assertEqual(page["quantity_totals"]["total_stock"], [{"uom": "Nos", "qty": 105.0}])
+		self.assertEqual(
+			page["column_summaries"]["total_stock"],
+			{"type": "quantity", "unitless_total": 105.0, "by_uom": [{"uom": "Nos", "qty": 105.0}]},
+		)
 
 	def test_inventory_catalog_uses_database_paging_on_real_site(self):
 		page = inventory(mode="catalog", search=self.item, start=0, page_length=1)
@@ -695,6 +699,7 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(len(second_page["results"][0]["locations"]), 2)
 		self.assertEqual(page["quantity_totals"]["total_qty"], [{"uom": "Nos", "qty": 7.0}])
 		self.assertEqual(second_page["quantity_totals"], page["quantity_totals"])
+		self.assertEqual(page["column_summaries"]["total_qty"]["unitless_total"], 7.0)
 
 	def test_expiry_new_sort_columns_and_validation(self):
 		warehouses, settings = self._mock_inventory_context()
@@ -1275,6 +1280,10 @@ class WorkspaceTests(unittest.TestCase):
 		page = api.history(filters, sort_by="posting_date", sort_order="desc", page_length=1)
 		self.assertGreaterEqual(page["total"], 2)
 		self.assertEqual(page["results"][0]["name"], first["name"])
+		self.assertEqual(page["column_summaries"]["line_count"]["value"], sum(row["line_count"] for row in api.history(filters, page_length=100)["results"]))
+		self.assertIn("category_count", page["column_summaries"])
+		self.assertIn("moved_qty", page["column_summaries"])
+		self.assertTrue(any("moved_qty" in row for row in api.history(filters, page_length=100)["results"]))
 		with self.assertRaises(frappe.ValidationError):
 			api.history(filters, sort_by="unknown", sort_order="asc")
 		with self.assertRaises(frappe.ValidationError):
@@ -1316,6 +1325,11 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(lines[0]["destination_warehouse"], "A01")
 		zero = [{"name": "R2", "movement_kind": "盘点调整", "document_type": "Stock Reconciliation", "items": [{"item_code": "ITM-1", "qty": 4, "current_qty": 4, "uom": "Nos", "stock_uom": "Nos", "warehouse": "A01"}]}]
 		self.assertEqual(api._ledger_item_rows(zero), [])
+		opening = [{"name": "R3", "movement_kind": "期初库存", "document_type": "Stock Reconciliation", "items": [{"item_code": "ITM-1", "qty": 8, "current_qty": 3, "uom": "Nos", "stock_uom": "Nos", "warehouse": "A01"}]}]
+		opening_lines = api._ledger_item_rows(opening)
+		self.assertEqual(opening_lines[0]["movement_kind"], "Opening")
+		self.assertEqual(opening_lines[0]["stock_qty"], 5.0)
+		self.assertEqual(opening_lines[0]["to_warehouse"], "A01")
 
 	def test_movement_item_metadata_overwrites_stale_values_and_hides_unreadable_items(self):
 		rows = [
@@ -1393,6 +1407,15 @@ class WorkspaceTests(unittest.TestCase):
 				"docstatus": 1,
 				"items": [{"id": "L4", "item_code": "ITEM-A", "qty": 5, "current_qty": 5, "stock_uom": "Nos", "warehouse": "WH-A"}],
 			},
+			{
+				"name": "REC-OPENING",
+				"movement_kind": "期初库存",
+				"document_type": "Stock Reconciliation",
+				"purpose_text": "Opening Stock",
+				"docstatus": 1,
+				"posting_date": "2026-09-26",
+				"items": [{"id": "L5", "item_code": "ITEM-C", "qty": 8, "current_qty": 3, "stock_uom": "Nos", "warehouse": "WH-C"}],
+			},
 		]
 		def scoped_records(filters, docstatuses=None):
 			allowed = set(docstatuses if docstatuses is not None else [0, 1, 2])
@@ -1403,21 +1426,34 @@ class WorkspaceTests(unittest.TestCase):
 					item["activity_title"] = "法会活动"
 		with patch.object(api, "_movement_history_records", side_effect=scoped_records), patch.object(api, "_ledger_activity_titles", side_effect=hydrate_activity):
 			items = api.movement_items({"period_key": "this_month"}, page_length=1)
-			self.assertEqual(items["total"], 2)
-			self.assertEqual(items["all_total"], 2)
+			self.assertEqual(items["total"], 3)
+			self.assertEqual(items["all_total"], 3)
+			self.assertEqual(items["column_summaries"]["quantity"]["unitless_total"], 12.0)
 			self.assertEqual(items["facets"]["movement_kind"]["Receive"], 2)
 			self.assertEqual(items["results"][0]["detail_route"], "/entry/REC-COMPLETE")
 			self.assertEqual(items["results"][0]["notes"], "workspace note")
 			receive = api.movement_items({"movement_kinds": ["Receive"]}, page_length=100)
 			self.assertEqual(receive["total"], 2)
 			record_page = api.movement_records({"period_key": "this_month"}, page_length=100)
-			self.assertEqual(record_page["total"], 2)
+			self.assertEqual(record_page["total"], 3)
 			self.assertEqual(record_page["facets"]["movement_kind"]["Receive"], 1)
+			self.assertEqual(record_page["facets"]["movement_kind"]["Opening"], 1)
 			self.assertEqual(record_page["facets"]["source_warehouses"], {"WH-A": 1})
-			self.assertEqual(record_page["facets"]["destination_warehouses"], {"WH-A": 1, "WH-B": 1})
+			self.assertEqual(record_page["facets"]["destination_warehouses"], {"WH-A": 1, "WH-B": 1, "WH-C": 1})
 			self.assertEqual(record_page["results"][0]["notes"], "workspace note")
 			self.assertEqual(record_page["results"][0]["activity"], "ACT-1")
 			self.assertEqual(record_page["results"][0]["activity_title"], "法会活动")
+			self.assertEqual(record_page["column_summaries"]["line_count"]["value"], 4)
+			displayed_total = sum(
+				quantity["qty"]
+				for row in record_page["results"]
+				for quantity in row["quantities"]
+			)
+			self.assertEqual(record_page["column_summaries"]["quantity"]["unitless_total"], displayed_total)
+			self.assertEqual(record_page["column_summaries"]["quantity"]["unitless_total"], 13.0)
+			opening_record = next(row for row in record_page["results"] if row["record_name"] == "REC-OPENING")
+			self.assertEqual(opening_record["movement_kind"], "Opening")
+			self.assertEqual(opening_record["line_count"], 1)
 			drafts = api.movement_records({}, page_length=100, docstatuses=[0])
 			self.assertEqual(drafts["total"], 1)
 			self.assertEqual(drafts["facets"]["docstatus"], {0: 1})
@@ -1435,6 +1471,10 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertGreaterEqual(receive["item_count"], 1)
 		self.assertGreaterEqual(receive["record_count"], 1)
 		self.assertIn({"uom": "Nos", "qty": 4.0}, receive["quantities"])
+		self.assertEqual(
+			page["column_summaries"]["record_count"]["value"],
+			sum(row["record_count"] for row in page["results"]),
+		)
 		self.assertEqual(len(page["action_summaries"]), len(api.MOVEMENT_OVERVIEW_KINDS))
 		filtered = api.movement_overview(
 			{

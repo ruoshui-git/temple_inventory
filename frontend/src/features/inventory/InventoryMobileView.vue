@@ -8,6 +8,7 @@ import MobileInventorySummary from "../../components/MobileInventorySummary.vue"
 import OverflowActionMenu from "../../components/OverflowActionMenu.vue";
 import InventoryCardGrid from "../../components/InventoryCardGrid.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import { type InventoryController } from "./useInventoryController";
 
 const props = defineProps<{ controller: InventoryController }>();
@@ -25,6 +26,8 @@ const {
 	scanner,
 	filters,
 	view,
+	sortColumns,
+	columnSummaries,
 	pageTitle,
 	activeFilterCount,
 	inventoryTabQuery,
@@ -41,6 +44,11 @@ const {
 	onResultsScroll,
 	initializeInventory,
 } = props.controller;
+const summaryOpen = ref(false);
+function selectOverflow(kind: string) {
+	if (kind === "ColumnSummary") summaryOpen.value = true;
+	else void operation(kind);
+}
 const surface: "desktop" | "mobile" = "mobile";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
@@ -78,7 +86,13 @@ onBeforeUnmount(() => {
 						<h1>{{ pageTitle }}</h1>
 						<span>{{ total }} 件物品</span>
 					</div>
-					<OverflowActionMenu :actions="overflowActions" @select="operation" />
+					<OverflowActionMenu
+						:actions="[
+							...overflowActions,
+							{ kind: 'ColumnSummary', label: 'Σ 列汇总' },
+						]"
+						@select="selectOverflow"
+					/>
 				</div>
 				<nav class="mobile-subnav" aria-label="库存页面">
 					<RouterLink :to="{ path: '/', query: inventoryTabQuery }" aria-current="page"
@@ -182,6 +196,12 @@ onBeforeUnmount(() => {
 				<div ref="mobileSentinel" aria-hidden="true"></div>
 			</section>
 		</div>
+		<ColumnSummaryDialog
+			v-model:open="summaryOpen"
+			:columns="sortColumns"
+			:summaries="columnSummaries"
+			:loading="loading"
+		/>
 	</section>
 </template>
 <style scoped>

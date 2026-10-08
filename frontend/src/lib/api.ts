@@ -165,6 +165,7 @@ export const labels: Record<string, string> = {
   Issue: "出库",
   Transfer: "转移",
   Reconcile: "盘点",
+  Opening: "期初库存",
   Loan: "借出",
   Return: "归还",
   Damage: "标记损坏",

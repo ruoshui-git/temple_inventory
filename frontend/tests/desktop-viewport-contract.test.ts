@@ -27,7 +27,6 @@ const RouterLink = defineComponent({
 const destinations = [
   { key: "inventory", label: "库存", path: "/" },
   { key: "movements", label: "货物流动", path: "/movements" },
-  { key: "adjustments", label: "盘点调整", path: "/adjustments" },
   { key: "loans", label: "借用", path: "/loans" },
   { key: "warehouses", label: "仓库", path: "/warehouses" },
   { key: "more", label: "更多", path: "/more" },

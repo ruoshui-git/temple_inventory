@@ -25,57 +25,81 @@ const expiryLabel = (row: InventoryCardRow) => {
 </script>
 
 <template>
-	<div class="mobile-inventory-list" role="list" aria-label="库存列表视图">
-		<div v-if="props.loading" class="mobile-inventory-state" role="status">正在更新记录…</div>
+	<div
+		class="mobile-inventory-list"
+		:class="{ 'is-refreshing': props.loading && props.rows.length }"
+		role="list"
+		aria-label="库存列表视图"
+		:aria-busy="props.loading || props.loadingMore"
+	>
+		<div
+			v-if="props.loading && props.rows.length"
+			class="mobile-inventory-refresh"
+			role="status"
+		>
+			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
+		</div>
+		<div
+			v-if="props.loading && !props.rows.length"
+			class="mobile-inventory-state loading-state"
+			role="status"
+		>
+			<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
+			><i v-for="index in 3" :key="index"></i>
+		</div>
 		<div v-else-if="props.error" class="mobile-inventory-state error" role="alert">
 			{{ props.error }} <button type="button" @click="emit('retry')">重试</button>
 		</div>
-		<button
-			v-else
-			v-for="row in props.rows"
-			:key="row.item_code"
-			type="button"
-			class="mobile-inventory-row"
-			role="listitem"
-			@click="emit('activate', row)"
-		>
-			<span class="mobile-row-image">
-				<img
-					v-if="row.image"
-					:src="row.image"
-					:alt="row.item_name"
-					loading="lazy"
-					decoding="async"
-				/>
-				<span v-else aria-hidden="true">□</span>
-			</span>
-			<span class="mobile-row-copy">
-				<b>{{ row.item_name }}</b>
-				<small>{{ row.item_code }} · {{ row.item_group }}</small>
-				<span class="mobile-row-chips">
-					<small v-if="locationCount(row)">{{ locationCount(row) }} 个库位</small>
-					<small v-if="row.batch_count">{{ row.batch_count }} 批次</small>
-					<small v-if="expiryLabel(row)" class="warning">{{ expiryLabel(row) }}</small>
+		<template v-if="props.rows.length">
+			<button
+				v-for="row in props.rows"
+				:key="row.item_code"
+				type="button"
+				class="mobile-inventory-row"
+				role="listitem"
+				@click="emit('activate', row)"
+			>
+				<span class="mobile-row-image">
+					<img
+						v-if="row.image"
+						:src="row.image"
+						:alt="row.item_name"
+						loading="lazy"
+						decoding="async"
+					/>
+					<span v-else aria-hidden="true">□</span>
 				</span>
-				<small class="mobile-row-totals">
-					总 {{ format(row.total_stock) }} · 借 {{ format(row.on_loan_qty) }} · 损
-					{{ format(row.damaged_qty) }}
-				</small>
-			</span>
-			<span class="mobile-row-quantity">
-				<strong>{{ format(row.available_stock) }}</strong>
-				<small>{{ row.stock_uom }}</small>
-			</span>
-			<span aria-hidden="true" class="mobile-row-chevron">›</span>
-		</button>
+				<span class="mobile-row-copy">
+					<b>{{ row.item_name }}</b>
+					<small>{{ row.item_code }} · {{ row.item_group }}</small>
+					<span class="mobile-row-chips">
+						<small v-if="locationCount(row)">{{ locationCount(row) }} 个库位</small>
+						<small v-if="row.batch_count">{{ row.batch_count }} 批次</small>
+						<small v-if="expiryLabel(row)" class="warning">{{
+							expiryLabel(row)
+						}}</small>
+					</span>
+					<small class="mobile-row-totals">
+						总 {{ format(row.total_stock) }} · 借 {{ format(row.on_loan_qty) }} · 损
+						{{ format(row.damaged_qty) }}
+					</small>
+				</span>
+				<span class="mobile-row-quantity">
+					<strong>{{ format(row.available_stock) }}</strong>
+					<small>{{ row.stock_uom }}</small>
+				</span>
+				<span aria-hidden="true" class="mobile-row-chevron">›</span>
+			</button>
+		</template>
 		<div
-			v-if="!props.loading && !props.error && !props.rows.length"
+			v-if="!props.loading && !props.loadingMore && !props.error && !props.rows.length"
 			class="mobile-inventory-state"
 		>
 			暂无符合条件的物品
 		</div>
 		<div v-if="props.loadingMore" class="mobile-inventory-state" role="status">
-			正在加载更多记录…
+			<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
+			>正在加载更多记录…
 		</div>
 	</div>
 </template>
@@ -91,6 +115,38 @@ const expiryLabel = (row: InventoryCardRow) => {
 	padding: 26px 12px;
 	color: #6d747b;
 	text-align: center;
+}
+.mobile-inventory-refresh {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	padding-top: 18px;
+	background: rgb(255 255 255 / 62%);
+	color: #704d2e;
+	font-weight: 700;
+	pointer-events: none;
+}
+.mobile-inventory-list {
+	position: relative;
+}
+.mobile-inventory-list.is-refreshing > :not(.mobile-inventory-refresh) {
+	opacity: 0.55;
+	pointer-events: none;
+}
+.loading-state {
+	display: grid;
+	justify-items: center;
+	gap: 8px;
+	min-height: 150px;
+}
+.loading-state i {
+	width: 92%;
+	height: 32px;
+	border-radius: 8px;
+	background: #f0ebe3;
 }
 .mobile-inventory-state.error {
 	color: #b42318;

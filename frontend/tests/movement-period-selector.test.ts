@@ -4,6 +4,28 @@ import { nextTick } from "vue";
 import MovementPeriodSelector from "../src/components/MovementPeriodSelector.vue";
 
 describe("movement period selector", () => {
+  it("renders a compact trigger with resolved range and all period choices", async () => {
+    const wrapper = mount(MovementPeriodSelector, {
+      props: {
+        periodKey: "last_30_days",
+        resolvedFrom: "2026-09-09",
+        resolvedTo: "2026-10-08",
+        variant: "ledger",
+        compact: true,
+      },
+    });
+    expect(wrapper.find(".period-compact").text()).toContain("近30天");
+    expect(wrapper.find(".period-compact-resolved").text()).toContain(
+      "2026-09-09",
+    );
+    await wrapper.find(".period-more summary").trigger("click");
+    await nextTick();
+    const menu = document.body.querySelector("#movement-period-more-menu");
+    expect(menu?.textContent).toContain("近7天");
+    expect(menu?.textContent).toContain("本月");
+    expect(menu?.textContent).toContain("自定义");
+    wrapper.unmount();
+  });
   it("keeps a rolling period as an active dropdown and switches rolling values", async () => {
     const wrapper = mount(MovementPeriodSelector, {
       props: { periodKey: "last_30_days", variant: "ledger" },

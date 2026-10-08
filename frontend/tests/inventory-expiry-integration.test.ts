@@ -4,6 +4,8 @@ import { reactive, defineComponent } from "vue";
 import Inventory from "../src/pages/Inventory.vue";
 import Expiry from "../src/pages/Expiry.vue";
 import InventoryFilterPanel from "../src/components/InventoryFilterPanel.vue";
+import MobileExpiryResults from "../src/components/MobileExpiryResults.vue";
+import MobileInventoryList from "../src/components/MobileInventoryList.vue";
 
 const state = vi.hoisted(() => ({
   route: { query: {} as Record<string, any>, path: "/" },
@@ -198,6 +200,35 @@ describe("Inventory and Expiry integrations", () => {
     ).toBe(true);
   });
 
+  it("keeps mobile rows visible and dimmed during refresh", () => {
+    const inventory = mount(MobileInventoryList, {
+      props: { rows: inventoryRows(), loading: true, loadingMore: true },
+    });
+    expect(inventory.find(".mobile-inventory-row").exists()).toBe(true);
+    expect(inventory.find(".mobile-inventory-list").classes()).toContain(
+      "is-refreshing",
+    );
+    expect(inventory.find(".mobile-inventory-refresh").text()).toContain(
+      "正在更新",
+    );
+    expect(inventory.find(".loading-spinner-small").exists()).toBe(true);
+
+    const expiry = mount(MobileExpiryResults, {
+      props: {
+        rows: [{ ...expiryRows()[0], batch_no: "B001" }],
+        loading: true,
+        loadingMore: true,
+      },
+    });
+    expect(expiry.find(".mobile-expiry-result-row").exists()).toBe(true);
+    expect(expiry.find(".mobile-expiry-results").classes()).toContain(
+      "is-refreshing",
+    );
+    expect(expiry.find(".loading-spinner-small").exists()).toBe(true);
+    inventory.unmount();
+    expiry.unmount();
+  });
+
   it("maps Expiry quick filters and renders complete summary details for separate batches", async () => {
     state.route.path = "/expiry";
     state.api.mockImplementation(async (method: string) =>
@@ -390,7 +421,7 @@ describe("Inventory and Expiry integrations", () => {
     await overflow.trigger("click");
     expect(
       mobile.findAll('[role="menuitem"]').map((item) => item.text()),
-    ).toEqual(["入库", "出库", "转移", "导出"]);
+    ).toEqual(["入库", "出库", "转移", "导出", "Σ 列汇总"]);
     mobile.unmount();
   });
 
@@ -415,7 +446,7 @@ describe("Inventory and Expiry integrations", () => {
     await wrapper.find(".overflow-action-trigger").trigger("click");
     expect(
       wrapper.findAll('[role="menuitem"]').map((item) => item.text()),
-    ).toEqual(["新建物品", "入库", "转移", "导出"]);
+    ).toEqual(["新建物品", "入库", "转移", "导出", "Σ 列汇总"]);
   });
 
   it("restores bootstrap-dependent filters and actions when retry succeeds", async () => {

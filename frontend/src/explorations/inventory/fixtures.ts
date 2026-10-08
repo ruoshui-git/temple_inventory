@@ -238,7 +238,7 @@ export const items: InventoryItem[] = Array.from({ length: 3 }, (_, variant) =>
 export const destinations = [
   { label: "库存", path: "/", icon: "box" },
   { label: "货物流动", path: "/movements", icon: "movement" },
-  { label: "盘点调整", path: "/adjustments", icon: "adjust" },
+  { label: "货物流动", path: "/movements/records", icon: "adjust" },
   { label: "借用", path: "/loans", icon: "loan" },
   { label: "仓库", path: "/warehouses", icon: "warehouse" },
   { label: "更多", path: "/more", icon: "more" },
