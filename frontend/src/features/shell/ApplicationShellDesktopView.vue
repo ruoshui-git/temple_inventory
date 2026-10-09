@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LocationQueryRaw } from "vue-router";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import UiButton from "../../components/UiButton.vue";
 
 export interface ShellDestination {
 	key: "inventory" | "movements" | "loans" | "warehouses" | "more";
@@ -13,128 +14,114 @@ export interface ShellContextItem {
 	path: string;
 	query: LocationQueryRaw;
 }
-
-defineProps<{
+const props = defineProps<{
 	destinations: ShellDestination[];
 	activeDestination: string;
-	inventoryExpanded: boolean;
-	inventoryContextItems: ShellContextItem[];
-	contextItems: ShellContextItem[];
-	contextKey: string;
+	expandedSection?: string;
+	navigationContexts?: Record<string, ShellContextItem[]>;
+	inventoryContextItems?: ShellContextItem[];
+	contextItems?: ShellContextItem[];
+	contextKey?: string;
 	pending: number;
 	expiryCount: number;
 	user: string;
 }>();
-
-const emit = defineEmits<{
-	toggleInventory: [];
-	closeContext: [];
-	logout: [];
-}>();
+const expanded = () => props.expandedSection ?? "";
+const contexts = (key: string) =>
+	props.navigationContexts?.[key] ||
+	(key === "inventory" ? props.inventoryContextItems || [] : props.contextItems || []);
+const emit = defineEmits<{ toggleSection: [key: string]; closeContext: []; logout: [] }>();
+const iconPaths: Record<string, string> = {
+	inventory: "m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10",
+	movements: "M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3 3m-3-3 3-3",
+	loans: "M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3",
+	more: "M5 12h.01M12 12h.01M19 12h.01",
+	warehouses: "m3 10 9-7 9 7v10H3V10Zm4 10v-6h10v6M7 10h10",
+};
 </script>
-
 <template>
 	<aside class="desktop-nav">
-		<RouterLink class="shell-brand" to="/" aria-label="寺院物资首页">
-			<span aria-hidden="true"><InventoryIcon name="box" /></span><b>寺院物资</b>
-		</RouterLink>
+		<RouterLink class="shell-brand" to="/" aria-label="寺院物资首页"
+			><span aria-hidden="true"><InventoryIcon name="box" /></span
+			><b>寺院物资</b></RouterLink
+		>
 		<nav aria-label="主导航" class="desktop-module-navigation">
-			<template v-for="item in destinations" :key="item.path">
+			<template v-for="item in props.destinations" :key="item.path">
+				<RouterLink
+					v-if="item.key === 'warehouses'"
+					:to="item.path"
+					:aria-current="props.activeDestination === item.path ? 'page' : undefined"
+					@click="emit('closeContext')"
+					><svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+						<path :d="iconPaths[item.key]" /></svg
+					><span>{{ item.label }}</span></RouterLink
+				>
 				<button
-					v-if="item.key === 'inventory'"
+					v-else
 					type="button"
-					class="inventory-parent"
-					:class="{ active: activeDestination === '/' }"
-					:aria-expanded="inventoryExpanded"
-					@click="emit('toggleInventory')"
+					class="module-parent"
+					:class="{
+						active: props.activeDestination === item.path,
+						'inventory-parent': item.key === 'inventory',
+					}"
+					:aria-expanded="expanded() === item.key"
+					@click="emit('toggleSection', item.key)"
 				>
 					<svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
-						<path d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10" />
-					</svg>
-					<span>库存</span
+						<path :d="iconPaths[item.key]" /></svg
+					><span>{{ item.label }}</span
+					><b v-if="item.key === 'more' && props.pending" class="nav-badge">{{
+						props.pending
+					}}</b
 					><i
 						class="module-chevron"
-						:class="{ collapsed: !inventoryExpanded }"
+						:class="{ collapsed: expanded() !== item.key }"
 						aria-hidden="true"
 					></i>
 				</button>
-				<RouterLink
-					v-else
-					:to="item.path"
-					:aria-current="activeDestination === item.path ? 'page' : undefined"
-					@click="emit('closeContext')"
-					><svg class="desktop-nav-icon" aria-hidden="true" viewBox="0 0 24 24">
-						<path
-							v-if="item.key === 'movements'"
-							d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3 3m-3-3 3-3"
-						/>
-						<path
-							v-else-if="item.key === 'loans'"
-							d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"
-						/>
-						<path
-							v-else-if="item.key === 'warehouses'"
-							d="m3 10 9-7 9 7v10H3V10Zm4 10v-6h10v6M7 10h10"
-						/>
-						<path v-else d="M5 12h.01M12 12h.01M19 12h.01" />
-					</svg>
-					<span>{{ item.label }}</span
-					><b v-if="item.key === 'more' && pending" class="nav-badge">{{
-						pending
-					}}</b></RouterLink
-				>
 				<div
-					v-if="
-						item.key === 'inventory'
-							? inventoryExpanded
-							: contextItems.length && activeDestination === item.path
-					"
+					v-if="expanded() === item.key"
 					class="desktop-inventory-context"
 					role="navigation"
 					aria-label="当前视图"
 				>
 					<RouterLink
-						v-for="contextItem in item.key === 'inventory'
-							? inventoryContextItems
-							: contextItems"
+						v-for="contextItem in contexts(item.key)"
 						:key="contextItem.key"
 						:to="{ path: contextItem.path, query: contextItem.query }"
-						:aria-current="contextKey === contextItem.key ? 'page' : undefined"
+						:aria-current="props.contextKey === contextItem.key ? 'page' : undefined"
 						><span>{{
 							contextItem.key === "current" ? "库存列表" : contextItem.label
 						}}</span
-						><b v-if="contextItem.key === 'expiry' && expiryCount" class="nav-badge">{{
-							expiryCount
-						}}</b></RouterLink
+						><b
+							v-if="contextItem.key === 'expiry' && props.expiryCount"
+							class="nav-badge"
+							>{{ props.expiryCount }}</b
+						></RouterLink
 					>
 				</div>
 			</template>
 		</nav>
 		<div class="shell-actions">
-			<span class="user-avatar" aria-hidden="true">{{ user.slice(0, 1) }}</span>
+			<span class="user-avatar" aria-hidden="true">{{ props.user.slice(0, 1) }}</span>
 			<div>
-				<b>{{ user || "当前用户" }}</b
+				<b>{{ props.user || "当前用户" }}</b
 				><small>物资管理</small>
 			</div>
-			<button type="button" @click="emit('logout')">退出</button>
+			<UiButton variant="ghost" size="compact" @click="emit('logout')">退出</UiButton>
 		</div>
 	</aside>
 </template>
-
 <style scoped>
 @media (min-width: 1024px) {
 	.desktop-nav {
-		position: static;
 		display: flex;
 		align-items: stretch;
 		box-sizing: border-box;
 		height: 100%;
 		min-height: 0;
 		min-width: 0;
-		max-width: none;
 		flex-direction: column;
-		gap: 0;
-		margin: 0;
 		padding: 17px 10px;
 		border-right: 1px solid #ebe6de;
 		background: #f7f5f1;
@@ -169,7 +156,6 @@ const emit = defineEmits<{
 		border: 1px solid #d8d0c5;
 		background: transparent;
 		color: #68727d;
-		font-size: 14px;
 	}
 	.desktop-module-navigation {
 		display: grid;
@@ -179,20 +165,18 @@ const emit = defineEmits<{
 		align-content: start;
 		overflow-x: hidden;
 		overflow-y: auto;
-		overscroll-behavior: contain;
 		scrollbar-width: thin;
 	}
 	.desktop-module-navigation > a,
 	.desktop-module-navigation > button {
 		position: relative;
-		z-index: 1;
 		display: flex;
 		align-items: center;
 		min-height: 42px;
 		padding: 8px 12px;
+		border: 0;
 		border-radius: 7px;
 		color: #5f5b55;
-		border: 0;
 		background: transparent;
 		font: inherit;
 		text-align: left;
@@ -234,17 +218,27 @@ const emit = defineEmits<{
 		font-size: 11px;
 	}
 	.desktop-inventory-context {
-		display: grid !important;
-		gap: 3px !important;
+		display: flex;
+		align-items: stretch;
+		flex-direction: column;
+		gap: 3px;
 		padding: 0 0 4px 23px;
-		border: 0;
+		min-width: 0;
 	}
 	.desktop-inventory-context a {
+		display: flex;
+		align-items: center;
+		box-sizing: border-box;
+		width: 100%;
 		min-height: 34px;
 		padding: 6px 9px;
 		border-radius: 6px;
 		color: #756f67;
 		font-size: 13px;
+		gap: 6px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.desktop-inventory-context a[aria-current="page"] {
 		background: #e8ded0;

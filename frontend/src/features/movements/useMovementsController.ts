@@ -154,7 +154,12 @@ export function useMovementsController() {
   const tableColumns = computed<DataTableColumn[]>(() =>
     mode.value === "items"
       ? [
-          { key: "date", label: "日期" },
+          {
+            key: "date",
+            label: "日期",
+            headerClass: "movement-date-column",
+            cellClass: "movement-date-column",
+          },
           { key: "item", label: "物品" },
           { key: "action", label: "动作" },
           { key: "quantity", label: "数量", summary: "quantity" },
@@ -164,7 +169,12 @@ export function useMovementsController() {
           { key: "notes", label: "备注" },
         ]
       : [
-          { key: "date", label: "日期" },
+          {
+            key: "date",
+            label: "日期",
+            headerClass: "movement-date-column",
+            cellClass: "movement-date-column",
+          },
           { key: "record", label: "记录编号" },
           { key: "action", label: "类型" },
           { key: "line_count", label: "物品行数", summary: "line_count" },
@@ -463,6 +473,7 @@ export function useMovementsController() {
   }
 
   let syncingRoute = false;
+  let skipFilterSync = false;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   function applyRouteQuery() {
     const query = route.query as Record<string, unknown>;
@@ -472,20 +483,21 @@ export function useMovementsController() {
       : rawKinds
         ? [rawKinds]
         : [];
-    filters.value.kinds = values
+    const next = { ...filters.value };
+    next.kinds = values
       .map((kind) => String(kind) as Kind)
       .filter((kind) => kinds.includes(kind));
-    filters.value.search = String(query.search || "");
-    filters.value.item_code = String(query.item_code || "");
+    next.search = String(query.search || "");
+    next.item_code = String(query.item_code || "");
     const list = (value: unknown) =>
       (Array.isArray(value) ? value : value ? [value] : []).map(String);
-    filters.value.item_groups = list(query.item_groups);
-    filters.value.warehouses = list(query.warehouses);
-    filters.value.source_warehouses = list(query.source_warehouses);
-    filters.value.destination_warehouses = list(query.destination_warehouses);
-    filters.value.activity = String(query.activity || "");
+    next.item_groups = list(query.item_groups);
+    next.warehouses = list(query.warehouses);
+    next.source_warehouses = list(query.source_warehouses);
+    next.destination_warehouses = list(query.destination_warehouses);
+    next.activity = String(query.activity || "");
     if (mode.value === "records" && query.docstatuses)
-      filters.value.docstatuses = list(query.docstatuses)
+      next.docstatuses = list(query.docstatuses)
         .map(Number)
         .filter((status) => [0, 1, 2].includes(status));
     const period = String(query.period || "this_month") as MovementPeriodKey;
@@ -502,60 +514,61 @@ export function useMovementsController() {
         "custom",
       ].includes(period)
     )
-      filters.value.period_key = period;
-    if (filters.value.period_key === "custom") {
-      filters.value.date_from = String(query.date_from || "");
-      filters.value.date_to = String(query.date_to || "");
+      next.period_key = period;
+    if (next.period_key === "custom") {
+      next.date_from = String(query.date_from || "");
+      next.date_to = String(query.date_to || "");
     }
+    const changed = JSON.stringify(next) !== JSON.stringify(filters.value);
+    if (changed) filters.value = next;
+    return changed;
   }
   watch(
     [filters, mode],
     () => {
-      if (!syncingRoute) {
-        syncingRoute = true;
-        void router
-          .replace({
-            query: {
-              ...route.query,
-              period: filters.value.period_key,
-              date_from:
-                filters.value.period_key === "custom"
-                  ? filters.value.date_from
-                  : undefined,
-              date_to:
-                filters.value.period_key === "custom"
-                  ? filters.value.date_to
-                  : undefined,
-              search: filters.value.search || undefined,
-              item_code: filters.value.item_code || undefined,
-              item_groups: filters.value.item_groups.length
-                ? filters.value.item_groups
-                : undefined,
-              warehouses: filters.value.warehouses.length
-                ? filters.value.warehouses
-                : undefined,
-              source_warehouses: filters.value.source_warehouses.length
-                ? filters.value.source_warehouses
-                : undefined,
-              destination_warehouses: filters.value.destination_warehouses
-                .length
-                ? filters.value.destination_warehouses
-                : undefined,
-              activity: filters.value.activity || undefined,
-              docstatuses:
-                mode.value === "records"
-                  ? filters.value.docstatuses
-                  : undefined,
-              kind: filters.value.kinds.length
-                ? filters.value.kinds
-                : undefined,
-              movement_kind: undefined,
-            },
-          })
-          .finally(() => {
-            syncingRoute = false;
-          });
+      if (skipFilterSync) {
+        skipFilterSync = false;
+        return;
       }
+      if (syncingRoute) return;
+      syncingRoute = true;
+      void router
+        .replace({
+          query: {
+            ...route.query,
+            period: filters.value.period_key,
+            date_from:
+              filters.value.period_key === "custom"
+                ? filters.value.date_from
+                : undefined,
+            date_to:
+              filters.value.period_key === "custom"
+                ? filters.value.date_to
+                : undefined,
+            search: filters.value.search || undefined,
+            item_code: filters.value.item_code || undefined,
+            item_groups: filters.value.item_groups.length
+              ? filters.value.item_groups
+              : undefined,
+            warehouses: filters.value.warehouses.length
+              ? filters.value.warehouses
+              : undefined,
+            source_warehouses: filters.value.source_warehouses.length
+              ? filters.value.source_warehouses
+              : undefined,
+            destination_warehouses: filters.value.destination_warehouses.length
+              ? filters.value.destination_warehouses
+              : undefined,
+            activity: filters.value.activity || undefined,
+            docstatuses:
+              mode.value === "records" ? filters.value.docstatuses : undefined,
+            kind: filters.value.kinds.length ? filters.value.kinds : undefined,
+            movement_kind: undefined,
+          },
+        })
+        .finally(() => {
+          syncingRoute = false;
+        });
       if (searchTimer) clearTimeout(searchTimer);
       if (filters.value.search)
         searchTimer = setTimeout(() => void load(), 300);
@@ -566,9 +579,9 @@ export function useMovementsController() {
   watch(
     () => [route.path, route.query],
     () => {
-      if (syncingRoute) return;
-      syncingRoute = true;
-      applyRouteQuery();
+      const changed = applyRouteQuery();
+      if (syncingRoute && !changed) return;
+      if (changed) skipFilterSync = true;
       syncingRoute = false;
       void load();
     },

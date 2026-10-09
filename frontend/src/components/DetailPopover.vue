@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
-defineProps<{ label: string; triggerText?: string }>();
+defineProps<{ label: string; triggerText?: string; triggerClass?: string }>();
 
 const open = ref(false);
 const pinned = ref(false);
@@ -118,6 +118,7 @@ onBeforeUnmount(() => {
 			ref="trigger"
 			type="button"
 			class="detail-popover-trigger"
+			:class="triggerClass"
 			:aria-expanded="open"
 			:aria-label="label"
 			@mouseenter="showOnHover"
@@ -126,7 +127,7 @@ onBeforeUnmount(() => {
 			@blur="scheduleDismiss"
 			@click.stop="toggle"
 		>
-			{{ triggerText || label }}
+			<slot name="trigger">{{ triggerText || label }}</slot>
 		</button>
 		<Teleport to="body">
 			<div

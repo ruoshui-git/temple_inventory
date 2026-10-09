@@ -41,7 +41,7 @@ export function useInventoryController() {
     ),
     columnSummaries = ref<Record<string, any>>({});
   const error = ref(""),
-    loading = ref(false),
+    loading = ref(true),
     loadingMore = ref(false),
     desktopFilterOpen = ref(false),
     filterOpen = ref(false),
@@ -518,6 +518,8 @@ export function useInventoryController() {
       await load();
     } catch (cause: any) {
       error.value = cause.message;
+      loading.value = false;
+      loadingMore.value = false;
     }
   }
   watch(

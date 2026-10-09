@@ -9,6 +9,7 @@ import CategorySelector from "../../components/CategorySelector.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import ItemImagePreview from "../../components/ItemImagePreview.vue";
 import IconButton from "../../components/IconButton.vue";
+import UiButton from "../../components/UiButton.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import MovementLookup from "../../components/MovementLookup.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
@@ -125,7 +126,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							type="search"
 							placeholder="搜索借用方、记录、活动或物品"
 							aria-label="搜索借用记录"
-						/><button
+						/><UiButton
+							variant="secondary"
+							size="compact"
 							type="button"
 							class="toolbar-action desktop-filter-button"
 							:aria-expanded="desktopFilterOpen"
@@ -133,7 +136,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						>
 							筛选<span v-if="activeCount" class="filter-count">{{
 								activeCount
-							}}</span></button
+							}}</span></UiButton
 						><IconButton
 							class="mobile-filter-button"
 							:label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'"
@@ -168,7 +171,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 					>
 						<template #error
 							>{{ error }}
-							<button type="button" @click="load()">重试</button></template
+							<UiButton variant="ghost" size="compact" type="button" @click="load()"
+								>重试</UiButton
+							></template
 						>
 						<template #cell-activity_title="{ row }">{{
 							row.activity_title || row.activity || "—"
@@ -216,7 +221,8 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</div>
 			</div>
 		</div>
-		<button
+		<UiButton
+			variant="primary"
 			v-if="boot?.stock_operation_capabilities?.Loan"
 			type="button"
 			class="action-fab"
@@ -224,6 +230,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 			@click="createLoan"
 		>
 			＋
-		</button>
+		</UiButton>
 	</section>
 </template>

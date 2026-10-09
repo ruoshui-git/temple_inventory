@@ -6,6 +6,7 @@ import MovementPeriodSelector, {
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import { type ReportsController } from "./useReportsController";
+import UiButton from "../../components/UiButton.vue";
 
 const props = defineProps<{ controller: ReportsController }>();
 const {
@@ -206,17 +207,21 @@ const {
 			</section>
 			<p v-if="error" class="error" role="alert">{{ error }}</p>
 			<div class="report-actions">
-				<button
-					type="button"
-					class="primary"
+				<UiButton
+					variant="primary"
+					icon="download"
+					:loading="busy === 'xlsx'"
 					:disabled="Boolean(busy)"
 					@click="download('xlsx')"
+					>导出 Excel</UiButton
 				>
-					{{ busy === "xlsx" ? "正在生成…" : "导出 Excel" }}
-				</button>
-				<button type="button" :disabled="Boolean(busy)" @click="download('csv')">
-					{{ busy === "csv" ? "正在生成…" : "导出 CSV" }}
-				</button>
+				<UiButton
+					icon="download"
+					:loading="busy === 'csv'"
+					:disabled="Boolean(busy)"
+					@click="download('csv')"
+					>导出 CSV</UiButton
+				>
 			</div>
 		</section>
 	</main>

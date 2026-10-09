@@ -32,7 +32,7 @@ export function usePendingController() {
       {},
     );
   const error = ref(""),
-    loading = ref(false),
+    loading = ref(true),
     loadingMore = ref(false),
     mode = ref<"all" | "damaged" | "unlocated">(
       route.query.mode === "unlocated"
@@ -196,6 +196,8 @@ export function usePendingController() {
       await load();
     } catch (cause: any) {
       error.value = cause.message;
+      loading.value = false;
+      loadingMore.value = false;
     }
   });
   onBeforeUnmount(() => {

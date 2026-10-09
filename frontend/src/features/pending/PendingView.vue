@@ -9,6 +9,7 @@ import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
+import UiButton from "../../components/UiButton.vue";
 import { type PendingController } from "./usePendingController";
 
 const props = defineProps<{
@@ -60,7 +61,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 <template>
 	<section class="app-shell wide-shell">
 		<header>
-			<button type="button" @click="close">‹ 库存</button>
+			<UiButton variant="ghost" size="compact" type="button" @click="close">‹ 库存</UiButton>
 			<h1>待处理</h1>
 		</header>
 		<nav class="inventory-modes" aria-label="待处理类型">
@@ -121,7 +122,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						type="search"
 						placeholder="搜索物品或编号"
 						aria-label="搜索待处理物品"
-					/><button
+					/><UiButton
+						variant="secondary"
+						size="compact"
 						type="button"
 						class="toolbar-action desktop-filter-button mobile-filter-button"
 						:aria-expanded="desktopFilterOpen"
@@ -132,7 +135,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							v-if="filters.warehouses.length + filters.item_groups.length"
 							class="filter-count"
 							>{{ filters.warehouses.length + filters.item_groups.length }}</span
-						></button
+						></UiButton
 					><span aria-live="polite"
 						>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部 {{ overall }}</span
 					>
@@ -140,7 +143,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
 				<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
 				<p v-if="error" class="error">
-					{{ error }} <button type="button" @click="load()">重试</button>
+					{{ error }}
+					<UiButton variant="ghost" size="compact" type="button" @click="load()"
+						>重试</UiButton
+					>
 				</p>
 				<LoadingIndicator v-if="loading && !rows.length" text="正在加载待处理物品…" />
 				<div
@@ -166,25 +172,31 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						></RouterLink
 					>
 					<div class="detail-actions">
-						<button
+						<UiButton
+							variant="secondary"
+							size="compact"
 							v-if="row.pending_qty && operationCaps.Transfer"
 							type="button"
 							@click="begin(row, 'Transfer')"
 						>
-							分配到位置</button
-						><button
+							分配到位置</UiButton
+						><UiButton
+							variant="secondary"
+							size="compact"
 							v-if="row.damaged_qty && operationCaps.Repair"
 							type="button"
 							@click="begin(row, 'Repair')"
 						>
-							修复归库</button
-						><button
+							修复归库</UiButton
+						><UiButton
+							variant="danger"
+							size="compact"
 							v-if="row.damaged_qty && operationCaps.Disposal"
 							type="button"
 							@click="begin(row, 'Disposal')"
 						>
 							正式报废
-						</button>
+						</UiButton>
 					</div>
 				</article>
 				<p v-if="!rows.length && !error && !loading && !loadingMore" class="empty-state">

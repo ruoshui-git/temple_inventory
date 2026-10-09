@@ -3,6 +3,7 @@ import AttachmentList from "../../components/AttachmentList.vue";
 import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import Scanner from "../../components/Scanner.vue";
 import IconButton from "../../components/IconButton.vue";
+import UiButton from "../../components/UiButton.vue";
 import { type ItemDetailController } from "./useItemDetailController";
 
 const props = defineProps<{ controller: ItemDetailController }>();
@@ -52,7 +53,8 @@ const {
 			></IconButton>
 		</header>
 		<p v-if="error" class="error">
-			{{ error }} <button type="button" @click="retry">重试</button>
+			{{ error }}
+			<UiButton variant="ghost" size="compact" type="button" @click="retry">重试</UiButton>
 		</p>
 		<LoadingIndicator v-if="!item && !error" text="正在加载物品…" />
 		<template v-else-if="item">
@@ -68,10 +70,15 @@ const {
 				><label>说明<textarea v-model="item.description" /></label
 				><label>条码（每行一个）<textarea v-model="item.barcodes" /></label>
 				<div class="detail-actions">
-					<button type="button" @click="scanner = true">扫描添加条码</button
-					><button class="primary" :disabled="saving">
+					<UiButton
+						variant="secondary"
+						size="compact"
+						type="button"
+						@click="scanner = true"
+						>扫描添加条码</UiButton
+					><UiButton variant="primary" type="submit" :loading="saving">
 						{{ saving ? "正在保存…" : "保存资料" }}
-					</button>
+					</UiButton>
 				</div>
 			</form>
 			<Scanner

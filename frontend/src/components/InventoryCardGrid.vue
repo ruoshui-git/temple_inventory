@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DetailPopover from "./DetailPopover.vue";
+import ImageForwardCard from "./ImageForwardCard.vue";
 import type { InventoryCardRow } from "../lib/inventoryTypes";
 
 const props = withDefaults(
@@ -101,19 +102,12 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 			@keydown="activateKey(row, $event)"
 			@click="activate(row, $event)"
 		>
-			<div class="inventory-card-image">
-				<img
-					v-if="row.image"
-					:src="row.image"
-					:alt="row.item_name"
-					loading="lazy"
-					decoding="async"
-				/>
-				<div v-else class="inventory-card-placeholder" aria-hidden="true">
-					<span>□</span><small>暂无图片</small>
-				</div>
-			</div>
-			<div class="inventory-card-body">
+			<ImageForwardCard :image="row.image" :alt="row.item_name">
+				<template #placeholder
+					><div class="inventory-card-placeholder" aria-hidden="true">
+						<span>□</span><small>暂无图片</small>
+					</div></template
+				>
 				<div class="inventory-card-primary">
 					<b class="inventory-card-name">{{ row.item_name }}</b>
 					<div class="inventory-card-available">
@@ -189,7 +183,7 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 				>
 					最近效期 {{ row.nearest_expiry_date }}
 				</p>
-			</div>
+			</ImageForwardCard>
 		</article>
 	</div>
 	<div v-if="loadingMore" class="card-state" role="status">
@@ -283,7 +277,7 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 .inventory-card-placeholder small {
 	font-size: 12px;
 }
-.inventory-card-body {
+.inventory-visual-card :deep(.image-forward-card__body) {
 	display: flex;
 	flex: 1;
 	min-width: 0;
@@ -429,7 +423,7 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 		gap: 8px;
 		padding: 4px 0 12px;
 	}
-	.compact-mobile .inventory-card-body {
+	.compact-mobile :deep(.image-forward-card__body) {
 		gap: 5px;
 		padding: 8px;
 	}
@@ -476,8 +470,8 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 		min-height: 14px;
 		font-size: 10px;
 	}
-	.inventory-card-image,
-	.inventory-card-image :deep(.image-thumb-button img) {
+	.inventory-visual-card :deep(.image-forward-card__media),
+	.inventory-visual-card :deep(.image-forward-card__media img) {
 		height: 100%;
 	}
 }

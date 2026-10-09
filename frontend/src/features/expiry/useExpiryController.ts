@@ -33,7 +33,7 @@ export function useExpiryController() {
   const boot = ref<any>();
   const rows = ref<any[]>([]);
   const error = ref("");
-  const busy = ref(false);
+  const busy = ref(true);
   const refreshing = ref(false);
   const appending = ref(false);
   const total = ref(0);
@@ -393,7 +393,12 @@ export function useExpiryController() {
 
   async function load(append = false) {
     if (!boot.value) return;
-    if (customError.value) return;
+    if (customError.value) {
+      busy.value = false;
+      refreshing.value = false;
+      appending.value = false;
+      return;
+    }
     if (timer) clearTimeout(timer);
     controller?.abort();
     const current = ++sequence;
@@ -630,6 +635,9 @@ export function useExpiryController() {
       await load();
     } catch (cause: any) {
       error.value = cause.message;
+      busy.value = false;
+      refreshing.value = false;
+      appending.value = false;
     }
   });
   onBeforeUnmount(() => {

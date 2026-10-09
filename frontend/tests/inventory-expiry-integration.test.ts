@@ -134,6 +134,62 @@ beforeEach(() => {
 });
 
 describe("Inventory and Expiry integrations", () => {
+  it("keeps Expiry in loading state while bootstrap is deferred", async () => {
+    setSurface("mobile");
+    let resolveBootstrap!: (value: unknown) => void;
+    state.api.mockImplementation((method: string) => {
+      if (method === "bootstrap")
+        return new Promise((resolve) => {
+          resolveBootstrap = resolve;
+        });
+      return Promise.resolve({
+        results: [],
+        total: 0,
+        overall_total: 0,
+        facets: {},
+      });
+    });
+    const wrapper = mount(Expiry, { global: globals });
+    await flushPromises();
+    expect(wrapper.text()).toContain("正在加载记录");
+    expect(wrapper.text()).not.toContain("暂无符合条件的批次");
+    resolveBootstrap({
+      item_groups: [],
+      physical_tree: [],
+      stock_operation_capabilities: {},
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("暂无符合条件的批次");
+  });
+
+  it("keeps Inventory in loading state while bootstrap is deferred", async () => {
+    setSurface("mobile");
+    let resolveBootstrap!: (value: unknown) => void;
+    state.api.mockImplementation((method: string) => {
+      if (method === "bootstrap")
+        return new Promise((resolve) => {
+          resolveBootstrap = resolve;
+        });
+      return Promise.resolve({
+        results: [],
+        total: 0,
+        overall_total: 0,
+        facets: {},
+      });
+    });
+    const wrapper = mount(Inventory, { global: globals });
+    await flushPromises();
+    expect(wrapper.text()).toContain("正在加载记录");
+    expect(wrapper.text()).not.toContain("暂无符合条件的物品");
+    resolveBootstrap({
+      item_groups: [],
+      physical_tree: [],
+      stock_operation_capabilities: {},
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("暂无符合条件的物品");
+  });
+
   it("mounts dedicated Inventory and Expiry surface boundaries", async () => {
     const inventory = mount(Inventory, { global: globals });
     const expiry = mount(Expiry, { global: globals, props: {} });

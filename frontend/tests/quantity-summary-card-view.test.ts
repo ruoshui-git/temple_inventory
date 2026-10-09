@@ -3,7 +3,28 @@ import { mount } from "@vue/test-utils";
 import QuantitySummary from "../src/components/QuantitySummary.vue";
 import InventoryCardGrid from "../src/components/InventoryCardGrid.vue";
 import DetailPopover from "../src/components/DetailPopover.vue";
-import { batches, items } from "../src/explorations/inventory/fixtures";
+
+const items = [{ code: "ITM-000161", total: 6 }];
+const batches = [
+  {
+    code: "ITM-000161-A",
+    item: { code: "ITM-000161" },
+    expiry: "2026-10-01",
+    quantity: 1,
+  },
+  {
+    code: "ITM-000161-B",
+    item: { code: "ITM-000161" },
+    expiry: "2026-11-01",
+    quantity: 2,
+  },
+  {
+    code: "ITM-000161-C",
+    item: { code: "ITM-000161" },
+    expiry: "2026-12-01",
+    quantity: 3,
+  },
+];
 
 describe("quantity summaries and Inventory cards", () => {
   it("keeps Inventory item-level while expiry fixtures remain batch-level", () => {

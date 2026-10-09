@@ -39,8 +39,12 @@ const emit = defineEmits<{
 const more = ref<HTMLElement>();
 const moreTrigger = ref<HTMLElement>();
 const portalMenu = ref<HTMLElement>();
+const customTrigger = ref<HTMLElement>();
+const customMenu = ref<HTMLElement>();
 const moreOpen = ref(false);
+const customOpen = ref(false);
 const menuStyle = ref<Record<string, string>>({});
+const customMenuStyle = ref<Record<string, string>>({});
 const rolling = [
 	{ key: "last_7_days", label: "近7天" },
 	{ key: "last_30_days", label: "近30天" },
@@ -77,8 +81,38 @@ function setCustom() {
 	if (!props.dateTo && props.resolvedTo) emit("update:dateTo", props.resolvedTo);
 	emit("update:periodKey", "custom");
 }
+function positionCustomMenu() {
+	if (!customOpen.value || !customTrigger.value) return;
+	const rect = customTrigger.value.getBoundingClientRect();
+	const width = Math.min(320, Math.max(280, window.innerWidth - 16));
+	const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
+	customMenuStyle.value = {
+		top: `${Math.round(rect.bottom + 6)}px`,
+		left: `${Math.round(left)}px`,
+		minWidth: `${width}px`,
+	};
+}
+function closeCustom(restoreFocus = false) {
+	customOpen.value = false;
+	if (restoreFocus) {
+		customTrigger.value?.focus();
+		void nextTick(() => customTrigger.value?.focus());
+	}
+}
+function openCustom() {
+	setCustom();
+	customOpen.value = true;
+	void nextTick(() => {
+		positionCustomMenu();
+		customMenu.value?.querySelector<HTMLInputElement>("input")?.focus();
+	});
+}
+function toggleCustom() {
+	if (customOpen.value) closeCustom(true);
+	else openCustom();
+}
 function setLegacyMode(value: "rolling" | "natural" | "custom") {
-	if (value === "custom") return setCustom();
+	if (value === "custom") return openCustom();
 	emit("update:periodKey", value === "natural" ? "this_month" : "last_30_days");
 }
 function selectRolling(key: MovementPeriodKey) {
@@ -112,29 +146,49 @@ function toggleMore() {
 		});
 }
 function onDocumentPointer(event: PointerEvent) {
-	if (!moreOpen.value || !(event.target instanceof Node)) return;
-	if (event.target instanceof Element && event.target.closest("#movement-period-more-menu"))
-		return;
-	if (more.value?.contains(event.target) || portalMenu.value?.contains(event.target)) return;
-	closeMore();
+	if (!(event.target instanceof Node)) return;
+	if (moreOpen.value) {
+		if (event.target instanceof Element && event.target.closest("#movement-period-more-menu"))
+			return;
+		if (more.value?.contains(event.target) || portalMenu.value?.contains(event.target)) return;
+		closeMore();
+	}
+	if (customOpen.value) {
+		if (
+			customMenu.value?.contains(event.target) ||
+			customTrigger.value?.contains(event.target)
+		)
+			return;
+		closeCustom();
+	}
 }
 function onFocusout(event: FocusEvent) {
-	if (!moreOpen.value) return;
 	if (!(event.relatedTarget instanceof Node)) {
 		closeMore();
+		closeCustom();
 		return;
 	}
 	if (
-		more.value?.contains(event.relatedTarget) ||
-		portalMenu.value?.contains(event.relatedTarget)
+		moreOpen.value &&
+		!more.value?.contains(event.relatedTarget) &&
+		!portalMenu.value?.contains(event.relatedTarget)
 	)
-		return;
-	closeMore();
+		closeMore();
+	if (
+		customOpen.value &&
+		!customTrigger.value?.contains(event.relatedTarget) &&
+		!customMenu.value?.contains(event.relatedTarget)
+	)
+		closeCustom();
 }
 function onKeydown(event: KeyboardEvent) {
 	if (moreOpen.value && event.key === "Escape") {
 		event.preventDefault();
 		closeMore(true);
+	}
+	if (customOpen.value && event.key === "Escape") {
+		event.preventDefault();
+		closeCustom(true);
 	}
 }
 onMounted(() => {
@@ -143,6 +197,8 @@ onMounted(() => {
 	document.addEventListener("keydown", onKeydown);
 	window.addEventListener("scroll", positionMenu, true);
 	window.addEventListener("resize", positionMenu);
+	window.addEventListener("scroll", positionCustomMenu, true);
+	window.addEventListener("resize", positionCustomMenu);
 });
 onBeforeUnmount(() => {
 	document.removeEventListener("pointerdown", onDocumentPointer);
@@ -150,6 +206,8 @@ onBeforeUnmount(() => {
 	document.removeEventListener("keydown", onKeydown);
 	window.removeEventListener("scroll", positionMenu, true);
 	window.removeEventListener("resize", positionMenu);
+	window.removeEventListener("scroll", positionCustomMenu, true);
+	window.removeEventListener("resize", positionCustomMenu);
 });
 </script>
 <template>
@@ -215,7 +273,7 @@ onBeforeUnmount(() => {
 				@click="emit('update:periodKey', choice.key)"
 			>
 				{{ choice.label }}</button
-			><button type="button" :aria-pressed="periodKey === 'custom'" @click="setCustom">
+			><button type="button" :aria-pressed="periodKey === 'custom'" @click="openCustom">
 				自定义
 			</button>
 			<details
@@ -274,7 +332,19 @@ onBeforeUnmount(() => {
 					{{ selectedLabel }} ▾
 				</summary>
 			</details>
-			<span class="period-compact-resolved">{{ resolvedText }}</span>
+			<button
+				v-if="mode === 'custom'"
+				ref="customTrigger"
+				type="button"
+				class="period-compact-resolved custom-period-trigger"
+				aria-controls="movement-period-custom-menu"
+				:aria-expanded="customOpen"
+				:aria-label="`自定义日期：${resolvedText}`"
+				@click="toggleCustom"
+			>
+				{{ resolvedText }}
+			</button>
+			<span v-else class="period-compact-resolved">{{ resolvedText }}</span>
 			<Teleport to="body">
 				<div
 					v-if="moreOpen"
@@ -311,8 +381,8 @@ onBeforeUnmount(() => {
 						type="button"
 						role="menuitem"
 						@click="
-							setCustom();
-							closeMore(true);
+							openCustom();
+							closeMore();
 						"
 					>
 						自定义
@@ -320,27 +390,54 @@ onBeforeUnmount(() => {
 				</div>
 			</Teleport>
 		</div>
-		<div v-if="mode === 'custom'" class="custom-period">
-			<label
-				>开始日期<input
-					type="date"
-					:value="dateFrom"
-					@input="
-						emit('update:dateFrom', ($event.target as HTMLInputElement).value)
-					" /></label
-			><label
-				>结束日期<input
-					type="date"
-					:value="dateTo"
-					@input="emit('update:dateTo', ($event.target as HTMLInputElement).value)"
-			/></label>
-		</div>
+		<button
+			v-if="showResolved && !(variant === 'ledger' && compact) && mode === 'custom'"
+			ref="customTrigger"
+			type="button"
+			class="resolved-period custom-period-trigger"
+			aria-controls="movement-period-custom-menu"
+			:aria-expanded="customOpen"
+			:aria-label="`自定义日期：${resolvedText}`"
+			@click="toggleCustom"
+		>
+			{{ resolvedText }}
+		</button>
 		<small
-			v-if="showResolved && !(variant === 'ledger' && compact)"
+			v-else-if="showResolved && !(variant === 'ledger' && compact)"
 			class="resolved-period"
 			aria-live="polite"
 			>{{ resolvedText }}</small
 		>
+		<Teleport to="body">
+			<div
+				v-if="customOpen"
+				id="movement-period-custom-menu"
+				ref="customMenu"
+				class="custom-period-menu-portal"
+				role="dialog"
+				aria-label="自定义日期"
+				:style="customMenuStyle"
+				@keydown.esc="closeCustom(true)"
+			>
+				<label
+					>开始日期<input
+						type="date"
+						:value="dateFrom"
+						@input="
+							emit('update:dateFrom', ($event.target as HTMLInputElement).value)
+						" /></label
+				><label
+					>结束日期<input
+						type="date"
+						:value="dateTo"
+						@input="
+							emit('update:dateTo', ($event.target as HTMLInputElement).value)
+						" /></label
+				><button type="button" class="custom-period-done" @click="closeCustom(true)">
+					完成
+				</button>
+			</div>
+		</Teleport>
 	</section>
 </template>
 <style scoped>
@@ -414,19 +511,14 @@ button[aria-pressed="true"] {
 	background: #9b571d;
 	color: #fff;
 }
-.custom-period {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 220px));
-	gap: 8px;
-}
-.movement-period-ledger .custom-period {
-	flex-basis: 100%;
-}
-.custom-period input {
-	margin: 4px 0 0;
-}
 .resolved-period {
 	color: #6b6257;
+}
+.custom-period-trigger {
+	max-width: min(100%, 260px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .period-more {
 	flex: none;
@@ -457,14 +549,43 @@ button[aria-pressed="true"] {
 .period-more-menu-portal button[aria-checked="true"] {
 	background: #fff0d9;
 }
+.custom-period-menu-portal {
+	position: fixed;
+	z-index: 120;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	padding: 10px;
+	background: #fffaf2;
+	border: 1px solid #eadfce;
+	box-shadow: 0 8px 24px rgba(65, 44, 22, 0.18);
+}
+.custom-period-menu-portal label {
+	display: grid;
+	gap: 4px;
+	color: #6b6257;
+	font-size: 12px;
+}
+.custom-period-menu-portal input {
+	min-width: 0;
+	margin: 0;
+}
+.custom-period-done {
+	grid-column: 1 / -1;
+	min-height: 34px;
+	padding: 7px 10px;
+}
 .period-active-rolling {
 	border-color: #9b571d;
 	background: #9b571d;
 	color: #fff;
 }
 @media (max-width: 600px) {
-	.custom-period {
-		grid-template-columns: 1fr 1fr;
+	.custom-period-menu-portal {
+		grid-template-columns: 1fr;
+	}
+	.custom-period-done {
+		grid-column: auto;
 	}
 }
 </style>

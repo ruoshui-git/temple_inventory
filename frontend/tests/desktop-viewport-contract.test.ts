@@ -70,7 +70,7 @@ describe("desktop shell presentation contract", () => {
       props: {
         destinations: [...destinations],
         activeDestination: "/",
-        inventoryExpanded: true,
+        expandedSection: "inventory",
         inventoryContextItems: [
           { key: "current", label: "当前库存", path: "/", query: {} },
           { key: "expiry", label: "效期批次", path: "/expiry", query: {} },

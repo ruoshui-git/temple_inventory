@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { downloadReport, type ExportFormat, type ReportType } from "../lib/api";
+import UiButton from "./UiButton.vue";
 
 const props = defineProps<{
 	open: boolean;
@@ -58,17 +59,21 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 				<p class="muted">将导出符合当前筛选条件的全部记录，不限于已经加载的页面。</p>
 				<p v-if="error" class="error" role="alert">{{ error }}</p>
 				<div class="export-dialog-actions">
-					<button
-						type="button"
-						class="primary"
+					<UiButton
+						variant="primary"
+						icon="download"
+						:loading="busy === 'xlsx'"
 						:disabled="Boolean(busy)"
 						@click="download('xlsx')"
+						>导出 Excel</UiButton
 					>
-						{{ busy === "xlsx" ? "正在生成…" : "导出 Excel" }}
-					</button>
-					<button type="button" :disabled="Boolean(busy)" @click="download('csv')">
-						{{ busy === "csv" ? "正在生成…" : "导出 CSV" }}
-					</button>
+					<UiButton
+						icon="download"
+						:loading="busy === 'csv'"
+						:disabled="Boolean(busy)"
+						@click="download('csv')"
+						>导出 CSV</UiButton
+					>
 				</div>
 			</section>
 		</div>

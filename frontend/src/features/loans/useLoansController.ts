@@ -31,7 +31,7 @@ export function useLoansController() {
   >({});
   const columnSummaries = ref<Record<string, any>>({});
   const error = ref("");
-  const loading = ref(false);
+  const loading = ref(true);
   const loadingMore = ref(false);
   const filterOpen = ref(false);
   const desktopFilterOpen = ref(false);
@@ -324,6 +324,8 @@ export function useLoansController() {
       await load();
     } catch (cause: any) {
       error.value = cause.message;
+      loading.value = false;
+      loadingMore.value = false;
     }
   });
   onBeforeUnmount(() => {

@@ -12,6 +12,7 @@ import DetailPopover from "../../components/DetailPopover.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import UiButton from "../../components/UiButton.vue";
 import { type InventoryController } from "./useInventoryController";
 
 const props = defineProps<{ controller: InventoryController }>();
@@ -112,36 +113,35 @@ onBeforeUnmount(() => {
 							<span>{{ total }} 件物品</span>
 						</div>
 						<div class="inventory-heading-actions">
-							<button
+							<UiButton
 								v-if="operationCaps.Receive"
-								type="button"
+								size="compact"
 								@click="operation('Receive')"
 							>
 								↓ 入库
-							</button>
-							<button
+							</UiButton>
+							<UiButton
 								v-if="operationCaps.Issue"
-								type="button"
+								size="compact"
 								@click="operation('Issue')"
 							>
 								↑ 出库
-							</button>
-							<button
+							</UiButton>
+							<UiButton
 								v-if="operationCaps.Transfer"
-								type="button"
+								size="compact"
 								@click="operation('Transfer')"
 							>
 								⇄ 转移
-							</button>
-							<button type="button" @click="exportOpen = true">导出</button>
-							<button
+							</UiButton>
+							<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
+							<UiButton
 								v-if="boot?.capabilities?.Item"
-								type="button"
-								class="primary"
+								variant="primary"
 								@click="operation('CreateItem')"
 							>
 								＋ 新建物品
-							</button>
+							</UiButton>
 						</div>
 					</div>
 					<div class="result-toolbar">
@@ -154,31 +154,48 @@ onBeforeUnmount(() => {
 								placeholder="搜索物品或条码"
 								aria-label="搜索物品或条码"
 						/></label>
-						<button
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="scan"
 							class="toolbar-action"
 							aria-label="扫描条码"
 							@click="scanner = true"
 						>
-							<InventoryIcon name="scan" /><span>扫码</span>
-						</button>
-						<button
+							扫码
+						</UiButton>
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="filter"
 							type="button"
 							class="inventory-filter-button"
 							:class="{ active: desktopFilterOpen || filterOpen }"
 							:aria-expanded="desktopFilterOpen || filterOpen"
 							@click="openFilters($event)"
 						>
-							<InventoryIcon name="filter" />
-							<span>筛选</span
-							><b v-if="activeFilterCount">{{ activeFilterCount }}</b></button
-						><button type="button" class="toolbar-action" @click="summaryOpen = true">
-							Σ <span>列汇总</span>
-						</button>
-						><button class="toolbar-action" @click="toggleSelection">
-							<InventoryIcon name="select" /><span>{{
-								selection ? "完成" : "选择"
-							}}</span>
-						</button>
+							筛选<span
+								><b v-if="activeFilterCount">{{ activeFilterCount }}</b></span
+							>
+						</UiButton>
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="table"
+							class="toolbar-action"
+							@click="summaryOpen = true"
+						>
+							列汇总
+						</UiButton>
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="select"
+							class="toolbar-action"
+							@click="toggleSelection"
+						>
+							<span>{{ selection ? "完成" : "选择" }}</span>
+						</UiButton>
 						<div
 							class="inventory-view-controls"
 							role="group"

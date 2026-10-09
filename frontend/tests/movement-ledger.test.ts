@@ -373,7 +373,9 @@ describe("movement ledger", () => {
     route.query = { search: "替换" };
     await flushPromises();
     expect(initialRequest.signal.aborted).toBe(true);
-    const replacement = requests.at(-1)!;
+    const replacement = requests
+      .filter((request) => !request.signal.aborted)
+      .at(-1)!;
     replacement.resolve({
       resolved_period: {},
       results: [{ id: "L1", item_name: "新结果", item_code: "ITM-2" }],
@@ -381,6 +383,7 @@ describe("movement ledger", () => {
       all_total: 2,
       facets: {},
     });
+    await flushPromises();
     await flushPromises();
     expect(wrapper.text()).toContain("新结果");
   });

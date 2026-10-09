@@ -17,7 +17,35 @@ export function useApplicationShellController() {
 
   const route = useRoute();
   const boot = ref<any>();
-  const inventoryExpanded = ref(route.path === "/" || route.path === "/expiry");
+  const sectionForPath = (path: string) => {
+    if (
+      path === "/" ||
+      path === "/expiry" ||
+      path.startsWith("/item/") ||
+      path === "/items/new"
+    )
+      return "inventory";
+    if (path === "/new/Loan" || path.startsWith("/loans/")) return "loans";
+    if (
+      path.startsWith("/movements") ||
+      path === "/history" ||
+      path.startsWith("/reconcile") ||
+      path.startsWith("/new/") ||
+      path.startsWith("/workspace/") ||
+      path.startsWith("/entry/")
+    )
+      return "movements";
+    if (path === "/loans") return "loans";
+    if (
+      path === "/more" ||
+      path === "/reports" ||
+      path === "/drafts" ||
+      path === "/pending"
+    )
+      return "more";
+    return "";
+  };
+  const expandedSection = ref(sectionForPath(route.path));
   const destinations: Destination[] = [
     { key: "inventory", label: "库存", path: "/" },
     { key: "movements", label: "货物流动", path: "/movements" },
@@ -124,6 +152,43 @@ export function useApplicationShellController() {
       ];
     return [];
   });
+  const navigationContexts = computed<Record<string, ContextItem[]>>(() => ({
+    inventory: inventoryContextItems.value,
+    movements: [
+      {
+        key: "items",
+        label: "明细",
+        path: "/movements/items",
+        query: movementSharedQuery.value,
+      },
+      {
+        key: "records",
+        label: "记录",
+        path: "/movements/records",
+        query: movementSharedQuery.value,
+      },
+    ],
+    loans: [
+      {
+        key: "outstanding",
+        label: "未结借用",
+        path: "/loans",
+        query: loanSharedQuery.value,
+      },
+      {
+        key: "settled",
+        label: "已结借用",
+        path: "/loans",
+        query: { ...loanSharedQuery.value, status: "settled" },
+      },
+    ],
+    more: [
+      { key: "more", label: "更多选项", path: "/more", query: {} },
+      { key: "reports", label: "报表与导出", path: "/reports", query: {} },
+      { key: "drafts", label: "草稿", path: "/drafts", query: {} },
+      { key: "pending", label: "待处理", path: "/pending", query: {} },
+    ],
+  }));
 
   const contextKey = computed(() => {
     if (route.path === "/") return "current";
@@ -147,6 +212,10 @@ export function useApplicationShellController() {
     }
     if (route.path === "/loans")
       return route.query.status === "settled" ? "settled" : "outstanding";
+    if (route.path === "/more") return "more";
+    if (route.path === "/reports") return "reports";
+    if (route.path === "/drafts") return "drafts";
+    if (route.path === "/pending") return "pending";
     return "";
   });
 
@@ -166,13 +235,16 @@ export function useApplicationShellController() {
     window.location.href = "/login?redirect-to=%2Finventory";
   }
   function closeNavigationContext() {
-    inventoryExpanded.value = false;
+    expandedSection.value = "";
+  }
+  function toggleSection(key: string) {
+    expandedSection.value = expandedSection.value === key ? "" : key;
   }
 
   watch(
     () => route.path,
     (path) => {
-      inventoryExpanded.value = path === "/" || path === "/expiry";
+      expandedSection.value = sectionForPath(path);
     },
   );
   onMounted(() => {
@@ -185,7 +257,8 @@ export function useApplicationShellController() {
   return {
     route,
     boot,
-    inventoryExpanded,
+    expandedSection,
+    navigationContexts,
     destinations,
     activeDestination,
     inventorySharedQuery,
@@ -199,6 +272,7 @@ export function useApplicationShellController() {
     refresh,
     logout,
     closeNavigationContext,
+    toggleSection,
   };
 }
 

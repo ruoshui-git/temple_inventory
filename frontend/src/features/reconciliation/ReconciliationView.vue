@@ -3,6 +3,7 @@ import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import Scanner from "../../components/Scanner.vue";
 import AttachmentList from "../../components/AttachmentList.vue";
 import { type ReconciliationController } from "./useReconciliationController";
+import UiButton from "../../components/UiButton.vue";
 
 const props = defineProps<{ controller: ReconciliationController }>();
 const {
@@ -57,14 +58,16 @@ const {
 } = props.controller;
 </script>
 <template>
-	<button
+	<UiButton
+		variant="secondary"
+		size="compact"
 		v-if="!loading && !readonly"
 		type="button"
 		class="reconciliation-reset-time"
 		@click="resetPostingTime"
 	>
 		重置为当前盘点时间
-	</button>
+	</UiButton>
 	<section v-if="batchItem" class="modal" role="dialog" aria-modal="true">
 		<section>
 			<h2>选择批次</h2>

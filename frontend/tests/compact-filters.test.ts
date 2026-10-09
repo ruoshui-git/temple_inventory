@@ -112,7 +112,7 @@ describe("shared compact filter primitives", () => {
     wrapper.unmount();
   });
 
-  it("closes HierarchyAutocomplete on outside pointer, Escape, focus leave, and unmount", async () => {
+  it("keeps the warehouse/category hierarchy tree inline without a popup", async () => {
     const wrapper = mount(HierarchyAutocomplete, {
       props: {
         modelValue: [],
@@ -122,14 +122,12 @@ describe("shared compact filter primitives", () => {
         tree: optionRows,
       },
     });
-    await wrapper.find("input").trigger("focus");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
-    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-    await nextTick();
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-    await wrapper.find("input").trigger("focus");
-    await wrapper.find("input").trigger("keydown", { key: "Escape" });
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(wrapper.find('[role="tree"]').exists()).toBe(true);
+    expect(wrapper.findAll(".hierarchy-row").length).toBeGreaterThan(0);
+    await wrapper
+      .find("input[type='search']")
+      .trigger("keydown", { key: "Escape" });
+    expect(wrapper.find('[role="tree"]').exists()).toBe(true);
     wrapper.unmount();
   });
 

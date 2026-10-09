@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import InventoryIcon from "./InventoryIcon.vue";
 
 export type OverflowAction = { kind: string; label: string };
 
@@ -83,7 +84,7 @@ onBeforeUnmount(() => {
 				role="menuitem"
 				@click="choose(action.kind)"
 			>
-				{{ action.label }}
+				<InventoryIcon v-if="action.kind === 'Export'" name="download" />{{ action.label }}
 			</button>
 		</div>
 	</div>

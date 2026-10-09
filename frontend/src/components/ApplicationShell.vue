@@ -9,7 +9,8 @@ const { surface } = useResponsiveLayout();
 const {
 	route,
 	boot,
-	inventoryExpanded,
+	expandedSection,
+	navigationContexts,
 	destinations,
 	activeDestination,
 	inventoryContextItems,
@@ -28,14 +29,15 @@ const {
 			v-if="surface === 'desktop'"
 			:destinations="destinations"
 			:active-destination="activeDestination"
-			:inventory-expanded="inventoryExpanded"
+			:expanded-section="expandedSection"
+			:navigation-contexts="navigationContexts"
 			:inventory-context-items="inventoryContextItems"
 			:context-items="contextItems"
 			:context-key="contextKey"
 			:pending="pending"
 			:expiry-count="expiryCount"
 			:user="String(boot?.user || '')"
-			@toggle-inventory="inventoryExpanded = !inventoryExpanded"
+			@toggle-section="controller.toggleSection"
 			@close-context="closeNavigationContext"
 			@logout="logout"
 		/>

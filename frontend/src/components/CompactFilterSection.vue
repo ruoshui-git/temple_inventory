@@ -127,8 +127,10 @@ function toggle() {
 	padding: 0;
 	border: 0;
 }
-.compact-filter-section-body input,
-.compact-filter-section-body select {
+.compact-filter-section-body > label > input:not([type="checkbox"]):not([type="radio"]),
+.compact-filter-section-body > label > select,
+.compact-filter-section-body > fieldset > input:not([type="checkbox"]):not([type="radio"]),
+.compact-filter-section-body > fieldset > select {
 	box-sizing: border-box;
 	min-height: 36px;
 	margin: 0;

@@ -17,6 +17,7 @@ import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import ExportDialog from "../../components/ExportDialog.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
+import UiButton from "../../components/UiButton.vue";
 import { type HistoryController } from "./useHistoryController";
 
 const props = defineProps<{
@@ -225,13 +226,12 @@ onBeforeUnmount(() => {
 								activeCount
 							}}</span></IconButton
 						>
-						<button
+						<UiButton
 							v-if="destination === 'movements'"
-							type="button"
+							icon="download"
 							@click="exportOpen = true"
+							>导出</UiButton
 						>
-							导出
-						</button>
 						<span aria-live="polite">{{
 							refreshing
 								? "正在更新…"

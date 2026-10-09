@@ -14,6 +14,8 @@ import SortableDataTable, {
 	type SortState,
 } from "../../components/SortableDataTable.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import UiButton from "../../components/UiButton.vue";
+import TruncatedTextPopover from "../../components/TruncatedTextPopover.vue";
 import ItemImagePreview from "../../components/ItemImagePreview.vue";
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
@@ -231,25 +233,37 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								"
 								aria-label="搜索货物流动"
 						/></label>
-						<button
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="filter"
 							type="button"
 							class="toolbar-action movement-filter-button"
 							:class="{ active: desktopFilterOpen || filterOpen }"
 							:aria-expanded="desktopFilterOpen || filterOpen"
 							@click="openFilters($event)"
 						>
-							<InventoryIcon name="filter" /><span>筛选</span
-							><b v-if="activeFilterCount"> {{ activeFilterCount }}</b></button
-						><button type="button" class="toolbar-action" @click="exportOpen = true">
-							<InventoryIcon name="download" /><span>导出</span>
-						</button>
-						<button
+							筛选<span
+								><b v-if="activeFilterCount"> {{ activeFilterCount }}</b></span
+							>
+						</UiButton>
+						<UiButton
+							class="toolbar-action"
+							icon="download"
+							size="compact"
+							@click="exportOpen = true"
+							>导出</UiButton
+						>
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="table"
 							type="button"
 							class="toolbar-action column-summary-trigger"
 							@click="summaryOpen = true"
 						>
-							Σ <span>列汇总</span>
-						</button>
+							列汇总
+						</UiButton>
 						<details v-if="mode === 'records'" class="new-record-menu">
 							<summary class="primary toolbar-action">
 								<span aria-hidden="true">＋</span> 新增记录
@@ -393,9 +407,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						<template #cell-activity="{ row }">{{
 							row.activity_title || row.activity || "—"
 						}}</template>
-						<template #cell-notes="{ row }">{{
-							row.notes || row.source_text || "—"
-						}}</template>
+						<template #cell-notes="{ row }"
+							><TruncatedTextPopover
+								:text="row.notes || row.source_text"
+								label="完整备注"
+						/></template>
 						<template #mobile-row="{ row, activateKey }"
 							><article
 								class="movement-mobile-card"
@@ -472,11 +488,16 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 									</div>
 									<div>
 										<dt>备注</dt>
-										<dd>{{ row.notes || row.source_text || "—" }}</dd>
+										<dd>
+											<TruncatedTextPopover
+												:text="row.notes || row.source_text"
+												label="完整备注"
+												:mobile-lines="2"
+											/>
+										</dd>
 									</div>
-								</dl>
-							</article></template
-						>
+								</dl></article
+						></template>
 					</SortableDataTable>
 					<div ref="sentinel" aria-hidden="true"></div>
 				</div>
@@ -500,10 +521,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 <style scoped>
 .movement-ledger-header {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-areas: "heading" "actions" "chips";
+	align-items: center;
 	gap: 7px;
 	padding: 14px 0 8px;
 }
 .movement-heading {
+	grid-area: heading;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -536,7 +561,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	align-items: center;
 }
 .movement-ledger-actions {
-	justify-content: flex-end;
+	grid-area: actions;
+	justify-content: flex-start;
+	width: 100%;
 	min-width: 0;
 }
 .movement-search {
@@ -577,7 +604,16 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .toolbar-action :deep(svg),
 .movement-filter-button :deep(svg) {
 	width: 19px;
-	height: 19px;
+	height: auto;
+}
+.movement-ledger :deep(.movement-date) {
+	white-space: nowrap;
+	min-width: 104px;
+	font-variant-numeric: tabular-nums;
+}
+.movement-ledger :deep(.movement-date-column) {
+	min-width: 112px;
+	white-space: nowrap;
 }
 .movement-filter-button b {
 	display: grid;
@@ -633,12 +669,25 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	background: transparent;
 }
 .movement-kind-chips {
+	grid-area: chips;
 	padding: 8px 0;
 	overflow-x: auto;
 	flex-wrap: nowrap;
 	position: relative;
 	z-index: 2;
 }
+@media (max-width: 1023px) {
+	.movement-ledger-header {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.movement-heading,
+	.movement-ledger-actions {
+		width: 100%;
+	}
+}
+
 .movement-kind-chips button {
 	flex: none;
 	padding: 7px 10px;
@@ -829,8 +878,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	min-height: 36px;
 	margin-top: 10px;
 }
-.movement-ledger :deep(.filter-sidebar input),
-.movement-ledger :deep(.filter-sidebar select),
 .movement-ledger :deep(.filter-sidebar .selector-button) {
 	min-height: 36px;
 	margin: 3px 0 8px;
@@ -901,58 +948,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	.movement-ledger .filters-open .results-column {
 		padding-left: 16px;
 	}
-	.movement-ledger .compact .movement-heading {
-		gap: 8px;
-		padding-block: 2px;
-	}
-	.movement-ledger .compact .movement-title h1 {
-		font-size: 17px;
-	}
-	.movement-ledger .compact .movement-title {
-		display: none;
-	}
-	.movement-ledger .compact .compact-heading {
-		display: block;
-	}
-	.movement-ledger .compact .movement-count {
-		font-size: 11px;
-	}
-	.movement-ledger .compact .movement-ledger-header {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		grid-template-areas: "heading heading" "actions chips";
-		gap: 3px;
-		padding-block: 4px;
-	}
-	.movement-ledger .compact .movement-heading {
-		grid-area: heading;
-		min-width: 0;
-		flex-direction: row;
-		align-items: center;
-	}
-	.movement-ledger .compact .movement-ledger-actions {
-		grid-area: actions;
-		justify-content: flex-start;
-		flex-wrap: nowrap;
-		gap: 4px;
-		overflow-x: auto;
-	}
-	.movement-ledger .compact .movement-kind-chips {
-		grid-area: chips;
-		min-width: 0;
-		flex-wrap: nowrap;
-		padding-block: 3px;
-		overflow-x: auto;
-	}
-	.movement-ledger .compact .movement-ledger-actions > * {
-		min-height: 30px;
-	}
-	.movement-ledger .compact .movement-search {
-		height: 30px;
-		min-width: 120px;
-	}
-	.movement-ledger .compact .movement-kind-chips button {
-		padding-block: 4px;
-	}
 }
 @media (max-width: 800px) {
 	.movement-heading {
@@ -970,10 +965,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 @media (max-width: 1023px) {
 	.movement-ledger .results-column.compact .movement-ledger-header {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		grid-template-areas: "heading heading" "actions chips";
 		gap: 3px;
 		padding-block: 4px;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+		grid-template-areas: "heading actions" "chips chips";
 	}
 	.movement-ledger .results-column.compact .movement-heading {
 		grid-area: heading;
@@ -1012,6 +1007,38 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.movement-ledger .results-column.compact .movement-kind-chips button {
 		padding-block: 4px;
+	}
+}
+@media (min-width: 1024px) {
+	.movement-ledger .results-column.compact .movement-ledger-header {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+		grid-template-areas: "heading actions" "chips chips";
+		gap: 4px;
+		padding-block: 6px;
+	}
+	.movement-ledger .results-column.compact .movement-heading {
+		min-width: 0;
+		gap: 8px;
+	}
+	.movement-ledger .results-column.compact .compact-heading {
+		display: block;
+		font-size: 17px;
+	}
+	.movement-ledger .results-column.compact .movement-ledger-actions {
+		flex-wrap: nowrap;
+		gap: 4px;
+		overflow-x: auto;
+	}
+	.movement-ledger .results-column.compact .movement-ledger-actions > * {
+		min-height: 30px;
+	}
+	.movement-ledger .results-column.compact .movement-search {
+		height: 30px;
+		min-width: 140px;
+	}
+	.movement-ledger .results-column.compact .movement-kind-chips {
+		padding-block: 3px;
 	}
 }
 </style>

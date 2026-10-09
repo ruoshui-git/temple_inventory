@@ -5,6 +5,7 @@ import ItemPicker from "../../components/ItemPicker.vue";
 import LoanItemPicker from "../../components/LoanItemPicker.vue";
 import AttachmentList from "../../components/AttachmentList.vue";
 import { type WorkspaceController } from "./useWorkspaceController";
+import UiButton from "../../components/UiButton.vue";
 
 const props = defineProps<{ controller: WorkspaceController }>();
 const {
@@ -97,10 +98,16 @@ const {
 <template>
 	<main class="app-shell workspace">
 		<header>
-			<button type="button" @click="close">‹ 首页</button>
+			<UiButton variant="ghost" size="compact" type="button" @click="close">‹ 首页</UiButton>
 			<h1>{{ labels[form?.movement_kind] || "库存记录" }}</h1>
-			<button v-if="!readonly && record?.name" type="button" @click="deleteDraft">
-				删除草稿</button
+			<UiButton
+				v-if="!readonly && record?.name"
+				variant="danger"
+				size="compact"
+				type="button"
+				@click="deleteDraft"
+			>
+				删除草稿</UiButton
 			><span role="status">{{
 				readonly
 					? record.direct_entry
@@ -120,9 +127,15 @@ const {
 				重新加载
 			</button>
 		</div>
-		<button v-else-if="dirty && !saving" type="button" @click="queue.schedule(true)">
+		<UiButton
+			v-else-if="dirty && !saving"
+			variant="secondary"
+			size="compact"
+			type="button"
+			@click="queue.schedule(true)"
+		>
 			重试保存
-		</button>
+		</UiButton>
 		<LoadingIndicator v-if="!form || !boot" text="正在加载工作区…" /><template v-else
 			><p v-if="record.direct_entry" class="field-hint">
 				这是直接在 ERPNext 创建的库存记录。请在

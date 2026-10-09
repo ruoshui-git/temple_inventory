@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { api, request } from "../lib/api";
 import { detectInstallPlatform, installInstructions, installPwa, isStandalone } from "../lib/pwa";
+import UiButton from "../components/UiButton.vue";
 const boot = ref<any>(),
 	installHelp = ref(""),
 	showInstall = ref(false);
@@ -29,17 +30,30 @@ async function install() {
 			>草稿 <b v-if="boot?.unfinished_count">{{ boot.unfinished_count }}</b></RouterLink
 		><RouterLink class="selection-row" to="/pending"
 			>待处理（{{ boot?.pending_count || 0 }}）</RouterLink
-		><button v-if="!isStandalone" class="selection-row" @click="install">
+		><UiButton
+			v-if="!isStandalone"
+			variant="secondary"
+			class="selection-row more-install-action"
+			@click="install"
+		>
 			安装到手机 / 电脑
-		</button>
+		</UiButton>
 		<p class="selection-row">当前账户：{{ boot?.user }}</p>
-		<button class="danger-action" @click="logout">退出登录</button>
+		<UiButton variant="danger" @click="logout">退出登录</UiButton>
 		<div v-if="showInstall" class="modal" role="dialog" aria-modal="true">
 			<section>
 				<h2>安装物资管理</h2>
 				<p>{{ installHelp }}</p>
-				<button class="primary" @click="showInstall = false">知道了</button>
+				<UiButton variant="primary" @click="showInstall = false">知道了</UiButton>
 			</section>
 		</div>
 	</section>
 </template>
+<style scoped>
+.more-install-action {
+	display: block;
+	width: 100%;
+	justify-content: flex-start;
+	text-align: left;
+}
+</style>

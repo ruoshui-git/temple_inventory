@@ -136,7 +136,7 @@ describe("ApplicationShell navigation contract", () => {
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });
 
-  it("expands Inventory destinations while another desktop module is active", async () => {
+  it("uses one single-open accordion context across desktop modules", async () => {
     route.path = "/movements";
     const wrapper = mount(ApplicationShell, {
       global: { stubs: { RouterLink } },
@@ -144,21 +144,16 @@ describe("ApplicationShell navigation contract", () => {
     await nextTick();
 
     expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+    expect(wrapper.find(".desktop-inventory-context").text()).toContain("明细");
     await wrapper.find("button.inventory-parent").trigger("click");
 
     const contexts = wrapper.findAll(".desktop-inventory-context");
-    expect(contexts).toHaveLength(2);
+    expect(contexts).toHaveLength(1);
     expect(contexts[0].findAll("a").map((link) => link.text())).toEqual([
       "库存列表",
       "效期批次",
     ]);
-    expect(
-      contexts[0].findAll("a").map((link) => link.attributes("data-to")),
-    ).toEqual(["/", "/expiry"]);
-    expect(contexts[1].findAll("a").map((link) => link.text())).toEqual([
-      "明细",
-      "记录",
-    ]);
+    expect(wrapper.findAll(".desktop-inventory-context a")).toHaveLength(2);
 
     const warehouse = wrapper
       .find('nav[aria-label="主导航"]')
@@ -166,7 +161,7 @@ describe("ApplicationShell navigation contract", () => {
       .find((link) => link.text() === "仓库");
     expect(warehouse).toBeDefined();
     await warehouse!.trigger("click");
-    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(0);
 
     route.path = "/warehouses";
     await nextTick();
@@ -191,8 +186,47 @@ describe("ApplicationShell navigation contract", () => {
     await nextTick();
     expect(wrapper.find(".shell-brand").text()).toBe("寺院物资");
     expect(
-      wrapper.find('nav[aria-label="主导航"] a[aria-current="page"]').text(),
-    ).toBe("更多");
+      wrapper
+        .find('nav[aria-label="主导航"] button[aria-expanded="true"]')
+        .text(),
+    ).toContain("更多");
+  });
+
+  it("marks exactly one More child active and expands workflow routes by module", async () => {
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    for (const [path, activeLabel] of [
+      ["/more", "更多选项"],
+      ["/reports", "报表与导出"],
+      ["/drafts", "草稿"],
+      ["/pending", "待处理"],
+    ] as const) {
+      route.path = path;
+      await nextTick();
+      const active = wrapper.findAll(
+        '.desktop-inventory-context a[aria-current="page"]',
+      );
+      expect(active).toHaveLength(1);
+      expect(active[0].text()).toContain(activeLabel);
+    }
+
+    for (const [path, moduleLabel] of [
+      ["/item/ITEM-1", "库存"],
+      ["/items/new", "库存"],
+      ["/new/Loan", "借用"],
+      ["/workspace/record-1", "货物流动"],
+      ["/entry/record-1", "货物流动"],
+      ["/reconcile/record-1", "货物流动"],
+    ] as const) {
+      route.path = path;
+      await nextTick();
+      expect(
+        wrapper
+          .find('nav[aria-label="主导航"] button[aria-expanded="true"]')
+          .text(),
+      ).toContain(moduleLabel);
+    }
   });
 
   it("carries every movement filter across detail and record tabs", async () => {

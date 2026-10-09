@@ -183,19 +183,14 @@ breakpoint change, loading/error/empty states, sorting, keyboard and row
 activation, selection, filters, exports, query preservation, and load-more
 behaviour. Do not edit generated files under `public/frontend/`.
 
-## Storybook UI workflow
+## Frontend UI workflow
 
-Reusable frontend UI should be developed and reviewed in Storybook when a
-relevant story exists. For substantial visual or interaction changes, inspect
-the component's stories first, add representative states when missing, and
-prefer isolated component work before routed-page integration. Keep story data
-static or mocked, preserve application behavior and API contracts, and never
-replace production Frappe/ERPNext data access with Storybook fixtures. Use the
-local Storybook MCP server when available.
-
-Use docs-list/docs-show when component documentation is available.
-Use existing stories as the reference states for component behavior.
-When changing a reusable component, update or add representative stories.
+Reusable UI belongs in production components under `frontend/src/components/`
+and is exercised with focused Vitest tests. For substantial visual or
+interaction changes, inspect the component implementation and its routed
+consumers first, preserve application behavior and API contracts, and add
+representative interaction assertions to `frontend/tests/`. Validate the
+result through the routed app's production build and responsive surfaces.
 
 ## Security and server-side rules
 

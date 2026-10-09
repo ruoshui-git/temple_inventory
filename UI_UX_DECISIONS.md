@@ -47,7 +47,11 @@ in the same change. Keep implementation details in code or task notes, not here.
 - Show field-specific validation and availability feedback inline and announce it
   accessibly. Keep the draft intact after a collision or server error.
 - Distinguish loading, saving, saved, conflict, and failure states where work is
-  asynchronous or durable.
+  asynchronous or durable. Browse surfaces show explicit initial loading before
+  empty states; refreshes retain existing rows with a non-blocking update state.
+- Shared buttons use primary, secondary, ghost, and danger variants with common
+  compact sizing, icon placement, focus rings, hover, loading, and disabled
+  states. Export actions always include a download icon.
 
 ## Shared compact filters
 
@@ -56,9 +60,14 @@ in the same change. Keep implementation details in code or task notes, not here.
   occupy a 250px rail; mobile filters use one focus-safe drawer with an enabled
   count and immediate application, plus 清空/完成 actions. Reports keep filters inline, and 仓库 retains a
   search field rather than a filter sidebar.
-- Hierarchy and async single-select controls close on outside pointer, Escape,
-  Tab/focus leaving, and component unmount. Selection is committed before blur
-  can close a suggestion list.
+- Async single-select controls close on outside pointer, Escape, Tab/focus
+  leaving, and component unmount. Warehouse/category hierarchy filters are
+  always-inline trees: their search and rows remain visible, and they do not
+  close as a suggestion popup. Selection is committed before blur can close an
+  async selector.
+- Warehouse and category hierarchy filters share one normalized selector core,
+  preserving parent/child selection, counts, indeterminate state, clear, and
+  keyboard behavior across browse pages.
 
 ## Movement browsing
 
@@ -66,6 +75,9 @@ in the same change. Keep implementation details in code or task notes, not here.
   range visible while title/count condense after result scrolling. The rolling
   period menu is body-teleported and anchored to its trigger so shell overflow
   cannot clip it.
+- Custom movement dates use the same out-of-flow anchored popover contract.
+  The resolved actual range remains visible inline and is the custom trigger;
+  opening the two date fields must never reflow the movement header.
 - Movement-kind chips live inside result chrome. All, non-zero kinds, and any
   selected zero kind remain visible; other zero-count kinds collapse behind an
   accessible `无记录 N` control. Kind selection is multi-select OR and 全部
@@ -135,6 +147,10 @@ in the same change. Keep implementation details in code or task notes, not here.
 - The desktop `库存` navigation parent is an accessible expand/collapse button
   containing only `库存列表` and `效期批次`. The app mark remains neutral in
   active, hover, and focus states; keyboard focus still has a visible outline.
+- Desktop module parents for `库存`, `货物流动`, `借用`, and `更多` use one
+  single-open accordion model: parent buttons only expand/collapse, child links
+  navigate, and opening one module closes the previous module. `仓库` remains a
+  direct destination; mobile bottom navigation remains direct.
 
 ## Warehouses
 
@@ -167,6 +183,29 @@ in the same change. Keep implementation details in code or task notes, not here.
   draft or context.
 
 ## Supersession log
+
+- **2026-10-09:** The hierarchy-filter portion of the close-on-leave selector
+  rule is superseded. Warehouse/category filters now use an always-inline,
+  initially expanded tree with search, disclosure, counts, and keyboard
+  selection; close-on-leave remains limited to async/dropdown selectors.
+
+- **2026-10-09:** Desktop module children use one explicit vertical submenu
+  column. Each child is a full-width, no-wrap horizontal row with shared
+  active, badge, hover, and keyboard-focus treatment.
+
+- **2026-10-09:** Movement desktop chrome has two deliberate states. Normal
+  desktop uses title/count plus period controls, then a full-width search/action
+  row, then movement-kind chips. The compact scrolled state combines title,
+  period, search, and actions in its first row while keeping chips on row two.
+
+- **2026-10-09:** Warehouse/category selector search, tree, disclosure, count,
+  custom checkbox, indeterminate, hover, focus, selected, and responsive styles
+  belong to `HierarchyFilter.vue`; InventoryFilterPanel only owns its additional
+  inventory-specific sections and presentation.
+
+- **2026-10-09:** Custom movement period dates are edited in a body-teleported,
+  trigger-anchored dialog. The inline resolved range remains the interaction
+  target, while the date editor stays out of normal header layout flow.
 
 - **2026-10-08:** `列汇总` is a shared, on-demand result analysis surface on every
   sortable data table. Existing Inventory/Expiry business summary cards remain

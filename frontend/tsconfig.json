@@ -7,12 +7,5 @@
     },
     "types": ["vite/client"]
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
-    ".storybook/**/*.ts",
-    "storybook.vite.config.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
 }

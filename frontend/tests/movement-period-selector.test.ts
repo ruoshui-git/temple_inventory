@@ -41,17 +41,40 @@ describe("movement period selector", () => {
     ]);
   });
 
-  it("keeps exit controls visible in custom mode", async () => {
+  it("keeps custom dates in an anchored popover without expanding the header", async () => {
     const wrapper = mount(MovementPeriodSelector, {
       props: {
         periodKey: "custom",
         dateFrom: "2026-09-01",
         dateTo: "2026-09-30",
+        resolvedFrom: "2026-09-01",
+        resolvedTo: "2026-09-30",
         variant: "ledger",
       },
     });
     expect(wrapper.find(".period-choices").exists()).toBe(true);
-    expect(wrapper.find(".custom-period").exists()).toBe(true);
+    expect(wrapper.find(".custom-period").exists()).toBe(false);
+    expect(wrapper.find(".custom-period-trigger").text()).toContain(
+      "2026-09-01 至 2026-09-30",
+    );
+    await wrapper.find(".custom-period-trigger").trigger("click");
+    await nextTick();
+    const menu = document.body.querySelector(
+      "#movement-period-custom-menu",
+    ) as HTMLElement;
+    expect(menu).not.toBeNull();
+    expect(menu.getAttribute("role")).toBe("dialog");
+    expect(menu.querySelectorAll('input[type="date"]')).toHaveLength(2);
+    expect(
+      wrapper.find(".movement-period-ledger > .custom-period").exists(),
+    ).toBe(false);
+    menu.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await nextTick();
+    expect(
+      document.body.querySelector("#movement-period-custom-menu"),
+    ).toBeNull();
     await wrapper.find(".period-choices button").trigger("click");
     expect(wrapper.emitted("update:periodKey")?.at(-1)).toEqual(["this_week"]);
   });

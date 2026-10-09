@@ -2,6 +2,7 @@
 import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import ExportDialog from "../../components/ExportDialog.vue";
 import { type WarehouseDetailController } from "./useWarehouseDetailController";
+import UiButton from "../../components/UiButton.vue";
 
 const props = defineProps<{ controller: WarehouseDetailController }>();
 const {
@@ -40,7 +41,7 @@ const {
 					{{ presented.breadcrumb }}
 				</p>
 			</div>
-			<button type="button" @click="exportOpen = true">导出库存</button>
+			<UiButton icon="download" @click="exportOpen = true">导出库存</UiButton>
 		</header>
 		<p v-if="error" class="error">
 			{{ error }} <button type="button" @click="retry">重试</button>

@@ -2,6 +2,8 @@
 import { computed, ref } from "vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import CompactFilterSection from "./CompactFilterSection.vue";
+import WarehouseSelector from "./WarehouseSelector.vue";
+import CategorySelector from "./CategorySelector.vue";
 
 export type ExpiryFilter =
 	| "all"
@@ -43,17 +45,44 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:modelValue": [value: InventoryFilterState] }>();
 const instanceId = Math.random().toString(36).slice(2);
 
+const selectorWarehouses = computed(() =>
+	props.warehouses.map((node) => ({
+		name: node.name,
+		warehouse_name: node.label,
+		parent_warehouse: node.parent,
+		is_group: node.isGroup,
+		lft: (node as any).lft,
+		rgt: (node as any).rgt,
+	})),
+);
+const selectorCategories = computed(() =>
+	props.categories.map((node) => ({
+		name: node.name,
+		item_group_name: node.label,
+		parent_item_group: node.parent,
+		is_group: node.isGroup,
+		lft: (node as any).lft,
+		rgt: (node as any).rgt,
+	})),
+);
+const selectorWarehouseCounts = computed(() =>
+	Object.fromEntries(
+		props.warehouses
+			.filter((node) => node.count !== undefined)
+			.map((node) => [node.name, node.count]),
+	),
+);
+const selectorCategoryCounts = computed(() =>
+	Object.fromEntries(
+		props.categories
+			.filter((node) => node.count !== undefined)
+			.map((node) => [node.name, node.count]),
+	),
+);
+
 const warehouseOpen = ref(true);
 const categoryOpen = ref(false);
 const moreOpen = ref(false);
-const warehouseTerm = ref("");
-const categoryTerm = ref("");
-const expandedWarehouseNodes = ref(
-	new Set(props.warehouses.filter((node) => node.isGroup).map((node) => node.name)),
-);
-const expandedCategoryNodes = ref(
-	new Set(props.categories.filter((node) => node.isGroup).map((node) => node.name)),
-);
 
 const expiryOptions: Array<{ value: ExpiryFilter; label: string }> = [
 	{ value: "all", label: "全部效期" },
@@ -68,117 +97,6 @@ const expiryOptions: Array<{ value: ExpiryFilter; label: string }> = [
 function update(patch: Partial<InventoryFilterState>) {
 	emit("update:modelValue", { ...props.modelValue, ...patch });
 }
-function parentOf(node: InventoryFilterNode) {
-	return node.parent || "";
-}
-function childrenOf(node: InventoryFilterNode, nodes: InventoryFilterNode[]) {
-	return nodes.filter((child) => parentOf(child) === node.name);
-}
-function descendantsOf(node: InventoryFilterNode, nodes: InventoryFilterNode[]) {
-	const descendants: InventoryFilterNode[] = [];
-	const visit = (parent: InventoryFilterNode) => {
-		for (const child of childrenOf(parent, nodes)) {
-			descendants.push(child);
-			visit(child);
-		}
-	};
-	visit(node);
-	return descendants;
-}
-function leavesOf(node: InventoryFilterNode, nodes: InventoryFilterNode[]) {
-	const descendants = descendantsOf(node, nodes);
-	return node.isGroup ? descendants.filter((child) => !child.isGroup) : [node];
-}
-function ancestorsOf(node: InventoryFilterNode, nodes: InventoryFilterNode[]) {
-	const ancestors: InventoryFilterNode[] = [];
-	let parent = nodes.find((candidate) => candidate.name === parentOf(node));
-	while (parent && !ancestors.some((candidate) => candidate.name === parent?.name)) {
-		ancestors.push(parent);
-		parent = nodes.find((candidate) => candidate.name === parentOf(parent!));
-	}
-	return ancestors;
-}
-function nodeSelected(node: InventoryFilterNode, values: string[], nodes: InventoryFilterNode[]) {
-	return (
-		values.includes(node.name) ||
-		ancestorsOf(node, nodes).some((parent) => values.includes(parent.name))
-	);
-}
-function nodePartial(node: InventoryFilterNode, values: string[], nodes: InventoryFilterNode[]) {
-	if (!node.isGroup || values.includes(node.name)) return false;
-	const leaves = leavesOf(node, nodes);
-	return (
-		leaves.some((leaf) => nodeSelected(leaf, values, nodes)) &&
-		!leaves.every((leaf) => nodeSelected(leaf, values, nodes))
-	);
-}
-function toggleNode(
-	node: InventoryFilterNode,
-	key: "warehouses" | "categories",
-	nodes: InventoryFilterNode[],
-) {
-	const next = new Set(props.modelValue[key]);
-	const leaves = leavesOf(node, nodes);
-	if (node.isGroup) {
-		const fullySelected = valuesCoverNode(node, [...next], nodes);
-		next.delete(node.name);
-		for (const descendant of descendantsOf(node, nodes)) next.delete(descendant.name);
-		if (!fullySelected) next.add(node.name);
-	} else {
-		const coveringAncestor = ancestorsOf(node, nodes).find((parent) => next.has(parent.name));
-		if (coveringAncestor) {
-			next.delete(coveringAncestor.name);
-			for (const leaf of leavesOf(coveringAncestor, nodes)) {
-				if (leaf.name !== node.name) next.add(leaf.name);
-			}
-		} else if (next.has(node.name)) next.delete(node.name);
-		else next.add(node.name);
-	}
-	for (const value of [...next]) {
-		const candidate = nodes.find((item) => item.name === value);
-		if (candidate && ancestorsOf(candidate, nodes).some((parent) => next.has(parent.name)))
-			next.delete(value);
-	}
-	update({ [key]: [...next] });
-}
-function valuesCoverNode(
-	node: InventoryFilterNode,
-	values: string[],
-	nodes: InventoryFilterNode[],
-) {
-	return (
-		values.includes(node.name) ||
-		leavesOf(node, nodes).every((leaf) => nodeSelected(leaf, values, nodes))
-	);
-}
-function depth(node: InventoryFilterNode, nodes: InventoryFilterNode[]) {
-	return ancestorsOf(node, nodes).length;
-}
-function toggleExpanded(name: string, expanded: Set<string>) {
-	const next = new Set(expanded);
-	next.has(name) ? next.delete(name) : next.add(name);
-	return next;
-}
-function visibleNodes(nodes: InventoryFilterNode[], term: string, expanded: Set<string>) {
-	const query = term.trim().toLocaleLowerCase();
-	const matches = (node: InventoryFilterNode) => node.label.toLocaleLowerCase().includes(query);
-	return nodes.filter((node) => {
-		if (query)
-			return (
-				matches(node) ||
-				descendantsOf(node, nodes).some(matches) ||
-				ancestorsOf(node, nodes).some(matches)
-			);
-		return ancestorsOf(node, nodes).every((parent) => expanded.has(parent.name));
-	});
-}
-
-const visibleWarehouses = computed(() =>
-	visibleNodes(props.warehouses, warehouseTerm.value, expandedWarehouseNodes.value),
-);
-const visibleCategories = computed(() =>
-	visibleNodes(props.categories, categoryTerm.value, expandedCategoryNodes.value),
-);
 
 function clearSection(key: "warehouses" | "categories") {
 	update({ [key]: [] });
@@ -216,55 +134,15 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 			@clear="clearSection('warehouses')"
 			@toggle="warehouseOpen = $event"
 		>
-			<div class="filter-section-body">
-				<label class="filter-search"
-					><InventoryIcon name="search" /><input
-						v-model="warehouseTerm"
-						type="search"
-						placeholder="搜索仓库或位置"
-						aria-label="搜索仓库或位置"
-				/></label>
-				<p v-if="!visibleWarehouses.length" class="filter-empty">没有匹配的位置</p>
-				<ul v-else class="filter-tree">
-					<li
-						v-for="node in visibleWarehouses"
-						:key="node.name"
-						:style="{ '--tree-depth': depth(node, warehouses) }"
-					>
-						<button
-							v-if="node.isGroup"
-							type="button"
-							class="node-toggle"
-							:aria-label="`${expandedWarehouseNodes.has(node.name) ? '收起' : '展开'} ${node.label}`"
-							:aria-expanded="expandedWarehouseNodes.has(node.name)"
-							@click="
-								expandedWarehouseNodes = toggleExpanded(
-									node.name,
-									expandedWarehouseNodes,
-								)
-							"
-						>
-							<span
-								class="disclosure-triangle"
-								:class="{ expanded: expandedWarehouseNodes.has(node.name) }"
-								aria-hidden="true"
-							></span>
-						</button>
-						<span v-else class="node-spacer"></span>
-						<label
-							><input
-								type="checkbox"
-								:checked="valuesCoverNode(node, modelValue.warehouses, warehouses)"
-								:indeterminate="
-									nodePartial(node, modelValue.warehouses, warehouses)
-								"
-								@change="toggleNode(node, 'warehouses', warehouses)"
-							/><span>{{ node.label }}</span
-							><small v-if="node.count !== undefined">{{ node.count }}</small></label
-						>
-					</li>
-				</ul>
-			</div>
+			<WarehouseSelector
+				:model-value="modelValue.warehouses"
+				:rows="selectorWarehouses"
+				:counts="selectorWarehouseCounts"
+				title="仓库 / 位置"
+				placeholder="搜索仓库或位置"
+				embedded
+				@update:model-value="update({ warehouses: $event })"
+			/>
 		</CompactFilterSection>
 
 		<CompactFilterSection
@@ -276,55 +154,15 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 			@clear="clearSection('categories')"
 			@toggle="categoryOpen = $event"
 		>
-			<div class="filter-section-body">
-				<label class="filter-search"
-					><InventoryIcon name="search" /><input
-						v-model="categoryTerm"
-						type="search"
-						placeholder="搜索物品类别"
-						aria-label="搜索物品类别"
-				/></label>
-				<p v-if="!visibleCategories.length" class="filter-empty">没有匹配的类别</p>
-				<ul v-else class="filter-tree">
-					<li
-						v-for="node in visibleCategories"
-						:key="node.name"
-						:style="{ '--tree-depth': depth(node, categories) }"
-					>
-						<button
-							v-if="node.isGroup"
-							type="button"
-							class="node-toggle"
-							:aria-label="`${expandedCategoryNodes.has(node.name) ? '收起' : '展开'} ${node.label}`"
-							:aria-expanded="expandedCategoryNodes.has(node.name)"
-							@click="
-								expandedCategoryNodes = toggleExpanded(
-									node.name,
-									expandedCategoryNodes,
-								)
-							"
-						>
-							<span
-								class="disclosure-triangle"
-								:class="{ expanded: expandedCategoryNodes.has(node.name) }"
-								aria-hidden="true"
-							></span>
-						</button>
-						<span v-else class="node-spacer"></span>
-						<label
-							><input
-								type="checkbox"
-								:checked="valuesCoverNode(node, modelValue.categories, categories)"
-								:indeterminate="
-									nodePartial(node, modelValue.categories, categories)
-								"
-								@change="toggleNode(node, 'categories', categories)"
-							/><span>{{ node.label }}</span
-							><small v-if="node.count !== undefined">{{ node.count }}</small></label
-						>
-					</li>
-				</ul>
-			</div>
+			<CategorySelector
+				:model-value="modelValue.categories"
+				:rows="selectorCategories"
+				:counts="selectorCategoryCounts"
+				title="物品类别"
+				placeholder="搜索物品类别"
+				embedded
+				@update:model-value="update({ categories: $event })"
+			/>
 		</CompactFilterSection>
 
 		<label class="stock-filter"
@@ -533,64 +371,6 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	padding: 0 10px 10px;
 	border-top: 1px solid #eee9e1;
 }
-.filter-search {
-	display: flex;
-	align-items: center;
-	gap: 7px;
-	height: 38px;
-	margin: 9px 0 6px;
-	padding: 0 9px;
-	border: 1px solid #ddd7cd;
-	border-radius: 7px;
-	color: #7b8490;
-	background: #fbfaf8;
-}
-.filter-search input {
-	width: 100%;
-	min-width: 0;
-	height: 100%;
-	padding: 0;
-	border: 0;
-	outline: 0;
-	background: transparent;
-	color: #343c46;
-	font: inherit;
-}
-.filter-tree {
-	max-height: 230px;
-	overflow: auto;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-	scrollbar-width: thin;
-}
-.filter-tree li {
-	display: flex;
-	align-items: center;
-	min-height: 36px;
-	padding-left: calc(var(--tree-depth) * 18px);
-	border-radius: 6px;
-}
-.filter-tree li:hover {
-	background: #f5f1eb;
-}
-.filter-tree label {
-	display: flex;
-	flex: 1;
-	align-items: center;
-	gap: 7px;
-	min-width: 0;
-	cursor: pointer;
-}
-.filter-tree label span {
-	flex: 1;
-	overflow-wrap: anywhere;
-}
-.filter-tree label small {
-	color: #8b8379;
-	font-size: 11px;
-}
-.filter-tree input,
 .stock-filter input,
 .expiry-options input {
 	flex: none;
@@ -599,7 +379,6 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	margin: 0;
 	accent-color: #9a6939;
 }
-.filter-tree input[type="checkbox"],
 .stock-filter input[type="checkbox"] {
 	appearance: none;
 	display: grid;
@@ -614,7 +393,6 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	border-radius: 3px;
 	background: #fff;
 }
-.filter-tree input[type="checkbox"]::before,
 .stock-filter input[type="checkbox"]::before {
 	content: "";
 	width: 4px;
@@ -624,45 +402,20 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	transform: translateY(-1px) rotate(45deg) scale(0);
 	transform-origin: center;
 }
-.filter-tree input[type="checkbox"]:checked,
 .stock-filter input[type="checkbox"]:checked,
-.filter-tree input[type="checkbox"]:indeterminate,
 .stock-filter input[type="checkbox"]:indeterminate {
 	border-color: #956536;
 	background: #956536;
 }
-.filter-tree input[type="checkbox"]:checked::before,
 .stock-filter input[type="checkbox"]:checked::before {
 	transform: translateY(-1px) rotate(45deg) scale(1);
 }
-.filter-tree input[type="checkbox"]:indeterminate::before,
 .stock-filter input[type="checkbox"]:indeterminate::before {
 	width: 7px;
 	height: 0;
 	border-bottom-width: 1.5px;
 	border-right: 0;
 	transform: none;
-}
-.node-toggle,
-.node-spacer {
-	flex: none;
-	width: 28px;
-	min-width: 28px;
-	min-height: 32px;
-	padding: 0;
-	border: 0;
-	background: transparent;
-	color: #776f65;
-	font: inherit;
-}
-.node-toggle {
-	display: grid;
-	place-items: center;
-}
-.filter-empty {
-	margin: 12px 3px;
-	color: #817a71;
-	font-size: 12px;
 }
 .stock-filter {
 	display: flex;
@@ -829,13 +582,11 @@ input:focus-visible {
 	outline-offset: 2px;
 }
 @media (max-width: 760px) {
-	.filter-tree input,
 	.stock-filter input,
 	.expiry-options input {
 		width: 16px;
 		height: 16px;
 	}
-	.filter-tree input[type="checkbox"],
 	.stock-filter input[type="checkbox"] {
 		inline-size: 16px;
 		block-size: 16px;
@@ -844,9 +595,6 @@ input:focus-visible {
 @media (max-width: 420px) {
 	.expiry-options {
 		grid-template-columns: 1fr;
-	}
-	.filter-tree {
-		max-height: 190px;
 	}
 }
 </style>

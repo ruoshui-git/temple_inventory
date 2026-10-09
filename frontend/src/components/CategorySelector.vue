@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import HierarchyAutocomplete from "./HierarchyAutocomplete.vue";
+import HierarchyFilter from "./HierarchyFilter.vue";
 
 type Category = {
 	name: string;
@@ -14,7 +14,7 @@ const props = withDefaults(
 	defineProps<{
 		modelValue: string[];
 		rows: Category[];
-		counts?: Record<string, number>;
+		counts?: Record<string, number | undefined>;
 		title?: string;
 		placeholder?: string;
 		embedded?: boolean;
@@ -47,13 +47,13 @@ const tree = computed(() =>
 );
 const options = computed(() =>
 	tree.value
-		.filter((row) => props.counts[row.name] !== 0)
+		.filter((row) => row.is_group || props.counts[row.name] !== 0)
 		.map((row) => ({ ...row, count: props.counts[row.name] })),
 );
 </script>
 
 <template>
-	<HierarchyAutocomplete
+	<HierarchyFilter
 		:model-value="modelValue"
 		:title="title"
 		:placeholder="placeholder"

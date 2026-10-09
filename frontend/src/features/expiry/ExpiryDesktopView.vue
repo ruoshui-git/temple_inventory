@@ -9,6 +9,8 @@ import SortableDataTable from "../../components/SortableDataTable.vue";
 import { formatExpiryDuration } from "../../lib/duration";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
+import ImageForwardCard from "../../components/ImageForwardCard.vue";
+import UiButton from "../../components/UiButton.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import { type ExpiryController } from "./useExpiryController";
 
@@ -107,28 +109,28 @@ onBeforeUnmount(() => {
 							<span>{{ total }} 个批次</span>
 						</div>
 						<div class="inventory-heading-actions">
-							<button
+							<UiButton
 								v-if="operationCaps.Receive"
-								type="button"
+								size="compact"
 								@click="operation('Receive')"
 							>
 								↓ 入库
-							</button>
-							<button
+							</UiButton>
+							<UiButton
 								v-if="operationCaps.Issue"
-								type="button"
+								size="compact"
 								@click="operation('Issue')"
 							>
 								↑ 出库
-							</button>
-							<button
+							</UiButton>
+							<UiButton
 								v-if="operationCaps.Transfer"
-								type="button"
+								size="compact"
 								@click="operation('Transfer')"
 							>
 								⇄ 转移
-							</button>
-							<button type="button" @click="exportOpen = true">导出</button>
+							</UiButton>
+							<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
 						</div>
 					</div>
 					<div class="result-toolbar">
@@ -141,19 +143,29 @@ onBeforeUnmount(() => {
 								placeholder="搜索物品或批次"
 								aria-label="搜索物品或批次"
 						/></label>
-						<button
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="filter"
 							type="button"
 							class="inventory-filter-button"
 							:class="{ active: desktopFilterOpen || filterOpen }"
 							:aria-expanded="desktopFilterOpen || filterOpen"
 							@click="openFilters($event)"
 						>
-							<InventoryIcon name="filter" /><span>筛选</span
-							><b v-if="activeCount">{{ activeCount }}</b>
-						</button>
-						<button type="button" class="toolbar-action" @click="summaryOpen = true">
-							Σ <span>列汇总</span>
-						</button>
+							筛选<span
+								><b v-if="activeCount">{{ activeCount }}</b></span
+							>
+						</UiButton>
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="table"
+							class="toolbar-action"
+							@click="summaryOpen = true"
+						>
+							列汇总
+						</UiButton>
 						<div
 							class="inventory-view-controls"
 							role="group"
@@ -220,16 +232,8 @@ onBeforeUnmount(() => {
 								}"
 								:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
 							>
-								<img
-									v-if="row.image"
-									:src="row.image"
-									:alt="row.item_name"
-									loading="lazy"
-									decoding="async"
-								/><span v-else class="expiry-card-placeholder"
-									><InventoryIcon name="box"
-								/></span>
-								<div>
+								<ImageForwardCard :image="row.image" :alt="row.item_name">
+									<template #placeholder><InventoryIcon name="box" /></template>
 									<small>{{ row.item_group }}</small>
 									<h3>{{ row.item_name }}</h3>
 									<p>{{ row.item_code }} · {{ row.batch_no }}</p>
@@ -247,7 +251,7 @@ onBeforeUnmount(() => {
 									>
 										{{ warehouseText(location.warehouse) }}：{{ location.qty }}
 									</p>
-								</div>
+								</ImageForwardCard>
 							</RouterLink>
 						</template>
 						<p v-if="!busy && !refreshing && !rows.length" class="empty-state">

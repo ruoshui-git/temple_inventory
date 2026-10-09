@@ -13,6 +13,7 @@ import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import SortableDataTable, { type SortState } from "../../components/SortableDataTable.vue";
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import ExportDialog from "../../components/ExportDialog.vue";
+import UiButton from "../../components/UiButton.vue";
 import { labels } from "../../lib/api";
 import { type MovementOverviewController } from "./useMovementOverviewController";
 
@@ -141,7 +142,7 @@ onBeforeUnmount(() => {
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M4 6h16M7 12h10M10 18h4" /></svg
 						></IconButton>
-						<button type="button" @click="exportOpen = true">导出</button>
+						<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
 						<span aria-live="polite">{{
 							refreshing
 								? "正在更新…"
