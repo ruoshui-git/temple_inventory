@@ -67,7 +67,14 @@ describe("ApplicationShell navigation contract", () => {
       .find('nav[aria-label="主导航"]')
       .findAll(":scope > a, :scope > button")
       .map((link) => link.text());
-    expect(labels).toEqual(["库存", "货物流动", "借用", "仓库", "更多"]);
+    expect(labels).toEqual([
+      "首页",
+      "库存",
+      "货物流动",
+      "借用",
+      "仓库",
+      "更多",
+    ]);
   });
 
   it("keeps the product brand ahead of the primary navigation on every route", async () => {

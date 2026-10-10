@@ -4,7 +4,7 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import UiButton from "../../components/UiButton.vue";
 
 export interface ShellDestination {
-	key: "inventory" | "movements" | "loans" | "warehouses" | "more";
+	key: "dashboard" | "inventory" | "movements" | "loans" | "warehouses" | "more";
 	label: string;
 	path: string;
 }
@@ -35,6 +35,7 @@ const iconPaths: Record<string, string> = {
 	inventory: "m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10",
 	movements: "M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3 3m-3-3 3-3",
 	loans: "M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3",
+	dashboard: "M4 5h16v14H4zM8 9h8M8 13h5",
 	more: "M5 12h.01M12 12h.01M19 12h.01",
 	warehouses: "m3 10 9-7 9 7v10H3V10Zm4 10v-6h10v6M7 10h10",
 };
@@ -48,7 +49,7 @@ const iconPaths: Record<string, string> = {
 		<nav aria-label="主导航" class="desktop-module-navigation">
 			<template v-for="item in props.destinations" :key="item.path">
 				<RouterLink
-					v-if="item.key === 'warehouses'"
+					v-if="item.key === 'warehouses' || item.key === 'dashboard'"
 					:to="item.path"
 					:aria-current="props.activeDestination === item.path ? 'page' : undefined"
 					@click="emit('closeContext')"
@@ -80,7 +81,11 @@ const iconPaths: Record<string, string> = {
 					></i>
 				</button>
 				<div
-					v-if="expanded() === item.key"
+					v-if="
+						expanded() === item.key &&
+						item.key !== 'dashboard' &&
+						item.key !== 'warehouses'
+					"
 					class="desktop-inventory-context"
 					role="navigation"
 					aria-label="当前视图"

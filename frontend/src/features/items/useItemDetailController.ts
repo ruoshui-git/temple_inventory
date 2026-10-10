@@ -81,7 +81,7 @@ export function useItemDetailController() {
     scanner.value = false;
   }
   function close() {
-    void returnToOpener(router, "/");
+    void returnToOpener(router, "/stock");
   }
   function retry() {
     router.go(0);

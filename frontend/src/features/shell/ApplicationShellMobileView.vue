@@ -5,7 +5,7 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import MobileSubnav from "../../components/MobileSubnav.vue";
 
 interface Destination {
-	key: "inventory" | "movements" | "loans" | "warehouses" | "more";
+	key: "dashboard" | "inventory" | "movements" | "loans" | "warehouses" | "more";
 	label: string;
 	path: string;
 }
@@ -80,7 +80,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<MobileSubnav
-		v-if="contextItems.length && path !== '/' && path !== '/expiry'"
+		v-if="contextItems.length && path !== '/' && path !== '/stock' && path !== '/expiry'"
 		ref="mobileContextNav"
 		:items="contextItems"
 		:active-key="contextKey"
@@ -95,8 +95,9 @@ onBeforeUnmount(() => {
 			:aria-current="activeDestination === item.path ? 'page' : undefined"
 		>
 			<svg aria-hidden="true" viewBox="0 0 24 24">
+				<path v-if="item.key === 'dashboard'" d="M4 5h16v14H4zM8 9h8M8 13h5" />
 				<path
-					v-if="item.key === 'inventory'"
+					v-else-if="item.key === 'inventory'"
 					d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10"
 				/>
 				<path

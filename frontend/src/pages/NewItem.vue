@@ -12,7 +12,7 @@ const error = ref("");
 const barcode = ref("");
 
 async function close() {
-	await returnToOpener(router, "/");
+	await returnToOpener(router, "/stock");
 }
 
 async function created(itemCode: string) {

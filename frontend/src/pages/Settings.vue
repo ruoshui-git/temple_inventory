@@ -88,7 +88,7 @@ onMounted(load);
 <template>
 	<main class="app-shell wide-shell">
 		<header>
-			<RouterLink to="/">‹ 首页</RouterLink>
+			<RouterLink to="/stock">‹ 库存</RouterLink>
 			<h1>库存设置</h1>
 		</header>
 		<p v-if="error" class="error">{{ error }}</p>

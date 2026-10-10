@@ -4,7 +4,8 @@ import { api, request } from "../../lib/api";
 
 export function useApplicationShellController() {
   type Destination = {
-    key: "inventory" | "movements" | "loans" | "warehouses" | "more";
+    key:
+      "dashboard" | "inventory" | "movements" | "loans" | "warehouses" | "more";
     label: string;
     path: string;
   };
@@ -20,11 +21,12 @@ export function useApplicationShellController() {
   const sectionForPath = (path: string) => {
     if (
       path === "/" ||
+      path === "/stock" ||
       path === "/expiry" ||
       path.startsWith("/item/") ||
       path === "/items/new"
     )
-      return "inventory";
+      return path === "/" ? "dashboard" : "inventory";
     if (path === "/new/Loan" || path.startsWith("/loans/")) return "loans";
     if (
       path.startsWith("/movements") ||
@@ -47,7 +49,8 @@ export function useApplicationShellController() {
   };
   const expandedSection = ref(sectionForPath(route.path));
   const destinations: Destination[] = [
-    { key: "inventory", label: "库存", path: "/" },
+    { key: "dashboard", label: "首页", path: "/" },
+    { key: "inventory", label: "库存", path: "/stock" },
     { key: "movements", label: "货物流动", path: "/movements" },
     { key: "loans", label: "借用", path: "/loans" },
     { key: "warehouses", label: "仓库", path: "/warehouses" },
@@ -75,7 +78,8 @@ export function useApplicationShellController() {
       route.path === "/pending"
     )
       return "/more";
-    return "/";
+    if (route.path === "/") return "/";
+    return "/stock";
   });
 
   const inventorySharedQuery = computed<LocationQueryRaw>(() => ({
@@ -102,7 +106,7 @@ export function useApplicationShellController() {
     {
       key: "current",
       label: "当前库存",
-      path: "/",
+      path: "/stock",
       query: inventorySharedQuery.value,
     },
     {
@@ -113,7 +117,7 @@ export function useApplicationShellController() {
     },
   ]);
   const contextItems = computed<ContextItem[]>(() => {
-    if (route.path === "/" || route.path === "/expiry")
+    if (route.path === "/stock" || route.path === "/expiry")
       return inventoryContextItems.value;
     if (
       route.path === "/movements" ||
@@ -191,7 +195,7 @@ export function useApplicationShellController() {
   }));
 
   const contextKey = computed(() => {
-    if (route.path === "/") return "current";
+    if (route.path === "/stock") return "current";
     if (route.path === "/expiry") return "expiry";
     if (
       route.path === "/movements" ||

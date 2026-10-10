@@ -66,7 +66,7 @@ const surface: "desktop" | "mobile" = "mobile";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const subnavItems = computed(() => [
-	{ key: "inventory", label: "库存列表", path: "/", query: inventoryTabQuery.value },
+	{ key: "inventory", label: "库存列表", path: "/stock", query: inventoryTabQuery.value },
 	{
 		key: "expiry",
 		label: "效期批次",

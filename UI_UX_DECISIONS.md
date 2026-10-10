@@ -16,6 +16,20 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Navigation and layout
 
+- **2026-10-10:** 首页 is the routed Dashboard at `/`; 库存 is the dedicated
+  current-stock destination at `/stock`. The mobile bottom navigation keeps six
+  direct destinations, including 首页 and 库存. Dashboard global warehouse and
+  category filters are URL-backed; ordinary navigation opens destination
+  defaults without inheriting Dashboard filters.
+
+- **2026-10-10:** 物资总览 combines current inventory, symmetric expired and
+  upcoming batch buckets, movement summaries and recent records, outstanding
+  loan balances, supported reminders, and one next-level distribution view.
+  Dashboard loan summaries intentionally show only existing operational fields
+  (borrower, activity, loan date, outstanding quantity, physical provenance,
+  and current status); they never show due dates, overdue labels, or inferred
+  overdue flags and do not introduce another data model.
+
 - Standalone creation and editing flows use normal routed pages under the
   application shell. Do not render a drawer over an otherwise empty page.
 - Drawers are reserved for contextual work that returns to an in-progress flow,

@@ -141,7 +141,7 @@ export function usePendingController() {
     else panel?.openPanel(event);
   }
   function close() {
-    void returnToOpener(router, "/");
+    void returnToOpener(router, "/stock");
   }
   watch(
     filters,

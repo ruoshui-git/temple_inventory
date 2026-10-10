@@ -95,6 +95,30 @@ class WorkspaceTests(unittest.TestCase):
 		frappe.clear_document_cache("Temple Inventory Settings", "Temple Inventory Settings")
 		frappe.local.message_log = []
 
+	def test_dashboard_contract_uses_existing_operational_data(self):
+		result = inventory_service.dashboard_summary(
+			warehouses=[self.a],
+			item_groups=[],
+			period_key="this_month",
+		)
+
+		self.assertEqual(len(result["expiry"]["buckets"]), 6)
+		self.assertEqual(
+			{row["kind"] for row in result["movement"]["summaries"]},
+			set(api.MOVEMENT_LEDGER_KINDS),
+		)
+		self.assertEqual(result["distribution"]["mode"], "warehouse")
+		self.assertNotIn("due_date", json.dumps(result["loans"], ensure_ascii=False))
+		self.assertNotIn("overdue", json.dumps(result["loans"], ensure_ascii=False).lower())
+
+	def test_dashboard_quantity_summary_keeps_uom_breakdown(self):
+		summary = inventory_service._dashboard_quantity_summary(
+			[{"uom": "Nos", "qty": 3}, {"uom": "箱", "qty": 2}]
+		)
+
+		self.assertEqual(summary["unitless_total"], 5)
+		self.assertEqual(summary["by_uom"], [{"uom": "Nos", "qty": 3.0}, {"uom": "箱", "qty": 2.0}])
+
 	def test_filter_selection_expands_groups_and_deduplicates_children(self):
 		warehouses = {
 			"root": SimpleNamespace(name="root", lft=1, rgt=10, is_group=1),

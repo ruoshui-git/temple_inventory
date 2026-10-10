@@ -71,7 +71,7 @@ const subnavItems = computed(() => [
 	{
 		key: "inventory",
 		label: "库存列表",
-		path: "/",
+		path: "/stock",
 		query: expiryTabQuery.value,
 	},
 	{
