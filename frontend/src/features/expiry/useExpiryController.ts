@@ -20,6 +20,7 @@ import type {
   InventoryFilterState,
 } from "../../components/InventoryFilterPanel.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import type { PageAction } from "../../components/pageActions";
 
 export function useExpiryController() {
   const route = useRoute();
@@ -52,12 +53,41 @@ export function useExpiryController() {
   const expandedSummary = ref("");
   const scanner = ref(false);
   const scanBusy = ref(false);
-  const view = ref<"card" | "table">("table");
+  const view = ref<"card" | "table">("card");
   const viewStorageKey = "temple_inventory.expiry.view";
   const itemGroupRoot = "All Item Groups";
   const operationCaps = computed(
     () => boot.value?.stock_operation_capabilities || {},
   );
+  const pageActions = computed<PageAction[]>(() => {
+    const loading = !boot.value;
+    return ["Receive", "Issue", "Transfer"]
+      .filter((kind) => loading || Boolean(operationCaps.value[kind]))
+      .map((kind) => ({
+        kind,
+        label: (
+          { Receive: "↓ 入库", Issue: "↑ 出库", Transfer: "⇄ 转移" } as Record<
+            string,
+            string
+          >
+        )[kind],
+        mobileLabel: (
+          { Receive: "入库", Issue: "出库", Transfer: "转移" } as Record<
+            string,
+            string
+          >
+        )[kind],
+        disabled: loading,
+      }))
+      .concat([
+        {
+          kind: "Export",
+          label: "导出",
+          mobileLabel: "导出",
+          disabled: loading,
+        },
+      ]);
+  });
   const movementActions = computed(() =>
     ["Receive", "Issue", "Transfer"]
       .filter((kind) => operationCaps.value[kind])
@@ -72,6 +102,9 @@ export function useExpiryController() {
     ...movementActions.value,
     { kind: "Export", label: "导出" },
   ]);
+  const mobileOverflowActions = computed(() =>
+    overflowActions.value.filter((action) => action.kind !== "Export"),
+  );
   const expirySummary = ref({
     expiring_soon: 0,
     expired: 0,
@@ -584,7 +617,7 @@ export function useExpiryController() {
         if (savedView === "card" || savedView === "table")
           view.value = savedView;
       } catch {
-        view.value = "table";
+        view.value = "card";
       }
       boot.value = await api("bootstrap");
       const hydrated = hydrateFilterQuery(
@@ -673,7 +706,9 @@ export function useExpiryController() {
     itemGroupRoot,
     operationCaps,
     movementActions,
+    pageActions,
     overflowActions,
+    mobileOverflowActions,
     expirySummary,
     mobileExpiryMetrics,
     scrollKey,

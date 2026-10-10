@@ -41,7 +41,7 @@ const {
 	sortColumns,
 	pageTitle,
 	activeFilterCount,
-	operationCaps,
+	pageActions,
 	warehouseNodes,
 	categoryNodes,
 	panelFilters,
@@ -114,33 +114,19 @@ onBeforeUnmount(() => {
 						</div>
 						<div class="inventory-heading-actions">
 							<UiButton
-								v-if="operationCaps.Receive"
-								size="compact"
-								@click="operation('Receive')"
+								v-for="action in pageActions"
+								:key="action.kind"
+								:size="action.kind === 'Export' ? undefined : 'compact'"
+								:variant="action.kind === 'CreateItem' ? 'primary' : undefined"
+								:icon="action.kind === 'Export' ? 'download' : undefined"
+								:disabled="action.disabled"
+								@click="
+									action.kind === 'Export'
+										? (exportOpen = true)
+										: operation(action.kind)
+								"
 							>
-								↓ 入库
-							</UiButton>
-							<UiButton
-								v-if="operationCaps.Issue"
-								size="compact"
-								@click="operation('Issue')"
-							>
-								↑ 出库
-							</UiButton>
-							<UiButton
-								v-if="operationCaps.Transfer"
-								size="compact"
-								@click="operation('Transfer')"
-							>
-								⇄ 转移
-							</UiButton>
-							<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
-							<UiButton
-								v-if="boot?.capabilities?.Item"
-								variant="primary"
-								@click="operation('CreateItem')"
-							>
-								＋ 新建物品
+								{{ action.kind === "CreateItem" ? "＋ " : "" }}{{ action.label }}
 							</UiButton>
 						</div>
 					</div>

@@ -1,7 +1,6 @@
-pyenv: cannot rehash: /home/frappe/.pyenv/shims isn't writable rm: cannot remove
-'/home/frappe/.nvm/current': Read-only file system
 <script setup lang="ts">
 import type { InventoryCardRow } from "../lib/inventoryTypes";
+import DetailPopover from "./DetailPopover.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -9,6 +8,7 @@ const props = withDefaults(
 		loading?: boolean;
 		loadingMore?: boolean;
 		error?: string;
+		warehouseLabel?: (name: string) => string;
 	}>(),
 	{ loading: false, loadingMore: false, error: "" },
 );
@@ -22,6 +22,16 @@ const expiryLabel = (row: InventoryCardRow) => {
 	if (row.nearest_expiry_days <= 30) return "即将到期";
 	return "";
 };
+function activate(row: InventoryCardRow, event: Event) {
+	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
+	emit("activate", row);
+}
+function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
+	if (event.key !== "Enter" && event.key !== " ") return;
+	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
+	event.preventDefault();
+	emit("activate", row);
+}
 </script>
 
 <template>
@@ -51,13 +61,14 @@ const expiryLabel = (row: InventoryCardRow) => {
 			{{ props.error }} <button type="button" @click="emit('retry')">重试</button>
 		</div>
 		<template v-if="props.rows.length">
-			<button
+			<article
 				v-for="row in props.rows"
 				:key="row.item_code"
-				type="button"
 				class="mobile-inventory-row"
 				role="listitem"
-				@click="emit('activate', row)"
+				tabindex="0"
+				@click="activate(row, $event)"
+				@keydown="activateKey(row, $event)"
 			>
 				<span class="mobile-row-image">
 					<img
@@ -72,9 +83,36 @@ const expiryLabel = (row: InventoryCardRow) => {
 				<span class="mobile-row-copy">
 					<b>{{ row.item_name }}</b>
 					<small>{{ row.item_code }} · {{ row.item_group }}</small>
-					<span class="mobile-row-chips">
-						<small v-if="locationCount(row)">{{ locationCount(row) }} 个库位</small>
-						<small v-if="row.batch_count">{{ row.batch_count }} 批次</small>
+					<span class="mobile-row-chips" data-row-control>
+						<DetailPopover
+							v-if="locationCount(row)"
+							:label="`${row.item_name}的仓库位置`"
+							:trigger-text="`${locationCount(row)} 个库位`"
+							trigger-class="mobile-row-chip"
+						>
+							<p
+								v-for="[name, quantity] in Object.entries(
+									row.warehouse_stock || {},
+								).filter(([, quantity]) => Number(quantity) !== 0)"
+								:key="name"
+							>
+								{{ props.warehouseLabel?.(name) || name }}：{{
+									format(Number(quantity))
+								}}
+								{{ row.stock_uom }}
+							</p>
+						</DetailPopover>
+						<DetailPopover
+							v-if="row.has_batch_no && row.batch_count"
+							:label="`${row.item_name}的批次信息`"
+							:trigger-text="`${row.batch_count} 批次`"
+							trigger-class="mobile-row-chip"
+						>
+							<p v-for="batch in row.batches || []" :key="batch.batch_no">
+								批次 {{ batch.batch_no }} · {{ format(batch.qty) }}
+								{{ row.stock_uom }} · {{ batch.expiry_date || "无效期" }}
+							</p>
+						</DetailPopover>
 						<small v-if="expiryLabel(row)" class="warning">{{
 							expiryLabel(row)
 						}}</small>
@@ -89,7 +127,7 @@ const expiryLabel = (row: InventoryCardRow) => {
 					<small>{{ row.stock_uom }}</small>
 				</span>
 				<span aria-hidden="true" class="mobile-row-chevron">›</span>
-			</button>
+			</article>
 		</template>
 		<div
 			v-if="!props.loading && !props.loadingMore && !props.error && !props.rows.length"
@@ -163,6 +201,11 @@ const expiryLabel = (row: InventoryCardRow) => {
 	background: transparent;
 	color: #27313d;
 	text-align: left;
+	cursor: pointer;
+}
+.mobile-inventory-row:focus-visible {
+	outline: 3px solid #a66b35;
+	outline-offset: -2px;
 }
 .mobile-inventory-row:last-child {
 	border-bottom: 0;
@@ -215,7 +258,26 @@ const expiryLabel = (row: InventoryCardRow) => {
 	color: #47708c;
 	font-size: 9px;
 }
+.mobile-row-chips :deep(.mobile-row-chip) {
+	min-height: 44px;
+	padding: 7px 9px;
+	border: 0;
+	border-radius: 10px;
+	background: #eef5fa;
+	color: #47708c;
+	font: inherit;
+	font-size: 10px;
+}
+.mobile-row-chips :deep(.detail-popover) {
+	display: inline-flex;
+}
 .mobile-row-chips .warning {
+	display: inline-flex;
+	box-sizing: border-box;
+	min-height: 44px;
+	align-items: center;
+	justify-content: center;
+	line-height: 1.2;
 	background: #fff1e4;
 	color: #a6531b;
 }

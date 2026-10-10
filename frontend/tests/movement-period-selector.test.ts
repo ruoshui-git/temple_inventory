@@ -23,6 +23,7 @@ describe("movement period selector", () => {
     const menu = document.body.querySelector("#movement-period-more-menu");
     expect(menu?.textContent).toContain("近7天");
     expect(menu?.textContent).toContain("本月");
+    expect(menu?.textContent).toContain("全部时间");
     expect(menu?.textContent).toContain("自定义");
     wrapper.unmount();
   });
@@ -130,5 +131,20 @@ describe("movement period selector", () => {
     });
     expect(wrapper.findAll(".resolved-period")).toHaveLength(1);
     expect(wrapper.text().match(/2026-09-01 至 2026-09-30/g)).toHaveLength(1);
+  });
+
+  it("exposes an all-time choice with an unrestricted resolved range", async () => {
+    const wrapper = mount(MovementPeriodSelector, {
+      props: {
+        periodKey: "all",
+        resolvedFrom: "",
+        resolvedTo: "",
+        variant: "ledger",
+      },
+    });
+    expect(wrapper.find(".period-choices").text()).toContain("全部时间");
+    expect(wrapper.find(".resolved-period").text()).toBe("全部时间");
+    await wrapper.findAll(".period-choices button")[0].trigger("click");
+    expect(wrapper.emitted("update:periodKey")?.at(-1)).toEqual(["this_week"]);
   });
 });

@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
 							}}</span></IconButton
 						>
 						<UiButton
-							v-if="destination === 'movements'"
+							v-if="destination === 'movements' && surface === 'desktop'"
 							icon="download"
 							@click="exportOpen = true"
 							>导出</UiButton

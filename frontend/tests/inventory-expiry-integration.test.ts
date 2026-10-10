@@ -38,7 +38,6 @@ const globals = {
     WarehouseSelector: child,
     CategorySelector: child,
     ActiveFilterChips: child,
-    FloatingActionMenu: child,
     ResponsiveFilterPanel: child,
     LoadingIndicator: child,
     ItemImagePreview: child,
@@ -214,6 +213,49 @@ describe("Inventory and Expiry integrations", () => {
     expiry.unmount();
   });
 
+  it("opens both real mobile filter drawers and restores exact Inventory defaults", async () => {
+    const { ResponsiveFilterPanel: _panel, ...stubs } = globals.stubs;
+    const wrapper = mount(Inventory, {
+      attachTo: document.body,
+      global: { stubs },
+    });
+    await flushPromises();
+    await wrapper.find(".mobile-filter").trigger("click");
+    await flushPromises();
+    const dialog = document.body.querySelector(
+      '[role="dialog"]',
+    ) as HTMLElement;
+    expect(dialog).not.toBeNull();
+    expect(dialog.textContent).toContain("恢复默认筛选");
+    const reset = dialog.querySelector(
+      ".clear-all-filters",
+    ) as HTMLButtonElement;
+    reset.click();
+    await settle();
+    const inventoryRequest = state.api.mock.calls
+      .filter((call) => call[0] === "inventory")
+      .at(-1);
+    expect(inventoryRequest?.[1]).toEqual(
+      expect.objectContaining({
+        in_stock: 1,
+        expiry_window: "",
+        expiry_days: "30",
+      }),
+    );
+    wrapper.unmount();
+
+    state.route.path = "/expiry";
+    const expiry = mount(Expiry, {
+      attachTo: document.body,
+      global: { stubs },
+    });
+    await flushPromises();
+    await expiry.find(".mobile-filter").trigger("click");
+    await flushPromises();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    expiry.unmount();
+  });
+
   it("renders a unitless Inventory headline and expands exact per-UOM details", async () => {
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
@@ -254,6 +296,74 @@ describe("Inventory and Expiry integrations", () => {
     expect(
       wrapper.find(".mobile-results .mobile-inventory-list").exists(),
     ).toBe(true);
+  });
+
+  it("defaults Expiry to shared cards, persists the list toggle, and opens column totals", async () => {
+    state.route.path = "/expiry";
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            item_groups: [],
+            physical_tree: [],
+            stock_operation_capabilities: {},
+          }
+        : {
+            results: expiryRows(),
+            total: 1,
+            overall_total: 1,
+            facets: {},
+            column_summaries: {
+              total_qty: {
+                type: "quantity",
+                unitless_total: 2,
+                by_uom: [{ uom: "件", qty: 2 }],
+              },
+            },
+          },
+    );
+    const wrapper = mount(Expiry, { global: globals, attachTo: document.body });
+    await flushPromises();
+    expect(wrapper.findComponent({ name: "ExpiryCardGrid" }).exists()).toBe(
+      true,
+    );
+    expect(wrapper.findAll(".mobile-expiry-card")).toHaveLength(1);
+    await wrapper.find(".mobile-summary-trigger").trigger("click");
+    await flushPromises();
+    expect(
+      document.body.querySelector(".column-summary-dialog")?.textContent,
+    ).toContain("2 件");
+    const viewButtons = wrapper.findAll(
+      '.mobile-result-controls [role="group"] button',
+    );
+    await viewButtons[1].trigger("click");
+    expect(wrapper.find(".mobile-expiry-result-row").exists()).toBe(true);
+    expect(localStorage.getItem("temple_inventory.expiry.view")).toBe("table");
+    wrapper.unmount();
+  });
+
+  it("keeps mobile Inventory detail chips from activating their row", async () => {
+    const wrapper = mount(MobileInventoryList, {
+      attachTo: document.body,
+      props: {
+        rows: [
+          {
+            ...inventoryRows()[0],
+            has_batch_no: true,
+            batch_count: 1,
+            warehouse_stock: { "Room A": 3 },
+            batches: [{ batch_no: "B-1", qty: 3, expiry_date: "2027-01-01" }],
+          },
+        ],
+      },
+    });
+    const chips = wrapper.findAll(".mobile-row-chip");
+    expect(chips).toHaveLength(2);
+    await chips[0].trigger("click");
+    expect(wrapper.emitted("activate")).toBeUndefined();
+    expect(document.body.textContent).toContain("Room A：3 件");
+    await wrapper.find(".mobile-inventory-row").trigger("click");
+    expect(wrapper.emitted("activate")).toHaveLength(1);
+    wrapper.unmount();
   });
 
   it("keeps mobile rows visible and dimmed during refresh", () => {
@@ -315,7 +425,7 @@ describe("Inventory and Expiry integrations", () => {
     await flushPromises();
     await wrapper.find(".mobile-summary-card").trigger("click");
     expect(wrapper.find(".mobile-summary-details").text()).toContain("7 天内");
-    expect(wrapper.findAll(".mobile-expiry-result-row")).toHaveLength(2);
+    expect(wrapper.findAll(".mobile-expiry-card")).toHaveLength(2);
     const quick = wrapper.findAll(".expiry-quick-filters button");
     await quick[1].trigger("click");
     await flushPromises();
@@ -350,6 +460,7 @@ describe("Inventory and Expiry integrations", () => {
       "compact",
     );
     expect(wrapper.find(".compact-page-title").exists()).toBe(true);
+    expect(wrapper.find(".mobile-subnav").exists()).toBe(true);
     Object.defineProperty(results.element, "scrollTop", {
       value: 0,
       configurable: true,
@@ -477,7 +588,7 @@ describe("Inventory and Expiry integrations", () => {
     await overflow.trigger("click");
     expect(
       mobile.findAll('[role="menuitem"]').map((item) => item.text()),
-    ).toEqual(["入库", "出库", "转移", "导出", "Σ 列汇总"]);
+    ).toEqual(["入库", "出库", "转移"]);
     mobile.unmount();
   });
 
@@ -502,7 +613,7 @@ describe("Inventory and Expiry integrations", () => {
     await wrapper.find(".overflow-action-trigger").trigger("click");
     expect(
       wrapper.findAll('[role="menuitem"]').map((item) => item.text()),
-    ).toEqual(["新建物品", "入库", "转移", "导出", "Σ 列汇总"]);
+    ).toEqual(["新建物品", "入库", "转移"]);
   });
 
   it("restores bootstrap-dependent filters and actions when retry succeeds", async () => {
@@ -577,6 +688,10 @@ describe("Inventory and Expiry integrations", () => {
     await flushPromises();
     expect(expiry.find(".results-chrome").exists()).toBe(true);
     expect(expiry.find(".results-scroll").exists()).toBe(true);
+    await expiry
+      .find('.inventory-view-controls button[aria-pressed="false"]')
+      .trigger("click");
+    await flushPromises();
     expect(expiry.find(".primary-cell .secondary-text").text()).toBe(
       "A001 · B001",
     );
@@ -710,6 +825,10 @@ describe("Inventory and Expiry integrations", () => {
     setSurface("desktop");
     state.route.path = "/expiry";
     const wrapper = mount(Expiry, { global: globals });
+    await flushPromises();
+    await wrapper
+      .find('.inventory-view-controls button[aria-pressed="false"]')
+      .trigger("click");
     await flushPromises();
     await wrapper.findAll(".sortable-data-table th button")[0].trigger("click");
     await settle();

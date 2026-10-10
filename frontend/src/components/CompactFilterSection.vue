@@ -40,9 +40,12 @@ function toggle() {
 				<InventoryIcon v-if="icon" :name="icon" />
 				<strong>{{ title }}</strong>
 				<span v-if="count" class="compact-filter-section-count">{{ count }}</span>
-				<span v-if="collapsible" class="compact-filter-section-chevron" aria-hidden="true"
-					>⌃</span
-				>
+				<span
+					v-if="collapsible"
+					class="compact-filter-section-chevron disclosure-triangle"
+					:class="{ expanded: open }"
+					aria-hidden="true"
+				></span>
 			</button>
 			<button
 				v-if="clearable"
@@ -100,11 +103,21 @@ function toggle() {
 	font-size: 11px;
 }
 .compact-filter-section-chevron {
-	font-size: 15px;
 	transition: transform 120ms ease;
 }
-.compact-filter-section:not(.is-open) .compact-filter-section-chevron {
-	transform: rotate(180deg);
+.compact-filter-section-chevron.disclosure-triangle {
+	display: inline-block;
+	flex: none;
+	width: 0;
+	height: 0;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	border-left: 6px solid currentColor;
+	color: #8a8177;
+	transform: rotate(0deg);
+}
+.compact-filter-section-chevron.disclosure-triangle.expanded {
+	transform: rotate(90deg);
 }
 .compact-filter-section-clear {
 	min-height: 34px;

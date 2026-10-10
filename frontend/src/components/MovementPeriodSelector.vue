@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 export type MovementPeriodKey =
+	| "all"
 	| "today"
 	| "last_7_days"
 	| "last_30_days"
@@ -51,30 +52,37 @@ const rolling = [
 	{ key: "last_90_days", label: "近90天" },
 	{ key: "last_365_days", label: "近365天" },
 ] as const;
+const allChoice = { key: "all", label: "全部时间" } as const;
 const natural = [
 	{ key: "this_week", label: "本周" },
 	{ key: "this_month", label: "本月" },
 	{ key: "this_year", label: "本年" },
 ] as const;
 const mode = computed(() =>
-	props.periodKey === "custom"
-		? "custom"
-		: props.periodKey.startsWith("this_")
-			? "natural"
-			: "rolling",
+	props.periodKey === "all"
+		? "rolling"
+		: props.periodKey === "custom"
+			? "custom"
+			: props.periodKey.startsWith("this_")
+				? "natural"
+				: "rolling",
 );
 const legacyChoices = computed(() =>
-	mode.value === "natural" ? natural : [{ key: "today", label: "今日" }, ...rolling],
+	mode.value === "natural"
+		? [...natural, allChoice]
+		: [{ key: "today", label: "今日" }, ...rolling, allChoice],
 );
 const resolvedText = computed(() =>
-	props.resolvedFrom && props.resolvedTo
-		? `${props.resolvedFrom} 至 ${props.resolvedTo}`
-		: "正在解析日期范围…",
+	props.periodKey === "all"
+		? "全部时间"
+		: props.resolvedFrom && props.resolvedTo
+			? `${props.resolvedFrom} 至 ${props.resolvedTo}`
+			: "正在解析日期范围…",
 );
 const selectedLabel = computed(
 	() =>
-		[...natural, ...rolling].find((choice) => choice.key === props.periodKey)?.label ||
-		(props.periodKey === "custom" ? "自定义" : "时间范围"),
+		[allChoice, ...natural, ...rolling].find((choice) => choice.key === props.periodKey)
+			?.label || (props.periodKey === "custom" ? "自定义" : "时间范围"),
 );
 function setCustom() {
 	if (!props.dateFrom && props.resolvedFrom) emit("update:dateFrom", props.resolvedFrom);
@@ -272,8 +280,16 @@ onBeforeUnmount(() => {
 				:aria-pressed="periodKey === choice.key"
 				@click="emit('update:periodKey', choice.key)"
 			>
-				{{ choice.label }}</button
-			><button type="button" :aria-pressed="periodKey === 'custom'" @click="openCustom">
+				{{ choice.label }}
+			</button>
+			<button
+				type="button"
+				:aria-pressed="periodKey === 'all'"
+				@click="emit('update:periodKey', 'all')"
+			>
+				全部时间
+			</button>
+			<button type="button" :aria-pressed="periodKey === 'custom'" @click="openCustom">
 				自定义
 			</button>
 			<details
@@ -355,6 +371,14 @@ onBeforeUnmount(() => {
 					aria-label="时间范围"
 					:style="menuStyle"
 				>
+					<button
+						type="button"
+						role="menuitemradio"
+						:aria-checked="periodKey === 'all'"
+						@click="selectRolling('all')"
+					>
+						全部时间
+					</button>
 					<strong>自然时间</strong>
 					<button
 						v-for="choice in natural"

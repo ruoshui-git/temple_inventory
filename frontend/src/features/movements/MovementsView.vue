@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import CategorySelector from "../../components/CategorySelector.vue";
@@ -20,6 +20,7 @@ import ItemImagePreview from "../../components/ItemImagePreview.vue";
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import { type MovementsController, type Kind } from "./useMovementsController";
 
 const props = defineProps<{
@@ -55,6 +56,7 @@ const {
 	filters,
 	warehouseRows,
 	operationKinds,
+	pageActions,
 	kindMeta,
 	visibleKinds,
 	zeroKindCount,
@@ -91,6 +93,15 @@ const {
 } = props.controller;
 const surface = toRef(props, "surface");
 const summaryOpen = ref(false);
+const pageActionsDisabled = computed(
+	() =>
+		pageActions.value.length > 0 &&
+		pageActions.value.every((action) => action.disabled || action.loading),
+);
+function selectPageAction(kind: string) {
+	if (kind === "Reconcile") return openReconciliation();
+	return openOperation(kind);
+}
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const scrollRoot = ref<HTMLElement>();
@@ -107,6 +118,7 @@ onMounted(async () => {
 watch(scrollResetToken, async () => {
 	await nextTick();
 	scrollRoot.value?.scrollTo?.({ top: 0 });
+	compact.value = false;
 });
 onBeforeUnmount(() => infiniteScroll.disconnect());
 </script>
@@ -248,6 +260,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							>
 						</UiButton>
 						<UiButton
+							v-if="surface === 'desktop'"
 							class="toolbar-action"
 							icon="download"
 							size="compact"
@@ -264,24 +277,27 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						>
 							列汇总
 						</UiButton>
-						<details v-if="mode === 'records'" class="new-record-menu">
-							<summary class="primary toolbar-action">
+						<details
+							v-if="surface === 'desktop' && pageActions.length"
+							class="new-record-menu"
+						>
+							<summary
+								class="primary toolbar-action"
+								:class="{ disabled: pageActionsDisabled }"
+								:aria-disabled="pageActionsDisabled"
+								:tabindex="pageActionsDisabled ? -1 : 0"
+							>
 								<span aria-hidden="true">＋</span> 新增记录
 							</summary>
 							<div role="menu">
 								<button
-									v-for="kind in operationKinds"
-									:key="kind"
+									v-for="action in pageActions"
+									:key="action.kind"
 									type="button"
-									@click="openOperation(kind)"
+									:disabled="action.disabled"
+									@click="selectPageAction(action.kind)"
 								>
-									{{ kindLabels[kind] }}</button
-								><button
-									v-if="boot?.can_reconcile_stock"
-									type="button"
-									@click="openReconciliation"
-								>
-									库存调整
+									{{ action.label }}
 								</button>
 							</div>
 						</details>
@@ -509,6 +525,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 			:summaries="columnSummaries"
 			:loading="busy"
 		/>
+		<FloatingActionMenu
+			v-if="surface === 'mobile' && pageActions.length"
+			:actions="pageActions"
+			:disabled="pageActionsDisabled"
+			label="新增货物流动"
+			@select="selectPageAction"
+		/>
 		<ExportDialog
 			v-model:open="exportOpen"
 			:report-type="mode === 'items' ? 'movement' : 'movement_records'"
@@ -651,6 +674,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .new-record-menu summary::-webkit-details-marker {
 	display: none;
+}
+.new-record-menu summary.disabled {
+	opacity: 0.55;
+	pointer-events: none;
+	cursor: default;
 }
 .new-record-menu div {
 	position: absolute;
@@ -963,18 +991,67 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 }
 @media (max-width: 1023px) {
-	.movement-ledger .results-column.compact .movement-ledger-header {
+	.movement-ledger {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 100vw;
+		height: calc(
+			100dvh - var(--mobile-nav-height, 0px) - var(--mobile-context-nav-height, 0px)
+		);
+		min-width: 0;
+		min-height: 0;
+		padding-inline: 10px;
+		overflow: hidden;
+	}
+	.movement-ledger > .desktop-list-layout {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+	.movement-ledger > .desktop-list-layout > .results-column {
 		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		width: 100%;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+	.movement-ledger .movement-ledger-header {
+		width: 100%;
+		min-width: 0;
+		box-sizing: border-box;
+		flex: none;
+	}
+	.movement-ledger .results-scroll {
+		width: 100%;
+		min-width: 0;
+		min-height: 0;
+		overflow-x: hidden;
+		overflow-y: auto;
+	}
+	.movement-ledger .movement-mobile-card,
+	.movement-ledger :deep(.sortable-data-table) {
+		box-sizing: border-box;
+		max-width: 100%;
+		min-width: 0;
+	}
+	.movement-ledger .results-column.compact .movement-ledger-header {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
 		gap: 3px;
 		padding-block: 4px;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-		grid-template-areas: "heading actions" "chips chips";
 	}
 	.movement-ledger .results-column.compact .movement-heading {
-		grid-area: heading;
+		width: 100%;
 		min-width: 0;
-		flex-direction: row;
-		align-items: center;
+		flex-direction: column;
+		align-items: stretch;
 		gap: 5px;
 	}
 	.movement-ledger .results-column.compact .movement-title {
@@ -985,14 +1062,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		font-size: 15px;
 	}
 	.movement-ledger .results-column.compact .movement-ledger-actions {
-		grid-area: actions;
+		width: 100%;
 		justify-content: flex-start;
 		flex-wrap: nowrap;
 		gap: 4px;
 		overflow-x: auto;
 	}
 	.movement-ledger .results-column.compact .movement-kind-chips {
-		grid-area: chips;
+		width: 100%;
 		min-width: 0;
 		flex-wrap: nowrap;
 		padding-block: 3px;
@@ -1003,7 +1080,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.movement-ledger .results-column.compact .movement-search {
 		height: 30px;
-		min-width: 100px;
+		min-width: 140px;
 	}
 	.movement-ledger .results-column.compact .movement-kind-chips button {
 		padding-block: 4px;

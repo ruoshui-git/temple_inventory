@@ -124,7 +124,7 @@ describe("movement overview", () => {
     expect(state.workspaceApi).toHaveBeenCalledWith(
       "movement_overview",
       expect.objectContaining({
-        filters: expect.objectContaining({ period_key: "last_30_days" }),
+        filters: expect.objectContaining({ period_key: "all" }),
       }),
       expect.any(AbortSignal),
     );

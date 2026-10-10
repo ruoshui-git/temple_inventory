@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import "./inventory-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import MobileInventoryList from "../../components/MobileInventoryList.vue";
 import MobileInventorySummary from "../../components/MobileInventorySummary.vue";
-import OverflowActionMenu from "../../components/OverflowActionMenu.vue";
+import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import InventoryCardGrid from "../../components/InventoryCardGrid.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
+import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
+import MobileSubnav from "../../components/MobileSubnav.vue";
 import { type InventoryController } from "./useInventoryController";
 
 const props = defineProps<{ controller: InventoryController }>();
@@ -21,6 +24,10 @@ const {
 	loading,
 	loadingMore,
 	filterOpen,
+	panelFilters,
+	warehouseNodes,
+	categoryNodes,
+	customError,
 	compact,
 	expandedSummary,
 	scanner,
@@ -31,7 +38,7 @@ const {
 	pageTitle,
 	activeFilterCount,
 	inventoryTabQuery,
-	overflowActions,
+	pageActions,
 	mobileInventoryMetrics,
 	warehouseText,
 	chips,
@@ -45,13 +52,27 @@ const {
 	initializeInventory,
 } = props.controller;
 const summaryOpen = ref(false);
-function selectOverflow(kind: string) {
-	if (kind === "ColumnSummary") summaryOpen.value = true;
-	else void operation(kind);
-}
+const mobileActions = computed(() =>
+	pageActions.value.filter((action) => action.kind !== "Export"),
+);
+const mobileActionsDisabled = computed(
+	() =>
+		mobileActions.value.length > 0 &&
+		mobileActions.value.every((action) => action.disabled || action.loading),
+);
 const surface: "desktop" | "mobile" = "mobile";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
+const subnavItems = computed(() => [
+	{ key: "inventory", label: "库存列表", path: "/", query: inventoryTabQuery.value },
+	{
+		key: "expiry",
+		label: "效期批次",
+		path: "/expiry",
+		query: inventoryTabQuery.value,
+		count: facetCounts.value.expiry?.all || 0,
+	},
+]);
 const mobileResultsScroll = ref<HTMLElement>();
 const mobileSentinel = ref<HTMLElement>();
 const restorationKey = "ti:inventory-results-scroll";
@@ -70,6 +91,7 @@ onMounted(async () => {
 watch(scrollResetToken, async () => {
 	await nextTick();
 	mobileResultsScroll.value?.scrollTo?.({ top: 0 });
+	compact.value = false;
 });
 onBeforeUnmount(() => {
 	sessionStorage.setItem(restorationKey, String(mobileResultsScroll.value?.scrollTop || 0));
@@ -80,28 +102,33 @@ onBeforeUnmount(() => {
 <template>
 	<section class="inventory-destination viewport-list-root inventory-desktop-page">
 		<div class="mobile-inventory-page" :class="{ compact }">
+			<ResponsiveFilterPanel
+				ref="filterPanel"
+				v-model:open="filterOpen"
+				:count="activeFilterCount"
+				:show-trigger="false"
+			>
+				<InventoryFilterPanel
+					v-model="panelFilters"
+					:warehouses="warehouseNodes"
+					:categories="categoryNodes"
+					:expiry-counts="facetCounts.expiry"
+					:custom-error="customError"
+				/>
+			</ResponsiveFilterPanel>
 			<header class="mobile-browse-header">
 				<div class="mobile-title-row">
 					<div>
 						<h1>{{ pageTitle }}</h1>
 						<span>{{ total }} 件物品</span>
 					</div>
-					<OverflowActionMenu
-						:actions="[
-							...overflowActions,
-							{ kind: 'ColumnSummary', label: 'Σ 列汇总' },
-						]"
-						@select="selectOverflow"
-					/>
 				</div>
-				<nav class="mobile-subnav" aria-label="库存页面">
-					<RouterLink :to="{ path: '/', query: inventoryTabQuery }" aria-current="page"
-						>库存列表</RouterLink
-					>
-					<RouterLink :to="{ path: '/expiry', query: inventoryTabQuery }"
-						>效期批次 <span>{{ facetCounts.expiry?.all || 0 }}</span></RouterLink
-					>
-				</nav>
+				<MobileSubnav
+					:items="subnavItems"
+					active-key="inventory"
+					:compact="compact"
+					aria-label="库存页面"
+				/>
 				<div class="mobile-search-actions" aria-label="浏览工具">
 					<b class="compact-page-title">{{ pageTitle }}</b>
 					<label
@@ -161,6 +188,13 @@ onBeforeUnmount(() => {
 							<InventoryIcon name="card" />
 						</button>
 					</div>
+					<button
+						type="button"
+						class="mobile-summary-trigger"
+						@click="summaryOpen = true"
+					>
+						<InventoryIcon name="table" /> Σ 列汇总
+					</button>
 				</div>
 			</header>
 			<section
@@ -190,12 +224,20 @@ onBeforeUnmount(() => {
 					:loading="loading"
 					:loading-more="loadingMore"
 					:error="error"
+					:warehouse-label="warehouseText"
 					@retry="initializeInventory"
 					@activate="(item) => openItem(item.item_code)"
 				/>
 				<div ref="mobileSentinel" aria-hidden="true"></div>
 			</section>
 		</div>
+		<FloatingActionMenu
+			v-if="mobileActions.length"
+			:actions="mobileActions"
+			:disabled="mobileActionsDisabled"
+			label="新增库存操作"
+			@select="(kind) => void operation(kind)"
+		/>
 		<ColumnSummaryDialog
 			v-model:open="summaryOpen"
 			:columns="sortColumns"
@@ -268,12 +310,19 @@ onBeforeUnmount(() => {
 	.mobile-subnav {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
+		box-sizing: border-box;
+		min-height: 46px;
+		gap: 3px;
 		padding: 3px;
 		border-radius: 8px;
 		background: #ece8e1;
 	}
 	.mobile-subnav a {
+		display: flex;
+		box-sizing: border-box;
 		min-height: 38px;
+		align-items: center;
+		justify-content: center;
 		padding: 9px;
 		border-radius: 6px;
 		color: #746d63;
@@ -369,17 +418,17 @@ onBeforeUnmount(() => {
 		border-radius: 7px;
 		background: #efebe5;
 	}
-	.mobile-result-controls button {
+	.mobile-result-controls > div button {
 		display: grid;
-		width: 38px;
-		height: 32px;
+		width: 44px;
+		height: 44px;
 		place-items: center;
 		padding: 0;
 		border: 0;
 		border-radius: 5px;
 		background: transparent;
 	}
-	.mobile-result-controls button[aria-pressed="true"] {
+	.mobile-result-controls > div button[aria-pressed="true"] {
 		background: #fff;
 		color: #95602d;
 		box-shadow: 0 1px 3px rgb(59 46 31 / 12%);
@@ -414,7 +463,6 @@ onBeforeUnmount(() => {
 		padding: 25px 8px;
 	}
 	.mobile-inventory-page.compact .mobile-title-row,
-	.mobile-inventory-page.compact .mobile-subnav,
 	.mobile-inventory-page.compact :deep(.mobile-summary) {
 		display: none;
 	}
@@ -430,6 +478,35 @@ onBeforeUnmount(() => {
 	}
 	.mobile-inventory-page.compact .compact-page-title {
 		display: block;
+	}
+	.mobile-inventory-page.compact .mobile-subnav {
+		min-height: 40px;
+		gap: 2px;
+		padding: 2px;
+	}
+	.mobile-inventory-page.compact .mobile-subnav a {
+		min-height: 36px;
+		padding: 4px 7px;
+		font-size: 11px;
+	}
+	.mobile-summary-trigger {
+		display: inline-flex;
+		min-height: 44px;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 8px;
+		border: 1px solid #e2d8c9;
+		border-radius: 7px;
+		background: #fff;
+		color: #80572f;
+		font-size: 11px;
+	}
+	.mobile-search-actions input {
+		box-sizing: border-box;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+		line-height: 1.2;
 	}
 }
 

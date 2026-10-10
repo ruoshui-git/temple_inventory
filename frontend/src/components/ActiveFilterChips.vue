@@ -49,7 +49,7 @@ async function toggleOverflow() {
 		>
 			{{ expanded ? "收起" : `另有 ${hiddenCount} 项` }}</button
 		><button v-if="showClear" type="button" class="clear-filters" @click="emit('clear')">
-			清除全部
+			恢复默认筛选
 		</button>
 	</div>
 </template>

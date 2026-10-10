@@ -44,10 +44,19 @@ describe("shared compact filter primitives", () => {
       ),
     ).toBe(0);
     expect(wrapper.find("input").exists()).toBe(true);
+    expect(wrapper.find(".compact-filter-section-chevron").classes()).toContain(
+      "disclosure-triangle",
+    );
+    expect(wrapper.find(".compact-filter-section-chevron").classes()).toContain(
+      "expanded",
+    );
     await wrapper.find(".compact-filter-section-toggle").trigger("click");
     expect(wrapper.find(".compact-filter-section").classes()).not.toContain(
       "is-open",
     );
+    expect(
+      wrapper.find(".compact-filter-section-chevron").classes(),
+    ).not.toContain("expanded");
     await wrapper.find(".compact-filter-section-clear").trigger("click");
     expect(wrapper.emitted("clear")).toHaveLength(1);
     await nextTick();
@@ -148,6 +157,19 @@ describe("shared compact filter primitives", () => {
     expect(dialog?.querySelector("input")?.getAttribute("aria-label")).toBe(
       "筛选条件",
     );
+    expect(dialog?.querySelector(".filter-drawer-back")?.textContent).toContain(
+      "返回",
+    );
+    expect(
+      getComputedStyle(
+        dialog?.querySelector(".filter-drawer-done") as HTMLButtonElement,
+      ).display,
+    ).not.toBe("none");
+    (dialog?.querySelector(".filter-drawer-back") as HTMLButtonElement).click();
+    await nextTick();
+    expect(wrapper.emitted("update:open")?.at(-1)).toEqual([false]);
+    await wrapper.setProps({ open: true });
+    await nextTick();
     expect(document.body.querySelector(".filter-dialog-proxy")).toBeNull();
     expect(
       document.body.querySelector(".filter-drawer-backdrop"),

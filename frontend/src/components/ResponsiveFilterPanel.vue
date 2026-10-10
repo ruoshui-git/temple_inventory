@@ -2,12 +2,19 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 const props = withDefaults(
-	defineProps<{ open?: boolean; count?: number; title?: string; clearable?: boolean }>(),
+	defineProps<{
+		open?: boolean;
+		count?: number;
+		title?: string;
+		clearable?: boolean;
+		showTrigger?: boolean;
+	}>(),
 	{
 		open: false,
 		count: 0,
 		title: "筛选",
 		clearable: false,
+		showTrigger: true,
 	},
 );
 const emit = defineEmits<{ "update:open": [value: boolean]; clear: [] }>();
@@ -123,7 +130,7 @@ defineExpose({ openPanel, close });
 </script>
 
 <template>
-	<button type="button" class="filter-trigger" @click="openPanel($event)">
+	<button v-if="showTrigger" type="button" class="filter-trigger" @click="openPanel($event)">
 		筛选<span v-if="count" class="filter-count">{{ count }}</span>
 	</button>
 	<Teleport to="body" :disabled="!isMobile">
@@ -138,7 +145,10 @@ defineExpose({ openPanel, close });
 			:data-filter-open="open && isMobile ? 'true' : 'false'"
 			@keydown="keydown"
 		>
-			<h2 :id="titleId">{{ title }}</h2>
+			<header class="filter-drawer-header">
+				<button type="button" class="filter-drawer-back" @click="close">‹ 返回</button>
+				<h2 :id="titleId">{{ title }}</h2>
+			</header>
 			<slot />
 			<button
 				v-if="clearable"
@@ -146,7 +156,7 @@ defineExpose({ openPanel, close });
 				class="clear-all-filters compact-filter-clear"
 				@click="emit('clear')"
 			>
-				清空全部筛选
+				恢复默认筛选
 			</button>
 			<button type="button" class="primary filter-done filter-drawer-done" @click="close">
 				完成

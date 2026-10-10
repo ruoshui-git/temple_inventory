@@ -21,6 +21,7 @@ import {
 
 import { toast } from "../../lib/toast";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import type { PageAction } from "../../components/pageActions";
 
 export function useInventoryController() {
   const route = useRoute(),
@@ -161,6 +162,36 @@ export function useInventoryController() {
       (kind) => operationCaps.value[kind],
     ),
   );
+  const pageActions = computed<PageAction[]>(() => {
+    const loading = !boot.value;
+    const available = (kind: string) =>
+      loading || Boolean(operationCaps.value[kind]);
+    const actions: PageAction[] = [
+      ...(loading || boot.value?.capabilities?.Item
+        ? [{ kind: "CreateItem", label: "新建物品", tone: "primary" as const }]
+        : []),
+      ...["Receive", "Issue", "Transfer"].filter(available).map((kind) => ({
+        kind,
+        label: (
+          { Receive: "↓ 入库", Issue: "↑ 出库", Transfer: "⇄ 转移" } as Record<
+            string,
+            string
+          >
+        )[kind],
+        mobileLabel: (
+          { Receive: "入库", Issue: "出库", Transfer: "转移" } as Record<
+            string,
+            string
+          >
+        )[kind],
+      })),
+      { kind: "Export", label: "导出", disabled: loading },
+    ];
+    return actions.map((action) => ({
+      ...action,
+      disabled: loading || action.disabled,
+    }));
+  });
   const overflowActions = computed(() => [
     ...(boot.value?.capabilities?.Item
       ? [{ kind: "CreateItem", label: "新建物品" }]
@@ -173,6 +204,9 @@ export function useInventoryController() {
     })),
     { kind: "Export", label: "导出" },
   ]);
+  const mobileOverflowActions = computed(() =>
+    pageActions.value.filter((action) => action.kind !== "Export"),
+  );
   const mobileInventoryMetrics = computed<MobileSummaryMetric[]>(() =>
     summaryMetrics.value.map((metric) => ({
       key: metric.key,
@@ -651,6 +685,8 @@ export function useInventoryController() {
     operationCaps,
     primaryActions,
     overflowActions,
+    pageActions,
+    mobileOverflowActions,
     mobileInventoryMetrics,
     warehouseRows,
     warehouseNodes,

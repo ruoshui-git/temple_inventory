@@ -9,9 +9,10 @@ import SortableDataTable from "../../components/SortableDataTable.vue";
 import { formatExpiryDuration } from "../../lib/duration";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
-import ImageForwardCard from "../../components/ImageForwardCard.vue";
+import ExpiryCardGrid from "../../components/ExpiryCardGrid.vue";
 import UiButton from "../../components/UiButton.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import DetailPopover from "../../components/DetailPopover.vue";
 import { type ExpiryController } from "./useExpiryController";
 
 const props = defineProps<{ controller: ExpiryController }>();
@@ -31,7 +32,7 @@ const {
 	exportOpen,
 	compact,
 	view,
-	operationCaps,
+	pageActions,
 	filters,
 	sort,
 	sortColumns,
@@ -110,27 +111,19 @@ onBeforeUnmount(() => {
 						</div>
 						<div class="inventory-heading-actions">
 							<UiButton
-								v-if="operationCaps.Receive"
-								size="compact"
-								@click="operation('Receive')"
+								v-for="action in pageActions"
+								:key="action.kind"
+								:size="action.kind === 'Export' ? undefined : 'compact'"
+								:icon="action.kind === 'Export' ? 'download' : undefined"
+								:disabled="action.disabled"
+								@click="
+									action.kind === 'Export'
+										? (exportOpen = true)
+										: operation(action.kind)
+								"
 							>
-								↓ 入库
+								{{ action.label }}
 							</UiButton>
-							<UiButton
-								v-if="operationCaps.Issue"
-								size="compact"
-								@click="operation('Issue')"
-							>
-								↑ 出库
-							</UiButton>
-							<UiButton
-								v-if="operationCaps.Transfer"
-								size="compact"
-								@click="operation('Transfer')"
-							>
-								⇄ 转移
-							</UiButton>
-							<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
 						</div>
 					</div>
 					<div class="result-toolbar">
@@ -200,71 +193,16 @@ onBeforeUnmount(() => {
 					</div>
 				</div>
 				<div ref="resultsScroll" class="results-scroll" @scroll.passive="onResultsScroll">
-					<div
+					<ExpiryCardGrid
 						v-if="view === 'card'"
-						class="expiry-card-grid"
-						:class="{ 'is-refreshing': (busy || refreshing) && rows.length }"
-						:aria-busy="busy || refreshing"
-					>
-						<div
-							v-if="(busy || refreshing) && rows.length"
-							class="expiry-refresh-overlay"
-							role="status"
-						>
-							<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
-						</div>
-						<div
-							v-if="busy && !rows.length"
-							class="expiry-loading-state"
-							role="status"
-						>
-							<span class="loading-spinner" aria-hidden="true"></span
-							><b>正在加载记录…</b><i v-for="index in 3" :key="index"></i>
-						</div>
-						<template v-if="!busy">
-							<RouterLink
-								v-for="row in rows"
-								:key="row.batch_no"
-								class="expiry-batch-card"
-								:class="{
-									overdue: row.days_to_expiry < 0,
-									soon: row.days_to_expiry >= 0 && row.days_to_expiry <= 30,
-								}"
-								:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
-							>
-								<ImageForwardCard :image="row.image" :alt="row.item_name">
-									<template #placeholder><InventoryIcon name="box" /></template>
-									<small>{{ row.item_group }}</small>
-									<h3>{{ row.item_name }}</h3>
-									<p>{{ row.item_code }} · {{ row.batch_no }}</p>
-									<strong>{{ row.total_qty }} {{ row.stock_uom }}</strong>
-									<p class="expiry-date">
-										{{ row.expiry_date ? `到期 ${row.expiry_date}` : "无效期"
-										}}<span v-if="row.days_to_expiry != null">
-											· {{ formatExpiryDuration(row.days_to_expiry) }}</span
-										>
-									</p>
-									<p
-										v-for="location in row.locations"
-										:key="location.warehouse"
-										class="location-line"
-									>
-										{{ warehouseText(location.warehouse) }}：{{ location.qty }}
-									</p>
-								</ImageForwardCard>
-							</RouterLink>
-						</template>
-						<p v-if="!busy && !refreshing && !rows.length" class="empty-state">
-							暂无符合条件的批次
-						</p>
-						<div v-if="appending" class="expiry-loading-more" role="status">
-							<span
-								class="loading-spinner loading-spinner-small"
-								aria-hidden="true"
-							></span
-							>正在加载更多记录…
-						</div>
-					</div>
+						:rows="rows"
+						:warehouse-label="warehouseText"
+						:loading="busy || refreshing"
+						:loading-more="appending"
+						:error="error || routeValidationError"
+						@retry="load()"
+						@activate="(row) => openItem(row.item_code, row.batch_no)"
+					/>
 					<SortableDataTable
 						:surface="surface"
 						v-else
@@ -298,7 +236,17 @@ onBeforeUnmount(() => {
 									><small class="secondary-text"
 										>{{ row.item_code }} · {{ row.batch_no }}</small
 									></RouterLink
+								><DetailPopover
+									data-row-control
+									:label="`${row.item_name}的批次信息`"
+									:trigger-text="`批次 ${row.batch_no}`"
 								>
+					<p :class="{ warn: Number(row.days_to_expiry) < 0 }">
+						{{ row.expiry_date || "无效期" }} · {{ row.total_qty }}
+						{{ row.stock_uom }} ·
+						{{ row.days_to_expiry == null ? "无效期" : formatExpiryDuration(row.days_to_expiry) }}
+									</p>
+								</DetailPopover>
 							</div></template
 						>
 						<template #cell-expiry_date="{ row }"
@@ -319,12 +267,21 @@ onBeforeUnmount(() => {
 							></template
 						>
 						<template #cell-locations="{ row }"
-							><span
-								v-for="location in row.locations"
-								:key="location.warehouse"
-								class="location-line"
-								>{{ warehouseText(location.warehouse) }}：{{ location.qty }}</span
-							></template
+							><DetailPopover
+								v-if="row.locations?.length"
+								data-row-control
+								:label="`${row.item_name}的库位信息`"
+								:trigger-text="`${row.locations.length} 个库位`"
+							>
+								<p
+									v-for="location in row.locations"
+									:key="location.warehouse"
+									:class="{ warn: Number(row.days_to_expiry) < 0 }"
+								>
+									<strong v-if="Number(row.days_to_expiry) < 0">已过期 · </strong
+									>{{ warehouseText(location.warehouse) }}：{{ location.qty }}
+								</p> </DetailPopover
+							><span v-else>—</span></template
 						>
 						<template #mobile-row="{ row }"
 							><article
@@ -350,13 +307,6 @@ onBeforeUnmount(() => {
 							</article></template
 						>
 					</SortableDataTable>
-					<p
-						v-if="view === 'card' && (error || routeValidationError)"
-						class="inline-error"
-					>
-						{{ error || routeValidationError }}
-						<button type="button" @click="load()">重试</button>
-					</p>
 					<div ref="sentinel" aria-hidden="true"></div>
 				</div>
 			</div>
@@ -370,53 +320,6 @@ onBeforeUnmount(() => {
 	</main>
 </template>
 <style scoped>
-.expiry-card-grid {
-	position: relative;
-}
-.expiry-refresh-overlay {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 253 249 / 58%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
-}
-.expiry-card-grid.is-refreshing > .expiry-batch-card {
-	opacity: 0.55;
-	pointer-events: none;
-}
-.expiry-loading-state {
-	display: grid;
-	grid-column: 1 / -1;
-	justify-items: center;
-	gap: 10px;
-	min-height: 190px;
-}
-.expiry-loading-state i {
-	width: min(92%, 360px);
-	height: 42px;
-	border-radius: 9px;
-	background: #f0ebe3;
-}
-.expiry-loading-more {
-	grid-column: 1 / -1;
-	padding: 12px;
-	text-align: center;
-	color: #704d2e;
-}
-.loading-spinner-small {
-	display: inline-block;
-	width: 16px;
-	height: 16px;
-	margin-right: 6px;
-	vertical-align: -3px;
-	border-width: 2px;
-}
 @media (min-width: 1024px) {
 	.expiry-desktop-page {
 		width: 100%;

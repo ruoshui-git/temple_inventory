@@ -12,6 +12,7 @@ import { api, labels, workspaceApi } from "../../lib/api";
 
 import { warehousePresentation } from "../../lib/warehousePresenter";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import type { PageAction } from "../../components/pageActions";
 
 export type Kind =
   | "Receive"
@@ -100,7 +101,7 @@ export function useMovementsController() {
   const pageLength = 30;
   const filters = ref<Filters>({
     search: "",
-    period_key: "this_month",
+    period_key: "all",
     date_from: "",
     date_to: "",
     item_groups: [],
@@ -135,6 +136,32 @@ export function useMovementsController() {
       Reconcile: { label: "库存调整", icon: "±", tone: "reconcile" },
       Opening: { label: "期初库存", icon: "○", tone: "opening" },
     };
+  const pageActions = computed<PageAction[]>(() => {
+    const loading = !boot.value;
+    const candidates: Kind[] = loading
+      ? [
+          "Receive",
+          "Issue",
+          "Transfer",
+          "Loan",
+          "Return",
+          "Damage",
+          "Loss",
+          "Repair",
+          "Disposal",
+        ]
+      : operationKinds.value;
+    return [
+      ...candidates.map((kind) => ({
+        kind,
+        label: kindMeta[kind].label,
+        disabled: loading,
+      })),
+      ...(loading || boot.value?.can_reconcile_stock
+        ? [{ kind: "Reconcile", label: "库存调整", disabled: loading }]
+        : []),
+    ];
+  });
   const visibleKinds = computed(() =>
     kinds.filter(
       (kind) =>
@@ -500,9 +527,10 @@ export function useMovementsController() {
       next.docstatuses = list(query.docstatuses)
         .map(Number)
         .filter((status) => [0, 1, 2].includes(status));
-    const period = String(query.period || "this_month") as MovementPeriodKey;
+    const period = String(query.period || "all") as MovementPeriodKey;
     if (
       [
+        "all",
         "today",
         "last_7_days",
         "last_30_days",
@@ -536,7 +564,10 @@ export function useMovementsController() {
         .replace({
           query: {
             ...route.query,
-            period: filters.value.period_key,
+            period:
+              filters.value.period_key === "all"
+                ? undefined
+                : filters.value.period_key,
             date_from:
               filters.value.period_key === "custom"
                 ? filters.value.date_from
@@ -575,6 +606,18 @@ export function useMovementsController() {
       else void load();
     },
     { deep: true },
+  );
+  watch(
+    () => filters.value.period_key,
+    (period) => {
+      if (
+        period === "all" &&
+        (filters.value.date_from || filters.value.date_to)
+      ) {
+        filters.value.date_from = "";
+        filters.value.date_to = "";
+      }
+    },
   );
   watch(
     () => [route.path, route.query],
@@ -639,6 +682,7 @@ export function useMovementsController() {
     filters,
     warehouseRows,
     operationKinds,
+    pageActions,
     kindMeta,
     visibleKinds,
     zeroKindCount,

@@ -41,7 +41,9 @@ const {
 					{{ presented.breadcrumb }}
 				</p>
 			</div>
-			<UiButton icon="download" @click="exportOpen = true">导出库存</UiButton>
+			<UiButton class="desktop-only-export" icon="download" @click="exportOpen = true"
+				>导出库存</UiButton
+			>
 		</header>
 		<p v-if="error" class="error">
 			{{ error }} <button type="button" @click="retry">重试</button>

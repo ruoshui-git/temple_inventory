@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import InventoryIcon from "./InventoryIcon.vue";
+import DetailPopover from "./DetailPopover.vue";
+import { formatExpiryDuration } from "../lib/duration";
 
 type ExpiryRow = {
 	batch_no: string;
@@ -31,6 +33,16 @@ const relative = (days?: number | null) => {
 	if (days === 0) return "今天到期";
 	return `剩余 ${days} 天`;
 };
+function activateKey(row: ExpiryRow, event: KeyboardEvent) {
+	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
+	if (event.key !== "Enter" && event.key !== " ") return;
+	event.preventDefault();
+	emit("activate", row);
+}
+function activate(row: ExpiryRow, event: Event) {
+	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
+	emit("activate", row);
+}
 </script>
 
 <template>
@@ -56,13 +68,14 @@ const relative = (days?: number | null) => {
 			{{ props.error }} <button type="button" @click="emit('retry')">重试</button>
 		</div>
 		<template v-if="props.rows.length">
-			<button
+			<article
 				v-for="row in props.rows"
 				:key="row.batch_no"
-				type="button"
 				class="mobile-expiry-result-row"
 				role="listitem"
-				@click="emit('activate', row)"
+				tabindex="0"
+				@click="activate(row, $event)"
+				@keydown="activateKey(row, $event)"
 			>
 				<span class="mobile-expiry-result-image">
 					<img
@@ -77,15 +90,39 @@ const relative = (days?: number | null) => {
 				<span class="mobile-expiry-result-copy">
 					<b>{{ row.item_name }}</b>
 					<small>{{ row.item_code }} · {{ row.item_group }}</small>
-					<small
-						><span class="batch-chip">批次 {{ row.batch_no }}</span></small
-					>
-					<small v-for="location in row.locations || []" :key="location.warehouse">
-						⌖
-						{{ props.warehouseLabel?.(location.warehouse) || location.warehouse }}：{{
-							format(location.qty)
-						}}
-					</small>
+					<span class="expiry-result-chips" data-row-control>
+						<DetailPopover
+							:label="`${row.item_name}的批次信息`"
+							:trigger-text="`批次 ${row.batch_no}`"
+						>
+							<p :class="{ 'expired-location': Number(row.days_to_expiry) < 0 }">
+								{{ row.expiry_date || "无效期" }} · {{ format(row.total_qty) }}
+								{{ row.stock_uom }} ·
+								{{
+									row.days_to_expiry == null
+										? "无效期"
+										: formatExpiryDuration(row.days_to_expiry)
+								}}
+							</p>
+						</DetailPopover>
+						<DetailPopover
+							v-if="row.locations?.length"
+							:label="`${row.item_name}的库位信息`"
+							:trigger-text="`${row.locations.length} 个库位`"
+						>
+							<p
+								v-for="location in row.locations"
+								:key="location.warehouse"
+								:class="{ 'expired-location': Number(row.days_to_expiry) < 0 }"
+							>
+								<strong v-if="Number(row.days_to_expiry) < 0">已过期 · </strong
+								>{{
+									props.warehouseLabel?.(location.warehouse) ||
+									location.warehouse
+								}}：{{ format(location.qty) }} {{ row.stock_uom }}
+							</p>
+						</DetailPopover>
+					</span>
 				</span>
 				<span
 					class="mobile-expiry-result-status"
@@ -96,7 +133,7 @@ const relative = (days?: number | null) => {
 					<strong>{{ format(row.total_qty) }} {{ row.stock_uom }}</strong>
 				</span>
 				<span aria-hidden="true" class="mobile-expiry-result-chevron">›</span>
-			</button>
+			</article>
 		</template>
 		<p
 			v-if="!props.loading && !props.loadingMore && !props.error && !props.rows.length"
@@ -174,6 +211,7 @@ const relative = (days?: number | null) => {
 	background: transparent;
 	color: #27313d;
 	text-align: left;
+	cursor: pointer;
 }
 .mobile-expiry-result-row:last-of-type {
 	border-bottom: 0;
@@ -214,12 +252,18 @@ const relative = (days?: number | null) => {
 	color: #78818b;
 	font-size: 10px;
 }
-.batch-chip {
-	display: inline-block;
-	padding: 1px 5px;
-	border-radius: 9px;
-	background: #edf4fa;
-	color: #4b708a;
+.expiry-result-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px;
+}
+.expiry-result-chips :deep(.detail-popover-trigger) {
+	min-height: 44px;
+	padding-inline: 8px;
+	font-size: 10px;
+}
+.expired-location {
+	color: #b42318;
 }
 .mobile-expiry-result-status {
 	display: flex;

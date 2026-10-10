@@ -113,6 +113,37 @@ describe("ApplicationShell navigation contract", () => {
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });
 
+  it("uses the shared top subnav for Movement and Loans on mobile", async () => {
+    shellMedia.matches = false;
+    route.path = "/movements/records";
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+    expect(wrapper.find(".mobile-context-nav").exists()).toBe(true);
+    expect(
+      wrapper
+        .find(".mobile-context-nav")
+        .findAll("a")
+        .map((link) => link.text()),
+    ).toEqual(["明细", "记录"]);
+    expect(
+      wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
+    ).toBe("记录");
+    route.path = "/loans";
+    route.query = { status: "settled" };
+    await nextTick();
+    expect(
+      wrapper
+        .find(".mobile-context-nav")
+        .findAll("a")
+        .map((link) => link.text()),
+    ).toEqual(["未结借用", "已结借用"]);
+    expect(
+      wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
+    ).toBe("已结借用");
+  });
+
   it("normalizes default movement context state", async () => {
     route.path = "/movements";
     route.query = {};

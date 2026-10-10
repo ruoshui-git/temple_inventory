@@ -1293,7 +1293,11 @@ class WorkspaceTests(unittest.TestCase):
 		with patch.object(api, "nowdate", return_value="2026-09-28"):
 			self.assertEqual(
 				api._movement_period({}, default=True),
-				{"key": "last_30_days", "date_from": "2026-08-30", "date_to": "2026-09-28"},
+				{"key": "all", "date_from": "", "date_to": ""},
+			)
+			self.assertEqual(
+				api._movement_period({"period_key": "all"}),
+				{"key": "all", "date_from": "", "date_to": ""},
 			)
 			self.assertEqual(
 				api._movement_period({"period_key": "this_week"}),
@@ -1462,6 +1466,11 @@ class WorkspaceTests(unittest.TestCase):
 
 	def test_movement_overview_summarizes_submitted_entries(self):
 		confirmed = self.confirmed()
+		all_time = api.movement_overview({})
+		self.assertEqual(
+			all_time["resolved_period"],
+			{"key": "all", "date_from": "", "date_to": ""},
+		)
 		page = api.movement_overview(
 			{"period_key": "custom", "date_from": nowdate(), "date_to": nowdate()}
 		)
@@ -1492,6 +1501,16 @@ class WorkspaceTests(unittest.TestCase):
 
 	def test_report_exports_use_complete_permission_scoped_data(self):
 		self.confirmed()
+		with patch.object(
+			reporting,
+			"_movement_ledger_sheets",
+			return_value=(
+				{"key": "all", "date_from": "", "date_to": ""},
+				[("记录明细", [], [])],
+			),
+		), patch.object(reporting, "provide_binary_file") as provide_binary:
+			reporting.export_report("movement", "csv", {})
+			self.assertEqual(provide_binary.call_args.args[0], "货物流动_全部时间")
 		period, movement_sheets = reporting._movement_sheets(
 			{
 				"period_key": "custom",

@@ -10,6 +10,7 @@ import {
 } from "../../composables/filters";
 
 import type { SortState } from "../../components/SortableDataTable.vue";
+import type { PageAction } from "../../components/pageActions";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 
 export function useLoansController() {
@@ -46,6 +47,13 @@ export function useLoansController() {
   const status = computed(() =>
     route.query.status === "settled" ? "settled" : "outstanding",
   );
+  const pageActions = computed<PageAction[]>(() => {
+    if (!boot.value)
+      return [{ kind: "Loan", label: "新建借出", disabled: true }];
+    return boot.value.stock_operation_capabilities?.Loan
+      ? [{ kind: "Loan", label: "新建借出" }]
+      : [];
+  });
   const sort = ref<SortState>({ sort_by: "loan_date", sort_order: "desc" });
   const columns = [
     {
@@ -350,6 +358,7 @@ export function useLoansController() {
     desktopFilterOpen,
     filters,
     status,
+    pageActions,
     sort,
     columns,
     statusLabel,

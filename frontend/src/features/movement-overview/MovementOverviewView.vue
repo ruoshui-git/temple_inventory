@@ -142,7 +142,12 @@ onBeforeUnmount(() => {
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M4 6h16M7 12h10M10 18h4" /></svg
 						></IconButton>
-						<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
+						<UiButton
+							v-if="surface === 'desktop'"
+							icon="download"
+							@click="exportOpen = true"
+							>导出</UiButton
+						>
 						<span aria-live="polite">{{
 							refreshing
 								? "正在更新…"

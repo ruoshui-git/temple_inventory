@@ -105,11 +105,11 @@ function clearAll() {
 	emit("update:modelValue", {
 		warehouses: [],
 		categories: [],
-		inStock: false,
+		inStock: true,
 		expiry: "all",
-		expiryDays: props.modelValue.expiryDays || "30",
-		expiryFromDays: props.modelValue.expiryFromDays || "-30",
-		expiryToDays: props.modelValue.expiryToDays || "30",
+		expiryDays: "30",
+		expiryFromDays: "-30",
+		expiryToDays: "30",
 	});
 }
 function expiryLabel(option: { value: ExpiryFilter; label: string }) {
@@ -292,7 +292,7 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 			</div>
 		</section>
 
-		<button type="button" class="clear-all-filters" @click="clearAll">清空全部筛选</button>
+		<button type="button" class="clear-all-filters" @click="clearAll">恢复默认筛选</button>
 	</div>
 </template>
 

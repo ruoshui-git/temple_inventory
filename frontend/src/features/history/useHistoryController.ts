@@ -107,7 +107,7 @@ export function useHistoryController(destination: Destination = "movements") {
   const filters = ref<HistoryFilters>({
     search: "",
     posting_date: "",
-    period_key: "last_30_days",
+    period_key: "all",
     date_from: "",
     date_to: "",
     movement_kind: "",
@@ -286,7 +286,7 @@ export function useHistoryController(destination: Destination = "movements") {
     filters.value = {
       search: "",
       posting_date: "",
-      period_key: "last_30_days",
+      period_key: "all",
       date_from: "",
       date_to: "",
       movement_kind: "",
@@ -372,7 +372,9 @@ export function useHistoryController(destination: Destination = "movements") {
           : filters.value.posting_date,
       period:
         props.destination === "movements"
-          ? filters.value.period_key
+          ? filters.value.period_key === "all"
+            ? undefined
+            : filters.value.period_key
           : undefined,
       date_from:
         props.destination === "movements" &&
@@ -520,7 +522,7 @@ export function useHistoryController(destination: Destination = "movements") {
     const hydrated = hydrateFilterQuery(query, {
       search: "",
       posting_date: "",
-      period: "last_30_days",
+      period: "all",
       date_from: "",
       date_to: "",
       movement_kind: "",
@@ -536,8 +538,9 @@ export function useHistoryController(destination: Destination = "movements") {
         : "";
     const requestedPeriod = legacyDate
       ? "custom"
-      : String(hydrated.period || "last_30_days");
+      : String(hydrated.period || "all");
     const validPeriods = [
+      "all",
       "today",
       "last_7_days",
       "last_30_days",
@@ -556,7 +559,7 @@ export function useHistoryController(destination: Destination = "movements") {
           : String(hydrated.posting_date || ""),
       period_key: (validPeriods.includes(requestedPeriod)
         ? requestedPeriod
-        : "last_30_days") as MovementPeriodKey,
+        : "all") as MovementPeriodKey,
       date_from: legacyDate || String(hydrated.date_from || ""),
       date_to: legacyDate || String(hydrated.date_to || ""),
       movement_kind: "",
@@ -619,6 +622,15 @@ export function useHistoryController(destination: Destination = "movements") {
       void load();
     },
     { deep: true },
+  );
+  watch(
+    () => filters.value.period_key,
+    (period) => {
+      if (period === "all") {
+        filters.value.date_from = "";
+        filters.value.date_to = "";
+      }
+    },
   );
   watch(
     () => route.query,

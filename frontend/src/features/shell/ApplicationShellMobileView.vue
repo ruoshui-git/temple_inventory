@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { LocationQueryRaw } from "vue-router";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import MobileSubnav from "../../components/MobileSubnav.vue";
 
 interface Destination {
 	key: "inventory" | "movements" | "loans" | "warehouses" | "more";
@@ -14,6 +15,9 @@ interface ContextItem {
 	path: string;
 	query: LocationQueryRaw;
 }
+interface MobileSubnavInstance {
+	$el: HTMLElement;
+}
 
 const props = defineProps<{
 	destinations: Destination[];
@@ -24,13 +28,14 @@ const props = defineProps<{
 }>();
 
 const mobileNav = ref<HTMLElement>();
-const mobileContextNav = ref<HTMLElement>();
+const mobileContextNav = ref<MobileSubnavInstance>();
 defineExpose({ mobileNav, mobileContextNav });
 
 let mobileNavObserver: ResizeObserver | undefined;
 let mobileContextObserver: ResizeObserver | undefined;
 
 function updateLayoutHeights() {
+	const contextElement = mobileContextNav.value?.$el;
 	document.documentElement.style.setProperty("--shell-header-height", "0px");
 	document.documentElement.style.setProperty(
 		"--mobile-nav-height",
@@ -38,7 +43,7 @@ function updateLayoutHeights() {
 	);
 	document.documentElement.style.setProperty(
 		"--mobile-context-nav-height",
-		`${mobileContextNav.value?.offsetHeight || 0}px`,
+		`${contextElement?.offsetHeight || 0}px`,
 	);
 }
 
@@ -47,7 +52,8 @@ async function observeNavigation() {
 	mobileNavObserver?.disconnect();
 	mobileContextObserver?.disconnect();
 	if (mobileNav.value) mobileNavObserver?.observe(mobileNav.value);
-	if (mobileContextNav.value) mobileContextObserver?.observe(mobileContextNav.value);
+	const contextElement = mobileContextNav.value?.$el;
+	if (contextElement) mobileContextObserver?.observe(contextElement);
 	updateLayoutHeights();
 }
 
@@ -73,20 +79,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<nav
+	<MobileSubnav
 		v-if="contextItems.length && path !== '/' && path !== '/expiry'"
 		ref="mobileContextNav"
-		class="mobile-context-nav"
+		:items="contextItems"
+		:active-key="contextKey"
+		class-name="mobile-context-nav"
 		aria-label="当前视图"
-	>
-		<RouterLink
-			v-for="item in contextItems"
-			:key="item.key"
-			:to="{ path: item.path, query: item.query }"
-			:aria-current="contextKey === item.key ? 'page' : undefined"
-			>{{ item.label }}</RouterLink
-		>
-	</nav>
+	/>
 	<nav ref="mobileNav" class="mobile-nav" aria-label="主导航">
 		<RouterLink
 			v-for="item in destinations"

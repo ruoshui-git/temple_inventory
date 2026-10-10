@@ -129,6 +129,45 @@ describe("movement ledger", () => {
     expect(wrapper.text()).toContain("相机");
     expect(wrapper.text()).toContain("借出");
   });
+  it("defaults an omitted period to all time and omits it from the canonical URL", async () => {
+    page();
+    const wrapper = mount(Movements, { global: globals });
+    await flushPromises();
+    expect(state.workspaceApi).toHaveBeenCalledWith(
+      "movement_items",
+      expect.objectContaining({
+        filters: expect.objectContaining({ period_key: "all" }),
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(wrapper.text()).toContain("全部时间");
+    expect(route.query).not.toHaveProperty("period");
+    expect(state.replace).not.toHaveBeenCalled();
+  });
+  it("clears a dated period from the canonical URL when all time is selected", async () => {
+    route.query = { period: "this_month" };
+    page();
+    const wrapper = mount(Movements, { global: globals });
+    await flushPromises();
+    const allTime = wrapper
+      .findAll(".period-choices button")
+      .find((button) => button.text() === "全部时间");
+    expect(allTime).toBeDefined();
+    await allTime!.trigger("click");
+    await flushPromises();
+    expect(state.replace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.not.objectContaining({ period: expect.anything() }),
+      }),
+    );
+    expect(state.workspaceApi).toHaveBeenCalledWith(
+      "movement_items",
+      expect.objectContaining({
+        filters: expect.objectContaining({ period_key: "all" }),
+      }),
+      expect.any(AbortSignal),
+    );
+  });
   it("counts records and exposes status-aware creation", async () => {
     route.path = "/movements/records";
     page("records");

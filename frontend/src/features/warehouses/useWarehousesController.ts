@@ -14,6 +14,7 @@ import {
   type WarehouseRecord,
 } from "../../lib/warehousePresenter";
 import { toast } from "../../lib/toast";
+import type { PageAction } from "../../components/pageActions";
 
 export function useWarehousesController() {
   type CreationKind = "warehouse" | "room" | "location";
@@ -92,15 +93,21 @@ export function useWarehousesController() {
           row.name === String(router.currentRoute.value.query.parent || ""),
       ) || roots.value[0],
   );
-  const actions = computed(() =>
-    boot.value?.is_manager
+  const actions = computed<PageAction[]>(() => {
+    if (!boot.value)
+      return [
+        { kind: "warehouse", label: "新建仓库", disabled: true },
+        { kind: "room", label: "添加房间", disabled: true },
+        { kind: "location", label: "添加货位", disabled: true },
+      ];
+    return boot.value.is_manager
       ? [
           { kind: "warehouse", label: "新建仓库" },
           { kind: "room", label: "添加房间" },
           { kind: "location", label: "添加货位" },
         ]
-      : [],
-  );
+      : [];
+  });
   const physicalRoot = computed(() =>
     String(boot.value?.settings?.physical_root_warehouse || ""),
   );

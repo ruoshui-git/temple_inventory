@@ -184,6 +184,37 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-10-10:** Browse creation actions use one shared action model. Mobile
+  browse surfaces expose permitted actions through an expandable `＋` FAB;
+  desktop surfaces keep actions in an immediately reserved top-right group,
+  disabling controls while bootstrap permissions resolve and hiding actions
+  unavailable after bootstrap. Expiry cards, lists, and tables use the same
+  touch-sized batch/location detail chips; expired batches mark every location
+  line in the location popover as expired. The mobile context strip is anchored
+  only to the top and never stretches toward the bottom navigation.
+
+- **2026-10-09:** Mobile browse context tabs share one compact segmented control.
+  Inventory, Expiry, Movement, and Loans use top-positioned tabs on mobile;
+  Movement and Loans reserve the measured context height above their content,
+  and the compact state is a 40px border-box tab strip after 80px of scrolling.
+  Mobile filter drawers keep an always-visible `‹ 返回` header action alongside
+  `完成`, backdrop, and Escape dismissal with focus restoration. Filter section
+  disclosures use the same right-pointing triangle as `更多条件`; hierarchy
+  node expanders remain a separate control. Movement results own the only
+  mobile vertical scroll surface within the viewport-safe page shell.
+
+- **2026-10-09:** Mobile Inventory and Expiry browse chrome keeps a compact
+  `库存列表 / 效期批次` submenu visible after result scrolling. Mobile filters
+  use the shared focus-safe drawer, `Σ 列汇总` is placed beside result controls,
+  Expiry defaults to the remembered card view, and contextual exports remain
+  desktop-only while the Reports hub remains available on mobile. Global
+  filter actions say `恢复默认筛选`; section-level actions retain `清除`.
+
+- **2026-10-09:** `货物流动` and its detail/record/contextual export paths
+  default to `全部时间`. The explicit all-time period clears custom dates,
+  omits date predicates, reports an empty resolved date range, and omits the
+  default period from canonical URLs.
+
 - **2026-10-09:** The hierarchy-filter portion of the close-on-leave selector
   rule is superseded. Warehouse/category filters now use an always-inline,
   initially expanded tree with search, disclosure, counts, and keyboard

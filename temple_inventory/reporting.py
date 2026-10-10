@@ -387,7 +387,7 @@ def _movement_sheets(filters):
 
 def _movement_ledger_sheets(filters):
 	"""Export every matching posted movement line, independent of UI paging."""
-	filters = {"period_key": "this_month", **filters}
+	filters = {"period_key": "all", **filters}
 	period = _movement_period(filters, default=True)
 	requested = _selection_values(filters.get("movement_kinds")) or list(MOVEMENT_LEDGER_KINDS)
 	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
@@ -414,7 +414,7 @@ def _movement_ledger_sheets(filters):
 
 
 def _movement_record_sheets(filters):
-	filters = {"period_key": "this_month", **filters}
+	filters = {"period_key": "all", **filters}
 	period = _movement_period(filters, default=True)
 	requested = _selection_values(filters.get("movement_kinds")) or list(MOVEMENT_LEDGER_KINDS)
 	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
@@ -708,7 +708,11 @@ def export_report(report_type, export_format, filters=None):
 	}
 	filename = f"{names[report_type]}_{nowdate()}"
 	if period:
-		filename = f"{names[report_type]}_{period['date_from']}_{period['date_to']}"
+		filename = (
+			f"{names[report_type]}_全部时间"
+			if period.get("key") == "all"
+			else f"{names[report_type]}_{period['date_from']}_{period['date_to']}"
+		)
 	if export_format == "xlsx":
 		provide_binary_file(filename, "xlsx", _xlsx_bytes(sheets))
 	else:

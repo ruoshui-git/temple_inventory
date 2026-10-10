@@ -67,6 +67,7 @@ MOVEMENT_OVERVIEW_KINDS = (
 )
 MOVEMENT_LEDGER_KINDS = MOVEMENT_OVERVIEW_KINDS + ("Reconcile", "Opening")
 MOVEMENT_PERIOD_KEYS = {
+	"all",
 	"today",
 	"last_7_days",
 	"last_30_days",
@@ -81,13 +82,15 @@ MOVEMENT_PERIOD_KEYS = {
 
 def _movement_period(filters, default=False):
 	"""Resolve an inclusive movement period using the server's current date."""
-	key = str(filters.get("period_key") or ("last_30_days" if default else "")).strip()
+	key = str(filters.get("period_key") or ("all" if default else "")).strip()
 	if not key:
 		return None
 	if key not in MOVEMENT_PERIOD_KEYS:
-		key = "last_30_days" if default else ""
+		key = "all" if default else ""
 	if not key:
 		return None
+	if key == "all":
+		return {"key": "all", "date_from": "", "date_to": ""}
 	today = getdate(nowdate())
 	if key == "custom":
 		date_from, date_to = str(filters.get("date_from") or ""), str(filters.get("date_to") or "")
@@ -2010,13 +2013,15 @@ def _movement_overview_rows(filters):
 	"""Return permission-safe submitted movement lines for overview/export reuse."""
 	settings = _settings()
 	period = _movement_period(filters, default=True)
+	entry_filters = {
+		"company": settings.company,
+		"docstatus": 1,
+	}
+	if period["date_from"] and period["date_to"]:
+		entry_filters["posting_date"] = ["between", [period["date_from"], period["date_to"]]]
 	entries = frappe.get_list(
 		"Stock Entry",
-		filters={
-			"company": settings.company,
-			"docstatus": 1,
-			"posting_date": ["between", [period["date_from"], period["date_to"]]],
-		},
+		filters=entry_filters,
 		fields=[
 			"name",
 			"posting_date",
@@ -2829,7 +2834,7 @@ def movement_items(filters=None, start=0, page_length=30):
 	"""Return posted, item-level stock effects for the movement detail ledger."""
 	_require_stock()
 	filters = dict(_loads(filters, {}))
-	filters.setdefault("period_key", "this_month")
+	filters.setdefault("period_key", "all")
 	requested = _selection_values(filters.get("movement_kinds"))
 	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
 		frappe.throw(_("Invalid movement kind"))
@@ -2868,7 +2873,7 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 	"""Return operation-level movement records, including optional drafts/cancellations."""
 	_require_stock()
 	filters = dict(_loads(filters, {}))
-	filters.setdefault("period_key", "this_month")
+	filters.setdefault("period_key", "all")
 	requested = _selection_values(filters.get("movement_kinds"))
 	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
 		frappe.throw(_("Invalid movement kind"))

@@ -13,6 +13,7 @@ import UiButton from "../../components/UiButton.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import MovementLookup from "../../components/MovementLookup.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
+import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import { type LoansController } from "./useLoansController";
 
 const props = defineProps<{
@@ -49,6 +50,7 @@ const {
 	clearFilters,
 	openLoan,
 	createLoan,
+	pageActions,
 } = props.controller;
 const surface = toRef(props, "surface");
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
@@ -150,6 +152,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						><span aria-live="polite"
 							>已加载 {{ rows.length }} · 筛选结果 {{ total }}</span
 						>
+						<UiButton
+							v-if="surface === 'desktop' && pageActions.length"
+							variant="primary"
+							size="compact"
+							:disabled="pageActions[0]?.disabled"
+							@click="createLoan"
+							>＋ 新建借出</UiButton
+						>
 					</div>
 					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
 					<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
@@ -221,15 +231,12 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</div>
 			</div>
 		</div>
-		<UiButton
-			variant="primary"
-			v-if="boot?.stock_operation_capabilities?.Loan"
-			type="button"
-			class="action-fab"
-			aria-label="新建借出"
-			@click="createLoan"
-		>
-			＋
-		</UiButton>
+		<FloatingActionMenu
+			v-if="surface === 'mobile' && pageActions.length"
+			:actions="pageActions"
+			:disabled="pageActions.every((action) => action.disabled || action.loading)"
+			label="新建借出"
+			@select="createLoan"
+		/>
 	</section>
 </template>

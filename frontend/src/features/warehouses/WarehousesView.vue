@@ -2,6 +2,7 @@
 import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
+import UiButton from "../../components/UiButton.vue";
 import { type WarehousesController } from "./useWarehousesController";
 
 const props = defineProps<{ controller: WarehousesController }>();
@@ -61,6 +62,17 @@ const {
 					placeholder="搜索仓库、房间或货位"
 					aria-label="搜索仓库、房间或货位"
 			/></label>
+			<div class="warehouse-heading-actions">
+				<UiButton
+					v-for="action in actions"
+					:key="action.kind"
+					variant="secondary"
+					size="compact"
+					:disabled="action.disabled"
+					@click="start(action.kind)"
+					>{{ action.label }}</UiButton
+				>
+			</div>
 		</header>
 		<LoadingIndicator v-if="loading && !visibleRows.length" text="正在加载仓库…" /><template
 			v-else
@@ -137,13 +149,15 @@ const {
 					>
 				</div>
 			</div>
-			<FloatingActionMenu
-				v-if="actions.length"
-				label="添加仓库位置"
-				:actions="actions"
-				@select="start"
-			/>
 		</template>
+		<FloatingActionMenu
+			class="mobile-page-actions"
+			v-if="actions.length"
+			:disabled="actions.every((action) => action.disabled || action.loading)"
+			label="添加仓库位置"
+			:actions="actions"
+			@select="start"
+		/>
 		<div v-if="dialog" class="drawer-backdrop" role="presentation">
 			<section
 				ref="dialogElement"
@@ -208,15 +222,30 @@ const {
 	align-items: center;
 	gap: 18px;
 }
+.warehouse-heading-actions {
+	display: flex;
+	gap: 8px;
+	margin-left: auto;
+}
+.mobile-page-actions {
+	display: none;
+}
 .warehouse-search {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin-left: auto;
 }
 .warehouse-search input {
 	margin: 0;
 	min-width: 220px;
+}
+@media (max-width: 1023px) {
+	.warehouse-heading-actions {
+		display: none;
+	}
+	.mobile-page-actions {
+		display: flex;
+	}
 }
 .warehouse-metadata-repair {
 	margin: 12px 0;

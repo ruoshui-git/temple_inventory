@@ -351,6 +351,11 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 .inventory-card-details :deep(.detail-popover-trigger),
 .batch-badge,
 .expiry-badge {
+	display: inline-flex;
+	box-sizing: border-box;
+	align-items: center;
+	justify-content: center;
+	line-height: 1.2;
 	min-height: 26px;
 	padding: 2px 7px;
 	border: 1px solid #dfebf4;
@@ -455,9 +460,13 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	.compact-mobile .inventory-card-details :deep(.detail-popover-trigger),
 	.compact-mobile .batch-badge,
 	.compact-mobile .expiry-badge {
-		min-height: 22px;
+		min-height: 32px;
 		padding: 1px 6px;
 		font-size: 9px;
+	}
+	.compact-mobile .inventory-card-details :deep(.detail-popover-trigger) {
+		min-height: 44px;
+		padding-inline: 9px;
 	}
 	.compact-mobile .inventory-card-totals {
 		gap: 2px 7px;

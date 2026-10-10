@@ -65,4 +65,40 @@ describe("browse action contracts", () => {
     expect(document.activeElement).toBe(wrapper.find(".action-fab").element);
     wrapper.unmount();
   });
+
+  it("does not open or emit when the trigger and menu actions are disabled", async () => {
+    const wrapper = mount(FloatingActionMenu, {
+      props: {
+        actions: [
+          { kind: "Receive", label: "入库", disabled: true },
+          { kind: "Issue", label: "出库", loading: true },
+        ],
+      },
+    });
+    const trigger = wrapper.find<HTMLButtonElement>(".action-fab");
+    expect(trigger.attributes("disabled")).toBeDefined();
+    await trigger.trigger("click");
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+    expect(wrapper.emitted("select")).toBeUndefined();
+  });
+
+  it("skips disabled menu items during keyboard navigation", async () => {
+    const wrapper = mount(FloatingActionMenu, {
+      props: {
+        actions: [
+          { kind: "Receive", label: "入库" },
+          { kind: "Issue", label: "出库", disabled: true },
+          { kind: "Transfer", label: "转移" },
+        ],
+      },
+      attachTo: document.body,
+    });
+    await wrapper.find(".action-fab").trigger("click");
+    const actions = wrapper.findAll<HTMLButtonElement>('[role="menuitem"]');
+    await actions[0].trigger("keydown", { key: "ArrowDown" });
+    expect(document.activeElement).toBe(actions[2].element);
+    await actions[2].trigger("keydown", { key: "ArrowDown" });
+    expect(document.activeElement).toBe(actions[0].element);
+    wrapper.unmount();
+  });
 });
