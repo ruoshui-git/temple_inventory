@@ -21,6 +21,10 @@ import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
+import PageActionMenu from "../../components/PageActionMenu.vue";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import MovementLocation from "../../components/MovementLocation.vue";
+import MovementFlow from "../../components/MovementFlow.vue";
 import { type MovementsController, type Kind } from "./useMovementsController";
 
 const props = defineProps<{
@@ -218,9 +222,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						>
 						<div v-if="!compact" class="movement-title">
 							<h1>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</h1>
-							<span class="movement-count"
-								>{{ total }} {{ mode === "items" ? "条明细" : "条记录" }}</span
-							>
 						</div>
 						<MovementPeriodSelector
 							v-model:period-key="filters.period_key"
@@ -277,75 +278,66 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						>
 							列汇总
 						</UiButton>
-						<details
+						<PageActionMenu
 							v-if="surface === 'desktop' && pageActions.length"
-							class="new-record-menu"
-						>
-							<summary
-								class="primary toolbar-action"
-								:class="{ disabled: pageActionsDisabled }"
-								:aria-disabled="pageActionsDisabled"
-								:tabindex="pageActionsDisabled ? -1 : 0"
-							>
-								<span aria-hidden="true">＋</span> 新增记录
-							</summary>
-							<div role="menu">
-								<button
-									v-for="action in pageActions"
-									:key="action.kind"
-									type="button"
-									:disabled="action.disabled"
-									@click="selectPageAction(action.kind)"
-								>
-									{{ action.label }}
-								</button>
-							</div>
-						</details>
+							:actions="pageActions"
+							:disabled="pageActionsDisabled"
+							label="新增记录"
+							@select="selectPageAction"
+						/>
 					</div>
-					<div class="movement-kind-chips" role="toolbar" aria-label="动作筛选">
-						<button
-							type="button"
-							:aria-pressed="!filters.kinds.length"
-							@click="clearKinds"
-						>
-							全部 <span>{{ allTotal }}</span></button
-						><button
-							v-for="kind in kinds"
-							:key="kind"
-							v-show="visibleKinds.includes(kind)"
-							type="button"
-							class="movement-kind-chip"
-							:class="{
-								'movement-kind-chip-zero': !visibleKinds.includes(kind),
-								'movement-kind-chip-empty': Number(counts[kind] || 0) === 0,
-							}"
-							:aria-hidden="!visibleKinds.includes(kind)"
-							:tabindex="visibleKinds.includes(kind) ? 0 : -1"
-							:disabled="!visibleKinds.includes(kind)"
-							:data-kind="kind"
-							:data-tone="kindMeta[kind].tone"
-							:aria-pressed="filters.kinds.includes(kind)"
-							@click="toggleKind(kind)"
-						>
-							<span class="kind-icon" aria-hidden="true">{{
-								kindMeta[kind].icon
-							}}</span>
-							{{ kindMeta[kind].label }} <span>{{ counts[kind] || 0 }}</span>
-						</button>
-						<button
-							v-if="zeroKindCount"
-							type="button"
-							class="movement-zero-kinds-toggle"
-							:aria-expanded="zeroKindsExpanded"
-							:aria-label="
-								zeroKindsExpanded
-									? '收起无记录动作'
-									: `展开无记录 ${zeroKindCount}`
-							"
-							@click="zeroKindsExpanded = !zeroKindsExpanded"
-						>
-							{{ zeroKindsExpanded ? "收起无记录" : `无记录 ${zeroKindCount}` }}
-						</button>
+					<div class="browse-result-meta">
+						<div class="movement-kind-chips" role="toolbar" aria-label="动作筛选">
+							<button
+								type="button"
+								:aria-pressed="!filters.kinds.length"
+								@click="clearKinds"
+							>
+								全部 <span>{{ allTotal }}</span></button
+							><button
+								v-for="kind in kinds"
+								:key="kind"
+								v-show="visibleKinds.includes(kind)"
+								type="button"
+								class="movement-kind-chip"
+								:class="{
+									'movement-kind-chip-zero': !visibleKinds.includes(kind),
+									'movement-kind-chip-empty': Number(counts[kind] || 0) === 0,
+								}"
+								:aria-hidden="!visibleKinds.includes(kind)"
+								:tabindex="visibleKinds.includes(kind) ? 0 : -1"
+								:disabled="!visibleKinds.includes(kind)"
+								:data-kind="kind"
+								:data-tone="kindMeta[kind].tone"
+								:aria-pressed="filters.kinds.includes(kind)"
+								@click="toggleKind(kind)"
+							>
+								<span class="kind-icon" aria-hidden="true">{{
+									kindMeta[kind].icon
+								}}</span>
+								{{ kindMeta[kind].label }} <span>{{ counts[kind] || 0 }}</span>
+							</button>
+							<button
+								v-if="zeroKindCount"
+								type="button"
+								class="movement-zero-kinds-toggle"
+								:aria-expanded="zeroKindsExpanded"
+								:aria-label="
+									zeroKindsExpanded
+										? '收起无记录动作'
+										: `展开无记录 ${zeroKindCount}`
+								"
+								@click="zeroKindsExpanded = !zeroKindsExpanded"
+							>
+								{{ zeroKindsExpanded ? "收起无记录" : `无记录 ${zeroKindCount}` }}
+							</button>
+						</div>
+						<ResultCountStrip
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="allTotal ?? total"
+							:updating="busy && rows.length > 0"
+						/>
 					</div>
 				</header>
 				<div ref="scrollRoot" class="results-scroll" @scroll.passive="onResultsScroll">
@@ -412,14 +404,22 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						<template #cell-quantity="{ row }">{{
 							mode === "items" ? quantity(row) : recordQuantity(row)
 						}}</template>
-						<template #cell-from="{ row }">{{ fromLocation(row) }}</template>
-						<template #cell-to="{ row }">{{ toLocation(row) }}</template>
+						<template #cell-from="{ row }"
+							><MovementLocation :name="row.source_warehouse" :rows="warehouseRows"
+						/></template>
+						<template #cell-to="{ row }"
+							><MovementLocation
+								:name="row.destination_warehouse"
+								:rows="warehouseRows"
+						/></template>
 						<template #cell-line_count="{ row }"
 							><RouterLink :to="recordRoute(row)" data-row-control @click.stop
 								>{{ row.line_count }} 项</RouterLink
 							></template
 						>
-						<template #cell-flow="{ row }">{{ recordFlow(row) }}</template>
+						<template #cell-flow="{ row }"
+							><MovementFlow :row="row" :rows="warehouseRows"
+						/></template>
 						<template #cell-activity="{ row }">{{
 							row.activity_title || row.activity || "—"
 						}}</template>
@@ -474,9 +474,8 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 										<div>
 											<dt>从 / 到</dt>
 											<dd>
-												{{ fromLocation(row) }} → {{ toLocation(row) }}
-											</dd>
-										</div></template
+												<MovementFlow :row="row" :rows="warehouseRows" />
+											</dd></div></template
 									><template v-else
 										><div>
 											<dt>物品行数</dt>
@@ -495,9 +494,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 										</div>
 										<div>
 											<dt>流向</dt>
-											<dd>{{ recordFlow(row) }}</dd>
-										</div></template
-									>
+											<dd>
+												<MovementFlow :row="row" :rows="warehouseRows" />
+											</dd></div
+									></template>
 									<div>
 										<dt>活动</dt>
 										<dd>{{ row.activity_title || row.activity || "—" }}</dd>

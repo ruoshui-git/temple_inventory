@@ -13,6 +13,7 @@ import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import ExpiryCardGrid from "../../components/ExpiryCardGrid.vue";
 import MobileSubnav from "../../components/MobileSubnav.vue";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 
 const props = defineProps<{ controller: ExpiryController }>();
 const {
@@ -23,6 +24,7 @@ const {
 	refreshing,
 	appending,
 	total,
+	overallTotal,
 	facetCounts,
 	panelFilters,
 	warehouseNodes,
@@ -128,7 +130,6 @@ onBeforeUnmount(() => {
 				<div class="mobile-title-row">
 					<div>
 						<h1>效期批次</h1>
-						<span>{{ total }} 个批次</span>
 					</div>
 				</div>
 				<MobileSubnav
@@ -196,14 +197,21 @@ onBeforeUnmount(() => {
 						已过期 <span>{{ expirySummary.expired }}</span>
 					</button>
 				</div>
-				<ActiveFilterChips
-					:chips="chips"
-					:show-clear="false"
-					@remove="removeChip"
-					@clear="clearAll"
-				/>
+				<div class="browse-result-meta">
+					<ActiveFilterChips
+						:chips="chips"
+						:show-clear="false"
+						@remove="removeChip"
+						@clear="clearAll"
+					/>
+					<ResultCountStrip
+						:loaded="rows.length"
+						:filtered="total"
+						:overall="overallTotal"
+						:updating="refreshing"
+					/>
+				</div>
 				<div class="mobile-result-controls">
-					<span aria-live="polite">共 {{ total }} 个批次</span>
 					<button
 						type="button"
 						class="mobile-summary-trigger"

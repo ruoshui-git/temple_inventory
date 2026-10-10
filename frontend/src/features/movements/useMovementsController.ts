@@ -10,7 +10,10 @@ import type {
 
 import { api, labels, workspaceApi } from "../../lib/api";
 
-import { warehousePresentation } from "../../lib/warehousePresenter";
+import {
+  movementWarehouseRows,
+  warehousePresentation,
+} from "../../lib/warehousePresenter";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { PageAction } from "../../components/pageActions";
 
@@ -113,7 +116,12 @@ export function useMovementsController() {
     docstatuses: [0, 1],
     kinds: [],
   });
-  const warehouseRows = computed(() => boot.value?.physical_tree || []);
+  const warehouseRows = computed(() =>
+    movementWarehouseRows(
+      boot.value?.physical_tree || [],
+      boot.value?.system_warehouses || {},
+    ),
+  );
   const operationKinds = computed(() =>
     kinds.filter(
       (kind) =>
@@ -484,7 +492,9 @@ export function useMovementsController() {
         ? [...rows.value, ...(data.results || [])]
         : data.results || [];
       total.value = Number(data.total || 0);
-      allTotal.value = Number(data.all_total ?? data.total ?? 0);
+      allTotal.value = Number(
+        data.overall_total ?? data.all_total ?? data.total ?? 0,
+      );
       counts.value = data.facets?.movement_kind || {};
       columnSummaries.value = data.column_summaries || {};
       resolved.value = data.resolved_period || resolved.value;

@@ -4,6 +4,7 @@ import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import Scanner from "../../components/Scanner.vue";
 import IconButton from "../../components/IconButton.vue";
 import UiButton from "../../components/UiButton.vue";
+import AsyncImage from "../../components/AsyncImage.vue";
 import { type ItemDetailController } from "./useItemDetailController";
 
 const props = defineProps<{ controller: ItemDetailController }>();
@@ -88,7 +89,7 @@ const {
 				@close="scanner = false"
 			/>
 			<section v-if="selectedImage" class="item-gallery">
-				<img
+				<AsyncImage
 					class="item-gallery-hero"
 					:src="selectedImage.file_url"
 					:alt="item.item_name"
@@ -102,7 +103,12 @@ const {
 						:aria-label="`查看 ${image.file_name}`"
 						@click="chosen = image.file_url"
 					>
-						<img :src="image.file_url" :alt="image.file_name" />
+						<AsyncImage
+							:src="image.file_url"
+							:alt="image.file_name"
+							width="54"
+							height="54"
+						/>
 					</button>
 				</div>
 			</section>
@@ -111,8 +117,7 @@ const {
 			<p>{{ item.description }}</p>
 			<p>
 				可用 {{ item.available_stock }} · 总计 {{ item.total_stock }} · 借出
-				{{ item.on_loan_qty }} · 损坏 {{ item.damaged_qty }} · 未定位
-				{{ item.pending_qty }} {{ item.stock_uom }}
+				{{ item.on_loan_qty }} · 损坏 {{ item.damaged_qty }} {{ item.stock_uom }}
 			</p>
 			<div class="detail-actions">
 				<template

@@ -19,6 +19,7 @@ import ExportDialog from "../../components/ExportDialog.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import UiButton from "../../components/UiButton.vue";
 import { type HistoryController } from "./useHistoryController";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 
 const props = defineProps<{
 	controller: HistoryController;
@@ -232,13 +233,16 @@ onBeforeUnmount(() => {
 							@click="exportOpen = true"
 							>导出</UiButton
 						>
-						<span aria-live="polite">{{
-							refreshing
-								? "正在更新…"
-								: `已加载 ${rows.length} · 筛选结果 ${total} · 全部记录 ${overallTotal}`
-						}}</span>
 					</div>
-					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+					<div class="browse-result-meta">
+						<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+						<ResultCountStrip
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="overallTotal"
+							:updating="refreshing"
+						/>
+					</div>
 					<QuantitySummary :metrics="summaryMetrics" :loading="busy || refreshing" />
 				</div>
 				<div ref="resultsScroll" class="results-scroll">

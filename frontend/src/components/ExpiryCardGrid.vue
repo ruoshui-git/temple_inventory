@@ -100,37 +100,7 @@ function activate(row: ExpiryCardRow, event: Event) {
 							}}：{{ format(location.qty) }} {{ row.stock_uom }}
 						</p>
 					</DetailPopover>
-					<DetailPopover
-						:label="`${row.item_name}的批次信息`"
-						:trigger-text="`批次 ${row.batch_no}`"
-					>
-						<p :class="{ 'expired-location': Number(row.days_to_expiry) < 0 }">
-							{{ row.expiry_date || "无效期" }} · {{ format(row.total_qty) }}
-							{{ row.stock_uom }} ·
-							{{
-								row.days_to_expiry == null
-									? "无效期"
-									: formatExpiryDuration(row.days_to_expiry)
-							}}
-						</p>
-					</DetailPopover>
 				</div>
-				<DetailPopover
-					v-else
-					:label="`${row.item_name}的批次信息`"
-					:trigger-text="`批次 ${row.batch_no}`"
-					data-card-control
-				>
-					<p :class="{ 'expired-location': Number(row.days_to_expiry) < 0 }">
-						{{ row.expiry_date || "无效期" }} · {{ format(row.total_qty) }}
-						{{ row.stock_uom }} ·
-						{{
-							row.days_to_expiry == null
-								? "无效期"
-								: formatExpiryDuration(row.days_to_expiry)
-						}}
-					</p>
-				</DetailPopover>
 			</ImageForwardCard>
 		</article>
 		<p v-if="!loading && !loadingMore && !error && !rows.length" class="expiry-card-state">

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AsyncImage from "./AsyncImage.vue";
+
 type Attachment = {
 	name: string;
 	file_name?: string;
@@ -58,10 +60,12 @@ function isImage(file: Attachment) {
 		<div class="attachment-grid">
 			<article v-for="file in attachments" :key="file.name">
 				<a :href="file.file_url" target="_blank" rel="noopener">
-					<img
+					<AsyncImage
 						v-if="isImage(file) && file.file_url"
 						:src="file.file_url"
 						:alt="file.file_name || '附件'"
+						width="60"
+						height="60"
 						class="thumb"
 					/>
 					<span>{{ file.file_name || file.name }}</span>

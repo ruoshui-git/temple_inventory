@@ -184,6 +184,37 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-10-10:** Expiry batch identity is rendered once per browse result. The
+  batch number remains in the item identity/card text; the redundant batch
+  popover is removed while location popovers remain available for per-location
+  quantities. Shared desktop browse table headers apply sticky positioning to
+  each `th` so they remain legible inside the results scroller. Operation-level
+  movement records preserve first-occurrence source/destination branches and
+  render each branch independently, including mixed Return destinations.
+  Browse result metadata places left-to-right filter chips beside a right-
+  aligned complete-result count strip. Responsive filter panels with a custom
+  trigger hide their built-in trigger, and filter rails/drawers use one
+  continuous background.
+
+- **2026-10-10:** User-content images use one lazy async-image contract: a
+  size-matched skeleton while loading, a stable no-image/error fallback, and a
+  reset whenever the source changes. Inventory card images remain inert while
+  table thumbnails retain preview behavior. Browse pages keep a persistent
+  `已加载 · 筛选结果 · 全部` result strip and omit duplicate title-adjacent
+  totals; `全部` is the permission-scoped base view/status count before search
+  and browse filters. Desktop multi-action creation uses the shared keyboard-
+  accessible menu, closing on selection, outside press, Escape, focus leaving,
+  and unmount; mobile continues to use the shared FAB menu. Truncated notes are
+  text-like controls with a subtle affordance rather than chips while retaining
+  hover, focus, touch, outside-click, and Escape popover behavior.
+
+- **2026-10-10:** Movement locations present operational system warehouses as
+  short `借出` and `损坏待处理` labels with a restrained icon/accent treatment;
+  ordinary locations retain breadcrumbs. `未定位` is retired as a system
+  warehouse and Pending is damaged-stock-only. Loans use the compact browse
+  shell, status-aware titles, complete-result quantity summaries, adaptive
+  cards/table, and permitted `新建借出` plus `新建归还` actions.
+
 - **2026-10-10:** Browse creation actions use one shared action model. Mobile
   browse surfaces expose permitted actions through an expandable `＋` FAB;
   desktop surfaces keep actions in an immediately reserved top-right group,

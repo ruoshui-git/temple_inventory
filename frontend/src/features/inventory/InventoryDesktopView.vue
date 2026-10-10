@@ -14,6 +14,7 @@ import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import UiButton from "../../components/UiButton.vue";
 import { type InventoryController } from "./useInventoryController";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 
 const props = defineProps<{ controller: InventoryController }>();
 const {
@@ -110,7 +111,6 @@ onBeforeUnmount(() => {
 					<div class="inventory-heading">
 						<div class="inventory-title">
 							<h1>{{ pageTitle }}</h1>
-							<span>{{ total }} 件物品</span>
 						</div>
 						<div class="inventory-heading-actions">
 							<UiButton
@@ -217,10 +217,6 @@ onBeforeUnmount(() => {
 						<span v-if="!chips.length" class="no-filters"
 							>全部仓库 · 全部类别 · 全部状态</span
 						>
-						<span class="inventory-result-count" aria-live="polite"
-							>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部
-							{{ overall ?? total }}</span
-						>
 						<label v-if="view === 'card'" class="inventory-sort"
 							>排序
 							<select
@@ -253,6 +249,12 @@ onBeforeUnmount(() => {
 						>
 							{{ sort.sort_order === "asc" ? "升序 ↑" : "降序 ↓" }}
 						</button>
+						<ResultCountStrip
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="overall ?? total"
+							:updating="loading && rows.length > 0"
+						/>
 					</div>
 				</div>
 				<div ref="resultsScroll" class="results-scroll" @scroll.passive="onResultsScroll">

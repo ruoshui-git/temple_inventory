@@ -8,7 +8,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.09.real-costumes"
+VERSION = "2026.10.system-warehouse-contract"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (

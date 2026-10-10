@@ -22,12 +22,14 @@ from temple_inventory.inventory_api import (
 	_selected_leaf_warehouses,
 	_selection_values,
 	_settings,
+	_system_warehouse_presentation,
 	_user_facing_warehouse_presentation,
 	_visible_warehouses,
 )
 from temple_inventory.workspace_api import (
 	MOVEMENT_LEDGER_KINDS,
 	MOVEMENT_OVERVIEW_KINDS,
+	_history_hydrate_item_metadata,
 	_ledger_activity_titles,
 	_ledger_item_rows,
 	_movement_history_records,
@@ -299,6 +301,12 @@ def _movement_sheets(filters):
 			if name not in warehouse_labels
 		}
 	)
+	warehouse_labels.update(
+		{
+			metadata["name"]: metadata["label"]
+			for metadata in _system_warehouse_presentation(settings).values()
+		}
+	)
 	activity_names = {row.get("activity") for row in rows if row.get("activity")}
 	activities = {
 		row.name: row.title
@@ -393,6 +401,7 @@ def _movement_ledger_sheets(filters):
 	if any(kind not in MOVEMENT_LEDGER_KINDS for kind in requested):
 		frappe.throw(_("Invalid movement kind"))
 	records = _movement_history_records({**filters, "movement_kinds": requested}, docstatuses=[1])
+	_history_hydrate_item_metadata(records)
 	rows = _ledger_item_rows(records)
 	_ledger_activity_titles(rows)
 	settings = _settings()
@@ -400,6 +409,12 @@ def _movement_ledger_sheets(filters):
 		row["name"]: row["breadcrumb"]
 		for row in _user_facing_warehouse_presentation(settings, _physical_tree(settings))
 	}
+	warehouse_labels.update(
+		{
+			metadata["name"]: metadata["label"]
+			for metadata in _system_warehouse_presentation(settings).values()
+		}
+	)
 	for row in rows:
 		row["movement_kind_label"] = MOVEMENT_LABELS[row["movement_kind"]]
 		row["source_warehouse"] = warehouse_labels.get(row.get("source_warehouse"), "")
@@ -423,9 +438,16 @@ def _movement_record_sheets(filters):
 	if any(status not in (0, 1, 2) for status in statuses):
 		frappe.throw(_("Invalid document status"))
 	records = _movement_history_records({**filters, "movement_kinds": requested}, docstatuses=statuses)
+	_history_hydrate_item_metadata(records)
 	rows = []
 	settings = _settings()
 	warehouse_labels = {row["name"]: row["breadcrumb"] for row in _user_facing_warehouse_presentation(settings, _physical_tree(settings))}
+	warehouse_labels.update(
+		{
+			metadata["name"]: metadata["label"]
+			for metadata in _system_warehouse_presentation(settings).values()
+		}
+	)
 	all_record_items = _ledger_item_rows(records)
 	_ledger_activity_titles(all_record_items)
 	activity_titles = {

@@ -33,14 +33,7 @@ export function usePendingController() {
     );
   const error = ref(""),
     loading = ref(true),
-    loadingMore = ref(false),
-    mode = ref<"all" | "damaged" | "unlocated">(
-      route.query.mode === "unlocated"
-        ? "unlocated"
-        : route.query.mode === "all"
-          ? "all"
-          : "damaged",
-    );
+    loadingMore = ref(false);
 
   const filterOpen = ref(false);
   const desktopFilterOpen = ref(false);
@@ -58,11 +51,6 @@ export function usePendingController() {
       key: "damaged_qty",
       label: "损坏",
       quantities: quantityTotals.value.damaged_qty || [],
-    },
-    {
-      key: "pending_qty",
-      label: "未定位",
-      quantities: quantityTotals.value.pending_qty || [],
     },
   ]);
   const warehouseText = (name: string) =>
@@ -95,7 +83,6 @@ export function usePendingController() {
     error.value = "";
     try {
       const data = await api("pending", {
-        mode: mode.value,
         ...filters.value,
         warehouses: filters.value.warehouses.length
           ? filters.value.warehouses
@@ -157,12 +144,12 @@ export function usePendingController() {
     void returnToOpener(router, "/");
   }
   watch(
-    [mode, filters],
+    filters,
     () => {
       if (!boot.value) return;
       if (timer) clearTimeout(timer);
       void router.replace({
-        query: { ...serializeFilterQuery(filters.value), mode: mode.value },
+        query: serializeFilterQuery(filters.value),
       });
       timer = setTimeout(() => void load(), 280);
     },
@@ -171,12 +158,6 @@ export function usePendingController() {
   watch(
     () => route.query,
     (query) => {
-      mode.value =
-        query.mode === "unlocated"
-          ? "unlocated"
-          : query.mode === "all"
-            ? "all"
-            : "damaged";
       const next = hydrateFilterQuery(
         query as Record<string, unknown>,
         filters.value,
@@ -217,7 +198,6 @@ export function usePendingController() {
     error,
     loading,
     loadingMore,
-    mode,
     filterOpen,
     desktopFilterOpen,
     operationCaps,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InventoryIcon from "./InventoryIcon.vue";
 import DetailPopover from "./DetailPopover.vue";
-import { formatExpiryDuration } from "../lib/duration";
+import AsyncImage from "./AsyncImage.vue";
 
 type ExpiryRow = {
 	batch_no: string;
@@ -78,33 +78,21 @@ function activate(row: ExpiryRow, event: Event) {
 				@keydown="activateKey(row, $event)"
 			>
 				<span class="mobile-expiry-result-image">
-					<img
+					<AsyncImage
 						v-if="row.image"
 						:src="row.image"
 						:alt="row.item_name"
-						loading="lazy"
-						decoding="async"
+						class="mobile-expiry-result-image__asset"
 					/>
 					<InventoryIcon v-else name="box" />
 				</span>
 				<span class="mobile-expiry-result-copy">
 					<b>{{ row.item_name }}</b>
-					<small>{{ row.item_code }} · {{ row.item_group }}</small>
+					<small
+						>{{ row.item_code }} · 批次 {{ row.batch_no }} ·
+						{{ row.item_group }}</small
+					>
 					<span class="expiry-result-chips" data-row-control>
-						<DetailPopover
-							:label="`${row.item_name}的批次信息`"
-							:trigger-text="`批次 ${row.batch_no}`"
-						>
-							<p :class="{ 'expired-location': Number(row.days_to_expiry) < 0 }">
-								{{ row.expiry_date || "无效期" }} · {{ format(row.total_qty) }}
-								{{ row.stock_uom }} ·
-								{{
-									row.days_to_expiry == null
-										? "无效期"
-										: formatExpiryDuration(row.days_to_expiry)
-								}}
-							</p>
-						</DetailPopover>
 						<DetailPopover
 							v-if="row.locations?.length"
 							:label="`${row.item_name}的库位信息`"
@@ -232,6 +220,10 @@ function activate(row: ExpiryRow, event: Event) {
 	padding: 0;
 	border: 0;
 	object-fit: contain;
+}
+.mobile-expiry-result-image :deep(.mobile-expiry-result-image__asset) {
+	width: 100%;
+	height: 100%;
 }
 .mobile-expiry-result-copy {
 	display: flex;

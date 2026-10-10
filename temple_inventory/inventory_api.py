@@ -29,14 +29,16 @@ MOVEMENT_TYPES = {
 
 SYSTEM_WAREHOUSE_NAMES = {
 	"root_warehouse": "寺院仓库",
-	"pending_warehouse": "未定位",
 	"leased_warehouse": "借出",
 	"default_lease_program_warehouse": "借出",
 	"damaged_warehouse": "损坏待处理",
 	"virtual_root_warehouse": "虚拟库房",
 	"physical_root_warehouse": "实体库房",
 	"loan_warehouse": "借出",
-	"unlocated_warehouse": "未定位",
+}
+SYSTEM_WAREHOUSE_PRESENTATION = {
+	"loan_warehouse": {"label": "借出", "kind": "loan"},
+	"damaged_warehouse": {"label": "损坏待处理", "kind": "damaged"},
 }
 DEFAULT_LOCATION_NAME = "未分类库位"
 TEMPLE_NAMES = ("第1寺院", "第2寺院")
@@ -156,6 +158,31 @@ def _allowed_warehouses(settings=None):
 def _system_warehouse_names(settings=None):
 	settings = settings or _settings()
 	return {name for field in SYSTEM_WAREHOUSE_NAMES if (name := settings.get(field))}
+
+
+def _system_warehouse_presentation(settings=None):
+	"""Return short, presentation-only metadata for operational system leaves.
+
+	ERPNext's warehouse document name commonly includes the company suffix.  The
+	volunteer UI and movement exports must use the stable short labels instead;
+	this payload deliberately contains no hidden warehouse tree data.
+	"""
+	settings = settings or _settings()
+	visible = _visible_warehouses(settings)
+	result = {}
+	for field, metadata in SYSTEM_WAREHOUSE_PRESENTATION.items():
+		name = settings.get(field)
+		if not name or name not in visible or not frappe.has_permission("Warehouse", "read", name):
+			continue
+		row = visible[name]
+		result[field] = {
+			"name": name,
+			"label": metadata["label"],
+			"kind": metadata["kind"],
+			"is_group": bool(row.is_group),
+			"warehouse_name": metadata["label"],
+		}
+	return result
 
 
 def _physical_warehouses(settings=None):
@@ -407,8 +434,6 @@ def _resolve_system_warehouses(company, settings=None):
 	names["loan_warehouse"] = find("loan_warehouse", "借出", names["virtual_root_warehouse"])
 	names["leased_warehouse"] = names["loan_warehouse"] or find("leased_warehouse", "借出", names["root_warehouse"])
 	names["damaged_warehouse"] = find("damaged_warehouse", "损坏待处理", names["virtual_root_warehouse"]) or find("damaged_warehouse", "损坏", names["root_warehouse"])
-	names["unlocated_warehouse"] = find("unlocated_warehouse", "未定位", names["virtual_root_warehouse"]) or find("pending_warehouse", "未定位", names["root_warehouse"])
-	names["pending_warehouse"] = names["unlocated_warehouse"]
 	names["default_lease_program_warehouse"] = names["loan_warehouse"]
 	return names, rows
 
@@ -417,7 +442,7 @@ def _physical_leaves(rows, names):
 	root, leased = rows.get(names.get("root_warehouse")), rows.get(names.get("leased_warehouse"))
 	if not root:
 		return {}
-	system = {name for name in names.values() if name} - {names.get("unlocated_warehouse") or names.get("pending_warehouse")}
+	system = {name for name in names.values() if name}
 	return {
 		name: row
 		for name, row in rows.items()
@@ -525,11 +550,10 @@ def _create_structure(company, include_examples=False):
 	virtual = _ensure_warehouse("虚拟库房", company, root, is_group=1, warehouse_type="虚拟", rows=rows)
 	loan = _ensure_warehouse("借出", company, virtual, warehouse_type="虚拟", rows=rows)
 	damaged = _ensure_warehouse("损坏待处理", company, virtual, warehouse_type="虚拟", rows=rows)
-	unlocated = _ensure_warehouse("未定位", company, virtual, warehouse_type="虚拟", rows=rows)
 	physical = _ensure_warehouse("实体库房", company, root, is_group=1, warehouse_type="地点", rows=rows)
 	names = {"root_warehouse":root, "virtual_root_warehouse":virtual, "physical_root_warehouse":physical,
 		"leased_warehouse":loan, "default_lease_program_warehouse":loan, "loan_warehouse":loan,
-		"damaged_warehouse":damaged, "unlocated_warehouse":unlocated, "pending_warehouse":unlocated}
+		"damaged_warehouse":damaged}
 	_save_system_links(settings, company, names)
 	allowed=[]
 	fallback_roles = []
@@ -634,6 +658,24 @@ def verify_development_sample():
 	presentation = _user_facing_warehouse_presentation(settings, physical)
 	infrastructure = set(SYSTEM_WAREHOUSE_NAMES.values()) | {"寺院仓库", "实体库房", "虚拟库房"}
 	issues = []
+	if frappe.db.exists("Custom Field", "Warehouse-ti_system_role"):
+		unlocated_system_rows = frappe.db.sql(
+			"""select name from `tabWarehouse`
+			where company=%s and (
+				ti_system_role=%s or (warehouse_name=%s and parent_warehouse=%s)
+			)""",
+			(settings.company, "未定位", "未定位", settings.virtual_root_warehouse),
+			as_dict=True,
+		)
+	else:
+		unlocated_system_rows = frappe.db.sql(
+			"""select name from `tabWarehouse`
+			where company=%s and warehouse_name=%s and parent_warehouse=%s""",
+			(settings.company, "未定位", settings.virtual_root_warehouse),
+			as_dict=True,
+		)
+	if unlocated_system_rows:
+		issues.append("检测到已移除的未定位系统仓库或系统角色")
 	invalid_items = frappe.db.sql(
 		"select name from `tabItem` where name like 'ITM-%' and name not regexp '^ITM-[0-9]{6}$'",
 		as_dict=True,
@@ -1345,6 +1387,7 @@ def warehouse_management_bootstrap():
 	return {
 		"is_manager": is_manager,
 		"settings": {key: settings.get(key) for key in set(SYSTEM_WAREHOUSE_NAMES) | {"company"}},
+		"system_warehouses": _system_warehouse_presentation(settings),
 		"warehouse_tree": _user_facing_warehouse_presentation(settings, physical_tree),
 		"physical_tree": _user_facing_warehouse_presentation(settings, physical_tree),
 		"warehouses": list(_allowed_warehouses(settings).values()),
@@ -1430,7 +1473,7 @@ def bootstrap():
 		where iw.company=%s and (iw.stock_entry is null or se.docstatus=0)""",
 		settings.company,
 	)[0][0]
-	pending_rows = _bin_balances([settings.damaged_warehouse, settings.pending_warehouse])
+	pending_rows = _bin_balances([settings.damaged_warehouse])
 	pending_rows = [row for row in pending_rows if flt(row.actual_qty) > 0]
 	# A group-stock validation failure must not hide the management tree needed
 	# to repair it. Inventory browsing continues to reject this invalid state.
@@ -1457,14 +1500,12 @@ def bootstrap():
 		expiry_batch_count = 0
 	capabilities = _stock_operation_capabilities(settings)
 	damaged_count = len({row.item_code for row in pending_rows if row.warehouse == settings.damaged_warehouse})
-	unlocated_count = len({row.item_code for row in pending_rows if row.warehouse == settings.pending_warehouse})
 	return {
 		"user": frappe.session.user,
 		"is_manager": "System Manager" in frappe.get_roles(),
 		"initialization": initialization_status(),
 		"unfinished_count": unfinished_count,
 		"damaged_pending_count": damaged_count,
-		"unlocated_pending_count": unlocated_count,
 		"pending_count": pending_total,
 		"expiry_batch_count": expiry_batch_count,
 		"capabilities": {dt: frappe.has_permission(dt, "create") for dt in ("Item", "UOM", "Batch", "Inventory Activity", "Warehouse")},
@@ -1487,6 +1528,7 @@ def bootstrap():
 		),
 		"batch": {"enabled": bool(batch_enabled), "error": None if batch_enabled else "请在库存设置中启用批次功能", "settings_url": "/app/stock-settings"},
 		"settings": {key: settings.get(key) for key in set(SYSTEM_WAREHOUSE_NAMES) | {"company", "photo_required"}},
+		"system_warehouses": _system_warehouse_presentation(settings),
 		"warehouses": list(_allowed_warehouses(settings).values()),
 		"item_groups": groups,
 		"uoms": frappe.get_list("UOM", fields=["name", "uom_name"], order_by="uom_name", limit_page_length=0),
@@ -1637,7 +1679,7 @@ def warehouse_detail(warehouse):
 	}
 
 
-def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", pending_mode=None, leased_warehouses=None, item_names=None):
+def _inventory_item_candidate_query(warehouses, settings, group_names=None, search=None, needs_attention=False, mode="current", leased_warehouses=None, item_names=None):
 	"""Build the permission-aware SQL candidate set used by Inventory paging."""
 	warehouses = list(warehouses or [])
 	if not warehouses:
@@ -1646,12 +1688,12 @@ def _inventory_item_candidate_query(warehouses, settings, group_names=None, sear
 	leased_warehouses = sorted(set(leased_warehouses or set()) & set(warehouses))
 	reserved_warehouses = sorted(
 		name
-		for name in set(leased_warehouses) | {settings.pending_warehouse, settings.damaged_warehouse}
+		for name in set(leased_warehouses) | {settings.damaged_warehouse}
 		if name
 	)
 	leased_marks = ", ".join(["%s"] * len(leased_warehouses)) or "''"
 	reserved_marks = ", ".join(["%s"] * len(reserved_warehouses)) or "''"
-	params = [settings.pending_warehouse, settings.damaged_warehouse, *leased_warehouses, *reserved_warehouses, *warehouses]
+	params = [settings.damaged_warehouse, *leased_warehouses, *reserved_warehouses, *warehouses]
 	where = [
 		"i.disabled=0",
 		"i.is_stock_item=1",
@@ -1676,16 +1718,11 @@ def _inventory_item_candidate_query(warehouses, settings, group_names=None, sear
 	if mode != "catalog" and not needs_attention:
 		having.append("total_stock <> 0")
 	if needs_attention:
-		having.append("(pending_qty > 0 or damaged_qty > 0)")
-	if pending_mode == "damaged":
 		having.append("damaged_qty > 0")
-	elif pending_mode == "unlocated":
-		having.append("pending_qty > 0")
 	return (
 		"select i.name, i.item_code, i.item_name, i.item_group, i.stock_uom, i.image, "
 		"i.description, i.has_batch_no, "
 		"coalesce(sum(b.actual_qty), 0) as total_stock, "
-		"coalesce(sum(case when b.warehouse=%s then b.actual_qty else 0 end), 0) as pending_qty, "
 		"coalesce(sum(case when b.warehouse=%s then b.actual_qty else 0 end), 0) as damaged_qty, "
 		f"coalesce(sum(case when b.warehouse in ({leased_marks}) then b.actual_qty else 0 end), 0) as on_loan_qty, "
 		f"coalesce(sum(case when b.warehouse not in ({reserved_marks}) then b.actual_qty else 0 end), 0) as available_stock "
@@ -1854,12 +1891,12 @@ def _inventory_expiry_scope_fixture(items, warehouses, expiry_filter, expiry_day
 	return counts, matching
 
 
-def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, pending_mode, sort_state, expiry_filter, expiry_days, custom_from, custom_to):
+def _inventory_database_page(settings, warehouse_map, selected, search, item_group, needs_attention, mode, start, page_length, warehouses, item_groups, sort_state, expiry_filter, expiry_days, custom_from, custom_to):
 	selected_groups = _selection_values(item_groups if item_groups is not None else item_group)
 	group_names = _expiring_batch_group_names(selected_groups)
 	leased = _descendants(settings.leased_warehouse, warehouse_map)
 	unfiltered_sql, unfiltered_params = _inventory_item_candidate_query(
-		selected, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased
+		selected, settings, group_names, search, bool(needs_attention), mode, leased
 	)
 	candidate_rows = frappe.db.sql(
 		"select name, has_batch_no from (" + unfiltered_sql + ") candidates",
@@ -1876,7 +1913,6 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		search,
 		bool(needs_attention),
 		mode,
-		pending_mode,
 		leased,
 		matching_items if expiry_filter["window"] else None,
 	)
@@ -1884,8 +1920,8 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 	total = int(count_rows[0].total if count_rows else 0)
 	summary_rows = frappe.db.sql(
 		"select stock_uom, sum(available_stock) as available_stock, sum(total_stock) as total_stock, "
-		"sum(on_loan_qty) as on_loan_qty, sum(damaged_qty) as damaged_qty, "
-		"sum(pending_qty) as pending_qty from (" + base_sql + ") candidates group by stock_uom",
+		"sum(on_loan_qty) as on_loan_qty, sum(damaged_qty) as damaged_qty "
+		"from (" + base_sql + ") candidates group by stock_uom",
 		base_params,
 		as_dict=True,
 	)
@@ -1910,14 +1946,13 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		{row.name for row in page_rows if row.has_batch_no}, selected
 	)
 	leased = _descendants(settings.leased_warehouse, warehouse_map)
-	reserved = leased | {settings.damaged_warehouse, settings.pending_warehouse}
+	reserved = leased | {settings.damaged_warehouse}
 	rows = []
 	for item in page_rows:
 		stock = balances.get(item.name, {})
 		total_stock = sum(stock.values())
-		pending_qty = stock.get(settings.pending_warehouse, 0)
 		damaged_qty = stock.get(settings.damaged_warehouse, 0)
-		attention_reasons = ([] if not pending_qty else [{"code": "unlocated", "label": _("未定位 {0}").format(pending_qty)}])
+		attention_reasons = []
 		if damaged_qty:
 			attention_reasons.append({"code": "damaged", "label": _("损坏 {0}").format(damaged_qty)})
 		rows.append({
@@ -1941,26 +1976,19 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 			"available_stock": sum(qty for name, qty in stock.items() if name not in reserved),
 			"on_loan_qty": sum(qty for name, qty in stock.items() if name in leased),
 			"damaged_qty": damaged_qty,
-			"pending_qty": pending_qty,
 			"warehouse_stock": stock,
-			"needs_attention": bool(pending_qty or damaged_qty),
+			"needs_attention": bool(damaged_qty),
 			"attention_reasons": attention_reasons,
 		})
 	all_leaves = _selected_leaf_warehouses(None, warehouse_map)
-	all_unfiltered_sql, all_unfiltered_params = _inventory_item_candidate_query(
-		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased
-	)
-	all_candidate_rows = frappe.db.sql(
-		"select name, has_batch_no from (" + all_unfiltered_sql + ") candidates",
-		all_unfiltered_params,
-		as_dict=True,
-	)
-	all_expiry_items = _inventory_expiry_scope(
-		all_candidate_rows, all_leaves, expiry_filter, expiry_days, custom_from, custom_to
-	)[1]
 	all_sql, all_params = _inventory_item_candidate_query(
-		all_leaves, settings, group_names, search, bool(needs_attention), mode, pending_mode, leased,
-		all_expiry_items if expiry_filter["window"] else None,
+		all_leaves,
+		settings,
+		None,
+		None,
+		bool(needs_attention),
+		mode,
+		leased,
 	)
 	overall_rows = frappe.db.sql("select count(*) as total from (" + all_sql + ") candidates", all_params, as_dict=True)
 	overall = int(overall_rows[0].total if overall_rows else 0)
@@ -1975,7 +2003,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 	)
 	warehouse_facets = {row.warehouse: int(row.total) for row in warehouse_facet_rows}
 	group_unfiltered_sql, group_unfiltered_params = _inventory_item_candidate_query(
-		selected, settings, None, search, bool(needs_attention), mode, pending_mode, leased
+		selected, settings, None, search, bool(needs_attention), mode, leased
 	)
 	group_candidate_rows = frappe.db.sql(
 		"select name, has_batch_no from (" + group_unfiltered_sql + ") candidates",
@@ -1986,7 +2014,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		group_candidate_rows, selected, expiry_filter, expiry_days, custom_from, custom_to
 	)[1]
 	group_sql, group_params = _inventory_item_candidate_query(
-		selected, settings, None, search, bool(needs_attention), mode, pending_mode, leased,
+		selected, settings, None, search, bool(needs_attention), mode, leased,
 		group_expiry_items if expiry_filter["window"] else None,
 	)
 	group_facet_rows = frappe.db.sql(
@@ -2026,7 +2054,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 		group_facets[row.name] = int(row.total)
 	quantity_totals = _quantity_totals(
 		summary_rows,
-		("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
+		("available_stock", "total_stock", "on_loan_qty", "damaged_qty"),
 	)
 	return {
 		"results": rows,
@@ -2042,7 +2070,7 @@ def _inventory_database_page(settings, warehouse_map, selected, search, item_gro
 
 
 @frappe.whitelist()
-def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, pending_mode=None, sort_by=None, sort_order=None, in_stock=None, expiry_window="", expiry_days=30, expiry_from_days=None, expiry_to_days=None):
+def inventory(search=None, warehouse=None, item_group=None, needs_attention=False, mode="current", start=0, page_length=25, warehouses=None, item_groups=None, sort_by=None, sort_order=None, in_stock=None, expiry_window="", expiry_days=30, expiry_from_days=None, expiry_to_days=None):
 	_require_stock()
 	sort_state = _sort_state(sort_by, sort_order, {"item_name", "item_code", "available_stock", "total_stock", "on_loan_qty", "damaged_qty"}, "item_name")
 	if in_stock is not None:
@@ -2072,7 +2100,6 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			page_length,
 			warehouses,
 			item_groups,
-			pending_mode,
 			sort_state,
 			expiry_filter,
 			expiry_days_value,
@@ -2120,21 +2147,18 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 	)
 	if expiry_filter["window"]:
 		items = [item for item in items if item.name in matching_items]
-	reserved = _descendants(settings.leased_warehouse, warehouse_map) | {
-		settings.damaged_warehouse,
-		settings.pending_warehouse,
-	}
+	reserved = _descendants(settings.leased_warehouse, warehouse_map) | {settings.damaged_warehouse}
 	result = []
 	for item in items:
 		stock = balances.get(item.name, {})
-		total, pending, damaged = sum(stock.values()), stock.get(settings.pending_warehouse, 0), stock.get(settings.damaged_warehouse, 0)
+		total, damaged = sum(stock.values()), stock.get(settings.damaged_warehouse, 0)
 		if not total and mode != "catalog" and not needs_attention:
 			continue
-		# Operational pending is physical stock only.  Catalog completeness is
-		# valuable, but never creates a pending row or badge.
-		if needs_attention and not (pending or damaged):
+		# Catalog completeness is valuable, but attention rows only represent
+		# actionable damaged stock.
+		if needs_attention and not damaged:
 			continue
-		attention_reasons = ([] if not pending else [{"code": "unlocated", "label": _("未定位 {0}").format(pending)}])
+		attention_reasons = []
 		if damaged:
 			attention_reasons.append({"code": "damaged", "label": _("损坏 {0}").format(damaged)})
 		result.append(
@@ -2154,15 +2178,11 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 					if key in _descendants(settings.leased_warehouse, warehouse_map)
 				),
 				"damaged_qty": damaged,
-				"pending_qty": pending,
 				"warehouse_stock": dict(stock),
-				"needs_attention": bool(pending or damaged),
+				"needs_attention": bool(damaged),
 				"attention_reasons": attention_reasons,
 			}
 		)
-	if pending_mode in ("damaged", "unlocated"):
-		key = "damaged_qty" if pending_mode == "damaged" else "pending_qty"
-		result = [row for row in result if flt(row[key]) > 0]
 	result.sort(key=lambda row: (str(row["item_name"]).lower(), row["item_code"]))
 	if sort_state:
 		column, direction = sort_state
@@ -2197,13 +2217,8 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 
 	def included(item, stock):
 		total = sum(stock.values())
-		pending_qty = stock.get(settings.pending_warehouse, 0)
 		damaged_qty = stock.get(settings.damaged_warehouse, 0)
-		if needs_attention and not (pending_qty or damaged_qty):
-			return False
-		if pending_mode == "damaged" and not damaged_qty:
-			return False
-		if pending_mode == "unlocated" and not pending_qty:
+		if needs_attention and not damaged_qty:
 			return False
 		return not (not needs_attention and mode != "catalog" and not total)
 	for item in facet_items:
@@ -2261,13 +2276,8 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 			for item in all_items:
 				stock = all_balances.get(item.name, {})
 				total = sum(stock.values())
-				pending_qty = stock.get(settings.pending_warehouse, 0)
 				damaged_qty = stock.get(settings.damaged_warehouse, 0)
-				if needs_attention and not (pending_qty or damaged_qty):
-					continue
-				if pending_mode == "damaged" and not damaged_qty:
-					continue
-				if pending_mode == "unlocated" and not pending_qty:
+				if needs_attention and not damaged_qty:
 					continue
 				if not needs_attention and not total:
 					continue
@@ -2296,7 +2306,7 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 		)
 	page["quantity_totals"] = _quantity_totals(
 		result,
-		("available_stock", "total_stock", "on_loan_qty", "damaged_qty", "pending_qty"),
+		("available_stock", "total_stock", "on_loan_qty", "damaged_qty"),
 	)
 	page["column_summaries"] = _column_summaries(page["quantity_totals"])
 	page["overall_total"] = overall
@@ -2306,10 +2316,8 @@ def inventory(search=None, warehouse=None, item_group=None, needs_attention=Fals
 
 
 @frappe.whitelist()
-def pending(search=None, mode="all", start=0, page_length=25, warehouses=None, item_groups=None):
-	"""Return one server-paged actionable grouping, never a mixed page filtered in the UI."""
-	if mode not in ("all", "damaged", "unlocated"):
-		frappe.throw(_("Invalid pending mode"))
+def pending(search=None, start=0, page_length=25, warehouses=None, item_groups=None):
+	"""Return damaged stock requiring review, server-paged."""
 	return inventory(
 		search=search,
 		needs_attention=1,
@@ -2318,7 +2326,6 @@ def pending(search=None, mode="all", start=0, page_length=25, warehouses=None, i
 		page_length=page_length,
 		warehouses=warehouses,
 		item_groups=item_groups,
-		pending_mode=mode,
 	)
 
 
@@ -3006,6 +3013,7 @@ def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, 
 		return any(needle in str(value or "").lower() for value in values)
 
 	parents = []
+	overall_total = 0
 	for name, parent_rows in by_loan.items():
 		if name not in permitted_loans or not parent_rows:
 			continue
@@ -3013,6 +3021,16 @@ def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, 
 		# inaccessible Item or warehouse. Filter matching happens afterwards.
 		if any(row["item_code"] not in items or row["original_warehouse"] not in allowed_names for row in parent_rows):
 			continue
+		outstanding_values = [max(flt(row["outstanding"]), 0) for row in parent_rows]
+		outstanding_lines = sum(1 for value in outstanding_values if value > 0)
+		full_outstanding = all(
+			value >= flt(row["loaned"])
+			for row, value in zip(parent_rows, outstanding_values, strict=True)
+		)
+		loan_status = "Outstanding" if full_outstanding else ("Partially Returned" if outstanding_lines else "Settled")
+		if (status == "outstanding" and loan_status == "Settled") or (status == "settled" and loan_status != "Settled"):
+			continue
+		overall_total += 1
 		if loan_date and str(parent_rows[0]["loan_date"])[:10] != str(loan_date):
 			continue
 		if activity and not any(row.get("activity") == activity for row in parent_rows):
@@ -3026,17 +3044,10 @@ def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, 
 		# Keep the full permitted parent for line counts/status, even when a
 		# warehouse/category/activity filter matched only one line.
 		full_items = []
-		outstanding_lines = 0
-		full_outstanding = True
 		for row in parent_rows:
 			outstanding = max(flt(row["outstanding"]), 0)
-			outstanding_lines += int(outstanding > 0)
-			full_outstanding = full_outstanding and outstanding >= flt(row["loaned"])
 			meta = items[row["item_code"]]
 			full_items.append({"loan_item": row["loan_item"], "item_code": row["item_code"], "item_name": meta.item_name, "image": meta.image, "uom": row.get("uom"), "stock_uom": meta.stock_uom, "loaned": row["loaned"], "outstanding": outstanding})
-		loan_status = "Outstanding" if full_outstanding else ("Partially Returned" if outstanding_lines else "Settled")
-		if (status == "outstanding" and loan_status == "Settled") or (status == "settled" and loan_status != "Settled"):
-			continue
 		parent = {"name": name, "borrower": parent_rows[0].get("borrower"), "loan_date": parent_rows[0]["loan_date"], "activity": parent_rows[0].get("activity"), "activity_title": (activities.get(parent_rows[0].get("activity")) or {}).get("title"), "line_count": len(parent_rows), "outstanding_lines": outstanding_lines, "loan_status": loan_status, "items": full_items[:5]}
 		parent_quantities = {"loaned_qty": defaultdict(float), "outstanding_qty": defaultdict(float)}
 		for row in parent_rows:
@@ -3081,7 +3092,7 @@ def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, 
 			if row.get("activity"):
 				facets["activities"][row["activity"]].add(parent["name"])
 	quantity_totals = {key: _quantity_list(values) for key, values in quantity_values.items()}
-	return {"results": parents[start:start + page_length], "total": len(parents), "overall_total": len(parents), "start": start, "page_length": page_length, "has_more": start + page_length < len(parents), "facets": {key: {value: len(names) for value, names in sorted(values.items())} for key, values in facets.items()}, "quantity_totals": quantity_totals, "column_summaries": {**_column_summaries(quantity_totals), "line_count": {"type": "number", "value": sum(row.get("line_count", 0) for row in parents)}, "outstanding_lines": {"type": "number", "value": sum(row.get("outstanding_lines", 0) for row in parents)}}}
+	return {"results": parents[start:start + page_length], "total": len(parents), "overall_total": overall_total, "start": start, "page_length": page_length, "has_more": start + page_length < len(parents), "facets": {key: {value: len(names) for value, names in sorted(values.items())} for key, values in facets.items()}, "quantity_totals": quantity_totals, "column_summaries": {**_column_summaries(quantity_totals), "line_count": {"type": "number", "value": sum(row.get("line_count", 0) for row in parents)}, "outstanding_lines": {"type": "number", "value": sum(row.get("outstanding_lines", 0) for row in parents)}}}
 
 
 @frappe.whitelist()

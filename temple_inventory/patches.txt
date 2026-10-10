@@ -6,4 +6,5 @@
 temple_inventory.patches.v2_mark_warehouse_fallbacks
 temple_inventory.patches.v3_allow_existing_physical_locations
 temple_inventory.patches.v4_allow_existing_physical_leaves
+temple_inventory.patches.v5_remove_unlocated_settings
 # Patches added in this section will be executed after doctypes are migrated

@@ -53,6 +53,7 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 					<th
 						v-for="column in columns"
 						:key="column.key"
+						class="sortable-data-table-sticky-head"
 						scope="col"
 						:class="column.headerClass"
 						:aria-sort="
@@ -212,13 +213,13 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 	vertical-align: middle;
 	border-bottom: 1px solid #eee8db;
 }
-.sortable-data-table-head {
+.sortable-data-table-desktop th,
+.sortable-data-table-sticky-head {
 	position: sticky;
 	top: 0;
 	z-index: 2;
-}
-.sortable-data-table-desktop th {
 	background: #fff;
+	box-shadow: inset 0 -1px 0 #d9d0c4;
 }
 .sortable-data-table-desktop :deep(.primary-cell) {
 	display: flex;

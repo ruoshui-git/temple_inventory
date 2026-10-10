@@ -303,3 +303,28 @@ button:disabled {
 	.action-fab{right:18px;bottom:calc(var(--mobile-nav-height) + 16px)}
 }
 .shell-content:has(> .movement-ledger){padding-bottom:0;overflow:hidden}
+
+.browse-result-meta {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+.browse-result-meta > .active-filter-chips {
+	min-width: 0;
+	flex: 1;
+	margin: 10px 0 16px;
+}
+.browse-result-meta > .result-count-strip {
+	flex: none;
+	margin-left: auto;
+}
+@media (max-width: 1023px) {
+	.browse-result-meta {
+		flex-wrap: wrap;
+	}
+	.browse-result-meta > .result-count-strip {
+		width: 100%;
+		justify-content: flex-end;
+	}
+}

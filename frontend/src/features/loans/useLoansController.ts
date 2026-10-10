@@ -12,6 +12,7 @@ import {
 import type { SortState } from "../../components/SortableDataTable.vue";
 import type { PageAction } from "../../components/pageActions";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { warehousePresentation } from "../../lib/warehousePresenter";
 
 export function useLoansController() {
   const route = useRoute();
@@ -27,11 +28,18 @@ export function useLoansController() {
   const activityQuery = ref("");
   const rows = ref<any[]>([]);
   const total = ref(0);
+  const overall = ref(0);
+  const facets = ref<{
+    warehouses: Record<string, number>;
+    item_groups: Record<string, number>;
+    activities: Record<string, number>;
+  }>({ warehouses: {}, item_groups: {}, activities: {} });
   const quantityTotals = ref<
     Record<string, Array<{ uom: string; qty: number }>>
   >({});
   const columnSummaries = ref<Record<string, any>>({});
   const error = ref("");
+  const appendError = ref("");
   const loading = ref(true);
   const loadingMore = ref(false);
   const filterOpen = ref(false);
@@ -48,11 +56,17 @@ export function useLoansController() {
     route.query.status === "settled" ? "settled" : "outstanding",
   );
   const pageActions = computed<PageAction[]>(() => {
-    if (!boot.value)
-      return [{ kind: "Loan", label: "新建借出", disabled: true }];
-    return boot.value.stock_operation_capabilities?.Loan
-      ? [{ kind: "Loan", label: "新建借出" }]
-      : [];
+    const capabilities = boot.value?.stock_operation_capabilities || {};
+    if (!boot.value) {
+      return [
+        { kind: "Loan", label: "新建借出", disabled: true },
+        { kind: "Return", label: "新建归还", disabled: true },
+      ];
+    }
+    return [
+      ...(capabilities.Loan ? [{ kind: "Loan", label: "新建借出" }] : []),
+      ...(capabilities.Return ? [{ kind: "Return", label: "新建归还" }] : []),
+    ];
   });
   const sort = ref<SortState>({ sort_by: "loan_date", sort_order: "desc" });
   const columns = [
@@ -118,7 +132,9 @@ export function useLoansController() {
   }
   const activityOptions = computed(() =>
     activities.value.map((activity) => ({
-      label: activity.title,
+      label: facets.value.activities[activity.name]
+        ? `${activity.title} (${facets.value.activities[activity.name]})`
+        : activity.title,
       value: activity.name,
     })),
   );
@@ -130,11 +146,14 @@ export function useLoansController() {
       filters.value.warehouses.length +
       (filters.value.activity ? 1 : 0),
   );
+  const warehouseText = (name: string) =>
+    warehousePresentation(name, boot.value?.physical_tree || []).breadcrumb ||
+    name;
   const chips = computed(() => [
     ...filters.value.warehouses.map((value) => ({
       key: "warehouses",
       value,
-      label: `位置：${value}`,
+      label: `位置：${warehouseText(value)}`,
     })),
     ...filters.value.item_groups.map((value) => ({
       key: "item_groups",
@@ -151,7 +170,7 @@ export function useLoansController() {
       ? [
           {
             key: "activity",
-            label: `活动：${activityOptions.value.find((option) => option.value === filters.value.activity)?.label || filters.value.activity}`,
+            label: `活动：${activities.value.find((option) => option.name === filters.value.activity)?.title || filters.value.activity}`,
           },
         ]
       : []),
@@ -159,20 +178,40 @@ export function useLoansController() {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let sequence = 0;
   let syncingRoute = false;
+  let controller: AbortController | undefined;
+  let appendController: AbortController | undefined;
 
   async function load(append = false) {
+    if (append && (loadingMore.value || rows.value.length >= total.value))
+      return;
+    if (append) appendController?.abort();
+    else {
+      controller?.abort();
+      appendController?.abort();
+    }
+    const requestController = new AbortController();
     const current = ++sequence;
     if (append) loadingMore.value = true;
-    else loading.value = true;
-    error.value = "";
+    else {
+      loading.value = true;
+      error.value = "";
+    }
+    if (append) {
+      appendError.value = "";
+      appendController = requestController;
+    } else controller = requestController;
     try {
-      const data = await api("loans", {
-        ...filters.value,
-        status: status.value,
-        start: append ? rows.value.length : 0,
-        page_length: 25,
-        ...sort.value,
-      });
+      const data = await api(
+        "loans",
+        {
+          ...filters.value,
+          status: status.value,
+          start: append ? rows.value.length : 0,
+          page_length: 25,
+          ...sort.value,
+        },
+        requestController.signal,
+      );
       if (current !== sequence) return;
       const incoming = data.results || [];
       rows.value = append
@@ -184,6 +223,12 @@ export function useLoansController() {
           ]
         : incoming;
       total.value = Number(data.total || 0);
+      overall.value = Number(data.overall_total ?? data.total ?? 0);
+      facets.value = data.facets || {
+        warehouses: {},
+        item_groups: {},
+        activities: {},
+      };
       quantityTotals.value = data.quantity_totals || {};
       columnSummaries.value = data.column_summaries || {};
       if (!append) {
@@ -203,7 +248,10 @@ export function useLoansController() {
     } catch (cause: any) {
       syncingRoute = false;
       if (current === sequence) {
-        error.value = cause.message;
+        if (cause?.name !== "AbortError") {
+          if (append) appendError.value = cause.message || "加载更多失败";
+          else error.value = cause.message;
+        }
         if (!append) quantityTotals.value = {};
       }
     } finally {
@@ -246,6 +294,9 @@ export function useLoansController() {
   }
   function createLoan() {
     return router.push("/new/Loan");
+  }
+  function createReturn() {
+    return router.push("/new/Return");
   }
   watch(
     [filters, status, sort],
@@ -338,6 +389,8 @@ export function useLoansController() {
   });
   onBeforeUnmount(() => {
     if (timer) clearTimeout(timer);
+    controller?.abort();
+    appendController?.abort();
   });
   return {
     route,
@@ -349,9 +402,12 @@ export function useLoansController() {
     activityQuery,
     rows,
     total,
+    overall,
+    facets,
     quantityTotals,
     columnSummaries,
     error,
+    appendError,
     loading,
     loadingMore,
     filterOpen,
@@ -365,6 +421,7 @@ export function useLoansController() {
     summaryMetrics,
     formatQuantities,
     activityOptions,
+    warehouseText,
     activeCount,
     chips,
     load,
@@ -374,6 +431,7 @@ export function useLoansController() {
     openFilters,
     openLoan,
     createLoan,
+    createReturn,
   };
 }
 

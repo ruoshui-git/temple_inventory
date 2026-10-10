@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import AsyncImage from "./AsyncImage.vue";
 
 const props = defineProps<{ src?: string; alt: string }>();
 const open = ref(false);
@@ -109,7 +110,7 @@ onBeforeUnmount(() => {
 			@focusout="scheduleDismiss"
 			@click="toggle"
 		>
-			<img :src="src" :alt="alt" loading="lazy" width="52" height="52" />
+			<AsyncImage :src="src" :alt="alt" width="52" height="52" class="image-thumb" />
 		</button>
 		<span v-if="open" class="image-preview-backdrop" @click.self="close">
 			<span
@@ -121,7 +122,7 @@ onBeforeUnmount(() => {
 				@mouseenter="cancelHover"
 				@mouseleave="scheduleDismiss"
 			>
-				<img :src="src" :alt="alt" />
+				<AsyncImage :src="src" :alt="alt" class="image-popover__image" fit="contain" />
 			</span>
 		</span>
 	</span>
@@ -143,5 +144,23 @@ onBeforeUnmount(() => {
 	font-size: 10px;
 	line-height: 1.2;
 	text-align: center;
+}
+:deep(.image-thumb) {
+	display: inline-grid;
+	width: 52px;
+	height: 52px;
+	border-radius: 8px;
+}
+:deep(.image-thumb img),
+:deep(.image-thumb .async-image__fallback) {
+	border-radius: 8px;
+}
+:deep(.image-popover__image) {
+	display: block;
+	width: max-content;
+	max-width: 260px;
+	max-height: 260px;
+	min-width: 180px;
+	min-height: 100px;
 }
 </style>

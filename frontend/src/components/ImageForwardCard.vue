@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AsyncImage from "./AsyncImage.vue";
+
 withDefaults(
 	defineProps<{
 		image?: string | null;
@@ -12,10 +14,14 @@ withDefaults(
 <template>
 	<div class="image-forward-card">
 		<div class="image-forward-card__media">
-			<img v-if="image" :src="image" :alt="alt" loading="lazy" decoding="async" />
-			<slot v-else name="placeholder"
-				><span aria-hidden="true">□</span><small>{{ placeholderLabel }}</small></slot
-			>
+			<AsyncImage :src="image" :alt="alt" fit="contain">
+				<template #fallback>
+					<slot name="placeholder"
+						><span aria-hidden="true">□</span
+						><small>{{ placeholderLabel }}</small></slot
+					>
+				</template>
+			</AsyncImage>
 		</div>
 		<div class="image-forward-card__body"><slot /></div>
 	</div>
@@ -46,6 +52,10 @@ withDefaults(
 .image-forward-card__media :deep(svg) {
 	width: 28px;
 	height: 28px;
+}
+.image-forward-card__media :deep(.async-image) {
+	width: 100%;
+	height: 100%;
 }
 .image-forward-card__body {
 	min-width: 0;

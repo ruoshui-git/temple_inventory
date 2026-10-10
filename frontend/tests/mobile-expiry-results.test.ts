@@ -32,7 +32,7 @@ describe("MobileExpiryResults", () => {
     expect(empty.text()).toContain("暂无符合条件的批次");
   });
 
-  it("keeps batch/location chips outside row activation and marks expired locations", async () => {
+  it("keeps one visible batch identity and one location popover outside row activation", async () => {
     const wrapper = mount(MobileExpiryResults, {
       attachTo: document.body,
       props: {
@@ -47,8 +47,10 @@ describe("MobileExpiryResults", () => {
       },
     });
     const chips = wrapper.findAll(".detail-popover-trigger");
-    expect(chips).toHaveLength(2);
-    await chips[1].trigger("click");
+    expect(chips).toHaveLength(1);
+    expect((wrapper.text().match(/B-1/g) || []).length).toBe(1);
+    expect(wrapper.text()).toContain("批次 B-1");
+    await chips[0].trigger("click");
     await wrapper.vm.$nextTick();
     expect(document.body.textContent).toContain("已过期");
     expect(wrapper.emitted("activate")).toBeUndefined();

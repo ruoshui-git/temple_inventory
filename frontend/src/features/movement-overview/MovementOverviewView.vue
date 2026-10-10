@@ -14,6 +14,7 @@ import SortableDataTable, { type SortState } from "../../components/SortableData
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import ExportDialog from "../../components/ExportDialog.vue";
 import UiButton from "../../components/UiButton.vue";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import { labels } from "../../lib/api";
 import { type MovementOverviewController } from "./useMovementOverviewController";
 
@@ -28,6 +29,7 @@ const {
 	boot,
 	rows,
 	total,
+	overall,
 	summaries,
 	columnSummaries,
 	facets,
@@ -148,13 +150,16 @@ onBeforeUnmount(() => {
 							@click="exportOpen = true"
 							>导出</UiButton
 						>
-						<span aria-live="polite">{{
-							refreshing
-								? "正在更新…"
-								: `涉及 ${total} 种物品 · ${recordTotal} 条记录`
-						}}</span>
 					</div>
-					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+					<div class="browse-result-meta">
+						<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
+						<ResultCountStrip
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="overall ?? total"
+							:updating="refreshing"
+						/>
+					</div>
 					<div class="movement-summary-groups" aria-label="动作汇总">
 						<section v-for="group in actionGroups" :key="group.label">
 							<h2>{{ group.label }}</h2>

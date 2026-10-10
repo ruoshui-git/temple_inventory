@@ -30,6 +30,8 @@ from temple_inventory.inventory_api import (
 	_settings,
 	_sort_state,
 	_stock_operation_capabilities,
+	_system_warehouse_presentation,
+	_user_facing_warehouse_presentation,
 	_visible_warehouses,
 	outstanding_loan_items,
 )
@@ -78,6 +80,22 @@ MOVEMENT_PERIOD_KEYS = {
 	"this_year",
 	"custom",
 }
+
+
+def _movement_warehouse_labels(settings=None):
+	"""Return permission-scoped labels for movement locations.
+
+	Physical locations keep their breadcrumb while operational system leaves use
+	short labels, independent of ERPNext's company-suffixed document name.
+	"""
+	settings = settings or _settings()
+	labels = {
+		row["name"]: row["breadcrumb"]
+		for row in _user_facing_warehouse_presentation(settings)
+	}
+	for metadata in _system_warehouse_presentation(settings).values():
+		labels[metadata["name"]] = metadata["label"]
+	return labels
 
 
 def _movement_period(filters, default=False):
@@ -239,6 +257,11 @@ def _save(doc):
 
 
 def _serialize(doc):
+	payload = _payload(doc)
+	# Drafts may contain stale item snapshots from before an ERPNext catalog edit.
+	# Refresh only fields the caller is permitted to read; inaccessible Items are
+	# intentionally reduced to their code by the shared hydrator.
+	_history_hydrate_item_metadata([{"_all_items": payload.get("items") or []}])
 	return {
 		"name": doc.name,
 		"revision": doc.revision,
@@ -246,7 +269,7 @@ def _serialize(doc):
 		"stock_reconciliation": doc.get("stock_reconciliation"),
 		"docstatus": _status(doc),
 		"sync_error": doc.sync_error,
-		"data": _payload(doc),
+		"data": payload,
 		"attachments": frappe.get_list(
 			"File",
 			filters={"attached_to_doctype": doc.doctype, "attached_to_name": doc.name},
@@ -315,8 +338,6 @@ def _prepare(doc):
 				else: row["to_warehouse"] = row.get("to_warehouse") or li.original_warehouse
 	allowed = _allowed_warehouses(settings)
 	physical = {name: row for name, row in _visible_warehouses(settings).items() if not row.is_group}
-	for name in (settings.get("unlocated_warehouse"), settings.get("pending_warehouse")):
-		if name and name in physical: allowed[name] = physical[name]
 	if p["movement_kind"] in ("Loan", "Return", "Damage", "Loss", "Repair", "Disposal"):
 		loan_system = _system_leaf(settings, (settings.get("loan_warehouse"), settings.get("leased_warehouse"), settings.get("default_lease_program_warehouse")))
 		for name in (loan_system, settings.get("damaged_warehouse")):
@@ -1032,7 +1053,7 @@ def item_detail(item_code):
 
 	def reserved(name):
 		w = warehouses[name]
-		return name in (settings.pending_warehouse, settings.damaged_warehouse) or (
+		return name == settings.damaged_warehouse or (
 			leased and w.lft >= leased.lft and w.rgt <= leased.rgt
 		)
 
@@ -1089,7 +1110,6 @@ def item_detail(item_code):
 		"available_stock": sum(r.actual_qty for r in bins if not reserved(r.warehouse)),
 		"on_loan_qty": sum(r.actual_qty for r in bins if leased and r.warehouse in warehouses and warehouses[r.warehouse].lft >= leased.lft and warehouses[r.warehouse].rgt <= leased.rgt),
 		"damaged_qty": sum(r.actual_qty for r in bins if r.warehouse == settings.damaged_warehouse),
-		"pending_qty": sum(r.actual_qty for r in bins if r.warehouse == settings.pending_warehouse),
 		"batches": batch_rows,
 		"active_loans": active_loans[:20],
 		"history": history(filters={"item_code": item_code}, page_length=10)["results"],
@@ -1801,7 +1821,7 @@ def _history_hydrate_item_metadata(rows):
 				item["item_name"] = item.get("item_code") or ""
 				item["item_group"] = ""
 				item["image"] = ""
-				item["uom"] = item.get("uom") if item.get("uom") == item.get("stock_uom") else ""
+				item["uom"] = ""
 				item["stock_uom"] = ""
 
 
@@ -2041,6 +2061,7 @@ def _movement_overview_rows(filters):
 	entries = [row for row in entries if row["movement_kind"]]
 	if not entries:
 		return period, []
+	warehouse_labels = _movement_warehouse_labels(settings)
 	entry_by_name = {row["name"]: row for row in entries}
 	lines = frappe.get_all(
 		"Stock Entry Detail",
@@ -2162,11 +2183,13 @@ def _movement_overview_rows(filters):
 				"item_code": item.name,
 				"item_name": item.item_name,
 				"item_group": item.item_group,
-				"stock_uom": line.stock_uom or item.stock_uom,
+				"stock_uom": item.stock_uom,
 				"image": item.image,
 				"stock_qty": abs(flt(stock_qty)),
 				"s_warehouse": line.s_warehouse,
 				"t_warehouse": line.t_warehouse,
+				"s_warehouse_label": warehouse_labels.get(line.s_warehouse, ""),
+				"t_warehouse_label": warehouse_labels.get(line.t_warehouse, ""),
 				"source_text": entry.get("ti_source_text"),
 				"purpose_text": entry.get("ti_purpose_text"),
 				"activity": entry.get("ti_activity"),
@@ -2257,6 +2280,53 @@ def _record_quantity_summary(rows):
 	return {"type": "quantity", "unitless_total": flt(sum(by_uom.values())), "by_uom": values}
 
 
+def _warehouse_flows(items, warehouse_labels, settings=None):
+	"""Group operation lines by their actual source/destination pair.
+
+	The order is deliberately first occurrence order so a multi-destination Return
+	remains understandable instead of becoming a Cartesian product of source and
+	destination lists. Quantities are positive stock effects separated by UOM.
+	"""
+	system_by_name = {
+		metadata["name"]: metadata
+		for metadata in _system_warehouse_presentation(settings).values()
+		if metadata.get("name")
+	}
+	grouped = {}
+	for item in items:
+		source = item.get("source_warehouse") or ""
+		destination = item.get("destination_warehouse") or ""
+		key = (source, destination)
+		flow = grouped.setdefault(
+			key,
+			{
+				"source_warehouse": source,
+				"destination_warehouse": destination,
+				"source_warehouse_label": warehouse_labels.get(source, source),
+				"destination_warehouse_label": warehouse_labels.get(destination, destination),
+				"line_count": 0,
+				"_quantities": defaultdict(float),
+			},
+		)
+		flow["line_count"] += 1
+		uom = item.get("stock_uom") or item.get("uom") or ""
+		if uom:
+			flow["_quantities"][uom] += abs(flt(item.get("stock_qty")))
+		if source in system_by_name:
+			flow["source_warehouse_system"] = system_by_name[source]
+		if destination in system_by_name:
+			flow["destination_warehouse_system"] = system_by_name[destination]
+	result = []
+	for flow in grouped.values():
+		flow["quantities"] = [
+			{"uom": uom, "qty": flt(quantity)}
+			for uom, quantity in sorted(flow.pop("_quantities").items())
+			if uom
+		]
+		result.append(flow)
+	return result
+
+
 @frappe.whitelist()
 def movement_overview(filters=None, start=0, page_length=25, sort_by="last_posting_date", sort_order="desc"):
 	"""Summarize submitted stock movements without creating a parallel ledger."""
@@ -2328,10 +2398,12 @@ def movement_overview(filters=None, start=0, page_length=25, sort_by="last_posti
 				facet_records["warehouses"][warehouse].add(row["entry"])
 	return {
 		"resolved_period": period,
+		"warehouse_labels": _movement_warehouse_labels(),
 		"action_summaries": action_summaries,
 		"column_summaries": {"record_count": {"type": "number", "value": sum(row.get("record_count", 0) for row in results)}, "movement_totals": _grouped_quantity_summary(selected_rows)},
 		"results": page_rows,
 		"total": len(results),
+		"overall_total": len({row["item_code"] for row in all_rows}),
 		"start": page_start,
 		"page_length": requested_length,
 		"facets": {
@@ -2458,6 +2530,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			"total": total,
 			"start": page_start,
 			"page_length": requested_length,
+			"warehouse_labels": _movement_warehouse_labels(),
 		}
 		page["overall_total"] = overall_total if status_group != "unfinished" else total
 		if status_group != "unfinished":
@@ -2645,6 +2718,7 @@ def history(filters=None, start=0, page_length=30, status_group="all", sort_by=N
 			reverse=direction == "desc",
 		)
 	page = _page(rows, page_length, start)
+	page["warehouse_labels"] = _movement_warehouse_labels()
 	page["quantity_totals"] = _history_quantity_totals(matched)
 	page["column_summaries"] = {
 		**_column_summaries_from_quantities(page["quantity_totals"]),
@@ -2738,11 +2812,34 @@ def _ledger_difference(item):
 	return flt(difference)
 
 
+def _ledger_record_items(record):
+	"""Choose complete movement lines without trusting metadata-only snapshots."""
+	complete = record.get("_all_items")
+	preview = record.get("items")
+	if complete:
+		if not preview:
+			return complete
+		movement_fields = {
+			"qty",
+			"stock_qty",
+			"current_qty",
+			"quantity_difference",
+			"warehouse",
+			"from_warehouse",
+			"to_warehouse",
+			"s_warehouse",
+			"t_warehouse",
+		}
+		if any(field in item for item in complete for field in movement_fields):
+			return complete
+	return preview or complete or []
+
+
 def _ledger_item_rows(records):
 	items = []
 	for record in records:
 		kind = _ledger_kind(record)
-		for item in record.get("items") or []:
+		for item in _ledger_record_items(record):
 			if kind in ("Reconcile", "Opening"):
 				quantity = _ledger_difference(item)
 				if not quantity:
@@ -2840,11 +2937,16 @@ def movement_items(filters=None, start=0, page_length=30):
 		frappe.throw(_("Invalid movement kind"))
 	filters.pop("movement_kinds", None)
 	records = _movement_history_records(filters, docstatuses=[1])
+	_history_hydrate_item_metadata(records)
 	all_items = _ledger_item_rows(records)
 	_ledger_activity_titles(all_items)
 	items = all_items
 	if requested:
 		items = [item for item in items if item["movement_kind"] in requested]
+	warehouse_labels = _movement_warehouse_labels()
+	for item in all_items:
+		item["source_warehouse_label"] = warehouse_labels.get(item.get("source_warehouse"), "")
+		item["destination_warehouse_label"] = warehouse_labels.get(item.get("destination_warehouse"), "")
 	items.sort(key=lambda item: (str(item.get("posting_date") or ""), str(item.get("posting_time") or ""), item["record_name"]), reverse=True)
 	page_start = max(cint(start or 0), 0)
 	length = min(max(cint(page_length or 30), 1), 100)
@@ -2853,6 +2955,9 @@ def movement_items(filters=None, start=0, page_length=30):
 		"results": items[page_start : page_start + length],
 		"total": len(items),
 		"all_total": len(all_items),
+		"overall_total": len(all_items),
+		"warehouse_labels": _movement_warehouse_labels(),
+		"system_warehouses": _system_warehouse_presentation(),
 		"start": page_start,
 		"page_length": length,
 		"resolved_period": period,
@@ -2885,6 +2990,7 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 		if any(status not in (0, 1, 2) for status in statuses):
 			frappe.throw(_("Invalid document status"))
 	all_records = _movement_history_records(filters, docstatuses=statuses)
+	_history_hydrate_item_metadata(all_records)
 	all_records = [
 		record
 		for record in all_records
@@ -2897,6 +3003,7 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 	all_record_items = _ledger_item_rows(all_records)
 	_ledger_activity_titles(all_record_items)
 	activity_titles = {item.get("activity"): item.get("activity_title") for item in all_record_items if item.get("activity")}
+	warehouse_labels = _movement_warehouse_labels()
 	result = []
 	for record in records:
 		kind = _ledger_kind(record)
@@ -2906,6 +3013,7 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 		quantities = defaultdict(float)
 		for item in items:
 			quantities[item["stock_uom"]] += abs(flt(item["stock_qty"]))
+		warehouse_flows = _warehouse_flows(items, warehouse_labels)
 		locations = []
 		for item in items:
 			if item["source_warehouse"] and item["source_warehouse"] not in locations:
@@ -2927,9 +3035,12 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 				"quantities": [{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(quantities.items()) if uom],
 				"source_warehouse": items[0]["source_warehouse"] if items else "",
 				"destination_warehouse": items[0]["destination_warehouse"] if items else "",
+				"source_warehouse_label": warehouse_labels.get(items[0]["source_warehouse"], "") if items and items[0]["source_warehouse"] else "",
+				"destination_warehouse_label": warehouse_labels.get(items[0]["destination_warehouse"], "") if items and items[0]["destination_warehouse"] else "",
 				"locations": locations,
 				"source_warehouses": sources,
 				"destination_warehouses": destinations,
+				"warehouse_flows": warehouse_flows,
 				"activity": record.get("activity", ""),
 				"activity_title": activity_titles.get(record.get("activity"), record.get("activity", "")),
 				"notes": record.get("notes", "") or record.get("title", ""),
@@ -2956,6 +3067,9 @@ def movement_records(filters=None, start=0, page_length=30, docstatuses=None):
 		"results": filtered_result[page_start : page_start + length],
 		"total": len(filtered_result),
 		"all_total": len(all_records),
+		"overall_total": len(all_records),
+		"warehouse_labels": _movement_warehouse_labels(),
+		"system_warehouses": _system_warehouse_presentation(),
 		"start": page_start,
 		"page_length": length,
 		"resolved_period": period,
@@ -3009,9 +3123,12 @@ def _from_entry(doc, movement_kind=None):
 		{
 			"id": r.name,
 			"item_code": r.item_code,
+			"item_name": item.item_name,
+			"item_group": item.item_group,
+			"image": item.image,
 			"qty": r.qty,
 			"uom": r.uom,
-			"stock_uom": r.stock_uom,
+			"stock_uom": r.stock_uom or item.stock_uom,
 			"stock_qty": r.transfer_qty,
 			"batch_no": r.batch_no,
 			"warehouse": r.t_warehouse if movement_kind == "Receive" else r.s_warehouse,
@@ -3019,6 +3136,7 @@ def _from_entry(doc, movement_kind=None):
 			"to_warehouse": r.t_warehouse,
 		}
 		for r in doc.items
+		for item in [frappe.get_doc("Item", r.item_code)]
 	]
 	return p
 
@@ -3036,6 +3154,8 @@ def open_entry(name):
 	allowed = _visible_warehouses()
 	if any(w and w not in allowed for r in entry.items for w in (r.s_warehouse, r.t_warehouse)):
 		frappe.throw(_("Warehouse access denied"), frappe.PermissionError)
+	for row in entry.items:
+		frappe.get_doc("Item", row.item_code).check_permission("read")
 	existing = frappe.db.get_value("Inventory Workspace", {"stock_entry": name}, "name")
 	if existing:
 		return _serialize(_get(existing))
@@ -3066,8 +3186,9 @@ def open_reconciliation(name):
 	for row in doc.items:
 		if row.warehouse not in allowed or frappe.db.get_value("Warehouse", row.warehouse, "is_group"):
 			continue
-		frappe.get_doc("Item", row.item_code).check_permission("read")
-		items.append({"id": row.name, "item_code": row.item_code, "qty": row.qty, "counted_qty": row.qty, "ledger_qty": getattr(row, "current_qty", row.qty), "difference_qty": getattr(row, "quantity_difference", 0), "uom": getattr(row, "stock_uom", None) or getattr(row, "uom", None), "warehouse": row.warehouse, "batch_no": row.batch_no})
+		item = frappe.get_doc("Item", row.item_code)
+		item.check_permission("read")
+		items.append({"id": row.name, "item_code": row.item_code, "item_name": item.item_name, "item_group": item.item_group, "image": item.image, "qty": row.qty, "counted_qty": row.qty, "ledger_qty": getattr(row, "current_qty", row.qty), "difference_qty": getattr(row, "quantity_difference", 0), "uom": getattr(row, "stock_uom", None) or getattr(row, "uom", None) or item.stock_uom, "stock_uom": item.stock_uom, "warehouse": row.warehouse, "batch_no": row.batch_no})
 	if not items:
 		frappe.throw("没有可查看的盘点明细", frappe.PermissionError)
 	return {"name": name, "stock_reconciliation": name, "docstatus": doc.docstatus, "data": {"movement_kind": "Reconcile" if doc.purpose == "Stock Reconciliation" else "Opening", "posting_date": str(doc.posting_date), "posting_time": str(doc.posting_time or ""), "items": items}, "attachments": _permitted_file_attachments("Stock Reconciliation", name)}

@@ -6,6 +6,7 @@ import LoanItemPicker from "../../components/LoanItemPicker.vue";
 import AttachmentList from "../../components/AttachmentList.vue";
 import { type WorkspaceController } from "./useWorkspaceController";
 import UiButton from "../../components/UiButton.vue";
+import AsyncImage from "../../components/AsyncImage.vue";
 
 const props = defineProps<{ controller: WorkspaceController }>();
 const {
@@ -239,9 +240,12 @@ const {
 						class="selection-row"
 						@click="configureSeed(seed)"
 					>
-						<img
+						<AsyncImage
 							v-if="seed.detail?.image"
 							:src="seed.detail.image"
+							:alt="seed.detail?.item_name || seed.item_code"
+							width="60"
+							height="60"
 							class="thumb"
 						/><b>{{ seed.detail?.item_name || seed.item_code }}</b
 						><small>{{
@@ -262,9 +266,12 @@ const {
 					<h3 v-if="g.location !== g.room">{{ leafLabel(g.location) }}</h3>
 					<p v-if="!g.lines.length">尚未添加物品</p>
 					<article v-for="r in g.lines" :key="r.id" class="item-card">
-						<img
+						<AsyncImage
 							v-if="catalog[r.item_code]?.image"
 							:src="catalog[r.item_code].image"
+							:alt="catalog[r.item_code]?.item_name || r.item_code"
+							width="60"
+							height="60"
 						/>
 						<div>
 							<b>{{ catalog[r.item_code]?.item_name || r.item_code }}</b>
@@ -409,10 +416,12 @@ const {
 			<div v-if="chosen && line" class="drawer-backdrop">
 				<aside class="drawer wide" role="dialog" aria-modal="true" aria-label="数量与位置">
 					<div class="compact-selection">
-						<img
+						<AsyncImage
 							v-if="chosen.image"
 							:src="chosen.image"
 							:alt="chosen.item_name"
+							width="60"
+							height="60"
 							class="thumb"
 						/>
 						<div>
@@ -637,10 +646,12 @@ const {
 					<p>{{ form.items.length }} 行物品</p>
 					<div class="review-items">
 						<div v-for="line in form.items" :key="line.id" class="compact-selection">
-							<img
+							<AsyncImage
 								v-if="catalog[line.item_code]?.image"
 								:src="catalog[line.item_code].image"
 								:alt="catalog[line.item_code]?.item_name"
+								width="60"
+								height="60"
 								class="thumb"
 							/><span
 								><b>{{ catalog[line.item_code]?.item_name || line.item_code }}</b

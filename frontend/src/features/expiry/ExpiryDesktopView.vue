@@ -14,6 +14,7 @@ import UiButton from "../../components/UiButton.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import DetailPopover from "../../components/DetailPopover.vue";
 import { type ExpiryController } from "./useExpiryController";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 
 const props = defineProps<{ controller: ExpiryController }>();
 const {
@@ -107,7 +108,6 @@ onBeforeUnmount(() => {
 					<div class="inventory-heading">
 						<div class="inventory-title">
 							<h1>效期批次</h1>
-							<span>{{ total }} 个批次</span>
 						</div>
 						<div class="inventory-heading-actions">
 							<UiButton
@@ -185,11 +185,12 @@ onBeforeUnmount(() => {
 						<span v-if="!chips.length" class="no-filters"
 							>全部仓库 · 全部类别 · 全部效期</span
 						>
-						<span class="inventory-result-count" aria-live="polite">{{
-							refreshing
-								? "正在更新…"
-								: `已加载 ${rows.length} · 筛选结果 ${total} · 全部 ${overallTotal}`
-						}}</span>
+						<ResultCountStrip
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="overallTotal"
+							:updating="refreshing"
+						/>
 					</div>
 				</div>
 				<div ref="resultsScroll" class="results-scroll" @scroll.passive="onResultsScroll">
@@ -223,32 +224,22 @@ onBeforeUnmount(() => {
 							>{{ error || routeValidationError }}
 							<button type="button" @click="load()">重试</button></template
 						>
-						<template #cell-item_name="{ row }"
-							><div class="primary-cell">
-								<span data-row-control
-									><ItemImagePreview
-										:src="row.image"
-										:alt="row.item_name" /></span
-								><RouterLink
+						<template #cell-item_name="{ row }">
+							<div class="primary-cell">
+								<span data-row-control>
+									<ItemImagePreview :src="row.image" :alt="row.item_name" />
+								</span>
+								<RouterLink
 									data-row-action
 									:to="`/item/${encodeURIComponent(row.item_code)}?batch=${encodeURIComponent(row.batch_no)}`"
-									><b class="primary-text">{{ row.item_name }}</b
-									><small class="secondary-text"
-										>{{ row.item_code }} · {{ row.batch_no }}</small
-									></RouterLink
-								><DetailPopover
-									data-row-control
-									:label="`${row.item_name}的批次信息`"
-									:trigger-text="`批次 ${row.batch_no}`"
 								>
-					<p :class="{ warn: Number(row.days_to_expiry) < 0 }">
-						{{ row.expiry_date || "无效期" }} · {{ row.total_qty }}
-						{{ row.stock_uom }} ·
-						{{ row.days_to_expiry == null ? "无效期" : formatExpiryDuration(row.days_to_expiry) }}
-									</p>
-								</DetailPopover>
-							</div></template
-						>
+									<b class="primary-text">{{ row.item_name }}</b>
+									<small class="secondary-text"
+										>{{ row.item_code }} · {{ row.batch_no }}</small
+									>
+								</RouterLink>
+							</div>
+						</template>
 						<template #cell-expiry_date="{ row }"
 							><span :class="{ warn: row.days_to_expiry < 0 }">{{
 								row.expiry_date || "无效期"

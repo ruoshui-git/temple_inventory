@@ -20,7 +20,10 @@ import {
 
 import { api, labels, workspaceApi } from "../../lib/api";
 
-import { warehousePresentation } from "../../lib/warehousePresenter";
+import {
+  movementWarehouseRows,
+  warehousePresentation,
+} from "../../lib/warehousePresenter";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 
 export function useMovementOverviewController() {
@@ -70,6 +73,7 @@ export function useMovementOverviewController() {
   const boot = ref<any>();
   const rows = ref<any[]>([]);
   const total = ref(0);
+  const overall = ref(0);
   const summaries = ref<ActionSummary[]>([]);
   const columnSummaries = ref<Record<string, any>>({});
   const facets = ref<Record<string, Record<string, number>>>({
@@ -124,7 +128,12 @@ export function useMovementOverviewController() {
       filters.value.warehouses.length +
       filters.value.movement_kinds.length,
   );
-  const warehouseRows = computed(() => boot.value?.physical_tree || []);
+  const warehouseRows = computed(() =>
+    movementWarehouseRows(
+      boot.value?.physical_tree || [],
+      boot.value?.system_warehouses || {},
+    ),
+  );
   const recordTotal = computed(() =>
     filters.value.movement_kinds.length
       ? summaries.value
@@ -374,6 +383,7 @@ export function useMovementOverviewController() {
             ]
           : incoming;
         total.value = Number(data.total || 0);
+        overall.value = Number(data.overall_total ?? data.total ?? 0);
         summaries.value = data.action_summaries || [];
         columnSummaries.value = data.column_summaries || {};
         facets.value = data.facets || facets.value;
@@ -463,6 +473,7 @@ export function useMovementOverviewController() {
     boot,
     rows,
     total,
+    overall,
     summaries,
     columnSummaries,
     facets,

@@ -48,7 +48,6 @@ const INFRASTRUCTURE_LABELS = new Set([
   "虚拟库房",
   "借出",
   "损坏待处理",
-  "未定位",
 ]);
 const clean = (value: string, row: WarehouseRecord) => {
   const company = text(row.company);
@@ -195,6 +194,19 @@ export function warehousePresentation(
 ): PresentedWarehouse {
   const row = rows.find((item) => item.name === name);
   return row ? presentWarehouse(row, rows) : presentWarehouse({ name }, rows);
+}
+export function movementWarehouseRows(
+  physicalRows: WarehouseRecord[] = [],
+  systemWarehouses: Record<string, WarehouseRecord> = {},
+): WarehouseRecord[] {
+  const systemRows = Object.values(systemWarehouses).map((row) => ({
+    ...row,
+    warehouse_name: text(row.warehouse_name) || text(row.label) || row.name,
+    local_label: text(row.label) || text(row.warehouse_name) || row.name,
+    breadcrumb: text(row.label) || text(row.warehouse_name) || row.name,
+    is_system: true,
+  }));
+  return [...physicalRows, ...systemRows];
 }
 export function warehouseFilterOptions(
   rows: WarehouseRecord[],

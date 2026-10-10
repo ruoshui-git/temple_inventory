@@ -10,6 +10,7 @@ import QuantitySummary from "../../components/QuantitySummary.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import UiButton from "../../components/UiButton.vue";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import { type PendingController } from "./usePendingController";
 
 const props = defineProps<{
@@ -27,7 +28,6 @@ const {
 	error,
 	loading,
 	loadingMore,
-	mode,
 	filterOpen,
 	desktopFilterOpen,
 	operationCaps,
@@ -64,23 +64,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 			<UiButton variant="ghost" size="compact" type="button" @click="close">‹ 库存</UiButton>
 			<h1>待处理</h1>
 		</header>
-		<nav class="inventory-modes" aria-label="待处理类型">
-			<button type="button" :class="{ active: mode === 'all' }" @click="mode = 'all'">
-				全部</button
-			><button
-				type="button"
-				:class="{ active: mode === 'damaged' }"
-				@click="mode = 'damaged'"
-			>
-				损坏</button
-			><button
-				type="button"
-				:class="{ active: mode === 'unlocated' }"
-				@click="mode = 'unlocated'"
-			>
-				未定位
-			</button>
-		</nav>
 		<div
 			class="list-layout desktop-list-layout compact-filter-layout pending-list-layout"
 			:class="{ 'filters-open': desktopFilterOpen }"
@@ -136,11 +119,17 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							class="filter-count"
 							>{{ filters.warehouses.length + filters.item_groups.length }}</span
 						></UiButton
-					><span aria-live="polite"
-						>已加载 {{ rows.length }} · 筛选结果 {{ total }} · 全部 {{ overall }}</span
 					>
 				</div>
-				<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+				<div class="browse-result-meta">
+					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+					<ResultCountStrip
+						:loaded="rows.length"
+						:filtered="total"
+						:overall="overall ?? total"
+						:updating="loading && rows.length > 0"
+					/>
+				</div>
 				<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
 				<p v-if="error" class="error">
 					{{ error }}
@@ -166,21 +155,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				>
 					<RouterLink :to="`/item/${encodeURIComponent(row.item_code)}`"
 						><b>{{ row.item_name }}</b
-						><small
-							>损坏 {{ row.damaged_qty }} · 未定位 {{ row.pending_qty }}
-							{{ row.stock_uom }}</small
-						></RouterLink
+						><small>损坏 {{ row.damaged_qty }} {{ row.stock_uom }}</small></RouterLink
 					>
 					<div class="detail-actions">
 						<UiButton
-							variant="secondary"
-							size="compact"
-							v-if="row.pending_qty && operationCaps.Transfer"
-							type="button"
-							@click="begin(row, 'Transfer')"
-						>
-							分配到位置</UiButton
-						><UiButton
 							variant="secondary"
 							size="compact"
 							v-if="row.damaged_qty && operationCaps.Repair"
@@ -200,9 +178,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 					</div>
 				</article>
 				<p v-if="!rows.length && !error && !loading && !loadingMore" class="empty-state">
-					暂无{{
-						mode === "all" ? "待处理" : mode === "damaged" ? "损坏" : "未定位"
-					}}库存
+					暂无损坏库存
 				</p>
 				<div ref="sentinel" aria-hidden="true"></div>
 				<div v-if="loadingMore" class="mobile-loading" role="status">

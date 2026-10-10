@@ -116,6 +116,88 @@ class WorkspaceTests(unittest.TestCase):
 		)
 		self.assertEqual(inventory_service._selection_values("Room / A, east"), ["Room / A, east"])
 
+	def test_warehouse_flows_preserve_branches_order_and_uom_summaries(self):
+		all_items = [
+			{
+				"id": f"LINE-{index}",
+				"item_code": self.item,
+				"qty": 1,
+				"stock_qty": 1,
+				"stock_uom": "Nos",
+				"from_warehouse": self.loan,
+				"to_warehouse": self.a,
+			}
+			for index in range(6)
+		]
+		ledger_lines = api._ledger_item_rows(
+			[
+				{
+					"name": "RETURN-MORE-THAN-FIVE",
+					"movement_kind": "Return",
+					"items": all_items[:5],
+					"_all_items": all_items,
+				}
+			]
+		)
+		self.assertEqual(len(ledger_lines), 6)
+		metadata = {
+			"loan_warehouse": {
+				"name": self.loan,
+				"label": "借出",
+				"kind": "loan",
+			},
+			"damaged_warehouse": {
+				"name": "DAMAGED",
+				"label": "损坏待处理",
+				"kind": "damaged",
+			},
+		}
+		items = [
+			{
+				"source_warehouse": self.loan,
+				"destination_warehouse": self.a,
+				"stock_qty": 2,
+				"stock_uom": "Nos",
+			},
+			{
+				"source_warehouse": self.loan,
+				"destination_warehouse": self.b,
+				"stock_qty": 1,
+				"stock_uom": "Nos",
+			},
+			{
+				"source_warehouse": self.loan,
+				"destination_warehouse": self.a,
+				"stock_qty": 3,
+				"stock_uom": "Box",
+			},
+			{
+				"source_warehouse": self.loan,
+				"destination_warehouse": "DAMAGED",
+				"stock_qty": 4,
+				"stock_uom": "Nos",
+			},
+		]
+		labels = {
+			self.loan: "借出",
+			self.a: "样例库位一",
+			self.b: "样例库位二",
+			"DAMAGED": "损坏待处理",
+		}
+		with patch.object(api, "_system_warehouse_presentation", return_value=metadata):
+			flows = api._warehouse_flows(items, labels)
+		self.assertEqual(
+			[(flow["source_warehouse"], flow["destination_warehouse"]) for flow in flows],
+			[(self.loan, self.a), (self.loan, self.b), (self.loan, "DAMAGED")],
+		)
+		self.assertEqual(flows[0]["line_count"], 2)
+		self.assertEqual(flows[0]["quantities"], [{"uom": "Box", "qty": 3.0}, {"uom": "Nos", "qty": 2.0}])
+		self.assertEqual(flows[1]["quantities"], [{"uom": "Nos", "qty": 1.0}])
+		self.assertEqual(flows[0]["source_warehouse_label"], "借出")
+		self.assertEqual(flows[2]["destination_warehouse_label"], "损坏待处理")
+		self.assertEqual(flows[0]["source_warehouse_system"]["label"], "借出")
+		self.assertEqual(flows[2]["destination_warehouse_system"]["kind"], "damaged")
+
 	def test_sample_opening_rows_merge_non_batch_duplicates_and_split_batches(self):
 		from temple_inventory.setup.sample_inventory_data import _opening_reconciliation_documents
 
@@ -348,14 +430,25 @@ class WorkspaceTests(unittest.TestCase):
 		settings = frappe.get_single("Temple Inventory Settings")
 		settings.company = self.company
 		settings.root_warehouse = None
-		settings.pending_warehouse = None
 		settings.leased_warehouse = None
 		settings.default_lease_program_warehouse = None
 		settings.damaged_warehouse = None
 		settings.set("allowed_warehouses", [])
 		settings.save()
+		unlocated_before = frappe.get_all(
+			"Warehouse",
+			filters={"company": self.company, "warehouse_name": "未定位"},
+			pluck="name",
+		)
 		result = initialize_warehouses(self.company, 0)
 		self.assertEqual(result["rooms"], [])
+		settings.reload()
+		unlocated_after = frappe.get_all(
+			"Warehouse",
+			filters={"company": self.company, "warehouse_name": "未定位"},
+			pluck="name",
+		)
+		self.assertEqual(unlocated_after, unlocated_before)
 		status = initialization_status()
 		self.assertFalse(status["blockers"])
 		self.assertIn(DEFAULT_LOCATION_NAME, [row.warehouse_name for row in status["physical_warehouses"]])
@@ -376,13 +469,11 @@ class WorkspaceTests(unittest.TestCase):
 			"room": SimpleNamespace(name="room", warehouse_name="Room", parent_warehouse="root", lft=2, rgt=9, is_group=1),
 			"leaf_a": SimpleNamespace(name="leaf_a", warehouse_name="Room / A", parent_warehouse="room", lft=3, rgt=4, is_group=0),
 			"leaf_b": SimpleNamespace(name="leaf_b", warehouse_name="Room / B", parent_warehouse="room", lft=5, rgt=6, is_group=0),
-			"pending": SimpleNamespace(name="pending", warehouse_name="未定位", parent_warehouse="root", lft=10, rgt=11, is_group=0),
 			"lease": SimpleNamespace(name="lease", warehouse_name="借出", parent_warehouse="root", lft=12, rgt=15, is_group=1),
 			"damaged": SimpleNamespace(name="损坏", warehouse_name="损坏", parent_warehouse="root", lft=16, rgt=17, is_group=0),
 		}
 		settings = SimpleNamespace(
-			company=self.company, pending_warehouse="pending", unlocated_warehouse="pending",
-			damaged_warehouse="damaged", leased_warehouse="lease", photo_required=1,
+			company=self.company, damaged_warehouse="damaged", leased_warehouse="lease", photo_required=1,
 		)
 		return warehouses, settings
 
@@ -391,15 +482,13 @@ class WorkspaceTests(unittest.TestCase):
 		item = SimpleNamespace(name="ITEM-1", item_code="ITEM-1", item_name="待处理物品", item_group="Group A", stock_uom="Nos", image=None, description=None)
 		bins = [
 			SimpleNamespace(item_code="ITEM-1", warehouse="leaf_a", actual_qty=3),
-			SimpleNamespace(item_code="ITEM-1", warehouse="pending", actual_qty=2),
+			SimpleNamespace(item_code="ITEM-1", warehouse="damaged", actual_qty=2),
 		]
 		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_settings", return_value=settings), patch.object(inventory_service, "_visible_warehouses", return_value=warehouses), patch.object(inventory_service, "_raise_on_group_stock"), patch.object(inventory_service.frappe, "get_list", return_value=[item]), patch.object(inventory_service.frappe, "get_all", return_value=bins):
 			rows = inventory()["results"]
 			leaf_rows = inventory(warehouse="leaf_b")["results"]
-		self.assertEqual(rows[0]["warehouse_stock"], {"leaf_a": 3, "pending": 2})
-		# Operational Pending is physical damaged/unlocated stock only; catalog
-		# completeness no longer produces a pending reason.
-		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"unlocated"})
+		self.assertEqual(rows[0]["warehouse_stock"], {"leaf_a": 3, "damaged": 2})
+		self.assertEqual({reason["code"] for reason in rows[0]["attention_reasons"]}, {"damaged"})
 		self.assertEqual(leaf_rows, [])
 
 	def test_inventory_adds_scoped_batch_count_and_nearest_expiry(self):
@@ -563,13 +652,11 @@ class WorkspaceTests(unittest.TestCase):
 			total_stock=2,
 			on_loan_qty=0,
 			damaged_qty=2,
-			pending_qty=0,
 		)
 		sql_results = [
 			[item],
 			[SimpleNamespace(total=1)],
 			[summary],
-			[item],
 			[item],
 			[SimpleNamespace(total=1)],
 			[],
@@ -607,7 +694,6 @@ class WorkspaceTests(unittest.TestCase):
 				None,
 				None,
 				None,
-				None,
 				{"window": "", "include_undated": True},
 				30,
 				None,
@@ -633,7 +719,7 @@ class WorkspaceTests(unittest.TestCase):
 			SimpleNamespace(item_code="ITEM-A", warehouse="damaged", actual_qty=2),
 			SimpleNamespace(item_code="ITEM-B", warehouse="leaf_a", actual_qty=2),
 			SimpleNamespace(item_code="ITEM-B", warehouse="lease_leaf", actual_qty=4),
-			SimpleNamespace(item_code="ITEM-C", warehouse="pending", actual_qty=3),
+			SimpleNamespace(item_code="ITEM-C", warehouse="leaf_b", actual_qty=3),
 		]
 		def get_all(doctype, *args, **kwargs):
 			if doctype == "Bin":
@@ -1334,6 +1420,22 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(opening_lines[0]["movement_kind"], "Opening")
 		self.assertEqual(opening_lines[0]["stock_qty"], 5.0)
 		self.assertEqual(opening_lines[0]["to_warehouse"], "A01")
+		stale_snapshot = [
+			{
+				"name": "R4",
+				"movement_kind": "Receive",
+				"_all_items": [{"item_code": "ITM-1", "item_name": "只含元数据的旧快照"}],
+				"items": [{
+					"item_code": "ITM-1",
+					"qty": 2,
+					"uom": "Nos",
+					"stock_qty": 2,
+					"stock_uom": "Nos",
+					"to_warehouse": "A01",
+				}],
+			}
+		]
+		self.assertEqual(api._ledger_item_rows(stale_snapshot)[0]["stock_qty"], 2.0)
 
 	def test_movement_item_metadata_overwrites_stale_values_and_hides_unreadable_items(self):
 		rows = [
@@ -1428,7 +1530,21 @@ class WorkspaceTests(unittest.TestCase):
 			for item in items:
 				if item.get("activity"):
 					item["activity_title"] = "法会活动"
-		with patch.object(api, "_movement_history_records", side_effect=scoped_records), patch.object(api, "_ledger_activity_titles", side_effect=hydrate_activity):
+		item_metadata = [
+			frappe._dict(
+				name=code,
+				item_name=f"当前 {code}",
+				item_group="食品",
+				stock_uom="Nos",
+				image="",
+			)
+			for code in ("ITEM-A", "ITEM-B", "ITEM-C")
+		]
+		with patch.object(api, "_movement_history_records", side_effect=scoped_records), patch.object(api, "_ledger_activity_titles", side_effect=hydrate_activity), patch.object(
+			api.frappe, "get_list", return_value=item_metadata
+		), patch.object(
+			api, "_movement_warehouse_labels", return_value={"WH-A": "WH-A", "WH-B": "WH-B", "WH-C": "WH-C"}
+		), patch.object(api, "_system_warehouse_presentation", return_value={}):
 			items = api.movement_items({"period_key": "this_month"}, page_length=1)
 			self.assertEqual(items["total"], 3)
 			self.assertEqual(items["all_total"], 3)

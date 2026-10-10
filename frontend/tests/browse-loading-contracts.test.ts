@@ -1,4 +1,6 @@
 import { defineComponent, nextTick, reactive, ref } from "vue";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLoansController } from "../src/features/loans/useLoansController";
@@ -58,6 +60,52 @@ beforeEach(() => {
 });
 
 describe("browse loading contracts", () => {
+  it("renders exactly one explicit Loans filter trigger for each active surface", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/features/loans/LoansView.vue"),
+      "utf8",
+    );
+    expect(source).toMatch(
+      /v-if="surface === 'desktop'"[\s\S]*?class="toolbar-action desktop-filter-button"/,
+    );
+    expect(source).toMatch(
+      /v-if="surface === 'mobile'"[\s\S]*?class="mobile-filter-button"/,
+    );
+    expect(source).toContain(':show-trigger="false"');
+  });
+
+  it("offers permitted Loan and Return routes from one controller", async () => {
+    state.api.mockImplementation((request: string) =>
+      request === "bootstrap"
+        ? Promise.resolve({
+            physical_tree: [],
+            item_groups: [],
+            stock_operation_capabilities: { Loan: true, Return: true },
+          })
+        : Promise.resolve({ results: [], total: 0, overall_total: 0 }),
+    );
+    const surface = defineComponent({
+      setup() {
+        return useLoansController();
+      },
+      template: `<button
+				v-for="action in pageActions"
+				:key="action.kind"
+				:data-kind="action.kind"
+				@click="action.kind === 'Return' ? createReturn() : createLoan()"
+			>{{ action.label }}</button>`,
+    });
+    const wrapper = mount(surface);
+    await settle();
+    expect(wrapper.text()).toContain("新建借出");
+    expect(wrapper.text()).toContain("新建归还");
+    await wrapper.get('[data-kind="Loan"]').trigger("click");
+    await wrapper.get('[data-kind="Return"]').trigger("click");
+    expect(state.push).toHaveBeenNthCalledWith(1, "/new/Loan");
+    expect(state.push).toHaveBeenNthCalledWith(2, "/new/Return");
+    wrapper.unmount();
+  });
+
   it.each([
     ["loans", useLoansController, "loans"],
     ["pending", usePendingController, "pending"],
@@ -81,7 +129,9 @@ describe("browse loading contracts", () => {
         stock_operation_capabilities: {},
       });
       await settle();
-      expect(state.api).toHaveBeenCalledWith(method, expect.anything());
+      expect(state.api.mock.calls.some(([request]) => request === method)).toBe(
+        true,
+      );
       await settle();
       expect(wrapper.text()).toBe("暂无数据");
       wrapper.unmount();
@@ -109,7 +159,9 @@ describe("browse loading contracts", () => {
       const wrapper = mount(controllerSurface(useController));
       expect(wrapper.text()).toBe("正在加载");
       await settle();
-      expect(state.api).toHaveBeenCalledWith(method, expect.anything());
+      expect(state.api.mock.calls.some(([request]) => request === method)).toBe(
+        true,
+      );
       expect(wrapper.text()).toBe("有数据");
       wrapper.unmount();
     },

@@ -5,6 +5,7 @@ import { warehousePresentation } from "../lib/warehousePresenter";
 import { Combobox } from "frappe-ui";
 import ItemCreateForm from "./ItemCreateForm.vue";
 import ScannableInput from "./ScannableInput.vue";
+import AsyncImage from "./AsyncImage.vue";
 const props = defineProps<{
 	boot: any;
 	barcode?: string;
@@ -224,7 +225,14 @@ onBeforeUnmount(() => observer?.disconnect());
 							:disabled="busy"
 							@click="select(r.item_code)"
 						>
-							<img v-if="r.image" :src="r.image" class="thumb" /><span
+							<AsyncImage
+								v-if="r.image"
+								:src="r.image"
+								:alt="r.item_name"
+								width="38"
+								height="38"
+								class="thumb"
+							/><span
 								>{{ r.item_name }}<small>{{ r.item_code }}</small></span
 							>
 						</button>
@@ -260,7 +268,14 @@ onBeforeUnmount(() => observer?.disconnect());
 						:disabled="busy || searchLoading"
 						@click="select(r.item_code)"
 					>
-						<img v-if="r.image" :src="r.image" class="thumb" /><span
+						<AsyncImage
+							v-if="r.image"
+							:src="r.image"
+							:alt="r.item_name"
+							width="60"
+							height="60"
+							class="thumb"
+						/><span
 							><b>{{ r.item_name }}</b
 							><small
 								>{{ r.item_code }} · {{ r.item_group

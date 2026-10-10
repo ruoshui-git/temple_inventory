@@ -12,6 +12,7 @@ import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import MobileSubnav from "../../components/MobileSubnav.vue";
+import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import { type InventoryController } from "./useInventoryController";
 
 const props = defineProps<{ controller: InventoryController }>();
@@ -19,6 +20,7 @@ const {
 	scrollResetToken,
 	rows,
 	total,
+	overall,
 	facetCounts,
 	error,
 	loading,
@@ -120,7 +122,6 @@ onBeforeUnmount(() => {
 				<div class="mobile-title-row">
 					<div>
 						<h1>{{ pageTitle }}</h1>
-						<span>{{ total }} 件物品</span>
 					</div>
 				</div>
 				<MobileSubnav
@@ -162,14 +163,21 @@ onBeforeUnmount(() => {
 					:expanded-key="expandedSummary"
 					@select="expandedSummary = expandedSummary === $event ? '' : $event"
 				/>
-				<ActiveFilterChips
-					:chips="chips"
-					:show-clear="false"
-					@remove="removeChip"
-					@clear="clearFilters"
-				/>
+				<div class="browse-result-meta">
+					<ActiveFilterChips
+						:chips="chips"
+						:show-clear="false"
+						@remove="removeChip"
+						@clear="clearFilters"
+					/>
+					<ResultCountStrip
+						:loaded="rows.length"
+						:filtered="total"
+						:overall="overall ?? total"
+						:updating="loading && rows.length > 0"
+					/>
+				</div>
 				<div class="mobile-result-controls">
-					<span aria-live="polite">共 {{ total }} 件物品</span>
 					<div role="group" aria-label="库存显示方式">
 						<button
 							type="button"

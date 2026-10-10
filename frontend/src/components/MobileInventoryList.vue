@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { InventoryCardRow } from "../lib/inventoryTypes";
 import DetailPopover from "./DetailPopover.vue";
+import AsyncImage from "./AsyncImage.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -71,12 +72,11 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 				@keydown="activateKey(row, $event)"
 			>
 				<span class="mobile-row-image">
-					<img
+					<AsyncImage
 						v-if="row.image"
 						:src="row.image"
 						:alt="row.item_name"
-						loading="lazy"
-						decoding="async"
+						class="mobile-row-image__asset"
 					/>
 					<span v-else aria-hidden="true">□</span>
 				</span>
@@ -226,6 +226,10 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 	padding: 0;
 	border: 0;
 	object-fit: contain;
+}
+.mobile-row-image :deep(.mobile-row-image__asset) {
+	width: 100%;
+	height: 100%;
 }
 .mobile-row-copy {
 	display: flex;

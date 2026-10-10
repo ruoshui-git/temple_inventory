@@ -95,7 +95,7 @@ describe("SortableDataTable", () => {
     expect(wrapper.get(".sortable-mobile-row").classes()).toContain("selected");
   });
 
-  it("exposes sticky header and primary-cell hooks without changing row contracts", () => {
+  it("marks every desktop header cell with the sticky contract", () => {
     const wrapper = mount(SortableDataTable, {
       props: {
         rows,
@@ -112,9 +112,13 @@ describe("SortableDataTable", () => {
           ]),
       },
     });
-    expect(wrapper.find("thead").classes()).toContain(
-      "sortable-data-table-head",
-    );
+    const headers = wrapper.findAll("th");
+    expect(headers).toHaveLength(columns.length);
+    expect(
+      headers.every((header) =>
+        header.classes().includes("sortable-data-table-sticky-head"),
+      ),
+    ).toBe(true);
     expect(wrapper.find(".primary-cell .primary-text").text()).toBe("一号");
     expect(wrapper.find(".primary-cell .secondary-text").text()).toBe("1");
   });

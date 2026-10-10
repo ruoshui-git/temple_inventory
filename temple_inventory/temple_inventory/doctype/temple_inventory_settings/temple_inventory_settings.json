@@ -5,7 +5,6 @@
     "company",
     "warehouse_section",
     "root_warehouse",
-    "pending_warehouse",
     "leased_warehouse",
     "default_lease_program_warehouse",
     "damaged_warehouse",
@@ -14,7 +13,6 @@
     "virtual_root_warehouse",
     "physical_root_warehouse",
     "loan_warehouse",
-    "unlocated_warehouse",
     "sample_data_version",
     "sample_data_status",
     "sample_data_error"
@@ -36,12 +34,6 @@
       "fieldname": "root_warehouse",
       "fieldtype": "Link",
       "label": "Temple Root Warehouse",
-      "options": "Warehouse"
-    },
-    {
-      "fieldname": "pending_warehouse",
-      "fieldtype": "Link",
-      "label": "Pending Location Warehouse",
       "options": "Warehouse"
     },
     {
@@ -90,12 +82,6 @@
       "fieldname": "loan_warehouse",
       "fieldtype": "Link",
       "label": "Loan Warehouse",
-      "options": "Warehouse"
-    },
-    {
-      "fieldname": "unlocated_warehouse",
-      "fieldtype": "Link",
-      "label": "Unlocated Warehouse",
       "options": "Warehouse"
     },
     {
