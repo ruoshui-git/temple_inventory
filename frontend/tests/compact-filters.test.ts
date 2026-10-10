@@ -25,6 +25,8 @@ describe("shared compact filter primitives", () => {
   });
   afterEach(() => {
     document.body.innerHTML = "";
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
     vi.restoreAllMocks();
   });
 
@@ -183,5 +185,64 @@ describe("shared compact filter primitives", () => {
     expect(document.body.style.overflow).toBe("");
     expect(document.documentElement.style.overflow).toBe("");
     wrapper.unmount();
+  });
+
+  it("leaves existing document overflow alone while initially closed", () => {
+    document.body.style.overflow = "clip";
+    document.documentElement.style.overflow = "auto";
+    const wrapper = mount(ResponsiveFilterPanel, { props: { open: false } });
+
+    expect(document.body.style.overflow).toBe("clip");
+    expect(document.documentElement.style.overflow).toBe("auto");
+    wrapper.unmount();
+    expect(document.body.style.overflow).toBe("clip");
+    expect(document.documentElement.style.overflow).toBe("auto");
+  });
+
+  it("locks only the open mobile drawer across breakpoint changes", async () => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+    const mediaQuery = {
+      matches: false,
+      addEventListener: (
+        _: string,
+        listener: (event: MediaQueryListEvent) => void,
+      ) => listeners.add(listener),
+      removeEventListener: (
+        _: string,
+        listener: (event: MediaQueryListEvent) => void,
+      ) => listeners.delete(listener),
+    };
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => mediaQuery,
+    });
+    document.body.style.overflow = "clip";
+    document.documentElement.style.overflow = "auto";
+    const wrapper = mount(ResponsiveFilterPanel, { props: { open: true } });
+    await nextTick();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    mediaQuery.matches = true;
+    listeners.forEach((listener) =>
+      listener(mediaQuery as MediaQueryListEvent),
+    );
+    await nextTick();
+    expect(document.body.style.overflow).toBe("clip");
+    expect(document.documentElement.style.overflow).toBe("auto");
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(wrapper.emitted("update:open")).toBeUndefined();
+
+    mediaQuery.matches = false;
+    listeners.forEach((listener) =>
+      listener(mediaQuery as MediaQueryListEvent),
+    );
+    await nextTick();
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    wrapper.unmount();
+    expect(document.body.style.overflow).toBe("clip");
+    expect(document.documentElement.style.overflow).toBe("auto");
   });
 });

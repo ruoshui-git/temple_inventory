@@ -110,6 +110,338 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(result["distribution"]["mode"], "warehouse")
 		self.assertNotIn("due_date", json.dumps(result["loans"], ensure_ascii=False))
 		self.assertNotIn("overdue", json.dumps(result["loans"], ensure_ascii=False).lower())
+		alias = inventory_service.dashboard(
+			warehouses=[self.a],
+			item_groups=[],
+			period_key="all",
+		)
+		self.assertEqual(set(alias), set(result))
+
+	def test_dashboard_scoped_modes_keep_response_shape_and_validate_sections(self):
+		result = inventory_service.dashboard_summary(
+			warehouses=[self.a],
+			item_groups=[],
+			distribution_mode="category",
+			sections='["distribution"]',
+		)
+		self.assertEqual(set(result), {"generated_at", "scope", "distribution"})
+		self.assertEqual(result["distribution"]["mode"], "category")
+		self.assertNotIn("_members", json.dumps(result["distribution"]))
+		with self.assertRaises(frappe.ValidationError):
+			inventory_service.dashboard_summary(warehouses=[self.a], sections='["unknown"]')
+
+	def test_dashboard_scoped_sections_match_full_summary_and_endpoint_periods(self):
+		full = inventory_service.dashboard_summary(
+			warehouses=[self.a],
+			item_groups=[],
+			period_key="all",
+		)
+		for section in ("inventory", "expiry", "movement", "loans", "reminders", "distribution"):
+			scoped = inventory_service.dashboard_summary(
+				warehouses=[self.a],
+				item_groups=[],
+				period_key="all",
+				sections=[section],
+			)
+			self.assertEqual(set(scoped), {"generated_at", "scope", section})
+			if section != "inventory":
+				self.assertEqual(scoped[section], full[section])
+			else:
+				self.assertEqual(scoped[section]["totals"], full[section]["totals"])
+
+		for period in ("this_week", "this_month", "this_year", "all"):
+			scoped = inventory_service.dashboard_summary(
+				warehouses=[self.a],
+				item_groups=[],
+				period_key=period,
+				sections='["movement"]',
+			)
+			self.assertEqual(scoped["movement"]["period"]["key"], period)
+		custom = inventory_service.dashboard_summary(
+			warehouses=[self.a],
+			item_groups=[],
+			period_key="custom",
+			date_from="2026-09-01",
+			date_to="2026-09-30",
+			sections=["movement"],
+		)
+		self.assertEqual(
+			custom["movement"]["period"],
+			{"key": "custom", "date_from": "2026-09-01", "date_to": "2026-09-30"},
+		)
+		for preview_mode in ("expired", "upcoming"):
+			scoped = inventory_service.dashboard_summary(
+				warehouses=[self.a],
+				item_groups=[],
+				expiry_preview=preview_mode,
+				sections=["expiry"],
+			)
+			self.assertEqual(scoped["expiry"]["preview_mode"], preview_mode)
+
+	def test_dashboard_distribution_deduplicates_items_and_omits_nonpositive_bins(self):
+		parent_category = frappe.get_doc(
+			{
+				"doctype": "Item Group",
+				"item_group_name": f"TI Parent Category {self.token}",
+				"parent_item_group": "All Item Groups",
+				"is_group": 1,
+			}
+		).insert()
+		category = frappe.get_doc(
+			{
+				"doctype": "Item Group",
+				"item_group_name": f"TI Category {self.token}",
+				"parent_item_group": parent_category.name,
+				"is_group": 0,
+			}
+		).insert()
+		frappe.db.set_value("Item", self.item, "item_group", category.name)
+
+		def item(code):
+			return (
+				frappe.get_doc(
+					{
+						"doctype": "Item",
+						"item_code": f"TI-{code}-{self.token}",
+						"item_name": code,
+						"item_group": category.name,
+						"stock_uom": "Nos",
+						"is_stock_item": 1,
+					}
+				)
+				.insert()
+				.name
+			)
+
+		second_item = item("Positive")
+		zero_item = item("Zero")
+		negative_item = item("Negative")
+		physical = {
+			self.root: SimpleNamespace(
+				name=self.root,
+				warehouse_name="Root",
+				parent_warehouse=None,
+				is_group=1,
+				lft=1,
+				rgt=12,
+			),
+			self.room: SimpleNamespace(
+				name=self.room,
+				warehouse_name="Room",
+				parent_warehouse=self.root,
+				is_group=1,
+				lft=2,
+				rgt=5,
+			),
+			self.a: SimpleNamespace(
+				name=self.a,
+				warehouse_name="A",
+				parent_warehouse=self.room,
+				is_group=0,
+				lft=3,
+				rgt=4,
+			),
+			self.b: SimpleNamespace(
+				name=self.b,
+				warehouse_name="B",
+				parent_warehouse=self.root,
+				is_group=0,
+				lft=6,
+				rgt=7,
+			),
+			"empty_parent": SimpleNamespace(
+				name="empty_parent",
+				warehouse_name="Empty",
+				parent_warehouse=self.root,
+				is_group=1,
+				lft=8,
+				rgt=11,
+			),
+			"empty_leaf": SimpleNamespace(
+				name="empty_leaf",
+				warehouse_name="Empty leaf",
+				parent_warehouse="empty_parent",
+				is_group=0,
+				lft=9,
+				rgt=10,
+			),
+		}
+		bins = [
+			SimpleNamespace(item_code=self.item, warehouse=self.a, actual_qty=2),
+			SimpleNamespace(item_code=self.item, warehouse=self.b, actual_qty=3),
+			SimpleNamespace(item_code="UNREADABLE", warehouse=self.a, actual_qty=9),
+			SimpleNamespace(item_code=self.item, warehouse=self.a, actual_qty=0),
+			SimpleNamespace(item_code=self.item, warehouse=self.a, actual_qty=-4),
+			SimpleNamespace(item_code=zero_item, warehouse=self.a, actual_qty=0),
+			SimpleNamespace(item_code=negative_item, warehouse=self.a, actual_qty=-2),
+			SimpleNamespace(item_code=second_item, warehouse=self.a, actual_qty=1),
+		]
+		get_list = frappe.get_list
+
+		def permitted_list(doctype, **kwargs):
+			if doctype == "Item":
+				return [
+					SimpleNamespace(name=name, item_group=category.name)
+					for name in (self.item, second_item, zero_item, negative_item)
+				]
+			return get_list(doctype, **kwargs)
+
+		with (
+			patch.object(inventory_service, "_physical_tree", return_value=physical),
+			patch.object(inventory_service, "_allowed_warehouses", return_value={self.a, self.b}),
+			patch.object(inventory_service, "_bin_balances", return_value=bins),
+			patch.object(frappe, "get_list", side_effect=permitted_list),
+		):
+			warehouse_bars = inventory_service._dashboard_distribution(
+				frappe.get_single("Temple Inventory Settings"),
+				[self.b, self.a],
+				[],
+				set(),
+				"warehouse",
+			)
+			parent_child_bars = inventory_service._dashboard_distribution(
+				frappe.get_single("Temple Inventory Settings"),
+				[self.b, self.room, self.a],
+				[],
+				set(),
+				"warehouse",
+			)
+			category_bars = inventory_service._dashboard_distribution(
+				frappe.get_single("Temple Inventory Settings"),
+				[self.a, self.b],
+				[parent_category.name, category.name],
+				inventory_service._dashboard_selected_groups([parent_category.name, category.name]),
+				"category",
+			)
+			empty_bars = inventory_service._dashboard_distribution(
+				frappe.get_single("Temple Inventory Settings"),
+				["empty_parent"],
+				[],
+				set(),
+				"warehouse",
+			)
+
+		self.assertEqual([bar["key"] for bar in warehouse_bars], [self.a, self.b])
+		self.assertEqual([bar["distinct_items"] for bar in warehouse_bars], [2, 1])
+		self.assertEqual([bar["key"] for bar in parent_child_bars], [self.a, self.b])
+		self.assertEqual(
+			category_bars,
+			[
+				{
+					"key": category.name,
+					"label": category.item_group_name,
+					"distinct_items": 2,
+				}
+			],
+		)
+		self.assertTrue(all("_members" not in bar for bar in category_bars))
+		self.assertEqual(empty_bars, [])
+
+	def test_dashboard_movement_filters_unreadable_items_and_preserves_period_filters(self):
+		from temple_inventory import workspace_api
+
+		rows = [
+			{
+				"record_name": "READABLE",
+				"movement_kind": "Receive",
+				"item_code": self.item,
+				"item_group": "All Item Groups",
+				"source_warehouse": self.a,
+				"stock_qty": 2,
+				"stock_uom": "Nos",
+				"posting_date": "2026-10-01",
+				"posting_time": "12:00:00",
+			},
+			{
+				"record_name": "UNREADABLE",
+				"movement_kind": "Receive",
+				"item_code": "NO-ITEM-READ-PERMISSION",
+				"item_group": "All Item Groups",
+				"source_warehouse": self.a,
+				"stock_qty": 9,
+				"stock_uom": "Nos",
+				"posting_date": "2026-10-02",
+				"posting_time": "12:00:00",
+			},
+		]
+		record_filters = []
+
+		def history(filters, **kwargs):
+			record_filters.append(dict(filters))
+			return []
+
+		with (
+			patch.object(workspace_api, "_movement_history_records", side_effect=history),
+			patch.object(workspace_api, "_history_hydrate_item_metadata"),
+			patch.object(workspace_api, "_ledger_item_rows", return_value=rows),
+			patch.object(workspace_api, "_movement_period", return_value={"key": "test"}),
+			patch.object(
+				frappe,
+				"get_list",
+				return_value=[SimpleNamespace(name=self.item)],
+			),
+		):
+			result = inventory_service._dashboard_movement_section(
+				{"warehouses": [self.a], "item_groups": []},
+				{self.a},
+				set(),
+				"this_month",
+				None,
+				None,
+			)
+			for period in ("this_week", "this_month", "this_year", "all", "custom"):
+				inventory_service._dashboard_movement_section(
+					{"warehouses": [], "item_groups": []},
+					{self.a, self.b},
+					set(),
+					period,
+					"2026-09-01" if period == "custom" else None,
+					"2026-09-30" if period == "custom" else None,
+				)
+
+		receives = next(row for row in result["summaries"] if row["kind"] == "Receive")
+		self.assertEqual(receives["record_count"], 1)
+		self.assertEqual(receives["quantity"]["unitless_total"], 2)
+		self.assertEqual([row["record_name"] for row in result["recent"]], ["READABLE"])
+		for period, filters in zip(
+			("this_week", "this_month", "this_year", "all", "custom"),
+			record_filters[1:],
+			strict=True,
+		):
+			self.assertEqual(filters["period_key"], period)
+			if period == "custom":
+				self.assertEqual(filters["date_from"], "2026-09-01")
+				self.assertEqual(filters["date_to"], "2026-09-30")
+			else:
+				self.assertNotIn("date_from", filters)
+				self.assertNotIn("date_to", filters)
+
+	def test_dashboard_expiry_preview_uses_requested_mode_and_scoped_queries(self):
+		calls = []
+
+		def batches(**kwargs):
+			calls.append(kwargs)
+			return {
+				"total": 2,
+				"results": [{"batch_no": kwargs.get("expiry_window", "preview")}],
+			}
+
+		with patch.object(inventory_service, "expiring_batches", side_effect=batches):
+			expired = inventory_service._dashboard_expiry_section(
+				{"warehouses": [self.a], "item_groups": []},
+				"expired",
+			)
+			expired_call_count = len(calls)
+			upcoming = inventory_service._dashboard_expiry_section(
+				{"warehouses": [self.b], "item_groups": []},
+				"upcoming",
+			)
+
+		self.assertEqual(expired["preview_mode"], "expired")
+		self.assertEqual(upcoming["preview_mode"], "upcoming")
+		self.assertEqual(upcoming["preview"], upcoming["buckets"]["upcoming_0_30"]["rows"])
+		self.assertEqual(calls[0]["warehouses"], [self.a])
+		self.assertEqual(calls[expired_call_count]["warehouses"], [self.b])
 
 	def test_dashboard_quantity_summary_keeps_uom_breakdown(self):
 		summary = inventory_service._dashboard_quantity_summary(
@@ -1078,6 +1410,9 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(result["stock_reconciliation"], existing.name, linked_names)
 		self.assertEqual(frappe.db.count("Stock Reconciliation", {"name": existing.name}), 1)
 		self.assertEqual(frappe.db.get_value("Stock Reconciliation", existing.name, "docstatus"), 1)
+		opened = api.open_reconciliation(existing.name)
+		self.assertEqual(opened["stock_reconciliation"], existing.name)
+		self.assertEqual(opened["data"]["items"][0]["item_code"], self.item)
 
 	def test_people_fields_are_optional_and_do_not_control_submission(self):
 		d = self.create(recorder_name="", handler_name="", reviewer_name="")
@@ -1113,17 +1448,37 @@ class WorkspaceTests(unittest.TestCase):
 		self.confirmed()
 		transfer = self.create(
 			"Transfer",
-			items=[{"id": "transfer", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a, "to_warehouse": self.b}],
+			items=[
+				{
+					"id": "transfer",
+					"item_code": self.item,
+					"qty": 1,
+					"uom": "Nos",
+					"from_warehouse": self.a,
+					"to_warehouse": self.b,
+				}
+			],
 		)
 		self.assertFalse(transfer["sync_error"], transfer["sync_error"])
 		row = frappe.get_doc("Stock Entry", transfer["stock_entry"]).items[0]
 		self.assertEqual(row.s_warehouse, self.a)
 		self.assertEqual(row.t_warehouse, self.b)
 
-		loan = self.create("Loan", borrower="Test borrower", items=[{"id": "loan", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a}])
+		loan = self.create(
+			"Loan",
+			borrower="Test borrower",
+			items=[{"id": "loan", "item_code": self.item, "qty": 1, "uom": "Nos", "from_warehouse": self.a}],
+		)
 		loan = self.with_people(loan)
 		loan = api.confirm_workspace(loan["name"], loan["revision"])
-		loan_item = frappe.get_all("Inventory Loan Item", filters={"parent": loan["data"]["loan_record"]}, pluck="name")[0]
+		loan_item = frappe.get_all(
+			"Inventory Loan Item", filters={"parent": loan["data"]["loan_record"]}, pluck="name"
+		)[0]
+		loan_detail = inventory_service.loan_detail(loan["data"]["loan_record"])
+		self.assertEqual(loan_detail["name"], loan["data"]["loan_record"])
+		self.assertEqual(loan_detail["items"][0]["item_code"], self.item)
+		loan_records = inventory_service.loan_records(filters={"status": "outstanding"})
+		self.assertIn(loan["data"]["loan_record"], {row["name"] for row in loan_records["results"]})
 		loan_entry = frappe.get_doc("Stock Entry", loan["stock_entry"])
 		self.assertTrue(loan_entry.items[0].t_warehouse)
 		picker = inventory_service.loan_items()

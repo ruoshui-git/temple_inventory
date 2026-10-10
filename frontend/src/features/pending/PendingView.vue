@@ -46,20 +46,36 @@ const surface = toRef(props, "surface");
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const sentinel = ref<HTMLElement>();
+const resultsScroll = ref<HTMLElement>();
 const infiniteScroll = useInfiniteScroll({
 	hasMore: () => rows.value.length < total.value,
 	isLoading: () => loading.value || loadingMore.value,
 	onLoadMore: () => load(true),
 });
-onMounted(async () => {
+async function connectInfiniteScroll() {
 	await nextTick();
-	infiniteScroll.connect(null, sentinel.value);
+	infiniteScroll.connect(
+		surface.value === "desktop" ? resultsScroll.value || null : null,
+		sentinel.value || null,
+	);
+}
+onMounted(() => {
+	void connectInfiniteScroll();
+});
+watch(surface, () => void connectInfiniteScroll());
+watch(scrollResetToken, async () => {
+	await nextTick();
+	if (surface.value === "desktop") {
+		if (typeof resultsScroll.value?.scrollTo === "function")
+			resultsScroll.value.scrollTo({ top: 0 });
+		else if (resultsScroll.value) resultsScroll.value.scrollTop = 0;
+	} else window.scrollTo({ top: 0 });
 });
 onBeforeUnmount(() => infiniteScroll.disconnect());
 </script>
 
 <template>
-	<section class="app-shell wide-shell">
+	<section class="app-shell wide-shell viewport-list-root pending-page">
 		<header>
 			<UiButton variant="ghost" size="compact" type="button" @click="close">‹ 库存</UiButton>
 			<h1>待处理</h1>
@@ -148,42 +164,52 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				<div v-if="loading && rows.length" class="list-refresh-overlay" role="status">
 					<span class="loading-spinner" aria-hidden="true"></span>正在更新待处理物品…
 				</div>
-				<article
-					v-for="row in rows"
-					:key="row.item_code"
-					class="selection-row result-card"
-				>
-					<RouterLink :to="`/item/${encodeURIComponent(row.item_code)}`"
-						><b>{{ row.item_name }}</b
-						><small>损坏 {{ row.damaged_qty }} {{ row.stock_uom }}</small></RouterLink
+				<div ref="resultsScroll" class="results-scroll">
+					<article
+						v-for="row in rows"
+						:key="row.item_code"
+						class="selection-row result-card"
 					>
-					<div class="detail-actions">
-						<UiButton
-							variant="secondary"
-							size="compact"
-							v-if="row.damaged_qty && operationCaps.Repair"
-							type="button"
-							@click="begin(row, 'Repair')"
+						<RouterLink :to="`/item/${encodeURIComponent(row.item_code)}`"
+							><b>{{ row.item_name }}</b
+							><small
+								>损坏 {{ row.damaged_qty }} {{ row.stock_uom }}</small
+							></RouterLink
 						>
-							修复归库</UiButton
-						><UiButton
-							variant="danger"
-							size="compact"
-							v-if="row.damaged_qty && operationCaps.Disposal"
-							type="button"
-							@click="begin(row, 'Disposal')"
-						>
-							正式报废
-						</UiButton>
+						<div class="detail-actions">
+							<UiButton
+								variant="secondary"
+								size="compact"
+								v-if="row.damaged_qty && operationCaps.Repair"
+								type="button"
+								@click="begin(row, 'Repair')"
+							>
+								修复归库</UiButton
+							><UiButton
+								variant="danger"
+								size="compact"
+								v-if="row.damaged_qty && operationCaps.Disposal"
+								type="button"
+								@click="begin(row, 'Disposal')"
+							>
+								正式报废
+							</UiButton>
+						</div>
+					</article>
+					<p
+						v-if="!rows.length && !error && !loading && !loadingMore"
+						class="empty-state"
+					>
+						暂无损坏库存
+					</p>
+					<div ref="sentinel" aria-hidden="true"></div>
+					<div v-if="loadingMore" class="mobile-loading" role="status">
+						<span
+							class="loading-spinner loading-spinner-small"
+							aria-hidden="true"
+						></span
+						>正在加载更多…
 					</div>
-				</article>
-				<p v-if="!rows.length && !error && !loading && !loadingMore" class="empty-state">
-					暂无损坏库存
-				</p>
-				<div ref="sentinel" aria-hidden="true"></div>
-				<div v-if="loadingMore" class="mobile-loading" role="status">
-					<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
-					>正在加载更多…
 				</div>
 			</div>
 		</div>
@@ -203,10 +229,23 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	font-weight: 700;
 	pointer-events: none;
 }
+
 .pending-results {
 	position: relative;
 }
-.pending-results.is-refreshing > article {
+.pending-list-layout {
+	min-height: 0;
+	flex: 1;
+}
+.pending-page {
+	display: flex;
+	flex-direction: column;
+}
+.pending-list-layout,
+.pending-results {
+	min-width: 0;
+}
+.pending-results.is-refreshing > .results-scroll > article {
 	opacity: 0.55;
 	pointer-events: none;
 }
@@ -228,5 +267,25 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	margin-right: 6px;
 	vertical-align: -3px;
 	border-width: 2px;
+}
+@media (min-width: 1024px) {
+	.pending-page {
+		height: calc(100dvh - var(--shell-header-height, 0px));
+	}
+	.pending-list-layout {
+		overflow: hidden;
+	}
+	.pending-results {
+		display: flex;
+		flex-direction: column;
+	}
+	.pending-results > :not(.results-scroll) {
+		flex: none;
+	}
+	.pending-results > .results-scroll {
+		min-height: 0;
+		flex: 1;
+		overflow: auto;
+	}
 }
 </style>

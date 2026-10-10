@@ -1545,6 +1545,39 @@ def _dashboard_quantity_summary(values):
 	return {"unitless_total": flt(sum(row["qty"] for row in rows)), "by_uom": rows}
 
 
+def _dashboard_inventory_section(common):
+	"""Summarize current ERPNext inventory independently of dashboard movement periods."""
+	stock = inventory(**common, page_length=100, start=0, in_stock=1)
+	totals = {
+		key: _dashboard_quantity_summary((stock.get("quantity_totals") or {}).get(key))
+		for key in ("available_stock", "total_stock", "on_loan_qty", "damaged_qty")
+	}
+	return {"section": {"totals": totals, "as_of": stock.get("as_of")}, "source": stock}
+
+
+def _dashboard_loans_section(common):
+	"""Build the loan summary from permission-scoped outstanding loan records."""
+	filters = {"status": "outstanding", **common}
+	page = _loan_browse_response("records", filters, 0, 100)
+	rows = list(page.get("results") or [])
+	for start in range(100, int(page.get("total") or 0), 100):
+		rows.extend(_loan_browse_response("records", filters, start, 100).get("results") or [])
+	for row in rows:
+		row["status"] = "部分结清" if row.get("loan_status") == "Partially Settled" else "未归还"
+	rows.sort(
+		key=lambda row: (
+			0 if row["status"] == "部分结清" else 1,
+			str(row.get("loan_date") or ""),
+			row["name"],
+		)
+	)
+	return {
+		"record_count": int(page.get("total") or 0),
+		"quantity": _dashboard_quantity_summary((page.get("quantity_totals") or {}).get("outstanding_qty")),
+		"rows": rows[:5],
+	}
+
+
 def _dashboard_selected_groups(values):
 	"""Expand category selections to their descendants for consistent scope."""
 	selected = _selection_values(values)
@@ -1555,7 +1588,8 @@ def _dashboard_selected_groups(values):
 	if any(value not in by_name for value in selected):
 		frappe.throw(_("Invalid item group"), frappe.PermissionError)
 	return {
-		row.name for row in rows
+		row.name
+		for row in rows
 		if any(row.lft >= by_name[value].lft and row.rgt <= by_name[value].rgt for value in selected)
 	}
 
@@ -1565,15 +1599,23 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 	physical = _physical_tree(settings)
 	allowed = set(_allowed_warehouses(settings))
 	requested = set(selected_warehouses or [])
-	selected = (_selected_leaf_warehouses(requested, physical, empty_means_all=True) if requested else set(allowed)) & allowed
+	selected = (
+		_selected_leaf_warehouses(requested, physical, empty_means_all=True) if requested else set(allowed)
+	) & allowed
 	if not selected:
 		return []
 	if mode == "category":
-		groups = frappe.get_list("Item Group", fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"], order_by="lft", limit_page_length=0)
+		groups = frappe.get_list(
+			"Item Group",
+			fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"],
+			order_by="lft",
+			limit_page_length=0,
+		)
 		by_name = {row.name: row for row in groups}
 		requested_names = [name for name in _selection_values(requested_groups) if name in by_name]
 		normalized = [
-			name for name in requested_names
+			name
+			for name in requested_names
 			if not any(
 				other != name
 				and by_name[other].lft <= by_name[name].lft
@@ -1587,20 +1629,33 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 			parents.extend(children or [by_name[name]])
 		if not parents:
 			parents = [row for row in groups if row.parent_item_group == "All Item Groups"]
+		parents = sorted({row.name: row for row in parents}.values(), key=lambda row: row.lft)
 		bars = []
 		for parent in parents:
-			members = {row.name for row in groups if row.lft >= parent.lft and row.rgt <= parent.rgt}
-			bars.append({"key": parent.name, "label": parent.item_group_name or parent.name, "distinct_items": 0})
-			bars[-1]["_members"] = members
+			bars.append(
+				{"key": parent.name, "label": parent.item_group_name or parent.name, "distinct_items": 0}
+			)
 		bins = _bin_balances(selected)
 		item_rows = frappe.get_list("Item", fields=["name", "item_group"], limit_page_length=0)
 		item_groups = {row.name: row.item_group for row in item_rows}
 		for bar in bars:
-			bar["distinct_items"] = len({row.item_code for row in bins if flt(row.actual_qty) > 0 and item_groups.get(row.item_code) in bar.pop("_members")})
+			members = {
+				row.name
+				for row in groups
+				if row.lft >= by_name[bar["key"]].lft and row.rgt <= by_name[bar["key"]].rgt
+			}
+			bar["distinct_items"] = len(
+				{
+					row.item_code
+					for row in bins
+					if flt(row.actual_qty) > 0 and item_groups.get(row.item_code) in members
+				}
+			)
 		return bars
 	selected_nodes = [physical[name] for name in requested if name in physical]
 	selected_nodes = [
-		node for node in selected_nodes
+		node
+		for node in selected_nodes
 		if not any(
 			other.name != node.name and other.lft <= node.lft and other.rgt >= node.rgt
 			for other in selected_nodes
@@ -1614,25 +1669,198 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 			parents.append(node)
 	if not parents:
 		parents = [
-			node for node in physical.values()
-			if node.parent_warehouse == settings.physical_root_warehouse
+			node for node in physical.values() if node.parent_warehouse == settings.physical_root_warehouse
 		]
 		if not parents:
 			parents = [node for node in physical.values() if node.parent_warehouse not in physical]
+	parents = sorted({node.name: node for node in parents}.values(), key=lambda node: node.lft)
 	bins = _bin_balances(selected)
 	item_rows = frappe.get_list("Item", fields=["name", "item_group"], limit_page_length=0)
-	item_names = {
-		row.name for row in item_rows if not selected_groups or row.item_group in selected_groups
-	}
+	item_names = {row.name for row in item_rows if not selected_groups or row.item_group in selected_groups}
 	bars = []
 	for parent in parents:
-		leaves = {name for name, row in physical.items() if not row.is_group and name in allowed and (name == parent.name or (parent.is_group and row.lft > parent.lft and row.rgt < parent.rgt))}
-		bars.append({"key": parent.name, "label": getattr(parent, "warehouse_name", parent.name), "distinct_items": len({row.item_code for row in bins if row.warehouse in leaves and row.item_code in item_names and flt(row.actual_qty) > 0})})
+		leaves = {
+			name
+			for name, row in physical.items()
+			if not row.is_group
+			and name in allowed
+			and (name == parent.name or (parent.is_group and row.lft > parent.lft and row.rgt < parent.rgt))
+		}
+		bars.append(
+			{
+				"key": parent.name,
+				"label": getattr(parent, "warehouse_name", parent.name),
+				"distinct_items": len(
+					{
+						row.item_code
+						for row in bins
+						if row.warehouse in leaves and row.item_code in item_names and flt(row.actual_qty) > 0
+					}
+				),
+			}
+		)
 	return bars
 
 
+def _dashboard_expiry_section(common, preview_mode):
+	"""Calculate the expiry section without querying dashboard movement or loans."""
+	buckets = {
+		"expired_1_30": {"key": "expired_1_30", "label": "已过期 1–30 天", "count": 0, "rows": []},  # noqa: RUF001
+		"expired_31_90": {"key": "expired_31_90", "label": "已过期 31–90 天", "count": 0, "rows": []},  # noqa: RUF001
+		"expired_over_90": {"key": "expired_over_90", "label": "已过期 >90 天", "count": 0, "rows": []},
+		"upcoming_0_30": {"key": "upcoming_0_30", "label": "0–30 天内到期", "count": 0, "rows": []},  # noqa: RUF001
+		"upcoming_31_90": {"key": "upcoming_31_90", "label": "31–90 天内到期", "count": 0, "rows": []},  # noqa: RUF001
+		"upcoming_over_90": {"key": "upcoming_over_90", "label": ">90 天后到期", "count": 0, "rows": []},
+	}
+	requests = {
+		"expired_1_30": {"expiry_window": "custom", "expiry_from_days": -30, "expiry_to_days": -1},
+		"expired_31_90": {"expiry_window": "custom", "expiry_from_days": -90, "expiry_to_days": -31},
+		"expired_over_90": {"expiry_window": "overdue_beyond", "expiry_days": 90},
+		"upcoming_0_30": {"expiry_window": "custom", "expiry_from_days": 0, "expiry_to_days": 30},
+		"upcoming_31_90": {"expiry_window": "custom", "expiry_from_days": 31, "expiry_to_days": 90},
+		"upcoming_over_90": {"expiry_window": "remaining_beyond", "expiry_days": 90},
+	}
+	for key, filters in requests.items():
+		result = expiring_batches(**common, **filters, start=0, page_length=5, in_stock=1)
+		buckets[key]["count"] = int(result.get("total") or 0)
+		buckets[key]["rows"] = (result.get("results") or [])[:5]
+	if str(preview_mode).lower() == "expired":
+		preview = (
+			expiring_batches(
+				**common, start=0, page_length=5, in_stock=1, expiry_window="overdue", sort="desc"
+			).get("results")
+			or []
+		)
+		preview_mode = "expired"
+	else:
+		preview = buckets["upcoming_0_30"]["rows"]
+		preview_mode = "upcoming"
+	return {"buckets": buckets, "preview": preview[:5], "preview_mode": preview_mode}
+
+
+def _dashboard_reminders_section(common, expiry):
+	"""Build supported reminders from the shared expiry results and current damaged stock."""
+	damaged_count = int(
+		inventory(**common, needs_attention=1, page_length=1, start=0, in_stock=1).get("total") or 0
+	)
+	expired_count = sum(
+		expiry["buckets"][key]["count"] for key in ("expired_1_30", "expired_31_90", "expired_over_90")
+	)
+	reminders = []
+	if expired_count:
+		reminders.append(
+			{"kind": "expired", "label": "已过期批次", "count": expired_count, "severity": "critical"}
+		)
+	if expiry["buckets"]["upcoming_0_30"]["count"]:
+		reminders.append(
+			{
+				"kind": "upcoming_0_30",
+				"label": expiry["buckets"]["upcoming_0_30"]["label"],
+				"count": expiry["buckets"]["upcoming_0_30"]["count"],
+				"severity": "warning",
+			}
+		)
+	if damaged_count:
+		reminders.append(
+			{"kind": "damaged", "label": "损坏库存", "count": damaged_count, "severity": "critical"}
+		)
+	return reminders
+
+
+def _dashboard_movement_section(common, selected_leaves, selected_groups, period_key, date_from, date_to):
+	"""Calculate only the movement summary and recent-record dashboard section."""
+	from temple_inventory import workspace_api
+
+	filters = {**common, "period_key": period_key or "this_month"}
+	if str(period_key) == "custom":
+		filters.update({"date_from": date_from, "date_to": date_to})
+	records = workspace_api._movement_history_records(filters, docstatuses=[1])
+	workspace_api._history_hydrate_item_metadata(records)
+	rows = workspace_api._ledger_item_rows(records)
+	period = workspace_api._movement_period(filters, default=True)
+	kinds = workspace_api.MOVEMENT_LEDGER_KINDS
+	labels = {
+		"Receive": "入库",
+		"Issue": "出库",
+		"Transfer": "转移",
+		"Loan": "借出",
+		"Return": "归还",
+		"Damage": "标记损坏",
+		"Loss": "遗失",
+		"Repair": "修复",
+		"Disposal": "报废",
+		"Reconcile": "库存调整",
+		"Opening": "期初库存",
+	}
+	selected = set(selected_leaves)
+	item_codes = {row.get("item_code") for row in rows if row.get("item_code")}
+	permitted_items = set()
+	if item_codes:
+		permitted_items = {
+			row.name
+			for row in frappe.get_list(
+				"Item",
+				fields=["name"],
+				filters={"name": ["in", list(item_codes)]},
+				limit_page_length=0,
+			)
+		}
+	matching = [
+		row
+		for row in rows
+		if row.get("item_code") in permitted_items
+		and (row.get("source_warehouse") in selected or row.get("destination_warehouse") in selected)
+		and (not selected_groups or row.get("item_group") in selected_groups)
+	]
+	summaries = []
+	for kind in kinds:
+		kind_rows = [row for row in matching if row.get("movement_kind") == kind]
+		quantities = defaultdict(float)
+		for row in kind_rows:
+			quantities[row.get("stock_uom") or row.get("uom") or ""] += abs(
+				flt(row.get("stock_qty") or row.get("qty") or 0)
+			)
+		summaries.append(
+			{
+				"kind": kind,
+				"label": labels.get(kind, kind),
+				"record_count": len({row.get("record_name") or row.get("entry") for row in kind_rows}),
+				"quantity": {
+					"unitless_total": flt(sum(quantities.values())),
+					"by_uom": [
+						{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(quantities.items()) if uom
+					],
+				},
+			}
+		)
+	recent = []
+	seen = set()
+	for row in sorted(
+		matching,
+		key=lambda item: (str(item.get("posting_date") or ""), str(item.get("posting_time") or "")),
+		reverse=True,
+	):
+		name = row.get("record_name") or row.get("entry")
+		if name in seen:
+			continue
+		seen.add(name)
+		recent.append(row)
+		if len(recent) == 5:
+			break
+	return {"period": period, "summaries": summaries, "recent": recent}
+
+
 @frappe.whitelist()
-def dashboard_summary(warehouses=None, item_groups=None, period_key="this_month", date_from=None, date_to=None, expiry_preview="expired", distribution_mode="warehouse"):
+def dashboard_summary(
+	warehouses=None,
+	item_groups=None,
+	period_key="this_month",
+	date_from=None,
+	date_to=None,
+	expiry_preview="expired",
+	distribution_mode="warehouse",
+	sections=None,
+):
 	"""Permission-scoped homepage summary assembled from current ERPNext records."""
 	_require_stock()
 	settings = _settings()
@@ -1648,128 +1876,73 @@ def dashboard_summary(warehouses=None, item_groups=None, period_key="this_month"
 	requested_groups = _selection_values(item_groups)
 	global_filters = {"warehouses": requested_warehouses, "item_groups": requested_groups}
 	common = {"warehouses": requested_warehouses, "item_groups": requested_groups}
-	stock = inventory(**common, page_length=100, start=0, in_stock=1)
-	# Keep current inventory independent of the Movement period.
-	inventory_summary = {
-		key: _dashboard_quantity_summary((stock.get("quantity_totals") or {}).get(key))
-		for key in ("available_stock", "total_stock", "on_loan_qty", "damaged_qty")
-	}
-	expiry_buckets = {
-		"expired_1_30": {"key": "expired_1_30", "label": "已过期 1–30 天", "count": 0, "rows": []},
-		"expired_31_90": {"key": "expired_31_90", "label": "已过期 31–90 天", "count": 0, "rows": []},
-		"expired_over_90": {"key": "expired_over_90", "label": "已过期 >90 天", "count": 0, "rows": []},
-		"upcoming_0_30": {"key": "upcoming_0_30", "label": "0–30 天内到期", "count": 0, "rows": []},
-		"upcoming_31_90": {"key": "upcoming_31_90", "label": "31–90 天内到期", "count": 0, "rows": []},
-		"upcoming_over_90": {"key": "upcoming_over_90", "label": ">90 天后到期", "count": 0, "rows": []},
-	}
-	expiry_requests = {
-		"expired_1_30": {"expiry_window": "custom", "expiry_from_days": -30, "expiry_to_days": -1},
-		"expired_31_90": {"expiry_window": "custom", "expiry_from_days": -90, "expiry_to_days": -31},
-		"expired_over_90": {"expiry_window": "overdue_beyond", "expiry_days": 90},
-		"upcoming_0_30": {"expiry_window": "custom", "expiry_from_days": 0, "expiry_to_days": 30},
-		"upcoming_31_90": {"expiry_window": "custom", "expiry_from_days": 31, "expiry_to_days": 90},
-		"upcoming_over_90": {"expiry_window": "remaining_beyond", "expiry_days": 90},
-	}
-	for key, expiry_filters in expiry_requests.items():
-		result = expiring_batches(**common, **expiry_filters, start=0, page_length=5, in_stock=1)
-		expiry_buckets[key]["count"] = int(result.get("total") or 0)
-		expiry_buckets[key]["rows"] = (result.get("results") or [])[:5]
-	if str(expiry_preview).lower() == "expired":
-		preview = expiring_batches(
-			**common, start=0, page_length=5, in_stock=1, expiry_window="overdue", sort="desc"
-		).get("results") or []
-		preview_mode = "expired"
-	else:
-		preview = expiry_buckets["upcoming_0_30"]["rows"]
-		preview_mode = "upcoming"
-	# Movement period is local to this section and includes all supported ledger kinds.
-	from temple_inventory import workspace_api
-	movement_filters = {**common, "period_key": period_key or "this_month"}
-	if str(period_key) == "custom":
-		movement_filters.update({"date_from": date_from, "date_to": date_to})
-	movement_records = workspace_api._movement_history_records(movement_filters, docstatuses=[1])
-	workspace_api._history_hydrate_item_metadata(movement_records)
-	raw_movement = workspace_api._ledger_item_rows(movement_records)
-	excepted_period = workspace_api._movement_period(movement_filters, default=True)
-	movement_kinds = workspace_api.MOVEMENT_LEDGER_KINDS
-	movement_labels = {"Receive": "入库", "Issue": "出库", "Transfer": "转移", "Loan": "借出", "Return": "归还", "Damage": "标记损坏", "Loss": "遗失", "Repair": "修复", "Disposal": "报废", "Reconcile": "库存调整", "Opening": "期初库存"}
-	selected_set = set(selected_leaves)
-	by_kind = {kind: {"kind": kind, "label": movement_labels.get(kind, kind), "record_count": 0, "quantity": {"unitless_total": 0, "by_uom": []}} for kind in movement_kinds}
-	matching_rows = [
-		row for row in raw_movement
-		if (not selected_set or row.get("source_warehouse") in selected_set or row.get("destination_warehouse") in selected_set)
-		and (not selected_groups or row.get("item_group") in selected_groups)
-	]
-	for kind in movement_kinds:
-		kind_rows = [row for row in matching_rows if row.get("movement_kind") == kind]
-		by_kind[kind]["record_count"] = len({row.get("record_name") or row.get("entry") for row in kind_rows})
-		quantities = defaultdict(float)
-		for row in kind_rows:
-			quantities[row.get("stock_uom") or row.get("uom") or ""] += abs(flt(row.get("stock_qty") or row.get("qty") or 0))
-		by_kind[kind]["quantity"] = {"unitless_total": flt(sum(quantities.values())), "by_uom": [{"uom": uom, "qty": flt(qty)} for uom, qty in sorted(quantities.items()) if uom]}
-	recent = []
-	seen_recent = set()
-	for row in sorted(matching_rows, key=lambda item: (str(item.get("posting_date") or ""), str(item.get("posting_time") or "")), reverse=True):
-		record_name = row.get("record_name") or row.get("entry")
-		if record_name in seen_recent:
-			continue
-		seen_recent.add(record_name)
-		recent.append(row)
-		if len(recent) >= 5:
-			break
-	loan_page = _loan_browse_response(
-		"records",
-		{"status": "outstanding", "item_groups": item_groups, "warehouses": warehouses},
-		0,
-		100,
-	)
-	loan_rows = list(loan_page.get("results") or [])
-	for start in range(100, int(loan_page.get("total") or 0), 100):
-		loan_rows.extend(
-			_loan_browse_response(
-				"records",
-				{"status": "outstanding", "item_groups": item_groups, "warehouses": warehouses},
-				start,
-				100,
-			).get("results") or []
+	requested_sections = _selection_values(sections)
+	valid_sections = {"inventory", "expiry", "movement", "loans", "reminders", "distribution"}
+	if requested_sections:
+		invalid = [section for section in requested_sections if section not in valid_sections]
+		if invalid:
+			frappe.throw(_("Invalid dashboard section: {0}").format(invalid[0]), frappe.ValidationError)
+		requested_sections = list(dict.fromkeys(requested_sections))
+		response = {"generated_at": str(frappe.utils.now_datetime()), "scope": global_filters}
+		expiry_section = (
+			_dashboard_expiry_section(common, expiry_preview)
+			if {"expiry", "reminders"} & set(requested_sections)
+			else None
 		)
-	for row in loan_rows:
-		row["status"] = "部分结清" if row.get("loan_status") == "Partially Settled" else "未归还"
-	loan_rows.sort(key=lambda row: (0 if row["status"] == "部分结清" else 1, str(row.get("loan_date") or ""), row["name"]))
-	loan_summary = {
-		"record_count": int(loan_page.get("total") or 0),
-		"quantity": _dashboard_quantity_summary(
-			(loan_page.get("quantity_totals") or {}).get("outstanding_qty")
-		),
-		"rows": loan_rows[:5],
-	}
-	damaged_count = int(
-		inventory(**common, needs_attention=1, page_length=1, start=0, in_stock=1).get("total") or 0
+		for section in requested_sections:
+			if section == "inventory":
+				response[section] = _dashboard_inventory_section(common)["section"]
+			elif section == "expiry":
+				response[section] = expiry_section
+			elif section == "movement":
+				response[section] = _dashboard_movement_section(
+					common, selected_leaves, selected_groups, period_key, date_from, date_to
+				)
+			elif section == "distribution":
+				mode = distribution_mode if distribution_mode in ("warehouse", "category") else "warehouse"
+				response[section] = {
+					"mode": mode,
+					"bars": _dashboard_distribution(
+						settings, requested_warehouses, requested_groups, selected_groups, mode
+					),
+				}
+			elif section == "loans":
+				response[section] = _dashboard_loans_section(common)
+			elif section == "reminders":
+				response[section] = _dashboard_reminders_section(common, expiry_section)
+		return response
+	stock_result = _dashboard_inventory_section(common)
+	stock = stock_result["source"]
+	inventory_summary = stock_result["section"]["totals"]
+	expiry = _dashboard_expiry_section(common, expiry_preview)
+	movement = _dashboard_movement_section(
+		common, selected_leaves, selected_groups, period_key, date_from, date_to
 	)
-	reminders = []
-	expired_count = sum(
-		expiry_buckets[key]["count"]
-		for key in ("expired_1_30", "expired_31_90", "expired_over_90")
-	)
-	if expired_count:
-		reminders.append(
-			{"kind": "expired", "label": "已过期批次", "count": expired_count, "severity": "critical"}
-		)
-	if expiry_buckets["upcoming_0_30"]["count"]:
-		reminders.append(
-			{
-				"kind": "upcoming_0_30",
-				"label": expiry_buckets["upcoming_0_30"]["label"],
-				"count": expiry_buckets["upcoming_0_30"]["count"],
-				"severity": "warning",
-			}
-		)
-	if damaged_count:
-		reminders.append({"kind": "damaged", "label": "损坏库存", "count": damaged_count, "severity": "critical"})
+	loans = _dashboard_loans_section(common)
+	reminders = _dashboard_reminders_section(common, expiry)
 	mode = distribution_mode if distribution_mode in ("warehouse", "category") else "warehouse"
-	return {"generated_at": str(frappe.utils.now_datetime()), "scope": global_filters, "inventory": {"totals": inventory_summary, "as_of": stock.get("as_of")}, "expiry": {"buckets": expiry_buckets, "preview": preview[:5], "preview_mode": preview_mode}, "movement": {"period": excepted_period, "summaries": list(by_kind.values()), "recent": recent}, "loans": loan_summary, "reminders": reminders, "distribution": {"mode": mode, "bars": _dashboard_distribution(settings, requested_warehouses, requested_groups, selected_groups, mode)}, "warehouses": _user_facing_warehouse_presentation(settings), "item_groups": frappe.get_list("Item Group", fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"], order_by="lft", limit_page_length=0)}
-
-
+	return {
+		"generated_at": str(frappe.utils.now_datetime()),
+		"scope": global_filters,
+		"inventory": {"totals": inventory_summary, "as_of": stock.get("as_of")},
+		"expiry": expiry,
+		"movement": movement,
+		"loans": loans,
+		"reminders": reminders,
+		"distribution": {
+			"mode": mode,
+			"bars": _dashboard_distribution(
+				settings, requested_warehouses, requested_groups, selected_groups, mode
+			),
+		},
+		"warehouses": _user_facing_warehouse_presentation(settings),
+		"item_groups": frappe.get_list(
+			"Item Group",
+			fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"],
+			order_by="lft",
+			limit_page_length=0,
+		),
+	}
 @frappe.whitelist()
 def dashboard(**kwargs):
 	"""Compatibility alias for callers that use the page name as the RPC."""

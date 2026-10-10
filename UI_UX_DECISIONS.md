@@ -30,6 +30,14 @@ in the same change. Keep implementation details in code or task notes, not here.
   and current status); they never show due dates, overdue labels, or inferred
   overdue flags and do not introduce another data model.
 
+- **2026-10-10:** Dashboard sections refresh independently: an affected card
+  keeps its last successful values and height while showing a prominent,
+  accessible updating or stale/error state with retry. Links into records are
+  unavailable until that card matches the active scope. Distribution uses
+  horizontal bars on a shared zero baseline with integer count ticks and exact
+  distinct Item-type counts; warehouse/category counts may overlap and never
+  imply a unique grand total or percentages.
+
 - Standalone creation and editing flows use normal routed pages under the
   application shell. Do not render a drawer over an otherwise empty page.
 - Drawers are reserved for contextual work that returns to an in-progress flow,
@@ -197,6 +205,27 @@ in the same change. Keep implementation details in code or task notes, not here.
   draft or context.
 
 ## Supersession log
+
+- **2026-10-10:** The Dashboard now stacks inventory, expiry, movement, loans,
+  reminders, and distribution in that order below the shared 1024px breakpoint
+  or when measured content is narrower than 760px. At wider desktop content,
+  independently stacked columns group inventory, expiry, and distribution on
+  the left, and movement/recent records, loans, and reminders on the right.
+  This supersedes the paired-row Dashboard layout recorded below.
+- **2026-10-10:** The Dashboard follows a compact, viewport-owned layout:
+  inventory and expiry, movement and recent records, loans, reminders, and
+  distribution form six sections in paired desktop columns when available
+  content is at least 760px wide; narrower content and surfaces below the
+  shared 1024px breakpoint use one column. Movement summaries precede recent
+  records; inventory metrics use two columns and expiry uses balanced groups
+  of three. This supersedes the generous-spacing direction in the earlier
+  Dashboard brief and `notes/done/20261010-temple_inventory_dashboard_design_spec.md`.
+  Desktop shell navigation and page content scroll independently. Ordinary
+  forms, details, warehouses, and reports scroll in the shell content; the
+  Dashboard owns its content scroller and bounded filter rail, while viewport
+  browse pages keep their results scroller and bounded filter rail. Responsive
+  filter panels lock document scrolling and trap focus only while an open
+  mobile drawer is active; desktop filters stay in the page layout.
 
 - **2026-10-10:** 借用 now uses separate 明细 (`/loans/items`) and 记录
   (`/loans/records`) browse destinations, matching 货物流动. Both default to

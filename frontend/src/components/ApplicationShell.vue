@@ -73,6 +73,12 @@ const {
 	}
 	.shell-content {
 		min-height: 0;
+		overflow-x: hidden;
+		overflow-y: auto;
+	}
+	.shell-content:has(> .viewport-list-root),
+	.shell-content:has(> .movement-ledger),
+	.shell-content:has(> .dashboard-page) {
 		overflow: hidden;
 	}
 }

@@ -147,6 +147,7 @@ export function usePendingController() {
     filters,
     () => {
       if (!boot.value) return;
+      requestScrollReset();
       if (timer) clearTimeout(timer);
       void router.replace({
         query: serializeFilterQuery(filters.value),

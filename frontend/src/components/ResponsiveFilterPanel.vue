@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 
 const props = withDefaults(
 	defineProps<{
@@ -20,36 +21,36 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:open": [value: boolean]; clear: [] }>();
 const invoker = ref<HTMLElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
-const isMobile = ref(
-	typeof window === "undefined" || typeof window.matchMedia !== "function"
-		? true
-		: !window.matchMedia("(min-width: 1024px)").matches,
-);
-const previousBodyOverflow = ref("");
-const previousDocumentOverflow = ref("");
-let mediaQuery: MediaQueryList | undefined;
+const { isMobile } = useResponsiveLayout();
+let previousBodyOverflow: string | undefined;
+let previousDocumentOverflow: string | undefined;
 const titleId = "filter-title-" + Math.random().toString(36).slice(2);
 
-function syncSurface(event?: MediaQueryListEvent | MediaQueryList) {
-	if (event) {
-		isMobile.value = !event.matches;
-		return;
-	}
-	if (mediaQuery) isMobile.value = !mediaQuery.matches;
+function acquireMobileScrollLock() {
+	if (previousBodyOverflow !== undefined || typeof document === "undefined") return;
+	previousBodyOverflow = document.body.style.overflow;
+	previousDocumentOverflow = document.documentElement.style.overflow;
+	document.body.style.overflow = "hidden";
+	document.documentElement.style.overflow = "hidden";
+}
+function releaseMobileScrollLock() {
+	if (previousBodyOverflow === undefined || typeof document === "undefined") return;
+	document.body.style.overflow = previousBodyOverflow;
+	document.documentElement.style.overflow = previousDocumentOverflow || "";
+	previousBodyOverflow = undefined;
+	previousDocumentOverflow = undefined;
 }
 
 function close() {
 	emit("update:open", false);
-	void nextTick(() => invoker.value?.focus());
+	if (isMobile.value) void nextTick(() => invoker.value?.focus());
 }
 function openPanel(event?: Event) {
 	if (event?.currentTarget instanceof HTMLElement) invoker.value = event.currentTarget;
-	if (typeof window !== "undefined" && typeof window.matchMedia === "function")
-		isMobile.value = !window.matchMedia("(min-width: 1024px)").matches;
 	emit("update:open", true);
 }
 function keydown(event: KeyboardEvent) {
-	if (!props.open) return;
+	if (!props.open || !isMobile.value) return;
 	if (event.key === "Escape") {
 		event.preventDefault();
 		event.stopPropagation();
@@ -74,57 +75,38 @@ function keydown(event: KeyboardEvent) {
 	}
 }
 function onPointerDown(event: PointerEvent) {
-	if (!props.open || !(event.target instanceof Node)) return;
+	if (!props.open || !isMobile.value || !(event.target instanceof Node)) return;
 	if (panel.value?.contains(event.target)) return;
 	close();
 }
 watch(
-	() => props.open,
-	async (value) => {
-		if (value) {
-			previousBodyOverflow.value = document.body.style.overflow;
-			previousDocumentOverflow.value = document.documentElement.style.overflow;
-			document.body.style.overflow = "hidden";
-			document.documentElement.style.overflow = "hidden";
+	[() => props.open, isMobile],
+	async ([open, mobile]) => {
+		if (open && mobile) {
+			acquireMobileScrollLock();
 			// Pages may use their own visible mobile trigger so the sidebar trigger
 			// can stay out of the desktop grid. Preserve that trigger for close.
 			if (!invoker.value && document.activeElement instanceof HTMLElement)
 				invoker.value = document.activeElement;
 			await nextTick();
-			panel.value
-				?.querySelector<HTMLElement>('button,input,select,textarea,[tabindex="0"]')
-				?.focus();
+			if (props.open && isMobile.value)
+				panel.value
+					?.querySelector<HTMLElement>('button,input,select,textarea,[tabindex="0"]')
+					?.focus();
 		} else {
-			document.body.style.overflow = previousBodyOverflow.value;
-			document.documentElement.style.overflow = previousDocumentOverflow.value;
-			previousBodyOverflow.value = "";
-			previousDocumentOverflow.value = "";
+			releaseMobileScrollLock();
 		}
 	},
 	{ immediate: true },
 );
 onMounted(() => {
-	if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-		mediaQuery = window.matchMedia("(min-width: 1024px)");
-		syncSurface(mediaQuery);
-		if (typeof mediaQuery.addEventListener === "function")
-			mediaQuery.addEventListener("change", syncSurface);
-		else mediaQuery.addListener(syncSurface);
-	}
 	window.addEventListener("keydown", keydown);
 	document.addEventListener("pointerdown", onPointerDown);
 });
 onBeforeUnmount(() => {
-	if (mediaQuery) {
-		if (typeof mediaQuery.removeEventListener === "function")
-			mediaQuery.removeEventListener("change", syncSurface);
-		else mediaQuery.removeListener(syncSurface);
-		mediaQuery = undefined;
-	}
 	window.removeEventListener("keydown", keydown);
 	document.removeEventListener("pointerdown", onPointerDown);
-	document.body.style.overflow = previousBodyOverflow.value;
-	document.documentElement.style.overflow = previousDocumentOverflow.value;
+	releaseMobileScrollLock();
 });
 defineExpose({ openPanel, close });
 </script>

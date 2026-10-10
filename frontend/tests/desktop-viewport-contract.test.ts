@@ -17,6 +17,14 @@ const globalStyleSource = readFileSync(
   resolve(process.cwd(), "src/style.css"),
   "utf8",
 ).replace(/\s+/g, " ");
+const dashboardSource = readFileSync(
+  resolve(process.cwd(), "src/features/dashboard/DashboardView.vue"),
+  "utf8",
+).replace(/\s+/g, " ");
+const tableRendererSource = readFileSync(
+  resolve(process.cwd(), "src/components/SortableDataTableDesktopRenderer.vue"),
+  "utf8",
+).replace(/\s+/g, " ");
 
 const RouterLink = defineComponent({
   props: ["to", "ariaCurrent"],
@@ -37,6 +45,29 @@ describe("desktop shell presentation contract", () => {
     expect(shellSource).toContain("<style scoped>");
     expect(shellSource).toMatch(
       /\.application-shell \{[^}]*display: grid;[^}]*grid-template-columns: 156px minmax\(0, 1fr\);[^}]*height: 100dvh;[^}]*overflow: hidden;/,
+    );
+    expect(shellSource).toMatch(
+      /\.shell-content \{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;/,
+    );
+    expect(shellSource).toMatch(
+      /\.shell-content:has\(> \.viewport-list-root\)[\s\S]*?overflow: hidden;/,
+    );
+    expect(shellSource).toMatch(
+      /\.shell-content:has\(> \.dashboard-page\)[\s\S]*?overflow: hidden;/,
+    );
+    expect(dashboardSource).toContain("new ResizeObserver(");
+    expect(dashboardSource).toMatch(/contentWidth\.value\s*>=\s*760/);
+    expect(dashboardSource).toMatch(
+      /\.distribution-row\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;[^}]*grid-template-rows: auto 18px;/,
+    );
+    expect(dashboardSource).toMatch(
+      /\.distribution-row > div\s*\{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2;/,
+    );
+    expect(dashboardSource).toMatch(
+      /\.dashboard-content \{[^}]*overflow: auto;/,
+    );
+    expect(tableRendererSource).toMatch(
+      /\.sortable-data-table-desktop th,[\s\S]*?position: sticky;[\s\S]*?background: #fff;/,
     );
     expect(desktopSource).toContain("<style scoped>");
     expect(desktopSource).toMatch(

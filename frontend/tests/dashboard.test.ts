@@ -2,6 +2,7 @@ import { computed, defineComponent, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import DashboardView from "../src/features/dashboard/DashboardView.vue";
+import DashboardSectionLayout from "../src/features/dashboard/DashboardSectionLayout.vue";
 
 const RouterLink = defineComponent({
   props: ["to"],
@@ -74,6 +75,21 @@ function controller(surface: "desktop" | "mobile" = "desktop") {
     reminders: [],
     distribution: { bars: [{ key: "A02", label: "A02", distinct_items: 3 }] },
   });
+  const statuses = ref(
+    Object.fromEntries(
+      [
+        "inventory",
+        "expiry",
+        "movement",
+        "loans",
+        "reminders",
+        "distribution",
+      ].map((section) => [
+        section,
+        { loading: false, error: "", stale: false },
+      ]),
+    ) as Record<string, { loading: boolean; error: string; stale: boolean }>,
+  );
   return {
     surface: ref(surface),
     route: { query: {} },
@@ -83,6 +99,13 @@ function controller(surface: "desktop" | "mobile" = "desktop") {
     loading: ref(false),
     refreshing: ref(false),
     error: ref(""),
+    hasSuccessfulData: ref(true),
+    sectionBusy: (section: string) => statuses.value[section].loading,
+    sectionStale: (section: string) =>
+      statuses.value[section].stale || Boolean(statuses.value[section].error),
+    sectionError: (section: string) => statuses.value[section].error,
+    sectionState: statuses,
+    retrySection: vi.fn(),
     filterOpen: ref(false),
     desktopFilterOpen: ref(false),
     movementPeriod: ref("this_month"),
@@ -127,6 +150,21 @@ describe("dashboard", () => {
       "库存分布",
     ])
       expect(wrapper.text()).toContain(heading);
+    expect(wrapper.findAll(".dashboard-section")).toHaveLength(6);
+    expect(
+      wrapper.find(".dashboard-sections").element.children[0].textContent,
+    ).toContain("库存概览");
+    expect(
+      wrapper.find(".dashboard-sections").element.children[1].textContent,
+    ).toContain("效期概览");
+    const movementSection = wrapper.findAll(".dashboard-section")[2];
+    expect(
+      movementSection
+        .find(".movement-grid")
+        .element.compareDocumentPosition(
+          movementSection.find(".recent-panel").element,
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(wrapper.findAll(".expiry-card")).toHaveLength(6);
     expect(wrapper.text()).toContain("义工组 · 部分归还");
     expect(wrapper.text()).toContain("法会布置");
@@ -145,9 +183,251 @@ describe("dashboard", () => {
       global: globals,
     });
     expect(wrapper.find(".dashboard-desktop-filter").exists()).toBe(false);
-    await wrapper.find(".dashboard-header .dashboard-filter-trigger").trigger("click");
+    const content = wrapper.find(".dashboard-content").element as HTMLElement;
+    content.scrollTop = 240;
+    await wrapper
+      .find(".dashboard-header .dashboard-filter-trigger")
+      .trigger("click");
     expect(state.desktopFilterOpen.value).toBe(true);
     expect(wrapper.find(".dashboard-desktop-filter").exists()).toBe(true);
     expect(wrapper.find(".filter-drawer-backdrop").exists()).toBe(false);
+    expect(wrapper.find(".dashboard-content").element).toBe(content);
+    expect(content.scrollTop).toBe(240);
+    await wrapper
+      .find(".dashboard-header .dashboard-filter-trigger")
+      .trigger("click");
+    expect(wrapper.find(".dashboard-content").element).toBe(content);
+    expect(content.scrollTop).toBe(240);
+  });
+
+  it("preserves loading, error retry, and empty section states", async () => {
+    const state = controller();
+    state.loading.value = true;
+    state.hasSuccessfulData.value = false;
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    expect(wrapper.find(".dashboard-loading").exists()).toBe(true);
+    expect(wrapper.findAll(".dashboard-section")).toHaveLength(0);
+
+    state.loading.value = false;
+    state.error.value = "读取失败";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[role="alert"]').text()).toContain("读取失败");
+    await wrapper.find('[role="alert"] button').trigger("click");
+    expect(state.refresh).toHaveBeenCalledTimes(1);
+
+    state.error.value = "";
+    state.hasSuccessfulData.value = true;
+    state.data.value.expiry.preview = [];
+    state.data.value.movement.recent = [];
+    state.data.value.loans.rows = [];
+    state.data.value.reminders = [];
+    state.data.value.distribution.bars = [];
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("当前范围没有需要关注的批次");
+    expect(wrapper.text()).toContain("当前没有未归还借用");
+    expect(wrapper.text()).toContain("暂无需要处理的提醒");
+    expect(wrapper.text()).toContain("当前范围没有可展示的分布数据");
+  });
+
+  it("keeps section layout steady and local controls reachable while disabling stale links", async () => {
+    const state = controller();
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    state.sectionState.value.movement = {
+      loading: true,
+      error: "",
+      stale: true,
+    };
+    await wrapper.vm.$nextTick();
+    const section = wrapper.find(".movement-section");
+    expect(section.attributes("aria-busy")).toBe("true");
+    expect(section.find(".section-update").text()).toContain("正在更新");
+    expect(section.findAll('a[aria-disabled="true"]').length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      section.find(".movement-heading-actions .segmented button").exists(),
+    ).toBe(true);
+
+    state.sectionState.value.movement = {
+      loading: false,
+      error: "读取失败",
+      stale: true,
+    };
+    await wrapper.vm.$nextTick();
+    expect(section.find(".section-update").text()).toContain("更新失败");
+    await section.find(".section-update button").trigger("click");
+    expect(state.retrySection).toHaveBeenCalledWith("movement");
+  });
+
+  it("groups desktop columns and restores the original stacked order", () => {
+    const slots = {
+      inventory: () => "inventory",
+      expiry: () => "expiry",
+      movement: () => "movement",
+      loans: () => "loans",
+      reminders: () => "reminders",
+      distribution: () => "distribution",
+    };
+    const desktop = mount(DashboardSectionLayout, {
+      props: { grouped: true },
+      slots,
+    });
+    const columns = desktop.findAll(".dashboard-column");
+    expect(columns).toHaveLength(2);
+    expect(columns[0].text()).toBe("inventoryexpirydistribution");
+    expect(columns[1].text()).toBe("movementloansreminders");
+
+    const stacked = mount(DashboardSectionLayout, {
+      props: { grouped: false },
+      slots,
+    });
+    expect(stacked.find(".dashboard-sections").text()).toBe(
+      "inventoryexpirymovementloansremindersdistribution",
+    );
+  });
+
+  it("renders exact zero counts with zero-width bars and an integer zero tick", () => {
+    const state = controller();
+    state.data.value.distribution.bars = [
+      { key: "A02", label: "A02", distinct_items: 0 },
+    ];
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    expect(wrapper.find(".distribution-axis").text()).toBe("0");
+    expect(wrapper.find(".distribution-row i").attributes("style")).toContain(
+      "width: 0%",
+    );
+    expect(wrapper.find(".distribution-row strong").text()).toBe("0");
+  });
+
+  it("keeps dashboard drill-through destinations scoped to the active filters", () => {
+    const state = controller();
+    state.data.value.expiry.preview = [
+      { batch_no: "BATCH-1", item_code: "ITEM-1", expiry_date: "2026-10-11" },
+    ];
+    state.data.value.movement.recent = [
+      {
+        record_name: "ENTRY-1",
+        detail_route: "/movements/records?kind=Receive",
+        movement_kind: "入库",
+        posting_date: "2026-10-10",
+        item_code: "ITEM-1",
+        stock_qty: 1,
+        stock_uom: "Nos",
+      },
+    ];
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    const scoped = (path: string) =>
+      wrapper
+        .findAll(`a[data-path="${path}"]`)
+        .map((link) => JSON.parse(link.attributes("data-query") || "{}"));
+
+    expect(scoped("/stock")).toContainEqual({
+      warehouses: ["A02"],
+      item_groups: ["食品"],
+    });
+    expect(scoped("/expiry")).toContainEqual({
+      warehouses: ["A02"],
+      item_groups: ["食品"],
+    });
+    expect(scoped("/expiry")).toContainEqual(
+      expect.objectContaining({ warehouses: ["A02"], item_groups: ["食品"] }),
+    );
+    expect(scoped("/movements/records")).toContainEqual(
+      expect.objectContaining({
+        warehouses: ["A02"],
+        item_groups: ["食品"],
+        period: "this_month",
+      }),
+    );
+    expect(scoped("/loans/records")).toContainEqual(
+      expect.objectContaining({
+        status: "outstanding",
+        warehouses: ["A02"],
+        item_groups: ["食品"],
+      }),
+    );
+    wrapper.unmount();
+  });
+
+  it("changes between measured desktop columns and the original stacked order without replacing the scroll root", async () => {
+    let resize!: ResizeObserverCallback;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resize = callback;
+        }
+        observe() {
+          resize(
+            [{ contentRect: { width: 820 } } as ResizeObserverEntry],
+            this as unknown as ResizeObserver,
+          );
+        }
+        disconnect() {}
+      },
+    );
+    const state = controller("desktop");
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    const content = wrapper.find(".dashboard-content").element as HTMLElement;
+    content.scrollTop = 260;
+    await wrapper.vm.$nextTick();
+    const columns = wrapper.findAll(".dashboard-column");
+    expect(columns[0].text()).toContain("库存分布");
+    expect(columns[1].text()).toContain("货物流动概览");
+
+    state.surface.value = "mobile";
+    resize(
+      [{ contentRect: { width: 600 } } as ResizeObserverEntry],
+      {} as ResizeObserver,
+    );
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".dashboard-column")).toHaveLength(0);
+    expect(
+      wrapper
+        .findAll(".dashboard-section")
+        .map((section) => section.find("h2").text()),
+    ).toEqual([
+      "库存概览",
+      "效期概览",
+      "货物流动概览",
+      "借出中",
+      "提醒事项",
+      "库存分布",
+    ]);
+    expect(wrapper.find(".dashboard-content").element).toBe(content);
+    expect(content.scrollTop).toBe(260);
+    wrapper.unmount();
+    vi.unstubAllGlobals();
+  });
+
+  it("places unequal integer ticks at proportional positions", () => {
+    const state = controller();
+    state.data.value.distribution.bars = [
+      { key: "a", label: "A", distinct_items: 1 },
+      { key: "b", label: "B", distinct_items: 5 },
+    ];
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    const ticks = wrapper.findAll(".distribution-axis span");
+    expect(ticks.map((tick) => tick.text())).toEqual(["0", "2", "4", "5"]);
+    expect(ticks[2].attributes("style")).toContain("left: 80%");
+    expect(ticks[3].attributes("style")).toContain("left: 100%");
   });
 });
