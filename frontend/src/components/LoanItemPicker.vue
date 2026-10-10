@@ -2,10 +2,12 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { api } from "../lib/api";
 import { warehousePresentation } from "../lib/warehousePresenter";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 const props = defineProps<{ tree: any[] }>();
 const emit = defineEmits<{ select: [row: any]; close: [] }>();
 const drawer = ref<HTMLElement>();
+const resultsRegion = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const rows = ref<any[]>([]);
 const total = ref(0);
@@ -107,17 +109,22 @@ const label = (name: string) => warehousePresentation(name, props.tree).breadcru
 				<button type="button" @click="rows.length ? retryAppend() : load()">重试</button>
 			</p>
 			<section
+				ref="resultsRegion"
 				class="loan-picker-results"
-				:class="{ 'is-refreshing': busy && rows.length }"
 				:aria-busy="busy || appending"
 				aria-label="未结借出明细"
 			>
-				<div v-if="busy && rows.length" class="loan-picker-refresh" role="status">
-					<span class="loading-spinner" aria-hidden="true"></span>正在更新借出明细…
-				</div>
+				<UiLoadingBoundary
+					v-if="busy"
+					:busy="true"
+					:mode="rows.length ? 'refresh' : 'initial'"
+					:region="resultsRegion"
+					:dim-region="rows.length > 0"
+					:block-interactions="false"
+					message="正在加载借出明细…"
+				/>
 				<div v-if="busy && !rows.length" class="loan-picker-initial-loading" role="status">
-					<span class="loading-spinner" aria-hidden="true"></span
-					><b>正在加载借出明细…</b>
+					<b>正在加载借出明细…</b>
 					<i v-for="index in 3" :key="index"></i>
 				</div>
 				<button
@@ -151,23 +158,6 @@ const label = (name: string) => warehousePresentation(name, props.tree).breadcru
 <style scoped>
 .loan-picker-results {
 	position: relative;
-}
-.loan-picker-results.is-refreshing > :not(.loan-picker-refresh) {
-	opacity: 0.55;
-	pointer-events: none;
-}
-.loan-picker-refresh {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 255 255 / 62%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
 }
 .loan-picker-initial-loading {
 	display: grid;

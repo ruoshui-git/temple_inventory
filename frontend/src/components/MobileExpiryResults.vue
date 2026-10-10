@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import DetailPopover from "./DetailPopover.vue";
 import AsyncImage from "./AsyncImage.vue";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 type ExpiryRow = {
 	batch_no: string;
@@ -26,6 +28,7 @@ const props = withDefaults(
 	{ loading: false, loadingMore: false, error: "" },
 );
 const emit = defineEmits<{ activate: [row: ExpiryRow]; retry: [] }>();
+const contentRoot = ref<HTMLElement>();
 const format = (value: number) => Number(value || 0).toLocaleString("zh-CN");
 const relative = (days?: number | null) => {
 	if (days == null) return "无效期";
@@ -34,12 +37,14 @@ const relative = (days?: number | null) => {
 	return `剩余 ${days} 天`;
 };
 function activateKey(row: ExpiryRow, event: KeyboardEvent) {
+	if (props.loading && props.rows.length) return;
 	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
 	if (event.key !== "Enter" && event.key !== " ") return;
 	event.preventDefault();
 	emit("activate", row);
 }
 function activate(row: ExpiryRow, event: Event) {
+	if (props.loading && props.rows.length) return;
 	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
 	emit("activate", row);
 }
@@ -47,22 +52,26 @@ function activate(row: ExpiryRow, event: Event) {
 
 <template>
 	<div
+		ref="contentRoot"
 		class="mobile-expiry-results"
-		:class="{ 'is-refreshing': props.loading && props.rows.length }"
 		role="list"
 		aria-label="效期批次列表"
 		:aria-busy="props.loading || props.loadingMore"
 	>
-		<div v-if="props.loading && props.rows.length" class="mobile-expiry-refresh" role="status">
-			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
-		</div>
+		<UiLoadingBoundary
+			v-if="props.loading"
+			:busy="true"
+			:mode="props.rows.length ? 'refresh' : 'initial'"
+			:region="contentRoot"
+			:dim-region="props.rows.length > 0"
+			:block-interactions="false"
+		/>
 		<div
 			v-if="props.loading && !props.rows.length"
 			class="mobile-expiry-state loading-state"
-			role="status"
+			aria-hidden="true"
 		>
-			<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
-			><i v-for="index in 3" :key="index"></i>
+			<b>正在加载记录…</b><i v-for="index in 3" :key="index"></i>
 		</div>
 		<div v-else-if="props.error" class="mobile-expiry-state error" role="alert">
 			{{ props.error }} <button type="button" @click="emit('retry')">重试</button>
@@ -72,6 +81,7 @@ function activate(row: ExpiryRow, event: Event) {
 				v-for="row in props.rows"
 				:key="row.batch_no"
 				class="mobile-expiry-result-row"
+				:inert="props.loading ? true : undefined"
 				role="listitem"
 				tabindex="0"
 				@click="activate(row, $event)"
@@ -143,6 +153,9 @@ function activate(row: ExpiryRow, event: Event) {
 	border: 1px solid #ece8e1;
 	border-radius: 9px;
 }
+.mobile-expiry-results > .ui-loading-boundary {
+	display: none;
+}
 .mobile-expiry-state {
 	padding: 26px 12px;
 	color: #6d747b;
@@ -150,23 +163,6 @@ function activate(row: ExpiryRow, event: Event) {
 }
 .mobile-expiry-results {
 	position: relative;
-}
-.mobile-expiry-results.is-refreshing > :not(.mobile-expiry-refresh) {
-	opacity: 0.55;
-	pointer-events: none;
-}
-.mobile-expiry-refresh {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 255 255 / 62%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
 }
 .loading-state {
 	display: grid;

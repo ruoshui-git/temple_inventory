@@ -30,13 +30,19 @@ in the same change. Keep implementation details in code or task notes, not here.
   and current status); they never show due dates, overdue labels, or inferred
   overdue flags and do not introduce another data model.
 
-- **2026-10-10:** Dashboard sections refresh independently: an affected card
-  keeps its last successful values and height while showing a prominent,
-  accessible updating or stale/error state with retry. Links into records are
-  unavailable until that card matches the active scope. Distribution uses
-  horizontal bars on a shared zero baseline with integer count ticks and exact
-  distinct Item-type counts; warehouse/category counts may overlap and never
-  imply a unique grand total or percentages.
+- **2026-10-10:** Dashboard initial loads, manual refreshes, and global filter
+  changes use one shared status centered in the visible dashboard data region;
+  retained content fades while the header, navigation, filters, and local card
+  controls stay usable. Stale drill-through links are unavailable until the
+  current global scope loads. Period, preview, distribution-mode, and retry
+  requests update only their affected card. A failed update keeps the prior
+  content and reports the failure with retry. Browse and detail refreshes use
+  the same visible-region status while retaining data, scroll position, and
+  layout height; initial, empty, error, and load-more states remain distinct.
+  Distribution uses horizontal bars on a shared zero baseline with integer
+  count ticks and exact distinct Item-type counts; warehouse/category counts
+  may overlap and never imply a unique grand total or percentages. This
+  supersedes the earlier Dashboard-only bottom-card update indicator.
 
 - Standalone creation and editing flows use normal routed pages under the
   application shell. Do not render a drawer over an otherwise empty page.
@@ -206,6 +212,11 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-10-10:** Shared loading boundaries own visible-region refresh status.
+  Dashboard initial/global requests use one boundary across all data sections;
+  local card requests and other refresh surfaces use a boundary within their
+  affected data region. This supersedes the Dashboard's previous bottom-card
+  update indicator.
 - **2026-10-10:** The Dashboard now stacks inventory, expiry, movement, loans,
   reminders, and distribution in that order below the shared 1024px breakpoint
   or when measured content is narrower than 760px. At wider desktop content,

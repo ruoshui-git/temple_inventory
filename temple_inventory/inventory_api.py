@@ -3548,9 +3548,13 @@ def _loan_browse_response(mode, filters=None, start=0, page_length=30):
 			key: {facet: len(identities) for facet, identities in value.items()}
 			for key, value in facets.items()
 		},
+		"quantity_totals": quantity_totals,
 		"column_summaries": {
 			**_column_summaries(quantity_totals),
-			"line_count": {"type": "number", "value": sum(row.get("line_count", 1) for row in all_for_totals)},
+			"line_count": {
+				"type": "number",
+				"value": sum(row.get("line_count", 1) for row in all_for_totals),
+			},
 			"outstanding_lines": {
 				"type": "number",
 				"value": sum(row.get("outstanding_lines", 0) for row in all_for_totals),

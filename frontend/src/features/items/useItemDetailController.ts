@@ -12,6 +12,7 @@ export function useItemDetailController() {
     item = ref<any>(),
     boot = ref<any>(),
     error = ref(""),
+    readLoading = ref(true),
     chosen = ref(""),
     editing = ref(false),
     saving = ref(false),
@@ -34,6 +35,7 @@ export function useItemDetailController() {
     warehousePresentation(name, boot.value?.warehouse_tree || []).breadcrumb;
   const batchSort = ref<"expiry_date" | "total_qty">("expiry_date");
   const batchSortOrder = ref<"asc" | "desc">("asc");
+  let readSequence = 0;
   const batches = computed(() =>
     [...(item.value?.batches || [])].sort((a: any, b: any) => {
       const left =
@@ -83,8 +85,70 @@ export function useItemDetailController() {
   function close() {
     void returnToOpener(router, "/stock");
   }
+  function prepareItem(
+    value: any,
+    preserveChosen = false,
+    preserveDraft = false,
+  ) {
+    const previousChosen = chosen.value;
+    const draft =
+      preserveDraft && editing.value && item.value
+        ? {
+            item_name: item.value.item_name,
+            item_group: item.value.item_group,
+            description: item.value.description,
+            barcodes: item.value.barcodes,
+          }
+        : undefined;
+    value.barcodes = Array.isArray(value.barcodes)
+      ? value.barcodes.join("\n")
+      : String(value.barcodes || "");
+    if (draft) Object.assign(value, draft);
+    item.value = value;
+    const images = item.value.images || [];
+    chosen.value =
+      (preserveChosen &&
+      images.some((image: any) => image.file_url === previousChosen)
+        ? previousChosen
+        : images[0]?.file_url) || "";
+  }
+  async function refreshItem(
+    preserveChosen = true,
+    currentRead = ++readSequence,
+    preserveDraft = false,
+  ) {
+    readLoading.value = true;
+    error.value = "";
+    try {
+      const value = await workspaceApi("item_detail", {
+        item_code: route.params.code,
+      });
+      if (currentRead !== readSequence) return false;
+      prepareItem(value, preserveChosen, preserveDraft);
+      return true;
+    } catch (cause: any) {
+      if (currentRead === readSequence) error.value = cause.message;
+      return false;
+    } finally {
+      if (currentRead === readSequence) readLoading.value = false;
+    }
+  }
+  async function load() {
+    const currentRead = ++readSequence;
+    readLoading.value = true;
+    error.value = "";
+    try {
+      if (!boot.value) boot.value = await api("bootstrap");
+      if (currentRead === readSequence)
+        await refreshItem(Boolean(item.value), currentRead);
+    } catch (cause: any) {
+      if (currentRead === readSequence) error.value = cause.message;
+    } finally {
+      if (currentRead === readSequence) readLoading.value = false;
+    }
+  }
   function retry() {
-    router.go(0);
+    void load();
   }
   async function saveEdit() {
     if (!item.value) return;
@@ -119,9 +183,7 @@ export function useItemDetailController() {
     try {
       for (const file of files)
         await upload(file, "Item", item.value.item_code);
-      item.value = await workspaceApi("item_detail", {
-        item_code: item.value.item_code,
-      });
+      await refreshItem(true, undefined, true);
     } catch (cause: any) {
       error.value = cause.message;
     }
@@ -132,9 +194,7 @@ export function useItemDetailController() {
         item_code: item.value.item_code,
         image: file.file_url,
       });
-      item.value = await workspaceApi("item_detail", {
-        item_code: item.value.item_code,
-      });
+      if (!(await refreshItem(true, undefined, true))) return;
       chosen.value = file.file_url;
       toast("主图已更新");
     } catch (cause: any) {
@@ -157,18 +217,7 @@ export function useItemDetailController() {
       error.value = cause.message;
     }
   }
-  onMounted(async () => {
-    try {
-      [boot.value, item.value] = await Promise.all([
-        api("bootstrap"),
-        workspaceApi("item_detail", { item_code: route.params.code }),
-      ]);
-      item.value.barcodes = (item.value.barcodes || []).join("\n");
-      chosen.value = item.value.images?.[0]?.file_url || "";
-    } catch (cause: any) {
-      error.value = cause.message;
-    }
-  });
+  onMounted(load);
 
   return {
     route,
@@ -176,6 +225,7 @@ export function useItemDetailController() {
     item,
     boot,
     error,
+    readLoading,
     chosen,
     editing,
     saving,

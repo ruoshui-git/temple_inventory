@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   },
   api: vi.fn(),
   workspaceApi: vi.fn(),
+  upload: vi.fn(),
   replace: vi.fn(() => Promise.resolve()),
   push: vi.fn(),
 }));
@@ -30,7 +31,7 @@ const media = vi.hoisted(() => ({
 vi.mock("../src/lib/api", () => ({
   api: state.api,
   workspaceApi: state.workspaceApi,
-  upload: vi.fn(),
+  upload: state.upload,
   labels: { Receive: "入库" },
   roomFor: vi.fn(() => ""),
   sessionExpired: ref(false),
@@ -53,12 +54,16 @@ const scanner = defineComponent({
     "<button class=\"test-scanner\" @click=\"$emit('scan', 'CODE-1')\">scanner</button>",
 });
 const child = defineComponent({ template: "<div><slot /></div>" });
+const attachmentList = defineComponent({
+  emits: ["upload"],
+  template: `<button class="test-upload" @click="$emit('upload', [])">upload</button>`,
+});
 const globals = {
   stubs: {
     Scanner: scanner,
     LoadingIndicator: child,
     ItemImagePreview: child,
-    AttachmentList: child,
+    AttachmentList: attachmentList,
     ItemPicker: child,
     LoanItemPicker: child,
     FloatingActionMenu: child,
@@ -85,6 +90,7 @@ beforeEach(() => {
   state.route.query = {};
   state.api.mockReset();
   state.workspaceApi.mockReset();
+  state.upload.mockReset().mockResolvedValue(undefined);
   state.replace.mockClear();
   state.push.mockClear();
   media.matches = true;
@@ -134,7 +140,14 @@ beforeEach(() => {
           barcodes: [],
           images: [],
           stock: [],
-          history: [],
+          history: [
+            {
+              name: "MOV-1",
+              posting_date: "2026-09-29",
+              movement_kind: "入库",
+              item_changes: [],
+            },
+          ],
           can_edit: true,
         }
       : [],
@@ -165,6 +178,66 @@ describe("Task 04 history, scanner, and navigation integration", () => {
       .find((label) => label.text().includes("条码"))
       ?.find("textarea");
     expect(barcodeField?.element.value).toContain("CODE-1");
+  });
+
+  it("keeps Item read data visible during upload refresh and preserves attachment controls", async () => {
+    const wrapper = mount(ItemDetail, { global: globals });
+    await flushPromises();
+    expect(wrapper.text()).toContain("物品");
+    await wrapper.get('button[aria-label="编辑"]').trigger("click");
+    await wrapper.get(".settings-detail input").setValue("未保存名称");
+    expect(
+      wrapper.find(".item-read-region .detail-actions").attributes("inert"),
+    ).toBeUndefined();
+    expect(
+      wrapper
+        .findAll("a")
+        .every((link) => link.attributes("inert") === undefined),
+    ).toBe(true);
+
+    let finishRead!: (value: unknown) => void;
+    state.workspaceApi.mockImplementationOnce(
+      () => new Promise((resolve) => (finishRead = resolve)),
+    );
+    await wrapper.findComponent(attachmentList).get("button").trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("正在更新物品资料");
+    expect(
+      wrapper.find(".item-read-region .detail-actions").attributes("inert"),
+    ).toBeDefined();
+    expect(
+      wrapper
+        .findAll("a")
+        .some((link) => link.attributes("inert") !== undefined),
+    ).toBe(true);
+    expect(
+      wrapper.find(".item-read-region").attributes("inert"),
+    ).toBeUndefined();
+    expect(wrapper.find(".test-upload").exists()).toBe(true);
+
+    finishRead({
+      item_code: "A001",
+      item_name: "更新后的物品",
+      item_group: "类别",
+      stock_uom: "件",
+      barcodes: [],
+      images: [],
+      stock: [],
+      history: [
+        {
+          name: "MOV-1",
+          posting_date: "2026-09-29",
+          movement_kind: "入库",
+          item_changes: [],
+        },
+      ],
+      can_edit: true,
+    });
+    await flushPromises();
+    expect(
+      (wrapper.get(".settings-detail input").element as HTMLInputElement).value,
+    ).toBe("未保存名称");
+    wrapper.unmount();
   });
 
   it("uses a modal reconciliation scanner and exposes lookup results after closing", async () => {

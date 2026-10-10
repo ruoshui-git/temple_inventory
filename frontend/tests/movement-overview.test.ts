@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, reactive } from "vue";
+import { defineComponent, nextTick, reactive } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import MovementPeriodSelector from "../src/components/MovementPeriodSelector.vue";
 import MovementOverview from "../src/pages/MovementOverview.vue";
@@ -170,6 +170,53 @@ describe("movement overview", () => {
     expect(
       state.workspaceApi.mock.calls.at(-1)?.[1].filters.movement_kinds,
     ).toEqual(["Receive"]);
+    wrapper.unmount();
+  });
+
+  it("keeps movement filters and sort headers usable while stale rows are inert", async () => {
+    mediaMatches = true;
+    const wrapper = mount(MovementOverview, { global: globals });
+    await flushPromises();
+
+    let finishRefresh!: (value: unknown) => void;
+    state.workspaceApi.mockImplementationOnce(
+      () => new Promise((resolve) => (finishRefresh = resolve)),
+    );
+    await wrapper.findAll(".movement-summary-card")[0].trigger("click");
+    await nextTick();
+
+    const tbody = wrapper.find("tbody");
+    expect(tbody.attributes("inert")).toBeDefined();
+    expect(tbody.text()).toContain("物品");
+    expect(wrapper.findAll(".movement-summary-card")[0].text()).toContain(
+      "12 Nos",
+    );
+    expect(
+      wrapper.findAll(".movement-summary-card")[0].attributes("inert"),
+    ).toBeUndefined();
+    expect(wrapper.find("thead button").attributes("disabled")).toBeUndefined();
+    expect(
+      wrapper.get('input[type="search"]').attributes("disabled"),
+    ).toBeUndefined();
+
+    finishRefresh({
+      results: [
+        {
+          item_code: "A002",
+          item_name: "更新物品",
+          item_group: "类别",
+          stock_uom: "Nos",
+          movement_totals: { Receive: 2 },
+          record_count: 1,
+          last_posting_date: "2026-09-29",
+        },
+      ],
+      total: 1,
+      action_summaries: [],
+      facets: { movement_kinds: {}, item_groups: {}, warehouses: {} },
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("更新物品");
     wrapper.unmount();
   });
 });

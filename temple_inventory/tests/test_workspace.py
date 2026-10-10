@@ -703,13 +703,57 @@ class WorkspaceTests(unittest.TestCase):
 	def test_canonical_loan_browse_paginates_and_filters_derived_status(self):
 		rows = [
 			frappe._dict(
-				loan=f"loan-{index}", loan_item=f"loan-{index}-item", item_code=self.item,
-				loaned=1, returned=1 - outstanding, damaged=0, lost=0, outstanding=outstanding,
-				borrower=f"借用方 {index}", activity="活动", loan_date=f"2026-01-0{index}",
-				uom="Nos", original_warehouse=self.a,
+				loan=f"loan-{index}",
+				loan_item=f"loan-{index}-item",
+				item_code=self.item,
+				loaned=1,
+				returned=1 - outstanding,
+				damaged=0,
+				lost=0,
+				outstanding=outstanding,
+				borrower=f"借用方 {index}",
+				activity="活动",
+				loan_date=f"2026-01-0{index}",
+				uom="Box" if index == 2 else "Nos",
+				original_warehouse=self.a,
 			)
 			for index, outstanding in ((3, 1), (2, 0.5), (1, 0))
 		]
+		kg_item = f"{self.item}-KG"
+		rows.extend(
+			[
+				frappe._dict(
+					loan="loan-4",
+					loan_item="loan-4-item",
+					item_code=self.item,
+					loaned=2,
+					returned=0,
+					damaged=0,
+					lost=0,
+					outstanding=2,
+					borrower="无权借用方",
+					activity="活动",
+					loan_date="2026-01-04",
+					uom="Nos",
+					original_warehouse=self.a,
+				),
+				frappe._dict(
+					loan="loan-5",
+					loan_item="loan-5-item",
+					item_code=kg_item,
+					loaned=3,
+					returned=2,
+					damaged=0,
+					lost=0,
+					outstanding=1,
+					borrower="借用方 Kg",
+					activity="活动",
+					loan_date="2026-01-05",
+					uom="Kg",
+					original_warehouse=self.a,
+				),
+			]
+		)
 		by_loan = {row.loan: [row] for row in rows}
 
 		def status_for(row):
@@ -721,35 +765,77 @@ class WorkspaceTests(unittest.TestCase):
 			"allowed_names": {self.a},
 			"selected_warehouses": {self.a},
 			"selected_groups": set(),
-			"permitted_loans": set(by_loan),
-			"eligible_loans": set(by_loan),
+			"permitted_loans": {"loan-1", "loan-2", "loan-3", "loan-5"},
+			"eligible_loans": {"loan-1", "loan-2", "loan-3", "loan-5"},
 			"items": {
 				self.item: frappe._dict(
-					name=self.item, item_name="Test item", image=None,
-					item_group="All Item Groups", stock_uom="Nos",
-				)
+					name=self.item,
+					item_name="Test item",
+					image=None,
+					item_group="All Item Groups",
+					stock_uom="Nos",
+				),
+				kg_item: frappe._dict(
+					name=kg_item,
+					item_name="Test kg item",
+					image=None,
+					item_group="All Item Groups",
+					stock_uom="Kg",
+				),
 			},
 			"activities": {"活动": frappe._dict(name="活动", title="测试活动")},
 			"by_loan": by_loan,
-			"quantity": lambda row, field: (row.get(field), "Nos"),
+			"quantity": lambda row, field: (
+				row.get(field) * (12 if row.get("uom") == "Box" else 1),
+				"Kg" if row["item_code"] == kg_item else "Nos",
+			),
 			"status_for": status_for,
 		}
-		with patch.object(inventory_service, "_require_stock"), patch.object(
-			inventory_service, "_loan_browse_context", return_value=context
+		with (
+			patch.object(inventory_service, "_require_stock"),
+			patch.object(inventory_service, "_loan_browse_context", return_value=context),
 		):
-			page = inventory_service.loan_items(start="1", page_length="1")
+			page = inventory_service.loan_items(start="1", page_length="1", filters={"status": "outstanding"})
 			outstanding = inventory_service.loan_items(filters={"status": "outstanding"})
 			settled = inventory_service.loan_records(filters={"status": "settled"})
+			all_records = inventory_service.loan_records(page_length="1")
+			full_dashboard = inventory_service.dashboard_summary(
+				warehouses=[self.a], item_groups=[], period_key="all"
+			)
+			scoped_dashboard = inventory_service.dashboard_summary(
+				warehouses=[self.a], item_groups=[], period_key="all", sections=["loans"]
+			)
 
 		self.assertEqual(page["start"], 1)
 		self.assertEqual(page["page_length"], 1)
 		self.assertEqual(page["total"], 3)
-		self.assertEqual([row["loan"] for row in page["results"]], ["loan-2"])
+		self.assertEqual([row["loan"] for row in page["results"]], ["loan-3"])
 		self.assertEqual(
-			[row["loan_status"] for row in outstanding["results"]],
-			["Outstanding", "Partially Settled"],
+			{row["loan_status"] for row in outstanding["results"]},
+			{"Outstanding", "Partially Settled"},
 		)
 		self.assertEqual([row["loan_status"] for row in settled["results"]], ["Settled"])
+		self.assertEqual(settled["quantity_totals"]["outstanding_qty"], [])
+		expected_totals = [
+			{"uom": "Kg", "qty": 1.0},
+			{"uom": "Nos", "qty": 7.0},
+		]
+		self.assertEqual(page["quantity_totals"]["outstanding_qty"], expected_totals)
+		self.assertEqual(outstanding["quantity_totals"]["outstanding_qty"], expected_totals)
+		self.assertEqual(all_records["quantity_totals"]["outstanding_qty"], expected_totals)
+		self.assertEqual(all_records["total"], 4)
+		self.assertEqual(all_records["column_summaries"]["outstanding_lines"], {"type": "number", "value": 3})
+		self.assertEqual(full_dashboard["loans"], scoped_dashboard["loans"])
+		self.assertEqual(
+			full_dashboard["loans"]["quantity"],
+			{
+				"unitless_total": 8.0,
+				"by_uom": [
+					{"uom": "Kg", "qty": 1.0},
+					{"uom": "Nos", "qty": 7.0},
+				],
+			},
+		)
 
 	def test_physical_tree_keeps_an_empty_group_for_management(self):
 		settings = SimpleNamespace(root_warehouse="root", physical_root_warehouse="physical", leased_warehouse="loan")

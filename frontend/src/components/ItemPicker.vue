@@ -6,6 +6,7 @@ import { Combobox } from "frappe-ui";
 import ItemCreateForm from "./ItemCreateForm.vue";
 import ScannableInput from "./ScannableInput.vue";
 import AsyncImage from "./AsyncImage.vue";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 const props = defineProps<{
 	boot: any;
 	barcode?: string;
@@ -34,6 +35,7 @@ const creating = ref(!!props.barcode);
 const recent = ref<any[]>([]),
 	recentLoading = ref(true);
 const drawer = ref<HTMLElement>();
+const resultsRegion = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const warehouseRows = computed(
 	() => props.boot.warehouses || props.boot.physical_warehouses || [],
@@ -239,25 +241,26 @@ onBeforeUnmount(() => observer?.disconnect());
 					</div>
 				</section>
 				<section
+					ref="resultsRegion"
 					class="item-picker-results"
-					:class="{ 'is-refreshing': searchLoading && rows.length }"
 					:aria-busy="searchLoading || appending"
 					aria-label="搜索结果"
 				>
-					<div
-						v-if="searchLoading && rows.length"
-						class="item-picker-refresh"
-						role="status"
-					>
-						<span class="loading-spinner" aria-hidden="true"></span>正在更新搜索结果…
-					</div>
+					<UiLoadingBoundary
+						v-if="searchLoading"
+						:busy="true"
+						:mode="rows.length ? 'refresh' : 'initial'"
+						:region="resultsRegion"
+						:dim-region="rows.length > 0"
+						:block-interactions="false"
+						message="正在搜索物品…"
+					/>
 					<div
 						v-if="searchLoading && !rows.length"
 						class="item-picker-initial-loading"
 						role="status"
 					>
-						<span class="loading-spinner" aria-hidden="true"></span
-						><b>正在搜索物品…</b>
+						<b>正在搜索物品…</b>
 						<i v-for="index in 3" :key="index"></i>
 					</div>
 					<h3>搜索结果</h3>
@@ -313,23 +316,6 @@ onBeforeUnmount(() => observer?.disconnect());
 <style scoped>
 .item-picker-results {
 	position: relative;
-}
-.item-picker-results.is-refreshing > :not(.item-picker-refresh) {
-	opacity: 0.55;
-	pointer-events: none;
-}
-.item-picker-refresh {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 255 255 / 62%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
 }
 .item-picker-initial-loading {
 	display: grid;

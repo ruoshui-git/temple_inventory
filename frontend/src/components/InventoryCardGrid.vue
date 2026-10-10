@@ -2,6 +2,7 @@
 import DetailPopover from "./DetailPopover.vue";
 import ImageForwardCard from "./ImageForwardCard.vue";
 import type { InventoryCardRow } from "../lib/inventoryTypes";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -29,11 +30,13 @@ const emit = defineEmits<{
 }>();
 
 function activate(row: InventoryCardRow, event: Event) {
+	if (props.loading && props.rows.length) return;
 	if (event.target instanceof Element && event.target.closest("[data-card-control]")) return;
 	if (props.selectionMode) emit("toggle", row);
 	else emit("activate", row);
 }
 function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
+	if (props.loading && props.rows.length) return;
 	if (event.key !== "Enter" && event.key !== " ") return;
 	event.preventDefault();
 	activate(row, event);
@@ -69,127 +72,131 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 </script>
 
 <template>
-	<div v-if="loading && rows.length" class="card-refresh-overlay" role="status">
-		<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
-	</div>
-	<div v-if="loading && !rows.length" class="card-state loading-state" role="status">
-		<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
-		><i v-for="index in 3" :key="index"></i>
-	</div>
-	<div v-else-if="error" class="card-state error" role="alert">
-		<slot name="error">{{ error }}</slot>
-	</div>
-	<div v-else-if="!loading && !loadingMore && !rows.length" class="card-state">
-		暂无符合条件的物品
-	</div>
-	<div
-		v-else
-		class="inventory-card-grid"
-		:class="{
-			'compact-mobile': compactMobile,
-			'is-refreshing': loading && rows.length,
-		}"
-		role="list"
-		aria-label="库存卡片"
+	<UiLoadingBoundary
+		:busy="loading"
+		:mode="rows.length ? 'refresh' : 'initial'"
+		:block-interactions="loading && rows.length > 0"
 	>
-		<article
-			v-for="row in rows"
-			:key="row.item_code"
-			class="inventory-visual-card"
-			:class="{ selected: selectedKeys.includes(row.item_code) }"
-			role="listitem"
-			tabindex="0"
-			@keydown="activateKey(row, $event)"
-			@click="activate(row, $event)"
+		<div v-if="loading && !rows.length" class="card-state loading-state" aria-hidden="true">
+			<i v-for="index in 3" :key="index"></i>
+		</div>
+		<div v-else-if="error" class="card-state error" role="alert">
+			<slot name="error">{{ error }}</slot>
+		</div>
+		<div v-else-if="!loading && !loadingMore && !rows.length" class="card-state">
+			暂无符合条件的物品
+		</div>
+		<div
+			v-else
+			class="inventory-card-grid"
+			:class="{
+				'compact-mobile': compactMobile,
+			}"
+			role="list"
+			aria-label="库存卡片"
 		>
-			<ImageForwardCard :image="row.image" :alt="row.item_name">
-				<template #placeholder
-					><div class="inventory-card-placeholder" aria-hidden="true">
-						<span>□</span><small>暂无图片</small>
-					</div></template
-				>
-				<div class="inventory-card-primary">
-					<b class="inventory-card-name">{{ row.item_name }}</b>
-					<div class="inventory-card-available">
-						<small>可用</small>
+			<article
+				v-for="row in rows"
+				:key="row.item_code"
+				class="inventory-visual-card"
+				:class="{ selected: selectedKeys.includes(row.item_code) }"
+				role="listitem"
+				tabindex="0"
+				@keydown="activateKey(row, $event)"
+				@click="activate(row, $event)"
+			>
+				<ImageForwardCard :image="row.image" :alt="row.item_name">
+					<template #placeholder
+						><div class="inventory-card-placeholder" aria-hidden="true">
+							<span>□</span><small>暂无图片</small>
+						</div></template
+					>
+					<div class="inventory-card-primary">
+						<b class="inventory-card-name">{{ row.item_name }}</b>
+						<div class="inventory-card-available">
+							<small>可用</small>
+							<span
+								><strong>{{ formatQuantity(row.available_stock) }}</strong
+								><small>{{ row.stock_uom }}</small></span
+							>
+						</div>
+						<input
+							v-if="selectionMode"
+							data-card-control
+							type="checkbox"
+							:checked="selectedKeys.includes(row.item_code)"
+							:aria-label="`选择 ${row.item_name}`"
+							@change="emit('toggle', row)"
+						/>
+					</div>
+					<p class="inventory-card-code">{{ row.item_code }} · {{ row.item_group }}</p>
+					<p v-if="description(row)" class="inventory-card-description">
+						{{ description(row) }}
+					</p>
+					<div
+						v-if="locations(row).length || batchLabel(row)"
+						class="inventory-card-details"
+						data-card-control
+					>
+						<DetailPopover
+							v-if="locations(row).length"
+							:label="`${row.item_name}的仓库位置`"
+							:trigger-text="`${locations(row).length} 个库位`"
+						>
+							<p v-for="[name, quantity] in locations(row)" :key="name">
+								{{ warehouseLabel?.(name) || name }}<br />{{
+									formatQuantity(Number(quantity))
+								}}
+								{{ row.stock_uom }}
+							</p>
+						</DetailPopover>
+						<DetailPopover
+							v-if="batchLabel(row) && batchDetails(row).length"
+							:label="`${row.item_name}的批次信息`"
+							:trigger-text="batchLabel(row)"
+						>
+							<p v-for="batch in batchDetails(row)" :key="batch.batch_no">
+								批次 {{ batch.batch_no }} · 数量 {{ formatQuantity(batch.qty) }}
+								{{ row.stock_uom }} · {{ batch.expiry_date || "无效期" }}
+							</p>
+						</DetailPopover>
+						<span v-else-if="batchLabel(row)" class="batch-badge">{{
+							batchLabel(row)
+						}}</span>
 						<span
-							><strong>{{ formatQuantity(row.available_stock) }}</strong
-							><small>{{ row.stock_uom }}</small></span
+							v-if="expiryBadge(row)"
+							class="expiry-badge"
+							:class="expiryTone(row)"
+							>{{ expiryBadge(row) }}</span
 						>
 					</div>
-					<input
-						v-if="selectionMode"
-						data-card-control
-						type="checkbox"
-						:checked="selectedKeys.includes(row.item_code)"
-						:aria-label="`选择 ${row.item_name}`"
-						@change="emit('toggle', row)"
-					/>
-				</div>
-				<p class="inventory-card-code">{{ row.item_code }} · {{ row.item_group }}</p>
-				<p v-if="description(row)" class="inventory-card-description">
-					{{ description(row) }}
-				</p>
-				<div
-					v-if="locations(row).length || batchLabel(row)"
-					class="inventory-card-details"
-					data-card-control
-				>
-					<DetailPopover
-						v-if="locations(row).length"
-						:label="`${row.item_name}的仓库位置`"
-						:trigger-text="`${locations(row).length} 个库位`"
+					<div class="inventory-card-totals">
+						<span
+							>总计 <b>{{ formatQuantity(row.total_stock) }}</b></span
+						>
+						<span
+							>借出 <b>{{ formatQuantity(row.on_loan_qty) }}</b></span
+						>
+						<span :class="{ damaged: Number(row.damaged_qty) !== 0 }"
+							>损坏 <b>{{ formatQuantity(row.damaged_qty) }}</b></span
+						>
+						<small>{{ row.stock_uom }}</small>
+					</div>
+					<p
+						v-if="row.nearest_expiry_date"
+						class="inventory-card-expiry"
+						:class="expiryTone(row)"
 					>
-						<p v-for="[name, quantity] in locations(row)" :key="name">
-							{{ warehouseLabel?.(name) || name }}<br />{{
-								formatQuantity(Number(quantity))
-							}}
-							{{ row.stock_uom }}
-						</p>
-					</DetailPopover>
-					<DetailPopover
-						v-if="batchLabel(row) && batchDetails(row).length"
-						:label="`${row.item_name}的批次信息`"
-						:trigger-text="batchLabel(row)"
-					>
-						<p v-for="batch in batchDetails(row)" :key="batch.batch_no">
-							批次 {{ batch.batch_no }} · 数量 {{ formatQuantity(batch.qty) }}
-							{{ row.stock_uom }} · {{ batch.expiry_date || "无效期" }}
-						</p>
-					</DetailPopover>
-					<span v-else-if="batchLabel(row)" class="batch-badge">{{
-						batchLabel(row)
-					}}</span>
-					<span v-if="expiryBadge(row)" class="expiry-badge" :class="expiryTone(row)">{{
-						expiryBadge(row)
-					}}</span>
-				</div>
-				<div class="inventory-card-totals">
-					<span
-						>总计 <b>{{ formatQuantity(row.total_stock) }}</b></span
-					>
-					<span
-						>借出 <b>{{ formatQuantity(row.on_loan_qty) }}</b></span
-					>
-					<span :class="{ damaged: Number(row.damaged_qty) !== 0 }"
-						>损坏 <b>{{ formatQuantity(row.damaged_qty) }}</b></span
-					>
-					<small>{{ row.stock_uom }}</small>
-				</div>
-				<p
-					v-if="row.nearest_expiry_date"
-					class="inventory-card-expiry"
-					:class="expiryTone(row)"
-				>
-					最近效期 {{ row.nearest_expiry_date }}
-				</p>
-			</ImageForwardCard>
-		</article>
-	</div>
-	<div v-if="loadingMore" class="card-state" role="status">
-		<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
-		>正在加载更多记录…
-	</div>
+						最近效期 {{ row.nearest_expiry_date }}
+					</p>
+				</ImageForwardCard>
+			</article>
+		</div>
+		<div v-if="loadingMore" class="card-state" role="status">
+			<span class="loading-spinner loading-spinner-small" aria-hidden="true"></span
+			>正在加载更多记录…
+		</div>
+	</UiLoadingBoundary>
 </template>
 
 <style scoped>
@@ -200,23 +207,6 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	gap: 12px;
 	padding: 12px;
 	background: #f8f7f4;
-}
-.card-refresh-overlay {
-	position: absolute;
-	inset: 0;
-	z-index: 3;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 253 249 / 58%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
-}
-.card-refresh-overlay ~ .inventory-card-grid.is-refreshing {
-	opacity: 0.55;
-	pointer-events: none;
 }
 .inventory-results,
 .inventory-card-grid {

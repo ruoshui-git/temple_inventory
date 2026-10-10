@@ -60,10 +60,23 @@ describe("ColumnSummaryDialog", () => {
     await wrapper.vm.$nextTick();
     const status = document.body.querySelector('[role="status"]');
     expect(status?.textContent).toContain("更新汇总");
+    expect(document.body.textContent).toContain("Nos");
+    expect(
+      document.body
+        .querySelector(".column-summary-data")
+        ?.hasAttribute("inert"),
+    ).toBe(true);
+    await wrapper.setProps({ loading: false });
+    expect(
+      document.body
+        .querySelector(".column-summary-data")
+        ?.hasAttribute("inert"),
+    ).toBe(false);
     const close = document.body.querySelector(
       ".column-summary-dialog header button",
     ) as HTMLButtonElement;
     expect(close).not.toBeNull();
+    expect(close.hasAttribute("inert")).toBe(false);
     close.focus();
     const dialog = document.body.querySelector(
       ".column-summary-dialog",
@@ -74,6 +87,23 @@ describe("ColumnSummaryDialog", () => {
     );
     await wrapper.vm.$nextTick();
     expect(document.activeElement).not.toBe(document.body);
+    wrapper.unmount();
+  });
+
+  it("shows the initial summary status without an empty-result message", async () => {
+    const wrapper = mount(ColumnSummaryDialog, {
+      props: { open: true, columns, loading: true },
+      attachTo: document.body,
+    });
+    await wrapper.vm.$nextTick();
+    const status = document.body.querySelector('[role="status"]');
+    expect(status?.textContent).toContain("加载汇总");
+    expect(document.body.querySelector(".column-summary-empty")).toBeNull();
+    expect(
+      document.body
+        .querySelector(".column-summary-data")
+        ?.hasAttribute("inert"),
+    ).toBe(true);
     wrapper.unmount();
   });
 });

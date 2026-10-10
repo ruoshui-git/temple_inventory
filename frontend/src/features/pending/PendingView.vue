@@ -5,12 +5,12 @@ import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import CategorySelector from "../../components/CategorySelector.vue";
-import LoadingIndicator from "../../components/LoadingIndicator.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import UiButton from "../../components/UiButton.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
 import { type PendingController } from "./usePendingController";
 
 const props = defineProps<{
@@ -47,6 +47,7 @@ const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const sentinel = ref<HTMLElement>();
 const resultsScroll = ref<HTMLElement>();
+const pendingResults = ref<HTMLElement>();
 const infiniteScroll = useInfiniteScroll({
 	hasMore: () => rows.value.length < total.value,
 	isLoading: () => loading.value || loadingMore.value,
@@ -111,6 +112,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div
+				ref="pendingResults"
 				class="results-column pending-results"
 				:class="{ 'is-refreshing': loading && rows.length }"
 				:aria-busy="loading || loadingMore"
@@ -153,7 +155,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						>重试</UiButton
 					>
 				</p>
-				<LoadingIndicator v-if="loading && !rows.length" text="正在加载待处理物品…" />
+				<UiLoadingBoundary
+					v-if="loading && !rows.length"
+					:busy="true"
+					mode="initial"
+					message="正在加载待处理物品…"
+					:region="pendingResults"
+					:block-interactions="false"
+				/>
 				<div
 					v-if="loading && !rows.length"
 					class="pending-loading-skeleton"
@@ -161,10 +170,21 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				>
 					<i v-for="index in 3" :key="index"></i>
 				</div>
-				<div v-if="loading && rows.length" class="list-refresh-overlay" role="status">
-					<span class="loading-spinner" aria-hidden="true"></span>正在更新待处理物品…
-				</div>
-				<div ref="resultsScroll" class="results-scroll">
+				<UiLoadingBoundary
+					v-if="loading && rows.length"
+					:busy="true"
+					:region="resultsScroll"
+					:scroll-element="resultsScroll"
+					:dim-region="true"
+					:block-interactions="false"
+					class="list-refresh-overlay"
+					message="正在更新待处理物品…"
+				/>
+				<div
+					ref="resultsScroll"
+					class="results-scroll"
+					:inert="loading && rows.length ? true : undefined"
+				>
 					<article
 						v-for="row in rows"
 						:key="row.item_code"
@@ -216,20 +236,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	</section>
 </template>
 <style scoped>
-.list-refresh-overlay {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 253 249 / 60%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
-}
-
 .pending-results {
 	position: relative;
 }
@@ -244,10 +250,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .pending-list-layout,
 .pending-results {
 	min-width: 0;
-}
-.pending-results.is-refreshing > .results-scroll > article {
-	opacity: 0.55;
-	pointer-events: none;
 }
 .pending-loading-skeleton {
 	display: grid;

@@ -8,6 +8,7 @@ export interface SortableRowTableProps<TRow extends Record<string, any>> {
   sort: SortState;
   selectionMode: boolean;
   selectedKeys: Array<string | number>;
+  loading?: boolean;
 }
 
 export interface SortableRowTableEvents<TRow extends Record<string, any>> {
@@ -47,6 +48,10 @@ export function useSortableRowInteractions<TRow extends Record<string, any>>(
   }
 
   function activate(row: TRow, event: Event) {
+    if (props.loading && props.rows.length) {
+      event.preventDefault();
+      return;
+    }
     if (isControl(event.target)) return;
     if (
       typeof Element !== "undefined" &&
@@ -71,6 +76,10 @@ export function useSortableRowInteractions<TRow extends Record<string, any>>(
   }
 
   function action(event: MouseEvent, row: TRow) {
+    if (props.loading && props.rows.length) {
+      event.preventDefault();
+      return;
+    }
     if (!props.selectionMode) return;
     if ((event.currentTarget as Element | null)?.closest("[data-row-action]")) {
       event.preventDefault();

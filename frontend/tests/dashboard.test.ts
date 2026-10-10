@@ -98,6 +98,7 @@ function controller(surface: "desktop" | "mobile" = "desktop") {
     boot: computed(() => data.value),
     loading: ref(false),
     refreshing: ref(false),
+    globalLoading: ref(false),
     error: ref(""),
     hasSuccessfulData: ref(true),
     sectionBusy: (section: string) => statuses.value[section].loading,
@@ -173,6 +174,9 @@ describe("dashboard", () => {
     expect(wrapper.text()).not.toContain("逾期借用");
     expect(wrapper.text()).not.toContain("应归还日期");
     expect(wrapper.find('[data-path="/stock"]').exists()).toBe(true);
+    expect(wrapper.find('[data-path="/stock"]').attributes("inert")).toBe(
+      undefined,
+    );
     expect(wrapper.find('[data-path="/loans/TI-LOAN-1"]').exists()).toBe(true);
   });
 
@@ -246,7 +250,7 @@ describe("dashboard", () => {
     await wrapper.vm.$nextTick();
     const section = wrapper.find(".movement-section");
     expect(section.attributes("aria-busy")).toBe("true");
-    expect(section.find(".section-update").text()).toContain("正在更新");
+    expect(document.body.textContent).toContain("正在更新");
     expect(section.findAll('a[aria-disabled="true"]').length).toBeGreaterThan(
       0,
     );
@@ -263,6 +267,47 @@ describe("dashboard", () => {
     expect(section.find(".section-update").text()).toContain("更新失败");
     await section.find(".section-update button").trigger("click");
     expect(state.retrySection).toHaveBeenCalledWith("movement");
+  });
+
+  it("uses one global refresh indicator while dashboard controls stay live", async () => {
+    const state = controller();
+    state.globalLoading.value = true;
+    state.error.value = "";
+    for (const section of Object.keys(state.sectionState.value)) {
+      state.sectionState.value[section] = {
+        loading: true,
+        error: "",
+        stale: true,
+      };
+    }
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    await wrapper.vm.$nextTick();
+    expect(
+      document.body.querySelectorAll(".ui-loading-boundary__indicator"),
+    ).toHaveLength(1);
+    expect(wrapper.find(".ui-loading-boundary").attributes("aria-busy")).toBe(
+      "true",
+    );
+    expect(
+      wrapper.findAll(".dashboard-section .ui-loading-boundary__indicator"),
+    ).toHaveLength(0);
+    expect(wrapper.text()).toContain("最近记录");
+    const localControl = wrapper.find(
+      ".movement-heading-actions .segmented button",
+    );
+    expect(localControl.exists()).toBe(true);
+    expect(localControl.element.closest("[inert]")).toBeNull();
+    expect(
+      wrapper.findAll('.dashboard-content a[aria-disabled="true"]').length,
+    ).toBeGreaterThan(0);
+    await wrapper.find(".dashboard-filter-trigger").trigger("click");
+    expect(state.desktopFilterOpen.value).toBe(true);
+    await wrapper.find(".dashboard-header-actions button").trigger("click");
+    expect(state.refresh).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
   });
 
   it("groups desktop columns and restores the original stacked order", () => {
@@ -317,7 +362,7 @@ describe("dashboard", () => {
       {
         record_name: "ENTRY-1",
         detail_route: "/movements/records?kind=Receive",
-        movement_kind: "入库",
+        movement_kind: "Repair",
         posting_date: "2026-10-10",
         item_code: "ITEM-1",
         stock_qty: 1,
@@ -328,6 +373,9 @@ describe("dashboard", () => {
       props: { controller: state as any },
       global: globals,
     });
+    expect(wrapper.find(".recent-panel .dashboard-list-row b").text()).toBe(
+      "修复",
+    );
     const scoped = (path: string) =>
       wrapper
         .findAll(`a[data-path="${path}"]`)

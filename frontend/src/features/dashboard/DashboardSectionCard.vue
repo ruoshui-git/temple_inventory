@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { DashboardController, DashboardSection } from "./useDashboardController";
+import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
+import { ref } from "vue";
 
 const props = defineProps<{
 	controller: DashboardController;
@@ -8,10 +10,12 @@ const props = defineProps<{
 const busy = () => props.controller.sectionBusy(props.section);
 const error = () => props.controller.sectionError(props.section);
 const stale = () => props.controller.sectionStale(props.section);
+const sectionElement = ref<HTMLElement>();
 </script>
 
 <template>
 	<section
+		ref="sectionElement"
 		class="dashboard-section"
 		:class="[
 			section === 'loans' ? 'loan-section' : `${section}-section`,
@@ -19,14 +23,20 @@ const stale = () => props.controller.sectionStale(props.section);
 		]"
 		:aria-busy="busy()"
 	>
-		<div v-if="busy() || error()" class="section-update" role="status">
-			<span v-if="busy()" class="section-spinner" aria-hidden="true"></span>
-			<span>{{ error() ? `更新失败，显示上次成功数据：${error()}` : "正在更新…" }}</span>
+		<div v-if="error()" class="section-update" role="status">
+			<span>更新失败，显示上次成功数据：{{ error() }}</span>
 			<button v-if="error()" type="button" @click="controller.retrySection(section)">
 				重试
 			</button>
 		</div>
-		<slot />
+		<UiLoadingBoundary
+			:busy="busy() && !controller.globalLoading?.value"
+			:region="sectionElement"
+			:block-interactions="false"
+			message="正在更新…"
+		>
+			<slot />
+		</UiLoadingBoundary>
 	</section>
 </template>
 
@@ -61,20 +71,6 @@ const stale = () => props.controller.sectionStale(props.section);
 	font-weight: 700;
 	cursor: pointer;
 	pointer-events: auto;
-}
-.section-spinner {
-	width: 18px;
-	height: 18px;
-	flex: none;
-	border: 3px solid #a9c4e2;
-	border-top-color: #1263b5;
-	border-radius: 50%;
-	animation: dashboard-spin 0.8s linear infinite;
-}
-@keyframes dashboard-spin {
-	to {
-		transform: rotate(360deg);
-	}
 }
 .dashboard-section a[aria-disabled="true"] {
 	cursor: not-allowed;

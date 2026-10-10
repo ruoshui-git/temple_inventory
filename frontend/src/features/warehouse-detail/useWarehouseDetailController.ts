@@ -13,11 +13,10 @@ export function useWarehouseDetailController() {
     detail = ref<any>(),
     boot = ref<any>(),
     error = ref(""),
-    stockError = ref(""),
-    movementsError = ref(""),
     exportOpen = ref(false),
     stockLoading = ref(true),
     movementsLoading = ref(true);
+  let detailSequence = 0;
   const node = computed(
       () => detail.value?.warehouse || detail.value?.node || detail.value,
     ),
@@ -67,44 +66,37 @@ export function useWarehouseDetailController() {
   function close() {
     void returnToOpener(router, "/warehouses");
   }
-  function retry() {
-    router.go(0);
-  }
-  async function loadStock() {
+  async function loadDetail() {
+    const currentRequest = ++detailSequence;
     stockLoading.value = true;
-    stockError.value = "";
+    movementsLoading.value = true;
+    error.value = "";
     try {
-      detail.value = await api("warehouse_detail", {
+      if (!boot.value) boot.value = await api("bootstrap");
+      if (currentRequest !== detailSequence) return;
+      const value = await api("warehouse_detail", {
         warehouse: route.params.warehouse,
       });
+      if (currentRequest === detailSequence) detail.value = value;
     } catch (cause: any) {
-      stockError.value = cause.message;
+      if (currentRequest === detailSequence) error.value = cause.message;
     } finally {
-      stockLoading.value = false;
+      if (currentRequest === detailSequence) {
+        stockLoading.value = false;
+        movementsLoading.value = false;
+      }
     }
   }
-  async function loadMovements() {
-    movementsLoading.value = true;
-    movementsError.value = "";
-    try {
-      if (!detail.value)
-        detail.value = await api("warehouse_detail", {
-          warehouse: route.params.warehouse,
-        });
-    } catch (cause: any) {
-      movementsError.value = cause.message;
-    } finally {
-      movementsLoading.value = false;
-    }
+  function retry() {
+    return loadDetail();
   }
-  onMounted(async () => {
-    try {
-      boot.value = await api("bootstrap");
-    } catch (cause: any) {
-      error.value = cause.message;
-    }
-    await Promise.all([loadStock(), loadMovements()]);
-  });
+  function loadStock() {
+    return loadDetail();
+  }
+  function loadMovements() {
+    return loadDetail();
+  }
+  onMounted(loadDetail);
 
   return {
     route,
@@ -112,8 +104,6 @@ export function useWarehouseDetailController() {
     detail,
     boot,
     error,
-    stockError,
-    movementsError,
     exportOpen,
     stockLoading,
     movementsLoading,

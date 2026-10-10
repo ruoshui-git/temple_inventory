@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { InventoryCardRow } from "../lib/inventoryTypes";
 import DetailPopover from "./DetailPopover.vue";
 import AsyncImage from "./AsyncImage.vue";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -14,6 +16,7 @@ const props = withDefaults(
 	{ loading: false, loadingMore: false, error: "" },
 );
 const emit = defineEmits<{ activate: [row: InventoryCardRow]; retry: [] }>();
+const contentRoot = ref<HTMLElement>();
 const format = (value: number) => value.toLocaleString("zh-CN");
 const locationCount = (row: InventoryCardRow) =>
 	Object.values(row.warehouse_stock || {}).filter((quantity) => Number(quantity) !== 0).length;
@@ -24,10 +27,12 @@ const expiryLabel = (row: InventoryCardRow) => {
 	return "";
 };
 function activate(row: InventoryCardRow, event: Event) {
+	if (props.loading && props.rows.length) return;
 	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
 	emit("activate", row);
 }
 function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
+	if (props.loading && props.rows.length) return;
 	if (event.key !== "Enter" && event.key !== " ") return;
 	if (event.target instanceof Element && event.target.closest("[data-row-control]")) return;
 	event.preventDefault();
@@ -37,26 +42,26 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 
 <template>
 	<div
+		ref="contentRoot"
 		class="mobile-inventory-list"
-		:class="{ 'is-refreshing': props.loading && props.rows.length }"
 		role="list"
 		aria-label="库存列表视图"
 		:aria-busy="props.loading || props.loadingMore"
 	>
-		<div
-			v-if="props.loading && props.rows.length"
-			class="mobile-inventory-refresh"
-			role="status"
-		>
-			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
-		</div>
+		<UiLoadingBoundary
+			v-if="props.loading"
+			:busy="true"
+			:mode="props.rows.length ? 'refresh' : 'initial'"
+			:region="contentRoot"
+			:dim-region="props.rows.length > 0"
+			:block-interactions="false"
+		/>
 		<div
 			v-if="props.loading && !props.rows.length"
 			class="mobile-inventory-state loading-state"
-			role="status"
+			aria-hidden="true"
 		>
-			<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
-			><i v-for="index in 3" :key="index"></i>
+			<b>正在加载记录…</b><i v-for="index in 3" :key="index"></i>
 		</div>
 		<div v-else-if="props.error" class="mobile-inventory-state error" role="alert">
 			{{ props.error }} <button type="button" @click="emit('retry')">重试</button>
@@ -66,6 +71,7 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 				v-for="row in props.rows"
 				:key="row.item_code"
 				class="mobile-inventory-row"
+				:inert="props.loading ? true : undefined"
 				role="listitem"
 				tabindex="0"
 				@click="activate(row, $event)"
@@ -149,30 +155,16 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 	border: 1px solid #ece8e1;
 	border-radius: 9px;
 }
+.mobile-inventory-list > .ui-loading-boundary {
+	display: none;
+}
 .mobile-inventory-state {
 	padding: 26px 12px;
 	color: #6d747b;
 	text-align: center;
 }
-.mobile-inventory-refresh {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 255 255 / 62%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
-}
 .mobile-inventory-list {
 	position: relative;
-}
-.mobile-inventory-list.is-refreshing > :not(.mobile-inventory-refresh) {
-	opacity: 0.55;
-	pointer-events: none;
 }
 .loading-state {
 	display: grid;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 export type ColumnSummaryValue =
 	| { type: "number"; value: number }
@@ -32,6 +33,7 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ "update:open": [open: boolean] }>();
 const closeButton = ref<HTMLButtonElement>();
+const summaryRegion = ref<HTMLElement>();
 const previousFocus = ref<HTMLElement>();
 const previousHtmlOverflow = ref("");
 const previousBodyOverflow = ref("");
@@ -117,47 +119,61 @@ onBeforeUnmount(() => {
 						×
 					</button>
 				</header>
-				<div v-if="loading" class="column-summary-loading" role="status">
-					<span class="loading-spinner" aria-hidden="true"></span>正在更新汇总…
+				<div
+					ref="summaryRegion"
+					class="column-summary-data"
+					:inert="loading ? true : undefined"
+				>
+					<p v-if="!loading && !visibleColumns.length" class="column-summary-empty">
+						当前结果没有可汇总的数值列。
+					</p>
+					<dl v-else-if="visibleColumns.length" class="column-summary-list">
+						<template v-for="column in visibleColumns" :key="column.key">
+							<dt>{{ column.label }}</dt>
+							<dd>
+								<template v-if="summaries[column.summary!]?.type === 'number'">
+									{{ format((summaries[column.summary!] as any).value) }}
+								</template>
+								<template
+									v-else-if="summaries[column.summary!]?.type === 'quantity'"
+								>
+									<strong>{{
+										format((summaries[column.summary!] as any).unitless_total)
+									}}</strong
+									><small>比较总量（无单位）</small>
+									<span
+										v-for="unit in (summaries[column.summary!] as any).by_uom"
+										:key="unit.uom"
+										>{{ format(unit.qty) }} {{ unit.uom }}</span
+									>
+								</template>
+								<template v-else>
+									<strong>{{
+										format((summaries[column.summary!] as any).unitless_total)
+									}}</strong
+									><small>比较总量（无单位）</small>
+									<span
+										v-for="group in (summaries[column.summary!] as any).groups"
+										:key="group.key"
+										><b>{{ group.label }}</b
+										><i v-for="unit in group.by_uom" :key="unit.uom"
+											>{{ format(unit.qty) }} {{ unit.uom }}</i
+										></span
+									>
+								</template>
+							</dd>
+						</template>
+					</dl>
 				</div>
-				<p v-if="!loading && !visibleColumns.length" class="column-summary-empty">
-					当前结果没有可汇总的数值列。
-				</p>
-				<dl v-else class="column-summary-list">
-					<template v-for="column in visibleColumns" :key="column.key">
-						<dt>{{ column.label }}</dt>
-						<dd>
-							<template v-if="summaries[column.summary!]?.type === 'number'">
-								{{ format((summaries[column.summary!] as any).value) }}
-							</template>
-							<template v-else-if="summaries[column.summary!]?.type === 'quantity'">
-								<strong>{{
-									format((summaries[column.summary!] as any).unitless_total)
-								}}</strong
-								><small>比较总量（无单位）</small>
-								<span
-									v-for="unit in (summaries[column.summary!] as any).by_uom"
-									:key="unit.uom"
-									>{{ format(unit.qty) }} {{ unit.uom }}</span
-								>
-							</template>
-							<template v-else>
-								<strong>{{
-									format((summaries[column.summary!] as any).unitless_total)
-								}}</strong
-								><small>比较总量（无单位）</small>
-								<span
-									v-for="group in (summaries[column.summary!] as any).groups"
-									:key="group.key"
-									><b>{{ group.label }}</b
-									><i v-for="unit in group.by_uom" :key="unit.uom"
-										>{{ format(unit.qty) }} {{ unit.uom }}</i
-									></span
-								>
-							</template>
-						</dd>
-					</template>
-				</dl>
+				<UiLoadingBoundary
+					class="column-summary-loading-boundary-proxy"
+					:busy="loading"
+					:mode="visibleColumns.length ? 'refresh' : 'initial'"
+					:message="visibleColumns.length ? '正在更新汇总…' : '正在加载汇总…'"
+					:region="summaryRegion"
+					:dim-region="Boolean(visibleColumns.length)"
+					:block-interactions="false"
+				/>
 			</section>
 		</div>
 	</Teleport>
@@ -235,14 +251,11 @@ onBeforeUnmount(() => {
 	padding: 18px;
 	color: #6b6257;
 }
-.column-summary-loading {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	padding: 12px 18px;
-	color: #704d2e;
-	font-weight: 700;
+.column-summary-loading-boundary-proxy {
+	display: contents;
+}
+.column-summary-data {
+	min-height: 64px;
 }
 @media (max-width: 700px) {
 	.column-summary-backdrop {

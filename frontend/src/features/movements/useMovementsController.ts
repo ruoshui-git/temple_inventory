@@ -16,6 +16,7 @@ import {
 } from "../../lib/warehousePresenter";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { PageAction } from "../../components/pageActions";
+import { movementLabels } from "../../lib/movementLabels";
 
 export type Kind =
   | "Receive"
@@ -132,17 +133,21 @@ export function useMovementsController() {
   );
   const kindMeta: Record<Kind, { label: string; icon: string; tone: string }> =
     {
-      Receive: { label: "入库", icon: "↓", tone: "receive" },
-      Issue: { label: "出库", icon: "↑", tone: "issue" },
-      Transfer: { label: "转移", icon: "⇄", tone: "transfer" },
-      Loan: { label: "借出", icon: "↗", tone: "loan" },
-      Return: { label: "归还", icon: "↙", tone: "return" },
-      Damage: { label: "损坏", icon: "⚠", tone: "damage" },
-      Loss: { label: "遗失", icon: "−", tone: "loss" },
-      Repair: { label: "修复", icon: "✦", tone: "repair" },
-      Disposal: { label: "报废", icon: "×", tone: "disposal" },
-      Reconcile: { label: "库存调整", icon: "±", tone: "reconcile" },
-      Opening: { label: "期初库存", icon: "○", tone: "opening" },
+      Receive: { label: movementLabels.Receive, icon: "↓", tone: "receive" },
+      Issue: { label: movementLabels.Issue, icon: "↑", tone: "issue" },
+      Transfer: { label: movementLabels.Transfer, icon: "⇄", tone: "transfer" },
+      Loan: { label: movementLabels.Loan, icon: "↗", tone: "loan" },
+      Return: { label: movementLabels.Return, icon: "↙", tone: "return" },
+      Damage: { label: movementLabels.Damage, icon: "⚠", tone: "damage" },
+      Loss: { label: movementLabels.Loss, icon: "−", tone: "loss" },
+      Repair: { label: movementLabels.Repair, icon: "✦", tone: "repair" },
+      Disposal: { label: movementLabels.Disposal, icon: "×", tone: "disposal" },
+      Reconcile: {
+        label: movementLabels.Reconcile,
+        icon: "±",
+        tone: "reconcile",
+      },
+      Opening: { label: movementLabels.Opening, icon: "○", tone: "opening" },
     };
   const pageActions = computed<PageAction[]>(() => {
     const loading = !boot.value;

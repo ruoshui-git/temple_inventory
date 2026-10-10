@@ -15,6 +15,7 @@ import WarehouseSelector from "../../components/WarehouseSelector.vue";
 import ExportDialog from "../../components/ExportDialog.vue";
 import UiButton from "../../components/UiButton.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
 import { labels } from "../../lib/api";
 import { type MovementOverviewController } from "./useMovementOverviewController";
 
@@ -67,6 +68,7 @@ const surface = toRef(props, "surface");
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const resultsScroll = ref<HTMLElement>();
+const summaryRegion = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const restorationKey = "temple_inventory.scroll.movement-overview";
 const infiniteScroll = useInfiniteScroll({
@@ -160,7 +162,12 @@ onBeforeUnmount(() => {
 							:updating="refreshing"
 						/>
 					</div>
-					<div class="movement-summary-groups" aria-label="动作汇总">
+					<div
+						ref="summaryRegion"
+						class="movement-summary-groups"
+						aria-label="动作汇总"
+						:aria-busy="busy || refreshing"
+					>
 						<section v-for="group in actionGroups" :key="group.label">
 							<h2>{{ group.label }}</h2>
 							<div class="movement-summary-grid">
@@ -173,7 +180,7 @@ onBeforeUnmount(() => {
 									@click="toggleKind(kind)"
 								>
 									<small>{{ labels[kind] }}</small>
-									<span v-if="busy" class="summary-loading">正在更新…</span>
+									<strong v-if="busy && !summaries.length">—</strong>
 									<strong v-else-if="actionSummary(kind).quantities.length">
 										<span
 											v-for="quantity in actionSummary(kind).quantities"
@@ -191,6 +198,15 @@ onBeforeUnmount(() => {
 							</div>
 						</section>
 					</div>
+					<UiLoadingBoundary
+						class="movement-summary-loading-boundary-proxy"
+						:busy="busy || refreshing"
+						:mode="summaries.length ? 'refresh' : 'initial'"
+						:message="summaries.length ? '正在更新动作汇总…' : '正在加载动作汇总…'"
+						:region="summaryRegion"
+						:dim-region="Boolean(summaries.length)"
+						:block-interactions="false"
+					/>
 				</div>
 				<div ref="resultsScroll" class="results-scroll">
 					<SortableDataTable
@@ -283,6 +299,9 @@ onBeforeUnmount(() => {
 	display: grid;
 	gap: 8px;
 	padding-bottom: 10px;
+}
+.movement-summary-loading-boundary-proxy {
+	display: contents;
 }
 .movement-summary-groups h2 {
 	margin: 4px 0 6px;

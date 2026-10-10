@@ -218,6 +218,11 @@ describe("dashboard controller section requests", () => {
     controller.movementPeriod.value = "this_week";
     await nextTick();
 
+    const staleFull = deferred<any>();
+    mocks.api.mockReturnValueOnce(staleFull.promise);
+    controller.refresh();
+    await nextTick();
+
     const routeChange = deferred<void>();
     mocks.replace.mockReturnValueOnce(routeChange.promise);
     const filterChange = controller.updateFilters({
@@ -226,6 +231,10 @@ describe("dashboard controller section requests", () => {
     });
     expect(controller.sectionBusy("inventory")).toBe(true);
     expect(controller.sectionBusy("distribution")).toBe(true);
+    expect(controller.globalLoading.value).toBe(true);
+    staleFull.resolve(fullResult("old-full"));
+    await flushPromises();
+    expect(controller.globalLoading.value).toBe(true);
     oldLocal.resolve({
       movement: { period: { key: "old-scope" }, summaries: [], recent: [] },
     });
@@ -243,6 +252,7 @@ describe("dashboard controller section requests", () => {
     await filterChange;
     expect(controller.data.value.movement.period.key).toBe("new-scope");
     expect(controller.sectionBusy("inventory")).toBe(false);
+    expect(controller.globalLoading.value).toBe(false);
     wrapper.unmount();
   });
 

@@ -34,12 +34,14 @@ export function useDashboardController() {
     ) as Record<DashboardSection, SectionState>,
   );
   const hasSuccessfulData = ref(false);
+  const globalLoading = ref(false);
   const filterOpen = ref(false);
   const desktopFilterOpen = ref(false);
   const movementPeriod = ref("this_month");
   const expiryPreview = ref<"expired" | "upcoming">("expired");
   const distributionMode = ref<"warehouse" | "category">("warehouse");
   let scopeGeneration = 0;
+  let globalRequestSequence = 0;
   const sectionSequences: Record<DashboardSection, number> = {
     inventory: 0,
     expiry: 0,
@@ -110,6 +112,8 @@ export function useDashboardController() {
 
   function markGlobalScopePending() {
     scopeGeneration += 1;
+    globalRequestSequence += 1;
+    globalLoading.value = true;
     for (const section of DASHBOARD_SECTIONS) {
       sectionState.value[section] = {
         ...sectionState.value[section],
@@ -118,6 +122,7 @@ export function useDashboardController() {
         stale: Boolean(data.value[section]),
       };
     }
+    return scopeGeneration;
   }
 
   async function load(sections?: DashboardSection[]) {
@@ -125,6 +130,8 @@ export function useDashboardController() {
     const requested = full ? [...DASHBOARD_SECTIONS] : [...new Set(sections)];
     if (full) scopeGeneration += 1;
     const generation = scopeGeneration;
+    const globalSequence = full ? ++globalRequestSequence : 0;
+    if (full) globalLoading.value = true;
     const sequences = Object.fromEntries(
       requested.map((section) => {
         const sequence = ++sectionSequences[section];
@@ -190,14 +197,35 @@ export function useDashboardController() {
           stale: Boolean(data.value[section]),
         };
       }
+    } finally {
+      if (
+        full &&
+        globalSequence === globalRequestSequence &&
+        generation === scopeGeneration
+      )
+        globalLoading.value = false;
     }
   }
 
   async function updateFilters(next: typeof defaults) {
-    markGlobalScopePending();
+    const pendingGeneration = markGlobalScopePending();
     filters.value = next;
-    await router.replace({ query: serializeFilterQuery(next) });
-    await load();
+    try {
+      await router.replace({ query: serializeFilterQuery(next) });
+      await load();
+    } catch (cause: any) {
+      if (pendingGeneration !== scopeGeneration) return;
+      globalLoading.value = false;
+      const message = cause?.message || "筛选更新失败";
+      for (const section of DASHBOARD_SECTIONS) {
+        sectionState.value[section] = {
+          ...sectionState.value[section],
+          loading: false,
+          error: message,
+          stale: Boolean(data.value[section]),
+        };
+      }
+    }
   }
   function clearFilters() {
     void updateFilters({ warehouses: [], item_groups: [] });
@@ -235,6 +263,7 @@ export function useDashboardController() {
     boot,
     loading,
     refreshing,
+    globalLoading,
     error,
     hasSuccessfulData,
     sectionState,

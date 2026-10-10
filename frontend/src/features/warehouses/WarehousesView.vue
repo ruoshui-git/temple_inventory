@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import LoadingIndicator from "../../components/LoadingIndicator.vue";
+import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import UiButton from "../../components/UiButton.vue";
 import { type WarehousesController } from "./useWarehousesController";
+import { ref } from "vue";
 
 const props = defineProps<{ controller: WarehousesController }>();
+const dataRegion = ref<HTMLElement>();
 const {
 	boot,
 	loading,
@@ -74,9 +76,12 @@ const {
 				>
 			</div>
 		</header>
-		<LoadingIndicator v-if="loading && !visibleRows.length" text="正在加载仓库…" /><template
-			v-else
-			><p v-if="error" class="error" role="alert">
+		<div
+			ref="dataRegion"
+			class="warehouse-data-region"
+			:inert="loading && visibleRows.length ? true : undefined"
+		>
+			<p v-if="error" class="error" role="alert">
 				{{ error }} <button type="button" @click="load">重试</button>
 			</p>
 			<section
@@ -103,13 +108,6 @@ const {
 			<p v-if="!loading && !error && !visibleRows.length" class="empty-state">
 				暂无可查看的仓库。
 			</p>
-			<div
-				v-if="loading && visibleRows.length"
-				class="warehouse-refresh-overlay"
-				role="status"
-			>
-				<span class="loading-spinner" aria-hidden="true"></span>正在更新仓库…
-			</div>
 			<div
 				v-if="!loading || visibleRows.length"
 				ref="list"
@@ -149,7 +147,16 @@ const {
 					>
 				</div>
 			</div>
-		</template>
+		</div>
+		<UiLoadingBoundary
+			class="warehouse-loading-boundary-proxy"
+			:busy="loading"
+			:mode="visibleRows.length ? 'refresh' : 'initial'"
+			:message="visibleRows.length ? '正在更新仓库…' : '正在加载仓库…'"
+			:region="dataRegion"
+			:dim-region="Boolean(visibleRows.length)"
+			:block-interactions="false"
+		/>
 		<FloatingActionMenu
 			class="mobile-page-actions"
 			v-if="actions.length"
@@ -308,21 +315,11 @@ const {
 	font-size: 12px;
 	margin-right: 12px;
 }
-.warehouse-page {
-	position: relative;
+.warehouse-loading-boundary-proxy {
+	display: contents;
 }
-.warehouse-refresh-overlay {
-	position: absolute;
-	inset: 76px 0 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(247 245 239 / 62%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
+.warehouse-data-region {
+	min-height: 80px;
 }
 .warehouse-dialog {
 	max-width: 460px;

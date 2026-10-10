@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { formatExpiryDuration } from "../lib/duration";
 import ImageForwardCard from "./ImageForwardCard.vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import DetailPopover from "./DetailPopover.vue";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 export type ExpiryCardRow = {
 	batch_no: string;
@@ -29,15 +31,18 @@ const props = withDefaults(
 	{ loading: false, loadingMore: false, error: "", compactMobile: false },
 );
 const emit = defineEmits<{ activate: [row: ExpiryCardRow]; retry: [] }>();
+const contentRoot = ref<HTMLElement>();
 const format = (value: number) =>
 	new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(Number(value || 0));
 function activateKey(row: ExpiryCardRow, event: KeyboardEvent) {
+	if (props.loading && props.rows.length) return;
 	if (event.target instanceof Element && event.target.closest("[data-card-control]")) return;
 	if (event.key !== "Enter" && event.key !== " ") return;
 	event.preventDefault();
 	emit("activate", row);
 }
 function activate(row: ExpiryCardRow, event: Event) {
+	if (props.loading && props.rows.length) return;
 	if (event.target instanceof Element && event.target.closest("[data-card-control]")) return;
 	emit("activate", row);
 }
@@ -45,16 +50,21 @@ function activate(row: ExpiryCardRow, event: Event) {
 
 <template>
 	<div
+		ref="contentRoot"
 		class="expiry-card-grid"
-		:class="{ 'compact-mobile': compactMobile, 'is-refreshing': loading && rows.length }"
+		:class="{ 'compact-mobile': compactMobile }"
 		:aria-busy="loading || loadingMore"
 	>
-		<div v-if="loading && rows.length" class="expiry-refresh-overlay" role="status">
-			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
-		</div>
-		<div v-if="loading && !rows.length" class="expiry-loading-state" role="status">
-			<span class="loading-spinner" aria-hidden="true"></span><b>正在加载记录…</b
-			><i v-for="index in 3" :key="index"></i>
+		<UiLoadingBoundary
+			v-if="loading"
+			:busy="true"
+			:mode="rows.length ? 'refresh' : 'initial'"
+			:region="contentRoot"
+			:dim-region="true"
+			:block-interactions="false"
+		/>
+		<div v-if="loading && !rows.length" class="expiry-loading-state" aria-hidden="true">
+			<b>正在加载记录…</b><i v-for="index in 3" :key="index"></i>
 		</div>
 		<div v-else-if="error" class="expiry-card-state error" role="alert">
 			{{ error }} <button type="button" @click="emit('retry')">重试</button>
@@ -67,6 +77,7 @@ function activate(row: ExpiryCardRow, event: Event) {
 				overdue: Number(row.days_to_expiry) < 0,
 				soon: Number(row.days_to_expiry) >= 0 && Number(row.days_to_expiry) <= 30,
 			}"
+			:inert="loading ? true : undefined"
 			role="listitem"
 			tabindex="0"
 			@click="activate(row, $event)"
@@ -121,22 +132,8 @@ function activate(row: ExpiryCardRow, event: Event) {
 	gap: 12px;
 	padding: 12px;
 }
-.expiry-refresh-overlay {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	display: flex;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 253 249 / 58%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
-}
-.expiry-card-grid.is-refreshing > .expiry-batch-card {
-	opacity: 0.55;
-	pointer-events: none;
+.expiry-card-grid > .ui-loading-boundary {
+	display: none;
 }
 .expiry-loading-state {
 	display: grid;

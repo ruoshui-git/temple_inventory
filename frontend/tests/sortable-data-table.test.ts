@@ -43,6 +43,7 @@ describe("SortableDataTable", () => {
   it("emits initial order, reverses active order, and exposes aria sort and arrows", async () => {
     const wrapper = mountTable();
     const headers = wrapper.findAll("th");
+    expect(wrapper.find("tbody").attributes("inert")).toBeUndefined();
     await headers[0].find("button").trigger("click");
     expect(wrapper.emitted("sort")?.[0]).toEqual([
       { sort_by: "name", sort_order: "desc" },
@@ -58,6 +59,7 @@ describe("SortableDataTable", () => {
   it("isolates explicit controls, activates rows by keyboard, and toggles row actions in selection mode", async () => {
     const wrapper = mountTable();
     const row = wrapper.find("tbody tr");
+    expect(row.attributes("inert")).toBeUndefined();
     await row.trigger("keydown", { key: "Enter" });
     expect(wrapper.emitted("activate")).toHaveLength(1);
     await row.find("[data-row-control]").trigger("click");
@@ -77,6 +79,40 @@ describe("SortableDataTable", () => {
     expect(wrapper.emitted("activate")).toHaveLength(1);
     await card.trigger("keydown", { key: " " });
     expect(wrapper.emitted("activate")).toHaveLength(2);
+  });
+
+  it("keeps sorting available while stale rows reject mouse and keyboard activation", async () => {
+    const wrapper = mount(SortableDataTable, {
+      props: {
+        rows,
+        columns,
+        rowKey: "id",
+        sort: { sort_by: "status", sort_order: "asc" },
+        loading: true,
+        surface: "desktop",
+      },
+      slots: {
+        "cell-name": ({ row }: any) =>
+          h(
+            "a",
+            { "data-row-action": true, href: `/item/${row.id}` },
+            row.name,
+          ),
+      },
+    });
+    const row = wrapper.find("tbody tr[tabindex]");
+    expect(wrapper.find("tbody").attributes("inert")).toBe("true");
+    const anchor = row.find("a");
+    const staleClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    anchor.element.dispatchEvent(staleClick);
+    expect(staleClick.defaultPrevented).toBe(true);
+    await row.trigger("keydown", { key: "Enter" });
+    expect(wrapper.emitted("activate")).toBeUndefined();
+    await wrapper.find("th button").trigger("click");
+    expect(wrapper.emitted("sort")).toHaveLength(1);
   });
 
   it("marks a selected supplied mobile card at the shared row boundary", () => {
@@ -136,9 +172,7 @@ describe("SortableDataTable", () => {
       },
     });
     expect(refreshing.find("tbody tr").text()).toContain("一号");
-    expect(refreshing.find(".table-refresh-overlay").text()).toContain(
-      "正在更新",
-    );
+    expect(document.body.textContent).toContain("正在更新…");
     expect(refreshing.attributes("aria-busy")).toBe("true");
 
     const initial = mount(SortableDataTable, {

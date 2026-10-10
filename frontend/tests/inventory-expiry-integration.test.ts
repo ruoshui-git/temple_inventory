@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
-import { reactive, defineComponent } from "vue";
+import { reactive, defineComponent, nextTick } from "vue";
 import Inventory from "../src/pages/Inventory.vue";
 import Expiry from "../src/pages/Expiry.vue";
 import InventoryFilterPanel from "../src/components/InventoryFilterPanel.vue";
@@ -150,7 +150,7 @@ describe("Inventory and Expiry integrations", () => {
     });
     const wrapper = mount(Expiry, { global: globals });
     await flushPromises();
-    expect(wrapper.text()).toContain("正在加载记录");
+    expect(document.body.textContent).toContain("正在加载");
     expect(wrapper.text()).not.toContain("暂无符合条件的批次");
     resolveBootstrap({
       item_groups: [],
@@ -178,7 +178,7 @@ describe("Inventory and Expiry integrations", () => {
     });
     const wrapper = mount(Inventory, { global: globals });
     await flushPromises();
-    expect(wrapper.text()).toContain("正在加载记录");
+    expect(document.body.textContent).toContain("正在加载");
     expect(wrapper.text()).not.toContain("暂无符合条件的物品");
     resolveBootstrap({
       item_groups: [],
@@ -357,6 +357,9 @@ describe("Inventory and Expiry integrations", () => {
       },
     });
     const chips = wrapper.findAll(".mobile-row-chip");
+    expect(wrapper.find(".mobile-inventory-row").attributes("inert")).toBe(
+      undefined,
+    );
     expect(chips).toHaveLength(2);
     await chips[0].trigger("click");
     expect(wrapper.emitted("activate")).toBeUndefined();
@@ -366,17 +369,19 @@ describe("Inventory and Expiry integrations", () => {
     wrapper.unmount();
   });
 
-  it("keeps mobile rows visible and dimmed during refresh", () => {
+  it("keeps mobile rows visible and blocks stale activation during refresh", async () => {
     const inventory = mount(MobileInventoryList, {
       props: { rows: inventoryRows(), loading: true, loadingMore: true },
+      attachTo: document.body,
     });
+    await nextTick();
     expect(inventory.find(".mobile-inventory-row").exists()).toBe(true);
     expect(inventory.find(".mobile-inventory-list").classes()).toContain(
-      "is-refreshing",
+      "ui-loading-boundary__dim-region",
     );
-    expect(inventory.find(".mobile-inventory-refresh").text()).toContain(
-      "正在更新",
-    );
+    expect(document.body.textContent).toContain("正在更新…");
+    await inventory.find(".mobile-inventory-row").trigger("click");
+    expect(inventory.emitted("activate")).toBeUndefined();
     expect(inventory.find(".loading-spinner-small").exists()).toBe(true);
 
     const expiry = mount(MobileExpiryResults, {
@@ -385,11 +390,17 @@ describe("Inventory and Expiry integrations", () => {
         loading: true,
         loadingMore: true,
       },
+      attachTo: document.body,
     });
+    await nextTick();
     expect(expiry.find(".mobile-expiry-result-row").exists()).toBe(true);
     expect(expiry.find(".mobile-expiry-results").classes()).toContain(
-      "is-refreshing",
+      "ui-loading-boundary__dim-region",
     );
+    await expiry
+      .find(".mobile-expiry-result-row")
+      .trigger("keydown", { key: "Enter" });
+    expect(expiry.emitted("activate")).toBeUndefined();
     expect(expiry.find(".loading-spinner-small").exists()).toBe(true);
     inventory.unmount();
     expiry.unmount();

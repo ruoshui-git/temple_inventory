@@ -4,6 +4,7 @@ import {
 	useSortableRowInteractions,
 	type SortableRowTableProps,
 } from "./useSortableRowInteractions";
+import UiLoadingBoundary from "./UiLoadingBoundary.vue";
 
 const props = withDefaults(
 	defineProps<
@@ -39,95 +40,95 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 </script>
 
 <template>
-	<div
-		class="sortable-data-table-desktop"
-		:class="{ 'is-refreshing': loading && rows.length }"
-		:aria-busy="loading || loadingMore"
-	>
-		<div v-if="loading && rows.length" class="table-refresh-overlay" role="status">
-			<span class="loading-spinner" aria-hidden="true"></span>正在更新记录…
-		</div>
-		<table>
-			<thead class="sortable-data-table-head">
-				<tr>
-					<th
-						v-for="column in columns"
-						:key="column.key"
-						class="sortable-data-table-sticky-head"
-						scope="col"
-						:class="column.headerClass"
-						:aria-sort="
-							column.sortable
-								? sort.sort_by === column.key
-									? sort.sort_order === 'asc'
-										? 'ascending'
-										: 'descending'
-									: 'none'
-								: undefined
-						"
-					>
-						<button
-							v-if="column.sortable"
-							type="button"
-							:aria-label="`按${column.label}排序`"
-							@click="sortColumn(column)"
+	<div class="sortable-data-table-desktop" :aria-busy="loading || loadingMore">
+		<UiLoadingBoundary
+			:busy="loading"
+			:mode="rows.length ? 'refresh' : 'initial'"
+			:block-interactions="false"
+		>
+			<table>
+				<thead class="sortable-data-table-head">
+					<tr>
+						<th
+							v-for="column in columns"
+							:key="column.key"
+							class="sortable-data-table-sticky-head"
+							scope="col"
+							:class="column.headerClass"
+							:aria-sort="
+								column.sortable
+									? sort.sort_by === column.key
+										? sort.sort_order === 'asc'
+											? 'ascending'
+											: 'descending'
+										: 'none'
+									: undefined
+							"
 						>
-							{{ column.label }}
-							<span v-if="sort.sort_by === column.key" aria-hidden="true">{{
-								sort.sort_order === "asc" ? "↑" : "↓"
-							}}</span
-							><span v-else class="sr-only">可排序</span>
-						</button>
-						<span v-else>{{ column.label }}</span>
-					</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr v-if="loading && !rows.length" class="table-state table-loading" role="status">
-					<td :colspan="columns.length">
-						<div class="table-loading-content">
-							<span class="loading-spinner" aria-hidden="true"></span
-							><span>正在加载记录…</span>
-						</div>
-						<div class="table-skeleton" aria-hidden="true">
-							<i v-for="index in 3" :key="index"></i>
-						</div>
-					</td>
-				</tr>
-				<tr v-else-if="error" class="table-state table-error">
-					<td :colspan="columns.length" role="alert">
-						<slot name="error">{{ error }}</slot>
-					</td>
-				</tr>
-				<tr v-else-if="!loading && !loadingMore && !rows.length" class="table-state">
-					<td :colspan="columns.length">{{ emptyMessage }}</td>
-				</tr>
-				<tr
-					v-for="row in rows"
-					:key="String(valueFor(row))"
-					:class="{ selected: isSelected(row), cancelled: row.docstatus === 2 }"
-					:aria-selected="selectionMode ? isSelected(row) : undefined"
-					tabindex="0"
-					@click="activate(row, $event)"
-					@keydown="activateKey(row, $event)"
-				>
-					<td v-for="column in columns" :key="column.key" :class="column.cellClass">
-						<slot :name="`cell-${column.key}`" :row="row" :column="column">{{
-							row[column.key]
-						}}</slot>
-					</td>
-				</tr>
-				<tr v-if="loadingMore" class="table-state">
-					<td :colspan="columns.length" role="status">
-						<span
-							class="loading-spinner loading-spinner-small"
-							aria-hidden="true"
-						></span
-						>正在加载更多记录…
-					</td>
-				</tr>
-			</tbody>
-		</table>
+							<button
+								v-if="column.sortable"
+								type="button"
+								:aria-label="`按${column.label}排序`"
+								@click="sortColumn(column)"
+							>
+								{{ column.label }}
+								<span v-if="sort.sort_by === column.key" aria-hidden="true">{{
+									sort.sort_order === "asc" ? "↑" : "↓"
+								}}</span
+								><span v-else class="sr-only">可排序</span>
+							</button>
+							<span v-else>{{ column.label }}</span>
+						</th>
+					</tr>
+				</thead>
+				<tbody :inert="loading && rows.length ? true : undefined">
+					<tr
+						v-if="loading && !rows.length"
+						class="table-state table-loading"
+						aria-hidden="true"
+					>
+						<td :colspan="columns.length">
+							<span aria-hidden="true">正在加载记录</span>
+							<div class="table-skeleton" aria-hidden="true">
+								<i v-for="index in 3" :key="index"></i>
+							</div>
+						</td>
+					</tr>
+					<tr v-else-if="error" class="table-state table-error">
+						<td :colspan="columns.length" role="alert">
+							<slot name="error">{{ error }}</slot>
+						</td>
+					</tr>
+					<tr v-else-if="!loading && !loadingMore && !rows.length" class="table-state">
+						<td :colspan="columns.length">{{ emptyMessage }}</td>
+					</tr>
+					<tr
+						v-for="row in rows"
+						:key="String(valueFor(row))"
+						:class="{ selected: isSelected(row), cancelled: row.docstatus === 2 }"
+						:aria-selected="selectionMode ? isSelected(row) : undefined"
+						tabindex="0"
+						@click="activate(row, $event)"
+						@keydown="activateKey(row, $event)"
+					>
+						<td v-for="column in columns" :key="column.key" :class="column.cellClass">
+							<slot :name="`cell-${column.key}`" :row="row" :column="column">{{
+								row[column.key]
+							}}</slot>
+						</td>
+					</tr>
+					<tr v-if="loadingMore" class="table-state">
+						<td :colspan="columns.length" role="status">
+							<span
+								class="loading-spinner loading-spinner-small"
+								aria-hidden="true"
+							></span
+							>正在加载更多记录…
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</UiLoadingBoundary>
 	</div>
 </template>
 
@@ -138,24 +139,6 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 }
 .sortable-data-table-desktop {
 	position: relative;
-}
-.sortable-data-table-desktop.is-refreshing table {
-	opacity: 0.55;
-	pointer-events: none;
-}
-.table-refresh-overlay {
-	position: absolute;
-	inset: 44px 0 0;
-	z-index: 3;
-	display: flex;
-	align-items: flex-start;
-	justify-content: center;
-	gap: 8px;
-	padding-top: 18px;
-	background: rgb(255 253 249 / 45%);
-	color: #704d2e;
-	font-weight: 700;
-	pointer-events: none;
 }
 .table-loading td {
 	min-height: 96px;
