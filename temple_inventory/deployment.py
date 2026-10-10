@@ -3,6 +3,21 @@
 import frappe
 
 
+def _erpnext_workspace_names():
+	"""Return ERPNext workspaces using the v16 Workspace -> Module Def relationship."""
+	rows = frappe.db.sql(
+		"""
+		select workspace.name
+		from `tabWorkspace` as workspace
+		inner join `tabModule Def` as module_def on module_def.name = workspace.module
+		where module_def.app_name = %s and workspace.name != %s
+		""",
+		("erpnext", "Stock"),
+		as_dict=True,
+	)
+	return [row.name for row in rows]
+
+
 def after_migrate():
 	logo = "/assets/temple_inventory/logo.png"
 	icon = frappe.db.exists("Desktop Icon", "物资管理")
@@ -27,7 +42,7 @@ def after_migrate():
 	for name in frappe.get_all("Desktop Icon", filters={"app": "erpnext"}, pluck="name", limit_page_length=0):
 		if name != "Stock":
 			frappe.db.set_value("Desktop Icon", name, "hidden", 1, update_modified=False)
-	for name in frappe.get_all("Workspace", filters={"app": "erpnext", "name": ["!=", "Stock"]}, pluck="name", limit_page_length=0):
+	for name in _erpnext_workspace_names():
 		frappe.db.set_value("Workspace", name, "is_hidden", 1, update_modified=False)
 	website = frappe.get_single("Website Settings")
 	website.favicon = logo

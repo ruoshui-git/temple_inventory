@@ -28,7 +28,12 @@ export default defineConfig({
       // Route this SPA is served on by Frappe. Drives the auto-inferred
       // indexHtmlPath for the production build.
       frontendRoute: '/inventory',
-    }).filter(plugin => plugin.name !== 'frappeui-site-banner-plugin'),
+    }).filter(
+      (plugin) =>
+        !['frappeui-site-banner-plugin', 'frappeui-optimize-deps'].includes(
+          plugin.name,
+        ),
+    ),
     vue(),
     {
       name: 'temple-inventory-zxing-local-wasm',
@@ -81,6 +86,17 @@ export default defineConfig({
       },
     },
   ],
+  // frappe-ui's optimizer lists bare transitive dependency names; scope them to
+  // frappe-ui for pnpm resolution. Keep them prebundled so late discovery does
+  // not reload the page after a toast or dialog opens and clear its module state.
+  optimizeDeps: {
+    include: [
+      'frappe-ui > highlight.js/lib/core',
+      'frappe-ui > reka-ui',
+      'frappe-ui > vue-sonner',
+      'frappe-ui > dompurify',
+    ],
+  },
   server: {
     // Vite's default host is `localhost`, which resolves to IPv6 `::1` only in
     // this bench container: the dev server is then unreachable on 127.0.0.1 and
