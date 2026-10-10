@@ -231,18 +231,20 @@ Write maintainable production source code, not minified or code-golfed code. Use
 ## Implementation delegation workflow
 
 For tasks that require actual implementation, delegate the implementation to a
-`gpt-5.6-luna` subagent. Use `high` reasoning effort by default; use `medium`
+`luna` subagent. Use `high` reasoning effort by default; use `medium`
 for straightforward mechanical changes and `xhigh` or `max` when the scope or
 risk warrants it. Give the subagent the complete implementation scope and
 instruct it to run all applicable formatting, type-checking, and tests itself.
 The primary agent should preserve its context for coordination and the final
 review instead of duplicating the delegated checks.
 
+Print out the subagent(s)'s specific model and reasoning so I can see, before initializing the agent.
+
 After the subagent finishes, the primary agent must inspect the resulting diff
 and independently check it for completeness against the user's request,
 acceptance criteria, repository instructions, and change scope. If work is
 missing or incorrect, send the findings back to the same subagent and let it
-continue when practical; spawn a replacement `gpt-5.6-luna` subagent only when
+continue when practical; spawn a replacement `luna` subagent only when
 that is more effective. Repeat until the implementation is complete or a real
 blocker must be reported.
 
