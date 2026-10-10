@@ -137,18 +137,18 @@ describe("ApplicationShell navigation contract", () => {
     expect(
       wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
     ).toBe("记录");
-    route.path = "/loans";
-    route.query = { status: "settled" };
+    route.path = "/loans/records";
+    route.query = {};
     await nextTick();
     expect(
       wrapper
         .find(".mobile-context-nav")
         .findAll("a")
         .map((link) => link.text()),
-    ).toEqual(["未结借用", "已结借用"]);
+    ).toEqual(["明细", "记录"]);
     expect(
       wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
-    ).toBe("已结借用");
+    ).toBe("记录");
   });
 
   it("normalizes default movement context state", async () => {

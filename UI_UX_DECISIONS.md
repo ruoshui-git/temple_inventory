@@ -198,6 +198,12 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Supersession log
 
+- **2026-10-10:** 借用 now uses separate 明细 (`/loans/items`) and 记录
+  (`/loans/records`) browse destinations, matching 货物流动. Both default to
+  全部 status; 未结 and 已结清 are filters. 明细 is one row per loan item line,
+  while 记录 is one row per complete loan document. The persistent quantity
+  summary row is removed; column totals remain available on demand.
+
 - **2026-10-10:** Expiry batch identity is rendered once per browse result. The
   batch number remains in the item identity/card text; the redundant batch
   popover is removed while location popovers remain available for per-location

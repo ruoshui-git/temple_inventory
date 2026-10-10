@@ -334,8 +334,15 @@ export function useWorkspaceController() {
           },
         };
         if (kind === "Loss" && route.query.loan_item) {
-          const candidates = await api("outstanding_loan_items");
-          const row = candidates.find(
+          const candidates = await api("loan_items", {
+            filters: {
+              status: "outstanding",
+              search: String(route.query.loan_item),
+            },
+            page_length: 100,
+          });
+          const candidateRows = candidates.results || [];
+          const row = candidateRows.find(
             (candidate: any) => candidate.loan_item === route.query.loan_item,
           );
           if (row)
@@ -765,8 +772,13 @@ export function useWorkspaceController() {
       toast(`${labels[form.value.movement_kind]}已完成`);
       window.dispatchEvent(new Event("ti:refresh-shell"));
       if (form.value.movement_kind === "Return") {
-        const outstanding = await api("outstanding_loan_items");
-        const candidate = outstanding.find((row: any) => row.loan_item);
+        const outstanding = await api("loan_items", {
+          filters: { status: "outstanding" },
+          page_length: 1,
+        });
+        const candidate = (outstanding.results || []).find(
+          (row: any) => row.loan_item,
+        );
         if (
           candidate &&
           window.confirm("该借出明细仍有未结数量。是否继续记录遗失？")

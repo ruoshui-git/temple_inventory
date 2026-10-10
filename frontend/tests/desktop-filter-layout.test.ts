@@ -50,7 +50,7 @@ describe("compact desktop filter rails", () => {
         };
       if (method === "pending")
         return { results: [], total: 0, overall_total: 0 };
-      if (method === "loans") return { results: [], total: 0 };
+      if (method === "loan_items") return { results: [], total: 0 };
       return { results: [], total: 0, facets: {} };
     });
     state.workspaceApi.mockReset().mockResolvedValue({ results: [], total: 0 });
@@ -79,7 +79,7 @@ describe("compact desktop filter rails", () => {
           item_groups: [],
           stock_operation_capabilities: {},
         };
-      if (method === "loans")
+      if (method === "loan_items")
         return {
           results: [
             {

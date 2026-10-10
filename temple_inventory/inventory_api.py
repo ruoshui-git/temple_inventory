@@ -1717,21 +1717,25 @@ def dashboard_summary(warehouses=None, item_groups=None, period_key="this_month"
 		recent.append(row)
 		if len(recent) >= 5:
 			break
-	loan_page = _loans_modern(
-		settings, None, "outstanding", None, item_groups, warehouses, None,
-		"loan_date", "asc", 0, 100,
+	loan_page = _loan_browse_response(
+		"records",
+		{"status": "outstanding", "item_groups": item_groups, "warehouses": warehouses},
+		0,
+		100,
 	)
 	loan_rows = list(loan_page.get("results") or [])
 	for start in range(100, int(loan_page.get("total") or 0), 100):
 		loan_rows.extend(
-			_loans_modern(
-				settings, None, "outstanding", None, item_groups, warehouses, None,
-				"loan_date", "asc", start, 100,
+			_loan_browse_response(
+				"records",
+				{"status": "outstanding", "item_groups": item_groups, "warehouses": warehouses},
+				start,
+				100,
 			).get("results") or []
 		)
 	for row in loan_rows:
-		row["status"] = "部分归还" if row.get("loan_status") == "Partially Returned" else "未归还"
-	loan_rows.sort(key=lambda row: (0 if row["status"] == "部分归还" else 1, str(row.get("loan_date") or ""), row["name"]))
+		row["status"] = "部分结清" if row.get("loan_status") == "Partially Settled" else "未归还"
+	loan_rows.sort(key=lambda row: (0 if row["status"] == "部分结清" else 1, str(row.get("loan_date") or ""), row["name"]))
 	loan_summary = {
 		"record_count": int(loan_page.get("total") or 0),
 		"quantity": _dashboard_quantity_summary(
@@ -3003,29 +3007,6 @@ def update_item(item_code, data):
 	return {"item_code": item.name, "item_name": item.item_name, "item_group": item.item_group, "description": item.description, "image": item.image, "barcodes": [row.barcode for row in item.barcodes]}
 
 
-@frappe.whitelist()
-def outstanding_loan_items():
-	_require_stock()
-	rows = [row for row in _all_loan_rows() if flt(row["outstanding"]) > 0]
-	if not rows:
-		return rows
-	permitted_items = {
-		row.name
-		for row in frappe.get_list(
-			"Item", filters={"name": ("in", list({row["item_code"] for row in rows}))}, fields=["name"], limit_page_length=0
-		)
-	}
-	permitted_loans = {
-		row.name
-		for row in frappe.get_list(
-			"Inventory Loan",
-			filters={"name": ("in", list({row["loan"] for row in rows})), "company": _settings().company},
-			fields=["name"], limit_page_length=0,
-		)
-	}
-	return [row for row in rows if row["item_code"] in permitted_items and row["loan"] in permitted_loans]
-
-
 def _all_loan_rows_sql():
 	query = """
 		select l.name as loan, li.name as loan_item, li.item_code, li.batch_no, li.uom,
@@ -3067,105 +3048,354 @@ def _all_loan_rows(loan_names=None):
 	return rows
 
 
-def _active_loan_parent_query(search=None):
-	"""Return the exact permission-aware active-parent predicate and values.
+def _loan_browse_filters(filters=None):
+	filters = _loads(filters, {}) or {}
+	if not isinstance(filters, dict):
+		frappe.throw(_("Invalid loan filters"))
+	status = str(filters.get("status") or "all").strip().lower()
+	if status in ("", "all"):
+		status = "all"
+	if status not in {"all", "outstanding", "settled"}:
+		frappe.throw(_("Invalid loan status"))
+	sort_order = str(filters.get("sort_order") or "desc").strip().lower()
+	if sort_order not in {"asc", "desc"}:
+		frappe.throw(_("Invalid sort order"))
+	return {
+		"search": str(filters.get("search") or "").strip(),
+		"loan_date": str(filters.get("loan_date") or "").strip(),
+		"status": status,
+		"item_code": str(filters.get("item_code") or "").strip(),
+		"item_groups": _selection_values(filters.get("item_groups")),
+		"warehouses": _selection_values(filters.get("warehouses")),
+		"activity": str(filters.get("activity") or "").strip(),
+		"sort_by": str(filters.get("sort_by") or "loan_date").strip(),
+		"sort_order": sort_order,
+	}
 
-	A line is active on its own outstanding quantity.  Item-code/name search is
-	deliberately restricted to active lines, so a settled sibling cannot surface
-	an otherwise unrelated open loan.
-	"""
-	params = {"company": _settings().company}
-	where = ["`tabInventory Loan`.docstatus=1", "`tabInventory Loan`.company=%(company)s"]
-	# reportview escapes percent signs for legacy Python interpolation; this
-	# endpoint passes parameters directly to db.sql instead.
-	match_cond = get_match_cond("Inventory Loan").replace("%%", "%")
-	if match_cond:
-		where.append(match_cond)
-	active_line = """
-		exists (
-			select 1 from `tabInventory Loan Item` active_line
-			left join (
-				select ri.loan_item,
-					sum(case when ri.outcome='Returned' then ri.qty else 0 end) as returned,
-					sum(case when ri.outcome='Damaged' then ri.qty else 0 end) as damaged
-				from `tabInventory Return Item` ri
-				join `tabInventory Return` returned_parent on returned_parent.name=ri.parent and returned_parent.docstatus=1
-				group by ri.loan_item
-			) returned on returned.loan_item=active_line.name
-			left join (
-				select loss_item.original_loan_item, sum(loss_item.qty) as lost
-				from `tabInventory Loss Item` loss_item
-				join `tabInventory Loss` loss_parent on loss_parent.name=loss_item.parent and loss_parent.docstatus=1
-				group by loss_item.original_loan_item
-			) lost on lost.original_loan_item=active_line.name
-			where active_line.parent=`tabInventory Loan`.name
-				and active_line.parenttype='Inventory Loan'
-				and active_line.qty - coalesce(returned.returned, 0) - coalesce(returned.damaged, 0) - coalesce(lost.lost, 0) > 0
+
+def _loan_browse_context(filters):
+	"""Load the permission-safe normalized loan context once for both browse modes."""
+	settings = _settings()
+	visible = _visible_warehouses(settings)
+	allowed_names = set(_allowed_warehouses(settings))
+	requested_warehouses = set(filters["warehouses"])
+	if requested_warehouses:
+		for value in requested_warehouses:
+			if value in visible and not visible[value].is_group and value not in allowed_names:
+				frappe.throw(_("请选择有权限的库存位置"), frappe.PermissionError)
+		selected_warehouses = _selected_leaf_warehouses(
+			requested_warehouses, visible, empty_means_all=False
+		) & allowed_names
+	else:
+		selected_warehouses = allowed_names
+	selected_groups = set(filters["item_groups"])
+	if selected_groups:
+		groups = frappe.get_list("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
+		by_name = {row.name: row for row in groups}
+		if any(group not in by_name for group in selected_groups):
+			frappe.throw(_("Invalid item group"), frappe.PermissionError)
+		selected_groups = {
+			row.name
+			for row in groups
+			if any(
+				row.lft >= by_name[group].lft and row.rgt <= by_name[group].rgt
+				for group in filters["item_groups"]
+			)
+		}
+
+	rows = _all_loan_rows()
+	loan_names = sorted({row["loan"] for row in rows})
+	permitted_loans = {
+		row.name
+		for row in frappe.get_list(
+			"Inventory Loan",
+			filters={"name": ("in", loan_names or [""]), "company": settings.company},
+			fields=["name"],
+			limit_page_length=0,
 		)
-	"""
-	# Keep the Item permission predicate in the correlated existence test. This
-	# prevents a parent with only inaccessible active lines from being disclosed.
-	active_line = active_line.replace(
-		"and active_line.qty - coalesce(returned.returned, 0) - coalesce(returned.damaged, 0) - coalesce(lost.lost, 0) > 0",
-		"and active_line.qty - coalesce(returned.returned, 0) - coalesce(returned.damaged, 0) - coalesce(lost.lost, 0) > 0\n\t\t\t\tand exists (select 1 from `tabItem` active_item where active_item.name=active_line.item_code and " + _item_match_condition("active_item") + ")",
+	}
+	item_codes = sorted({row["item_code"] for row in rows})
+	items = {
+		row.name: row
+		for row in frappe.get_list(
+			"Item",
+			filters={"name": ("in", item_codes or [""]), "disabled": 0},
+			fields=["name", "item_name", "image", "item_group", "stock_uom"],
+			limit_page_length=0,
+		)
+	}
+	conversion_rows = frappe.get_all(
+		"UOM Conversion Detail",
+		filters={"parenttype": "Item", "parent": ("in", item_codes or [""])},
+		fields=["parent", "uom", "conversion_factor"],
+		limit_page_length=0,
 	)
-	where.append(active_line)
-	if search and str(search).strip():
-		params["search"] = f"%{str(search).strip()}%"
-		where.append(
-			"""(
-				`tabInventory Loan`.name like %(search)s
-				or `tabInventory Loan`.borrower like %(search)s
-				or `tabInventory Loan`.activity like %(search)s
-				or exists (
-					select 1 from `tabInventory Loan Item` searched_line
-					join `tabItem` searched_item on searched_item.name=searched_line.item_code
-					left join (
-						select ri.loan_item, sum(case when ri.outcome='Returned' then ri.qty else 0 end) as returned,
-							sum(case when ri.outcome='Damaged' then ri.qty else 0 end) as damaged
-						from `tabInventory Return Item` ri join `tabInventory Return` returned_parent on returned_parent.name=ri.parent and returned_parent.docstatus=1
-						group by ri.loan_item
-					) returned on returned.loan_item=searched_line.name
-					left join (
-						select loss_item.original_loan_item, sum(loss_item.qty) as lost
-						from `tabInventory Loss Item` loss_item join `tabInventory Loss` loss_parent on loss_parent.name=loss_item.parent and loss_parent.docstatus=1
-						group by loss_item.original_loan_item
-					) lost on lost.original_loan_item=searched_line.name
-					where searched_line.parent=`tabInventory Loan`.name and searched_line.parenttype='Inventory Loan'
-						and searched_line.qty - coalesce(returned.returned, 0) - coalesce(returned.damaged, 0) - coalesce(lost.lost, 0) > 0
-						and (searched_line.item_code like %(search)s or searched_item.item_name like %(search)s)
-						and """ + _item_match_condition("searched_item") + """
-				)
-			)"""
+	conversion_factors = {
+		(row.parent, row.uom): flt(row.conversion_factor) for row in conversion_rows
+	}
+	activity_codes = {row.get("activity") for row in rows if row.get("activity")}
+	activities = {}
+	if activity_codes:
+		activities = {
+			row.name: row
+			for row in frappe.get_list(
+				"Inventory Activity",
+				filters={"name": ("in", sorted(activity_codes))},
+				fields=["name", "title"],
+				limit_page_length=0,
+			)
+		}
+	by_loan = defaultdict(list)
+	for row in rows:
+		by_loan[row["loan"]].append(row)
+	eligible_loans = {
+		name
+		for name, parent_rows in by_loan.items()
+		if name in permitted_loans
+		and parent_rows
+		and all(
+			row["item_code"] in items and row["original_warehouse"] in allowed_names
+			for row in parent_rows
 		)
-	return " and ".join(where), params
+	}
+
+	def quantity(row, field):
+		meta = items.get(row["item_code"])
+		uom = row.get("uom") or (meta.stock_uom if meta else "")
+		factor = 1 if not meta or uom == meta.stock_uom else conversion_factors.get((row["item_code"], uom), 0)
+		if meta and not factor:
+			frappe.throw(_("Unit is not configured for {0}").format(row["item_code"]))
+		return flt(row.get(field)) * factor, (meta.stock_uom if meta else uom)
+
+	def status_for(row):
+		outstanding = max(flt(row["outstanding"]), 0)
+		loaned = flt(row["loaned"])
+		if outstanding <= 0:
+			return "Settled"
+		return "Outstanding" if outstanding >= loaned else "Partially Settled"
+
+	return {
+		"allowed_names": allowed_names,
+		"selected_warehouses": selected_warehouses,
+		"selected_groups": selected_groups,
+		"items": items,
+		"activities": activities,
+		"by_loan": by_loan,
+		"eligible_loans": eligible_loans,
+		"quantity": quantity,
+		"status_for": status_for,
+	}
+
+
+def _loan_line_matches(row, context, filters):
+	meta = context["items"].get(row["item_code"])
+	if not meta or row["loan"] not in context["eligible_loans"]:
+		return False
+	if row["original_warehouse"] not in context["allowed_names"]:
+		return False
+	status = context["status_for"](row)
+	if filters["status"] == "outstanding" and status == "Settled":
+		return False
+	if filters["status"] == "settled" and status != "Settled":
+		return False
+	if filters["loan_date"] and str(row["loan_date"])[:10] != filters["loan_date"]:
+		return False
+	if filters["item_code"] and filters["item_code"] != row["item_code"]:
+		return False
+	if filters["activity"] and filters["activity"] not in {
+		row.get("activity"), row.get("item_activity")
+	}:
+		return False
+	if context["selected_groups"] and meta.item_group not in context["selected_groups"]:
+		return False
+	if filters["warehouses"] and row["original_warehouse"] not in context["selected_warehouses"]:
+		return False
+	if filters["search"]:
+		needle = filters["search"].lower()
+		values = (
+			row["loan"], row["loan_item"], row["item_code"], meta.item_name,
+			row.get("borrower"), row.get("activity"),
+			(context["activities"].get(row.get("activity")) or {}).get("title"),
+		)
+		if not any(needle in str(value or "").lower() for value in values):
+			return False
+	return True
+
+
+def _loan_line_payload(row, context):
+	meta = context["items"][row["item_code"]]
+	status = context["status_for"](row)
+	return {
+		"name": row["loan_item"],
+		"loan_item": row["loan_item"],
+		"loan": row["loan"],
+		"record_name": row["loan"],
+		"item_code": row["item_code"],
+		"item_name": meta.item_name,
+		"image": meta.image,
+		"item_group": meta.item_group,
+		"stock_uom": meta.stock_uom,
+		"batch_no": row.get("batch_no"),
+		"uom": row.get("uom") or meta.stock_uom,
+		"borrower": row.get("borrower"),
+		"purpose": row.get("purpose"),
+		"activity": row.get("activity"),
+		"activity_title": (context["activities"].get(row.get("activity")) or {}).get("title"),
+		"loan_date": row.get("loan_date"),
+		"original_warehouse": row.get("original_warehouse"),
+		"loaned": flt(row.get("loaned")),
+		"returned": flt(row.get("returned")),
+		"damaged": flt(row.get("damaged")),
+		"lost": flt(row.get("lost")),
+		"outstanding": max(flt(row.get("outstanding")), 0),
+		"loaned_qty": [{"uom": meta.stock_uom, "qty": context["quantity"](row, "loaned")[0]}],
+		"outstanding_qty": [{"uom": meta.stock_uom, "qty": context["quantity"](row, "outstanding")[0]}],
+		"loan_status": status,
+		"detail_route": f"/loans/{row['loan']}",
+	}
+
+
+def _loan_browse_response(mode, filters=None, start=0, page_length=30):
+	_require_stock()
+	filters = _loan_browse_filters(filters)
+	context = _loan_browse_context(filters)
+	start = max(cint(start or 0), 0)
+	page_length = min(max(cint(page_length or 30), 1), 100)
+	eligible_lines = [
+		row
+		for name, rows in context["by_loan"].items()
+		if name in context["eligible_loans"]
+		for row in rows
+	]
+	matched_lines = []
+	for rows in context["by_loan"].values():
+		for row in rows:
+			if _loan_line_matches(row, context, filters):
+				matched_lines.append(row)
+
+	if mode == "items":
+		results = [_loan_line_payload(row, context) for row in matched_lines]
+		columns = {"loan_date", "record_name", "item_code", "borrower", "loan_status"}
+		sort_by = filters["sort_by"] if filters["sort_by"] in columns else "loan_date"
+		results.sort(
+			key=lambda row: (str(row.get(sort_by) or "").lower(), row["name"]),
+			reverse=filters["sort_order"] == "desc",
+		)
+		all_for_totals = results
+		facets_source = matched_lines
+	else:
+		by_parent = defaultdict(list)
+		for row in matched_lines:
+			by_parent[row["loan"]].append(row)
+		results = []
+		for name, matching in by_parent.items():
+			all_rows = context["by_loan"][name]
+			# A matching filter selects the parent, but the record payload is complete.
+			if any(
+				row["item_code"] not in context["items"]
+				or row["original_warehouse"] not in context["allowed_names"]
+				for row in all_rows
+			):
+				continue
+			payload_lines = [_loan_line_payload(row, context) for row in all_rows]
+			outstanding_lines = sum(1 for row in payload_lines if row["outstanding"] > 0)
+			status = (
+				"Settled" if not outstanding_lines else
+				"Outstanding" if outstanding_lines == len(payload_lines) and all(
+					row["outstanding"] >= row["loaned"] for row in payload_lines
+				) else "Partially Settled"
+			)
+			if filters["status"] == "settled" and status != "Settled":
+				continue
+			if filters["status"] == "outstanding" and status == "Settled":
+				continue
+			quantities = {"loaned_qty": defaultdict(float), "outstanding_qty": defaultdict(float)}
+			for row in all_rows:
+				meta = context["items"][row["item_code"]]
+				loaned, uom = context["quantity"](row, "loaned")
+				outstanding, _ = context["quantity"](row, "outstanding")
+				quantities["loaned_qty"][uom] += loaned
+				quantities["outstanding_qty"][uom] += max(outstanding, 0)
+			results.append({
+				"name": name,
+				"record_name": name,
+				"borrower": all_rows[0].get("borrower"),
+				"purpose": all_rows[0].get("purpose"),
+				"activity": all_rows[0].get("activity"),
+				"activity_title": payload_lines[0].get("activity_title"),
+				"loan_date": all_rows[0].get("loan_date"),
+				"line_count": len(payload_lines),
+				"outstanding_lines": outstanding_lines,
+				"loaned_qty": _quantity_list(quantities["loaned_qty"]),
+				"outstanding_qty": _quantity_list(quantities["outstanding_qty"]),
+				"loan_status": status,
+				"items": payload_lines[:5],
+				"detail_route": f"/loans/{name}",
+			})
+		columns = {"loan_date", "record_name", "borrower", "line_count", "loan_status"}
+		sort_by = filters["sort_by"] if filters["sort_by"] in columns else "loan_date"
+		results.sort(
+			key=lambda row: (
+				flt(row.get(sort_by)) if sort_by == "line_count" else str(row.get(sort_by) or "").lower(),
+				row["name"],
+			),
+			reverse=filters["sort_order"] == "desc",
+		)
+		all_for_totals = results
+		facets_source = matched_lines
+
+	quantity_values = {"loaned_qty": defaultdict(float), "outstanding_qty": defaultdict(float)}
+	if mode == "items":
+		for row in matched_lines:
+			loaned, uom = context["quantity"](row, "loaned")
+			outstanding, _ = context["quantity"](row, "outstanding")
+			quantity_values["loaned_qty"][uom] += loaned
+			quantity_values["outstanding_qty"][uom] += max(outstanding, 0)
+	else:
+		for record in results:
+			for key in quantity_values:
+				for value in record[key]:
+					quantity_values[key][value["uom"]] += flt(value["qty"])
+	facets = {"warehouses": defaultdict(set), "item_groups": defaultdict(set), "activities": defaultdict(set)}
+	for row in facets_source:
+		identity = row["loan_item"] if mode == "items" else row["loan"]
+		facets["warehouses"][row["original_warehouse"]].add(identity)
+		facets["item_groups"][context["items"][row["item_code"]].item_group].add(identity)
+		if row.get("activity"):
+			facets["activities"][row["activity"]].add(identity)
+	quantity_totals = {key: _quantity_list(values) for key, values in quantity_values.items()}
+	return {
+		"results": results[start : start + page_length],
+		"total": len(results),
+		"overall_total": len(eligible_lines) if mode == "items" else len(context["eligible_loans"]),
+		"start": start,
+		"page_length": page_length,
+		"has_more": start + page_length < len(results),
+		"facets": {
+			key: {facet: len(identities) for facet, identities in value.items()}
+			for key, value in facets.items()
+		},
+		"column_summaries": {
+			**_column_summaries(quantity_totals),
+			"line_count": {"type": "number", "value": sum(row.get("line_count", 1) for row in all_for_totals)},
+			"outstanding_lines": {
+				"type": "number",
+				"value": sum(row.get("outstanding_lines", 0) for row in all_for_totals),
+			},
+		},
+	}
 
 
 @frappe.whitelist()
-def loan_items(search=None, start=0, page_length=25):
-	"""Backward-compatible, server-paged chooser contract for return/loss."""
-	_require_stock()
-	start, page_length = max(cint(start or 0), 0), min(max(cint(page_length or 25), 1), 100)
-	base_sql, params = _all_loan_rows_sql()
-	where = ["loan_lines.outstanding > 0", "i.disabled=0", _item_match_condition("i")]
-	if search and str(search).strip():
-		params["search"] = f"%{str(search).strip()}%"
-		where.append("(loan_lines.loan like %(search)s or loan_lines.item_code like %(search)s or loan_lines.borrower like %(search)s or loan_lines.activity like %(search)s or i.item_name like %(search)s)")
-	from_sql = f"from ({base_sql}) as loan_lines join `tabItem` i on i.name=loan_lines.item_code where {' and '.join(where)}"
-	total_rows = frappe.db.sql("select count(*) as total " + from_sql, params, as_dict=True)
-	rows = frappe.db.sql(
-		"select loan_lines.* " + from_sql + " order by loan_lines.loan_date desc, loan_lines.loan_item desc limit %(page_length)s offset %(start)s",
-		{**params, "page_length": page_length, "start": start}, as_dict=True,
-	)
-	for row in rows:
-		row["outstanding"] = flt(row.pop("outstanding"))
-	return {"results": rows, "total": int(total_rows[0].total if total_rows else 0), "start": start, "page_length": page_length,
-		"overall_total": int(total_rows[0].total if total_rows else 0)}
+def loan_items(filters=None, start=0, page_length=30):
+	"""Canonical loan-line browse and outstanding picker endpoint."""
+	return _loan_browse_response("items", filters, start, page_length)
 
 
-def _outstanding_loan_rows():
-	"""Return permitted submitted loan lines with submitted outcomes only."""
-	return outstanding_loan_items()
+@frappe.whitelist()
+def loan_records(filters=None, start=0, page_length=30):
+	"""Canonical complete-loan-record browse endpoint."""
+	return _loan_browse_response("records", filters, start, page_length)
 
 
 def _permitted_file_attachments(doctype, name):
@@ -3187,173 +3417,6 @@ def _permitted_file_attachments(doctype, name):
 	return permitted
 
 
-def _loans_modern(settings, search, status, loan_date, item_groups, warehouses, activity, sort_by, sort_order, start, page_length):
-	"""Build loan parents only after every child line passes permission checks."""
-	if status not in {"outstanding", "settled"}:
-		frappe.throw(_("Invalid loan status"))
-	columns = {"loan_date", "borrower", "line_count", "outstanding_lines", "loan_status"}
-	sort_state = _sort_state(sort_by, sort_order, columns, "loan_date", "desc") or ("loan_date", "desc")
-	start = max(cint(start or 0), 0)
-	page_length = min(max(cint(page_length or 25), 1), 100)
-	visible = _visible_warehouses(settings)
-	allowed = _allowed_warehouses(settings)
-	allowed_names = set(allowed)
-	selected_warehouses = allowed_names
-	requested_warehouses = _selection_values(warehouses)
-	if requested_warehouses:
-		for value in requested_warehouses:
-			if value in visible and not visible[value].is_group and value not in allowed_names:
-				frappe.throw(_("请选择有权限的库存位置"), frappe.PermissionError)
-		selected_warehouses = _selected_leaf_warehouses(requested_warehouses, visible, empty_means_all=False) & allowed_names
-
-	selected_group_names = _selection_values(item_groups)
-	selected_groups = set(selected_group_names)
-	if selected_group_names:
-		groups = frappe.get_list("Item Group", fields=["name", "lft", "rgt"], limit_page_length=0)
-		by_name = {row.name: row for row in groups}
-		if any(group not in by_name for group in selected_group_names):
-			frappe.throw(_("Invalid item group"), frappe.PermissionError)
-		selected_groups = {row.name for row in groups if any(row.lft >= by_name[group].lft and row.rgt <= by_name[group].rgt for group in selected_group_names)}
-
-	rows = _all_loan_rows()
-	all_loan_names = {row["loan"] for row in rows}
-	permitted_loans = {
-		row.name for row in frappe.get_list("Inventory Loan", filters={"name": ("in", sorted(all_loan_names) or [""]), "company": settings.company}, fields=["name"], limit_page_length=0)
-	}
-	item_codes = {row["item_code"] for row in rows}
-	items = {row.name: row for row in frappe.get_list("Item", filters={"name": ("in", sorted(item_codes) or [""])}, fields=["name", "item_name", "image", "item_group", "stock_uom"], limit_page_length=0)}
-	conversion_rows = frappe.get_all(
-		"UOM Conversion Detail",
-		filters={"parenttype": "Item", "parent": ("in", sorted(item_codes) or [""])},
-		fields=["parent", "uom", "conversion_factor"],
-		limit_page_length=0,
-	)
-	conversion_factors = {(row.parent, row.uom): flt(row.conversion_factor) for row in conversion_rows}
-	activities = {}
-	activity_codes = {row.get("activity") for row in rows if row.get("activity")}
-	if activity_codes:
-		activities = {row.name: row for row in frappe.get_list("Inventory Activity", filters={"name": ("in", sorted(activity_codes))}, fields=["name", "title"], limit_page_length=0)}
-	by_loan = defaultdict(list)
-	for row in rows:
-		by_loan[row["loan"]].append(row)
-
-	def searchable(parent_name, parent_rows):
-		if not search:
-			return True
-		needle = str(search).lower()
-		values = [parent_name]
-		for row in parent_rows:
-			meta = items[row["item_code"]]
-			values.extend((row.get("borrower"), row.get("activity"), meta.item_name, row["item_code"]))
-			if row.get("activity") in activities:
-				values.append(activities[row["activity"]].title)
-		return any(needle in str(value or "").lower() for value in values)
-
-	parents = []
-	overall_total = 0
-	for name, parent_rows in by_loan.items():
-		if name not in permitted_loans or not parent_rows:
-			continue
-		# A parent is hidden if even one of its lines would disclose an
-		# inaccessible Item or warehouse. Filter matching happens afterwards.
-		if any(row["item_code"] not in items or row["original_warehouse"] not in allowed_names for row in parent_rows):
-			continue
-		outstanding_values = [max(flt(row["outstanding"]), 0) for row in parent_rows]
-		outstanding_lines = sum(1 for value in outstanding_values if value > 0)
-		full_outstanding = all(
-			value >= flt(row["loaned"])
-			for row, value in zip(parent_rows, outstanding_values, strict=True)
-		)
-		loan_status = "Outstanding" if full_outstanding else ("Partially Returned" if outstanding_lines else "Settled")
-		if (status == "outstanding" and loan_status == "Settled") or (status == "settled" and loan_status != "Settled"):
-			continue
-		overall_total += 1
-		if loan_date and str(parent_rows[0]["loan_date"])[:10] != str(loan_date):
-			continue
-		if activity and not any(row.get("activity") == activity for row in parent_rows):
-			continue
-		if selected_groups and not any(items[row["item_code"]].item_group in selected_groups for row in parent_rows):
-			continue
-		if requested_warehouses and not any(row["original_warehouse"] in selected_warehouses for row in parent_rows):
-			continue
-		if not searchable(name, parent_rows):
-			continue
-		# Keep the full permitted parent for line counts/status, even when a
-		# warehouse/category/activity filter matched only one line.
-		full_items = []
-		for row in parent_rows:
-			outstanding = max(flt(row["outstanding"]), 0)
-			meta = items[row["item_code"]]
-			full_items.append({"loan_item": row["loan_item"], "item_code": row["item_code"], "item_name": meta.item_name, "image": meta.image, "uom": row.get("uom"), "stock_uom": meta.stock_uom, "loaned": row["loaned"], "outstanding": outstanding, "original_warehouse": row.get("original_warehouse")})
-		parent = {"name": name, "borrower": parent_rows[0].get("borrower"), "purpose": parent_rows[0].get("purpose"), "loan_date": parent_rows[0]["loan_date"], "activity": parent_rows[0].get("activity"), "activity_title": (activities.get(parent_rows[0].get("activity")) or {}).get("title"), "line_count": len(parent_rows), "outstanding_lines": outstanding_lines, "loan_status": loan_status, "items": full_items[:5]}
-		parent_quantities = {"loaned_qty": defaultdict(float), "outstanding_qty": defaultdict(float)}
-		for row in parent_rows:
-			meta = items[row["item_code"]]
-			uom = row.get("uom") or meta.stock_uom
-			factor = 1 if uom == meta.stock_uom else conversion_factors.get((row["item_code"], uom), 0)
-			if not factor:
-				frappe.throw(_("Unit is not configured for {0}").format(row["item_code"]))
-			parent_quantities["loaned_qty"][meta.stock_uom] += flt(row["loaned"]) * factor
-			parent_quantities["outstanding_qty"][meta.stock_uom] += max(flt(row["outstanding"]), 0) * factor
-		parent.update(
-			{
-				key: [
-					{"uom": uom_name, "qty": flt(qty)}
-					for uom_name, qty in sorted(values.items())
-					if uom_name and abs(flt(qty)) > 1e-9
-				]
-				for key, values in parent_quantities.items()
-			}
-		)
-		parents.append(parent)
-
-	def sort_value(row):
-		value = row.get(sort_state[0])
-		return (float(value or 0) if sort_state[0] in {"line_count", "outstanding_lines"} else str(value or "").lower(), row["name"])
-	parents.sort(key=sort_value, reverse=sort_state[1] == "desc")
-	quantity_values = {"loaned_qty": defaultdict(float), "outstanding_qty": defaultdict(float)}
-	for parent in parents:
-		for row in by_loan[parent["name"]]:
-			meta = items[row["item_code"]]
-			uom = row.get("uom") or meta.stock_uom
-			factor = 1 if uom == meta.stock_uom else conversion_factors.get((row["item_code"], uom), 0)
-			if not factor:
-				frappe.throw(_("Unit is not configured for {0}").format(row["item_code"]))
-			quantity_values["loaned_qty"][meta.stock_uom] += flt(row["loaned"]) * factor
-			quantity_values["outstanding_qty"][meta.stock_uom] += max(flt(row["outstanding"]), 0) * factor
-	facets = {"warehouses": defaultdict(set), "item_groups": defaultdict(set), "activities": defaultdict(set)}
-	for parent in parents:
-		for row in by_loan[parent["name"]]:
-			facets["warehouses"][row["original_warehouse"]].add(parent["name"])
-			facets["item_groups"][items[row["item_code"]].item_group].add(parent["name"])
-			if row.get("activity"):
-				facets["activities"][row["activity"]].add(parent["name"])
-	quantity_totals = {key: _quantity_list(values) for key, values in quantity_values.items()}
-	return {"results": parents[start:start + page_length], "total": len(parents), "overall_total": overall_total, "start": start, "page_length": page_length, "has_more": start + page_length < len(parents), "facets": {key: {value: len(names) for value, names in sorted(values.items())} for key, values in facets.items()}, "quantity_totals": quantity_totals, "column_summaries": {**_column_summaries(quantity_totals), "line_count": {"type": "number", "value": sum(row.get("line_count", 0) for row in parents)}, "outstanding_lines": {"type": "number", "value": sum(row.get("outstanding_lines", 0) for row in parents)}}}
-
-
-@frappe.whitelist()
-def loans(search=None, status="outstanding", loan_date=None, item_groups=None, warehouses=None,
-		activity=None, sort_by="loan_date", sort_order="desc", start=0, page_length=25):
-	"""Permission-safe, parent-oriented loan history with bounded previews."""
-	_require_stock()
-	if hasattr(_active_loan_parent_query, "mock_calls"):
-		where, params = _active_loan_parent_query(search)
-		total = frappe.db.sql(f"select count(*) as total from `tabInventory Loan` where {where}", params, as_dict=True)[0].total
-		parents = frappe.db.sql(f"select name, borrower, activity, posting_datetime from `tabInventory Loan` where {where} order by posting_datetime desc, name desc limit %(page_length)s offset %(start)s", {**params, "start": cint(start or 0), "page_length": cint(page_length or 25)}, as_dict=True)
-		rows = _all_loan_rows([row.name for row in parents])
-		by_loan = {row["loan"]: row for row in rows}
-		return {"results": [dict(row, items=[by_loan[row.name]] if row.name in by_loan else []) for row in parents], "total": int(total), "overall_total": int(total), "start": cint(start or 0), "page_length": cint(page_length or 25), "quantity_totals": {"loaned_qty": [], "outstanding_qty": []}, "column_summaries": {"loaned_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "outstanding_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "line_count": {"type": "number", "value": 0}, "outstanding_lines": {"type": "number", "value": 0}}}
-	try:
-		settings = _settings()
-	except (frappe.DoesNotExistError, ValueError):
-		# Keep lightweight unit-test/mocked callers compatible with the legacy RPC.
-		where, params = _active_loan_parent_query(search)
-		total = frappe.db.sql(f"select count(*) as total from `tabInventory Loan` where {where}", params, as_dict=True)[0].total
-		parents = frappe.db.sql(f"select name, borrower, activity, posting_datetime from `tabInventory Loan` where {where} order by posting_datetime desc, name desc limit %(page_length)s offset %(start)s", {**params, "start": cint(start or 0), "page_length": cint(page_length or 25)}, as_dict=True)
-		grouped = {row["loan"]: row for row in _all_loan_rows([row.name for row in parents])}
-		return {"results": [dict(row, items=[grouped[row.name]] if row.name in grouped else []) for row in parents], "total": int(total), "overall_total": int(total), "start": cint(start or 0), "page_length": cint(page_length or 25), "quantity_totals": {"loaned_qty": [], "outstanding_qty": []}, "column_summaries": {"loaned_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "outstanding_qty": {"type": "quantity", "unitless_total": 0, "by_uom": []}, "line_count": {"type": "number", "value": 0}, "outstanding_lines": {"type": "number", "value": 0}}}
-	return _loans_modern(settings, search, status, loan_date, item_groups, warehouses, activity, sort_by, sort_order, start, page_length)
 
 
 @frappe.whitelist()

@@ -24,7 +24,10 @@ async function load(append = false) {
 	error.value = "";
 	try {
 		const data = await api("loan_items", {
-			search: query.value || undefined,
+			filters: {
+				search: query.value || undefined,
+				status: "outstanding",
+			},
 			start: append ? rows.value.length : 0,
 			page_length: 25,
 		});

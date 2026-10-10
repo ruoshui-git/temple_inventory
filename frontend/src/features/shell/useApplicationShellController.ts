@@ -93,13 +93,7 @@ export function useApplicationShellController() {
     ...route.query,
   }));
   const loanSharedQuery = computed<LocationQueryRaw>(() => ({
-    search: route.query.search,
-    loan_date: route.query.loan_date,
-    item_groups: route.query.item_groups,
-    warehouses: route.query.warehouses,
-    activity: route.query.activity,
-    sort_by: route.query.sort_by,
-    sort_order: route.query.sort_order,
+    ...route.query,
   }));
 
   const inventoryContextItems = computed<ContextItem[]>(() => [
@@ -139,19 +133,23 @@ export function useApplicationShellController() {
           query: movementSharedQuery.value,
         },
       ];
-    if (route.path === "/loans")
+    if (
+      route.path === "/loans" ||
+      route.path === "/loans/items" ||
+      route.path === "/loans/records"
+    )
       return [
         {
-          key: "outstanding",
-          label: "未结借用",
-          path: "/loans",
+          key: "items",
+          label: "明细",
+          path: "/loans/items",
           query: loanSharedQuery.value,
         },
         {
-          key: "settled",
-          label: "已结借用",
-          path: "/loans",
-          query: { ...loanSharedQuery.value, status: "settled" },
+          key: "records",
+          label: "记录",
+          path: "/loans/records",
+          query: loanSharedQuery.value,
         },
       ];
     return [];
@@ -174,16 +172,16 @@ export function useApplicationShellController() {
     ],
     loans: [
       {
-        key: "outstanding",
-        label: "未结借用",
-        path: "/loans",
+        key: "items",
+        label: "明细",
+        path: "/loans/items",
         query: loanSharedQuery.value,
       },
       {
-        key: "settled",
-        label: "已结借用",
-        path: "/loans",
-        query: { ...loanSharedQuery.value, status: "settled" },
+        key: "records",
+        label: "记录",
+        path: "/loans/records",
+        query: loanSharedQuery.value,
       },
     ],
     more: [
@@ -214,8 +212,9 @@ export function useApplicationShellController() {
             ? requested
             : "items";
     }
-    if (route.path === "/loans")
-      return route.query.status === "settled" ? "settled" : "outstanding";
+    if (route.path === "/loans/records") return "records";
+    if (route.path === "/loans" || route.path === "/loans/items")
+      return "items";
     if (route.path === "/more") return "more";
     if (route.path === "/reports") return "reports";
     if (route.path === "/drafts") return "drafts";

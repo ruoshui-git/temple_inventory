@@ -154,7 +154,9 @@ def install_representative_transactions(company, sample_warehouses):
 		frappe.throw(f"样例事务数量或类型不符合要求：{dict(counts)}")
 	outstanding = [
 		row
-		for row in frappe.get_attr("temple_inventory.inventory_api.outstanding_loan_items")()
+		for row in frappe.get_attr("temple_inventory.inventory_api.loan_items")(
+			filters={"status": "outstanding"}, page_length=100
+		)["results"]
 		if row["item_code"] == item.name
 	]
 	if len(outstanding) != 2 or sum(flt(row["outstanding"]) for row in outstanding) != 2:

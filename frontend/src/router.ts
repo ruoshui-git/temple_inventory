@@ -4,7 +4,12 @@ export const router = createRouter({
   routes: [
     { path: "/", component: () => import("./pages/Dashboard.vue") },
     { path: "/stock", component: () => import("./pages/Inventory.vue") },
-    { path: "/loans", component: () => import("./pages/Loans.vue") },
+    {
+      path: "/loans",
+      redirect: (to) => ({ path: "/loans/items", query: { ...to.query } }),
+    },
+    { path: "/loans/items", component: () => import("./pages/Loans.vue") },
+    { path: "/loans/records", component: () => import("./pages/Loans.vue") },
     { path: "/loans/:name", component: () => import("./pages/LoanDetail.vue") },
     { path: "/warehouses", component: () => import("./pages/Warehouses.vue") },
     {

@@ -33,7 +33,7 @@ from temple_inventory.inventory_api import (
 	_system_warehouse_presentation,
 	_user_facing_warehouse_presentation,
 	_visible_warehouses,
-	outstanding_loan_items,
+	loan_items,
 )
 
 META = (
@@ -1090,7 +1090,18 @@ def item_detail(item_code):
 					"qty": qty,
 					"locations": locations,
 				})
-	active_loans = [row for row in outstanding_loan_items() if row["item_code"] == item.name]
+	active_page = loan_items(
+		{"status": "outstanding", "item_code": item.name}, page_length=100
+	)
+	active_loans = list(active_page["results"])
+	for start in range(100, cint(active_page.get("total") or 0), 100):
+		active_loans.extend(
+			loan_items(
+				{"status": "outstanding", "item_code": item.name},
+				start=start,
+				page_length=100,
+			)["results"]
+		)
 	return {
 		"item_code": item.name,
 		"item_name": item.item_name,

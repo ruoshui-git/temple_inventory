@@ -368,20 +368,56 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(result["item_code"], allocated)
 		allocator.assert_called_once_with()
 
-	def test_loans_accepts_rpc_string_paging_after_active_parent_selection(self):
-		parents = [
-			frappe._dict(name="loan-3", borrower="甲", activity="活动", posting_datetime="2026-01-03"),
-			frappe._dict(name="loan-2", borrower="乙", activity="活动", posting_datetime="2026-01-02"),
-			frappe._dict(name="loan-1", borrower="丙", activity="活动", posting_datetime="2026-01-01"),
+	def test_canonical_loan_browse_paginates_and_filters_derived_status(self):
+		rows = [
+			frappe._dict(
+				loan=f"loan-{index}", loan_item=f"loan-{index}-item", item_code=self.item,
+				loaned=1, returned=1 - outstanding, damaged=0, lost=0, outstanding=outstanding,
+				borrower=f"借用方 {index}", activity="活动", loan_date=f"2026-01-0{index}",
+				uom="Nos", original_warehouse=self.a,
+			)
+			for index, outstanding in ((3, 1), (2, 0.5), (1, 0))
 		]
-		def rows(names):
-			return [frappe._dict(loan=name, loan_item=f"{name}-item", item_code=self.item, loaned=1, returned=0, damaged=0, lost=0, outstanding=1, borrower=name, activity="活动", loan_date="2026-01-01", uom="Nos") for name in names]
-		with patch.object(inventory_service, "_require_stock"), patch.object(inventory_service, "_active_loan_parent_query", return_value=("1=1", {})), patch.object(inventory_service, "_all_loan_rows", side_effect=rows), patch.object(inventory_service.frappe.db, "sql", side_effect=[[frappe._dict(total=3)], [parents[1]]]), patch.object(inventory_service.frappe, "get_list", return_value=[frappe._dict(name=self.item, item_name="Test item", image=None)]):
-			result = inventory_service.loans(search="Test", start="1", page_length="1")
-		self.assertEqual(result["start"], 1)
-		self.assertEqual(result["page_length"], 1)
-		self.assertEqual(result["total"], 3)
-		self.assertEqual([row["name"] for row in result["results"]], ["loan-2"])
+		by_loan = {row.loan: [row] for row in rows}
+
+		def status_for(row):
+			if row.outstanding <= 0:
+				return "Settled"
+			return "Outstanding" if row.outstanding >= row.loaned else "Partially Settled"
+
+		context = {
+			"allowed_names": {self.a},
+			"selected_warehouses": {self.a},
+			"selected_groups": set(),
+			"permitted_loans": set(by_loan),
+			"eligible_loans": set(by_loan),
+			"items": {
+				self.item: frappe._dict(
+					name=self.item, item_name="Test item", image=None,
+					item_group="All Item Groups", stock_uom="Nos",
+				)
+			},
+			"activities": {"活动": frappe._dict(name="活动", title="测试活动")},
+			"by_loan": by_loan,
+			"quantity": lambda row, field: (row.get(field), "Nos"),
+			"status_for": status_for,
+		}
+		with patch.object(inventory_service, "_require_stock"), patch.object(
+			inventory_service, "_loan_browse_context", return_value=context
+		):
+			page = inventory_service.loan_items(start="1", page_length="1")
+			outstanding = inventory_service.loan_items(filters={"status": "outstanding"})
+			settled = inventory_service.loan_records(filters={"status": "settled"})
+
+		self.assertEqual(page["start"], 1)
+		self.assertEqual(page["page_length"], 1)
+		self.assertEqual(page["total"], 3)
+		self.assertEqual([row["loan"] for row in page["results"]], ["loan-2"])
+		self.assertEqual(
+			[row["loan_status"] for row in outstanding["results"]],
+			["Outstanding", "Partially Settled"],
+		)
+		self.assertEqual([row["loan_status"] for row in settled["results"]], ["Settled"])
 
 	def test_physical_tree_keeps_an_empty_group_for_management(self):
 		settings = SimpleNamespace(root_warehouse="root", physical_root_warehouse="physical", leased_warehouse="loan")

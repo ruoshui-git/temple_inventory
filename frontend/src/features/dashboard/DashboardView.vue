@@ -66,8 +66,12 @@ const stockQuery = () => ({
 	query: { warehouses: c.filters.value.warehouses, item_groups: c.filters.value.item_groups },
 });
 const loanQuery = () => ({
-	path: "/loans",
-	query: { warehouses: c.filters.value.warehouses, item_groups: c.filters.value.item_groups },
+	path: "/loans/records",
+	query: {
+		status: "outstanding",
+		warehouses: c.filters.value.warehouses,
+		item_groups: c.filters.value.item_groups,
+	},
 });
 const previewQuery = () =>
 	c.expiryPreview.value === "expired"

@@ -107,7 +107,7 @@ describe("browse loading contracts", () => {
   });
 
   it.each([
-    ["loans", useLoansController, "loans"],
+    ["loans", useLoansController, "loan_items"],
     ["pending", usePendingController, "pending"],
   ] as const)(
     "keeps %s busy until bootstrap and first page settle",
@@ -139,7 +139,7 @@ describe("browse loading contracts", () => {
   );
 
   it.each([
-    ["loans", useLoansController, "loans"],
+    ["loans", useLoansController, "loan_items"],
     ["pending", usePendingController, "pending"],
   ] as const)(
     "transitions %s from loading to data",
