@@ -157,6 +157,14 @@ const selectorCategories = () =>
 		item_group_name: row.item_group_name || row.name,
 	}));
 const distributionBars = () => c.data.value.distribution?.bars || [];
+const expiryPreviewRange = () => {
+	const mode = c.expiryPreview.value;
+	const range = c.data.value.expiry?.preview_ranges?.[mode];
+	if (!range?.to) return "";
+	return mode === "expired"
+		? `已过期：早于 ${range.to}`
+		: `即将过期：${range.from} 至 ${range.to}`;
+};
 const distributionMaximum = () =>
 	Math.max(0, ...distributionBars().map((bar: any) => bar.distinct_items));
 const distributionTicks = () => {
@@ -442,6 +450,9 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 								</div>
 								<div class="preview-toolbar">
 									<h3>效期批次预览</h3>
+									<p v-if="expiryPreviewRange()" class="preview-range">
+										{{ expiryPreviewRange() }}
+									</p>
 									<div class="segmented">
 										<button
 											:class="{
@@ -983,6 +994,11 @@ h3 {
 }
 .preview-toolbar {
 	margin-top: 22px;
+}
+.preview-range {
+	margin: 4px 0 8px;
+	color: #7c828b;
+	font-size: 12px;
 }
 .segmented {
 	display: inline-flex;

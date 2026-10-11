@@ -142,7 +142,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				/></CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column" :class="{ compact: c.compact }">
-				<header class="results-chrome loan-browse-header">
+				<header class="browse-results-header results-chrome loan-browse-header">
 					<div class="loan-heading">
 						<div>
 							<span class="compact-heading"
@@ -169,39 +169,42 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 										? '搜索物品、借用方或记录编号'
 										: '搜索记录编号、借用方或活动'
 								"
-								aria-label="搜索借用记录" /></label
-						><UiButton
-							v-if="surface === 'desktop'"
-							variant="secondary"
-							size="compact"
-							type="button"
-							class="toolbar-action desktop-filter-button"
-							:aria-expanded="c.desktopFilterOpen"
-							@click="c.openFilters($event, filterPanel)"
-							>筛选<span v-if="c.activeCount" class="filter-count">{{
-								c.activeCount
-							}}</span></UiButton
-						><IconButton
-							v-if="surface === 'mobile'"
-							class="mobile-filter-button"
-							label="筛选"
-							title="筛选"
-							@click="c.openFilters($event, filterPanel)"
-							><svg aria-hidden="true" viewBox="0 0 24 24">
-								<path d="M4 6h16M7 12h10M10 18h4" /></svg
-							><span v-if="c.activeCount" class="icon-count">{{
-								c.activeCount
-							}}</span></IconButton
-						><UiButton
-							variant="secondary"
-							size="compact"
-							icon="table"
-							class="column-summary-trigger"
-							type="button"
-							@click="summaryOpen = true"
-						>
-							Σ <span>列汇总</span>
-						</UiButton>
+								aria-label="搜索借用记录"
+						/></label>
+						<div class="loan-toolbar-actions">
+							<UiButton
+								v-if="surface === 'desktop'"
+								variant="secondary"
+								size="compact"
+								type="button"
+								class="toolbar-action desktop-filter-button"
+								:aria-expanded="c.desktopFilterOpen"
+								@click="c.openFilters($event, filterPanel)"
+								>筛选<span v-if="c.activeCount" class="filter-count">{{
+									c.activeCount
+								}}</span></UiButton
+							><IconButton
+								v-if="surface === 'mobile'"
+								class="mobile-filter-button"
+								label="筛选"
+								title="筛选"
+								@click="c.openFilters($event, filterPanel)"
+								><svg aria-hidden="true" viewBox="0 0 24 24">
+									<path d="M4 6h16M7 12h10M10 18h4" /></svg
+								><span v-if="c.activeCount" class="icon-count">{{
+									c.activeCount
+								}}</span></IconButton
+							><UiButton
+								variant="secondary"
+								size="compact"
+								icon="table"
+								class="column-summary-trigger"
+								type="button"
+								@click="summaryOpen = true"
+							>
+								Σ <span>列汇总</span>
+							</UiButton>
+						</div>
 					</div>
 					<div class="browse-result-meta">
 						<ActiveFilterChips
@@ -453,8 +456,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	background: #f8f7f4;
 }
 .loan-browse .desktop-list-layout {
+	width: 100%;
+	min-width: 0;
 	grid-template-columns: minmax(0, 1fr);
 	gap: 0;
+}
+.loan-browse .results-column {
+	width: 100%;
+	min-width: 0;
 }
 .loan-browse .desktop-list-layout:not(.filters-open) {
 	grid-template-areas: "results";
@@ -474,7 +483,12 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	box-shadow: none;
 }
 .loan-browse-header {
+	min-width: 0;
+	width: 100%;
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	align-items: stretch;
+	justify-content: stretch;
 	gap: 8px;
 	padding: 14px 0 8px;
 	background: #f8f7f4;
@@ -505,11 +519,21 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	display: block;
 }
 .result-toolbar {
+	min-width: 0;
+	width: 100%;
 	gap: 8px;
 }
 .loan-search {
-	flex: 1;
+	min-width: 0;
+	flex: 1 1 auto;
 	gap: 7px;
+}
+.loan-toolbar-actions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 8px;
+	margin-left: auto;
 }
 .browse-result-meta {
 	display: flex;
@@ -568,6 +592,19 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .column-summary-trigger {
 	white-space: nowrap;
 }
+@media (min-width: 1024px) {
+	.loan-browse .result-toolbar {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+	}
+	.loan-browse .loan-search {
+		width: 100%;
+	}
+	.loan-browse .loan-toolbar-actions {
+		justify-self: end;
+	}
+}
 @media (max-width: 1023px) {
 	.loan-browse {
 		box-sizing: border-box;
@@ -616,6 +653,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.loan-browse .loan-search {
 		min-width: 0;
+	}
+	.loan-browse .loan-toolbar-actions {
+		margin-left: auto;
 	}
 	.loan-browse .column-summary-trigger,
 	.loan-browse .mobile-filter-button {

@@ -463,6 +463,19 @@ class WorkspaceTests(unittest.TestCase):
 
 		self.assertEqual(expired["preview_mode"], "expired")
 		self.assertEqual(upcoming["preview_mode"], "upcoming")
+		self.assertEqual(expired["preview_ranges"]["expired"]["from"], None)
+		self.assertEqual(
+			expired["preview_ranges"]["expired"]["to"],
+			str(getdate(nowdate())),
+		)
+		self.assertEqual(
+			upcoming["preview_ranges"]["upcoming"]["from"],
+			str(getdate(nowdate())),
+		)
+		self.assertEqual(
+			upcoming["preview_ranges"]["upcoming"]["to"],
+			str(getdate(add_days(nowdate(), 30))),
+		)
 		self.assertEqual(upcoming["preview"], upcoming["buckets"]["upcoming_0_30"]["rows"])
 		self.assertEqual(calls[0]["warehouses"], [self.a])
 		self.assertEqual(calls[expired_call_count]["warehouses"], [self.b])

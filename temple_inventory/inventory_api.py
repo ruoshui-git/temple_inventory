@@ -1708,6 +1708,7 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 
 def _dashboard_expiry_section(common, preview_mode):
 	"""Calculate the expiry section without querying dashboard movement or loans."""
+	today = getdate(nowdate())
 	buckets = {
 		"expired_1_30": {"key": "expired_1_30", "label": "已过期 1–30 天", "count": 0, "rows": []},  # noqa: RUF001
 		"expired_31_90": {"key": "expired_31_90", "label": "已过期 31–90 天", "count": 0, "rows": []},  # noqa: RUF001
@@ -1739,7 +1740,20 @@ def _dashboard_expiry_section(common, preview_mode):
 	else:
 		preview = buckets["upcoming_0_30"]["rows"]
 		preview_mode = "upcoming"
-	return {"buckets": buckets, "preview": preview[:5], "preview_mode": preview_mode}
+	return {
+		"buckets": buckets,
+		"preview": preview[:5],
+		"preview_mode": preview_mode,
+		"as_of_date": str(today),
+		"preview_ranges": {
+			"expired": {"from": None, "to": str(today), "to_inclusive": False},
+			"upcoming": {
+				"from": str(today),
+				"to": str(getdate(add_days(today, 30))),
+				"to_inclusive": True,
+			},
+		},
+	}
 
 
 def _dashboard_reminders_section(common, expiry):

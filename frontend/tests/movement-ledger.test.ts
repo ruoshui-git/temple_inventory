@@ -110,6 +110,7 @@ describe("movement ledger", () => {
     route.query = {
       period: "last_90_days",
       item_code: "ITM-1",
+      search: "相机",
       kind: ["Loan", "Return"],
     };
     page();
@@ -128,6 +129,14 @@ describe("movement ledger", () => {
     );
     expect(wrapper.text()).toContain("相机");
     expect(wrapper.text()).toContain("借出");
+    expect(wrapper.find(".browse-results-header").exists()).toBe(true);
+    expect(wrapper.find(".movement-result-count-line").exists()).toBe(true);
+    expect(wrapper.find(".active-filter-chips").text()).toContain("近90天");
+    expect(wrapper.find(".active-filter-chips").text()).toContain("搜索：相机");
+    expect(wrapper.find(".active-filter-chips").text()).toContain(
+      "物品：物品一",
+    );
+    expect(wrapper.find(".active-filter-chips").text()).toContain("动作：借出");
   });
   it("defaults an omitted period to all time and omits it from the canonical URL", async () => {
     page();
@@ -342,6 +351,37 @@ describe("movement ledger", () => {
       "movement_items",
       expect.objectContaining({
         filters: expect.objectContaining({ movement_kinds: undefined }),
+      }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("removes all active movement filter chips without removing the quick-filter controls", async () => {
+    route.query = {
+      period: "last_30_days",
+      item_code: "ITM-1",
+      search: "相机",
+      kind: "Loan",
+    };
+    page();
+    const wrapper = mount(Movements, { global: globals });
+    await flushPromises();
+    expect(wrapper.find(".movement-kind-chips").exists()).toBe(true);
+    expect(wrapper.find(".active-filter-chips").exists()).toBe(true);
+
+    await wrapper.find(".clear-filters").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".active-filter-chips").exists()).toBe(false);
+    expect(state.workspaceApi).toHaveBeenLastCalledWith(
+      "movement_items",
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          period_key: "all",
+          item_code: undefined,
+          search: undefined,
+          movement_kinds: undefined,
+        }),
       }),
       expect.any(AbortSignal),
     );

@@ -173,6 +173,20 @@ describe("movement overview", () => {
     wrapper.unmount();
   });
 
+  it("shows the selected period and server-resolved dates in movement filter chips", async () => {
+    route.query = { period: "last_30_days" };
+    const wrapper = mount(MovementOverview, { global: globals });
+    await flushPromises();
+
+    expect(wrapper.find(".active-filter-chips").text()).toContain(
+      "时间：近30天 · 2026-08-30 至 2026-09-28",
+    );
+
+    await wrapper.findAll(".period-choices button")[0].trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".active-filter-chips").text()).toContain("时间：今日");
+  });
+
   it("keeps movement filters and sort headers usable while stale rows are inert", async () => {
     mediaMatches = true;
     const wrapper = mount(MovementOverview, { global: globals });

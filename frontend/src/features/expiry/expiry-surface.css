@@ -132,11 +132,16 @@
 	box-shadow: 0 1px 3px #473a2115;
 }
 .inventory-filter-strip {
+	width: 100%;
 	display: flex;
 	min-height: 40px;
 	align-items: center;
 	gap: 8px;
 	padding: 7px 0;
+}
+.inventory-filter-strip .expiry-result-count {
+	flex: 0 0 auto;
+	margin-left: auto;
 }
 .inventory-filter-strip .active-filter-chips {
 	min-width: 0;

@@ -27,6 +27,11 @@ function controller(surface: "desktop" | "mobile" = "desktop") {
       },
     },
     expiry: {
+      as_of_date: "2026-10-11",
+      preview_ranges: {
+        expired: { from: null, to: "2026-10-11", to_inclusive: false },
+        upcoming: { from: "2026-10-11", to: "2026-11-10", to_inclusive: true },
+      },
       buckets: Object.fromEntries(
         [
           ["expired_1_30", "已过期 1–30 天"],
@@ -171,6 +176,9 @@ describe("dashboard", () => {
     );
     expect(wrapper.text()).toContain(
       "同一种物品可出现在多个仓库中，因此各仓库种数相加可能大于总种数。",
+    );
+    expect(wrapper.find(".preview-range").text()).toBe(
+      "已过期：早于 2026-10-11",
     );
     const movementSection = wrapper.find(".movement-section");
     expect(
@@ -485,6 +493,22 @@ describe("dashboard", () => {
       }),
     );
     wrapper.unmount();
+  });
+
+  it("renders the selected upcoming expiry range", async () => {
+    const state = controller();
+    state.expiryPreview.value = "upcoming";
+    state.data.value.expiry.preview_ranges = {
+      expired: { from: null, to: "2026-10-11", to_inclusive: false },
+      upcoming: { from: "2026-10-11", to: "2026-11-10", to_inclusive: true },
+    };
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    expect(wrapper.find(".preview-range").text()).toBe(
+      "即将过期：2026-10-11 至 2026-11-10",
+    );
   });
 
   it("changes between measured desktop columns and the approved stacked order without replacing the scroll root", async () => {

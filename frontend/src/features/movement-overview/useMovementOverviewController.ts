@@ -26,6 +26,19 @@ import {
 } from "../../lib/warehousePresenter";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 
+const movementPeriodLabels: Record<MovementPeriodKey, string> = {
+  all: "全部时间",
+  today: "今日",
+  last_7_days: "近7天",
+  last_30_days: "近30天",
+  last_90_days: "近90天",
+  last_365_days: "近365天",
+  this_week: "本周",
+  this_month: "本月",
+  this_year: "本年",
+  custom: "自定义",
+};
+
 export function useMovementOverviewController() {
   type MovementKind =
     | "Receive"
@@ -122,12 +135,6 @@ export function useMovementOverviewController() {
       initialOrder: "desc" as const,
     },
   ];
-  const activeCount = computed(
-    () =>
-      filters.value.item_groups.length +
-      filters.value.warehouses.length +
-      filters.value.movement_kinds.length,
-  );
   const warehouseRows = computed(() =>
     movementWarehouseRows(
       boot.value?.physical_tree || [],
@@ -144,6 +151,19 @@ export function useMovementOverviewController() {
       : summaries.value.reduce((sum, summary) => sum + summary.record_count, 0),
   );
   const chips = computed(() => [
+    ...(filters.value.period_key !== "all"
+      ? [
+          {
+            key: "period_key",
+            value: filters.value.period_key,
+            label: `时间：${movementPeriodLabels[filters.value.period_key]}${
+              resolved.value.date_from && resolved.value.date_to
+                ? ` · ${resolved.value.date_from} 至 ${resolved.value.date_to}`
+                : ""
+            }`,
+          },
+        ]
+      : []),
     ...filters.value.movement_kinds.map((value) => ({
       key: "movement_kinds",
       value,
@@ -163,6 +183,7 @@ export function useMovementOverviewController() {
       ? [{ key: "search", label: `搜索：${filters.value.search}` }]
       : []),
   ]);
+  const activeCount = computed(() => chips.value.length);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   let controller: AbortController | undefined;
@@ -198,6 +219,12 @@ export function useMovementOverviewController() {
       : [...filters.value.movement_kinds, kind];
   }
   function removeChip(chip: any) {
+    if (chip.key === "period_key") {
+      filters.value.period_key = "all";
+      filters.value.date_from = "";
+      filters.value.date_to = "";
+      return;
+    }
     const value = filters.value[chip.key as keyof Filters];
     if (Array.isArray(value))
       (filters.value as any)[chip.key] = value.filter(
@@ -207,6 +234,9 @@ export function useMovementOverviewController() {
   }
   function clearAll() {
     filters.value.search = "";
+    filters.value.period_key = "all";
+    filters.value.date_from = "";
+    filters.value.date_to = "";
     filters.value.item_groups = [];
     filters.value.warehouses = [];
     filters.value.movement_kinds = [];

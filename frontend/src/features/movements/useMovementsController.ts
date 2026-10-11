@@ -18,6 +18,19 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { PageAction } from "../../components/pageActions";
 import { movementLabels } from "../../lib/movementLabels";
 
+const movementPeriodLabels: Record<MovementPeriodKey, string> = {
+  all: "全部时间",
+  today: "今日",
+  last_7_days: "近7天",
+  last_30_days: "近30天",
+  last_90_days: "近90天",
+  last_365_days: "近365天",
+  this_week: "本周",
+  this_month: "本月",
+  this_year: "本年",
+  custom: "自定义",
+};
+
 export type Kind =
   | "Receive"
   | "Issue"
@@ -228,19 +241,104 @@ export function useMovementsController() {
   const rowKey = computed(() =>
     mode.value === "items" ? "id" : "record_name",
   );
-  const activeFilterCount = computed(
-    () =>
-      filters.value.item_groups.length +
-      filters.value.warehouses.length +
-      filters.value.source_warehouses.length +
-      filters.value.destination_warehouses.length +
-      (filters.value.item_code ? 1 : 0) +
-      (filters.value.activity ? 1 : 0) +
-      (mode.value === "records" &&
+  const chips = computed(() => {
+    const active = [
+      ...(filters.value.period_key !== "all"
+        ? [
+            {
+              key: "period_key",
+              value: filters.value.period_key,
+              label: `时间：${movementPeriodLabels[filters.value.period_key]}${
+                resolved.value.date_from && resolved.value.date_to
+                  ? ` · ${resolved.value.date_from} 至 ${resolved.value.date_to}`
+                  : ""
+              }`,
+            },
+          ]
+        : []),
+      ...(filters.value.search
+        ? [
+            {
+              key: "search",
+              value: filters.value.search,
+              label: `搜索：${filters.value.search}`,
+            },
+          ]
+        : []),
+      ...filters.value.item_groups.map((value) => ({
+        key: "item_groups",
+        value,
+        label: `类别：${value}`,
+      })),
+      ...(filters.value.item_code
+        ? [
+            {
+              key: "item_code",
+              value: filters.value.item_code,
+              label: `物品：${
+                itemOptions.value.find(
+                  (item) => item.name === filters.value.item_code,
+                )?.item_name || filters.value.item_code
+              }`,
+            },
+          ]
+        : []),
+      ...filters.value.warehouses.map((value) => ({
+        key: "warehouses",
+        value,
+        label: `位置：${location(value)}`,
+      })),
+      ...filters.value.source_warehouses.map((value) => ({
+        key: "source_warehouses",
+        value,
+        label: `来源：${location(value)}`,
+      })),
+      ...filters.value.destination_warehouses.map((value) => ({
+        key: "destination_warehouses",
+        value,
+        label: `去向：${location(value)}`,
+      })),
+      ...(filters.value.activity
+        ? [
+            {
+              key: "activity",
+              value: filters.value.activity,
+              label: `活动：${
+                activityOptions.value.find(
+                  (activity) => activity.name === filters.value.activity,
+                )?.title || filters.value.activity
+              }`,
+            },
+          ]
+        : []),
+      ...filters.value.kinds.map((value) => ({
+        key: "kinds",
+        value,
+        label: `动作：${kindMeta[value].label}`,
+      })),
+    ];
+    if (
+      mode.value === "records" &&
       JSON.stringify(filters.value.docstatuses) !== JSON.stringify([0, 1])
-        ? 1
-        : 0),
-  );
+    ) {
+      const statusLabels: Record<number, string> = {
+        0: "草稿",
+        1: "已完成",
+        2: "已取消",
+      };
+      active.push({
+        key: "docstatuses",
+        value: "docstatuses",
+        label: `状态：${
+          filters.value.docstatuses
+            .map((status) => statusLabels[status] || String(status))
+            .join("、") || "无"
+        }`,
+      });
+    }
+    return active;
+  });
+  const activeFilterCount = computed(() => chips.value.length);
   const periodFilters = computed(() => ({
     period_key: filters.value.period_key,
     date_from:
@@ -423,14 +521,42 @@ export function useMovementsController() {
   function clearKinds() {
     filters.value.kinds = [];
   }
-  function clearFilters() {
+  function removeChip(chip: { key: string; value?: string }) {
+    if (chip.key === "period_key") {
+      filters.value.period_key = "all";
+      filters.value.date_from = "";
+      filters.value.date_to = "";
+      return;
+    }
+    if (chip.key === "docstatuses") {
+      filters.value.docstatuses = [0, 1];
+      return;
+    }
+    const value = filters.value[chip.key as keyof typeof filters.value];
+    if (Array.isArray(value)) {
+      (filters.value as any)[chip.key] = value.filter(
+        (item) => item !== chip.value,
+      );
+      return;
+    }
+    (filters.value as any)[chip.key] = "";
+  }
+  function clearAll() {
+    filters.value.search = "";
+    filters.value.period_key = "all";
+    filters.value.date_from = "";
+    filters.value.date_to = "";
     filters.value.item_groups = [];
     filters.value.item_code = "";
     filters.value.warehouses = [];
     filters.value.source_warehouses = [];
     filters.value.destination_warehouses = [];
     filters.value.activity = "";
+    filters.value.kinds = [];
     if (mode.value === "records") filters.value.docstatuses = [0, 1];
+  }
+  function clearFilters() {
+    clearAll();
   }
   function openFilters(
     event?: Event,
@@ -704,6 +830,7 @@ export function useMovementsController() {
     tableColumns,
     tableSort,
     rowKey,
+    chips,
     activeFilterCount,
     periodFilters,
     exportFilters,
@@ -722,6 +849,8 @@ export function useMovementsController() {
     recordQuantity,
     toggleKind,
     clearKinds,
+    removeChip,
+    clearAll,
     clearFilters,
     openFilters,
     onResultsScroll,

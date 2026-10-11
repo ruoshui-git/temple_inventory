@@ -24,6 +24,7 @@ import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import PageActionMenu from "../../components/PageActionMenu.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import MovementLocation from "../../components/MovementLocation.vue";
 import MovementFlow from "../../components/MovementFlow.vue";
 import { type MovementsController, type Kind } from "./useMovementsController";
@@ -69,6 +70,7 @@ const {
 	tableSort,
 	rowKey,
 	activeFilterCount,
+	chips,
 	periodFilters,
 	exportFilters,
 	itemSelectOptions,
@@ -87,6 +89,8 @@ const {
 	toggleKind,
 	clearKinds,
 	clearFilters,
+	removeChip,
+	clearAll,
 	onResultsScroll,
 	openRow,
 	openOperation,
@@ -216,7 +220,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column" :class="{ compact }">
-				<header class="movement-ledger-header results-chrome">
+				<header class="movement-ledger-header browse-results-header results-chrome">
 					<div class="movement-heading">
 						<b class="compact-heading"
 							>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</b
@@ -288,6 +292,22 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						/>
 					</div>
 					<div class="browse-result-meta">
+						<div class="movement-active-filter-row">
+							<ActiveFilterChips
+								:chips="chips"
+								@remove="removeChip"
+								@clear="clearAll"
+							/>
+							<div class="movement-result-count-line">
+								<ResultCountStrip
+									class="movement-result-count"
+									:loaded="rows.length"
+									:filtered="total"
+									:overall="allTotal ?? total"
+									:updating="busy && rows.length > 0"
+								/>
+							</div>
+						</div>
 						<div class="movement-kind-chips" role="toolbar" aria-label="动作筛选">
 							<button
 								type="button"
@@ -333,15 +353,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								{{ zeroKindsExpanded ? "收起无记录" : `无记录 ${zeroKindCount}` }}
 							</button>
 						</div>
-					</div>
-					<div class="movement-result-count-line">
-						<ResultCountStrip
-							class="movement-result-count"
-							:loaded="rows.length"
-							:filtered="total"
-							:overall="allTotal ?? total"
-							:updating="busy && rows.length > 0"
-						/>
 					</div>
 				</header>
 				<div
@@ -804,14 +815,21 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .movement-ledger .browse-result-meta {
 	display: block;
 }
+.movement-active-filter-row {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 12px;
+}
+.movement-active-filter-row :deep(.active-filter-chips) {
+	min-width: 0;
+	flex: 1 1 auto;
+}
 .movement-ledger .results-column.compact .movement-ledger-header {
-	grid-template-areas: "heading actions" "chips chips" "counts counts";
+	grid-template-areas: "heading actions" "chips chips";
 }
 .movement-ledger .results-column.compact .browse-result-meta {
 	grid-area: chips;
-}
-.movement-ledger .results-column.compact .movement-result-count-line {
-	grid-area: counts;
 }
 .movement-ledger .movement-kind-chips {
 	width: 100%;
@@ -819,7 +837,8 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .movement-result-count-line {
 	display: flex;
 	justify-content: flex-end;
-	padding-top: 5px;
+	flex: 0 0 auto;
+	margin-left: auto;
 }
 .movement-ledger :deep(.sortable-data-table tbody tr.cancelled) {
 	opacity: 0.55;
@@ -1083,6 +1102,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		padding-block: 3px;
 		overflow-x: auto;
 	}
+	.movement-ledger .movement-active-filter-row {
+		align-items: flex-start;
+		flex-wrap: wrap;
+		gap: 4px 8px;
+	}
 	.movement-ledger .results-column.compact .movement-ledger-actions > * {
 		min-height: 30px;
 	}
@@ -1098,7 +1122,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	.movement-ledger .results-column.compact .movement-ledger-header {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-		grid-template-areas: "heading actions" "chips chips" "counts counts";
+		grid-template-areas: "heading actions" "chips chips";
 		gap: 4px;
 		padding-block: 6px;
 	}

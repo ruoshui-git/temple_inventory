@@ -186,6 +186,7 @@ onBeforeUnmount(() => {
 							>全部仓库 · 全部类别 · 全部效期</span
 						>
 						<ResultCountStrip
+							class="expiry-result-count"
 							:loaded="rows.length"
 							:filtered="total"
 							:overall="overallTotal"

@@ -24,6 +24,7 @@ describe("shared layout and selector style ownership", () => {
 
   it("keeps normal and compact Movement desktop chrome as distinct grid states", () => {
     const movements = source("src/features/movements/MovementsView.vue");
+    const browseSurface = source("src/components/browse-surface.css");
 
     expect(movements).toContain(
       '.movement-ledger-header { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "heading" "actions" "chips";',
@@ -32,13 +33,17 @@ describe("shared layout and selector style ownership", () => {
       ".movement-ledger .results-column.compact .movement-ledger-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);",
     );
     expect(movements).toContain(
-      'grid-template-areas: "heading actions" "chips chips" "counts counts";',
+      'grid-template-areas: "heading actions" "chips chips";',
     );
     expect(movements).toContain(
       ".movement-ledger .results-column.compact .compact-heading { display: block;",
     );
     expect(movements).toContain(
       ".movement-ledger .results-column.compact .movement-ledger-actions { flex-wrap: nowrap;",
+    );
+    expect(movements).toContain("browse-results-header");
+    expect(browseSurface).toContain(
+      ".browse-results-header { margin-bottom: 0;",
     );
   });
 
