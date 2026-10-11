@@ -126,6 +126,7 @@ class WorkspaceTests(unittest.TestCase):
 		)
 		self.assertEqual(set(result), {"generated_at", "scope", "distribution"})
 		self.assertEqual(result["distribution"]["mode"], "category")
+		self.assertIsInstance(result["distribution"]["distinct_items"], int)
 		self.assertNotIn("_members", json.dumps(result["distribution"]))
 		with self.assertRaises(frappe.ValidationError):
 			inventory_service.dashboard_summary(warehouses=[self.a], sections='["unknown"]')
@@ -136,6 +137,7 @@ class WorkspaceTests(unittest.TestCase):
 			item_groups=[],
 			period_key="all",
 		)
+		self.assertIsInstance(full["distribution"]["distinct_items"], int)
 		for section in ("inventory", "expiry", "movement", "loans", "reminders", "distribution"):
 			scoped = inventory_service.dashboard_summary(
 				warehouses=[self.a],
@@ -197,14 +199,14 @@ class WorkspaceTests(unittest.TestCase):
 		).insert()
 		frappe.db.set_value("Item", self.item, "item_group", category.name)
 
-		def item(code):
+		def item(code, item_group=category.name):
 			return (
 				frappe.get_doc(
 					{
 						"doctype": "Item",
 						"item_code": f"TI-{code}-{self.token}",
 						"item_name": code,
-						"item_group": category.name,
+						"item_group": item_group,
 						"stock_uom": "Nos",
 						"is_stock_item": 1,
 					}
@@ -216,6 +218,7 @@ class WorkspaceTests(unittest.TestCase):
 		second_item = item("Positive")
 		zero_item = item("Zero")
 		negative_item = item("Negative")
+		outside_item = item("Outside category", "All Item Groups")
 		physical = {
 			self.root: SimpleNamespace(
 				name=self.root,
@@ -275,14 +278,18 @@ class WorkspaceTests(unittest.TestCase):
 			SimpleNamespace(item_code=zero_item, warehouse=self.a, actual_qty=0),
 			SimpleNamespace(item_code=negative_item, warehouse=self.a, actual_qty=-2),
 			SimpleNamespace(item_code=second_item, warehouse=self.a, actual_qty=1),
+			SimpleNamespace(item_code=outside_item, warehouse=self.a, actual_qty=8),
 		]
 		get_list = frappe.get_list
 
 		def permitted_list(doctype, **kwargs):
 			if doctype == "Item":
 				return [
-					SimpleNamespace(name=name, item_group=category.name)
-					for name in (self.item, second_item, zero_item, negative_item)
+					SimpleNamespace(
+						name=name,
+						item_group="All Item Groups" if name == outside_item else category.name,
+					)
+					for name in (self.item, second_item, zero_item, negative_item, outside_item)
 				]
 			return get_list(doctype, **kwargs)
 
@@ -295,15 +302,22 @@ class WorkspaceTests(unittest.TestCase):
 			warehouse_bars = inventory_service._dashboard_distribution(
 				frappe.get_single("Temple Inventory Settings"),
 				[self.b, self.a],
-				[],
-				set(),
+				[category.name],
+				{category.name},
+				"warehouse",
+			)
+			warehouse_summary = inventory_service._dashboard_distribution_data(
+				frappe.get_single("Temple Inventory Settings"),
+				[self.b, self.a],
+				[category.name],
+				{category.name},
 				"warehouse",
 			)
 			parent_child_bars = inventory_service._dashboard_distribution(
 				frappe.get_single("Temple Inventory Settings"),
 				[self.b, self.room, self.a],
-				[],
-				set(),
+				[category.name],
+				{category.name},
 				"warehouse",
 			)
 			category_bars = inventory_service._dashboard_distribution(
@@ -313,7 +327,14 @@ class WorkspaceTests(unittest.TestCase):
 				inventory_service._dashboard_selected_groups([parent_category.name, category.name]),
 				"category",
 			)
-			empty_bars = inventory_service._dashboard_distribution(
+			category_summary = inventory_service._dashboard_distribution_data(
+				frappe.get_single("Temple Inventory Settings"),
+				[self.a, self.b],
+				[parent_category.name, category.name],
+				inventory_service._dashboard_selected_groups([parent_category.name, category.name]),
+				"category",
+			)
+			empty_summary = inventory_service._dashboard_distribution_data(
 				frappe.get_single("Temple Inventory Settings"),
 				["empty_parent"],
 				[],
@@ -323,6 +344,8 @@ class WorkspaceTests(unittest.TestCase):
 
 		self.assertEqual([bar["key"] for bar in warehouse_bars], [self.a, self.b])
 		self.assertEqual([bar["distinct_items"] for bar in warehouse_bars], [2, 1])
+		self.assertEqual(warehouse_summary["distinct_items"], 2)
+		self.assertEqual([bar["distinct_items"] for bar in warehouse_summary["bars"]], [2, 1])
 		self.assertEqual([bar["key"] for bar in parent_child_bars], [self.a, self.b])
 		self.assertEqual(
 			category_bars,
@@ -334,8 +357,9 @@ class WorkspaceTests(unittest.TestCase):
 				}
 			],
 		)
+		self.assertEqual(category_summary["distinct_items"], 2)
+		self.assertEqual(empty_summary, {"distinct_items": 0, "bars": []})
 		self.assertTrue(all("_members" not in bar for bar in category_bars))
-		self.assertEqual(empty_bars, [])
 
 	def test_dashboard_movement_filters_unreadable_items_and_preserves_period_filters(self):
 		from temple_inventory import workspace_api

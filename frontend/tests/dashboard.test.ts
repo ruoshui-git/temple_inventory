@@ -73,7 +73,11 @@ function controller(surface: "desktop" | "mobile" = "desktop") {
       ],
     },
     reminders: [],
-    distribution: { bars: [{ key: "A02", label: "A02", distinct_items: 3 }] },
+    distribution: {
+      distinct_items: 2,
+      mode: "warehouse",
+      bars: [{ key: "A02", label: "A02", distinct_items: 3 }],
+    },
   });
   const statuses = ref(
     Object.fromEntries(
@@ -157,8 +161,18 @@ describe("dashboard", () => {
     ).toContain("库存概览");
     expect(
       wrapper.find(".dashboard-sections").element.children[1].textContent,
+    ).toContain("库存分布");
+    expect(
+      wrapper.find(".dashboard-sections").element.children[2].textContent,
     ).toContain("效期概览");
-    const movementSection = wrapper.findAll(".dashboard-section")[2];
+    expect(wrapper.find(".distribution-total").text()).toBe("物品种数 · 2 种");
+    expect(wrapper.text()).toContain(
+      "按物品编码去重统计有库存的物品种数，不是库存数量之和。",
+    );
+    expect(wrapper.text()).toContain(
+      "同一种物品可出现在多个仓库中，因此各仓库种数相加可能大于总种数。",
+    );
+    const movementSection = wrapper.find(".movement-section");
     expect(
       movementSection
         .find(".movement-grid")
@@ -202,6 +216,53 @@ describe("dashboard", () => {
       .trigger("click");
     expect(wrapper.find(".dashboard-content").element).toBe(content);
     expect(content.scrollTop).toBe(240);
+  });
+
+  it("renders canonical active filter chips in the routed dashboard consumer", async () => {
+    const state = controller();
+    state.filters.value = {
+      warehouses: ["site", "room"],
+      item_groups: ["food", "rice"],
+    };
+    state.data.value.warehouses = [
+      { name: "site", local_label: "寺院", is_group: 1 },
+      {
+        name: "room",
+        local_label: "A 室",
+        parent_warehouse: "site",
+        is_group: 1,
+      },
+      {
+        name: "shelf",
+        local_label: "A-01",
+        parent_warehouse: "room",
+        is_group: 0,
+      },
+    ];
+    state.data.value.item_groups = [
+      { name: "food", item_group_name: "食品", is_group: 1 },
+      {
+        name: "rice",
+        item_group_name: "米",
+        parent_item_group: "food",
+        is_group: 0,
+      },
+    ];
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    const chips = wrapper.findAll(".dashboard-active-filters button");
+    expect(chips).toHaveLength(3);
+    expect(chips[0].text()).toContain("寺院");
+    expect(chips[0].text()).not.toContain("A 室");
+    expect(chips[1].text()).toContain("食品");
+    expect(chips[1].text()).not.toContain("米");
+    await chips[0].trigger("click");
+    expect(state.updateFilters).toHaveBeenCalledWith({
+      warehouses: [],
+      item_groups: ["food"],
+    });
   });
 
   it("preserves loading, error retry, and empty section states", async () => {
@@ -325,7 +386,7 @@ describe("dashboard", () => {
     });
     const columns = desktop.findAll(".dashboard-column");
     expect(columns).toHaveLength(2);
-    expect(columns[0].text()).toBe("inventoryexpirydistribution");
+    expect(columns[0].text()).toBe("inventorydistributionexpiry");
     expect(columns[1].text()).toBe("movementloansreminders");
 
     const stacked = mount(DashboardSectionLayout, {
@@ -333,12 +394,13 @@ describe("dashboard", () => {
       slots,
     });
     expect(stacked.find(".dashboard-sections").text()).toBe(
-      "inventoryexpirymovementloansremindersdistribution",
+      "inventorydistributionexpirymovementloansreminders",
     );
   });
 
   it("renders exact zero counts with zero-width bars and an integer zero tick", () => {
     const state = controller();
+    state.data.value.distribution.distinct_items = 0;
     state.data.value.distribution.bars = [
       { key: "A02", label: "A02", distinct_items: 0 },
     ];
@@ -350,7 +412,23 @@ describe("dashboard", () => {
     expect(wrapper.find(".distribution-row i").attributes("style")).toContain(
       "width: 0%",
     );
+    expect(wrapper.find(".distribution-total").text()).toBe("物品种数 · 0 种");
     expect(wrapper.find(".distribution-row strong").text()).toBe("0");
+  });
+
+  it("omits the cross-warehouse overlap note while using category distribution", () => {
+    const state = controller();
+    state.data.value.distribution.mode = "category";
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+    });
+    expect(wrapper.text()).toContain(
+      "按物品编码去重统计有库存的物品种数，不是库存数量之和。",
+    );
+    expect(wrapper.text()).not.toContain(
+      "同一种物品可出现在多个仓库中，因此各仓库种数相加可能大于总种数。",
+    );
   });
 
   it("keeps dashboard drill-through destinations scoped to the active filters", () => {
@@ -409,7 +487,7 @@ describe("dashboard", () => {
     wrapper.unmount();
   });
 
-  it("changes between measured desktop columns and the original stacked order without replacing the scroll root", async () => {
+  it("changes between measured desktop columns and the approved stacked order without replacing the scroll root", async () => {
     let resize!: ResizeObserverCallback;
     vi.stubGlobal(
       "ResizeObserver",
@@ -451,11 +529,11 @@ describe("dashboard", () => {
         .map((section) => section.find("h2").text()),
     ).toEqual([
       "库存概览",
+      "库存分布",
       "效期概览",
       "货物流动概览",
       "借出中",
       "提醒事项",
-      "库存分布",
     ]);
     expect(wrapper.find(".dashboard-content").element).toBe(content);
     expect(content.scrollTop).toBe(260);

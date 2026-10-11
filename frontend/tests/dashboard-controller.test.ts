@@ -38,6 +38,7 @@ function fullResult(label: string) {
     reminders: [],
     distribution: {
       mode: "warehouse",
+      distinct_items: 2,
       bars: [{ key: label, distinct_items: 1 }],
     },
   };
@@ -85,6 +86,7 @@ describe("dashboard controller section requests", () => {
       scope: { warehouses: [], item_groups: [] },
       distribution: {
         mode: "category",
+        distinct_items: 7,
         bars: [{ key: "category", distinct_items: 4 }],
       },
     });
@@ -92,7 +94,40 @@ describe("dashboard controller section requests", () => {
     refresh.resolve(fullResult("older-full"));
     await flushPromises();
     expect(controller.data.value.distribution.mode).toBe("category");
+    expect(controller.data.value.distribution.distinct_items).toBe(7);
     expect(controller.data.value.distribution.bars[0].key).toBe("category");
+    wrapper.unmount();
+  });
+
+  it("retains the distribution total and bars together when a local update fails", async () => {
+    const initial = deferred<any>();
+    mocks.api.mockReturnValueOnce(initial.promise);
+    const { controller, wrapper } = harness();
+    initial.resolve(fullResult("initial"));
+    await flushPromises();
+
+    const changed = deferred<any>();
+    mocks.api.mockReturnValueOnce(changed.promise);
+    controller.distributionMode.value = "category";
+    await nextTick();
+    changed.resolve({
+      distribution: {
+        mode: "category",
+        distinct_items: 5,
+        bars: [{ key: "category", distinct_items: 3 }],
+      },
+    });
+    await flushPromises();
+
+    const failed = deferred<any>();
+    mocks.api.mockReturnValueOnce(failed.promise);
+    controller.distributionMode.value = "warehouse";
+    await nextTick();
+    failed.reject(new Error("读取失败"));
+    await flushPromises();
+    expect(controller.data.value.distribution.distinct_items).toBe(5);
+    expect(controller.data.value.distribution.bars[0].key).toBe("category");
+    expect(controller.sectionError("distribution")).toBe("读取失败");
     wrapper.unmount();
   });
 

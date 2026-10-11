@@ -111,4 +111,91 @@ describe("WarehouseSelector", () => {
     expect(category.text()).toContain("1");
     expect(category.text()).not.toContain("空类别");
   });
+
+  it("canonicalizes warehouse and category chips and emits exclusions through both wrappers", async () => {
+    const warehouses = [
+      { name: "root", warehouse_name: "寺院", is_group: 1, lft: 1, rgt: 8 },
+      {
+        name: "room",
+        warehouse_name: "A 室",
+        parent_warehouse: "root",
+        is_group: 1,
+        lft: 2,
+        rgt: 5,
+      },
+      {
+        name: "shelf",
+        warehouse_name: "A-01",
+        parent_warehouse: "room",
+        is_group: 0,
+        lft: 3,
+        rgt: 4,
+      },
+      {
+        name: "other",
+        warehouse_name: "B 室",
+        parent_warehouse: "root",
+        is_group: 0,
+        lft: 6,
+        rgt: 7,
+      },
+    ];
+    const warehouse = mount(WarehouseSelector, {
+      props: {
+        modelValue: ["root", "room"],
+        rows: warehouses,
+        placeholder: "搜索",
+      },
+    });
+    expect(warehouse.findAll(".facet-chips button")).toHaveLength(1);
+    await warehouse.findAll('input[type="checkbox"]')[1].trigger("change");
+    expect(warehouse.emitted("update:modelValue")?.at(-1)).toEqual([["other"]]);
+
+    const category = mount(CategorySelector, {
+      props: {
+        modelValue: ["parent", "child"],
+        rows: [
+          {
+            name: "parent",
+            item_group_name: "食品",
+            is_group: 1,
+            lft: 1,
+            rgt: 8,
+          },
+          {
+            name: "child",
+            item_group_name: "干货",
+            parent_item_group: "parent",
+            is_group: 1,
+            lft: 2,
+            rgt: 5,
+          },
+          {
+            name: "leaf",
+            item_group_name: "米",
+            parent_item_group: "child",
+            is_group: 0,
+            lft: 3,
+            rgt: 4,
+          },
+          {
+            name: "other",
+            item_group_name: "饮品",
+            parent_item_group: "parent",
+            is_group: 0,
+            lft: 6,
+            rgt: 7,
+          },
+        ],
+        placeholder: "搜索",
+      },
+    });
+    expect(category.findAll(".facet-chips button")).toHaveLength(1);
+    expect(category.text()).toContain("食品");
+    expect(category.findAll(".facet-chips button")[0].text()).not.toContain(
+      "干货",
+    );
+    await category.findAll('input[type="checkbox"]')[1].trigger("change");
+    expect(category.emitted("update:modelValue")?.at(-1)).toEqual([["other"]]);
+  });
 });

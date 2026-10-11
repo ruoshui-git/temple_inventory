@@ -7,8 +7,8 @@ defineProps<{ grouped: boolean }>();
 		<template v-if="grouped">
 			<div class="dashboard-column dashboard-left-column">
 				<slot name="inventory" />
-				<slot name="expiry" />
 				<slot name="distribution" />
+				<slot name="expiry" />
 			</div>
 			<div class="dashboard-column dashboard-right-column">
 				<slot name="movement" />
@@ -18,11 +18,11 @@ defineProps<{ grouped: boolean }>();
 		</template>
 		<template v-else>
 			<slot name="inventory" />
+			<slot name="distribution" />
 			<slot name="expiry" />
 			<slot name="movement" />
 			<slot name="loans" />
 			<slot name="reminders" />
-			<slot name="distribution" />
 		</template>
 	</div>
 </template>

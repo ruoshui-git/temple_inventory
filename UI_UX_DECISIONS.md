@@ -238,6 +238,22 @@ in the same change. Keep implementation details in code or task notes, not here.
   filter panels lock document scrolling and trap focus only while an open
   mobile drawer is active; desktop filters stay in the page layout.
 
+- **2026-10-10:** Dashboard desktop columns place inventory, distribution, and
+  expiry on the left, with movement, loans, and reminders on the right. Stacked
+  layouts use inventory, distribution, expiry, movement, loans, and reminders
+  in that order. Warehouse and category trees show descendants as selected
+  through a selected ancestor. Selecting a parent replaces all selected
+  descendants with that parent; unchecking the parent clears its entire branch.
+  Unchecking an inherited child excludes that branch and retains the other
+  covered leaves. Selector chips and Dashboard active-filter chips never show
+  an ancestor and its descendant together. Dashboard distribution labels its
+  unique in-stock Item Code total `物品种数 · N 种` and explains that it is
+  deduplicated by Item Code rather than summed stock quantity. Warehouse mode
+  also explains that an Item Code may appear in several warehouses, so bar
+  counts can sum above the total. This user-approved rule supersedes the
+  previous Dashboard section order and selection-chip semantics recorded
+  above.
+
 - **2026-10-10:** 借用 now uses separate 明细 (`/loans/items`) and 记录
   (`/loans/records`) browse destinations, matching 货物流动. Both default to
   全部 status; 未结 and 已结清 are filters. 明细 is one row per loan item line,

@@ -7,6 +7,7 @@ import DashboardSectionLayout from "./DashboardSectionLayout.vue";
 import DashboardSectionCard from "./DashboardSectionCard.vue";
 import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
 import { movementLabel } from "../../lib/movementLabels";
+import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { DashboardController } from "./useDashboardController";
 
@@ -16,6 +17,10 @@ const dashboardContent = ref<HTMLElement>();
 const contentWidth = ref(0);
 let contentObserver: ResizeObserver | undefined;
 const desktopGrouped = () => c.surface.value === "desktop" && contentWidth.value >= 760;
+const activeWarehouseFilters = () =>
+	normalizeHierarchySelection(c.filters.value.warehouses, c.warehouseRows.value);
+const activeCategoryFilters = () =>
+	normalizeHierarchySelection(c.filters.value.item_groups, c.categoryRows.value);
 onMounted(() => {
 	if (!dashboardContent.value || typeof ResizeObserver === "undefined") return;
 	contentObserver = new ResizeObserver(([entry]) => {
@@ -285,15 +290,13 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 				aria-label="当前筛选"
 			>
 				<button
-					v-for="value in c.filters.value.warehouses"
+					v-for="value in activeWarehouseFilters()"
 					:key="`warehouse-${value}`"
 					type="button"
 					@click="
 						c.updateFilters({
-							warehouses: c.filters.value.warehouses.filter(
-								(item) => item !== value,
-							),
-							item_groups: c.filters.value.item_groups,
+							warehouses: activeWarehouseFilters().filter((item) => item !== value),
+							item_groups: activeCategoryFilters(),
 						})
 					"
 				>
@@ -304,15 +307,13 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 					×
 				</button>
 				<button
-					v-for="value in c.filters.value.item_groups"
+					v-for="value in activeCategoryFilters()"
 					:key="`group-${value}`"
 					type="button"
 					@click="
 						c.updateFilters({
-							warehouses: c.filters.value.warehouses,
-							item_groups: c.filters.value.item_groups.filter(
-								(item) => item !== value,
-							),
+							warehouses: activeWarehouseFilters(),
+							item_groups: activeCategoryFilters().filter((item) => item !== value),
 						})
 					"
 				>
@@ -509,12 +510,18 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 										</button>
 									</div>
 								</div>
+								<p class="distribution-total">
+									物品种数 ·
+									{{ c.data.value.distribution?.distinct_items ?? 0 }} 种
+								</p>
 								<p class="distribution-note">
-									{{
-										c.data.value.distribution?.mode === "category"
-											? "按类别统计不同物品类型；类别之间的数量可能重叠。"
-											: "按仓库统计不同物品类型；多个仓库的数量可能重叠。"
-									}}
+									按物品编码去重统计有库存的物品种数，不是库存数量之和。
+								</p>
+								<p
+									v-if="c.data.value.distribution?.mode === 'warehouse'"
+									class="distribution-note"
+								>
+									同一种物品可出现在多个仓库中，因此各仓库种数相加可能大于总种数。
 								</p>
 								<div class="distribution-list">
 									<div class="distribution-axis" aria-hidden="true">
@@ -1107,6 +1114,12 @@ h3 {
 	margin: 10px 0 14px;
 	color: #7c828b;
 	font-size: 12px;
+}
+.distribution-total {
+	margin: 12px 0 0;
+	color: #273f59;
+	font-size: 16px;
+	font-weight: 750;
 }
 .distribution-row {
 	display: grid;

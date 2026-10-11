@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { normalizeHierarchySelection } from "../lib/hierarchySelection";
 
 export type HierarchyFilterNode = {
 	name: string;
@@ -35,6 +36,7 @@ const nodes = computed(() =>
 	[...props.options].sort((a, b) => Number(a.lft || 0) - Number(b.lft || 0)),
 );
 const allNodes = computed(() => (props.tree.length ? props.tree : nodes.value));
+const selection = computed(() => normalizeHierarchySelection(props.modelValue, allNodes.value));
 const byName = computed(() => new Map(allNodes.value.map((node) => [node.name, node])));
 const parentOf = (node: HierarchyFilterNode) =>
 	node.parent || node.parent_warehouse || node.parent_item_group || "";
@@ -64,6 +66,25 @@ const descendants = (node: HierarchyFilterNode): HierarchyFilterNode[] => {
 };
 const leaves = (node: HierarchyFilterNode) =>
 	node.is_group ? descendants(node).filter((candidate) => !candidate.is_group) : [node];
+const branch = (node: HierarchyFilterNode) => [node, ...descendants(node)];
+function isAncestor(ancestor: HierarchyFilterNode, node: HierarchyFilterNode) {
+	let parent = byName.value.get(parentOf(node));
+	const seen = new Set<string>();
+	while (parent && !seen.has(parent.name)) {
+		if (parent.name === ancestor.name) return true;
+		seen.add(parent.name);
+		parent = byName.value.get(parentOf(parent));
+	}
+	return Boolean(
+		ancestor.name !== node.name &&
+		ancestor.lft !== undefined &&
+		ancestor.rgt !== undefined &&
+		node.lft !== undefined &&
+		node.rgt !== undefined &&
+		Number(ancestor.lft) < Number(node.lft) &&
+		Number(ancestor.rgt) > Number(node.rgt),
+	);
+}
 const path = (node: HierarchyFilterNode) => {
 	if (node.label?.includes(" / ")) return node.label;
 	const values = [node.label || node.name];
@@ -115,54 +136,43 @@ const displayNodes = computed(() =>
 	nodes.value.filter((node) => visible(node) && ancestorsExpanded(node)),
 );
 const selected = (node: HierarchyFilterNode) =>
-	props.modelValue.includes(node.name) ||
-	props.modelValue.some((value) => {
+	selection.value.includes(node.name) ||
+	selection.value.some((value) => {
 		const parent = byName.value.get(value);
-		return !!parent?.is_group && leaves(parent).some((leaf) => leaf.name === node.name);
+		return !!parent?.is_group && isAncestor(parent, node);
 	});
-const partial = (node: HierarchyFilterNode) =>
-	Boolean(node.is_group && leaves(node).some(selected) && !leaves(node).every(selected));
+const fullySelected = (node: HierarchyFilterNode) => {
+	if (selected(node)) return true;
+	const branchLeaves = leaves(node);
+	return Boolean(node.is_group && branchLeaves.length && branchLeaves.every(selected));
+};
+const partial = (node: HierarchyFilterNode) => {
+	return Boolean(
+		node.is_group &&
+		!fullySelected(node) &&
+		descendants(node).some((candidate) => selection.value.includes(candidate.name)),
+	);
+};
 function toggle(node: HierarchyFilterNode) {
-	const next = new Set(props.modelValue);
-	if (node.is_group) {
-		if (leaves(node).every(selected)) {
-			next.delete(node.name);
-			for (const leaf of leaves(node)) next.delete(leaf.name);
-		} else {
-			next.add(node.name);
-			for (const leaf of leaves(node)) next.delete(leaf.name);
-		}
-	} else {
-		const covering = allNodes.value.filter(
-			(parent) =>
-				parent.is_group &&
-				next.has(parent.name) &&
-				leaves(parent).some((leaf) => leaf.name === node.name),
+	const next = new Set(selection.value);
+	const coveredBy = allNodes.value.filter(
+		(parent) => parent.is_group && next.has(parent.name) && isAncestor(parent, node),
+	);
+	if (coveredBy.length) {
+		const covering = coveredBy.reduce((outermost, candidate) =>
+			isAncestor(candidate, outermost) ? candidate : outermost,
 		);
-		if (covering.length) {
-			for (const parent of covering) {
-				next.delete(parent.name);
-				for (const leaf of leaves(parent))
-					if (leaf.name !== node.name) next.add(leaf.name);
-			}
-		} else if (next.has(node.name)) next.delete(node.name);
-		else next.add(node.name);
+		const excludedNames = new Set(branch(node).map((candidate) => candidate.name));
+		next.delete(covering.name);
+		for (const leaf of leaves(covering))
+			if (!excludedNames.has(leaf.name)) next.add(leaf.name);
+	} else if (fullySelected(node)) {
+		for (const descendant of branch(node)) next.delete(descendant.name);
+	} else {
+		for (const descendant of descendants(node)) next.delete(descendant.name);
+		next.add(node.name);
 	}
-	for (const value of [...next]) {
-		const candidate = byName.value.get(value);
-		if (
-			candidate &&
-			allNodes.value.some(
-				(parent) =>
-					parent.name !== value &&
-					parent.is_group &&
-					next.has(parent.name) &&
-					leaves(parent).some((leaf) => leaf.name === candidate.name),
-			)
-		)
-			next.delete(value);
-	}
-	emit("update:modelValue", [...next]);
+	emit("update:modelValue", normalizeHierarchySelection([...next], allNodes.value));
 }
 function clear() {
 	emit("update:modelValue", []);
@@ -170,7 +180,10 @@ function clear() {
 function remove(name: string) {
 	emit(
 		"update:modelValue",
-		props.modelValue.filter((value) => value !== name),
+		normalizeHierarchySelection(
+			selection.value.filter((value) => value !== name),
+			allNodes.value,
+		),
 	);
 }
 function toggleExpanded(name: string) {
@@ -230,20 +243,20 @@ watch(term, () => {
 	<section ref="root" class="hierarchy-facet" :class="{ 'hierarchy-facet-embedded': embedded }">
 		<header v-if="!embedded">
 			<h3>{{ title }}</h3>
-			<span>{{ modelValue.length }} 项已选</span
+			<span>{{ selection.length }} 项已选</span
 			><button
 				type="button"
 				class="inline-link"
 				aria-label="清除本项"
-				:disabled="!modelValue.length"
+				:disabled="!selection.length"
 				@click="clear"
 			>
 				清除本项
 			</button>
 		</header>
-		<div v-if="modelValue.length" class="facet-chips">
+		<div v-if="selection.length" class="facet-chips">
 			<button
-				v-for="name in modelValue"
+				v-for="name in selection"
 				:key="name"
 				type="button"
 				:aria-label="'移除 ' + path(byName.get(name) || { name })"
@@ -294,9 +307,7 @@ watch(term, () => {
 							<input
 								:data-facet-index="index"
 								type="checkbox"
-								:checked="
-									node.is_group ? leaves(node).every(selected) : selected(node)
-								"
+								:checked="fullySelected(node)"
 								:indeterminate="partial(node)"
 								@keydown="onKeydown"
 								@change="toggle(node)"

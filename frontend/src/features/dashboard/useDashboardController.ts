@@ -6,6 +6,7 @@ import {
   serializeFilterQuery,
 } from "../../composables/filters";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
 
 export const DASHBOARD_SECTIONS = [
   "inventory",
@@ -25,6 +26,14 @@ export function useDashboardController() {
   const defaults = { warehouses: [] as string[], item_groups: [] as string[] };
   const filters = ref(hydrateFilterQuery(route.query, defaults));
   const data = ref<any>({});
+  const normalizeFilters = (
+    value: typeof defaults,
+    warehouses = data.value.warehouses || [],
+    groups = data.value.item_groups || [],
+  ) => ({
+    warehouses: normalizeHierarchySelection(value.warehouses, warehouses),
+    item_groups: normalizeHierarchySelection(value.item_groups, groups),
+  });
   const sectionState = ref<Record<DashboardSection, SectionState>>(
     Object.fromEntries(
       DASHBOARD_SECTIONS.map((section) => [
@@ -145,8 +154,7 @@ export function useDashboardController() {
       }),
     ) as Partial<Record<DashboardSection, number>>;
     const params: Record<string, unknown> = {
-      warehouses: filters.value.warehouses,
-      item_groups: filters.value.item_groups,
+      ...normalizeFilters(filters.value),
       period_key: movementPeriod.value,
       expiry_preview: expiryPreview.value,
       distribution_mode: distributionMode.value,
@@ -168,6 +176,19 @@ export function useDashboardController() {
         next.generated_at = result.generated_at;
         next.warehouses = result.warehouses;
         next.item_groups = result.item_groups;
+        const canonicalFilters = normalizeFilters(
+          filters.value,
+          next.warehouses,
+          next.item_groups,
+        );
+        if (
+          JSON.stringify(canonicalFilters) !== JSON.stringify(filters.value)
+        ) {
+          filters.value = canonicalFilters;
+          void router
+            .replace({ query: serializeFilterQuery(canonicalFilters) })
+            .catch(() => {});
+        }
       } else {
         next.scope = result.scope;
         next.generated_at = result.generated_at;
@@ -208,6 +229,7 @@ export function useDashboardController() {
   }
 
   async function updateFilters(next: typeof defaults) {
+    next = normalizeFilters(next);
     const pendingGeneration = markGlobalScopePending();
     filters.value = next;
     try {
@@ -237,7 +259,7 @@ export function useDashboardController() {
   watch(
     () => route.query,
     (query) => {
-      const next = hydrateFilterQuery(query, defaults);
+      const next = normalizeFilters(hydrateFilterQuery(query, defaults));
       if (JSON.stringify(next) !== JSON.stringify(filters.value)) {
         markGlobalScopePending();
         filters.value = next;

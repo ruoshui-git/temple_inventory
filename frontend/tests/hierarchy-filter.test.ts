@@ -32,6 +32,60 @@ const nodes = [
   },
 ];
 
+const nestedNodes = [
+  { name: "root", label: "总仓", is_group: 1, lft: 1, rgt: 22 },
+  { name: "room", label: "A 室", parent: "root", is_group: 1, lft: 2, rgt: 11 },
+  {
+    name: "shelf-group",
+    label: "货架组",
+    parent: "room",
+    is_group: 1,
+    lft: 3,
+    rgt: 8,
+  },
+  {
+    name: "shelf-a",
+    label: "A-01",
+    parent: "shelf-group",
+    is_group: 0,
+    lft: 4,
+    rgt: 5,
+  },
+  {
+    name: "shelf-b",
+    label: "A-02",
+    parent: "shelf-group",
+    is_group: 0,
+    lft: 6,
+    rgt: 7,
+  },
+  {
+    name: "room-b",
+    label: "B 室",
+    parent: "root",
+    is_group: 1,
+    lft: 12,
+    rgt: 15,
+  },
+  {
+    name: "shelf-c",
+    label: "B-01",
+    parent: "room-b",
+    is_group: 0,
+    lft: 13,
+    rgt: 14,
+  },
+  {
+    name: "empty",
+    label: "空组",
+    parent: "root",
+    is_group: 1,
+    lft: 16,
+    rgt: 17,
+  },
+  { name: "unrelated", label: "外部", is_group: 0, lft: 23, rgt: 24 },
+];
+
 describe("HierarchyFilter", () => {
   it("renders the inline tree immediately and supports search, selection, and clear", async () => {
     const wrapper = mount(HierarchyFilter, {
@@ -56,5 +110,130 @@ describe("HierarchyFilter", () => {
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(3);
     await wrapper.get('button[aria-label="清除本项"]').trigger("click");
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[]]);
+  });
+
+  it("replaces nested selections with an ancestor and clears its whole branch", async () => {
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: ["shelf-group", "shelf-a", "unrelated"],
+        options: nestedNodes,
+        tree: nestedNodes,
+        placeholder: "搜索",
+        title: "仓库",
+      },
+    });
+    await wrapper.findAll('input[type="checkbox"]')[0].trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([
+      ["unrelated", "root"],
+    ]);
+    await wrapper.setProps({ modelValue: ["root", "unrelated"] });
+    await wrapper.findAll('input[type="checkbox"]')[0].trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([
+      ["unrelated"],
+    ]);
+  });
+
+  it("excludes a leaf or nested group beneath a selected ancestor and keeps remaining leaves", async () => {
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: ["root", "unrelated"],
+        options: nestedNodes,
+        tree: nestedNodes,
+        placeholder: "搜索",
+        title: "仓库",
+      },
+    });
+    const roomGroup = wrapper.findAll('input[type="checkbox"]')[1];
+    await roomGroup.trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([
+      ["unrelated", "shelf-c"],
+    ]);
+    await wrapper.setProps({ modelValue: ["root", "unrelated"] });
+    await wrapper.findAll('input[type="checkbox"]')[3].trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([
+      ["unrelated", "shelf-b", "shelf-c"],
+    ]);
+    await wrapper.setProps({ modelValue: ["shelf-a", "unrelated"] });
+    expect(
+      (wrapper.findAll('input[type="checkbox"]')[1].element as HTMLInputElement)
+        .indeterminate,
+    ).toBe(true);
+  });
+
+  it("keeps hidden fallback leaves in parent coverage and makes empty groups explicitly selectable", async () => {
+    const tree = [
+      { name: "room", label: "A 室", is_group: 1, lft: 1, rgt: 6 },
+      {
+        name: "visible",
+        label: "可见位置",
+        parent: "room",
+        is_group: 0,
+        lft: 2,
+        rgt: 3,
+      },
+      {
+        name: "hidden",
+        label: "隐藏备用位",
+        parent: "room",
+        is_group: 0,
+        lft: 4,
+        rgt: 5,
+      },
+      { name: "empty", label: "空组", is_group: 1, lft: 7, rgt: 8 },
+    ];
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: ["room"],
+        options: [tree[0], tree[1], tree[3]],
+        tree,
+        placeholder: "搜索",
+        title: "仓库",
+      },
+    });
+    expect(
+      (wrapper.findAll('input[type="checkbox"]')[2].element as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+    await wrapper.findAll('input[type="checkbox"]')[1].trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["hidden"]]);
+    await wrapper.setProps({ modelValue: [] });
+    expect(
+      (wrapper.findAll('input[type="checkbox"]')[2].element as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+    await wrapper.findAll('input[type="checkbox"]')[2].trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["empty"]]);
+  });
+
+  it("uses nested-set bounds when parent links are absent and marks selected empty children partial", async () => {
+    const tree = [
+      { name: "root", label: "总仓", is_group: 1, lft: 1, rgt: 10 },
+      { name: "group", label: "房间", is_group: 1, lft: 2, rgt: 7 },
+      { name: "leaf-a", label: "A", is_group: 0, lft: 3, rgt: 4 },
+      { name: "leaf-b", label: "B", is_group: 0, lft: 5, rgt: 6 },
+      { name: "empty", label: "空组", is_group: 1, lft: 8, rgt: 9 },
+    ];
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: ["root"],
+        options: tree,
+        tree,
+        placeholder: "搜索",
+        title: "仓库",
+      },
+    });
+    const checkboxes = wrapper.findAll('input[type="checkbox"]');
+    expect((checkboxes[1].element as HTMLInputElement).checked).toBe(true);
+    await checkboxes[2].trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["leaf-b"]]);
+    await wrapper.setProps({ modelValue: ["empty"] });
+    expect(
+      (wrapper.findAll('input[type="checkbox"]')[0].element as HTMLInputElement)
+        .indeterminate,
+    ).toBe(true);
+    expect(
+      (wrapper.findAll('input[type="checkbox"]')[4].element as HTMLInputElement)
+        .checked,
+    ).toBe(true);
   });
 });

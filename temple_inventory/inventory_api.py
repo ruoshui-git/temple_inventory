@@ -1594,8 +1594,8 @@ def _dashboard_selected_groups(values):
 	}
 
 
-def _dashboard_distribution(settings, selected_warehouses, requested_groups, selected_groups, mode):
-	"""Build distinct-item bars at the next hierarchy level, without UOM mixing."""
+def _dashboard_distribution_data(settings, selected_warehouses, requested_groups, selected_groups, mode):
+	"""Aggregate eligible item codes once for the total and next-level bars."""
 	physical = _physical_tree(settings)
 	allowed = set(_allowed_warehouses(settings))
 	requested = set(selected_warehouses or [])
@@ -1603,7 +1603,20 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 		_selected_leaf_warehouses(requested, physical, empty_means_all=True) if requested else set(allowed)
 	) & allowed
 	if not selected:
-		return []
+		return {"distinct_items": 0, "bars": []}
+	bins = _bin_balances(selected)
+	item_rows = frappe.get_list("Item", fields=["name", "item_group"], limit_page_length=0)
+	item_groups = {row.name: row.item_group for row in item_rows}
+	selected_groups = set(selected_groups or [])
+	eligible_bins = [
+		row
+		for row in bins
+		if flt(row.actual_qty) > 0
+		and row.warehouse in selected
+		and row.item_code in item_groups
+		and (not selected_groups or item_groups[row.item_code] in selected_groups)
+	]
+	distinct_items = len({row.item_code for row in eligible_bins})
 	if mode == "category":
 		groups = frappe.get_list(
 			"Item Group",
@@ -1635,9 +1648,6 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 			bars.append(
 				{"key": parent.name, "label": parent.item_group_name or parent.name, "distinct_items": 0}
 			)
-		bins = _bin_balances(selected)
-		item_rows = frappe.get_list("Item", fields=["name", "item_group"], limit_page_length=0)
-		item_groups = {row.name: row.item_group for row in item_rows}
 		for bar in bars:
 			members = {
 				row.name
@@ -1645,13 +1655,9 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 				if row.lft >= by_name[bar["key"]].lft and row.rgt <= by_name[bar["key"]].rgt
 			}
 			bar["distinct_items"] = len(
-				{
-					row.item_code
-					for row in bins
-					if flt(row.actual_qty) > 0 and item_groups.get(row.item_code) in members
-				}
+				{row.item_code for row in eligible_bins if item_groups.get(row.item_code) in members}
 			)
-		return bars
+		return {"distinct_items": distinct_items, "bars": bars}
 	selected_nodes = [physical[name] for name in requested if name in physical]
 	selected_nodes = [
 		node
@@ -1674,9 +1680,6 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 		if not parents:
 			parents = [node for node in physical.values() if node.parent_warehouse not in physical]
 	parents = sorted({node.name: node for node in parents}.values(), key=lambda node: node.lft)
-	bins = _bin_balances(selected)
-	item_rows = frappe.get_list("Item", fields=["name", "item_group"], limit_page_length=0)
-	item_names = {row.name for row in item_rows if not selected_groups or row.item_group in selected_groups}
 	bars = []
 	for parent in parents:
 		leaves = {
@@ -1690,16 +1693,17 @@ def _dashboard_distribution(settings, selected_warehouses, requested_groups, sel
 			{
 				"key": parent.name,
 				"label": getattr(parent, "warehouse_name", parent.name),
-				"distinct_items": len(
-					{
-						row.item_code
-						for row in bins
-						if row.warehouse in leaves and row.item_code in item_names and flt(row.actual_qty) > 0
-					}
-				),
+				"distinct_items": len({row.item_code for row in eligible_bins if row.warehouse in leaves}),
 			}
 		)
-	return bars
+	return {"distinct_items": distinct_items, "bars": bars}
+
+
+def _dashboard_distribution(settings, selected_warehouses, requested_groups, selected_groups, mode):
+	"""Compatibility wrapper returning only the distribution bars."""
+	return _dashboard_distribution_data(
+		settings, selected_warehouses, requested_groups, selected_groups, mode
+	)["bars"]
 
 
 def _dashboard_expiry_section(common, preview_mode):
@@ -1900,11 +1904,13 @@ def dashboard_summary(
 				)
 			elif section == "distribution":
 				mode = distribution_mode if distribution_mode in ("warehouse", "category") else "warehouse"
+				distribution = _dashboard_distribution_data(
+					settings, requested_warehouses, requested_groups, selected_groups, mode
+				)
 				response[section] = {
 					"mode": mode,
-					"bars": _dashboard_distribution(
-						settings, requested_warehouses, requested_groups, selected_groups, mode
-					),
+					"distinct_items": distribution["distinct_items"],
+					"bars": distribution["bars"],
 				}
 			elif section == "loans":
 				response[section] = _dashboard_loans_section(common)
@@ -1921,6 +1927,9 @@ def dashboard_summary(
 	loans = _dashboard_loans_section(common)
 	reminders = _dashboard_reminders_section(common, expiry)
 	mode = distribution_mode if distribution_mode in ("warehouse", "category") else "warehouse"
+	distribution = _dashboard_distribution_data(
+		settings, requested_warehouses, requested_groups, selected_groups, mode
+	)
 	return {
 		"generated_at": str(frappe.utils.now_datetime()),
 		"scope": global_filters,
@@ -1931,9 +1940,8 @@ def dashboard_summary(
 		"reminders": reminders,
 		"distribution": {
 			"mode": mode,
-			"bars": _dashboard_distribution(
-				settings, requested_warehouses, requested_groups, selected_groups, mode
-			),
+			"distinct_items": distribution["distinct_items"],
+			"bars": distribution["bars"],
 		},
 		"warehouses": _user_facing_warehouse_presentation(settings),
 		"item_groups": frappe.get_list(
@@ -1943,6 +1951,8 @@ def dashboard_summary(
 			limit_page_length=0,
 		),
 	}
+
+
 @frappe.whitelist()
 def dashboard(**kwargs):
 	"""Compatibility alias for callers that use the page name as the RPC."""
