@@ -254,11 +254,15 @@ in the same change. Keep implementation details in code or task notes, not here.
   previous Dashboard section order and selection-chip semantics recorded
   above.
 
-- **2026-10-10:** 借用 now uses separate 明细 (`/loans/items`) and 记录
-  (`/loans/records`) browse destinations, matching 货物流动. Both default to
-  全部 status; 未结 and 已结清 are filters. 明细 is one row per loan item line,
+- **2026-10-10:** 借用 uses separate 明细 (`/loans/items`) and 记录
+  (`/loans/records`) browse destinations, matching 货物流动. 明细 defaults to
+  未归还, while 记录 defaults to 全部; both expose their mode-specific status
+  choices as mutually exclusive quick-select chips in the result chrome. An
+  explicit 明细 全部 selection remains URL-backed and reproducible. 未结 and
+  已结清 remain the 记录 status choices. 明细 is one row per loan item line,
   while 记录 is one row per complete loan document. The persistent quantity
-  summary row is removed; column totals remain available on demand.
+  summary row is removed; column totals remain available on demand. This
+  supersedes the earlier decision that both destinations default to 全部.
 
 - **2026-10-10:** 借用明细 groups positive quantities by Item Code and outcome:
   outstanding, returned, damaged, and lost. Each group has item, quantity,

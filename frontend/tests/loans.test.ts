@@ -116,13 +116,19 @@ describe("loan item and record browsing", () => {
     expect(state.api).toHaveBeenCalledWith(
       "loan_item_groups",
       expect.objectContaining({
-        filters: expect.objectContaining({ outcome: undefined }),
+        filters: expect.objectContaining({ outcome: "outstanding" }),
       }),
       expect.any(AbortSignal),
     );
     expect(wrapper.text()).toContain("借用 · 明细");
     expect(wrapper.text()).toContain("相机");
     expect(wrapper.text()).toContain("1 条记录");
+    expect(
+      wrapper.findAll(".loan-status-chip").map((button) => button.text()),
+    ).toEqual(["全部", "未归还", "已归还", "已归还（损坏）", "已登记遗失"]);
+    expect(wrapper.find('.loan-status-chip[aria-pressed="true"]').text()).toBe(
+      "未归还",
+    );
     expect(wrapper.findAll("thead th").map((cell) => cell.text())).toEqual([
       "物品",
       "数量",
@@ -140,6 +146,64 @@ describe("loan item and record browsing", () => {
     expect(state.push).not.toHaveBeenCalled();
     expect(wrapper.find(".quantity-summary").exists()).toBe(false);
     expect(wrapper.find(".loan-tabs").exists()).toBe(false);
+  });
+
+  it("supports all and each item outcome through the top status chips", async () => {
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [],
+        total: 0,
+        overall_total: 4,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+
+    const choose = async (label: string) => {
+      const button = wrapper
+        .findAll(".loan-status-chip")
+        .find((candidate) => candidate.text() === label);
+      expect(button).toBeDefined();
+      await button!.trigger("click");
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await flushPromises();
+    };
+    const loanCalls = () =>
+      state.api.mock.calls.filter(([method]) => method === "loan_item_groups");
+
+    await choose("全部");
+    expect(loanCalls().at(-1)?.[1]).toEqual(
+      expect.objectContaining({
+        filters: expect.objectContaining({ outcome: undefined }),
+      }),
+    );
+    expect(state.replace).toHaveBeenLastCalledWith({
+      query: expect.objectContaining({ status: "all" }),
+    });
+
+    for (const [label, outcome] of [
+      ["未归还", "outstanding"],
+      ["已归还", "returned"],
+      ["已归还（损坏）", "damaged"],
+      ["已登记遗失", "lost"],
+    ]) {
+      await choose(label);
+      expect(loanCalls().at(-1)?.[1]).toEqual(
+        expect.objectContaining({
+          filters: expect.objectContaining({ outcome }),
+        }),
+      );
+    }
+    wrapper.unmount();
   });
 
   it("retains a pinned breakdown and loaded records across the Loans breakpoint", async () => {
@@ -368,6 +432,150 @@ describe("loan item and record browsing", () => {
     expect(wrapper.text()).toContain("借用 · 记录");
     expect(wrapper.text()).toContain("部分结清");
     expect(wrapper.text()).toContain("LOAN-1");
+    expect(wrapper.find('.loan-status-chip[aria-pressed="true"]').text()).toBe(
+      "未结",
+    );
+  });
+
+  it("defaults records to all and filters them with status chips", async () => {
+    route.path = "/loans/records";
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [],
+        total: 0,
+        overall_total: 3,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_records",
+      expect.objectContaining({
+        filters: expect.objectContaining({ status: undefined }),
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(
+      wrapper.findAll(".loan-status-chip").map((button) => button.text()),
+    ).toEqual(["全部", "未结", "已结清"]);
+    expect(wrapper.find('.loan-status-chip[aria-pressed="true"]').text()).toBe(
+      "全部",
+    );
+
+    await wrapper.findAll(".loan-status-chip")[2].trigger("click");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    expect(state.api).toHaveBeenLastCalledWith(
+      "loan_records",
+      expect.objectContaining({
+        filters: expect.objectContaining({ status: "settled" }),
+      }),
+      expect.any(AbortSignal),
+    );
+    wrapper.unmount();
+  });
+
+  it("restores the mode-specific default when clearing item filters", async () => {
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [],
+        total: 0,
+        overall_total: 3,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    await wrapper.findAll(".loan-status-chip")[0].trigger("click");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    await wrapper.find(".clear-filters").trigger("click");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+
+    expect(wrapper.find('.loan-status-chip[aria-pressed="true"]').text()).toBe(
+      "未归还",
+    );
+    expect(state.api).toHaveBeenLastCalledWith(
+      "loan_item_groups",
+      expect.objectContaining({
+        filters: expect.objectContaining({ outcome: "outstanding" }),
+      }),
+      expect.any(AbortSignal),
+    );
+    wrapper.unmount();
+  });
+
+  it("applies each mode default when switching between loan views", async () => {
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [],
+        total: 0,
+        overall_total: 3,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+
+    route.path = "/loans/records";
+    route.query = { search: "借用方" };
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    expect(state.api).toHaveBeenLastCalledWith(
+      "loan_records",
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          search: "借用方",
+          status: undefined,
+        }),
+      }),
+      expect.any(AbortSignal),
+    );
+
+    route.path = "/loans/items";
+    route.query = { search: "相机" };
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    expect(state.api).toHaveBeenLastCalledWith(
+      "loan_item_groups",
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          search: "相机",
+          outcome: "outstanding",
+        }),
+      }),
+      expect.any(AbortSignal),
+    );
+    wrapper.unmount();
   });
 
   it("maps the legacy settled item link to all resolved outcomes", async () => {

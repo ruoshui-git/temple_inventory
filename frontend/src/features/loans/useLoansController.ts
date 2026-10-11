@@ -25,10 +25,12 @@ type Filters = {
   warehouses: string[];
   activity: string;
 };
-const defaults = (): Filters => ({
+const defaultStatus = (mode: Mode): LoanStatus =>
+  mode === "items" ? "outstanding" : "all";
+const defaults = (mode: Mode): Filters => ({
   search: "",
   loan_date: "",
-  status: "all",
+  status: defaultStatus(mode),
   item_code: "",
   item_groups: [],
   warehouses: [],
@@ -66,7 +68,7 @@ export function useLoansController() {
   const loadingMore = ref(false);
   const filterOpen = ref(false);
   const desktopFilterOpen = ref(false);
-  const filters = ref<Filters>(defaults());
+  const filters = ref<Filters>(defaults(mode.value));
   const sort = ref<SortState>({ sort_by: "item_name", sort_order: "asc" });
   const scrollResetToken = ref(0);
   const pageLength = 30;
@@ -146,6 +148,9 @@ export function useLoansController() {
     { value: "outstanding", label: "未结" },
     { value: "settled", label: "已结清" },
   ];
+  const statusOptionsForMode = computed(() =>
+    mode.value === "items" ? statusOptions : recordStatusOptions,
+  );
   const statusLabel = (status: string) =>
     ({
       Outstanding: "未归还",
@@ -183,10 +188,10 @@ export function useLoansController() {
       filters.value.item_groups.length +
       filters.value.warehouses.length +
       (filters.value.activity ? 1 : 0) +
-      (filters.value.status !== "all" ? 1 : 0),
+      (filters.value.status !== defaultStatus(mode.value) ? 1 : 0),
   );
   const chips = computed(() => [
-    ...(filters.value.status !== "all"
+    ...(filters.value.status !== defaultStatus(mode.value)
       ? [
           {
             key: "status",
@@ -242,6 +247,10 @@ export function useLoansController() {
       sort_by: sort.value.sort_by,
       sort_order: sort.value.sort_order,
     };
+  }
+  function setStatus(value: string) {
+    if (statusOptionsForMode.value.some((option) => option.value === value))
+      filters.value.status = value as LoanStatus;
   }
   async function loadItemOptions(search = "") {
     filterOptionsController?.abort();
@@ -330,7 +339,9 @@ export function useLoansController() {
             ...serializeFilterQuery({
               ...filters.value,
               status:
-                filters.value.status === "all" ? "" : filters.value.status,
+                filters.value.status === defaultStatus(mode.value)
+                  ? ""
+                  : filters.value.status,
             }),
             ...((mode.value === "items" &&
               sort.value.sort_by === "item_name" &&
@@ -361,7 +372,7 @@ export function useLoansController() {
     timer = setTimeout(() => void load(), 220);
   }
   function applyQuery(query: Record<string, any>) {
-    const hydrated = hydrateFilterQuery(query, defaults());
+    const hydrated = hydrateFilterQuery(query, defaults(mode.value));
     const value = String(hydrated.status);
     const validStatuses =
       mode.value === "items"
@@ -369,7 +380,9 @@ export function useLoansController() {
         : ["all", "outstanding", "settled"];
     filters.value = {
       ...hydrated,
-      status: validStatuses.includes(value) ? (value as LoanStatus) : "all",
+      status: validStatuses.includes(value)
+        ? (value as LoanStatus)
+        : defaultStatus(mode.value),
     };
     const defaultSort =
       mode.value === "items"
@@ -387,7 +400,7 @@ export function useLoansController() {
       sort.value = { sort_by: sortBy, sort_order: sortOrder as "asc" | "desc" };
   }
   function removeChip(chip: any) {
-    if (chip.key === "status") filters.value.status = "all";
+    if (chip.key === "status") filters.value.status = defaultStatus(mode.value);
     else if (Array.isArray((filters.value as any)[chip.key]))
       (filters.value as any)[chip.key] = (filters.value as any)[
         chip.key
@@ -395,7 +408,7 @@ export function useLoansController() {
     else (filters.value as any)[chip.key] = "";
   }
   function clearFilters() {
-    filters.value = defaults();
+    filters.value = defaults(mode.value);
   }
   function openFilters(
     event?: Event,
@@ -496,7 +509,7 @@ export function useLoansController() {
   );
   watch(mode, (nextMode, previousMode) => {
     if (nextMode !== previousMode) {
-      filters.value.status = "all";
+      filters.value.status = defaultStatus(nextMode);
       closeBreakdown();
       sort.value =
         nextMode === "items"
@@ -555,6 +568,7 @@ export function useLoansController() {
     activityOptions,
     statusOptions,
     recordStatusOptions,
+    statusOptionsForMode,
     rows,
     total,
     overall,
@@ -577,6 +591,7 @@ export function useLoansController() {
     compact,
     load,
     scheduleLoad,
+    setStatus,
     removeChip,
     clearFilters,
     openFilters,

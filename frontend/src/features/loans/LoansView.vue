@@ -218,6 +218,18 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							:updating="c.loading && c.rows.length > 0"
 						/>
 					</div>
+					<div class="loan-status-chips" role="toolbar" aria-label="状态筛选">
+						<button
+							v-for="option in c.statusOptionsForMode"
+							:key="option.value"
+							type="button"
+							class="loan-status-chip"
+							:aria-pressed="c.filters.status === option.value"
+							@click="c.setStatus(option.value)"
+						>
+							{{ option.label }}
+						</button>
+					</div>
 				</header>
 				<div
 					ref="scrollRoot"
@@ -540,6 +552,34 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 12px;
+}
+.loan-status-chips {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 4px 0 2px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+.loan-status-chips::-webkit-scrollbar {
+	display: none;
+}
+.loan-status-chip {
+	flex: none;
+	min-height: 34px;
+	padding: 7px 12px;
+	border: 1px solid #ded6c9;
+	border-radius: 999px;
+	background: #fffdf9;
+	color: #6f604f;
+	font-size: 13px;
+	white-space: nowrap;
+}
+.loan-status-chip[aria-pressed="true"] {
+	border-color: #9b571d;
+	background: #9b571d;
+	color: #fff;
 }
 .loan-item-cell {
 	gap: 9px;
