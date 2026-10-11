@@ -68,9 +68,8 @@ describe("browse loading contracts", () => {
     expect(source).toMatch(
       /v-if="surface === 'desktop'"[\s\S]*?class="toolbar-action desktop-filter-button"/,
     );
-    expect(source).toMatch(
-      /v-if="surface === 'mobile'"[\s\S]*?class="mobile-filter-button"/,
-    );
+    expect(source).toContain("<MobileBrowseHeader");
+    expect(source.match(/class="mobile-filter-button"/g)).toHaveLength(1);
     expect(source).toContain(':show-trigger="false"');
   });
 
@@ -107,7 +106,7 @@ describe("browse loading contracts", () => {
   });
 
   it.each([
-    ["loans", useLoansController, "loan_items"],
+    ["loans", useLoansController, "loan_item_groups"],
     ["pending", usePendingController, "pending"],
   ] as const)(
     "keeps %s busy until bootstrap and first page settle",
@@ -139,7 +138,7 @@ describe("browse loading contracts", () => {
   );
 
   it.each([
-    ["loans", useLoansController, "loan_items"],
+    ["loans", useLoansController, "loan_item_groups"],
     ["pending", usePendingController, "pending"],
   ] as const)(
     "transitions %s from loading to data",

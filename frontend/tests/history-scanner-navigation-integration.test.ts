@@ -396,6 +396,30 @@ describe("Task 04 history, scanner, and navigation integration", () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     await wrapper.find("[data-row-control]").trigger("click");
     expect(state.push).not.toHaveBeenCalledWith("/workspace/IW-1");
+    wrapper.unmount();
+
+    media.matches = false;
+    const mobileWrapper = mount(History, {
+      props: { destination: "drafts" },
+      global: globals,
+    });
+    await flushPromises();
+    const results = mobileWrapper.get(".results-scroll").element;
+    expect(mobileWrapper.get(".drafts-history").exists()).toBe(true);
+    expect(
+      mobileWrapper.get(".mobile-browse-header").element.parentElement,
+    ).toBe(results.parentElement);
+    Object.defineProperty(results, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 81,
+    });
+    results.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    expect(mobileWrapper.get(".mobile-browse-header").classes()).toContain(
+      "compact",
+    );
+    mobileWrapper.unmount();
   });
 
   it.each([

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import { labels } from "../../lib/api";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
@@ -20,6 +21,8 @@ import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import UiButton from "../../components/UiButton.vue";
 import { type HistoryController } from "./useHistoryController";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
 
 const props = defineProps<{
 	controller: HistoryController;
@@ -81,6 +84,10 @@ const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const destination = props.controller.destination;
 const resultsScroll = ref<HTMLElement>();
+const browseHeading = ref<HTMLElement>();
+const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
+const compact = ref(false);
+useCompactBrowse(resultsScroll, compact);
 const sentinel = ref<HTMLElement>();
 const restorationKey = props.controller.scrollKey;
 const infiniteScroll = useInfiniteScroll({
@@ -92,12 +99,19 @@ onMounted(async () => {
 	await nextTick();
 	infiniteScroll.connect(resultsScroll.value, sentinel.value);
 	const saved = Number(sessionStorage.getItem(restorationKey.value) || 0);
-	resultsScroll.value?.scrollTo?.({ top: saved });
+	if (resultsScroll.value) {
+		resultsScroll.value.scrollTop = saved;
+		compact.value = resultsScroll.value.scrollTop > 80;
+	}
 });
 watch(scrollResetToken, async () => {
 	await nextTick();
 	resultsScroll.value?.scrollTo?.({ top: 0 });
+	compact.value = false;
 });
+function updateCompact(event: Event) {
+	compact.value = (event.currentTarget as HTMLElement).scrollTop > 80;
+}
 onBeforeUnmount(() => {
 	sessionStorage.setItem(restorationKey.value, String(resultsScroll.value?.scrollTop || 0));
 	infiniteScroll.disconnect();
@@ -105,8 +119,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<main class="app-shell wide-shell viewport-list-root">
-		<header v-if="destination === 'drafts'" class="browse-back">
+	<main
+		class="app-shell wide-shell viewport-list-root"
+		:class="{ 'drafts-history': destination === 'drafts' }"
+	>
+		<header v-if="destination === 'drafts' && surface === 'desktop'" class="browse-back">
 			<button type="button" @click="close">‹ 更多</button>
 		</header>
 		<div
@@ -190,7 +207,10 @@ onBeforeUnmount(() => {
 				</CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column">
-				<div class="results-chrome">
+				<div v-if="surface === 'desktop'" class="results-chrome">
+					<h1 ref="browseHeading" tabindex="-1">
+						{{ destination === "drafts" ? "草稿箱" : "货物流动记录" }}
+					</h1>
 					<MovementPeriodSelector
 						v-if="destination === 'movements'"
 						v-model:period-key="filters.period_key"
@@ -245,7 +265,69 @@ onBeforeUnmount(() => {
 					</div>
 					<QuantitySummary :metrics="summaryMetrics" :loading="busy || refreshing" />
 				</div>
-				<div ref="resultsScroll" class="results-scroll">
+				<MobileBrowseHeader
+					v-else
+					ref="mobileBrowseHeader"
+					:title="destination === 'drafts' ? '草稿箱' : '货物流动记录'"
+					:compact="compact"
+					:destination-key="destination"
+				>
+					<template v-if="destination === 'drafts'" #back>
+						<button type="button" class="history-back" @click="close">‹ 更多</button>
+					</template>
+					<template #search-actions>
+						<div class="history-mobile-search">
+							<input
+								v-model="filters.search"
+								type="search"
+								placeholder="搜索记录或物品"
+								aria-label="搜索记录或物品"
+							/>
+							<IconButton
+								class="mobile-filter-button"
+								:label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'"
+								title="筛选"
+								@click="openFilters($event)"
+							>
+								<svg aria-hidden="true" viewBox="0 0 24 24">
+									<path d="M4 6h16M7 12h10M10 18h4" />
+								</svg>
+								<span v-if="activeCount" class="icon-count">{{
+									activeCount
+								}}</span>
+							</IconButton>
+						</div>
+					</template>
+					<template #secondary>
+						<MovementPeriodSelector
+							v-if="destination === 'movements'"
+							v-model:period-key="filters.period_key"
+							v-model:date-from="filters.date_from"
+							v-model:date-to="filters.date_to"
+							:resolved-from="resolvedPeriod.date_from"
+							:resolved-to="resolvedPeriod.date_to"
+						/>
+						<div class="browse-result-meta">
+							<ActiveFilterChips
+								:chips="chips"
+								@remove="removeChip"
+								@clear="clearAll"
+							/>
+							<ResultCountStrip
+								:loaded="rows.length"
+								:filtered="total"
+								:overall="overallTotal"
+								:updating="refreshing"
+							/>
+						</div>
+					</template>
+				</MobileBrowseHeader>
+				<div ref="resultsScroll" class="results-scroll" @scroll.passive="updateCompact">
+					<QuantitySummary
+						v-if="surface === 'mobile'"
+						:metrics="summaryMetrics"
+						:loading="busy || refreshing"
+					/>
 					<SortableDataTable
 						:surface="surface"
 						:rows="rows"
@@ -400,6 +482,16 @@ onBeforeUnmount(() => {
 		>
 			＋
 		</button>
+		<ReturnToTop
+			:target="resultsScroll"
+			:heading="surface === 'desktop' ? browseHeading : mobileBrowseHeader?.heading"
+			:hidden="Boolean(filterOpen || exportOpen)"
+			:has-floating-action="
+				surface === 'mobile' &&
+				destination === 'movements' &&
+				Boolean(operationCaps[movementKind])
+			"
+		/>
 		<ExportDialog
 			v-if="destination === 'movements'"
 			v-model:open="exportOpen"
@@ -411,6 +503,9 @@ onBeforeUnmount(() => {
 	</main>
 </template>
 <style scoped>
+.drafts-history .results-scroll {
+	padding-bottom: 82px;
+}
 .movement-card-warehouses {
 	display: grid;
 	gap: 8px;
@@ -425,5 +520,36 @@ onBeforeUnmount(() => {
 .movement-card-warehouse > small {
 	color: #6b6257;
 	font-weight: 600;
+}
+@media (max-width: 1023px) {
+	.viewport-list-root.drafts-history {
+		box-sizing: border-box;
+		display: flex;
+		height: calc(100dvh - var(--mobile-nav-height, 0px));
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.drafts-history > .list-layout {
+		min-height: 0;
+		flex: 1;
+		overflow: hidden;
+	}
+	.drafts-history .results-column {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+	}
+	.drafts-history .mobile-browse-header {
+		flex: none;
+		padding: 10px 12px 8px;
+		background: #f8f7f4;
+	}
+	.drafts-history .results-scroll {
+		min-height: 0;
+		flex: 1;
+		overflow: auto;
+		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+	}
 }
 </style>

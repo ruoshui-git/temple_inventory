@@ -17,6 +17,7 @@ import {
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { PageAction } from "../../components/pageActions";
 import { movementLabels } from "../../lib/movementLabels";
+import { movementBrowseContext } from "../../lib/browseContext";
 
 const movementPeriodLabels: Record<MovementPeriodKey, string> = {
   all: "全部时间",
@@ -70,6 +71,7 @@ export function useMovementsController() {
   const mode = computed<Mode>(() =>
     route.path.endsWith("/records") ? "records" : "items",
   );
+  const contextItems = computed(() => movementBrowseContext(route.query));
   const kinds: Kind[] = [
     "Receive",
     "Issue",
@@ -793,6 +795,7 @@ export function useMovementsController() {
   });
   return {
     route,
+    contextItems,
     router,
     surface,
     scrollResetToken,

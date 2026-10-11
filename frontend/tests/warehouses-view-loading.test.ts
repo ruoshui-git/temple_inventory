@@ -61,7 +61,12 @@ describe("WarehousesView loading state", () => {
     };
     const Host = defineComponent({
       setup() {
-        return () => h(WarehousesView, { controller: controller as never });
+        const surface = ref<"desktop" | "mobile">("mobile");
+        return () =>
+          h(WarehousesView, {
+            controller: controller as never,
+            surface: surface.value,
+          });
       },
     });
     const wrapper = mount(Host, {
@@ -73,6 +78,14 @@ describe("WarehousesView loading state", () => {
     expect(
       wrapper.find(".warehouse-data-region").attributes("inert"),
     ).toBeUndefined();
+    const dataRegion = wrapper.get(".warehouse-data-region").element;
+    Object.defineProperties(dataRegion, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, writable: true, value: 81 },
+    });
+    dataRegion.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    expect(wrapper.get(".mobile-browse-header").classes()).toContain("compact");
     controller.loading.value = true;
     await nextTick();
     expect(

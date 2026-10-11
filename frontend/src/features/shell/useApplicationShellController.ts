@@ -1,6 +1,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, type LocationQueryRaw } from "vue-router";
 import { api, request } from "../../lib/api";
+import {
+  loanBrowseContext,
+  movementBrowseContext,
+} from "../../lib/browseContext";
 
 export function useApplicationShellController() {
   type Destination = {
@@ -92,18 +96,8 @@ export function useApplicationShellController() {
     // views.  Repeated kind/warehouse/status values must survive as arrays.
     ...route.query,
   }));
-  const loanContextQuery = (target: "items" | "records"): LocationQueryRaw => {
-    const current = route.path === "/loans/records" ? "records" : "items";
-    if (current === target) return { ...route.query };
-    const {
-      status: _status,
-      outcome: _outcome,
-      sort_by: _sortBy,
-      sort_order: _sortOrder,
-      ...common
-    } = route.query;
-    return common;
-  };
+  const movementTabs = computed(() => movementBrowseContext(route.query));
+  const loanTabs = computed(() => loanBrowseContext(route.path, route.query));
 
   const inventoryContextItems = computed<ContextItem[]>(() => [
     {
@@ -128,71 +122,19 @@ export function useApplicationShellController() {
       route.path === "/movements/records" ||
       route.path === "/history"
     )
-      return [
-        {
-          key: "items",
-          label: "明细",
-          path: "/movements/items",
-          query: movementSharedQuery.value,
-        },
-        {
-          key: "records",
-          label: "记录",
-          path: "/movements/records",
-          query: movementSharedQuery.value,
-        },
-      ];
+      return movementTabs.value;
     if (
       route.path === "/loans" ||
       route.path === "/loans/items" ||
       route.path === "/loans/records"
     )
-      return [
-        {
-          key: "items",
-          label: "明细",
-          path: "/loans/items",
-          query: loanContextQuery("items"),
-        },
-        {
-          key: "records",
-          label: "记录",
-          path: "/loans/records",
-          query: loanContextQuery("records"),
-        },
-      ];
+      return loanTabs.value;
     return [];
   });
   const navigationContexts = computed<Record<string, ContextItem[]>>(() => ({
     inventory: inventoryContextItems.value,
-    movements: [
-      {
-        key: "items",
-        label: "明细",
-        path: "/movements/items",
-        query: movementSharedQuery.value,
-      },
-      {
-        key: "records",
-        label: "记录",
-        path: "/movements/records",
-        query: movementSharedQuery.value,
-      },
-    ],
-    loans: [
-      {
-        key: "items",
-        label: "明细",
-        path: "/loans/items",
-        query: loanContextQuery("items"),
-      },
-      {
-        key: "records",
-        label: "记录",
-        path: "/loans/records",
-        query: loanContextQuery("records"),
-      },
-    ],
+    movements: movementTabs.value,
+    loans: loanTabs.value,
     more: [
       { key: "more", label: "更多选项", path: "/more", query: {} },
       { key: "reports", label: "报表与导出", path: "/reports", query: {} },

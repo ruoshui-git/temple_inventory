@@ -141,35 +141,18 @@ describe("ApplicationShell navigation contract", () => {
     expect(wrapper.find(".desktop-inventory-context").exists()).toBe(false);
   });
 
-  it("uses the shared top subnav for Movement and Loans on mobile", async () => {
+  it("leaves Movement and Loans tabs to their page headers on mobile", async () => {
     shellMedia.matches = false;
     route.path = "/movements/records";
     const wrapper = mount(ApplicationShell, {
       global: { stubs: { RouterLink } },
     });
     await nextTick();
-    expect(wrapper.find(".mobile-context-nav").exists()).toBe(true);
-    expect(
-      wrapper
-        .find(".mobile-context-nav")
-        .findAll("a")
-        .map((link) => link.text()),
-    ).toEqual(["明细", "记录"]);
-    expect(
-      wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
-    ).toBe("记录");
+    expect(wrapper.find(".mobile-context-nav").exists()).toBe(false);
     route.path = "/loans/records";
     route.query = {};
     await nextTick();
-    expect(
-      wrapper
-        .find(".mobile-context-nav")
-        .findAll("a")
-        .map((link) => link.text()),
-    ).toEqual(["明细", "记录"]);
-    expect(
-      wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
-    ).toBe("记录");
+    expect(wrapper.find(".mobile-context-nav").exists()).toBe(false);
   });
 
   it("preserves common Loans filters and resets mode-specific state when switching", async () => {
@@ -222,22 +205,6 @@ describe("ApplicationShell navigation contract", () => {
       },
     );
     wrapper.unmount();
-
-    shellMedia.matches = false;
-    const mobile = mount(ApplicationShell, {
-      global: { stubs: { RouterLink } },
-    });
-    await nextTick();
-    const mobileLinks = mobile.findAll(".mobile-context-nav a");
-    expect(JSON.parse(mobileLinks[0].attributes("data-query")!)).toEqual({
-      search: "借用方",
-      item_groups: ["器材"],
-    });
-    expect(JSON.parse(mobileLinks[1].attributes("data-query")!)).toMatchObject({
-      status: "settled",
-      sort_by: "loan_date",
-    });
-    mobile.unmount();
   });
 
   it("normalizes default movement context state", async () => {

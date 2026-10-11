@@ -6,8 +6,9 @@ const props = withDefaults(
 	defineProps<{ actions: PageAction[]; label?: string; disabled?: boolean }>(),
 	{ label: "新建操作" },
 );
-const emit = defineEmits<{ select: [kind: string] }>();
+const emit = defineEmits<{ select: [kind: string]; "update:open": [open: boolean] }>();
 const open = ref(false);
+watch(open, (value) => emit("update:open", value));
 const trigger = ref<HTMLButtonElement>();
 const root = ref<HTMLElement>();
 const triggerDisabled = computed(

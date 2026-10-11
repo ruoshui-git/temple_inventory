@@ -2,10 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import "./expiry-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import MobileExpiryResults from "../../components/MobileExpiryResults.vue";
-import MobileInventorySummary from "../../components/MobileInventorySummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { type ExpiryController } from "./useExpiryController";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
@@ -14,6 +14,9 @@ import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import ExpiryCardGrid from "../../components/ExpiryCardGrid.vue";
 import MobileSubnav from "../../components/MobileSubnav.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
+import ColumnSummaryTrigger from "../../components/ColumnSummaryTrigger.vue";
 
 const props = defineProps<{ controller: ExpiryController }>();
 const {
@@ -32,11 +35,8 @@ const {
 	customError,
 	filterOpen,
 	compact,
-	expandedSummary,
 	scanner,
 	pageActions,
-	expirySummary,
-	mobileExpiryMetrics,
 	filters,
 	sortColumns,
 	columnSummaries,
@@ -49,7 +49,6 @@ const {
 	clearAll,
 	operation,
 	openItem,
-	setQuickExpiry,
 	onResultsScroll,
 	load,
 	view,
@@ -82,6 +81,9 @@ const subnavItems = computed(() => [
 	},
 ]);
 const mobileResultsScroll = ref<HTMLElement>();
+useCompactBrowse(mobileResultsScroll, compact);
+const browseHeader = ref<{ heading?: HTMLElement }>();
+const floatingActionsOpen = ref(false);
 const mobileSentinel = ref<HTMLElement>();
 const restorationKey = "temple_inventory.scroll.expiry";
 const infiniteScroll = useInfiniteScroll({
@@ -93,8 +95,10 @@ onMounted(async () => {
 	await nextTick();
 	infiniteScroll.connect(mobileResultsScroll.value, mobileSentinel.value);
 	const saved = Number(sessionStorage.getItem(restorationKey) || 0);
-	mobileResultsScroll.value?.scrollTo?.({ top: saved });
-	compact.value = saved > 80;
+	if (mobileResultsScroll.value) {
+		mobileResultsScroll.value.scrollTop = saved;
+		compact.value = mobileResultsScroll.value.scrollTop > 80;
+	}
 });
 watch(scrollResetToken, async () => {
 	await nextTick();
@@ -125,117 +129,87 @@ onBeforeUnmount(() => {
 					expiry-primary
 				/>
 			</ResponsiveFilterPanel>
-			<header class="mobile-browse-header">
-				<div class="mobile-title-row">
-					<div>
-						<h1>效期批次</h1>
-					</div>
-				</div>
-				<MobileSubnav
-					:items="subnavItems"
-					active-key="expiry"
-					:compact="compact"
-					aria-label="库存页面"
-				/>
-				<div class="mobile-search-actions" aria-label="浏览工具">
-					<b class="compact-page-title">效期批次</b>
-					<label
-						><span aria-hidden="true">⌕</span
-						><input
-							v-model="filters.search"
-							type="search"
-							placeholder="搜索物品或批次"
-							aria-label="搜索物品或批次"
-					/></label>
-					<button
-						type="button"
-						class="mobile-scan"
-						aria-label="扫码"
-						@click="scanner = true"
-					>
-						<InventoryIcon name="scan" /><span>扫码</span>
-					</button>
-					<button
-						type="button"
-						class="mobile-filter"
-						:aria-label="`筛选，${activeCount} 项已启用`"
-						@click="openFilters($event)"
-					>
-						<InventoryIcon name="filter" /><span>筛选</span
-						><b v-if="activeCount">{{ activeCount }}</b>
-					</button>
-				</div>
-				<MobileInventorySummary
-					:metrics="mobileExpiryMetrics"
-					:expanded-key="expandedSummary"
-					@select="expandedSummary = expandedSummary === $event ? '' : $event"
-				/>
-				<div class="expiry-quick-filters" role="group" aria-label="效期状态">
-					<button
-						type="button"
-						:aria-pressed="filters.expiry_window === 'all'"
-						@click="setQuickExpiry('all')"
-					>
-						全部 <span>{{ facetCounts.expiry?.all || 0 }}</span>
-					</button>
-					<button
-						type="button"
-						:aria-pressed="
-							filters.expiry_window === 'remaining_within' &&
-							filters.expiry_days === '30'
-						"
-						@click="setQuickExpiry('soon')"
-					>
-						即将到期 <span>{{ expirySummary.expiring_soon }}</span>
-					</button>
-					<button
-						type="button"
-						:aria-pressed="filters.expiry_window === 'overdue'"
-						@click="setQuickExpiry('expired')"
-					>
-						已过期 <span>{{ expirySummary.expired }}</span>
-					</button>
-				</div>
-				<div class="browse-result-meta">
-					<ActiveFilterChips
-						:chips="chips"
-						:show-clear="false"
-						@remove="removeChip"
-						@clear="clearAll"
+			<MobileBrowseHeader
+				ref="browseHeader"
+				title="效期批次"
+				:compact="compact"
+				destination-key="expiry"
+			>
+				<template #tabs>
+					<MobileSubnav
+						:items="subnavItems"
+						active-key="expiry"
+						:compact="compact"
+						aria-label="库存页面"
 					/>
-					<ResultCountStrip
-						:loaded="rows.length"
-						:filtered="total"
-						:overall="overallTotal"
-						:updating="refreshing"
-					/>
-				</div>
-				<div class="mobile-result-controls">
-					<button
-						type="button"
-						class="mobile-summary-trigger"
-						@click="summaryOpen = true"
-					>
-						<InventoryIcon name="table" /> Σ 列汇总
-					</button>
-					<div role="group" aria-label="效期显示方式">
+				</template>
+				<template #search-actions>
+					<div class="mobile-search-actions" aria-label="浏览工具">
+						<label
+							><span aria-hidden="true">⌕</span
+							><input
+								v-model="filters.search"
+								type="search"
+								placeholder="搜索物品或批次"
+								aria-label="搜索物品或批次"
+						/></label>
 						<button
 							type="button"
-							:aria-pressed="view === 'card'"
-							@click="setView('card')"
+							class="mobile-scan"
+							aria-label="扫码"
+							@click="scanner = true"
 						>
-							<InventoryIcon name="card" />
+							<InventoryIcon name="scan" /><span>扫码</span>
 						</button>
 						<button
 							type="button"
-							:aria-pressed="view === 'table'"
-							@click="setView('table')"
+							class="mobile-filter"
+							:aria-label="`筛选，${activeCount} 项已启用`"
+							@click="openFilters($event)"
 						>
-							<InventoryIcon name="table" />
+							<InventoryIcon name="filter" /><span>筛选</span
+							><b v-if="activeCount">{{ activeCount }}</b>
 						</button>
 					</div>
-				</div>
-			</header>
+				</template>
+				<template #secondary>
+					<div class="browse-result-meta">
+						<ActiveFilterChips
+							:chips="chips"
+							:show-clear="false"
+							@remove="removeChip"
+							@clear="clearAll"
+						/>
+						<ResultCountStrip
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="overallTotal"
+							:updating="refreshing"
+						/>
+					</div>
+					<div class="mobile-result-controls">
+						<div role="group" aria-label="效期显示方式">
+							<button
+								type="button"
+								aria-label="列表"
+								:aria-pressed="view === 'table'"
+								@click="setView('table')"
+							>
+								<InventoryIcon name="table" />
+							</button>
+							<button
+								type="button"
+								aria-label="卡片"
+								:aria-pressed="view === 'card'"
+								@click="setView('card')"
+							>
+								<InventoryIcon name="card" />
+							</button>
+						</div>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
+					</div>
+				</template>
+			</MobileBrowseHeader>
 			<section
 				ref="mobileResultsScroll"
 				class="mobile-results"
@@ -272,6 +246,14 @@ onBeforeUnmount(() => {
 			:disabled="mobileActionsDisabled"
 			label="新增效期操作"
 			@select="(kind) => void operation(kind)"
+			@update:open="floatingActionsOpen = $event"
+		/>
+		<ReturnToTop
+			:target="mobileResultsScroll"
+			:heading="browseHeader?.heading"
+			:hidden="Boolean(filterOpen || scanner || summaryOpen)"
+			:floating-action-open="floatingActionsOpen"
+			:has-floating-action="mobileActions.length > 0"
 		/>
 		<ColumnSummaryDialog
 			v-model:open="summaryOpen"
@@ -447,42 +429,13 @@ onBeforeUnmount(() => {
 		font-size: 13px;
 		font-weight: 600;
 	}
-	.expiry-quick-filters {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 5px;
-	}
-	.expiry-quick-filters button {
-		min-height: 36px;
-		padding: 4px;
-		border: 1px solid transparent;
-		border-radius: 7px;
-		background: #efede8;
-		color: #6d6c69;
-		font-size: 12px;
-	}
-	.expiry-quick-filters button[aria-pressed="true"] {
-		border-color: #dda56d;
-		background: #fff8f1;
-		color: #a64f19;
-		font-weight: 700;
-	}
-	.expiry-quick-filters span {
-		margin-left: 2px;
-		font-size: 10px;
-	}
 	.mobile-results {
 		min-height: 0;
 		flex: 1;
 		overflow-x: hidden;
 		overflow-y: auto;
-		padding: 4px 8px 16px;
+		padding: 4px 8px calc(var(--mobile-nav-height, 0px) + 105px);
 		background: #f8f7f4;
-	}
-	.mobile-expiry-page.compact .mobile-title-row,
-	.mobile-expiry-page.compact :deep(.mobile-summary),
-	.mobile-expiry-page.compact .expiry-quick-filters {
-		display: none;
 	}
 	.mobile-expiry-page.compact .mobile-browse-header {
 		gap: 5px;
@@ -494,30 +447,10 @@ onBeforeUnmount(() => {
 	.mobile-expiry-page.compact .mobile-search-actions > button span {
 		display: none;
 	}
-	.mobile-expiry-page.compact .compact-page-title {
-		display: block;
-	}
 	.mobile-expiry-page.compact .mobile-subnav {
 		min-height: 40px;
 		gap: 2px;
 		padding: 2px;
-	}
-	.mobile-expiry-page.compact .mobile-subnav a {
-		min-height: 36px;
-		padding: 4px 7px;
-		font-size: 11px;
-	}
-	.mobile-summary-trigger {
-		display: inline-flex;
-		min-height: 44px;
-		align-items: center;
-		gap: 4px;
-		padding: 4px 8px;
-		border: 1px solid #e2d8c9;
-		border-radius: 7px;
-		background: #fff;
-		color: #80572f;
-		font-size: 11px;
 	}
 	.mobile-result-controls > div {
 		display: flex;

@@ -4,6 +4,7 @@ import { useResponsiveLayout, type ResponsiveSurface } from "../composables/useR
 import SortableDataTableDesktopRenderer from "./SortableDataTableDesktopRenderer.vue";
 import SortableDataTableMobileRenderer from "./SortableDataTableMobileRenderer.vue";
 import ColumnSummaryDialog, { type ColumnSummary } from "./ColumnSummaryDialog.vue";
+import ColumnSummaryTrigger from "./ColumnSummaryTrigger.vue";
 
 export type SortOrder = "asc" | "desc";
 export interface DataTableColumn {
@@ -69,9 +70,7 @@ const resolvedSurface = computed<ResponsiveSurface>(
 		:aria-busy="loading || loadingMore"
 	>
 		<div v-if="showSummary" class="sortable-data-table-toolbar">
-			<button type="button" class="column-summary-trigger" @click="summaryOpen = true">
-				Σ <span>列汇总</span>
-			</button>
+			<ColumnSummaryTrigger @click="summaryOpen = true" />
 		</div>
 		<ColumnSummaryDialog
 			v-model:open="summaryOpen"
@@ -134,27 +133,5 @@ const resolvedSurface = computed<ResponsiveSurface>(
 	justify-content: flex-end;
 	min-height: 0;
 	margin: 0 0 6px;
-}
-.column-summary-trigger {
-	min-height: 36px;
-	padding: 6px 10px;
-	border: 1px solid #ded6ca;
-	border-radius: 7px;
-	background: #fff;
-	color: #634d35;
-	font-weight: 650;
-}
-@media (max-width: 1023px) {
-	.column-summary-trigger {
-		width: 38px;
-		padding: 6px 0;
-	}
-	.column-summary-trigger span {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-	}
 }
 </style>

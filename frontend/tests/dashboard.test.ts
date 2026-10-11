@@ -226,6 +226,72 @@ describe("dashboard", () => {
     expect(content.scrollTop).toBe(240);
   });
 
+  it("rebinds Dashboard return-to-top between desktop and mobile scroll roots", async () => {
+    const state = controller("desktop");
+    const shellContent = document.createElement("main");
+    shellContent.className = "shell-content";
+    document.body.appendChild(shellContent);
+    const wrapper = mount(DashboardView, {
+      props: { controller: state as any },
+      global: globals,
+      attachTo: shellContent,
+    });
+    const dashboardContent = wrapper.get(".dashboard-content")
+      .element as HTMLElement;
+    const setScrollState = (element: HTMLElement, scrollTop: number) => {
+      Object.defineProperties(element, {
+        clientHeight: { configurable: true, value: 100 },
+        scrollTop: { configurable: true, writable: true, value: scrollTop },
+      });
+      element.scrollTo = vi.fn(({ top = 0 }: ScrollToOptions) => {
+        element.scrollTop = Number(top);
+        element.dispatchEvent(new Event("scroll"));
+      });
+    };
+    setScrollState(dashboardContent, 201);
+    dashboardContent.dispatchEvent(new Event("scroll"));
+    await wrapper.vm.$nextTick();
+    const heading = wrapper.get(".dashboard-header h1").element;
+    const focus = vi.spyOn(heading, "focus");
+    expect(wrapper.get(".return-to-top").attributes("aria-label")).toBe(
+      "返回顶部",
+    );
+    expect(wrapper.get(".return-to-top").attributes("title")).toBe("返回顶部");
+    state.desktopFilterOpen.value = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".return-to-top").exists()).toBe(true);
+    await wrapper.get(".return-to-top").trigger("click");
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    await wrapper.vm.$nextTick();
+    expect(dashboardContent.scrollTo).toHaveBeenCalled();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+
+    state.surface.value = "mobile";
+    await wrapper.vm.$nextTick();
+    setScrollState(shellContent, 201);
+    shellContent.dispatchEvent(new Event("scroll"));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".return-to-top").exists()).toBe(true);
+    state.filterOpen.value = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".return-to-top").exists()).toBe(false);
+    state.filterOpen.value = false;
+    await wrapper.vm.$nextTick();
+    await wrapper.get(".return-to-top").trigger("click");
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    await wrapper.vm.$nextTick();
+    expect(shellContent.scrollTo).toHaveBeenCalled();
+
+    state.surface.value = "desktop";
+    await wrapper.vm.$nextTick();
+    setScrollState(dashboardContent, 201);
+    dashboardContent.dispatchEvent(new Event("scroll"));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".return-to-top").exists()).toBe(true);
+    wrapper.unmount();
+    shellContent.remove();
+  });
+
   it("renders canonical active filter chips in the routed dashboard consumer", async () => {
     const state = controller();
     state.filters.value = {

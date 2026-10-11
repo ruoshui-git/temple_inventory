@@ -27,12 +27,17 @@ vi.mock("../src/lib/api", async () => {
 });
 const globals = {
   stubs: {
-    RouterLink: defineComponent({ template: "<a><slot /></a>" }),
+    RouterLink: defineComponent({
+      props: ["to"],
+      template: '<a :data-to="JSON.stringify(to)"><slot /></a>',
+    }),
   },
 };
 
 describe("compact desktop filter rails", () => {
   beforeEach(() => {
+    route.path = "/drafts";
+    route.query = {};
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: () => ({
@@ -71,7 +76,43 @@ describe("compact desktop filter rails", () => {
   it("collapses and opens Loans desktop filters", async () => {
     await assertToggle(mount(Loans, { global: globals }));
   });
+  it("keeps loan tab queries reactive and clears only mode-specific filters", async () => {
+    route.path = "/loans/items";
+    route.query = { search: "first" };
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    route.query = {
+      search: "updated",
+      status: "settled",
+      outcome: "damaged",
+      sort_by: "loan_date",
+      sort_order: "desc",
+      warehouse: "Room A",
+    };
+    await nextTick();
+
+    const tabs = wrapper.findAll(".mobile-subnav a");
+    const itemQuery = JSON.parse(tabs[0].attributes("data-to")!).query;
+    const recordQuery = JSON.parse(tabs[1].attributes("data-to")!).query;
+    expect(itemQuery).toMatchObject({
+      search: "updated",
+      status: "settled",
+      outcome: "damaged",
+      warehouse: "Room A",
+    });
+    expect(recordQuery).toEqual({ search: "updated", warehouse: "Room A" });
+    wrapper.unmount();
+  });
   it("renders loan quantity columns from per-UOM row values", async () => {
+    route.path = "/loans/records";
     state.api.mockImplementation(async (method: string) => {
       if (method === "bootstrap")
         return {
@@ -79,7 +120,7 @@ describe("compact desktop filter rails", () => {
           item_groups: [],
           stock_operation_capabilities: {},
         };
-      if (method === "loan_items")
+      if (method === "loan_records")
         return {
           results: [
             {
@@ -105,6 +146,7 @@ describe("compact desktop filter rails", () => {
     });
     const wrapper = mount(Loans, { global: globals });
     await flushPromises();
+    await nextTick();
     expect(wrapper.text()).toContain("借出数量");
     expect(wrapper.text()).toContain("2 Nos");
     expect(wrapper.text()).toContain("1 Nos");

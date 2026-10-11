@@ -303,6 +303,15 @@ button:disabled {
 	.action-fab{right:18px;bottom:calc(var(--mobile-nav-height) + 16px)}
 }
 .shell-content:has(> .movement-ledger){padding-bottom:0;overflow:hidden}
+@media(min-width:1024px){.shell-content:has(> .warehouse-page){padding-bottom:82px}}
+@media(max-width:1023px){
+	.shell-content:has(> .pending-page),
+	.shell-content:has(> .drafts-history),
+	.shell-content:has(> .warehouse-page),
+	.shell-content:has(> .movement-overview.overview-mobile),
+	.shell-content:has(> .loan-browse){padding-bottom:0;overflow:hidden}
+}
+@media(max-width:1023px){.shell-content:has(> .dashboard-page){box-sizing:border-box;height:100dvh;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(var(--mobile-nav-height) + 82px)}}
 
 .browse-result-meta {
 	display: flex;

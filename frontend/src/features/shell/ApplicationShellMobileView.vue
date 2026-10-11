@@ -80,7 +80,14 @@ onBeforeUnmount(() => {
 
 <template>
 	<MobileSubnav
-		v-if="contextItems.length && path !== '/' && path !== '/stock' && path !== '/expiry'"
+		v-if="
+			contextItems.length &&
+			path !== '/' &&
+			path !== '/stock' &&
+			path !== '/expiry' &&
+			!path.startsWith('/movements') &&
+			!path.startsWith('/loans')
+		"
 		ref="mobileContextNav"
 		:items="contextItems"
 		:active-key="contextKey"

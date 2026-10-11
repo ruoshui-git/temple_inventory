@@ -760,6 +760,21 @@ class WorkspaceTests(unittest.TestCase):
 		rows.extend(
 			[
 				frappe._dict(
+					loan="loan-2",
+					loan_item="loan-2-older-item",
+					item_code=self.item,
+					loaned=1,
+					returned=1,
+					damaged=0,
+					lost=0,
+					outstanding=0,
+					borrower="借用方 2",
+					activity="活动",
+					loan_date="2025-12-30",
+					uom="Nos",
+					original_warehouse=self.a,
+				),
+				frappe._dict(
 					loan="loan-4",
 					loan_item="loan-4-item",
 					item_code=self.item,
@@ -791,7 +806,9 @@ class WorkspaceTests(unittest.TestCase):
 				),
 			]
 		)
-		by_loan = {row.loan: [row] for row in rows}
+		by_loan = {}
+		for row in rows:
+			by_loan.setdefault(row.loan, []).append(row)
 
 		def status_for(row):
 			if row.outstanding <= 0:
@@ -836,6 +853,21 @@ class WorkspaceTests(unittest.TestCase):
 			outstanding = inventory_service.loan_items(filters={"status": "outstanding"})
 			settled = inventory_service.loan_records(filters={"status": "settled"})
 			all_records = inventory_service.loan_records(page_length="1")
+			period_items = inventory_service.loan_items(
+				filters={"period_key": "custom", "date_from": "2026-01-02", "date_to": "2026-01-03"}
+			)
+			period_page = inventory_service.loan_items(
+				filters={"period_key": "custom", "date_from": "2026-01-02", "date_to": "2026-01-03"},
+				start=1,
+				page_length=1,
+			)
+			period_records = inventory_service.loan_records(
+				filters={"period_key": "custom", "date_from": "2026-01-02", "date_to": "2026-01-03"}
+			)
+			legacy_day = inventory_service.loan_records(filters={"loan_date": "2026-01-02"})
+			all_wins = inventory_service.loan_records(
+				filters={"period_key": "all", "loan_date": "2026-01-02"}
+			)
 			full_dashboard = inventory_service.dashboard_summary(
 				warehouses=[self.a], item_groups=[], period_key="all"
 			)
@@ -861,6 +893,33 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual(outstanding["quantity_totals"]["outstanding_qty"], expected_totals)
 		self.assertEqual(all_records["quantity_totals"]["outstanding_qty"], expected_totals)
 		self.assertEqual(all_records["total"], 4)
+		self.assertEqual(period_items["total"], 2)
+		self.assertEqual(period_page["total"], 2)
+		self.assertEqual(period_page["start"], 1)
+		self.assertEqual(len(period_page["results"]), 1)
+		self.assertEqual(
+			period_items["resolved_period"],
+			{"key": "custom", "date_from": "2026-01-02", "date_to": "2026-01-03"},
+		)
+		self.assertEqual(period_records["total"], 2)
+		self.assertEqual(
+			period_items["quantity_totals"]["outstanding_qty"], [{"uom": "Nos", "qty": 7.0}]
+		)
+		self.assertEqual(period_items["column_summaries"]["line_count"]["value"], 2)
+		loan_two = next(
+			row for row in period_records["results"] if row["record_name"] == "loan-2"
+		)
+		self.assertEqual(loan_two["line_count"], 2)
+		self.assertEqual(
+			{line["loan_date"] for line in loan_two["items"]},
+			{"2026-01-02", "2025-12-30"},
+		)
+		self.assertEqual(legacy_day["total"], 1)
+		self.assertEqual(
+			legacy_day["resolved_period"],
+			{"key": "custom", "date_from": "2026-01-02", "date_to": "2026-01-02"},
+		)
+		self.assertEqual(all_wins["total"], 4)
 		self.assertEqual(all_records["column_summaries"]["outstanding_lines"], {"type": "number", "value": 3})
 		self.assertEqual(full_dashboard["loans"], scoped_dashboard["loans"])
 		self.assertEqual(
@@ -1019,6 +1078,14 @@ class WorkspaceTests(unittest.TestCase):
 			filtered_records = inventory_service.loan_item_group_records(
 				self.item, "returned", filters={"activity": "ACT-A"}, page_length=10
 			)
+			period_groups = inventory_service.loan_item_groups(
+				filters={"period_key": "custom", "date_from": "2026-09-01", "date_to": "2026-10-01"}
+			)
+			period_breakdown = inventory_service.loan_item_group_records(
+				self.item,
+				"returned",
+				filters={"period_key": "custom", "date_from": "2026-10-01", "date_to": "2026-10-01"},
+			)
 
 		self.assertEqual(all_groups["total"], 4)
 		self.assertEqual(all_groups["overall_total"], 4)
@@ -1043,6 +1110,31 @@ class WorkspaceTests(unittest.TestCase):
 		self.assertEqual({line["activity"] for line in partial["locations"]}, {"ACT-A", "ACT-B"})
 		self.assertEqual(filtered_records["total"], 1)
 		self.assertEqual(filtered_records["results"][0]["quantity"], 4)
+		self.assertEqual(
+			{row["outcome"] for row in period_groups["results"]},
+			{"outstanding", "returned", "damaged"},
+		)
+		self.assertEqual(period_groups["resolved_period"]["date_to"], "2026-10-01")
+		self.assertEqual(period_groups["column_summaries"]["quantity"]["unitless_total"], 13)
+		self.assertEqual(
+			period_groups["quantity_totals"]["quantity"], [{"uom": "Nos", "qty": 13.0}]
+		)
+		self.assertEqual(period_breakdown["total"], 1)
+		self.assertEqual(period_breakdown["results"][0]["quantity"], 6)
+
+	def test_loan_date_range_validation_and_server_period_resolution(self):
+		with patch.object(inventory_service, "nowdate", return_value="2026-10-11"):
+			filters = inventory_service._loan_browse_filters({"period_key": "last_7_days"})
+			self.assertEqual(filters["date_from"], "2026-10-05")
+			self.assertEqual(filters["date_to"], "2026-10-11")
+			self.assertEqual(filters["resolved_period"]["key"], "last_7_days")
+		for invalid in (
+			{"period_key": "custom", "date_from": "2026-02-30", "date_to": "2026-03-01"},
+			{"period_key": "custom", "date_from": "2026-03-02", "date_to": "2026-03-01"},
+			{"date_from": "2026-03-01"},
+		):
+			with self.assertRaises(frappe.ValidationError):
+				inventory_service._loan_browse_filters(invalid)
 
 	def test_physical_tree_keeps_an_empty_group_for_management(self):
 		settings = SimpleNamespace(root_warehouse="root", physical_root_warehouse="physical", leased_warehouse="loan")

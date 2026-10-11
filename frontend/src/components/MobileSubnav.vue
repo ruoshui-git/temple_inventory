@@ -120,6 +120,7 @@ watch(
 	text-align: center;
 	text-decoration: none;
 	white-space: nowrap;
+	font-size: 14px;
 }
 .mobile-subnav a[aria-current="page"] {
 	background: #fff;
@@ -138,7 +139,7 @@ watch(
 .mobile-subnav.compact a {
 	min-height: 36px;
 	padding: 4px 7px;
-	font-size: 11px;
+	font-size: 14px;
 }
 @media (min-width: 1024px) {
 	.mobile-subnav {

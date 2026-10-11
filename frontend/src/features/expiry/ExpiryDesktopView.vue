@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import "./expiry-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import ItemImagePreview from "../../components/ItemImagePreview.vue";
@@ -12,9 +13,11 @@ import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import ExpiryCardGrid from "../../components/ExpiryCardGrid.vue";
 import UiButton from "../../components/UiButton.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import ColumnSummaryTrigger from "../../components/ColumnSummaryTrigger.vue";
 import DetailPopover from "../../components/DetailPopover.vue";
 import { type ExpiryController } from "./useExpiryController";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
 
 const props = defineProps<{ controller: ExpiryController }>();
 const {
@@ -59,6 +62,8 @@ const surface: "desktop" | "mobile" = "desktop";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const resultsScroll = ref<HTMLElement>();
+useCompactBrowse(resultsScroll, compact);
+const browseHeading = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const restorationKey = "temple_inventory.scroll.expiry";
 const infiniteScroll = useInfiniteScroll({
@@ -71,7 +76,7 @@ onMounted(async () => {
 	infiniteScroll.connect(resultsScroll.value, sentinel.value);
 	const saved = Number(sessionStorage.getItem(restorationKey) || 0);
 	resultsScroll.value?.scrollTo?.({ top: saved });
-	compact.value = saved > 80;
+	compact.value = (resultsScroll.value?.scrollTop || 0) > 80;
 });
 watch(scrollResetToken, async () => {
 	await nextTick();
@@ -107,9 +112,9 @@ onBeforeUnmount(() => {
 				<div class="results-chrome">
 					<div class="inventory-heading">
 						<div class="inventory-title">
-							<h1>效期批次</h1>
+							<h1 ref="browseHeading" tabindex="-1">效期批次</h1>
 						</div>
-						<div class="inventory-heading-actions">
+						<div class="inventory-heading-actions" :inert="compact || undefined">
 							<UiButton
 								v-for="action in pageActions"
 								:key="action.kind"
@@ -150,15 +155,7 @@ onBeforeUnmount(() => {
 								><b v-if="activeCount">{{ activeCount }}</b></span
 							>
 						</UiButton>
-						<UiButton
-							variant="secondary"
-							size="compact"
-							icon="table"
-							class="toolbar-action"
-							@click="summaryOpen = true"
-						>
-							列汇总
-						</UiButton>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
 						<div
 							class="inventory-view-controls"
 							role="group"
@@ -307,6 +304,11 @@ onBeforeUnmount(() => {
 				:columns="sortColumns"
 				:summaries="columnSummaries"
 				:loading="busy || refreshing"
+			/>
+			<ReturnToTop
+				:target="resultsScroll"
+				:heading="browseHeading"
+				:hidden="Boolean(filterOpen || exportOpen || summaryOpen)"
 			/>
 		</div>
 	</main>

@@ -113,7 +113,8 @@ describe("item creation entry points", () => {
       .setValue("二号");
     await flushPromises();
     expect(wrapper.find(".compact-selection").exists()).toBe(true);
-    expect(wrapper.find(".item-picker-refresh").exists()).toBe(true);
+    expect(wrapper.find(".item-picker-initial-loading").exists()).toBe(false);
+    expect(wrapper.text()).toContain("一号物品");
     expect(wrapper.find(".item-picker-results").attributes("aria-busy")).toBe(
       "true",
     );

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from "vue";
+import InventoryIcon from "./InventoryIcon.vue";
 export type MovementPeriodKey =
 	| "all"
 	| "today"
@@ -21,6 +22,7 @@ const props = withDefaults(
 		showResolved?: boolean;
 		variant?: "legacy" | "ledger";
 		compact?: boolean;
+		ariaLabel?: string;
 	}>(),
 	{
 		dateFrom: "",
@@ -30,6 +32,7 @@ const props = withDefaults(
 		showResolved: true,
 		variant: "legacy",
 		compact: false,
+		ariaLabel: "货物流动时间范围",
 	},
 );
 const emit = defineEmits<{
@@ -37,7 +40,7 @@ const emit = defineEmits<{
 	"update:dateFrom": [value: string];
 	"update:dateTo": [value: string];
 }>();
-const more = ref<HTMLElement>();
+const controlRoot = ref<HTMLElement>();
 const moreTrigger = ref<HTMLElement>();
 const portalMenu = ref<HTMLElement>();
 const customTrigger = ref<HTMLElement>();
@@ -46,6 +49,9 @@ const moreOpen = ref(false);
 const customOpen = ref(false);
 const menuStyle = ref<Record<string, string>>({});
 const customMenuStyle = ref<Record<string, string>>({});
+const controlId = `movement-period-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+const moreMenuId = `${controlId}-more-menu`;
+const customMenuId = `${controlId}-custom-menu`;
 const rolling = [
 	{ key: "last_7_days", label: "近7天" },
 	{ key: "last_30_days", label: "近30天" },
@@ -156,16 +162,12 @@ function toggleMore() {
 function onDocumentPointer(event: PointerEvent) {
 	if (!(event.target instanceof Node)) return;
 	if (moreOpen.value) {
-		if (event.target instanceof Element && event.target.closest("#movement-period-more-menu"))
+		if (controlRoot.value?.contains(event.target) || portalMenu.value?.contains(event.target))
 			return;
-		if (more.value?.contains(event.target) || portalMenu.value?.contains(event.target)) return;
 		closeMore();
 	}
 	if (customOpen.value) {
-		if (
-			customMenu.value?.contains(event.target) ||
-			customTrigger.value?.contains(event.target)
-		)
+		if (controlRoot.value?.contains(event.target) || customMenu.value?.contains(event.target))
 			return;
 		closeCustom();
 	}
@@ -178,7 +180,7 @@ function onFocusout(event: FocusEvent) {
 	}
 	if (
 		moreOpen.value &&
-		!more.value?.contains(event.relatedTarget) &&
+		!moreTrigger.value?.contains(event.relatedTarget) &&
 		!portalMenu.value?.contains(event.relatedTarget)
 	)
 		closeMore();
@@ -220,9 +222,10 @@ onBeforeUnmount(() => {
 </script>
 <template>
 	<section
+		ref="controlRoot"
 		class="movement-period"
 		:class="{ 'movement-period-ledger': variant === 'ledger' }"
-		aria-label="货物流动时间范围"
+		:aria-label="ariaLabel"
 		@focusout="onFocusout"
 	>
 		<div
@@ -292,27 +295,25 @@ onBeforeUnmount(() => {
 			<button type="button" :aria-pressed="periodKey === 'custom'" @click="openCustom">
 				自定义
 			</button>
-			<details
-				ref="more"
-				class="period-more"
-				:open="moreOpen"
+			<button
+				ref="moreTrigger"
+				type="button"
+				class="period-more-trigger"
+				:class="{ active: rolling.some((choice) => choice.key === periodKey) }"
 				aria-haspopup="menu"
+				:aria-pressed="rolling.some((choice) => choice.key === periodKey)"
 				:aria-expanded="moreOpen"
+				:aria-controls="moreMenuId"
+				@click="toggleMore"
 			>
-				<summary
-					ref="moreTrigger"
-					tabindex="0"
-					aria-controls="movement-period-more-menu"
-					@click.prevent="toggleMore"
-				>
-					{{ rolling.find((choice) => choice.key === periodKey)?.label || "更多" }} ▾
-				</summary>
-			</details>
+				{{ rolling.find((choice) => choice.key === periodKey)?.label || "更多" }}
+				<InventoryIcon name="chevron-down" :class="{ expanded: moreOpen }" />
+			</button>
 			<Teleport to="body">
 				<div
 					v-if="moreOpen"
 					ref="portalMenu"
-					id="movement-period-more-menu"
+					:id="moreMenuId"
 					class="period-more-menu-portal"
 					role="menu"
 					aria-label="滚动时间范围"
@@ -332,28 +333,26 @@ onBeforeUnmount(() => {
 			</Teleport>
 		</div>
 		<div v-else-if="variant === 'ledger' && compact" class="period-compact">
-			<details
-				ref="more"
-				class="period-more"
-				:open="moreOpen"
+			<button
+				ref="moreTrigger"
+				type="button"
+				class="period-more-trigger"
+				:class="{ active: rolling.some((choice) => choice.key === periodKey) }"
 				aria-haspopup="menu"
+				:aria-pressed="rolling.some((choice) => choice.key === periodKey)"
 				:aria-expanded="moreOpen"
+				:aria-controls="moreMenuId"
+				@click="toggleMore"
 			>
-				<summary
-					ref="moreTrigger"
-					tabindex="0"
-					aria-controls="movement-period-more-menu"
-					@click.prevent="toggleMore"
-				>
-					{{ selectedLabel }} ▾
-				</summary>
-			</details>
+				{{ selectedLabel }}
+				<InventoryIcon name="chevron-down" :class="{ expanded: moreOpen }" />
+			</button>
 			<button
 				v-if="mode === 'custom'"
 				ref="customTrigger"
 				type="button"
 				class="period-compact-resolved custom-period-trigger"
-				aria-controls="movement-period-custom-menu"
+				:aria-controls="customMenuId"
 				:aria-expanded="customOpen"
 				:aria-label="`自定义日期：${resolvedText}`"
 				@click="toggleCustom"
@@ -365,7 +364,7 @@ onBeforeUnmount(() => {
 				<div
 					v-if="moreOpen"
 					ref="portalMenu"
-					id="movement-period-more-menu"
+					:id="moreMenuId"
 					class="period-more-menu-portal period-compact-menu"
 					role="menu"
 					aria-label="时间范围"
@@ -419,7 +418,7 @@ onBeforeUnmount(() => {
 			ref="customTrigger"
 			type="button"
 			class="resolved-period custom-period-trigger"
-			aria-controls="movement-period-custom-menu"
+			:aria-controls="customMenuId"
 			:aria-expanded="customOpen"
 			:aria-label="`自定义日期：${resolvedText}`"
 			@click="toggleCustom"
@@ -435,7 +434,7 @@ onBeforeUnmount(() => {
 		<Teleport to="body">
 			<div
 				v-if="customOpen"
-				id="movement-period-custom-menu"
+				:id="customMenuId"
 				ref="customMenu"
 				class="custom-period-menu-portal"
 				role="dialog"
@@ -475,13 +474,24 @@ onBeforeUnmount(() => {
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px;
-	padding: 0;
+	padding: 8px;
+	border: 1px solid #e5dfd5;
+	border-radius: 9px;
+	background: #fffdf9;
 }
 .movement-period-ledger .period-choices {
-	flex: none;
+	flex: 1 1 100%;
+	min-width: 0;
+	max-width: 100%;
+	flex-wrap: wrap;
+	overflow: visible;
 }
 .movement-period-ledger .resolved-period {
-	flex: none;
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 100%;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 .period-compact {
 	display: flex;
@@ -489,9 +499,9 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 6px;
 }
-.period-compact .period-more summary {
-	min-height: 30px;
-	padding: 5px 8px;
+.period-compact .period-more-trigger {
+	min-height: 40px;
+	padding: 7px 8px;
 	border: 1px solid #dfd4c4;
 	border-radius: 6px;
 	background: #fff;
@@ -527,7 +537,7 @@ onBeforeUnmount(() => {
 .period-mode button,
 .period-choices button {
 	flex: none;
-	min-height: 38px;
+	min-height: 40px;
 	padding: 7px 11px;
 }
 button[aria-pressed="true"] {
@@ -544,13 +554,33 @@ button[aria-pressed="true"] {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.period-more {
+.period-more-trigger {
 	flex: none;
-	position: relative;
+	max-width: 100%;
+	display: inline-flex;
+	min-height: 40px;
+	align-items: center;
+	gap: 5px;
+	padding: 7px 10px;
+	border: 1px solid #dfd4c4;
+	border-radius: 6px;
+	background: #fff;
+	color: #5e4b36;
+	font-weight: 650;
+	white-space: nowrap;
 }
-.period-more summary {
-	padding: 8px 11px;
-	cursor: pointer;
+.period-more-trigger :deep(svg) {
+	width: 15px;
+	height: 15px;
+	transition: transform 140ms ease;
+}
+.period-more-trigger :deep(svg.expanded) {
+	transform: rotate(180deg);
+}
+.period-more-trigger.active {
+	border-color: #c3986c;
+	background: #fff4e7;
+	color: #81532a;
 }
 .period-more-menu-portal {
 	position: fixed;
@@ -563,7 +593,7 @@ button[aria-pressed="true"] {
 	box-shadow: 0 8px 24px rgba(65, 44, 22, 0.18);
 }
 .period-more-menu-portal button {
-	min-height: 34px;
+	min-height: 40px;
 	padding: 7px 10px;
 	border: 0;
 	background: transparent;
@@ -583,6 +613,21 @@ button[aria-pressed="true"] {
 	background: #fffaf2;
 	border: 1px solid #eadfce;
 	box-shadow: 0 8px 24px rgba(65, 44, 22, 0.18);
+}
+@media (max-width: 1023px) {
+	.movement-period-ledger .period-choices button,
+	.movement-period-ledger .period-more-trigger,
+	.movement-period-ledger .period-compact-resolved {
+		font-size: 14px;
+	}
+	.movement-period-ledger .period-choices button {
+		white-space: normal;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.period-more-trigger :deep(svg) {
+		transition: none;
+	}
 }
 .custom-period-menu-portal label {
 	display: grid;

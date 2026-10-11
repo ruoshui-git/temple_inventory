@@ -6,14 +6,23 @@ import UiButton from "../../components/UiButton.vue";
 import DashboardSectionLayout from "./DashboardSectionLayout.vue";
 import DashboardSectionCard from "./DashboardSectionCard.vue";
 import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
 import { movementLabel } from "../../lib/movementLabels";
 import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { DashboardController } from "./useDashboardController";
 
 const props = defineProps<{ controller: DashboardController }>();
 const c = props.controller;
 const dashboardContent = ref<HTMLElement>();
+const dashboardHeading = ref<HTMLElement>();
+const returnToTopTarget = computed(() => {
+	const content = dashboardContent.value;
+	if (!content) return undefined;
+	return c.surface.value === "desktop"
+		? content
+		: content.closest<HTMLElement>(".shell-content") || undefined;
+});
 const contentWidth = ref(0);
 let contentObserver: ResizeObserver | undefined;
 const desktopGrouped = () => c.surface.value === "desktop" && contentWidth.value >= 760;
@@ -269,7 +278,7 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 			<header class="dashboard-header">
 				<div>
 					<p class="eyebrow">寺院物资</p>
-					<h1>物资总览</h1>
+					<h1 ref="dashboardHeading" tabindex="-1">物资总览</h1>
 					<p class="dashboard-scope">{{ c.activeScopeLabel.value }}</p>
 				</div>
 				<div class="dashboard-header-actions">
@@ -764,6 +773,11 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 				</DashboardSectionLayout>
 			</UiLoadingBoundary>
 		</main>
+		<ReturnToTop
+			:target="returnToTopTarget"
+			:heading="dashboardHeading"
+			:hidden="c.surface.value === 'mobile' && c.filterOpen.value"
+		/>
 	</div>
 </template>
 
@@ -795,7 +809,11 @@ const dataStale = (section: Parameters<typeof c.sectionStale>[0]) =>
 	min-height: 0;
 	container-type: inline-size;
 	overflow: auto;
-	padding: 22px clamp(16px, 2vw, 30px) 36px;
+	padding: 22px clamp(16px, 2vw, 30px) 82px;
+}
+.dashboard-page button.return-to-top:not(:disabled):hover {
+	border-color: #cfc3b4;
+	background-color: #fffdf9;
 }
 .dashboard-desktop-filter {
 	display: none;
@@ -1232,7 +1250,7 @@ h3 {
 	}
 	.dashboard-content {
 		overflow: visible;
-		padding: 18px 14px calc(var(--mobile-nav-height, 0px) + 22px);
+		padding: 18px 14px 22px;
 	}
 	.dashboard-header {
 		align-items: flex-start;

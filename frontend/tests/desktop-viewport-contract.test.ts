@@ -84,6 +84,15 @@ describe("desktop shell presentation contract", () => {
     expect(dashboardSource).toMatch(
       /\.dashboard-content \{[^}]*overflow: auto;/,
     );
+    expect(dashboardSource).toContain(
+      'content.closest<HTMLElement>(".shell-content")',
+    );
+    expect(globalStyleSource).toMatch(
+      /\.shell-content:has\(> \.dashboard-page\)\{[^}]*height:100dvh;[^}]*overflow-y:auto;[^}]*padding-bottom:calc\(var\(--mobile-nav-height\) \+ 82px\)/,
+    );
+    expect(dashboardSource).toMatch(
+      /dashboard-content \{[^}]*padding: 22px[^}]*82px;/,
+    );
     expect(tableRendererSource).toMatch(
       /\.sortable-data-table-desktop th,[\s\S]*?position: sticky;[\s\S]*?background: #fff;/,
     );

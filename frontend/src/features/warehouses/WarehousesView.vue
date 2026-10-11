@@ -4,9 +4,13 @@ import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import QuantitySummary from "../../components/QuantitySummary.vue";
 import UiButton from "../../components/UiButton.vue";
 import { type WarehousesController } from "./useWarehousesController";
-import { ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
 
-const props = defineProps<{ controller: WarehousesController }>();
+const props = defineProps<{ controller: WarehousesController; surface: ResponsiveSurface }>();
 const dataRegion = ref<HTMLElement>();
 const {
 	boot,
@@ -53,10 +57,49 @@ const {
 	repairMetadata,
 	save,
 } = props.controller;
+const heading = ref<HTMLElement>();
+const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
+const compact = ref(false);
+const floatingActionsOpen = ref(false);
+const activeScrollRoot = ref<HTMLElement>();
+useCompactBrowse(activeScrollRoot, compact);
+const returnTopHidden = computed(() => Boolean(dialog.value));
+async function updateScrollRoot() {
+	await nextTick();
+	saveScrollPosition();
+	activeScrollRoot.value =
+		props.surface === "mobile"
+			? dataRegion.value
+			: document.querySelector<HTMLElement>(".shell-content") || undefined;
+	const saved = Number(sessionStorage.getItem("ti-warehouse-scroll") || 0);
+	if (activeScrollRoot.value) activeScrollRoot.value.scrollTop = saved;
+	compact.value = (activeScrollRoot.value?.scrollTop || 0) > 80;
+}
+onMounted(() => void updateScrollRoot());
+watch(
+	() => props.surface,
+	() => {
+		saveScrollPosition();
+		void updateScrollRoot();
+	},
+);
+function updateCompact(event: Event) {
+	compact.value = (event.currentTarget as HTMLElement).scrollTop > 80;
+}
+function saveScrollPosition() {
+	if (activeScrollRoot.value)
+		sessionStorage.setItem("ti-warehouse-scroll", String(activeScrollRoot.value.scrollTop));
+}
+onMounted(() => window.addEventListener("beforeunload", saveScrollPosition));
+onBeforeUnmount(() => {
+	saveScrollPosition();
+	window.removeEventListener("beforeunload", saveScrollPosition);
+});
 </script>
 <template>
 	<section class="app-shell wide-shell warehouse-page" :aria-busy="loading">
-		<header>
+		<header v-if="surface === 'desktop'">
+			<h1 ref="heading" tabindex="-1">仓库</h1>
 			<label class="warehouse-search compact-search-field"
 				>搜索仓库<input
 					v-model="search"
@@ -76,9 +119,27 @@ const {
 				>
 			</div>
 		</header>
+		<MobileBrowseHeader
+			v-else
+			ref="mobileBrowseHeader"
+			title="仓库"
+			:compact="compact"
+			destination-key="warehouses"
+		>
+			<template #search-actions>
+				<label class="warehouse-search compact-search-field"
+					>搜索仓库<input
+						v-model="search"
+						type="search"
+						placeholder="搜索仓库、房间或货位"
+						aria-label="搜索仓库、房间或货位"
+				/></label>
+			</template>
+		</MobileBrowseHeader>
 		<div
 			ref="dataRegion"
 			class="warehouse-data-region"
+			@scroll.passive="updateCompact"
 			:inert="loading && visibleRows.length ? true : undefined"
 		>
 			<p v-if="error" class="error" role="alert">
@@ -164,6 +225,14 @@ const {
 			label="添加仓库位置"
 			:actions="actions"
 			@select="start"
+			@update:open="floatingActionsOpen = $event"
+		/>
+		<ReturnToTop
+			:target="activeScrollRoot"
+			:heading="surface === 'desktop' ? heading : mobileBrowseHeader?.heading"
+			:hidden="returnTopHidden"
+			:floating-action-open="floatingActionsOpen"
+			:has-floating-action="surface === 'mobile' && actions.length > 0"
 		/>
 		<div v-if="dialog" class="drawer-backdrop" role="presentation">
 			<section
@@ -225,9 +294,12 @@ const {
 	</section>
 </template>
 <style scoped>
-.warehouse-page header {
+.warehouse-page > header:not(.mobile-browse-header) {
 	align-items: center;
 	gap: 18px;
+}
+.warehouse-page > header:not(.mobile-browse-header) h1 {
+	margin: 0;
 }
 .warehouse-heading-actions {
 	display: flex;
@@ -274,8 +346,8 @@ const {
 	flex: none;
 }
 .warehouse-list {
-	overflow: auto;
-	max-height: 70dvh;
+	overflow: visible;
+	max-height: none;
 	background: #fff;
 	border-radius: 14px;
 	box-shadow: 0 2px 10px #1720330c;
@@ -372,8 +444,56 @@ const {
 	color: #6b6257;
 	font-weight: 400;
 }
+@media (max-width: 1023px) {
+	.warehouse-page {
+		box-sizing: border-box;
+		display: flex;
+		height: calc(100dvh - var(--mobile-nav-height, 0px));
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.warehouse-data-region {
+		min-height: 0;
+		flex: 1;
+		overflow: auto;
+		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+	}
+	.warehouse-list {
+		box-sizing: border-box;
+		flex: none;
+		max-height: none;
+		overflow: visible;
+	}
+	.warehouse-page > header:not(.mobile-browse-header) {
+		display: flex;
+	}
+	.warehouse-page > .mobile-browse-header {
+		padding: 10px 12px 8px;
+		background: #f8f7f4;
+	}
+	.warehouse-search {
+		margin-top: 0;
+	}
+	.warehouse-search input {
+		min-width: 0;
+		width: 100%;
+	}
+	.warehouse-heading-actions {
+		display: none;
+	}
+	.mobile-page-actions {
+		display: flex;
+	}
+	.warehouse-dialog {
+		margin: 0 12px;
+	}
+	.warehouse-row {
+		min-height: 64px;
+	}
+}
 @media (max-width: 620px) {
-	.warehouse-page header {
+	.warehouse-page > header:not(.mobile-browse-header) {
 		display: block;
 	}
 	.warehouse-search {

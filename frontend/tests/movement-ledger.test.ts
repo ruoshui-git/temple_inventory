@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, reactive } from "vue";
+import { defineComponent, nextTick, reactive } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import Movements from "../src/pages/Movements.vue";
 
@@ -283,6 +283,14 @@ describe("movement ledger", () => {
       expect(wrapper.find(".desktop-list-layout").classes()).toContain(
         "filters-open",
       );
+      const resultRoot = wrapper.get(".results-scroll").element;
+      Object.defineProperties(resultRoot, {
+        clientHeight: { configurable: true, value: 40 },
+        scrollTop: { configurable: true, writable: true, value: 81 },
+      });
+      resultRoot.dispatchEvent(new Event("scroll"));
+      await nextTick();
+      expect(wrapper.find(".return-to-top").exists()).toBe(true);
       await wrapper.find(".movement-filter-button").trigger("click");
       expect(wrapper.find(".desktop-list-layout").classes()).not.toContain(
         "filters-open",
@@ -300,11 +308,13 @@ describe("movement ledger", () => {
         value: originalMatchMedia,
       });
     }
-    expect(wrapper.find(".movement-heading").exists()).toBe(true);
-    expect(wrapper.find(".compact-heading").exists()).toBe(true);
     expect(
-      wrapper.find(".movement-ledger-actions .column-summary-trigger").exists(),
+      wrapper.find(".movement-heading, .mobile-browse-header").exists(),
     ).toBe(true);
+    expect(
+      wrapper.find(".compact-heading, .mobile-browse-short-title").exists(),
+    ).toBe(true);
+    expect(wrapper.find(".column-summary-trigger").exists()).toBe(true);
     expect(wrapper.find(".sortable-data-table-toolbar").exists()).toBe(false);
     const resultScroll = wrapper.find(".results-scroll");
     Object.defineProperty(resultScroll.element, "scrollTop", {
@@ -313,6 +323,39 @@ describe("movement ledger", () => {
     });
     await resultScroll.trigger("scroll");
     expect(wrapper.find(".results-column").classes()).toContain("compact");
+  });
+  it("keeps the semantic desktop heading mounted and focused after return-to-top", async () => {
+    page();
+    const wrapper = mount(Movements, {
+      global: globals,
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const root = wrapper.get(".results-scroll").element as HTMLElement;
+    Object.defineProperties(root, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollTop: { configurable: true, writable: true, value: 201 },
+    });
+    root.scrollTo = vi.fn(() => {
+      root.scrollTop = 0;
+      root.dispatchEvent(new Event("scroll"));
+    });
+    root.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    const heading = wrapper.get(".movement-title h1").element;
+    expect(wrapper.get(".movement-title h1").classes()).toContain("sr-only");
+    expect(wrapper.find(".return-to-top").exists()).toBe(true);
+
+    await wrapper.get(".return-to-top").trigger("click");
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    await nextTick();
+
+    expect(wrapper.get(".movement-title h1").element).toBe(heading);
+    expect(wrapper.get(".movement-title h1").classes()).not.toContain(
+      "sr-only",
+    );
+    expect(document.activeElement).toBe(heading);
+    wrapper.unmount();
   });
   it("uses linked record and line-count cells with draft/cancelled status", async () => {
     route.path = "/movements/records";
@@ -417,7 +460,7 @@ describe("movement ledger", () => {
     await scroll.trigger("scroll");
     expect(wrapper.find(".movement-heading").exists()).toBe(true);
     expect(wrapper.find(".period-compact-resolved").exists()).toBe(true);
-    expect(wrapper.find(".movement-title").exists()).toBe(false);
+    expect(wrapper.find(".movement-title h1").classes()).toContain("sr-only");
     expect(wrapper.find(".compact-heading").isVisible()).toBe(true);
     expect(
       wrapper
@@ -425,12 +468,53 @@ describe("movement ledger", () => {
         .isVisible(),
     ).toBe(true);
     const zeroToggle = wrapper.find(".movement-zero-kinds-toggle");
+    expect(
+      zeroToggle.element.parentElement?.classList.contains(
+        "movement-kind-chips",
+      ),
+    ).toBe(true);
     await zeroToggle.trigger("click");
     expect(hiddenZero.attributes("style")).not.toContain("display: none");
+    expect(hiddenZero.isVisible()).toBe(true);
     expect(hiddenZero.attributes("disabled")).toBeUndefined();
     expect(zeroToggle.text()).toContain("收起无记录");
+    await hiddenZero.trigger("click");
+    expect(hiddenZero.attributes("aria-pressed")).toBe("true");
     await zeroToggle.trigger("click");
-    expect(hiddenZero.attributes("style")).toContain("display: none");
+    expect(hiddenZero.isVisible()).toBe(true);
+    expect(hiddenZero.attributes("disabled")).toBeUndefined();
+  });
+  it("expands and selects zero-count kinds in the mobile toolbar", async () => {
+    media.matches = false;
+    page();
+    const wrapper = mount(Movements, { global: globals });
+    await flushPromises();
+
+    const toolbar = wrapper.find(
+      '.mobile-browse-header .movement-kind-chips[role="toolbar"]',
+    );
+    expect(toolbar.exists()).toBe(true);
+    const zeroToggle = toolbar.find(".movement-zero-kinds-toggle");
+    const zeroChip = toolbar.find(".movement-kind-chip-zero");
+    expect(zeroToggle.text()).toContain("无记录");
+    expect(zeroChip.attributes("disabled")).toBeDefined();
+    expect(zeroChip.isVisible()).toBe(false);
+
+    await zeroToggle.trigger("click");
+    expect(zeroToggle.attributes("aria-expanded")).toBe("true");
+    expect(zeroChip.attributes("style")).not.toContain("display: none");
+    expect(zeroChip.attributes("aria-hidden")).toBe("false");
+    expect(zeroChip.attributes("disabled")).toBeUndefined();
+    await zeroChip.trigger("click");
+    expect(zeroChip.attributes("aria-pressed")).toBe("true");
+
+    await zeroToggle.trigger("click");
+    expect(zeroToggle.attributes("aria-expanded")).toBe("false");
+    expect(zeroChip.attributes("style")).not.toContain("display: none");
+    expect(zeroChip.attributes("aria-hidden")).toBe("false");
+    expect(zeroChip.attributes("disabled")).toBeUndefined();
+    expect(zeroChip.attributes("aria-pressed")).toBe("true");
+    wrapper.unmount();
   });
   it("aborts replaced initial requests", async () => {
     const requests: Array<{

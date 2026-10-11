@@ -76,7 +76,7 @@ describe("Pending list scroll ownership", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses the desktop results scroller as its observer root and reconnects for mobile", async () => {
+  it("uses the bounded results scroller as its observer root on both surfaces", async () => {
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
     const controller = makeController();
     const wrapper = mount(PendingView, {
@@ -110,6 +110,18 @@ describe("Pending list scroll ownership", () => {
     );
     expect(resultColumn.find(".results-scroll").element.parentElement).toBe(
       resultColumn.element,
+    );
+    await wrapper.setProps({ surface: "mobile" });
+    await nextTick();
+    Object.defineProperty(results, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 81,
+    });
+    results.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    expect(wrapper.find(".mobile-browse-header").classes()).toContain(
+      "compact",
     );
     const scrollTo = vi.fn();
     Object.defineProperty(results, "scrollTo", {
@@ -156,15 +168,14 @@ describe("Pending list scroll ownership", () => {
     expect(controller.load).toHaveBeenCalledTimes(1);
     controller.rows.value = controller.rows.value.slice(0, 1);
 
-    await wrapper.setProps({ surface: "mobile" });
-    await nextTick();
-    await nextTick();
     expect(observerInstances[0].instance.disconnect).toHaveBeenCalled();
-    expect(observerInstances.at(-1)?.root).toBeNull();
+    expect(observerInstances.at(-1)?.root).toBe(results);
     expect(controller.rows.value[0].item_code).toBe("ITM-1");
-    const mobileScrollTo = vi
-      .spyOn(window, "scrollTo")
-      .mockImplementation(() => {});
+    const mobileScrollTo = vi.fn();
+    Object.defineProperty(results, "scrollTo", {
+      configurable: true,
+      value: mobileScrollTo,
+    });
     controller.scrollResetToken.value += 1;
     await nextTick();
     await nextTick();

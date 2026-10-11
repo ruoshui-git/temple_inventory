@@ -13,6 +13,22 @@ in the same change. Keep implementation details in code or task notes, not here.
 - Manual entry must remain available when camera or browser APIs are unavailable.
 - Preserve user-entered data when validation, scanning, upload, or submission
   fails.
+- Browse pages keep one semantic page heading. Their mobile header orders the
+  title, context tabs, search/actions, then secondary browse tools. After the
+  active result surface scrolls past 80px, tabs remain above the compact
+  title/search/actions row; secondary tools collapse behind an
+  accessible disclosure. Search, scan, filter, and the active-filter badge
+  stay available, with controls at least 40px high on narrow phones.
+- Browse return-to-top appears after the active scroll surface passes twice
+  its viewport height, stays above mobile navigation and creation actions, and
+  uses a circular 44px icon button with a desktop hover/focus tooltip. It
+  returns focus to the page heading without changing results or filters.
+- Dashboard uses the same return-to-top behavior: its desktop content pane is
+  the scroll surface, while mobile scrolling belongs to the enclosing shell
+  content. A mobile filter drawer hides the control; the desktop filter rail
+  does not.
+- Mobile browse tool disclosures use a rounded down-chevron that rotates when
+  expanded and respects reduced-motion preferences.
 
 ## Navigation and layout
 
@@ -211,6 +227,33 @@ in the same change. Keep implementation details in code or task notes, not here.
   draft or context.
 
 ## Supersession log
+
+- **2026-10-11:** Compact browse headers keep context tabs and search/actions
+  available while secondary dates, result counts, filters, quick status/kind
+  choices, view controls, and column summaries collapse behind an accessible
+  disclosure. Movement and Loans tabs now belong to their page headers instead
+  of the mobile shell. Warehouse, Pending, and Drafts mobile pages own bounded
+  result scrollers; restoration and infinite loading follow those surfaces.
+  Browse pages add a return-to-top control after two viewport heights, above
+  bottom navigation and any creation action. This supersedes the 2026-10-09
+  always-visible Movement date/count row and shell-owned Movement/Loans tabs.
+
+- **2026-10-11:** Mobile Expiry removes its summary cards and `全部 / 即将到期 /
+已过期` quick selectors; its filter drawer, active chips, result count, view
+  switch, and column summary remain. Loan 明细 and 记录 use inclusive all,
+  natural, rolling, and custom original-borrow-date ranges; record mode returns
+  complete matching loan documents with cumulative outcomes. This supersedes
+  the mobile Expiry summary/quick-selector rule and exact-date Loans filter.
+  Inventory and Expiry place list/card controls on the left and the outlined
+  sigma `列汇总` trigger on the right; its label remains visible at 14px, and
+  compact mobile tab labels are 14px.
+
+- **2026-10-11:** Return-to-top controls use an icon-only circular 44px button
+  with a desktop hover/focus tooltip. Dashboard joins the shared return-to-top
+  behavior, targeting its content pane on desktop and the shell content on
+  mobile; only its mobile filter drawer hides the control. The mobile browse
+  tools disclosure uses a reduced-motion-aware rotating chevron instead of a
+  text glyph. This supersedes the previous visible `↑ 返回顶部` button label.
 
 - **2026-10-10:** Shared loading boundaries own visible-region refresh status.
   Dashboard initial/global requests use one boundary across all data sections;

@@ -2,6 +2,7 @@
 import "../../components/browse-surface.css";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import CategorySelector from "../../components/CategorySelector.vue";
 import ExportDialog from "../../components/ExportDialog.vue";
@@ -27,6 +28,10 @@ import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import MovementLocation from "../../components/MovementLocation.vue";
 import MovementFlow from "../../components/MovementFlow.vue";
+import MobileSubnav from "../../components/MobileSubnav.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
+import ColumnSummaryTrigger from "../../components/ColumnSummaryTrigger.vue";
 import { type MovementsController, type Kind } from "./useMovementsController";
 
 const props = defineProps<{
@@ -35,6 +40,7 @@ const props = defineProps<{
 }>();
 const {
 	scrollResetToken,
+	contextItems,
 	mode,
 	kinds,
 	kindLabels,
@@ -114,6 +120,10 @@ function selectPageAction(kind: string) {
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const scrollRoot = ref<HTMLElement>();
+useCompactBrowse(scrollRoot, compact);
+const browseHeading = ref<HTMLElement>();
+const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
+const floatingActionsOpen = ref(false);
 const sentinel = ref<HTMLElement>();
 const infiniteScroll = useInfiniteScroll({
 	hasMore: () => rows.value.length < total.value,
@@ -220,13 +230,18 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column" :class="{ compact }">
-				<header class="movement-ledger-header browse-results-header results-chrome">
+				<header
+					v-if="surface === 'desktop'"
+					class="movement-ledger-header browse-results-header results-chrome"
+				>
 					<div class="movement-heading">
-						<b class="compact-heading"
+						<b class="compact-heading" aria-hidden="true"
 							>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</b
 						>
-						<div v-if="!compact" class="movement-title">
-							<h1>货物流动 · {{ mode === "items" ? "明细" : "记录" }}</h1>
+						<div class="movement-title">
+							<h1 ref="browseHeading" :class="{ 'sr-only': compact }" tabindex="-1">
+								货物流动 · {{ mode === "items" ? "明细" : "记录" }}
+							</h1>
 						</div>
 						<MovementPeriodSelector
 							v-model:period-key="filters.period_key"
@@ -273,16 +288,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							@click="exportOpen = true"
 							>导出</UiButton
 						>
-						<UiButton
-							variant="secondary"
-							size="compact"
-							icon="table"
-							type="button"
-							class="toolbar-action column-summary-trigger"
-							@click="summaryOpen = true"
-						>
-							列汇总
-						</UiButton>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
 						<PageActionMenu
 							v-if="surface === 'desktop' && pageActions.length"
 							:actions="pageActions"
@@ -355,6 +361,117 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						</div>
 					</div>
 				</header>
+				<MobileBrowseHeader
+					v-else
+					ref="mobileBrowseHeader"
+					:title="`货物流动 · ${mode === 'items' ? '明细' : '记录'}`"
+					short-title="流动"
+					:compact="compact"
+					:destination-key="`movement-${mode}`"
+				>
+					<template #tabs>
+						<MobileSubnav
+							:items="contextItems"
+							:active-key="mode"
+							:compact="compact"
+							aria-label="货物流动页面"
+						/>
+					</template>
+					<template #search-actions>
+						<label class="movement-search browse-search-field mobile-movement-search">
+							<span aria-hidden="true">⌕</span>
+							<input
+								v-model="filters.search"
+								type="search"
+								:placeholder="
+									mode === 'items'
+										? '搜索物品名称、编码或记录编号…'
+										: '搜索记录编号、活动或备注…'
+								"
+								aria-label="搜索货物流动"
+							/>
+						</label>
+						<UiButton
+							variant="secondary"
+							size="compact"
+							icon="filter"
+							type="button"
+							class="toolbar-action movement-filter-button"
+							:aria-label="`筛选，${activeFilterCount} 项已启用`"
+							@click="openFilters($event)"
+						>
+							筛选<span v-if="activeFilterCount">{{ activeFilterCount }}</span>
+						</UiButton>
+					</template>
+					<template #secondary>
+						<MovementPeriodSelector
+							v-model:period-key="filters.period_key"
+							v-model:date-from="filters.date_from"
+							v-model:date-to="filters.date_to"
+							:resolved-from="resolved.date_from"
+							:resolved-to="resolved.date_to"
+							variant="ledger"
+							:compact="compact"
+						/>
+						<div class="browse-result-meta">
+							<ActiveFilterChips
+								:chips="chips"
+								@remove="removeChip"
+								@clear="clearAll"
+							/>
+							<ResultCountStrip
+								:loaded="rows.length"
+								:filtered="total"
+								:overall="allTotal ?? total"
+								:updating="busy && rows.length > 0"
+							/>
+						</div>
+						<div class="movement-kind-chips" role="toolbar" aria-label="动作筛选">
+							<button
+								type="button"
+								:aria-pressed="!filters.kinds.length"
+								@click="clearKinds"
+							>
+								全部 <span>{{ allTotal }}</span>
+							</button>
+							<button
+								v-for="kind in kinds"
+								:key="kind"
+								v-show="visibleKinds.includes(kind)"
+								type="button"
+								class="movement-kind-chip"
+								:class="{
+									'movement-kind-chip-zero': !visibleKinds.includes(kind),
+									'movement-kind-chip-empty': Number(counts[kind] || 0) === 0,
+								}"
+								:aria-hidden="!visibleKinds.includes(kind)"
+								:tabindex="visibleKinds.includes(kind) ? 0 : -1"
+								:data-kind="kind"
+								:data-tone="kindMeta[kind].tone"
+								:aria-pressed="filters.kinds.includes(kind)"
+								:disabled="!visibleKinds.includes(kind)"
+								@click="toggleKind(kind)"
+							>
+								{{ kindMeta[kind].label }} <span>{{ counts[kind] || 0 }}</span>
+							</button>
+							<button
+								v-if="zeroKindCount"
+								type="button"
+								class="movement-zero-kinds-toggle"
+								:aria-expanded="zeroKindsExpanded"
+								:aria-label="
+									zeroKindsExpanded
+										? '收起无记录动作'
+										: `展开无记录 ${zeroKindCount}`
+								"
+								@click="zeroKindsExpanded = !zeroKindsExpanded"
+							>
+								{{ zeroKindsExpanded ? "收起无记录" : `无记录 ${zeroKindCount}` }}
+							</button>
+						</div>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
+					</template>
+				</MobileBrowseHeader>
 				<div
 					ref="scrollRoot"
 					class="results-scroll browse-compact-table"
@@ -550,6 +667,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 			:disabled="pageActionsDisabled"
 			label="新增货物流动"
 			@select="selectPageAction"
+			@update:open="floatingActionsOpen = $event"
+		/>
+		<ReturnToTop
+			:target="scrollRoot"
+			:heading="surface === 'desktop' ? browseHeading : mobileBrowseHeader?.heading"
+			:hidden="Boolean(filterOpen || summaryOpen || exportOpen)"
+			:floating-action-open="floatingActionsOpen"
+			:has-floating-action="surface === 'mobile' && pageActions.length > 0"
 		/>
 		<ExportDialog
 			v-model:open="exportOpen"
@@ -587,6 +712,17 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	font-size: 25px;
 	font-weight: 750;
 	line-height: 1.2;
+}
+.movement-heading h1.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 .movement-ledger .movement-title {
 	min-width: 0;
@@ -1060,6 +1196,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		min-height: 0;
 		overflow-x: hidden;
 		overflow-y: auto;
+		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
 	}
 	.movement-ledger .movement-mobile-card,
 	.movement-ledger :deep(.sortable-data-table) {
@@ -1080,9 +1217,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		flex-direction: column;
 		align-items: stretch;
 		gap: 5px;
-	}
-	.movement-ledger .results-column.compact .movement-title {
-		display: none;
 	}
 	.movement-ledger .results-column.compact .compact-heading {
 		display: block;
@@ -1107,7 +1241,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		flex-wrap: wrap;
 		gap: 4px 8px;
 	}
-	.movement-ledger .results-column.compact .movement-ledger-actions > * {
+	.movement-ledger
+		.results-column.compact
+		.movement-ledger-actions
+		> *:not(.column-summary-trigger) {
 		min-height: 30px;
 	}
 	.movement-ledger .results-column.compact .movement-search {
@@ -1119,6 +1256,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 }
 @media (min-width: 1024px) {
+	.movement-ledger .results-scroll {
+		padding-bottom: 82px;
+	}
 	.movement-ledger .results-column.compact .movement-ledger-header {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
@@ -1139,7 +1279,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		gap: 4px;
 		overflow-x: auto;
 	}
-	.movement-ledger .results-column.compact .movement-ledger-actions > * {
+	.movement-ledger
+		.results-column.compact
+		.movement-ledger-actions
+		> *:not(.column-summary-trigger) {
 		min-height: 30px;
 	}
 	.movement-ledger .results-column.compact .movement-search {

@@ -13,7 +13,7 @@ from erpnext.stock.stock_ledger import get_valuation_rate
 from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.desk.reportview import get_match_cond
-from frappe.utils import add_days, cint, flt, get_time, getdate, nowdate, nowtime
+from frappe.utils import cint, flt, get_time, getdate, nowdate, nowtime
 
 from temple_inventory.inventory_api import (
 	MOVEMENT_TYPES,
@@ -35,6 +35,7 @@ from temple_inventory.inventory_api import (
 	_visible_warehouses,
 	loan_items,
 )
+from temple_inventory.periods import PERIOD_KEYS, resolve_period
 
 META = (
 	"movement_kind",
@@ -68,18 +69,7 @@ MOVEMENT_OVERVIEW_KINDS = (
 	"Disposal",
 )
 MOVEMENT_LEDGER_KINDS = MOVEMENT_OVERVIEW_KINDS + ("Reconcile", "Opening")
-MOVEMENT_PERIOD_KEYS = {
-	"all",
-	"today",
-	"last_7_days",
-	"last_30_days",
-	"last_90_days",
-	"last_365_days",
-	"this_week",
-	"this_month",
-	"this_year",
-	"custom",
-}
+MOVEMENT_PERIOD_KEYS = PERIOD_KEYS
 
 
 def _movement_warehouse_labels(settings=None):
@@ -100,45 +90,7 @@ def _movement_warehouse_labels(settings=None):
 
 def _movement_period(filters, default=False):
 	"""Resolve an inclusive movement period using the server's current date."""
-	key = str(filters.get("period_key") or ("all" if default else "")).strip()
-	if not key:
-		return None
-	if key not in MOVEMENT_PERIOD_KEYS:
-		key = "all" if default else ""
-	if not key:
-		return None
-	if key == "all":
-		return {"key": "all", "date_from": "", "date_to": ""}
-	today = getdate(nowdate())
-	if key == "custom":
-		date_from, date_to = str(filters.get("date_from") or ""), str(filters.get("date_to") or "")
-		try:
-			start, end = getdate(date_from), getdate(date_to)
-		except Exception:
-			frappe.throw(_("Invalid custom date range"))
-		if not date_from or not date_to or str(start) != date_from or str(end) != date_to:
-			frappe.throw(_("Invalid custom date range"))
-		if start > end:
-			frappe.throw(_("Start date cannot be after end date"))
-	else:
-		end = today
-		if key == "today":
-			start = today
-		elif key == "last_7_days":
-			start = getdate(add_days(today, -6))
-		elif key == "last_30_days":
-			start = getdate(add_days(today, -29))
-		elif key == "last_90_days":
-			start = getdate(add_days(today, -89))
-		elif key == "last_365_days":
-			start = getdate(add_days(today, -364))
-		elif key == "this_week":
-			start = getdate(add_days(today, -today.weekday()))
-		elif key == "this_month":
-			start = today.replace(day=1)
-		else:
-			start = today.replace(month=1, day=1)
-	return {"key": key, "date_from": str(start), "date_to": str(end)}
+	return resolve_period(filters, default=default, today_provider=nowdate)
 
 
 def _get(name, write=False, lock=False):

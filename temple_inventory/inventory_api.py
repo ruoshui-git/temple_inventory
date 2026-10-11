@@ -14,6 +14,7 @@ from frappe.model.naming import validate_name as validate_document_name
 from frappe.utils import add_days, cint, flt, getdate, nowdate
 
 from temple_inventory.item_code import allocate_item_code, suggest_item_code as preview_item_code
+from temple_inventory.periods import resolve_period
 
 MOVEMENT_TYPES = {
 	"Receive": "Material Receipt",
@@ -3257,9 +3258,31 @@ def _loan_browse_filters(filters=None):
 	sort_order = str(filters.get("sort_order") or "desc").strip().lower()
 	if sort_order not in {"asc", "desc"}:
 		frappe.throw(_("Invalid sort order"))
+	legacy_date = str(filters.get("loan_date") or "").strip()
+	period_filters = {
+		"period_key": str(filters.get("period_key") or "").strip(),
+		"date_from": str(filters.get("date_from") or "").strip(),
+		"date_to": str(filters.get("date_to") or "").strip(),
+	}
+	new_range_supplied = any(period_filters.values())
+	if new_range_supplied and not period_filters["period_key"]:
+		period_filters["period_key"] = (
+			"custom"
+			if (period_filters["date_from"] or period_filters["date_to"])
+			else "all"
+		)
+	if not new_range_supplied and legacy_date:
+		period_filters = {"period_key": "custom", "date_from": legacy_date, "date_to": legacy_date}
+	if not period_filters["period_key"]:
+		period_filters["period_key"] = "all"
+	resolved_period = resolve_period(period_filters, today_provider=nowdate)
 	return {
 		"search": str(filters.get("search") or "").strip(),
-		"loan_date": str(filters.get("loan_date") or "").strip(),
+		"loan_date": legacy_date,
+		"period_key": resolved_period["key"] if resolved_period else "",
+		"date_from": resolved_period["date_from"] if resolved_period else "",
+		"date_to": resolved_period["date_to"] if resolved_period else "",
+		"resolved_period": resolved_period,
 		"status": status,
 		"item_code": str(filters.get("item_code") or "").strip(),
 		"item_groups": _selection_values(filters.get("item_groups")),
@@ -3395,7 +3418,10 @@ def _loan_line_matches(row, context, filters):
 		return False
 	if filters["status"] == "settled" and status != "Settled":
 		return False
-	if filters["loan_date"] and str(row["loan_date"])[:10] != filters["loan_date"]:
+	loan_date = str(row.get("loan_date") or "")[:10]
+	if filters["date_from"] and loan_date < filters["date_from"]:
+		return False
+	if filters["date_to"] and loan_date > filters["date_to"]:
 		return False
 	if filters["item_code"] and filters["item_code"] != row["item_code"]:
 		return False
@@ -3562,6 +3588,7 @@ def _loan_browse_response(mode, filters=None, start=0, page_length=30):
 			facets["activities"][row["activity"]].add(identity)
 	quantity_totals = {key: _quantity_list(values) for key, values in quantity_values.items()}
 	return {
+		"resolved_period": filters["resolved_period"],
 		"results": results[start : start + page_length],
 		"total": len(results),
 		"overall_total": len(eligible_lines) if mode == "items" else len(context["eligible_loans"]),
@@ -3686,6 +3713,7 @@ def _loan_item_groups_payload(filters, outcome_filter=None):
 	for row in results:
 		quantity_totals[row["stock_uom"]] += row["quantity"]
 	return {
+		"resolved_period": filters["resolved_period"],
 		"results": results,
 		"total": len(results),
 		"start": 0,
@@ -3777,6 +3805,7 @@ def loan_item_group_records(item_code, outcome, filters=None, start=0, page_leng
 	page_length = min(max(cint(page_length or 30), 1), 100)
 	total = len(results)
 	return {
+		"resolved_period": filters["resolved_period"],
 		"results": results[start : start + page_length],
 		"total": total,
 		"start": start,

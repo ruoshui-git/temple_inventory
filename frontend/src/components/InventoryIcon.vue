@@ -18,6 +18,9 @@ const paths: Record<string, string> = {
 	warning: "m12 3 10 18H2L12 3Zm0 6v5m0 3v1",
 	select: "M5 12l4 4L19 6M4 21h16",
 	open: "m9 18 6-6-6-6",
+	"return-top": "M12 18V6m-6 6 6-6 6 6M5 3h14",
+	"chevron-down": "m6 9 6 6 6-6",
+	sigma: "M18 5H7l6 7-6 7h11",
 };
 </script>
 <template>

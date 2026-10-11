@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import "../../components/browse-surface.css";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
@@ -18,6 +19,11 @@ import PageActionMenu from "../../components/PageActionMenu.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import LoanGroupBreakdown, { closeLoanGroupBreakdowns } from "./LoanGroupBreakdown.vue";
+import MobileSubnav from "../../components/MobileSubnav.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
+import MovementPeriodSelector from "../../components/MovementPeriodSelector.vue";
+import ColumnSummaryTrigger from "../../components/ColumnSummaryTrigger.vue";
 import { type LoansController } from "./useLoansController";
 
 const props = defineProps<{ controller: LoansController; surface: ResponsiveSurface }>();
@@ -25,6 +31,10 @@ const c = reactive(props.controller);
 const surface = toRef(props, "surface");
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const scrollRoot = ref<HTMLElement>();
+useCompactBrowse(scrollRoot, toRef(c, "compact"));
+const browseHeading = ref<HTMLElement>();
+const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
+const floatingActionsOpen = ref(false);
 const sentinel = ref<HTMLElement>();
 const summaryOpen = ref(false);
 const breakdownTriggers = new Map<string, { activate: () => void; close: () => void }>();
@@ -44,6 +54,7 @@ function activateRow(row: any) {
 	else c.openLoan(row.name || row.record_name);
 }
 function showBreakdown(row: any, pinned: boolean) {
+	if (!c.isPeriodRangeValid()) return;
 	void c.loadBreakdown(row);
 	c.setBreakdownState(row, pinned);
 }
@@ -103,9 +114,20 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						>
 					</fieldset></CompactFilterSection
 				>
-				<CompactFilterSection title="借出日期" icon="calendar" :collapsible="false"
-					><input v-model="c.filters.loan_date" type="date" aria-label="借出日期"
-				/></CompactFilterSection>
+				<CompactFilterSection title="借出时间" icon="calendar" :collapsible="false">
+					<MovementPeriodSelector
+						v-model:period-key="c.filters.period_key"
+						v-model:date-from="c.filters.date_from"
+						v-model:date-to="c.filters.date_to"
+						:resolved-from="c.resolvedPeriod.date_from"
+						:resolved-to="c.resolvedPeriod.date_to"
+						variant="ledger"
+						aria-label="借出时间范围"
+					/>
+					<p v-if="c.periodValidationError" class="period-validation-error" role="alert">
+						{{ c.periodValidationError }}
+					</p>
+				</CompactFilterSection>
 				<CompactFilterSection title="物品类别" icon="card"
 					><CategorySelector
 						v-model="c.filters.item_groups"
@@ -142,13 +164,18 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				/></CompactFilterSection>
 			</ResponsiveFilterPanel>
 			<div class="results-column" :class="{ compact: c.compact }">
-				<header class="browse-results-header results-chrome loan-browse-header">
+				<header
+					v-if="surface === 'desktop'"
+					class="browse-results-header results-chrome loan-browse-header"
+				>
 					<div class="loan-heading">
 						<div>
 							<span class="compact-heading"
 								>借用 · {{ c.mode === "items" ? "明细" : "记录" }}</span
 							>
-							<h1>借用 · {{ c.mode === "items" ? "明细" : "记录" }}</h1>
+							<h1 ref="browseHeading" tabindex="-1">
+								借用 · {{ c.mode === "items" ? "明细" : "记录" }}
+							</h1>
 						</div>
 						<PageActionMenu
 							v-if="surface === 'desktop' && c.pageActions.length"
@@ -183,27 +210,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								>筛选<span v-if="c.activeCount" class="filter-count">{{
 									c.activeCount
 								}}</span></UiButton
-							><IconButton
-								v-if="surface === 'mobile'"
-								class="mobile-filter-button"
-								label="筛选"
-								title="筛选"
-								@click="c.openFilters($event, filterPanel)"
-								><svg aria-hidden="true" viewBox="0 0 24 24">
-									<path d="M4 6h16M7 12h10M10 18h4" /></svg
-								><span v-if="c.activeCount" class="icon-count">{{
-									c.activeCount
-								}}</span></IconButton
-							><UiButton
-								variant="secondary"
-								size="compact"
-								icon="table"
-								class="column-summary-trigger"
-								type="button"
-								@click="summaryOpen = true"
-							>
-								Σ <span>列汇总</span>
-							</UiButton>
+							><ColumnSummaryTrigger @click="summaryOpen = true" />
 						</div>
 					</div>
 					<div class="browse-result-meta">
@@ -231,6 +238,86 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						</button>
 					</div>
 				</header>
+				<MobileBrowseHeader
+					v-else
+					ref="mobileBrowseHeader"
+					:title="`借用 · ${c.mode === 'items' ? '明细' : '记录'}`"
+					short-title="借用"
+					:compact="c.compact"
+					:destination-key="`loan-${c.mode}`"
+				>
+					<template #tabs>
+						<MobileSubnav
+							:items="c.contextItems"
+							:active-key="c.mode"
+							:compact="c.compact"
+							aria-label="借用页面"
+						/>
+					</template>
+					<template #search-actions>
+						<label class="loan-search browse-search-field">
+							<span aria-hidden="true">⌕</span>
+							<input
+								v-model="c.filters.search"
+								type="search"
+								:placeholder="
+									c.mode === 'items'
+										? '搜索物品、借用方或记录编号'
+										: '搜索记录编号、借用方或活动'
+								"
+								aria-label="搜索借用记录"
+							/>
+						</label>
+						<IconButton
+							class="mobile-filter-button"
+							:label="`筛选，${c.activeCount} 项已启用`"
+							title="筛选"
+							@click="c.openFilters($event, filterPanel)"
+						>
+							<svg aria-hidden="true" viewBox="0 0 24 24">
+								<path d="M4 6h16M7 12h10M10 18h4" />
+							</svg>
+							<span v-if="c.activeCount" class="icon-count">{{
+								c.activeCount
+							}}</span>
+						</IconButton>
+					</template>
+					<template #secondary>
+						<div class="browse-result-meta">
+							<ActiveFilterChips
+								:chips="c.chips"
+								@remove="c.removeChip"
+								@clear="c.clearFilters"
+							/>
+							<ResultCountStrip
+								:loaded="c.rows.length"
+								:filtered="c.total"
+								:overall="c.overall"
+								:updating="c.loading && c.rows.length > 0"
+							/>
+						</div>
+						<div class="loan-status-chips" role="toolbar" aria-label="状态筛选">
+							<button
+								v-for="option in c.statusOptionsForMode"
+								:key="option.value"
+								type="button"
+								class="loan-status-chip"
+								:aria-pressed="c.filters.status === option.value"
+								@click="c.setStatus(option.value)"
+							>
+								{{ option.label }}
+							</button>
+						</div>
+						<div
+							v-if="c.periodValidationError"
+							class="period-validation-error"
+							role="alert"
+						>
+							{{ c.periodValidationError }}
+						</div>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
+					</template>
+				</MobileBrowseHeader>
 				<div
 					ref="scrollRoot"
 					class="results-scroll browse-compact-table"
@@ -454,6 +541,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 			:disabled="pageActionsDisabled()"
 			label="新建借出"
 			@select="selectAction"
+			@update:open="floatingActionsOpen = $event"
+		/>
+		<ReturnToTop
+			:target="scrollRoot"
+			:heading="surface === 'desktop' ? browseHeading : mobileBrowseHeader?.heading"
+			:hidden="Boolean(c.filterOpen || summaryOpen || c.breakdownOpen)"
+			:floating-action-open="floatingActionsOpen"
+			:has-floating-action="surface === 'mobile' && c.pageActions.length > 0"
 		/>
 	</main>
 </template>
@@ -525,7 +620,15 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	display: none;
 }
 .results-column.compact .loan-heading h1 {
-	display: none;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 .results-column.compact .loan-heading .compact-heading {
 	display: block;
@@ -573,7 +676,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	border-radius: 999px;
 	background: #fffdf9;
 	color: #6f604f;
-	font-size: 13px;
+	font-size: 16px;
 	white-space: nowrap;
 }
 .loan-status-chip[aria-pressed="true"] {
@@ -629,8 +732,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	padding: 0;
 	margin: 0;
 }
-.column-summary-trigger {
-	white-space: nowrap;
+.period-validation-error {
+	margin: 5px 0 0;
+	color: #9b3229;
+	font-size: 13px;
 }
 @media (min-width: 1024px) {
 	.loan-browse .result-toolbar {
@@ -680,6 +785,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		max-width: 100%;
 		overflow-x: hidden;
 		overflow-y: auto;
+		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
 	}
 	.loan-browse .filters-open :deep(.filter-sidebar) {
 		position: fixed;
@@ -719,6 +825,15 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.loan-card dl {
 		grid-template-columns: 1fr 1fr;
+	}
+	.loan-status-chip {
+		min-height: 40px;
+		font-size: 16px;
+	}
+}
+@media (min-width: 1024px) {
+	.loan-browse .results-scroll {
+		padding-bottom: 82px;
 	}
 }
 </style>

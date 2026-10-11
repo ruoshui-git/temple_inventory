@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import WarehouseSelector from "../../components/WarehouseSelector.vue";
@@ -11,6 +12,8 @@ import CompactFilterSection from "../../components/CompactFilterSection.vue";
 import UiButton from "../../components/UiButton.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
 import { type PendingController } from "./usePendingController";
 
 const props = defineProps<{
@@ -47,6 +50,10 @@ const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const sentinel = ref<HTMLElement>();
 const resultsScroll = ref<HTMLElement>();
+const browseHeading = ref<HTMLElement>();
+const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
+const compact = ref(false);
+useCompactBrowse(resultsScroll, compact);
 const pendingResults = ref<HTMLElement>();
 const infiniteScroll = useInfiniteScroll({
 	hasMore: () => rows.value.length < total.value,
@@ -55,10 +62,7 @@ const infiniteScroll = useInfiniteScroll({
 });
 async function connectInfiniteScroll() {
 	await nextTick();
-	infiniteScroll.connect(
-		surface.value === "desktop" ? resultsScroll.value || null : null,
-		sentinel.value || null,
-	);
+	infiniteScroll.connect(resultsScroll.value || null, sentinel.value || null);
 }
 onMounted(() => {
 	void connectInfiniteScroll();
@@ -66,21 +70,71 @@ onMounted(() => {
 watch(surface, () => void connectInfiniteScroll());
 watch(scrollResetToken, async () => {
 	await nextTick();
-	if (surface.value === "desktop") {
-		if (typeof resultsScroll.value?.scrollTo === "function")
-			resultsScroll.value.scrollTo({ top: 0 });
-		else if (resultsScroll.value) resultsScroll.value.scrollTop = 0;
-	} else window.scrollTo({ top: 0 });
+	if (typeof resultsScroll.value?.scrollTo === "function")
+		resultsScroll.value.scrollTo({ top: 0 });
+	else if (resultsScroll.value) resultsScroll.value.scrollTop = 0;
+	compact.value = false;
 });
+function updateCompact(event: Event) {
+	compact.value = (event.currentTarget as HTMLElement).scrollTop > 80;
+}
 onBeforeUnmount(() => infiniteScroll.disconnect());
 </script>
 
 <template>
 	<section class="app-shell wide-shell viewport-list-root pending-page">
-		<header>
+		<header v-if="surface === 'desktop'">
 			<UiButton variant="ghost" size="compact" type="button" @click="close">‹ 库存</UiButton>
-			<h1>待处理</h1>
+			<h1 ref="browseHeading" tabindex="-1">待处理</h1>
 		</header>
+		<MobileBrowseHeader
+			v-else
+			ref="mobileBrowseHeader"
+			title="待处理"
+			:compact="compact"
+			destination-key="pending"
+		>
+			<template #back
+				><button type="button" class="pending-back" @click="close">
+					‹ 库存
+				</button></template
+			>
+			<template #search-actions>
+				<div class="pending-mobile-search">
+					<input
+						v-model="filters.search"
+						type="search"
+						placeholder="搜索物品或编号"
+						aria-label="搜索待处理物品"
+					/>
+					<UiButton
+						variant="secondary"
+						size="compact"
+						type="button"
+						class="mobile-filter-button"
+						:aria-expanded="desktopFilterOpen"
+						:aria-label="`筛选，${filters.warehouses.length + filters.item_groups.length} 项已启用`"
+						@click="openFilters($event)"
+						>筛选<span
+							v-if="filters.warehouses.length + filters.item_groups.length"
+							class="filter-count"
+							>{{ filters.warehouses.length + filters.item_groups.length }}</span
+						></UiButton
+					>
+				</div>
+			</template>
+			<template #secondary>
+				<div class="browse-result-meta">
+					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
+					<ResultCountStrip
+						:loaded="rows.length"
+						:filtered="total"
+						:overall="overall ?? total"
+						:updating="loading && rows.length > 0"
+					/>
+				</div>
+			</template>
+		</MobileBrowseHeader>
 		<div
 			class="list-layout desktop-list-layout compact-filter-layout pending-list-layout"
 			:class="{ 'filters-open': desktopFilterOpen }"
@@ -117,7 +171,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				:class="{ 'is-refreshing': loading && rows.length }"
 				:aria-busy="loading || loadingMore"
 			>
-				<div class="result-toolbar results-chrome">
+				<div v-if="surface === 'desktop'" class="result-toolbar results-chrome">
 					<input
 						v-model="filters.search"
 						type="search"
@@ -139,7 +193,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						></UiButton
 					>
 				</div>
-				<div class="browse-result-meta">
+				<div v-if="surface === 'desktop'" class="browse-result-meta">
 					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
 					<ResultCountStrip
 						:loaded="rows.length"
@@ -148,7 +202,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						:updating="loading && rows.length > 0"
 					/>
 				</div>
-				<QuantitySummary :metrics="summaryMetrics" :loading="loading" />
+				<QuantitySummary
+					v-if="surface === 'desktop'"
+					:metrics="summaryMetrics"
+					:loading="loading"
+				/>
 				<p v-if="error" class="error">
 					{{ error }}
 					<UiButton variant="ghost" size="compact" type="button" @click="load()"
@@ -183,8 +241,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				<div
 					ref="resultsScroll"
 					class="results-scroll"
+					@scroll.passive="updateCompact"
 					:inert="loading && rows.length ? true : undefined"
 				>
+					<QuantitySummary
+						v-if="surface !== 'desktop'"
+						:metrics="summaryMetrics"
+						:loading="loading"
+					/>
 					<article
 						v-for="row in rows"
 						:key="row.item_code"
@@ -233,6 +297,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 				</div>
 			</div>
 		</div>
+		<ReturnToTop
+			:target="resultsScroll"
+			:heading="surface === 'desktop' ? browseHeading : mobileBrowseHeader?.heading"
+			:hidden="Boolean(filterOpen)"
+		/>
 	</section>
 </template>
 <style scoped>
@@ -262,6 +331,21 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	border-radius: 9px;
 	background: #f0ebe3;
 }
+.pending-mobile-search {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	gap: 6px;
+}
+.pending-mobile-search > input {
+	min-width: 0;
+	flex: 1;
+}
+.pending-back {
+	flex: none;
+	min-height: 40px;
+	padding: 6px 8px;
+}
 .loading-spinner-small {
 	display: inline-block;
 	width: 16px;
@@ -277,6 +361,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	.pending-list-layout {
 		overflow: hidden;
 	}
+	.pending-page > .mobile-browse-header {
+		flex: none;
+		padding: 10px 12px 8px;
+		background: #f8f7f4;
+	}
 	.pending-results {
 		display: flex;
 		flex-direction: column;
@@ -288,6 +377,35 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		min-height: 0;
 		flex: 1;
 		overflow: auto;
+		padding-bottom: 82px;
+	}
+}
+@media (max-width: 1023px) {
+	.pending-page {
+		box-sizing: border-box;
+		display: flex;
+		height: calc(100dvh - var(--mobile-nav-height, 0px));
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.pending-list-layout {
+		flex: 1;
+		overflow: hidden;
+	}
+	.pending-results {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+	.pending-results > :not(.results-scroll) {
+		flex: none;
+	}
+	.pending-results > .results-scroll {
+		min-height: 0;
+		flex: 1;
+		overflow: auto;
+		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
 	}
 }
 </style>

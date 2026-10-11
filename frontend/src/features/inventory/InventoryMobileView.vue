@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import "./inventory-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import MobileInventoryList from "../../components/MobileInventoryList.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
@@ -10,8 +11,11 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
+import ColumnSummaryTrigger from "../../components/ColumnSummaryTrigger.vue";
 import MobileSubnav from "../../components/MobileSubnav.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
 import { type InventoryController } from "./useInventoryController";
 
 const props = defineProps<{ controller: InventoryController }>();
@@ -72,6 +76,9 @@ const subnavItems = computed(() => [
 	},
 ]);
 const mobileResultsScroll = ref<HTMLElement>();
+useCompactBrowse(mobileResultsScroll, compact);
+const browseHeader = ref<{ heading?: HTMLElement }>();
+const floatingActionsOpen = ref(false);
 const mobileSentinel = ref<HTMLElement>();
 const restorationKey = "ti:inventory-results-scroll";
 const infiniteScroll = useInfiniteScroll({
@@ -83,8 +90,10 @@ onMounted(async () => {
 	await nextTick();
 	infiniteScroll.connect(mobileResultsScroll.value, mobileSentinel.value);
 	const saved = Number(sessionStorage.getItem(restorationKey) || 0);
-	mobileResultsScroll.value?.scrollTo?.({ top: saved });
-	compact.value = saved > 80;
+	if (mobileResultsScroll.value) {
+		mobileResultsScroll.value.scrollTop = saved;
+		compact.value = mobileResultsScroll.value.scrollTop > 80;
+	}
 });
 watch(scrollResetToken, async () => {
 	await nextTick();
@@ -114,89 +123,88 @@ onBeforeUnmount(() => {
 					:custom-error="customError"
 				/>
 			</ResponsiveFilterPanel>
-			<header class="mobile-browse-header">
-				<div class="mobile-title-row">
-					<div>
-						<h1>{{ pageTitle }}</h1>
-					</div>
-				</div>
-				<MobileSubnav
-					:items="subnavItems"
-					active-key="inventory"
-					:compact="compact"
-					aria-label="库存页面"
-				/>
-				<div class="mobile-search-actions" aria-label="浏览工具">
-					<b class="compact-page-title">{{ pageTitle }}</b>
-					<label
-						><span aria-hidden="true">⌕</span
-						><input
-							v-model="filters.search"
-							type="search"
-							placeholder="搜索物品或条码"
-							aria-label="搜索物品或条码"
-					/></label>
-					<button
-						type="button"
-						class="mobile-scan"
-						aria-label="扫码"
-						@click="scanner = true"
-					>
-						<InventoryIcon name="scan" /><span>扫码</span>
-					</button>
-					<button
-						type="button"
-						class="mobile-filter"
-						:aria-label="`筛选，${activeFilterCount} 项已启用`"
-						@click="openFilters($event)"
-					>
-						<InventoryIcon name="filter" /><span>筛选</span
-						><b v-if="activeFilterCount">{{ activeFilterCount }}</b>
-					</button>
-				</div>
-				<div class="browse-result-meta">
-					<ActiveFilterChips
-						:chips="chips"
-						:show-clear="false"
-						@remove="removeChip"
-						@clear="clearFilters"
+			<MobileBrowseHeader
+				ref="browseHeader"
+				:title="pageTitle"
+				:compact="compact"
+				destination-key="inventory"
+			>
+				<template #tabs>
+					<MobileSubnav
+						:items="subnavItems"
+						active-key="inventory"
+						:compact="compact"
+						aria-label="库存页面"
 					/>
-					<ResultCountStrip
-						class="inventory-result-count"
-						:loaded="rows.length"
-						:filtered="total"
-						:overall="overall ?? total"
-						:updating="loading && rows.length > 0"
-					/>
-				</div>
-				<div class="mobile-result-controls">
-					<div role="group" aria-label="库存显示方式">
+				</template>
+				<template #search-actions>
+					<div class="mobile-search-actions" aria-label="浏览工具">
+						<label
+							><span aria-hidden="true">⌕</span
+							><input
+								v-model="filters.search"
+								type="search"
+								placeholder="搜索物品或条码"
+								aria-label="搜索物品或条码"
+						/></label>
 						<button
 							type="button"
-							aria-label="列表"
-							:aria-pressed="view === 'table'"
-							@click="setView('table')"
+							class="mobile-scan"
+							aria-label="扫码"
+							@click="scanner = true"
 						>
-							<InventoryIcon name="table" />
+							<InventoryIcon name="scan" /><span>扫码</span>
 						</button>
 						<button
 							type="button"
-							aria-label="卡片"
-							:aria-pressed="view === 'card'"
-							@click="setView('card')"
+							class="mobile-filter"
+							:aria-label="`筛选，${activeFilterCount} 项已启用`"
+							@click="openFilters($event)"
 						>
-							<InventoryIcon name="card" />
+							<InventoryIcon name="filter" /><span>筛选</span
+							><b v-if="activeFilterCount">{{ activeFilterCount }}</b>
 						</button>
 					</div>
-					<button
-						type="button"
-						class="mobile-summary-trigger"
-						@click="summaryOpen = true"
-					>
-						<InventoryIcon name="table" /> Σ 列汇总
-					</button>
-				</div>
-			</header>
+				</template>
+				<template #secondary>
+					<div class="browse-result-meta">
+						<ActiveFilterChips
+							:chips="chips"
+							:show-clear="false"
+							@remove="removeChip"
+							@clear="clearFilters"
+						/>
+						<ResultCountStrip
+							class="inventory-result-count"
+							:loaded="rows.length"
+							:filtered="total"
+							:overall="overall ?? total"
+							:updating="loading && rows.length > 0"
+						/>
+					</div>
+					<div class="mobile-result-controls">
+						<div role="group" aria-label="库存显示方式">
+							<button
+								type="button"
+								aria-label="列表"
+								:aria-pressed="view === 'table'"
+								@click="setView('table')"
+							>
+								<InventoryIcon name="table" />
+							</button>
+							<button
+								type="button"
+								aria-label="卡片"
+								:aria-pressed="view === 'card'"
+								@click="setView('card')"
+							>
+								<InventoryIcon name="card" />
+							</button>
+						</div>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
+					</div>
+				</template>
+			</MobileBrowseHeader>
 			<section
 				ref="mobileResultsScroll"
 				class="mobile-results"
@@ -237,6 +245,14 @@ onBeforeUnmount(() => {
 			:disabled="mobileActionsDisabled"
 			label="新增库存操作"
 			@select="(kind) => void operation(kind)"
+			@update:open="floatingActionsOpen = $event"
+		/>
+		<ReturnToTop
+			:target="mobileResultsScroll"
+			:heading="browseHeader?.heading"
+			:hidden="Boolean(filterOpen || scanner || summaryOpen)"
+			:floating-action-open="floatingActionsOpen"
+			:has-floating-action="mobileActions.length > 0"
 		/>
 		<ColumnSummaryDialog
 			v-model:open="summaryOpen"
@@ -455,7 +471,7 @@ onBeforeUnmount(() => {
 		flex: 1;
 		overflow-x: hidden;
 		overflow-y: auto;
-		padding: 4px 8px 16px;
+		padding: 4px 8px calc(var(--mobile-nav-height, 0px) + 105px);
 		background: #f8f7f4;
 	}
 	.mobile-results :deep(.inventory-card-grid) {
@@ -479,10 +495,6 @@ onBeforeUnmount(() => {
 	.mobile-results :deep(.card-state) {
 		padding: 25px 8px;
 	}
-	.mobile-inventory-page.compact .mobile-title-row,
-	.mobile-inventory-page.compact :deep(.mobile-summary) {
-		display: none;
-	}
 	.mobile-inventory-page.compact .mobile-browse-header {
 		gap: 5px;
 		padding: 7px 8px 4px;
@@ -493,30 +505,10 @@ onBeforeUnmount(() => {
 	.mobile-inventory-page.compact .mobile-search-actions > button span {
 		display: none;
 	}
-	.mobile-inventory-page.compact .compact-page-title {
-		display: block;
-	}
 	.mobile-inventory-page.compact .mobile-subnav {
 		min-height: 40px;
 		gap: 2px;
 		padding: 2px;
-	}
-	.mobile-inventory-page.compact .mobile-subnav a {
-		min-height: 36px;
-		padding: 4px 7px;
-		font-size: 11px;
-	}
-	.mobile-summary-trigger {
-		display: inline-flex;
-		min-height: 44px;
-		align-items: center;
-		gap: 4px;
-		padding: 4px 8px;
-		border: 1px solid #e2d8c9;
-		border-radius: 7px;
-		background: #fff;
-		color: #80572f;
-		font-size: 11px;
 	}
 	.mobile-search-actions input {
 		box-sizing: border-box;

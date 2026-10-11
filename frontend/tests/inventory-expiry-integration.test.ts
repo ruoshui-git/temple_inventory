@@ -289,10 +289,22 @@ describe("Inventory and Expiry integrations", () => {
     expect(wrapper.find(".mobile-results .inventory-card-grid").exists()).toBe(
       true,
     );
-    await wrapper.findAll(".mobile-result-controls button")[0].trigger("click");
+    const viewButtons = wrapper.findAll(
+      '.mobile-result-controls [role="group"] button',
+    );
+    await viewButtons[0].trigger("click");
     expect(
       wrapper.find(".mobile-results .mobile-inventory-list").exists(),
     ).toBe(true);
+    await viewButtons[1].trigger("click");
+    expect(wrapper.find(".mobile-results .inventory-card-grid").exists()).toBe(
+      true,
+    );
+    const controls = Array.from(
+      wrapper.find(".mobile-result-controls").element.children,
+    );
+    expect(controls[0].getAttribute("role")).toBe("group");
+    expect(controls[1].classList.contains("column-summary-trigger")).toBe(true);
   });
 
   it("defaults Expiry to shared cards, persists the list toggle, and opens column totals", async () => {
@@ -324,17 +336,24 @@ describe("Inventory and Expiry integrations", () => {
       true,
     );
     expect(wrapper.findAll(".mobile-expiry-card")).toHaveLength(1);
-    await wrapper.find(".mobile-summary-trigger").trigger("click");
+    const viewButtons = wrapper.findAll(
+      '.mobile-result-controls [role="group"] button',
+    );
+    await viewButtons[0].trigger("click");
+    expect(wrapper.find(".mobile-expiry-result-row").exists()).toBe(true);
+    expect(localStorage.getItem("temple_inventory.expiry.view")).toBe("table");
+    await viewButtons[1].trigger("click");
+    expect(wrapper.findAll(".mobile-expiry-card")).toHaveLength(1);
+    const controls = Array.from(
+      wrapper.find(".mobile-result-controls").element.children,
+    );
+    expect(controls[0].getAttribute("role")).toBe("group");
+    expect(controls[1].classList.contains("column-summary-trigger")).toBe(true);
+    await wrapper.find(".column-summary-trigger").trigger("click");
     await flushPromises();
     expect(
       document.body.querySelector(".column-summary-dialog")?.textContent,
     ).toContain("2 件");
-    const viewButtons = wrapper.findAll(
-      '.mobile-result-controls [role="group"] button',
-    );
-    await viewButtons[1].trigger("click");
-    expect(wrapper.find(".mobile-expiry-result-row").exists()).toBe(true);
-    expect(localStorage.getItem("temple_inventory.expiry.view")).toBe("table");
     wrapper.unmount();
   });
 
@@ -403,7 +422,7 @@ describe("Inventory and Expiry integrations", () => {
     expiry.unmount();
   });
 
-  it("maps Expiry quick filters and renders complete summary details for separate batches", async () => {
+  it("keeps mobile Expiry summary metrics and quick shortcuts out of browse chrome", async () => {
     state.route.path = "/expiry";
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
@@ -431,28 +450,11 @@ describe("Inventory and Expiry integrations", () => {
     );
     const wrapper = mount(Expiry, { global: globals });
     await flushPromises();
-    await wrapper.find(".mobile-summary-card").trigger("click");
-    expect(wrapper.find(".mobile-summary-details").text()).toContain("7 天内");
     expect(wrapper.findAll(".mobile-expiry-card")).toHaveLength(2);
-    const quick = wrapper.findAll(".expiry-quick-filters button");
-    await quick[1].trigger("click");
-    await flushPromises();
-    let request = state.api.mock.calls
-      .filter((call) => call[0] === "expiring_batches")
-      .at(-1);
-    expect(request?.[1].expiry_window).toBe("remaining_within");
-    await quick[2].trigger("click");
-    await flushPromises();
-    request = state.api.mock.calls
-      .filter((call) => call[0] === "expiring_batches")
-      .at(-1);
-    expect(request?.[1].expiry_window).toBe("overdue");
-    await quick[0].trigger("click");
-    await flushPromises();
-    request = state.api.mock.calls
-      .filter((call) => call[0] === "expiring_batches")
-      .at(-1);
-    expect(request?.[1].expiry_window).toBe("");
+    expect(wrapper.find(".mobile-summary-card").exists()).toBe(false);
+    expect(wrapper.find(".mobile-summary-details").exists()).toBe(false);
+    expect(wrapper.find(".expiry-quick-filters").exists()).toBe(false);
+    expect(wrapper.find(".column-summary-trigger").exists()).toBe(true);
   });
 
   it("compacts mobile browse chrome while retaining the compact page title", async () => {
@@ -467,7 +469,7 @@ describe("Inventory and Expiry integrations", () => {
     expect(wrapper.find(".mobile-inventory-page").classes()).toContain(
       "compact",
     );
-    expect(wrapper.find(".compact-page-title").exists()).toBe(true);
+    expect(wrapper.find(".mobile-browse-short-title").exists()).toBe(true);
     expect(wrapper.find(".mobile-subnav").exists()).toBe(true);
     expect(
       wrapper
@@ -493,7 +495,7 @@ describe("Inventory and Expiry integrations", () => {
     expect(wrapper.find(".mobile-inventory-page").classes()).toContain(
       "compact",
     );
-    expect(wrapper.find(".compact-page-title").exists()).toBe(true);
+    expect(wrapper.find(".mobile-browse-short-title").exists()).toBe(true);
   });
 
   it("compacts and restores the Expiry mobile header with its results scroll", async () => {

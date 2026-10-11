@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import CategorySelector from "../../components/CategorySelector.vue";
@@ -16,6 +17,8 @@ import ExportDialog from "../../components/ExportDialog.vue";
 import UiButton from "../../components/UiButton.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
+import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
 import { labels } from "../../lib/api";
 import { type MovementOverviewController } from "./useMovementOverviewController";
 
@@ -68,6 +71,10 @@ const surface = toRef(props, "surface");
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const resultsScroll = ref<HTMLElement>();
+const browseHeading = ref<HTMLElement>();
+const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
+const compact = ref(false);
+useCompactBrowse(resultsScroll, compact);
 const summaryRegion = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const restorationKey = "temple_inventory.scroll.movement-overview";
@@ -80,20 +87,30 @@ onMounted(async () => {
 	await nextTick();
 	infiniteScroll.connect(resultsScroll.value, sentinel.value);
 	const saved = Number(sessionStorage.getItem(restorationKey) || 0);
-	resultsScroll.value?.scrollTo?.({ top: saved });
+	if (resultsScroll.value) {
+		resultsScroll.value.scrollTop = saved;
+		compact.value = resultsScroll.value.scrollTop > 80;
+	}
 });
 watch(scrollResetToken, async () => {
 	await nextTick();
 	resultsScroll.value?.scrollTo?.({ top: 0 });
+	compact.value = false;
 });
 onBeforeUnmount(() => {
 	sessionStorage.setItem(restorationKey, String(resultsScroll.value?.scrollTop || 0));
 	infiniteScroll.disconnect();
 });
+function onOverviewScroll(event: Event) {
+	compact.value = (event.currentTarget as HTMLElement).scrollTop > 80;
+}
 </script>
 
 <template>
-	<main class="app-shell wide-shell viewport-list-root movement-overview">
+	<main
+		class="app-shell wide-shell viewport-list-root movement-overview"
+		:class="{ 'overview-mobile': surface !== 'desktop' }"
+	>
 		<div class="list-layout desktop-list-layout">
 			<ResponsiveFilterPanel
 				ref="filterPanel"
@@ -124,7 +141,59 @@ onBeforeUnmount(() => {
 				/>
 			</ResponsiveFilterPanel>
 			<div class="results-column">
-				<div class="results-chrome">
+				<MobileBrowseHeader
+					v-if="surface !== 'desktop'"
+					ref="mobileBrowseHeader"
+					title="货物流动总览"
+					short-title="流动总览"
+					:compact="compact"
+					destination-key="movement-overview"
+				>
+					<template #search-actions>
+						<div class="overview-mobile-search">
+							<input
+								v-model="filters.search"
+								type="search"
+								placeholder="搜索物品名称或编码"
+								aria-label="搜索物品名称或编码"
+							/>
+							<IconButton
+								class="mobile-filter-button"
+								:label="activeCount ? `筛选，已启用 ${activeCount} 项` : '筛选'"
+								@click="filterPanel?.openPanel($event)"
+								><svg aria-hidden="true" viewBox="0 0 24 24">
+									<path d="M4 6h16M7 12h10M10 18h4" /></svg
+								><span v-if="activeCount" class="icon-count">{{
+									activeCount
+								}}</span></IconButton
+							>
+						</div>
+					</template>
+					<template #secondary>
+						<MovementPeriodSelector
+							v-model:period-key="filters.period_key"
+							v-model:date-from="filters.date_from"
+							v-model:date-to="filters.date_to"
+							:resolved-from="resolved.date_from"
+							:resolved-to="resolved.date_to"
+						/>
+						<div class="browse-result-meta">
+							<ActiveFilterChips
+								:chips="chips"
+								@remove="removeChip"
+								@clear="clearAll"
+							/>
+							<ResultCountStrip
+								:loaded="rows.length"
+								:filtered="total"
+								:overall="overall ?? total"
+								:updating="refreshing"
+							/>
+						</div>
+					</template>
+				</MobileBrowseHeader>
+				<div v-if="surface === 'desktop'" class="results-chrome">
+					<h1 ref="browseHeading" tabindex="-1">货物流动总览</h1>
 					<MovementPeriodSelector
 						v-model:period-key="filters.period_key"
 						v-model:date-from="filters.date_from"
@@ -146,12 +215,7 @@ onBeforeUnmount(() => {
 							><svg aria-hidden="true" viewBox="0 0 24 24">
 								<path d="M4 6h16M7 12h10M10 18h4" /></svg
 						></IconButton>
-						<UiButton
-							v-if="surface === 'desktop'"
-							icon="download"
-							@click="exportOpen = true"
-							>导出</UiButton
-						>
+						<UiButton icon="download" @click="exportOpen = true">导出</UiButton>
 					</div>
 					<div class="browse-result-meta">
 						<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearAll" />
@@ -162,7 +226,61 @@ onBeforeUnmount(() => {
 							:updating="refreshing"
 						/>
 					</div>
+				</div>
+				<div
+					v-if="surface === 'desktop'"
+					ref="summaryRegion"
+					class="movement-summary-groups"
+					aria-label="动作汇总"
+					:aria-busy="busy || refreshing"
+				>
+					<section v-for="group in actionGroups" :key="group.label">
+						<h2>{{ group.label }}</h2>
+						<div class="movement-summary-grid">
+							<button
+								v-for="kind in group.kinds"
+								:key="kind"
+								type="button"
+								class="movement-summary-card"
+								:aria-pressed="filters.movement_kinds.includes(kind)"
+								@click="toggleKind(kind)"
+							>
+								<small>{{ labels[kind] }}</small>
+								<strong v-if="busy && !summaries.length">—</strong>
+								<strong v-else-if="actionSummary(kind).quantities.length">
+									<span
+										v-for="quantity in actionSummary(kind).quantities"
+										:key="quantity.uom"
+										>{{ formatQuantity(quantity.qty) }}
+										{{ quantity.uom }}</span
+									>
+								</strong>
+								<strong v-else>0</strong>
+								<span class="summary-counts"
+									>{{ actionSummary(kind).item_count }} 种物品 ·
+									{{ actionSummary(kind).record_count }} 条记录</span
+								>
+							</button>
+						</div>
+					</section>
+				</div>
+				<UiLoadingBoundary
+					v-if="surface === 'desktop'"
+					class="movement-summary-loading-boundary-proxy"
+					:busy="busy || refreshing"
+					:mode="summaries.length ? 'refresh' : 'initial'"
+					:message="summaries.length ? '正在更新动作汇总…' : '正在加载动作汇总…'"
+					:region="summaryRegion"
+					:dim-region="Boolean(summaries.length)"
+					:block-interactions="false"
+				/>
+				<div
+					ref="resultsScroll"
+					class="results-scroll overview-results-scroll"
+					@scroll.passive="onOverviewScroll"
+				>
 					<div
+						v-if="surface !== 'desktop'"
 						ref="summaryRegion"
 						class="movement-summary-groups"
 						aria-label="动作汇总"
@@ -199,6 +317,7 @@ onBeforeUnmount(() => {
 						</section>
 					</div>
 					<UiLoadingBoundary
+						v-if="surface !== 'desktop'"
 						class="movement-summary-loading-boundary-proxy"
 						:busy="busy || refreshing"
 						:mode="summaries.length ? 'refresh' : 'initial'"
@@ -207,8 +326,6 @@ onBeforeUnmount(() => {
 						:dim-region="Boolean(summaries.length)"
 						:block-interactions="false"
 					/>
-				</div>
-				<div ref="resultsScroll" class="results-scroll">
 					<SortableDataTable
 						:surface="surface"
 						:rows="rows"
@@ -292,6 +409,11 @@ onBeforeUnmount(() => {
 			title="导出货物流动"
 			summary="沿用当前时间、动作、物品类别、位置、搜索和排序条件，包含汇总与记录明细。"
 		/>
+		<ReturnToTop
+			:target="resultsScroll"
+			:heading="surface === 'desktop' ? browseHeading : mobileBrowseHeader?.heading"
+			:hidden="Boolean(filterOpen || exportOpen)"
+		/>
 	</main>
 </template>
 <style scoped>
@@ -299,6 +421,53 @@ onBeforeUnmount(() => {
 	display: grid;
 	gap: 8px;
 	padding-bottom: 10px;
+}
+.overview-results-scroll {
+	min-height: 0;
+}
+@media (min-width: 1024px) {
+	.movement-overview .results-column {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.overview-results-scroll {
+		flex: 1;
+		overflow: auto;
+		padding-bottom: 82px;
+	}
+}
+@media (max-width: 1023px) {
+	.movement-overview.overview-mobile {
+		box-sizing: border-box;
+		display: flex;
+		height: calc(100dvh - var(--mobile-nav-height, 0px));
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.overview-mobile > .desktop-list-layout {
+		min-height: 0;
+		flex: 1;
+		overflow: hidden;
+	}
+	.overview-mobile .results-column {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+	}
+	.overview-mobile .mobile-browse-header {
+		flex: none;
+		padding: 10px 12px 8px;
+		background: #f8f7f4;
+	}
+	.overview-mobile .overview-results-scroll {
+		min-height: 0;
+		flex: 1;
+		overflow: auto;
+		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+	}
 }
 .movement-summary-loading-boundary-proxy {
 	display: contents;

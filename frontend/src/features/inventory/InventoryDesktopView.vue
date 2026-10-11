@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import "./inventory-surface.css";
 import "../../components/browse-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import { useCompactBrowse } from "../../composables/useCompactBrowse";
 import ItemImagePreview from "../../components/ItemImagePreview.vue";
 import SortableDataTable from "../../components/SortableDataTable.vue";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
@@ -12,9 +13,11 @@ import DetailPopover from "../../components/DetailPopover.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import InventoryFilterPanel from "../../components/InventoryFilterPanel.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import ColumnSummaryTrigger from "../../components/ColumnSummaryTrigger.vue";
 import UiButton from "../../components/UiButton.vue";
 import { type InventoryController } from "./useInventoryController";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
+import ReturnToTop from "../../components/ReturnToTop.vue";
 
 const props = defineProps<{ controller: InventoryController }>();
 const {
@@ -66,6 +69,8 @@ const surface: "desktop" | "mobile" = "desktop";
 const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
 const resultsScroll = ref<HTMLElement>();
+useCompactBrowse(resultsScroll, compact);
+const browseHeading = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const restorationKey = "ti:inventory-results-scroll";
 const infiniteScroll = useInfiniteScroll({
@@ -78,7 +83,7 @@ onMounted(async () => {
 	infiniteScroll.connect(resultsScroll.value, sentinel.value);
 	const saved = Number(sessionStorage.getItem(restorationKey) || 0);
 	resultsScroll.value?.scrollTo?.({ top: saved });
-	compact.value = saved > 80;
+	compact.value = (resultsScroll.value?.scrollTop || 0) > 80;
 });
 watch(scrollResetToken, async () => {
 	await nextTick();
@@ -109,9 +114,9 @@ onBeforeUnmount(() => {
 				<div class="results-chrome">
 					<div class="inventory-heading">
 						<div class="inventory-title">
-							<h1>{{ pageTitle }}</h1>
+							<h1 ref="browseHeading" tabindex="-1">{{ pageTitle }}</h1>
 						</div>
-						<div class="inventory-heading-actions">
+						<div class="inventory-heading-actions" :inert="compact || undefined">
 							<UiButton
 								v-for="action in pageActions"
 								:key="action.kind"
@@ -163,15 +168,7 @@ onBeforeUnmount(() => {
 								><b v-if="activeFilterCount">{{ activeFilterCount }}</b></span
 							>
 						</UiButton>
-						<UiButton
-							variant="secondary"
-							size="compact"
-							icon="table"
-							class="toolbar-action"
-							@click="summaryOpen = true"
-						>
-							列汇总
-						</UiButton>
+						<ColumnSummaryTrigger @click="summaryOpen = true" />
 						<UiButton
 							variant="secondary"
 							size="compact"
@@ -417,6 +414,11 @@ onBeforeUnmount(() => {
 			:columns="sortColumns"
 			:summaries="columnSummaries"
 			:loading="loading"
+		/>
+		<ReturnToTop
+			:target="resultsScroll"
+			:heading="browseHeading"
+			:hidden="Boolean(filterOpen || exportOpen || scanner || summaryOpen)"
 		/>
 	</section>
 </template>

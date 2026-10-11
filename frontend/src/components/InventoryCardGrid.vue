@@ -413,11 +413,6 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 		grid-template-columns: 1fr;
 		padding: 8px 0;
 	}
-	.inventory-card-grid.compact-mobile {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px;
-		padding: 4px 0 12px;
-	}
 	.compact-mobile :deep(.image-forward-card__body) {
 		gap: 5px;
 		padding: 8px;
@@ -472,6 +467,18 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	.inventory-visual-card :deep(.image-forward-card__media),
 	.inventory-visual-card :deep(.image-forward-card__media img) {
 		height: 100%;
+	}
+}
+@media (max-width: 1023px) {
+	.inventory-card-grid.compact-mobile {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-auto-rows: auto;
+		align-items: start;
+		gap: 8px;
+		padding: 4px 0 12px;
+	}
+	.inventory-card-grid.compact-mobile .inventory-visual-card {
+		align-self: start;
 	}
 }
 </style>

@@ -51,7 +51,12 @@
 	white-space: nowrap;
 }
 .compact .inventory-heading {
-	display: none;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
 }
 .compact .compact-identity {
 	display: block;
@@ -216,6 +221,11 @@
 }
 .location-line {
 	display: block;
+}
+@media (min-width: 1024px) {
+	.expiry-desktop-page .results-scroll {
+		padding-bottom: 82px;
+	}
 }
 .empty-state,
 .inline-error {

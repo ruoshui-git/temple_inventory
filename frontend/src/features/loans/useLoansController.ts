@@ -12,6 +12,8 @@ import type {
 } from "../../components/SortableDataTable.vue";
 import type { PageAction } from "../../components/pageActions";
 import { warehousePresentation } from "../../lib/warehousePresenter";
+import { loanBrowseContext } from "../../lib/browseContext";
+import type { MovementPeriodKey } from "../../components/MovementPeriodSelector.vue";
 
 type Mode = "items" | "records";
 type LoanStatus =
@@ -19,6 +21,9 @@ type LoanStatus =
 type Filters = {
   search: string;
   loan_date: string;
+  period_key: MovementPeriodKey;
+  date_from: string;
+  date_to: string;
   status: LoanStatus;
   item_code: string;
   item_groups: string[];
@@ -27,9 +32,36 @@ type Filters = {
 };
 const defaultStatus = (mode: Mode): LoanStatus =>
   mode === "items" ? "outstanding" : "all";
+const periodKeys: MovementPeriodKey[] = [
+  "all",
+  "today",
+  "last_7_days",
+  "last_30_days",
+  "last_90_days",
+  "last_365_days",
+  "this_week",
+  "this_month",
+  "this_year",
+  "custom",
+];
+const periodLabels: Record<MovementPeriodKey, string> = {
+  all: "全部时间",
+  today: "今日",
+  last_7_days: "近7天",
+  last_30_days: "近30天",
+  last_90_days: "近90天",
+  last_365_days: "近365天",
+  this_week: "本周",
+  this_month: "本月",
+  this_year: "本年",
+  custom: "自定义",
+};
 const defaults = (mode: Mode): Filters => ({
   search: "",
   loan_date: "",
+  period_key: "all",
+  date_from: "",
+  date_to: "",
   status: defaultStatus(mode),
   item_code: "",
   item_groups: [],
@@ -47,6 +79,9 @@ export function useLoansController() {
       ? "records"
       : "items",
   );
+  const contextItems = computed(() =>
+    loanBrowseContext(route.path, route.query),
+  );
   const boot = ref<any>();
   const items = ref<any[]>([]);
   const itemQuery = ref("");
@@ -62,6 +97,16 @@ export function useLoansController() {
     activities: {},
   } as any);
   const columnSummaries = ref<Record<string, any>>({});
+  const resolvedPeriod = ref<{
+    key: MovementPeriodKey;
+    date_from: string;
+    date_to: string;
+  }>({
+    key: "all",
+    date_from: "",
+    date_to: "",
+  });
+  const periodValidationError = ref("");
   const error = ref("");
   const appendError = ref("");
   const loading = ref(true);
@@ -90,6 +135,25 @@ export function useLoansController() {
   const breakdownError = ref("");
   let breakdownController: AbortController | undefined;
   let breakdownSequence = 0;
+
+  const isIsoDate = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return (
+      !Number.isNaN(parsed.getTime()) &&
+      parsed.toISOString().slice(0, 10) === value
+    );
+  };
+  const isPeriodRangeValid = () =>
+    filters.value.period_key !== "custom" ||
+    (isIsoDate(filters.value.date_from) &&
+      isIsoDate(filters.value.date_to) &&
+      filters.value.date_from <= filters.value.date_to);
+  function validatePeriodRange() {
+    const valid = isPeriodRangeValid();
+    periodValidationError.value = valid ? "" : "请选择完整且有效的借出日期范围";
+    return valid;
+  }
 
   const pageActions = computed<PageAction[]>(() => {
     const capabilities = boot.value?.stock_operation_capabilities || {};
@@ -183,7 +247,7 @@ export function useLoansController() {
   const activeCount = computed(
     () =>
       (filters.value.search ? 1 : 0) +
-      (filters.value.loan_date ? 1 : 0) +
+      (filters.value.period_key !== "all" ? 1 : 0) +
       (filters.value.item_code ? 1 : 0) +
       filters.value.item_groups.length +
       filters.value.warehouses.length +
@@ -220,8 +284,16 @@ export function useLoansController() {
     ...(filters.value.search
       ? [{ key: "search", label: `搜索：${filters.value.search}` }]
       : []),
-    ...(filters.value.loan_date
-      ? [{ key: "loan_date", label: `日期：${filters.value.loan_date}` }]
+    ...(filters.value.period_key !== "all"
+      ? [
+          {
+            key: "period_key",
+            label:
+              filters.value.period_key === "custom"
+                ? `借出时间：${filters.value.date_from || "未选开始日期"} 至 ${filters.value.date_to || "未选结束日期"}`
+                : `借出时间：${periodLabels[filters.value.period_key]}${resolvedPeriod.value.key === filters.value.period_key && resolvedPeriod.value.date_from ? ` · ${resolvedPeriod.value.date_from} 至 ${resolvedPeriod.value.date_to}` : ""}`,
+          },
+        ]
       : []),
     ...(filters.value.activity
       ? [
@@ -235,6 +307,16 @@ export function useLoansController() {
   function queryFilters() {
     return {
       ...filters.value,
+      loan_date: undefined,
+      period_key: filters.value.period_key,
+      date_from:
+        filters.value.period_key === "custom"
+          ? filters.value.date_from
+          : undefined,
+      date_to:
+        filters.value.period_key === "custom"
+          ? filters.value.date_to
+          : undefined,
       status:
         mode.value === "records" && filters.value.status !== "all"
           ? filters.value.status
@@ -286,6 +368,14 @@ export function useLoansController() {
     filterOptionsTimer = setTimeout(() => void loadItemOptions(value), 250);
   }
   async function load(append = false) {
+    if (!validatePeriodRange()) {
+      controller?.abort();
+      appendController?.abort();
+      sequence += 1;
+      loading.value = false;
+      loadingMore.value = false;
+      return;
+    }
     if (append && (loadingMore.value || rows.value.length >= total.value))
       return;
     if (append) appendController?.abort();
@@ -332,12 +422,31 @@ export function useLoansController() {
         activities: {},
       };
       columnSummaries.value = data.column_summaries || {};
+      resolvedPeriod.value = data.resolved_period || {
+        key: filters.value.period_key,
+        date_from: filters.value.date_from,
+        date_to: filters.value.date_to,
+      };
       if (!append) {
         syncingRoute = true;
         await router.replace({
           query: {
             ...serializeFilterQuery({
               ...filters.value,
+              loan_date: undefined,
+              period:
+                filters.value.period_key === "all"
+                  ? undefined
+                  : filters.value.period_key,
+              period_key: undefined,
+              date_from:
+                filters.value.period_key === "custom"
+                  ? filters.value.date_from
+                  : undefined,
+              date_to:
+                filters.value.period_key === "custom"
+                  ? filters.value.date_to
+                  : undefined,
               status:
                 filters.value.status === defaultStatus(mode.value)
                   ? ""
@@ -373,6 +482,26 @@ export function useLoansController() {
   }
   function applyQuery(query: Record<string, any>) {
     const hydrated = hydrateFilterQuery(query, defaults(mode.value));
+    const routePeriod = query.period ?? query.period_key;
+    const hasNewPeriod =
+      routePeriod !== undefined ||
+      query.date_from !== undefined ||
+      query.date_to !== undefined;
+    if (!hasNewPeriod && hydrated.loan_date) {
+      hydrated.period_key = "custom";
+      hydrated.date_from = String(hydrated.loan_date);
+      hydrated.date_to = String(hydrated.loan_date);
+    } else if (hasNewPeriod) {
+      hydrated.loan_date = "";
+      const candidatePeriod = String(
+        routePeriod || (query.date_from || query.date_to ? "custom" : "all"),
+      );
+      hydrated.period_key = periodKeys.includes(
+        candidatePeriod as MovementPeriodKey,
+      )
+        ? (candidatePeriod as MovementPeriodKey)
+        : "all";
+    }
     const value = String(hydrated.status);
     const validStatuses =
       mode.value === "items"
@@ -401,7 +530,12 @@ export function useLoansController() {
   }
   function removeChip(chip: any) {
     if (chip.key === "status") filters.value.status = defaultStatus(mode.value);
-    else if (Array.isArray((filters.value as any)[chip.key]))
+    else if (chip.key === "period_key") {
+      filters.value.period_key = "all";
+      filters.value.date_from = "";
+      filters.value.date_to = "";
+      filters.value.loan_date = "";
+    } else if (Array.isArray((filters.value as any)[chip.key]))
       (filters.value as any)[chip.key] = (filters.value as any)[
         chip.key
       ].filter((value: string) => value !== chip.value);
@@ -422,6 +556,7 @@ export function useLoansController() {
     void router.push(`/loans/${encodeURIComponent(name)}`);
   }
   async function loadBreakdown(row: any, append = false, force = false) {
+    if (!validatePeriodRange()) return;
     if (!row?.item_code || !row?.outcome) return;
     if (
       !force &&
@@ -501,11 +636,29 @@ export function useLoansController() {
     () => {
       if (boot.value) {
         closeBreakdown();
+        if (!validatePeriodRange()) {
+          controller?.abort();
+          appendController?.abort();
+          sequence += 1;
+          loading.value = false;
+          loadingMore.value = false;
+          return;
+        }
         scrollResetToken.value += 1;
         scheduleLoad();
       }
     },
     { deep: true },
+  );
+  watch(
+    () => filters.value.period_key,
+    (period) => {
+      if (period === "all") {
+        filters.value.date_from = "";
+        filters.value.date_to = "";
+        filters.value.loan_date = "";
+      }
+    },
   );
   watch(mode, (nextMode, previousMode) => {
     if (nextMode !== previousMode) {
@@ -555,6 +708,7 @@ export function useLoansController() {
   });
   return {
     route,
+    contextItems,
     router,
     surface,
     mode,
@@ -589,6 +743,9 @@ export function useLoansController() {
     chips,
     scrollResetToken,
     compact,
+    resolvedPeriod,
+    periodValidationError,
+    isPeriodRangeValid,
     load,
     scheduleLoad,
     setStatus,

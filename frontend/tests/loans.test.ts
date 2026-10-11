@@ -27,7 +27,7 @@ vi.mock("../src/lib/api", async () => {
 const RouterLink = defineComponent({
   props: ["to"],
   template:
-    "<a :href=\"typeof to === 'string' ? to : (to?.path || '#')\"><slot /></a>",
+    "<a :href=\"typeof to === 'string' ? to : (to?.path || '#')\" :data-query=\"JSON.stringify(to?.query || {})\"><slot /></a>",
 });
 const globals = {
   stubs: {
@@ -656,6 +656,298 @@ describe("loan item and record browsing", () => {
     await flushPromises();
     expect(document.body.textContent).not.toContain("STALE-LOAN");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it("keeps period and search queries on mode tabs while applying each mode's status policy", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [],
+        total: 0,
+        overall_total: 0,
+        resolved_period: { key: "all", date_from: "", date_to: "" },
+      };
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+
+    route.query = { period: "last_7_days", search: "手电", status: "returned" };
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    const itemCall = state.api.mock.calls
+      .filter(([method]) => method === "loan_item_groups")
+      .at(-1);
+    expect(itemCall?.[1].filters).toEqual(
+      expect.objectContaining({
+        period_key: "last_7_days",
+        search: "手电",
+        outcome: "returned",
+      }),
+    );
+    const recordsTab = wrapper.find('a[href="/loans/records"]');
+    const recordsQuery = JSON.parse(
+      recordsTab.attributes("data-query") || "{}",
+    );
+    expect(recordsQuery).toEqual(
+      expect.objectContaining({ period: "last_7_days", search: "手电" }),
+    );
+    expect(recordsQuery.status).toBeUndefined();
+
+    route.path = "/loans/records";
+    route.query = { period: "last_7_days", search: "手电", status: "returned" };
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    const recordCall = state.api.mock.calls
+      .filter(([method]) => method === "loan_records")
+      .at(-1);
+    expect(recordCall?.[1].filters).toEqual(
+      expect.objectContaining({
+        period_key: "last_7_days",
+        search: "手电",
+        status: undefined,
+      }),
+    );
+    expect(wrapper.find('.loan-status-chip[aria-pressed="true"]').text()).toBe(
+      "全部",
+    );
+    wrapper.unmount();
+  });
+
+  it("keeps rows and scroll while a custom borrow range is invalid, then filters and clears it", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [
+          {
+            name: "ITM-1::outstanding",
+            item_code: "ITM-1",
+            item_name: "相机",
+            outcome: "outstanding",
+            outcome_label: "未归还",
+            quantity_values: [{ uom: "Nos", qty: 1 }],
+            record_count: 1,
+          },
+        ],
+        total: 40,
+        overall_total: 40,
+        resolved_period: { key: "all", date_from: "", date_to: "" },
+      };
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    const controller = wrapper
+      .findComponent({ name: "LoansView" })
+      .props("controller") as any;
+    const browseRequests = () =>
+      state.api.mock.calls.filter(([method]) =>
+        ["loan_item_groups", "loan_records"].includes(method),
+      );
+    const breakdownRequests = () =>
+      state.api.mock.calls.filter(
+        ([method]) => method === "loan_item_group_records",
+      );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    const scroll = wrapper.find<HTMLElement>(".results-scroll");
+    scroll.element.scrollTop = 120;
+    Object.defineProperty(scroll.element, "scrollTo", {
+      configurable: true,
+      value: ({ top }: ScrollToOptions) => {
+        scroll.element.scrollTop = Number(top || 0);
+      },
+    });
+    await wrapper.find(".mobile-filter-button").trigger("click");
+    await flushPromises();
+    const custom = Array.from(
+      document.body.querySelectorAll(".period-choices button"),
+    ).find((button) => button.textContent?.trim() === "自定义");
+    expect(custom).toBeDefined();
+    const initialBrowseCount = browseRequests().length;
+    custom!.click();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(browseRequests()).toHaveLength(initialBrowseCount);
+    expect(breakdownRequests()).toHaveLength(0);
+    const dates = Array.from(
+      document.body.querySelectorAll<HTMLInputElement>(
+        '.custom-period-menu-portal input[type="date"]',
+      ),
+    );
+    expect(dates).toHaveLength(2);
+    const setDate = (input: HTMLInputElement, value: string) => {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    setDate(dates[0], "2026-03-02");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(
+      document.body.querySelector(".period-validation-error")?.textContent,
+    ).toContain("完整");
+    expect(wrapper.text()).toContain("相机");
+    expect(scroll.element.scrollTop).toBe(120);
+    expect(browseRequests()).toHaveLength(
+      initialBrowseCount,
+      JSON.stringify(browseRequests().map(([method, args]) => [method, args])),
+    );
+    expect(breakdownRequests()).toHaveLength(0);
+    setDate(dates[1], "2026-03-01");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(
+      document.body.querySelector(".period-validation-error")?.textContent,
+    ).toContain("有效");
+    expect(scroll.element.scrollTop).toBe(120);
+    expect(browseRequests()).toHaveLength(initialBrowseCount);
+    expect(breakdownRequests()).toHaveLength(0);
+    await controller.load(true);
+    await controller.loadBreakdown(
+      { item_code: "ITM-1", outcome: "outstanding" },
+      true,
+    );
+    expect(browseRequests()).toHaveLength(initialBrowseCount);
+    expect(breakdownRequests()).toHaveLength(0);
+
+    setDate(dates[1], "2026-03-02");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_item_groups",
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          period_key: "custom",
+          date_from: "2026-03-02",
+          date_to: "2026-03-02",
+        }),
+      }),
+      expect.any(AbortSignal),
+    );
+    const validBrowseCount = browseRequests().length;
+    await controller.load(true);
+    await flushPromises();
+    expect(browseRequests()).toHaveLength(validBrowseCount + 1);
+    expect(browseRequests().at(-1)?.[1]).toEqual(
+      expect.objectContaining({
+        start: 1,
+        filters: expect.objectContaining({
+          period_key: "custom",
+          date_from: "2026-03-02",
+          date_to: "2026-03-02",
+        }),
+      }),
+    );
+    await wrapper.find(".loan-card").trigger("click");
+    await flushPromises();
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_item_group_records",
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          period_key: "custom",
+          date_from: "2026-03-02",
+          date_to: "2026-03-02",
+        }),
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(scroll.element.scrollTop).toBe(0);
+    document.body
+      .querySelector<HTMLButtonElement>(".clear-all-filters")
+      ?.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    expect(
+      state.api.mock.calls
+        .filter(([method]) => method === "loan_item_groups")
+        .at(-1)?.[1].filters,
+    ).toEqual(
+      expect.objectContaining({
+        period_key: "all",
+        date_from: undefined,
+        date_to: undefined,
+      }),
+    );
+    expect(state.replace).toHaveBeenLastCalledWith({
+      query: expect.not.objectContaining({
+        period: expect.anything(),
+        date_from: expect.anything(),
+        date_to: expect.anything(),
+      }),
+    });
+    wrapper.unmount();
+  });
+
+  it("canonicalizes a legacy exact loan_date query to a one-day custom period", async () => {
+    state.api.mockImplementation(async (method: string) =>
+      method === "bootstrap"
+        ? {
+            physical_tree: [],
+            item_groups: [],
+            stock_operation_capabilities: {},
+          }
+        : {
+            results: [],
+            total: 0,
+            overall_total: 0,
+            resolved_period: {
+              key: "custom",
+              date_from: "2026-01-02",
+              date_to: "2026-01-02",
+            },
+          },
+    );
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    route.query = { loan_date: "2026-01-02" };
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    expect(
+      state.api.mock.calls
+        .filter(([method]) => method === "loan_item_groups")
+        .at(-1)?.[1].filters,
+    ).toEqual(
+      expect.objectContaining({
+        period_key: "custom",
+        date_from: "2026-01-02",
+        date_to: "2026-01-02",
+      }),
+    );
+    expect(state.replace).toHaveBeenLastCalledWith({
+      query: expect.objectContaining({
+        period: "custom",
+        date_from: "2026-01-02",
+        date_to: "2026-01-02",
+      }),
+    });
+    expect(
+      state.replace.mock.calls.at(-1)?.[0].query.loan_date,
+    ).toBeUndefined();
     wrapper.unmount();
   });
 });
