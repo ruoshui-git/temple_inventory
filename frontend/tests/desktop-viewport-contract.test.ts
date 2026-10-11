@@ -17,6 +17,10 @@ const globalStyleSource = readFileSync(
   resolve(process.cwd(), "src/style.css"),
   "utf8",
 ).replace(/\s+/g, " ");
+const mobileShellSource = readFileSync(
+  resolve(process.cwd(), "src/features/shell/ApplicationShellMobileView.vue"),
+  "utf8",
+).replace(/\s+/g, " ");
 const dashboardSource = readFileSync(
   resolve(process.cwd(), "src/features/dashboard/DashboardView.vue"),
   "utf8",
@@ -41,7 +45,21 @@ const destinations = [
 ] as const;
 
 describe("desktop shell presentation contract", () => {
+  it("uses a high-contrast selected state for the mobile bottom navigation", () => {
+    expect(mobileShellSource).toContain(
+      ":aria-current=\"activeDestination === item.path ? 'page' : undefined\"",
+    );
+    expect(globalStyleSource).toContain(
+      ".mobile-nav a[aria-current=page]{background:#704326;color:#fff;font-weight:800}",
+    );
+    expect(globalStyleSource).toContain(
+      ".mobile-nav a[aria-current=page]:focus-visible{outline:3px solid #d99a48;outline-offset:2px}",
+    );
+  });
+
   it("keeps shell viewport ownership and sidebar cascade protection in their owning views", () => {
+    expect(shellSource).not.toContain("expiry-count");
+    expect(desktopSource).not.toContain("expiryCount");
     expect(shellSource).toContain("<style scoped>");
     expect(shellSource).toMatch(
       /\.application-shell \{[^}]*display: grid;[^}]*grid-template-columns: 156px minmax\(0, 1fr\);[^}]*height: 100dvh;[^}]*overflow: hidden;/,
@@ -96,7 +114,7 @@ describe("desktop shell presentation contract", () => {
     );
   });
 
-  it("mounts an independently scrollable navigation surface with context links", () => {
+  it("mounts an independently scrollable navigation surface with context links", async () => {
     const wrapper = mount(ApplicationShellDesktopView, {
       props: {
         destinations: [...destinations],
@@ -109,7 +127,6 @@ describe("desktop shell presentation contract", () => {
         contextItems: [],
         contextKey: "current",
         pending: 2,
-        expiryCount: 3,
         user: "tester",
       },
       global: { stubs: { RouterLink } },
@@ -117,6 +134,11 @@ describe("desktop shell presentation contract", () => {
 
     expect(wrapper.find(".desktop-nav").exists()).toBe(true);
     expect(wrapper.find(".desktop-module-navigation").exists()).toBe(true);
+    const expiryLink = wrapper
+      .findAll(".desktop-inventory-context a")
+      .find((link) => link.text() === "效期批次");
+    expect(expiryLink).toBeDefined();
+    expect(expiryLink!.find(".nav-badge").exists()).toBe(false);
     expect(
       wrapper
         .find(".desktop-module-navigation")
@@ -124,5 +146,10 @@ describe("desktop shell presentation contract", () => {
     ).toHaveLength(destinations.length);
     expect(wrapper.findAll(".desktop-inventory-context a")).toHaveLength(2);
     expect(wrapper.find(".shell-actions").text()).toContain("tester");
+    await wrapper.setProps({ expandedSection: "more" });
+    const moreButton = wrapper
+      .findAll("button.module-parent")
+      .find((button) => button.text().includes("更多"));
+    expect(moreButton!.find(".nav-badge").text()).toBe("2");
   });
 });

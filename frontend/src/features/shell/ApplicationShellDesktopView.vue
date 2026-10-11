@@ -23,7 +23,6 @@ const props = defineProps<{
 	contextItems?: ShellContextItem[];
 	contextKey?: string;
 	pending: number;
-	expiryCount: number;
 	user: string;
 }>();
 const expanded = () => props.expandedSection ?? "";
@@ -102,12 +101,7 @@ const iconPaths: Record<string, string> = {
 						"
 						><span>{{
 							contextItem.key === "current" ? "库存列表" : contextItem.label
-						}}</span
-						><b
-							v-if="contextItem.key === 'expiry' && props.expiryCount"
-							class="nav-badge"
-							>{{ props.expiryCount }}</b
-						></RouterLink
+						}}</span></RouterLink
 					>
 				</div>
 			</template>

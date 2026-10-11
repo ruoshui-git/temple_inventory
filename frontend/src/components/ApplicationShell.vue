@@ -17,7 +17,6 @@ const {
 	contextItems,
 	contextKey,
 	pending,
-	expiryCount,
 	logout,
 	closeNavigationContext,
 } = controller;
@@ -35,7 +34,6 @@ const {
 			:context-items="contextItems"
 			:context-key="contextKey"
 			:pending="pending"
-			:expiry-count="expiryCount"
 			:user="String(boot?.user || '')"
 			@toggle-section="controller.toggleSection"
 			@close-context="closeNavigationContext"

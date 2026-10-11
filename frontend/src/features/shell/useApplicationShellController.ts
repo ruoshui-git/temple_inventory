@@ -232,9 +232,6 @@ export function useApplicationShellController() {
   });
 
   const pending = computed(() => Number(boot.value?.pending_count || 0));
-  const expiryCount = computed(() =>
-    Number(boot.value?.expiry_batch_count || 0),
-  );
   async function refresh() {
     try {
       boot.value = await api("bootstrap");
@@ -279,7 +276,6 @@ export function useApplicationShellController() {
     contextItems,
     contextKey,
     pending,
-    expiryCount,
     refresh,
     logout,
     closeNavigationContext,

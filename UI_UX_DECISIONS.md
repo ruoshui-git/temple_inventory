@@ -345,6 +345,12 @@ in the same change. Keep implementation details in code or task notes, not here.
   column. Each child is a full-width, no-wrap horizontal row with shared
   active, badge, hover, and keyboard-focus treatment.
 
+- **2026-10-11:** Navigation does not show the expiry-batch result count next
+  to `效期批次`; expiry counts remain available in page filters and result
+  summaries where their meaning is explicit. Mobile bottom navigation marks
+  the selected destination with a dark filled brand treatment and white icon
+  and label for clear contrast.
+
 - **2026-10-09:** Movement desktop chrome has two deliberate states. Normal
   desktop uses title/count plus period controls, then a full-width search/action
   row, then movement-kind chips. The compact scrolled state combines title,

@@ -79,7 +79,6 @@ const subnavItems = computed(() => [
 		label: "效期批次",
 		path: "/expiry",
 		query: expiryTabQuery.value,
-		count: facetCounts.value.expiry?.all || 0,
 	},
 ]);
 const mobileResultsScroll = ref<HTMLElement>();

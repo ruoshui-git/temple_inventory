@@ -469,6 +469,13 @@ describe("Inventory and Expiry integrations", () => {
     );
     expect(wrapper.find(".compact-page-title").exists()).toBe(true);
     expect(wrapper.find(".mobile-subnav").exists()).toBe(true);
+    expect(
+      wrapper
+        .findAll(".mobile-subnav a")
+        .find((link) => link.text().includes("效期批次"))
+        ?.find(".mobile-subnav-count")
+        .exists(),
+    ).toBe(false);
     Object.defineProperty(results.element, "scrollTop", {
       value: 0,
       configurable: true,
@@ -493,6 +500,13 @@ describe("Inventory and Expiry integrations", () => {
     state.route.path = "/expiry";
     const wrapper = mount(Expiry, { global: globals });
     await flushPromises();
+    expect(
+      wrapper
+        .findAll(".mobile-subnav a")
+        .find((link) => link.text().includes("效期批次"))
+        ?.find(".mobile-subnav-count")
+        .exists(),
+    ).toBe(false);
     const results = wrapper.find<HTMLElement>(".mobile-results");
     Object.defineProperty(results.element, "scrollTop", {
       value: 100,
