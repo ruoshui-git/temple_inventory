@@ -4,7 +4,6 @@ import "./inventory-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import MobileInventoryList from "../../components/MobileInventoryList.vue";
-import MobileInventorySummary from "../../components/MobileInventorySummary.vue";
 import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import InventoryCardGrid from "../../components/InventoryCardGrid.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -31,7 +30,6 @@ const {
 	categoryNodes,
 	customError,
 	compact,
-	expandedSummary,
 	scanner,
 	filters,
 	view,
@@ -41,7 +39,6 @@ const {
 	activeFilterCount,
 	inventoryTabQuery,
 	pageActions,
-	mobileInventoryMetrics,
 	warehouseText,
 	chips,
 	load,
@@ -158,11 +155,6 @@ onBeforeUnmount(() => {
 						><b v-if="activeFilterCount">{{ activeFilterCount }}</b>
 					</button>
 				</div>
-				<MobileInventorySummary
-					:metrics="mobileInventoryMetrics"
-					:expanded-key="expandedSummary"
-					@select="expandedSummary = expandedSummary === $event ? '' : $event"
-				/>
 				<div class="browse-result-meta">
 					<ActiveFilterChips
 						:chips="chips"
@@ -171,6 +163,7 @@ onBeforeUnmount(() => {
 						@clear="clearFilters"
 					/>
 					<ResultCountStrip
+						class="inventory-result-count"
 						:loaded="rows.length"
 						:filtered="total"
 						:overall="overall ?? total"
@@ -352,6 +345,23 @@ onBeforeUnmount(() => {
 		align-items: center;
 		gap: 6px;
 		min-width: 0;
+	}
+	.mobile-browse-header .browse-result-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 6px;
+	}
+	.mobile-browse-header .browse-result-meta > :first-child {
+		min-width: 0;
+		flex: 1;
+	}
+	.mobile-browse-header .inventory-result-count {
+		width: auto;
+		flex: none;
+		margin-left: auto;
+		justify-content: flex-end;
 	}
 	.compact-page-title {
 		display: none;

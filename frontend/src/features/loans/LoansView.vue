@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
+import "../../components/browse-surface.css";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import SortableDataTable from "../../components/SortableDataTable.vue";
@@ -16,6 +17,7 @@ import FloatingActionMenu from "../../components/FloatingActionMenu.vue";
 import PageActionMenu from "../../components/PageActionMenu.vue";
 import ResultCountStrip from "../../components/ResultCountStrip.vue";
 import ColumnSummaryDialog from "../../components/ColumnSummaryDialog.vue";
+import LoanGroupBreakdown, { closeLoanGroupBreakdowns } from "./LoanGroupBreakdown.vue";
 import { type LoansController } from "./useLoansController";
 
 const props = defineProps<{ controller: LoansController; surface: ResponsiveSurface }>();
@@ -25,6 +27,26 @@ const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
 const scrollRoot = ref<HTMLElement>();
 const sentinel = ref<HTMLElement>();
 const summaryOpen = ref(false);
+const breakdownTriggers = new Map<string, { activate: () => void; close: () => void }>();
+watch(
+	() => c.breakdownRow?.name,
+	(name) => {
+		if (!name) closeLoanGroupBreakdowns();
+	},
+	{ flush: "sync" },
+);
+function setBreakdownTrigger(row: any, component: any) {
+	if (component?.activate) breakdownTriggers.set(row.name, component);
+	else breakdownTriggers.delete(row.name);
+}
+function activateRow(row: any) {
+	if (c.mode === "items") breakdownTriggers.get(row.name)?.activate();
+	else c.openLoan(row.name || row.record_name);
+}
+function showBreakdown(row: any, pinned: boolean) {
+	void c.loadBreakdown(row);
+	c.setBreakdownState(row, pinned);
+}
 const infiniteScroll = useInfiniteScroll({
 	hasMore: () => c.rows.length < c.total,
 	isLoading: () => c.loading || c.loadingMore,
@@ -68,7 +90,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 					><fieldset class="choice-list">
 						<legend class="sr-only">状态</legend>
 						<label
-							v-for="option in c.statusOptions"
+							v-for="option in c.mode === 'items'
+								? c.statusOptions
+								: c.recordStatusOptions"
 							:key="option.value"
 							class="choice-row"
 							><input
@@ -135,7 +159,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						/>
 					</div>
 					<div class="result-toolbar">
-						<label class="loan-search"
+						<label class="loan-search browse-search-field"
 							><span aria-hidden="true">⌕</span
 							><input
 								v-model="c.filters.search"
@@ -168,13 +192,16 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							><span v-if="c.activeCount" class="icon-count">{{
 								c.activeCount
 							}}</span></IconButton
-						><button
+						><UiButton
+							variant="secondary"
+							size="compact"
+							icon="table"
 							class="column-summary-trigger"
 							type="button"
 							@click="summaryOpen = true"
 						>
 							Σ <span>列汇总</span>
-						</button>
+						</UiButton>
 					</div>
 					<div class="browse-result-meta">
 						<ActiveFilterChips
@@ -189,7 +216,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						/>
 					</div>
 				</header>
-				<div ref="scrollRoot" class="results-scroll" @scroll.passive="c.onResultsScroll">
+				<div
+					ref="scrollRoot"
+					class="results-scroll browse-compact-table"
+					@scroll.passive="c.onResultsScroll"
+				>
 					<SortableDataTable
 						:surface="surface"
 						:rows="c.rows"
@@ -207,7 +238,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								: '没有符合条件的借用记录'
 						"
 						@sort="c.sort = $event"
-						@activate="(row) => c.openLoan(row.loan || row.name)"
+						@activate="activateRow"
 					>
 						<template #error
 							>{{ c.error }}
@@ -239,6 +270,31 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								>{{ row.record_name }}</RouterLink
 							></template
 						>
+						<template #cell-quantity="{ row }">{{
+							c.formatQuantities(row.quantity_values)
+						}}</template>
+						<template #cell-outcome_label="{ row }"
+							><span class="loan-status">{{ row.outcome_label }}</span></template
+						>
+						<template #cell-record_count="{ row }">
+							<LoanGroupBreakdown
+								:ref="(component) => setBreakdownTrigger(row, component)"
+								:row="row"
+								:active-name="c.breakdownRow?.name || ''"
+								:open="c.breakdownRow?.name === row.name && c.breakdownOpen"
+								:pinned="c.breakdownRow?.name === row.name && c.breakdownPinned"
+								:records="c.breakdownRow?.name === row.name ? c.breakdownRows : []"
+								:total="c.breakdownTotal"
+								:loading="c.breakdownLoading"
+								:error="c.breakdownError"
+								:format-quantities="c.formatQuantities"
+								:warehouse-text="c.warehouseText"
+								@show="showBreakdown(row, $event)"
+								@hide="c.closeBreakdown()"
+								@more="c.loadBreakdown(row, true)"
+								@retry="c.loadBreakdown(row, c.breakdownRows.length > 0, true)"
+							/>
+						</template>
 						<template #cell-loaned="{ row }">{{
 							c.formatQuantities(row.loaned_qty)
 						}}</template
@@ -274,13 +330,45 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								class="loan-card"
 								tabindex="0"
 								@keydown="activateKey"
-								@click="c.openLoan(row.loan || row.name)"
+								@click="activateRow(row)"
 							>
 								<header>
-									<span>{{ String(row.loan_date || "").slice(0, 10) }}</span
-									><span class="loan-status">{{
+									<span>{{
+										c.mode === "items"
+											? row.outcome_label
+											: String(row.loan_date || "").slice(0, 10)
+									}}</span
+									><span v-if="c.mode === 'records'" class="loan-status">{{
 										c.statusLabel(row.loan_status)
 									}}</span>
+									<LoanGroupBreakdown
+										v-if="c.mode === 'items'"
+										:ref="(component) => setBreakdownTrigger(row, component)"
+										:row="row"
+										:active-name="c.breakdownRow?.name || ''"
+										:open="
+											c.breakdownRow?.name === row.name && c.breakdownOpen
+										"
+										:pinned="
+											c.breakdownRow?.name === row.name && c.breakdownPinned
+										"
+										:records="
+											c.breakdownRow?.name === row.name
+												? c.breakdownRows
+												: []
+										"
+										:total="c.breakdownTotal"
+										:loading="c.breakdownLoading"
+										:error="c.breakdownError"
+										:format-quantities="c.formatQuantities"
+										:warehouse-text="c.warehouseText"
+										@show="showBreakdown(row, $event)"
+										@hide="c.closeBreakdown()"
+										@more="c.loadBreakdown(row, true)"
+										@retry="
+											c.loadBreakdown(row, c.breakdownRows.length > 0, true)
+										"
+									/>
 								</header>
 								<div v-if="c.mode === 'items'" class="loan-item-cell">
 									<ItemImagePreview
@@ -288,26 +376,31 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 										:alt="row.item_name"
 									/><span
 										><b>{{ row.item_name }}</b
-										><small
-											>{{ row.item_code }} ·
-											{{ row.borrower || "未填写借用方" }}</small
-										></span
+										><small>{{ row.item_code }}</small></span
 									>
 								</div>
 								<strong v-else
 									>{{ row.record_name }} ·
 									{{ row.borrower || "未填写借用方" }}</strong
 								>
-								<dl>
+								<dl v-if="c.mode === 'items'">
 									<div>
-										<dt>{{ c.mode === "items" ? "借出数量" : "物品行数" }}</dt>
-										<dd>
-											{{
-												c.mode === "items"
-													? c.formatQuantities(row.loaned_qty)
-													: `${row.line_count} 项`
-											}}
-										</dd>
+										<dt>数量</dt>
+										<dd>{{ c.formatQuantities(row.quantity_values) }}</dd>
+									</div>
+									<div>
+										<dt>归还状态</dt>
+										<dd>{{ row.outcome_label }}</dd>
+									</div>
+									<div>
+										<dt>借用记录</dt>
+										<dd>{{ row.record_count }} 条记录</dd>
+									</div>
+								</dl>
+								<dl v-else>
+									<div>
+										<dt>物品行数</dt>
+										<dd>{{ row.line_count }} 项</dd>
 									</div>
 									<div>
 										<dt>未归还</dt>
@@ -317,23 +410,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 										<dt>活动</dt>
 										<dd>{{ row.activity_title || row.activity || "—" }}</dd>
 									</div>
-									<template v-if="c.mode === 'items'">
-										<div>
-											<dt>原始位置</dt>
-											<dd>{{ c.warehouseText(row.original_warehouse) }}</dd>
-										</div>
-										<div>
-											<dt>借用记录</dt>
-											<dd>
-												<RouterLink
-													:to="`/loans/${encodeURIComponent(row.loan)}`"
-													data-row-control
-													@click.stop
-													>{{ row.loan }}</RouterLink
-												>
-											</dd>
-										</div>
-									</template>
 								</dl>
 							</article></template
 						>
@@ -367,10 +443,41 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	</main>
 </template>
 <style scoped>
+.loan-browse {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: none;
+	margin-inline: 0;
+	padding-inline: 16px;
+	color: #343c46;
+	background: #f8f7f4;
+}
+.loan-browse .desktop-list-layout {
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0;
+}
+.loan-browse .desktop-list-layout:not(.filters-open) {
+	grid-template-areas: "results";
+}
+.loan-browse .desktop-list-layout.filters-open {
+	grid-template-columns: 250px minmax(0, 1fr);
+}
+.loan-browse .desktop-list-layout:not(.filters-open) :deep(.filter-sidebar) {
+	display: none;
+}
+.loan-browse .desktop-list-layout.filters-open :deep(.filter-sidebar) {
+	box-sizing: border-box;
+	padding: 14px 12px;
+	border-right: 1px solid #e4ded5;
+	border-radius: 0;
+	background: #fbfaf7;
+	box-shadow: none;
+}
 .loan-browse-header {
 	display: grid;
 	gap: 8px;
 	padding: 14px 0 8px;
+	background: #f8f7f4;
 }
 .loan-heading,
 .loan-heading > div,
@@ -403,9 +510,6 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .loan-search {
 	flex: 1;
 	gap: 7px;
-}
-.loan-search input {
-	width: 100%;
 }
 .browse-result-meta {
 	display: flex;
@@ -465,6 +569,58 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	white-space: nowrap;
 }
 @media (max-width: 1023px) {
+	.loan-browse {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 100vw;
+		height: calc(
+			100dvh - var(--mobile-nav-height, 0px) - var(--mobile-context-nav-height, 0px)
+		);
+		min-width: 0;
+		min-height: 0;
+		padding-inline: 10px;
+		overflow: hidden;
+	}
+	.loan-browse > .list-layout {
+		display: flex;
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.loan-browse .results-column {
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		width: 100%;
+		min-width: 0;
+		min-height: 0;
+	}
+	.loan-browse .results-scroll {
+		min-width: 0;
+		min-height: 0;
+		max-width: 100%;
+		overflow-x: hidden;
+		overflow-y: auto;
+	}
+	.loan-browse .filters-open :deep(.filter-sidebar) {
+		position: fixed;
+		inset: 0 0 auto;
+		z-index: 51;
+		max-height: 80dvh;
+		overflow: auto;
+	}
+	.loan-browse .results-chrome {
+		background: #f8f7f4;
+	}
+	.loan-browse .loan-search {
+		min-width: 0;
+	}
+	.loan-browse .column-summary-trigger,
+	.loan-browse .mobile-filter-button {
+		flex: none;
+	}
 	.loan-heading h1 {
 		display: none;
 	}

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import "./inventory-surface.css";
+import "../../components/browse-surface.css";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
 import ItemImagePreview from "../../components/ItemImagePreview.vue";
 import SortableDataTable from "../../components/SortableDataTable.vue";
 import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
 import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
-import QuantitySummary from "../../components/QuantitySummary.vue";
 import InventoryCardGrid from "../../components/InventoryCardGrid.vue";
 import DetailPopover from "../../components/DetailPopover.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -38,7 +38,6 @@ const {
 	filters,
 	sort,
 	view,
-	summaryMetrics,
 	sortColumns,
 	pageTitle,
 	activeFilterCount,
@@ -132,7 +131,7 @@ onBeforeUnmount(() => {
 					</div>
 					<div class="result-toolbar">
 						<b class="compact-identity">{{ pageTitle }}</b>
-						<label class="inventory-search"
+						<label class="inventory-search browse-search-field"
 							><span aria-hidden="true">⌕</span
 							><input
 								v-model="filters.search"
@@ -203,11 +202,6 @@ onBeforeUnmount(() => {
 							</button>
 						</div>
 					</div>
-					<QuantitySummary
-						v-if="!compact"
-						:metrics="summaryMetrics"
-						:loading="loading"
-					/>
 					<div class="inventory-filter-strip">
 						<ActiveFilterChips
 							:chips="chips"
@@ -250,6 +244,7 @@ onBeforeUnmount(() => {
 							{{ sort.sort_order === "asc" ? "升序 ↑" : "降序 ↓" }}
 						</button>
 						<ResultCountStrip
+							class="inventory-result-count"
 							:loaded="rows.length"
 							:filtered="total"
 							:overall="overall ?? total"
@@ -257,7 +252,11 @@ onBeforeUnmount(() => {
 						/>
 					</div>
 				</div>
-				<div ref="resultsScroll" class="results-scroll" @scroll.passive="onResultsScroll">
+				<div
+					ref="resultsScroll"
+					class="results-scroll browse-compact-table"
+					@scroll.passive="onResultsScroll"
+				>
 					<div class="inventory-results">
 						<InventoryCardGrid
 							v-if="view === 'card'"

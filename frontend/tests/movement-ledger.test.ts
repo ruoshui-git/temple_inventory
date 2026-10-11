@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
 const route = reactive(state.route);
 const media = vi.hoisted(() => ({
   matches: true,
-  listener: undefined as ((event: MediaQueryListEvent) => void) | undefined,
+  listeners: [] as Array<(event: MediaQueryListEvent) => void>,
 }));
 vi.mock("vue-router", () => ({
   useRoute: () => route,
@@ -89,7 +89,7 @@ describe("movement ledger", () => {
     });
     state.workspaceApi.mockReset();
     media.matches = true;
-    media.listener = undefined;
+    media.listeners = [];
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: () => ({
@@ -100,7 +100,7 @@ describe("movement ledger", () => {
           _name: string,
           callback: (event: MediaQueryListEvent) => void,
         ) => {
-          media.listener = callback;
+          media.listeners.push(callback);
         },
         removeEventListener: () => undefined,
       }),
@@ -279,7 +279,8 @@ describe("movement ledger", () => {
         "filters-open",
       );
       media.matches = false;
-      media.listener?.({ matches: false } as MediaQueryListEvent);
+      for (const listener of media.listeners)
+        listener({ matches: false } as MediaQueryListEvent);
       await new Promise((resolve) => setTimeout(resolve, 0));
       await wrapper.find(".movement-filter-button").trigger("click");
       await flushPromises();

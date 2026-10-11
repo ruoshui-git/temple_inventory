@@ -32,7 +32,7 @@ describe("shared layout and selector style ownership", () => {
       ".movement-ledger .results-column.compact .movement-ledger-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);",
     );
     expect(movements).toContain(
-      'grid-template-areas: "heading actions" "chips chips";',
+      'grid-template-areas: "heading actions" "chips chips" "counts counts";',
     );
     expect(movements).toContain(
       ".movement-ledger .results-column.compact .compact-heading { display: block;",

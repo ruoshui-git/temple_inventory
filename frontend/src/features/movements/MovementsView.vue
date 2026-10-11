@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import "../../components/browse-surface.css";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
 import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
@@ -234,7 +235,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						/>
 					</div>
 					<div class="result-toolbar movement-ledger-actions">
-						<label class="movement-search"
+						<label class="movement-search browse-search-field"
 							><span aria-hidden="true">⌕</span
 							><input
 								v-model="filters.search"
@@ -332,7 +333,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 								{{ zeroKindsExpanded ? "收起无记录" : `无记录 ${zeroKindCount}` }}
 							</button>
 						</div>
+					</div>
+					<div class="movement-result-count-line">
 						<ResultCountStrip
+							class="movement-result-count"
 							:loaded="rows.length"
 							:filtered="total"
 							:overall="allTotal ?? total"
@@ -340,7 +344,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 						/>
 					</div>
 				</header>
-				<div ref="scrollRoot" class="results-scroll" @scroll.passive="onResultsScroll">
+				<div
+					ref="scrollRoot"
+					class="results-scroll browse-compact-table"
+					@scroll.passive="onResultsScroll"
+				>
 					<SortableDataTable
 						:surface="surface"
 						:rows="rows"
@@ -793,25 +801,25 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	font-variant-numeric: tabular-nums;
 	opacity: 0.75;
 }
-.movement-ledger :deep(.sortable-data-table) {
-	border: 1px solid #ece9e2;
-	border-radius: 8px 8px 0 0;
-	background: #fff;
-	overflow: hidden;
+.movement-ledger .browse-result-meta {
+	display: block;
 }
-.movement-ledger :deep(.sortable-data-table table) {
-	font-size: 14px;
+.movement-ledger .results-column.compact .movement-ledger-header {
+	grid-template-areas: "heading actions" "chips chips" "counts counts";
 }
-.movement-ledger :deep(.sortable-data-table th) {
-	padding: 8px 10px;
-	background: #f2f2f0;
-	color: #7a7d84;
-	font-size: 14px;
+.movement-ledger .results-column.compact .browse-result-meta {
+	grid-area: chips;
 }
-.movement-ledger :deep(.sortable-data-table td) {
-	height: 52px;
-	padding: 5px 10px;
-	border-bottom-color: #f0f0ed;
+.movement-ledger .results-column.compact .movement-result-count-line {
+	grid-area: counts;
+}
+.movement-ledger .movement-kind-chips {
+	width: 100%;
+}
+.movement-result-count-line {
+	display: flex;
+	justify-content: flex-end;
+	padding-top: 5px;
 }
 .movement-ledger :deep(.sortable-data-table tbody tr.cancelled) {
 	opacity: 0.55;
@@ -1090,7 +1098,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	.movement-ledger .results-column.compact .movement-ledger-header {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-		grid-template-areas: "heading actions" "chips chips";
+		grid-template-areas: "heading actions" "chips chips" "counts counts";
 		gap: 4px;
 		padding-block: 6px;
 	}

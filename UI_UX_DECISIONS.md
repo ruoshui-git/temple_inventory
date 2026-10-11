@@ -260,6 +260,16 @@ in the same change. Keep implementation details in code or task notes, not here.
   while 记录 is one row per complete loan document. The persistent quantity
   summary row is removed; column totals remain available on demand.
 
+- **2026-10-10:** 借用明细 groups positive quantities by Item Code and outcome:
+  outstanding, returned, damaged, and lost. Each group has item, quantity,
+  return status, and a distinct contributing-record count. Its bounded preview
+  lists the contributing loan documents and each matching batch/location line;
+  selection never opens an arbitrary loan. This supersedes the line-per-loan
+  明细 rule above. Loans 明细 and 记录 share the compact browse shell. Inventory
+  no longer shows desktop or mobile headline quantity-summary cards; per-item
+  quantities, on-demand column summaries, and Dashboard summaries remain. This
+  supersedes the Inventory mobile summary direction recorded on 2026-10-09.
+
 - **2026-10-10:** Expiry batch identity is rendered once per browse result. The
   batch number remains in the item identity/card text; the redundant batch
   popover is removed while location popovers remain available for per-location

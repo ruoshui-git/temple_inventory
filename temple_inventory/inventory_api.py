@@ -3579,6 +3579,198 @@ def loan_items(filters=None, start=0, page_length=30):
 	return _loan_browse_response("items", filters, start, page_length)
 
 
+_LOAN_OUTCOMES = {
+	"outstanding": ("outstanding", "未归还"),
+	"returned": ("returned", "已归还"),
+	"damaged": ("damaged", "已归还（损坏）"),
+	"lost": ("lost", "已登记遗失"),
+}
+
+
+def _loan_group_context(filters):
+	"""Apply the ordinary permission-scoped loan filters before outcome grouping."""
+	filters = _loan_browse_filters(filters)
+	common_filters = {**filters, "status": "all"}
+	context = _loan_browse_context(common_filters)
+	matched = [
+		row
+		for rows in context["by_loan"].values()
+		for row in rows
+		if _loan_line_matches(row, context, common_filters)
+	]
+	return filters, context, matched
+
+
+def _loan_outcome_qty(row, outcome, context):
+	field, _label = _LOAN_OUTCOMES[outcome]
+	quantity, uom = context["quantity"](row, field)
+	return max(quantity, 0), uom
+
+
+def _loan_item_groups_payload(filters, outcome_filter=None):
+	filters, context, matched = _loan_group_context(filters)
+	outcomes = list(_LOAN_OUTCOMES)
+	if outcome_filter and outcome_filter != "all":
+		if outcome_filter == "settled":
+			outcomes = ["returned", "damaged", "lost"]
+		elif outcome_filter in _LOAN_OUTCOMES:
+			outcomes = [outcome_filter]
+		else:
+			frappe.throw(_("Invalid loan outcome"))
+
+	groups = {}
+	facets = {"warehouses": defaultdict(set), "item_groups": defaultdict(set), "activities": defaultdict(set)}
+	for row in matched:
+		meta = context["items"][row["item_code"]]
+		for outcome in outcomes:
+			qty, uom = _loan_outcome_qty(row, outcome, context)
+			if qty <= 0:
+				continue
+			key = (row["item_code"], outcome)
+			group = groups.setdefault(
+				key,
+				{
+					"item_code": row["item_code"],
+					"item_name": meta.item_name,
+					"image": meta.image,
+					"item_group": meta.item_group,
+					"stock_uom": meta.stock_uom,
+					"outcome": outcome,
+					"outcome_label": _LOAN_OUTCOMES[outcome][1],
+					"quantity": 0,
+					"record_names": set(),
+				},
+			)
+			group["quantity"] += qty
+			group["record_names"].add(row["loan"])
+			facets["warehouses"][row["original_warehouse"]].add(key)
+			facets["item_groups"][meta.item_group].add(key)
+			if row.get("activity"):
+				facets["activities"][row["activity"]].add(key)
+
+	results = []
+	for (item_code, outcome), group in groups.items():
+		results.append(
+			{
+				"name": f"{item_code}::{outcome}",
+				"item_code": item_code,
+				"item_name": group["item_name"],
+				"image": group["image"],
+				"item_group": group["item_group"],
+				"stock_uom": group["stock_uom"],
+				"outcome": outcome,
+				"outcome_label": group["outcome_label"],
+				"quantity": group["quantity"],
+				"quantity_values": [{"uom": group["stock_uom"], "qty": group["quantity"]}],
+				"record_count": len(group["record_names"]),
+			}
+		)
+	results.sort(
+		key=lambda row: (str(row["item_name"] or "").casefold(), row["item_code"].casefold(), row["outcome"])
+	)
+	quantity_totals = defaultdict(float)
+	for row in results:
+		quantity_totals[row["stock_uom"]] += row["quantity"]
+	return {
+		"results": results,
+		"total": len(results),
+		"start": 0,
+		"facets": {key: {name: len(keys) for name, keys in values.items()} for key, values in facets.items()},
+		"quantity_totals": {"quantity": _quantity_list(quantity_totals)},
+		"column_summaries": {
+			"quantity": _column_summaries({"quantity": _quantity_list(quantity_totals)})["quantity"]
+		},
+	}
+
+
+@frappe.whitelist()
+def loan_item_groups(filters=None, start=0, page_length=30):
+	"""Permission-scoped item/outcome totals for the Loans 明细 browse."""
+	_require_stock()
+	filters = _loads(filters, {}) or {}
+	if not isinstance(filters, dict):
+		frappe.throw(_("Invalid loan filters"))
+	data = _loan_item_groups_payload(filters, filters.get("outcome") or filters.get("status"))
+	_all_filters, all_context, all_matched = _loan_group_context({})
+	all_groups = set()
+	for row in all_matched:
+		for outcome in _LOAN_OUTCOMES:
+			if _loan_outcome_qty(row, outcome, all_context)[0] > 0:
+				all_groups.add((row["item_code"], outcome))
+	data["overall_total"] = len(all_groups)
+	start = max(cint(start or 0), 0)
+	page_length = min(max(cint(page_length or 30), 1), 100)
+	data.update(
+		{
+			"results": data["results"][start : start + page_length],
+			"start": start,
+			"page_length": page_length,
+			"has_more": start + page_length < data["total"],
+		}
+	)
+	return data
+
+
+@frappe.whitelist()
+def loan_item_group_records(item_code, outcome, filters=None, start=0, page_length=30):
+	"""Paginated original loan records contributing to one item/outcome group."""
+	_require_stock()
+	if outcome not in _LOAN_OUTCOMES:
+		frappe.throw(_("Invalid loan outcome"))
+	filters, context, matched = _loan_group_context(filters)
+	contributions = defaultdict(list)
+	for row in matched:
+		if row["item_code"] != item_code:
+			continue
+		qty, uom = _loan_outcome_qty(row, outcome, context)
+		if qty > 0:
+			contributions[row["loan"]].append({"row": row, "qty": qty, "uom": uom})
+	results = []
+	for loan, lines in contributions.items():
+		first = lines[0]["row"]
+		activity = context["activities"].get(first.get("activity")) or {}
+		quantity_by_uom = defaultdict(float)
+		for line in lines:
+			quantity_by_uom[line["uom"]] += line["qty"]
+		results.append(
+			{
+				"loan": loan,
+				"record_name": loan,
+				"borrower": first.get("borrower"),
+				"loan_date": first.get("loan_date"),
+				"activity": first.get("activity"),
+				"activity_title": activity.get("title"),
+				"quantity": sum(line["qty"] for line in lines),
+				"quantity_values": _quantity_list(quantity_by_uom),
+				"locations": [
+					{
+						"warehouse": line["row"].get("original_warehouse"),
+						"batch_no": line["row"].get("batch_no"),
+						"activity": line["row"].get("activity"),
+						"activity_title": (context["activities"].get(line["row"].get("activity")) or {}).get(
+							"title"
+						),
+						"quantity": line["qty"],
+						"uom": line["uom"],
+					}
+					for line in lines
+				],
+				"detail_route": f"/loans/{loan}",
+			}
+		)
+	results.sort(key=lambda row: (str(row.get("loan_date") or ""), row["loan"]), reverse=True)
+	start = max(cint(start or 0), 0)
+	page_length = min(max(cint(page_length or 30), 1), 100)
+	total = len(results)
+	return {
+		"results": results[start : start + page_length],
+		"total": total,
+		"start": start,
+		"page_length": page_length,
+		"has_more": start + page_length < total,
+	}
+
+
 @frappe.whitelist()
 def loan_records(filters=None, start=0, page_length=30):
 	"""Canonical complete-loan-record browse endpoint."""

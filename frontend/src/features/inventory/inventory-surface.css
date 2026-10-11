@@ -155,6 +155,10 @@
 	gap: 8px;
 	padding: 7px 0;
 }
+.inventory-filter-strip > .inventory-result-count {
+	flex: none;
+	margin-left: auto;
+}
 .inventory-filter-strip .active-filter-chips {
 	min-width: 0;
 	flex: 1;
@@ -169,6 +173,14 @@
 	align-items: center;
 	gap: 6px;
 	white-space: nowrap;
+}
+@media (max-width: 1120px) {
+	.inventory-filter-strip {
+		flex-wrap: wrap;
+	}
+	.inventory-filter-strip > .inventory-result-count {
+		margin-left: auto;
+	}
 }
 .inventory-sort select {
 	min-width: 112px;

@@ -109,6 +109,27 @@ describe("ApplicationShell navigation contract", () => {
     expect(context.find('a[aria-current="page"]').text()).toBe("效期批次");
   });
 
+  it("selects a child only inside the owning module", async () => {
+    route.path = "/loans/items";
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+    const context = wrapper.findAll(".desktop-inventory-context");
+    expect(context).toHaveLength(1);
+    expect(context[0].findAll('a[aria-current="page"]')).toHaveLength(1);
+    expect(context[0].find('a[aria-current="page"]').text()).toBe("明细");
+
+    route.path = "/movements/items";
+    await nextTick();
+    expect(
+      wrapper
+        .findAll('a[aria-current="page"]')
+        .filter((link) => link.text() === "明细"),
+    ).toHaveLength(1);
+    expect(wrapper.findAll(".desktop-inventory-context")).toHaveLength(1);
+  });
+
   it("leaves Inventory and Expiry tabs to the production page on mobile", async () => {
     route.path = "/expiry";
     shellMedia.matches = false;
@@ -149,6 +170,74 @@ describe("ApplicationShell navigation contract", () => {
     expect(
       wrapper.find('.mobile-context-nav a[aria-current="page"]').text(),
     ).toBe("记录");
+  });
+
+  it("preserves common Loans filters and resets mode-specific state when switching", async () => {
+    route.path = "/loans/items";
+    route.query = {
+      search: "相机",
+      item_code: "ITM-1",
+      warehouses: ["A04", "A05"],
+      status: "settled",
+      outcome: "lost",
+      sort_by: "item_name",
+      sort_order: "desc",
+    };
+    const wrapper = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+    const desktopLinks = wrapper.findAll(".desktop-inventory-context a");
+    expect(JSON.parse(desktopLinks[0].attributes("data-query")!)).toMatchObject(
+      {
+        status: "settled",
+        outcome: "lost",
+        sort_by: "item_name",
+      },
+    );
+    expect(JSON.parse(desktopLinks[1].attributes("data-query")!)).toEqual({
+      search: "相机",
+      item_code: "ITM-1",
+      warehouses: ["A04", "A05"],
+    });
+
+    route.path = "/loans/records";
+    route.query = {
+      search: "借用方",
+      item_groups: ["器材"],
+      status: "settled",
+      sort_by: "loan_date",
+      sort_order: "desc",
+    };
+    await nextTick();
+    const reverseLinks = wrapper.findAll(".desktop-inventory-context a");
+    expect(JSON.parse(reverseLinks[0].attributes("data-query")!)).toEqual({
+      search: "借用方",
+      item_groups: ["器材"],
+    });
+    expect(JSON.parse(reverseLinks[1].attributes("data-query")!)).toMatchObject(
+      {
+        status: "settled",
+        sort_by: "loan_date",
+      },
+    );
+    wrapper.unmount();
+
+    shellMedia.matches = false;
+    const mobile = mount(ApplicationShell, {
+      global: { stubs: { RouterLink } },
+    });
+    await nextTick();
+    const mobileLinks = mobile.findAll(".mobile-context-nav a");
+    expect(JSON.parse(mobileLinks[0].attributes("data-query")!)).toEqual({
+      search: "借用方",
+      item_groups: ["器材"],
+    });
+    expect(JSON.parse(mobileLinks[1].attributes("data-query")!)).toMatchObject({
+      status: "settled",
+      sort_by: "loan_date",
+    });
+    mobile.unmount();
   });
 
   it("normalizes default movement context state", async () => {

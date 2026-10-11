@@ -94,7 +94,12 @@ const iconPaths: Record<string, string> = {
 						v-for="contextItem in contexts(item.key)"
 						:key="contextItem.key"
 						:to="{ path: contextItem.path, query: contextItem.query }"
-						:aria-current="props.contextKey === contextItem.key ? 'page' : undefined"
+						:aria-current="
+							props.activeDestination === item.path &&
+							props.contextKey === contextItem.key
+								? 'page'
+								: undefined
+						"
 						><span>{{
 							contextItem.key === "current" ? "库存列表" : contextItem.label
 						}}</span

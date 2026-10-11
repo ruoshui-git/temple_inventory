@@ -92,9 +92,18 @@ export function useApplicationShellController() {
     // views.  Repeated kind/warehouse/status values must survive as arrays.
     ...route.query,
   }));
-  const loanSharedQuery = computed<LocationQueryRaw>(() => ({
-    ...route.query,
-  }));
+  const loanContextQuery = (target: "items" | "records"): LocationQueryRaw => {
+    const current = route.path === "/loans/records" ? "records" : "items";
+    if (current === target) return { ...route.query };
+    const {
+      status: _status,
+      outcome: _outcome,
+      sort_by: _sortBy,
+      sort_order: _sortOrder,
+      ...common
+    } = route.query;
+    return common;
+  };
 
   const inventoryContextItems = computed<ContextItem[]>(() => [
     {
@@ -143,13 +152,13 @@ export function useApplicationShellController() {
           key: "items",
           label: "明细",
           path: "/loans/items",
-          query: loanSharedQuery.value,
+          query: loanContextQuery("items"),
         },
         {
           key: "records",
           label: "记录",
           path: "/loans/records",
-          query: loanSharedQuery.value,
+          query: loanContextQuery("records"),
         },
       ];
     return [];
@@ -175,13 +184,13 @@ export function useApplicationShellController() {
         key: "items",
         label: "明细",
         path: "/loans/items",
-        query: loanSharedQuery.value,
+        query: loanContextQuery("items"),
       },
       {
         key: "records",
         label: "记录",
         path: "/loans/records",
-        query: loanSharedQuery.value,
+        query: loanContextQuery("records"),
       },
     ],
     more: [
@@ -266,7 +275,6 @@ export function useApplicationShellController() {
     activeDestination,
     inventorySharedQuery,
     movementSharedQuery,
-    loanSharedQuery,
     inventoryContextItems,
     contextItems,
     contextKey,

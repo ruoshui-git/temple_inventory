@@ -256,7 +256,7 @@ describe("Inventory and Expiry integrations", () => {
     expiry.unmount();
   });
 
-  it("renders a unitless Inventory headline and expands exact per-UOM details", async () => {
+  it("removes the Inventory headline quantity summary", async () => {
     state.api.mockImplementation(async (method: string) =>
       method === "bootstrap"
         ? {
@@ -279,11 +279,8 @@ describe("Inventory and Expiry integrations", () => {
     );
     const wrapper = mount(Inventory, { global: globals });
     await flushPromises();
-    const firstSummary = wrapper.find(".mobile-summary-card");
-    expect(firstSummary.text()).toContain("10");
-    await firstSummary.trigger("click");
-    expect(wrapper.find(".mobile-summary-details").text()).toContain("Nos");
-    expect(wrapper.find(".mobile-summary-details").text()).toContain("包");
+    expect(wrapper.find(".mobile-summary-card").exists()).toBe(false);
+    expect(wrapper.find(".mobile-summary-details").exists()).toBe(false);
   });
 
   it("switches the production Inventory mobile card and list views", async () => {

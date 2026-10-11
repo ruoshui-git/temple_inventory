@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, reactive } from "vue";
+import { defineComponent, nextTick, reactive } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import Loans from "../src/pages/Loans.vue";
 
@@ -26,7 +26,8 @@ vi.mock("../src/lib/api", async () => {
 
 const RouterLink = defineComponent({
   props: ["to"],
-  template: "<a :href=\"typeof to === 'string' ? to : to.path\"><slot /></a>",
+  template:
+    "<a :href=\"typeof to === 'string' ? to : (to?.path || '#')\"><slot /></a>",
 });
 const globals = {
   stubs: {
@@ -65,7 +66,7 @@ beforeEach(() => {
 });
 
 describe("loan item and record browsing", () => {
-  it("defaults the item ledger to all statuses without a persistent summary row", async () => {
+  it("loads aggregate item outcomes in the four-column ledger without a persistent summary row", async () => {
     state.api.mockImplementation(async (method: string) => {
       if (method === "bootstrap")
         return {
@@ -73,21 +74,33 @@ describe("loan item and record browsing", () => {
           item_groups: [],
           stock_operation_capabilities: {},
         };
+      if (method === "loan_item_group_records")
+        return {
+          results: [
+            {
+              loan: "LOAN-1",
+              detail_route: "/loans/LOAN-1",
+              borrower: "借用方",
+              loan_date: "2026-10-01",
+              activity_title: "义卖活动",
+              quantity_values: [{ uom: "Nos", qty: 1 }],
+              locations: [
+                { warehouse: "A04", batch_no: "B-1", uom: "Nos", quantity: 1 },
+              ],
+            },
+          ],
+          total: 1,
+        };
       return {
         results: [
           {
-            name: "LOAN-ITEM-1",
-            loan_item: "LOAN-ITEM-1",
-            loan: "LOAN-1",
-            record_name: "LOAN-1",
-            loan_date: "2026-10-01",
+            name: "ITM-1::outstanding",
             item_code: "ITM-1",
             item_name: "相机",
-            borrower: "借用方",
-            loan_status: "Outstanding",
-            original_warehouse: "A04",
-            loaned_qty: [{ uom: "Nos", qty: 2 }],
-            outstanding_qty: [{ uom: "Nos", qty: 1 }],
+            outcome: "outstanding",
+            outcome_label: "未归还",
+            quantity_values: [{ uom: "Nos", qty: 1 }],
+            record_count: 1,
           },
         ],
         total: 1,
@@ -101,17 +114,215 @@ describe("loan item and record browsing", () => {
     await flushPromises();
 
     expect(state.api).toHaveBeenCalledWith(
-      "loan_items",
+      "loan_item_groups",
       expect.objectContaining({
-        filters: expect.objectContaining({ status: undefined }),
+        filters: expect.objectContaining({ outcome: undefined }),
       }),
       expect.any(AbortSignal),
     );
     expect(wrapper.text()).toContain("借用 · 明细");
     expect(wrapper.text()).toContain("相机");
-    expect(wrapper.text()).toContain("LOAN-1");
+    expect(wrapper.text()).toContain("1 条记录");
+    expect(wrapper.findAll("thead th").map((cell) => cell.text())).toEqual([
+      "物品",
+      "数量",
+      "归还状态",
+      "借用记录",
+    ]);
+    await wrapper.find("tbody tr[tabindex='0']").trigger("click");
+    await flushPromises();
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_item_group_records",
+      expect.objectContaining({ item_code: "ITM-1", outcome: "outstanding" }),
+      expect.any(AbortSignal),
+    );
+    expect(document.body.textContent).toContain("LOAN-1");
+    expect(state.push).not.toHaveBeenCalled();
     expect(wrapper.find(".quantity-summary").exists()).toBe(false);
     expect(wrapper.find(".loan-tabs").exists()).toBe(false);
+  });
+
+  it("retains a pinned breakdown and loaded records across the Loans breakpoint", async () => {
+    let matches = true;
+    const listeners: Array<(event: MediaQueryListEvent) => void> = [];
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        get matches() {
+          return matches;
+        },
+        addEventListener: (
+          _: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => listeners.push(listener),
+        removeEventListener: vi.fn(),
+      }),
+    });
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      if (method === "loan_item_group_records")
+        return {
+          results: [
+            {
+              loan: "LOAN-PERSIST",
+              detail_route: "/loans/LOAN-PERSIST",
+              borrower: "借用方",
+              loan_date: "2026-10-01",
+              quantity_values: [{ uom: "Nos", qty: 1 }],
+              locations: [],
+            },
+          ],
+          total: 1,
+        };
+      return {
+        results: [
+          {
+            name: "ITM-1::outstanding",
+            item_code: "ITM-1",
+            item_name: "相机",
+            outcome: "outstanding",
+            outcome_label: "未归还",
+            quantity_values: [{ uom: "Nos", qty: 1 }],
+            record_count: 1,
+          },
+        ],
+        total: 1,
+        overall_total: 1,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    await wrapper.find(".loan-record-count").trigger("click");
+    await flushPromises();
+    expect(
+      wrapper.find(".sortable-data-table").attributes("data-surface"),
+    ).toBe("desktop");
+    expect(document.body.textContent).toContain("LOAN-PERSIST");
+    expect(
+      state.api.mock.calls.filter(
+        ([method]) => method === "loan_item_group_records",
+      ),
+    ).toHaveLength(1);
+
+    matches = false;
+    for (const listener of listeners)
+      listener({ matches } as MediaQueryListEvent);
+    await nextTick();
+    await flushPromises();
+    expect(
+      wrapper.find(".sortable-data-table").attributes("data-surface"),
+    ).toBe("mobile");
+    expect(document.body.textContent).toContain("LOAN-PERSIST");
+    expect(
+      state.api.mock.calls.filter(
+        ([method]) => method === "loan_item_group_records",
+      ),
+    ).toHaveLength(1);
+
+    matches = true;
+    for (const listener of listeners)
+      listener({ matches } as MediaQueryListEvent);
+    await nextTick();
+    await flushPromises();
+    expect(
+      wrapper.find(".sortable-data-table").attributes("data-surface"),
+    ).toBe("desktop");
+    expect(document.body.textContent).toContain("LOAN-PERSIST");
+    expect(
+      state.api.mock.calls.filter(
+        ([method]) => method === "loan_item_group_records",
+      ),
+    ).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it("loads the selected group's own records when switching an open breakdown", async () => {
+    state.api.mockImplementation(async (method: string, args: any) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      if (method === "loan_item_group_records")
+        return {
+          results: [
+            {
+              loan: `LOAN-${args.item_code}`,
+              detail_route: `/loans/LOAN-${args.item_code}`,
+              borrower: "借用方",
+              loan_date: "2026-10-01",
+              quantity_values: [{ uom: "Nos", qty: 1 }],
+              locations: [],
+            },
+          ],
+          total: 1,
+        };
+      return {
+        results: ["A", "B"].map((code) => ({
+          name: `ITM-${code}::outstanding`,
+          item_code: `ITM-${code}`,
+          item_name: `物品${code}`,
+          outcome: "outstanding",
+          outcome_label: "未归还",
+          quantity_values: [{ uom: "Nos", qty: 1 }],
+          record_count: 1,
+        })),
+        total: 2,
+        overall_total: 2,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    const triggers = wrapper.findAll(".loan-record-count");
+    expect(triggers).toHaveLength(2);
+    await triggers[0].trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("LOAN-ITM-A");
+    expect(document.body.textContent).not.toContain("LOAN-ITM-B");
+
+    const activeLoanLink = document.querySelector(
+      ".loan-breakdown a[data-row-control]",
+    );
+    expect(activeLoanLink).not.toBeNull();
+    activeLoanLink!.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await nextTick();
+    await flushPromises();
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(document.body.textContent).toContain("LOAN-ITM-A");
+    expect(
+      state.api.mock.calls.filter(
+        ([method]) => method === "loan_item_group_records",
+      ),
+    ).toHaveLength(1);
+
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await nextTick();
+    await flushPromises();
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(0);
+    outside.remove();
+
+    await wrapper.findAll(".loan-record-count")[1].trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("LOAN-ITM-B");
+    expect(document.body.textContent).not.toContain("LOAN-ITM-A");
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_item_group_records",
+      expect.objectContaining({ item_code: "ITM-B" }),
+      expect.any(AbortSignal),
+    );
+    wrapper.unmount();
   });
 
   it("loads complete records and hydrates the outstanding status filter", async () => {
@@ -157,5 +368,86 @@ describe("loan item and record browsing", () => {
     expect(wrapper.text()).toContain("借用 · 记录");
     expect(wrapper.text()).toContain("部分结清");
     expect(wrapper.text()).toContain("LOAN-1");
+  });
+
+  it("maps the legacy settled item link to all resolved outcomes", async () => {
+    route.path = "/loans/items";
+    route.query = { status: "settled" };
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      return {
+        results: [],
+        total: 0,
+        overall_total: 2,
+        facets: {},
+        column_summaries: {},
+      };
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_item_groups",
+      expect.objectContaining({
+        filters: expect.objectContaining({ outcome: "settled" }),
+      }),
+      expect.any(AbortSignal),
+    );
+    wrapper.unmount();
+  });
+
+  it("invalidates an in-flight breakdown when browse filters change", async () => {
+    let resolveBreakdown: ((value: any) => void) | undefined;
+    state.api.mockImplementation(async (method: string) => {
+      if (method === "bootstrap")
+        return {
+          physical_tree: [],
+          item_groups: [],
+          stock_operation_capabilities: {},
+        };
+      if (method === "loan_item_groups")
+        return {
+          results: [
+            {
+              name: "ITM-1::outstanding",
+              item_code: "ITM-1",
+              item_name: "相机",
+              outcome: "outstanding",
+              outcome_label: "未归还",
+              quantity_values: [{ uom: "Nos", qty: 1 }],
+              record_count: 1,
+            },
+          ],
+          total: 1,
+          overall_total: 1,
+        };
+      if (method === "loan_item_group_records")
+        return new Promise((resolve) => {
+          resolveBreakdown = resolve;
+        });
+      return { results: [], total: 0 };
+    });
+    const wrapper = mount(Loans, { global: globals });
+    await flushPromises();
+    await wrapper.find("tbody tr[tabindex='0']").trigger("click");
+    expect(state.api).toHaveBeenCalledWith(
+      "loan_item_group_records",
+      expect.objectContaining({ item_code: "ITM-1", outcome: "outstanding" }),
+      expect.any(AbortSignal),
+    );
+    await wrapper.find('[aria-label="搜索借用记录"]').setValue("changed");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    resolveBreakdown?.({
+      results: [{ loan: "STALE-LOAN", quantity_values: [], locations: [] }],
+      total: 1,
+    });
+    await flushPromises();
+    expect(document.body.textContent).not.toContain("STALE-LOAN");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    wrapper.unmount();
   });
 });

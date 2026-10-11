@@ -14,7 +14,8 @@ import type { PageAction } from "../../components/pageActions";
 import { warehousePresentation } from "../../lib/warehousePresenter";
 
 type Mode = "items" | "records";
-type LoanStatus = "all" | "outstanding" | "settled";
+type LoanStatus =
+  "all" | "outstanding" | "settled" | "returned" | "damaged" | "lost";
 type Filters = {
   search: string;
   loan_date: string;
@@ -66,7 +67,7 @@ export function useLoansController() {
   const filterOpen = ref(false);
   const desktopFilterOpen = ref(false);
   const filters = ref<Filters>(defaults());
-  const sort = ref<SortState>({ sort_by: "loan_date", sort_order: "desc" });
+  const sort = ref<SortState>({ sort_by: "item_name", sort_order: "asc" });
   const scrollResetToken = ref(0);
   const pageLength = 30;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -78,6 +79,15 @@ export function useLoansController() {
   let filterOptionsTimer: ReturnType<typeof setTimeout> | undefined;
   let filterOptionsSequence = 0;
   const compact = ref(false);
+  const breakdownRow = ref<any>();
+  const breakdownOpen = ref(false);
+  const breakdownPinned = ref(false);
+  const breakdownRows = ref<any[]>([]);
+  const breakdownTotal = ref(0);
+  const breakdownLoading = ref(false);
+  const breakdownError = ref("");
+  let breakdownController: AbortController | undefined;
+  let breakdownSequence = 0;
 
   const pageActions = computed<PageAction[]>(() => {
     const capabilities = boot.value?.stock_operation_capabilities || {};
@@ -94,20 +104,10 @@ export function useLoansController() {
   const columns = computed<DataTableColumn[]>(() =>
     mode.value === "items"
       ? [
-          {
-            key: "loan_date",
-            label: "借出日期",
-            sortable: true,
-            initialOrder: "desc",
-          },
           { key: "item", label: "物品" },
-          { key: "borrower", label: "借用方", sortable: true },
-          { key: "loaned", label: "借出数量", summary: "loaned_qty" },
-          { key: "outstanding", label: "未归还", summary: "outstanding_qty" },
-          { key: "loan_status", label: "状态", sortable: true },
-          { key: "original_warehouse", label: "原始位置" },
-          { key: "activity_title", label: "相关活动" },
-          { key: "record_name", label: "借用记录" },
+          { key: "quantity", label: "数量", summary: "quantity" },
+          { key: "outcome_label", label: "归还状态" },
+          { key: "record_count", label: "借用记录" },
         ]
       : [
           {
@@ -135,6 +135,13 @@ export function useLoansController() {
         ],
   );
   const statusOptions = [
+    { value: "all", label: "全部" },
+    { value: "outstanding", label: "未归还" },
+    { value: "returned", label: "已归还" },
+    { value: "damaged", label: "已归还（损坏）" },
+    { value: "lost", label: "已登记遗失" },
+  ];
+  const recordStatusOptions = [
     { value: "all", label: "全部" },
     { value: "outstanding", label: "未结" },
     { value: "settled", label: "已结清" },
@@ -183,7 +190,7 @@ export function useLoansController() {
       ? [
           {
             key: "status",
-            label: `状态：${statusOptions.find((item) => item.value === filters.value.status)?.label}`,
+            label: `状态：${(mode.value === "items" ? statusOptions : recordStatusOptions).find((item) => item.value === filters.value.status)?.label || (filters.value.status === "settled" ? "已处理（归还 / 损坏 / 遗失）" : filters.value.status)}`,
           },
         ]
       : []),
@@ -223,7 +230,14 @@ export function useLoansController() {
   function queryFilters() {
     return {
       ...filters.value,
-      status: filters.value.status === "all" ? undefined : filters.value.status,
+      status:
+        mode.value === "records" && filters.value.status !== "all"
+          ? filters.value.status
+          : undefined,
+      outcome:
+        mode.value === "items" && filters.value.status !== "all"
+          ? filters.value.status
+          : undefined,
       item_code: filters.value.item_code || undefined,
       sort_by: sort.value.sort_by,
       sort_order: sort.value.sort_order,
@@ -283,7 +297,7 @@ export function useLoansController() {
     }
     try {
       const data = await api(
-        mode.value === "items" ? "loan_items" : "loan_records",
+        mode.value === "items" ? "loan_item_groups" : "loan_records",
         {
           filters: queryFilters(),
           start: append ? rows.value.length : 0,
@@ -318,8 +332,12 @@ export function useLoansController() {
               status:
                 filters.value.status === "all" ? "" : filters.value.status,
             }),
-            ...(sort.value.sort_by === "loan_date" &&
-            sort.value.sort_order === "desc"
+            ...((mode.value === "items" &&
+              sort.value.sort_by === "item_name" &&
+              sort.value.sort_order === "asc") ||
+            (mode.value === "records" &&
+              sort.value.sort_by === "loan_date" &&
+              sort.value.sort_order === "desc")
               ? {}
               : sort.value),
           },
@@ -345,14 +363,21 @@ export function useLoansController() {
   function applyQuery(query: Record<string, any>) {
     const hydrated = hydrateFilterQuery(query, defaults());
     const value = String(hydrated.status);
+    const validStatuses =
+      mode.value === "items"
+        ? ["all", "outstanding", "settled", "returned", "damaged", "lost"]
+        : ["all", "outstanding", "settled"];
     filters.value = {
       ...hydrated,
-      status: ["all", "outstanding", "settled"].includes(value)
-        ? (value as LoanStatus)
-        : "all",
+      status: validStatuses.includes(value) ? (value as LoanStatus) : "all",
     };
-    const sortBy = String(query.sort_by || "loan_date");
-    const sortOrder = String(query.sort_order || "desc");
+    const defaultSort =
+      mode.value === "items"
+        ? { sort_by: "item_name", sort_order: "asc" as const }
+        : { sort_by: "loan_date", sort_order: "desc" as const };
+    sort.value = defaultSort;
+    const sortBy = String(query.sort_by || defaultSort.sort_by);
+    const sortOrder = String(query.sort_order || defaultSort.sort_order);
     if (
       columns.value.some(
         (column) => column.key === sortBy && column.sortable,
@@ -383,6 +408,72 @@ export function useLoansController() {
   function openLoan(name: string) {
     void router.push(`/loans/${encodeURIComponent(name)}`);
   }
+  async function loadBreakdown(row: any, append = false, force = false) {
+    if (!row?.item_code || !row?.outcome) return;
+    if (
+      !force &&
+      !append &&
+      breakdownRow.value?.name === row.name &&
+      (breakdownRows.value.length || breakdownLoading.value)
+    )
+      return;
+    if (
+      append &&
+      (breakdownLoading.value ||
+        breakdownRows.value.length >= breakdownTotal.value)
+    )
+      return;
+    breakdownController?.abort();
+    const requestController = new AbortController();
+    breakdownController = requestController;
+    const current = ++breakdownSequence;
+    breakdownLoading.value = true;
+    breakdownError.value = "";
+    if (!append) {
+      breakdownRow.value = row;
+      breakdownRows.value = [];
+      breakdownTotal.value = 0;
+    }
+    try {
+      const data = await api(
+        "loan_item_group_records",
+        {
+          item_code: row.item_code,
+          outcome: row.outcome,
+          filters: { ...queryFilters(), status: undefined, outcome: undefined },
+          start: append ? breakdownRows.value.length : 0,
+          page_length: 10,
+        },
+        requestController.signal,
+      );
+      if (current !== breakdownSequence) return;
+      breakdownRows.value = append
+        ? [...breakdownRows.value, ...(data.results || [])]
+        : data.results || [];
+      breakdownTotal.value = Number(data.total || 0);
+    } catch (cause: any) {
+      if (current === breakdownSequence && cause?.name !== "AbortError")
+        breakdownError.value = cause.message || "借用记录加载失败";
+    } finally {
+      if (current === breakdownSequence) breakdownLoading.value = false;
+    }
+  }
+  function closeBreakdown() {
+    breakdownController?.abort();
+    breakdownSequence += 1;
+    breakdownRow.value = undefined;
+    breakdownOpen.value = false;
+    breakdownPinned.value = false;
+    breakdownRows.value = [];
+    breakdownTotal.value = 0;
+    breakdownLoading.value = false;
+    breakdownError.value = "";
+  }
+  function setBreakdownState(row: any, pinned = false) {
+    breakdownRow.value = row;
+    breakdownOpen.value = true;
+    breakdownPinned.value = pinned;
+  }
   function createLoan() {
     return router.push("/new/Loan");
   }
@@ -396,12 +487,23 @@ export function useLoansController() {
     [filters, sort, mode],
     () => {
       if (boot.value) {
+        closeBreakdown();
         scrollResetToken.value += 1;
         scheduleLoad();
       }
     },
     { deep: true },
   );
+  watch(mode, (nextMode, previousMode) => {
+    if (nextMode !== previousMode) {
+      filters.value.status = "all";
+      closeBreakdown();
+      sort.value =
+        nextMode === "items"
+          ? { sort_by: "item_name", sort_order: "asc" }
+          : { sort_by: "loan_date", sort_order: "desc" };
+    }
+  });
   watch(
     () => route.query,
     (query) => {
@@ -435,6 +537,7 @@ export function useLoansController() {
     controller?.abort();
     appendController?.abort();
     filterOptionsController?.abort();
+    breakdownController?.abort();
     if (filterOptionsTimer) clearTimeout(filterOptionsTimer);
   });
   return {
@@ -451,6 +554,7 @@ export function useLoansController() {
     activityQuery,
     activityOptions,
     statusOptions,
+    recordStatusOptions,
     rows,
     total,
     overall,
@@ -483,6 +587,16 @@ export function useLoansController() {
     onResultsScroll,
     warehouseText,
     pageActions,
+    breakdownRow,
+    breakdownOpen,
+    breakdownPinned,
+    breakdownRows,
+    breakdownTotal,
+    breakdownLoading,
+    breakdownError,
+    loadBreakdown,
+    closeBreakdown,
+    setBreakdownState,
   };
 }
 export type LoansController = ReturnType<typeof useLoansController>;

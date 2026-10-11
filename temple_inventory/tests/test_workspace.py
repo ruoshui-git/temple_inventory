@@ -861,6 +861,176 @@ class WorkspaceTests(unittest.TestCase):
 			},
 		)
 
+	def test_loan_item_groups_split_outcomes_and_count_distinct_records(self):
+		rows = [
+			frappe._dict(
+				loan="LOAN-PARTIAL",
+				loan_item="LINE-A",
+				item_code=self.item,
+				loaned=10,
+				returned=4,
+				damaged=0,
+				lost=0,
+				outstanding=6,
+				borrower="甲",
+				activity="ACT-A",
+				item_activity="ACT-A",
+				loan_date="2026-10-01",
+				uom="Nos",
+				original_warehouse=self.a,
+				batch_no="BATCH-A",
+			),
+			frappe._dict(
+				loan="LOAN-PARTIAL",
+				loan_item="LINE-B",
+				item_code=self.item,
+				loaned=2,
+				returned=2,
+				damaged=0,
+				lost=0,
+				outstanding=0,
+				borrower="甲",
+				activity="ACT-B",
+				item_activity="ACT-B",
+				loan_date="2026-10-01",
+				uom="Nos",
+				original_warehouse=self.a,
+				batch_no="BATCH-B",
+			),
+			frappe._dict(
+				loan="LOAN-DAMAGED",
+				loan_item="LINE-C",
+				item_code=self.item,
+				loaned=1,
+				returned=0,
+				damaged=1,
+				lost=0,
+				outstanding=0,
+				borrower="乙",
+				activity="ACT-C",
+				item_activity="ACT-C",
+				loan_date="2026-09-01",
+				uom="Nos",
+				original_warehouse=self.a,
+				batch_no="BATCH-C",
+			),
+			frappe._dict(
+				loan="LOAN-LOST",
+				loan_item="LINE-D",
+				item_code=self.item,
+				loaned=1,
+				returned=0,
+				damaged=0,
+				lost=1,
+				outstanding=0,
+				borrower="丙",
+				activity="ACT-D",
+				item_activity="ACT-D",
+				loan_date="2026-08-01",
+				uom="Nos",
+				original_warehouse=self.a,
+				batch_no="BATCH-D",
+			),
+			frappe._dict(
+				loan="LOAN-BOX",
+				loan_item="LINE-E",
+				item_code=self.item,
+				loaned=1,
+				returned=1,
+				damaged=0,
+				lost=0,
+				outstanding=0,
+				borrower="丁",
+				activity="ACT-E",
+				item_activity="ACT-E",
+				loan_date="2026-07-01",
+				uom="Box",
+				original_warehouse=self.a,
+				batch_no="BATCH-E",
+			),
+		]
+		context = {
+			"allowed_names": {self.a},
+			"selected_warehouses": {self.a},
+			"selected_groups": set(),
+			"eligible_loans": {row.loan for row in rows},
+			"items": {
+				self.item: frappe._dict(
+					name=self.item,
+					item_name="Test item",
+					image=None,
+					item_group="All Item Groups",
+					stock_uom="Nos",
+				)
+			},
+			"activities": {
+				f"ACT-{letter}": frappe._dict(name=f"ACT-{letter}", title=f"活动 {letter}")
+				for letter in "ABCDE"
+			},
+			"by_loan": {
+				name: [row for row in rows if row.loan == name] for name in {row.loan for row in rows}
+			},
+			"quantity": lambda row, field: (row.get(field) * (12 if row.uom == "Box" else 1), "Nos"),
+			"status_for": lambda row: "Settled" if row.outstanding <= 0 else "Partially Settled",
+		}
+		hidden = frappe._dict(
+			loan="LOAN-HIDDEN",
+			loan_item="LINE-HIDDEN",
+			item_code=self.item,
+			loaned=9,
+			returned=0,
+			damaged=0,
+			lost=0,
+			outstanding=9,
+			borrower="无权借用方",
+			activity="ACT-HIDDEN",
+			item_activity="ACT-HIDDEN",
+			loan_date="2026-11-01",
+			uom="Nos",
+			original_warehouse="NOT-ALLOWED",
+			batch_no="HIDDEN-BATCH",
+		)
+		context["by_loan"][hidden.loan] = [hidden]
+		with (
+			patch.object(inventory_service, "_require_stock"),
+			patch.object(inventory_service, "_loan_browse_context", return_value=context),
+		):
+			all_groups = inventory_service.loan_item_groups(page_length=1)
+			all_group_pages = inventory_service.loan_item_groups(page_length=100)
+			resolved = inventory_service.loan_item_groups(filters={"status": "settled"})
+			returned_only = inventory_service.loan_item_groups(filters={"outcome": "returned"})
+			activity_filtered = inventory_service.loan_item_groups(filters={"activity": "ACT-A"})
+			returned_records = inventory_service.loan_item_group_records(
+				self.item, "returned", filters={}, page_length=10
+			)
+			filtered_records = inventory_service.loan_item_group_records(
+				self.item, "returned", filters={"activity": "ACT-A"}, page_length=10
+			)
+
+		self.assertEqual(all_groups["total"], 4)
+		self.assertEqual(all_groups["overall_total"], 4)
+		self.assertTrue(all_groups["has_more"])
+		self.assertEqual(len(all_group_pages["results"]), 4)
+		self.assertEqual(all_groups["facets"]["warehouses"][self.a], 4)
+		self.assertEqual(all_groups["column_summaries"]["quantity"]["unitless_total"], 26)
+		self.assertEqual(returned_only["total"], 1)
+		self.assertEqual(returned_only["results"][0]["quantity"], 18)
+		self.assertEqual(
+			{row["outcome"] for row in activity_filtered["results"]}, {"outstanding", "returned"}
+		)
+		groups = {row["outcome"]: row for row in resolved["results"]}
+		self.assertEqual(set(groups), {"returned", "damaged", "lost"})
+		self.assertEqual(groups["returned"]["quantity"], 18)
+		self.assertEqual(groups["returned"]["record_count"], 2)
+		self.assertEqual(groups["damaged"]["quantity"], 1)
+		self.assertEqual(groups["lost"]["quantity"], 1)
+		partial = next(row for row in returned_records["results"] if row["loan"] == "LOAN-PARTIAL")
+		self.assertEqual(partial["quantity"], 6)
+		self.assertEqual({line["batch_no"] for line in partial["locations"]}, {"BATCH-A", "BATCH-B"})
+		self.assertEqual({line["activity"] for line in partial["locations"]}, {"ACT-A", "ACT-B"})
+		self.assertEqual(filtered_records["total"], 1)
+		self.assertEqual(filtered_records["results"][0]["quantity"], 4)
+
 	def test_physical_tree_keeps_an_empty_group_for_management(self):
 		settings = SimpleNamespace(root_warehouse="root", physical_root_warehouse="physical", leased_warehouse="loan")
 		rows = {
