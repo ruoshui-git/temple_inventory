@@ -126,17 +126,17 @@ const iconPaths: Record<string, string> = {
 		min-height: 0;
 		min-width: 0;
 		flex-direction: column;
-		padding: 17px 10px;
-		border-right: 1px solid #ebe6de;
-		background: #f7f5f1;
+		padding: var(--ti-space-4) var(--ti-space-2);
+		border-right: 1px solid var(--ti-border);
+		background: var(--ti-canvas);
 	}
 	.shell-brand {
 		display: flex;
 		align-items: center;
-		gap: 9px;
-		padding: 0 5px 25px;
-		color: #343c46;
-		font-size: 17px;
+		gap: var(--ti-space-2);
+		padding: 0 var(--ti-space-1) var(--ti-space-6);
+		color: var(--ti-ink);
+		font-size: var(--ti-font-section);
 		line-height: 1.4;
 	}
 	.shell-brand,
@@ -144,11 +144,11 @@ const iconPaths: Record<string, string> = {
 	.shell-brand:focus-visible,
 	.shell-brand[aria-current="page"] {
 		background: transparent;
-		color: #343c46;
+		color: var(--ti-ink);
 		font-weight: 800;
 	}
 	.shell-brand:focus-visible {
-		outline: 2px solid #946c3f;
+		outline: 2px solid var(--ti-accent);
 		outline-offset: 2px;
 	}
 	.shell-brand > span {
@@ -156,16 +156,16 @@ const iconPaths: Record<string, string> = {
 		width: 30px;
 		height: 32px;
 		place-items: center;
-		border-radius: 9px;
-		border: 1px solid #d8d0c5;
+		border-radius: var(--ti-radius-small);
+		border: 1px solid var(--ti-border);
 		background: transparent;
-		color: #68727d;
+		color: var(--ti-muted);
 	}
 	.desktop-module-navigation {
 		display: grid;
 		flex: 1;
 		min-height: 0;
-		gap: 6px;
+		gap: var(--ti-space-1);
 		align-content: start;
 		overflow-x: hidden;
 		overflow-y: auto;
@@ -176,19 +176,19 @@ const iconPaths: Record<string, string> = {
 		position: relative;
 		display: flex;
 		align-items: center;
-		min-height: 42px;
-		padding: 8px 12px;
+		min-height: var(--ti-density-control);
+		padding: var(--ti-space-2) var(--ti-space-3);
 		border: 0;
-		border-radius: 7px;
-		color: #5f5b55;
+		border-radius: var(--ti-radius-small);
+		color: var(--ti-muted);
 		background: transparent;
 		font: inherit;
 		text-align: left;
 	}
 	.desktop-module-navigation > a[aria-current="page"],
 	.desktop-module-navigation > button.active {
-		background: #f3ece2;
-		color: #80572f;
+		background: var(--ti-accent-soft);
+		color: var(--ti-accent-strong);
 		font-weight: 650;
 	}
 	.desktop-nav-icon {
@@ -215,18 +215,18 @@ const iconPaths: Record<string, string> = {
 	}
 	.nav-badge {
 		margin-left: auto;
-		padding: 0 6px;
-		border-radius: 10px;
-		background: #f2dfc9;
-		color: #8b5b2f;
-		font-size: 11px;
+		padding: 0 var(--ti-space-1);
+		border-radius: var(--ti-radius-small);
+		background: var(--ti-accent-soft);
+		color: var(--ti-accent-strong);
+		font-size: max(12px, var(--ti-font-small));
 	}
 	.desktop-inventory-context {
 		display: flex;
 		align-items: stretch;
 		flex-direction: column;
-		gap: 3px;
-		padding: 0 0 4px 23px;
+		gap: var(--ti-space-1);
+		padding: 0 0 var(--ti-space-1) var(--ti-space-6);
 		min-width: 0;
 	}
 	.desktop-inventory-context a {
@@ -234,41 +234,41 @@ const iconPaths: Record<string, string> = {
 		align-items: center;
 		box-sizing: border-box;
 		width: 100%;
-		min-height: 34px;
-		padding: 6px 9px;
-		border-radius: 6px;
-		color: #756f67;
-		font-size: 13px;
-		gap: 6px;
+		min-height: var(--ti-density-control);
+		padding: var(--ti-space-1) var(--ti-space-2);
+		border-radius: var(--ti-radius-small);
+		color: var(--ti-muted);
+		font-size: var(--ti-font-body);
+		gap: var(--ti-space-1);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 	.desktop-inventory-context a[aria-current="page"] {
-		background: #e8ded0;
-		color: #81552c;
+		background: var(--ti-accent-soft);
+		color: var(--ti-accent-strong);
 		font-weight: 700;
 	}
 	.shell-actions {
 		display: grid;
 		grid-template-columns: 32px minmax(0, 1fr);
-		gap: 9px;
+		gap: var(--ti-space-2);
 		align-items: center;
 		margin-top: auto;
-		padding: 12px 4px 0;
+		padding: var(--ti-space-3) var(--ti-space-1) 0;
 	}
 	.user-avatar {
 		display: grid;
 		width: 32px;
 		height: 32px;
 		place-items: center;
-		border-radius: 50%;
-		background: #e5e0d7;
+		border-radius: var(--ti-radius-pill);
+		background: var(--ti-border);
 	}
 	.shell-actions div {
 		min-width: 0;
 		overflow: hidden;
-		font-size: 12px;
+		font-size: max(12px, var(--ti-font-small));
 	}
 	.shell-actions b,
 	.shell-actions small {
@@ -278,17 +278,17 @@ const iconPaths: Record<string, string> = {
 		white-space: nowrap;
 	}
 	.shell-actions small {
-		color: #817a70;
-		font-size: 10px;
+		color: var(--ti-muted);
+		font-size: max(12px, var(--ti-font-small));
 	}
 	.shell-actions button {
 		grid-column: 1 / -1;
 		min-height: 30px;
-		padding: 3px 8px;
+		padding: var(--ti-space-1) var(--ti-space-2);
 		border-color: transparent;
 		background: transparent;
-		color: #756f67;
-		font-size: 12px;
+		color: var(--ti-muted);
+		font-size: max(12px, var(--ti-font-small));
 	}
 }
 </style>

@@ -18,7 +18,7 @@ in the same change. Keep implementation details in code or task notes, not here.
   active result surface scrolls past 80px, tabs remain above the compact
   title/search/actions row; secondary tools collapse behind an
   accessible disclosure. Search, scan, filter, and the active-filter badge
-  stay available, with controls at least 40px high on narrow phones.
+  stay available, with controls at least 44px high on narrow phones.
 - Browse return-to-top appears after the active scroll surface passes twice
   its viewport height, stays above mobile navigation and creation actions, and
   uses a circular 44px icon button with a desktop hover/focus tooltip. It
@@ -29,6 +29,35 @@ in the same change. Keep implementation details in code or task notes, not here.
   does not.
 - Mobile browse tool disclosures use a rounded down-chevron that rotates when
   expanded and respects reduced-motion preferences.
+
+## Approved foundation
+
+- **2026-10-12:** Production adopts the quiet jade visual direction: a `#F4F6F3`
+  canvas, `#24332D` ink, and `#28684E` accent, with compact, balanced, and
+  spacious account preferences, with balanced as the default. Preferences are
+  stored per account on the server; a versioned per-account browser cache holds
+  confirmed values only. Server preferences remain usable without browser
+  storage; balanced is the fallback when neither a server value nor confirmed
+  account cache is available. Mobile body and input text remain at least 16px
+  and touch controls at least 44px; the shared responsive breakpoint is 1024px. This
+  supersedes the warm bronze production palette and 40px narrow-phone control
+  minimums recorded above. The six primary destinations remain unchanged, with
+  display preferences under 更多. Inventory and receiving behavior remains
+  unchanged during migration. Preview image-viewer and receiving-layout
+  proposals, along with broader creation, detail, and report redesigns, remain
+  deferred.
+
+- **2026-10-12 supersession:** The standalone design preview restored from
+  `7b91ff5` is the visual reference for fidelity review. Jade remains the
+  selected target direction with balanced density by default and the six main
+  destinations; compact and spacious remain available. Production visual
+  migration is paused until a manual comparison approves fidelity to that
+  reference. The mobile touch-target minimum is **44px** (superseding the former
+  40px narrow-phone rule), and body/input text remains at least 16px on mobile.
+  Existing inventory and receiving workflows stay in place. Image-viewer,
+  receiving-layout, four-destination navigation, and broader creation/detail/
+  report redesign proposals remain deferred or experimental; the preview does
+  not approve them for production.
 
 ## Navigation and layout
 

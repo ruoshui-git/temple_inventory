@@ -504,21 +504,21 @@ onBeforeUnmount(() => {
 </template>
 <style scoped>
 .drafts-history .results-scroll {
-	padding-bottom: 82px;
+	padding-bottom: var(--ti-space-8);
 }
 .movement-card-warehouses {
 	display: grid;
-	gap: 8px;
-	padding: 0 14px 14px;
+	gap: var(--ti-density-row-gap);
+	padding: 0 var(--ti-space-3) var(--ti-space-3);
 }
 
 .movement-card-warehouse {
 	display: grid;
-	gap: 3px;
+	gap: var(--ti-space-1);
 }
 
 .movement-card-warehouse > small {
-	color: #6b6257;
+	color: var(--ti-muted);
 	font-weight: 600;
 }
 @media (max-width: 1023px) {
@@ -542,14 +542,14 @@ onBeforeUnmount(() => {
 	}
 	.drafts-history .mobile-browse-header {
 		flex: none;
-		padding: 10px 12px 8px;
-		background: #f8f7f4;
+		padding: var(--ti-space-2) var(--ti-space-3) var(--ti-space-2);
+		background: var(--ti-canvas);
 	}
 	.drafts-history .results-scroll {
 		min-height: 0;
 		flex: 1;
 		overflow: auto;
-		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+		padding-bottom: calc(var(--mobile-nav-height, 0) + var(--ti-space-8));
 	}
 }
 </style>

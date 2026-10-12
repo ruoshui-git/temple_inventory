@@ -94,9 +94,9 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 <style scoped>
 .sortable-data-table-mobile :deep(article) {
 	display: grid;
-	gap: 6px;
-	padding: 14px;
-	border-radius: 10px;
+	gap: var(--ti-space-1);
+	padding: var(--ti-space-3);
+	border-radius: var(--ti-radius-control);
 	cursor: pointer;
 	outline: none;
 }
@@ -106,7 +106,7 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 .mobile-initial-loading {
 	display: grid;
 	justify-items: center;
-	gap: 10px;
+	gap: var(--ti-space-2);
 	min-height: 150px;
 	font-weight: 700;
 }
@@ -114,8 +114,8 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 	display: block;
 	width: min(92%, 360px);
 	height: 34px;
-	border-radius: 8px;
-	background: #f0ebe3;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 .mobile-initial-loading i + i {
 	opacity: 0.7;
@@ -124,13 +124,13 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 	display: inline-block;
 	width: 16px;
 	height: 16px;
-	margin-right: 6px;
+	margin-right: var(--ti-space-1);
 	vertical-align: -3px;
 	border-width: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
 	.sortable-data-table-mobile * {
-		animation-duration: 0.01ms !important;
+		animation-duration: var(--ti-motion-fast) !important;
 		transition-duration: 0.01ms !important;
 	}
 }
@@ -140,9 +140,9 @@ const { valueFor, isSelected, activate, activateKey, action } = useSortableRowIn
 .sortable-data-table-mobile :deep(article:hover),
 .sortable-data-table-mobile :deep(article:focus-visible),
 .sortable-mobile-row.selected > * {
-	background: #eee8db;
+	background: var(--ti-accent-soft);
 }
 .sortable-data-table-mobile :deep(article:focus-visible) {
-	box-shadow: inset 0 0 0 3px #d99a48;
+	box-shadow: var(--ti-focus-ring);
 }
 </style>

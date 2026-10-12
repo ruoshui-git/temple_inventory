@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import UiButton from "../components/UiButton.vue";
-import IconButton from "../components/IconButton.vue";
+import { computed, ref, watch } from "vue";
+import UiButton from "./components/PreviewUiButton.vue";
+import IconButton from "./components/PreviewIconButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
-import HierarchyFilter from "../components/HierarchyFilter.vue";
-import QuantitySummary from "../components/QuantitySummary.vue";
+import HierarchyFilter from "./components/PreviewHierarchyFilter.vue";
+import QuantitySummary from "./components/PreviewQuantitySummary.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import PreviewProduct from "./PreviewProduct.vue";
 import PreviewDenseLines from "./PreviewDenseLines.vue";
 import PreviewItemImage from "./PreviewItemImage.vue";
 import { items } from "./model";
 import { themes, warehouseNodes, type ThemeId } from "./model";
-const props = defineProps<{ theme: ThemeId }>();
+const props = defineProps<{ theme: ThemeId; active?: boolean }>();
 const emit = defineEmits<{ notify: [message: string]; inventory: []; receive: [] }>();
 const theme = computed(() => themes.find((item) => item.id === props.theme)!);
 const hierarchy = ref<string[]>(["斋堂"]);
@@ -21,6 +21,12 @@ const tab = ref("明细");
 const radio = ref("all");
 const checkbox = ref(true);
 const overlay = ref<"dialog" | "drawer" | "">("");
+watch(
+	() => props.active,
+	(active) => {
+		if (!active) overlay.value = "";
+	},
+);
 const feedback = ref("error");
 const chipVisible = ref(true);
 const swatches = computed(() => [
@@ -47,6 +53,9 @@ const swatches = computed(() => [
 				<span class="eyebrow">{{ theme.en }}</span>
 				<h2>{{ theme.name }}</h2>
 				<p>{{ theme.description }}</p>
+				<p v-if="theme.id !== 'jade'" class="proposal-note" role="note">
+					这是实验色板；正式应用使用静石 · 青玉。
+				</p>
 				<p class="muted">
 					少一些装饰，多一些清楚。颜色表达含义，间距建立秩序，交互给出回应。
 				</p>

@@ -50,10 +50,10 @@ describe("desktop shell presentation contract", () => {
       ":aria-current=\"activeDestination === item.path ? 'page' : undefined\"",
     );
     expect(globalStyleSource).toContain(
-      ".mobile-nav a[aria-current=page]{background:#704326;color:#fff;font-weight:800}",
+      '.mobile-nav a[aria-current="page"] { background: var(--ti-accent-strong); color: var(--ti-surface); font-weight: 800; }',
     );
     expect(globalStyleSource).toContain(
-      ".mobile-nav a[aria-current=page]:focus-visible{outline:3px solid #d99a48;outline-offset:2px}",
+      '.mobile-nav a[aria-current="page"]:focus-visible { outline: 3px solid var(--ti-accent); outline-offset: 2px; }',
     );
   });
 
@@ -88,13 +88,13 @@ describe("desktop shell presentation contract", () => {
       'content.closest<HTMLElement>(".shell-content")',
     );
     expect(globalStyleSource).toMatch(
-      /\.shell-content:has\(> \.dashboard-page\)\{[^}]*height:100dvh;[^}]*overflow-y:auto;[^}]*padding-bottom:calc\(var\(--mobile-nav-height\) \+ 82px\)/,
+      /\.shell-content:has\(> \.dashboard-page\)\s*\{[^}]*height:\s*100dvh;[^}]*overflow-y:\s*auto;[^}]*padding-bottom:\s*calc\(var\(--mobile-nav-height\) \+ 82px\)/,
     );
     expect(dashboardSource).toMatch(
-      /dashboard-content \{[^}]*padding: 22px[^}]*82px;/,
+      /dashboard-content \{[^}]*padding: var\(--ti-density-page\) var\(--ti-density-page\) 82px;/,
     );
     expect(tableRendererSource).toMatch(
-      /\.sortable-data-table-desktop th,[\s\S]*?position: sticky;[\s\S]*?background: #fff;/,
+      /\.sortable-data-table-desktop th,[\s\S]*?position: sticky;[\s\S]*?background: var\(--ti-surface\);/,
     );
     expect(desktopSource).toContain("<style scoped>");
     expect(desktopSource).toMatch(
@@ -110,16 +110,16 @@ describe("desktop shell presentation contract", () => {
       /\.viewport-list-root\s*\{[^}]*height:\s*calc\(100dvh[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;?/,
     );
     expect(globalStyleSource).toMatch(
-      /\.desktop-list-layout>\.filter-sidebar\s*\{[^}]*height:\s*100%;[^}]*max-height:\s*100%;[^}]*min-height:\s*0;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/,
+      /\.desktop-list-layout\s*>\s*\.filter-sidebar\s*\{[^}]*height:\s*100%;[^}]*max-height:\s*100%;[^}]*min-height:\s*0;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/,
     );
     expect(globalStyleSource).toMatch(
       /\.filter-drawer\s*\{[^}]*position:\s*fixed;[^}]*height:\s*100dvh;[^}]*max-height:\s*100dvh;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/,
     );
     expect(globalStyleSource).toMatch(
-      /\.shell-content:has\(> \.inventory-desktop-page\)[\s\S]*?padding-bottom:0;[\s\S]*?overflow:hidden;/,
+      /\.shell-content:has\(> \.inventory-desktop-page\)[\s\S]*?padding-bottom:\s*0;[\s\S]*?overflow:\s*hidden;/,
     );
     expect(globalStyleSource).toMatch(
-      /@media\(min-width:1024px\)[\s\S]*?html:has\(\.application-shell\),[\s\S]*?body:has\(\.application-shell\),[\s\S]*?#app:has\(\.application-shell\)\{[\s\S]*?height:100%;[\s\S]*?overflow:hidden;/,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?html:has\(\.application-shell\),[\s\S]*?body:has\(\.application-shell\),[\s\S]*?#app:has\(\.application-shell\)\s*\{[\s\S]*?height:\s*100%;[\s\S]*?overflow:\s*hidden;/,
     );
   });
 

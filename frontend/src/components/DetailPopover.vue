@@ -145,3 +145,56 @@ onBeforeUnmount(() => {
 		</Teleport>
 	</span>
 </template>
+
+<style scoped>
+.detail-popover {
+	display: inline-flex;
+	vertical-align: middle;
+}
+.detail-popover-trigger {
+	display: inline-flex;
+	min-width: 28px;
+	min-height: var(--ti-control-height);
+	align-items: center;
+	justify-content: center;
+	padding: 2px var(--ti-space-2);
+	border: 1px solid var(--ti-border-strong);
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-surface);
+	color: var(--ti-accent);
+	font: inherit;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+.detail-popover-trigger:hover,
+.detail-popover-trigger[aria-expanded="true"] {
+	border-color: var(--ti-accent);
+	background: var(--ti-accent-soft);
+	box-shadow: var(--ti-shadow-card);
+}
+.detail-popover-trigger:focus-visible {
+	border-color: var(--ti-accent);
+	background: var(--ti-accent-soft);
+	outline: none;
+	box-shadow: var(--ti-focus-ring);
+}
+.detail-popover-content {
+	position: fixed;
+	z-index: var(--ti-layer-popover);
+	box-sizing: border-box;
+	width: max-content;
+	min-width: 180px;
+	max-width: min(320px, calc(100vw - 24px));
+	max-height: min(360px, calc(100vh - 24px));
+	overflow: auto;
+	padding: var(--ti-space-2) var(--ti-space-3);
+	border: 1px solid var(--ti-border-strong);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	color: var(--ti-ink);
+	box-shadow: var(--ti-shadow-overlay);
+	font-size: var(--ti-font-small);
+	line-height: 1.65;
+	pointer-events: auto;
+}
+</style>

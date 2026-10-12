@@ -47,18 +47,18 @@ const formatQuantity = (value: number) =>
 .quantity-summary {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 9px;
-	padding: 10px 0 0;
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-2) 0 0;
 }
 .quantity-summary-metric {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: var(--ti-space-2);
 	min-width: 0;
-	padding: 8px 12px;
-	border: 1px solid #ece9e2;
-	border-radius: 7px;
-	background: #fff;
+	padding: var(--ti-space-2) var(--ti-space-3);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 }
 .quantity-summary-metric > div {
 	min-width: 0;
@@ -69,7 +69,7 @@ const formatQuantity = (value: number) =>
 	height: 29px;
 	flex: none;
 	border-radius: 50%;
-	background: #f2f5f3;
+	background: var(--ti-accent-soft);
 	place-items: center;
 }
 .metric-icon :deep(svg) {
@@ -77,41 +77,41 @@ const formatQuantity = (value: number) =>
 	height: 18px;
 }
 .quantity-summary-metric.available {
-	color: #14804e;
+	color: var(--ti-success);
 }
 .quantity-summary-metric.total {
-	color: #775f3e;
+	color: var(--ti-muted);
 }
 .quantity-summary-metric.loaned {
-	color: #b66b20;
+	color: var(--ti-warning);
 }
 .quantity-summary-metric.damaged {
-	color: #b24d42;
+	color: var(--ti-danger);
 }
 .quantity-summary-metric small {
 	display: block;
-	color: #6c747a;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .quantity-summary-values {
 	display: flex;
 	flex-wrap: wrap;
-	column-gap: 12px;
+	column-gap: var(--ti-space-3);
 	row-gap: 0;
 }
 .quantity-summary-values strong {
 	white-space: nowrap;
-	font-size: 17px;
+	font-size: var(--ti-font-section);
 	font-variant-numeric: tabular-nums;
 }
 .quantity-summary-values span {
-	color: #7b807c;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	font-weight: 400;
 }
 .quantity-summary-empty,
 .quantity-summary-loading {
-	color: #7b807c;
+	color: var(--ti-muted);
 }
 @media (max-width: 640px) {
 	.quantity-summary {

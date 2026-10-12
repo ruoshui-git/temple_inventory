@@ -427,7 +427,7 @@ onBeforeUnmount(() => {
 	.inventory-desktop-page {
 		width: 100%;
 		max-width: none;
-		padding: 0 16px;
+		padding: 0 var(--ti-space-4);
 	}
 	.desktop-list-layout {
 		grid-template-columns: minmax(0, 1fr);
@@ -435,53 +435,53 @@ onBeforeUnmount(() => {
 	}
 	.desktop-list-layout.filters-open {
 		grid-template-columns: 250px minmax(0, 1fr);
-		margin-left: -16px;
+		margin-left: calc(var(--ti-space-4) * -1);
 	}
 	.desktop-list-layout:not(.filters-open) :deep(.filter-sidebar) {
 		display: none;
 	}
 	.desktop-list-layout.filters-open :deep(.filter-sidebar) {
 		display: block;
-		padding: 14px 12px;
-		border-right: 1px solid #e4ded5;
+		padding: var(--ti-density-row-gap) var(--ti-space-3);
+		border-right: 1px solid var(--ti-border);
 		border-radius: 0;
-		background: #fbfaf7;
+		background: var(--ti-canvas);
 		box-shadow: none;
 	}
 	.desktop-list-layout.filters-open :deep(.filter-sidebar h2) {
-		color: #202b39;
-		font-size: 20px;
+		color: var(--ti-ink);
+		font-size: var(--ti-font-section);
 	}
 	.results-column {
 		padding-left: 0;
 	}
 	.filters-open .results-column {
-		padding-left: 16px;
+		padding-left: var(--ti-space-4);
 	}
 	.results-chrome {
-		padding-top: 14px;
+		padding-top: var(--ti-space-3);
 	}
 	.results-scroll {
-		border: 1px solid #ece9e2;
-		border-radius: 8px 8px 0 0;
-		background: #fff;
+		border: 1px solid var(--ti-border);
+		border-radius: var(--ti-radius-small) var(--ti-radius-small) 0 0;
+		background: var(--ti-surface);
 	}
 	.inventory-results :deep(.sortable-data-table table) {
-		font-size: 14px;
+		font-size: var(--ti-font-body);
 	}
 	.inventory-results :deep(.sortable-data-table th) {
-		background: #f2f2f0;
-		color: #7a7d84;
-		font-size: 14px;
+		background: var(--ti-canvas);
+		color: var(--ti-muted);
+		font-size: var(--ti-font-body);
 	}
 	.inventory-results :deep(.sortable-data-table td) {
-		height: 57px;
-		padding: 5px 10px;
-		border-bottom-color: #f0f0ed;
+		min-height: calc(var(--ti-density-control) + var(--ti-space-5));
+		padding: var(--ti-space-1) var(--ti-space-2);
+		border-bottom-color: var(--ti-border);
 	}
 	.inventory-results :deep(.sortable-data-table th),
 	.inventory-results :deep(.sortable-data-table td) {
-		padding-inline: 10px;
+		padding-inline: var(--ti-space-2);
 	}
 	.inventory-fab {
 		display: none;

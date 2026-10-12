@@ -149,16 +149,16 @@ function activate(row: ExpiryRow, event: Event) {
 <style scoped>
 .mobile-expiry-results {
 	display: grid;
-	background: #fff;
-	border: 1px solid #ece8e1;
-	border-radius: 9px;
+	background: var(--ti-surface);
+	border: 1px solid var(--ti-accent-soft);
+	border-radius: var(--ti-radius-control);
 }
 .mobile-expiry-results > .ui-loading-boundary {
 	display: none;
 }
 .mobile-expiry-state {
-	padding: 26px 12px;
-	color: #6d747b;
+	padding: var(--ti-space-6) var(--ti-space-3);
+	color: var(--ti-muted);
 	text-align: center;
 }
 .mobile-expiry-results {
@@ -167,33 +167,33 @@ function activate(row: ExpiryRow, event: Event) {
 .loading-state {
 	display: grid;
 	justify-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-height: 150px;
 }
 .loading-state i {
 	width: 92%;
 	height: 32px;
-	border-radius: 8px;
-	background: #f0ebe3;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 .mobile-expiry-state.error {
-	color: #b42318;
+	color: var(--ti-danger);
 }
 .mobile-expiry-state button {
-	margin-left: 6px;
-	color: #8a571e;
+	margin-left: var(--ti-space-1);
+	color: var(--ti-accent);
 }
 .mobile-expiry-result-row {
 	display: grid;
 	grid-template-columns: 62px minmax(0, 1fr) auto 9px;
 	align-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-height: 105px;
-	padding: 8px;
+	padding: var(--ti-space-2);
 	border: 0;
-	border-bottom: 1px solid #eeeae3;
+	border-bottom: 1px solid var(--ti-border);
 	background: transparent;
-	color: #27313d;
+	color: var(--ti-ink);
 	text-align: left;
 	cursor: pointer;
 }
@@ -206,9 +206,9 @@ function activate(row: ExpiryRow, event: Event) {
 	aspect-ratio: 1;
 	place-items: center;
 	overflow: hidden;
-	border-radius: 7px;
-	background: #f6f4ef;
-	color: #aaa397;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-canvas);
+	color: var(--ti-muted);
 }
 .mobile-expiry-result-image img {
 	width: 100%;
@@ -234,11 +234,11 @@ function activate(row: ExpiryRow, event: Event) {
 	white-space: nowrap;
 }
 .mobile-expiry-result-copy b {
-	font-size: 13px;
+	font-size: var(--ti-font-small);
 }
 .mobile-expiry-result-copy small {
-	color: #78818b;
-	font-size: 10px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .expiry-result-chips {
 	display: flex;
@@ -246,12 +246,12 @@ function activate(row: ExpiryRow, event: Event) {
 	gap: 3px;
 }
 .expiry-result-chips :deep(.detail-popover-trigger) {
-	min-height: 44px;
-	padding-inline: 8px;
-	font-size: 10px;
+	min-height: var(--ti-density-control);
+	padding-inline: var(--ti-space-2);
+	font-size: var(--ti-font-small);
 }
 .expired-location {
-	color: #b42318;
+	color: var(--ti-danger);
 }
 .mobile-expiry-result-status {
 	display: flex;
@@ -261,19 +261,19 @@ function activate(row: ExpiryRow, event: Event) {
 }
 .mobile-expiry-result-status b,
 .mobile-expiry-result-status small {
-	color: #ef661e;
-	font-size: 10px;
+	color: var(--ti-warning);
+	font-size: var(--ti-font-small);
 }
 .mobile-expiry-result-status.overdue b,
 .mobile-expiry-result-status.overdue small {
-	color: #c43c35;
+	color: var(--ti-danger);
 }
 .mobile-expiry-result-status strong {
-	margin-top: 6px;
-	color: #087a48;
-	font-size: 13px;
+	margin-top: var(--ti-space-1);
+	color: var(--ti-success);
+	font-size: var(--ti-font-small);
 }
 .mobile-expiry-result-chevron {
-	color: #a19a90;
+	color: var(--ti-muted);
 }
 </style>

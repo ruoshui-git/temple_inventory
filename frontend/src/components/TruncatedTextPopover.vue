@@ -41,22 +41,22 @@ const hasText = computed(() => Boolean(props.text?.trim()));
 	max-width: 180px;
 	padding: 2px 0;
 	border: 0;
-	border-bottom: 1px dotted #a66b35;
+	border-bottom: 1px dotted var(--ti-accent);
 	border-radius: 0;
 	background: transparent;
 	color: inherit;
 	text-align: left;
-	box-shadow: none;
+	box-shadow: var(--ti-shadow-card);
 }
 :deep(.detail-popover-trigger.truncated-text-popover-trigger:hover),
 :deep(.detail-popover-trigger.truncated-text-popover-trigger[aria-expanded="true"]) {
-	border-color: #805022;
+	border-color: var(--ti-accent);
 	background: transparent;
-	box-shadow: none;
+	box-shadow: var(--ti-shadow-card);
 }
 :deep(.detail-popover-trigger.truncated-text-popover-trigger:focus-visible) {
-	border-radius: 3px;
-	outline: 2px solid #d99a48;
+	border-radius: var(--ti-radius-control);
+	outline: 2px solid var(--ti-accent);
 	outline-offset: 2px;
 }
 @media (max-width: 1023px) {
@@ -67,6 +67,7 @@ const hasText = computed(() => Boolean(props.text?.trim()));
 	}
 	:deep(.detail-popover-trigger.truncated-text-popover-trigger) {
 		max-width: min(62vw, 250px);
+		min-height: var(--ti-density-control);
 	}
 }
 </style>

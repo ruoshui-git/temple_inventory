@@ -55,13 +55,13 @@ export type PreviewPreferences = {
   actions: Pattern;
   form: Pattern;
 };
-export const preferenceKey = "ti:design-preview:v2";
+export const preferenceKey = "ti:design-preview:v3";
 export const defaults: PreviewPreferences = {
-  theme: "bronze",
+  theme: "jade",
   density: "balanced",
   navigation: "current",
   actions: "current",
-  form: "proposed",
+  form: "current",
 };
 
 export function readPreferences(
@@ -69,19 +69,22 @@ export function readPreferences(
 ): PreviewPreferences {
   try {
     const saved = storage?.getItem(preferenceKey);
-    const value = JSON.parse(
-      saved || storage?.getItem("ti:design-preview:v1") || "{}",
-    );
+    const legacy = !saved
+      ? storage?.getItem("ti:design-preview:v2") ||
+        storage?.getItem("ti:design-preview:v1")
+      : undefined;
+    const value = JSON.parse(saved || legacy || "{}");
     return {
-      theme: themes.some((theme) => theme.id === value?.theme)
-        ? value.theme
-        : defaults.theme,
+      theme:
+        saved && themes.some((theme) => theme.id === value?.theme)
+          ? value.theme
+          : defaults.theme,
       density: ["compact", "balanced", "spacious"].includes(value?.density)
         ? value.density
         : defaults.density,
-      navigation: value?.navigation === "proposed" ? "proposed" : "current",
+      navigation: defaults.navigation,
       actions: "current",
-      form: saved && value?.form === "current" ? "current" : defaults.form,
+      form: saved && value?.form === "proposed" ? "proposed" : defaults.form,
     };
   } catch {
     return { ...defaults };
@@ -254,16 +257,14 @@ const fixtures: ItemFixture[] = [
 export const items = fixtures.map(summarize);
 export const warehouseNodes = [
   { name: "斋堂", label: "斋堂", is_group: true },
-  ...locations
-    .slice(0, 2)
-    .map((location, index) => ({
-      name: location,
-      label: index ? "A-02 · 食品与用品" : "A-01 · 米粮",
-      parent: "斋堂",
-      count: items.filter((item) =>
-        item.locations.some((row) => row.location === location),
-      ).length,
-    })),
+  ...locations.slice(0, 2).map((location, index) => ({
+    name: location,
+    label: index ? "A-02 · 食品与用品" : "A-01 · 米粮",
+    parent: "斋堂",
+    count: items.filter((item) =>
+      item.locations.some((row) => row.location === location),
+    ).length,
+  })),
   { name: "物资房", label: "物资房", is_group: true },
   {
     name: locations[2],
@@ -278,9 +279,10 @@ export function filterItems(
   search: string,
   warehouses: string[],
   category: string,
+  source: StockItem[] = items,
 ) {
   const term = search.trim().toLowerCase();
-  return items
+  return source
     .filter(
       (item) =>
         (!term || `${item.name} ${item.code}`.toLowerCase().includes(term)) &&

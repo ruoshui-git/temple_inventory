@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import DetailPopover from "../components/DetailPopover.vue";
+import DetailPopover from "./components/PreviewDetailPopover.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import { itemBatches, type StockItem } from "./model";
 const props = defineProps<{ item: StockItem }>();

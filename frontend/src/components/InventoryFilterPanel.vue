@@ -299,8 +299,8 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 <style scoped>
 .inventory-filter-panel {
 	display: grid;
-	gap: 10px;
-	color: #343c46;
+	gap: var(--ti-space-2);
+	color: var(--ti-ink);
 	font:
 		450 14px/1.45 Inter,
 		"Noto Sans SC",
@@ -313,25 +313,25 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 .filter-section,
 .expiry-section,
 .stock-filter {
-	border: 1px solid #e5dfd5;
-	border-radius: 10px;
-	background: #fff;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 }
 .filter-section-heading {
 	display: flex;
 	align-items: center;
-	padding: 2px 7px 2px 2px;
+	padding: 2px var(--ti-space-2) 2px 2px;
 }
 .filter-section-heading > button:first-child {
 	display: flex;
 	flex: 1;
 	align-items: center;
-	gap: 8px;
-	min-height: 44px;
-	padding: 7px 8px;
+	gap: var(--ti-space-2);
+	min-height: var(--ti-density-control);
+	padding: var(--ti-space-2) var(--ti-space-2);
 	border: 0;
 	background: transparent;
-	color: #313a45;
+	color: var(--ti-ink);
 	text-align: left;
 	font: inherit;
 	font-weight: 650;
@@ -340,8 +340,8 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	flex: 1;
 }
 .filter-section-heading small {
-	color: #8a6a43;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	font-weight: 600;
 }
 .disclosure-triangle {
@@ -352,24 +352,24 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	border-top: 4px solid transparent;
 	border-bottom: 4px solid transparent;
 	border-left: 6px solid currentColor;
-	color: #8a8177;
-	transition: transform 120ms ease;
+	color: var(--ti-muted);
+	transition: transform var(--ti-motion-fast) ease;
 }
 .disclosure-triangle.expanded {
 	transform: rotate(90deg);
 }
 .section-clear {
-	min-height: 34px;
-	padding: 4px 6px;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-1) var(--ti-space-1);
 	border: 0;
 	background: transparent;
-	color: #8a5a2c;
+	color: var(--ti-accent);
 	font: inherit;
-	font-size: 12px;
+	font-size: var(--ti-font-small);
 }
 .filter-section-body {
-	padding: 0 10px 10px;
-	border-top: 1px solid #eee9e1;
+	padding: 0 var(--ti-space-2) var(--ti-space-2);
+	border-top: 1px solid var(--ti-accent-soft);
 }
 .stock-filter input,
 .expiry-options input {
@@ -377,7 +377,7 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	width: 14px;
 	height: 14px;
 	margin: 0;
-	accent-color: #9a6939;
+	accent-color: var(--ti-accent);
 }
 .stock-filter input[type="checkbox"] {
 	appearance: none;
@@ -389,23 +389,23 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	min-width: 0;
 	min-height: 0;
 	padding: 0;
-	border: 1px solid #aaa299;
-	border-radius: 3px;
-	background: #fff;
+	border: 1px solid var(--ti-border-strong);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 }
 .stock-filter input[type="checkbox"]::before {
 	content: "";
 	width: 4px;
 	height: 7px;
-	border-bottom: 1.5px solid #fff;
-	border-right: 1.5px solid #fff;
+	border-bottom: 1.5px solid var(--ti-surface);
+	border-right: 1.5px solid var(--ti-surface);
 	transform: translateY(-1px) rotate(45deg) scale(0);
 	transform-origin: center;
 }
 .stock-filter input[type="checkbox"]:checked,
 .stock-filter input[type="checkbox"]:indeterminate {
-	border-color: #956536;
-	background: #956536;
+	border-color: var(--ti-accent);
+	background: var(--ti-accent);
 }
 .stock-filter input[type="checkbox"]:checked::before {
 	transform: translateY(-1px) rotate(45deg) scale(1);
@@ -420,9 +420,9 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 .stock-filter {
 	display: flex;
 	align-items: center;
-	gap: 9px;
+	gap: var(--ti-space-2);
 	min-height: 52px;
-	padding: 8px 12px;
+	padding: var(--ti-space-2) var(--ti-space-3);
 	cursor: pointer;
 }
 .stock-filter span {
@@ -430,98 +430,98 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	flex-direction: column;
 }
 .stock-filter small {
-	color: #817a71;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .expiry-heading {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
-	padding: 10px 11px 5px;
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-2) var(--ti-space-3) var(--ti-space-1);
 }
 .expiry-heading h3 {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--ti-font-small);
 }
 .expiry-heading label {
 	display: flex;
 	align-items: center;
-	gap: 5px;
-	color: #777870;
-	font-size: 12px;
+	gap: var(--ti-space-1);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .expiry-heading input,
 .custom-range input {
 	width: 58px;
 	height: 30px;
-	padding: 3px 5px;
-	border: 1px solid #ddd7cd;
-	border-radius: 6px;
+	padding: 3px var(--ti-space-1);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
 }
 .expiry-options {
 	display: grid;
-	padding: 4px 10px 10px;
+	padding: var(--ti-space-1) var(--ti-space-2) var(--ti-space-2);
 }
 .expiry-options > label {
 	display: grid;
 	grid-template-columns: 16px minmax(0, 1fr) auto;
 	align-items: center;
-	gap: 7px;
-	min-height: 36px;
-	padding: 4px 3px;
-	border-radius: 6px;
+	gap: var(--ti-space-2);
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-1) 3px;
+	border-radius: var(--ti-radius-control);
 	cursor: pointer;
 }
 .expiry-options > label:hover,
 .expiry-options > label.selected {
-	background: #f5f1eb;
+	background: var(--ti-canvas);
 }
 .option-count {
-	color: #8b8379;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .custom-range {
 	grid-column: 2 / -1;
 	display: flex;
 	align-items: center;
-	gap: 5px;
-	padding-bottom: 4px;
+	gap: var(--ti-space-1);
+	padding-bottom: var(--ti-space-1);
 }
 .custom-error {
-	margin: -3px 12px 10px;
-	color: #a63e33;
-	font-size: 11px;
+	margin: -3px var(--ti-space-3) var(--ti-space-2);
+	color: var(--ti-danger);
+	font-size: var(--ti-font-small);
 }
 .expiry-section {
-	padding: 11px;
+	padding: var(--ti-space-3);
 }
 .expiry-section h3 {
-	margin: 0 0 9px;
-	color: #343c46;
-	font-size: 14px;
+	margin: 0 0 var(--ti-space-2);
+	color: var(--ti-ink);
+	font-size: var(--ti-font-body);
 }
 .expiry-options {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 6px;
+	gap: var(--ti-space-1);
 }
 .expiry-options label {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
-	gap: 6px;
-	min-height: 40px;
-	padding: 6px 8px;
-	border: 1px solid #e5dfd5;
-	border-radius: 7px;
-	background: #fbfaf8;
+	gap: var(--ti-space-1);
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-1) var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 	cursor: pointer;
 }
 .expiry-options label.selected {
-	border-color: #c7a67f;
-	background: #f3eadf;
-	color: #76502c;
+	border-color: var(--ti-border-strong);
+	background: var(--ti-accent-soft);
+	color: var(--ti-accent);
 }
 .expiry-options label span {
 	display: flex;
@@ -540,7 +540,7 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 	border: 0;
 }
 .expiry-options label:focus-within {
-	outline: 2px solid #946c3f;
+	outline: 2px solid var(--ti-accent);
 	outline-offset: 2px;
 }
 .expiry-options .custom-range {
@@ -552,24 +552,24 @@ function expiryLabel(option: { value: ExpiryFilter; label: string }) {
 }
 .expiry-options {
 	grid-template-columns: 1fr;
-	gap: 4px;
+	gap: var(--ti-space-1);
 }
 .expiry-options small {
-	color: #7c746b;
-	font-size: 10px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	white-space: nowrap;
 }
 .more-section .expiry-section {
-	padding: 10px 0 0;
+	padding: var(--ti-space-2) 0 0;
 	border: 0;
 	border-radius: 0;
 }
 .clear-all-filters {
-	min-height: 42px;
-	border: 1px solid #dfd6c9;
-	border-radius: 8px;
-	background: #faf8f4;
-	color: #80572e;
+	min-height: var(--ti-control-height);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	color: var(--ti-accent);
 	font: inherit;
 	font-weight: 600;
 }
@@ -578,8 +578,16 @@ button {
 }
 button:focus-visible,
 input:focus-visible {
-	outline: 2px solid #946c3f;
+	outline: 2px solid var(--ti-accent);
 	outline-offset: 2px;
+}
+@media (max-width: 1023px) {
+	.inventory-filter-panel :deep(button),
+	.inventory-filter-panel :deep(label),
+	.expiry-options label,
+	.stock-filter label {
+		min-height: var(--ti-density-control);
+	}
 }
 @media (max-width: 760px) {
 	.stock-filter input,

@@ -151,16 +151,16 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 <style scoped>
 .mobile-inventory-list {
 	display: grid;
-	background: #fff;
-	border: 1px solid #ece8e1;
-	border-radius: 9px;
+	background: var(--ti-surface);
+	border: 1px solid var(--ti-accent-soft);
+	border-radius: var(--ti-radius-control);
 }
 .mobile-inventory-list > .ui-loading-boundary {
 	display: none;
 }
 .mobile-inventory-state {
-	padding: 26px 12px;
-	color: #6d747b;
+	padding: var(--ti-space-6) var(--ti-space-3);
+	color: var(--ti-muted);
 	text-align: center;
 }
 .mobile-inventory-list {
@@ -169,34 +169,34 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 .loading-state {
 	display: grid;
 	justify-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-height: 150px;
 }
 .loading-state i {
 	width: 92%;
 	height: 32px;
-	border-radius: 8px;
-	background: #f0ebe3;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 .mobile-inventory-state.error {
-	color: #b42318;
+	color: var(--ti-danger);
 }
 .mobile-inventory-row {
 	display: grid;
 	grid-template-columns: 64px minmax(0, 1fr) auto 10px;
 	align-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-height: 92px;
-	padding: 8px;
+	padding: var(--ti-space-2);
 	border: 0;
-	border-bottom: 1px solid #eeeae3;
+	border-bottom: 1px solid var(--ti-border);
 	background: transparent;
-	color: #27313d;
+	color: var(--ti-ink);
 	text-align: left;
 	cursor: pointer;
 }
 .mobile-inventory-row:focus-visible {
-	outline: 3px solid #a66b35;
+	outline: 3px solid var(--ti-accent);
 	outline-offset: -2px;
 }
 .mobile-inventory-row:last-child {
@@ -208,9 +208,9 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 	width: 64px;
 	aspect-ratio: 1;
 	overflow: hidden;
-	border-radius: 7px;
-	background: #f6f4ef;
-	color: #aaa397;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-canvas);
+	color: var(--ti-muted);
 }
 .mobile-row-image img {
 	width: 100%;
@@ -236,33 +236,33 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 	white-space: nowrap;
 }
 .mobile-row-copy > b {
-	font-size: 13px;
+	font-size: var(--ti-font-small);
 }
 .mobile-row-copy > small {
-	color: #7c858f;
-	font-size: 10px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .mobile-row-chips {
 	display: flex;
-	gap: 4px;
+	gap: var(--ti-space-1);
 	margin-top: 2px;
 }
 .mobile-row-chips small {
-	padding: 2px 5px;
-	border-radius: 10px;
-	background: #eef5fa;
-	color: #47708c;
-	font-size: 9px;
+	padding: 2px var(--ti-space-1);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-info-bg);
+	color: var(--ti-info);
+	font-size: var(--ti-font-small);
 }
 .mobile-row-chips :deep(.mobile-row-chip) {
-	min-height: 44px;
-	padding: 7px 9px;
+	min-height: var(--ti-density-control);
+	padding: var(--ti-space-2) var(--ti-space-2);
 	border: 0;
-	border-radius: 10px;
-	background: #eef5fa;
-	color: #47708c;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-info-bg);
+	color: var(--ti-info);
 	font: inherit;
-	font-size: 10px;
+	font-size: var(--ti-font-small);
 }
 .mobile-row-chips :deep(.detail-popover) {
 	display: inline-flex;
@@ -270,29 +270,29 @@ function activateKey(row: InventoryCardRow, event: KeyboardEvent) {
 .mobile-row-chips .warning {
 	display: inline-flex;
 	box-sizing: border-box;
-	min-height: 44px;
+	min-height: var(--ti-density-control);
 	align-items: center;
 	justify-content: center;
 	line-height: 1.2;
-	background: #fff1e4;
-	color: #a6531b;
+	background: var(--ti-warning-bg);
+	color: var(--ti-warning);
 }
 .mobile-row-totals {
-	color: #667079 !important;
+	color: var(--ti-muted) !important;
 }
 .mobile-row-quantity {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
-	color: #087a48;
+	color: var(--ti-success);
 }
 .mobile-row-quantity strong {
-	font-size: 18px;
+	font-size: var(--ti-font-section);
 }
 .mobile-row-quantity small {
-	font-size: 10px;
+	font-size: var(--ti-font-small);
 }
 .mobile-row-chevron {
-	color: #a19a90;
+	color: var(--ti-muted);
 }
 </style>

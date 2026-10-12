@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import UiButton from "../components/UiButton.vue";
+import UiButton from "./components/PreviewUiButton.vue";
 import { items, locations } from "./model";
 const rows = ref(
 	Array.from({ length: 30 }, (_, index) => ({

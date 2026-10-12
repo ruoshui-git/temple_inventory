@@ -24,17 +24,22 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>();
 	box-sizing: border-box;
 	display: inline-flex;
 	min-width: 40px;
-	min-height: 40px;
+	min-height: var(--ti-control-height);
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
-	padding: 7px 11px;
-	border: 1px solid #d8d1c6;
-	border-radius: 7px;
-	background: #fff;
-	color: #5e574d;
-	font-size: 14px;
+	gap: var(--ti-space-1);
+	padding: var(--ti-space-2) var(--ti-space-3);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-body);
 	font-weight: 600;
+}
+@media (max-width: 1023px) {
+	.column-summary-trigger {
+		min-height: var(--ti-density-control);
+	}
 }
 .column-summary-trigger :deep(svg) {
 	width: 16px;

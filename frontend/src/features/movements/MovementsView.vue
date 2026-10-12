@@ -518,11 +518,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 							}}</RouterLink
 							><span
 								v-if="mode === 'records' && row.docstatus === 0"
-								class="status-badge"
+								class="status-badge status-badge--draft"
 								>草稿</span
 							><span
 								v-else-if="mode === 'records' && row.docstatus === 2"
-								class="status-badge"
+								class="status-badge status-badge--cancelled"
 								>已取消</span
 							></template
 						>
@@ -595,9 +595,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 									data-row-control
 									@click.stop
 									>{{ row.record_name }}
-									<span v-if="row.docstatus === 0" class="status-badge"
+									<span
+										v-if="row.docstatus === 0"
+										class="status-badge status-badge--draft"
 										>草稿</span
-									><span v-else-if="row.docstatus === 2" class="status-badge"
+									><span
+										v-else-if="row.docstatus === 2"
+										class="status-badge status-badge--cancelled"
 										>已取消</span
 									></RouterLink
 								>
@@ -691,25 +695,25 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	grid-template-columns: minmax(0, 1fr);
 	grid-template-areas: "heading" "actions" "chips";
 	align-items: center;
-	gap: 7px;
-	padding: 14px 0 8px;
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-3) 0 var(--ti-space-2);
 }
 .movement-heading {
 	grid-area: heading;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 16px;
+	gap: var(--ti-density-gap);
 }
 .movement-title {
 	display: flex;
 	align-items: baseline;
-	gap: 10px;
+	gap: var(--ti-space-2);
 }
 .movement-heading h1 {
 	margin: 0;
-	color: #202b39;
-	font-size: 25px;
+	color: var(--ti-ink);
+	font-size: var(--ti-font-heading);
 	font-weight: 750;
 	line-height: 1.2;
 }
@@ -718,7 +722,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	width: 1px;
 	height: 1px;
 	padding: 0;
-	margin: -1px;
+	margin: calc(var(--ti-space-1) * -1);
 	overflow: hidden;
 	clip: rect(0, 0, 0, 0);
 	white-space: nowrap;
@@ -728,14 +732,14 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	min-width: 0;
 }
 .movement-count {
-	color: #6b6257;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: max(12px, var(--ti-font-small));
 }
 .movement-ledger-actions,
 .movement-kind-chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: var(--ti-space-1);
 	align-items: center;
 }
 .movement-ledger-actions {
@@ -749,16 +753,16 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	align-items: center;
 	flex: 1;
 	min-width: 180px;
-	height: 36px;
-	gap: 8px;
-	padding: 0 10px;
-	border: 1px solid #e0e2e4;
-	border-radius: 6px;
-	background: #fff;
-	color: #7b8492;
+	height: var(--ti-density-control);
+	gap: var(--ti-density-row-gap);
+	padding: 0 var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-small);
+	background: var(--ti-surface);
+	color: var(--ti-muted);
 }
 .movement-search:focus-within {
-	outline: 2px solid #946c3f;
+	outline: 2px solid var(--ti-accent);
 }
 .movement-search input {
 	width: 100%;
@@ -775,8 +779,8 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .movement-filter-button {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	min-height: 34px;
+	gap: var(--ti-space-1);
+	min-height: var(--ti-density-control);
 	white-space: nowrap;
 }
 .toolbar-action :deep(svg),
@@ -798,10 +802,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	min-width: 18px;
 	height: 18px;
 	place-items: center;
-	border-radius: 50%;
-	background: #ede4d6;
-	color: #855e33;
-	font-size: 10px;
+	border-radius: var(--ti-radius-pill);
+	background: var(--ti-accent-soft);
+	color: var(--ti-accent-strong);
+	font-size: max(12px, var(--ti-font-small));
 }
 .movement-ledger-actions > input {
 	min-width: 180px;
@@ -810,13 +814,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .compact-heading {
 	display: none;
-	color: #202b39;
-	font-size: 17px;
+	color: var(--ti-ink);
+	font-size: var(--ti-font-section);
 	white-space: nowrap;
 }
 .movement-filter-button.active {
-	border-color: #c8b69b;
-	background: #f5f0e8;
+	border-color: var(--ti-border-strong);
+	background: var(--ti-accent-soft);
 }
 .new-record-menu {
 	position: relative;
@@ -824,8 +828,8 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .new-record-menu summary {
 	list-style: none;
 	cursor: pointer;
-	padding: 8px 12px;
-	border-radius: 4px;
+	padding: var(--ti-space-2) var(--ti-space-3);
+	border-radius: var(--ti-radius-small);
 }
 .new-record-menu summary::-webkit-details-marker {
 	display: none;
@@ -838,13 +842,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .new-record-menu div {
 	position: absolute;
 	right: 0;
-	z-index: 4;
+	z-index: var(--ti-layer-menu);
 	display: grid;
 	min-width: 130px;
-	padding: 5px;
-	background: #fffaf2;
-	border: 1px solid #eadfce;
-	box-shadow: 0 8px 20px rgba(65, 44, 22, 0.12);
+	padding: var(--ti-space-1);
+	background: var(--ti-surface);
+	border: 1px solid var(--ti-border);
+	box-shadow: var(--ti-shadow-overlay);
 }
 .new-record-menu div button {
 	text-align: left;
@@ -853,11 +857,11 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .movement-kind-chips {
 	grid-area: chips;
-	padding: 8px 0;
+	padding: var(--ti-space-2) 0;
 	overflow-x: auto;
 	flex-wrap: nowrap;
 	position: relative;
-	z-index: 2;
+	z-index: var(--ti-layer-nav);
 }
 @media (max-width: 1023px) {
 	.movement-ledger-header {
@@ -873,13 +877,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 
 .movement-kind-chips button {
 	flex: none;
-	padding: 7px 10px;
-	border-radius: 999px;
+	padding: var(--ti-space-2) var(--ti-space-2);
+	border-radius: var(--ti-radius-pill);
 }
 .movement-kind-chip {
 	display: inline-flex;
 	align-items: center;
-	gap: 5px;
+	gap: var(--ti-space-1);
 }
 .movement-kind-chip-zero {
 	display: none !important;
@@ -888,61 +892,61 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	opacity: 0.58;
 }
 .movement-kind-chip[data-tone="receive"] {
-	border-color: #bddab9;
-	background: #f0f8ee;
-	color: #2f6a35;
+	border-color: color-mix(in srgb, var(--ti-movement-receive) 20%, var(--ti-surface));
+	background: var(--ti-movement-receive-bg);
+	color: var(--ti-movement-receive);
 }
 .movement-kind-chip[data-tone="issue"],
 .movement-kind-chip[data-tone="loss"],
 .movement-kind-chip[data-tone="disposal"] {
-	border-color: #edc5be;
-	background: #fff4f1;
-	color: #974438;
+	border-color: color-mix(in srgb, var(--ti-movement-issue) 20%, var(--ti-surface));
+	background: var(--ti-movement-issue-bg);
+	color: var(--ti-movement-issue);
 }
 .movement-kind-chip[data-tone="transfer"] {
-	border-color: #c8d3ee;
-	background: #f1f4fb;
-	color: #405c96;
+	border-color: color-mix(in srgb, var(--ti-movement-transfer) 20%, var(--ti-surface));
+	background: var(--ti-movement-transfer-bg);
+	color: var(--ti-movement-transfer);
 }
 .movement-kind-chip[data-tone="loan"] {
-	border-color: #e7d0a1;
-	background: #fff8e9;
-	color: #8a5a19;
+	border-color: color-mix(in srgb, var(--ti-movement-loan) 20%, var(--ti-surface));
+	background: var(--ti-movement-loan-bg);
+	color: var(--ti-movement-loan);
 }
 .movement-kind-chip[data-tone="return"],
 .movement-kind-chip[data-tone="repair"] {
-	border-color: #bfddd2;
-	background: #eff8f5;
-	color: #2f6a58;
+	border-color: color-mix(in srgb, var(--ti-movement-return) 20%, var(--ti-surface));
+	background: var(--ti-movement-return-bg);
+	color: var(--ti-movement-return);
 }
 .movement-kind-chip[data-tone="damage"] {
-	border-color: #dfc7dc;
-	background: #fbf1f9;
-	color: #7f4e76;
+	border-color: color-mix(in srgb, var(--ti-movement-damage) 20%, var(--ti-surface));
+	background: var(--ti-movement-damage-bg);
+	color: var(--ti-movement-damage);
 }
 .movement-kind-chip[data-tone="reconcile"] {
-	border-color: #d1c4e6;
-	background: #f5f1fb;
-	color: #624e8a;
+	border-color: color-mix(in srgb, var(--ti-movement-reconcile) 20%, var(--ti-surface));
+	background: var(--ti-movement-reconcile-bg);
+	color: var(--ti-movement-reconcile);
 }
 .movement-kind-chip[data-tone="opening"],
 .movement-badge[data-kind="Opening"] {
-	border-color: #c7d9d1;
-	background: #eef7f3;
-	color: #356c59;
+	border-color: color-mix(in srgb, var(--ti-movement-opening) 20%, var(--ti-surface));
+	background: var(--ti-movement-opening-bg);
+	color: var(--ti-movement-opening);
 }
 .kind-icon {
-	font-size: 15px;
+	font-size: var(--ti-font-body);
 	font-weight: 800;
 }
 .movement-kind-chips button[aria-pressed="true"] {
-	background: #9b571d;
-	color: white;
+	background: var(--ti-accent-strong);
+	color: var(--ti-ink-inverse);
 }
 .movement-zero-kinds-toggle {
 	border-style: dashed;
-	color: #7b8087;
-	background: #fafafa;
+	color: var(--ti-muted);
+	background: var(--ti-surface);
 }
 .movement-kind-chips span {
 	font-variant-numeric: tabular-nums;
@@ -955,7 +959,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	display: flex;
 	min-width: 0;
 	align-items: center;
-	gap: 12px;
+	gap: var(--ti-density-row-gap);
 }
 .movement-active-filter-row :deep(.active-filter-chips) {
 	min-width: 0;
@@ -987,13 +991,13 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .movement-date small,
 .movement-item-cell small {
-	color: #7b8087;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: max(12px, var(--ti-font-small));
 }
 .movement-item-cell {
 	flex-direction: row;
 	align-items: center;
-	gap: 7px;
+	gap: var(--ti-space-2);
 	min-width: 150px;
 }
 .movement-item-cell > :deep(.image-preview),
@@ -1005,107 +1009,113 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .status-badge {
 	display: inline-block !important;
 	width: max-content;
-	padding: 3px 7px;
-	border-radius: 999px;
-	background: #f0e0c7;
-	color: #724215;
+	padding: var(--ti-space-1) var(--ti-space-2);
+	border-radius: var(--ti-radius-pill);
+	background: var(--ti-warning-bg);
+	color: var(--ti-movement-loan);
 	white-space: nowrap;
 }
 .movement-badge[data-kind="Receive"] {
-	background: #e4f2e1;
-	color: #2f6a35;
+	background: var(--ti-movement-receive-bg);
+	color: var(--ti-movement-receive);
 }
 .movement-badge[data-kind="Issue"],
 .movement-badge[data-kind="Loss"],
 .movement-badge[data-kind="Disposal"] {
-	background: #f8e3df;
-	color: #974438;
+	background: var(--ti-movement-issue-bg);
+	color: var(--ti-movement-issue);
 }
 .movement-badge[data-kind="Transfer"] {
-	background: #e4eafa;
-	color: #405c96;
+	background: var(--ti-movement-transfer-bg);
+	color: var(--ti-movement-transfer);
 }
 .movement-badge[data-kind="Loan"] {
-	background: #f4e5c8;
-	color: #8a5a19;
+	background: var(--ti-movement-loan-bg);
+	color: var(--ti-movement-loan);
 }
 .movement-badge[data-kind="Return"],
 .movement-badge[data-kind="Repair"] {
-	background: #e1f0eb;
-	color: #2f6a58;
+	background: var(--ti-movement-return-bg);
+	color: var(--ti-movement-return);
 }
 .movement-badge[data-kind="Damage"] {
-	background: #f0e2ee;
-	color: #7f4e76;
+	background: var(--ti-movement-damage-bg);
+	color: var(--ti-movement-damage);
 }
 .movement-badge[data-kind="Reconcile"] {
-	background: #e7e1f3;
-	color: #624e8a;
+	background: var(--ti-movement-reconcile-bg);
+	color: var(--ti-movement-reconcile);
 }
 .status-badge {
-	margin-left: 5px;
-	background: #ead8bc;
-	color: #795c39;
-	font-size: 11px;
+	margin-left: var(--ti-space-1);
+	font-size: max(12px, var(--ti-font-small));
+}
+.status-badge--draft {
+	background: var(--ti-warning-bg);
+	color: var(--ti-warning);
+}
+.status-badge--cancelled {
+	background: var(--ti-canvas);
+	color: var(--ti-muted);
 }
 .movement-filter-field {
 	display: grid;
-	gap: 4px;
-	margin: 8px 0;
-	font-size: 13px;
+	gap: var(--ti-space-1);
+	margin: var(--ti-space-2) 0;
+	font-size: var(--ti-font-body);
 }
 .movement-filter-field input {
 	width: 100%;
 }
 .movement-ledger :deep(.filter-sidebar) {
-	font-size: 13px;
+	font-size: var(--ti-font-body);
 }
 .movement-ledger :deep(.filter-sidebar h2) {
-	margin: 0 0 12px;
-	font-size: 19px;
+	margin: 0 0 var(--ti-space-3);
+	font-size: var(--ti-font-section);
 }
 .movement-ledger :deep(.filter-sidebar > button.secondary) {
 	width: 100%;
-	min-height: 36px;
-	margin-top: 10px;
+	min-height: var(--ti-density-control);
+	margin-top: var(--ti-space-2);
 }
 .movement-ledger :deep(.filter-sidebar .selector-button) {
-	min-height: 36px;
-	margin: 3px 0 8px;
-	padding: 8px 9px;
-	border-radius: 6px;
+	min-height: var(--ti-density-control);
+	margin: var(--ti-space-1) 0 var(--ti-space-2);
+	padding: var(--ti-space-2) var(--ti-space-2);
+	border-radius: var(--ti-radius-small);
 }
 .movement-ledger :deep(.filter-sidebar .choice-row) {
-	min-height: 36px;
-	padding: 7px 5px;
+	min-height: var(--ti-density-control);
+	padding: var(--ti-space-2) var(--ti-space-1);
 }
 .movement-mobile-card {
 	display: grid;
-	gap: 9px;
-	padding: 13px;
-	border: 1px solid #ece9e2;
-	border-radius: 10px;
-	background: #fff;
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-3);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-small);
+	background: var(--ti-surface);
 }
 .movement-mobile-card-heading {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 }
 .movement-mobile-card dl {
 	display: grid;
-	gap: 5px;
+	gap: var(--ti-space-1);
 	margin: 0;
 }
 .movement-mobile-card dl > div {
 	display: grid;
 	grid-template-columns: 70px minmax(0, 1fr);
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 }
 .movement-mobile-card dt {
-	color: #7b8087;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: max(12px, var(--ti-font-small));
 }
 .movement-mobile-card dd {
 	margin: 0;
@@ -1115,7 +1125,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	.movement-ledger {
 		width: 100%;
 		max-width: none;
-		padding-inline: 16px;
+		padding-inline: var(--ti-space-4);
 	}
 	.movement-ledger .desktop-list-layout {
 		grid-template-columns: minmax(0, 1fr);
@@ -1123,31 +1133,31 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	}
 	.movement-ledger .desktop-list-layout.filters-open {
 		grid-template-columns: 250px minmax(0, 1fr);
-		margin-left: -16px;
+		margin-left: calc(var(--ti-space-4) * -1);
 	}
 	.movement-ledger .desktop-list-layout:not(.filters-open) :deep(.filter-sidebar) {
 		display: none;
 	}
 	.movement-ledger .desktop-list-layout.filters-open :deep(.filter-sidebar) {
 		display: block;
-		padding: 14px 12px;
-		border-right: 1px solid #e4ded5;
+		padding: var(--ti-density-row-gap) var(--ti-space-3);
+		border-right: 1px solid var(--ti-border);
 		border-radius: 0;
-		background: #fbfaf7;
+		background: var(--ti-canvas);
 		box-shadow: none;
 	}
 	.movement-ledger .filters-open .results-column {
-		padding-left: 16px;
+		padding-left: var(--ti-space-4);
 	}
 }
 @media (max-width: 800px) {
 	.movement-heading {
 		align-items: flex-start;
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--ti-space-1);
 	}
 	.movement-heading h1 {
-		font-size: 20px;
+		font-size: var(--ti-font-section);
 	}
 	.movement-search {
 		min-width: 140px;
@@ -1163,7 +1173,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		);
 		min-width: 0;
 		min-height: 0;
-		padding-inline: 10px;
+		padding-inline: var(--ti-space-2);
 		overflow: hidden;
 	}
 	.movement-ledger > .desktop-list-layout {
@@ -1196,7 +1206,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		min-height: 0;
 		overflow-x: hidden;
 		overflow-y: auto;
-		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+		padding-bottom: calc(var(--mobile-nav-height, 0) + var(--ti-space-8));
 	}
 	.movement-ledger .movement-mobile-card,
 	.movement-ledger :deep(.sortable-data-table) {
@@ -1208,89 +1218,94 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
-		gap: 3px;
-		padding-block: 4px;
+		gap: var(--ti-space-1);
+		padding-block: var(--ti-space-1);
 	}
 	.movement-ledger .results-column.compact .movement-heading {
 		width: 100%;
 		min-width: 0;
 		flex-direction: column;
 		align-items: stretch;
-		gap: 5px;
+		gap: var(--ti-space-1);
 	}
 	.movement-ledger .results-column.compact .compact-heading {
 		display: block;
-		font-size: 15px;
+		font-size: var(--ti-font-body);
 	}
 	.movement-ledger .results-column.compact .movement-ledger-actions {
 		width: 100%;
 		justify-content: flex-start;
 		flex-wrap: nowrap;
-		gap: 4px;
+		gap: var(--ti-space-1);
 		overflow-x: auto;
 	}
 	.movement-ledger .results-column.compact .movement-kind-chips {
 		width: 100%;
 		min-width: 0;
 		flex-wrap: nowrap;
-		padding-block: 3px;
+		padding-block: var(--ti-space-1);
 		overflow-x: auto;
 	}
 	.movement-ledger .movement-active-filter-row {
 		align-items: flex-start;
 		flex-wrap: wrap;
-		gap: 4px 8px;
+		gap: var(--ti-space-1) var(--ti-space-2);
 	}
 	.movement-ledger
 		.results-column.compact
 		.movement-ledger-actions
 		> *:not(.column-summary-trigger) {
-		min-height: 30px;
+		min-height: max(44px, var(--ti-density-control));
 	}
 	.movement-ledger .results-column.compact .movement-search {
-		height: 30px;
+		height: max(44px, var(--ti-density-control));
 		min-width: 140px;
 	}
 	.movement-ledger .results-column.compact .movement-kind-chips button {
-		padding-block: 4px;
+		min-height: max(44px, var(--ti-density-control));
+		padding-block: var(--ti-space-1);
+	}
+	.movement-search input {
+		min-height: max(44px, var(--ti-density-control));
+		font-size: max(16px, var(--ti-font-body));
 	}
 }
 @media (min-width: 1024px) {
 	.movement-ledger .results-scroll {
-		padding-bottom: 82px;
+		padding-bottom: var(--ti-space-8);
 	}
 	.movement-ledger .results-column.compact .movement-ledger-header {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
 		grid-template-areas: "heading actions" "chips chips";
-		gap: 4px;
-		padding-block: 6px;
+		gap: var(--ti-space-1);
+		padding-block: var(--ti-space-1);
 	}
 	.movement-ledger .results-column.compact .movement-heading {
 		min-width: 0;
-		gap: 8px;
+		gap: var(--ti-density-row-gap);
 	}
 	.movement-ledger .results-column.compact .compact-heading {
 		display: block;
-		font-size: 17px;
+		font-size: var(--ti-font-section);
 	}
 	.movement-ledger .results-column.compact .movement-ledger-actions {
 		flex-wrap: nowrap;
-		gap: 4px;
+		gap: var(--ti-space-1);
 		overflow-x: auto;
 	}
 	.movement-ledger
 		.results-column.compact
 		.movement-ledger-actions
 		> *:not(.column-summary-trigger) {
-		min-height: 30px;
+		min-height: var(--ti-control-height-compact);
 	}
 	.movement-ledger .results-column.compact .movement-search {
-		height: 30px;
+		height: var(--ti-control-height-compact);
 		min-width: 140px;
 	}
 	.movement-ledger .results-column.compact .movement-kind-chips {
-		padding-block: 3px;
+		padding-block: var(--ti-space-1);
 	}
 }
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
-import UiButton from "../components/UiButton.vue";
+import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import PreviewProduct from "./PreviewProduct.vue";
@@ -12,7 +12,7 @@ import {
 	type Pattern,
 	type ReceiveLine,
 } from "./model";
-defineProps<{ pattern: Pattern }>();
+const props = defineProps<{ pattern: Pattern; active?: boolean }>();
 const emit = defineEmits<{ notify: [message: string]; back: [] }>();
 const destination = ref(locations[0]);
 const lines = ref<ReceiveLine[]>([
@@ -47,6 +47,16 @@ const completed = ref(false);
 const confirmBusy = ref(false);
 const leaveOpen = ref(false);
 const scanOpen = ref(false);
+watch(
+	() => props.active,
+	(active) => {
+		if (active) return;
+		picker.value = false;
+		review.value = false;
+		leaveOpen.value = false;
+		scanOpen.value = false;
+	},
+);
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let confirmTimer: ReturnType<typeof setTimeout> | undefined;
 let nextId = 2;
@@ -144,7 +154,7 @@ onBeforeUnmount(() => {
 			<InventoryIcon name="notice" /><span>{{
 				pattern === "current"
 					? "当前结构：日期在前，物品与位置随后，提交按钮位于表单末尾。"
-					: "表单提案：日期在前，右侧保留入库汇总与检查入口；紧凑行项目将在后续页面设计中完善。"
+					: "实验表单提案：日期在前，右侧保留入库汇总与检查入口；尚未决定用于正式流程。"
 			}}</span>
 		</div>
 		<div v-if="completed" class="notice-bar success" role="status">

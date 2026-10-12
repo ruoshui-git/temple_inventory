@@ -320,14 +320,14 @@ onBeforeUnmount(() => observer?.disconnect());
 .item-picker-initial-loading {
 	display: grid;
 	justify-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-height: 150px;
 }
 .item-picker-initial-loading i {
 	display: block;
 	width: 92%;
 	height: 32px;
-	border-radius: 8px;
-	background: #f0ebe3;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 </style>

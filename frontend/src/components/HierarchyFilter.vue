@@ -325,11 +325,11 @@ watch(term, () => {
 
 <style scoped>
 .hierarchy-facet {
-	border: 1px solid #dfd8ca;
-	border-radius: 12px;
-	padding: 12px;
-	margin: 12px 0;
-	background: #fcfbf8;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	padding: var(--ti-space-3);
+	margin: var(--ti-space-3) 0;
+	background: var(--ti-surface);
 }
 .hierarchy-facet-embedded {
 	margin: 0;
@@ -337,13 +337,13 @@ watch(term, () => {
 	border-radius: 0;
 	padding: 0;
 	background: transparent;
-	box-shadow: none;
+	box-shadow: var(--ti-shadow-card);
 }
 .hierarchy-facet header {
 	display: flex;
 	align-items: center;
-	margin: 0 0 8px;
-	gap: 7px;
+	margin: 0 0 var(--ti-space-2);
+	gap: var(--ti-space-2);
 }
 .hierarchy-facet h3 {
 	margin: 0;
@@ -352,19 +352,19 @@ watch(term, () => {
 .facet-chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: var(--ti-space-1);
 	overflow: visible;
-	padding-bottom: 6px;
+	padding-bottom: var(--ti-space-1);
 }
 .facet-chips button {
 	white-space: normal;
 	min-height: 30px;
-	padding: 4px 8px;
-	background: #eee8db;
+	padding: var(--ti-space-1) var(--ti-space-2);
+	background: var(--ti-accent-soft);
 }
 .facet-input {
 	display: flex;
-	gap: 6px;
+	gap: var(--ti-space-1);
 }
 .facet-input input {
 	width: 100%;
@@ -375,29 +375,29 @@ watch(term, () => {
 	max-height: 290px;
 	overflow: auto;
 	overscroll-behavior: contain;
-	margin-top: 8px;
-	border-top: 1px solid #e6dfd2;
+	margin-top: var(--ti-space-2);
+	border-top: 1px solid var(--ti-border);
 }
 .hierarchy-list {
 	list-style: none;
 	padding: 0;
-	margin: 4px 0;
+	margin: var(--ti-space-1) 0;
 }
 .hierarchy-row {
 	display: flex;
 	align-items: center;
 	min-height: 38px;
-	border-radius: 6px;
+	border-radius: var(--ti-radius-control);
 }
 .hierarchy-row:hover,
 .hierarchy-row:focus-within {
-	background: #f5f1eb;
+	background: var(--ti-canvas);
 }
 .hierarchy-row label {
 	display: flex;
 	flex: 1;
 	align-items: center;
-	gap: 5px;
+	gap: var(--ti-space-1);
 	min-width: 0;
 	cursor: pointer;
 	font-weight: 500;
@@ -417,26 +417,26 @@ watch(term, () => {
 	block-size: 13px;
 	min-width: 0;
 	min-height: 0;
-	margin: 0 5px 0 0;
+	margin: 0 var(--ti-space-1) 0 0;
 	padding: 0;
-	border: 1px solid #aaa299;
-	border-radius: 3px;
-	background: #fff;
-	accent-color: #9a6939;
+	border: 1px solid var(--ti-border-strong);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	accent-color: var(--ti-accent);
 }
 .hierarchy-row input[type="checkbox"]::before {
 	content: "";
 	width: 4px;
 	height: 7px;
-	border-right: 1.5px solid #fff;
-	border-bottom: 1.5px solid #fff;
+	border-right: 1.5px solid var(--ti-surface);
+	border-bottom: 1.5px solid var(--ti-surface);
 	transform: translateY(-1px) rotate(45deg) scale(0);
 	transform-origin: center;
 }
 .hierarchy-row input[type="checkbox"]:checked,
 .hierarchy-row input[type="checkbox"]:indeterminate {
-	border-color: #956536;
-	background: #956536;
+	border-color: var(--ti-accent);
+	background: var(--ti-accent);
 }
 .hierarchy-row input[type="checkbox"]:checked::before {
 	transform: translateY(-1px) rotate(45deg) scale(1);
@@ -456,26 +456,34 @@ watch(term, () => {
 	padding: 2px;
 	border: 0;
 	background: transparent;
-	color: #776f65;
+	color: var(--ti-muted);
 	font: inherit;
 }
 .tree-toggle {
 	display: grid;
 	place-items: center;
 }
+@media (max-width: 1023px) {
+	.facet-chips button,
+	.tree-toggle,
+	.hierarchy-row,
+	.hierarchy-row label {
+		min-height: var(--ti-density-control);
+	}
+}
 .facet-result-count {
 	margin-left: auto;
-	color: #8b8379;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 @media (min-width: 1024px) {
 	.filter-sidebar[data-filter-surface="compact"] .hierarchy-facet {
-		margin: 0 0 10px;
-		border-radius: 10px;
-		padding: 10px;
+		margin: 0 0 var(--ti-space-2);
+		border-radius: var(--ti-radius-control);
+		padding: var(--ti-space-2);
 	}
 	.filter-sidebar[data-filter-surface="compact"] .hierarchy-facet header {
-		margin-bottom: 6px;
+		margin-bottom: var(--ti-space-1);
 	}
 	.filter-sidebar[data-filter-surface="compact"] .facet-suggestions {
 		max-height: 230px;

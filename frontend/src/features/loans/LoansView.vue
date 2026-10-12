@@ -558,9 +558,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	width: 100%;
 	max-width: none;
 	margin-inline: 0;
-	padding-inline: 16px;
-	color: #343c46;
-	background: #f8f7f4;
+	padding-inline: var(--ti-space-4);
+	color: var(--ti-ink);
+	background: var(--ti-canvas);
 }
 .loan-browse .desktop-list-layout {
 	width: 100%;
@@ -583,10 +583,10 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .loan-browse .desktop-list-layout.filters-open :deep(.filter-sidebar) {
 	box-sizing: border-box;
-	padding: 14px 12px;
-	border-right: 1px solid #e4ded5;
+	padding: var(--ti-density-row-gap) var(--ti-space-3);
+	border-right: 1px solid var(--ti-border);
 	border-radius: 0;
-	background: #fbfaf7;
+	background: var(--ti-canvas);
 	box-shadow: none;
 }
 .loan-browse-header {
@@ -596,9 +596,9 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	grid-template-columns: minmax(0, 1fr);
 	align-items: stretch;
 	justify-content: stretch;
-	gap: 8px;
-	padding: 14px 0 8px;
-	background: #f8f7f4;
+	gap: var(--ti-density-row-gap);
+	padding: var(--ti-space-3) 0 var(--ti-space-2);
+	background: var(--ti-canvas);
 }
 .loan-heading,
 .loan-heading > div,
@@ -611,7 +611,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .loan-heading {
 	justify-content: space-between;
-	gap: 14px;
+	gap: var(--ti-density-gap);
 }
 .loan-heading h1 {
 	margin: 0;
@@ -624,7 +624,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 	width: 1px;
 	height: 1px;
 	padding: 0;
-	margin: -1px;
+	margin: calc(var(--ti-space-1) * -1);
 	overflow: hidden;
 	clip: rect(0, 0, 0, 0);
 	white-space: nowrap;
@@ -636,32 +636,32 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .result-toolbar {
 	min-width: 0;
 	width: 100%;
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 }
 .loan-search {
 	min-width: 0;
 	flex: 1 1 auto;
-	gap: 7px;
+	gap: var(--ti-space-2);
 }
 .loan-toolbar-actions {
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 	margin-left: auto;
 }
 .browse-result-meta {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--ti-density-row-gap);
 }
 .loan-status-chips {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: var(--ti-space-1);
 	width: 100%;
-	padding: 4px 0 2px;
+	padding: var(--ti-space-1) 0 var(--ti-space-1);
 	overflow-x: auto;
 	scrollbar-width: none;
 }
@@ -670,22 +670,22 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .loan-status-chip {
 	flex: none;
-	min-height: 34px;
-	padding: 7px 12px;
-	border: 1px solid #ded6c9;
-	border-radius: 999px;
-	background: #fffdf9;
-	color: #6f604f;
-	font-size: 16px;
+	min-height: var(--ti-density-control);
+	padding: var(--ti-space-2) var(--ti-space-3);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-pill);
+	background: var(--ti-surface);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-body);
 	white-space: nowrap;
 }
 .loan-status-chip[aria-pressed="true"] {
-	border-color: #9b571d;
-	background: #9b571d;
-	color: #fff;
+	border-color: var(--ti-accent-strong);
+	background: var(--ti-accent-strong);
+	color: var(--ti-surface);
 }
 .loan-item-cell {
-	gap: 9px;
+	gap: var(--ti-space-2);
 	min-width: 0;
 }
 .loan-item-cell span {
@@ -694,20 +694,20 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 }
 .loan-item-cell small,
 .loan-card small {
-	color: #6b6257;
+	color: var(--ti-muted);
 }
 .loan-status {
-	color: #805022;
-	font-size: 12px;
+	color: var(--ti-accent-strong);
+	font-size: max(12px, var(--ti-font-small));
 	font-weight: 700;
 }
 .loan-card {
 	display: grid;
-	gap: 12px;
-	padding: 14px;
-	border: 1px solid #eee5da;
-	border-radius: 12px;
-	background: #fff;
+	gap: var(--ti-density-row-gap);
+	padding: var(--ti-density-gap);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 }
 .loan-card header {
 	justify-content: space-between;
@@ -715,27 +715,27 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 .loan-card dl {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 	margin: 0;
 }
 .loan-card dt {
-	color: #6b6257;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: max(12px, var(--ti-font-small));
 }
 .loan-card dd {
-	margin: 3px 0 0;
+	margin: var(--ti-space-1) 0 0;
 }
 .choice-list {
 	display: grid;
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 	border: 0;
 	padding: 0;
 	margin: 0;
 }
 .period-validation-error {
-	margin: 5px 0 0;
-	color: #9b3229;
-	font-size: 13px;
+	margin: var(--ti-space-1) 0 0;
+	color: var(--ti-danger);
+	font-size: var(--ti-font-body);
 }
 @media (min-width: 1024px) {
 	.loan-browse .result-toolbar {
@@ -760,7 +760,7 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		);
 		min-width: 0;
 		min-height: 0;
-		padding-inline: 10px;
+		padding-inline: var(--ti-space-2);
 		overflow: hidden;
 	}
 	.loan-browse > .list-layout {
@@ -785,17 +785,17 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		max-width: 100%;
 		overflow-x: hidden;
 		overflow-y: auto;
-		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+		padding-bottom: calc(var(--mobile-nav-height, 0) + var(--ti-space-8));
 	}
 	.loan-browse .filters-open :deep(.filter-sidebar) {
 		position: fixed;
 		inset: 0 0 auto;
-		z-index: 51;
+		z-index: var(--ti-layer-overlay);
 		max-height: 80dvh;
 		overflow: auto;
 	}
 	.loan-browse .results-chrome {
-		background: #f8f7f4;
+		background: var(--ti-canvas);
 	}
 	.loan-browse .loan-search {
 		min-width: 0;
@@ -827,13 +827,17 @@ onBeforeUnmount(() => infiniteScroll.disconnect());
 		grid-template-columns: 1fr 1fr;
 	}
 	.loan-status-chip {
-		min-height: 40px;
-		font-size: 16px;
+		min-height: max(44px, var(--ti-density-control));
+		font-size: var(--ti-font-body);
+	}
+	.loan-search input {
+		min-height: max(44px, var(--ti-density-control));
+		font-size: max(16px, var(--ti-font-body));
 	}
 }
 @media (min-width: 1024px) {
 	.loan-browse .results-scroll {
-		padding-bottom: 82px;
+		padding-bottom: var(--ti-space-8);
 	}
 }
 </style>

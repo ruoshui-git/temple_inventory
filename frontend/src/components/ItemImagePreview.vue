@@ -137,11 +137,11 @@ onBeforeUnmount(() => {
 	height: 52px;
 	flex: none;
 	place-items: center;
-	border: 1px solid #e4ded5;
-	border-radius: 8px;
-	background: #f5f1ea;
-	color: #8a8176;
-	font-size: 10px;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-canvas);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	line-height: 1.2;
 	text-align: center;
 }
@@ -149,11 +149,11 @@ onBeforeUnmount(() => {
 	display: inline-grid;
 	width: 52px;
 	height: 52px;
-	border-radius: 8px;
+	border-radius: var(--ti-radius-control);
 }
 :deep(.image-thumb img),
 :deep(.image-thumb .async-image__fallback) {
-	border-radius: 8px;
+	border-radius: var(--ti-radius-control);
 }
 :deep(.image-popover__image) {
 	display: block;

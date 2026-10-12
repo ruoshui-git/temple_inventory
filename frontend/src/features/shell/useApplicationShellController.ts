@@ -46,7 +46,8 @@ export function useApplicationShellController() {
       path === "/more" ||
       path === "/reports" ||
       path === "/drafts" ||
-      path === "/pending"
+      path === "/pending" ||
+      path === "/settings"
     )
       return "more";
     return "";
@@ -73,13 +74,13 @@ export function useApplicationShellController() {
     if (route.path.startsWith("/reconcile")) return "/movements";
     if (route.path.startsWith("/loans") || route.path === "/new/Loan")
       return "/loans";
-    if (route.path.startsWith("/warehouses") || route.path === "/settings")
-      return "/warehouses";
+    if (route.path.startsWith("/warehouses")) return "/warehouses";
     if (
       route.path === "/more" ||
       route.path === "/reports" ||
       route.path === "/drafts" ||
-      route.path === "/pending"
+      route.path === "/pending" ||
+      route.path === "/settings"
     )
       return "/more";
     if (route.path === "/") return "/";
@@ -140,6 +141,7 @@ export function useApplicationShellController() {
       { key: "reports", label: "报表与导出", path: "/reports", query: {} },
       { key: "drafts", label: "草稿", path: "/drafts", query: {} },
       { key: "pending", label: "待处理", path: "/pending", query: {} },
+      { key: "settings", label: "显示设置", path: "/settings", query: {} },
     ],
   }));
 
@@ -170,6 +172,7 @@ export function useApplicationShellController() {
     if (route.path === "/reports") return "reports";
     if (route.path === "/drafts") return "drafts";
     if (route.path === "/pending") return "pending";
+    if (route.path === "/settings") return "settings";
     return "";
   });
 

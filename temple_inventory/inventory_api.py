@@ -41,6 +41,8 @@ SYSTEM_WAREHOUSE_PRESENTATION = {
 	"loan_warehouse": {"label": "借出", "kind": "loan"},
 	"damaged_warehouse": {"label": "损坏待处理", "kind": "damaged"},
 }
+UI_DENSITY_DEFAULT_KEY = "temple_inventory_ui_density_v1"
+UI_DENSITIES = {"compact", "balanced", "spacious"}
 DEFAULT_LOCATION_NAME = "未分类库位"
 TEMPLE_NAMES = ("第1寺院", "第2寺院")
 SECOND_TEMPLE_ROOMS = ("A02", "A04", "A14", "B01b", "C01", "C02", "C03", "D01", "D02", "D03")
@@ -3879,7 +3881,23 @@ def loan_detail(name):
 @frappe.whitelist(methods=["GET", "POST"])
 def session_info():
 	_require_stock()
-	return {"user": frappe.session.user, "csrf_token": frappe.sessions.get_csrf_token()}
+	density = frappe.defaults.get_user_default(UI_DENSITY_DEFAULT_KEY) or "balanced"
+	if not isinstance(density, str) or density not in UI_DENSITIES:
+		density = "balanced"
+	return {
+		"user": frappe.session.user,
+		"csrf_token": frappe.sessions.get_csrf_token(),
+		"ui_preferences": {"density": density},
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def save_ui_preferences(density=None):
+	_require_stock()
+	if not isinstance(density, str) or density not in UI_DENSITIES:
+		frappe.throw(_("Choose a valid interface density"))
+	frappe.defaults.set_user_default(UI_DENSITY_DEFAULT_KEY, density)
+	return {"density": density}
 
 
 @frappe.whitelist(methods=["POST"])

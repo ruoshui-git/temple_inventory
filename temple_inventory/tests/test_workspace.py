@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import frappe
+from frappe.cache_manager import clear_defaults_cache
 from openpyxl import load_workbook
 from frappe.utils import add_days, getdate, nowdate
 
@@ -35,6 +36,7 @@ class WorkspaceTests(unittest.TestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 		frappe.db.savepoint("ti_test")
+		self.addCleanup(clear_defaults_cache, "Administrator")
 		self.token = frappe.generate_hash(length=10)
 		self.company = (
 			frappe.db.get_single_value("Temple Inventory Settings", "company")
@@ -116,6 +118,59 @@ class WorkspaceTests(unittest.TestCase):
 			period_key="all",
 		)
 		self.assertEqual(set(alias), set(result))
+
+	def test_ui_preferences_are_saved_for_the_current_user(self):
+		inventory_service.save_ui_preferences("compact")
+		self.assertEqual(
+			frappe.defaults.get_user_default(inventory_service.UI_DENSITY_DEFAULT_KEY),
+			"compact",
+		)
+		self.assertEqual(
+			self._session_info_with_test_session()["ui_preferences"],
+			{"density": "compact"},
+		)
+		previous_session = frappe.local.session
+		frappe.local.session = frappe._dict(user="Other User", data=frappe._dict())
+		try:
+			with patch.object(inventory_service, "_require_stock"):
+				inventory_service.save_ui_preferences("spacious")
+		finally:
+			frappe.local.session = previous_session
+		self.addCleanup(clear_defaults_cache, "Other User")
+		self.assertEqual(
+			frappe.defaults.get_user_default(
+				inventory_service.UI_DENSITY_DEFAULT_KEY, "Administrator"
+			),
+			"compact",
+		)
+		self.assertEqual(
+			frappe.defaults.get_user_default(
+				inventory_service.UI_DENSITY_DEFAULT_KEY, "Other User"
+			),
+			"spacious",
+		)
+
+	def _session_info_with_test_session(self, user="Administrator"):
+		previous_session = frappe.local.session
+		frappe.local.session = frappe._dict(user=user, data=frappe._dict())
+		try:
+			with patch.object(frappe.sessions, "get_csrf_token", return_value="test-token"):
+				return inventory_service.session_info()
+		finally:
+			frappe.local.session = previous_session
+
+	def test_ui_preferences_reject_invalid_density(self):
+		for value in ("large", [], {"density": "compact"}, None):
+			with self.subTest(value=value), self.assertRaises(frappe.ValidationError):
+				inventory_service.save_ui_preferences(value)
+
+	def test_ui_preferences_require_an_authenticated_account(self):
+		frappe.set_user("Guest")
+		try:
+			with self.assertRaises(frappe.AuthenticationError):
+				inventory_service.save_ui_preferences("compact")
+		finally:
+			frappe.set_user("Administrator")
 
 	def test_dashboard_scoped_modes_keep_response_shape_and_validate_sections(self):
 		result = inventory_service.dashboard_summary(
@@ -2676,4 +2731,20 @@ def run():
 	frappe.db.rollback()
 	if not result.wasSuccessful():
 		raise RuntimeError("Workspace tests failed")
+	return {"tests": result.testsRun, "passed": True}
+
+
+def run_ui_preferences():
+	suite = unittest.TestSuite(
+		WorkspaceTests(name)
+		for name in (
+			"test_ui_preferences_are_saved_for_the_current_user",
+			"test_ui_preferences_reject_invalid_density",
+			"test_ui_preferences_require_an_authenticated_account",
+		)
+	)
+	result = unittest.TextTestRunner(verbosity=2).run(suite)
+	frappe.db.rollback()
+	if not result.wasSuccessful():
+		raise RuntimeError("UI preference tests failed")
 	return {"tests": result.testsRun, "passed": True}

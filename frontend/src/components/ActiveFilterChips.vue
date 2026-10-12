@@ -58,7 +58,7 @@ async function toggleOverflow() {
 .active-filter-chips {
 	display: flex;
 	align-items: center;
-	gap: 5px;
+	gap: var(--ti-space-1);
 	overflow: auto;
 	scrollbar-width: none;
 }
@@ -66,11 +66,11 @@ async function toggleOverflow() {
 	display: inline-flex;
 	align-items: center;
 	min-height: 25px;
-	padding: 2px 5px 2px 8px;
-	border-radius: 20px;
-	background: #f0ebe3;
-	color: #756044;
-	font-size: 12px;
+	padding: 2px var(--ti-space-1) 2px var(--ti-space-2);
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-accent-soft);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	white-space: nowrap;
 }
 .filter-chip button {
@@ -83,11 +83,19 @@ async function toggleOverflow() {
 .chip-overflow,
 .clear-filters {
 	min-height: 25px;
-	padding: 0 4px;
+	padding: 0 var(--ti-space-1);
 	border: 0;
 	background: transparent;
-	color: #926d3f;
-	font-size: 12px;
+	color: var(--ti-accent);
+	font-size: var(--ti-font-small);
 	white-space: nowrap;
+}
+@media (max-width: 1023px) {
+	.filter-chip button,
+	.chip-overflow,
+	.clear-filters {
+		min-width: var(--ti-density-control);
+		min-height: var(--ti-density-control);
+	}
 }
 </style>

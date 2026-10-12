@@ -204,9 +204,9 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
 	grid-auto-rows: 1fr;
-	gap: 12px;
-	padding: 12px;
-	background: #f8f7f4;
+	gap: var(--ti-density-gap);
+	padding: calc(var(--ti-density-gap) / 2);
+	background: var(--ti-canvas);
 }
 .inventory-results,
 .inventory-card-grid {
@@ -215,33 +215,33 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 .loading-state {
 	display: grid;
 	justify-items: center;
-	gap: 10px;
+	gap: var(--ti-space-2);
 	min-height: 190px;
 }
 .loading-state i {
 	display: block;
 	width: min(92%, 360px);
 	height: 42px;
-	border-radius: 9px;
-	background: #f0ebe3;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 .inventory-visual-card {
 	display: flex;
 	min-width: 0;
 	flex-direction: column;
 	overflow: hidden;
-	border: 1px solid #ebe8e1;
-	border-radius: 8px;
-	background: white;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-surface);
 	cursor: pointer;
 }
 .inventory-visual-card:hover {
-	border-color: #c8b69b;
-	box-shadow: 0 4px 14px rgb(67 48 26 / 8%);
+	border-color: var(--ti-border-strong);
+	box-shadow: var(--ti-shadow-card);
 }
 .inventory-visual-card:focus-visible,
 .inventory-visual-card.selected {
-	outline: 3px solid #a66b35;
+	outline: 3px solid var(--ti-accent);
 	outline-offset: 2px;
 }
 .inventory-card-image {
@@ -250,7 +250,7 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	width: 100%;
 	aspect-ratio: 1 / 1;
 	overflow: hidden;
-	background: #fff;
+	background: var(--ti-surface);
 }
 .inventory-card-image > img {
 	width: 100%;
@@ -260,32 +260,32 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 .inventory-card-placeholder {
 	display: grid;
 	place-items: center;
-	gap: 8px;
-	color: #aaa397;
-	font-size: 42px;
+	gap: var(--ti-space-2);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-heading);
 }
 .inventory-card-placeholder small {
-	font-size: 12px;
+	font-size: var(--ti-font-small);
 }
 .inventory-visual-card :deep(.image-forward-card__body) {
 	display: flex;
 	flex: 1;
 	min-width: 0;
 	flex-direction: column;
-	gap: 7px;
-	padding: 10px 12px 12px;
+	gap: var(--ti-density-row-gap);
+	padding: calc(var(--ti-density-gap) / 2);
 }
 .inventory-card-primary {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: start;
-	gap: 9px;
+	gap: var(--ti-space-2);
 }
 .inventory-card-name {
 	display: -webkit-box;
 	overflow: hidden;
-	color: #252e3a;
-	font-size: 15px;
+	color: var(--ti-ink);
+	font-size: var(--ti-font-section);
 	font-weight: 700;
 	line-height: 1.4;
 	-webkit-box-orient: vertical;
@@ -298,11 +298,11 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
-	color: #14804e;
+	color: var(--ti-success);
 }
 .inventory-card-available > small {
-	color: #7f8991;
-	font-size: 10px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	line-height: 1.2;
 }
 .inventory-card-available > span {
@@ -311,18 +311,18 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	gap: 3px;
 }
 .inventory-card-available strong {
-	font-size: 24px;
+	font-size: var(--ti-font-heading);
 	line-height: 1.1;
 }
 .inventory-card-available span small {
-	font-size: 10px;
+	font-size: var(--ti-font-small);
 	font-weight: 550;
 }
 .inventory-card-code,
 .inventory-card-description {
 	margin: -2px 0 0;
-	color: #87909a;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .inventory-card-description {
 	display: -webkit-box;
@@ -335,8 +335,8 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	display: flex;
 	align-items: baseline;
 	flex-wrap: wrap;
-	gap: 4px 12px;
-	font-size: 12px;
+	gap: var(--ti-space-1) var(--ti-space-3);
+	font-size: var(--ti-font-small);
 }
 .inventory-card-details :deep(.detail-popover-trigger),
 .batch-badge,
@@ -347,53 +347,53 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	justify-content: center;
 	line-height: 1.2;
 	min-height: 26px;
-	padding: 2px 7px;
-	border: 1px solid #dfebf4;
-	border-radius: 20px;
-	background: #f2f7fb;
-	color: #476b88;
-	font-size: 11px;
+	padding: 2px var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-pill);
+	background: var(--ti-info-bg);
+	color: var(--ti-info);
+	font-size: var(--ti-font-small);
 }
 .expiry-badge.warning {
 	border-color: transparent;
-	background: #fff3e6;
-	color: #9a541b;
+	background: var(--ti-warning-bg);
+	color: var(--ti-warning);
 }
 .expiry-badge.danger {
 	border-color: transparent;
-	background: #fff0ed;
-	color: #a63e33;
+	background: var(--ti-danger-bg);
+	color: var(--ti-danger);
 }
 .inventory-card-totals {
 	margin-top: auto;
-	color: #717984;
+	color: var(--ti-muted);
 	font-variant-numeric: tabular-nums;
 }
 .inventory-card-totals b {
-	color: #4d545d;
+	color: var(--ti-ink);
 	font-weight: 600;
 }
 .inventory-card-totals .damaged,
 .inventory-card-totals .damaged b {
-	color: #b24d42;
+	color: var(--ti-danger);
 }
 .inventory-card-totals small {
-	color: #8b9299;
-	font-size: 10px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .inventory-card-expiry {
 	margin: -2px 0 0;
-	color: #7c858f;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .inventory-card-expiry.warning {
-	color: #9a541b;
+	color: var(--ti-warning);
 }
 .inventory-card-expiry.danger {
-	color: #a63e33;
+	color: var(--ti-danger);
 }
 .inventory-card-details p {
-	margin: 0 0 8px;
+	margin: 0 0 var(--ti-space-2);
 }
 .inventory-card-details p:last-child {
 	margin-bottom: 0;
@@ -402,27 +402,27 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 	grid-template-columns: minmax(0, 1fr) auto auto;
 }
 .card-state {
-	padding: 24px;
+	padding: var(--ti-space-6);
 	text-align: center;
 }
 .error {
-	color: #9a2d24;
+	color: var(--ti-danger);
 }
 @media (max-width: 640px) {
 	.inventory-card-grid {
 		grid-template-columns: 1fr;
-		padding: 8px 0;
+		padding: var(--ti-space-2) 0;
 	}
 	.compact-mobile :deep(.image-forward-card__body) {
-		gap: 5px;
-		padding: 8px;
+		gap: var(--ti-density-row-gap);
+		padding: calc(var(--ti-density-gap) / 2);
 	}
 	.compact-mobile .inventory-card-primary {
 		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 5px;
+		gap: var(--ti-space-1);
 	}
 	.compact-mobile .inventory-card-name {
-		font-size: 13px;
+		font-size: var(--ti-font-body);
 		line-height: 1.3;
 	}
 	.compact-mobile .inventory-card-available > small,
@@ -430,39 +430,39 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 		display: none;
 	}
 	.compact-mobile .inventory-card-available strong {
-		font-size: 20px;
+		font-size: var(--ti-font-section);
 	}
 	.compact-mobile .inventory-card-code {
 		overflow: hidden;
-		font-size: 10px;
+		font-size: var(--ti-font-small);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.compact-mobile .inventory-card-details {
 		align-items: center;
-		gap: 4px;
+		gap: var(--ti-space-1);
 	}
 	.compact-mobile .inventory-card-details :deep(.detail-popover-trigger),
 	.compact-mobile .batch-badge,
 	.compact-mobile .expiry-badge {
-		min-height: 32px;
-		padding: 1px 6px;
-		font-size: 9px;
+		min-height: var(--ti-density-control);
+		padding: 1px var(--ti-space-1);
+		font-size: var(--ti-font-small);
 	}
 	.compact-mobile .inventory-card-details :deep(.detail-popover-trigger) {
-		min-height: 44px;
-		padding-inline: 9px;
+		min-height: var(--ti-density-control);
+		padding-inline: var(--ti-space-2);
 	}
 	.compact-mobile .inventory-card-totals {
-		gap: 2px 7px;
-		font-size: 10px;
+		gap: 2px var(--ti-space-2);
+		font-size: var(--ti-font-small);
 	}
 	.compact-mobile .inventory-card-totals > small {
 		display: none;
 	}
 	.compact-mobile .inventory-card-expiry {
 		min-height: 14px;
-		font-size: 10px;
+		font-size: var(--ti-font-small);
 	}
 	.inventory-visual-card :deep(.image-forward-card__media),
 	.inventory-visual-card :deep(.image-forward-card__media img) {
@@ -474,8 +474,8 @@ const batchDetails = (row: InventoryCardRow) => row.batches || [];
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		grid-auto-rows: auto;
 		align-items: start;
-		gap: 8px;
-		padding: 4px 0 12px;
+		gap: var(--ti-space-2);
+		padding: var(--ti-space-1) 0 var(--ti-space-3);
 	}
 	.inventory-card-grid.compact-mobile .inventory-visual-card {
 		align-self: start;

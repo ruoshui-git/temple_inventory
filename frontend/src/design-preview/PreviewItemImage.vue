@@ -26,7 +26,8 @@ const open = ref(false);
 		>
 	</button>
 	<PreviewOverlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"
-		><div class="lightbox-image">
+		><p class="preview-image-experiment">图片灯箱是实验交互，正式物品卡片图片保持不可点击。</p>
+		<div class="lightbox-image">
 			<PreviewProduct :kind="item.illustration" :name="item.name" />
 		</div>
 		<p class="muted">示意插画 · {{ item.code }}</p></PreviewOverlay

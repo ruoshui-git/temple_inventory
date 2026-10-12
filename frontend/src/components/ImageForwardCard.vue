@@ -41,8 +41,8 @@ withDefaults(
 	aspect-ratio: 1;
 	place-items: center;
 	overflow: hidden;
-	background: #f6f4ef;
-	color: #aaa397;
+	background: var(--ti-canvas);
+	color: var(--ti-muted);
 }
 .image-forward-card__media img {
 	width: 100%;

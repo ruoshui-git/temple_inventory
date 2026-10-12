@@ -118,14 +118,14 @@ function clearFocusedRegion(event: FocusEvent) {
 <style scoped>
 .mobile-browse-header {
 	display: grid;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-width: 0;
 }
 .mobile-browse-title,
 .mobile-browse-primary {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-width: 0;
 }
 .mobile-browse-title h1 {
@@ -140,19 +140,19 @@ function clearFocusedRegion(event: FocusEvent) {
 	flex: 0 1 auto;
 	max-width: 6em;
 	overflow: hidden;
-	font-size: 13px;
+	font-size: var(--ti-font-small);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 .mobile-browse-title-actions {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: var(--ti-space-1);
 }
 .mobile-browse-primary :deep(.mobile-search-actions) {
 	display: flex;
 	flex: 1 1 auto;
-	gap: 6px;
+	gap: var(--ti-space-1);
 	min-width: 0;
 }
 .mobile-browse-primary :deep(.mobile-search-actions label),
@@ -176,23 +176,22 @@ function clearFocusedRegion(event: FocusEvent) {
 }
 .mobile-browse-primary :deep(.browse-search-field) {
 	box-sizing: border-box;
-	height: 40px;
-	min-height: 40px;
+	min-height: var(--ti-density-control);
 }
 .mobile-browse-primary :deep(.overview-mobile-search),
 .mobile-browse-primary :deep(.pending-mobile-search),
 .mobile-browse-primary :deep(.history-mobile-search),
 .mobile-browse-primary :deep(.warehouse-search) {
-	min-height: 40px;
+	min-height: var(--ti-density-control);
 }
 .mobile-browse-primary :deep(.mobile-filter-button),
 .mobile-browse-primary :deep(.mobile-scan),
 .mobile-browse-primary :deep(.mobile-filter) {
-	min-height: 40px;
+	min-height: var(--ti-density-control);
 }
 .mobile-browse-primary :deep(button) {
-	min-width: 40px;
-	min-height: 40px;
+	min-width: var(--ti-density-control);
+	min-height: var(--ti-density-control);
 }
 .mobile-browse-secondary {
 	min-width: 0;
@@ -201,20 +200,20 @@ function clearFocusedRegion(event: FocusEvent) {
 	display: none;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid #d8d2c5;
-	border-radius: 12px;
-	background: #fffdf9;
-	color: #553b25;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	color: var(--ti-ink);
 	transition:
-		background-color 140ms ease,
-		border-color 140ms ease;
+		background-color var(--ti-motion-fast) ease,
+		border-color var(--ti-motion-fast) ease;
 }
 .mobile-browse-tools-toggle[aria-expanded="true"] {
-	border-color: #c8b69b;
-	background: #eee8db;
+	border-color: var(--ti-border-strong);
+	background: var(--ti-accent-soft);
 }
 .mobile-browse-tools-chevron {
-	transition: transform 140ms ease;
+	transition: transform var(--ti-motion-fast) ease;
 }
 .mobile-browse-tools-toggle[aria-expanded="true"] .mobile-browse-tools-chevron {
 	transform: rotate(180deg);
@@ -229,7 +228,7 @@ function clearFocusedRegion(event: FocusEvent) {
 	display: none;
 }
 .mobile-browse-header.compact {
-	gap: 5px;
+	gap: var(--ti-space-1);
 }
 .mobile-browse-header.compact .mobile-browse-title {
 	position: absolute;
@@ -261,8 +260,21 @@ function clearFocusedRegion(event: FocusEvent) {
 	display: inline-flex;
 	flex: 0 0 40px;
 	width: 40px;
-	min-height: 40px;
+	min-height: var(--ti-density-control);
 	padding: 0;
+}
+@media (max-width: 1023px) {
+	.mobile-browse-header :deep(button),
+	.mobile-browse-header :deep(a),
+	.mobile-browse-header :deep(input) {
+		min-height: var(--ti-density-control);
+	}
+	.mobile-browse-header.compact .mobile-browse-tools-toggle {
+		min-width: var(--ti-density-control);
+		width: var(--ti-density-control);
+		min-height: var(--ti-density-control);
+		flex-basis: var(--ti-density-control);
+	}
 }
 @media (min-width: 1024px) {
 	.mobile-browse-header.compact .mobile-browse-title {

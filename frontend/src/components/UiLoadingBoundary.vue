@@ -227,18 +227,18 @@ onBeforeUnmount(() => {
 }
 .ui-loading-boundary__indicator {
 	position: fixed;
-	z-index: 45;
+	z-index: calc(var(--ti-layer-context) + 1);
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: var(--ti-space-2);
 	max-width: min(90vw, 420px);
-	padding: 10px 15px;
-	border: 1px solid #bfd0e4;
-	border-radius: 999px;
-	background: rgb(255 255 255 / 96%);
-	box-shadow: 0 5px 20px rgb(32 64 99 / 18%);
-	color: #273f59;
-	font-size: 14px;
+	padding: var(--ti-space-2) var(--ti-space-4);
+	border: 1px solid var(--ti-border-strong);
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-info-bg);
+	box-shadow: var(--ti-shadow-overlay);
+	color: var(--ti-info);
+	font-size: var(--ti-font-body);
 	font-weight: 650;
 	transform: translate(-50%, -50%);
 	pointer-events: none;
@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
 	border: 0;
 }
 .ui-loading-boundary__indicator--initial {
-	border-radius: 12px;
+	border-radius: var(--ti-radius-control);
 }
 @media (prefers-reduced-motion: reduce) {
 	.ui-loading-boundary--busy > .ui-loading-boundary__content {

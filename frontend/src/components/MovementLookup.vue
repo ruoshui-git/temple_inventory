@@ -120,30 +120,30 @@ onBeforeUnmount(() => {
 	top: calc(100% + 3px);
 	left: 0;
 	right: 0;
-	z-index: 5;
+	z-index: var(--ti-layer-popover);
 	display: grid;
 	max-height: 220px;
 	overflow: auto;
-	padding: 4px;
-	background: #fffaf2;
-	border: 1px solid #eadfce;
-	box-shadow: 0 8px 20px rgba(65, 44, 22, 0.12);
+	padding: var(--ti-space-1);
+	background: var(--ti-surface);
+	border: 1px solid var(--ti-border-strong);
+	box-shadow: var(--ti-shadow-overlay);
 }
 .movement-lookup-options button {
-	padding: 7px 8px;
+	padding: var(--ti-space-2) var(--ti-space-2);
 	border: 0;
 	background: transparent;
 	text-align: left;
 }
 .movement-lookup-options button:hover,
 .movement-lookup-options button[aria-selected="true"] {
-	background: #fff0d9;
+	background: var(--ti-accent-soft);
 }
 .movement-lookup-options.is-loading button {
 	opacity: 0.55;
 }
 .movement-lookup-status {
-	padding: 8px;
-	color: #6b6257;
+	padding: var(--ti-space-2);
+	color: var(--ti-muted);
 }
 </style>

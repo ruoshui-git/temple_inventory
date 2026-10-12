@@ -336,9 +336,9 @@ onBeforeUnmount(() => {
 	display: grid;
 	gap: 0.75rem;
 	padding: clamp(1rem, 4vw, 1.5rem);
-	border: 1px solid var(--border-color, #dedbd3);
+	border: 1px solid var(--border-color, var(--ti-border));
 	border-radius: 1rem;
-	background: var(--surface-card, #fff);
+	background: var(--surface-card, var(--ti-surface));
 }
 
 .item-create-form fieldset {
@@ -369,12 +369,12 @@ onBeforeUnmount(() => {
 }
 
 .item-code-status.success {
-	color: #18794e;
+	color: var(--ti-success);
 }
 
 .nested-dialog {
 	position: fixed;
-	z-index: 70;
+	z-index: var(--ti-layer-popover);
 }
 
 @media (max-width: 640px) {

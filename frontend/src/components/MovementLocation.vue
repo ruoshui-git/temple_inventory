@@ -53,17 +53,17 @@ const presentation = computed(() => {
 	display: inline-flex;
 	max-width: 100%;
 	align-items: baseline;
-	gap: 5px;
+	gap: var(--ti-space-1);
 	color: inherit;
 }
 .movement-location-system {
 	padding-inline-start: 5px;
-	border-inline-start: 2px solid #b67a38;
-	color: #85511f;
+	border-inline-start: 2px solid var(--ti-accent);
+	color: var(--ti-accent);
 	font-weight: 700;
 }
 .movement-location-mark {
-	font-size: 8px;
-	color: #b67a38;
+	font-size: var(--ti-font-small);
+	color: var(--ti-accent);
 }
 </style>

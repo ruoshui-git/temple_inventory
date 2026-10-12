@@ -64,18 +64,18 @@ function toggle() {
 
 <style>
 .compact-filter-section {
-	border: 1px solid #e5dfd5;
-	border-radius: 10px;
-	background: #fff;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 }
 .compact-filter-section + .compact-filter-section {
-	margin-top: 10px;
+	margin-top: var(--ti-space-2);
 }
 .compact-filter-section-heading {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 2px 7px 2px 2px;
+	gap: var(--ti-space-1);
+	padding: 2px var(--ti-space-2) 2px 2px;
 	/* Reset browser/global heading margins so collapsed filters stay compact. */
 	margin: 0;
 }
@@ -83,12 +83,12 @@ function toggle() {
 	display: flex;
 	flex: 1;
 	align-items: center;
-	gap: 8px;
-	min-height: 44px;
-	padding: 7px 8px;
+	gap: var(--ti-space-2);
+	min-height: var(--ti-density-control);
+	padding: var(--ti-space-2) var(--ti-space-2);
 	border: 0;
 	background: transparent;
-	color: #313a45;
+	color: var(--ti-ink);
 	text-align: left;
 }
 .compact-filter-section-toggle strong {
@@ -99,11 +99,11 @@ function toggle() {
 	opacity: 1;
 }
 .compact-filter-section-count {
-	color: #8a6a43;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .compact-filter-section-chevron {
-	transition: transform 120ms ease;
+	transition: transform var(--ti-motion-fast) ease;
 }
 .compact-filter-section-chevron.disclosure-triangle {
 	display: inline-block;
@@ -113,28 +113,28 @@ function toggle() {
 	border-top: 4px solid transparent;
 	border-bottom: 4px solid transparent;
 	border-left: 6px solid currentColor;
-	color: #8a8177;
+	color: var(--ti-muted);
 	transform: rotate(0deg);
 }
 .compact-filter-section-chevron.disclosure-triangle.expanded {
 	transform: rotate(90deg);
 }
 .compact-filter-section-clear {
-	min-height: 34px;
-	padding: 4px 6px;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-1) var(--ti-space-1);
 	border: 0;
 	background: transparent;
-	color: #8a5a2c;
+	color: var(--ti-accent);
 }
 .compact-filter-section-body {
-	padding: 0 10px 10px;
-	border-top: 1px solid #eee9e1;
+	padding: 0 var(--ti-space-2) var(--ti-space-2);
+	border-top: 1px solid var(--ti-accent-soft);
 }
 .compact-filter-section-body > label,
 .compact-filter-section-body > fieldset {
 	display: grid;
-	gap: 5px;
-	margin: 9px 0 0;
+	gap: var(--ti-space-1);
+	margin: var(--ti-space-2) 0 0;
 }
 .compact-filter-section-body > fieldset {
 	padding: 0;
@@ -145,17 +145,17 @@ function toggle() {
 .compact-filter-section-body > fieldset > input:not([type="checkbox"]):not([type="radio"]),
 .compact-filter-section-body > fieldset > select {
 	box-sizing: border-box;
-	min-height: 36px;
+	min-height: var(--ti-control-height);
 	margin: 0;
-	border-radius: 7px;
+	border-radius: var(--ti-radius-control);
 }
 .compact-filter-section-body .choice-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	min-height: 36px;
+	gap: var(--ti-space-2);
+	min-height: var(--ti-control-height);
 	margin: 0;
-	padding: 5px;
+	padding: var(--ti-space-1);
 }
 .compact-filter-section-body .choice-row input {
 	min-height: auto;

@@ -103,43 +103,43 @@ watch(
 	min-height: 46px;
 	gap: 3px;
 	padding: 3px;
-	border-radius: 8px;
-	background: #ece8e1;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 .mobile-subnav a {
 	display: flex;
 	min-width: 0;
-	min-height: 38px;
+	min-height: var(--ti-density-control);
 	align-items: center;
 	justify-content: center;
 	gap: 2px;
 	box-sizing: border-box;
-	padding: 7px 8px;
-	border-radius: 6px;
-	color: #746d63;
+	padding: var(--ti-space-2) var(--ti-space-2);
+	border-radius: var(--ti-radius-control);
+	color: var(--ti-muted);
 	text-align: center;
 	text-decoration: none;
 	white-space: nowrap;
-	font-size: 14px;
+	font-size: var(--ti-font-body);
 }
 .mobile-subnav a[aria-current="page"] {
-	background: #fff;
-	color: #80572f;
-	box-shadow: 0 1px 3px #5b49351c;
+	background: var(--ti-surface);
+	color: var(--ti-accent);
+	box-shadow: var(--ti-shadow-card);
 	font-weight: 700;
 }
 .mobile-subnav-count {
-	font-size: 10px;
+	font-size: var(--ti-font-small);
 }
 .mobile-subnav.compact {
-	min-height: 40px;
+	min-height: var(--ti-density-control);
 	gap: 2px;
 	padding: 2px;
 }
 .mobile-subnav.compact a {
-	min-height: 36px;
-	padding: 4px 7px;
-	font-size: 14px;
+	min-height: var(--ti-density-control);
+	padding: var(--ti-space-1) var(--ti-space-2);
+	font-size: var(--ti-font-body);
 }
 @media (min-width: 1024px) {
 	.mobile-subnav {

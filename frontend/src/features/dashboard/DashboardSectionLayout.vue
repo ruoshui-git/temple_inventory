@@ -32,7 +32,7 @@ defineProps<{ grouped: boolean }>();
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	align-items: start;
-	gap: 14px;
+	gap: var(--ti-density-gap);
 }
 .dashboard-sections:has(.dashboard-column) {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -41,7 +41,7 @@ defineProps<{ grouped: boolean }>();
 	display: grid;
 	min-width: 0;
 	align-content: start;
-	gap: 14px;
+	gap: var(--ti-density-gap);
 }
 @media (max-width: 1023px) {
 	.dashboard-sections:has(.dashboard-column) {

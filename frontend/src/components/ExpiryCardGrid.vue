@@ -129,8 +129,8 @@ function activate(row: ExpiryCardRow, event: Event) {
 	position: relative;
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
-	gap: 12px;
-	padding: 12px;
+	gap: var(--ti-density-gap);
+	padding: calc(var(--ti-density-gap) / 2);
 }
 .expiry-card-grid > .ui-loading-boundary {
 	display: none;
@@ -139,77 +139,77 @@ function activate(row: ExpiryCardRow, event: Event) {
 	display: grid;
 	grid-column: 1 / -1;
 	justify-items: center;
-	gap: 10px;
+	gap: var(--ti-space-2);
 	min-height: 190px;
 }
 .expiry-loading-state i {
 	width: min(92%, 360px);
 	height: 42px;
-	border-radius: 9px;
-	background: #f0ebe3;
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-accent-soft);
 }
 .expiry-loading-more,
 .expiry-card-state {
 	grid-column: 1 / -1;
-	padding: 24px;
+	padding: var(--ti-space-6);
 	text-align: center;
-	color: #64748b;
+	color: var(--ti-muted);
 }
 .expiry-loading-more {
-	padding: 12px;
-	color: #704d2e;
+	padding: calc(var(--ti-density-gap) / 2);
+	color: var(--ti-accent);
 }
 .expiry-card-state.error {
-	color: #b42318;
+	color: var(--ti-danger);
 }
 .expiry-batch-card {
 	display: flex;
 	min-width: 0;
 	flex-direction: column;
 	overflow: hidden;
-	border: 1px solid var(--border-color, #e2e8f0);
-	border-radius: 8px;
-	background: #fff;
+	border: 1px solid var(--border-color, var(--ti-border));
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-surface);
 	color: inherit;
 	cursor: pointer;
 }
 .expiry-batch-card:hover,
 .expiry-batch-card:focus-visible {
-	border-color: #94a3b8;
-	box-shadow: 0 3px 12px rgb(15 23 42 / 8%);
+	border-color: var(--ti-border-strong);
+	box-shadow: var(--ti-shadow-card);
 	outline: none;
 }
 .expiry-batch-card.overdue {
-	border-left: 3px solid #dc2626;
+	border-left: 3px solid var(--ti-danger);
 }
 .expiry-batch-card.soon {
-	border-left: 3px solid #d97706;
+	border-left: 3px solid var(--ti-warning);
 }
 .expiry-batch-card :deep(.image-forward-card__media) {
 	width: 100%;
 	aspect-ratio: 1;
-	background: #f1f5f9;
+	background: var(--ti-surface-raised);
 }
 .expiry-batch-card :deep(.image-forward-card__body) {
 	min-width: 0;
-	padding: 12px;
+	padding: var(--ti-density-row-gap);
 }
 .expiry-batch-card h3 {
 	margin: 2px 0;
-	font-size: 14px;
+	font-size: var(--ti-font-body);
 	line-height: 1.3;
 }
 .expiry-batch-card p,
 .expiry-batch-card small {
 	margin: 2px 0;
-	color: #64748b;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .expiry-batch-card strong {
-	font-size: 15px;
+	font-size: var(--ti-font-section);
 }
 .expiry-date {
-	margin-top: 8px !important;
+	margin-top: var(--ti-space-2) !important;
 }
 .location-line {
 	display: block;
@@ -218,42 +218,42 @@ function activate(row: ExpiryCardRow, event: Event) {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 4px;
+	gap: var(--ti-space-1);
 }
 .expiry-chip-row :deep(.detail-popover-trigger),
 .expiry-batch-card :deep(.detail-popover-trigger) {
-	min-height: 44px;
+	min-height: var(--ti-density-control);
 }
 .expired-location {
-	color: #b42318;
+	color: var(--ti-danger);
 }
 .loading-spinner-small {
 	display: inline-block;
 	width: 16px;
 	height: 16px;
-	margin-right: 6px;
+	margin-right: var(--ti-space-1);
 	vertical-align: -3px;
 	border-width: 2px;
 }
 @media (max-width: 1023px) {
 	.expiry-card-grid.compact-mobile {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px;
-		padding: 4px 0 12px;
-		background: #f8f7f4;
+		gap: var(--ti-density-gap);
+		padding: var(--ti-space-1) 0 var(--ti-space-3);
+		background: var(--ti-canvas);
 	}
 	.compact-mobile .expiry-batch-card :deep(.image-forward-card__media) {
 		aspect-ratio: 1.08;
 	}
 	.compact-mobile .expiry-batch-card :deep(.image-forward-card__body) {
-		padding: 8px;
+		padding: calc(var(--ti-density-gap) / 2);
 	}
 	.compact-mobile .expiry-batch-card h3 {
-		font-size: 13px;
+		font-size: var(--ti-font-small);
 	}
 	.compact-mobile .expiry-batch-card p,
 	.compact-mobile .expiry-batch-card small {
-		font-size: 10px;
+		font-size: var(--ti-font-small);
 	}
 }
 </style>

@@ -88,20 +88,20 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--ti-space-3);
 }
 .export-dialog h2 {
 	margin: 0;
 }
 .export-dialog header button {
-	font-size: 24px;
+	font-size: var(--ti-font-heading);
 	line-height: 1;
 }
 .export-dialog-actions {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 10px;
-	margin-top: 18px;
+	gap: var(--ti-space-2);
+	margin-top: var(--ti-space-4);
 }
 @media (max-width: 480px) {
 	.export-dialog-actions {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import postcss from "postcss";
 import { describe, expect, it } from "vitest";
 
 const source = (file: string) =>
@@ -8,7 +9,9 @@ const source = (file: string) =>
 describe("mobile Movement viewport contract", () => {
   it("keeps the page viewport-safe and gives results the only internal scroll surface", () => {
     const view = source("src/features/movements/MovementsView.vue");
-    const globalStyle = source("src/style.css");
+    const parsedGlobalStyle = postcss.parse(
+      readFileSync(resolve(process.cwd(), "src/style.css"), "utf8"),
+    );
 
     expect(view).toContain(
       "height: calc( 100dvh - var(--mobile-nav-height, 0px) - var(--mobile-context-nav-height, 0px) );",
@@ -23,20 +26,60 @@ describe("mobile Movement viewport contract", () => {
     expect(view).toContain(
       ".movement-ledger .results-column.compact .movement-ledger-header { display: flex; flex-direction: column;",
     );
-    expect(globalStyle).toContain(
-      ".shell-content:has(> .movement-ledger){padding-bottom:0;overflow:hidden}",
+    const movementShellRule = parsedGlobalStyle.nodes?.find(
+      (node) =>
+        node.type === "rule" &&
+        node.selector === ".shell-content:has(> .movement-ledger)",
     );
-    expect(globalStyle).toContain(
-      ".mobile-context-nav{position:fixed;z-index:44;top:0;right:0;bottom:auto;left:0;display:grid;box-sizing:border-box;min-height:40px;height:40px;",
+    expect(movementShellRule?.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prop: "padding-bottom", value: "0" }),
+        expect.objectContaining({ prop: "overflow", value: "hidden" }),
+      ]),
     );
-    expect(globalStyle).toContain(
-      ".floating-action-menu{bottom:calc(var(--mobile-nav-height) + 16px)}",
+    const rules = new Map<string, Map<string, string[]>>();
+    parsedGlobalStyle.walkRules((rule) => {
+      let declarations = rules.get(rule.selector);
+      if (!declarations) {
+        declarations = new Map();
+        rules.set(rule.selector, declarations);
+      }
+      rule.walkDecls((decl) => {
+        const values = declarations!.get(decl.prop) ?? [];
+        values.push(decl.value);
+        declarations!.set(decl.prop, values);
+      });
+    });
+    expect(rules.get(".mobile-context-nav")?.get("z-index")).toContain(
+      "var(--ti-layer-context)",
     );
-    expect(globalStyle).toContain(
-      ".action-fab{right:18px;bottom:calc(var(--mobile-nav-height) + 16px)}",
+    expect(rules.get(".mobile-context-nav")?.get("position")).toContain(
+      "fixed",
     );
-    expect(globalStyle).not.toContain(
-      ".action-fab{right:18px;bottom:calc(var(--mobile-nav-height) + var(--mobile-context-nav-height)",
+    expect(rules.get(".mobile-context-nav")?.get("top")).toContain("0");
+    expect(rules.get(".mobile-context-nav")?.get("right")).toContain("0");
+    expect(rules.get(".mobile-context-nav")?.get("bottom")).toContain("auto");
+    expect(rules.get(".mobile-context-nav")?.get("left")).toContain("0");
+    expect(rules.get(".mobile-context-nav")?.get("display")).toContain("grid");
+    expect(rules.get(".mobile-context-nav")?.get("box-sizing")).toContain(
+      "border-box",
     );
+    expect(rules.get(".mobile-context-nav")?.get("min-height")).toContain(
+      "44px",
+    );
+    expect(rules.get(".mobile-context-nav")?.get("height")).toContain("44px");
+    expect(rules.get(".floating-action-menu")?.get("bottom")).toContain(
+      "calc(var(--mobile-nav-height) + 16px)",
+    );
+    expect(rules.get(".action-fab")?.get("right")).toContain("18px");
+    expect(rules.get(".action-fab")?.get("bottom")).toContain(
+      "calc(var(--mobile-nav-height) + 16px)",
+    );
+    expect(
+      rules
+        .get(".action-fab")
+        ?.get("bottom")
+        ?.some((value) => value.includes("var(--mobile-context-nav-height)")),
+    ).toBe(false);
   });
 });

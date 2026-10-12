@@ -132,6 +132,6 @@ const resolvedSurface = computed<ResponsiveSurface>(
 	display: flex;
 	justify-content: flex-end;
 	min-height: 0;
-	margin: 0 0 6px;
+	margin: 0 0 var(--ti-space-1);
 }
 </style>

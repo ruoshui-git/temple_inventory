@@ -66,6 +66,6 @@ const warehouseText = (name: string) => warehousePresentation(name, props.tree).
 }
 
 .warehouse-preview-empty {
-	color: #6b6257;
+	color: var(--ti-muted);
 }
 </style>

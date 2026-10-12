@@ -147,20 +147,25 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-height: 72px;
 	font-weight: 700;
 }
 .table-skeleton {
 	display: grid;
-	gap: 8px;
-	padding: 0 18px 12px;
+	gap: var(--ti-space-2);
+	padding: 0 var(--ti-space-4) var(--ti-space-3);
 }
 .table-skeleton i {
 	display: block;
 	height: 10px;
-	border-radius: 5px;
-	background: linear-gradient(90deg, #eee8df 20%, #faf7f0 50%, #eee8df 80%);
+	border-radius: var(--ti-radius-control);
+	background: linear-gradient(
+		90deg,
+		var(--ti-accent-soft) 20%,
+		var(--ti-surface-raised) 50%,
+		var(--ti-accent-soft) 80%
+	);
 	background-size: 200% 100%;
 	animation: table-skeleton 1.2s ease-in-out infinite;
 }
@@ -174,7 +179,7 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 	display: inline-block;
 	width: 16px;
 	height: 16px;
-	margin-right: 6px;
+	margin-right: var(--ti-space-1);
 	vertical-align: -3px;
 	border-width: 2px;
 }
@@ -185,29 +190,29 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 }
 @media (prefers-reduced-motion: reduce) {
 	.sortable-data-table-desktop * {
-		animation-duration: 0.01ms !important;
-		transition-duration: 0.01ms !important;
+		animation: none !important;
+		transition: none !important;
 	}
 }
 .sortable-data-table-desktop th,
 .sortable-data-table-desktop td {
-	padding: 12px;
+	padding: calc(var(--ti-density-row-gap) * 0.75);
 	text-align: left;
 	vertical-align: middle;
-	border-bottom: 1px solid #eee8db;
+	border-bottom: 1px solid var(--ti-accent-soft);
 }
 .sortable-data-table-desktop th,
 .sortable-data-table-sticky-head {
 	position: sticky;
 	top: 0;
 	z-index: 2;
-	background: #fff;
-	box-shadow: inset 0 -1px 0 #d9d0c4;
+	background: var(--ti-surface);
+	box-shadow: var(--ti-shadow-card);
 }
 .sortable-data-table-desktop :deep(.primary-cell) {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	min-width: 0;
 }
 .sortable-data-table-desktop :deep(.primary-cell > [data-row-control]) {
@@ -225,12 +230,12 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 	display: block;
 }
 .sortable-data-table-desktop :deep(.primary-cell .secondary-text) {
-	color: #6b6257;
+	color: var(--ti-muted);
 	font-size: 0.875em;
 }
 .sortable-data-table-desktop th button {
-	min-height: 36px;
-	padding: 6px 8px;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-1) var(--ti-space-2);
 	border: 0;
 	background: transparent;
 	font: inherit;
@@ -244,9 +249,9 @@ const { valueFor, isSelected, sortColumn, activate, activateKey } = useSortableR
 .sortable-data-table-desktop tbody tr:hover,
 .sortable-data-table-desktop tbody tr:focus-visible,
 .sortable-data-table-desktop tbody tr.selected {
-	background: #eee8db;
+	background: var(--ti-accent-soft);
 }
 .sortable-data-table-desktop tbody tr:focus-visible {
-	box-shadow: inset 0 0 0 3px #d99a48;
+	box-shadow: var(--ti-focus-ring);
 }
 </style>

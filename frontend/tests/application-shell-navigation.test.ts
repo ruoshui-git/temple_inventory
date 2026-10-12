@@ -295,6 +295,7 @@ describe("ApplicationShell navigation contract", () => {
       ["/reports", "报表与导出"],
       ["/drafts", "草稿"],
       ["/pending", "待处理"],
+      ["/settings", "显示设置"],
     ] as const) {
       route.path = path;
       await nextTick();

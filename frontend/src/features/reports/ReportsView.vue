@@ -229,57 +229,58 @@ const {
 <style scoped>
 .reports-page {
 	display: grid;
-	gap: 18px;
+	gap: var(--ti-density-gap);
 }
 .report-card-grid {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 12px;
+	gap: var(--ti-density-row-gap);
 }
 .report-card {
 	display: grid;
-	gap: 8px;
+	gap: var(--ti-space-2);
 	text-align: left;
 	align-content: start;
 	min-height: 120px;
-	padding: 16px;
+	padding: var(--ti-density-control-pad-y) var(--ti-density-control-pad-x);
 }
 .report-card[aria-pressed="true"] {
-	border-color: #9b571d;
-	background: #f2e7d5;
+	border-color: var(--ti-accent);
+	background: var(--ti-accent-soft);
 }
 .report-card span,
 .report-builder p,
 .fixed-columns small {
-	color: #6b6257;
+	color: var(--ti-muted);
 }
 .report-builder {
 	max-width: 840px;
-	background: #fff;
-	border-radius: 16px;
-	padding: 20px;
+	background: var(--ti-surface);
+	border-radius: var(--ti-radius-card);
+	padding: var(--ti-density-page);
+	box-shadow: var(--ti-shadow-card);
 }
 .report-builder h2 {
 	margin-top: 0;
 }
 .compact-filter-form {
 	display: grid;
-	gap: 16px;
+	gap: var(--ti-density-gap);
 }
 .compact-filter-form > label,
 .exact-date-grid label {
 	display: grid;
-	gap: 6px;
+	gap: var(--ti-space-2);
 }
 .choice-list {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 4px 12px;
+	gap: var(--ti-space-1) var(--ti-space-3);
 }
 .choice-list legend {
 	grid-column: 1 / -1;
 	font-weight: 700;
-	margin-bottom: 6px;
+	margin-bottom: var(--ti-space-2);
 }
 .choice-row {
 	display: flex;
@@ -293,22 +294,22 @@ const {
 .exact-date-grid {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 10px;
+	gap: var(--ti-space-3);
 	grid-column: 1 / -1;
 }
 .fixed-columns {
-	margin-top: 20px;
-	padding: 14px;
-	background: #f7f5ef;
-	border-radius: 12px;
+	margin-top: var(--ti-density-gap);
+	padding: var(--ti-density-page);
+	background: var(--ti-canvas);
+	border-radius: var(--ti-radius-control);
 }
 .fixed-columns h3 {
 	margin-top: 0;
 }
 .report-actions {
 	display: flex;
-	gap: 10px;
-	margin-top: 18px;
+	gap: var(--ti-space-3);
+	margin-top: var(--ti-density-gap);
 }
 @media (max-width: 800px) {
 	.report-card-grid {

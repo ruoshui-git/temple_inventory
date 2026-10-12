@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import UiButton from "../components/UiButton.vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
-import HierarchyFilter from "../components/HierarchyFilter.vue";
-import QuantitySummary from "../components/QuantitySummary.vue";
+import HierarchyFilter from "./components/PreviewHierarchyFilter.vue";
+import QuantitySummary from "./components/PreviewQuantitySummary.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
+import { reviewSession } from "./reviewModel";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import PreviewItemImage from "./PreviewItemImage.vue";
 import PreviewStockDetails from "./PreviewStockDetails.vue";
@@ -18,8 +19,12 @@ import {
 	type Pattern,
 	type StockItem,
 } from "./model";
-defineProps<{ pattern: Pattern }>();
-const emit = defineEmits<{ receive: []; notify: [message: string] }>();
+const props = defineProps<{ pattern: Pattern; variant?: string; active?: boolean }>();
+const emit = defineEmits<{
+	receive: [];
+	notify: [message: string];
+	navigate: [page: string, variant: string];
+}>();
 const { isMobile } = useResponsiveLayout();
 const search = ref("");
 const warehouses = ref<string[]>([]);
@@ -37,6 +42,32 @@ const exportOpen = ref(false);
 const exportFormat = ref("xlsx");
 const status = ref("ready");
 const menu = ref<HTMLElement>();
+watch(
+	() => props.variant,
+	(variant) => {
+		if (!variant) return;
+		if (variant === "list") status.value = "ready";
+		if (variant === "filtered" || variant === "empty") {
+			warehouses.value = [];
+			category.value = "";
+			search.value = variant === "filtered" ? "东北" : "";
+			status.value = variant === "empty" ? "empty" : "ready";
+		}
+	},
+	{ immediate: true },
+);
+watch(
+	() => props.active,
+	(active) => {
+		if (active) return;
+		filtersOpen.value = false;
+		menuOpen.value = false;
+		summaryOpen.value = false;
+		detail.value = undefined;
+		scanOpen.value = false;
+		exportOpen.value = false;
+	},
+);
 function closeMenuOutside(event: PointerEvent) {
 	if (event.target instanceof Node && !menu.value?.contains(event.target))
 		menuOpen.value = false;
@@ -49,13 +80,15 @@ onMounted(() => document.addEventListener("pointerdown", closeMenuOutside));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", closeMenuOutside));
 const rows = computed(() => {
 	if (status.value === "empty") return [];
-	return filterItems(search.value, warehouses.value, category.value).sort((a, b) => {
-		const result =
-			sort.value === "available"
-				? a.available - b.available
-				: a.name.localeCompare(b.name, "zh-CN");
-		return descending.value ? -result : result;
-	});
+	return filterItems(search.value, warehouses.value, category.value, reviewSession.stock).sort(
+		(a, b) => {
+			const result =
+				sort.value === "available"
+					? a.available - b.available
+					: a.name.localeCompare(b.name, "zh-CN");
+			return descending.value ? -result : result;
+		},
+	);
 });
 const metrics = computed(() => [
 	{
@@ -98,7 +131,8 @@ function sortBy(key: string) {
 function action(name: string) {
 	menuOpen.value = false;
 	if (name === "入库") emit("receive");
-	else emit("notify", `${name}：此流程仅展示入口，请使用入库示例体验完整交互。`);
+	else if (name === "新建物品") emit("navigate", "item-form", "new");
+	else emit("navigate", "movement-form", name === "出库" ? "Issue" : "Transfer");
 }
 </script>
 <template>
@@ -152,7 +186,7 @@ function action(name: string) {
 			<InventoryIcon name="notice" /><span>{{
 				pattern === "current"
 					? "当前结构：桌面并列操作，手机使用浮动 ＋ 按钮。"
-					: "操作提案：以有文字说明的「新建操作」统一入口；搜索、扫码与筛选始终直接可见。"
+					: "实验操作提案：以有文字说明的「新建操作」统一入口；搜索、扫码与筛选始终直接可见。"
 			}}</span>
 		</div>
 		<div class="section-tabs">
@@ -478,7 +512,15 @@ function action(name: string) {
 					>
 				</div>
 			</section>
-		</PreviewOverlay>
+			<UiButton
+				@click="
+					reviewSession.selectedItemCode = detail!.code;
+					detail = undefined;
+					emit('navigate', 'item-detail', 'overview');
+				"
+				>打开完整物品详情</UiButton
+			></PreviewOverlay
+		>
 		<PreviewOverlay v-if="exportOpen" title="导出当前筛选结果" @close="exportOpen = false"
 			><p>共 {{ rows.length }} 种物品，包含当前筛选的全部匹配记录。</p>
 			<dl class="detail-list">

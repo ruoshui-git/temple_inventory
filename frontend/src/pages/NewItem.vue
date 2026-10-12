@@ -67,8 +67,8 @@ onMounted(async () => {
 .item-create-page-header {
 	display: flex;
 	align-items: flex-start;
-	gap: 0.75rem;
-	margin-bottom: 1rem;
+	gap: var(--ti-density-row-gap);
+	margin-bottom: var(--ti-density-gap);
 }
 
 .item-create-page-header h1,
@@ -77,7 +77,7 @@ onMounted(async () => {
 }
 
 .item-create-page-header p {
-	margin-top: 0.25rem;
-	color: var(--text-muted, #65645f);
+	margin-top: var(--ti-space-1);
+	color: var(--ti-muted);
 }
 </style>

@@ -288,11 +288,11 @@ onBeforeUnmount(() => {
 .scanner-modal-backdrop {
 	position: fixed;
 	inset: 0;
-	z-index: 50;
+	z-index: var(--ti-layer-overlay);
 	display: grid;
 	place-items: center;
-	padding: 16px;
-	background: #17203388;
+	padding: var(--ti-space-4);
+	background: var(--ti-overlay-scrim);
 	overflow: auto;
 }
 .scanner-modal {
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
 }
 .scanner-modal h2 {
 	margin: 0;
-	font-size: 20px;
+	font-size: var(--ti-font-section);
 }
 .scanner-continuous {
 	position: relative;
@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
 @media (min-width: 1600px) {
 	.scanner-continuous {
 		position: fixed;
-		z-index: 15;
+		z-index: var(--ti-layer-overlay);
 		top: 96px;
 		left: calc(50% + 400px);
 		width: min(360px, calc(50vw - 416px));

@@ -466,18 +466,18 @@ onBeforeUnmount(() => {
 <style scoped>
 .movement-period {
 	display: grid;
-	gap: 8px;
-	padding: 10px 0;
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-2) 0;
 }
 .movement-period-ledger {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 8px;
-	padding: 8px;
-	border: 1px solid #e5dfd5;
-	border-radius: 9px;
-	background: #fffdf9;
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
 }
 .movement-period-ledger .period-choices {
 	flex: 1 1 100%;
@@ -497,22 +497,22 @@ onBeforeUnmount(() => {
 	display: flex;
 	min-width: 0;
 	align-items: center;
-	gap: 6px;
+	gap: var(--ti-space-1);
 }
 .period-compact .period-more-trigger {
-	min-height: 40px;
-	padding: 7px 8px;
-	border: 1px solid #dfd4c4;
-	border-radius: 6px;
-	background: #fff;
-	color: #5e4b36;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-2) var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	color: var(--ti-muted);
 	font-weight: 650;
 	white-space: nowrap;
 }
 .period-compact-resolved {
 	overflow: hidden;
-	color: #6b6257;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -523,30 +523,30 @@ onBeforeUnmount(() => {
 	overflow: auto;
 }
 .period-compact-menu strong {
-	padding: 4px 10px;
-	color: #7a6a58;
-	font-size: 11px;
+	padding: var(--ti-space-1) var(--ti-space-2);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .period-mode,
 .period-choices {
 	display: flex;
-	gap: 6px;
+	gap: var(--ti-space-1);
 	overflow-x: auto;
 	padding-bottom: 2px;
 }
 .period-mode button,
 .period-choices button {
 	flex: none;
-	min-height: 40px;
-	padding: 7px 11px;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-2) var(--ti-space-3);
 }
 button[aria-pressed="true"] {
-	border-color: #9b571d;
-	background: #9b571d;
-	color: #fff;
+	border-color: var(--ti-accent);
+	background: var(--ti-accent);
+	color: var(--ti-surface);
 }
 .resolved-period {
-	color: #6b6257;
+	color: var(--ti-muted);
 }
 .custom-period-trigger {
 	max-width: min(100%, 260px);
@@ -558,67 +558,67 @@ button[aria-pressed="true"] {
 	flex: none;
 	max-width: 100%;
 	display: inline-flex;
-	min-height: 40px;
+	min-height: var(--ti-control-height);
 	align-items: center;
-	gap: 5px;
-	padding: 7px 10px;
-	border: 1px solid #dfd4c4;
-	border-radius: 6px;
-	background: #fff;
-	color: #5e4b36;
+	gap: var(--ti-space-1);
+	padding: var(--ti-space-2) var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	color: var(--ti-muted);
 	font-weight: 650;
 	white-space: nowrap;
 }
 .period-more-trigger :deep(svg) {
 	width: 15px;
 	height: 15px;
-	transition: transform 140ms ease;
+	transition: transform var(--ti-motion-fast) ease;
 }
 .period-more-trigger :deep(svg.expanded) {
 	transform: rotate(180deg);
 }
 .period-more-trigger.active {
-	border-color: #c3986c;
-	background: #fff4e7;
-	color: #81532a;
+	border-color: var(--ti-border-strong);
+	background: var(--ti-accent-soft);
+	color: var(--ti-accent);
 }
 .period-more-menu-portal {
 	position: fixed;
-	z-index: 120;
+	z-index: var(--ti-layer-popover);
 	display: grid;
-	gap: 4px;
-	padding: 5px;
-	background: #fffaf2;
-	border: 1px solid #eadfce;
-	box-shadow: 0 8px 24px rgba(65, 44, 22, 0.18);
+	gap: var(--ti-space-1);
+	padding: var(--ti-space-1);
+	background: var(--ti-surface);
+	border: 1px solid var(--ti-border);
+	box-shadow: var(--ti-shadow-overlay);
 }
 .period-more-menu-portal button {
-	min-height: 40px;
-	padding: 7px 10px;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-2) var(--ti-space-2);
 	border: 0;
 	background: transparent;
 	text-align: left;
 }
 .period-more-menu-portal button:hover,
 .period-more-menu-portal button[aria-checked="true"] {
-	background: #fff0d9;
+	background: var(--ti-accent-soft);
 }
 .custom-period-menu-portal {
 	position: fixed;
-	z-index: 120;
+	z-index: var(--ti-layer-popover);
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px;
-	padding: 10px;
-	background: #fffaf2;
-	border: 1px solid #eadfce;
-	box-shadow: 0 8px 24px rgba(65, 44, 22, 0.18);
+	gap: var(--ti-space-2);
+	padding: var(--ti-space-2);
+	background: var(--ti-surface);
+	border: 1px solid var(--ti-border);
+	box-shadow: var(--ti-shadow-overlay);
 }
 @media (max-width: 1023px) {
 	.movement-period-ledger .period-choices button,
 	.movement-period-ledger .period-more-trigger,
 	.movement-period-ledger .period-compact-resolved {
-		font-size: 14px;
+		font-size: var(--ti-font-body);
 	}
 	.movement-period-ledger .period-choices button {
 		white-space: normal;
@@ -631,9 +631,9 @@ button[aria-pressed="true"] {
 }
 .custom-period-menu-portal label {
 	display: grid;
-	gap: 4px;
-	color: #6b6257;
-	font-size: 12px;
+	gap: var(--ti-space-1);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .custom-period-menu-portal input {
 	min-width: 0;
@@ -641,13 +641,13 @@ button[aria-pressed="true"] {
 }
 .custom-period-done {
 	grid-column: 1 / -1;
-	min-height: 34px;
-	padding: 7px 10px;
+	min-height: var(--ti-control-height-compact);
+	padding: var(--ti-space-2) var(--ti-space-2);
 }
 .period-active-rolling {
-	border-color: #9b571d;
-	background: #9b571d;
-	color: #fff;
+	border-color: var(--ti-accent);
+	background: var(--ti-accent);
+	color: var(--ti-surface);
 }
 @media (max-width: 600px) {
 	.custom-period-menu-portal {

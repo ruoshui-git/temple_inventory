@@ -270,45 +270,45 @@ defineExpose({ activate, close: hide });
 }
 .loan-record-count {
 	min-height: 30px;
-	padding: 4px 9px;
-	border: 1px solid #e3d4c2;
-	border-radius: 999px;
-	background: #faf6ef;
-	color: #805022;
-	font-size: 12px;
+	padding: var(--ti-space-1) var(--ti-space-2);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-pill);
+	background: var(--ti-surface-raised);
+	color: var(--ti-accent-strong);
+	font-size: max(12px, var(--ti-font-small));
 	font-weight: 650;
 }
 .loan-breakdown {
 	position: fixed;
-	z-index: 65;
+	z-index: var(--ti-layer-overlay);
 	box-sizing: border-box;
 	width: min(440px, calc(100vw - 28px));
 	max-height: min(65dvh, 540px);
-	padding: 14px;
+	padding: var(--ti-density-gap);
 	overflow: auto;
 	overscroll-behavior: contain;
-	border: 1px solid #e7ddcf;
-	border-radius: 12px;
-	background: #fff;
-	box-shadow: 0 10px 32px #30261933;
-	font-size: 13px;
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	box-shadow: var(--ti-shadow-overlay);
+	font-size: var(--ti-font-body);
 }
 .loan-breakdown > header,
 .loan-breakdown-record-heading {
 	display: flex;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--ti-density-row-gap);
 }
 .loan-breakdown-record {
 	display: grid;
-	gap: 4px;
-	margin-top: 10px;
-	padding: 9px 0;
-	border-top: 1px solid #eee7dd;
+	gap: var(--ti-space-1);
+	margin-top: var(--ti-space-2);
+	padding: var(--ti-space-2) 0;
+	border-top: 1px solid var(--ti-border);
 }
 .loan-breakdown-record ul {
 	margin: 0;
-	padding-left: 18px;
-	color: #6b6257;
+	padding-left: var(--ti-space-4);
+	color: var(--ti-muted);
 }
 </style>

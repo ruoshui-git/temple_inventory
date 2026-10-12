@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, useId } from "vue";
-import UiButton from "../components/UiButton.vue";
+import UiButton from "./components/PreviewUiButton.vue";
 withDefaults(defineProps<{ title: string; drawer?: boolean }>(), { drawer: false });
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement>();
 const titleId = useId();
 let invoker: HTMLElement | null = null;
+let openingHash = "";
+function closeAfterNavigation() {
+	if (window.location.hash !== openingHash) emit("close");
+}
 let previousOverflow = "";
 let app: HTMLElement | null = null;
 let previousInert = false;
@@ -41,6 +45,8 @@ function keydown(event: KeyboardEvent) {
 	}
 }
 onMounted(async () => {
+	openingHash = window.location.hash;
+	window.addEventListener("hashchange", closeAfterNavigation);
 	invoker = document.activeElement as HTMLElement;
 	previousOverflow = document.body.style.overflow;
 	document.body.style.overflow = "hidden";
@@ -57,6 +63,7 @@ onMounted(async () => {
 	panel.value?.focus();
 });
 onBeforeUnmount(() => {
+	window.removeEventListener("hashchange", closeAfterNavigation);
 	document.body.style.overflow = previousOverflow;
 	if (app) app.inert = previousInert;
 	underlyingOverlays.forEach(({ element, inert }) => {

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import PreviewApp from "../src/design-preview/PreviewApp.vue";
 import PreviewInventory from "../src/design-preview/PreviewInventory.vue";
 import PreviewReceive from "../src/design-preview/PreviewReceive.vue";
@@ -9,6 +10,8 @@ import PreviewOverlay from "../src/design-preview/PreviewOverlay.vue";
 import PreviewStockDetails from "../src/design-preview/PreviewStockDetails.vue";
 import PreviewItemImage from "../src/design-preview/PreviewItemImage.vue";
 import PreviewDenseLines from "../src/design-preview/PreviewDenseLines.vue";
+import PreviewBrowsePages from "../src/design-preview/PreviewBrowsePages.vue";
+import { pageHash } from "../src/design-preview/reviewModel";
 import {
   defaults,
   filterItems,
@@ -40,6 +43,7 @@ let desktop = true;
 const listeners = new Set<(event: { matches: boolean }) => void>();
 beforeEach(() => {
   localStorage.clear();
+  window.history.replaceState(null, "", "/");
   desktop = true;
   listeners.clear();
   vi.stubGlobal(
@@ -68,7 +72,7 @@ afterEach(() => {
 });
 
 describe("design preview preferences and fixtures", () => {
-  it("retains old visual choices while adopting the revised form and preferred actions", () => {
+  it("keeps legacy density while adopting jade and current workflow defaults", () => {
     localStorage.setItem(
       "ti:design-preview:v1",
       JSON.stringify({
@@ -84,6 +88,36 @@ describe("design preview preferences and fixtures", () => {
       theme: "jade",
       density: "compact",
     });
+  });
+  it("does not carry legacy palette, navigation, or proposed workflow into the approved defaults", () => {
+    localStorage.setItem(
+      "ti:design-preview:v2",
+      JSON.stringify({
+        theme: "bronze",
+        density: "spacious",
+        navigation: "proposed",
+        form: "proposed",
+      }),
+    );
+    expect(readPreferences(localStorage)).toEqual({
+      ...defaults,
+      density: "spacious",
+    });
+  });
+  it("keeps the active shell at six destinations even if old preview storage selected four", async () => {
+    localStorage.setItem(
+      preferenceKey,
+      JSON.stringify({ navigation: "proposed", density: "compact" }),
+    );
+    const wrapper = render(PreviewApp);
+    await nextTick();
+    expect(wrapper.findAll(".nav-group")).toHaveLength(6);
+    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(0);
+    expect(wrapper.find('select[aria-label="主导航实验方案"]').exists()).toBe(
+      false,
+    );
+    wrapper.unmount();
+    mounted.splice(mounted.indexOf(wrapper), 1);
   });
   it("scopes item totals and distinct batches to the selected locations", () => {
     const rice = items[0];
@@ -360,33 +394,70 @@ describe("interactive preview", () => {
   it("switches visual and interaction settings independently without losing demo state", async () => {
     const wrapper = render(PreviewApp);
     await nextTick();
+    expect(document.documentElement.dataset.previewTheme).toBe("jade");
+    expect(document.documentElement.dataset.previewDensity).toBe("balanced");
+    expect(document.documentElement.style.getPropertyValue("--p-accent")).toBe(
+      "#28684E",
+    );
+    expect(wrapper.findAll(".nav-group")).toHaveLength(6);
     const inventory = wrapper.findComponent(PreviewInventory);
     await inventory
       .get('input[aria-label="搜索物品或条码"]')
       .setValue("珍珠米");
     await wrapper.get('[data-theme-option="blue"]').trigger("click");
     await wrapper.get('select[aria-label="显示密度"]').setValue("spacious");
-    await wrapper.get('select[aria-label="主导航方案"]').setValue("proposed");
     expect(document.documentElement.dataset.previewTheme).toBe("blue");
     expect(document.documentElement.dataset.previewDensity).toBe("spacious");
     expect(inventory.props("pattern")).toBe("current");
     expect(inventory.findAll(".stock-card")).toHaveLength(1);
-    expect(wrapper.findAll(".nav-group")).toHaveLength(4);
+    expect(wrapper.findAll(".nav-group")).toHaveLength(6);
     expect(wrapper.find('select[aria-label="库存操作方案"]').exists()).toBe(
       false,
     );
     expect(wrapper.findComponent(PreviewReceive).props("pattern")).toBe(
-      "proposed",
+      "current",
     );
     desktop = false;
     listeners.forEach((callback) => callback({ matches: false }));
     await nextTick();
-    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(4);
+    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(6);
     expect(inventory.findAll(".stock-card")).toHaveLength(1);
     expect(readPreferences(localStorage).theme).toBe("blue");
     wrapper.unmount();
     mounted.splice(mounted.indexOf(wrapper), 1);
     expect(listeners.size).toBe(0);
+  });
+  it("opens a shareable registered page variant from its hash", async () => {
+    const wrapper = render(PreviewApp);
+    window.location.hash = pageHash("expiry/expired");
+    window.dispatchEvent(new Event("hashchange"));
+    await nextTick();
+    expect(wrapper.findComponent(PreviewBrowsePages).props("route")).toBe(
+      "expiry/expired",
+    );
+    expect(wrapper.text()).toContain("已过期");
+  });
+  it("keeps one inventory sample mounted across local and canonical inventory routes", async () => {
+    const wrapper = render(PreviewApp);
+    const inventory = wrapper.findComponent(PreviewInventory);
+    expect(wrapper.findAllComponents(PreviewInventory)).toHaveLength(1);
+    await inventory
+      .get('input[aria-label="搜索物品或条码"]')
+      .setValue("珍珠米");
+    window.location.hash = pageHash("inventory/list");
+    window.dispatchEvent(new Event("hashchange"));
+    await nextTick();
+    expect(wrapper.findAllComponents(PreviewInventory)).toHaveLength(1);
+    expect(
+      wrapper.findComponent(PreviewInventory).findAll(".stock-card"),
+    ).toHaveLength(1);
+    expect(
+      (
+        wrapper
+          .findComponent(PreviewInventory)
+          .get('input[aria-label="搜索物品或条码"]').element as HTMLInputElement
+      ).value,
+    ).toBe("珍珠米");
   });
   it("filters, sorts, retains selection across view switches, and dismisses action menus", async () => {
     const wrapper = render(PreviewInventory, { pattern: "proposed" });
@@ -548,5 +619,56 @@ describe("preview palette contrast", () => {
       )![1];
       expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+  it("owns preview styles without importing production design tokens or primitives", () => {
+    const main = readFileSync("src/design-preview/main.ts", "utf8");
+    const css = readFileSync("src/design-preview/preview.css", "utf8");
+    expect(main).not.toMatch(/styles\/(tokens|primitives)\.css/);
+    expect(css).toContain("--p-canvas: #f4f6f3");
+    expect(css).toContain("--p-ink: #24332d");
+    expect(css).toContain("--p-accent: #28684e");
+    expect(css).toMatch(/button\s*\{[^}]*border:\s*1px solid transparent/s);
+    expect(css).not.toMatch(
+      /:hover[^{}]*\{[^{}]*text-decoration:\s*underline/s,
+    );
+  });
+  it("keeps every transitive presentation dependency preview-local", () => {
+    const root = resolve("src/design-preview");
+    const allowedShared = new Set([
+      resolve("src/components/InventoryIcon.vue"),
+      resolve("src/composables/useResponsiveLayout.ts"),
+      resolve("src/lib/hierarchySelection.ts"),
+    ]);
+    const visited = new Set<string>();
+    const pending = [resolve(root, "main.ts")];
+    while (pending.length) {
+      const file = pending.pop()!;
+      if (visited.has(file)) continue;
+      visited.add(file);
+      const source = readFileSync(file, "utf8");
+      for (const [, specifier] of source.matchAll(
+        /(?:from\s*|import\s*)["']([^"']+)["']/g,
+      )) {
+        if (!specifier.startsWith(".")) continue;
+        const base = resolve(dirname(file), specifier);
+        const dependency = [
+          base,
+          `${base}.vue`,
+          `${base}.ts`,
+          `${base}.css`,
+          resolve(base, "index.ts"),
+        ].find((candidate) => existsSync(candidate));
+        expect(
+          dependency,
+          `${file} has an unresolved import ${specifier}`,
+        ).toBeDefined();
+        expect(
+          dependency!.startsWith(`${root}/`) || allowedShared.has(dependency!),
+          `${file} imports non-preview presentation ${specifier}`,
+        ).toBe(true);
+        pending.push(dependency!);
+      }
+    }
+    expect(visited.size).toBeGreaterThan(20);
   });
 });

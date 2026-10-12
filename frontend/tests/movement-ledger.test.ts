@@ -371,6 +371,42 @@ describe("movement ledger", () => {
       wrapper.findAll(".status-badge").some((badge) => badge.text() === "草稿"),
     ).toBe(true);
   });
+  it("distinguishes warning drafts from inactive cancelled records", async () => {
+    route.path = "/movements/records";
+    state.workspaceApi.mockImplementation(async (method: string) =>
+      method === "movement_filter_options"
+        ? { items: [], activities: [] }
+        : {
+            resolved_period: {},
+            results: [
+              {
+                record_name: "REC-DRAFT",
+                movement_kind: "Receive",
+                docstatus: 0,
+              },
+              {
+                record_name: "REC-CANCELLED",
+                movement_kind: "Receive",
+                docstatus: 2,
+              },
+            ],
+            total: 2,
+            all_total: 2,
+            facets: {},
+          },
+    );
+    const wrapper = mount(Movements, { global: globals });
+    await flushPromises();
+
+    const draft = wrapper
+      .findAll(".status-badge")
+      .find((badge) => badge.text() === "草稿");
+    const cancelled = wrapper
+      .findAll(".status-badge")
+      .find((badge) => badge.text() === "已取消");
+    expect(draft?.classes()).toContain("status-badge--draft");
+    expect(cancelled?.classes()).toContain("status-badge--cancelled");
+  });
   it("sends multi-select movement kinds and All clear to the API", async () => {
     page();
     const wrapper = mount(Movements, { global: globals });

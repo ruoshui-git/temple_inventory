@@ -98,48 +98,60 @@ onBeforeUnmount(() => {
 .overflow-action-trigger {
 	display: grid;
 	box-sizing: border-box;
-	flex: 0 0 38px;
-	block-size: 38px;
-	max-block-size: 38px;
-	max-inline-size: 38px;
-	width: 38px;
-	min-width: 38px;
-	height: 38px;
-	min-height: 38px;
+	flex: 0 0 var(--ti-control-height);
+	block-size: var(--ti-control-height);
+	max-block-size: var(--ti-control-height);
+	max-inline-size: var(--ti-control-height);
+	width: var(--ti-control-height);
+	min-width: var(--ti-control-height);
+	height: var(--ti-control-height);
+	min-height: var(--ti-control-height);
 	aspect-ratio: 1;
 	place-items: center;
 	padding: 0;
-	border: 1px solid #e6e1d9;
+	border: 1px solid var(--ti-border);
 	border-radius: 50%;
-	background: #fff;
-	color: #6c6259;
-	font-size: 23px;
+	background: var(--ti-surface);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-heading);
 	line-height: 1;
 }
 .overflow-action-popup {
 	position: absolute;
-	z-index: 60;
+	z-index: var(--ti-layer-popover);
 	top: calc(100% + 7px);
 	right: 0;
 	display: grid;
 	min-width: 144px;
-	padding: 5px;
-	border: 1px solid #e4ddd4;
-	border-radius: 9px;
-	background: #fff;
-	box-shadow: 0 10px 28px rgb(45 35 24 / 18%);
+	padding: var(--ti-space-1);
+	border: 1px solid var(--ti-border);
+	border-radius: var(--ti-radius-control);
+	background: var(--ti-surface);
+	box-shadow: var(--ti-shadow-overlay);
 }
 .overflow-action-popup button {
-	min-height: 42px;
-	padding: 8px 11px;
+	min-height: var(--ti-control-height);
+	padding: var(--ti-space-2) var(--ti-space-3);
 	border: 0;
-	border-radius: 6px;
+	border-radius: var(--ti-radius-control);
 	background: transparent;
-	color: #343c46;
+	color: var(--ti-ink);
 	text-align: left;
+}
+@media (max-width: 1023px) {
+	.overflow-action-trigger,
+	.overflow-action-popup button {
+		min-height: var(--ti-density-control);
+	}
+	.overflow-action-trigger {
+		width: var(--ti-density-control);
+		min-width: var(--ti-density-control);
+		max-width: var(--ti-density-control);
+		flex-basis: var(--ti-density-control);
+	}
 }
 .overflow-action-popup button:hover,
 .overflow-action-popup button:focus-visible {
-	background: #f4efe8;
+	background: var(--ti-canvas);
 }
 </style>

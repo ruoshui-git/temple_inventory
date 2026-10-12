@@ -27,15 +27,15 @@ withDefaults(
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--ti-space-3);
 	min-height: 32px;
-	padding: 5px 0;
-	color: #6b6257;
-	font-size: 12px;
+	padding: var(--ti-space-1) 0;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	font-variant-numeric: tabular-nums;
 }
 .result-count-strip__updating {
-	color: #805022;
+	color: var(--ti-accent);
 	font-weight: 650;
 }
 </style>

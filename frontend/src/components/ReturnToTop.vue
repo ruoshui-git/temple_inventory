@@ -45,17 +45,17 @@ const { visible, returnToTop } = useReturnToTop({
 	place-items: center;
 	right: 18px;
 	bottom: calc(var(--mobile-nav-height, 0px) + 16px);
-	z-index: 43;
+	z-index: var(--ti-layer-context);
 	width: 44px;
 	height: 44px;
 	min-width: 44px;
 	min-height: 44px;
 	padding: 0;
-	border: 1px solid #cfc3b4;
-	border-radius: 999px;
-	background: #fffdf9;
-	color: #553b25;
-	box-shadow: 0 3px 12px #17203325;
+	border: 1px solid var(--ti-border-strong);
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-surface);
+	color: var(--ti-ink);
+	box-shadow: var(--ti-shadow-card);
 }
 .return-to-top :deep(svg) {
 	width: 21px;
@@ -80,11 +80,11 @@ const { visible, returnToTop } = useReturnToTop({
 		display: block;
 		width: max-content;
 		max-width: 180px;
-		padding: 6px 8px;
-		border-radius: 7px;
-		background: #172033;
-		color: #fff;
-		font-size: 12px;
+		padding: var(--ti-space-1) var(--ti-space-2);
+		border-radius: var(--ti-radius-control);
+		background: var(--ti-ink);
+		color: var(--ti-surface);
+		font-size: var(--ti-font-small);
 		font-weight: 600;
 		line-height: 1.2;
 		pointer-events: none;

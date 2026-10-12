@@ -67,7 +67,7 @@ const {
 		height: 100dvh;
 		min-height: 0;
 		overflow: hidden;
-		background: #f8f7f4;
+		background: var(--ti-canvas);
 	}
 	.shell-content {
 		min-height: 0;

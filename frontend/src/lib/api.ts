@@ -1,6 +1,11 @@
 import { ref } from "vue";
 import { presentWarehouse } from "./warehousePresenter";
+import {
+  capturePreferenceRevision,
+  refreshServerDensity,
+} from "./uiPreferences";
 export const sessionExpired = ref(false);
+let sessionInfoRequestId = 0;
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -143,14 +148,31 @@ export async function downloadReport(
   URL.revokeObjectURL(url);
 }
 export async function refreshSession() {
-  const r = await fetch(
-    "/api/method/temple_inventory.inventory_api.session_info",
-    { credentials: "same-origin" },
-  );
+  const requestId = ++sessionInfoRequestId;
+  const preferenceRevision = capturePreferenceRevision();
+  let r: Response;
+  try {
+    r = await fetch("/api/method/temple_inventory.inventory_api.session_info", {
+      credentials: "same-origin",
+    });
+  } catch (error) {
+    if (requestId !== sessionInfoRequestId) return;
+    throw error;
+  }
+  if (requestId !== sessionInfoRequestId) return;
   if (!r.ok) throw new Error("请先完成登录");
   const { message: d } = await r.json();
+  if (requestId !== sessionInfoRequestId) return;
   (window as any).csrf_token = d.csrf_token;
+  refreshServerDensity(
+    String(d.user || ""),
+    d.ui_preferences?.density,
+    preferenceRevision,
+  );
   sessionExpired.value = false;
+}
+export async function saveUiPreferences(density: string) {
+  return api("save_ui_preferences", { density });
 }
 export async function upload(file: File, doctype: string, docname: string) {
   const form = new FormData();

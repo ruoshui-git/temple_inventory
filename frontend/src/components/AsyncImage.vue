@@ -96,7 +96,12 @@ function handleError() {
 .async-image__skeleton {
 	position: absolute;
 	inset: 0;
-	background: linear-gradient(100deg, #eee9e1 20%, #faf8f4 40%, #eee9e1 60%);
+	background: linear-gradient(
+		100deg,
+		var(--ti-accent-soft) 20%,
+		var(--ti-surface) 40%,
+		var(--ti-accent-soft) 60%
+	);
 	background-size: 200% 100%;
 	animation: async-image-shimmer 1.25s ease-in-out infinite;
 }
@@ -105,7 +110,7 @@ function handleError() {
 	width: 100%;
 	height: 100%;
 	max-width: 100%;
-	transition: opacity 120ms ease;
+	transition: opacity var(--ti-motion-fast) ease;
 }
 .async-image--loading img {
 	opacity: 0;
@@ -118,10 +123,10 @@ function handleError() {
 	min-width: 38px;
 	min-height: 38px;
 	place-items: center;
-	padding: 6px;
-	background: #f5f1ea;
-	color: #8a8176;
-	font-size: 11px;
+	padding: var(--ti-space-1);
+	background: var(--ti-canvas);
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 	line-height: 1.2;
 	text-align: center;
 }

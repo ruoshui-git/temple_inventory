@@ -38,7 +38,7 @@ export const router = createRouter({
       component: () => import("./pages/Workspace.vue"),
     },
     { path: "/entry/:entry", component: () => import("./pages/Workspace.vue") },
-    { path: "/settings", redirect: "/warehouses" },
+    { path: "/settings", component: () => import("./pages/Settings.vue") },
     {
       path: "/history",
       redirect: (to) =>

@@ -83,11 +83,11 @@ const to = computed(() => {
 	max-width: 100%;
 	flex-wrap: wrap;
 	align-items: baseline;
-	gap: 5px;
+	gap: var(--ti-space-1);
 }
 .movement-flow-branches {
 	display: grid;
-	gap: 5px;
+	gap: var(--ti-space-1);
 }
 .movement-flow-branch {
 	display: grid;
@@ -97,18 +97,18 @@ const to = computed(() => {
 	display: inline-flex;
 	flex-wrap: wrap;
 	align-items: baseline;
-	gap: 5px;
+	gap: var(--ti-space-1);
 }
 .movement-flow-branch > small {
-	color: #756d63;
-	font-size: 11px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .movement-flow-side {
 	display: inline-flex;
 	flex-wrap: wrap;
-	gap: 4px;
+	gap: var(--ti-space-1);
 }
 .movement-flow-arrow {
-	color: #8a7a6a;
+	color: var(--ti-muted);
 }
 </style>

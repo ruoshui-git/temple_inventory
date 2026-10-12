@@ -154,6 +154,27 @@ into the ERPNext documents described above; it must not introduce parallel stock
 attachment, scanner, or audit subsystems. Store transaction attachments through
 Frappe's standard private `File` records.
 
+### Shared visual foundation
+
+Use the production tokens in `frontend/src/styles/tokens.css` for color, type,
+density, spacing, geometry, motion, and stacking order. Reusable visual
+patterns belong in shared components under `frontend/src/components/`; use
+those components before adding page-local button, badge, focus, or feedback
+styles. Add a semantic token when a visual meaning is shared, and keep tokens
+referenced by production UI rather than copying their values into new CSS.
+`DESIGN_SYSTEM.md` maps the token names, production entry points, shared
+components, and design preview gallery. Keep durable interaction decisions in
+`UI_UX_DECISIONS.md` instead of repeating them here.
+Before UI work, read `DESIGN_SYSTEM.md`; document intentional fixed-geometry
+exceptions there and check all density presets against the shared responsive
+breakpoint when changing visual behavior.
+
+The standalone `frontend/src/design-preview/` is an explicit exception: it owns
+its `preview.css` (`--p-*`) presentation and preview-local styled components so
+it can remain a faithful visual reference. Do not replace these with production
+tokens or styled shared components until preview fidelity has been reviewed and
+approved. Unstyled icons and headless utilities may be shared.
+
 ### Responsive frontend architecture
 
 Routed pages under `frontend/src/pages/` are coordinators. Feature-owned
@@ -264,13 +285,13 @@ browser tests. The user handles manual browser validation.
 Run frontend commands from `frontend/`:
 
 ```sh
-yarn test
-yarn type-check
+pnpm test
+pnpm type-check
 ```
 
-Run focused Vitest files when the change is narrow. Use `yarn type-check` when
+Run focused Vitest files when the change is narrow. Use `pnpm type-check` when
 TypeScript, Vue templates, API shapes, or component contracts change. Run
-`yarn build` only when production bundling, generated assets, routing, or Frappe
+`pnpm build` only when production bundling, generated assets, routing, or Frappe
 integration is materially affected.
 
 For backend inventory, permission, or workspace behavior, run from the bench

@@ -1,10 +1,19 @@
-# Design-system review playground
+# Standalone design review
 
-Experimental review material, not an approved design system or an agent rule.
-Production screens, backend contracts, `AGENTS.md`, and `UI_UX_DECISIONS.md` are
-unchanged. The current/proposed switches compare interaction structures; both
-are drawn using the selected candidate theme, rather than reproducing historical
-production screenshots.
+This app is an isolated visual reference and interaction gallery. Its visual
+authority is the preview at commit `7b91ff5`, restored into preview-owned
+`preview.css` and local presentation adapters. The current defaults use the
+approved jade palette, balanced density, and the existing six main destinations.
+The intentional baseline differences are the jade starting palette, removed
+hover underlines on item names, and added route mockups. Production visual
+fidelity is not approved by this gallery alone; the production migration remains
+paused pending review.
+
+The preview does not start the production app, authenticate, call APIs, install
+a service worker, or modify inventory data. Fixture-only interactions may
+simulate scanning, saving, export, and confirmation. Hash routes under
+`#review/` select sample pages and can be shared; local gallery, inventory, and
+receiving examples use `#review/local/` hashes.
 
 ## Open the preview
 
@@ -15,151 +24,119 @@ pnpm design:dev
 ```
 
 Open **http://localhost:5174/design-preview.html**. In a remote development
-container, forward port 5174 and open that forwarded origin with the same path.
-The server requires no Frappe login or backend connection.
-Opening the bare port (`http://localhost:5174/`), `/index.html`, `/inventory`,
-or an old `/login` URL redirects to the playground. Unknown routes and API
-requests return 404 instead of falling back to the production app's login flow.
-If an already-open tab shows the old login screen, reload it after the server
-restarts; logging in on ports 8000/8001 is not required for this preview.
+container, forward port 5174 and open that path on the forwarded origin. The
+server needs no Frappe login or backend connection.
 
 ```sh
-pnpm exec vitest run tests/design-preview.test.ts tests/design-preview-server.test.ts
+pnpm exec vitest run tests/design-preview.test.ts tests/design-preview-browse.test.ts tests/design-preview-forms.test.ts tests/design-preview-pages.test.ts tests/design-preview-server.test.ts
 pnpm type-check
 pnpm design:build
 ```
 
-The isolated build writes only to `/tmp/temple-inventory-design-preview`.
-It excludes the production entry, Frappe build hooks, and PWA plugins. The normal
-production build does not include the preview entry. No dependency was added.
+The isolated build writes to `/tmp/temple-inventory-design-preview` and excludes
+the production entry, Frappe build hooks, and PWA plugins. The normal production
+build does not include this preview entry.
 
-## What the source audit found
+## Visual ownership and review
 
-The pre-change scan of Vue style blocks and CSS found **305 unique literal hex
-colors**, **27 distinct font-size declarations**, and **24 border-radius
-declarations**. These counts describe source declarations, not unique rendered
-colors or computed sizes. Some component text was set to 9–11px.
+`preview.css` owns the preview palette, typography, controls, surfaces, states,
+and density behavior. Styled presentation dependencies live in
+`components/Preview*.vue`; the shared inventory icon and headless responsive
+utility and hierarchy-selection helper are the only shared dependencies allowed by the preview baseline.
+`PreviewInventory.vue` remains the canonical inventory sample for list,
+filtered, and empty states, including its image, filter, and detail interactions.
+New route mockups use fixture state from `reviewModel.ts` and are review samples,
+not claims that production routes have been visually migrated.
 
-- `src/style.css` layers older global element selectors, `.primary !important`
-  styling, page-specific overrides, and a newer `--ti-*` button foundation.
-  This makes control appearance dependent on context and cascade order.
-- Cards, navigation, browse surfaces, and forms independently specify neutrals,
-  accents, geometry, and typography. The same state has multiple visual treatments.
-- The app already has reusable interaction infrastructure: buttons, hierarchy
-  selection, quantity summaries, async images, and one 1024px responsive contract.
-  The preview reuses those production components/helpers where appropriate.
-- There were 201 native button tags and 39 `UiButton` usages. Native buttons are
-  not inherently a problem; shared appearance and behavior ownership are missing.
-- Durable UX decisions already exist, including mobile creation actions,
-  explicit confirmation, grouped locations, and optional personnel fields. The
-  proposed navigation and action grouping are candidates for explicit approval,
-  not silent supersessions of those decisions.
+Jade is the default. Other palettes and workflow proposals are explicitly
+experimental. Four-destination navigation is not an active shell option. Keep
+page mockup styles scoped to their own samples and avoid using them to imitate
+production component styling.
 
-## Review choices independently
+Manually compare the restored gallery and inventory treatments with commit
+`7b91ff5`, allowing only the listed baseline differences. Review all three
+densities at **375px**, **768px**, **1024px**, and **1440px**. Check keyboard
+focus, drawers and dialogs, overlay cleanup during hash navigation, 200% zoom,
+reduced motion, image fallback, and the six-destination navigation. Automated
+tests and builds verify behavior and route isolation; they do not establish
+visual fidelity. Record fidelity approval before reconnecting preview styles to
+production tokens or styled shared components. See the app-level
+[design-system reference](../../../DESIGN_SYSTEM.md) for production token
+ownership and the full migration audit.
 
-1. **Visual direction:** warm bronze, clear blue, or quiet jade. All use the same
-   sample content. Each has semantic color tokens, derived interaction colors,
-   a Chinese-capable local font stack, and its own control/card rounding.
-2. **Density:** compact, balanced (default), or spacious. Desktop text and
-   spacing vary; mobile body/input text stays at least 16px and touch controls
-   at least 44px. The review chrome retains its own stable sizes.
-3. **Navigation:** the existing six destinations, or four groups with warehouses
-   under 库存 and movements/loans/pending/drafts under 业务. All destinations
-   remain represented, with explicit placeholders outside the two complete demos.
-4. **Inventory actions:** retain separate icon-and-text desktop actions and the
-   mobile creation FAB, as preferred in review. Contextual desktop export is a
-   secondary action with explicit current-filter scope; the Reports destination
-   remains available. Search, scan, and filters stay direct.
-5. **Receiving form:** date stays at the top in both layouts. The preferred
-   layout adds the persistent review summary on the right (a bottom summary on
-   mobile); the original end-of-form submit remains available for comparison.
-   Both require an explicit final confirm.
+## Route and component coverage
 
-Only review choices are persisted, under `ti:design-preview:v2`. Existing v1
-theme, density, and navigation choices are retained while the revised action
-and form defaults are adopted. Fixture edits
-survive view, theme, density, pattern, and breakpoint changes for the current
-page session; a browser refresh resets sample records. Storage failures fall
-back to in-memory choices without blocking use.
+Open **完整页面与状态** below the review controls to search and select every
+sample. Each entry has a shareable hash. The retained gallery and original
+inventory reference remain at `#review/local/gallery` and
+`#review/local/inventory`; the compact receiving proposal is
+`#review/movement-form%2FReceive`.
 
-## Component and behavior coverage
+| App route / family                               | Preview renderer and review content                                                                                                                                   |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                                              | Browse: scoped dashboard, mixed-unit summaries, recent activity, drill-through                                                                                        |
+| `/stock`, `/expiry`                              | Original image-bearing inventory cards/table; expiry risk rows, conditional metadata, filters, selection, location popovers                                           |
+| `/movements/items`, `/movements/records`         | Item lines, record states, search/type/date ordering, contextual exports                                                                                              |
+| `/workspace/:name`, `/entry/:entry`              | Draft/completed detail, identity, lines, locations, attachments, continue editing; Opening read-only example                                                          |
+| `/loans/items`, `/loans/records`, `/loans/:name` | Outstanding/returned/damaged/lost examples, draft records, detail and contextual return                                                                               |
+| `/warehouses`, `/warehouses/:warehouse`          | Tree, scoped location inventory, detail/recent movements, create/edit overlays                                                                                        |
+| `/pending`, `/drafts`                            | Damaged stock with Repair/Disposal; retained drafts with continue/delete confirmation                                                                                 |
+| `/items/new`, item editing, `/item/:code`        | Editable metadata, images, stock/location/batch/history/loan detail                                                                                                   |
+| `/new/:kind`                                     | Receive, Issue, Transfer, Loan, Return, Damage, Loss, Repair, Disposal; date first, compact expandable rows, grouped locations, desktop review sidebar/mobile summary |
+| `/reconcile/new`, `/reconcile/:name`             | Counted versus book quantities, review and explicit confirmation                                                                                                      |
+| `/reports`                                       | Five report types and their filters; full filtered export review, formats, failure/retry                                                                              |
+| `/more`, `/settings`                             | Utility links and immediately applied preview-only density                                                                                                            |
+| Setup/recovery, `/auth-complete`                 | Simulated configuration and session-recovery feedback, retained draft links                                                                                           |
 
-| Area        | Review examples                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------ |
-| Foundations | Type hierarchy, numbers, palettes, spacing, radii, restrained elevation                    |
-| Controls    | Four button variants, icon button tooltip, disabled/loading/focus states                   |
-| Forms       | Text, quantity, date, select, search, textarea, checkbox, radio, inline validation         |
-| Browsing    | Tabs, hierarchy filters, removable chips, sorting, selection, cards/table                  |
-| Data        | Per-unit summaries, long labels, batch/location details, expired and missing-image records |
-| Feedback    | Loading, retained-content refresh, empty, error/retry, saved, conflict, toast              |
-| Context     | Action menu, modal/drawer, item picker, simulated scanning and attachments                 |
+Legacy `/loans`, `/movements`, and `/history` redirects map to the corresponding
+samples rather than duplicate pages. Setup and editing overlays are selectable
+states, not new production routes.
 
-The fixture reference date is **2026-10-11**, so expiry labels stay deterministic.
-The rice, oil, clothing, and container graphics are local SVG illustrations;
-missing-image samples use the production `AsyncImage` fallback. Scanning,
-uploads, saves, exports, and confirmations never use real APIs, files, or cameras.
+All operations are simulated. Confirming an operation updates a sample record;
+stock quantities and batches remain a fixed snapshot rather than an alternate
+stock engine. Item metadata and forms are editable in memory. Uploads keep
+file names only, exports show the complete filtered scope without downloading,
+and scanning accepts deterministic sample codes. Reloading resets this session;
+only preview theme/density preferences use the separate preview storage key.
 
-## Review revision: images, locations, and applicable metadata
+## Comparison checklist against `7b91ff5`
 
-- Cards and list rows use the same click/tap image viewer. Item names separately
-  open the detail sample. Missing images remain noninteractive. This is an
-  experimental preview change to the production rule that card images are inert;
-  no production UI or durable UX rule is changed in this phase.
-- Location chips show the single path or a count such as `3 个库位`. Hover/focus
-  opens the shared production popover; click pins it and mobile uses tap.
-  Its per-location available quantities sum to the item's displayed available
-  quantity. Selecting warehouse filters restricts both to the same scope.
-- Rice demonstrates two distinct batches across three locations (including one
-  batch in multiple locations). Work clothes demonstrate multiple locations
-  without batches. Cloth demonstrates batch tracking without expiry tracking.
-- Batch identifiers appear only for batch-tracked items. Expiry badges and fields
-  appear only when applicable; undated items have no generic “正常” badge.
-- The gallery now includes a 30-row editable table with expandable supplementary
-  fields and a read-only detail specimen. These test component density and visual
-  hierarchy; complete creation, item/transaction/warehouse details, and report
-  page redesigns remain a later pass.
+- Compare gallery and inventory with jade/balanced selected in both versions.
+- Body/control type, heading weight, line height, spacing, radii, surfaces, borders,
+  and overlay shadows match the restored reference CSS.
+- Text actions/navigation are transparent; fields, outlined buttons, tables and
+  intentional surfaces keep their borders. Hover colors and focus rings remain;
+  hover underlines have been removed deliberately.
+- Check missing images, image table thumbnails, location popovers, conditional
+  batch/expiry labels, selected rows, errors, loading/empty states and tooltips.
+- New page-index chrome and mockup layout proposals are intentional additions.
+  Production styles must never redefine this reference.
 
-## Manual review scenarios
+## Manual review matrix
 
-No browser automation was run. Validate these scenarios manually:
+Repeat at **compact, balanced, and spacious** density. No browser automation was run.
 
-- **375px:** all three themes and densities; no document-level horizontal scroll;
-  readable Chinese labels and inputs; four/six bottom destinations; filter drawer,
-  action menu, and review footer stay reachable. Tables may scroll within their
-  own container. Keep the browser keyboard in view when editing a quantity.
-- **768px:** gallery and inventory wrapping; labels with long names; drawer
-  dismissal; mixed-unit summary; draft and selected items retained when resizing.
-- **1024px:** desktop sidebar appears at the shared breakpoint; the filter rail
-  replaces the drawer; changing layouts preserves filters and edited quantities.
-- **1440px:** compare cards, table, form summary, type hierarchy, and whitespace
-  in all three densities. Compare current and proposed workflows independently.
-- **Keyboard:** Tab/Shift+Tab through controls, Enter/Space to activate; Escape
-  closes menus and overlays; dialog focus stays inside and returns to its trigger.
-- **Zoom/reduced motion:** 200% browser zoom without clipped operations; reduced
-  motion disables spinners/transitions without hiding loading messages.
-- **Receiving recovery:** set quantity to zero, correct it, toggle failure,
-  attempt confirmation, return to editing, disable failure and retry. Inputs
-  remain intact. Conflict pauses confirmation; completing the demo locks edits
-  until “继续编辑示例” is chosen.
-- **Locations:** inspect rice's `3 个库位` and `2 个批次`, then filter to
-  `斋堂 / A-02`: rice should show 32 available bags, one location, and one batch.
-  Work clothes have no batch/expiry chip; cloth has a batch chip but no expiry.
-- **Images:** open a card image and a list thumbnail; close with Escape and check
-  focus restoration. Open the image from the detail sample, close it, and verify
-  the detail dialog remains usable. Missing-image placeholders do not open it.
-- **Density:** edit quantities in the gallery's 30-row table, expand/collapse
-  batch fields, and switch density. Values remain intact.
+| Width  | Manual scenarios                                                                                                                                                            |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 375px  | Six mobile destinations, labeled secondary links, FAB above navigation, wrapping Chinese labels, input keyboard, scrollable tables, fixed review bar without covered fields |
+| 768px  | Mobile layout, multi-line forms, filtered lists, drawers, images and location popovers; navigate away and back to confirm retained edits                                    |
+| 1024px | Desktop breakpoint, sidebar and separate creation actions; resize across breakpoint while preserving filters/quantities                                                     |
+| 1440px | Gallery versus baseline, dashboard scope, image cards/table, detail hierarchy, compact transaction rows and persistent right review                                         |
 
-Automated checks cover preference corruption/unavailability, theme and density
-independence, responsive state retention and listener cleanup, filter totals,
-sorting/selection, menu dismissal, failed submission recovery, overlay focus and
-scroll cleanup, and palette contrast. They do not establish visual correctness
-or replace a full accessibility review.
+At every width also test 200% zoom, long Chinese names, mixed units, 30-line
+sample, keyboard Tab/Shift-Tab/Escape and focus restoration, reduced motion,
+and save/export failures followed by retry. Use the page index to review each
+layout independently. Automated checks establish behavior and isolation only;
+manual comparison determines visual fidelity and approval.
 
-## Approval gate
+## Verification for this restoration
 
-Record the chosen theme, default density, navigation grouping, inventory action
-placement, and receiving organization separately, with requested modifications.
-Revise this preview first. Only after approval should a follow-up migrate the
-app, replace ad hoc declarations with tokens, add the app-wide density preference,
-and record accepted durable decisions in `UI_UX_DECISIONS.md`.
+- 49 focused component, fixture, page-index, retained-state, validation, keyboard,
+  contrast and isolation checks passed.
+- 10 HTTP login-bypass checks passed; the running port 5174 returns 302 from `/`
+  to the preview and 200 for `/design-preview.html`.
+- TypeScript checking and the isolated preview build passed. Build output is
+  `/tmp/temple-inventory-design-preview`; generated production assets were untouched.
+- A before/after hash comparison confirmed no production source, account
+  preference, backend, or existing non-preview test changes during this round.
+- Visual comparison, viewport/zoom checks and page-design approval remain manual.

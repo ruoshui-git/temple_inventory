@@ -183,62 +183,68 @@ onBeforeUnmount(() => {
 .column-summary-backdrop {
 	position: fixed;
 	inset: 0;
-	z-index: 100;
+	z-index: var(--ti-layer-overlay);
 	display: grid;
 	place-items: center;
-	padding: 16px;
-	background: rgb(29 32 36 / 48%);
+	padding: var(--ti-space-4);
+	background: var(--ti-overlay-scrim);
 }
 .column-summary-dialog {
 	width: min(560px, 100%);
 	max-height: min(720px, 90dvh);
 	overflow: auto;
-	border-radius: 14px;
-	background: #fffdf9;
-	box-shadow: 0 20px 60px rgb(0 0 0 / 22%);
+	border-radius: var(--ti-radius-card);
+	background: var(--ti-surface);
+	box-shadow: var(--ti-shadow-overlay);
 }
 .column-summary-dialog header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 16px 18px 10px;
+	padding: var(--ti-space-4) var(--ti-space-4) var(--ti-space-2);
 	margin: 0;
 }
 .column-summary-dialog h2 {
 	margin: 0;
-	font-size: 18px;
+	font-size: var(--ti-font-section);
 }
 .column-summary-dialog header button {
-	min-width: 38px;
-	min-height: 38px;
+	min-width: var(--ti-control-height);
+	min-height: var(--ti-control-height);
 	border: 0;
-	border-radius: 8px;
+	border-radius: var(--ti-radius-control);
 	background: transparent;
-	font-size: 24px;
+	font-size: var(--ti-font-heading);
+}
+@media (max-width: 1023px) {
+	.column-summary-dialog header button {
+		min-width: var(--ti-density-control);
+		min-height: var(--ti-density-control);
+	}
 }
 .column-summary-list {
 	display: grid;
 	grid-template-columns: minmax(100px, 1fr) minmax(160px, 2fr);
 	gap: 0;
 	margin: 0;
-	padding: 0 18px 18px;
+	padding: 0 var(--ti-space-4) var(--ti-space-4);
 }
 .column-summary-list dt,
 .column-summary-list dd {
 	margin: 0;
-	padding: 12px 0;
-	border-top: 1px solid #eee8db;
+	padding: var(--ti-space-3) 0;
+	border-top: 1px solid var(--ti-accent-soft);
 }
 .column-summary-list dd {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: var(--ti-space-1);
 	text-align: right;
 }
 .column-summary-list dd small,
 .column-summary-list dd span {
-	color: #6b6257;
-	font-size: 12px;
+	color: var(--ti-muted);
+	font-size: var(--ti-font-small);
 }
 .column-summary-list dd span {
 	display: block;
@@ -248,8 +254,8 @@ onBeforeUnmount(() => {
 	font-style: normal;
 }
 .column-summary-empty {
-	padding: 18px;
-	color: #6b6257;
+	padding: var(--ti-space-4);
+	color: var(--ti-muted);
 }
 .column-summary-loading-boundary-proxy {
 	display: contents;
@@ -265,7 +271,7 @@ onBeforeUnmount(() => {
 	.column-summary-dialog {
 		width: 100%;
 		max-height: 82dvh;
-		border-radius: 16px 16px 0 0;
+		border-radius: var(--ti-radius-card) 16px 0 0;
 	}
 }
 </style>

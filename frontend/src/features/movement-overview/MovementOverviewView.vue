@@ -419,8 +419,8 @@ function onOverviewScroll(event: Event) {
 <style scoped>
 .movement-summary-groups {
 	display: grid;
-	gap: 8px;
-	padding-bottom: 10px;
+	gap: var(--ti-density-row-gap);
+	padding-bottom: var(--ti-space-2);
 }
 .overview-results-scroll {
 	min-height: 0;
@@ -435,7 +435,7 @@ function onOverviewScroll(event: Event) {
 	.overview-results-scroll {
 		flex: 1;
 		overflow: auto;
-		padding-bottom: 82px;
+		padding-bottom: var(--ti-space-8);
 	}
 }
 @media (max-width: 1023px) {
@@ -459,57 +459,58 @@ function onOverviewScroll(event: Event) {
 	}
 	.overview-mobile .mobile-browse-header {
 		flex: none;
-		padding: 10px 12px 8px;
-		background: #f8f7f4;
+		padding: var(--ti-space-2) var(--ti-space-3) var(--ti-space-2);
+		background: var(--ti-canvas);
 	}
 	.overview-mobile .overview-results-scroll {
 		min-height: 0;
 		flex: 1;
 		overflow: auto;
-		padding-bottom: calc(var(--mobile-nav-height, 0px) + 105px);
+		padding-bottom: calc(var(--mobile-nav-height, 0) + var(--ti-space-8));
 	}
 }
 .movement-summary-loading-boundary-proxy {
 	display: contents;
 }
 .movement-summary-groups h2 {
-	margin: 4px 0 6px;
-	font-size: 14px;
-	color: #6b6257;
+	margin: var(--ti-space-1) 0 var(--ti-space-1);
+	font-size: var(--ti-font-body);
+	color: var(--ti-muted);
 }
 .movement-summary-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: 8px;
+	gap: var(--ti-density-row-gap);
 }
 .movement-summary-card {
 	display: grid;
 	align-content: start;
-	gap: 5px;
+	gap: var(--ti-space-1);
 	min-width: 0;
 	min-height: 102px;
-	padding: 10px 12px;
+	padding: var(--ti-space-2) var(--ti-space-3);
 	text-align: left;
-	background: #fffaf2;
+	background: var(--ti-surface);
 }
 .movement-summary-card[aria-pressed="true"] {
-	border-color: #9b571d;
-	box-shadow: inset 0 0 0 2px #9b571d;
+	border-color: var(--ti-accent-strong);
+	outline: 2px solid var(--ti-accent-strong);
+	outline-offset: -2px;
 }
 .movement-summary-card small,
 .summary-counts,
 .summary-loading {
-	color: #6b6257;
+	color: var(--ti-muted);
 }
 .movement-summary-card strong {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 3px 9px;
+	gap: var(--ti-space-1) var(--ti-space-2);
 	font-variant-numeric: tabular-nums;
 }
 .movement-detail-values {
 	display: grid;
-	gap: 4px;
+	gap: var(--ti-space-1);
 	font-variant-numeric: tabular-nums;
 }
 .movement-item-card {
@@ -517,7 +518,7 @@ function onOverviewScroll(event: Event) {
 }
 .movement-item-card > a {
 	display: grid;
-	gap: 4px;
+	gap: var(--ti-space-1);
 }
 .movement-mobile-value {
 	display: block;

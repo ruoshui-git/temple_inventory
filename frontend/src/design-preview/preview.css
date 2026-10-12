@@ -11,14 +11,14 @@
 		"Noto Sans SC",
 		sans-serif;
 	color-scheme: light;
-	--p-canvas: #f7f5f0;
+	--p-canvas: #f4f6f3;
 	--p-surface: #fff;
-	--p-ink: #292622;
-	--p-muted: #686158;
-	--p-accent: #895024;
-	--p-accent-strong: #683a18;
-	--p-soft: #eee4d6;
-	--p-control-border: #938a7d;
+	--p-ink: #24332d;
+	--p-muted: #5e6b63;
+	--p-accent: #28684e;
+	--p-accent-strong: #194c37;
+	--p-soft: #e5eee7;
+	--p-control-border: #829288;
 	--p-border: color-mix(in srgb, var(--p-ink) 14%, white);
 	--p-success: #216444;
 	--p-success-bg: #eaf4ec;
@@ -29,8 +29,8 @@
 	--p-info: #285d89;
 	--p-info-bg: #eaf2fa;
 	--p-focus: 0 0 0 3px var(--p-surface), 0 0 0 5px var(--p-accent);
-	--p-radius-control: 10px;
-	--p-radius-card: 14px;
+	--p-radius-control: 12px;
+	--p-radius-card: 18px;
 	--p-shadow: 0 16px 48px #20261f24;
 	--p-motion: 140ms;
 	--p-z-nav: 20;
@@ -1228,8 +1228,6 @@ strong {
 .item-name:hover:not(:disabled) {
 	background: transparent;
 	color: var(--p-accent);
-	text-decoration: underline;
-	text-underline-offset: 3px;
 }
 .stock-number {
 	display: flex;
@@ -2351,4 +2349,37 @@ body:has(.preview-overlay) .preview-toast {
 		transition: none !important;
 		scroll-behavior: auto !important;
 	}
+}
+
+/* Review navigation only; never changes the approved component treatments. */
+.review-page-index {
+	padding: 16px var(--p-pad);
+	border-bottom: 1px solid var(--p-border);
+}
+.review-page-index > p {
+	font-size: var(--p-small);
+}
+.review-page-index input {
+	margin-block: 12px;
+}
+.review-index-links {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 8px;
+	max-height: 420px;
+	overflow: auto;
+	padding: 4px;
+}
+.review-index-links a {
+	padding: 8px 12px;
+	border-radius: var(--p-radius-control);
+}
+.review-index-links a:hover,
+.review-index-links a[aria-current] {
+	background: var(--p-soft);
+}
+.review-index-links small {
+	display: block;
+	color: var(--p-muted);
+	overflow-wrap: anywhere;
 }
