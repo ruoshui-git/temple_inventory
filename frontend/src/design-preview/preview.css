@@ -560,7 +560,7 @@ strong {
 	padding: 12px;
 	color: var(--p-muted);
 }
-.nav-group > button svg:last-child {
+.nav-group > button .nav-chevron {
 	margin-left: auto;
 	width: 14px;
 }
@@ -2382,4 +2382,136 @@ body:has(.preview-overlay) .preview-toast {
 	display: block;
 	color: var(--p-muted);
 	overflow-wrap: anywhere;
+}
+
+/* Composite search fields own one focus ring around the icon and input. */
+.search-box:focus-within,
+.browse-search:focus-within {
+	box-shadow: var(--p-focus);
+	border-color: var(--p-accent);
+}
+.search-box input:focus-visible,
+.browse-search input:focus-visible {
+	outline: none;
+	box-shadow: none;
+}
+.search-box input[type="search"],
+.browse-search input[type="search"] {
+	flex: 1;
+	border: 0;
+	background: transparent;
+}
+.preview-context-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: var(--p-space-3);
+}
+.preview-back {
+	margin-bottom: var(--p-space-3);
+}
+/* The copied hierarchy control owns its complete layout in the preview. */
+.hierarchy-facet header {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+	margin-bottom: var(--p-space-2);
+}
+.hierarchy-facet.hierarchy-facet-embedded {
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: transparent;
+}
+.hierarchy-facet .facet-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-1);
+	padding-bottom: var(--p-space-2);
+}
+.hierarchy-facet .facet-chips button {
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: left;
+}
+.hierarchy-facet .facet-suggestions {
+	max-height: 290px;
+	overflow: auto;
+	overscroll-behavior: contain;
+	margin-top: var(--p-space-2);
+	border-top: 1px solid var(--p-border);
+}
+.hierarchy-facet .hierarchy-list {
+	list-style: none;
+	margin: var(--p-space-1) 0;
+	padding: 0;
+}
+.hierarchy-facet .hierarchy-row,
+.hierarchy-facet .hierarchy-row label {
+	display: flex;
+	align-items: center;
+	min-height: var(--p-control);
+}
+.hierarchy-facet .hierarchy-row label {
+	flex: 1;
+	min-width: 0;
+	gap: var(--p-space-2);
+	cursor: pointer;
+}
+.hierarchy-facet .hierarchy-row label > span {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.hierarchy-facet .tree-toggle,
+.hierarchy-facet .tree-spacer {
+	flex: none;
+	width: var(--p-control);
+}
+.hierarchy-facet .tree-toggle {
+	padding: 0;
+}
+.hierarchy-facet .facet-result-count {
+	flex: none;
+	font-variant-numeric: tabular-nums;
+}
+
+.nav-leading-icon {
+	flex: 0 0 20px;
+	width: 20px;
+}
+.nav-label {
+	text-align: left;
+}
+.preview-tools-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 44px;
+	padding: 12px;
+	color: var(--p-muted);
+}
+.preview-tools-link[aria-current] {
+	background: var(--p-soft);
+	color: var(--p-accent);
+}
+.preview-item-image {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+.preview-image-detail {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.preview-image-enlarge {
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	min-height: 44px;
+	padding: 8px 12px;
+	border: 1px solid var(--p-border);
+	border-radius: 8px;
+	background: var(--p-surface);
+	color: var(--p-ink);
 }

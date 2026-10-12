@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, useId } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, useId, type CSSProperties } from "vue";
 import UiButton from "./components/PreviewUiButton.vue";
-withDefaults(defineProps<{ title: string; drawer?: boolean }>(), { drawer: false });
+withDefaults(defineProps<{ title: string; drawer?: boolean; panelStyle?: CSSProperties }>(), {
+	drawer: false,
+});
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement>();
 const titleId = useId();
@@ -78,6 +80,7 @@ onBeforeUnmount(() => {
 			<section
 				ref="panel"
 				class="preview-dialog"
+				:style="panelStyle"
 				:class="{ 'preview-drawer': drawer }"
 				role="dialog"
 				aria-modal="true"

@@ -131,3 +131,38 @@ Approval of jade does not approve new creation, detail, report, or navigation
 workflows. This round changes preview files and documentation only. Keep the
 current production migration, backend, and account preferences unchanged until
 page designs and fidelity are explicitly accepted.
+
+## Preview navigation proposal (2026-10-12)
+
+The standalone preview now explores five main destinations while production
+retains six. `navigation.ts` within the preview owns the shell and More links,
+route ownership, and Inventory sections. Movement and Loans distinguish their
+view switch from type/status filters; More no longer repeats shell subnavigation.
+Shared preview draft projections keep contextual lists and the all-drafts hub
+consistent without introducing a stock engine or production API changes.
+
+The hierarchy adapter now owns its missing list/row/scroll geometry using
+`--p-*` tokens. Composite searches put the focus ring around their outer field.
+The hierarchy's 290px scroll cap is retained from the existing control; type-tab
+rows scroll horizontally with a 44px minimum target. These are intentional
+preview geometry revisions, subject to the density and viewport review matrix
+in the preview README. They do not reconnect preview styling to production.
+
+## Preview refinement (2026-10-12)
+
+The reference now includes a shared `PreviewActivityBrowse` surface for Movement
+and Loans, typed scope/projection helpers, `PreviewPeriodFilter`, and
+`PreviewBrowseFilters`. Date controls use a pending value until Apply; hierarchy
+filters apply immediately. Quick type shortcuts and combined checkbox filters
+share one type-array state. `PreviewDashboard` covers all six production sections
+using the same fixtures and unit-aware quantities. `PreviewItemImage` declares
+its detail versus lightbox interaction explicitly. These remain preview-local
+components; no production API, styling, persistence or inventory engine changes.
+
+New deliberate geometry: a 250px bounded desktop filter rail, a 400px anchored
+date panel (viewport-clamped), an 85dvh mobile date sheet, and independent dashboard
+columns above the 1024px surface breakpoint when content is at least 760px wide.
+The 44px target minimum applies in every density. Sidebar chevron placement is
+explicit instead of relying on the last SVG child. Reports is the fifth primary
+entry; Tools is secondary. Documented interaction supersessions are recorded in
+`UI_UX_DECISIONS.md` and require manual preview review before production adoption.

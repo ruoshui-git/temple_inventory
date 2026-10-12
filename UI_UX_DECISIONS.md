@@ -61,6 +61,26 @@ in the same change. Keep implementation details in code or task notes, not here.
 
 ## Navigation and layout
 
+- **2026-10-12 preview proposal:** The standalone design pages use five primary
+  destinations: 首页, 库存, 货物流动, 借用, 更多. Inventory owns 库存列表,
+  效期批次, 仓库, and 损坏待处理, with 盘点调整 as a contextual action.
+  Inventory subnavigation appears in the desktop sidebar or mobile page, once
+  per surface. Movement and Loans each use one page-header 明细 / 记录 switch;
+  their type/status filters never double as links to the other view. Movement
+  types are single-select tabs (全部 clears the type); records separately filter
+  submitted/draft/cancelled states. Search and applicable type/sort state survive
+  view changes, and each view retains its status. More is a grouped tools,
+  preferences, and account/device hub without duplicate subnavigation. It owns
+  all drafts, while contextual draft records use the same data and editor.
+  Setup/authentication/recovery examples remain in the review index only.
+  These choices supersede six-destination navigation and multiselect movement
+  chips **in the preview only**; production adoption still awaits design review.
+  Existing route targets and preview hashes remain compatible.
+- **2026-10-12 preview controls:** Hierarchy filters have marker-free, aligned
+  rows with bounded scrolling. Composite search fields draw one focus ring around
+  the entire visible field; standalone fields and scan buttons retain their own
+  focus indicators.
+
 - **2026-10-10:** 首页 is the routed Dashboard at `/`; 库存 is the dedicated
   current-stock destination at `/stock`. The mobile bottom navigation keeps six
   direct destinations, including 首页 and 库存. Dashboard global warehouse and
@@ -496,3 +516,43 @@ in the same change. Keep implementation details in code or task notes, not here.
 - **2026-09-28:** A dedicated routed page supersedes the standalone
   drawer-over-empty-page item-creation layout; the transaction ItemPicker keeps
   its contextual drawer.
+
+- **2026-10-12 preview refinement supersession:** The preview's five primary
+  destinations are 首页、库存、货物流动、借用、报表. 工具 moves to the mobile
+  header/desktop utility area and owns drafts, preferences, installation and
+  account actions; existing 更多 hashes remain compatible. This supersedes the
+  earlier preview five-entry proposal with 更多, without changing production.
+  Sidebar leading icons and labels align independently of optional chevrons.
+- **2026-10-12 preview browsing:** 按物品 / 按记录 supersedes 明细 / 记录 in the
+  preview. Movement groups submitted lines by item with separate quantities for
+  each movement type; Loans groups positive quantities by item and outcome.
+  Groups disclose contributing records and batch/location lines. Record views
+  show one operation/loan; Movement retains all location branches and explicitly
+  distinguishes matching quantities from whole-operation quantities. Loans owns
+  settlement actions; borrowing/return events stay in Movement with linked loans.
+  Shared quick type shortcuts select one type, while advanced checkboxes combine
+  types with OR semantics; both edit the same selection and show removable chips.
+  This supersedes the preview's single-select-only movement tabs.
+- **2026-10-12 preview dates:** The persistent date trigger opens an anchored
+  desktop dialog or mobile sheet with presets and pending custom edits. Apply
+  requires both dates in order and includes both endpoints; Cancel changes
+  nothing. Loans labels this 借出日期 and shows current settlement balances, with
+  a link to borrowing/return events during that range. View changes retain scope
+  and mode-specific status/sort. Advanced hierarchy/item/activity filters and
+  contextual exports share the full filtered projection.
+- **2026-10-12 preview dashboard:** All six production sections are represented:
+  inventory, distribution, expiry, movement, outstanding loans and reminders.
+  Wide layouts stack the first three independently in the left column and the
+  last three in the right; narrow layouts follow that same reading order.
+  Warehouse/category scope applies globally; period applies only to movement.
+  Drill-through preserves scope, while ordinary primary navigation resets it.
+  Quantities stay separated by stock unit; distribution counts distinct item
+  codes and expiry counts distinct item/batch pairs across locations. No inferred
+  overdue-loan fields are added. Loading/refresh/empty/section retry examples
+  remain preview-only controls.
+- **2026-10-12 preview images:** Card images and item names open the same item
+  detail surface. A separate always-visible 查看大图 button opens the lightbox;
+  table/detail images open it directly. Missing images offer no enlargement.
+  Selection remains independent; dialogs restore focus to the initiating control.
+  This intentionally supersedes the inert-card-image rule in the preview only;
+  production interaction and visual migration remain pending review.

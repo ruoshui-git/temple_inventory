@@ -308,3 +308,15 @@
 		width: 100%;
 	}
 }
+
+.preview-utility-page .more-section + .more-section {
+	margin-top: var(--p-gap);
+}
+.preview-utility-page .more-section h2 {
+	margin-bottom: var(--p-space-3);
+}
+.preview-utility-page .more-card strong {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+}

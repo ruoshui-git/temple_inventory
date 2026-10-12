@@ -4,7 +4,9 @@ import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import { previewDate, warehouseNodes } from "./model";
-import { previewPages, reviewSession } from "./reviewModel";
+import { previewPages, reviewSession, reviewMovementRows } from "./reviewModel";
+
+import { moreNavigation } from "./navigation";
 
 const props = withDefaults(
 	defineProps<{
@@ -86,6 +88,8 @@ const state = reactive({
 	exportFormat: "CSV",
 	settingsDensity: "balanced",
 	setupChecked: false,
+	installOpen: false,
+	logoutOpen: false,
 	recovery: "idle" as "idle" | "expired" | "restored",
 });
 watch(
@@ -100,10 +104,16 @@ watch(
 watch(
 	() => props.active,
 	(active) => {
-		if (!active) state.exportOpen = false;
+		if (!active) {
+			state.exportOpen = false;
+			state.installOpen = false;
+			state.logoutOpen = false;
+		}
 	},
 );
 onDeactivated(() => {
+	state.installOpen = false;
+	state.logoutOpen = false;
 	state.exportOpen = false;
 });
 onActivated(() => {
@@ -120,7 +130,7 @@ const title = computed(
 		({
 			reports: "报表与导出",
 			"report-export": "导出范围复核",
-			more: "更多",
+			more: "工具",
 			settings: "显示偏好 · 预览",
 			setup: "配置检查 · 预览",
 			recovery: "会话恢复 · 预览",
@@ -132,7 +142,7 @@ const categoryValues = computed(() => [
 	...new Set(reviewSession.stock.map((item) => item.category)),
 ]);
 const movementRows = computed(() =>
-	reviewSession.movements.filter((row) => {
+	reviewMovementRows().filter((row) => {
 		const query = state.search.trim().toLocaleLowerCase();
 		const matchText =
 			!query ||
@@ -524,35 +534,79 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 				></PreviewOverlay
 			>
 		</template>
-		<template v-else-if="page === 'more'"
-			><section class="more-grid">
-				<button
-					v-for="route in previewPages.filter((entry) =>
-						[
-							'reports/overview',
-							'pending/actionable',
-							'drafts/open',
-							'settings/density',
-							'setup/warehouse',
-							'recovery/session',
-							'auth-complete/session',
-						].includes(entry.key),
-					)"
-					:key="route.key"
-					class="more-card surface"
-					@click="navigateByKey(route.key)"
+		<template v-else-if="page === 'more'">
+			<section v-for="group in moreNavigation" :key="group.label" class="more-section">
+				<h2>{{ group.label }}</h2>
+				<div class="more-grid">
+					<button
+						v-for="item in group.items"
+						:key="item.key"
+						class="more-card surface"
+						@click="navigateByKey(item.route)"
+					>
+						<span><InventoryIcon :name="item.icon" /></span
+						><strong
+							>{{ item.label
+							}}<span v-if="item.key === 'drafts'" class="count-dot">{{
+								reviewSession.drafts.filter((draft) => draft.status === "draft")
+									.length
+							}}</span></strong
+						>
+						<small>{{ item.description }}</small>
+					</button>
+				</div>
+			</section>
+			<section class="more-section">
+				<h2>账户与设备</h2>
+				<div class="more-grid">
+					<button class="more-card surface" @click="state.installOpen = true">
+						<span><InventoryIcon name="download" /></span
+						><strong>安装到手机 / 电脑</strong
+						><small>添加到主屏幕，方便下次打开</small>
+					</button>
+					<div class="more-card surface">
+						<strong>当前账户</strong>
+						<p>义工 · 示例账户</p>
+						<PreviewUiButton variant="danger" @click="state.logoutOpen = true"
+							>退出登录</PreviewUiButton
+						>
+					</div>
+				</div>
+			</section>
+			<PreviewOverlay
+				v-if="state.installOpen"
+				title="安装到手机 / 电脑"
+				@close="state.installOpen = false"
+			>
+				<p>
+					手机浏览器：打开分享或浏览器菜单，选择「添加到主屏幕」。电脑浏览器：使用地址栏或菜单中的「安装应用」。
+				</p>
+				<p class="muted">设计预览只展示指引；正式应用在支持的设备上提供安装。</p>
+				<template #footer
+					><PreviewUiButton @click="state.installOpen = false"
+						>知道了</PreviewUiButton
+					></template
 				>
-					<span><InventoryIcon name="adjust" /></span><strong>{{ route.label }}</strong
-					><small>{{ route.path }} · 本地预览</small></button
-				><button
-					class="more-card surface"
-					@click="emit('notify', '安装指引已在预览中打开')"
+			</PreviewOverlay>
+			<PreviewOverlay
+				v-if="state.logoutOpen"
+				title="退出登录"
+				@close="state.logoutOpen = false"
+			>
+				<p>这是退出登录的交互样本，确认后保留本次预览中的输入和草稿。</p>
+				<template #footer
+					><PreviewUiButton @click="state.logoutOpen = false">取消</PreviewUiButton
+					><PreviewUiButton
+						variant="danger"
+						@click="
+							state.logoutOpen = false;
+							emit('notify', '已模拟退出登录，预览数据仍保留');
+						"
+						>确认退出</PreviewUiButton
+					></template
 				>
-					<span><InventoryIcon name="download" /></span><strong>安装到设备</strong
-					><small>显示安装引导样本</small>
-				</button>
-			</section></template
-		>
+			</PreviewOverlay>
+		</template>
 		<template v-else-if="page === 'settings'"
 			><section class="surface utility-panel">
 				<h2>显示密度</h2>

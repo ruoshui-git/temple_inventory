@@ -2,11 +2,16 @@
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewQuantitySummary from "./components/PreviewQuantitySummary.vue";
-import PreviewProduct from "./PreviewProduct.vue";
+import PreviewActivityBrowse from "./PreviewActivityBrowse.vue";
+import PreviewDashboard from "./PreviewDashboard.vue";
+import { emptyScope, matchesItem, matchesWarehouse } from "./browseModel";
+import { expiryBucket, expiryBuckets } from "./dashboardModel";
+import PreviewItemImage from "./PreviewItemImage.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import {
 	createDraft,
+	reviewMovementRows,
 	getPreviewPage,
 	reviewSession,
 	type PreviewPage,
@@ -25,7 +30,20 @@ const emit = defineEmits<{
 }>();
 
 const page = computed(() => getPreviewPage(props.route)!);
-const title = computed(() => page.value.label);
+const isMovementDetail = computed(
+	() =>
+		page.value.page === "movement-records" &&
+		["detail", "selected", "opening", "workspace-detail", "entry-detail"].includes(
+			page.value.variant,
+		),
+);
+const title = computed(() => {
+	if (isMovementDetail.value) return "操作详情";
+	if (["movement-items", "movement-records"].includes(page.value.page)) return "货物流动";
+	if (["loan-items", "loan-records"].includes(page.value.page)) return "借用";
+	return page.value.label;
+});
+const allMovements = computed(() => reviewMovementRows());
 const search = computed({
 	get() {
 		const family = page.value.page;
@@ -33,9 +51,9 @@ const search = computed({
 		if (family === "inventory") return reviewSession.filters.inventory.search;
 		if (family === "expiry") return reviewSession.filters.expiry.search;
 		if (family === "movement-items") return reviewSession.filters.movementItems.search;
-		if (family === "movement-records") return reviewSession.filters.movementRecords.search;
+		if (family === "movement-records") return reviewSession.filters.movementItems.search;
 		if (family === "loan-items") return reviewSession.filters.loanItems.search;
-		if (family === "loan-records") return reviewSession.filters.loanRecords.search;
+		if (family === "loan-records") return reviewSession.filters.loanItems.search;
 		if (family === "pending") return reviewSession.filters.pending.search;
 		if (family === "drafts") return reviewSession.filters.drafts.search;
 		return "";
@@ -47,9 +65,9 @@ const search = computed({
 		if (family === "inventory") reviewSession.filters.inventory.search = value;
 		if (family === "expiry") reviewSession.filters.expiry.search = value;
 		if (family === "movement-items") reviewSession.filters.movementItems.search = value;
-		if (family === "movement-records") reviewSession.filters.movementRecords.search = value;
+		if (family === "movement-records") reviewSession.filters.movementItems.search = value;
 		if (family === "loan-items") reviewSession.filters.loanItems.search = value;
-		if (family === "loan-records") reviewSession.filters.loanRecords.search = value;
+		if (family === "loan-records") reviewSession.filters.loanItems.search = value;
 		if (family === "pending") reviewSession.filters.pending.search = value;
 		if (family === "drafts") reviewSession.filters.drafts.search = value;
 	},
@@ -72,18 +90,9 @@ const exportRows = computed(() =>
 				(row) =>
 					`${row.item.name} · ${row.id} · ${row.available} ${row.item.uom} · ${row.location}`,
 			)
-		: page.value.page.startsWith("movement")
-			? visibleMovements.value.map(
-					(row) => `${row.name} · ${row.itemName} · ${row.qty} ${row.uom}`,
-				)
-			: page.value.page.startsWith("loan")
-				? loanRows.value.map(
-						(row) => `${row.name} · ${row.borrower} · ${formatStatus(row.status)}`,
-					)
-				: warehouseStock(reviewSession.selectedWarehouse).map(
-						({ item, row }) =>
-							`${item.name} · ${row.location} · ${row.available} ${item.uom}`,
-					),
+		: warehouseStock(reviewSession.selectedWarehouse).map(
+				({ item, row }) => `${item.name} · ${row.location} · ${row.available} ${item.uom}`,
+			),
 );
 function quickExport() {
 	if (quickExportFailed.value) quickExportFailed.value = false;
@@ -130,7 +139,7 @@ const expiryRows = computed(() => {
 				)
 			: [],
 	);
-	return rows.filter((row) => {
+	const filtered = rows.filter((row) => {
 		const expired = !!row.expiry && row.expiry < "2026-10-11";
 		const days = row.expiry
 			? Math.ceil(
@@ -148,110 +157,41 @@ const expiryRows = computed(() => {
 		const query = search.value.trim().toLocaleLowerCase();
 		return (
 			matchesStatus &&
+			(!reviewSession.filters.expiry.inStock || row.available > 0) &&
+			matchesItem(row.item.code, reviewSession.filters.expiry.scope, reviewSession) &&
+			matchesWarehouse(
+				row.location,
+				reviewSession.filters.expiry.scope.warehouses,
+				reviewSession,
+			) &&
+			(!reviewSession.filters.expiry.bucket ||
+				expiryBucket(row.expiry) === reviewSession.filters.expiry.bucket) &&
 			(!query ||
 				`${row.item.name} ${row.item.code} ${row.id} ${row.location}`
 					.toLocaleLowerCase()
 					.includes(query))
 		);
-	});
+ });
+ const grouped = new Map<string, typeof rows[number]>();
+ filtered.forEach(row => {
+  const key = `${row.item.code}:${row.id}`;
+  const previous = grouped.get(key);
+  grouped.set(key, previous ? {...previous, available: previous.available + row.available, location: `${previous.location}、${row.location}`} : {...row});
+ });
+ return [...grouped.values()];
 });
-const movementSort = ref("newest");
-const movementItems = computed(() =>
-	reviewSession.movements.filter(
+const pendingRows = computed(() =>
+	reviewSession.pending.filter(
 		(row) =>
-			row.docstatus === 1 &&
-			(!reviewSession.filters.movementItems.kind ||
-				row.kind === reviewSession.filters.movementItems.kind) &&
-			`${row.itemName} ${row.code} ${row.kind} ${row.from} ${row.to}`
+			matchesItem(row.code || "", reviewSession.filters.pending.scope, reviewSession) &&
+			matchesWarehouse(
+				row.location,
+				reviewSession.filters.pending.scope.warehouses,
+				reviewSession,
+			) &&
+			`${row.title} ${row.detail} ${row.location} ${row.code}`
 				.toLocaleLowerCase()
 				.includes(search.value.trim().toLocaleLowerCase()),
-	),
-);
-const visibleMovements = computed(() =>
-	[
-		...(page.value.page === "movement-items"
-			? movementItems.value
-			: [...new Map(movementRecords.value.map((row) => [row.name, row])).values()]),
-	].sort((a, b) =>
-		movementSort.value === "oldest"
-			? a.date.localeCompare(b.date)
-			: b.date.localeCompare(a.date),
-	),
-);
-const movementRecords = computed(() =>
-	reviewSession.movements.filter((row) => {
-		const status =
-			row.docstatus === 0 ? "draft" : row.docstatus === 1 ? "completed" : "cancelled";
-		const wanted = [
-			"detail",
-			"selected",
-			"opening",
-			"workspace-detail",
-			"entry-detail",
-		].includes(page.value.variant)
-			? "all"
-			: page.value.variant;
-		return (
-			(page.value.variant === "selected"
-				? row.name === reviewSession.selectedMovementName
-				: page.value.variant === "opening"
-					? row.kind === "Opening"
-					: page.value.variant === "workspace-detail"
-						? row.name === "PREV-WORKSPACE-001"
-						: page.value.variant === "entry-detail"
-							? row.name === "PREV-ENTRY-001"
-							: wanted === "all" || status === wanted) &&
-			`${row.name} ${row.kind} ${row.itemName} ${row.code}`
-				.toLocaleLowerCase()
-				.includes(search.value.trim().toLocaleLowerCase())
-		);
-	}),
-);
-const loanRows = computed(() =>
-	(page.value.page === "loan-records" && page.value.variant === "draft"
-		? reviewSession.drafts
-				.filter((draft) => draft.kind === "Loan" && draft.status === "draft")
-				.map((draft) => ({
-					name: draft.name,
-					borrower: draft.borrower,
-					activity: draft.activity,
-					loanDate: draft.postingDate,
-					status: "draft" as const,
-					lines: draft.lines.map((line) => ({
-						code: line.code,
-						qty: line.qty,
-						returned: 0,
-						damaged: 0,
-						lost: 0,
-					})),
-				}))
-		: reviewSession.loans
-	).filter((row) => {
-		const wanted =
-			page.value.page === "loan-items"
-				? page.value.variant
-				: page.value.variant === "open"
-					? "outstanding"
-					: page.value.variant === "settled"
-						? "returned"
-						: page.value.variant;
-		return (
-			(page.value.variant === "detail" ||
-				wanted === "all" ||
-				(page.value.variant === "settled"
-					? ["returned", "damaged", "lost"].includes(row.status)
-					: row.status === wanted)) &&
-			`${row.name} ${row.borrower} ${row.activity} ${row.lines.map((line) => `${line.code} ${reviewSession.stock.find((item) => item.code === line.code)?.name || ""}`).join(" ")}`
-				.toLocaleLowerCase()
-				.includes(search.value.trim().toLocaleLowerCase())
-		);
-	}),
-);
-const pendingRows = computed(() =>
-	reviewSession.pending.filter((row) =>
-		`${row.title} ${row.detail} ${row.location} ${row.code}`
-			.toLocaleLowerCase()
-			.includes(search.value.trim().toLocaleLowerCase()),
 	),
 );
 const draftRows = computed(() =>
@@ -264,10 +204,7 @@ const draftRows = computed(() =>
 	),
 );
 const itemMovements = computed(() =>
-	reviewSession.movements.filter((row) => row.code === activeItem.value.code),
-);
-const recentMovements = computed(() =>
-	[...reviewSession.movements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4),
+	allMovements.value.filter((row) => row.code === activeItem.value.code),
 );
 const warehouseRows = computed(() =>
 	reviewSession.warehouses.filter(
@@ -287,12 +224,9 @@ const currentMovement = computed(() => {
 				: page.value.variant === "entry-detail"
 					? "PREV-ENTRY-001"
 					: page.value.variant === "selected"
-						? reviewSession.selectedMovementName
+						? reviewSession.selectedMovementName || "PREV-MOV-001"
 						: "PREV-MOV-004";
-	return (
-		reviewSession.movements.find((row) => row.name === selectedName) ||
-		reviewSession.movements[0]
-	);
+	return allMovements.value.find((row) => row.name === selectedName);
 });
 const currentLoan = computed(() => {
 	if (page.value.variant === "selected")
@@ -312,76 +246,11 @@ const currentLoan = computed(() => {
 		) || reviewSession.loans[0]
 	);
 });
-const dashboardItems = computed(() =>
-	reviewSession.stock.filter((item) => {
-		const { category, warehouse } = reviewSession.filters.dashboard;
-		return (
-			(!category || item.category === category) &&
-			(!warehouse || item.locations.some((row) => row.location === warehouse))
-		);
-	}),
-);
-function quantitiesByUnit(
-	rows: typeof reviewSession.stock,
-	field: "available" | "loaned" | "damaged",
-) {
-	const totals = new Map<string, number>();
-	rows.forEach((item) => {
-		const scope = reviewSession.filters.dashboard.warehouse;
-		const qty = scope
-			? item.locations
-					.filter((row) => row.location === scope)
-					.reduce((sum, row) => sum + row[field], 0)
-			: item[field];
-		totals.set(item.uom, (totals.get(item.uom) || 0) + qty);
-	});
-	return [...totals].map(([uom, qty]) => ({ uom, qty }));
-}
-const dashboardMetrics = computed(() => [
-	{
-		key: "item",
-		label: "物品种类",
-		quantities: [{ uom: "种", qty: dashboardItems.value.length }],
-		icon: "box",
-	},
-	{
-		key: "stock",
-		label: "可用库存",
-		quantities: quantitiesByUnit(dashboardItems.value, "available"),
-		icon: "total",
-	},
-	{
-		key: "loan",
-		label: "全库未归还借用",
-		quantities: [
-			{
-				uom: "笔",
-				qty: reviewSession.loans.filter((row) => row.status === "outstanding").length,
-			},
-		],
-		icon: "loan",
-		tone: "warning",
-	},
-	{
-		key: "damaged",
-		label: "损坏待处理",
-		quantities: quantitiesByUnit(dashboardItems.value, "damaged"),
-		icon: "alert",
-		tone: "danger",
-	},
-]);
-function recordQuantities(name: string) {
-	const units = new Map<string, number>();
-	reviewSession.movements
-		.filter((row) => row.name === name)
-		.forEach((row) => units.set(row.uom, (units.get(row.uom) || 0) + row.qty));
-	return [...units].map(([unit, qty]) => `${qty} ${unit}`).join(" · ");
-}
 const movementKindLabels: Record<string, string> = {
 	Opening: "期初",
 	Receive: "入库",
-	Issue: "领用",
-	Transfer: "调拨",
+	Issue: "出库",
+	Transfer: "转移",
 	Loan: "借出",
 	Return: "归还",
 	Damage: "损坏",
@@ -404,8 +273,10 @@ function openItem(code: string, variant = "overview") {
 	go("item-detail", variant);
 }
 function openMovement(name: string) {
+	const draft = reviewSession.drafts.find((row) => row.name === name && row.status === "draft");
+	if (draft) return continueDraft(draft);
 	reviewSession.selectedItemCode =
-		reviewSession.movements.find((row) => row.name === name)?.code || activeItem.value.code;
+		allMovements.value.find((row) => row.name === name)?.code || activeItem.value.code;
 	reviewSession.selectedMovementName = name;
 	go("movement-records", "selected");
 }
@@ -413,7 +284,9 @@ function openLoan(name: string) {
 	const loan = reviewSession.loans.find((row) => row.name === name);
 	if (
 		loan?.status === "draft" ||
-		reviewSession.drafts.some((row) => row.name === name && row.kind === "Loan")
+		reviewSession.drafts.some(
+			(row) => row.name === name && row.kind === "Loan" && row.status === "draft",
+		)
 	) {
 		reviewSession.selectedDraftName = name;
 		go("movement-form", "Loan");
@@ -460,21 +333,25 @@ function createLoanReturn(loanName: string, damaged = false) {
 	draft.borrower = loan.borrower;
 	draft.activity = loan.activity;
 	if (!draft.lines.length) {
-		draft.lines = loan.lines.map((line, index) => {
-			const item = reviewSession.stock.find((row) => row.code === line.code);
-			const location =
-				item?.locations.find((row) => row.loaned > 0)?.location ||
-				item?.locations[0]?.location ||
-				"";
-			return {
-				id: `${kind.toLocaleLowerCase()}-${loan.name}-${index + 1}`,
-				code: line.code,
-				qty: Math.max(0, line.qty - line.returned - line.damaged - line.lost),
-				uom: item?.uom || "件",
-				location,
-				sourceLocation: location,
-			};
-		});
+		draft.lines = loan.lines
+			.filter((line) => line.qty > line.returned + line.damaged + line.lost)
+			.map((line, index) => {
+				const item = reviewSession.stock.find((row) => row.code === line.code);
+				const location =
+					line.location ||
+					item?.locations.find((row) => row.loaned > 0)?.location ||
+					item?.locations[0]?.location ||
+					"";
+				return {
+					id: `${kind.toLocaleLowerCase()}-${loan.name}-${index + 1}`,
+					code: line.code,
+					qty: Math.max(0, line.qty - line.returned - line.damaged - line.lost),
+					uom: item?.uom || "件",
+					location,
+					sourceLocation: location,
+					batch: line.batch,
+				};
+			});
 	}
 	reviewSession.selectedDraftName = draft.name;
 	go("movement-form", kind);
@@ -486,20 +363,12 @@ function continueDraft(draft: ReviewDraft) {
 	go("movement-form", draft.kind);
 }
 function editMovement() {
-	const row = currentMovement.value;
-	const draft = createDraft(row.kind as OperationKind, row.name);
-	if (!draft.lines.length)
-		draft.lines.push({
-			id: row.name + "-1",
-			code: row.code,
-			qty: row.qty,
-			uom: row.uom,
-			sourceLocation: row.from,
-			location: row.to,
-		});
-	reviewSession.selectedDraftName = draft.name;
-	go("movement-form", row.kind);
+	const draft = reviewSession.drafts.find(
+		(row) => row.name === currentMovement.value?.name && row.status === "draft",
+	);
+	if (draft) continueDraft(draft);
 }
+
 function deleteDraft() {
 	const draft = reviewSession.drafts.find((row) => row.name === showDelete.value);
 	if (draft) reviewSession.drafts.splice(reviewSession.drafts.indexOf(draft), 1);
@@ -633,16 +502,7 @@ onActivated(() => {
 			</div>
 			<div class="browse-heading-actions">
 				<PreviewUiButton
-					v-if="
-						[
-							'expiry',
-							'movement-items',
-							'movement-records',
-							'loan-items',
-							'loan-records',
-							'warehouse-detail',
-						].includes(page.page)
-					"
+					v-if="['expiry', 'warehouse-detail'].includes(page.page)"
 					icon="download"
 					@click="quickExportOpen = true"
 					>快速导出</PreviewUiButton
@@ -684,108 +544,46 @@ onActivated(() => {
 			</div>
 		</header>
 
-		<template v-if="page.page === 'dashboard'">
-			<div class="browse-toolbar browse-dashboard-filters" aria-label="总览范围">
-				<label
-					>类别<select v-model="reviewSession.filters.dashboard.category">
-						<option value="">全部类别</option>
-						<option
-							v-for="value in [
-								...new Set(reviewSession.stock.map((item) => item.category)),
-							]"
-							:key="value"
-							:value="value"
-						>
-							{{ value }}
-						</option>
-					</select></label
-				>
-				<label
-					>库位<select v-model="reviewSession.filters.dashboard.warehouse">
-						<option value="">全部库位</option>
-						<option
-							v-for="row in reviewSession.warehouses.filter(
-								(item) => !item.is_group,
-							)"
-							:key="row.name"
-							:value="row.name"
-						>
-							{{ row.label }}
-						</option>
-					</select></label
-				>
-				<span class="browse-result-count"
-					>当前范围 {{ dashboardItems.length }} 种物品</span
-				>
-			</div>
-			<PreviewQuantitySummary label="库存总览" :metrics="dashboardMetrics" />
-			<div class="browse-grid browse-grid--two">
-				<article class="browse-card">
-					<div class="browse-card-heading">
-						<div>
-							<span class="eyebrow">STOCK</span>
-							<h2>库存一览</h2>
-						</div>
-						<button class="browse-link" @click="go('inventory', 'list')">
-							查看库存 <InventoryIcon name="open" />
-						</button>
-					</div>
-					<div class="browse-rank-list">
-						<button
-							v-for="item in dashboardItems.slice(0, 4)"
-							:key="item.code"
-							class="browse-rank-row"
-							@click="openItem(item.code)"
-						>
-							<span class="browse-item-symbol"><InventoryIcon name="box" /></span
-							><span class="browse-grow"
-								><strong>{{ item.name }}</strong
-								><small>{{ item.code }} · {{ item.category }}</small></span
-							><b
-								>{{ item.available }} <small>{{ item.uom }}</small></b
-							>
-						</button>
-					</div>
-				</article>
-				<article class="browse-card">
-					<div class="browse-card-heading">
-						<div>
-							<span class="eyebrow">RECENT ACTIVITY</span>
-							<h2>最近流动</h2>
-						</div>
-						<button class="browse-link" @click="go('movement-records', 'completed')">
-							全部记录 <InventoryIcon name="open" />
-						</button>
-					</div>
-					<div class="browse-rank-list">
-						<button
-							v-for="row in recentMovements"
-							:key="row.name"
-							class="browse-rank-row"
-							@click="openMovement(row.name)"
-						>
-							<span class="browse-kind-icon"><InventoryIcon name="movement" /></span
-							><span class="browse-grow"
-								><strong>{{ movementLabel(row.kind) }} · {{ row.itemName }}</strong
-								><small>{{ row.date }} · {{ row.name }}</small></span
-							><b>{{ row.qty }} {{ row.uom }}</b>
-						</button>
-					</div>
-				</article>
-				<button class="browse-action-card" @click="go('expiry', 'soon')">
-					<span><InventoryIcon name="table" /></span><strong>效期批次</strong
-					><small>查看即将到期与过期批次</small
-					><b>{{ expiryRows.length }} 个批次 <InventoryIcon name="open" /></b>
-				</button>
-				<button class="browse-action-card" @click="go('pending', 'actionable')">
-					<span class="danger"><InventoryIcon name="warning" /></span
-					><strong>待处理损坏库存</strong><small>选择修复归库或正式报废</small
-					><b>{{ reviewSession.pending.length }} 条记录 <InventoryIcon name="open" /></b>
-				</button>
-			</div>
-		</template>
+		<PreviewDashboard
+			v-if="page.page === 'dashboard'"
+			@navigate="go"
+			@movement="openMovement"
+			@loan="openLoan"
+		/>
 
 		<template v-else-if="page.page === 'expiry'">
+			<div
+				v-if="
+					reviewSession.filters.expiry.scope.categories.length ||
+					reviewSession.filters.expiry.scope.warehouses.length ||
+					reviewSession.filters.expiry.bucket ||
+					reviewSession.filters.expiry.inStock
+				"
+				class="preview-active-filters"
+			>
+				<span
+					>总览范围：{{ reviewSession.filters.expiry.inStock ? "仅有库存批次 · " : ""
+					}}{{
+						[
+							...reviewSession.filters.expiry.scope.categories,
+							...reviewSession.filters.expiry.scope.warehouses,
+						].join(" · ")
+					}}
+					{{
+						expiryBuckets.find(
+							(bucket) => bucket.key === reviewSession.filters.expiry.bucket,
+						)?.label
+					}}</span
+				><button
+					@click="
+						reviewSession.filters.expiry.scope = emptyScope();
+						reviewSession.filters.expiry.bucket = '';
+						reviewSession.filters.expiry.inStock = false;
+					"
+				>
+					清除总览范围
+				</button>
+			</div>
 			<nav class="browse-tabs" aria-label="效期筛选">
 				<button
 					v-for="tab in [
@@ -868,141 +666,17 @@ onActivated(() => {
 		</template>
 
 		<template v-else-if="page.page === 'movement-items' || page.page === 'movement-records'">
-			<nav
-				v-if="page.page === 'movement-items'"
-				class="browse-tabs"
-				aria-label="货物流动视图"
-			>
-				<button :aria-current="page.page === 'movement-items' ? 'page' : undefined">
-					按物品</button
-				><button @click="go('movement-records', 'completed')">按记录</button>
-			</nav>
-			<nav v-else class="browse-tabs" aria-label="流动记录状态">
-				<button
-					v-for="tab in [
-						{ key: 'completed', label: '已提交' },
-						{ key: 'draft', label: '草稿' },
-						{ key: 'cancelled', label: '已取消' },
-					]"
-					:key="tab.key"
-					:aria-current="page.variant === tab.key ? 'page' : undefined"
-					@click="go('movement-records', tab.key)"
-				>
-					{{ tab.label }}
-				</button>
-			</nav>
-			<div class="browse-toolbar">
-				<label class="browse-search"
-					><InventoryIcon name="search" /><input
-						v-model="search"
-						type="search"
-						placeholder="搜索物品、单号或操作类型" /></label
-				><select
-					v-if="page.page === 'movement-items'"
-					v-model="reviewSession.filters.movementItems.kind"
-					aria-label="筛选流动类型"
-				>
-					<option value="">全部类型</option>
-					<option
-						v-for="kind in ['Receive', 'Issue', 'Transfer', 'Loan', 'Return']"
-						:key="kind"
-						:value="kind"
-					>
-						{{ movementLabel(kind) }}
-					</option></select
-				><select v-model="movementSort" aria-label="流动日期排序">
-					<option value="newest">日期由新到旧</option>
-					<option value="oldest">日期由旧到新</option></select
-				><span class="browse-result-count"
-					>{{
-						page.page === "movement-items"
-							? movementItems.length
-							: movementRecords.length
-					}}
-					条</span
-				>
-			</div>
-			<div class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>记录</th>
-							<th>类型</th>
-							<th>日期</th>
-							<th>流向</th>
-							<th>数量</th>
-							<th>状态</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="(row, index) in visibleMovements" :key="row.name + row.code">
-							<td>
-								<button class="browse-row-link" @click="openMovement(row.name)">
-									<strong>{{
-										page.page === "movement-records" ? row.name : row.itemName
-									}}</strong
-									><small>{{
-										page.page === "movement-records"
-											? `${reviewSession.movements.filter((line) => line.name === row.name).length} 行物品 · ${row.itemName}`
-											: `${row.name} · ${row.code}`
-									}}</small>
-								</button>
-							</td>
-							<td>{{ movementLabel(row.kind) }}</td>
-							<td>{{ row.date }}</td>
-							<td>{{ row.from }} → {{ row.to }}</td>
-							<td>
-								{{
-									page.page === "movement-records"
-										? recordQuantities(row.name)
-										: `${row.qty} ${row.uom}`
-								}}
-							</td>
-							<td>
-								<span
-									class="browse-badge"
-									:class="
-										row.docstatus === 1
-											? 'is-success'
-											: row.docstatus === 2
-												? 'is-neutral'
-												: 'is-warning'
-									"
-									>{{
-										formatStatus(
-											row.docstatus === 1
-												? "completed"
-												: row.docstatus === 2
-													? "cancelled"
-													: "draft",
-										)
-									}}</span
-								>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-				<div
-					v-if="
-						!(page.page === 'movement-items'
-							? movementItems.length
-							: movementRecords.length)
-					"
-					class="browse-empty compact"
-				>
-					<h2>没有找到记录</h2>
-					<p>试试其他搜索词或状态。</p>
-				</div>
-			</div>
-			<article
-				v-if="
-					page.page === 'movement-records' &&
-					['detail', 'selected', 'opening', 'workspace-detail', 'entry-detail'].includes(
-						page.variant,
-					)
-				"
-				class="browse-detail-card"
-			>
+			<PreviewActivityBrowse
+				v-if="!isMovementDetail"
+				family="movement"
+				:records="page.page === 'movement-records'"
+				:variant="page.variant"
+				@navigate="go"
+				@movement="openMovement"
+				@loan="openLoan"
+				@notify="emit('notify', $event)"
+			/>
+			<article v-if="isMovementDetail && currentMovement" class="browse-detail-card">
 				<div class="browse-card-heading">
 					<div>
 						<span class="eyebrow">{{ currentMovement.name }}</span>
@@ -1046,10 +720,15 @@ onActivated(() => {
 						<dd>{{ currentMovement.activity || "—" }}</dd>
 					</div>
 				</dl>
+				<PreviewUiButton
+					v-if="currentMovement.loanName"
+					@click="openLoan(currentMovement.loanName)"
+					>查看借用与处理</PreviewUiButton
+				>
 				<h2>操作明细</h2>
 				<div
-					v-for="(line, index) in reviewSession.movements.filter(
-						(row) => row.name === currentMovement.name,
+					v-for="(line, index) in allMovements.filter(
+						(row) => row.name === currentMovement?.name,
 					)"
 					:key="index"
 					class="browse-rank-row"
@@ -1061,7 +740,7 @@ onActivated(() => {
 				<p class="browse-note">
 					{{
 						reviewSession.drafts
-							.find((row) => row.name === currentMovement.name)
+							.find((row) => row.name === currentMovement?.name)
 							?.attachments?.join("、") || "暂无附件"
 					}}
 				</p>
@@ -1078,6 +757,14 @@ onActivated(() => {
 					}}
 				</p>
 			</article>
+			<div v-else-if="isMovementDetail" class="browse-empty">
+				<h2>这条记录已不存在</h2>
+				<p>草稿可能已删除，请返回记录列表查看。</p>
+				<PreviewUiButton
+					@click="go('movement-records', reviewSession.filters.movementRecords.status)"
+					>返回记录列表</PreviewUiButton
+				>
+			</div>
 		</template>
 
 		<template
@@ -1087,144 +774,17 @@ onActivated(() => {
 				page.page === 'loan-detail'
 			"
 		>
-			<nav v-if="page.page === 'loan-items'" class="browse-tabs" aria-label="借用明细状态">
-				<button
-					v-for="tab in [
-						{ key: 'outstanding', label: '待归还' },
-						{ key: 'returned', label: '已归还' },
-						{ key: 'damaged', label: '损坏' },
-						{ key: 'lost', label: '遗失' },
-					]"
-					:key="tab.key"
-					:aria-current="page.variant === tab.key ? 'page' : undefined"
-					@click="go('loan-items', tab.key)"
-				>
-					{{ tab.label }}</button
-				><button @click="go('loan-records', 'open')">借用记录</button>
-			</nav>
-			<nav
-				v-else-if="page.page === 'loan-records'"
-				class="browse-tabs"
-				aria-label="借用记录状态"
-			>
-				<button
-					v-for="tab in [
-						{ key: 'open', label: '未结清' },
-						{ key: 'settled', label: '已结清' },
-						{ key: 'draft', label: '草稿' },
-					]"
-					:key="tab.key"
-					:aria-current="page.variant === tab.key ? 'page' : undefined"
-					@click="go('loan-records', tab.key)"
-				>
-					{{ tab.label }}</button
-				><button @click="go('loan-items', 'outstanding')">借用明细</button>
-			</nav>
-			<div v-if="page.page !== 'loan-detail'" class="browse-toolbar">
-				<label class="browse-search"
-					><InventoryIcon name="search" /><input
-						v-model="search"
-						type="search"
-						placeholder="搜索借用人、活动或物品" /></label
-				><span class="browse-result-count">{{ loanRows.length }} 笔借用</span>
-			</div>
-			<div v-if="page.page === 'loan-items'" class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>物品</th>
-							<th>借用人 / 记录</th>
-							<th>借出</th>
-							<th>已归还</th>
-							<th>损坏 / 遗失</th>
-							<th>操作</th>
-						</tr>
-					</thead>
-					<tbody>
-						<template v-for="loan in loanRows" :key="loan.name"
-							><tr v-for="line in loan.lines" :key="line.code">
-								<td>
-									<button class="browse-row-link" @click="openItem(line.code)">
-										{{
-											reviewSession.stock.find(
-												(item) => item.code === line.code,
-											)?.name
-										}}
-									</button>
-								</td>
-								<td>
-									<button class="browse-row-link" @click="openLoan(loan.name)">
-										{{ loan.borrower }}<small>{{ loan.name }}</small>
-									</button>
-								</td>
-								<td>
-									{{ line.qty }}
-									{{
-										reviewSession.stock.find((item) => item.code === line.code)
-											?.uom
-									}}
-								</td>
-								<td>{{ line.returned }}</td>
-								<td>{{ line.damaged }} / {{ line.lost }}</td>
-								<td>
-									<PreviewUiButton
-										v-if="loan.status === 'outstanding'"
-										@click="createLoanReturn(loan.name)"
-										>登记归还</PreviewUiButton
-									><span v-else>{{ formatStatus(loan.status) }}</span>
-								</td>
-							</tr></template
-						>
-					</tbody>
-				</table>
-			</div>
-			<div v-if="page.page === 'loan-records'" class="browse-grid browse-grid--two">
-				<article
-					v-for="loan in loanRows"
-					:key="loan.name"
-					class="browse-card browse-loan-card"
-				>
-					<button class="browse-card-main" @click="openLoan(loan.name)">
-						<div class="browse-card-heading">
-							<div>
-								<span class="eyebrow">{{ loan.name }} · {{ loan.loanDate }}</span>
-								<h2>{{ loan.borrower }}</h2>
-							</div>
-							<span
-								class="browse-badge"
-								:class="
-									loan.status === 'outstanding'
-										? 'is-warning'
-										: loan.status === 'returned'
-											? 'is-success'
-											: 'is-danger'
-								"
-								>{{ formatStatus(loan.status) }}</span
-							>
-						</div>
-						<p class="muted">{{ loan.activity || "未填写活动" }}</p>
-						<div v-for="line in loan.lines" :key="line.code" class="browse-loan-line">
-							<strong>{{
-								reviewSession.stock.find((item) => item.code === line.code)
-									?.name || line.code
-							}}</strong
-							><span
-								>{{ line.qty }}
-								{{
-									reviewSession.stock.find((item) => item.code === line.code)
-										?.uom
-								}}
-								· 已归还 {{ line.returned }} · 损坏 {{ line.damaged }} · 遗失
-								{{ line.lost }}</span
-							>
-						</div>
-					</button>
-					<div class="browse-card-footer">
-						<span>借出日期 {{ loan.loanDate }}</span
-						><button class="browse-link" @click="openLoan(loan.name)">查看记录</button>
-					</div>
-				</article>
-			</div>
+			<PreviewActivityBrowse
+				v-if="page.page !== 'loan-detail'"
+				family="loan"
+				:records="page.page === 'loan-records'"
+				:variant="page.variant"
+				@navigate="go"
+				@movement="openMovement"
+				@loan="openLoan"
+				@return="createLoanReturn"
+				@notify="emit('notify', $event)"
+			/>
 			<article v-if="page.page === 'loan-detail'" class="browse-detail-card">
 				<div class="browse-card-heading">
 					<div>
@@ -1273,13 +833,6 @@ onActivated(() => {
 					>
 				</div>
 			</article>
-			<div
-				v-if="page.page !== 'loan-detail' && !loanRows.length"
-				class="browse-empty compact"
-			>
-				<h2>没有匹配的借用记录</h2>
-				<p>当前筛选范围内没有记录。</p>
-			</div>
 		</template>
 
 		<template v-else-if="page.page === 'warehouses' || page.page === 'warehouse-detail'">
@@ -1398,7 +951,7 @@ onActivated(() => {
 				<h2>最近流动</h2>
 				<div class="browse-rank-list">
 					<button
-						v-for="row in reviewSession.movements
+						v-for="row in allMovements
 							.filter(
 								(row) =>
 									row.from.includes(reviewSession.selectedWarehouse) ||
@@ -1417,6 +970,24 @@ onActivated(() => {
 		</template>
 
 		<template v-else-if="page.page === 'pending'">
+			<div
+				v-if="
+					reviewSession.filters.pending.scope.categories.length ||
+					reviewSession.filters.pending.scope.warehouses.length
+				"
+				class="preview-active-filters"
+			>
+				<span
+					>总览范围：{{
+						[
+							...reviewSession.filters.pending.scope.categories,
+							...reviewSession.filters.pending.scope.warehouses,
+						].join(" · ")
+					}}</span
+				><button @click="reviewSession.filters.pending.scope = emptyScope()">
+					清除总览范围
+				</button>
+			</div>
 			<div class="browse-callout">
 				<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
 				<div>
@@ -1538,7 +1109,7 @@ onActivated(() => {
 				<div class="browse-item-detail-head">
 					<span class="browse-item-illustration"><InventoryIcon name="box" /></span>
 					<div class="browse-detail-image">
-						<PreviewProduct :kind="activeItem.illustration" :name="activeItem.name" />
+						<PreviewItemImage :item="activeItem" />
 					</div>
 					<div class="browse-grow">
 						<span class="eyebrow"
@@ -1630,8 +1201,8 @@ onActivated(() => {
 				</div>
 				<div class="browse-card-heading">
 					<h2>最近流动</h2>
-					<button class="browse-link" @click="go('movement-items', 'filtered')">
-						查看流动明细
+					<button class="browse-link" @click="reviewSession.filters.movementScope = {...emptyScope(), item: activeItem.code}; reviewSession.filters.movementItems.search = ''; go('movement-items', 'list')">
+						查看物品流动
 					</button>
 				</div>
 				<div class="browse-rank-list">

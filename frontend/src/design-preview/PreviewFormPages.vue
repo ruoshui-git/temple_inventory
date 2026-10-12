@@ -278,6 +278,7 @@ watch(() => [props.page, props.variant], initialize, { immediate: true });
 onActivated(() => {
 	if (
 		reviewSession.selectedDraftName ||
+		(draft.value && !reviewSession.drafts.includes(draft.value)) ||
 		(isItem.value &&
 			props.variant === "edit" &&
 			draft.value?.itemCode !== reviewSession.selectedItemCode)

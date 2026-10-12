@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { emptyScope } from "./browseModel";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import PreviewGallery from "./PreviewGallery.vue";
@@ -9,10 +10,17 @@ import PreviewBrowsePages from "./PreviewBrowsePages.vue";
 import PreviewFormPages from "./PreviewFormPages.vue";
 import PreviewUtilityPages from "./PreviewUtilityPages.vue";
 import {
+	primaryNavigation,
+	inventoryNavigation,
+	destinationFor,
+	inventorySectionFor,
+} from "./navigation";
+import {
 	getPreviewPage,
 	pageFromHash,
 	pageHash,
 	previewPages,
+	reviewSession,
 	type PreviewPageKey,
 } from "./reviewModel";
 import {
@@ -34,8 +42,26 @@ const { isMobile } = useResponsiveLayout();
 const page = ref("gallery");
 const routeKey = ref<PreviewPageKey>("dashboard/overview");
 const activeRoute = computed(() => getPreviewPage(routeKey.value)!);
-const activeDestination = ref("库存列表");
-const section = ref("库存");
+const section = computed(() =>
+	page.value === "inventory"
+		? "inventory"
+		: page.value === "route"
+			? destinationFor(activeRoute.value)
+			: undefined,
+);
+const inventoryExpanded = ref(true);
+const inventorySection = computed(() =>
+	page.value === "inventory" ? "stock" : inventorySectionFor(activeRoute.value.page),
+);
+const showInventoryNavigation = computed(
+	() =>
+		page.value === "inventory" ||
+		(page.value === "route" &&
+			["inventory", "expiry", "warehouses", "pending"].includes(activeRoute.value.page)),
+);
+const ownerLabel = computed(
+	() => primaryNavigation.find((group) => group.key === section.value)?.label,
+);
 const toast = ref("");
 const settingsOpen = ref(true);
 const indexOpen = ref(false);
@@ -45,68 +71,82 @@ const indexedPages = computed(() =>
 		`${entry.label} ${entry.path}`.toLowerCase().includes(indexSearch.value.toLowerCase()),
 	),
 );
-const groups = computed(() => [
-	{ label: "首页", icon: "total", children: ["物资总览"] },
-	{ label: "库存", icon: "box", children: ["库存列表", "效期批次"] },
-	{ label: "货物流动", icon: "movement", children: ["流动明细", "流动记录"] },
-	{ label: "借用", icon: "loan", children: ["借用明细", "借用记录"] },
-	{ label: "仓库", icon: "warehouse", children: ["仓库管理"] },
-	{
-		label: "更多",
-		icon: "more",
-		children: [
-			"更多总览",
-			"待处理",
-			"草稿",
-			"报表与导出",
-			"显示设置",
-			"仓库设置示例",
-			"会话恢复示例",
-		],
-	},
-]);
-const currentGroup = computed(
-	() => groups.value.find((group) => group.label === section.value) || groups.value[1],
-);
-function navigate(destination: string) {
-	const routeAliases: Record<string, PreviewPageKey> = {
-		库存列表: "inventory/list",
-		效期批次: "expiry/all",
-		物资总览: "dashboard/overview",
-		流动记录: "movement-records/draft",
-		借用明细: "loan-items/outstanding",
-		借用记录: "loan-records/open",
-		仓库管理: "warehouses/tree",
-		盘点调整: "reconciliation-form/new",
-		更多总览: "more/index",
-		显示设置: "settings/density",
-		仓库设置示例: "setup/warehouse",
-		会话恢复示例: "recovery/session",
-	};
-	const route =
-		previewPages.find((candidate) => candidate.label === destination) ||
-		getPreviewPage(routeAliases[destination] || "dashboard/overview");
-	if (route) selectRoute(route.page, route.variant);
+const returnRoutes = reactive<Partial<Record<PreviewPageKey, PreviewPageKey>>>({});
+function isContextualRoute(route: typeof activeRoute.value) {
+	return (
+		route.page.endsWith("-form") ||
+		route.page.endsWith("-detail") ||
+		(route.page === "movement-records" &&
+			["detail", "selected", "opening", "workspace-detail", "entry-detail"].includes(
+				route.variant,
+			))
+	);
 }
-function selectRoute(routePage: string, variant: string) {
+const backRoute = computed<PreviewPageKey | undefined>(() => {
+	if (page.value !== "route") return undefined;
+	const current = activeRoute.value;
+	if (section.value === "more" && current.page !== "more") return "more/index";
+	if (!isContextualRoute(current)) return undefined;
+	if (returnRoutes[current.key]) return returnRoutes[current.key];
+	if (current.page === "movement-records")
+		return `movement-records/${reviewSession.filters.movementRecords.status}`;
+	if (section.value === "reports") return "reports/overview";
+	if (current.page === "warehouse-detail") return "warehouses/tree";
+	if (section.value === "inventory") return "inventory/list";
+	if (section.value === "loans") return "loan-items/outstanding";
+	return "movement-items/list";
+});
+const backLabel = computed(() => (backRoute.value === "more/index" ? "返回工具" : "返回上一页"));
+const groups = primaryNavigation;
+function navigatePrimary(key: PreviewPageKey) {
+	if (key.startsWith("movement")) {
+		reviewSession.filters.movementScope = emptyScope();
+		reviewSession.filters.movementItems.search = "";
+	}
+	if (key.startsWith("loan")) {
+		reviewSession.filters.loanScope = emptyScope();
+		reviewSession.filters.loanItems.search = "";
+	}
+	if (key.startsWith("inventory")) {
+		reviewSession.filters.inventory.scope = emptyScope();
+		reviewSession.filters.inventory.search = "";
+	}
+	navigate(key);
+}
+function navigateInventory(key: PreviewPageKey) {
+	if (key.startsWith("inventory")) reviewSession.filters.inventory.scope = emptyScope();
+	if (key.startsWith("expiry")) {
+		reviewSession.filters.expiry.scope = emptyScope();
+		reviewSession.filters.expiry.bucket = "";
+		reviewSession.filters.expiry.inStock = false;
+	}
+	if (key.startsWith("pending")) reviewSession.filters.pending.scope = emptyScope();
+	navigate(key);
+}
+function navigate(key: PreviewPageKey, rememberReturn = true) {
+	const route = getPreviewPage(key);
+	if (route) selectRoute(route.page, route.variant, rememberReturn);
+}
+function selectRoute(routePage: string, variant: string, rememberReturn = true) {
 	const route = previewPages.find(
 		(candidate) => candidate.page === routePage && candidate.variant === variant,
 	);
 	if (!route) return;
+	if (
+		rememberReturn &&
+		isContextualRoute(route) &&
+		route.key !== routeKey.value &&
+		page.value === "route"
+	)
+		returnRoutes[route.key] = routeKey.value;
 	routeKey.value = route.key;
-	activeDestination.value = route.label;
-	section.value = groups.value.some((group) => group.label === route.group)
-		? route.group
-		: "更多";
+	if (destinationFor(route) === "inventory") inventoryExpanded.value = true;
 	page.value = "route";
 	window.location.hash = pageHash(route.key);
 }
 function selectLocalPage(view: "gallery" | "inventory" | "receive") {
 	page.value = view;
-	if (view === "inventory") {
-		section.value = "库存";
-		activeDestination.value = "库存列表";
-	}
+	if (view === "inventory") inventoryExpanded.value = true;
 	window.location.hash = `#review/local/${view}`;
 }
 function syncLocationHash() {
@@ -120,10 +160,7 @@ function syncLocationHash() {
 	const route = pageFromHash(window.location.hash);
 	if (route) {
 		routeKey.value = route.key;
-		activeDestination.value = route.label;
-		section.value = groups.value.some((group) => group.label === route.group)
-			? route.group
-			: "更多";
+		if (destinationFor(route) === "inventory") inventoryExpanded.value = true;
 		page.value = "route";
 	}
 }
@@ -159,11 +196,6 @@ const routeComponentProps = computed(() =>
 		? { route: routeKey.value }
 		: { page: activeRoute.value.page, variant: activeRoute.value.variant },
 );
-function openGroup(label: string) {
-	section.value = label;
-	const group = groups.value.find((group) => group.label === label)!;
-	navigate(group.children[0]);
-}
 function openInventory() {
 	selectLocalPage("inventory");
 }
@@ -333,39 +365,61 @@ onMounted(() => {
 					<span class="brand-symbol"><InventoryIcon name="box" /></span>
 					<div><strong>寺院物资</strong><small>每一份，都妥善安放</small></div>
 				</div>
-				<span class="sidebar-caption">当前主导航 · 六个入口</span>
+				<span class="sidebar-caption">导航提案 · 五个入口</span>
 				<nav aria-label="示例应用主导航">
-					<div v-for="group in groups" :key="group.label" class="nav-group">
+					<div v-for="group in groups" :key="group.key" class="nav-group">
 						<button
-							:class="{ active: section === group.label }"
-							:aria-expanded="section === group.label"
+							:class="{ active: section === group.key }"
+							:aria-current="
+								group.key !== 'inventory' && section === group.key
+									? 'page'
+									: undefined
+							"
+							:aria-expanded="
+								group.key === 'inventory' ? inventoryExpanded : undefined
+							"
 							@click="
-								group.children.length === 1
-									? openGroup(group.label)
-									: (section = section === group.label ? '' : group.label)
+								group.key === 'inventory'
+									? (inventoryExpanded = !inventoryExpanded)
+									: navigatePrimary(group.route)
 							"
 						>
-							<InventoryIcon :name="group.icon" />{{ group.label
-							}}<InventoryIcon name="chevron-down" />
+							<InventoryIcon class="nav-leading-icon" :name="group.icon" /><span
+								class="nav-label"
+								>{{ group.label }}</span
+							>
+							<InventoryIcon
+								v-if="group.key === 'inventory'"
+								class="nav-chevron"
+								name="chevron-down"
+							/>
 						</button>
-						<div v-if="section === group.label" class="nav-children">
+						<div
+							v-if="group.key === 'inventory' && inventoryExpanded"
+							class="nav-children"
+						>
 							<button
-								v-for="child in group.children"
-								:key="child"
+								v-for="child in inventoryNavigation"
+								:key="child.key"
 								:aria-current="
-									activeDestination === child &&
-									page !== 'gallery' &&
-									page !== 'receive'
+									section === 'inventory' && inventorySection === child.key
 										? 'page'
 										: undefined
 								"
-								@click="navigate(child)"
+								@click="navigateInventory(child.route)"
 							>
-								{{ child }}
+								{{ child.label }}
 							</button>
 						</div>
 					</div>
 				</nav>
+				<button
+					class="preview-tools-link"
+					:aria-current="section === 'more' ? 'page' : undefined"
+					@click="navigate('more/index')"
+				>
+					<InventoryIcon name="more" />工具
+				</button>
 				<div class="sidebar-bottom">
 					<span class="avatar">义</span>
 					<div><strong>义工工作台</strong><small>本地设计预览</small></div>
@@ -374,7 +428,18 @@ onMounted(() => {
 			</aside>
 			<main id="sample-content" class="sample-content">
 				<div class="sample-breadcrumb">
-					<span>寺院物资</span><span>/</span
+					<button
+						v-if="isMobile"
+						class="preview-tools-link"
+						:aria-current="section === 'more' ? 'page' : undefined"
+						@click="navigate('more/index')"
+					>
+						工具
+					</button>
+					<span>寺院物资</span
+					><template v-if="ownerLabel && ownerLabel !== activeRoute.label"
+						><span>/</span><span>{{ ownerLabel }}</span></template
+					><span>/</span
 					><span>{{
 						page === "gallery"
 							? "组件画廊"
@@ -382,24 +447,36 @@ onMounted(() => {
 								? "入库登记"
 								: page === "inventory"
 									? "库存浏览样本"
-									: activeDestination
+									: activeRoute.label
 					}}</span
 					><span class="sample-tag">交互样本</span>
 				</div>
 				<nav
-					v-if="isMobile && page !== 'gallery' && page !== 'receive'"
+					v-if="isMobile && showInventoryNavigation"
 					class="mobile-context"
-					aria-label="示例应用子导航"
+					aria-label="库存页面"
 				>
 					<button
-						v-for="child in currentGroup.children"
-						:key="child"
-						:aria-current="activeDestination === child ? 'page' : undefined"
-						@click="navigate(child)"
+						v-for="child in inventoryNavigation"
+						:key="child.key"
+						:aria-current="inventorySection === child.key ? 'page' : undefined"
+						@click="navigateInventory(child.route)"
 					>
-						{{ child }}
+						{{ child.label }}
 					</button>
 				</nav>
+				<div v-if="showInventoryNavigation" class="preview-context-actions">
+					<button class="text-button" @click="navigate('reconciliation-form/new')">
+						<InventoryIcon name="adjust" />盘点调整
+					</button>
+				</div>
+				<button
+					v-if="backRoute"
+					class="text-button preview-back"
+					@click="navigate(backRoute, false)"
+				>
+					← {{ backLabel }}
+				</button>
 				<PreviewGallery
 					v-show="page === 'gallery'"
 					:theme="preferences.theme"
@@ -455,12 +532,8 @@ onMounted(() => {
 				<button
 					v-for="group in groups"
 					:key="group.label"
-					:aria-current="
-						section === group.label && page !== 'gallery' && page !== 'receive'
-							? 'page'
-							: undefined
-					"
-					@click="openGroup(group.label)"
+					:aria-current="section === group.key ? 'page' : undefined"
+					@click="navigatePrimary(group.route)"
 				>
 					<InventoryIcon :name="group.icon" /><span>{{ group.label }}</span>
 				</button>

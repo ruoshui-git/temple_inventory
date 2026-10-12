@@ -1,4 +1,9 @@
 import { reactive } from "vue";
+import {
+  emptyScope,
+  type BrowseScope,
+  type PreviewPeriod,
+} from "./browseModel";
 import { items, locations, previewDate, type StockItem } from "./model";
 
 export type PreviewPage =
@@ -34,7 +39,8 @@ export interface PreviewPageRoute {
   variant: string;
   path: string;
   label: string;
-  group: "首页" | "库存" | "货物流动" | "借用" | "仓库" | "更多" | "表单";
+  group:
+    "首页" | "库存" | "货物流动" | "借用" | "仓库" | "更多" | "报表" | "表单";
   readOnly?: boolean;
 }
 
@@ -63,12 +69,18 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route("expiry", "soon", "/expiry", "即将到期", "库存"),
   route("expiry", "expired", "/expiry", "已过期", "库存"),
   route("expiry", "all", "/expiry", "全部批次", "库存"),
-  route("movement-items", "list", "/movements/items", "流动明细", "货物流动"),
+  route(
+    "movement-items",
+    "list",
+    "/movements/items",
+    "流动 · 按物品",
+    "货物流动",
+  ),
   route(
     "movement-items",
     "filtered",
     "/movements/items",
-    "筛选明细",
+    "流动物品筛选",
     "货物流动",
   ),
   route(
@@ -131,10 +143,12 @@ export const previewPages: readonly PreviewPageRoute[] = [
     "货物流动",
     true,
   ),
-  route("loan-items", "outstanding", "/loans/items", "未归还明细", "借用"),
-  route("loan-items", "returned", "/loans/items", "已归还明细", "借用"),
-  route("loan-items", "damaged", "/loans/items", "损坏明细", "借用"),
-  route("loan-items", "lost", "/loans/items", "遗失明细", "借用"),
+  route("loan-items", "outstanding", "/loans/items", "未归还 · 按物品", "借用"),
+  route("loan-items", "returned", "/loans/items", "已归还 · 按物品", "借用"),
+  route("loan-items", "damaged", "/loans/items", "损坏 · 按物品", "借用"),
+  route("loan-items", "lost", "/loans/items", "遗失 · 按物品", "借用"),
+  route("loan-records", "all", "/loans/records", "全部借用记录", "借用"),
+  route("loan-items", "all", "/loans/items", "全部借用物品", "借用"),
   route("loan-records", "open", "/loans/records", "未结清记录", "借用"),
   route("loan-records", "settled", "/loans/records", "已结清记录", "借用"),
   route("loan-records", "draft", "/loans/records", "借用草稿", "借用"),
@@ -168,12 +182,12 @@ export const previewPages: readonly PreviewPageRoute[] = [
     "借用",
     true,
   ),
-  route("warehouses", "tree", "/warehouses", "仓库树", "仓库"),
-  route("warehouses", "create", "/warehouses", "新建仓库", "仓库"),
-  route("warehouses", "edit", "/warehouses", "编辑仓库", "仓库"),
-  route("warehouse-detail", "overview", "/warehouses/斋堂", "仓库详情", "仓库"),
-  route("warehouse-detail", "edit", "/warehouses/斋堂", "编辑仓库详情", "仓库"),
-  route("pending", "actionable", "/pending", "待处理", "更多"),
+  route("warehouses", "tree", "/warehouses", "仓库树", "库存"),
+  route("warehouses", "create", "/warehouses", "新建仓库", "库存"),
+  route("warehouses", "edit", "/warehouses", "编辑仓库", "库存"),
+  route("warehouse-detail", "overview", "/warehouses/斋堂", "仓库详情", "库存"),
+  route("warehouse-detail", "edit", "/warehouses/斋堂", "编辑仓库详情", "库存"),
+  route("pending", "actionable", "/pending", "损坏待处理", "库存"),
   route("drafts", "open", "/drafts", "草稿", "更多"),
   route("item-detail", "overview", "/item/ITM-000128", "物品详情", "库存"),
   route("item-detail", "batches", "/item/ITM-000128", "物品批次", "库存"),
@@ -214,7 +228,7 @@ export const previewPages: readonly PreviewPageRoute[] = [
     "盘点记录详情",
     "表单",
   ),
-  route("reports", "overview", "/reports", "报表与导出", "更多"),
+  route("reports", "overview", "/reports", "报表与导出", "报表"),
   ...Object.entries({
     movement: "货物流动汇总",
     movement_records: "流动记录报表",
@@ -222,16 +236,16 @@ export const previewPages: readonly PreviewPageRoute[] = [
     warehouse_stock: "仓库库存报表",
     expiry: "效期风险报表",
   }).map(([variant, label]) =>
-    route("reports", variant, `/reports?type=${variant}`, label, "更多"),
+    route("reports", variant, `/reports?type=${variant}`, label, "报表"),
   ),
   route(
     "report-export",
     "preview",
     "/reports?preview=export",
     "报表导出预览",
-    "表单",
+    "报表",
   ),
-  route("more", "index", "/more", "更多", "更多"),
+  route("more", "index", "/more", "工具", "更多"),
   route("settings", "density", "/settings", "显示设置", "更多"),
   route("setup", "warehouse", "/more?preview=setup", "仓库设置示例", "表单"),
   route(
@@ -321,6 +335,8 @@ export interface ReviewMovement {
   to: string;
   borrower?: string;
   activity?: string;
+  batch?: string;
+  loanName?: string;
 }
 
 export interface ReviewLoan {
@@ -335,6 +351,8 @@ export interface ReviewLoan {
     returned: number;
     damaged: number;
     lost: number;
+    location?: string;
+    batch?: string;
   }[];
 }
 
@@ -358,26 +376,44 @@ export interface ReviewWarehouse {
 }
 
 export interface ReviewFilters {
-  dashboard: { category: string; warehouse: string };
+  movementScope: BrowseScope;
+  loanScope: BrowseScope;
+  dashboard: {
+    categories: string[];
+    warehouses: string[];
+    period: PreviewPeriod;
+    distribution: "warehouse" | "category";
+    expiry: "expired" | "upcoming";
+  };
   inventory: {
+    scope: BrowseScope;
     search: string;
     category: string;
     warehouse: string;
     sort: "name" | "quantity";
     view: "card" | "table";
   };
-  expiry: { search: string; status: "soon" | "expired" | "all" };
-  movementItems: { search: string; kind: string };
-  movementRecords: {
+  expiry: {
     search: string;
-    status: "all" | "draft" | "completed" | "cancelled";
+    status: "soon" | "expired" | "all";
+    scope: BrowseScope;
+    bucket: string;
+    inStock: boolean;
+  };
+  movementItems: { search: string; sort: "newest" | "oldest" };
+  movementRecords: {
+    status: "draft" | "completed" | "cancelled";
   };
   loanItems: {
+    sort: "name" | "quantity";
     search: string;
-    status: "outstanding" | "returned" | "damaged" | "lost";
+    status: "all" | "outstanding" | "returned" | "damaged" | "lost";
   };
-  loanRecords: { search: string; status: "all" | "open" | "settled" | "draft" };
-  pending: { search: string };
+  loanRecords: {
+    sort: "newest" | "oldest";
+    status: "all" | "open" | "settled" | "draft";
+  };
+  pending: { search: string; scope: BrowseScope };
   drafts: { search: string };
 }
 
@@ -588,6 +624,7 @@ const defaultMovements: ReviewMovement[] = [
   },
   {
     name: "PREV-MOV-002",
+    loanName: "PREV-LOAN-001",
     kind: "Loan",
     docstatus: 1,
     date: "2026-10-10",
@@ -602,6 +639,7 @@ const defaultMovements: ReviewMovement[] = [
   },
   {
     name: "PREV-MOV-003",
+    loanName: "PREV-LOAN-002",
     kind: "Return",
     docstatus: 1,
     date: "2026-10-09",
@@ -641,6 +679,38 @@ const defaultMovements: ReviewMovement[] = [
   },
 ];
 
+function initialDrafts(): ReviewDraft[] {
+  const drafts = structuredClone(defaultDrafts);
+  for (const row of defaultMovements.filter(
+    (movement) => movement.docstatus === 0,
+  )) {
+    let draft = drafts.find((candidate) => candidate.name === row.name);
+    if (!draft) {
+      draft = {
+        name: row.name,
+        kind: row.kind as OperationKind,
+        status: "draft",
+        postingDate: row.date,
+        activity: row.activity || "",
+        borrower: row.borrower || "",
+        responsible: "",
+        note: "",
+        lines: [],
+      };
+      drafts.push(draft);
+    }
+    draft.lines.push({
+      id: `${row.name}-${draft.lines.length}`,
+      code: row.code,
+      qty: row.qty,
+      uom: row.uom,
+      sourceLocation: row.from,
+      location: row.to,
+    });
+  }
+  return drafts;
+}
+
 const defaultLoans: ReviewLoan[] = [
   {
     name: "PREV-LOAN-004",
@@ -675,6 +745,45 @@ const defaultLoans: ReviewLoan[] = [
     lines: [{ code: "ITM-000133", qty: 1, returned: 0, damaged: 1, lost: 0 }],
   },
 ];
+
+defaultLoans.forEach((loan) =>
+  loan.lines.forEach((line) => {
+    line.location = locations[1];
+    line.batch = "";
+  }),
+);
+defaultLoans.push({
+  name: "PREV-LOAN-005",
+  borrower: "接待组",
+  activity: "秋季法会",
+  loanDate: "2026-10-09",
+  status: "outstanding",
+  lines: [
+    {
+      code: "ITM-000130",
+      qty: 3,
+      returned: 1,
+      damaged: 1,
+      lost: 0,
+      location: locations[1],
+      batch: "UNIFORM-2610",
+    },
+  ],
+});
+defaultMovements.push({
+  name: "PREV-MOV-001",
+  kind: "Receive",
+  docstatus: 1,
+  date: "2026-10-11",
+  code: "ITM-000129",
+  itemName: "非转基因菜籽油 5L",
+  qty: 3,
+  uom: "桶",
+  from: "捐赠",
+  to: locations[1],
+  batch: "OIL-2610",
+  activity: "秋季斋堂补给",
+});
 
 const defaultPending: ReviewPending[] = items.flatMap((item) =>
   item.locations
@@ -712,20 +821,35 @@ const sessionBaselines = new WeakMap<ReviewSession, StockItem[]>();
 const sessionDraftSequences = new WeakMap<ReviewSession, number>();
 
 const initialFilters = (): ReviewFilters => ({
-  dashboard: { category: "", warehouse: "" },
+  movementScope: emptyScope(),
+  loanScope: emptyScope(),
+  dashboard: {
+    categories: [],
+    warehouses: [],
+    period: { key: "this_month", from: "", to: "" },
+    distribution: "warehouse",
+    expiry: "expired",
+  },
   inventory: {
+    scope: emptyScope(),
     search: "",
     category: "",
     warehouse: "",
     sort: "name",
     view: "card",
   },
-  expiry: { search: "", status: "soon" },
-  movementItems: { search: "", kind: "" },
-  movementRecords: { search: "", status: "all" },
-  loanItems: { search: "", status: "outstanding" },
-  loanRecords: { search: "", status: "all" },
-  pending: { search: "" },
+  expiry: {
+    search: "",
+    status: "soon",
+    scope: emptyScope(),
+    bucket: "",
+    inStock: false,
+  },
+  movementItems: { search: "", sort: "newest" },
+  movementRecords: { status: "completed" },
+  loanItems: { search: "", sort: "name", status: "outstanding" },
+  loanRecords: { status: "all", sort: "newest" },
+  pending: { search: "", scope: emptyScope() },
   drafts: { search: "" },
 });
 
@@ -740,8 +864,10 @@ export function createReviewSession(
     selectedLoanName: "",
     selectedDraftName: "",
     selectedWarehouse: "斋堂",
-    drafts: structuredClone(defaultDrafts),
-    movements: structuredClone(defaultMovements),
+    drafts: initialDrafts(),
+    movements: structuredClone(
+      defaultMovements.filter((row) => row.docstatus !== 0),
+    ),
     loans: structuredClone(defaultLoans),
     pending: structuredClone(defaultPending),
     warehouses: structuredClone(defaultWarehouses),
@@ -765,15 +891,11 @@ export function resetReviewSession(session: ReviewSession = reviewSession) {
   session.selectedLoanName = "";
   session.selectedDraftName = "";
   session.selectedWarehouse = "斋堂";
-  session.drafts.splice(
-    0,
-    session.drafts.length,
-    ...structuredClone(defaultDrafts),
-  );
+  session.drafts.splice(0, session.drafts.length, ...initialDrafts());
   session.movements.splice(
     0,
     session.movements.length,
-    ...structuredClone(defaultMovements),
+    ...structuredClone(defaultMovements.filter((row) => row.docstatus !== 0)),
   );
   session.loans.splice(
     0,
@@ -858,6 +980,57 @@ export function submitDraft(
   const draft = findDraft(kind, name, session);
   if (!draft) return undefined;
   if (draft.status !== "draft") return draft;
+  const linkedLoan = draft.loanName
+    ? session.loans.find((loan) => loan.name === draft.loanName)
+    : undefined;
+  const settlement = ["Return", "Damage", "Loss"].includes(kind) && linkedLoan;
+  if (settlement) {
+    for (const code of new Set(draft.lines.map((line) => line.code))) {
+      const available = linkedLoan.lines
+        .filter((line) => line.code === code)
+        .reduce(
+          (sum, line) =>
+            sum +
+            Math.max(0, line.qty - line.returned - line.damaged - line.lost),
+          0,
+        );
+      const requested = draft.lines
+        .filter((line) => line.code === code)
+        .reduce((sum, line) => sum + line.qty, 0);
+      if (requested > available || requested <= 0) return undefined;
+    }
+    for (const line of draft.lines) {
+      let rest = line.qty;
+      for (const borrowed of linkedLoan.lines.filter(
+        (row) => row.code === line.code,
+      )) {
+        const qty = Math.min(
+          rest,
+          Math.max(
+            0,
+            borrowed.qty - borrowed.returned - borrowed.damaged - borrowed.lost,
+          ),
+        );
+        borrowed[
+          kind === "Return"
+            ? "returned"
+            : kind === "Damage"
+              ? "damaged"
+              : "lost"
+        ] += qty;
+        rest -= qty;
+      }
+    }
+    linkedLoan.status = linkedLoan.lines.some(
+      (line) => line.qty > line.returned + line.damaged + line.lost,
+    )
+      ? "outstanding"
+      : linkedLoan.lines.some((line) => line.lost > 0)
+        ? "lost"
+        : linkedLoan.lines.some((line) => line.damaged > 0)
+          ? "damaged"
+          : "returned";
+  }
   draft.status = "completed";
   if (kind === "Item") {
     const item = session.stock.find(
@@ -902,6 +1075,8 @@ export function submitDraft(
           returned: 0,
           damaged: 0,
           lost: 0,
+          location: line.sourceLocation || line.location,
+          batch: line.batch,
         })),
       });
     }
@@ -924,6 +1099,8 @@ export function submitDraft(
           kind === "Issue" || kind === "Loss" || kind === "Disposal"
             ? "领用"
             : line.location,
+        batch: line.batch,
+        loanName: kind === "Loan" ? draft.name : draft.loanName,
         borrower: draft.borrower || undefined,
         activity: draft.activity || undefined,
       });
@@ -934,4 +1111,39 @@ export function submitDraft(
 
 export function warehouseFixtureNodes() {
   return reviewSession.warehouses.map((node) => ({ ...node }));
+}
+
+/** Draft rows are projections of editable state, never a second draft store. */
+export function reviewMovementRows(
+  session: ReviewSession = reviewSession,
+): ReviewMovement[] {
+  const drafts = session.drafts.filter(
+    (draft) => draft.status === "draft" && draft.kind !== "Item",
+  );
+  return [
+    ...session.movements.filter((row) => row.docstatus !== 0),
+    ...drafts.flatMap((draft): ReviewMovement[] => {
+      const lines = draft.lines.length
+        ? draft.lines
+        : [{ code: "", qty: 0, uom: "", location: "" }];
+      return lines.map((line) => ({
+        name: draft.name,
+        kind: draft.kind,
+        docstatus: 0,
+        date: draft.postingDate,
+        code: line.code,
+        itemName:
+          session.stock.find((item) => item.code === line.code)?.name ||
+          "尚未添加物品",
+        qty: line.qty,
+        uom: line.uom,
+        from: "sourceLocation" in line ? line.sourceLocation || "—" : "—",
+        to: line.location || "—",
+        activity: draft.activity,
+        borrower: draft.borrower,
+        loanName: draft.loanName,
+        batch: "batch" in line ? line.batch : undefined,
+      }));
+    }),
+  ];
 }

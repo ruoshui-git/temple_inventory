@@ -104,14 +104,14 @@ describe("design preview preferences and fixtures", () => {
       density: "spacious",
     });
   });
-  it("keeps the active shell at six destinations even if old preview storage selected four", async () => {
+  it("uses the five-destination proposal even if old preview storage selected four", async () => {
     localStorage.setItem(
       preferenceKey,
       JSON.stringify({ navigation: "proposed", density: "compact" }),
     );
     const wrapper = render(PreviewApp);
     await nextTick();
-    expect(wrapper.findAll(".nav-group")).toHaveLength(6);
+    expect(wrapper.findAll(".nav-group")).toHaveLength(5);
     expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(0);
     expect(wrapper.find('select[aria-label="主导航实验方案"]').exists()).toBe(
       false,
@@ -399,7 +399,7 @@ describe("interactive preview", () => {
     expect(document.documentElement.style.getPropertyValue("--p-accent")).toBe(
       "#28684E",
     );
-    expect(wrapper.findAll(".nav-group")).toHaveLength(6);
+    expect(wrapper.findAll(".nav-group")).toHaveLength(5);
     const inventory = wrapper.findComponent(PreviewInventory);
     await inventory
       .get('input[aria-label="搜索物品或条码"]')
@@ -410,7 +410,7 @@ describe("interactive preview", () => {
     expect(document.documentElement.dataset.previewDensity).toBe("spacious");
     expect(inventory.props("pattern")).toBe("current");
     expect(inventory.findAll(".stock-card")).toHaveLength(1);
-    expect(wrapper.findAll(".nav-group")).toHaveLength(6);
+    expect(wrapper.findAll(".nav-group")).toHaveLength(5);
     expect(wrapper.find('select[aria-label="库存操作方案"]').exists()).toBe(
       false,
     );
@@ -420,7 +420,7 @@ describe("interactive preview", () => {
     desktop = false;
     listeners.forEach((callback) => callback({ matches: false }));
     await nextTick();
-    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(6);
+    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(5);
     expect(inventory.findAll(".stock-card")).toHaveLength(1);
     expect(readPreferences(localStorage).theme).toBe("blue");
     wrapper.unmount();

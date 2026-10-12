@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
+import { emptyScope } from "./browseModel";
 import UiButton from "./components/PreviewUiButton.vue";
 import IconButton from "./components/PreviewIconButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
@@ -17,7 +19,8 @@ const theme = computed(() => themes.find((item) => item.id === props.theme)!);
 const hierarchy = ref<string[]>(["斋堂"]);
 const input = ref("");
 const validation = ref(false);
-const tab = ref("明细");
+const tab = ref("按物品");
+const period = ref(emptyScope().period);
 const radio = ref("all");
 const checkbox = ref(true);
 const overlay = ref<"dialog" | "drawer" | "">("");
@@ -184,7 +187,7 @@ const swatches = computed(() => [
 				</div>
 				<div class="segmented">
 					<button
-						v-for="name in ['明细', '记录']"
+						v-for="name in ['按物品', '按记录']"
 						:key="name"
 						:aria-pressed="tab === name"
 						@click="tab = name"
@@ -193,6 +196,7 @@ const swatches = computed(() => [
 					</button>
 				</div>
 				<p class="muted">当前展示：{{ tab }}。切换保留筛选条件。</p>
+				<PreviewPeriodFilter v-if="active !== false" v-model="period" label="流动日期" />
 				<HierarchyFilter
 					v-model="hierarchy"
 					:options="warehouseNodes"

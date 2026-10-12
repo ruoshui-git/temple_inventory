@@ -3,9 +3,9 @@
 This app is an isolated visual reference and interaction gallery. Its visual
 authority is the preview at commit `7b91ff5`, restored into preview-owned
 `preview.css` and local presentation adapters. The current defaults use the
-approved jade palette, balanced density, and the existing six main destinations.
+approved jade palette, balanced density, and the proposed five main destinations.
 The intentional baseline differences are the jade starting palette, removed
-hover underlines on item names, and added route mockups. Production visual
+hover underlines on item names, added route mockups, and the navigation/control proposal below. Production visual
 fidelity is not approved by this gallery alone; the production migration remains
 paused pending review.
 
@@ -28,7 +28,7 @@ container, forward port 5174 and open that path on the forwarded origin. The
 server needs no Frappe login or backend connection.
 
 ```sh
-pnpm exec vitest run tests/design-preview.test.ts tests/design-preview-browse.test.ts tests/design-preview-forms.test.ts tests/design-preview-pages.test.ts tests/design-preview-server.test.ts
+pnpm exec vitest run tests/design-preview.test.ts tests/design-preview-browse.test.ts tests/design-preview-forms.test.ts tests/design-preview-pages.test.ts tests/design-preview-navigation.test.ts tests/design-preview-server.test.ts
 pnpm type-check
 pnpm design:build
 ```
@@ -49,7 +49,7 @@ New route mockups use fixture state from `reviewModel.ts` and are review samples
 not claims that production routes have been visually migrated.
 
 Jade is the default. Other palettes and workflow proposals are explicitly
-experimental. Four-destination navigation is not an active shell option. Keep
+experimental. The five-destination proposal is the active preview shell; production retains six. Keep
 page mockup styles scoped to their own samples and avoid using them to imitate
 production component styling.
 
@@ -57,7 +57,7 @@ Manually compare the restored gallery and inventory treatments with commit
 `7b91ff5`, allowing only the listed baseline differences. Review all three
 densities at **375px**, **768px**, **1024px**, and **1440px**. Check keyboard
 focus, drawers and dialogs, overlay cleanup during hash navigation, 200% zoom,
-reduced motion, image fallback, and the six-destination navigation. Automated
+reduced motion, image fallback, and the five-destination navigation. Automated
 tests and builds verify behavior and route isolation; they do not establish
 visual fidelity. Record fidelity approval before reconnecting preview styles to
 production tokens or styled shared components. See the app-level
@@ -116,12 +116,12 @@ only preview theme/density preferences use the separate preview storage key.
 
 Repeat at **compact, balanced, and spacious** density. No browser automation was run.
 
-| Width  | Manual scenarios                                                                                                                                                            |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 375px  | Six mobile destinations, labeled secondary links, FAB above navigation, wrapping Chinese labels, input keyboard, scrollable tables, fixed review bar without covered fields |
-| 768px  | Mobile layout, multi-line forms, filtered lists, drawers, images and location popovers; navigate away and back to confirm retained edits                                    |
-| 1024px | Desktop breakpoint, sidebar and separate creation actions; resize across breakpoint while preserving filters/quantities                                                     |
-| 1440px | Gallery versus baseline, dashboard scope, image cards/table, detail hierarchy, compact transaction rows and persistent right review                                         |
+| Width  | Manual scenarios                                                                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 375px  | Five mobile destinations, labeled secondary links, FAB above navigation, wrapping Chinese labels, input keyboard, scrollable tables, fixed review bar without covered fields |
+| 768px  | Mobile layout, multi-line forms, filtered lists, drawers, images and location popovers; navigate away and back to confirm retained edits                                     |
+| 1024px | Desktop breakpoint, sidebar and separate creation actions; resize across breakpoint while preserving filters/quantities                                                      |
+| 1440px | Gallery versus baseline, dashboard scope, image cards/table, detail hierarchy, compact transaction rows and persistent right review                                          |
 
 At every width also test 200% zoom, long Chinese names, mixed units, 30-line
 sample, keyboard Tab/Shift-Tab/Escape and focus restoration, reduced motion,
@@ -129,7 +129,7 @@ and save/export failures followed by retry. Use the page index to review each
 layout independently. Automated checks establish behavior and isolation only;
 manual comparison determines visual fidelity and approval.
 
-## Verification for this restoration
+## Original restoration verification (before the navigation proposal)
 
 - 49 focused component, fixture, page-index, retained-state, validation, keyboard,
   contrast and isolation checks passed.
@@ -140,3 +140,57 @@ manual comparison determines visual fidelity and approval.
 - A before/after hash comparison confirmed no production source, account
   preference, backend, or existing non-preview test changes during this round.
 - Visual comparison, viewport/zoom checks and page-design approval remain manual.
+
+## Earlier navigation proposal (superseded by refinement below)
+
+| Main destination | Pages and actions                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| 首页             | Dashboard and contextual drill-through links                                               |
+| 库存             | 库存列表, 效期批次, 仓库, 损坏待处理; contextual 盘点调整 action                           |
+| 货物流动         | 明细 / 记录 view switch; single-type tabs and separate record status                       |
+| 借用             | 明细 / 记录 view switch; outcome/status filters and contextual return                      |
+| 更多             | All drafts, reports, display settings, installation guidance, and simulated account/logout |
+
+Inventory uses sidebar children on desktop and page navigation on mobile.
+Movement, Loans, and More do not repeat those links in shell subnav. Detail and
+form pages return to their origin where available, with stable defaults for
+shared links. Movement and Loans retain common searches and each view's status;
+Movement also retains type and sort. Opening/reconciliation records remain in
+the record view's 盘点调整 type filter. Switching to submitted item details clears
+that record-only type. Empty operation types stay selectable and show an empty
+state rather than disappearing.
+
+All existing sample hashes remain supported; review-only setup, recovery, and
+authentication states stay in 完整页面与状态. They are not application destinations.
+Draft records and reports project the same editable drafts used by More and the
+forms. Saving, deleting, and submitting cannot leave a second stale draft row.
+Stock quantities remain fixed fixture snapshots.
+
+Filter trees restore their marker-free list layout and aligned controls. Search
+focus surrounds the icon and input together; scan buttons remain separate focus
+targets. Add these checks to the manual matrix above, along with tab overflow,
+view/status retention, navigation back from details, and More overlay cleanup.
+The tests verify behavior and isolation; they do not replace manual visual review.
+
+## Refinement coverage (2026-10-12)
+
+This supersedes the earlier preview navigation/control proposal above. Primary
+navigation is 首页、库存、货物流动、借用、报表 on both surfaces. 工具 lives in the
+mobile header and desktop utility area; old `more/*` hashes remain supported.
+Reports/export routes belong to 报表. Movement and Loans use 按物品 / 按记录.
+
+| Area             | Review scenarios                                                                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Movement         | Item/type totals and contributing lines; complete operations with every location branch; quick types plus advanced combinations; all lifecycle states; scoped CSV detail/XLSX summary and detail simulation |
+| Loans            | Item/outcome groups; partial settlement; all/open/settled/draft records; loan-date filters and period borrowing/return history; contextual settlement through the existing editor                           |
+| Date and filters | All ten presets; inclusive custom endpoints; invalid/missing dates; Apply/Cancel; hierarchy/item/activity/source/destination filters; resize with retained scope                                            |
+| Dashboard        | Six sections, six expiry buckets, distinct-item distribution, every movement kind, outstanding loans, supported reminders; global scope and local movement period; scoped drill-through                     |
+| Dashboard states | Expand 预览状态 for initial loading, empty, retained-content refresh and individual section failure/retry; fixtures use the visible fixed sample date                                                       |
+| Images           | Card image/name opens detail; separate 查看大图; table/detail lightbox; missing image; independent selection; Escape, focus trapping and restoration                                                        |
+| Navigation       | Five primary entries, Tools access, report/export ownership, aligned icon/label/chevron columns, old hashes and contextual back links                                                                       |
+
+Add `tests/design-preview-refinement.test.ts` to the focused Vitest command above.
+Manual review remains required at 375/768/1024/1440px in all three densities,
+including 200% zoom, keyboard use and mixed units. No browser automation is part
+of this change. Preview transactions simulate loan settlement and corresponding
+history on shared fixture records; stock quantities remain fixed snapshots.

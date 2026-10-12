@@ -7,6 +7,7 @@ import QuantitySummary from "./components/PreviewQuantitySummary.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import { reviewSession } from "./reviewModel";
 import PreviewOverlay from "./PreviewOverlay.vue";
+import { emptyScope, matchesItem, matchesWarehouse } from "./browseModel";
 import PreviewItemImage from "./PreviewItemImage.vue";
 import PreviewStockDetails from "./PreviewStockDetails.vue";
 import {
@@ -68,6 +69,9 @@ watch(
 		exportOpen.value = false;
 	},
 );
+watch(() => reviewSession.filters.inventory.scope, () => {
+ search.value = ""; warehouses.value = []; category.value = ""; status.value = "ready";
+});
 function closeMenuOutside(event: PointerEvent) {
 	if (event.target instanceof Node && !menu.value?.contains(event.target))
 		menuOpen.value = false;
@@ -80,15 +84,16 @@ onMounted(() => document.addEventListener("pointerdown", closeMenuOutside));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", closeMenuOutside));
 const rows = computed(() => {
 	if (status.value === "empty") return [];
-	return filterItems(search.value, warehouses.value, category.value, reviewSession.stock).sort(
-		(a, b) => {
+ const scope = reviewSession.filters.inventory.scope;
+ const source = reviewSession.stock.filter(item => matchesItem(item.code, scope, reviewSession)).map(item => ({...item, locations: item.locations.filter(row => matchesWarehouse(row.location, scope.warehouses, reviewSession))})).filter(item => !scope.warehouses.length || item.locations.length);
+ return filterItems(search.value, warehouses.value, category.value, source)
+		.sort((a, b) => {
 			const result =
 				sort.value === "available"
 					? a.available - b.available
 					: a.name.localeCompare(b.name, "zh-CN");
 			return descending.value ? -result : result;
-		},
-	);
+		});
 });
 const metrics = computed(() => [
 	{
@@ -119,6 +124,7 @@ function toggle(code: string) {
 		: [...selected.value, code];
 }
 function clear() {
+	reviewSession.filters.inventory.scope = emptyScope();
 	warehouses.value = [];
 	category.value = "";
 	search.value = "";
@@ -137,6 +143,24 @@ function action(name: string) {
 </script>
 <template>
 	<div class="inventory-example">
+		<div
+			v-if="
+				reviewSession.filters.inventory.scope.categories.length ||
+				reviewSession.filters.inventory.scope.warehouses.length
+			"
+			class="preview-active-filters"
+		>
+			<span
+				>总览范围：{{
+					[
+						...reviewSession.filters.inventory.scope.categories,
+						...reviewSession.filters.inventory.scope.warehouses,
+					].join(" · ")
+				}}</span
+			><button @click="reviewSession.filters.inventory.scope = emptyScope()">
+				清除总览范围
+			</button>
+		</div>
 		<div class="page-heading">
 			<div>
 				<span class="eyebrow">INVENTORY / 库存管理</span>
@@ -310,7 +334,11 @@ function action(name: string) {
 								:class="{ selected: selected.includes(item.code) }"
 							>
 								<div class="stock-card-image">
-									<PreviewItemImage :item="item" /><label class="card-checkbox"
+									<PreviewItemImage
+										:item="item"
+										interaction="detail"
+										@detail="detail = item"
+									/><label class="card-checkbox"
 										><input
 											type="checkbox"
 											:checked="selected.includes(item.code)"
