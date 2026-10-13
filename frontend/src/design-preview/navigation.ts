@@ -105,9 +105,13 @@ const owners: Partial<Record<PreviewPage, Destination>> = {
 };
 export function destinationFor(
   route: PreviewPageRoute,
+  context?: { loanName?: string },
 ): Destination | undefined {
   if (route.page === "movement-form")
-    return ["Loan", "Return"].includes(route.variant) ? "loans" : "movements";
+    return ["Loan", "Return"].includes(route.variant) ||
+      (!!context?.loanName && ["Damage", "Loss"].includes(route.variant))
+      ? "loans"
+      : "movements";
   return owners[route.page];
 }
 export function inventorySectionFor(page: PreviewPage): string {

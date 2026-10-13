@@ -3,7 +3,12 @@ import { computed } from "vue";
 import PreviewHierarchyFilter from "./PreviewHierarchyFilter.vue";
 import { reviewSession } from "../reviewModel";
 import { movementLabels, type BrowseScope } from "../browseModel";
-const props = defineProps<{ modelValue: BrowseScope; movement?: boolean; records?: boolean }>();
+const props = defineProps<{
+	modelValue: BrowseScope;
+	movement?: boolean;
+	records?: boolean;
+	hideActivity?: boolean;
+}>();
 const emit = defineEmits<{ "update:modelValue": [scope: BrowseScope] }>();
 const scope = computed(() => props.modelValue);
 function update<K extends keyof BrowseScope>(key: K, value: BrowseScope[K]) {
@@ -46,7 +51,7 @@ function toggleKind(kind: string) {
 				</option>
 			</select></label
 		>
-		<label
+		<label v-if="!hideActivity"
 			>活动<select
 				:value="scope.activity"
 				@change="update('activity', ($event.target as HTMLSelectElement).value)"

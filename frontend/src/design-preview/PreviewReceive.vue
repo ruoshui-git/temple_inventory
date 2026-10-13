@@ -3,21 +3,23 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
-import PreviewProduct from "./PreviewProduct.vue";
+import PreviewOperationLines from "./components/PreviewOperationLines.vue";
+import PreviewItemPicker from "./components/PreviewItemPicker.vue";
 import {
-	items,
-	locations,
-	itemBatches,
-	validateLines,
-	type Pattern,
-	type ReceiveLine,
-} from "./model";
+	reviewSession,
+	assignReceiptBatchIds,
+	type DraftLine,
+	type ReviewDraft,
+} from "./reviewModel";
+import { validateOperation } from "./formModel";
+import { items, locations, itemBatches, type Pattern } from "./model";
 const props = defineProps<{ pattern: Pattern; active?: boolean }>();
 const emit = defineEmits<{ notify: [message: string]; back: [] }>();
 const destination = ref(locations[0]);
-const lines = ref<ReceiveLine[]>([
+const lines = ref<DraftLine[]>([
 	{
-		id: 1,
+		id: "canonical-1",
+		uom: items[0].uom,
 		code: items[0].code,
 		qty: 12,
 		location: locations[0],
@@ -36,7 +38,7 @@ const fields = reactive({
 });
 const attachments = ref<string[]>([]);
 const picker = ref(false);
-const pickerSearch = ref("");
+
 const review = ref(false);
 const detailsOpen = ref(false);
 const error = ref("");
@@ -60,7 +62,7 @@ watch(
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let confirmTimer: ReturnType<typeof setTimeout> | undefined;
 let nextId = 2;
-const lookup = (code: string) => items.find((item) => item.code === code)!;
+const lookup = (code: string) => reviewSession.stock.find((item) => item.code === code)!;
 const groups = computed(() =>
 	locations
 		.map((location) => ({
@@ -68,9 +70,6 @@ const groups = computed(() =>
 			lines: lines.value.filter((line) => line.location === location),
 		}))
 		.filter((group) => group.lines.length),
-);
-const matchingItems = computed(() =>
-	items.filter((item) => `${item.name} ${item.code}`.includes(pickerSearch.value.trim())),
 );
 const totals = computed(() => {
 	const values = new Map<string, number>();
@@ -80,6 +79,17 @@ const totals = computed(() => {
 	});
 	return [...values].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
 });
+const receiveDraft = computed<ReviewDraft>(() => ({
+	name: "PREV-CANONICAL-RECEIVE",
+	kind: "Receive",
+	status: completed.value ? "completed" : "draft",
+	postingDate: fields.date,
+	activity: fields.activity,
+	borrower: "",
+	responsible: "",
+	note: fields.notes,
+	lines: lines.value,
+}));
 function saveDraft() {
 	clearTimeout(saveTimer);
 	if (completed.value) return;
@@ -96,25 +106,26 @@ watch([lines, fields, attachments], saveDraft, { deep: true });
 function add(code: string) {
 	const item = lookup(code);
 	lines.value.push({
-		id: nextId++,
+		id: `canonical-${nextId++}`,
+		uom: item.uom,
 		code,
 		qty: 1,
 		location: destination.value,
-		batch: item.tracksBatch ? `${item.code}-DEMO` : "",
-		expiry: item.tracksExpiry ? itemBatches(item)[0]?.expiry || "" : "",
+		batch: "",
+		expiry: "",
 	});
 	picker.value = false;
 	scanOpen.value = false;
 	emit("notify", `已添加${item.name}，可直接修改数量与位置。`);
 }
 function check() {
-	error.value = validateLines(lines.value);
+	error.value = validateOperation(receiveDraft.value);
 	if (conflict.value) error.value = "当前草稿存在版本冲突，输入已保留。请先结束冲突演示。";
 	if (!fields.date) error.value = "请选择入库日期。";
 	if (!error.value) review.value = true;
 }
 function confirm() {
-	error.value = validateLines(lines.value);
+	error.value = validateOperation(receiveDraft.value);
 	if (error.value || confirmBusy.value || completed.value || conflict.value) return;
 	confirmBusy.value = true;
 	confirmTimer = setTimeout(() => {
@@ -123,6 +134,7 @@ function confirm() {
 			error.value = "模拟提交失败。所有输入均已保留，请关闭失败演示后重试。";
 			return;
 		}
+		assignReceiptBatchIds(receiveDraft.value);
 		completed.value = true;
 		review.value = false;
 		clearTimeout(saveTimer);
@@ -208,108 +220,13 @@ onBeforeUnmount(() => {
 							</div>
 							<span class="badge neutral">{{ lines.length }} 行物品</span>
 						</div>
-						<div class="destination-bar">
-							<label class="field"
-								>新增物品的入库位置<select v-model="destination">
-									<option v-for="location in locations" :key="location">
-										{{ location }}
-									</option>
-								</select></label
-							>
-							<p class="muted">支持多个位置。修改这里不会移动已添加的物品。</p>
-						</div>
-						<div class="button-row add-items">
-							<UiButton icon="box" variant="primary" @click="picker = true"
-								>添加物品</UiButton
-							><UiButton icon="scan" @click="scanOpen = true">扫码添加</UiButton>
-						</div>
-						<div v-if="!lines.length" class="empty-panel">
-							<InventoryIcon name="box" />
-							<h3>还没有添加物品</h3>
-							<p>从物品目录选择，或模拟扫码添加。</p>
-						</div>
-						<section
-							v-for="group in groups"
-							:key="group.location"
-							class="receive-group"
-						>
-							<h3><InventoryIcon name="warehouse" />{{ group.location }}</h3>
-							<article
-								v-for="line in group.lines"
-								:key="line.id"
-								class="receive-line"
-							>
-								<div class="line-identity">
-									<PreviewProduct
-										:kind="lookup(line.code).illustration"
-										:name="lookup(line.code).name"
-									/>
-									<div>
-										<strong>{{ lookup(line.code).name }}</strong
-										><small class="muted">{{ line.code }}</small>
-									</div>
-									<UiButton
-										variant="ghost"
-										:aria-label="`移除${lookup(line.code).name}`"
-										@click="
-											lines = lines.filter((item) => item.id !== line.id)
-										"
-										>移除</UiButton
-									>
-								</div>
-								<div class="form-grid">
-									<label class="field"
-										>数量（{{ lookup(line.code).uom }}）<input
-											v-model.number="line.qty"
-											type="number"
-											step="any"
-											min="0.000001"
-											required
-											:aria-label="`${lookup(line.code).name}数量`"
-											:aria-invalid="!(line.qty > 0)"
-											:aria-describedby="
-												!(line.qty > 0)
-													? `qty-error-${line.id}`
-													: undefined
-											"
-										/><small
-											v-if="!(line.qty > 0)"
-											:id="`qty-error-${line.id}`"
-											class="text-danger"
-											>请输入大于 0 的数量</small
-										></label
-									><label class="field"
-										>入库位置<select v-model="line.location">
-											<option v-for="location in locations" :key="location">
-												{{ location }}
-											</option>
-										</select></label
-									><template v-if="lookup(line.code).tracksBatch"
-										><label class="field"
-											>批次编号<input
-												v-model="line.batch"
-												required
-												:aria-invalid="!line.batch.trim()" /></label
-										><label v-if="lookup(line.code).tracksExpiry" class="field"
-											>到期日期<input
-												v-model="line.expiry"
-												type="date"
-												required
-												:aria-invalid="!line.expiry" /></label
-									></template>
-								</div>
-								<p
-									v-if="
-										lookup(line.code).tracksExpiry &&
-										line.expiry &&
-										line.expiry < '2026-10-11'
-									"
-									class="notice-bar warning"
-								>
-									此批次已过期，请核对实物。过期本身不阻止入库。
-								</p>
-							</article>
-						</section>
+						<PreviewOperationLines
+							:draft="receiveDraft"
+							:disabled="completed || confirmBusy"
+							:show-error="!!error"
+							@notify="emit('notify', $event)"
+						/>
+						<UiButton icon="scan" @click="scanOpen = true">扫码添加</UiButton>
 					</section>
 					<section class="surface form-section">
 						<div class="section-heading">
@@ -421,26 +338,13 @@ onBeforeUnmount(() => {
 				/>模拟版本冲突</label
 			>
 		</div>
-		<PreviewOverlay v-if="picker" title="选择入库物品" drawer @close="picker = false"
-			><label class="field"
-				>查找物品<input v-model="pickerSearch" type="search" placeholder="物品名称或编号"
-			/></label>
-			<div class="picker-list">
-				<button
-					v-for="item in matchingItems"
-					:key="item.code"
-					class="picker-row"
-					@click="add(item.code)"
-				>
-					<PreviewProduct :kind="item.illustration" :name="item.name" /><span
-						><strong>{{ item.name }}</strong
-						><small>{{ item.code }} · {{ item.uom }}</small></span
-					><InventoryIcon name="open" />
-				</button>
-				<p v-if="!matchingItems.length" class="muted">未找到匹配物品，试试其他关键词。</p>
-			</div>
-			<p class="muted">选择后返回当前草稿，数量与位置均可编辑。</p></PreviewOverlay
-		>
+		<PreviewItemPicker
+			v-if="picker"
+			allow-create
+			@close="picker = false"
+			@select="add"
+			@notify="emit('notify', $event)"
+		/>
 		<PreviewOverlay v-if="scanOpen" title="扫码添加 · 模拟" @close="scanOpen = false"
 			><div class="scan-placeholder">
 				<InventoryIcon name="scan" />不使用相机，也可手动选择物品

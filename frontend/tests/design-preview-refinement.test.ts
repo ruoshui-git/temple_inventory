@@ -156,6 +156,7 @@ describe("preview date and scoped projections", () => {
         code: "ITM-000130",
         qty: 1,
         uom: "件",
+        batch: "UNIFORM-2610",
         location: locations[1],
       },
     ];
@@ -180,6 +181,7 @@ describe("preview date and scoped projections", () => {
         code: "ITM-000130",
         qty: 2,
         uom: "件",
+        batch: "UNIFORM-2610",
         location: locations[1],
       },
     ];
@@ -230,7 +232,10 @@ describe("date and browse interactions", () => {
     });
     await button(wrapper, "入库").trigger("click");
     expect(reviewSession.filters.movementScope.kinds).toEqual(["Receive"]);
-    await button(wrapper, "筛选 · 1").trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((row) => row.text().replace(/\s/g, "") === "筛选1")!
+      .trigger("click");
     await wrapper
       .findAll(".preview-check")
       .find((row) => row.text() === "借出")!
@@ -254,7 +259,7 @@ describe("date and browse interactions", () => {
       records: false,
       variant: "list",
     });
-    await wrapper.get(".preview-group summary").trigger("click");
+    await wrapper.get(".preview-group-trigger").trigger("click");
     expect(wrapper.emitted("movement")).toBeUndefined();
     await wrapper.get(".preview-contribution button").trigger("click");
     expect(wrapper.emitted("movement")).toHaveLength(1);
@@ -399,9 +404,11 @@ describe("image intent", () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
     const card = wrapper.get(".stock-card");
     await card.get(".preview-image-detail").trigger("click");
-    expect(body().get('[role="dialog"]').text()).toContain("东北珍珠米");
+    expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
+      "item-detail",
+      "overview",
+    ]);
     expect(document.querySelector(".lightbox-image")).toBeNull();
-    await body().get('[aria-label="关闭对话框"]').trigger("click");
     const enlarge = card.get(".preview-image-enlarge");
     (enlarge.element as HTMLElement).focus();
     await enlarge.trigger("click");

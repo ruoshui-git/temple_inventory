@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
+import PreviewItemGroup from "./components/PreviewItemGroup.vue";
+import PreviewFilterButton from "./components/PreviewFilterButton.vue";
+import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
 import PreviewBrowseFilters from "./components/PreviewBrowseFilters.vue";
@@ -22,6 +25,7 @@ import {
 	remaining,
 	loanStatus,
 	quantityText,
+	movementSummary,
 } from "./browseModel";
 const props = defineProps<{ family: "movement" | "loan"; records: boolean; variant: string }>();
 const emit = defineEmits<{
@@ -36,6 +40,36 @@ const filtersOpen = ref(false);
 const exportOpen = ref(false);
 const exportFailed = ref(false);
 const exportFormat = ref("CSV");
+const exportDataset = ref("summary");
+function openExport() {
+	exportDataset.value = "summary";
+	exportFailed.value = false;
+	exportOpen.value = true;
+}
+const summary = computed(() => movementSummary(movementRows.value, reviewSession));
+const loanSummaryGroups = computed(() =>
+	groupLoans(loans.value, props.records ? "all" : status.value, reviewSession),
+);
+const loanSummary = computed(() => ({
+	items: new Set(
+		(props.records && status.value === "draft"
+			? loans.value.flatMap((loan) => loan.lines)
+			: loanSummaryGroups.value
+		).map((row) => row.code),
+	).size,
+	outstanding: new Set(
+		loanSummaryGroups.value
+			.filter((row) => row.outcome === "outstanding")
+			.flatMap((row) => row.entries.map((entry) => entry.loan.name)),
+	).size,
+	totals: Object.entries(outcomes).map(([key, label]) => ({
+		label,
+		text: quantityText(loanSummaryGroups.value.filter((row) => row.outcome === key)),
+	})),
+}));
+const stockItem = (code: string) => reviewSession.stock.find((item) => item.code === code);
+const categoriesFor = (codes: string[]) =>
+	[...new Set(codes.map((code) => stockItem(code)?.category).filter(Boolean))].join("、");
 const scope = computed({
 	get: () =>
 		props.family === "movement"
@@ -57,9 +91,13 @@ const search = computed({
 	},
 });
 const sort = computed({
-	get: () => reviewSession.filters.movementItems.sort,
+	get: () =>
+		props.records
+			? reviewSession.filters.movementRecords.sort
+			: reviewSession.filters.movementItems.sort,
 	set: (value) => {
-		reviewSession.filters.movementItems.sort = value;
+		if (props.records) reviewSession.filters.movementRecords.sort = value;
+		else reviewSession.filters.movementItems.sort = value;
 	},
 });
 const kinds = computed(() =>
@@ -165,7 +203,13 @@ const movementRows = computed(() =>
 		sort.value === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date),
 	),
 );
-const itemGroups = computed(() => groupMovements(movementRows.value).sort((a,b) => sort.value === "oldest" ? a.latest.localeCompare(b.latest) : b.latest.localeCompare(a.latest)));
+const itemGroups = computed(() =>
+	groupMovements(movementRows.value).sort((a, b) =>
+		sort.value === "oldest"
+			? a.latest.localeCompare(b.latest)
+			: b.latest.localeCompare(a.latest),
+	),
+);
 const movementRecords = computed(() =>
 	[...new Set(movementRows.value.map((row) => row.name))].map((name) => ({
 		name,
@@ -282,16 +326,16 @@ const exportRows = computed(() =>
 		? props.records
 			? movementRecords.value.map(
 					(record) =>
-						`${record.name} · ${record.lines.map((row) => row.itemName).join("、")} · ${quantityText(record.lines)}`,
+						`${record.name} · ${record.row.date} · ${[...new Set(record.lines.map((row) => movementLabels[row.kind]))].join(" / ")} · ${record.row.docstatus === 1 ? "已提交" : record.row.docstatus === 0 ? "草稿" : "已取消"} · ${record.lines.map((row) => row.itemName).join("、")} · ${categoriesFor(record.lines.map((row) => row.code))} · ${quantityText(record.lines)} · ${[...new Set(record.lines.map((row) => `${row.from} → ${row.to}`))].join("；")}`,
 				)
 			: itemGroups.value.map(
 					(group) =>
-						`${group.name} · ${group.totals.map((total) => `${movementLabels[total.kind]} ${total.text}`).join(" / ")} · ${group.count} 笔`,
+						`${group.code} · ${group.name} · ${categoriesFor([group.code])} · ${group.totals.map((total) => `${movementLabels[total.kind]} ${total.text}`).join(" / ")} · ${group.count} 笔`,
 				)
 		: props.records
 			? loans.value.map(
 					(loan) =>
-						`${loan.name} · ${loan.borrower} · ${completeLoanStatus(loan)} · 未归还 ${loanQuantity(loan)}`,
+						`${loan.name} · ${loan.loanDate} · ${loan.borrower} · ${loan.activity} · ${completeLoanStatus(loan)} · 未归还 ${loanQuantity(loan)}`,
 				)
 			: loanGroups.value.map(
 					(group) =>
@@ -308,7 +352,7 @@ const exportDetails = computed(() =>
 			? loans.value.flatMap((loan) =>
 					loan.lines.map(
 						(line) =>
-							`${loan.name} · ${loan.borrower} · ${loan.loanDate} · ${itemName(line.code)} · 借出 ${line.qty} · 未归还 ${remaining(line)} · 已归还 ${line.returned} · 损坏 ${line.damaged} · 遗失 ${line.lost} · ${line.location || "未填写位置"} · 批次 ${line.batch || "无"}`,
+							`${loan.name} · ${loan.borrower} · ${loan.loanDate} · ${itemName(line.code)} · 借出 ${line.qty} · 未归还 ${remaining(line)} · 已归还 ${line.returned} · 损坏 ${line.damaged} · 遗失 ${line.lost} ${stockItem(line.code)?.uom || ""} · ${line.location || "未填写位置"} · 批次 ${line.batch || "无"}`,
 					),
 				)
 			: loanGroups.value.flatMap((group) =>
@@ -360,7 +404,7 @@ const exportDetails = computed(() =>
 			</div>
 			<div class="browse-toolbar">
 				<label class="browse-search"
-					><input
+					><InventoryIcon name="search" /><input
 						v-model="search"
 						type="search"
 						:aria-label="family === 'movement' ? '搜索货物流动' : '搜索借用'"
@@ -401,12 +445,12 @@ const exportDetails = computed(() =>
 					<option value="name">物品名称</option>
 					<option value="quantity">数量由多到少</option>
 				</select>
-				<PreviewUiButton :aria-expanded="filtersOpen" @click="filtersOpen = !filtersOpen"
-					>筛选{{
-						activeFilters.length ? ` · ${activeFilters.length}` : ""
-					}}</PreviewUiButton
-				>
-				<PreviewUiButton icon="download" @click="exportOpen = true">导出</PreviewUiButton>
+				<PreviewFilterButton
+					:expanded="filtersOpen"
+					:count="activeFilters.length"
+					@click="filtersOpen = !filtersOpen"
+				/>
+				<PreviewUiButton icon="download" @click="openExport">导出</PreviewUiButton>
 			</div>
 			<div class="preview-active-filters">
 				<button
@@ -434,6 +478,33 @@ const exportDetails = computed(() =>
 				</button>
 			</p>
 		</div>
+		<section class="preview-activity-summary" aria-label="当前筛选汇总" aria-live="polite">
+			<template v-if="family === 'movement'">
+				<strong
+					>{{ summary.records }}笔记录 · {{ summary.items }}种物品 ·
+					{{ summary.categories }}个类别</strong
+				>
+				<span v-if="records && status !== 'completed'">{{
+					status === "draft" ? "草稿数量" : "已取消数量"
+				}}</span>
+				<span v-for="total in summary.totals" :key="total.kind"
+					>{{ movementLabels[total.kind] }} {{ total.text }}</span
+				>
+			</template>
+			<template v-else>
+				<strong
+					>{{
+						records && status === "draft"
+							? `${loans.length}笔草稿`
+							: `${loanSummary.outstanding}笔未结清`
+					}}
+					· {{ loanSummary.items }}种物品</strong
+				>
+				<span v-for="total in loanSummary.totals" :key="total.label"
+					>{{ total.label }} {{ total.text }}</span
+				>
+			</template>
+		</section>
 		<div class="preview-browse-body">
 			<aside
 				v-if="filtersOpen && !isMobile"
@@ -448,20 +519,18 @@ const exportDetails = computed(() =>
 			</aside>
 			<div class="preview-browse-results">
 				<template v-if="family === 'movement' && !records">
-					<details
+					<PreviewItemGroup
 						v-for="group in itemGroups"
 						:key="group.code"
-						class="preview-group browse-card"
+						:item="stockItem(group.code)"
+						:name="group.name"
+						:context="`${group.code} · ${categoriesFor([group.code])} · ${group.count}笔记录 · 最近 ${group.latest}`"
 					>
-						<summary>
-							<strong>{{ group.name }}</strong
-							><small
-								>{{ group.code }} · {{ group.count }} 笔记录 · 最近
-								{{ group.latest }}</small
+						<template #metrics
 							><span v-for="total in group.totals" :key="total.kind"
 								>{{ movementLabels[total.kind] }} {{ total.text }}　</span
-							><span class="browse-link">展开相关记录</span>
-						</summary>
+							></template
+						>
 						<div
 							v-for="(row, index) in group.lines"
 							:key="row.name + index"
@@ -475,13 +544,13 @@ const exportDetails = computed(() =>
 								{{ row.batch || "无" }}</span
 							>
 						</div>
-					</details>
+					</PreviewItemGroup>
 				</template>
 				<div v-else-if="family === 'movement'" class="browse-table-wrap">
 					<table class="browse-table">
 						<thead>
 							<tr>
-								<th>记录</th>
+								<th>记录 / 物品 / 类别</th>
 								<th>类型 / 日期</th>
 								<th>流向</th>
 								<th>数量</th>
@@ -508,6 +577,9 @@ const exportDetails = computed(() =>
 											"、",
 										)
 									}}</small
+									><small>{{
+										categoriesFor(record.lines.map((row) => row.code))
+									}}</small
 									><button
 										v-if="record.row.loanName"
 										class="browse-link"
@@ -517,7 +589,14 @@ const exportDetails = computed(() =>
 									</button>
 								</td>
 								<td>
-									{{ movementLabels[record.row.kind]
+									{{
+										[
+											...new Set(
+												record.allLines.map(
+													(row) => movementLabels[row.kind],
+												),
+											),
+										].join(" / ")
 									}}<small>{{ record.row.date }}</small>
 								</td>
 								<td>
@@ -555,18 +634,17 @@ const exportDetails = computed(() =>
 					</table>
 				</div>
 				<template v-else-if="!records">
-					<details
+					<PreviewItemGroup
 						v-for="group in loanGroups"
 						:key="group.code + group.outcome"
-						class="preview-group browse-card"
+						:item="stockItem(group.code)"
+						:name="group.name"
+						:context="`${group.code} · ${categoriesFor([group.code])} · ${group.count}笔借用`"
 					>
-						<summary>
-							<strong>{{ group.name }}</strong
-							><span
-								>{{ outcomes[group.outcome] }} · {{ group.qty }}
-								{{ group.uom }}</span
-							><small>{{ group.count }} 笔借用 · 展开相关记录</small>
-						</summary>
+						<template #metrics
+							>{{ outcomes[group.outcome] }} · {{ group.qty }}
+							{{ group.uom }}</template
+						>
 						<div
 							v-for="(entry, index) in group.entries"
 							:key="entry.loan.name + index"
@@ -584,7 +662,7 @@ const exportDetails = computed(() =>
 								>登记归还</PreviewUiButton
 							>
 						</div>
-					</details>
+					</PreviewItemGroup>
 				</template>
 				<div v-else class="browse-grid browse-grid--two">
 					<article
@@ -653,15 +731,25 @@ const exportDetails = computed(() =>
 					<option>XLSX</option>
 				</select></label
 			>
+			<label
+				>导出内容<select v-model="exportDataset">
+					<option value="summary">{{ records ? "操作记录" : "物品汇总" }}</option>
+					<option value="details">逐行明细</option>
+				</select></label
+			>
 			<p>
-				{{ exportFormat === "XLSX" ? "汇总与明细工作表" : "逐行明细" }} ·
-				{{ exportDetails.length }} 行
+				{{ (exportDataset === "summary" ? exportRows : exportDetails).length }} 行 ·
+				当前完整筛选范围
 			</p>
-			<ul v-if="exportFormat === 'XLSX'">
-				<li v-for="(row, index) in exportRows" :key="index">{{ row }}</li>
-			</ul>
 			<ul>
-				<li v-for="(row, index) in exportDetails" :key="index">{{ row }}</li>
+				<li
+					v-for="(row, index) in exportDataset === 'summary'
+						? exportRows
+						: exportDetails"
+					:key="index"
+				>
+					{{ row }}
+				</li>
 			</ul>
 			<p v-if="exportFailed" role="alert">模拟导出失败，筛选已保留。</p>
 			<template #footer
@@ -671,7 +759,7 @@ const exportDetails = computed(() =>
 					@click="
 						emit(
 							'notify',
-							`已模拟生成 ${exportRows.length} 条${exportFormat}记录，不下载文件`,
+							`已模拟生成 ${(exportDataset === 'summary' ? exportRows : exportDetails).length} 条${exportFormat}记录，不下载文件`,
 						);
 						exportOpen = false;
 						exportFailed = false;

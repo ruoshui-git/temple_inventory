@@ -63,10 +63,12 @@ describe("preview workflow forms", () => {
       .find((select) => select.element.innerHTML.includes("PREV-LOAN-001"));
     expect(loanSelect).toBeDefined();
     await loanSelect!.setValue("PREV-LOAN-001");
-    const itemSelect = wrapper
-      .findAll("select")
-      .find((select) => select.element.innerHTML.includes("ITM-000130"));
-    expect(itemSelect?.element.value).toBe("ITM-000130");
+    expect(wrapper.get(".receive-line").text()).toContain("ITM-000130");
+    expect(
+      reviewSession.drafts
+        .find((draft) => draft.kind === "Return")
+        ?.lines.map((line) => line.code),
+    ).toEqual(["ITM-000130"]);
     expect(wrapper.find('input[type="number"]').element.value).toBe("4");
   });
 
@@ -148,9 +150,12 @@ describe("preview workflow forms", () => {
       .find((select) => select.element.innerHTML.includes("Receive"));
     expect(kindSelect).toBeDefined();
     await kindSelect!.setValue("Receive");
-    const filteredCount = wrapper
-      .findAll("tbody tr")
-      .filter((row) => row.text().includes("入库")).length;
+    const filteredCount = new Set(
+      wrapper
+        .findAll("tbody tr")
+        .filter((row) => row.text().includes("入库"))
+        .map((row) => (row.text().includes("珍珠米") ? "rice" : "oil")),
+    ).size;
     expect(filteredCount).toBeGreaterThan(0);
     await wrapper
       .findAll("button")

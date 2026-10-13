@@ -11,6 +11,8 @@ beforeAll(async () => {
   server = await createServer({
     configFile: resolve("vite.preview-design.config.ts"),
     logLevel: "silent",
+    // HTTP entry checks do not need a dependency scan or its background worker.
+    optimizeDeps: { entries: [], noDiscovery: true, include: [] },
     server: { host: "127.0.0.1", port: 0, open: false, watch: null },
   });
   await server.listen();

@@ -150,7 +150,8 @@ describe("preview navigation proposal", () => {
         wrapper.get('select[aria-label="流动日期排序"]')
           .element as HTMLSelectElement
       ).value,
-    ).toBe("oldest");
+    ).toBe("newest");
+    expect(reviewSession.filters.movementItems.sort).toBe("oldest");
     expect(wrapper.findAll(".browse-view-switch")).toHaveLength(1);
   });
 

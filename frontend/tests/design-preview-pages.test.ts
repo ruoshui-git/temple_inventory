@@ -122,8 +122,6 @@ describe("complete preview review surface", () => {
       .setValue("不应覆盖原物品");
     click("保存物品");
     await nextTick();
-    click("确认提交");
-    await nextTick();
     expect(wrapper.find('[role="alert"]').text()).toContain("编号已存在");
     expect(reviewSession.stock[0].name).not.toBe("不应覆盖原物品");
   });

@@ -6,6 +6,7 @@ import PreviewOverlay from "./PreviewOverlay.vue";
 import { previewDate, warehouseNodes } from "./model";
 import { previewPages, reviewSession, reviewMovementRows } from "./reviewModel";
 
+import { matchesExpiry, groupMovements, quantityText } from "./browseModel";
 import { moreNavigation } from "./navigation";
 
 const props = withDefaults(
@@ -86,6 +87,8 @@ const state = reactive({
 	exportOpen: false,
 	exportFailed: false,
 	exportFormat: "CSV",
+	exportDataset: "summary",
+	inStock: false,
 	settingsDensity: "balanced",
 	setupChecked: false,
 	installOpen: false,
@@ -159,7 +162,14 @@ const movementRows = computed(() =>
 			state.period === "this_month" ? `${previewDate.slice(0, 7)}-01` : state.dateFrom;
 		const matchDate =
 			(!start || row.date >= start) && (!state.dateTo || row.date <= state.dateTo);
-		return matchText && matchKind && matchCategory && matchWarehouse && matchDate;
+		return (
+			(state.type !== "movement" || row.docstatus === 1) &&
+			matchText &&
+			matchKind &&
+			matchCategory &&
+			matchWarehouse &&
+			matchDate
+		);
 	}),
 );
 const stockRows = computed(() =>
@@ -190,7 +200,9 @@ const expiryRows = computed(() =>
 						expiry >= today &&
 						expiry <= maxSoon.toISOString().slice(0, 10);
 					const matchesMode =
-						state.expiryMode === "all" ||
+						(matchesExpiry(expiry || undefined, state.expiryMode) &&
+							state.expiryMode !== "exact" &&
+							state.expiryMode !== "soon") ||
 						(state.expiryMode === "soon" && soon) ||
 						(state.expiryMode === "expired" && !!expiry && expiry < today) ||
 						(state.expiryMode === "exact" &&
@@ -198,9 +210,8 @@ const expiryRows = computed(() =>
 							expiry >= state.expiryFrom &&
 							expiry <= state.expiryTo);
 					return (
-						item.tracksExpiry &&
-						batch.available > 0 &&
-						!!expiry &&
+						item.tracksBatch &&
+						(!state.inStock || batch.available > 0) &&
 						matchesMode &&
 						(!query ||
 							`${item.name} ${item.code} ${batch.id}`
@@ -235,6 +246,38 @@ const stockLocationRows = computed(() =>
 			.map((location) => ({ item, location })),
 	),
 );
+const exportRows = computed(() => {
+	if (state.type === "movement" || state.type === "movement_records") {
+		if (state.exportDataset === "details")
+			return movementRows.value.map(
+				(row) =>
+					`${row.name} · ${row.itemName} · ${movementLabels[row.kind]} · ${row.from} → ${row.to} · ${row.batch || "不分批次"} · ${row.qty} ${row.uom}`,
+			);
+		if (state.type === "movement")
+			return groupMovements(movementRows.value).map(
+				(group) =>
+					`${group.code} · ${group.name} · ${group.totals.map((total) => `${movementLabels[total.kind]} ${total.text}`).join(" · ")}`,
+			);
+		return [...new Set(movementRows.value.map((row) => row.name))].map(
+			(name) =>
+				`${name} · ${quantityText(movementRows.value.filter((row) => row.name === name))}`,
+		);
+	}
+	if (state.type === "expiry")
+		return expiryRows.value.map(
+			(row) =>
+				`${row.code} · ${row.id} · ${row.expiry || "无效期"} · ${row.location} · ${row.available} ${row.uom}`,
+		);
+	if (state.exportDataset === "summary")
+		return stockRows.value.map(
+			(item) =>
+				`${item.code} · ${item.name} · ${item.locations.filter((location) => !state.warehouse || location.location.includes(state.warehouse)).reduce((sum, location) => sum + location.available, 0)} ${item.uom}`,
+		);
+	return stockLocationRows.value.map(
+		({ item, location }) =>
+			`${item.code} · ${item.name} · ${location.location} · ${location.available} ${item.uom}`,
+	);
+});
 const canExport = computed(() => state.type !== "warehouse_stock" || !!state.warehouse);
 function chooseReport(type: ReportType) {
 	state.type = type;
@@ -253,13 +296,14 @@ function openExport() {
 		emit("notify", "请选择有效的效期开始和结束日期");
 		return;
 	}
+	state.exportDataset = state.type === "expiry" ? "details" : "summary";
 	state.exportOpen = true;
 	state.exportFailed = false;
 }
 function simulateExport() {
 	if (state.exportFailed) {
 		state.exportFailed = false;
-		emit("notify", `已模拟生成 ${rows.value.length} 条${state.exportFormat}记录`);
+		emit("notify", `已模拟生成 ${exportRows.value.length} 条${state.exportFormat}记录`);
 	} else {
 		state.exportFailed = true;
 	}
@@ -388,13 +432,15 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 					<template v-if="state.type === 'expiry'"
 						><label
 							>效期范围<select v-model="state.expiryMode">
-								<option value="all">全部有效库存批次</option>
-								<option value="soon">即将到期</option>
+								<option value="all">全部</option>
+								<option value="unexpired">未过期</option>
+								<option value="undated">无效期</option>
+								<option value="soon">0–30天内到期（指定窗口）</option>
 								<option value="expired">已过期</option>
 								<option value="exact">指定日期范围</option>
 							</select></label
 						><label v-if="state.expiryMode === 'soon'"
-							>临期天数<input
+							>未来天数<input
 								v-model="state.expiryDays"
 								type="number"
 								min="1" /></label
@@ -405,6 +451,9 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 									v-model="state.expiryTo"
 									type="date" /></label></template
 					></template>
+					<label v-if="state.type === 'expiry'" class="preview-check"
+						><input v-model="state.inStock" type="checkbox" />仅有库存批次</label
+					>
 					<p v-if="state.type === 'warehouse_stock'" class="filter-note">
 						仓库库存报表必须选择一个具体仓库或位置。
 					</p>
@@ -516,8 +565,19 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 						<option>XLSX</option>
 					</select></label
 				>
+				<label v-if="state.type !== 'expiry'"
+					>导出内容<select v-model="state.exportDataset">
+						<option value="summary">
+							{{ state.type === "movement_records" ? "操作记录" : "物品汇总" }}
+						</option>
+						<option value="details">逐行明细</option>
+					</select></label
+				>
+				<ul>
+					<li v-for="(row, index) in exportRows" :key="index">{{ row }}</li>
+				</ul>
 				<div class="export-scope">
-					<strong>{{ rows.length }} 条结果</strong
+					<strong>{{ exportRows.length }} 条结果</strong
 					><small>字段：{{ selectedReport.fields }}</small
 					><small v-if="state.warehouse">位置：{{ state.warehouse }}</small
 					><small v-if="state.search">搜索：{{ state.search }}</small>

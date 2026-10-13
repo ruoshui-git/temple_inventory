@@ -4,9 +4,15 @@ import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewQuantitySummary from "./components/PreviewQuantitySummary.vue";
 import PreviewActivityBrowse from "./PreviewActivityBrowse.vue";
 import PreviewDashboard from "./PreviewDashboard.vue";
-import { emptyScope, matchesItem, matchesWarehouse } from "./browseModel";
+import { emptyScope, matchesItem, matchesWarehouse, inPeriod, matchesExpiry } from "./browseModel";
+import { previewDate } from "./model";
+import { remaining, loanStatus, quantityText } from "./browseModel";
 import { expiryBucket, expiryBuckets } from "./dashboardModel";
 import PreviewItemImage from "./PreviewItemImage.vue";
+import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
+import PreviewBrowseFilters from "./components/PreviewBrowseFilters.vue";
+import PreviewFilterButton from "./components/PreviewFilterButton.vue";
+import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import {
@@ -36,6 +42,26 @@ const isMovementDetail = computed(
 		["detail", "selected", "opening", "workspace-detail", "entry-detail"].includes(
 			page.value.variant,
 		),
+);
+const isDetail = computed(
+	() =>
+		isMovementDetail.value ||
+		page.value.page.endsWith("-detail") ||
+		(page.value.page === "loan-records" && page.value.variant === "detail"),
+);
+const detailState = ref("ready");
+const detailUnavailable = computed(
+	() =>
+		(page.value.page === "item-detail" &&
+			!reviewSession.stock.some((item) => item.code === reviewSession.selectedItemCode)) ||
+		(page.value.page === "warehouse-detail" &&
+			!reviewSession.warehouses.some(
+				(row) => row.name === reviewSession.selectedWarehouse,
+			)) ||
+		(page.value.page === "loan-detail" &&
+			page.value.variant === "selected" &&
+			!!reviewSession.selectedLoanName &&
+			!reviewSession.loans.some((row) => row.name === reviewSession.selectedLoanName)),
 );
 const title = computed(() => {
 	if (isMovementDetail.value) return "操作详情";
@@ -72,6 +98,8 @@ const search = computed({
 		if (family === "drafts") reviewSession.filters.drafts.search = value;
 	},
 });
+const { isMobile } = useResponsiveLayout();
+const expiryFiltersOpen = ref(false);
 const warehouseDialog = ref(false);
 const warehouseSearch = ref("");
 const warehouseError = ref("");
@@ -84,16 +112,31 @@ const showDelete = ref("");
 const quickExportOpen = ref(false);
 const quickExportFailed = ref(false);
 const quickExportFormat = ref("CSV");
-const exportRows = computed(() =>
-	page.value.page === "expiry"
-		? expiryRows.value.map(
-				(row) =>
-					`${row.item.name} · ${row.id} · ${row.available} ${row.item.uom} · ${row.location}`,
-			)
-		: warehouseStock(reviewSession.selectedWarehouse).map(
-				({ item, row }) => `${item.name} · ${row.location} · ${row.available} ${item.uom}`,
-			),
-);
+const quickExportDataset = ref("summary");
+function openQuickExport() {
+	quickExportDataset.value = "summary";
+	quickExportOpen.value = true;
+	quickExportFailed.value = false;
+}
+const exportRows = computed(() => {
+	if (page.value.page === "expiry")
+		return (quickExportDataset.value === "summary" ? expiryRows.value : expiryLines.value).map(
+			(row) =>
+				`${row.item.name} · ${row.item.category} · ${row.id} · ${row.available} ${row.item.uom} · ${row.expiry || "无效期"} · ${row.location}`,
+		);
+	const entries = warehouseStock(reviewSession.selectedWarehouse);
+	if (quickExportDataset.value === "details")
+		return entries.map(
+			({ item, row }) => `${item.name} · ${row.location} · ${row.available} ${item.uom}`,
+		);
+	const totals = new Map<string, { name: string; uom: string; qty: number }>();
+	entries.forEach(({ item, row }) => {
+		const total = totals.get(item.code) || { name: item.name, uom: item.uom, qty: 0 };
+		total.qty += row.available;
+		totals.set(item.code, total);
+	});
+	return [...totals.values()].map((row) => `${row.name} · ${row.qty} ${row.uom}`);
+});
 function quickExport() {
 	if (quickExportFailed.value) quickExportFailed.value = false;
 	emit(
@@ -118,6 +161,12 @@ const activeItem = computed(
 		reviewSession.stock.find((item) => item.code === reviewSession.selectedItemCode) ||
 		reviewSession.stock[0],
 );
+const activeWarehouse = computed(() =>
+	reviewSession.warehouses.find((row) => row.name === reviewSession.selectedWarehouse),
+);
+const movementDraft = computed(() =>
+	reviewSession.drafts.find((row) => row.name === currentMovement.value?.name),
+);
 const batches = computed(() =>
 	activeItem.value.locations.flatMap((location) =>
 		(location.batches || []).map((batch) => ({
@@ -127,9 +176,9 @@ const batches = computed(() =>
 		})),
 	),
 );
-const expiryRows = computed(() => {
+const expiryLines = computed(() => {
 	const rows = reviewSession.stock.flatMap((item) =>
-		item.tracksExpiry
+		item.tracksBatch
 			? item.locations.flatMap((location) =>
 					(location.batches || []).map((batch) => ({
 						...batch,
@@ -140,23 +189,13 @@ const expiryRows = computed(() => {
 			: [],
 	);
 	const filtered = rows.filter((row) => {
-		const expired = !!row.expiry && row.expiry < "2026-10-11";
-		const days = row.expiry
-			? Math.ceil(
-					(new Date(`${row.expiry}T00:00:00`).getTime() -
-						new Date("2026-10-11T00:00:00").getTime()) /
-						86400000,
-				)
-			: null;
-		const matchesStatus =
-			page.value.variant === "expired"
-				? expired
-				: page.value.variant === "all"
-					? !!row.expiry
-					: days !== null && days >= 0 && days <= 30;
+		const matchesStatus = matchesExpiry(row.expiry, page.value.variant);
 		const query = search.value.trim().toLocaleLowerCase();
 		return (
 			matchesStatus &&
+			(reviewSession.filters.expiry.scope.period.key === "all" ||
+				(!!row.expiry &&
+					inPeriod(row.expiry, reviewSession.filters.expiry.scope.period))) &&
 			(!reviewSession.filters.expiry.inStock || row.available > 0) &&
 			matchesItem(row.item.code, reviewSession.filters.expiry.scope, reviewSession) &&
 			matchesWarehouse(
@@ -171,14 +210,27 @@ const expiryRows = computed(() => {
 					.toLocaleLowerCase()
 					.includes(query))
 		);
- });
- const grouped = new Map<string, typeof rows[number]>();
- filtered.forEach(row => {
-  const key = `${row.item.code}:${row.id}`;
-  const previous = grouped.get(key);
-  grouped.set(key, previous ? {...previous, available: previous.available + row.available, location: `${previous.location}、${row.location}`} : {...row});
- });
- return [...grouped.values()];
+	});
+	return filtered;
+});
+const expiryRows = computed(() => {
+	const rows = expiryLines.value;
+	const grouped = new Map<string, (typeof rows)[number]>();
+	rows.forEach((row) => {
+		const key = `${row.item.code}:${row.id}`;
+		const previous = grouped.get(key);
+		grouped.set(
+			key,
+			previous
+				? {
+						...previous,
+						available: previous.available + row.available,
+						location: `${previous.location}、${row.location}`,
+					}
+				: { ...row },
+		);
+	});
+	return [...grouped.values()];
 });
 const pendingRows = computed(() =>
 	reviewSession.pending.filter(
@@ -328,13 +380,20 @@ function createLoanReturn(loanName: string, damaged = false) {
 	const loan = reviewSession.loans.find((row) => row.name === loanName);
 	if (!loan) return;
 	const kind: OperationKind = damaged ? "Damage" : "Return";
-	const draft = createDraft(kind, `PREV-${kind.toUpperCase()}-${loan.name}`);
+	const pending = reviewSession.drafts.find(
+		(row) => row.kind === kind && row.loanName === loan.name && row.status === "draft",
+	);
+	const baseName = `PREV-${kind.toUpperCase()}-${loan.name}`;
+	let name = baseName;
+	let sequence = 1;
+	while (reviewSession.drafts.some((row) => row.name === name))
+		name = `${baseName}-${++sequence}`;
+	const draft = pending || createDraft(kind, name);
 	draft.loanName = loan.name;
 	draft.borrower = loan.borrower;
 	draft.activity = loan.activity;
 	if (!draft.lines.length) {
 		draft.lines = loan.lines
-			.filter((line) => line.qty > line.returned + line.damaged + line.lost)
 			.map((line, index) => {
 				const item = reviewSession.stock.find((row) => row.code === line.code);
 				const location =
@@ -344,6 +403,7 @@ function createLoanReturn(loanName: string, damaged = false) {
 					"";
 				return {
 					id: `${kind.toLocaleLowerCase()}-${loan.name}-${index + 1}`,
+					loanLineIndex: index,
 					code: line.code,
 					qty: Math.max(0, line.qty - line.returned - line.damaged - line.lost),
 					uom: item?.uom || "件",
@@ -351,7 +411,8 @@ function createLoanReturn(loanName: string, damaged = false) {
 					sourceLocation: location,
 					batch: line.batch,
 				};
-			});
+			})
+			.filter((line) => line.qty > 0);
 	}
 	reviewSession.selectedDraftName = draft.name;
 	go("movement-form", kind);
@@ -496,15 +557,13 @@ onActivated(() => {
 	<section class="browse-page" :aria-labelledby="`browse-title-${page.page}`">
 		<header class="browse-heading">
 			<div>
-				<span class="eyebrow">{{ page.path }}</span>
 				<h1 :id="`browse-title-${page.page}`">{{ title }}</h1>
-				<p class="muted">布局提案 · 本地模拟数据 · 页面操作只影响本次预览</p>
 			</div>
 			<div class="browse-heading-actions">
 				<PreviewUiButton
 					v-if="['expiry', 'warehouse-detail'].includes(page.page)"
 					icon="download"
-					@click="quickExportOpen = true"
+					@click="openQuickExport"
 					>快速导出</PreviewUiButton
 				>
 				<PreviewUiButton
@@ -529,8 +588,9 @@ onActivated(() => {
 					>入库</PreviewUiButton
 				>
 				<template v-if="page.page === 'movement-records' || page.page === 'movement-items'"
-					><PreviewUiButton @click="go('movement-form', 'Issue')">出库</PreviewUiButton
-					><PreviewUiButton @click="go('movement-form', 'Transfer')"
+					><PreviewUiButton icon="movement" @click="go('movement-form', 'Issue')"
+						>出库</PreviewUiButton
+					><PreviewUiButton icon="movement" @click="go('movement-form', 'Transfer')"
 						>转移</PreviewUiButton
 					></template
 				>
@@ -544,8 +604,47 @@ onActivated(() => {
 			</div>
 		</header>
 
+		<details v-if="isDetail" class="preview-detail-state-control">
+			<summary>预览状态</summary>
+			<label
+				>详情状态<select v-model="detailState">
+					<option value="ready">正常</option>
+					<option value="loading">加载中</option>
+					<option value="empty">无相关数据</option>
+					<option value="error">加载失败</option>
+					<option value="unavailable">记录不可用</option>
+				</select></label
+			>
+		</details>
+		<div
+			v-if="isDetail && (detailState !== 'ready' || detailUnavailable)"
+			class="browse-empty"
+			:aria-busy="detailState === 'loading'"
+		>
+			<h2>
+				{{
+					detailUnavailable || detailState === "unavailable"
+						? "这条记录不可用"
+						: detailState === "loading"
+							? "正在加载详情…"
+							: detailState === "empty"
+								? "暂无相关数据"
+								: "详情加载失败"
+				}}
+			</h2>
+			<p>
+				{{
+					detailUnavailable || detailState === "unavailable"
+						? "记录可能已删除，请返回列表查看。"
+						: "返回浏览时将保留原有筛选条件。"
+				}}
+			</p>
+			<PreviewUiButton v-if="!detailUnavailable" @click="detailState = 'ready'">{{
+				detailState === "error" ? "重试" : "恢复正常示例"
+			}}</PreviewUiButton>
+		</div>
 		<PreviewDashboard
-			v-if="page.page === 'dashboard'"
+			v-else-if="page.page === 'dashboard'"
 			@navigate="go"
 			@movement="openMovement"
 			@loan="openLoan"
@@ -587,9 +686,10 @@ onActivated(() => {
 			<nav class="browse-tabs" aria-label="效期筛选">
 				<button
 					v-for="tab in [
-						{ key: 'soon', label: '即将到期' },
+						{ key: 'all', label: '全部' },
 						{ key: 'expired', label: '已过期' },
-						{ key: 'all', label: '全部批次' },
+						{ key: 'unexpired', label: '未过期' },
+						{ key: 'undated', label: '无效期' },
 					]"
 					:key="tab.key"
 					:aria-current="page.variant === tab.key ? 'page' : undefined"
@@ -604,63 +704,143 @@ onActivated(() => {
 						v-model="search"
 						type="search"
 						placeholder="搜索物品、批次或位置" /></label
-				><span class="browse-result-count">{{ expiryRows.length }} 个批次</span>
+				><PreviewPeriodFilter
+					v-model="reviewSession.filters.expiry.scope.period"
+					label="到期日期"
+				/>
+				<PreviewFilterButton
+					:expanded="expiryFiltersOpen"
+					:count="
+						reviewSession.filters.expiry.scope.categories.length +
+						reviewSession.filters.expiry.scope.warehouses.length +
+						Number(!!reviewSession.filters.expiry.scope.item)
+					"
+					@click="expiryFiltersOpen = !expiryFiltersOpen"
+				/>
+				<span class="browse-result-count">{{ expiryRows.length }} 个批次</span>
 			</div>
-			<div class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>物品 / 批次</th>
-							<th>效期</th>
-							<th>剩余天数</th>
-							<th>可用量</th>
-							<th>位置</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr
-							v-for="row in expiryRows"
-							:key="`${row.item.code}-${row.id}-${row.location}`"
-						>
-							<td>
-								<button
-									class="browse-row-link"
-									@click="openItem(row.item.code, 'batches')"
-								>
-									<strong>{{ row.item.name }}</strong
-									><small>{{ row.id }} · {{ row.item.code }}</small>
-								</button>
-							</td>
-							<td>
-								<span
-									class="browse-badge"
-									:class="
-										row.expiry && row.expiry < '2026-10-11'
-											? 'is-danger'
-											: 'is-warning'
-									"
-									>{{ row.expiry || "未设置" }}</span
-								>
-							</td>
-							<td>
-								{{
-									row.expiry
-										? Math.ceil(
-												(new Date(`${row.expiry}T00:00:00`).getTime() -
-													new Date("2026-10-11T00:00:00").getTime()) /
-													86400000,
-											)
-										: "—"
-								}}
-							</td>
-							<td>{{ row.available }} {{ row.item.uom }}</td>
-							<td>{{ row.location }}</td>
-						</tr>
-					</tbody>
-				</table>
-				<div v-if="!expiryRows.length" class="browse-empty compact">
-					<h2>没有符合条件的批次</h2>
-					<p>可以切换效期范围或清空搜索词。</p>
+			<p v-if="page.variant === 'soon'" class="browse-note">
+				到期日期：今日至未来30天（包含端点）
+			</p>
+			<div class="preview-browse-body">
+				<aside v-if="expiryFiltersOpen && !isMobile" class="preview-filter-rail">
+					<PreviewBrowseFilters
+						hide-activity
+						v-model="reviewSession.filters.expiry.scope"
+					/>
+				</aside>
+				<PreviewOverlay
+					v-if="expiryFiltersOpen && isMobile"
+					title="筛选效期"
+					drawer
+					@close="expiryFiltersOpen = false"
+					><PreviewBrowseFilters
+						hide-activity
+						v-model="reviewSession.filters.expiry.scope"
+				/></PreviewOverlay>
+				<div v-if="isMobile" class="preview-expiry-mobile">
+					<article
+						v-for="row in expiryRows"
+						:key="row.item.code + row.id"
+						class="browse-card"
+					>
+						<div class="preview-group-heading">
+							<div class="preview-group-thumbnail">
+								<PreviewItemImage :item="row.item" />
+							</div>
+							<button
+								class="browse-row-link"
+								@click="openItem(row.item.code, 'batches')"
+							>
+								<strong>{{ row.item.name }}</strong
+								><small>{{ row.item.category }} · {{ row.id }}</small>
+							</button>
+						</div>
+						<p>
+							{{ row.expiry || "无效期" }} · 可用 {{ row.available }}
+							{{ row.item.uom }}
+						</p>
+						<details>
+							<summary>批次详情</summary>
+							<p>{{ row.id }} · {{ row.item.code }}</p>
+							<p>{{ row.location }}</p>
+							<p>到期日：{{ row.expiry || "无效期" }}</p>
+						</details>
+					</article>
+					<p v-if="!expiryRows.length">没有符合条件的批次</p>
+				</div>
+				<div v-else class="browse-table-wrap">
+					<table class="browse-table">
+						<thead>
+							<tr>
+								<th>物品 / 批次</th>
+								<th>效期</th>
+								<th>剩余天数</th>
+								<th>可用量</th>
+								<th>位置</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr
+								v-for="row in expiryRows"
+								:key="`${row.item.code}-${row.id}-${row.location}`"
+							>
+								<td>
+									<button
+										class="browse-row-link"
+										@click="openItem(row.item.code, 'batches')"
+									>
+										<strong>{{ row.item.name }}</strong
+										><small
+											>{{ row.id }} · {{ row.item.code }} ·
+											{{ row.item.category }}</small
+										>
+									</button>
+								</td>
+								<td>
+									<span
+										class="browse-badge"
+										:class="
+											row.expiry && row.expiry < previewDate
+												? 'is-danger'
+												: row.expiry
+													? 'is-success'
+													: 'is-neutral'
+										"
+										>{{ row.expiry || "未设置" }}</span
+									>
+								</td>
+								<td>
+									{{
+										row.expiry
+											? Math.ceil(
+													(new Date(`${row.expiry}T00:00:00`).getTime() -
+														new Date(
+															"2026-10-11T00:00:00",
+														).getTime()) /
+														86400000,
+												)
+											: "—"
+									}}
+								</td>
+								<td>{{ row.available }} {{ row.item.uom }}</td>
+								<td>
+									<details>
+										<summary>{{ row.location }}</summary>
+										<p>批次 {{ row.id }} · {{ row.item.code }}</p>
+										<p>
+											到期日 {{ row.expiry || "无效期" }} · 可用
+											{{ row.available }} {{ row.item.uom }}
+										</p>
+									</details>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+					<div v-if="!expiryRows.length" class="browse-empty compact">
+						<h2>没有符合条件的批次</h2>
+						<p>可以切换效期范围或清空搜索词。</p>
+					</div>
 				</div>
 			</div>
 		</template>
@@ -680,7 +860,18 @@ onActivated(() => {
 				<div class="browse-card-heading">
 					<div>
 						<span class="eyebrow">{{ currentMovement.name }}</span>
-						<h2>{{ movementLabel(currentMovement.kind) }} 操作详情</h2>
+						<h2>
+							{{
+								[
+									...new Set(
+										allMovements
+											.filter((row) => row.name === currentMovement?.name)
+											.map((row) => movementLabel(row.kind)),
+									),
+								].join(" / ")
+							}}
+							操作详情
+						</h2>
 					</div>
 					<span
 						class="browse-badge"
@@ -697,11 +888,28 @@ onActivated(() => {
 				<dl class="browse-detail-grid">
 					<div>
 						<dt>物品</dt>
-						<dd>{{ currentMovement.itemName }} · {{ currentMovement.code }}</dd>
+						<dd>
+							{{
+								new Set(
+									allMovements
+										.filter((row) => row.name === currentMovement?.name)
+										.map((row) => row.code),
+								).size
+							}}
+							种物品 · 详见操作明细
+						</dd>
 					</div>
 					<div>
 						<dt>数量</dt>
-						<dd>{{ currentMovement.qty }} {{ currentMovement.uom }}</dd>
+						<dd>
+							{{
+								quantityText(
+									allMovements.filter(
+										(row) => row.name === currentMovement?.name,
+									),
+								)
+							}}
+						</dd>
 					</div>
 					<div>
 						<dt>来源</dt>
@@ -725,6 +933,33 @@ onActivated(() => {
 					@click="openLoan(currentMovement.loanName)"
 					>查看借用与处理</PreviewUiButton
 				>
+				<dl class="browse-detail-grid">
+					<div>
+						<dt>借用人 / 对象</dt>
+						<dd>{{ currentMovement.borrower || "—" }}</dd>
+					</div>
+					<div>
+						<dt>记录人</dt>
+						<dd>{{ movementDraft?.recorder || "未填写" }}</dd>
+					</div>
+					<div>
+						<dt>经手人</dt>
+						<dd>{{ movementDraft?.handler || "未填写" }}</dd>
+					</div>
+					<div>
+						<dt>鉴证人</dt>
+						<dd>{{ movementDraft?.reviewer || "未填写" }}</dd>
+					</div>
+					<div>
+						<dt>备注</dt>
+						<dd>{{ movementDraft?.note || "无" }}</dd>
+					</div>
+				</dl>
+				<h2>生命周期</h2>
+				<p>
+					{{ currentMovement.date }} ·
+					{{ formatStatus(movementStatus(currentMovement)) }}
+				</p>
 				<h2>操作明细</h2>
 				<div
 					v-for="(line, index) in allMovements.filter(
@@ -734,7 +969,11 @@ onActivated(() => {
 					class="browse-rank-row"
 				>
 					<span>{{ line.itemName }} · {{ line.from }} → {{ line.to }}</span
-					><strong>{{ line.qty }} {{ line.uom }}</strong>
+					><strong>{{ line.qty }} {{ line.uom }}</strong
+					><small v-if="line.kind === 'Reconcile'"
+						>账面 {{ line.bookQty }} → 实点 {{ line.countedQty }} ·
+						{{ line.reason || "无差异说明" }}</small
+					><small v-else-if="line.reason">原因：{{ line.reason }}</small>
 				</div>
 				<h2>附件</h2>
 				<p class="browse-note">
@@ -775,7 +1014,7 @@ onActivated(() => {
 			"
 		>
 			<PreviewActivityBrowse
-				v-if="page.page !== 'loan-detail'"
+				v-if="!isDetail"
 				family="loan"
 				:records="page.page === 'loan-records'"
 				:variant="page.variant"
@@ -785,7 +1024,7 @@ onActivated(() => {
 				@return="createLoanReturn"
 				@notify="emit('notify', $event)"
 			/>
-			<article v-if="page.page === 'loan-detail'" class="browse-detail-card">
+			<article v-if="isDetail" class="browse-detail-card">
 				<div class="browse-card-heading">
 					<div>
 						<span class="eyebrow"
@@ -803,20 +1042,42 @@ onActivated(() => {
 									? 'is-success'
 									: 'is-danger'
 						"
-						>{{ formatStatus(currentLoan.status) }}</span
+						>{{ loanStatus(currentLoan) }}</span
 					>
 				</div>
-				<div v-for="line in currentLoan.lines" :key="line.code" class="browse-loan-line">
+				<div
+					v-for="(line, lineIndex) in currentLoan.lines"
+					:key="`${line.code}-${lineIndex}`"
+					class="browse-loan-line"
+				>
 					<strong>{{
 						reviewSession.stock.find((item) => item.code === line.code)?.name ||
 						line.code
 					}}</strong
 					><span
-						>借出 {{ line.qty }} · 归还 {{ line.returned }} · 损坏 {{ line.damaged }} ·
-						遗失 {{ line.lost }}</span
+						>借出 {{ line.qty }} · 未结清 {{ remaining(line) }} · 归还
+						{{ line.returned }} · 损坏 {{ line.damaged }} · 遗失 {{ line.lost }}
+						{{ reviewSession.stock.find((item) => item.code === line.code)?.uom
+						}}<small
+							>{{ line.location || "原库位未记录" }} ·
+							{{ line.batch || "不分批次" }}</small
+						></span
 					>
 				</div>
 				<h2>处理历史</h2>
+				<button
+					v-for="(row, index) in allMovements.filter(
+						(row) => row.loanName === currentLoan.name,
+					)"
+					:key="index"
+					class="browse-rank-row"
+					@click="openMovement(row.name)"
+				>
+					<span
+						>{{ row.date }} · {{ movementLabel(row.kind) }} · {{ row.itemName
+						}}<small>{{ row.name }} · {{ row.from }} → {{ row.to }}</small></span
+					><strong>{{ row.qty }} {{ row.uom }}</strong>
+				</button>
 				<p class="browse-note">
 					{{ currentLoan.loanDate }} · 借用登记 · {{ formatStatus(currentLoan.status) }}
 				</p>
@@ -841,14 +1102,8 @@ onActivated(() => {
 					><InventoryIcon name="search" /><input
 						v-model="search"
 						type="search"
-						placeholder="搜索仓库、房间或位置" /></label
-				><button
-					v-if="page.page === 'warehouses'"
-					class="browse-link"
-					@click="newWarehouse"
-				>
-					+ 新建仓库
-				</button>
+						placeholder="搜索仓库、房间或位置"
+				/></label>
 			</div>
 			<div v-if="page.page === 'warehouses'" class="browse-warehouse-layout">
 				<div class="browse-warehouse-tree">
@@ -859,10 +1114,11 @@ onActivated(() => {
 						</div>
 						<span class="browse-muted-count">{{ warehouseRows.length }} 个节点</span>
 					</div>
-					<button
+					<div
 						v-for="row in warehouseRows"
 						:key="row.name"
 						class="browse-tree-row"
+						role="group"
 						:class="{ 'is-selected': reviewSession.selectedWarehouse === row.name }"
 						:style="{ '--tree-depth': row.parent ? 1 : 0 }"
 						@click="reviewSession.selectedWarehouse = row.name"
@@ -870,20 +1126,22 @@ onActivated(() => {
 						<span class="browse-tree-type"
 							><InventoryIcon
 								:name="row.is_group ? 'warehouse' : 'location'" /></span
-						><span class="browse-grow"
-							><strong>{{ row.label }}</strong
+						><button
+							class="browse-grow browse-link"
+							@click="
+								reviewSession.selectedWarehouse = row.name;
+								go('warehouse-detail', 'overview');
+							"
+						>
+							<strong>{{ row.label }}</strong
 							><small
 								>{{ row.warehouse_type }} ·
 								{{ row.is_group ? "分组" : "可存放库存" }}</small
-							></span
-						><button
-							v-if="!row.is_group"
-							class="browse-link"
-							@click.stop="startWarehouseEdit(row)"
-						>
+							></button
+						><button class="browse-link" @click.stop="startWarehouseEdit(row)">
 							编辑
 						</button>
-					</button>
+					</div>
 				</div>
 				<article class="browse-card">
 					<div class="browse-card-heading">
@@ -930,9 +1188,21 @@ onActivated(() => {
 						<span class="eyebrow"
 							>WAREHOUSE · {{ reviewSession.selectedWarehouse }}</span
 						>
-						<h2>位置库存详情</h2>
+						<h2>{{ activeWarehouse?.label }}</h2>
+						<p>
+							{{
+								activeWarehouse?.is_group
+									? "分组仓库 · 汇总下级库位"
+									: "叶子库位 · 可存放库存"
+							}}
+						</p>
 					</div>
-					<button class="browse-link" @click="go('warehouses', 'edit')">编辑仓库</button>
+					<button
+						class="browse-link"
+						@click="activeWarehouse && startWarehouseEdit(activeWarehouse)"
+					>
+						编辑仓库
+					</button>
 				</div>
 				<div class="browse-rank-list">
 					<button
@@ -947,7 +1217,28 @@ onActivated(() => {
 						><b>{{ entry.row.available }} {{ entry.item.uom }}</b>
 					</button>
 				</div>
-				<p class="browse-note">仓库类型与是否为分组分别展示；分组节点不直接持有库存。</p>
+				<dl class="browse-detail-grid">
+					<div>
+						<dt>类型</dt>
+						<dd>{{ activeWarehouse?.warehouse_type }}</dd>
+					</div>
+					<div>
+						<dt>上级</dt>
+						<dd>{{ activeWarehouse?.parent || "根节点" }}</dd>
+					</div>
+					<div>
+						<dt>状态</dt>
+						<dd>{{ activeWarehouse?.status === "active" ? "启用" : "停用" }}</dd>
+					</div>
+					<div>
+						<dt>库存方式</dt>
+						<dd>
+							{{
+								activeWarehouse?.is_group ? "分组汇总，不直接存放库存" : "叶子库位"
+							}}
+						</dd>
+					</div>
+				</dl>
 				<h2>最近流动</h2>
 				<div class="browse-rank-list">
 					<button
@@ -1122,6 +1413,36 @@ onActivated(() => {
 						>编辑物品资料</PreviewUiButton
 					>
 				</div>
+				<dl class="browse-detail-grid">
+					<div>
+						<dt>物品编号</dt>
+						<dd>{{ activeItem.code }}</dd>
+					</div>
+					<div>
+						<dt>单位</dt>
+						<dd>{{ activeItem.uom }}</dd>
+					</div>
+					<div>
+						<dt>批次管理</dt>
+						<dd>{{ activeItem.tracksBatch ? "启用" : "不启用" }}</dd>
+					</div>
+					<div>
+						<dt>记录效期</dt>
+						<dd>{{ activeItem.tracksExpiry ? "启用" : "不启用" }}</dd>
+					</div>
+					<div>
+						<dt>条码</dt>
+						<dd>{{ activeItem.barcode || "未设置" }}</dd>
+					</div>
+					<div>
+						<dt>说明</dt>
+						<dd>{{ activeItem.description || "无" }}</dd>
+					</div>
+				</dl>
+				<h2>物品图片</h2>
+				<p class="browse-note">
+					{{ activeItem.images?.join("、") || "示例插画；未添加其他图片" }}
+				</p>
 				<PreviewQuantitySummary
 					:metrics="[
 						{
@@ -1201,7 +1522,17 @@ onActivated(() => {
 				</div>
 				<div class="browse-card-heading">
 					<h2>最近流动</h2>
-					<button class="browse-link" @click="reviewSession.filters.movementScope = {...emptyScope(), item: activeItem.code}; reviewSession.filters.movementItems.search = ''; go('movement-items', 'list')">
+					<button
+						class="browse-link"
+						@click="
+							reviewSession.filters.movementScope = {
+								...emptyScope(),
+								item: activeItem.code,
+							};
+							reviewSession.filters.movementItems.search = '';
+							go('movement-items', 'list');
+						"
+					>
 						查看物品流动
 					</button>
 				</div>
@@ -1298,6 +1629,14 @@ onActivated(() => {
 				>格式<select v-model="quickExportFormat">
 					<option>CSV</option>
 					<option>XLSX</option>
+				</select></label
+			>
+			<label
+				>导出内容<select v-model="quickExportDataset">
+					<option value="summary">
+						{{ page.page === "expiry" ? "批次汇总" : "物品汇总" }}
+					</option>
+					<option value="details">逐库位明细</option>
 				</select></label
 			>
 			<ul>

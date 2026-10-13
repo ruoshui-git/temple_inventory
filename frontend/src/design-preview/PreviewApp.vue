@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { emptyScope } from "./browseModel";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
@@ -42,11 +42,12 @@ const { isMobile } = useResponsiveLayout();
 const page = ref("gallery");
 const routeKey = ref<PreviewPageKey>("dashboard/overview");
 const activeRoute = computed(() => getPreviewPage(routeKey.value)!);
+const formContexts = reactive<Partial<Record<PreviewPageKey, { loanName?: string }>>>({});
 const section = computed(() =>
 	page.value === "inventory"
 		? "inventory"
 		: page.value === "route"
-			? destinationFor(activeRoute.value)
+			? destinationFor(activeRoute.value, formContexts[routeKey.value])
 			: undefined,
 );
 const inventoryExpanded = ref(true);
@@ -71,7 +72,48 @@ const indexedPages = computed(() =>
 		`${entry.label} ${entry.path}`.toLowerCase().includes(indexSearch.value.toLowerCase()),
 	),
 );
-const returnRoutes = reactive<Partial<Record<PreviewPageKey, PreviewPageKey>>>({});
+type ReturnKey = PreviewPageKey | `local/${"gallery" | "inventory" | "receive"}`;
+const returnRoutes = reactive<Partial<Record<PreviewPageKey, ReturnKey>>>({});
+const scrollPositions = new Map<
+	ReturnKey,
+	{ top: number; left: number; results: { top: number; left: number }[] }
+>();
+const visibleKey = computed<ReturnKey>(() =>
+	page.value === "route"
+		? routeKey.value
+		: `local/${page.value as "gallery" | "inventory" | "receive"}`,
+);
+const scrollSelector =
+	".results-region, .table-scroll, .preview-browse-results, .browse-table-wrap";
+watch(
+	visibleKey,
+	async (key, previous) => {
+		const main = document.getElementById("sample-content");
+		if (!main) return;
+		scrollPositions.set(previous, {
+			top: main.scrollTop,
+			left: main.scrollLeft,
+			results: Array.from(main.querySelectorAll<HTMLElement>(scrollSelector)).map(
+				(element) => ({
+					top: element.scrollTop,
+					left: element.scrollLeft,
+				}),
+			),
+		});
+		await nextTick();
+		if (visibleKey.value !== key) return;
+		const saved = scrollPositions.get(key);
+		main.scrollTop = saved?.top || 0;
+		main.scrollLeft = saved?.left || 0;
+		Array.from(main.querySelectorAll<HTMLElement>(scrollSelector)).forEach(
+			(element, index) => {
+				element.scrollTop = saved?.results[index]?.top || 0;
+				element.scrollLeft = saved?.results[index]?.left || 0;
+			},
+		);
+	},
+	{ flush: "pre" },
+);
 function isContextualRoute(route: typeof activeRoute.value) {
 	return (
 		route.page.endsWith("-form") ||
@@ -82,7 +124,7 @@ function isContextualRoute(route: typeof activeRoute.value) {
 			))
 	);
 }
-const backRoute = computed<PreviewPageKey | undefined>(() => {
+const backRoute = computed<ReturnKey | undefined>(() => {
 	if (page.value !== "route") return undefined;
 	const current = activeRoute.value;
 	if (section.value === "more" && current.page !== "more") return "more/index";
@@ -123,7 +165,11 @@ function navigateInventory(key: PreviewPageKey) {
 	if (key.startsWith("pending")) reviewSession.filters.pending.scope = emptyScope();
 	navigate(key);
 }
-function navigate(key: PreviewPageKey, rememberReturn = true) {
+function navigate(key: ReturnKey, rememberReturn = true) {
+	if (key.startsWith("local/")) {
+		selectLocalPage(key.slice(6) as "gallery" | "inventory" | "receive");
+		return;
+	}
 	const route = getPreviewPage(key);
 	if (route) selectRoute(route.page, route.variant, rememberReturn);
 }
@@ -132,13 +178,22 @@ function selectRoute(routePage: string, variant: string, rememberReturn = true) 
 		(candidate) => candidate.page === routePage && candidate.variant === variant,
 	);
 	if (!route) return;
-	if (
-		rememberReturn &&
-		isContextualRoute(route) &&
-		route.key !== routeKey.value &&
-		page.value === "route"
-	)
-		returnRoutes[route.key] = routeKey.value;
+	if (route.page === "movement-form" && rememberReturn) {
+		const selected = reviewSession.drafts.find(
+			(draft) => draft.name === reviewSession.selectedDraftName,
+		);
+		formContexts[route.key] = { loanName: selected?.loanName };
+	}
+	if (rememberReturn && isContextualRoute(route) && route.key !== routeKey.value) {
+		const origin = page.value === "route" ? activeRoute.value : undefined;
+		const sameDetail = origin && origin.page === route.page && isContextualRoute(origin);
+		const itemSave = origin?.page === "item-form" && route.page === "item-detail";
+		if (itemSave && origin && returnRoutes[origin.key] === route.key) {
+			// Saving an item returns to its detail without replacing the browse origin.
+		} else if ((sameDetail || itemSave) && origin && returnRoutes[origin.key])
+			returnRoutes[route.key] = returnRoutes[origin.key];
+		else if (!sameDetail) returnRoutes[route.key] = visibleKey.value;
+	}
 	routeKey.value = route.key;
 	if (destinationFor(route) === "inventory") inventoryExpanded.value = true;
 	page.value = "route";

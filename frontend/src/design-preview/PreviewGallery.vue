@@ -126,7 +126,7 @@ const swatches = computed(() => [
 				</div>
 				<div class="chip-row">
 					<span class="badge success">✓ 已保存</span
-					><span class="badge warning">! 即将到期</span
+					><span class="badge warning">未过期</span
 					><span class="badge danger">! 已过期</span
 					><span class="badge info">借出中</span><span class="badge neutral">草稿</span>
 				</div>

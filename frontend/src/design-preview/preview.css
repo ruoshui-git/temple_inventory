@@ -2515,3 +2515,11 @@ body:has(.preview-overlay) .preview-toast {
 	background: var(--p-surface);
 	color: var(--p-ink);
 }
+
+.preview-image-enlarge {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+}

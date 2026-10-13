@@ -556,3 +556,57 @@ in the same change. Keep implementation details in code or task notes, not here.
   Selection remains independent; dialogs restore focus to the initiating control.
   This intentionally supersedes the inert-card-image rule in the preview only;
   production interaction and visual migration remain pending review.
+
+- **2026-10-12 preview completion supersession:** Expiry browsing uses 全部 /
+  已过期 / 未过期 / 无效期; expiry today is unexpired. Batch-only items with no
+  date appear in 无效期. Explicit inclusive date windows and the six dashboard
+  buckets remain; legacy soon hashes mean today through 30 days ahead. This
+  supersedes the preview's default soon/valid-threshold categories. Inventory
+  keeps cards/table and removes inert expiry tabs; Expiry uses tables/mobile rows.
+- **2026-10-12 preview summary and export supersession:** Movement counts distinct
+  records, item codes and categories across the complete filtered result, with
+  quantities separated by movement type/unit and explicit draft/cancelled labels.
+  Loans shows outstanding records/items and outcome quantities. Browse exports
+  default to item/batch summaries or operation records for the active view, with
+  a separate contributing-line option. CSV/XLSX selection never changes the
+  selected dataset. This supersedes format-dependent preview summary/detail
+  choices; production reporting rules remain unchanged.
+- **2026-10-12 preview details supersession:** Item image/name opens the complete
+  item page. Always-visible enlargement icons have accessible names/tooltips;
+  table/group thumbnails enlarge independently from disclosure or selection.
+  Item edit keeps code, unit and tracking read-only while editing metadata and
+  simulated image attachments. Both warehouse groups and leaf locations have
+  details and name editing. Transactions show all lines and lifecycle/context;
+  loans show cumulative outcomes and linked settlement history. Batch details
+  stay inline. Sidebar ownership follows the detail's domain and Back restores
+  its origin's scope, view, selection and scroll. This supersedes preview item
+  detail dialogs and partial record/detail proposals.
+- **2026-10-12 preview forms supersession:** Common fields are compact and optional
+  context may collapse; required locations, batches and operation inputs remain
+  visible. Receive follows location → item → batch allocations with derived
+  totals. Outbound movements use existing stock/batches; Transfer requires both
+  locations; Loan requires a borrower; Return links outstanding stock and may
+  split good/damaged/lost outcomes. Repair/Disposal use damaged quantities.
+  Reconciliation shows book/actual/difference with a reason for differences.
+  Repeated lines share availability/outstanding limits and integer-only units
+  reject fractional quantities. This supersedes expandable required-row fields.
+- **2026-10-12 preview creation supersession:** Only Receive offers transaction
+  item creation; Inventory retains standalone creation. The contextual picker
+  replaces its selection surface with the create form, and unit creation stays
+  inline with name/integer-only fields. Creation returns to the same receiving
+  allocations; cancelling/deleting the receipt retains created catalog items and
+  units. Canonical and routed receiving share these controls. All new behavior
+  remains a fixture-only proposal; production migration still awaits review.
+
+- **2026-10-12 independent preview review:** Summary item counts describe the
+  displayed outcome; mixed settlement records name every contributing type.
+  Movement modes remember separate sort choices. Loan settlement allocations
+  retain their originating line/location, and another partial settlement opens
+  a fresh editable draft. Linked Damage/Loss forms retain Loan navigation ownership.
+  Item edits can explicitly cancel with discard confirmation; metadata saves
+  directly, while stock operations retain confirmation. Image ordering identifies
+  the primary image. Receipt batch IDs may be generated, manufacturing dates are
+  optional, and supported alternate-unit entry shows the stock-unit equivalent.
+  Group replacement applies to every allocation. Detail states include loading,
+  empty, retry and unavailable; missing records never substitute another record.
+  These clarify the approved preview proposal, without changing production.

@@ -104,6 +104,7 @@ export function writePreferences(
 export interface StockBatch {
   id: string;
   available: number;
+  damaged?: number;
   expiry?: string;
 }
 export interface StockLocation {
@@ -124,6 +125,10 @@ export interface StockItem {
   available: number;
   loaned: number;
   damaged: number;
+  barcode?: string;
+  description?: string;
+  images?: string[];
+  alternateUnits?: { uom: string; factor: number }[];
   illustration: "rice" | "oil" | "cloth" | "box" | "none";
 }
 export const previewDate = "2026-10-11";
@@ -142,6 +147,7 @@ const fixtures: ItemFixture[] = [
   {
     code: "ITM-000128",
     name: "东北珍珠米",
+    alternateUnits: [{ uom: "箱", factor: 10 }],
     category: "食品",
     uom: "袋",
     tracksBatch: true,
@@ -154,7 +160,7 @@ const fixtures: ItemFixture[] = [
         loaned: 0,
         damaged: 2,
         batches: [
-          { id: "RICE-2609", available: 60, expiry: "2027-03-01" },
+          { id: "RICE-2609", available: 60, damaged: 2, expiry: "2027-03-01" },
           { id: "RICE-2610", available: 20, expiry: "2027-04-01" },
         ],
       },
@@ -231,7 +237,9 @@ const fixtures: ItemFixture[] = [
         available: 0,
         loaned: 0,
         damaged: 3,
-        batches: [{ id: "MUSH-2509", available: 0, expiry: "2026-09-30" }],
+        batches: [
+          { id: "MUSH-2509", available: 0, damaged: 3, expiry: "2026-09-30" },
+        ],
       },
     ],
   },
@@ -325,7 +333,7 @@ export function expiryStatus(item: StockItem) {
     .sort();
   if (!dates.length) return null;
   const days = (Date.parse(dates[0]) - Date.parse(previewDate)) / 86400000;
-  return days < 0 ? "已过期" : days <= 30 ? "即将到期" : "有效期内";
+  return days < 0 ? "已过期" : "未过期";
 }
 export function quantities(
   rows: StockItem[],

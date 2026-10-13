@@ -166,3 +166,36 @@ The 44px target minimum applies in every density. Sidebar chevron placement is
 explicit instead of relying on the last SVG child. Reports is the fifth primary
 entry; Tools is secondary. Documented interaction supersessions are recorded in
 `UI_UX_DECISIONS.md` and require manual preview review before production adoption.
+
+## Preview form and browse completion (2026-10-12)
+
+The preview uses `PreviewFilterButton` for consistent filter icons/counts and
+`PreviewItemGroup` for aligned thumbnail, title, metrics and independent disclosure.
+`PreviewOperationLines` is shared by routed forms and the canonical receiving
+example. It keeps operation-specific required fields visible, groups receiving
+batch allocations beneath each location/item and derives totals from allocations.
+`PreviewItemPicker` switches between selection and contextual item creation;
+`PreviewUnitField` creates units inline with their integer-only setting.
+`formModel.ts` validates fixture availability, aggregate allocations and settlement
+balances without modifying stock quantities or calling production APIs.
+
+Item and warehouse details retain their Inventory sidebar ownership; Movement
+and Loans own their record details. Origin Back preserves scope, view, selection
+and scroll, including local review hashes. Item identity/unit/tracking are read-only
+on edit; names, category, barcode, description and simulated image attachments
+remain editable. Export dataset selection is independent of CSV/XLSX format.
+
+Deliberate geometry: group thumbnails and disclosure rows use a 56px footprint;
+enlargement controls remain 44px. Required form fields use two columns on desktop
+and one below 1024px in every density. Long titles and metrics may wrap instead
+of overflowing. Expiry uses desktop tables and mobile batch rows. All styling
+remains preview-owned. These additions require the existing manual viewport,
+density, keyboard and zoom review before production adoption.
+
+Independent review corrections keep group-level replacement consistent across
+allocations and add form thumbnails, explicit outbound batch allocation, optional
+manufacturing dates and alternate-unit entry. Quantities remain normalized to the
+stock unit for availability checks, summaries and exports. Item metadata editing
+has cancel/discard and primary-image ordering; stock confirmation remains separate.
+The detail preview-state control demonstrates loading, empty, retry and unavailable
+states without mutating fixture records. It is review chrome, not a production flow.

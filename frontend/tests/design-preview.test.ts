@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
-import { nextTick } from "vue";
+import { nextTick, h } from "vue";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import PreviewApp from "../src/design-preview/PreviewApp.vue";
@@ -146,8 +146,8 @@ describe("design preview preferences and fixtures", () => {
     expect(expiryStatus(plain)).toBeNull();
     expect(itemBatches(batchOnly)).toHaveLength(1);
     expect(expiryStatus(batchOnly)).toBeNull();
-    expect(expiryStatus(items[0])).toBe("有效期内");
-    expect(expiryStatus(items[1])).toBe("即将到期");
+    expect(expiryStatus(items[0])).toBe("未过期");
+    expect(expiryStatus(items[1])).toBe("未过期");
     expect(expiryStatus(items[4])).toBe("已过期");
     const line = {
       id: 1,
@@ -294,8 +294,12 @@ describe("interactive preview", () => {
     expect(button(wrapper, "2 个批次")).toBeDefined();
   });
   it("restores the underlying dialog when its image lightbox closes", async () => {
-    const wrapper = render(PreviewInventory, { pattern: "current" });
-    await button(wrapper, items[0].name).trigger("click");
+    const wrapper = mount(PreviewOverlay, {
+      props: { title: "物品详情" },
+      slots: { default: () => h(PreviewItemImage, { item: items[0] }) },
+      attachTo: document.body,
+    });
+    mounted.push(wrapper);
     await nextTick();
     const parent = document.querySelector<HTMLElement>(".preview-overlay")!;
     const imageButton =

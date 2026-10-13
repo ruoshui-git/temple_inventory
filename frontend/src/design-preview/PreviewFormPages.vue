@@ -13,7 +13,10 @@ import {
 	type OperationKind,
 	type ReviewDraft,
 } from "./reviewModel";
-import { locations, items } from "./model";
+import { locations } from "./model";
+import PreviewOperationLines from "./components/PreviewOperationLines.vue";
+import PreviewUnitField from "./components/PreviewUnitField.vue";
+import { validateOperation, isSettlement } from "./formModel";
 
 const props = withDefaults(defineProps<{ page: string; variant: string; active?: boolean }>(), {
 	active: true,
@@ -44,25 +47,36 @@ const labelMap: Record<string, string> = {
 	Repair: "修复归库",
 	Disposal: "正式报废",
 };
-type PreviewDraft = ReviewDraft & {
-	recorder?: string;
-	handler?: string;
-	reviewer?: string;
-	barcode?: string;
-	description?: string;
-	tracksBatch?: boolean;
-	tracksExpiry?: boolean;
-	loanName?: string;
-};
-const draft = ref<PreviewDraft>();
+const draft = ref<ReviewDraft>();
 let lineSequence = 0;
 const showError = ref(false);
 const saveFailed = ref(false);
 const saveState = ref("");
 const showConfirm = ref(false);
-const expanded = ref<Record<string, boolean>>({});
+const operationError = ref("");
 const photoName = ref("");
-const scanCode = ref("ITM-000128");
+const discardOpen = ref(false);
+let itemEditBaseline = "";
+function cancelItemEdit() {
+	if (!draft.value) return;
+	if (JSON.stringify(draft.value) !== itemEditBaseline) {
+		discardOpen.value = true;
+		return;
+	}
+	discardItemEdit();
+}
+function discardItemEdit() {
+	if (!draft.value) return;
+	const code = draft.value.itemCode;
+	const index = reviewSession.drafts.indexOf(draft.value);
+	if (index >= 0) reviewSession.drafts.splice(index, 1);
+	discardOpen.value = false;
+	if (props.variant === "edit") {
+		reviewSession.selectedItemCode = code || "";
+		emit("navigate", "item-detail", "overview");
+	} else emit("navigate", "inventory", "list");
+}
+
 const itemCodeCollision = computed(
 	() =>
 		isItem.value &&
@@ -106,112 +120,36 @@ const returnLoans = computed(() =>
 			loan.lines.some((line) => line.qty > line.returned + line.damaged + line.lost),
 	),
 );
-function selectableItems(line: ReviewDraft["lines"][number]) {
-	const allowed =
-		kind.value === "Return"
-			? draft.value?.loanName
-				? reviewSession.loans
-						.find((loan) => loan.name === draft.value?.loanName)
-						?.lines.filter(
-							(entry) => entry.qty > entry.returned + entry.damaged + entry.lost,
-						)
-						.map((entry) => entry.code) || []
-				: []
-			: undefined;
-	return reviewSession.stock.filter(
-		(stock) =>
-			stock.code === line.code ||
-			((!allowed || allowed.includes(stock.code)) &&
-				(kind.value !== "Loan" ||
-					stock.locations.some((location) => location.available > 0))),
-	);
-}
 function selectReturnLoan(name: string) {
 	if (!draft.value) return;
 	const loan = returnLoans.value.find((entry) => entry.name === name);
-	if (!loan) return;
-	draft.value.loanName = loan.name;
-	draft.value.borrower = loan.borrower;
-	const outstanding = loan.lines.find(
-		(entry) => entry.qty > entry.returned + entry.damaged + entry.lost,
-	);
-	if (outstanding) {
-		const line = draft.value.lines[0];
-		if (line) {
-			setItem(line, outstanding.code);
-			line.qty =
-				outstanding.qty - outstanding.returned - outstanding.damaged - outstanding.lost;
-			const stockItem = item(outstanding.code);
-			line.location =
-				stockItem?.locations.find((location) => location.loaned > 0)?.location ||
-				stockItem?.locations[0]?.location ||
-				locations[0];
-		}
-	}
+	draft.value.loanName = name;
+	draft.value.borrower = loan?.borrower || "";
+	draft.value.lines =
+		loan?.lines
+			.map((entry, index) => ({
+				id: `${loan.name}-${index}`,
+				loanLineIndex: index,
+				code: entry.code,
+				qty: entry.qty - entry.returned - entry.damaged - entry.lost,
+				uom: item(entry.code)?.uom || "",
+				location: entry.location || locations[0],
+				batch: entry.batch,
+				returnOutcome: "returned" as const,
+			}))
+			.filter((line) => line.qty > 0) || [];
 }
 function validOperation() {
-	if (!draft.value || isItem.value)
+	if (!draft.value) return false;
+	if (isItem.value)
 		return (
-			!!draft.value?.itemName?.trim() &&
+			!!draft.value.itemName?.trim() &&
 			!!draft.value.itemCode?.trim() &&
+			!!draft.value.uom &&
 			!itemCodeCollision.value
 		);
-	if (
-		!draft.value.postingDate ||
-		Number.isNaN(Date.parse(draft.value.postingDate)) ||
-		!draft.value.lines.length
-	)
-		return false;
-	if (kind.value === "Loan" && !draft.value.borrower.trim()) return false;
-	if (kind.value === "Return" && !draft.value.loanName) return false;
-	return draft.value.lines.every((line) => {
-		const selected = item(line.code);
-		if (
-			!selected ||
-			!line.location ||
-			!Number.isFinite(Number(line.qty)) ||
-			Number(line.qty) <= 0
-		)
-			return false;
-		if (
-			kind.value === "Transfer" &&
-			(!line.sourceLocation || line.sourceLocation === line.location)
-		)
-			return false;
-		if (
-			isReconcile.value &&
-			(!Number.isFinite(Number(line.countedQty)) || Number(line.countedQty) < 0)
-		)
-			return false;
-		if (selected.tracksBatch && !line.batch?.trim()) return false;
-		if (selected.tracksExpiry && (!line.expiry || Number.isNaN(Date.parse(line.expiry))))
-			return false;
-		if (["Issue", "Loss", "Damage", "Loan", "Transfer"].includes(kind.value)) {
-			const available =
-				selected.locations.find(
-					(location) => location.location === (line.sourceLocation || line.location),
-				)?.available || 0;
-			if (Number(line.qty) > available) return false;
-		}
-		if (kind.value === "Repair" || kind.value === "Disposal") {
-			const damaged =
-				selected.locations.find(
-					(location) => location.location === (line.sourceLocation || line.location),
-				)?.damaged || 0;
-			if (Number(line.qty) > damaged) return false;
-		}
-		if (kind.value === "Return") {
-			const loan = reviewSession.loans.find((entry) => entry.name === draft.value?.loanName);
-			const borrowed = loan?.lines.find((entry) => entry.code === line.code);
-			if (
-				!borrowed ||
-				Number(line.qty) >
-					borrowed.qty - borrowed.returned - borrowed.damaged - borrowed.lost
-			)
-				return false;
-		}
-		return true;
-	});
+	operationError.value = validateOperation(draft.value);
+	return !operationError.value;
 }
 const groupedLines = computed(() => {
 	const groups = new Map<string, NonNullable<typeof draft.value>["lines"]>();
@@ -249,6 +187,8 @@ function initialize() {
 	if (!selected && name)
 		draft.value = findDraft(kind.value, name) || createDraft(kind.value, name);
 	else if (!selected) draft.value = createDraft(kind.value);
+	if (isItem.value && draft.value?.status !== "draft")
+		draft.value = createDraft("Item", `${name}-${Date.now()}`);
 	if (isItem.value && props.variant === "edit" && draft.value && !draft.value.itemCode) {
 		const current = item(reviewSession.selectedItemCode);
 		if (current)
@@ -256,6 +196,9 @@ function initialize() {
 				itemCode: current.code,
 				itemName: current.name,
 				category: current.category,
+				barcode: current.barcode,
+				description: current.description,
+				images: [...(current.images || [])],
 				uom: current.uom,
 				tracksBatch: current.tracksBatch,
 				tracksExpiry: current.tracksExpiry,
@@ -269,15 +212,20 @@ function initialize() {
 		}
 	}
 	if (isItem.value && props.variant === "new" && !draft.value?.itemCode)
-		draft.value!.itemCode = "ITM-000134";
-	if (draft.value && !draft.value.lines.length && !isItem.value) addLine();
+		draft.value!.itemCode = `ITM-${String(Math.max(133, ...reviewSession.stock.map((item) => Number(item.code.match(/^ITM-(\d+)$/)?.[1]) || 0)) + 1).padStart(6, "0")}`;
+	if (draft.value?.kind === "Return" && draft.value.lines.length)
+		draft.value.lines.forEach((line) => (line.returnOutcome ??= "returned"));
+	if (draft.value && !draft.value.lines.length && !isItem.value && kind.value !== "Return")
+		addLine();
 	reviewSession.selectedDraftName = "";
 	showError.value = false;
+	if (isItem.value) itemEditBaseline = JSON.stringify(draft.value);
 }
 watch(() => [props.page, props.variant], initialize, { immediate: true });
 onActivated(() => {
 	if (
 		reviewSession.selectedDraftName ||
+		(isItem.value && isReadOnly.value) ||
 		(draft.value && !reviewSession.drafts.includes(draft.value)) ||
 		(isItem.value &&
 			props.variant === "edit" &&
@@ -287,6 +235,7 @@ onActivated(() => {
 });
 onDeactivated(() => {
 	showConfirm.value = false;
+	discardOpen.value = false;
 });
 watch(
 	() => props.active,
@@ -296,41 +245,22 @@ watch(
 );
 function addLine() {
 	if (!draft.value) return;
-	const first =
-		reviewSession.stock.find((row) => row.code === "ITM-000131") || reviewSession.stock[0];
+	const first = ["Repair", "Disposal"].includes(kind.value)
+		? reviewSession.stock.find((row) =>
+				row.locations.some((location) => location.damaged > 0),
+			)!
+		: reviewSession.stock.find((row) => row.code === "ITM-000131") || reviewSession.stock[0];
 	draft.value.lines.push({
 		id: `${draft.value.name}-line-${draft.value.lines.length}-${++lineSequence}`,
 		code: first.code,
-		qty: 1,
+		qty: isReconcile.value ? first.locations[0]?.available || 0 : 1,
 		uom: first.uom,
 		location: first.locations[0]?.location || locations[0],
 		sourceLocation:
 			kind.value === "Receive" ? undefined : first.locations[0]?.location || locations[0],
-		batch: "",
-		expiry: "",
+		batch: first.tracksBatch ? first.locations[0]?.batches?.[0]?.id || "" : "",
+		expiry: first.tracksExpiry ? first.locations[0]?.batches?.[0]?.expiry || "" : "",
 	});
-}
-function setItem(line: ReviewDraft["lines"][number], code: string) {
-	line.code = code;
-	const selected = item(code);
-	if (selected) {
-		line.uom = selected.uom;
-		const location =
-			selected.locations.find(
-				(row) => row.location === (line.sourceLocation || line.location),
-			) || selected.locations[0];
-		if (kind.value !== "Receive" && location) {
-			line.sourceLocation = location.location;
-			if (kind.value !== "Transfer") line.location = location.location;
-		}
-		const batch = location?.batches?.[0];
-		line.batch = selected.tracksBatch && kind.value !== "Receive" ? batch?.id || "" : "";
-		line.expiry = selected.tracksExpiry && kind.value !== "Receive" ? batch?.expiry || "" : "";
-	}
-}
-function removeLine(id: string) {
-	if (!draft.value) return;
-	draft.value.lines = draft.value.lines.filter((line) => line.id !== id);
 }
 function saveDraft() {
 	if (!draft.value || isReadOnly.value) return;
@@ -368,9 +298,10 @@ function confirmSubmit() {
 			current.category = draft.value.category || current.category;
 			current.uom = draft.value.uom || current.uom;
 			Object.assign(current, {
-				barcode: draft.value.barcode || "",
-				description: draft.value.description || "",
-				tracksBatch: !!draft.value.tracksBatch,
+				tracksBatch: !!draft.value.tracksBatch || !!draft.value.tracksExpiry,
+				barcode: draft.value.barcode,
+				description: draft.value.description,
+				images: draft.value.images,
 				tracksExpiry: !!draft.value.tracksExpiry,
 			});
 		} else if (draft.value.itemCode && draft.value.itemName)
@@ -379,7 +310,10 @@ function confirmSubmit() {
 				name: draft.value.itemName,
 				category: draft.value.category || "日用品",
 				uom: draft.value.uom || "个",
-				tracksBatch: !!draft.value.tracksBatch,
+				tracksBatch: !!draft.value.tracksBatch || !!draft.value.tracksExpiry,
+				barcode: draft.value.barcode,
+				description: draft.value.description,
+				images: draft.value.images,
 				tracksExpiry: !!draft.value.tracksExpiry,
 				locations: [],
 				available: 0,
@@ -390,6 +324,11 @@ function confirmSubmit() {
 	}
 	const result = submitDraft(kind.value, draft.value.name);
 	showConfirm.value = false;
+	if (!result) {
+		operationError.value = "处理数量超过未结清数量，输入已保留。";
+		showError.value = true;
+		return;
+	}
 	if (result)
 		emit(
 			"notify",
@@ -397,28 +336,16 @@ function confirmSubmit() {
 				? "物品资料已在预览中保存"
 				: "模拟确认完成；库存为固定样本快照，不执行库存扣增。",
 		);
-}
-function scanItem() {
-	const found = items.find((row) => row.code === scanCode.value || row.name === scanCode.value);
-	if (found && draft.value && !isItem.value) {
-		const line = draft.value.lines[0];
-		if (line) setItem(line, found.code);
-		else
-			draft.value.lines.push({
-				id: `scan-${Date.now()}`,
-				code: found.code,
-				qty: 1,
-				uom: found.uom,
-				location: locations[0],
-			});
-		emit("notify", `已模拟识别：${found.name}`);
-	} else emit("notify", "未找到匹配物品，请检查编号后重试");
+	if (result && isItem.value) {
+		reviewSession.selectedItemCode = draft.value.itemCode || "";
+		emit("navigate", "item-detail", "overview");
+	}
 }
 function applyPhoto(event: Event) {
 	const name = (event.target as HTMLInputElement).files?.[0]?.name || "";
 	photoName.value = name;
 	if (draft.value)
-		draft.value.description = name ? `示例图片：${name}` : draft.value.description;
+		draft.value.images = name ? [...(draft.value.images || []), name] : draft.value.images;
 }
 </script>
 
@@ -436,26 +363,26 @@ function applyPhoto(event: Event) {
 		</div>
 		<div class="form-layout">
 			<form class="form-main surface" @submit.prevent="saveDraft">
-				<div class="form-section form-date-section">
+				<div v-if="!isItem" class="form-section form-date-section">
 					<label
 						>操作日期<input
 							v-model="draft!.postingDate"
 							type="date"
 							:disabled="isReadOnly"
 					/></label>
-					<label v-if="!isItem"
-						>活动 / 用途<input
-							v-model="draft!.activity"
-							placeholder="可选，记录操作背景"
-							:disabled="isReadOnly"
-					/></label>
 				</div>
 				<template v-if="isItem">
 					<section class="form-section">
-						<h2>物品资料</h2>
+						<div class="section-title-row">
+							<h2>物品资料</h2>
+							<PreviewUiButton v-if="!isReadOnly" @click="cancelItemEdit"
+								>取消编辑</PreviewUiButton
+							>
+						</div>
 						<div class="form-fields">
 							<label
 								>物品编号<input
+									:readonly="variant === 'edit'"
 									v-model="draft!.itemCode"
 									:aria-invalid="
 										showError && (!draft?.itemCode || itemCodeCollision)
@@ -478,12 +405,10 @@ function applyPhoto(event: Event) {
 									<option>清洁用品</option>
 								</select></label
 							>
-							<label
-								>计量单位<input
-									v-model="draft!.uom"
-									placeholder="如：袋、件、个"
-									:disabled="isReadOnly"
-							/></label>
+							<PreviewUnitField
+								v-model="draft!.uom"
+								:disabled="isReadOnly || variant === 'edit'"
+							/>
 							<label
 								>条码（可选）<input
 									v-model="draft!.barcode"
@@ -501,19 +426,39 @@ function applyPhoto(event: Event) {
 								><input
 									v-model="draft!.tracksBatch"
 									type="checkbox"
-									:disabled="isReadOnly"
+									:disabled="
+										isReadOnly || variant === 'edit' || draft!.tracksExpiry
+									"
 								/>按批次管理</label
 							><label
 								><input
 									v-model="draft!.tracksExpiry"
 									type="checkbox"
-									:disabled="isReadOnly"
+									:disabled="isReadOnly || variant === 'edit'"
 								/>记录效期</label
 							>
 						</div>
 					</section>
 					<section class="form-section">
 						<h2>物品图片</h2>
+						<ul>
+							<li v-for="(name, index) in draft?.images" :key="index">
+								{{ name }}<span v-if="index === 0"> · 主图</span
+								><PreviewUiButton
+									v-if="index > 0 && !isReadOnly"
+									variant="ghost"
+									@click="
+										draft!.images!.unshift(...draft!.images!.splice(index, 1))
+									"
+									>设为主图</PreviewUiButton
+								><PreviewUiButton
+									v-if="!isReadOnly"
+									variant="ghost"
+									@click="draft!.images!.splice(index, 1)"
+									>移除图片</PreviewUiButton
+								>
+							</li>
+						</ul>
 						<label class="file-drop"
 							><input
 								type="file"
@@ -527,13 +472,18 @@ function applyPhoto(event: Event) {
 					</section>
 				</template>
 				<template v-else>
-					<section v-if="kind === 'Loan' || kind === 'Return'" class="form-section">
+					<section
+						v-if="
+							kind === 'Loan' || kind === 'Return' || (draft && isSettlement(draft))
+						"
+						class="form-section"
+					>
 						<h2>{{ kind === "Loan" ? "借用对象" : "归还来源" }}</h2>
 						<div class="form-fields">
 							<label
 								>{{ kind === "Loan" ? "借用人 / 团体" : "关联借用记录"
 								}}<select
-									v-if="kind === 'Return'"
+									v-if="kind !== 'Loan'"
 									:value="draft!.loanName || ''"
 									:disabled="isReadOnly"
 									@change="
@@ -554,188 +504,39 @@ function applyPhoto(event: Event) {
 									v-else
 									v-model="draft!.borrower"
 									placeholder="填写个人或团体名称"
-									:disabled="isReadOnly" /></label
-							><label v-if="kind === 'Return'"
-								>经手人<input
-									v-model="draft!.handler"
-									placeholder="可选"
 									:disabled="isReadOnly"
 							/></label>
 						</div>
 					</section>
 					<section class="form-section">
-						<label
-							>模拟扫码内容<input v-model="scanCode" placeholder="输入样本物品编号"
-						/></label>
-						<div class="section-title-row">
-							<div>
-								<h2>{{ isReconcile ? "盘点物资" : "操作物资" }}</h2>
-								<p class="muted">按库位分组；每行可展开填写批次与其他信息。</p>
-							</div>
-							<PreviewUiButton
-								v-if="!isReadOnly"
-								variant="secondary"
-								icon="scan"
-								@click="scanItem"
-								>模拟扫码</PreviewUiButton
-							>
-						</div>
-						<div
-							v-for="[location, lines] in groupedLines"
-							:key="location"
-							class="location-group"
-						>
-							<h3><InventoryIcon name="warehouse" />{{ location }}</h3>
-							<article v-for="line in lines" :key="line.id" class="draft-line">
-								<div class="line-primary">
-									<label
-										>物品<select
-											:value="line.code"
-											:disabled="isReadOnly"
-											@change="
-												setItem(
-													line,
-													($event.target as HTMLSelectElement).value,
-												)
-											"
-										>
-											<option
-												v-for="stock in selectableItems(line)"
-												:key="stock.code"
-												:value="stock.code"
-											>
-												{{ stock.name }} · {{ stock.code }}
-											</option>
-										</select></label
-									><label
-										>数量
-										<div class="quantity-field">
-											<input
-												v-model.number="line.qty"
-												:aria-invalid="
-													showError &&
-													(!Number.isFinite(Number(line.qty)) ||
-														Number(line.qty) <= 0)
-												"
-												type="number"
-												min="0"
-												step="any"
-												:disabled="isReadOnly"
-											/><span>{{ line.uom }}</span>
-										</div></label
-									><PreviewUiButton
-										v-if="!isReadOnly"
-										variant="ghost"
-										icon-only
-										icon="chevron-down"
-										:aria-expanded="!!expanded[line.id]"
-										label="展开物品详情"
-										@click.prevent="expanded[line.id] = !expanded[line.id]"
-									/><PreviewUiButton
-										v-if="!isReadOnly"
-										variant="danger"
-										icon-only
-										icon="warning"
-										label="移除物品"
-										@click.prevent="removeLine(line.id)"
-									/>
-								</div>
-								<div
-									v-if="expanded[line.id] || isReconcile"
-									data-expanded-fields="locations"
-									v-show="
-										isReconcile ||
-										kind === 'Receive' ||
-										kind === 'Transfer' ||
-										[
-											'Issue',
-											'Loss',
-											'Disposal',
-											'Damage',
-											'Loan',
-											'Return',
-											'Repair',
-										].includes(kind)
-									"
-									class="line-secondary"
-								>
-									<label
-										v-if="
-											kind !== 'Receive' && kind !== 'Return' && !isReconcile
-										"
-										>{{ isReconcile ? "盘点库位" : "来源库位"
-										}}<select
-											v-model="line.sourceLocation"
-											:disabled="isReadOnly"
-										>
-											<option
-												v-for="place in locations"
-												:key="place"
-												:value="place"
-											>
-												{{ place }}
-											</option>
-										</select></label
-									><label
-										v-if="
-											[
-												'Receive',
-												'Transfer',
-												'Return',
-												'Repair',
-												'Reconcile',
-											].includes(kind)
-										"
-										>{{ isReconcile ? "盘点库位" : "目标 / 存放库位"
-										}}<select v-model="line.location" :disabled="isReadOnly">
-											<option
-												v-for="place in locations"
-												:key="place"
-												:value="place"
-											>
-												{{ place }}
-											</option>
-										</select></label
-									><label v-if="isReconcile"
-										>实点数量<input
-											v-model.number="line.countedQty"
-											type="number"
-											min="0"
-											:disabled="isReadOnly"
-									/></label>
-								</div>
-								<div
-									v-if="
-										expanded[line.id] &&
-										(item(line.code)?.tracksBatch ||
-											item(line.code)?.tracksExpiry)
-									"
-									class="line-secondary"
-								>
-									<label v-if="item(line.code)?.tracksBatch"
-										>批次<input
-											v-model="line.batch"
-											placeholder="批次编号"
-											:disabled="isReadOnly" /></label
-									><label v-if="item(line.code)?.tracksExpiry"
-										>效期<input
-											v-model="line.expiry"
-											type="date"
-											:disabled="isReadOnly"
-									/></label>
-								</div>
-							</article>
-						</div>
-						<PreviewUiButton
-							v-if="!isReadOnly"
-							variant="secondary"
-							icon="open"
-							@click="addLine"
-							>添加物品</PreviewUiButton
-						>
+						<h2>{{ isReconcile ? "盘点物资" : "操作物资" }}</h2>
+						<p class="muted">
+							{{
+								kind === "Receive"
+									? "按库位 → 物品 → 批次分配填写，数量由分配合计。"
+									: "核对库位、现有批次与可处理数量。"
+							}}
+						</p>
+						<PreviewOperationLines
+							:draft="draft!"
+							:disabled="isReadOnly"
+							:show-error="showError"
+							@notify="emit('notify', $event)"
+						/>
 					</section>
-					<section class="form-section">
-						<h2>补充记录</h2>
+					<details class="form-section">
+						<summary>补充记录（可选）</summary>
+						<div class="form-fields">
+							<label
+								>活动 / 用途<input
+									v-model="draft!.activity"
+									:disabled="isReadOnly" /></label
+							><label v-if="kind === 'Receive'"
+								>捐赠人 / 来源<input
+									v-model="draft!.source"
+									:disabled="isReadOnly"
+							/></label>
+						</div>
 						<label
 							>附件（模拟上传）<input
 								type="file"
@@ -764,7 +565,7 @@ function applyPhoto(event: Event) {
 									placeholder="可选"
 									:disabled="isReadOnly" /></label
 							><label
-								>复核人<input
+								>鉴证人<input
 									v-model="draft!.reviewer"
 									placeholder="可选"
 									:disabled="isReadOnly" /></label
@@ -777,7 +578,7 @@ function applyPhoto(event: Event) {
 								/>
 							</label>
 						</div>
-					</section>
+					</details>
 				</template>
 				<p v-if="showError" class="form-error" role="alert">
 					{{
@@ -789,7 +590,8 @@ function applyPhoto(event: Event) {
 									? "请填写借用人或团体。"
 									: isItem && !draft?.itemName
 										? "请填写物品名称。"
-										: "请核对日期、数量、库位、批次与效期后重试。输入内容会保留。"
+										: operationError ||
+											"请核对编号、名称与计量单位后重试。输入内容会保留。"
 					}}
 				</p>
 				<div class="form-actions">
@@ -808,7 +610,7 @@ function applyPhoto(event: Event) {
 						v-if="!isReadOnly"
 						variant="primary"
 						type="button"
-						@click="showConfirm = true"
+						@click="isItem ? confirmSubmit() : (showConfirm = true)"
 						>{{
 							isItem ? "保存物品" : isReconcile ? "核对并确认" : "复核并确认"
 						}}</PreviewUiButton
@@ -855,12 +657,21 @@ function applyPhoto(event: Event) {
 					><PreviewUiButton
 						v-if="!isReadOnly"
 						variant="primary"
-						@click="showConfirm = true"
+						@click="isItem ? confirmSubmit() : (showConfirm = true)"
 						>{{ isItem ? "保存物品" : "复核并确认" }}</PreviewUiButton
 					>
 				</div>
 			</aside>
 		</div>
+		<PreviewOverlay v-if="discardOpen" title="放弃物品编辑？" @close="discardOpen = false"
+			><p>物品资料将恢复到编辑前；已创建的单位仍会保留。</p>
+			<template #footer
+				><PreviewUiButton @click="discardOpen = false">继续编辑</PreviewUiButton
+				><PreviewUiButton variant="danger" @click="discardItemEdit"
+					>放弃编辑</PreviewUiButton
+				></template
+			></PreviewOverlay
+		>
 		<PreviewOverlay
 			v-if="showConfirm"
 			:title="`确认${pageTitle}？`"

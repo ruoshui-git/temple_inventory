@@ -25,9 +25,22 @@ onDeactivated(() => {
 			v-if="item.illustration !== 'none'"
 			class="preview-image-enlarge"
 			:aria-label="`放大查看${item.name}图片`"
+			title="查看大图"
 			@click.stop="open = true"
 		>
-			查看大图
+			<svg
+				aria-hidden="true"
+				viewBox="0 0 24 24"
+				width="20"
+				height="20"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.7"
+			>
+				<path
+					d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8l-5-5m13 5 5-5M8 16l-5 5m13-5 5 5"
+				/>
+			</svg>
 		</button>
 	</div>
 	<PreviewProduct
@@ -40,6 +53,7 @@ onDeactivated(() => {
 		type="button"
 		class="item-image-button"
 		:aria-label="`放大查看${item.name}图片`"
+		title="查看大图"
 		@click.stop="open = true"
 	>
 		<PreviewProduct :kind="item.illustration" :name="item.name" /><span

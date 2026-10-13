@@ -76,6 +76,43 @@ export function inPeriod(date: string, period: PreviewPeriod) {
   const { from, to } = resolvePeriod(period);
   return (!from || date >= from) && (!to || date <= to);
 }
+export function matchesExpiry(
+  expiry: string | undefined,
+  status: string,
+  today = previewDate,
+) {
+  if (status === "all") return true;
+  if (status === "undated") return !expiry;
+  if (!expiry) return false;
+  if (status === "expired") return expiry < today;
+  if (status === "unexpired") return expiry >= today;
+  if (status === "soon") {
+    const days = (Date.parse(expiry) - Date.parse(today)) / 86400000;
+    return days >= 0 && days <= 30;
+  }
+  return true;
+}
+export function movementSummary(
+  rows: ReviewMovement[],
+  session: ReviewSession,
+) {
+  return {
+    records: new Set(rows.map((row) => row.name)).size,
+    items: new Set(rows.map((row) => row.code).filter(Boolean)).size,
+    categories: new Set(
+      rows
+        .map(
+          (row) =>
+            session.stock.find((item) => item.code === row.code)?.category,
+        )
+        .filter(Boolean),
+    ).size,
+    totals: [...new Set(rows.map((row) => row.kind))].map((kind) => ({
+      kind,
+      text: quantityText(rows.filter((row) => row.kind === kind)),
+    })),
+  };
+}
 export function matchesWarehouse(
   location: string,
   selected: string[],

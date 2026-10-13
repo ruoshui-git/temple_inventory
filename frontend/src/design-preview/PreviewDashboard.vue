@@ -60,13 +60,27 @@ const metrics = computed(() =>
 		quantities: state.value === "empty" ? [] : data.value.metric(key),
 	})),
 );
+const recentRecords = computed(() =>
+	[...new Set(data.value.movements.map((row) => row.name))]
+		.map((name) => {
+			const lines = data.value.movements.filter((row) => row.name === name);
+			return {
+				name,
+				date: lines[0].date,
+				names: [...new Set(lines.map((row) => row.itemName))].join("、"),
+				quantities: quantityText(lines),
+			};
+		})
+		.sort((a, b) => b.date.localeCompare(a.date))
+		.slice(0, 5),
+);
 const expiryPreview = computed(() => {
 	const map = new Map<string, (typeof data.value.batches)[number]>();
 	data.value.batches
 		.filter((row) =>
 			filters.value.expiry === "expired"
 				? row.bucket.startsWith("expired")
-				: row.bucket === "upcoming_0_30",
+				: row.bucket.startsWith("upcoming"),
 		)
 		.sort((a, b) => (a.expiry || "").localeCompare(b.expiry || ""))
 		.forEach((row) => {
@@ -341,7 +355,7 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 							:aria-pressed="filters.expiry === 'upcoming'"
 							@click="filters.expiry = 'upcoming'"
 						>
-							即将过期
+							未过期
 						</button>
 					</div>
 					<div v-if="state !== 'empty'" class="browse-rank-list">
@@ -351,7 +365,10 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 							class="browse-rank-row"
 							:disabled="stale || failedSection === '效期概览'"
 							@click="
-								drill('expiry', filters.expiry === 'expired' ? 'expired' : 'soon')
+								drill(
+									'expiry',
+									filters.expiry === 'expired' ? 'expired' : 'unexpired',
+								)
 							"
 						>
 							<span
@@ -402,18 +419,16 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 					<h3>最近记录</h3>
 					<div v-if="state !== 'empty'" class="browse-rank-list">
 						<button
-							v-for="(row, index) in [...data.movements]
-								.sort((a, b) => b.date.localeCompare(a.date))
-								.slice(0, 5)"
+							v-for="(row, index) in recentRecords"
 							:key="row.name + index"
 							class="browse-rank-row"
 							:disabled="stale || failedSection === '货物流动'"
 							@click="emit('movement', row.name)"
 						>
 							<span
-								>{{ row.itemName
+								>{{ row.names
 								}}<small>{{ row.date }} · {{ row.name }}</small></span
-							><b>{{ row.qty }} {{ row.uom }}</b>
+							><b>{{ row.quantities }}</b>
 						</button>
 					</div>
 					<p v-if="state === 'empty' || !data.movements.length">期间没有流动记录。</p>

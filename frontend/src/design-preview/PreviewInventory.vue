@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import PreviewFilterButton from "./components/PreviewFilterButton.vue";
 import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import HierarchyFilter from "./components/PreviewHierarchyFilter.vue";
@@ -36,11 +37,32 @@ const descending = ref(false);
 const selected = ref<string[]>([]);
 const filtersOpen = ref(false);
 const menuOpen = ref(false);
-const detail = ref<StockItem>();
+function openItem(item: StockItem) {
+	reviewSession.selectedItemCode = item.code;
+	emit("navigate", "item-detail", "overview");
+}
 const summaryOpen = ref(false);
 const scanOpen = ref(false);
 const exportOpen = ref(false);
 const exportFormat = ref("xlsx");
+const exportDataset = ref("summary");
+function openExport() {
+	exportDataset.value = "summary";
+	exportOpen.value = true;
+}
+const exportRows = computed(() =>
+	exportDataset.value === "summary"
+		? rows.value.map(
+				(item) =>
+					`${item.code} · ${item.name} · ${item.category} · 可用 ${item.available} ${item.uom} · 借出 ${item.loaned} · 损坏 ${item.damaged}`,
+			)
+		: rows.value.flatMap((item) =>
+				item.locations.map(
+					(location) =>
+						`${item.code} · ${item.name} · ${location.location} · 可用 ${location.available} ${item.uom} · 借出 ${location.loaned} · 损坏 ${location.damaged}`,
+				),
+			),
+);
 const status = ref("ready");
 const menu = ref<HTMLElement>();
 watch(
@@ -64,14 +86,19 @@ watch(
 		filtersOpen.value = false;
 		menuOpen.value = false;
 		summaryOpen.value = false;
-		detail.value = undefined;
 		scanOpen.value = false;
 		exportOpen.value = false;
 	},
 );
-watch(() => reviewSession.filters.inventory.scope, () => {
- search.value = ""; warehouses.value = []; category.value = ""; status.value = "ready";
-});
+watch(
+	() => reviewSession.filters.inventory.scope,
+	() => {
+		search.value = "";
+		warehouses.value = [];
+		category.value = "";
+		status.value = "ready";
+	},
+);
 function closeMenuOutside(event: PointerEvent) {
 	if (event.target instanceof Node && !menu.value?.contains(event.target))
 		menuOpen.value = false;
@@ -84,16 +111,23 @@ onMounted(() => document.addEventListener("pointerdown", closeMenuOutside));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", closeMenuOutside));
 const rows = computed(() => {
 	if (status.value === "empty") return [];
- const scope = reviewSession.filters.inventory.scope;
- const source = reviewSession.stock.filter(item => matchesItem(item.code, scope, reviewSession)).map(item => ({...item, locations: item.locations.filter(row => matchesWarehouse(row.location, scope.warehouses, reviewSession))})).filter(item => !scope.warehouses.length || item.locations.length);
- return filterItems(search.value, warehouses.value, category.value, source)
-		.sort((a, b) => {
-			const result =
-				sort.value === "available"
-					? a.available - b.available
-					: a.name.localeCompare(b.name, "zh-CN");
-			return descending.value ? -result : result;
-		});
+	const scope = reviewSession.filters.inventory.scope;
+	const source = reviewSession.stock
+		.filter((item) => matchesItem(item.code, scope, reviewSession))
+		.map((item) => ({
+			...item,
+			locations: item.locations.filter((row) =>
+				matchesWarehouse(row.location, scope.warehouses, reviewSession),
+			),
+		}))
+		.filter((item) => !scope.warehouses.length || item.locations.length);
+	return filterItems(search.value, warehouses.value, category.value, source).sort((a, b) => {
+		const result =
+			sort.value === "available"
+				? a.available - b.available
+				: a.name.localeCompare(b.name, "zh-CN");
+		return descending.value ? -result : result;
+	});
 });
 const metrics = computed(() => [
 	{
@@ -213,16 +247,6 @@ function action(name: string) {
 					: "实验操作提案：以有文字说明的「新建操作」统一入口；搜索、扫码与筛选始终直接可见。"
 			}}</span>
 		</div>
-		<div class="section-tabs">
-			<button class="active" aria-current="page">库存列表</button
-			><button
-				@click="
-					emit('notify', '效期批次：保留批次级浏览。完整页面不在本轮两个示例范围内。')
-				"
-			>
-				效期批次</button
-			><span class="muted">示例基准日 · 2026.10.11</span>
-		</div>
 		<section class="surface inventory-surface">
 			<div class="inventory-toolbar">
 				<label class="search-box"
@@ -231,14 +255,11 @@ function action(name: string) {
 						aria-label="搜索物品或条码"
 						placeholder="搜索物品名称、编号…" /></label
 				><UiButton icon="scan" @click="scanOpen = true">扫码</UiButton
-				><UiButton
-					icon="filter"
-					:aria-expanded="filtersOpen"
+				><PreviewFilterButton
+					:expanded="filtersOpen"
+					:count="warehouses.length + Number(!!category)"
 					@click="filtersOpen = !filtersOpen"
-					>筛选<span v-if="warehouses.length || category" class="count-dot">{{
-						warehouses.length + (category ? 1 : 0)
-					}}</span></UiButton
-				>
+				/>
 			</div>
 			<div class="result-tools">
 				<div class="button-row">
@@ -257,8 +278,7 @@ function action(name: string) {
 							<option value="name">物品名称</option>
 							<option value="available">可用数量</option>
 						</select></label
-					><UiButton v-if="!isMobile" icon="download" @click="exportOpen = true"
-						>导出</UiButton
+					><UiButton v-if="!isMobile" icon="download" @click="openExport">导出</UiButton
 					><UiButton variant="ghost" icon="sigma" @click="summaryOpen = true"
 						>列汇总</UiButton
 					>
@@ -337,7 +357,7 @@ function action(name: string) {
 									<PreviewItemImage
 										:item="item"
 										interaction="detail"
-										@detail="detail = item"
+										@detail="openItem(item)"
 									/><label class="card-checkbox"
 										><input
 											type="checkbox"
@@ -348,7 +368,7 @@ function action(name: string) {
 										v-if="expiryStatus(item)"
 										class="badge art-badge"
 										:class="
-											expiryStatus(item) === '有效期内'
+											expiryStatus(item) === '未过期'
 												? 'neutral'
 												: expiryStatus(item) === '已过期'
 													? 'danger'
@@ -360,7 +380,7 @@ function action(name: string) {
 								<div class="stock-card-content">
 									<span class="eyebrow"
 										>{{ item.category }} · {{ item.code }}</span
-									><button class="item-name" @click="detail = item">
+									><button class="item-name" @click="openItem(item)">
 										{{ item.name }}
 									</button>
 									<div class="stock-number">
@@ -439,7 +459,7 @@ function action(name: string) {
 												<div>
 													<button
 														class="item-name"
-														@click="detail = item"
+														@click="openItem(item)"
 													>
 														{{ item.name }}</button
 													><small class="muted">{{ item.code }}</small>
@@ -455,7 +475,7 @@ function action(name: string) {
 												v-if="expiryStatus(item)"
 												class="badge"
 												:class="
-													expiryStatus(item) === '有效期内'
+													expiryStatus(item) === '未过期'
 														? 'success'
 														: expiryStatus(item) === '已过期'
 															? 'danger'
@@ -515,40 +535,6 @@ function action(name: string) {
 				><UiButton @click="summaryOpen = false">完成</UiButton></template
 			></PreviewOverlay
 		>
-		<PreviewOverlay v-if="detail" :title="detail.name" @close="detail = undefined">
-			<PreviewItemImage :item="detail" />
-			<dl class="detail-list">
-				<dt>物品编号</dt>
-				<dd>{{ detail.code }}</dd>
-				<dt>可用数量</dt>
-				<dd>{{ detail.available }} {{ detail.uom }}</dd>
-				<template v-if="detail.tracksBatch"
-					><dt>批次数量</dt>
-					<dd>{{ itemBatches(detail).length }}</dd></template
-				>
-			</dl>
-			<p class="muted">当前筛选范围 · 库存分布</p>
-			<section v-for="row in detail.locations" :key="row.location" class="batch-location">
-				<strong>{{ row.location }} · 可用 {{ row.available }} {{ detail.uom }}</strong>
-				<p class="muted">
-					借出 {{ row.loaned }} · 损坏 {{ row.damaged }} {{ detail.uom }}
-				</p>
-				<div v-for="batch in detail.tracksBatch ? row.batches || [] : []" :key="batch.id">
-					{{ batch.id }} · 可用 {{ batch.available }} {{ detail.uom
-					}}<small v-if="detail.tracksExpiry && batch.expiry"
-						>到期 {{ batch.expiry }}</small
-					>
-				</div>
-			</section>
-			<UiButton
-				@click="
-					reviewSession.selectedItemCode = detail!.code;
-					detail = undefined;
-					emit('navigate', 'item-detail', 'overview');
-				"
-				>打开完整物品详情</UiButton
-			></PreviewOverlay
-		>
 		<PreviewOverlay v-if="exportOpen" title="导出当前筛选结果" @close="exportOpen = false"
 			><p>共 {{ rows.length }} 种物品，包含当前筛选的全部匹配记录。</p>
 			<dl class="detail-list">
@@ -561,10 +547,20 @@ function action(name: string) {
 			</dl>
 			<label class="field"
 				>文件格式<select v-model="exportFormat">
-					<option value="xlsx">XLSX · 汇总与明细</option>
-					<option value="csv">CSV · 明细</option>
+					<option value="xlsx">XLSX</option>
+					<option value="csv">CSV</option>
 				</select></label
 			>
+			<label
+				>导出内容<select v-model="exportDataset">
+					<option value="summary">物品汇总</option>
+					<option value="details">逐库位明细</option>
+				</select></label
+			>
+			<p>{{ exportRows.length }} 行 · 当前完整筛选范围</p>
+			<ul>
+				<li v-for="(row, index) in exportRows" :key="index">{{ row }}</li>
+			</ul>
 			<p class="muted">设计演示，不生成真实文件。筛选和已选物品保持不变。</p>
 			<template #footer
 				><UiButton @click="exportOpen = false">取消</UiButton
@@ -575,7 +571,7 @@ function action(name: string) {
 						exportOpen = false;
 						emit(
 							'notify',
-							`已模拟导出 ${rows.length} 种物品（${exportFormat.toUpperCase()}），未生成文件。`,
+							`已模拟导出 ${exportRows.length} 行（${exportFormat.toUpperCase()}），未生成文件。`,
 						);
 					"
 					>模拟导出</UiButton
