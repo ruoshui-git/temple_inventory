@@ -88,8 +88,8 @@ describe("interactive design preview browse pages", () => {
 
   it("opens the exact movement record selected from the records table", async () => {
     const wrapper = render("movement-records/completed");
-    await button(wrapper, "PREV-MOV-001").trigger("click");
-    expect(reviewSession.selectedMovementName).toBe("PREV-MOV-001");
+    await button(wrapper, "MAT-STE-2026-00009").trigger("click");
+    expect(reviewSession.selectedMovementName).toBe("MAT-STE-2026-00009");
     expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
       "movement-records",
       "selected",
@@ -98,15 +98,15 @@ describe("interactive design preview browse pages", () => {
 
   it("opens the exact loan record and seeds a contextual return", async () => {
     const wrapper = render("loan-records/open");
-    await button(wrapper, "PREV-LOAN-001").trigger("click");
-    expect(reviewSession.selectedLoanName).toBe("PREV-LOAN-001");
+    await button(wrapper, "MAT-STE-2026-00004").trigger("click");
+    expect(reviewSession.selectedLoanName).toBe("MAT-STE-2026-00004");
     expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
       "loan-detail",
       "selected",
     ]);
     await wrapper.setProps({ route: "loan-detail/selected" });
     await button(wrapper, "登记归还").trigger("click");
-    expect(reviewSession.selectedDraftName).toContain("RETURN");
+    expect(reviewSession.selectedDraftName).toMatch(/^MAT-STE-2026-/);
     expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
       "movement-form",
       "Return",
@@ -142,7 +142,7 @@ describe("interactive design preview browse pages", () => {
       document.body.querySelector(".browse-dialog input")!,
     ).setValue("新斋堂房间");
     await new DOMWrapper(
-      document.body.querySelectorAll(".browse-dialog select")[1]!,
+      document.body.querySelectorAll(".browse-dialog select")[0]!,
     ).setValue("Room");
     await button(wrapper, "保存到预览").trigger("click");
     expect(
@@ -156,7 +156,7 @@ describe("interactive design preview browse pages", () => {
   it("continues or deletes a draft only after explicit confirmation", async () => {
     const wrapper = render("drafts/open");
     const draft = reviewSession.drafts.find(
-      (row) => row.name === "PREV-DRAFT-RECEIVE-001",
+      (row) => row.name === "MAT-STE-2026-00002",
     )!;
     await button(wrapper, "继续填写").trigger("click");
     expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
@@ -178,7 +178,7 @@ describe("interactive design preview browse pages", () => {
     const secondSession = createReviewSession();
     const first = createDraft("Repair", undefined, firstSession);
     const second = createDraft("Repair", undefined, secondSession);
-    expect(first.name).toBe("PREV-REPAIR-001");
+    expect(first.name).toBe("MAT-STE-2026-00101");
     expect(second.name).toBe(first.name);
     firstSession.stock[0].locations[0].available -= 1;
     expect(secondSession.stock[0].locations[0].available).toBe(80);
@@ -191,7 +191,7 @@ describe("interactive design preview browse pages", () => {
     const item = reviewSession.stock.find((row) => row.code === "ITM-000128")!;
     const before = JSON.parse(JSON.stringify(item));
     const draft = reviewSession.drafts.find(
-      (row) => row.name === "PREV-DRAFT-RECEIVE-001",
+      (row) => row.name === "MAT-STE-2026-00002",
     )!;
     submitDraft("Receive", draft.name);
     expect(draft.status).toBe("completed");

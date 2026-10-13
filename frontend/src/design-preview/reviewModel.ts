@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { toRaw, reactive } from "vue";
 import {
   emptyScope,
   type BrowseScope,
@@ -132,16 +132,24 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route(
     "movement-records",
     "workspace-detail",
-    "/workspace/PREV-WORKSPACE-001",
-    "工作区记录详情",
+    "/workspace/MAT-STE-2026-00017",
+    "前端创建的库存记录",
     "货物流动",
     true,
   ),
   route(
     "movement-records",
     "entry-detail",
-    "/entry/PREV-ENTRY-001",
+    "/entry/MAT-STE-2026-00003",
     "库存分录详情",
+    "货物流动",
+    true,
+  ),
+  route(
+    "movement-records",
+    "external",
+    "/app/purchase-receipt/MAT-PRE-2026-00001",
+    "其他 ERPNext 库存凭证",
     "货物流动",
     true,
   ),
@@ -158,28 +166,28 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route(
     "loan-detail",
     "outstanding",
-    "/loans/PREV-LOAN-001",
+    "/loans/MAT-STE-2026-00004",
     "待归还借用",
     "借用",
   ),
   route(
     "loan-detail",
     "returned",
-    "/loans/PREV-LOAN-002",
+    "/loans/MAT-STE-2026-00005",
     "已归还借用",
     "借用",
   ),
   route(
     "loan-detail",
     "damaged",
-    "/loans/PREV-LOAN-003",
+    "/loans/MAT-STE-2026-00006",
     "损坏结清借用",
     "借用",
   ),
   route(
     "loan-detail",
     "selected",
-    "/loans/PREV-LOAN-001",
+    "/loans/MAT-STE-2026-00004",
     "选中借用记录详情",
     "借用",
     true,
@@ -226,7 +234,7 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route(
     "reconciliation-form",
     "detail",
-    "/reconcile/PREV-RECON-001",
+    "/reconcile/MAT-RECO-2026-00015",
     "盘点记录详情",
     "表单",
   ),
@@ -302,6 +310,8 @@ export interface DraftLine {
   location: string;
   sourceLocation?: string;
   loanLineIndex?: number;
+  loanName?: string;
+  countState?: "counted" | "not_found";
   batch?: string;
   expiry?: string;
   countedQty?: number;
@@ -312,6 +322,19 @@ export interface DraftLine {
 }
 
 export interface ReviewDraft {
+  documentType?: "Stock Entry" | "Stock Reconciliation" | "Item";
+  saved?: boolean;
+  amendedFrom?: string;
+  version?: number;
+  origin?: "frontend" | "desk";
+  purpose?: string;
+  postingTime?: string;
+  timeMode?: "current" | "manual";
+  countLocation?: string;
+  countMode?: "selective" | "full";
+  baselineStale?: boolean;
+  baselineReviewed?: boolean;
+  files?: import("./workflowModel").PreviewAttachment[];
   name: string;
   kind: DraftKind;
   status: DraftStatus;
@@ -321,6 +344,7 @@ export interface ReviewDraft {
   responsible: string;
   note: string;
   source?: string;
+  sourceType?: string;
   barcode?: string;
   description?: string;
   images?: string[];
@@ -339,6 +363,9 @@ export interface ReviewDraft {
 }
 
 export interface ReviewMovement {
+  documentType?: string;
+  stockPurpose?: string;
+  loanLineIndex?: number;
   name: string;
   kind: string;
   docstatus: 0 | 1 | 2;
@@ -512,7 +539,7 @@ const defaultWarehouses: ReviewWarehouse[] = [
 
 const defaultDrafts: ReviewDraft[] = [
   {
-    name: "PREV-DRAFT-RECEIVE-001",
+    name: "MAT-STE-2026-00002",
     kind: "Receive",
     status: "draft",
     postingDate: previewDate,
@@ -533,7 +560,7 @@ const defaultDrafts: ReviewDraft[] = [
     ],
   },
   {
-    name: "PREV-DRAFT-LOAN-001",
+    name: "MAT-STE-2026-00001",
     kind: "Loan",
     status: "draft",
     postingDate: previewDate,
@@ -554,7 +581,7 @@ const defaultDrafts: ReviewDraft[] = [
     ],
   },
   {
-    name: "PREV-RECON-001",
+    name: "MAT-RECO-2026-00015",
     kind: "Reconcile",
     status: "draft",
     postingDate: previewDate,
@@ -594,7 +621,7 @@ const defaultDrafts: ReviewDraft[] = [
 
 const defaultMovements: ReviewMovement[] = [
   {
-    name: "PREV-OPENING-001",
+    name: "MAT-RECO-2026-00014",
     kind: "Opening",
     docstatus: 1,
     date: "2026-01-01",
@@ -606,7 +633,7 @@ const defaultMovements: ReviewMovement[] = [
     to: locations[0],
   },
   {
-    name: "PREV-WORKSPACE-001",
+    name: "MAT-STE-2026-00017",
     kind: "Transfer",
     docstatus: 0,
     date: previewDate,
@@ -619,7 +646,7 @@ const defaultMovements: ReviewMovement[] = [
     activity: "秋季法会布置",
   },
   {
-    name: "PREV-ENTRY-001",
+    name: "MAT-STE-2026-00003",
     kind: "Receive",
     docstatus: 1,
     date: "2026-10-09",
@@ -632,7 +659,7 @@ const defaultMovements: ReviewMovement[] = [
     activity: "厨房补给",
   },
   {
-    name: "PREV-MOV-001",
+    name: "MAT-STE-2026-00009",
     kind: "Receive",
     docstatus: 1,
     date: "2026-10-11",
@@ -645,8 +672,8 @@ const defaultMovements: ReviewMovement[] = [
     activity: "秋季斋堂补给",
   },
   {
-    name: "PREV-MOV-002",
-    loanName: "PREV-LOAN-001",
+    name: "MAT-STE-2026-00004",
+    loanName: "MAT-STE-2026-00004",
     kind: "Loan",
     docstatus: 1,
     date: "2026-10-10",
@@ -660,8 +687,8 @@ const defaultMovements: ReviewMovement[] = [
     activity: "秋季法会",
   },
   {
-    name: "PREV-MOV-003",
-    loanName: "PREV-LOAN-002",
+    name: "MAT-STE-2026-00011",
+    loanName: "MAT-STE-2026-00005",
     kind: "Return",
     docstatus: 1,
     date: "2026-10-09",
@@ -674,7 +701,7 @@ const defaultMovements: ReviewMovement[] = [
     borrower: "斋堂义工",
   },
   {
-    name: "PREV-MOV-004",
+    name: "MAT-STE-2026-00012",
     kind: "Transfer",
     docstatus: 0,
     date: "2026-10-11",
@@ -687,7 +714,7 @@ const defaultMovements: ReviewMovement[] = [
     activity: "秋季法会布置",
   },
   {
-    name: "PREV-MOV-005",
+    name: "MAT-STE-2026-00013",
     kind: "Issue",
     docstatus: 2,
     date: "2026-10-08",
@@ -730,12 +757,28 @@ function initialDrafts(): ReviewDraft[] {
       location: row.to,
     });
   }
+  for (const draft of drafts) {
+    draft.saved = true;
+    draft.version = 1;
+    draft.origin = "desk";
+    draft.documentType =
+      draft.kind === "Item"
+        ? "Item"
+        : draft.kind === "Reconcile"
+          ? "Stock Reconciliation"
+          : "Stock Entry";
+    if (draft.kind === "Reconcile") {
+      draft.countMode = "selective";
+      draft.countLocation = draft.lines[0]?.location;
+      draft.baselineReviewed = true;
+    }
+  }
   return drafts;
 }
 
 const defaultLoans: ReviewLoan[] = [
   {
-    name: "PREV-LOAN-004",
+    name: "MAT-STE-2026-00007",
     borrower: "布置组",
     activity: "法会收场",
     loanDate: "2026-10-06",
@@ -743,7 +786,7 @@ const defaultLoans: ReviewLoan[] = [
     lines: [{ code: "ITM-000133", qty: 1, returned: 0, damaged: 0, lost: 1 }],
   },
   {
-    name: "PREV-LOAN-001",
+    name: "MAT-STE-2026-00004",
     borrower: "法会义工组",
     activity: "秋季法会",
     loanDate: "2026-10-10",
@@ -751,7 +794,7 @@ const defaultLoans: ReviewLoan[] = [
     lines: [{ code: "ITM-000130", qty: 4, returned: 0, damaged: 0, lost: 0 }],
   },
   {
-    name: "PREV-LOAN-002",
+    name: "MAT-STE-2026-00005",
     borrower: "斋堂义工",
     activity: "日常供餐",
     loanDate: "2026-10-08",
@@ -759,7 +802,7 @@ const defaultLoans: ReviewLoan[] = [
     lines: [{ code: "ITM-000131", qty: 2, returned: 2, damaged: 0, lost: 0 }],
   },
   {
-    name: "PREV-LOAN-003",
+    name: "MAT-STE-2026-00006",
     borrower: "清洁组",
     activity: "库房整理",
     loanDate: "2026-10-07",
@@ -775,7 +818,7 @@ defaultLoans.forEach((loan) =>
   }),
 );
 defaultLoans.push({
-  name: "PREV-LOAN-005",
+  name: "MAT-STE-2026-00008",
   borrower: "接待组",
   activity: "秋季法会",
   loanDate: "2026-10-09",
@@ -793,7 +836,7 @@ defaultLoans.push({
   ],
 });
 defaultMovements.push({
-  name: "PREV-MOV-001",
+  name: "MAT-STE-2026-00009",
   kind: "Receive",
   docstatus: 1,
   date: "2026-10-11",
@@ -811,7 +854,7 @@ const defaultPending: ReviewPending[] = items.flatMap((item) =>
   item.locations
     .filter((location) => location.damaged > 0)
     .map((location, index) => ({
-      name: `PREV-PENDING-DAMAGE-${item.code}-${index + 1}`,
+      name: `MAT-STE-2026-DMG-${item.code}-${index + 1}`,
       kind: "damage" as const,
       title: item.name,
       detail: `${location.damaged} ${item.uom}`,
@@ -824,6 +867,12 @@ const defaultPending: ReviewPending[] = items.flatMap((item) =>
 const seedStock = items.map((item) => structuredClone(item));
 
 export interface ReviewSession {
+  categories: {
+    name: string;
+    label: string;
+    parent?: string;
+    is_group: boolean;
+  }[];
   filters: ReviewFilters;
   selectedItems: string[];
   selectedItemCode: string;
@@ -876,10 +925,20 @@ const initialFilters = (): ReviewFilters => ({
   drafts: { search: "" },
 });
 
+const savedDocuments = new WeakMap<ReviewDraft, string>();
 export function createReviewSession(
   stock: StockItem[] = items.map((item) => structuredClone(item)),
 ): ReviewSession {
   const session = reactive({
+    categories: [
+      { name: "全部物资", label: "全部物资", is_group: true },
+      ...[...new Set(stock.map((item) => item.category))].map((name) => ({
+        name,
+        label: name,
+        parent: "全部物资",
+        is_group: false,
+      })),
+    ],
     filters: initialFilters(),
     selectedItems: [],
     selectedItemCode: "ITM-000128",
@@ -895,16 +954,19 @@ export function createReviewSession(
     pending: structuredClone(defaultPending),
     warehouses: structuredClone(defaultWarehouses),
     stock,
-    units: [...new Set(stock.map((item) => item.uom))].map((name) => ({
-      name,
-      whole: false,
-    })),
+    units: [...new Set(["Nos", ...stock.map((item) => item.uom)])].map(
+      (name) => ({
+        name,
+        whole: name === "Nos",
+      }),
+    ),
   }) as ReviewSession;
   sessionBaselines.set(
     session,
     stock.map((item) => structuredClone(item)),
   );
   sessionDraftSequences.set(session, 1);
+  session.drafts.forEach(captureSavedDraft);
   return session;
 }
 
@@ -912,11 +974,25 @@ export const reviewSession = createReviewSession(items);
 
 export function resetReviewSession(session: ReviewSession = reviewSession) {
   session.filters = initialFilters();
+  session.categories = [
+    { name: "全部物资", label: "全部物资", is_group: true },
+    ...[
+      ...new Set(
+        (sessionBaselines.get(session) || items).map((item) => item.category),
+      ),
+    ].map((name) => ({
+      name,
+      label: name,
+      parent: "全部物资",
+      is_group: false,
+    })),
+  ];
   session.units = [
-    ...new Set(
-      (sessionBaselines.get(session) || items).map((item) => item.uom),
-    ),
-  ].map((name) => ({ name, whole: false }));
+    ...new Set([
+      "Nos",
+      ...(sessionBaselines.get(session) || items).map((item) => item.uom),
+    ]),
+  ].map((name) => ({ name, whole: name === "Nos" }));
   session.selectedItems = [];
   session.selectedItemCode = "ITM-000128";
   session.selectedMovementName = "";
@@ -947,6 +1023,16 @@ export function resetReviewSession(session: ReviewSession = reviewSession) {
   const baseline = sessionBaselines.get(session) || seedStock;
   session.stock.splice(0, session.stock.length, ...structuredClone(baseline));
   sessionDraftSequences.set(session, 1);
+  session.drafts.forEach(captureSavedDraft);
+}
+
+export function captureSavedDraft(draft: ReviewDraft) {
+  const snapshot = JSON.stringify(draft);
+  savedDocuments.set(toRaw(draft), snapshot);
+  return snapshot;
+}
+export function savedDraftSnapshot(draft: ReviewDraft) {
+  return savedDocuments.get(toRaw(draft)) || captureSavedDraft(draft);
 }
 
 export function findDraft(
@@ -976,8 +1062,21 @@ export function createDraft(
   const sequence = sessionDraftSequences.get(session) || 1;
   const draft: ReviewDraft = {
     name:
-      name || `PREV-${kind.toUpperCase()}-${String(sequence).padStart(3, "0")}`,
+      name ||
+      `${kind === "Item" ? "ITEM-DRAFT" : kind === "Reconcile" ? "MAT-RECO" : "MAT-STE"}-2026-${String(sequence + 100).padStart(5, "0")}`,
     kind,
+    documentType:
+      kind === "Item"
+        ? "Item"
+        : kind === "Reconcile"
+          ? "Stock Reconciliation"
+          : "Stock Entry",
+    saved: false,
+    version: 1,
+    origin: "frontend",
+    uom: "Nos",
+    timeMode: "current",
+    postingTime: "09:00",
     status: "draft",
     postingDate: previewDate,
     activity: "",
@@ -989,7 +1088,8 @@ export function createDraft(
   if (!name) sessionDraftSequences.set(session, sequence + 1);
   session.drafts.unshift(draft);
   session.selectedDraftName = draft.name;
-  return draft;
+  captureSavedDraft(session.drafts[0]!);
+  return session.drafts[0]!;
 }
 
 export function updateDraft(
@@ -1001,6 +1101,7 @@ export function updateDraft(
   const draft =
     findDraft(kind, name, session) || createDraft(kind, name, session);
   Object.assign(draft, patch);
+  if (draft.saved) captureSavedDraft(draft);
   return draft;
 }
 
@@ -1040,74 +1141,80 @@ export function submitDraft(
   const draft = findDraft(kind, name, session);
   if (!draft) return undefined;
   if (draft.status !== "draft") return draft;
+  if (
+    kind === "Return" &&
+    draft.lines.some((line) => line.returnOutcome === "lost")
+  )
+    return undefined;
   const linkedLoan = draft.loanName
     ? session.loans.find((loan) => loan.name === draft.loanName)
     : undefined;
+  if (
+    (kind === "Return" || draft.loanName) &&
+    ["Return", "Damage", "Loss"].includes(kind) &&
+    (!linkedLoan || !draft.lines.length)
+  )
+    return undefined;
   const settlement = ["Return", "Damage", "Loss"].includes(kind) && linkedLoan;
   if (settlement) {
-    if (
-      !draft.lines.length ||
-      draft.lines.some((line) => !Number.isFinite(line.qty) || line.qty <= 0)
-    )
-      return undefined;
     const requested = new Map<string, number>();
-    const requestedByItem = new Map<string, number>();
+    const allocations: {
+      borrowed: ReviewLoan["lines"][number];
+      qty: number;
+      outcome: "returned" | "damaged" | "lost";
+    }[] = [];
     for (const line of draft.lines) {
-      requestedByItem.set(
-        line.code,
-        (requestedByItem.get(line.code) || 0) + line.qty,
+      const loan = session.loans.find(
+        (row) => row.name === (line.loanName || draft.loanName),
       );
-      const total = linkedLoan.lines
-        .filter((row) => row.code === line.code)
-        .reduce(
-          (sum, row) =>
-            sum + Math.max(0, row.qty - row.returned - row.damaged - row.lost),
-          0,
-        );
-      if (requestedByItem.get(line.code)! > total) return undefined;
-      const key = `${line.code}/${line.batch || ""}/${line.loanLineIndex ?? "all"}`;
-      const available = linkedLoan.lines
-        .filter((row, index) => matchesLoanLine(line, row, index))
-        .reduce(
-          (sum, row) =>
-            sum + Math.max(0, row.qty - row.returned - row.damaged - row.lost),
-          0,
-        );
+      if (
+        !loan ||
+        loan.borrower !== draft.borrower ||
+        loan.activity !== draft.activity ||
+        !Number.isFinite(line.qty) ||
+        line.qty <= 0
+      )
+        return undefined;
+      const index =
+        line.loanLineIndex ??
+        loan.lines.findIndex((row, i) => matchesLoanLine(line, row, i));
+      const borrowed = loan.lines[index];
+      if (!borrowed || !matchesLoanLine(line, borrowed, index))
+        return undefined;
+      const key = `${loan.name}/${index}`;
       requested.set(key, (requested.get(key) || 0) + line.qty);
-      if (requested.get(key)! > available) return undefined;
-    }
-    for (const line of draft.lines) {
-      let rest = line.qty;
-      for (const borrowed of linkedLoan.lines.filter((row, index) =>
-        matchesLoanLine(line, row, index),
-      )) {
-        const qty = Math.min(
-          rest,
-          Math.max(
-            0,
-            borrowed.qty - borrowed.returned - borrowed.damaged - borrowed.lost,
-          ),
-        );
-        borrowed[
-          kind === "Return"
-            ? line.returnOutcome || "returned"
+      if (
+        requested.get(key)! >
+        borrowed.qty - borrowed.returned - borrowed.damaged - borrowed.lost
+      )
+        return undefined;
+      allocations.push({
+        borrowed,
+        qty: line.qty,
+        outcome:
+          kind === "Loss"
+            ? "lost"
             : kind === "Damage"
               ? "damaged"
-              : "lost"
-        ] += qty;
-        rest -= qty;
-      }
+              : line.returnOutcome || "returned",
+      });
     }
-    linkedLoan.status = linkedLoan.lines.some(
-      (line) => line.qty > line.returned + line.damaged + line.lost,
-    )
-      ? "outstanding"
-      : linkedLoan.lines.some((line) => line.lost > 0)
-        ? "lost"
-        : linkedLoan.lines.some((line) => line.damaged > 0)
-          ? "damaged"
-          : "returned";
+    for (const allocation of allocations)
+      allocation.borrowed[allocation.outcome] += allocation.qty;
+    for (const loan of session.loans)
+      loan.status = loan.lines.some(
+        (line) => line.qty > line.returned + line.damaged + line.lost,
+      )
+        ? "outstanding"
+        : loan.lines.some((line) => line.lost)
+          ? "lost"
+          : loan.lines.some((line) => line.damaged)
+            ? "damaged"
+            : "returned";
   }
+  if (draft.timeMode !== "manual") draft.postingTime = "10:30";
+  draft.saved = true;
+  draft.version = (draft.version || 1) + 1;
   assignReceiptBatchIds(draft, session);
   draft.status = "completed";
   if (kind === "Item") {
@@ -1118,32 +1225,38 @@ export function submitDraft(
       item.barcode = draft.barcode;
       item.description = draft.description;
       item.images = draft.images;
+      item.files = draft.files;
       item.name = draft.itemName?.trim() || item.name;
       item.category = draft.category?.trim() || item.category;
     }
   } else if (kind === "Reconcile") {
-    draft.lines.forEach((line) => {
-      const item = session.stock.find(
-        (candidate) => candidate.code === line.code,
-      );
-      if (!item) return;
-      session.movements.unshift({
-        name: draft.name,
-        kind: "Reconcile",
-        docstatus: 1,
-        date: draft.postingDate,
-        code: item.code,
-        itemName: item.name,
-        qty: (line.countedQty ?? line.qty) - line.qty,
-        bookQty: line.qty,
-        countedQty: line.countedQty,
-        reason: line.reason,
-        uom: line.uom,
-        from: "样本账面数量",
-        to: line.location,
-        activity: draft.activity || undefined,
+    draft.lines
+      .filter(
+        (line) =>
+          line.countedQty !== undefined && String(line.countedQty) !== "",
+      )
+      .forEach((line) => {
+        const item = session.stock.find(
+          (candidate) => candidate.code === line.code,
+        );
+        if (!item) return;
+        session.movements.unshift({
+          name: draft.name,
+          kind: "Reconcile",
+          docstatus: 1,
+          date: draft.postingDate,
+          code: item.code,
+          itemName: item.name,
+          qty: (line.countedQty ?? line.qty) - line.qty,
+          bookQty: line.qty,
+          countedQty: line.countedQty,
+          reason: line.reason,
+          uom: line.uom,
+          from: "样本账面数量",
+          to: line.location,
+          activity: draft.activity || undefined,
+        });
       });
-    });
   } else {
     if (kind === "Loan" && draft.lines.length) {
       session.loans.unshift({
@@ -1199,13 +1312,16 @@ export function submitDraft(
                     ? "领用"
                     : line.location,
         batch: line.batch,
+        loanLineIndex: line.loanLineIndex,
         reason: line.reason,
-        loanName: kind === "Loan" ? draft.name : draft.loanName,
+        loanName:
+          kind === "Loan" ? draft.name : line.loanName || draft.loanName,
         borrower: draft.borrower || undefined,
         activity: draft.activity || undefined,
       });
     });
   }
+  captureSavedDraft(draft);
   return draft;
 }
 
@@ -1221,13 +1337,23 @@ export function reviewMovementRows(
     (draft) => draft.status === "draft" && draft.kind !== "Item",
   );
   return [
-    ...session.movements.filter((row) => row.docstatus !== 0),
+    ...session.movements
+      .filter((row) => row.docstatus !== 0)
+      .map((row) => ({
+        ...row,
+        documentType:
+          row.documentType ||
+          (["Opening", "Reconcile"].includes(row.kind)
+            ? "Stock Reconciliation"
+            : "Stock Entry"),
+      })),
     ...drafts.flatMap((draft): ReviewMovement[] => {
       const lines = draft.lines.length
         ? draft.lines
         : [{ code: "", qty: 0, uom: "", location: "" }];
       return lines.map((line) => ({
         name: draft.name,
+        documentType: draft.documentType,
         kind: draft.kind,
         docstatus: 0,
         date: draft.postingDate,
@@ -1241,8 +1367,10 @@ export function reviewMovementRows(
         to: line.location || "—",
         activity: draft.activity,
         borrower: draft.borrower,
-        loanName: draft.loanName,
+        loanName:
+          "loanName" in line ? line.loanName || draft.loanName : draft.loanName,
         batch: "batch" in line ? line.batch : undefined,
+        loanLineIndex: "loanLineIndex" in line ? line.loanLineIndex : undefined,
       }));
     }),
   ];

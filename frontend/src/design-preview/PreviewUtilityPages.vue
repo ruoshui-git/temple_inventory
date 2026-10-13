@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
+import PreviewSetupWorkspace from "./components/PreviewSetupWorkspace.vue";
 import { computed, reactive, ref, watch, onActivated, onDeactivated } from "vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
-import { previewDate, warehouseNodes } from "./model";
+import { previewDate } from "./model";
 import { previewPages, reviewSession, reviewMovementRows } from "./reviewModel";
 
 import { matchesExpiry, groupMovements, quantityText } from "./browseModel";
@@ -71,6 +73,11 @@ const movementLabels: Record<string, string> = {
 	Reconcile: "盘点",
 	Opening: "期初库存",
 };
+const preferenceError = ref(false);
+const preferencePending = ref(false);
+const failPreference = ref(false);
+const confirmedDensity = ref(props.density || "balanced");
+const installPlatform = ref("ios");
 const state = reactive({
 	type: "movement" as ReportType,
 	search: "",
@@ -320,14 +327,21 @@ function recoverSession() {
 	state.recovery = "restored";
 	emit("notify", "示例会话已恢复，草稿输入仍保留");
 }
-function checkSetup() {
-	state.setupChecked = true;
-	emit("notify", "配置检查已完成（仅显示预览反馈）");
-}
 function updateDensity(density: "compact" | "balanced" | "spacious") {
 	state.settingsDensity = density;
 	document.documentElement.dataset.previewDensity = density;
 	emit("update-density", density);
+	preferencePending.value = true;
+	preferenceError.value = failPreference.value;
+	if (!preferenceError.value) {
+		confirmedDensity.value = density;
+		preferencePending.value = false;
+	}
+}
+function retryPreference() {
+	preferenceError.value = false;
+	preferencePending.value = false;
+	confirmedDensity.value = state.settingsDensity as "compact" | "balanced" | "spacious";
 }
 </script>
 
@@ -375,26 +389,21 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 							type="search"
 							placeholder="物品、编号或活动"
 					/></label>
-					<label
-						>物品类别<select v-model="state.category">
-							<option value="">全部类别</option>
-							<option v-for="category in categoryValues" :key="category">
-								{{ category }}
-							</option>
-						</select></label
-					>
-					<label
-						>仓库 / 位置<select v-model="state.warehouse">
-							<option value="">全部位置</option>
-							<option
-								v-for="node in warehouseNodes"
-								:key="node.name"
-								:value="node.name"
-							>
-								{{ node.label }}
-							</option>
-						</select></label
-					>
+					<PreviewSearchSelect
+						label="物品类别"
+						v-model="state.category"
+						:options="categoryValues"
+					/>
+					<PreviewSearchSelect
+						label="仓库 / 位置"
+						v-model="state.warehouse"
+						:options="
+							reviewSession.warehouses.map((node) => ({
+								value: node.name,
+								label: node.label || node.name,
+							}))
+						"
+					/>
 					<template v-if="state.type === 'movement' || state.type === 'movement_records'"
 						><label
 							>操作类型<select v-model="state.movementKind">
@@ -617,6 +626,9 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 				</div>
 			</section>
 			<section class="more-section">
+				<PreviewUiButton @click="emit('navigate', 'setup', 'default')"
+					>配置与恢复</PreviewUiButton
+				>
 				<h2>账户与设备</h2>
 				<div class="more-grid">
 					<button class="more-card surface" @click="state.installOpen = true">
@@ -626,7 +638,7 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 					</button>
 					<div class="more-card surface">
 						<strong>当前账户</strong>
-						<p>义工 · 示例账户</p>
+						<p>System Manager · 示例账户</p>
 						<PreviewUiButton variant="danger" @click="state.logoutOpen = true"
 							>退出登录</PreviewUiButton
 						>
@@ -641,7 +653,23 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 				<p>
 					手机浏览器：打开分享或浏览器菜单，选择「添加到主屏幕」。电脑浏览器：使用地址栏或菜单中的「安装应用」。
 				</p>
-				<p class="muted">设计预览只展示指引；正式应用在支持的设备上提供安装。</p>
+				<label
+					>设备<select v-model="installPlatform">
+						<option value="ios">iPhone / iPad Safari</option>
+						<option value="chromium">Chrome / Edge</option>
+						<option value="unsupported">其他浏览器</option>
+					</select></label
+				>
+				<p>
+					{{
+						installPlatform === "ios"
+							? "Safari → 分享 → 添加到主屏幕"
+							: installPlatform === "chromium"
+								? "浏览器菜单 → 安装应用；不可安装时可添加书签。"
+								: "此浏览器不支持安装，可添加书签继续使用。"
+					}}
+				</p>
+				<p class="muted">预览不注册服务工作线程。</p>
 				<template #footer
 					><PreviewUiButton @click="state.installOpen = false"
 						>知道了</PreviewUiButton
@@ -670,6 +698,19 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 		<template v-else-if="page === 'settings'"
 			><section class="surface utility-panel">
 				<h2>显示密度</h2>
+				<p v-if="preferenceError" role="alert">
+					偏好保存失败，当前显示保留；确认的偏好仍为
+					{{ confirmedDensity }}。<PreviewUiButton @click="retryPreference"
+						>重试保存偏好</PreviewUiButton
+					>
+				</p>
+				<p v-else-if="!preferencePending" role="status">
+					预览偏好已确认：{{ confirmedDensity }}
+				</p>
+				<details>
+					<summary>预览偏好状态</summary>
+					<label><input v-model="failPreference" type="checkbox" />下次保存失败</label>
+				</details>
 				<p class="muted">此处只改变预览显示，不会保存到账户。</p>
 				<div class="density-choice">
 					<label
@@ -697,22 +738,7 @@ function updateDensity(density: "compact" | "balanced" | "spacious") {
 				>
 			</section></template
 		>
-		<template v-else-if="page === 'setup'"
-			><section class="surface utility-panel">
-				<h2>配置就绪检查</h2>
-				<p class="muted">模拟反馈样本，不会调用正式配置接口。</p>
-				<ul class="setup-list">
-					<li>仓库与位置示例 <span>已就绪</span></li>
-					<li>物品分类示例 <span>已就绪</span></li>
-					<li>
-						用户权限样例 <span>{{ state.setupChecked ? "检查完成" : "待检查" }}</span>
-					</li>
-				</ul>
-				<PreviewUiButton variant="primary" @click="checkSetup">{{
-					state.setupChecked ? "再次检查" : "模拟检查配置"
-				}}</PreviewUiButton>
-			</section></template
-		>
+		<template v-else-if="page === 'setup'"><PreviewSetupWorkspace /></template>
 		<template v-else-if="page === 'recovery' || page === 'auth-complete'"
 			><section class="surface utility-panel recovery-panel">
 				<span class="recovery-mark"

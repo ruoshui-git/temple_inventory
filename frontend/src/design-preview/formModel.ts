@@ -29,7 +29,7 @@ export function lineCapacity(
   if (isSettlement(draft)) {
     return (
       session.loans
-        .find((loan) => loan.name === draft.loanName)
+        .find((loan) => loan.name === (line.loanName || draft.loanName))
         ?.lines.filter((row, index) => matchesLoanLine(line, row, index))
         .reduce(
           (sum, row) =>
@@ -53,12 +53,44 @@ export function validateOperation(
   draft: ReviewDraft,
   session: ReviewSession = reviewSession,
 ): string {
+  if (draft.files?.some((file) => file.state === "uploading"))
+    return "附件仍在上传，请完成后再确认。";
+  if (draft.files?.some((file) => file.state === "error"))
+    return "附件上传失败，请重试或移除后再确认。";
   if (!draft.postingDate || Number.isNaN(Date.parse(draft.postingDate)))
     return "请选择操作日期。";
+  if (
+    draft.timeMode === "manual" &&
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.postingTime || "")
+  )
+    return "请填写有效操作时间。";
   if (!draft.lines.length) return "请先添加至少一项物品。";
   if (draft.kind === "Loan" && !draft.borrower.trim())
     return "请填写借用人或团体。";
   if (draft.kind === "Return" && !draft.loanName) return "请选择关联借用记录。";
+  if (
+    draft.kind === "Return" &&
+    draft.lines.some((line) => line.returnOutcome === "lost")
+  )
+    return "遗失请使用单独的记录遗失操作。";
+  if (
+    draft.kind === "Reconcile" &&
+    draft.countMode &&
+    (!draft.countLocation ||
+      draft.lines.some((line) => line.location !== draft.countLocation))
+  )
+    return "每次盘点请选择同一个库位。";
+  if (draft.kind === "Reconcile" && draft.baselineStale)
+    return "账面数量已变化，请刷新基准并重新核对。";
+  if (draft.kind === "Reconcile" && draft.baselineReviewed === false)
+    return "请确认已重新核对差异。";
+  if (
+    draft.kind === "Reconcile" &&
+    !draft.lines.some(
+      (line) => line.countedQty !== undefined && String(line.countedQty) !== "",
+    )
+  )
+    return "请至少核对一行实点数量。";
   const requested = new Map<string, number>();
   const settlementByItem = new Map<string, number>();
   const counted = new Set<string>();
@@ -67,6 +99,12 @@ export function validateOperation(
       (row) => row.name === name && !row.is_group && row.status === "active",
     );
   for (const line of draft.lines) {
+    if (
+      draft.kind === "Reconcile" &&
+      draft.countMode &&
+      (line.countedQty === undefined || String(line.countedQty) === "")
+    )
+      continue;
     const item = session.stock.find((item) => item.code === line.code);
     if (!item) return "请选择有效物品。";
     const label = item.name;
@@ -125,13 +163,23 @@ export function validateOperation(
       continue;
     }
     if (isSettlement(draft)) {
+      const loan = session.loans.find(
+        (row) => row.name === (line.loanName || draft.loanName),
+      );
+      if (
+        !loan ||
+        loan.borrower !== draft.borrower ||
+        loan.activity !== draft.activity
+      )
+        return "请选择同一借用方和活动的借用记录。";
+      const itemKey = `${loan.name}/${line.code}`;
       settlementByItem.set(
-        line.code,
-        (settlementByItem.get(line.code) || 0) + Number(line.qty),
+        itemKey,
+        (settlementByItem.get(itemKey) || 0) + Number(line.qty),
       );
       const outstanding =
         session.loans
-          .find((loan) => loan.name === draft.loanName)
+          .find((loan) => loan.name === (line.loanName || draft.loanName))
           ?.lines.filter((row) => row.code === line.code)
           .reduce(
             (sum, row) =>
@@ -139,9 +187,9 @@ export function validateOperation(
               Math.max(0, row.qty - row.returned - row.damaged - row.lost),
             0,
           ) || 0;
-      if (settlementByItem.get(line.code)! > outstanding)
+      if (settlementByItem.get(itemKey)! > outstanding)
         return `${label}：处理数量合计超过未结清数量。`;
-      const key = `${line.code}/${line.batch || ""}/${line.loanLineIndex ?? "all"}`;
+      const key = `${line.loanName || draft.loanName}/${line.code}/${line.batch || ""}/${line.loanLineIndex ?? "all"}`;
       requested.set(key, (requested.get(key) || 0) + Number(line.qty));
       if (requested.get(key)! > lineCapacity(draft, line, session))
         return `${label}：处理数量合计超过未结清数量。`;

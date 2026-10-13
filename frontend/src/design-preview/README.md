@@ -28,7 +28,7 @@ container, forward port 5174 and open that path on the forwarded origin. The
 server needs no Frappe login or backend connection.
 
 ```sh
-pnpm exec vitest run tests/design-preview.test.ts tests/design-preview-browse.test.ts tests/design-preview-forms.test.ts tests/design-preview-pages.test.ts tests/design-preview-navigation.test.ts tests/design-preview-server.test.ts tests/design-preview-refinement.test.ts tests/design-preview-completion.test.ts
+pnpm exec vitest run tests/design-preview.test.ts tests/design-preview-browse.test.ts tests/design-preview-forms.test.ts tests/design-preview-pages.test.ts tests/design-preview-navigation.test.ts tests/design-preview-server.test.ts tests/design-preview-refinement.test.ts tests/design-preview-completion.test.ts tests/design-preview-review.test.ts tests/design-preview-erpnext.test.ts
 pnpm type-check
 pnpm design:build
 ```
@@ -94,8 +94,8 @@ states, not new production routes.
 
 All operations are simulated. Confirming an operation updates a sample record;
 stock quantities and batches remain a fixed snapshot rather than an alternate
-stock engine. Item metadata and forms are editable in memory. Uploads keep
-file names only, exports show the complete filtered scope without downloading,
+stock engine. Item metadata and forms are editable in memory. Uploads retain local
+file content in memory; exports show the complete filtered scope without downloading,
 and scanning accepts deterministic sample codes. Reloading resets this session;
 only preview theme/density preferences use the separate preview storage key.
 
@@ -219,8 +219,8 @@ history on shared fixture records; stock quantities remain fixed snapshots.
 - Navigate item tabs/edit/detail and Back; preserve the origin's filters, view,
   selection and scroll. Confirm overlay cleanup and focus restoration.
 
-Simulated item images retain file names only; existing illustration enlargement
-remains the image-viewer reference. Browser/manual fidelity review is still
+At the 2026-10-12 checkpoint, simulated item images retained filenames only;
+the 2026-10-13 implementation below supersedes that limitation. Browser/manual fidelity review is still
 outstanding at every width/density in the matrix above, including 200% zoom.
 
 Completion validation: 85 component/fixture tests and 10 HTTP entry-isolation
@@ -240,3 +240,49 @@ These results do not establish visual fidelity; the manual matrix remains open.
   automatically generated preview ID. Outbound **分配其他批次** uses existing stock.
 - Item editing supports **取消编辑**, direct metadata saving and **设为主图**.
   Linked settlement forms remain under 借用, including damage/loss.
+
+## Migration decisions and capability coverage
+
+See [migration ledger](../../../DESIGN_MIGRATION_COVERAGE.md) for ERPNext-native identity, one-document
+transactions, searchable controls, and explicit backend prerequisites. Rapid
+development favors clean DB/API/UI over legacy compatibility; database resets
+are acceptable in migration, not performed by the standalone preview.
+
+## ERPNext-native review scenarios (2026-10-13)
+
+The current UX-01–09 decision index supersedes earlier mixed Return/Loss and
+workspace-ownership examples above. Stock quantities remain fixed fixtures;
+all lifecycle, upload and configuration examples are local simulations.
+
+| Area | Open / review |
+| --- | --- |
+| Document identity | `#review/movement-form%2FReceive`: existing Desk-origin Stock Entry, incomplete draft save, explicit confirmation. New forms show 未保存. |
+| External lifecycle | Expand 预览 ERPNext 生命周期. Edit quantity, then simulate modification/submission/deletion. Reload preserves an input copy and uses the saved document. Session recovery cannot unblock a deleted record. Cancel a submitted record, then amend to a new linked ID. |
+| Other ERPNext vouchers | `#review/movement-records%2Fexternal`: Purchase Receipt type/name and Desk link; no custom stock editor. |
+| Loan settlement | `#review/loan-detail%2Foutstanding`: normal/damaged Return, separate linked Loss. Add another loan with the same borrower/activity; incompatible loans remain blocked. Each contributing line keeps its borrowing document/line. |
+| Count workspace | `#review/reconciliation-form%2Fnew`: choose a leaf location, selective/full count, blank versus zero, 未找到, location-change confirmation, baseline refresh and re-review. Only reviewed lines enter the simulated reconciliation. |
+| Search / creation | Search units, items, activities, categories, locations and batches by name/code/context; options paginate after searching the full local set. Test keyboard selection, no matches, loading/failure/retry and retained selections. Inline category/unit/activity creation returns to the preserved draft. |
+| Scan configuration | Routed operation forms: item codes, multiline barcodes, batch IDs and leaf locations; configure quantity/location before the next scan. Ambiguous sources require selection. Single-scan mode stops explicitly; unknown codes and camera denial retain manual lookup. Receive alone offers item creation. |
+| Attachments | Item create/edit and operation context: choose real local files, review upload/failure/retry, open/remove and choose primary image. Content persists only in memory; no upload API or public file is created. |
+| Warehouse / setup | Group/leaf details: name, physical type and parent editing, cycle/system-node restrictions, new Room plus default leaf. Tools → 配置与恢复: initialization, missing metadata/root pointer, permission/login/role failures and reviewed pointer repair. |
+| Browse / preferences | Inventory, Movement and Loans: 分析当前结果 uses all filtered matches, with separate types/outcomes/units; pagination and failed load-more retain selection. Settings demonstrates confirmed versus failed density preference and retry. Installation guidance varies by platform. |
+
+`tests/design-preview-erpnext.test.ts` covers these state and interaction
+contracts. Real full-dataset APIs, permissions, document concurrency, loan hooks,
+private-file derivatives and reset/seed verification remain backend migration
+work, recorded in the [capability ledger](../../../DESIGN_MIGRATION_COVERAGE.md).
+Manual viewport/density/keyboard/zoom review remains unperformed.
+
+ERPNext refinement validation: **115 component/fixture tests**, **10 HTTP
+entry-isolation tests**, `pnpm type-check` and `pnpm design:build` passed. A final
+status-label adjustment was covered by 28 affected form/lifecycle tests. The
+isolated build contains 103 modules and writes only under `/tmp`. These checks do
+not establish visual fidelity; the manual review matrix remains open.
+
+Independent review (2026-10-13): **123 component/fixture tests across nine suites**
+passed (`--maxWorkers=2`), including 30 ERPNext workflow tests. Type-check and the
+isolated build passed. Regression additions cover fresh/cached count creation,
+Desk count values, scanning recovery and barcode creation, effective draft filters,
+selector Escape/click behavior, and pending/failed attachment confirmation.
+HTTP entry isolation was unchanged and not rerun in this review. Manual fidelity
+review remains pending.

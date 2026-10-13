@@ -137,7 +137,7 @@ describe("preview navigation proposal", () => {
     );
     await wrapper.get('select[aria-label="流动记录状态"]').setValue("draft");
     expect(wrapper.get(".browse-table tbody").text()).toContain(
-      "PREV-DRAFT-RECEIVE-001",
+      "MAT-STE-2026-00002",
     );
     await click(".browse-view-switch", "按物品");
     desktop = false;
@@ -162,10 +162,10 @@ describe("preview navigation proposal", () => {
     expect(wrapper.findAll(".browse-kind-tabs button")).toHaveLength(12);
     await click(".browse-kind-tabs", "期初库存");
     expect(wrapper.get(".browse-table tbody").text()).toContain(
-      "PREV-OPENING-001",
+      "MAT-RECO-2026-00014",
     );
     expect(wrapper.get(".browse-table tbody").text()).not.toContain(
-      "PREV-MOV-001",
+      "MAT-STE-2026-00009",
     );
     expect(wrapper.emitted("navigate")).toBeUndefined();
     await click(".browse-kind-tabs", "修复归库");
@@ -233,11 +233,13 @@ describe("preview navigation proposal", () => {
     await click(".browse-kind-tabs", "入库");
     const record = wrapper
       .findAll(".browse-row-link")
-      .find((button) => button.text().includes("PREV-MOV-001"))!;
+      .find((button) => button.text().includes("MAT-STE-2026-00009"))!;
     await record.trigger("click");
     expect(wrapper.find(".browse-view-switch").exists()).toBe(false);
     expect(wrapper.find(".browse-table").exists()).toBe(false);
-    expect(wrapper.get(".browse-detail-card").text()).toContain("PREV-MOV-001");
+    expect(wrapper.get(".browse-detail-card").text()).toContain(
+      "MAT-STE-2026-00009",
+    );
     await wrapper.get(".preview-back").trigger("click");
     expect(window.location.hash).toBe(pageHash("movement-records/completed"));
     expect(wrapper.get('.browse-kind-tabs [aria-pressed="true"]').text()).toBe(
@@ -250,7 +252,7 @@ describe("preview navigation proposal", () => {
       props: { route: "movement-records/draft" },
     });
     const draft = reviewSession.drafts.find(
-      (row) => row.name === "PREV-DRAFT-LOAN-001",
+      (row) => row.name === "MAT-STE-2026-00001",
     )!;
     draft.lines[0].qty = 3;
     await nextTick();
@@ -292,7 +294,7 @@ describe("preview navigation proposal", () => {
 
   it("shows a missing record instead of another record after deleting a draft", async () => {
     const index = reviewSession.drafts.findIndex(
-      (draft) => draft.name === "PREV-WORKSPACE-001",
+      (draft) => draft.name === "MAT-STE-2026-00017",
     );
     reviewSession.drafts.splice(index, 1);
     wrapper = mount(PreviewBrowsePages, {

@@ -23,7 +23,10 @@ conflict and which instruction supersedes it rather than silently changing the
 behavior.
 
 Update `UI_UX_DECISIONS.md` in the same change whenever a durable UX decision is
-added or superseded. Keep it concise, record supersessions in its dated log, and
+added or superseded. Update `DESIGN_MIGRATION_COVERAGE.md` in the same change: map preserved, replaced,
+missing and backend-dependent capabilities to preview evidence. A route existing
+is not functional parity; omission never means approved removal.
+Keep it concise, record supersessions in its dated log, and
 preserve unrelated working-tree changes.
 
 ## Application map

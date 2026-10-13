@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import PreviewAttachments from "./components/PreviewAttachments.vue";
+import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
+import { activities, type PreviewAttachment } from "./workflowModel";
 import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
@@ -12,7 +15,7 @@ import {
 	type ReviewDraft,
 } from "./reviewModel";
 import { validateOperation } from "./formModel";
-import { items, locations, itemBatches, type Pattern } from "./model";
+import { items, locations, type Pattern } from "./model";
 const props = defineProps<{ pattern: Pattern; active?: boolean }>();
 const emit = defineEmits<{ notify: [message: string]; back: [] }>();
 const destination = ref(locations[0]);
@@ -36,7 +39,7 @@ const fields = reactive({
 	handler: "",
 	reviewer: "",
 });
-const attachments = ref<string[]>([]);
+const attachments = ref<PreviewAttachment[]>([]);
 const picker = ref(false);
 
 const review = ref(false);
@@ -80,7 +83,7 @@ const totals = computed(() => {
 	return [...values].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
 });
 const receiveDraft = computed<ReviewDraft>(() => ({
-	name: "PREV-CANONICAL-RECEIVE",
+	name: "MAT-STE-2026-00900",
 	kind: "Receive",
 	status: completed.value ? "completed" : "draft",
 	postingDate: fields.date,
@@ -246,13 +249,12 @@ onBeforeUnmount(() => {
 								>来源<input
 									v-model="fields.source"
 									placeholder="例如：捐赠单位或个人" /></label
-							><label class="field"
-								>关联活动<select v-model="fields.activity">
-									<option value="">不关联活动</option>
-									<option>秋季社区供餐</option>
-									<option>义工服务日</option>
-								</select></label
-							><label class="field full-width"
+							><PreviewSearchSelect
+								label="关联活动"
+								v-model="fields.activity"
+								:options="activities.map((row) => row.name)"
+							/>
+							<label class="field full-width"
 								>备注<textarea
 									v-model="fields.notes"
 									rows="3"
@@ -262,26 +264,11 @@ onBeforeUnmount(() => {
 						</div>
 						<div class="attachment-area">
 							<h3>凭证附件 <small class="muted">可选</small></h3>
-							<p class="muted">演示附件，不读取或上传本地文件。</p>
-							<div
-								v-for="(attachment, index) in attachments"
-								:key="index"
-								class="attachment-row"
-							>
-								<InventoryIcon name="card" /><span>{{ attachment }}</span
-								><UiButton
-									variant="ghost"
-									:aria-label="`移除${attachment}`"
-									@click="attachments.splice(index, 1)"
-									>移除</UiButton
-								>
-							</div>
-							<UiButton
-								@click="
-									attachments.push(`捐赠物资清单-${attachments.length + 1}.jpg`)
-								"
-								>＋ 添加模拟附件</UiButton
-							>
+							<p class="muted">仅保存在本次预览会话中，不上传到服务器。</p>
+							<PreviewAttachments
+								v-model="attachments"
+								:disabled="completed || confirmBusy"
+							/>
 						</div>
 						<fieldset class="people-fields">
 							<legend>现场人员（可选）</legend>

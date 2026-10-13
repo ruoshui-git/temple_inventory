@@ -101,14 +101,14 @@ describe("preview date and scoped projections", () => {
       filterMovements(session.movements, scope, "珍珠", session).map(
         (row) => row.name,
       ),
-    ).toEqual(["PREV-MOV-001"]);
+    ).toEqual(["MAT-STE-2026-00009"]);
     scope.sources = [locations[2]];
     expect(filterMovements(session.movements, scope, "", session)).toEqual([]);
   });
   it("groups repeated movement lines by item with distinct record counts and separate quantities", () => {
     const session = createReviewSession();
     const original = session.movements.find(
-      (row) => row.name === "PREV-MOV-001",
+      (row) => row.name === "MAT-STE-2026-00009",
     )!;
     const groups = groupMovements([
       original,
@@ -126,7 +126,9 @@ describe("preview date and scoped projections", () => {
   it("groups positive loan outcomes across records including partially settled loans", () => {
     const session = createReviewSession();
     expect(
-      loanStatus(session.loans.find((loan) => loan.name === "PREV-LOAN-005")!),
+      loanStatus(
+        session.loans.find((loan) => loan.name === "MAT-STE-2026-00008")!,
+      ),
     ).toBe("部分结清");
     const groups = groupLoans(session.loans, "all", session);
     const outstanding = groups.find(
@@ -143,13 +145,17 @@ describe("preview date and scoped projections", () => {
     scope.period = { key: "custom", from: "2026-10-09", to: "2026-10-09" };
     expect(
       filterLoans(session.loans, scope, "", session).map((loan) => loan.name),
-    ).toEqual(["PREV-LOAN-005"]);
+    ).toEqual(["MAT-STE-2026-00008"]);
   });
   it("settles a linked preview loan once and links its movement to the same loan", () => {
     const session = createReviewSession();
-    const loan = session.loans.find((loan) => loan.name === "PREV-LOAN-005")!;
+    const loan = session.loans.find(
+      (loan) => loan.name === "MAT-STE-2026-00008",
+    )!;
     const draft = createDraft("Return", "TEST-RETURN", session);
     draft.loanName = loan.name;
+    draft.borrower = loan.borrower;
+    draft.activity = loan.activity;
     draft.lines = [
       {
         id: "1",
@@ -174,7 +180,7 @@ describe("preview date and scoped projections", () => {
   it("keeps an excessive settlement draft without mutating the loan", () => {
     const session = createReviewSession();
     const draft = createDraft("Return", "EXCESS", session);
-    draft.loanName = "PREV-LOAN-005";
+    draft.loanName = "MAT-STE-2026-00008";
     draft.lines = [
       {
         id: "1",
@@ -273,7 +279,7 @@ describe("date and browse interactions", () => {
     });
     const row = wrapper
       .findAll("tbody tr")
-      .find((row) => row.text().includes("PREV-MOV-001"))!;
+      .find((row) => row.text().includes("MAT-STE-2026-00009"))!;
     expect(row.text()).toContain(locations[0]);
     expect(row.text()).toContain(locations[1]);
     expect(row.text()).toContain("2 种物品");

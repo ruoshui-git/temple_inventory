@@ -115,6 +115,7 @@ export interface StockLocation {
   batches?: StockBatch[];
 }
 export interface StockItem {
+  files?: import("./workflowModel").PreviewAttachment[];
   code: string;
   name: string;
   category: string;

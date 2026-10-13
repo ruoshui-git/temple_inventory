@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { warehouseEditError, isSystemWarehouse } from "./workflowModel";
+import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
+import PreviewAttachments from "./components/PreviewAttachments.vue";
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewQuantitySummary from "./components/PreviewQuantitySummary.vue";
@@ -17,6 +20,7 @@ import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import {
 	createDraft,
+	captureSavedDraft,
 	reviewMovementRows,
 	getPreviewPage,
 	reviewSession,
@@ -25,6 +29,7 @@ import {
 	type OperationKind,
 	type ReviewDraft,
 	type ReviewWarehouse,
+	type ReviewMovement,
 } from "./reviewModel";
 
 const props = withDefaults(defineProps<{ route: PreviewPageKey; active?: boolean }>(), {
@@ -39,7 +44,7 @@ const page = computed(() => getPreviewPage(props.route)!);
 const isMovementDetail = computed(
 	() =>
 		page.value.page === "movement-records" &&
-		["detail", "selected", "opening", "workspace-detail", "entry-detail"].includes(
+		["detail", "selected", "opening", "workspace-detail", "entry-detail", "external"].includes(
 			page.value.variant,
 		),
 );
@@ -69,7 +74,34 @@ const title = computed(() => {
 	if (["loan-items", "loan-records"].includes(page.value.page)) return "借用";
 	return page.value.label;
 });
-const allMovements = computed(() => reviewMovementRows());
+const externalVoucher: ReviewMovement = {
+	documentType: "Purchase Receipt",
+	name: "MAT-PRE-2026-00001",
+	kind: "采购收货",
+	stockPurpose: "Purchase Receipt",
+	docstatus: 1,
+	date: previewDate,
+	code: "ITM-000128",
+	itemName: "东北珍珠米",
+	qty: 10,
+	uom: "袋",
+	from: "供应商",
+	to: "斋堂 / A-01",
+};
+const allMovements = computed(() =>
+	page.value.variant === "external"
+		? [...reviewMovementRows(), externalVoucher]
+		: reviewMovementRows(),
+);
+const movementEditable = computed(
+	() =>
+		currentMovement.value?.documentType !== "Purchase Receipt" &&
+		currentMovement.value?.kind !== "Opening",
+);
+const deskLink = computed(
+	() =>
+		`/app/${(currentMovement.value?.documentType || "Stock Entry").toLowerCase().replaceAll(" ", "-")}/${encodeURIComponent(currentMovement.value?.name || "")}`,
+);
 const search = computed({
 	get() {
 		const family = page.value.page;
@@ -246,10 +278,46 @@ const pendingRows = computed(() =>
 				.includes(search.value.trim().toLocaleLowerCase()),
 	),
 );
+const draftScope = ref(emptyScope());
 const draftRows = computed(() =>
 	reviewSession.drafts.filter(
 		(row) =>
 			row.status === "draft" &&
+			(!draftScope.value.kinds.length || draftScope.value.kinds.includes(row.kind)) &&
+			(!draftScope.value.activity || row.activity === draftScope.value.activity) &&
+			inPeriod(row.postingDate, draftScope.value.period) &&
+			(!(
+				draftScope.value.item ||
+				draftScope.value.categories.length ||
+				draftScope.value.warehouses.length ||
+				draftScope.value.sources.length ||
+				draftScope.value.destinations.length
+			) ||
+				row.lines.some(
+					(line) =>
+						matchesItem(line.code, draftScope.value, reviewSession) &&
+						(!draftScope.value.warehouses.length ||
+							matchesWarehouse(
+								line.location,
+								draftScope.value.warehouses,
+								reviewSession,
+							) ||
+							matchesWarehouse(
+								line.sourceLocation || "",
+								draftScope.value.warehouses,
+								reviewSession,
+							)) &&
+						matchesWarehouse(
+							line.sourceLocation || (row.kind === "Receive" ? "" : line.location),
+							draftScope.value.sources,
+							reviewSession,
+						) &&
+						matchesWarehouse(
+							line.location,
+							draftScope.value.destinations,
+							reviewSession,
+						),
+				)) &&
 			`${row.name} ${row.kind} ${row.activity} ${row.borrower}`
 				.toLocaleLowerCase()
 				.includes(search.value.trim().toLocaleLowerCase()),
@@ -269,15 +337,17 @@ const warehouseRows = computed(() =>
 );
 const currentMovement = computed(() => {
 	const selectedName =
-		page.value.variant === "opening"
-			? "PREV-OPENING-001"
-			: page.value.variant === "workspace-detail"
-				? "PREV-WORKSPACE-001"
-				: page.value.variant === "entry-detail"
-					? "PREV-ENTRY-001"
-					: page.value.variant === "selected"
-						? reviewSession.selectedMovementName || "PREV-MOV-001"
-						: "PREV-MOV-004";
+		page.value.variant === "external"
+			? externalVoucher.name
+			: page.value.variant === "opening"
+				? "MAT-RECO-2026-00014"
+				: page.value.variant === "workspace-detail"
+					? "MAT-STE-2026-00017"
+					: page.value.variant === "entry-detail"
+						? "MAT-STE-2026-00003"
+						: page.value.variant === "selected"
+							? reviewSession.selectedMovementName || "MAT-STE-2026-00009"
+							: "MAT-STE-2026-00012";
 	return allMovements.value.find((row) => row.name === selectedName);
 });
 const currentLoan = computed(() => {
@@ -291,10 +361,10 @@ const currentLoan = computed(() => {
 			(row) =>
 				row.name ===
 				(page.value.variant === "returned"
-					? "PREV-LOAN-002"
+					? "MAT-STE-2026-00005"
 					: page.value.variant === "damaged"
-						? "PREV-LOAN-003"
-						: "PREV-LOAN-001"),
+						? "MAT-STE-2026-00006"
+						: "MAT-STE-2026-00004"),
 		) || reviewSession.loans[0]
 	);
 });
@@ -348,11 +418,7 @@ function openLoan(name: string) {
 	go("loan-detail", "selected");
 }
 function newOperation(kind: OperationKind, code?: string, location?: string, qty = 1) {
-	const contextName =
-		code && location
-			? `PREV-${kind.toUpperCase()}-${`${code}-${location}`.replace(/[^A-Z0-9]+/gi, "-")}`
-			: undefined;
-	const draft = createDraft(kind, contextName);
+	const draft = createDraft(kind);
 	if (!draft.lines.length && code) {
 		const item = reviewSession.stock.find((row) => row.code === code);
 		if (item)
@@ -361,8 +427,8 @@ function newOperation(kind: OperationKind, code?: string, location?: string, qty
 				code,
 				qty,
 				uom: item.uom,
-				location: location || item.locations[0]?.location || "",
-				sourceLocation: location || item.locations[0]?.location || "",
+				location: location || "",
+				sourceLocation: location || "",
 				batch: item.tracksBatch
 					? item.locations.find((row) => row.location === location)?.batches?.[0]?.id ||
 						""
@@ -376,14 +442,13 @@ function newOperation(kind: OperationKind, code?: string, location?: string, qty
 	reviewSession.selectedDraftName = draft.name;
 	go("movement-form", kind);
 }
-function createLoanReturn(loanName: string, damaged = false) {
+function createLoanReturn(loanName: string, damaged = false, kind: "Return" | "Loss" = "Return") {
 	const loan = reviewSession.loans.find((row) => row.name === loanName);
 	if (!loan) return;
-	const kind: OperationKind = damaged ? "Damage" : "Return";
 	const pending = reviewSession.drafts.find(
 		(row) => row.kind === kind && row.loanName === loan.name && row.status === "draft",
 	);
-	const baseName = `PREV-${kind.toUpperCase()}-${loan.name}`;
+	const baseName = `MAT-STE-2026-${String(reviewSession.drafts.length + 201).padStart(5, "0")}`;
 	let name = baseName;
 	let sequence = 1;
 	while (reviewSession.drafts.some((row) => row.name === name))
@@ -404,9 +469,11 @@ function createLoanReturn(loanName: string, damaged = false) {
 				return {
 					id: `${kind.toLocaleLowerCase()}-${loan.name}-${index + 1}`,
 					loanLineIndex: index,
+					loanName: loan.name,
+					returnOutcome: damaged ? ("damaged" as const) : ("returned" as const),
 					code: line.code,
 					qty: Math.max(0, line.qty - line.returned - line.damaged - line.lost),
-					uom: item?.uom || "件",
+					uom: item?.uom || "Nos",
 					location,
 					sourceLocation: location,
 					batch: line.batch,
@@ -424,10 +491,52 @@ function continueDraft(draft: ReviewDraft) {
 	go("movement-form", draft.kind);
 }
 function editMovement() {
-	const draft = reviewSession.drafts.find(
-		(row) => row.name === currentMovement.value?.name && row.status === "draft",
-	);
-	if (draft) continueDraft(draft);
+	const rows = allMovements.value.filter((row) => row.name === currentMovement.value?.name);
+	const first = rows[0];
+	if (!first) return;
+	if (!movementEditable.value) return;
+	let draft = reviewSession.drafts.find((row) => row.name === first.name);
+	if (!draft) {
+		const operation =
+			rows.some((row) => row.kind === "Return") && rows.some((row) => row.loanName)
+				? "Return"
+				: first.kind;
+		draft = createDraft(operation as OperationKind, first.name);
+		Object.assign(draft, {
+			origin: "desk",
+			saved: true,
+			status:
+				first.docstatus === 0
+					? "draft"
+					: first.docstatus === 2
+						? "cancelled"
+						: "completed",
+			documentType: first.documentType || "Stock Entry",
+			loanName: operation === "Loan" ? undefined : first.loanName,
+			postingDate: first.date,
+			activity: first.activity || "",
+			borrower: first.borrower || "",
+			countMode: operation === "Reconcile" ? "selective" : undefined,
+			countLocation: operation === "Reconcile" ? first.to : undefined,
+			lines: rows.map((row, i) => ({
+				id: `${row.name}/${i}`,
+				code: row.code,
+				qty: operation === "Reconcile" ? (row.bookQty ?? 0) : row.qty,
+				countedQty: row.countedQty,
+				countState: row.countedQty === undefined ? undefined : "counted",
+				reason: row.reason,
+				uom: row.uom,
+				sourceLocation: row.from,
+				location: row.to,
+				batch: row.batch,
+				loanName: operation === "Loan" ? undefined : row.loanName,
+				loanLineIndex: row.loanLineIndex,
+				returnOutcome: row.kind === "Damage" ? "damaged" : "returned",
+			})),
+		});
+		captureSavedDraft(draft);
+	}
+	continueDraft(draft);
 }
 
 function deleteDraft() {
@@ -459,7 +568,15 @@ function saveWarehouse() {
 		return;
 	}
 	const existing = reviewSession.warehouses.find((row) => row.name === warehouseEditName.value);
+	if (!existing) {
+		warehouseError.value = warehouseEditError(label, warehouseParent.value);
+		if (warehouseError.value) return;
+	}
 	if (existing) {
+		warehouseError.value = warehouseEditError(existing.name, warehouseParent.value);
+		if (warehouseError.value) return;
+		existing.parent = warehouseParent.value;
+		existing.warehouse_type = warehouseType.value;
 		existing.label = label;
 	} else {
 		const name = label;
@@ -471,6 +588,15 @@ function saveWarehouse() {
 			warehouse_type: warehouseType.value,
 			status: "active",
 		});
+		if (warehouseType.value === "Room")
+			reviewSession.warehouses.push({
+				name: `${name} / 未指定`,
+				label: "未指定",
+				parent: name,
+				is_group: false,
+				warehouse_type: "Location",
+				status: "active",
+			});
 	}
 	reviewSession.selectedWarehouse = existing?.name || label;
 	warehouseDialog.value = false;
@@ -481,7 +607,7 @@ function saveWarehouse() {
 function startWarehouseEdit(row: ReviewWarehouse) {
 	warehouseName.value = row.label;
 	warehouseEditName.value = row.name;
-	warehouseParent.value = row.parent || "斋堂";
+	warehouseParent.value = row.parent || "";
 	warehouseType.value = row.warehouse_type;
 	reviewSession.selectedWarehouse = row.name;
 	warehouseDialog.value = true;
@@ -859,7 +985,10 @@ onActivated(() => {
 			<article v-if="isMovementDetail && currentMovement" class="browse-detail-card">
 				<div class="browse-card-heading">
 					<div>
-						<span class="eyebrow">{{ currentMovement.name }}</span>
+						<span class="eyebrow"
+							>{{ currentMovement.documentType || "Stock Entry" }} ·
+							{{ currentMovement.name }}</span
+						>
 						<h2>
 							{{
 								[
@@ -935,6 +1064,25 @@ onActivated(() => {
 				>
 				<dl class="browse-detail-grid">
 					<div>
+						<dt>用途</dt>
+						<dd>{{ movementDraft?.purpose || "—" }}</dd>
+					</div>
+					<div>
+						<dt>负责人</dt>
+						<dd>{{ movementDraft?.responsible || "—" }}</dd>
+					</div>
+					<div>
+						<dt>来源类型 / 来源</dt>
+						<dd>
+							{{ movementDraft?.sourceType || "—" }} ·
+							{{ movementDraft?.source || "—" }}
+						</dd>
+					</div>
+					<div>
+						<dt>操作时间</dt>
+						<dd>{{ movementDraft?.postingTime || "未记录" }}</dd>
+					</div>
+					<div>
 						<dt>借用人 / 对象</dt>
 						<dd>{{ currentMovement.borrower || "—" }}</dd>
 					</div>
@@ -976,6 +1124,13 @@ onActivated(() => {
 					><small v-else-if="line.reason">原因：{{ line.reason }}</small>
 				</div>
 				<h2>附件</h2>
+				<PreviewAttachments
+					:model-value="
+						reviewSession.drafts.find((row) => row.name === currentMovement?.name)
+							?.files
+					"
+					disabled
+				/>
 				<p class="browse-note">
 					{{
 						reviewSession.drafts
@@ -983,9 +1138,15 @@ onActivated(() => {
 							?.attachments?.join("、") || "暂无附件"
 					}}
 				</p>
-				<PreviewUiButton v-if="currentMovement.docstatus === 0" @click="editMovement"
-					>继续编辑草稿</PreviewUiButton
-				>
+				<p v-if="!movementEditable" class="browse-note">
+					{{ currentMovement.documentType }} ·
+					{{ currentMovement.stockPurpose || movementLabel(currentMovement.kind) }}，请在
+					ERPNext 中处理。
+				</p>
+				<a :href="deskLink" target="_blank" rel="noopener">在 ERPNext Desk 中打开</a
+				><PreviewUiButton v-if="movementEditable" @click="editMovement">{{
+					currentMovement.docstatus === 0 ? "继续编辑草稿" : "查看记录生命周期"
+				}}</PreviewUiButton>
 				<p class="browse-note">
 					{{
 						currentMovement.docstatus === 1
@@ -1082,6 +1243,12 @@ onActivated(() => {
 					{{ currentLoan.loanDate }} · 借用登记 · {{ formatStatus(currentLoan.status) }}
 				</p>
 				<h2>附件</h2>
+				<PreviewAttachments
+					:model-value="
+						reviewSession.drafts.find((row) => row.name === currentLoan.name)?.files
+					"
+					disabled
+				/>
 				<p class="browse-note">暂无附件</p>
 				<div v-if="currentLoan.status === 'outstanding'" class="browse-actions">
 					<PreviewUiButton
@@ -1090,7 +1257,9 @@ onActivated(() => {
 						@click="createLoanReturn(currentLoan.name)"
 						>登记归还</PreviewUiButton
 					><PreviewUiButton @click="createLoanReturn(currentLoan.name, true)"
-						>登记损坏处理</PreviewUiButton
+						>登记损坏归还</PreviewUiButton
+					><PreviewUiButton @click="createLoanReturn(currentLoan.name, false, 'Loss')"
+						>记录遗失</PreviewUiButton
 					>
 				</div>
 			</article>
@@ -1336,7 +1505,12 @@ onActivated(() => {
 			</div>
 		</template>
 
-		<template v-else-if="page.page === 'drafts'">
+		<template v-else-if="page.page === 'drafts'"
+			><PreviewPeriodFilter label="操作日期" v-model="draftScope.period" />
+			<details class="form-section">
+				<summary>筛选草稿</summary>
+				<PreviewBrowseFilters v-model="draftScope" movement records />
+			</details>
 			<div class="browse-toolbar">
 				<label class="browse-search"
 					><InventoryIcon name="search" /><input
@@ -1361,7 +1535,9 @@ onActivated(() => {
 						<tr v-for="draft in draftRows" :key="draft.name">
 							<td>
 								<button class="browse-row-link" @click="continueDraft(draft)">
-									<strong>{{ draft.name }}</strong
+									<strong>{{
+										draft.saved === false ? "未保存" : draft.name
+									}}</strong
 									><small>{{ draft.responsible || "未指定负责人" }}</small>
 								</button>
 							</td>
@@ -1440,6 +1616,7 @@ onActivated(() => {
 					</div>
 				</dl>
 				<h2>物品图片</h2>
+				<PreviewAttachments :model-value="activeItem.files" images-only disabled />
 				<p class="browse-note">
 					{{ activeItem.images?.join("、") || "示例插画；未添加其他图片" }}
 				</p>
@@ -1491,7 +1668,70 @@ onActivated(() => {
 						</thead>
 						<tbody>
 							<tr v-for="batch in batches" :key="`${batch.id}-${batch.location}`">
-								<td>{{ batch.id }}</td>
+								<td>
+									<details>
+										<summary>{{ batch.id }}</summary>
+										<p>
+											位置 {{ batch.location }} · 到期
+											{{ batch.expiry || "无效期" }}
+										</p>
+										<p>
+											借出
+											{{
+												reviewSession.loans
+													.flatMap((loan) => loan.lines)
+													.filter(
+														(line) =>
+															line.code === activeItem.code &&
+															line.batch === batch.id &&
+															line.location === batch.location,
+													)
+													.reduce(
+														(sum, line) =>
+															sum +
+															Math.max(
+																0,
+																line.qty -
+																	line.returned -
+																	line.damaged -
+																	line.lost,
+															),
+														0,
+													)
+											}}
+											· 损坏 {{ batch.damaged || 0 }}
+										</p>
+										<button
+											v-for="record in allMovements.filter(
+												(row) =>
+													row.code === activeItem.code &&
+													row.batch === batch.id,
+											)"
+											:key="record.name"
+											class="browse-link"
+											@click="openMovement(record.name)"
+										>
+											{{ record.name }} ·
+											{{ movementLabel(record.kind) }}</button
+										><button
+											v-for="loan in reviewSession.loans.filter((loan) =>
+												loan.lines.some(
+													(line) =>
+														line.code === activeItem.code &&
+														line.batch === batch.id,
+												),
+											)"
+											:key="loan.name"
+											class="browse-link"
+											@click="
+												reviewSession.selectedLoanName = loan.name;
+												go('loan-detail', 'selected');
+											"
+										>
+											借用 {{ loan.borrower }} · {{ loan.name }}
+										</button>
+									</details>
+								</td>
 								<td>{{ batch.expiry || "未设置" }}</td>
 								<td>{{ batch.location }}</td>
 								<td>{{ batch.available }} {{ activeItem.uom }}</td>
@@ -1670,18 +1910,20 @@ onActivated(() => {
 				<span class="eyebrow">WAREHOUSE SETUP</span>
 				<p v-if="warehouseError" role="alert" class="browse-note">{{ warehouseError }}</p>
 				<label>名称<input v-model="warehouseName" required autocomplete="off" /></label
-				><label
-					>上级节点<select v-model="warehouseParent" :disabled="!!warehouseEditName">
-						<option
-							v-for="row in reviewSession.warehouses.filter((row) => row.is_group)"
-							:key="row.name"
-							:value="row.name"
-						>
-							{{ row.label }}
-						</option>
-					</select></label
-				><label
-					>物理类型<select v-model="warehouseType" :disabled="!!warehouseEditName">
+				><PreviewSearchSelect
+					label="上级节点"
+					v-model="warehouseParent"
+					:options="
+						reviewSession.warehouses
+							.filter((row) => row.is_group && !isSystemWarehouse(row.name))
+							.map((row) => row.name)
+					"
+				/>
+				<p class="muted">
+					修改上级仅调整组织结构，不移动实物库存。分组 / 库位属性保持不变。
+				</p>
+				<label
+					>物理类型<select v-model="warehouseType">
 						<option value="Room">房间</option>
 						<option value="Location">位置</option>
 						<option value="Group">组织分组</option>

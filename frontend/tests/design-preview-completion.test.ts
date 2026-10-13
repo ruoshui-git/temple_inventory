@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DOMWrapper, mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
+import PreviewSearchSelect from "../src/design-preview/components/PreviewSearchSelect.vue";
 import PreviewFormPages from "../src/design-preview/PreviewFormPages.vue";
 import PreviewReceive from "../src/design-preview/PreviewReceive.vue";
 import PreviewBrowsePages from "../src/design-preview/PreviewBrowsePages.vue";
@@ -22,6 +23,17 @@ import {
 import { locations, previewDate } from "../src/design-preview/model";
 
 const wrappers: VueWrapper[] = [];
+async function chooseSearch(wrapper: VueWrapper, label: string, value: string) {
+  const select = wrapper
+    .findAllComponents(PreviewSearchSelect)
+    .find((row) => row.props("label") === label)!;
+  await select.get("input").setValue(value);
+  const option = select
+    .findAll("[role=option]")
+    .find((row) => row.text().includes(value))!;
+  await option.trigger("click");
+}
+
 const body = () => new DOMWrapper(document.body);
 function render(component: any, props = {}) {
   const wrapper = mount(component, { props, attachTo: document.body });
@@ -103,7 +115,9 @@ describe("preview form refinement", () => {
     expect(
       wrapper.get(".receive-line").findAll("input[type=date]"),
     ).toHaveLength(2);
-    expect(wrapper.get(".receive-line").findAll("select")).toHaveLength(2);
+    expect(
+      wrapper.get(".receive-line").findAll("[role=combobox]"),
+    ).toHaveLength(2);
   });
 
   it("shows source, target, existing batch and availability without a disclosure, and restricts creation to receiving", async () => {
@@ -112,7 +126,7 @@ describe("preview form refinement", () => {
       variant: "Transfer",
     });
     const draft = reviewSession.drafts.find(
-      (draft) => draft.kind === "Transfer" && draft.name.includes("NEW"),
+      (draft) => draft.kind === "Transfer" && draft.status === "draft",
     )!;
     draft.lines[0] = {
       id: "rice",
@@ -128,10 +142,9 @@ describe("preview form refinement", () => {
       "可用 60 袋",
     );
     expect(
-      wrapper.get(".preview-operation-lines").findAll("select"),
+      wrapper.get(".preview-operation-lines").findAll("[role=combobox]"),
     ).toHaveLength(3);
-    const source = wrapper.get(".preview-operation-lines select");
-    await source.setValue(locations[1]);
+    await chooseSearch(wrapper, "来源库位", locations[1]);
     expect(wrapper.text()).toContain("可用 32 袋");
     await button(wrapper, "添加物品").trigger("click");
     expect(body().get('[role="dialog"]').text()).not.toContain("新建物品");
@@ -178,7 +191,7 @@ describe("preview form refinement", () => {
       variant: "detail",
     });
     const draft = reviewSession.drafts.find(
-      (draft) => draft.name === "PREV-RECON-001",
+      (draft) => draft.name === "MAT-RECO-2026-00015",
     )!;
     draft.lines[0].countedQty = 0;
     expect(validateOperation(draft)).toContain("差异原因");
@@ -194,55 +207,52 @@ describe("preview form refinement", () => {
       editor.get('input[placeholder="例如 ITM-000134"]').attributes("readonly"),
     ).toBeDefined();
     expect(
-      editor.get(".preview-unit-field select").attributes("disabled"),
+      editor.get(".preview-unit-field [role=combobox]").attributes("disabled"),
     ).toBeDefined();
     expect(
       editor
-        .findAll("input[type=checkbox]")
+        .findAll(".form-check-row input[type=checkbox]")
         .every((input) => input.attributes("disabled") !== undefined),
     ).toBe(true);
   });
 
-  it("settles returned, damaged and lost outcomes through the linked loan and exposes history", async () => {
+  it("settles good and damaged returns in one document and exposes history", async () => {
     const wrapper = render(PreviewFormPages, {
       page: "movement-form",
       variant: "Return",
     });
-    await wrapper
-      .findAll("select")
-      .find((select) => select.text().includes("PREV-LOAN-001"))!
-      .setValue("PREV-LOAN-001");
+    await chooseSearch(wrapper, "关联借用记录", "MAT-STE-2026-00004");
+    await button(wrapper, "加入此借用").trigger("click");
     const draft = reviewSession.drafts.find(
       (draft) => draft.kind === "Return",
     )!;
-    await button(wrapper, "添加处理分配").trigger("click");
     await button(wrapper, "添加处理分配").trigger("click");
     for (const input of wrapper.findAll("input[type=number]"))
       await input.setValue(1);
     const outcomes = wrapper
       .findAll("select")
-      .filter((select) => select.text().includes("遗失结清"));
+      .filter((select) => select.text().includes("损坏归还"));
     await outcomes[1].setValue("damaged");
-    await outcomes[2].setValue("lost");
+    expect(wrapper.text()).not.toContain("遗失结清");
     await nextTick();
     await button(wrapper, "复核并确认").trigger("click");
     await button(body(), "确认提交").trigger("click");
     expect(
-      reviewSession.loans.find((loan) => loan.name === "PREV-LOAN-001")
+      reviewSession.loans.find((loan) => loan.name === "MAT-STE-2026-00004")
         ?.lines[0],
-    ).toMatchObject({ returned: 1, damaged: 1, lost: 1 });
+    ).toMatchObject({ returned: 1, damaged: 1, lost: 0 });
     expect(
       reviewSession.movements
         .filter((row) => row.name === draft.name)
         .map((row) => row.kind)
         .sort(),
-    ).toEqual(["Damage", "Loss", "Return"]);
-    reviewSession.selectedLoanName = "PREV-LOAN-001";
+    ).toEqual(["Damage", "Return"]);
+    reviewSession.selectedLoanName = "MAT-STE-2026-00004";
     const detail = render(PreviewBrowsePages, {
       route: "loan-detail/selected",
     });
     expect(detail.text()).toContain(draft.name);
-    expect(detail.text()).toContain("未结清 1");
+    expect(detail.text()).toContain("未结清 2");
   });
 });
 

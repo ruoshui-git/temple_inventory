@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { ref, onDeactivated } from "vue";
+import { ref, computed, onDeactivated } from "vue";
 import PreviewProduct from "./PreviewProduct.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import type { StockItem } from "./model";
-withDefaults(defineProps<{ item: StockItem; interaction?: "detail" | "lightbox" }>(), {
-	interaction: "lightbox",
-});
+const props = withDefaults(
+	defineProps<{ item: StockItem; interaction?: "detail" | "lightbox" }>(),
+	{
+		interaction: "lightbox",
+	},
+);
 const emit = defineEmits<{ detail: [] }>();
 const open = ref(false);
+const primary = computed(() =>
+	props.item.files?.find(
+		(file) => file.type.startsWith("image/") && file.state === "ready" && file.url,
+	),
+);
 onDeactivated(() => {
 	open.value = false;
 });
@@ -19,10 +27,15 @@ onDeactivated(() => {
 			:aria-label="`查看${item.name}详情`"
 			@click.stop="emit('detail')"
 		>
-			<PreviewProduct :kind="item.illustration" :name="item.name" />
+			<img
+				v-if="primary"
+				:src="primary.url"
+				:alt="item.name"
+				class="uploaded-preview-image"
+			/><PreviewProduct v-else :kind="item.illustration" :name="item.name" />
 		</button>
 		<button
-			v-if="item.illustration !== 'none'"
+			v-if="primary || item.illustration !== 'none'"
 			class="preview-image-enlarge"
 			:aria-label="`放大查看${item.name}图片`"
 			title="查看大图"
@@ -44,7 +57,7 @@ onDeactivated(() => {
 		</button>
 	</div>
 	<PreviewProduct
-		v-else-if="item.illustration === 'none'"
+		v-else-if="!primary && item.illustration === 'none'"
 		:kind="item.illustration"
 		:name="item.name"
 	/>
@@ -56,7 +69,12 @@ onDeactivated(() => {
 		title="查看大图"
 		@click.stop="open = true"
 	>
-		<PreviewProduct :kind="item.illustration" :name="item.name" /><span
+		<img
+			v-if="primary"
+			:src="primary.url"
+			:alt="item.name"
+			class="uploaded-preview-image"
+		/><PreviewProduct v-else :kind="item.illustration" :name="item.name" /><span
 			class="image-magnifier"
 			aria-hidden="true"
 			>⊕</span
@@ -64,8 +82,27 @@ onDeactivated(() => {
 	</button>
 	<PreviewOverlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"
 		><div class="lightbox-image">
-			<PreviewProduct :kind="item.illustration" :name="item.name" />
+			<img
+				v-if="primary"
+				:src="primary.url"
+				:alt="item.name"
+				class="uploaded-preview-image"
+			/><PreviewProduct v-else :kind="item.illustration" :name="item.name" />
 		</div>
-		<p class="muted">示意插画 · {{ item.code }}</p></PreviewOverlay
+		<p class="muted">
+			{{ primary ? primary.name : "示意插画" }} · {{ item.code }}
+		</p></PreviewOverlay
 	>
 </template>
+
+<style scoped>
+.uploaded-preview-image {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.lightbox-image .uploaded-preview-image {
+	max-height: 60dvh;
+}
+</style>

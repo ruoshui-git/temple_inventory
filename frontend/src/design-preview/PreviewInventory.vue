@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
+import { matchesCategory } from "./browseModel";
 import PreviewFilterButton from "./components/PreviewFilterButton.vue";
 import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import HierarchyFilter from "./components/PreviewHierarchyFilter.vue";
 import QuantitySummary from "./components/PreviewQuantitySummary.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
-import { reviewSession } from "./reviewModel";
+import { reviewSession, createDraft, type OperationKind } from "./reviewModel";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import { emptyScope, matchesItem, matchesWarehouse } from "./browseModel";
 import PreviewItemImage from "./PreviewItemImage.vue";
@@ -17,7 +19,6 @@ import {
 	itemBatches,
 	items,
 	quantities,
-	warehouseNodes,
 	type Pattern,
 	type StockItem,
 } from "./model";
@@ -35,6 +36,7 @@ const view = ref("card");
 const sort = ref("name");
 const descending = ref(false);
 const selected = ref<string[]>([]);
+const inStockOnly = ref(true);
 const filtersOpen = ref(false);
 const menuOpen = ref(false);
 function openItem(item: StockItem) {
@@ -42,6 +44,8 @@ function openItem(item: StockItem) {
 	emit("navigate", "item-detail", "overview");
 }
 const summaryOpen = ref(false);
+const resultLimit = ref(20);
+const analysisDimension = ref("category");
 const scanOpen = ref(false);
 const exportOpen = ref(false);
 const exportFormat = ref("xlsx");
@@ -113,7 +117,11 @@ const rows = computed(() => {
 	if (status.value === "empty") return [];
 	const scope = reviewSession.filters.inventory.scope;
 	const source = reviewSession.stock
-		.filter((item) => matchesItem(item.code, scope, reviewSession))
+		.filter(
+			(item) =>
+				matchesItem(item.code, scope, reviewSession) &&
+				(!inStockOnly.value || item.available + item.loaned + item.damaged > 0),
+		)
 		.map((item) => ({
 			...item,
 			locations: item.locations.filter((row) =>
@@ -121,14 +129,75 @@ const rows = computed(() => {
 			),
 		}))
 		.filter((item) => !scope.warehouses.length || item.locations.length);
-	return filterItems(search.value, warehouses.value, category.value, source).sort((a, b) => {
-		const result =
-			sort.value === "available"
-				? a.available - b.available
-				: a.name.localeCompare(b.name, "zh-CN");
-		return descending.value ? -result : result;
-	});
+	return filterItems(
+		search.value,
+		[],
+		"",
+		source.map((item) => ({
+			...item,
+			locations: item.locations.filter((row) =>
+				matchesWarehouse(row.location, warehouses.value, reviewSession),
+			),
+		})),
+	)
+		.filter(
+			(item) =>
+				(!warehouses.value.length || item.locations.length) &&
+				matchesCategory(
+					item.category,
+					category.value ? [category.value] : [],
+					reviewSession,
+				),
+		)
+		.sort((a, b) => {
+			const result =
+				sort.value === "available"
+					? a.available - b.available
+					: a.name.localeCompare(b.name, "zh-CN");
+			return descending.value ? -result : result;
+		});
 });
+const analysis = computed(() => {
+	const grouped = new Map<
+		string,
+		{ items: Set<string>; available: number; loaned: number; damaged: number }
+	>();
+	for (const item of rows.value) {
+		const parts =
+			analysisDimension.value === "category"
+				? [
+						{
+							key: item.category,
+							available: item.available,
+							loaned: item.loaned,
+							damaged: item.damaged,
+						},
+					]
+				: item.locations.map((row) => ({ key: row.location, ...row }));
+		for (const part of parts) {
+			const key = `${part.key} · ${item.uom}`;
+			const group = grouped.get(key) || {
+				items: new Set<string>(),
+				available: 0,
+				loaned: 0,
+				damaged: 0,
+			};
+			group.items.add(item.code);
+			group.available += part.available;
+			group.loaned += part.loaned;
+			group.damaged += part.damaged;
+			grouped.set(key, group);
+		}
+	}
+	return [...grouped.entries()];
+});
+watch(
+	() => [search.value, category.value, warehouses.value, inStockOnly.value],
+	() => {
+		resultLimit.value = 20;
+	},
+	{ deep: true },
+);
 const metrics = computed(() => [
 	{
 		key: "available",
@@ -170,6 +239,25 @@ function sortBy(key: string) {
 }
 function action(name: string) {
 	menuOpen.value = false;
+	if (selected.value.length && name !== "新建物品") {
+		const kind: OperationKind =
+			name === "入库" ? "Receive" : name === "出库" ? "Issue" : "Transfer";
+		const draft = createDraft(
+			kind,
+			`MAT-STE-2026-${String(reviewSession.drafts.length + 401).padStart(5, "0")}`,
+		);
+		draft.lines = selected.value.map((code, index) => ({
+			id: `${draft.name}/${index}`,
+			code,
+			qty: 1,
+			uom: reviewSession.stock.find((row) => row.code === code)?.uom || "Nos",
+			location: "",
+			sourceLocation: "",
+		}));
+		reviewSession.selectedDraftName = draft.name;
+		emit("navigate", "movement-form", kind);
+		return;
+	}
 	if (name === "入库") emit("receive");
 	else if (name === "新建物品") emit("navigate", "item-form", "new");
 	else emit("navigate", "movement-form", name === "出库" ? "Issue" : "Transfer");
@@ -297,6 +385,9 @@ function action(name: string) {
 				><button v-if="search" class="chip" @click="search = ''">{{ search }} ×</button
 				><UiButton variant="ghost" @click="clear">清空筛选</UiButton>
 			</div>
+			<label class="preview-check"
+				><input type="checkbox" v-model="inStockOnly" />仅有库存</label
+			>
 			<div v-if="selected.length" class="selection-bar" role="status">
 				<span>已选择 {{ selected.length }} 项物品</span
 				><UiButton variant="ghost" @click="selected = []">取消选择</UiButton>
@@ -306,17 +397,20 @@ function action(name: string) {
 					<h3>筛选库存</h3>
 					<HierarchyFilter
 						v-model="warehouses"
-						:options="warehouseNodes"
+						:options="reviewSession.warehouses"
 						title="仓库位置"
 						placeholder="查找仓库"
-					/><label class="field"
-						>物品类别<select v-model="category">
-							<option value="">全部类别</option>
-							<option>食品</option>
-							<option>服装</option>
-							<option>日用品</option>
-						</select></label
-					><UiButton variant="ghost" @click="clear">恢复默认筛选</UiButton>
+					/><PreviewSearchSelect
+						label="物品类别"
+						v-model="category"
+						:options="
+							reviewSession.categories.map((row) => ({
+								value: row.name,
+								label: row.label,
+								detail: row.parent,
+							}))
+						"
+					/><UiButton variant="ghost" @click="clear">恢复默认筛选</UiButton>
 				</aside>
 				<div
 					class="results-region"
@@ -348,7 +442,7 @@ function action(name: string) {
 							:class="{ refreshing: status === 'refresh' }"
 						>
 							<article
-								v-for="item in rows"
+								v-for="item in rows.slice(0, resultLimit)"
 								:key="item.code"
 								class="stock-card"
 								:class="{ selected: selected.includes(item.code) }"
@@ -439,7 +533,7 @@ function action(name: string) {
 								</thead>
 								<tbody>
 									<tr
-										v-for="item in rows"
+										v-for="item in rows.slice(0, resultLimit)"
 										:key="item.code"
 										:class="{ selected: selected.includes(item.code) }"
 									>
@@ -491,11 +585,36 @@ function action(name: string) {
 					</template>
 				</div>
 			</div>
+			<details class="form-section">
+				<summary>分析当前结果</summary>
+				<label
+					>分组<select v-model="analysisDimension">
+						<option value="category">类别 / 单位</option>
+						<option value="location">位置 / 单位</option>
+					</select></label
+				>
+				<p v-for="[key, group] in analysis" :key="key">
+					{{ key }} · {{ group.items.size }} 种物品 · 可用 {{ group.available }} · 借出
+					{{ group.loaned }} · 损坏 {{ group.damaged }}
+				</p>
+				<p class="muted">统计完整筛选结果；跨位置的物品数不可相加。</p>
+			</details>
 			<footer class="result-footer">
 				<span
-					>已加载 {{ rows.length }} · 筛选结果 {{ rows.length }} · 全部
-					{{ items.length }}</span
+					>已加载 {{ Math.min(resultLimit, rows.length) }} · 筛选结果 {{ rows.length }} ·
+					全部 {{ reviewSession.stock.length }}</span
 				><span>示例数据 · 不连接真实库存</span>
+				<span v-if="status === 'load-more-error'" role="alert"
+					>加载更多失败，选择保留。<UiButton
+						@click="
+							status = 'ready';
+							resultLimit += 20;
+						"
+						>重试加载</UiButton
+					></span
+				><UiButton v-else-if="resultLimit < rows.length" @click="resultLimit += 20"
+					>加载更多</UiButton
+				>
 			</footer>
 		</section>
 		<label class="demo-state-control"
@@ -505,6 +624,7 @@ function action(name: string) {
 				<option value="refresh">保留结果并刷新</option>
 				<option value="empty">无结果</option>
 				<option value="error">加载失败</option>
+				<option value="load-more-error">加载更多失败</option>
 			</select></label
 		>
 		<PreviewOverlay
@@ -514,17 +634,20 @@ function action(name: string) {
 			@close="filtersOpen = false"
 			><HierarchyFilter
 				v-model="warehouses"
-				:options="warehouseNodes"
+				:options="reviewSession.warehouses"
 				title="仓库位置"
 				placeholder="查找仓库"
-			/><label class="field"
-				>物品类别<select v-model="category">
-					<option value="">全部类别</option>
-					<option>食品</option>
-					<option>服装</option>
-					<option>日用品</option>
-				</select></label
-			><template #footer
+			/><PreviewSearchSelect
+				label="物品类别"
+				v-model="category"
+				:options="
+					reviewSession.categories.map((row) => ({
+						value: row.name,
+						label: row.label,
+						detail: row.parent,
+					}))
+				"
+			/><template #footer
 				><UiButton @click="clear">恢复默认筛选</UiButton
 				><UiButton variant="primary" @click="filtersOpen = false">完成</UiButton></template
 			></PreviewOverlay

@@ -101,7 +101,8 @@ describe("complete preview review surface", () => {
     ];
     reviewSession.selectedDraftName = draft.name;
     await navigate("movement-form/Repair");
-    expect(wrapper.find(".preview-form-page").text()).toContain(draft.name);
+    expect(wrapper.find(".preview-form-page").text()).toContain("未保存");
+    expect(wrapper.find(".preview-form-page").text()).toContain("3 袋");
     expect(
       (
         wrapper.find('.preview-form-page input[type="number"]')

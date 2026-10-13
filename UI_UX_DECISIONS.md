@@ -5,6 +5,28 @@ before changing user-facing behavior. A current user instruction may supersede
 an older rule, but the conflict must be identified explicitly and recorded here
 in the same change. Keep implementation details in code or task notes, not here.
 
+## Current preview decision index — 2026-10-13
+
+These approved **preview targets** supersede conflicting earlier proposals below;
+production enforcement is unchanged. See [migration coverage](DESIGN_MIGRATION_COVERAGE.md)
+for implementation evidence and backend prerequisites. Historical entries are retained
+for rationale, not as competing current rules.
+
+| ID | Decision / rationale | Migration impact |
+| --- | --- | --- |
+| UX-01 | ERPNext document type + name identifies transactions. One editor saves one Stock Entry or Stock Reconciliation. Desk and frontend are equal editors; no workspace ownership. | Replace workspace-exclusive guards/write APIs; ERPNext remains the ledger. |
+| UX-02 | Return includes normal/damaged quantities. Loss is a separate explicit operation. Compatible loans may share one return; never silently split documents. | Structured borrowing document/line references on Stock Entry lines; derived balances. |
+| UX-03 | New items default to Nos. Existing units/conversions remain authoritative. Large choices are searchable; contextual item/batch pickers expose availability/location/expiry. | Paginated full-dataset search, never just loaded options. |
+| UX-04 | Count one leaf location, selected items or full location. Blank is unreviewed, zero deliberate. Baseline refresh preserves counts and requires review. | Versioned ERPNext reconciliation adapter. |
+| UX-05 | System Manager is the initial frontend audience; retain document authorization and clear access/session states. | Server gate is future work; preview stays login-free. |
+| UX-06 | Private inventory originals and derivatives through Frappe File. Public preview artwork is non-sensitive fixture material. | Audit thumbnail helper and verify seeded files; no reset in preview work. |
+| UX-07 | Clean database/API/UI preferred over compatibility during rapid development. A DB reset is acceptable during migration. | No obligation to preserve workspace IDs, old adapters or historical schema. Reset is a separate migration action. |
+| UX-08 | Structured activity and purpose remain separate. Explicit supporting-data creation returns to the preserved draft; no stacked overlays. | Preserve queryable fields rather than putting context in Notes. |
+| UX-09 | Inventory/Movement/Loans use complete filtered totals and exports. Loading, conflicts and recovery retain input. Submitted documents obey ERPNext lifecycle. | Preserve unknown document fields, reject stale writes; no stock engine in preview. |
+
+Every future agent must update this index/log and the affected coverage rows with
+each durable UI refinement. A missing preview capability is not an approved removal.
+
 ## Accessibility and responsive behavior
 
 - The volunteer UI is Chinese and mobile-first, with touch-sized controls,
@@ -610,3 +632,35 @@ in the same change. Keep implementation details in code or task notes, not here.
   Group replacement applies to every allocation. Detail states include loading,
   empty, retry and unavailable; missing records never substitute another record.
   These clarify the approved preview proposal, without changing production.
+
+- **2026-10-13 supersession (UX-01–09):** ERPNext-native identity and editing
+  replaces workspace ownership and read-only Desk drafts. Separate Loss replaces
+  mixed return/loss submission and automatic multi-document splitting. Clean
+  migration/reset preference replaces legacy compatibility as a design constraint.
+  Nos and searchable selections replace blank units and long fixed selects.
+  These are approved preview targets; production implementation remains pending.
+
+- **2026-10-13 preview implementation clarification (UX-01/03/04/06/09):**
+  Saved document snapshots survive editor remounts; external submission uses the
+  saved version while retaining dirty input separately. Missing/deleted documents
+  never substitute another record, and session recovery cannot unblock deletion.
+  Incomplete stock drafts may save; explicit confirmation validates complete input.
+  Count baseline refresh preserves actual counts, includes newly present full-scope
+  rows and requires review; blank never means zero. Search covers the full local
+  option set before pagination, with manual allocation for ambiguous scan locations.
+  Local upload content and primary-image selection supersede filename-only image
+  mocks. These examples remain preview-only; real concurrency, search and private
+  files are backend prerequisites in the capability ledger.
+
+- **2026-10-13 independent review clarification (UX-01/03/04/09):** A new count
+  after completion is a new document, including when returning to a cached page.
+  Desk-authored count details retain book/count quantities and reasons. Unknown
+  barcode creation opens Receive's item editor with that barcode prefilled;
+  removing a scanned allocation resumes scanning. Draft source/destination and
+  category hierarchy filters must affect the same contributing line. Escape
+  closes suggestions first, then the enclosing dialog on the next press.
+- **2026-10-13 attachment completion rule (UX-06/09):** Uploading or failed
+  attachments block transaction confirmation and final item saving, with inline
+  recovery instructions. Transaction draft saving remains available; retry or
+  remove the attachment before finalizing. Never make a failed upload immutable
+  by completing its parent document.

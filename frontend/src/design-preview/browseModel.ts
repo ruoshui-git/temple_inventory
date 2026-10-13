@@ -128,6 +128,22 @@ export function matchesWarehouse(
   }
   return false;
 }
+export function matchesCategory(
+  category: string,
+  selected: string[],
+  session: ReviewSession,
+) {
+  if (!selected.length) return true;
+  const visited = new Set<string>();
+  let current = category;
+  while (current && !visited.has(current)) {
+    if (selected.includes(current)) return true;
+    visited.add(current);
+    current =
+      session.categories.find((row) => row.name === current)?.parent || "";
+  }
+  return false;
+}
 export function matchesItem(
   code: string,
   scope: BrowseScope,
@@ -137,7 +153,7 @@ export function matchesItem(
   return (
     (!scope.item || scope.item === code) &&
     (!scope.categories.length ||
-      scope.categories.includes(item?.category || ""))
+      matchesCategory(item?.category || "", scope.categories, session))
   );
 }
 export function filterMovements(

@@ -121,6 +121,8 @@ describe("independent preview review regressions", () => {
     }));
     const draft = createDraft("Return", "EXACT");
     draft.loanName = loan.name;
+    draft.borrower = loan.borrower;
+    draft.activity = loan.activity;
     draft.lines = [
       {
         id: "second",
@@ -146,7 +148,7 @@ describe("independent preview review regressions", () => {
     );
   });
   it("creates another editable settlement after a partial return", async () => {
-    reviewSession.selectedLoanName = "PREV-LOAN-001";
+    reviewSession.selectedLoanName = "MAT-STE-2026-00004";
     const detail = render(PreviewBrowsePages, {
       route: "loan-detail/selected",
     });

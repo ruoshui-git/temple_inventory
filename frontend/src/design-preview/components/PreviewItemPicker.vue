@@ -1,13 +1,25 @@
 <script setup lang="ts">
 import { computed, reactive, ref, nextTick } from "vue";
+import { matchesCategory } from "../browseModel";
 import { reviewSession } from "../reviewModel";
+import PreviewCategoryField from "./PreviewCategoryField.vue";
+import PreviewSearchSelect from "./PreviewSearchSelect.vue";
+import PreviewProduct from "../PreviewProduct.vue";
 import PreviewOverlay from "../PreviewOverlay.vue";
 import PreviewUnitField from "./PreviewUnitField.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
-const props = defineProps<{ allowCreate?: boolean; eligible?: string[] }>();
+const props = defineProps<{
+	allowCreate?: boolean;
+	eligible?: string[];
+	createBarcode?: string;
+}>();
 const emit = defineEmits<{ close: []; select: [code: string]; notify: [message: string] }>();
 const search = ref("");
-const creating = ref(false);
+const creating = ref(!!props.allowCreate && props.createBarcode !== undefined);
+const categoryFilter = ref("");
+const locationFilter = ref("");
+const onlyStock = ref(false);
+const categories = computed(() => reviewSession.categories.map((row) => row.name));
 const discard = ref(false);
 const pendingSelection = ref<string>();
 const error = ref("");
@@ -15,7 +27,8 @@ const model = reactive({
 	code: `ITM-PREVIEW-${reviewSession.stock.length + 1}`,
 	name: "",
 	category: "日用品",
-	uom: "",
+	uom: "Nos",
+	barcode: props.createBarcode || "",
 	tracksBatch: false,
 	tracksExpiry: false,
 });
@@ -23,7 +36,15 @@ const visible = computed(() =>
 	reviewSession.stock.filter(
 		(item) =>
 			(!props.eligible || props.eligible.includes(item.code)) &&
-			`${item.name} ${item.code}`
+			matchesCategory(
+				item.category,
+				categoryFilter.value ? [categoryFilter.value] : [],
+				reviewSession,
+			) &&
+			(!locationFilter.value ||
+				item.locations.some((row) => row.location === locationFilter.value)) &&
+			(!onlyStock.value || item.available > 0) &&
+			`${item.name} ${item.code} ${item.barcode || ""}`
 				.toLocaleLowerCase()
 				.includes(search.value.toLocaleLowerCase()),
 	),
@@ -40,7 +61,8 @@ const dirty = computed(
 	() =>
 		!!(
 			model.name ||
-			model.uom ||
+			model.barcode !== (props.createBarcode || "") ||
+			model.uom !== "Nos" ||
 			model.tracksBatch ||
 			model.tracksExpiry ||
 			model.category !== "日用品" ||
@@ -96,6 +118,21 @@ function save() {
 		<div ref="content">
 			<template v-if="!creating">
 				<label>搜索物品<input v-model="search" type="search" /></label>
+				<PreviewSearchSelect
+					label="分类筛选"
+					v-model="categoryFilter"
+					:options="categories"
+				/>
+				<PreviewSearchSelect
+					label="库位筛选"
+					v-model="locationFilter"
+					:options="
+						reviewSession.warehouses
+							.filter((row) => !row.is_group)
+							.map((row) => row.name)
+					"
+				/>
+				<label><input type="checkbox" v-model="onlyStock" />仅有可用库存</label>
 				<PreviewUiButton v-if="allowCreate" @click="showCreate(true)"
 					>新建物品</PreviewUiButton
 				>
@@ -106,8 +143,24 @@ function save() {
 					@click="selectExisting(item.code)"
 				>
 					<span
-						>{{ item.name }}<small>{{ item.code }} · {{ item.category }}</small></span
-					><span>{{ item.uom }}</span>
+						><span class="preview-picker-thumb"
+							><PreviewProduct :kind="item.illustration" :name="item.name"
+						/></span>
+						{{ item.name }}<small>{{ item.code }} · {{ item.category }}</small></span
+					><span
+						>可用 {{ item.available }} {{ item.uom
+						}}<small>{{
+							item.locations
+								.map((row) => `${row.location} · ${row.available} ${item.uom}`)
+								.join("；") || "暂无库存位置"
+						}}</small
+						><small v-if="item.tracksBatch">{{
+							item.locations
+								.flatMap((row) => row.batches || [])
+								.map((batch) => `${batch.id} · ${batch.expiry || "无效期"}`)
+								.join("；")
+						}}</small></span
+					>
 				</button>
 				<p v-if="!visible.length">没有匹配的物品</p>
 			</template>
@@ -117,18 +170,8 @@ function save() {
 				>
 				<label>物品编号<input v-model="model.code" /></label>
 				<label>物品名称<input v-model="model.name" /></label>
-				<label
-					>分类<select v-model="model.category">
-						<option
-							v-for="category in [
-								...new Set(reviewSession.stock.map((item) => item.category)),
-							]"
-							:key="category"
-						>
-							{{ category }}
-						</option>
-					</select></label
-				>
+				<label>条码（每行一个，可选）<textarea v-model="model.barcode" /></label>
+				<PreviewCategoryField v-model="model.category" />
 				<PreviewUnitField v-model="model.uom" />
 				<label
 					><input
@@ -150,3 +193,17 @@ function save() {
 		</div>
 	</PreviewOverlay>
 </template>
+
+<style scoped>
+.preview-picker-thumb {
+	display: inline-block;
+	width: 48px;
+	height: 48px;
+	vertical-align: middle;
+	margin-right: 8px;
+}
+.preview-picker-thumb :deep(svg) {
+	width: 100%;
+	height: 100%;
+}
+</style>

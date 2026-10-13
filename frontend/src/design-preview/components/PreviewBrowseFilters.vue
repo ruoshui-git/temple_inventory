@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import { computed } from "vue";
 import PreviewHierarchyFilter from "./PreviewHierarchyFilter.vue";
 import { reviewSession } from "../reviewModel";
@@ -14,12 +15,7 @@ const scope = computed(() => props.modelValue);
 function update<K extends keyof BrowseScope>(key: K, value: BrowseScope[K]) {
 	emit("update:modelValue", { ...scope.value, [key]: value });
 }
-const categories = computed(() =>
-	[...new Set(reviewSession.stock.map((item) => item.category))].map((name) => ({
-		name,
-		label: name,
-	})),
-);
+const categories = computed(() => reviewSession.categories);
 const activities = computed(() => [
 	...new Set(
 		[
@@ -40,26 +36,25 @@ function toggleKind(kind: string) {
 </script>
 <template>
 	<div class="preview-filter-fields">
-		<label
-			>物品<select
-				:value="scope.item"
-				@change="update('item', ($event.target as HTMLSelectElement).value)"
-			>
-				<option value="">全部物品</option>
-				<option v-for="item in reviewSession.stock" :key="item.code" :value="item.code">
-					{{ item.name }} · {{ item.code }}
-				</option>
-			</select></label
-		>
-		<label v-if="!hideActivity"
-			>活动<select
-				:value="scope.activity"
-				@change="update('activity', ($event.target as HTMLSelectElement).value)"
-			>
-				<option value="">全部活动</option>
-				<option v-for="activity in activities" :key="activity">{{ activity }}</option>
-			</select></label
-		>
+		<PreviewSearchSelect
+			label="物品"
+			:model-value="scope.item"
+			:options="
+				reviewSession.stock.map((item) => ({
+					value: item.code,
+					label: item.name,
+					detail: item.code,
+				}))
+			"
+			@update:model-value="update('item', $event)"
+		/>
+		<PreviewSearchSelect
+			v-if="!hideActivity"
+			label="活动"
+			:model-value="scope.activity"
+			:options="activities.filter(Boolean) as string[]"
+			@update:model-value="update('activity', $event)"
+		/>
 		<PreviewHierarchyFilter
 			:model-value="scope.categories"
 			:options="categories"

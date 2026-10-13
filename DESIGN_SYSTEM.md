@@ -199,3 +199,27 @@ stock unit for availability checks, summaries and exports. Item metadata editing
 has cancel/discard and primary-image ordering; stock confirmation remains separate.
 The detail preview-state control demonstrates loading, empty, retry and unavailable
 states without mutating fixture records. It is review chrome, not a production flow.
+
+## Migration decisions and capability coverage
+
+See [migration ledger](DESIGN_MIGRATION_COVERAGE.md) for ERPNext-native identity, one-document
+transactions, searchable controls, and explicit backend prerequisites. Rapid
+development favors clean DB/API/UI over legacy compatibility; database resets
+are acceptable in migration, not performed by the standalone preview.
+
+## ERPNext-native preview completion (2026-10-13)
+
+`PreviewSearchSelect` supplies full local search, keyboard selection, paginated
+options and loading/error/retry examples. `PreviewCategoryField` and the unit and
+activity editors create supporting data inline. `PreviewCountWorkspace` replaces
+the generic reconciliation line editor; `PreviewDocumentState` demonstrates
+ERPNext identity, version conflicts and lifecycle using saved fixture snapshots.
+`PreviewAttachments` retains local file content in memory and supplies the primary
+image to `PreviewItemImage`. These are preview-owned state and presentation only.
+
+Inventory/Movement/Loans analyse all filtered results independently of displayed
+pages, with separate units and type/outcome/status context. New deliberate geometry:
+320px selector menu scroll cap, viewport-clamped 280px preferred menu width, 44px
+option targets, 56px attachment thumbnails and wrapping count rows. All densities
+retain the shared 1024px responsive boundary. Manual width/density/keyboard/zoom
+review remains required; automated checks do not approve visual fidelity.

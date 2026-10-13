@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
+import PreviewSearchSelect from "../src/design-preview/components/PreviewSearchSelect.vue";
 import PreviewFormPages from "../src/design-preview/PreviewFormPages.vue";
 import PreviewUtilityPages from "../src/design-preview/PreviewUtilityPages.vue";
 import {
@@ -9,6 +10,17 @@ import {
 } from "../src/design-preview/reviewModel";
 
 const wrappers: VueWrapper[] = [];
+async function chooseSearch(wrapper: VueWrapper, label: string, value: string) {
+  const select = wrapper
+    .findAllComponents(PreviewSearchSelect)
+    .find((row) => row.props("label") === label)!;
+  await select.get("input").setValue(value);
+  const option = select
+    .findAll("[role=option]")
+    .find((row) => row.text().includes(value))!;
+  await option.trigger("click");
+}
+
 function render(component: unknown, props: Record<string, unknown>) {
   const wrapper = mount(component as never, { props, attachTo: document.body });
   wrappers.push(wrapper);
@@ -58,11 +70,11 @@ describe("preview workflow forms", () => {
       page: "movement-form",
       variant: "Return",
     });
-    const loanSelect = wrapper
-      .findAll("select")
-      .find((select) => select.element.innerHTML.includes("PREV-LOAN-001"));
-    expect(loanSelect).toBeDefined();
-    await loanSelect!.setValue("PREV-LOAN-001");
+    await chooseSearch(wrapper, "关联借用记录", "MAT-STE-2026-00004");
+    await wrapper
+      .findAll("button")
+      .find((row) => row.text() === "加入此借用")!
+      .trigger("click");
     expect(wrapper.get(".receive-line").text()).toContain("ITM-000130");
     expect(
       reviewSession.drafts

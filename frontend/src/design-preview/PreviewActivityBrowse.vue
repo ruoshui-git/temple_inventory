@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewResultState from "./components/PreviewResultState.vue";
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import PreviewItemGroup from "./components/PreviewItemGroup.vue";
@@ -37,6 +38,55 @@ const emit = defineEmits<{
 }>();
 const { isMobile } = useResponsiveLayout();
 const filtersOpen = ref(false);
+const resultLimit = ref(20);
+const analysisDimension = ref("category");
+const analysis = computed(() => {
+	const result = new Map<string, { qty: number; records: Set<string>; items: Set<string> }>();
+	const rows =
+		props.family === "movement"
+			? movementRows.value
+			: loanSummaryGroups.value.flatMap((group) =>
+					group.entries.map((entry) => ({
+						code: group.code,
+						qty: entry.qty,
+						name: entry.loan.name,
+						uom: group.uom,
+						from: entry.line.location || "",
+						kind: outcomes[group.outcome],
+						activity: entry.loan.activity,
+						borrower: entry.loan.borrower,
+						date: entry.loan.loanDate,
+						docstatus: entry.loan.status === "draft" ? 0 : 1,
+					})),
+				);
+	for (const row of rows) {
+		const dimension =
+			analysisDimension.value === "category"
+				? stockItem(row.code)?.category
+				: analysisDimension.value === "location"
+					? row.from
+					: analysisDimension.value === "activity"
+						? row.activity
+						: analysisDimension.value === "borrower"
+							? row.borrower
+							: row.date.slice(0, 7);
+		const label =
+			props.family === "movement" ? movementLabels[row.kind] || row.kind : row.kind;
+		const status = row.docstatus === 0 ? "草稿" : row.docstatus === 2 ? "已取消" : "已提交";
+		const key = `${dimension || "未指定"} · ${label} · ${status} · ${row.uom}`;
+		const group = result.get(key) || {
+			qty: 0,
+			records: new Set<string>(),
+			items: new Set<string>(),
+		};
+		group.qty += row.qty;
+		group.records.add(row.name);
+		if (row.code) group.items.add(row.code);
+		result.set(key, group);
+	}
+	return [...result.entries()];
+});
+
 const exportOpen = ref(false);
 const exportFailed = ref(false);
 const exportFormat = ref("CSV");
@@ -273,6 +323,13 @@ const count = computed(() =>
 			? loans.value.length
 			: loanGroups.value.length,
 );
+watch(
+	() => [scope.value, search.value, props.records, status.value],
+	() => {
+		resultLimit.value = 20;
+	},
+	{ deep: true },
+);
 const activeFilters = computed(() => [
 	...scope.value.kinds.map((value) => ({
 		key: "kinds" as const,
@@ -468,8 +525,8 @@ const exportDetails = computed(() =>
 					清空筛选</button
 				><span class="browse-result-count"
 					>筛选结果 {{ count }}
-					{{ records ? "笔记录" : family === "loan" ? "组物品" : "种物品" }} ·
-					已全部加载</span
+					{{ records ? "笔记录" : family === "loan" ? "组物品" : "种物品" }} · 已显示
+					{{ Math.min(resultLimit, count) }}</span
 				>
 			</div>
 			<p v-if="family === 'loan'" class="browse-note">
@@ -518,190 +575,224 @@ const exportDetails = computed(() =>
 				/><PreviewUiButton @click="clear">清空筛选</PreviewUiButton>
 			</aside>
 			<div class="preview-browse-results">
-				<template v-if="family === 'movement' && !records">
-					<PreviewItemGroup
-						v-for="group in itemGroups"
-						:key="group.code"
-						:item="stockItem(group.code)"
-						:name="group.name"
-						:context="`${group.code} · ${categoriesFor([group.code])} · ${group.count}笔记录 · 最近 ${group.latest}`"
+				<details class="form-section">
+					<summary>分析当前结果</summary>
+					<label
+						>分组<select v-model="analysisDimension">
+							<option value="category">类别 / 单位</option>
+							<option value="location">来源位置 / 单位</option>
+							<option value="activity">活动</option>
+							<option value="borrower">借用方</option>
+							<option value="month">月份</option>
+						</select></label
 					>
-						<template #metrics
-							><span v-for="total in group.totals" :key="total.kind"
-								>{{ movementLabels[total.kind] }} {{ total.text }}　</span
-							></template
+					<p v-for="[key, value] in analysis" :key="key">
+						{{ key }} · {{ value.items.size }} 种物品 · {{ value.records.size }} 笔记录
+						· {{ value.qty }}
+					</p>
+					<p class="muted">
+						基于完整筛选结果；一条记录涉及多个分组时，各组记录数不可相加。
+					</p>
+				</details>
+				<PreviewResultState :total="count" v-model:limit="resultLimit">
+					<template v-if="family === 'movement' && !records">
+						<PreviewItemGroup
+							v-for="group in itemGroups.slice(0, resultLimit)"
+							:key="group.code"
+							:item="stockItem(group.code)"
+							:name="group.name"
+							:context="`${group.code} · ${categoriesFor([group.code])} · ${group.count}笔记录 · 最近 ${group.latest}`"
 						>
-						<div
-							v-for="(row, index) in group.lines"
-							:key="row.name + index"
-							class="preview-contribution"
-						>
-							<button class="browse-row-link" @click="emit('movement', row.name)">
-								{{ row.name }} · {{ row.date }} ·
-								{{ movementLabels[row.kind] }}</button
-							><span
-								>{{ row.qty }} {{ row.uom }} · {{ row.from }} → {{ row.to }} · 批次
-								{{ row.batch || "无" }}</span
+							<template #metrics
+								><span v-for="total in group.totals" :key="total.kind"
+									>{{ movementLabels[total.kind] }} {{ total.text }}　</span
+								></template
 							>
-						</div>
-					</PreviewItemGroup>
-				</template>
-				<div v-else-if="family === 'movement'" class="browse-table-wrap">
-					<table class="browse-table">
-						<thead>
-							<tr>
-								<th>记录 / 物品 / 类别</th>
-								<th>类型 / 日期</th>
-								<th>流向</th>
-								<th>数量</th>
-								<th>状态</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr v-for="record in movementRecords" :key="record.name">
-								<td>
-									<button
-										class="browse-row-link"
-										@click="emit('movement', record.name)"
-									>
-										{{ record.name
+							<div
+								v-for="(row, index) in group.lines"
+								:key="row.name + index"
+								class="preview-contribution"
+							>
+								<button
+									class="browse-row-link"
+									@click="emit('movement', row.name)"
+								>
+									{{ row.name }} · {{ row.date }} ·
+									{{ movementLabels[row.kind] }}</button
+								><span
+									>{{ row.qty }} {{ row.uom }} · {{ row.from }} → {{ row.to }} ·
+									批次 {{ row.batch || "无" }}</span
+								>
+							</div>
+						</PreviewItemGroup>
+					</template>
+					<div v-else-if="family === 'movement'" class="browse-table-wrap">
+						<table class="browse-table">
+							<thead>
+								<tr>
+									<th>记录 / 物品 / 类别</th>
+									<th>类型 / 日期</th>
+									<th>流向</th>
+									<th>数量</th>
+									<th>状态</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr
+									v-for="record in movementRecords.slice(0, resultLimit)"
+									:key="record.name"
+								>
+									<td>
+										<button
+											class="browse-row-link"
+											@click="emit('movement', record.name)"
+										>
+											{{ record.name
+											}}<small
+												>{{
+													new Set(record.allLines.map((row) => row.code))
+														.size
+												}}
+												种物品 · {{ record.lines.length }} 行匹配</small
+											></button
+										><small>{{
+											[
+												...new Set(
+													record.lines.map((row) => row.itemName),
+												),
+											].join("、")
+										}}</small
+										><small>{{
+											categoriesFor(record.lines.map((row) => row.code))
+										}}</small
+										><button
+											v-if="record.row.loanName"
+											class="browse-link"
+											@click="emit('loan', record.row.loanName)"
+										>
+											查看借用
+										</button>
+									</td>
+									<td>
+										{{
+											[
+												...new Set(
+													record.allLines.map(
+														(row) => movementLabels[row.kind],
+													),
+												),
+											].join(" / ")
+										}}<small>{{ record.row.date }}</small>
+									</td>
+									<td>
+										<div
+											v-for="branch in [
+												...new Set(
+													record.allLines.map(
+														(row) => `${row.from} → ${row.to}`,
+													),
+												),
+											]"
+											:key="branch"
+										>
+											{{ branch }}
+										</div>
+									</td>
+									<td>
+										{{ quantityText(record.lines)
 										}}<small
-											>{{
-												new Set(record.allLines.map((row) => row.code))
-													.size
-											}}
-											种物品 · {{ record.lines.length }} 行匹配</small
-										></button
-									><small>{{
-										[...new Set(record.lines.map((row) => row.itemName))].join(
-											"、",
-										)
-									}}</small
-									><small>{{
-										categoriesFor(record.lines.map((row) => row.code))
-									}}</small
-									><button
-										v-if="record.row.loanName"
-										class="browse-link"
-										@click="emit('loan', record.row.loanName)"
-									>
-										查看借用
-									</button>
-								</td>
-								<td>
-									{{
-										[
-											...new Set(
-												record.allLines.map(
-													(row) => movementLabels[row.kind],
-												),
-											),
-										].join(" / ")
-									}}<small>{{ record.row.date }}</small>
-								</td>
-								<td>
-									<div
-										v-for="branch in [
-											...new Set(
-												record.allLines.map(
-													(row) => `${row.from} → ${row.to}`,
-												),
-											),
-										]"
-										:key="branch"
-									>
-										{{ branch }}
-									</div>
-								</td>
-								<td>
-									{{ quantityText(record.lines)
-									}}<small v-if="record.lines.length !== record.allLines.length"
-										>匹配行数量 · 全单
-										{{ quantityText(record.allLines) }}</small
-									>
-								</td>
-								<td>
-									{{
-										record.row.docstatus === 1
-											? "已提交"
-											: record.row.docstatus === 0
-												? "草稿"
-												: "已取消"
-									}}
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
-				<template v-else-if="!records">
-					<PreviewItemGroup
-						v-for="group in loanGroups"
-						:key="group.code + group.outcome"
-						:item="stockItem(group.code)"
-						:name="group.name"
-						:context="`${group.code} · ${categoriesFor([group.code])} · ${group.count}笔借用`"
-					>
-						<template #metrics
-							>{{ outcomes[group.outcome] }} · {{ group.qty }}
-							{{ group.uom }}</template
+											v-if="record.lines.length !== record.allLines.length"
+											>匹配行数量 · 全单
+											{{ quantityText(record.allLines) }}</small
+										>
+									</td>
+									<td>
+										{{
+											record.row.docstatus === 1
+												? "已提交"
+												: record.row.docstatus === 0
+													? "草稿"
+													: "已取消"
+										}}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+					<template v-else-if="!records">
+						<PreviewItemGroup
+							v-for="group in loanGroups.slice(0, resultLimit)"
+							:key="group.code + group.outcome"
+							:item="stockItem(group.code)"
+							:name="group.name"
+							:context="`${group.code} · ${categoriesFor([group.code])} · ${group.count}笔借用`"
 						>
-						<div
-							v-for="(entry, index) in group.entries"
-							:key="entry.loan.name + index"
-							class="preview-contribution"
+							<template #metrics
+								>{{ outcomes[group.outcome] }} · {{ group.qty }}
+								{{ group.uom }}</template
+							>
+							<div
+								v-for="(entry, index) in group.entries"
+								:key="entry.loan.name + index"
+								class="preview-contribution"
+							>
+								<button
+									class="browse-row-link"
+									@click="emit('loan', entry.loan.name)"
+								>
+									{{ entry.loan.borrower }} · {{ entry.loan.name }}</button
+								><span
+									>{{ entry.loan.loanDate }} · {{ entry.qty }} {{ group.uom }} ·
+									{{ entry.line.location || "未填写位置" }} · 批次
+									{{ entry.line.batch || "无" }}</span
+								><PreviewUiButton
+									v-if="group.outcome === 'outstanding'"
+									@click="emit('return', entry.loan.name)"
+									>登记归还</PreviewUiButton
+								>
+							</div>
+						</PreviewItemGroup>
+					</template>
+					<div v-else class="browse-grid browse-grid--two">
+						<article
+							v-for="loan in loans.slice(0, resultLimit)"
+							:key="loan.name"
+							class="browse-card browse-loan-card"
 						>
-							<button class="browse-row-link" @click="emit('loan', entry.loan.name)">
-								{{ entry.loan.borrower }} · {{ entry.loan.name }}</button
-							><span
-								>{{ entry.loan.loanDate }} · {{ entry.qty }} {{ group.uom }} ·
-								{{ entry.line.location || "未填写位置" }} · 批次
-								{{ entry.line.batch || "无" }}</span
+							<button class="browse-card-main" @click="emit('loan', loan.name)">
+								<h2>{{ loan.borrower || "未填写借用方" }}</h2>
+								<span class="browse-badge">{{ completeLoanStatus(loan) }}</span>
+								<p>{{ loan.name }} · 借出日期 {{ loan.loanDate }}</p>
+								<p>{{ loan.activity || "未填写活动" }}</p>
+								<strong
+									>{{ loan.status === "draft" ? "草稿物品" : "尚未归还" }}
+									{{ loan.status === "draft" ? "" : loanQuantity(loan) }}</strong
+								>
+								<p v-for="(line, index) in loan.lines" :key="line.code + index">
+									{{ itemName(line.code) }} · 借出 {{ line.qty }} · 已归还
+									{{ line.returned }} · 损坏 {{ line.damaged }} · 遗失
+									{{ line.lost
+									}}<small
+										>{{ line.location || "未填写位置" }} · 批次
+										{{ line.batch || "无" }}</small
+									>
+								</p></button
 							><PreviewUiButton
-								v-if="group.outcome === 'outstanding'"
-								@click="emit('return', entry.loan.name)"
+								v-if="
+									loan.status !== 'draft' &&
+									loan.lines.some((line) => remaining(line) > 0)
+								"
+								@click="emit('return', loan.name)"
 								>登记归还</PreviewUiButton
 							>
-						</div>
-					</PreviewItemGroup>
-				</template>
-				<div v-else class="browse-grid browse-grid--two">
-					<article
-						v-for="loan in loans"
-						:key="loan.name"
-						class="browse-card browse-loan-card"
-					>
-						<button class="browse-card-main" @click="emit('loan', loan.name)">
-							<h2>{{ loan.borrower || "未填写借用方" }}</h2>
-							<span class="browse-badge">{{ completeLoanStatus(loan) }}</span>
-							<p>{{ loan.name }} · 借出日期 {{ loan.loanDate }}</p>
-							<p>{{ loan.activity || "未填写活动" }}</p>
-							<strong
-								>{{ loan.status === "draft" ? "草稿物品" : "尚未归还" }}
-								{{ loan.status === "draft" ? "" : loanQuantity(loan) }}</strong
-							>
-							<p v-for="(line, index) in loan.lines" :key="line.code + index">
-								{{ itemName(line.code) }} · 借出 {{ line.qty }} · 已归还
-								{{ line.returned }} · 损坏 {{ line.damaged }} · 遗失 {{ line.lost
-								}}<small
-									>{{ line.location || "未填写位置" }} · 批次
-									{{ line.batch || "无" }}</small
-								>
-							</p></button
-						><PreviewUiButton
-							v-if="
-								loan.status !== 'draft' &&
-								loan.lines.some((line) => remaining(line) > 0)
-							"
-							@click="emit('return', loan.name)"
-							>登记归还</PreviewUiButton
-						>
-					</article>
-				</div>
-				<div v-if="!count" class="browse-empty">
-					<h2>没有匹配的{{ family === "loan" ? "借用" : "流动" }}记录</h2>
-					<p>调整日期或筛选条件后重试。</p>
-					<PreviewUiButton @click="clear">清空筛选</PreviewUiButton>
-				</div>
+						</article>
+					</div>
+					<div v-if="!count" class="browse-empty">
+						<h2>没有匹配的{{ family === "loan" ? "借用" : "流动" }}记录</h2>
+						<p>调整日期或筛选条件后重试。</p>
+						<PreviewUiButton @click="clear">清空筛选</PreviewUiButton>
+					</div>
+				</PreviewResultState>
 			</div>
 		</div>
 		<PreviewOverlay

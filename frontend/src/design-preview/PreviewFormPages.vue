@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
-import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import {
@@ -13,7 +12,13 @@ import {
 	type OperationKind,
 	type ReviewDraft,
 } from "./reviewModel";
-import { locations } from "./model";
+import PreviewCategoryField from "./components/PreviewCategoryField.vue";
+import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
+import PreviewCountWorkspace from "./components/PreviewCountWorkspace.vue";
+import PreviewAttachments from "./components/PreviewAttachments.vue";
+import PreviewTransactionContext from "./components/PreviewTransactionContext.vue";
+import PreviewDocumentState from "./components/PreviewDocumentState.vue";
+import { addLoanToDraft } from "./workflowModel";
 import PreviewOperationLines from "./components/PreviewOperationLines.vue";
 import PreviewUnitField from "./components/PreviewUnitField.vue";
 import { validateOperation, isSettlement } from "./formModel";
@@ -48,13 +53,14 @@ const labelMap: Record<string, string> = {
 	Disposal: "正式报废",
 };
 const draft = ref<ReviewDraft>();
-let lineSequence = 0;
+const unavailableDraft = ref("");
 const showError = ref(false);
 const saveFailed = ref(false);
+const documentBlocked = ref(false);
+const loanChoice = ref("");
 const saveState = ref("");
 const showConfirm = ref(false);
 const operationError = ref("");
-const photoName = ref("");
 const discardOpen = ref(false);
 let itemEditBaseline = "";
 function cancelItemEdit() {
@@ -105,7 +111,9 @@ const kind = computed<DraftKind>(() =>
 );
 const isItem = computed(() => kind.value === "Item");
 const isReconcile = computed(() => kind.value === "Reconcile");
-const isReadOnly = computed(() => !!draft.value && draft.value.status !== "draft");
+const isReadOnly = computed(
+	() => documentBlocked.value || (!!draft.value && draft.value.status !== "draft"),
+);
 const totalsByUom = computed(() => {
 	const totals = new Map<string, number>();
 	for (const line of draft.value?.lines || [])
@@ -120,27 +128,20 @@ const returnLoans = computed(() =>
 			loan.lines.some((line) => line.qty > line.returned + line.damaged + line.lost),
 	),
 );
-function selectReturnLoan(name: string) {
+function appendLoan() {
 	if (!draft.value) return;
-	const loan = returnLoans.value.find((entry) => entry.name === name);
-	draft.value.loanName = name;
-	draft.value.borrower = loan?.borrower || "";
-	draft.value.lines =
-		loan?.lines
-			.map((entry, index) => ({
-				id: `${loan.name}-${index}`,
-				loanLineIndex: index,
-				code: entry.code,
-				qty: entry.qty - entry.returned - entry.damaged - entry.lost,
-				uom: item(entry.code)?.uom || "",
-				location: entry.location || locations[0],
-				batch: entry.batch,
-				returnOutcome: "returned" as const,
-			}))
-			.filter((line) => line.qty > 0) || [];
+	operationError.value = addLoanToDraft(draft.value, loanChoice.value);
+	if (operationError.value) showError.value = true;
+	else loanChoice.value = "";
 }
 function validOperation() {
 	if (!draft.value) return false;
+	operationError.value = draft.value.files?.some((file) => file.state === "uploading")
+		? "附件仍在上传，请完成后再保存物品。"
+		: draft.value.files?.some((file) => file.state === "error")
+			? "附件上传失败，请重试或移除后再保存物品。"
+			: "";
+	if (isItem.value && operationError.value) return false;
 	if (isItem.value)
 		return (
 			!!draft.value.itemName?.trim() &&
@@ -166,27 +167,54 @@ const groupedLines = computed(() => {
 	return [...groups.entries()];
 });
 function initialize() {
+	unavailableDraft.value = "";
+	documentBlocked.value = false;
+	saveState.value = "";
+	saveFailed.value = false;
 	const selectedName = reviewSession.selectedDraftName;
 	const selected = selectedName ? findDraft(kind.value, selectedName) : undefined;
+	if (
+		(selectedName && !selected) ||
+		(isItem.value && props.variant === "edit" && !item(reviewSession.selectedItemCode))
+	) {
+		unavailableDraft.value = selectedName || reviewSession.selectedItemCode;
+		draft.value = undefined;
+		reviewSession.selectedDraftName = "";
+		return;
+	}
 	if (selected) {
 		draft.value = selected;
 		reviewSession.selectedDraftName = "";
 	}
 	const name =
 		props.page === "reconciliation-form" && props.variant === "detail"
-			? "PREV-RECON-001"
+			? "MAT-RECO-2026-00015"
 			: props.page === "item-form" && props.variant === "edit"
 				? `PREV-ITEM-EDIT-${reviewSession.selectedItemCode}`
 				: props.page === "item-form"
 					? "PREV-ITEM-NEW-001"
-					: props.page === "reconciliation-form"
-						? "PREV-RECON-NEW-001"
-						: props.variant === "Receive" || props.variant === "Loan"
-							? undefined
-							: `PREV-${kind.value.toUpperCase()}-NEW-001`;
+					: undefined;
+	if (
+		!selected &&
+		isReconcile.value &&
+		props.variant === "detail" &&
+		!findDraft(kind.value, name)
+	) {
+		unavailableDraft.value = name || "盘点记录";
+		draft.value = undefined;
+		return;
+	}
 	if (!selected && name)
 		draft.value = findDraft(kind.value, name) || createDraft(kind.value, name);
-	else if (!selected) draft.value = createDraft(kind.value);
+	else if (!selected) {
+		if (isReconcile.value && props.variant === "new") {
+			let sequence = reviewSession.drafts.length + 200;
+			let name = `MAT-RECO-2026-${String(sequence).padStart(5, "0")}`;
+			while (reviewSession.drafts.some((row) => row.name === name))
+				name = `MAT-RECO-2026-${String(++sequence).padStart(5, "0")}`;
+			draft.value = createDraft("Reconcile", name);
+		} else draft.value = createDraft(kind.value);
+	}
 	if (isItem.value && draft.value?.status !== "draft")
 		draft.value = createDraft("Item", `${name}-${Date.now()}`);
 	if (isItem.value && props.variant === "edit" && draft.value && !draft.value.itemCode) {
@@ -199,11 +227,13 @@ function initialize() {
 				barcode: current.barcode,
 				description: current.description,
 				images: [...(current.images || [])],
+				files: current.files?.map((file) => ({ ...file })),
 				uom: current.uom,
 				tracksBatch: current.tracksBatch,
 				tracksExpiry: current.tracksExpiry,
 			});
 	}
+	if (isItem.value && draft.value) draft.value.uom ||= "Nos";
 	if (isItem.value && draft.value?.itemCode) {
 		const currentItem = item(draft.value.itemCode);
 		if (currentItem) {
@@ -215,8 +245,7 @@ function initialize() {
 		draft.value!.itemCode = `ITM-${String(Math.max(133, ...reviewSession.stock.map((item) => Number(item.code.match(/^ITM-(\d+)$/)?.[1]) || 0)) + 1).padStart(6, "0")}`;
 	if (draft.value?.kind === "Return" && draft.value.lines.length)
 		draft.value.lines.forEach((line) => (line.returnOutcome ??= "returned"));
-	if (draft.value && !draft.value.lines.length && !isItem.value && kind.value !== "Return")
-		addLine();
+
 	reviewSession.selectedDraftName = "";
 	showError.value = false;
 	if (isItem.value) itemEditBaseline = JSON.stringify(draft.value);
@@ -226,6 +255,7 @@ onActivated(() => {
 	if (
 		reviewSession.selectedDraftName ||
 		(isItem.value && isReadOnly.value) ||
+		(isReconcile.value && props.variant === "new" && draft.value?.status !== "draft") ||
 		(draft.value && !reviewSession.drafts.includes(draft.value)) ||
 		(isItem.value &&
 			props.variant === "edit" &&
@@ -243,29 +273,10 @@ watch(
 		if (!active) showConfirm.value = false;
 	},
 );
-function addLine() {
-	if (!draft.value) return;
-	const first = ["Repair", "Disposal"].includes(kind.value)
-		? reviewSession.stock.find((row) =>
-				row.locations.some((location) => location.damaged > 0),
-			)!
-		: reviewSession.stock.find((row) => row.code === "ITM-000131") || reviewSession.stock[0];
-	draft.value.lines.push({
-		id: `${draft.value.name}-line-${draft.value.lines.length}-${++lineSequence}`,
-		code: first.code,
-		qty: isReconcile.value ? first.locations[0]?.available || 0 : 1,
-		uom: first.uom,
-		location: first.locations[0]?.location || locations[0],
-		sourceLocation:
-			kind.value === "Receive" ? undefined : first.locations[0]?.location || locations[0],
-		batch: first.tracksBatch ? first.locations[0]?.batches?.[0]?.id || "" : "",
-		expiry: first.tracksExpiry ? first.locations[0]?.batches?.[0]?.expiry || "" : "",
-	});
-}
 function saveDraft() {
 	if (!draft.value || isReadOnly.value) return;
 	showError.value = false;
-	if (!validOperation()) {
+	if (isItem.value && !validOperation()) {
 		showError.value = true;
 		return;
 	}
@@ -275,6 +286,8 @@ function saveDraft() {
 	}
 	saveFailed.value = false;
 	saveState.value = "草稿已保存";
+	draft.value.saved = true;
+	draft.value.version = (draft.value.version || 1) + 1;
 	updateDraft(kind.value, draft.value, draft.value.name);
 	emit("notify", "草稿已保存，输入内容已保留");
 }
@@ -302,6 +315,7 @@ function confirmSubmit() {
 				barcode: draft.value.barcode,
 				description: draft.value.description,
 				images: draft.value.images,
+				files: draft.value.files,
 				tracksExpiry: !!draft.value.tracksExpiry,
 			});
 		} else if (draft.value.itemCode && draft.value.itemName)
@@ -309,11 +323,12 @@ function confirmSubmit() {
 				code: draft.value.itemCode,
 				name: draft.value.itemName,
 				category: draft.value.category || "日用品",
-				uom: draft.value.uom || "个",
+				uom: draft.value.uom || "Nos",
 				tracksBatch: !!draft.value.tracksBatch || !!draft.value.tracksExpiry,
 				barcode: draft.value.barcode,
 				description: draft.value.description,
 				images: draft.value.images,
+				files: draft.value.files,
 				tracksExpiry: !!draft.value.tracksExpiry,
 				locations: [],
 				available: 0,
@@ -341,12 +356,6 @@ function confirmSubmit() {
 		emit("navigate", "item-detail", "overview");
 	}
 }
-function applyPhoto(event: Event) {
-	const name = (event.target as HTMLInputElement).files?.[0]?.name || "";
-	photoName.value = name;
-	if (draft.value)
-		draft.value.images = name ? [...(draft.value.images || []), name] : draft.value.images;
-}
 </script>
 
 <template>
@@ -358,10 +367,28 @@ function applyPhoto(event: Event) {
 				<p class="muted">这是完整操作流程的布局提案，所有保存与确认仅修改本地样本。</p>
 			</div>
 			<span class="form-record-tag"
-				>{{ draft?.name || "新建草稿" }} · {{ isReadOnly ? "已完成" : "草稿" }}</span
+				>{{ draft?.saved === false ? "未保存" : draft?.name || "新建草稿" }} ·
+				{{
+					draft?.status === "completed"
+						? "已提交"
+						: draft?.status === "cancelled"
+							? "已取消"
+							: documentBlocked
+								? "编辑已暂停"
+								: "草稿"
+				}}</span
 			>
 		</div>
-		<div class="form-layout">
+		<PreviewDocumentState
+			v-if="draft && !isItem"
+			:draft="draft"
+			@blocked="documentBlocked = $event"
+			@amend="draft = $event"
+		/>
+		<p v-if="unavailableDraft" role="alert">
+			{{ unavailableDraft }} 记录不可用，请返回列表。当前页面不会替换为其他记录。
+		</p>
+		<div v-if="draft" class="form-layout">
 			<form class="form-main surface" @submit.prevent="saveDraft">
 				<div v-if="!isItem" class="form-section form-date-section">
 					<label
@@ -370,6 +397,21 @@ function applyPhoto(event: Event) {
 							type="date"
 							:disabled="isReadOnly"
 					/></label>
+					<label
+						>时间方式<select v-model="draft!.timeMode" :disabled="isReadOnly">
+							<option value="current">确认时的当前时间</option>
+							<option value="manual">指定历史时间</option>
+						</select></label
+					>
+					<label v-if="draft?.timeMode === 'manual'"
+						>操作时间<input
+							type="time"
+							v-model="draft!.postingTime"
+							:disabled="isReadOnly"
+					/></label>
+					<p v-if="draft?.timeMode === 'manual'" class="muted">
+						可用数量按指定日期和时间核对；本页展示固定样本。
+					</p>
 				</div>
 				<template v-if="isItem">
 					<section class="form-section">
@@ -397,23 +439,20 @@ function applyPhoto(event: Event) {
 									placeholder="填写清晰易识别的名称"
 									:disabled="isReadOnly"
 							/></label>
-							<label
-								>分类<select v-model="draft!.category" :disabled="isReadOnly">
-									<option>食品</option>
-									<option>日用品</option>
-									<option>服装</option>
-									<option>清洁用品</option>
-								</select></label
-							>
+							<PreviewCategoryField
+								v-model="draft!.category"
+								:disabled="isReadOnly"
+							/>
 							<PreviewUnitField
 								v-model="draft!.uom"
 								:disabled="isReadOnly || variant === 'edit'"
 							/>
 							<label
-								>条码（可选）<input
+								>条码（每行一个，可选）<textarea
 									v-model="draft!.barcode"
 									placeholder="可扫描或手动填写"
-									:disabled="isReadOnly" /></label
+									:disabled="isReadOnly"
+								/></label
 							><label
 								>物品说明（可选）<input
 									v-model="draft!.description"
@@ -441,34 +480,11 @@ function applyPhoto(event: Event) {
 					</section>
 					<section class="form-section">
 						<h2>物品图片</h2>
-						<ul>
-							<li v-for="(name, index) in draft?.images" :key="index">
-								{{ name }}<span v-if="index === 0"> · 主图</span
-								><PreviewUiButton
-									v-if="index > 0 && !isReadOnly"
-									variant="ghost"
-									@click="
-										draft!.images!.unshift(...draft!.images!.splice(index, 1))
-									"
-									>设为主图</PreviewUiButton
-								><PreviewUiButton
-									v-if="!isReadOnly"
-									variant="ghost"
-									@click="draft!.images!.splice(index, 1)"
-									>移除图片</PreviewUiButton
-								>
-							</li>
-						</ul>
-						<label class="file-drop"
-							><input
-								type="file"
-								accept="image/*"
-								:disabled="isReadOnly"
-								@change="applyPhoto"
-							/><InventoryIcon name="card" /><span>{{
-								photoName || "选择图片 · 上传仅作界面演示"
-							}}</span></label
-						>
+						<PreviewAttachments
+							v-model="draft!.files"
+							images-only
+							:disabled="isReadOnly"
+						/>
 					</section>
 				</template>
 				<template v-else>
@@ -480,32 +496,33 @@ function applyPhoto(event: Event) {
 					>
 						<h2>{{ kind === "Loan" ? "借用对象" : "归还来源" }}</h2>
 						<div class="form-fields">
-							<label
-								>{{ kind === "Loan" ? "借用人 / 团体" : "关联借用记录"
-								}}<select
-									v-if="kind !== 'Loan'"
-									:value="draft!.loanName || ''"
-									:disabled="isReadOnly"
-									@change="
-										selectReturnLoan(
-											($event.target as HTMLSelectElement).value,
-										)
-									"
-								>
-									<option value="">选择一条借用记录</option>
-									<option
-										v-for="loan in returnLoans"
-										:key="loan.name"
-										:value="loan.name"
-									>
-										{{ loan.borrower }} · {{ loan.name }}
-									</option></select
-								><input
-									v-else
+							<label v-if="kind === 'Loan'"
+								>借用人 / 团体<input
 									v-model="draft!.borrower"
-									placeholder="填写个人或团体名称"
 									:disabled="isReadOnly"
 							/></label>
+							<template v-else
+								><PreviewSearchSelect
+									label="关联借用记录"
+									v-model="loanChoice"
+									:options="
+										returnLoans.map((loan) => ({
+											value: loan.name,
+											label: `${loan.borrower} · ${loan.name}`,
+											detail: loan.activity,
+										}))
+									"
+									:disabled="isReadOnly"
+								/><PreviewUiButton
+									:disabled="isReadOnly || !loanChoice"
+									@click="appendLoan"
+									>加入此借用</PreviewUiButton
+								>
+								<p>
+									{{ draft?.borrower }} · {{ draft?.activity
+									}}<br />可加入同一借用方和活动的多笔借用；遗失使用单独操作。
+								</p></template
+							>
 						</div>
 					</section>
 					<section class="form-section">
@@ -517,7 +534,13 @@ function applyPhoto(event: Event) {
 									: "核对库位、现有批次与可处理数量。"
 							}}
 						</p>
+						<PreviewCountWorkspace
+							v-if="isReconcile"
+							:draft="draft!"
+							:disabled="isReadOnly"
+						/>
 						<PreviewOperationLines
+							v-else
 							:draft="draft!"
 							:disabled="isReadOnly"
 							:show-error="showError"
@@ -526,33 +549,17 @@ function applyPhoto(event: Event) {
 					</section>
 					<details class="form-section">
 						<summary>补充记录（可选）</summary>
-						<div class="form-fields">
-							<label
-								>活动 / 用途<input
-									v-model="draft!.activity"
-									:disabled="isReadOnly" /></label
-							><label v-if="kind === 'Receive'"
-								>捐赠人 / 来源<input
-									v-model="draft!.source"
-									:disabled="isReadOnly"
-							/></label>
-						</div>
-						<label
-							>附件（模拟上传）<input
-								type="file"
-								multiple
-								:disabled="isReadOnly"
-								@change="
-									draft!.attachments = Array.from(
-										($event.target as HTMLInputElement).files || [],
-									).map((file) => file.name)
-								"
+						<PreviewTransactionContext :draft="draft!" :disabled="isReadOnly" />
+						<PreviewSearchSelect
+							v-if="kind === 'Receive'"
+							label="来源类型"
+							v-model="draft!.sourceType"
+							:options="['捐赠', '采购', '其他']"
+							:disabled="isReadOnly"
+						/><label v-if="kind === 'Receive'"
+							>捐赠人 / 来源<input v-model="draft!.source" :disabled="isReadOnly"
 						/></label>
-						<ul v-if="draft?.attachments?.length">
-							<li v-for="name in draft.attachments" :key="name">
-								{{ name }} · 仅保存文件名，不上传
-							</li>
-						</ul>
+						<PreviewAttachments v-model="draft!.files" :disabled="isReadOnly" />
 						<div class="form-fields">
 							<label
 								>记录人<input
@@ -617,7 +624,14 @@ function applyPhoto(event: Event) {
 					><PreviewUiButton
 						v-else
 						variant="secondary"
-						@click="emit('notify', '已完成记录为只读样本')"
+						@click="
+							emit(
+								'notify',
+								documentBlocked
+									? '请先恢复当前会话或处理外部变更'
+									: '已提交或已取消记录以只读方式显示',
+							)
+						"
 						>查看记录</PreviewUiButton
 					>
 				</div>
@@ -625,7 +639,14 @@ function applyPhoto(event: Event) {
 			<aside class="form-review surface">
 				<span class="eyebrow">确认前检查</span
 				><span role="status">{{
-					saveState || (isReadOnly ? "模拟记录已完成" : "未保存的预览输入")
+					saveState ||
+					(documentBlocked
+						? "编辑已暂停，输入保留"
+						: draft?.status === "completed"
+							? "已提交"
+							: draft?.status === "cancelled"
+								? "已取消"
+								: "未保存的预览输入")
 				}}</span>
 				<h2>{{ isReconcile ? "盘点汇总" : isItem ? "资料检查" : "操作汇总" }}</h2>
 				<div v-if="!isItem" class="review-metric">

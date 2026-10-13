@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import { ref } from "vue";
 import { reviewSession } from "../reviewModel";
 import PreviewUiButton from "./PreviewUiButton.vue";
@@ -26,22 +27,23 @@ function create() {
 </script>
 <template>
 	<div class="preview-unit-field">
-		<label
-			>计量单位<select
-				:value="modelValue"
-				:disabled="disabled"
-				@change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
-			>
-				<option value="">选择单位</option>
-				<option v-for="unit in reviewSession.units" :key="unit.name">
-					{{ unit.name }}
-				</option>
-			</select></label
-		>
+		<PreviewSearchSelect
+			label="计量单位"
+			:model-value="modelValue"
+			:options="
+				reviewSession.units.map((unit) => ({
+					value: unit.name,
+					label: unit.name,
+					detail: unit.whole ? '整数数量' : '允许小数',
+				}))
+			"
+			:disabled="disabled"
+			@update:model-value="emit('update:modelValue', $event)"
+		/>
 		<PreviewUiButton v-if="!disabled && !creating" variant="ghost" @click="creating = true"
 			>新建单位</PreviewUiButton
 		>
-		<fieldset v-if="creating">
+		<fieldset v-if="creating" :disabled="disabled">
 			<legend>新建单位</legend>
 			<label>单位名称<input v-model="name" /></label>
 			<label><input v-model="whole" type="checkbox" />只允许整数数量</label>

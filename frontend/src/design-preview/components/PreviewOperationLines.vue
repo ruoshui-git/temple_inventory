@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import PreviewScanPanel from "./PreviewScanPanel.vue";
+import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import { computed, ref } from "vue";
 import { reviewSession, type ReviewDraft, type DraftLine } from "../reviewModel";
+import { physicalLeafWarehouses } from "../workflowModel";
 import { previewDate } from "../model";
-import { isSettlement, lineCapacity, lineStock } from "../formModel";
+import { isSettlement, lineCapacity, lineStock, validateOperation } from "../formModel";
 import PreviewItemImage from "../PreviewItemImage.vue";
 import PreviewItemPicker from "./PreviewItemPicker.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
@@ -12,19 +15,35 @@ const emit = defineEmits<{ notify: [message: string] }>();
 const receive = computed(() => props.draft.kind === "Receive");
 const reconcile = computed(() => props.draft.kind === "Reconcile");
 const settlement = computed(() => isSettlement(props.draft));
-const places = computed(() =>
-	reviewSession.warehouses
-		.filter(
-			(row) =>
-				!row.is_group &&
-				row.status === "active" &&
-				!["借出", "损坏待处理"].includes(row.parent || ""),
-		)
-		.map((row) => row.name),
-);
+const places = computed(() => physicalLeafWarehouses().map((row) => row.name));
 const destination = ref(places.value[0] || "");
 const pickerLines = ref<DraftLine[]>([]);
 const pickerOpen = ref(false);
+const createFromBarcode = ref<string>();
+const scanConfiguring = ref(false);
+const scannedLine = ref<DraftLine>();
+const scanError = computed(() =>
+	scannedLine.value ? validateOperation({ ...props.draft, lines: [scannedLine.value] }) : "",
+);
+function scanItem(code: string, batch?: string) {
+	choose(code);
+	scannedLine.value = props.draft.lines.at(-1);
+	if (batch && scannedLine.value) {
+		const matches =
+			stockItem(code)?.locations.filter((row) =>
+				row.batches?.some((entry) => entry.id === batch),
+			) || [];
+		const line = scannedLine.value;
+		line.batch = batch;
+		if (!receive.value && matches.length === 1) {
+			line.sourceLocation = matches[0]!.location;
+			if (!["Transfer", "Repair"].includes(props.draft.kind))
+				line.location = line.sourceLocation;
+			changeBatch(line);
+		}
+	}
+	scanConfiguring.value = true;
+}
 const extras = ref<Record<string, boolean>>({});
 const entryFactor = (line: DraftLine) =>
 	stockItem(line.code)?.alternateUnits?.find((unit) => unit.uom === line.entryUom)?.factor || 1;
@@ -57,7 +76,7 @@ const groups = computed(() => {
 			receive.value || reconcile.value || settlement.value
 				? line.location
 				: line.sourceLocation || line.location;
-		const key = `${location}/${line.code}`;
+		const key = `${line.loanName || props.draft.loanName || ""}/${location}/${line.code}`;
 		if (!groups.has(key)) groups.set(key, { location, code: line.code, lines: [] });
 		groups.get(key)!.lines.push(line);
 	}
@@ -70,24 +89,23 @@ function refreshLine(line: DraftLine) {
 	line.uom = item.uom;
 	line.entryUom = undefined;
 	if (!receive.value && !settlement.value) {
-		const current = lineStock(line);
+		const current = pickerLines.value.length ? lineStock(line) : undefined;
+		const eligibleLocations = item.locations.filter((row) =>
+			["Repair", "Disposal"].includes(props.draft.kind)
+				? row.damaged > 0
+				: row.available > 0,
+		);
 		const location =
-			current ||
-			item.locations.find((row) =>
-				["Repair", "Disposal"].includes(props.draft.kind)
-					? row.damaged > 0
-					: row.available > 0,
-			) ||
-			item.locations[0];
-		line.sourceLocation = location?.location || places.value[0];
+			current || (eligibleLocations.length === 1 ? eligibleLocations[0] : undefined);
+		line.sourceLocation = location?.location || "";
 		if (!["Transfer", "Repair"].includes(props.draft.kind))
 			line.location = line.sourceLocation;
 		const batch = location?.batches?.find(
 			(batch) =>
 				!["Repair", "Disposal"].includes(props.draft.kind) || (batch.damaged || 0) > 0,
 		);
-		line.batch = item.tracksBatch ? batch?.id || "" : "";
-		line.expiry = item.tracksExpiry ? batch?.expiry || "" : "";
+		line.batch = item.tracksBatch && location?.batches?.length === 1 ? batch?.id || "" : "";
+		line.expiry = item.tracksExpiry && line.batch ? batch?.expiry || "" : "";
 		if (reconcile.value) {
 			line.qty = item.tracksBatch ? batch?.available || 0 : location?.available || 0;
 			line.countedQty = undefined;
@@ -119,11 +137,16 @@ function choose(code: string) {
 	pickerLines.value = [];
 }
 function pick(lines: DraftLine[] = []) {
+	createFromBarcode.value = undefined;
 	pickerLines.value = lines;
 	pickerOpen.value = true;
 }
 function remove(line: DraftLine) {
 	props.draft.lines.splice(props.draft.lines.indexOf(line), 1);
+	if (scannedLine.value?.id === line.id) {
+		scannedLine.value = undefined;
+		scanConfiguring.value = false;
+	}
 }
 function splitOutcome(line: DraftLine) {
 	props.draft.lines.push({
@@ -147,9 +170,12 @@ function changeSource(line: DraftLine) {
 	if (!receive.value && !["Transfer", "Repair"].includes(props.draft.kind))
 		line.location = source || "";
 	const item = stockItem(line.code);
-	const batch = lineStock(line)?.batches?.find(
+	const batches = (lineStock(line)?.batches || []).filter(
 		(batch) => !["Repair", "Disposal"].includes(props.draft.kind) || (batch.damaged || 0) > 0,
 	);
+	const batch =
+		batches.find((batch) => batch.id === line.batch) ||
+		(batches.length === 1 ? batches[0] : undefined);
 	line.batch = item?.tracksBatch ? batch?.id || "" : "";
 	changeBatch(line);
 }
@@ -167,14 +193,35 @@ function changeBatch(line: DraftLine) {
 
 <template>
 	<div class="preview-operation-lines">
-		<label v-if="receive && !disabled" class="field"
-			>新增物品的入库位置<select v-model="destination">
-				<option v-for="place in places" :key="place">{{ place }}</option>
-			</select></label
+		<PreviewScanPanel
+			v-if="!disabled && !settlement"
+			:allow-create="receive"
+			:paused="scanConfiguring || pickerOpen"
+			@item="scanItem"
+			@location="receive ? (destination = $event) : emit('notify', '选择物品后核对来源库位')"
+			@create="
+				(barcode) => {
+					pick();
+					createFromBarcode = barcode;
+				}
+			"
+		/>
+		<p v-if="scanConfiguring && scanError" role="status">{{ scanError }}</p>
+		<PreviewUiButton
+			v-if="scanConfiguring"
+			:disabled="!!scanError"
+			@click="scanConfiguring = false"
+			>配置完成，继续扫描</PreviewUiButton
 		>
+		<PreviewSearchSelect
+			v-if="receive && !disabled"
+			label="新增物品的入库位置"
+			v-model="destination"
+			:options="places"
+		/>
 		<section
 			v-for="group in groups"
-			:key="`${group.location}/${group.code}`"
+			:key="`${group.lines[0]?.loanName || draft.loanName || ''}/${group.location}/${group.code}`"
 			class="location-group"
 		>
 			<h3>{{ group.location || "未选择库位" }}</h3>
@@ -202,44 +249,36 @@ function changeBatch(line: DraftLine) {
 					>
 				</div>
 				<div v-for="line in group.lines" :key="line.id" class="preview-allocation">
+					<small v-if="settlement" class="muted"
+						>借出 {{ line.loanName || draft.loanName }} · 原明细
+						{{ (line.loanLineIndex || 0) + 1 }}</small
+					>
 					<div class="form-fields">
-						<label v-if="!receive && !settlement && !reconcile"
-							>来源库位<select
-								v-model="line.sourceLocation"
-								:disabled="disabled"
-								@change="changeSource(line)"
-							>
-								<option
-									v-for="place in stockItem(line.code)?.locations.filter(
-										(row) =>
-											['Repair', 'Disposal'].includes(draft.kind)
-												? row.damaged > 0
-												: row.available > 0,
-									)"
-									:key="place.location"
-								>
-									{{ place.location }}
-								</option>
-							</select></label
-						>
-						<label
+						<PreviewSearchSelect
+							v-if="!receive && !settlement && !reconcile"
+							label="来源库位"
+							v-model="line.sourceLocation"
+							:disabled="disabled"
+							:options="
+								stockItem(line.code)?.locations.map((row) => ({
+									value: row.location,
+									label: row.location,
+									detail: `可用 ${row.available} · 损坏 ${row.damaged}`,
+								})) || []
+							"
+							@update:model-value="changeSource(line)"
+						/>
+						<PreviewSearchSelect
 							v-if="
 								receive ||
 								reconcile ||
 								['Transfer', 'Return', 'Repair'].includes(draft.kind)
 							"
-							>{{ reconcile ? "盘点库位" : "目标 / 存放库位"
-							}}<select
-								v-model="line.location"
-								:disabled="disabled || line.returnOutcome === 'lost'"
-								@change="
-									reconcile &&
-									((line.sourceLocation = line.location), changeSource(line))
-								"
-							>
-								<option v-for="place in places" :key="place">{{ place }}</option>
-							</select></label
-						>
+							label="目标 / 存放库位"
+							v-model="line.location"
+							:disabled="disabled"
+							:options="places"
+						/>
 						<label v-if="!reconcile"
 							>{{
 								receive && stockItem(line.code)?.tracksBatch ? "批次数量" : "数量"
@@ -258,8 +297,8 @@ function changeBatch(line: DraftLine) {
 								:aria-label="`${stockItem(line.code)?.name}数量`"
 						/></label>
 						<template v-if="stockItem(line.code)?.tracksBatch">
-							<label
-								>批次编号<input
+							<div class="field">
+								批次编号<input
 									v-if="receive"
 									v-model="line.batch"
 									placeholder="留空自动生成"
@@ -268,40 +307,21 @@ function changeBatch(line: DraftLine) {
 								/><span v-else-if="settlement">{{
 									line.batch || "原借用未记录批次"
 								}}</span
-								><select
+								><PreviewSearchSelect
 									v-else
+									label="现有批次"
 									v-model="line.batch"
-									placeholder="留空自动生成"
 									:disabled="disabled"
-									@change="changeBatch(line)"
-								>
-									<option value="">选择现有批次</option>
-									<option
-										v-for="batch in lineStock(line)?.batches?.filter(
-											(batch) =>
-												reconcile ||
-												(['Repair', 'Disposal'].includes(draft.kind)
-													? (batch.damaged || 0) > 0
-													: batch.available > 0),
-										)"
-										:key="batch.id"
-										:value="batch.id"
-									>
-										{{ batch.id }} ·
-										{{
-											["Repair", "Disposal"].includes(draft.kind)
-												? "损坏"
-												: "可用"
-										}}
-										{{
-											["Repair", "Disposal"].includes(draft.kind)
-												? batch.damaged || 0
-												: batch.available
-										}}
-										{{ line.uom }}
-									</option>
-								</select></label
-							>
+									:options="
+										(lineStock(line)?.batches || []).map((batch) => ({
+											value: batch.id,
+											label: batch.id,
+											detail: `到期 ${batch.expiry || '无效期'} · 可用 ${batch.available} · 损坏 ${batch.damaged || 0}`,
+										}))
+									"
+									@update:model-value="changeBatch(line)"
+								/>
+							</div>
 							<label v-if="stockItem(line.code)?.tracksExpiry"
 								>到期日期<input
 									v-if="receive"
@@ -348,7 +368,6 @@ function changeBatch(line: DraftLine) {
 							>处理结果<select v-model="line.returnOutcome" :disabled="disabled">
 								<option value="returned">完好归还</option>
 								<option value="damaged">损坏归还</option>
-								<option value="lost">遗失结清</option>
 							</select></label
 						>
 					</div>
@@ -465,6 +484,7 @@ function changeBatch(line: DraftLine) {
 		<PreviewItemPicker
 			v-if="pickerOpen && !disabled"
 			:allow-create="receive"
+			:create-barcode="createFromBarcode"
 			:eligible="eligible"
 			@close="pickerOpen = false"
 			@select="choose"
