@@ -286,3 +286,21 @@ Desk count values, scanning recovery and barcode creation, effective draft filte
 selector Escape/click behavior, and pending/failed attachment confirmation.
 HTTP entry isolation was unchanged and not rerun in this review. Manual fidelity
 review remains pending.
+
+## Browser-audit repairs (2026-10-13)
+
+The eight findings in the [task](../../../notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_TASK.md)
+are repaired using preview-local code and styles. Reports constrain their 650px
+sample tables to an internal scrollport. Count review/confirmation separates
+baseline, reviewed actual and adjustment quantities, with unreviewed rows excluded.
+Mobile form focus uses measured summary/navigation geometry. Browse returns restore
+the document and nested tables; Inventory keeps one compact context/title/search
+header and secondary-tools disclosure. Mobile action targets and item identity
+reflow follow the established convention. Dashboard and Inventory share the
+return-to-top helper.
+
+Run `tests/design-preview-audit-fixes.test.ts` with the relevant preview suites.
+The [progress note](../../../notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md)
+records actual Playwright checks, viewed screenshots and limitations. This audit
+repairs existing preview behavior without approving production migration or
+historical visual fidelity.

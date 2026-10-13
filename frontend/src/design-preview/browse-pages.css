@@ -900,3 +900,32 @@
 	align-items: center;
 	cursor: pointer;
 }
+
+@media (max-width: 1023px) {
+	.browse-link,
+	.browse-row-link,
+	.browse-tree-row button {
+		min-height: 44px;
+	}
+	.browse-tree-row button:has(> svg:only-child) {
+		min-width: 44px;
+	}
+}
+@media (max-width: 620px) {
+	.browse-item-detail-head {
+		display: grid;
+		grid-template-columns: 64px minmax(0, 1fr);
+		align-items: start;
+	}
+	.browse-item-detail-head .browse-grow,
+	.browse-item-detail-head > .ui-button {
+		grid-column: 1 / -1;
+		min-width: 0;
+	}
+	.browse-item-detail-head .browse-grow {
+		overflow-wrap: anywhere;
+	}
+	.browse-item-detail-head > .ui-button {
+		justify-self: start;
+	}
+}

@@ -770,6 +770,7 @@ onActivated(() => {
 			}}</PreviewUiButton>
 		</div>
 		<PreviewDashboard
+			:active="active"
 			v-else-if="page.page === 'dashboard'"
 			@navigate="go"
 			@movement="openMovement"

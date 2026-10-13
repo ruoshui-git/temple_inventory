@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch, shallowRef, onActivated } from "vue";
+import PreviewReturnToTop from "./components/PreviewReturnToTop.vue";
+import PreviewOverlay from "./PreviewOverlay.vue";
+import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
 import PreviewHierarchyFilter from "./components/PreviewHierarchyFilter.vue";
@@ -8,6 +11,8 @@ import { reviewSession, type PreviewPage } from "./reviewModel";
 import { dashboardData, dashboardScope } from "./dashboardModel";
 import { matchesWarehouse, quantityText, loanStatus, remaining } from "./browseModel";
 import { previewDate } from "./model";
+const { isMobile } = useResponsiveLayout();
+const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true });
 const emit = defineEmits<{
 	navigate: [page: PreviewPage, variant: string];
 	movement: [name: string];
@@ -190,25 +195,33 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 			><PreviewUiButton @click="refresh">刷新</PreviewUiButton
 			><small>样本日期 {{ previewDate }}</small>
 		</div>
-		<div v-if="showFilters" class="preview-dashboard-scope">
-			<PreviewHierarchyFilter
-				v-model="filters.warehouses"
-				:options="reviewSession.warehouses"
-				title="仓库 / 位置"
-				placeholder="搜索位置"
-			/><PreviewHierarchyFilter
-				v-model="filters.categories"
-				:options="categories"
-				title="物品类别"
-				placeholder="搜索类别"
-			/><PreviewUiButton
-				@click="
-					filters.warehouses = [];
-					filters.categories = [];
-				"
-				>清空范围</PreviewUiButton
-			>
-		</div>
+		<component
+			:is="isMobile ? PreviewOverlay : 'div'"
+			v-if="showFilters"
+			title="总览范围"
+			:drawer="isMobile"
+			@close="showFilters = false"
+		>
+			<div class="preview-dashboard-scope">
+				<PreviewHierarchyFilter
+					v-model="filters.warehouses"
+					:options="reviewSession.warehouses"
+					title="仓库 / 位置"
+					placeholder="搜索位置"
+				/><PreviewHierarchyFilter
+					v-model="filters.categories"
+					:options="categories"
+					title="物品类别"
+					placeholder="搜索类别"
+				/><PreviewUiButton
+					@click="
+						filters.warehouses = [];
+						filters.categories = [];
+					"
+					>清空范围</PreviewUiButton
+				>
+			</div>
+		</component>
 		<details class="preview-state-controls">
 			<summary>预览状态</summary>
 			<label
@@ -539,5 +552,6 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 				</article>
 			</div>
 		</div>
+		<PreviewReturnToTop :active="props.active" :hidden="isMobile && showFilters" />
 	</div>
 </template>

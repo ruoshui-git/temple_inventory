@@ -88,6 +88,33 @@ export function countLocationLines(
       ),
   );
 }
+// Blank rows stay outside the reviewed actual and adjustment projections.
+export function countSummary(draft: Pick<ReviewDraft, "lines">) {
+  const baseline = new Map<string, number>();
+  const actual = new Map<string, number>();
+  const difference = new Map<string, number>();
+  let reviewed = 0;
+  for (const line of draft.lines) {
+    baseline.set(line.uom, (baseline.get(line.uom) || 0) + line.qty);
+    if (line.countedQty === undefined || String(line.countedQty) === "")
+      continue;
+    reviewed++;
+    actual.set(line.uom, (actual.get(line.uom) || 0) + line.countedQty);
+    difference.set(
+      line.uom,
+      (difference.get(line.uom) || 0) + line.countedQty - line.qty,
+    );
+  }
+  return {
+    baseline: [...baseline],
+    actual: [...actual],
+    difference: [...difference],
+    reviewed,
+    total: draft.lines.length,
+    unreviewed: draft.lines.length - reviewed,
+  };
+}
+
 export function refreshCountBaseline(
   draft: ReviewDraft,
   session: ReviewSession = reviewSession,

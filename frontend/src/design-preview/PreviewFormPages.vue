@@ -18,6 +18,9 @@ import PreviewCountWorkspace from "./components/PreviewCountWorkspace.vue";
 import PreviewAttachments from "./components/PreviewAttachments.vue";
 import PreviewTransactionContext from "./components/PreviewTransactionContext.vue";
 import PreviewDocumentState from "./components/PreviewDocumentState.vue";
+import { useResponsiveLayout } from "../composables/useResponsiveLayout";
+import { usePreviewFocusVisibility } from "./focusVisibility";
+import PreviewCountSummary from "./components/PreviewCountSummary.vue";
 import { addLoanToDraft } from "./workflowModel";
 import PreviewOperationLines from "./components/PreviewOperationLines.vue";
 import PreviewUnitField from "./components/PreviewUnitField.vue";
@@ -26,6 +29,15 @@ import { validateOperation, isSettlement } from "./formModel";
 const props = withDefaults(defineProps<{ page: string; variant: string; active?: boolean }>(), {
 	active: true,
 });
+const formRoot = ref<HTMLElement>();
+const reviewBar = ref<HTMLElement>();
+const { isMobile } = useResponsiveLayout();
+usePreviewFocusVisibility(
+	formRoot,
+	reviewBar,
+	() => isMobile.value,
+	() => props.active,
+);
 const emit = defineEmits<{
 	navigate: [page: string, variant: string];
 	notify: [message: string];
@@ -359,7 +371,7 @@ function confirmSubmit() {
 </script>
 
 <template>
-	<section class="preview-form-page">
+	<section ref="formRoot" class="preview-form-page">
 		<div class="form-page-heading">
 			<div>
 				<span class="eyebrow">WORKFLOW PROPOSAL · PREVIEW DATA</span>
@@ -636,7 +648,7 @@ function confirmSubmit() {
 					>
 				</div>
 			</form>
-			<aside class="form-review surface">
+			<aside ref="reviewBar" class="form-review surface">
 				<span class="eyebrow">确认前检查</span
 				><span role="status">{{
 					saveState ||
@@ -649,12 +661,17 @@ function confirmSubmit() {
 								: "未保存的预览输入")
 				}}</span>
 				<h2>{{ isReconcile ? "盘点汇总" : isItem ? "资料检查" : "操作汇总" }}</h2>
-				<div v-if="!isItem" class="review-metric">
+				<PreviewCountSummary
+					v-if="isReconcile && draft"
+					:draft="draft"
+					class="count-review-summary"
+				/>
+				<div v-else-if="!isItem" class="review-metric">
 					<strong v-for="[uom, qty] in totalsByUom" :key="uom"
 						>{{ qty }} {{ uom }}</strong
 					><span>各单位分别合计</span>
 				</div>
-				<div class="review-list">
+				<div v-if="!isReconcile" class="review-list">
 					<div v-for="[place, lines] in groupedLines" :key="place">
 						<strong>{{ place }}</strong>
 						<p v-for="line in lines" :key="line.id">
@@ -673,6 +690,9 @@ function confirmSubmit() {
 					确认前请核对物品、数量和库位。库存为固定样本快照，确认不会执行库存扣增。
 				</p>
 				<div class="form-actions">
+					<PreviewUiButton v-if="isReconcile && isReadOnly" @click="showConfirm = true"
+						>查看盘点汇总</PreviewUiButton
+					>
 					<PreviewUiButton v-if="!isReadOnly" variant="secondary" @click="saveDraft"
 						>保存草稿</PreviewUiButton
 					><PreviewUiButton
@@ -695,13 +715,15 @@ function confirmSubmit() {
 		>
 		<PreviewOverlay
 			v-if="showConfirm"
-			:title="`确认${pageTitle}？`"
+			:title="isReadOnly ? '盘点汇总' : `确认${pageTitle}？`"
 			@close="showConfirm = false"
-			><p>这是模拟确认；库存为固定样本快照，不执行库存扣增。</p>
+			><PreviewCountSummary v-if="isReconcile && draft" :draft="draft" />
+			<p v-if="draft?.baselineReviewed === false">账面基准已刷新，请重新核对差异后提交。</p>
+			<p>这是模拟确认；库存为固定样本快照，不执行库存扣增。</p>
 			<template #footer
 				><PreviewUiButton variant="secondary" @click="showConfirm = false"
 					>返回检查</PreviewUiButton
-				><PreviewUiButton variant="primary" @click="confirmSubmit"
+				><PreviewUiButton v-if="!isReadOnly" variant="primary" @click="confirmSubmit"
 					>确认提交</PreviewUiButton
 				></template
 			></PreviewOverlay

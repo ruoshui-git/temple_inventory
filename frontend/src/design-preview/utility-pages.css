@@ -320,3 +320,22 @@
 	align-items: center;
 	gap: var(--p-space-2);
 }
+
+/* Keep table intrinsic widths inside their own scrollport. */
+.preview-utility-page,
+.preview-utility-page > *,
+.preview-utility-page .report-workspace > *,
+.preview-utility-page .report-filters > * {
+	min-width: 0;
+}
+.preview-utility-page .report-table-wrap {
+	max-width: 100%;
+}
+.preview-utility-page .report-filters {
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+@media (max-width: 620px) {
+	.preview-utility-page .report-catalog {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

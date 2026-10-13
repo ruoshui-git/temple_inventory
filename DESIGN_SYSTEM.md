@@ -223,3 +223,18 @@ pages, with separate units and type/outcome/status context. New deliberate geome
 option targets, 56px attachment thumbnails and wrapping count rows. All densities
 retain the shared 1024px responsive boundary. Manual width/density/keyboard/zoom
 review remains required; automated checks do not approve visual fidelity.
+
+## Preview browser-audit geometry repairs (2026-10-13)
+
+Existing contracts were repaired within preview-owned styling. Report grid children
+are shrinkable; the 650px table minimum stays inside the horizontal scrollport.
+At <=620px, item artwork precedes a full-width identity row. Mobile form summaries
+use measured navigation/summary geometry with an 8px gap, a 220px/40dvh height cap,
+and focus visibility handling. Inventory secondary tools use a 45dvh bounded
+popover after compaction; its context tabs are supplied once by the shell.
+Return-to-top remains a circular 44px control above navigation/creation actions.
+`scroll.ts` and `focusVisibility.ts` release listeners/observers on deactivation.
+
+Count projections and confirmation labels are shared through `PreviewCountSummary`;
+stock snapshots and production tokens/components/APIs remain unchanged. Browser
+results and limitations are recorded in the [audit-fix progress note](notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).

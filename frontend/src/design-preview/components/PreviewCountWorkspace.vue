@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { reviewSession, type ReviewDraft } from "../reviewModel";
 import {
 	countLocationLines,
+	countSummary,
 	refreshCountBaseline,
 	physicalLeafWarehouses,
 } from "../workflowModel";
@@ -13,12 +14,7 @@ const pendingLocation = ref(""),
 	changeOpen = ref(false),
 	itemCode = ref("");
 const places = computed(() => physicalLeafWarehouses().map((row) => row.name));
-const count = computed(
-	() =>
-		props.draft.lines.filter(
-			(line) => line.countedQty !== undefined && String(line.countedQty) !== "",
-		).length,
-);
+const summary = computed(() => countSummary(props.draft));
 function useLocation(value: string) {
 	if (value === props.draft.countLocation) return;
 	if (props.draft.lines.some((line) => line.countedQty !== undefined)) {
@@ -117,7 +113,9 @@ props.draft.countMode ||= "selective";
 				>加入盘点</PreviewUiButton
 			></template
 		>
-		<p role="status">已核对 {{ count }} / {{ draft.lines.length }} 行 · 留空不调整库存</p>
+		<p role="status">
+			已核对 {{ summary.reviewed }} / {{ draft.lines.length }} 行 · 留空不调整库存
+		</p>
 		<div v-if="draft.baselineStale && !disabled" role="alert">
 			账面数量在 ERPNext 中已变化，实点输入已保留。<PreviewUiButton
 				@click="refreshCountBaseline(draft)"
@@ -158,7 +156,8 @@ props.draft.countMode ||= "selective";
 			/></label>
 			<span
 				>差异
-				{{ line.countedQty === undefined ? "待核对" : line.countedQty - line.qty }}</span
+				{{ line.countedQty === undefined ? "待核对" : line.countedQty - line.qty }}
+				<span v-if="line.countState === 'not_found'"> · 未找到</span></span
 			><PreviewUiButton
 				v-if="!disabled"
 				@click="

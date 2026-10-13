@@ -74,3 +74,27 @@ These fixes refine existing UX-01/03/04/09 contracts without changing production
 Attachment regression coverage also verifies that pending/failed uploads keep the
 parent transaction editable until upload retry/removal, rather than making failed
 files immutable through confirmation.
+
+### Browser-audit repairs — 2026-10-13
+
+| Capability | Repaired preview evidence | Migration disposition |
+| --- | --- | --- |
+| Reports/export | Shrinkable report workspace, one phone catalog column, internal table scrolling; five families and export dialog | Existing report capability preserved; file generation remains backend-dependent |
+| Reconciliation | `countSummary`, `PreviewCountSummary`, shared confirmation/read-only scope; zero/blank/not-found, mixed units, baseline refresh | UX-04 clarified; ERPNext reconciliation/version adapter still pending |
+| Form focus | Measured summary/navigation geometry, real Tab/Shift+Tab, responsive lifecycle cleanup | Existing accessibility convention repaired in preview |
+| Browse return | Document + nested result/table positions, hash Back/Forward, retained search/filter/view/selection | Existing contextual-return contract repaired; no production route change |
+| Inventory chrome | 80px compact header, single shell context row, bounded tools disclosure, available search/scan/filter/count | Existing browse convention repaired in routed and local samples |
+| Actions/item identity | 44px mobile hit areas; full-width narrow-phone identity below artwork | Existing touch/readability contract repaired; images/detail actions preserved |
+| Dashboard/Inventory top | Actual scroll owner, two viewport threshold, heading focus, reduced motion, mobile drawer hiding | Existing return-to-top convention repaired; stock scope unchanged |
+
+Commands, browser measurements, screenshot evidence and remaining limitations are
+in [the audit-fix progress note](notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).
+Browser verification establishes these repairs, not historical fidelity approval
+or backend parity. Production migration remains paused.
+
+The implementation review additionally verifies one focus observer per active
+KeepAlive form, complete cleanup on deactivation/unmount, and retained keyboard
+focus when Inventory tools/context actions move into or out of compact chrome.
+Regression coverage is in `design-preview-audit-fixes.test.ts`; fresh Chromium
+evidence is recorded in the linked progress note. These close accessibility and
+lifecycle gaps in the existing repairs without changing backend dependencies.

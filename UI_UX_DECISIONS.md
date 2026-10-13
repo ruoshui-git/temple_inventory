@@ -17,7 +17,7 @@ for rationale, not as competing current rules.
 | UX-01 | ERPNext document type + name identifies transactions. One editor saves one Stock Entry or Stock Reconciliation. Desk and frontend are equal editors; no workspace ownership. | Replace workspace-exclusive guards/write APIs; ERPNext remains the ledger. |
 | UX-02 | Return includes normal/damaged quantities. Loss is a separate explicit operation. Compatible loans may share one return; never silently split documents. | Structured borrowing document/line references on Stock Entry lines; derived balances. |
 | UX-03 | New items default to Nos. Existing units/conversions remain authoritative. Large choices are searchable; contextual item/batch pickers expose availability/location/expiry. | Paginated full-dataset search, never just loaded options. |
-| UX-04 | Count one leaf location, selected items or full location. Blank is unreviewed, zero deliberate. Baseline refresh preserves counts and requires review. | Versioned ERPNext reconciliation adapter. |
+| UX-04 | Count one leaf location, selected items or full location. Blank is unreviewed, zero deliberate. Summaries separate baseline, reviewed actual and differences with reviewed/unreviewed scope. Baseline refresh preserves counts and requires review. | Versioned ERPNext reconciliation adapter. |
 | UX-05 | System Manager is the initial frontend audience; retain document authorization and clear access/session states. | Server gate is future work; preview stays login-free. |
 | UX-06 | Private inventory originals and derivatives through Frappe File. Public preview artwork is non-sensitive fixture material. | Audit thumbnail helper and verify seeded files; no reset in preview work. |
 | UX-07 | Clean database/API/UI preferred over compatibility during rapid development. A DB reset is acceptable during migration. | No obligation to preserve workspace IDs, old adapters or historical schema. Reset is a separate migration action. |
@@ -664,3 +664,32 @@ each durable UI refinement. A missing preview capability is not an approved remo
   recovery instructions. Transaction draft saving remains available; retry or
   remove the attachment before finalizing. Never make a failed upload immutable
   by completing its parent document.
+
+### Preview browser-audit repairs — 2026-10-13
+
+These repairs enforce existing preview contracts; they do not approve production migration.
+
+- UX-04 count summaries label the complete selected baseline `账面合计`, reviewed
+  actual totals `已核对实点合计`, and reviewed differences `本次调整差异`, separately
+  by stock unit. Blank rows are counted as unreviewed and excluded from adjustment;
+  no reviewed rows means `尚未核对`. Zero and 未找到 remain distinct inputs.
+  Confirmation includes location, reviewed/unreviewed counts and all totals;
+  submitted records retain the same truthful scope labels.
+- Fixed mobile form summaries reserve measured space above bottom navigation and
+  safe areas. Keyboard focus must remain visible above them, including after
+  density/viewport changes. Dialog containment and restoration still apply.
+- Browse Back restores the initiating route's actual scroll owner and nested table
+  positions with its filters, view and selection. Browser Back/Forward use the same
+  route restoration; primary/context destination navigation retains its reset rules.
+  In the standalone preview the document currently owns vertical scrolling at both
+  desktop and mobile widths; production scroll surfaces remain unchanged.
+- Inventory's compact header repairs the existing 80px convention: one context-tab
+  row above title/search/actions, with secondary tools in an accessible bounded
+  disclosure. Compaction must keep focused secondary tools visible; expansion
+  transfers focus from the removed disclosure trigger to its first tool. The
+  reconciliation action retains focus when moving between header layouts.
+  Dashboard and Inventory share the existing two-viewport return-to-top
+  convention, targeting the actual scroll owner and focusing the heading.
+- Narrow-phone item identity places name/code/description on a full-width text row
+  below artwork. All affected mobile text actions meet the existing 44px minimum;
+  desktop densities and independent image enlargement remain intact.

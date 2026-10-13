@@ -76,7 +76,13 @@ type ReturnKey = PreviewPageKey | `local/${"gallery" | "inventory" | "receive"}`
 const returnRoutes = reactive<Partial<Record<PreviewPageKey, ReturnKey>>>({});
 const scrollPositions = new Map<
 	ReturnKey,
-	{ top: number; left: number; results: { top: number; left: number }[] }
+	{
+		windowTop: number;
+		windowLeft: number;
+		top: number;
+		left: number;
+		results: { top: number; left: number }[];
+	}
 >();
 const visibleKey = computed<ReturnKey>(() =>
 	page.value === "route"
@@ -84,36 +90,72 @@ const visibleKey = computed<ReturnKey>(() =>
 		: `local/${page.value as "gallery" | "inventory" | "receive"}`,
 );
 const scrollSelector =
-	".results-region, .table-scroll, .preview-browse-results, .browse-table-wrap";
+	".results-region, .table-scroll, .preview-browse-results, .browse-table-wrap, .report-table-wrap";
+function scrollSurfaces(main: HTMLElement) {
+	return Array.from(main.querySelectorAll<HTMLElement>(scrollSelector)).filter((element) => {
+		for (
+			let node: HTMLElement | null = element;
+			node && node !== main;
+			node = node.parentElement
+		)
+			if (node.style.display === "none") return false;
+		return true;
+	});
+}
+let restorationFrame = 0;
+let resetScroll = false;
+function restoreScroll(key: ReturnKey) {
+	const main = document.getElementById("sample-content");
+	if (!main || visibleKey.value !== key) return;
+	const saved = scrollPositions.get(key);
+	main.scrollTop = saved?.top || 0;
+	main.scrollLeft = saved?.left || 0;
+	scrollSurfaces(main).forEach((element, index) => {
+		element.scrollTop = saved?.results[index]?.top || 0;
+		element.scrollLeft = saved?.results[index]?.left || 0;
+	});
+	if (window.scrollX !== (saved?.windowLeft || 0) || window.scrollY !== (saved?.windowTop || 0))
+		window.scrollTo({
+			top: saved?.windowTop || 0,
+			left: saved?.windowLeft || 0,
+			behavior: "instant",
+		});
+}
 watch(
 	visibleKey,
-	async (key, previous) => {
+	async (key, previous, onCleanup) => {
+		cancelAnimationFrame(restorationFrame);
+		let cancelled = false;
+		onCleanup(() => {
+			cancelled = true;
+			cancelAnimationFrame(restorationFrame);
+		});
 		const main = document.getElementById("sample-content");
 		if (!main) return;
 		scrollPositions.set(previous, {
+			windowTop: window.scrollY,
+			windowLeft: window.scrollX,
 			top: main.scrollTop,
 			left: main.scrollLeft,
-			results: Array.from(main.querySelectorAll<HTMLElement>(scrollSelector)).map(
-				(element) => ({
-					top: element.scrollTop,
-					left: element.scrollLeft,
-				}),
-			),
+			results: scrollSurfaces(main).map((element) => ({
+				top: element.scrollTop,
+				left: element.scrollLeft,
+			})),
 		});
+		if (resetScroll) scrollPositions.delete(key);
+		resetScroll = false;
 		await nextTick();
-		if (visibleKey.value !== key) return;
-		const saved = scrollPositions.get(key);
-		main.scrollTop = saved?.top || 0;
-		main.scrollLeft = saved?.left || 0;
-		Array.from(main.querySelectorAll<HTMLElement>(scrollSelector)).forEach(
-			(element, index) => {
-				element.scrollTop = saved?.results[index]?.top || 0;
-				element.scrollLeft = saved?.results[index]?.left || 0;
-			},
-		);
+		if (cancelled) return;
+		restoreScroll(key);
+		restorationFrame = requestAnimationFrame(() => restoreScroll(key));
 	},
 	{ flush: "pre" },
 );
+function resetDestinationScroll(key: ReturnKey) {
+	scrollPositions.delete(key);
+	resetScroll = visibleKey.value !== key;
+	if (!resetScroll) nextTick(() => restoreScroll(key));
+}
 function isContextualRoute(route: typeof activeRoute.value) {
 	return (
 		route.page.endsWith("-form") ||
@@ -141,6 +183,7 @@ const backRoute = computed<ReturnKey | undefined>(() => {
 const backLabel = computed(() => (backRoute.value === "more/index" ? "返回工具" : "返回上一页"));
 const groups = primaryNavigation;
 function navigatePrimary(key: PreviewPageKey) {
+	resetDestinationScroll(key);
 	if (key.startsWith("movement")) {
 		reviewSession.filters.movementScope = emptyScope();
 		reviewSession.filters.movementItems.search = "";
@@ -156,6 +199,7 @@ function navigatePrimary(key: PreviewPageKey) {
 	navigate(key);
 }
 function navigateInventory(key: PreviewPageKey) {
+	resetDestinationScroll(key);
 	if (key.startsWith("inventory")) reviewSession.filters.inventory.scope = emptyScope();
 	if (key.startsWith("expiry")) {
 		reviewSession.filters.expiry.scope = emptyScope();
@@ -282,7 +326,10 @@ watch(
 	},
 	{ immediate: true },
 );
+let previousScrollRestoration: ScrollRestoration;
 onBeforeUnmount(() => {
+	cancelAnimationFrame(restorationFrame);
+	window.history.scrollRestoration = previousScrollRestoration;
 	window.removeEventListener("hashchange", syncLocationHash);
 	delete document.documentElement.dataset.previewTheme;
 	delete document.documentElement.dataset.previewDensity;
@@ -299,6 +346,8 @@ onBeforeUnmount(() => {
 	].forEach((name) => document.documentElement.style.removeProperty(name));
 });
 onMounted(() => {
+	previousScrollRestoration = window.history.scrollRestoration;
+	window.history.scrollRestoration = "manual";
 	window.addEventListener("hashchange", syncLocationHash);
 	if (window.location.hash) syncLocationHash();
 	else window.history.replaceState(null, "", "#review/local/gallery");
@@ -507,7 +556,11 @@ onMounted(() => {
 					><span class="sample-tag">交互样本</span>
 				</div>
 				<nav
-					v-if="isMobile && showInventoryNavigation"
+					v-if="
+						isMobile &&
+						showInventoryNavigation &&
+						!(page === 'inventory' || routeArea === 'inventory')
+					"
 					class="mobile-context"
 					aria-label="库存页面"
 				>
@@ -520,7 +573,13 @@ onMounted(() => {
 						{{ child.label }}
 					</button>
 				</nav>
-				<div v-if="showInventoryNavigation" class="preview-context-actions">
+				<div
+					v-if="
+						showInventoryNavigation &&
+						!(page === 'inventory' || routeArea === 'inventory')
+					"
+					class="preview-context-actions"
+				>
 					<button class="text-button" @click="navigate('reconciliation-form/new')">
 						<InventoryIcon name="adjust" />盘点调整
 					</button>
@@ -553,7 +612,33 @@ onMounted(() => {
 					@notify="notify"
 					@receive="selectLocalPage('receive')"
 					@navigate="selectRoute"
-				/>
+				>
+					<template #context>
+						<nav
+							v-if="
+								isMobile &&
+								(page === 'inventory' ||
+									(page === 'route' && routeArea === 'inventory'))
+							"
+							class="mobile-context"
+							aria-label="库存页面"
+						>
+							<button
+								v-for="child in inventoryNavigation"
+								:key="child.key"
+								:aria-current="inventorySection === child.key ? 'page' : undefined"
+								@click="navigateInventory(child.route)"
+							>
+								{{ child.label }}
+							</button>
+						</nav>
+					</template>
+					<template #context-actions>
+						<button class="text-button" @click="navigate('reconciliation-form/new')">
+							<InventoryIcon name="adjust" />盘点调整
+						</button>
+					</template>
+				</PreviewInventory>
 				<PreviewReceive
 					v-show="page === 'receive'"
 					:pattern="preferences.form"

@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { usePreviewFocusVisibility } from "./focusVisibility";
+import { usePreviewScroll, previewScrollOwner } from "./scroll";
+import PreviewReturnToTop from "./components/PreviewReturnToTop.vue";
 import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
 import { matchesCategory } from "./browseModel";
 import PreviewFilterButton from "./components/PreviewFilterButton.vue";
@@ -29,6 +32,46 @@ const emit = defineEmits<{
 	navigate: [page: string, variant: string];
 }>();
 const { isMobile } = useResponsiveLayout();
+const inventoryRoot = ref<HTMLElement>();
+const browseHeader = ref<HTMLElement>();
+const results = ref<HTMLElement>();
+usePreviewFocusVisibility(
+	inventoryRoot,
+	ref<HTMLElement>(),
+	() => true,
+	() => props.active !== false,
+	browseHeader,
+);
+const toolsOpen = ref(false);
+const compact = ref(false);
+const secondaryTools = ref<HTMLElement>();
+const toolsTrigger = ref<HTMLButtonElement>();
+const expandedContext = ref<HTMLElement>();
+const compactContext = ref<HTMLElement>();
+watch(compact, async (value) => {
+	const previousContext = value ? expandedContext.value : compactContext.value;
+	const contextFocused = previousContext?.contains(document.activeElement);
+	const triggerFocused = document.activeElement === toolsTrigger.value;
+	if (value && secondaryTools.value?.contains(document.activeElement)) {
+		toolsOpen.value = true;
+	} else if (contextFocused || (!value && triggerFocused)) {
+		await nextTick();
+		if (compact.value !== value || props.active === false) return;
+		const destination = contextFocused
+			? value
+				? compactContext.value
+				: expandedContext.value
+			: secondaryTools.value;
+		destination?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+	}
+});
+const { top, viewport } = usePreviewScroll(inventoryRoot, () => props.active !== false);
+function updateCompact() {
+	const owner = previewScrollOwner(results.value || null);
+	const edge = owner === window ? 0 : (owner as HTMLElement).getBoundingClientRect().top;
+	compact.value = !!results.value && results.value.getBoundingClientRect().top < edge - 80;
+}
+watch([top, viewport, isMobile], updateCompact, { flush: "post" });
 const search = ref("");
 const warehouses = ref<string[]>([]);
 const category = ref("");
@@ -264,7 +307,7 @@ function action(name: string) {
 }
 </script>
 <template>
-	<div class="inventory-example">
+	<div ref="inventoryRoot" class="inventory-example" :class="{ 'is-compact': compact }">
 		<div
 			v-if="
 				reviewSession.filters.inventory.scope.categories.length ||
@@ -283,51 +326,142 @@ function action(name: string) {
 				清除总览范围
 			</button>
 		</div>
-		<div class="page-heading">
-			<div>
-				<span class="eyebrow">INVENTORY / 库存管理</span>
-				<h1>每一份物资，都有去处。</h1>
-				<p class="muted">查看库存、找到位置，让下一次取用更从容。</p>
-			</div>
-			<div v-if="pattern === 'current' && !isMobile" class="button-row">
-				<UiButton icon="download" @click="action('入库')">入库</UiButton
-				><UiButton icon="loan" @click="action('出库')">出库</UiButton
-				><UiButton icon="movement" @click="action('调拨')">调拨</UiButton
-				><UiButton variant="primary" icon="box" @click="action('新建物品')"
-					>新建物品</UiButton
-				>
-			</div>
-			<div
-				v-else
-				ref="menu"
-				class="action-menu"
-				:class="{ 'current-fab': pattern === 'current' && isMobile }"
-				@keydown.esc="closeMenuWithKeyboard"
-				@focusout="
-					!($event.currentTarget as HTMLElement).contains(
-						$event.relatedTarget as Node,
-					) && (menuOpen = false)
-				"
-			>
-				<UiButton
-					variant="primary"
-					aria-label="新建操作"
-					:aria-expanded="menuOpen"
-					aria-controls="inventory-action-options"
-					@click="menuOpen = !menuOpen"
-					>{{ pattern === "current" && isMobile ? "＋" : "＋ 新建操作" }}</UiButton
-				>
-				<div v-if="menuOpen" id="inventory-action-options" class="menu-popover">
-					<button
-						v-for="name in ['入库', '出库', '调拨', '新建物品']"
-						:key="name"
-						@click="action(name)"
+		<header ref="browseHeader" class="inventory-browse-header">
+			<div class="page-heading">
+				<div>
+					<span class="eyebrow">INVENTORY / 库存管理</span>
+					<h1>每一份物资，都有去处。</h1>
+					<p class="muted">查看库存、找到位置，让下一次取用更从容。</p>
+				</div>
+				<div v-if="pattern === 'current' && !isMobile" class="button-row">
+					<UiButton icon="download" @click="action('入库')">入库</UiButton
+					><UiButton icon="loan" @click="action('出库')">出库</UiButton
+					><UiButton icon="movement" @click="action('调拨')">调拨</UiButton
+					><UiButton variant="primary" icon="box" @click="action('新建物品')"
+						>新建物品</UiButton
 					>
-						{{ name }}<InventoryIcon name="open" />
-					</button>
+				</div>
+				<div
+					v-else
+					ref="menu"
+					class="action-menu"
+					:class="{ 'current-fab': pattern === 'current' && isMobile }"
+					@keydown.esc="closeMenuWithKeyboard"
+					@focusout="
+						!($event.currentTarget as HTMLElement).contains(
+							$event.relatedTarget as Node,
+						) && (menuOpen = false)
+					"
+				>
+					<UiButton
+						variant="primary"
+						aria-label="新建操作"
+						:aria-expanded="menuOpen"
+						aria-controls="inventory-action-options"
+						@click="menuOpen = !menuOpen"
+						>{{ pattern === "current" && isMobile ? "＋" : "＋ 新建操作" }}</UiButton
+					>
+					<div v-if="menuOpen" id="inventory-action-options" class="menu-popover">
+						<button
+							v-for="name in ['入库', '出库', '调拨', '新建物品']"
+							:key="name"
+							@click="action(name)"
+						>
+							{{ name }}<InventoryIcon name="open" />
+						</button>
+					</div>
 				</div>
 			</div>
-		</div>
+			<div class="inventory-context"><slot name="context" /></div>
+			<div class="inventory-toolbar">
+				<label class="search-box"
+					><InventoryIcon name="search" /><input
+						v-model="search"
+						aria-label="搜索物品或条码"
+						placeholder="搜索物品名称、编号…" /></label
+				><UiButton
+					icon="scan"
+					:icon-only="compact && isMobile"
+					label="扫码"
+					@click="scanOpen = true"
+					>扫码</UiButton
+				><PreviewFilterButton
+					:expanded="filtersOpen"
+					:count="
+						warehouses.length +
+						Number(!!category) +
+						reviewSession.filters.inventory.scope.warehouses.length +
+						reviewSession.filters.inventory.scope.categories.length
+					"
+					@click="filtersOpen = !filtersOpen"
+				/>
+			</div>
+			<div v-if="compact" class="inventory-compact-tools">
+				<button
+					ref="toolsTrigger"
+					class="text-button"
+					:aria-expanded="toolsOpen"
+					aria-controls="inventory-secondary-tools"
+					@click="toolsOpen = !toolsOpen"
+				>
+					浏览工具
+					<InventoryIcon name="chevron-down" :class="{ 'is-expanded': toolsOpen }" />
+				</button>
+				<div ref="compactContext"><slot name="context-actions" /></div>
+			</div>
+			<div
+				ref="secondaryTools"
+				id="inventory-secondary-tools"
+				v-show="!compact || toolsOpen"
+				class="inventory-secondary-tools"
+			>
+				<div class="result-tools">
+					<div class="button-row">
+						<div class="segmented" aria-label="库存显示方式">
+							<button :aria-pressed="view === 'card'" @click="view = 'card'">
+								<InventoryIcon name="card" />卡片</button
+							><button :aria-pressed="view === 'table'" @click="view = 'table'">
+								<InventoryIcon name="table" />列表
+							</button>
+						</div>
+						<span class="muted">{{ rows.length }} 种物品</span>
+					</div>
+					<div class="button-row">
+						<label class="inline-field"
+							>排序<select v-model="sort" aria-label="库存排序">
+								<option value="name">物品名称</option>
+								<option value="available">可用数量</option>
+							</select></label
+						><UiButton v-if="!isMobile" icon="download" @click="openExport"
+							>导出</UiButton
+						><UiButton variant="ghost" icon="sigma" @click="summaryOpen = true"
+							>列汇总</UiButton
+						>
+					</div>
+				</div>
+				<div v-if="warehouses.length || category || search" class="chip-row">
+					<button
+						v-for="warehouse in warehouses"
+						:key="warehouse"
+						class="chip"
+						@click="warehouses = warehouses.filter((value) => value !== warehouse)"
+					>
+						{{ warehouse }} ×</button
+					><button v-if="category" class="chip" @click="category = ''">
+						{{ category }} ×</button
+					><button v-if="search" class="chip" @click="search = ''">{{ search }} ×</button
+					><UiButton variant="ghost" @click="clear">清空筛选</UiButton>
+				</div>
+				<label class="preview-check"
+					><input type="checkbox" v-model="inStockOnly" />仅有库存</label
+				>
+				<div v-if="selected.length" class="selection-bar" role="status">
+					<span>已选择 {{ selected.length }} 项物品</span
+					><UiButton variant="ghost" @click="selected = []">取消选择</UiButton>
+				</div>
+			</div>
+		</header>
+
 		<div class="proposal-note">
 			<InventoryIcon name="notice" /><span>{{
 				pattern === "current"
@@ -335,63 +469,10 @@ function action(name: string) {
 					: "实验操作提案：以有文字说明的「新建操作」统一入口；搜索、扫码与筛选始终直接可见。"
 			}}</span>
 		</div>
+		<div v-if="!compact" ref="expandedContext" class="preview-context-actions">
+			<slot name="context-actions" />
+		</div>
 		<section class="surface inventory-surface">
-			<div class="inventory-toolbar">
-				<label class="search-box"
-					><InventoryIcon name="search" /><input
-						v-model="search"
-						aria-label="搜索物品或条码"
-						placeholder="搜索物品名称、编号…" /></label
-				><UiButton icon="scan" @click="scanOpen = true">扫码</UiButton
-				><PreviewFilterButton
-					:expanded="filtersOpen"
-					:count="warehouses.length + Number(!!category)"
-					@click="filtersOpen = !filtersOpen"
-				/>
-			</div>
-			<div class="result-tools">
-				<div class="button-row">
-					<div class="segmented" aria-label="库存显示方式">
-						<button :aria-pressed="view === 'card'" @click="view = 'card'">
-							<InventoryIcon name="card" />卡片</button
-						><button :aria-pressed="view === 'table'" @click="view = 'table'">
-							<InventoryIcon name="table" />列表
-						</button>
-					</div>
-					<span class="muted">{{ rows.length }} 种物品</span>
-				</div>
-				<div class="button-row">
-					<label class="inline-field"
-						>排序<select v-model="sort" aria-label="库存排序">
-							<option value="name">物品名称</option>
-							<option value="available">可用数量</option>
-						</select></label
-					><UiButton v-if="!isMobile" icon="download" @click="openExport">导出</UiButton
-					><UiButton variant="ghost" icon="sigma" @click="summaryOpen = true"
-						>列汇总</UiButton
-					>
-				</div>
-			</div>
-			<div v-if="warehouses.length || category || search" class="chip-row">
-				<button
-					v-for="warehouse in warehouses"
-					:key="warehouse"
-					class="chip"
-					@click="warehouses = warehouses.filter((value) => value !== warehouse)"
-				>
-					{{ warehouse }} ×</button
-				><button v-if="category" class="chip" @click="category = ''">
-					{{ category }} ×</button
-				><button v-if="search" class="chip" @click="search = ''">{{ search }} ×</button
-				><UiButton variant="ghost" @click="clear">清空筛选</UiButton>
-			</div>
-			<label class="preview-check"
-				><input type="checkbox" v-model="inStockOnly" />仅有库存</label
-			>
-			<div v-if="selected.length" class="selection-bar" role="status">
-				<span>已选择 {{ selected.length }} 项物品</span
-				><UiButton variant="ghost" @click="selected = []">取消选择</UiButton>
-			</div>
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
 				<aside v-if="filtersOpen && !isMobile" class="filter-rail">
 					<h3>筛选库存</h3>
@@ -413,6 +494,7 @@ function action(name: string) {
 					/><UiButton variant="ghost" @click="clear">恢复默认筛选</UiButton>
 				</aside>
 				<div
+					ref="results"
 					class="results-region"
 					:aria-busy="status === 'loading' || status === 'refresh'"
 				>
@@ -627,6 +709,7 @@ function action(name: string) {
 				<option value="load-more-error">加载更多失败</option>
 			</select></label
 		>
+		<PreviewReturnToTop :active="active !== false" :hidden="isMobile && filtersOpen" />
 		<PreviewOverlay
 			v-if="filtersOpen && isMobile"
 			title="筛选库存"
