@@ -105,7 +105,7 @@ defineExpose({ state });
 <template>
 	<div
 		ref="root"
-		class="preview-search-select"
+		class="preview-search-select preview-field"
 		@focusout="
 			(event) => {
 				if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) {
@@ -195,7 +195,7 @@ defineExpose({ state });
 	position: relative;
 	min-width: 0;
 	display: grid;
-	gap: 6px;
+	gap: var(--p-field-gap);
 }
 .search-select-input {
 	display: flex;

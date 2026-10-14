@@ -22,6 +22,7 @@ for rationale, not as competing current rules.
 | UX-06 | Private inventory originals and derivatives through Frappe File. Public preview artwork is non-sensitive fixture material. | Audit thumbnail helper and verify seeded files; no reset in preview work. |
 | UX-07 | Clean database/API/UI preferred over compatibility during rapid development. A DB reset is acceptable during migration. | No obligation to preserve workspace IDs, old adapters or historical schema. Reset is a separate migration action. |
 | UX-08 | Structured activity and purpose remain separate. Explicit supporting-data creation returns to the preserved draft; no stacked overlays. | Preserve queryable fields rather than putting context in Notes. |
+| UX-10 | Preview movements use compact allocations and ordered multi-add; Receive creation uses one adaptive overlay. Text size scales independently from density. Dashboard failures belong to each card. | Preview implemented; production migration/fidelity review pending. |
 | UX-09 | Inventory/Movement/Loans use complete filtered totals and exports. Loading, conflicts and recovery retain input. Submitted documents obey ERPNext lifecycle. | Preserve unknown document fields, reject stale writes; no stock engine in preview. |
 
 Every future agent must update this index/log and the affected coverage rows with
@@ -693,3 +694,66 @@ These repairs enforce existing preview contracts; they do not approve production
 - Narrow-phone item identity places name/code/description on a full-width text row
   below artwork. All affected mobile text actions meet the existing 44px minimum;
   desktop densities and independent image enlargement remain intact.
+
+
+## Preview usability supersession — 2026-10-13 (UX-03/08/09/10)
+
+- Dashboard cards use non-moving hover/focus feedback; informational metrics stay
+  informational. Scope trees have a separate compact clear action. Loading and
+  failure belong to each section: heading-level recovery, readable stale results,
+  disabled stale drill-through, and an explicit unavailable state without prior
+  results supersede whole-grid fading and bottom-card failure messages in the
+  preview. Local filters remain available; retry replaces only that card.
+- Movement allocation rows remain fully mounted and group Receive by location,
+  item and batch allocation. Search and incomplete-only filters affect visibility,
+  never totals, validation or saved content. Error navigation reveals and focuses
+  the invalid field; focused location edits do not reorder the row. Required
+  fields and active alternate-unit entry stay visible. Reconciliation keeps its
+  dedicated counting workspace and semantics.
+- Adding existing items uses an ordered pending checkbox selection across picker
+  searches/filters. Commit appends one allocation per item without merging;
+  replacement remains single-select for the entire item group. Receive alone
+  offers contextual catalog creation. Creation uses the same overlay: an 880px
+  viewport-clamped desktop dialog and a full-screen panel below 1024px. This
+  explicitly replaces contextual drawer-based creation recorded on 2026-10-12
+  **in the preview only**; existing-item selection retains its drawer. Draft,
+  filters, pending selection, scroll and unfinished creation survive transitions.
+  Multi-add creation returns an item to the pending selection; scanning and
+  replacement create/use immediately. Closing unfinished input requires an
+  inline discard decision. Created catalog/supporting records survive receipt
+  cancellation. Standalone Inventory creation remains routed.
+- Preview text size is independently selectable at 100/125/150/175/200%, defaults
+  to 100%, and scales from the selected density's type baseline. Density still
+  owns spacing. Both settings surfaces synchronize immediately through the
+  preview-only preference; teleported surfaces share the typography tokens.
+  Natural wrapping, growing controls and measured focus obstruction preserve
+  reachability. Browser zoom remains independent.
+
+These decisions do not approve production migration, account preferences or new
+backend behavior. Manual visual/keyboard/zoom review remains outstanding; see
+[implementation and review record](notes/20261013_DESIGN_PREVIEW_USABILITY_HANDOFF.md).
+
+
+- **2026-10-13 independent usability review:** Repairs preserve the approved preview contracts: card navigation and retained status belong to the originating section; incomplete-line navigation remains available alongside document-level errors; scanner completion checks the whole draft. Hidden picker surfaces are excluded from keyboard containment and inline discard decisions receive focus. No new production behavior is approved.
+
+- **2026-10-13 usability follow-up (UX-03/08/09/10):** Movement item identity
+  occupies a full-width heading with reserved artwork; totals/actions wrap before
+  squeezing its name. Allocation fields respond to the editor width and text size,
+  with required fields always visible. Narrow desktop editors reflow the review
+  summary; complete item/allocation counts and unit totals stay prominent, detailed
+  allocations use a disclosure, and final confirmation exposes every allocation.
+  Review samples do not become ordinary receiving drafts. Form fields use stacked
+  labels, toolbar filters use inline groups, and checkbox/radio text stays beside
+  its control. Contextual creation is capped at two readable columns; expanded
+  category/unit editors use a full-width section inside the same form and focus
+  trap. These repair the approved preview contract; production migration remains
+  pending. Actual checks and remaining manual review are recorded in the
+  [follow-up progress note](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
+
+- **2026-10-14 independent follow-up clarification (UX-03/08/10):** Unfinished
+  category/unit creation participates in the contextual item's discard guard.
+  Finish or explicitly cancel supporting edits before creating the item; completed
+  supporting records survive cancellation. Opening a supporting editor focuses
+  its name, and saving/cancelling restores its trigger. Canonical Receive shares
+  routed confirmation details, including automatic-batch expiry and both entered
+  and stock quantities. These are preview-only completeness repairs.

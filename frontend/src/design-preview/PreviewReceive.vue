@@ -7,6 +7,9 @@ import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import PreviewOperationLines from "./components/PreviewOperationLines.vue";
+import PreviewAllocationSummary from "./components/PreviewAllocationSummary.vue";
+import { usePreviewFocusVisibility } from "./focusVisibility";
+import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import PreviewItemPicker from "./components/PreviewItemPicker.vue";
 import {
 	reviewSession,
@@ -18,6 +21,16 @@ import { validateOperation } from "./formModel";
 import { items, locations, type Pattern } from "./model";
 const props = defineProps<{ pattern: Pattern; active?: boolean }>();
 const emit = defineEmits<{ notify: [message: string]; back: [] }>();
+const lineEditor = ref<InstanceType<typeof PreviewOperationLines>>();
+const formRoot = ref<HTMLElement>();
+const reviewBar = ref<HTMLElement>();
+const { isMobile } = useResponsiveLayout();
+usePreviewFocusVisibility(
+	formRoot,
+	reviewBar,
+	() => isMobile.value && props.pattern === "proposed",
+	() => props.active !== false,
+);
 const destination = ref(locations[0]);
 const lines = ref<DraftLine[]>([
 	{
@@ -66,14 +79,10 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let confirmTimer: ReturnType<typeof setTimeout> | undefined;
 let nextId = 2;
 const lookup = (code: string) => reviewSession.stock.find((item) => item.code === code)!;
-const groups = computed(() =>
-	locations
-		.map((location) => ({
-			location,
-			lines: lines.value.filter((line) => line.location === location),
-		}))
-		.filter((group) => group.lines.length),
+const locationCount = computed(
+	() => new Set(lines.value.map((line) => line.location).filter(Boolean)).size,
 );
+const itemCount = computed(() => new Set(lines.value.map((line) => line.code)).size);
 const totals = computed(() => {
 	const values = new Map<string, number>();
 	lines.value.forEach((line) => {
@@ -123,12 +132,17 @@ function add(code: string) {
 }
 function check() {
 	error.value = validateOperation(receiveDraft.value);
+	if (error.value) lineEditor.value?.revealIssue();
 	if (conflict.value) error.value = "当前草稿存在版本冲突，输入已保留。请先结束冲突演示。";
 	if (!fields.date) error.value = "请选择入库日期。";
 	if (!error.value) review.value = true;
 }
 function confirm() {
 	error.value = validateOperation(receiveDraft.value);
+	if (error.value) {
+		review.value = false;
+		lineEditor.value?.revealIssue();
+	}
 	if (error.value || confirmBusy.value || completed.value || conflict.value) return;
 	confirmBusy.value = true;
 	confirmTimer = setTimeout(() => {
@@ -156,7 +170,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-	<div class="receive-example">
+	<div ref="formRoot" class="receive-example">
 		<div class="page-heading">
 			<div>
 				<span class="eyebrow">RECEIVE / 入库登记</span>
@@ -210,8 +224,8 @@ onBeforeUnmount(() => {
 							<h2>入库时间</h2>
 							<span class="muted">01</span>
 						</div>
-						<label class="field"
-							>日期 <span aria-hidden="true">*</span
+						<label class="preview-field field"
+							><span>日期 <span aria-hidden="true">*</span></span
 							><input v-model="fields.date" type="date" required
 						/></label>
 					</section>
@@ -224,6 +238,7 @@ onBeforeUnmount(() => {
 							<span class="badge neutral">{{ lines.length }} 行物品</span>
 						</div>
 						<PreviewOperationLines
+							ref="lineEditor"
 							:draft="receiveDraft"
 							:disabled="completed || confirmBusy"
 							:show-error="!!error"
@@ -245,7 +260,7 @@ onBeforeUnmount(() => {
 							来源、活动与备注 <InventoryIcon name="chevron-down" />
 						</button>
 						<div v-show="detailsOpen" class="form-grid">
-							<label class="field"
+							<label class="preview-field field"
 								>来源<input
 									v-model="fields.source"
 									placeholder="例如：捐赠单位或个人" /></label
@@ -254,7 +269,7 @@ onBeforeUnmount(() => {
 								v-model="fields.activity"
 								:options="activities.map((row) => row.name)"
 							/>
-							<label class="field full-width"
+							<label class="preview-field field full-width"
 								>备注<textarea
 									v-model="fields.notes"
 									rows="3"
@@ -273,11 +288,11 @@ onBeforeUnmount(() => {
 						<fieldset class="people-fields">
 							<legend>现场人员（可选）</legend>
 							<div class="form-grid">
-								<label class="field"
+								<label class="preview-field field"
 									>记录人<input v-model="fields.recorder" /></label
-								><label class="field"
+								><label class="preview-field field"
 									>经手人<input v-model="fields.handler" /></label
-								><label class="field"
+								><label class="preview-field field"
 									>鉴证人<input v-model="fields.reviewer"
 								/></label>
 							</div>
@@ -295,13 +310,15 @@ onBeforeUnmount(() => {
 					><small class="muted">下一步检查明细，确认后才完成模拟入库。</small>
 				</div>
 			</div>
-			<aside v-if="pattern === 'proposed'" class="surface receive-summary">
+			<aside ref="reviewBar" v-if="pattern === 'proposed'" class="surface receive-summary">
 				<span class="eyebrow">REVIEW / 检查</span>
 				<h2>本次入库</h2>
-				<div class="summary-count">{{ lines.length }}<span>行物品</span></div>
+				<div class="summary-count">
+					{{ itemCount }}<span>种物品 · {{ lines.length }} 行分配</span>
+				</div>
 				<p class="numeric">{{ totals || "尚未添加物品" }}</p>
 				<p class="muted">
-					{{ groups.length }} 个入库位置<br />{{ attachments.length }} 份附件
+					{{ locationCount }} 个入库位置<br />{{ attachments.length }} 份附件
 				</p>
 				<UiButton
 					variant="primary"
@@ -314,10 +331,10 @@ onBeforeUnmount(() => {
 		</form>
 		<div class="demo-state-control">
 			<span>评审工具 · 失败恢复</span
-			><label
+			><label class="preview-choice-label"
 				><input v-model="failure" type="checkbox" @change="saveDraft" />模拟保存 /
 				提交失败</label
-			><label
+			><label class="preview-choice-label"
 				><input
 					v-model="conflict"
 					type="checkbox"
@@ -327,9 +344,11 @@ onBeforeUnmount(() => {
 		</div>
 		<PreviewItemPicker
 			v-if="picker"
+			mode="add-multiple"
 			allow-create
 			@close="picker = false"
 			@select="add"
+			@select-multiple="(codes) => codes.forEach(add)"
 			@notify="emit('notify', $event)"
 		/>
 		<PreviewOverlay v-if="scanOpen" title="扫码添加 · 模拟" @close="scanOpen = false"
@@ -353,21 +372,7 @@ onBeforeUnmount(() => {
 			title="检查并确认入库"
 			@close="!confirmBusy && (review = false)"
 			><p class="muted">{{ fields.date }} · {{ fields.source || "未填写来源" }}</p>
-			<ul class="review-list">
-				<li v-for="line in lines" :key="line.id">
-					<strong>{{ lookup(line.code).name }}</strong
-					><span>{{ line.qty }} {{ lookup(line.code).uom }}</span
-					><small
-						>{{ line.location
-						}}<template v-if="line.batch">
-							· {{ line.batch
-							}}<template v-if="lookup(line.code).tracksExpiry && line.expiry">
-								· {{ line.expiry }}</template
-							></template
-						></small
-					>
-				</li>
-			</ul>
+			<PreviewAllocationSummary :draft="receiveDraft" />
 			<p>{{ totals }}</p>
 			<p class="muted">
 				活动：{{ fields.activity || "无" }} · 附件：{{ attachments.length }} 份

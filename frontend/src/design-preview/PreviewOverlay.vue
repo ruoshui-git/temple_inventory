@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, useId, type CSSProperties } from "vue";
 import UiButton from "./components/PreviewUiButton.vue";
-withDefaults(defineProps<{ title: string; drawer?: boolean; panelStyle?: CSSProperties }>(), {
-	drawer: false,
-});
+withDefaults(
+	defineProps<{
+		title: string;
+		subtitle?: string;
+		drawer?: boolean;
+		adaptiveCreation?: boolean;
+		panelStyle?: CSSProperties;
+	}>(),
+	{
+		drawer: false,
+	},
+);
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement>();
 const titleId = useId();
@@ -15,6 +24,21 @@ function closeAfterNavigation() {
 let previousOverflow = "";
 let app: HTMLElement | null = null;
 let previousInert = false;
+function isTabbable(element: HTMLElement) {
+	if (element.tabIndex < 0 || element.matches(":disabled") || element.closest("[inert]"))
+		return false;
+	for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
+		const style = getComputedStyle(ancestor);
+		if (ancestor.hidden || style.display === "none" || style.visibility === "hidden")
+			return false;
+		if (ancestor instanceof HTMLDetailsElement && !ancestor.open) {
+			const summary = ancestor.querySelector(":scope > summary");
+			if (!summary?.contains(element)) return false;
+		}
+		if (ancestor === panel.value) break;
+	}
+	return true;
+}
 let underlyingOverlays: Array<{ element: HTMLElement; inert: boolean }> = [];
 function keydown(event: KeyboardEvent) {
 	if (event.key === "Escape") {
@@ -25,9 +49,9 @@ function keydown(event: KeyboardEvent) {
 	if (event.key !== "Tab") return;
 	const controls = Array.from(
 		panel.value?.querySelectorAll<HTMLElement>(
-			'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+			'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary, [tabindex="0"]',
 		) || [],
-	);
+	).filter(isTabbable);
 	const first = controls[0];
 	const last = controls.at(-1);
 	if (!first) {
@@ -81,7 +105,10 @@ onBeforeUnmount(() => {
 				ref="panel"
 				class="preview-dialog"
 				:style="panelStyle"
-				:class="{ 'preview-drawer': drawer }"
+				:class="{
+					'preview-drawer': drawer && !adaptiveCreation,
+					'preview-adaptive-creation': adaptiveCreation,
+				}"
 				role="dialog"
 				aria-modal="true"
 				:aria-labelledby="titleId"
@@ -91,6 +118,7 @@ onBeforeUnmount(() => {
 					<div>
 						<span class="eyebrow">交互预览</span>
 						<h2 :id="titleId">{{ title }}</h2>
+						<p v-if="subtitle">{{ subtitle }}</p>
 					</div>
 					<UiButton variant="ghost" aria-label="关闭对话框" @click="emit('close')"
 						>关闭 ×</UiButton

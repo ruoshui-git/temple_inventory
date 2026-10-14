@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import PreviewScanPanel from "./PreviewScanPanel.vue";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
-import { computed, ref } from "vue";
+import { computed, ref, nextTick, watch } from "vue";
 import { reviewSession, type ReviewDraft, type DraftLine } from "../reviewModel";
 import { physicalLeafWarehouses } from "../workflowModel";
 import { previewDate } from "../model";
-import { isSettlement, lineCapacity, lineStock, validateOperation } from "../formModel";
+import {
+	isSettlement,
+	lineCapacity,
+	lineStock,
+	operationIssues,
+	type OperationIssue,
+} from "../formModel";
 import PreviewItemImage from "../PreviewItemImage.vue";
 import PreviewItemPicker from "./PreviewItemPicker.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
@@ -23,9 +29,13 @@ const createFromBarcode = ref<string>();
 const scanConfiguring = ref(false);
 const scannedLine = ref<DraftLine>();
 const scanError = computed(() =>
-	scannedLine.value ? validateOperation({ ...props.draft, lines: [scannedLine.value] }) : "",
+	scannedLine.value
+		? operationIssues(props.draft).find((issue) => issue.lineId === scannedLine.value?.id)
+				?.message || ""
+		: "",
 );
 function scanItem(code: string, batch?: string) {
+	pickerLines.value = [];
 	choose(code);
 	scannedLine.value = props.draft.lines.at(-1);
 	if (batch && scannedLine.value) {
@@ -43,6 +53,8 @@ function scanItem(code: string, batch?: string) {
 		}
 	}
 	scanConfiguring.value = true;
+	if (scannedLine.value)
+		revealIssue({ message: "", lineId: scannedLine.value.id, field: "qty" });
 }
 const extras = ref<Record<string, boolean>>({});
 const entryFactor = (line: DraftLine) =>
@@ -69,19 +81,98 @@ const eligible = computed(() => {
 		)
 		.map((item) => item.code);
 });
+const root = ref<HTMLElement>();
+const search = ref("");
+const incompleteOnly = ref(false);
+const revealErrors = ref(false);
+const issues = computed(() => operationIssues(props.draft));
+const lineIssues = computed(() => issues.value.filter((issue) => issue.lineId));
+const itemCount = computed(() => new Set(props.draft.lines.map((line) => line.code)).size);
+const visibleIds = computed(
+	() =>
+		new Set(
+			props.draft.lines
+				.filter((line) => {
+					const term = search.value.trim().toLocaleLowerCase();
+					return (
+						(!term ||
+							`${stockItem(line.code)?.name} ${line.code} ${line.location} ${line.sourceLocation || ""} ${line.batch || ""}`
+								.toLocaleLowerCase()
+								.includes(term)) &&
+						(!incompleteOnly.value ||
+							lineIssues.value.some((issue) => issue.lineId === line.id))
+					);
+				})
+				.map((line) => line.id),
+		),
+);
+// Keep a row's grouping anchor while fields inside the editor have focus.
+const anchors = new Map<string, string>();
+const groupRevision = ref(0);
 const groups = computed(() => {
-	const groups = new Map<string, { location: string; code: string; lines: DraftLine[] }>();
+	void groupRevision.value;
+	const grouped = new Map<string, { location: string; code: string; lines: DraftLine[] }>();
+	const locations: string[] = [];
 	for (const line of props.draft.lines) {
-		const location =
+		const current =
 			receive.value || reconcile.value || settlement.value
 				? line.location
 				: line.sourceLocation || line.location;
+		if (!anchors.has(line.id)) anchors.set(line.id, current);
+		const location = anchors.get(line.id)!;
+		if (!locations.includes(location)) locations.push(location);
 		const key = `${line.loanName || props.draft.loanName || ""}/${location}/${line.code}`;
-		if (!groups.has(key)) groups.set(key, { location, code: line.code, lines: [] });
-		groups.get(key)!.lines.push(line);
+		if (!grouped.has(key)) grouped.set(key, { location, code: line.code, lines: [] });
+		grouped.get(key)!.lines.push(line);
 	}
-	return [...groups.values()];
+	return [...grouped.values()].sort(
+		(a, b) => locations.indexOf(a.location) - locations.indexOf(b.location),
+	);
 });
+async function regroupAfterFocus() {
+	await nextTick();
+	if (!root.value?.contains(document.activeElement)) {
+		anchors.clear();
+		groupRevision.value++;
+	}
+}
+async function revealIssue(issue: OperationIssue | undefined = lineIssues.value[0]) {
+	if (!issue?.lineId) return;
+	if (issue.message) revealErrors.value = true;
+	search.value = "";
+	incompleteOnly.value = false;
+	if (
+		["manufacturingDate", "entryUom"].includes(issue.field || "") ||
+		(issue.field === "qty" &&
+			props.draft.lines.find((line) => line.id === issue.lineId)?.entryUom)
+	)
+		extras.value[issue.lineId] = true;
+	await nextTick();
+	const row = Array.from(root.value?.querySelectorAll<HTMLElement>("[data-line-id]") || []).find(
+		(row) => row.dataset.lineId === issue.lineId,
+	);
+	const target =
+		row?.querySelector<HTMLElement>(`[data-field="${issue.field}"]:not(:disabled)`) ||
+		row?.closest(".receive-line")?.querySelector<HTMLElement>(`[data-field="${issue.field}"]`);
+	const field = target?.matches("input, select, button")
+		? target
+		: target?.querySelector<HTMLElement>("input, select, button");
+	field?.focus();
+}
+let lastIssueId = "";
+function nextIssue() {
+	const index = lineIssues.value.findIndex((issue) => issue.lineId === lastIssueId);
+	const issue = lineIssues.value[(index + 1) % lineIssues.value.length];
+	lastIssueId = issue?.lineId || "";
+	revealIssue(issue);
+}
+watch(
+	() => props.showError,
+	(value) => {
+		if (value) revealIssue();
+	},
+);
+defineExpose({ revealIssue });
 let sequence = 0;
 function refreshLine(line: DraftLine) {
 	const item = stockItem(line.code);
@@ -115,7 +206,7 @@ function refreshLine(line: DraftLine) {
 		line.expiry = "";
 	}
 }
-function choose(code: string) {
+function choose(code: string, closePicker = true) {
 	const targets = pickerLines.value.length
 		? pickerLines.value
 		: [
@@ -133,8 +224,25 @@ function choose(code: string) {
 		line.code = code;
 		refreshLine(line);
 	}
-	pickerOpen.value = false;
+	if (closePicker) pickerOpen.value = false;
 	pickerLines.value = [];
+}
+async function selectSingle(code: string) {
+	if (createFromBarcode.value !== undefined) {
+		scanItem(code);
+		const line = scannedLine.value;
+		if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
+	} else choose(code);
+}
+async function chooseMultiple(codes: string[]) {
+	const start = props.draft.lines.length;
+	for (const code of codes) choose(code, false);
+	pickerOpen.value = false;
+	search.value = "";
+	incompleteOnly.value = false;
+	await nextTick();
+	const line = props.draft.lines[start];
+	if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
 }
 function pick(lines: DraftLine[] = []) {
 	createFromBarcode.value = undefined;
@@ -192,20 +300,48 @@ function changeBatch(line: DraftLine) {
 </script>
 
 <template>
-	<div class="preview-operation-lines">
-		<PreviewScanPanel
-			v-if="!disabled && !settlement"
-			:allow-create="receive"
-			:paused="scanConfiguring || pickerOpen"
-			@item="scanItem"
-			@location="receive ? (destination = $event) : emit('notify', '选择物品后核对来源库位')"
-			@create="
-				(barcode) => {
-					pick();
-					createFromBarcode = barcode;
-				}
-			"
-		/>
+	<div ref="root" class="preview-operation-lines" @focusout="regroupAfterFocus">
+		<div class="preview-line-toolbar">
+			<PreviewUiButton
+				v-if="!disabled && !settlement"
+				variant="secondary"
+				icon="box"
+				@click="pick()"
+				>添加物品</PreviewUiButton
+			>
+			<label class="preview-inline-field preview-line-search"
+				>搜索明细<input
+					v-model="search"
+					type="search"
+					placeholder="物品名称、编号、库位或批次"
+			/></label>
+			<span>{{ itemCount }} 种物品 · {{ draft.lines.length }} 行分配</span>
+			<label class="preview-choice-label"
+				><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
+			>
+			<PreviewUiButton :disabled="!lineIssues.length" @click="nextIssue"
+				>{{ lineIssues.length }} 处待完善 · 下一个</PreviewUiButton
+			>
+			<span v-if="search || incompleteOnly" role="status"
+				>显示 {{ visibleIds.size }} / {{ draft.lines.length }} 行</span
+			>
+
+			<PreviewScanPanel
+				v-if="!disabled && !settlement"
+				:allow-create="receive"
+				:paused="scanConfiguring || pickerOpen"
+				@item="scanItem"
+				@location="
+					receive ? (destination = $event) : emit('notify', '选择物品后核对来源库位')
+				"
+				@create="
+					(barcode) => {
+						pick();
+						createFromBarcode = barcode;
+					}
+				"
+			/>
+		</div>
 		<p v-if="scanConfiguring && scanError" role="status">{{ scanError }}</p>
 		<PreviewUiButton
 			v-if="scanConfiguring"
@@ -220,42 +356,78 @@ function changeBatch(line: DraftLine) {
 			:options="places"
 		/>
 		<section
-			v-for="group in groups"
-			:key="`${group.lines[0]?.loanName || draft.loanName || ''}/${group.location}/${group.code}`"
+			v-for="(group, groupIndex) in groups"
+			:key="group.lines[0]!.id"
+			v-show="group.lines.some((line) => visibleIds.has(line.id))"
 			class="location-group"
 		>
-			<h3>{{ group.location || "未选择库位" }}</h3>
+			<h3
+				v-if="
+					!groups
+						.slice(0, groupIndex)
+						.some(
+							(previous) =>
+								previous.location === group.location &&
+								previous.lines.some((line) => visibleIds.has(line.id)),
+						)
+				"
+			>
+				{{ group.location || "未选择库位" }}
+			</h3>
 			<article class="draft-line receive-line">
-				<div class="section-title-row">
+				<div class="preview-line-heading section-title-row">
 					<div v-if="stockItem(group.code)" class="preview-group-thumbnail">
 						<PreviewItemImage :item="stockItem(group.code)!" />
 					</div>
-					<div>
+					<div class="preview-line-identity">
 						<strong>{{ stockItem(group.code)?.name || group.code }}</strong
 						><small class="muted"
 							>{{ group.code }} · {{ stockItem(group.code)?.category }}</small
 						>
 					</div>
-					<strong v-if="receive"
-						>合计
-						{{ group.lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0) }}
-						{{ stockItem(group.code)?.uom }}</strong
-					>
-					<PreviewUiButton
-						v-if="!disabled && !settlement"
-						variant="ghost"
-						@click="pick(group.lines)"
-						>更换物品</PreviewUiButton
-					>
+					<div class="preview-line-heading-actions">
+						<strong v-if="receive" class="preview-line-total"
+							>合计
+							{{
+								group.lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0)
+							}}
+							{{ stockItem(group.code)?.uom }}</strong
+						>
+						<PreviewUiButton
+							class="preview-line-replace"
+							v-if="!disabled && !settlement"
+							variant="ghost"
+							data-field="code"
+							@click="pick(group.lines)"
+							>更换物品</PreviewUiButton
+						>
+					</div>
 				</div>
-				<div v-for="line in group.lines" :key="line.id" class="preview-allocation">
+				<div
+					v-for="line in group.lines"
+					:key="line.id"
+					class="preview-allocation"
+					:data-line-id="line.id"
+					v-show="visibleIds.has(line.id)"
+				>
+					<p
+						v-if="
+							(showError || revealErrors) &&
+							lineIssues.some((issue) => issue.lineId === line.id)
+						"
+						class="notice-bar danger"
+						role="status"
+					>
+						{{ lineIssues.find((issue) => issue.lineId === line.id)?.message }}
+					</p>
 					<small v-if="settlement" class="muted"
 						>借出 {{ line.loanName || draft.loanName }} · 原明细
 						{{ (line.loanLineIndex || 0) + 1 }}</small
 					>
-					<div class="form-fields">
+					<div class="form-fields preview-allocation-fields">
 						<PreviewSearchSelect
 							v-if="!receive && !settlement && !reconcile"
+							data-field="sourceLocation"
 							label="来源库位"
 							v-model="line.sourceLocation"
 							:disabled="disabled"
@@ -274,15 +446,17 @@ function changeBatch(line: DraftLine) {
 								reconcile ||
 								['Transfer', 'Return', 'Repair'].includes(draft.kind)
 							"
+							data-field="location"
 							label="目标 / 存放库位"
 							v-model="line.location"
 							:disabled="disabled"
 							:options="places"
 						/>
-						<label v-if="!reconcile"
+						<label class="preview-field" v-if="!reconcile"
 							>{{
 								receive && stockItem(line.code)?.tracksBatch ? "批次数量" : "数量"
 							}}（{{ line.uom }}）<input
+								data-field="qty"
 								v-model.number="line.qty"
 								type="number"
 								min="0"
@@ -293,48 +467,65 @@ function changeBatch(line: DraftLine) {
 										: 'any'
 								"
 								:disabled="disabled || !!line.entryUom"
-								:aria-invalid="showError && !(line.qty > 0)"
+								:aria-invalid="
+									(showError || revealErrors) &&
+									lineIssues.some(
+										(issue) =>
+											issue.lineId === line.id && issue.field === 'qty',
+									)
+								"
 								:aria-label="`${stockItem(line.code)?.name}数量`"
 						/></label>
 						<template v-if="stockItem(line.code)?.tracksBatch">
-							<div class="field">
+							<label v-if="receive" class="preview-field">
 								批次编号<input
-									v-if="receive"
+									data-field="batch"
 									v-model="line.batch"
 									placeholder="留空自动生成"
 									:disabled="disabled"
 									:aria-label="`${stockItem(line.code)?.name}批次编号（可选）`"
-								/><span v-else-if="settlement">{{
-									line.batch || "原借用未记录批次"
-								}}</span
-								><PreviewSearchSelect
-									v-else
-									label="现有批次"
-									v-model="line.batch"
-									:disabled="disabled"
-									:options="
-										(lineStock(line)?.batches || []).map((batch) => ({
-											value: batch.id,
-											label: batch.id,
-											detail: `到期 ${batch.expiry || '无效期'} · 可用 ${batch.available} · 损坏 ${batch.damaged || 0}`,
-										}))
-									"
-									@update:model-value="changeBatch(line)"
 								/>
+							</label>
+							<div v-else-if="settlement" class="preview-field">
+								<span>批次编号</span
+								><span>{{ line.batch || "原借用未记录批次" }}</span>
 							</div>
-							<label v-if="stockItem(line.code)?.tracksExpiry"
+							<PreviewSearchSelect
+								v-else
+								label="现有批次"
+								data-field="batch"
+								v-model="line.batch"
+								:disabled="disabled"
+								:options="
+									(lineStock(line)?.batches || []).map((batch) => ({
+										value: batch.id,
+										label: batch.id,
+										detail: `到期 ${batch.expiry || '无效期'} · 可用 ${batch.available} · 损坏 ${batch.damaged || 0}`,
+									}))
+								"
+								@update:model-value="changeBatch(line)"
+							/>
+							<label class="preview-field" v-if="stockItem(line.code)?.tracksExpiry"
 								>到期日期<input
 									v-if="receive"
+									data-field="expiry"
 									v-model="line.expiry"
 									type="date"
 									:disabled="disabled"
-									:aria-invalid="showError && !line.expiry"
+									:aria-invalid="
+										(showError || revealErrors) &&
+										lineIssues.some(
+											(issue) =>
+												issue.lineId === line.id &&
+												issue.field === 'expiry',
+										)
+									"
 								/><span v-else>{{ line.expiry || "原记录未设置" }}</span></label
 							>
 						</template>
 						<template v-if="reconcile"
 							><p>账面 {{ line.qty }} {{ line.uom }}</p>
-							<label
+							<label class="preview-field"
 								>实点数量<input
 									v-model.number="line.countedQty"
 									type="number"
@@ -351,24 +542,49 @@ function changeBatch(line: DraftLine) {
 								}}
 								{{ line.uom }}
 							</p>
-							<label
+							<label class="preview-field"
 								>差异原因<input
+									data-field="reason"
 									v-model="line.reason"
 									:disabled="disabled"
 									placeholder="有差异时必填" /></label
 						></template>
 						<label
+							class="preview-field"
 							v-if="
 								['Damage', 'Loss'].includes(draft.kind) ||
 								['damaged', 'lost'].includes(line.returnOutcome || '')
 							"
-							>原因（可选）<input v-model="line.reason" :disabled="disabled"
+							>原因（可选）<input
+								data-field="reason"
+								v-model="line.reason"
+								:disabled="disabled"
 						/></label>
-						<label v-if="settlement && draft.kind === 'Return'"
+						<label class="preview-field" v-if="settlement && draft.kind === 'Return'"
 							>处理结果<select v-model="line.returnOutcome" :disabled="disabled">
 								<option value="returned">完好归还</option>
 								<option value="damaged">损坏归还</option>
 							</select></label
+						>
+					</div>
+					<div class="preview-allocation-actions">
+						<PreviewUiButton
+							v-if="
+								!reconcile &&
+								!settlement &&
+								(receive || stockItem(line.code)?.alternateUnits?.length)
+							"
+							variant="ghost"
+							:aria-expanded="!!extras[line.id]"
+							@click="extras[line.id] = !extras[line.id]"
+							>单位换算 / 补充信息</PreviewUiButton
+						>
+						<PreviewUiButton
+							v-if="!disabled"
+							variant="ghost"
+							:label="`移除${stockItem(line.code)?.name}明细`"
+							@click="remove(line)"
+							>移除明细</PreviewUiButton
 						>
 					</div>
 					<template
@@ -378,16 +594,14 @@ function changeBatch(line: DraftLine) {
 							(receive || stockItem(line.code)?.alternateUnits?.length)
 						"
 					>
-						<PreviewUiButton
-							variant="ghost"
-							:aria-expanded="!!extras[line.id]"
-							@click="extras[line.id] = !extras[line.id]"
-							>单位换算 / 补充信息</PreviewUiButton
-						>
-						<div v-if="extras[line.id]" class="form-fields">
+						<div v-if="extras[line.id] || line.entryUom" class="form-fields">
 							<template v-if="stockItem(line.code)?.alternateUnits?.length">
-								<label
-									>输入单位<select v-model="line.entryUom" :disabled="disabled">
+								<label class="preview-field"
+									>输入单位<select
+										data-field="entryUom"
+										v-model="line.entryUom"
+										:disabled="disabled"
+									>
 										<option :value="undefined">{{ line.uom }}</option>
 										<option
 											v-for="unit in stockItem(line.code)?.alternateUnits"
@@ -399,8 +613,9 @@ function changeBatch(line: DraftLine) {
 										</option>
 									</select></label
 								>
-								<label v-if="line.entryUom"
+								<label class="preview-field" v-if="line.entryUom"
 									>输入数量（{{ line.entryUom }}）<input
+										data-field="qty"
 										type="number"
 										min="0"
 										step="any"
@@ -418,9 +633,12 @@ function changeBatch(line: DraftLine) {
 									}}核对。
 								</p>
 							</template>
-							<label v-if="receive && stockItem(line.code)?.tracksBatch"
+							<label
+								class="preview-field"
+								v-if="receive && stockItem(line.code)?.tracksBatch"
 								>生产日期（可选）<input
 									type="date"
+									data-field="manufacturingDate"
 									v-model="line.manufacturingDate"
 									:disabled="disabled"
 							/></label>
@@ -445,49 +663,43 @@ function changeBatch(line: DraftLine) {
 					>
 						此批次已过期，请核对实物。过期本身不阻止入库。
 					</p>
+				</div>
+				<div class="preview-line-actions">
 					<PreviewUiButton
-						v-if="!disabled"
-						variant="ghost"
-						:label="`移除${stockItem(line.code)?.name}明细`"
-						@click="remove(line)"
-						>移除明细</PreviewUiButton
+						v-if="
+							!settlement &&
+							!reconcile &&
+							stockItem(group.code)?.tracksBatch &&
+							!disabled
+						"
+						variant="secondary"
+						@click="addBatch(group.lines[0])"
+						>{{ receive ? "添加批次分配" : "分配其他批次" }}</PreviewUiButton
+					><PreviewUiButton
+						v-if="settlement && draft.kind === 'Return' && !disabled"
+						variant="secondary"
+						@click="splitOutcome(group.lines[0])"
+						>添加处理分配</PreviewUiButton
 					>
 				</div>
-				<PreviewUiButton
-					v-if="
-						!settlement &&
-						!reconcile &&
-						stockItem(group.code)?.tracksBatch &&
-						!disabled
-					"
-					variant="secondary"
-					@click="addBatch(group.lines[0])"
-					>{{ receive ? "添加批次分配" : "分配其他批次" }}</PreviewUiButton
-				><PreviewUiButton
-					v-if="settlement && draft.kind === 'Return' && !disabled"
-					variant="secondary"
-					@click="splitOutcome(group.lines[0])"
-					>添加处理分配</PreviewUiButton
-				>
 			</article>
 		</section>
-		<PreviewUiButton
-			v-if="!disabled && !settlement"
-			variant="secondary"
-			icon="box"
-			@click="pick()"
-			>添加物品</PreviewUiButton
-		>
 		<p v-if="!draft.lines.length" class="muted">
 			{{ settlement ? "请先选择未结清借用记录。" : "选择库位后添加物品。" }}
 		</p>
 		<PreviewItemPicker
 			v-if="pickerOpen && !disabled"
 			:allow-create="receive"
+			:mode="pickerLines.length ? 'replace-single' : 'add-multiple'"
+			:context="`入库登记 · ${draft.name}`"
 			:create-barcode="createFromBarcode"
 			:eligible="eligible"
-			@close="pickerOpen = false"
-			@select="choose"
+			@close="
+				pickerOpen = false;
+				pickerLines = [];
+			"
+			@select="selectSingle"
+			@select-multiple="chooseMultiple"
 			@notify="emit('notify', $event)"
 		/>
 	</div>

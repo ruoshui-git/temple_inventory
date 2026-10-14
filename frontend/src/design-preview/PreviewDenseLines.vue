@@ -72,7 +72,7 @@ const batchNotes = ref<Record<number, string>>({});
 						</tr>
 						<tr v-if="expanded === row.id">
 							<td colspan="4">
-								<label class="field"
+								<label class="preview-field field"
 									>批次备注（布局样本）<input
 										v-model="batchNotes[row.id]"
 										:aria-label="`第${row.id}行批次备注`"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch, shallowRef, onActivated } from "vue";
+import { computed, onBeforeUnmount, ref, watch, reactive, onActivated } from "vue";
+import PreviewDashboardSection from "./components/PreviewDashboardSection.vue";
 import PreviewReturnToTop from "./components/PreviewReturnToTop.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
@@ -8,8 +9,14 @@ import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
 import PreviewHierarchyFilter from "./components/PreviewHierarchyFilter.vue";
 import PreviewQuantitySummary from "./components/PreviewQuantitySummary.vue";
 import { reviewSession, type PreviewPage } from "./reviewModel";
-import { dashboardData, dashboardScope } from "./dashboardModel";
-import { matchesWarehouse, quantityText, loanStatus, remaining } from "./browseModel";
+import {
+	dashboardData,
+	dashboardScope,
+	dashboardSections,
+	type DashboardSectionKey,
+	type DashboardSectionState,
+} from "./dashboardModel";
+import { matchesWarehouse, quantityText, remaining } from "./browseModel";
 import { previewDate } from "./model";
 const { isMobile } = useResponsiveLayout();
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true });
@@ -19,29 +26,99 @@ const emit = defineEmits<{
 	loan: [name: string];
 }>();
 const filters = computed(() => reviewSession.filters.dashboard);
-const data = shallowRef(dashboardData(reviewSession));
-onActivated(() => {
-	data.value = dashboardData(reviewSession);
-});
+const sections = reactive(
+	Object.fromEntries(
+		Object.keys(dashboardSections).map((key) => [
+			key,
+			{
+				status: "ready",
+				hasResult: true,
+				result: dashboardData(reviewSession),
+			},
+		]),
+	) as Record<DashboardSectionKey, DashboardSectionState>,
+);
+const data = computed(() => ({
+	...sections.inventory.result,
+	batches: sections.expiry.result.batches,
+	buckets: sections.expiry.result.buckets,
+	movements: sections.movement.result.movements,
+	summaries: sections.movement.result.summaries,
+	loans: sections.loans.result.loans,
+	loanQuantities: sections.loans.result.loanQuantities,
+	damaged: sections.reminders.result.damaged,
+}));
 const showFilters = ref(false);
 const state = ref("ready");
 const failedSection = ref("");
-let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-onBeforeUnmount(() => clearTimeout(refreshTimer));
+const withoutResult = ref(false);
+const announcement = ref("");
+const timers = new Map<DashboardSectionKey, ReturnType<typeof setTimeout>>();
+const keys = Object.keys(dashboardSections) as DashboardSectionKey[];
+function blocked(key: DashboardSectionKey) {
+	return sections[key].status !== "ready";
+}
+function updateSection(key: DashboardSectionKey, retry = false) {
+	clearTimeout(timers.get(key));
+	sections[key].status = retry ? "retrying" : "loading";
+	timers.set(
+		key,
+		setTimeout(() => {
+			sections[key].result = dashboardData(reviewSession);
+			sections[key].hasResult = true;
+			sections[key].status = "ready";
+			announcement.value = `${dashboardSections[key]}更新成功`;
+			if (keys.every((key) => !["loading", "retrying"].includes(sections[key].status)))
+				state.value = "ready";
+		}, 500),
+	);
+}
+function recover() {
+	for (const key of keys) {
+		clearTimeout(timers.get(key));
+		sections[key].result = dashboardData(reviewSession);
+		sections[key].hasResult = true;
+		sections[key].status = "ready";
+	}
+	state.value = "ready";
+	failedSection.value = "";
+}
+onActivated(() => {
+	if (keys.every((key) => !blocked(key))) recover();
+});
+onBeforeUnmount(() => timers.forEach(clearTimeout));
+function failSelectedSection(title = failedSection.value) {
+	const key = keys.find((key) => dashboardSections[key] === title);
+	if (!key) return;
+	clearTimeout(timers.get(key));
+	sections[key].status = "error";
+	sections[key].hasResult = !withoutResult.value;
+	announcement.value = `${title}更新失败`;
+}
+watch(failedSection, (title) => failSelectedSection(title));
+watch(state, (value) => {
+	if (value === "ready" || value === "empty") {
+		for (const key of keys) {
+			if (sections[key].status === "error" || sections[key].status === "retrying") continue;
+			sections[key].status = "ready";
+			sections[key].hasResult = true;
+		}
+	}
+	if (value === "loading" || value === "refreshing")
+		for (const key of keys) {
+			sections[key].status = "loading";
+			if (value === "loading") sections[key].hasResult = false;
+		}
+});
 function refresh() {
 	state.value = "refreshing";
-	clearTimeout(refreshTimer);
-	refreshTimer = setTimeout(() => {
-		data.value = dashboardData(reviewSession);
-		state.value = "ready";
-	}, 500);
+	for (const key of keys) updateSection(key);
 }
 watch(() => [filters.value.warehouses, filters.value.categories], refresh, { deep: true });
 watch(
 	() => filters.value.period,
 	() => {
-		const latest = dashboardData(reviewSession);
-		data.value = { ...data.value, movements: latest.movements, summaries: latest.summaries };
+		if (sections.movement.status !== "error") updateSection("movement");
 	},
 	{ deep: true },
 );
@@ -109,15 +186,17 @@ const distribution = computed(() => {
 		return categories.value
 			.filter(
 				(category) =>
-					!data.value.scope.categories.length ||
-					data.value.scope.categories.includes(category.name),
+					!sections.distribution.result.scope.categories.length ||
+					sections.distribution.result.scope.categories.includes(category.name),
 			)
 			.map((row) => ({
 				name: row.name,
 				label: row.label,
-				count: data.value.stock.filter((item) => item.category === row.name).length,
+				count: sections.distribution.result.stock.filter(
+					(item) => item.category === row.name,
+				).length,
 			}));
-	const selected = data.value.scope.warehouses;
+	const selected = sections.distribution.result.scope.warehouses;
 	const nodes = reviewSession.warehouses.filter((row) =>
 		selected.length
 			? selected.some((name) => row.parent === name || (row.name === name && !row.is_group))
@@ -126,7 +205,7 @@ const distribution = computed(() => {
 	return nodes.map((row) => ({
 		name: row.name,
 		label: row.label,
-		count: data.value.stock.filter((item) =>
+		count: sections.distribution.result.stock.filter((item) =>
 			item.locations.some((location) =>
 				matchesWarehouse(location.location, [row.name], reviewSession),
 			),
@@ -134,13 +213,30 @@ const distribution = computed(() => {
 	}));
 });
 const maximum = computed(() => Math.max(1, ...distribution.value.map((row) => row.count)));
-const stale = computed(() => state.value === "loading" || state.value === "refreshing");
+const stale = computed(
+	() =>
+		(state.value === "loading" || state.value === "refreshing") &&
+		keys.some((key) => ["loading", "retrying"].includes(sections[key].status)),
+);
 function drill(
 	page: PreviewPage,
 	variant: string,
 	options: { kind?: string; bucket?: string; warehouse?: string; category?: string } = {},
+	sourceSection?: DashboardSectionKey,
 ) {
-	if (stale.value) return;
+	const section =
+		page === "expiry"
+			? "expiry"
+			: page === "pending"
+				? "reminders"
+				: page.startsWith("movement")
+					? "movement"
+					: page.startsWith("loan")
+						? "loans"
+						: options.warehouse || options.category
+							? "distribution"
+							: "inventory";
+	if (blocked(sourceSection || section)) return;
 	const scope = dashboardScope(reviewSession);
 	if (options.warehouse) scope.warehouses = [options.warehouse];
 	if (options.category) scope.categories = [options.category];
@@ -213,25 +309,31 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 					:options="categories"
 					title="物品类别"
 					placeholder="搜索类别"
-				/><PreviewUiButton
+				/>
+			</div>
+			<div class="preview-dashboard-scope-actions">
+				<PreviewUiButton
+					:disabled="!filters.warehouses.length && !filters.categories.length"
 					@click="
 						filters.warehouses = [];
 						filters.categories = [];
 					"
 					>清空范围</PreviewUiButton
+				><PreviewUiButton v-if="isMobile" @click="showFilters = false"
+					>完成</PreviewUiButton
 				>
 			</div>
 		</component>
 		<details class="preview-state-controls">
 			<summary>预览状态</summary>
-			<label
+			<label class="preview-field"
 				>数据状态<select v-model="state">
 					<option value="ready">正常</option>
 					<option value="loading">首次加载</option>
 					<option value="empty">空数据</option>
 					<option value="refreshing">保留内容刷新</option>
 				</select></label
-			><label
+			><label class="preview-field"
 				>单卡失败<select v-model="failedSection">
 					<option value="">无</option>
 					<option
@@ -248,59 +350,75 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 						{{ key }}
 					</option>
 				</select></label
-			><PreviewUiButton
-				@click="
-					state = 'ready';
-					failedSection = '';
-				"
-				>恢复</PreviewUiButton
-			>
+			><label class="preview-choice-label"
+				><input type="checkbox" v-model="withoutResult" />失败时无上次结果</label
+			><PreviewUiButton :disabled="!failedSection" @click="failSelectedSection()"
+				>模拟失败</PreviewUiButton
+			><PreviewUiButton @click="recover">恢复</PreviewUiButton>
 		</details>
+		<p class="sr-only" aria-live="polite">{{ announcement }}</p>
 		<p v-if="stale" role="status">
 			{{ state === "loading" ? "正在加载物资总览…" : "正在更新当前范围，已保留上次内容…" }}
 		</p>
-		<div v-if="state === 'loading'" class="browse-skeleton" aria-hidden="true">　</div>
 		<div
-			v-else
-			class="preview-dashboard-grid"
-			:class="{ 'is-refreshing': stale }"
-			:aria-busy="stale"
+			v-if="state === 'loading' && keys.every((key) => sections[key].status === 'loading')"
+			class="browse-skeleton"
+			aria-hidden="true"
 		>
+			　
+		</div>
+		<div v-else class="preview-dashboard-grid" :aria-busy="stale">
 			<div class="preview-dashboard-column">
-				<article class="browse-card dashboard-inventory" data-section="inventory">
-					<div class="browse-card-heading">
-						<h2>库存概览</h2>
-						<button
-							class="browse-link"
-							:disabled="stale || failedSection === '库存概览'"
-							@click="drill('inventory', 'list')"
-						>
-							查看库存
-						</button>
-					</div>
+				<PreviewDashboardSection
+					:section="sections.inventory"
+					title="库存概览"
+					@retry="updateSection('inventory', true)"
+					class="browse-card dashboard-inventory"
+					data-section="inventory"
+				>
+					<template #heading
+						><div class="browse-card-heading">
+							<h2>库存概览</h2>
+							<button
+								class="browse-link"
+								:disabled="blocked('inventory')"
+								@click="drill('inventory', 'list')"
+							>
+								查看库存
+							</button>
+						</div></template
+					>
 					<PreviewQuantitySummary :metrics="metrics" />
-					<p v-if="failedSection === '库存概览'" role="alert">
-						库存概览更新失败，保留上次结果。<button @click="failedSection = ''">
-							重试库存概览
-						</button>
-					</p>
-				</article>
-				<article class="browse-card dashboard-distribution" data-section="distribution">
-					<h2>库存分布</h2>
-					<div class="browse-tabs">
-						<button
-							:aria-pressed="filters.distribution === 'warehouse'"
-							@click="filters.distribution = 'warehouse'"
-						>
-							按仓库</button
-						><button
-							:aria-pressed="filters.distribution === 'category'"
-							@click="filters.distribution = 'category'"
-						>
-							按类别
-						</button>
-					</div>
-					<strong>物品种数 · {{ state === "empty" ? 0 : data.stock.length }} 种</strong>
+				</PreviewDashboardSection>
+				<PreviewDashboardSection
+					:section="sections.distribution"
+					title="库存分布"
+					@retry="updateSection('distribution', true)"
+					class="browse-card dashboard-distribution"
+					data-section="distribution"
+				>
+					<template #heading><h2>库存分布</h2></template
+					><template #controls
+						><div class="browse-tabs">
+							<button
+								:aria-pressed="filters.distribution === 'warehouse'"
+								@click="filters.distribution = 'warehouse'"
+							>
+								按仓库</button
+							><button
+								:aria-pressed="filters.distribution === 'category'"
+								@click="filters.distribution = 'category'"
+							>
+								按类别
+							</button>
+						</div></template
+					>
+
+					<strong
+						>物品种数 ·
+						{{ state === "empty" ? 0 : sections.distribution.result.stock.length }}
+						种</strong
+					>
 					<p class="browse-note">
 						按物品代码去重；同一物品可出现在多个仓库，分组数量不能相加为总数。
 					</p>
@@ -312,7 +430,7 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 							v-for="bar in distribution"
 							:key="bar.name"
 							class="preview-bar"
-							:disabled="stale || failedSection === '库存分布'"
+							:disabled="blocked('distribution')"
 							@click="
 								drill(
 									'inventory',
@@ -331,52 +449,59 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 						</button>
 					</div>
 					<p v-else>当前范围没有库存分布。</p>
-					<p v-if="failedSection === '库存分布'" role="alert">
-						库存分布更新失败。<button @click="failedSection = ''">重试库存分布</button>
-					</p>
-				</article>
-				<article class="browse-card dashboard-expiry" data-section="expiry">
-					<div class="browse-card-heading">
-						<h2>效期概览</h2>
-						<button
-							class="browse-link"
-							:disabled="stale || failedSection === '效期概览'"
-							@click="drill('expiry', 'all')"
-						>
-							查看全部批次
-						</button>
-					</div>
+				</PreviewDashboardSection>
+				<PreviewDashboardSection
+					:section="sections.expiry"
+					title="效期概览"
+					@retry="updateSection('expiry', true)"
+					class="browse-card dashboard-expiry"
+					data-section="expiry"
+				>
+					<template #heading
+						><div class="browse-card-heading">
+							<h2>效期概览</h2>
+							<button
+								class="browse-link"
+								:disabled="blocked('expiry')"
+								@click="drill('expiry', 'all')"
+							>
+								查看全部批次
+							</button>
+						</div></template
+					><template #controls
+						><div class="browse-tabs">
+							<button
+								:aria-pressed="filters.expiry === 'expired'"
+								@click="filters.expiry = 'expired'"
+							>
+								已过期</button
+							><button
+								:aria-pressed="filters.expiry === 'upcoming'"
+								@click="filters.expiry = 'upcoming'"
+							>
+								未过期
+							</button>
+						</div></template
+					>
 					<div class="preview-expiry-grid">
 						<button
 							v-for="bucket in data.buckets"
 							:key="bucket.key"
 							:class="{ 'is-expired': bucket.key.startsWith('expired') }"
-							:disabled="stale || failedSection === '效期概览'"
+							:disabled="blocked('expiry')"
 							@click="drill('expiry', 'all', { bucket: bucket.key })"
 						>
 							<span>{{ bucket.label }}</span
 							><strong>{{ state === "empty" ? 0 : bucket.count }} 个批次</strong>
 						</button>
 					</div>
-					<div class="browse-tabs">
-						<button
-							:aria-pressed="filters.expiry === 'expired'"
-							@click="filters.expiry = 'expired'"
-						>
-							已过期</button
-						><button
-							:aria-pressed="filters.expiry === 'upcoming'"
-							@click="filters.expiry = 'upcoming'"
-						>
-							未过期
-						</button>
-					</div>
+
 					<div v-if="state !== 'empty'" class="browse-rank-list">
 						<button
 							v-for="row in expiryPreview"
 							:key="row.item.code + row.id"
 							class="browse-rank-row"
-							:disabled="stale || failedSection === '效期概览'"
+							:disabled="blocked('expiry')"
 							@click="
 								drill(
 									'expiry',
@@ -395,31 +520,37 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 					<p v-if="state === 'empty' || !expiryPreview.length">
 						当前范围没有需要关注的批次。
 					</p>
-					<p v-if="failedSection === '效期概览'" role="alert">
-						效期更新失败。<button @click="failedSection = ''">重试效期概览</button>
-					</p>
-				</article>
+				</PreviewDashboardSection>
 			</div>
 			<div class="preview-dashboard-column">
-				<article class="browse-card dashboard-movement" data-section="movement">
-					<div class="browse-card-heading">
-						<h2>货物流动</h2>
-						<button
-							class="browse-link"
-							:disabled="stale || failedSection === '货物流动'"
-							@click="drill('movement-records', 'completed')"
+				<PreviewDashboardSection
+					:section="sections.movement"
+					title="货物流动"
+					@retry="updateSection('movement', true)"
+					class="browse-card dashboard-movement"
+					data-section="movement"
+				>
+					<template #heading
+						><div class="browse-card-heading">
+							<h2>货物流动</h2>
+							<button
+								class="browse-link"
+								:disabled="blocked('movement')"
+								@click="drill('movement-records', 'completed')"
+							>
+								查看记录
+							</button>
+						</div></template
+					><template #controls
+						><PreviewPeriodFilter v-model="filters.period" label="流动日期" /><small
+							>日期仅影响本卡片</small
 						>
-							查看记录
-						</button>
-					</div>
-					<PreviewPeriodFilter v-model="filters.period" label="流动日期" /><small
-						>日期仅影响本卡片</small
-					>
+					</template>
 					<div class="preview-movement-summary">
 						<button
 							v-for="summary in data.summaries"
 							:key="summary.kind"
-							:disabled="stale || failedSection === '货物流动'"
+							:disabled="blocked('movement')"
 							@click="drill('movement-records', 'completed', { kind: summary.kind })"
 						>
 							<span>{{ summary.label }}</span
@@ -435,7 +566,7 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 							v-for="(row, index) in recentRecords"
 							:key="row.name + index"
 							class="browse-rank-row"
-							:disabled="stale || failedSection === '货物流动'"
+							:disabled="blocked('movement')"
 							@click="emit('movement', row.name)"
 						>
 							<span
@@ -445,21 +576,26 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 						</button>
 					</div>
 					<p v-if="state === 'empty' || !data.movements.length">期间没有流动记录。</p>
-					<p v-if="failedSection === '货物流动'" role="alert">
-						货物流动更新失败。<button @click="failedSection = ''">重试货物流动</button>
-					</p>
-				</article>
-				<article class="browse-card dashboard-loans" data-section="loans">
-					<div class="browse-card-heading">
-						<h2>借出中</h2>
-						<button
-							class="browse-link"
-							:disabled="stale || failedSection === '借出中'"
-							@click="drill('loan-records', 'open')"
-						>
-							查看借用
-						</button>
-					</div>
+				</PreviewDashboardSection>
+				<PreviewDashboardSection
+					:section="sections.loans"
+					title="借出中"
+					@retry="updateSection('loans', true)"
+					class="browse-card dashboard-loans"
+					data-section="loans"
+				>
+					<template #heading
+						><div class="browse-card-heading">
+							<h2>借出中</h2>
+							<button
+								class="browse-link"
+								:disabled="blocked('loans')"
+								@click="drill('loan-records', 'open')"
+							>
+								查看借用
+							</button>
+						</div></template
+					>
 					<p>
 						未归还记录数
 						<strong>{{ state === "empty" ? 0 : data.loans.length }} 笔</strong>
@@ -475,17 +611,11 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 							v-for="loan in data.loans.slice(0, 5)"
 							:key="loan.name"
 							class="browse-rank-row"
-							:disabled="stale || failedSection === '借出中'"
+							:disabled="blocked('loans')"
 							@click="emit('loan', loan.name)"
 						>
 							<span
-								>{{ loan.borrower }} ·
-								{{
-									loanStatus(
-										reviewSession.loans.find(
-											(row) => row.name === loan.name,
-										) || loan,
-									)
+								>{{ loan.borrower }} · {{ loan.statusLabel
 								}}<small>{{ loan.activity }} · {{ loan.loanDate }}</small
 								><small
 									v-for="(line, index) in loan.lines"
@@ -500,39 +630,47 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 						</button>
 					</div>
 					<p v-if="state === 'empty' || !data.loans.length">当前没有未归还借用。</p>
-					<p v-if="failedSection === '借出中'" role="alert">
-						借用更新失败。<button @click="failedSection = ''">重试借出中</button>
-					</p>
-				</article>
-				<article class="browse-card dashboard-reminders" data-section="reminders">
-					<h2>提醒事项</h2>
+				</PreviewDashboardSection>
+				<PreviewDashboardSection
+					:section="sections.reminders"
+					title="提醒事项"
+					@retry="updateSection('reminders', true)"
+					class="browse-card dashboard-reminders"
+					data-section="reminders"
+				>
+					<template #heading><h2>提醒事项</h2></template>
 					<template v-if="state !== 'empty'"
 						><button
-							v-if="data.buckets.slice(0, 3).some((row) => row.count)"
+							v-if="
+								sections.reminders.result.buckets
+									.slice(0, 3)
+									.some((row) => row.count)
+							"
 							class="browse-rank-row"
-							:disabled="stale || failedSection === '提醒事项'"
-							@click="drill('expiry', 'expired')"
+							:disabled="blocked('reminders')"
+							@click="drill('expiry', 'expired', {}, 'reminders')"
 						>
 							已过期批次
 							<b
 								>{{
-									data.buckets
+									sections.reminders.result.buckets
 										.slice(0, 3)
 										.reduce((sum, row) => sum + row.count, 0)
 								}}
 								个</b
 							></button
 						><button
-							v-if="data.buckets[3].count"
+							v-if="sections.reminders.result.buckets[3].count"
 							class="browse-rank-row"
-							:disabled="stale || failedSection === '提醒事项'"
-							@click="drill('expiry', 'soon')"
+							:disabled="blocked('reminders')"
+							@click="drill('expiry', 'soon', {}, 'reminders')"
 						>
-							30 天内到期 <b>{{ data.buckets[3].count }} 个批次</b></button
+							30 天内到期
+							<b>{{ sections.reminders.result.buckets[3].count }} 个批次</b></button
 						><button
 							v-if="data.damaged"
 							class="browse-rank-row"
-							:disabled="stale || failedSection === '提醒事项'"
+							:disabled="blocked('reminders')"
 							@click="drill('pending', 'actionable')"
 						>
 							损坏库存 <b>{{ data.damaged }} 种物品</b>
@@ -541,15 +679,15 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 					<p
 						v-if="
 							state === 'empty' ||
-							(!data.damaged && !data.buckets.slice(0, 4).some((row) => row.count))
+							(!data.damaged &&
+								!sections.reminders.result.buckets
+									.slice(0, 4)
+									.some((row) => row.count))
 						"
 					>
 						暂无需要处理的提醒。
 					</p>
-					<p v-if="failedSection === '提醒事项'" role="alert">
-						提醒更新失败。<button @click="failedSection = ''">重试提醒事项</button>
-					</p>
-				</article>
+				</PreviewDashboardSection>
 			</div>
 		</div>
 		<PreviewReturnToTop :active="props.active" :hidden="isMobile && showFilters" />

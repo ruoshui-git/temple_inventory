@@ -5,7 +5,7 @@ import { computed, reactive, ref, watch, onActivated, onDeactivated } from "vue"
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
-import { previewDate } from "./model";
+import { previewDate, textScales, type TextScale } from "./model";
 import { previewPages, reviewSession, reviewMovementRows } from "./reviewModel";
 
 import { matchesExpiry, groupMovements, quantityText } from "./browseModel";
@@ -16,6 +16,7 @@ const props = withDefaults(
 		page: string;
 		variant: string;
 		active?: boolean;
+		textScale?: TextScale;
 		density?: "compact" | "balanced" | "spacious";
 	}>(),
 	{
@@ -25,6 +26,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	navigate: [page: string, variant: string];
 	notify: [message: string];
+	"update-text-scale": [scale: TextScale];
 	"update-density": [density: "compact" | "balanced" | "spacious"];
 }>();
 type ReportType = "movement" | "movement_records" | "current_stock" | "warehouse_stock" | "expiry";
@@ -383,7 +385,7 @@ function retryPreference() {
 					>
 				</div>
 				<div class="report-filters">
-					<label
+					<label class="preview-field"
 						>搜索<input
 							v-model="state.search"
 							type="search"
@@ -405,7 +407,7 @@ function retryPreference() {
 						"
 					/>
 					<template v-if="state.type === 'movement' || state.type === 'movement_records'"
-						><label
+						><label class="preview-field"
 							>操作类型<select v-model="state.movementKind">
 								<option value="">全部操作</option>
 								<option
@@ -426,20 +428,21 @@ function retryPreference() {
 									{{ movementLabels[kind] }}
 								</option>
 							</select></label
-						><label
+						><label class="preview-field"
 							>日期范围<select v-model="state.period">
 								<option value="this_month">本月</option>
 								<option value="custom">自选日期</option>
 							</select></label
 						><template v-if="state.period === 'custom'"
-							><label>开始日期<input v-model="state.dateFrom" type="date" /></label
-							><label
+							><label class="preview-field"
+								>开始日期<input v-model="state.dateFrom" type="date" /></label
+							><label class="preview-field"
 								>结束日期<input
 									v-model="state.dateTo"
 									type="date" /></label></template
 					></template>
 					<template v-if="state.type === 'expiry'"
-						><label
+						><label class="preview-field"
 							>效期范围<select v-model="state.expiryMode">
 								<option value="all">全部</option>
 								<option value="unexpired">未过期</option>
@@ -448,19 +451,22 @@ function retryPreference() {
 								<option value="expired">已过期</option>
 								<option value="exact">指定日期范围</option>
 							</select></label
-						><label v-if="state.expiryMode === 'soon'"
+						><label class="preview-field" v-if="state.expiryMode === 'soon'"
 							>未来天数<input
 								v-model="state.expiryDays"
 								type="number"
 								min="1" /></label
 						><template v-if="state.expiryMode === 'exact'"
-							><label>到期日从<input v-model="state.expiryFrom" type="date" /></label
-							><label
+							><label class="preview-field"
+								>到期日从<input v-model="state.expiryFrom" type="date" /></label
+							><label class="preview-field"
 								>到期日到<input
 									v-model="state.expiryTo"
 									type="date" /></label></template
 					></template>
-					<label v-if="state.type === 'expiry'" class="preview-check"
+					<label
+						v-if="state.type === 'expiry'"
+						class="preview-choice-label preview-check"
 						><input v-model="state.inStock" type="checkbox" />仅有库存批次</label
 					>
 					<p v-if="state.type === 'warehouse_stock'" class="filter-note">
@@ -568,13 +574,13 @@ function retryPreference() {
 				title="确认导出范围"
 				@close="state.exportOpen = false"
 				><p>{{ selectedReport.title }} · 依据当前全部筛选条件</p>
-				<label
+				<label class="preview-field"
 					>文件格式<select v-model="state.exportFormat">
 						<option>CSV</option>
 						<option>XLSX</option>
 					</select></label
 				>
-				<label v-if="state.type !== 'expiry'"
+				<label class="preview-field" v-if="state.type !== 'expiry'"
 					>导出内容<select v-model="state.exportDataset">
 						<option value="summary">
 							{{ state.type === "movement_records" ? "操作记录" : "物品汇总" }}
@@ -653,7 +659,7 @@ function retryPreference() {
 				<p>
 					手机浏览器：打开分享或浏览器菜单，选择「添加到主屏幕」。电脑浏览器：使用地址栏或菜单中的「安装应用」。
 				</p>
-				<label
+				<label class="preview-field"
 					>设备<select v-model="installPlatform">
 						<option value="ios">iPhone / iPad Safari</option>
 						<option value="chromium">Chrome / Edge</option>
@@ -697,6 +703,25 @@ function retryPreference() {
 		</template>
 		<template v-else-if="page === 'settings'"
 			><section class="surface utility-panel">
+				<h2>文字大小</h2>
+				<label class="preview-field"
+					>文字大小<select
+						aria-label="文字大小"
+						:value="textScale || 100"
+						@change="
+							emit(
+								'update-text-scale',
+								Number(($event.target as HTMLSelectElement).value) as TextScale,
+							)
+						"
+					>
+						<option v-for="scale in textScales" :key="scale" :value="scale">
+							{{ scale }}%
+						</option>
+					</select></label
+				>
+				<p>文字示例：核对物品、数量和库位后确认。</p>
+				<PreviewUiButton @click="emit('update-text-scale', 100)">恢复默认</PreviewUiButton>
 				<h2>显示密度</h2>
 				<p v-if="preferenceError" role="alert">
 					偏好保存失败，当前显示保留；确认的偏好仍为
@@ -709,11 +734,14 @@ function retryPreference() {
 				</p>
 				<details>
 					<summary>预览偏好状态</summary>
-					<label><input v-model="failPreference" type="checkbox" />下次保存失败</label>
+					<label class="preview-choice-label"
+						><input v-model="failPreference" type="checkbox" />下次保存失败</label
+					>
 				</details>
 				<p class="muted">此处只改变预览显示，不会保存到账户。</p>
 				<div class="density-choice">
 					<label
+						class="preview-choice-label"
 						v-for="option in [
 							{ value: 'compact', label: '紧凑' },
 							{ value: 'balanced', label: '均衡' },

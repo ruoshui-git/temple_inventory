@@ -47,8 +47,11 @@ export const themes = [
 ] as const;
 export type ThemeId = (typeof themes)[number]["id"];
 export type Density = "compact" | "balanced" | "spacious";
+export const textScales = [100, 125, 150, 175, 200] as const;
+export type TextScale = (typeof textScales)[number];
 export type Pattern = "current" | "proposed";
 export type PreviewPreferences = {
+  textScale: TextScale;
   theme: ThemeId;
   density: Density;
   navigation: Pattern;
@@ -57,6 +60,7 @@ export type PreviewPreferences = {
 };
 export const preferenceKey = "ti:design-preview:v3";
 export const defaults: PreviewPreferences = {
+  textScale: 100,
   theme: "jade",
   density: "balanced",
   navigation: "current",
@@ -75,6 +79,9 @@ export function readPreferences(
       : undefined;
     const value = JSON.parse(saved || legacy || "{}");
     return {
+      textScale: textScales.includes(value?.textScale)
+        ? value.textScale
+        : defaults.textScale,
       theme:
         saved && themes.some((theme) => theme.id === value?.theme)
           ? value.theme

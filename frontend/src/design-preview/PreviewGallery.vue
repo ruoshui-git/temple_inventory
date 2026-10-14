@@ -138,8 +138,8 @@ const swatches = computed(() => [
 				</div>
 				<form @submit.prevent="validation = true">
 					<div class="form-grid">
-						<label class="field"
-							>物品名称 <span aria-hidden="true">*</span
+						<label class="preview-field field"
+							><span>物品名称 <span aria-hidden="true">*</span></span
 							><input
 								v-model="input"
 								placeholder="例如：东北珍珠米"
@@ -158,9 +158,11 @@ const swatches = computed(() => [
 							><small v-else id="gallery-name-hint" class="muted"
 								>使用便于辨认的名称。</small
 							></label
-						><label class="field">数量<input type="number" value="12" min="1" /></label
-						><label class="field">日期<input type="date" value="2026-10-11" /></label
-						><label class="field"
+						><label class="preview-field field"
+							>数量<input type="number" value="12" min="1" /></label
+						><label class="preview-field field"
+							>日期<input type="date" value="2026-10-11" /></label
+						><label class="preview-field field"
 							>类别<select>
 								<option>食品</option>
 								<option>服装</option>
@@ -170,12 +172,13 @@ const swatches = computed(() => [
 					</div>
 					<fieldset class="inline-options">
 						<legend>库存范围</legend>
-						<label><input v-model="radio" type="radio" value="all" />全部</label
-						><label
+						<label class="preview-choice-label"
+							><input v-model="radio" type="radio" value="all" />全部</label
+						><label class="preview-choice-label"
 							><input v-model="radio" type="radio" value="stock" />仅有库存</label
 						>
 					</fieldset>
-					<label class="check-label"
+					<label class="preview-choice-label check-label"
 						><input v-model="checkbox" type="checkbox" />启用批次管理</label
 					><UiButton type="submit">检查输入</UiButton>
 				</form>
@@ -251,7 +254,7 @@ const swatches = computed(() => [
 					<h2>状态与恢复</h2>
 					<span class="eyebrow">06 / FEEDBACK</span>
 				</div>
-				<label class="field"
+				<label class="preview-field field"
 					>查看状态<select v-model="feedback">
 						<option value="error">失败与重试</option>
 						<option value="loading">首次加载</option>
@@ -362,7 +365,7 @@ const swatches = computed(() => [
 			:drawer="overlay === 'drawer'"
 			@close="overlay = ''"
 			><p>这是交互样本，不删除或修改任何真实数据。</p>
-			<label class="field"
+			<label class="preview-field field"
 				>备注<textarea rows="3" placeholder="输入内容，体验键盘操作" />
 			</label>
 			<p class="muted">支持 Escape、背景点击关闭与 Tab 焦点约束。</p>

@@ -86,7 +86,7 @@ props.draft.countMode ||= "selective";
 				>保留当前盘点</PreviewUiButton
 			><PreviewUiButton @click="applyLocation(pendingLocation)">更换并清除</PreviewUiButton>
 		</div>
-		<label
+		<label class="preview-field"
 			>盘点方式<select
 				:value="draft.countMode"
 				:disabled="disabled"
@@ -122,7 +122,7 @@ props.draft.countMode ||= "selective";
 				>刷新账面基准</PreviewUiButton
 			>
 		</div>
-		<label v-if="draft.baselineReviewed === false && !disabled"
+		<label class="preview-choice-label" v-if="draft.baselineReviewed === false && !disabled"
 			><input
 				type="checkbox"
 				:checked="draft.baselineReviewed"
@@ -135,7 +135,7 @@ props.draft.countMode ||= "selective";
 				<small>{{ line.batch || "无批次" }}</small></strong
 			>
 			<span>账面 {{ line.qty }} {{ line.uom }}</span
-			><label
+			><label class="preview-field"
 				>实点<input
 					type="number"
 					min="0"
@@ -167,7 +167,9 @@ props.draft.countMode ||= "selective";
 				"
 				>未找到</PreviewUiButton
 			>
-			<label v-if="line.countedQty !== undefined && line.countedQty !== line.qty"
+			<label
+				class="preview-field"
+				v-if="line.countedQty !== undefined && line.countedQty !== line.qty"
 				>差异原因<input v-model="line.reason" :disabled="disabled"
 			/></label>
 		</article>

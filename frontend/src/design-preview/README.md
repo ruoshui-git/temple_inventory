@@ -289,7 +289,7 @@ review remains pending.
 
 ## Browser-audit repairs (2026-10-13)
 
-The eight findings in the [task](../../../notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_TASK.md)
+The eight findings in the [task](../../../notes/done/20261013_DESIGN_PREVIEW_AUDIT_FIXES_TASK.md)
 are repaired using preview-local code and styles. Reports constrain their 650px
 sample tables to an internal scrollport. Count review/confirmation separates
 baseline, reviewed actual and adjustment quantities, with unreviewed rows excluded.
@@ -300,7 +300,99 @@ reflow follow the established convention. Dashboard and Inventory share the
 return-to-top helper.
 
 Run `tests/design-preview-audit-fixes.test.ts` with the relevant preview suites.
-The [progress note](../../../notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md)
+The [progress note](../../../notes/done/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md)
 records actual Playwright checks, viewed screenshots and limitations. This audit
 repairs existing preview behavior without approving production migration or
 historical visual fidelity.
+
+
+## Usability review — 2026-10-13
+
+Use the review index's **50种物品入库 · 完整 / 待完善** entries:
+
+- [Valid 50-item receipt](http://localhost:5174/design-preview.html#review/movement-form%2FReceive-50)
+- [Invalid 50-item receipt](http://localhost:5174/design-preview.html#review/movement-form%2FReceive-50-invalid)
+- [Canonical shared receiving example](http://localhost:5174/design-preview.html#review/local/receive)
+- [Dashboard](http://localhost:5174/design-preview.html#review/dashboard%2Foverview)
+- [Display settings](http://localhost:5174/design-preview.html#review/settings%2Fdensity)
+
+The deterministic samples have 50 distinct items, 55 allocations including five
+extra batches, three locations, mixed units and tracking, and long identities.
+The invalid sample starts with issues on allocations 1, 28 and 55. They install
+separate sample records only when explicitly opened; ordinary drafts and opening
+the gallery stay unchanged. Refresh resets simulated catalog/document changes.
+
+`PreviewOperationLines` is the working shared editor. Its search/incomplete-only
+filters change visibility; all allocations remain mounted and totals/save/confirm
+use the complete draft. Error navigation reveals the row and focuses the field.
+Adding uses pending checkbox selection and **添加所选（N）**. Selection survives
+picker filters; cancellation discards pending additions; replacement stays single.
+Receive creation uses the same overlay as an adaptive desktop dialog/mobile panel,
+superseding the earlier creation drawer example. **创建并选中** returns to pending
+selection; scanning and replacement create/use immediately. Category/unit creation
+is inline, and catalog records survive receipt cancellation.
+
+**文字大小** in both review controls and Display Settings offers
+100/125/150/175/200%, a sample sentence and reset. It persists locally in
+`ti:design-preview:v3` and leaves density selected. Legacy preferences default to
+100%. Every preview surface shares typography tokens, including teleports.
+
+Dashboard **预览状态** can fail multiple sections successively. Select a card,
+choose whether it has a prior result, and use **模拟失败** to repeat a scenario.
+Each card retains or omits its own result, disables stale drill-through and retries
+independently; local controls remain available.
+
+From `frontend/`, run the focused regression command:
+
+```sh
+pnpm exec vitest run tests/design-preview-usability.test.ts tests/design-preview-refinement.test.ts tests/design-preview-completion.test.ts tests/design-preview-forms.test.ts tests/design-preview-erpnext.test.ts tests/design-preview-navigation.test.ts tests/design-preview-review.test.ts tests/design-preview-audit-fixes.test.ts tests/design-preview.test.ts tests/design-preview-pages.test.ts tests/design-preview-browse.test.ts --maxWorkers=2
+pnpm type-check
+pnpm design:build
+```
+
+The isolated build writes to `/tmp/temple-inventory-design-preview`. Inspect port
+5174 before starting `pnpm design:dev`; reuse its existing isolated listener when
+available. This implementation reused that listener and checked the preview entry
+with HTTP. No browser automation or manual visual review was performed.
+
+Manual review remains required at 375/390/768/1024/1440px, all densities, and
+100/150/200% text, including short viewports. Exercise dashboard hover/focus,
+scope/fail/retry, multi-add/cancel/replace/create/return, long identity/image/batch
+wrapping, early/middle/last fixture edits, complete totals and hidden-error focus,
+tracked/conversion/settlement constraints, Tab/Shift+Tab containment/restoration,
+resizing during edits, text changes while focused, teleported menus/toasts,
+fixed summaries/navigation, reduced motion and separate native browser zoom.
+The [handoff](../../../notes/20261013_DESIGN_PREVIEW_USABILITY_HANDOFF.md) records
+actual automated results and the detailed outstanding manual checklist.
+Production migration remains pending.
+
+
+The independent usability review also repairs healthy-card navigation during another card failure, retained loan status, no-prior refresh, aggregate scanner checks, line-error navigation alongside document errors, and hidden-surface/discard keyboard handling. Narrow editor containers and floating controls adapt to available width and measured navigation height. See the handoff independent-review section for verification; visual/native-zoom review remains outstanding.
+
+### Usability follow-up repairs — 2026-10-13
+
+The working shared editor now puts readable item identity above full-width
+allocation fields. Totals/replacement controls wrap independently; batch and
+allocation actions occupy explicit regions without phantom columns. Review
+summaries show complete counts and quantities per unit, with details in a native
+accessible disclosure and all allocations present at final confirmation. Opening
+the large review samples does not replace the ordinary receiving draft.
+
+Preview fields share explicit stacked, inline-toolbar and choice patterns.
+Contextual creation keeps the existing picker drawer → centered desktop dialog /
+full-screen mobile panel transition, caps its body at two columns, and places
+expanded category/unit editors in a full-width section inside the same form.
+
+Add `tests/design-preview-usability-followup.test.ts` to the focused regression
+command above. Exact measured results and remaining manual review are recorded
+in the [follow-up progress note](../../../notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
+Keep using the valid/invalid 50-item links above. These repairs are preview-only;
+production migration remains pending.
+
+Independent follow-up review (2026-10-14) repaired supporting-record-only discard
+protection and focus restoration, canonical receipt confirmation details, and
+required-label alignment. **180 tests / 12 suites**, type-check, isolated build,
+30 focused browser geometry records and four browser regression scenarios passed.
+The [review record](../../../notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md#independent-follow-up-review--2026-10-14)
+distinguishes this review from the earlier full matrix and lists remaining manual
+native-zoom/visual checks. Production remains unchanged.

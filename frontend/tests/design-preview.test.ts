@@ -340,8 +340,17 @@ describe("interactive preview", () => {
     for (const item of [items[2], items[5]]) {
       await button(wrapper, "添加物品").trigger("click");
       await nextTick();
-      Array.from(document.querySelectorAll<HTMLButtonElement>(".picker-row"))
-        .find((row) => row.textContent?.includes(item.name))!
+      const row = Array.from(
+        document.querySelectorAll<HTMLElement>(".picker-row"),
+      ).find((row) => row.textContent?.includes(item.name))!;
+      const checkbox = row.querySelector<HTMLInputElement>(
+        'input[type="checkbox"]',
+      )!;
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+      await nextTick();
+      Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "添加所选（1）")!
         .click();
       await nextTick();
     }

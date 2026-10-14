@@ -18,7 +18,7 @@ function apply() {
 <template>
 	<section class="form-section">
 		<h2>配置与恢复</h2>
-		<label
+		<label class="preview-field"
 			>预览状态<select
 				v-model="state"
 				@change="
@@ -84,7 +84,8 @@ function apply() {
 			>
 			<div v-if="review">
 				<p>失效根引用 → {{ candidate }}。仅修改配置指针，不移动库存，不修改树结构。</p>
-				<label><input type="checkbox" v-model="confirmed" />确认使用此实体根节点</label
+				<label class="preview-choice-label"
+					><input type="checkbox" v-model="confirmed" />确认使用此实体根节点</label
 				><PreviewUiButton :disabled="!confirmed" @click="apply">应用修复</PreviewUiButton
 				><PreviewUiButton @click="review = false">取消</PreviewUiButton>
 			</div></template

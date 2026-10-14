@@ -86,7 +86,12 @@ describe("preview form refinement", () => {
     await body()
       .get('[role="dialog"] form input[type=checkbox]')
       .setValue(true);
-    await button(body(), "创建并使用").trigger("click");
+    await button(body(), "创建并选中").trigger("click");
+    expect(body().find('[role="dialog"]').exists()).toBe(true);
+    expect(receipt.lines).not.toContainEqual(
+      expect.objectContaining({ code: "ITM-TEST-NEW" }),
+    );
+    await button(body(), "添加所选（1）").trigger("click");
     expect(body().find('[role="dialog"]').exists()).toBe(false);
     expect(receipt.lines[0]).toBe(original);
     const created = receipt.lines.find((line) => line.code === "ITM-TEST-NEW")!;

@@ -303,7 +303,7 @@ watch(term, () => {
 							}}</span>
 						</button>
 						<span v-else class="tree-spacer" aria-hidden="true"></span>
-						<label>
+						<label class="preview-choice-label">
 							<input
 								:data-facet-index="index"
 								type="checkbox"

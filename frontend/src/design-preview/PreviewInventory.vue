@@ -452,7 +452,7 @@ function action(name: string) {
 					><button v-if="search" class="chip" @click="search = ''">{{ search }} ×</button
 					><UiButton variant="ghost" @click="clear">清空筛选</UiButton>
 				</div>
-				<label class="preview-check"
+				<label class="preview-choice-label preview-check"
 					><input type="checkbox" v-model="inStockOnly" />仅有库存</label
 				>
 				<div v-if="selected.length" class="selection-bar" role="status">
@@ -669,7 +669,7 @@ function action(name: string) {
 			</div>
 			<details class="form-section">
 				<summary>分析当前结果</summary>
-				<label
+				<label class="preview-field"
 					>分组<select v-model="analysisDimension">
 						<option value="category">类别 / 单位</option>
 						<option value="location">位置 / 单位</option>
@@ -751,13 +751,13 @@ function action(name: string) {
 				<dt>类别</dt>
 				<dd>{{ category || "全部" }}</dd>
 			</dl>
-			<label class="field"
+			<label class="preview-field field"
 				>文件格式<select v-model="exportFormat">
 					<option value="xlsx">XLSX</option>
 					<option value="csv">CSV</option>
 				</select></label
 			>
-			<label
+			<label class="preview-field"
 				>导出内容<select v-model="exportDataset">
 					<option value="summary">物品汇总</option>
 					<option value="details">逐库位明细</option>

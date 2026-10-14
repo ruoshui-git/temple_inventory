@@ -399,8 +399,10 @@ describe("complete dashboard", () => {
     await wrapper
       .get(".preview-state-controls label:nth-of-type(2) select")
       .setValue("借出中");
-    expect(wrapper.get('[role="alert"]').text()).toContain("借用更新失败");
-    await button(wrapper, "重试借出中").trigger("click");
+    expect(wrapper.get('[role="alert"]').text()).toContain("更新失败");
+    await wrapper.get('button[aria-label="重试借出中"]').trigger("click");
+    expect(wrapper.get('[role="alert"]').text()).toContain("正在重试");
+    await vi.advanceTimersByTimeAsync(500);
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   });
 });

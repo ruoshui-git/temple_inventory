@@ -88,7 +88,7 @@ files immutable through confirmation.
 | Dashboard/Inventory top | Actual scroll owner, two viewport threshold, heading focus, reduced motion, mobile drawer hiding | Existing return-to-top convention repaired; stock scope unchanged |
 
 Commands, browser measurements, screenshot evidence and remaining limitations are
-in [the audit-fix progress note](notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).
+in [the audit-fix progress note](notes/done/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).
 Browser verification establishes these repairs, not historical fidelity approval
 or backend parity. Production migration remains paused.
 
@@ -98,3 +98,46 @@ focus when Inventory tools/context actions move into or out of compact chrome.
 Regression coverage is in `design-preview-audit-fixes.test.ts`; fresh Chromium
 evidence is recorded in the linked progress note. These close accessibility and
 lifecycle gaps in the existing repairs without changing backend dependencies.
+
+
+### Preview usability implementation — 2026-10-13
+
+| Capability | Preview evidence | Disposition / remaining work |
+| --- | --- | --- |
+| Dashboard scope/refresh/recovery | `PreviewDashboardSection`, per-section snapshots/timers, compact clear/completion; `design-preview-usability.test.ts` | Six sections and stock-unit separation preserved; stale/no-prior failures and isolated recovery replace older preview feedback. Real requests remain backend-dependent. |
+| Movement allocation editing | Shared `PreviewOperationLines`, structured `operationIssues` + compatible `validateOperation`; 50-item/55-allocation valid and invalid Receive samples | Required fields, stock/settlement/batch/unit checks and explicit confirmation preserved. Search/errors are UI state; all allocations remain mounted. Reconciliation retains `PreviewCountWorkspace`. |
+| Picker/contextual catalog creation | Ordered multi-selection, group replacement, inline supporting records, one adaptive `PreviewOverlay`; scanner immediate create/use | Preview drawer creation replaced by adaptive dialog/panel; existing selection remains a drawer. Real catalog writes, permissions and uniqueness recheck remain migration work. |
+| Display settings/accessibility | Validated `textScale` in preview storage, both settings surfaces, scaled typography and measured navigation/focus | Independent text scaling added in preview only. Production/account storage unchanged; manual 100/150/200% layout and native zoom review pending. |
+
+Fixtures are discoverable in the review index at
+`#review/movement-form%2FReceive-50` and
+`#review/movement-form%2FReceive-50-invalid`. They install their own sample catalog
+and draft only when explicitly opened; opening the gallery does not modify
+ordinary drafts. The [handoff verification record](notes/20261013_DESIGN_PREVIEW_USABILITY_HANDOFF.md)
+contains commands, exact links and the outstanding manual checklist.
+Production migration remains pending and is not approved by this task.
+
+
+Independent usability review repairs originating-card navigation, retained loan status, no-prior-result refresh, full-draft scanner checks, document/line issue coexistence, and picker keyboard/discard behavior. Eleven additional cases in `design-preview-usability.test.ts` cover these behaviors; see the handoff for final results. Preview-only scope and backend dependencies remain unchanged.
+
+### Usability follow-up repairs — 2026-10-13
+
+| Capability | Follow-up preview evidence | Migration disposition |
+| --- | --- | --- |
+| Movement allocations/review | Explicit full-width identity and responsive allocation grid; compact summary/disclosure and `PreviewAllocationSummary` in final confirmation | Required fields, mounted lines, unit totals, batch/availability/settlement checks and explicit submission preserved; production adapter pending |
+| Native/searchable fields | Shared stacked/inline/choice patterns across preview consumers; action-cell alignment and scaled control sizing | Presentation repaired locally; no production fields removed |
+| Contextual creation | Two-column/one-column body, full-width category/unit creation within the same form, return/selection/input retention | Existing picker drawer and adaptive creation transition preserved; catalog API/permission validation pending |
+| Review fixture isolation | Ordinary Receive default lookup excludes explicitly opened 50-item samples | Ordinary drafts preserved; samples remain local review fixtures |
+
+`design-preview-usability-followup.test.ts` adds interaction coverage. Browser
+measurements, automated results and remaining manual/native-zoom review are in the
+[follow-up progress note](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
+These fixes do not approve production migration or establish backend parity.
+
+Independent follow-up review (2026-10-14): contextual category/unit-only edits
+participate in discard protection and return keyboard focus to their trigger.
+Canonical Receive shares complete allocation confirmation, including expiry for
+automatically generated batches and alternate-unit quantities. Eight follow-up
+regressions and focused browser checks cover the repaired preview contracts;
+production catalog writes and migration remain pending. See the
+[review record](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md#independent-follow-up-review--2026-10-14).

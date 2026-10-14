@@ -39,6 +39,26 @@ try {
 const preferences = reactive<PreviewPreferences>(readPreferences(storage));
 const theme = computed(() => themes.find((theme) => theme.id === preferences.theme)!);
 const { isMobile } = useResponsiveLayout();
+const mobileNavigation = ref<HTMLElement>();
+let navigationObserver: ResizeObserver | undefined;
+function measureNavigation() {
+	document.documentElement.style.setProperty(
+		"--preview-nav-height",
+		`${mobileNavigation.value?.getBoundingClientRect().height || 0}px`,
+	);
+}
+watch(
+	mobileNavigation,
+	() => {
+		navigationObserver?.disconnect();
+		if (typeof ResizeObserver !== "undefined" && mobileNavigation.value) {
+			navigationObserver = new ResizeObserver(measureNavigation);
+			navigationObserver.observe(mobileNavigation.value);
+		}
+		measureNavigation();
+	},
+	{ flush: "post" },
+);
 const page = ref("gallery");
 const routeKey = ref<PreviewPageKey>("dashboard/overview");
 const activeRoute = computed(() => getPreviewPage(routeKey.value)!);
@@ -303,11 +323,14 @@ function notify(message: string) {
 }
 watch(preferences, () => writePreferences(storage, preferences), { deep: true });
 watch(
-	[theme, () => preferences.density],
+	[theme, () => preferences.density, () => preferences.textScale],
 	() => {
 		const element = document.documentElement;
 		element.dataset.previewTheme = preferences.theme;
 		element.dataset.previewDensity = preferences.density;
+		element.dataset.previewTextScale = String(preferences.textScale);
+		element.style.setProperty("--p-text-scale", String(preferences.textScale / 100));
+		window.dispatchEvent(new Event("preview-text-scale"));
 		const value = theme.value;
 		const tokens: Record<string, string> = {
 			canvas: value.canvas,
@@ -329,10 +352,14 @@ watch(
 let previousScrollRestoration: ScrollRestoration;
 onBeforeUnmount(() => {
 	cancelAnimationFrame(restorationFrame);
+	navigationObserver?.disconnect();
+	document.documentElement.style.removeProperty("--preview-nav-height");
 	window.history.scrollRestoration = previousScrollRestoration;
 	window.removeEventListener("hashchange", syncLocationHash);
 	delete document.documentElement.dataset.previewTheme;
 	delete document.documentElement.dataset.previewDensity;
+	delete document.documentElement.dataset.previewTextScale;
+	document.documentElement.style.removeProperty("--p-text-scale");
 	[
 		"--p-canvas",
 		"--p-ink",
@@ -400,13 +427,27 @@ onMounted(() => {
 				</button>
 			</div>
 			<div class="review-settings">
-				<label
+				<label class="preview-field"
 					>显示密度<select v-model="preferences.density" aria-label="显示密度">
 						<option value="compact">紧凑 · 更多信息</option>
 						<option value="balanced">均衡 · 默认</option>
 						<option value="spacious">宽松 · 更大文字</option>
 					</select></label
-				><label
+				><label class="preview-field"
+					>文字大小<select v-model="preferences.textScale" aria-label="文字大小">
+						<option
+							v-for="scale in [100, 125, 150, 175, 200]"
+							:key="scale"
+							:value="scale"
+						>
+							{{ scale }}%
+						</option>
+					</select></label
+				>
+				<p>文字示例：核对物品、数量和库位后确认。</p>
+				<button class="text-button" @click="preferences.textScale = 100">
+					恢复默认文字大小</button
+				><label class="preview-field"
 					>入库表单<select v-model="preferences.form" aria-label="入库表单实验方案">
 						<option value="current">对照 · 底部提交</option>
 						<option value="proposed">实验提案 · 日期在前 + 侧栏汇总</option>
@@ -654,9 +695,11 @@ onMounted(() => {
 						v-bind="routeComponentProps"
 						:active="page === 'route'"
 						:density="preferences.density"
+						:text-scale="preferences.textScale"
 						@navigate="selectRoute"
 						@notify="notify"
 						@update-density="preferences.density = $event"
+						@update-text-scale="preferences.textScale = $event"
 					/>
 				</KeepAlive>
 				<footer class="sample-footer">
@@ -665,6 +708,7 @@ onMounted(() => {
 			</main>
 			<nav
 				v-if="isMobile"
+				ref="mobileNavigation"
 				class="sample-mobile-nav"
 				aria-label="示例应用主导航"
 				:style="{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }"

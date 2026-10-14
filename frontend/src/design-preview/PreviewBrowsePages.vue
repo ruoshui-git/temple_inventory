@@ -732,7 +732,7 @@ onActivated(() => {
 
 		<details v-if="isDetail" class="preview-detail-state-control">
 			<summary>预览状态</summary>
-			<label
+			<label class="preview-field"
 				>详情状态<select v-model="detailState">
 					<option value="ready">正常</option>
 					<option value="loading">加载中</option>
@@ -1866,13 +1866,13 @@ onActivated(() => {
 			title="快速导出 · 当前筛选范围"
 			@close="quickExportOpen = false"
 			><p>{{ exportRows.length }} 条完整筛选结果 · 不受当前显示行数限制</p>
-			<label
+			<label class="preview-field"
 				>格式<select v-model="quickExportFormat">
 					<option>CSV</option>
 					<option>XLSX</option>
 				</select></label
 			>
-			<label
+			<label class="preview-field"
 				>导出内容<select v-model="quickExportDataset">
 					<option value="summary">
 						{{ page.page === "expiry" ? "批次汇总" : "物品汇总" }}
@@ -1910,7 +1910,8 @@ onActivated(() => {
 			>
 				<span class="eyebrow">WAREHOUSE SETUP</span>
 				<p v-if="warehouseError" role="alert" class="browse-note">{{ warehouseError }}</p>
-				<label>名称<input v-model="warehouseName" required autocomplete="off" /></label
+				<label class="preview-field"
+					>名称<input v-model="warehouseName" required autocomplete="off" /></label
 				><PreviewSearchSelect
 					label="上级节点"
 					v-model="warehouseParent"
@@ -1923,7 +1924,7 @@ onActivated(() => {
 				<p class="muted">
 					修改上级仅调整组织结构，不移动实物库存。分组 / 库位属性保持不变。
 				</p>
-				<label
+				<label class="preview-field"
 					>物理类型<select v-model="warehouseType">
 						<option value="Room">房间</option>
 						<option value="Location">位置</option>

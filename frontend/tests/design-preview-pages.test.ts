@@ -61,7 +61,7 @@ describe("complete preview review surface", () => {
     }
     expect(errors.mock.calls).toEqual([]);
     errors.mockRestore();
-  });
+  }, 30_000);
   it("preserves inventory search and closes an overlay when leaving a cached page", async () => {
     wrapper = mount(PreviewApp, { attachTo: document.body });
     await navigate("inventory/list");

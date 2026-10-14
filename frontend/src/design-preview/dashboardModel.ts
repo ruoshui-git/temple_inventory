@@ -7,6 +7,7 @@ import {
   filterLoans,
   filterMovements,
   remaining,
+  loanStatus,
   quantities,
   movementLabels,
 } from "./browseModel";
@@ -48,9 +49,14 @@ export function dashboardData(session: ReviewSession) {
     .filter((item) => matchesItem(item.code, scope, session))
     .map((item) => ({
       ...item,
-      locations: item.locations.filter((location) =>
-        matchesWarehouse(location.location, scope.warehouses, session),
-      ),
+      locations: item.locations
+        .filter((location) =>
+          matchesWarehouse(location.location, scope.warehouses, session),
+        )
+        .map((location) => ({
+          ...location,
+          batches: location.batches?.map((batch) => ({ ...batch })),
+        })),
     }))
     .filter((item) =>
       item.locations.some(
@@ -96,7 +102,7 @@ export function dashboardData(session: ReviewSession) {
     { ...scope, period: session.filters.dashboard.period },
     "",
     session,
-  );
+  ).map((row) => ({ ...row }));
   const loans = filterLoans(
     session.loans.filter(
       (loan) =>
@@ -109,7 +115,12 @@ export function dashboardData(session: ReviewSession) {
   )
     .map((loan) => ({
       ...loan,
-      lines: loan.lines.filter((line) => remaining(line) > 0),
+      statusLabel: loanStatus(
+        session.loans.find((row) => row.name === loan.name) || loan,
+      ),
+      lines: loan.lines
+        .filter((line) => remaining(line) > 0)
+        .map((line) => ({ ...line })),
     }))
     .filter((loan) => loan.lines.length);
   const loanQuantities = quantities(
@@ -144,4 +155,19 @@ export function dashboardData(session: ReviewSession) {
     loanQuantities,
     damaged,
   };
+}
+
+export const dashboardSections = {
+  inventory: "库存概览",
+  distribution: "库存分布",
+  expiry: "效期概览",
+  movement: "货物流动",
+  loans: "借出中",
+  reminders: "提醒事项",
+} as const;
+export type DashboardSectionKey = keyof typeof dashboardSections;
+export interface DashboardSectionState {
+  status: "ready" | "loading" | "error" | "retrying";
+  hasResult: boolean;
+  result: ReturnType<typeof dashboardData>;
 }

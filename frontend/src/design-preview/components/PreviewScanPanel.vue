@@ -57,7 +57,9 @@ function choose() {
 <template>
 	<details class="form-section">
 		<summary>扫描物品 / 批次 / 库位</summary>
-		<label><input type="checkbox" v-model="continuous" />连续扫描</label>
+		<label class="preview-choice-label"
+			><input type="checkbox" v-model="continuous" />连续扫描</label
+		>
 		<p role="status">
 			{{
 				paused
@@ -67,7 +69,7 @@ function choose() {
 						: "预览扫码：输入样本物品编号、条码、批次或库位"
 			}}
 		</p>
-		<label
+		<label class="preview-field"
 			>扫描值<input
 				v-model="value"
 				:disabled="paused || stopped"

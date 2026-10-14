@@ -86,6 +86,7 @@ export function usePreviewFocusVisibility(
     observer = undefined;
     root.value?.removeEventListener("focusin", schedule);
     window.removeEventListener("resize", schedule);
+    window.removeEventListener("preview-text-scale", schedule);
   }
   async function start() {
     stop();
@@ -101,6 +102,7 @@ export function usePreviewFocusVisibility(
     listening = true;
     root.value.addEventListener("focusin", schedule);
     window.addEventListener("resize", schedule);
+    window.addEventListener("preview-text-scale", schedule);
     if (typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(schedule);
       if (review.value) observer.observe(review.value);

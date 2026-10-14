@@ -53,7 +53,7 @@ function remove(file: PreviewAttachment) {
 </script>
 <template>
 	<div class="preview-attachments">
-		<label v-if="!disabled"
+		<label class="preview-field" v-if="!disabled"
 			>{{ imagesOnly ? "添加图片" : "添加附件"
 			}}<input
 				type="file"
@@ -85,7 +85,8 @@ function remove(file: PreviewAttachment) {
 		<p v-if="!modelValue?.length" class="muted">暂无附件</p>
 		<details v-if="!disabled">
 			<summary>预览上传状态</summary>
-			<label><input v-model="failNext" type="checkbox" />下次上传失败</label
+			<label class="preview-choice-label"
+				><input v-model="failNext" type="checkbox" />下次上传失败</label
 			><PreviewUiButton
 				v-if="modelValue?.length"
 				@click="

@@ -48,27 +48,31 @@ function create() {
 					...new Set(
 						[...activities.map((row) => row.name), draft.activity].filter(Boolean),
 					),
-				]" /><PreviewUiButton v-if="!disabled" @click="creating = true"
+				]" /><PreviewUiButton
+				class="preview-field-action"
+				v-if="!disabled"
+				@click="creating = true"
 				>新建活动</PreviewUiButton
-			><label>用途<input v-model="draft.purpose" :disabled="disabled" /></label
+			><label class="preview-field"
+				>用途<input v-model="draft.purpose" :disabled="disabled" /></label
 			><PreviewSearchSelect
 				label="负责人"
 				v-model="draft.responsible"
 				:options="['王师兄', '李师姐', '值班管理员']"
 				:disabled="disabled"
 		/></template>
-		<fieldset v-else :disabled="disabled">
+		<fieldset class="full-field preview-supporting-editor" v-else :disabled="disabled">
 			<legend>新建活动</legend>
-			<label>名称<input v-model="title" /></label
-			><label
+			<label class="preview-field">名称<input v-model="title" /></label
+			><label class="preview-field"
 				>类型<select v-model="type">
 					<option>活动</option>
 					<option>日常</option>
 					<option>其他</option>
 				</select></label
-			><label>开始日期<input type="date" v-model="start" /></label
-			><label>结束日期<input type="date" v-model="end" /></label
-			><label>说明<textarea v-model="description" /></label>
+			><label class="preview-field">开始日期<input type="date" v-model="start" /></label
+			><label class="preview-field">结束日期<input type="date" v-model="end" /></label
+			><label class="preview-field">说明<textarea v-model="description" /></label>
 			<p v-if="error" role="alert">{{ error }}</p>
 			<PreviewUiButton @click="creating = false">返回选择</PreviewUiButton
 			><PreviewUiButton @click="create">创建并使用活动</PreviewUiButton>

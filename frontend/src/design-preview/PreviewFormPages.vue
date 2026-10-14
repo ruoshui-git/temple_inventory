@@ -21,14 +21,17 @@ import PreviewDocumentState from "./components/PreviewDocumentState.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import { usePreviewFocusVisibility } from "./focusVisibility";
 import PreviewCountSummary from "./components/PreviewCountSummary.vue";
+import PreviewAllocationSummary from "./components/PreviewAllocationSummary.vue";
 import { addLoanToDraft } from "./workflowModel";
 import PreviewOperationLines from "./components/PreviewOperationLines.vue";
 import PreviewUnitField from "./components/PreviewUnitField.vue";
+import { receivingFixture } from "./usabilityFixtures";
 import { validateOperation, isSettlement } from "./formModel";
 
 const props = withDefaults(defineProps<{ page: string; variant: string; active?: boolean }>(), {
 	active: true,
 });
+const lineEditor = ref<InstanceType<typeof PreviewOperationLines>>();
 const formRoot = ref<HTMLElement>();
 const reviewBar = ref<HTMLElement>();
 const { isMobile } = useResponsiveLayout();
@@ -110,7 +113,9 @@ const pageTitle = computed(() =>
 			? props.variant === "detail"
 				? "盘点记录"
 				: "新建盘点"
-			: `${labelMap[props.variant] || props.variant}登记`,
+			: props.variant.startsWith("Receive-50")
+				? `50种物品入库 · ${props.variant.endsWith("invalid") ? "待完善" : "完整"}`
+				: `${labelMap[props.variant] || props.variant}登记`,
 );
 const kind = computed<DraftKind>(() =>
 	props.page === "item-form"
@@ -132,6 +137,9 @@ const totalsByUom = computed(() => {
 		totals.set(line.uom, (totals.get(line.uom) || 0) + (Number(line.qty) || 0));
 	return [...totals.entries()];
 });
+const distinctItemCount = computed(
+	() => new Set(draft.value?.lines.map((line) => line.code)).size,
+);
 const item = (code: string) => reviewSession.stock.find((row) => row.code === code);
 const returnLoans = computed(() =>
 	reviewSession.loans.filter(
@@ -164,21 +172,12 @@ function validOperation() {
 	operationError.value = validateOperation(draft.value);
 	return !operationError.value;
 }
-const groupedLines = computed(() => {
-	const groups = new Map<string, NonNullable<typeof draft.value>["lines"]>();
-	for (const line of draft.value?.lines || []) {
-		const key =
-			(["Issue", "Loss", "Disposal", "Damage", "Loan", "Transfer", "Repair"].includes(
-				kind.value,
-			)
-				? line.sourceLocation || line.location
-				: line.location) || "未选择库位";
-		if (!groups.has(key)) groups.set(key, []);
-		groups.get(key)!.push(line);
-	}
-	return [...groups.entries()];
-});
 function initialize() {
+	if (props.variant.startsWith("Receive-50")) {
+		draft.value = receivingFixture(props.variant.endsWith("invalid"));
+		reviewSession.selectedDraftName = "";
+		return;
+	}
 	unavailableDraft.value = "";
 	documentBlocked.value = false;
 	saveState.value = "";
@@ -313,6 +312,7 @@ function confirmSubmit() {
 	if (!validOperation()) {
 		showError.value = true;
 		showConfirm.value = false;
+		lineEditor.value?.revealIssue();
 		return;
 	}
 	showError.value = false;
@@ -403,19 +403,19 @@ function confirmSubmit() {
 		<div v-if="draft" class="form-layout">
 			<form class="form-main surface" @submit.prevent="saveDraft">
 				<div v-if="!isItem" class="form-section form-date-section">
-					<label
+					<label class="preview-field"
 						>操作日期<input
 							v-model="draft!.postingDate"
 							type="date"
 							:disabled="isReadOnly"
 					/></label>
-					<label
+					<label class="preview-field"
 						>时间方式<select v-model="draft!.timeMode" :disabled="isReadOnly">
 							<option value="current">确认时的当前时间</option>
 							<option value="manual">指定历史时间</option>
 						</select></label
 					>
-					<label v-if="draft?.timeMode === 'manual'"
+					<label class="preview-field" v-if="draft?.timeMode === 'manual'"
 						>操作时间<input
 							type="time"
 							v-model="draft!.postingTime"
@@ -434,7 +434,7 @@ function confirmSubmit() {
 							>
 						</div>
 						<div class="form-fields">
-							<label
+							<label class="preview-field"
 								>物品编号<input
 									:readonly="variant === 'edit'"
 									v-model="draft!.itemCode"
@@ -444,7 +444,7 @@ function confirmSubmit() {
 									placeholder="例如 ITM-000134"
 									:disabled="isReadOnly"
 							/></label>
-							<label
+							<label class="preview-field"
 								>物品名称<input
 									v-model="draft!.itemName"
 									:aria-invalid="showError && !draft?.itemName?.trim()"
@@ -459,13 +459,13 @@ function confirmSubmit() {
 								v-model="draft!.uom"
 								:disabled="isReadOnly || variant === 'edit'"
 							/>
-							<label
+							<label class="preview-field"
 								>条码（每行一个，可选）<textarea
 									v-model="draft!.barcode"
 									placeholder="可扫描或手动填写"
 									:disabled="isReadOnly"
 								/></label
-							><label
+							><label class="preview-field"
 								>物品说明（可选）<input
 									v-model="draft!.description"
 									placeholder="补充识别信息"
@@ -473,7 +473,7 @@ function confirmSubmit() {
 							/></label>
 						</div>
 						<div class="form-check-row">
-							<label
+							<label class="preview-choice-label"
 								><input
 									v-model="draft!.tracksBatch"
 									type="checkbox"
@@ -481,7 +481,7 @@ function confirmSubmit() {
 										isReadOnly || variant === 'edit' || draft!.tracksExpiry
 									"
 								/>按批次管理</label
-							><label
+							><label class="preview-choice-label"
 								><input
 									v-model="draft!.tracksExpiry"
 									type="checkbox"
@@ -508,7 +508,7 @@ function confirmSubmit() {
 					>
 						<h2>{{ kind === "Loan" ? "借用对象" : "归还来源" }}</h2>
 						<div class="form-fields">
-							<label v-if="kind === 'Loan'"
+							<label class="preview-field" v-if="kind === 'Loan'"
 								>借用人 / 团体<input
 									v-model="draft!.borrower"
 									:disabled="isReadOnly"
@@ -526,6 +526,7 @@ function confirmSubmit() {
 									"
 									:disabled="isReadOnly"
 								/><PreviewUiButton
+									class="preview-field-action"
 									:disabled="isReadOnly || !loanChoice"
 									@click="appendLoan"
 									>加入此借用</PreviewUiButton
@@ -552,6 +553,7 @@ function confirmSubmit() {
 							:disabled="isReadOnly"
 						/>
 						<PreviewOperationLines
+							ref="lineEditor"
 							v-else
 							:draft="draft!"
 							:disabled="isReadOnly"
@@ -568,27 +570,27 @@ function confirmSubmit() {
 							v-model="draft!.sourceType"
 							:options="['捐赠', '采购', '其他']"
 							:disabled="isReadOnly"
-						/><label v-if="kind === 'Receive'"
+						/><label class="preview-field" v-if="kind === 'Receive'"
 							>捐赠人 / 来源<input v-model="draft!.source" :disabled="isReadOnly"
 						/></label>
 						<PreviewAttachments v-model="draft!.files" :disabled="isReadOnly" />
 						<div class="form-fields">
-							<label
+							<label class="preview-field"
 								>记录人<input
 									v-model="draft!.recorder"
 									placeholder="可选"
 									:disabled="isReadOnly" /></label
-							><label
+							><label class="preview-field"
 								>经手人<input
 									v-model="draft!.handler"
 									placeholder="可选"
 									:disabled="isReadOnly" /></label
-							><label
+							><label class="preview-field"
 								>鉴证人<input
 									v-model="draft!.reviewer"
 									placeholder="可选"
 									:disabled="isReadOnly" /></label
-							><label class="full-field"
+							><label class="preview-field full-field"
 								>备注<textarea
 									v-model="draft!.note"
 									rows="3"
@@ -671,18 +673,13 @@ function confirmSubmit() {
 						>{{ qty }} {{ uom }}</strong
 					><span>各单位分别合计</span>
 				</div>
-				<div v-if="!isReconcile" class="review-list">
-					<div v-for="[place, lines] in groupedLines" :key="place">
-						<strong>{{ place }}</strong>
-						<p v-for="line in lines" :key="line.id">
-							{{ item(line.code)?.name || line.code }} · {{ line.qty }} {{ line.uom
-							}}<span v-if="isReconcile && line.countedQty !== undefined">
-								→ 实点 {{ line.countedQty }}（差
-								{{ line.countedQty - line.qty }}）</span
-							>
-						</p>
-					</div>
-				</div>
+				<p v-if="!isItem && !isReconcile" class="review-scope">
+					{{ distinctItemCount }} 种物品 · {{ draft.lines.length }} 行分配
+				</p>
+				<details v-if="!isReconcile && !isItem" class="review-lines-disclosure">
+					<summary>查看全部分配明细（{{ draft.lines.length }}）</summary>
+					<PreviewAllocationSummary :draft="draft" />
+				</details>
 				<p v-if="kind === 'Loan'">借用人：{{ draft?.borrower || "待填写" }}</p>
 				<p v-if="draft?.activity">活动：{{ draft.activity }}</p>
 				<p v-if="draft?.postingDate">日期：{{ draft.postingDate }}</p>
@@ -718,6 +715,7 @@ function confirmSubmit() {
 			:title="isReadOnly ? '盘点汇总' : `确认${pageTitle}？`"
 			@close="showConfirm = false"
 			><PreviewCountSummary v-if="isReconcile && draft" :draft="draft" />
+			<PreviewAllocationSummary v-else-if="draft && !isItem" :draft="draft" />
 			<p v-if="draft?.baselineReviewed === false">账面基准已刷新，请重新核对差异后提交。</p>
 			<p>这是模拟确认；库存为固定样本快照，不执行库存扣增。</p>
 			<template #footer

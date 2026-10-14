@@ -237,4 +237,62 @@ Return-to-top remains a circular 44px control above navigation/creation actions.
 
 Count projections and confirmation labels are shared through `PreviewCountSummary`;
 stock snapshots and production tokens/components/APIs remain unchanged. Browser
-results and limitations are recorded in the [audit-fix progress note](notes/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).
+results and limitations are recorded in the [audit-fix progress note](notes/done/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).
+
+
+## Preview usability geometry and typography — 2026-10-13
+
+Preview typography multiplies the existing density baselines by `--p-text-scale`
+(1–2 in 0.25 steps). `--p-body`, `--p-small`, `--p-heading` and `--p-section`, plus
+preview-local size declarations, scale without transforms or CSS zoom. Density
+spacing and the 1024px breakpoint remain independent. Root typography also
+reaches teleported overlays, menus and toasts. Navigation and form obstructions
+are measured again after size changes; controls wrap and grow with their text.
+
+Contextual Receive creation opts into `preview-adaptive-creation` on the existing
+single focus-trapping overlay: maximum 880px width with 24px desktop outer margins,
+full screen below 1024px, wrapping footer and a scrollable body. Existing dialogs
+retain their presentation. Picker rows reserve a separate 48px image column;
+stock details wrap below identity. Movement items use restrained bordered rows
+with fully mounted batch allocations; thumbnails stay 48px, enlargement targets
+44px. Required fields and active conversion fields stay visible. These fixed
+image/icon footprints express geometry rather than typography.
+
+Dashboard headings/recovery/local filters remain prominent while retained result
+text and graphics use readable muted tokens. Cards change border/shadow without
+movement; only actions receive pointer/pressed treatment. Reduced motion applies.
+The 50-item receiving samples exercise the shared editor rather than the dense
+row gallery. All changes are preview-owned; production migration and manual
+visual review remain pending.
+
+
+Independent usability review adds a 680px editor-container reflow threshold within the unchanged 1024px responsive surface boundary. Mobile floating actions, toasts and return-to-top use measured navigation height. Header tags wrap with text scaling. Dialog tab containment excludes hidden/inert controls and includes visible disclosure summaries. These repair the preview contracts; browser geometry remains subject to the handoff manual checklist.
+
+## Preview usability follow-up geometry — 2026-10-13
+
+`PreviewOperationLines` uses explicit identity, heading-actions, allocation-actions
+and group-actions regions. One full-width item heading precedes the allocation
+field grid; no allocation/action reserves a second item-row column. The reserved
+thumbnail stays 48px and enlargement stays touchable. Fields use a preferred
+minimum of `max(160px, 10em)` capped by available width; typography determines
+reflow rather than fixed row heights. Summary width is 240–280px; below 1000px
+available form width it follows the editor. Scaled-text summaries also reflow.
+
+`preview-field`, `preview-inline-field` and `preview-choice-label` define stacked,
+inline and choice patterns. Native and searchable controls share label gaps,
+control line height and density/text-aware sizing. Form action cells align with
+controls instead of stretching across label height. `PreviewAllocationSummary`
+is shared by the bounded detail disclosure and full confirmation.
+
+Creation has at most two columns. Its body uses an available-width container
+query; category/unit editors optionally render into an in-form full-width host,
+preserving their inputs and the existing single overlay. Field consumers across
+forms, filters, reports, settings, setup and gallery use these preview patterns.
+These are preview geometry repairs, with validation recorded in the linked
+[progress note](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
+
+Independent follow-up review (2026-10-14): required markers are grouped with label
+text so they cannot create an extra field-grid row. Supporting creation surfaces
+manage opening/return focus and report dirty input to the containing picker.
+`PreviewAllocationSummary` now also supplies canonical Receive confirmation.
+The review record documents focused browser verification and remaining manual checks.

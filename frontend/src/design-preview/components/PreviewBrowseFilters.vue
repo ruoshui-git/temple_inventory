@@ -76,7 +76,7 @@ function toggleKind(kind: string) {
 					v-for="(label, kind) in movementLabels"
 					v-show="records || !['Opening', 'Reconcile'].includes(kind)"
 					:key="kind"
-					class="preview-check"
+					class="preview-choice-label preview-check"
 					><input
 						type="checkbox"
 						:checked="scope.kinds.includes(kind)"

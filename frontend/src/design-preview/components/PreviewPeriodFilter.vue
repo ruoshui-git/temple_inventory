@@ -82,7 +82,7 @@ function apply() {
 		@close="open = false"
 	>
 		<form :id="`${label}-range`" class="preview-filter-fields" @submit.prevent="apply">
-			<label
+			<label class="preview-field"
 				>时间范围<select v-model="draft.key" aria-label="时间范围预设">
 					<option v-for="(label, key) in periodLabels" :key="key" :value="key">
 						{{ label }}
@@ -90,12 +90,12 @@ function apply() {
 				</select></label
 			>
 			<template v-if="draft.key === 'custom'"
-				><label
+				><label class="preview-field"
 					>开始日期<input
 						v-model="draft.from"
 						type="date"
 						aria-label="开始日期" /></label
-				><label
+				><label class="preview-field"
 					>结束日期<input v-model="draft.to" type="date" aria-label="结束日期" /></label
 				><small>包含开始和结束日期当天。</small></template
 			>

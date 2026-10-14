@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
-import { ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { reviewSession } from "../reviewModel";
 import PreviewUiButton from "./PreviewUiButton.vue";
-defineProps<{ modelValue?: string; disabled?: boolean }>();
-const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+defineProps<{ modelValue?: string; disabled?: boolean; editorTarget?: HTMLElement }>();
+const emit = defineEmits<{
+	"update:modelValue": [value: string];
+	dirtyChange: [dirty: boolean];
+}>();
 const creating = ref(false);
 const name = ref("");
 const whole = ref(false);
 const error = ref("");
+
+const editor = ref<HTMLElement>();
+const trigger = ref<InstanceType<typeof PreviewUiButton>>();
+watch(creating, async (value) => {
+	await nextTick();
+	if (value) editor.value?.querySelector<HTMLInputElement>("input")?.focus();
+	else (trigger.value?.$el as HTMLButtonElement | undefined)?.focus();
+});
+const dirty = computed(() => !!name.value || whole.value);
+function finish() {
+	creating.value = false;
+	name.value = "";
+	whole.value = false;
+	error.value = "";
+}
+watch(dirty, (value) => emit("dirtyChange", value), { immediate: true, flush: "sync" });
+
 function create() {
 	const value = name.value.trim();
 	if (!value) {
@@ -21,12 +41,11 @@ function create() {
 	}
 	reviewSession.units.push({ name: value, whole: whole.value });
 	emit("update:modelValue", value);
-	creating.value = false;
-	error.value = "";
+	finish();
 }
 </script>
 <template>
-	<div class="preview-unit-field">
+	<div class="preview-unit-field preview-supporting-field">
 		<PreviewSearchSelect
 			label="计量单位"
 			:model-value="modelValue"
@@ -40,16 +59,29 @@ function create() {
 			:disabled="disabled"
 			@update:model-value="emit('update:modelValue', $event)"
 		/>
-		<PreviewUiButton v-if="!disabled && !creating" variant="ghost" @click="creating = true"
+		<PreviewUiButton
+			ref="trigger"
+			v-if="!disabled && !creating"
+			variant="ghost"
+			@click="creating = true"
 			>新建单位</PreviewUiButton
 		>
-		<fieldset v-if="creating" :disabled="disabled">
-			<legend>新建单位</legend>
-			<label>单位名称<input v-model="name" /></label>
-			<label><input v-model="whole" type="checkbox" />只允许整数数量</label>
-			<p v-if="error" role="alert">{{ error }}</p>
-			<PreviewUiButton @click="creating = false">取消</PreviewUiButton>
-			<PreviewUiButton @click="create">保存并使用单位</PreviewUiButton>
-		</fieldset>
+		<Teleport :to="editorTarget || 'body'" :disabled="!editorTarget">
+			<fieldset
+				ref="editor"
+				class="preview-supporting-editor"
+				v-if="creating"
+				:disabled="disabled"
+			>
+				<legend>新建单位</legend>
+				<label class="preview-field">单位名称<input v-model="name" /></label>
+				<label class="preview-choice-label"
+					><input v-model="whole" type="checkbox" />只允许整数数量</label
+				>
+				<p v-if="error" role="alert">{{ error }}</p>
+				<PreviewUiButton @click="finish">取消</PreviewUiButton>
+				<PreviewUiButton @click="create">保存并使用单位</PreviewUiButton>
+			</fieldset>
+		</Teleport>
 	</div>
 </template>

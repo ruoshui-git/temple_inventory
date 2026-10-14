@@ -63,6 +63,20 @@ const route = <P extends PreviewPage>(
 
 export const previewPages: readonly PreviewPageRoute[] = [
   route("dashboard", "overview", "/", "物资总览", "首页"),
+  route(
+    "movement-form",
+    "Receive-50",
+    "/preview/receive-50",
+    "50种物品入库 · 完整",
+    "表单",
+  ),
+  route(
+    "movement-form",
+    "Receive-50-invalid",
+    "/preview/receive-50-invalid",
+    "50种物品入库 · 待完善",
+    "表单",
+  ),
   route("inventory", "list", "/stock", "库存列表", "库存"),
   route("inventory", "filtered", "/stock", "筛选结果", "库存"),
   route("inventory", "empty", "/stock", "无匹配结果", "库存"),
@@ -1053,7 +1067,10 @@ export function createDraft(
   const existing = name
     ? findDraft(kind, name, session)
     : session.drafts.find(
-        (draft) => draft.kind === kind && draft.status === "draft",
+        (draft) =>
+          draft.kind === kind &&
+          draft.status === "draft" &&
+          !draft.name.startsWith("PREVIEW-RECEIVE-50"),
       );
   if (existing) {
     session.selectedDraftName = existing.name;

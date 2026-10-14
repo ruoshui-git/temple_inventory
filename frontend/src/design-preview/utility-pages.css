@@ -83,13 +83,13 @@
 	gap: var(--p-space-3);
 	padding-block: var(--p-space-4);
 }
-.preview-utility-page .report-filters label,
-.preview-utility-page .export-review label {
+.preview-utility-page .report-filters .preview-field,
+.preview-utility-page .export-review .preview-field {
 	display: grid;
-	gap: var(--p-space-2);
+	gap: var(--p-field-gap);
 	font-weight: 600;
 }
-.preview-utility-page .report-filters input,
+.preview-utility-page .report-filters input:not([type="checkbox"]):not([type="radio"]),
 .preview-utility-page .report-filters select,
 .preview-utility-page .export-review select {
 	min-height: var(--p-control);
@@ -100,6 +100,7 @@
 	background: var(--p-surface);
 	color: var(--p-ink);
 	font: inherit;
+	line-height: var(--p-control-line);
 }
 .preview-utility-page .filter-note {
 	grid-column: 1/-1;
@@ -171,7 +172,7 @@
 	border-radius: 50%;
 	background: transparent;
 	color: var(--p-ink);
-	font-size: 24px;
+	font-size: calc(24px * var(--p-text-scale, 1));
 }
 .preview-utility-page .export-scope {
 	display: grid;
@@ -338,4 +339,15 @@
 	.preview-utility-page .report-catalog {
 		grid-template-columns: minmax(0, 1fr);
 	}
+}
+
+.preview-utility-page .utility-heading {
+	flex-wrap: wrap;
+}
+.preview-utility-page .utility-heading > * {
+	min-width: 0;
+}
+.preview-utility-page .utility-sample-tag {
+	white-space: normal;
+	overflow-wrap: anywhere;
 }

@@ -471,7 +471,7 @@ const exportDetails = computed(() =>
 								: '搜索借用人、活动或物品'
 						"
 				/></label>
-				<label v-if="family === 'loan' || records"
+				<label class="preview-inline-field" v-if="family === 'loan' || records"
 					>状态<select
 						:value="status"
 						:aria-label="family === 'movement' ? '流动记录状态' : '借用状态'"
@@ -577,7 +577,7 @@ const exportDetails = computed(() =>
 			<div class="preview-browse-results">
 				<details class="form-section">
 					<summary>分析当前结果</summary>
-					<label
+					<label class="preview-field"
 						>分组<select v-model="analysisDimension">
 							<option value="category">类别 / 单位</option>
 							<option value="location">来源位置 / 单位</option>
@@ -816,13 +816,13 @@ const exportDetails = computed(() =>
 			title="快速导出 · 当前筛选范围"
 			@close="exportOpen = false"
 			><p>{{ exportRows.length }} 条完整筛选结果 · 不受显示行数限制</p>
-			<label
+			<label class="preview-field"
 				>格式<select v-model="exportFormat">
 					<option>CSV</option>
 					<option>XLSX</option>
 				</select></label
 			>
-			<label
+			<label class="preview-field"
 				>导出内容<select v-model="exportDataset">
 					<option value="summary">{{ records ? "操作记录" : "物品汇总" }}</option>
 					<option value="details">逐行明细</option>
