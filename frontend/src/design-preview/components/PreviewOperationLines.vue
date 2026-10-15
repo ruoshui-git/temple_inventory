@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import PreviewAllocationDetails from "./PreviewAllocationDetails.vue";
+import {
+	recordConversion,
+	enteredQty,
+	setEnteredQty,
+	applyLineConversion,
+} from "../conversionModel";
 import PreviewScanPanel from "./PreviewScanPanel.vue";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
-import { computed, ref, nextTick, watch } from "vue";
+import { computed, ref, nextTick, watch, onDeactivated } from "vue";
 import { reviewSession, type ReviewDraft, type DraftLine } from "../reviewModel";
 import { physicalLeafWarehouses } from "../workflowModel";
 import { previewDate } from "../model";
@@ -16,8 +23,14 @@ import PreviewItemImage from "../PreviewItemImage.vue";
 import PreviewItemPicker from "./PreviewItemPicker.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
 
-const props = defineProps<{ draft: ReviewDraft; disabled?: boolean; showError?: boolean }>();
-const emit = defineEmits<{ notify: [message: string] }>();
+const props = defineProps<{
+	draft: ReviewDraft;
+	disabled?: boolean;
+	showError?: boolean;
+	expanded?: boolean;
+	active?: boolean;
+}>();
+const emit = defineEmits<{ notify: [message: string]; expand: [] }>();
 const receive = computed(() => props.draft.kind === "Receive");
 const reconcile = computed(() => props.draft.kind === "Reconcile");
 const settlement = computed(() => isSettlement(props.draft));
@@ -56,9 +69,49 @@ function scanItem(code: string, batch?: string) {
 	if (scannedLine.value)
 		revealIssue({ message: "", lineId: scannedLine.value.id, field: "qty" });
 }
-const extras = ref<Record<string, boolean>>({});
-const entryFactor = (line: DraftLine) =>
-	stockItem(line.code)?.alternateUnits?.find((unit) => unit.uom === line.entryUom)?.factor || 1;
+const detailsLine = ref<DraftLine>();
+const detailsField = ref<string>();
+const selectedUnit = ref<string>();
+function showDetails(line: DraftLine, field?: string, unit?: string) {
+	detailsField.value = field;
+	selectedUnit.value = unit;
+	detailsLine.value = line;
+}
+async function replaceFromDetails() {
+	const line = detailsLine.value;
+	const group = groups.value.find((group) => group.lines.some((row) => row.id === line?.id));
+	detailsLine.value = undefined;
+	await nextTick();
+	if (group) pick(group.lines);
+}
+function splitFromDetails() {
+	const line = detailsLine.value;
+	if (line) settlement.value ? splitOutcome(line) : addBatch(line);
+	detailsLine.value = undefined;
+}
+function selectUnit(line: DraftLine, unit: string) {
+	const factor =
+		unit === line.uom
+			? 1
+			: stockItem(line.code)?.alternateUnits?.find((row) => row.uom === unit)?.factor;
+	if (!factor || unit === "__other")
+		showDetails(line, "entryUom", unit === "__other" ? undefined : unit);
+	else applyLineConversion(line, unit, factor, line.qty / factor);
+}
+watch(
+	() => props.draft.lines.map((line) => line.id),
+	() => props.draft.lines.forEach((line) => recordConversion(line)),
+	{ immediate: true },
+);
+watch(
+	() => props.active,
+	(active) => {
+		if (active === false) detailsLine.value = undefined;
+	},
+);
+onDeactivated(() => {
+	detailsLine.value = undefined;
+});
 const stockItem = (code: string) => reviewSession.stock.find((item) => item.code === code);
 const eligible = computed(() => {
 	if (receive.value) return undefined;
@@ -87,6 +140,13 @@ const incompleteOnly = ref(false);
 const revealErrors = ref(false);
 const issues = computed(() => operationIssues(props.draft));
 const lineIssues = computed(() => issues.value.filter((issue) => issue.lineId));
+const totals = computed(() => {
+	const quantities = new Map<string, number>();
+	props.draft.lines.forEach((line) =>
+		quantities.set(line.uom, (quantities.get(line.uom) || 0) + Number(line.qty || 0)),
+	);
+	return [...quantities].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
+});
 const itemCount = computed(() => new Set(props.draft.lines.map((line) => line.code)).size);
 const visibleIds = computed(
 	() =>
@@ -141,12 +201,21 @@ async function revealIssue(issue: OperationIssue | undefined = lineIssues.value[
 	if (issue.message) revealErrors.value = true;
 	search.value = "";
 	incompleteOnly.value = false;
-	if (
-		["manufacturingDate", "entryUom"].includes(issue.field || "") ||
-		(issue.field === "qty" &&
-			props.draft.lines.find((line) => line.id === issue.lineId)?.entryUom)
-	)
-		extras.value[issue.lineId] = true;
+	const hidden = [
+		"batch",
+		"expiry",
+		"manufacturingDate",
+		"reason",
+		"entryUom",
+		"conversionFactor",
+		"returnOutcome",
+		"loanName",
+	].includes(issue.field || "");
+	const line = props.draft.lines.find((line) => line.id === issue.lineId);
+	if (hidden && line) {
+		showDetails(line, issue.field);
+		return;
+	}
 	await nextTick();
 	const row = Array.from(root.value?.querySelectorAll<HTMLElement>("[data-line-id]") || []).find(
 		(row) => row.dataset.lineId === issue.lineId,
@@ -178,7 +247,9 @@ function refreshLine(line: DraftLine) {
 	const item = stockItem(line.code);
 	if (!item) return;
 	line.uom = item.uom;
-	line.entryUom = undefined;
+	line.entryUom = line.uom;
+	line.entryQty = line.qty;
+	line.conversionFactor = 1;
 	if (!receive.value && !settlement.value) {
 		const current = pickerLines.value.length ? lineStock(line) : undefined;
 		const eligibleLocations = item.locations.filter((row) =>
@@ -261,6 +332,7 @@ function splitOutcome(line: DraftLine) {
 		...line,
 		id: `${line.id}-outcome-${++sequence}`,
 		qty: 1,
+		entryQty: 1 / (line.conversionFactor || 1),
 		returnOutcome: "returned",
 	});
 }
@@ -269,6 +341,7 @@ function addBatch(line: DraftLine) {
 		...line,
 		id: `${line.id}-batch-${++sequence}`,
 		qty: 1,
+		entryQty: 1 / (line.conversionFactor || 1),
 		batch: "",
 		expiry: "",
 	});
@@ -302,6 +375,9 @@ function changeBatch(line: DraftLine) {
 <template>
 	<div ref="root" class="preview-operation-lines" @focusout="regroupAfterFocus">
 		<div class="preview-line-toolbar">
+			<PreviewUiButton :aria-pressed="!!expanded" @click="emit('expand')">{{
+				expanded ? "收起工作区" : "展开工作区"
+			}}</PreviewUiButton>
 			<PreviewUiButton
 				v-if="!disabled && !settlement"
 				variant="secondary"
@@ -315,7 +391,9 @@ function changeBatch(line: DraftLine) {
 					type="search"
 					placeholder="物品名称、编号、库位或批次"
 			/></label>
-			<span>{{ itemCount }} 种物品 · {{ draft.lines.length }} 行分配</span>
+			<span role="status"
+				>{{ itemCount }} 种物品 · {{ draft.lines.length }} 行分配 · {{ totals }}</span
+			>
 			<label class="preview-choice-label"
 				><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
 			>
@@ -355,6 +433,10 @@ function changeBatch(line: DraftLine) {
 			v-model="destination"
 			:options="places"
 		/>
+		<div class="allocation-columns" aria-hidden="true">
+			<span>物品</span><span>数量 / 单位</span><span>库位</span><span>批次 / 状态</span
+			><span>操作</span>
+		</div>
 		<section
 			v-for="(group, groupIndex) in groups"
 			:key="group.lines[0]!.id"
@@ -374,59 +456,71 @@ function changeBatch(line: DraftLine) {
 			>
 				{{ group.location || "未选择库位" }}
 			</h3>
-			<article class="draft-line receive-line">
-				<div class="preview-line-heading section-title-row">
-					<div v-if="stockItem(group.code)" class="preview-group-thumbnail">
-						<PreviewItemImage :item="stockItem(group.code)!" />
-					</div>
-					<div class="preview-line-identity">
-						<strong>{{ stockItem(group.code)?.name || group.code }}</strong
-						><small class="muted"
-							>{{ group.code }} · {{ stockItem(group.code)?.category }}</small
-						>
-					</div>
-					<div class="preview-line-heading-actions">
-						<strong v-if="receive" class="preview-line-total"
-							>合计
-							{{
-								group.lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0)
-							}}
-							{{ stockItem(group.code)?.uom }}</strong
-						>
-						<PreviewUiButton
-							class="preview-line-replace"
-							v-if="!disabled && !settlement"
-							variant="ghost"
-							data-field="code"
-							@click="pick(group.lines)"
-							>更换物品</PreviewUiButton
-						>
-					</div>
-				</div>
-				<div
+			<div class="draft-line receive-line">
+				<article
 					v-for="line in group.lines"
 					:key="line.id"
-					class="preview-allocation"
-					:data-line-id="line.id"
 					v-show="visibleIds.has(line.id)"
+					class="preview-allocation compact-allocation"
+					:data-line-id="line.id"
 				>
-					<p
-						v-if="
-							(showError || revealErrors) &&
-							lineIssues.some((issue) => issue.lineId === line.id)
-						"
-						class="notice-bar danger"
-						role="status"
-					>
-						{{ lineIssues.find((issue) => issue.lineId === line.id)?.message }}
-					</p>
-					<small v-if="settlement" class="muted"
-						>借出 {{ line.loanName || draft.loanName }} · 原明细
-						{{ (line.loanLineIndex || 0) + 1 }}</small
-					>
-					<div class="form-fields preview-allocation-fields">
+					<div class="allocation-identity">
+						<div v-if="stockItem(line.code)" class="preview-group-thumbnail">
+							<PreviewItemImage :item="stockItem(line.code)!" />
+						</div>
+						<div class="preview-line-identity">
+							<strong>{{ stockItem(line.code)?.name || line.code }}</strong
+							><small class="muted"
+								>{{ line.code }} · {{ stockItem(line.code)?.category }}</small
+							>
+						</div>
+					</div>
+					<div class="allocation-quantity">
+						<label class="preview-field"
+							><span class="allocation-field-label">数量</span
+							><input
+								data-field="qty"
+								type="number"
+								min="0"
+								step="any"
+								:value="enteredQty(line)"
+								:disabled="disabled"
+								:aria-label="`${stockItem(line.code)?.name}数量`"
+								:aria-invalid="
+									(showError || revealErrors) &&
+									lineIssues.some(
+										(issue) =>
+											issue.lineId === line.id && issue.field === 'qty',
+									)
+								"
+								@input="
+									setEnteredQty(
+										line,
+										Number(($event.target as HTMLInputElement).value),
+									)
+								"
+						/></label>
 						<PreviewSearchSelect
-							v-if="!receive && !settlement && !reconcile"
+							label="单位"
+							:clearable="false"
+							:model-value="line.entryUom || line.uom"
+							:disabled="disabled"
+							:options="[
+								line.uom,
+								...(stockItem(line.code)?.alternateUnits?.map((row) => row.uom) ||
+									[]),
+								{ value: '__other', label: '选择其他单位 / 新建单位' },
+							]"
+							@update:model-value="selectUnit(line, $event)"
+						/>
+						<small v-if="line.entryUom !== line.uom" class="allocation-equivalent"
+							>{{ enteredQty(line) }} {{ line.entryUom }} · 折合 {{ line.qty }}
+							{{ line.uom }}</small
+						>
+					</div>
+					<div class="allocation-locations">
+						<PreviewSearchSelect
+							v-if="!receive && !settlement"
 							data-field="sourceLocation"
 							label="来源库位"
 							v-model="line.sourceLocation"
@@ -441,249 +535,95 @@ function changeBatch(line: DraftLine) {
 							@update:model-value="changeSource(line)"
 						/>
 						<PreviewSearchSelect
-							v-if="
-								receive ||
-								reconcile ||
-								['Transfer', 'Return', 'Repair'].includes(draft.kind)
-							"
+							v-if="receive || ['Transfer', 'Return', 'Repair'].includes(draft.kind)"
 							data-field="location"
 							label="目标 / 存放库位"
 							v-model="line.location"
 							:disabled="disabled"
 							:options="places"
 						/>
-						<label class="preview-field" v-if="!reconcile"
+					</div>
+					<div class="allocation-context">
+						<small v-if="stockItem(line.code)?.tracksBatch"
+							>批次 {{ line.batch || (receive ? "自动生成" : "待选择") }}</small
+						>
+						<small v-if="stockItem(line.code)?.tracksExpiry"
+							>到期 {{ line.expiry || "待填写" }}</small
+						>
+						<small v-if="settlement"
+							>借出 {{ line.loanName || draft.loanName }} / 原明细
+							{{ (line.loanLineIndex || 0) + 1 }} ·
+							{{
+								line.returnOutcome === "damaged"
+									? "损坏归还"
+									: line.returnOutcome === "lost"
+										? "遗失"
+										: "完好归还"
+							}}</small
+						>
+						<small v-if="!receive"
 							>{{
-								receive && stockItem(line.code)?.tracksBatch ? "批次数量" : "数量"
-							}}（{{ line.uom }}）<input
-								data-field="qty"
-								v-model.number="line.qty"
-								type="number"
-								min="0"
-								:step="
-									reviewSession.units.find((unit) => unit.name === line.uom)
-										?.whole
-										? '1'
-										: 'any'
-								"
-								:disabled="disabled || !!line.entryUom"
-								:aria-invalid="
-									(showError || revealErrors) &&
-									lineIssues.some(
-										(issue) =>
-											issue.lineId === line.id && issue.field === 'qty',
-									)
-								"
-								:aria-label="`${stockItem(line.code)?.name}数量`"
-						/></label>
-						<template v-if="stockItem(line.code)?.tracksBatch">
-							<label v-if="receive" class="preview-field">
-								批次编号<input
-									data-field="batch"
-									v-model="line.batch"
-									placeholder="留空自动生成"
-									:disabled="disabled"
-									:aria-label="`${stockItem(line.code)?.name}批次编号（可选）`"
-								/>
-							</label>
-							<div v-else-if="settlement" class="preview-field">
-								<span>批次编号</span
-								><span>{{ line.batch || "原借用未记录批次" }}</span>
-							</div>
-							<PreviewSearchSelect
-								v-else
-								label="现有批次"
-								data-field="batch"
-								v-model="line.batch"
-								:disabled="disabled"
-								:options="
-									(lineStock(line)?.batches || []).map((batch) => ({
-										value: batch.id,
-										label: batch.id,
-										detail: `到期 ${batch.expiry || '无效期'} · 可用 ${batch.available} · 损坏 ${batch.damaged || 0}`,
-									}))
-								"
-								@update:model-value="changeBatch(line)"
-							/>
-							<label class="preview-field" v-if="stockItem(line.code)?.tracksExpiry"
-								>到期日期<input
-									v-if="receive"
-									data-field="expiry"
-									v-model="line.expiry"
-									type="date"
-									:disabled="disabled"
-									:aria-invalid="
-										(showError || revealErrors) &&
-										lineIssues.some(
-											(issue) =>
-												issue.lineId === line.id &&
-												issue.field === 'expiry',
-										)
-									"
-								/><span v-else>{{ line.expiry || "原记录未设置" }}</span></label
-							>
-						</template>
-						<template v-if="reconcile"
-							><p>账面 {{ line.qty }} {{ line.uom }}</p>
-							<label class="preview-field"
-								>实点数量<input
-									v-model.number="line.countedQty"
-									type="number"
-									min="0"
-									step="any"
-									:disabled="disabled"
-							/></label>
-							<p>
-								差异
-								{{
-									line.countedQty === undefined || String(line.countedQty) === ""
-										? "待实点"
-										: Number(line.countedQty) - line.qty
-								}}
-								{{ line.uom }}
-							</p>
-							<label class="preview-field"
-								>差异原因<input
-									data-field="reason"
-									v-model="line.reason"
-									:disabled="disabled"
-									placeholder="有差异时必填" /></label
-						></template>
-						<label
-							class="preview-field"
-							v-if="
-								['Damage', 'Loss'].includes(draft.kind) ||
-								['damaged', 'lost'].includes(line.returnOutcome || '')
-							"
-							>原因（可选）<input
-								data-field="reason"
-								v-model="line.reason"
-								:disabled="disabled"
-						/></label>
-						<label class="preview-field" v-if="settlement && draft.kind === 'Return'"
-							>处理结果<select v-model="line.returnOutcome" :disabled="disabled">
-								<option value="returned">完好归还</option>
-								<option value="damaged">损坏归还</option>
-							</select></label
+								settlement
+									? "未结清"
+									: ["Repair", "Disposal"].includes(draft.kind)
+										? "损坏可处理"
+										: "可用"
+							}}
+							{{ lineCapacity(draft, line) }} {{ line.uom }}</small
+						>
+						<small v-if="draft.kind === 'Damage' || line.returnOutcome === 'damaged'"
+							>移入损坏待处理</small
+						>
+						<small v-if="draft.kind === 'Loan'">移入借出库位</small>
+						<small v-if="receive && line.expiry && line.expiry < previewDate"
+							>已过期，请核对实物</small
+						>
+						<span
+							v-if="lineIssues.some((issue) => issue.lineId === line.id)"
+							class="badge warning"
+							>待完善</span
 						>
 					</div>
 					<div class="preview-allocation-actions">
 						<PreviewUiButton
-							v-if="
-								!reconcile &&
-								!settlement &&
-								(receive || stockItem(line.code)?.alternateUnits?.length)
-							"
-							variant="ghost"
-							:aria-expanded="!!extras[line.id]"
-							@click="extras[line.id] = !extras[line.id]"
-							>单位换算 / 补充信息</PreviewUiButton
+							variant="secondary"
+							:aria-label="`${stockItem(line.code)?.name}详情`"
+							@click="showDetails(line)"
+							>详情</PreviewUiButton
 						>
 						<PreviewUiButton
 							v-if="!disabled"
 							variant="ghost"
-							:label="`移除${stockItem(line.code)?.name}明细`"
+							:aria-label="`移除${stockItem(line.code)?.name}明细`"
 							@click="remove(line)"
-							>移除明细</PreviewUiButton
+							>移除</PreviewUiButton
 						>
 					</div>
-					<template
-						v-if="
-							!reconcile &&
-							!settlement &&
-							(receive || stockItem(line.code)?.alternateUnits?.length)
-						"
-					>
-						<div v-if="extras[line.id] || line.entryUom" class="form-fields">
-							<template v-if="stockItem(line.code)?.alternateUnits?.length">
-								<label class="preview-field"
-									>输入单位<select
-										data-field="entryUom"
-										v-model="line.entryUom"
-										:disabled="disabled"
-									>
-										<option :value="undefined">{{ line.uom }}</option>
-										<option
-											v-for="unit in stockItem(line.code)?.alternateUnits"
-											:key="unit.uom"
-											:value="unit.uom"
-										>
-											{{ unit.uom }}（1 {{ unit.uom }} = {{ unit.factor }}
-											{{ line.uom }}）
-										</option>
-									</select></label
-								>
-								<label class="preview-field" v-if="line.entryUom"
-									>输入数量（{{ line.entryUom }}）<input
-										data-field="qty"
-										type="number"
-										min="0"
-										step="any"
-										:disabled="disabled"
-										:value="line.qty / entryFactor(line)"
-										@input="
-											line.qty =
-												Number(($event.target as HTMLInputElement).value) *
-												entryFactor(line)
-										"
-								/></label>
-								<p v-if="line.entryUom">
-									折合 {{ line.qty }} {{ line.uom }}，汇总与可用量按{{
-										line.uom
-									}}核对。
-								</p>
-							</template>
-							<label
-								class="preview-field"
-								v-if="receive && stockItem(line.code)?.tracksBatch"
-								>生产日期（可选）<input
-									type="date"
-									data-field="manufacturingDate"
-									v-model="line.manufacturingDate"
-									:disabled="disabled"
-							/></label>
-						</div>
-					</template>
-					<p v-if="!receive && !reconcile" class="muted" role="status">
-						{{
-							settlement
-								? "未结清"
-								: ["Repair", "Disposal"].includes(draft.kind)
-									? "损坏可处理"
-									: "可用"
-						}}
-						{{ lineCapacity(draft, line) }} {{ line.uom
-						}}<span v-if="draft.kind === 'Damage' || line.returnOutcome === 'damaged'">
-							· 移入损坏待处理</span
-						><span v-if="draft.kind === 'Loan'"> · 移入借出库位</span>
-					</p>
 					<p
-						v-if="receive && line.expiry && line.expiry < previewDate"
-						class="notice-bar warning"
-					>
-						此批次已过期，请核对实物。过期本身不阻止入库。
-					</p>
-				</div>
-				<div class="preview-line-actions">
-					<PreviewUiButton
 						v-if="
-							!settlement &&
-							!reconcile &&
-							stockItem(group.code)?.tracksBatch &&
-							!disabled
+							(showError || revealErrors) &&
+							lineIssues.some((issue) => issue.lineId === line.id)
 						"
-						variant="secondary"
-						@click="addBatch(group.lines[0])"
-						>{{ receive ? "添加批次分配" : "分配其他批次" }}</PreviewUiButton
-					><PreviewUiButton
-						v-if="settlement && draft.kind === 'Return' && !disabled"
-						variant="secondary"
-						@click="splitOutcome(group.lines[0])"
-						>添加处理分配</PreviewUiButton
+						class="notice-bar danger allocation-error"
+						role="status"
 					>
-				</div>
-			</article>
+						{{ lineIssues.find((issue) => issue.lineId === line.id)?.message }}
+					</p>
+				</article>
+			</div>
 		</section>
+		<PreviewAllocationDetails
+			v-if="detailsLine"
+			:line="detailsLine"
+			:draft="draft"
+			:disabled="disabled"
+			:field="detailsField"
+			:selected-unit="selectedUnit"
+			@close="detailsLine = undefined"
+			@batch-change="changeBatch(detailsLine!)"
+			@replace="replaceFromDetails"
+			@split="splitFromDetails"
+		/>
 		<p v-if="!draft.lines.length" class="muted">
 			{{ settlement ? "请先选择未结清借用记录。" : "选择库位后添加物品。" }}
 		</p>

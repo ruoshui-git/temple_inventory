@@ -141,3 +141,32 @@ automatically generated batches and alternate-unit quantities. Eight follow-up
 regressions and focused browser checks cover the repaired preview contracts;
 production catalog writes and migration remain pending. See the
 [review record](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md#independent-follow-up-review--2026-10-14).
+
+### Preview simplification — 2026-10-14
+
+| Capability | Preview evidence | Disposition / backend dependency |
+| --- | --- | --- |
+| Allocation editing and secondary required fields | Shared `PreviewOperationLines`, `PreviewAllocationDetails`, `operationIssues`; simplification component/browser suites | Permanent required-field visibility replaced by incomplete indicators and automatic Details reveal/focus; stock/batch/settlement constraints preserved. |
+| Workspace, review and count navigation | `workspaceMode`, independent warehouse disclosures in `PreviewAllocationSummary`, sole Tools count entry | Retained mounted editor and single action area; complete confirmation; existing count records/examples preserved. No stock schema needed. |
+| Entered quantity/unit and row factor | `conversionModel`, recorded fields in `DraftLine`/`ReviewMovement`, staged `PreviewConversionEditor`; saved/history/export projections | Item-only factor restriction replaced locally. Backend must round-trip native qty/uom/conversion_factor/stock_uom/transfer_qty; validate and compute stock quantity on server. Never replace recorded factors with defaults. |
+| UOM and reusable Item conversions | Inline UOM create, checked/unchecked reuse, old/new equations, permission/failure/stale fixtures; Item details/edit disclosure | Independent server authorization, duplicate checks, Item version checks and explicit failure required. Preserve unrelated Item fields and immutable stock UOM; write standard UOM Conversion Details only. |
+| Large full-dataset selectors | `PreviewVirtualList`, searchable Item/flat options, opt-in 1,000 items, ordered pending selection, retry/creation-return | Preview bounded measured rendering; permission-filtered stable pagination/counts, contextual stock retrieval and stale-response guards remain backend-dependent. |
+| Related browse/detail/report capabilities | Movement quick filters plus complete type filters/chips, Loan event linking/settlement, Inventory tools, detail metadata/history disclosures, report selector | Capabilities preserved with progressive disclosure. Five report families, full-result scope and independent CSV/XLSX remain; actual downloads/server analysis pending. |
+| Validation and accessibility | Preview Vitest, isolated Playwright geometry/interaction suite, screenshots under `/tmp/temple-inventory-design-browser` | Preview-only evidence. Native browser zoom and final visual approval remain manual; production untouched. |
+
+Backend migration must also validate positive finite factors and precision, both
+entered/stock whole-unit constraints, aggregate stock availability and loan
+balances. Preserve canonical borrowing document/line references and ERPNext
+submit/cancel/amend hooks. ERPNext remains the ledger; do not add a conversion
+ledger or duplicate stock model. The
+[execution record](notes/20261014_DESIGN_PREVIEW_SIMPLIFICATION_PROGRESS.md)
+separates actual checks from this capability mapping.
+
+
+Independent review repairs additionally cover Desk-origin draft conversion
+round-tripping, stable large-fixture identities, picker pointer/keyboard return,
+mobile scaled-text action reachability and Item-conversion discard/focus behavior.
+`tests/browser/design-preview/review.spec.ts` exercises all nine operation editors,
+large unit options, warehouse disclosure persistence, recorded-factor conflicts
+and Item-level conversion editing. Results and actual screenshot inspections are
+recorded in the execution note; backend requirements above remain outstanding.

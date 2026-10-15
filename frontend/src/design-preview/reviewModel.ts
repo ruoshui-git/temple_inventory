@@ -1,3 +1,4 @@
+import { recordConversion, conversionAccess } from "./conversionModel";
 import { toRaw, reactive } from "vue";
 import {
   emptyScope,
@@ -331,6 +332,8 @@ export interface DraftLine {
   countedQty?: number;
   manufacturingDate?: string;
   entryUom?: string;
+  entryQty?: number;
+  conversionFactor?: number;
   returnOutcome?: "returned" | "damaged" | "lost";
   reason?: string;
 }
@@ -398,6 +401,8 @@ export interface ReviewMovement {
   countedQty?: number;
   manufacturingDate?: string;
   entryUom?: string;
+  entryQty?: number;
+  conversionFactor?: number;
   reason?: string;
 }
 
@@ -968,25 +973,37 @@ export function createReviewSession(
     pending: structuredClone(defaultPending),
     warehouses: structuredClone(defaultWarehouses),
     stock,
-    units: [...new Set(["Nos", ...stock.map((item) => item.uom)])].map(
-      (name) => ({
-        name,
-        whole: name === "Nos",
-      }),
-    ),
+    units: [
+      ...new Set([
+        "Nos",
+        ...stock.flatMap((item) => [
+          item.uom,
+          ...(item.alternateUnits?.map((row) => row.uom) || []),
+        ]),
+      ]),
+    ].map((name) => ({
+      name,
+      whole: name === "Nos",
+    })),
   }) as ReviewSession;
   sessionBaselines.set(
     session,
     stock.map((item) => structuredClone(item)),
   );
   sessionDraftSequences.set(session, 1);
-  session.drafts.forEach(captureSavedDraft);
+  session.drafts.forEach((draft) => captureSavedDraft(draft, session));
   return session;
 }
 
 export const reviewSession = createReviewSession(items);
 
 export function resetReviewSession(session: ReviewSession = reviewSession) {
+  Object.assign(conversionAccess, {
+    createUnit: true,
+    updateItem: true,
+    failSave: false,
+    staleItem: false,
+  });
   session.filters = initialFilters();
   session.categories = [
     { name: "全部物资", label: "全部物资", is_group: true },
@@ -1004,7 +1021,10 @@ export function resetReviewSession(session: ReviewSession = reviewSession) {
   session.units = [
     ...new Set([
       "Nos",
-      ...(sessionBaselines.get(session) || items).map((item) => item.uom),
+      ...(sessionBaselines.get(session) || items).flatMap((item) => [
+        item.uom,
+        ...(item.alternateUnits?.map((row) => row.uom) || []),
+      ]),
     ]),
   ].map((name) => ({ name, whole: name === "Nos" }));
   session.selectedItems = [];
@@ -1037,10 +1057,12 @@ export function resetReviewSession(session: ReviewSession = reviewSession) {
   const baseline = sessionBaselines.get(session) || seedStock;
   session.stock.splice(0, session.stock.length, ...structuredClone(baseline));
   sessionDraftSequences.set(session, 1);
-  session.drafts.forEach(captureSavedDraft);
+  session.drafts.forEach((draft) => captureSavedDraft(draft, session));
 }
 
-export function captureSavedDraft(draft: ReviewDraft) {
+export function captureSavedDraft(draft: ReviewDraft, session?: ReviewSession) {
+  if (!["Item", "Reconcile"].includes(draft.kind))
+    draft.lines.forEach((line) => recordConversion(line, session));
   const snapshot = JSON.stringify(draft);
   savedDocuments.set(toRaw(draft), snapshot);
   return snapshot;
@@ -1105,7 +1127,7 @@ export function createDraft(
   if (!name) sessionDraftSequences.set(session, sequence + 1);
   session.drafts.unshift(draft);
   session.selectedDraftName = draft.name;
-  captureSavedDraft(session.drafts[0]!);
+  captureSavedDraft(session.drafts[0]!, session);
   return session.drafts[0]!;
 }
 
@@ -1329,6 +1351,10 @@ export function submitDraft(
                     ? "领用"
                     : line.location,
         batch: line.batch,
+        entryUom: line.entryUom,
+        entryQty: line.entryQty,
+        conversionFactor: line.conversionFactor,
+        manufacturingDate: line.manufacturingDate,
         loanLineIndex: line.loanLineIndex,
         reason: line.reason,
         loanName:
@@ -1346,7 +1372,7 @@ export function warehouseFixtureNodes() {
   return reviewSession.warehouses.map((node) => ({ ...node }));
 }
 
-/** Draft rows are projections of editable state, never a second draft store. */
+/** Editable drafts replace their imported rows; unclaimed Desk drafts remain visible. */
 export function reviewMovementRows(
   session: ReviewSession = reviewSession,
 ): ReviewMovement[] {
@@ -1355,7 +1381,11 @@ export function reviewMovementRows(
   );
   return [
     ...session.movements
-      .filter((row) => row.docstatus !== 0)
+      .filter(
+        (row) =>
+          row.docstatus !== 0 ||
+          !session.drafts.some((draft) => draft.name === row.name),
+      )
       .map((row) => ({
         ...row,
         documentType:
@@ -1387,6 +1417,10 @@ export function reviewMovementRows(
         loanName:
           "loanName" in line ? line.loanName || draft.loanName : draft.loanName,
         batch: "batch" in line ? line.batch : undefined,
+        entryUom: "entryUom" in line ? line.entryUom : undefined,
+        entryQty: "entryQty" in line ? line.entryQty : undefined,
+        conversionFactor:
+          "conversionFactor" in line ? line.conversionFactor : undefined,
         loanLineIndex: "loanLineIndex" in line ? line.loanLineIndex : undefined,
       }));
     }),

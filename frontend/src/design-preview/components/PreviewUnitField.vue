@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { conversionAccess, createPreviewUnit } from "../conversionModel";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import { computed, nextTick, ref, watch } from "vue";
 import { reviewSession } from "../reviewModel";
@@ -35,11 +36,8 @@ function create() {
 		error.value = "请填写单位名称";
 		return;
 	}
-	if (reviewSession.units.some((unit) => unit.name === value)) {
-		error.value = "单位已存在，请直接选择";
-		return;
-	}
-	reviewSession.units.push({ name: value, whole: whole.value });
+	error.value = createPreviewUnit(value, whole.value);
+	if (error.value) return;
 	emit("update:modelValue", value);
 	finish();
 }
@@ -62,10 +60,14 @@ function create() {
 		<PreviewUiButton
 			ref="trigger"
 			v-if="!disabled && !creating"
+			:disabled="!conversionAccess.createUnit"
 			variant="ghost"
 			@click="creating = true"
 			>新建单位</PreviewUiButton
 		>
+		<p v-if="!conversionAccess.createUnit" class="muted">
+			没有新建单位的权限；可选择已有单位。
+		</p>
 		<Teleport :to="editorTarget || 'body'" :disabled="!editorTarget">
 			<fieldset
 				ref="editor"

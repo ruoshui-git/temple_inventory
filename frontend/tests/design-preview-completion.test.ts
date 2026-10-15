@@ -1,3 +1,4 @@
+import { setEnteredQty } from "../src/design-preview/conversionModel";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DOMWrapper, mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -97,10 +98,10 @@ describe("preview form refinement", () => {
     const created = receipt.lines.find((line) => line.code === "ITM-TEST-NEW")!;
     expect(created.uom).toBe("套");
     expect(created.batch).toBe("");
-    created.qty = 1.5;
+    setEnteredQty(created, 1.5);
     created.batch = "SET-001";
     expect(validateOperation(receipt)).toContain("整数");
-    created.qty = 2;
+    setEnteredQty(created, 2);
     expect(validateOperation(receipt)).toBe("");
     reviewSession.drafts.splice(reviewSession.drafts.indexOf(receipt), 1);
     expect(
@@ -113,16 +114,17 @@ describe("preview form refinement", () => {
 
   it("shares receiving controls and keeps batch allocation totals derived", async () => {
     const wrapper = render(PreviewReceive, { pattern: "proposed" });
-    await button(wrapper, "添加批次分配").trigger("click");
+    await button(wrapper, "详情").trigger("click");
+    await button(body(), "添加批次分配").trigger("click");
     const quantities = wrapper.findAll("input[type=number]");
     await quantities[1].setValue(5);
-    expect(wrapper.get(".receive-line").text()).toContain("合计 17 袋");
+    expect(wrapper.get(".receive-summary").text()).toContain("17 袋");
     expect(
       wrapper.get(".receive-line").findAll("input[type=date]"),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
     expect(
       wrapper.get(".receive-line").findAll("[role=combobox]"),
-    ).toHaveLength(2);
+    ).toHaveLength(4);
   });
 
   it("shows source, target, existing batch and availability without a disclosure, and restricts creation to receiving", async () => {
@@ -231,13 +233,14 @@ describe("preview form refinement", () => {
     const draft = reviewSession.drafts.find(
       (draft) => draft.kind === "Return",
     )!;
-    await button(wrapper, "添加处理分配").trigger("click");
+    await button(wrapper, "详情").trigger("click");
+    await button(body(), "添加处理分配").trigger("click");
     for (const input of wrapper.findAll("input[type=number]"))
       await input.setValue(1);
-    const outcomes = wrapper
-      .findAll("select")
-      .filter((select) => select.text().includes("损坏归还"));
-    await outcomes[1].setValue("damaged");
+    const secondRow = wrapper.findAll("[data-line-id]")[1]!;
+    await button(secondRow, "详情").trigger("click");
+    await body().get('select[data-field="returnOutcome"]').setValue("damaged");
+    await button(body(), "完成详情").trigger("click");
     expect(wrapper.text()).not.toContain("遗失结清");
     await nextTick();
     await button(wrapper, "复核并确认").trigger("click");

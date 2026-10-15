@@ -403,7 +403,7 @@ const exportDetails = computed(() =>
 	props.family === "movement"
 		? movementRows.value.map(
 				(row) =>
-					`${row.name} · ${row.date} · ${movementLabels[row.kind]} · ${row.itemName} · ${row.qty} ${row.uom} · ${row.from} → ${row.to} · 批次 ${row.batch || "无"}`,
+					`${row.name} · ${row.date} · ${movementLabels[row.kind]} · ${row.itemName} · ${row.qty} ${row.uom} · ${row.from} → ${row.to} · 批次 ${row.batch || "无"}${row.entryUom ? ` · 输入 ${row.entryQty} ${row.entryUom} · 1 ${row.entryUom} = ${row.conversionFactor} ${row.uom}` : ""}`,
 			)
 		: props.records
 			? loans.value.flatMap((loan) =>
@@ -445,7 +445,9 @@ const exportDetails = computed(() =>
 			>
 				<button :aria-pressed="!scope.kinds.length" @click="scope.kinds = []">全部</button
 				><button
-					v-for="[kind, label] in kinds"
+					v-for="[kind, label] in kinds.filter(([kind]) =>
+						['Receive', 'Issue', 'Transfer'].includes(kind),
+					)"
 					:key="kind"
 					:aria-pressed="scope.kinds.length === 1 && scope.kinds[0] === kind"
 					@click="scope.kinds = [kind]"
@@ -544,9 +546,12 @@ const exportDetails = computed(() =>
 				<span v-if="records && status !== 'completed'">{{
 					status === "draft" ? "草稿数量" : "已取消数量"
 				}}</span>
-				<span v-for="total in summary.totals" :key="total.kind"
-					>{{ movementLabels[total.kind] }} {{ total.text }}</span
-				>
+				<details>
+					<summary>各类型数量</summary>
+					<span v-for="total in summary.totals" :key="total.kind"
+						>{{ movementLabels[total.kind] }} {{ total.text }}</span
+					>
+				</details>
 			</template>
 			<template v-else>
 				<strong
@@ -557,9 +562,12 @@ const exportDetails = computed(() =>
 					}}
 					· {{ loanSummary.items }}种物品</strong
 				>
-				<span v-for="total in loanSummary.totals" :key="total.label"
-					>{{ total.label }} {{ total.text }}</span
-				>
+				<details>
+					<summary>结清数量</summary>
+					<span v-for="total in loanSummary.totals" :key="total.label"
+						>{{ total.label }} {{ total.text }}</span
+					>
+				</details>
 			</template>
 		</section>
 		<div class="preview-browse-body">

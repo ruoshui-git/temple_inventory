@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onDeactivated } from "vue";
+import { ref, computed, onDeactivated, watch } from "vue";
 import PreviewProduct from "./PreviewProduct.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import type { StockItem } from "./model";
@@ -11,25 +11,39 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ detail: [] }>();
 const open = ref(false);
+const broken = ref(false);
 const primary = computed(() =>
 	props.item.files?.find(
 		(file) => file.type.startsWith("image/") && file.state === "ready" && file.url,
 	),
+);
+const uploading = computed(() =>
+	props.item.files?.some((file) => file.type.startsWith("image/") && file.state === "uploading"),
+);
+watch(
+	() => primary.value?.url,
+	() => {
+		broken.value = false;
+	},
 );
 onDeactivated(() => {
 	open.value = false;
 });
 </script>
 <template>
-	<div v-if="interaction === 'detail'" class="preview-item-image">
+	<span v-if="uploading" class="preview-image-loading" role="status" aria-label="图片加载中"
+		>…</span
+	>
+	<div v-else-if="interaction === 'detail'" class="preview-item-image">
 		<button
 			class="preview-image-detail"
 			:aria-label="`查看${item.name}详情`"
 			@click.stop="emit('detail')"
 		>
 			<img
-				v-if="primary"
+				v-if="primary && !broken"
 				:src="primary.url"
+				@error="broken = true"
 				:alt="item.name"
 				class="uploaded-preview-image"
 			/><PreviewProduct v-else :kind="item.illustration" :name="item.name" />
@@ -70,8 +84,9 @@ onDeactivated(() => {
 		@click.stop="open = true"
 	>
 		<img
-			v-if="primary"
+			v-if="primary && !broken"
 			:src="primary.url"
+			@error="broken = true"
 			:alt="item.name"
 			class="uploaded-preview-image"
 		/><PreviewProduct v-else :kind="item.illustration" :name="item.name" /><span
@@ -83,8 +98,9 @@ onDeactivated(() => {
 	<PreviewOverlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"
 		><div class="lightbox-image">
 			<img
-				v-if="primary"
+				v-if="primary && !broken"
 				:src="primary.url"
+				@error="broken = true"
 				:alt="item.name"
 				class="uploaded-preview-image"
 			/><PreviewProduct v-else :kind="item.illustration" :name="item.name" />
@@ -96,6 +112,14 @@ onDeactivated(() => {
 </template>
 
 <style scoped>
+.preview-image-loading {
+	display: grid;
+	place-items: center;
+	width: 48px;
+	height: 48px;
+	background: var(--p-soft);
+	border-radius: var(--p-radius-control);
+}
 .uploaded-preview-image {
 	display: block;
 	width: 100%;

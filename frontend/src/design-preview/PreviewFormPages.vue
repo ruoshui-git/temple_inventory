@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
+import { usePreviewWorkspace } from "./workspaceMode";
+import PreviewItemConversions from "./components/PreviewItemConversions.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
 import {
@@ -33,12 +35,13 @@ const props = withDefaults(defineProps<{ page: string; variant: string; active?:
 });
 const lineEditor = ref<InstanceType<typeof PreviewOperationLines>>();
 const formRoot = ref<HTMLElement>();
+const { expanded, toggle: toggleWorkspace } = usePreviewWorkspace(formRoot, () => props.active);
 const reviewBar = ref<HTMLElement>();
 const { isMobile } = useResponsiveLayout();
 usePreviewFocusVisibility(
 	formRoot,
 	reviewBar,
-	() => isMobile.value,
+	() => isMobile.value || expanded.value,
 	() => props.active,
 );
 const emit = defineEmits<{
@@ -371,7 +374,7 @@ function confirmSubmit() {
 </script>
 
 <template>
-	<section ref="formRoot" class="preview-form-page">
+	<section ref="formRoot" class="preview-form-page" :class="{ 'workspace-expanded': expanded }">
 		<div class="form-page-heading">
 			<div>
 				<span class="eyebrow">WORKFLOW PROPOSAL · PREVIEW DATA</span>
@@ -490,6 +493,11 @@ function confirmSubmit() {
 							>
 						</div>
 					</section>
+					<PreviewItemConversions
+						v-if="variant === 'edit' && draft.itemCode"
+						:code="draft.itemCode"
+						:disabled="isReadOnly"
+					/>
 					<section class="form-section">
 						<h2>物品图片</h2>
 						<PreviewAttachments
@@ -538,7 +546,7 @@ function confirmSubmit() {
 							>
 						</div>
 					</section>
-					<section class="form-section">
+					<section class="form-section operation-section">
 						<h2>{{ isReconcile ? "盘点物资" : "操作物资" }}</h2>
 						<p class="muted">
 							{{
@@ -558,6 +566,9 @@ function confirmSubmit() {
 							:draft="draft!"
 							:disabled="isReadOnly"
 							:show-error="showError"
+							:expanded="expanded"
+							:active="active"
+							@expand="toggleWorkspace"
 							@notify="emit('notify', $event)"
 						/>
 					</section>
@@ -615,7 +626,7 @@ function confirmSubmit() {
 											"请核对编号、名称与计量单位后重试。输入内容会保留。"
 					}}
 				</p>
-				<div class="form-actions">
+				<div ref="reviewBar" class="form-actions preview-document-actions">
 					<button
 						v-if="!isReadOnly"
 						type="button"
@@ -650,7 +661,7 @@ function confirmSubmit() {
 					>
 				</div>
 			</form>
-			<aside ref="reviewBar" class="form-review surface">
+			<aside class="form-review surface">
 				<span class="eyebrow">确认前检查</span
 				><span role="status">{{
 					saveState ||
@@ -676,29 +687,18 @@ function confirmSubmit() {
 				<p v-if="!isItem && !isReconcile" class="review-scope">
 					{{ distinctItemCount }} 种物品 · {{ draft.lines.length }} 行分配
 				</p>
-				<details v-if="!isReconcile && !isItem" class="review-lines-disclosure">
-					<summary>查看全部分配明细（{{ draft.lines.length }}）</summary>
-					<PreviewAllocationSummary :draft="draft" />
-				</details>
+				<div v-if="!isReconcile && !isItem" class="review-lines-disclosure">
+					<PreviewAllocationSummary :draft="draft" collapsible />
+				</div>
 				<p v-if="kind === 'Loan'">借用人：{{ draft?.borrower || "待填写" }}</p>
 				<p v-if="draft?.activity">活动：{{ draft.activity }}</p>
 				<p v-if="draft?.postingDate">日期：{{ draft.postingDate }}</p>
 				<p class="muted">
 					确认前请核对物品、数量和库位。库存为固定样本快照，确认不会执行库存扣增。
 				</p>
-				<div class="form-actions">
-					<PreviewUiButton v-if="isReconcile && isReadOnly" @click="showConfirm = true"
-						>查看盘点汇总</PreviewUiButton
-					>
-					<PreviewUiButton v-if="!isReadOnly" variant="secondary" @click="saveDraft"
-						>保存草稿</PreviewUiButton
-					><PreviewUiButton
-						v-if="!isReadOnly"
-						variant="primary"
-						@click="isItem ? confirmSubmit() : (showConfirm = true)"
-						>{{ isItem ? "保存物品" : "复核并确认" }}</PreviewUiButton
-					>
-				</div>
+				<PreviewUiButton v-if="isReconcile && isReadOnly" @click="showConfirm = true"
+					>查看盘点汇总</PreviewUiButton
+				>
 			</aside>
 		</div>
 		<PreviewOverlay v-if="discardOpen" title="放弃物品编辑？" @close="discardOpen = false"

@@ -665,7 +665,7 @@ describe("independent review workflow regressions", () => {
     expect(
       button(wrapper, "配置完成，继续扫描").attributes("disabled"),
     ).toBeDefined();
-    await button(wrapper, "移除明细").trigger("click");
+    await button(wrapper, "移除").trigger("click");
     expect(draft.lines).toEqual([]);
     expect(
       scanner.get('input:not([type="checkbox"])').attributes("disabled"),

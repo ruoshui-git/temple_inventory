@@ -1,3 +1,7 @@
+import {
+  applyLineConversion,
+  setEnteredQty,
+} from "../src/design-preview/conversionModel";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DOMWrapper, mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -96,10 +100,14 @@ describe("independent preview review regressions", () => {
       batch: "OLD",
     }));
     const wrapper = render(PreviewOperationLines, { draft });
-    await button(wrapper, "更换物品").trigger("click");
+    await button(wrapper, "详情").trigger("click");
+    await button(body(), "更换物品").trigger("click");
+    await nextTick();
     await body()
       .findAll(".picker-row")
       .find((row) => row.text().includes("ITM-000129"))!
+      .findAll("button")
+      .find((row) => row.text() === "选择")!
       .trigger("click");
     expect(draft.lines.map((line) => line.code)).toEqual([
       "ITM-000129",
@@ -156,7 +164,7 @@ describe("independent preview review regressions", () => {
     const first = reviewSession.drafts.find(
       (draft) => draft.name === reviewSession.selectedDraftName,
     )!;
-    first.lines[0].qty = 1;
+    setEnteredQty(first.lines[0], 1);
     submitDraft("Return", first.name);
     await nextTick();
     await button(detail, "登记归还").trigger("click");
@@ -205,15 +213,11 @@ describe("independent preview review regressions", () => {
       },
     ];
     const wrapper = render(PreviewOperationLines, { draft });
-    await button(wrapper, "单位换算 / 补充信息").trigger("click");
-    const units = wrapper
-      .findAll("select")
-      .find((select) => select.text().includes("1 箱"))!;
-    await units.setValue("箱");
-    const input = wrapper.findAll("input[type=number]").at(-1)!;
-    await input.setValue(2);
+    applyLineConversion(draft.lines[0]!, "箱", 10, 1);
+    await nextTick();
+    await wrapper.get('input[data-field="qty"]').setValue(2);
     expect(draft.lines[0].qty).toBe(20);
-    expect(wrapper.text()).toContain("合计 20 袋");
+    expect(wrapper.text()).toContain("折合 20 袋");
     expect(validateOperation(draft)).toBe("");
     submitDraft("Receive", draft.name);
     expect(draft.lines[0].batch).toBe("CONVERT-1");

@@ -757,3 +757,53 @@ backend behavior. Manual visual/keyboard/zoom review remains outstanding; see
   its name, and saving/cancelling restores its trigger. Canonical Receive shares
   routed confirmation details, including automatic-batch expiry and both entered
   and stock quantities. These are preview-only completeness repairs.
+
+- **2026-10-14 preview simplification (UX-03/08/09/10):** One row represents one
+  allocation. Quantity/unit and primary locations stay inline; batch, expiry,
+  manufacturing date, conversion and secondary fields live in Details. This
+  explicitly supersedes the 2026-10-13 requirement that all required fields stay
+  permanently visible. Rows show incomplete indicators; validation clears
+  obstructing filters, reveals Details and focuses the invalid field. Ordinary
+  Details edits update the draft immediately. Conversion edits are staged and
+  require Apply; leaving unapplied changes requires a discard decision.
+- Details is a desktop side panel and a full-screen panel below 1024px. Expanded
+  workspace retains the same editor, toolbar, complete stock-unit totals and a
+  single save/review action area. Exiting restores layout, focus and scroll.
+  All editable allocations remain mounted; only large flat selectors virtualize.
+- Warehouse summaries have independent disclosures. Initially open only one
+  warehouse with at most five allocations; subsequent manual choices persist.
+  Final confirmation exposes every allocation, entered quantity/unit, recorded
+  factor, stock equivalent and applicable context.
+- Contextual conversions belong to an allocation and optionally its Item. Save
+  as this Item's usual conversion is checked by default, with explicit permission,
+  failure and conflict feedback. Unknown factors remain blank; stock-unit factor
+  is 1. Configured unit changes preserve stock quantity; factor editing preserves
+  entered quantity and previews the changed stock equivalent. Existing lines and
+  history retain recorded factors when defaults change. Supporting records survive
+  movement cancellation. Item stock units remain immutable through this flow.
+- The sole new count entry lives in Tools → Work Tools. Existing count continuation
+  and review examples remain. Movement quick filters are All/Receive/Issue/Transfer;
+  Loan/Return and all other types remain available in detailed filters, results,
+  analysis and exports. Loans retains balances, settlement and event links.
+- Browse identity, search, scan, filters, view switch and active result context stay
+  visible; sorting/analysis/export and detail metadata/history use labeled tools
+  or disclosures. Reports use a compact selector, visible scope/date controls and
+  disclosed descriptions/secondary filters, preserving all five families and
+  independent export format/scope.
+
+These decisions apply only to the standalone preview. See the
+[execution record](notes/20261014_DESIGN_PREVIEW_SIMPLIFICATION_PROGRESS.md) for
+current checks and backend requirements; production migration and final visual
+approval remain pending.
+
+
+- **2026-10-14 independent simplification review:** On small screens, the
+  warehouse summary remains in normal document flow; one measured save/review
+  area stays above the bottom navigation. Notifications appear above the form
+  controls rather than covering those actions. Desktop compact rows use aligned
+  column headings, adjacent quantity/unit fields and concise Details/removal
+  actions. Expanded sections align content to the top without stretching gaps.
+  Item-level reusable conversion editing opens a guarded side panel (full screen
+  on mobile), retains input after failure/cancel requests and restores its edit
+  trigger on close. Movement conversion editing continues within allocation
+  Details. These changes remain preview-only.

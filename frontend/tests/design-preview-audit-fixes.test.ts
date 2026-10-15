@@ -242,7 +242,7 @@ describe("preview audit repairs", () => {
     draft.lines[0].countedQty = 0;
     draft.lines[0].reason = "核对";
     await settle();
-    await button(wrapper.get(".form-review"), "复核并确认").trigger("click");
+    await button(wrapper, "核对并确认").trigger("click");
     const dialog = new DOMWrapper(document.querySelector('[role="dialog"]')!);
     expect(dialog.text()).toContain("2 行未核对，不纳入调整");
     expect(dialog.text()).toContain("80 袋");

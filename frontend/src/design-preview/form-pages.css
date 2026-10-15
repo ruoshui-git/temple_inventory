@@ -247,9 +247,9 @@
 	}
 }
 
-/* Shared with the canonical receiving example; all required fields stay visible. */
+/* Shared with the canonical receiving example; secondary required fields reveal through Details. */
 .preview-operation-lines {
-	display: grid;
+	display: block;
 	gap: var(--p-gap);
 	min-width: 0;
 }
@@ -431,7 +431,7 @@
 .preview-line-actions:empty {
 	display: none;
 }
-.preview-operation-lines {
+.operation-section {
 	container: preview-lines / inline-size;
 }
 /* At scaled text or narrow editor widths, controls get their own heading row. */
@@ -512,5 +512,189 @@
 	}
 	:root:not([data-preview-text-scale="100"]) .preview-form-page .form-review {
 		position: fixed;
+	}
+}
+
+/* Compact allocations: columns follow available workspace and scaled text. */
+.preview-operation-lines .draft-line.receive-line {
+	display: block;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+.preview-operation-lines .compact-allocation,
+.allocation-columns {
+	display: grid;
+	grid-template-columns:
+		minmax(0, 1.8fr) minmax(calc(10.5 * var(--p-body)), 1.2fr) minmax(0, 1.4fr) minmax(0, 1fr)
+		calc(9 * var(--p-body));
+	gap: var(--p-space-3);
+	align-items: start;
+}
+.preview-operation-lines .compact-allocation {
+	padding: var(--p-space-3) 0;
+	border: 0;
+	border-bottom: 1px solid var(--p-border-soft);
+	border-radius: 0;
+}
+.allocation-columns {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.compact-allocation > * {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.allocation-identity {
+	display: flex;
+	gap: var(--p-space-3);
+	min-width: 0;
+}
+.allocation-identity .preview-group-thumbnail {
+	flex: 0 0 48px;
+	width: 48px;
+	height: 48px;
+}
+.allocation-identity .product-art {
+	width: 48px;
+	height: 48px;
+}
+.allocation-quantity {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-2);
+}
+.allocation-quantity > label {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+.allocation-quantity input[type="number"] {
+	width: calc(7ch + 1em);
+	max-width: 100%;
+}
+.allocation-quantity > .preview-search-select {
+	flex: 1 1 3em;
+}
+.allocation-equivalent {
+	flex-basis: 100%;
+}
+.allocation-locations {
+	display: grid;
+	gap: var(--p-space-2);
+}
+.allocation-context small {
+	display: block;
+}
+.allocation-error {
+	grid-column: 1 / -1;
+}
+@container preview-lines (min-width: 52.01em) {
+	.compact-allocation .allocation-field-label,
+	.compact-allocation .preview-search-select > label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+}
+@container preview-lines (max-width: 52em) {
+	.allocation-columns {
+		display: none;
+	}
+	.preview-operation-lines .compact-allocation {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.preview-allocation-actions {
+		justify-content: start;
+	}
+}
+.preview-drawer {
+	width: min(640px, 100%);
+}
+@media (max-width: 1023px) {
+	.preview-overlay .preview-drawer {
+		width: 100%;
+		height: 100dvh;
+		max-height: 100dvh;
+		border-radius: 0;
+	}
+}
+.workspace-expanded .form-page-heading,
+.workspace-expanded .page-heading,
+.workspace-expanded .proposal-note,
+.workspace-expanded .form-date-section,
+.workspace-expanded .form-review,
+.workspace-expanded .receive-summary,
+.workspace-expanded .form-main > .form-section:not(.operation-section),
+.workspace-expanded .receive-main > fieldset > .form-section:not(.operation-section) {
+	display: none;
+}
+.workspace-expanded .form-layout,
+.workspace-expanded .receive-layout {
+	grid-template-columns: minmax(0, 1fr);
+}
+.workspace-expanded .operation-section {
+	align-content: start;
+	min-height: 65dvh;
+}
+.workspace-expanded .form-actions {
+	position: sticky;
+	bottom: var(--p-mobile-nav-height, 0px);
+	z-index: 8;
+	background: var(--p-surface);
+}
+.preview-document-actions {
+	position: sticky;
+	bottom: 0;
+	z-index: 8;
+	background: var(--p-surface);
+	padding-block: var(--p-space-2);
+}
+@media (max-width: 1023px) {
+	:root .preview-form-page.preview-form-page .form-review,
+	:root .receive-example .receive-summary {
+		position: static;
+		max-height: none;
+		width: auto;
+		overflow: visible;
+		box-shadow: none;
+	}
+	.preview-form-page .form-review > p,
+	.preview-form-page .form-review > h2,
+	.preview-form-page .form-review > .eyebrow {
+		display: block;
+	}
+	.preview-document-actions,
+	.workspace-expanded .preview-document-actions {
+		position: fixed;
+		left: 12px;
+		right: 12px;
+		bottom: calc(var(--preview-nav-height, 80px) + 8px);
+		max-height: min(220px, 40dvh);
+		overflow: auto;
+		margin: 0;
+		padding: var(--p-space-2) var(--p-space-3);
+		border: 1px solid var(--p-border);
+		border-radius: var(--p-radius-control);
+	}
+	.receive-example {
+		padding-bottom: calc(
+			var(--preview-review-height, 210px) + var(--preview-nav-height, 80px) + 24px
+		);
+	}
+}
+
+.preview-operation-lines > * + * {
+	margin-top: var(--p-space-3);
+}
+.workspace-expanded .preview-operation-lines {
+	display: flex;
+	flex-direction: column;
+	gap: var(--p-space-3);
+}
+@media (max-width: 1023px) {
+	.preview-form-page .review-lines-disclosure {
+		display: block;
 	}
 }

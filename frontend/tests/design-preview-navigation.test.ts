@@ -159,8 +159,9 @@ describe("preview navigation proposal", () => {
     wrapper = mount(PreviewBrowsePages, {
       props: { route: "movement-records/completed" },
     });
-    expect(wrapper.findAll(".browse-kind-tabs button")).toHaveLength(12);
-    await click(".browse-kind-tabs", "期初库存");
+    expect(wrapper.findAll(".browse-kind-tabs button")).toHaveLength(4);
+    reviewSession.filters.movementScope.kinds = ["Opening"];
+    await nextTick();
     expect(wrapper.get(".browse-table tbody").text()).toContain(
       "MAT-RECO-2026-00014",
     );
@@ -168,7 +169,8 @@ describe("preview navigation proposal", () => {
       "MAT-STE-2026-00009",
     );
     expect(wrapper.emitted("navigate")).toBeUndefined();
-    await click(".browse-kind-tabs", "修复归库");
+    reviewSession.filters.movementScope.kinds = ["Repair"];
+    await nextTick();
     expect(wrapper.find(".browse-empty").exists()).toBe(true);
     await click(".browse-kind-tabs", "全部");
     expect(wrapper.findAll(".browse-table tbody tr").length).toBeGreaterThan(1);

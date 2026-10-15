@@ -396,7 +396,7 @@ function action(name: string) {
 					@click="filtersOpen = !filtersOpen"
 				/>
 			</div>
-			<div v-if="compact" class="inventory-compact-tools">
+			<div class="inventory-compact-tools">
 				<button
 					ref="toolsTrigger"
 					class="text-button"
@@ -407,12 +407,11 @@ function action(name: string) {
 					浏览工具
 					<InventoryIcon name="chevron-down" :class="{ 'is-expanded': toolsOpen }" />
 				</button>
-				<div ref="compactContext"><slot name="context-actions" /></div>
+				<div v-if="compact" ref="compactContext"><slot name="context-actions" /></div>
 			</div>
 			<div
 				ref="secondaryTools"
 				id="inventory-secondary-tools"
-				v-show="!compact || toolsOpen"
 				class="inventory-secondary-tools"
 			>
 				<div class="result-tools">
@@ -426,14 +425,13 @@ function action(name: string) {
 						</div>
 						<span class="muted">{{ rows.length }} 种物品</span>
 					</div>
-					<div class="button-row">
+					<div v-show="toolsOpen" class="button-row">
 						<label class="inline-field"
 							>排序<select v-model="sort" aria-label="库存排序">
 								<option value="name">物品名称</option>
 								<option value="available">可用数量</option>
 							</select></label
-						><UiButton v-if="!isMobile" icon="download" @click="openExport"
-							>导出</UiButton
+						><UiButton icon="download" @click="openExport">导出</UiButton
 						><UiButton variant="ghost" icon="sigma" @click="summaryOpen = true"
 							>列汇总</UiButton
 						>

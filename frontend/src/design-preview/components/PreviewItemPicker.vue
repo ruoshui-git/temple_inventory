@@ -2,6 +2,9 @@
 import { computed, reactive, ref, nextTick, useId, watch } from "vue";
 import { matchesCategory } from "../browseModel";
 import { reviewSession } from "../reviewModel";
+import PreviewVirtualList from "./PreviewVirtualList.vue";
+import PreviewItemImage from "../PreviewItemImage.vue";
+import { installLargePickerFixture } from "../usabilityFixtures";
 import PreviewCategoryField from "./PreviewCategoryField.vue";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import PreviewProduct from "../PreviewProduct.vue";
@@ -81,6 +84,23 @@ const visible = computed(() =>
 				.toLocaleLowerCase()
 				.includes(search.value.toLocaleLowerCase()),
 	),
+);
+const loadState = ref<"ready" | "loading" | "error">("ready");
+const detailCode = ref("");
+const detailPanel = ref<HTMLElement>();
+let detailInvoker: HTMLElement | undefined;
+async function showStockDetails(code: string) {
+	if (code) detailInvoker = document.activeElement as HTMLElement;
+	detailCode.value = code;
+	await nextTick();
+	if (code) detailPanel.value?.focus({ preventScroll: true });
+	else {
+		detailInvoker?.focus({ preventScroll: true });
+		detailInvoker?.scrollIntoView({ block: "nearest" });
+	}
+}
+const detailItem = computed(() =>
+	reviewSession.stock.find((row) => row.code === detailCode.value),
 );
 const content = ref<HTMLElement>();
 const supportingEditors = ref<HTMLElement>();
@@ -213,43 +233,83 @@ function save() {
 				<PreviewUiButton v-if="allowCreate" @click="showCreate(true)"
 					>新建物品</PreviewUiButton
 				>
-				<component
-					:is="multiple ? 'label' : 'button'"
-					v-for="item in visible"
-					:key="item.code"
-					class="picker-row"
-					:class="{ 'is-selected': selected.includes(item.code) }"
-					@click="!multiple && selectExisting(item.code)"
-				>
-					<input
-						v-if="multiple"
-						type="checkbox"
-						:checked="selected.includes(item.code)"
-						:aria-label="`选择${item.name}`"
-						@change="toggle(item.code)"
-					/>
-					<span class="preview-picker-thumb"
-						><PreviewProduct :kind="item.illustration" :name="item.name"
-					/></span>
-					<span class="picker-identity"
-						><strong>{{ item.name }}</strong
-						><small>{{ item.code }} · {{ item.category }}</small></span
+				<details>
+					<summary>预览大型选择器</summary>
+					<PreviewUiButton @click="installLargePickerFixture()"
+						>载入 1,000 种物品</PreviewUiButton
 					>
-					<span class="picker-stock"
-						>可用 {{ item.available }} {{ item.uom }}
-						<small>{{
-							item.locations
-								.map((row) => `${row.location} · ${row.available} ${item.uom}`)
-								.join("；") || "暂无库存位置"
-						}}</small>
-						<small v-if="item.tracksBatch">{{
-							item.locations
-								.flatMap((row) => row.batches || [])
-								.map((batch) => `${batch.id} · ${batch.expiry || "无效期"}`)
-								.join("；")
-						}}</small>
-					</span>
-				</component>
+					<label class="preview-field"
+						>选择器加载状态<select v-model="loadState">
+							<option value="ready">正常</option>
+							<option value="loading">初次加载</option>
+							<option value="error">追加加载失败</option>
+						</select></label
+					>
+				</details>
+				<p v-if="loadState === 'loading'" role="status">正在加载物品…</p>
+				<p v-if="loadState === 'error'" role="alert">
+					追加加载失败；已有结果与选择保留。<PreviewUiButton @click="loadState = 'ready'"
+						>重试加载</PreviewUiButton
+					>
+				</p>
+				<div v-show="!detailCode && loadState !== 'loading'">
+					<p role="status">
+						{{ visible.length }} 个匹配物品 · 已选 {{ selected.length }}
+					</p>
+					<PreviewVirtualList :keys="visible.map((item) => item.code)" :estimate="150">
+						<template #default="{ index }">
+							<div
+								v-if="visible[index]"
+								class="picker-row"
+								:class="{ 'is-selected': selected.includes(visible[index]!.code) }"
+								:data-picker-code="visible[index]!.code"
+							>
+								<input
+									v-if="multiple"
+									type="checkbox"
+									:checked="selected.includes(visible[index]!.code)"
+									:aria-label="`选择${visible[index]!.name}`"
+									@change="toggle(visible[index]!.code)"
+								/>
+								<span v-else class="picker-checkbox-slot"></span>
+								<span class="preview-picker-thumb"
+									><PreviewItemImage :item="visible[index]!"
+								/></span>
+								<span class="picker-identity"
+									><strong>{{ visible[index]!.name }}</strong
+									><small
+										>{{ visible[index]!.code }} ·
+										{{ visible[index]!.category }}</small
+									><small
+										>可用 {{ visible[index]!.available }}
+										{{ visible[index]!.uom }}</small
+									></span
+								>
+								<span class="picker-actions"
+									><PreviewUiButton
+										v-if="!multiple"
+										@click="selectExisting(visible[index]!.code)"
+										>选择</PreviewUiButton
+									><PreviewUiButton
+										@click="showStockDetails(visible[index]!.code)"
+										>库存详情</PreviewUiButton
+									></span
+								>
+							</div>
+						</template>
+					</PreviewVirtualList>
+				</div>
+				<section v-if="detailItem" ref="detailPanel" tabindex="-1" class="picker-detail">
+					<h3>{{ detailItem.name }}</h3>
+					<p v-for="place in detailItem.locations" :key="place.location">
+						{{ place.location }} · 可用 {{ place.available }} {{ detailItem.uom
+						}}<small v-for="batch in place.batches" :key="batch.id"
+							>{{ batch.id }} · {{ batch.expiry || "无效期" }} ·
+							{{ batch.available }} {{ detailItem.uom }}</small
+						>
+					</p>
+					<PreviewUiButton @click="showStockDetails('')">返回物品列表</PreviewUiButton>
+				</section>
 				<p v-if="!visible.length">没有匹配的物品</p>
 			</div>
 			<form
@@ -326,7 +386,7 @@ function save() {
 <style scoped>
 .picker-row {
 	display: grid;
-	grid-template-columns: auto 48px minmax(0, 1fr);
+	grid-template-columns: 24px 48px minmax(0, 1fr);
 	gap: var(--p-space-3);
 	align-items: start;
 	width: 100%;
@@ -357,6 +417,12 @@ function save() {
 	grid-column: 3;
 	min-width: 0;
 	overflow-wrap: anywhere;
+}
+.picker-actions {
+	grid-column: 3;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-2);
 }
 .picker-stock {
 	grid-column: 3;

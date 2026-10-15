@@ -136,6 +136,7 @@ export interface StockItem {
   barcode?: string;
   description?: string;
   images?: string[];
+  conversionVersion?: number;
   alternateUnits?: { uom: string; factor: number }[];
   illustration: "rice" | "oil" | "cloth" | "box" | "none";
 }

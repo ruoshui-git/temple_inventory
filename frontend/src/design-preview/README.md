@@ -396,3 +396,58 @@ required-label alignment. **180 tests / 12 suites**, type-check, isolated build,
 The [review record](../../../notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md#independent-follow-up-review--2026-10-14)
 distinguishes this review from the earlier full matrix and lists remaining manual
 native-zoom/visual checks. Production remains unchanged.
+
+## Compact editing and conversions — 2026-10-14
+
+Routed movements and canonical Receive share compact allocation rows. Use Details
+for batch/expiry/manufacturing date, splitting/replacement, settlement outcome and
+staged unit conversion. Ordinary fields update immediately; conversion requires
+Apply and guards unapplied input. Common conversion saving defaults checked;
+preview permission/failure/conflict controls demonstrate supporting-record saves.
+Recorded entered quantity/unit/factor survives changes to Item defaults and appears
+in confirmation/history/detail exports. Item details/editing has a collapsible
+unit/conversion section; existing stock units stay immutable.
+
+Expand Workspace hides surrounding form sections/review rail while retaining the
+editor, complete totals and save/review action. Warehouse disclosures start closed
+except a single small warehouse and retain manual choices. Count creation lives
+only in Tools → Work Tools. Reports use a compact selector; Movement's less common
+types remain in detailed filters/chips and full-result quantities/exports.
+
+In the picker, expand **预览大型选择器** and choose **载入 1,000 种物品** to opt in.
+The entire local dataset remains searchable; lists over 100 matches render a
+measured window with overscan and keyboard navigation. Pending selection survives
+scrolling, search, loading retry and creation-return. **库存详情** stays in the
+picker, preserving its list position. Image variants include loaded/broken/uploading
+and missing fixtures. Editable operation rows are never virtualized.
+
+From `frontend/`, run:
+
+```sh
+pnpm exec vitest run tests/design-preview*.test.ts --maxWorkers=2
+pnpm type-check
+pnpm design:build
+pnpm exec playwright test --config playwright.design-preview.config.ts
+```
+
+The dedicated browser configuration starts isolated Vite on explicit port **5186**
+(`DESIGN_PREVIEW_PORT` overrides), refuses listener reuse, isolates storage per
+test, and fails on page exceptions/production API requests. Production browser
+configuration ignores preview specs. Browser artifacts/JSON/HTML report and
+screenshots live under `/tmp/temple-inventory-design-browser`; the design build
+stays under `/tmp/temple-inventory-design-preview`. Local sockets/Chromium may need
+sandbox escalation. See the
+[dated execution record](../../../notes/20261014_DESIGN_PREVIEW_SIMPLIFICATION_PROGRESS.md)
+for actual results, review links and limitations. Text scaling/emulated widths are
+not native browser zoom. Final visual approval and production/backend migration
+remain separate work.
+
+
+Independent review additions: the mobile warehouse summary scrolls with the page,
+while a single save/review area stays above navigation. Item-level reusable
+conversions open a guarded panel; allocation conversion remains inside Details.
+`DESIGN_PREVIEW_RESULTS` overrides the browser JSON/HTML/artifact root (screenshots
+remain in `/tmp/temple-inventory-design-browser/screenshots`). For readable Chinese
+screenshots, Chromium needs an available CJK font. The review environment uses
+`FONTCONFIG_FILE=/tmp/temple-inventory-ui-audit/fonts.conf`, pointing to the existing
+Noto Sans CJK font; see the execution note for the exact verified command.

@@ -1,3 +1,4 @@
+import { conversionError } from "./conversionModel";
 import {
   reviewSession,
   matchesLoanLine,
@@ -200,17 +201,33 @@ export function operationIssues(
         field: "batch",
       };
     if (
-      line.entryUom &&
-      line.entryUom !== item.uom &&
-      !item.alternateUnits?.some(
-        (unit) => unit.uom === line.entryUom && unit.factor > 0,
+      draft.kind !== "Reconcile" &&
+      (line.entryQty !== undefined || line.entryUom)
+    ) {
+      const error = conversionError(
+        line.entryQty ?? line.qty,
+        line.entryUom || line.uom,
+        line.conversionFactor ?? (line.entryUom === line.uom ? 1 : NaN),
+        line.uom,
+        session,
+      );
+      if (error)
+        return {
+          message: `${label}：${error}`,
+          lineId: line.id,
+          field: "entryUom",
+        };
+      if (
+        Math.abs(
+          (line.entryQty ?? line.qty) * (line.conversionFactor ?? 1) - line.qty,
+        ) > 1e-6
       )
-    )
-      return {
-        message: `${label}：请选择支持的换算单位。`,
-        lineId: line.id,
-        field: "entryUom",
-      };
+        return {
+          message: `${label}：输入与库存数量不一致，请重新应用换算。`,
+          lineId: line.id,
+          field: "entryUom",
+        };
+    }
     if (draft.kind === "Receive") {
       if (
         line.manufacturingDate &&

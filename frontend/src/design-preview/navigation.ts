@@ -61,6 +61,13 @@ export const moreNavigation: {
     label: "工作工具",
     items: [
       {
+        key: "count",
+        label: "盘点调整",
+        route: "reconciliation-form/new",
+        icon: "adjust",
+        description: "新建单一库位的实物盘点",
+      },
+      {
         key: "drafts",
         label: "草稿",
         route: "drafts/open",

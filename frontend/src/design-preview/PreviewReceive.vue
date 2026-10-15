@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { usePreviewWorkspace } from "./workspaceMode";
 import PreviewAttachments from "./components/PreviewAttachments.vue";
 import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
 import { activities, type PreviewAttachment } from "./workflowModel";
@@ -23,12 +24,16 @@ const props = defineProps<{ pattern: Pattern; active?: boolean }>();
 const emit = defineEmits<{ notify: [message: string]; back: [] }>();
 const lineEditor = ref<InstanceType<typeof PreviewOperationLines>>();
 const formRoot = ref<HTMLElement>();
+const { expanded, toggle: toggleWorkspace } = usePreviewWorkspace(
+	formRoot,
+	() => props.active !== false,
+);
 const reviewBar = ref<HTMLElement>();
 const { isMobile } = useResponsiveLayout();
 usePreviewFocusVisibility(
 	formRoot,
 	reviewBar,
-	() => isMobile.value && props.pattern === "proposed",
+	() => isMobile.value || expanded.value,
 	() => props.active !== false,
 );
 const destination = ref(locations[0]);
@@ -170,7 +175,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-	<div ref="formRoot" class="receive-example">
+	<div ref="formRoot" class="receive-example" :class="{ 'workspace-expanded': expanded }">
 		<div class="page-heading">
 			<div>
 				<span class="eyebrow">RECEIVE / 入库登记</span>
@@ -229,7 +234,7 @@ onBeforeUnmount(() => {
 							><input v-model="fields.date" type="date" required
 						/></label>
 					</section>
-					<section class="surface form-section">
+					<section class="surface form-section operation-section">
 						<div class="section-heading">
 							<div>
 								<span class="eyebrow">02 / 物品与位置</span>
@@ -242,9 +247,11 @@ onBeforeUnmount(() => {
 							:draft="receiveDraft"
 							:disabled="completed || confirmBusy"
 							:show-error="!!error"
+							:expanded="expanded"
+							:active="active"
+							@expand="toggleWorkspace"
 							@notify="emit('notify', $event)"
 						/>
-						<UiButton icon="scan" @click="scanOpen = true">扫码添加</UiButton>
 					</section>
 					<section class="surface form-section">
 						<div class="section-heading">
@@ -299,8 +306,14 @@ onBeforeUnmount(() => {
 						</fieldset>
 					</section>
 				</fieldset>
-				<div v-if="pattern === 'current'" class="surface form-section">
+				<div
+					ref="reviewBar"
+					class="surface form-section form-actions preview-document-actions"
+				>
 					<p class="muted">{{ lines.length }} 行 · {{ totals || "暂无物品" }}</p>
+					<UiButton :disabled="completed || confirmBusy" @click="saveDraft"
+						>保存草稿</UiButton
+					>
 					<UiButton
 						variant="primary"
 						type="submit"
@@ -310,7 +323,7 @@ onBeforeUnmount(() => {
 					><small class="muted">下一步检查明细，确认后才完成模拟入库。</small>
 				</div>
 			</div>
-			<aside ref="reviewBar" v-if="pattern === 'proposed'" class="surface receive-summary">
+			<aside v-if="pattern === 'proposed'" class="surface receive-summary">
 				<span class="eyebrow">REVIEW / 检查</span>
 				<h2>本次入库</h2>
 				<div class="summary-count">
@@ -320,13 +333,7 @@ onBeforeUnmount(() => {
 				<p class="muted">
 					{{ locationCount }} 个入库位置<br />{{ attachments.length }} 份附件
 				</p>
-				<UiButton
-					variant="primary"
-					type="submit"
-					:disabled="completed || conflict"
-					:loading="confirmBusy"
-					>检查并确认</UiButton
-				><small class="muted">先检查，再确认。草稿保存不会改变库存。</small>
+				<PreviewAllocationSummary :draft="receiveDraft" collapsible />
 			</aside>
 		</form>
 		<div class="demo-state-control">

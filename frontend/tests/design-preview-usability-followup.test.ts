@@ -1,3 +1,4 @@
+import { applyLineConversion } from "../src/design-preview/conversionModel";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DOMWrapper, mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -139,18 +140,24 @@ it("adds a batch in its item group while retaining all allocation controls and I
   wrappers.push(editor);
   const ids = draft.lines.map((line) => line.id);
   const group = editor.get(".draft-line");
-  const oldTotal = group.get(".preview-line-total").text();
-  await button(group, "添加批次分配").trigger("click");
+  const oldTotal = draft.lines.reduce((sum, line) => sum + line.qty, 0);
+  await button(group, "详情").trigger("click");
+  await button(body(), "添加批次分配").trigger("click");
   expect(draft.lines.slice(0, 55).map((line) => line.id)).toEqual(ids);
   expect(editor.findAll("[data-line-id]")).toHaveLength(56);
   const newLine = draft.lines.at(-1)!;
   const row = group.get('[data-line-id="' + newLine.id + '"]');
   expect(row.get('input[data-field="qty"]').exists()).toBe(true);
-  expect(row.get('input[data-field="batch"]').exists()).toBe(true);
-  expect(row.get('input[data-field="expiry"]').exists()).toBe(true);
+  expect(row.text()).toContain("批次 自动生成");
+  await button(row, "详情").trigger("click");
+  expect(body().get('input[data-field="batch"]').exists()).toBe(true);
+  expect(body().get('input[data-field="expiry"]').exists()).toBe(true);
+  await button(body(), "完成详情").trigger("click");
   expect(row.get('[data-field="location"] input').exists()).toBe(true);
-  expect(group.get(".preview-line-total").text()).not.toBe(oldTotal);
-  await button(row, "移除明细").trigger("click");
+  expect(draft.lines.reduce((sum, line) => sum + line.qty, 0)).toBe(
+    oldTotal + 1,
+  );
+  await button(row, "移除").trigger("click");
   expect(draft.lines.map((line) => line.id)).toEqual(ids);
 });
 
@@ -223,8 +230,7 @@ it("shows canonical receipt expiry and conversion even with an automatic batch",
   const draft = editor.props("draft");
   const line = draft.lines[0]!;
   line.batch = "";
-  line.qty = 20;
-  line.entryUom = "箱";
+  applyLineConversion(line, "箱", 10, 2);
   line.manufacturingDate = "2026-10-01";
   await settle();
   await form.get("form").trigger("submit");

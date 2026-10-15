@@ -614,17 +614,6 @@ onMounted(() => {
 						{{ child.label }}
 					</button>
 				</nav>
-				<div
-					v-if="
-						showInventoryNavigation &&
-						!(page === 'inventory' || routeArea === 'inventory')
-					"
-					class="preview-context-actions"
-				>
-					<button class="text-button" @click="navigate('reconciliation-form/new')">
-						<InventoryIcon name="adjust" />盘点调整
-					</button>
-				</div>
 				<button
 					v-if="backRoute"
 					class="text-button preview-back"
@@ -673,11 +662,6 @@ onMounted(() => {
 								{{ child.label }}
 							</button>
 						</nav>
-					</template>
-					<template #context-actions>
-						<button class="text-button" @click="navigate('reconciliation-form/new')">
-							<InventoryIcon name="adjust" />盘点调整
-						</button>
 					</template>
 				</PreviewInventory>
 				<PreviewReceive

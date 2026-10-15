@@ -361,7 +361,7 @@ describe("interactive preview", () => {
       .findAll(".receive-line")
       .find((row) => row.text().includes(items[5].name))!;
     expect(plain.text()).not.toContain("批次编号");
-    expect(batchOnly.text()).toContain("批次编号");
+    expect(batchOnly.text()).toContain("批次 自动生成");
     expect(batchOnly.text()).not.toContain("到期日期");
   });
   it("preserves the active filters when opening contextual export", async () => {

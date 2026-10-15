@@ -1,12 +1,22 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { enteredQty } from "../conversionModel";
 import { reviewSession, type ReviewDraft, type DraftLine } from "../reviewModel";
 
-const props = defineProps<{ draft: ReviewDraft }>();
+const props = defineProps<{ draft: ReviewDraft; collapsible?: boolean }>();
 const item = (code: string) => reviewSession.stock.find((row) => row.code === code);
-const enteredQuantity = (line: DraftLine) =>
-	Number(line.qty) /
-	(item(line.code)?.alternateUnits?.find((unit) => unit.uom === line.entryUom)?.factor || 1);
+const enteredQuantity = enteredQty;
+const choices = ref<Record<string, boolean>>({});
+function isOpen(place: string) {
+	return choices.value[place] ?? (groups.value.length === 1 && props.draft.lines.length <= 5);
+}
+function totals(lines: DraftLine[]) {
+	const values = new Map<string, number>();
+	lines.forEach((line) =>
+		values.set(line.uom, (values.get(line.uom) || 0) + Number(line.qty || 0)),
+	);
+	return [...values].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
+}
 const groups = computed(() => {
 	const result = new Map<string, DraftLine[]>();
 	for (const line of props.draft.lines) {
@@ -20,8 +30,17 @@ const groups = computed(() => {
 
 <template>
 	<div class="review-list preview-allocation-summary">
-		<section v-for="[place, lines] in groups" :key="place">
-			<strong>{{ place }}</strong>
+		<component
+			:is="collapsible ? 'details' : 'section'"
+			v-for="[place, lines] in groups"
+			:key="place"
+			:open="collapsible ? isOpen(place) : undefined"
+			@toggle="collapsible && (choices[place] = ($event.target as HTMLDetailsElement).open)"
+		>
+			<component :is="collapsible ? 'summary' : 'strong'"
+				>{{ place }} · {{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
+				{{ lines.length }} 行分配 · {{ totals(lines) }}</component
+			>
 			<p v-for="line in lines" :key="line.id" :data-summary-line-id="line.id">
 				{{ item(line.code)?.name || line.code }} · {{ line.qty }} {{ line.uom }}
 				<small class="muted">
@@ -37,7 +56,8 @@ const groups = computed(() => {
 						· 到期 {{ line.expiry || "未设置" }}</template
 					>
 					<template v-if="line.entryUom">
-						· 输入 {{ enteredQuantity(line) }} {{ line.entryUom }}</template
+						· 输入 {{ enteredQuantity(line) }} {{ line.entryUom }} · 1
+						{{ line.entryUom }} = {{ line.conversionFactor }} {{ line.uom }}</template
 					>
 					<template v-if="line.loanName || draft.loanName">
 						· 借出 {{ line.loanName || draft.loanName }} / 原明细
@@ -59,7 +79,7 @@ const groups = computed(() => {
 					<template v-if="line.reason"> · 原因 {{ line.reason }}</template>
 				</small>
 			</p>
-		</section>
+		</component>
 	</div>
 </template>
 

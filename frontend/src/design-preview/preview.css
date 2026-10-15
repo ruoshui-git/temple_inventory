@@ -1797,8 +1797,8 @@ body:has(.preview-overlay) .preview-toast {
 	text-align: left;
 }
 .picker-row .product-art {
-	width: 72px;
-	height: 60px;
+	width: 48px;
+	height: 48px;
 	border-radius: 6px;
 	flex: none;
 }
@@ -2892,4 +2892,20 @@ button {
 	:root {
 		--p-control: 44px;
 	}
+}
+/* View, result count and active filters remain visible while browsing tools collapse. */
+.inventory-example.is-compact .inventory-secondary-tools {
+	position: static;
+	max-height: none;
+	overflow: visible;
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+	background: transparent;
+}
+
+/* Form notifications stay clear of the persistent save/review controls. */
+body:has(.preview-document-actions) .preview-toast {
+	top: 16px;
+	bottom: auto;
 }

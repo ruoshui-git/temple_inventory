@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
+import PreviewVirtualList from "./PreviewVirtualList.vue";
+const virtualList = ref<InstanceType<typeof PreviewVirtualList>>();
 export type SearchOption = { value: string; label: string; detail?: string; disabled?: boolean };
 const props = withDefaults(
 	defineProps<{
@@ -9,8 +11,9 @@ const props = withDefaults(
 		disabled?: boolean;
 		placeholder?: string;
 		pageSize?: number;
+		clearable?: boolean;
 	}>(),
-	{ pageSize: 20 },
+	{ pageSize: 20, clearable: true },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 const id = useId();
@@ -49,7 +52,10 @@ const matches = computed(() =>
 			.includes(query.value.trim().toLocaleLowerCase()),
 	),
 );
-const visible = computed(() => matches.value.slice(0, limit.value));
+const virtual = computed(() => matches.value.length > 100);
+const visible = computed(() =>
+	virtual.value ? matches.value : matches.value.slice(0, limit.value),
+);
 watch(query, () => {
 	limit.value = props.pageSize;
 	active.value = 0;
@@ -88,6 +94,7 @@ function key(event: KeyboardEvent) {
 						),
 					)
 				] ?? -1;
+		if (virtual.value) virtualList.value?.scrollToIndex(active.value);
 		nextTick(() =>
 			root.value
 				?.querySelector("[role=option].active")
@@ -139,7 +146,7 @@ defineExpose({ state });
 				"
 				@keydown="key"
 			/><button
-				v-if="modelValue && !disabled"
+				v-if="clearable && modelValue && !disabled"
 				type="button"
 				:aria-label="'清除' + label"
 				@click="
@@ -157,7 +164,37 @@ defineExpose({ state });
 				选项加载失败 <button type="button" @click="state = 'ready'">重试</button>
 			</div>
 			<template v-else
-				><ul :id="id + '-options'" role="listbox" :aria-label="label">
+				><PreviewVirtualList
+					v-if="virtual"
+					ref="virtualList"
+					:id="id + '-options'"
+					role="listbox"
+					:aria-label="label"
+					:keys="matches.map((option) => option.value)"
+					:estimate="64"
+					><template #default="{ index }"
+						><div
+							:id="id + '-' + index"
+							role="option"
+							:aria-selected="matches[index]?.value === modelValue"
+							:aria-disabled="matches[index]?.disabled"
+							:class="{ active: index === active }"
+							class="virtual-option"
+							@mousedown.prevent
+							@click="
+								matches[index] &&
+								!matches[index]!.disabled &&
+								choose(matches[index]!.value)
+							"
+						>
+							{{ matches[index]?.label
+							}}<small v-if="matches[index]?.detail">{{
+								matches[index]?.detail
+							}}</small>
+						</div></template
+					></PreviewVirtualList
+				>
+				<ul v-else :id="id + '-options'" role="listbox" :aria-label="label">
 					<li
 						v-for="(option, index) in visible"
 						:id="id + '-' + index"
@@ -173,7 +210,11 @@ defineExpose({ state });
 					</li>
 				</ul>
 				<p v-if="!matches.length" role="status">没有匹配的选项</p>
-				<button v-if="matches.length > limit" type="button" @click="limit += pageSize">
+				<button
+					v-if="!virtual && matches.length > limit"
+					type="button"
+					@click="limit += pageSize"
+				>
 					显示更多（共 {{ matches.length }} 项）</button
 				><span class="sr-only" role="status"
 					>{{ matches.length }} 个匹配选项</span
@@ -226,7 +267,8 @@ ul {
 	margin: 0;
 	padding: 0;
 }
-li {
+li,
+.virtual-option {
 	min-height: 44px;
 	display: flex;
 	flex-direction: column;
@@ -236,6 +278,7 @@ li {
 	border-radius: 6px;
 }
 li.active,
+.virtual-option.active,
 li:hover {
 	background: var(--p-soft);
 }

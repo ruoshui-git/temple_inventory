@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { warehouseEditError, isSystemWarehouse } from "./workflowModel";
+import PreviewScanPanel from "./components/PreviewScanPanel.vue";
 import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
+import PreviewItemConversions from "./components/PreviewItemConversions.vue";
 import PreviewAttachments from "./components/PreviewAttachments.vue";
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
@@ -208,6 +210,7 @@ const batches = computed(() =>
 		})),
 	),
 );
+const expirySort = ref("expiry");
 const expiryLines = computed(() => {
 	const rows = reviewSession.stock.flatMap((item) =>
 		item.tracksBatch
@@ -243,7 +246,11 @@ const expiryLines = computed(() => {
 					.includes(query))
 		);
 	});
-	return filtered;
+	return filtered.sort((a, b) =>
+		expirySort.value === "name"
+			? a.item.name.localeCompare(b.item.name, "zh")
+			: (a.expiry || "9999").localeCompare(b.expiry || "9999"),
+	);
 });
 const expiryRows = computed(() => {
 	const rows = expiryLines.value;
@@ -529,6 +536,10 @@ function editMovement() {
 				sourceLocation: row.from,
 				location: row.to,
 				batch: row.batch,
+				entryUom: row.entryUom,
+				entryQty: row.entryQty,
+				conversionFactor: row.conversionFactor,
+				manufacturingDate: row.manufacturingDate,
 				loanName: operation === "Loan" ? undefined : row.loanName,
 				loanLineIndex: row.loanLineIndex,
 				returnOutcome: row.kind === "Damage" ? "damaged" : "returned",
@@ -687,7 +698,7 @@ onActivated(() => {
 			</div>
 			<div class="browse-heading-actions">
 				<PreviewUiButton
-					v-if="['expiry', 'warehouse-detail'].includes(page.page)"
+					v-if="page.page === 'warehouse-detail'"
 					icon="download"
 					@click="openQuickExport"
 					>快速导出</PreviewUiButton
@@ -845,6 +856,40 @@ onActivated(() => {
 					@click="expiryFiltersOpen = !expiryFiltersOpen"
 				/>
 				<span class="browse-result-count">{{ expiryRows.length }} 个批次</span>
+				<PreviewUiButton @click="go('movement-form', 'Receive')">入库</PreviewUiButton>
+				<PreviewScanPanel
+					@item="(code, batch) => (search = batch || code)"
+					@location="(name) => (reviewSession.filters.expiry.scope.warehouses = [name])"
+				/>
+				<details class="preview-expiry-tools">
+					<summary>浏览工具</summary>
+					<label class="preview-field"
+						>排序<select v-model="expirySort">
+							<option value="expiry">到期日</option>
+							<option value="name">物品名称</option>
+						</select></label
+					>
+					<PreviewUiButton icon="download" @click="openQuickExport"
+						>快速导出</PreviewUiButton
+					>
+					<details>
+						<summary>分析当前结果</summary>
+						<p>
+							{{ expiryRows.length }} 个批次 ·
+							{{ new Set(expiryRows.map((row) => row.item.code)).size }} 种物品
+						</p>
+						<p>
+							{{
+								quantityText(
+									expiryRows.map((row) => ({
+										qty: row.available,
+										uom: row.item.uom,
+									})),
+								)
+							}}
+						</p>
+					</details>
+				</details>
 			</div>
 			<p v-if="page.variant === 'soon'" class="browse-note">
 				到期日期：今日至未来30天（包含端点）
@@ -1063,47 +1108,50 @@ onActivated(() => {
 					@click="openLoan(currentMovement.loanName)"
 					>查看借用与处理</PreviewUiButton
 				>
-				<dl class="browse-detail-grid">
-					<div>
-						<dt>用途</dt>
-						<dd>{{ movementDraft?.purpose || "—" }}</dd>
-					</div>
-					<div>
-						<dt>负责人</dt>
-						<dd>{{ movementDraft?.responsible || "—" }}</dd>
-					</div>
-					<div>
-						<dt>来源类型 / 来源</dt>
-						<dd>
-							{{ movementDraft?.sourceType || "—" }} ·
-							{{ movementDraft?.source || "—" }}
-						</dd>
-					</div>
-					<div>
-						<dt>操作时间</dt>
-						<dd>{{ movementDraft?.postingTime || "未记录" }}</dd>
-					</div>
-					<div>
-						<dt>借用人 / 对象</dt>
-						<dd>{{ currentMovement.borrower || "—" }}</dd>
-					</div>
-					<div>
-						<dt>记录人</dt>
-						<dd>{{ movementDraft?.recorder || "未填写" }}</dd>
-					</div>
-					<div>
-						<dt>经手人</dt>
-						<dd>{{ movementDraft?.handler || "未填写" }}</dd>
-					</div>
-					<div>
-						<dt>鉴证人</dt>
-						<dd>{{ movementDraft?.reviewer || "未填写" }}</dd>
-					</div>
-					<div>
-						<dt>备注</dt>
-						<dd>{{ movementDraft?.note || "无" }}</dd>
-					</div>
-				</dl>
+				<details>
+					<summary>补充资料</summary>
+					<dl class="browse-detail-grid">
+						<div>
+							<dt>用途</dt>
+							<dd>{{ movementDraft?.purpose || "—" }}</dd>
+						</div>
+						<div>
+							<dt>负责人</dt>
+							<dd>{{ movementDraft?.responsible || "—" }}</dd>
+						</div>
+						<div>
+							<dt>来源类型 / 来源</dt>
+							<dd>
+								{{ movementDraft?.sourceType || "—" }} ·
+								{{ movementDraft?.source || "—" }}
+							</dd>
+						</div>
+						<div>
+							<dt>操作时间</dt>
+							<dd>{{ movementDraft?.postingTime || "未记录" }}</dd>
+						</div>
+						<div>
+							<dt>借用人 / 对象</dt>
+							<dd>{{ currentMovement.borrower || "—" }}</dd>
+						</div>
+						<div>
+							<dt>记录人</dt>
+							<dd>{{ movementDraft?.recorder || "未填写" }}</dd>
+						</div>
+						<div>
+							<dt>经手人</dt>
+							<dd>{{ movementDraft?.handler || "未填写" }}</dd>
+						</div>
+						<div>
+							<dt>鉴证人</dt>
+							<dd>{{ movementDraft?.reviewer || "未填写" }}</dd>
+						</div>
+						<div>
+							<dt>备注</dt>
+							<dd>{{ movementDraft?.note || "无" }}</dd>
+						</div>
+					</dl>
+				</details>
 				<h2>生命周期</h2>
 				<p>
 					{{ currentMovement.date }} ·
@@ -1119,26 +1167,33 @@ onActivated(() => {
 				>
 					<span>{{ line.itemName }} · {{ line.from }} → {{ line.to }}</span
 					><strong>{{ line.qty }} {{ line.uom }}</strong
+					><small v-if="line.entryUom"
+						>输入 {{ line.entryQty }} {{ line.entryUom }} · 1 {{ line.entryUom }} =
+						{{ line.conversionFactor }} {{ line.uom }}</small
+					>
 					><small v-if="line.kind === 'Reconcile'"
 						>账面 {{ line.bookQty }} → 实点 {{ line.countedQty }} ·
 						{{ line.reason || "无差异说明" }}</small
 					><small v-else-if="line.reason">原因：{{ line.reason }}</small>
 				</div>
-				<h2>附件</h2>
-				<PreviewAttachments
-					:model-value="
-						reviewSession.drafts.find((row) => row.name === currentMovement?.name)
-							?.files
-					"
-					disabled
-				/>
-				<p class="browse-note">
-					{{
-						reviewSession.drafts
-							.find((row) => row.name === currentMovement?.name)
-							?.attachments?.join("、") || "暂无附件"
-					}}
-				</p>
+				<details>
+					<summary>附件（{{ movementDraft?.files?.length || 0 }}）</summary>
+					<h2>附件</h2>
+					<PreviewAttachments
+						:model-value="
+							reviewSession.drafts.find((row) => row.name === currentMovement?.name)
+								?.files
+						"
+						disabled
+					/>
+					<p class="browse-note">
+						{{
+							reviewSession.drafts
+								.find((row) => row.name === currentMovement?.name)
+								?.attachments?.join("、") || "暂无附件"
+						}}
+					</p>
+				</details>
 				<p v-if="!movementEditable" class="browse-note">
 					{{ currentMovement.documentType }} ·
 					{{ currentMovement.stockPurpose || movementLabel(currentMovement.kind) }}，请在
@@ -1226,31 +1281,48 @@ onActivated(() => {
 						></span
 					>
 				</div>
-				<h2>处理历史</h2>
-				<button
-					v-for="(row, index) in allMovements.filter(
-						(row) => row.loanName === currentLoan.name,
-					)"
-					:key="index"
-					class="browse-rank-row"
-					@click="openMovement(row.name)"
-				>
-					<span
-						>{{ row.date }} · {{ movementLabel(row.kind) }} · {{ row.itemName
-						}}<small>{{ row.name }} · {{ row.from }} → {{ row.to }}</small></span
-					><strong>{{ row.qty }} {{ row.uom }}</strong>
-				</button>
-				<p class="browse-note">
-					{{ currentLoan.loanDate }} · 借用登记 · {{ formatStatus(currentLoan.status) }}
-				</p>
-				<h2>附件</h2>
-				<PreviewAttachments
-					:model-value="
-						reviewSession.drafts.find((row) => row.name === currentLoan.name)?.files
-					"
-					disabled
-				/>
-				<p class="browse-note">暂无附件</p>
+				<details>
+					<summary>
+						处理历史（{{
+							allMovements.filter((row) => row.loanName === currentLoan.name).length
+						}}）
+					</summary>
+					<h2>处理历史</h2>
+					<button
+						v-for="(row, index) in allMovements.filter(
+							(row) => row.loanName === currentLoan.name,
+						)"
+						:key="index"
+						class="browse-rank-row"
+						@click="openMovement(row.name)"
+					>
+						<span
+							>{{ row.date }} · {{ movementLabel(row.kind) }} · {{ row.itemName
+							}}<small>{{ row.name }} · {{ row.from }} → {{ row.to }}</small></span
+						><strong>{{ row.qty }} {{ row.uom }}</strong>
+					</button>
+					<p class="browse-note">
+						{{ currentLoan.loanDate }} · 借用登记 ·
+						{{ formatStatus(currentLoan.status) }}
+					</p>
+				</details>
+				<details>
+					<summary>
+						附件（{{
+							reviewSession.drafts.find((row) => row.name === currentLoan.name)
+								?.files?.length || 0
+						}}）
+					</summary>
+					<h2>附件</h2>
+					<PreviewAttachments
+						:model-value="
+							reviewSession.drafts.find((row) => row.name === currentLoan.name)
+								?.files
+						"
+						disabled
+					/>
+					<p class="browse-note">暂无附件</p>
+				</details>
 				<div v-if="currentLoan.status === 'outstanding'" class="browse-actions">
 					<PreviewUiButton
 						variant="primary"
@@ -1590,37 +1662,41 @@ onActivated(() => {
 						>编辑物品资料</PreviewUiButton
 					>
 				</div>
-				<dl class="browse-detail-grid">
-					<div>
-						<dt>物品编号</dt>
-						<dd>{{ activeItem.code }}</dd>
-					</div>
-					<div>
-						<dt>单位</dt>
-						<dd>{{ activeItem.uom }}</dd>
-					</div>
-					<div>
-						<dt>批次管理</dt>
-						<dd>{{ activeItem.tracksBatch ? "启用" : "不启用" }}</dd>
-					</div>
-					<div>
-						<dt>记录效期</dt>
-						<dd>{{ activeItem.tracksExpiry ? "启用" : "不启用" }}</dd>
-					</div>
-					<div>
-						<dt>条码</dt>
-						<dd>{{ activeItem.barcode || "未设置" }}</dd>
-					</div>
-					<div>
-						<dt>说明</dt>
-						<dd>{{ activeItem.description || "无" }}</dd>
-					</div>
-				</dl>
-				<h2>物品图片</h2>
-				<PreviewAttachments :model-value="activeItem.files" images-only disabled />
-				<p class="browse-note">
-					{{ activeItem.images?.join("、") || "示例插画；未添加其他图片" }}
-				</p>
+				<PreviewItemConversions :code="activeItem.code" />
+				<details>
+					<summary>物品资料与图片（{{ activeItem.files?.length || 0 }}）</summary>
+					<dl class="browse-detail-grid">
+						<div>
+							<dt>物品编号</dt>
+							<dd>{{ activeItem.code }}</dd>
+						</div>
+						<div>
+							<dt>单位</dt>
+							<dd>{{ activeItem.uom }}</dd>
+						</div>
+						<div>
+							<dt>批次管理</dt>
+							<dd>{{ activeItem.tracksBatch ? "启用" : "不启用" }}</dd>
+						</div>
+						<div>
+							<dt>记录效期</dt>
+							<dd>{{ activeItem.tracksExpiry ? "启用" : "不启用" }}</dd>
+						</div>
+						<div>
+							<dt>条码</dt>
+							<dd>{{ activeItem.barcode || "未设置" }}</dd>
+						</div>
+						<div>
+							<dt>说明</dt>
+							<dd>{{ activeItem.description || "无" }}</dd>
+						</div>
+					</dl>
+					<h2>物品图片</h2>
+					<PreviewAttachments :model-value="activeItem.files" images-only disabled />
+					<p class="browse-note">
+						{{ activeItem.images?.join("、") || "示例插画；未添加其他图片" }}
+					</p>
+				</details>
 				<PreviewQuantitySummary
 					:metrics="[
 						{
@@ -1761,51 +1837,56 @@ onActivated(() => {
 						</tbody>
 					</table>
 				</div>
-				<div class="browse-card-heading">
-					<h2>最近流动</h2>
-					<button
-						class="browse-link"
-						@click="
-							reviewSession.filters.movementScope = {
-								...emptyScope(),
-								item: activeItem.code,
-							};
-							reviewSession.filters.movementItems.search = '';
-							go('movement-items', 'list');
-						"
-					>
-						查看物品流动
-					</button>
-				</div>
-				<div class="browse-rank-list">
-					<button
-						v-for="row in itemMovements.slice(0, 4)"
-						:key="row.name"
-						class="browse-rank-row"
-						@click="openMovement(row.name)"
-					>
-						<span class="browse-grow"
-							><strong>{{ movementLabel(row.kind) }} · {{ row.date }}</strong
-							><small>{{ row.name }} · {{ row.from }} → {{ row.to }}</small></span
-						><b>{{ row.qty }} {{ row.uom }}</b>
-					</button>
-					<p v-if="!itemMovements.length" class="browse-note">暂无相关流动记录。</p>
-					<h2>借用记录</h2>
-					<button
-						v-for="loan in reviewSession.loans.filter((row) =>
-							row.lines.some((line) => line.code === activeItem.code),
-						)"
-						:key="loan.name"
-						class="browse-rank-row"
-						@click="openLoan(loan.name)"
-					>
-						{{ loan.borrower }} · {{ formatStatus(loan.status) }}
-					</button>
-					<h2>附件与补充资料</h2>
-					<p class="browse-note">
-						暂无附件 · 单位：{{ activeItem.uom }} · 类别：{{ activeItem.category }}
-					</p>
-				</div>
+				<details>
+					<summary>流动与借用历史（{{ itemMovements.length }}）</summary>
+					<div class="browse-card-heading">
+						<h2>最近流动</h2>
+						<button
+							class="browse-link"
+							@click="
+								reviewSession.filters.movementScope = {
+									...emptyScope(),
+									item: activeItem.code,
+								};
+								reviewSession.filters.movementItems.search = '';
+								go('movement-items', 'list');
+							"
+						>
+							查看物品流动
+						</button>
+					</div>
+					<div class="browse-rank-list">
+						<button
+							v-for="row in itemMovements.slice(0, 4)"
+							:key="row.name"
+							class="browse-rank-row"
+							@click="openMovement(row.name)"
+						>
+							<span class="browse-grow"
+								><strong>{{ movementLabel(row.kind) }} · {{ row.date }}</strong
+								><small
+									>{{ row.name }} · {{ row.from }} → {{ row.to }}</small
+								></span
+							><b>{{ row.qty }} {{ row.uom }}</b>
+						</button>
+						<p v-if="!itemMovements.length" class="browse-note">暂无相关流动记录。</p>
+						<h2>借用记录</h2>
+						<button
+							v-for="loan in reviewSession.loans.filter((row) =>
+								row.lines.some((line) => line.code === activeItem.code),
+							)"
+							:key="loan.name"
+							class="browse-rank-row"
+							@click="openLoan(loan.name)"
+						>
+							{{ loan.borrower }} · {{ formatStatus(loan.status) }}
+						</button>
+						<h2>附件与补充资料</h2>
+						<p class="browse-note">
+							暂无附件 · 单位：{{ activeItem.uom }} · 类别：{{ activeItem.category }}
+						</p>
+					</div>
+				</details>
 			</article>
 		</template>
 

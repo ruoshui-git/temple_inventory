@@ -296,3 +296,41 @@ text so they cannot create an extra field-grid row. Supporting creation surfaces
 manage opening/return focus and report dirty input to the containing picker.
 `PreviewAllocationSummary` now also supplies canonical Receive confirmation.
 The review record documents focused browser verification and remaining manual checks.
+
+## Preview compact allocation and selector geometry — 2026-10-14
+
+Compact rows align identity/artwork, quantity/unit, locations, batch/status context
+and Details/removal. The outer operation section supplies an available-width
+container; below 52em allocation columns stack with readable labels. Scaled text
+therefore reflows naturally without changing the 1024px surface boundary. Numeric
+fields prefer 7ch plus padding; 48px artwork and 44px mobile targets are deliberate
+fixed geometry. Rows have no fixed height. Split/replacement actions live in
+Details to keep ordinary rows compact. Expanded layout uses a flex editor to
+retain Chromium rendering after sibling form sections hide; allocations never
+unmount across that toggle.
+
+Details reuses `PreviewOverlay` focus/inert/scroll management. A staged conversion
+editor shares the panel, rather than stacking a modal. Warehouse disclosures own
+independent open state, and complete confirmation uses the same allocation
+projection without collapse. One responsive form action area remains.
+
+`PreviewVirtualList` measures row heights with ResizeObserver, keeps overscan and
+focused options mounted, scrolls keyboard targets into view and releases detached
+observations. It activates above 100 flat matches; editable allocations and
+hierarchy trees remain fully mounted. The 480px/55dvh scrollport and 48px picker
+thumbnail slot are fixed geometry exceptions. Picker selection lives outside the
+rendered window, and location/batch details share the picker surface. Artwork no
+longer has a conflicting 72×60 rule. Large opt-in fixtures include image, broken,
+loading, missing and illustration states. See the execution note for browser
+results and remaining native-zoom/user-approval checks.
+
+
+Independent simplification review: numeric fields remain `7ch` plus padding;
+column tracks use the same body-size basis for headings and rows, even when the
+headings use smaller type. Wide rows visually hide repeated field labels without
+removing accessible names. Expanded sections align content at the start. On
+mobile only the action area is fixed, with measured navigation clearance and
+bounded overflow; the warehouse summary remains in document flow. Notifications
+stay clear of these actions. Virtual lists retain the last focused row during
+pointer transfer/detail return and ignore hidden zero-size resize measurements.
+Reusable Item conversions use the shared guarded overlay and focus restoration.

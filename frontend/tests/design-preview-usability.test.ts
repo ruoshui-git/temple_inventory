@@ -1,3 +1,7 @@
+import {
+  applyLineConversion,
+  setEnteredQty,
+} from "../src/design-preview/conversionModel";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DOMWrapper, mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -287,7 +291,7 @@ describe("preview usability", () => {
     expect(
       body().get(".picker-row").find("input[type=checkbox]").exists(),
     ).toBe(false);
-    await body().get(".picker-row").trigger("click");
+    await button(body().get(".picker-row"), "选择").trigger("click");
     expect(picker.emitted("select")?.[0]).toEqual(["ITM-000128"]);
     picker.unmount();
     wrappers.splice(wrappers.indexOf(picker), 1);
@@ -349,9 +353,9 @@ describe("preview usability", () => {
     expect(
       (editor.get("input[type=search]").element as HTMLInputElement).value,
     ).toBe("");
-    draft.lines[0]!.qty = 1;
+    setEnteredQty(draft.lines[0]!, 1);
     draft.lines[27]!.location = "斋堂 / A-01";
-    draft.lines[54]!.qty = 1;
+    setEnteredQty(draft.lines[54]!, 1);
     draft.lines[27]!.manufacturingDate = "2030-01-01";
     draft.lines[27]!.expiry = "2027-03-01";
     await editor.get("input[type=search]").setValue("PREVIEW-50-001");
@@ -359,9 +363,7 @@ describe("preview usability", () => {
     await button(body(), "确认提交").trigger("click");
     await settle();
     expect(document.activeElement).toBe(
-      editor.get(
-        `[data-line-id="${draft.lines[27]!.id}"] input[data-field=manufacturingDate]`,
-      ).element,
+      body().get("[role=dialog] input[data-field=manufacturingDate]").element,
     );
   });
   it("adds without merging, clears hidden-row filters and focuses the first new quantity", async () => {
@@ -501,13 +503,13 @@ describe("receiving fixture navigation and preservation", () => {
     await settle();
     expect(editor.get('[data-line-id="stable-1"]').element).toBe(row.element);
     expect(document.activeElement).toBe(quantity);
-    draft.lines[1]!.entryUom = "箱";
+    applyLineConversion(draft.lines[1]!, "箱", 10, 1);
     await settle();
     expect(row.text()).toContain("折合 10 袋");
-    await button(row, "单位换算 / 补充信息").trigger("click");
-    await button(row, "单位换算 / 补充信息").trigger("click");
-    expect(row.findAll("input[data-field=qty]").at(-1)?.isVisible()).toBe(true);
-    expect(row.text()).toContain("输入数量（箱）");
+    await button(row, "详情").trigger("click");
+    await button(body(), "完成详情").trigger("click");
+    expect(row.get("input[data-field=qty]").isVisible()).toBe(true);
+    expect(row.text()).toContain("折合 10 袋");
   });
   it("retains values and pending selections when the form crosses the shared breakpoint", async () => {
     const form = render(PreviewFormPages, {
@@ -707,7 +709,7 @@ describe("independent review regressions", () => {
     await settle();
     const dialog = body().get('[role="dialog"]');
     const close = button(body(), "关闭 ×");
-    const lastRow = body().findAll(".picker-row").at(-1)!;
+    const lastRow = button(body().findAll(".picker-row").at(-1)!, "库存详情");
     (close.element as HTMLElement).focus();
     await close.trigger("keydown", { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(lastRow.element);

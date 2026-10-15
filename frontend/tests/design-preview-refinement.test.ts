@@ -254,7 +254,8 @@ describe("date and browse interactions", () => {
     expect(wrapper.get('.browse-kind-tabs [aria-pressed="true"]').text()).toBe(
       "多种类型 · 2",
     );
-    await button(wrapper, "借出").trigger("click");
+    reviewSession.filters.movementScope.kinds = ["Loan"];
+    await nextTick();
     expect(reviewSession.filters.movementScope.kinds).toEqual(["Loan"]);
     await button(wrapper, "全部").trigger("click");
     expect(reviewSession.filters.movementScope.kinds).toEqual([]);

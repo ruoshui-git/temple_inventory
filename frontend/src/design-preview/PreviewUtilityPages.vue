@@ -260,7 +260,7 @@ const exportRows = computed(() => {
 		if (state.exportDataset === "details")
 			return movementRows.value.map(
 				(row) =>
-					`${row.name} · ${row.itemName} · ${movementLabels[row.kind]} · ${row.from} → ${row.to} · ${row.batch || "不分批次"} · ${row.qty} ${row.uom}`,
+					`${row.name} · ${row.itemName} · ${movementLabels[row.kind]} · ${row.from} → ${row.to} · ${row.batch || "不分批次"} · ${row.qty} ${row.uom}${row.entryUom ? ` · 输入 ${row.entryQty} ${row.entryUom} · 1 ${row.entryUom} = ${row.conversionFactor} ${row.uom}` : ""}`,
 			);
 		if (state.type === "movement")
 			return groupMovements(movementRows.value).map(
@@ -358,22 +358,23 @@ function retryPreference() {
 			<span class="utility-sample-tag">预览样本</span>
 		</header>
 		<template v-if="page === 'reports' || page === 'report-export'">
-			<div v-if="page === 'reports'" class="report-catalog">
-				<button
-					v-for="report in reports"
-					:key="report.type"
-					class="report-card surface"
-					:aria-pressed="state.type === report.type"
-					@click="chooseReport(report.type)"
+			<label class="preview-field report-selector"
+				>报表<select
+					:value="state.type"
+					@change="
+						chooseReport(($event.target as HTMLSelectElement).value as ReportType)
+					"
 				>
-					<span class="report-card-icon"><InventoryIcon name="table" /></span
-					><span
-						><strong>{{ report.title }}</strong
-						><small>{{ report.description }}</small
-						><em>固定字段：{{ report.fields }}</em></span
-					><span aria-hidden="true">→</span>
-				</button>
-			</div>
+					<option v-for="report in reports" :key="report.type" :value="report.type">
+						{{ report.title }}
+					</option>
+				</select></label
+			>
+			<details class="form-section">
+				<summary>报表说明与字段</summary>
+				<p>{{ selectedReport.description }}</p>
+				<p>{{ selectedReport.fields }}</p>
+			</details>
 			<section class="surface report-workspace">
 				<div class="report-toolbar">
 					<div>
@@ -407,28 +408,32 @@ function retryPreference() {
 						"
 					/>
 					<template v-if="state.type === 'movement' || state.type === 'movement_records'"
-						><label class="preview-field"
-							>操作类型<select v-model="state.movementKind">
-								<option value="">全部操作</option>
-								<option
-									v-for="kind in [
-										'Receive',
-										'Issue',
-										'Transfer',
-										'Loan',
-										'Return',
-										'Damage',
-										'Loss',
-										'Repair',
-										'Disposal',
-									]"
-									:key="kind"
-									:value="kind"
-								>
-									{{ movementLabels[kind] }}
-								</option>
-							</select></label
-						><label class="preview-field"
+						><details>
+							<summary>更多筛选</summary>
+							<label class="preview-field"
+								>操作类型<select v-model="state.movementKind">
+									<option value="">全部操作</option>
+									<option
+										v-for="kind in [
+											'Receive',
+											'Issue',
+											'Transfer',
+											'Loan',
+											'Return',
+											'Damage',
+											'Loss',
+											'Repair',
+											'Disposal',
+										]"
+										:key="kind"
+										:value="kind"
+									>
+										{{ movementLabels[kind] }}
+									</option>
+								</select></label
+							>
+						</details>
+						<label class="preview-field"
 							>日期范围<select v-model="state.period">
 								<option value="this_month">本月</option>
 								<option value="custom">自选日期</option>
