@@ -354,7 +354,7 @@ const swatches = computed(() => [
 						<dd>{{ items[2].available }} {{ items[2].uom }}</dd>
 					</dl>
 					<p class="muted">
-						展示图片、标题与字段层级。物品、交易、仓库详情和报表整页将在后续单独设计。
+						展示图片、标题与字段层级。物品、交易、仓库详情和导出页面将在后续单独设计。
 					</p>
 				</div>
 			</div>

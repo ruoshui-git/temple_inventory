@@ -420,7 +420,7 @@ describe("shared report projections", () => {
   it("defaults quick reports to XLSX and retains content/format on opt-in failure and retry", async () => {
     const query = newReportQuery("movements");
     const wrapper = render(PreviewQuickReport, { query });
-    await button(wrapper, "快速报表").trigger("click");
+    await button(wrapper, "快速导出").trigger("click");
     await nextTick();
     let dialog = mount({ template: "<div />" });
     dialog.unmount();

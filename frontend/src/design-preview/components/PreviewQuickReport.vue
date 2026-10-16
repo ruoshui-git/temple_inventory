@@ -66,9 +66,9 @@ onDeactivated(() => {
 </script>
 <template>
 	<PreviewUiButton class="preview-quick-report" @click="open = true"
-		><InventoryIcon name="download" />快速报表</PreviewUiButton
+		><InventoryIcon name="download" />快速导出</PreviewUiButton
 	>
-	<PreviewOverlay v-if="open" title="快速报表" @close="open = false">
+	<PreviewOverlay v-if="open" title="快速导出" @close="open = false">
 		<p class="preview-long-text">范围：{{ projection.scope }}</p>
 		<p>{{ projection.count }} 行完整结果 · 与显示页数无关</p>
 		<p class="muted">
@@ -103,7 +103,7 @@ onDeactivated(() => {
 			>
 		</details>
 		<template #footer
-			><PreviewUiButton @click="full">打开完整报表</PreviewUiButton
+			><PreviewUiButton @click="full">打开导出页面</PreviewUiButton
 			><PreviewUiButton @click="open = false">取消</PreviewUiButton
 			><PreviewUiButton variant="primary" :disabled="!!projection.error" @click="generate">{{
 				failed ? "重试生成" : "模拟生成"

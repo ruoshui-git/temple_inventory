@@ -394,7 +394,7 @@ describe("bounded filter dialogs", () => {
     await button(dialog(), "取消").trigger("click");
     expect(reportStates.movements.scope.period.key).toBe("all");
     await button(wrapper, "物品").trigger("click");
-    await button(wrapper, "快速报表").trigger("click");
+    await button(wrapper, "快速导出").trigger("click");
     expect(body().findAll('[role="dialog"]')).toHaveLength(1);
     expect(dialog().text()).toContain("文件格式");
     resize(false);
@@ -632,7 +632,7 @@ describe("report scope and presentation", () => {
     await button(wrapper, "查看 HIST-").trigger("click");
     expect(dialog().text()).toContain("贡献行");
     await button(dialog(), "关闭").trigger("click");
-    await button(wrapper, "快速报表").trigger("click");
+    await button(wrapper, "快速导出").trigger("click");
     await field(dialog(), "文件格式").get("select").setValue("csv");
     await field(dialog(), "CSV 导出表").get("select").setValue("ledger");
     expect(field(dialog(), "文件格式").get("select").element.value).toBe("csv");
@@ -658,7 +658,7 @@ describe("report scope and presentation", () => {
     expect(table.findAll("tbody tr")).toHaveLength(30);
     await button(wrapper, "加载更多").trigger("click");
     expect(table.findAll("tbody tr").length).toBeGreaterThan(30);
-    await button(wrapper, "快速报表").trigger("click");
+    await button(wrapper, "快速导出").trigger("click");
     expect(dialog().text()).toContain(
       `${projectReport(reportStates.movements).count} 行完整结果`,
     );

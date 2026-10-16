@@ -92,7 +92,7 @@ for (const width of [375, 768, 1024, 1440])
         await noOverflow(page);
         await shot(page, `activity-detail-${width}-${density}-${scale}`);
         await page
-          .getByRole("button", { name: "快速报表", exact: true })
+          .getByRole("button", { name: "快速导出", exact: true })
           .click();
         await expect(page.getByRole("dialog")).toContainText("ACT-AUDIT");
         await noOverflow(page);
@@ -158,7 +158,7 @@ test("quick report failure, independent choices, full report scope and no produc
   page,
 }) => {
   await open(page, "movement-items/list");
-  await page.getByRole("button", { name: "快速报表", exact: true }).click();
+  await page.getByRole("button", { name: "快速导出", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(
     dialog.getByRole("combobox", { name: "文件格式", exact: true }),
@@ -177,7 +177,7 @@ test("quick report failure, independent choices, full report scope and no produc
     dialog.getByRole("combobox", { name: "CSV 导出表", exact: true }),
   ).toHaveValue("lines");
   await dialog
-    .getByRole("button", { name: "打开完整报表", exact: true })
+    .getByRole("button", { name: "打开导出页面", exact: true })
     .click();
   await expect(
     page.getByRole("combobox", { name: "数据集", exact: true }),
@@ -193,14 +193,14 @@ for (const width of [375, 1440])
     await page.setViewportSize({ width, height: 1000 });
     await open(page, "movement-records/completed");
     await expect(
-      page.getByRole("button", { name: "快速报表", exact: true }),
+      page.getByRole("button", { name: "快速导出", exact: true }),
     ).toHaveCount(1);
     await shot(page, `repaired-movement-heading-${width}`);
     await open(page, "loan-records/detail");
     await expect(
-      page.getByRole("button", { name: "快速报表", exact: true }),
+      page.getByRole("button", { name: "快速导出", exact: true }),
     ).toHaveCount(1);
-    await page.getByRole("button", { name: "快速报表", exact: true }).click();
+    await page.getByRole("button", { name: "快速导出", exact: true }).click();
     await expect(page.getByRole("dialog")).toContainText("MAT-STE-2026-00004");
     await page.getByRole("button", { name: "取消", exact: true }).click();
     await open(page, "drafts/open");

@@ -176,7 +176,7 @@ test("search options remain usable and results/export share the selected scope",
   await dialog(page).getByRole("option").first().click();
   await dialog(page).getByRole("button", { name: "完成", exact: true }).click();
   await expect(page.getByRole("button", { name: /^移除物品：/ })).toBeVisible();
-  await page.getByRole("button", { name: "快速报表", exact: true }).click();
+  await page.getByRole("button", { name: "快速导出", exact: true }).click();
   await expect(dialog(page)).toContainText("ITM-000128");
   await dialog(page)
     .getByRole("combobox", { name: "文件格式", exact: true })

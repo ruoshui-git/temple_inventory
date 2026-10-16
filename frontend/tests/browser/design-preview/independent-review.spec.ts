@@ -73,7 +73,7 @@ for (const width of [375, 1440]) {
     await page.screenshot({
       path: `${output}/screenshots/independent-loaded-details-${width}.png`,
     });
-    await page.getByRole("button", { name: "快速报表", exact: true }).click();
+    await page.getByRole("button", { name: "快速导出", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog
       .getByRole("combobox", { name: "预览表", exact: true })

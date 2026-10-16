@@ -122,8 +122,8 @@ function openDocument(id: string) {
 	<section class="preview-page preview-reports">
 		<header class="browse-heading">
 			<div>
-				<span class="eyebrow">REPORTS / 分析</span>
-				<h1>报表</h1>
+				<span class="eyebrow">EXPORT / 导出</span>
+				<h1>导出</h1>
 				<p class="muted">完整筛选范围 · 数量按单位与状态分别列示</p>
 			</div>
 			<PreviewQuickReport
@@ -175,7 +175,7 @@ function openDocument(id: string) {
 						<option value="undated">无效期</option>
 					</select></label
 				>
-				<PreviewUiButton @click="clear">重置报表</PreviewUiButton>
+				<PreviewUiButton @click="clear">重置导出设置</PreviewUiButton>
 			</div>
 			<p v-if="dataset === 'inventory' && query.view !== 'historical'" class="muted">
 				当前库存快照：{{ result.snapshot }}

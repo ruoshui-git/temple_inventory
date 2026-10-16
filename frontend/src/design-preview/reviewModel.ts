@@ -43,7 +43,7 @@ export interface PreviewPageRoute {
   path: string;
   label: string;
   group:
-    "首页" | "库存" | "货物流动" | "借用" | "仓库" | "更多" | "报表" | "表单";
+    "首页" | "库存" | "货物流动" | "借用" | "仓库" | "更多" | "导出" | "表单";
   readOnly?: boolean;
 }
 
@@ -255,15 +255,15 @@ export const previewPages: readonly PreviewPageRoute[] = [
     "盘点记录详情",
     "表单",
   ),
-  route("reports", "overview", "/reports", "报表", "报表"),
+  route("reports", "overview", "/reports", "导出", "导出"),
   ...["inventory", "expiry", "movements", "loans", "activities", "counts"].map(
     (dataset) =>
       route(
         "reports",
         dataset,
         `/reports?dataset=${dataset}`,
-        `报表 · ${{ inventory: "库存", expiry: "效期 / 批次", movements: "货物流动", loans: "借用", activities: "活动", counts: "盘点" }[dataset]}`,
-        "报表",
+        `导出 · ${{ inventory: "库存", expiry: "效期 / 批次", movements: "货物流动", loans: "借用", activities: "活动", counts: "盘点" }[dataset]}`,
+        "导出",
       ),
   ),
   route(

@@ -297,7 +297,7 @@ describe("preview scope and navigation", () => {
       records: false,
       variant: "list",
     });
-    await button(wrapper, "快速报表").trigger("click");
+    await button(wrapper, "快速导出").trigger("click");
     const dataset = body()
       .findAll("select")
       .find((select) => select.text().includes("分配明细"))!;

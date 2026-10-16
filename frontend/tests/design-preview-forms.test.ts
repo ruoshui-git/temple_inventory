@@ -166,7 +166,7 @@ describe("preview workflow forms", () => {
     expect(count).toBeGreaterThan(0);
     await wrapper
       .findAll("button")
-      .find((button) => button.text() === "快速报表")!
+      .find((button) => button.text() === "快速导出")!
       .trigger("click");
     await nextTick();
     expect(

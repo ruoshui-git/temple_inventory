@@ -293,7 +293,7 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 	<div class="preview-dashboard">
 		<div class="browse-toolbar">
 			<label class="preview-field"
-				>快速报表数据集<select v-model="reportDataset">
+				>快速导出数据集<select v-model="reportDataset">
 					<option v-for="(definition, id) in reportDefinitions" :key="id" :value="id">
 						{{ definition.label }}
 					</option>

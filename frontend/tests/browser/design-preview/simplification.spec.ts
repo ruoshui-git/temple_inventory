@@ -398,7 +398,7 @@ test("navigation, retained Loan/Return filters, compact reports and independent 
   const selector = page.getByRole("combobox", { name: "数据集", exact: true });
   await expect(selector.locator("option")).toHaveCount(6);
   await selector.selectOption("expiry");
-  await page.getByRole("button", { name: "快速报表", exact: true }).click();
+  await page.getByRole("button", { name: "快速导出", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(
     dialog.getByRole("combobox", { name: "文件格式", exact: true }),

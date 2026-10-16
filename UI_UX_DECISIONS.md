@@ -27,7 +27,7 @@ for rationale, not as competing current rules.
 | UX-11 | Activities use immutable IDs and reference-data types (捐赠、购买、分发、节目、投入使用、其它), optional dates/description/plain-text detailed notes, Active/Archived, guarded deletion. | Preview only; reference DocType, version/permission/deletion hooks required. |
 | UX-12 | Remove movement source type/responsible; retain Receive source, non-Receive purpose, activity, borrower, optional personnel and attachments. Fixed/completed values use selectable information. Busy edits retain input controls and buffers. | Coordinated backend custom-field/API retirement remains pending. |
 | UX-14 | Reports/Drafts use compact desktop filter dialogs and one mobile sheet; Dashboard scope and Activities secondary filters open out of flow. Applied chips and complete counts stay visible; dates retain Apply/Cancel. | Preview presentation only; existing rails/tree selection and all report queries remain intact. |
-| UX-13 | One Reports workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速报表. Formats are independent; named views are session-local. | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
+| UX-13 | One 导出 workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速导出. Primary navigation retains 报表. Formats are independent; named views are session-local. | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
 
 Every future agent must update this index/log and the affected coverage rows with
 each durable UI refinement. A missing preview capability is not an approved removal.
@@ -906,3 +906,14 @@ hidden placement has become visible. Panel-local hierarchy labels, expansion and
 clear buttons, search fields and selects retain a 44px minimum even in compact
 density; existing browse rails keep their styling. This repairs the UX-14
 accessibility contract rather than changing filter semantics.
+
+## Preview export wording — 2026-10-16 (UX-13 supersession)
+
+The user's wording clarification supersedes the earlier 快速报表 and 打开完整报表
+labels in the design preview. Contextual download actions and their dialog use
+快速导出; the Dashboard selector uses 快速导出数据集. The full workspace is 导出,
+its reset action is 重置导出设置, and the dialog link is 打开导出页面. Review-index
+labels and groups also use 导出. Desktop and mobile primary navigation retain
+报表 as the destination name. This makes the download intent explicit while
+preserving scope, filtering, reset semantics and simulated-export messaging.
+Production UI and export APIs are unchanged.

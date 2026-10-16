@@ -177,7 +177,8 @@ The tests verify behavior and isolation; they do not replace manual visual revie
 This supersedes the earlier preview navigation/control proposal above. Primary
 navigation is 首页、库存、货物流动、借用、报表 on both surfaces. 更多 lives in the
 mobile header and desktop utility area. Obsolete routes may be replaced directly.
-Reports/export routes belong to 报表. Movement and Loans use 按物品 / 按记录.
+The 导出 workspace belongs to the 报表 navigation destination. Movement and Loans
+use 按物品 / 按记录.
 
 | Area             | Review scenarios                                                                                                                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -471,8 +472,8 @@ populates creation/editing/filter/report controls without enum changes. Archived
 activities stay readable and settleable on existing links. Detailed notes are
 plain text; HTML is never interpreted. New movements carry the selected stable ID.
 
-Reports and 快速报表 share `reportModel.ts`. Full-scope projection is independent
-of visible pagination. XLSX defaults to applicable sheets; CSV selects a flat
+The 导出 workspace and 快速导出 share `reportModel.ts`. Full-scope projection is
+independent of visible pagination. XLSX defaults to applicable sheets; CSV selects a flat
 table; actual files are not generated. Related metadata/barcode/conversion/tree/
 attachment-reference tables contain stable IDs and no binaries/temporary URLs.
 Historical Inventory uses fixed authoritative checkpoints/events, including a

@@ -285,7 +285,7 @@ describe("date and browse interactions", () => {
     expect(row.text()).toContain(locations[1]);
     expect(row.text()).toContain("2 种物品");
     expect(row.text()).toContain("12");
-    await button(wrapper, "快速报表").trigger("click");
+    await button(wrapper, "快速导出").trigger("click");
     expect(body().get('[role="dialog"] tbody').text()).not.toContain("菜籽油");
     await body()
       .findAll("select")

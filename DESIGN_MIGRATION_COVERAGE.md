@@ -218,3 +218,9 @@ Actual checks and remaining manual review are recorded in the
 [compact-filter execution note](notes/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_PROGRESS.md).
 The [browser review](notes/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_REVIEW.md)
 records subsequent checks, screenshots and limitations.
+
+### Preview export wording — 2026-10-16
+
+| Capability | Preview evidence | Disposition / remaining work |
+| --- | --- | --- |
+| Contextual export and full workspace | Shared `PreviewQuickReport` action/dialog uses 快速导出 and 打开导出页面; Dashboard uses 快速导出数据集; workspace heading/reset and review-index labels use 导出 wording | Wording replaced to clarify download intent. Desktop/mobile primary navigation preserves 报表. All datasets, filters, scope, reset behavior and simulated exports are preserved; production UI/APIs and real-download backend dependencies are unchanged. |
