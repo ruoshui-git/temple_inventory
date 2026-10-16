@@ -2989,15 +2989,6 @@ body:has(.preview-document-actions) .preview-toast {
 .preview-activities .preview-period-trigger {
 	position: static;
 }
-.report-filter-details .preview-filter-fields {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 16px;
-}
-.report-filter-details .preview-filter-fields > * {
-	flex: 1 1 220px;
-	min-width: 0;
-}
 .preview-reports .surface,
 .preview-reports .report-table-wrap {
 	min-width: 0;
@@ -3152,4 +3143,161 @@ body:has(.preview-document-actions) .preview-toast {
 .preview-drafts-table th:last-child,
 .preview-drafts-table td:last-child {
 	min-width: 180px;
+}
+
+/* Compact scope panels: overlays never participate in the results layout. */
+.preview-filter-control {
+	display: inline-flex;
+	min-width: 0;
+	max-width: 100%;
+}
+.compact-filter-toolbar,
+.compact-filter-chips {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--p-field-gap);
+	min-width: 0;
+}
+.preview-compact-filters {
+	display: grid;
+	gap: var(--p-field-gap);
+	min-width: 0;
+}
+.compact-filter-toolbar > *,
+.compact-filter-chips > * {
+	min-width: 0;
+	max-width: 100%;
+}
+.compact-filter-chips .ui-button,
+.compact-filter-indicator {
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: start;
+	background: var(--p-soft);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	padding: var(--p-field-gap);
+	font-size: var(--p-small);
+}
+.compact-filter-chips .ui-button {
+	min-height: 44px;
+}
+.preview-filter-popover {
+	position: fixed;
+	z-index: var(--p-z-overlay);
+	display: flex;
+	flex-direction: column;
+	max-width: calc(100vw - 24px);
+	max-height: calc(100dvh - 24px);
+	background: var(--p-surface);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+	box-shadow: var(--p-shadow);
+	font-size: var(--p-body);
+	overflow: hidden;
+}
+.preview-filter-popover > header,
+.preview-filter-popover > footer {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--p-field-gap);
+	padding: calc(var(--p-pad) / 2);
+	flex-shrink: 0;
+}
+.preview-filter-popover > header {
+	border-bottom: 1px solid var(--p-border);
+}
+.preview-filter-popover > footer {
+	border-top: 1px solid var(--p-border);
+}
+.preview-filter-popover > .compact-filter-content {
+	padding: calc(var(--p-pad) / 2);
+	overflow: auto;
+	overscroll-behavior: contain;
+	min-height: 0;
+}
+.compact-filter-content {
+	display: grid;
+	gap: var(--p-field-gap);
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.compact-filter-content > *,
+.compact-filter-content .preview-filter-fields > * {
+	min-width: 0;
+	max-width: 100%;
+}
+/* Keep searchable options inside the dialog's interaction and scrolling boundary. */
+.compact-filter-content .preview-search-select .search-select-menu {
+	position: static;
+	min-width: 0;
+	max-width: 100%;
+	max-height: min(320px, 45dvh);
+}
+.preview-filter-sheet.preview-dialog {
+	border-radius: 0;
+	padding-top: env(safe-area-inset-top, 0px);
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.preview-filter-sheet > .dialog-heading,
+.preview-filter-sheet > .dialog-footer {
+	flex-shrink: 0;
+	padding: calc(var(--p-pad) / 2);
+}
+.preview-filter-sheet > .dialog-content {
+	padding: calc(var(--p-pad) / 2);
+}
+.report-results-heading h2 {
+	flex: 1 1 180px;
+	margin: 0;
+}
+
+.preview-filter-control > .ui-button,
+.preview-filter-popover .ui-button,
+.preview-filter-popover .preview-choice-label {
+	min-height: 44px;
+}
+/* Override the denser browse-tree rules only inside compact filter panels. */
+.compact-filter-content button,
+.compact-filter-content .hierarchy-facet button,
+.compact-filter-content select,
+.compact-filter-content input:not([type="checkbox"]):not([type="radio"]),
+.compact-filter-content .preview-choice-label,
+.compact-filter-content .hierarchy-row label {
+	min-height: 44px;
+}
+.compact-filter-content .tree-toggle,
+.compact-filter-content .tree-spacer {
+	width: 44px;
+	min-width: 44px;
+}
+.preview-filter-popover > header,
+.preview-filter-sheet > .dialog-heading {
+	max-height: 30dvh;
+	overflow: auto;
+}
+.preview-filter-popover > footer,
+.preview-filter-sheet > .dialog-footer {
+	max-height: 35dvh;
+	overflow: auto;
+}
+.compact-filter-chip-group {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--p-field-gap);
+	padding-inline-start: var(--p-field-gap);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-soft);
+}
+.compact-filter-chip-group > .ui-button {
+	flex: 0 0 44px;
+}
+.preview-filter-control > .ui-button {
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }

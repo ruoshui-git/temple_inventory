@@ -210,6 +210,7 @@ function onKeydown(event: KeyboardEvent) {
 	if (event.key === "Escape") {
 		if (term.value) {
 			event.preventDefault();
+			event.stopPropagation();
 			term.value = "";
 		}
 		return;

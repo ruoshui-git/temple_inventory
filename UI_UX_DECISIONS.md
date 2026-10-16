@@ -5,7 +5,7 @@ before changing user-facing behavior. A current user instruction may supersede
 an older rule, but the conflict must be identified explicitly and recorded here
 in the same change. Keep implementation details in code or task notes, not here.
 
-## Current preview decision index — 2026-10-15
+## Current preview decision index — 2026-10-16
 
 These approved **preview targets** supersede conflicting earlier proposals below;
 production enforcement is unchanged. See [migration coverage](DESIGN_MIGRATION_COVERAGE.md)
@@ -26,6 +26,7 @@ for rationale, not as competing current rules.
 | UX-09 | Inventory/Movement/Loans use complete filtered totals and exports. Loading, conflicts and recovery retain input. Submitted documents obey ERPNext lifecycle. | Preserve unknown document fields, reject stale writes; no stock engine in preview. |
 | UX-11 | Activities use immutable IDs and reference-data types (捐赠、购买、分发、节目、投入使用、其它), optional dates/description/plain-text detailed notes, Active/Archived, guarded deletion. | Preview only; reference DocType, version/permission/deletion hooks required. |
 | UX-12 | Remove movement source type/responsible; retain Receive source, non-Receive purpose, activity, borrower, optional personnel and attachments. Fixed/completed values use selectable information. Busy edits retain input controls and buffers. | Coordinated backend custom-field/API retirement remains pending. |
+| UX-14 | Reports/Drafts use compact desktop filter dialogs and one mobile sheet; Dashboard scope and Activities secondary filters open out of flow. Applied chips and complete counts stay visible; dates retain Apply/Cancel. | Preview presentation only; existing rails/tree selection and all report queries remain intact. |
 | UX-13 | One Reports workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速报表. Formats are independent; named views are session-local. | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
 
 Every future agent must update this index/log and the affected coverage rows with
@@ -174,15 +175,14 @@ each durable UI refinement. A missing preview capability is not an approved remo
 
 ## Shared compact filters
 
-- Inventory, Expiry, 货物流动, 借用, 待处理, 草稿, and list-level browse pages
-  use the same compact filter sections and hierarchy styling. Desktop filters
-  occupy a 250px rail; mobile filters use one focus-safe drawer with an enabled
-  count and immediate application, plus 清空/完成 actions. Reports keep filters inline, and 仓库 retains a
-  search field rather than a filter sidebar.
+- Inventory, Expiry, 货物流动, 借用 and 待处理 retain their 250px desktop
+  rails and one focus-safe mobile drawer. Reports and 草稿 use compact scope
+  triggers on desktop and one combined mobile filter sheet (UX-14). 仓库
+  retains search. Shared hierarchy selection semantics remain unchanged.
 - Async single-select controls close on outside pointer, Escape, Tab/focus
   leaving, and component unmount. Warehouse/category hierarchy filters are
-  always-inline trees: their search and rows remain visible, and they do not
-  close as a suggestion popup. Selection is committed before blur can close an
+  trees inside their rail or open filter panel: search and rows remain visible,
+  and selection does not close the containing panel. Selection is committed before blur can close an
   async selector.
 - Warehouse and category hierarchy filters share one normalized selector core,
   preserving parent/child selection, counts, indeterminate state, clear, and
@@ -837,7 +837,7 @@ Display/edit mode is independent of temporary save/conflict disabling. Preserve
 whitespace, selectable text, attachment preview/download and explicit empty values.
 Recovery input copies use a text block with a real Copy action.
 
-Reports has one dataset selector, wrapping inline filters, fixed view columns,
+Reports has one dataset selector, compact scope panels (UX-14), fixed view columns,
 unit/status-aware groupings, resolved pending-until-Apply dates and session presets.
 Current Inventory has a snapshot timestamp; historical Inventory requires a bounded
 period and shows authoritative opening + incoming − outgoing + adjustment = closing.
@@ -862,3 +862,47 @@ appropriate to that grouping. Activity lifetime-count chips reset related search
 date and status filters to their submitted lifetime scope. Activity tabs support
 arrow/Home/End keys and associated labeled panels. Quick reports retain list
 sorting, including activity modification time, and describe the applied scope.
+
+
+## Compact preview filters — 2026-10-16 (UX-14)
+
+This supersedes the report-specific inline-filter/always-visible-tree presentation
+and the Drafts, Dashboard and Activities expanding filter disclosures. It is a
+standalone preview decision; production migration and manual fidelity approval
+remain pending.
+
+Reports and Drafts keep normal-flow toolbars with individual desktop Item,
+Category, Location, Activity and applicable Movement Type dialogs. More Filters
+contains source/destination and dataset-specific options. Mobile has one Filters
+sheet with complete filtered count and Clear/Done; search and dates remain on the
+page. Dashboard has one 总览范围 trigger and scope summary; Activities keeps
+search/status/type/date visible with secondary Filters and separate Sort.
+Opening panels never refreshes data or displaces results. Inventory, Expiry,
+Movement and Loans retain their existing rails/overlays.
+
+Non-date filters commit immediately and multi-selection stays open. Outside,
+Escape and Done close without rollback or document-scroll jumps. Nested selector
+or tree-search Escape first closes its menu/clears its search. Dates retain
+pending values until Apply, with Cancel and validation. One transient panel is
+open at a time; context, deactivation and 1024px surface changes dismiss it while
+preserving applied state. Mobile sheets contain focus, lock body scrolling and
+restore focus; desktop dialogs support keyboard entry/exit and return focus.
+
+Readable chips expose each applied scope, including inherited empty selected-item
+or allocation restrictions, document/loan identity, item/location combinations,
+loan outcome/status, damage and activity conditions. Removing a chip clears only
+that condition; selected-item/allocation flags and keys clear together. Default
+submitted-only document status stays visible; clearing a changed status restores
+that default. The all-dates expiry scope also shows its undated inclusion default
+and makes a changed exclusion removable. Large inherited selections use concise
+count chips opening their full readable context. Clear Filters preserves dates/window, primary search, dataset/view
+and result Group/Sort; Reports' explicit Reset Report retains the former full
+reset behavior. Named views live in a labeled management panel with local errors;
+session persistence, complete exports, historical bounds and drill-through stay
+unchanged. Result headers own Group and Sort separately from scope filters.
+
+**2026-10-16 browser-review repair:** Desktop panel focus waits until its initial
+hidden placement has become visible. Panel-local hierarchy labels, expansion and
+clear buttons, search fields and selects retain a 44px minimum even in compact
+density; existing browse rails keep their styling. This repairs the UX-14
+accessibility contract rather than changing filter semantics.

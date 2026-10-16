@@ -50,15 +50,30 @@ beforeEach(() => {
   resetReviewSession();
   localStorage.clear();
   window.history.replaceState(null, "", "/");
-  responsiveListener = undefined;
+  const responsiveListeners = new Set<NonNullable<typeof responsiveListener>>();
+  let desktop = true;
+  responsiveListener = (event) => {
+    desktop = event.matches;
+    for (const listener of [...responsiveListeners]) listener(event);
+  };
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
-      matches: true,
-      addEventListener: (_: string, listener: typeof responsiveListener) => {
-        responsiveListener = listener;
+      get matches() {
+        return desktop;
       },
-      removeEventListener: vi.fn(),
+      addEventListener: (
+        _: string,
+        listener: NonNullable<typeof responsiveListener>,
+      ) => {
+        responsiveListeners.add(listener);
+      },
+      removeEventListener: (
+        _: string,
+        listener: NonNullable<typeof responsiveListener>,
+      ) => {
+        responsiveListeners.delete(listener);
+      },
     })),
   );
 });
@@ -157,14 +172,21 @@ describe("preview usability", () => {
   });
   it("disables empty scope clearing and provides mobile completion", async () => {
     const dashboard = render(PreviewDashboard);
-    await button(dashboard, "总览范围 · 全部").trigger("click");
-    expect(button(dashboard, "清空范围").attributes("disabled")).toBeDefined();
+    await settle();
+    await dashboard
+      .get('button[aria-haspopup="dialog"][aria-expanded="false"]')
+      .trigger("click");
+    expect(button(body(), "清空范围").attributes("disabled")).toBeDefined();
     reviewSession.filters.dashboard.categories = ["食品"];
     await settle();
-    await button(dashboard, "清空范围").trigger("click");
+    await button(body(), "清空范围").trigger("click");
     expect(reviewSession.filters.dashboard.categories).toEqual([]);
     responsiveListener?.({ matches: false });
     await settle();
+    expect(body().find("[role=dialog]").exists()).toBe(false);
+    await dashboard
+      .get('button[aria-haspopup="dialog"][aria-expanded="false"]')
+      .trigger("click");
     await button(body(), "完成").trigger("click");
     expect(body().find("[role=dialog]").exists()).toBe(false);
   });

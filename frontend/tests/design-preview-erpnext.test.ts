@@ -6,7 +6,7 @@ import {
   type VueWrapper,
 } from "@vue/test-utils";
 import { nextTick, h, KeepAlive } from "vue";
-import PreviewBrowseFilters from "../src/design-preview/components/PreviewBrowseFilters.vue";
+import PreviewCompactFilters from "../src/design-preview/components/PreviewCompactFilters.vue";
 import PreviewSearchSelect from "../src/design-preview/components/PreviewSearchSelect.vue";
 import PreviewCountWorkspace from "../src/design-preview/components/PreviewCountWorkspace.vue";
 import PreviewDocumentState from "../src/design-preview/components/PreviewDocumentState.vue";
@@ -768,7 +768,7 @@ describe("cached counting and draft filter review", () => {
       },
     ];
     const wrapper = render(PreviewBrowsePages, { route: "drafts/open" });
-    const filters = wrapper.getComponent(PreviewBrowseFilters);
+    const filters = wrapper.getComponent(PreviewCompactFilters);
     const scope = {
       ...emptyScope(),
       kinds: ["Transfer"],

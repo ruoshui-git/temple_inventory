@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, useId, type CSSProperties } from "vue";
 import UiButton from "./components/PreviewUiButton.vue";
-withDefaults(
+const props = withDefaults(
 	defineProps<{
 		title: string;
 		subtitle?: string;
 		drawer?: boolean;
 		adaptiveCreation?: boolean;
+		filterSheet?: boolean;
+		transientOwner?: string;
 		panelStyle?: CSSProperties;
 	}>(),
 	{
@@ -56,7 +58,7 @@ function keydown(event: KeyboardEvent) {
 	const last = controls.at(-1);
 	if (!first) {
 		event.preventDefault();
-		panel.value?.focus();
+		panel.value?.focus({ preventScroll: true });
 		return;
 	}
 	if (
@@ -72,6 +74,9 @@ function keydown(event: KeyboardEvent) {
 }
 onMounted(async () => {
 	openingHash = window.location.hash;
+	document.dispatchEvent(
+		new CustomEvent("preview-filter-panel-open", { detail: props.transientOwner || titleId }),
+	);
 	window.addEventListener("hashchange", closeAfterNavigation);
 	invoker = document.activeElement as HTMLElement;
 	previousOverflow = document.body.style.overflow;
@@ -86,7 +91,7 @@ onMounted(async () => {
 		element.inert = true;
 	});
 	await nextTick();
-	panel.value?.focus();
+	panel.value?.focus({ preventScroll: true });
 });
 onBeforeUnmount(() => {
 	window.removeEventListener("hashchange", closeAfterNavigation);
@@ -95,7 +100,7 @@ onBeforeUnmount(() => {
 	underlyingOverlays.forEach(({ element, inert }) => {
 		element.inert = inert;
 	});
-	invoker?.focus();
+	if (invoker?.isConnected) invoker.focus({ preventScroll: true });
 });
 </script>
 <template>
@@ -108,6 +113,7 @@ onBeforeUnmount(() => {
 				:class="{
 					'preview-drawer': drawer && !adaptiveCreation,
 					'preview-adaptive-creation': adaptiveCreation,
+					'preview-filter-sheet': filterSheet,
 				}"
 				role="dialog"
 				aria-modal="true"

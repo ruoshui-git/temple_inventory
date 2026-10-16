@@ -36,8 +36,8 @@ Status refers to preview coverage, not backend readiness. Keep evidence updated.
 | warehouse_detail/configure/create_room/create_location | Warehouse group/leaf details and edit/create; parent/type, cycle/system-node restrictions, Room default leaf | UX-09; represented; real company/root/stock/document permission validation pending |
 | initialization_status/repair_settings/repair_metadata/repair_warehouse_setting | Tools → `setup/default`: initialization structure, missing metadata/root, denied access, impact/confirmation | UX-05; represented locally; real repairs pending; pointer repair must never move stock/reparent nodes |
 | inventory/expiry/pending/history/movement/loan filters and facets | Shared hierarchy/select controls, detail/batch/history links, complete totals, analysis by dimension/type/outcome/unit; retained load-more/retry | UX-09; represented with finite local fixtures; backend complete facets/analysis/pagination pending |
-| reporting.export_report (five production types) | Six preview datasets in `reportModel`/`PreviewReports`, shared complete-scope quick reports, independent CSV/XLSX and named views | UX-13 replaces old report routes; authoritative history, scalable permission-complete generation and per-account presets pending |
-| dashboard_summary (six sections) | `dashboard/overview`: global scope, local movement period, six sections/buckets, drill-through and section retry | Preserved; backend parity must retain all six sections/buckets |
+| reporting.export_report (five production types) | Six preview datasets in `reportModel`/`PreviewReports`, compact scope panels/chips, separate result Group/Sort, complete-scope quick reports and session named-view panel | UX-13 replaces old report routes; authoritative history, scalable permission-complete generation and per-account presets pending |
+| dashboard_summary (six sections) | `dashboard/overview`: bounded global scope panel/summary, local movement period, six sections/buckets, drill-through and section retry | Preserved; backend parity must retain all six sections/buckets |
 | save_ui_preferences/session_info; PWA guidance | `settings/density`, recovery and Tools install: confirmed preference versus retained failed display, retry; platform guidance | UX-05/09; represented; account persistence/cache/PWA integration pending |
 | Other ERPNext stock vouchers/purposes | `movement-records/external`: Purchase Receipt type/name/Desk link; Opening retains reconciliation identity | Intentionally outside native editor; never mislabel unsupported stock purposes as Transfer |
 
@@ -104,7 +104,7 @@ lifecycle gaps in the existing repairs without changing backend dependencies.
 
 | Capability | Preview evidence | Disposition / remaining work |
 | --- | --- | --- |
-| Dashboard scope/refresh/recovery | `PreviewDashboardSection`, per-section snapshots/timers, compact clear/completion; `design-preview-usability.test.ts` | Six sections and stock-unit separation preserved; stale/no-prior failures and isolated recovery replace older preview feedback. Real requests remain backend-dependent. |
+| Dashboard scope/refresh/recovery | `PreviewDashboardSection`, per-section snapshots/timers, `PreviewFilterPanel` scope dialog/sheet with clear/completion; usability and compact-filter tests | Six sections and stock-unit separation preserved; stale/no-prior failures and isolated recovery replace older preview feedback. Real requests remain backend-dependent. |
 | Movement allocation editing | Shared `PreviewOperationLines`, structured `operationIssues` + compatible `validateOperation`; 50-item/55-allocation valid and invalid Receive samples | Required fields, stock/settlement/batch/unit checks and explicit confirmation preserved. Search/errors are UI state; all allocations remain mounted. Reconciliation retains `PreviewCountWorkspace`. |
 | Picker/contextual catalog creation | Ordered multi-selection, group replacement, inline supporting records, one adaptive `PreviewOverlay`; scanner immediate create/use | Preview drawer creation replaced by adaptive dialog/panel; existing selection remains a drawer. Real catalog writes, permissions and uniqueness recheck remain migration work. |
 | Display settings/accessibility | Validated `textScale` in preview storage, both settings surfaces, scaled typography and measured navigation/focus | Independent text scaling added in preview only. Production/account storage unchanged; manual 100/150/200% layout and native zoom review pending. |
@@ -196,3 +196,25 @@ identity. Browser evidence additionally covers loading detail rows beyond 30,
 five-row Quick Report previews, lifetime-chip resets, keyboard tabs and mobile
 filter overlap. These remain preview guarantees, with server enforcement and
 complete real exports dependent on the documented production migration.
+
+
+### Compact preview filters — 2026-10-16
+
+| Capability | Preview evidence | Disposition / remaining work |
+| --- | --- | --- |
+| Reports, six datasets | `PreviewCompactFilters`, `PreviewFilterPanel`, `reportFilters`; `design-preview-compact-filters.test.ts` | Inline disclosure replaced with desktop popovers/mobile combined sheet, active/inherited scope chips, separate Group/Sort and named-view panel. Existing query/projection/export contracts, bounded history, drill-through, load-more and session presets preserved. Real permissions/history/export/preset persistence remain backend-dependent. |
+| Draft browse/continue | `PreviewBrowsePages` drafts branch, shared scope chips and complete filtered count; compact-filter/ERPNext tests | Stacked disclosure replaced; search/date, all operation kinds, hierarchy/source/destination matching and continuation preserved. Production draft APIs unchanged. |
+| Dashboard global scope | `PreviewDashboard` keeps existing warehouse/category option sources and refresh watchers inside `PreviewFilterPanel`; usability/compact-filter tests | Inline expansion replaced; scope summary, disabled empty Clear, six section snapshots/retries and mobile return-to-top hiding preserved. Opening/closing alone does not refresh. Backend integration unchanged. |
+| Activities list secondary filters | `PreviewActivities` secondary-filter and Sort panels, removable chips; compact-filter tests | Disclosure replaced; immediate movement/presence/outstanding filtering and detail-return state preserved alongside primary search/status/type/date, lifecycle and Quick Report. Real reference/permission requirements remain pending. |
+| Other browse filters | `PreviewBrowseFilters` optional `fields`, existing consumers omit it; browse/forms/completion/ERPNext regressions | Inventory/Expiry/Movement/Loans rails remain. Shared date/overlay coordination preserves Apply/Cancel and closes transient panels across surfaces. No backend/API migration or approved capability removal. |
+
+The subsequent authorized browser review adds `compact-filters.spec.ts` coverage
+for stable layout/scroll, bounded panels, keyboard entry/exit, mobile focus and
+responsive retention, selectors/exports and 44px panel targets. It repairs
+first-open focus and compact hierarchy sizing. Evidence remains preview/fixture
+level; production behavior, native zoom and real-device behavior are not certified.
+
+Actual checks and remaining manual review are recorded in the
+[compact-filter execution note](notes/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_PROGRESS.md).
+The [browser review](notes/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_REVIEW.md)
+records subsequent checks, screenshots and limitations.

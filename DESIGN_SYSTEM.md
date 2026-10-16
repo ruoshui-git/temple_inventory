@@ -382,3 +382,32 @@ previews explicitly show at most five. Horizontal scrolling stays inside each
 table, while page controls wrap. Activity/report date controls stay in normal
 document flow on mobile to avoid covering adjacent filters. Activity tab buttons
 use a single keyboard tab stop, arrow/Home/End navigation and labeled panels.
+
+
+## Compact preview filter geometry — 2026-10-16
+
+`PreviewFilterPanel` and `PreviewCompactFilters` are preview-local `--p-*`
+components shared by Reports, Drafts, Dashboard scope and Activities secondary
+filters. Desktop dialogs teleport to body with fixed positioning, preferred
+400px width, 12px viewport gutters, 8px anchor gap and internal overflow. Placement
+updates after first mount, panel resizing, viewport resize and ancestor scroll;
+unchanged measurements do not write geometry again. Header/footer remain outside
+the scrolling body, with 30/35dvh overflow caps for short or large-text viewports.
+Searchable menus use in-flow positioning only inside these panels so their
+options share the dialog's scrolling/focus boundary and cannot be clipped.
+
+Mobile uses the existing focus-managed overlay as a full-width/full-height sheet,
+with safe-area padding, an internal scrolling body and visible Clear/Done/count
+footer. The overlay sits above bottom navigation. Only one responsive filter
+surface mounts at the shared 1024px boundary; applied state lives outside it.
+Toolbar controls and removable chips retain 44px targets in every density;
+spacing follows preview density and typography follows independent text scale.
+No motion is added. Trees retain normalized parent/child selection. Existing
+Inventory/Expiry/Movement/Loans rails and production styling are unchanged.
+
+The browser review corrected first-open keyboard focus and the specificity of
+panel-local 44px target rules, including hierarchy expansion buttons/spacers.
+Existing browse-tree rules no longer shrink compact-panel targets to 32px.
+These are intentional geometry exceptions, not final user visual approval.
+Browser results and native-zoom/device limitations are recorded in the
+[review note](notes/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_REVIEW.md).

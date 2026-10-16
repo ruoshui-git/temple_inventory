@@ -10,9 +10,14 @@ const props = defineProps<{
 	movement?: boolean;
 	records?: boolean;
 	hideActivity?: boolean;
+	fields?: Array<
+		"item" | "activity" | "categories" | "warehouses" | "kinds" | "sources" | "destinations"
+	>;
 }>();
 const emit = defineEmits<{ "update:modelValue": [scope: BrowseScope] }>();
 const scope = computed(() => props.modelValue);
+const shows = (field: NonNullable<typeof props.fields>[number]) =>
+	!props.fields || props.fields.includes(field);
 function update<K extends keyof BrowseScope>(key: K, value: BrowseScope[K]) {
 	emit("update:modelValue", { ...scope.value, [key]: value });
 }
@@ -29,6 +34,7 @@ function toggleKind(kind: string) {
 <template>
 	<div class="preview-filter-fields">
 		<PreviewSearchSelect
+			v-if="shows('item')"
 			label="物品"
 			:model-value="scope.item"
 			:options="
@@ -41,13 +47,14 @@ function toggleKind(kind: string) {
 			@update:model-value="update('item', $event)"
 		/>
 		<PreviewSearchSelect
-			v-if="!hideActivity"
+			v-if="!hideActivity && shows('activity')"
 			label="活动"
 			:model-value="scope.activity"
 			:options="activityOptions(scope.activity, true)"
 			@update:model-value="update('activity', $event)"
 		/>
 		<PreviewHierarchyFilter
+			v-if="shows('categories')"
 			:model-value="scope.categories"
 			:options="categories"
 			title="物品类别"
@@ -55,6 +62,7 @@ function toggleKind(kind: string) {
 			@update:model-value="update('categories', $event)"
 		/>
 		<PreviewHierarchyFilter
+			v-if="shows('warehouses')"
 			:model-value="scope.warehouses"
 			:options="reviewSession.warehouses"
 			title="仓库 / 位置"
@@ -62,7 +70,7 @@ function toggleKind(kind: string) {
 			@update:model-value="update('warehouses', $event)"
 		/>
 		<template v-if="movement">
-			<fieldset>
+			<fieldset v-if="shows('kinds')">
 				<legend>流动类型 · 可多选</legend>
 				<label
 					v-for="(label, kind) in movementLabels"
@@ -77,6 +85,7 @@ function toggleKind(kind: string) {
 				>
 			</fieldset>
 			<PreviewHierarchyFilter
+				v-if="shows('sources')"
 				:model-value="scope.sources"
 				:options="reviewSession.warehouses"
 				title="来源位置"
@@ -84,6 +93,7 @@ function toggleKind(kind: string) {
 				@update:model-value="update('sources', $event)"
 			/>
 			<PreviewHierarchyFilter
+				v-if="shows('destinations')"
 				:model-value="scope.destinations"
 				:options="reviewSession.warehouses"
 				title="去向位置"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onDeactivated, ref, watch } from "vue";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
 import PreviewOverlay from "../PreviewOverlay.vue";
@@ -10,6 +11,14 @@ const emit = defineEmits<{
 	navigate: [page: import("../reviewModel").PreviewPage, variant: string];
 	notify: [message: string];
 }>();
+const { isMobile } = useResponsiveLayout();
+watch(
+	() => [props.query.dataset, props.query.view, isMobile.value],
+	() => {
+		open.value = false;
+	},
+	{ flush: "sync" },
+);
 const open = ref(false),
 	format = ref("xlsx"),
 	tableId = ref("result"),

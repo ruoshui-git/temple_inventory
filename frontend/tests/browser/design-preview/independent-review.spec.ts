@@ -36,10 +36,14 @@ for (const width of [375, 1440]) {
     await page
       .getByRole("combobox", { name: "视图", exact: true })
       .selectOption("loans");
-    await page.getByText("筛选与分组", { exact: true }).click();
+    await page.getByRole("button", { name: /^分组：/ }).click();
     await page
       .getByRole("combobox", { name: "分组", exact: true })
       .selectOption("activity");
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "完成", exact: true })
+      .click();
     const main = page.locator(".report-table-wrap").first();
     await expect(
       main.getByRole("columnheader", { name: "未归还", exact: true }),
@@ -85,16 +89,21 @@ for (const width of [375, 1440]) {
     await page
       .getByRole("combobox", { name: "数据集", exact: true })
       .selectOption("inventory");
-    // The filter disclosure survives dataset changes. Snapshot inventory has no activity attribution.
+    // Snapshot inventory has no activity attribution; grouping remains available in its own panel.
     await expect(
       page.getByRole("button", { name: "活动", exact: true }),
     ).toHaveCount(0);
     await page
       .getByRole("combobox", { name: "视图", exact: true })
       .selectOption("locations");
+    await page.getByRole("button", { name: /^分组：/ }).click();
     await page
       .getByRole("combobox", { name: "分组", exact: true })
       .selectOption("item");
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "完成", exact: true })
+      .click();
     await expect(
       main.getByRole("columnheader", { name: "合计", exact: true }),
     ).toBeVisible();

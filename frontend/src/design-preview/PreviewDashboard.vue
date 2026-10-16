@@ -5,7 +5,7 @@ import { newReportQuery, reportDefinitions, type ReportDataset } from "./reportM
 import { computed, onBeforeUnmount, ref, watch, reactive, onActivated } from "vue";
 import PreviewDashboardSection from "./components/PreviewDashboardSection.vue";
 import PreviewReturnToTop from "./components/PreviewReturnToTop.vue";
-import PreviewOverlay from "./PreviewOverlay.vue";
+import PreviewFilterPanel from "./components/PreviewFilterPanel.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
@@ -60,6 +60,7 @@ const data = computed(() => ({
 	damaged: sections.reminders.result.damaged,
 }));
 const showFilters = ref(false);
+const scopeResultCount = computed(() => dashboardData(reviewSession).stock.length);
 const state = ref("ready");
 const failedSection = ref("");
 const withoutResult = ref(false);
@@ -302,50 +303,43 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 				:active="active"
 				@navigate="(page, variant) => emit('navigate', page as PreviewPage, variant)"
 			/>
-			<PreviewUiButton :aria-expanded="showFilters" @click="showFilters = !showFilters"
-				>总览范围 ·
-				{{
-					filters.warehouses.length + filters.categories.length || "全部"
-				}}</PreviewUiButton
+			<PreviewFilterPanel
+				label="总览范围"
+				:count="filters.warehouses.length + filters.categories.length"
+				:active="active"
+				@update:open="showFilters = $event"
+			>
+				<div class="preview-filter-fields">
+					<PreviewHierarchyFilter
+						v-model="filters.warehouses"
+						:options="reviewSession.warehouses"
+						title="仓库 / 位置"
+						placeholder="搜索位置"
+					/>
+					<PreviewHierarchyFilter
+						v-model="filters.categories"
+						:options="categories"
+						title="物品类别"
+						placeholder="搜索类别"
+					/>
+				</div>
+				<template #footer>
+					<span role="status">{{ scopeResultCount }} 种物品</span>
+					<PreviewUiButton
+						:disabled="!filters.warehouses.length && !filters.categories.length"
+						@click="
+							filters.warehouses = [];
+							filters.categories = [];
+						"
+						>清空范围</PreviewUiButton
+					>
+				</template> </PreviewFilterPanel
 			><span>{{
 				[...filters.warehouses, ...filters.categories].join(" · ") || "全部仓库 · 全部类别"
 			}}</span
 			><PreviewUiButton @click="refresh">刷新</PreviewUiButton
 			><small>样本日期 {{ previewDate }}</small>
 		</div>
-		<component
-			:is="isMobile ? PreviewOverlay : 'div'"
-			v-if="showFilters"
-			title="总览范围"
-			:drawer="isMobile"
-			@close="showFilters = false"
-		>
-			<div class="preview-dashboard-scope">
-				<PreviewHierarchyFilter
-					v-model="filters.warehouses"
-					:options="reviewSession.warehouses"
-					title="仓库 / 位置"
-					placeholder="搜索位置"
-				/><PreviewHierarchyFilter
-					v-model="filters.categories"
-					:options="categories"
-					title="物品类别"
-					placeholder="搜索类别"
-				/>
-			</div>
-			<div class="preview-dashboard-scope-actions">
-				<PreviewUiButton
-					:disabled="!filters.warehouses.length && !filters.categories.length"
-					@click="
-						filters.warehouses = [];
-						filters.categories = [];
-					"
-					>清空范围</PreviewUiButton
-				><PreviewUiButton v-if="isMobile" @click="showFilters = false"
-					>完成</PreviewUiButton
-				>
-			</div>
-		</component>
 		<details class="preview-state-controls">
 			<summary>预览状态</summary>
 			<label class="preview-field"

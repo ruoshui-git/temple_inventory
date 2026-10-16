@@ -15,12 +15,15 @@ import { movementLabels, inPeriod, quantityText } from "./browseModel";
 import { activityUi } from "./activityUiState";
 import { newReportQuery } from "./reportModel";
 import PreviewActivityEditor from "./components/PreviewActivityEditor.vue";
+import PreviewFilterPanel from "./components/PreviewFilterPanel.vue";
 import PreviewUiButton from "./components/PreviewUiButton.vue";
 import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
 import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
 import PreviewQuickReport from "./components/PreviewQuickReport.vue";
 
-const props = defineProps<{ page: string; variant: string; active?: boolean }>();
+const props = withDefaults(defineProps<{ page: string; variant: string; active?: boolean }>(), {
+	active: true,
+});
 const emit = defineEmits<{
 	navigate: [page: string, variant: string];
 	notify: [message: string];
@@ -106,6 +109,25 @@ const filtered = computed(() =>
 					: b.modified.localeCompare(a.modified),
 		),
 );
+const secondaryChips = computed(() => [
+	...(state.kind
+		? [{ key: "kind", label: `流动类型：${movementLabels[state.kind] || state.kind}` }]
+		: []),
+	...(state.presence !== "all"
+		? [{ key: "presence", label: state.presence === "yes" ? "有关联记录" : "无关联记录" }]
+		: []),
+	...(state.outstanding ? [{ key: "outstanding", label: "有未归还借用" }] : []),
+]);
+function clearSecondary() {
+	state.kind = "";
+	state.presence = "all";
+	state.outstanding = false;
+}
+function removeSecondary(key: string) {
+	if (key === "kind") state.kind = "";
+	if (key === "presence") state.presence = "all";
+	if (key === "outstanding") state.outstanding = false;
+}
 const report = computed(() => {
 	const query = newReportQuery("activities");
 	query.sortBy =
@@ -273,42 +295,78 @@ function tabKey(event: KeyboardEvent) {
 					/><PreviewPeriodFilter
 						v-model="state.period"
 						label="开始日期"
+						:context="`${page}/${variant}`"
+						:active="active"
 					/><PreviewUiButton @click="clear">清空筛选</PreviewUiButton>
 				</div>
-				<details>
-					<summary>更多筛选与排序</summary>
-					<div class="report-inline-controls">
+
+				<div class="compact-filter-toolbar">
+					<PreviewFilterPanel
+						label="更多筛选"
+						:count="secondaryChips.length"
+						:context="`${page}/${variant}`"
+						:active="active"
+					>
+						<div class="preview-filter-fields">
+							<label class="preview-field"
+								>流动类型<select v-model="state.kind">
+									<option value="">全部</option>
+									<option
+										v-for="(label, kind) in movementLabels"
+										:key="kind"
+										:value="kind"
+									>
+										{{ label }}
+									</option>
+								</select></label
+							><label class="preview-field"
+								>关联记录<select v-model="state.presence">
+									<option value="all">全部</option>
+									<option value="yes">有记录</option>
+									<option value="no">无记录</option>
+								</select></label
+							><label class="preview-choice-label"
+								><input
+									type="checkbox"
+									v-model="state.outstanding"
+								/>有未归还借用</label
+							>
+						</div>
+						<template #footer
+							><span role="status">{{ filtered.length }} 个活动</span
+							><PreviewUiButton @click="clearSecondary"
+								>清空筛选</PreviewUiButton
+							></template
+						>
+					</PreviewFilterPanel>
+					<PreviewFilterPanel
+						label="排序"
+						:context="`${page}/${variant}`"
+						:active="active"
+					>
 						<label class="preview-field"
-							>流动类型<select v-model="state.kind">
-								<option value="">全部</option>
-								<option
-									v-for="(label, kind) in movementLabels"
-									:key="kind"
-									:value="kind"
-								>
-									{{ label }}
-								</option>
-							</select></label
-						><label class="preview-field"
-							>关联记录<select v-model="state.presence">
-								<option value="all">全部</option>
-								<option value="yes">有记录</option>
-								<option value="no">无记录</option>
-							</select></label
-						><label class="preview-choice-label"
-							><input
-								type="checkbox"
-								v-model="state.outstanding"
-							/>有未归还借用</label
-						><label class="preview-field"
 							>排序<select v-model="state.sort">
 								<option value="updated">最近更新优先</option>
 								<option value="title">名称</option>
 								<option value="start">开始日期</option>
 							</select></label
 						>
-					</div>
-				</details>
+					</PreviewFilterPanel>
+				</div>
+				<div
+					v-if="secondaryChips.length"
+					class="compact-filter-chips"
+					aria-label="已应用次要筛选"
+				>
+					<PreviewUiButton
+						v-for="chip in secondaryChips"
+						:key="chip.key"
+						variant="ghost"
+						:aria-label="`移除${chip.label}`"
+						@click="removeSecondary(chip.key)"
+						>{{ chip.label }} <span aria-hidden="true">×</span></PreviewUiButton
+					>
+				</div>
 			</section>
 			<p role="status">{{ filtered.length }} 个活动 · 流动标签为终身已提交单据数</p>
 			<p v-if="loadState === 'loading'" role="status">正在加载活动…</p>

@@ -18,6 +18,7 @@ import { remaining, loanStatus, quantityText } from "./browseModel";
 import { expiryBucket, expiryBuckets } from "./dashboardModel";
 import PreviewItemImage from "./PreviewItemImage.vue";
 import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
+import PreviewCompactFilters from "./components/PreviewCompactFilters.vue";
 import PreviewBrowseFilters from "./components/PreviewBrowseFilters.vue";
 import PreviewFilterButton from "./components/PreviewFilterButton.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
@@ -1600,11 +1601,20 @@ onActivated(() => {
 		</template>
 
 		<template v-else-if="page.page === 'drafts'"
-			><PreviewPeriodFilter label="操作日期" v-model="draftScope.period" />
-			<details class="form-section">
-				<summary>筛选草稿</summary>
-				<PreviewBrowseFilters v-model="draftScope" movement records />
-			</details>
+			><PreviewPeriodFilter
+				label="操作日期"
+				v-model="draftScope.period"
+				:context="route"
+				:active="active"
+			/>
+			<PreviewCompactFilters
+				v-model="draftScope"
+				movement
+				records
+				:result-count="draftRows.length"
+				:context="route"
+				:active="active"
+			/>
 			<div class="browse-toolbar">
 				<label class="browse-search"
 					><InventoryIcon name="search" /><input

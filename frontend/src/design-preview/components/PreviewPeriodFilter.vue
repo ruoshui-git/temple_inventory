@@ -1,14 +1,32 @@
 <script setup lang="ts">
-import { computed, ref, onDeactivated } from "vue";
+import { computed, ref, onDeactivated, watch, useId, onMounted, onBeforeUnmount } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import PreviewOverlay from "../PreviewOverlay.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
 import { periodLabels, resolvePeriod, type PreviewPeriod } from "../browseModel";
-const props = defineProps<{ modelValue: PreviewPeriod; label: string }>();
+const props = defineProps<{
+	modelValue: PreviewPeriod;
+	label: string;
+	context?: string;
+	active?: boolean;
+}>();
 const emit = defineEmits<{ "update:modelValue": [value: PreviewPeriod] }>();
 const { isMobile } = useResponsiveLayout();
 const trigger = ref<HTMLElement>();
 const open = ref(false);
+const owner = useId();
+function otherPanel(event: Event) {
+	if ((event as CustomEvent).detail !== owner) open.value = false;
+}
+onMounted(() => document.addEventListener("preview-filter-panel-open", otherPanel));
+onBeforeUnmount(() => document.removeEventListener("preview-filter-panel-open", otherPanel));
+watch(
+	() => [isMobile.value, props.context, props.active],
+	() => {
+		open.value = false;
+	},
+	{ flush: "sync" },
+);
 const draft = ref<PreviewPeriod>({ key: "all", from: "", to: "" });
 const error = ref("");
 onDeactivated(() => {
@@ -22,6 +40,7 @@ const summary = computed(() => {
 		: `${periodLabels[props.modelValue.key]} · ${range.from} 至 ${range.to}`;
 });
 function show() {
+	document.dispatchEvent(new CustomEvent("preview-filter-panel-open", { detail: owner }));
 	draft.value = { ...props.modelValue };
 	error.value = "";
 	const rect = trigger.value?.getBoundingClientRect();
@@ -66,6 +85,7 @@ function apply() {
 	<PreviewOverlay
 		v-if="open"
 		:title="label"
+		:transient-owner="owner"
 		:drawer="isMobile"
 		:panel-style="
 			isMobile

@@ -279,7 +279,7 @@ test("named report views and relative/custom settings stay session local", async
 }) => {
   await open(page, "reports/movements");
   await page.getByRole("textbox", { name: "搜索", exact: true }).fill("米");
-  await page.getByText("个人命名视图 · 本次会话", { exact: true }).click();
+  await page.getByRole("button", { name: /^个人命名视图/ }).click();
   await page
     .getByRole("textbox", { name: "视图名称", exact: true })
     .fill("本次米粮流动");
@@ -287,6 +287,7 @@ test("named report views and relative/custom settings stay session local", async
   await page
     .getByRole("combobox", { name: "数据集", exact: true })
     .selectOption("activities");
+  await page.getByRole("button", { name: /^个人命名视图/ }).click();
   await page
     .getByRole("combobox", { name: "已保存视图", exact: true })
     .selectOption({ label: "本次米粮流动" });
@@ -296,6 +297,7 @@ test("named report views and relative/custom settings stay session local", async
   await expect(
     page.getByRole("textbox", { name: "搜索", exact: true }),
   ).toHaveValue("米");
+  await page.getByRole("button", { name: /^个人命名视图/ }).click();
   await page
     .getByRole("textbox", { name: "视图名称", exact: true })
     .fill("米粮记录");
