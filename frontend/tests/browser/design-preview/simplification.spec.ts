@@ -304,7 +304,7 @@ for (const width of [375, 1440]) {
     const documentName = (await page.locator(".form-record-tag").innerText())
       .split(" · ")[0]!
       .trim();
-    await page.getByRole("button", { name: "工具", exact: true }).click();
+    await page.getByRole("button", { name: "更多", exact: true }).click();
     await page.getByRole("button", { name: /草稿.*继续未完成/ }).click();
     await page
       .getByRole("button", { name: new RegExp(documentName) })
@@ -395,13 +395,13 @@ test("navigation, retained Loan/Return filters, compact reports and independent 
   await expect(page.locator(".preview-active-filters")).toContainText("借出");
   await expect(page.locator(".preview-active-filters")).toContainText("归还");
   await open(page, "reports/overview");
-  const selector = page.locator(".report-selector select");
-  await expect(selector.locator("option")).toHaveCount(5);
+  const selector = page.getByRole("combobox", { name: "数据集", exact: true });
+  await expect(selector.locator("option")).toHaveCount(6);
   await selector.selectOption("expiry");
-  await page.getByRole("button", { name: "复核并导出", exact: true }).click();
+  await page.getByRole("button", { name: "快速报表", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog
-    .getByRole("combobox", { name: "文件格式", exact: true })
-    .selectOption("XLSX");
-  await expect(dialog).toContainText("依据当前全部筛选条件");
+  await expect(
+    dialog.getByRole("combobox", { name: "文件格式", exact: true }),
+  ).toHaveValue("xlsx");
+  await expect(dialog).toContainText("完整结果");
 });

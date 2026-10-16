@@ -6,6 +6,7 @@ import PreviewOverlay from "../PreviewOverlay.vue";
 const props = defineProps<{
 	modelValue?: PreviewAttachment[];
 	disabled?: boolean;
+	mode?: "edit" | "display";
 	imagesOnly?: boolean;
 }>();
 const emit = defineEmits<{ "update:modelValue": [files: PreviewAttachment[]] }>();
@@ -53,7 +54,7 @@ function remove(file: PreviewAttachment) {
 </script>
 <template>
 	<div class="preview-attachments">
-		<label class="preview-field" v-if="!disabled"
+		<label class="preview-field" v-if="mode !== 'display' && !disabled"
 			>{{ imagesOnly ? "添加图片" : "添加附件"
 			}}<input
 				type="file"
@@ -72,18 +73,22 @@ function remove(file: PreviewAttachment) {
 			><span v-if="file.state === 'uploading'" role="status">上传中</span
 			><template v-else-if="file.state === 'error'"
 				><span role="alert">上传失败，文件保留</span
-				><PreviewUiButton v-if="!disabled" @click="file.state = 'ready'"
+				><PreviewUiButton
+					v-if="mode !== 'display' && !disabled"
+					@click="file.state = 'ready'"
 					>重试上传</PreviewUiButton
 				></template
 			><PreviewUiButton v-else @click="selected = file">查看附件</PreviewUiButton
 			><PreviewUiButton
-				v-if="imagesOnly && index > 0 && !disabled"
+				v-if="imagesOnly && index > 0 && mode !== 'display' && !disabled"
 				@click="update([file, ...(modelValue || []).filter((row) => row.id !== file.id)])"
 				>设为主图</PreviewUiButton
-			><PreviewUiButton v-if="!disabled" @click="remove(file)">移除</PreviewUiButton>
+			><PreviewUiButton v-if="mode !== 'display' && !disabled" @click="remove(file)"
+				>移除</PreviewUiButton
+			>
 		</article>
 		<p v-if="!modelValue?.length" class="muted">暂无附件</p>
-		<details v-if="!disabled">
+		<details v-if="mode !== 'display' && !disabled">
 			<summary>预览上传状态</summary>
 			<label class="preview-choice-label"
 				><input v-model="failNext" type="checkbox" />下次上传失败</label
@@ -105,6 +110,7 @@ function remove(file: PreviewAttachment) {
 			/><a v-else-if="selected.url" :href="selected.url" target="_blank" rel="noopener"
 				>打开文档</a
 			>
+			<a v-if="selected.url" :href="selected.url" :download="selected.name">下载附件</a>
 			<p v-else>示例附件 · 文件内容不可用</p></PreviewOverlay
 		>
 	</div>

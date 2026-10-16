@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PreviewQuickReport from "./components/PreviewQuickReport.vue";
+import { newReportQuery } from "./reportModel";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { usePreviewFocusVisibility } from "./focusVisibility";
 import { usePreviewScroll, previewScrollOwner } from "./scroll";
@@ -90,26 +92,19 @@ const summaryOpen = ref(false);
 const resultLimit = ref(20);
 const analysisDimension = ref("category");
 const scanOpen = ref(false);
-const exportOpen = ref(false);
-const exportFormat = ref("xlsx");
-const exportDataset = ref("summary");
-function openExport() {
-	exportDataset.value = "summary";
-	exportOpen.value = true;
-}
-const exportRows = computed(() =>
-	exportDataset.value === "summary"
-		? rows.value.map(
-				(item) =>
-					`${item.code} · ${item.name} · ${item.category} · 可用 ${item.available} ${item.uom} · 借出 ${item.loaned} · 损坏 ${item.damaged}`,
-			)
-		: rows.value.flatMap((item) =>
-				item.locations.map(
-					(location) =>
-						`${item.code} · ${item.name} · ${location.location} · 可用 ${location.available} ${item.uom} · 借出 ${location.loaned} · 损坏 ${location.damaged}`,
-				),
-			),
-);
+const quickReportQuery = computed(() => {
+	const query = newReportQuery("inventory");
+	query.includeZero = !inStockOnly.value;
+	query.restrictItems = true;
+	query.sortBy = sort.value === "name" ? "name" : "quantity";
+	query.sort = descending.value ? "desc" : "asc";
+	query.itemCodes = rows.value.map((item) => item.code);
+	query.scope.warehouses = [
+		...warehouses.value,
+		...reviewSession.filters.inventory.scope.warehouses,
+	];
+	return query;
+});
 const status = ref("ready");
 const menu = ref<HTMLElement>();
 watch(
@@ -134,7 +129,6 @@ watch(
 		menuOpen.value = false;
 		summaryOpen.value = false;
 		scanOpen.value = false;
-		exportOpen.value = false;
 	},
 );
 watch(
@@ -374,6 +368,12 @@ function action(name: string) {
 			</div>
 			<div class="inventory-context"><slot name="context" /></div>
 			<div class="inventory-toolbar">
+				<PreviewQuickReport
+					:query="quickReportQuery"
+					:active="active"
+					@navigate="(page, variant) => emit('navigate', page, variant)"
+					@notify="emit('notify', $event)"
+				/>
 				<label class="search-box"
 					><InventoryIcon name="search" /><input
 						v-model="search"
@@ -431,7 +431,6 @@ function action(name: string) {
 								<option value="name">物品名称</option>
 								<option value="available">可用数量</option>
 							</select></label
-						><UiButton icon="download" @click="openExport">导出</UiButton
 						><UiButton variant="ghost" icon="sigma" @click="summaryOpen = true"
 							>列汇总</UiButton
 						>
@@ -739,49 +738,7 @@ function action(name: string) {
 				><UiButton @click="summaryOpen = false">完成</UiButton></template
 			></PreviewOverlay
 		>
-		<PreviewOverlay v-if="exportOpen" title="导出当前筛选结果" @close="exportOpen = false"
-			><p>共 {{ rows.length }} 种物品，包含当前筛选的全部匹配记录。</p>
-			<dl class="detail-list">
-				<dt>搜索</dt>
-				<dd>{{ search || "不限" }}</dd>
-				<dt>仓库</dt>
-				<dd>{{ warehouses.join("、") || "全部" }}</dd>
-				<dt>类别</dt>
-				<dd>{{ category || "全部" }}</dd>
-			</dl>
-			<label class="preview-field field"
-				>文件格式<select v-model="exportFormat">
-					<option value="xlsx">XLSX</option>
-					<option value="csv">CSV</option>
-				</select></label
-			>
-			<label class="preview-field"
-				>导出内容<select v-model="exportDataset">
-					<option value="summary">物品汇总</option>
-					<option value="details">逐库位明细</option>
-				</select></label
-			>
-			<p>{{ exportRows.length }} 行 · 当前完整筛选范围</p>
-			<ul>
-				<li v-for="(row, index) in exportRows" :key="index">{{ row }}</li>
-			</ul>
-			<p class="muted">设计演示，不生成真实文件。筛选和已选物品保持不变。</p>
-			<template #footer
-				><UiButton @click="exportOpen = false">取消</UiButton
-				><UiButton
-					variant="primary"
-					icon="download"
-					@click="
-						exportOpen = false;
-						emit(
-							'notify',
-							`已模拟导出 ${exportRows.length} 行（${exportFormat.toUpperCase()}），未生成文件。`,
-						);
-					"
-					>模拟导出</UiButton
-				></template
-			></PreviewOverlay
-		>
+
 		<PreviewOverlay v-if="scanOpen" title="扫码查找物品 · 模拟" @close="scanOpen = false"
 			><div class="scan-placeholder">
 				<InventoryIcon name="scan" /><span>本预览不申请相机权限</span>

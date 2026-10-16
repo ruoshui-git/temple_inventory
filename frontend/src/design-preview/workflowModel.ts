@@ -1,4 +1,3 @@
-import { reactive } from "vue";
 import {
   reviewSession,
   captureSavedDraft,
@@ -12,16 +11,7 @@ export interface PreviewAttachment {
   url?: string;
   state: "uploading" | "ready" | "error";
 }
-export const activities = reactive([
-  {
-    name: "秋季法会",
-    type: "活动",
-    start: "2026-10-12",
-    end: "2026-10-14",
-    description: "",
-  },
-  { name: "日常供餐", type: "日常", start: "", end: "", description: "" },
-]);
+export { activities } from "./activityData";
 export function addLoanToDraft(
   draft: ReviewDraft,
   name: string,

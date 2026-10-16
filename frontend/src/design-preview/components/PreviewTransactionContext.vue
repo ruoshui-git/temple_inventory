@@ -1,81 +1,68 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { activities } from "../workflowModel";
+import { nextTick, ref } from "vue";
+import { activityLabel, activityOptions } from "../activityData";
 import type { ReviewDraft } from "../reviewModel";
+import PreviewActivityEditor from "./PreviewActivityEditor.vue";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
-const props = defineProps<{ draft: ReviewDraft; disabled?: boolean }>();
-const creating = ref(false),
-	title = ref(""),
-	type = ref("活动"),
-	start = ref(""),
-	end = ref(""),
-	description = ref(""),
-	error = ref("");
-function create() {
-	if (!title.value.trim()) {
-		error.value = "请填写活动名称";
-		return;
-	}
-	if (start.value && end.value && end.value < start.value) {
-		error.value = "结束日期不能早于开始日期";
-		return;
-	}
-	if (activities.some((row) => row.name === title.value.trim())) {
-		error.value = "活动已存在，请直接选择";
-		return;
-	}
-	activities.push({
-		name: title.value.trim(),
-		type: type.value,
-		start: start.value,
-		end: end.value,
-		description: description.value,
-	});
-	props.draft.activity = title.value.trim();
+const props = defineProps<{ draft: ReviewDraft; disabled?: boolean; mode?: "edit" | "display" }>();
+const creating = ref(false);
+const trigger = ref<InstanceType<typeof PreviewUiButton>>();
+async function finish(id?: string) {
+	if (id) props.draft.activity = id;
 	creating.value = false;
-	error.value = "";
+	await nextTick();
+	(trigger.value?.$el as HTMLElement)?.focus();
 }
 </script>
 <template>
-	<div class="form-fields">
-		<template v-if="!creating"
-			><PreviewSearchSelect
+	<dl v-if="mode === 'display'" class="preview-info-grid">
+		<div>
+			<dt>关联活动</dt>
+			<dd>{{ activityLabel(draft.activity) }}</dd>
+		</div>
+		<div>
+			<dt>{{ draft.kind === "Receive" ? "来源" : "用途" }}</dt>
+			<dd>{{ (draft.kind === "Receive" ? draft.source : draft.purpose) || "未填写" }}</dd>
+		</div>
+	</dl>
+	<div v-else class="form-fields">
+		<template v-if="!creating">
+			<dl v-if="draft.loanName" class="preview-info-grid">
+				<div>
+					<dt>关联活动</dt>
+					<dd>{{ activityLabel(draft.activity) }}</dd>
+				</div>
+			</dl>
+			<PreviewSearchSelect
+				v-else
 				label="关联活动"
 				v-model="draft.activity"
 				:disabled="disabled"
-				:options="[
-					...new Set(
-						[...activities.map((row) => row.name), draft.activity].filter(Boolean),
-					),
-				]" /><PreviewUiButton
+				:options="activityOptions(draft.activity)"
+			/>
+			<PreviewUiButton
+				ref="trigger"
 				class="preview-field-action"
-				v-if="!disabled"
+				v-if="!draft.loanName"
+				:disabled="disabled"
 				@click="creating = true"
 				>新建活动</PreviewUiButton
-			><label class="preview-field"
-				>用途<input v-model="draft.purpose" :disabled="disabled" /></label
-			><PreviewSearchSelect
-				label="负责人"
-				v-model="draft.responsible"
-				:options="['王师兄', '李师姐', '值班管理员']"
-				:disabled="disabled"
-		/></template>
-		<fieldset class="full-field preview-supporting-editor" v-else :disabled="disabled">
-			<legend>新建活动</legend>
-			<label class="preview-field">名称<input v-model="title" /></label
-			><label class="preview-field"
-				>类型<select v-model="type">
-					<option>活动</option>
-					<option>日常</option>
-					<option>其他</option>
-				</select></label
-			><label class="preview-field">开始日期<input type="date" v-model="start" /></label
-			><label class="preview-field">结束日期<input type="date" v-model="end" /></label
-			><label class="preview-field">说明<textarea v-model="description" /></label>
-			<p v-if="error" role="alert">{{ error }}</p>
-			<PreviewUiButton @click="creating = false">返回选择</PreviewUiButton
-			><PreviewUiButton @click="create">创建并使用活动</PreviewUiButton>
-		</fieldset>
+			>
+			<p v-if="draft.loanName" class="muted">活动由原借用记录确定。</p>
+			<label v-if="draft.kind === 'Receive'" class="preview-field"
+				>来源<input v-model="draft.source" :disabled="disabled"
+			/></label>
+			<label v-else class="preview-field"
+				>用途<input v-model="draft.purpose" :disabled="disabled"
+			/></label>
+		</template>
+		<PreviewActivityEditor
+			v-else
+			class="full-field"
+			contextual
+			@saved="finish"
+			@cancel="finish()"
+		/>
 	</div>
 </template>

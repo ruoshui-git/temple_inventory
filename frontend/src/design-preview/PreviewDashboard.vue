@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { activityLabel } from "./activityData";
+import PreviewQuickReport from "./components/PreviewQuickReport.vue";
+import { newReportQuery, reportDefinitions, type ReportDataset } from "./reportModel";
 import { computed, onBeforeUnmount, ref, watch, reactive, onActivated } from "vue";
 import PreviewDashboardSection from "./components/PreviewDashboardSection.vue";
 import PreviewReturnToTop from "./components/PreviewReturnToTop.vue";
@@ -25,6 +28,14 @@ const emit = defineEmits<{
 	movement: [name: string];
 	loan: [name: string];
 }>();
+const reportDataset = ref<ReportDataset>("inventory");
+const quickReportQuery = computed(() => {
+	const query = newReportQuery(reportDataset.value);
+	query.scope.warehouses = [...filters.value.warehouses];
+	query.scope.categories = [...filters.value.categories];
+	if (reportDataset.value === "movements") query.scope.period = { ...filters.value.period };
+	return query;
+});
 const filters = computed(() => reviewSession.filters.dashboard);
 const sections = reactive(
 	Object.fromEntries(
@@ -280,6 +291,17 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 <template>
 	<div class="preview-dashboard">
 		<div class="browse-toolbar">
+			<label class="preview-field"
+				>快速报表数据集<select v-model="reportDataset">
+					<option v-for="(definition, id) in reportDefinitions" :key="id" :value="id">
+						{{ definition.label }}
+					</option>
+				</select></label
+			><PreviewQuickReport
+				:query="quickReportQuery"
+				:active="active"
+				@navigate="(page, variant) => emit('navigate', page as PreviewPage, variant)"
+			/>
 			<PreviewUiButton :aria-expanded="showFilters" @click="showFilters = !showFilters"
 				>总览范围 ·
 				{{
@@ -616,7 +638,9 @@ function loanQuantity(loan: (typeof data.value.loans)[number]) {
 						>
 							<span
 								>{{ loan.borrower }} · {{ loan.statusLabel
-								}}<small>{{ loan.activity }} · {{ loan.loanDate }}</small
+								}}<small
+									>{{ activityLabel(loan.activity) }} ·
+									{{ loan.loanDate }}</small
 								><small
 									v-for="(line, index) in loan.lines"
 									:key="line.code + index"

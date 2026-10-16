@@ -12,6 +12,15 @@ import {
 import { validateOperation } from "../formModel";
 import PreviewUiButton from "./PreviewUiButton.vue";
 
+const copyStatus = ref("");
+async function copyRetained() {
+	try {
+		await navigator.clipboard.writeText(retained.value);
+		copyStatus.value = "已复制";
+	} catch {
+		copyStatus.value = "复制不可用，请选择文本复制";
+	}
+}
 const props = defineProps<{ draft: ReviewDraft }>();
 const emit = defineEmits<{ blocked: [value: boolean]; amend: [draft: ReviewDraft] }>();
 const baseline = ref(savedDraftSnapshot(props.draft));
@@ -159,7 +168,9 @@ function cancel() {
 		</div>
 		<details v-if="retained">
 			<summary>恢复前的输入副本</summary>
-			<textarea readonly :value="retained" rows="5" aria-label="保留的输入副本" />
+			<pre class="preview-long-text" aria-label="保留的输入副本">{{ retained }}</pre>
+			<PreviewUiButton @click="copyRetained">复制输入副本</PreviewUiButton>
+			<p v-if="copyStatus" role="status">{{ copyStatus }}</p>
 		</details>
 		<PreviewUiButton v-if="draft.status === 'cancelled' && !blocked" @click="amend"
 			>修订为新草稿</PreviewUiButton

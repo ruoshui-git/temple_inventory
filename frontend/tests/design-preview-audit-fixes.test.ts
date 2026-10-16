@@ -251,13 +251,12 @@ describe("preview audit repairs", () => {
     await button(dialog, "确认提交").trigger("click");
     expect(draft.status).toBe("completed");
     expect(wrapper.get(".count-difference").text()).toContain("−60 袋");
-    await button(wrapper.get(".form-review"), "查看盘点汇总").trigger("click");
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    expect(wrapper.get(".preview-document-display").text()).toContain(
       "账面合计",
     );
-    expect(
-      document.querySelector('[role="dialog"]')?.textContent,
-    ).not.toContain("确认提交");
+    expect(wrapper.find(".preview-document-display input").exists()).toBe(
+      false,
+    );
   });
   it("restores document and nested table positions, but resets ordinary Inventory navigation", async () => {
     wrapper = mount(PreviewApp, { attachTo: document.body });

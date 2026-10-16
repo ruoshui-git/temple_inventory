@@ -1,3 +1,4 @@
+import { activityLabel } from "./activityData";
 import { previewDate } from "./model";
 import type { ReviewSession, ReviewMovement, ReviewLoan } from "./reviewModel";
 
@@ -173,7 +174,7 @@ export function filterMovements(
         matchesWarehouse(row.to, scope.warehouses, session)) &&
       matchesWarehouse(row.from, scope.sources, session) &&
       matchesWarehouse(row.to, scope.destinations, session) &&
-      `${row.name} ${row.code} ${row.itemName} ${movementLabels[row.kind]} ${row.activity || ""} ${row.borrower || ""} ${row.from} ${row.to}`
+      `${row.name} ${row.code} ${row.itemName} ${movementLabels[row.kind]} ${activityLabel(row.activity)} ${row.activity || ""} ${row.borrower || ""} ${row.from} ${row.to}`
         .toLocaleLowerCase()
         .includes(query),
   );
@@ -241,7 +242,7 @@ export function filterLoans(
         (line) =>
           matchesItem(line.code, scope, session) &&
           matchesWarehouse(line.location || "", scope.warehouses, session) &&
-          `${loan.name} ${loan.borrower} ${loan.activity} ${line.code} ${session.stock.find((item) => item.code === line.code)?.name || ""}`
+          `${loan.name} ${loan.borrower} ${activityLabel(loan.activity)} ${loan.activity} ${line.code} ${session.stock.find((item) => item.code === line.code)?.name || ""}`
             .toLocaleLowerCase()
             .includes(query),
       ),

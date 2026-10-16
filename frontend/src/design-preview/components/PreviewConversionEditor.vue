@@ -147,14 +147,20 @@ function apply() {
 				>取消新建单位</PreviewUiButton
 			>
 		</fieldset>
-		<label class="preview-field"
+		<dl v-if="unit === line.uom" class="preview-info-grid">
+			<div>
+				<dt>单位换算</dt>
+				<dd>1 {{ unit }} = 1 {{ line.uom }}</dd>
+			</div>
+		</dl>
+		<label v-else class="preview-field"
 			>1 {{ unit || "所选单位" }} = （{{ line.uom }}）<input
 				data-field="conversionFactor"
 				v-model="factor"
 				type="number"
 				step="any"
 				min="0"
-				:disabled="disabled || unit === line.uom"
+				:disabled="disabled"
 		/></label>
 		<label v-if="!reusableOnly" class="preview-field"
 			>输入数量（{{ unit }}）<input
@@ -171,7 +177,8 @@ function apply() {
 			原换算：1 {{ unit }} = {{ savedFactor }} {{ line.uom }}；新换算：1 {{ unit }} =
 			{{ factor }} {{ line.uom }}
 		</p>
-		<label class="preview-choice-label"
+		<p v-if="reusableOnly">保存为此物品的常用换算：是</p>
+		<label v-else class="preview-choice-label"
 			><input
 				v-model="reuse"
 				type="checkbox"

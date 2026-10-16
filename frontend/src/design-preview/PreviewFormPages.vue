@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import PreviewQuickReport from "./components/PreviewQuickReport.vue";
+import { newReportQuery } from "./reportModel";
+import PreviewDocumentDisplay from "./components/PreviewDocumentDisplay.vue";
+import { activityLabel } from "./activityData";
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import { usePreviewWorkspace } from "./workspaceMode";
 import PreviewItemConversions from "./components/PreviewItemConversions.vue";
@@ -131,6 +135,12 @@ const kind = computed<DraftKind>(() =>
 );
 const isItem = computed(() => kind.value === "Item");
 const isReconcile = computed(() => kind.value === "Reconcile");
+const countReport = computed(() => {
+	const query = newReportQuery("counts");
+	query.record = draft.value?.name || "";
+	query.statuses = [0, 1, 2];
+	return query;
+});
 const isReadOnly = computed(
 	() => documentBlocked.value || (!!draft.value && draft.value.status !== "draft"),
 );
@@ -403,7 +413,15 @@ function confirmSubmit() {
 		<p v-if="unavailableDraft" role="alert">
 			{{ unavailableDraft }} 记录不可用，请返回列表。当前页面不会替换为其他记录。
 		</p>
-		<div v-if="draft" class="form-layout">
+		<PreviewQuickReport
+			v-if="draft?.kind === 'Reconcile' && draft.saved !== false"
+			:query="countReport"
+			:active="active"
+			@navigate="(page, variant) => emit('navigate', page, variant)"
+			@notify="emit('notify', $event)"
+		/>
+		<PreviewDocumentDisplay v-if="draft && draft.status !== 'draft'" :draft="draft" />
+		<div v-else-if="draft" class="form-layout">
 			<form class="form-main surface" @submit.prevent="saveDraft">
 				<div v-if="!isItem" class="form-section form-date-section">
 					<label class="preview-field"
@@ -437,7 +455,13 @@ function confirmSubmit() {
 							>
 						</div>
 						<div class="form-fields">
-							<label class="preview-field"
+							<dl v-if="variant === 'edit'" class="preview-info-grid">
+								<div>
+									<dt>物品编号</dt>
+									<dd>{{ draft.itemCode }}</dd>
+								</div>
+							</dl>
+							<label v-else class="preview-field"
 								>物品编号<input
 									:readonly="variant === 'edit'"
 									v-model="draft!.itemCode"
@@ -458,7 +482,14 @@ function confirmSubmit() {
 								v-model="draft!.category"
 								:disabled="isReadOnly"
 							/>
+							<dl v-if="variant === 'edit'" class="preview-info-grid">
+								<div>
+									<dt>库存单位</dt>
+									<dd>{{ draft.uom }}</dd>
+								</div>
+							</dl>
 							<PreviewUnitField
+								v-else
 								v-model="draft!.uom"
 								:disabled="isReadOnly || variant === 'edit'"
 							/>
@@ -475,7 +506,17 @@ function confirmSubmit() {
 									:disabled="isReadOnly"
 							/></label>
 						</div>
-						<div class="form-check-row">
+						<dl v-if="variant === 'edit'" class="preview-info-grid">
+							<div>
+								<dt>按批次管理</dt>
+								<dd>{{ draft.tracksBatch ? "是" : "否" }}</dd>
+							</div>
+							<div>
+								<dt>记录效期</dt>
+								<dd>{{ draft.tracksExpiry ? "是" : "否" }}</dd>
+							</div>
+						</dl>
+						<div v-else class="form-check-row">
 							<label class="preview-choice-label"
 								><input
 									v-model="draft!.tracksBatch"
@@ -540,7 +581,7 @@ function confirmSubmit() {
 									>加入此借用</PreviewUiButton
 								>
 								<p>
-									{{ draft?.borrower }} · {{ draft?.activity
+									{{ draft?.borrower }} · {{ activityLabel(draft?.activity)
 									}}<br />可加入同一借用方和活动的多笔借用；遗失使用单独操作。
 								</p></template
 							>
@@ -575,15 +616,6 @@ function confirmSubmit() {
 					<details class="form-section">
 						<summary>补充记录（可选）</summary>
 						<PreviewTransactionContext :draft="draft!" :disabled="isReadOnly" />
-						<PreviewSearchSelect
-							v-if="kind === 'Receive'"
-							label="来源类型"
-							v-model="draft!.sourceType"
-							:options="['捐赠', '采购', '其他']"
-							:disabled="isReadOnly"
-						/><label class="preview-field" v-if="kind === 'Receive'"
-							>捐赠人 / 来源<input v-model="draft!.source" :disabled="isReadOnly"
-						/></label>
 						<PreviewAttachments v-model="draft!.files" :disabled="isReadOnly" />
 						<div class="form-fields">
 							<label class="preview-field"
@@ -691,7 +723,7 @@ function confirmSubmit() {
 					<PreviewAllocationSummary :draft="draft" collapsible />
 				</div>
 				<p v-if="kind === 'Loan'">借用人：{{ draft?.borrower || "待填写" }}</p>
-				<p v-if="draft?.activity">活动：{{ draft.activity }}</p>
+				<p v-if="draft?.activity">活动：{{ activityLabel(draft.activity) }}</p>
 				<p v-if="draft?.postingDate">日期：{{ draft.postingDate }}</p>
 				<p class="muted">
 					确认前请核对物品、数量和库位。库存为固定样本快照，确认不会执行库存扣增。
@@ -716,6 +748,22 @@ function confirmSubmit() {
 			@close="showConfirm = false"
 			><PreviewCountSummary v-if="isReconcile && draft" :draft="draft" />
 			<PreviewAllocationSummary v-else-if="draft && !isItem" :draft="draft" />
+			<PreviewTransactionContext v-if="draft && !isItem" :draft="draft" mode="display" />
+			<dl v-if="draft && !isItem" class="preview-info-grid">
+				<div
+					v-for="(value, label) in {
+						借用方: draft.borrower,
+						记录人: draft.recorder,
+						经手人: draft.handler,
+						鉴证人: draft.reviewer,
+					}"
+					:key="label"
+				>
+					<dt>{{ label }}</dt>
+					<dd>{{ value || "未填写" }}</dd>
+				</div>
+			</dl>
+			<div v-if="draft?.note" class="preview-long-text">{{ draft.note }}</div>
 			<p v-if="draft?.baselineReviewed === false">账面基准已刷新，请重新核对差异后提交。</p>
 			<p>这是模拟确认；库存为固定样本快照，不执行库存扣增。</p>
 			<template #footer

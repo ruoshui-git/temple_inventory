@@ -368,10 +368,10 @@ describe("interactive preview", () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
     await nextTick();
     await wrapper.get('input[aria-label="搜索物品或条码"]').setValue("珍珠米");
-    await button(wrapper, "导出").trigger("click");
+    await button(wrapper, "快速报表").trigger("click");
     await nextTick();
     expect(document.querySelector(".preview-dialog")?.textContent).toContain(
-      "共 1 种物品",
+      "1 行完整结果",
     );
     expect(document.querySelector(".preview-dialog")?.textContent).toContain(
       "珍珠米",

@@ -10,6 +10,7 @@ const props = defineProps<{
 	line: DraftLine;
 	draft: ReviewDraft;
 	disabled?: boolean;
+	mode?: "edit" | "display";
 	field?: string;
 	selectedUnit?: string;
 }>();
@@ -54,7 +55,24 @@ watch(
 </script>
 <template>
 	<PreviewOverlay :title="`${item.name} · 详情`" drawer @close="close">
-		<div ref="content" class="allocation-details" :inert="discard || undefined">
+		<dl v-if="mode === 'display'" class="preview-info-grid">
+			<div
+				v-for="(value, label) in {
+					物品: line.code,
+					数量: line.qty,
+					单位: line.uom,
+					批次: line.batch,
+					到期: line.expiry,
+					库位: line.location,
+					换算率: line.conversionFactor || 1,
+				}"
+				:key="label"
+			>
+				<dt>{{ label }}</dt>
+				<dd>{{ value || "未填写" }}</dd>
+			</div>
+		</dl>
+		<div v-else ref="content" class="allocation-details" :inert="discard || undefined">
 			<p>{{ line.code }} · {{ line.qty }} {{ line.uom }}</p>
 			<template v-if="item.tracksBatch">
 				<label v-if="draft.kind === 'Receive'" class="preview-field"
@@ -81,7 +99,13 @@ watch(
 					@update:model-value="emit('batchChange')"
 				/>
 			</template>
-			<label v-if="item.tracksExpiry" class="preview-field"
+			<dl v-if="item.tracksExpiry && draft.kind !== 'Receive'" class="preview-info-grid">
+				<div>
+					<dt>到期日期</dt>
+					<dd>{{ line.expiry || "无效期" }}</dd>
+				</div>
+			</dl>
+			<label v-else-if="item.tracksExpiry" class="preview-field"
 				>到期日期<input
 					data-field="expiry"
 					v-model="line.expiry"
@@ -136,20 +160,24 @@ watch(
 		</div>
 		<template #footer>
 			<PreviewUiButton
-				v-if="!disabled && !isSettlement(draft)"
+				v-if="mode !== 'display' && !disabled && !isSettlement(draft)"
 				:disabled="dirty"
 				@click="!dirty && emit('replace')"
 				>更换物品</PreviewUiButton
 			>
-			<PreviewUiButton v-if="!disabled" :disabled="dirty" @click="!dirty && emit('split')">{{
-				isSettlement(draft)
-					? "添加处理分配"
-					: item.tracksBatch
-						? draft.kind === "Receive"
-							? "添加批次分配"
-							: "分配其他批次"
-						: "拆分分配"
-			}}</PreviewUiButton
+			<PreviewUiButton
+				v-if="mode !== 'display' && !disabled"
+				:disabled="dirty"
+				@click="!dirty && emit('split')"
+				>{{
+					isSettlement(draft)
+						? "添加处理分配"
+						: item.tracksBatch
+							? draft.kind === "Receive"
+								? "添加批次分配"
+								: "分配其他批次"
+							: "拆分分配"
+				}}</PreviewUiButton
 			><PreviewUiButton @click="close">完成详情</PreviewUiButton></template
 		>
 	</PreviewOverlay>

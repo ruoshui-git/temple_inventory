@@ -61,6 +61,13 @@ export const moreNavigation: {
     label: "工作工具",
     items: [
       {
+        key: "activities",
+        label: "活动",
+        route: "activity-list/active",
+        icon: "calendar",
+        description: "活动资料、关联记录与借用结余",
+      },
+      {
         key: "count",
         label: "盘点调整",
         route: "reconciliation-form/new",
@@ -106,7 +113,9 @@ const owners: Partial<Record<PreviewPage, Destination>> = {
   "loan-detail": "loans",
   drafts: "more",
   reports: "reports",
-  "report-export": "reports",
+  "activity-list": "more",
+  "activity-detail": "more",
+  "activity-form": "more",
   more: "more",
   settings: "more",
 };

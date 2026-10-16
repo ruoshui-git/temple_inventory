@@ -101,9 +101,9 @@ describe("ERPNext-native preview lifecycle", () => {
     await button(wrapper, "载入最新记录并保留输入副本").trigger("click");
     expect(draft.lines[0].qty).toBe(original);
     expect(draft).toHaveProperty("deskFields.costCenter", "Temple");
-    expect(
-      wrapper.get('textarea[aria-label="保留的输入副本"]').element.value,
-    ).toContain(`"qty": ${original + 8}`);
+    expect(wrapper.get('[aria-label="保留的输入副本"]').text()).toContain(
+      `"qty": ${original + 8}`,
+    );
   });
   it("never substitutes a different document when a selected record is missing", () => {
     reviewSession.selectedDraftName = "DELETED-DOCUMENT";
@@ -160,9 +160,9 @@ describe("ERPNext-native preview lifecycle", () => {
     await button(wrapper, "载入最新记录并保留输入副本").trigger("click");
     expect(draft.lines[0].qty).toBe(savedQty);
     expect(draft.note).toBe("ERPNext 更新的备注");
-    expect(
-      wrapper.get('textarea[aria-label="保留的输入副本"]').element.value,
-    ).toContain(`"qty": ${savedQty + 7}`);
+    expect(wrapper.get('[aria-label="保留的输入副本"]').text()).toContain(
+      `"qty": ${savedQty + 7}`,
+    );
     expect(
       wrapper.findAll("button").some((row) => row.text() === "保存草稿"),
     ).toBe(true);
@@ -196,9 +196,9 @@ describe("ERPNext-native preview lifecycle", () => {
     await button(wrapper, "重新登录并继续").trigger("click");
     expect(wrapper.emitted("blocked")?.at(-1)).toEqual([true]);
     expect(wrapper.text()).toContain("记录已删除");
-    expect(
-      wrapper.get('textarea[aria-label="保留的输入副本"]').element.value,
-    ).toContain("未保存输入");
+    expect(wrapper.get('[aria-label="保留的输入副本"]').text()).toContain(
+      "未保存输入",
+    );
     expect(reviewSession.drafts.some((row) => row.name === draft.name)).toBe(
       false,
     );
@@ -409,9 +409,13 @@ describe("counting and searchable supporting data", () => {
     draft.note = "保持输入";
     const activity = render(PreviewTransactionContext, { draft });
     await button(activity, "新建活动").trigger("click");
-    await activity.get("fieldset input").setValue("新法会");
+    await activity.get(".preview-supporting-editor input").setValue("新法会");
+    await select(activity, "类型 *", "节目");
     await button(activity, "创建并使用活动").trigger("click");
-    expect(draft.activity).toBe("新法会");
+    expect(draft.activity).toMatch(/^ACT-/);
+    expect(
+      activity.findComponent(PreviewSearchSelect).get("input").element.value,
+    ).toBe("新法会");
     expect(draft.note).toBe("保持输入");
     const category = render(PreviewCategoryField);
     await button(category, "新建分类").trigger("click");

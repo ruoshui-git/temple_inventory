@@ -1175,9 +1175,6 @@ strong {
 	transition: border-color var(--p-motion);
 	min-width: 0;
 }
-.stock-card:hover {
-	border-color: var(--p-control-border);
-}
 .stock-card.selected {
 	border-color: var(--p-accent);
 	box-shadow: 0 0 0 1px var(--p-accent);
@@ -2908,4 +2905,251 @@ button {
 body:has(.preview-document-actions) .preview-toast {
 	top: 16px;
 	bottom: auto;
+}
+
+/* Information, activities and reports share wrapping geometry within preview tokens. */
+.preview-info-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+	gap: var(--p-space-3);
+	margin: 16px 0;
+}
+.preview-info-grid div {
+	min-width: 0;
+}
+.preview-info-grid dt {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.preview-info-grid dd {
+	margin: 4px 0 0;
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+.preview-long-text {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	user-select: text;
+	font: inherit;
+	max-width: 100%;
+}
+.preview-activities,
+.preview-reports {
+	display: grid;
+	gap: 20px;
+	min-width: 0;
+}
+.preview-activities h1 {
+	overflow-wrap: anywhere;
+}
+.activity-list {
+	display: grid;
+	gap: 12px;
+}
+.activity-card {
+	padding: var(--p-space-4);
+	display: grid;
+	gap: 12px;
+	min-width: 0;
+}
+.activity-card .preview-info-grid {
+	margin: 0;
+}
+.activity-card .ui-button {
+	text-align: start;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+.activity-record {
+	padding: 16px 0;
+	border-bottom: 1px solid var(--p-border);
+	overflow-wrap: anywhere;
+}
+.activity-notes {
+	max-height: 60dvh;
+	overflow: auto;
+}
+.report-inline-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 16px;
+	margin: 12px 0;
+	min-width: 0;
+}
+.report-inline-controls > * {
+	flex: 1 1 220px;
+	min-width: 0;
+	max-width: 100%;
+}
+.report-inline-controls > .ui-button {
+	flex: 0 1 auto;
+}
+.preview-reports .preview-period-trigger,
+.preview-activities .preview-period-trigger {
+	position: static;
+}
+.report-filter-details .preview-filter-fields {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+}
+.report-filter-details .preview-filter-fields > * {
+	flex: 1 1 220px;
+	min-width: 0;
+}
+.preview-reports .surface,
+.preview-reports .report-table-wrap {
+	min-width: 0;
+	max-width: 100%;
+}
+.report-table-wrap {
+	overflow: auto;
+	max-width: 100%;
+}
+.report-table-wrap table {
+	border-collapse: collapse;
+	min-width: 650px;
+	width: 100%;
+	font-size: var(--p-small);
+}
+.report-table-wrap th,
+.report-table-wrap td {
+	text-align: start;
+	padding: 12px;
+	vertical-align: top;
+	border-bottom: 1px solid var(--p-border);
+	min-width: 120px;
+	max-width: 360px;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+.report-table-wrap caption {
+	text-align: start;
+	padding: 12px;
+}
+.preview-quick-report {
+	white-space: normal;
+}
+@media (min-width: 1024px) {
+	.activity-card {
+		grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+	}
+	.activity-card > .form-actions {
+		grid-column: 1 / -1;
+	}
+}
+@media (max-width: 1023px) {
+	.report-inline-controls > * {
+		flex-basis: 100%;
+	}
+}
+
+.preview-activities .form-fields,
+.preview-reports .form-fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
+.preview-activities .full-field,
+.preview-reports .full-field {
+	grid-column: 1 / -1;
+}
+.preview-activities .form-actions,
+.preview-reports .form-actions,
+.preview-dialog .form-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+}
+.preview-activities .form-section,
+.preview-reports .form-section {
+	padding: var(--p-space-4);
+}
+.preview-activities .browse-heading,
+.preview-reports .browse-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: start;
+	justify-content: space-between;
+	gap: 16px;
+}
+.preview-activities .browse-heading > *,
+.preview-reports .browse-heading > * {
+	min-width: 0;
+	max-width: 100%;
+}
+.preview-activities .ui-button,
+.preview-reports .ui-button {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+@media (max-width: 1023px) {
+	.preview-activities .form-fields,
+	.preview-reports .form-fields {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.activity-movement-totals {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 13em), 1fr));
+	gap: 12px;
+	margin: 16px 0;
+}
+.activity-movement-totals p {
+	overflow-wrap: anywhere;
+	margin: 0;
+}
+
+:where(.preview-activities, .preview-reports, .preview-document-display) summary {
+	min-height: 44px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+}
+:where(.preview-activities, .preview-reports, .preview-document-display) summary::before {
+	content: "▸";
+	flex: none;
+}
+:where(.preview-activities, .preview-reports, .preview-document-display)
+	details[open]
+	> summary::before {
+	content: "▾";
+}
+
+/* Audit repairs: headings and document identities keep readable widths. */
+.browse-heading > div:first-child {
+	flex: 1 1 180px;
+	min-width: 0;
+}
+.browse-heading-actions {
+	flex: 0 1 auto;
+	max-width: 100%;
+	flex-wrap: wrap;
+}
+.preview-drafts-table table {
+	min-width: 760px;
+}
+.preview-drafts-table th:first-child,
+.preview-drafts-table td:first-child {
+	min-width: 220px;
+}
+.preview-utility-page div.more-card {
+	cursor: default;
+}
+
+.preview-drafts-table th,
+.preview-drafts-table td {
+	min-width: 96px;
+}
+.preview-drafts-table th:nth-child(3),
+.preview-drafts-table td:nth-child(3) {
+	min-width: 160px;
+}
+.preview-drafts-table th:last-child,
+.preview-drafts-table td:last-child {
+	min-width: 180px;
 }

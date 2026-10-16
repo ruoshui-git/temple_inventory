@@ -7,7 +7,7 @@ import PreviewFormPages from "../src/design-preview/PreviewFormPages.vue";
 import PreviewReceive from "../src/design-preview/PreviewReceive.vue";
 import PreviewBrowsePages from "../src/design-preview/PreviewBrowsePages.vue";
 import PreviewActivityBrowse from "../src/design-preview/PreviewActivityBrowse.vue";
-import PreviewUtilityPages from "../src/design-preview/PreviewUtilityPages.vue";
+import PreviewReports from "../src/design-preview/PreviewReports.vue";
 import PreviewApp from "../src/design-preview/PreviewApp.vue";
 import {
   createReviewSession,
@@ -210,17 +210,13 @@ describe("preview form refinement", () => {
       page: "item-form",
       variant: "edit",
     });
-    expect(
-      editor.get('input[placeholder="例如 ITM-000134"]').attributes("readonly"),
-    ).toBeDefined();
-    expect(
-      editor.get(".preview-unit-field [role=combobox]").attributes("disabled"),
-    ).toBeDefined();
-    expect(
-      editor
-        .findAll(".form-check-row input[type=checkbox]")
-        .every((input) => input.attributes("disabled") !== undefined),
-    ).toBe(true);
+    expect(editor.get(".preview-info-grid").text()).toContain("物品编号");
+    expect(editor.find(".preview-unit-field [role=combobox]").exists()).toBe(
+      false,
+    );
+    expect(editor.find(".form-check-row input[type=checkbox]").exists()).toBe(
+      false,
+    );
   });
 
   it("settles good and damaged returns in one document and exposes history", async () => {
@@ -270,7 +266,7 @@ describe("preview scope and navigation", () => {
     expect(matchesExpiry(previewDate, "expired")).toBe(false);
     const expiry = render(PreviewBrowsePages, { route: "expiry/undated" });
     expect(expiry.text()).toContain("TEXTILE-2610");
-    const report = render(PreviewUtilityPages, {
+    const report = render(PreviewReports, {
       page: "reports",
       variant: "expiry",
     });
@@ -301,19 +297,18 @@ describe("preview scope and navigation", () => {
       records: false,
       variant: "list",
     });
-    await button(wrapper, "导出").trigger("click");
+    await button(wrapper, "快速报表").trigger("click");
     const dataset = body()
       .findAll("select")
-      .find((select) => select.text().includes("逐行明细"))!;
-    expect(dataset.element.value).toBe("summary");
-    const summaryRows = body().findAll("li").length;
-    await dataset.setValue("details");
-    expect(body().findAll("li").length).toBeGreaterThan(summaryRows);
-    await body()
+      .find((select) => select.text().includes("分配明细"))!;
+    expect(dataset.element.value).toBe("result");
+    await dataset.setValue("lines");
+    const format = body()
       .findAll("select")
-      .find((select) => select.text().includes("XLSX"))!
-      .setValue("XLSX");
-    expect(dataset.element.value).toBe("details");
+      .find((select) => select.text().includes("XLSX"))!;
+    await format.setValue("csv");
+    expect(dataset.element.value).toBe("lines");
+    expect(body().get('[role="dialog"]').text()).toContain("CSV 导出表");
   });
 
   it("returns to the local inventory with search, view, selection and shell scroll restored", async () => {

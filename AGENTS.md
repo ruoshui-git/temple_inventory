@@ -113,9 +113,11 @@ implementation without a concrete need.
 ### Structured, auditable context
 
 Store values that will be filtered, grouped, reported, or queried in structured
-fields, not only in Notes. This includes source type, donor/source, purpose,
-activity, recipient or borrower, responsible person, recorder, handler,
-reviewer, and warehouse/location.
+fields, not only in Notes. This includes Receive source, non-Receive purpose, activity identity, borrower,
+optional recorder/handler/reviewer, and warehouse/location. Source type and
+responsible person are retired preview metadata; their coordinated backend
+removal is specified in notes/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md.
+Activity detailed notes remain separate from its short description.
 Notes are supplemental context.
 
 `Inventory Activity` is contextual metadata and may be linked from multiple
@@ -241,9 +243,9 @@ or one-to-many relationships. Do not add abstractions or records solely because
 a hypothetical future report might need them.
 
 When changing a DocType or hook, update the schema, fixtures, patches, API
-serialization, permissions, and tests together as applicable. Keep API payloads
-backward-compatible unless the requested change includes a coordinated caller
-migration.
+serialization, permissions, and tests together as applicable. Prefer clean schema/API/caller replacement over compatibility adapters. Preserve
+functional capabilities and ERPNext stock/audit semantics; database resets belong
+to a separately authorized production migration, never preview work.
 
 Follow the configured formatting rules: Python uses tabs, double quotes, Ruff,
 and a 110-character line length. TypeScript and Vue use the existing project

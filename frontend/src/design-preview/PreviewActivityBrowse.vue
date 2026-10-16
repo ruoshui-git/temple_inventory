@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { activityLabel } from "./activityData";
+import PreviewQuickReport from "./components/PreviewQuickReport.vue";
+import { newReportQuery } from "./reportModel";
 import PreviewResultState from "./components/PreviewResultState.vue";
 import { computed, ref, watch, onActivated, onDeactivated } from "vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
@@ -66,7 +69,7 @@ const analysis = computed(() => {
 				: analysisDimension.value === "location"
 					? row.from
 					: analysisDimension.value === "activity"
-						? row.activity
+						? activityLabel(row.activity)
 						: analysisDimension.value === "borrower"
 							? row.borrower
 							: row.date.slice(0, 7);
@@ -87,15 +90,48 @@ const analysis = computed(() => {
 	return [...result.entries()];
 });
 
-const exportOpen = ref(false);
-const exportFailed = ref(false);
-const exportFormat = ref("CSV");
-const exportDataset = ref("summary");
-function openExport() {
-	exportDataset.value = "summary";
-	exportFailed.value = false;
-	exportOpen.value = true;
-}
+const quickReportQuery = computed(() => {
+	const query = newReportQuery(props.family === "movement" ? "movements" : "loans");
+	query.scope = JSON.parse(JSON.stringify(scope.value));
+	query.search = search.value;
+	query.sortBy =
+		props.records || props.family === "movement"
+			? "date"
+			: reviewSession.filters.loanItems.sort === "quantity"
+				? "quantity"
+				: "name";
+	query.sort =
+		props.family === "loan" && !props.records
+			? reviewSession.filters.loanItems.sort === "quantity"
+				? "desc"
+				: "asc"
+			: sort.value === "newest"
+				? "desc"
+				: "asc";
+	query.view =
+		props.family === "movement"
+			? props.records
+				? "records"
+				: "summary"
+			: props.records
+				? "records"
+				: "outcomes";
+	query.statuses =
+		props.family === "movement"
+			? props.records
+				? [status.value === "draft" ? 0 : status.value === "cancelled" ? 2 : 1]
+				: [1]
+			: status.value === "draft"
+				? [0]
+				: [1];
+	query.loanStatus = props.family === "loan" && props.records ? status.value : "all";
+	query.loanOutcome = props.family === "loan" && !props.records ? status.value : "all";
+	if (props.family === "movement" && !props.records && !query.scope.kinds.length)
+		query.scope.kinds = Object.keys(movementLabels).filter(
+			(kind) => !["Opening", "Reconcile"].includes(kind),
+		);
+	return query;
+});
 const summary = computed(() => movementSummary(movementRows.value, reviewSession));
 const loanSummaryGroups = computed(() =>
 	groupLoans(loans.value, props.records ? "all" : status.value, reviewSession),
@@ -198,7 +234,6 @@ watch(() => [props.family, props.records, props.variant], syncStatus, { immediat
 onActivated(syncStatus);
 onDeactivated(() => {
 	filtersOpen.value = false;
-	exportOpen.value = false;
 });
 const status = computed(() =>
 	props.family === "movement"
@@ -344,7 +379,18 @@ const activeFilters = computed(() => [
 		})),
 	),
 	...(["item", "activity"] as const).flatMap((key) =>
-		scope.value[key] ? [{ key, value: scope.value[key], label: scope.value[key] }] : [],
+		scope.value[key]
+			? [
+					{
+						key,
+						value: scope.value[key],
+						label:
+							key === "activity"
+								? activityLabel(scope.value[key])
+								: scope.value[key],
+					},
+				]
+			: [],
 	),
 ]);
 function removeFilter(key: (typeof activeFilters.value)[number]["key"], value: string) {
@@ -378,47 +424,6 @@ function loanQuantity(loan: ReviewLoan) {
 function completeLoanStatus(loan: ReviewLoan) {
 	return loanStatus(reviewSession.loans.find((row) => row.name === loan.name) || loan);
 }
-const exportRows = computed(() =>
-	props.family === "movement"
-		? props.records
-			? movementRecords.value.map(
-					(record) =>
-						`${record.name} · ${record.row.date} · ${[...new Set(record.lines.map((row) => movementLabels[row.kind]))].join(" / ")} · ${record.row.docstatus === 1 ? "已提交" : record.row.docstatus === 0 ? "草稿" : "已取消"} · ${record.lines.map((row) => row.itemName).join("、")} · ${categoriesFor(record.lines.map((row) => row.code))} · ${quantityText(record.lines)} · ${[...new Set(record.lines.map((row) => `${row.from} → ${row.to}`))].join("；")}`,
-				)
-			: itemGroups.value.map(
-					(group) =>
-						`${group.code} · ${group.name} · ${categoriesFor([group.code])} · ${group.totals.map((total) => `${movementLabels[total.kind]} ${total.text}`).join(" / ")} · ${group.count} 笔`,
-				)
-		: props.records
-			? loans.value.map(
-					(loan) =>
-						`${loan.name} · ${loan.loanDate} · ${loan.borrower} · ${loan.activity} · ${completeLoanStatus(loan)} · 未归还 ${loanQuantity(loan)}`,
-				)
-			: loanGroups.value.map(
-					(group) =>
-						`${group.name} · ${outcomes[group.outcome]} ${group.qty} ${group.uom} · ${group.count} 笔`,
-				),
-);
-const exportDetails = computed(() =>
-	props.family === "movement"
-		? movementRows.value.map(
-				(row) =>
-					`${row.name} · ${row.date} · ${movementLabels[row.kind]} · ${row.itemName} · ${row.qty} ${row.uom} · ${row.from} → ${row.to} · 批次 ${row.batch || "无"}${row.entryUom ? ` · 输入 ${row.entryQty} ${row.entryUom} · 1 ${row.entryUom} = ${row.conversionFactor} ${row.uom}` : ""}`,
-			)
-		: props.records
-			? loans.value.flatMap((loan) =>
-					loan.lines.map(
-						(line) =>
-							`${loan.name} · ${loan.borrower} · ${loan.loanDate} · ${itemName(line.code)} · 借出 ${line.qty} · 未归还 ${remaining(line)} · 已归还 ${line.returned} · 损坏 ${line.damaged} · 遗失 ${line.lost} ${stockItem(line.code)?.uom || ""} · ${line.location || "未填写位置"} · 批次 ${line.batch || "无"}`,
-					),
-				)
-			: loanGroups.value.flatMap((group) =>
-					group.entries.map(
-						(entry) =>
-							`${entry.loan.name} · ${entry.loan.borrower} · ${entry.loan.loanDate} · ${group.name} · ${outcomes[group.outcome]} ${entry.qty} ${group.uom} · ${entry.line.location || "未填写位置"} · 批次 ${entry.line.batch || "无"}`,
-					),
-				),
-);
 </script>
 <template>
 	<div class="preview-activity-browse">
@@ -509,7 +514,11 @@ const exportDetails = computed(() =>
 					:count="activeFilters.length"
 					@click="filtersOpen = !filtersOpen"
 				/>
-				<PreviewUiButton icon="download" @click="openExport">导出</PreviewUiButton>
+				<PreviewQuickReport
+					:query="quickReportQuery"
+					@navigate="(page, variant) => emit('navigate', page as PreviewPage, variant)"
+					@notify="emit('notify', $event)"
+				/>
 			</div>
 			<div class="preview-active-filters">
 				<button
@@ -771,7 +780,7 @@ const exportDetails = computed(() =>
 								<h2>{{ loan.borrower || "未填写借用方" }}</h2>
 								<span class="browse-badge">{{ completeLoanStatus(loan) }}</span>
 								<p>{{ loan.name }} · 借出日期 {{ loan.loanDate }}</p>
-								<p>{{ loan.activity || "未填写活动" }}</p>
+								<p>{{ activityLabel(loan.activity) }}</p>
 								<strong
 									>{{ loan.status === "draft" ? "草稿物品" : "尚未归还" }}
 									{{ loan.status === "draft" ? "" : loanQuantity(loan) }}</strong
@@ -816,54 +825,6 @@ const exportDetails = computed(() =>
 				><PreviewUiButton @click="clear">清空</PreviewUiButton
 				><PreviewUiButton variant="primary" @click="filtersOpen = false"
 					>完成</PreviewUiButton
-				></template
-			></PreviewOverlay
-		>
-		<PreviewOverlay
-			v-if="exportOpen"
-			title="快速导出 · 当前筛选范围"
-			@close="exportOpen = false"
-			><p>{{ exportRows.length }} 条完整筛选结果 · 不受显示行数限制</p>
-			<label class="preview-field"
-				>格式<select v-model="exportFormat">
-					<option>CSV</option>
-					<option>XLSX</option>
-				</select></label
-			>
-			<label class="preview-field"
-				>导出内容<select v-model="exportDataset">
-					<option value="summary">{{ records ? "操作记录" : "物品汇总" }}</option>
-					<option value="details">逐行明细</option>
-				</select></label
-			>
-			<p>
-				{{ (exportDataset === "summary" ? exportRows : exportDetails).length }} 行 ·
-				当前完整筛选范围
-			</p>
-			<ul>
-				<li
-					v-for="(row, index) in exportDataset === 'summary'
-						? exportRows
-						: exportDetails"
-					:key="index"
-				>
-					{{ row }}
-				</li>
-			</ul>
-			<p v-if="exportFailed" role="alert">模拟导出失败，筛选已保留。</p>
-			<template #footer
-				><PreviewUiButton @click="exportFailed = true">模拟失败</PreviewUiButton
-				><PreviewUiButton
-					variant="primary"
-					@click="
-						emit(
-							'notify',
-							`已模拟生成 ${(exportDataset === 'summary' ? exportRows : exportDetails).length} 条${exportFormat}记录，不下载文件`,
-						);
-						exportOpen = false;
-						exportFailed = false;
-					"
-					>{{ exportFailed ? "重试导出" : "模拟导出" }}</PreviewUiButton
 				></template
 			></PreviewOverlay
 		>

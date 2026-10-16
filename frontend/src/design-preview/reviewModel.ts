@@ -25,7 +25,9 @@ export type PreviewPage =
   | "movement-form"
   | "reconciliation-form"
   | "reports"
-  | "report-export"
+  | "activity-list"
+  | "activity-detail"
+  | "activity-form"
   | "more"
   | "settings"
   | "setup"
@@ -253,24 +255,41 @@ export const previewPages: readonly PreviewPageRoute[] = [
     "盘点记录详情",
     "表单",
   ),
-  route("reports", "overview", "/reports", "报表与导出", "报表"),
-  ...Object.entries({
-    movement: "货物流动汇总",
-    movement_records: "流动记录报表",
-    current_stock: "当前库存报表",
-    warehouse_stock: "仓库库存报表",
-    expiry: "效期风险报表",
-  }).map(([variant, label]) =>
-    route("reports", variant, `/reports?type=${variant}`, label, "报表"),
+  route("reports", "overview", "/reports", "报表", "报表"),
+  ...["inventory", "expiry", "movements", "loans", "activities", "counts"].map(
+    (dataset) =>
+      route(
+        "reports",
+        dataset,
+        `/reports?dataset=${dataset}`,
+        `报表 · ${{ inventory: "库存", expiry: "效期 / 批次", movements: "货物流动", loans: "借用", activities: "活动", counts: "盘点" }[dataset]}`,
+        "报表",
+      ),
   ),
   route(
-    "report-export",
-    "preview",
-    "/reports?preview=export",
-    "报表导出预览",
-    "报表",
+    "activity-list",
+    "large",
+    "/preview/activities-large",
+    "活动 · 长文本与大结果集",
+    "更多",
   ),
-  route("more", "index", "/more", "工具", "更多"),
+  route("activity-list", "active", "/activities", "活动", "更多"),
+  route(
+    "activity-detail",
+    "selected",
+    "/activities/selected",
+    "活动详情",
+    "更多",
+  ),
+  route("activity-form", "new", "/activities/new", "新建活动", "更多"),
+  route(
+    "activity-form",
+    "edit",
+    "/activities/selected/edit",
+    "编辑活动",
+    "更多",
+  ),
+  route("more", "index", "/more", "更多", "更多"),
   route("settings", "density", "/settings", "显示设置", "更多"),
   route("setup", "warehouse", "/more?preview=setup", "仓库设置示例", "表单"),
   route(
@@ -287,7 +306,27 @@ export const previewPages: readonly PreviewPageRoute[] = [
 const pageMap = new Map(previewPages.map((page) => [page.key, page]));
 
 export function getPreviewPage(key: string) {
-  return pageMap.get(key as PreviewPageKey);
+  const registered = pageMap.get(key as PreviewPageKey);
+  if (registered) return registered;
+  const detail = /^activity-detail\/(ACT-[A-Za-z0-9-]+)$/.exec(key);
+  if (detail)
+    return route(
+      "activity-detail",
+      detail[1]!,
+      `/activities/${encodeURIComponent(detail[1]!)}`,
+      "活动详情",
+      "更多",
+    );
+  const edit = /^activity-form\/edit-(ACT-[A-Za-z0-9-]+)$/.exec(key);
+  if (edit)
+    return route(
+      "activity-form",
+      `edit-${edit[1]}`,
+      `/activities/${encodeURIComponent(edit[1]!)}/edit`,
+      "编辑活动",
+      "更多",
+    );
+  return undefined;
 }
 
 export function pageHash(key: PreviewPageKey) {
@@ -358,10 +397,8 @@ export interface ReviewDraft {
   postingDate: string;
   activity: string;
   borrower: string;
-  responsible: string;
   note: string;
   source?: string;
-  sourceType?: string;
   barcode?: string;
   description?: string;
   images?: string[];
@@ -380,6 +417,8 @@ export interface ReviewDraft {
 }
 
 export interface ReviewMovement {
+  lineId?: string;
+  postingTime?: string;
   documentType?: string;
   stockPurpose?: string;
   loanLineIndex?: number;
@@ -562,9 +601,8 @@ const defaultDrafts: ReviewDraft[] = [
     kind: "Receive",
     status: "draft",
     postingDate: previewDate,
-    activity: "秋季斋堂补给",
+    activity: "ACT-0003",
     borrower: "",
-    responsible: "义工组",
     note: "",
     lines: [
       {
@@ -585,7 +623,6 @@ const defaultDrafts: ReviewDraft[] = [
     postingDate: previewDate,
     activity: "",
     borrower: "法会义工组",
-    responsible: "值班义工",
     note: "",
     lines: [
       {
@@ -604,9 +641,8 @@ const defaultDrafts: ReviewDraft[] = [
     kind: "Reconcile",
     status: "draft",
     postingDate: previewDate,
-    activity: "物资房月度盘点",
+    activity: "ACT-0004",
     borrower: "",
-    responsible: "盘点小组",
     note: "复点签字后提交。",
     lines: [
       {
@@ -628,7 +664,6 @@ const defaultDrafts: ReviewDraft[] = [
     postingDate: previewDate,
     activity: "",
     borrower: "",
-    responsible: "",
     note: "",
     itemCode: "ITM-000128",
     itemName: "东北珍珠米",
@@ -662,7 +697,7 @@ const defaultMovements: ReviewMovement[] = [
     uom: "件",
     from: locations[2],
     to: locations[0],
-    activity: "秋季法会布置",
+    activity: "ACT-0005",
   },
   {
     name: "MAT-STE-2026-00003",
@@ -675,7 +710,7 @@ const defaultMovements: ReviewMovement[] = [
     uom: "桶",
     from: "捐赠",
     to: locations[1],
-    activity: "厨房补给",
+    activity: "ACT-0006",
   },
   {
     name: "MAT-STE-2026-00009",
@@ -688,11 +723,12 @@ const defaultMovements: ReviewMovement[] = [
     uom: "袋",
     from: "—",
     to: locations[0],
-    activity: "秋季斋堂补给",
+    activity: "ACT-0003",
   },
   {
     name: "MAT-STE-2026-00004",
     loanName: "MAT-STE-2026-00004",
+    loanLineIndex: 0,
     kind: "Loan",
     docstatus: 1,
     date: "2026-10-10",
@@ -703,11 +739,12 @@ const defaultMovements: ReviewMovement[] = [
     from: locations[1],
     to: "借出",
     borrower: "法会义工组",
-    activity: "秋季法会",
+    activity: "ACT-0001",
   },
   {
     name: "MAT-STE-2026-00011",
     loanName: "MAT-STE-2026-00005",
+    loanLineIndex: 0,
     kind: "Return",
     docstatus: 1,
     date: "2026-10-09",
@@ -730,7 +767,7 @@ const defaultMovements: ReviewMovement[] = [
     uom: "件",
     from: locations[2],
     to: locations[0],
-    activity: "秋季法会布置",
+    activity: "ACT-0005",
   },
   {
     name: "MAT-STE-2026-00013",
@@ -743,7 +780,7 @@ const defaultMovements: ReviewMovement[] = [
     uom: "桶",
     from: locations[1],
     to: "领用",
-    activity: "厨房备餐",
+    activity: "ACT-0007",
   },
 ];
 
@@ -761,7 +798,6 @@ function initialDrafts(): ReviewDraft[] {
         postingDate: row.date,
         activity: row.activity || "",
         borrower: row.borrower || "",
-        responsible: "",
         note: "",
         lines: [],
       };
@@ -799,7 +835,7 @@ const defaultLoans: ReviewLoan[] = [
   {
     name: "MAT-STE-2026-00007",
     borrower: "布置组",
-    activity: "法会收场",
+    activity: "ACT-0008",
     loanDate: "2026-10-06",
     status: "lost",
     lines: [{ code: "ITM-000133", qty: 1, returned: 0, damaged: 0, lost: 1 }],
@@ -807,7 +843,7 @@ const defaultLoans: ReviewLoan[] = [
   {
     name: "MAT-STE-2026-00004",
     borrower: "法会义工组",
-    activity: "秋季法会",
+    activity: "ACT-0001",
     loanDate: "2026-10-10",
     status: "outstanding",
     lines: [{ code: "ITM-000130", qty: 4, returned: 0, damaged: 0, lost: 0 }],
@@ -815,7 +851,7 @@ const defaultLoans: ReviewLoan[] = [
   {
     name: "MAT-STE-2026-00005",
     borrower: "斋堂义工",
-    activity: "日常供餐",
+    activity: "ACT-0002",
     loanDate: "2026-10-08",
     status: "returned",
     lines: [{ code: "ITM-000131", qty: 2, returned: 2, damaged: 0, lost: 0 }],
@@ -823,7 +859,7 @@ const defaultLoans: ReviewLoan[] = [
   {
     name: "MAT-STE-2026-00006",
     borrower: "清洁组",
-    activity: "库房整理",
+    activity: "ACT-0009",
     loanDate: "2026-10-07",
     status: "damaged",
     lines: [{ code: "ITM-000133", qty: 1, returned: 0, damaged: 1, lost: 0 }],
@@ -839,7 +875,7 @@ defaultLoans.forEach((loan) =>
 defaultLoans.push({
   name: "MAT-STE-2026-00008",
   borrower: "接待组",
-  activity: "秋季法会",
+  activity: "ACT-0001",
   loanDate: "2026-10-09",
   status: "outstanding",
   lines: [
@@ -866,7 +902,7 @@ defaultMovements.push({
   from: "捐赠",
   to: locations[1],
   batch: "OIL-2610",
-  activity: "秋季斋堂补给",
+  activity: "ACT-0003",
 });
 
 const defaultPending: ReviewPending[] = items.flatMap((item) =>
@@ -945,6 +981,11 @@ const initialFilters = (): ReviewFilters => ({
 });
 
 const savedDocuments = new WeakMap<ReviewDraft, string>();
+defaultMovements.forEach((row, index) => {
+  row.lineId ||= `${row.name}/fixture-${index}`;
+  row.postingTime ||= "09:30:00";
+});
+
 export function createReviewSession(
   stock: StockItem[] = items.map((item) => structuredClone(item)),
 ): ReviewSession {
@@ -1120,7 +1161,6 @@ export function createDraft(
     postingDate: previewDate,
     activity: "",
     borrower: "",
-    responsible: "",
     note: "",
     lines: [],
   };
@@ -1280,6 +1320,8 @@ export function submitDraft(
         );
         if (!item) return;
         session.movements.unshift({
+          lineId: line.id,
+          postingTime: draft.postingTime,
           name: draft.name,
           kind: "Reconcile",
           docstatus: 1,
@@ -1321,6 +1363,8 @@ export function submitDraft(
       );
       if (!item) return;
       session.movements.unshift({
+        lineId: line.id,
+        postingTime: draft.postingTime,
         name: draft.name,
         kind:
           kind === "Return" && line.returnOutcome === "damaged"
@@ -1386,8 +1430,9 @@ export function reviewMovementRows(
           row.docstatus !== 0 ||
           !session.drafts.some((draft) => draft.name === row.name),
       )
-      .map((row) => ({
+      .map((row, index) => ({
         ...row,
+        lineId: row.lineId || `${row.name}/${index}`,
         documentType:
           row.documentType ||
           (["Opening", "Reconcile"].includes(row.kind)
@@ -1398,7 +1443,8 @@ export function reviewMovementRows(
       const lines = draft.lines.length
         ? draft.lines
         : [{ code: "", qty: 0, uom: "", location: "" }];
-      return lines.map((line) => ({
+      return lines.map((line, index) => ({
+        lineId: "id" in line ? line.id : `${draft.name}/${index}`,
         name: draft.name,
         documentType: draft.documentType,
         kind: draft.kind,

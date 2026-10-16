@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { activityLabel } from "./activityData";
+import PreviewQuickReport from "./components/PreviewQuickReport.vue";
+import { newReportQuery } from "./reportModel";
 import { warehouseEditError, isSystemWarehouse } from "./workflowModel";
 import PreviewScanPanel from "./components/PreviewScanPanel.vue";
 import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
@@ -143,42 +146,49 @@ const warehouseParent = ref("斋堂");
 const warehouseType = ref<ReviewWarehouse["warehouse_type"]>("Location");
 const fabOpen = ref(false);
 const showDelete = ref("");
-const quickExportOpen = ref(false);
-const quickExportFailed = ref(false);
-const quickExportFormat = ref("CSV");
-const quickExportDataset = ref("summary");
-function openQuickExport() {
-	quickExportDataset.value = "summary";
-	quickExportOpen.value = true;
-	quickExportFailed.value = false;
-}
-const exportRows = computed(() => {
-	if (page.value.page === "expiry")
-		return (quickExportDataset.value === "summary" ? expiryRows.value : expiryLines.value).map(
-			(row) =>
-				`${row.item.name} · ${row.item.category} · ${row.id} · ${row.available} ${row.item.uom} · ${row.expiry || "无效期"} · ${row.location}`,
-		);
-	const entries = warehouseStock(reviewSession.selectedWarehouse);
-	if (quickExportDataset.value === "details")
-		return entries.map(
-			({ item, row }) => `${item.name} · ${row.location} · ${row.available} ${item.uom}`,
-		);
-	const totals = new Map<string, { name: string; uom: string; qty: number }>();
-	entries.forEach(({ item, row }) => {
-		const total = totals.get(item.code) || { name: item.name, uom: item.uom, qty: 0 };
-		total.qty += row.available;
-		totals.set(item.code, total);
-	});
-	return [...totals.values()].map((row) => `${row.name} · ${row.qty} ${row.uom}`);
-});
-function quickExport() {
-	if (quickExportFailed.value) quickExportFailed.value = false;
-	emit(
-		"notify",
-		`已模拟生成 ${exportRows.value.length} 条${quickExportFormat.value}记录，不下载文件`,
+const quickReportQuery = computed(() => {
+	const family = page.value.page;
+	const query = newReportQuery(
+		family === "expiry"
+			? "expiry"
+			: family === "loan-detail" || family === "loan-records"
+				? "loans"
+				: family === "movement-records"
+					? "movements"
+					: "inventory",
 	);
-	quickExportOpen.value = false;
-}
+	if (family === "expiry") {
+		query.includeZero = !reviewSession.filters.expiry.inStock;
+		query.allocationKeys = expiryLines.value.map(
+			(row) => `${row.item.code}/${row.location}/${row.id}`,
+		);
+		query.restrictAllocations = true;
+	}
+	if (["warehouse-detail", "warehouses"].includes(family))
+		query.scope.warehouses =
+			family === "warehouse-detail"
+				? [reviewSession.selectedWarehouse]
+				: warehouseRows.value.map((row) => row.name);
+	if (family === "item-detail") query.scope.item = reviewSession.selectedItemCode;
+	if (family === "pending") {
+		query.itemCodes = pendingRows.value.map((row) => row.code || "");
+		query.itemLocationKeys = pendingRows.value.map((row) => `${row.code}/${row.location}`);
+		query.scope = JSON.parse(JSON.stringify(reviewSession.filters.pending.scope));
+		query.damageOnly = true;
+		query.restrictItems = true;
+	}
+	if (family === "movement-records") {
+		query.record = currentMovement.value?.name || "";
+		query.statuses = [0, 1, 2];
+		query.view = "lines";
+	}
+	if (family === "loan-detail" || family === "loan-records") {
+		query.loan = currentLoan.value?.name || "";
+		query.statuses = [0, 1, 2];
+	}
+	if (family === "warehouses" && !warehouseRows.value.length) query.restrictItems = true;
+	return query;
+});
 
 watch(
 	() => props.active,
@@ -670,7 +680,6 @@ function movementStatus(row: { docstatus: number }) {
 }
 onDeactivated(() => {
 	warehouseDialog.value = false;
-	quickExportOpen.value = false;
 	showDelete.value = "";
 	fabOpen.value = false;
 });
@@ -697,12 +706,25 @@ onActivated(() => {
 				<h1 :id="`browse-title-${page.page}`">{{ title }}</h1>
 			</div>
 			<div class="browse-heading-actions">
-				<PreviewUiButton
-					v-if="page.page === 'warehouse-detail'"
-					icon="download"
-					@click="openQuickExport"
-					>快速导出</PreviewUiButton
-				>
+				<PreviewQuickReport
+					v-if="
+						(isMovementDetail ||
+							[
+								'warehouse-detail',
+								'warehouses',
+								'pending',
+								'loan-detail',
+								'item-detail',
+							].includes(page.page) ||
+							(page.page === 'loan-records' && isDetail)) &&
+						(!isDetail || !detailUnavailable) &&
+						(!isMovementDetail || !!currentMovement)
+					"
+					:query="quickReportQuery"
+					:active="active"
+					@navigate="go"
+					@notify="emit('notify', $event)"
+				/>
 				<PreviewUiButton
 					v-if="page.page === 'inventory'"
 					variant="primary"
@@ -855,7 +877,13 @@ onActivated(() => {
 					"
 					@click="expiryFiltersOpen = !expiryFiltersOpen"
 				/>
-				<span class="browse-result-count">{{ expiryRows.length }} 个批次</span>
+				<span class="browse-result-count">{{ expiryRows.length }} 个批次</span
+				><PreviewQuickReport
+					:query="quickReportQuery"
+					:active="active"
+					@navigate="go"
+					@notify="emit('notify', $event)"
+				/>
 				<PreviewUiButton @click="go('movement-form', 'Receive')">入库</PreviewUiButton>
 				<PreviewScanPanel
 					@item="(code, batch) => (search = batch || code)"
@@ -869,9 +897,7 @@ onActivated(() => {
 							<option value="name">物品名称</option>
 						</select></label
 					>
-					<PreviewUiButton icon="download" @click="openQuickExport"
-						>快速导出</PreviewUiButton
-					>
+
 					<details>
 						<summary>分析当前结果</summary>
 						<p>
@@ -1100,7 +1126,7 @@ onActivated(() => {
 					</div>
 					<div>
 						<dt>活动</dt>
-						<dd>{{ currentMovement.activity || "—" }}</dd>
+						<dd>{{ activityLabel(currentMovement.activity) }}</dd>
 					</div>
 				</dl>
 				<PreviewUiButton
@@ -1111,18 +1137,13 @@ onActivated(() => {
 				<details>
 					<summary>补充资料</summary>
 					<dl class="browse-detail-grid">
-						<div>
+						<div v-if="currentMovement.kind !== 'Receive'">
 							<dt>用途</dt>
 							<dd>{{ movementDraft?.purpose || "—" }}</dd>
 						</div>
-						<div>
-							<dt>负责人</dt>
-							<dd>{{ movementDraft?.responsible || "—" }}</dd>
-						</div>
-						<div>
-							<dt>来源类型 / 来源</dt>
+						<div v-if="currentMovement.kind === 'Receive'">
+							<dt>来源</dt>
 							<dd>
-								{{ movementDraft?.sourceType || "—" }} ·
 								{{ movementDraft?.source || "—" }}
 							</dd>
 						</div>
@@ -1184,7 +1205,7 @@ onActivated(() => {
 							reviewSession.drafts.find((row) => row.name === currentMovement?.name)
 								?.files
 						"
-						disabled
+						mode="display"
 					/>
 					<p class="browse-note">
 						{{
@@ -1248,7 +1269,7 @@ onActivated(() => {
 							>{{ currentLoan.name }} · {{ currentLoan.loanDate }}</span
 						>
 						<h2>{{ currentLoan.borrower }}</h2>
-						<p class="muted">{{ currentLoan.activity }}</p>
+						<p class="muted">{{ activityLabel(currentLoan.activity) }}</p>
 					</div>
 					<span
 						class="browse-badge"
@@ -1319,7 +1340,7 @@ onActivated(() => {
 							reviewSession.drafts.find((row) => row.name === currentLoan.name)
 								?.files
 						"
-						disabled
+						mode="display"
 					/>
 					<p class="browse-note">暂无附件</p>
 				</details>
@@ -1592,7 +1613,7 @@ onActivated(() => {
 						placeholder="搜索草稿、活动或操作类型" /></label
 				><span class="browse-result-count">{{ draftRows.length }} 份草稿</span>
 			</div>
-			<div v-if="draftRows.length" class="browse-table-wrap">
+			<div v-if="draftRows.length" class="browse-table-wrap preview-drafts-table">
 				<table class="browse-table">
 					<thead>
 						<tr>
@@ -1611,11 +1632,17 @@ onActivated(() => {
 									<strong>{{
 										draft.saved === false ? "未保存" : draft.name
 									}}</strong
-									><small>{{ draft.responsible || "未指定负责人" }}</small>
+									><small>{{ draft.postingDate }}</small>
 								</button>
 							</td>
 							<td>{{ draftLabel(draft.kind) }}</td>
-							<td>{{ draft.activity || draft.borrower || "—" }}</td>
+							<td>
+								{{
+									draft.activity
+										? activityLabel(draft.activity)
+										: draft.borrower || "未填写"
+								}}
+							</td>
 							<td>{{ draft.lines.length }}</td>
 							<td>{{ draft.postingDate }}</td>
 							<td>
@@ -1692,7 +1719,11 @@ onActivated(() => {
 						</div>
 					</dl>
 					<h2>物品图片</h2>
-					<PreviewAttachments :model-value="activeItem.files" images-only disabled />
+					<PreviewAttachments
+						:model-value="activeItem.files"
+						images-only
+						mode="display"
+					/>
 					<p class="browse-note">
 						{{ activeItem.images?.join("、") || "示例插画；未添加其他图片" }}
 					</p>
@@ -1942,36 +1973,6 @@ onActivated(() => {
 			</button>
 		</div>
 
-		<PreviewOverlay
-			v-if="quickExportOpen"
-			title="快速导出 · 当前筛选范围"
-			@close="quickExportOpen = false"
-			><p>{{ exportRows.length }} 条完整筛选结果 · 不受当前显示行数限制</p>
-			<label class="preview-field"
-				>格式<select v-model="quickExportFormat">
-					<option>CSV</option>
-					<option>XLSX</option>
-				</select></label
-			>
-			<label class="preview-field"
-				>导出内容<select v-model="quickExportDataset">
-					<option value="summary">
-						{{ page.page === "expiry" ? "批次汇总" : "物品汇总" }}
-					</option>
-					<option value="details">逐库位明细</option>
-				</select></label
-			>
-			<ul>
-				<li v-for="(row, index) in exportRows" :key="index">{{ row }}</li>
-			</ul>
-			<p v-if="quickExportFailed" role="alert">模拟导出失败，筛选已保留。</p>
-			<template #footer
-				><PreviewUiButton @click="quickExportFailed = true">模拟失败</PreviewUiButton
-				><PreviewUiButton variant="primary" @click="quickExport">{{
-					quickExportFailed ? "重试导出" : "模拟导出"
-				}}</PreviewUiButton></template
-			></PreviewOverlay
-		>
 		<PreviewOverlay v-if="showDelete" title="删除这份草稿？" @close="showDelete = ''">
 			<p>删除后，当前预览中的草稿内容将清除。</p>
 			<template #footer>

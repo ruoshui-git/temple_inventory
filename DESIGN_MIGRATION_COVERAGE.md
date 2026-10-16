@@ -1,15 +1,15 @@
 # Design migration capability ledger
 
 Authority: [UI decisions](UI_UX_DECISIONS.md). Preview implementation progress:
-[resumable checkpoint](notes/20261013_ERPNEXT_PREVIEW_PROGRESS.md).
+[resumable checkpoint](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md).
 
 ## Migration policy
 
 **Prefer a clean database, API and UI over backward compatibility.** This is rapid
 development. A database reset is acceptable during UI/UX migration; do not spend
 work preserving Inventory Workspace identities, obsolete schema or adapters.
-No reset is part of the standalone preview implementation. Preserve review hashes
-where useful for design review, not as a production compatibility requirement.
+No reset is part of the standalone preview implementation. Obsolete preview hashes
+and API/schema contracts may be replaced directly; update callers and tests.
 
 ERPNext Stock Entry/Stock Reconciliation + document name are canonical. One
 transaction produces one stock document. Loan semantics belong on Stock Entry
@@ -31,12 +31,12 @@ Status refers to preview coverage, not backend readiness. Keep evidence updated.
 | reconciliation create/save/confirm/refresh_baseline | `reconciliation-form/new`: `PreviewCountWorkspace`, selective/full leaf, unreviewed/zero/not-found, baseline additions/removals, re-review | UX-04; represented; real reconciliation/version/availability adapter pending |
 | search_items/search_warehouses/search_uoms; scan | `PreviewSearchSelect` full local search + pagination/state examples; filtered item picker, contextual batch choices, scan allocation gate | UX-03; represented locally; backend paginated search, stale-response wiring and real camera/scan adapter pending |
 | create_item/update_item/create_uom/create_item_group | `item-form/new/edit`, Receive picker; Nos, multiline barcodes, `PreviewCategoryField` hierarchy and inline units | UX-03/08; represented; ERPNext catalog writes/uniqueness/permissions pending |
-| activities/create_activity/responsible_people | `PreviewTransactionContext`: activity type/dates/description, separate purpose/responsible, source type/source and personnel | UX-08; creation/context represented; API persistence and existing activity editing pending |
+| Activities and movement context | `activityData`/`activityModel`, Activities list/detail/editor, contextual creation with immutable IDs, notes and data-driven types; Receive source / other purpose / optional personnel | UX-11/12 replace obsolete enum/title identity/source type/responsible; backend schema cleanup/reference data/guards pending |
 | item_detail; Frappe File and remove_attachment | `PreviewAttachments` local image/document data, upload states, view/remove/primary; item thumbnails use selected primary | UX-06; represented locally; real private original/derivative authorization and reset/seed audit pending |
 | warehouse_detail/configure/create_room/create_location | Warehouse group/leaf details and edit/create; parent/type, cycle/system-node restrictions, Room default leaf | UX-09; represented; real company/root/stock/document permission validation pending |
 | initialization_status/repair_settings/repair_metadata/repair_warehouse_setting | Tools → `setup/default`: initialization structure, missing metadata/root, denied access, impact/confirmation | UX-05; represented locally; real repairs pending; pointer repair must never move stock/reparent nodes |
 | inventory/expiry/pending/history/movement/loan filters and facets | Shared hierarchy/select controls, detail/batch/history links, complete totals, analysis by dimension/type/outcome/unit; retained load-more/retry | UX-09; represented with finite local fixtures; backend complete facets/analysis/pagination pending |
-| reporting.export_report (five types) | Five report families, contextual Inventory/Movement/Loans exports, independent dataset and CSV/XLSX review | Scope represented; file generation, loan exports/additional datasets need backend work |
+| reporting.export_report (five production types) | Six preview datasets in `reportModel`/`PreviewReports`, shared complete-scope quick reports, independent CSV/XLSX and named views | UX-13 replaces old report routes; authoritative history, scalable permission-complete generation and per-account presets pending |
 | dashboard_summary (six sections) | `dashboard/overview`: global scope, local movement period, six sections/buckets, drill-through and section retry | Preserved; backend parity must retain all six sections/buckets |
 | save_ui_preferences/session_info; PWA guidance | `settings/density`, recovery and Tools install: confirmed preference versus retained failed display, retry; platform guidance | UX-05/09; represented; account persistence/cache/PWA integration pending |
 | Other ERPNext stock vouchers/purposes | `movement-records/external`: Purchase Receipt type/name/Desk link; Opening retains reconciliation identity | Intentionally outside native editor; never mislabel unsupported stock purposes as Transfer |
@@ -170,3 +170,29 @@ mobile scaled-text action reachability and Item-conversion discard/focus behavio
 large unit options, warehouse disclosure persistence, recorded-factor conflicts
 and Item-level conversion editing. Results and actual screenshot inspections are
 recorded in the execution note; backend requirements above remain outstanding.
+
+
+### Activities, reports and display implementation — 2026-10-15
+
+| Capability | Preview evidence | Production dependency / disposition |
+| --- | --- | --- |
+| Activity catalog and lifecycle | `PreviewActivities`, `PreviewActivityEditor`, `activityModel`, `activityData`; `design-preview-activities-reports.test.ts` | Immutable IDs, Activity Type Link reference records, notes Long Text, Active/Archived replace legacy fields. Transactional deletion guards on Desk/API including hidden references; permissions/version checks required. |
+| Movement field cleanup | Canonical and routed Receive share context; no obsolete source type/responsible state, source on Receive and purpose elsewhere | Remove Workspace/Stock Entry custom responsible fields, defaults/search/selectors/callers/tests; retain personnel, movement source/purpose and native/system audit attribution. |
+| Information presentation | Fixed Item metadata, completed/cancelled/count display, allocation/context display modes, recovery text+Copy, attachment display actions | Durable production presentation rule; no lifecycle/editability change and no saved projection over paused input. |
+| Six report datasets | `reportDefinitions`, `projectReport`, shared browse/export projection; complete-result scope, unit/status grouping, allocation-grain tables | Former warehouse stock becomes Inventory location view; former movement records becomes Movements records view. Loan/activity/count reports are new backend gaps. |
+| Historical quantities | Fixed checkpoints/events, warehouse transfer pairs, signed count adjustment and cancellation/reversal; history detail table | Fixture evidence only. Opening/closing must use ERPNext Stock Ledger and native reversal/cancellation semantics, not current-stock reconstruction. No valuation. |
+| Quick reports and presets | Shared download action/dialog on Dashboard, Inventory, Expiry, Movement/Loan browse/detail, Activities, warehouses, pending and saved counts; in-memory named presets | Complete permission-filtered generation, company/warehouse/document access, stable row IDs, scalable untruncated output and per-account view storage. Preview is simulated and resets on reload. |
+
+The [backend specification](notes/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md)
+records source-inspection gaps and coordinated removal requirements. The
+[execution note](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md) records actual
+commands, screenshots and unverified cases. Production migration remains pending.
+
+The [independent review](notes/20261016_DESIGN_ACTIVITIES_REPORTS_REVIEW.md) adds
+regressions for historical search, stable filtered loan allocation identities,
+explicit settlement joins, separate units in grouped Activity balances, retained
+detail/master tables, related-date validation, grouped columns and document-type
+identity. Browser evidence additionally covers loading detail rows beyond 30,
+five-row Quick Report previews, lifetime-chip resets, keyboard tabs and mobile
+filter overlap. These remain preview guarantees, with server enforcement and
+complete real exports dependent on the documented production migration.

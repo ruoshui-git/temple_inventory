@@ -94,7 +94,7 @@ describe("preview date and scoped projections", () => {
       warehouses: ["斋堂"],
       destinations: [locations[0]],
       item: "ITM-000128",
-      activity: "秋季斋堂补给",
+      activity: "ACT-0003",
       period: { key: "custom", from: "2026-10-11", to: "2026-10-11" },
     });
     expect(
@@ -284,10 +284,14 @@ describe("date and browse interactions", () => {
     expect(row.text()).toContain(locations[0]);
     expect(row.text()).toContain(locations[1]);
     expect(row.text()).toContain("2 种物品");
-    expect(row.text()).toContain("12 袋");
-    await button(wrapper, "导出").trigger("click");
-    expect(body().get('[role="dialog"] ul').text()).not.toContain("菜籽油");
-    expect(body().get('[role="dialog"] ul').text()).toContain("12 袋");
+    expect(row.text()).toContain("12");
+    await button(wrapper, "快速报表").trigger("click");
+    expect(body().get('[role="dialog"] tbody').text()).not.toContain("菜籽油");
+    await body()
+      .findAll("select")
+      .find((select) => select.text().includes("分配明细"))!
+      .setValue("lines");
+    expect(body().get('[role="dialog"] tbody').text()).toContain("12");
   });
   it("hands the loan date range to borrowing and return history", async () => {
     reviewSession.filters.loanScope.period = {

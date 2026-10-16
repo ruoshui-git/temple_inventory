@@ -160,7 +160,7 @@ the record view's 盘点调整 type filter. Switching to submitted item details 
 that record-only type. Empty operation types stay selectable and show an empty
 state rather than disappearing.
 
-All existing sample hashes remain supported; review-only setup, recovery, and
+The 2026-10-15 route index supersedes old-hash compatibility; review-only setup, recovery, and
 authentication states stay in 完整页面与状态. They are not application destinations.
 Draft records and reports project the same editable drafts used by More and the
 forms. Saving, deleting, and submitting cannot leave a second stale draft row.
@@ -175,8 +175,8 @@ The tests verify behavior and isolation; they do not replace manual visual revie
 ## Refinement coverage (2026-10-12)
 
 This supersedes the earlier preview navigation/control proposal above. Primary
-navigation is 首页、库存、货物流动、借用、报表 on both surfaces. 工具 lives in the
-mobile header and desktop utility area; old `more/*` hashes remain supported.
+navigation is 首页、库存、货物流动、借用、报表 on both surfaces. 更多 lives in the
+mobile header and desktop utility area. Obsolete routes may be replaced directly.
 Reports/export routes belong to 报表. Movement and Loans use 按物品 / 按记录.
 
 | Area             | Review scenarios                                                                                                                                                                                                         |
@@ -187,7 +187,7 @@ Reports/export routes belong to 报表. Movement and Loans use 按物品 / 按�
 | Dashboard        | Six sections, six expiry buckets, distinct-item distribution, every movement kind, outstanding loans, supported reminders; global scope and local movement period; scoped drill-through                                  |
 | Dashboard states | Expand 预览状态 for initial loading, empty, retained-content refresh and individual section failure/retry; fixtures use the visible fixed sample date                                                                    |
 | Images           | Card image/name opens detail; separate enlargement icon with accessible name/tooltip; table/detail lightbox; missing image; independent selection; Escape, focus trapping and restoration                                |
-| Navigation       | Five primary entries, Tools access, report/export ownership, aligned icon/label/chevron columns, old hashes and contextual back links                                                                                    |
+| Navigation       | Five primary entries, More access, report ownership, aligned icon/label/chevron columns and contextual back links                                                                                    |
 
 The focused Vitest command above includes refinement and completion coverage.
 Manual review remains required at 375/768/1024/1440px in all three densities,
@@ -451,3 +451,40 @@ remain in `/tmp/temple-inventory-design-browser/screenshots`). For readable Chin
 screenshots, Chromium needs an available CJK font. The review environment uses
 `FONTCONFIG_FILE=/tmp/temple-inventory-ui-audit/fonts.conf`, pointing to the existing
 Noto Sans CJK font; see the execution note for the exact verified command.
+
+
+## Activities and reports — 2026-10-15
+
+Current implementation supersedes earlier five-family reports, title identities,
+legacy activity types, Tools labels and compatibility notes above.
+
+- `#review/activity-list%2Factive`: active Activities, all dates, last update first.
+- `#review/activity-list%2Flarge`: opt-in 48-row long-name/notes/path/many-chip audit sample.
+- `#review/activity-detail%2FACT-0001`: immutable-ID detail link; `activity-form/edit-ACT-0001` edits that same activity.
+- `#review/activity-detail%2Fselected`: review-index sample using the current selection.
+- `#review/activity-form%2Fnew` / `#review/activity-form%2Fedit`: shared metadata editor.
+- `#review/reports%2Foverview`: one workspace; dataset routes are `inventory`,
+  `expiry`, `movements`, `loans`, `activities`, `counts` under `reports/`.
+
+Activity types are `activityTypes` reference records; adding an enabled fixture
+populates creation/editing/filter/report controls without enum changes. Archived
+activities stay readable and settleable on existing links. Detailed notes are
+plain text; HTML is never interpreted. New movements carry the selected stable ID.
+
+Reports and 快速报表 share `reportModel.ts`. Full-scope projection is independent
+of visible pagination. XLSX defaults to applicable sheets; CSV selects a flat
+table; actual files are not generated. Related metadata/barcode/conversion/tree/
+attachment-reference tables contain stable IDs and no binaries/temporary URLs.
+Historical Inventory uses fixed authoritative checkpoints/events, including a
+transfer pair, adjustment and reversal. It never derives opening from current
+stock. Named presets and dataset filters are in memory for this preview session,
+not durable account preferences.
+
+Run `pnpm exec vitest run tests/design-preview*.test.ts --maxWorkers=2`,
+`pnpm type-check`, `pnpm design:build`, and the dedicated Playwright config.
+`activities-reports.spec.ts` audits every registered route at phone/desktop widths,
+plus 375/768/1024/1440, all densities and 100/150/200% application text on high-risk
+Activity/report surfaces. Set `DESIGN_PREVIEW_PORT` to a free isolated port and
+`DESIGN_PREVIEW_RESULTS` to an isolated `/tmp` path. Use the CJK font setup described
+above; inspect screenshots directly. See the [execution note](../../../notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md)
+for actual results and remaining checks, and the [backend requirements](../../../notes/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md).

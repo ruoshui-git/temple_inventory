@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewDocumentDisplay from "./PreviewDocumentDisplay.vue";
 import { computed, ref } from "vue";
 import { reviewSession, type ReviewDraft } from "../reviewModel";
 import {
@@ -9,7 +10,7 @@ import {
 } from "../workflowModel";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import PreviewUiButton from "./PreviewUiButton.vue";
-const props = defineProps<{ draft: ReviewDraft; disabled?: boolean }>();
+const props = defineProps<{ draft: ReviewDraft; disabled?: boolean; mode?: "edit" | "display" }>();
 const pendingLocation = ref(""),
 	changeOpen = ref(false),
 	itemCode = ref("");
@@ -29,7 +30,7 @@ function applyLocation(value: string) {
 	props.draft.baselineReviewed = true;
 	changeOpen.value = false;
 }
-function mode(value: string) {
+function setMode(value: string) {
 	props.draft.countMode = value as "selective" | "full";
 	if (value === "full") {
 		const previous = props.draft.lines;
@@ -72,7 +73,8 @@ function add() {
 props.draft.countMode ||= "selective";
 </script>
 <template>
-	<section class="form-section">
+	<PreviewDocumentDisplay v-if="mode === 'display'" :draft="draft" />
+	<section v-else class="form-section">
 		<h2>盘点范围</h2>
 		<PreviewSearchSelect
 			label="盘点库位"
@@ -90,7 +92,7 @@ props.draft.countMode ||= "selective";
 			>盘点方式<select
 				:value="draft.countMode"
 				:disabled="disabled"
-				@change="mode(($event.target as HTMLSelectElement).value)"
+				@change="setMode(($event.target as HTMLSelectElement).value)"
 			>
 				<option value="selective">选定物品</option>
 				<option value="full">整个库位</option>

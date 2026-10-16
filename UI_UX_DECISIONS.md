@@ -5,7 +5,7 @@ before changing user-facing behavior. A current user instruction may supersede
 an older rule, but the conflict must be identified explicitly and recorded here
 in the same change. Keep implementation details in code or task notes, not here.
 
-## Current preview decision index — 2026-10-13
+## Current preview decision index — 2026-10-15
 
 These approved **preview targets** supersede conflicting earlier proposals below;
 production enforcement is unchanged. See [migration coverage](DESIGN_MIGRATION_COVERAGE.md)
@@ -24,6 +24,9 @@ for rationale, not as competing current rules.
 | UX-08 | Structured activity and purpose remain separate. Explicit supporting-data creation returns to the preserved draft; no stacked overlays. | Preserve queryable fields rather than putting context in Notes. |
 | UX-10 | Preview movements use compact allocations and ordered multi-add; Receive creation uses one adaptive overlay. Text size scales independently from density. Dashboard failures belong to each card. | Preview implemented; production migration/fidelity review pending. |
 | UX-09 | Inventory/Movement/Loans use complete filtered totals and exports. Loading, conflicts and recovery retain input. Submitted documents obey ERPNext lifecycle. | Preserve unknown document fields, reject stale writes; no stock engine in preview. |
+| UX-11 | Activities use immutable IDs and reference-data types (捐赠、购买、分发、节目、投入使用、其它), optional dates/description/plain-text detailed notes, Active/Archived, guarded deletion. | Preview only; reference DocType, version/permission/deletion hooks required. |
+| UX-12 | Remove movement source type/responsible; retain Receive source, non-Receive purpose, activity, borrower, optional personnel and attachments. Fixed/completed values use selectable information. Busy edits retain input controls and buffers. | Coordinated backend custom-field/API retirement remains pending. |
+| UX-13 | One Reports workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速报表. Formats are independent; named views are session-local. | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
 
 Every future agent must update this index/log and the affected coverage rows with
 each durable UI refinement. A missing preview capability is not an approved removal.
@@ -807,3 +810,55 @@ approval remain pending.
   on mobile), retains input after failure/cancel requests and restores its edit
   trigger on close. Movement conversion editing continues within allocation
   Details. These changes remain preview-only.
+
+
+## Activities, reports and information display — 2026-10-15 supersession
+
+The approved [handoff](notes/20261015_DESIGN_ACTIVITIES_REPORTS_HANDOFF.md) supersedes
+legacy activity enum/title identity/Open–Closed lifecycle, preview source-type and
+responsible-person fields, disabled editors used as information, five report
+families and obsolete report hashes. It also supersedes earlier Tools labels and
+preview-hash compatibility requirements. Five primary destinations remain
+首页、库存、货物流动、借用、报表; secondary 更多 owns 活动 and 盘点调整.
+Unrelated lifecycle, allocation, conversion, selector and stock rules remain.
+
+Activities link by immutable ID throughout forms, loans, reports and navigation;
+renaming changes metadata alone. Enabled types populate every relevant control
+from reference data. Retired linked types stay readable and unchanged on unrelated
+edits. Notes are multiline plain text and searchable/exportable; they do not
+replace short description. List chips are lifetime submitted-document counts,
+never quantities. Related settlement relationships use original loan references,
+with direct summaries excluding indirect events. Archive excludes new assignment
+but retains existing links/settlement. Any reference, including hidden/draft/
+cancelled references, blocks deletion; frontend simulation is not enforcement.
+
+Use definition lists, text, badges and tables for immutable or completed values.
+Display/edit mode is independent of temporary save/conflict disabling. Preserve
+whitespace, selectable text, attachment preview/download and explicit empty values.
+Recovery input copies use a text block with a real Copy action.
+
+Reports has one dataset selector, wrapping inline filters, fixed view columns,
+unit/status-aware groupings, resolved pending-until-Apply dates and session presets.
+Current Inventory has a snapshot timestamp; historical Inventory requires a bounded
+period and shows authoritative opening + incoming − outgoing + adjustment = closing.
+Transfers retain both warehouse branches and net to zero in combined scope;
+reconciliation appears once. No valuation or parallel ledger is introduced.
+
+All reportable saved/browse pages use the same labeled download-icon 快速报表,
+complete scope/count, table/format selection, bounded preview, opt-in failure/retry
+and 打开完整报表. XLSX defaults independently from selected content; CSV selects
+one flat numeric table. Source context/filter/scroll survives cancellation.
+Preview exports remain simulated, with no production requests. Production
+requires permission-filtered complete datasets, stable traceability IDs, attachment
+references and per-account presets. See the [execution note](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md)
+and [backend specification](notes/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md).
+
+**2026-10-16 independent review:** Report and Activity date controls remain in
+normal flow, so mobile scrolling cannot pin a date button over other filters.
+Every full report detail table offers access to rows beyond its initial 30 and
+states displayed/total counts; Quick Report stays a bounded five-row preview.
+Grouped results retain their allocation/balance detail tables and use columns
+appropriate to that grouping. Activity lifetime-count chips reset related search,
+date and status filters to their submitted lifetime scope. Activity tabs support
+arrow/Home/End keys and associated labeled panels. Quick reports retain list
+sorting, including activity modification time, and describe the applied scope.

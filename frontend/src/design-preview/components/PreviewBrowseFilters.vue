@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { activityOptions } from "../activityData";
 import PreviewSearchSelect from "./PreviewSearchSelect.vue";
 import { computed } from "vue";
 import PreviewHierarchyFilter from "./PreviewHierarchyFilter.vue";
@@ -16,15 +17,6 @@ function update<K extends keyof BrowseScope>(key: K, value: BrowseScope[K]) {
 	emit("update:modelValue", { ...scope.value, [key]: value });
 }
 const categories = computed(() => reviewSession.categories);
-const activities = computed(() => [
-	...new Set(
-		[
-			...reviewSession.movements.map((row) => row.activity),
-			...reviewSession.loans.map((row) => row.activity),
-			...reviewSession.drafts.map((row) => row.activity),
-		].filter(Boolean),
-	),
-]);
 function toggleKind(kind: string) {
 	update(
 		"kinds",
@@ -52,7 +44,7 @@ function toggleKind(kind: string) {
 			v-if="!hideActivity"
 			label="活动"
 			:model-value="scope.activity"
-			:options="activities.filter(Boolean) as string[]"
+			:options="activityOptions(scope.activity, true)"
 			@update:model-value="update('activity', $event)"
 		/>
 		<PreviewHierarchyFilter

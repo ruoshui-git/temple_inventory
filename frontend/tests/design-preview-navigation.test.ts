@@ -109,7 +109,7 @@ describe("preview navigation proposal", () => {
       expect(wrapper.find(".mobile-context").exists()).toBe(false);
     }
     expect(wrapper.get('.preview-tools-link[aria-current="page"]').text()).toBe(
-      "工具",
+      "更多",
     );
   });
 

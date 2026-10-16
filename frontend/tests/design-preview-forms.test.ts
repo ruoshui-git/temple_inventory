@@ -3,6 +3,8 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { nextTick } from "vue";
 import PreviewSearchSelect from "../src/design-preview/components/PreviewSearchSelect.vue";
 import PreviewFormPages from "../src/design-preview/PreviewFormPages.vue";
+import PreviewReports from "../src/design-preview/PreviewReports.vue";
+import { reportStates, projectReport } from "../src/design-preview/reportModel";
 import PreviewUtilityPages from "../src/design-preview/PreviewUtilityPages.vue";
 import {
   resetReviewSession,
@@ -153,40 +155,39 @@ describe("preview workflow forms", () => {
   });
 
   it("filters the report preview and exports exactly its current result scope", async () => {
-    const wrapper = render(PreviewUtilityPages, {
+    const wrapper = render(PreviewReports, {
       page: "reports",
-      variant: "overview",
+      variant: "movements",
     });
-    const kindSelect = wrapper
-      .findAll("select")
-      .find((select) => select.element.innerHTML.includes("Receive"));
-    expect(kindSelect).toBeDefined();
-    await kindSelect!.setValue("Receive");
-    const filteredCount = new Set(
-      wrapper
-        .findAll("tbody tr")
-        .filter((row) => row.text().includes("入库"))
-        .map((row) => (row.text().includes("珍珠米") ? "rice" : "oil")),
-    ).size;
-    expect(filteredCount).toBeGreaterThan(0);
+    reportStates.movements.scope.kinds = ["Receive"];
+    reportStates.movements.view = "lines";
+    await nextTick();
+    const count = projectReport(reportStates.movements).count;
+    expect(count).toBeGreaterThan(0);
     await wrapper
       .findAll("button")
-      .find((button) => button.text().includes("复核并导出"))!
+      .find((button) => button.text() === "快速报表")!
       .trigger("click");
     await nextTick();
     expect(
       document.body.querySelector('[role="dialog"]')?.textContent,
-    ).toContain(`${filteredCount} 条结果`);
-    clickTeleported("模拟导出");
+    ).toContain(`${count} 行完整结果`);
+    const review = document.body.querySelector<HTMLDetailsElement>(
+      '[role="dialog"] details',
+    )!;
+    review.open = true;
+    const failure = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] details input',
+    )!;
+    failure.click();
+    clickTeleported("模拟生成");
     await nextTick();
     expect(
-      document.body.querySelector('[role="alert"]')?.textContent,
-    ).toContain("筛选和输入内容已保留");
-    clickTeleported("重试导出");
+      document.body.querySelector('[role="dialog"]')?.textContent,
+    ).toContain("选择已保留");
+    clickTeleported("重试生成");
     await nextTick();
-    expect(wrapper.emitted("notify")?.at(-1)?.[0]).toContain(
-      `${filteredCount} 条CSV记录`,
-    );
+    expect(wrapper.emitted("notify")?.at(-1)?.[0]).toContain("XLSX");
   });
 
   it("applies preview display density without saving account preferences", async () => {

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import PreviewDocumentDisplay from "./components/PreviewDocumentDisplay.vue";
+import PreviewTransactionContext from "./components/PreviewTransactionContext.vue";
+import { activityLabel } from "./activityData";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { usePreviewWorkspace } from "./workspaceMode";
 import PreviewAttachments from "./components/PreviewAttachments.vue";
-import PreviewSearchSelect from "./components/PreviewSearchSelect.vue";
-import { activities, type PreviewAttachment } from "./workflowModel";
+import { type PreviewAttachment } from "./workflowModel";
 import UiButton from "./components/PreviewUiButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import PreviewOverlay from "./PreviewOverlay.vue";
@@ -97,13 +99,28 @@ const totals = computed(() => {
 	return [...values].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
 });
 const receiveDraft = computed<ReviewDraft>(() => ({
+	get source() {
+		return fields.source;
+	},
+	set source(value) {
+		fields.source = value || "";
+	},
+	recorder: fields.recorder,
+	handler: fields.handler,
+	reviewer: fields.reviewer,
+	files: attachments.value,
 	name: "MAT-STE-2026-00900",
 	kind: "Receive",
 	status: completed.value ? "completed" : "draft",
 	postingDate: fields.date,
-	activity: fields.activity,
+	get activity() {
+		return fields.activity;
+	},
+	set activity(value) {
+		fields.activity = value;
+	},
 	borrower: "",
-	responsible: "",
+
 	note: fields.notes,
 	lines: lines.value,
 }));
@@ -223,7 +240,8 @@ onBeforeUnmount(() => {
 						>结束冲突演示</UiButton
 					>
 				</div>
-				<fieldset :disabled="completed || confirmBusy">
+				<PreviewDocumentDisplay v-if="completed" :draft="receiveDraft" />
+				<fieldset v-else :disabled="confirmBusy">
 					<section class="surface form-section">
 						<div class="section-heading">
 							<h2>入库时间</h2>
@@ -267,14 +285,9 @@ onBeforeUnmount(() => {
 							来源、活动与备注 <InventoryIcon name="chevron-down" />
 						</button>
 						<div v-show="detailsOpen" class="form-grid">
-							<label class="preview-field field"
-								>来源<input
-									v-model="fields.source"
-									placeholder="例如：捐赠单位或个人" /></label
-							><PreviewSearchSelect
-								label="关联活动"
-								v-model="fields.activity"
-								:options="activities.map((row) => row.name)"
+							<PreviewTransactionContext
+								:draft="receiveDraft"
+								:disabled="confirmBusy"
 							/>
 							<label class="preview-field field full-width"
 								>备注<textarea
@@ -307,6 +320,7 @@ onBeforeUnmount(() => {
 					</section>
 				</fieldset>
 				<div
+					v-if="!completed"
 					ref="reviewBar"
 					class="surface form-section form-actions preview-document-actions"
 				>
@@ -382,7 +396,7 @@ onBeforeUnmount(() => {
 			<PreviewAllocationSummary :draft="receiveDraft" />
 			<p>{{ totals }}</p>
 			<p class="muted">
-				活动：{{ fields.activity || "无" }} · 附件：{{ attachments.length }} 份
+				活动：{{ activityLabel(fields.activity) }} · 附件：{{ attachments.length }} 份
 			</p>
 			<p class="muted">
 				记录人：{{ fields.recorder || "未填写" }} · 经手人：{{

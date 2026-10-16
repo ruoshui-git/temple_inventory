@@ -334,3 +334,51 @@ bounded overflow; the warehouse summary remains in document flow. Notifications
 stay clear of these actions. Virtual lists retain the last focused row during
 pointer transfer/detail return and ignore hidden zero-size resize measurements.
 Reusable Item conversions use the shared guarded overlay and focus restoration.
+
+
+## Activities, reports and information display — 2026-10-15
+
+Preview-local `PreviewActivityEditor`, `PreviewDocumentDisplay`,
+`PreviewTransactionContext`, `PreviewReportTable` and `PreviewQuickReport` share
+`--p-*` styling. Immutable fields use definition lists; completion/cancellation
+switches presentation, while temporary save/conflict states retain input buffers.
+Text remains selectable and wraps anywhere; booleans have explicit labels, empty
+values use neutral text and long plain-text notes preserve paragraphs in an
+independent native disclosure. Attachments retain preview/download actions.
+
+Activities use adaptive desktop rows/mobile cards and complete lifetime document
+count chips. Reports keeps one dataset/view/filter workspace with secondary
+controls in disclosures. Quick reports retain a download icon and Chinese label
+at every width, wrap within toolbars and share one focus-managed overlay.
+
+Intentional geometry: information grids prefer 220px columns bounded to 100% of
+the container; activity notes have a 60dvh internal scroll limit. Report sample
+tables retain a 650px minimum inside their own horizontal scrollport, 120px column
+minimum and 360px preferred cell maximum. Browse samples show 30 rows, quick
+report samples five; complete projected counts are independent of these limits.
+These are presentation bounds, not export truncation. Adaptive editor grids use
+two columns and switch to one below the shared 1024px breakpoint. Text scale and
+density remain independent; no production tokens or generated assets change.
+
+Actual screenshot inspections and viewport/density/text coverage are recorded in
+the [dated execution note](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md).
+Native browser zoom and final user visual approval are separate evidence.
+
+Final audit geometry: browse headings retain a readable 180px preferred title
+track and wrap their action group. Draft tables scroll internally with a 760px
+minimum, 220px identity, 160px activity and 180px action column minima; ordinary
+columns retain at least 96px. This prevents single-character identifiers and
+action-induced tall rows on narrow phones. Static account/stock surfaces do not
+receive a button cursor or hover border.
+
+Activity movement-total columns use a 13em preferred minimum (clamped to their
+container), so 200% text reduces the column count while keeping units readable.
+
+## Independent activities/report review — 2026-10-16
+
+Report tables show both displayed and total row counts. Full-report supplementary
+tables use the shared Load more control after 30 rows; bounded Quick Report
+previews explicitly show at most five. Horizontal scrolling stays inside each
+table, while page controls wrap. Activity/report date controls stay in normal
+document flow on mobile to avoid covering adjacent filters. Activity tab buttons
+use a single keyboard tab stop, arrow/Home/End navigation and labeled panels.

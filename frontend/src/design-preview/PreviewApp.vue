@@ -8,6 +8,8 @@ import PreviewInventory from "./PreviewInventory.vue";
 import PreviewReceive from "./PreviewReceive.vue";
 import PreviewBrowsePages from "./PreviewBrowsePages.vue";
 import PreviewFormPages from "./PreviewFormPages.vue";
+import PreviewActivities from "./PreviewActivities.vue";
+import PreviewReports from "./PreviewReports.vue";
 import PreviewUtilityPages from "./PreviewUtilityPages.vue";
 import {
 	primaryNavigation,
@@ -189,6 +191,8 @@ function isContextualRoute(route: typeof activeRoute.value) {
 const backRoute = computed<ReturnKey | undefined>(() => {
 	if (page.value !== "route") return undefined;
 	const current = activeRoute.value;
+	if (current.page === "activity-detail" || current.page === "activity-form")
+		return returnRoutes[current.key] || "activity-list/active";
 	if (section.value === "more" && current.page !== "more") return "more/index";
 	if (!isContextualRoute(current)) return undefined;
 	if (returnRoutes[current.key]) return returnRoutes[current.key];
@@ -200,7 +204,7 @@ const backRoute = computed<ReturnKey | undefined>(() => {
 	if (section.value === "loans") return "loan-items/outstanding";
 	return "movement-items/list";
 });
-const backLabel = computed(() => (backRoute.value === "more/index" ? "返回工具" : "返回上一页"));
+const backLabel = computed(() => (backRoute.value === "more/index" ? "返回更多" : "返回上一页"));
 const groups = primaryNavigation;
 function navigatePrimary(key: PreviewPageKey) {
 	resetDestinationScroll(key);
@@ -238,9 +242,7 @@ function navigate(key: ReturnKey, rememberReturn = true) {
 	if (route) selectRoute(route.page, route.variant, rememberReturn);
 }
 function selectRoute(routePage: string, variant: string, rememberReturn = true) {
-	const route = previewPages.find(
-		(candidate) => candidate.page === routePage && candidate.variant === variant,
-	);
+	const route = getPreviewPage(`${routePage}/${variant}`);
 	if (!route) return;
 	if (route.page === "movement-form" && rememberReturn) {
 		const selected = reviewSession.drafts.find(
@@ -251,7 +253,9 @@ function selectRoute(routePage: string, variant: string, rememberReturn = true) 
 	if (rememberReturn && isContextualRoute(route) && route.key !== routeKey.value) {
 		const origin = page.value === "route" ? activeRoute.value : undefined;
 		const sameDetail = origin && origin.page === route.page && isContextualRoute(origin);
-		const itemSave = origin?.page === "item-form" && route.page === "item-detail";
+		const itemSave =
+			(origin?.page === "item-form" && route.page === "item-detail") ||
+			(origin?.page === "activity-form" && route.page === "activity-detail");
 		if (itemSave && origin && returnRoutes[origin.key] === route.key) {
 			// Saving an item returns to its detail without replacing the browse origin.
 		} else if ((sameDetail || itemSave) && origin && returnRoutes[origin.key])
@@ -284,37 +288,37 @@ function syncLocationHash() {
 	}
 }
 const routeArea = computed(() => {
+	if (activeRoute.value.page.startsWith("activity-")) return "activities";
+	if (activeRoute.value.page === "reports") return "reports";
 	if (activeRoute.value.page === "inventory") return "inventory";
 	if (["item-form", "movement-form", "reconciliation-form"].includes(activeRoute.value.page)) {
 		return "form";
 	}
 	if (
-		[
-			"reports",
-			"report-export",
-			"more",
-			"settings",
-			"setup",
-			"auth-complete",
-			"recovery",
-		].includes(activeRoute.value.page)
+		["reports", "more", "settings", "setup", "auth-complete", "recovery"].includes(
+			activeRoute.value.page,
+		)
 	) {
 		return "utility";
 	}
 	return "browse";
 });
 const routeComponent = computed(() =>
-	routeArea.value === "browse"
-		? PreviewBrowsePages
-		: routeArea.value === "form"
-			? PreviewFormPages
-			: PreviewUtilityPages,
+	routeArea.value === "activities"
+		? PreviewActivities
+		: routeArea.value === "reports"
+			? PreviewReports
+			: routeArea.value === "browse"
+				? PreviewBrowsePages
+				: routeArea.value === "form"
+					? PreviewFormPages
+					: PreviewUtilityPages,
 );
-const routeComponentProps = computed(() =>
-	routeArea.value === "browse"
-		? { route: routeKey.value }
-		: { page: activeRoute.value.page, variant: activeRoute.value.variant },
-);
+const routeComponentProps = computed(() => ({
+	route: routeKey.value,
+	page: activeRoute.value.page,
+	variant: activeRoute.value.variant,
+}));
 function openInventory() {
 	selectLocalPage("inventory");
 }
@@ -563,7 +567,7 @@ onMounted(() => {
 					:aria-current="section === 'more' ? 'page' : undefined"
 					@click="navigate('more/index')"
 				>
-					<InventoryIcon name="more" />工具
+					<InventoryIcon name="more" />更多
 				</button>
 				<div class="sidebar-bottom">
 					<span class="avatar">义</span>
@@ -579,7 +583,7 @@ onMounted(() => {
 						:aria-current="section === 'more' ? 'page' : undefined"
 						@click="navigate('more/index')"
 					>
-						工具
+						更多
 					</button>
 					<span>寺院物资</span
 					><template v-if="ownerLabel && ownerLabel !== activeRoute.label"
