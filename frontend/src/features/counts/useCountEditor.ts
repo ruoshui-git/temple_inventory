@@ -21,7 +21,7 @@ import {
   useAttachments,
   type AttachmentEntry,
 } from "../attachments/useAttachments";
-import type { CatalogItem, NativeFile } from "../../lib/catalogPresentation";
+import type { CatalogItem } from "../../lib/catalogPresentation";
 import {
   countKey,
   countIssues,
@@ -312,12 +312,7 @@ export function useCountEditor(props: {
       if (!active()) return;
       state.values.baselineScope = baselineScope();
       await loadNames();
-      if (state.identity)
-        files.load(
-          await services.call<NativeFile[]>("native_files.attachments", {
-            ...state.identity,
-          }),
-        );
+      if (state.identity) await files.fetch();
       const local = recovery.list();
       candidates.value = local.entries.filter(
         (entry) =>

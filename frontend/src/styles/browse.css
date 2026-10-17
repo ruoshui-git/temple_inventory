@@ -1044,3 +1044,48 @@
 		transition: none;
 	}
 }
+
+.browse-tree-row .warehouse-toggle,
+.browse-tree-row .browse-tree-type {
+	display: inline-grid;
+	place-items: center;
+	justify-content: center;
+	padding: 0;
+	flex: 0 0 44px;
+	width: 44px;
+	height: 44px;
+	min-height: 44px;
+	line-height: 1;
+}
+.browse-tree-row .warehouse-toggle svg,
+.browse-tree-row .browse-tree-type svg {
+	margin: 0;
+	flex: none;
+}
+
+.browse-table td {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+.browse-table td > .browse-row-link {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+}
+.browse-table td > .ui-button {
+	max-width: 100%;
+	white-space: normal;
+	margin-block: var(--p-space-1);
+}
+.browse-table td > small {
+	display: block;
+}
+.browse-page:has(.refined-toolbar) {
+	overflow-anchor: none;
+}
+
+/* Selected tab text must remain legible in every theme. */
+.browse-tabs button[aria-selected="true"],
+.browse-tabs button[aria-pressed="true"] {
+	color: var(--p-surface);
+}

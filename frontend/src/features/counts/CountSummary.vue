@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { warehouseLabel } from "../../lib/warehouseLabel";
+import { useOptionalReferenceData } from "../../services/contracts";
 import { computed } from "vue";
 import type { CountRow } from "./countModel";
 import { countSummary } from "./countModel";
@@ -14,11 +16,19 @@ function quantities(values: [string, number][], signed = false) {
 			.join(" · ") || "—"
 	);
 }
+const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<div class="preview-count-summary">
 		<p class="count-summary-location">
-			盘点库位：{{ location || rows[0]?.warehouse || "待选择" }}
+			盘点库位：{{
+				location || rows[0]?.warehouse
+					? warehouseLabel(
+							location || rows[0]?.warehouse,
+							warehouseReference?.warehouses || [],
+						)
+					: "待选择"
+			}}
 		</p>
 		<p class="count-summary-progress" role="status">
 			已核对 {{ summary.reviewed }} / {{ summary.total }} 行 ·

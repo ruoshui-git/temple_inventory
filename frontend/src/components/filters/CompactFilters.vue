@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useSlots } from "vue";
+import { computed, useSlots, ref, watch, nextTick } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { emptyScope, type BrowseScope } from "../../lib/browseQuery";
 import {
@@ -35,6 +35,35 @@ const emit = defineEmits<{
 }>();
 const slots = useSlots();
 const { isMobile } = useResponsiveLayout();
+const activePanel = ref("");
+const panels = new Map<string, InstanceType<typeof FilterPanel>>();
+let switching = false;
+function registerPanel(key: string, value: unknown) {
+	if (value) panels.set(key, value as InstanceType<typeof FilterPanel>);
+	else panels.delete(key);
+}
+function panelChanged(key: string, value: boolean) {
+	if (value) activePanel.value = key;
+	else if (!switching && activePanel.value === key) activePanel.value = "";
+	emit("update:open", value);
+}
+watch(
+	isMobile,
+	async (mobile) => {
+		if (!activePanel.value) return;
+		const next = mobile
+			? "all"
+			: activePanel.value === "all"
+				? primary.value[0] || "more"
+				: activePanel.value;
+		switching = true;
+		await nextTick();
+		panels.get(next)?.show();
+		activePanel.value = next;
+		switching = false;
+	},
+	{ flush: "post" },
+);
 const scope = computed({
 	get: () => props.modelValue,
 	set: (value) => emit("update:modelValue", value),
@@ -80,11 +109,12 @@ function clear() {
 		<div class="compact-filter-toolbar">
 			<FilterPanel
 				v-if="isMobile"
+				:ref="(value) => registerPanel('all', value)"
 				label="筛选"
 				:count="count"
 				:context="context"
 				:active="active"
-				@update:open="emit('update:open', $event)"
+				@update:open="panelChanged('all', $event)"
 			>
 				<BrowseFilters
 					v-model="scope"
@@ -104,10 +134,12 @@ function clear() {
 				<FilterPanel
 					v-for="field in primary"
 					:key="field"
+					:ref="(value) => registerPanel(field, value)"
 					:label="scopeFilterLabels[field]"
 					:count="fieldCount(field)"
 					:context="context"
 					:active="active"
+					@update:open="panelChanged(field, $event)"
 				>
 					<BrowseFilters
 						v-model="scope"
@@ -119,12 +151,14 @@ function clear() {
 				</FilterPanel>
 				<FilterPanel
 					v-if="secondary.length || slots.default"
+					:ref="(value) => registerPanel('more', value)"
 					label="更多筛选"
 					:count="
 						secondary.reduce((total, field) => total + fieldCount(field), extraCount)
 					"
 					:context="context"
 					:active="active"
+					@update:open="panelChanged('more', $event)"
 				>
 					<BrowseFilters
 						v-if="secondary.length"

@@ -87,6 +87,7 @@ onDeactivated(() => {
 			<slot v-if="hasArtwork && !source" name="artwork"
 				><component v-if="artwork" :is="artwork.component" :code="item.code" /></slot
 			><AsyncImage
+				natural
 				v-else
 				:src="source"
 				:alt="item.name"
@@ -98,3 +99,28 @@ onDeactivated(() => {
 		<p class="muted">{{ item.code }}</p></Overlay
 	>
 </template>
+
+<style scoped>
+.preview-item-image,
+.item-image-button {
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
+	flex: none;
+}
+.preview-image-detail {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.preview-item-image :deep(.product-art),
+.item-image-button :deep(.product-art) {
+	width: 100%;
+	height: 100%;
+	aspect-ratio: 1;
+	object-fit: contain;
+}
+.lightbox-image :deep(.async-image) {
+	max-height: none;
+}
+</style>

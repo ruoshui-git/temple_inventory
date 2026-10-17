@@ -20,6 +20,27 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeReportTests(NativeDocumentTests):
+	def test_refinement_display_labels_preserve_native_identity_and_export_audit_values(self):
+		frappe.db.set_value("Warehouse", self.a, "warehouse_name", "供灯-用品")
+		doc = self.submit(self.create(self.movement(quantity=2)))
+		query = self.query("movements", "lines", record=doc.name, statuses=[1])
+		with Projection(query) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			row = next(projection.rows("lines"))
+			self.assertEqual(row["docstatus"], 1)
+			self.assertEqual(row["docstatus_label"], "已提交")
+			self.assertEqual(row["destination_warehouse"], self.a)
+			self.assertEqual(row["destination_warehouse_label"], "供灯-用品")
+			self.assertEqual(projection.context.label("inaccessible-warehouse"), "")
+			path = Path(directory) / "labels.csv"
+			exports._write(projection, frappe._dict(tables_json='["lines"]', export_format="csv"), path)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				values = next(csv.DictReader(stream))
+			self.assertEqual(values["状态"], "已提交")
+			self.assertEqual(values["状态值（ERPNext）"], "1")  # noqa: RUF001
+			self.assertEqual(values["目标位置"], "供灯-用品")
+			self.assertEqual(values["目标位置（ERPNext 名称）"], self.a)  # noqa: RUF001
+
 	def test_repeated_allocations_authorize_item_images_once_per_report_context(self):
 		from temple_inventory.native_files import attachments
 

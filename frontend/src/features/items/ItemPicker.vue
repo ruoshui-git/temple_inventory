@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useOptionalReferenceData } from "../../services/contracts";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import VirtualList from "../../components/ui/VirtualList.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -128,6 +130,7 @@ function discardEdits() {
 	else if (pendingSelection.value) emit("select", pendingSelection.value);
 	else emit("close");
 }
+const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<Overlay
@@ -151,7 +154,12 @@ function discardEdits() {
 					label="库位筛选"
 					v-model="locationFilter"
 					:options="
-						reference.warehouses.filter((row) => !row.is_group).map((row) => row.name)
+						reference.warehouses
+							.filter((row) => !row.is_group)
+							.map((row) => ({
+								value: row.name,
+								label: warehouseLabel(row.name, reference.warehouses),
+							}))
 					"
 				/>
 				<label class="preview-choice-label"
@@ -219,7 +227,14 @@ function discardEdits() {
 				<section v-if="detailItem" ref="detailPanel" tabindex="-1" class="picker-detail">
 					<h3>{{ detailItem.name }}</h3>
 					<p v-for="place in detailItem.locations" :key="place.location">
-						{{ place.location }} · 可用 {{ place.available }} {{ detailItem.uom
+						{{
+							warehouseLabel(
+								place.location,
+								warehouseReference?.warehouses || [],
+								place.label,
+							)
+						}}
+						· 可用 {{ place.available }} {{ detailItem.uom
 						}}<small v-for="batch in place.batches" :key="batch.id"
 							>{{ batch.id }} · {{ batch.expiry || "无效期" }} ·
 							{{ batch.available }} {{ detailItem.uom }}</small
@@ -227,7 +242,7 @@ function discardEdits() {
 					</p>
 					<UiButton @click="showStockDetails('')">返回物品列表</UiButton>
 				</section>
-				<p v-if="!result.loading && !visible.length">没有匹配的物品</p>
+				<p v-if="!result.loading && !result.error && !visible.length">没有匹配的物品</p>
 			</div>
 			<div v-show="creating" :inert="discard || undefined">
 				<ItemEditorView :controller="itemEditor" contextual @cancel="showCreate(false)" />

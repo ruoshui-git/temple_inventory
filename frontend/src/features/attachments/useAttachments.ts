@@ -24,9 +24,14 @@ export function useAttachments(options: {
   const services = useInventoryServices();
   const files = reactive<AttachmentEntry[]>([]),
     error = ref("");
+  const loading = ref(false),
+    initialized = ref(!options.parent());
   const bytes = new Map<string, File>(),
     urls = new Map<string, string>();
-  let disposed = false;
+  let primarySaved = "";
+  let disposed = false,
+    generation = 0;
+  let request: AbortController | undefined;
   const active = () =>
     !disposed && options.currentAccount() === options.account;
   const busy = computed(() => files.some((row) => row.state === "uploading"));
@@ -37,6 +42,10 @@ export function useAttachments(options: {
     urls.delete(id);
   }
   function load(values: NativeFile[], primary = "") {
+    loading.value = false;
+    initialized.value = true;
+    primarySaved =
+      values.find((value) => value.file_url === primary)?.name || primarySaved;
     for (const value of values) {
       const previous = files.find((row) => row.serverName === value.name);
       if (previous) {
@@ -56,10 +65,42 @@ export function useAttachments(options: {
       });
     }
   }
+  async function fetchFiles() {
+    const parent = options.parent();
+    if (!parent || !active()) return;
+    const current = ++generation;
+    request?.abort();
+    request = new AbortController();
+    loading.value = true;
+    error.value = "";
+    try {
+      const values = await services.call<NativeFile[]>(
+        "native_files.attachments",
+        parent,
+        request.signal,
+      );
+      if (
+        active() &&
+        current === generation &&
+        options.parent()?.name === parent.name
+      )
+        load(values);
+    } catch (reason) {
+      if (active() && current === generation)
+        error.value = reason instanceof Error ? reason.message : "附件读取失败";
+    } finally {
+      if (active() && current === generation) loading.value = false;
+    }
+  }
   function clear() {
+    generation++;
+    request?.abort();
+    loading.value = false;
+    primarySaved = "";
     for (const id of urls.keys()) release(id);
     bytes.clear();
     files.splice(0);
+    initialized.value = !options.parent();
   }
   function previewUrl(file: File): string | undefined {
     if (
@@ -73,7 +114,11 @@ export function useAttachments(options: {
       return;
     }
   }
-  function add(values: File[]) {
+  function add(values: File[], imagePrimary = false) {
+    const firstPrimary =
+      imagePrimary && !files.some((file) => file.primary)
+        ? values[0]
+        : undefined;
     if (!active() || !options.writable()) return;
     for (const file of values) {
       const id = crypto.randomUUID();
@@ -84,6 +129,7 @@ export function useAttachments(options: {
         id,
         name: file.name,
         type: file.type,
+        primary: file === firstPrimary,
         url,
         state: "pending",
         progress: 0,
@@ -155,6 +201,11 @@ export function useAttachments(options: {
       if (!active() || !options.writable()) return;
       await upload(entry);
     }
+    const chosen = files.find(
+      (entry) => entry.primary && entry.state === "ready",
+    );
+    if (chosen?.serverName && chosen.serverName !== primarySaved)
+      await primary(chosen);
   }
   async function remove(entry: AttachmentEntry) {
     if (!active() || !options.writable() || entry.state === "uploading") return;
@@ -223,17 +274,19 @@ export function useAttachments(options: {
     }
   }
   async function primary(entry: AttachmentEntry) {
-    if (
-      !active() ||
-      !entry.serverName ||
-      !options.primary ||
-      !options.writable() ||
-      busy.value
-    )
+    if (!active() || !options.primary || !options.writable() || busy.value)
       return;
+    if (!entry.serverName) {
+      files.forEach((row) => {
+        row.primary = row.id === entry.id;
+      });
+      options.changed?.();
+      return;
+    }
     error.value = "";
     try {
       await options.primary(entry.serverName);
+      primarySaved = entry.serverName;
       if (active()) {
         files.forEach((row) => {
           row.primary = row.id === entry.id;
@@ -247,15 +300,20 @@ export function useAttachments(options: {
   }
   onBeforeUnmount(() => {
     disposed = true;
+    generation++;
+    request?.abort();
     for (const id of urls.keys()) release(id);
     bytes.clear();
   });
   return {
     files,
+    loading,
+    initialized,
     error,
     busy,
     incomplete,
     load,
+    fetch: fetchFiles,
     clear,
     add,
     finalize,

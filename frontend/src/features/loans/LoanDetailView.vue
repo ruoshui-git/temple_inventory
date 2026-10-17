@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useReferenceData } from "../../services/contracts";
+import { nativeStatusLabel } from "../../lib/nativeLabels";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -20,6 +23,7 @@ const emit = defineEmits<{
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller;
+const reference = useReferenceData();
 const { loan, loading, error, files, status, metrics } = c;
 const historyTable = c.history.mainTable;
 const actions = [
@@ -81,7 +85,8 @@ function settle(action: SettlementAction) {
 								? 'is-success'
 								: ''
 					"
-					>{{ status }}</span
+					>{{ nativeStatusLabel(loan.docstatus)
+					}}{{ loan.docstatus === 1 ? ` · ${status}` : "" }}</span
 				>
 			</div>
 			<p class="browse-note">
@@ -111,8 +116,22 @@ function settle(action: SettlementAction) {
 						<summary>分配与换算明细</summary>
 						<small>原明细 {{ line.name }}</small>
 						<small
-							>原存放 {{ line.s_warehouse }} → 实际借出位置
-							{{ line.t_warehouse }}</small
+							>原存放
+							{{
+								warehouseLabel(
+									line.s_warehouse,
+									reference.warehouses,
+									line.s_warehouse_label,
+								)
+							}}
+							→ 实际借出位置
+							{{
+								warehouseLabel(
+									line.t_warehouse,
+									reference.warehouses,
+									line.t_warehouse_label,
+								)
+							}}</small
 						>
 						<small
 							>填写 {{ line.qty }} {{ line.uom }} · 1 {{ line.uom }} =
@@ -150,6 +169,7 @@ function settle(action: SettlementAction) {
 					:table="{ ...historyTable }"
 					:total="historyTable.total"
 					:loading="historyTable.loading"
+					:initialized="historyTable.initialized"
 					:error="historyTable.error"
 					@load-more="c.history.loadTable(historyTable, true)"
 					@retry="c.history.loadTable(historyTable, true)"

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useOptionalReferenceData } from "../../services/contracts";
+import { warehouseLabel } from "../../lib/warehouseLabel";
+import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref, watch, useSlots } from "vue";
 import UiButton from "./UiButton.vue";
@@ -9,16 +12,18 @@ const props = withDefaults(
 		limit?: number;
 		total?: number;
 		loading?: boolean;
+		initialized?: boolean;
 		error?: string;
 		documentLinks?: boolean;
 	}>(),
-	{ documentLinks: true },
+	{ documentLinks: true, initialized: true },
 );
 const emit = defineEmits<{
 	loadMore: [];
 	retry: [];
 	openDocument: [doctype: string, name: string];
 }>();
+const reference = useOptionalReferenceData();
 const slots = useSlots();
 const visibleColumns = computed(() => props.table.columns.filter((column) => column !== "id"));
 const loaded = ref(30);
@@ -64,6 +69,7 @@ const labels: Record<string, string> = {
 	original_activity: "原借出活动",
 	original_activity_title: "原借出活动名称",
 	outcome: "结算结果",
+	outcome_key: "结清情况",
 	baseline_qty: "账面数量",
 	actual_qty: "已核对实点",
 	difference: "调整差异",
@@ -180,7 +186,19 @@ const labels: Record<string, string> = {
 	factor: "换算率",
 	barcode: "条码",
 };
-function cell(column: string, value: unknown) {
+function cell(column: string, value: unknown, row: Record<string, unknown>) {
+	if (column === "docstatus") return nativeStatusLabel(value);
+	if (
+		[
+			"warehouse",
+			"source_warehouse",
+			"destination_warehouse",
+			"origin_warehouse",
+			"locationId",
+			"sourceLocationId",
+		].includes(column)
+	)
+		return warehouseLabel(value, reference?.warehouses || [], row[column + "_label"]);
 	if (value === "" || value === undefined || value === null) return "未填写";
 	if (
 		[
@@ -208,7 +226,7 @@ function cell(column: string, value: unknown) {
 			Reconcile: "盘点调整",
 			Opening: "期初库存",
 		},
-		docstatus: { "0": "草稿", "1": "已确认", "2": "已取消" },
+		docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
 		status: { Active: "进行中", Archived: "已归档" },
 		doctype: {
 			"Stock Entry": "库存流动",
@@ -218,6 +236,12 @@ function cell(column: string, value: unknown) {
 		},
 		review_state: { Unreviewed: "尚未核对", Reviewed: "已核对", "Not Found": "未找到" },
 		count_scope: { Selected: "选定物品", "Full Location": "整个库位" },
+		outcome_key: {
+			outstanding: "未归还",
+			returned: "完好归还",
+			damaged: "损坏归还",
+			lost: "遗失",
+		},
 		outcome: { Returned: "完好归还", Damaged: "损坏归还", Lost: "遗失" },
 		relationship: {
 			direct: "直接关联",
@@ -242,7 +266,9 @@ function cell(column: string, value: unknown) {
 				}}
 				·
 				{{
-					total ?? table.rows.length
+					!table.rows.length && (loading || initialized === false || error)
+						? "—"
+						: (total ?? table.rows.length)
 				}}
 				行完整结果 · 显示
 				{{
@@ -280,14 +306,17 @@ function cell(column: string, value: unknown) {
 							{{ row.document }}
 						</button>
 						<template v-else>
-							{{ cell(column, row[column]) }}
+							{{ cell(column, row[column], row) }}
 						</template>
 					</td>
 					<td v-if="slots.actions"><slot name="actions" :row="row" :index="index" /></td>
 				</tr>
 			</tbody>
 		</table>
-		<p v-if="!table.rows.length" class="muted">没有符合条件的记录</p>
+		<p v-if="loading || (initialized === false && !error)" role="status">
+			{{ table.rows.length ? "正在更新，保留上次结果…" : "正在读取记录…" }}
+		</p>
+		<p v-else-if="!error && !table.rows.length" class="muted">没有符合条件的记录</p>
 	</div>
 	<p v-if="error" role="alert">
 		{{ error }} <UiButton @click="emit('retry')">重试加载</UiButton>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { warehouseLabel } from "../../lib/warehouseLabel";
+import { useOptionalReferenceData } from "../../services/contracts";
 import { siteDateTime } from "../../lib/nativeTime";
 import { ref } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -43,6 +45,7 @@ async function applyLocation(value: string) {
 	if (values.value.ti_count_scope === "Full Location" || values.value.ti_count_items.length)
 		await c.refresh();
 }
+const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<section class="form-section">
@@ -51,7 +54,12 @@ async function applyLocation(value: string) {
 			><SearchSelect
 				label="盘点库位"
 				:model-value="values.ti_count_warehouse"
-				:options="reference.physicalLeaves"
+				:options="
+					reference.physicalLeaves.map((name) => ({
+						value: name,
+						label: warehouseLabel(name, reference.warehouses),
+					}))
+				"
 				:disabled="busy || baselineBusy"
 				@update:model-value="useLocation"
 			/>
@@ -80,7 +88,14 @@ async function applyLocation(value: string) {
 		<dl v-if="!writable" class="preview-info-grid">
 			<div>
 				<dt>盘点库位</dt>
-				<dd>{{ values.ti_count_warehouse }}</dd>
+				<dd>
+					{{
+						warehouseLabel(
+							values.ti_count_warehouse,
+							warehouseReference?.warehouses || [],
+						)
+					}}
+				</dd>
 			</div>
 			<div>
 				<dt>盘点方式</dt>
@@ -99,8 +114,9 @@ async function applyLocation(value: string) {
 			<h3>已移出账面范围的原输入</h3>
 			<p>以下输入保留供核对，不再纳入本次调整。</p>
 			<p v-for="(row, index) in removed" :key="index">
-				{{ row.item_code }} · {{ row.warehouse }} · {{ row.batch_no || "无批次" }} · 原账面
-				{{ row.baseline_qty }} · 实点
+				{{ row.item_code }} ·
+				{{ warehouseLabel(row.warehouse, warehouseReference?.warehouses || []) }} ·
+				{{ row.batch_no || "无批次" }} · 原账面 {{ row.baseline_qty }} · 实点
 				{{ row.actual_qty === null ? "未核对" : row.actual_qty }} {{ row.stock_uom }} ·
 				{{ row.reason }}
 			</p>

@@ -25,7 +25,9 @@ const emit = defineEmits<{
 const c = props.controller,
 	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis } = c;
 const { isMobile } = useResponsiveLayout();
-const filterOpen = ref(false);
+const filterOpen = ref(false),
+	analysisOpen = ref(false);
+const batchDetail = ref<ReportRow>();
 watch(
 	() => props.active,
 	(active) => {
@@ -192,20 +194,7 @@ function openItem(row: ReportRow) {
 								· {{ formatExpiryDuration(row.remaining_days) }}</small
 							>
 						</p>
-						<details>
-							<summary>批次详情</summary>
-							<p>{{ row.batch_no }} · {{ row.item_code }}</p>
-							<p>{{ row.warehouse_label || row.warehouse }}</p>
-							<p>
-								生产 {{ row.manufacturing_date || "未设置" }} · 借出
-								{{ row.loaned }} · 损坏 {{ row.damaged }} {{ row.stock_uom }}
-							</p>
-							<QuickExport
-								:query="c.batchQuery(row)"
-								:active="active"
-								@open-full="emit('openExport', $event)"
-							/>
-						</details>
+						<UiButton @click="batchDetail = row">查看批次明细</UiButton>
 					</article>
 				</div>
 				<div v-else class="browse-table-wrap">
@@ -260,22 +249,7 @@ function openItem(row: ReportRow) {
 								</td>
 								<td>{{ row.available }} {{ row.stock_uom }}</td>
 								<td>
-									<details>
-										<summary>
-											{{ row.warehouse_label || row.warehouse }}
-										</summary>
-										<p>
-											{{ row.warehouse }} · 生产
-											{{ row.manufacturing_date || "未设置" }} · 借出
-											{{ row.loaned }} · 损坏 {{ row.damaged }}
-											{{ row.stock_uom }}
-										</p>
-										<QuickExport
-											:query="c.batchQuery(row)"
-											:active="active"
-											@open-full="emit('openExport', $event)"
-										/>
-									</details>
+									<UiButton @click="batchDetail = row">查看批次明细</UiButton>
 								</td>
 							</tr>
 						</tbody>
@@ -297,8 +271,15 @@ function openItem(row: ReportRow) {
 					@click="c.load(true)"
 					>加载更多</UiButton
 				>
-				<details v-if="result.initialized">
-					<summary>分析当前结果</summary>
+				<UiButton v-if="result.initialized" @click="analysisOpen = true"
+					>分析结果</UiButton
+				>
+				<Overlay
+					v-if="analysisOpen"
+					title="分析当前结果"
+					adaptive-creation
+					@close="analysisOpen = false"
+				>
 					<QuantitySummary :metrics="metrics" />
 					<label class="preview-field"
 						>分析维度<select v-model="dimension">
@@ -311,13 +292,36 @@ function openItem(row: ReportRow) {
 						:table="analysisTable"
 						:total="analysis.matched_count"
 						:loading="analysis.loading"
+						:initialized="result.initialized"
 						:error="analysis.error"
 						@load-more="c.moreAnalysis"
 						@retry="c.moreAnalysis"
 					/>
-				</details>
+				</Overlay>
 			</div>
 		</div>
+		<Overlay
+			v-if="batchDetail"
+			title="批次明细"
+			adaptive-creation
+			@close="batchDetail = undefined"
+		>
+			<h3>{{ batchDetail.item_name }} · {{ batchDetail.batch_no }}</h3>
+			<p>
+				{{ batchDetail.warehouse_label || "位置暂不可用" }} ·
+				{{ batchDetail.expiry_date || "无效期" }}
+			</p>
+			<p>
+				可用 {{ batchDetail.available }} · 借出 {{ batchDetail.loaned }} · 损坏
+				{{ batchDetail.damaged }} {{ batchDetail.stock_uom }}
+			</p>
+			<p>生产日期 {{ batchDetail.manufacturing_date || "未填写" }}</p>
+			<QuickExport
+				:query="c.batchQuery(batchDetail)"
+				:active="active"
+				@open-full="emit('openExport', $event)"
+			/>
+		</Overlay>
 	</section>
 </template>
 

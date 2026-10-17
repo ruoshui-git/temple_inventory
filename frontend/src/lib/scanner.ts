@@ -1,6 +1,6 @@
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 
-export type ScannerEngineId = "frappe" | "zxing-wasm";
+export type ScannerEngineId = "zxing-wasm";
 export interface ScannerEngine {
   readonly id: ScannerEngineId;
   readonly label: string;
@@ -12,59 +12,6 @@ export interface ScannerEngine {
   stop(): Promise<void>;
 }
 
-const scripts = new Map<string, Promise<void>>();
-function load(src: string) {
-  if (!scripts.has(src))
-    scripts.set(
-      src,
-      new Promise<void>((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = src;
-        const timer = setTimeout(() => {
-          scripts.delete(src);
-          script.remove();
-          reject(new Error("扫码组件加载超时，请重试"));
-        }, 15000);
-        script.onload = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-        script.onerror = () => {
-          clearTimeout(timer);
-          scripts.delete(src);
-          script.remove();
-          reject(new Error("无法加载扫码组件，请重试"));
-        };
-        document.head.append(script);
-      }),
-    );
-  return scripts.get(src)!;
-}
-let loading: Promise<any> | undefined;
-export function loadScanner(): Promise<any> {
-  return (loading ||= (async () => {
-    const w = window as any;
-    if (!w.jQuery)
-      await load("/assets/frappe/node_modules/jquery/dist/jquery.min.js");
-    if (!w.frappe?.provide) await load("/assets/frappe/js/frappe/provide.js");
-    w.frappe.dom ||= {};
-    w.frappe.dom.set_unique_id ||= (element: any) => {
-      if (!element.attr("id"))
-        element.attr("id", `scan-${crypto.randomUUID()}`);
-      return element.attr("id");
-    };
-    w.frappe.require ||= async (paths: string | string[]) => {
-      for (const path of [paths].flat()) await load(path);
-    };
-    if (!w.frappe.ui.Scanner)
-      await load("/assets/frappe/js/frappe/scanner/index.js");
-    await load("/assets/frappe/node_modules/html5-qrcode/html5-qrcode.min.js");
-    return w.frappe.ui.Scanner;
-  })().catch((e) => {
-    loading = undefined;
-    throw e;
-  }));
-}
 export function cameraError(e: any) {
   const message = String(e?.name || e?.message || e);
   if (/NotAllowed|Permission|denied/i.test(message))
@@ -74,90 +21,6 @@ export function cameraError(e: any) {
   if (/NotReadable|TrackStart/i.test(message))
     return "相机正在被其他程序使用，请关闭后重试。";
   return `无法启动相机：${message}`;
-}
-
-export class FrappeScannerEngine implements ScannerEngine {
-  readonly id = "frappe" as const;
-  readonly label = "Frappe 内置";
-  private scanner: any;
-  private startPromise?: Promise<any>;
-  private container?: HTMLElement;
-  private generation = 0;
-  private releases = new WeakMap<object, Promise<void>>();
-  private release(scanner: any) {
-    if (!scanner) return Promise.resolve();
-    const existing = this.releases.get(scanner);
-    if (existing) return existing;
-    const releasing = (async () => {
-      const video = scanner.$camera_area?.find?.("video")?.get?.(0) as
-        HTMLVideoElement | undefined;
-      const stream = video?.srcObject as MediaStream | null;
-      try {
-        if (scanner.handler?.isScanning) await scanner.handler.stop();
-        scanner.handler?.clear();
-      } finally {
-        stream?.getTracks().forEach((track) => track.stop());
-        scanner.audio_ctx?.close?.().catch(() => undefined);
-      }
-    })();
-    this.releases.set(scanner, releasing);
-    return releasing;
-  }
-  async start(container: HTMLElement, onScan: (value: string) => void) {
-    const generation = ++this.generation;
-    this.container = container;
-    const Scanner = await loadScanner();
-    if (generation !== this.generation) return;
-    const scanner = new Scanner({
-      container,
-      multiple: true,
-      on_scan: (result: any) => onScan(String(result?.decodedText || "")),
-    });
-    this.scanner = scanner;
-    scanner.prepare_scan_area();
-    const handler = new (window as any).Html5Qrcode(scanner.scan_area_id);
-    const original = handler.start.bind(handler);
-    handler.start = (...args: any[]) => {
-      this.startPromise = original(...args);
-      return this.startPromise;
-    };
-    scanner.handler = handler;
-    try {
-      const result = scanner.start_scan();
-      if (!this.startPromise && result && typeof result.then === "function")
-        this.startPromise = result;
-    } catch (error) {
-      this.startPromise = Promise.reject(error);
-    }
-    try {
-      await this.startPromise;
-    } catch (error) {
-      await this.release(scanner).catch(() => undefined);
-      if (this.scanner === scanner) this.scanner = undefined;
-      throw error;
-    }
-    if (generation !== this.generation) await this.release(scanner);
-  }
-  async stop() {
-    this.generation++;
-    const active = this.scanner;
-    const startup = this.startPromise;
-    this.scanner = undefined;
-    try {
-      // Capture the original handler. A late camera startup must still release it
-      // after a newer start/stop has replaced this.scanner.
-      if (startup)
-        void startup
-          .catch(() => undefined)
-          .then(() => this.release(active))
-          .catch(() => undefined);
-      if (active?.handler?.isScanning || !startup) await this.release(active);
-    } finally {
-      this.startPromise = undefined;
-      this.container?.replaceChildren();
-      this.container = undefined;
-    }
-  }
 }
 
 let zxingReady: Promise<unknown> | undefined;
@@ -320,7 +183,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     const context = this.context;
     if (!context) {
       this.reportDecodeError(
-        new Error("浏览器不支持画布读取，请改用 Frappe 内置。"),
+        new Error("浏览器不支持画布读取，请手动输入或使用扫码枪。"),
         generation,
         onError,
       );
@@ -367,12 +230,9 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
 }
 
 export interface ScannerEngineFactories {
-  frappe: () => ScannerEngine;
   "zxing-wasm": () => ScannerEngine;
 }
 const STORAGE_KEY = "temple_inventory.scanner_engine";
-const validEngine = (value: string | null): value is ScannerEngineId =>
-  value === "frappe" || value === "zxing-wasm";
 export class ScannerService {
   private selected: ScannerEngineId;
   private active?: ScannerEngine;
@@ -380,15 +240,13 @@ export class ScannerService {
   private factories: ScannerEngineFactories;
   private generation = 0;
   constructor(factories: Partial<ScannerEngineFactories> = {}) {
-    let stored: string | null = null;
+    this.selected = "zxing-wasm";
     try {
-      stored = localStorage.getItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
     } catch {
-      /* storage may be unavailable */
+      /* optional storage */
     }
-    this.selected = validEngine(stored) ? stored : "zxing-wasm";
     this.factories = {
-      frappe: () => new FrappeScannerEngine(),
       "zxing-wasm": () => new ZxingWasmScannerEngine(),
       ...factories,
     };
@@ -397,7 +255,7 @@ export class ScannerService {
     return this.selected;
   }
   get engineLabel() {
-    return this.selected === "frappe" ? "Frappe 内置" : "ZXing-WASM";
+    return "ZXing-WASM";
   }
   private enqueue<T>(operation: () => Promise<T>) {
     const next = this.queue.then(operation, operation);
@@ -443,23 +301,6 @@ export class ScannerService {
     const stopping = active?.stop() || Promise.resolve();
     return this.enqueue(async () => {
       await stopping;
-    });
-  }
-  selectEngine(id: ScannerEngineId) {
-    if (!validEngine(id)) return Promise.reject(new Error("未知扫描引擎"));
-    ++this.generation;
-    const active = this.active;
-    this.active = undefined;
-    const stopping = active?.stop() || Promise.resolve();
-    return this.enqueue(async () => {
-      await stopping;
-      if (id === this.selected) return;
-      this.selected = id;
-      try {
-        localStorage.setItem(STORAGE_KEY, id);
-      } catch {
-        /* storage may be unavailable */
-      }
     });
   }
 }

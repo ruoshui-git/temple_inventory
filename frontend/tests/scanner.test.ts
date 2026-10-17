@@ -116,46 +116,26 @@ describe("Scanner component", () => {
     continuous.unmount();
   });
 
-  it("defaults to ZXing-WASM, renders the opposite engine, and suppresses duplicates for both engines", async () => {
+  it("suppresses duplicate camera callbacks with the single decoder", async () => {
     const wrapper = mount(Scanner);
     await flushPromises();
-    expect(wrapper.text()).toContain("ZXing-WASM");
-    expect(wrapper.text()).toContain("切换识别方式");
+    expect(state.starts).toEqual(["zxing-wasm"]);
     state.callbacks[0]("123");
     state.callbacks[0]("123");
     expect(wrapper.emitted("scan")).toEqual([["123"]]);
-    await wrapper.find(".scanner-engine button").trigger("click");
-    await flushPromises();
-    expect(state.starts).toEqual(["zxing-wasm", "frappe"]);
-    expect(state.stops).toBe(1);
-    expect(wrapper.text()).toContain("Frappe 内置");
-    state.callbacks[1]("123");
-    expect(wrapper.emitted("scan")).toHaveLength(1);
     wrapper.unmount();
-    await flushPromises();
-    expect(state.stops).toBe(2);
   });
 
-  it("persists engine choice, rejects invalid preferences, and keeps manual entry usable", async () => {
-    localStorage.setItem("temple_inventory.scanner_engine", "invalid");
+  it("has no engine switch and keeps repeated deliberate manual entry usable", async () => {
+    localStorage.setItem("temple_inventory.scanner_engine", "frappe");
     const wrapper = mount(Scanner);
     await flushPromises();
-    expect(wrapper.text()).toContain("ZXing-WASM");
-    await wrapper.find(".scanner-engine button").trigger("click");
-    await flushPromises();
+    expect(wrapper.find(".scanner-engine").exists()).toBe(false);
+    await wrapper.find("input").setValue("A001");
+    await wrapper.find("form").trigger("submit");
+    await wrapper.find("form").trigger("submit");
+    expect(wrapper.emitted("scan")).toEqual([["A001"], ["A001"]]);
     wrapper.unmount();
-    const remounted = mount(Scanner);
-    await flushPromises();
-    expect(remounted.text()).toContain("Frappe 内置");
-    await remounted.find("input").setValue("A001");
-    await remounted.find("form").trigger("submit");
-    expect(remounted.emitted("scan")).toEqual([["A001"]]);
-    expect((remounted.find("input").element as HTMLInputElement).value).toBe(
-      "A001",
-    );
-    await remounted.find("form").trigger("submit");
-    expect(remounted.emitted("scan")).toHaveLength(2);
-    remounted.unmount();
   });
 
   it("stops on pause, session expiry, close, and unmount, then restarts after recovery", async () => {
@@ -182,12 +162,10 @@ describe("Scanner component", () => {
     expect(state.stops).toBe(4);
   });
 
-  it("keeps manual entry available and reports an asynchronous error after switching engines", async () => {
+  it("keeps manual entry available after an asynchronous decoding failure", async () => {
     const wrapper = mount(Scanner);
     await flushPromises();
-    await wrapper.find(".scanner-engine button").trigger("click");
-    await flushPromises();
-    state.errors[1](new Error("camera lost"));
+    state.errors[0](new Error("camera lost"));
     await flushPromises();
     expect(wrapper.text()).toContain("camera lost");
     await wrapper.find("input").setValue("MANUAL-1");

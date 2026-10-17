@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import AppFrame from "./AppFrame.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import { useReferenceData } from "../services/contracts";
@@ -65,7 +65,7 @@ async function navigate(path: string) {
 		@inventory="navigate"
 		@more="navigate"
 	>
-		<div class="sample-breadcrumb">
+		<nav class="sample-breadcrumb" aria-label="面包屑">
 			<button
 				v-if="isMobile"
 				class="preview-tools-link"
@@ -74,11 +74,16 @@ async function navigate(path: string) {
 			>
 				更多
 			</button>
-			<span>寺院物资</span
-			><template v-if="owner !== title"
-				><span>/</span><span>{{ owner }}</span></template
-			><span>/</span><span>{{ title }}</span>
-		</div>
+			<RouterLink to="/">寺院物资</RouterLink>
+			<template v-if="owner !== title">
+				<span aria-hidden="true">/</span>
+				<RouterLink
+					:to="primaryNavigation.find((item) => item.key === active)?.route || '/more'"
+					>{{ owner }}</RouterLink
+				>
+			</template>
+			<span aria-hidden="true">/</span><span aria-current="page">{{ title }}</span>
+		</nav>
 		<nav
 			v-if="isMobile && active === 'inventory'"
 			class="mobile-context"

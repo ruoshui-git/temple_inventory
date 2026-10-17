@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref } from "vue";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
@@ -49,7 +50,8 @@ const groups = computed(() => {
 				@click="
 					collapsible && ($event.preventDefault(), (choices[place] = !isOpen(place)))
 				"
-				>{{ place }} · {{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
+				>{{ warehouseLabel(place, reference.warehouses) }} ·
+				{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
 				{{ lines.length }} 行分配 · {{ totals(lines) }}</component
 			>
 			<p v-for="line in lines" :key="line.id" :data-summary-line-id="line.id">
@@ -61,12 +63,17 @@ const groups = computed(() => {
 						{{
 							draft.kind === "Receive"
 								? "入库"
-								: line.sourceLocation || line.location
+								: warehouseLabel(
+										line.sourceLocation || line.location,
+										reference.warehouses,
+									)
 						}}
 						→
 						{{
-							allocationDestination(draft, line, reference.damagedLeaves) ||
-							"未选择目标"
+							warehouseLabel(
+								allocationDestination(draft, line, reference.damagedLeaves),
+								reference.warehouses,
+							)
 						}}
 					</template>
 					<template v-if="item(line.code)?.tracksBatch">

@@ -343,9 +343,10 @@ export function useItemEditor(
       baseline.value = JSON.stringify(model);
       await files.finalize();
       if (!active()) return;
-      if (files.incomplete.value) {
+      if (files.incomplete.value || files.error.value) {
         retain();
         error.value =
+          files.error.value ||
           "物品资料已保存，附件尚未全部上传；请重试或移除未完成附件";
         return;
       }

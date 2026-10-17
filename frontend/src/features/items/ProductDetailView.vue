@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { useOptionalReferenceData } from "../../services/contracts";
+import { warehouseLabel } from "../../lib/warehouseLabel";
+import Overlay from "../../components/ui/Overlay.vue";
+import { ref, computed } from "vue";
 import type { ProductDetail } from "./useProductDetail";
 import type { ReportQuery } from "../../lib/reportContract";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -41,12 +44,13 @@ const metrics = computed(() =>
 			}))
 		: [],
 );
+const batchDetail = ref<(typeof batches.value)[number]>();
+const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<section class="preview-browse-page">
 		<div class="browse-page-heading">
 			<div>
-				<span class="eyebrow">物品资料</span>
 				<h1>物品详情</h1>
 			</div>
 			<UiButton @click="emit('back')">返回</UiButton
@@ -133,30 +137,9 @@ const metrics = computed(() =>
 							:key="JSON.stringify([batch.id, batch.location])"
 						>
 							<td>
-								<details>
-									<summary>{{ batch.id }}</summary>
-									<p>
-										位置 {{ batch.location }} · 到期
-										{{ batch.expiry || "无效期" }}
-									</p>
-									<UiButton
-										@click="
-											emit('browse', {
-												...c.movementQuery.value,
-												search: batch.id,
-											})
-										"
-										>搜索此批次编号的流动</UiButton
-									><UiButton
-										@click="
-											emit('browse', {
-												...c.loanQuery.value,
-												search: batch.id,
-											})
-										"
-										>搜索此批次编号的借用</UiButton
-									>
-								</details>
+								<UiButton @click="batchDetail = batch"
+									>{{ batch.id }} · 查看明细</UiButton
+								>
 							</td>
 							<td>{{ batch.expiry || "未设置" }}</td>
 							<td>{{ batch.location }}</td>
@@ -180,7 +163,15 @@ const metrics = computed(() =>
 					</thead>
 					<tbody>
 						<tr v-for="place in item.locations" :key="place.location">
-							<td>{{ place.label || place.location }}</td>
+							<td>
+								{{
+									warehouseLabel(
+										place.location,
+										warehouseReference?.warehouses || [],
+										place.label,
+									)
+								}}
+							</td>
 							<td>{{ place.available }} {{ item.uom }}</td>
 							<td>{{ place.loaned }} {{ item.uom }}</td>
 							<td>{{ place.damaged }} {{ item.uom }}</td>
@@ -209,6 +200,7 @@ const metrics = computed(() =>
 					:table="{ ...movementTable }"
 					:total="movementTable.total"
 					:loading="movementTable.loading"
+					:initialized="movementTable.initialized"
 					:error="movementTable.error"
 					@load-more="c.movements.loadTable(movementTable, true)"
 					@retry="c.movements.loadTable(movementTable, true)"
@@ -227,6 +219,7 @@ const metrics = computed(() =>
 					:table="{ ...loanTable }"
 					:total="loanTable.total"
 					:loading="loanTable.loading"
+					:initialized="loanTable.initialized"
 					:error="loanTable.error"
 					@load-more="c.loans.loadTable(loanTable, true)"
 					@retry="c.loans.loadTable(loanTable, true)"
@@ -234,5 +227,35 @@ const metrics = computed(() =>
 				/>
 			</details>
 		</article>
+		<Overlay
+			v-if="batchDetail"
+			title="批次明细"
+			adaptive-creation
+			@close="batchDetail = undefined"
+		>
+			<p>
+				位置
+				{{ warehouseLabel(batchDetail.location, warehouseReference?.warehouses || []) }} ·
+				到期
+				{{ batchDetail.expiry || "无效期" }}
+			</p>
+			<UiButton
+				@click="
+					emit('browse', {
+						...c.movementQuery.value,
+						search: batchDetail.id,
+					})
+				"
+				>搜索此批次编号的流动</UiButton
+			><UiButton
+				@click="
+					emit('browse', {
+						...c.loanQuery.value,
+						search: batchDetail.id,
+					})
+				"
+				>搜索此批次编号的借用</UiButton
+			>
+		</Overlay>
 	</section>
 </template>

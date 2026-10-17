@@ -199,6 +199,22 @@ def _manifest(projection, path):
 			output.write(json.dumps([doctype, name], ensure_ascii=False) + "\n")
 
 
+def _column_label(field):
+	labels = {
+		"warehouse": "位置（ERPNext 名称）",
+		"source_warehouse": "来源位置（ERPNext 名称）",
+		"destination_warehouse": "目标位置（ERPNext 名称）",
+		"origin_warehouse": "原存放位置（ERPNext 名称）",
+		"warehouse_label": "位置",
+		"source_warehouse_label": "来源位置",
+		"destination_warehouse_label": "目标位置",
+		"origin_warehouse_label": "原存放位置",
+		"docstatus": "状态值（ERPNext）",
+		"docstatus_label": "状态",
+	}
+	return labels.get(field, field)
+
+
 def _write(projection, doc, path):
 	tables = json.loads(doc.tables_json)
 	if any(table not in projection.column_names for table in tables):
@@ -209,7 +225,7 @@ def _write(projection, doc, path):
 		columns = projection.column_names[table]
 		with open(path, "w", encoding="utf-8-sig", newline="") as output:
 			writer = csv.writer(output)
-			writer.writerow(columns)
+			writer.writerow([_column_label(field) for field in columns])
 			for row in projection.rows(table):
 				writer.writerow([_csv_value(row.get(field)) for field in columns])
 				count += 1
@@ -232,7 +248,7 @@ def _write(projection, doc, path):
 					part += 1
 					label = TABLE_LABELS.get(table, table)
 					worksheet = workbook.add_worksheet(f"{label[:24]}{'' if part == 1 else '-' + str(part)}")
-					worksheet.write_row(0, 0, columns)
+					worksheet.write_row(0, 0, [_column_label(field) for field in columns])
 					worksheet.freeze_panes(1, 0)
 					row_index = 1
 

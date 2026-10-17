@@ -31,7 +31,9 @@ const formatQuantity = (value: number) =>
 			/></span>
 			<div>
 				<small>{{ metric.label }}</small>
-				<div v-if="loading" class="quantity-summary-loading">正在更新…</div>
+				<div v-if="loading && !metric.quantities.length" class="quantity-summary-loading">
+					正在更新…
+				</div>
 				<div v-else-if="metric.quantities.length" class="quantity-summary-values">
 					<strong v-for="quantity in metric.quantities" :key="quantity.uom">
 						{{ formatQuantity(quantity.qty) }} <span>{{ quantity.uom }}</span>

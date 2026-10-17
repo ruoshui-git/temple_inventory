@@ -1,10 +1,10 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
+  type InventoryServices,
   useInventoryServices,
   useReferenceData,
 } from "../../services/contracts";
 import { newReportQuery } from "../../lib/reportContract";
-import type { NativeFile } from "../../lib/catalogPresentation";
 import type { NativeDocument } from "../documents/nativeEditor";
 import { useAttachments } from "../attachments/useAttachments";
 import { useReportController } from "../export/useReportController";
@@ -46,6 +46,21 @@ export interface LoanDocument extends NativeDocument {
   balance_at: string;
 }
 export type SettlementAction = "returned" | "damaged" | "lost";
+
+export async function loadLoanDocument(
+  services: InventoryServices,
+  name: string,
+  signal?: AbortSignal,
+) {
+  const value = await services.call<LoanDocument>(
+    "native_api.loan_detail",
+    { name },
+    signal,
+  );
+  if (value.name !== name || value.kind !== "Loan")
+    throw new Error("此记录不是指定的原借出记录");
+  return value;
+}
 
 export function useLoanDetail(props: { name: string }) {
   const services = useInventoryServices(),
@@ -148,40 +163,26 @@ export function useLoanDetail(props: { name: string }) {
     }),
   );
   async function loadFiles(current = generation) {
-    const name = loan.value?.name;
-    if (!name) return;
-    files.error.value = "";
-    try {
-      const values = await services.call<NativeFile[]>(
-        "native_files.attachments",
-        { doctype: "Stock Entry", name },
-        request?.signal,
-      );
-      if (active() && current === generation) files.load(values);
-    } catch (reason) {
-      if (active() && current === generation)
-        files.error.value =
-          reason instanceof Error ? reason.message : "读取附件失败";
-    }
+    if (active() && current === generation) await files.fetch();
   }
   async function load() {
     const current = ++generation;
     request?.abort();
     request = new AbortController();
-    loan.value = undefined;
-    files.clear();
+    if (loan.value?.name !== props.name) {
+      loan.value = undefined;
+      files.clear();
+    }
     files.error.value = "";
     loading.value = true;
     error.value = "";
     try {
-      const value = await services.call<LoanDocument>(
-        "native_api.loan_detail",
-        { name: props.name },
+      const value = await loadLoanDocument(
+        services,
+        props.name,
         request.signal,
       );
       if (!active() || current !== generation) return;
-      if (value.name !== props.name || value.kind !== "Loan")
-        throw new Error("此记录不是指定的原借出记录");
       loan.value = value;
       void loadFiles(current);
     } catch (reason) {

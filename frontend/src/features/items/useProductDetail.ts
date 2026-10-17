@@ -41,6 +41,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
         (place.batches || []).map((batch) => ({
           ...batch,
           location: place.location,
+          label: place.label,
         })),
       ) || [],
   );
@@ -89,8 +90,10 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     request = new AbortController();
     loading.value = true;
     error.value = "";
-    item.value = undefined;
-    files.clear();
+    if (item.value?.item_code !== props.code) {
+      item.value = undefined;
+      files.clear();
+    }
     try {
       const result = await services.call<CatalogItem>(
         "catalog.operation_item",

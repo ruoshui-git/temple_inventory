@@ -131,7 +131,7 @@ watch(
 							<div>
 								<span class="eyebrow"
 									>{{ row.item_code }} ·
-									{{ row.warehouse_label || row.warehouse }}</span
+									{{ row.warehouse_label || "位置暂不可用" }}</span
 								>
 								<h2>{{ row.item_name }}</h2>
 							</div>
@@ -187,12 +187,13 @@ watch(
 					@click="c.report.loadTable(table, true)"
 					>加载更多</UiButton
 				>
-				<details
-					data-browse-details="analysis"
-					:open="analysisOpen"
-					@toggle="analysisOpen = ($event.target as HTMLDetailsElement).open"
+				<UiButton @click="analysisOpen = true">分析结果</UiButton>
+				<Overlay
+					v-if="analysisOpen"
+					title="分析当前结果"
+					adaptive-creation
+					@close="analysisOpen = false"
 				>
-					<summary>分析当前结果</summary>
 					<label class="preview-field"
 						>分析维度<select v-model="dimension">
 							<option value="category">类别</option>
@@ -218,11 +219,12 @@ watch(
 						}"
 						:total="analysisTable.total"
 						:loading="analysisTable.loading"
+						:initialized="analysisTable.initialized"
 						:error="analysisTable.error"
 						@load-more="c.analysis.loadTable(analysisTable, true)"
 						@retry="c.analysis.loadTable(analysisTable, true)"
 					/>
-				</details>
+				</Overlay>
 			</div>
 		</div>
 	</section>

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import NativeRecordsPage from "../src/features/drafts/NativeRecordsPage.vue";
-import PreviewBrowsePages from "../src/design-preview/PreviewBrowsePages.vue";
+import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -13,7 +13,7 @@ import {
 } from "../src/lib/browserRecovery";
 import { recoveryDestination } from "../src/lib/recoveryNavigation";
 import { newReportQuery } from "../src/lib/reportContract";
-import { resetReviewSession } from "../src/design-preview/reviewModel";
+import { resetReviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
 beforeEach(() => localStorage.clear());
 afterEach(() => {

@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, useId, type CSSProperties } from "vue";
+import { overlayStageKey } from "../../lib/overlayStage";
+import {
+	inject,
+	provide,
+	nextTick,
+	onBeforeUnmount,
+	onMounted,
+	ref,
+	useId,
+	type CSSProperties,
+} from "vue";
 import UiButton from "./UiButton.vue";
 const props = withDefaults(
 	defineProps<{
@@ -20,8 +30,13 @@ const props = withDefaults(
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement>();
 const titleId = useId();
+const parentStage = inject(overlayStageKey, undefined);
+const stageHost = ref<HTMLElement>();
+const activeStage = ref<{ titleId: string; close(): void }>();
+if (!parentStage) provide(overlayStageKey, { host: stageHost, active: activeStage });
 function requestClose() {
-	if (props.dismissible) emit("close");
+	if (activeStage.value) activeStage.value.close();
+	else if (props.dismissible) emit("close");
 }
 let invoker: HTMLElement | null = null;
 let openingLocation = "";
@@ -29,6 +44,7 @@ function closeAfterNavigation() {
 	if (window.location.href !== openingLocation) emit("close");
 }
 let previousOverflow = "";
+let previousPadding = "";
 let app: HTMLElement | null = null;
 let previousInert = false;
 function isTabbable(element: HTMLElement) {
@@ -47,6 +63,9 @@ function isTabbable(element: HTMLElement) {
 	return true;
 }
 let underlyingOverlays: Array<{ element: HTMLElement; inert: boolean }> = [];
+function documentKeydown(event: KeyboardEvent) {
+	if (!event.defaultPrevented && !panel.value?.closest("[inert]")) keydown(event);
+}
 function keydown(event: KeyboardEvent) {
 	if (event.key === "Escape") {
 		event.preventDefault();
@@ -66,6 +85,11 @@ function keydown(event: KeyboardEvent) {
 		panel.value?.focus({ preventScroll: true });
 		return;
 	}
+	if (first && !panel.value?.contains(document.activeElement)) {
+		event.preventDefault();
+		(event.shiftKey ? last : first)?.focus();
+		return;
+	}
 	if (
 		event.shiftKey &&
 		(document.activeElement === first || document.activeElement === panel.value)
@@ -78,19 +102,28 @@ function keydown(event: KeyboardEvent) {
 	}
 }
 onMounted(async () => {
+	invoker = document.activeElement as HTMLElement;
+	if (parentStage) {
+		parentStage.active.value = { titleId, close: requestClose };
+		await nextTick();
+		panel.value?.focus({ preventScroll: true });
+		return;
+	}
 	openingLocation = window.location.href;
 	document.dispatchEvent(
 		new CustomEvent("preview-filter-panel-open", { detail: props.transientOwner || titleId }),
 	);
+	document.addEventListener("keydown", documentKeydown);
 	window.addEventListener("hashchange", closeAfterNavigation);
 	window.addEventListener("popstate", closeAfterNavigation);
 	document.addEventListener("inventory-navigation", closeAfterNavigation);
-	invoker = document.activeElement as HTMLElement;
 	previousOverflow = document.body.style.overflow;
+	previousPadding = document.body.style.paddingRight;
+	const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+	if (scrollbar > 0)
+		document.body.style.paddingRight = `${parseFloat(getComputedStyle(document.body).paddingRight) + scrollbar}px`;
 	document.body.style.overflow = "hidden";
-	app =
-		document.querySelector<HTMLElement>("[data-inventory-app]") ||
-		document.getElementById("design-preview");
+	app = document.querySelector<HTMLElement>("[data-inventory-app]");
 	previousInert = app?.inert || false;
 	if (app) app.inert = true;
 	underlyingOverlays = Array.from(document.querySelectorAll<HTMLElement>(".preview-overlay"))
@@ -103,35 +136,55 @@ onMounted(async () => {
 	panel.value?.focus({ preventScroll: true });
 });
 onBeforeUnmount(() => {
+	if (parentStage) {
+		if (parentStage.active.value?.titleId === titleId) parentStage.active.value = undefined;
+		void nextTick(() => {
+			if (invoker?.isConnected) invoker.focus({ preventScroll: true });
+		});
+		return;
+	}
+	document.removeEventListener("keydown", documentKeydown);
 	window.removeEventListener("hashchange", closeAfterNavigation);
 	window.removeEventListener("popstate", closeAfterNavigation);
 	document.removeEventListener("inventory-navigation", closeAfterNavigation);
 	document.body.style.overflow = previousOverflow;
+	document.body.style.paddingRight = previousPadding;
 	if (app) app.inert = previousInert;
 	underlyingOverlays.forEach(({ element, inert }) => {
 		element.inert = inert;
 	});
-	if (invoker?.isConnected) invoker.focus({ preventScroll: true });
+	void nextTick(() => {
+		if (invoker?.isConnected) invoker.focus({ preventScroll: true });
+	});
 });
 </script>
 <template>
-	<Teleport to="body">
-		<div class="preview-overlay" @click.self="requestClose" @keydown="keydown">
+	<Teleport
+		v-if="!parentStage || parentStage.host.value"
+		:to="parentStage?.host.value || 'body'"
+	>
+		<div
+			:class="parentStage ? 'overlay-stage' : 'preview-overlay'"
+			@click.self="requestClose"
+			@keydown="keydown"
+		>
 			<section
 				ref="panel"
-				class="preview-dialog"
 				:style="panelStyle"
-				:class="{
-					'preview-drawer': drawer && !adaptiveCreation,
-					'preview-adaptive-creation': adaptiveCreation,
-					'preview-filter-sheet': filterSheet,
-				}"
-				role="dialog"
-				aria-modal="true"
-				:aria-labelledby="titleId"
+				:class="[
+					parentStage ? 'overlay-stage-panel' : 'preview-dialog',
+					{
+						'preview-drawer': drawer && !adaptiveCreation,
+						'preview-adaptive-creation': adaptiveCreation,
+						'preview-filter-sheet': filterSheet,
+					},
+				]"
+				:role="parentStage ? 'region' : 'dialog'"
+				:aria-modal="parentStage ? undefined : true"
+				:aria-labelledby="activeStage?.titleId || titleId"
 				tabindex="-1"
 			>
-				<header class="dialog-heading">
+				<header v-show="!activeStage" class="dialog-heading">
 					<div>
 						<h2 :id="titleId">{{ title }}</h2>
 						<p v-if="subtitle">{{ subtitle }}</p>
@@ -144,8 +197,16 @@ onBeforeUnmount(() => {
 						>关闭 ×</UiButton
 					>
 				</header>
-				<div class="dialog-content"><slot /></div>
-				<footer v-if="$slots.footer" class="dialog-footer"><slot name="footer" /></footer>
+				<div v-show="!activeStage" class="dialog-content"><slot /></div>
+				<div
+					v-if="!parentStage"
+					v-show="activeStage"
+					ref="stageHost"
+					class="dialog-content"
+				/>
+				<footer v-if="$slots.footer" v-show="!activeStage" class="dialog-footer">
+					<slot name="footer" />
+				</footer>
 			</section>
 		</div>
 	</Teleport>

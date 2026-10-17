@@ -1,127 +1,97 @@
 # Temple Inventory Design System
 
-**Current workflow — 2026-10-17:** Migration implementation is closed. The user
-has retired the separate preview-site workflow; review the routed production app
-and historical commits instead. Do not add gallery variants or perform ongoing
-migration work based on historical instructions below. Preview source removal
-is pending; shared production styles and components remain the design foundation.
+The routed production application is the visual review surface. The separate
+preview entry, gallery controls and dedicated build/browser configuration are
+retired. Historical reference: commit `63c7f26` on `version-16`. Test-only service
+fixtures and mount hosts live in `frontend/tests/support`; production imports none
+of them. Do not create a replacement preview application.
 
-**Migration authority — 2026-10-16:** The
-[consolidated handoff](notes/20261016_DESIGN_TO_PRODUCTION_HANDOFF.md) supersedes this
-document's migration-paused, old-production-style reuse, jade-only, and permanently
-isolated-preview rules for the replacement task. Promote the current preview's
-presentation into one production foundation and a shared development gallery;
-offer jade, blue, and bronze as account preferences. The shared replacement foundation is implemented. Dated sections below retain
-historical decisions; current validation and remaining device/manual limits are
-recorded in the execution record rather than inferred from those earlier notes.
+Durable interaction decisions live in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md).
+The [refinement record](notes/20261017_UI_REFINEMENT_IMPLEMENTATION.md) maps the
+16 requirements to implementation, checks, visual evidence and limitations.
 
-This documents the production token and shared-component contract. Durable user
-interaction and responsive decisions live in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md).
-The development gallery at `frontend/design-preview.html` injects fixtures into
-shared product components. It is isolated from production services and does not
-establish native-service acceptance by itself. The dated sections below retain the
-historical visual baseline; the current architecture map here supersedes their
-retired entry points.
+## Production foundation
 
-## Production entry points
+- `frontend/src/styles/app.css` is the sole stylesheet entry, importing
+  `foundation.css`, `forms.css`, `utilities.css` and `browse.css`.
+- Shared `--p-*` semantic tokens own palette, typography, spacing, density,
+  status, shape and layers. Jade/blue/bronze, compact/balanced/spacious and
+  100–200% text settings apply at the root, including teleported content.
+- `components/AppFrame.vue` owns navigation geometry and measured mobile
+  obstruction; `ApplicationShell.vue` supplies route/account context and a
+  linked breadcrumb trail. The shared responsive boundary is 1024px.
+- `components/ui` contains reusable controls, overlays, filters and tables.
+  `components` contains stock, file, scanner and export surfaces. Controllers
+  in `features` own requests, native identity, permissions and persistent state.
+- Keep the existing `preview-*` shared CSS names. They are production contracts.
 
-**Replacement checkpoint — 2026-10-16:** The active shared stylesheet entry is now
-`frontend/src/styles/app.css`, importing `foundation.css`, `forms.css`,
-`utilities.css`, and `browse.css`. These preserve the promoted gallery's `--p-*`
-values and geometry. Both entry points import this entry; production no longer
-imports Frappe UI's global stylesheet or the former global/token/primitive/loading
-stylesheets. `applyDisplayPreferences` applies the exact three-theme tokens and
-`data-ti-*` density/text settings to the root, including teleported surfaces.
-`AppFrame.vue` owns shared navigation geometry and mobile obstruction measurement;
-`ApplicationShell.vue` supplies real route/account context. The gallery injects
-fixture services into the promoted feature pages. The older entry-point list below
-describes the retired implementation, not the foundation for new components. Old
-production styles and unreachable styled components have now been removed; their
-historical lists below are not current entry points. See the
-[execution record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md) for checks and
-remaining acceptance work; a build passing does not establish visual acceptance.
+## Refinement patterns — 2026-10-17
 
-- `frontend/src/styles/foundation.css` owns the promoted `--p-*` palette,
-  typography, density, spacing, status, shape and layer tokens.
-- `frontend/src/styles/forms.css`, `browse.css` and `utilities.css` own shared
-  form/browse geometry and reusable utilities; `app.css` imports them once.
-- `frontend/src/lib/displayPreferences.ts` and `uiPreferences.ts` apply the
-  account's jade/blue/bronze theme, compact/balanced/spacious density and
-  100/125/150/175/200 text scale, including teleported content.
-- `frontend/src/components/ui/` owns controls, overlays, filters and tables;
-  `components/` owns shared app, stock, file, image, scanner and export surfaces.
-- Production feature pages receive real services from the application shell.
-  `frontend/src/design-preview/fixtureServices.ts` supplies the same contracts
-  only to the development gallery. Gallery scenario controls remain outside
-  production components and import graphs.
+`BrowseToolbar` and the inventory toolbar use separate expanded and compact
+presentations. Compaction hides the complete control area; the compact row
+retains identity/count, Search, Scan, Filters and Expand. A deliberate choice
+persists while scrolling. Automatic compaction occurs once after the scroll threshold; subsequent expansion
+or collapse is explicit, avoiding height-induced scroll oscillation. Hidden focused controls return focus to the compact action row.
 
-## Shared gallery and token contract
+`Overlay` owns one focus-contained surface, background inertness, Escape,
+scroll locking and focus return. Descendant overlays become internal stages of
+that surface, preserving the underlying editor without active stacked dialogs.
+Wide inspection uses `adaptiveCreation`: bounded desktop width and a full mobile
+sheet. Scrollbar compensation preserves page width. Modal inspection does not
+change the route; full-record actions use normal router guards.
 
-The former `preview.css`, separate Preview control copies, `--ti-*` token sheet,
-legacy global/primitive/loading CSS and frozen production pages are retired. Both
-entrypoints import `styles/app.css`. The shared breakpoint is1024px, with mobile-
-first initial rendering. Touch controls retain44px targets; density and text size
-change their surrounding layout without changing the breakpoint. Reduced motion,
-focus visibility, overlay bounds and measured navigation obstruction remain shared.
+`AsyncImage` reserves square thumbnail space with contain fitting. Item cards,
+pickers, table identities and attachments share this geometry. Full-image
+viewers opt into natural proportions. `ImageCrop` processes images before File
+finalization, with square preview, zoom, horizontal/vertical position, explicit
+original-only and optional retained-original choices. Its 800px canvas and
+56px attachment thumbnails are deliberate geometry bounds.
 
-The complete palette and geometry remain the promoted values in `foundation.css`;
-semantic tokens must not be replaced with similar legacy values. See the
-[execution record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md) for current
-builds, screenshots directly inspected and remaining acceptance limits.
+`ReportTable` separates loading, initial error, successful empty and retained
+refresh. Async callers supply their successful-result flag. Dense tables keep
+readable columns in an internal horizontal scrollport. Allocation and batch
+inspection opens out of flow. In-place metadata/recovery uses styled semantic
+accordions; analysis uses wide modals. `QuantitySummary` uses a full-width grid
+with text-relative minimum tracks and separate units/statuses.
 
-## Reuse and migration
+Hierarchy indentation is 10px per level, capped at 40px, with path context and
+independent 44px expansion targets. Warehouse arrows and leaf icons share
+centered geometry. Names receive readable tracks; actions wrap beneath identity,
+icons do not shrink, and tables scroll inside their container. Density never
+reduces mobile touch targets or the shared breakpoint.
 
-Use the closest semantic token instead of adding a color, spacing, radius, or
-shadow literal. Add a new token only when the meaning is reusable across
-surfaces. Keep component interaction and accessibility behavior with the shared
-component; a token supplies visual values and does not replace that behavior.
-Current routed workflows keep their existing behavior during the visual
-migration. Check this reference and the preview gallery before introducing a
-new shared style, then update the gallery when a shared component gains a
-meaningful variant.
+Warehouse display resolves authorized names and parent paths for collisions;
+keys, route values and native audit identities are preserved. Report exports
+include readable labels and explicitly labeled ERPNext identity/status columns.
+Submitted status reads 已提交; settlement states remain separate.
 
-## Routed feature migration audit
+Dashboard expiry tabs sit between the summary cards and their adjacent list.
+They expose one tab stop, Arrow/Home/End navigation and a labeled panel. Shared
+tab styling recognizes `aria-selected` and `aria-pressed` where appropriate.
 
-The active routed components use the shared foundation and injected service
-contracts. Native identity, permissions and lifecycle remain in feature controllers;
-route files coordinate navigation. Current ownership:
+## Validation and fixed geometry
 
-| Area | Shared production owner |
-| --- | --- |
-| Dashboard / stock / expiry | `features/dashboard`, `features/inventory`, `features/expiry` |
-| Operations / native detail / loans | `features/documents`, `features/movements`, `features/loans`; `pages/NativeDocument.vue` |
-| Counts / drafts / Pending | `features/counts`, `features/drafts`, `features/pending` |
-| Items / activities / references | `features/items`, `features/activities`, `features/references` |
-| Warehouses / configuration | `features/warehouses`, `features/setup` |
-| Six report datasets / exports | `features/export`, shared `QuickExport` and `ReportTable` |
-| Shell / More / preferences | `components/AppFrame`, `components/ApplicationShell`, `features/more`, `features/settings` |
+Use focused component tests, type checking and the production build when bundling
+changes. Review the actual routed app in a browser with realistic Chinese text,
+long names, phone/desktop widths, density changes and enlarged text. Controlled
+HTTP fixtures establish client behavior; real-service and real-device evidence
+must be identified separately. Do not infer visual acceptance from a source audit.
 
-The main navigation has five destinations; More contains secondary tools. Native
-operations use `/documents/:doctype/:name`; counts use `/reconcile/:name`. Retired
-Workspace URLs/ownership and duplicate preview implementations are not retained.
+Fixed bounds are intentional for overlays, internal scrolling, artwork, icons,
+touch targets, page widths and measured shell obstructions. Typography scales
+independently from density. Add shared semantic tokens before page-local values.
 
-## Deliberate geometry exceptions
+## Historical design decisions
 
-Tokens govern repeated visual meaning and spacing. Fixed dimensions remain for
-measured responsive shell geometry, scroll and overlay bounds, icon/swatch
-artwork, readable page-width limits, and operation row touch targets. Examples
-include the 1024px shared breakpoint, warehouse result-row minimum heights,
-dialog width caps, inventory illustration dimensions, and navigation icon
-boxes. Density changes surrounding type, padding, and gaps without changing
-these layout contracts. Do not replace a geometry value with a nearby spacing
-token when that would change its measured behavior.
-
-When changing the production foundation, update the production token, every owned
-consumer, this audit/reference and focused contract tests. Inspect both routed
-production and injected gallery consumers against the promoted visual baseline. Add a `UI_UX_DECISIONS.md` entry only when user-visible behavior
-or an accessibility/responsive rule changes.
+The dated sections below document the retired preview workflow and earlier
+migration decisions. They do not assign gallery maintenance or migration work.
 
 ## Page mockup review gate (2026-10-12)
 
 The standalone reference is the visual authority. Its complete page/state index
 uses preview-only `#review/` links; the production route audit above describes
 existing tokenization, not accepted visual fidelity. Review notes and the route
-coverage matrix are in [the preview README](frontend/src/design-preview/README.md).
+coverage matrix are in the archived preview README in commit `63c7f26`.
 Approval of jade does not approve new creation, detail, report, or navigation
 workflows. This round changes preview files and documentation only. Keep the
 current production migration, backend, and account preferences unchanged until
@@ -284,7 +254,7 @@ query; category/unit editors optionally render into an in-form full-width host,
 preserving their inputs and the existing single overlay. Field consumers across
 forms, filters, reports, settings, setup and gallery use these preview patterns.
 These are preview geometry repairs, with validation recorded in the linked
-[progress note](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
+[progress note](notes/done/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
 
 Independent follow-up review (2026-10-14): required markers are grouped with label
 text so they cannot create an extra field-grid row. Supporting creation surfaces
@@ -356,7 +326,7 @@ two columns and switch to one below the shared 1024px breakpoint. Text scale and
 density remain independent; no production tokens or generated assets change.
 
 Actual screenshot inspections and viewport/density/text coverage are recorded in
-the [dated execution note](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md).
+the [dated execution note](notes/done/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md).
 Native browser zoom and final user visual approval are separate evidence.
 
 Final audit geometry: browse headings retain a readable 180px preferred title
@@ -405,4 +375,4 @@ panel-local 44px target rules, including hierarchy expansion buttons/spacers.
 Existing browse-tree rules no longer shrink compact-panel targets to 32px.
 These are intentional geometry exceptions, not final user visual approval.
 Browser results and native-zoom/device limitations are recorded in the
-[review note](notes/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_REVIEW.md).
+[review note](notes/done/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_REVIEW.md).

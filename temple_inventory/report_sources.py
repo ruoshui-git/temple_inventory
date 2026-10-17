@@ -48,6 +48,7 @@ class ReportContext:
 		self._item_fields = lru_cache(maxsize=512)(self._item_fields)
 		self.activity = lru_cache(maxsize=512)(self.activity)
 		self.parent = lru_cache(maxsize=256)(self.parent)
+		self.label = lru_cache(maxsize=512)(self.label)
 		self.query = query
 		self.scope = query["scope"]
 		self.period = resolved_period(self.scope["period"])
@@ -145,7 +146,19 @@ class ReportContext:
 		}
 
 	def label(self, warehouse):
-		return self.warehouses[warehouse].warehouse_name if warehouse in self.warehouses else ""
+		row = self.warehouses.get(warehouse)
+		if not row:
+			return ""
+		label = row.warehouse_name
+		if sum(value.warehouse_name == label for value in self.warehouses.values()) < 2:
+			return label
+		parts, seen = [label], {warehouse}
+		parent = self.warehouses.get(row.parent_warehouse)
+		while parent and parent.name not in seen:
+			seen.add(parent.name)
+			parts.insert(0, parent.warehouse_name)
+			parent = self.warehouses.get(parent.parent_warehouse)
+		return " / ".join(parts)
 
 	def matches_item(self, code, warehouse=None):
 		query = self.query

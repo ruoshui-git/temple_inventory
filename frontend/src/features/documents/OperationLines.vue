@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import AllocationDetails from "./AllocationDetails.vue";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
@@ -447,7 +448,12 @@ function changeBatch(line: AllocationLine) {
 				v-if="receive && !disabled"
 				label="新增物品的入库位置"
 				v-model="destination"
-				:options="places"
+				:options="
+					places.map((name) => ({
+						value: name,
+						label: warehouseLabel(name, reference.warehouses),
+					}))
+				"
 			/>
 			<div class="allocation-columns" aria-hidden="true">
 				<span>物品</span><span>数量 / 单位</span><span>库位</span><span>批次 / 状态</span
@@ -470,7 +476,11 @@ function changeBatch(line: AllocationLine) {
 							)
 					"
 				>
-					{{ group.location || "未选择库位" }}
+					{{
+						group.location
+							? warehouseLabel(group.location, reference.warehouses)
+							: "未选择库位"
+					}}
 				</h3>
 				<div class="draft-line receive-line">
 					<article
@@ -545,7 +555,11 @@ function changeBatch(line: AllocationLine) {
 								:options="
 									stockItem(line.code)?.locations.map((row) => ({
 										value: row.location,
-										label: row.location,
+										label: warehouseLabel(
+											row.location,
+											reference.warehouses,
+											row.label,
+										),
 										detail: `可用 ${row.available} · 损坏 ${row.damaged}`,
 									})) || []
 								"
@@ -560,7 +574,12 @@ function changeBatch(line: AllocationLine) {
 								label="目标 / 存放库位"
 								v-model="line.location"
 								:disabled="disabled"
-								:options="places"
+								:options="
+									places.map((name) => ({
+										value: name,
+										label: warehouseLabel(name, reference.warehouses),
+									}))
+								"
 							/>
 						</div>
 						<div class="allocation-context">

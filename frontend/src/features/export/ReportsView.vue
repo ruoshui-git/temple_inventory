@@ -53,7 +53,6 @@ const {
 		<p v-if="routeError" role="alert">{{ routeError }}</p>
 		<header class="browse-heading">
 			<div>
-				<span class="eyebrow">EXPORT / 导出</span>
 				<h1>导出</h1>
 				<p class="muted">完整筛选范围 · 数量按单位与状态分别列示</p>
 			</div>
@@ -297,6 +296,7 @@ const {
 				:table="mainTable"
 				:total="mainTable.total"
 				:loading="mainTable.loading"
+				:initialized="mainTable.initialized"
 				:error="mainTable.error"
 				@load-more="loadTable(mainTable, true)"
 				@retry="loadTable(mainTable, mainTable.initialized)"
@@ -316,6 +316,7 @@ const {
 					:table="table"
 					:total="table.total"
 					:loading="table.loading"
+					:initialized="table.initialized"
 					:error="table.error"
 					@load-more="loadTable(table, true)"
 					@retry="loadTable(table, table.initialized)"

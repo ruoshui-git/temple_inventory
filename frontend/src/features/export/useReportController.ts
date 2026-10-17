@@ -39,6 +39,8 @@ export function useReportController(
   options: { personalViews?: boolean; enabled?: Ref<boolean> } = {},
 ) {
   const services = useInventoryServices();
+  const reference = useReferenceData(),
+    account = reference.user;
   const result = reactive({
     tables: [] as ReportTableState[],
     main: "",
@@ -110,7 +112,8 @@ export function useReportController(
         { page_length: 30 },
         controller.signal,
       );
-      if (requestGeneration !== generation) return;
+      if (requestGeneration !== generation || reference.user !== account)
+        return;
       result.main = page.table;
       result.tables = page.tables.map((table) => ({
         id: table.id,
@@ -133,7 +136,7 @@ export function useReportController(
         : "全部时间";
       result.stale = false;
     } catch (error) {
-      if (requestGeneration === generation) {
+      if (requestGeneration === generation && reference.user === account) {
         if (isUnavailableError(error)) clearUnavailable();
         result.error =
           error instanceof Error ? error.message : "读取导出数据失败";
@@ -163,10 +166,11 @@ export function useReportController(
         { table: table.id, start: more ? table.next || 0 : 0, page_length: 30 },
         controller.signal,
       );
-      if (requestGeneration !== generation) return;
+      if (requestGeneration !== generation || reference.user !== account)
+        return;
       merge(table, page, more);
     } catch (error) {
-      if (requestGeneration === generation) {
+      if (requestGeneration === generation && reference.user === account) {
         if (isUnavailableError(error)) clearUnavailable();
         table.error = error instanceof Error ? error.message : "加载数据失败";
         if (isUnavailableError(error)) result.error = table.error;

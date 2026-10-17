@@ -16,6 +16,8 @@ const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 defineExpose({
 	requestLeave: () => activityEditor.value?.requestLeave() ?? Promise.resolve(true),
 });
+const movementActionsOpen = ref(false),
+	moreActionsOpen = ref(false);
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useActivitiesController>;
@@ -106,7 +108,6 @@ function tabKey(event: KeyboardEvent) {
 		</div>
 		<header class="browse-heading">
 			<div>
-				<span class="eyebrow">ACTIVITIES / 更多</span>
 				<h1>
 					{{
 						page === "activity-list"
@@ -227,7 +228,9 @@ function tabKey(event: KeyboardEvent) {
 					>
 				</div>
 			</section>
-			<p role="status">{{ projection.result.total }} 个活动 · 流动标签为终身已提交单据数</p>
+			<p v-if="projection.result.snapshot" role="status">
+				{{ projection.result.total }} 个活动 · 流动标签为终身已提交单据数
+			</p>
 			<p v-if="projection.result.loading" role="status">正在加载活动…</p>
 			<p v-else-if="projection.result.error" role="alert">
 				{{ projection.result.error }}<UiButton @click="projection.refresh">重试</UiButton>
@@ -278,7 +281,15 @@ function tabKey(event: KeyboardEvent) {
 						>
 					</div>
 				</article>
-				<p v-if="!projection.result.total" class="surface form-section">
+				<p
+					v-if="
+						projection.mainTable.value?.initialized &&
+						!projection.result.loading &&
+						!projection.result.error &&
+						!projection.result.total
+					"
+					class="surface form-section"
+				>
 					没有符合条件的活动。可清空筛选或新建活动。
 				</p>
 			</div>
@@ -292,8 +303,14 @@ function tabKey(event: KeyboardEvent) {
 		<template v-else-if="current">
 			<div class="form-actions">
 				<UiButton v-if="canWrite" :disabled="busy" @click="edit">编辑</UiButton>
-				<details v-if="current.status === 'active'">
-					<summary>新建流动</summary>
+				<UiButton v-if="current.status === 'active'" @click="movementActionsOpen = true"
+					>新建流动</UiButton
+				>
+				<Overlay
+					v-if="movementActionsOpen"
+					title="新建流动"
+					@close="movementActionsOpen = false"
+				>
 					<div class="form-actions">
 						<UiButton
 							v-for="kind in [
@@ -308,13 +325,16 @@ function tabKey(event: KeyboardEvent) {
 								'Disposal',
 							]"
 							:key="kind"
-							@click="movement(kind)"
+							@click="
+								movementActionsOpen = false;
+								movement(kind);
+							"
 							>{{ movementLabels[kind] }}</UiButton
 						>
 					</div>
-				</details>
-				<details>
-					<summary>更多操作</summary>
+				</Overlay>
+				<UiButton @click="moreActionsOpen = true">更多操作</UiButton>
+				<Overlay v-if="moreActionsOpen" title="更多操作" @close="moreActionsOpen = false">
 					<div class="form-actions">
 						<UiButton :disabled="busy || !canWrite" @click="archive">{{
 							current.status === "archived" ? "恢复活动" : "归档活动"
@@ -322,12 +342,15 @@ function tabKey(event: KeyboardEvent) {
 						><UiButton
 							variant="danger"
 							:disabled="busy || !canDelete"
-							@click="deleteOpen = true"
+							@click="
+								moreActionsOpen = false;
+								deleteOpen = true;
+							"
 							>删除活动</UiButton
 						>
 					</div>
 					<p>删除需要没有任何关联记录；有关联记录时请归档。</p>
-				</details>
+				</Overlay>
 			</div>
 			<p v-if="error" role="alert">{{ error }}</p>
 			<section class="surface form-section">
@@ -477,7 +500,16 @@ function tabKey(event: KeyboardEvent) {
 						<UiButton @click="linked(row.loanName!)">{{ row.loanName }}</UiButton>
 					</p>
 				</article>
-				<p v-if="!filteredRecords.length">没有符合条件的关联记录</p>
+				<p
+					v-if="
+						projection.mainTable.value?.initialized &&
+						!projection.result.loading &&
+						!projection.result.error &&
+						!filteredRecords.length
+					"
+				>
+					没有符合条件的关联记录
+				</p>
 				<p class="muted">附件通过各单据的详情查看。</p>
 			</section>
 			<section
@@ -501,7 +533,16 @@ function tabKey(event: KeyboardEvent) {
 					</p>
 					<UiButton @click="showSettlements(line.loanName)">查看结算记录</UiButton>
 				</article>
-				<p v-if="!loans.length">暂无借用结余</p>
+				<p
+					v-if="
+						projection.mainTable.value?.initialized &&
+						!projection.result.loading &&
+						!projection.result.error &&
+						!loans.length
+					"
+				>
+					暂无借用结余
+				</p>
 			</section>
 		</template>
 		<p v-else-if="loading" role="status">正在读取活动…</p>

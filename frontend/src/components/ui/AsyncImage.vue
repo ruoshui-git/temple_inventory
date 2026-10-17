@@ -9,6 +9,7 @@ const props = withDefaults(
 		height?: number | string;
 		loading?: "eager" | "lazy";
 		decoding?: "async" | "sync" | "auto";
+		natural?: boolean;
 		fit?: "contain" | "cover" | "fill" | "none" | "scale-down";
 		placeholderLabel?: string;
 		class?: string | string[] | Record<string, boolean>;
@@ -17,7 +18,7 @@ const props = withDefaults(
 		src: "",
 		loading: "lazy",
 		decoding: "async",
-		fit: "cover",
+		fit: "contain",
 		placeholderLabel: "暂无图片",
 	},
 );
@@ -55,7 +56,11 @@ function handleError() {
 			`async-image--${state}`,
 			{ 'async-image--has-source': Boolean(props.src) },
 		]"
-		:style="{ width: dimension(width), height: dimension(height) }"
+		:style="{
+			width: dimension(width) || '100%',
+			height: natural ? 'auto' : dimension(height),
+			aspectRatio: natural ? undefined : '1',
+		}"
 		role="img"
 		:aria-label="alt"
 		:aria-busy="state === 'loading' ? 'true' : undefined"
@@ -69,12 +74,19 @@ function handleError() {
 			:height="height"
 			:loading="loading"
 			:decoding="decoding"
-			:style="{ objectFit: fit }"
+			:style="{
+				objectFit: fit,
+				height: natural ? 'auto' : '100%',
+				position: natural ? 'static' : 'absolute',
+				inset: natural ? undefined : '0',
+			}"
 			@load="handleLoad"
 			@error="handleError"
 		/>
 		<span v-if="state === 'empty' || state === 'error'" class="async-image__fallback">
-			<slot name="fallback">{{ placeholderLabel }}</slot>
+			<slot name="fallback">{{
+				state === "error" ? "图片加载失败" : placeholderLabel
+			}}</slot>
 		</span>
 	</span>
 </template>

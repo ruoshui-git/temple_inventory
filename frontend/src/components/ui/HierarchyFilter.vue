@@ -23,6 +23,8 @@ const props = withDefaults(
 		placeholder: string;
 		title: string;
 		embedded?: boolean;
+		loading?: boolean;
+		error?: string;
 	}>(),
 	{ tree: () => [], embedded: false },
 );
@@ -221,6 +223,11 @@ function onKeydown(event: KeyboardEvent) {
 	} else if (event.key === "Home" || event.key === "End") {
 		event.preventDefault();
 		activeIndex.value = event.key === "Home" ? 0 : Math.max(0, displayNodes.value.length - 1);
+		void nextTick(() =>
+			root.value
+				?.querySelector<HTMLInputElement>(`[data-facet-index="${activeIndex.value}"]`)
+				?.focus(),
+		);
 	} else if (event.key === "Enter") {
 		event.preventDefault();
 		activateActive();
@@ -280,13 +287,20 @@ watch(term, () => {
 			role="tree"
 			:aria-label="title + '选项'"
 		>
-			<p v-if="!nodes.length" class="field-hint">暂无可选项目</p>
-			<p v-else-if="!roots.some(visible)" class="field-hint">没有匹配的项目</p>
-			<ul v-else class="hierarchy-list">
+			<p v-if="loading" role="status">正在读取选项…</p>
+			<p v-if="error" role="alert">{{ error }}</p>
+			<p v-if="!loading && !error && !nodes.length" class="field-hint">暂无可选项目</p>
+			<p
+				v-if="!loading && !error && nodes.length && !roots.some(visible)"
+				class="field-hint"
+			>
+				没有匹配的项目
+			</p>
+			<ul v-if="nodes.length && roots.some(visible)" class="hierarchy-list">
 				<li v-for="(node, index) in displayNodes" :key="node.name" role="treeitem">
 					<div
 						class="hierarchy-row"
-						:style="{ paddingInlineStart: 0.3 + depth(node) * 1.5 + 'rem' }"
+						:style="{ paddingInlineStart: Math.min(depth(node), 4) * 10 + 'px' }"
 					>
 						<button
 							v-if="childrenOf(node).length"
@@ -307,12 +321,17 @@ watch(term, () => {
 						<label class="preview-choice-label">
 							<input
 								:data-facet-index="index"
+								@focus="activeIndex = index"
 								type="checkbox"
 								:checked="fullySelected(node)"
 								:indeterminate="partial(node)"
 								@keydown="onKeydown"
 								@change="toggle(node)"
-							/><span>{{ node.label || node.name }}</span
+							/><span :title="path(node)"
+								>{{ node.label || node.name
+								}}<small v-if="term || depth(node) > 4" class="hierarchy-path">{{
+									path(node)
+								}}</small></span
 							><small v-if="node.count !== undefined" class="facet-result-count">{{
 								node.count
 							}}</small></label

@@ -101,7 +101,6 @@ function toggle(name: string) {
 				<div v-if="!detail" class="browse-warehouse-tree">
 					<div class="browse-card-heading">
 						<div>
-							<span class="eyebrow">WAREHOUSE STRUCTURE</span>
 							<h2>仓库结构</h2>
 						</div>
 					</div>
@@ -160,7 +159,6 @@ function toggle(name: string) {
 				<article v-if="selected" :class="detail ? 'browse-detail-card' : 'browse-card'">
 					<div class="browse-card-heading">
 						<div>
-							<span class="eyebrow">LOCATION STOCK</span>
 							<h2>{{ selected.label }}</h2>
 							<p>
 								{{
@@ -234,7 +232,8 @@ function toggle(name: string) {
 							<span class="browse-grow"
 								><strong>{{ row.item_name }}</strong
 								><small
-									>{{ row.item_code }} · {{ row.warehouse
+									>{{ row.item_code }} ·
+									{{ row.warehouse_label || "位置暂不可用"
 									}}{{ row.batch_no ? " · 批次 " + row.batch_no : "" }}</small
 								></span
 							><b
@@ -297,6 +296,7 @@ function toggle(name: string) {
 							}"
 							:total="historyTable.total"
 							:loading="historyTable.loading"
+							:initialized="historyTable.initialized"
 							:error="historyTable.error"
 							@load-more="c.history.loadTable(historyTable, true)"
 							@retry="c.history.loadTable(historyTable, true)"

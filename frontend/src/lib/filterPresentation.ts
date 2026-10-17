@@ -1,3 +1,4 @@
+import { warehouseLabel } from "./warehouseLabel";
 import type { BrowseScope } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
 export type ScopeFilterField = Exclude<keyof BrowseScope, "period">;
@@ -39,8 +40,7 @@ export function scopeValueLabel(
     return (
       reference.categories.find((row) => row.name === value)?.label || value
     );
-  const label = reference.warehouses.find((row) => row.name === value)?.label;
-  return label && label !== value ? `${value}（${label}）` : value;
+  return warehouseLabel(value, reference.warehouses);
 }
 export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
   return (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(

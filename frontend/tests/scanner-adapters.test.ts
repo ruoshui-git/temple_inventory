@@ -10,10 +10,7 @@ vi.mock("zxing-wasm/reader", () => ({
   readBarcodes: zxing.read,
 }));
 
-import {
-  FrappeScannerEngine,
-  ZxingWasmScannerEngine,
-} from "../src/lib/scanner";
+import { ZxingWasmScannerEngine } from "../src/lib/scanner";
 
 function stream() {
   const track = { stop: vi.fn() };
@@ -45,105 +42,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
-});
-
-describe("FrappeScannerEngine", () => {
-  it("cleans up a handler when startup rejects and preserves the original failure", async () => {
-    const handler = {
-      isScanning: false,
-      start: vi.fn().mockRejectedValue(new Error("camera startup failed")),
-      stop: vi.fn(),
-      clear: vi.fn(),
-    };
-    class Scanner {
-      scan_area_id?: string;
-      prepare_scan_area() {
-        this.scan_area_id = "scan-area";
-      }
-      start_scan() {
-        this.handler.start();
-      }
-      handler: any;
-      constructor(_options: any) {}
-    }
-    (window as any).jQuery = {};
-    (window as any).frappe = { ui: { Scanner }, dom: {}, provide: vi.fn() };
-    (window as any).Html5Qrcode = class {
-      constructor() {
-        return handler as any;
-      }
-    };
-    vi.spyOn(document.head, "append").mockImplementation((node: Node) => {
-      queueMicrotask(() =>
-        (node as HTMLScriptElement).onload?.(new Event("load")),
-      );
-    });
-    const engine = new FrappeScannerEngine();
-    const container = document.createElement("div");
-    await expect(engine.start(container, vi.fn())).rejects.toThrow(
-      "camera startup failed",
-    );
-    await engine.stop();
-    expect(handler.clear).toHaveBeenCalled();
-    expect(handler.stop).not.toHaveBeenCalled();
-  });
-
-  it("reports a synchronous start_scan failure", async () => {
-    (window as any).jQuery = {};
-    (window as any).Html5Qrcode = class {
-      constructor() {
-        return {
-          start: vi.fn(() => {
-            throw new Error("sync camera startup failed");
-          }),
-          isScanning: false,
-          clear: vi.fn(),
-        } as any;
-      }
-    };
-    const engine = new FrappeScannerEngine();
-    await expect(
-      engine.start(document.createElement("div"), vi.fn()),
-    ).rejects.toThrow("sync camera startup failed");
-  });
-
-  it("does not wait for a pending startup during stop", async () => {
-    const pending = deferred<void>();
-    const handler = {
-      isScanning: false,
-      start: vi.fn(() => pending.promise),
-      stop: vi.fn(),
-      clear: vi.fn(),
-    };
-    class Scanner {
-      scan_area_id = "scan-area";
-      prepare_scan_area() {
-        this.scan_area_id = "scan-area";
-      }
-      start_scan() {
-        this.handler.start();
-      }
-      handler: any;
-      constructor(_options: any) {}
-    }
-    (window as any).jQuery = {};
-    (window as any).frappe = { ui: { Scanner }, dom: {}, provide: vi.fn() };
-    (window as any).Html5Qrcode = class {
-      constructor() {
-        return handler as any;
-      }
-    };
-    const engine = new FrappeScannerEngine();
-    const started = engine.start(document.createElement("div"), vi.fn());
-    await Promise.resolve();
-    await expect(engine.stop()).resolves.toBeUndefined();
-    expect(handler.clear).not.toHaveBeenCalled();
-    handler.isScanning = true;
-    pending.resolve();
-    await expect(started).resolves.toBeUndefined();
-    expect(handler.stop).toHaveBeenCalledTimes(1);
-    expect(handler.clear).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("ZxingWasmScannerEngine", () => {

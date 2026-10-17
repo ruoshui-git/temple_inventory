@@ -90,7 +90,7 @@ const statusLabels = {
 	conflict: "记录已更改，输入已保留",
 	deleted: "记录已删除",
 	forbidden: "无权访问原记录",
-	submitted: "已确认",
+	submitted: "已提交",
 	cancelled: "已取消",
 };
 async function review() {
@@ -135,7 +135,6 @@ async function back() {
 	<section ref="formRoot" class="preview-form-page" :class="{ 'workspace-expanded': expanded }">
 		<div class="form-page-heading">
 			<div>
-				<span class="eyebrow">货物流动</span>
 				<h1>{{ title }}</h1>
 				<p class="muted">核对物品、数量、批次与库位，复核后确认。</p>
 			</div>

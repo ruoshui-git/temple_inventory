@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useOptionalReferenceData } from "../services/contracts";
+import { warehouseLabel } from "../lib/warehouseLabel";
 import { computed } from "vue";
 import DetailPopover from "./ui/DetailPopover.vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import { itemBatches, type StockItem } from "../lib/stockPresentation";
 const props = defineProps<{ item: StockItem }>();
 const batches = computed(() => itemBatches(props.item));
+const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<div class="stock-detail-chips">
@@ -12,7 +15,11 @@ const batches = computed(() => itemBatches(props.item));
 			<template #trigger
 				><InventoryIcon name="warehouse" />{{
 					item.locations.length === 1
-						? item.locations[0].location
+						? warehouseLabel(
+								item.locations[0].location,
+								warehouseReference?.warehouses || [],
+								item.locations[0].label,
+							)
 						: `${item.locations.length} 个库位`
 				}}</template
 			>
@@ -27,7 +34,15 @@ const batches = computed(() => itemBatches(props.item));
 				</thead>
 				<tbody>
 					<tr v-for="row in item.locations" :key="row.location">
-						<td>{{ row.location }}</td>
+						<td>
+							{{
+								warehouseLabel(
+									row.location,
+									warehouseReference?.warehouses || [],
+									row.label,
+								)
+							}}
+						</td>
 						<td>{{ row.available }} {{ item.uom }}</td>
 					</tr>
 				</tbody>
@@ -48,7 +63,9 @@ const batches = computed(() => itemBatches(props.item));
 			<strong>批次与位置</strong>
 			<p class="muted">当前筛选范围 · 可用库存</p>
 			<section v-for="row in item.locations" :key="row.location" class="batch-location">
-				<strong>{{ row.location }}</strong>
+				<strong>{{
+					warehouseLabel(row.location, warehouseReference?.warehouses || [], row.label)
+				}}</strong>
 				<div v-for="batch in row.batches || []" :key="batch.id">
 					<span>{{ batch.id }} · {{ batch.available }} {{ item.uom }}</span
 					><small v-if="item.tracksExpiry && batch.expiry"

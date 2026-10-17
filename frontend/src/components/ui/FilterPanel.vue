@@ -134,10 +134,21 @@ watch(open, (value) => {
 	if (!value) observer?.disconnect();
 });
 watch(
-	() => [props.context, props.active, isMobile.value],
+	() => [props.context, props.active],
 	() => close(),
 	{ flush: "sync" },
 );
+watch(isMobile, async () => {
+	if (!open.value) return;
+	observer?.disconnect();
+	await nextTick();
+	if (!isMobile.value && open.value) {
+		reposition();
+		await nextTick();
+		panel.value?.focus({ preventScroll: true });
+		if (panel.value) observer?.observe(panel.value);
+	}
+});
 onDeactivated(() => close());
 onMounted(() => {
 	document.addEventListener("preview-filter-panel-open", otherPanel);
@@ -154,6 +165,11 @@ onBeforeUnmount(() => {
 	document.removeEventListener("focusin", outside);
 	window.removeEventListener("resize", reposition);
 	window.removeEventListener("scroll", reposition, true);
+});
+defineExpose({
+	show: () => {
+		if (!open.value) void toggle();
+	},
 });
 </script>
 <template>

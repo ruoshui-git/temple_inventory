@@ -3307,3 +3307,160 @@ body:has(.preview-document-actions) .preview-toast {
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
+
+/* Production refinement: readable, content-sized shared surfaces. */
+.quantity-summary.quantity-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 13em), 1fr));
+	width: 100%;
+}
+.quantity-summary-metric {
+	min-width: 0;
+}
+.compact-action-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--p-space-2);
+	width: 100%;
+}
+.compact-action-row > strong {
+	flex: 1 1 8em;
+}
+.compact-action-row small {
+	font-weight: 400;
+}
+.expanded-browse-tools {
+	display: flex;
+	flex-direction: column;
+	gap: var(--p-space-2);
+}
+.expanded-browse-tools .inventory-context {
+	order: 1;
+}
+.inventory-example.is-compact .inventory-browse-header {
+	padding-block: var(--p-space-1);
+}
+.inventory-example.is-compact .inventory-secondary-tools {
+	position: static;
+	border: 0;
+	padding: 0;
+}
+/* Accordion semantics are retained for in-place metadata and recoverable input. */
+:where([data-inventory-app], .preview-dialog) details > summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--p-space-3);
+	min-height: 44px;
+	padding: var(--p-space-2) var(--p-space-3);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-canvas);
+	color: var(--p-ink);
+	cursor: pointer;
+	list-style: none;
+	font-weight: 600;
+}
+:where([data-inventory-app], .preview-dialog) details > summary::after {
+	content: "⌄";
+	flex: none;
+}
+:where([data-inventory-app], .preview-dialog) details[open] > summary::after {
+	content: "⌃";
+}
+:where([data-inventory-app], .preview-dialog) details > summary:hover {
+	background: var(--p-soft);
+}
+:where([data-inventory-app], .preview-dialog) details[open] > summary {
+	margin-bottom: var(--p-space-3);
+}
+:where([data-inventory-app], .preview-dialog) details {
+	min-width: 0;
+}
+.hierarchy-facet .hierarchy-row {
+	gap: 4px;
+	border-inline-start: 1px solid var(--p-border);
+}
+.hierarchy-facet .tree-spacer {
+	width: 8px;
+}
+.hierarchy-facet .hierarchy-path {
+	display: block;
+	color: var(--p-muted);
+	font-weight: 400;
+}
+.hierarchy-facet .hierarchy-row label > span {
+	word-break: normal;
+	overflow-wrap: break-word;
+}
+.browse-tabs button[aria-pressed="true"],
+.browse-tabs button[aria-selected="true"] {
+	background: var(--p-accent);
+	color: var(--p-surface);
+	border-color: var(--p-accent);
+}
+/* Text gets a readable track; actions wrap beneath it as available width falls. */
+.browse-heading,
+.browse-card-heading,
+.dialog-heading {
+	flex-wrap: wrap;
+}
+.browse-heading > :first-child,
+.browse-card-heading > :first-child,
+.dialog-heading > :first-child {
+	flex: 1 1 min(100%, 14em);
+}
+.browse-heading-actions,
+.browse-actions,
+.button-row {
+	flex-wrap: wrap;
+}
+.browse-table,
+.preview-table {
+	min-width: max(650px, 42em);
+}
+.browse-table th,
+.browse-table td,
+.preview-table th,
+.preview-table td {
+	min-width: 6em;
+}
+.browse-table th:first-child,
+.browse-table td:first-child {
+	min-width: 14em;
+}
+.browse-table td:has(> button),
+.report-table-wrap td:has(> button) {
+	min-width: 10em;
+}
+.browse-rank-row {
+	flex-wrap: wrap;
+	gap: var(--p-space-2);
+}
+.browse-rank-row > span {
+	flex: 1 1 min(100%, 13em);
+}
+.browse-rank-row > b {
+	flex: 0 1 auto;
+}
+.dialog-heading h2,
+.browse-card-heading h2 {
+	word-break: normal;
+	overflow-wrap: break-word;
+}
+.inventory-browse-header {
+	scroll-margin-top: 0;
+}
+.results-region [data-browse-row] {
+	scroll-margin-top: 6rem;
+}
+.sample-breadcrumb a {
+	color: var(--p-accent);
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+}
+.hierarchy-facet .tree-spacer {
+	min-width: 8px;
+}

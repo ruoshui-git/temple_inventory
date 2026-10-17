@@ -424,6 +424,13 @@ class Projection(AbstractContextManager):
 		self.temp.cleanup()
 
 	def put(self, table, row):
+		# Display fields accompany exact native identity, including paginated references.
+		row = dict(row)
+		for field in ("warehouse", "source_warehouse", "destination_warehouse", "origin_warehouse"):
+			if row.get(field):
+				row[f"{field}_label"] = self.context.label(row[field]) or "位置暂不可用"
+		if "docstatus" in row:
+			row["docstatus_label"] = {0: "草稿", 1: "已提交", 2: "已取消"}.get(row["docstatus"], "状态未知")
 		identity = str(row["id"])
 		posting = row.get("posting_timestamp") or row.get("date") or row.get("expiry_date") or ""
 		if posting and row.get("time") and not row.get("posting_timestamp"):

@@ -9,11 +9,8 @@ import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import PreviewFilterPanel from "../src/components/ui/FilterPanel.vue";
 import PreviewCompactFilters from "../src/components/filters/CompactFilters.vue";
 import { emptyScope, type BrowseScope } from "../src/lib/browseQuery";
-import { provideGalleryReference } from "../src/design-preview/fixtureReference";
-import {
-  resetReviewSession,
-  reviewSession,
-} from "../src/design-preview/reviewModel";
+import { provideGalleryReference } from "./support/fixtureReference";
+import { resetReviewSession, reviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
 const body = () => new DOMWrapper(document.body);
 const dialog = () => body().get('[role="dialog"]');
@@ -222,7 +219,7 @@ describe("bounded filter dialogs", () => {
     await body().get(".preview-overlay").trigger("click");
     expect(body().find('[role="dialog"]').exists()).toBe(false);
   });
-  it("dismisses on breakpoint, context, inactive state and KeepAlive deactivation with selections retained", async () => {
+  it("retains an open filter across breakpoint and dismisses on context, inactive state and deactivation", async () => {
     const visible = ref(true),
       scope = ref({ ...emptyScope(), kinds: ["Issue"] });
     const Subject = defineComponent({
@@ -244,8 +241,7 @@ describe("bounded filter dialogs", () => {
     await button(host, "流动类型").trigger("click");
     resize(false);
     await settle();
-    expect(body().find('[role="dialog"]').exists()).toBe(false);
-    await button(host, "筛选").trigger("click");
+    expect(body().find('[role="dialog"]').exists()).toBe(true);
     visible.value = false;
     await settle();
     expect(body().find('[role="dialog"]').exists()).toBe(false);

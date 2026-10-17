@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import PendingPage from "../src/features/pending/PendingPage.vue";
-import PreviewBrowsePages from "../src/design-preview/PreviewBrowsePages.vue";
-import { resetReviewSession } from "../src/design-preview/reviewModel";
+import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
+import { resetReviewSession } from "./support/reviewModel";
 import {
   createReferenceData,
   provideInventoryServices,

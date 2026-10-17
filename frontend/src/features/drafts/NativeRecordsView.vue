@@ -77,7 +77,6 @@ const quantities = (row: NativeRecord) =>
 	<section class="preview-page preview-browse-page">
 		<header class="browse-heading">
 			<div>
-				<span class="eyebrow">{{ mode === "drafts" ? "DRAFTS" : "COUNTS" }} / 更多</span>
 				<h1>{{ mode === "drafts" ? "草稿" : "盘点调整" }}</h1>
 				<p class="browse-subtitle">
 					{{
@@ -132,7 +131,7 @@ const quantities = (row: NativeRecord) =>
 			>
 				<label v-if="mode === 'counts'" class="preview-field"
 					>状态<select v-model="query.statuses">
-						<option :value="[1]">已确认</option>
+						<option :value="[1]">已提交</option>
 						<option :value="[0]">草稿</option>
 						<option :value="[2]">已取消</option>
 						<option :value="[0, 1, 2]">全部状态</option>
@@ -215,7 +214,7 @@ const quantities = (row: NativeRecord) =>
 										? "草稿"
 										: Number(row.docstatus) === 2
 											? "已取消"
-											: "已确认"
+											: "已提交"
 								}}
 							</td>
 							<td>{{ row.activity_title || row.borrower || "—" }}</td>

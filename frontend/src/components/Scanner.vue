@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ScannerService, cameraError, type ScannerEngineId } from "../lib/scanner";
+import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
+import { ScannerService, cameraError } from "../lib/scanner";
 import { sessionExpired } from "../lib/sessionState";
 import Overlay from "./ui/Overlay.vue";
 import UiButton from "./ui/UiButton.vue";
@@ -14,9 +14,12 @@ const area = ref<HTMLElement>(),
 	error = ref(""),
 	manual = ref(""),
 	starting = ref(false);
-const engineId = ref<ScannerEngineId>("zxing-wasm");
 const service = new ScannerService();
-const paused = computed(() => props.paused || sessionExpired.value);
+const hidden = ref(typeof document !== "undefined" && document.hidden);
+const paused = computed(() => props.paused || sessionExpired.value || hidden.value);
+function visibilityChanged() {
+	hidden.value = document.hidden;
+}
 let disposed = false,
 	last = "",
 	lastTime = 0;
@@ -70,20 +73,6 @@ async function start() {
 		if (!disposed) starting.value = false;
 	}
 }
-async function switchEngine() {
-	if (starting.value || disposed) return;
-	starting.value = true;
-	error.value = "";
-	try {
-		await service.selectEngine(engineId.value === "frappe" ? "zxing-wasm" : "frappe");
-		engineId.value = service.engineId;
-	} catch (reason) {
-		if (!disposed) error.value = cameraError(reason);
-	} finally {
-		starting.value = false;
-	}
-	if (!disposed && !paused.value) await start();
-}
 function close() {
 	disposed = true;
 	void service.stop();
@@ -102,10 +91,14 @@ watch(
 	},
 );
 onMounted(() => {
-	engineId.value = service.engineId;
+	document.addEventListener("visibilitychange", visibilityChanged);
 	void start();
 });
+onDeactivated(() => {
+	void service.stop();
+});
 onBeforeUnmount(() => {
+	document.removeEventListener("visibilitychange", visibilityChanged);
 	disposed = true;
 	void service.stop();
 });
@@ -147,11 +140,7 @@ defineExpose({
 					autocomplete="off" /></label
 			><UiButton type="submit" :disabled="paused || !manual.trim()">查找</UiButton>
 		</form>
-		<details class="scanner-engine">
-			<summary>识别方式</summary>
-			<p>{{ engineId === "frappe" ? "Frappe 内置" : "ZXing-WASM" }}</p>
-			<UiButton :disabled="starting" @click="switchEngine">切换识别方式</UiButton>
-		</details>
+
 		<template v-if="presentation === 'modal'" #footer
 			><UiButton @click="close">关闭相机</UiButton></template
 		>

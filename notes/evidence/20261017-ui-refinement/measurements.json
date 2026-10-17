@@ -1,0 +1,46 @@
+{
+  "ui-refinement-compact-stock-and-hierarchy-320-200-balanced": {
+    "expanded": 1285.875,
+    "collapsed": 200.78125
+  },
+  "ui-refinement-compact-stock-and-hierarchy-320-100-compact": {
+    "expanded": 650.59375,
+    "collapsed": 136
+  },
+  "ui-refinement-compact-stock-and-hierarchy-390-100-spacious": {
+    "expanded": 694.984375,
+    "collapsed": 150.59375
+  },
+  "ui-refinement-compact-stock-and-hierarchy-1440-100-balanced": {
+    "expanded": 410.359375,
+    "collapsed": 45.59375
+  },
+  "ui-refinement-compact-stock-and-hierarchy-390-200-spacious": {
+    "expanded": 1326.625,
+    "collapsed": 221.96875
+  },
+  "ui-refinement-compact-stock-and-hierarchy-1440-200-compact": {
+    "expanded": 542.140625,
+    "collapsed": 62.390625
+  },
+  "nativeKeyboardZoom": {
+    "before": {
+      "width": 1440,
+      "ratio": 1
+    },
+    "after": {
+      "width": 1440,
+      "ratio": 1
+    },
+    "supported": false
+  },
+  "portraitThumbnail": {
+    "frameWidth": 56,
+    "frameHeight": 56,
+    "imageWidth": 56,
+    "imageHeight": 56,
+    "naturalWidth": 80,
+    "naturalHeight": 160,
+    "fit": "contain"
+  }
+}

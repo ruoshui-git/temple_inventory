@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { warehouseLabel } from "../../lib/warehouseLabel";
+import { ref, useId } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DashboardSection from "../../components/DashboardSection.vue";
 import QuickExport from "../../components/QuickExport.vue";
@@ -46,6 +47,22 @@ const {
 	loanQuantity,
 } = props.controller;
 const showFilters = ref(false);
+const expiryId = useId();
+function expiryKey(event: KeyboardEvent) {
+	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+	event.preventDefault();
+	filters.expiry =
+		event.key === "Home"
+			? "expired"
+			: event.key === "End"
+				? "upcoming"
+				: filters.expiry === "expired"
+					? "upcoming"
+					: "expired";
+	(event.currentTarget as HTMLElement)
+		.querySelector<HTMLElement>(`[data-expiry-tab="${filters.expiry}"]`)
+		?.focus();
+}
 const { isMobile } = useResponsiveLayout();
 </script>
 <template>
@@ -204,21 +221,7 @@ const { isMobile } = useResponsiveLayout();
 							</button>
 						</div></template
 					>
-					<template #controls
-						><div class="browse-tabs">
-							<button
-								:aria-pressed="filters.expiry === 'expired'"
-								@click="filters.expiry = 'expired'"
-							>
-								已过期</button
-							><button
-								:aria-pressed="filters.expiry === 'upcoming'"
-								@click="filters.expiry = 'upcoming'"
-							>
-								未过期
-							</button>
-						</div></template
-					>
+
 					<div class="preview-expiry-grid">
 						<button
 							v-for="bucket in buckets"
@@ -231,24 +234,66 @@ const { isMobile } = useResponsiveLayout();
 							><strong>{{ bucket.count }} 个批次</strong>
 						</button>
 					</div>
-					<div class="browse-rank-list">
+					<div
+						class="browse-tabs"
+						role="tablist"
+						aria-label="批次列表范围"
+						@keydown="expiryKey"
+					>
 						<button
-							v-for="row in expiryPreview"
-							:key="`${row.item_name}/${row.batch_no}/${row.warehouse}`"
-							class="browse-rank-row"
-							:disabled="blocked('expiry')"
-							@click="drill('expiry')"
+							v-for="[key, label] in [
+								['expired', '已过期'],
+								['upcoming', '未过期'],
+							]"
+							:key="key"
+							:id="`${expiryId}-${key}`"
+							:data-expiry-tab="key"
+							role="tab"
+							:aria-selected="filters.expiry === key"
+							:tabindex="filters.expiry === key ? 0 : -1"
+							:aria-controls="`${expiryId}-panel`"
+							@click="filters.expiry = key!"
 						>
-							<span
-								>{{ row.item_name
-								}}<small
-									>{{ row.batch_no }} · {{ row.expiry_date }} ·
-									{{ row.warehouse }}</small
-								></span
-							><b>{{ row.available }} {{ row.stock_uom }}</b>
+							{{ label }}
 						</button>
 					</div>
-					<p v-if="!expiryPreview.length">当前范围没有需要关注的批次。</p>
+					<div
+						:id="`${expiryId}-panel`"
+						role="tabpanel"
+						:aria-labelledby="`${expiryId}-${filters.expiry}`"
+						tabindex="0"
+					>
+						<div class="browse-rank-list">
+							<button
+								v-for="row in expiryPreview"
+								:key="`${row.item_name}/${row.batch_no}/${row.warehouse}`"
+								class="browse-rank-row"
+								:disabled="blocked('expiry')"
+								@click="drill('expiry')"
+							>
+								<span
+									>{{ row.item_name
+									}}<small
+										>{{ row.batch_no }} · {{ row.expiry_date }} ·
+										{{
+											warehouseLabel(
+												row.warehouse,
+												reference.warehouses,
+												row.warehouse_label,
+											)
+										}}</small
+									></span
+								><b>{{ row.available }} {{ row.stock_uom }}</b>
+							</button>
+						</div>
+						<p v-if="!expiryPreview.length">
+							{{
+								filters.expiry === "expired"
+									? "当前范围没有已过期批次。"
+									: "当前范围没有未过期批次。"
+							}}
+						</p>
+					</div>
 				</DashboardSection>
 			</div>
 			<div class="preview-dashboard-column">

@@ -1,0 +1,562 @@
+import { expect, test, type Page } from "@playwright/test";
+import { readFileSync, writeFileSync } from "node:fs";
+import { nativeUiSession } from "./fixtures/nativeUi";
+const font = "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf";
+async function setup(page: Page, scale = 100, density = "balanced") {
+  await page.route("**/refinement-font.otf", (route) =>
+    route.fulfill({ body: readFileSync(font), contentType: "font/otf" }),
+  );
+  await page.addInitScript(() =>
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent =
+        "@font-face{font-family:Refinement;src:url(/refinement-font.otf)}body,button,input,select,textarea{font-family:Refinement,sans-serif!important}";
+      document.head.append(style);
+    }),
+  );
+  await page.route("**/api/method/temple_inventory.**", async (route) => {
+    const method = new URL(route.request().url()).pathname
+      .split(".")
+      .slice(-2)
+      .join(".");
+    const args = route.request().postDataJSON() || {};
+    let message: any = [];
+    if (method === "browse.inventory_page")
+      message = {
+        rows: Array.from({ length: 20 }, (_, i) => ({
+          code: `ITEM-${i}`,
+          name: `法会供灯与日常储备用品长名称${i}`,
+          category: "供灯用品",
+          uom: "个",
+          available: 7,
+          loaned: 2,
+          damaged: 1,
+          tracksBatch: false,
+          tracksExpiry: false,
+          image:
+            i % 3 === 0
+              ? "data:image/svg+xml," +
+                encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="120"><rect width="40" height="120" fill="#28684e"/></svg>',
+                )
+              : "",
+          locations: [
+            {
+              location: "ROOM-A",
+              label: "东-库房",
+              available: 7,
+              loaned: 2,
+              damaged: 1,
+            },
+          ],
+        })),
+        matched_count: 20,
+        next_start: null,
+        snapshot: "2026-10-17 10:00:00",
+        query: args.query,
+        summary: [],
+        analysis: { category: [], location: [] },
+      };
+    else if (method === "browse.operation_page")
+      message = {
+        rows: [
+          {
+            id: "M1",
+            document: "MAT-STE-2026-LONG-NATIVE-IDENTIFIER-0001",
+            doctype: "Stock Entry",
+            kind: "Return",
+            date: "2026-10-17",
+            docstatus: 1,
+            document_count: 1,
+            item_count: 2,
+            allocation_count: 36,
+            matching_totals: [{ stock_qty: 7, stock_uom: "个" }],
+            whole: {
+              item_count: 2,
+              line_count: 36,
+              quantities: [{ qty: 20, uom: "个" }],
+              branches: [{ source: "ROOM-A", destination: "ROOM-B" }],
+              original_loans: ["L1", "L2"],
+            },
+          },
+        ],
+        matched_count: 1,
+        next_start: null,
+        query: args.query,
+        snapshot: "2026-10-17 10:00:00",
+        summary: { document_count: 1, item_count: 2, category_count: 1 },
+        totals: ["Receive", "Issue", "Return", "Transfer"].map((kind) => ({
+          kind,
+          docstatus: 1,
+          stock_qty: 7,
+          stock_uom: "个",
+        })),
+        analysis: {},
+      };
+    else if (method === "browse.operation_contributions")
+      message = {
+        columns: [
+          "item_name",
+          "source_warehouse",
+          "stock_qty",
+          "stock_uom",
+          "docstatus",
+        ],
+        rows: Array.from({ length: args.start ? 6 : 30 }, (_, i) => ({
+          id: `A${args.start + i}`,
+          item_name: `匹配物品明细${args.start + i}`,
+          source_warehouse: "ROOM-A",
+          stock_qty: 1,
+          stock_uom: "个",
+          docstatus: 1,
+        })),
+        matched_count: 36,
+        next_start: args.start ? null : 30,
+      };
+    else if (method === "native_api.loan_detail")
+      message = {
+        name: args.name,
+        kind: "Loan",
+        doctype: "Stock Entry",
+        docstatus: 1,
+        version: "v1",
+        posting_date: "2026-10-16",
+        ti_borrower:
+          args.name === "L1" ? "文化交流与法会筹备组" : "寺院志工服务组",
+        activity_title: "秋季法会",
+        items: [
+          {
+            name: "LL1",
+            item_code: "ITEM-1",
+            item_name: "供灯用品",
+            transfer_qty: 20,
+            outstanding_qty: 7,
+            stock_uom: "个",
+            outcomes: { Returned: 10, Damaged: 2, Lost: 1 },
+            s_warehouse: "ROOM-A",
+            t_warehouse: "ROOM-B",
+            allocations: [],
+          },
+        ],
+      };
+    else if (method === "browse.dashboard_card")
+      message = {
+        item_count: 2,
+        rows: [],
+        totals: [],
+        kind_counts: {},
+        query: {
+          dataset: "inventory",
+          scope: { period: { key: "all" }, warehouses: [], categories: [] },
+        },
+        buckets: [
+          { id: "expired_1_30", count: 1 },
+          { id: "upcoming_0_30", count: 1 },
+        ],
+        expiry_rows: {
+          expired: [
+            {
+              item_name: "已过期的供灯油",
+              batch_no: "EXPIRED",
+              expiry_date: "2026-10-01",
+              warehouse: "ROOM-A",
+              available: 2,
+              stock_uom: "瓶",
+            },
+          ],
+          upcoming: [
+            {
+              item_name: "即将到期的供灯油",
+              batch_no: "UPCOMING",
+              expiry_date: "2026-10-30",
+              warehouse: "ROOM-A",
+              available: 3,
+              stock_uom: "瓶",
+            },
+          ],
+        },
+        snapshot: "2026-10-17 10:00:00",
+      };
+    else if (method === "warehouses.tree")
+      message = {
+        company: "TEST",
+        physical_root: "ROOT",
+        can_create: false,
+        rows: [
+          {
+            name: "ROOT",
+            label: "东院供灯与法会物资仓库",
+            parent: "",
+            type: "Location",
+            is_group: true,
+            disabled: false,
+            protected: true,
+            can_edit: false,
+            lft: 1,
+            rgt: 4,
+            version: "v1",
+          },
+          {
+            name: "ROOM-A",
+            label: "供灯-用品与法会储备物资长名称库位",
+            parent: "ROOT",
+            type: "Room",
+            is_group: false,
+            disabled: false,
+            protected: false,
+            can_edit: false,
+            lft: 2,
+            rgt: 3,
+            version: "v1",
+          },
+        ],
+      };
+    else if (method === "native_api.editor_clock")
+      message = { timestamp: "2026-10-17 10:00:00" };
+    else if (method === "projections.report_page")
+      message = {
+        query: args.query,
+        scope: args.query.scope,
+        rows: [],
+        matched_count: 0,
+        next_start: null,
+        table: "records",
+        columns: [],
+        tables: [{ id: "records", label: "记录", count: 0 }],
+        summary: [],
+        snapshot: "2026-10-17",
+        period: { key: "all", date_from: "", date_to: "" },
+      };
+    await route.fulfill({ json: { message } });
+  });
+  const warehouses = Array.from({ length: 8 }, (_, i) => ({
+    name: i === 7 ? "ROOM-A" : `G${i}`,
+    local_label: `东院第${i}层供灯与法会用品长名称`,
+    parent_warehouse: i ? `G${i - 1}` : "",
+    is_group: i < 7,
+    breadcrumb: `东院 / ${i}层`,
+  }));
+  await nativeUiSession(page, scale, {
+    warehouses: [
+      ...warehouses,
+      { name: "ROOM-B", local_label: "借出保管处", is_group: false },
+    ],
+    capabilities: { Item: { create: true }, "Stock Entry": { create: true } },
+    operations: { Receive: true },
+  });
+  await page.route("**/api/method/temple_inventory.session.info", (route) =>
+    route.fulfill({
+      json: {
+        message: {
+          user: "manager",
+          csrf_token: "test",
+          ui_preferences: { theme: "jade", density, textScale: scale },
+        },
+      },
+    }),
+  );
+}
+for (const [width, scale, density] of [
+  [320, 100, "compact"],
+  [390, 200, "spacious"],
+  [1440, 100, "balanced"],
+  [320, 200, "balanced"],
+  [390, 100, "spacious"],
+  [1440, 200, "compact"],
+] as const) {
+  test(`compact stock and hierarchy ${width}/${scale}/${density}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await setup(page, scale, density);
+    await page.goto("/inventory/stock");
+    await expect(page.locator(".stock-card")).toHaveCount(20);
+    await page
+      .getByLabel("搜索物品或条码")
+      .fill("供灯用品与法会日常储备长关键词");
+    await page.locator(".card-checkbox input").first().check();
+    const expandTools = page.getByRole("button", {
+      name: "展开工具",
+      exact: true,
+    });
+    if (await expandTools.isVisible()) await expandTools.click();
+    const expanded = await page
+      .locator(".inventory-browse-header")
+      .boundingBox();
+    await page.getByRole("button", { name: "收起工具", exact: true }).click();
+    await expect(page.locator(".compact-action-row")).toContainText("已选 1");
+    const collapsed = await page
+      .locator(".inventory-browse-header")
+      .boundingBox();
+    expect(collapsed!.height).toBeLessThan(expanded!.height);
+    await page.screenshot({ path: info.outputPath("collapsed-toolbar.png") });
+    await page.getByRole("button", { name: "搜索", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("searchbox")).toHaveValue(
+      "供灯用品与法会日常储备长关键词",
+    );
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: /^筛选/ }).click();
+    await expect(page.locator(".hierarchy-list")).toBeVisible();
+    const indents = await page
+      .locator(".hierarchy-row")
+      .evaluateAll((rows) =>
+        rows.map((row) => parseFloat(getComputedStyle(row).paddingInlineStart)),
+      );
+    expect(Math.max(...indents)).toBeLessThanOrEqual(40);
+    await page.screenshot({ path: info.outputPath("compact-hierarchy.png") });
+    writeFileSync(
+      info.outputPath("toolbar-heights.json"),
+      JSON.stringify({
+        expanded: expanded!.height,
+        collapsed: collapsed!.height,
+      }),
+    );
+    await info.attach("toolbar-heights", {
+      body: JSON.stringify({
+        expanded: expanded!.height,
+        collapsed: collapsed!.height,
+      }),
+      contentType: "application/json",
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBe(true);
+  });
+}
+for (const width of [390, 1440]) {
+  test(`stable allocation modal and related loans ${width}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await setup(page);
+    await page.goto("/inventory/movements/records");
+    const action = page.getByRole("button", {
+      name: "匹配分配明细",
+      exact: true,
+    });
+    await expect(action).toBeVisible();
+    const widths = () =>
+      page
+        .locator(".browse-table th")
+        .evaluateAll((cells) =>
+          cells.map((cell) => cell.getBoundingClientRect().width),
+        );
+    const before = await widths();
+    await action.click();
+    await expect(page.getByRole("dialog")).toContainText("30 行");
+    await page.getByRole("button", { name: /加载更多 · 匹配分配明细/ }).click();
+    await expect(page.getByRole("dialog")).toContainText("显示 36 行");
+    expect(await widths()).toEqual(before);
+    await page.screenshot({
+      path: info.outputPath("stable-allocation-modal.png"),
+    });
+    await page.keyboard.press("Escape");
+    await expect(action).toBeFocused();
+    await page.getByRole("button", { name: "关联借出（2）" }).click();
+    await page.getByRole("button", { name: /文化交流与法会筹备组/ }).click();
+    await expect(page.getByRole("dialog")).toContainText("当前未结清 7");
+    expect(page.url()).toContain("/movements/records");
+    await page.getByRole("button", { name: "返回关联借出列表" }).click();
+    await expect(
+      page.getByRole("button", { name: /寺院志工服务组/ }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /寺院志工服务组/ }).click();
+    await page
+      .getByRole("button", { name: "打开完整记录", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/loans\/L2/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/movements\/records/);
+    await expect(
+      page.getByRole("button", { name: "关联借出（2）" }),
+    ).toBeVisible();
+    await page.screenshot({ path: info.outputPath("quantity-grid.png") });
+  });
+  test(`adjacent expiry tabs and square crop ${width}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await setup(page);
+    await page.goto("/inventory/");
+    const expiry = page.locator(".dashboard-expiry");
+    await expect(
+      expiry.getByRole("tab", { name: "已过期", exact: true }),
+    ).toBeVisible();
+    const cards = await expiry.locator(".preview-expiry-grid").textContent();
+    await expiry.getByRole("tab", { name: "已过期", exact: true }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      expiry.getByRole("tab", { name: "未过期", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(expiry.getByRole("tabpanel")).toContainText(
+      "即将到期的供灯油",
+    );
+    expect(await expiry.locator(".preview-expiry-grid").textContent()).toBe(
+      cards,
+    );
+    await page.screenshot({ path: info.outputPath("dashboard-tabs.png") });
+    await page.goto("/inventory/items/new");
+    const dataUrl = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 80;
+      canvas.height = 160;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#28684e";
+      context.fillRect(0, 0, 80, 160);
+      return canvas.toDataURL();
+    });
+    const png = Buffer.from(dataUrl.split(",")[1]!, "base64");
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name: "供灯用品.png",
+      mimeType: "image/png",
+      buffer: png,
+    });
+    await expect(
+      page.getByRole("dialog", { name: "裁剪图片", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("保留原图（额外的原图附件）"),
+    ).not.toBeChecked();
+    await page.screenshot({ path: info.outputPath("crop-choices.png") });
+    await page.getByRole("button", { name: "使用原图", exact: true }).click();
+    const image = page.locator(".preview-attachments .async-image").first();
+    await expect(image).toBeVisible();
+    await image.scrollIntoViewIfNeeded();
+    const metrics = await image.evaluate((frame) => {
+      const img = frame.querySelector("img")!;
+      const rect = img.getBoundingClientRect();
+      return {
+        frameWidth: frame.clientWidth,
+        frameHeight: frame.clientHeight,
+        imageWidth: rect.width,
+        imageHeight: rect.height,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        fit: getComputedStyle(img).objectFit,
+      };
+    });
+    writeFileSync(
+      info.outputPath("thumbnail-metrics.json"),
+      JSON.stringify(metrics),
+    );
+    expect(metrics.imageWidth).toBeLessThanOrEqual(metrics.frameWidth + 1);
+    expect(metrics.imageHeight).toBeLessThanOrEqual(metrics.frameHeight + 1);
+    const box = await image.boundingBox();
+    expect(Math.abs(box!.width - box!.height)).toBeLessThan(1);
+    await page.screenshot({ path: info.outputPath("square-attachment.png") });
+  });
+}
+
+test("stock state and open filter survive the shared breakpoint", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await setup(page);
+  await page.goto("/inventory/stock");
+  await expect(page.locator(".stock-card")).toHaveCount(20);
+  await page.getByLabel("搜索物品或条码").fill("法会用品");
+  await page.locator(".card-checkbox input").first().check();
+  await page.getByRole("button", { name: /^筛选/ }).click();
+  await page.locator(".hierarchy-row input").first().check();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.locator(".filter-rail")).toBeVisible();
+  await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
+  await expect(page.locator(".card-checkbox input").first()).toBeChecked();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await expect(page.getByRole("dialog", { name: "筛选库存" })).toBeVisible();
+  await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
+  await page.keyboard.press("Escape");
+});
+
+test("records whether native Chromium keyboard zoom is available", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setup(page);
+  await page.goto("/inventory/stock");
+  await expect(page.locator(".stock-card")).toHaveCount(20);
+  const measure = () =>
+    page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
+  const before = await measure();
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Control+Equal");
+  const after = await measure();
+  const supported =
+    before.width !== after.width || before.ratio !== after.ratio;
+  writeFileSync(
+    info.outputPath("native-zoom.json"),
+    JSON.stringify({ before, after, supported }),
+  );
+  await info.attach("native-zoom-availability", {
+    body: JSON.stringify({
+      before,
+      after,
+      supported,
+      note: "App text-size testing is separate; unchanged metrics mean native keyboard zoom is unavailable in this headless environment.",
+    }),
+    contentType: "application/json",
+  });
+  if (supported)
+    await page.screenshot({
+      path: info.outputPath("native-keyboard-zoom.png"),
+    });
+});
+
+for (const width of [390, 1440]) {
+  test(`centered warehouse icons and readable long labels ${width}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await setup(page, 200, width === 390 ? "spacious" : "compact");
+    await page.goto("/inventory/warehouses");
+    const toggle = page.locator(".warehouse-toggle").first();
+    await expect(toggle).toBeVisible();
+    if ((await toggle.getAttribute("aria-expanded")) === "false")
+      await toggle.click();
+    await expect(page.locator(".browse-tree-type")).toBeVisible();
+    for (const selector of [".warehouse-toggle", ".browse-tree-type"]) {
+      const centered = await page
+        .locator(selector)
+        .first()
+        .evaluate((box) => {
+          const outer = box.getBoundingClientRect(),
+            icon = box.querySelector("svg")!.getBoundingClientRect();
+          return {
+            x: Math.abs(outer.x + outer.width / 2 - icon.x - icon.width / 2),
+            y: Math.abs(outer.y + outer.height / 2 - icon.y - icon.height / 2),
+          };
+        });
+      expect(centered.x).toBeLessThan(1);
+      expect(centered.y).toBeLessThan(1);
+    }
+    await toggle.hover();
+    await page.screenshot({
+      path: info.outputPath("warehouse-icons-and-labels.png"),
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBe(true);
+  });
+}
+
+test("open movement filter follows the breakpoint without losing selection", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setup(page);
+  await page.goto("/inventory/movements/records");
+  await page.getByRole("button", { name: "仓库 / 位置", exact: false }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await expect(
+    page.getByRole("dialog", { name: "筛选", exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

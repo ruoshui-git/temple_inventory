@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import { computed, ref } from "vue";
@@ -68,7 +69,7 @@ const status = computed(
 			conflict: "原生记录已更改，输入已保留",
 			deleted: "原生记录已删除",
 			forbidden: "无权访问原记录",
-			submitted: "已确认",
+			submitted: "已提交",
 			cancelled: "已取消",
 		})[state.status],
 );
@@ -87,7 +88,6 @@ async function copy(value = c.recoveryText.value) {
 	<section ref="root" class="preview-form-page">
 		<div class="form-page-heading">
 			<div>
-				<span class="eyebrow">库存核对</span>
 				<h1>{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}</h1>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
 			</div>
@@ -213,7 +213,7 @@ async function copy(value = c.recoveryText.value) {
 					>
 						<strong>{{ c.names[String(row.item_code)] || row.item_code }}</strong
 						><span
-							>{{ row.warehouse
+							>{{ warehouseLabel(row.warehouse, c.reference.warehouses)
 							}}<template v-if="row.batch_no"> · {{ row.batch_no }}</template></span
 						><span>原生账面 {{ row.current_qty ?? "未记录" }} {{ row.stock_uom }}</span
 						><label v-if="writable" class="preview-field"
@@ -324,15 +324,18 @@ async function copy(value = c.recoveryText.value) {
 			><CountSummary v-if="!deskOrigin" :rows="rows" :location="values.ti_count_warehouse" />
 			<p>{{ values.posting_date }} {{ values.posting_time }}</p>
 			<p v-if="!deskOrigin" v-for="row in rows" :key="c.countKey(row)">
-				{{ c.names[row.item_code] || row.item_code }} · {{ row.warehouse }} ·
+				{{ c.names[row.item_code] || row.item_code }} ·
+				{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
 				{{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
 				{{ row.review_state === "Unreviewed" ? "尚未核对" : row.actual_qty }}
 				{{ row.stock_uom }} · {{ row.reason }}
 			</p>
 			<div v-else v-for="(row, index) in values.items" :key="String(row.name || index)">
 				<p>
-					{{ row.item_code }} · {{ row.warehouse }} · {{ row.batch_no || "原生明细" }} ·
-					账面 {{ row.current_qty ?? "未记录" }} · 实点 {{ row.qty }} {{ row.stock_uom }}
+					{{ row.item_code }} ·
+					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
+					{{ row.batch_no || "原生明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
+					实点 {{ row.qty }} {{ row.stock_uom }}
 				</p>
 				<NativeCountAllocations :row="row" />
 			</div>

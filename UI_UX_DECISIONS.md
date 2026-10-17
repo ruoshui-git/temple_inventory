@@ -1,5 +1,58 @@
 # Temple Inventory UI/UX Decisions
 
+## Production refinement implementation — 2026-10-17
+
+The 16-item [refinement handoff](notes/20261017_UI_REFINEMENT_HANDOFF.md) is now
+implemented in production source; actual checks and remaining device/visual
+limits are recorded in the [implementation record](notes/20261017_UI_REFINEMENT_IMPLEMENTATION.md).
+This supersedes older requirements to keep context tabs/secondary controls in
+the collapsed toolbar and to maintain the separate preview application.
+
+- Compact browse chrome retains summary/count and Search, Scan, Filters, Expand;
+  complete controls leave view. Explicit expansion/collapse survives scrolling.
+- Native submitted wording is 已提交. Breadcrumb ancestors are normal guarded
+  router links; current segments do not reset their page.
+- Thumbnails are square and contain uncropped content. Image choice happens
+  before upload: square crop, crop plus explicitly selected original attachment,
+  or original alone. Originals are labeled 原图; existing files remain intact.
+  For Items, the first chosen image becomes the primary image when none exists;
+  a pending choice can be changed before save. A retained original is supplemental.
+- Dense row/allocation inspection and result analysis use wide modals. Metadata,
+  notes, conversions and recoverable inputs use styled semantic accordions.
+  Related-loan inspection is read-only with a single chooser/preview surface;
+  actions require 打开完整记录.
+- Nested contextual work replaces the current overlay stage and returns to its
+  preserved editor. Camera scanning uses ZXing-WASM exclusively; manual/hardware
+  entry remains available and camera resources stop on pause, close or unmount.
+- Loading/result/error state determines empty messages. Retained refresh content
+  has updating/stale context; warehouse labels resolve from authorized data,
+  while native identities remain unchanged and explicit in audit exports.
+- Dashboard expiry tabs filter their adjacent list; summary cards keep their own
+  drill-through scope. Hierarchies cap decoration indentation, and readable text
+  tracks/actions reflow independently from touch targets and density.
+
+
+## Production UI refinement choices — 2026-10-17
+
+The user confirmed three choices for the next implementation:
+
+- In scrolled/collapsed state, the toolbar becomes a compact page/result summary
+  and Search, Scan, Filters, Expand action row; the full controls leave view.
+- Image uploads offer a square crop or 使用原图. For a cropped upload, 保留原图
+  starts unchecked; retain the uncropped original only when explicitly selected.
+  Choosing 使用原图 uploads the original without cropping. Existing files are not
+  retroactively removed, and full-image viewing preserves natural proportions.
+- Related loans open a read-only modal preview, with a chooser for multiple links.
+  打开完整记录 navigates to the full page for actions and preserves source context.
+
+These supersede conflicting historical always-visible-toolbar and direct related-
+loan navigation treatments. The user's wider request also replaces the scanner
+disclosure with a modal using ZXing-WASM exclusively, uses 已提交 for native
+submitted status, and retires the separate preview site. The
+[implementation handoff](notes/20261017_UI_REFINEMENT_HANDOFF.md) consolidates all
+16 requests, proposed implementation defaults and acceptance criteria. Recording
+these choices does not claim that UI changes have been implemented.
+
 ## Migration closure and preview retirement decision — 2026-10-17
 
 Migration implementation, including pass 2, is accepted; historical migration
@@ -10,7 +63,7 @@ app against historical commits instead. This supersedes the gallery-maintenance
 requirement and preview-evidence workflow below. Source retirement is pending
 a separate implementation step; this documentation-only review did not remove it.
 New UI requests are being investigated, not implemented or blanket-approved here.
-See the [closure review](notes/20261017_MIGRATION_CLOSURE.md).
+See the [closure review](notes/done/20261017_MIGRATION_CLOSURE.md).
 
 **Replacement checkpoint — 2026-10-16:** Drafts distinguishes native saved records
 from this browser/account's unfinished input. Local resume opens the exact selected
@@ -18,7 +71,7 @@ editor candidate for an explicit native-state check; discard removes only its se
 revision. Counts browse contains actual native reconciliations. Setup initialization
 creates structure without stock; pointer repairs show current/replacement/impact and
 require confirmation of that exact review. These implement the consolidated handoff;
-the [progress record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md) tracks evidence
+the [progress record](notes/done/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md) tracks evidence
 and remaining acceptance work.
 
 This is the authoritative, concise record of durable UI/UX decisions. Read it
@@ -48,7 +101,7 @@ and secondary native identity/date. Native timestamp captions show site wall tim
 the minute; exact API/version values remain unchanged.
 
 Implementation and verification are recorded in the
-[review-fix record](notes/20261017_DESIGN_MIGRATION_FIXES.md).
+[review-fix record](notes/done/20261017_DESIGN_MIGRATION_FIXES.md).
 
 ## Follow-up refinements — 2026-10-17
 
@@ -63,12 +116,12 @@ preview's enabled document buttons with no activation behavior.
 
 The shared dashboard gallery defaults to realistic named records and activity
 context; missing-context fallbacks are an explicit separate service scenario.
-Evidence is in the [follow-up fix record](notes/20261017_DESIGN_MIGRATION_FOLLOWUP_FIXES.md).
+Evidence is in the [follow-up fix record](notes/done/20261017_DESIGN_MIGRATION_FOLLOWUP_FIXES.md).
 
 ## Current preview decision index — 2026-10-16
 
 **Migration supersession — 2026-10-16:** The user has locked the design-to-production
-replacement described in the [consolidated handoff](notes/20261016_DESIGN_TO_PRODUCTION_HANDOFF.md).
+replacement described in the [consolidated handoff](notes/done/20261016_DESIGN_TO_PRODUCTION_HANDOFF.md).
 That document is the single migration specification, including the requirements
 summarized here. Earlier preview-only/migration-paused restrictions do not block
 that implementation. Native ERPNext drafts plus browser-only incomplete-input
@@ -806,7 +859,7 @@ These repairs enforce existing preview contracts; they do not approve production
 
 These decisions do not approve production migration, account preferences or new
 backend behavior. Manual visual/keyboard/zoom review remains outstanding; see
-[implementation and review record](notes/20261013_DESIGN_PREVIEW_USABILITY_HANDOFF.md).
+[implementation and review record](notes/done/20261013_DESIGN_PREVIEW_USABILITY_HANDOFF.md).
 
 
 - **2026-10-13 independent usability review:** Repairs preserve the approved preview contracts: card navigation and retained status belong to the originating section; incomplete-line navigation remains available alongside document-level errors; scanner completion checks the whole draft. Hidden picker surfaces are excluded from keyboard containment and inline discard decisions receive focus. No new production behavior is approved.
@@ -823,7 +876,7 @@ backend behavior. Manual visual/keyboard/zoom review remains outstanding; see
   category/unit editors use a full-width section inside the same form and focus
   trap. These repair the approved preview contract; production migration remains
   pending. Actual checks and remaining manual review are recorded in the
-  [follow-up progress note](notes/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
+  [follow-up progress note](notes/done/20261013_DESIGN_PREVIEW_USABILITY_FOLLOWUP_PROGRESS.md).
 
 - **2026-10-14 independent follow-up clarification (UX-03/08/10):** Unfinished
   category/unit creation participates in the contextual item's discard guard.
@@ -867,7 +920,7 @@ backend behavior. Manual visual/keyboard/zoom review remains outstanding; see
   independent export format/scope.
 
 These decisions apply only to the standalone preview. See the
-[execution record](notes/20261014_DESIGN_PREVIEW_SIMPLIFICATION_PROGRESS.md) for
+[execution record](notes/done/20261014_DESIGN_PREVIEW_SIMPLIFICATION_PROGRESS.md) for
 current checks and backend requirements; production migration and final visual
 approval remain pending.
 
@@ -886,7 +939,7 @@ approval remain pending.
 
 ## Activities, reports and information display — 2026-10-15 supersession
 
-The approved [handoff](notes/20261015_DESIGN_ACTIVITIES_REPORTS_HANDOFF.md) supersedes
+The approved [handoff](notes/done/20261015_DESIGN_ACTIVITIES_REPORTS_HANDOFF.md) supersedes
 legacy activity enum/title identity/Open–Closed lifecycle, preview source-type and
 responsible-person fields, disabled editors used as information, five report
 families and obsolete report hashes. It also supersedes earlier Tools labels and
@@ -922,8 +975,8 @@ and 打开完整报表. XLSX defaults independently from selected content; CSV s
 one flat numeric table. Source context/filter/scroll survives cancellation.
 Preview exports remain simulated, with no production requests. Production
 requires permission-filtered complete datasets, stable traceability IDs, attachment
-references and per-account presets. See the [execution note](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md)
-and [backend specification](notes/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md).
+references and per-account presets. See the [execution note](notes/done/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md)
+and [backend specification](notes/done/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md).
 
 **2026-10-16 independent review:** Report and Activity date controls remain in
 normal flow, so mobile scrolling cannot pin a date button over other filters.
@@ -1000,7 +1053,7 @@ keeps same-account input and pending files mounted while native versions are
 rechecked; account changes clear the previous account's reference data. PWA worker
 activation waits while editors retain unsaved input or work in flight. These
 implement the consolidated handoff; remaining parity and visual acceptance are
-tracked in the [execution record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md).
+tracked in the [execution record](notes/done/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md).
 
 
 ## Native detail and review checkpoint — 2026-10-17

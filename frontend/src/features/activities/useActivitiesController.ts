@@ -15,6 +15,7 @@ import type { DatePeriod } from "../../lib/browseQuery";
 import { decodeReportQuery } from "../../lib/reportQuery";
 import { scopeFilterChips } from "../../lib/filterPresentation";
 import { reportFilterChips } from "../../lib/reportFilters";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { movementLabels } from "../../lib/filterPresentation";
 import {
   useInventoryServices,
@@ -269,8 +270,16 @@ export function useActivitiesController(
       qty: row.stock_qty,
       uom: row.stock_uom,
       batch: row.batch_no,
-      from: row.source_warehouse,
-      to: row.destination_warehouse,
+      from: warehouseLabel(
+        row.source_warehouse,
+        reference.warehouses,
+        row.source_warehouse_label,
+      ),
+      to: warehouseLabel(
+        row.destination_warehouse,
+        reference.warehouses,
+        row.destination_warehouse_label,
+      ),
       loanName: String(row.original_loan || ""),
     })),
   );

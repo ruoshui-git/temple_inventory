@@ -12,9 +12,9 @@ import {
 import { newReportQuery } from "../src/lib/reportContract";
 import { createRouter, createMemoryHistory, RouterView } from "vue-router";
 import Expiry from "../src/pages/Expiry.vue";
-import PreviewExpiryBrowse from "../src/design-preview/PreviewExpiryBrowse.vue";
+import PreviewExpiryBrowse from "./support/FixtureHostExpiryBrowse.vue";
 import ExpiryBrowsePage from "../src/features/expiry/ExpiryBrowsePage.vue";
-import { resetReviewSession } from "../src/design-preview/reviewModel";
+import { resetReviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 function page(start = 0): ExpiryPageData {

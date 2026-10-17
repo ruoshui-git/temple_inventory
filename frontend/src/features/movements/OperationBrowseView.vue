@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import Scanner from "../../components/Scanner.vue";
+import Overlay from "../../components/ui/Overlay.vue";
+import RelatedLoanPreview from "../loans/RelatedLoanPreview.vue";
+import { nativeStatusLabel } from "../../lib/nativeLabels";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { siteDateTime } from "../../lib/nativeTime";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
 import { movementLabels } from "../../lib/filterPresentation";
@@ -46,7 +52,24 @@ const {
 	analysis,
 	details,
 } = c;
-const filtersOpen = ref(false);
+const filtersOpen = ref(false),
+	scanOpen = ref(false);
+const analysisOpen = ref(false),
+	quantitiesOpen = ref(false);
+const inspected = ref<OperationGroup>();
+function inspect(row: OperationGroup) {
+	inspected.value = row;
+	void c.loadDetails(row);
+}
+watch(
+	() => props.active,
+	(value) => {
+		if (!value) {
+			inspected.value = undefined;
+			c.relatedLoans.close();
+		}
+	},
+);
 const outcomeLabels: Record<string, string> = {
 	outstanding: "未归还",
 	returned: "完好归还",
@@ -60,7 +83,7 @@ const loanLabels: Record<string, string> = {
 	Settled: "已结清",
 };
 const statusLabel = (value: unknown) =>
-	Number(value) === 0 ? "草稿数量" : Number(value) === 2 ? "已取消数量" : "已确认数量";
+	Number(value) === 0 ? "草稿数量" : Number(value) === 2 ? "已取消数量" : "已提交数量";
 const dimensions: Record<string, string> = {
 	category: "类别 / 单位",
 	location: "来源位置 / 单位",
@@ -171,7 +194,17 @@ function openedRecord(row: OperationGroup) {
 			</div>
 		</header>
 		<div class="preview-activity-browse">
-			<div class="preview-browse-controls">
+			<BrowseToolbar
+				:summary="`${family === 'movements' ? '货物流动' : '借用'} · ${result.initialized ? result.total : '读取中'}`"
+				:active="active"
+				:filter-count="
+					extraChips.length +
+					scope.warehouses.length +
+					scope.categories.length +
+					scope.kinds.length
+				"
+				@scan="scanOpen = true"
+			>
 				<nav
 					class="browse-view-switch"
 					:aria-label="family === 'movements' ? '货物流动视图' : '借用视图'"
@@ -290,7 +323,7 @@ function openedRecord(row: OperationGroup) {
 					{{ records ? "笔记录" : family === "loans" ? "组物品" : "种物品" }} · 已显示
 					{{ result.rows.length }}
 				</p>
-			</div>
+			</BrowseToolbar>
 			<section
 				v-if="result.initialized"
 				class="preview-activity-summary"
@@ -302,18 +335,10 @@ function openedRecord(row: OperationGroup) {
 					{{ result.summary.item_count || 0 }} 种物品 ·
 					{{ result.summary.category_count || 0 }} 个类别</strong
 				>
-				<details>
-					<summary>
-						{{
-							family === "movements"
-								? "各类型数量"
-								: records
-									? "匹配明细当前未归还数量"
-									: "结清数量"
-						}}
-					</summary>
-					<QuantitySummary :metrics="metrics" />
-				</details>
+				<QuantitySummary :metrics="metrics.slice(0, 6)" />
+				<UiButton v-if="metrics.length > 6" @click="quantitiesOpen = true"
+					>查看数量明细</UiButton
+				>
 			</section>
 			<p v-if="result.loading" role="status">
 				{{ result.initialized ? "正在更新结果…" : "正在读取结果…" }}
@@ -326,8 +351,15 @@ function openedRecord(row: OperationGroup) {
 			</p>
 			<div class="preview-browse-body">
 				<div class="preview-browse-results">
-					<details v-if="result.initialized" class="form-section">
-						<summary>分析当前结果</summary>
+					<UiButton v-if="result.initialized" @click="analysisOpen = true"
+						>分析结果</UiButton
+					>
+					<Overlay
+						v-if="analysisOpen"
+						title="分析当前结果"
+						adaptive-creation
+						@close="analysisOpen = false"
+					>
 						<label class="preview-field"
 							>分组<select v-model="dimension">
 								<option
@@ -339,27 +371,34 @@ function openedRecord(row: OperationGroup) {
 								</option>
 							</select></label
 						>
-						<p v-for="row in analysis?.rows || []" :key="String(row.id)">
-							{{ row[analysisFields[dimension]!] || "未指定" }} ·
-							{{ familyLabel(row) }} · {{ statusLabel(row.docstatus) }} ·
-							{{ row.item_count }} 种物品 · {{ row.document_count }} 笔记录 ·
-							{{ row.stock_qty }} {{ row.stock_uom }}
-						</p>
-						<p v-if="analysis">
-							显示 {{ analysis.rows.length }} / {{ analysis.total }} 个完整分组
-						</p>
-						<p v-if="analysis?.error" role="alert">{{ analysis.error }}</p>
-						<UiButton
-							v-if="analysis && analysis.next !== null"
-							:disabled="result.stale"
-							:loading="analysis?.loading"
-							@click="c.moreAnalysis"
-							>{{ analysis?.error ? "重试加载分析" : "加载更多分析" }}</UiButton
-						>
+						<ReportTable
+							v-if="analysis"
+							:table="{
+								id: 'operation-analysis',
+								label: '完整筛选分组',
+								columns: [
+									analysisFields[dimension]!,
+									family === 'loans' ? 'outcome_key' : 'kind',
+									'docstatus',
+									'item_count',
+									'document_count',
+									'stock_qty',
+									'stock_uom',
+								],
+								rows: analysis.rows,
+							}"
+							:total="analysis.total"
+							:loading="analysis.loading"
+							:initialized="analysis.initialized"
+							:error="analysis.error"
+							@load-more="c.moreAnalysis"
+							@retry="c.moreAnalysis"
+						/>
+						<p v-else-if="result.loading" role="status">正在读取分析分组…</p>
 						<p class="muted">
 							基于完整筛选结果；一条记录涉及多个分组时，各组记录数不可相加。
 						</p>
-					</details>
+					</Overlay>
 					<template v-if="!records"
 						><ItemGroup
 							v-for="row in result.rows"
@@ -391,6 +430,7 @@ function openedRecord(row: OperationGroup) {
 								:table="details[row.id]!"
 								:total="details[row.id]!.total"
 								:loading="details[row.id]!.loading"
+								:initialized="details[row.id]!.initialized"
 								:error="details[row.id]!.error"
 								@load-more="c.loadDetails(row, true)"
 								@retry="c.loadDetails(row, details[row.id]!.initialized)"
@@ -447,11 +487,15 @@ function openedRecord(row: OperationGroup) {
 												{{ row.allocation_count }} 行分配匹配</small
 											></button
 										><UiButton
-											v-for="loan in row.whole?.original_loans"
-											:key="loan"
+											v-if="row.whole?.original_loans?.length"
 											:disabled="result.stale"
-											@click="emit('openLoan', loan)"
-											>查看借用 {{ loan }}</UiButton
+											@click="c.relatedLoans.show(row.whole.original_loans)"
+										>
+											{{
+												row.whole.original_loans.length === 1
+													? "查看关联借出"
+													: `关联借出（${row.whole.original_loans.length}）`
+											}}</UiButton
 										>
 									</td>
 									<td>
@@ -463,8 +507,16 @@ function openedRecord(row: OperationGroup) {
 											v-for="branch in row.whole?.branches"
 											:key="JSON.stringify(branch)"
 										>
-											{{ branch.source || "外部" }} →
-											{{ branch.destination || "外部" }}
+											{{
+												warehouseLabel(branch.source, reference.warehouses)
+											}}
+											→
+											{{
+												warehouseLabel(
+													branch.destination,
+													reference.warehouses,
+												)
+											}}
 										</div>
 									</td>
 									<td>
@@ -477,42 +529,14 @@ function openedRecord(row: OperationGroup) {
 									<td>
 										{{
 											row.docstatus === 1
-												? "已确认"
+												? "已提交"
 												: row.docstatus === 0
 													? "草稿"
 													: "已取消"
 										}}
-										<details
-											:data-browse-details="row.id"
-											:open="c.expanded.has(row.id)"
-											@toggle="
-												c.toggle(
-													row,
-													($event.target as HTMLDetailsElement).open,
-												)
-											"
+										<UiButton :disabled="result.stale" @click="inspect(row)"
+											>匹配分配明细</UiButton
 										>
-											<summary>匹配分配明细</summary>
-											<ReportTable
-												v-if="details[row.id]"
-												:table="details[row.id]!"
-												:total="details[row.id]!.total"
-												:loading="details[row.id]!.loading"
-												:error="details[row.id]!.error"
-												@load-more="c.loadDetails(row, true)"
-												@retry="
-													c.loadDetails(
-														row,
-														details[row.id]!.initialized,
-													)
-												"
-												@open-document="
-													(doctype, name) =>
-														!result.stale &&
-														emit('openDocument', doctype, name)
-												"
-											/>
-										</details>
 									</td>
 								</tr>
 							</tbody>
@@ -557,25 +581,9 @@ function openedRecord(row: OperationGroup) {
 								@click="emit('settle', String(row.document))"
 								>登记归还</UiButton
 							>
-							<details
-								:data-browse-details="row.id"
-								:open="c.expanded.has(row.id)"
-								@toggle="c.toggle(row, ($event.target as HTMLDetailsElement).open)"
+							<UiButton :disabled="result.stale" @click="inspect(row)"
+								>匹配分配明细</UiButton
 							>
-								<summary>匹配分配明细</summary>
-								<ReportTable
-									v-if="details[row.id]"
-									:table="details[row.id]!"
-									:total="details[row.id]!.total"
-									:loading="details[row.id]!.loading"
-									:error="details[row.id]!.error"
-									@load-more="c.loadDetails(row, true)"
-									@retry="c.loadDetails(row, details[row.id]!.initialized)"
-									@open-document="
-										(_doctype, name) => !result.stale && emit('openLoan', name)
-									"
-								/>
-							</details>
 						</article>
 					</div>
 					<div
@@ -601,5 +609,54 @@ function openedRecord(row: OperationGroup) {
 				</div>
 			</div>
 		</div>
+		<Overlay
+			v-if="inspected"
+			title="匹配分配明细"
+			:subtitle="`${inspected.document || inspected.item_name} · ${movementLabels[inspected.kind || ''] || ''} · ${inspected.date || ''} · ${nativeStatusLabel(inspected.docstatus)} · 匹配行 ${matching(inspected)} · 全单 ${quantities(inspected.whole?.quantities)}`"
+			adaptive-creation
+			@close="inspected = undefined"
+		>
+			<p v-if="result.stale" role="status">上次结果，正在更新；相关操作暂停。</p>
+			<ReportTable
+				v-if="details[inspected.id]"
+				:table="details[inspected.id]!"
+				:total="details[inspected.id]!.total"
+				:initialized="details[inspected.id]!.initialized"
+				:loading="details[inspected.id]!.loading"
+				:error="details[inspected.id]!.error"
+				:document-links="!result.stale"
+				@load-more="c.loadDetails(inspected, true)"
+				@retry="c.loadDetails(inspected, details[inspected.id]!.initialized)"
+				@open-document="
+					(doctype, name) => {
+						if (!result.stale) {
+							inspected = undefined;
+							emit('openDocument', doctype, name);
+						}
+					}
+				"
+			/>
+		</Overlay>
+		<Overlay
+			v-if="quantitiesOpen"
+			title="当前筛选数量明细"
+			adaptive-creation
+			@close="quantitiesOpen = false"
+			><QuantitySummary :metrics="metrics"
+		/></Overlay>
+		<RelatedLoanPreview
+			:controller="c.relatedLoans"
+			:disabled="result.stale"
+			@open-full="emit('openLoan', $event)"
+		/>
+		<Scanner
+			v-if="scanOpen"
+			presentation="modal"
+			@close="scanOpen = false"
+			@scan="
+				search = $event;
+				scanOpen = false;
+			"
+		/>
 	</section>
 </template>

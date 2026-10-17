@@ -16,7 +16,6 @@ import {
 import {
   presentCatalogItem,
   type CatalogItem,
-  type NativeFile,
 } from "../../lib/catalogPresentation";
 import type { StockItem } from "../../lib/stockPresentation";
 import { createNativeEditor, type NativeDocument } from "./nativeEditor";
@@ -290,12 +289,7 @@ export function useOperationEditor(props: {
         line.manufacturingDate = metadata.manufacturing_date;
       }
     }
-    if (state.identity)
-      files.load(
-        await services.call<NativeFile[]>("native_files.attachments", {
-          ...state.identity,
-        }),
-      );
+    if (state.identity) await files.fetch();
   }
   async function load(discardDirty = false) {
     loading.value = true;
@@ -494,7 +488,7 @@ export function useOperationEditor(props: {
       name,
     });
     if (loan.docstatus !== 1 || loan.kind !== "Loan")
-      throw new Error("请选择已确认的原借出记录");
+      throw new Error("请选择已提交的原借出记录");
     if (
       draft.value.items.length &&
       draft.value.loanName &&

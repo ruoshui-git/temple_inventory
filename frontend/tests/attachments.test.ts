@@ -107,6 +107,12 @@ describe("native-parent attachments", () => {
       ],
     });
     await input.trigger("change");
+    expect(c.files).toHaveLength(0);
+    const original = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent === "使用原图",
+    )!;
+    original.click();
+    await flushPromises();
     expect(c.files.map((file) => file.name)).toEqual(["photo.jpg"]);
   });
   it("requires a confirmed private URL and retries the same parent without losing bytes", async () => {
@@ -202,4 +208,35 @@ describe("native-parent attachments", () => {
     await flushPromises();
     expect(c.files[0]?.state).toBe("ready");
   });
+});
+
+it("finalizes the selected crop and retained original once, then retries primary metadata without reuploading", async () => {
+  const { c, parent, upload, primary } = setup({ imagesOnly: true });
+  upload.mockImplementation(async (file) => ({
+    ...ready,
+    name: `FILE-${file.name}`,
+    file_name: file.name,
+    file_url: `/private/files/${file.name}`,
+  }));
+  primary
+    .mockRejectedValueOnce(new Error("主图保存失败"))
+    .mockResolvedValue(undefined);
+  c.add(
+    [
+      new File(["crop"], "crop.png", { type: "image/png" }),
+      new File(["original"], "原图-photo.jpg", { type: "image/jpeg" }),
+    ],
+    true,
+  );
+  expect(c.files.map((file) => file.primary)).toEqual([true, false]);
+  parent.value = { doctype: "Item", name: "ITEM-1" };
+  await c.finalize();
+  expect(upload).toHaveBeenCalledTimes(2);
+  expect(c.files.every((file) => file.state === "ready")).toBe(true);
+  expect(c.error.value).toBe("主图保存失败");
+  await c.finalize();
+  expect(upload).toHaveBeenCalledTimes(2);
+  expect(primary).toHaveBeenLastCalledWith("FILE-crop.png");
+  await c.finalize();
+  expect(primary).toHaveBeenCalledTimes(2);
 });

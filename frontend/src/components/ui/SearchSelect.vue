@@ -241,7 +241,7 @@ defineExpose({ state });
 						{{ option.label }}<small v-if="option.detail">{{ option.detail }}</small>
 					</li>
 				</ul>
-				<p v-if="!matches.length" role="status">没有匹配的选项</p>
+				<p v-if="state === 'ready' && !matches.length" role="status">没有匹配的选项</p>
 				<button
 					v-if="!remote && !virtual && matches.length > limit"
 					type="button"
@@ -260,14 +260,6 @@ defineExpose({ state });
 					>{{ total ?? matches.length }} 个匹配选项</span
 				></template
 			>
-			<details>
-				<summary>预览选项状态</summary>
-				<select v-model="state" aria-label="选项加载状态">
-					<option value="ready">正常</option>
-					<option value="loading">加载中</option>
-					<option value="error">加载失败</option>
-				</select>
-			</details>
 		</div>
 	</div>
 </template>

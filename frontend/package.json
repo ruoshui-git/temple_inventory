@@ -11,8 +11,6 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "design:dev": "vite --config vite.preview-design.config.ts --open /design-preview.html",
-    "design:build": "vite build --config vite.preview-design.config.ts",
     "format": "prettier --write \"src/**/*.vue\"",
     "format:check": "prettier --check \"src/**/*.vue\"",
     "type-check": "vue-tsc --noEmit -p tsconfig.json",

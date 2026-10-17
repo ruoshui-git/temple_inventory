@@ -71,11 +71,14 @@ afterEach(() => {
 });
 
 describe("shared production design system", () => {
-  it("uses the same sole visual entry in production and the fixture gallery", () => {
+  it("uses the sole production visual entry after gallery retirement", () => {
     expect(read("src/main.ts")).toContain('import "./styles/app.css"');
-    expect(read("src/design-preview/main.ts")).toContain(
-      'import "../styles/app.css"',
-    );
+    expect(existsSync(resolve("design-preview.html"))).toBe(false);
+    expect(
+      Object.keys(JSON.parse(read("package.json")).scripts).some((key) =>
+        key.startsWith("design:"),
+      ),
+    ).toBe(false);
     expect(read("src/styles/app.css").match(/@import/g)).toHaveLength(4);
     for (const path of [
       "src/styles/tokens.css",
@@ -98,17 +101,6 @@ describe("shared production design system", () => {
     expect(
       production.filter((path) =>
         /\/src\/features\/(workspace|history|reconciliation|movement-overview|loan-detail)\//.test(
-          path,
-        ),
-      ),
-    ).toEqual([]);
-    const gallery = importGraph("src/design-preview/main.ts");
-    expect(gallery.some((path) => path.includes("/features/documents/"))).toBe(
-      true,
-    );
-    expect(
-      gallery.filter((path) =>
-        /\/(lib\/(api|pwa)|services\/frappeServices|services\/frappePlatform|router|App)\.(ts|vue)$/.test(
           path,
         ),
       ),

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 const port = Number(process.env.NATIVE_UI_PORT || 8080);
 export default defineConfig({
   testDir: "tests/browser",
-  testIgnore: ["**/design-preview/**", "**/native-server/**"],
+  testIgnore: ["**/native-server/**"],
   outputDir: process.env.NATIVE_UI_RESULTS || "/tmp/temple-inventory-native-ui",
   workers: 1,
   timeout: 45000,

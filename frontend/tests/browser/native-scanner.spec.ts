@@ -1,6 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { nativeUiSession } from "./fixtures/nativeUi";
 
 // Routed production scanner + real camera decoders, controlled native HTTP data.
@@ -69,21 +67,6 @@ test.beforeEach(async ({ page }) => {
         json: { message: { timestamp: "2026-10-16 12:00:00" } },
       }),
   );
-  await page.route("**/assets/frappe/**", async (route) => {
-    const relative = new URL(route.request().url()).pathname.replace(
-      "/assets/frappe/",
-      "",
-    );
-    const file = path.resolve("../..", "frappe/frappe/public", relative);
-    try {
-      await route.fulfill({
-        body: await readFile(file),
-        contentType: "application/javascript",
-      });
-    } catch {
-      await route.abort();
-    }
-  });
   await page.goto("/inventory/new/Receive?warehouse=ROOM-A");
   await expect(
     page.getByRole("heading", { name: "入库", exact: true }),
@@ -109,12 +92,14 @@ test("manual and hardware-style scans preserve input and configure the same allo
     .click();
   await expect(page.locator("[data-line-id]")).toHaveCount(1);
   await expect(page.locator("[data-line-id]")).toContainText("大米");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "扫描物品 / 批次 / 库位" }).click();
   await expect(page.getByLabel("扫描值", { exact: true })).toHaveValue(
     "6931234567890",
   );
 });
 
-for (const engine of ["ZXing-WASM", "Frappe 内置"])
+for (const engine of ["ZXing-WASM"])
   test(`${engine} decodes deterministic camera frames and releases tracks`, async ({
     page,
   }) => {
@@ -136,21 +121,10 @@ for (const engine of ["ZXing-WASM", "Frappe 内置"])
     });
     await page.getByRole("button", { name: "打开相机", exact: true }).click();
     await expect(page.locator(".scanner-camera video")).toBeVisible();
-    if (engine === "Frappe 内置") {
-      await page.getByText("识别方式", { exact: true }).click();
-      await page
-        .getByRole("button", { name: "切换识别方式", exact: true })
-        .click();
-      await expect(page.locator(".scanner-engine")).toContainText(engine);
-    }
     await page
       .getByRole("button", { name: "配置数量与库位", exact: true })
       .click({ timeout: 30000 });
     await expect(page.locator("[data-line-id]")).toHaveCount(1);
-    await page
-      .locator(".inventory-scanner")
-      .getByRole("button", { name: "关闭相机", exact: true })
-      .click();
     await expect(page.locator(".scanner-camera video")).toHaveCount(0);
     await expect
       .poll(() =>

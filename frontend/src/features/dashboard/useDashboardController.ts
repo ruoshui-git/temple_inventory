@@ -47,6 +47,7 @@ export interface DashboardRow {
   batch_no?: string;
   expiry_date?: string;
   warehouse?: string;
+  warehouse_label?: string;
   available?: number;
   stock_uom?: string;
   quantities?: { qty: number; uom: string }[];
@@ -130,6 +131,8 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     },
     () => keys.every((key) => sections[key].status !== "loading"),
   );
+  const account = reference.user;
+  let disposed = false;
   let sequence = 0;
   const scope = computed<BrowseScope>(() => ({
     ...emptyScope(),
@@ -164,13 +167,23 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
         },
         request.controller.signal,
       );
-      if (requests.get(key) !== request) return;
+      if (
+        disposed ||
+        reference.user !== account ||
+        requests.get(key) !== request
+      )
+        return;
       section.result = { ...empty(), ...result };
       section.hasResult = true;
       section.status = "ready";
       announcement.value = `${dashboardSections[key]}已更新`;
     } catch (error) {
-      if (requests.get(key) !== request) return;
+      if (
+        disposed ||
+        reference.user !== account ||
+        requests.get(key) !== request
+      )
+        return;
       section.error = error instanceof Error ? error.message : "暂时无法读取";
       section.status = "error";
     }
@@ -198,6 +211,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     },
   );
   onBeforeUnmount(() => {
+    disposed = true;
     requests.forEach((request) => request.controller.abort());
     requests.clear();
   });

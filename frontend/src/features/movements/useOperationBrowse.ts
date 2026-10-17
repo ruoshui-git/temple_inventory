@@ -1,3 +1,4 @@
+import { useRelatedLoans } from "../loans/useRelatedLoans";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   useInventoryServices,
@@ -81,6 +82,7 @@ export function useOperationBrowse(
   },
   changed: (query: ReportQuery) => void,
 ) {
+  const relatedLoans = useRelatedLoans();
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user;
@@ -448,7 +450,7 @@ export function useOperationBrowse(
   const statusChoices = computed(() =>
     props.family === "movements"
       ? [
-          ["completed", "已确认"],
+          ["completed", "已提交"],
           ["draft", "草稿"],
           ["cancelled", "已取消"],
           ...(status.value === "multiple" ? [["multiple", "多个状态"]] : []),
@@ -491,6 +493,7 @@ export function useOperationBrowse(
     cancel();
   });
   return {
+    relatedLoans,
     query,
     routeError,
     result,

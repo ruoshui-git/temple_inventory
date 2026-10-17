@@ -197,3 +197,7 @@ export function hydrateReferenceData(
     operations: result.operations,
   });
 }
+
+export function useOptionalReferenceData() {
+  return inject(referenceKey, undefined);
+}

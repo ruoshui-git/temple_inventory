@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import ConfigurationPage from "../src/features/setup/ConfigurationPage.vue";
-import PreviewSetupWorkspace from "../src/design-preview/components/PreviewSetupWorkspace.vue";
-import { fixtureConfiguration } from "../src/design-preview/fixtureConfiguration";
-import { fixtureServices } from "../src/design-preview/fixtureServices";
+import PreviewSetupWorkspace from "./support/components/FixtureHostSetupWorkspace.vue";
+import { fixtureConfiguration } from "./support/fixtureConfiguration";
+import { fixtureServices } from "./support/fixtureServices";
 import {
   createReferenceData,
   provideInventoryServices,
