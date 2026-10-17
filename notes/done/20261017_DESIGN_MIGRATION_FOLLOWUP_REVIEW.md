@@ -1,5 +1,9 @@
 # Design migration follow-up review — 2026-10-17
 
+**Closure — 2026-10-17:** Pass 2 (`d732ddc`) addresses F1–F4 in source.
+The migration implementation is now marked done; the conclusion below describes
+the earlier reviewed commit, not a current blocker. See [closure review](20261017_MIGRATION_CLOSURE.md).
+
 Review complete. Reviewed commit: `ea15227e645b9ec995c8fad1ef0208bc21230f61`.
 
 Implementation update: F1–F4 are addressed by the [follow-up fix record](20261017_DESIGN_MIGRATION_FOLLOWUP_FIXES.md). The review observations below remain the original review evidence.

@@ -1,5 +1,11 @@
 # Temple Inventory Design System
 
+**Current workflow — 2026-10-17:** Migration implementation is closed. The user
+has retired the separate preview-site workflow; review the routed production app
+and historical commits instead. Do not add gallery variants or perform ongoing
+migration work based on historical instructions below. Preview source removal
+is pending; shared production styles and components remain the design foundation.
+
 **Migration authority — 2026-10-16:** The
 [consolidated handoff](notes/20261016_DESIGN_TO_PRODUCTION_HANDOFF.md) supersedes this
 document's migration-paused, old-production-style reuse, jade-only, and permanently

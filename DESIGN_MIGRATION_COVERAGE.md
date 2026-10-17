@@ -1,5 +1,11 @@
 # Design migration capability ledger
 
+**Closed — 2026-10-17:** Migration implementation, including pass 2
+(`d732ddc`), is accepted after a brief source review. This ledger is historical
+evidence, not an ongoing work queue. The new UI requests are a separate refinement
+scope. See the [closure review](notes/20261017_MIGRATION_CLOSURE.md) for the scoped
+assessment and retained verification limits.
+
 **Follow-up fixes — 2026-10-17:** F1–F4 from the follow-up review are implemented.
 
 | Capability | Replacement and evidence |

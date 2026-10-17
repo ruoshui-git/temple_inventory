@@ -1,5 +1,17 @@
 # Temple Inventory UI/UX Decisions
 
+## Migration closure and preview retirement decision — 2026-10-17
+
+Migration implementation, including pass 2, is accepted; historical migration
+checkpoints below do not assign further migration work. The capability ledger
+is retained as evidence and no longer requires updates for each UI refinement.
+The user has withdrawn the separate design-preview site: compare the production
+app against historical commits instead. This supersedes the gallery-maintenance
+requirement and preview-evidence workflow below. Source retirement is pending
+a separate implementation step; this documentation-only review did not remove it.
+New UI requests are being investigated, not implemented or blanket-approved here.
+See the [closure review](notes/20261017_MIGRATION_CLOSURE.md).
+
 **Replacement checkpoint — 2026-10-16:** Drafts distinguishes native saved records
 from this browser/account's unfinished input. Local resume opens the exact selected
 editor candidate for an explicit native-state check; discard removes only its selected
@@ -88,8 +100,9 @@ for rationale, not as competing current rules.
 | UX-14 | Reports/Drafts use compact desktop filter dialogs and one mobile sheet; Dashboard scope and Activities secondary filters open out of flow. Applied chips and complete counts stay visible; dates retain Apply/Cancel. | Preview presentation only; existing rails/tree selection and all report queries remain intact. |
 | UX-13 | One 导出 workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速导出. Primary navigation retains 报表. Formats are independent; named views are session-local. | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
 
-Every future agent must update this index/log and the affected coverage rows with
-each durable UI refinement. A missing preview capability is not an approved removal.
+Update this decision record when a durable UI decision changes. The migration
+coverage ledger below is historical; preserve supported capabilities unless their
+removal is explicitly requested.
 
 ## Accessibility and responsive behavior
 

@@ -2,7 +2,11 @@
 
 Date: 2026-10-16
 
-Status: **Decisions locked; implementation not started by this handoff.**
+Status: **Closed — migration implementation accepted 2026-10-17, including pass 2.**
+This handoff is historical specification, not active instructions. See the
+[closure review](20261017_MIGRATION_CLOSURE.md). The original requirements and
+acceptance criteria below are preserved as history; outstanding verification
+limits are not represented as newly passing checks.
 
 Source-inspection baseline: app commit `63c7f26`, plus the existing user edits to
 `AGENTS.md`. Requirements below include the decisions made after that commit.
