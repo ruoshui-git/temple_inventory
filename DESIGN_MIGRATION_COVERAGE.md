@@ -1,7 +1,83 @@
 # Design migration capability ledger
 
+**Implementation checkpoint — 2026-10-17:** Native stock/count/Item editors,
+activities, inventory/dashboard/reports, movement/loan browse, loan details, expiry,
+shared shell/styles, account display settings, damaged-stock Pending, native
+Drafts/Counts browse, native warehouse list/detail/metadata editing and explicit
+configuration setup/repair have replacement implementations.
+Loan details preserve original allocation/batch identities; expiry facets count
+distinct Item/Batch pairs independently of location pages. The gallery renders
+these same feature components with fixtures. Backend and focused UI evidence,
+including limitations, is in the
+[progress record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md). Browse navigation
+restoration now has focused router/Chromium evidence. Native reset/seed tooling is
+implemented; the authorized reset/reseed completed on development.localhost.
+Native balance/media/schema verification passes with164 Items and0 public sample
+copies. Local automated acceptance now passes:85 native tests,308 frontend tests,21
+production browser cases,79 gallery cases plus6 post-rename regressions. Real
+server6-case integration/worker acceptance and5 reference/file/count cases pass.
+Native zoom/real devices and a committed two-successful-stock-write race remain
+unverified; rollback-only independent lock/rejection scenarios pass. This records
+local implementation evidence, not deployment or blanket manual visual approval.
+
+**Frontend retirement checkpoint — 2026-10-16:** Removed unreachable legacy production
+views/styles and workspace URL aliases after replacing their routed consumers.
+Warehouse structure guards now apply through native Desk saves as well as the app.
+Frontend contract migration is recorded explicitly in
+frontend/tests/migration-ledger.json; the full replacement suite308 passed across48
+files. All21 production browser cases and79 full gallery cases pass. Six targeted
+gallery regressions also pass after internal component alias cleanup. The gallery
+uses the production components; fixture evidence remains distinct from real HTTP.
+Current capability evidence maps as follows:
+
+| Retired surface | Shared native replacement and focused evidence |
+| --- | --- |
+| Workspace, entry detail, reconciliation | features/documents + counts; native-editor, native-operation-editor, native-count-editor; native document integration suite |
+| Inventory/expiry + old item detail | StockBrowse/ExpiryBrowse + ProductDetail; native-browse-export, native-expiry-browse, native-item-editor |
+| Movement overview/ledger, loan browse/detail | OperationBrowse + LoanDetail; native-operation-browse, native-loan-detail |
+| Workspace History/Drafts | NativeRecords; native-records + catalog native draft/count grouping |
+| Warehouse browse/detail | NativeWarehouses; native-warehouses + native Warehouse integration |
+| Old reports/shell/settings | export/Reports + AppFrame/ApplicationShell + settings; native-browse-export, native-shell, native-navigation-memory, native-application, UI preferences |
+| Old global/token/primitive/loading CSS | styles/app.css → foundation/forms/utilities/browse; shared production/gallery builds,79 full gallery cases and directly inspected CJK screenshots |
+
+**Backend retirement checkpoint — 2026-10-16:** Removed old workspace/custom-loan
+modules, DocTypes, links, fallback fields and adoption patches from source after
+consumer audit. The authorized development reset removed the retired installed schema. All85 native
+integration cases pass, including164-Item seed installation under rollback, media
+safeguards and multi-batch Desk count/cancel provenance. Real native HTTP navigation,
+private files and164-row CSV/XLSX workers pass. Separate HTTP connections verify
+retry-safe creation and competing version saves. Four separate-connection, rollback-only
+scenarios verify stock/count locks, overdraw/over-settlement rejection, and Activity
+link/delete guards. Committed stock races and real devices/native zoom are separate
+limits. The automated browser matrix passes; representative screenshots were
+directly inspected at all four widths, all densities and100/150/200 text, plus
+all themes and intermediate text sizes.
+
+| Retired backend capability | Native replacement / evidence |
+| --- | --- |
+| Workspace writes, request/revision identity, stock lifecycle | native_api/native_stock; native document suite, recovery and native editor tests |
+| Custom Loan/Return/Loss ledgers and browse | native child provenance + native_balances/report_sources; native document/catalog/report suites |
+| Old inventory/setup/warehouse helpers and fallback roles | catalog/configuration/native_topology/warehouses; catalog, setup and Desk warehouse suites |
+| Five old report/export contracts | six typed native datasets and native Frappe export jobs; report suite: actual164-row CSV/XLSX workers;1,005-allocation projection/writers; disabled-account/revoked-role worker failures; actual RQ scope164 rows;1,005-row queue benchmark not executed |
+| Old sample imports/transactions/structure | native_samples + sample_install; all9 kinds, compatible partial loans, real count and native balance assertions under rollback |
+| Reset's unbounded file leftovers | sample_media inventory/hash checks/exact paths/shared-file preservation; read-only site inventory and filesystem regressions |
+| Old attachment/image components | shared Attachments/ItemImage + native parent services; migrated29-test editor/file/image subset and backend File permission tests |
+
+**Migration specification — 2026-10-16:** Use the
+[consolidated handoff](notes/20261016_DESIGN_TO_PRODUCTION_HANDOFF.md) as the single
+implementation specification. It incorporates this ledger and the detailed
+Activities/Reports and conversion requirements, including those archived under
+`notes/done/`. Historical rows below record the pre-migration preview baseline; the checkpoints
+above and progress record describe current implementation and its limits.
+The handoff supersedes paused-migration restrictions and narrows reset authority
+to `development.localhost`. Browser-only incomplete-input recovery replaces
+server workspaces; matching counts create no server record. Native reconciliation
+metadata retains review context when an actual adjustment exists. Shared gallery, account theme/text preferences and real service integration now
+have implementations and passing local automated acceptance. The verification
+limits above remain explicit.
+
 Authority: [UI decisions](UI_UX_DECISIONS.md). Preview implementation progress:
-[resumable checkpoint](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md).
+[resumable checkpoint](notes/done/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md).
 
 ## Migration policy
 
@@ -185,7 +261,7 @@ recorded in the execution note; backend requirements above remain outstanding.
 
 The [backend specification](notes/20261015_ACTIVITIES_REPORTS_BACKEND_REQUIREMENTS.md)
 records source-inspection gaps and coordinated removal requirements. The
-[execution note](notes/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md) records actual
+[execution note](notes/done/20261015_DESIGN_ACTIVITIES_REPORTS_PROGRESS.md) records actual
 commands, screenshots and unverified cases. Production migration remains pending.
 
 The [independent review](notes/20261016_DESIGN_ACTIVITIES_REPORTS_REVIEW.md) adds

@@ -1,11 +1,31 @@
 # Temple Inventory UI/UX Decisions
 
+**Replacement checkpoint — 2026-10-16:** Drafts distinguishes native saved records
+from this browser/account's unfinished input. Local resume opens the exact selected
+editor candidate for an explicit native-state check; discard removes only its selected
+revision. Counts browse contains actual native reconciliations. Setup initialization
+creates structure without stock; pointer repairs show current/replacement/impact and
+require confirmation of that exact review. These implement the consolidated handoff;
+the [progress record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md) tracks evidence
+and remaining acceptance work.
+
 This is the authoritative, concise record of durable UI/UX decisions. Read it
 before changing user-facing behavior. A current user instruction may supersede
 an older rule, but the conflict must be identified explicitly and recorded here
 in the same change. Keep implementation details in code or task notes, not here.
 
 ## Current preview decision index — 2026-10-16
+
+**Migration supersession — 2026-10-16:** The user has locked the design-to-production
+replacement described in the [consolidated handoff](notes/20261016_DESIGN_TO_PRODUCTION_HANDOFF.md).
+That document is the single migration specification, including the requirements
+summarized here. Earlier preview-only/migration-paused restrictions do not block
+that implementation. Native ERPNext drafts plus browser-only incomplete-input
+recovery replace server workspaces; entirely matching counts create no server
+record. All three themes become account settings with jade/balanced/100% defaults.
+The gallery will share production components. Only `development.localhost` may be
+reset/reseeded; delivery ends at local acceptance. These are approved targets,
+not evidence of implemented backend behavior or completed visual verification.
 
 These approved **preview targets** supersede conflicting earlier proposals below;
 production enforcement is unchanged. See [migration coverage](DESIGN_MIGRATION_COVERAGE.md)
@@ -917,3 +937,37 @@ labels and groups also use 导出. Desktop and mobile primary navigation retain
 报表 as the destination name. This makes the download intent explicit while
 preserving scope, filtering, reset semantics and simulated-export messaging.
 Production UI and export APIs are unchanged.
+
+## Replacement implementation checkpoint — 2026-10-16
+
+The shared native loan detail displays original child/batch identities and current
+settlement balances; subsequent normal/damaged Returns and separate Loss actions
+start fresh operations. Expiry counts distinguish Item/Batch identities from
+location allocations and keep the selected inclusive date scope. Session recovery
+keeps same-account input and pending files mounted while native versions are
+rechecked; account changes clear the previous account's reference data. PWA worker
+activation waits while editors retain unsaved input or work in flight. These
+implement the consolidated handoff; remaining parity and visual acceptance are
+tracked in the [execution record](notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md).
+
+
+## Native detail and review checkpoint — 2026-10-17
+
+Native Stock Entry duplication creates a new draft with fresh identity and children,
+retains the recorded unit factor, and requires files to be added explicitly. The
+confirmation explains this before creation. Long native document identifiers wrap
+at large text sizes. The complete movement review states overall Item/allocation/
+mixed-unit totals before its location groups, including all55 large-sample rows.
+Desk-origin multi-batch counts display their recorded book, actual (including zero)
+and variance per Batch; cancellation preserves this historical context. No complete
+location review is inferred for Desk records. These implement the existing handoff;
+full browser/visual acceptance remains in the execution record.
+
+
+The shared expanded editor keeps its measured action bar above mobile navigation;
+review groups retain only explicit user disclosure choices during asynchronous
+loading. Primary-image selection reuses the uploaded private native File and links
+its image field, so subsequent metadata saves do not create duplicate attachments.
+These are repairs to the existing editor/file contracts, not new workflows. The
+full79-case gallery audit and21 production browser cases now pass; current native
+service evidence and remaining verification limits are in the execution record.

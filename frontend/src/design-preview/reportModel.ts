@@ -21,154 +21,25 @@ import {
   activityMovementCounts,
   relatedActivityRecords,
 } from "./activityModel";
-export type ReportDataset =
-  "inventory" | "expiry" | "movements" | "loans" | "activities" | "counts";
-export type ReportRow = Record<string, string | number | boolean>;
-export interface ReportTable {
-  id: string;
-  label: string;
-  columns: string[];
-  rows: ReportRow[];
-}
-export interface ReportDefinition {
-  label: string;
-  views: { id: string; label: string }[];
-  groups: string[];
-  dateLabel: string;
-}
-export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
-  inventory: {
-    label: "库存",
-    views: [
-      { id: "summary", label: "物品汇总" },
-      { id: "locations", label: "库位 / 批次明细" },
-      { id: "historical", label: "历史数量余额" },
-    ],
-    groups: ["item", "category", "location"],
-    dateLabel: "历史记账日期",
-  },
-  expiry: {
-    label: "效期 / 批次",
-    views: [{ id: "batches", label: "批次 / 库位" }],
-    groups: ["item", "category", "location"],
-    dateLabel: "到期日期",
-  },
-  movements: {
-    label: "货物流动",
-    views: [
-      { id: "summary", label: "流动汇总" },
-      { id: "records", label: "单据记录" },
-      { id: "lines", label: "分配明细" },
-    ],
-    groups: ["item", "category", "location", "kind", "activity", "month"],
-    dateLabel: "记账日期",
-  },
-  loans: {
-    label: "借用",
-    views: [
-      { id: "records", label: "借用记录" },
-      { id: "outcomes", label: "物品 / 处理结果" },
-      { id: "settlements", label: "结算明细" },
-    ],
-    groups: ["item", "activity", "borrower", "month"],
-    dateLabel: "借出日期 · 余额为当前结算状态",
-  },
-  activities: {
-    label: "活动",
-    views: [
-      { id: "metadata", label: "活动资料" },
-      { id: "records", label: "关联记录" },
-      { id: "loans", label: "借用结余" },
-    ],
-    groups: ["activity", "kind"],
-    dateLabel: "活动开始日期",
-  },
-  counts: {
-    label: "盘点",
-    views: [
-      { id: "records", label: "盘点记录" },
-      { id: "lines", label: "盘点差异明细" },
-    ],
-    groups: ["item", "location", "month"],
-    dateLabel: "盘点 / 记账日期",
-  },
-};
-export const groupLabels: Record<string, string> = {
-  none: "不分组",
-  item: "物品",
-  category: "类别",
-  location: "库位",
-  kind: "流动类型",
-  activity: "活动",
-  borrower: "借用方",
-  month: "月份",
-};
-export interface ReportQuery {
-  dataset: ReportDataset;
-  view: string;
-  scope: BrowseScope;
-  search: string;
-  grouping: string;
-  sort: "asc" | "desc";
-  sortBy: "identity" | "date" | "modified" | "quantity" | "name";
-  statuses: number[];
-  includeZero: boolean;
-  includeUndated: boolean;
-  activityStatus: "all" | "active" | "archived";
-  typeId: string;
-  record: string;
-  loan: string;
-  itemCodes: string[];
-  restrictItems: boolean;
-  itemLocationKeys: string[];
-  relatedPeriod: import("./browseModel").PreviewPeriod;
-  relatedSearch: string;
-  loanStatus: string;
-  loanOutcome: string;
-  expiryWindow: string;
-  countReviewed: string;
-  allocationKeys: string[];
-  restrictAllocations: boolean;
-  damageOnly: boolean;
-  activityKind: string;
-  relatedPresence: string;
-  outstandingOnly: boolean;
-}
-export function newReportQuery(
-  dataset: ReportDataset = "inventory",
-): ReportQuery {
-  return {
-    dataset,
-    view: reportDefinitions[dataset].views[0]!.id,
-    scope: emptyScope(),
-    search: "",
-    grouping: "none",
-    sort: "asc",
-    sortBy: "identity",
-    statuses: [1],
-    includeZero: false,
-    includeUndated: true,
-    activityStatus: "all",
-    typeId: "",
-    record: "",
-    loan: "",
-    itemCodes: [],
-    restrictItems: false,
-    itemLocationKeys: [],
-    relatedPeriod: { key: "all", from: "", to: "" },
-    relatedSearch: "",
-    loanStatus: "all",
-    loanOutcome: "all",
-    expiryWindow: "period",
-    countReviewed: "all",
-    allocationKeys: [],
-    restrictAllocations: false,
-    damageOnly: false,
-    activityKind: "",
-    relatedPresence: "all",
-    outstandingOnly: false,
-  };
-}
+import {
+  reportDefinitions,
+  newReportQuery,
+  type ReportDataset,
+  type ReportRow,
+  type ReportTable,
+  type ReportDefinition,
+  type ReportQuery,
+} from "../lib/reportContract";
+export {
+  reportDefinitions,
+  newReportQuery,
+  groupLabels,
+  type ReportDataset,
+  type ReportRow,
+  type ReportTable,
+  type ReportDefinition,
+  type ReportQuery,
+} from "../lib/reportContract";
 export const reportStates = reactive(
   Object.fromEntries(
     (Object.keys(reportDefinitions) as ReportDataset[]).map((dataset) => [
@@ -275,6 +146,8 @@ function movementLines(
         (!query.scope.activity ||
           related ||
           row.activity === query.scope.activity) &&
+        (query.includeAdjustments ||
+          !["Opening", "Reconcile"].includes(row.kind)) &&
         (!query.scope.kinds.length || query.scope.kinds.includes(row.kind)) &&
         (!query.record || row.name === query.record) &&
         (!query.loan ||
@@ -408,6 +281,8 @@ export const historicalEvents = [
   },
 ].map((event) => ({
   ...event,
+  documentType:
+    event.documentId === "HIST-COUNT" ? "Stock Reconciliation" : "Stock Entry",
   reversalOf: event.id === "LED-6" ? "HIST-CANCELLED" : "",
   status:
     event.id === "LED-5"
@@ -513,6 +388,7 @@ export function historicalBalances(
 }
 function groupRows(rows: ReportRow[], grouping: string): ReportRow[] {
   const grouped = new Map<string, ReportRow>();
+  const itemSets = new Map<string, Set<string>>();
   const field =
     (
       {
@@ -564,6 +440,10 @@ function groupRows(rows: ReportRow[], grouping: string): ReportRow[] {
       lines: 0,
     };
     result.lines = Number(result.lines) + 1;
+    const items = itemSets.get(key) || new Set<string>();
+    if (row.itemId) items.add(String(row.itemId));
+    itemSets.set(key, items);
+    result.itemCount = items.size;
     for (const quantity of [
       "stockQty",
       "available",
@@ -645,7 +525,15 @@ export function projectReport(
     extra.push(table("ledger", "贡献单据", history.events));
   } else if (dataset === "inventory" || dataset === "expiry") {
     const details = filterText(
-      session.stock
+      (query.scope.activity ||
+      query.scope.kinds.length ||
+      query.scope.sources.length ||
+      query.scope.destinations.length ||
+      query.record ||
+      query.loan
+        ? []
+        : session.stock
+      )
         .filter((item) => itemMatches(item.code))
         .flatMap((item) => {
           const places = item.locations.length
@@ -661,29 +549,41 @@ export function projectReport(
                 (!item.tracksBatch || !place.batches?.length)
               )
                 return [];
+              const known = (place.batches || []).reduce(
+                (totals, batch) => ({
+                  available: totals.available + Number(batch.available || 0),
+                  loaned:
+                    totals.loaned +
+                    Number((batch as { loaned?: number }).loaned || 0),
+                  damaged: totals.damaged + Number(batch.damaged || 0),
+                }),
+                { available: 0, loaned: 0, damaged: 0 },
+              );
+              const unassigned = {
+                id: "",
+                expiry: "",
+                available: Math.max(0, place.available - known.available),
+                loaned: Math.max(0, place.loaned - known.loaned),
+                damaged: Math.max(0, place.damaged - known.damaged),
+              };
               const batches =
                 item.tracksBatch && place.batches?.length
                   ? [
                       ...place.batches,
-                      ...(dataset === "inventory" && place.loaned
-                        ? [
-                            {
-                              id: "",
-                              available: 0,
-                              damaged: 0,
-                              loaned: place.loaned,
-                              expiry: "",
-                            },
-                          ]
+                      ...(dataset === "inventory" &&
+                      unassigned.available +
+                        unassigned.loaned +
+                        unassigned.damaged
+                        ? [unassigned]
                         : []),
                     ]
                   : [
                       {
                         id: "",
-                        available: place.available,
-                        damaged: place.damaged,
-                        loaned: place.loaned,
                         expiry: "",
+                        available: place.available,
+                        loaned: place.loaned,
+                        damaged: place.damaged,
                       },
                     ];
               return batches.map((batch) => ({
@@ -717,6 +617,9 @@ export function projectReport(
         .filter(
           (row) =>
             (!query.restrictAllocations ||
+              query.allocationKeys.includes(
+                JSON.stringify([row.itemId, row.locationId, row.batchId]),
+              ) ||
               query.allocationKeys.includes(
                 `${row.itemId}/${row.locationId}/${row.batchId}`,
               )) &&
@@ -1336,6 +1239,9 @@ function referencedWarehouses(tables: ReportTable[], session: ReviewSession) {
   return names;
 }
 export function matchesReportExpiry(expiry: string, query: ReportQuery) {
+  if (expiry && !inPeriod(expiry, query.scope.period)) return false;
+  if (!expiry && (!query.includeUndated || query.scope.period.key !== "all"))
+    return false;
   if (!expiry)
     return (
       query.expiryWindow === "undated" ||
@@ -1345,6 +1251,7 @@ export function matchesReportExpiry(expiry: string, query: ReportQuery) {
     );
   if (query.expiryWindow === "undated") return false;
   if (query.expiryWindow === "expired") return expiry < previewDate;
+  if (query.expiryWindow === "unexpired") return expiry >= previewDate;
   const next = /^next_(\d+)$/.exec(query.expiryWindow);
   if (next) {
     const days = (Date.parse(expiry) - Date.parse(previewDate)) / 86400000;

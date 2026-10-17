@@ -1,0 +1,58 @@
+{
+  "doctype": "DocType",
+  "name": "Inventory Activity Type",
+  "module": "Temple Inventory",
+  "fields": [
+    {
+      "fieldname": "label",
+      "fieldtype": "Data",
+      "label": "名称",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "label": "启用",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "display_order",
+      "fieldtype": "Int",
+      "label": "显示顺序",
+      "default": "0"
+    }
+  ],
+  "field_order": [
+    "label",
+    "enabled",
+    "display_order"
+  ],
+  "permissions": [
+    {
+      "role": "Stock User",
+      "read": 1
+    },
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ],
+  "track_changes": 1,
+  "autoname": "hash",
+  "title_field": "label",
+  "sort_field": "display_order",
+  "sort_order": "ASC"
+}

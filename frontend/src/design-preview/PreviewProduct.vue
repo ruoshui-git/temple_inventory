@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AsyncImage from "./components/PreviewAsyncImage.vue";
+import AsyncImage from "../components/ui/AsyncImage.vue";
 import type { StockItem } from "./model";
 defineProps<{ kind: StockItem["illustration"]; name: string }>();
 </script>

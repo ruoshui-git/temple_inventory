@@ -21,13 +21,23 @@ fixtures = [
 ]
 
 doc_events = {
+	"*": {
+		"before_validate": "temple_inventory.activities.lock_document_references",
+		"before_submit": "temple_inventory.native_balances.lock_stock_locations",
+	},
 	"Stock Entry": {
-		"before_validate": "temple_inventory.stock.protect_workspace_entry",
-		"on_cancel": "temple_inventory.stock.propagate_stock_entry_cancellation",
+		"before_validate": "temple_inventory.native_stock.before_validate",
+		"before_submit": "temple_inventory.native_stock.before_submit",
+		"before_cancel": "temple_inventory.native_stock.before_cancel",
+	},
+	"Stock Reconciliation": {
+		"before_validate": "temple_inventory.counts.before_validate",
+		"before_submit": "temple_inventory.counts.before_validate",
 	},
 	"Warehouse": {
-		"after_insert": "temple_inventory.inventory_api.sync_desk_warehouse_allowlist",
-		"on_update": "temple_inventory.inventory_api.sync_desk_warehouse_allowlist",
+		"validate": "temple_inventory.warehouses.validate_native_warehouse",
+		"after_insert": "temple_inventory.native_topology.sync_desk_warehouse_allowlist",
+		"on_update": "temple_inventory.native_topology.sync_desk_warehouse_allowlist",
 	},
 }
 
@@ -43,7 +53,7 @@ add_to_apps_screen = [
 		"logo": "/assets/temple_inventory/logo.png",
 		"title": "物资管理",
 		"route": "/inventory",
-		"has_permission": "temple_inventory.api.has_app_permission"
+		"has_permission": "temple_inventory.api.has_app_permission",
 	}
 ]
 
@@ -290,8 +300,13 @@ add_to_apps_screen = [
 # ignore_translatable_strings_from = []
 
 
-has_permission = {"Inventory Workspace": "temple_inventory.workspace_permissions.has_permission"}
-permission_query_conditions = {"Inventory Workspace": "temple_inventory.workspace_permissions.query_conditions"}
+has_permission = {
+	"File": "temple_inventory.native_files.file_permission",
+	"Inventory Export Request": "temple_inventory.exports.request_permission",
+}
+permission_query_conditions = {
+	"Inventory Export Request": "temple_inventory.exports.request_query",
+}
 
 extend_doctype_class = {
 	"File": ["temple_inventory.file.InventoryFileMixin"],

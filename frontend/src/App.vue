@@ -1,169 +1,131 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
-import { FrappeUIProvider } from "frappe-ui";
-import { api, refreshSession, sessionExpired } from "./lib/api";
-import { routeInstanceKey } from "./lib/navigation";
-import { applyUpdate, registerPwa, updateAvailable } from "./lib/pwa";
 import ApplicationShell from "./components/ApplicationShell.vue";
-import ToastHost from "./components/ToastHost.vue";
-
-const route = useRoute();
-const status = ref<any>();
-const checking = ref(true);
-const error = ref("");
-const selectedCompany = ref("");
-const setupBusy = ref(false);
-const repairBusy = ref(false);
-const contentKey = ref(0);
-const contentRouteKey = computed(() => routeInstanceKey(route.path, contentKey.value));
-const focusedFlow = () => /^\/(new|workspace|entry)\//.test(route.path);
-
-async function check() {
-	checking.value = true;
-	error.value = "";
-	try {
-		const value = await api("initialization_status");
-		status.value = value;
-		selectedCompany.value = value.selected_company || "";
-	} catch (e: any) {
-		status.value = { setup_required: true, blockers: [{ message: e.message }], warnings: [] };
-	} finally {
-		checking.value = false;
-	}
-}
-
-async function initialize(includeExamples: boolean) {
-	if (!selectedCompany.value) return;
-	setupBusy.value = true;
-	error.value = "";
-	try {
-		await api("initialize_warehouses", {
-			company: selectedCompany.value,
-			include_examples: includeExamples ? 1 : 0,
-		});
-		await check();
-		contentKey.value++;
-	} catch (e: any) {
-		error.value = e.message;
-	} finally {
-		setupBusy.value = false;
-	}
-}
-
-async function repair() {
-	repairBusy.value = true;
-	error.value = "";
-	try {
-		await api("repair_settings");
-		await check();
-		contentKey.value++;
-	} catch (e: any) {
-		error.value = e.message;
-	} finally {
-		repairBusy.value = false;
-	}
-}
-
-async function resume() {
-	try {
-		await refreshSession();
-		await check();
-	} catch (e: any) {
-		error.value = e.message;
-	}
-}
-
-onMounted(() => {
-	void check();
-	void registerPwa();
+import UiButton from "./components/ui/UiButton.vue";
+import Overlay from "./components/ui/Overlay.vue";
+import ConfigurationPage from "./features/setup/ConfigurationPage.vue";
+import { createReferenceData, provideInventoryServices } from "./services/contracts";
+import { frappeServices } from "./services/frappeServices";
+import { useApplication } from "./features/application/useApplication";
+import { updateAvailable } from "./lib/pwa";
+import { createBrowseMemory, provideBrowseMemory } from "./lib/browseMemory";
+const route = useRoute(),
+	reference = createReferenceData();
+const pageIdentity = computed(() => {
+	// Query replacement keeps the editor/controller; Back/Forward and a fresh
+	// navigation to the same path own separate UI state in browser history.
+	void route.fullPath;
+	const position = typeof window === "undefined" ? 0 : window.history.state?.position || 0;
+	return `${reference.site}:${reference.user}:${route.path}:${position}`;
 });
+const browseMemory = createBrowseMemory(() => pageIdentity.value);
+watch(pageIdentity, () => browseMemory.activate(), { immediate: true });
+const services = browseMemory.wrap(frappeServices);
+provideInventoryServices(services, reference);
+provideBrowseMemory(browseMemory);
+const c = useApplication(reference, services),
+	{ state, resuming, sessionExpired } = c;
+const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 </script>
-
 <template>
-	<FrappeUIProvider>
-		<main v-if="checking" class="app-shell"><p>正在检查库存系统配置…</p></main>
-		<main v-else-if="status?.setup_required" class="app-shell">
-			<header><h1>物资管理需要先完成设置</h1></header>
-			<ul>
-				<li v-for="issue in status.blockers || []" :key="issue.code">
-					{{ issue.message }}
-				</li>
-			</ul>
-			<template v-if="status?.is_manager">
-				<template v-if="status?.companies?.length">
-					<label
-						>公司
-						<select v-model="selectedCompany">
-							<option value="">请选择公司</option>
-							<option
-								v-for="company in status.companies"
-								:key="company"
-								:value="company"
-							>
-								{{ company }}
-							</option>
-						</select>
-					</label>
-					<template v-if="selectedCompany">
-						<p>可只建立可立即使用的基础仓库，也可同时创建寺院与房间示例结构。</p>
-						<button class="primary" :disabled="setupBusy" @click="initialize(false)">
-							{{ setupBusy ? "正在建立…" : "仅建立必需仓库" }}
-						</button>
-						<button :disabled="setupBusy" @click="initialize(true)">
-							建立必需仓库和示例结构
-						</button>
-					</template>
-				</template>
-				<p v-else>请先安装 ERPNext 并在 ERPNext 中创建公司，然后重新检查。</p>
-			</template>
-			<p v-else>请联系系统管理员完成 ERPNext、公司和仓库设置。</p>
-			<p>
-				<a href="/app/company" target="_blank">打开 ERPNext 公司</a> ·
-				<a href="/app/installed-applications" target="_blank">已安装应用</a>
-			</p>
-			<button @click="check">重新检查</button>
-			<p v-if="error" class="error">{{ error }}</p>
+	<div class="inventory-app" data-inventory-app>
+		<main v-if="state.gate === 'loading'" class="sample-content">
+			<p role="status">正在检查登录与库存配置…</p>
+		</main>
+		<main v-else-if="state.gate === 'login'" class="sample-content">
+			<section class="surface form-section">
+				<h1>请登录物资管理</h1>
+				<p>请使用有物资管理权限的账户登录。</p>
+				<a href="/login?redirect-to=%2Finventory">打开登录页面</a
+				><UiButton :loading="state.loading" @click="c.check">重新检查登录</UiButton>
+			</section>
+		</main>
+		<main
+			v-else-if="state.gate === 'forbidden' || state.gate === 'error'"
+			class="sample-content"
+		>
+			<section class="surface form-section">
+				<h1>
+					{{
+						state.gate === "forbidden"
+							? "当前账户无权使用物资管理"
+							: "暂时无法读取物资管理"
+					}}
+				</h1>
+				<p role="alert">{{ state.error }}</p>
+				<UiButton :loading="state.loading" @click="c.check">重新检查</UiButton
+				><a href="/login?redirect-to=%2Finventory">切换登录账户</a>
+			</section>
+		</main>
+		<main v-else-if="state.gate === 'setup'" class="sample-content">
+			<ConfigurationPage @changed="c.check" />
 		</main>
 		<template v-else>
-			<section v-if="status?.warnings?.length" class="configuration-warning" role="alert">
-				<p>
-					<b>库存设置需要注意：</b>
-					{{ status.warnings.map((issue: any) => issue.message).join("；") }}
-				</p>
-				<button
-					v-if="status.can_repair"
-					class="primary"
-					:disabled="repairBusy"
-					@click="repair"
+			<ApplicationShell>
+				<section
+					v-if="state.error && !sessionExpired"
+					class="notice-bar danger"
+					role="alert"
 				>
-					{{ repairBusy ? "正在自动修复…" : "自动修复" }}
-				</button>
-				<p v-else>请联系系统管理员处理这些设置。</p>
-				<p v-if="error" class="error">{{ error }}</p>
-			</section>
-			<ApplicationShell v-if="!focusedFlow()"
-				><RouterView :key="contentRouteKey"
-			/></ApplicationShell>
-			<RouterView v-else :key="contentRouteKey" />
-		</template>
-		<div v-if="sessionExpired" class="modal auth-modal" role="alertdialog" aria-modal="true">
-			<section>
-				<h2>请重新登录</h2>
+					<p>{{ state.error }}</p>
+					<UiButton :loading="state.loading" @click="c.check">重新检查</UiButton>
+				</section>
+				<section
+					v-if="state.status?.setup_required"
+					class="notice-bar warning"
+					role="alert"
+				>
+					<p>库存配置已变化，当前输入保留。请先检查库存设置。</p>
+					<p v-for="issue in state.status.blockers" :key="issue.code">
+						{{ issue.message }}
+					</p>
+					<a href="/app/temple-inventory-settings" target="_blank" rel="noopener"
+						>打开库存设置</a
+					>
+				</section>
+				<section
+					v-if="state.status?.warnings.length"
+					class="notice-bar warning"
+					role="status"
+				>
+					<p>{{ state.status.warnings.map((issue) => issue.message).join("；") }}</p>
+					<a href="/app/temple-inventory-settings" target="_blank" rel="noopener"
+						>检查库存设置</a
+					><UiButton :loading="state.loading" @click="c.check">重新检查</UiButton>
+				</section>
+				<RouterView :key="contentKey" />
+				<section v-if="updateAvailable" class="notice-bar" role="status">
+					<p>
+						{{
+							c.updateBlocked.value
+								? "发现新版本，请先保存或完成当前输入后更新。"
+								: "发现新版本，可以更新。"
+						}}
+					</p>
+					<UiButton :disabled="c.updateBlocked.value" @click="c.update"
+						>更新并重新加载</UiButton
+					>
+				</section>
+			</ApplicationShell>
+			<Overlay
+				v-if="sessionExpired || resuming || state.accessBlocked"
+				:title="state.accessBlocked ? '当前账户无法继续访问' : '请重新登录'"
+				:dismissible="false"
+			>
 				<p>未保存的输入仍保留在此窗口。请在新窗口登录后返回继续保存。</p>
+				<p v-if="state.accessBlocked">
+					请先核对账户与库存权限，再重新验证。当前窗口保留输入与待上传文件。
+				</p>
 				<a
 					href="/login?redirect-to=%2Finventory%2Fauth-complete"
 					target="_blank"
 					rel="noopener"
-					>打开 Frappe 登录</a
-				><button @click="resume">继续保存</button>
-				<p v-if="error" class="error">{{ error }}</p>
-			</section>
-		</div>
-		<div v-if="updateAvailable" class="pwa-update" role="alert">
-			<span>发现新版本，保存完成后可以更新。</span
-			><button class="primary" @click="applyUpdate">更新并重新加载</button>
-		</div>
-		<ToastHost />
-	</FrappeUIProvider>
+					>打开登录页面</a
+				>
+				<UiButton :loading="resuming" @click="c.resume">继续保存</UiButton>
+				<p v-if="state.error" role="alert">{{ state.error }}</p>
+			</Overlay>
+		</template>
+	</div>
 </template>

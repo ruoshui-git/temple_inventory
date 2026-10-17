@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Recreate a disposable Frappe site, then synchronously install Temple Inventory samples.
+# Recreate development.localhost, then synchronously install native inventory samples.
 set -Eeuo pipefail
 
 usage() {
 	cat <<'USAGE'
 Usage: reset-development-samples --site SITE [options]
 
-This permanently erases the complete SITE database. It is intended for disposable sites.
+This permanently erases development.localhost. Other site names are rejected.
 
 Options:
 	--site SITE                 Required exact site name.
@@ -18,8 +18,8 @@ Options:
   --fiscal-year-start DATE    Default: current-year-01-01
   --fiscal-year-end DATE      Default: current-year-12-31
   --db-root-username NAME     Default: MARIADB_ROOT_USERNAME or root
-  --db-root-password PASSWORD Default: MARIADB_ROOT_PASSWORD or 123
-  --admin-password PASSWORD   Default: ADMIN_PASSWORD or admin
+  --db-root-password PASSWORD Required unless MARIADB_ROOT_PASSWORD is provided.
+  --admin-password PASSWORD   Optional temporary reinstall credential; existing password is preserved.
 	--allow-non-developer       Permit sites without developer_mode=1.
 	--yes-i-understand-this-is-destructive
 															Required with --allow-non-developer.
@@ -37,8 +37,8 @@ current_year=$(date -u +%Y)
 fiscal_year_start="${current_year}-01-01"
 fiscal_year_end="${current_year}-12-31"
 db_root_username="${MARIADB_ROOT_USERNAME:-root}"
-db_root_password="${MARIADB_ROOT_PASSWORD:-123}"
-admin_password="${ADMIN_PASSWORD:-admin}"
+db_root_password="${MARIADB_ROOT_PASSWORD:-}"
+admin_password="${ADMIN_PASSWORD:-}"
 allow_non_developer=0
 destructive_ack=0
 
@@ -64,6 +64,16 @@ done
 
 if [[ ! "$site" =~ ^[A-Za-z0-9.-]+$ ]]; then
 	printf '%s\n' 'You must provide one exact site name with --site.' >&2
+	exit 2
+fi
+
+if [[ "$site" != "development.localhost" ]]; then
+	printf '%s\n' 'This reset tool only accepts development.localhost.' >&2
+	exit 2
+fi
+
+if [[ -z "$db_root_password" ]]; then
+	printf '%s\n' 'Provide database-root credentials through the environment or explicit options.' >&2
 	exit 2
 fi
 
@@ -105,13 +115,13 @@ fi
 
 printf 'Target site: %s\n' "$site"
 preflight_kwargs=$("$python" -c 'import json, sys; print(json.dumps({"allow_non_developer": int(sys.argv[1])}))' "$allow_non_developer")
-PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.assert_development_site --kwargs "$preflight_kwargs"
+PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.assert_native_reset_ready --kwargs "$preflight_kwargs"
 
 cat <<WARNING
 
 WARNING: This permanently deletes the entire database for site ${site}.
 This includes users, companies, settings, stock, business records, and all other data.
-Use this only for a disposable site. No backup is created and the site files are not deleted.
+Use this only for a disposable site. No backup is created. Only inventoried sample media is removed; unrelated site files are preserved.
 WARNING
 if ((allow_non_developer)); then
 	cat <<WARNING
@@ -133,19 +143,24 @@ log_file="$log_dir/temple-sample-reset-$(date -u +%Y%m%dT%H%M%SZ).log"
 kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end", "allow_non_developer"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end" "$allow_non_developer")
 
 run_reset() {
+	if [[ -z "$admin_password" ]]; then
+		admin_password=$("$python" -c 'import secrets; print(secrets.token_urlsafe(32))')
+	fi
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.preserve_administrator_auth || return $?
+	printf '[temple-sample] Known sample media inventory: start\n'
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_media.inventory --kwargs '{"write_manifest":1}' || return $?
 	printf '[temple-sample] Reinstall: start\n'
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes \
 		--db-root-username "$db_root_username" \
 		--db-root-password "$db_root_password" \
-		--admin-password "$admin_password"
+		--admin-password "$admin_password" || return $?
 	printf '[temple-sample] Reinstall: complete\n'
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.restore_administrator_auth || return $?
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_media.cleanup || return $?
 	printf '[temple-sample] Purging old background jobs: start\n'
-	PYTHONUNBUFFERED=1 "$bench" purge-jobs --site "$site"
+	PYTHONUNBUFFERED=1 "$bench" purge-jobs --site "$site" || return $?
 	printf '[temple-sample] Purging old background jobs: complete\n'
-	printf '\n========================================\n'
-	printf 'Administrator password: %s\n' "$admin_password"
-	printf '========================================\n\n'
-	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs"
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs" || return $?
 }
 
 set +e
@@ -159,7 +174,7 @@ fi
 
 printf '[temple-sample] Warehouse contract verification: start\n'
 set +e
-verification=$(PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.inventory_api.verify_development_sample 2>&1)
+verification=$(PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.verify_development_sample 2>&1)
 verification_status=$?
 set -e
 printf '%s\n' "$verification"

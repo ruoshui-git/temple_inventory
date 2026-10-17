@@ -2,48 +2,22 @@ import { activityLabel } from "./activityData";
 import { previewDate } from "./model";
 import type { ReviewSession, ReviewMovement, ReviewLoan } from "./reviewModel";
 
-export const periodLabels = {
-  all: "全部时间",
-  today: "今日",
-  this_week: "本周",
-  this_month: "本月",
-  this_year: "本年",
-  last_7_days: "近7天",
-  last_30_days: "近30天",
-  last_90_days: "近90天",
-  last_365_days: "近365天",
-  custom: "自定义",
-};
-export type PeriodKey = keyof typeof periodLabels;
-export interface PreviewPeriod {
-  key: PeriodKey;
-  from: string;
-  to: string;
-}
-export interface BrowseScope {
-  period: PreviewPeriod;
-  warehouses: string[];
-  categories: string[];
-  item: string;
-  activity: string;
-  sources: string[];
-  destinations: string[];
-  kinds: string[];
-}
-export const emptyScope = (): BrowseScope => ({
-  period: { key: "all", from: "", to: "" },
-  warehouses: [],
-  categories: [],
-  item: "",
-  activity: "",
-  sources: [],
-  destinations: [],
-  kinds: [],
-});
+import {
+  emptyScope,
+  periodLabels,
+  type DatePeriod as PreviewPeriod,
+  type BrowseScope,
+} from "../lib/browseQuery";
+export {
+  emptyScope,
+  periodLabels,
+  type DatePeriod as PreviewPeriod,
+  type BrowseScope,
+} from "../lib/browseQuery";
 export const movementLabels: Record<string, string> = {
   Receive: "入库",
   Issue: "出库",
-  Transfer: "转移",
+  Transfer: "调拨",
   Loan: "借出",
   Return: "归还",
   Damage: "损坏",

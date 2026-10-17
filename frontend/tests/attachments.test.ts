@@ -1,39 +1,205 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
-import AttachmentList from '../src/components/AttachmentList.vue'
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { defineComponent, h, ref } from "vue";
+import Attachments from "../src/components/Attachments.vue";
+import { useAttachments } from "../src/features/attachments/useAttachments";
+import {
+  createReferenceData,
+  provideInventoryServices,
+} from "../src/services/contracts";
 
-describe('AttachmentList', () => {
-  it('uses the shared upload contract without forcing camera capture', async () => {
-    const wrapper = mount(AttachmentList, { props: { editable: true } })
-    const input = wrapper.find('input[type="file"]')
-    expect(input.attributes('capture')).toBeUndefined()
-    expect(input.attributes('multiple')).toBeDefined()
-    expect(input.attributes('accept')).toContain('image/*')
-    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
-    Object.defineProperty(input.element, 'files', { value: [file] })
-    await input.trigger('change')
-    expect(wrapper.emitted('upload')?.[0]).toEqual([[file]])
-  })
-
-  it('renders file type/size and emits removal without deciding authorization', async () => {
-    const file = { name: 'f1', file_name: 'receipt.pdf', file_type: 'application/pdf', file_size: 42, file_url: '/private/receipt.pdf' }
-    const wrapper = mount(AttachmentList, { props: { attachments: [file], editable: true } })
-    expect(wrapper.text()).toContain('application/pdf')
-    expect(wrapper.text()).toContain('42 bytes')
-    await wrapper.find('button').trigger('click')
-    expect(wrapper.emitted('remove')?.[0]).toEqual([file])
-  })
-
-  it('offers primary-image selection for editable image attachments', async () => {
-    const file = { name: 'f2', file_name: 'photo.jpg', file_type: 'image/jpeg', file_url: '/private/photo.jpg' }
-    const wrapper = mount(AttachmentList, { props: { attachments: [file], editable: true, allowPrimaryImage: true } })
-    await wrapper.find('button').trigger('click')
-    expect(wrapper.emitted('set-primary')?.[0]).toEqual([file])
-  })
-
-  it('does not offer primary-image selection without Item capability', () => {
-    const file = { name: 'f3', file_name: 'photo.jpg', file_type: 'image/jpeg', file_url: '/private/photo.jpg' }
-    const wrapper = mount(AttachmentList, { props: { attachments: [file], editable: true } })
-    expect(wrapper.text()).not.toContain('设为主图')
-  })
-})
+const wrappers: VueWrapper[] = [];
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  vi.unstubAllGlobals();
+});
+const ready = {
+  name: "FILE-1",
+  file_name: "photo.jpg",
+  file_url: "/private/files/photo.jpg",
+  file_type: "JPG",
+  is_private: 1,
+};
+function setup(
+  props: { imagesOnly?: boolean; mode?: "edit" | "display" } = {},
+) {
+  const parent = ref<{ doctype: string; name: string }>();
+  const account = ref("manager");
+  const writable = ref(true);
+  const upload = vi.fn().mockResolvedValue(ready);
+  const call = vi.fn().mockResolvedValue({ parent_version: "new-version" });
+  const primary = vi.fn().mockResolvedValue(undefined);
+  const parentChanged = vi.fn();
+  let c!: ReturnType<typeof useAttachments>;
+  const child = defineComponent({
+    setup() {
+      c = useAttachments({
+        parent: () => parent.value,
+        writable: () => writable.value,
+        currentAccount: () => account.value,
+        account: "manager",
+        primary,
+        parentChanged,
+      });
+      return () => h(Attachments, { controller: c, ...props });
+    },
+  });
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        provideInventoryServices(
+          { upload, call, report: vi.fn() },
+          createReferenceData(),
+        );
+        return () => h(child);
+      },
+    }),
+    { attachTo: document.body },
+  );
+  wrappers.push(wrapper);
+  return {
+    wrapper,
+    c,
+    parent,
+    account,
+    writable,
+    upload,
+    call,
+    primary,
+    parentChanged,
+  };
+}
+function button(wrapper: VueWrapper, label: string) {
+  return wrapper.findAll("button").find((value) => value.text() === label)!;
+}
+describe("native-parent attachments", () => {
+  it("keeps input files pending until a valid native parent exists and never forces camera capture", async () => {
+    const { wrapper, c, parent, upload } = setup();
+    const input = wrapper.get<HTMLInputElement>('input[type="file"]');
+    expect(input.attributes("capture")).toBeUndefined();
+    expect(input.attributes("multiple")).toBeDefined();
+    const file = new File(["receipt"], "receipt.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(input.element, "files", { value: [file] });
+    await input.trigger("change");
+    expect(c.files[0]?.state).toBe("pending");
+    expect(wrapper.text()).toContain("等待有效原生记录保存后上传");
+    expect(upload).not.toHaveBeenCalled();
+    parent.value = { doctype: "Stock Entry", name: "SE-1" };
+    await c.finalize();
+    expect(upload).toHaveBeenCalledWith(
+      file,
+      "Stock Entry",
+      "SE-1",
+      expect.any(Function),
+    );
+    expect(c.files[0]?.state).toBe("ready");
+  });
+  it("filters image-only input while retaining the full document upload option elsewhere", async () => {
+    const { wrapper, c } = setup({ imagesOnly: true });
+    const input = wrapper.get<HTMLInputElement>('input[type="file"]');
+    expect(input.attributes("accept")).toBe("image/*");
+    Object.defineProperty(input.element, "files", {
+      value: [
+        new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+        new File(["receipt"], "receipt.pdf", { type: "application/pdf" }),
+      ],
+    });
+    await input.trigger("change");
+    expect(c.files.map((file) => file.name)).toEqual(["photo.jpg"]);
+  });
+  it("requires a confirmed private URL and retries the same parent without losing bytes", async () => {
+    const { c, parent, upload } = setup();
+    upload
+      .mockResolvedValueOnce({ ...ready, is_private: 0 })
+      .mockResolvedValueOnce({ ...ready, file_url: "/files/photo.jpg" })
+      .mockResolvedValueOnce(ready);
+    c.add([new File(["photo"], "photo.jpg", { type: "image/jpeg" })]);
+    parent.value = { doctype: "Item", name: "ITEM-1" };
+    await c.finalize();
+    expect(c.files[0]?.state).toBe("error");
+    expect(c.files[0]?.serverName).toBeUndefined();
+    await c.finalize();
+    expect(c.files[0]?.state).toBe("error");
+    await c.finalize();
+    expect(c.files[0]?.serverName).toBe("FILE-1");
+    expect(upload.mock.calls.every((call) => call[2] === "ITEM-1")).toBe(true);
+  });
+  it("retains a denied removal and updates the native parent version after an authorized retry", async () => {
+    const { wrapper, c, parent, call, parentChanged } = setup();
+    parent.value = { doctype: "Item", name: "ITEM-1" };
+    c.load([ready]);
+    call.mockRejectedValueOnce(new Error("没有移除权限"));
+    await c.remove(c.files[0]!);
+    expect(c.files).toHaveLength(1);
+    expect(c.error.value).toContain("没有移除权限");
+    await flushPromises();
+    await button(wrapper, "移除").trigger("click");
+    await flushPromises();
+    expect(c.files).toHaveLength(0);
+    expect(parentChanged).toHaveBeenCalledWith("new-version");
+    expect(call).toHaveBeenLastCalledWith("native_files.remove_attachment", {
+      doctype: "Item",
+      name: "ITEM-1",
+      file_name: "FILE-1",
+    });
+  });
+  it("blocks all mutations after account changes, including primary-image requests", async () => {
+    const { c, parent, account, primary, call, upload } = setup({
+      imagesOnly: true,
+    });
+    parent.value = { doctype: "Item", name: "ITEM-1" };
+    c.load([ready]);
+    account.value = "another-account";
+    await c.primary(c.files[0]!);
+    await c.remove(c.files[0]!);
+    c.add([new File(["photo"], "new.jpg", { type: "image/jpeg" })]);
+    expect(primary).not.toHaveBeenCalled();
+    expect(call).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(c.files).toHaveLength(1);
+  });
+  it("offers primary selection for saved Item images and hides mutations in display mode", async () => {
+    const editable = setup({ imagesOnly: true });
+    editable.c.load([ready]);
+    await flushPromises();
+    await button(editable.wrapper, "设为主图").trigger("click");
+    await flushPromises();
+    expect(editable.primary).toHaveBeenCalledWith("FILE-1");
+    expect(editable.wrapper.text()).toContain("主图");
+    const display = setup({ mode: "display", imagesOnly: true });
+    display.c.load([ready]);
+    await flushPromises();
+    expect(display.wrapper.find('input[type="file"]').exists()).toBe(false);
+    expect(button(display.wrapper, "设为主图")).toBeUndefined();
+    expect(button(display.wrapper, "移除")).toBeUndefined();
+    expect(button(display.wrapper, "查看附件")).toBeDefined();
+  });
+  it("restores only reselection metadata and rejects a different filename", async () => {
+    const { c, parent, upload } = setup();
+    parent.value = { doctype: "Stock Entry", name: "SE-1" };
+    c.restore([
+      {
+        id: "pending",
+        name: "photo.jpg",
+        type: "image/jpeg",
+        url: "blob:old",
+        state: "pending",
+        progress: 0,
+        error: "",
+      },
+    ]);
+    expect(c.files[0]?.state).toBe("reselect");
+    expect(c.files[0]?.url).toBeUndefined();
+    c.reselect(c.files[0]!, new File(["different"], "other.jpg"));
+    expect(upload).not.toHaveBeenCalled();
+    expect(c.error.value).toContain("同名文件");
+    c.reselect(
+      c.files[0]!,
+      new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+    );
+    await flushPromises();
+    expect(c.files[0]?.state).toBe("ready");
+  });
+});

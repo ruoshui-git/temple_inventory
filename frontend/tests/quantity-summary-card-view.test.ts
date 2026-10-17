@@ -1,55 +1,85 @@
-import { describe, expect, it } from "vitest";
-import { mount } from "@vue/test-utils";
-import QuantitySummary from "../src/components/QuantitySummary.vue";
-import InventoryCardGrid from "../src/components/InventoryCardGrid.vue";
-import DetailPopover from "../src/components/DetailPopover.vue";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { defineComponent, h } from "vue";
+import QuantitySummary from "../src/components/ui/QuantitySummary.vue";
+import StockDetails from "../src/components/StockDetails.vue";
+import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
+import {
+  createReferenceData,
+  provideInventoryServices,
+} from "../src/services/contracts";
+import {
+  expiryStatus,
+  itemBatches,
+  type StockItem,
+} from "../src/lib/stockPresentation";
 
-const items = [{ code: "ITM-000161", total: 6 }];
-const batches = [
-  {
-    code: "ITM-000161-A",
-    item: { code: "ITM-000161" },
-    expiry: "2026-10-01",
-    quantity: 1,
-  },
-  {
-    code: "ITM-000161-B",
-    item: { code: "ITM-000161" },
-    expiry: "2026-11-01",
-    quantity: 2,
-  },
-  {
-    code: "ITM-000161-C",
-    item: { code: "ITM-000161" },
-    expiry: "2026-12-01",
-    quantity: 3,
-  },
-];
-
-describe("quantity summaries and Inventory cards", () => {
-  it("keeps Inventory item-level while expiry fixtures remain batch-level", () => {
-    const itemRows = items.filter((item) => item.code === "ITM-000161");
-    const batchRows = batches.filter(
-      (batch) => batch.item.code === "ITM-000161",
-    );
-    expect(itemRows).toHaveLength(1);
-    expect(batchRows.map((batch) => batch.code)).toEqual([
-      "ITM-000161-A",
-      "ITM-000161-B",
-      "ITM-000161-C",
-    ]);
-    expect(new Set(batchRows.map((batch) => batch.expiry)).size).toBe(3);
-    expect(batchRows.reduce((total, batch) => total + batch.quantity, 0)).toBe(
-      itemRows[0].total,
-    );
+const wrappers: VueWrapper[] = [];
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  document.body.innerHTML = "";
+});
+function item(changes: Partial<StockItem> = {}): StockItem {
+  return {
+    code: "ITEM-A",
+    name: "大米",
+    category: "食品",
+    uom: "kg",
+    available: 8,
+    loaned: 3,
+    damaged: 1,
+    tracksBatch: true,
+    tracksExpiry: true,
+    locations: [
+      {
+        location: "ROOM-A",
+        available: 8,
+        loaned: 3,
+        damaged: 1,
+        batches: [
+          { id: "BATCH-A", available: 5, expiry: "2026-10-15" },
+          { id: "BATCH-B", available: 3, expiry: "2026-10-16" },
+        ],
+      },
+    ],
+    ...changes,
+  };
+}
+async function inventory(rows: StockItem[]) {
+  const host = defineComponent({
+    setup() {
+      const reference = createReferenceData();
+      reference.siteDate = "2026-10-16";
+      provideInventoryServices(
+        {
+          call: vi.fn(async () => ({
+            rows,
+            matched_count: rows.length,
+            next_start: null,
+            summary: [],
+            snapshot: "2026-10-16",
+            analysis: { category: [], location: [] },
+          })) as never,
+          report: vi.fn(),
+          upload: vi.fn(),
+        },
+        reference,
+      );
+      return () => h(StockBrowsePage);
+    },
   });
-
-  it("keeps incompatible UOM totals separate", () => {
+  const wrapper = mount(host, { attachTo: document.body });
+  wrappers.push(wrapper);
+  await flushPromises();
+  return wrapper;
+}
+describe("native quantity summaries and inventory cards", () => {
+  it("keeps incompatible units separate and labels a pending refresh", async () => {
     const wrapper = mount(QuantitySummary, {
       props: {
         metrics: [
           {
-            key: "available_stock",
+            key: "available",
             label: "可用",
             quantities: [
               { uom: "kg", qty: 2.5 },
@@ -59,176 +89,92 @@ describe("quantity summaries and Inventory cards", () => {
         ],
       },
     });
+    wrappers.push(wrapper);
+    expect(wrapper.findAll(".quantity-summary-values strong")).toHaveLength(2);
     expect(wrapper.text()).toContain("2.5 kg");
     expect(wrapper.text()).toContain("4 件");
-    expect(wrapper.findAll(".quantity-summary-values strong")).toHaveLength(2);
+    await wrapper.setProps({ loading: true });
+    expect(wrapper.attributes("aria-busy")).toBe("true");
+    expect(wrapper.text()).toContain("正在更新");
+    expect(wrapper.find(".quantity-summary-values").exists()).toBe(false);
   });
-
-  it("shows all four stock states and toggles the whole card in selection mode", async () => {
-    const wrapper = mount(InventoryCardGrid, {
+  it("renders one Item card with available, loaned and damaged quantities, then retains its selected native code", async () => {
+    const wrapper = await inventory([item()]);
+    expect(wrapper.findAll(".stock-card")).toHaveLength(1);
+    expect(wrapper.get(".stock-number strong").text()).toBe("8");
+    expect(wrapper.get(".stock-secondary").text()).toContain("借出 3");
+    expect(wrapper.get(".stock-secondary").text()).toContain("损坏 1");
+    await wrapper.get('input[aria-label="选择大米"]').setValue(true);
+    expect(
+      wrapper.findComponent(StockBrowsePage).vm.controller.selected.value,
+    ).toEqual(["ITEM-A"]);
+    expect(wrapper.text()).toContain("已选择 1 项物品");
+    await wrapper.get(".item-name").trigger("click");
+    expect(
+      wrapper.findComponent(StockBrowsePage).emitted("openItem")?.[0],
+    ).toEqual(["ITEM-A"]);
+  });
+  it("keeps Item/Batch counts distinct across physical allocations and shows all scoped batch details", async () => {
+    const value = item();
+    value.locations.push({
+      location: "ROOM-B",
+      available: 2,
+      loaned: 0,
+      damaged: 0,
+      batches: [{ id: "BATCH-A", available: 2, expiry: "2026-10-15" }],
+    });
+    expect(itemBatches(value)).toHaveLength(2);
+    expect(
+      itemBatches(value).find((batch) => batch.id === "BATCH-A")?.available,
+    ).toBe(7);
+    const wrapper = mount(StockDetails, {
+      props: { item: value },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const trigger = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "2 个批次")!;
+    await trigger.trigger("click");
+    expect(document.body.textContent).toContain("BATCH-A");
+    expect(document.body.textContent).toContain("BATCH-B");
+    expect(document.body.textContent).toContain("ROOM-A");
+    expect(document.body.textContent).toContain("ROOM-B");
+  });
+  it("uses the site date and treats expiry today as unexpired", () => {
+    expect(expiryStatus(item(), "2026-10-16")).toBe("已过期");
+    const today = item({
+      locations: [
+        {
+          location: "ROOM-A",
+          available: 1,
+          loaned: 0,
+          damaged: 0,
+          batches: [{ id: "TODAY", available: 1, expiry: "2026-10-16" }],
+        },
+      ],
+    });
+    expect(expiryStatus(today, "2026-10-16")).toBe("未过期");
+    expect(
+      expiryStatus(item({ tracksExpiry: false }), "2026-10-16"),
+    ).toBeNull();
+    expect(expiryStatus(item({ locations: [] }), "2026-10-16")).toBeNull();
+  });
+  it("shows zero real batches without inventing a batch for an empty catalogue Item", () => {
+    const wrapper = mount(StockDetails, {
       props: {
-        rows: [
-          {
-            item_code: "ITEM-1",
-            item_name: "大米",
-            item_group: "食品",
-            stock_uom: "kg",
-            available_stock: 8,
-            total_stock: 12,
-            on_loan_qty: 3,
-            damaged_qty: 1,
-          },
-        ],
-        selectionMode: true,
+        item: item({ locations: [], available: 0, loaned: 0, damaged: 0 }),
       },
     });
-    expect(wrapper.find(".inventory-card-available").text()).toBe("可用8kg");
-    expect(wrapper.find(".inventory-card-totals").text()).toContain("总计 12");
-    expect(wrapper.find(".inventory-card-totals").text()).toContain("借出 3");
-    expect(wrapper.find(".inventory-card-totals").text()).toContain("损坏 1");
-    expect(wrapper.find(".inventory-card-totals").text()).toContain("kg");
-    await wrapper.find(".inventory-visual-card").trigger("click");
-    expect(wrapper.emitted("toggle")?.[0]?.[0]).toMatchObject({
-      item_code: "ITEM-1",
-    });
-    expect(wrapper.emitted("activate")).toBeUndefined();
-  });
-
-  it("renders real batch counts and server-relative expiry states", () => {
-    const base = {
-      item_group: "食品",
-      stock_uom: "件",
-      available_stock: 1,
-      total_stock: 1,
-      on_loan_qty: 0,
-      damaged_qty: 0,
-      has_batch_no: true,
-    };
-    const wrapper = mount(InventoryCardGrid, {
+    wrappers.push(wrapper);
+    expect(wrapper.text()).toContain("0 批次");
+    expect(wrapper.find("button").exists()).toBe(false);
+    const untracked = mount(StockDetails, {
       props: {
-        rows: [
-          {
-            ...base,
-            item_code: "EXPIRED",
-            item_name: "过期物品",
-            batch_count: 3,
-            nearest_expiry_date: "2026-09-20",
-            nearest_expiry_days: -9,
-          },
-          {
-            ...base,
-            item_code: "SOON",
-            item_name: "临期物品",
-            batch_count: 2,
-            nearest_expiry_date: "2026-10-10",
-            nearest_expiry_days: 11,
-          },
-          {
-            ...base,
-            item_code: "LATER",
-            item_name: "远期物品",
-            batch_count: 1,
-            nearest_expiry_date: "2027-01-01",
-            nearest_expiry_days: 94,
-          },
-          {
-            ...base,
-            item_code: "EMPTY",
-            item_name: "无批次库存",
-            batch_count: 0,
-            nearest_expiry_date: null,
-            nearest_expiry_days: null,
-          },
-          {
-            ...base,
-            item_code: "LEGACY",
-            item_name: "旧版响应",
-          },
-          {
-            ...base,
-            item_code: "UNBATCHED",
-            item_name: "非批次物品",
-            has_batch_no: false,
-            batch_count: 0,
-          },
-        ],
+        item: item({ tracksBatch: false, tracksExpiry: false, locations: [] }),
       },
     });
-    const cards = wrapper.findAll(".inventory-visual-card");
-    expect(cards[0].text()).toContain("3 批次");
-    expect(cards[0].text()).toContain("含过期批次");
-    expect(cards[0].text()).toContain("最近效期 2026-09-20");
-    expect(cards[0].find(".expiry-badge.danger").exists()).toBe(true);
-    expect(cards[1].text()).toContain("2 批次");
-    expect(cards[1].text()).toContain("即将到期");
-    expect(cards[1].find(".expiry-badge.warning").exists()).toBe(true);
-    expect(cards[2].text()).toContain("1 批次");
-    expect(cards[2].text()).toContain("最近效期 2027-01-01");
-    expect(cards[2].find(".expiry-badge").exists()).toBe(false);
-    expect(cards[3].text()).toContain("0 批次");
-    expect(cards[3].find(".inventory-card-expiry").exists()).toBe(false);
-    expect(cards[4].text()).toContain("批次管理");
-    expect(cards[5].text()).not.toContain("0 批次");
-    expect(cards[5].text()).not.toContain("批次管理");
-    expect(wrapper.findComponent({ name: "ItemImagePreview" }).exists()).toBe(
-      false,
-    );
-  });
-
-  it("enables the compact two-column mobile mode only when requested", () => {
-    const row = {
-      item_code: "ITEM-1",
-      item_name: "口罩",
-      item_group: "医疗防护",
-      stock_uom: "包",
-      available_stock: 8,
-      total_stock: 12,
-      on_loan_qty: 3,
-      damaged_qty: 1,
-    };
-    const defaultWrapper = mount(InventoryCardGrid, { props: { rows: [row] } });
-    const compactWrapper = mount(InventoryCardGrid, {
-      props: { rows: [row], compactMobile: true },
-    });
-    expect(defaultWrapper.find(".inventory-card-grid").classes()).not.toContain(
-      "compact-mobile",
-    );
-    expect(compactWrapper.find(".inventory-card-grid").classes()).toContain(
-      "compact-mobile",
-    );
-  });
-
-  it("opens scoped batch details from the inventory badge", async () => {
-    const wrapper = mount(InventoryCardGrid, {
-      props: {
-        rows: [
-          {
-            item_code: "ITEM-BATCH",
-            item_name: "批次物品",
-            item_group: "食品",
-            stock_uom: "件",
-            available_stock: 3,
-            total_stock: 3,
-            on_loan_qty: 0,
-            damaged_qty: 0,
-            has_batch_no: true,
-            batch_count: 2,
-            batches: [
-              { batch_no: "B-001", qty: 2, expiry_date: "2026-10-01" },
-              { batch_no: "B-002", qty: 1, expiry_date: null },
-            ],
-          },
-        ],
-      },
-    });
-
-    expect(wrapper.findComponent(DetailPopover).text()).toBe("2 批次");
-    await wrapper.find(".detail-popover-trigger").trigger("click");
-    expect(document.body.textContent).toContain(
-      "批次 B-001 · 数量 2 件 · 2026-10-01",
-    );
-    expect(document.body.textContent).toContain(
-      "批次 B-002 · 数量 1 件 · 无效期",
-    );
+    wrappers.push(untracked);
+    expect(untracked.text()).not.toContain("0 批次");
   });
 });

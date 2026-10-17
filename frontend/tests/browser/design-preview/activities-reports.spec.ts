@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, failNextCall } from "./fixtures";
 import { mkdirSync, writeFileSync } from "node:fs";
 const output =
   process.env.DESIGN_PREVIEW_RESULTS ||
@@ -145,9 +145,18 @@ test("activity lifecycle, stable title references, retired type and preserved li
   await expect(page.locator(".activity-notes")).toHaveText(notes);
   await page.getByText("更多操作", { exact: true }).click();
   await page.getByRole("button", { name: "删除活动", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "确认删除", exact: true })
+    .click();
   await expect(page.getByRole("alert")).toContainText("关联记录");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
   await page.getByRole("button", { name: "归档活动", exact: true }).click();
   await expect(page.locator(".preview-activities")).toContainText("已归档");
+  await page.getByText("更多操作", { exact: true }).click();
   await page.getByRole("button", { name: "恢复活动", exact: true }).click();
   await page.getByRole("button", { name: "返回上一页", exact: false }).click();
   await expect(
@@ -169,9 +178,8 @@ test("quick report failure, independent choices, full report scope and no produc
   await dialog
     .getByRole("combobox", { name: "文件格式", exact: true })
     .selectOption("csv");
-  await dialog.getByText("预览失败状态", { exact: true }).click();
-  await dialog.getByLabel("下次模拟生成失败", { exact: true }).check();
-  await dialog.getByRole("button", { name: "模拟生成", exact: true }).click();
+  await failNextCall(page, "exports.request_export");
+  await dialog.getByRole("button", { name: "生成文件", exact: true }).click();
   await expect(dialog).toContainText("选择已保留");
   await expect(
     dialog.getByRole("combobox", { name: "CSV 导出表", exact: true }),
@@ -225,38 +233,37 @@ for (const width of [375, 1440])
       .scrollIntoViewIfNeeded();
     await shot(page, `activities-empty-${width}`);
     await page.getByRole("button", { name: "清空筛选", exact: true }).click();
-    await page
-      .locator(".preview-activities > details")
-      .getByText("预览状态", { exact: true })
-      .click();
-    await page
-      .getByRole("combobox", { name: "列表状态", exact: true })
-      .selectOption("loading");
-    await page
-      .getByText("正在加载活动…", { exact: true })
-      .scrollIntoViewIfNeeded();
-    await shot(page, `activities-loading-${width}`);
-    await page
-      .getByRole("combobox", { name: "列表状态", exact: true })
-      .selectOption("error");
-    await page.getByRole("alert").scrollIntoViewIfNeeded();
-    await shot(page, `activities-error-${width}`);
-    await page.getByRole("button", { name: "重试", exact: true }).click();
-    await open(page, "movement-form/Receive");
     await page.evaluate(async () => {
-      const { reviewSession } =
-        await import("/src/design-preview/reviewModel.ts");
-      reviewSession.drafts.find(
-        (row: { kind: string }) => row.kind === "Receive",
-      ).status = "completed";
+      const { fixtureScenarios } =
+        await import("/src/design-preview/fixtureServices.ts");
+      fixtureScenarios.reportDelay = 700;
+      fixtureScenarios.failReport = true;
     });
-    await expect(page.locator(".preview-document-display")).toBeVisible();
+    await page
+      .getByRole("textbox", { name: "搜索活动", exact: true })
+      .fill("服务状态");
+    await expect(
+      page.getByText("正在加载活动…", { exact: true }),
+    ).toBeVisible();
+    await shot(page, `activities-loading-${width}`);
+    await expect(page.getByRole("alert")).toContainText("示例读取失败");
+    await shot(page, `activities-error-${width}`);
+    await page.evaluate(async () => {
+      (
+        await import("/src/design-preview/fixtureServices.ts")
+      ).fixtureScenarios.reportDelay = 0;
+    });
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await open(page, "movement-records/entry-detail");
+    await expect(
+      page.getByText("已确认", { exact: true }).first(),
+    ).toBeVisible();
     await expect(
       page.locator(
-        ".preview-document-display input,.preview-document-display select,.preview-document-display textarea",
+        ".operation-section:visible input,.operation-section:visible select,.operation-section:visible textarea",
       ),
     ).toHaveCount(0);
-    await page.locator(".preview-document-display").scrollIntoViewIfNeeded();
     await shot(page, `completed-display-${width}`);
     await open(page, "reports/inventory");
     await page
@@ -265,11 +272,28 @@ for (const width of [375, 1440])
     await page.locator(".report-table-wrap").first().scrollIntoViewIfNeeded();
     await shot(page, `historical-table-${width}`);
     await page.getByText("贡献单据 · 6", { exact: true }).click();
-    await page
-      .getByRole("button", { name: "查看 HIST-TRANSFER", exact: true })
+    const ledger = page
+      .locator("details")
+      .filter({ has: page.locator("summary", { hasText: "贡献单据 · 6" }) });
+    await expect(ledger).toContainText("LED-2");
+    await expect(ledger).toContainText("LED-3");
+    const transfer = ledger
+      .locator("tbody tr")
+      .filter({ hasText: "HIST-TRANSFER" });
+    await expect(transfer).toHaveCount(2);
+    await transfer
+      .first()
+      .getByRole("button", { name: "HIST-TRANSFER", exact: true })
       .click();
-    await expect(page.getByRole("dialog")).toContainText("LED-2");
-    await expect(page.getByRole("dialog")).toContainText("LED-3");
+    await expect(page.locator(".form-status:visible")).toContainText(
+      "Stock Entry · HIST-TRANSFER",
+    );
+    await expect(page.locator(".operation-section:visible")).toContainText(
+      "斋堂 / A-01",
+    );
+    await expect(page.locator(".operation-section:visible")).toContainText(
+      "斋堂 / A-02",
+    );
     await shot(page, `historical-drill-${width}`);
     await noOverflow(page);
   });

@@ -1,313 +1,329 @@
-import { computed, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { api } from "../../lib/api";
+import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
-  hydrateFilterQuery,
-  serializeFilterQuery,
-} from "../../composables/filters";
-import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
+  emptyScope,
+  type DatePeriod,
+  type BrowseScope,
+} from "../../lib/browseQuery";
+import {
+  newReportQuery,
+  type ReportDataset,
+  type ReportQuery,
+  type ReportRow,
+} from "../../lib/reportContract";
+import { movementLabels } from "../../lib/filterPresentation";
+import { useBrowseState } from "../../lib/browseMemory";
+import {
+  useInventoryServices,
+  useReferenceData,
+} from "../../services/contracts";
 
-export const DASHBOARD_SECTIONS = [
-  "inventory",
-  "expiry",
-  "movement",
-  "loans",
-  "reminders",
-  "distribution",
-] as const;
-export type DashboardSection = (typeof DASHBOARD_SECTIONS)[number];
-type SectionState = { loading: boolean; error: string; stale: boolean };
+export const dashboardSections = {
+  inventory: "库存概览",
+  distribution: "库存分布",
+  expiry: "效期概览",
+  movement: "货物流动",
+  loans: "借出中",
+  reminders: "提醒事项",
+} as const;
+export type DashboardSectionKey = keyof typeof dashboardSections;
+export const expiryBuckets = [
+  { id: "expired_1_30", label: "已过期 1–30 天" },
+  { id: "expired_31_90", label: "已过期 31–90 天" },
+  { id: "expired_91_plus", label: "已过期 >90 天" },
+  { id: "upcoming_0_30", label: "0–30 天内到期" },
+  { id: "upcoming_31_90", label: "31–90 天内到期" },
+  { id: "upcoming_91_plus", label: ">90 天后到期" },
+];
+export interface DashboardRow {
+  item_names?: string;
+  id?: string;
+  doctype?: string;
+  document?: string;
+  date?: string;
+  kind?: string;
+  borrower?: string;
+  activity_title?: string;
+  item_name?: string;
+  batch_no?: string;
+  expiry_date?: string;
+  warehouse?: string;
+  available?: number;
+  stock_uom?: string;
+  quantities?: { qty: number; uom: string }[];
+  label?: string;
+  item_count?: number;
+}
+export interface DashboardResult {
+  rows: DashboardRow[];
+  expiry_rows: Record<string, DashboardRow[]>;
+  kind_counts: Record<string, number>;
+  totals: ReportRow[];
+  buckets: { id: string; count: number }[];
+  snapshot: string;
+  query: ReportQuery;
+  matched_count: number;
+  item_count: number;
+  expired_count: number;
+  damaged_item_count: number;
+}
+export interface DashboardSectionState {
+  status: "ready" | "loading" | "error" | "retrying";
+  hasResult: boolean;
+  error: string;
+  result: DashboardResult;
+}
+export function quantityText(rows: { qty: number; uom: string }[]) {
+  const units = new Map<string, number>();
+  for (const row of rows)
+    units.set(row.uom, (units.get(row.uom) || 0) + row.qty);
+  return [...units].map(([uom, qty]) => `${qty} ${uom}`).join(" · ") || "0";
+}
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-export function useDashboardController() {
-  const route = useRoute();
-  const router = useRouter();
-  const { surface } = useResponsiveLayout();
-  const defaults = { warehouses: [] as string[], item_groups: [] as string[] };
-  const filters = ref(hydrateFilterQuery(route.query, defaults));
-  const data = ref<any>({});
-  const normalizeFilters = (
-    value: typeof defaults,
-    warehouses = data.value.warehouses || [],
-    groups = data.value.item_groups || [],
-  ) => ({
-    warehouses: normalizeHierarchySelection(value.warehouses, warehouses),
-    item_groups: normalizeHierarchySelection(value.item_groups, groups),
+export function useDashboardController(navigate: (query: ReportQuery) => void) {
+  const services = useInventoryServices(),
+    reference = useReferenceData();
+  const filters = reactive({
+    warehouses: [] as string[],
+    categories: [] as string[],
+    distribution: "location",
+    expiry: "expired",
+    period: { key: "this_month", from: "", to: "" } as DatePeriod,
   });
-  const sectionState = ref<Record<DashboardSection, SectionState>>(
+  const reportDataset = ref<ReportDataset>("inventory"),
+    announcement = ref("");
+  const keys = Object.keys(dashboardSections) as DashboardSectionKey[];
+  const empty = (): DashboardResult => ({
+    rows: [],
+    expiry_rows: { expired: [], upcoming: [] },
+    kind_counts: {},
+    totals: [],
+    buckets: [],
+    snapshot: "",
+    query: newReportQuery(),
+    matched_count: 0,
+    item_count: 0,
+    expired_count: 0,
+    damaged_item_count: 0,
+  });
+  const sections = reactive(
     Object.fromEntries(
-      DASHBOARD_SECTIONS.map((section) => [
-        section,
-        { loading: false, error: "", stale: false },
+      keys.map((key) => [
+        key,
+        { status: "loading", hasResult: false, error: "", result: empty() },
       ]),
-    ) as Record<DashboardSection, SectionState>,
+    ) as Record<DashboardSectionKey, DashboardSectionState>,
   );
-  const hasSuccessfulData = ref(false);
-  const globalLoading = ref(false);
-  const filterOpen = ref(false);
-  const desktopFilterOpen = ref(false);
-  const movementPeriod = ref("this_month");
-  const expiryPreview = ref<"expired" | "upcoming">("expired");
-  const distributionMode = ref<"warehouse" | "category">("warehouse");
-  let scopeGeneration = 0;
-  let globalRequestSequence = 0;
-  const sectionSequences: Record<DashboardSection, number> = {
-    inventory: 0,
-    expiry: 0,
-    movement: 0,
-    loans: 0,
-    reminders: 0,
-    distribution: 0,
-  };
-
-  const loading = computed(() =>
-    DASHBOARD_SECTIONS.some((name) => sectionState.value[name].loading),
+  const requests = new Map<
+    DashboardSectionKey,
+    { controller: AbortController; generation: number }
+  >();
+  useBrowseState(
+    "dashboard",
+    () => "dashboard",
+    () => ({ filters, dataset: reportDataset.value }),
+    (value) => {
+      if (value.filters) Object.assign(filters, value.filters);
+      reportDataset.value = String(
+        value.dataset || "inventory",
+      ) as ReportDataset;
+    },
+    () => keys.every((key) => sections[key].status !== "loading"),
   );
-  const refreshing = computed(() => hasSuccessfulData.value && loading.value);
-  const error = computed(
-    () =>
-      DASHBOARD_SECTIONS.map((name) => sectionState.value[name].error).find(
-        Boolean,
-      ) || "",
-  );
-  const boot = computed(() => data.value);
-  const warehouseRows = computed(() => data.value.warehouses || []);
-  const categoryRows = computed(() =>
-    (data.value.item_groups || []).filter(
-      (row: any) => row.name !== "All Item Groups",
-    ),
-  );
-  const activeFilterCount = computed(
-    () => filters.value.warehouses.length + filters.value.item_groups.length,
-  );
-  const activeScopeLabel = computed(() => {
-    if (!activeFilterCount.value) return "全部仓库 · 全部类别";
-    const labels = [
-      ...filters.value.warehouses.map(
-        (name) =>
-          warehouseRows.value.find((row: any) => row.name === name)
-            ?.local_label || name,
-      ),
-      ...filters.value.item_groups.map(
-        (name) =>
-          categoryRows.value.find((row: any) => row.name === name)
-            ?.item_group_name || name,
-      ),
-    ];
-    return labels.join(" · ");
+  let sequence = 0;
+  const scope = computed<BrowseScope>(() => ({
+    ...emptyScope(),
+    warehouses: [...filters.warehouses],
+    categories: [...filters.categories],
+  }));
+  const quickReportQuery = computed(() => {
+    const value = newReportQuery(reportDataset.value);
+    value.scope = clone(scope.value);
+    if (value.dataset === "movements")
+      value.scope.period = clone(filters.period);
+    return value;
   });
-  const movementSummaries = computed(
-    () => data.value?.movement?.summaries || [],
-  );
-  const expiryBuckets = computed(
-    () => Object.values(data.value?.expiry?.buckets || {}) as any[],
-  );
-
-  function sectionBusy(section: DashboardSection) {
-    return sectionState.value[section].loading;
-  }
-  function sectionStale(section: DashboardSection) {
-    return (
-      sectionState.value[section].stale ||
-      Boolean(sectionState.value[section].error)
-    );
-  }
-  function sectionError(section: DashboardSection) {
-    return sectionState.value[section].error;
-  }
-  function retrySection(section: DashboardSection) {
-    void load([section]);
-  }
-
-  function markGlobalScopePending() {
-    scopeGeneration += 1;
-    globalRequestSequence += 1;
-    globalLoading.value = true;
-    for (const section of DASHBOARD_SECTIONS) {
-      sectionState.value[section] = {
-        ...sectionState.value[section],
-        loading: true,
-        error: "",
-        stale: Boolean(data.value[section]),
-      };
-    }
-    return scopeGeneration;
-  }
-
-  async function load(sections?: DashboardSection[]) {
-    const full = !sections?.length || !hasSuccessfulData.value;
-    const requested = full ? [...DASHBOARD_SECTIONS] : [...new Set(sections)];
-    if (full) scopeGeneration += 1;
-    const generation = scopeGeneration;
-    const globalSequence = full ? ++globalRequestSequence : 0;
-    if (full) globalLoading.value = true;
-    const sequences = Object.fromEntries(
-      requested.map((section) => {
-        const sequence = ++sectionSequences[section];
-        sectionState.value[section] = {
-          ...sectionState.value[section],
-          loading: true,
-          error: "",
-          stale: Boolean(data.value[section]),
-        };
-        return [section, sequence];
-      }),
-    ) as Partial<Record<DashboardSection, number>>;
-    const params: Record<string, unknown> = {
-      ...normalizeFilters(filters.value),
-      period_key: movementPeriod.value,
-      expiry_preview: expiryPreview.value,
-      distribution_mode: distributionMode.value,
+  async function updateSection(key: DashboardSectionKey, retry = false) {
+    requests.get(key)?.controller.abort();
+    const request = {
+      controller: new AbortController(),
+      generation: ++sequence,
     };
-    if (!full) params.sections = requested;
+    requests.set(key, request);
+    const section = sections[key];
+    section.status = retry ? "retrying" : "loading";
+    section.error = "";
     try {
-      const result = await api("dashboard_summary", params);
-      if (generation !== scopeGeneration) return;
-      const accepted = requested.filter(
-        (section) => sequences[section] === sectionSequences[section],
+      const result = await services.call<Partial<DashboardResult>>(
+        "browse.dashboard_card",
+        {
+          card: key,
+          scope: clone(scope.value),
+          movement_period: clone(filters.period),
+          distribution: filters.distribution,
+        },
+        request.controller.signal,
       );
-      if (!accepted.length) return;
-      const next = { ...data.value };
-      for (const section of accepted) {
-        if (result[section] !== undefined) next[section] = result[section];
-      }
-      if (full) {
-        next.scope = result.scope;
-        next.generated_at = result.generated_at;
-        next.warehouses = result.warehouses;
-        next.item_groups = result.item_groups;
-        const canonicalFilters = normalizeFilters(
-          filters.value,
-          next.warehouses,
-          next.item_groups,
-        );
-        if (
-          JSON.stringify(canonicalFilters) !== JSON.stringify(filters.value)
-        ) {
-          filters.value = canonicalFilters;
-          void router
-            .replace({ query: serializeFilterQuery(canonicalFilters) })
-            .catch(() => {});
-        }
-      } else {
-        next.scope = result.scope;
-        next.generated_at = result.generated_at;
-      }
-      data.value = next;
-      for (const section of requested) {
-        if (sequences[section] !== sectionSequences[section]) continue;
-        sectionState.value[section] = {
-          loading: false,
-          error: "",
-          stale: false,
-        };
-      }
-      if (
-        full &&
-        requested.every((section) => data.value[section] !== undefined)
-      ) {
-        hasSuccessfulData.value = true;
-      }
-    } catch (cause: any) {
-      if (generation !== scopeGeneration) return;
-      for (const section of requested) {
-        if (sequences[section] !== sectionSequences[section]) continue;
-        sectionState.value[section] = {
-          loading: false,
-          error: cause?.message || "加载失败",
-          stale: Boolean(data.value[section]),
-        };
-      }
-    } finally {
-      if (
-        full &&
-        globalSequence === globalRequestSequence &&
-        generation === scopeGeneration
-      )
-        globalLoading.value = false;
+      if (requests.get(key) !== request) return;
+      section.result = { ...empty(), ...result };
+      section.hasResult = true;
+      section.status = "ready";
+      announcement.value = `${dashboardSections[key]}已更新`;
+    } catch (error) {
+      if (requests.get(key) !== request) return;
+      section.error = error instanceof Error ? error.message : "暂时无法读取";
+      section.status = "error";
     }
-  }
-
-  async function updateFilters(next: typeof defaults) {
-    next = normalizeFilters(next);
-    const pendingGeneration = markGlobalScopePending();
-    filters.value = next;
-    try {
-      await router.replace({ query: serializeFilterQuery(next) });
-      await load();
-    } catch (cause: any) {
-      if (pendingGeneration !== scopeGeneration) return;
-      globalLoading.value = false;
-      const message = cause?.message || "筛选更新失败";
-      for (const section of DASHBOARD_SECTIONS) {
-        sectionState.value[section] = {
-          ...sectionState.value[section],
-          loading: false,
-          error: message,
-          stale: Boolean(data.value[section]),
-        };
-      }
-    }
-  }
-  function clearFilters() {
-    void updateFilters({ warehouses: [], item_groups: [] });
   }
   function refresh() {
-    void load();
+    return Promise.all(keys.map((key) => updateSection(key)));
   }
-
   watch(
-    () => route.query,
-    (query) => {
-      const next = normalizeFilters(hydrateFilterQuery(query, defaults));
-      if (JSON.stringify(next) !== JSON.stringify(filters.value)) {
-        markGlobalScopePending();
-        filters.value = next;
-        void load();
-      }
+    () => JSON.stringify(scope.value),
+    () => {
+      void refresh();
     },
-    { deep: true, flush: "sync" },
+    { immediate: true },
   );
-  watch(movementPeriod, () => void load(["movement"]));
-  watch(expiryPreview, () => void load(["expiry"]));
-  watch(distributionMode, () => void load(["distribution"]));
-  watch(surface, (next) => {
-    if (next === "mobile" && desktopFilterOpen.value) filterOpen.value = true;
-    if (next === "desktop" && filterOpen.value) desktopFilterOpen.value = true;
+  watch(
+    () => JSON.stringify(filters.period),
+    () => {
+      void updateSection("movement");
+    },
+  );
+  watch(
+    () => filters.distribution,
+    () => {
+      void updateSection("distribution");
+    },
+  );
+  onBeforeUnmount(() => {
+    requests.forEach((request) => request.controller.abort());
+    requests.clear();
   });
-  onMounted(() => void load());
-
+  const blocked = (key: DashboardSectionKey) =>
+    sections[key].status !== "ready";
+  function drill(key: DashboardSectionKey, patch: Partial<ReportQuery> = {}) {
+    if (blocked(key)) return;
+    const value = clone(sections[key].result.query);
+    Object.assign(value, patch);
+    if (key === "distribution") {
+      value.dataset = "inventory";
+      value.view = "summary";
+    }
+    navigate(value);
+  }
+  function distributionDrill(row: DashboardRow) {
+    if (blocked("distribution")) return;
+    const value = newReportQuery("inventory");
+    value.scope = clone(sections.distribution.result.query.scope);
+    if (filters.distribution === "category")
+      value.scope.categories = [row.id || ""];
+    else value.scope.warehouses = [row.id || ""];
+    navigate(value);
+  }
+  function expiryDrill(id: string) {
+    if (blocked("expiry")) return;
+    const offset = (days: number) => {
+      const date = new Date(`${reference.siteDate}T00:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    };
+    const bounds: Record<string, [string, string]> = {
+      expired_1_30: [offset(-30), offset(-1)],
+      expired_31_90: [offset(-90), offset(-31)],
+      expired_91_plus: ["1000-01-01", offset(-91)],
+      upcoming_0_30: [offset(0), offset(30)],
+      upcoming_31_90: [offset(31), offset(90)],
+      upcoming_91_plus: [offset(91), "9999-12-31"],
+    };
+    const dates = bounds[id];
+    if (!dates) return;
+    const value = clone(sections.expiry.result.query);
+    value.scope.period = { key: "custom", from: dates[0], to: dates[1] };
+    value.expiryWindow = "period";
+    navigate(value);
+  }
+  const metrics = computed(() =>
+    [
+      { key: "available", label: "可用库存", tone: "available" },
+      { key: "stock_qty", label: "库存总量", tone: "total" },
+      { key: "loaned", label: "借出", tone: "loaned" },
+      { key: "damaged", label: "损坏", tone: "damaged" },
+    ].map((metric) => ({
+      ...metric,
+      quantities: sections.inventory.result.totals
+        .filter((row) => Number(row[metric.key]))
+        .map((row) => ({
+          uom: String(row.stock_uom || ""),
+          qty: Number(row[metric.key]),
+        })),
+    })),
+  );
+  const buckets = computed(() =>
+    expiryBuckets.map((bucket) => ({
+      ...bucket,
+      count:
+        sections.expiry.result.buckets.find((row) => row.id === bucket.id)
+          ?.count || 0,
+    })),
+  );
+  const movementSummary = computed(() =>
+    Object.entries(movementLabels).map(([kind, label]) => {
+      const totals = sections.movement.result.totals.filter(
+        (row) => row.kind === kind,
+      );
+      // One native record can have several UOM groups; counts cannot be summed across units.
+      return {
+        kind,
+        label,
+        count: sections.movement.result.kind_counts[kind] || 0,
+        quantities: totals.map((row) => ({
+          qty: Number(row.stock_qty || 0),
+          uom: String(row.stock_uom || ""),
+        })),
+      };
+    }),
+  );
   return {
-    surface,
-    route,
+    reference,
     filters,
-    data,
-    boot,
-    loading,
-    refreshing,
-    globalLoading,
-    error,
-    hasSuccessfulData,
-    sectionState,
-    sectionBusy,
-    sectionStale,
-    sectionError,
-    retrySection,
-    filterOpen,
-    desktopFilterOpen,
-    movementPeriod,
-    expiryPreview,
-    distributionMode,
-    warehouseRows,
-    categoryRows,
-    activeFilterCount,
-    activeScopeLabel,
-    movementSummaries,
-    expiryBuckets,
-    updateFilters,
-    clearFilters,
+    sections,
+    keys,
+    announcement,
+    reportDataset,
+    quickReportQuery,
+    metrics,
+    buckets,
+    expiryPreview: computed(
+      () => sections.expiry.result.expiry_rows[filters.expiry] || [],
+    ),
+    movementSummary,
     refresh,
+    updateSection,
+    blocked,
+    drill,
+    distributionDrill,
+    expiryDrill,
+    distribution: computed(() => sections.distribution.result.rows),
+    maximum: computed(() =>
+      Math.max(
+        1,
+        ...sections.distribution.result.rows.map((row) => row.item_count || 0),
+      ),
+    ),
+    loading: computed(() =>
+      keys.some((key) =>
+        ["loading", "retrying"].includes(sections[key].status),
+      ),
+    ),
+    loanQuantity: computed(() =>
+      quantityText(
+        sections.loans.result.totals.map((row) => ({
+          qty: Number(row.outstanding || 0),
+          uom: String(row.stock_uom || ""),
+        })),
+      ),
+    ),
   };
 }
-
-export type DashboardController = ReturnType<typeof useDashboardController>;

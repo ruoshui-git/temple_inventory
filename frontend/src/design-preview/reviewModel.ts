@@ -20,6 +20,7 @@ export type PreviewPage =
   | "warehouse-detail"
   | "pending"
   | "drafts"
+  | "counts"
   | "item-detail"
   | "item-form"
   | "movement-form"
@@ -149,7 +150,7 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route(
     "movement-records",
     "workspace-detail",
-    "/workspace/MAT-STE-2026-00017",
+    "/documents/Stock%20Entry/MAT-STE-2026-00017",
     "前端创建的库存记录",
     "货物流动",
     true,
@@ -157,7 +158,7 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route(
     "movement-records",
     "entry-detail",
-    "/entry/MAT-STE-2026-00003",
+    "/documents/Stock%20Entry/MAT-STE-2026-00003",
     "库存分录详情",
     "货物流动",
     true,
@@ -216,6 +217,7 @@ export const previewPages: readonly PreviewPageRoute[] = [
   route("warehouse-detail", "edit", "/warehouses/斋堂", "编辑仓库详情", "库存"),
   route("pending", "actionable", "/pending", "损坏待处理", "库存"),
   route("drafts", "open", "/drafts", "草稿", "更多"),
+  route("counts", "records", "/counts", "盘点调整记录", "更多"),
   route("item-detail", "overview", "/item/ITM-000128", "物品详情", "库存"),
   route("item-detail", "batches", "/item/ITM-000128", "物品批次", "库存"),
   route("item-form", "new", "/items/new", "新建物品", "表单"),
@@ -522,6 +524,7 @@ export interface ReviewFilters {
   };
   pending: { search: string; scope: BrowseScope };
   drafts: { search: string };
+  warehouses: { search: string };
 }
 
 const defaultWarehouses: ReviewWarehouse[] = [
@@ -922,6 +925,10 @@ const defaultPending: ReviewPending[] = items.flatMap((item) =>
 const seedStock = items.map((item) => structuredClone(item));
 
 export interface ReviewSession {
+  nativeBrowseQueries?: Record<
+    string,
+    import("../lib/reportContract").ReportQuery
+  >;
   categories: {
     name: string;
     label: string;
@@ -933,7 +940,14 @@ export interface ReviewSession {
   selectedItemCode: string;
   selectedMovementName: string;
   selectedLoanName: string;
+  selectedReturnOutcome?: "returned" | "damaged";
+  selectedSettlementLoan?: string;
+  selectedAllocations?: import("../lib/routeSelection").InitialAllocation[];
+  nativeExpiryQuery?: import("../lib/reportContract").ReportQuery;
+  nativePendingQuery?: import("../lib/reportContract").ReportQuery;
   selectedDraftName: string;
+  selectedRecoveryId?: string;
+  selectedOperationWarehouse?: string;
   selectedWarehouse: string;
   drafts: ReviewDraft[];
   movements: ReviewMovement[];
@@ -978,6 +992,7 @@ const initialFilters = (): ReviewFilters => ({
   loanRecords: { status: "all", sort: "newest" },
   pending: { search: "", scope: emptyScope() },
   drafts: { search: "" },
+  warehouses: { search: "" },
 });
 
 const savedDocuments = new WeakMap<ReviewDraft, string>();
@@ -1031,14 +1046,17 @@ export function createReviewSession(
     session,
     stock.map((item) => structuredClone(item)),
   );
+  session.nativeBrowseQueries = {};
   sessionDraftSequences.set(session, 1);
   session.drafts.forEach((draft) => captureSavedDraft(draft, session));
   return session;
 }
 
 export const reviewSession = createReviewSession(items);
+export let reviewSessionGeneration = 0;
 
 export function resetReviewSession(session: ReviewSession = reviewSession) {
+  if (session === reviewSession) reviewSessionGeneration++;
   Object.assign(conversionAccess, {
     createUnit: true,
     updateItem: true,
@@ -1072,6 +1090,13 @@ export function resetReviewSession(session: ReviewSession = reviewSession) {
   session.selectedItemCode = "ITM-000128";
   session.selectedMovementName = "";
   session.selectedLoanName = "";
+  session.selectedReturnOutcome = undefined;
+  session.selectedSettlementLoan = undefined;
+  session.selectedAllocations = undefined;
+  session.nativeExpiryQuery = undefined;
+  session.nativePendingQuery = undefined;
+  session.selectedRecoveryId = undefined;
+  session.selectedOperationWarehouse = undefined;
   session.selectedDraftName = "";
   session.selectedWarehouse = "斋堂";
   session.drafts.splice(0, session.drafts.length, ...initialDrafts());

@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, type VueWrapper } from "@vue/test-utils";
+import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { nextTick, h } from "vue";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import PreviewApp from "../src/design-preview/PreviewApp.vue";
 import PreviewInventory from "../src/design-preview/PreviewInventory.vue";
 import PreviewReceive from "../src/design-preview/PreviewReceive.vue";
-import PreviewOverlay from "../src/design-preview/PreviewOverlay.vue";
-import PreviewStockDetails from "../src/design-preview/PreviewStockDetails.vue";
+import PreviewOverlay from "../src/components/ui/Overlay.vue";
+import PreviewStockDetails from "../src/components/StockDetails.vue";
 import PreviewItemImage from "../src/design-preview/PreviewItemImage.vue";
 import PreviewDenseLines from "../src/design-preview/PreviewDenseLines.vue";
 import PreviewBrowsePages from "../src/design-preview/PreviewBrowsePages.vue";
@@ -239,7 +239,7 @@ describe("design preview preferences and fixtures", () => {
 describe("interactive preview", () => {
   it("shows thumbnails in every list row and no expiry badge for undated items", async () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
-    await nextTick();
+    await flushPromises();
     const plainCard = wrapper
       .findAll(".stock-card")
       .find((card) => card.text().includes(items[2].name))!;
@@ -259,14 +259,14 @@ describe("interactive preview", () => {
     await wrapper
       .get('button[aria-label="放大查看东北珍珠米图片"]')
       .trigger("click");
-    await nextTick();
+    await flushPromises();
     expect(document.querySelector(".lightbox-image")).not.toBeNull();
     document
       .querySelector<HTMLElement>(".preview-overlay")!
       .dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
       );
-    await nextTick();
+    await flushPromises();
     expect(document.querySelector(".lightbox-image")).toBeNull();
     expect(wrapper.findAll("tbody tr")).toHaveLength(6);
   });
@@ -324,45 +324,18 @@ describe("interactive preview", () => {
     expect(wrapper.find("button").exists()).toBe(false);
     expect(wrapper.text()).toContain("暂无图片");
   });
-  it("keeps the date above items in both receiving layouts and shows only applicable fields", async () => {
+  it("keeps the native date and allocation editor mounted across receiving layout settings", async () => {
     const wrapper = render(PreviewReceive, { pattern: "proposed" });
+    await flushPromises();
     expect(wrapper.find(".receive-summary").exists()).toBe(true);
     expect(wrapper.findAll(".form-section")[0].text()).toContain("入库时间");
+    await wrapper.get("select").setValue("manual");
     const date = wrapper.findAll(".form-section")[0].get('input[type="date"]');
     await date.setValue("2026-10-12");
     await wrapper.setProps({ pattern: "current" });
-    expect(
-      (
-        wrapper.findAll(".form-section")[0].get('input[type="date"]')
-          .element as HTMLInputElement
-      ).value,
-    ).toBe("2026-10-12");
-    for (const item of [items[2], items[5]]) {
-      await button(wrapper, "添加物品").trigger("click");
-      await nextTick();
-      const row = Array.from(
-        document.querySelectorAll<HTMLElement>(".picker-row"),
-      ).find((row) => row.textContent?.includes(item.name))!;
-      const checkbox = row.querySelector<HTMLInputElement>(
-        'input[type="checkbox"]',
-      )!;
-      checkbox.checked = true;
-      checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-      await nextTick();
-      Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.trim() === "添加所选（1）")!
-        .click();
-      await nextTick();
-    }
-    const plain = wrapper
-      .findAll(".receive-line")
-      .find((row) => row.text().includes(items[2].name))!;
-    const batchOnly = wrapper
-      .findAll(".receive-line")
-      .find((row) => row.text().includes(items[5].name))!;
-    expect(plain.text()).not.toContain("批次编号");
-    expect(batchOnly.text()).toContain("批次 自动生成");
-    expect(batchOnly.text()).not.toContain("到期日期");
+    expect((date.element as HTMLInputElement).value).toBe("2026-10-12");
+    expect(wrapper.findAll(".preview-allocation")).toHaveLength(1);
+    expect(wrapper.text()).toContain("GALLERY-RECEIVE");
   });
   it("preserves the active filters when opening contextual export", async () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
@@ -407,20 +380,25 @@ describe("interactive preview", () => {
   it("switches visual and interaction settings independently without losing demo state", async () => {
     const wrapper = render(PreviewApp);
     await nextTick();
-    expect(document.documentElement.dataset.previewTheme).toBe("jade");
-    expect(document.documentElement.dataset.previewDensity).toBe("balanced");
+    expect(document.documentElement.dataset.tiTheme).toBe("jade");
+    expect(document.documentElement.dataset.tiDensity).toBe("balanced");
     expect(document.documentElement.style.getPropertyValue("--p-accent")).toBe(
       "#28684E",
     );
     expect(wrapper.findAll(".nav-group")).toHaveLength(5);
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().endsWith("库存浏览"))!
+      .trigger("click");
+    await flushPromises();
     const inventory = wrapper.findComponent(PreviewInventory);
     await inventory
       .get('input[aria-label="搜索物品或条码"]')
       .setValue("珍珠米");
     await wrapper.get('[data-theme-option="blue"]').trigger("click");
     await wrapper.get('select[aria-label="显示密度"]').setValue("spacious");
-    expect(document.documentElement.dataset.previewTheme).toBe("blue");
-    expect(document.documentElement.dataset.previewDensity).toBe("spacious");
+    expect(document.documentElement.dataset.tiTheme).toBe("blue");
+    expect(document.documentElement.dataset.tiDensity).toBe("spacious");
     expect(inventory.props("pattern")).toBe("current");
     expect(inventory.findAll(".stock-card")).toHaveLength(1);
     expect(wrapper.findAll(".nav-group")).toHaveLength(5);
@@ -459,7 +437,7 @@ describe("interactive preview", () => {
       .setValue("珍珠米");
     window.location.hash = pageHash("inventory/list");
     window.dispatchEvent(new Event("hashchange"));
-    await nextTick();
+    await flushPromises();
     expect(wrapper.findAllComponents(PreviewInventory)).toHaveLength(1);
     expect(
       wrapper.findComponent(PreviewInventory).findAll(".stock-card"),
@@ -474,7 +452,7 @@ describe("interactive preview", () => {
   });
   it("filters, sorts, retains selection across view switches, and dismisses action menus", async () => {
     const wrapper = render(PreviewInventory, { pattern: "proposed" });
-    await nextTick();
+    await flushPromises();
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
     await button(wrapper, "列表").trigger("click");
     expect(wrapper.findAll("tbody tr.selected")).toHaveLength(1);
@@ -483,65 +461,42 @@ describe("interactive preview", () => {
     await wrapper.get('input[aria-label="搜索物品或条码"]').setValue("长袖");
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
     expect(wrapper.get(".selection-bar").text()).toContain("已选择 1 项");
+    desktop = false;
+    listeners.forEach((callback) => callback({ matches: false }));
+    await flushPromises();
     const trigger = wrapper.get('button[aria-label="新建操作"]');
     await trigger.trigger("click");
     expect(wrapper.find(".menu-popover").exists()).toBe(true);
     document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-    await nextTick();
+    await flushPromises();
     expect(wrapper.find(".menu-popover").exists()).toBe(false);
     await trigger.trigger("click");
     await wrapper.get(".action-menu").trigger("keydown", { key: "Escape" });
     expect(document.activeElement).toBe(trigger.element);
     expect(wrapper.find(".menu-popover").exists()).toBe(false);
   });
-  it("validates receiving and preserves input through failures, layout changes and confirmation", async () => {
-    vi.useFakeTimers();
+  it("validates receiving input and confirms through the shared native service contract", async () => {
     const wrapper = render(PreviewReceive, { pattern: "current" });
+    await flushPromises();
     const qty = wrapper.get('input[aria-label="东北珍珠米数量"]');
     await qty.setValue(0);
     await wrapper.get("form").trigger("submit");
-    expect(wrapper.get('[role="alert"]').text()).toContain("数量必须大于 0");
+    await flushPromises();
+    expect(wrapper.text()).toContain("数量必须大于 0");
     await qty.setValue(7);
     await wrapper.setProps({ pattern: "proposed" });
-    expect(
-      (
-        wrapper.get('input[aria-label="东北珍珠米数量"]')
-          .element as HTMLInputElement
-      ).value,
-    ).toBe("7");
-    await wrapper
-      .findAll('.demo-state-control input[type="checkbox"]')[0]
-      .setValue(true);
-    await vi.advanceTimersByTimeAsync(600);
-    expect(wrapper.get(".form-status").text()).toContain("保存失败");
-    await wrapper.get("form").trigger("submit");
-    await nextTick();
-    const confirmButton = () =>
-      Array.from(
-        document.querySelectorAll<HTMLButtonElement>(".preview-dialog button"),
-      ).find((node) => node.textContent?.trim() === "确认入库（模拟）")!;
-    confirmButton().click();
-    await vi.advanceTimersByTimeAsync(700);
-    expect(
-      document.querySelector(".preview-dialog [role=alert]")?.textContent,
-    ).toContain("模拟提交失败");
     expect((qty.element as HTMLInputElement).value).toBe("7");
-    document
-      .querySelector<HTMLButtonElement>(
-        '.preview-dialog button[aria-label="关闭对话框"]',
-      )!
-      .click();
-    await nextTick();
-    await wrapper
-      .findAll('.demo-state-control input[type="checkbox"]')[0]
-      .setValue(false);
     await wrapper.get("form").trigger("submit");
-    await nextTick();
-    confirmButton().click();
-    await vi.advanceTimersByTimeAsync(700);
-    expect(wrapper.text()).toContain("模拟入库完成，记录已锁定");
-    expect(wrapper.emitted("notify")?.at(-1)?.[0]).toContain(
-      "真实库存没有发生变化",
+    await flushPromises();
+    const confirm = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".preview-dialog button"),
+    ).find((node) => node.textContent?.trim() === "确认提交")!;
+    expect(confirm).toBeDefined();
+    confirm.click();
+    await flushPromises();
+    expect(wrapper.text()).toContain("已确认");
+    expect(wrapper.find('input[aria-label="东北珍珠米数量"]').exists()).toBe(
+      false,
     );
   });
   it("traps overlay focus, handles Escape, restores focus and releases scroll locking", async () => {
@@ -622,7 +577,7 @@ describe("preview palette contrast", () => {
     });
   }
   it("keeps semantic status text legible", () => {
-    const css = readFileSync("src/design-preview/preview.css", "utf8");
+    const css = readFileSync("src/styles/foundation.css", "utf8");
     for (const kind of ["success", "warning", "danger", "info"]) {
       const foreground = css.match(
         new RegExp(`--p-${kind}: (#[0-9a-f]{6})`),
@@ -635,7 +590,7 @@ describe("preview palette contrast", () => {
   });
   it("owns preview styles without importing production design tokens or primitives", () => {
     const main = readFileSync("src/design-preview/main.ts", "utf8");
-    const css = readFileSync("src/design-preview/preview.css", "utf8");
+    const css = readFileSync("src/styles/foundation.css", "utf8");
     expect(main).not.toMatch(/styles\/(tokens|primitives)\.css/);
     expect(css).toContain("--p-canvas: #f4f6f3");
     expect(css).toContain("--p-ink: #24332d");
@@ -645,13 +600,8 @@ describe("preview palette contrast", () => {
       /:hover[^{}]*\{[^{}]*text-decoration:\s*underline/s,
     );
   });
-  it("keeps every transitive presentation dependency preview-local", () => {
+  it("keeps gallery fixtures isolated while sharing product display definitions", () => {
     const root = resolve("src/design-preview");
-    const allowedShared = new Set([
-      resolve("src/components/InventoryIcon.vue"),
-      resolve("src/composables/useResponsiveLayout.ts"),
-      resolve("src/lib/hierarchySelection.ts"),
-    ]);
     const visited = new Set<string>();
     const pending = [resolve(root, "main.ts")];
     while (pending.length) {
@@ -675,13 +625,45 @@ describe("preview palette contrast", () => {
           dependency,
           `${file} has an unresolved import ${specifier}`,
         ).toBeDefined();
+        expect(dependency!.startsWith(resolve("src") + "/")).toBe(true);
         expect(
-          dependency!.startsWith(`${root}/`) || allowedShared.has(dependency!),
-          `${file} imports non-preview presentation ${specifier}`,
-        ).toBe(true);
+          [
+            resolve("src/lib/api.ts"),
+            resolve("src/services/frappeServices.ts"),
+            resolve("src/lib/pwa.ts"),
+            resolve("src/main.ts"),
+          ],
+          `${file} imports production transport/bootstrap ${specifier}`,
+        ).not.toContain(dependency!);
         pending.push(dependency!);
       }
     }
     expect(visited.size).toBeGreaterThan(20);
+    function checkProduction(directory: string) {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const file = resolve(directory, entry.name);
+        if (file === root) continue;
+        if (entry.isDirectory()) {
+          checkProduction(file);
+          continue;
+        }
+        if (!/\.(ts|vue|css)$/.test(file)) continue;
+        const source = readFileSync(file, "utf8");
+        for (const [, specifier] of source.matchAll(
+          /(?:from\s*|import\s*)["']([^"']+)["']/g,
+        )) {
+          const resolved = specifier.startsWith(".")
+            ? resolve(dirname(file), specifier)
+            : specifier.startsWith("@/")
+              ? resolve("src", specifier.slice(2))
+              : "";
+          expect(
+            resolved.startsWith(root + "/"),
+            `${file} imports gallery data ${specifier}`,
+          ).toBe(false);
+        }
+      }
+    }
+    checkProduction(resolve("src"));
   });
 });

@@ -24,9 +24,9 @@ def get_context(context):
 	if frappe.session.user == "Guest":
 		frappe.flags.redirect_location = "/login?" + urlencode({"redirect-to": frappe.request.path})
 		raise frappe.Redirect(http_status_code=302)
-	from temple_inventory.inventory_api import _require_stock
+	from temple_inventory.native_access import require_app
 
-	_require_stock()
+	require_app()
 	context.boot = {
 		"csrf_token": frappe.sessions.get_csrf_token(),
 		"user": frappe.session.user,

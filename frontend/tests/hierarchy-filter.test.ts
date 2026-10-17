@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import HierarchyFilter from "../src/components/HierarchyFilter.vue";
+import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
 
 const nodes = [
   {

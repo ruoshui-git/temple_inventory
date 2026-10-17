@@ -1,0 +1,807 @@
+{
+  "purpose": "Source-contract retirement after native replacement. This maps coverage; passing replacements do not waive the handoff acceptance matrix. Browser worker/export, concurrency, device and visual limitations remain in the progress record.",
+  "source_baseline": "63c7f26",
+  "migrated_in_place": {
+    "expiry-duration.test.ts": "Same nineteen duration cases now target active expiryDuration helper; native remaining_days drives display.",
+    "movement-labels.test.ts": "Current shared filter presentation and unmapped native kind labels.",
+    "responsive-layout.test.ts": "Mobile-first/listener cleanup and native controller retention across breakpoints.",
+    "attachments.test.ts": "Real shared attachment controller with private native metadata and capability checks.",
+    "image-preview.test.ts": "Shared ItemImage/Overlay focus and authorized-original states.",
+    "design-preview-refinement.test.ts": "Preserved fixture date/scope/grouping/settlement model cases; old UI assertions replaced by shared native tests.",
+    "design-system.test.ts": "Sole active foundation/themes/contrast and production/gallery import isolation.",
+    "quantity-summary-card-view.test.ts": "Actual native StockBrowsePage/StockDetails unit and Batch presentation."
+  },
+  "capability_groups": {
+    "native shell/navigation": {
+      "replacement_tests": [
+        "native-shell.test.ts",
+        "native-navigation-memory.test.ts",
+        "native-editor-route.test.ts",
+        "browse-memory.test.ts",
+        "native-application.test.ts",
+        "browser/native-navigation-memory.spec.ts",
+        "browser/native-server/acceptance.spec.ts"
+      ],
+      "retired_files": [
+        {
+          "retired_file": "application-shell-navigation.test.ts",
+          "retired_case_titles": [
+            "keeps all five primary destinations in the agreed order",
+            "keeps the product brand ahead of the primary navigation on every route",
+            "shows the complete Inventory context on Expiry and selects exactly one item",
+            "selects a child only inside the owning module",
+            "leaves Inventory and Expiry tabs to the production page on mobile",
+            "leaves Movement and Loans tabs to their page headers on mobile",
+            "preserves common Loans filters and resets mode-specific state when switching",
+            "normalizes default movement context state",
+            "uses one single-open accordion context across desktop modules",
+            "treats the report center as part of More",
+            "marks exactly one More child active and expands workflow routes by module",
+            "carries every movement filter across detail and record tabs",
+            "mounts exactly one shell surface while crossing the shared breakpoint",
+            "retains the routed slot instance while crossing the shared breakpoint"
+          ]
+        },
+        {
+          "retired_file": "desktop-viewport-contract.test.ts",
+          "retired_case_titles": [
+            "uses a high-contrast selected state for the mobile bottom navigation",
+            "keeps shell viewport ownership and sidebar cascade protection in their owning views",
+            "keeps desktop filters inside the viewport-owned rail and mobile drawers inside the viewport",
+            "mounts an independently scrollable navigation surface with context links"
+          ]
+        },
+        {
+          "retired_file": "mobile-subnav.test.ts",
+          "retired_case_titles": [
+            "compacts after scrolling past 80px and resets when route context changes"
+          ]
+        },
+        {
+          "retired_file": "navigation.test.ts",
+          "retired_case_titles": [
+            "uses a same-origin in-app history predecessor",
+            "replaces direct entry and rejects malformed or external history"
+          ]
+        },
+        {
+          "retired_file": "history-scanner-navigation-integration.test.ts",
+          "retired_case_titles": [
+            "uses separate page instances for list destinations but not query-only changes",
+            "uses a modal scanner for one-shot item barcode editing and closes after decode",
+            "keeps Item read data visible during upload refresh and preserves attachment controls",
+            "uses a modal reconciliation scanner and exposes lookup results after closing",
+            "keeps workspace scanning continuous and preserves the contextual fallback helper",
+            "sorts History through the server and isolates draft controls from row activation",
+            "shows role-specific warehouse columns for %s movements",
+            "separates transfer warehouse roles and expands previews without activating the row"
+          ]
+        }
+      ]
+    },
+    "native saving/recovery/files": {
+      "replacement_tests": [
+        "native-editor.test.ts",
+        "native-operation-editor.test.ts",
+        "native-item-editor.test.ts",
+        "browser-recovery.test.ts",
+        "attachments.test.ts",
+        "image-preview.test.ts",
+        "report-table.test.ts"
+      ],
+      "retired_files": [
+        {
+          "retired_file": "autosave.test.ts",
+          "retired_case_titles": [
+            "debounces text and saves structural edits immediately",
+            "serializes requests and retains edits made while saving",
+            "does not retry endlessly on failure and can recover",
+            "pauses during expired sessions"
+          ]
+        },
+        {
+          "retired_file": "item-creation.test.ts",
+          "retired_case_titles": [
+            "keeps create-item above the infinitely loaded result list",
+            "keeps existing item rows visible while search results refresh",
+            "uses a dedicated standalone page instead of a drawer",
+            "previews an editable code and submits the selected non-Nos UOM exactly",
+            "starts with an empty UOM when Nos does not exist",
+            "selects a newly created UOM without clearing the draft",
+            "ignores a stale code-availability response",
+            "shows a collision without clearing the draft and can regenerate the code",
+            "places an accessible scanner button beside its input",
+            "fills the associated input after one scan and closes the scanner",
+            "creates in the transaction drawer, shows a toast, and selects the new item"
+          ]
+        },
+        {
+          "retired_file": "toast.test.ts",
+          "retired_case_titles": [
+            "uses the confirmed durations and suppresses duplicate messages",
+            "renders toast messages under document.body"
+          ]
+        },
+        {
+          "retired_file": "truncated-text-popover.test.ts",
+          "retired_case_titles": [
+            "renders an em dash without an interactive popover for empty notes",
+            "keeps desktop truncation and exposes the full note accessibly"
+          ]
+        }
+      ]
+    },
+    "shared filters/selectors/actions": {
+      "replacement_tests": [
+        "shared-compact-filters.test.ts",
+        "hierarchy-filter.test.ts",
+        "detail-popover.test.ts",
+        "ui-button.test.ts",
+        "report-query.test.ts",
+        "native-browse-export.test.ts",
+        "design-preview.test.ts"
+      ],
+      "retired_files": [
+        {
+          "retired_file": "action_menu.test.ts",
+          "retired_case_titles": [
+            "keeps chip removal at the beginning and collapses overflow",
+            "can hide the page-level clear action without changing the default",
+            "does not start an action while closed and closes on Escape",
+            "supports cyclic arrow-key navigation and restores the FAB after choosing",
+            "does not open or emit when the trigger and menu actions are disabled",
+            "skips disabled menu items during keyboard navigation"
+          ]
+        },
+        {
+          "retired_file": "compact-filters.test.ts",
+          "retired_case_titles": [
+            "provides shared heading, count, collapse, per-section clear, and body controls",
+            "keeps one section card and heading when a hierarchy filter is embedded",
+            "closes MovementLookup on outside pointer, Escape, focus leave, and unmount",
+            "shows a spinner and busy state while MovementLookup options refresh",
+            "keeps the warehouse/category hierarchy tree inline without a popup",
+            "uses one real mobile dialog surface with backdrop and focus return",
+            "leaves existing document overflow alone while initially closed",
+            "locks only the open mobile drawer across breakpoint changes"
+          ]
+        },
+        {
+          "retired_file": "column-summary-dialog.test.ts",
+          "retired_case_titles": [
+            "renders UOM breakdown and restores focus/overflow on close",
+            "traps tab focus and announces summary refresh",
+            "shows the initial summary status without an empty-result message"
+          ]
+        },
+        {
+          "retired_file": "column-summary-trigger.test.ts",
+          "retired_case_titles": [
+            "uses one sigma icon and a visible, accessible neutral label"
+          ]
+        },
+        {
+          "retired_file": "desktop-filter-layout.test.ts",
+          "retired_case_titles": [
+            "collapses and opens Loans desktop filters",
+            "keeps loan tab queries reactive and clears only mode-specific filters",
+            "renders loan quantity columns from per-UOM row values",
+            "collapses and opens Pending desktop filters",
+            "collapses and opens Drafts desktop filters"
+          ]
+        },
+        {
+          "retired_file": "filters.test.ts",
+          "retired_case_titles": [
+            "uses repeated values without punctuation splitting",
+            "keeps defaults for absent scalar values and treats empty arrays as all",
+            "aborts stale requests and only accepts the newest response"
+          ]
+        },
+        {
+          "retired_file": "hierarchy_autocomplete.test.ts",
+          "retired_case_titles": [
+            "does not preselect a group whose only leaf is hidden from the option list",
+            "uses presenter labels rather than ERPNext company-suffixed identifiers in chips",
+            "hides only explicitly zero-count warehouse and category options",
+            "canonicalizes warehouse and category chips and emits exclusions through both wrappers"
+          ]
+        },
+        {
+          "retired_file": "layout-and-selector-style-contract.test.ts",
+          "retired_case_titles": [
+            "keeps sidebar children in one full-width no-wrap submenu column",
+            "keeps normal and compact Movement desktop chrome as distinct grid states",
+            "owns hierarchy styling in the shared core for non-Inventory consumers"
+          ]
+        },
+        {
+          "retired_file": "mobile-browse-chrome.test.ts",
+          "retired_case_titles": [
+            "preserves the full movement query and applies loan mode status defaults",
+            "keeps one semantic heading, search and tabs available in compact mode",
+            "uses the active surface threshold, hides under overlays and restores heading focus",
+            "reattaches listeners for a new root and honors reduced motion",
+            "follows the restored active root and disconnects listeners and observers"
+          ]
+        },
+        {
+          "retired_file": "overflow-action-menu.test.ts",
+          "retired_case_titles": [
+            "supports Escape, arrow/Home/End navigation, focus return, and outside close"
+          ]
+        },
+        {
+          "retired_file": "warehouse-filter-style.test.ts",
+          "retired_case_titles": [
+            "keeps one search surface and uses compact search styling"
+          ]
+        }
+      ]
+    },
+    "native stock/expiry/warehouse presentation": {
+      "replacement_tests": [
+        "native-browse-export.test.ts",
+        "native-expiry-browse.test.ts",
+        "native-warehouses.test.ts",
+        "quantity-summary-card-view.test.ts",
+        "responsive-layout.test.ts",
+        "report-table.test.ts",
+        "async-image.test.ts",
+        "design-system.test.ts",
+        "browser/native-server/acceptance.spec.ts"
+      ],
+      "retired_files": [
+        {
+          "retired_file": "browse-layout-contracts.test.ts",
+          "retired_case_titles": [
+            "keeps Loans search flexible and actions grouped at the right",
+            "keeps the Expiry result summary as the right-side metadata item"
+          ]
+        },
+        {
+          "retired_file": "browse-loading-contracts.test.ts",
+          "retired_case_titles": [
+            "renders exactly one explicit Loans filter trigger for each active surface",
+            "offers permitted Loan and Return routes from one controller",
+            "keeps %s busy until bootstrap and first page settle",
+            "transitions %s from loading to data",
+            "settles %s loading on bootstrap errors"
+          ]
+        },
+        {
+          "retired_file": "inventory-expiry-integration.test.ts",
+          "retired_case_titles": [
+            "keeps Expiry in loading state while bootstrap is deferred",
+            "keeps Inventory in loading state while bootstrap is deferred",
+            "mounts dedicated Inventory and Expiry surface boundaries",
+            "opens both real mobile filter drawers and restores exact Inventory defaults",
+            "removes the Inventory headline quantity summary",
+            "switches the production Inventory mobile card and list views",
+            "defaults Expiry to shared cards, persists the list toggle, and opens column totals",
+            "keeps mobile Inventory detail chips from activating their row",
+            "keeps mobile rows visible and blocks stale activation during refresh",
+            "keeps mobile Expiry summary metrics and quick shortcuts out of browse chrome",
+            "compacts mobile browse chrome while retaining the compact page title",
+            "restores Inventory compact state from a saved mobile scroll position",
+            "compacts and restores the Expiry mobile header with its results scroll",
+            "restores Expiry compact state from a saved scroll position",
+            "hides the ERPNext item-group root and sanitizes legacy selection",
+            "shows Expiry primary actions and permission-filtered overflow actions",
+            "filters Inventory overflow actions by capabilities and keeps Export last",
+            "restores bootstrap-dependent filters and actions when retry succeeds",
+            "keeps browse chrome outside the dedicated results scroll and uses shared primary cells",
+            "requests Inventory default sort, reverses it, resets rows, and serializes non-default state",
+            "keeps Inventory scanner modal lookup pending and handles known and unknown results",
+            "keeps the Inventory scanner open after a lookup failure",
+            "hydrates Expiry legacy sort, removes the sidebar sorter, and sends canonical sort state",
+            "uses Expiry first-click directions and resets to the default canonical sort",
+            "hydrates Expiry when browser navigation changes only the sort",
+            "shows server expiry counts and blocks an invalid signed custom range"
+          ]
+        },
+        {
+          "retired_file": "inventory_contracts.test.ts",
+          "retired_case_titles": [
+            "uses friendly unspecified labels without duplicating the room or company suffix",
+            "keeps reconciliation and movement labels in the shared contract",
+            "exposes structured warehouse labels for display, search, and selection roles"
+          ]
+        },
+        {
+          "retired_file": "mobile-expiry-results.test.ts",
+          "retired_case_titles": [
+            "exposes loading, append, error/retry, and empty states",
+            "keeps one visible batch identity and one location popover outside row activation"
+          ]
+        },
+        {
+          "retired_file": "warehouse-detail-loading.test.ts",
+          "retired_case_titles": [
+            "loads once initially and keeps both regions busy with retained data during overlapping refreshes",
+            "retains populated detail on read failure and retries the full read"
+          ]
+        },
+        {
+          "retired_file": "warehouse-presenter.test.ts",
+          "retired_case_titles": [
+            "uses local labels while retaining breadcrumbs and structured values",
+            "collapses both structured fallback roles from logical browse",
+            "does not let missing or inaccessible operation leaves become actions",
+            "keeps infrastructure out of the logical browse contract"
+          ]
+        },
+        {
+          "retired_file": "warehouses-view-loading.test.ts",
+          "retired_case_titles": [
+            "removes inert while idle and keeps search usable during retained-data refresh"
+          ]
+        },
+        {
+          "retired_file": "ui-loading-boundary.test.ts",
+          "retired_case_titles": [
+            "centers in the visible nested scroll intersection and tracks scrolling",
+            "moves its dim state when the region changes and removes listeners on unmount",
+            "keeps an announced status when no visible region can show the indicator",
+            "hides the indicator when a clipped strip is narrower than its measured size",
+            "cancels a pending frame and disconnects resize observers on unmount",
+            "renders within the active modal stacking context",
+            "keeps initial loading distinct from retained refresh styling and honors reduced motion"
+          ]
+        },
+        {
+          "retired_file": "shared-ui-primitives.test.ts",
+          "retired_case_titles": [
+            "shows a sized skeleton until the image loads",
+            "resets to loading when the source changes and exposes an error fallback",
+            "uses a stable empty fallback without attempting an empty request",
+            "normalizes numeric string dimensions for correctly sized skeletons",
+            "uses short accented labels for system warehouses and breadcrumbs for regular ones",
+            "renders the shared complete-result contract and update state",
+            "keeps browse filters before the right-aligned count in narrow layout markup",
+            "keeps the Expiry batch visible once and retains location details",
+            "renders operation records as independent warehouse branches",
+            "supports keyboard navigation, disabled actions, selection and focus restoration",
+            "closes on outside pointer, Escape, focus leaving, and does not open when disabled"
+          ]
+        },
+        {
+          "retired_file": "responsive-surface-coordinators.test.ts",
+          "retired_case_titles": [
+            "mounts one $key surface and retains its controller state",
+            "mounts one $key view, passes its active surface, and retains state",
+            "keeps same-flow browse surfaces single-owned instead of duplicating full views"
+          ]
+        },
+        {
+          "retired_file": "sortable-data-table.test.ts",
+          "retired_case_titles": [
+            "emits initial order, reverses active order, and exposes aria sort and arrows",
+            "isolates explicit controls, activates rows by keyboard, and toggles row actions in selection mode",
+            "activates the supplied mobile card through its non-control area",
+            "keeps sorting available while stale rows reject mouse and keyboard activation",
+            "marks a selected supplied mobile card at the shared row boundary",
+            "marks every desktop header cell with the sticky contract",
+            "keeps rows visible during refresh and exposes distinct initial/append states",
+            "shows the empty state only after loading finishes",
+            "keeps mobile rows visible alongside a refresh error"
+          ]
+        }
+      ]
+    },
+    "native dashboard/movements/loans/exports": {
+      "replacement_tests": [
+        "native-browse-export.test.ts",
+        "native-operation-browse.test.ts",
+        "native-loan-detail.test.ts",
+        "native-pending.test.ts",
+        "native-records.test.ts",
+        "report-query.test.ts",
+        "shared-compact-filters.test.ts",
+        "browser/native-server/acceptance.spec.ts"
+      ],
+      "retired_files": [
+        {
+          "retired_file": "dashboard-controller.test.ts",
+          "retired_case_titles": [
+            "requests only the local section and keeps the newest local result over an older full response",
+            "retains the distribution total and bars together when a local update fails",
+            "rejects local work after a newer scope-wide refresh and retains stale data on failure",
+            "uses a full retry after the initial request fails",
+            "ignores older values, timestamps, and failures when requests target one section",
+            "marks all cards stale at filter intent and ignores pending local data until the new scope loads",
+            "retries only the failed card after the initial full load succeeded"
+          ]
+        },
+        {
+          "retired_file": "dashboard.test.ts",
+          "retired_case_titles": [
+            "renders the approved sections and only authoritative loan information",
+            "opens the in-layout filter rail on desktop",
+            "rebinds Dashboard return-to-top between desktop and mobile scroll roots",
+            "renders canonical active filter chips in the routed dashboard consumer",
+            "preserves loading, error retry, and empty section states",
+            "keeps section layout steady and local controls reachable while disabling stale links",
+            "uses one global refresh indicator while dashboard controls stay live",
+            "groups desktop columns and restores the original stacked order",
+            "renders exact zero counts with zero-width bars and an integer zero tick",
+            "omits the cross-warehouse overlap note while using category distribution",
+            "keeps dashboard drill-through destinations scoped to the active filters",
+            "renders the selected upcoming expiry range",
+            "changes between measured desktop columns and the approved stacked order without replacing the scroll root",
+            "places unequal integer ticks at proportional positions"
+          ]
+        },
+        {
+          "retired_file": "loan-group-breakdown.test.ts",
+          "retired_case_titles": [
+            "keeps an open breakdown when the shared breakpoint changes",
+            "opens the same breakdown by click or ArrowDown and closes on Escape",
+            "keeps one pinned panel open and dismisses it on an outside pointer",
+            "does not unpin on hover or focus after a click"
+          ]
+        },
+        {
+          "retired_file": "loans.test.ts",
+          "retired_case_titles": [
+            "loads aggregate item outcomes in the four-column ledger without a persistent summary row",
+            "supports all and each item outcome through the top status chips",
+            "retains a pinned breakdown and loaded records across the Loans breakpoint",
+            "loads the selected group",
+            "loads complete records and hydrates the outstanding status filter",
+            "defaults records to all and filters them with status chips",
+            "restores the mode-specific default when clearing item filters",
+            "applies each mode default when switching between loan views",
+            "maps the legacy settled item link to all resolved outcomes",
+            "invalidates an in-flight breakdown when browse filters change",
+            "keeps period and search queries on mode tabs while applying each mode",
+            "keeps rows and scroll while a custom borrow range is invalid, then filters and clears it",
+            "canonicalizes a legacy exact loan_date query to a one-day custom period"
+          ]
+        },
+        {
+          "retired_file": "movement-ledger.test.ts",
+          "retired_case_titles": [
+            "loads line rows and restores item filters and legacy kinds",
+            "defaults an omitted period to all time and omits it from the canonical URL",
+            "clears a dated period from the canonical URL when all time is selected",
+            "counts records and exposes status-aware creation",
+            "searches remote item options and commits a result beyond the initial page",
+            "rehydrates filters when the canonical route query changes after mount",
+            "renders all chips, desktop collapse/mobile drawer, compact chrome, and item columns",
+            "keeps the semantic desktop heading mounted and focused after return-to-top",
+            "uses linked record and line-count cells with draft/cancelled status",
+            "distinguishes warning drafts from inactive cancelled records",
+            "sends multi-select movement kinds and All clear to the API",
+            "removes all active movement filter chips without removing the quick-filter controls",
+            "collapses unselected zero kinds, keeps selected zero kinds, and preserves period chrome",
+            "expands and selects zero-count kinds in the mobile toolbar",
+            "aborts replaced initial requests",
+            "requests one observer page with its own abort signal"
+          ]
+        },
+        {
+          "retired_file": "movement-overview.test.ts",
+          "retired_case_titles": [
+            "switches period modes and emits custom dates",
+            "renders independent multi-UOM summaries and item actions",
+            "shows the selected period and server-resolved dates in movement filter chips",
+            "keeps movement filters and sort headers usable while stale rows are inert"
+          ]
+        },
+        {
+          "retired_file": "movement-period-selector.test.ts",
+          "retired_case_titles": [
+            "renders a compact trigger with resolved range and all period choices",
+            "keeps a rolling period as an active dropdown and switches rolling values",
+            "keeps custom dates in an anchored popover without expanding the header",
+            "closes the out-of-flow More menu on selection, outside click, and Escape",
+            "shows exactly one resolved range for ledger controls",
+            "exposes an all-time choice with an unrestricted resolved range",
+            "uses unique ids for teleported period menus across instances",
+            "uses unique controls for custom date dialogs across instances"
+          ]
+        },
+        {
+          "retired_file": "movement-viewport-contract.test.ts",
+          "retired_case_titles": [
+            "keeps the page viewport-safe and gives results the only internal scroll surface"
+          ]
+        },
+        {
+          "retired_file": "pending-scroll.test.ts",
+          "retired_case_titles": [
+            "uses the bounded results scroller as its observer root on both surfaces"
+          ]
+        },
+        {
+          "retired_file": "reports-export.test.ts",
+          "retired_case_titles": [
+            "defaults the report center to this month and the three core movement kinds",
+            "requires a warehouse before exporting a warehouse report",
+            "exports all current filtered rows from the contextual dialog"
+          ]
+        }
+      ]
+    },
+    "retired duplicate gallery UI": {
+      "replacement_tests": [
+        "shared-gallery.test.ts",
+        "shared-compact-filters.test.ts",
+        "native-activities-references.test.ts",
+        "native-activity-browse.test.ts",
+        "native-operation-editor.test.ts",
+        "native-conversions.test.ts",
+        "native-count-editor.test.ts",
+        "native-item-editor.test.ts",
+        "attachments.test.ts",
+        "image-preview.test.ts",
+        "report-table.test.ts",
+        "design-preview.test.ts",
+        "design-preview-independent-review.test.ts",
+        "design-preview-refinement.test.ts"
+      ],
+      "retired_files": [
+        {
+          "retired_file": "design-preview-activities-reports.test.ts",
+          "retired_case_titles": [
+            "uses approved ordered data-driven types and accepts an additional type",
+            "keeps submitted references after title changes and round trips notes without interpreting markup",
+            "validates duplicate titles and end dates",
+            "retains retired types for existing activities while rejecting new assignments",
+            "archives without dates driving lifecycle, allows existing links, restores, and blocks hidden references",
+            "guards drafts and cancelled references and rejects stale or forbidden writes",
+            "counts submitted direct documents once and labels indirect settlements once",
+            "preserves movement buffers and restores focus after contextual creation",
+            "renders completed context and allocations as selectable information",
+            "canonical Receive shares create-and-use source context",
+            "projects every supported dataset/view without mutating stock",
+            "filters full allocation scope before movement aggregation and keeps statuses and units separate",
+            "uses inclusive dates and validates incomplete custom periods",
+            "reconciles authoritative history including transfer branches, adjustment and reversal",
+            "reconciles batch allocations to item breakdown and includes zero-stock catalog items",
+            "searches activity notes, exports identifiers and preserves undated activity all-dates scope",
+            "keeps blank counts unreviewed and deliberate zero numeric",
+            "retains relative named presets, fixed custom dates and dataset filters with rename/delete",
+            "defaults quick reports to XLSX and retains content/format on opt-in failure and retry",
+            "keeps dataset state while switching Reports datasets",
+            "keeps an empty Inventory or pending scope empty",
+            "groups categories without inventing item IDs and uses relevant fixed columns",
+            "preserves activity related-record period, status, type and search in reports",
+            "includes incomplete loan drafts and retains submitted line IDs across new records",
+            "keeps expiry windows independent and excludes fictitious loaned batch rows",
+            "separates mixed-unit loan records and keeps matching settlement scope",
+            "groups historical warehouse branches by item without losing transfer reconciliation",
+            "resolves immutable activity IDs in detail and edit navigation",
+            "keeps pending exports at the selected item/location grain",
+            "applies Dashboard item/warehouse scope to Activities through explicit references"
+          ]
+        },
+        {
+          "retired_file": "design-preview-audit-fixes.test.ts",
+          "retired_case_titles": [
+            "keeps focused browse tools available while the header compresses and expands",
+            "owns one observer across KeepAlive mounting, reactivation and breakpoint changes",
+            "separates the full baseline from reviewed zero, not-found and mixed-unit differences",
+            "keeps actual input during baseline refresh and recomputes differences before re-review",
+            "shows scoped quantities in confirmation and after explicit submission",
+            "restores document and nested table positions, but resets ordinary Inventory navigation",
+            "uses an actual scrollable ancestor and falls back to the document",
+            "crosses the two-viewport threshold in both directions and releases inactive listeners",
+            "returns to the browse origin when the heading is pinned by compact chrome",
+            "reveals a focused control above a floating creation action and stops when inactive"
+          ]
+        },
+        {
+          "retired_file": "design-preview-browse.test.ts",
+          "retired_case_titles": [
+            "registers canonical route variants and round-trips stable preview hashes",
+            "keeps inventory variants registered for the original PreviewInventory renderer",
+            "shows expired zero-available mushroom batch and its damaged quantity context",
+            "limits the upcoming expiry view to batches within thirty days",
+            "opens the exact movement record selected from the records table",
+            "opens the exact loan record and seeds a contextual return",
+            "seeds damaged-stock actions as the real Repair or Disposal form",
+            "preserves the warehouse distinction between Room, Location, and group",
+            "continues or deletes a draft only after explicit confirmation",
+            "creates independent fixture sessions with deterministic draft counters",
+            "confirms a simulated movement without changing the fixed stock snapshot"
+          ]
+        },
+        {
+          "retired_file": "design-preview-compact-filters.test.ts",
+          "retired_case_titles": [
+            "opens from a focused trigger, coordinates panels, dismisses outside and restores focus on Done/Escape",
+            "clamps first-open geometry, follows resize/scroll/content and disconnects observers/listeners",
+            "mobile sheet traps focus, locks scroll and returns focus without undoing immediate filters",
+            "dismisses on breakpoint, context, inactive state and KeepAlive deactivation with selections retained",
+            "consumes nested selector/tree Escape before closing its dialog and supports long option searches",
+            "keeps multi-select open, removes only one chip, and clears scopes while retaining dates",
+            "coordinates dates and Quick Reports while preserving draft-until-Apply dates",
+            "retains every original control when BrowseFilters has no fields prop",
+            "shows an applied undated exclusion and restores its default without changing the expiry window",
+            "keeps large inherited scopes concise with readable context (desktop=%s)",
+            "exposes applicable %s filters and preserves per-dataset state",
+            "retains empty inherited restrictions and removes the flag and its keys together without changing other conditions",
+            "shows every inherited restriction with a field-specific reset and preserves default submitted status",
+            "keeps mobile count complete and Clear independent from search/date/view/group/sort",
+            "supports named-view save/load/rename/delete and inline errors within the panel",
+            "preserves historical bounds, grouping/sorting, contribution drill and independent export selection",
+            "loads results beyond the first 30 while complete counts/exports retain all rows",
+            "Drafts applies type and hierarchy filters, counts all matches, removes chips and continues a draft",
+            "Dashboard opening/closing does not refresh; selecting scope updates all sections and breakpoint closes the sheet",
+            "Activities secondary filters/sort apply immediately, remove independently and survive detail return"
+          ]
+        },
+        {
+          "retired_file": "design-preview-completion.test.ts",
+          "retired_case_titles": [
+            "creates an item and integer-only unit inside receiving, preserves allocations and catalog after deleting the receipt",
+            "shares receiving controls and keeps batch allocation totals derived",
+            "shows source, target, existing batch and availability without a disclosure, and restricts creation to receiving",
+            "rejects aggregate over-allocation, preserves expired donations, and checks damaged stock separately",
+            "supports zero counts with required difference reason and immutable item identity",
+            "settles good and damaged returns in one document and exposes history",
+            "treats today as unexpired and includes batch-only undated rows in browse and reports",
+            "counts distinct records, items and categories and keeps export dataset independent of format",
+            "returns to the local inventory with search, view, selection and shell scroll restored"
+          ]
+        },
+        {
+          "retired_file": "design-preview-erpnext.test.ts",
+          "retired_case_titles": [
+            "keeps the saved version across editor remounts and preserves extra Desk fields",
+            "never substitutes a different document when a selected record is missing",
+            "uses the borrowing Stock Entry as the loan identity",
+            "opens Desk drafts by ERPNext identity and saves incomplete input without submission",
+            "blocks dirty writes and reloads saved remote input with a retained local copy",
+            "external submission uses saved lines and updates one document without changing stock",
+            "keeps deleted dirty records unavailable after session recovery",
+            "cancels and amends without changing the original identity",
+            "preserves multi-loan references, rejects incompatible loans and mixed Loss, and reverses cancellation",
+            "offers separate linked Loss and accurate unsupported voucher identity",
+            "distinguishes blank, zero and not-found, preserves counts and requires baseline re-review",
+            "refreshes removed and newly present rows without discarding full-count input",
+            "searches the full option set, skips disabled entries and closes without committing typed text",
+            "retains selection through failure/retry and ignores superseded async results",
+            "creates activities/categories in the retained draft and honors parent-category filtering",
+            "protects system nodes/cycles and allows physical reparenting",
+            "gates repeated scanning behind allocation configuration and retains batch context",
+            "looks up multiple barcodes manually, stops single scanning and handles unknown codes/camera failure",
+            "retains attachment content across remount, retries upload and changes primary images",
+            "distinguishes configuration failures from access and repairs only a reviewed pointer",
+            "keeps the prior confirmed preference during failure and retries the current display",
+            "keeps complete analysis and selection through paginated failure/retry",
+            "starts another count after completing one instead of reopening the completed record",
+            "preserves book/count quantities and reasons when opening a direct Desk reconciliation",
+            "resumes scanning when its invalid allocation is removed",
+            "opens receiving item creation directly with the unknown barcode retained",
+            "reopens a focused selector by click and lets a second Escape reach the enclosing dialog",
+            "starts a fresh count when returning to the cached new-count page",
+            "applies parent category and both source/destination filters to matching draft lines",
+            "keeps failed or pending uploads editable instead of confirming an incomplete record"
+          ]
+        },
+        {
+          "retired_file": "design-preview-forms.test.ts",
+          "retired_case_titles": [
+            "renders the nine supported movement creation variants and omits Opening",
+            "links Return to a specific outstanding loan and its eligible item",
+            "retains edited movement fields after save and requires explicit confirmation",
+            "keeps item input after validation failure and accepts retry",
+            "filters the report preview and exports exactly its current result scope",
+            "applies preview display density without saving account preferences"
+          ]
+        },
+        {
+          "retired_file": "design-preview-navigation.test.ts",
+          "retired_case_titles": [
+            "owns warehouse and damage pages under Inventory and uses direct links for other destinations",
+            "renders one mobile inventory subnav and no duplicate Movement, Loans, or More subnav",
+            "preserves Movement search, single type, sort, and record status across views and breakpoint changes",
+            "filters all operation types without navigating and retains opening records in the adjustment filter",
+            "keeps Loan views separate from outcomes and remembers each view",
+            "shows grouped More tools, keeps review-only examples out, and restores focus after installation help",
+            "returns from record detail to its filtered list without duplicating the list in the detail page",
+            "projects edits, deletion, and confirmation from one draft source across contextual views",
+            "shows a missing record instead of another record after deleting a draft",
+            "keeps hierarchy parent/child selection and keyboard search usable"
+          ]
+        },
+        {
+          "retired_file": "design-preview-pages.test.ts",
+          "retired_case_titles": [
+            "renders every indexed page/state through its standalone hash",
+            "preserves inventory search and closes an overlay when leaving a cached page",
+            "restores a contextual draft into an already cached form",
+            "does not overwrite an existing item through new-item confirmation",
+            "accepts disposal of damaged-only stock without requiring available stock"
+          ]
+        },
+        {
+          "retired_file": "design-preview-review.test.ts",
+          "retired_case_titles": [
+            "counts returned items and keeps mode-specific movement sorting",
+            "shows every type in a mixed settlement operation",
+            "replaces every allocation in a group and preserves quantities",
+            "settles the selected location",
+            "creates another editable settlement after a partial return",
+            "can discard item edits without mutating catalog or deleting created units",
+            "retains stock-unit totals through alternate input and auto-generates receipt batch IDs",
+            "offers no ineffective activity filter on expiry and retries detail errors"
+          ]
+        },
+        {
+          "retired_file": "design-preview-simplification.test.ts",
+          "retired_case_titles": [
+            "records factors in save, movement history and submitted snapshots independently of Item defaults",
+            "rejects invalid factor %s without rounding",
+            "validates both whole-unit rules and valid fractional factors",
+            "saves fractional Item factors without validating a fictional one-unit movement",
+            "does not apply a conversion while new-unit text would be abandoned",
+            "preserves stock quantity when switching configured units and preserves entered quantity during staged factor editing",
+            "makes line-only Apply independent of supporting-record save failure and retains failed checked input",
+            "handles denied writes, duplicate names and stale version without mutation",
+            "reveals expiry hidden by a search and retains ordinary Details edits on close",
+            "keeps the same editor, IDs, quantity and sole save action through expanded workspace",
+            "retains manual warehouse disclosure state through edits",
+            "virtualizes complete flat results and navigates to the final option",
+            "has one new count entry under work tools",
+            "keeps large fixture templates stable and installation idempotent",
+            "keeps imported Desk drafts visible until an editable draft owns their projection"
+          ]
+        },
+        {
+          "retired_file": "design-preview-usability-followup.test.ts",
+          "retired_case_titles": [
+            "keeps ordinary receiving separate after both large review samples are opened",
+            "discloses the complete draft and preserves every allocation in confirmation after filtering",
+            "keeps supporting editors inside the same creation form across picker transitions",
+            "adds a batch in its item group while retaining all allocation controls and IDs",
+            "protects unfinished %s input when leaving creation",
+            "does not create an item while supporting-record edits would be lost",
+            "shows canonical receipt expiry and conversion even with an automatic batch"
+          ]
+        },
+        {
+          "retired_file": "design-preview-usability.test.ts",
+          "retired_case_titles": [
+            "isolates simultaneous retained-result failures and retries one snapshot",
+            "ends global refresh feedback when one card fails and the other requests finish",
+            "shows no fixture values without a prior result, then loads only that card",
+            "disables empty scope clearing and provides mobile completion",
+            "retains ordered selections across search and filters; cancellation does not add lines",
+            "keeps one overlay, unfinished creation, pending selection and scroll across surface and responsive changes",
+            "requires an inline discard decision without stacking surfaces",
+            "requires quantity/location configuration after scanner creation before resuming",
+            "keeps replacement single-select and scanning creation immediate",
+            "mounts the entire 50-item draft, preserves totals while filtering and edits early/middle/last rows",
+            "reveals hidden errors, expands optional fields and focuses the precise invalid field on repeated confirmation",
+            "adds without merging, clears hidden-row filters and focuses the first new quantity",
+            "loads legacy preferences, validates scale, persists it and synchronizes both settings surfaces",
+            "keeps incomplete-only filtering separate from saving and navigates through all invalid allocations",
+            "retains the focused allocation node when its location changes and keeps active alternate entry visible",
+            "retains values and pending selections when the form crosses the shared breakpoint",
+            "demonstrates failure and isolated recovery with no prior result = %s",
+            "keeps healthy reminder links usable when the expiry card fails",
+            "retains loan status as well as quantities until that card retries",
+            "does not leave global busy feedback running after all six requests fail",
+            "counts and reveals incomplete allocations even while a document field is missing",
+            "reveals a scanned existing item despite a line search hiding it",
+            "keeps scanner configuration blocked when repeated allocations exceed stock",
+            "traps focus on visible picker controls across creation transitions",
+            "focuses the inline discard decision and prevents background submission",
+            "keeps a no-prior-result card empty while a global refresh is pending",
+            "explains the error when navigating pending lines before the first submission",
+            "wraps focus through a closed disclosure summary without entering hidden fields"
+          ]
+        }
+      ]
+    }
+  },
+  "migrated_browser_contracts": {
+    "workspace.spec.ts": "Retired native-workspace endpoint and UI contracts. Replacements: browser/native-editor-route.spec.ts (native identity/reload/amend), native-scanner.spec.ts (manual/hardware and both actual camera engines), native-server/acceptance.spec.ts (real Desk/frontend edits, stale versions and independent HTTP retries).",
+    "dashboard.spec.ts": "Migrated in place to native browse.dashboard_card scope, applied warehouse retention,1024 panel dismissal and mobile reopening.",
+    "design-preview/*.spec.ts": "Shared production components with injected fixture services. Old component-local simulation controls moved to gallery-only fixtureScenarios; retained behavior assertions, native IDs, complete pagination, all densities/text and large selectors. Failed audits retained in progress; no blanket browser case retirement."
+  }
+}

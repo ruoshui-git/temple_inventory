@@ -8,13 +8,11 @@ class InventoryStockEntryMixin:
 	def validate_serialized_batch(self):
 		"""Permit truthful receipt of expired donated batches.
 
-		ERPNext rejects expired batches for all positive Stock Entry rows. Temple
-		Inventory deliberately accepts them only for app-owned Material Receipts;
-		all other ERPNext validation and every direct Desk entry retain core rules.
-		The custom workspace already rejects serialized Items and validates Batch
-		identity, disabled state, manufacturing/expiry order, and permissions.
+		The shared native hooks validate structured Receive movements from either
+		editor, including Item/Batch access, identity, disabled state and dates.
+		All other purposes retain ERPNext's ordinary expiry validation.
 		"""
-		if not self.flags.workspace_service or self.purpose != "Material Receipt":
+		if self.get("ti_movement_kind") != "Receive" or self.purpose != "Material Receipt":
 			return super().validate_serialized_batch()
 
 		expired_receipts = []

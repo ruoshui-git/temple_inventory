@@ -1,415 +1,229 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
-import { useInfiniteScroll } from "../../composables/useInfiniteScroll";
-import { useCompactBrowse } from "../../composables/useCompactBrowse";
-import type { ResponsiveSurface } from "../../composables/useResponsiveLayout";
-import ActiveFilterChips from "../../components/ActiveFilterChips.vue";
-import WarehouseSelector from "../../components/WarehouseSelector.vue";
-import CategorySelector from "../../components/CategorySelector.vue";
-import QuantitySummary from "../../components/QuantitySummary.vue";
-import ResponsiveFilterPanel from "../../components/ResponsiveFilterPanel.vue";
-import CompactFilterSection from "../../components/CompactFilterSection.vue";
-import UiButton from "../../components/UiButton.vue";
-import ResultCountStrip from "../../components/ResultCountStrip.vue";
-import UiLoadingBoundary from "../../components/UiLoadingBoundary.vue";
-import ReturnToTop from "../../components/ReturnToTop.vue";
-import MobileBrowseHeader from "../../components/MobileBrowseHeader.vue";
-import { type PendingController } from "./usePendingController";
-
-const props = defineProps<{
-	controller: PendingController;
-	surface: ResponsiveSurface;
+import { ref, watch } from "vue";
+import type { PendingController } from "./usePendingController";
+import type { InitialAllocation } from "../../lib/routeSelection";
+import type { ReportQuery } from "../../lib/reportContract";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import FilterButton from "../../components/ui/FilterButton.vue";
+import Overlay from "../../components/ui/Overlay.vue";
+import UiButton from "../../components/ui/UiButton.vue";
+import ReportTable from "../../components/ui/ReportTable.vue";
+import QuantitySummary from "../../components/ui/QuantitySummary.vue";
+import InventoryIcon from "../../components/InventoryIcon.vue";
+import QuickExport from "../../components/QuickExport.vue";
+const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
+	active: true,
+});
+const emit = defineEmits<{
+	item: [code: string];
+	operation: [kind: "Repair" | "Disposal", allocation: InitialAllocation];
+	openExport: [query: ReportQuery];
 }>();
-const {
-	scrollResetToken,
-	boot,
-	rows,
-	total,
-	overall,
-	facets,
-	quantityTotals,
-	error,
-	loading,
-	loadingMore,
-	filterOpen,
-	desktopFilterOpen,
-	operationCaps,
-	filters,
-	warehouseRows,
-	summaryMetrics,
-	warehouseText,
-	chips,
-	load,
-	begin,
-	removeChip,
-	clearFilters,
-	close,
-} = props.controller;
-const surface = toRef(props, "surface");
-const filterPanel = ref<{ openPanel: (event?: Event) => void } | null>(null);
-const openFilters = (event?: Event) => props.controller.openFilters(event, filterPanel.value);
-const sentinel = ref<HTMLElement>();
-const resultsScroll = ref<HTMLElement>();
-const browseHeading = ref<HTMLElement>();
-const mobileBrowseHeader = ref<{ heading?: HTMLElement }>();
-const compact = ref(false);
-useCompactBrowse(resultsScroll, compact);
-const pendingResults = ref<HTMLElement>();
-const infiniteScroll = useInfiniteScroll({
-	hasMore: () => rows.value.length < total.value,
-	isLoading: () => loading.value || loadingMore.value,
-	onLoadMore: () => load(true),
-});
-async function connectInfiniteScroll() {
-	await nextTick();
-	infiniteScroll.connect(resultsScroll.value || null, sentinel.value || null);
-}
-onMounted(() => {
-	void connectInfiniteScroll();
-});
-watch(surface, () => void connectInfiniteScroll());
-watch(scrollResetToken, async () => {
-	await nextTick();
-	if (typeof resultsScroll.value?.scrollTo === "function")
-		resultsScroll.value.scrollTo({ top: 0 });
-	else if (resultsScroll.value) resultsScroll.value.scrollTop = 0;
-	compact.value = false;
-});
-function updateCompact(event: Event) {
-	compact.value = (event.currentTarget as HTMLElement).scrollTop > 80;
-}
-onBeforeUnmount(() => infiniteScroll.disconnect());
+const c = props.controller,
+	{ query, scope, scopeChips, chips, routeError, metrics, analysisOpen, dimension } = c;
+const table = c.report.mainTable,
+	analysisTable = c.analysis.mainTable;
+const filterOpen = ref(false),
+	{ isMobile } = useResponsiveLayout();
+watch(
+	() => props.active,
+	(value) => {
+		if (!value) filterOpen.value = false;
+	},
+);
 </script>
-
 <template>
-	<section class="app-shell wide-shell viewport-list-root pending-page">
-		<header v-if="surface === 'desktop'">
-			<UiButton variant="ghost" size="compact" type="button" @click="close">‹ 库存</UiButton>
-			<h1 ref="browseHeading" tabindex="-1">待处理</h1>
+	<section class="browse-page">
+		<header class="browse-heading">
+			<h1>损坏待处理</h1>
+			<QuickExport
+				v-if="!routeError"
+				:query="query"
+				:active="active"
+				@open-full="emit('openExport', $event)"
+			/>
 		</header>
-		<MobileBrowseHeader
-			v-else
-			ref="mobileBrowseHeader"
-			title="待处理"
-			:compact="compact"
-			destination-key="pending"
-		>
-			<template #back
-				><button type="button" class="pending-back" @click="close">
-					‹ 库存
-				</button></template
+		<div class="browse-callout">
+			<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
+			<div>
+				<strong>损坏物资待处理</strong>
+				<p>选择修复归库，或将无法使用的物资正式报废。</p>
+			</div>
+			<b v-if="table?.initialized">{{ c.report.result.total }} 条分配</b>
+		</div>
+		<p v-if="routeError" role="alert">{{ routeError }}</p>
+		<div class="browse-toolbar">
+			<label class="browse-search"
+				><InventoryIcon name="search" /><input
+					v-model="query.search"
+					type="search"
+					placeholder="搜索物品、批次或存放位置"
+			/></label>
+			<FilterButton
+				:expanded="filterOpen"
+				:count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
+				@click="filterOpen = !filterOpen"
+			/>
+			<label class="preview-field"
+				>排序<select v-model="query.sortBy">
+					<option value="name">物品名称</option>
+					<option value="quantity">损坏数量</option>
+					<option value="identity">物品 / 库位编号</option>
+					<option value="date">到期日</option>
+				</select></label
+			><UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
+				query.sort === "asc" ? "升序" : "降序"
+			}}</UiButton>
+		</div>
+		<div class="preview-active-filters">
+			<UiButton
+				v-for="chip in scopeChips"
+				:key="chip.key"
+				variant="ghost"
+				@click="c.removeScope(chip.field, chip.value)"
+				>{{ chip.label }} ×</UiButton
+			><UiButton
+				v-for="chip in chips"
+				:key="chip.key"
+				variant="ghost"
+				:disabled="chip.fixed"
+				@click="Object.assign(query, chip.reset)"
+				>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
 			>
-			<template #search-actions>
-				<div class="pending-mobile-search">
-					<input
-						v-model="filters.search"
-						type="search"
-						placeholder="搜索物品或编号"
-						aria-label="搜索待处理物品"
-					/>
-					<UiButton
-						variant="secondary"
-						size="compact"
-						type="button"
-						class="mobile-filter-button"
-						:aria-expanded="desktopFilterOpen"
-						:aria-label="`筛选，${filters.warehouses.length + filters.item_groups.length} 项已启用`"
-						@click="openFilters($event)"
-						>筛选<span
-							v-if="filters.warehouses.length + filters.item_groups.length"
-							class="filter-count"
-							>{{ filters.warehouses.length + filters.item_groups.length }}</span
-						></UiButton
-					>
-				</div>
-			</template>
-			<template #secondary>
-				<div class="browse-result-meta">
-					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
-					<ResultCountStrip
-						:loaded="rows.length"
-						:filtered="total"
-						:overall="overall ?? total"
-						:updating="loading && rows.length > 0"
-					/>
-				</div>
-			</template>
-		</MobileBrowseHeader>
-		<div
-			class="list-layout desktop-list-layout compact-filter-layout pending-list-layout"
-			:class="{ 'filters-open': desktopFilterOpen }"
-		>
-			<ResponsiveFilterPanel
-				ref="filterPanel"
-				v-model:open="filterOpen"
-				:count="filters.warehouses.length + filters.item_groups.length"
-				clearable
-				@clear="clearFilters"
+		</div>
+		<p v-if="c.report.result.loading" role="status">
+			{{ table?.rows.length ? "正在更新损坏库存…" : "正在读取损坏库存…" }}
+		</p>
+		<p v-if="c.report.result.error" role="alert">
+			{{ c.report.result.error }} <UiButton @click="c.report.refresh">重试</UiButton>
+		</p>
+		<p v-if="c.report.result.stale" role="status">结果正在更新，完成后可继续处理。</p>
+		<QuantitySummary :metrics="metrics" :loading="c.report.result.loading" />
+		<div class="preview-browse-body">
+			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail">
+				<BrowseFilters
+					v-model="scope"
+					:fields="['item', 'categories', 'warehouses']"
+					hide-activity
+				/><UiButton @click="c.clear">清空筛选</UiButton>
+			</aside>
+			<Overlay
+				v-if="filterOpen && isMobile"
+				title="筛选损坏库存"
+				drawer
+				@close="filterOpen = false"
+				><BrowseFilters
+					v-model="scope"
+					:fields="['item', 'categories', 'warehouses']"
+					hide-activity
+				/><UiButton @click="c.clear">清空筛选</UiButton></Overlay
 			>
-				<CompactFilterSection title="仓库 / 位置" icon="warehouse">
-					<WarehouseSelector
-						v-model="filters.warehouses"
-						:rows="warehouseRows"
-						embedded
-						:counts="facets.warehouses"
-						placeholder="搜索仓库 / 位置"
-					/>
-				</CompactFilterSection>
-				<CompactFilterSection title="物品类别" icon="card">
-					<CategorySelector
-						v-model="filters.item_groups"
-						:rows="boot?.item_groups || []"
-						embedded
-						:counts="facets.item_groups"
-						placeholder="搜索物品类别"
-					/>
-				</CompactFilterSection>
-			</ResponsiveFilterPanel>
-			<div
-				ref="pendingResults"
-				class="results-column pending-results"
-				:class="{ 'is-refreshing': loading && rows.length }"
-				:aria-busy="loading || loadingMore"
-			>
-				<div v-if="surface === 'desktop'" class="result-toolbar results-chrome">
-					<input
-						v-model="filters.search"
-						type="search"
-						placeholder="搜索物品或编号"
-						aria-label="搜索待处理物品"
-					/><UiButton
-						variant="secondary"
-						size="compact"
-						type="button"
-						class="toolbar-action desktop-filter-button mobile-filter-button"
-						:aria-expanded="desktopFilterOpen"
-						:aria-label="`筛选，${filters.warehouses.length + filters.item_groups.length} 项已启用`"
-						@click="openFilters($event)"
-					>
-						筛选<span
-							v-if="filters.warehouses.length + filters.item_groups.length"
-							class="filter-count"
-							>{{ filters.warehouses.length + filters.item_groups.length }}</span
-						></UiButton
-					>
-				</div>
-				<div v-if="surface === 'desktop'" class="browse-result-meta">
-					<ActiveFilterChips :chips="chips" @remove="removeChip" @clear="clearFilters" />
-					<ResultCountStrip
-						:loaded="rows.length"
-						:filtered="total"
-						:overall="overall ?? total"
-						:updating="loading && rows.length > 0"
-					/>
-				</div>
-				<QuantitySummary
-					v-if="surface === 'desktop'"
-					:metrics="summaryMetrics"
-					:loading="loading"
-				/>
-				<p v-if="error" class="error">
-					{{ error }}
-					<UiButton variant="ghost" size="compact" type="button" @click="load()"
-						>重试</UiButton
-					>
-				</p>
-				<UiLoadingBoundary
-					v-if="loading && !rows.length"
-					:busy="true"
-					mode="initial"
-					message="正在加载待处理物品…"
-					:region="pendingResults"
-					:block-interactions="false"
-				/>
-				<div
-					v-if="loading && !rows.length"
-					class="pending-loading-skeleton"
-					aria-hidden="true"
-				>
-					<i v-for="index in 3" :key="index"></i>
-				</div>
-				<UiLoadingBoundary
-					v-if="loading && rows.length"
-					:busy="true"
-					:region="resultsScroll"
-					:scroll-element="resultsScroll"
-					:dim-region="true"
-					:block-interactions="false"
-					class="list-refresh-overlay"
-					message="正在更新待处理物品…"
-				/>
-				<div
-					ref="resultsScroll"
-					class="results-scroll"
-					@scroll.passive="updateCompact"
-					:inert="loading && rows.length ? true : undefined"
-				>
-					<QuantitySummary
-						v-if="surface !== 'desktop'"
-						:metrics="summaryMetrics"
-						:loading="loading"
-					/>
+			<div class="preview-browse-results">
+				<div v-if="table?.rows.length" class="browse-grid browse-grid--two">
 					<article
-						v-for="row in rows"
-						:key="row.item_code"
-						class="selection-row result-card"
+						v-for="row in table.rows"
+						:key="String(row.id)"
+						:data-browse-row="String(row.id)"
+						class="browse-card browse-pending-card"
 					>
-						<RouterLink :to="`/item/${encodeURIComponent(row.item_code)}`"
-							><b>{{ row.item_name }}</b
-							><small
-								>损坏 {{ row.damaged_qty }} {{ row.stock_uom }}</small
-							></RouterLink
-						>
-						<div class="detail-actions">
+						<div class="browse-card-heading">
+							<div>
+								<span class="eyebrow"
+									>{{ row.item_code }} ·
+									{{ row.warehouse_label || row.warehouse }}</span
+								>
+								<h2>{{ row.item_name }}</h2>
+							</div>
+							<span class="browse-badge is-danger"
+								>损坏 {{ row.damaged }} {{ row.stock_uom }}</span
+							>
+						</div>
+						<p class="muted">
+							{{ row.batch_no ? "批次 " + row.batch_no : "不分批次" }} ·
+							{{ row.expiry_date ? "到期 " + row.expiry_date : "无效期" }}
+						</p>
+						<div class="browse-actions">
 							<UiButton
-								variant="secondary"
-								size="compact"
-								v-if="row.damaged_qty && operationCaps.Repair"
-								type="button"
-								@click="begin(row, 'Repair')"
-							>
-								修复归库</UiButton
+								v-if="c.canAct('Repair', row)"
+								variant="primary"
+								icon="loan"
+								@click="emit('operation', 'Repair', c.allocation(row))"
+								>修复归库</UiButton
 							><UiButton
+								v-if="c.canAct('Disposal', row)"
 								variant="danger"
-								size="compact"
-								v-if="row.damaged_qty && operationCaps.Disposal"
-								type="button"
-								@click="begin(row, 'Disposal')"
+								icon="trash"
+								@click="emit('operation', 'Disposal', c.allocation(row))"
+								>报废</UiButton
 							>
-								正式报废
-							</UiButton>
+							<UiButton
+								:disabled="c.report.result.stale"
+								@click="emit('item', String(row.item_code))"
+								>物品详情</UiButton
+							><QuickExport
+								v-if="!c.report.result.stale"
+								:query="c.rowQuery(row)"
+								:active="active"
+								@open-full="emit('openExport', $event)"
+							/>
 						</div>
 					</article>
-					<p
-						v-if="!rows.length && !error && !loading && !loadingMore"
-						class="empty-state"
-					>
-						暂无损坏库存
-					</p>
-					<div ref="sentinel" aria-hidden="true"></div>
-					<div v-if="loadingMore" class="mobile-loading" role="status">
-						<span
-							class="loading-spinner loading-spinner-small"
-							aria-hidden="true"
-						></span
-						>正在加载更多…
-					</div>
 				</div>
+				<p
+					v-else-if="
+						!c.report.result.loading && !c.report.result.error && table?.initialized
+					"
+				>
+					当前没有符合条件的损坏物资。
+				</p>
+				<p v-if="table?.error" role="alert">
+					{{ table.error }}
+					<UiButton @click="c.report.loadTable(table, true)">重试加载</UiButton>
+				</p>
+				<UiButton
+					v-if="table?.next !== null && table?.next !== undefined"
+					:loading="table.loading"
+					@click="c.report.loadTable(table, true)"
+					>加载更多</UiButton
+				>
+				<details
+					data-browse-details="analysis"
+					:open="analysisOpen"
+					@toggle="analysisOpen = ($event.target as HTMLDetailsElement).open"
+				>
+					<summary>分析当前结果</summary>
+					<label class="preview-field"
+						>分析维度<select v-model="dimension">
+							<option value="category">类别</option>
+							<option value="location">位置</option>
+						</select></label
+					>
+					<p v-if="c.analysis.result.loading" role="status">正在读取分析…</p>
+					<p v-if="c.analysis.result.error" role="alert">
+						{{ c.analysis.result.error }}
+						<UiButton @click="c.analysis.refresh">重试分析</UiButton>
+					</p>
+					<ReportTable
+						v-if="analysisTable && !c.analysis.result.stale"
+						:table="{
+							...analysisTable,
+							columns: [
+								dimension === 'location' ? 'warehouse' : 'category',
+								'stock_uom',
+								'item_count',
+								'allocation_count',
+								'damaged',
+							],
+						}"
+						:total="analysisTable.total"
+						:loading="analysisTable.loading"
+						:error="analysisTable.error"
+						@load-more="c.analysis.loadTable(analysisTable, true)"
+						@retry="c.analysis.loadTable(analysisTable, true)"
+					/>
+				</details>
 			</div>
 		</div>
-		<ReturnToTop
-			:target="resultsScroll"
-			:heading="surface === 'desktop' ? browseHeading : mobileBrowseHeader?.heading"
-			:hidden="Boolean(filterOpen)"
-		/>
 	</section>
 </template>
-<style scoped>
-.pending-results {
-	position: relative;
-}
-.pending-list-layout {
-	min-height: 0;
-	flex: 1;
-}
-.pending-page {
-	display: flex;
-	flex-direction: column;
-}
-.pending-list-layout,
-.pending-results {
-	min-width: 0;
-}
-.pending-loading-skeleton {
-	display: grid;
-	gap: var(--ti-density-row-gap);
-	margin-top: var(--ti-space-2);
-}
-.pending-loading-skeleton i {
-	display: block;
-	height: 42px;
-	border-radius: var(--ti-radius-small);
-	background: var(--ti-border);
-}
-.pending-mobile-search {
-	display: flex;
-	min-width: 0;
-	flex: 1;
-	gap: var(--ti-space-1);
-}
-.pending-mobile-search > input {
-	min-width: 0;
-	flex: 1;
-}
-.pending-back {
-	flex: none;
-	min-height: max(44px, var(--ti-density-control));
-	padding: var(--ti-space-1) var(--ti-space-2);
-}
-.loading-spinner-small {
-	display: inline-block;
-	width: 16px;
-	height: 16px;
-	margin-right: var(--ti-space-1);
-	vertical-align: -3px;
-	border-width: 2px;
-}
-@media (min-width: 1024px) {
-	.pending-page {
-		height: calc(100dvh - var(--shell-header-height, 0px));
-	}
-	.pending-list-layout {
-		overflow: hidden;
-	}
-	.pending-page > .mobile-browse-header {
-		flex: none;
-		padding: var(--ti-space-2) var(--ti-space-3) var(--ti-space-2);
-		background: var(--ti-canvas);
-	}
-	.pending-results {
-		display: flex;
-		flex-direction: column;
-	}
-	.pending-results > :not(.results-scroll) {
-		flex: none;
-	}
-	.pending-results > .results-scroll {
-		min-height: 0;
-		flex: 1;
-		overflow: auto;
-		padding-bottom: var(--ti-space-8);
-	}
-}
-@media (max-width: 1023px) {
-	.pending-mobile-search > input {
-		min-height: max(44px, var(--ti-density-control));
-		font-size: max(16px, var(--ti-font-body));
-	}
-	.pending-page {
-		box-sizing: border-box;
-		display: flex;
-		height: calc(100dvh - var(--mobile-nav-height, 0px));
-		min-height: 0;
-		flex-direction: column;
-		overflow: hidden;
-	}
-	.pending-list-layout {
-		flex: 1;
-		overflow: hidden;
-	}
-	.pending-results {
-		display: flex;
-		flex-direction: column;
-		min-height: 0;
-	}
-	.pending-results > :not(.results-scroll) {
-		flex: none;
-	}
-	.pending-results > .results-scroll {
-		min-height: 0;
-		flex: 1;
-		overflow: auto;
-		padding-bottom: calc(var(--mobile-nav-height, 0) + var(--ti-space-8));
-	}
-}
-</style>

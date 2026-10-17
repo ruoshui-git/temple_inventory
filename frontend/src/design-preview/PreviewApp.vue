@@ -1,8 +1,23 @@
 <script setup lang="ts">
+import {
+	hydrateUiPreferences,
+	configurePreferenceSave,
+	preferenceSaveQueue,
+	theme as accountTheme,
+	density as accountDensity,
+	textScale as accountTextScale,
+	preferenceUser,
+} from "../lib/uiPreferences";
+import { seedFixtureDisplay } from "./fixtureDisplaySettings";
+import { fixtureServices, fixtureScenarios } from "./fixtureServices";
+import { installLargePickerFixture } from "./usabilityFixtures";
+import { provideGalleryReference } from "./fixtureReference";
+provideGalleryReference();
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { emptyScope } from "./browseModel";
 import InventoryIcon from "../components/InventoryIcon.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
+import AppFrame from "../components/AppFrame.vue";
 import PreviewGallery from "./PreviewGallery.vue";
 import PreviewInventory from "./PreviewInventory.vue";
 import PreviewReceive from "./PreviewReceive.vue";
@@ -39,32 +54,19 @@ try {
 	/* Continue with in-memory preferences. */
 }
 const preferences = reactive<PreviewPreferences>(readPreferences(storage));
+seedFixtureDisplay(preferences);
+hydrateUiPreferences("gallery-reviewer", preferences);
+configurePreferenceSave((values) =>
+	fixtureServices.call("preferences.save_display_preferences", { ...values }),
+);
 const theme = computed(() => themes.find((theme) => theme.id === preferences.theme)!);
 const { isMobile } = useResponsiveLayout();
-const mobileNavigation = ref<HTMLElement>();
-let navigationObserver: ResizeObserver | undefined;
-function measureNavigation() {
-	document.documentElement.style.setProperty(
-		"--preview-nav-height",
-		`${mobileNavigation.value?.getBoundingClientRect().height || 0}px`,
-	);
-}
-watch(
-	mobileNavigation,
-	() => {
-		navigationObserver?.disconnect();
-		if (typeof ResizeObserver !== "undefined" && mobileNavigation.value) {
-			navigationObserver = new ResizeObserver(measureNavigation);
-			navigationObserver.observe(mobileNavigation.value);
-		}
-		measureNavigation();
-	},
-	{ flush: "post" },
-);
 const page = ref("gallery");
 const routeKey = ref<PreviewPageKey>("dashboard/overview");
 const activeRoute = computed(() => getPreviewPage(routeKey.value)!);
 const formContexts = reactive<Partial<Record<PreviewPageKey, { loanName?: string }>>>({});
+const formInstances = reactive<Partial<Record<PreviewPageKey, string>>>({});
+const routeInstance = computed(() => `${routeKey.value}:${formInstances[routeKey.value] || ""}`);
 const section = computed(() =>
 	page.value === "inventory"
 		? "inventory"
@@ -209,10 +211,16 @@ const groups = primaryNavigation;
 function navigatePrimary(key: PreviewPageKey) {
 	resetDestinationScroll(key);
 	if (key.startsWith("movement")) {
+		if (reviewSession.nativeBrowseQueries)
+			for (const name of Object.keys(reviewSession.nativeBrowseQueries))
+				if (name.startsWith("movements/")) delete reviewSession.nativeBrowseQueries[name];
 		reviewSession.filters.movementScope = emptyScope();
 		reviewSession.filters.movementItems.search = "";
 	}
 	if (key.startsWith("loan")) {
+		if (reviewSession.nativeBrowseQueries)
+			for (const name of Object.keys(reviewSession.nativeBrowseQueries))
+				if (name.startsWith("loans/")) delete reviewSession.nativeBrowseQueries[name];
 		reviewSession.filters.loanScope = emptyScope();
 		reviewSession.filters.loanItems.search = "";
 	}
@@ -226,11 +234,15 @@ function navigateInventory(key: PreviewPageKey) {
 	resetDestinationScroll(key);
 	if (key.startsWith("inventory")) reviewSession.filters.inventory.scope = emptyScope();
 	if (key.startsWith("expiry")) {
+		reviewSession.nativeExpiryQuery = undefined;
 		reviewSession.filters.expiry.scope = emptyScope();
 		reviewSession.filters.expiry.bucket = "";
 		reviewSession.filters.expiry.inStock = false;
 	}
-	if (key.startsWith("pending")) reviewSession.filters.pending.scope = emptyScope();
+	if (key.startsWith("pending")) {
+		reviewSession.filters.pending.scope = emptyScope();
+		reviewSession.nativePendingQuery = undefined;
+	}
 	navigate(key);
 }
 function navigate(key: ReturnKey, rememberReturn = true) {
@@ -244,11 +256,16 @@ function navigate(key: ReturnKey, rememberReturn = true) {
 function selectRoute(routePage: string, variant: string, rememberReturn = true) {
 	const route = getPreviewPage(`${routePage}/${variant}`);
 	if (!route) return;
+	if (route.page.endsWith("-form") && rememberReturn)
+		formInstances[route.key] = crypto.randomUUID();
 	if (route.page === "movement-form" && rememberReturn) {
 		const selected = reviewSession.drafts.find(
-			(draft) => draft.name === reviewSession.selectedDraftName,
+			(draft) =>
+				draft.name === reviewSession.selectedDraftName && draft.kind === route.variant,
 		);
-		formContexts[route.key] = { loanName: selected?.loanName };
+		formContexts[route.key] = {
+			loanName: selected ? selected.loanName : reviewSession.selectedSettlementLoan,
+		};
 	}
 	if (rememberReturn && isContextualRoute(route) && route.key !== routeKey.value) {
 		const origin = page.value === "route" ? activeRoute.value : undefined;
@@ -329,40 +346,37 @@ watch(preferences, () => writePreferences(storage, preferences), { deep: true })
 watch(
 	[theme, () => preferences.density, () => preferences.textScale],
 	() => {
-		const element = document.documentElement;
-		element.dataset.previewTheme = preferences.theme;
-		element.dataset.previewDensity = preferences.density;
-		element.dataset.previewTextScale = String(preferences.textScale);
-		element.style.setProperty("--p-text-scale", String(preferences.textScale / 100));
-		window.dispatchEvent(new Event("preview-text-scale"));
-		const value = theme.value;
-		const tokens: Record<string, string> = {
-			canvas: value.canvas,
-			ink: value.ink,
-			accent: value.accent,
-			muted: value.muted,
-			"control-border": value.border,
-			soft: value.soft,
-			"accent-strong": value.strong,
-			"radius-control": value.radius,
-			"radius-card": value.cardRadius,
-		};
-		Object.entries(tokens).forEach(([name, tokenValue]) =>
-			element.style.setProperty(`--p-${name}`, tokenValue),
-		);
+		if (
+			preferenceUser.value === "gallery-reviewer" &&
+			(preferences.theme !== accountTheme.value ||
+				preferences.density !== accountDensity.value ||
+				preferences.textScale !== accountTextScale.value)
+		)
+			preferenceSaveQueue.enqueue({
+				theme: preferences.theme,
+				density: preferences.density,
+				textScale: preferences.textScale,
+			});
 	},
 	{ immediate: true },
 );
+watch([accountTheme, accountDensity, accountTextScale], () => {
+	if (preferenceUser.value === "gallery-reviewer")
+		Object.assign(preferences, {
+			theme: accountTheme.value,
+			density: accountDensity.value,
+			textScale: accountTextScale.value,
+		});
+});
 let previousScrollRestoration: ScrollRestoration;
 onBeforeUnmount(() => {
 	cancelAnimationFrame(restorationFrame);
-	navigationObserver?.disconnect();
 	document.documentElement.style.removeProperty("--preview-nav-height");
 	window.history.scrollRestoration = previousScrollRestoration;
 	window.removeEventListener("hashchange", syncLocationHash);
-	delete document.documentElement.dataset.previewTheme;
-	delete document.documentElement.dataset.previewDensity;
-	delete document.documentElement.dataset.previewTextScale;
+	delete document.documentElement.dataset.tiTheme;
+	delete document.documentElement.dataset.tiDensity;
+	delete document.documentElement.dataset.tiTextScale;
 	document.documentElement.style.removeProperty("--p-text-scale");
 	[
 		"--p-canvas",
@@ -385,7 +399,7 @@ onMounted(() => {
 });
 </script>
 <template>
-	<div class="preview-app">
+	<div class="preview-app" style="--app-header-height: 60px">
 		<header class="review-header">
 			<a class="review-brand" href="#" @click.prevent="selectLocalPage('gallery')"
 				><span class="brand-symbol"><InventoryIcon name="box" /></span
@@ -459,6 +473,15 @@ onMounted(() => {
 				><button class="text-button" @click="Object.assign(preferences, defaults)">
 					恢复默认
 				</button>
+				<button
+					class="text-button"
+					@click="
+						installLargePickerFixture();
+						fixtureScenarios.pickerPageSize = 1000;
+					"
+				>
+					载入 1,000 种物品
+				</button>
 			</div>
 		</section>
 		<nav class="preview-page-tabs" aria-label="评审样本">
@@ -508,209 +531,133 @@ onMounted(() => {
 				</div>
 			</div>
 		</section>
-		<div class="preview-workspace" :class="{ 'is-mobile': isMobile }">
-			<aside v-if="!isMobile" class="sample-sidebar">
-				<div class="sample-brand">
-					<span class="brand-symbol"><InventoryIcon name="box" /></span>
-					<div><strong>寺院物资</strong><small>每一份，都妥善安放</small></div>
-				</div>
-				<span class="sidebar-caption">导航提案 · 五个入口</span>
-				<nav aria-label="示例应用主导航">
-					<div v-for="group in groups" :key="group.key" class="nav-group">
-						<button
-							:class="{ active: section === group.key }"
-							:aria-current="
-								group.key !== 'inventory' && section === group.key
-									? 'page'
-									: undefined
-							"
-							:aria-expanded="
-								group.key === 'inventory' ? inventoryExpanded : undefined
-							"
-							@click="
-								group.key === 'inventory'
-									? (inventoryExpanded = !inventoryExpanded)
-									: navigatePrimary(group.route)
-							"
-						>
-							<InventoryIcon class="nav-leading-icon" :name="group.icon" /><span
-								class="nav-label"
-								>{{ group.label }}</span
-							>
-							<InventoryIcon
-								v-if="group.key === 'inventory'"
-								class="nav-chevron"
-								name="chevron-down"
-							/>
-						</button>
-						<div
-							v-if="group.key === 'inventory' && inventoryExpanded"
-							class="nav-children"
-						>
-							<button
-								v-for="child in inventoryNavigation"
-								:key="child.key"
-								:aria-current="
-									section === 'inventory' && inventorySection === child.key
-										? 'page'
-										: undefined
-								"
-								@click="navigateInventory(child.route)"
-							>
-								{{ child.label }}
-							</button>
-						</div>
-					</div>
-				</nav>
+		<AppFrame
+			:primary="groups"
+			:inventory="inventoryNavigation"
+			:active="section"
+			:inventory-section="inventorySection"
+			v-model:inventory-expanded="inventoryExpanded"
+			more-route="more/index"
+			user="义工工作台"
+			account-note="本地设计预览"
+			content-id="sample-content"
+			@primary="(route) => navigatePrimary(route as PreviewPageKey)"
+			@inventory="(route) => navigateInventory(route as PreviewPageKey)"
+			@more="(route) => navigate(route as PreviewPageKey)"
+		>
+			<template #navigation-caption
+				><span class="sidebar-caption">导航提案 · 五个入口</span></template
+			>
+			<div class="sample-breadcrumb">
 				<button
+					v-if="isMobile"
 					class="preview-tools-link"
 					:aria-current="section === 'more' ? 'page' : undefined"
 					@click="navigate('more/index')"
 				>
-					<InventoryIcon name="more" />更多
+					更多
 				</button>
-				<div class="sidebar-bottom">
-					<span class="avatar">义</span>
-					<div><strong>义工工作台</strong><small>本地设计预览</small></div>
-					<span class="status-dot" />
-				</div>
-			</aside>
-			<main id="sample-content" class="sample-content">
-				<div class="sample-breadcrumb">
-					<button
-						v-if="isMobile"
-						class="preview-tools-link"
-						:aria-current="section === 'more' ? 'page' : undefined"
-						@click="navigate('more/index')"
-					>
-						更多
-					</button>
-					<span>寺院物资</span
-					><template v-if="ownerLabel && ownerLabel !== activeRoute.label"
-						><span>/</span><span>{{ ownerLabel }}</span></template
-					><span>/</span
-					><span>{{
-						page === "gallery"
-							? "组件画廊"
-							: page === "receive"
-								? "入库登记"
-								: page === "inventory"
-									? "库存浏览样本"
-									: activeRoute.label
-					}}</span
-					><span class="sample-tag">交互样本</span>
-				</div>
-				<nav
-					v-if="
-						isMobile &&
-						showInventoryNavigation &&
-						!(page === 'inventory' || routeArea === 'inventory')
-					"
-					class="mobile-context"
-					aria-label="库存页面"
-				>
-					<button
-						v-for="child in inventoryNavigation"
-						:key="child.key"
-						:aria-current="inventorySection === child.key ? 'page' : undefined"
-						@click="navigateInventory(child.route)"
-					>
-						{{ child.label }}
-					</button>
-				</nav>
-				<button
-					v-if="backRoute"
-					class="text-button preview-back"
-					@click="navigate(backRoute, false)"
-				>
-					← {{ backLabel }}
-				</button>
-				<PreviewGallery
-					v-show="page === 'gallery'"
-					:theme="preferences.theme"
-					:active="page === 'gallery'"
-					@notify="notify"
-					@inventory="openInventory"
-					@receive="selectLocalPage('receive')"
-					@navigate="selectRoute"
-				/>
-				<PreviewInventory
-					v-show="
-						page === 'inventory' || (page === 'route' && routeArea === 'inventory')
-					"
-					:pattern="preferences.actions"
-					:variant="page === 'route' ? activeRoute.variant : undefined"
-					:active="
-						page === 'inventory' || (page === 'route' && routeArea === 'inventory')
-					"
-					@notify="notify"
-					@receive="selectLocalPage('receive')"
-					@navigate="selectRoute"
-				>
-					<template #context>
-						<nav
-							v-if="
-								isMobile &&
-								(page === 'inventory' ||
-									(page === 'route' && routeArea === 'inventory'))
-							"
-							class="mobile-context"
-							aria-label="库存页面"
-						>
-							<button
-								v-for="child in inventoryNavigation"
-								:key="child.key"
-								:aria-current="inventorySection === child.key ? 'page' : undefined"
-								@click="navigateInventory(child.route)"
-							>
-								{{ child.label }}
-							</button>
-						</nav>
-					</template>
-				</PreviewInventory>
-				<PreviewReceive
-					v-show="page === 'receive'"
-					:pattern="preferences.form"
-					:active="page === 'receive'"
-					@notify="notify"
-					@back="openInventory"
-				/>
-				<KeepAlive>
-					<component
-						v-if="page === 'route' && routeArea !== 'inventory'"
-						:is="routeComponent"
-						:key="routeKey"
-						v-bind="routeComponentProps"
-						:active="page === 'route'"
-						:density="preferences.density"
-						:text-scale="preferences.textScale"
-						@navigate="selectRoute"
-						@notify="notify"
-						@update-density="preferences.density = $event"
-						@update-text-scale="preferences.textScale = $event"
-					/>
-				</KeepAlive>
-				<footer class="sample-footer">
-					<span>物资设计研究室 / 2026</span><span>风格、密度、导航与流程分别评审</span>
-				</footer>
-			</main>
+				<span>寺院物资</span
+				><template v-if="ownerLabel && ownerLabel !== activeRoute.label"
+					><span>/</span><span>{{ ownerLabel }}</span></template
+				><span>/</span
+				><span>{{
+					page === "gallery"
+						? "组件画廊"
+						: page === "receive"
+							? "入库登记"
+							: page === "inventory"
+								? "库存浏览样本"
+								: activeRoute.label
+				}}</span
+				><span class="sample-tag">交互样本</span>
+			</div>
 			<nav
-				v-if="isMobile"
-				ref="mobileNavigation"
-				class="sample-mobile-nav"
-				aria-label="示例应用主导航"
-				:style="{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }"
+				v-if="
+					isMobile &&
+					showInventoryNavigation &&
+					!(page === 'inventory' || routeArea === 'inventory')
+				"
+				class="mobile-context"
+				aria-label="库存页面"
 			>
 				<button
-					v-for="group in groups"
-					:key="group.label"
-					:aria-current="section === group.key ? 'page' : undefined"
-					@click="navigatePrimary(group.route)"
+					v-for="child in inventoryNavigation"
+					:key="child.key"
+					:aria-current="inventorySection === child.key ? 'page' : undefined"
+					@click="navigateInventory(child.route)"
 				>
-					<InventoryIcon :name="group.icon" /><span>{{ group.label }}</span>
+					{{ child.label }}
 				</button>
 			</nav>
-		</div>
+			<button
+				v-if="backRoute"
+				class="text-button preview-back"
+				@click="navigate(backRoute, false)"
+			>
+				← {{ backLabel }}
+			</button>
+			<PreviewGallery
+				v-show="page === 'gallery'"
+				:theme="preferences.theme"
+				:active="page === 'gallery'"
+				@notify="notify"
+				@inventory="openInventory"
+				@receive="selectLocalPage('receive')"
+				@navigate="selectRoute"
+			/>
+			<PreviewInventory
+				v-show="page === 'inventory' || (page === 'route' && routeArea === 'inventory')"
+				:pattern="preferences.actions"
+				:variant="page === 'route' ? activeRoute.variant : undefined"
+				:active="page === 'inventory' || (page === 'route' && routeArea === 'inventory')"
+				@notify="notify"
+				@receive="selectLocalPage('receive')"
+				@navigate="selectRoute"
+			>
+				<template #context>
+					<nav
+						v-if="
+							isMobile &&
+							(page === 'inventory' ||
+								(page === 'route' && routeArea === 'inventory'))
+						"
+						class="mobile-context"
+						aria-label="库存页面"
+					>
+						<button
+							v-for="child in inventoryNavigation"
+							:key="child.key"
+							:aria-current="inventorySection === child.key ? 'page' : undefined"
+							@click="navigateInventory(child.route)"
+						>
+							{{ child.label }}
+						</button>
+					</nav>
+				</template>
+			</PreviewInventory>
+			<PreviewReceive
+				v-show="page === 'receive'"
+				:pattern="preferences.form"
+				:active="page === 'receive'"
+				@notify="notify"
+				@back="openInventory"
+			/>
+			<KeepAlive>
+				<component
+					v-if="page === 'route' && routeArea !== 'inventory'"
+					:is="routeComponent"
+					:key="routeInstance"
+					v-bind="routeComponentProps"
+					:active="page === 'route'"
+					@navigate="selectRoute"
+					@notify="notify"
+				/>
+			</KeepAlive>
+			<footer class="sample-footer">
+				<span>物资设计研究室 / 2026</span><span>风格、密度、导航与流程分别评审</span>
+			</footer>
+		</AppFrame>
 		<Teleport to="body"
 			><div v-if="toast" class="preview-toast">
 				<InventoryIcon name="notice" /><span role="status">{{ toast }}</span

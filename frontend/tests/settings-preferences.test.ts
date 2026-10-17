@@ -1,161 +1,140 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent } from "vue";
+import { defineComponent, h } from "vue";
+import DisplaySettingsPage from "../src/features/settings/DisplaySettingsPage.vue";
 import {
-  capturePreferenceRevision,
-  configureDensitySave,
+  createReferenceData,
+  provideInventoryServices,
+} from "../src/services/contracts";
+import {
   density,
+  theme,
+  textScale,
   hydrateUiPreferences,
   preferenceSaveState,
-  preferenceUser,
-  refreshServerDensity,
 } from "../src/lib/uiPreferences";
-
-const api = vi.hoisted(() => ({
-  refreshSession: vi.fn<() => Promise<void>>(),
-  saveUiPreferences: vi.fn<(value: string) => Promise<unknown>>(),
-}));
-vi.mock("../src/lib/api", () => api);
-
-import Settings from "../src/pages/Settings.vue";
-
-const globals = {
-  stubs: {
-    RouterLink: defineComponent({ template: "<a><slot /></a>" }),
-  },
+const wrappers: VueWrapper[] = [];
+const defaults = {
+  theme: "jade" as const,
+  density: "balanced" as const,
+  textScale: 100 as const,
 };
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, resolve, reject };
-}
-
-function mockSession(
-  serverDensity: "compact" | "balanced" | "spacious" = "balanced",
+beforeEach(() => {
+  localStorage.clear();
+  hydrateUiPreferences("alice", defaults);
+});
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  vi.restoreAllMocks();
+});
+function setup(
+  call = vi.fn(async (endpoint, args) =>
+    endpoint === "session.info"
+      ? { user: "alice", ui_preferences: defaults }
+      : args,
+  ),
 ) {
-  api.refreshSession.mockImplementation(async () => {
-    if (preferenceUser.value !== "alice@example.test") {
-      hydrateUiPreferences("alice@example.test", serverDensity);
-      return;
-    }
-    const revision = capturePreferenceRevision();
-    await Promise.resolve();
-    refreshServerDensity("alice@example.test", serverDensity, revision);
+  const reference = createReferenceData();
+  Object.assign(reference, { user: "alice", site: "site" });
+  const root = defineComponent({
+    setup() {
+      provideInventoryServices(
+        { call, report: vi.fn(), upload: vi.fn() },
+        reference,
+      );
+      return () => h(DisplaySettingsPage);
+    },
   });
+  const wrapper = mount(root);
+  wrappers.push(wrapper);
+  return { wrapper, reference, call };
 }
-
-describe("Settings density preferences integration", () => {
-  const wrappers: VueWrapper[] = [];
-  let localStorageDescriptor: PropertyDescriptor | undefined;
-
-  function openSettings() {
-    const wrapper = mount(Settings, { global: globals });
-    wrappers.push(wrapper);
-    return wrapper;
-  }
-
-  beforeEach(() => {
-    localStorageDescriptor = Object.getOwnPropertyDescriptor(
-      window,
-      "localStorage",
-    );
-    window.localStorage.clear();
-    hydrateUiPreferences("", undefined);
-    api.refreshSession.mockReset();
-    api.saveUiPreferences.mockReset();
-    api.saveUiPreferences.mockResolvedValue(undefined);
-    mockSession();
-  });
-
-  afterEach(() => {
-    for (const wrapper of wrappers.splice(0)) wrapper.unmount();
-    configureDensitySave(async () => undefined);
-    if (localStorageDescriptor) {
-      Object.defineProperty(window, "localStorage", localStorageDescriptor);
-    } else {
-      Reflect.deleteProperty(window, "localStorage");
-    }
-    hydrateUiPreferences("", undefined);
-    vi.clearAllMocks();
-  });
-
-  it("applies a choice immediately and exposes save failure with a working retry", async () => {
-    const failedSave = deferred<void>();
-    api.saveUiPreferences
-      .mockReturnValueOnce(failedSave.promise)
-      .mockResolvedValueOnce(undefined);
-    const wrapper = openSettings();
+describe("shared account display settings", () => {
+  it("applies all three themes and independent text/density tokens through the rendered controls", async () => {
+    const { wrapper, call } = setup();
     await flushPromises();
-
-    await wrapper.get('input[name="density"][value="compact"]').setValue();
-    expect(density.value).toBe("compact");
-    expect(document.documentElement.dataset.tiDensity).toBe("compact");
-    expect(wrapper.get('[role="status"]').text()).toContain("正在保存");
-    failedSave.reject(new Error("offline"));
-    await vi.waitFor(() => expect(preferenceSaveState.value).toBe("error"));
-    expect(wrapper.get('[role="alert"]').text()).toContain("offline");
-
-    await wrapper.get('[role="alert"] button').trigger("click");
-    await vi.waitFor(() => expect(preferenceSaveState.value).toBe("saved"));
-    expect(api.saveUiPreferences.mock.calls.map(([value]) => value)).toEqual([
-      "compact",
-      "compact",
-    ]);
-    expect(wrapper.get('[role="status"]').text()).toContain("已保存");
-  });
-
-  it("keeps a queued save alive across Settings unmount and remount", async () => {
-    const pendingSave = deferred<void>();
-    api.saveUiPreferences.mockReturnValue(pendingSave.promise);
-    const first = openSettings();
+    const blue = wrapper
+      .findAll(".theme-option")
+      .find((button) => button.text().includes("靛蓝"))!;
+    await blue.trigger("click");
     await flushPromises();
-    await first.get('input[name="density"][value="spacious"]').setValue();
-    expect(document.documentElement.dataset.tiDensity).toBe("spacious");
-    first.unmount();
-    wrappers.splice(wrappers.indexOf(first), 1);
-
-    const second = openSettings();
-    await flushPromises();
-    expect(density.value).toBe("spacious");
-    expect(document.documentElement.dataset.tiDensity).toBe("spacious");
-    pendingSave.resolve();
-    await vi.waitFor(() => expect(preferenceSaveState.value).toBe("saved"));
-    expect(api.saveUiPreferences).toHaveBeenCalledTimes(1);
+    expect(theme.value).toBe("blue");
     expect(
-      (
-        second.get('input[name="density"][value="spacious"]')
-          .element as HTMLInputElement
-      ).checked,
-    ).toBe(true);
-  });
-
-  it("keeps the current density when session refresh fails", async () => {
-    hydrateUiPreferences("alice@example.test", "compact");
-    api.refreshSession.mockRejectedValue(new Error("offline"));
-    const wrapper = openSettings();
+      document.documentElement.style.getPropertyValue("--p-radius-control"),
+    ).toBe("6px");
+    await wrapper.find('input[value="compact"]').setValue(true);
+    await flushPromises();
+    await wrapper.find('select[aria-label="文字大小"]').setValue("175");
     await flushPromises();
     expect(density.value).toBe("compact");
+    expect(textScale.value).toBe(175);
     expect(document.documentElement.dataset.tiDensity).toBe("compact");
-    expect(wrapper.get('[role="alert"]').text()).toContain("offline");
-    expect(wrapper.get('[role="alert"]').text()).toContain("保持不变");
+    expect(
+      document.documentElement.style.getPropertyValue("--p-text-scale"),
+    ).toBe("1.75");
+    expect(call).toHaveBeenLastCalledWith(
+      "preferences.save_display_preferences",
+      { theme: "blue", density: "compact", textScale: 175 },
+    );
   });
-
-  it("continues to hydrate server preferences when localStorage access throws", () => {
-    Object.defineProperty(window, "localStorage", {
-      configurable: true,
-      get() {
-        throw new Error("storage disabled");
-      },
+  it("retains failed working preferences, preserves the confirmed cache and retries the same selection", async () => {
+    let fail = true;
+    const call = vi.fn(async (endpoint, args) => {
+      if (endpoint === "session.info")
+        return { user: "alice", ui_preferences: defaults };
+      if (fail) throw new Error("保存失败");
+      return args;
     });
-    expect(() =>
-      hydrateUiPreferences("alice@example.test", "spacious"),
-    ).not.toThrow();
+    const { wrapper } = setup(call);
+    await flushPromises();
+    await wrapper.find('input[value="spacious"]').setValue(true);
+    await flushPromises();
     expect(density.value).toBe("spacious");
-    expect(document.documentElement.dataset.tiDensity).toBe("spacious");
+    expect(preferenceSaveState.value).toBe("error");
+    const cache = () =>
+      JSON.parse(
+        localStorage.getItem("temple-inventory:ui-preferences:v2:alice")!,
+      );
+    expect(cache().values.density).toBe("balanced");
+    expect(wrapper.text()).toContain("本次会话");
+    fail = false;
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "重试保存偏好")!
+      .trigger("click");
+    await flushPromises();
+    expect(preferenceSaveState.value).toBe("saved");
+    expect(cache().values.density).toBe("spacious");
+  });
+  it("ignores an old account response after account switching", async () => {
+    let resolve!: (value: unknown) => void;
+    const { reference } = setup(
+      vi.fn(() => new Promise((done) => (resolve = done))),
+    );
+    reference.user = "bob";
+    hydrateUiPreferences("bob", {
+      theme: "bronze",
+      density: "spacious",
+      textScale: 125,
+    });
+    resolve({ user: "alice", ui_preferences: defaults });
+    await flushPromises();
+    expect(theme.value).toBe("bronze");
+    expect(density.value).toBe("spacious");
+    expect(textScale.value).toBe(125);
+  });
+  it("keeps server saving available when browser storage is denied", async () => {
+    const { wrapper, call } = setup();
+    await flushPromises();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage denied");
+    });
+    await wrapper.find('input[value="compact"]').setValue(true);
+    await flushPromises();
+    expect(preferenceSaveState.value).toBe("saved");
+    expect(call).toHaveBeenCalledWith("preferences.save_display_preferences", {
+      ...defaults,
+      density: "compact",
+    });
   });
 });

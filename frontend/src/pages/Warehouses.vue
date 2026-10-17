@@ -1,5 +1,67 @@
 <script setup lang="ts">
-import WarehousesPage from "../features/warehouses/WarehousesPage.vue";
+import { computed, ref } from "vue";
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
+import NativeWarehousesPage from "../features/warehouses/NativeWarehousesPage.vue";
+import {
+	browseDestination,
+	documentDestination,
+	exportDestination,
+} from "../lib/nativeNavigation";
+const route = useRoute(),
+	router = useRouter(),
+	page = ref<InstanceType<typeof NativeWarehousesPage>>();
+onBeforeRouteLeave(() => page.value?.controller.requestLeave() ?? true);
+onBeforeRouteUpdate(() => page.value?.controller.requestLeave() ?? true);
+const text = (value: unknown) => (typeof value === "string" ? value : undefined);
+const validQuery = computed(() =>
+	["warehouse", "search", "edit", "recovery"].every(
+		(key) => route.query[key] === undefined || typeof route.query[key] === "string",
+	),
+);
+function selection(warehouse: string, search: string) {
+	if (
+		route.params.warehouse ||
+		(route.query.warehouse === warehouse && String(route.query.search || "") === search)
+	)
+		return;
+	void router.replace({ query: { ...route.query, warehouse, search: search || undefined } });
+}
+function back() {
+	if (window.history.state.back) router.back();
+	else void router.push("/warehouses");
+}
+function count(warehouse: string) {
+	void router.push({
+		path: "/reconcile/new",
+		query: { warehouse, editor: crypto.randomUUID() },
+	});
+}
+function operation(kind: string, warehouse: string) {
+	void router.push({ path: `/new/${kind}`, query: { warehouse, editor: crypto.randomUUID() } });
+}
+function saved() {
+	document.dispatchEvent(new Event("inventory-configuration-changed"));
+}
 </script>
-
-<template><WarehousesPage /></template>
+<template>
+	<NativeWarehousesPage
+		v-if="validQuery"
+		ref="page"
+		:name="text(route.params.warehouse)"
+		:initial-warehouse="text(route.query.warehouse)"
+		:initial-search="text(route.query.search)"
+		:edit-name="text(route.query.edit)"
+		:recovery-id="text(route.query.recovery)"
+		@selection="selection"
+		@warehouse="(name) => router.push(`/warehouses/${encodeURIComponent(name)}`)"
+		@back="back"
+		@item="(code) => router.push(`/item/${encodeURIComponent(code)}`)"
+		@browse="router.push(browseDestination($event))"
+		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
+		@open-export="router.push(exportDestination($event))"
+		@new-count="count"
+		@new-operation="operation"
+		@saved="saved"
+	/>
+	<p v-else role="alert">仓库链接中的选择无效，请返回仓库列表重新打开。</p>
+</template>

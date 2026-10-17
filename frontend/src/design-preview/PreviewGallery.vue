@@ -1,19 +1,20 @@
 <script setup lang="ts">
+import { previewDate } from "./model";
 import { computed, ref, watch } from "vue";
-import PreviewPeriodFilter from "./components/PreviewPeriodFilter.vue";
+import PreviewPeriodFilter from "../components/ui/PeriodFilter.vue";
 import { emptyScope } from "./browseModel";
-import UiButton from "./components/PreviewUiButton.vue";
-import IconButton from "./components/PreviewIconButton.vue";
+import UiButton from "../components/ui/UiButton.vue";
+import IconButton from "../components/ui/IconButton.vue";
 import InventoryIcon from "../components/InventoryIcon.vue";
-import HierarchyFilter from "./components/PreviewHierarchyFilter.vue";
-import QuantitySummary from "./components/PreviewQuantitySummary.vue";
-import PreviewOverlay from "./PreviewOverlay.vue";
+import HierarchyFilter from "../components/ui/HierarchyFilter.vue";
+import QuantitySummary from "../components/ui/QuantitySummary.vue";
+import PreviewOverlay from "../components/ui/Overlay.vue";
 import PreviewProduct from "./PreviewProduct.vue";
 import PreviewDenseLines from "./PreviewDenseLines.vue";
 import PreviewItemImage from "./PreviewItemImage.vue";
 import { items } from "./model";
 import { themes, warehouseNodes, type ThemeId } from "./model";
-const props = defineProps<{ theme: ThemeId; active?: boolean }>();
+const props = withDefaults(defineProps<{ theme: ThemeId; active?: boolean }>(), { active: true });
 const emit = defineEmits<{ notify: [message: string]; inventory: []; receive: [] }>();
 const theme = computed(() => themes.find((item) => item.id === props.theme)!);
 const hierarchy = ref<string[]>(["斋堂"]);
@@ -199,7 +200,12 @@ const swatches = computed(() => [
 					</button>
 				</div>
 				<p class="muted">当前展示：{{ tab }}。切换保留筛选条件。</p>
-				<PreviewPeriodFilter v-if="active !== false" v-model="period" label="流动日期" />
+				<PreviewPeriodFilter
+					:today="previewDate"
+					v-if="active !== false"
+					v-model="period"
+					label="流动日期"
+				/>
 				<HierarchyFilter
 					v-model="hierarchy"
 					:options="warehouseNodes"

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import LoansPage from "../features/loans/LoansPage.vue";
+import Operations from "./Operations.vue";
 </script>
-
-<template><LoansPage /></template>
+<template><Operations family="loans" /></template>

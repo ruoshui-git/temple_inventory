@@ -1,83 +1,98 @@
 <script setup lang="ts">
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import AppFrame from "./AppFrame.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
-import ApplicationShellDesktopView from "../features/shell/ApplicationShellDesktopView.vue";
-import ApplicationShellMobileView from "../features/shell/ApplicationShellMobileView.vue";
-import { useApplicationShellController } from "../features/shell/useApplicationShellController";
-
-const controller = useApplicationShellController();
-const { surface } = useResponsiveLayout();
-const {
-	route,
-	boot,
-	expandedSection,
-	navigationContexts,
-	destinations,
-	activeDestination,
-	inventoryContextItems,
-	contextItems,
-	contextKey,
-	pending,
-	logout,
-	closeNavigationContext,
-} = controller;
+import { useReferenceData } from "../services/contracts";
+import {
+	primaryNavigation,
+	inventoryNavigation,
+	destinationForPath,
+	inventorySectionForPath,
+} from "../lib/appNavigation";
+import { providePageDomain } from "../lib/pageDomain";
+import { movementLabels } from "../lib/filterPresentation";
+const route = useRoute(),
+	router = useRouter(),
+	reference = useReferenceData();
+const { isMobile } = useResponsiveLayout();
+const pageDomain = providePageDomain();
+const active = computed(
+	() =>
+		pageDomain.value?.domain ||
+		destinationForPath(route.path, String(route.params.kind || ""), !!route.query.loan),
+);
+const inventoryExpanded = ref(true);
+const inventorySection = computed(() => inventorySectionForPath(route.path));
+const owner = computed(
+	() => primaryNavigation.find((item) => item.key === active.value)?.label || "更多",
+);
+const title = computed(() => {
+	if (route.params.doctype) return String(route.params.name || route.params.doctype);
+	if (route.params.kind) return movementLabels[String(route.params.kind)] || "库存操作";
+	if (route.path.startsWith("/reconcile") || route.path.startsWith("/counts")) return "盘点调整";
+	if (route.path.startsWith("/activities")) return "活动";
+	if (
+		route.path.startsWith("/loans/") &&
+		!["/loans/items", "/loans/records"].includes(route.path)
+	)
+		return "借用详情";
+	if (route.path.startsWith("/item/")) return "物品资料";
+	if (route.path === "/items/new") return "新建物品";
+	if (route.path === "/settings") return "显示设置";
+	if (route.path === "/drafts") return "草稿";
+	return inventoryNavigation.find((item) => item.route === route.path)?.label || owner.value;
+});
+watch(active, (value) => {
+	if (value === "inventory") inventoryExpanded.value = true;
+});
+async function navigate(path: string) {
+	document.dispatchEvent(new Event("inventory-navigation"));
+	if (!(await router.push({ path, force: true })))
+		window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+}
 </script>
-
 <template>
-	<div class="application-shell">
-		<ApplicationShellDesktopView
-			v-if="surface === 'desktop'"
-			:destinations="destinations"
-			:active-destination="activeDestination"
-			:expanded-section="expandedSection"
-			:navigation-contexts="navigationContexts"
-			:inventory-context-items="inventoryContextItems"
-			:context-items="contextItems"
-			:context-key="contextKey"
-			:pending="pending"
-			:user="String(boot?.user || '')"
-			@toggle-section="controller.toggleSection"
-			@close-context="closeNavigationContext"
-			@logout="logout"
-		/>
-		<main class="shell-content"><slot /></main>
-		<ApplicationShellMobileView
-			v-if="surface === 'mobile'"
-			:destinations="destinations"
-			:active-destination="activeDestination"
-			:context-items="contextItems"
-			:context-key="contextKey"
-			:path="route.path"
-		/>
-	</div>
+	<AppFrame
+		:primary="primaryNavigation"
+		:inventory="inventoryNavigation"
+		:active="active"
+		:inventory-section="inventorySection"
+		v-model:inventory-expanded="inventoryExpanded"
+		more-route="/more"
+		:user="reference.user"
+		@primary="navigate"
+		@inventory="navigate"
+		@more="navigate"
+	>
+		<div class="sample-breadcrumb">
+			<button
+				v-if="isMobile"
+				class="preview-tools-link"
+				:aria-current="active === 'more' ? 'page' : undefined"
+				@click="navigate('/more')"
+			>
+				更多
+			</button>
+			<span>寺院物资</span
+			><template v-if="owner !== title"
+				><span>/</span><span>{{ owner }}</span></template
+			><span>/</span><span>{{ title }}</span>
+		</div>
+		<nav
+			v-if="isMobile && active === 'inventory'"
+			class="mobile-context"
+			aria-label="库存页面"
+		>
+			<button
+				v-for="item in inventoryNavigation"
+				:key="item.key"
+				:aria-current="inventorySection === item.key ? 'page' : undefined"
+				@click="navigate(item.route)"
+			>
+				{{ item.label }}
+			</button>
+		</nav>
+		<slot />
+	</AppFrame>
 </template>
-
-<style scoped>
-.application-shell {
-	min-height: 100dvh;
-}
-
-.shell-content {
-	min-width: 0;
-}
-
-@media (min-width: 1024px) {
-	.application-shell {
-		display: grid;
-		grid-template-columns: 156px minmax(0, 1fr);
-		height: 100dvh;
-		min-height: 0;
-		overflow: hidden;
-		background: var(--ti-canvas);
-	}
-	.shell-content {
-		min-height: 0;
-		overflow-x: hidden;
-		overflow-y: auto;
-	}
-	.shell-content:has(> .viewport-list-root),
-	.shell-content:has(> .movement-ledger),
-	.shell-content:has(> .dashboard-page) {
-		overflow: hidden;
-	}
-}
-</style>

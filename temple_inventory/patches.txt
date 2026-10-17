@@ -1,10 +1,3 @@
 [pre_model_sync]
-# Patches added in this section will be executed before doctypes are migrated
-# Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
 
 [post_model_sync]
-temple_inventory.patches.v2_mark_warehouse_fallbacks
-temple_inventory.patches.v3_allow_existing_physical_locations
-temple_inventory.patches.v4_allow_existing_physical_leaves
-temple_inventory.patches.v5_remove_unlocated_settings
-# Patches added in this section will be executed after doctypes are migrated

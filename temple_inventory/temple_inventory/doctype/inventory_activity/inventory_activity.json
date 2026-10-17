@@ -1,112 +1,90 @@
 {
-  "actions": [],
-  "autoname": "field:title",
   "doctype": "DocType",
-  "field_order": [
-    "title",
-    "status",
-    "date",
-    "source_type",
-    "donor_source",
-    "purpose",
-    "recipient",
-    "responsible_person",
-    "notes",
-    "activity_type",
-    "start_date",
-    "end_date",
-    "description"
-  ],
+  "name": "Inventory Activity",
+  "module": "Temple Inventory",
   "fields": [
     {
       "fieldname": "title",
       "fieldtype": "Data",
-      "label": "Activity Title",
+      "label": "活动名称",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "activity_type",
+      "fieldtype": "Link",
+      "label": "活动类型",
+      "options": "Inventory Activity Type",
       "reqd": 1,
       "in_list_view": 1
     },
     {
-      "default": "Open",
       "fieldname": "status",
       "fieldtype": "Select",
-      "label": "Status",
-      "options": "Open\nClosed",
+      "label": "状态",
+      "options": "Active\nArchived",
+      "default": "Active",
+      "reqd": 1,
       "in_list_view": 1
-    },
-    {
-      "fieldname": "date",
-      "fieldtype": "Date",
-      "label": "Date"
-    },
-    {
-      "fieldname": "source_type",
-      "fieldtype": "Select",
-      "label": "Source Type",
-      "options": "\nDonation\nPurchase\nInternal\nOther"
-    },
-    {
-      "fieldname": "donor_source",
-      "fieldtype": "Data",
-      "label": "Donor / Source"
-    },
-    {
-      "fieldname": "purpose",
-      "fieldtype": "Data",
-      "label": "Purpose"
-    },
-    {
-      "fieldname": "recipient",
-      "fieldtype": "Data",
-      "label": "Recipient"
-    },
-    {
-      "fieldname": "responsible_person",
-      "fieldtype": "Link",
-      "label": "Responsible Person",
-      "options": "User"
-    },
-    {
-      "fieldname": "notes",
-      "fieldtype": "Small Text",
-      "label": "Notes"
-    },
-    {
-      "fieldname": "activity_type",
-      "fieldtype": "Select",
-      "label": "Activity Type",
-      "options": "Distribution\nEvent\nPerformance\nReligious Activity\nMaintenance\nOther"
     },
     {
       "fieldname": "start_date",
       "fieldtype": "Date",
-      "label": "Start Date"
+      "label": "开始日期"
     },
     {
       "fieldname": "end_date",
       "fieldtype": "Date",
-      "label": "End Date"
+      "label": "结束日期"
     },
     {
       "fieldname": "description",
       "fieldtype": "Small Text",
-      "label": "Description"
-    }
-  ],
-  "module": "Temple Inventory",
-  "name": "Inventory Activity",
-  "permissions": [
-    {
-      "read": 1,
-      "write": 1,
-      "create": 1,
-      "role": "Stock User"
+      "label": "简要说明"
     },
     {
+      "fieldname": "notes",
+      "fieldtype": "Long Text",
+      "label": "详细备注",
+      "ignore_xss_filter": 1
+    }
+  ],
+  "field_order": [
+    "title",
+    "activity_type",
+    "status",
+    "start_date",
+    "end_date",
+    "description",
+    "notes"
+  ],
+  "permissions": [
+    {
+      "role": "Stock User",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Stock Manager",
       "read": 1,
       "write": 1,
       "create": 1,
-      "delete": 1,
-      "role": "Stock Manager"
+      "delete": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
     }
-  ]
+  ],
+  "track_changes": 1,
+  "autoname": "hash",
+  "title_field": "title",
+  "search_fields": "title,description",
+  "sort_field": "modified",
+  "sort_order": "DESC"
 }

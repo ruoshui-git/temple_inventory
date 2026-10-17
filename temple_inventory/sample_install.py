@@ -1,5 +1,7 @@
 """Foreground installer for the Temple Inventory development sample dataset."""
 
+# ruff: noqa: RUF001 — Chinese sample setup messages are intentional.
+
 import sys
 import traceback
 from datetime import timedelta
@@ -8,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.system-warehouse-contract"
+VERSION = "2026.10.native-documents-v1"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -56,20 +58,10 @@ def _progress(message):
 	print(f"[temple-sample] {message}", flush=True)
 
 
-def _remove_new_files(existing_files):
-	for row in frappe.get_all("File", fields=["name", "file_url"], filters={"attached_to_doctype": "Item"}):
-		if row.name in existing_files or not row.file_url or not row.file_url.startswith("/files/"):
-			continue
-		path = Path(frappe.get_site_path("public", row.file_url.lstrip("/")))
-		try:
-			if path.is_file():
-				path.unlink()
-		except OSError:
-			pass
-
-
 def assert_development_site(allow_non_developer=0):
 	"""Reject destructive sample operations unless explicitly overridden."""
+	if frappe.local.site != "development.localhost":
+		frappe.throw("Sample operations only accept development.localhost")
 	if not cint(frappe.conf.get("developer_mode")) and not cint(allow_non_developer):
 		frappe.throw("此命令仅允许在 developer_mode=1 的开发站点执行")
 	installed = set(frappe.get_installed_apps())
@@ -77,6 +69,90 @@ def assert_development_site(allow_non_developer=0):
 	if missing:
 		frappe.throw(f"站点缺少必需应用：{', '.join(sorted(missing))}")
 	return {"site": frappe.local.site, "installed_apps": sorted(installed)}
+
+
+def assert_native_reset_ready(allow_non_developer=0):
+	"""Fail before reinstall if app source would recreate retired business schema."""
+	import json
+
+	from temple_inventory.sample_media import ASSETS, _digest, catalog
+
+	result = assert_development_site(allow_non_developer=allow_non_developer)
+	root = Path(__file__).parent
+	retired = (
+		"inventory_workspace",
+		"inventory_loan",
+		"inventory_loan_item",
+		"inventory_return",
+		"inventory_return_item",
+		"inventory_loss",
+		"inventory_loss_item",
+	)
+	if any((root / "temple_inventory" / "doctype" / name).exists() for name in retired):
+		frappe.throw("Native reset is not ready: retired business DocType source remains")
+	fields = json.loads((root / "fixtures" / "custom_field.json").read_text())
+	if any(
+		row["fieldname"] in {"ti_workspace", "ti_loan", "ti_return", "ti_loss", "ti_responsible_person"}
+		for row in fields
+	):
+		frappe.throw("Native reset is not ready: retired custom-field fixtures remain")
+	for row in catalog()["items"]:
+		for image in row["images"]:
+			path = ASSETS / image["output"]
+			if not path.resolve().is_relative_to(ASSETS.resolve()) or _digest(path) != image["sha256"]:
+				frappe.throw("Native sample image assets are missing or changed")
+	return {**result, "native_reset_ready": True}
+
+
+def _administrator_auth_path():
+	path = Path(frappe.get_site_path("private", "temple-inventory-reset-auth.json"))
+	if path.is_symlink() or path.parent.is_symlink():
+		raise ValueError("Administrator authentication backup must not follow symlinks")
+	return path
+
+
+def preserve_administrator_auth():
+	"""Keep the existing native password hash across this exact-site reinstall."""
+	import json
+	import os
+
+	assert_development_site()
+	path = _administrator_auth_path()
+	if path.exists():
+		frappe.throw("A prior Administrator authentication backup exists; restore it before resetting")
+	rows = frappe.db.sql(
+		"""select password from `__Auth` where doctype='User' and name='Administrator'
+		and fieldname='password' and encrypted=0"""
+	)
+	if len(rows) != 1 or not rows[0][0]:
+		frappe.throw("Existing Administrator password hash is unavailable; reset stopped")
+	with open(path, "x", opener=lambda name, flags: os.open(name, flags, 0o600)) as stream:
+		json.dump({"site": frappe.local.site, "password_hash": rows[0][0]}, stream)
+	return {"administrator_password_preserved": True}
+
+
+def restore_administrator_auth():
+	"""Restore the existing hash, commit it, then remove the transient secret file."""
+	import json
+
+	from frappe.utils.password import Auth, passlibctx
+
+	assert_development_site()
+	path = _administrator_auth_path()
+	if path.stat().st_mode & 0o077:
+		raise ValueError("Administrator authentication backup permissions are too broad")
+	data = json.loads(path.read_text())
+	if data.get("site") != frappe.local.site or not passlibctx.identify(data.get("password_hash", "")):
+		raise ValueError("Administrator authentication backup is invalid")
+	query = frappe.qb.into(Auth).columns(
+		Auth.doctype, Auth.name, Auth.fieldname, Auth.password, Auth.encrypted
+	)
+	query.insert("User", "Administrator", "password", data["password_hash"], 0).on_duplicate_key_update(
+		Auth.password, data["password_hash"]
+	).on_duplicate_key_update(Auth.encrypted, 0).run()
+	frappe.db.commit()
+	path.unlink()
+	return {"administrator_password_restored": True}
 
 
 def _assert_leaf_stock(settings):
@@ -109,85 +185,32 @@ def _complete_setup_wizard():
 
 
 def install_sample_data(company=None):
-	"""Install the catalog and representative transactions on a clean site."""
+	"""Install real native samples on the exact authorized development site."""
+	assert_development_site()
 	if "System Manager" not in frappe.get_roles():
 		frappe.throw("System Manager permission is required")
-
-	from temple_inventory.inventory_api import _create_structure
+	from temple_inventory.native_samples import install
 
 	settings = _settings()
 	company = company or settings.company
 	if not company:
 		frappe.throw("请先选择 Company")
-	root = settings.root_warehouse
-	if root:
-		exists = frappe.db.sql(
-			"""select 1 from `tabStock Ledger Entry` where warehouse in
-			(select name from `tabWarehouse` where lft >= (select lft from tabWarehouse where name=%s)
-			and rgt <= (select rgt from tabWarehouse where name=%s)) limit 1""",
-			(root, root),
-		)
-		business = any(
-			frappe.db.exists(dt, {})
-			for dt in ("Inventory Workspace", "Inventory Loan", "Inventory Return", "Inventory Loss")
-		)
-		if exists or business:
-			frappe.throw("样例安装仅允许在没有库存流水和业务记录的站点执行")
-
-	existing_files = set(frappe.get_all("File", pluck="name"))
 	settings.db_set("sample_data_status", "Installing", update_modified=False)
 	frappe.db.commit()
 	try:
-		_progress("仓库：开始建立 canonical hierarchy")
-		_create_structure(company, True)
-		_progress("仓库：完成")
-
-		from temple_inventory.setup.sample_inventory_data import import_sample_data
-
-		_progress("通用目录与批次：开始")
-		_progress("期初库存：开始")
-		_progress("样例图片：开始")
-		general_result = import_sample_data(company=company, create_stock=1, attach_images=1)
-		sample_warehouses = general_result["样例仓库"]["leaves"]
-		_progress("样例图片：完成")
-		_progress("期初库存：完成")
-		_progress("通用目录与批次：完成")
-
-		from temple_inventory.setup.import_costumes import run as import_costumes
-
-		setup_root = Path(__file__).resolve().parent / "setup"
-		_progress("服装正式目录、A04 期初库存和图片：开始")
-		costume_result = import_costumes(
-			source_csv=str(setup_root / "costumes-data" / "costumes_source_normalized.csv"),
-			company=company,
-			asset_manifest_json=str(setup_root / "sample_assets" / "manifest.json"),
-			asset_root=str(setup_root / "sample_assets"),
-			create_opening_stock=1,
-			submit_opening_stock=1,
-		)
-		_progress("服装正式目录、A04 期初库存和图片：完成")
-
-		from temple_inventory.sample_transactions import install_representative_transactions
-
-		_progress("样例库存事务：开始")
-		transaction_result = install_representative_transactions(company, sample_warehouses)
-		_progress("样例库存事务：完成")
+		_progress("原生仓库、目录、私有图片、库存单据与盘点：开始")
+		result = install(company)
+		settings.reload()
 		_assert_leaf_stock(settings)
-		_progress("叶子库位库存校验：完成")
-
 		settings.db_set("sample_data_version", VERSION, update_modified=False)
 		settings.db_set("sample_data_status", "Installed", update_modified=False)
 		settings.db_set("sample_data_error", "", update_modified=False)
 		frappe.db.commit()
-		return {
-			"status": "Installed",
-			"version": VERSION,
-			"general": general_result,
-			"costumes": costume_result,
-			"transactions": transaction_result,
-		}
+		_progress("原生样例及叶子库位库存验证：完成")
+		return {"status": "Installed", "version": VERSION, **result}
 	except Exception as exc:
-		_remove_new_files(existing_files)
+		# Native File's rollback callbacks remove files created by this transaction.
+		# Never unlink broad directories or shared files from a hand-written fallback.
 		frappe.db.rollback()
 		settings = _settings()
 		settings.db_set("sample_data_status", "Failed", update_modified=False)
@@ -196,6 +219,87 @@ def install_sample_data(company=None):
 		print("[temple-sample] 样例安装失败：", file=sys.stderr, flush=True)
 		traceback.print_exc()
 		raise
+
+
+def verify_development_sample():
+	"""Verify native identities, permissions, balance invariants and private media."""
+	assert_development_site()
+	from temple_inventory import native_samples, sample_media
+	from temple_inventory.native_api import _request_key
+
+	settings = _settings()
+	if settings.sample_data_status != "Installed" or settings.sample_data_version != VERSION:
+		frappe.throw("原生开发样例尚未完整安装")
+	for doctype in (
+		"Inventory Workspace",
+		"Inventory Loan",
+		"Inventory Loan Item",
+		"Inventory Return",
+		"Inventory Return Item",
+		"Inventory Loss",
+		"Inventory Loss Item",
+	):
+		if frappe.db.exists("DocType", doctype) or frappe.db.table_exists(doctype):
+			raise AssertionError("Retired business schema remains after reset")
+	if frappe.db.exists(
+		"Custom Field",
+		{
+			"fieldname": [
+				"in",
+				[
+					"ti_workspace",
+					"ti_loan",
+					"ti_return",
+					"ti_loss",
+					"ti_responsible_person",
+					"ti_system_role",
+					"ti_fallback_role",
+				],
+			]
+		},
+	):
+		raise AssertionError("Retired custom fields remain after reset")
+	_assert_leaf_stock(settings)
+	codes = ["TI-SAMPLE-" + row["key"] for row in sample_media.catalog()["items"]]
+	codes.extend("TI-SAMPLE-" + row[0] for row in native_samples.EXTRA_ITEMS)
+	if frappe.db.count("Item", {"name": ["in", codes]}) != len(codes):
+		raise AssertionError("Native sample catalog is incomplete")
+	for code in codes:
+		item = frappe.get_doc("Item", code)
+		item.check_permission("read")
+		if item.image and not item.image.startswith("/private/files/"):
+			raise AssertionError("Sample primary image is public")
+		for row in frappe.get_all(
+			"File",
+			filters={"attached_to_doctype": "Item", "attached_to_name": code},
+			fields=["is_private", "file_url"],
+		):
+			if not row.is_private or not row.file_url.startswith("/private/files/"):
+				raise AssertionError("Sample original image is public")
+	rooms = {
+		key: frappe.db.get_value("Warehouse", {"company": settings.company, "warehouse_name": label}, "name")
+		for key, label in (("A02", "A02 / 未指定"), ("A02-RACK", "A02 / 货架一 / 上层"))
+	}
+	rooms.update({"LEASE": settings.default_lease_program_warehouse, "DAMAGED": settings.damaged_warehouse})
+	loans = [
+		frappe.get_doc(
+			"Stock Entry",
+			{"ti_request_key": _request_key("Stock Entry", native_samples.REQUEST_PREFIX + key)},
+		)
+		for key in ("loan-first", "loan-second")
+	]
+	native_samples.assert_balances(rooms, loans)
+	media = sample_media.inventory()
+	if media["public_files"]:
+		raise AssertionError("Obsolete public sample media remains")
+	return {
+		"site": frappe.local.site,
+		"version": VERSION,
+		"items": len(codes),
+		"media": media,
+		"balances_verified": True,
+		"retired_schema_absent": True,
+	}
 
 
 def prepare_development_sample_site(
@@ -249,5 +353,5 @@ def prepare_development_sample_site(
 	frappe.db.commit()
 
 	result = install_sample_data(company=company)
-	_progress(f"最终验证：完成（{result['transactions']['transactions']} 个样例事务）")
+	_progress(f"最终验证：完成（{result['transactions']} 个样例事务）")
 	return result

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   capturePreferenceRevision,
-  configureDensitySave,
-  createDensitySaveQueue,
+  configurePreferenceSave,
+  createPreferenceSaveQueue,
   density,
   hydrateUiPreferences,
   preferenceError,
   preferenceSaveState,
   preferenceUser,
-  refreshServerDensity,
+  refreshServerPreferences,
 } from "../src/lib/uiPreferences";
 import { refreshSession } from "../src/lib/api";
 
@@ -26,15 +26,27 @@ describe("account UI preferences", () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute("data-ti-density");
-    hydrateUiPreferences("alice@example.test", "balanced");
+    hydrateUiPreferences("alice@example.test", {
+      theme: "jade",
+      density: "balanced",
+      textScale: 100,
+    });
   });
 
   it("hydrates and caches only the authenticated account's server value", () => {
-    hydrateUiPreferences("alice@example.test", "compact");
+    hydrateUiPreferences("alice@example.test", {
+      theme: "jade",
+      density: "compact",
+      textScale: 100,
+    });
     expect(density.value).toBe("compact");
     expect(document.documentElement.dataset.tiDensity).toBe("compact");
 
-    hydrateUiPreferences("bob@example.test", "spacious");
+    hydrateUiPreferences("bob@example.test", {
+      theme: "jade",
+      density: "spacious",
+      textScale: 100,
+    });
     expect(density.value).toBe("spacious");
     hydrateUiPreferences("alice@example.test");
     expect(density.value).toBe("compact");
@@ -42,14 +54,18 @@ describe("account UI preferences", () => {
 
   it("does not apply invalid server or cached values", () => {
     localStorage.setItem(
-      "temple-inventory:ui-preferences:v1:alice%40example.test",
+      "temple-inventory:ui-preferences:v2:alice%40example.test",
       JSON.stringify({ version: 1, density: "giant" }),
     );
     hydrateUiPreferences("alice@example.test", "giant");
     expect(density.value).toBe("balanced");
 
-    hydrateUiPreferences("alice@example.test", "compact");
-    refreshServerDensity(
+    hydrateUiPreferences("alice@example.test", {
+      theme: "jade",
+      density: "compact",
+      textScale: 100,
+    });
+    refreshServerPreferences(
       "alice@example.test",
       "invalid",
       capturePreferenceRevision(),
@@ -58,20 +74,24 @@ describe("account UI preferences", () => {
   });
 
   it("serializes rapid changes and confirms only the latest save", async () => {
-    const first = deferred<void>();
+    const first = deferred<{
+      theme: "jade";
+      density: "compact" | "balanced" | "spacious";
+      textScale: 100;
+    }>();
     const save = vi
       .fn()
       .mockReturnValueOnce(first.promise)
-      .mockResolvedValue(undefined);
-    configureDensitySave(save);
-    const queue = createDensitySaveQueue();
-    queue.enqueue("compact");
-    queue.enqueue("spacious");
+      .mockImplementation(async (values) => values);
+    configurePreferenceSave(save);
+    const queue = createPreferenceSaveQueue();
+    queue.enqueue({ density: "compact" });
+    queue.enqueue({ density: "spacious" });
     expect(save).toHaveBeenCalledTimes(1);
-    first.resolve();
+    first.resolve({ theme: "jade", density: "compact", textScale: 100 });
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
     await vi.waitFor(() => expect(preferenceSaveState.value).toBe("saved"));
-    expect(save.mock.calls.map(([value]) => value)).toEqual([
+    expect(save.mock.calls.map(([value]) => value.density)).toEqual([
       "compact",
       "spacious",
     ]);
@@ -79,14 +99,22 @@ describe("account UI preferences", () => {
   });
 
   it("ignores a stale account response and skips queued saves after account switch", async () => {
-    const pending = deferred<void>();
+    const pending = deferred<{
+      theme: "jade";
+      density: "compact" | "balanced" | "spacious";
+      textScale: 100;
+    }>();
     const save = vi.fn().mockReturnValue(pending.promise);
-    configureDensitySave(save);
-    const queue = createDensitySaveQueue();
-    queue.enqueue("compact");
-    queue.enqueue("spacious");
-    hydrateUiPreferences("bob@example.test", "balanced");
-    pending.resolve();
+    configurePreferenceSave(save);
+    const queue = createPreferenceSaveQueue();
+    queue.enqueue({ density: "compact" });
+    queue.enqueue({ density: "spacious" });
+    hydrateUiPreferences("bob@example.test", {
+      theme: "jade",
+      density: "balanced",
+      textScale: 100,
+    });
+    pending.resolve({ theme: "jade", density: "compact", textScale: 100 });
     await vi.waitFor(() =>
       expect(preferenceUser.value).toBe("bob@example.test"),
     );
@@ -100,19 +128,22 @@ describe("account UI preferences", () => {
     const save = vi
       .fn()
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(undefined);
-    configureDensitySave(save);
-    const queue = createDensitySaveQueue();
-    queue.enqueue("spacious");
+      .mockImplementationOnce(async (values) => values);
+    configurePreferenceSave(save);
+    const queue = createPreferenceSaveQueue();
+    queue.enqueue({ density: "spacious" });
     await vi.waitFor(() => expect(preferenceSaveState.value).toBe("error"));
     expect(density.value).toBe("spacious");
     expect(preferenceError.value).toContain("offline");
     const saved = JSON.parse(
       localStorage.getItem(
-        "temple-inventory:ui-preferences:v1:alice%40example.test",
+        "temple-inventory:ui-preferences:v2:alice%40example.test",
       ) || "null",
     );
-    expect(saved).toEqual({ version: 1, density: "balanced" });
+    expect(saved).toEqual({
+      version: 2,
+      values: { theme: "jade", density: "balanced", textScale: 100 },
+    });
     queue.retry();
     await vi.waitFor(() => expect(preferenceSaveState.value).toBe("saved"));
     expect(density.value).toBe("spacious");
@@ -122,9 +153,13 @@ describe("account UI preferences", () => {
 
   it("does not let settings refresh replace a pending edit", () => {
     const revision = capturePreferenceRevision();
-    const queue = createDensitySaveQueue();
-    queue.enqueue("compact");
-    refreshServerDensity("alice@example.test", "balanced", revision);
+    const queue = createPreferenceSaveQueue();
+    queue.enqueue({ density: "compact" });
+    refreshServerPreferences(
+      "alice@example.test",
+      { theme: "jade", density: "balanced", textScale: 100 },
+      revision,
+    );
     expect(density.value).toBe("compact");
   });
 
@@ -145,7 +180,11 @@ describe("account UI preferences", () => {
         message: {
           user: "bob@example.test",
           csrf_token: "bob-token",
-          ui_preferences: { density: "spacious" },
+          ui_preferences: {
+            theme: "jade",
+            density: "spacious",
+            textScale: 100,
+          },
         },
       }),
     });
@@ -156,7 +195,7 @@ describe("account UI preferences", () => {
         message: {
           user: "alice@example.test",
           csrf_token: "alice-token",
-          ui_preferences: { density: "compact" },
+          ui_preferences: { theme: "jade", density: "compact", textScale: 100 },
         },
       }),
     });

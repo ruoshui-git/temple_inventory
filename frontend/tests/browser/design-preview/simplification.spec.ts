@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, largePicker, failNextCall } from "./fixtures";
 import { mkdirSync } from "node:fs";
 const failures = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
@@ -167,11 +167,11 @@ test("recorded conversions, failure, discard and complete confirmation", async (
     .getByRole("button", { name: "保存并使用单位", exact: true })
     .click();
   await editor.locator('[data-field="conversionFactor"]').fill("10");
-  await editor.getByText("预览换算状态", { exact: true }).click();
-  await editor.getByLabel("模拟保存失败", { exact: true }).check();
+  await editor.getByLabel("保存为此物品的常用换算", { exact: true }).check();
+  await failNextCall(page, "conversions.save_item_conversions");
   await editor.getByRole("button", { name: "应用换算", exact: true }).click();
-  await expect(editor.getByRole("alert")).toContainText("保存失败");
-  await editor.getByLabel("模拟保存失败", { exact: true }).uncheck();
+  await expect(editor.getByRole("alert")).toContainText("已保留");
+
   await editor.getByRole("button", { name: "应用换算", exact: true }).click();
   await page.getByRole("button", { name: "完成详情", exact: true }).click();
   await expect(row).toContainText("折合 120 袋");
@@ -194,11 +194,8 @@ test("1,000-item picker keeps ordered selection, bounded rows, retry and creatio
   page,
 }) => {
   await open(page);
+  await largePicker(page);
   await page.getByRole("button", { name: "添加物品", exact: true }).click();
-  await page.getByText("预览大型选择器", { exact: true }).click();
-  await page
-    .getByRole("button", { name: "载入 1,000 种物品", exact: true })
-    .click();
   const list = page.locator(".preview-virtual-list.is-virtual");
   expect(await page.locator(".picker-row").count()).toBeLessThan(35);
   await list.evaluate((element) => {
@@ -217,13 +214,19 @@ test("1,000-item picker keeps ordered selection, bounded rows, retry and creatio
   await page
     .locator('[data-picker-code="PICKER-1000-0001"] input[type=checkbox]')
     .check();
-  await page.getByLabel("选择器加载状态").selectOption("error");
+  await failNextCall(page, "catalog.search_items");
+  await page.getByLabel("搜索物品", { exact: true }).fill("PICKER-1000-0002");
+  await expect(page.getByRole("alert")).toContainText("选择已保留");
   await page.getByRole("button", { name: "重试加载" }).click();
   await page.getByRole("button", { name: "新建物品", exact: true }).click();
   await page
     .getByLabel("物品名称", { exact: true })
     .fill("创建后返回的大型物品");
-  await page.getByRole("button", { name: "创建并选中", exact: true }).click();
+  await page.getByRole("combobox", { name: "分类", exact: true }).fill("食品");
+  await page.locator(".search-select-menu [role=option]").first().click();
+  await page
+    .getByRole("button", { name: "创建并使用物品", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "添加所选（3）", exact: true })
     .click();
@@ -233,8 +236,8 @@ test("1,000-item picker keeps ordered selection, bounded rows, retry and creatio
     )
     .allTextContents();
   expect(
-    codes.filter((code) => /PICKER-1000-|ITM-PREVIEW/.test(code)).join("|"),
-  ).toMatch(/PICKER-1000-1000.*PICKER-1000-0001.*ITM-PREVIEW/s);
+    codes.filter((code) => /PICKER-1000-|ITM-00/.test(code)).join("|"),
+  ).toMatch(/PICKER-1000-1000.*PICKER-1000-0001.*ITM-00/s);
 });
 
 test("phone hidden error reveal, Details focus and resize retention", async ({
@@ -282,6 +285,7 @@ for (const width of [375, 1440]) {
     await row.locator("[data-field=qty]").fill("20");
     await row.getByRole("button", { name: /详情/ }).click();
     await page.getByLabel("批次编号", { exact: true }).fill("BROWSER-BATCH");
+    await page.getByLabel("到期日期", { exact: true }).fill("2027-06-01");
     await page
       .getByRole("button", { name: "添加批次分配", exact: true })
       .click();
@@ -301,8 +305,14 @@ for (const width of [375, 1440]) {
     await expect(editor.locator("[data-line-id]")).toHaveCount(2);
     await page.getByRole("button", { name: "保存草稿", exact: true }).click();
     const originalId = await row.getAttribute("data-line-id");
-    const documentName = (await page.locator(".form-record-tag").innerText())
-      .split(" · ")[0]!
+    await expect(page.locator(".form-status:visible .badge")).toContainText(
+      "MAT-STE",
+    );
+    const documentName = (
+      await page.locator(".form-status:visible .badge").innerText()
+    )
+      .split(" · ")
+      .at(-1)!
       .trim();
     await page.getByRole("button", { name: "更多", exact: true }).click();
     await page.getByRole("button", { name: /草稿.*继续未完成/ }).click();
@@ -329,7 +339,13 @@ for (const width of [375, 1440]) {
     await page.getByRole("button", { name: "添加物品", exact: true }).click();
     await page.getByRole("button", { name: "新建物品", exact: true }).click();
     await page.getByLabel("物品名称", { exact: true }).fill("整数库存物品");
-    await page.getByRole("button", { name: "创建并选中", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "分类", exact: true })
+      .fill("食品");
+    await page.locator(".search-select-menu [role=option]").first().click();
+    await page
+      .getByRole("button", { name: "创建并使用物品", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "添加所选（1）", exact: true })
       .click();
@@ -350,12 +366,17 @@ for (const width of [375, 1440]) {
     await editor.getByRole("button", { name: "应用换算", exact: true }).click();
     await expect(editor.getByRole("alert")).toContainText("Nos只允许整数");
     await editor.getByLabel("输入数量（半件包装）", { exact: true }).fill("2");
-    await editor
-      .getByLabel("保存为此物品的常用换算", { exact: true })
-      .uncheck();
-    await editor.getByText("预览换算状态", { exact: true }).click();
-    await editor.getByLabel("允许新建单位", { exact: true }).uncheck();
-    await editor.getByLabel("允许更新物品", { exact: true }).uncheck();
+    await editor.getByRole("button", { name: "应用换算", exact: true }).click();
+    await page.getByRole("button", { name: "完成详情", exact: true }).click();
+    await expect(row).toContainText("2 半件包装 · 折合 1 Nos");
+    await row.getByRole("button", { name: /详情/ }).click();
+    await page.getByRole("button", { name: "单位与换算", exact: true }).click();
+    await page.evaluate(async () => {
+      const { galleryReference } =
+        await import("/src/design-preview/fixtureReference.ts");
+      galleryReference.capabilities.UOM.create = false;
+      galleryReference.capabilities.Item.write = false;
+    });
     await expect(
       editor.getByRole("button", { name: "新建单位", exact: true }),
     ).toBeDisabled();
@@ -380,8 +401,7 @@ test("navigation, retained Loan/Return filters, compact reports and independent 
   await open(page, "movement-items/list");
   await expect(page.locator(".browse-kind-tabs button")).toHaveCount(4);
   await page
-    .getByRole("button", { name: /筛选/ })
-    .filter({ has: page.locator("svg") })
+    .getByRole("button", { name: "流动类型", exact: false })
     .first()
     .click();
   await page
@@ -392,8 +412,8 @@ test("navigation, retained Loan/Return filters, compact reports and independent 
     .getByRole("group", { name: "流动类型 · 可多选", exact: true })
     .getByLabel("归还", { exact: true })
     .check();
-  await expect(page.locator(".preview-active-filters")).toContainText("借出");
-  await expect(page.locator(".preview-active-filters")).toContainText("归还");
+  await expect(page.locator(".compact-filter-chips")).toContainText("借出");
+  await expect(page.locator(".compact-filter-chips")).toContainText("归还");
   await open(page, "reports/overview");
   const selector = page.getByRole("combobox", { name: "数据集", exact: true });
   await expect(selector.locator("option")).toHaveCount(6);

@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     fsModuleCache: true,
+    // Keep DOM-heavy editor suites within the development container's CPU budget.
+    maxWorkers: 4,
     include: ["tests/**/*.test.ts"],
   },
 });

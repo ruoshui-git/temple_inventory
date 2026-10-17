@@ -19,6 +19,9 @@ def _erpnext_workspace_names():
 
 
 def after_migrate():
+	from temple_inventory.activities import seed_activity_types
+
+	seed_activity_types()
 	logo = "/assets/temple_inventory/logo.png"
 	icon = frappe.db.exists("Desktop Icon", "物资管理")
 	if icon:

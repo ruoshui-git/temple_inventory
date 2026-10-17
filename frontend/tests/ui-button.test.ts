@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import UiButton from "../src/components/UiButton.vue";
+import UiButton from "../src/components/ui/UiButton.vue";
 
 describe("UiButton", () => {
   it("keeps native attrs/events and renders one loading label", async () => {

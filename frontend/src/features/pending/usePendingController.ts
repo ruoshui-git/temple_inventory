@@ -1,219 +1,169 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-
-import { useRoute, useRouter } from "vue-router";
-
-import { api } from "../../lib/api";
-
-import { warehousePresentation } from "../../lib/warehousePresenter";
-
+import { computed, ref, watch } from "vue";
 import {
-  hydrateFilterQuery,
-  serializeFilterQuery,
-} from "../../composables/filters";
-
-import { returnToOpener } from "../../lib/navigation";
-import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-
-export function usePendingController() {
-  const route = useRoute(),
-    router = useRouter();
-  const { surface: responsiveSurface, isSurface } = useResponsiveLayout();
-  const surface = responsiveSurface;
-  const scrollResetToken = ref(0);
-  function requestScrollReset() {
-    scrollResetToken.value += 1;
-  }
-  const boot = ref<any>(),
-    rows = ref<any[]>([]),
-    total = ref(0),
-    overall = ref(0),
-    facets = ref<any>({ warehouses: {}, item_groups: {} }),
-    quantityTotals = ref<Record<string, Array<{ uom: string; qty: number }>>>(
-      {},
+  newReportQuery,
+  type ReportQuery,
+  type ReportRow,
+} from "../../lib/reportContract";
+import { decodeReportQuery } from "../../lib/reportQuery";
+import {
+  scopeFilterChips,
+  type ScopeFilterField,
+} from "../../lib/filterPresentation";
+import {
+  reportFilterChips,
+  clearReportSecondaryFilters,
+} from "../../lib/reportFilters";
+import { useReferenceData } from "../../services/contracts";
+import { useReportController } from "../export/useReportController";
+import type { InitialAllocation } from "../../lib/routeSelection";
+import { useBrowseState } from "../../lib/browseMemory";
+export function usePendingController(
+  props: { initialQuery?: ReportQuery; routeQuery?: string },
+  changed: (query: ReportQuery) => void,
+) {
+  const reference = useReferenceData(),
+    account = reference.user,
+    query = ref(newReportQuery("inventory")),
+    routeError = ref(""),
+    analysisOpen = ref(false),
+    dimension = ref("category");
+  function enter() {
+    const decoded = decodeReportQuery(
+      props.initialQuery || props.routeQuery,
+      "inventory",
     );
-  const error = ref(""),
-    loading = ref(true),
-    loadingMore = ref(false);
-
-  const filterOpen = ref(false);
-  const desktopFilterOpen = ref(false);
-  const operationCaps = computed(
-    () => boot.value?.stock_operation_capabilities || {},
-  );
-  const filters = ref({
-    search: "",
-    warehouses: [] as string[],
-    item_groups: [] as string[],
+    routeError.value =
+      decoded.error ||
+      (decoded.query.dataset !== "inventory" ||
+      !["summary", "locations"].includes(decoded.query.view)
+        ? "此页面需要当前损坏库存范围"
+        : "");
+    const value: ReportQuery = {
+      ...decoded.query,
+      view: "locations",
+      grouping: "none",
+      damageOnly: true,
+      includeZero: false,
+    };
+    if (!props.initialQuery && !props.routeQuery) value.sortBy = "name";
+    if (JSON.stringify(query.value) !== JSON.stringify(value))
+      query.value = value;
+  }
+  watch(() => JSON.stringify([props.initialQuery, props.routeQuery]), enter, {
+    immediate: true,
   });
-  const warehouseRows = computed(() => boot.value?.physical_tree || []);
-  const summaryMetrics = computed(() => [
-    {
-      key: "damaged_qty",
-      label: "损坏",
-      quantities: quantityTotals.value.damaged_qty || [],
+  const valid = computed(() => !routeError.value && reference.user === account);
+  const report = useReportController(query, {
+    personalViews: false,
+    enabled: valid,
+  });
+  const analysisQuery = computed(() => ({
+    ...query.value,
+    grouping: dimension.value,
+  }));
+  const analysis = useReportController(analysisQuery, {
+    personalViews: false,
+    enabled: computed(() => valid.value && analysisOpen.value),
+  });
+  useBrowseState(
+    "pending",
+    () => query.value,
+    () => ({ dimension: dimension.value, analysisOpen: analysisOpen.value }),
+    (value) => {
+      dimension.value = String(value.dimension || "category");
+      analysisOpen.value = value.analysisOpen === true;
     },
-  ]);
-  const warehouseText = (name: string) =>
-    warehousePresentation(name, warehouseRows.value).breadcrumb;
-  const chips = computed(() => [
-    ...filters.value.warehouses.map((value) => ({
-      key: "warehouses",
-      value,
-      label: warehouseText(value),
-    })),
-    ...filters.value.item_groups.map((value) => ({
-      key: "item_groups",
-      value,
-      label:
-        boot.value?.item_groups?.find((row: any) => row.name === value)
-          ?.item_group_name || value,
-    })),
-    ...(filters.value.search
-      ? [{ key: "search", label: `搜索：${filters.value.search}` }]
-      : []),
-  ]);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  async function load(append = false) {
-    if (
-      append &&
-      (loading.value || loadingMore.value || rows.value.length >= total.value)
-    )
-      return;
-    append ? (loadingMore.value = true) : (loading.value = true);
-    error.value = "";
-    try {
-      const data = await api("pending", {
-        ...filters.value,
-        warehouses: filters.value.warehouses.length
-          ? filters.value.warehouses
-          : undefined,
-        item_groups: filters.value.item_groups.length
-          ? filters.value.item_groups
-          : undefined,
-        start: append ? rows.value.length : 0,
-        page_length: 25,
-      });
-      const incoming = data.results || [];
-      rows.value = append
-        ? [
-            ...rows.value,
-            ...incoming.filter(
-              (row: any) =>
-                !rows.value.some((old) => old.item_code === row.item_code),
-            ),
-          ]
-        : incoming;
-      total.value = Number(data.total || 0);
-      overall.value = Number(data.overall_total || 0);
-      facets.value = data.facets || facets.value;
-      quantityTotals.value = data.quantity_totals || {};
-    } catch (cause: any) {
-      error.value = cause.message;
-      if (!append) quantityTotals.value = {};
-    } finally {
-      loading.value = false;
-      loadingMore.value = false;
-    }
-  }
-  function begin(row: any, kind: string) {
-    sessionStorage.setItem(
-      `ti-seed:${kind}`,
-      JSON.stringify({ items: [row.item_code] }),
-    );
-    void router.push(`/new/${kind}`);
-  }
-  function removeChip(chip: any) {
-    if (chip.key === "search") filters.value.search = "";
-    else
-      (filters.value as any)[chip.key] = (filters.value as any)[
-        chip.key
-      ].filter((value: string) => value !== chip.value);
-  }
-  function clearFilters() {
-    filters.value = { search: "", warehouses: [], item_groups: [] };
-  }
-  function openFilters(
-    event?: Event,
-    panel?: { openPanel: (event?: Event) => void } | null,
-  ) {
-    if (isSurface("desktop"))
-      desktopFilterOpen.value = !desktopFilterOpen.value;
-    else panel?.openPanel(event);
-  }
-  function close() {
-    void returnToOpener(router, "/stock");
-  }
+    () =>
+      !report.result.loading &&
+      !!report.mainTable.value?.initialized &&
+      !analysis.result.loading,
+  );
   watch(
-    filters,
+    () => JSON.stringify(query.value),
     () => {
-      if (!boot.value) return;
-      requestScrollReset();
-      if (timer) clearTimeout(timer);
-      void router.replace({
-        query: serializeFilterQuery(filters.value),
-      });
-      timer = setTimeout(() => void load(), 280);
+      if (!routeError.value) changed(JSON.parse(JSON.stringify(query.value)));
     },
-    { deep: true },
+    { immediate: true },
   );
-  watch(
-    () => route.query,
-    (query) => {
-      const next = hydrateFilterQuery(
-        query as Record<string, unknown>,
-        filters.value,
-      );
-      if (JSON.stringify(next) !== JSON.stringify(filters.value))
-        filters.value = next;
+  const scope = computed({
+    get: () => query.value.scope,
+    set: (value) => (query.value.scope = value),
+  });
+  const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
+  const chips = computed(() =>
+    reportFilterChips(query.value, reference).filter(
+      (chip) => !["damageOnly", "includeZero"].includes(chip.key),
+    ),
+  );
+  const metrics = computed(() => [
+    {
+      key: "damaged",
+      label: "损坏待处理",
+      tone: "danger",
+      quantities: report.result.summary.map((row) => ({
+        uom: String(row.stock_uom),
+        qty: Number(row.damaged || 0),
+      })),
     },
-    { deep: true },
-  );
-  onMounted(async () => {
-    try {
-      boot.value = await api("bootstrap");
-      filters.value = hydrateFilterQuery(
-        route.query as Record<string, unknown>,
-        filters.value,
-      );
-      await load();
-    } catch (cause: any) {
-      error.value = cause.message;
-      loading.value = false;
-      loadingMore.value = false;
-    }
-  });
-  onBeforeUnmount(() => {
-    if (timer) clearTimeout(timer);
-  });
+  ]);
+  function removeScope(field: ScopeFilterField, value: string) {
+    const previous = scope.value[field];
+    Object.assign(scope.value, {
+      [field]: Array.isArray(previous)
+        ? previous.filter((item) => item !== value)
+        : "",
+    });
+  }
+  function clear() {
+    clearReportSecondaryFilters(query.value, reference);
+    scope.value = {
+      ...newReportQuery("inventory").scope,
+      period: scope.value.period,
+    };
+    query.value.damageOnly = true;
+    query.value.includeZero = false;
+  }
+  function canAct(kind: "Repair" | "Disposal", row: ReportRow) {
+    return (
+      valid.value &&
+      !report.result.stale &&
+      !report.result.loading &&
+      reference.operations[kind] === true &&
+      Number(row.damaged) > 0
+    );
+  }
+  function allocation(row: ReportRow): InitialAllocation {
+    return {
+      item_code: String(row.item_code),
+      warehouse: String(row.warehouse),
+      batch_no: String(row.batch_no || ""),
+      qty: Number(row.damaged),
+    };
+  }
+  function rowQuery(row: ReportRow) {
+    return {
+      ...JSON.parse(JSON.stringify(query.value)),
+      restrictAllocations: true,
+      allocationKeys: [String(row.id)],
+    } as ReportQuery;
+  }
   return {
-    route,
-    router,
-    surface,
-    scrollResetToken,
-    boot,
-    rows,
-    total,
-    overall,
-    facets,
-    quantityTotals,
-    error,
-    loading,
-    loadingMore,
-    filterOpen,
-    desktopFilterOpen,
-    operationCaps,
-    filters,
-    warehouseRows,
-    summaryMetrics,
-    warehouseText,
+    reference,
+    query,
+    scope,
+    scopeChips,
     chips,
-    load,
-    begin,
-    removeChip,
-    clearFilters,
-    openFilters,
-    close,
+    routeError,
+    report,
+    analysis,
+    analysisOpen,
+    dimension,
+    metrics,
+    removeScope,
+    clear,
+    canAct,
+    allocation,
+    rowQuery,
   };
 }
-
 export type PendingController = ReturnType<typeof usePendingController>;

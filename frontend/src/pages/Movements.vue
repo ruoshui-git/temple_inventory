@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import MovementsPage from "../features/movements/MovementsPage.vue";
+import Operations from "./Operations.vue";
 </script>
-
-<template><MovementsPage /></template>
+<template><Operations family="movements" /></template>

@@ -1,5 +1,7 @@
 import { reactive } from "vue";
 import type { PreviewPeriod } from "./browseModel";
+import type { ReportQuery } from "../lib/reportContract";
+export const activityQueries = reactive<Record<string, ReportQuery>>({});
 export const activityUi = reactive({
   relatedKind: "",
   relatedSearch: "",

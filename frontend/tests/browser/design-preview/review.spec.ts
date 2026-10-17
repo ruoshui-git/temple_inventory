@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, largePicker, failNextCall } from "./fixtures";
 import { mkdirSync } from "node:fs";
 
 const errors = new WeakMap<Page, string[]>();
@@ -36,11 +36,8 @@ for (const width of [375, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await open(page, "movement-form/Receive", 200);
+    await largePicker(page);
     await page.getByRole("button", { name: "添加物品", exact: true }).click();
-    await page.getByText("预览大型选择器", { exact: true }).click();
-    await page
-      .getByRole("button", { name: "载入 1,000 种物品", exact: true })
-      .click();
     const list = page.locator(".preview-virtual-list.is-virtual");
     const first = list.locator('input[type="checkbox"]').first();
     await first.focus();
@@ -150,7 +147,7 @@ for (const width of [375, 1440]) {
 test("Desk row conversion survives reopening and later Item default changes", async ({
   page,
 }) => {
-  await open(page, "movement-records/entry-detail");
+  await open(page, "movement-records/completed");
   // Seed a Desk-origin row that has no frontend draft; all editing below uses the UI.
   await page.evaluate(async () => {
     const { reviewSession } =
@@ -169,7 +166,13 @@ test("Desk row conversion survives reopening and later Item default changes", as
       (item: { code: string }) => item.code === row.code,
     ).alternateUnits = [{ uom: "箱", factor: 20 }];
   });
-  await page.getByRole("button", { name: "继续编辑草稿", exact: true }).click();
+  await page.evaluate(() => {
+    location.hash =
+      "#review/" + encodeURIComponent("movement-records/entry-detail");
+  });
+  await expect(
+    page.getByRole("button", { name: "保存草稿", exact: true }),
+  ).toBeVisible();
   const row = page
     .locator(".preview-operation-lines:visible [data-line-id]")
     .first();
@@ -182,8 +185,11 @@ test("Desk row conversion survives reopening and later Item default changes", as
     "10",
   );
   await editor.locator("[data-field=conversionFactor]").fill("15");
-  await editor.getByText("预览换算状态", { exact: true }).click();
-  await editor.getByLabel("模拟物品版本冲突", { exact: true }).check();
+  await page.evaluate(async () => {
+    (
+      await import("/src/design-preview/conversionModel.ts")
+    ).conversionAccess.staleItem = true;
+  });
   await editor
     .getByRole("button", { name: "更新常用换算并应用", exact: true })
     .click();
@@ -273,7 +279,7 @@ test("warehouse disclosures retain independent choices while complete totals rem
 }) => {
   await open(page, "movement-form/Receive-50");
   const summary = page.locator(
-    ".preview-form-page .preview-allocation-summary",
+    ".receive-summary:visible .preview-allocation-summary",
   );
   const groups = summary.locator("details");
   expect(await groups.count()).toBeGreaterThan(1);

@@ -1,10 +1,11 @@
-import { ref } from "vue";
-import { presentWarehouse } from "./warehousePresenter";
 import {
   capturePreferenceRevision,
-  refreshServerDensity,
+  refreshServerPreferences,
+  preferenceUser,
+  type DisplayPreferences,
 } from "./uiPreferences";
-export const sessionExpired = ref(false);
+import { sessionExpired } from "./sessionState";
+export { sessionExpired } from "./sessionState";
 let sessionInfoRequestId = 0;
 export class ApiError extends Error {
   constructor(
@@ -21,16 +22,26 @@ export async function request(
   form?: FormData,
   signal?: AbortSignal,
 ): Promise<any> {
-  const r = await fetch(`/api/method/${path}`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      ...(!form ? { "Content-Type": "application/json" } : {}),
-      "X-Frappe-CSRF-Token": (window as any).csrf_token || "",
-    },
-    body: form || JSON.stringify(args),
-    signal,
-  });
+  let r: Response;
+  try {
+    r = await fetch(`/api/method/${path}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        ...(!form ? { "Content-Type": "application/json" } : {}),
+        "X-Frappe-CSRF-Token": (window as any).csrf_token || "",
+        ...(preferenceUser.value
+          ? { "X-Inventory-Account": preferenceUser.value }
+          : {}),
+      },
+      body: form || JSON.stringify(args),
+      signal,
+    });
+  } catch (reason) {
+    if (signal?.aborted) throw reason;
+    throw new ApiError("网络连接失败，请保留当前输入后重试", 0, "NetworkError");
+  }
+  if (r.status === 401) sessionExpired.value = true;
   let body: any;
   try {
     body = await r.json();
@@ -72,170 +83,69 @@ export async function request(
   }
   return body.message;
 }
-export const api = (
-  method: string,
-  args: Record<string, unknown> = {},
-  signal?: AbortSignal,
-) =>
-  request(`temple_inventory.inventory_api.${method}`, args, undefined, signal);
-export const workspaceApi = (
-  method: string,
-  args: Record<string, unknown> = {},
-  signal?: AbortSignal,
-) =>
-  request(`temple_inventory.workspace_api.${method}`, args, undefined, signal);
-export type ReportType =
-  | "movement"
-  | "movement_records"
-  | "current_stock"
-  | "warehouse_stock"
-  | "expiry";
-export type ExportFormat = "xlsx" | "csv";
-export async function downloadReport(
-  reportType: ReportType,
-  exportFormat: ExportFormat,
-  filters: Record<string, unknown>,
-) {
-  const response = await fetch(
-    "/api/method/temple_inventory.reporting.export_report",
-    {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Frappe-CSRF-Token": (window as any).csrf_token || "",
-      },
-      body: JSON.stringify({
-        report_type: reportType,
-        export_format: exportFormat,
-        filters,
-      }),
-    },
-  );
-  if (!response.ok) {
-    let message = `导出失败（${response.status}）`;
-    try {
-      const body = await response.json();
-      message = String(body.message || message).replace(/<[^>]*>/g, "");
-      if (
-        response.status === 401 ||
-        body.exc_type === "AuthenticationError" ||
-        body.exc_type === "CSRFTokenError"
-      )
-        sessionExpired.value = true;
-    } catch {
-      /* retain status-based message */
-    }
-    throw new ApiError(message, response.status, "ExportError");
-  }
-  const blob = await response.blob();
-  const disposition = response.headers.get("Content-Disposition") || "";
-  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const quoted = disposition.match(/filename="([^"]+)"/i)?.[1];
-  let filename = `temple-inventory-report.${exportFormat}`;
-  try {
-    filename = encoded ? decodeURIComponent(encoded) : quoted || filename;
-  } catch {
-    filename = quoted || filename;
-  }
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 export async function refreshSession() {
   const requestId = ++sessionInfoRequestId;
   const preferenceRevision = capturePreferenceRevision();
   let r: Response;
   try {
-    r = await fetch("/api/method/temple_inventory.inventory_api.session_info", {
+    r = await fetch("/api/method/temple_inventory.session.info", {
       credentials: "same-origin",
     });
   } catch (error) {
     if (requestId !== sessionInfoRequestId) return;
-    throw error;
+    throw new ApiError("网络连接失败，请检查连接后重试", 0, "NetworkError");
   }
   if (requestId !== sessionInfoRequestId) return;
-  if (!r.ok) throw new Error("请先完成登录");
-  const { message: d } = await r.json();
+  let body: any;
+  try {
+    body = await r.json();
+  } catch {
+    if (requestId !== sessionInfoRequestId) return;
+    if (r.status === 401) {
+      sessionExpired.value = true;
+      throw new ApiError("请先完成登录", r.status, "AuthenticationError");
+    }
+    throw new ApiError("无法读取登录状态，请重试", r.status, "SessionError");
+  }
+  if (!r.ok || body.exc) {
+    if (
+      r.status === 401 ||
+      body.exc_type === "AuthenticationError" ||
+      body.exc_type === "CSRFTokenError"
+    ) {
+      sessionExpired.value = true;
+      throw new ApiError(
+        "请先完成登录",
+        r.status,
+        body.exc_type || "AuthenticationError",
+      );
+    }
+    throw new ApiError(
+      r.status === 403
+        ? "当前账户无权使用物资管理，请联系管理员"
+        : "无法读取登录状态，请重试",
+      r.status,
+      body.exc_type || "SessionError",
+    );
+  }
+  const d = body.message;
+  if (!d?.user || !d.csrf_token)
+    throw new ApiError(
+      "未能确认登录状态，请重新登录",
+      r.status,
+      "AuthenticationError",
+    );
   if (requestId !== sessionInfoRequestId) return;
   (window as any).csrf_token = d.csrf_token;
-  refreshServerDensity(
+  refreshServerPreferences(
     String(d.user || ""),
-    d.ui_preferences?.density,
+    d.ui_preferences,
     preferenceRevision,
   );
   sessionExpired.value = false;
-}
-export async function saveUiPreferences(density: string) {
-  return api("save_ui_preferences", { density });
-}
-export async function upload(file: File, doctype: string, docname: string) {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("doctype", doctype);
-  form.append("docname", docname);
-  form.append("is_private", "1");
-  return request("upload_file", {}, form);
-}
-export const labels: Record<string, string> = {
-  Receive: "入库",
-  Issue: "出库",
-  Transfer: "转移",
-  Reconcile: "盘点",
-  Opening: "期初库存",
-  Loan: "借出",
-  Return: "归还",
-  Damage: "标记损坏",
-  Loss: "记录遗失",
-  Repair: "修复归库",
-  Disposal: "正式报废",
-  盘点调整: "盘点调整",
-  期初库存: "期初库存",
-};
-export function warehouseLabel(name: string, tree: any[]): string {
-  const node = tree.find((w) => w.name === name);
-  if (!node) return name || "未选择位置";
-  return presentWarehouse(node, tree).breadcrumb;
-}
-export type WarehouseLabelContract = {
-  local_label: string;
-  full_label: string;
-  search_text: string;
-  role: "group" | "leaf";
-  warehouse_type: string;
-};
-/** Structured warehouse display/search contract shared by new picker surfaces. */
-export function warehouseLabelContract(
-  name: string,
-  tree: any[],
-): WarehouseLabelContract {
-  const node = tree.find((row) => row.name === name);
-  const presented = node ? presentWarehouse(node, tree) : undefined;
-  const full_label = warehouseLabel(name, tree);
-  const local_label =
-    presented?.localLabel ||
-    String(node?.warehouse_name || node?.name || name || "未选择位置").trim();
-  return {
-    local_label,
-    full_label,
-    search_text:
-      `${name} ${node?.warehouse_name || ""} ${local_label} ${full_label}`.toLowerCase(),
-    role: presented?.isGroup ? "group" : "leaf",
-    warehouse_type: String(node?.warehouse_type || node?.semantic_type || ""),
+  return d as {
+    user: string;
+    csrf_token: string;
+    ui_preferences: DisplayPreferences;
   };
-}
-export function roomFor(name: string, tree: any[]): string {
-  let node = tree.find((w) => w.name === name);
-  const seen = new Set();
-  while (node && !seen.has(node.name)) {
-    if (presentWarehouse(node, tree).semanticType === "room") return node.name;
-    seen.add(node.name);
-    node = tree.find((w) => w.name === node.parent_warehouse);
-  }
-  return name || "";
 }

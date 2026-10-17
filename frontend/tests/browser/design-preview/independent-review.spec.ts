@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 import { mkdirSync } from "node:fs";
 
 const output =
@@ -105,7 +105,7 @@ for (const width of [375, 1440]) {
       .getByRole("button", { name: "完成", exact: true })
       .click();
     await expect(
-      main.getByRole("columnheader", { name: "合计", exact: true }),
+      main.getByRole("columnheader", { name: "库存数量", exact: true }),
     ).toBeVisible();
     await expect(
       main.getByRole("columnheader", { name: "批次", exact: true }),

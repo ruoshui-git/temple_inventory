@@ -1,0 +1,4385 @@
+{
+  "version": 1,
+  "date_origin": "2026-09-18",
+  "categories": [
+    {
+      "label": "食品",
+      "description": "食品、饮料、调味品及其他可食用物资。"
+    },
+    {
+      "label": "餐具与耗材",
+      "description": "餐盘、杯子、餐盒、一次性手套等日常使用或一次性消耗物资。"
+    },
+    {
+      "label": "佛事用品",
+      "description": "海青、居士服、僧帽、香、念珠等佛事及宗教活动相关用品。"
+    },
+    {
+      "label": "家具与大型用品",
+      "description": "桌椅、垃圾桶、储物箱等体积较大的通用用品。"
+    },
+    {
+      "label": "节日装饰",
+      "description": "灯笼、莲花、大型金属骨架装饰、彩灯等节日或活动装饰用品。"
+    },
+    {
+      "label": "电子与科技",
+      "description": "电脑周边、数据线、扩展坞、UPS、摄像头及小型电子设备。"
+    },
+    {
+      "label": "建筑维护",
+      "description": "灯泡、窗帘、吊顶材料、空调过滤材料等建筑及设施维护用品。"
+    },
+    {
+      "label": "园艺与户外",
+      "description": "肥料、耙子及园林、草坪、户外维护相关物资。"
+    },
+    {
+      "label": "工具与设备",
+      "description": "手工具、电动或燃油设备、电池、油壶等维修及作业设备。"
+    },
+    {
+      "label": "美妆个护",
+      "description": "眼影、腮红、口红、粉底、润唇膏等美妆及个人护理用品。"
+    },
+    {
+      "label": "药品与健康",
+      "description": "药膏、洗手液及其他健康、卫生、急救相关物资。"
+    },
+    {
+      "label": "服装与纺织品",
+      "description": "冬季裤装、保暖手套等非佛事用途的普通服装及纺织品。"
+    }
+  ],
+  "rooms": [
+    {
+      "label": "A02",
+      "description": "一般用品、餐具耗材、部分药品及近期捐赠箱。"
+    },
+    {
+      "label": "A04",
+      "description": "佛事用品、演出服装、节日装饰、部分大型用品及近期捐赠箱。"
+    },
+    {
+      "label": "A14",
+      "description": "建筑维护材料。"
+    },
+    {
+      "label": "B01b",
+      "description": "电子及科技用品。"
+    },
+    {
+      "label": "C01",
+      "description": "一般备用储物空间；本样本仅少量使用。"
+    },
+    {
+      "label": "C02",
+      "description": "餐盒及一次性食品包装用品。"
+    },
+    {
+      "label": "C03",
+      "description": "食品、主食、调味品及部分餐具耗材。"
+    },
+    {
+      "label": "D01",
+      "description": "肥料、园艺用品及美妆个护用品。"
+    },
+    {
+      "label": "D02",
+      "description": "户外设备、电池、铲子及其他作业工具。"
+    },
+    {
+      "label": "D03",
+      "description": "手工具。"
+    }
+  ],
+  "items": [
+    {
+      "key": "G-000001",
+      "item_name": "婴儿配方奶粉 800克",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": true,
+      "has_expiry_date": true,
+      "rate": 18.0,
+      "description": "混合捐赠\n有有效期，使用批次管理。",
+      "images": [
+        {
+          "output": "images/general/ITM-000001.webp",
+          "primary": true,
+          "sha256": "e46354ffe5c7734a56e6b11a652255d7b82b0d797f281e5e5e5ac286ce64353f"
+        }
+      ],
+      "legacy_names": [
+        "婴儿配方奶粉 800克"
+      ]
+    },
+    {
+      "key": "G-000002",
+      "item_name": "牛奶巧克力 盒装",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": true,
+      "has_expiry_date": true,
+      "rate": 6.5,
+      "description": "混合捐赠\n有最佳食用日期，使用批次管理。",
+      "images": [
+        {
+          "output": "images/general/ITM-000002.webp",
+          "primary": true,
+          "sha256": "21ae52625e34fc840c7f3f29a3a2bc2fcff62de38bb9c662eee0df71d0faa940"
+        }
+      ],
+      "legacy_names": [
+        "牛奶巧克力 盒装"
+      ]
+    },
+    {
+      "key": "G-000003",
+      "item_name": "食用植物油 1加仑",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": true,
+      "has_expiry_date": true,
+      "rate": 12.0,
+      "description": "混合捐赠\n有最佳食用日期，使用批次管理。",
+      "images": [
+        {
+          "output": "images/general/ITM-000003.webp",
+          "primary": true,
+          "sha256": "df988919d30fd1a73d1bce54b00fdadbaeb293ae9618b6068200ac450e51eb65"
+        }
+      ],
+      "legacy_names": [
+        "食用植物油 1加仑"
+      ]
+    },
+    {
+      "key": "G-000004",
+      "item_name": "白砂糖 50磅袋",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 29.0,
+      "description": "混合捐赠\n库存单位为整袋。",
+      "images": [
+        {
+          "output": "images/general/ITM-000004.webp",
+          "primary": true,
+          "sha256": "b95216627a07eb5da26f0f4e2907744ae2c98a332f92d676f2bff53967d315e6"
+        }
+      ],
+      "legacy_names": [
+        "白砂糖 50磅袋"
+      ]
+    },
+    {
+      "key": "G-000005",
+      "item_name": "榨菜 80克包",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": true,
+      "has_expiry_date": true,
+      "rate": 0.85,
+      "description": "混合捐赠\n有有效期，使用批次管理。",
+      "images": [
+        {
+          "output": "images/general/ITM-000005.webp",
+          "primary": true,
+          "sha256": "25d5b8c11a5f30961ee4135d7e153780f5dda72cdc97dc7123eb9753fcebcdd4"
+        }
+      ],
+      "legacy_names": [
+        "榨菜 80克包"
+      ]
+    },
+    {
+      "key": "G-000006",
+      "item_name": "大米 25磅袋",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 19.0,
+      "description": "混合捐赠\n一般主食库存。",
+      "images": [
+        {
+          "output": "images/general/ITM-000006.webp",
+          "primary": true,
+          "sha256": "6e2d732dff8d2fb33895fd561f54e87d110f932e1e40b16dfc3bcbfad2912c93"
+        }
+      ],
+      "legacy_names": [
+        "大米 25磅袋"
+      ]
+    },
+    {
+      "key": "G-000007",
+      "item_name": "面粉 25磅袋",
+      "item_group": "食品",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 15.0,
+      "description": "混合捐赠\n一般主食库存。",
+      "images": [
+        {
+          "output": "images/general/ITM-000007.webp",
+          "primary": true,
+          "sha256": "2e404e50a2c6605edb0bfb328445541e3ba925791d78147f9205dd0dd515ebd4"
+        }
+      ],
+      "legacy_names": [
+        "面粉 25磅袋"
+      ]
+    },
+    {
+      "key": "G-000008",
+      "item_name": "白色一次性餐盘",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.08,
+      "description": "混合捐赠\n库存单位为单个餐盘。",
+      "images": [
+        {
+          "output": "images/general/ITM-000008.webp",
+          "primary": true,
+          "sha256": "2e61a8fd52d40e507bd82bb924e150e8d4ac2cf73abc894ef16ab484b0763947"
+        }
+      ],
+      "legacy_names": [
+        "白色一次性餐盘"
+      ]
+    },
+    {
+      "key": "G-000009",
+      "item_name": "万圣节主题餐盘",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.12,
+      "description": "王喆媛公司\n近期成箱捐赠物资。",
+      "images": [
+        {
+          "output": "images/general/ITM-000009.webp",
+          "primary": true,
+          "sha256": "32c9b850a636af877b198c55519e49df846262b5380c69e587ec90cf66112b27"
+        }
+      ],
+      "legacy_names": [
+        "万圣节主题餐盘"
+      ]
+    },
+    {
+      "key": "G-000010",
+      "item_name": "圣诞节主题餐盘",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.12,
+      "description": "王喆媛公司\n近期成箱捐赠物资。",
+      "images": [
+        {
+          "output": "images/general/ITM-000010.webp",
+          "primary": true,
+          "sha256": "a2aff909fb5e4971b68f0c65a12ee08f1f20e959c802b6e1d2b281041dbca38a"
+        }
+      ],
+      "legacy_names": [
+        "圣诞节主题餐盘"
+      ]
+    },
+    {
+      "key": "G-000011",
+      "item_name": "塑料汤匙",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "C03",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.03,
+      "description": "混合捐赠\n库存单位为单个汤匙。",
+      "images": [
+        {
+          "output": "images/general/ITM-000011.webp",
+          "primary": true,
+          "sha256": "652b7ad57ff38985d652878515bf39d0ea97b509310c178d92c5f479459fe688"
+        }
+      ],
+      "legacy_names": [
+        "塑料汤匙"
+      ]
+    },
+    {
+      "key": "G-000012",
+      "item_name": "透明塑料杯 16盎司",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.07,
+      "description": "混合捐赠\n一次性饮用杯。",
+      "images": [
+        {
+          "output": "images/general/ITM-000012.webp",
+          "primary": true,
+          "sha256": "1a7744cb5d377b3923e565341e4f736c5e23fa01c5daed173f613db6f8b60aaa"
+        }
+      ],
+      "legacy_names": [
+        "透明塑料杯 16盎司"
+      ]
+    },
+    {
+      "key": "G-000013",
+      "item_name": "塑料餐盒 带盖",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "C02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.22,
+      "description": "混合捐赠\n一次性打包餐盒。",
+      "images": [
+        {
+          "output": "images/general/ITM-000013.webp",
+          "primary": true,
+          "sha256": "31b0ac79af075ff121742d04567c6360da76a4576255b9087ae1e41d08e0fb9f"
+        }
+      ],
+      "legacy_names": [
+        "塑料餐盒 带盖"
+      ]
+    },
+    {
+      "key": "G-000014",
+      "item_name": "一次性塑料手套",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 0.04,
+      "description": "王喆媛公司\n近期成箱捐赠物资。",
+      "images": [
+        {
+          "output": "images/general/ITM-000014.webp",
+          "primary": true,
+          "sha256": "4a359f535f26307094fb328abfa1fc17a51d97372ba13defc6427d673406cf3c"
+        }
+      ],
+      "legacy_names": [
+        "一次性塑料手套"
+      ]
+    },
+    {
+      "key": "G-000015",
+      "item_name": "纸巾盒",
+      "item_group": "餐具与耗材",
+      "stock_uom": "Nos",
+      "room": "C01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 1.2,
+      "description": "混合捐赠\n用于让 C01 也有少量测试库存。",
+      "images": [
+        {
+          "output": "images/general/ITM-000015.webp",
+          "primary": true,
+          "sha256": "04d318c5f03f573be3b4919be89815e67d1985c04f0ef5c15fd4ca1691c357fd"
+        }
+      ],
+      "legacy_names": [
+        "纸巾盒"
+      ]
+    },
+    {
+      "key": "G-000016",
+      "item_name": "僧帽",
+      "item_group": "佛事用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 14.0,
+      "description": "寺院原有库存",
+      "images": [],
+      "legacy_names": [
+        "僧帽"
+      ]
+    },
+    {
+      "key": "G-000017",
+      "item_name": "海青",
+      "item_group": "佛事用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 28.0,
+      "description": "寺院原有库存",
+      "images": [],
+      "legacy_names": [
+        "海青"
+      ]
+    },
+    {
+      "key": "G-000018",
+      "item_name": "居士服",
+      "item_group": "佛事用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 24.0,
+      "description": "寺院原有库存",
+      "images": [],
+      "legacy_names": [
+        "居士服"
+      ]
+    },
+    {
+      "key": "G-000019",
+      "item_name": "线香 一盒",
+      "item_group": "佛事用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 3.5,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000019.webp",
+          "primary": true,
+          "sha256": "20be6a40af4955ab3133dcdac782cb8acfd0f0693d0c26638c06321ac9158e16"
+        }
+      ],
+      "legacy_names": [
+        "线香 一盒"
+      ]
+    },
+    {
+      "key": "G-000020",
+      "item_name": "念珠",
+      "item_group": "佛事用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 5.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000020.webp",
+          "primary": true,
+          "sha256": "6416da6c7b973af45ecb8486416596ac0553b82b9df8df4e7bf4aefe02151d28"
+        }
+      ],
+      "legacy_names": [
+        "念珠"
+      ]
+    },
+    {
+      "key": "G-000021",
+      "item_name": "折叠桌 6英尺",
+      "item_group": "家具与大型用品",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 55.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000021.webp",
+          "primary": true,
+          "sha256": "457d1b15c15cb088272744eb0243affc15aa067f8715d6d7d3f667295e5adc8d"
+        }
+      ],
+      "legacy_names": [
+        "折叠桌 6英尺"
+      ]
+    },
+    {
+      "key": "G-000022",
+      "item_name": "折叠椅",
+      "item_group": "家具与大型用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 18.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000022.webp",
+          "primary": true,
+          "sha256": "de046d0cd773710d5e963b8fa48fa7eb7bc9ed39ecbe0752f0894da95ee07fe0"
+        }
+      ],
+      "legacy_names": [
+        "折叠椅"
+      ]
+    },
+    {
+      "key": "G-000023",
+      "item_name": "大塑料垃圾桶 32加仑",
+      "item_group": "家具与大型用品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 27.0,
+      "description": "寺院原有库存\nA04 与 A02 均有库存。",
+      "images": [
+        {
+          "output": "images/general/ITM-000023.webp",
+          "primary": true,
+          "sha256": "2dee42f84fe669c59b58736c5af41edbe1cfc3ce7b0dbddab94ceb230b548703"
+        }
+      ],
+      "legacy_names": [
+        "大塑料垃圾桶 32加仑"
+      ]
+    },
+    {
+      "key": "G-000024",
+      "item_name": "塑料储物箱 27加仑",
+      "item_group": "家具与大型用品",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 14.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000024.webp",
+          "primary": true,
+          "sha256": "3175859aa6790518d84e4de010d57ba5e240aca6d05944160a93c2b3a785045c"
+        }
+      ],
+      "legacy_names": [
+        "塑料储物箱 27加仑"
+      ]
+    },
+    {
+      "key": "G-000025",
+      "item_name": "红色灯笼",
+      "item_group": "节日装饰",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 4.5,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000025.webp",
+          "primary": true,
+          "sha256": "56d92622cf67c6b9f1649eed9fcba9630aa91d6114d956c293566144f064b8df"
+        }
+      ],
+      "legacy_names": [
+        "红色灯笼"
+      ]
+    },
+    {
+      "key": "G-000026",
+      "item_name": "大莲花装饰",
+      "item_group": "节日装饰",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 45.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000026.webp",
+          "primary": true,
+          "sha256": "1d1e5ac6239080920927d55172adbd5cdfe1cc8ad4f9112a17f587dc39c6f269"
+        }
+      ],
+      "legacy_names": [
+        "大莲花装饰"
+      ]
+    },
+    {
+      "key": "G-000027",
+      "item_name": "大型金属骨架节日装饰",
+      "item_group": "节日装饰",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 85.0,
+      "description": "寺院原有库存\n大型装饰内部带金属支撑结构。",
+      "images": [
+        {
+          "output": "images/general/ITM-000027.webp",
+          "primary": true,
+          "sha256": "176c61a1cd991369735cddd22a24993d4969b8311a4cb206b832f312e467b0de"
+        }
+      ],
+      "legacy_names": [
+        "大型金属骨架节日装饰"
+      ]
+    },
+    {
+      "key": "G-000028",
+      "item_name": "彩灯串 100灯",
+      "item_group": "节日装饰",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 9.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000028.webp",
+          "primary": true,
+          "sha256": "2b12dd01ac0cc1fb2136811b8e299e2491c799e3aa71635db904bfec8e31e3d4"
+        }
+      ],
+      "legacy_names": [
+        "彩灯串 100灯"
+      ]
+    },
+    {
+      "key": "G-000029",
+      "item_name": "USB-C 数据线",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 4.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000029.webp",
+          "primary": true,
+          "sha256": "f9f674fdedf0cefc1933e5695efe7909e449341a7642ba9e1351ec2b50b25b84"
+        }
+      ],
+      "legacy_names": [
+        "USB-C 数据线"
+      ]
+    },
+    {
+      "key": "G-000030",
+      "item_name": "HDMI 线 6英尺",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 6.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000030.webp",
+          "primary": true,
+          "sha256": "a1038c944b8df561f6b3352ec5993e6345e2cad9e040707039f8ec620f02c296"
+        }
+      ],
+      "legacy_names": [
+        "HDMI 线 6英尺"
+      ]
+    },
+    {
+      "key": "G-000031",
+      "item_name": "USB-C 扩展坞",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 38.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000031.webp",
+          "primary": true,
+          "sha256": "e98af38d718a9b87ab91ae3d4028d874bfcb41cc86b644caee86ead8cba1058f"
+        }
+      ],
+      "legacy_names": [
+        "USB-C 扩展坞"
+      ]
+    },
+    {
+      "key": "G-000032",
+      "item_name": "UPS 不间断电源",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 90.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000032.webp",
+          "primary": true,
+          "sha256": "8263596ef7a2a622f13651d571aff8c97497671ed5428f03a0b04a1114dccb12"
+        }
+      ],
+      "legacy_names": [
+        "UPS 不间断电源"
+      ]
+    },
+    {
+      "key": "G-000033",
+      "item_name": "USB 摄像头",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 25.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000033.webp",
+          "primary": true,
+          "sha256": "5636f38b05ba44c8b2e7488be7a4596032aaed9cb58e857c17f8a56a32666502"
+        }
+      ],
+      "legacy_names": [
+        "USB 摄像头"
+      ]
+    },
+    {
+      "key": "G-000034",
+      "item_name": "有线鼠标",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 7.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000034.webp",
+          "primary": true,
+          "sha256": "11a1dfef282b92b4e68dfaede67c0ee5005acfabeb705dd3c08a6ae65e5ad42a"
+        }
+      ],
+      "legacy_names": [
+        "有线鼠标"
+      ]
+    },
+    {
+      "key": "G-000035",
+      "item_name": "无线鼠标",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "B01b",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 11.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000035.webp",
+          "primary": true,
+          "sha256": "2eb822ef8d76033866c692a5e2c0efead565c7d6fcee30fd94f925ade4e4346f"
+        }
+      ],
+      "legacy_names": [
+        "无线鼠标"
+      ]
+    },
+    {
+      "key": "G-000036",
+      "item_name": "小型太阳能充电板",
+      "item_group": "电子与科技",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 24.0,
+      "description": "混合捐赠\n用于给小型电子产品充电。",
+      "images": [
+        {
+          "output": "images/general/ITM-000036.webp",
+          "primary": true,
+          "sha256": "786bffe26543eccf83da07a813a2a6384409b21277d7c5a6d15c28dc96845828"
+        }
+      ],
+      "legacy_names": [
+        "小型太阳能充电板"
+      ]
+    },
+    {
+      "key": "G-000037",
+      "item_name": "LED 灯泡 A19",
+      "item_group": "建筑维护",
+      "stock_uom": "Nos",
+      "room": "A14",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 2.5,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000037.webp",
+          "primary": true,
+          "sha256": "7f1f77962790b4fca3ca3666f0de6f8714b35eee92a1038fbfd34a9ce944e840"
+        }
+      ],
+      "legacy_names": [
+        "LED 灯泡 A19"
+      ]
+    },
+    {
+      "key": "G-000038",
+      "item_name": "卷帘窗帘",
+      "item_group": "建筑维护",
+      "stock_uom": "Nos",
+      "room": "A14",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 22.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000038.webp",
+          "primary": true,
+          "sha256": "322934a696adbad5c5cc3fbef193912b46cd78cb3107fda05e82653225e5604f"
+        }
+      ],
+      "legacy_names": [
+        "卷帘窗帘"
+      ]
+    },
+    {
+      "key": "G-000039",
+      "item_name": "吊顶板 2×4英尺",
+      "item_group": "建筑维护",
+      "stock_uom": "Nos",
+      "room": "A14",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 8.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000039.webp",
+          "primary": true,
+          "sha256": "135f6fc88e1c642fc43429998f4b42e4e2f3495dd480a989a1d06107c1d9360b"
+        }
+      ],
+      "legacy_names": [
+        "吊顶板 2×4英尺"
+      ]
+    },
+    {
+      "key": "G-000040",
+      "item_name": "吊顶主龙骨 12英尺",
+      "item_group": "建筑维护",
+      "stock_uom": "Nos",
+      "room": "A14",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 7.5,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000040.webp",
+          "primary": true,
+          "sha256": "da33eca62075ae27c3970e861b00f5481c4499722d283a0626e01ba08e306760"
+        }
+      ],
+      "legacy_names": [
+        "吊顶主龙骨 12英尺"
+      ]
+    },
+    {
+      "key": "G-000041",
+      "item_name": "吊顶副龙骨 4英尺",
+      "item_group": "建筑维护",
+      "stock_uom": "Nos",
+      "room": "A14",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 2.5,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000041.webp",
+          "primary": true,
+          "sha256": "ba16d8d7ede0f7132bb4e6f94d09989fd166ec809b1f25609355d0772f52bf78"
+        }
+      ],
+      "legacy_names": [
+        "吊顶副龙骨 4英尺"
+      ]
+    },
+    {
+      "key": "G-000042",
+      "item_name": "大型空调过滤网",
+      "item_group": "建筑维护",
+      "stock_uom": "Nos",
+      "room": "A14",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 28.0,
+      "description": "寺院原有库存\n用于大型空调/压缩机系统。",
+      "images": [
+        {
+          "output": "images/general/ITM-000042.webp",
+          "primary": true,
+          "sha256": "28bfe701144794c018afd65139a7b76b6bed07c0fcd7f88cb33098df26890534"
+        }
+      ],
+      "legacy_names": [
+        "大型空调过滤网"
+      ]
+    },
+    {
+      "key": "G-000043",
+      "item_name": "Milorganite 缓释肥 32磅",
+      "item_group": "园艺与户外",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 17.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000043.webp",
+          "primary": true,
+          "sha256": "2bfcf586cf768ad260694e9c3e358f8adcd48beaf24948e38290193c0532295f"
+        }
+      ],
+      "legacy_names": [
+        "Milorganite 缓释肥 32磅"
+      ]
+    },
+    {
+      "key": "G-000044",
+      "item_name": "10-10-10 复合肥 40磅",
+      "item_group": "园艺与户外",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 21.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000044.webp",
+          "primary": true,
+          "sha256": "842725cb3f8fc38f97862e8e278f1eb541e1f49fc37101cdc824864fcbed728a"
+        }
+      ],
+      "legacy_names": [
+        "10-10-10 复合肥 40磅"
+      ]
+    },
+    {
+      "key": "G-000045",
+      "item_name": "Vigoro 速效肥 30-0-2",
+      "item_group": "园艺与户外",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 19.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000045.webp",
+          "primary": true,
+          "sha256": "a50660d41b51e7ecc3396ec241ce26df7646d5e54805ec86ec49a7ee13224820"
+        }
+      ],
+      "legacy_names": [
+        "Vigoro 速效肥 30-0-2"
+      ]
+    },
+    {
+      "key": "G-000046",
+      "item_name": "塑料耙子",
+      "item_group": "园艺与户外",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 13.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000046.webp",
+          "primary": true,
+          "sha256": "4c234727bbbe26132b2260978dcb6e4960bdc325c98d33fd84cf76206c6a9473"
+        }
+      ],
+      "legacy_names": [
+        "塑料耙子"
+      ]
+    },
+    {
+      "key": "G-000047",
+      "item_name": "汽油油壶 5加仑",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 18.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000047.webp",
+          "primary": true,
+          "sha256": "065c1b2d753d2506951205d0d976d96df84898765483c97a9b5e543834f3a66d"
+        }
+      ],
+      "legacy_names": [
+        "汽油油壶 5加仑"
+      ]
+    },
+    {
+      "key": "G-000048",
+      "item_name": "EGO 电池 7.5Ah",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 220.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000048.webp",
+          "primary": true,
+          "sha256": "8f15b845cb0e3033adb51dfdd6d6e10a6057cd418d14bda5943da14a939832ba"
+        }
+      ],
+      "legacy_names": [
+        "EGO 电池 7.5Ah"
+      ]
+    },
+    {
+      "key": "G-000049",
+      "item_name": "EGO 电池 2.5Ah",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 120.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000049.webp",
+          "primary": true,
+          "sha256": "62b8a731b65312fec0811d3e2bd464eed026da3714f43880fafb354505ff5786"
+        }
+      ],
+      "legacy_names": [
+        "EGO 电池 2.5Ah"
+      ]
+    },
+    {
+      "key": "G-000050",
+      "item_name": "Ryobi 燃油手持吹风机",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 95.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000050.webp",
+          "primary": true,
+          "sha256": "c5c6c403e1d3e99dec8863f7485a2effdc5d2531473cedac60afa19aec93262a"
+        }
+      ],
+      "legacy_names": [
+        "Ryobi 燃油手持吹风机"
+      ]
+    },
+    {
+      "key": "G-000051",
+      "item_name": "尖头铁铲",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 24.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000051.webp",
+          "primary": true,
+          "sha256": "9933ddad19fa9fe7e4bf285468c856dcc4ec105a70240434ee180503e26aab62"
+        }
+      ],
+      "legacy_names": [
+        "尖头铁铲"
+      ]
+    },
+    {
+      "key": "G-000052",
+      "item_name": "圆头铁铲",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 24.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000052.webp",
+          "primary": true,
+          "sha256": "0aaa823356f8af89aefaf4aa18b361f7d156cf2c029312b75adf6dc9ca2ea776"
+        }
+      ],
+      "legacy_names": [
+        "圆头铁铲"
+      ]
+    },
+    {
+      "key": "G-000053",
+      "item_name": "篱笆剪",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 28.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000053.webp",
+          "primary": true,
+          "sha256": "6cb4844402cededd62fd2a78488ce7b50c4c2d2aa59b2bc001bf4d1e927bfca0"
+        }
+      ],
+      "legacy_names": [
+        "篱笆剪"
+      ]
+    },
+    {
+      "key": "G-000054",
+      "item_name": "铁锤",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D03",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 12.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000054.webp",
+          "primary": true,
+          "sha256": "789320e2c48b5a4927bdc97d3cb7b87a45d0d7a85d84b571f22ad24a8fd3d9f8"
+        }
+      ],
+      "legacy_names": [
+        "铁锤"
+      ]
+    },
+    {
+      "key": "G-000055",
+      "item_name": "钳子",
+      "item_group": "工具与设备",
+      "stock_uom": "Nos",
+      "room": "D03",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10.0,
+      "description": "寺院原有库存",
+      "images": [
+        {
+          "output": "images/general/ITM-000055.webp",
+          "primary": true,
+          "sha256": "ef352aaa29cff0bc0c0170b97a0ac436323585e6777d4c29f75383706653d107"
+        }
+      ],
+      "legacy_names": [
+        "钳子"
+      ]
+    },
+    {
+      "key": "G-000056",
+      "item_name": "眼影盘",
+      "item_group": "美妆个护",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 8.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000056.webp",
+          "primary": true,
+          "sha256": "59a1b1a1bfa3ccc5bfc4de1151d42873fdde02b365e012b51e736c4a58aaa2c6"
+        }
+      ],
+      "legacy_names": [
+        "眼影盘"
+      ]
+    },
+    {
+      "key": "G-000057",
+      "item_name": "腮红",
+      "item_group": "美妆个护",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 6.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000057.webp",
+          "primary": true,
+          "sha256": "55117286f415d1cde1ca7a66317df3e74555326a185feb373e111bc3267ad2fb"
+        }
+      ],
+      "legacy_names": [
+        "腮红"
+      ]
+    },
+    {
+      "key": "G-000058",
+      "item_name": "口红",
+      "item_group": "美妆个护",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 5.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000058.webp",
+          "primary": true,
+          "sha256": "5508742a0f7209aa93da399862ac8d111f43f7dd2acba40730c0eceb93581190"
+        }
+      ],
+      "legacy_names": [
+        "口红"
+      ]
+    },
+    {
+      "key": "G-000059",
+      "item_name": "粉底液",
+      "item_group": "美妆个护",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 9.0,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000059.webp",
+          "primary": true,
+          "sha256": "32f59b5b3e82d0a3f418f32744174f2beabb5e615a18ed232fdd79dd9150b5c5"
+        }
+      ],
+      "legacy_names": [
+        "粉底液"
+      ]
+    },
+    {
+      "key": "G-000060",
+      "item_name": "润唇膏",
+      "item_group": "美妆个护",
+      "stock_uom": "Nos",
+      "room": "D01",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 2.5,
+      "description": "混合捐赠",
+      "images": [
+        {
+          "output": "images/general/ITM-000060.webp",
+          "primary": true,
+          "sha256": "07c03b4f363f7005e2bc68cac1e26d0b50e360afb3703ce073974a7d82d902b4"
+        }
+      ],
+      "legacy_names": [
+        "润唇膏"
+      ]
+    },
+    {
+      "key": "G-000061",
+      "item_name": "外用药膏 30克",
+      "item_group": "药品与健康",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": true,
+      "has_expiry_date": true,
+      "rate": 4.0,
+      "description": "混合捐赠\n有有效期，使用批次管理。",
+      "images": [
+        {
+          "output": "images/general/ITM-000061.webp",
+          "primary": true,
+          "sha256": "c0b631ead9c49688191431d20efcae0f083a4a071933bb62427877714cff6024"
+        }
+      ],
+      "legacy_names": [
+        "外用药膏 30克"
+      ]
+    },
+    {
+      "key": "G-000062",
+      "item_name": "免洗洗手液 8盎司",
+      "item_group": "药品与健康",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": true,
+      "has_expiry_date": true,
+      "rate": 2.0,
+      "description": "王喆媛公司\n近期捐赠；有有效期，使用批次管理。",
+      "images": [
+        {
+          "output": "images/general/ITM-000062.webp",
+          "primary": true,
+          "sha256": "433f849d7f9797f1de339d9b79ca13d29a9fc568ca9fb55571b5d4be023bb4f2"
+        }
+      ],
+      "legacy_names": [
+        "免洗洗手液 8盎司"
+      ]
+    },
+    {
+      "key": "G-000063",
+      "item_name": "冬季长裤",
+      "item_group": "服装与纺织品",
+      "stock_uom": "Nos",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 14.0,
+      "description": "王喆媛公司\n近期成箱捐赠物资。",
+      "images": [
+        {
+          "output": "images/general/ITM-000063.webp",
+          "primary": true,
+          "sha256": "78e626626d92aadaad322cc3cee5b4767c135dcc015ea6cc2160fb623ed3a542"
+        }
+      ],
+      "legacy_names": [
+        "冬季长裤"
+      ]
+    },
+    {
+      "key": "G-000064",
+      "item_name": "保暖手套",
+      "item_group": "服装与纺织品",
+      "stock_uom": "Nos",
+      "room": "A02",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 6.0,
+      "description": "王喆媛公司\n近期成箱捐赠物资。",
+      "images": [
+        {
+          "output": "images/general/ITM-000064.webp",
+          "primary": true,
+          "sha256": "d14fcc43cdf62f58ed9cb1f6b1b5815d2446c5cce913b256f2200726ffbbf83c"
+        }
+      ],
+      "legacy_names": [
+        "保暖手套"
+      ]
+    },
+    {
+      "key": "C-A01",
+      "item_name": "绿色古风裙裤(男)",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：古典舞",
+      "images": [
+        {
+          "output": "images/costumes/A01-A01-1.webp",
+          "primary": true,
+          "sha256": "03123767d22e67e7d959091a8e52e86c0e153055a0a492b1a2718219c00a52cb"
+        },
+        {
+          "output": "images/costumes/A01-A01-2.webp",
+          "primary": false,
+          "sha256": "eef7fa8ed2427510e45a114b746339814619cddf39e0503b5900b7f5e8eac0a8"
+        }
+      ],
+      "legacy_names": [
+        "绿色古风裙裤(男)",
+        "绿色古风裙裤(男)（套）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-A02",
+      "item_name": "绿色古风裙裤(女)",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：古典舞",
+      "images": [
+        {
+          "output": "images/costumes/A02-A02-1.webp",
+          "primary": true,
+          "sha256": "7945947d7779b7bdb4ea21ee091c565f03f97e2ba8d8a2f33d3a83554fce29ec"
+        },
+        {
+          "output": "images/costumes/A02-A02-2.webp",
+          "primary": false,
+          "sha256": "e0857772f5d0c76be11ae3322d7ab7f2647d8a3545b202b9d4d991533efeaadc"
+        }
+      ],
+      "legacy_names": [
+        "绿色古风裙裤(女)",
+        "绿色古风裙裤(女)（套）"
+      ],
+      "opening_qty": 15.0
+    },
+    {
+      "key": "C-A03",
+      "item_name": "绿色带纱舞蹈服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：古典舞\n节目：愿做菩萨那朵莲https://youtu.be/UGw1dINp4lo",
+      "images": [
+        {
+          "output": "images/costumes/A03-A03-1.webp",
+          "primary": true,
+          "sha256": "59b486e4064e79511fa1a8c0a9c9eece5a5ad98e99e4ff9c080ca59711682862"
+        },
+        {
+          "output": "images/costumes/A03-A03-2.webp",
+          "primary": false,
+          "sha256": "a7545dcf4144eb5b085634c692f9761f67f93ce0fa0321bce6b794eb1eb10111"
+        }
+      ],
+      "legacy_names": [
+        "绿色带纱舞蹈服",
+        "绿色带纱舞蹈服（套）"
+      ],
+      "opening_qty": 24.0
+    },
+    {
+      "key": "C-A04",
+      "item_name": "粉白色半肩裙裤套装",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：白色内搭+粉色外搭+白色裤子+腰带\n演出类型：古典舞\n节目：极乐世界是我家https://youtu.be/BXEO7a83wkw",
+      "images": [
+        {
+          "output": "images/costumes/A04-A04.webp",
+          "primary": true,
+          "sha256": "f10c098ee460a96f1ab3ba8feb3e1005783e2b83ebb447c85bbf740a174b25d1"
+        }
+      ],
+      "legacy_names": [
+        "粉白色半肩裙裤套装",
+        "粉白色半肩裙裤套装（件）"
+      ],
+      "opening_qty": 5.0
+    },
+    {
+      "key": "C-A05",
+      "item_name": "白色广袖莲花腰带裙装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子+腰带\n演出类型：古典舞\n节目：观音菩萨偈\nhttps://www.damiok.org/?p=1360\n备注：海清袖子",
+      "images": [
+        {
+          "output": "images/costumes/A05-A05.webp",
+          "primary": true,
+          "sha256": "03193d31c8bdef5aaed5791dc8ea7e87ba6dbb0adb58e470ba145c4384c611ea"
+        }
+      ],
+      "legacy_names": [
+        "白色广袖莲花腰带裙装",
+        "白色广袖莲花腰带裙装（套）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-A06",
+      "item_name": "粉白色抹胸裙裤套装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：粉白色裙装+白色裤子\n演出类型：古典舞\n节目：云水禅心https://www.damiok.org/?p=1551",
+      "images": [
+        {
+          "output": "images/costumes/A06-A06.webp",
+          "primary": true,
+          "sha256": "61ce5befcfdbddc228b5d91ee0924780a057598698fb2dac3bc329895a8d6284"
+        }
+      ],
+      "legacy_names": [
+        "粉白色抹胸裙裤套装",
+        "粉白色抹胸裙裤套装（套）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-A07",
+      "item_name": "蓝白色粉色腰带裙装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：蓝白色裙装+粉色腰带\n演出类型：古典舞\n节目：观世音菩萨https://www.damiok.org/?p=1366",
+      "images": [
+        {
+          "output": "images/costumes/A07-A07.webp",
+          "primary": true,
+          "sha256": "39c67cc6df8ee8b2c9786e36f17d251e468793aba3147b4507004c5ba801d815"
+        }
+      ],
+      "legacy_names": [
+        "蓝白色粉色腰带裙装",
+        "蓝白色粉色腰带裙装（套）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-A08",
+      "item_name": "纱质广袖裙装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：披风+裙子+腰带\n演出类型：古典舞\n节目：观世音菩萨https://www.damiok.org/?p=1366\n备注：粉：1； 黄：1",
+      "images": [
+        {
+          "output": "images/costumes/A08-A08-1.webp",
+          "primary": true,
+          "sha256": "2f316eb4d8d9c949874baf1e98567728f85678138d36825f623be8b34bd9a1a8"
+        },
+        {
+          "output": "images/costumes/A08-A08-2.webp",
+          "primary": false,
+          "sha256": "cc6073359129e5c3a9c6c9b07b84c6edd067db1ab6b4236c7de834ca6074ca4c"
+        }
+      ],
+      "legacy_names": [
+        "纱质广袖裙装",
+        "纱质广袖裙装（套）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-A09",
+      "item_name": "金蓝色裙裤套装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：金蓝色上衣+蓝白色裤子\n演出类型：古典舞\n节目：盛世佛光https://youtu.be/i7wE0sfk2O0",
+      "images": [
+        {
+          "output": "images/costumes/A09-A09.webp",
+          "primary": true,
+          "sha256": "fbda44d8bbf585e833abce87b1c1df553062904535a3af3d4b05c371586f3f18"
+        }
+      ],
+      "legacy_names": [
+        "金蓝色裙裤套装",
+        "金蓝色裙裤套装（套）"
+      ],
+      "opening_qty": 24.0
+    },
+    {
+      "key": "C-A10",
+      "item_name": "粉色带花秧歌服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：古典舞\n节目：开门见喜https://youtu.be/pqVpLvY9Y6I\n备注：Sx3；Mx7；Lx11；XLx2",
+      "images": [
+        {
+          "output": "images/costumes/A10-A10.webp",
+          "primary": true,
+          "sha256": "40bf574ffebed5f3eb743a7cae7d7a13c75c058a820cdd34ccbcb0e2551c050f"
+        }
+      ],
+      "legacy_names": [
+        "粉色带花秧歌服",
+        "粉色带花秧歌服（套）"
+      ],
+      "opening_qty": 23.0
+    },
+    {
+      "key": "C-A11",
+      "item_name": "红白色裙裤套装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：红色裙装+红色腰带+白色裤子+簪子\n演出类型：古典舞",
+      "images": [
+        {
+          "output": "images/costumes/A11-A11-1.webp",
+          "primary": true,
+          "sha256": "600e38d974cf8c6e2f95c767eb26f5cddb4964be4f3edd7dc79b7144ea857747"
+        },
+        {
+          "output": "images/costumes/A11-A11-2.webp",
+          "primary": false,
+          "sha256": "c338fffe056d8551c409fea5d1ac9cc681698cd4e3bad07b61db5806fb88e0cf"
+        }
+      ],
+      "legacy_names": [
+        "红白色裙裤套装",
+        "红白色裙裤套装（套）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-A12",
+      "item_name": "蓝白色水袖套装(女)",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：蓝白色裙装+白色裤子+腰带\n演出类型：古典舞\n节目：上师颂https://youtu.be/YYE_0A-H_54\n备注：缺：白裤子1件（熊佳琦）腰带1个（郭懋兰）",
+      "images": [
+        {
+          "output": "images/costumes/A12-A12.webp",
+          "primary": true,
+          "sha256": "08cdd98a918ef6b27ee9bb7abb35c7009364dfb6499099d7b56478f4c7877b83"
+        }
+      ],
+      "legacy_names": [
+        "蓝白色水袖套装(女)",
+        "蓝白色水袖套装(女)（件）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-A13",
+      "item_name": "蓝白色水袖套装(男)",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：蓝白色裙装+蓝白色裤子\n演出类型：古典舞\n节目：上师颂https://youtu.be/YYE_0A-H_54",
+      "images": [
+        {
+          "output": "images/costumes/A13-A13.webp",
+          "primary": true,
+          "sha256": "aec817bfc1680fb4d8164bd878e9b0c3ec552d07a71e06d27ec51d855d4ef5e6"
+        }
+      ],
+      "legacy_names": [
+        "蓝白色水袖套装(男)",
+        "蓝白色水袖套装(男)（件）"
+      ],
+      "opening_qty": 3.0
+    },
+    {
+      "key": "C-A14",
+      "item_name": "蓝白色水袖练功服",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：古典舞\n备注：上师颂套装应有9件，缺1件",
+      "images": [
+        {
+          "output": "images/costumes/A14-A14.webp",
+          "primary": true,
+          "sha256": "15931465deb26f8830a7b85ccdd11942b611d2ae8b4d3e91b6eb856d86f04215"
+        }
+      ],
+      "legacy_names": [
+        "蓝白色水袖练功服",
+        "蓝白色水袖练功服（件）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-A15",
+      "item_name": "蓝红色敦煌舞套装小号",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：肉色上衣+蓝红色裤子+腰带+飘带\n演出类型：敦煌舞\n节目：炉香赞https://youtu.be/nEqkYVcns90",
+      "images": [
+        {
+          "output": "images/costumes/A15-A15.webp",
+          "primary": true,
+          "sha256": "436b1ecfb901766144531f46019f1562d6a6c8627cef8a59d14608ee60260577"
+        }
+      ],
+      "legacy_names": [
+        "蓝红色敦煌舞套装小号",
+        "蓝红色敦煌舞套装小号（套）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-A16",
+      "item_name": "黄色敦煌舞套装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子+飘带+手环2个\n演出类型：敦煌舞\n节目：虔诚献供颂",
+      "images": [
+        {
+          "output": "images/costumes/A16-A16.webp",
+          "primary": true,
+          "sha256": "c2ef1a1e8e48d0c40cfd3ea6395a0171181fd6a575725c2a18cf18af62e44ea5"
+        }
+      ],
+      "legacy_names": [
+        "黄色敦煌舞套装",
+        "黄色敦煌舞套装（套）"
+      ],
+      "opening_qty": 12.0
+    },
+    {
+      "key": "C-A17",
+      "item_name": "粉色藏服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣（连衣裙）+腰带\n演出类型：民族舞\n节目：佛音",
+      "images": [
+        {
+          "output": "images/costumes/A17-A17.webp",
+          "primary": true,
+          "sha256": "054923e9462f578aa04a3e9357fe2d7e957dc4f4c41f6d0b2bd947c3da02dd11"
+        }
+      ],
+      "legacy_names": [
+        "粉色藏服",
+        "粉色藏服（套）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-A18",
+      "item_name": "红色藏服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裙子+腰带+头饰\n演出类型：民族舞\n节目：佛音",
+      "images": [
+        {
+          "output": "images/costumes/A18-A18.webp",
+          "primary": true,
+          "sha256": "69cf12b565adada24af4c627a47d99342f0cb9842efe4e2ab04e446ce8907755"
+        }
+      ],
+      "legacy_names": [
+        "红色藏服",
+        "红色藏服（套）"
+      ],
+      "opening_qty": 5.0
+    },
+    {
+      "key": "C-A19",
+      "item_name": "蓝色大藏服+红裤子",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+2个腰带（虎皮腰带、蓝色腰带）+红裤子\n演出类型：民族舞\n节目：佛音",
+      "images": [
+        {
+          "output": "images/costumes/A19-A19.webp",
+          "primary": true,
+          "sha256": "64ed4e15a30891bbee52a643c801a7d45b71cb24f51773391bfc882f2085efc8"
+        }
+      ],
+      "legacy_names": [
+        "蓝色大藏服+红裤子",
+        "蓝色大藏服+红裤子（套）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A20",
+      "item_name": "蓝色小藏服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：连衣裙+腰带+头饰\n演出类型：民族舞\n节目：今生我在修佛缘",
+      "images": [
+        {
+          "output": "images/costumes/A20-A20.webp",
+          "primary": true,
+          "sha256": "f2033e76491d7eaec95ab0b5b2a0442989984c3a79f590ded9b42c8e8232d130"
+        }
+      ],
+      "legacy_names": [
+        "蓝色小藏服",
+        "蓝色小藏服（套）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-A21",
+      "item_name": "蓝色虎皮藏族舞套装",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+黄色围巾\n演出类型：民族舞",
+      "images": [
+        {
+          "output": "images/costumes/A21-A21.webp",
+          "primary": true,
+          "sha256": "fe0057f934f5be89bf09d134092f0c63cc3f0058daf639efde396da7bf02c7ce"
+        }
+      ],
+      "legacy_names": [
+        "蓝色虎皮藏族舞套装",
+        "蓝色虎皮藏族舞套装（件）"
+      ],
+      "opening_qty": 4.0
+    },
+    {
+      "key": "C-A22",
+      "item_name": "腰鼓服装(白色)",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：白色上衣红色扣子+白色裤子\n演出类型：民舞\n节目：山河美",
+      "images": [
+        {
+          "output": "images/costumes/A22-A22.webp",
+          "primary": true,
+          "sha256": "ac07e55c71d3b0a100f91d0a3ed712b4a25c29fd1aec4a698c07274f495704c5"
+        }
+      ],
+      "legacy_names": [
+        "腰鼓服装(白色)",
+        "腰鼓服装(白色)（套）"
+      ],
+      "opening_qty": 26.0
+    },
+    {
+      "key": "C-A23",
+      "item_name": "腰鼓服装(金色)",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：金色上衣红色扣子+金色裤子\n演出类型：民舞",
+      "images": [
+        {
+          "output": "images/costumes/A23-A23.webp",
+          "primary": true,
+          "sha256": "9950945ae5898fff94d1f354ede60aaaeb3a319702bc72ed1ab0b55d047bcc05"
+        }
+      ],
+      "legacy_names": [
+        "腰鼓服装(金色)",
+        "腰鼓服装(金色)（套）"
+      ],
+      "opening_qty": 5.0
+    },
+    {
+      "key": "C-A24",
+      "item_name": "绿色带花秧歌服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：民舞\n节目：荷花颂 https://www.damiok.org/?p=1507夏荷",
+      "images": [
+        {
+          "output": "images/costumes/A24-A24.webp",
+          "primary": true,
+          "sha256": "457c24860202c9529d820aaa700690b4259df227bcac4165ed716c8eceac00e5"
+        }
+      ],
+      "legacy_names": [
+        "绿色带花秧歌服",
+        "绿色带花秧歌服（套）"
+      ],
+      "opening_qty": 30.0
+    },
+    {
+      "key": "C-A25",
+      "item_name": "白汗衫",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：民舞",
+      "images": [
+        {
+          "output": "images/costumes/A25-A25.webp",
+          "primary": true,
+          "sha256": "492aecfc9f21112e9faeeebde5813ab6dbf093cb15f784fafe94baa39c1ed9f0"
+        }
+      ],
+      "legacy_names": [
+        "白汗衫",
+        "白汗衫（件）"
+      ],
+      "opening_qty": 20.0
+    },
+    {
+      "key": "C-A26",
+      "item_name": "黄色带花秧歌服套装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：民舞\n备注：（上衣+裤子）",
+      "images": [
+        {
+          "output": "images/costumes/A26-A26.webp",
+          "primary": true,
+          "sha256": "316bcc21dbecddd7bb40728794234c36ab1ea49f79d0bb73b00204f73f0ea202"
+        }
+      ],
+      "legacy_names": [
+        "黄色带花秧歌服套装",
+        "黄色带花秧歌服套装（套）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A27",
+      "item_name": "深蓝色红边秧歌服",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子+头巾\n演出类型：民舞",
+      "images": [
+        {
+          "output": "images/costumes/A27-A27.webp",
+          "primary": true,
+          "sha256": "0e654f6f67f3a3f7aa1470ea71b80ded3838f0f106c847f75fbda78054f7b1ef"
+        }
+      ],
+      "legacy_names": [
+        "深蓝色红边秧歌服",
+        "深蓝色红边秧歌服（套）"
+      ],
+      "opening_qty": 12.0
+    },
+    {
+      "key": "C-A28",
+      "item_name": "宽大白裤(似腰鼓服)",
+      "item_group": "演出服装",
+      "stock_uom": "条",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：民舞",
+      "images": [
+        {
+          "output": "images/costumes/A28-A28.webp",
+          "primary": true,
+          "sha256": "899caf77859d406ca182742f9128a1d89efa93bb264c763b6d011388425b5173"
+        }
+      ],
+      "legacy_names": [
+        "宽大白裤(似腰鼓服)",
+        "宽大白裤(似腰鼓服)（条）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-A29",
+      "item_name": "红绿秧歌套装",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：上衣+裤子\n演出类型：民舞\n备注：绿+红",
+      "images": [
+        {
+          "output": "images/costumes/A29-A29-1.webp",
+          "primary": true,
+          "sha256": "41a311a6fc21e202dd6b126e1860b0f4583f1b83e415995064d0fdb8d225e0f3"
+        },
+        {
+          "output": "images/costumes/A29-A29-2.webp",
+          "primary": false,
+          "sha256": "d7d150dc1ba90c5ea1a80344ad38907ce6ec25a55af2c08fb3b22bf830ae5a8d"
+        }
+      ],
+      "legacy_names": [
+        "红绿秧歌套装",
+        "红绿秧歌套装（套）"
+      ],
+      "opening_qty": 12.0
+    },
+    {
+      "key": "C-A30",
+      "item_name": "白裤子",
+      "item_group": "演出服装",
+      "stock_uom": "条",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n节目：一路花开青年学佛人",
+      "images": [
+        {
+          "output": "images/costumes/A30-A30.webp",
+          "primary": true,
+          "sha256": "5feaf2cf0a8e8712c429b21bd072023114de0cca5b3e6c4dba5a0c85740a7cd4"
+        }
+      ],
+      "legacy_names": [
+        "白裤子",
+        "白裤子（条）"
+      ],
+      "opening_qty": 28.0
+    },
+    {
+      "key": "C-A31",
+      "item_name": "彩色半袖带帽卫衣",
+      "item_group": "演出服装",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n节目：我们是一家人\n备注：颜色：2红 2白 2黄 2粉",
+      "images": [
+        {
+          "output": "images/costumes/A31-A31-1.webp",
+          "primary": false,
+          "sha256": "d076763dc552ffa789817500aa2c188f14e5f52b97554418d4801de67f3a2966"
+        },
+        {
+          "output": "images/costumes/A31-A31-2.webp",
+          "primary": true,
+          "sha256": "c0a701a11fd893f0c131ad53a678badcba8e9696abd35613ec941f387d1266a8"
+        },
+        {
+          "output": "images/costumes/A31-A31-3.webp",
+          "primary": false,
+          "sha256": "94eb11c23b1c064124bdfc659a1f6d6b1474c41f75c5495c931a231ecd88e665"
+        },
+        {
+          "output": "images/costumes/A31-A31-4.webp",
+          "primary": false,
+          "sha256": "371a48eef8b19538ae9d0660050163312da801f62fd85ba18a9fe2a7e23e703c"
+        }
+      ],
+      "legacy_names": [
+        "彩色半袖带帽卫衣",
+        "彩色半袖带帽卫衣（个）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-A32",
+      "item_name": "金色连衣裙",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n节目：赞美佛陀",
+      "images": [
+        {
+          "output": "images/costumes/A32-A32.webp",
+          "primary": true,
+          "sha256": "547d5620c15f236c354f4a870d2145b2cb7ecc8d025de7c8023da6db931c317f"
+        }
+      ],
+      "legacy_names": [
+        "金色连衣裙",
+        "金色连衣裙（件）"
+      ],
+      "opening_qty": 24.0
+    },
+    {
+      "key": "C-A33",
+      "item_name": "大裙子(蓝)",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰",
+      "images": [
+        {
+          "output": "images/costumes/A33-A33.webp",
+          "primary": true,
+          "sha256": "784481c27af9b63a6d2d48c7da176e3304821163c914bd0e8a703b67c46e8655"
+        }
+      ],
+      "legacy_names": [
+        "大裙子(蓝)",
+        "大裙子(蓝)（件）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A34",
+      "item_name": "大裙子(白)",
+      "item_group": "演出服装",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n备注：带两朵白花装饰",
+      "images": [
+        {
+          "output": "images/costumes/A34-A34.webp",
+          "primary": true,
+          "sha256": "4d135bbd6c043d88a1e6f94f17f810f49ea81cacc21df149f543a9254143373d"
+        }
+      ],
+      "legacy_names": [
+        "大裙子(白)",
+        "大裙子(白)（套）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A35",
+      "item_name": "大裙子(紫)",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰",
+      "images": [
+        {
+          "output": "images/costumes/A35-A35.webp",
+          "primary": true,
+          "sha256": "c3369674cb7603ba778711e33d14dfe5892c525bea71ef140e16487b821df9a9"
+        }
+      ],
+      "legacy_names": [
+        "大裙子(紫)",
+        "大裙子(紫)（件）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A36",
+      "item_name": "蓝色镂空袖裙子",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n节目：最美的光https://youtu.be/Pn65yTFIMcQ\n备注：孟如水、孟运水、曾恩水、曾黎水捐",
+      "images": [
+        {
+          "output": "images/costumes/A36-A36.webp",
+          "primary": true,
+          "sha256": "8da5d5304b464de26b3cb70abaf5ea9608ada09b799109e486f6432e2bc3c18f"
+        }
+      ],
+      "legacy_names": [
+        "蓝色镂空袖裙子",
+        "蓝色镂空袖裙子（件）"
+      ],
+      "opening_qty": 4.0
+    },
+    {
+      "key": "C-A37",
+      "item_name": "白色线条裤小号",
+      "item_group": "演出服装",
+      "stock_uom": "条",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n备注：黑色：2；卡其色：2；粉色：2；蓝色：2",
+      "images": [
+        {
+          "output": "images/costumes/A37-A37-1.webp",
+          "primary": true,
+          "sha256": "cc33cf7b33b1be5f08d839344924435cb5a0c4543a577533af86fa8fd6497b37"
+        },
+        {
+          "output": "images/costumes/A37-A37-2.webp",
+          "primary": false,
+          "sha256": "bc7750eb6d1592021459c3db91e9353dc9d3ac7ca267e9d1ca8460b8c00d1395"
+        }
+      ],
+      "legacy_names": [
+        "白色线条裤小号",
+        "白色线条裤小号（条）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-A38",
+      "item_name": "红短袖",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n节目：龙的新年",
+      "images": [
+        {
+          "output": "images/costumes/A38-A38.webp",
+          "primary": true,
+          "sha256": "ad68abbd8d3f47fe6f105b57d89fa3816ed8b7c59b8f55d2491689bd335b8e04"
+        }
+      ],
+      "legacy_names": [
+        "红短袖",
+        "红短袖（件）"
+      ],
+      "opening_qty": 7.0
+    },
+    {
+      "key": "C-A39",
+      "item_name": "黄白色圆点衣裙上衣小号",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰",
+      "images": [
+        {
+          "output": "images/costumes/A39-A39.webp",
+          "primary": true,
+          "sha256": "ca4de996ee6a0cc24088f34c2637d5a64d50e281411a85ef9d410c5219e7b896"
+        }
+      ],
+      "legacy_names": [
+        "黄白色圆点衣裙上衣小号",
+        "黄白色圆点衣裙上衣小号（件）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A40",
+      "item_name": "蓝色花边裙子",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：连衣裙+腰带\n演出类型：现代服饰\n备注：原郭懋兰、瑞步",
+      "images": [
+        {
+          "output": "images/costumes/A40-A40.webp",
+          "primary": true,
+          "sha256": "4c7c8137f4bb9c782181f1e98755ca7e5942ce91676e4617f4cc65a42f43f101"
+        }
+      ],
+      "legacy_names": [
+        "蓝色花边裙子",
+        "蓝色花边裙子（件）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-A41",
+      "item_name": "黄色裙子",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：连衣裙+腰带\n演出类型：现代服饰\n节目：https://youtu.be/H0cdXx63EPA\n备注：原郭懋兰",
+      "images": [
+        {
+          "output": "images/costumes/A41-A41.webp",
+          "primary": true,
+          "sha256": "fc57d15d7f6cb7e5f8c4c5ed5e8aef7d80158a634205d5277f9d1ff946a5ad31"
+        }
+      ],
+      "legacy_names": [
+        "黄色裙子",
+        "黄色裙子（件）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A42",
+      "item_name": "海光学院校服",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰\n备注：无领（超小号）：（19）无号（大小不一）：59号：311号：313号：315号：317号：2带领：(女：33；男：36）WS: 16WM: 11WL: 6S: 8M: 10L: 6XL: 8XXL: 4",
+      "images": [
+        {
+          "output": "images/costumes/A42-A42-1.webp",
+          "primary": true,
+          "sha256": "ab7deb9344c015f4c70376a2769334cb8a5b63a5f8ffa6bb72bd3445a433eaa8"
+        },
+        {
+          "output": "images/costumes/A42-A42-2.webp",
+          "primary": false,
+          "sha256": "c4a1c596ff965cdbb740e19f8b7059655c3ee5a3818582d2a1abec284b17eb85"
+        }
+      ],
+      "legacy_names": [
+        "海光学院校服",
+        "海光学院校服（件）"
+      ],
+      "opening_qty": 88.0
+    },
+    {
+      "key": "C-A43",
+      "item_name": "红色镂空袖裙子小号",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰",
+      "images": [
+        {
+          "output": "images/costumes/A43-A43.webp",
+          "primary": true,
+          "sha256": "2d88fcec5cbb535b6cb0aa9084e7c572c3d71ba4e24c2c67089f552a82ace95d"
+        }
+      ],
+      "legacy_names": [
+        "红色镂空袖裙子小号",
+        "红色镂空袖裙子小号（件）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A44",
+      "item_name": "红色白花纹裙子小号",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：现代服饰",
+      "images": [
+        {
+          "output": "images/costumes/A44-A44.webp",
+          "primary": true,
+          "sha256": "86862ae2652678a0a0bf30b214016c702f81798f82106b1375f39d3688c1271e"
+        }
+      ],
+      "legacy_names": [
+        "红色白花纹裙子小号",
+        "红色白花纹裙子小号（件）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-A45",
+      "item_name": "大褂",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：传统服饰\n备注：2红 2蓝",
+      "images": [
+        {
+          "output": "images/costumes/A45-A45.webp",
+          "primary": true,
+          "sha256": "c74bb94b2542eda0f520797b7226530b58345cb36d59f2ed02558c354e37877d"
+        }
+      ],
+      "legacy_names": [
+        "大褂",
+        "大褂（件）"
+      ],
+      "opening_qty": 4.0
+    },
+    {
+      "key": "C-A46",
+      "item_name": "彩色袜子",
+      "item_group": "演出服装",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：配套上衣已分发",
+      "images": [
+        {
+          "output": "images/costumes/A46-A46.webp",
+          "primary": true,
+          "sha256": "c181086a8d12a48f38d32fa412480ece4159272d1cd320da689cddd88cf7bc7f"
+        }
+      ],
+      "legacy_names": [
+        "彩色袜子",
+        "彩色袜子（双）"
+      ],
+      "opening_qty": 27.0
+    },
+    {
+      "key": "C-A47",
+      "item_name": "红色带金色亮片旗袍",
+      "item_group": "演出服装",
+      "stock_uom": "件",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "演出类型：传统服饰\n节目：（节目主持）\n备注：样式不一",
+      "images": [
+        {
+          "output": "images/costumes/A47-A47-1.webp",
+          "primary": true,
+          "sha256": "86a7c5f52f58c78fcbe6db6f1fbd593bbd1609e0c25100596e9d1b95be2d002f"
+        },
+        {
+          "output": "images/costumes/A47-A47-2.webp",
+          "primary": false,
+          "sha256": "816c5c0f7715ab4168182a84ede73d56d1bb46884436fe452ecb9950f61a21fe"
+        }
+      ],
+      "legacy_names": [
+        "红色带金色亮片旗袍",
+        "红色带金色亮片旗袍（件）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-A48",
+      "item_name": "白色吊带小号",
+      "item_group": "演出服装",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/A48-A48.webp",
+          "primary": true,
+          "sha256": "64a4deadbfd5c58a2be523a138c162ea70317428d39ffab687256de195c2cabb"
+        }
+      ],
+      "legacy_names": [
+        "白色吊带小号",
+        "白色吊带小号（个）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-B01",
+      "item_name": "白色舞鞋",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：上师颂https://youtu.be/YYE_0A-H_54\n备注：上师颂套装男：3双女：应有6双，缺1双（估计缺熊佳琦）",
+      "images": [
+        {
+          "output": "images/costumes/B01-B01.webp",
+          "primary": true,
+          "sha256": "cc415fcf2caab8af180b7741073bbf1e377093ba72b723accecfc91c3970aebf"
+        }
+      ],
+      "legacy_names": [
+        "白色舞鞋",
+        "白色舞鞋（双）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-B02",
+      "item_name": "藏舞高跟舞鞋",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：佛音",
+      "images": [
+        {
+          "output": "images/costumes/B02-B02.webp",
+          "primary": true,
+          "sha256": "2ebdebef58bb83ff38ca6c085f164c6743035aba8348739e532012430a6e4f06"
+        }
+      ],
+      "legacy_names": [
+        "藏舞高跟舞鞋",
+        "藏舞高跟舞鞋（双）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-B03",
+      "item_name": "肉色舞鞋",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：盛世佛光\n备注：旧：18双，新：8双",
+      "images": [
+        {
+          "output": "images/costumes/B03-B03.webp",
+          "primary": true,
+          "sha256": "788c7566ccf3ccb84f0ca055ddad79a72fec911b98365e1024f29042eecfc0e3"
+        }
+      ],
+      "legacy_names": [
+        "肉色舞鞋",
+        "肉色舞鞋（双）"
+      ],
+      "opening_qty": 26.0
+    },
+    {
+      "key": "C-B04",
+      "item_name": "黑袜子",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：佛音",
+      "images": [
+        {
+          "output": "images/costumes/B04-B04.webp",
+          "primary": true,
+          "sha256": "dd9afe162d5492f9f1bf336cf62564c8e413394c4f91b67b54812b91193b4707"
+        }
+      ],
+      "legacy_names": [
+        "黑袜子",
+        "黑袜子（双）"
+      ],
+      "opening_qty": 9.0
+    },
+    {
+      "key": "C-B05",
+      "item_name": "Bella Marie小红鞋",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/B05-B05.webp",
+          "primary": true,
+          "sha256": "22d50a91c23bd0acc851a6ea259fc6d4f6fa597f0fa7a8595a103a68aa4f30ff"
+        }
+      ],
+      "legacy_names": [
+        "Bella Marie小红鞋",
+        "Bella Marie小红鞋（双）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-B06",
+      "item_name": "黑靴子",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/B06-B06.webp",
+          "primary": true,
+          "sha256": "93537c75d8200e96f1f269a1f4898d9a9344f60123d32cf0f588204a4437df9d"
+        }
+      ],
+      "legacy_names": [
+        "黑靴子",
+        "黑靴子（双）"
+      ],
+      "opening_qty": 4.0
+    },
+    {
+      "key": "C-B07",
+      "item_name": "白鞋",
+      "item_group": "演出鞋袜",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：一路花开\n备注：原30双，分发后剩10双",
+      "images": [
+        {
+          "output": "images/costumes/B07-B07.webp",
+          "primary": true,
+          "sha256": "e63a9eb42069d67a6461b86a9d3e38a47501fe2dae516579d65bc2aa91ec1701"
+        }
+      ],
+      "legacy_names": [
+        "白鞋",
+        "白鞋（双）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-C01",
+      "item_name": "黑色假发",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：上师颂套装应有9个，缺2个",
+      "images": [
+        {
+          "output": "images/costumes/C01-C01.webp",
+          "primary": true,
+          "sha256": "8b0fa3206514156792753f2bad69437b3037dbe0e5732a8f8a905df56366fe9a"
+        }
+      ],
+      "legacy_names": [
+        "黑色假发",
+        "黑色假发（个）"
+      ],
+      "opening_qty": 7.0
+    },
+    {
+      "key": "C-C02",
+      "item_name": "蓝色似羽毛头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：炉香赞https://youtu.be/nEqkYVcns90\n备注：上师颂套装",
+      "images": [
+        {
+          "output": "images/costumes/C02-C02.webp",
+          "primary": true,
+          "sha256": "b2d7a7cbde425badc87c8b46b5fadaaac871abb60790d9f65c2f2cb83a3e9cc0"
+        }
+      ],
+      "legacy_names": [
+        "蓝色似羽毛头饰",
+        "蓝色似羽毛头饰（个）"
+      ],
+      "opening_qty": 7.0
+    },
+    {
+      "key": "C-C03",
+      "item_name": "银色头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：上师颂套装应有9个，缺2个；目前4个单边绳子脱落",
+      "images": [
+        {
+          "output": "images/costumes/C03-C03.webp",
+          "primary": true,
+          "sha256": "0bb6dbfa866e62b7d40c310eef17d1d68d26050aac5327ca5385a50beb7f594b"
+        }
+      ],
+      "legacy_names": [
+        "银色头饰",
+        "银色头饰（个）"
+      ],
+      "opening_qty": 7.0
+    },
+    {
+      "key": "C-C04",
+      "item_name": "蓝花头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：库房原有（1个）其余4个为上师颂套装",
+      "images": [
+        {
+          "output": "images/costumes/C04-C04.webp",
+          "primary": true,
+          "sha256": "c0790215f3efc06d2c659c23d5248d7d2cd79ffaa6492d9872dd85f9a747b56d"
+        }
+      ],
+      "legacy_names": [
+        "蓝花头饰",
+        "蓝花头饰（个）"
+      ],
+      "opening_qty": 5.0
+    },
+    {
+      "key": "C-C05",
+      "item_name": "金色头冠",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：头冠+簪子\n备注：上师颂套装",
+      "images": [
+        {
+          "output": "images/costumes/C05-C05.webp",
+          "primary": true,
+          "sha256": "8a2913cd47308420a76a8fb3ae6f02b236b636b5141f17338650155cfe2d6001"
+        }
+      ],
+      "legacy_names": [
+        "金色头冠",
+        "金色头冠（个）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-C06",
+      "item_name": "上师颂套装其它饰品",
+      "item_group": "演出头饰",
+      "stock_uom": "套",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：头膜、贴纸\n备注：上师颂套装原有9套，当前只有：假发发网 2个（1个属李辰）贴纸 1包（李辰）",
+      "images": [
+        {
+          "output": "images/costumes/C06-C06-1.webp",
+          "primary": true,
+          "sha256": "182c397cfbbe7ba16c6b7778c223e62ca1c4a04f34a0658503c4c2f56ba26815"
+        },
+        {
+          "output": "images/costumes/C06-C06-2.webp",
+          "primary": false,
+          "sha256": "b184465f0e2d9784c101cd89a55b4c41315726e642761bb3d8c5e8317f15390f"
+        }
+      ],
+      "legacy_names": [
+        "上师颂套装其它饰品",
+        "上师颂套装其它饰品（套）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-C07",
+      "item_name": "藏舞长发头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：佛音\n备注：1个缺黄色装饰",
+      "images": [
+        {
+          "output": "images/costumes/C07-C07.webp",
+          "primary": true,
+          "sha256": "25cbcc6ec712d7c4aa713841870ce7f718acabe09c9c5acaedc37f5b4db1d418"
+        }
+      ],
+      "legacy_names": [
+        "藏舞长发头饰",
+        "藏舞长发头饰（个）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-C08",
+      "item_name": "棕色帽子",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C08-C08.webp",
+          "primary": true,
+          "sha256": "41451245ccc07f2fef87385a4b5c446fc7aebcdfad91702161321727da386daa"
+        }
+      ],
+      "legacy_names": [
+        "棕色帽子",
+        "棕色帽子（个）"
+      ],
+      "opening_qty": 4.0
+    },
+    {
+      "key": "C-C09",
+      "item_name": "粉花头冠(带卡子)",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C09-C09.webp",
+          "primary": true,
+          "sha256": "7c8ece62e345caeee2cd3044518efba24069ec507d91de5742bd8ff183d6eb16"
+        }
+      ],
+      "legacy_names": [
+        "粉花头冠(带卡子)",
+        "粉花头冠(带卡子)（个）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-C10",
+      "item_name": "粉花头冠(绑带)",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C10-C10-1.webp",
+          "primary": true,
+          "sha256": "464edb93b43f254bebe917283afe6af41382322a7831c2179d1301321a85c8e7"
+        },
+        {
+          "output": "images/costumes/C10-C10-2.webp",
+          "primary": false,
+          "sha256": "a2019df1fb42b4545a00fc2c336cff76d80a72a3da126eabe72412fdd26a5dda"
+        }
+      ],
+      "legacy_names": [
+        "粉花头冠(绑带)",
+        "粉花头冠(绑带)（个）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-C11",
+      "item_name": "束发粉绑带头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C11-C11.webp",
+          "primary": true,
+          "sha256": "ae26b23cc7bb19320fa05806d42e229621385b3a0a71836eca0eb51cfd8ff9a0"
+        }
+      ],
+      "legacy_names": [
+        "束发粉绑带头饰",
+        "束发粉绑带头饰（个）"
+      ],
+      "opening_qty": 5.0
+    },
+    {
+      "key": "C-C12",
+      "item_name": "黑发卡",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C12-C12.webp",
+          "primary": true,
+          "sha256": "6797dccd3570c6ea9810753a2380e4b6c34ce01bf0e09865dae749abb2faa214"
+        }
+      ],
+      "legacy_names": [
+        "黑发卡",
+        "黑发卡（个）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-C13",
+      "item_name": "大金花",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C13-C13.webp",
+          "primary": true,
+          "sha256": "52ad128bd82d7a9506f3ec621fe47f754c4d3d34f346a8c695aba52a33e0c010"
+        }
+      ],
+      "legacy_names": [
+        "大金花",
+        "大金花（个）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-C14",
+      "item_name": "金色头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C14-C14.webp",
+          "primary": true,
+          "sha256": "ea789d96caf54db77907f96a69a21b582354d81cd232597ee5bd1dbd692e610a"
+        }
+      ],
+      "legacy_names": [
+        "金色头饰",
+        "金色头饰（个）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-C15",
+      "item_name": "粉花发卡",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C15-C15.webp",
+          "primary": true,
+          "sha256": "d427808509ae68dca6fdf7582dbb1006ee4e694586668e0b2551d1b92de81d66"
+        }
+      ],
+      "legacy_names": [
+        "粉花发卡",
+        "粉花发卡（个）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-C16",
+      "item_name": "黑色发卡",
+      "item_group": "演出头饰",
+      "stock_uom": "包",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/C16-C16.webp",
+          "primary": true,
+          "sha256": "dd5b8673ad8d9fd420034e14c9f96e946f38a0545f260e6c3aa550b27730cc95"
+        }
+      ],
+      "legacy_names": [
+        "黑色发卡",
+        "黑色发卡（包）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-C17",
+      "item_name": "银色发卡",
+      "item_group": "演出头饰",
+      "stock_uom": "板",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：10个",
+      "images": [
+        {
+          "output": "images/costumes/C17-C17.webp",
+          "primary": true,
+          "sha256": "e4945bc85cb9d6d4d66a0e3b5c9986c3bd15af5669cc2a61c32506b221da6e74"
+        }
+      ],
+      "legacy_names": [
+        "银色发卡",
+        "银色发卡（板）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-C18",
+      "item_name": "粉花长发蓝飘带头饰",
+      "item_group": "演出头饰",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：观音菩萨偈https://www.damiok.org/?p=1360",
+      "images": [
+        {
+          "output": "images/costumes/C18-C18.webp",
+          "primary": true,
+          "sha256": "f2c6502e4376ce20cb8b493dbf5ea0106b7755308e168d8ac12a75a525c727dc"
+        }
+      ],
+      "legacy_names": [
+        "粉花长发蓝飘带头饰",
+        "粉花长发蓝飘带头饰（个）"
+      ],
+      "opening_qty": 5.0
+    },
+    {
+      "key": "C-D01",
+      "item_name": "金色领带",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D01-D01.webp",
+          "primary": true,
+          "sha256": "bc8706c744c1c670df5fc65dfa617c615c758031d0156ba4fb5ac137e11ec22a"
+        }
+      ],
+      "legacy_names": [
+        "金色领带",
+        "金色领带（个）"
+      ],
+      "opening_qty": 4.0
+    },
+    {
+      "key": "C-D02",
+      "item_name": "蓝色飘带",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D02-D02.webp",
+          "primary": true,
+          "sha256": "b383700379a91fc5794010cb7d6d4a2c28b5356241e74ae60c3eb3832fd3220b"
+        }
+      ],
+      "legacy_names": [
+        "蓝色飘带",
+        "蓝色飘带（个）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-D03",
+      "item_name": "小领花/领带/领结",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：简易领带2个长领带1个领花2个领结1个其余为零散布料",
+      "images": [
+        {
+          "output": "images/costumes/D03-D03-1.webp",
+          "primary": true,
+          "sha256": "8660e4f0e81ff656826f865ae8b260c12d7af46cf28b82533344be7060a5aa52"
+        },
+        {
+          "output": "images/costumes/D03-D03-2.webp",
+          "primary": false,
+          "sha256": "c17946c2573eae38847b9a60f03a7158cbc0697255232d0c968a0876b2c37313"
+        }
+      ],
+      "legacy_names": [
+        "小领花/领带/领结",
+        "小领花/领带/领结（个）"
+      ],
+      "opening_qty": 6.0
+    },
+    {
+      "key": "C-D04",
+      "item_name": "各色蝴蝶结发卡/胸花",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D04-D04.webp",
+          "primary": true,
+          "sha256": "35223d3725d00b77855424b5307cdf1273a97a0dd7b07aa02b65fb9efac33ecb"
+        }
+      ],
+      "legacy_names": [
+        "各色蝴蝶结发卡/胸花",
+        "各色蝴蝶结发卡/胸花（个）"
+      ],
+      "opening_qty": 37.0
+    },
+    {
+      "key": "C-D05",
+      "item_name": "哈达",
+      "item_group": "演出道具",
+      "stock_uom": "条",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：上师颂套装9个普通大小，外加2个小号水袖",
+      "images": [
+        {
+          "output": "images/costumes/D05-D05-1.webp",
+          "primary": true,
+          "sha256": "a0f1c0224ae5ba5c501d2e2ccb738afe7b023afbca1296129e60e33b520554ee"
+        },
+        {
+          "output": "images/costumes/D05-D05-2.webp",
+          "primary": false,
+          "sha256": "abcd10c3478239c61a4a2d0d892cb33f4ecb64a8781b1192ed4e1dbe82c4fc64"
+        }
+      ],
+      "legacy_names": [
+        "哈达",
+        "哈达（条）"
+      ],
+      "opening_qty": 11.0
+    },
+    {
+      "key": "C-D06",
+      "item_name": "红色双手长绸扇",
+      "item_group": "演出道具",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：龙的新年\n备注：新：8；旧：27",
+      "images": [
+        {
+          "output": "images/costumes/D06-D06.webp",
+          "primary": true,
+          "sha256": "fdbbcbcadbd0e70a8b023080b315688d0d1bfca5650b8308ab3f48d3672e7334"
+        }
+      ],
+      "legacy_names": [
+        "红色双手长绸扇",
+        "红色双手长绸扇（双）"
+      ],
+      "opening_qty": 35.0
+    },
+    {
+      "key": "C-D07",
+      "item_name": "腰鼓",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：山河美\n备注：无绸子：13；有绸子：29；坏：1",
+      "images": [
+        {
+          "output": "images/costumes/D07-D07.webp",
+          "primary": true,
+          "sha256": "e1591359600267b97876250021b930a439c35f25f5482b9467b5f885ead6f566"
+        }
+      ],
+      "legacy_names": [
+        "腰鼓",
+        "腰鼓（个）"
+      ],
+      "opening_qty": 43.0
+    },
+    {
+      "key": "C-D08",
+      "item_name": "腰鼓鼓槌",
+      "item_group": "演出道具",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：山河美\n备注：无绸子：17双；有绸子：29双",
+      "images": [
+        {
+          "output": "images/costumes/D08-D08-1.webp",
+          "primary": true,
+          "sha256": "8c31cd85544a28f7847508d31fef4bb30370060e49d5370cec8cd0ec4a45db7c"
+        },
+        {
+          "output": "images/costumes/D08-D08-2.webp",
+          "primary": false,
+          "sha256": "212076c2333e417f46d1c42f2c9bbf2830b6a76d466da5b09aef10e69e2f9844"
+        }
+      ],
+      "legacy_names": [
+        "腰鼓鼓槌",
+        "腰鼓鼓槌（双）"
+      ],
+      "opening_qty": 46.0
+    },
+    {
+      "key": "C-D09",
+      "item_name": "红色长绸飘带",
+      "item_group": "演出道具",
+      "stock_uom": "张",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：长：14；短：1可能为绑腰鼓使用",
+      "images": [
+        {
+          "output": "images/costumes/D09-D09.webp",
+          "primary": true,
+          "sha256": "a323597f878e2bb1f9d13dd2ffcc5702c24a17e2c2eef074010e19816b136d61"
+        }
+      ],
+      "legacy_names": [
+        "红色长绸飘带",
+        "红色长绸飘带（张）"
+      ],
+      "opening_qty": 15.0
+    },
+    {
+      "key": "C-D10",
+      "item_name": "红手绢",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D10-D10.webp",
+          "primary": true,
+          "sha256": "2783894ffdb23970dfb5cb634cf489b7023420389e458fcf733b939a9b5fd42b"
+        }
+      ],
+      "legacy_names": [
+        "红手绢",
+        "红手绢（个）"
+      ],
+      "opening_qty": 26.0
+    },
+    {
+      "key": "C-D11",
+      "item_name": "白色小水袖",
+      "item_group": "演出道具",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：浴佛歌",
+      "images": [
+        {
+          "output": "images/costumes/D11-D11.webp",
+          "primary": true,
+          "sha256": "1cc74813e69584d00d4c2d159debfa79305d7ac212950aa22f20aa5c53a19191"
+        }
+      ],
+      "legacy_names": [
+        "白色小水袖",
+        "白色小水袖（双）"
+      ],
+      "opening_qty": 8.0
+    },
+    {
+      "key": "C-D12",
+      "item_name": "蓝色单手长绸扇",
+      "item_group": "演出道具",
+      "stock_uom": "把",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：盛世佛光",
+      "images": [
+        {
+          "output": "images/costumes/D12-D12.webp",
+          "primary": true,
+          "sha256": "9b901a7ca87fd7f9b551a77fab6c06775e30eeeaca35c18b3fb5cd6d22363057"
+        }
+      ],
+      "legacy_names": [
+        "蓝色单手长绸扇",
+        "蓝色单手长绸扇（把）"
+      ],
+      "opening_qty": 30.0
+    },
+    {
+      "key": "C-D13",
+      "item_name": "大鼓",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D13-D13.webp",
+          "primary": true,
+          "sha256": "cbd659fb25ab0741ca22c496cc0098eec245f9d709db46c1ea77b0bd59dcc637"
+        }
+      ],
+      "legacy_names": [
+        "大鼓",
+        "大鼓（个）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-D14",
+      "item_name": "铁圈反光装饰",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：金色：11个，紫色：10个",
+      "images": [
+        {
+          "output": "images/costumes/D14-D14.webp",
+          "primary": true,
+          "sha256": "fb125f71cbb6ce79bbb1ab9c2247f8bb6a540273fcfb29a6c8a97cf8490f6b94"
+        }
+      ],
+      "legacy_names": [
+        "铁圈反光装饰",
+        "铁圈反光装饰（个）"
+      ],
+      "opening_qty": 21.0
+    },
+    {
+      "key": "C-D16",
+      "item_name": "花束",
+      "item_group": "演出道具",
+      "stock_uom": "把",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "节目：虔诚献供颂",
+      "images": [
+        {
+          "output": "images/costumes/D16-D16.webp",
+          "primary": true,
+          "sha256": "1b578cc4a9f3f0cf06fda0f4bf8c1f416808cdbdace225db9f876a748c5fa596"
+        }
+      ],
+      "legacy_names": [
+        "花束",
+        "花束（把）"
+      ],
+      "opening_qty": 15.0
+    },
+    {
+      "key": "C-D17",
+      "item_name": "红蓝双色塑料扇",
+      "item_group": "演出道具",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D17-D17.webp",
+          "primary": true,
+          "sha256": "595f68565126dd2ecaf54bab0a91456dd5d7e7839e09cebc5c1e2b74cd90ae8b"
+        }
+      ],
+      "legacy_names": [
+        "红蓝双色塑料扇",
+        "红蓝双色塑料扇（双）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-D18",
+      "item_name": "金指甲",
+      "item_group": "演出道具",
+      "stock_uom": "双",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "说明：有一对不全，只有一只\n备注：（19个）",
+      "images": [
+        {
+          "output": "images/costumes/D18-D18.webp",
+          "primary": true,
+          "sha256": "8bcad360148ce7484ca99cff30abecf9b651ffdbd2ebe39fb4b257a9c6427cdf"
+        }
+      ],
+      "legacy_names": [
+        "金指甲",
+        "金指甲（双）"
+      ],
+      "opening_qty": 10.0
+    },
+    {
+      "key": "C-D19",
+      "item_name": "短扇子",
+      "item_group": "演出道具",
+      "stock_uom": "把",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D19-D19-1.webp",
+          "primary": true,
+          "sha256": "26ddfb0caf2342dafdca1f6f4ca2edca9635312aba605337aebb3ba125c56fc8"
+        },
+        {
+          "output": "images/costumes/D19-D19-2.webp",
+          "primary": false,
+          "sha256": "e820ae11db886bd1ab964e1025028c65411f6c3450291aad39908f3e13f38fb8"
+        }
+      ],
+      "legacy_names": [
+        "短扇子",
+        "短扇子（把）"
+      ],
+      "opening_qty": 20.0
+    },
+    {
+      "key": "C-D20",
+      "item_name": "胸花",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：估计不全，可能库房还有",
+      "images": [
+        {
+          "output": "images/costumes/D20-D20.webp",
+          "primary": true,
+          "sha256": "12c7aa2951d2ae616b89806caeb4c793805742f798aecf4f3da554c75985220c"
+        }
+      ],
+      "legacy_names": [
+        "胸花",
+        "胸花（个）"
+      ],
+      "opening_qty": 15.0
+    },
+    {
+      "key": "C-D21",
+      "item_name": "假睫毛",
+      "item_group": "演出道具",
+      "stock_uom": "盒",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D21-D21.webp",
+          "primary": true,
+          "sha256": "b8fb3910847eab20ed1fcc898c4b818087d31125fdd13078c52c7450e85b851c"
+        }
+      ],
+      "legacy_names": [
+        "假睫毛",
+        "假睫毛（盒）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-D22",
+      "item_name": "金属带钻胸花",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "",
+      "images": [
+        {
+          "output": "images/costumes/D22-D22.webp",
+          "primary": true,
+          "sha256": "f55cc80444ce0209565032d98ae47baa16ff262d2cfc4f66f74045c367b8969d"
+        }
+      ],
+      "legacy_names": [
+        "金属带钻胸花",
+        "金属带钻胸花（个）"
+      ],
+      "opening_qty": 1.0
+    },
+    {
+      "key": "C-D23",
+      "item_name": "莲花灯",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：前期在库房，此次未看到",
+      "images": [
+        {
+          "output": "images/costumes/D23-D23.webp",
+          "primary": true,
+          "sha256": "038caf0b1eb0218d8ceac2c7fa295437c1b1d27c01f0cf7601a7a8dcc9894f9b"
+        }
+      ],
+      "legacy_names": [
+        "莲花灯",
+        "莲花灯（个）"
+      ],
+      "opening_qty": 2.0
+    },
+    {
+      "key": "C-D15",
+      "item_name": "条形反光装饰",
+      "item_group": "演出道具",
+      "stock_uom": "个",
+      "room": "A04",
+      "has_batch_no": false,
+      "has_expiry_date": false,
+      "rate": 10,
+      "description": "备注：金色：2个，紫色：2个",
+      "images": [
+        {
+          "output": "images/costumes/D15-D15.webp",
+          "primary": true,
+          "sha256": "b1fe1c86b241ff57bdf79c8e3d4f453eb990a10c931dd91bf221f629a3036ec4"
+        }
+      ],
+      "legacy_names": [
+        "条形反光装饰",
+        "条形反光装饰（个）"
+      ],
+      "opening_qty": 4.0
+    }
+  ],
+  "opening": [
+    {
+      "key": "G-000004",
+      "room": "C03",
+      "quantity": 18,
+      "rate": 29.0,
+      "notes": "库存单位为整袋。"
+    },
+    {
+      "key": "G-000006",
+      "room": "C03",
+      "quantity": 22,
+      "rate": 19.0,
+      "notes": "一般主食库存。"
+    },
+    {
+      "key": "G-000007",
+      "room": "C03",
+      "quantity": 14,
+      "rate": 15.0,
+      "notes": "一般主食库存。"
+    },
+    {
+      "key": "G-000008",
+      "room": "A02",
+      "quantity": 480,
+      "rate": 0.08,
+      "notes": "库存单位为单个餐盘。"
+    },
+    {
+      "key": "G-000009",
+      "room": "A04",
+      "quantity": 360,
+      "rate": 0.12,
+      "notes": "近期成箱捐赠物资。"
+    },
+    {
+      "key": "G-000010",
+      "room": "A02",
+      "quantity": 420,
+      "rate": 0.12,
+      "notes": "近期成箱捐赠物资。"
+    },
+    {
+      "key": "G-000011",
+      "room": "C03",
+      "quantity": 900,
+      "rate": 0.03,
+      "notes": "库存单位为单个汤匙。"
+    },
+    {
+      "key": "G-000012",
+      "room": "A02",
+      "quantity": 650,
+      "rate": 0.07,
+      "notes": "一次性饮用杯。"
+    },
+    {
+      "key": "G-000013",
+      "room": "C02",
+      "quantity": 310,
+      "rate": 0.22,
+      "notes": "一次性打包餐盒。"
+    },
+    {
+      "key": "G-000014",
+      "room": "A02",
+      "quantity": 1600,
+      "rate": 0.04,
+      "notes": "近期成箱捐赠物资。"
+    },
+    {
+      "key": "G-000015",
+      "room": "C01",
+      "quantity": 36,
+      "rate": 1.2,
+      "notes": "用于让 C01 也有少量测试库存。"
+    },
+    {
+      "key": "G-000016",
+      "room": "A04",
+      "quantity": 9,
+      "rate": 14.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000017",
+      "room": "A04",
+      "quantity": 28,
+      "rate": 28.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000018",
+      "room": "A04",
+      "quantity": 34,
+      "rate": 24.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000019",
+      "room": "A04",
+      "quantity": 75,
+      "rate": 3.5,
+      "notes": ""
+    },
+    {
+      "key": "G-000020",
+      "room": "A04",
+      "quantity": 41,
+      "rate": 5.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000021",
+      "room": "A02",
+      "quantity": 14,
+      "rate": 55.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000022",
+      "room": "A04",
+      "quantity": 86,
+      "rate": 18.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000023",
+      "room": "A04",
+      "quantity": 6,
+      "rate": 27.0,
+      "notes": "分布在 A04 与 A02。"
+    },
+    {
+      "key": "G-000023",
+      "room": "A02",
+      "quantity": 3,
+      "rate": 27.0,
+      "notes": "分布在 A04 与 A02。"
+    },
+    {
+      "key": "G-000024",
+      "room": "A02",
+      "quantity": 18,
+      "rate": 14.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000025",
+      "room": "A04",
+      "quantity": 72,
+      "rate": 4.5,
+      "notes": ""
+    },
+    {
+      "key": "G-000026",
+      "room": "A04",
+      "quantity": 4,
+      "rate": 45.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000027",
+      "room": "A04",
+      "quantity": 3,
+      "rate": 85.0,
+      "notes": "大型装饰内部带金属支撑结构。"
+    },
+    {
+      "key": "G-000028",
+      "room": "A04",
+      "quantity": 24,
+      "rate": 9.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000029",
+      "room": "B01b",
+      "quantity": 48,
+      "rate": 4.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000030",
+      "room": "B01b",
+      "quantity": 31,
+      "rate": 6.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000031",
+      "room": "B01b",
+      "quantity": 7,
+      "rate": 38.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000032",
+      "room": "B01b",
+      "quantity": 5,
+      "rate": 90.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000033",
+      "room": "B01b",
+      "quantity": 12,
+      "rate": 25.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000034",
+      "room": "B01b",
+      "quantity": 26,
+      "rate": 7.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000035",
+      "room": "B01b",
+      "quantity": 19,
+      "rate": 11.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000036",
+      "room": "A04",
+      "quantity": 6,
+      "rate": 24.0,
+      "notes": "用于给小型电子产品充电。"
+    },
+    {
+      "key": "G-000037",
+      "room": "A14",
+      "quantity": 96,
+      "rate": 2.5,
+      "notes": ""
+    },
+    {
+      "key": "G-000038",
+      "room": "A14",
+      "quantity": 17,
+      "rate": 22.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000039",
+      "room": "A14",
+      "quantity": 44,
+      "rate": 8.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000040",
+      "room": "A14",
+      "quantity": 19,
+      "rate": 7.5,
+      "notes": ""
+    },
+    {
+      "key": "G-000041",
+      "room": "A14",
+      "quantity": 38,
+      "rate": 2.5,
+      "notes": ""
+    },
+    {
+      "key": "G-000042",
+      "room": "A14",
+      "quantity": 12,
+      "rate": 28.0,
+      "notes": "用于大型空调/压缩机系统。"
+    },
+    {
+      "key": "G-000043",
+      "room": "D01",
+      "quantity": 11,
+      "rate": 17.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000044",
+      "room": "D01",
+      "quantity": 7,
+      "rate": 21.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000045",
+      "room": "D01",
+      "quantity": 8,
+      "rate": 19.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000046",
+      "room": "D01",
+      "quantity": 6,
+      "rate": 13.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000047",
+      "room": "D02",
+      "quantity": 4,
+      "rate": 18.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000048",
+      "room": "D02",
+      "quantity": 2,
+      "rate": 220.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000049",
+      "room": "D02",
+      "quantity": 3,
+      "rate": 120.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000050",
+      "room": "D02",
+      "quantity": 2,
+      "rate": 95.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000051",
+      "room": "D02",
+      "quantity": 5,
+      "rate": 24.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000052",
+      "room": "D02",
+      "quantity": 4,
+      "rate": 24.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000053",
+      "room": "D02",
+      "quantity": 3,
+      "rate": 28.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000054",
+      "room": "D03",
+      "quantity": 7,
+      "rate": 12.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000055",
+      "room": "D03",
+      "quantity": 9,
+      "rate": 10.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000056",
+      "room": "D01",
+      "quantity": 36,
+      "rate": 8.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000057",
+      "room": "D01",
+      "quantity": 33,
+      "rate": 6.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000058",
+      "room": "D01",
+      "quantity": 47,
+      "rate": 5.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000059",
+      "room": "D01",
+      "quantity": 26,
+      "rate": 9.0,
+      "notes": ""
+    },
+    {
+      "key": "G-000060",
+      "room": "D01",
+      "quantity": 54,
+      "rate": 2.5,
+      "notes": ""
+    },
+    {
+      "key": "G-000063",
+      "room": "A04",
+      "quantity": 68,
+      "rate": 14.0,
+      "notes": "近期成箱捐赠物资。"
+    },
+    {
+      "key": "G-000064",
+      "room": "A02",
+      "quantity": 42,
+      "rate": 6.0,
+      "notes": "近期成箱捐赠物资。"
+    },
+    {
+      "key": "G-000001",
+      "room": "C03",
+      "quantity": 6,
+      "rate": 18.0,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000001",
+      "room": "C03",
+      "quantity": 9,
+      "rate": 18.0,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000001",
+      "room": "C03",
+      "quantity": 17,
+      "rate": 18.0,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000002",
+      "room": "C03",
+      "quantity": 24,
+      "rate": 6.5,
+      "notes": "有最佳食用日期，使用批次管理。"
+    },
+    {
+      "key": "G-000002",
+      "room": "C03",
+      "quantity": 18,
+      "rate": 6.5,
+      "notes": "有最佳食用日期，使用批次管理。"
+    },
+    {
+      "key": "G-000002",
+      "room": "C03",
+      "quantity": 42,
+      "rate": 6.5,
+      "notes": "有最佳食用日期，使用批次管理。"
+    },
+    {
+      "key": "G-000003",
+      "room": "C03",
+      "quantity": 4,
+      "rate": 12.0,
+      "notes": "有最佳食用日期，使用批次管理。"
+    },
+    {
+      "key": "G-000003",
+      "room": "C03",
+      "quantity": 11,
+      "rate": 12.0,
+      "notes": "有最佳食用日期，使用批次管理。"
+    },
+    {
+      "key": "G-000003",
+      "room": "C03",
+      "quantity": 8,
+      "rate": 12.0,
+      "notes": "有最佳食用日期，使用批次管理。"
+    },
+    {
+      "key": "G-000005",
+      "room": "C03",
+      "quantity": 35,
+      "rate": 0.85,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000005",
+      "room": "C03",
+      "quantity": 48,
+      "rate": 0.85,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000005",
+      "room": "C03",
+      "quantity": 96,
+      "rate": 0.85,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000061",
+      "room": "A02",
+      "quantity": 8,
+      "rate": 4.0,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000061",
+      "room": "A02",
+      "quantity": 11,
+      "rate": 4.0,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000061",
+      "room": "A02",
+      "quantity": 21,
+      "rate": 4.0,
+      "notes": "有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000062",
+      "room": "A02",
+      "quantity": 24,
+      "rate": 2.0,
+      "notes": "近期捐赠；有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000062",
+      "room": "A02",
+      "quantity": 60,
+      "rate": 2.0,
+      "notes": "近期捐赠；有有效期，使用批次管理。"
+    },
+    {
+      "key": "G-000062",
+      "room": "A02",
+      "quantity": 84,
+      "rate": 2.0,
+      "notes": "近期捐赠；有有效期，使用批次管理。"
+    }
+  ],
+  "batches": {
+    "G-000001": [
+      {
+        "key": "BAT-000001",
+        "manufacturing_date": "2025-01-15",
+        "expiry_date": "2025-08-31",
+        "quantity": 6
+      },
+      {
+        "key": "BAT-000002",
+        "manufacturing_date": "2025-09-01",
+        "expiry_date": "2026-06-30",
+        "quantity": 9
+      },
+      {
+        "key": "BAT-000003",
+        "manufacturing_date": "2026-04-10",
+        "expiry_date": "2027-03-31",
+        "quantity": 17
+      }
+    ],
+    "G-000002": [
+      {
+        "key": "BAT-000004",
+        "manufacturing_date": "2025-02-01",
+        "expiry_date": "2025-12-31",
+        "quantity": 24
+      },
+      {
+        "key": "BAT-000005",
+        "manufacturing_date": "2025-11-01",
+        "expiry_date": "2026-08-31",
+        "quantity": 18
+      },
+      {
+        "key": "BAT-000006",
+        "manufacturing_date": "2026-06-15",
+        "expiry_date": "2027-05-31",
+        "quantity": 42
+      }
+    ],
+    "G-000003": [
+      {
+        "key": "BAT-000007",
+        "manufacturing_date": "2025-05-01",
+        "expiry_date": "2026-05-31",
+        "quantity": 4
+      },
+      {
+        "key": "BAT-000008",
+        "manufacturing_date": "2026-01-15",
+        "expiry_date": "2027-01-31",
+        "quantity": 11
+      },
+      {
+        "key": "BAT-000009",
+        "manufacturing_date": "2026-08-01",
+        "expiry_date": "2028-02-29",
+        "quantity": 8
+      }
+    ],
+    "G-000005": [
+      {
+        "key": "BAT-000010",
+        "manufacturing_date": "2025-01-10",
+        "expiry_date": "2025-10-31",
+        "quantity": 35
+      },
+      {
+        "key": "BAT-000011",
+        "manufacturing_date": "2025-08-15",
+        "expiry_date": "2026-07-31",
+        "quantity": 48
+      },
+      {
+        "key": "BAT-000012",
+        "manufacturing_date": "2026-05-20",
+        "expiry_date": "2027-04-30",
+        "quantity": 96
+      }
+    ],
+    "G-000061": [
+      {
+        "key": "BAT-000013",
+        "manufacturing_date": "2024-10-01",
+        "expiry_date": "2025-09-30",
+        "quantity": 8
+      },
+      {
+        "key": "BAT-000014",
+        "manufacturing_date": "2025-08-01",
+        "expiry_date": "2026-08-31",
+        "quantity": 11
+      },
+      {
+        "key": "BAT-000015",
+        "manufacturing_date": "2026-05-01",
+        "expiry_date": "2027-11-30",
+        "quantity": 21
+      }
+    ],
+    "G-000062": [
+      {
+        "key": "BAT-000016",
+        "manufacturing_date": "2025-03-01",
+        "expiry_date": "2026-03-31",
+        "quantity": 24
+      },
+      {
+        "key": "BAT-000017",
+        "manufacturing_date": "2026-01-01",
+        "expiry_date": "2027-08-31",
+        "quantity": 60
+      },
+      {
+        "key": "BAT-000018",
+        "manufacturing_date": "2026-06-01",
+        "expiry_date": "2028-04-30",
+        "quantity": 84
+      }
+    ]
+  }
+}

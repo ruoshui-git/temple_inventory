@@ -1,83 +1,21 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
-import IconButton from "../components/IconButton.vue";
-import ItemCreateForm from "../components/ItemCreateForm.vue";
-import { api } from "../lib/api";
-import { returnToOpener } from "../lib/navigation";
-
-const router = useRouter();
-const boot = ref<any>();
-const error = ref("");
-const barcode = ref("");
-
-async function close() {
-	await returnToOpener(router, "/stock");
-}
-
-async function created(itemCode: string) {
-	await router.replace(`/item/${encodeURIComponent(itemCode)}`);
-}
-
-onMounted(async () => {
-	barcode.value = sessionStorage.getItem("ti-unknown-barcode") || "";
-	sessionStorage.removeItem("ti-unknown-barcode");
-	try {
-		boot.value = await api("bootstrap");
-	} catch (cause: any) {
-		error.value = cause.message || "无法加载物品资料";
-	}
-});
+import { ref } from "vue";
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
+import ItemEditorPage from "../features/items/ItemEditorPage.vue";
+const editor = ref<InstanceType<typeof ItemEditorPage>>();
+onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
+onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
+const route = useRoute(),
+	router = useRouter();
 </script>
-
 <template>
-	<section class="app-shell item-create-page">
-		<header class="item-create-page-header">
-			<IconButton label="返回" @click="close">
-				<svg aria-hidden="true" viewBox="0 0 24 24">
-					<path d="m14 5-7 7 7 7M7 12h11" />
-				</svg>
-			</IconButton>
-			<div>
-				<h1>新建物品</h1>
-				<p>创建可立即用于库存操作的 ERPNext 物品。</p>
-			</div>
-		</header>
-		<p v-if="!boot && !error">正在加载新物品表单…</p>
-		<div v-else-if="error">
-			<p class="error">{{ error }}</p>
-			<button type="button" @click="close">返回</button>
-		</div>
-		<ItemCreateForm
-			v-else
-			:boot="boot"
-			:barcode="barcode"
-			@created="created"
-			@cancel="close"
-		/>
-	</section>
+	<ItemEditorPage
+		ref="editor"
+		:key="route.fullPath"
+		:code="route.params.code ? String(route.params.code) : undefined"
+		:barcode="typeof route.query.barcode === 'string' ? route.query.barcode : undefined"
+		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
+		@cancel="router.back()"
+		@saved="router.replace(`/item/${encodeURIComponent($event.item_code)}`)"
+	/>
 </template>
-
-<style scoped>
-.item-create-page {
-	width: min(100%, 48rem);
-	margin-inline: auto;
-}
-
-.item-create-page-header {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--ti-density-row-gap);
-	margin-bottom: var(--ti-density-gap);
-}
-
-.item-create-page-header h1,
-.item-create-page-header p {
-	margin: 0;
-}
-
-.item-create-page-header p {
-	margin-top: var(--ti-space-1);
-	color: var(--ti-muted);
-}
-</style>

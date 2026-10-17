@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineProps<{ name: string }>();
 const paths: Record<string, string> = {
+	expand: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
 	box: "m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10",
 	total: "M4 6h16v12H4V6Zm0 4h16M8 14h8",
 	movement: "M4 7h14l-3-3m3 3-3 3M20 17H6l3 3m-3-3 3-3",

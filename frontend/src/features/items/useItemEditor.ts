@@ -1,0 +1,436 @@
+import { useUpdateBlocker } from "../../lib/updateSafety";
+import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import {
+  useInventoryServices,
+  useReferenceData,
+} from "../../services/contracts";
+import {
+  createRecoveryStore,
+  recoveryValues,
+  type RecoverySnapshot,
+} from "../../lib/browserRecovery";
+import {
+  presentCatalogItem,
+  type CatalogItem,
+} from "../../lib/catalogPresentation";
+import {
+  useAttachments,
+  type AttachmentEntry,
+} from "../attachments/useAttachments";
+
+export interface ItemInput {
+  code: string;
+  name: string;
+  category: string;
+  uom: string;
+  barcode: string;
+  description: string;
+  tracksBatch: boolean;
+  tracksExpiry: boolean;
+}
+export function useItemEditor(
+  props: {
+    code?: string;
+    barcode?: string;
+    contextual?: boolean;
+    lazy?: boolean;
+    recoveryId?: string;
+  },
+  saved: (item: CatalogItem) => void,
+) {
+  const services = useInventoryServices(),
+    reference = useReferenceData();
+  const account = reference.user;
+  let disposed = false,
+    generation = 0;
+  let request: AbortController | undefined;
+  const active = () => !disposed && account === reference.user;
+  const model = reactive<ItemInput>({
+    code: "",
+    name: "",
+    category: "",
+    uom: reference.units.some((row) => row.name === "Nos") ? "Nos" : "",
+    barcode: props.barcode || "",
+    description: "",
+    tracksBatch: false,
+    tracksExpiry: false,
+  });
+  const supportingDirty = ref(false);
+  const existing = ref<CatalogItem>(),
+    loading = ref(false),
+    busy = ref(false),
+    error = ref(""),
+    recoveryError = ref(""),
+    conflict = ref(false),
+    discardOpen = ref(false),
+    baseline = ref(JSON.stringify(model));
+  let editorId = crypto.randomUUID();
+  const tabId = crypto.randomUUID();
+  let revision = 0,
+    ready = false,
+    discarded = false;
+  let storage: Storage | undefined;
+  try {
+    storage = localStorage;
+  } catch {
+    /* Memory state remains usable. */
+  }
+  const recovery = createRecoveryStore(reference.site, account, storage);
+  const candidates = ref<RecoverySnapshot[]>([]);
+  const initialized = ref(false),
+    leaveRequested = ref(false);
+  let allowLeave = false,
+    leaveResolve: ((value: boolean) => void) | undefined;
+  function requestLeave(): Promise<boolean> {
+    if (allowLeave || !dirty.value) return Promise.resolve(true);
+    leaveRequested.value = true;
+    return new Promise((resolve) => {
+      leaveResolve = resolve;
+    });
+  }
+  function finishLeave(choice: "stay" | "retain" | "discard") {
+    if (choice === "retain" && supportingDirty.value) return;
+    if (choice === "retain") retain();
+    if (choice === "discard") {
+      discarded = true;
+      recovery.remove(editorId, revision);
+    }
+    allowLeave = choice !== "stay";
+    leaveRequested.value = false;
+    leaveResolve?.(allowLeave);
+    leaveResolve = undefined;
+  }
+  function beforeUnload(event: BeforeUnloadEvent) {
+    if (dirty.value && !discarded) {
+      retain();
+      event.preventDefault();
+    }
+  }
+  if (typeof window !== "undefined")
+    window.addEventListener("beforeunload", beforeUnload);
+  const canWrite = computed(() =>
+    existing.value
+      ? existing.value.can_edit === true
+      : props.code
+        ? false
+        : reference.capabilities.Item?.create === true,
+  );
+  const files = useAttachments({
+    account,
+    currentAccount: () => reference.user,
+    parent: () =>
+      existing.value
+        ? { doctype: "Item", name: existing.value.item_code }
+        : undefined,
+    writable: () => canWrite.value && !conflict.value,
+    primary: async (file) => {
+      if (!existing.value) return;
+      const value = await services.call<CatalogItem>("catalog.set_item_image", {
+        item_code: existing.value.item_code,
+        version: existing.value.version,
+        file_name: file,
+      });
+      if (active()) existing.value = value;
+    },
+    changed: () => retain(),
+    parentChanged: (version) => {
+      if (existing.value) existing.value.version = version;
+    },
+  });
+  const dirty = computed(
+    () =>
+      JSON.stringify(model) !== baseline.value ||
+      files.incomplete.value ||
+      supportingDirty.value,
+  );
+  function retain() {
+    if (!ready || !active() || discarded) return;
+    revision++;
+    const result = recovery.save({
+      schema: 1,
+      site: reference.site,
+      account,
+      tabId,
+      editorId,
+      editorKind: "Item",
+      baseVersion: existing.value?.version,
+      revision,
+      updatedAt: new Date().toISOString(),
+      pendingUploadReselection: files.incomplete.value,
+      values: recoveryValues({
+        ...model,
+        editingCode: existing.value?.item_code || props.code || "",
+        creating: !props.code,
+        attachments: files.files,
+      }),
+    });
+    recoveryError.value = result.error;
+  }
+  async function suggest() {
+    if (props.code || model.code || !active()) return;
+    const result = await services.call<{ item_code: string }>(
+      "catalog.suggest_item_code",
+    );
+    if (active() && !model.code) {
+      const previous = JSON.parse(baseline.value || JSON.stringify(model));
+      model.code = result.item_code;
+      previous.code = result.item_code;
+      baseline.value = JSON.stringify(previous);
+    }
+  }
+  async function load() {
+    const current = ++generation;
+    request?.abort();
+    request = new AbortController();
+    ready = false;
+    loading.value = true;
+    error.value = "";
+    conflict.value = false;
+    try {
+      if (props.code) {
+        const item = await services.call<CatalogItem>(
+          "catalog.operation_item",
+          { item_code: props.code },
+          request.signal,
+        );
+        if (!active() || current !== generation) return;
+        existing.value = item;
+        Object.assign(model, {
+          code: item.item_code,
+          name: item.item_name,
+          category: item.item_group,
+          uom: item.stock_uom,
+          barcode: item.barcodes.map((row) => row.barcode).join("\n"),
+          description: item.description,
+          tracksBatch: item.has_batch_no,
+          tracksExpiry: item.has_expiry_date,
+        });
+        files.load(item.attachments || [], item.image);
+      } else await suggest();
+      if (!active() || current !== generation) return;
+      baseline.value = JSON.stringify(model);
+      candidates.value = recovery
+        .list()
+        .entries.filter(
+          (row) =>
+            row.editorKind === "Item" &&
+            (!props.recoveryId || row.editorId === props.recoveryId) &&
+            (props.code
+              ? String(row.values.editingCode || "") === props.code
+              : !row.values.editingCode || row.values.creating === true),
+        );
+      ready = true;
+      initialized.value = true;
+    } catch (reason) {
+      if (active() && current === generation)
+        error.value = reason instanceof Error ? reason.message : "物品读取失败";
+    } finally {
+      if (active() && current === generation) loading.value = false;
+    }
+  }
+  async function recover(snapshot: RecoverySnapshot) {
+    if (
+      !active() ||
+      snapshot.account !== account ||
+      snapshot.site !== reference.site
+    )
+      return;
+    const code = String(snapshot.values.editingCode || "");
+    if (props.code && code !== props.code) {
+      error.value = "此输入属于其它物品";
+      return;
+    }
+    if (code) {
+      try {
+        const current = await services.call<CatalogItem>(
+          "catalog.operation_item",
+          { item_code: code },
+        );
+        if (!active()) return;
+        if (current.version !== snapshot.baseVersion || !current.can_edit) {
+          error.value =
+            "物品已更改或无权编辑，不能覆盖原记录；请复制恢复文字后核对";
+          return;
+        }
+        existing.value = current;
+        files.clear();
+        files.load(current.attachments || [], current.image);
+      } catch (reason) {
+        error.value =
+          reason instanceof Error
+            ? reason.message
+            : "原物品无法读取，请复制恢复文字";
+        return;
+      }
+    }
+    ready = false;
+    for (const key of Object.keys(model) as (keyof ItemInput)[])
+      if (key in snapshot.values)
+        Object.assign(model, { [key]: snapshot.values[key] });
+    files.restore(
+      (snapshot.values.attachments || []) as unknown as AttachmentEntry[],
+    );
+    ready = true;
+    retain();
+    candidates.value = [];
+  }
+  async function reset() {
+    ready = false;
+    recovery.remove(editorId, revision);
+    editorId = crypto.randomUUID();
+    revision = 0;
+    discarded = false;
+    existing.value = undefined;
+    files.clear();
+    Object.assign(model, {
+      code: "",
+      name: "",
+      category: "",
+      uom: reference.units.some((row) => row.name === "Nos") ? "Nos" : "",
+      barcode: props.barcode || "",
+      description: "",
+      tracksBatch: false,
+      tracksExpiry: false,
+    });
+    initialized.value = false;
+    await load();
+  }
+  async function save() {
+    if (
+      !active() ||
+      busy.value ||
+      loading.value ||
+      !canWrite.value ||
+      conflict.value
+    )
+      return;
+    if (supportingDirty.value) {
+      error.value = "请先完成或取消尚未保存的分类、单位与换算";
+      return;
+    }
+    if (
+      !model.code.trim() ||
+      !model.name.trim() ||
+      !model.category ||
+      !model.uom
+    ) {
+      error.value = "请填写物品编号、名称、类别，并选择库存单位";
+      return;
+    }
+    busy.value = true;
+    error.value = "";
+    try {
+      const item = await services.call<CatalogItem>("catalog.save_item", {
+        data: {
+          item_code: model.code.trim(),
+          item_name: model.name.trim(),
+          item_group: model.category,
+          stock_uom: model.uom,
+          barcodes: model.barcode,
+          description: model.description,
+          has_batch_no: model.tracksBatch || model.tracksExpiry,
+          has_expiry_date: model.tracksExpiry,
+        },
+        ...(existing.value
+          ? {
+              item_code: existing.value.item_code,
+              version: existing.value.version,
+            }
+          : {}),
+      });
+      if (!active()) return;
+      existing.value = item;
+      baseline.value = JSON.stringify(model);
+      await files.finalize();
+      if (!active()) return;
+      if (files.incomplete.value) {
+        retain();
+        error.value =
+          "物品资料已保存，附件尚未全部上传；请重试或移除未完成附件";
+        return;
+      }
+      recovery.remove(editorId, revision);
+      saved(existing.value);
+    } catch (reason) {
+      if (!active()) return;
+      error.value =
+        reason instanceof Error ? reason.message : "物品保存失败，输入已保留";
+      conflict.value = ["TimestampMismatchError", "DoesNotExistError"].includes(
+        String((reason as { kind?: string })?.kind),
+      );
+      retain();
+    } finally {
+      if (active()) busy.value = false;
+    }
+  }
+  watch(
+    model,
+    () => {
+      if (ready) retain();
+    },
+    { deep: true, flush: "sync" },
+  );
+  watch(
+    () => props.code,
+    () => {
+      if (!props.lazy) void load();
+    },
+    { immediate: true },
+  );
+  onBeforeUnmount(() => {
+    if (ready && dirty.value) retain();
+    window.removeEventListener("beforeunload", beforeUnload);
+    disposed = true;
+    generation++;
+    request?.abort();
+  });
+  useUpdateBlocker(() => dirty.value || busy.value);
+
+  return {
+    leaveRequested,
+    requestLeave,
+    finishLeave,
+    supportingDirty,
+    conversionsUpdated: (value: {
+      version: string;
+      conversions: { uom: string; conversion_factor: number }[];
+    }) => {
+      if (existing.value) {
+        existing.value.version = value.version;
+        existing.value.uoms = value.conversions;
+        retain();
+      }
+    },
+    initialized,
+    model,
+    existing,
+    loading,
+    busy,
+    error,
+    recoveryError,
+    conflict,
+    discardOpen,
+    dirty,
+    canWrite,
+    candidates,
+    recovery,
+    recover,
+    load,
+    save,
+    suggest,
+    files,
+    reference,
+    baseline,
+    reset,
+    stockItem: computed(() =>
+      existing.value ? presentCatalogItem(existing.value) : undefined,
+    ),
+    recoveryText: computed(() =>
+      JSON.stringify({ ...model, attachments: files.files }, null, 2),
+    ),
+    discard: () => {
+      discarded = true;
+      recovery.remove(editorId, revision);
+    },
+  };
+}

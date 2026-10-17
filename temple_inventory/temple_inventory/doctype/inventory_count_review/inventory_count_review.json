@@ -1,0 +1,76 @@
+{
+  "doctype": "DocType",
+  "name": "Inventory Count Review",
+  "module": "Temple Inventory",
+  "fields": [
+    {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "label": "物品",
+      "options": "Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "label": "位置",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "batch_no",
+      "fieldtype": "Link",
+      "label": "批次",
+      "options": "Batch"
+    },
+    {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "label": "库存单位",
+      "options": "UOM",
+      "reqd": 1
+    },
+    {
+      "fieldname": "baseline_qty",
+      "fieldtype": "Float",
+      "label": "账面数量"
+    },
+    {
+      "fieldname": "actual_qty",
+      "fieldtype": "Float",
+      "label": "实点数量"
+    },
+    {
+      "fieldname": "review_state",
+      "fieldtype": "Select",
+      "label": "核对状态",
+      "options": "Unreviewed\nReviewed\nNot Found",
+      "reqd": 1
+    },
+    {
+      "fieldname": "reason",
+      "fieldtype": "Small Text",
+      "label": "差异原因"
+    },
+    {
+      "fieldname": "difference",
+      "fieldtype": "Float",
+      "label": "调整差异",
+      "read_only": 1
+    }
+  ],
+  "field_order": [
+    "item_code",
+    "warehouse",
+    "batch_no",
+    "stock_uom",
+    "baseline_qty",
+    "actual_qty",
+    "review_state",
+    "reason",
+    "difference"
+  ],
+  "permissions": [],
+  "track_changes": 1,
+  "istable": 1
+}

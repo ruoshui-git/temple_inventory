@@ -10,9 +10,7 @@
     "damaged_warehouse",
     "photo_required",
     "allowed_warehouses",
-    "virtual_root_warehouse",
     "physical_root_warehouse",
-    "loan_warehouse",
     "sample_data_version",
     "sample_data_status",
     "sample_data_error"
@@ -67,21 +65,9 @@
       "options": "Temple Inventory Allowed Warehouse"
     },
     {
-      "fieldname": "virtual_root_warehouse",
-      "fieldtype": "Link",
-      "label": "Virtual Warehouse Root",
-      "options": "Warehouse"
-    },
-    {
       "fieldname": "physical_root_warehouse",
       "fieldtype": "Link",
       "label": "Physical Warehouse Root",
-      "options": "Warehouse"
-    },
-    {
-      "fieldname": "loan_warehouse",
-      "fieldtype": "Link",
-      "label": "Loan Warehouse",
       "options": "Warehouse"
     },
     {

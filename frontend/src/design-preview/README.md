@@ -1,13 +1,11 @@
 # Standalone design review
 
-This app is an isolated visual reference and interaction gallery. Its visual
-authority is the preview at commit `7b91ff5`, restored into preview-owned
-`preview.css` and local presentation adapters. The current defaults use the
-approved jade palette, balanced density, and the proposed five main destinations.
-The intentional baseline differences are the jade starting palette, removed
-hover underlines on item names, added route mockups, and the navigation/control proposal below. Production visual
-fidelity is not approved by this gallery alone; the production migration remains
-paused pending review.
+This development-only gallery renders the promoted production frame, components
+and feature controllers with injected fixture services. Visual styles come from
+`../styles/app.css`; there is one shared presentation foundation. Jade, balanced
+density and 100% text are the defaults. The design-to-production replacement is
+underway under the consolidated handoff; this gallery alone does not establish
+production parity or visual acceptance.
 
 The preview does not start the production app, authenticate, call APIs, install
 a service worker, or modify inventory data. Fixture-only interactions may
@@ -39,30 +37,20 @@ build does not include this preview entry.
 
 ## Visual ownership and review
 
-`preview.css` owns the preview palette, typography, controls, surfaces, states,
-and density behavior. Styled presentation dependencies live in
-`components/Preview*.vue`; the shared inventory icon and headless responsive
-utility and hierarchy-selection helper are the only shared dependencies allowed by the preview baseline.
-`PreviewInventory.vue` remains the canonical inventory sample for list,
-filtered, and empty states, including its image, filter, and detail interactions.
-New route mockups use fixture state from `reviewModel.ts` and are review samples,
-not claims that production routes have been visually migrated.
+`frontend/src/styles/{foundation,forms,utilities,browse}.css` owns the shared
+palette, typography, geometry and responsive behavior. `AppFrame.vue` renders the
+same five main destinations plus More in both entry points. Ordinary feature
+components live under `components/` and `features/`; this folder owns fixtures,
+review controls and adapters. Remaining legacy gallery mockups are being replaced,
+not retained as a second production implementation.
 
-Jade is the default. Other palettes and workflow proposals are explicitly
-experimental. The five-destination proposal is the active preview shell; production retains six. Keep
-page mockup styles scoped to their own samples and avoid using them to imitate
-production component styling.
-
-Manually compare the restored gallery and inventory treatments with commit
-`7b91ff5`, allowing only the listed baseline differences. Review all three
-densities at **375px**, **768px**, **1024px**, and **1440px**. Check keyboard
-focus, drawers and dialogs, overlay cleanup during hash navigation, 200% zoom,
-reduced motion, image fallback, and the five-destination navigation. Automated
-tests and builds verify behavior and route isolation; they do not establish
-visual fidelity. Record fidelity approval before reconnecting preview styles to
-production tokens or styled shared components. See the app-level
-[design-system reference](../../../DESIGN_SYSTEM.md) for production token
-ownership and the full migration audit.
+The gallery never adopts a real account's preferences or writes native inventory.
+Its fixture account uses the same display-settings interface and save queue; the
+review controls track that fixture display. Review all three themes/densities at
+375, 768, 1024 and 1440px, larger text, keyboard focus, overlays, images and scope.
+Current checks, screenshots and outstanding work are recorded in the
+[implementation progress](../../../notes/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md)
+and the app-level [design-system reference](../../../DESIGN_SYSTEM.md).
 
 ## Route and component coverage
 
