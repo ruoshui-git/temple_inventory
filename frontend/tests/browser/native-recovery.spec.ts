@@ -31,9 +31,7 @@ async function prepare(page: Page, account = "manager") {
 
 async function open(page: Page) {
   await page.goto("/inventory/new/Receive");
-  await page
-    .getByRole("button", { name: "来源、活动与备注", exact: true })
-    .click();
+  await page.getByText("补充记录（可选）", { exact: true }).click();
   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
 }
 
@@ -53,9 +51,7 @@ test("incomplete input survives reload only after an explicit recovery choice", 
   await page.getByLabel("来源", { exact: true }).fill("恢复验收：尚未添加物品");
   await expect.poll(async () => (await snapshots(page)).length).toBe(1);
   await page.reload();
-  await page
-    .getByRole("button", { name: "来源、活动与备注", exact: true })
-    .click();
+  await page.getByText("补充记录（可选）", { exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "此浏览器的未完成输入" }),
   ).toBeVisible();
@@ -101,9 +97,7 @@ test("another account cannot offer or hydrate the previous account's input", asy
   await expect.poll(async () => (await snapshots(page)).length).toBe(1);
   await prepare(page, "other-manager");
   await page.reload();
-  await page
-    .getByRole("button", { name: "来源、活动与备注", exact: true })
-    .click();
+  await page.getByText("补充记录（可选）", { exact: true }).click();
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue("");
   await expect(
     page.getByRole("button", { name: "检查并恢复", exact: true }),

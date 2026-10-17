@@ -189,7 +189,44 @@ class NativeReportTests(NativeDocumentTests):
 				self.assertIn("matched_count", result)
 				self.assertIn("snapshot", result)
 				self.assertTrue(result["columns"])
+				self.assertNotIn("id", result["columns"])
+				for table in result["tables"]:
+					self.assertNotIn("id", report_page(query, table=table["id"])["columns"])
 				self.assertEqual(result["query"]["dataset"], dataset)
+				grouped = report_page({**query, "grouping": definition["groups"][0]})
+				self.assertEqual(grouped["table"], "grouped")
+				self.assertNotIn("id", grouped["columns"])
+				if grouped["rows"] and definition["groups"][0] == "item":
+					self.assertIn("item_name", grouped["columns"])
+					self.assertTrue(grouped["rows"][0]["item_name"])
+
+	def test_saved_record_scope_requires_exact_doctype_name_and_status(self):
+		self.receipt(10)
+		for doctype, dataset in (("Stock Entry", "movements"), ("Stock Reconciliation", "counts")):
+			draft = (
+				self.create(self.movement())
+				if doctype == "Stock Entry"
+				else counts.save_count(str(uuid4()), self.count_data(9, "Reviewed"))
+			)
+			for status in (0, 1, 2):
+				if status == 1:
+					draft = native_api.submit_document(doctype, draft.name, draft.version)
+				elif status == 2:
+					draft = native_api.cancel_document(doctype, draft.name, draft.version)
+				query = self.query(
+					dataset, "records", record=draft.name, recordDoctype=doctype, statuses=[status]
+				)
+				result = report_page(query)
+				self.assertGreater(result["matched_count"], 0)
+				self.assertEqual({row["document"] for row in result["rows"]}, {draft.name})
+				other = "Stock Reconciliation" if doctype == "Stock Entry" else "Stock Entry"
+				self.assertEqual(report_page({**query, "recordDoctype": other})["matched_count"], 0)
+				with Projection(query) as projection:
+					projection.build(related=True)
+					self.assertEqual({row["document"] for row in projection.rows("lines")}, {draft.name})
+					self.assertIn("line_name", projection.column_names["lines"])
+					self.assertIn("document_id", projection.column_names["lines"])
+					self.assertIn("id", projection.column_names["lines"])
 
 	def test_empty_restrictive_item_and_allocation_selections_never_widen_scope(self):
 		self.receipt()

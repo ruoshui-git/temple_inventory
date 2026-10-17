@@ -42,6 +42,13 @@ const {
 } = c;
 const stockTable = c.stock.mainTable,
 	historyTable = c.history.mainTable;
+function physicalType(value: string) {
+	return (
+		({ Room: "房间", Location: "位置" } as Record<string, string>)[value] ||
+		value ||
+		"未设置类型"
+	);
+}
 function toggle(name: string) {
 	const next = new Set(expanded.value);
 	if (next.has(name)) next.delete(name);
@@ -128,21 +135,23 @@ function toggle(name: string) {
 						>
 							<strong>{{ row.label }}</strong
 							><small
-								>{{ row.type || "未设置类型" }} ·
+								>{{ physicalType(row.type) }} ·
 								{{ row.is_group ? "分组" : "可存放库存"
 								}}{{ row.disabled ? " · 已停用" : ""
 								}}{{ row.protected ? " · 系统节点" : "" }}</small
 							>
 						</button>
-						<button class="browse-link" @click="emit('warehouse', row.name)">
-							详情</button
-						><button
-							v-if="row.can_edit"
-							class="browse-link"
-							@click="c.openEditor(row)"
-						>
-							编辑
-						</button>
+						<div class="warehouse-node-actions">
+							<button class="browse-link" @click="emit('warehouse', row.name)">
+								详情</button
+							><button
+								v-if="row.can_edit"
+								class="browse-link"
+								@click="c.openEditor(row)"
+							>
+								编辑
+							</button>
+						</div>
 					</div>
 					<p v-if="!visibleRows.length" class="browse-empty compact">
 						没有符合搜索的仓库。
@@ -168,7 +177,7 @@ function toggle(name: string) {
 					<dl class="browse-detail-grid">
 						<div>
 							<dt>物理类型</dt>
-							<dd>{{ selected.type || "尚未设置" }}</dd>
+							<dd>{{ physicalType(selected.type) }}</dd>
 						</div>
 						<div>
 							<dt>上级</dt>
@@ -318,8 +327,8 @@ function toggle(name: string) {
 					:options="c.parentOptions.value"
 				/><label class="preview-field"
 					>物理类型<select v-model="form.warehouse_type">
-						<option value="Room">Room · 房间</option>
-						<option value="Location">Location · 位置</option>
+						<option value="Room">房间</option>
+						<option value="Location">位置</option>
 						<option
 							v-if="!['Room', 'Location'].includes(form.warehouse_type)"
 							:value="form.warehouse_type"
@@ -336,7 +345,7 @@ function toggle(name: string) {
 					><input v-model="form.disabled" type="checkbox" />停用此仓库</label
 				>
 				<p>
-					Room / Location 表示物理意义，分组 / 叶子单独记录。新建 Room
+					房间 / 位置表示物理意义，分组 / 叶子单独记录。新建房间
 					默认是可用叶子。已有库存或原生单据的节点保留现有层级。
 				</p>
 				<p v-if="editing" class="muted">
@@ -380,5 +389,30 @@ function toggle(name: string) {
 .browse-grow strong,
 .browse-grow small {
 	display: block;
+}
+.warehouse-node-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-3);
+}
+@media (max-width: 1023px) {
+	.browse-card-heading {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.browse-tree-row {
+		display: grid;
+		grid-template-columns: 44px minmax(0, 1fr);
+		gap: var(--p-space-2);
+		padding-left: calc(min(var(--tree-depth, 0), 4) * 8px);
+	}
+	.warehouse-node-actions {
+		grid-column: 2;
+	}
+	.warehouse-node-actions button,
+	.browse-tree-row > button {
+		min-height: 44px;
+		min-width: 44px;
+	}
 }
 </style>

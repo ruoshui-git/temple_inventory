@@ -199,6 +199,8 @@ class ReportContext:
 			and row.get("line_name") not in query["allocationKeys"]
 		):
 			return False
+		if query["recordDoctype"] and row.get("doctype") != query["recordDoctype"]:
+			return False
 		if query["record"] and query["record"] not in (row.get("document"), row.get("document_id")):
 			return False
 		if query["loan"] and query["loan"] not in (row.get("original_loan"), row.get("document")):
@@ -237,6 +239,7 @@ def stock_rows(context):
 			or context.scope["sources"]
 			or context.scope["destinations"]
 			or query["record"]
+			or query["recordDoctype"]
 			or query["loan"]
 		):
 			# Current stock has no transaction allocation ownership. A contextual
@@ -782,6 +785,7 @@ def activity_rows(context, *, metadata=True):
 			or query["restrictAllocations"]
 			or query["itemLocationKeys"]
 			or query["record"]
+			or query["recordDoctype"]
 			or query["loan"]
 		)
 		if related_scope and not has_relations:

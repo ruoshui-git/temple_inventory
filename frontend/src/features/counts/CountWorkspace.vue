@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import { ref } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -87,7 +88,9 @@ async function applyLocation(value: string) {
 			</div>
 		</dl>
 		<p role="status">已核对 {{ summary.reviewed }} / {{ rows.length }} 行 · 留空不调整库存</p>
-		<p class="muted">账面基准：{{ values.ti_baseline_timestamp || "尚未读取" }}</p>
+		<p class="muted">
+			账面基准（站点时间）：{{ siteDateTime(values.ti_baseline_timestamp) || "尚未读取" }}
+		</p>
 		<p v-if="writable && !currentBaseline" role="status">
 			盘点范围或时间已更改，请刷新账面基准后核对。
 		</p>

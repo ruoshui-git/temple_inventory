@@ -28,6 +28,7 @@ export default defineConfig({
       // Route this SPA is served on by Frappe. Drives the auto-inferred
       // indexHtmlPath for the production build.
       frontendRoute: "/inventory",
+      frappeProxy: { port: Number(process.env.TI_DEV_PORT) || undefined },
     }).filter(
       (plugin) =>
         !["frappeui-site-banner-plugin", "frappeui-optimize-deps"].includes(

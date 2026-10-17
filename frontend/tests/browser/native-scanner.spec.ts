@@ -86,7 +86,7 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto("/inventory/new/Receive?warehouse=ROOM-A");
   await expect(
-    page.getByRole("heading", { name: "把善意，妥善安放。", exact: true }),
+    page.getByRole("heading", { name: "入库", exact: true }),
   ).toBeVisible();
   await page.getByText("扫描物品 / 批次 / 库位", { exact: true }).click();
 });

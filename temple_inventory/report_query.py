@@ -46,6 +46,7 @@ QUERY_DEFAULT = {
 	"activityStatus": "all",
 	"typeId": "",
 	"record": "",
+	"recordDoctype": "",
 	"loan": "",
 	"itemCodes": [],
 	"restrictItems": False,

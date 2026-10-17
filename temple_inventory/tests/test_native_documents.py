@@ -246,6 +246,68 @@ class NativeDocumentTests(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			desk.save()
 
+	def test_native_untyped_transfers_cannot_claim_loan_settlements(self):
+		loan = self.loan(5)
+		self.receipt(10)
+		data = self.movement("Transfer", 7, self.a, self.b)
+		data.update(
+			{
+				"doctype": "Stock Entry",
+				"purpose": "Material Transfer",
+				"stock_entry_type": "Material Transfer",
+			}
+		)
+		data["ti_movement_kind"] = ""
+		metadata = {
+			"ti_original_loan": loan.name,
+			"ti_original_loan_line": loan["items"][0].name,
+			"ti_settlement_outcome": "Returned",
+		}
+		# Desk/API insertion must reject even before native draft creation.
+		for kind in (None, "Transfer", "Unsupported"):
+			bad = copy.deepcopy(data)
+			bad["ti_movement_kind"] = kind
+			bad["items"][0].update(metadata)
+			with self.assertRaises(frappe.ValidationError):
+				frappe.get_doc(bad).insert()
+		# Ordinary ERPNext documents remain usable with no app metadata.
+		draft = frappe.get_doc(data).insert()
+		for action in ("save", "submit"):
+			current = frappe.get_doc("Stock Entry", draft.name)
+			current.items[0].update(metadata)
+			with self.assertRaises(frappe.ValidationError):
+				getattr(current, action)()
+		ordinary = frappe.get_doc("Stock Entry", draft.name).submit()
+		self.assertEqual(get_stock_balance(self.item, self.loan_leaf), 5)
+		# A pre-existing malformed row cannot falsify the projection either.
+		frappe.db.set_value("Stock Entry Detail", ordinary.items[0].name, metadata)
+		self.assertEqual(native_api.loan_detail(loan.name)["items"][0].outstanding_qty, 5)
+
+	def test_native_settlement_requires_complete_metadata_and_correct_provenance(self):
+		loan = self.loan(5)
+		valid = frappe.get_doc("Stock Entry", self.settlement(loan).name)
+		for field in ("ti_original_loan", "ti_original_loan_line", "ti_settlement_outcome"):
+			bad = frappe.copy_doc(valid)
+			bad.items[0].set(field, None)
+			with self.assertRaises(frappe.ValidationError):
+				bad.insert()
+		for changes in (
+			{"s_warehouse": self.a},
+			{"ti_original_loan_line": "unrelated-child"},
+			{"ti_origin_warehouse": self.b},
+			{"qty": 6},
+			{"ti_settlement_outcome": "Lost"},
+		):
+			bad = frappe.copy_doc(valid)
+			bad.items[0].update(changes)
+			with self.assertRaises((frappe.ValidationError, frappe.PermissionError)):
+				bad.insert()
+		# Save and submit revalidate native drafts, including cleared kinds.
+		valid.ti_movement_kind = None
+		for action in ("save", "submit"):
+			with self.assertRaises(frappe.ValidationError):
+				getattr(valid, action)()
+
 	def test_exact_loan_line_and_partial_outcomes_are_derived_from_native_entries(self):
 		loan = self.loan(10)
 		self.submit(self.settlement(loan, 2))
@@ -278,6 +340,9 @@ class NativeDocumentTests(unittest.TestCase):
 			native_api.cancel_document("Stock Entry", loan.name, loan.version)
 		native_api.cancel_document("Stock Entry", settlement.name, settlement.version)
 		self.assertEqual(native_api.loan_detail(loan.name)["items"][0].outstanding_qty, 5)
+		cancelled = native_api.cancel_document("Stock Entry", loan.name, loan.version)
+		amended = native_api.amend_document("Stock Entry", loan.name, cancelled.version, str(uuid4()))
+		self.assertEqual(amended.amended_from, loan.name)
 
 	def test_activity_rename_keeps_identity_and_archived_links_remain_valid(self):
 		draft = self.create(self.movement(ti_activity=self.activity.name))

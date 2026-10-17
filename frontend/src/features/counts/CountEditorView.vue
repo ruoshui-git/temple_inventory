@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import QuickExport from "../../components/QuickExport.vue";
+import type { ReportQuery } from "../../lib/reportContract";
 import { computed, ref } from "vue";
 import type { CountEditor } from "./useCountEditor";
 import CountWorkspace from "./CountWorkspace.vue";
@@ -9,11 +11,10 @@ import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import Attachments from "../../components/Attachments.vue";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
-import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
-const emit = defineEmits<{ back: []; newCount: [] }>();
+const emit = defineEmits<{ back: []; newCount: []; openExport: [query: ReportQuery] }>();
 const c = props.controller;
 const {
 	values,
@@ -37,11 +38,10 @@ const {
 } = c;
 const root = ref<HTMLElement>(),
 	actions = ref<HTMLElement>();
-const { isMobile } = useResponsiveLayout();
 useFocusVisibility(
 	root,
 	actions,
-	() => isMobile.value,
+	() => true,
 	() => props.active !== false,
 );
 const context = computed(() => ({
@@ -90,7 +90,14 @@ async function copy(value = c.recoveryText.value) {
 				<h1>{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}</h1>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
 			</div>
-			<UiButton @click="back">返回</UiButton>
+			<div class="form-actions">
+				<QuickExport
+					v-if="!loading && c.savedExportQuery.value"
+					:query="c.savedExportQuery.value"
+					:active="active"
+					@open-full="emit('openExport', $event)"
+				/><UiButton @click="back">返回</UiButton>
+			</div>
 		</div>
 		<div class="form-status">
 			<span class="form-record-tag">{{

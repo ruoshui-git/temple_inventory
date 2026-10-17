@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ReportQuery } from "../../lib/reportContract";
 import type { NativeIdentity } from "../../lib/browserRecovery";
 import type { InitialAllocation } from "../../lib/routeSelection";
 import type { OperationDraft, OperationKind } from "./operationModel";
@@ -20,13 +21,18 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
-const emit = defineEmits<{ back: []; notify: [message: string] }>();
+const emit = defineEmits<{
+	back: [];
+	openExport: [query: ReportQuery];
+	notify: [message: string];
+}>();
 const controller = useOperationEditor(props);
 defineExpose({ controller });
 </script>
 <template>
 	<OperationEditorView
 		:controller="controller"
+		@open-export="emit('openExport', $event)"
 		:active="active"
 		@back="emit('back')"
 		@notify="emit('notify', $event)"

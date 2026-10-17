@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../lib/nativeTime";
 import { toRef, watch } from "vue";
 import UiButton from "./ui/UiButton.vue";
 import Overlay from "./ui/Overlay.vue";
@@ -65,7 +66,7 @@ function full() {
 		</p>
 		<p v-if="page">{{ page.matched_count }} 行完整结果 · 与显示页数无关</p>
 		<p v-if="page" class="muted">
-			范围快照 {{ page.snapshot }} ·
+			范围快照（站点时间） {{ siteDateTime(page.snapshot) }} ·
 			{{
 				page.period.date_from
 					? `${page.period.date_from} 至 ${page.period.date_to}`
@@ -131,7 +132,7 @@ function full() {
 					: job.status === "Failed"
 						? "生成失败"
 						: `后台生成中 · ${job.progress}%`
-			}}<span v-if="job.generated_at"> · {{ job.generated_at }}</span>
+			}}<span v-if="job.generated_at"> · {{ siteDateTime(job.generated_at) }}</span>
 		</p>
 		<p v-if="job?.error" role="alert">{{ job.error }}；选择已保留。</p>
 		<a v-if="job?.download_url" :href="job.download_url"

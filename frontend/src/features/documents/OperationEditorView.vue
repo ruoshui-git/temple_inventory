@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import QuickExport from "../../components/QuickExport.vue";
+import type { ReportQuery } from "../../lib/reportContract";
+import { computed, ref, watch } from "vue";
 import type { OperationEditor } from "./useOperationEditor";
 import { operationLabels } from "./operationCodec";
 import OperationLines from "./OperationLines.vue";
@@ -10,16 +12,19 @@ import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
-import InventoryIcon from "../../components/InventoryIcon.vue";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
-import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import { useInventoryServices } from "../../services/contracts";
 import { newReportQuery } from "../../lib/reportContract";
 const props = withDefaults(defineProps<{ controller: OperationEditor; active?: boolean }>(), {
 	active: true,
 });
-const emit = defineEmits<{ back: []; notify: [message: string]; leave: [] }>();
+const emit = defineEmits<{
+	back: [];
+	notify: [message: string];
+	leave: [];
+	openExport: [query: ReportQuery];
+}>();
 const c = props.controller;
 const {
 	draft,
@@ -36,15 +41,25 @@ const {
 	action,
 	candidates,
 } = c;
+const supplement = ref<HTMLDetailsElement>();
+watch(
+	() =>
+		files.files
+			.filter((file) => ["error", "reselect"].includes(file.state))
+			.map((file) => `${file.id}:${file.state}`)
+			.join("|"),
+	(value) => {
+		if (value && supplement.value) supplement.value.open = true;
+	},
+);
 const formRoot = ref<HTMLElement>(),
 	reviewBar = ref<HTMLElement>(),
 	lineEditor = ref<InstanceType<typeof OperationLines>>();
 const { expanded, toggle } = useExpandedEditor(formRoot, () => props.active !== false);
-const { isMobile } = useResponsiveLayout();
 useFocusVisibility(
 	formRoot,
 	reviewBar,
-	() => isMobile.value || expanded.value,
+	() => true,
 	() => props.active !== false,
 );
 const receive = computed(() => draft.value.kind === "Receive"),
@@ -52,10 +67,12 @@ const receive = computed(() => draft.value.kind === "Receive"),
 		() => operationLabels[draft.value.kind] || String(state.server?.purpose || "库存记录"),
 	);
 const { supportingDirty, leaveRequested: leaveOpen } = c;
-const detailsOpen = ref(false),
-	reloadOpen = ref(false),
+const reloadOpen = ref(false),
 	loanChoice = ref("");
 const services = useInventoryServices();
+const editing = computed(
+	() => state.status === "conflict" || !state.server || state.server.editable === true,
+);
 const itemCount = computed(() => new Set(draft.value.items.map((line) => line.code)).size);
 const totals = computed(() => {
 	const values = new Map<string, number>();
@@ -114,26 +131,21 @@ async function back() {
 }
 </script>
 <template>
-	<section
-		ref="formRoot"
-		:class="[
-			receive ? 'receive-example' : 'preview-form-page',
-			{ 'workspace-expanded': expanded },
-		]"
-	>
-		<div :class="receive ? 'page-heading' : 'form-page-heading'">
+	<section ref="formRoot" class="preview-form-page" :class="{ 'workspace-expanded': expanded }">
+		<div class="form-page-heading">
 			<div>
-				<span class="eyebrow">{{ receive ? "RECEIVE / 入库登记" : "货物流动" }}</span>
-				<h1>{{ receive && !state.identity ? "把善意，妥善安放。" : title }}</h1>
-				<p class="muted">
-					{{
-						receive
-							? "一张清楚的入库记录，是物资流转的开始。"
-							: "核对物品、数量、批次与库位，复核后确认。"
-					}}
-				</p>
+				<span class="eyebrow">货物流动</span>
+				<h1>{{ title }}</h1>
+				<p class="muted">核对物品、数量、批次与库位，复核后确认。</p>
 			</div>
-			<UiButton variant="ghost" @click="back">返回</UiButton>
+			<div class="form-actions">
+				<QuickExport
+					v-if="!loading && c.savedExportQuery.value"
+					:query="c.savedExportQuery.value"
+					:active="active"
+					@open-full="emit('openExport', $event)"
+				/><UiButton variant="ghost" @click="back">返回</UiButton>
+			</div>
 		</div>
 		<p v-if="loading" role="status">正在读取原生记录…</p>
 		<div class="form-status">
@@ -201,44 +213,39 @@ async function back() {
 				>复制为新草稿</UiButton
 			>
 		</div>
-		<form
-			novalidate
-			:class="receive ? 'receive-layout' : 'form-layout'"
-			@submit.prevent="review"
-		>
-			<div :class="receive ? 'receive-main' : 'form-main surface'">
-				<template v-if="writable">
-					<section :class="['form-section', { surface: receive }]">
-						<div class="section-heading">
-							<h2>{{ title }}时间</h2>
-							<span class="muted">01</span>
-						</div>
-						<div class="form-fields">
-							<label class="preview-field"
-								>操作日期<input
-									v-model="draft.postingDate"
-									type="date"
-									:disabled="busy || draft.timeMode === 'current'" /></label
-							><label class="preview-field"
-								>时间方式<select v-model="draft.timeMode" :disabled="busy">
-									<option value="current">确认时的当前时间</option>
-									<option value="manual">指定历史时间</option>
-								</select></label
-							><label v-if="draft.timeMode === 'manual'" class="preview-field"
-								>操作时间<input
-									v-model="draft.postingTime"
-									type="time"
-									step="1"
-									:disabled="busy"
-							/></label>
-							<p v-if="draft.timeMode === 'manual'" class="muted">
-								可用数量按指定日期和时间核对。
-							</p>
-						</div>
+		<form novalidate class="form-layout" @submit.prevent="review">
+			<div class="form-main surface">
+				<template v-if="editing">
+					<section class="form-section form-date-section">
+						<label class="preview-field"
+							>操作日期<input
+								v-model="draft.postingDate"
+								type="date"
+								:disabled="
+									!writable || busy || draft.timeMode === 'current'
+								" /></label
+						><label class="preview-field"
+							>时间方式<select
+								v-model="draft.timeMode"
+								:disabled="!writable || busy"
+							>
+								<option value="current">确认时的当前时间</option>
+								<option value="manual">指定历史时间</option>
+							</select></label
+						><label v-if="draft.timeMode === 'manual'" class="preview-field"
+							>操作时间<input
+								v-model="draft.postingTime"
+								type="time"
+								step="1"
+								:disabled="!writable || busy"
+						/></label>
+						<p v-if="draft.timeMode === 'manual'" class="muted">
+							可用数量按指定日期和时间核对。
+						</p>
 					</section>
 					<section
 						v-if="draft.kind === 'Loan' || draft.kind === 'Return' || draft.loanName"
-						:class="['form-section', { surface: receive }]"
+						class="form-section"
 					>
 						<h2>{{ draft.kind === "Loan" ? "借用对象" : "归还来源" }}</h2>
 						<div class="form-fields">
@@ -246,20 +253,22 @@ async function back() {
 								><label class="preview-field"
 									>借用人 / 团体<input
 										v-model="draft.borrower"
-										:disabled="busy" /></label
+										:disabled="!writable || busy" /></label
 								><SearchSelect
 									label="借出存放库位"
 									:model-value="draft.loanDestination"
 									@update:model-value="c.setLoanDestination"
 									:options="reference.leasedLeaves"
-									:disabled="busy" /></template
+									:disabled="!writable || busy" /></template
 							><template v-else
 								><RemoteSelect
 									label="关联借用记录"
 									v-model="loanChoice"
 									:load="loans"
-									:disabled="busy"
-								/><UiButton :disabled="!loanChoice || busy" @click="addLoan"
+									:disabled="!writable || busy"
+								/><UiButton
+									:disabled="!loanChoice || !writable || busy"
+									@click="addLoan"
 									>加入此借用</UiButton
 								>
 								<p>
@@ -274,18 +283,46 @@ async function back() {
 						</div>
 					</section>
 				</template>
-				<section :class="['form-section operation-section', { surface: receive }]">
-					<div class="section-heading">
-						<div>
-							<span class="eyebrow">02 / 物品与位置</span>
-							<h2>{{ receive ? "这次收到什么？" : "操作物资" }}</h2>
-						</div>
-						<span class="badge neutral">{{ draft.items.length }} 行分配</span>
+				<dl v-else class="preview-info-grid form-section">
+					<div>
+						<dt>操作日期</dt>
+						<dd>{{ draft.postingDate }}</dd>
 					</div>
+					<div>
+						<dt>操作时间（站点时间）</dt>
+						<dd>{{ draft.postingTime }}</dd>
+					</div>
+					<div v-if="draft.borrower">
+						<dt>借用方</dt>
+						<dd>{{ draft.borrower }}</dd>
+					</div>
+					<div v-if="draft.kind === 'Loan'">
+						<dt>借出存放库位</dt>
+						<dd>
+							{{
+								reference.warehouses.find(
+									(row) => row.name === draft.loanDestination,
+								)?.label || draft.loanDestination
+							}}
+						</dd>
+					</div>
+				</dl>
+				<p v-if="draft.amendedFrom" class="preview-long-text">
+					修订来源：{{ draft.amendedFrom }}
+				</p>
+				<section class="form-section operation-section">
+					<h2>操作物资</h2>
+					<p class="muted">
+						{{
+							receive
+								? "按库位 → 物品 → 批次分配填写，数量由分配合计。"
+								: "核对库位、现有批次与可处理数量。"
+						}}
+					</p>
 					<OperationLines
 						ref="lineEditor"
 						:draft="draft"
-						:mode="writable ? 'edit' : 'display'"
+						:mode="editing ? 'edit' : 'display'"
 						:disabled="!writable || busy"
 						:show-error="showError"
 						:expanded="expanded"
@@ -294,27 +331,20 @@ async function back() {
 						@notify="emit('notify', $event)"
 					/>
 				</section>
-				<section :class="['form-section', { surface: receive }]">
-					<div class="section-heading">
-						<h2>补充信息</h2>
-						<span class="muted">03</span>
-					</div>
-					<button
-						type="button"
-						class="disclosure"
-						:aria-expanded="detailsOpen"
-						@click="detailsOpen = !detailsOpen"
-					>
-						来源、活动与备注 <InventoryIcon name="chevron-down" />
-					</button>
-					<div v-show="detailsOpen" class="form-grid">
+				<details ref="supplement" class="form-section">
+					<summary>补充记录（可选）</summary>
+					<div class="form-grid">
 						<TransactionContext
 							:draft="draft"
-							:disabled="busy"
-							:mode="writable ? 'edit' : 'display'"
+							:disabled="!writable || busy"
+							:mode="editing ? 'edit' : 'display'"
 							@dirty-change="supportingDirty = $event"
-						/><label v-if="writable" class="preview-field full-width"
-							>备注<textarea v-model="draft.note" rows="3" :disabled="busy" />
+						/><label v-if="editing" class="preview-field full-width"
+							>备注<textarea
+								v-model="draft.note"
+								rows="3"
+								:disabled="!writable || busy"
+							/>
 						</label>
 						<div v-else class="preview-long-text">{{ draft.note }}</div>
 					</div>
@@ -323,10 +353,10 @@ async function back() {
 						<Attachments
 							:controller="files"
 							:disabled="!writable || busy"
-							:mode="writable ? 'edit' : 'display'"
+							:mode="editing ? 'edit' : 'display'"
 						/>
 					</div>
-					<fieldset v-if="writable" class="people-fields" :disabled="busy">
+					<fieldset v-if="editing" class="people-fields" :disabled="!writable || busy">
 						<legend>现场人员（可选）</legend>
 						<div class="form-grid">
 							<label class="preview-field"
@@ -351,7 +381,7 @@ async function back() {
 							<dd>{{ value || "未填写" }}</dd>
 						</div>
 					</dl>
-				</section>
+				</details>
 				<div v-if="showError && issues.length" role="alert" class="notice-bar danger">
 					<p v-for="issue in issues.filter((row) => !row.lineId)" :key="issue.field">
 						{{ issue.message }}
@@ -361,10 +391,7 @@ async function back() {
 				<div
 					v-if="writable || state.confirmationVersion"
 					ref="reviewBar"
-					:class="[
-						'form-section form-actions preview-document-actions',
-						{ surface: receive },
-					]"
+					class="form-actions preview-document-actions"
 				>
 					<p class="muted">
 						{{ draft.items.length }} 行 · {{ totals || "尚未添加物品" }}
@@ -381,7 +408,11 @@ async function back() {
 						:disabled="busy || supportingDirty"
 						:loading="busy"
 						>复核并确认</UiButton
-					><UiButton v-else variant="primary" :loading="busy" @click="c.confirm"
+					><UiButton
+						v-else-if="state.confirmationVersion"
+						variant="primary"
+						:loading="busy"
+						@click="c.confirm"
 						>检查上次确认结果</UiButton
 					><small class="muted">复核并确认后才变更库存。</small
 					><UiButton
@@ -389,31 +420,35 @@ async function back() {
 							state.identity &&
 							(state.server?.permissions as Record<string, boolean>)?.delete
 						"
-						:disabled="busy"
+						:disabled="!writable || busy"
 						@click="action = 'delete'"
 						>删除原生草稿</UiButton
 					>
 				</div>
 			</div>
-			<aside :class="['surface', receive ? 'receive-summary' : 'form-review']">
-				<span class="eyebrow">REVIEW / 检查</span>
-				<h2>本次{{ title }}</h2>
-				<div class="summary-count">
-					{{ new Set(draft.items.map((line) => line.code)).size
-					}}<span>种物品 · {{ draft.items.length }} 行分配</span>
+			<aside class="form-review surface">
+				<span class="eyebrow">确认前检查</span>
+				<span role="status">{{ statusLabels[state.status] }}</span>
+				<h2>操作汇总</h2>
+				<div class="review-metric">
+					<strong>{{ totals || "尚未添加物品" }}</strong
+					><span>各单位分别合计</span>
 				</div>
-				<p class="numeric">{{ totals || "尚未添加物品" }}</p>
-				<p class="muted">
-					{{
-						new Set(
-							draft.items
-								.map((line) => line.sourceLocation || line.location)
-								.filter(Boolean),
-						).size
-					}}
-					个位置<br />{{ files.files.length }} 份附件
+				<p class="review-scope">
+					{{ itemCount }} 种物品 · {{ draft.items.length }} 行分配
 				</p>
-				<AllocationSummary :draft="draft" collapsible />
+				<div class="review-lines-disclosure">
+					<AllocationSummary :draft="draft" collapsible />
+				</div>
+				<p v-if="draft.kind === 'Loan'">借用方：{{ draft.borrower || "待填写" }}</p>
+				<p v-if="draft.activity">
+					活动：{{
+						reference.activities.find((row) => row.value === draft.activity)?.label ||
+						draft.activity
+					}}
+				</p>
+				<p v-if="draft.postingDate">日期：{{ draft.postingDate }}</p>
+				<p class="muted">确认前请核对物品、数量和库位。复核并确认后才变更库存。</p>
 			</aside>
 		</form>
 		<Overlay

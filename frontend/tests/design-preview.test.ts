@@ -327,8 +327,8 @@ describe("interactive preview", () => {
   it("keeps the native date and allocation editor mounted across receiving layout settings", async () => {
     const wrapper = render(PreviewReceive, { pattern: "proposed" });
     await flushPromises();
-    expect(wrapper.find(".receive-summary").exists()).toBe(true);
-    expect(wrapper.findAll(".form-section")[0].text()).toContain("入库时间");
+    expect(wrapper.find(".form-review").exists()).toBe(true);
+    expect(wrapper.findAll(".form-section")[0].text()).toContain("操作日期");
     await wrapper.get("select").setValue("manual");
     const date = wrapper.findAll(".form-section")[0].get('input[type="date"]');
     await date.setValue("2026-10-12");

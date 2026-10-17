@@ -1,3 +1,4 @@
+import { savedDocumentExport } from "./savedDocumentExport";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import type { InitialAllocation } from "../../lib/routeSelection";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
@@ -701,6 +702,9 @@ export function useOperationEditor(props: {
   );
 
   return {
+    savedExportQuery: computed(() =>
+      savedDocumentExport(state.server, state.status),
+    ),
     leaveRequested,
     supportingDirty,
     requestLeave,

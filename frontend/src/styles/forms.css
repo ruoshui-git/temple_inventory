@@ -673,6 +673,7 @@
 	:root .preview-form-page.preview-form-page .form-review,
 	:root .receive-example .receive-summary {
 		position: static;
+		z-index: auto;
 		max-height: none;
 		width: auto;
 		overflow: visible;

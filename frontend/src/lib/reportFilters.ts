@@ -102,7 +102,12 @@ export function reportFilterChips(
       `核对状态：${query.countReviewed === "reviewed" ? "已核对" : "未核对"}`,
       { countReviewed: "all" },
     );
-  if (query.record) add("record", `限定单据：${query.record}`, { record: "" });
+  if (query.record || query.recordDoctype)
+    add(
+      "record",
+      `限定单据：${query.recordDoctype ? query.recordDoctype + " · " : ""}${query.record}`,
+      { record: "", recordDoctype: "" },
+    );
   if (query.loan) add("loan", `原借用：${query.loan}`, { loan: "" });
   if (query.restrictItems || query.itemCodes.length)
     add(

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../lib/nativeTime";
 import UiButton from "./ui/UiButton.vue";
 import InventoryIcon from "./InventoryIcon.vue";
 interface DashboardSectionState {
@@ -49,6 +50,8 @@ const emit = defineEmits<{ retry: [] }>();
 			</div>
 		</template>
 		<p v-else-if="section.status === 'loading'" role="status">正在加载…</p>
-		<p v-if="snapshot && section.hasResult" class="browse-note">范围快照 {{ snapshot }}</p>
+		<p v-if="snapshot && section.hasResult" class="browse-note">
+			范围快照（站点时间） {{ siteDateTime(snapshot) }}
+		</p>
 	</article>
 </template>

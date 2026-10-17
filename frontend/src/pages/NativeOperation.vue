@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { exportDestination } from "../lib/nativeNavigation";
 import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import OperationEditorPage from "../features/documents/OperationEditorPage.vue";
@@ -62,6 +63,7 @@ function back() {
 		:initial-return-outcome="route.query.outcome === 'damaged' ? 'damaged' : 'returned'"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		@back="back"
+		@open-export="router.push(exportDestination($event))"
 	/>
 	<p v-else role="alert">
 		{{

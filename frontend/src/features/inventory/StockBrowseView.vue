@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
@@ -494,8 +495,8 @@ watch(
 			</details>
 			<footer class="result-footer">
 				<span
-					>已加载 {{ rows.length }} · 筛选结果 {{ data.total }} · 快照
-					{{ data.snapshot }}</span
+					>已加载 {{ rows.length }} · 筛选结果 {{ data.total }} · 快照（站点时间）
+					{{ siteDateTime(data.snapshot) }}</span
 				>
 				<span v-if="data.stale" role="status">上次结果 · 尚未更新</span>
 				<span v-if="data.error || data.moreError" role="alert"

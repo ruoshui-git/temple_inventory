@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { exportDestination } from "../lib/nativeNavigation";
 import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import { decodeItemSelection } from "../lib/routeSelection";
@@ -30,6 +31,7 @@ function nextCount() {
 		:warehouse="typeof route.query.warehouse === 'string' ? route.query.warehouse : undefined"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		@back="back"
+		@open-export="router.push(exportDestination($event))"
 		@new-count="nextCount"
 	/>
 	<p v-else role="alert">{{ selection.error }}</p>

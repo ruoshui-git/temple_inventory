@@ -618,7 +618,7 @@ strong {
 	min-width: 0;
 	max-width: 1680px;
 	width: 100%;
-	margin: auto;
+	margin: 0 auto;
 }
 .sample-breadcrumb {
 	display: flex;

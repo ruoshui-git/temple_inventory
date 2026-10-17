@@ -1,5 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import { existsSync } from "node:fs";
+const port = Number(process.env.NATIVE_UI_PORT || 8080);
 export default defineConfig({
   testDir: "tests/browser",
   testIgnore: ["**/design-preview/**", "**/native-server/**"],
@@ -7,7 +8,7 @@ export default defineConfig({
   workers: 1,
   timeout: 45000,
   use: {
-    baseURL: "http://127.0.0.1:8080",
+    baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 390, height: 844 },
     trace: "retain-on-failure",
     launchOptions: {
@@ -28,8 +29,8 @@ export default defineConfig({
     permissions: ["camera"],
   },
   webServer: {
-    command: "pnpm dev --host 127.0.0.1 --port 8080",
-    url: "http://127.0.0.1:8080",
+    command: `TI_DEV_PORT=${port} pnpm dev --host 127.0.0.1 --port ${port} --strictPort`,
+    url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,
   },
 });

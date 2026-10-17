@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref } from "vue";
 import ActivityEditor from "./ActivityEditor.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -262,8 +263,8 @@ function tabKey(event: KeyboardEvent) {
 							<dd>{{ activity.status === "archived" ? "已归档" : "进行中" }}</dd>
 						</div>
 						<div>
-							<dt>更新</dt>
-							<dd>{{ activity.modified }}</dd>
+							<dt>更新（站点时间）</dt>
+							<dd>{{ siteDateTime(activity.modified) }}</dd>
 						</div>
 					</dl>
 					<div class="form-actions">
@@ -351,12 +352,12 @@ function tabKey(event: KeyboardEvent) {
 						<dd>{{ current.status === "archived" ? "已归档" : "进行中" }}</dd>
 					</div>
 					<div>
-						<dt>创建</dt>
-						<dd>{{ current.owner }} · {{ current.created }}</dd>
+						<dt>创建（站点时间）</dt>
+						<dd>{{ current.owner }} · {{ siteDateTime(current.created) }}</dd>
 					</div>
 					<div>
-						<dt>更新</dt>
-						<dd>{{ current.modifiedBy }} · {{ current.modified }}</dd>
+						<dt>更新（站点时间）</dt>
+						<dd>{{ current.modifiedBy }} · {{ siteDateTime(current.modified) }}</dd>
 					</div>
 				</dl>
 				<p class="preview-long-text">{{ current.description || "未填写说明" }}</p>

@@ -3,6 +3,10 @@
 Date: 2026-10-17  
 Status: **Review complete. Substantial implementation is present, but correctness and UI refinement are still required. No implementation fixes made.**
 
+**Implementation follow-up:** R1–R10 fixes and their new verification evidence are
+recorded in [20261017_DESIGN_MIGRATION_FIXES.md](20261017_DESIGN_MIGRATION_FIXES.md).
+The independent-review findings and historical results below are retained unchanged.
+
 ## Verdict
 
 The replacement architecture is largely implemented: production uses the promoted component/style foundation, native ERPNext documents replace the old workspace/custom-loan model, and real services back the major features. The archived Activities/Reports requirements were substantially incorporated. This is more than a preview wired to a few endpoints.

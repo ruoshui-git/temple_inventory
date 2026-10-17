@@ -279,7 +279,7 @@ test("warehouse disclosures retain independent choices while complete totals rem
 }) => {
   await open(page, "movement-form/Receive-50");
   const summary = page.locator(
-    ".receive-summary:visible .preview-allocation-summary",
+    ".form-review:visible .preview-allocation-summary",
   );
   const groups = summary.locator("details");
   expect(await groups.count()).toBeGreaterThan(1);

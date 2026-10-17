@@ -96,6 +96,7 @@ export interface ReportQuery {
   activityStatus: "all" | "active" | "archived";
   typeId: string;
   record: string;
+  recordDoctype: string;
   loan: string;
   itemCodes: string[];
   restrictItems: boolean;
@@ -131,6 +132,7 @@ export function newReportQuery(
     activityStatus: "all",
     typeId: "",
     record: "",
+    recordDoctype: "",
     loan: "",
     itemCodes: [],
     restrictItems: false,

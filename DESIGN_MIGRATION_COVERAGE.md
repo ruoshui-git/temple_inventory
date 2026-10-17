@@ -1,5 +1,25 @@
 # Design migration capability ledger
 
+**Independent-review follow-up — 2026-10-17:** R1–R10 have implementations in the
+shared native hooks, saved-document editors/export scope, screen report columns,
+Receive/focus geometry, mobile warehouse layout and display formatting. Native
+settlement validation runs even without an app movement kind; balance projections
+also require compatible submitted parent/provenance. Ordinary ERPNext stock remains
+supported. Report exports retain audit columns independently of screen presentation.
+
+| Review capability | Replacement/evidence |
+| --- | --- |
+| R1 settlement boundary | Native insert/save/submit regression; complete references, source/provenance, quantity/outcome, cancellation/amendment; rollback native suite |
+| R6/R7 saved details | Exact DocType/name/status exports for both native types and all three states; selectable metadata; retained paused input; `migration-review.test.ts` and native report scope case |
+| R2 actual report shape | Server display-column definitions for all six datasets/tables; stable row keys retained; audit export columns unchanged; native page contracts and API-shaped table tests |
+| R3–R5 responsive editing | Shared compact Receive matches final routed geometry; ordinary/expanded focus; warehouse labels/actions at 375/1440 and 100/200%; focused Chromium regressions |
+| R8–R10 readability | Stable short/empty-list alignment, overview heading/Item context, display-only site timestamps; shared gallery and routed production/browser checks |
+
+See the [review-fix record](notes/20261017_DESIGN_MIGRATION_FIXES.md) for actual
+results, inspected screenshots, the native transaction-interference rerun, and the
+broader gallery sweep's timeout. Earlier aggregate acceptance counts below remain
+historical; they do not certify this change or replace its scoped evidence.
+
 **Implementation checkpoint — 2026-10-17:** Native stock/count/Item editors,
 activities, inventory/dashboard/reports, movement/loan browse, loan details, expiry,
 shared shell/styles, account display settings, damaged-stock Pending, native

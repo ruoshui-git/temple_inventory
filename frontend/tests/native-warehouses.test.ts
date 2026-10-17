@@ -139,7 +139,7 @@ describe("shared native warehouse workspace", () => {
     await flushPromises();
     expect(c.form.warehouse_type).toBe("Room");
     expect(c.form.is_group).toBe(false);
-    expect(document.body.textContent).toContain("Room / Location 表示物理意义");
+    expect(document.body.textContent).toContain("房间 / 位置表示物理意义");
     c.form.label = "新房间";
     await flushPromises();
     expect(c.dirty.value).toBe(true);

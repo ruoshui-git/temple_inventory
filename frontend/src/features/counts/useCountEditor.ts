@@ -1,3 +1,4 @@
+import { savedDocumentExport } from "../documents/savedDocumentExport";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { postingTime } from "../../lib/nativeTime";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
@@ -660,6 +661,9 @@ export function useCountEditor(props: {
   );
 
   return {
+    savedExportQuery: computed(() =>
+      savedDocumentExport(state.server, state.status),
+    ),
     state,
     editor,
     values,

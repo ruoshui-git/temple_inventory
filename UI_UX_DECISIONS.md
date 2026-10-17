@@ -14,6 +14,30 @@ before changing user-facing behavior. A current user instruction may supersede
 an older rule, but the conflict must be identified explicitly and recorded here
 in the same change. Keep implementation details in code or task notes, not here.
 
+## Review refinements — 2026-10-17
+
+These restore the consolidated handoff and supersede the migrated Receive example
+layout. Receive uses the shared compact workflow, with optional context, personnel
+and attachments disclosed together. Attachment recovery/errors reveal that section.
+One measured action area keeps keyboard focus visible on desktop/mobile, including
+expanded editing; the normal-flow mobile summary does not cover actions.
+
+Saved native details expose posting date/time, applicable borrower and amendment
+provenance as selectable text. Temporary busy/conflict states retain input controls
+and buffers. Quick Export uses the saved record's exact DocType, name and status;
+local-only input contributes no export content. Its full workspace inherits that scope.
+
+Report screens prioritize readable names/context and quantities. Internal row keys
+remain separate from visible columns; native audit identities remain in export data.
+Mobile warehouse actions wrap below labels with reduced indentation and 44px targets;
+physical types display in Chinese while native identifiers stay unchanged. Short
+pages align to the top. Dashboard shows its overview heading, all supplied Item names
+and secondary native identity/date. Native timestamp captions show site wall time to
+the minute; exact API/version values remain unchanged.
+
+Implementation and verification are recorded in the
+[review-fix record](notes/20261017_DESIGN_MIGRATION_FIXES.md).
+
 ## Current preview decision index — 2026-10-16
 
 **Migration supersession — 2026-10-16:** The user has locked the design-to-production

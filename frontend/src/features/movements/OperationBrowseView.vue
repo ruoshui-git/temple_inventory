@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref } from "vue";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
@@ -285,7 +286,7 @@ function openedRecord(row: OperationGroup) {
 					>
 				</p>
 				<p v-if="result.snapshot" class="browse-note">
-					结果快照 {{ result.snapshot }} · {{ result.total }}
+					结果快照（站点时间） {{ siteDateTime(result.snapshot) }} · {{ result.total }}
 					{{ records ? "笔记录" : family === "loans" ? "组物品" : "种物品" }} · 已显示
 					{{ result.rows.length }}
 				</p>

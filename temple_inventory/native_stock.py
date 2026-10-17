@@ -208,12 +208,28 @@ def validate_availability(doc):
 			frappe.throw(f"{code} 的批次 {batch} 在 {warehouse} 数量不足，请刷新后核对")
 
 
+def validate_settlement_metadata(doc):
+	"""App meaning must be complete even on otherwise ordinary native documents."""
+	for row in doc.get("items", []):
+		metadata = [
+			row.get(field) for field in ("ti_original_loan", "ti_original_loan_line", "ti_settlement_outcome")
+		]
+		if any(metadata):
+			if not all(metadata):
+				frappe.throw("原借出记录、明细和结算结果必须同时指定")
+			if doc.get("ti_movement_kind") not in ("Return", "Damage", "Loss"):
+				frappe.throw("借用结算必须指定兼容的操作类型")
+		elif row.get("ti_origin_warehouse") and doc.get("ti_movement_kind") != "Loan":
+			frappe.throw("原存放位置必须来自借出或有效结算明细")
+
+
 def before_validate(doc, method=None):
 	from temple_inventory.native_balances import lock_stock_locations
 
 	lock_stock_locations(doc)
 	validate_request_identity(doc)
 	kind = doc.get("ti_movement_kind")
+	validate_settlement_metadata(doc)
 	if not kind:
 		validate_assignment(doc)
 		return
@@ -292,7 +308,18 @@ def loan_balances(loan_name, *, lock=False, by_batch=False):
 		       line.item_code, line.transfer_qty, line.batch_no, line.serial_and_batch_bundle
 		from `tabStock Entry Detail` line
 		join `tabStock Entry` parent on parent.name = line.parent
+		join `tabStock Entry Detail` original on original.name = line.ti_original_loan_line
+		join `tabStock Entry` loan on loan.name = original.parent
 		where parent.docstatus = 1 and line.ti_original_loan = %s
+		  and loan.name = line.ti_original_loan and loan.docstatus = 1
+		  and loan.ti_movement_kind = 'Loan' and loan.company = parent.company
+		  and original.item_code = line.item_code and original.t_warehouse = line.s_warehouse
+		  and ((parent.ti_movement_kind = 'Return' and parent.purpose = 'Material Transfer'
+		        and line.ti_settlement_outcome in ('Returned', 'Damaged'))
+		    or (parent.ti_movement_kind = 'Damage' and parent.purpose = 'Material Transfer'
+		        and line.ti_settlement_outcome = 'Damaged')
+		    or (parent.ti_movement_kind = 'Loss' and parent.purpose = 'Material Issue'
+		        and line.ti_settlement_outcome = 'Lost'))
 		"""
 		+ (" for update" if lock else ""),
 		loan_name,
@@ -345,6 +372,8 @@ def validate_settlements(doc):
 			requested_batches[(loan.name, original.name, batch)] += quantity
 		if row.s_warehouse != original.t_warehouse:
 			frappe.throw("结算来源必须是原借出明细的实际借出位置")
+		if row.get("ti_origin_warehouse") and row.ti_origin_warehouse != original.s_warehouse:
+			frappe.throw("原存放位置与原借出明细不一致")
 		row.ti_origin_warehouse = original.s_warehouse
 		expected = {"Loss": {"Lost"}, "Damage": {"Damaged"}, "Return": {"Returned", "Damaged"}}
 		if row.ti_settlement_outcome not in expected.get(doc.ti_movement_kind, set()):

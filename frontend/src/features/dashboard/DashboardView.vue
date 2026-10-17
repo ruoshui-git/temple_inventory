@@ -10,6 +10,7 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import { reportDefinitions, type ReportQuery } from "../../lib/reportContract";
+import { movementLabels } from "../../lib/filterPresentation";
 import { quantityText, type useDashboardController } from "./useDashboardController";
 const props = withDefaults(
 	defineProps<{
@@ -49,7 +50,7 @@ const { isMobile } = useResponsiveLayout();
 </script>
 <template>
 	<div class="preview-dashboard">
-		<h1 class="sr-only" tabindex="-1">首页</h1>
+		<h1 tabindex="-1">物资总览</h1>
 		<div class="browse-toolbar">
 			<label class="preview-field"
 				>快速导出数据集<select v-model="reportDataset">
@@ -307,9 +308,14 @@ const { isMobile } = useResponsiveLayout();
 							@click="emit('openDocument', row.doctype!, row.document!)"
 						>
 							<span
-								>{{ row.document
+								>{{
+									row.item_names ||
+									row.item_name ||
+									movementLabels[row.kind || ""] ||
+									"库存记录"
 								}}<small
-									>{{ row.date }} ·
+									>{{ movementLabels[row.kind || ""] || row.kind }} ·
+									{{ row.document }} · {{ row.date }} ·
 									{{ row.activity_title || "未关联活动" }}</small
 								></span
 							><b>{{ quantityText(row.quantities || []) }}</b>

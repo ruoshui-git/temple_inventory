@@ -37,7 +37,7 @@ test("dashboard retains applied scope and dismisses its filter across 1024px", a
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/inventory/");
   await expect(
-    page.getByRole("heading", { name: "首页", exact: true }),
+    page.getByRole("heading", { name: "物资总览", exact: true }),
   ).toBeVisible();
   await expect(
     page.locator('[data-section="inventory"] [aria-busy="true"]'),

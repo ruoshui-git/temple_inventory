@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
@@ -104,7 +105,7 @@ const {
 				<UiButton @click="clear">重置导出设置</UiButton>
 			</div>
 			<p v-if="dataset === 'inventory' && query.view !== 'historical'" class="muted">
-				当前库存快照：{{ result.snapshot }}
+				当前库存快照（站点时间）：{{ siteDateTime(result.snapshot) }}
 			</p>
 
 			<p v-if="dataset === 'loans'" class="muted">

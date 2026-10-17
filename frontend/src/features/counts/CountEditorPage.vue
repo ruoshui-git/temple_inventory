@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ReportQuery } from "../../lib/reportContract";
 import CountEditorView from "./CountEditorView.vue";
 import { useCountEditor } from "./useCountEditor";
 const props = withDefaults(
@@ -11,13 +12,14 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
-const emit = defineEmits<{ back: []; newCount: [] }>();
+const emit = defineEmits<{ back: []; openExport: [query: ReportQuery]; newCount: [] }>();
 const controller = useCountEditor(props);
 defineExpose({ controller });
 </script>
 <template>
 	<CountEditorView
 		:controller="controller"
+		@open-export="emit('openExport', $event)"
 		:active="active"
 		@back="emit('back')"
 		@new-count="emit('newCount')"

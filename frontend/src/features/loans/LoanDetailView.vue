@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import type { LoanDetail, SettlementAction } from "./useLoanDetail";
@@ -85,7 +86,7 @@ function settle(action: SettlementAction) {
 			</div>
 			<p class="browse-note">
 				借出日期为原记录日期；结余按当前已提交且未取消的处理记录计算。{{
-					loan.balance_at ? `结余快照 ${loan.balance_at}` : ""
+					loan.balance_at ? `结余快照（站点时间） ${siteDateTime(loan.balance_at)}` : ""
 				}}
 			</p>
 			<div

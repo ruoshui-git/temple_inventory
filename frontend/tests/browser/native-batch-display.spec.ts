@@ -96,9 +96,7 @@ for (const width of [375, 768, 1024, 1440]) {
         await page.goto(
           "/inventory/documents/Stock%20Entry/" + encodeURIComponent(doc.name),
         );
-        const summary = page.locator(
-          ".receive-main .preview-allocation-summary",
-        );
+        const summary = page.locator(".form-main .preview-allocation-summary");
         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
           2,
         );
@@ -129,7 +127,7 @@ for (const width of [375, 768, 1024, 1440]) {
           ),
         ).toBe(true);
         expect(
-          await page.locator(".receive-summary").evaluate((element) => {
+          await page.locator(".form-review").evaluate((element) => {
             const style = getComputedStyle(element);
             const available =
               element.clientWidth -

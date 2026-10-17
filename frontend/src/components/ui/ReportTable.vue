@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref, watch, useSlots } from "vue";
 import UiButton from "./UiButton.vue";
 import type { ReportTable } from "../../lib/reportContract";
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 }>();
 const slots = useSlots();
+const visibleColumns = computed(() => props.table.columns.filter((column) => column !== "id"));
 const loaded = ref(30);
 const visibleLimit = computed(
 	() => props.limit ?? (props.total === undefined ? loaded.value : props.table.rows.length),
@@ -175,8 +177,19 @@ const labels: Record<string, string> = {
 	barcode: "条码",
 };
 function cell(column: string, value: unknown) {
-	if (typeof value === "boolean") return value ? "是" : "否";
 	if (value === "" || value === undefined || value === null) return "未填写";
+	if (
+		[
+			"snapshot",
+			"modified",
+			"creation",
+			"balance_at",
+			"posting_timestamp",
+			"baseline_timestamp",
+		].includes(column)
+	)
+		return siteDateTime(value);
+	if (typeof value === "boolean") return value ? "是" : "否";
 	const dictionary: Record<string, Record<string, string>> = {
 		kind: {
 			Receive: "入库",
@@ -235,7 +248,7 @@ function cell(column: string, value: unknown) {
 			</caption>
 			<thead>
 				<tr>
-					<th v-for="column in table.columns" :key="column">
+					<th v-for="column in visibleColumns" :key="column">
 						{{ labels[column] || column }}
 					</th>
 					<th v-if="slots.actions">操作</th>
@@ -247,7 +260,7 @@ function cell(column: string, value: unknown) {
 					:key="String(row.id ?? index)"
 					:data-browse-row="table.id + ':' + String(row.id ?? index)"
 				>
-					<td v-for="column in table.columns" :key="column">
+					<td v-for="column in visibleColumns" :key="column">
 						<button
 							v-if="column === 'document' && row.doctype && row.document"
 							class="text-button"
