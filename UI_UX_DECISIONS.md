@@ -38,6 +38,21 @@ the minute; exact API/version values remain unchanged.
 Implementation and verification are recorded in the
 [review-fix record](notes/20261017_DESIGN_MIGRATION_FIXES.md).
 
+## Follow-up refinements — 2026-10-17
+
+Saved Opening Stock uses the movements export while retaining native reconciliation
+identity and opening quantities; physical counts keep their count review tables.
+Linked activity titles resolve on direct entry and recovery, including permitted
+archived activities. Reload/focus/session restoration refresh titles independently
+of stock-document changes. Unverified links say 活动暂不可用 and retain their identity.
+Quick Export previews display native identifiers as selectable text; full report
+navigation and file generation retain their own controls. This supersedes the
+preview's enabled document buttons with no activation behavior.
+
+The shared dashboard gallery defaults to realistic named records and activity
+context; missing-context fallbacks are an explicit separate service scenario.
+Evidence is in the [follow-up fix record](notes/20261017_DESIGN_MIGRATION_FOLLOWUP_FIXES.md).
+
 ## Current preview decision index — 2026-10-16
 
 **Migration supersession — 2026-10-16:** The user has locked the design-to-production

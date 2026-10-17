@@ -40,7 +40,10 @@ function record(
     items: [],
   };
 }
-function render(doc: NativeDocument) {
+function render(
+  doc: NativeDocument,
+  activityCall?: (name: string) => Promise<unknown>,
+) {
   const reference = createReferenceData();
   Object.assign(reference, {
     site: "unit-site",
@@ -48,8 +51,14 @@ function render(doc: NativeDocument) {
     siteDate: "2026-10-17",
     siteTime: "2026-10-17 10:00:00",
   });
-  const call = vi.fn(async (endpoint: string) =>
-    endpoint === "native_api.load_document" ? structuredClone(doc) : [],
+  const call = vi.fn(
+    async (endpoint: string, args?: Record<string, unknown>) => {
+      if (endpoint === "activities.load_activity")
+        return activityCall?.(String(args?.name));
+      return endpoint === "native_api.load_document"
+        ? structuredClone(doc)
+        : [];
+    },
   );
   const report = vi.fn(async (_query: unknown) => ({
     query: {},
@@ -59,7 +68,12 @@ function render(doc: NativeDocument) {
     table: "records",
     columns: ["id", "document", "stock_qty"],
     rows: [
-      { id: '["records", "hidden-key"]', document: doc.name, stock_qty: 2 },
+      {
+        id: '["records", "hidden-key"]',
+        doctype: doc.doctype,
+        document: doc.name,
+        stock_qty: 2,
+      },
     ],
     matched_count: 1,
     next_start: null,
@@ -83,7 +97,7 @@ function render(doc: NativeDocument) {
     }),
   );
   wrappers.push(wrapper);
-  return { wrapper, report };
+  return { wrapper, report, call, reference };
 }
 describe("migration review saved details", () => {
   it.each([0, 1, 2] as const)(
@@ -116,6 +130,8 @@ describe("migration review saved details", () => {
         const dialog = document.body.querySelector('[role="dialog"]')!;
         expect(dialog.textContent).toContain("2026-10-17 14:34");
         expect(dialog.textContent).not.toContain(".267486");
+        expect(dialog.querySelector("tbody button")).toBeNull();
+        expect(dialog.querySelector("tbody")?.textContent).toContain(doc.name);
         (
           Array.from(dialog.querySelectorAll("button")).find(
             (button) => button.textContent === "打开导出页面",
@@ -256,4 +272,101 @@ it("formats site wall time without changing exact concurrency tokens", () => {
   expect(doc.version).toBe("2026-10-17 14:34:48.267486");
   expect(siteDateTime("2026-10-17 9:04:48")).toBe("2026-10-17 09:04");
   expect(siteDateTime("2026-10-17")).toBe("2026-10-17");
+});
+
+describe("migration follow-up", () => {
+  it("routes Opening Stock through movements in quick and full export", async () => {
+    const doc = {
+      ...record("Stock Reconciliation"),
+      purpose: "Opening Stock",
+      kind: "Opening",
+      items: [{ item_code: "ITEM-A", qty: 7 }],
+    };
+    const { wrapper, report } = render(doc);
+    await flushPromises();
+    const quick = wrapper.getComponent(QuickExport);
+    expect(quick.props("query")).toMatchObject({
+      dataset: "movements",
+      view: "records",
+      record: doc.name,
+      recordDoctype: doc.doctype,
+      statuses: [1],
+      includeAdjustments: true,
+    });
+    await quick.get("button").trigger("click");
+    await flushPromises();
+    expect(report.mock.calls[0]?.[0]).toEqual(quick.props("query"));
+    Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent === "打开导出页面")!
+      .click();
+    await flushPromises();
+    expect(quick.emitted("openFull")?.[0]?.[0]).toEqual(quick.props("query"));
+    expect(
+      savedDocumentExport(
+        { ...doc, purpose: "Stock Reconciliation" },
+        "submitted",
+      )?.dataset,
+    ).toBe("counts");
+  });
+  it.each(["Active", "Archived"])(
+    "resolves permitted %s titles on fresh operation and count entry and reload",
+    async (status) => {
+      for (const doctype of ["Stock Entry", "Stock Reconciliation"] as const) {
+        const doc = { ...record(doctype), ti_activity: "OPAQUE-ID" };
+        let title = "可读关联活动";
+        const activityCall = vi.fn(async (name: string) => ({
+          name,
+          title,
+          status,
+        }));
+        const { wrapper } = render(doc, activityCall);
+        await flushPromises();
+        expect(activityCall).toHaveBeenCalledWith("OPAQUE-ID");
+        expect(wrapper.text()).toContain(title);
+        expect(wrapper.text()).not.toContain("OPAQUE-ID");
+        title = "重命名后的活动";
+        const c =
+          doctype === "Stock Entry"
+            ? wrapper.getComponent(OperationEditorPage).vm.controller
+            : wrapper.getComponent(CountEditorPage).vm.controller;
+        await c.load();
+        await flushPromises();
+        expect(wrapper.text()).toContain(title);
+      }
+    },
+  );
+  it("resolves restored input and shows a truthful permission fallback", async () => {
+    const { wrapper, reference } = render(
+      record("Stock Entry", 0),
+      async (name) => {
+        if (name === "DENIED") throw new Error("PermissionError");
+        return { name, title: "恢复的归档活动", status: "Archived" };
+      },
+    );
+    await flushPromises();
+    const c = wrapper.getComponent(OperationEditorPage).vm.controller;
+    await c.recover({
+      schema: 1,
+      site: reference.site,
+      account: reference.user,
+      tabId: "old-tab",
+      editorId: "old-editor",
+      editorKind: "Receive",
+      revision: 1,
+      updatedAt: "2026-10-17",
+      pendingUploadReselection: false,
+      values: {
+        ...JSON.parse(JSON.stringify(c.draft.value)),
+        activity: "RESTORED",
+      },
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("恢复的归档活动");
+    reference.activities.push({ value: "DENIED", label: "不得使用的缓存标题" });
+    c.draft.value.activity = "DENIED";
+    await flushPromises();
+    expect(wrapper.text()).toContain("活动暂不可用");
+    expect(wrapper.text()).not.toContain("不得使用的缓存标题");
+    expect(c.draft.value.activity).toBe("DENIED");
+  });
 });

@@ -186,3 +186,30 @@ test("short lists stay at the same top alignment as populated lists", async ({
     }
   }
 });
+
+for (const width of [375, 1440]) {
+  test(`dashboard named records and deliberate fallback ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await open(page, "dashboard/overview");
+    const records = page.locator(".browse-rank-row");
+    await expect(records.first()).toBeVisible();
+    await expect(records.filter({ hasText: "库存记录" })).toHaveCount(0);
+    await expect(records.filter({ hasText: "秋季" }).first()).toBeVisible();
+    mkdirSync(evidence, { recursive: true });
+    await page.screenshot({
+      path: `${evidence}/followup-dashboard-${width}.png`,
+      fullPage: true,
+    });
+    await page.getByText("图库服务状态", { exact: true }).click();
+    await page.getByLabel("缺少名称与活动（回退示例）").check();
+    await page
+      .getByRole("button", { name: "应用服务状态", exact: true })
+      .click();
+    await expect(records.filter({ hasText: "库存记录" }).first()).toBeVisible();
+    await expect(
+      records.filter({ hasText: "未关联活动" }).first(),
+    ).toBeVisible();
+  });
+}

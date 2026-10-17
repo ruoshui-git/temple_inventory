@@ -119,6 +119,7 @@ function full() {
 				columns: page.columns,
 				rows: page.rows,
 			}"
+			:document-links="false"
 			:limit="5"
 			:total="page.matched_count"
 		/>

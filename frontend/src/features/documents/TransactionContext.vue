@@ -9,6 +9,7 @@ import ActivityEditor from "../activities/ActivityEditor.vue";
 const props = defineProps<{
 	draft: Pick<OperationDraft, "source" | "purpose" | "activity" | "loanName"> & { kind: string };
 	disabled?: boolean;
+	activityLabel: string;
 	mode?: "edit" | "display";
 }>();
 const emit = defineEmits<{ dirtyChange: [value: boolean] }>();
@@ -45,11 +46,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 		<div>
 			<dt>关联活动</dt>
 			<dd>
-				{{
-					reference.activities.find((row) => row.value === draft.activity)?.label ||
-					draft.activity ||
-					"未填写"
-				}}
+				{{ activityLabel }}
 			</dd>
 		</div>
 		<div>
@@ -63,12 +60,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				<div>
 					<dt>关联活动</dt>
 					<dd>
-						{{
-							reference.activities.find((row) => row.value === draft.activity)
-								?.label ||
-							draft.activity ||
-							"未填写"
-						}}
+						{{ activityLabel }}
 					</dd>
 				</div>
 			</dl>
@@ -78,9 +70,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				v-model="draft.activity"
 				:disabled="disabled"
 				:load="search"
-				:selected-label="
-					reference.activities.find((row) => row.value === draft.activity)?.label
-				" /><UiButton
+				:selected-label="draft.activity ? activityLabel : undefined" /><UiButton
 				v-if="!draft.loanName && reference.capabilities['Inventory Activity']?.create"
 				ref="trigger"
 				:disabled="disabled"

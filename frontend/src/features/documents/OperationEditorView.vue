@@ -29,6 +29,7 @@ const c = props.controller;
 const {
 	draft,
 	state,
+	activityLabel,
 	reference,
 	loading,
 	busy,
@@ -272,11 +273,7 @@ async function back() {
 									>加入此借用</UiButton
 								>
 								<p>
-									{{ draft.borrower }} ·
-									{{
-										reference.activities.find(
-											(row) => row.value === draft.activity,
-										)?.label || draft.activity
+									{{ draft.borrower }} · {{ activityLabel
 									}}<br />可加入同一借用方和活动的多笔借用；遗失使用单独操作。
 								</p></template
 							>
@@ -336,6 +333,7 @@ async function back() {
 					<div class="form-grid">
 						<TransactionContext
 							:draft="draft"
+							:activity-label="activityLabel"
 							:disabled="!writable || busy"
 							:mode="editing ? 'edit' : 'display'"
 							@dirty-change="supportingDirty = $event"
@@ -441,12 +439,7 @@ async function back() {
 					<AllocationSummary :draft="draft" collapsible />
 				</div>
 				<p v-if="draft.kind === 'Loan'">借用方：{{ draft.borrower || "待填写" }}</p>
-				<p v-if="draft.activity">
-					活动：{{
-						reference.activities.find((row) => row.value === draft.activity)?.label ||
-						draft.activity
-					}}
-				</p>
+				<p v-if="draft.activity">活动：{{ activityLabel }}</p>
 				<p v-if="draft.postingDate">日期：{{ draft.postingDate }}</p>
 				<p class="muted">确认前请核对物品、数量和库位。复核并确认后才变更库存。</p>
 			</aside>
@@ -462,6 +455,7 @@ async function back() {
 			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 行分配 · {{ totals }}</p>
 			<AllocationSummary :draft="draft" /><TransactionContext
 				:draft="draft"
+				:activity-label="activityLabel"
 				mode="display"
 			/>
 			<dl class="preview-info-grid">

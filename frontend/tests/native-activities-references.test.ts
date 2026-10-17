@@ -1,6 +1,7 @@
+import { useLinkedActivity } from "../src/features/activities/useLinkedActivity";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, ref } from "vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -267,5 +268,80 @@ describe("Activity browser recovery", () => {
     c.finishLeave("discard");
     expect(await next).toBe(true);
     expect(c.recovery.list().entries).toHaveLength(0);
+  });
+});
+
+describe("linked Activity resolution", () => {
+  it("ignores stale resolutions when the link changes", async () => {
+    const pending: Record<string, (value: unknown) => void> = {};
+    const id = ref("A");
+    const call = vi.fn(
+      (_endpoint, args) =>
+        new Promise((resolve) => {
+          pending[String(args.name)] = resolve;
+        }),
+    );
+    const { controller: label, reference } = setup(call, () =>
+      useLinkedActivity(
+        () => id.value,
+        () => undefined,
+      ),
+    );
+    id.value = "B";
+    await flushPromises();
+    pending.B!({ name: "B", title: "当前活动" });
+    await flushPromises();
+    pending.A!({ name: "A", title: "旧活动" });
+    await flushPromises();
+    expect(label.value).toBe("当前活动");
+    expect(reference.activities).toEqual([{ value: "B", label: "当前活动" }]);
+    expect(call.mock.calls[0]?.[2].aborted).toBe(true);
+  });
+  it("discards an in-flight title after an account switch", async () => {
+    let finish!: (value: unknown) => void;
+    const call = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { controller: label, reference } = setup(call, () =>
+      useLinkedActivity(
+        () => "A",
+        () => undefined,
+      ),
+    );
+    reference.user = "another-account";
+    finish({ name: "A", title: "前一账户的活动" });
+    await flushPromises();
+    expect(label.value).toBe("活动暂不可用");
+    expect(reference.activities).toEqual([]);
+  });
+  it("rechecks renames and revoked access on focus/session restoration and cleans up", async () => {
+    const call = vi.fn().mockResolvedValue({ name: "A", title: "原活动" });
+    const { controller: label, reference } = setup(call, () =>
+      useLinkedActivity(
+        () => "A",
+        () => undefined,
+      ),
+    );
+    await flushPromises();
+    expect(label.value).toBe("原活动");
+    reference.activities[0]!.label = "本页已保存的改名";
+    expect(label.value).toBe("本页已保存的改名");
+    call.mockRejectedValueOnce(new Error("PermissionError"));
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(label.value).toBe("活动暂不可用");
+    call.mockResolvedValue({ name: "A", title: "服务器改名" });
+    document.dispatchEvent(new Event("inventory-session-restored"));
+    await flushPromises();
+    expect(label.value).toBe("服务器改名");
+    wrappers.at(-1)!.unmount();
+    call.mockClear();
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("inventory-session-restored"));
+    await flushPromises();
+    expect(call).not.toHaveBeenCalled();
   });
 });

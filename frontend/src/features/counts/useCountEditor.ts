@@ -1,3 +1,4 @@
+import { useLinkedActivity } from "../activities/useLinkedActivity";
 import { savedDocumentExport } from "../documents/savedDocumentExport";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { postingTime } from "../../lib/nativeTime";
@@ -151,6 +152,10 @@ export function useCountEditor(props: {
   });
   const { state } = editor;
   const values = computed(() => state.values as unknown as CountValues);
+  const activityLabel = useLinkedActivity(
+    () => values.value.ti_activity,
+    () => state.server,
+  );
   const deskOrigin = computed(
     () => !!state.server && !state.server.ti_count_scope,
   );
@@ -661,6 +666,7 @@ export function useCountEditor(props: {
   );
 
   return {
+    activityLabel,
     savedExportQuery: computed(() =>
       savedDocumentExport(state.server, state.status),
     ),

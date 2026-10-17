@@ -385,6 +385,7 @@ function inventoryPage(query: ReportQuery, start: number, size: number) {
 export const fixtureDashboardScenario = reactive({
   failed: "",
   empty: false,
+  missingContext: false,
   delay: 0,
 });
 function dashboardCard(args: Record<string, unknown>) {
@@ -510,8 +511,13 @@ function dashboardCard(args: Record<string, unknown>) {
     result.rows = names.slice(0, 5).map((name) => {
       const rows = data.movements.filter((row) => row.name === name);
       return {
-        doctype: "Stock Entry",
+        doctype: rows[0]!.documentType || "Stock Entry",
         document: name,
+        item_names: [...new Set(rows.map((row) => row.itemName))].join("、"),
+        kind: rows[0]!.kind,
+        activity_title:
+          activities.find((activity) => activity.id === rows[0]!.activity)
+            ?.title || "",
         date: rows[0]!.date,
         quantities: rows.map((row) => ({ qty: row.qty, uom: row.uom })),
       };
@@ -527,12 +533,25 @@ function dashboardCard(args: Record<string, unknown>) {
       doctype: "Stock Entry",
       document: loan.name,
       borrower: loan.borrower,
+      activity_title:
+        activities.find((activity) => activity.id === loan.activity)?.title ||
+        "",
       date: loan.loanDate,
       quantities: loan.lines.map((row) => ({
         qty: row.qty - row.returned - row.damaged - row.lost,
         uom: session.stock.find((item) => item.code === row.code)?.uom || "",
       })),
     }));
+  }
+  if (
+    fixtureDashboardScenario.missingContext &&
+    ["movement", "loans"].includes(card)
+  ) {
+    for (const row of result.rows as ReportRow[]) {
+      delete row.item_names;
+      delete row.kind;
+      delete row.activity_title;
+    }
   }
   if (fixtureDashboardScenario.empty) {
     result.rows = [];

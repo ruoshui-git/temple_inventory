@@ -10,7 +10,9 @@ export function savedDocumentExport(
   if (!["Stock Entry", "Stock Reconciliation"].includes(doc.doctype))
     return undefined;
   const query = newReportQuery(
-    doc.doctype === "Stock Entry" ? "movements" : "counts",
+    doc.doctype === "Stock Entry" || doc.purpose === "Opening Stock"
+      ? "movements"
+      : "counts",
   );
   query.view = "records";
   query.record = doc.name;

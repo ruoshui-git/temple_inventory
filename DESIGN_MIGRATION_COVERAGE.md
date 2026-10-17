@@ -1,5 +1,18 @@
 # Design migration capability ledger
 
+**Follow-up fixes — 2026-10-17:** F1–F4 from the follow-up review are implemented.
+
+| Capability | Replacement and evidence |
+| --- | --- |
+| F2 Opening Stock exports | Saved purpose selects movements, preserving exact native identity/status and opening quantity. Real ERPNext draft/submitted/cancelled projection regression plus quick/full browser scope checks; ordinary Counts scope regression retained. |
+| F1 linked Activity labels | Shared operation/Count controller resolver calls the authorized exact Activity endpoint, including archived links. Fresh entry, unchanged-version reload, recovery, rename, unavailable, stale response, account switch and cleanup tests. |
+| F3 Quick Export identifiers | Shared table explicitly renders text in export previews; full report links retain activation. Native UI desktop/mobile and API-shaped component checks. |
+| F4 dashboard gallery | Current fixture contract supplies Item names/kind/activity context, with a separate missing-context scenario; shared gallery unit/browser checks and inspected desktop/mobile screenshots. |
+
+See the [follow-up fix record](notes/20261017_DESIGN_MIGRATION_FOLLOWUP_FIXES.md)
+for commands, results, and limits. This closes these findings, not the broader
+migration's unverified real-device/zoom/race acceptance.
+
 **Independent-review follow-up — 2026-10-17:** R1–R10 have implementations in the
 shared native hooks, saved-document editors/export scope, screen report columns,
 Receive/focus geometry, mobile warehouse layout and display formatting. Native

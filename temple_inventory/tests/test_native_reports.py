@@ -228,6 +228,44 @@ class NativeReportTests(NativeDocumentTests):
 					self.assertIn("document_id", projection.column_names["lines"])
 					self.assertIn("id", projection.column_names["lines"])
 
+	def test_saved_opening_export_uses_native_movement_quantities_and_excludes_counts(self):
+		doc = frappe.get_doc(
+			{
+				"doctype": "Stock Reconciliation",
+				"company": self.company,
+				"purpose": "Opening Stock",
+				"expense_account": frappe.db.get_value(
+					"Account", {"company": self.company, "account_name": "Temporary Opening"}, "name"
+				),
+				"posting_date": nowdate(),
+				"items": [{"item_code": self.item, "warehouse": self.a, "qty": 7, "valuation_rate": 10}],
+			}
+		).insert()
+		for status in (0, 1, 2):
+			if status == 1:
+				doc.submit()
+			elif status == 2:
+				doc.cancel()
+			loaded = native_api.load_document(doc.doctype, doc.name)
+			self.assertEqual(loaded.purpose, "Opening Stock")
+			query = self.query(
+				"movements", "records", record=doc.name, recordDoctype=doc.doctype, statuses=[status]
+			)
+			page = report_page(query, page_length=5)
+			self.assertEqual(page["matched_count"], 1)
+			self.assertEqual(page["rows"][0]["document"], doc.name)
+			self.assertEqual(page["rows"][0]["kind"], "Opening")
+			with Projection(query) as projection:
+				projection.build(related=True)
+				lines = list(projection.rows("lines"))
+				self.assertEqual(len(lines), 1)
+				self.assertEqual(lines[0]["stock_qty"], 7)
+				self.assertEqual(lines[0]["actual_qty"], 7)
+				self.assertEqual(lines[0]["doctype"], doc.doctype)
+				self.assertEqual(lines[0]["line_name"], doc.items[0].name)
+			self.assertEqual(report_page({**query, "dataset": "counts"})["matched_count"], 0)
+			self.assertEqual(report_page({**query, "recordDoctype": "Stock Entry"})["matched_count"], 0)
+
 	def test_empty_restrictive_item_and_allocation_selections_never_widen_scope(self):
 		self.receipt()
 		for dataset in DEFINITIONS:

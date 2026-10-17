@@ -23,9 +23,13 @@ import {
 } from "../src/design-preview/reviewModel";
 import { fixtureNativeCall } from "../src/design-preview/fixtureNativeDocuments";
 import { provideGalleryReference } from "../src/design-preview/fixtureReference";
-import { fixtureServices } from "../src/design-preview/fixtureServices";
+import {
+  fixtureServices,
+  fixtureDashboardScenario,
+} from "../src/design-preview/fixtureServices";
 const wrappers: VueWrapper[] = [];
 beforeEach(() => {
+  fixtureDashboardScenario.missingContext = false;
   resetReviewSession();
   localStorage.clear();
   vi.stubGlobal(
@@ -192,4 +196,24 @@ describe("gallery renders native production components", () => {
     expect(files.files).toHaveLength(0);
     expect(fetch).not.toHaveBeenCalled();
   });
+});
+
+it("renders named dashboard records and activity context separately from fallback examples", async () => {
+  const wrapper = await render("dashboard/overview");
+  const rows = wrapper.findAll(".browse-rank-row");
+  const movements = rows.filter((row) => row.text().includes("MAT-STE"));
+  expect(movements.length).toBeGreaterThan(0);
+  expect(movements.some((row) => row.text().includes("库存记录"))).toBe(false);
+  expect(movements.some((row) => !row.text().includes("未关联活动"))).toBe(
+    true,
+  );
+  const named = movements[0]!
+    .get("span")
+    .element.firstChild!.textContent!.trim();
+  expect(named.length).toBeGreaterThan(0);
+  fixtureDashboardScenario.missingContext = true;
+  await wrapper.getComponent(DashboardPage).vm.controller.refresh();
+  await flushPromises();
+  expect(wrapper.text()).toContain("库存记录");
+  expect(wrapper.text()).toContain("未关联活动");
 });

@@ -2,6 +2,9 @@
 
 Review complete. Reviewed commit: `ea15227e645b9ec995c8fad1ef0208bc21230f61`.
 
+Implementation update: F1–F4 are addressed by the [follow-up fix record](20261017_DESIGN_MIGRATION_FOLLOWUP_FIXES.md). The review observations below remain the original review evidence.
+
+
 **Conclusion:** the first refinement pass substantially resolves the original findings. The native settlement bypass is addressed in the shared hooks, and the major visual problems are corrected. Do not mark the migration fully complete yet: saved opening-stock exports select an incompatible dataset; saved documents can show opaque activity IDs; Quick Export renders document buttons without handling their activation. The current dashboard gallery also lacks representative fields, although the live dashboard is improved.
 
 No implementation fixes were made. This is a follow-up to [the original independent review](20261017_DESIGN_MIGRATION_REVIEW.md), scoped to the changes and claims in [the fix record](20261017_DESIGN_MIGRATION_FIXES.md). The [consolidated handoff](20261016_DESIGN_TO_PRODUCTION_HANDOFF.md) remains the task specification.

@@ -54,6 +54,11 @@ function exportPage(query: ReportQuery) {
 			</select></label
 		><label><input type="checkbox" v-model="fixtureDashboardScenario.empty" />空数据</label
 		><label
+			><input
+				type="checkbox"
+				v-model="fixtureDashboardScenario.missingContext"
+			/>缺少名称与活动（回退示例）</label
+		><label
 			>请求延迟<input
 				type="number"
 				min="0"

@@ -1,3 +1,4 @@
+import { useLinkedActivity } from "../activities/useLinkedActivity";
 import { savedDocumentExport } from "./savedDocumentExport";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import type { InitialAllocation } from "../../lib/routeSelection";
@@ -190,6 +191,10 @@ export function useOperationEditor(props: {
   });
   const { state } = editor;
   const draft = computed(() => state.values as unknown as OperationDraft);
+  const activityLabel = useLinkedActivity(
+    () => draft.value.activity,
+    () => state.server,
+  );
   const knownKind = computed(() =>
     Object.hasOwn(operationLabels, draft.value.kind),
   );
@@ -702,6 +707,7 @@ export function useOperationEditor(props: {
   );
 
   return {
+    activityLabel,
     savedExportQuery: computed(() =>
       savedDocumentExport(state.server, state.status),
     ),

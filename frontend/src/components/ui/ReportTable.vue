@@ -3,13 +3,17 @@ import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref, watch, useSlots } from "vue";
 import UiButton from "./UiButton.vue";
 import type { ReportTable } from "../../lib/reportContract";
-const props = defineProps<{
-	table: ReportTable;
-	limit?: number;
-	total?: number;
-	loading?: boolean;
-	error?: string;
-}>();
+const props = withDefaults(
+	defineProps<{
+		table: ReportTable;
+		limit?: number;
+		total?: number;
+		loading?: boolean;
+		error?: string;
+		documentLinks?: boolean;
+	}>(),
+	{ documentLinks: true },
+);
 const emit = defineEmits<{
 	loadMore: [];
 	retry: [];
@@ -262,7 +266,12 @@ function cell(column: string, value: unknown) {
 				>
 					<td v-for="column in visibleColumns" :key="column">
 						<button
-							v-if="column === 'document' && row.doctype && row.document"
+							v-if="
+								documentLinks !== false &&
+								column === 'document' &&
+								row.doctype &&
+								row.document
+							"
 							class="text-button"
 							@click="
 								emit('openDocument', String(row.doctype), String(row.document))

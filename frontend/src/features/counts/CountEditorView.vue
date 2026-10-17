@@ -20,6 +20,7 @@ const {
 	values,
 	rows,
 	state,
+	activityLabel,
 	loading,
 	busy,
 	writable,
@@ -233,6 +234,7 @@ async function copy(value = c.recoveryText.value) {
 					<summary>补充记录（可选）</summary>
 					<TransactionContext
 						:draft="context"
+						:activity-label="activityLabel"
 						:mode="writable ? 'edit' : 'display'"
 						:disabled="busy"
 						@dirty-change="supportingDirty = $event"
@@ -334,7 +336,7 @@ async function copy(value = c.recoveryText.value) {
 				</p>
 				<NativeCountAllocations :row="row" />
 			</div>
-			<TransactionContext :draft="context" mode="display" />
+			<TransactionContext :draft="context" :activity-label="activityLabel" mode="display" />
 			<p>
 				记录人：{{ values.ti_recorder_name || "未填写" }} · 经手人：{{
 					values.ti_handler_name || "未填写"
