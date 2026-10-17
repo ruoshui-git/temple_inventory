@@ -23,34 +23,29 @@ conflict and which instruction supersedes it rather than silently changing the
 behavior.
 
 Update `UI_UX_DECISIONS.md` in the same change whenever a durable UX decision is
-added or superseded. Update `DESIGN_MIGRATION_COVERAGE.md` in the same change: map preserved, replaced,
-missing and backend-dependent capabilities to preview evidence. A route existing
-is not functional parity; omission never means approved removal.
-Keep it concise, record supersessions in its dated log, and
+added or superseded. Keep it concise, record supersessions in its dated log, and
 preserve unrelated working-tree changes.
 
 ## Application map
 
-- `temple_inventory/inventory_api.py` contains catalog, inventory, setup, scan,
-  and general inventory endpoints.
-- `temple_inventory/workspace_api.py` owns the durable transaction workspace,
-  synchronization to ERPNext stock documents, confirmation, history, and
-  workspace attachments.
-- `temple_inventory/api.py` is a compatibility export surface and app-access
-  permission entry point. Keep its exports working unless callers are
-  deliberately migrated.
-- `temple_inventory/hooks.py`, `stock.py`, `file.py`, and
-  `workspace_permissions.py` enforce framework hooks, submission rules,
-  attachment rules, and document-level access.
-- `temple_inventory/temple_inventory/doctype/` contains custom DocType schemas
-  and controllers. Data migrations belong in versioned patches; exported ERPNext
-  custom fields live under `temple_inventory/fixtures/`.
-- `frontend/src/pages/` contains routed Vue views; `frontend/src/components/`
-  contains reusable interaction components; `frontend/src/lib/` contains API,
-  autosave, and scanner infrastructure.
-- Python integration tests live in `temple_inventory/tests/`. Frontend unit tests
-  live in `frontend/tests/`; browser specifications live in
-  `frontend/tests/browser/` but are not run by default.
+- `temple_inventory/native_api.py` edits versioned native Stock Entry and Stock
+  Reconciliation documents. `native_stock.py`, `native_balances.py` and `counts.py`
+  enforce movement, settlement and count invariants through shared Desk/API hooks.
+- `catalog.py`, `activities.py`, `warehouses.py`, `configuration.py` and
+  `native_topology.py` provide native reference-data and setup services.
+- `browse.py`, `report_query.py`, `report_sources.py`, `projections.py` and
+  `exports.py` provide shared permission-filtered queries and private export jobs.
+- `session.py`, `preferences.py`, `native_access.py`, `native_files.py`, `file.py`
+  and `hooks.py` own account, authorization and native-parent attachment boundaries.
+  `api.py` is only the app-access permission entry point; old API exports are retired.
+- `sample_install.py`, `native_samples.py`, `sample_media.py` and
+  `scripts/reset-development-samples` are exact-site development tooling.
+- App DocTypes and native custom-field fixtures live under
+  `temple_inventory/temple_inventory/doctype/` and `temple_inventory/fixtures/`.
+- Routed Vue coordinators live under `frontend/src/pages/`; feature controllers
+  and shared presentation live under `features/`, `components/` and `services/`.
+- Python integration tests live in `temple_inventory/tests/`; frontend unit tests
+  and browser specifications live in `frontend/tests/` and `tests/browser/`.
 
 Do not edit generated files in `temple_inventory/public/frontend/` or
 `temple_inventory/www/inventory.html` by hand. They are produced by the Vite
@@ -80,35 +75,25 @@ Use Purchase Receipt only for genuine purchasing workflows and Delivery Note
 only for genuine customer or sales-delivery workflows. Do not use either merely
 for categorization or reporting convenience.
 
-### Workspace and stock-document lifecycle
+### Native stock-document lifecycle
 
-`Inventory Workspace` is durable editing state for one user-facing operation.
-The current implementation synchronizes a workspace to one draft `Stock Entry`;
-the Stock Entry remains the authoritative stock document. Autosave may update
-editable workspace state and its draft Stock Entry, but it must never submit or
-commit stock. Final confirmation is an explicit user action that submits the
-movement.
+A persisted operation is identified by native DocType plus name; native child names
+identify allocations. ERPNext Desk and the frontend are equal editors. Valid input
+may autosave to an ERPNext draft; incomplete input is recoverable only in the
+site/account/tab/editor-scoped browser store. No server recovery or workspace
+DocType owns a stock document.
 
-Preserve these lifecycle properties:
+Creation uses an immutable native request identity scoped to account and DocType.
+Writes and lifecycle actions check the native version under the same transaction
+lock. Serialized autosaves retain edits made during a save; session restoration
+and conflicts preserve input without submitting stock. Only explicit confirmation
+submits. Submitted records use native cancel/amend semantics and dependency guards.
+Preserve unknown native header fields and child identities when editing known fields.
 
-- Workspace creation is idempotent through `request_id`.
-- Writes use optimistic `revision` checks and reject stale saves.
-- Frontend autosaves are serialized and retain changes made during an in-flight
-  save.
-- User-visible lifecycle states follow `UI_UX_DECISIONS.md`.
-- Submitted stock-affecting records and completed workspaces are not silently
-  rewritten.
-- Corrections use traceable, ERPNext-compatible cancellation, reversal, or
-  reconciliation workflows.
-- Session-expiry recovery preserves unsaved input and resumes safely after
-  authentication.
-
-A real-world operation can contain multiple items, rooms, and leaf warehouses.
-Do not force the volunteer UX to mirror ERPNext's document layout. If a future
-operation genuinely requires multiple ERPNext documents, link every underlying
-document to the same durable logical operation. This is a future compatibility
-constraint, not a requirement to replace the current one-workspace/one-entry
-implementation without a concrete need.
+One operation produces one native Stock Entry or Stock Reconciliation, including
+multiple Items and permitted leaves. Reject incompatible input rather than silently
+splitting it into multiple documents. Entirely matching counts create no server
+record; actual native reconciliations retain their reviewed variance context.
 
 ### Structured, auditable context
 
@@ -161,24 +146,16 @@ Frappe's standard private `File` records.
 
 ### Shared visual foundation
 
-Use the production tokens in `frontend/src/styles/tokens.css` for color, type,
-density, spacing, geometry, motion, and stacking order. Reusable visual
-patterns belong in shared components under `frontend/src/components/`; use
-those components before adding page-local button, badge, focus, or feedback
-styles. Add a semantic token when a visual meaning is shared, and keep tokens
-referenced by production UI rather than copying their values into new CSS.
-`DESIGN_SYSTEM.md` maps the token names, production entry points, shared
-components, and design preview gallery. Keep durable interaction decisions in
-`UI_UX_DECISIONS.md` instead of repeating them here.
-Before UI work, read `DESIGN_SYSTEM.md`; document intentional fixed-geometry
-exceptions there and check all density presets against the shared responsive
-breakpoint when changing visual behavior.
+`frontend/src/styles/app.css` is the single active stylesheet entrypoint, importing
+`foundation.css`, `forms.css`, `utilities.css` and `browse.css`. The shared
+foundation uses the `--p-*` tokens. Shared components
+live under `frontend/src/components/`, with reusable primitives under `ui/`.
+Add semantic tokens and reuse these components before creating page-local styles.
+`DESIGN_SYSTEM.md` records the shared foundation and fixed-geometry exceptions.
 
-The standalone `frontend/src/design-preview/` is an explicit exception: it owns
-its `preview.css` (`--p-*`) presentation and preview-local styled components so
-it can remain a faithful visual reference. Do not replace these with production
-tokens or styled shared components until preview fidelity has been reviewed and
-approved. Unstyled icons and headless utilities may be shared.
+Production must never import test fixtures, fixture clocks or simulation branches.
+Use the routed production app and historical commits for visual review; do not
+maintain a separate design-preview site.
 
 ### Responsive frontend architecture
 
@@ -254,38 +231,10 @@ requested.
 
 Write maintainable production source code, not minified or code-golfed code. Use descriptive variable and function names, conventional whitespace, and normal line wrapping. Do not manually optimize code for fewer lines or characters. Format Python with Ruff and frontend files with Prettier before finishing. No need to check for whitespacing after using the formatter.
 
-## Implementation delegation workflow
-
-For tasks that require actual implementation, delegate the implementation to a
-`luna` subagent. Use `high` reasoning effort by default; use `medium`
-for straightforward mechanical changes and `xhigh` or `max` when the scope or
-risk warrants it. Give the subagent the complete implementation scope and
-instruct it to run all applicable formatting, type-checking, and tests itself.
-The primary agent should preserve its context for coordination and the final
-review instead of duplicating the delegated checks.
-
-Print out the subagent(s)'s specific model and reasoning so I can see, before initializing the agent.
-
-After the subagent finishes, the primary agent must inspect the resulting diff
-and independently check it for completeness against the user's request,
-acceptance criteria, repository instructions, and change scope. If work is
-missing or incorrect, send the findings back to the same subagent and let it
-continue when practical; spawn a replacement `luna` subagent only when
-that is more effective. Repeat until the implementation is complete or a real
-blocker must be reported.
-
-While an implementation or test subagent is running, do useful independent work
-only when it can proceed in parallel without conflicting with the delegated
-changes. Otherwise, wait for the subagent with long wait intervals instead of
-polling frequently or making token-consuming status calls. The primary agent
-remains responsible for the final completeness assessment and user-facing
-report.
-
 ## Validation policy
 
-Use proportionate, focused checks. Do **not** launch Playwright, Chromium, camera
-emulation, or other browser automation unless the user specifically requests
-browser tests. The user handles manual browser validation.
+Use proportionate, focused checks. Launch Playwright, Chromium, camera
+emulation, or other browser automation when appropriate.
 
 Run frontend commands from `frontend/`:
 
@@ -299,11 +248,11 @@ TypeScript, Vue templates, API shapes, or component contracts change. Run
 `pnpm build` only when production bundling, generated assets, routing, or Frappe
 integration is materially affected.
 
-For backend inventory, permission, or workspace behavior, run from the bench
+For backend inventory, permissions, and native document behavior, run from the bench
 root:
 
 ```sh
-bench --site development.localhost execute temple_inventory.tests.test_workspace.run
+bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run
 ```
 
 The official Frappe development container runs MariaDB and Redis as separate
