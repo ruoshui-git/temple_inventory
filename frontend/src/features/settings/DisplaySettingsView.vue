@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import type { DisplaySettings } from "./useDisplaySettings";
 import { themes, textScales, type TextScale } from "../../lib/displayPreferences";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -14,13 +15,15 @@ const densities = [
 </script>
 <template>
 	<section class="preview-utility-page">
-		<header class="utility-heading">
-			<div>
-				<h1>显示设置</h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">显示设置</h1>
 				<p class="muted">设置保存到当前账户；其它设备下次打开时采用此设置。</p>
 			</div>
-			<UiButton @click="emit('back')">返回更多</UiButton>
-		</header>
+			<template #back
+				><UiButton @click="emit('back')">返回更多</UiButton></template
+			></PageHeader
+		>
 		<p class="muted">当前账户：{{ c.account }}</p>
 		<p v-if="loading" role="status">正在读取账户设置…</p>
 		<p v-if="error" role="alert">

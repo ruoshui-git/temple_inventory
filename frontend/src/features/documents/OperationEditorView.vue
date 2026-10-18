@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import { computed, ref, watch } from "vue";
@@ -133,20 +134,19 @@ async function back() {
 </script>
 <template>
 	<section ref="formRoot" class="preview-form-page" :class="{ 'workspace-expanded': expanded }">
-		<div class="form-page-heading">
-			<div>
-				<h1>{{ title }}</h1>
+		<PageHeader class="form-page-heading"
+			><div>
+				<h1 tabindex="-1">{{ title }}</h1>
 				<p class="muted">核对物品、数量、批次与库位，复核后确认。</p>
 			</div>
-			<div class="form-actions">
-				<QuickExport
+			<template #back><UiButton variant="ghost" @click="back">返回</UiButton></template
+			><template #actions
+				><QuickExport
 					v-if="!loading && c.savedExportQuery.value"
 					:query="c.savedExportQuery.value"
 					:active="active"
-					@open-full="emit('openExport', $event)"
-				/><UiButton variant="ghost" @click="back">返回</UiButton>
-			</div>
-		</div>
+					@open-full="emit('openExport', $event)" /></template
+		></PageHeader>
 		<p v-if="loading" role="status">正在读取原生记录…</p>
 		<div class="form-status">
 			<span class="badge neutral">{{

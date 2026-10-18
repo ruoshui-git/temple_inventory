@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { siteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -51,13 +52,17 @@ const {
 <template>
 	<section class="preview-page preview-reports">
 		<p v-if="routeError" role="alert">{{ routeError }}</p>
-		<header class="browse-heading">
-			<div>
-				<h1>导出</h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">导出</h1>
 				<p class="muted">完整筛选范围 · 数量按单位与状态分别列示</p>
 			</div>
-			<QuickExport :query="query" :active="active" @open-full="emit('openExport', $event)" />
-		</header>
+			<template #actions
+				><QuickExport
+					:query="query"
+					:active="active"
+					@open-full="emit('openExport', $event)" /></template
+		></PageHeader>
 		<section class="surface form-section">
 			<div class="report-inline-controls">
 				<label class="preview-field"

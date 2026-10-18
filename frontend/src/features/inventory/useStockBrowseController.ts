@@ -42,15 +42,13 @@ export function useStockBrowseController(
         : ""),
   );
   const search = ref(""),
-    warehouses = ref<string[]>([]),
-    category = ref(""),
     view = ref("card"),
     sort = ref("name"),
     descending = ref(false),
     selected = ref<string[]>([]),
     inStockOnly = ref(true),
     analysisDimension = ref<"category" | "location">("category");
-  const inherited = ref(newReportQuery("inventory").scope);
+  const scope = ref(newReportQuery("inventory").scope);
   const constraints = ref(newReportQuery("inventory"));
   const data = reactive({
     rows: [] as StockItem[],
@@ -70,15 +68,7 @@ export function useStockBrowseController(
     value.includeZero = !inStockOnly.value;
     value.sortBy = sort.value === "name" ? "name" : "quantity";
     value.sort = descending.value ? "desc" : "asc";
-    value.scope = {
-      ...inherited.value,
-      warehouses: warehouses.value.length
-        ? warehouses.value
-        : inherited.value.warehouses,
-      categories: category.value
-        ? [category.value]
-        : inherited.value.categories,
-    };
+    value.scope = JSON.parse(JSON.stringify(scope.value));
     return value;
   });
   watch(
@@ -87,7 +77,7 @@ export function useStockBrowseController(
       const incoming = props.initialQuery;
       if (!incoming) return;
       constraints.value = JSON.parse(JSON.stringify(incoming));
-      inherited.value = JSON.parse(JSON.stringify(incoming.scope));
+      scope.value = JSON.parse(JSON.stringify(incoming.scope));
       search.value = incoming.search;
       inStockOnly.value = !incoming.includeZero;
       sort.value = incoming.sortBy === "quantity" ? "available" : "name";
@@ -212,14 +202,10 @@ export function useStockBrowseController(
     })),
   );
   function clear() {
-    const period = inherited.value.period;
     constraints.value = newReportQuery("inventory");
     inStockOnly.value = true;
-    inherited.value.period = period;
-    warehouses.value = [];
-    category.value = "";
-    inherited.value = {
-      ...inherited.value,
+    scope.value = {
+      ...scope.value,
       warehouses: [],
       categories: [],
       item: "",
@@ -233,18 +219,16 @@ export function useStockBrowseController(
     ...scopeFilterChips(query.value.scope, reference).map((chip) => ({
       ...chip,
       remove: () => {
-        const scope = JSON.parse(
+        const nextScope = JSON.parse(
           JSON.stringify(query.value.scope),
         ) as ReportQuery["scope"];
-        const current = scope[chip.field];
-        Object.assign(scope, {
+        const current = nextScope[chip.field];
+        Object.assign(nextScope, {
           [chip.field]: Array.isArray(current)
             ? current.filter((value) => value !== chip.value)
             : "",
         });
-        warehouses.value = [];
-        category.value = "";
-        inherited.value = scope;
+        scope.value = nextScope;
       },
     })),
     ...reportFilterChips(query.value, reference).map((chip) => ({
@@ -257,17 +241,29 @@ export function useStockBrowseController(
     })),
   ]);
   const actions = computed(() =>
-    [
-      { name: "入库", kind: "Receive", icon: "download" },
-      { name: "出库", kind: "Issue", icon: "loan" },
-      { name: "调拨", kind: "Transfer", icon: "movement" },
-      { name: "新建物品", kind: "Item", icon: "box" },
-    ].filter((action) =>
-      action.kind === "Item"
-        ? reference.capabilities.Item?.create === true
-        : reference.operations[action.kind] === true,
-    ),
+    reference.capabilities.Item?.create === true
+      ? [{ name: "新建物品", kind: "Item", icon: "box" }]
+      : [],
   );
+  const selectedActions = computed(() =>
+    selected.value.length
+      ? [
+          { name: "入库", kind: "Receive", icon: "download" },
+          { name: "出库", kind: "Issue", icon: "loan" },
+          { name: "调拨", kind: "Transfer", icon: "movement" },
+        ].filter((action) => reference.operations[action.kind] === true)
+      : [],
+  );
+  function selectedAction(kind: string) {
+    if (
+      scopeError.value ||
+      reference.user !== account ||
+      props.active === false
+    )
+      return;
+    if (!selectedActions.value.some((action) => action.kind === kind)) return;
+    navigate(kind, [...new Set(selected.value)]);
+  }
   watch(
     () => JSON.stringify(query.value),
     () => {
@@ -279,24 +275,24 @@ export function useStockBrowseController(
     if (scopeError.value || reference.user !== account) return;
     const selectedAction = actions.value.find((action) => action.name === name);
     if (!selectedAction) return;
-    navigate(selectedAction.kind, [...selected.value]);
+    navigate(selectedAction.kind);
   }
   return {
     actions,
+    selectedActions,
+    selectedAction,
     scopeError,
     appliedChips,
     reference,
     data,
     search,
-    warehouses,
-    category,
     view,
     sort,
     descending,
     selected,
     inStockOnly,
     analysisDimension,
-    inherited,
+    scope,
     query,
     metrics,
     load,

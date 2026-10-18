@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "./components/ui/PageHeader.vue";
 import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
 import ApplicationShell from "./components/ApplicationShell.vue";
@@ -35,7 +36,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 		</main>
 		<main v-else-if="state.gate === 'login'" class="sample-content">
 			<section class="surface form-section">
-				<h1>请登录物资管理</h1>
+				<PageHeader title="请登录物资管理" />
 				<p>请使用有物资管理权限的账户登录。</p>
 				<a href="/login?redirect-to=%2Finventory">打开登录页面</a
 				><UiButton :loading="state.loading" @click="c.check">重新检查登录</UiButton>
@@ -46,13 +47,15 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 			class="sample-content"
 		>
 			<section class="surface form-section">
-				<h1>
-					{{
-						state.gate === "forbidden"
-							? "当前账户无权使用物资管理"
-							: "暂时无法读取物资管理"
-					}}
-				</h1>
+				<PageHeader
+					><h1 tabindex="-1">
+						{{
+							state.gate === "forbidden"
+								? "当前账户无权使用物资管理"
+								: "暂时无法读取物资管理"
+						}}
+					</h1></PageHeader
+				>
 				<p role="alert">{{ state.error }}</p>
 				<UiButton :loading="state.loading" @click="c.check">重新检查</UiButton
 				><a href="/login?redirect-to=%2Finventory">切换登录账户</a>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { useReferenceData } from "../../services/contracts";
 import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
@@ -40,18 +41,16 @@ function settle(action: SettlementAction) {
 </script>
 <template>
 	<section class="browse-page">
-		<header class="browse-heading">
-			<h1>借用详情</h1>
-			<div class="browse-heading-actions">
-				<UiButton @click="emit('back')">返回</UiButton>
-				<QuickExport
+		<PageHeader
+			><h1 tabindex="-1">借用详情</h1>
+			<template #back><UiButton @click="emit('back')">返回</UiButton></template
+			><template #actions
+				><QuickExport
 					v-if="loan"
 					:query="c.exportQuery.value"
 					:active="active"
-					@open-full="emit('openExport', $event)"
-				/>
-			</div>
-		</header>
+					@open-full="emit('openExport', $event)" /></template
+		></PageHeader>
 		<p v-if="loading" role="status">正在读取借出记录与当前结余…</p>
 		<p v-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>

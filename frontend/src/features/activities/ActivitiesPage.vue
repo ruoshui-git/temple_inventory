@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { ref } from "vue";
 import ActivitiesView from "./ActivitiesView.vue";
 import { useActivitiesController } from "./useActivitiesController";
@@ -36,7 +37,7 @@ defineExpose({
 </script>
 <template>
 	<section v-if="controller.scopeError.value" class="surface form-section">
-		<h1>活动</h1>
+		<PageHeader title="活动" />
 		<p role="alert">{{ controller.scopeError.value }}</p>
 		<UiButton @click="controller.resetScope">恢复活动默认范围</UiButton>
 	</section>

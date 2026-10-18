@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { ref, useId } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -67,7 +68,14 @@ const { isMobile } = useResponsiveLayout();
 </script>
 <template>
 	<div class="preview-dashboard">
-		<h1 tabindex="-1">物资总览</h1>
+		<PageHeader title="物资总览"
+			><template #actions
+				><UiButton @click="refresh">刷新</UiButton>
+				<QuickExport
+					:query="quickReportQuery"
+					:active="active"
+					@open-full="emit('openExport', $event)" /></template
+		></PageHeader>
 		<div class="browse-toolbar">
 			<label class="preview-field"
 				>快速导出数据集<select v-model="reportDataset">
@@ -76,11 +84,6 @@ const { isMobile } = useResponsiveLayout();
 					</option>
 				</select></label
 			>
-			<QuickExport
-				:query="quickReportQuery"
-				:active="active"
-				@open-full="emit('openExport', $event)"
-			/>
 			<FilterPanel
 				label="总览范围"
 				:count="filters.warehouses.length + filters.categories.length"
@@ -124,7 +127,6 @@ const { isMobile } = useResponsiveLayout();
 					)
 					.join(" · ") || "全部仓库 · 全部类别"
 			}}</span>
-			<UiButton @click="refresh">刷新</UiButton>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>
 		<div class="preview-dashboard-grid" :aria-busy="loading">

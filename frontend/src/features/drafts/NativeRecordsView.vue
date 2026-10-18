@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { watch } from "vue";
 import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
@@ -75,9 +76,9 @@ const quantities = (row: NativeRecord) =>
 </script>
 <template>
 	<section class="preview-page preview-browse-page">
-		<header class="browse-heading">
-			<div>
-				<h1>{{ mode === "drafts" ? "草稿" : "盘点调整" }}</h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">{{ mode === "drafts" ? "草稿" : "盘点调整" }}</h1>
 				<p class="browse-subtitle">
 					{{
 						mode === "drafts"
@@ -86,14 +87,19 @@ const quantities = (row: NativeRecord) =>
 					}}
 				</p>
 			</div>
-			<div class="page-actions">
-				<UiButton
+			<template #actions
+				><UiButton
 					@click="
 						c.load();
 						c.readLocal();
 					"
 					>刷新</UiButton
 				>
+				<QuickExport
+					:query="query"
+					:active="active"
+					@open-full="emit('openExport', $event)"
+				/>
 				<UiButton
 					v-if="
 						mode === 'counts' &&
@@ -102,14 +108,9 @@ const quantities = (row: NativeRecord) =>
 					variant="primary"
 					@click="emit('newCount')"
 					>开始盘点</UiButton
-				>
-				<QuickExport
-					:query="query"
-					:active="active"
-					@open-full="emit('openExport', $event)"
-				/>
-			</div>
-		</header>
+				></template
+			></PageHeader
+		>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<template v-else>
 			<PeriodFilter

@@ -27,11 +27,18 @@ The [refinement record](notes/20261017_UI_REFINEMENT_IMPLEMENTATION.md) maps the
 
 ## Refinement patterns — 2026-10-17
 
-`BrowseToolbar` and the inventory toolbar use separate expanded and compact
-presentations. Compaction hides the complete control area; the compact row
-retains identity/count, Search, Scan, Filters and Expand. A deliberate choice
-persists while scrolling. Automatic compaction occurs once after the scroll threshold; subsequent expansion
-or collapse is explicit, avoiding height-induced scroll oscillation. Hidden focused controls return focus to the compact action row.
+`PageHeader` owns routed title/Back/action geometry. Desktop actions align right in
+utility/workflow order; mobile labels wrap below the title. `BrowseToolbar` owns the
+single Inventory/Expiry/Movement/Loans/Pending disclosure with a persistent heading
+and trailing toggle. It compacts once after 160px, honors subsequent manual choices,
+and reveals bounded sticky controls in place. Search and filters remain available
+without expansion; analysis belongs to the expanded result toolbar. Stock selection
+actions occupy a separate persistent strip outside the collapsible controls.
+
+The 2026-10-18 desktop hierarchy geometry supersedes the historical 44px desktop
+panel-row rule: 28px parent/leaf expander tracks, 16px checkbox, 4px gaps, 32px minimum
+rows. Mobile rows/expanders retain 44px targets. Wrapped labels grow naturally; the
+10px depth indentation remains capped at 40px. Shared browse.css owns this geometry.
 
 `Overlay` owns one focus-contained surface, background inertness, Escape,
 scroll locking and focus return. Descendant overlays become internal stages of

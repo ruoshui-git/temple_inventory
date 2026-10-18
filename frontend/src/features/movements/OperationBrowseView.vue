@@ -7,6 +7,7 @@ import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref, watch } from "vue";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
 import { movementLabels, scopeFilterChips } from "../../lib/filterPresentation";
@@ -52,6 +53,7 @@ const {
 	analysis,
 	details,
 } = c;
+const { isMobile } = useResponsiveLayout();
 const filtersOpen = ref(false),
 	scanOpen = ref(false);
 const filters = ref<InstanceType<typeof CompactFilters>>();
@@ -62,15 +64,13 @@ function inspect(row: OperationGroup) {
 	inspected.value = row;
 	void c.loadDetails(row);
 }
-watch(
-	() => props.active,
-	(value) => {
-		if (!value) {
-			inspected.value = undefined;
-			c.relatedLoans.close();
-		}
-	},
-);
+watch([() => props.active, isMobile], () => {
+	scanOpen.value = false;
+	analysisOpen.value = false;
+	quantitiesOpen.value = false;
+	inspected.value = undefined;
+	c.relatedLoans.close();
+});
 const outcomeLabels: Record<string, string> = {
 	outstanding: "未归还",
 	returned: "完好归还",
@@ -162,46 +162,50 @@ function openedRecord(row: OperationGroup) {
 </script>
 <template>
 	<section class="browse-page">
-		<header class="browse-heading">
-			<div>
-				<h1>{{ family === "movements" ? "货物流动" : "借用" }}</h1>
-			</div>
-			<div class="browse-heading-actions">
-				<template v-if="family === 'movements'"
-					><UiButton
-						v-if="reference.operations.Receive"
-						variant="primary"
-						icon="box"
-						@click="emit('newOperation', 'Receive')"
-						>入库</UiButton
-					><UiButton
-						v-if="reference.operations.Issue"
-						icon="movement"
-						@click="emit('newOperation', 'Issue')"
-						>出库</UiButton
-					><UiButton
-						v-if="reference.operations.Transfer"
-						icon="movement"
-						@click="emit('newOperation', 'Transfer')"
-						>调拨</UiButton
-					></template
-				><UiButton
-					v-else-if="reference.operations.Loan"
-					variant="primary"
-					icon="loan"
-					@click="emit('newOperation', 'Loan')"
-					>登记借出</UiButton
-				>
-			</div>
-		</header>
 		<div class="preview-activity-browse">
 			<BrowseToolbar
+				:title="family === 'movements' ? '货物流动' : '借用'"
+				v-model:search="search"
+				:search-label="family === 'movements' ? '搜索货物流动' : '搜索借用'"
+				:filters-open="filtersOpen"
+				scannable
 				:summary="`${family === 'movements' ? '货物流动' : '借用'} · ${result.initialized ? result.total : '读取中'}`"
 				:active="active"
 				:filter-count="extraChips.length + scopeFilterChips(scope, reference).length"
 				@scan="scanOpen = true"
 				@filters="filters?.show()"
 			>
+				<template #actions
+					><QuickExport
+						:query="query"
+						:active="active"
+						@open-full="emit('openExport', $event)"
+					/><template v-if="family === 'movements'"
+						><UiButton
+							v-if="reference.operations.Receive"
+							variant="primary"
+							icon="box"
+							@click="emit('newOperation', 'Receive')"
+							>入库</UiButton
+						><UiButton
+							v-if="reference.operations.Issue"
+							icon="movement"
+							@click="emit('newOperation', 'Issue')"
+							>出库</UiButton
+						><UiButton
+							v-if="reference.operations.Transfer"
+							icon="movement"
+							@click="emit('newOperation', 'Transfer')"
+							>调拨</UiButton
+						></template
+					><UiButton
+						v-else-if="reference.operations.Loan"
+						variant="primary"
+						icon="loan"
+						@click="emit('newOperation', 'Loan')"
+						>登记借出</UiButton
+					></template
+				>
 				<nav
 					class="browse-view-switch"
 					:aria-label="family === 'movements' ? '货物流动视图' : '借用视图'"
@@ -253,6 +257,7 @@ function openedRecord(row: OperationGroup) {
 									? '搜索物品、单号或活动'
 									: '搜索借用人、活动或物品'
 							" /></label
+					><UiButton icon="scan" @click="scanOpen = true">扫码</UiButton
 					><label v-if="records || family === 'loans'" class="preview-inline-field"
 						>状态<select
 							v-model="status"
@@ -276,12 +281,8 @@ function openedRecord(row: OperationGroup) {
 						><template v-else
 							><option value="desc">日期由新到旧</option>
 							<option value="asc">日期由旧到新</option></template
-						></select
-					><QuickExport
-						:query="query"
-						:active="active"
-						@open-full="emit('openExport', $event)"
-					/>
+						>
+					</select>
 				</div>
 				<CompactFilters
 					ref="filters"
@@ -321,7 +322,15 @@ function openedRecord(row: OperationGroup) {
 					{{ records ? "笔记录" : family === "loans" ? "组物品" : "种物品" }} · 已显示
 					{{ result.rows.length }}
 				</p>
-			</BrowseToolbar>
+				<template #result-tools
+					><span
+						>{{ result.initialized ? result.total : "—" }}
+						{{ records ? "笔记录" : "种物品" }}</span
+					><UiButton v-if="result.initialized" @click="analysisOpen = true"
+						>分析结果</UiButton
+					></template
+				></BrowseToolbar
+			>
 			<section
 				v-if="result.initialized"
 				class="preview-activity-summary"
@@ -349,9 +358,6 @@ function openedRecord(row: OperationGroup) {
 			</p>
 			<div class="preview-browse-body">
 				<div class="preview-browse-results">
-					<UiButton v-if="result.initialized" @click="analysisOpen = true"
-						>分析结果</UiButton
-					>
 					<Overlay
 						v-if="analysisOpen"
 						title="分析当前结果"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -86,20 +87,21 @@ async function copy(value = c.recoveryText.value) {
 </script>
 <template>
 	<section ref="root" class="preview-form-page">
-		<div class="form-page-heading">
-			<div>
-				<h1>{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}</h1>
+		<PageHeader class="form-page-heading"
+			><div>
+				<h1 tabindex="-1">
+					{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}
+				</h1>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
 			</div>
-			<div class="form-actions">
-				<QuickExport
+			<template #back><UiButton @click="back">返回</UiButton></template
+			><template #actions
+				><QuickExport
 					v-if="!loading && c.savedExportQuery.value"
 					:query="c.savedExportQuery.value"
 					:active="active"
-					@open-full="emit('openExport', $event)"
-				/><UiButton @click="back">返回</UiButton>
-			</div>
-		</div>
+					@open-full="emit('openExport', $event)" /></template
+		></PageHeader>
 		<div class="form-status">
 			<span class="form-record-tag">{{
 				state.identity

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -49,18 +50,18 @@ const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<section class="preview-browse-page">
-		<div class="browse-page-heading">
-			<div>
-				<h1>物品详情</h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">物品详情</h1>
 			</div>
-			<UiButton @click="emit('back')">返回</UiButton
-			><QuickExport
-				v-if="item"
-				:query="c.exportQuery.value"
-				:active="active"
-				@open-full="emit('openExport', $event)"
-			/>
-		</div>
+			<template #back><UiButton @click="emit('back')">返回</UiButton></template
+			><template #actions
+				><QuickExport
+					v-if="item"
+					:query="c.exportQuery.value"
+					:active="active"
+					@open-full="emit('openExport', $event)" /></template
+		></PageHeader>
 		<p v-if="loading" role="status">正在读取物品…</p>
 		<p v-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>

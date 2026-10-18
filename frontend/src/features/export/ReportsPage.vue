@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import ReportsView from "./ReportsView.vue";
 import { useExportWorkspaceController } from "./useReportController";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -22,7 +23,7 @@ defineExpose({ controller });
 </script>
 <template>
 	<section v-if="controller.routeError.value" class="surface form-section">
-		<h1>导出</h1>
+		<PageHeader title="导出" />
 		<p role="alert">{{ controller.routeError.value }}</p>
 		<UiButton @click="controller.clear">恢复此数据集的默认范围</UiButton>
 	</section>

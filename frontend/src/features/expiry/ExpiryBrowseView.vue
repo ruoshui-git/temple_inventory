@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import { formatExpiryDuration } from "../../lib/expiryDuration";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
@@ -29,12 +30,12 @@ const { isMobile } = useResponsiveLayout();
 const filterOpen = ref(false),
 	analysisOpen = ref(false);
 const batchDetail = ref<ReportRow>();
-watch(
-	() => props.active,
-	(active) => {
-		if (active === false) filterOpen.value = false;
-	},
-);
+const scan = ref<InstanceType<typeof ScanPanel>>();
+watch([() => props.active, isMobile], () => {
+	if (props.active === false) filterOpen.value = false;
+	analysisOpen.value = false;
+	batchDetail.value = undefined;
+});
 const choices = [
 	["period", "全部", "all"],
 	["expired", "已过期", "expired"],
@@ -61,87 +62,101 @@ function openItem(row: ReportRow) {
 </script>
 <template>
 	<section class="browse-page">
-		<header class="browse-heading">
-			<h1>效期批次</h1>
-			<div class="browse-heading-actions">
-				<QuickExport
+		<BrowseToolbar
+			title="效期批次"
+			:summary="`效期批次 · ${result.initialized ? result.batchCount + ' 个批次' : '读取中'}`"
+			v-model:search="query.search"
+			search-label="搜索物品、批次或位置"
+			:active="active"
+			:filters-open="filterOpen"
+			:filter-count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
+			scannable
+			@scan="scan?.show()"
+			@filters="filterOpen = !filterOpen"
+			><template #actions
+				><QuickExport
 					v-if="!routeError"
 					:query="query"
 					:active="active"
 					@open-full="emit('openExport', $event)"
+			/></template>
+			<p v-if="routeError" role="alert">{{ routeError }}</p>
+			<nav class="browse-tabs expiry-browse-tabs" aria-label="效期筛选">
+				<button
+					v-for="[key, label, facet] in choices"
+					:key="key"
+					:aria-current="query.expiryWindow === key ? 'page' : undefined"
+					@click="query.expiryWindow = key"
+				>
+					{{ label }} <small>{{ result.facets[facet] ?? "…" }}</small>
+				</button>
+			</nav>
+			<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
+				今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
+			</p>
+			<div class="browse-toolbar">
+				<label class="browse-search"
+					><span>搜索</span
+					><input
+						v-model="query.search"
+						type="search"
+						placeholder="搜索物品、批次或位置"
+				/></label>
+				<PeriodFilter
+					v-model="scope.period"
+					label="到期日期"
+					:today="reference.siteDate"
+					:active="active"
 				/>
+				<FilterButton
+					:expanded="filterOpen"
+					:count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
+					@click="filterOpen = !filterOpen"
+				/>
+				<div class="button-row">
+					<label class="preview-field"
+						>排序<select v-model="query.sortBy">
+							<option value="date">到期日</option>
+							<option value="identity">物品 / 批次编号</option>
+							<option value="quantity">库存数量</option>
+							<option value="name">物品名称</option>
+						</select></label
+					>
+					<UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
+						query.sort === "asc" ? "升序" : "降序"
+					}}</UiButton>
+				</div>
+			</div>
+			<div class="preview-active-filters">
 				<UiButton
-					v-if="reference.operations.Receive"
-					@click="emit('newOperation', 'Receive')"
-					>入库</UiButton
+					v-for="chip in c.scopeChips.value"
+					:key="chip.key"
+					variant="ghost"
+					:aria-label="'移除' + chip.label"
+					@click="c.removeScope(chip.field, chip.value)"
+					>{{ chip.label }} ×</UiButton
+				>
+				<UiButton
+					v-for="chip in chips"
+					:key="chip.key"
+					variant="ghost"
+					:aria-label="'移除' + chip.label"
+					:disabled="chip.fixed"
+					@click="Object.assign(query, chip.reset)"
+					>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
 				>
 			</div>
-		</header>
-		<p v-if="routeError" role="alert">{{ routeError }}</p>
-		<nav class="browse-tabs expiry-browse-tabs" aria-label="效期筛选">
-			<button
-				v-for="[key, label, facet] in choices"
-				:key="key"
-				:aria-current="query.expiryWindow === key ? 'page' : undefined"
-				@click="query.expiryWindow = key"
-			>
-				{{ label }} <small>{{ result.facets[facet] ?? "…" }}</small>
-			</button>
-		</nav>
-		<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
-			今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
-		</p>
-		<div class="browse-toolbar">
-			<label class="browse-search"
-				><span>搜索</span
-				><input v-model="query.search" type="search" placeholder="搜索物品、批次或位置"
-			/></label>
-			<PeriodFilter
-				v-model="scope.period"
-				label="到期日期"
-				:today="reference.siteDate"
-				:active="active"
-			/>
-			<FilterButton
-				:expanded="filterOpen"
-				:count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
-				@click="filterOpen = !filterOpen"
-			/>
-			<details class="preview-expiry-tools">
-				<summary>浏览工具</summary>
-				<label class="preview-field"
-					>排序<select v-model="query.sortBy">
-						<option value="date">到期日</option>
-						<option value="identity">物品 / 批次编号</option>
-						<option value="quantity">库存数量</option>
-						<option value="name">物品名称</option>
-					</select></label
-				>
-				<UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
-					query.sort === "asc" ? "升序" : "降序"
-				}}</UiButton>
-			</details>
-		</div>
-		<div class="preview-active-filters">
-			<UiButton
-				v-for="chip in c.scopeChips.value"
-				:key="chip.key"
-				variant="ghost"
-				:aria-label="'移除' + chip.label"
-				@click="c.removeScope(chip.field, chip.value)"
-				>{{ chip.label }} ×</UiButton
-			>
-			<UiButton
-				v-for="chip in chips"
-				:key="chip.key"
-				variant="ghost"
-				:aria-label="'移除' + chip.label"
-				:disabled="chip.fixed"
-				@click="Object.assign(query, chip.reset)"
-				>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
-			>
-		</div>
+			<UiButton icon="scan" @click="scan?.show()">扫码</UiButton
+			><template #result-tools
+				><span>{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品</span
+				><UiButton v-if="result.initialized" @click="analysisOpen = true"
+					>分析结果</UiButton
+				></template
+			></BrowseToolbar
+		>
 		<ScanPanel
+			ref="scan"
+			hide-trigger
 			@item="(code, batch) => (query.search = batch || code)"
 			@location="(name) => (scope.warehouses = [name])"
 		/>
@@ -281,9 +296,7 @@ function openItem(row: ReportRow) {
 					@click="c.load(true)"
 					>加载更多</UiButton
 				>
-				<UiButton v-if="result.initialized" @click="analysisOpen = true"
-					>分析结果</UiButton
-				>
+
 				<Overlay
 					v-if="analysisOpen"
 					title="分析当前结果"

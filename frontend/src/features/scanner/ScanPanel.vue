@@ -4,7 +4,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import Scanner from "../../components/Scanner.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import { useScanController } from "./useScanController";
-const props = defineProps<{ allowCreate?: boolean; paused?: boolean }>();
+const props = defineProps<{ allowCreate?: boolean; paused?: boolean; hideTrigger?: boolean }>();
 const emit = defineEmits<{
 	item: [code: string, batch?: string];
 	location: [name: string];
@@ -28,6 +28,11 @@ const {
 	(name) => emit("location", name),
 );
 const open = ref(false);
+defineExpose({
+	show: () => {
+		open.value = true;
+	},
+});
 watch(open, (value) => {
 	if (!value) camera.value = false;
 });
@@ -60,7 +65,9 @@ function finishLocation() {
 }
 </script>
 <template>
-	<UiButton icon="scan" @click="open = true">扫描物品 / 批次 / 库位</UiButton>
+	<UiButton v-if="!hideTrigger" icon="scan" @click="open = true"
+		>扫描物品 / 批次 / 库位</UiButton
+	>
 	<Overlay v-if="open" title="扫描物品 / 批次 / 库位" adaptive-creation @close="closeScan">
 		<label class="preview-choice-label"
 			><input type="checkbox" v-model="continuous" />连续扫描</label

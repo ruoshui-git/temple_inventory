@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import type { NativeWarehouses } from "./useNativeWarehouses";
 import type { ReportQuery } from "../../lib/reportContract";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -58,24 +59,26 @@ function toggle(name: string) {
 </script>
 <template>
 	<section class="browse-page">
-		<header class="browse-heading">
-			<div>
-				<h1>{{ detail ? selected?.label || "仓库详情" : "仓库" }}</h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">{{ detail ? selected?.label || "仓库详情" : "仓库" }}</h1>
 				<p v-if="detail && selected" class="muted">ERPNext 名称：{{ selected.name }}</p>
 			</div>
-			<div class="page-actions">
-				<UiButton v-if="detail" @click="emit('back')">返回仓库</UiButton
-				><UiButton :disabled="loading || busy" @click="c.load">刷新</UiButton
-				><UiButton v-if="tree?.can_create" variant="primary" @click="c.openEditor()"
-					>新建仓库 / 位置</UiButton
-				><QuickExport
+			<template #back
+				><UiButton v-if="detail" @click="emit('back')">返回仓库</UiButton></template
+			><template #actions
+				><UiButton :disabled="loading || busy" @click="c.load">刷新</UiButton>
+				<QuickExport
 					v-if="c.canUseSelection.value"
 					:query="c.stockQuery.value"
 					:active="active"
 					@open-full="emit('openExport', $event)"
 				/>
-			</div>
-		</header>
+				<UiButton v-if="tree?.can_create" variant="primary" @click="c.openEditor()"
+					>新建仓库 / 位置</UiButton
+				></template
+			></PageHeader
+		>
 		<p v-if="loading" role="status">正在读取仓库与权限…</p>
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" class="utility-error" role="alert">{{ recoveryError }}</p>

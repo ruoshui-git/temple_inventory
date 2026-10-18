@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { ref, watch } from "vue";
 import ItemConversions from "./ItemConversions.vue";
 import ItemFields from "./ItemFields.vue";
@@ -54,9 +55,9 @@ async function copy(text: string) {
 </script>
 <template>
 	<section class="preview-form-page">
-		<div v-if="!contextual" class="form-page-heading">
-			<h1>{{ existing ? "编辑物品" : "新建物品" }}</h1>
-		</div>
+		<PageHeader v-if="!contextual" class="form-page-heading"
+			><h1 tabindex="-1">{{ existing ? "编辑物品" : "新建物品" }}</h1></PageHeader
+		>
 		<p v-if="loading" role="status">正在读取物品…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>

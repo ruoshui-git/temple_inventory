@@ -1,3 +1,4 @@
+import PageHeader from "./components/ui/PageHeader.vue";
 import { createRouter, createWebHistory } from "vue-router";
 export const router = createRouter({
   history: createWebHistory("/inventory"),
@@ -69,8 +70,9 @@ export const router = createRouter({
     {
       path: "/auth-complete",
       component: {
+        components: { PageHeader },
         template:
-          '<main class="app-shell"><h1>登录成功</h1><p>请返回原窗口并点击「继续保存」。</p></main>',
+          '<main class="app-shell"><PageHeader title="登录成功" /><p>请返回原窗口并点击「继续保存」。</p></main>',
       },
     },
     { path: "/:pathMatch(.*)*", redirect: "/" },

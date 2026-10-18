@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { computed, watch } from "vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import type { useConfiguration } from "./useConfiguration";
@@ -30,13 +31,17 @@ watch([field, warehouse], () => c.clearPreview());
 </script>
 <template>
 	<section class="preview-utility-page">
-		<header class="utility-heading">
-			<div>
-				<h1>配置与恢复</h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">配置与恢复</h1>
 				<p class="muted">检查公司、仓库范围与实际存放库位。</p>
 			</div>
-			<UiButton :disabled="busy || loading" @click="c.load">重新检查</UiButton>
-		</header>
+			<template #actions
+				><UiButton :disabled="busy || loading" @click="c.load"
+					>重新检查</UiButton
+				></template
+			></PageHeader
+		>
 		<p v-if="loading" role="status">正在读取配置与权限…</p>
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<p v-if="message" role="status">{{ message }}</p>

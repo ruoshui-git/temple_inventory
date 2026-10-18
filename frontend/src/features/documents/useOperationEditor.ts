@@ -30,6 +30,7 @@ import {
   lineStock,
   lineCapacity,
   provideOperationContext,
+  type AllocationLine,
   type OperationDraft,
   type OperationKind,
 } from "./operationModel";
@@ -291,7 +292,10 @@ export function useOperationEditor(props: {
     }
     if (state.identity) await files.fetch();
   }
+  let initialItemsApplied = false;
   async function load(discardDirty = false) {
+    if (loading.value) return;
+    state.error = "";
     loading.value = true;
     ready = false;
     clearTimeout(timer);
@@ -309,9 +313,15 @@ export function useOperationEditor(props: {
         }
         draft.value.preferredWarehouse = props.initialWarehouse;
       }
-      if (!state.identity && props.initialItems?.length)
-        for (const code of props.initialItems) {
+      if (
+        !state.identity &&
+        !initialItemsApplied &&
+        props.initialItems?.length
+      ) {
+        const additions: AllocationLine[] = [];
+        for (const code of new Set(props.initialItems)) {
           const item = await ensure(code);
+          if (!active()) return;
           const id = crypto.randomUUID();
           const eligible = item.locations.filter((place) =>
             ["Repair", "Disposal"].includes(draft.value.kind)
@@ -326,7 +336,7 @@ export function useOperationEditor(props: {
             reference.physicalLeaves[0] !== source
               ? reference.physicalLeaves[0]!
               : "";
-          draft.value.items.push({
+          additions.push({
             id,
             localId: id,
             code,
@@ -347,6 +357,9 @@ export function useOperationEditor(props: {
             sourceLocation: draft.value.kind === "Receive" ? "" : source,
           });
         }
+        draft.value.items.push(...additions);
+        initialItemsApplied = true;
+      }
       if (!state.identity && props.initialAllocations?.length)
         for (const allocation of props.initialAllocations) {
           const item = await ensure(allocation.item_code),

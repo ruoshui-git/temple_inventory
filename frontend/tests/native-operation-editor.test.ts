@@ -735,3 +735,39 @@ describe("pending file lifecycle", () => {
     expect(files.incomplete.value).toBe(true);
   });
 });
+
+it("initializes selected Items atomically and only once across lookup retries and reloads", async () => {
+  const base = service();
+  let fail = true;
+  const call = vi.fn(async (method, args) => {
+    if (method === "catalog.operation_item" && args.item_code === "ITEM-B") {
+      if (fail) throw new Error("物品暂不可用");
+      return { ...structuredClone(item), item_code: "ITEM-B" };
+    }
+    return base(method, args);
+  });
+  const { controller: c } = setup(
+    () =>
+      useOperationEditor({
+        kind: "Transfer",
+        initialItems: ["ITEM-A", "ITEM-B", "ITEM-A"],
+      }),
+    call,
+  );
+  await flushPromises();
+  expect(c.draft.value.items).toHaveLength(0);
+  expect(c.state.error).toBe("物品暂不可用");
+  fail = false;
+  await c.load();
+  expect(c.state.error).toBe("");
+  expect(c.draft.value.items.map((line) => line.code)).toEqual([
+    "ITEM-A",
+    "ITEM-B",
+  ]);
+  const first = c.draft.value.items[0]!;
+  first.entryQty = first.qty = 7;
+  c.draft.value.items.pop();
+  await c.load();
+  expect(c.draft.value.items).toHaveLength(1);
+  expect(c.draft.value.items[0]).toMatchObject({ id: first.id, qty: 7 });
+});

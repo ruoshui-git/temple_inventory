@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import { ref, watch } from "vue";
 import type { PendingController } from "./usePendingController";
 import type { InitialAllocation } from "../../lib/routeSelection";
@@ -26,72 +27,84 @@ const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
 const filterOpen = ref(false),
 	{ isMobile } = useResponsiveLayout();
-watch(
-	() => props.active,
-	(value) => {
-		if (!value) filterOpen.value = false;
-	},
-);
+watch([() => props.active, isMobile], () => {
+	if (props.active === false) filterOpen.value = false;
+	analysisOpen.value = false;
+});
 </script>
 <template>
 	<section class="browse-page">
-		<header class="browse-heading">
-			<h1>损坏待处理</h1>
-			<QuickExport
-				v-if="!routeError"
-				:query="query"
-				:active="active"
-				@open-full="emit('openExport', $event)"
-			/>
-		</header>
-		<div class="browse-callout">
-			<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
-			<div>
-				<strong>损坏物资待处理</strong>
-				<p>选择修复归库，或将无法使用的物资正式报废。</p>
+		<BrowseToolbar
+			title="损坏待处理"
+			:summary="`损坏待处理 · ${table?.initialized ? c.report.result.total + ' 条分配' : '读取中'}`"
+			v-model:search="query.search"
+			search-label="搜索物品、批次或存放位置"
+			:active="active"
+			:filters-open="filterOpen"
+			:filter-count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
+			@filters="filterOpen = !filterOpen"
+			><template #actions
+				><QuickExport
+					v-if="!routeError"
+					:query="query"
+					:active="active"
+					@open-full="emit('openExport', $event)"
+			/></template>
+			<div class="browse-callout">
+				<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
+				<div>
+					<strong>损坏物资待处理</strong>
+					<p>选择修复归库，或将无法使用的物资正式报废。</p>
+				</div>
+				<b v-if="table?.initialized">{{ c.report.result.total }} 条分配</b>
 			</div>
-			<b v-if="table?.initialized">{{ c.report.result.total }} 条分配</b>
-		</div>
-		<p v-if="routeError" role="alert">{{ routeError }}</p>
-		<div class="browse-toolbar">
-			<label class="browse-search"
-				><InventoryIcon name="search" /><input
-					v-model="query.search"
-					type="search"
-					placeholder="搜索物品、批次或存放位置"
-			/></label>
-			<FilterButton
-				:expanded="filterOpen"
-				:count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
-				@click="filterOpen = !filterOpen"
-			/>
-			<label class="preview-field"
-				>排序<select v-model="query.sortBy">
-					<option value="name">物品名称</option>
-					<option value="quantity">损坏数量</option>
-					<option value="identity">物品 / 库位编号</option>
-					<option value="date">到期日</option>
-				</select></label
-			><UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
-				query.sort === "asc" ? "升序" : "降序"
-			}}</UiButton>
-		</div>
-		<div class="preview-active-filters">
-			<UiButton
-				v-for="chip in scopeChips"
-				:key="chip.key"
-				variant="ghost"
-				@click="c.removeScope(chip.field, chip.value)"
-				>{{ chip.label }} ×</UiButton
-			><UiButton
-				v-for="chip in chips"
-				:key="chip.key"
-				variant="ghost"
-				:disabled="chip.fixed"
-				@click="Object.assign(query, chip.reset)"
-				>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
-			>
-		</div>
+			<p v-if="routeError" role="alert">{{ routeError }}</p>
+			<div class="browse-toolbar">
+				<label class="browse-search"
+					><InventoryIcon name="search" /><input
+						v-model="query.search"
+						type="search"
+						placeholder="搜索物品、批次或存放位置"
+				/></label>
+				<FilterButton
+					:expanded="filterOpen"
+					:count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
+					@click="filterOpen = !filterOpen"
+				/>
+				<label class="preview-field"
+					>排序<select v-model="query.sortBy">
+						<option value="name">物品名称</option>
+						<option value="quantity">损坏数量</option>
+						<option value="identity">物品 / 库位编号</option>
+						<option value="date">到期日</option>
+					</select></label
+				><UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
+					query.sort === "asc" ? "升序" : "降序"
+				}}</UiButton>
+			</div>
+			<div class="preview-active-filters">
+				<UiButton
+					v-for="chip in scopeChips"
+					:key="chip.key"
+					variant="ghost"
+					@click="c.removeScope(chip.field, chip.value)"
+					>{{ chip.label }} ×</UiButton
+				><UiButton
+					v-for="chip in chips"
+					:key="chip.key"
+					variant="ghost"
+					:disabled="chip.fixed"
+					@click="Object.assign(query, chip.reset)"
+					>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
+				>
+			</div>
+			<template #result-tools
+				><span>{{ c.report.result.total }} 条库位分配</span
+				><UiButton :disabled="!table?.initialized" @click="analysisOpen = true"
+					>分析结果</UiButton
+				></template
+			></BrowseToolbar
+		>
 		<p v-if="c.report.result.loading" role="status">
 			{{ table?.rows.length ? "正在更新损坏库存…" : "正在读取损坏库存…" }}
 		</p>
@@ -187,7 +200,7 @@ watch(
 					@click="c.report.loadTable(table, true)"
 					>加载更多</UiButton
 				>
-				<UiButton @click="analysisOpen = true">分析结果</UiButton>
+
 				<Overlay
 					v-if="analysisOpen"
 					title="分析当前结果"

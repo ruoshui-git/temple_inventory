@@ -1,5 +1,33 @@
 # Temple Inventory UI/UX Decisions
 
+## Consistent page headers and Inventory controls — 2026-10-18
+
+- Routed pages share title/Back/action geometry. Desktop utilities precede workflow
+  actions at the right; phone actions wrap below the title with visible labels.
+  Editors retain their separate save/confirmation bars and workspace expansion.
+- Inventory, Expiry, Movement, Loans and Pending share browse chrome. Collapse occurs
+  once after 160px of active-surface scrolling; later choices persist while scrolling
+  and across breakpoints. Expansion reveals bounded sticky controls in place, retains
+  result context and exposes one visible heading and accessible toggle.
+- Compact chrome retains summary/count, Search, applicable Scan, Filters and Expand.
+  Analysis appears above results only in expanded chrome. Selected Stock actions stay
+  in a separate always-reachable strip in both states.
+- Generic 入库/出库/调拨 header shortcuts belong to Movement. Stock offers 新建物品;
+  selecting items offers permitted 入库/出库/调拨 with those exact Item identities.
+  Loan, damaged-stock and record/location-specific workflows remain contextual.
+- Inventory uses the shared category/warehouse multi-select hierarchies. Route scope,
+  controls, chips, analysis and export share one state; clearing inherited selections
+  clears that scope rather than restoring it.
+- Same-depth parent/leaf rows reserve identical expander columns. Desktop tree rows
+  use 28px expanders, 16px checkboxes, 4px gaps and a 32px minimum row height. Mobile
+  retains 44px targets. Indentation remains 10px per level, capped at 40px.
+
+These choices supersede the separate Inventory toolbar, historical 80px collapse
+threshold, repeated Inventory/Expiry movement header actions, mobile creation FAB
+placement for these headers, and 44px desktop hierarchy-row/expander requirements.
+Mobile touch targets, shared hierarchy semantics and explicit native submission
+remain unchanged.
+
 ## Production refinement implementation — 2026-10-17
 
 The 16-item [refinement handoff](notes/20261017_UI_REFINEMENT_HANDOFF.md) is now

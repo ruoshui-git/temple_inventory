@@ -284,7 +284,9 @@ for (const [width, scale, density] of [
       .locator(".inventory-browse-header")
       .boundingBox();
     await page.getByRole("button", { name: "收起工具", exact: true }).click();
-    await expect(page.locator(".compact-action-row")).toContainText("已选 1");
+    await expect(page.locator(".browse-compact-summary")).toContainText(
+      "已选 1",
+    );
     const collapsed = await page
       .locator(".inventory-browse-header")
       .boundingBox();
@@ -297,7 +299,7 @@ for (const [width, scale, density] of [
     );
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^筛选/ }).click();
-    await expect(page.locator(".hierarchy-list")).toBeVisible();
+    await expect(page.locator(".hierarchy-list").first()).toBeVisible();
     const indents = await page
       .locator(".hierarchy-row")
       .evaluateAll((rows) =>

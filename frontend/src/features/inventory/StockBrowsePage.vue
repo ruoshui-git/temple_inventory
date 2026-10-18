@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import StockBrowseView from "./StockBrowseView.vue";
 import { useStockBrowseController } from "./useStockBrowseController";
 import type { StockItem } from "../../lib/stockPresentation";
@@ -30,7 +31,7 @@ defineExpose({ controller });
 </script>
 <template>
 	<section v-if="controller.scopeError.value" class="surface form-section">
-		<h1>库存</h1>
+		<PageHeader title="库存" />
 		<p role="alert">{{ controller.scopeError.value }}</p>
 		<UiButton @click="emit('clearRoute')">打开库存默认范围</UiButton>
 	</section>

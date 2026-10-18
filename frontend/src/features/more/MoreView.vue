@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import type { MoreController } from "./useMoreController";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -20,7 +21,7 @@ const c = props.controller,
 </script>
 <template>
 	<section class="preview-utility-page">
-		<header class="utility-heading"><h1>更多</h1></header>
+		<PageHeader><h1 tabindex="-1">更多</h1></PageHeader>
 		<p v-if="summaryError" role="alert">
 			{{ summaryError }}
 			<UiButton :loading="loading" @click="c.load">重试读取草稿数量</UiButton>

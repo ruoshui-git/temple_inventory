@@ -340,7 +340,7 @@ describe("interactive preview", () => {
     await nextTick();
     expect(wrapper.findAll(".stock-card")).toHaveLength(1);
   });
-  it("filters, sorts, retains selection across view switches, and dismisses action menus", async () => {
+  it("filters, sorts, and keeps selected-item actions available across views and breakpoints", async () => {
     const wrapper = render(PreviewInventory, { pattern: "proposed" });
     await flushPromises();
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
@@ -354,16 +354,18 @@ describe("interactive preview", () => {
     desktop = false;
     listeners.forEach((callback) => callback({ matches: false }));
     await flushPromises();
-    const trigger = wrapper.get('button[aria-label="新建操作"]');
-    await trigger.trigger("click");
-    expect(wrapper.find(".menu-popover").exists()).toBe(true);
-    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-    await flushPromises();
-    expect(wrapper.find(".menu-popover").exists()).toBe(false);
-    await trigger.trigger("click");
-    await wrapper.get(".action-menu").trigger("keydown", { key: "Escape" });
-    expect(document.activeElement).toBe(trigger.element);
-    expect(wrapper.find(".menu-popover").exists()).toBe(false);
+    expect(wrapper.find('[aria-label="新建操作"]').exists()).toBe(false);
+    expect(wrapper.get(".app-page-actions").text()).toContain("新建物品");
+    expect(wrapper.get(".app-page-actions").text()).not.toContain("入库");
+    await button(wrapper, "收起工具").trigger("click");
+    expect(wrapper.get(".stock-selection-actions").isVisible()).toBe(true);
+    await button(wrapper, "调拨").trigger("click");
+    expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
+      "movement-form",
+      "Transfer",
+    ]);
+    await button(wrapper, "取消选择").trigger("click");
+    expect(wrapper.find(".stock-selection-actions").exists()).toBe(false);
   });
   it("validates receiving input and confirms through the shared native service contract", async () => {
     const wrapper = render(PreviewReceive, { pattern: "current" });

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref } from "vue";
 import ActivityEditor from "./ActivityEditor.vue";
@@ -106,9 +107,9 @@ function tabKey(event: KeyboardEvent) {
 				>{{ chip.label }} ×</UiButton
 			>
 		</div>
-		<header class="browse-heading">
-			<div>
-				<h1>
+		<PageHeader
+			><div>
+				<h1 tabindex="-1">
 					{{
 						page === "activity-list"
 							? "活动"
@@ -120,17 +121,18 @@ function tabKey(event: KeyboardEvent) {
 					}}
 				</h1>
 			</div>
-			<div class="form-actions">
-				<UiButton v-if="page === 'activity-list'" variant="primary" @click="newActivity"
-					>新建活动</UiButton
+			<template #actions
 				><QuickExport
 					v-if="page !== 'activity-form'"
 					:query="report"
 					:active="active"
 					@open-full="emit('openExport', $event)"
 				/>
-			</div>
-		</header>
+				<UiButton v-if="page === 'activity-list'" variant="primary" @click="newActivity"
+					>新建活动</UiButton
+				></template
+			></PageHeader
+		>
 		<ActivityEditor
 			ref="activityEditor"
 			v-if="page === 'activity-form'"
