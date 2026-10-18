@@ -5,6 +5,9 @@
 The 16-item [refinement handoff](notes/20261017_UI_REFINEMENT_HANDOFF.md) is now
 implemented in production source; actual checks and remaining device/visual
 limits are recorded in the [implementation record](notes/20261017_UI_REFINEMENT_IMPLEMENTATION.md).
+Independent review and repairs are recorded in the
+[review note](notes/20261017_UI_REFINEMENT_REVIEW.md). Long allocation context
+heads the scrollable modal body so its close action stays visible at large text sizes.
 This supersedes older requirements to keep context tabs/secondary controls in
 the collapsed toolbar and to maintain the separate preview application.
 

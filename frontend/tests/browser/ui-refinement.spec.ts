@@ -560,3 +560,30 @@ test("open movement filter follows the breakpoint without losing selection", asy
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+test("large-text allocation context scrolls without hiding the close action", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setup(page, 200);
+  await page.goto("/inventory/movements/records");
+  await page.getByRole("button", { name: "匹配分配明细", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("30 行");
+  const close = dialog.getByRole("button", { name: "关闭对话框", exact: true });
+  const geometry = await close.evaluate((button) => {
+    const box = button.getBoundingClientRect();
+    const header = button.closest("header")!.getBoundingClientRect();
+    return {
+      top: box.top,
+      bottom: box.bottom,
+      headerBottom: header.bottom,
+      viewport: innerHeight,
+    };
+  });
+  expect(geometry.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.headerBottom);
+  expect(geometry.bottom).toBeLessThan(geometry.viewport / 2);
+  await close.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

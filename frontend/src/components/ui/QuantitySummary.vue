@@ -20,6 +20,9 @@ const formatQuantity = (value: number) =>
 
 <template>
 	<section class="quantity-summary" :aria-label="label" aria-live="polite" :aria-busy="loading">
+		<p v-if="loading" class="quantity-summary-loading" role="status">
+			正在更新…已有数量为上次结果。
+		</p>
 		<article
 			v-for="metric in metrics"
 			:key="metric.key"
@@ -31,21 +34,21 @@ const formatQuantity = (value: number) =>
 			/></span>
 			<div>
 				<small>{{ metric.label }}</small>
-				<div v-if="loading && !metric.quantities.length" class="quantity-summary-loading">
-					正在更新…
-				</div>
-				<div v-else-if="metric.quantities.length" class="quantity-summary-values">
+				<div v-if="metric.quantities.length" class="quantity-summary-values">
 					<strong v-for="quantity in metric.quantities" :key="quantity.uom">
 						{{ formatQuantity(quantity.qty) }} <span>{{ quantity.uom }}</span>
 					</strong>
 				</div>
-				<strong v-else class="quantity-summary-empty">0</strong>
+				<strong v-else-if="!loading" class="quantity-summary-empty">0</strong>
 			</div>
 		</article>
 	</section>
 </template>
 
 <style scoped>
+.quantity-summary-loading {
+	grid-column: 1 / -1;
+}
 .quantity-summary-values {
 	display: flex;
 	flex-wrap: wrap;

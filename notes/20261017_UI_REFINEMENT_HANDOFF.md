@@ -2,7 +2,10 @@
 
 Date: 2026-10-17
 
-Status: **Ready for another agent to implement. No UI changes implemented by this handoff.**
+Status: **Implemented and independently reviewed; review gaps fixed locally.**
+See the [implementation record](20261017_UI_REFINEMENT_IMPLEMENTATION.md) and
+[review evidence and limits](20261017_UI_REFINEMENT_REVIEW.md). The specification
+below is historical task scope, not a fresh implementation assignment.
 
 Source baseline: `ac7fd9e` (migration pass 2: `d732ddc`). The working tree was
 clean before this documentation change. Read current `AGENTS.md`,

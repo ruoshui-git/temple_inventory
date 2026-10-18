@@ -5,12 +5,51 @@ import Overlay from "../src/components/ui/Overlay.vue";
 import ImageCrop from "../src/components/ui/ImageCrop.vue";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 import { warehouseLabel } from "../src/lib/warehouseLabel";
+import { reportFilterChips } from "../src/lib/reportFilters";
+import { newReportQuery } from "../src/lib/reportContract";
 import { useRelatedLoans } from "../src/features/loans/useRelatedLoans";
 import {
   createReferenceData,
   provideInventoryServices,
 } from "../src/services/contracts";
 const wrappers: VueWrapper[] = [];
+it("formats allocation chips with authorized warehouse labels while preserving exact query identities", () => {
+  const reference = createReferenceData();
+  reference.warehouses = [{ name: "东/库 - O", label: "东/库" }];
+  const query = newReportQuery("expiry");
+  query.allocationKeys = [
+    JSON.stringify(["ITEM/1", "东/库 - O", "B1"]),
+    "ITEM/1/东/库 - O/B2",
+  ];
+  query.itemLocationKeys = [
+    JSON.stringify(["ITEM/1", "东/库 - O"]),
+    "ITEM/1/东/库 - O",
+  ];
+  const before = JSON.stringify(query);
+  const chips = reportFilterChips(query, reference);
+  expect(chips.find((chip) => chip.key === "allocations")?.label).toContain(
+    "ITEM/1 / 东/库 / B1",
+  );
+  expect(chips.find((chip) => chip.key === "allocations")?.label).toContain(
+    "ITEM/1 / 东/库 / B2",
+  );
+  expect(chips.find((chip) => chip.key === "itemLocations")?.label).toContain(
+    "ITEM/1 / 东/库",
+  );
+  expect(JSON.stringify(chips)).not.toContain(" - O");
+  expect(JSON.stringify(query)).toBe(before);
+  reference.warehouses = [];
+  expect(JSON.stringify(reportFilterChips(query, reference))).not.toContain(
+    " - O",
+  );
+  const movement = newReportQuery("movements");
+  movement.allocationKeys = [JSON.stringify(["Stock Entry", "MAT-1", "ROW-1"])];
+  expect(
+    reportFilterChips(movement, reference).find(
+      (chip) => chip.key === "allocations",
+    )?.label,
+  ).toContain("Stock Entry / MAT-1 / ROW-1");
+});
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   document.body.innerHTML = "";

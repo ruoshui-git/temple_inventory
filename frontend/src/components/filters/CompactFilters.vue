@@ -103,6 +103,10 @@ function clear() {
 	scope.value = cleared;
 	emit("clear");
 }
+function show() {
+	panels.get(isMobile.value ? "all" : primary.value[0] || "more")?.show();
+}
+defineExpose({ show });
 </script>
 <template>
 	<div class="preview-compact-filters">

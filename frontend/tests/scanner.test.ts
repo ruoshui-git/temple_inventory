@@ -64,6 +64,19 @@ beforeEach(() => {
 });
 
 describe("Scanner component", () => {
+  it("embeds camera feedback without duplicating its parent's manual field and close action", async () => {
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(wrapper.find(".scanner-camera").exists()).toBe(true);
+    expect(wrapper.find("input").exists()).toBe(false);
+    expect(wrapper.find(".section-title-row").exists()).toBe(false);
+    state.errors[0]!(new Error("相机不可用"));
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("相机不可用");
+    expect(wrapper.get("button").text()).toBe("重试相机");
+    wrapper.unmount();
+    expect(state.stops).toBeGreaterThan(0);
+  });
   it("teleports modal presentation, traps focus, restores body scroll and opener, and stops on close", async () => {
     const opener = document.createElement("button");
     opener.textContent = "open";

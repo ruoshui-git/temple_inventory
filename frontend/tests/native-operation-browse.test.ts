@@ -220,6 +220,38 @@ describe("native operation browsing", () => {
       itemCodes: [],
     });
   });
+  it("renders inherited restriction chips and removes only the selected condition", async () => {
+    const query = newReportQuery("loans");
+    Object.assign(query, {
+      restrictItems: true,
+      itemCodes: ["ITEM-A"],
+      loan: "LOAN-EXACT",
+      search: "typed",
+    });
+    const { wrapper } = setup(
+      service(),
+      reactive({
+        family: "loans" as const,
+        records: false,
+        routeQuery: JSON.stringify(query),
+      }),
+      true,
+    );
+    await flushPromises();
+    const chips = wrapper.get(".compact-filter-chips");
+    expect(chips.text()).toContain("LOAN-EXACT");
+    const item = chips
+      .findAll("button")
+      .find((button) => button.text().includes("ITEM-A"))!;
+    expect(item).toBeTruthy();
+    await item.trigger("click");
+    const current =
+      wrapper.getComponent(OperationBrowsePage).vm.controller.query.value;
+    expect(current.restrictItems).toBe(false);
+    expect(current.itemCodes).toEqual([]);
+    expect(current.loan).toBe("LOAN-EXACT");
+    expect(current.search).toBe("typed");
+  });
   it("keeps inherited restrictions through view changes and clears only secondary restrictions", async () => {
     const query = newReportQuery("loans");
     Object.assign(query, {

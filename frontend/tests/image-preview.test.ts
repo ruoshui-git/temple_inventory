@@ -32,7 +32,7 @@ describe("shared native Item artwork", () => {
     expect(wrapper.get('[role="img"]').attributes("aria-busy")).toBe("true");
     expect(wrapper.get("img").attributes("src")).toBe(item.image);
     await wrapper.get("img").trigger("error");
-    expect(wrapper.text()).toContain("暂无图片");
+    expect(wrapper.text()).toContain("图片加载失败");
     expect(wrapper.find("img").exists()).toBe(false);
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });

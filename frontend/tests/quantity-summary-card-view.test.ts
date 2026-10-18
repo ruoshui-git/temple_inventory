@@ -33,6 +33,7 @@ function item(changes: Partial<StockItem> = {}): StockItem {
     locations: [
       {
         location: "ROOM-A",
+        label: "东库",
         available: 8,
         loaned: 3,
         damaged: 1,
@@ -96,7 +97,12 @@ describe("native quantity summaries and inventory cards", () => {
     await wrapper.setProps({ loading: true });
     expect(wrapper.attributes("aria-busy")).toBe("true");
     expect(wrapper.text()).toContain("正在更新");
-    expect(wrapper.find(".quantity-summary-values").exists()).toBe(false);
+    expect(wrapper.find(".quantity-summary-values").exists()).toBe(true);
+    expect(wrapper.text()).toContain("上次结果");
+    await wrapper.setProps({
+      metrics: [{ key: "available", label: "可用", quantities: [] }],
+    });
+    expect(wrapper.find(".quantity-summary-empty").exists()).toBe(false);
   });
   it("renders one Item card with available, loaned and damaged quantities, then retains its selected native code", async () => {
     const wrapper = await inventory([item()]);
@@ -118,6 +124,7 @@ describe("native quantity summaries and inventory cards", () => {
     const value = item();
     value.locations.push({
       location: "ROOM-B",
+      label: "西库",
       available: 2,
       loaned: 0,
       damaged: 0,
@@ -138,8 +145,9 @@ describe("native quantity summaries and inventory cards", () => {
     await trigger.trigger("click");
     expect(document.body.textContent).toContain("BATCH-A");
     expect(document.body.textContent).toContain("BATCH-B");
-    expect(document.body.textContent).toContain("ROOM-A");
-    expect(document.body.textContent).toContain("ROOM-B");
+    expect(document.body.textContent).toContain("东库");
+    expect(document.body.textContent).toContain("西库");
+    expect(document.body.textContent).not.toContain("ROOM-A");
   });
   it("uses the site date and treats expiry today as unexpired", () => {
     expect(expiryStatus(item(), "2026-10-16")).toBe("已过期");

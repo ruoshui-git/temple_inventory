@@ -67,7 +67,7 @@ function finishLocation() {
 		><UiButton @click="camera = !camera">{{ camera ? "关闭相机" : "打开相机" }}</UiButton>
 		<Scanner
 			v-if="camera"
-			presentation="inline"
+			presentation="camera"
 			:paused="paused"
 			@scan="scan"
 			@close="camera = false"

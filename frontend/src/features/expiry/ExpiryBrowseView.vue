@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatExpiryDuration } from "../../lib/expiryDuration";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
 import type { ExpiryBrowse } from "./useExpiryBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
@@ -249,6 +250,15 @@ function openItem(row: ReportRow) {
 								</td>
 								<td>{{ row.available }} {{ row.stock_uom }}</td>
 								<td>
+									<p>
+										{{
+											warehouseLabel(
+												row.warehouse,
+												reference.warehouses,
+												row.warehouse_label,
+											)
+										}}
+									</p>
 									<UiButton @click="batchDetail = row">查看批次明细</UiButton>
 								</td>
 							</tr>
@@ -308,7 +318,14 @@ function openItem(row: ReportRow) {
 		>
 			<h3>{{ batchDetail.item_name }} · {{ batchDetail.batch_no }}</h3>
 			<p>
-				{{ batchDetail.warehouse_label || "位置暂不可用" }} ·
+				{{
+					warehouseLabel(
+						batchDetail.warehouse,
+						reference.warehouses,
+						batchDetail.warehouse_label,
+					)
+				}}
+				·
 				{{ batchDetail.expiry_date || "无效期" }}
 			</p>
 			<p>

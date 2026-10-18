@@ -4,7 +4,7 @@ import { ScannerService, cameraError } from "../lib/scanner";
 import { sessionExpired } from "../lib/sessionState";
 import Overlay from "./ui/Overlay.vue";
 import UiButton from "./ui/UiButton.vue";
-export type ScannerPresentation = "inline" | "modal" | "continuous";
+export type ScannerPresentation = "inline" | "modal" | "continuous" | "camera";
 const props = withDefaults(
 	defineProps<{ paused?: boolean; presentation?: ScannerPresentation }>(),
 	{ presentation: "inline" },
@@ -116,7 +116,10 @@ defineExpose({
 		class="inventory-scanner"
 		@close="close"
 	>
-		<div v-if="presentation !== 'modal'" class="section-title-row">
+		<div
+			v-if="presentation === 'inline' || presentation === 'continuous'"
+			class="section-title-row"
+		>
 			<h3>{{ presentation === "continuous" ? "连续扫码" : "扫描条码" }}</h3>
 			<UiButton @click="close">关闭相机</UiButton>
 		</div>
@@ -131,7 +134,11 @@ defineExpose({
 		<p v-if="starting" role="status">正在打开相机…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
 		<UiButton v-if="error" :disabled="starting || paused" @click="start">重试相机</UiButton>
-		<form class="scanner-manual" @submit.prevent="decoded(manual, true)">
+		<form
+			v-if="presentation !== 'camera'"
+			class="scanner-manual"
+			@submit.prevent="decoded(manual, true)"
+		>
 			<label class="preview-field"
 				>条码 / 编号 / 扫码枪<input
 					v-model="manual"

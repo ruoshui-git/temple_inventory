@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { watch } from "vue";
+import { computed, watch } from "vue";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import type { useConfiguration } from "./useConfiguration";
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -20,6 +21,11 @@ const {
 	message,
 	options,
 } = c;
+const warehouseNodes = computed(() =>
+	(status.value?.candidates || []).map((row) => ({ ...row, name: row.value })),
+);
+const locationLabel = (name: string) =>
+	name ? warehouseLabel(name, warehouseNodes.value) : "尚未配置";
 watch([field, warehouse], () => c.clearPreview());
 </script>
 <template>
@@ -75,7 +81,12 @@ watch([field, warehouse], () => c.clearPreview());
 				<dl class="configuration-pointers">
 					<template v-for="pointer in status.pointers" :key="pointer.field"
 						><dt>{{ pointer.label }}</dt>
-						<dd>{{ pointer.current || "尚未配置" }}</dd></template
+						<dd>
+							{{ locationLabel(pointer.current)
+							}}<small v-if="pointer.current" class="muted"
+								>ERPNext 名称：{{ pointer.current }}</small
+							>
+						</dd></template
 					>
 				</dl>
 			</section>
@@ -104,8 +115,8 @@ watch([field, warehouse], () => c.clearPreview());
 				<UiButton :disabled="!warehouse || busy" @click="c.review">查看修复影响</UiButton>
 				<section v-if="preview" class="configuration-impact">
 					<h3>{{ preview.label }}</h3>
-					<p>当前引用：{{ preview.current || "尚未配置" }}</p>
-					<p>替代节点：{{ preview.replacement }}</p>
+					<p>当前引用：{{ locationLabel(preview.current) }}</p>
+					<p>替代节点：{{ locationLabel(preview.replacement) }}</p>
 					<p>
 						可读取范围：{{ preview.visible_nodes }} 个节点，{{
 							preview.visible_leaves
@@ -119,7 +130,7 @@ watch([field, warehouse], () => c.clearPreview());
 							{{
 								status.pointers.find((pointer) => pointer.field === other.field)
 									?.label
-							}}：{{ other.warehouse || "尚未配置" }}
+							}}：{{ locationLabel(other.warehouse) }}
 						</p>
 					</details>
 					<label class="preview-choice-label"
@@ -176,6 +187,9 @@ watch([field, warehouse], () => c.clearPreview());
 .configuration-pointers dd {
 	margin: 0;
 	overflow-wrap: anywhere;
+}
+.configuration-pointers small {
+	display: block;
 }
 .configuration-impact {
 	margin-block: 20px;

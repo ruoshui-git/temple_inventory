@@ -61,7 +61,7 @@ function toggle(name: string) {
 		<header class="browse-heading">
 			<div>
 				<h1>{{ detail ? selected?.label || "仓库详情" : "仓库" }}</h1>
-				<p v-if="detail" class="muted">{{ selected?.name }}</p>
+				<p v-if="detail && selected" class="muted">ERPNext 名称：{{ selected.name }}</p>
 			</div>
 			<div class="page-actions">
 				<UiButton v-if="detail" @click="emit('back')">返回仓库</UiButton

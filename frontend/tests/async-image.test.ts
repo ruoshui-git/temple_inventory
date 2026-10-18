@@ -12,6 +12,8 @@ describe("AsyncImage", () => {
     expect(wrapper.get(".async-image__skeleton").exists()).toBe(true);
     expect(wrapper.get("img").attributes("width")).toBe("64");
     expect(wrapper.get("img").attributes("height")).toBe("48");
+    expect(wrapper.attributes("style")).toContain("aspect-ratio: 1");
+    expect(wrapper.attributes("style")).not.toContain("height: 48px");
 
     await wrapper.get("img").trigger("load");
     expect(wrapper.classes()).toContain("async-image--loaded");
@@ -24,7 +26,7 @@ describe("AsyncImage", () => {
     });
     await wrapper.get("img").trigger("error");
     expect(wrapper.classes()).toContain("async-image--error");
-    expect(wrapper.text()).toContain("图片不可用");
+    expect(wrapper.text()).toContain("图片加载失败");
 
     await wrapper.setProps({ src: "/second.jpg" });
     expect(wrapper.classes()).toContain("async-image--loading");
@@ -43,6 +45,6 @@ describe("AsyncImage", () => {
       props: { src: "/item.jpg", alt: "物品", width: "52", height: "52" },
     });
     expect(wrapper.attributes("style")).toContain("width: 52px");
-    expect(wrapper.attributes("style")).toContain("height: 52px");
+    expect(wrapper.attributes("style")).toContain("aspect-ratio: 1");
   });
 });

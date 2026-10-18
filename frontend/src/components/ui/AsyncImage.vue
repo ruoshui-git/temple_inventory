@@ -57,8 +57,8 @@ function handleError() {
 			{ 'async-image--has-source': Boolean(props.src) },
 		]"
 		:style="{
-			width: dimension(width) || '100%',
-			height: natural ? 'auto' : dimension(height),
+			width: dimension(width ?? height) || '100%',
+			height: 'auto',
 			aspectRatio: natural ? undefined : '1',
 		}"
 		role="img"

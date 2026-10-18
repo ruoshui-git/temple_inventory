@@ -142,7 +142,15 @@ const warehouseReference = useOptionalReferenceData();
 								>
 							</td>
 							<td>{{ batch.expiry || "未设置" }}</td>
-							<td>{{ batch.location }}</td>
+							<td>
+								{{
+									warehouseLabel(
+										batch.location,
+										warehouseReference?.warehouses || [],
+										batch.label,
+									)
+								}}
+							</td>
 							<td>{{ batch.available }} {{ item.uom }}</td>
 							<td>{{ batch.loaned || 0 }} {{ item.uom }}</td>
 							<td>{{ batch.damaged || 0 }} {{ item.uom }}</td>
@@ -233,11 +241,22 @@ const warehouseReference = useOptionalReferenceData();
 			adaptive-creation
 			@close="batchDetail = undefined"
 		>
+			<h3>{{ item?.name }} · {{ batchDetail.id }}</h3>
 			<p>
 				位置
-				{{ warehouseLabel(batchDetail.location, warehouseReference?.warehouses || []) }} ·
-				到期
+				{{
+					warehouseLabel(
+						batchDetail.location,
+						warehouseReference?.warehouses || [],
+						batchDetail.label,
+					)
+				}}
+				· 到期
 				{{ batchDetail.expiry || "无效期" }}
+			</p>
+			<p>
+				可用 {{ batchDetail.available }} · 借出 {{ batchDetail.loaned }} · 损坏
+				{{ batchDetail.damaged }} {{ item?.uom }}
 			</p>
 			<UiButton
 				@click="

@@ -7,11 +7,48 @@ import {
 } from "@vue/test-utils";
 import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import PreviewFilterPanel from "../src/components/ui/FilterPanel.vue";
+import BrowseToolbar from "../src/components/ui/BrowseToolbar.vue";
 import PreviewCompactFilters from "../src/components/filters/CompactFilters.vue";
 import { emptyScope, type BrowseScope } from "../src/lib/browseQuery";
 import { provideGalleryReference } from "./support/fixtureReference";
 import { resetReviewSession, reviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
+it.each([true, false])(
+  "compact filter shortcut opens a panel without clearing scope (desktop=%s)",
+  async (wide) => {
+    desktop = wide;
+    const scope = ref({ ...emptyScope(), categories: ["food"] });
+    const cleared = vi.fn();
+    const host = await render(
+      defineComponent({
+        setup() {
+          const filters = ref<InstanceType<typeof PreviewCompactFilters>>();
+          return () =>
+            h(
+              BrowseToolbar,
+              { summary: "借用 · 2", onFilters: () => filters.value?.show() },
+              {
+                default: () =>
+                  h(PreviewCompactFilters, {
+                    ref: filters,
+                    modelValue: scope.value,
+                    "onUpdate:modelValue": (value: BrowseScope) =>
+                      (scope.value = value),
+                    onClear: cleared,
+                  }),
+              },
+            );
+        },
+      }),
+    );
+    await button(host, "收起工具").trigger("click");
+    await button(host, "筛选").trigger("click");
+    await settle();
+    expect(body().findAll('[role="dialog"]')).toHaveLength(1);
+    expect(scope.value.categories).toEqual(["food"]);
+    expect(cleared).not.toHaveBeenCalled();
+  },
+);
 const body = () => new DOMWrapper(document.body);
 const dialog = () => body().get('[role="dialog"]');
 const button = (scope: VueWrapper | DOMWrapper<Element>, label: string) =>

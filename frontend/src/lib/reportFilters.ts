@@ -1,5 +1,6 @@
 import type { ReferenceData } from "../services/contracts";
 import { movementLabels } from "./filterPresentation";
+import { warehouseLabel } from "./warehouseLabel";
 import { newReportQuery, type ReportQuery } from "./reportContract";
 export interface ReportFilterChip {
   key: string;
@@ -38,12 +39,49 @@ export function reportFilterChips(
     const name = reference.items.find((row) => row.value === code)?.label;
     return name ? `${name}（${code}）` : code;
   };
-  const allocationLabel = (key: string) => {
+  const allocationLabel = (key: string, itemLocation = false) => {
+    const inventoryIdentity =
+      itemLocation || ["inventory", "expiry"].includes(query.dataset);
     try {
       const parts = JSON.parse(key);
-      if (Array.isArray(parts)) return parts.map(String).join(" / ");
+      if (Array.isArray(parts)) {
+        if (inventoryIdentity && parts.length === (itemLocation ? 2 : 3))
+          return [
+            itemLabel(String(parts[0])),
+            warehouseLabel(parts[1], reference.warehouses),
+            ...(!itemLocation ? [parts[2] || "无批次"] : []),
+          ].join(" / ");
+        return parts.map(String).join(" / ");
+      }
     } catch {
       /* Native line IDs remain readable text. */
+    }
+    // Legacy keys can contain slashes in either native Item or Warehouse names.
+    // Only format an unambiguous, authorized warehouse match; never change the key.
+    if (inventoryIdentity) {
+      const matches = reference.warehouses.flatMap((node) => {
+        const suffix = `/${node.name}`;
+        const start = itemLocation
+          ? key.length - suffix.length
+          : key.indexOf(suffix + "/");
+        if (start <= 0 || (itemLocation && !key.endsWith(suffix))) return [];
+        return [
+          {
+            item: key.slice(0, start),
+            warehouse: node.name,
+            batch: itemLocation ? "" : key.slice(start + suffix.length + 1),
+          },
+        ];
+      });
+      if (matches.length === 1) {
+        const match = matches[0]!;
+        return [
+          itemLabel(match.item),
+          warehouseLabel(match.warehouse, reference.warehouses),
+          ...(!itemLocation ? [match.batch || "无批次"] : []),
+        ].join(" / ");
+      }
+      return "所选库位分配（位置暂不可用）";
     }
     const slash = key.indexOf("/");
     return slash < 0
@@ -122,7 +160,7 @@ export function reportFilterChips(
   if (query.restrictAllocations || query.allocationKeys.length)
     add(
       "allocations",
-      `选定分配（${query.allocationKeys.length}）：${query.allocationKeys.map(allocationLabel).join("；") || "范围为空（无结果）"}`,
+      `选定分配（${query.allocationKeys.length}）：${query.allocationKeys.map((key) => allocationLabel(key)).join("；") || "范围为空（无结果）"}`,
       { restrictAllocations: false, allocationKeys: [] },
       false,
       query.allocationKeys.length > 1
@@ -132,7 +170,7 @@ export function reportFilterChips(
   if (query.itemLocationKeys.length)
     add(
       "itemLocations",
-      `物品 / 库位：${query.itemLocationKeys.map(allocationLabel).join("；")}`,
+      `物品 / 库位：${query.itemLocationKeys.map((key) => allocationLabel(key, true)).join("；")}`,
       { itemLocationKeys: [] },
       false,
       query.itemLocationKeys.length > 1

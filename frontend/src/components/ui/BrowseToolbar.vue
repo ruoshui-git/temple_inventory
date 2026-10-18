@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useScrollSurface } from "../../composables/scrollSurface";
 import UiButton from "./UiButton.vue";
 const props = defineProps<{ summary: string; filterCount?: number; active?: boolean }>();
-const emit = defineEmits<{ scan: [] }>();
+const emit = defineEmits<{ scan: []; filters: [] }>();
 const root = ref<HTMLElement>(),
 	full = ref<HTMLElement>(),
 	compactRow = ref<HTMLElement>();
@@ -27,12 +27,7 @@ async function reveal(target?: "search" | "filters") {
 		full.value
 			?.querySelector<HTMLElement>('input[type="search"], input')
 			?.focus({ preventScroll: true });
-	if (target === "filters") {
-		const button = Array.from(
-			full.value?.querySelectorAll<HTMLButtonElement>("button") || [],
-		).find((button) => /筛选/.test(button.textContent || ""));
-		button?.click();
-	}
+	if (target === "filters") emit("filters");
 }
 </script>
 <template>

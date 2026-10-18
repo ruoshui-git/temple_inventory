@@ -2,6 +2,7 @@
 
 Date: 2026-10-17. Status: implemented locally; no deployment or database reset.
 Specification: [16-item handoff](20261017_UI_REFINEMENT_HANDOFF.md).
+Follow-up: [independent review, repairs and live browser evidence](20261017_UI_REFINEMENT_REVIEW.md).
 Existing edits to that handoff and the UX decision record were preserved.
 
 ## Requirement map

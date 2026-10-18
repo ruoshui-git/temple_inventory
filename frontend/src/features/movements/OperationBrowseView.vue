@@ -9,7 +9,7 @@ import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref, watch } from "vue";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels, scopeFilterChips } from "../../lib/filterPresentation";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import CompactFilters from "../../components/filters/CompactFilters.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -54,6 +54,7 @@ const {
 } = c;
 const filtersOpen = ref(false),
 	scanOpen = ref(false);
+const filters = ref<InstanceType<typeof CompactFilters>>();
 const analysisOpen = ref(false),
 	quantitiesOpen = ref(false);
 const inspected = ref<OperationGroup>();
@@ -197,13 +198,9 @@ function openedRecord(row: OperationGroup) {
 			<BrowseToolbar
 				:summary="`${family === 'movements' ? '货物流动' : '借用'} · ${result.initialized ? result.total : '读取中'}`"
 				:active="active"
-				:filter-count="
-					extraChips.length +
-					scope.warehouses.length +
-					scope.categories.length +
-					scope.kinds.length
-				"
+				:filter-count="extraChips.length + scopeFilterChips(scope, reference).length"
 				@scan="scanOpen = true"
+				@filters="filters?.show()"
 			>
 				<nav
 					class="browse-view-switch"
@@ -287,6 +284,7 @@ function openedRecord(row: OperationGroup) {
 					/>
 				</div>
 				<CompactFilters
+					ref="filters"
 					v-model="scope"
 					:movement="family === 'movements'"
 					:records="records"
@@ -296,7 +294,7 @@ function openedRecord(row: OperationGroup) {
 					:context="`${family}/${records ? 'records' : 'items'}`"
 					@clear="c.clearSecondary"
 					@update:open="filtersOpen = $event"
-					><template #extra
+					><template #chips
 						><div class="preview-active-filters">
 							<button
 								v-for="chip in extraChips"
@@ -612,10 +610,15 @@ function openedRecord(row: OperationGroup) {
 		<Overlay
 			v-if="inspected"
 			title="匹配分配明细"
-			:subtitle="`${inspected.document || inspected.item_name} · ${movementLabels[inspected.kind || ''] || ''} · ${inspected.date || ''} · ${nativeStatusLabel(inspected.docstatus)} · 匹配行 ${matching(inspected)} · 全单 ${quantities(inspected.whole?.quantities)}`"
 			adaptive-creation
 			@close="inspected = undefined"
 		>
+			<p class="preview-long-text">
+				{{ inspected.document || inspected.item_name }} ·
+				{{ movementLabels[inspected.kind || ""] || "" }} · {{ inspected.date || "" }} ·
+				{{ nativeStatusLabel(inspected.docstatus) }} · 匹配行 {{ matching(inspected) }} ·
+				全单 {{ quantities(inspected.whole?.quantities) }}
+			</p>
 			<p v-if="result.stale" role="status">上次结果，正在更新；相关操作暂停。</p>
 			<ReportTable
 				v-if="details[inspected.id]"

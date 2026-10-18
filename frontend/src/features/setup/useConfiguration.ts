@@ -65,7 +65,7 @@ export function useConfiguration(changed: () => void) {
       .map((row) => ({
         value: row.value,
         label: row.label,
-        detail: row.value,
+        detail: `ERPNext 名称：${row.value}`,
       })),
   );
   async function load() {
