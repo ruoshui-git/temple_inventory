@@ -9,7 +9,7 @@ import type { ReportQuery } from "../../lib/reportContract";
 import type { LoanDetail, SettlementAction } from "./useLoanDetail";
 import UiButton from "../../components/ui/UiButton.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
-import ReportTable from "../../components/ui/ReportTable.vue";
+import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
@@ -26,7 +26,6 @@ const emit = defineEmits<{
 const c = props.controller;
 const reference = useReferenceData();
 const { loan, loading, error, files, status, metrics } = c;
-const historyTable = c.history.mainTable;
 const actions = [
 	["returned", "登记归还"],
 	["damaged", "登记损坏归还"],
@@ -113,7 +112,6 @@ function settle(action: SettlementAction) {
 					>
 					<details>
 						<summary>存放明细与单位换算</summary>
-						<small>原明细 {{ line.name }}</small>
 						<small
 							>原存放
 							{{
@@ -158,21 +156,21 @@ function settle(action: SettlementAction) {
 			<details>
 				<summary>处理历史（{{ c.history.result.total }} 条明细）</summary>
 				<h2>处理历史</h2>
-				<p v-if="c.history.result.loading" role="status">正在读取处理历史…</p>
-				<p v-if="c.history.result.error" role="alert">
-					{{ c.history.result.error }}
-					<UiButton @click="c.history.refresh">重试</UiButton>
-				</p>
-				<ReportTable
-					v-if="historyTable && !c.history.result.stale"
-					:table="{ ...historyTable }"
-					:total="historyTable.total"
-					:loading="historyTable.loading"
-					:initialized="historyTable.initialized"
-					:error="historyTable.error"
-					@load-more="c.history.loadTable(historyTable, true)"
-					@retry="c.history.loadTable(historyTable, true)"
+				<MovementHistoryTable
+					mode="handling"
+					include-item
+					:rows="c.history.result.rows"
+					:total="c.history.result.total"
+					:next="c.history.result.next"
+					:loading="c.history.result.loading"
+					:initialized="c.history.result.initialized"
+					:error="c.history.result.error"
+					:stale="c.history.result.stale"
+					:history-complete="c.history.result.historyComplete"
+					@load-more="c.history.loadMore"
+					@retry="c.history.refresh"
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+					@open-item="emit('item', $event)"
 				/>
 			</details>
 			<details>

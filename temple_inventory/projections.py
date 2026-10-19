@@ -22,11 +22,14 @@ from temple_inventory.report_sources import (
 	document_fields,
 	document_kind,
 	historical_rows,
+	linked_settlement_rows,
 	loan_rows,
 	movement_rows,
 	settlement_rows,
 	stock_rows,
 )
+
+INTERNAL_TABLES = {"loan_item_page", "linked_settlements"}
 
 TABLE_LABELS = {
 	"summary": "汇总",
@@ -37,6 +40,7 @@ TABLE_LABELS = {
 	"locations": "库位 / 批次明细",
 	"batches": "批次明细",
 	"outcomes": "借用结余",
+	"loan_items": "借用物品",
 	"settlements": "结算明细",
 	"metadata": "活动资料",
 	"items": "物品资料",
@@ -195,6 +199,18 @@ FIXED_COLUMNS = {
 # Screen tables prioritize readable context and quantities. Export writers continue
 # to use column_names, including native audit fields and stable allocation IDs.
 DISPLAY_COLUMNS = {
+	"loan_items": [
+		"item_name",
+		"outstanding",
+		"stock_uom",
+		"item_code",
+		"category",
+		"document_count",
+		"borrowed",
+		"returned",
+		"damaged",
+		"lost",
+	],
 	"summary": [
 		"item_name",
 		"available",
@@ -472,8 +488,18 @@ class Projection(AbstractContextManager):
 			"modified": "modified",
 			"quantity": "quantity",
 			"name": "name",
+			"batch": "batch",
 		}[self.query["sortBy"]]
 		direction = self.query["sort"]
+		if field == "batch":
+			cursor = self.db.execute(
+				"select payload from rows where table_id=? order by json_extract(payload, '$.batch_no') "
+				f"{direction}, identity {direction} limit ? offset ?",
+				(table, limit if limit is not None else -1, offset),
+			)
+			for (payload,) in cursor:
+				yield json.loads(payload)
+			return
 		cursor = self.db.execute(
 			f"select payload from rows where table_id=? order by {field} {direction}, identity {direction} limit ? offset ?",
 			(table, limit if limit is not None else -1, offset),
@@ -565,6 +591,19 @@ class Projection(AbstractContextManager):
 			self.main_table, sums = view, ("stock_qty",)
 		elif dataset == "loans":
 			self.add("outcomes", loan_rows(context))
+			if view == "items":
+				self.add("linked_settlements", linked_settlement_rows(context))
+				self.add(
+					"loan_item_page",
+					(row for row in self.rows("outcomes") if query["includeZero"] or row["outstanding"] > 0),
+				)
+			self.group(
+				"loan_item_page" if view == "items" else "outcomes",
+				"loan_items",
+				("item_code", "stock_uom"),
+				LOAN_SUMS,
+				maximums=("item_name", "category", "date", "posting_timestamp"),
+			)
 			self.group(
 				"outcomes",
 				"records",
@@ -586,7 +625,10 @@ class Projection(AbstractContextManager):
 			if view == "records":
 				self.complete_native_records("loans")
 			self.add("settlements", settlement_rows(context))
-			self.main_table, sums = view, LOAN_SUMS if view != "settlements" else ("stock_qty",)
+			self.main_table, sums = (
+				("loan_items" if view == "items" else view),
+				LOAN_SUMS if view in ("items", "outcomes", "records") else ("stock_qty",),
+			)
 		elif dataset == "activities":
 			self.add("metadata", activity_rows(context))
 			self.add("records", activity_rows(context, metadata=False))
@@ -634,7 +676,7 @@ class Projection(AbstractContextManager):
 				"borrower": "borrower",
 				"month": "month",
 			}[query["grouping"]]
-			source = self.main_table
+			source = "loan_item_page" if dataset == "loans" and view == "items" else self.main_table
 			if source in ("records", "summary"):
 				source = (
 					"lines"
@@ -939,5 +981,6 @@ def report_page(query, start=0, page_length=30, table=None, include_related=Fals
 			"tables": [
 				{"id": key, "label": TABLE_LABELS.get(key, key), "count": projection.count(key)}
 				for key in projection.column_names
+				if key not in INTERNAL_TABLES
 			],
 		}

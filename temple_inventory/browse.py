@@ -5,7 +5,7 @@
 from collections import defaultdict
 
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import get_datetime, now_datetime
 
 from temple_inventory import native_topology
 from temple_inventory.activities import activity_types
@@ -14,7 +14,7 @@ from temple_inventory.native_access import require_app
 from temple_inventory.native_stock import MOVEMENT_PURPOSES, warehouse_scopes
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.report_query import validate_query
-from temple_inventory.report_sources import paged
+from temple_inventory.report_sources import batch_allocations, document_fields, paged
 
 
 @frappe.whitelist()
@@ -564,6 +564,14 @@ def _operation_source(projection, *, records):
 	source = "lines" if query["dataset"] == "movements" else "outcomes"
 	if query["dataset"] == "loans" and not records:
 		for row in projection.rows(source):
+			if query["view"] == "items":
+				if not query["includeZero"] and row["outstanding"] <= 0:
+					continue
+				projection.put(
+					"browse_contributions",
+					{**row, "id": frappe.as_json([row["id"], "outstanding"]), "outcome_key": "outstanding"},
+				)
+				continue
 			for outcome in OPERATION_OUTCOMES:
 				if query["loanOutcome"] not in ("all", outcome) or not row[outcome] > 0:
 					continue
@@ -786,7 +794,12 @@ def operation_page(query, records=False, start=0, page_length=20):
 				"borrower",
 			)
 			if records
-			else tuple(ITEM_COLUMNS) + (("outcome_key",) if projection.query["dataset"] == "loans" else ())
+			else tuple(ITEM_COLUMNS)
+			+ (
+				("outcome_key",)
+				if projection.query["dataset"] == "loans" and projection.query["view"] != "items"
+				else ()
+			)
 		)
 		projection.group(
 			source,
@@ -808,7 +821,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 			else:
 				row["item"] = item_metadata(projection.context.item(row["item_code"]))
 				conditions, params = "json_extract(payload, '$.item_code') = ?", [row["item_code"]]
-				if projection.query["dataset"] == "loans":
+				if projection.query["dataset"] == "loans" and projection.query["view"] != "items":
 					conditions += " and json_extract(payload, '$.outcome_key') = ?"
 					params.append(row["outcome_key"])
 				cursor = projection.db.execute(
@@ -882,13 +895,25 @@ def operation_page(query, records=False, start=0, page_length=20):
 
 @frappe.whitelist()
 def operation_contributions(
-	query, records=False, item_code=None, outcome=None, doctype=None, name=None, start=0, page_length=30
+	query,
+	records=False,
+	item_code=None,
+	outcome=None,
+	history_scope="outstanding",
+	doctype=None,
+	name=None,
+	start=0,
+	page_length=30,
 ):
 	from frappe.utils import cint
 
 	require_app()
 	records = bool(cint(records))
 	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	if not records:
+		validated = validate_query(query)
+		if validated["dataset"] == "movements":
+			return movement_history(validated, item_code=item_code, start=start, page_length=size)
 	with _operation_projection(query, records) as projection:
 		projection.build()
 		source = _operation_source(projection, records=records)
@@ -904,10 +929,137 @@ def operation_contributions(
 			conditions.append("json_extract(payload, '$.item_code')=?")
 			params.append(item_code)
 			if projection.query["dataset"] == "loans":
-				if outcome not in OPERATION_OUTCOMES:
+				if projection.query["view"] != "items" and outcome not in OPERATION_OUTCOMES:
 					frappe.throw("请选择借用结算结果")
-				conditions.append("json_extract(payload, '$.outcome_key')=?")
-				params.append(outcome)
+				if projection.query["view"] != "items":
+					conditions.append("json_extract(payload, '$.outcome_key')=?")
+					params.append(outcome)
+				if projection.query["view"] == "items":
+					if history_scope not in ("outstanding", "all"):
+						frappe.throw("请选择有效的借用明细范围")
+					allocations = []
+					for (payload,) in projection.db.execute(
+						"select payload from rows where table_id='outcomes' and " + " and ".join(conditions),
+						params[1:],
+					):
+						allocation = frappe.parse_json(payload)
+						if allocation["docstatus"] != 1:
+							continue
+						if history_scope == "outstanding" and allocation["outstanding"] <= 0:
+							continue
+						allocations.append(allocation)
+					selected = {
+						(
+							row["original_loan"],
+							row["original_loan_line"],
+							row["batch_no"],
+							row["item_code"],
+						)
+						for row in allocations
+					}
+					expected_events = {
+						(
+							row["original_loan"],
+							row["original_loan_line"],
+							row["batch_no"],
+							row["item_code"],
+						): float(row["borrowed"]) - float(row["outstanding"])
+						for row in allocations
+					}
+					observed_events = defaultdict(float)
+					groups = {}
+
+					def add_history(row, quantity, outstanding=0):
+						key = (
+							row["doctype"],
+							row["document"],
+							row["date"],
+							row.get("time", ""),
+							row["kind"],
+							row.get("source_warehouse", ""),
+							row.get("destination_warehouse", ""),
+							row["stock_uom"],
+						)
+						group = groups.setdefault(key, {"quantity": 0.0, "outstanding": 0.0})
+						group["quantity"] += quantity
+						group["outstanding"] += outstanding
+
+					for allocation in allocations:
+						add_history(
+							allocation,
+							float(allocation["borrowed"]),
+							float(allocation["outstanding"]),
+						)
+					for (payload,) in projection.db.execute(
+						"select payload from rows where table_id='linked_settlements'"
+					):
+						event = frappe.parse_json(payload)
+						link = (
+							event.get("original_loan"),
+							event.get("original_loan_line"),
+							event.get("batch_no", ""),
+							event.get("item_code"),
+						)
+						if link in selected:
+							add_history(event, -abs(float(event.get("stock_qty") or 0)))
+							observed_events[link] += abs(float(event.get("stock_qty") or 0))
+					history_complete = all(
+						abs(observed_events[key] - expected) < 0.000001
+						for key, expected in expected_events.items()
+					)
+					ordered = sorted(
+						groups.items(),
+						key=lambda pair: (
+							get_datetime(f"{pair[0][2]} {pair[0][3]}"),
+							pair[0][0],
+							pair[0][1],
+							pair[0][5],
+							pair[0][6],
+							pair[0][7],
+						),
+					)
+					count = len(ordered)
+					page = ordered[start : start + size]
+					columns = [
+						"document",
+						"date_time",
+						"kind",
+						"source_warehouse",
+						"destination_warehouse",
+						"quantity",
+					]
+					return {
+						"rows": [
+							{
+								"id": ":".join(str(value or "") for value in key),
+								"doctype": key[0],
+								"document": key[1],
+								"docstatus": next(
+									(
+										row.get("docstatus", 1)
+										for row in allocations
+										if row["document"] == key[1]
+									),
+									1,
+								),
+								"item_code": item_code,
+								"item_name": allocations[0].get("item_name", item_code),
+								"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
+								"kind": key[4],
+								"source_warehouse": key[5],
+								"destination_warehouse": key[6],
+								"quantity": values["quantity"],
+								"stock_uom": key[7],
+								"signed": True,
+								"can_settle": values["outstanding"] > 0,
+							}
+							for key, values in page
+						],
+						"columns": columns,
+						"matched_count": count,
+						"history_complete": history_complete,
+						"next_start": start + size if start + size < count else None,
+					}
 		where = "table_id=? and " + " and ".join(conditions)
 		count = projection.db.execute("select count(*) from rows where " + where, params).fetchone()[0]
 		cursor = projection.db.execute(
@@ -917,6 +1069,293 @@ def operation_contributions(
 		return {
 			"rows": [frappe.parse_json(payload) for (payload,) in cursor],
 			"columns": projection.column_names[source],
+			"matched_count": count,
+			"next_start": start + size if start + size < count else None,
+		}
+
+
+def _effective_loan_settlement(context, row, cache):
+	"""Match the native loan balance rules before exposing signed balance history."""
+	key = (row.get("doctype"), row.get("document"), row.get("line_name"))
+	if key in cache:
+		return cache[key]
+	valid = {
+		"Return": ("Material Transfer", {"Returned", "Damaged"}),
+		"Damage": ("Material Transfer", {"Damaged"}),
+		"Loss": ("Material Issue", {"Lost"}),
+	}
+	settlement = valid.get(row.get("kind"))
+	if not settlement or int(row.get("docstatus") or 0) != 1 or row.get("outcome") not in settlement[1]:
+		cache[key] = False
+		return False
+	document = context.parent(row["doctype"], row["document"])
+	loan = context.parent("Stock Entry", row.get("original_loan"))
+	if not document or not loan:
+		cache[key] = None
+		return None
+	if (
+		document.get("purpose") != settlement[0]
+		or loan.docstatus != 1
+		or loan.get("ti_movement_kind") != "Loan"
+		or loan.company != document.company
+	):
+		cache[key] = False
+		return False
+	original = next((line for line in loan.items if line.name == row.get("original_loan_line")), None)
+	if (
+		not original
+		or original.item_code != row.get("item_code")
+		or original.t_warehouse != row.get("source_warehouse")
+		or row.get("batch_no") not in {batch for batch, _quantity, _allocation in batch_allocations(original)}
+	):
+		cache[key] = False
+		return False
+	cache[key] = True
+	return True
+
+
+@frappe.whitelist()
+def movement_history(query, item_code=None, warehouse=None, batch_no=None, start=0, page_length=30):
+	"""Return movement rows grouped to the requested Item/warehouse/batch identity."""
+	from frappe.utils import cint
+
+	require_app()
+	query = frappe.parse_json(query) if isinstance(query, str) else query
+	query = validate_query(query or {})
+	# A detail request may narrow an inherited query, but never widen it.
+	if item_code and (
+		(query["scope"].get("item") and query["scope"]["item"] != item_code)
+		or (query.get("restrictItems") and item_code not in query.get("itemCodes", []))
+	):
+		return {"rows": [], "matched_count": 0, "next_start": None, "history_complete": True}
+	if batch_no and query.get("batchNo") and query["batchNo"] != batch_no:
+		return {"rows": [], "matched_count": 0, "next_start": None, "history_complete": True}
+	query["dataset"], query["view"] = "movements", "lines"
+	query["grouping"] = "none"
+	query.setdefault("scope", {})
+	if batch_no:
+		query["batchNo"] = batch_no
+	if item_code:
+		query["scope"]["item"] = item_code
+		if not query.get("restrictItems"):
+			query["restrictItems"], query["itemCodes"] = True, [item_code]
+	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	with _operation_projection(query, records=False) as projection:
+		if item_code and not projection.context.item(item_code):
+			frappe.throw("物品不存在或无权访问", frappe.PermissionError)
+		if warehouse and warehouse not in projection.context.warehouses:
+			frappe.throw("库位不存在或无权访问", frappe.PermissionError)
+		warehouse_leaves = (
+			projection.context.expand_warehouses([warehouse]) & projection.context.selected
+			if warehouse
+			else set()
+		)
+		if warehouse and not warehouse_leaves:
+			return {"rows": [], "matched_count": 0, "next_start": None, "history_complete": True}
+		if warehouse:
+			# The detail surface's selected warehouse is the stock-effect basis too.
+			# Narrow only the inherited warehouse scope; all other report restrictions remain.
+			projection.context.selected = warehouse_leaves
+			projection.context.scope["warehouses"] = sorted(warehouse_leaves)
+		projection.build()
+		groups = {}
+		loan_link_cache = {}
+		history_complete = True
+		observed_outcomes = defaultdict(float)
+		for row in projection.rows("lines"):
+			if item_code and row["item_code"] != item_code:
+				continue
+			if batch_no and row.get("batch_no") != batch_no:
+				continue
+			kind = row["kind"]
+			source = row.get("source_warehouse") or ""
+			destination = row.get("destination_warehouse") or ""
+			if kind in ("Opening", "Reconcile"):
+				location = row.get("warehouse") or ""
+				if kind == "Opening" or float(row.get("stock_qty") or 0) >= 0:
+					source, destination = "", location
+				else:
+					source, destination = location, ""
+			if warehouse and not warehouse_leaves.intersection(
+				{source, destination, row.get("warehouse") or ""}
+			):
+				continue
+			key = (
+				row["doctype"],
+				row["document"],
+				row["item_code"],
+				row["date"],
+				row.get("time", ""),
+				kind,
+				source,
+				destination,
+				row["stock_uom"],
+				int(row["docstatus"]),
+			)
+			group = groups.setdefault(
+				key, {"quantity": 0.0, "available_effect": 0.0, "loan_balance_effect": 0.0}
+			)
+			group["borrower"] = row.get("borrower") or ""
+			group["item_name"] = row.get("item_name") or row["item_code"]
+			quantity = float(row.get("stock_qty") or 0)
+			group["quantity"] += quantity
+			group["available_effect"] += float(row.get("available_effect") or 0)
+			if kind == "Loan" and int(row["docstatus"]) == 1:
+				group["loan_balance_effect"] += abs(quantity)
+			elif row.get("original_loan") and kind in ("Return", "Damage", "Loss"):
+				linked = _effective_loan_settlement(projection.context, row, loan_link_cache)
+				if linked is None:
+					history_complete = False
+				elif linked:
+					group["loan_balance_effect"] -= abs(quantity)
+					observed_outcomes[row.get("outcome") or ""] += abs(quantity)
+		if query.get("loan"):
+			loan = projection.context.parent("Stock Entry", query["loan"])
+			if not loan:
+				history_complete = False
+			else:
+				from temple_inventory.native_stock import loan_balances
+
+				expected_outcomes = defaultdict(float)
+				balances = loan_balances(loan.name, by_batch=True)
+				selected_kinds = projection.context.scope["kinds"]
+				projection.context.scope["kinds"] = []
+				try:
+					for line in loan.items:
+						item = projection.context.item(line.item_code)
+						if not item:
+							continue
+						for batch, _quantity, _allocation in batch_allocations(line):
+							selected = {
+								**document_fields(projection.context, loan),
+								**projection.context.item_fields(item),
+								"line_name": line.name,
+								"id": f"Stock Entry:{loan.name}:{line.name}:{batch}",
+								"source_warehouse": line.s_warehouse or "",
+								"destination_warehouse": line.t_warehouse or "",
+								"warehouse": "",
+								"batch_no": batch,
+								"kind": "Loan",
+							}
+							if projection.context.matches_line(selected):
+								for outcome, quantity in balances[(line.name, batch)].items():
+									expected_outcomes[outcome] += float(quantity)
+				finally:
+					projection.context.scope["kinds"] = selected_kinds
+				if any(
+					abs(expected_outcomes[outcome] - observed_outcomes[outcome]) > 0.000001
+					for outcome in ("Returned", "Damaged", "Lost")
+				):
+					history_complete = False
+		ordered = sorted(
+			groups.items(),
+			key=lambda pair: (
+				get_datetime(f"{pair[0][3]} {pair[0][4]}"),
+				pair[0][0],
+				pair[0][1],
+				pair[0][2],
+				pair[0][6],
+				pair[0][7],
+				pair[0][8],
+			),
+			reverse=True,
+		)
+		count = len(ordered)
+		rows = []
+		for key, values in ordered[start : start + size]:
+			rows.append(
+				{
+					"id": ":".join(str(value or "") for value in key),
+					"doctype": key[0],
+					"document": key[1],
+					"item_code": key[2],
+					"date_time": " ".join(str(value or "") for value in key[3:5]).strip(),
+					"kind": key[5],
+					"source_warehouse": key[6],
+					"destination_warehouse": key[7],
+					"stock_uom": key[8],
+					"docstatus": key[9],
+					"quantity": values["quantity"],
+					"available_effect": values["available_effect"],
+					"loan_balance_effect": values["loan_balance_effect"],
+					"borrower": values.get("borrower", ""),
+					"item_name": values.get("item_name", ""),
+				}
+			)
+		return {
+			"rows": rows,
+			"matched_count": count,
+			"next_start": start + size if start + size < count else None,
+			"history_complete": history_complete,
+		}
+
+
+@frappe.whitelist()
+def loan_item_history(query, item_code, start=0, page_length=30):
+	"""Return original submitted loan allocations scoped to one Item, grouped before paging."""
+	from frappe.utils import cint
+
+	require_app()
+	query = frappe.parse_json(query) if isinstance(query, str) else query
+	query = validate_query(query or {})
+	if (query["scope"].get("item") and query["scope"]["item"] != item_code) or (
+		query.get("restrictItems") and item_code not in query.get("itemCodes", [])
+	):
+		return {"rows": [], "matched_count": 0, "next_start": None}
+	query.update({"dataset": "loans", "view": "items", "statuses": [1]})
+	query.setdefault("scope", {})["item"] = item_code
+	if not query.get("restrictItems"):
+		query["restrictItems"], query["itemCodes"] = True, [item_code]
+	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	with _operation_projection(query, records=False) as projection:
+		projection.build()
+		if not projection.context.item(item_code):
+			frappe.throw("物品不存在或无权访问", frappe.PermissionError)
+		groups = {}
+		for row in projection.rows("outcomes"):
+			key = (
+				row["doctype"],
+				row["document"],
+				row["date"],
+				row.get("time", ""),
+				row["borrower"],
+				row["source_warehouse"],
+				row["destination_warehouse"],
+				row["stock_uom"],
+				row["docstatus"],
+			)
+			group = groups.setdefault(key, {"borrowed": 0.0, "outstanding": 0.0})
+			group["borrowed"] += float(row["borrowed"])
+			group["outstanding"] += float(row["outstanding"])
+			group["item_code"] = row["item_code"]
+			group["item_name"] = row["item_name"]
+		ordered = sorted(
+			groups.items(),
+			key=lambda pair: (get_datetime(f"{pair[0][2]} {pair[0][3]}"), pair[0][1], pair[0][5], pair[0][6]),
+			reverse=True,
+		)
+		count = len(ordered)
+		rows = [
+			{
+				"id": ":".join(str(value or "") for value in key),
+				"doctype": key[0],
+				"document": key[1],
+				"item_code": values["item_code"],
+				"item_name": values["item_name"],
+				"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
+				"kind": "Loan",
+				"borrower": key[4],
+				"source_warehouse": key[5],
+				"destination_warehouse": key[6],
+				"stock_uom": key[7],
+				"docstatus": key[8],
+				"borrowed": values["borrowed"],
+				"outstanding": values["outstanding"],
+			}
+			for key, values in ordered[start : start + size]
+		]
+		return {
+			"rows": rows,
 			"matched_count": count,
 			"next_start": start + size if start + size < count else None,
 		}

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import BatchDetailView from "../features/batches/BatchDetailView.vue";
 import { useBatchDetailController } from "../features/batches/useBatchDetailController";
+import { loanDestination } from "../lib/nativeNavigation";
 const route = useRoute(),
 	router = useRouter();
 const name = computed(() => String(route.params.name || ""));
@@ -31,5 +32,6 @@ onBeforeRouteUpdate(confirmDiscard);
 		@open-document="
 			(destination) => router.push({ path: destination, query: { back: route.fullPath } })
 		"
+		@open-loan="(name) => router.push(loanDestination(name, route.fullPath))"
 	/>
 </template>

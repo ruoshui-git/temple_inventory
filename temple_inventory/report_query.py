@@ -17,7 +17,7 @@ DEFINITIONS = {
 		"groups": ("item", "category", "location", "kind", "activity", "month"),
 	},
 	"loans": {
-		"views": ("records", "outcomes", "settlements"),
+		"views": ("records", "items", "outcomes", "settlements"),
 		"groups": ("item", "activity", "borrower", "month"),
 	},
 	"activities": {"views": ("metadata", "records", "loans"), "groups": ("activity", "kind")},
@@ -116,12 +116,15 @@ def validate_query(value):
 	query["view"] = value.get("view", query["view"])
 	if query["view"] not in definition["views"] or query["grouping"] not in ("none", *definition["groups"]):
 		frappe.throw("此数据集不支持所选视图或分组")
+	if dataset == "loans" and query["view"] == "items":
+		query.update({"statuses": [1], "loanStatus": "all", "loanOutcome": "all", "outstandingOnly": False})
 	if query["sort"] not in ("asc", "desc") or query["sortBy"] not in (
 		"identity",
 		"date",
 		"modified",
 		"quantity",
 		"name",
+		"batch",
 	):
 		frappe.throw("请选择有效的排序")
 	for field, allowed in {

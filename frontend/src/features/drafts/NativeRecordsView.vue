@@ -11,6 +11,7 @@ import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import CompactFilters from "../../components/filters/CompactFilters.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -291,10 +292,13 @@ const quantities = (row: NativeRecord) =>
 					><UiButton variant="danger" @click="localTarget = entry">放弃此输入</UiButton>
 				</div>
 				<details>
-					<summary>查看可复制的输入</summary>
-					<pre class="preview-long-text">{{
-						JSON.stringify(entry.values, null, 2)
-					}}</pre>
+					<summary>查看恢复摘要</summary>
+					<RecoverySummary
+						:kind="entry.editorKind"
+						:values="entry.values"
+						:copy-text="JSON.stringify(entry.values, null, 2)"
+						:pending-upload-reselection="entry.pendingUploadReselection"
+					/>
 				</details>
 			</article>
 		</section>

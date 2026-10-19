@@ -4,33 +4,35 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import IconButton from "./IconButton.vue";
 import InventoryIcon from "../InventoryIcon.vue";
 import { useScrollSurface, scrollOwner } from "../../composables/scrollSurface";
-const props = withDefaults(
-	defineProps<{ active?: boolean; hidden?: boolean; heading?: HTMLElement }>(),
-	{ active: true, hidden: false },
-);
+const props = withDefaults(defineProps<{ active?: boolean; hidden?: boolean }>(), {
+	active: true,
+	hidden: false,
+});
 const root = ref<HTMLElement>();
 const { isMobile } = useResponsiveLayout();
 const { top, viewport } = useScrollSurface(root, () => props.active);
 const visible = computed(
-	() => props.active && !props.hidden && viewport.value > 0 && top.value > viewport.value * 2,
+	() => props.active && !props.hidden && viewport.value > 0 && top.value > 160,
 );
 function returnToTop() {
+	const surface = root.value;
+	if (!surface) return;
+	const owner = scrollOwner(surface);
+	const page = surface.closest<HTMLElement>(
+		".browse-page, .preview-dashboard, .inventory-surface, .inventory-example",
+	);
 	const heading =
-		props.heading ||
-		root.value?.closest("section, .inventory-example")?.querySelector<HTMLElement>("h1");
-	if (!heading) return;
-	const owner = scrollOwner(heading);
-	const origin = heading.closest<HTMLElement>(".inventory-example") || heading;
-	const rect = origin.getBoundingClientRect();
-	const edge = owner === window ? 0 : (owner as HTMLElement).getBoundingClientRect().top;
-	heading.setAttribute("tabindex", "-1");
-	heading.focus({ preventScroll: true });
-	owner.scrollBy({
-		top: rect.top - edge - 12,
-		behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-			? "instant"
-			: "smooth",
-	});
+		page?.querySelector<HTMLElement>("h1") ||
+		surface.closest<HTMLElement>("main")?.querySelector<HTMLElement>("h1");
+	if (heading) {
+		heading.setAttribute("tabindex", "-1");
+		heading.focus({ preventScroll: true });
+	}
+	const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		? "instant"
+		: "smooth";
+	if (owner === window) window.scrollTo({ top: 0, behavior });
+	else (owner as HTMLElement).scrollTo({ top: 0, behavior });
 }
 </script>
 <template>

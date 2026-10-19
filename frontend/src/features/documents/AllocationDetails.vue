@@ -153,8 +153,7 @@ const warehouseReference = useOptionalReferenceData();
 				</select></label
 			>
 			<p v-if="isSettlement(draft)" data-field="loanName">
-				借出 {{ line.loanName || draft.loanName }} / 原明细
-				{{ line.originalLoanLine || "未记录" }}
+				借出 {{ line.loanName || draft.loanName }}
 			</p>
 			<UiButton ref="conversionTrigger" v-if="!conversion" @click="conversion = true"
 				>单位与换算</UiButton

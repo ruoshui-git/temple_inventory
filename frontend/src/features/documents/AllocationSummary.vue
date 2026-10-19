@@ -112,8 +112,7 @@ const groups = computed(() => {
 						{{ line.entryUom }} = {{ line.conversionFactor }} {{ line.uom }}</template
 					>
 					<template v-if="line.loanName || draft.loanName">
-						· 借出 {{ line.loanName || draft.loanName }} / 原明细
-						{{ line.originalLoanLine || "未记录" }}
+						· 借出 {{ line.loanName || draft.loanName }}
 					</template>
 					<template v-if="line.returnOutcome">
 						·

@@ -47,6 +47,11 @@ export function useFocusVisibility(
       review.value?.contains(field)
     )
       return;
+    if (topChrome?.value?.contains(field) && field.matches("h1, h2")) {
+      const chromeRect = field.getBoundingClientRect();
+      if (chromeRect.top >= 0 && chromeRect.bottom <= window.innerHeight)
+        return;
+    }
     const rect = field.getBoundingClientRect();
     const reviewRect = review.value?.getBoundingClientRect();
     let bottom =

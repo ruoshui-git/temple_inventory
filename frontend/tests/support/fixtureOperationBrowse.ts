@@ -233,6 +233,61 @@ export function fixtureOperationCall(
     start = Number(args.start || 0),
     size = Number(args.page_length || 20),
     rows = contributions(query, records, project);
+  if (endpoint === "browse.movement_history") {
+    const selected = rows.filter(
+      (row) =>
+        (!args.item_code || row.item_code === args.item_code) &&
+        (!args.batch_no || row.batch_no === args.batch_no),
+    );
+    const mapped = selected.map((row) => ({
+      id: `${row.doctype}:${row.document}:${row.item_code}:${row.stock_uom}`,
+      doctype: row.doctype,
+      document: row.document,
+      item_code: row.item_code,
+      item_name: row.item_name,
+      date_time: `${row.date} ${row.time || ""}`.trim(),
+      kind: row.kind,
+      source_warehouse: row.source_warehouse || "",
+      destination_warehouse: row.destination_warehouse || "",
+      stock_uom: row.stock_uom,
+      docstatus: row.docstatus,
+      quantity: Number(row.stock_qty || 0),
+      available_effect: Number(row.available_effect || 0),
+      loan_balance_effect: Number(row.loan_balance_effect || 0),
+      borrower: row.borrower || "",
+    }));
+    return {
+      rows: mapped.slice(start, start + size),
+      matched_count: mapped.length,
+      next_start: start + size < mapped.length ? start + size : null,
+    } as unknown as BrowseRowsPage;
+  }
+  if (endpoint === "browse.loan_item_history") {
+    const selected = rows.filter(
+      (row) => row.item_code === args.item_code && row.kind === "Loan",
+    );
+    const mapped = selected.map((row) => ({
+      id: `${row.document}:${row.item_code}:${row.stock_uom}`,
+      doctype: row.doctype,
+      document: row.document,
+      item_code: row.item_code,
+      item_name: row.item_name,
+      date_time: `${row.date} ${row.time || ""}`.trim(),
+      borrower: row.borrower || "",
+      source_warehouse: row.source_warehouse || "",
+      destination_warehouse: row.destination_warehouse || "",
+      stock_uom: row.stock_uom,
+      docstatus: row.docstatus,
+      kind: "Loan",
+      borrowed: Number(row.borrowed || row.stock_qty || 0),
+      outstanding: Number(row.outstanding || 0),
+    }));
+    return {
+      rows: mapped.slice(start, start + size),
+      matched_count: mapped.length,
+      next_start: start + size < mapped.length ? start + size : null,
+    } as unknown as BrowseRowsPage;
+  }
   if (endpoint === "browse.operation_contributions") {
     const selected = rows.filter((row) =>
       records

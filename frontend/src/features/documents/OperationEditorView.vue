@@ -10,6 +10,7 @@ import AllocationSummary from "./AllocationSummary.vue";
 import TransactionContext from "./TransactionContext.vue";
 import Attachments from "../../components/Attachments.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
@@ -121,13 +122,6 @@ async function loans(search: string, start: number, signal: AbortSignal) {
 		next: page.next_start,
 	};
 }
-async function copy(text = c.recoveryText.value) {
-	try {
-		await navigator.clipboard.writeText(text);
-	} catch {
-		state.error = "请选中恢复文字并复制";
-	}
-}
 async function back() {
 	if (await c.requestLeave()) emit("back");
 }
@@ -170,8 +164,14 @@ async function back() {
 			class="notice-bar warning"
 		>
 			<p>当前输入保留在下方；请复制后核对原记录。</p>
-			<pre class="preview-long-text" tabindex="0">{{ c.recoveryText.value }}</pre>
-			<UiButton @click="copy()">复制输入</UiButton>
+			<RecoverySummary
+				:kind="
+					String(state.values.ti_movement_kind || state.values.purpose || 'Stock Entry')
+				"
+				:values="state.values"
+				:copy-text="c.recoveryText.value"
+				:pending-upload-reselection="state.pendingUploadReselection"
+			/>
 		</div>
 		<section v-if="candidates.length" class="surface form-section">
 			<h2>此浏览器的未完成输入</h2>
@@ -181,10 +181,14 @@ async function back() {
 					{{ candidate.updatedAt }} ·
 					{{ candidate.identity?.name || "尚未创建原生记录" }}
 				</p>
-				<UiButton @click="c.recover(candidate)">检查并恢复</UiButton
-				><UiButton @click="copy(JSON.stringify(candidate.values, null, 2))"
-					>复制恢复文字</UiButton
+				<RecoverySummary
+					:kind="candidate.editorKind"
+					:values="candidate.values"
+					:copy-text="JSON.stringify(candidate.values, null, 2)"
+					:pending-upload-reselection="candidate.pendingUploadReselection"
 				>
+					<UiButton @click="c.recover(candidate)">检查并恢复</UiButton>
+				</RecoverySummary>
 			</div>
 		</section>
 		<div v-if="!loading && state.server && !writable" class="form-actions">
@@ -483,10 +487,17 @@ async function back() {
 		>
 		<Overlay v-if="reloadOpen" title="放弃当前输入并重新读取？" @close="reloadOpen = false"
 			><p>重新读取会替换当前页面的输入。可先复制保留。</p>
-			<pre class="preview-long-text">{{ c.recoveryText.value }}</pre>
 			<template #footer
-				><UiButton @click="copy()">复制输入</UiButton
-				><UiButton @click="reloadOpen = false">继续编辑</UiButton
+				><RecoverySummary
+					:kind="
+						String(
+							state.values.ti_movement_kind || state.values.purpose || 'Stock Entry',
+						)
+					"
+					:values="state.values"
+					:copy-text="c.recoveryText.value"
+				/>
+				<UiButton @click="reloadOpen = false">继续编辑</UiButton
 				><UiButton
 					variant="danger"
 					@click="

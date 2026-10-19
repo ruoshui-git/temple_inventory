@@ -3,7 +3,7 @@ import {
   useInventoryServices,
   useReferenceData,
 } from "../../services/contracts";
-import type { ReportRow } from "../../lib/reportContract";
+import type { MovementHistoryRow, ReportRow } from "../../lib/reportContract";
 
 export interface BatchDetail {
   name: string;
@@ -22,7 +22,7 @@ export interface BatchDetail {
     summary: ReportRow[];
   };
   history: {
-    rows: ReportRow[];
+    rows: MovementHistoryRow[];
     matched_count: number;
     next_start: number | null;
   };

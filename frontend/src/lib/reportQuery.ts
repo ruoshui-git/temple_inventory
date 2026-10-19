@@ -94,7 +94,7 @@ export function decodeReportQuery(
       throw new Error("此数据集不支持所选视图或分组");
     const enums: Partial<Record<keyof ReportQuery, readonly string[]>> = {
       sort: ["asc", "desc"],
-      sortBy: ["identity", "date", "modified", "quantity", "name"],
+      sortBy: ["identity", "date", "modified", "quantity", "name", "batch"],
       activityStatus: ["all", "active", "archived"],
       loanStatus: ["all", "outstanding", "open", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],

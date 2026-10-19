@@ -6,8 +6,8 @@ import Overlay from "./ui/Overlay.vue";
 import UiButton from "./ui/UiButton.vue";
 export type ScannerPresentation = "inline" | "modal" | "continuous" | "camera";
 const props = withDefaults(
-	defineProps<{ paused?: boolean; presentation?: ScannerPresentation }>(),
-	{ presentation: "inline" },
+	defineProps<{ paused?: boolean; presentation?: ScannerPresentation; submitLabel?: string }>(),
+	{ presentation: "inline", submitLabel: "查找" },
 );
 const emit = defineEmits<{ scan: [value: string]; close: [] }>();
 const area = ref<HTMLElement>(),
@@ -145,7 +145,9 @@ defineExpose({
 					:disabled="paused"
 					placeholder="输入后按回车"
 					autocomplete="off" /></label
-			><UiButton type="submit" :disabled="paused || !manual.trim()">查找</UiButton>
+			><UiButton type="submit" :disabled="paused || !manual.trim()">{{
+				submitLabel
+			}}</UiButton>
 		</form>
 
 		<template v-if="presentation === 'modal'" #footer

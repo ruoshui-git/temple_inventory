@@ -11,7 +11,8 @@ export interface ReportFilterChip {
 }
 export function hasReportStatuses(query: ReportQuery) {
   return (
-    ["movements", "counts", "loans"].includes(query.dataset) ||
+    ["movements", "counts"].includes(query.dataset) ||
+    (query.dataset === "loans" && query.view !== "items") ||
     (query.dataset === "activities" && query.view === "records")
   );
 }
@@ -107,8 +108,16 @@ export function reportFilterChips(
       isDefault,
     );
   }
-  if (["inventory", "expiry"].includes(query.dataset) && query.includeZero)
-    add("includeZero", "包含零库存", { includeZero: false });
+  if (
+    (["inventory", "expiry"].includes(query.dataset) ||
+      (query.dataset === "loans" && query.view === "items")) &&
+    query.includeZero
+  )
+    add(
+      "includeZero",
+      query.dataset === "loans" ? "显示已结清物品" : "包含零库存",
+      { includeZero: false },
+    );
   if (
     query.dataset === "expiry" &&
     query.expiryWindow === "period" &&

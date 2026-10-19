@@ -11,6 +11,7 @@ import {
 } from "../../lib/browserRecovery";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { useReportController } from "../export/useReportController";
+import { useMovementHistory } from "../movements/useMovementHistory";
 import { useBrowseState } from "../../lib/browseMemory";
 export interface NativeWarehouse {
   name: string;
@@ -140,9 +141,9 @@ export function useNativeWarehouses(
     personalViews: false,
     enabled,
   });
-  const history = useReportController(historyQuery, {
-    personalViews: false,
-    enabled: computed(() => enabled.value && !!props.name),
+  const history = useMovementHistory(historyQuery, {
+    warehouse: () => props.name || "",
+    enabled: () => enabled.value && !!props.name,
   });
   const browseState = useBrowseState(
     "warehouses",

@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import { useReferenceCreation } from "./useReferenceCreation";
 defineProps<{ modelValue?: string; disabled?: boolean; editorTarget?: HTMLElement }>();
 const emit = defineEmits<{
@@ -65,10 +66,13 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 			<summary>此浏览器有未完成输入</summary>
 			<article v-for="candidate in candidates" :key="candidate.editorId">
 				<p>{{ candidate.updatedAt }}</p>
-				<pre class="preview-long-text">{{
-					JSON.stringify(candidate.values, null, 2)
-				}}</pre>
-				<UiButton @click="recover(candidate)">恢复输入</UiButton>
+				<RecoverySummary
+					kind="UOM"
+					:values="candidate.values"
+					:copy-text="JSON.stringify(candidate.values, null, 2)"
+				>
+					<UiButton @click="recover(candidate)">恢复输入</UiButton>
+				</RecoverySummary>
 			</article>
 		</details>
 		<p v-if="creating && recoveryError" role="alert">{{ recoveryError }}</p>

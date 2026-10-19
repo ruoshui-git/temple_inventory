@@ -147,7 +147,7 @@ describe("native expiry browser", () => {
     expect(c.result.rows).toHaveLength(2);
     expect(c.result.batchCount).toBe(200);
   });
-  it("shows total stock quantity in the sortable expiry column and available quantity as secondary context", async () => {
+  it("sorts Item and Batch identities independently and shows warehouse stock once", async () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -165,7 +165,7 @@ describe("native expiry browser", () => {
     expect(quantityHeader.text()).toContain("库存数量");
     const quantityCell = wrapper.find("tbody tr td:nth-child(5)");
     expect(quantityCell.text()).toContain("11 Nos");
-    expect(quantityCell.text()).toContain("可用 2");
+    expect(quantityCell.text()).not.toContain("2");
     await quantityHeader.trigger("click");
     expect(wrapper.find('th[aria-sort="ascending"] button').text()).toContain(
       "库存数量 ↑",
@@ -173,6 +173,20 @@ describe("native expiry browser", () => {
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
     ).toBe("quantity");
+    await wrapper
+      .findAll("th button")
+      .find((button) => button.text().includes("物品名称"))!
+      .trigger("click");
+    expect(
+      wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
+    ).toBe("name");
+    await wrapper
+      .findAll("th button")
+      .find((button) => button.text().includes("批次编号"))!
+      .trigger("click");
+    expect(
+      wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
+    ).toBe("batch");
   });
   it("does not present confirmed zero summaries while the first result is pending", async () => {
     let resolve!: (value: ExpiryPageData) => void;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import { useActivityEditor } from "./useActivityEditor";
 const props = defineProps<{ activityId?: string; contextual?: boolean; recoveryId?: string }>();
 const emit = defineEmits<{ saved: [id: string]; cancel: [] }>();
@@ -39,13 +40,6 @@ const fieldLabels: Record<string, string> = {
 async function cancel() {
 	if (await requestLeave()) emit("cancel");
 }
-async function copy() {
-	try {
-		await navigator.clipboard.writeText(recoveryText.value);
-	} catch {
-		error.value = "请选中上方文字并复制";
-	}
-}
 </script>
 <template>
 	<section class="preview-supporting-editor" aria-label="活动资料编辑">
@@ -54,10 +48,13 @@ async function copy() {
 			<summary>此浏览器有未完成的活动输入</summary>
 			<p>仅在当前浏览器和账户可用。</p>
 			<article v-for="candidate in candidates" :key="candidate.editorId">
-				<pre class="preview-long-text">{{
-					JSON.stringify(candidate.values, null, 2)
-				}}</pre>
-				<UiButton @click="recover(candidate)">核对后恢复</UiButton>
+				<RecoverySummary
+					kind="Inventory Activity"
+					:values="candidate.values"
+					:copy-text="JSON.stringify(candidate.values, null, 2)"
+				>
+					<UiButton @click="recover(candidate)">核对后恢复</UiButton>
+				</RecoverySummary>
 			</article>
 		</details>
 		<section v-if="leaveRequested" role="alert">
@@ -68,9 +65,8 @@ async function copy() {
 		</section>
 		<section v-if="reloadRequested" role="alert">
 			<p>重新读取会替换当前输入，请先复制需要保留的文字。</p>
-			<pre class="preview-long-text">{{ recoveryText }}</pre>
-			<UiButton @click="copy">复制输入</UiButton
-			><UiButton @click="reloadRequested = false">继续编辑</UiButton
+			<RecoverySummary kind="Inventory Activity" :values="input" :copy-text="recoveryText" />
+			<UiButton @click="reloadRequested = false">继续编辑</UiButton
 			><UiButton
 				variant="danger"
 				@click="
@@ -116,9 +112,8 @@ async function copy() {
 		<p v-if="error" role="alert">{{ error }}</p>
 		<div v-if="conflict">
 			<p>原记录已变化。当前输入已保留；重新读取会替换当前输入。</p>
-			<pre class="preview-long-text">{{ recoveryText }}</pre>
-			<UiButton @click="copy">复制输入</UiButton
-			><UiButton @click="dirty ? (reloadRequested = true) : load()">重新读取</UiButton>
+			<RecoverySummary kind="Inventory Activity" :values="input" :copy-text="recoveryText" />
+			<UiButton @click="dirty ? (reloadRequested = true) : load()">重新读取</UiButton>
 		</div>
 		<div class="form-actions">
 			<UiButton @click="cancel">{{ contextual ? "返回选择" : "取消" }}</UiButton

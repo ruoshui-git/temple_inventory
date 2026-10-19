@@ -10,6 +10,7 @@ import CountSummary from "./CountSummary.vue";
 import NativeCountAllocations from "./NativeCountAllocations.vue";
 import TransactionContext from "../documents/TransactionContext.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import Attachments from "../../components/Attachments.vue";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
@@ -77,13 +78,6 @@ const status = computed(
 async function back() {
 	if (await c.requestLeave()) emit("back");
 }
-async function copy(value = c.recoveryText.value) {
-	try {
-		await navigator.clipboard.writeText(value);
-	} catch {
-		state.error = "请选中下方恢复文字并复制";
-	}
-}
 </script>
 <template>
 	<section ref="root" class="preview-form-page">
@@ -124,10 +118,14 @@ async function copy(value = c.recoveryText.value) {
 			<p>仅在当前浏览器和账户可用，未改变库存。</p>
 			<div v-for="candidate in candidates" :key="candidate.editorId">
 				<p>{{ candidate.updatedAt }} · {{ candidate.identity?.name || "本地输入" }}</p>
-				<UiButton @click="c.recover(candidate)">检查并恢复</UiButton
-				><UiButton @click="copy(JSON.stringify(candidate.values, null, 2))"
-					>复制恢复文字</UiButton
+				<RecoverySummary
+					kind="Stock Reconciliation"
+					:values="candidate.values"
+					:copy-text="JSON.stringify(candidate.values, null, 2)"
+					:pending-upload-reselection="candidate.pendingUploadReselection"
 				>
+					<UiButton @click="c.recover(candidate)">检查并恢复</UiButton>
+				</RecoverySummary>
 			</div>
 		</section>
 		<section
@@ -135,8 +133,12 @@ async function copy(value = c.recoveryText.value) {
 			class="notice-bar warning"
 		>
 			<p>原生记录不可继续保存，当前输入已保留。</p>
-			<pre class="preview-long-text" tabindex="0">{{ c.recoveryText.value }}</pre>
-			<UiButton @click="copy()">复制输入</UiButton>
+			<RecoverySummary
+				kind="Stock Reconciliation"
+				:values="values"
+				:copy-text="c.recoveryText.value"
+				:pending-upload-reselection="state.pendingUploadReselection"
+			/>
 		</section>
 		<section v-if="state.status === 'matching'" class="notice-bar success">
 			<h2>已核对的数量一致，无需库存调整</h2>
@@ -362,9 +364,13 @@ async function copy(value = c.recoveryText.value) {
 			></Overlay
 		>
 		<Overlay v-if="reloadOpen" title="放弃输入并重新读取？" @close="reloadOpen = false">
-			<pre class="preview-long-text">{{ c.recoveryText.value }}</pre>
+			<RecoverySummary
+				kind="Stock Reconciliation"
+				:values="values"
+				:copy-text="c.recoveryText.value"
+				:pending-upload-reselection="state.pendingUploadReselection"
+			/>
 			<template #footer
-				><UiButton @click="copy()">复制输入</UiButton
 				><UiButton @click="reloadOpen = false">继续编辑</UiButton
 				><UiButton
 					variant="danger"

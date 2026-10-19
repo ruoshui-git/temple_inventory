@@ -51,7 +51,33 @@ function loan(name = "LOAN-A", docstatus: 0 | 1 | 2 = 1): LoanDocument {
 }
 function setup(
   call = vi.fn(async (endpoint, args) =>
-    endpoint === "native_api.loan_detail" ? loan(args.name) : [],
+    endpoint === "native_api.loan_detail"
+      ? loan(args.name)
+      : endpoint === "browse.movement_history"
+        ? {
+            rows: [
+              {
+                id: "RETURN-A",
+                document: "RETURN-A",
+                doctype: "Stock Entry",
+                item_code: "ITEM-1",
+                item_name: "物品1",
+                date_time: "2026-10-02 09:00:00",
+                kind: "Return",
+                source_warehouse: "LEASED-1",
+                destination_warehouse: "SOURCE-1",
+                stock_uom: "Kg",
+                docstatus: 1,
+                quantity: -1,
+                available_effect: 0,
+                loan_balance_effect: -1,
+                borrower: "借用方甲",
+              },
+            ],
+            matched_count: 42,
+            next_start: args.start ? null : 1,
+          }
+        : [],
   ),
   options: { view?: boolean; docstatus?: number } = {},
 ) {
@@ -108,7 +134,9 @@ function setup(
 }
 describe("native loan details", () => {
   it("shows exact original rows and independent stock units, with complete paged settlement history", async () => {
-    const { c, wrapper, report, settle } = setup(undefined, { view: true });
+    const { c, wrapper, report, call, settle } = setup(undefined, {
+      view: true,
+    });
     await flushPromises();
     expect(
       c.metrics.value.find((metric) => metric.key === "outstanding")
@@ -117,19 +145,18 @@ describe("native loan details", () => {
       { uom: "Nos", qty: 2 },
       { uom: "Kg", qty: 2 },
     ]);
-    expect(wrapper.text()).toContain("LOAN-A-CHILD-1");
+    expect(wrapper.text()).not.toContain("LOAN-A-CHILD-1");
     expect(wrapper.text()).toContain("BATCH-1");
-    expect(report.mock.calls[0]?.[0]).toMatchObject({
-      dataset: "loans",
-      loan: "LOAN-A",
-      view: "settlements",
-      statuses: [0, 1, 2],
-    });
-    const table = c.history.mainTable.value!;
-    expect(table.total).toBe(42);
-    expect(table.rows).toHaveLength(1);
-    await c.history.loadTable(table, true);
-    expect(report.mock.calls[1]?.[1]).toMatchObject({ start: 1 });
+    expect(wrapper.text()).toContain("处理历史（42 条明细）");
+    expect(c.history.result.rows).toHaveLength(1);
+    expect(c.history.result.rows[0]?.document).toBe("RETURN-A");
+    await c.history.loadMore();
+    expect(
+      call.mock.calls.some(
+        ([endpoint, args]) =>
+          endpoint === "browse.movement_history" && args.start === 1,
+      ),
+    ).toBe(true);
     const damaged = wrapper
       .findAll("button")
       .find((button) => button.text() === "登记损坏归还")!;

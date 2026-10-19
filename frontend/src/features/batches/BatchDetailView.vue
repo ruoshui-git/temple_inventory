@@ -10,8 +10,14 @@ import { movementLabels } from "../../lib/filterPresentation";
 import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
+import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 const props = defineProps<{ controller: BatchDetailController }>();
-const emit = defineEmits<{ back: []; openItem: [string]; openDocument: [string] }>();
+const emit = defineEmits<{
+	back: [];
+	openItem: [string];
+	openDocument: [string];
+	openLoan: [string];
+}>();
 const c = props.controller,
 	reference = useReferenceData();
 const quantities = computed(() => {
@@ -200,48 +206,22 @@ function openDocument(row: Record<string, unknown>) {
 		</section>
 		<section v-if="c.batch.value" class="batch-detail-card">
 			<h2>批次流动记录 · {{ c.batch.value.history.matched_count }} 条</h2>
-			<div class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>记录</th>
-							<th>日期</th>
-							<th>类型</th>
-							<th>来源</th>
-							<th>去向</th>
-							<th>数量</th>
-							<th>状态</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="row in c.batch.value.history.rows" :key="String(row.id)">
-							<td>
-								<button class="browse-row-link" @click="openDocument(row)">
-									{{ row.document }}
-								</button>
-							</td>
-							<td>{{ row.date }}</td>
-							<td>{{ movementLabels[String(row.kind)] || row.kind }}</td>
-							<td>{{ endpoint(row, true) }}</td>
-							<td>{{ endpoint(row, false) }}</td>
-							<td>{{ row.stock_qty }} {{ row.stock_uom }}</td>
-							<td>{{ nativeStatusLabel(row.docstatus) }}</td>
-						</tr>
-						<tr v-if="!c.batch.value.history.rows.length">
-							<td colspan="7">暂无流动记录</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-			<p v-if="c.historyError.value" role="alert">
-				{{ c.historyError.value }} <UiButton @click="c.moreHistory">重试</UiButton>
-			</p>
-			<UiButton
-				v-if="c.batch.value.history.next_start !== null"
+			<MovementHistoryTable
+				:rows="c.batch.value.history.rows"
+				:total="c.batch.value.history.matched_count"
+				:next="c.batch.value.history.next_start"
 				:loading="c.historyLoading.value"
-				@click="c.moreHistory"
-				>加载更多记录</UiButton
-			>
+				:error="c.historyError.value"
+				:initialized="true"
+				@load-more="c.moreHistory"
+				@retry="c.moreHistory"
+				@open-document="
+					(doctype, name) =>
+						emit('openDocument', documentDestination(doctype, name).path)
+				"
+				@open-loan="emit('openLoan', $event)"
+				@open-item="emit('openItem', $event)"
+			/>
 		</section>
 	</section>
 </template>

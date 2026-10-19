@@ -427,7 +427,9 @@ def batch_details(name):
 		"sort": "desc",
 	}
 	locations = report_page(stock_query, page_length=100)
-	history = report_page(history_query, page_length=20)
+	from temple_inventory.browse import movement_history
+
+	history = movement_history(history_query, batch_no=batch.name, page_length=20)
 	return {
 		"name": batch.name,
 		"item_code": batch.item,
@@ -495,7 +497,9 @@ def batch_history(name, start=0, page_length=20):
 	batch = frappe.get_doc("Batch", name)
 	batch.check_permission("read")
 	check_item(batch.item)
-	return report_page(
+	from temple_inventory.browse import movement_history
+
+	return movement_history(
 		{
 			"dataset": "movements",
 			"view": "lines",
@@ -507,6 +511,7 @@ def batch_history(name, start=0, page_length=20):
 			"sortBy": "date",
 			"sort": "desc",
 		},
+		batch_no=batch.name,
 		start=max(0, cint(start)),
 		page_length=min(100, max(1, cint(page_length))),
 	)

@@ -7,7 +7,7 @@ import {
 import { newReportQuery } from "../../lib/reportContract";
 import type { NativeDocument } from "../documents/nativeEditor";
 import { useAttachments } from "../attachments/useAttachments";
-import { useReportController } from "../export/useReportController";
+import { useMovementHistory } from "../movements/useMovementHistory";
 import { useBrowseState } from "../../lib/browseMemory";
 
 export interface LoanOutcomes {
@@ -91,13 +91,13 @@ export function useLoanDetail(props: { name: string }) {
   const exportQuery = computed(query);
   const historyQuery = computed(() => ({
     ...query(),
-    view: "settlements",
+    scope: { ...query().scope, kinds: ["Return", "Damage", "Loss"] },
+    statuses: [1],
     sortBy: "date" as const,
     sort: "desc" as const,
   }));
-  const history = useReportController(historyQuery, {
-    personalViews: false,
-    enabled: computed(() => loan.value?.name === props.name && active()),
+  const history = useMovementHistory(historyQuery, {
+    enabled: () => loan.value?.name === props.name && active(),
   });
   useBrowseState(
     "loan-detail",

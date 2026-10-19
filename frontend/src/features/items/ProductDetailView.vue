@@ -11,7 +11,7 @@ import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
-import ReportTable from "../../components/ui/ReportTable.vue";
+import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ItemConversions from "./ItemConversions.vue";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
@@ -22,13 +22,12 @@ const emit = defineEmits<{
 	tab: [value: string];
 	browse: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
+	openLoan: [name: string];
 	openExport: [query: ReportQuery];
 	openBatch: [name: string];
 }>();
 const c = props.controller;
 const { stockItem: item, loading, error, tab, batches, files } = c;
-const movementTable = c.movements.mainTable,
-	loanTable = c.loans.mainTable;
 const metrics = computed(() =>
 	item.value
 		? (
@@ -198,40 +197,36 @@ const warehouseReference = useOptionalReferenceData();
 						>查看物品流动</UiButton
 					>
 				</div>
-				<p v-if="c.movements.result.error" role="alert">
-					{{ c.movements.result.error }}
-					<UiButton @click="c.movements.refresh">重试</UiButton>
-				</p>
-				<p v-if="c.movements.result.loading" role="status">正在读取流动…</p>
-				<ReportTable
-					v-if="movementTable && !c.movements.result.stale"
-					:table="{ ...movementTable }"
-					:total="movementTable.total"
-					:loading="movementTable.loading"
-					:initialized="movementTable.initialized"
-					:error="movementTable.error"
-					@load-more="c.movements.loadTable(movementTable, true)"
-					@retry="c.movements.loadTable(movementTable, true)"
+				<MovementHistoryTable
+					:rows="c.movements.result.rows"
+					:total="c.movements.result.total"
+					:next="c.movements.result.next"
+					:loading="c.movements.result.loading"
+					:initialized="c.movements.result.initialized"
+					:error="c.movements.result.error"
+					:stale="c.movements.result.stale"
+					@load-more="c.movements.loadMore"
+					@retry="c.movements.refresh"
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+					@open-loan="(name) => emit('openLoan', name)"
 				/>
 				<div class="browse-card-heading">
 					<h2>借用记录</h2>
 					<UiButton @click="emit('browse', c.loanQuery.value)">查看物品借用</UiButton>
 				</div>
-				<p v-if="c.loans.result.error" role="alert">
-					{{ c.loans.result.error }} <UiButton @click="c.loans.refresh">重试</UiButton>
-				</p>
-				<p v-if="c.loans.result.loading" role="status">正在读取借用…</p>
-				<ReportTable
-					v-if="loanTable && !c.loans.result.stale"
-					:table="{ ...loanTable }"
-					:total="loanTable.total"
-					:loading="loanTable.loading"
-					:initialized="loanTable.initialized"
-					:error="loanTable.error"
-					@load-more="c.loans.loadTable(loanTable, true)"
-					@retry="c.loans.loadTable(loanTable, true)"
+				<MovementHistoryTable
+					mode="loan-allocation"
+					:rows="c.loans.result.rows"
+					:total="c.loans.result.total"
+					:next="c.loans.result.next"
+					:loading="c.loans.result.loading"
+					:initialized="c.loans.result.initialized"
+					:error="c.loans.result.error"
+					:stale="c.loans.result.stale"
+					@load-more="c.loans.loadMore"
+					@retry="c.loans.refresh"
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+					@open-loan="(name) => emit('openLoan', name)"
 				/>
 			</details>
 		</article>

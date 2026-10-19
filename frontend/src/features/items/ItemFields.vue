@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import CategoryField from "../references/CategoryField.vue";
 import UnitField from "../references/UnitField.vue";
+import { onDeactivated, ref, watch } from "vue";
+import Overlay from "../../components/ui/Overlay.vue";
+import UiButton from "../../components/ui/UiButton.vue";
+import Scanner from "../../components/Scanner.vue";
 import type { ItemInput } from "./useItemEditor";
-defineProps<{
+import { appendBarcode as appendBarcodeValue } from "./barcodeInput";
+const props = defineProps<{
 	model: ItemInput;
 	editing?: boolean;
 	disabled?: boolean;
 	editorTarget?: HTMLElement;
 }>();
 const emit = defineEmits<{ supportingDirty: [field: "category" | "unit", dirty: boolean] }>();
+const scannerOpen = ref(false);
+function appendBarcode(value: string) {
+	if (props.disabled) return;
+	props.model.barcode = appendBarcodeValue(props.model.barcode, value);
+	scannerOpen.value = false;
+}
+watch(
+	() => props.disabled,
+	(disabled) => {
+		if (disabled) scannerOpen.value = false;
+	},
+);
+onDeactivated(() => {
+	scannerOpen.value = false;
+});
 </script>
 <template>
 	<div class="form-fields preview-creation-fields">
@@ -43,10 +63,32 @@ const emit = defineEmits<{ supportingDirty: [field: "category" | "unit", dirty: 
 			:editor-target="editorTarget"
 			@dirty-change="emit('supportingDirty', 'unit', $event)"
 		/>
-		<label class="preview-field full-width"
-			>条码（每行一个，可选）<textarea v-model="model.barcode" :disabled="disabled" /></label
-		><label class="preview-field full-width"
-			>物品说明（可选）<textarea v-model="model.description" :disabled="disabled" />
+		<label class="preview-field full-width">
+			条码（每行一个，可选）
+			<textarea v-model="model.barcode" :disabled="disabled" />
+		</label>
+		<div class="full-width">
+			<UiButton icon="scan" :disabled="disabled" @click="scannerOpen = true"
+				>扫码添加条码</UiButton
+			>
+		</div>
+		<Overlay
+			v-if="scannerOpen"
+			title="扫码添加条码"
+			adaptive-creation
+			@close="scannerOpen = false"
+		>
+			<Scanner
+				presentation="inline"
+				submit-label="添加条码"
+				:paused="disabled"
+				@scan="appendBarcode"
+				@close="scannerOpen = false"
+			/>
+		</Overlay>
+		<label class="preview-field full-width">
+			物品说明（可选）
+			<textarea v-model="model.description" :disabled="disabled" />
 		</label>
 		<template v-if="editing"
 			><dl class="preview-info-grid">

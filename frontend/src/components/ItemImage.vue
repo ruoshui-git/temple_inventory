@@ -79,7 +79,12 @@ onDeactivated(() => {
 			fit="contain"
 			width="100%"
 			height="100%"
-		/><span class="image-magnifier" aria-hidden="true">⊕</span>
+		/><span class="image-magnifier" aria-hidden="true"
+			><svg viewBox="0 0 16 16" focusable="false">
+				<path
+					d="M6 2H2v4M2.2 2.2 7 7m3-5h4v4m-.2-3.8L9 7m5 3v4h-4m3.8-.2L9 9m-3 5H2v-4m.2 3.8L7 9"
+				/></svg
+		></span>
 	</button>
 	<AsyncImage v-else :alt="item.name" fit="contain" width="100%" height="100%" />
 	<Overlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"

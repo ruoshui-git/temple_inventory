@@ -16,6 +16,7 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -96,9 +97,9 @@ function sortState(field: string) {
 }
 const sortFields = [
 	{ value: "date", label: "到期日" },
-	{ value: "identity", label: "物品 / 批次编号" },
-	{ value: "quantity", label: "库存数量" },
 	{ value: "name", label: "物品名称" },
+	{ value: "batch", label: "批次编号" },
+	{ value: "quantity", label: "库存数量" },
 ];
 function sortGlyph(field: ReportQuery["sortBy"]) {
 	return query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
@@ -106,6 +107,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 </script>
 <template>
 	<section class="browse-page">
+		<ReturnToTop :active="active" :hidden="isMobile && filterOpen" />
 		<BrowseToolbar
 			title="效期批次"
 			:summary="`效期批次 · ${result.initialized ? result.batchCount + ' 个批次' : '读取中'}`"
@@ -253,8 +255,16 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							</button>
 						</div>
 						<p>
-							{{ row.expiry_date || "无效期" }} · 可用 {{ row.available }}
+							{{ row.expiry_date || "无效期" }} · {{ row.stock_qty }}
 							{{ row.stock_uom }}
+							<span v-if="Number(row.loaned) > 0" class="browse-badge is-warning"
+								>借出</span
+							>
+							<span
+								v-else-if="Number(row.damaged) > 0"
+								class="browse-badge is-danger"
+								>损坏</span
+							>
 							<small v-if="typeof row.remaining_days === 'number'">
 								· {{ formatExpiryDuration(row.remaining_days) }}</small
 							>
@@ -265,10 +275,14 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					<table class="browse-table">
 						<thead>
 							<tr>
-								<th>图片</th>
-								<th :aria-sort="sortState('identity')">
-									<button @click="sortBy('identity')">
-										物品 / 批次 {{ sortGlyph("identity") }}
+								<th :aria-sort="sortState('name')">
+									<button @click="sortBy('name')">
+										物品名称 {{ sortGlyph("name") }}
+									</button>
+								</th>
+								<th :aria-sort="sortState('batch')">
+									<button @click="sortBy('batch')">
+										批次编号 {{ sortGlyph("batch") }}
 									</button>
 								</th>
 								<th :aria-sort="sortState('date')">
@@ -291,12 +305,10 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								:key="String(row.id)"
 								:data-browse-row="String(row.id)"
 							>
-								<td class="expiry-image-cell">
-									<ItemImage :item="c.item(row)" />
-								</td>
 								<td>
-									<div>
-										<div class="expiry-identity-links">
+									<div class="expiry-item-identity">
+										<ItemImage :item="c.item(row)" />
+										<div>
 											<button
 												class="browse-row-link"
 												:disabled="result.stale"
@@ -304,16 +316,18 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 											>
 												<strong>{{ row.item_name }}</strong>
 											</button>
-											<button
-												class="browse-row-link"
-												:disabled="result.stale"
-												@click="openBatch(row)"
-											>
-												{{ row.batch_no }} · 批次资料
-											</button>
+											<small>{{ row.item_code }} · {{ row.category }}</small>
 										</div>
-										<small>{{ row.item_code }} · {{ row.category }}</small>
 									</div>
+								</td>
+								<td>
+									<button
+										class="browse-row-link"
+										:disabled="result.stale"
+										@click="openBatch(row)"
+									>
+										{{ row.batch_no }} · 批次资料
+									</button>
 								</td>
 								<td>
 									<span
@@ -337,8 +351,15 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								</td>
 								<td>
 									{{ row.stock_qty }} {{ row.stock_uom }}
-									<small class="expiry-available-quantity"
-										>可用 {{ row.available }}</small
+									<span
+										v-if="Number(row.loaned) > 0"
+										class="browse-badge is-warning"
+										>借出</span
+									>
+									<span
+										v-else-if="Number(row.damaged) > 0"
+										class="browse-badge is-danger"
+										>损坏</span
 									>
 								</td>
 								<td>

@@ -1,15 +1,17 @@
 """Native supporting records, full-dataset search and dashboard integration."""
 
 import base64
+import copy
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
 import frappe
 from erpnext.stock.doctype.batch.batch import get_batch_qty
-from frappe.utils import add_days, nowdate
+from frappe.utils import add_days, now_datetime, nowdate
 
-from temple_inventory import browse, catalog, conversions, counts, native_api, native_files
+from temple_inventory import browse, catalog, conversions, counts, native_api, native_files, projections
+from temple_inventory.report_sources import ReportContext
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
@@ -366,6 +368,7 @@ class CatalogTests(NativeDocumentTests):
 		second["items"][0].update({"batch_no": batches[0], "use_serial_batch_fields": 1})
 		self.submit(self.create(second))
 		data = self.movement("Return", 3, self.loan_leaf, self.b, ti_borrower="Batch Borrower")
+		data["posting_date"] = add_days(nowdate(), 1)
 		data["items"][0].update(
 			{
 				"batch_no": batches[0],
@@ -391,6 +394,203 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(
 			{row["batch_no"]: row["outstanding"] for row in rows}, {batches[0]: 0, batches[1]: 2}
 		)
+		batch_history = browse.movement_history(
+			{
+				"dataset": "movements",
+				"view": "lines",
+				"statuses": [1],
+				"loan": loan.name,
+				"scope": {"item": self.item},
+				"batchNo": batches[1],
+			},
+			item_code=self.item,
+			batch_no=batches[1],
+		)
+		self.assertTrue(batch_history["history_complete"])
+		item_history = browse.movement_history(
+			{
+				"dataset": "movements",
+				"view": "lines",
+				"statuses": [1],
+				"loan": loan.name,
+				"scope": {"item": self.item},
+			},
+			item_code=self.item,
+		)
+		self.assertTrue(item_history["history_complete"])
+		item_query = {
+			"dataset": "loans",
+			"view": "items",
+			"loan": loan.name,
+			"scope": {"period": {"key": "custom", "from": nowdate(), "to": nowdate()}},
+			"relatedPeriod": {"key": "custom", "from": "1900-01-01", "to": "1900-01-02"},
+			"itemLocationKeys": [f'["{self.item}","{self.a}"]'],
+		}
+		item_page = browse.operation_page(item_query)
+		self.assertEqual(item_page["matched_count"], 1)
+		self.assertEqual(item_page["rows"][0]["stock_qty"], 2)
+		self.assertEqual(item_page["rows"][0]["document_count"], 1)
+		history = browse.operation_contributions(item_query, item_code=self.item)
+		self.assertEqual(history["matched_count"], 2)
+		self.assertTrue(history["history_complete"])
+		self.assertEqual([row["quantity"] for row in history["rows"]], [3.0, -1.0])
+		self.assertEqual([row["stock_uom"] for row in history["rows"]], ["Nos", "Nos"])
+		self.assertEqual(history["rows"][0]["signed"], True)
+		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Return"])
+		all_item_history = browse.operation_contributions(
+			item_query, item_code=self.item, history_scope="all"
+		)
+		self.assertEqual([row["quantity"] for row in all_item_history["rows"]], [5.0, -3.0])
+		all_query = {**item_query, "includeZero": True}
+		all_history = browse.operation_contributions(all_query, item_code=self.item, history_scope="all")
+		self.assertEqual([row["quantity"] for row in all_history["rows"]], [5.0, -3.0])
+
+		settled_item = frappe.copy_doc(frappe.get_doc("Item", self.item))
+		settled_item.item_code = self.item + "-SETTLED"
+		settled_item.item_name = "Settled " + self.item
+		settled_item.has_batch_no = settled_item.has_expiry_date = 0
+		settled_item.insert()
+		receipt = self.movement(quantity=2)
+		receipt["items"][0]["item_code"] = settled_item.name
+		self.submit(self.create(receipt))
+		settled_loan_data = self.movement("Loan", 2, self.a, self.loan_leaf, ti_borrower="Settled Borrower")
+		settled_loan_data["items"][0]["item_code"] = settled_item.name
+		settled_loan = self.submit(self.create(settled_loan_data))
+		settled_return = self.movement("Return", 2, self.loan_leaf, self.b, ti_borrower="Settled Borrower")
+		settled_return["items"][0].update(
+			{
+				"item_code": settled_item.name,
+				"ti_original_loan": settled_loan.name,
+				"ti_original_loan_line": settled_loan["items"][0].name,
+				"ti_settlement_outcome": "Returned",
+			}
+		)
+		self.submit(self.create(settled_return))
+		settled_query = {"dataset": "loans", "view": "items", "scope": {"item": settled_item.name}}
+		self.assertEqual(browse.operation_page(settled_query)["matched_count"], 0)
+		settled_page = browse.operation_page({**settled_query, "includeZero": True})
+		self.assertEqual(settled_page["matched_count"], 1)
+		self.assertEqual(settled_page["rows"][0]["stock_qty"], 0)
+		canonical = projections.report_page(
+			{
+				**settled_query,
+				"statuses": [0, 2],
+				"loanOutcome": "lost",
+				"loanStatus": "settled",
+				"outstandingOnly": True,
+			}
+		)
+		self.assertEqual(canonical["query"]["statuses"], [1])
+		self.assertEqual(canonical["query"]["loanOutcome"], "all")
+		self.assertEqual(canonical["query"]["loanStatus"], "all")
+		self.assertFalse(canonical["query"]["outstandingOnly"])
+		self.assertEqual(canonical["table"], "loan_items")
+		self.assertIn("outstanding", canonical["columns"])
+		self.assertIn("item_name", canonical["columns"])
+		self.assertNotIn("loan_item_page", {table["id"] for table in canonical["tables"]})
+		self.assertNotIn("linked_settlements", {table["id"] for table in canonical["tables"]})
+		self.assertEqual(projections.report_page(settled_query)["table"], "loan_items")
+		included_projection = projections.report_page({**settled_query, "includeZero": True})
+		self.assertEqual(included_projection["matched_count"], settled_page["matched_count"])
+		self.assertEqual(included_projection["rows"][0]["stock_qty"], settled_page["rows"][0]["stock_qty"])
+		for grouping, expected in (("activity", ""), ("month", nowdate()[:7])):
+			grouped = projections.report_page({**settled_query, "includeZero": True, "grouping": grouping})
+			self.assertEqual(grouped["table"], "grouped")
+			self.assertEqual(grouped["matched_count"], 1)
+			self.assertEqual(grouped["rows"][0][grouping], expected)
+
+	def test_item_history_uses_only_effective_damage_and_loss_events_after_cancellation(self):
+		receipt = self.movement(quantity=4)
+		receipt.update({"posting_time": "08:00:00", "ti_time_mode": "Manual"})
+		self.submit(self.create(receipt))
+		loan_data = self.movement("Loan", 4, self.a, self.loan_leaf, ti_borrower="History")
+		loan_data.update({"posting_time": "09:00:00", "ti_time_mode": "Manual"})
+		loan = self.submit(self.create(loan_data))
+		damage_data = self.movement(
+			"Damage", 1, self.loan_leaf, self.damaged, ti_borrower="History", posting_time="12:00:00"
+		)
+		damage_data["ti_time_mode"] = "Manual"
+		damage_data["items"][0].update(
+			{
+				"ti_original_loan": loan.name,
+				"ti_original_loan_line": loan["items"][0].name,
+				"ti_settlement_outcome": "Damaged",
+			}
+		)
+		damage = self.submit(self.create(damage_data))
+		loss_data = self.movement(
+			"Loss", 1, self.loan_leaf, None, ti_borrower="History", posting_time="10:00:00"
+		)
+		loss_data["ti_time_mode"] = "Manual"
+		loss_data["items"][0].update(
+			{
+				"ti_original_loan": loan.name,
+				"ti_original_loan_line": loan["items"][0].name,
+				"ti_settlement_outcome": "Lost",
+			}
+		)
+		loss = self.submit(self.create(loss_data))
+		query = {"dataset": "loans", "view": "items", "loan": loan.name}
+		history = browse.operation_contributions(query, item_code=self.item, history_scope="all")
+		self.assertTrue(history["history_complete"])
+		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Loss", "Damage"])
+		self.assertEqual([row["quantity"] for row in history["rows"]], [4.0, -1.0, -1.0])
+		frappe.get_doc("Stock Entry", loss.name).cancel()
+		updated = browse.operation_contributions(query, item_code=self.item, history_scope="all")
+		self.assertTrue(updated["history_complete"])
+		self.assertEqual([row["kind"] for row in updated["rows"]], ["Loan", "Damage"])
+		self.assertEqual([row["quantity"] for row in updated["rows"]], [4.0, -1.0])
+		movement_history = browse.movement_history(
+			{
+				"dataset": "movements",
+				"view": "lines",
+				"statuses": [1, 2],
+				"scope": {"item": self.item},
+			},
+			item_code=self.item,
+		)
+		balance_effects = {row["document"]: row["loan_balance_effect"] for row in movement_history["rows"]}
+		self.assertEqual(balance_effects[loan.name], 4.0)
+		self.assertEqual(balance_effects[damage.name], -1.0)
+		self.assertEqual(balance_effects[loss.name], 0.0)
+		self.submit(self.create(self.movement(quantity=1)))
+		later_data = self.movement("Loan", 1, self.a, self.loan_leaf, ti_borrower="History")
+		later_data.update({"posting_time": "12:00:00", "ti_time_mode": "Manual"})
+		later = self.submit(self.create(later_data))
+		item_history_query = {"dataset": "loans", "view": "records", "statuses": [1]}
+		item_history = browse.loan_item_history(item_history_query, self.item)
+		self.assertEqual(
+			[row["document"] for row in item_history["rows"][:2]],
+			[later.name, loan.name],
+		)
+		self.assertEqual(
+			browse.loan_item_history(
+				{**item_history_query, "restrictItems": True, "itemCodes": []}, self.item
+			)["rows"],
+			[],
+		)
+		self.assertEqual(frappe.get_doc("Stock Entry", damage.name).docstatus, 1)
+		original_parent = ReportContext.parent
+
+		def hide_damage(context, doctype, name):
+			if doctype == "Stock Entry" and name == damage.name:
+				return None
+			return original_parent(context, doctype, name)
+
+		with patch.object(ReportContext, "parent", hide_damage):
+			incomplete = browse.operation_contributions(query, item_code=self.item, history_scope="all")
+			incomplete_movement_history = browse.movement_history(
+				{
+					"dataset": "movements",
+					"view": "lines",
+					"statuses": [1, 2],
+					"loan": loan.name,
+					"scope": {"item": self.item},
+				},
+				item_code=self.item,
+			)
+		self.assertFalse(incomplete["history_complete"])
+		self.assertFalse(incomplete_movement_history["history_complete"])
 
 	def test_restrictive_picker_scope_clock_and_retry_safe_batch_preparation(self):
 		self.receipt(3)
@@ -436,11 +636,14 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(page["summary"]["document_count"], 1)
 		self.assertEqual(page["summary"]["item_count"], 1)
 		detail = browse.operation_contributions(query, item_code=self.item)
-		self.assertEqual(detail["matched_count"], 205)
-		self.assertEqual(len(detail["rows"]), 30)
-		self.assertEqual(
-			len(browse.operation_contributions(query, item_code=self.item, start=200)["rows"]), 5
-		)
+		self.assertEqual(detail["matched_count"], 1)
+		self.assertEqual(len(detail["rows"]), 1)
+		self.assertEqual(detail["rows"][0]["quantity"], 205.0)
+		self.assertEqual(detail["rows"][0]["stock_uom"], "Nos")
+		self.assertEqual(detail["rows"][0]["doctype"], "Stock Entry")
+		self.assertIn("available_effect", detail["rows"][0])
+		self.assertIn("docstatus", detail["rows"][0])
+		self.assertEqual(browse.operation_contributions(query, item_code=self.item, start=200)["rows"], [])
 		record_page = browse.operation_page(query, records=True)
 		record = record_page["rows"][0]
 		self.assertNotIn("allocation_count", record)
@@ -450,6 +653,13 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(record["whole"]["available_effects"], [{"uom": "Nos", "qty": 212}])
 		self.assertEqual(record_page["totals"][0]["stock_qty"], 212)
 		self.assertEqual(record_page["totals"][0]["available_effect"], 212)
+		second_entry = self.submit(self.create(self.movement("Receive", 3, None, self.a)))
+		all_items = {"dataset": "movements", "view": "lines", "scope": {"item": self.item}}
+		first = browse.operation_contributions(all_items, item_code=self.item, page_length=1)
+		second_page = browse.operation_contributions(all_items, item_code=self.item, start=1, page_length=1)
+		self.assertEqual(first["matched_count"], 2)
+		self.assertNotEqual(first["rows"][0]["document"], second_page["rows"][0]["document"])
+		self.assertIn(second_entry.name, {first["rows"][0]["document"], second_page["rows"][0]["document"]})
 		self.assertEqual(page["analysis"]["month"]["matched_count"], 1)
 		self.assertEqual(page["analysis"]["month"]["rows"][0]["stock_qty"], 205)
 		self.assertEqual(
@@ -519,6 +729,70 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(page["rows"][0]["whole"]["version"], count.version)
 		self.assertEqual(browse.counts_page({"dataset": "counts", "record": count.name})["matched_count"], 0)
 
+	def test_movement_history_narrows_available_effect_to_explicit_warehouse(self):
+		self.receipt(10)
+		transfer = self.submit(self.create(self.movement("Transfer", 3, self.a, self.b)))
+		base = {
+			"dataset": "movements",
+			"view": "lines",
+			"statuses": [1],
+			"scope": {"item": self.item, "warehouses": [self.root]},
+		}
+		whole_group = browse.movement_history(base, item_code=self.item)
+		narrow_location = browse.movement_history(base, item_code=self.item, warehouse=self.a)
+		group_transfer = next(row for row in whole_group["rows"] if row["document"] == transfer.name)
+		narrow_transfer = next(row for row in narrow_location["rows"] if row["document"] == transfer.name)
+		self.assertAlmostEqual(group_transfer["available_effect"], 0)
+		self.assertAlmostEqual(narrow_transfer["available_effect"], -3)
+
+		# Two reconciliations move the available-stock basis between leaves while
+		# keeping the inherited group total unchanged.
+		def reconcile(warehouse, delta):
+			posting = now_datetime()
+			baseline = counts.count_baseline(warehouse, str(posting), "Selected", [self.item])
+			rows = copy.deepcopy(baseline["rows"])
+			for row in rows:
+				row.update(
+					{
+						"actual_qty": float(row["baseline_qty"]) + delta,
+						"review_state": "Reviewed",
+						"reason": "调整效果测试",
+					}
+				)
+			data = {
+				"company": self.company,
+				"posting_date": str(posting.date()),
+				"posting_time": str(posting.time()),
+				"ti_count_warehouse": warehouse,
+				"ti_count_scope": "Selected",
+				"ti_count_items": [self.item],
+				"ti_baseline_timestamp": baseline["timestamp"],
+				"ti_baseline_fingerprint": baseline["fingerprint"],
+				"ti_count_review": rows,
+			}
+			draft = counts.save_count(str(uuid4()), data)
+			native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+
+		# A has 7 after transfer, B has 3; adjustment lines swap those balances.
+		reconcile(self.a, -3)
+		reconcile(self.b, 3)
+		reconciliations_group = browse.movement_history(base, item_code=self.item)
+		reconciliations_a = browse.movement_history(base, item_code=self.item, warehouse=self.a)
+		reconcile_group_effect = sum(
+			row["available_effect"] for row in reconciliations_group["rows"] if row["kind"] == "Reconcile"
+		)
+		reconcile_a_effect = sum(
+			row["available_effect"] for row in reconciliations_a["rows"] if row["kind"] == "Reconcile"
+		)
+		self.assertAlmostEqual(reconcile_group_effect, 0)
+		self.assertAlmostEqual(reconcile_a_effect, -3)
+		unrelated = browse.movement_history(
+			{**base, "scope": {"item": self.item, "warehouses": [self.b]}},
+			item_code=self.item,
+			warehouse=self.a,
+		)
+		self.assertEqual(unrelated["rows"], [])
+
 	def test_record_exports_expand_partial_item_matches_to_whole_movement_and_loan_documents(self):
 		other = frappe.get_doc(
 			{
@@ -540,6 +814,63 @@ class CatalogTests(NativeDocumentTests):
 			{**movement_data["items"][0], "item_code": other.name, "qty": 2, "transfer_qty": 2, "uom": "Kg"}
 		)
 		movement = self.submit(self.create(movement_data))
+		history = browse.movement_history(
+			{
+				"dataset": "movements",
+				"view": "records",
+				"statuses": [1],
+				"scope": {"item": self.item},
+			},
+			item_code=self.item,
+			start=0,
+			page_length=1,
+		)
+		self.assertEqual(history["matched_count"], 2)
+		self.assertEqual(len(history["rows"]), 1)
+		self.assertEqual(history["next_start"], 1)
+		self.assertEqual(history["rows"][0]["item_code"], self.item)
+		self.assertEqual(history["rows"][0]["source_warehouse"], self.a)
+		self.assertEqual(history["rows"][0]["destination_warehouse"], self.b)
+		self.assertAlmostEqual(history["rows"][0]["quantity"], 5)
+		self.assertAlmostEqual(history["rows"][0]["available_effect"], 0)
+		group_scoped = browse.movement_history(
+			{
+				"dataset": "movements",
+				"view": "records",
+				"statuses": [1],
+				"scope": {"item": self.item, "warehouses": [self.root]},
+			},
+			item_code=self.item,
+			warehouse=self.a,
+		)
+		self.assertIn(movement.name, {row["document"] for row in group_scoped["rows"]})
+		unrelated_warehouse = browse.movement_history(
+			{
+				"dataset": "movements",
+				"view": "records",
+				"statuses": [1],
+				"scope": {"item": self.item, "warehouses": [self.b]},
+			},
+			item_code=self.item,
+			warehouse=self.a,
+		)
+		self.assertEqual(unrelated_warehouse["rows"], [])
+		conflicting_item = browse.movement_history(
+			{"dataset": "movements", "view": "records", "scope": {"item": "OTHER-ITEM"}},
+			item_code=self.item,
+		)
+		self.assertEqual(conflicting_item["rows"], [])
+		empty_restriction = browse.movement_history(
+			{"dataset": "movements", "view": "records", "restrictItems": True, "itemCodes": []},
+			item_code=self.item,
+		)
+		self.assertEqual(empty_restriction["rows"], [])
+		conflicting_batch = browse.movement_history(
+			{"dataset": "movements", "view": "records", "batchNo": "OTHER-BATCH"},
+			item_code=self.item,
+			batch_no="TI-BATCH-REQUEST",
+		)
+		self.assertEqual(conflicting_batch["rows"], [])
 		movement_page = browse.report_page(
 			{
 				"dataset": "movements",

@@ -8,10 +8,10 @@ import {
   type CatalogItem,
 } from "../../lib/catalogPresentation";
 import { newReportQuery, type ReportDataset } from "../../lib/reportContract";
-import { useReportController } from "../export/useReportController";
 import { useAttachments } from "../attachments/useAttachments";
 import type { SavedItemConversions } from "../conversions/useConversionEditor";
 import { useBrowseState } from "../../lib/browseMemory";
+import { useMovementHistory } from "../movements/useMovementHistory";
 export function useProductDetail(props: { code: string; tab?: string }) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
@@ -69,14 +69,15 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   const visible = computed(
     () => item.value?.item_code === props.code && active(),
   );
-  const movements = useReportController(movementQuery, {
-      personalViews: false,
-      enabled: visible,
-    }),
-    loans = useReportController(loanQuery, {
-      personalViews: false,
-      enabled: visible,
-    });
+  const movements = useMovementHistory(movementQuery, {
+    itemCode: () => props.code,
+    enabled: () => visible.value,
+  });
+  const loans = useMovementHistory(loanQuery, {
+    itemCode: () => props.code,
+    enabled: () => visible.value,
+    loanAllocations: true,
+  });
   useBrowseState(
     "item-detail",
     () => [props.code, tab.value],

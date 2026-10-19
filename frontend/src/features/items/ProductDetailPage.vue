@@ -11,6 +11,7 @@ const emit = defineEmits<{
 	tab: [value: string];
 	browse: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
+	openLoan: [name: string];
 	openExport: [query: ReportQuery];
 	openBatch: [name: string];
 }>();
@@ -26,6 +27,7 @@ defineExpose({ controller });
 		@tab="emit('tab', $event)"
 		@browse="emit('browse', $event)"
 		@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+		@open-loan="emit('openLoan', $event)"
 		@open-export="emit('openExport', $event)"
 		@open-batch="emit('openBatch', $event)"
 	/>

@@ -14,7 +14,10 @@ import { useReportController } from "../src/features/export/useReportController"
 import { useDashboardController } from "../src/features/dashboard/useDashboardController";
 import { useQuickExport } from "../src/features/export/useQuickExport";
 import { useExportWorkspaceController } from "../src/features/export/useReportController";
-import { browseDestination } from "../src/lib/nativeNavigation";
+import {
+  browseDestination,
+  loanDestination,
+} from "../src/lib/nativeNavigation";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -184,6 +187,13 @@ describe("scope and permission refresh boundaries", () => {
 });
 
 describe("native browse service controllers", () => {
+  it("routes Loan links from batch movement history to the loan detail and back", () => {
+    expect(loanDestination("Loan / 01", "/batches/BATCH-1")).toEqual({
+      path: "/loans/Loan%20%2F%2001",
+      query: { back: "/batches/BATCH-1" },
+    });
+  });
+
   it("keeps complete server totals, selection and valid rows on a failed next page", async () => {
     const service = services();
     vi.mocked(service.call)

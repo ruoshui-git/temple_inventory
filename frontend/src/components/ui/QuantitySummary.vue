@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InventoryIcon from "../InventoryIcon.vue";
+import { formatQuantity } from "../../lib/formatQuantity";
 export type Quantity = { uom: string; qty: number; status?: string; effect?: number };
 export type QuantityMetric = {
 	key: string;
@@ -14,8 +15,6 @@ withDefaults(defineProps<{ metrics: QuantityMetric[]; loading?: boolean; label?:
 	label: "数量汇总",
 });
 
-const formatQuantity = (value: number) =>
-	new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(Number(value || 0));
 function effect(quantity: Quantity) {
 	return ["草稿", "已取消", "计划借出（草稿）"].includes(quantity.status || "")
 		? 0

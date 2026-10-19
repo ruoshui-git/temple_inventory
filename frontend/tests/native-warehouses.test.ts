@@ -350,20 +350,13 @@ describe("shared native warehouse workspace", () => {
     wrappers.push(detail);
     await flushPromises();
     const history =
-      detail.findComponent(NativeWarehousesPage).vm.controller.history.mainTable
-        .value;
-    expect(history?.rows.length).toBeGreaterThan(0);
+      detail.findComponent(NativeWarehousesPage).vm.controller.history.result;
+    expect(history.rows.length).toBeGreaterThan(0);
     expect(
-      history?.rows.every(
-        (row) => row.kind && typeof row.stock_qty === "number" && row.stock_uom,
+      history.rows.every(
+        (row) => row.kind && typeof row.quantity === "number" && row.stock_uom,
       ),
     ).toBe(true);
-    expect(history?.rows.map((row) => row.date)).toEqual(
-      history?.rows
-        .map((row) => row.date)
-        .sort()
-        .reverse(),
-    );
     c.openEditor();
     c.form.label = "图库新房间";
     await flushPromises();

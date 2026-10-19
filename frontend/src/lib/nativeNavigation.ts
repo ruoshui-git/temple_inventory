@@ -4,6 +4,9 @@ export function documentDestination(doctype: string, name: string) {
     path: `/documents/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
   };
 }
+export function loanDestination(name: string, back: string) {
+  return { path: `/loans/${encodeURIComponent(name)}`, query: { back } };
+}
 export function exportDestination(query: ReportQuery) {
   return { path: "/reports", query: { query: JSON.stringify(query) } };
 }

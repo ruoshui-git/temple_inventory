@@ -6,6 +6,7 @@ import {
 } from "../../services/contracts";
 import {
   newReportQuery,
+  type MovementHistoryPage,
   type ReportQuery,
   type ReportRow,
 } from "../../lib/reportContract";
@@ -23,6 +24,7 @@ export interface OperationGroup {
   item_name?: string;
   category?: string;
   stock_uom?: string;
+  stock_qty?: number;
   date?: string;
   posting_timestamp?: string;
   outcome_key?: string;
@@ -51,6 +53,7 @@ export interface BrowseRowsPage {
   rows: ReportRow[];
   matched_count: number;
   next_start: number | null;
+  history_complete?: boolean;
 }
 export interface OperationBrowsePage {
   rows: OperationGroup[];
@@ -72,6 +75,8 @@ export interface BrowseDetail {
   loading: boolean;
   error: string;
   initialized: boolean;
+  historyComplete?: boolean;
+  failedMore?: boolean;
 }
 export function useOperationBrowse(
   props: {
@@ -92,14 +97,17 @@ export function useOperationBrowse(
       ? "records"
       : props.family === "movements"
         ? "summary"
-        : "outcomes";
+        : "items";
     query.sortBy =
       props.records || props.family === "movements" ? "date" : "name";
     query.sort = query.sortBy === "date" ? "desc" : "asc";
     if (props.family === "movements" && !props.records)
       query.includeAdjustments = false;
-    if (props.family === "loans" && !props.records)
-      query.loanOutcome = "outstanding";
+    if (props.family === "loans" && !props.records) {
+      query.loanOutcome = "all";
+      query.outstandingOnly = false;
+      query.statuses = [1];
+    }
     return query;
   }
   const query = ref(defaults()),
@@ -118,6 +126,7 @@ export function useOperationBrowse(
   });
   const details = reactive<Record<string, BrowseDetail>>({}),
     analyses = reactive<Record<string, BrowseDetail>>({}),
+    historyScopes = reactive<Record<string, "outstanding" | "all">>({}),
     expanded = reactive(new Set<string>()),
     dimension = ref("category");
   let restoring = false,
@@ -125,12 +134,15 @@ export function useOperationBrowse(
     disposed = false,
     retryMore = false;
   const requests = new Set<AbortController>();
+  const detailRequests = new Map<string, AbortController>();
   const active = (current = generation) =>
     !disposed && current === generation && reference.user === account;
   function cancel() {
     generation++;
     requests.forEach((request) => request.abort());
     requests.clear();
+    detailRequests.clear();
+    for (const table of Object.values(details)) table.loading = false;
   }
   function clearUnavailable() {
     cancel();
@@ -160,6 +172,8 @@ export function useOperationBrowse(
       loading: false,
       error: "",
       initialized: false,
+      failedMore: false,
+      historyComplete: true,
     };
   }
   function enter() {
@@ -180,7 +194,13 @@ export function useOperationBrowse(
       ? "records"
       : props.family === "movements"
         ? "summary"
-        : "outcomes";
+        : "items";
+    if (props.family === "loans" && !props.records) {
+      incoming.loanStatus = "all";
+      incoming.loanOutcome = "all";
+      incoming.outstandingOnly = false;
+      incoming.statuses = [1];
+    }
     const supportedSorts =
       props.family === "loans" && !props.records
         ? ["name", "quantity"]
@@ -207,11 +227,17 @@ export function useOperationBrowse(
   useBrowseState(
     `operations/${props.family}/${props.records ? "records" : "items"}`,
     () => query.value,
-    () => ({ expanded: [...expanded], dimension: dimension.value }),
+    () => ({
+      expanded: [...expanded],
+      dimension: dimension.value,
+      historyScopes: { ...historyScopes },
+    }),
     (value) => {
       expanded.clear();
       for (const id of (value.expanded || []) as string[]) expanded.add(id);
       dimension.value = String(value.dimension || "category");
+      for (const key of Object.keys(historyScopes)) delete historyScopes[key];
+      Object.assign(historyScopes, value.historyScopes || {});
     },
     () =>
       result.initialized &&
@@ -242,7 +268,8 @@ export function useOperationBrowse(
         },
         request.signal,
       );
-      if (!active(current)) return;
+      if (!active(current) || request.signal.aborted) return;
+      const previousRows = result.rows;
       result.rows = more
         ? [
             ...result.rows,
@@ -272,9 +299,21 @@ export function useOperationBrowse(
             initialized: true,
           };
       }
-      for (const row of page.rows)
+      for (const row of page.rows) {
+        const previous = previousRows.find((old) => old.id === row.id);
+        if (
+          props.family === "loans" &&
+          query.value.view === "items" &&
+          expanded.has(row.id) &&
+          Number(previous?.stock_qty || 0) > 0 &&
+          row.stock_qty !== undefined &&
+          Number(row.stock_qty) <= 0
+        )
+          historyScopes[row.id] = "all";
         if (expanded.has(row.id)) void loadDetails(row);
+      }
     } catch (reason) {
+      if (request.signal.aborted) return;
       if (active(current)) {
         if (isUnavailableError(reason)) clearUnavailable();
         result.error =
@@ -293,40 +332,70 @@ export function useOperationBrowse(
     },
     { immediate: true },
   );
-  async function loadDetails(row: OperationGroup, more = false) {
+  async function loadDetails(row: OperationGroup, more = false, retry = false) {
     if (result.stale || !active()) return;
     if (!details[row.id])
       details[row.id] = detail(
         row.id,
-        props.records ? "符合筛选的明细" : "符合筛选的记录与明细",
+        props.records ? "符合筛选的明细" : "相关记录",
       );
+    if (props.family === "loans" && query.value.view === "items") {
+      if (row.stock_qty !== undefined && Number(row.stock_qty) <= 0)
+        historyScopes[row.id] = "all";
+      else if (!historyScopes[row.id]) historyScopes[row.id] = "outstanding";
+    }
     const table = details[row.id]!;
     if (
       table.loading ||
-      (!more && table.initialized) ||
+      (!more && !retry && table.initialized) ||
       (more && table.next === null)
     )
       return;
     const current = generation,
       request = new AbortController();
     requests.add(request);
+    detailRequests.set(row.id, request);
     table.loading = true;
     table.error = "";
     try {
-      const page = await services.call<BrowseRowsPage & { columns: string[] }>(
-        "browse.operation_contributions",
-        {
-          query: JSON.parse(JSON.stringify(query.value)),
-          records: props.records,
-          ...(props.records
-            ? { doctype: row.doctype, name: row.document }
-            : { item_code: row.item_code, outcome: row.outcome_key }),
-          start: more ? table.next : 0,
-          page_length: 30,
-        },
-        request.signal,
-      );
-      if (!active(current)) return;
+      const page =
+        props.family === "movements" &&
+        query.value.view === "summary" &&
+        !props.records
+          ? await services.call<MovementHistoryPage>(
+              "browse.movement_history",
+              {
+                query: JSON.parse(JSON.stringify(query.value)),
+                item_code: row.item_code,
+                start: more ? table.next : 0,
+                page_length: 30,
+              },
+              request.signal,
+            )
+          : await services.call<BrowseRowsPage & { columns: string[] }>(
+              "browse.operation_contributions",
+              {
+                query: JSON.parse(JSON.stringify(query.value)),
+                records: props.records,
+                ...(props.records
+                  ? { doctype: row.doctype, name: row.document }
+                  : {
+                      item_code: row.item_code,
+                      outcome: row.outcome_key,
+                      ...(props.family === "loans" &&
+                      query.value.view === "items"
+                        ? {
+                            history_scope:
+                              historyScopes[row.id] || "outstanding",
+                          }
+                        : {}),
+                    }),
+                start: more ? table.next : 0,
+                page_length: 30,
+              },
+              request.signal,
+            );
+      if (!active(current) || request.signal.aborted) return;
       table.rows = more
         ? [
             ...table.rows,
@@ -335,26 +404,52 @@ export function useOperationBrowse(
             ),
           ]
         : page.rows;
-      table.columns = page.columns;
+      table.columns = "columns" in page ? page.columns : [];
       table.total = page.matched_count;
       table.next = page.next_start;
+      table.historyComplete =
+        "history_complete" in page ? (page.history_complete ?? true) : true;
       table.initialized = true;
+      table.failedMore = false;
     } catch (reason) {
+      if (request.signal.aborted) return;
       if (active(current)) {
         if (isUnavailableError(reason)) clearUnavailable();
         table.error = reason instanceof Error ? reason.message : "明细读取失败";
+        table.failedMore = more;
         if (isUnavailableError(reason)) result.error = table.error;
       }
     } finally {
       requests.delete(request);
-      if (active(current)) table.loading = false;
+      if (detailRequests.get(row.id) === request) {
+        detailRequests.delete(row.id);
+        if (active(current)) table.loading = false;
+      }
     }
+  }
+  function retryDetails(row: OperationGroup) {
+    const table = details[row.id];
+    if (!table) return;
+    void loadDetails(row, table.failedMore === true, true);
   }
   function toggle(row: OperationGroup, open: boolean) {
     if (open) {
       expanded.add(row.id);
       void loadDetails(row);
     } else expanded.delete(row.id);
+  }
+  function setHistoryScope(row: OperationGroup, value: "outstanding" | "all") {
+    historyScopes[row.id] = value;
+    const table = details[row.id];
+    if (!table) return;
+    detailRequests.get(row.id)?.abort();
+    detailRequests.delete(row.id);
+    table.loading = false;
+    table.rows = [];
+    table.total = 0;
+    table.next = 0;
+    table.initialized = false;
+    void loadDetails(row);
   }
   async function moreAnalysis() {
     const table = analyses[dimension.value];
@@ -455,7 +550,9 @@ export function useOperationBrowse(
           ? query.value.statuses.length === 1 && query.value.statuses[0] === 0
             ? "draft"
             : query.value.loanStatus
-          : query.value.loanOutcome,
+          : query.value.includeZero
+            ? "all"
+            : "outstanding",
     set: (value: string) => {
       if (props.family === "movements")
         query.value.statuses = [
@@ -464,7 +561,7 @@ export function useOperationBrowse(
       else if (props.records) {
         query.value.statuses = value === "draft" ? [0] : [1];
         query.value.loanStatus = value === "draft" ? "all" : value;
-      } else query.value.loanOutcome = value;
+      } else query.value.includeZero = value === "all";
     },
   });
   const statusChoices = computed(() =>
@@ -483,11 +580,8 @@ export function useOperationBrowse(
             ["draft", "草稿"],
           ]
         : [
-            ["all", "全部"],
-            ["outstanding", "未归还"],
-            ["returned", "完好归还"],
-            ["damaged", "损坏归还"],
-            ["lost", "遗失"],
+            ["outstanding", "未结清物品"],
+            ["all", "全部相关物品"],
           ],
   );
   const analysis = computed(() => analyses[dimension.value]);
@@ -498,7 +592,7 @@ export function useOperationBrowse(
         ? "records"
         : props.family === "movements"
           ? "summary"
-          : "outcomes",
+          : "items",
     };
   }
   function loanHistory() {
@@ -518,6 +612,7 @@ export function useOperationBrowse(
     routeError,
     result,
     details,
+    historyScopes,
     analyses,
     dimension,
     analysis,
@@ -534,7 +629,9 @@ export function useOperationBrowse(
     load,
     retry: () => load(retryMore),
     loadDetails,
+    retryDetails,
     toggle,
+    setHistoryScope,
     moreAnalysis,
     viewQuery,
     loanHistory,

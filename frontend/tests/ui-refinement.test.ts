@@ -5,7 +5,7 @@ import Overlay from "../src/components/ui/Overlay.vue";
 import ImageCrop from "../src/components/ui/ImageCrop.vue";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 import { warehouseLabel } from "../src/lib/warehouseLabel";
-import { reportFilterChips } from "../src/lib/reportFilters";
+import { hasReportStatuses, reportFilterChips } from "../src/lib/reportFilters";
 import { newReportQuery } from "../src/lib/reportContract";
 import { useRelatedLoans } from "../src/features/loans/useRelatedLoans";
 import {
@@ -50,6 +50,23 @@ it("formats allocation chips with authorized warehouse labels while preserving e
     )?.label,
   ).toContain("Stock Entry / MAT-1 / ROW-1");
 });
+it("surfaces the settled loan-item population as a removable filter", () => {
+  const query = newReportQuery("loans");
+  query.view = "items";
+  query.includeZero = true;
+  expect(hasReportStatuses(query)).toBe(false);
+  const chip = reportFilterChips(query, createReferenceData()).find(
+    (row) => row.key === "includeZero",
+  );
+  expect(chip?.label).toBe("显示已结清物品");
+  expect(chip?.reset.includeZero).toBe(false);
+  query.view = "records";
+  expect(
+    reportFilterChips(query, createReferenceData()).some(
+      (row) => row.key === "includeZero",
+    ),
+  ).toBe(false);
+});
 it("exposes exact batch scope in report filters with an explicit clear action", () => {
   const query = newReportQuery("movements");
   query.batchNo = "LOT-EXACT-42";
@@ -79,6 +96,24 @@ function click(text: string) {
   button!.click();
 }
 const table = { id: "t", label: "记录", columns: ["docstatus"], rows: [] };
+it("keeps generic action slots while a table without a slot has no action column", () => {
+  const data = {
+    ...table,
+    columns: ["document"],
+    rows: [{ id: "A", document: "A" }],
+  };
+  const plain = render(ReportTable, { table: data });
+  expect(plain.findAll("th")).toHaveLength(1);
+  const WithActions = defineComponent({
+    setup() {
+      return () =>
+        h(ReportTable, { table: data }, { actions: () => h("button", "Act") });
+    },
+  });
+  const actions = render(WithActions);
+  expect(actions.findAll("th")).toHaveLength(2);
+  expect(actions.text()).toContain("Act");
+});
 it("distinguishes loading, initial failure, successful empty and retained refresh", async () => {
   const wrapper = render(ReportTable, { table, loading: true });
   expect(wrapper.text()).toContain("正在读取");

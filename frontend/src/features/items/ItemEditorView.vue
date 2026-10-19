@@ -5,6 +5,7 @@ import ItemConversions from "./ItemConversions.vue";
 import ItemFields from "./ItemFields.vue";
 import Attachments from "../../components/Attachments.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import type { useItemEditor } from "./useItemEditor";
 const props = defineProps<{
 	controller: ReturnType<typeof useItemEditor>;
@@ -45,13 +46,6 @@ watch(
 async function cancel() {
 	if (await props.controller.requestLeave()) emit("cancel");
 }
-async function copy(text: string) {
-	try {
-		await navigator.clipboard.writeText(text);
-	} catch {
-		error.value = "请选中恢复文字并复制";
-	}
-}
 </script>
 <template>
 	<section class="preview-form-page">
@@ -68,13 +62,14 @@ async function copy(text: string) {
 					{{ candidate.updatedAt }} ·
 					{{ candidate.baseVersion ? "原物品编辑输入" : "尚未创建物品" }}
 				</p>
-				<pre class="preview-long-text">{{
-					JSON.stringify(candidate.values, null, 2)
-				}}</pre>
-				<UiButton @click="recover(candidate)">核对后恢复输入</UiButton
-				><UiButton @click="copy(JSON.stringify(candidate.values, null, 2))"
-					>复制输入</UiButton
+				<RecoverySummary
+					kind="Item"
+					:values="candidate.values"
+					:copy-text="JSON.stringify(candidate.values, null, 2)"
+					:pending-upload-reselection="candidate.pendingUploadReselection"
 				>
+					<UiButton @click="recover(candidate)">核对后恢复输入</UiButton>
+				</RecoverySummary>
 			</article>
 		</details>
 		<form class="surface form-section" @submit.prevent="save">
@@ -126,9 +121,13 @@ async function copy(text: string) {
 			/>
 			<div v-if="conflict">
 				<p>物品已更改。当前输入已保留，重新读取会替换输入。</p>
-				<pre class="preview-long-text">{{ recoveryText }}</pre>
-				<UiButton @click="copy(recoveryText)">复制输入</UiButton
-				><UiButton @click="load">重新读取物品</UiButton>
+				<RecoverySummary
+					kind="Item"
+					:values="model"
+					:copy-text="recoveryText"
+					:pending-upload-reselection="files.incomplete.value"
+				/>
+				<UiButton @click="load">重新读取物品</UiButton>
 			</div>
 			<div class="form-actions">
 				<UiButton @click="cancel">取消编辑</UiButton

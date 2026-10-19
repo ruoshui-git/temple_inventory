@@ -58,6 +58,7 @@ function saved() {
 		@item="(code) => router.push(`/item/${encodeURIComponent(code)}`)"
 		@browse="router.push(browseDestination($event))"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
+		@open-loan="(name) => router.push(`/loans/${encodeURIComponent(name)}`)"
 		@open-export="router.push(exportDestination($event))"
 		@new-count="count"
 		@new-operation="operation"

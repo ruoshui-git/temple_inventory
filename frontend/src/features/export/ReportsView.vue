@@ -162,9 +162,14 @@ const {
 					>
 				</fieldset>
 				<label
-					v-if="['inventory', 'expiry'].includes(dataset)"
+					v-if="
+						['inventory', 'expiry'].includes(dataset) ||
+						(dataset === 'loans' && query.view === 'items')
+					"
 					class="preview-choice-label"
-					><input type="checkbox" v-model="query.includeZero" />包含零库存</label
+					><input type="checkbox" v-model="query.includeZero" />{{
+						dataset === "loans" ? "显示已结清物品" : "包含零库存"
+					}}</label
 				><label v-if="dataset === 'expiry'" class="preview-choice-label"
 					><input
 						type="checkbox"

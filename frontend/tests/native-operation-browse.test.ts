@@ -117,6 +117,8 @@ function service() {
             id: "NATIVE-ROW-1",
             document: "LOAN-1",
             doctype: "Stock Entry",
+            kind: "Loan",
+            can_settle: true,
             original_loan: "LOAN-1",
             original_loan_line: "ORIGINAL-1",
             stock_qty: 5,
@@ -125,6 +127,8 @@ function service() {
             id: "NATIVE-ROW-2",
             document: "LOAN-2",
             doctype: "Stock Entry",
+            kind: "Loan",
+            can_settle: true,
             original_loan: "LOAN-2",
             original_loan_line: "ORIGINAL-2",
             stock_qty: 4,
@@ -138,6 +142,74 @@ function service() {
   });
 }
 describe("native operation browsing", () => {
+  it("retries failed contribution reads and retries page failures at the same offset", async () => {
+    const successPage = {
+      rows: [
+        {
+          id: "HISTORY-1",
+          document: "SE-1",
+          doctype: "Stock Entry",
+          quantity: 1,
+        },
+      ],
+      matched_count: 2,
+      next_start: 1,
+    };
+    const call = vi.fn(async (endpoint, args) => {
+      if (endpoint === "browse.operation_page") return page();
+      if (endpoint === "browse.movement_history") {
+        if (
+          args.start === 0 &&
+          call.mock.calls.filter(([name]) => name === endpoint).length === 1
+        )
+          throw new Error("initial failure");
+        if (
+          args.start === 1 &&
+          call.mock.calls.filter(([name]) => name === endpoint).length === 3
+        )
+          throw new Error("page failure");
+        if (
+          args.start === 0 &&
+          call.mock.calls.filter(([name]) => name === endpoint).length === 5
+        )
+          throw new Error("refresh failure");
+        return {
+          ...successPage,
+          rows: [{ ...successPage.rows[0]!, id: `HISTORY-${args.start}` }],
+          next_start: args.start === 0 ? 1 : null,
+        };
+      }
+      throw new Error(`Unexpected ${endpoint}`);
+    });
+    const { c } = setup(
+      call,
+      reactive({ family: "movements" as const, records: false }),
+    );
+    await flushPromises();
+    const row = c.result.rows[0]!;
+    c.toggle(row, true);
+    await flushPromises();
+    expect(c.details[row.id]?.error).toBe("initial failure");
+    c.retryDetails(row);
+    await flushPromises();
+    expect(c.details[row.id]?.rows).toHaveLength(1);
+    await c.loadDetails(row, true);
+    expect(c.details[row.id]?.error).toBe("page failure");
+    c.retryDetails(row);
+    await flushPromises();
+    await c.loadDetails(row, false, true);
+    expect(c.details[row.id]?.error).toBe("refresh failure");
+    c.retryDetails(row);
+    await flushPromises();
+    const starts = call.mock.calls
+      .filter(([endpoint]) => endpoint === "browse.movement_history")
+      .map(([, args]) => args.start);
+    expect(starts).toEqual([0, 0, 1, 1, 0, 0]);
+    expect(c.details[row.id]?.rows.map((entry) => entry.id)).toEqual([
+      "HISTORY-0",
+    ]);
+  });
+
   it("keeps the item/record switch in the persistent title slot when browse tools collapse", async () => {
     const { wrapper } = setup(
       service(),
@@ -252,7 +324,7 @@ describe("native operation browsing", () => {
       "browse.operation_contributions",
       expect.objectContaining({
         item_code: "ITEM-A",
-        outcome: "outstanding",
+        history_scope: "outstanding",
         records: false,
         start: 0,
       }),
@@ -260,6 +332,88 @@ describe("native operation browsing", () => {
     );
     expect(c.details[row.id]?.total).toBe(42);
     expect(c.details[row.id]?.rows).toHaveLength(2);
+    c.setHistoryScope(row, "all");
+    await flushPromises();
+    expect(call).toHaveBeenLastCalledWith(
+      "browse.operation_contributions",
+      expect.objectContaining({ item_code: "ITEM-A", history_scope: "all" }),
+      expect.any(AbortSignal),
+    );
+    expect(c.historyScopes[row.id]).toBe("all");
+  });
+  it("defaults settled item history to all and requests the matching scope", async () => {
+    const base = service();
+    const call = vi.fn(async (endpoint, args, signal) => {
+      if (endpoint === "browse.operation_page") {
+        const result = await base(endpoint, args, signal);
+        return { ...result, rows: [{ ...result.rows[0], stock_qty: 0 }] };
+      }
+      return base(endpoint, args, signal);
+    });
+    const { c } = setup(call);
+    await flushPromises();
+    const row = c.result.rows[0]!;
+    c.toggle(row, true);
+    await flushPromises();
+    expect(c.historyScopes[row.id]).toBe("all");
+    expect(call).toHaveBeenLastCalledWith(
+      "browse.operation_contributions",
+      expect.objectContaining({ item_code: "ITEM-A", history_scope: "all" }),
+      expect.any(AbortSignal),
+    );
+  });
+  it("switches an expanded card to all history when a refresh settles it", async () => {
+    let pages = 0;
+    const base = service();
+    const call = vi.fn(async (endpoint, args, signal) => {
+      if (endpoint === "browse.operation_page") {
+        pages += 1;
+        const result = await base(endpoint, args, signal);
+        return {
+          ...result,
+          rows: [{ ...result.rows[0], stock_qty: pages === 1 ? 3 : 0 }],
+        };
+      }
+      return base(endpoint, args, signal);
+    });
+    const { c } = setup(call);
+    await flushPromises();
+    const row = c.result.rows[0]!;
+    c.toggle(row, true);
+    await flushPromises();
+    expect(c.historyScopes[row.id]).toBe("outstanding");
+    await c.load();
+    await flushPromises();
+    expect(c.historyScopes[row.id]).toBe("all");
+    expect(call.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ history_scope: "all" }),
+    );
+  });
+  it("renders all history as the settled-card default and requests that scope", async () => {
+    const base = service();
+    const call = vi.fn(async (endpoint, args, signal) => {
+      if (endpoint === "browse.operation_page") {
+        const result = await base(endpoint, args, signal);
+        return { ...result, rows: [{ ...result.rows[0], stock_qty: 0 }] };
+      }
+      return base(endpoint, args, signal);
+    });
+    const { wrapper } = setup(
+      call,
+      reactive({ family: "loans" as const, records: false }),
+      true,
+    );
+    await flushPromises();
+    const controller = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    const row = controller.result.rows[0]!;
+    controller.toggle(row, true);
+    await flushPromises();
+    expect(wrapper.get(".loan-history-scope select").element.value).toBe("all");
+    expect(call).toHaveBeenLastCalledWith(
+      "browse.operation_contributions",
+      expect.objectContaining({ history_scope: "all", item_code: "ITEM-A" }),
+      expect.any(AbortSignal),
+    );
   });
   it("retains prior groups on load-more failure and retries the failed offset", async () => {
     const base = service(),
@@ -280,6 +434,43 @@ describe("native operation browsing", () => {
     await c.retry();
     expect(call.mock.calls.at(-1)?.[1].start).toBe(1);
     expect(c.result.rows.map((row) => row.id)).toEqual(["GROUP-A", "GROUP-B"]);
+  });
+  it("ignores a late response after changing one card's history scope", async () => {
+    let resolveOutstanding!: (value: {
+      rows: { id: string }[];
+      columns: string[];
+      matched_count: number;
+      next_start: null;
+    }) => void;
+    const call = vi.fn(async (endpoint, args) => {
+      if (endpoint === "browse.operation_page") return page();
+      if (endpoint === "browse.operation_contributions") {
+        if (args.history_scope === "outstanding")
+          return new Promise((resolve) => (resolveOutstanding = resolve));
+        return {
+          rows: [{ id: "ALL-SCOPE" }],
+          columns: ["document"],
+          matched_count: 1,
+          next_start: null,
+        };
+      }
+      throw new Error(`Unexpected ${endpoint}`);
+    });
+    const { c } = setup(call);
+    await flushPromises();
+    const row = c.result.rows[0]!;
+    c.toggle(row, true);
+    c.setHistoryScope(row, "all");
+    await flushPromises();
+    expect(c.details[row.id]?.rows).toEqual([{ id: "ALL-SCOPE" }]);
+    resolveOutstanding({
+      rows: [{ id: "OLD-SCOPE" }],
+      columns: ["document"],
+      matched_count: 1,
+      next_start: null,
+    });
+    await flushPromises();
+    expect(c.details[row.id]?.rows).toEqual([{ id: "ALL-SCOPE" }]);
   });
   it("ignores late scope responses and keeps restrictive-empty malformed route queries", async () => {
     let resolve!: (value: OperationBrowsePage) => void;
@@ -422,7 +613,7 @@ describe("native operation browsing", () => {
       restrictItems: true,
       itemCodes: ["ITEM-A"],
       loan: "LOAN-EXACT",
-      loanOutcome: "outstanding",
+      loanOutcome: "all",
     });
     expect(c.loanHistory()).toMatchObject({
       dataset: "movements",
@@ -439,7 +630,8 @@ describe("native operation browsing", () => {
     expect(c.query.value.scope.warehouses).toEqual([]);
     expect(c.query.value.scope.item).toBe("");
     expect(c.query.value.scope.activity).toBe("");
-    expect(c.query.value.loanOutcome).toBe("outstanding");
+    expect(c.query.value.loanOutcome).toBe("all");
+    expect(c.query.value.outstandingOnly).toBe(false);
     expect(c.query.value.loan).toBe("LOAN-EXACT");
     expect(c.query.value.restrictItems).toBe(true);
     expect(c.query.value.itemCodes).toEqual(["ITEM-A"]);

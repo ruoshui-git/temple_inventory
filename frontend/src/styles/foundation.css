@@ -1321,16 +1321,25 @@ strong {
 }
 .image-magnifier {
 	position: absolute;
-	bottom: 8px;
-	right: 8px;
+	bottom: 2px;
+	right: 2px;
 	display: grid;
 	place-items: center;
-	width: 24px;
-	height: 24px;
+	width: 16px;
+	height: 16px;
 	border-radius: 50%;
 	background: var(--p-surface);
 	color: var(--p-accent);
 	pointer-events: none;
+}
+.image-magnifier svg {
+	width: 12px;
+	height: 12px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 .lightbox-image .product-art {
 	height: min(55dvh, 480px);
@@ -2550,10 +2559,10 @@ body:has(.preview-overlay) .preview-toast {
 	right: 24px;
 	bottom: 24px;
 	z-index: var(--p-z-menu);
-	width: var(--p-control);
-	height: var(--p-control);
-	min-height: var(--p-control);
-	min-width: var(--p-control);
+	width: 44px;
+	height: 44px;
+	min-height: 44px;
+	min-width: 44px;
 	border-radius: 50%;
 	box-shadow: var(--p-shadow);
 	background: var(--p-surface);
@@ -2708,6 +2717,10 @@ button {
 @media (max-width: 1023px) {
 	.preview-return-top.icon-button {
 		bottom: calc(var(--preview-nav-height, 84px) + 80px);
+		width: 44px;
+		height: 44px;
+		min-width: 44px;
+		min-height: 44px;
 	}
 }
 

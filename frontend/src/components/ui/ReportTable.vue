@@ -3,6 +3,7 @@ import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { siteDateTime } from "../../lib/nativeTime";
+import { formatQuantity } from "../../lib/formatQuantity";
 import { computed, ref, watch, useSlots } from "vue";
 import UiButton from "./UiButton.vue";
 import type { ReportTable } from "../../lib/reportContract";
@@ -175,6 +176,8 @@ const labels: Record<string, string> = {
 	movementCounts: "终身已提交单据数",
 	itemLines: "物品行数",
 	date: "日期",
+	date_time: "日期 / 时间",
+	quantity: "数量 / 单位",
 	id: "标识",
 	balance: "权威基准余额",
 	fileId: "文件编号",
@@ -210,9 +213,14 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 			"balance_at",
 			"posting_timestamp",
 			"baseline_timestamp",
+			"date_time",
 		].includes(column)
 	)
 		return siteDateTime(value);
+	if (column === "quantity" && typeof value === "number") {
+		const amount = formatQuantity(Math.abs(value));
+		return `${row.signed && value > 0 ? "+" : value < 0 ? "−" : ""}${amount} ${String(row.stock_uom || "")}`.trim();
+	}
 	if (typeof value === "boolean") return value ? "是" : "否";
 	const dictionary: Record<string, Record<string, string>> = {
 		kind: {
@@ -346,7 +354,9 @@ function quantityEffectLabel(row: Record<string, unknown>) {
 							>
 						</template>
 					</td>
-					<td v-if="slots.actions"><slot name="actions" :row="row" :index="index" /></td>
+					<td v-if="slots.actions">
+						<slot name="actions" :row="row" :index="index" />
+					</td>
 				</tr>
 			</tbody>
 		</table>

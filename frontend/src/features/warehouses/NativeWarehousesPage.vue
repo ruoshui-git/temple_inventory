@@ -21,6 +21,7 @@ const emit = defineEmits<{
 	back: [];
 	browse: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
+	openLoan: [name: string];
 	openExport: [query: ReportQuery];
 	newCount: [warehouse: string];
 	newOperation: [kind: string, warehouse: string];
@@ -43,6 +44,7 @@ defineExpose({ controller });
 		@back="emit('back')"
 		@browse="emit('browse', $event)"
 		@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+		@open-loan="emit('openLoan', $event)"
 		@open-export="emit('openExport', $event)"
 		@new-count="emit('newCount', $event)"
 		@new-operation="(kind, warehouse) => emit('newOperation', kind, warehouse)"

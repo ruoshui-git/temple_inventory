@@ -1,5 +1,6 @@
 """Bounded native queries and permission-scoped allocation projections."""
 
+import copy
 import json
 import tempfile
 from collections import defaultdict
@@ -521,7 +522,7 @@ def loan_rows(context):
 		filters={
 			"company": context.company,
 			"ti_movement_kind": "Loan",
-			"docstatus": ["in", query["statuses"]],
+			"docstatus": ["in", [1] if query["view"] == "items" else query["statuses"]],
 		},
 	):
 		loan = context.parent("Stock Entry", value.name)
@@ -535,11 +536,15 @@ def loan_rows(context):
 		)
 		# Loan lifecycle belongs to the whole original document, before any
 		# selected Item, warehouse, batch or allocation filters are applied.
-		if query["loanStatus"] != "all" and loan.docstatus != 1:
+		if query["view"] != "items" and query["loanStatus"] != "all" and loan.docstatus != 1:
 			continue
-		if query["loanStatus"] in ("outstanding", "open") and not has_outstanding:
+		if (
+			query["view"] != "items"
+			and query["loanStatus"] in ("outstanding", "open")
+			and not has_outstanding
+		):
 			continue
-		if query["loanStatus"] == "settled" and has_outstanding:
+		if query["view"] != "items" and query["loanStatus"] == "settled" and has_outstanding:
 			continue
 		for line in loan.items:
 			item = context.item(line.item_code)
@@ -578,9 +583,13 @@ def loan_rows(context):
 					if has_outstanding
 					else "Settled",
 				}
-				if query["outstandingOnly"] and outstanding <= 0:
+				if query["view"] != "items" and query["outstandingOnly"] and outstanding <= 0:
 					continue
-				if query["loanOutcome"] != "all" and row.get(query["loanOutcome"], 0) <= 0:
+				if (
+					query["view"] != "items"
+					and query["loanOutcome"] != "all"
+					and row.get(query["loanOutcome"], 0) <= 0
+				):
 					continue
 				if context.matches_line(row):
 					yield row
@@ -595,6 +604,80 @@ def settlement_rows(context):
 		if not in_period(row["date"], context.related_period) or not context.matches_search(
 			row.values(), related=True
 		):
+			continue
+		yield {
+			**row,
+			"loan_date": original["date"],
+			"original_activity": original["activity"],
+			"original_activity_title": original["activity_title"],
+		}
+
+
+def linked_settlement_rows(context):
+	"""Return submitted events linked to loans selected by the original loan filters."""
+	originals = {
+		(row["original_loan"], row["original_loan_line"], row["batch_no"], row["item_code"]): row
+		for row in loan_rows(context)
+	}
+	if not originals:
+		return
+	query = copy.deepcopy(context.query)
+	query["dataset"], query["view"] = "movements", "lines"
+	query["statuses"] = [1]
+	query["search"], query["batchNo"], query["record"], query["recordDoctype"], query["loan"] = (
+		"",
+		"",
+		"",
+		"",
+		"",
+	)
+	query["restrictItems"], query["restrictAllocations"] = False, False
+	query["itemCodes"], query["allocationKeys"] = [], []
+	query["itemLocationKeys"] = []
+	query["relatedPeriod"] = {"key": "all", "from": "", "to": ""}
+	query["relatedSearch"], query["relatedPresence"] = "", "all"
+	query["activityKind"], query["activityStatus"] = "", "all"
+	query["includeAdjustments"], query["damageOnly"] = True, False
+	query["scope"] = copy.deepcopy(query["scope"])
+	query["scope"].update(
+		{
+			"period": {"key": "all", "from": "", "to": ""},
+			"warehouses": [],
+			"categories": [],
+			"sources": [],
+			"destinations": [],
+			"kinds": [],
+			"activity": "",
+			"item": "",
+		}
+	)
+	history_context = ReportContext(query)
+	native_purposes = {}
+	for row in movement_rows(
+		history_context, include_all_dates=True, apply_activity=False, apply_search=False
+	):
+		key = (row["original_loan"], row["original_loan_line"], row["batch_no"], row["item_code"])
+		original = originals.get(key)
+		valid_settlements = {
+			"Return": ("Material Transfer", {"Returned", "Damaged"}),
+			"Damage": ("Material Transfer", {"Damaged"}),
+			"Loss": ("Material Issue", {"Lost"}),
+		}
+		settlement = valid_settlements.get(row.get("kind"))
+		document_key = (row["doctype"], row["document"])
+		if document_key not in native_purposes:
+			parent = history_context.parent(*document_key)
+			native_purposes[document_key] = parent.get("purpose") if parent else ""
+		if (
+			not original
+			or not settlement
+			or native_purposes[document_key] != settlement[0]
+			or row.get("outcome") not in settlement[1]
+			or row.get("source_warehouse") != original.get("destination_warehouse")
+		):
+			continue
+		locations = [row.get("source_warehouse"), row.get("destination_warehouse")]
+		if not any(location in history_context.selected for location in locations if location):
 			continue
 		yield {
 			**row,

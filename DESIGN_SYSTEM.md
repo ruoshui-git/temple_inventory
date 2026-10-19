@@ -27,6 +27,12 @@ The [refinement record](notes/20261017_UI_REFINEMENT_IMPLEMENTATION.md) maps the
 
 ## Refinement patterns — 2026-10-17
 
+Browse return-to-top is a fixed 44px mobile control and appears after 160px of
+the active scroll surface. It scrolls that owner to zero and focuses the routed
+page heading. On mobile it clears the measured navigation and action areas. Item
+image enlargement uses a 16px badge with a centered 12px SVG and 2px inset; the
+whole image remains the lightbox target.
+
 `PageHeader` owns routed title/Back/action geometry. Desktop actions align right in
 utility/workflow order; mobile labels wrap below the title. `BrowseToolbar` owns the
 single Inventory/Expiry/Movement/Loans/Pending disclosure with a persistent heading
@@ -405,3 +411,15 @@ Existing browse-tree rules no longer shrink compact-panel targets to 32px.
 These are intentional geometry exceptions, not final user visual approval.
 Browser results and native-zoom/device limitations are recorded in the
 [review note](notes/done/20261016_DESIGN_PREVIEW_COMPACT_FILTERS_REVIEW.md).
+
+## Native history and recovery details — 2026-10-19
+
+`MovementHistoryTable` is a typed history surface with 6px vertical and 10px
+horizontal cell padding, centered values, compact desktop links, and 44px mobile
+link targets. Its internal scrollport handles long native identifiers and
+warehouse names. Increase/decrease effects combine a low-contrast row tint,
+matching quantity color, and a spoken text description; loan-balance quantities
+remain neutral. `RecoverySummary` maps native fields to Chinese labels, preserves
+empty/zero/false values, and exposes exact source payload text only after an
+explicit copy failure or copy request. Preview images remain 44px square,
+including missing-image and load-error states.

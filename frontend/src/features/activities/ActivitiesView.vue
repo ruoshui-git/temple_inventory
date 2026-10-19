@@ -11,6 +11,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import { movementLabels } from "../../lib/filterPresentation";
 import { quantityText } from "../dashboard/useDashboardController";
+import { formatQuantity } from "../../lib/formatQuantity";
 import type { ReportQuery } from "../../lib/reportContract";
 import type { useActivitiesController } from "./useActivitiesController";
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
@@ -30,6 +31,10 @@ const props = withDefaults(
 	{ active: true },
 );
 const emit = defineEmits<{ openExport: [query: ReportQuery] }>();
+const documentLabels: Record<string, string> = {
+	"Stock Entry": "库存操作",
+	"Stock Reconciliation": "库存盘点",
+};
 const {
 	reference,
 	scopeError,
@@ -485,15 +490,17 @@ function tabKey(event: KeyboardEvent) {
 					class="activity-record"
 				>
 					<UiButton variant="ghost" @click="linked(row.name, row.documentType)"
-						>{{ row.documentType || "Stock Entry" }} / {{ row.name }}</UiButton
+						>{{ documentLabels[row.documentType || "Stock Entry"] || "库存记录" }} ·
+						{{ row.name }}</UiButton
 					>
 					<p>
-						{{ row.date }} {{ row.postingTime || "未记录时间" }} ·
-						{{ movementLabels[row.kind] }} ·
+						{{ siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间" }}
+						· {{ movementLabels[row.kind] }} ·
 						{{ ["草稿", "已提交", "已取消"][row.docstatus] }} · {{ row.relationship }}
 					</p>
 					<p>
-						{{ row.itemName }} · {{ row.qty }} {{ row.uom }} ·
+						{{ row.itemName }} · {{ formatQuantity(Number(row.qty || 0)) }}
+						{{ row.uom }} ·
 						{{ row.batch || "无批次" }}
 					</p>
 					<p>{{ row.from }} → {{ row.to }}</p>

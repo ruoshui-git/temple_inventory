@@ -8,6 +8,51 @@ export interface ReportTable {
   columns: string[];
   rows: ReportRow[];
 }
+export interface MovementHistoryRow extends Record<
+  string,
+  string | number | boolean | null
+> {
+  id: string;
+  doctype: "Stock Entry" | "Stock Reconciliation";
+  document: string;
+  item_code: string;
+  item_name: string;
+  date_time: string;
+  kind: string;
+  source_warehouse: string;
+  destination_warehouse: string;
+  stock_uom: string;
+  docstatus: number;
+  quantity: number;
+  available_effect: number;
+  loan_balance_effect: number;
+  borrower: string;
+}
+export interface MovementHistoryPage {
+  rows: MovementHistoryRow[];
+  matched_count: number;
+  next_start: number | null;
+  history_complete?: boolean;
+}
+export interface LoanItemHistoryRow extends Record<
+  string,
+  string | number | boolean | null
+> {
+  id: string;
+  doctype: "Stock Entry";
+  document: string;
+  item_code: string;
+  item_name: string;
+  date_time: string;
+  borrower: string;
+  source_warehouse: string;
+  destination_warehouse: string;
+  stock_uom: string;
+  docstatus: number;
+  kind: "Loan";
+  borrowed: number;
+  outstanding: number;
+}
 export interface ReportDefinition {
   label: string;
   views: { id: string; label: string }[];
@@ -45,6 +90,7 @@ export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
     label: "借用",
     views: [
       { id: "records", label: "借用记录" },
+      { id: "items", label: "物品结余" },
       { id: "outcomes", label: "物品 / 处理结果" },
       { id: "settlements", label: "结算明细" },
     ],
@@ -89,7 +135,7 @@ export interface ReportQuery {
   batchNo: string;
   grouping: string;
   sort: "asc" | "desc";
-  sortBy: "identity" | "date" | "modified" | "quantity" | "name";
+  sortBy: "identity" | "date" | "modified" | "quantity" | "name" | "batch";
   statuses: number[];
   includeAdjustments: boolean;
   includeZero: boolean;

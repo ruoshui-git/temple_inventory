@@ -9,6 +9,8 @@ import Overlay from "../../components/ui/Overlay.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
+import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
 	{ active: true },
@@ -19,6 +21,7 @@ const emit = defineEmits<{
 	back: [];
 	browse: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
+	openLoan: [name: string];
 	openExport: [query: ReportQuery];
 	newCount: [warehouse: string];
 	newOperation: [kind: string, warehouse: string];
@@ -41,8 +44,7 @@ const {
 	leaveOpen,
 	editing,
 } = c;
-const stockTable = c.stock.mainTable,
-	historyTable = c.history.mainTable;
+const stockTable = c.stock.mainTable;
 function physicalType(value: string) {
 	return (
 		({ Room: "房间", Location: "位置" } as Record<string, string>)[value] ||
@@ -86,8 +88,13 @@ function toggle(name: string) {
 			<summary>此浏览器的未完成仓库输入</summary>
 			<p>仅在当前浏览器与账户可用。恢复前会重新读取并核对原仓库版本。</p>
 			<article v-for="entry in candidates" :key="entry.editorId">
-				<pre class="preview-long-text">{{ JSON.stringify(entry.values, null, 2) }}</pre>
-				<UiButton @click="c.recover(entry)">核对后恢复</UiButton>
+				<RecoverySummary
+					kind="Warehouse"
+					:values="entry.values"
+					:copy-text="JSON.stringify(entry.values, null, 2)"
+				>
+					<UiButton @click="c.recover(entry)">核对后恢复</UiButton>
+				</RecoverySummary>
 			</article>
 		</details>
 		<template v-if="tree && !error">
@@ -278,34 +285,20 @@ function toggle(name: string) {
 					</div>
 					<template v-if="detail"
 						><h2>最近流动</h2>
-						<p v-if="c.history.result.loading" role="status">正在读取流动记录…</p>
-						<p v-if="c.history.result.error" role="alert">
-							{{ c.history.result.error }}
-							<UiButton @click="c.history.refresh">重试记录</UiButton>
-						</p>
-						<ReportTable
-							v-if="historyTable?.initialized"
-							:table="{
-								...historyTable,
-								label: '此仓库范围的流动',
-								columns: [
-									'doctype',
-									'document',
-									'date',
-									'kind',
-									'stock_qty',
-									'stock_uom',
-								],
-							}"
-							:total="historyTable.total"
-							:loading="historyTable.loading"
-							:initialized="historyTable.initialized"
-							:error="historyTable.error"
-							@load-more="c.history.loadTable(historyTable, true)"
-							@retry="c.history.loadTable(historyTable, true)"
-							@open-document="
-								(doctype, name) => emit('openDocument', doctype, name)
-							"
+						<MovementHistoryTable
+							:rows="c.history.result.rows"
+							:total="c.history.result.total"
+							:next="c.history.result.next"
+							:loading="c.history.result.loading"
+							:initialized="c.history.result.initialized"
+							:error="c.history.result.error"
+							:stale="c.history.result.stale"
+							include-item
+							@load-more="c.history.loadMore"
+							@retry="c.history.refresh"
+							@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+							@open-loan="emit('openLoan', $event)"
+							@open-item="emit('item', $event)"
 					/></template>
 				</article>
 			</div>
@@ -319,7 +312,11 @@ function toggle(name: string) {
 			<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
 			<template v-if="leaveOpen"
 				><p>离开前可将当前输入保留在此浏览器，或明确放弃。</p>
-				<pre class="preview-long-text">{{ JSON.stringify(form, null, 2) }}</pre>
+				<RecoverySummary
+					kind="Warehouse"
+					:values="form"
+					:copy-text="JSON.stringify(form, null, 2)"
+				/>
 			</template>
 			<form v-else id="native-warehouse-form" class="browse-dialog" @submit.prevent="c.save">
 				<label class="preview-field"

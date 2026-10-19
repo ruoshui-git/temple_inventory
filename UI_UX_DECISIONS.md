@@ -28,8 +28,31 @@
   and draft/cancelled documents have neutral effects. Actual movement quantities
   remain separately visible and unit-separated.
 - Empty table cells remain empty; zero, false, external endpoints, invalid expiry
-  and unavailable/error statuses retain explicit meanings. Loan item browse has
-  one result selector, and records use the shared horizontally scrollable table.
+  and unavailable/error statuses retain explicit meanings. Loan item browse
+  controls settled Item visibility independently from the record view switch;
+  records use the shared horizontally scrollable table.
+- Return-to-top appears after 160px on the active scroll surface, scrolls that
+  surface to zero and focuses its page heading without moving the sticky heading.
+  It is hidden while a mobile filter drawer is open and remains above mobile
+  navigation and primary actions.
+- Loan item browse shows one card per Item with outstanding quantity. Submitted
+  loan allocations and their linked submitted settlement events appear in each
+  card's chronological history. `未结清借用` is the default history scope;
+  `全部相关记录` adds settled allocations. `显示已结清物品` includes zero-balance
+  Items with submitted loan history. The prior item outcome selector is retired.
+- Expiry presents Item name and Batch identity as independent links and sort
+  fields. Its quantity is physical stock in the displayed warehouse, with one
+  `借出` or `损坏` badge where applicable.
+
+## Browse implementation refinements — 2026-10-19 supersession
+
+Return-to-top now uses the active surface's actual scroll owner and moves it to
+zero, replacing the earlier two-viewport trigger and heading-geometry movement.
+Loan Item browsing replaces the grouped outcome selector with one outstanding
+balance card per Item, an opt-in settled-Item toggle and a per-card chronological
+allocation/event history selector. Movement and Loan expanded histories expose
+only native record identity, date/time, type, warehouse pair and signed
+quantity/unit; server grouping happens before pagination.
 
 ## Browse filters, summaries and labels — 2026-10-18 supersession
 
@@ -1164,3 +1187,15 @@ its image field, so subsequent metadata saves do not create duplicate attachment
 These are repairs to the existing editor/file contracts, not new workflows. The
 full79-case gallery audit and21 production browser cases now pass; current native
 service evidence and remaining verification limits are in the execution record.
+
+## Native movement history and recovery summaries — 2026-10-19
+
+Movement history uses one purpose-built table with fixed fields and grouped,
+scoped rows; stock effects are expressed in text as well as subtle color. Item,
+loan, warehouse, batch and movement histories share this presentation while
+exports retain their full native schema. Expiry item identity combines image
+and linked name, with Batch as an independent column. Recovery previews use
+human labels and concise quantity summaries; the unchanged full payload remains
+available through “复制完整恢复数据,” including a selectable fallback when
+clipboard access fails. Internal child identifiers are omitted from loan
+allocation disclosure.

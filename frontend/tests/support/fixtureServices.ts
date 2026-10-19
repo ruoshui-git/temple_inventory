@@ -694,7 +694,11 @@ export const fixtureServices: InventoryServices = {
         ).length,
         snapshot: `${previewDate} 10:00:00`,
       } as T;
-    if (endpoint.startsWith("browse.operation_"))
+    if (
+      endpoint.startsWith("browse.operation_") ||
+      endpoint === "browse.movement_history" ||
+      endpoint === "browse.loan_item_history"
+    )
       return fixtureOperationCall(endpoint, args, fixtureReport) as T;
     if (
       endpoint === "browse.expiry_page" ||

@@ -33,15 +33,8 @@ const { query, scope, status, statusChoices, extraChips } = props.controller;
 		<label v-if="family === 'movements'" class="preview-choice-label preview-check">
 			<input v-model="query.includeAdjustments" type="checkbox" />包括盘点调整
 		</label>
-		<label v-if="family === 'loans' && !records" class="preview-field">
-			借用结果
-			<select v-model="query.loanOutcome">
-				<option value="all">全部</option>
-				<option value="outstanding">未归还</option>
-				<option value="returned">完好归还</option>
-				<option value="damaged">损坏归还</option>
-				<option value="lost">遗失</option>
-			</select>
+		<label v-if="family === 'loans' && !records" class="preview-choice-label preview-check">
+			<input v-model="query.includeZero" type="checkbox" />显示已结清物品
 		</label>
 		<div v-if="extraChips.length" class="preview-active-filters" aria-label="更多筛选条件">
 			<UiButton

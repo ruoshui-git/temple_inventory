@@ -19,6 +19,10 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import { loanSummaryMetrics, movementSummaryMetrics } from "./movementSummary";
 import OperationBrowseFilters from "./OperationBrowseFilters.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
+import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
+import type { MovementHistoryPage } from "../../lib/reportContract";
+import type { HistoryRow } from "./useMovementHistory";
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -171,9 +175,23 @@ function openedRecord(row: OperationGroup) {
 		? emit("openLoan", String(row.document))
 		: emit("openDocument", String(row.doctype), String(row.document));
 }
+function changeHistoryScope(row: OperationGroup, event: Event) {
+	const value = (event.target as HTMLSelectElement).value;
+	if (value === "outstanding" || value === "all") c.setHistoryScope(row, value);
+}
+function historyScope(row: OperationGroup) {
+	return (
+		c.historyScopes[row.id] ||
+		(row.stock_qty !== undefined && Number(row.stock_qty) <= 0 ? "all" : "outstanding")
+	);
+}
+function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
+	return (details[id]?.rows || []) as unknown as MovementHistoryPage["rows"];
+}
 </script>
 <template>
 	<section class="browse-page">
+		<ReturnToTop :active="active" :hidden="isMobile && filtersOpen" />
 		<div class="preview-activity-browse">
 			<BrowseToolbar
 				:title="family === 'movements' ? '货物流动' : '借用'"
@@ -444,8 +462,85 @@ function openedRecord(row: OperationGroup) {
 								:disabled="result.stale"
 								@click="emit('openItem', String(row.item_code))"
 								>物品详情</UiButton
-							><ReportTable
-								v-if="details[row.id]"
+							>
+							<label
+								v-if="
+									family === 'loans' &&
+									query.view === 'items' &&
+									c.expanded.has(row.id)
+								"
+								class="preview-field loan-history-scope"
+							>
+								记录范围
+								<select
+									:value="historyScope(row)"
+									@change="changeHistoryScope(row, $event)"
+								>
+									<option value="outstanding">未结清借用</option>
+									<option value="all">全部相关记录</option>
+								</select>
+							</label>
+							<MovementHistoryTable
+								v-if="
+									family === 'movements' &&
+									query.view === 'summary' &&
+									details[row.id]
+								"
+								:rows="movementHistoryRows(row.id)"
+								:total="details[row.id]!.total"
+								:next="details[row.id]!.next"
+								:loading="details[row.id]!.loading"
+								:error="details[row.id]!.error"
+								:initialized="details[row.id]!.initialized"
+								:stale="result.stale"
+								@load-more="c.loadDetails(row, true)"
+								@retry="c.retryDetails(row)"
+								@open-document="
+									(doctype, name) =>
+										!result.stale && emit('openDocument', doctype, name)
+								"
+								@open-loan="(name) => !result.stale && emit('openLoan', name)"
+							/>
+							<MovementHistoryTable
+								v-else-if="
+									family === 'loans' && query.view === 'items' && details[row.id]
+								"
+								:rows="details[row.id]!.rows as HistoryRow[]"
+								:total="details[row.id]!.total"
+								:next="details[row.id]!.next"
+								:loading="details[row.id]!.loading"
+								:error="details[row.id]!.error"
+								:initialized="details[row.id]!.initialized"
+								:stale="result.stale"
+								:history-complete="details[row.id]!.historyComplete"
+								mode="loan-balance"
+								@load-more="c.loadDetails(row, true)"
+								@retry="c.retryDetails(row)"
+								@open-document="
+									(doctype, name) => emit('openDocument', doctype, name)
+								"
+								@open-loan="(name) => emit('openLoan', name)"
+								><template #actions="{ row: contribution }">
+									<UiButton
+										v-if="
+											contribution.kind === 'Loan' && contribution.can_settle
+										"
+										:disabled="
+											result.stale ||
+											details[row.id]!.loading ||
+											!reference.operations.Return
+										"
+										@click="emit('settle', String(contribution.document))"
+										>登记归还</UiButton
+									>
+								</template>
+							</MovementHistoryTable>
+							<ReportTable
+								v-if="
+									details[row.id] &&
+									!(family === 'movements' && query.view === 'summary') &&
+									!(family === 'loans' && query.view === 'items')
+								"
 								:table="details[row.id]!"
 								:total="details[row.id]!.total"
 								:loading="details[row.id]!.loading"
@@ -456,21 +551,39 @@ function openedRecord(row: OperationGroup) {
 								@open-document="
 									(doctype, name) =>
 										!result.stale &&
-										(family === 'loans'
+										(family === 'loans' &&
+										query.view === 'items' &&
+										details[row.id]?.rows.find(
+											(entry) => entry.document === name,
+										)?.kind === 'Loan'
 											? emit('openLoan', name)
 											: emit('openDocument', doctype, name))
 								"
 								><template
-									v-if="family === 'loans' && row.outcome_key === 'outstanding'"
+									v-if="
+										family === 'loans' &&
+										query.view === 'items' &&
+										details[row.id]?.rows.some(
+											(entry) => entry.kind === 'Loan' && entry.can_settle,
+										)
+									"
 									#actions="{ row: contribution }"
 									><UiButton
+										v-if="
+											family === 'loans' &&
+											query.view === 'items' &&
+											contribution.kind === 'Loan' &&
+											contribution.can_settle
+										"
 										:disabled="result.stale || !reference.operations.Return"
-										@click="emit('settle', String(contribution.original_loan))"
+										@click="emit('settle', String(contribution.document))"
 										>登记归还</UiButton
 									></template
 								></ReportTable
 							>
-							<p v-else class="muted">展开后读取完整的贡献记录。</p></ItemGroup
+							<p v-if="!details[row.id]" class="muted">
+								展开后读取相关记录。
+							</p></ItemGroup
 						></template
 					>
 					<div

@@ -602,8 +602,7 @@ function changeBatch(line: AllocationLine) {
 								>到期 {{ line.expiry || "待填写" }}</small
 							>
 							<small v-if="settlement"
-								>借出 {{ line.loanName || draft.loanName }} / 原明细
-								{{ line.originalLoanLine || "未记录" }} ·
+								>借出 {{ line.loanName || draft.loanName }} ·
 								{{
 									line.returnOutcome === "damaged"
 										? "损坏归还"

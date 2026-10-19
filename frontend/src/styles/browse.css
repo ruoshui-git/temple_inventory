@@ -1397,14 +1397,30 @@
 		line-height: 1.4;
 	}
 }
-.expiry-image-cell {
-	width: 54px;
-	min-width: 54px;
+.expiry-item-identity {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
-.expiry-image-cell .item-image-button,
-.expiry-image-cell .preview-item-image {
-	width: 44px;
+.expiry-item-identity .item-image-button,
+.expiry-item-identity .preview-item-image,
+.expiry-item-identity > .async-image,
+.expiry-item-identity .async-image,
+.preview-expiry-mobile .preview-group-thumbnail .item-image-button,
+.preview-expiry-mobile .preview-group-thumbnail .async-image {
+	width: 44px !important;
+	height: 44px !important;
 	max-width: 44px;
+	flex: 0 0 44px;
+}
+.preview-expiry-mobile .preview-group-thumbnail {
+	width: 44px;
+	height: 44px;
+	flex: 0 0 44px;
+}
+.preview-expiry-mobile .preview-group-thumbnail > * {
+	width: 44px !important;
+	height: 44px !important;
 }
 .expiry-identity-links {
 	display: flex;
