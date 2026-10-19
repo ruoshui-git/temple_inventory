@@ -6,7 +6,10 @@ defineProps<{ title?: string; compact?: boolean }>();
 		<div class="app-page-identity">
 			<slot name="back" />
 			<div class="app-page-heading">
-				<h1 v-if="title" tabindex="-1">{{ title }}</h1>
+				<div class="app-page-title-row">
+					<h1 v-if="title" tabindex="-1">{{ title }}</h1>
+					<slot name="title-tools" />
+				</div>
 				<slot />
 			</div>
 		</div>

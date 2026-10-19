@@ -403,10 +403,140 @@ def batch_details(name):
 	batch = frappe.get_doc("Batch", name)
 	batch.check_permission("read")
 	check_item(batch.item)
+	from temple_inventory.projections import report_page
+
+	stock_query = {
+		"dataset": "inventory",
+		"view": "locations",
+		"batchNo": batch.name,
+		"scope": {"item": batch.item},
+		"restrictItems": True,
+		"itemCodes": [batch.item],
+		"includeZero": True,
+		"statuses": [1],
+	}
+	history_query = {
+		"dataset": "movements",
+		"view": "lines",
+		"batchNo": batch.name,
+		"scope": {"item": batch.item},
+		"restrictItems": True,
+		"itemCodes": [batch.item],
+		"statuses": [0, 1, 2],
+		"sortBy": "date",
+		"sort": "desc",
+	}
+	locations = report_page(stock_query, page_length=100)
+	history = report_page(history_query, page_length=20)
 	return {
 		"name": batch.name,
 		"item_code": batch.item,
+		"item": item_metadata(frappe.get_doc("Item", batch.item)),
 		"expiry_date": str(batch.expiry_date or ""),
 		"manufacturing_date": str(batch.manufacturing_date or ""),
+		"description": batch.get("description") or "",
 		"disabled": bool(batch.disabled),
+		"version": str(batch.modified),
+		"can_edit": bool(batch.has_permission("write") and frappe.has_permission("Batch", "write")),
+		"locations": locations,
+		"history": history,
 	}
+
+
+@frappe.whitelist()
+def batch_metadata(name):
+	"""Return only the metadata needed while inspecting a native Batch reference."""
+	require_app()
+	batch = frappe.get_doc("Batch", name)
+	batch.check_permission("read")
+	check_item(batch.item)
+	return {
+		"name": batch.name,
+		"item_code": batch.item,
+		"item": item_metadata(frappe.get_doc("Item", batch.item)),
+		"expiry_date": str(batch.expiry_date or ""),
+		"manufacturing_date": str(batch.manufacturing_date or ""),
+		"description": batch.get("description") or "",
+		"disabled": bool(batch.disabled),
+		"version": str(batch.modified),
+		"can_edit": bool(batch.has_permission("write") and frappe.has_permission("Batch", "write")),
+	}
+
+
+@frappe.whitelist()
+def batch_locations(name, start=0, page_length=100):
+	from frappe.utils import cint
+
+	require_app()
+	batch = frappe.get_doc("Batch", name)
+	batch.check_permission("read")
+	check_item(batch.item)
+	return report_page(
+		{
+			"dataset": "inventory",
+			"view": "locations",
+			"batchNo": batch.name,
+			"scope": {"item": batch.item},
+			"restrictItems": True,
+			"itemCodes": [batch.item],
+			"includeZero": True,
+			"statuses": [1],
+		},
+		start=max(0, cint(start)),
+		page_length=min(100, max(1, cint(page_length))),
+	)
+
+
+@frappe.whitelist()
+def batch_history(name, start=0, page_length=20):
+	from frappe.utils import cint
+
+	require_app()
+	batch = frappe.get_doc("Batch", name)
+	batch.check_permission("read")
+	check_item(batch.item)
+	return report_page(
+		{
+			"dataset": "movements",
+			"view": "lines",
+			"batchNo": batch.name,
+			"scope": {"item": batch.item},
+			"restrictItems": True,
+			"itemCodes": [batch.item],
+			"statuses": [0, 1, 2],
+			"sortBy": "date",
+			"sort": "desc",
+		},
+		start=max(0, cint(start)),
+		page_length=min(100, max(1, cint(page_length))),
+	)
+
+
+@frappe.whitelist()
+def save_batch(name, version, data):
+	"""Edit batch metadata while preserving its ERPNext identity and stock state."""
+	from frappe.utils import getdate
+
+	require_app()
+	data = frappe.parse_json(data)
+	if not isinstance(data, dict) or set(data) - {"manufacturing_date", "expiry_date", "description"}:
+		frappe.throw("批次资料无效")
+	batch = load_locked("Batch", name, version)
+	check_item(batch.item)
+	manufacturing_date = data.get("manufacturing_date") or None
+	expiry_date = data.get("expiry_date") or None
+	try:
+		manufacturing_date = getdate(manufacturing_date) if manufacturing_date else None
+		expiry_date = getdate(expiry_date) if expiry_date else None
+	except TypeError, ValueError:
+		frappe.throw("请填写有效的批次日期")
+	if manufacturing_date and expiry_date and expiry_date < manufacturing_date:
+		frappe.throw("到期日期不能早于生产日期")
+	description = data.get("description", "")
+	if not isinstance(description, str) or len(description) > 2000:
+		frappe.throw("批次说明过长或无效")
+	batch.manufacturing_date = manufacturing_date
+	batch.expiry_date = expiry_date
+	batch.description = description.strip()
+	batch.save()
+	return batch_details(batch.name)

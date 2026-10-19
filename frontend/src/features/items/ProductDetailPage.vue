@@ -12,6 +12,7 @@ const emit = defineEmits<{
 	browse: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
 	openExport: [query: ReportQuery];
+	openBatch: [name: string];
 }>();
 const controller = useProductDetail(props);
 defineExpose({ controller });
@@ -26,5 +27,6 @@ defineExpose({ controller });
 		@browse="emit('browse', $event)"
 		@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 		@open-export="emit('openExport', $event)"
+		@open-batch="emit('openBatch', $event)"
 	/>
 </template>

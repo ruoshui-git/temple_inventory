@@ -44,7 +44,7 @@
 }
 .preview-form-page .form-section {
 	display: grid;
-	gap: var(--p-space-4);
+	gap: var(--p-control-gap);
 	padding-bottom: var(--p-gap);
 	border-bottom: 1px solid var(--p-border);
 }
@@ -65,13 +65,13 @@
 .preview-form-page .form-check-row {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--p-space-4);
+	gap: var(--p-control-gap);
 }
 .preview-form-page .form-check-row label {
-	min-height: 44px;
+	min-height: var(--p-control);
 	display: flex;
 	align-items: center;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 }
 .preview-form-page .file-drop {
 	min-height: 72px;
@@ -276,7 +276,7 @@
 .preview-form-page summary,
 .preview-expiry-mobile summary,
 .browse-table summary {
-	min-height: 44px;
+	min-height: var(--p-control);
 	cursor: pointer;
 	align-content: center;
 }
@@ -469,7 +469,7 @@
 	align-items: start;
 }
 .preview-form-page .review-lines-disclosure > summary {
-	min-height: 44px;
+	min-height: var(--p-control);
 	cursor: pointer;
 	align-content: center;
 }

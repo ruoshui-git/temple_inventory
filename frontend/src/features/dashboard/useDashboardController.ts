@@ -49,8 +49,9 @@ export interface DashboardRow {
   warehouse?: string;
   warehouse_label?: string;
   available?: number;
+  available_effect?: number;
   stock_uom?: string;
-  quantities?: { qty: number; uom: string }[];
+  quantities?: { qty: number; uom: string; effect?: number }[];
   label?: string;
   item_count?: number;
 }
@@ -295,7 +296,16 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
         quantities: totals.map((row) => ({
           qty: Number(row.stock_qty || 0),
           uom: String(row.stock_uom || ""),
+          effect: Number(row.available_effect || 0),
         })),
+        tone:
+          totals.length &&
+          totals.every((row) => Number(row.available_effect || 0) > 0)
+            ? "success"
+            : totals.length &&
+                totals.every((row) => Number(row.available_effect || 0) < 0)
+              ? "danger"
+              : "neutral",
       };
     }),
   );

@@ -675,7 +675,10 @@ export async function fixtureNativeCall(
     if (index >= 0) list.splice(index, 1);
     return { deleted: true };
   }
-  if (endpoint === "catalog.batch_details") {
+  if (
+    endpoint === "catalog.batch_details" ||
+    endpoint === "catalog.batch_metadata"
+  ) {
     if (batches.has(String(args.name)))
       return copy(batches.get(String(args.name)));
     for (const item of reviewSession.stock)

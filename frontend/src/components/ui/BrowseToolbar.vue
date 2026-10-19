@@ -93,6 +93,7 @@ defineExpose({ compact });
 		:class="{ 'is-compact': compact }"
 	>
 		<PageHeader :title="heading" :compact="compact">
+			<template #title-tools><slot name="persistent" /></template>
 			<template #subtitle><slot v-if="!compact" name="subtitle" /></template>
 			<template #actions>
 				<template v-if="compact">

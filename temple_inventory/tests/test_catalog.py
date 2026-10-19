@@ -441,12 +441,15 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(
 			len(browse.operation_contributions(query, item_code=self.item, start=200)["rows"]), 5
 		)
-		record = browse.operation_page(query, records=True)["rows"][0]
-		self.assertEqual(record["allocation_count"], 205)
+		record_page = browse.operation_page(query, records=True)
+		record = record_page["rows"][0]
+		self.assertNotIn("allocation_count", record)
 		self.assertEqual(record["whole"]["item_count"], 2)
 		self.assertEqual(record["whole"]["quantities"], [{"uom": "Nos", "qty": 212}])
-		self.assertNotIn("stock_qty", record)
-		self.assertEqual(record["matching_totals"], [{"stock_uom": "Nos", "stock_qty": 205}])
+		self.assertNotIn("matching_totals", record)
+		self.assertEqual(record["whole"]["available_effects"], [{"uom": "Nos", "qty": 212}])
+		self.assertEqual(record_page["totals"][0]["stock_qty"], 212)
+		self.assertEqual(record_page["totals"][0]["available_effect"], 212)
 		self.assertEqual(page["analysis"]["month"]["matched_count"], 1)
 		self.assertEqual(page["analysis"]["month"]["rows"][0]["stock_qty"], 205)
 		self.assertEqual(
@@ -509,13 +512,92 @@ class CatalogTests(NativeDocumentTests):
 		row = browse.native_drafts(query)["rows"][0]
 		self.assertEqual(row["allocation_count"], 1)
 		self.assertEqual(row["whole"]["line_count"], 2)
-		self.assertEqual(row["matching_totals"][0]["stock_qty"], 2)
 		count = counts.save_count(str(uuid4()), self.count_data(5, "Reviewed"))
 		page = browse.counts_page({"dataset": "counts", "record": count.name, "statuses": [0]})
 		self.assertEqual(page["matched_count"], 1)
 		self.assertEqual(page["rows"][0]["doctype"], "Stock Reconciliation")
 		self.assertEqual(page["rows"][0]["whole"]["version"], count.version)
 		self.assertEqual(browse.counts_page({"dataset": "counts", "record": count.name})["matched_count"], 0)
+
+	def test_record_exports_expand_partial_item_matches_to_whole_movement_and_loan_documents(self):
+		other = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": f"TI-REPORT-UNIT-{self.token}",
+				"item_name": "Report unit test item",
+				"item_group": "All Item Groups",
+				"stock_uom": "Kg",
+				"is_stock_item": 1,
+			}
+		).insert()
+		receipt_data = self.movement("Receive", 10)
+		receipt_data["items"].append(
+			{**receipt_data["items"][0], "item_code": other.name, "qty": 10, "transfer_qty": 10, "uom": "Kg"}
+		)
+		self.submit(self.create(receipt_data))
+		movement_data = self.movement("Transfer", 5, self.a, self.b)
+		movement_data["items"].append(
+			{**movement_data["items"][0], "item_code": other.name, "qty": 2, "transfer_qty": 2, "uom": "Kg"}
+		)
+		movement = self.submit(self.create(movement_data))
+		movement_page = browse.report_page(
+			{
+				"dataset": "movements",
+				"view": "records",
+				"statuses": [1],
+				"scope": {"item": self.item},
+			}
+		)
+		movement_rows = [row for row in movement_page["rows"] if row["document"] == movement.name]
+		self.assertEqual({row["stock_uom"]: row["stock_qty"] for row in movement_rows}, {"Nos": 5, "Kg": 2})
+		self.assertEqual(sum(row["available_effect"] for row in movement_rows), 0)
+
+		loan_data = self.movement(
+			"Loan", 5, self.a, self.loan_leaf, ti_borrower="报告测试借用方", ti_activity=self.activity.name
+		)
+		loan_data["items"].append(
+			{**loan_data["items"][0], "item_code": other.name, "qty": 3, "transfer_qty": 3, "uom": "Kg"}
+		)
+		loan = self.submit(self.create(loan_data))
+		loan_page = browse.report_page(
+			{
+				"dataset": "loans",
+				"view": "records",
+				"statuses": [1],
+				"scope": {"item": self.item},
+			}
+		)
+		loan_rows = [row for row in loan_page["rows"] if row["document"] == loan.name]
+		self.assertEqual({row["stock_uom"]: row["borrowed"] for row in loan_rows}, {"Nos": 5, "Kg": 3})
+		self.assertEqual({row["stock_uom"]: row["outstanding"] for row in loan_rows}, {"Nos": 5, "Kg": 3})
+
+	def test_available_effects_use_selected_loaned_and_damaged_leaves_consistently(self):
+		self.receipt(10)
+		damage = self.submit(self.create(self.movement("Damage", 2, self.a, self.damaged)))
+		loan = self.loan(3)
+		transfer = self.submit(self.create(self.movement("Transfer", 2, self.a, self.b)))
+		for doc, default_effect, scoped_effect, warehouse in (
+			(damage, -2, 2, self.damaged),
+			(loan, -3, 3, self.loan_leaf),
+			(transfer, 0, -2, self.a),
+		):
+			base = {"dataset": "movements", "view": "records", "statuses": [1], "record": doc.name}
+			default = browse.operation_page(base, records=True)["rows"][0]["whole"]["available_effects"]
+			scoped = browse.operation_page({**base, "scope": {"warehouses": [warehouse]}}, records=True)[
+				"rows"
+			][0]["whole"]["available_effects"]
+			self.assertEqual(default, [{"uom": "Nos", "qty": default_effect}])
+			self.assertEqual(scoped, [{"uom": "Nos", "qty": scoped_effect}])
+
+		line_query = {
+			"dataset": "movements",
+			"view": "lines",
+			"statuses": [1],
+			"scope": {"warehouses": [self.damaged]},
+		}
+		line = browse.report_page(line_query)["rows"]
+		damage_line = next(row for row in line if row["document"] == damage.name)
+		self.assertEqual(damage_line["available_effect"], 2)
 
 	def test_expiry_browser_has_distinct_batch_facets_native_search_and_inclusive_dates(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
@@ -537,6 +619,83 @@ class CatalogTests(NativeDocumentTests):
 		data = self.movement("Transfer", 2, self.a, self.b)
 		data["items"][0].update({"batch_no": batches[1], "use_serial_batch_fields": 1})
 		self.submit(self.create(data))
+		batch_detail = catalog.batch_details(batches[1])
+		batch_metadata = catalog.batch_metadata(batches[1])
+		self.assertEqual(batch_metadata["name"], batch_detail["name"])
+		self.assertNotIn("locations", batch_metadata)
+		self.assertNotIn("history", batch_metadata)
+		self.assertEqual(batch_detail["item_code"], self.item)
+		self.assertTrue(batch_detail["can_edit"])
+		self.assertEqual({row["batch_no"] for row in batch_detail["locations"]["rows"]}, {batches[1]})
+		location_page = catalog.batch_locations(batches[1], start=0, page_length=1)
+		self.assertGreaterEqual(location_page["matched_count"], 1)
+		self.assertEqual(batch_detail["history"]["matched_count"], 2)
+		before_batch_qty = {
+			warehouse: get_batch_qty(batch_no=batches[1], warehouse=warehouse, for_stock_levels=True)
+			for warehouse in (self.a, self.b)
+		}
+		old_version = batch_detail["version"]
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_batch(
+				batches[1],
+				old_version,
+				{
+					"manufacturing_date": add_days(nowdate(), -1),
+					"expiry_date": add_days(nowdate(), -2),
+					"description": "Invalid",
+				},
+			)
+		batch_class = type(frappe.get_doc("Batch", batches[1]))
+		check_permission = batch_class.check_permission
+		with patch.object(
+			batch_class,
+			"check_permission",
+			side_effect=lambda permission="read", *args, **kwargs: (
+				(_ for _ in ()).throw(frappe.PermissionError("Batch write denied"))
+				if permission == "write"
+				else check_permission(permission, *args, **kwargs)
+			),
+		):
+			with self.assertRaises(frappe.PermissionError):
+				catalog.save_batch(
+					batches[1],
+					old_version,
+					{"manufacturing_date": "", "expiry_date": "", "description": "Denied"},
+				)
+		item_class = type(frappe.get_doc("Item", self.item))
+		item_check_permission = item_class.check_permission
+		with patch.object(
+			item_class,
+			"check_permission",
+			side_effect=lambda permission="read", *args, **kwargs: (
+				(_ for _ in ()).throw(frappe.PermissionError("Item read denied"))
+				if permission == "read"
+				else item_check_permission(permission, *args, **kwargs)
+			),
+		):
+			with self.assertRaises(frappe.PermissionError):
+				catalog.batch_details(batches[1])
+		saved_batch = catalog.save_batch(
+			batches[1],
+			old_version,
+			{
+				"manufacturing_date": batch_detail["manufacturing_date"],
+				"expiry_date": batch_detail["expiry_date"],
+				"description": "Reviewed lot",
+			},
+		)
+		self.assertEqual(saved_batch["description"], "Reviewed lot")
+		self.assertEqual(
+			{
+				warehouse: get_batch_qty(batch_no=batches[1], warehouse=warehouse, for_stock_levels=True)
+				for warehouse in (self.a, self.b)
+			},
+			before_batch_qty,
+		)
+		with self.assertRaises(frappe.TimestampMismatchError):
+			catalog.save_batch(
+				batches[1], old_version, {"manufacturing_date": "", "expiry_date": "", "description": "Stale"}
+			)
 		query = {"dataset": "expiry", "scope": {"item": self.item}, "sortBy": "date"}
 		page = browse.expiry_page(query, page_length=1)
 		self.assertEqual(page["matched_count"], 5)
@@ -551,6 +710,10 @@ class CatalogTests(NativeDocumentTests):
 		search = browse.expiry_page({**query, "search": batches[1]})
 		self.assertEqual(search["matched_count"], 2)
 		self.assertEqual(search["facets"], {"all": 1, "expired": 0, "unexpired": 1, "undated": 0})
+		exact_batch = browse.expiry_page({**query, "batchNo": batches[1]})
+		self.assertEqual(exact_batch["matched_count"], 2)
+		self.assertEqual({row["batch_no"] for row in exact_batch["rows"]}, {batches[1]})
+		self.assertEqual(browse.expiry_page({**query, "batchNo": batches[1] + "-other"})["matched_count"], 0)
 		exact = browse.expiry_page(
 			{**query, "restrictAllocations": True, "allocationKeys": [search["rows"][0]["id"]]}
 		)

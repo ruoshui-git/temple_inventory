@@ -48,6 +48,9 @@
 	--p-heading: calc(24px * var(--p-text-scale, 1));
 	--p-section: calc(18px * var(--p-text-scale, 1));
 	--p-control: 36px;
+	--p-control-gap: 12px;
+	--p-control-pad-y: 6px;
+	--p-field-gap: 6px;
 	--p-pad: 24px;
 	--p-gap: 20px;
 	--p-line: 1.6;
@@ -55,6 +58,9 @@
 :root[data-ti-density="compact"] {
 	--p-body: calc(13px * var(--p-text-scale, 1));
 	--p-control: 32px;
+	--p-control-gap: 8px;
+	--p-control-pad-y: 4px;
+	--p-field-gap: 4px;
 	--p-pad: 16px;
 	--p-gap: 12px;
 	--p-line: 1.5;
@@ -63,6 +69,9 @@
 	--p-body: calc(16px * var(--p-text-scale, 1));
 	--p-small: calc(14px * var(--p-text-scale, 1));
 	--p-control: 44px;
+	--p-control-gap: 16px;
+	--p-control-pad-y: 6px;
+	--p-field-gap: 8px;
 	--p-pad: 32px;
 	--p-gap: 28px;
 	--p-heading: calc(28px * var(--p-text-scale, 1));
@@ -132,7 +141,7 @@ textarea {
 	border: 1px solid var(--p-control-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
-	padding: 8px 12px;
+	padding: var(--p-control-pad-y) 12px;
 }
 input::placeholder,
 textarea::placeholder {
@@ -235,7 +244,7 @@ strong {
 	justify-content: center;
 	gap: 8px;
 	min-height: var(--p-control);
-	padding: 8px 14px;
+	padding: var(--p-control-pad-y) var(--p-space-3);
 	border: 1px solid var(--p-control-border);
 	border-radius: var(--p-radius-control);
 	color: var(--p-ink);
@@ -267,13 +276,13 @@ strong {
 	color: var(--p-danger);
 }
 .ui-button--compact {
-	padding: 6px 10px;
+	padding: var(--p-control-pad-y) var(--p-space-2);
 }
 .icon-button,
 .ui-button.is-icon-only {
 	position: relative;
 	min-width: var(--p-control);
-	padding: 8px;
+	padding: var(--p-control-pad-y);
 }
 .icon-button-tooltip {
 	position: absolute;
@@ -1963,6 +1972,9 @@ body:has(.preview-overlay) .preview-toast {
 		--p-body: calc(16px * var(--p-text-scale, 1));
 		--p-small: calc(12px * var(--p-text-scale, 1));
 		--p-control: 44px;
+		--p-control-gap: 12px;
+		--p-control-pad-y: 8px;
+		--p-field-gap: 6px;
 		--p-pad: 20px;
 		--p-gap: 16px;
 	}
@@ -1974,6 +1986,9 @@ body:has(.preview-overlay) .preview-toast {
 		--p-body: calc(18px * var(--p-text-scale, 1));
 		--p-small: calc(14px * var(--p-text-scale, 1));
 		--p-control: 48px;
+		--p-control-gap: 16px;
+		--p-control-pad-y: 8px;
+		--p-field-gap: 8px;
 		--p-pad: 24px;
 		--p-gap: 24px;
 	}
@@ -2057,7 +2072,11 @@ body:has(.preview-overlay) .preview-toast {
 		bottom: 0;
 		left: 0;
 		right: 0;
-		display: grid;
+		display: flex;
+		justify-content: flex-start;
+		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-inline: contain;
 		gap: 4px;
 		padding: 8px 8px max(8px, env(safe-area-inset-bottom));
 		border-top: 1px solid var(--p-border);
@@ -2065,6 +2084,7 @@ body:has(.preview-overlay) .preview-toast {
 		z-index: var(--p-z-nav);
 	}
 	.sample-mobile-nav button {
+		flex: 0 0 max(64px, 16.5vw);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -2073,6 +2093,9 @@ body:has(.preview-overlay) .preview-toast {
 		padding: 8px 2px;
 		font-size: calc(12px * var(--p-text-scale, 1));
 		min-height: 56px;
+	}
+	.sample-mobile-nav button[aria-current="page"] {
+		scroll-margin-inline: 8px;
 	}
 	.sample-mobile-nav button[aria-current] {
 		background: var(--p-accent);
@@ -2484,8 +2507,8 @@ body:has(.preview-overlay) .preview-toast {
 	display: inline-flex;
 	align-items: center;
 	gap: 12px;
-	min-height: 44px;
-	padding: 12px;
+	min-height: var(--p-control);
+	padding: var(--p-control-pad-y) var(--p-space-3);
 	color: var(--p-muted);
 }
 .preview-tools-link[aria-current] {
@@ -2506,8 +2529,8 @@ body:has(.preview-overlay) .preview-toast {
 	position: absolute;
 	right: 8px;
 	bottom: 8px;
-	min-height: 44px;
-	padding: 8px 12px;
+	min-height: var(--p-control);
+	padding: var(--p-control-pad-y) var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: 8px;
 	background: var(--p-surface);
@@ -2517,8 +2540,8 @@ body:has(.preview-overlay) .preview-toast {
 .preview-image-enlarge {
 	display: grid;
 	place-items: center;
-	width: 44px;
-	height: 44px;
+	width: var(--p-control);
+	height: var(--p-control);
 	padding: 0;
 }
 
@@ -2527,10 +2550,10 @@ body:has(.preview-overlay) .preview-toast {
 	right: 24px;
 	bottom: 24px;
 	z-index: var(--p-z-menu);
-	width: 44px;
-	height: 44px;
-	min-height: 44px;
-	min-width: 44px;
+	width: var(--p-control);
+	height: var(--p-control);
+	min-height: var(--p-control);
+	min-width: var(--p-control);
 	border-radius: 50%;
 	box-shadow: var(--p-shadow);
 	background: var(--p-surface);
@@ -2690,7 +2713,6 @@ button {
 
 /* Preview field contracts: stacked forms, inline toolbar fields and choices. */
 :root {
-	--p-field-gap: 6px;
 	--p-control-line: 1.4;
 }
 .preview-field.preview-field {
@@ -2714,7 +2736,7 @@ button {
 	align-items: center;
 	gap: var(--p-space-2);
 	min-width: 0;
-	min-height: 44px;
+	min-height: var(--p-control);
 	margin: 0;
 	font-weight: 500;
 	cursor: pointer;
@@ -2729,14 +2751,20 @@ button {
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select {
 	line-height: var(--p-control-line);
-	block-size: max(var(--p-control), calc(1em * var(--p-control-line) + 18px));
+	block-size: max(
+		var(--p-control),
+		calc(1em * var(--p-control-line) + var(--p-control-pad-y) * 2 + 2px)
+	);
 }
 textarea,
 button {
 	line-height: var(--p-control-line);
 }
 .ui-button {
-	min-height: max(var(--p-control), calc(1em * var(--p-control-line) + 18px));
+	min-height: max(
+		var(--p-control),
+		calc(1em * var(--p-control-line) + var(--p-control-pad-y) * 2 + 2px)
+	);
 }
 .preview-field-action {
 	align-self: end;
@@ -2970,7 +2998,7 @@ body:has(.preview-document-actions) .preview-toast {
 }
 
 :where(.preview-activities, .preview-reports, .preview-document-display) summary {
-	min-height: 44px;
+	min-height: var(--p-control);
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -3056,7 +3084,7 @@ body:has(.preview-document-actions) .preview-toast {
 	font-size: var(--p-small);
 }
 .compact-filter-chips .ui-button {
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 .preview-filter-popover {
 	position: fixed;
@@ -3133,7 +3161,7 @@ body:has(.preview-document-actions) .preview-toast {
 .preview-filter-control > .ui-button,
 .preview-filter-popover .ui-button,
 .preview-filter-popover .preview-choice-label {
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 /* Override the denser browse-tree rules only inside compact filter panels. */
 .compact-filter-content button,
@@ -3142,7 +3170,7 @@ body:has(.preview-document-actions) .preview-toast {
 .compact-filter-content input:not([type="checkbox"]):not([type="radio"]),
 .compact-filter-content .preview-choice-label,
 .compact-filter-content .hierarchy-row label {
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 .preview-filter-popover > header,
 .preview-filter-sheet > .dialog-heading {
@@ -3206,7 +3234,7 @@ body:has(.preview-document-actions) .preview-toast {
 	align-items: center;
 	justify-content: space-between;
 	gap: var(--p-space-3);
-	min-height: 44px;
+	min-height: var(--p-control);
 	padding: var(--p-space-2) var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);

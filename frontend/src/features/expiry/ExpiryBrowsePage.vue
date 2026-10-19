@@ -9,6 +9,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	queryChange: [query: ReportQuery];
 	item: [code: string];
+	openBatch: [name: string];
 	newOperation: [kind: string];
 	openExport: [query: ReportQuery];
 }>();
@@ -20,6 +21,7 @@ defineExpose({ controller });
 		:controller="controller"
 		:active="active"
 		@item="emit('item', $event)"
+		@open-batch="emit('openBatch', $event)"
 		@new-operation="emit('newOperation', $event)"
 		@open-export="emit('openExport', $event)"
 	/>

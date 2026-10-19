@@ -48,6 +48,7 @@ const labels: Record<string, string> = {
 	item_code: "物品编号",
 	item_name: "物品名称",
 	stock_qty: "库存数量",
+	available_effect: "可用库存变化",
 	stock_uom: "库存单位",
 	entered_qty: "填写数量",
 	entered_uom: "填写单位",
@@ -187,6 +188,8 @@ const labels: Record<string, string> = {
 	barcode: "条码",
 };
 function cell(column: string, value: unknown, row: Record<string, unknown>) {
+	if (["source_warehouse", "destination_warehouse"].includes(column) && !value) return "外部";
+	if (value === "" || value === undefined || value === null) return "";
 	if (column === "docstatus") return nativeStatusLabel(value);
 	if (
 		[
@@ -199,7 +202,6 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 		].includes(column)
 	)
 		return warehouseLabel(value, reference?.warehouses || [], row[column + "_label"]);
-	if (value === "" || value === undefined || value === null) return "未填写";
 	if (
 		[
 			"snapshot",
@@ -215,7 +217,7 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 	const dictionary: Record<string, Record<string, string>> = {
 		kind: {
 			Receive: "入库",
-			Issue: "领用",
+			Issue: "出库",
 			Transfer: "调拨",
 			Loan: "借出",
 			Return: "归还",
@@ -250,6 +252,30 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 		},
 	};
 	return dictionary[column]?.[String(value)] ?? value;
+}
+function stockEffect(row: Record<string, unknown>) {
+	if (Number(row.docstatus) === 0 || Number(row.docstatus) === 2) return 0;
+	return Number(row.available_effect || 0);
+}
+function quantityTone(column: string, row: Record<string, unknown>) {
+	if (row[column] === null || row[column] === undefined || row[column] === "") return "";
+	if (!["stock_qty", "available_effect"].includes(column) || row.available_effect === undefined)
+		return "";
+	const value = stockEffect(row);
+	return value > 0
+		? "stock-effect is-increase"
+		: value < 0
+			? "stock-effect is-decrease"
+			: "stock-effect is-neutral";
+}
+function quantityEffectLabel(row: Record<string, unknown>) {
+	const effect = stockEffect(row),
+		unit = String(row.stock_uom || "");
+	return effect > 0
+		? `可用库存增加 ${effect} ${unit}`
+		: effect < 0
+			? `可用库存减少 ${Math.abs(effect)} ${unit}`
+			: `可用库存不变 · ${unit}`;
 }
 </script>
 <template>
@@ -306,7 +332,18 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 							{{ row.document }}
 						</button>
 						<template v-else>
-							{{ cell(column, row[column], row) }}
+							<span
+								:class="quantityTone(column, row)"
+								:title="
+									quantityTone(column, row)
+										? quantityEffectLabel(row)
+										: undefined
+								"
+								>{{ cell(column, row[column], row)
+								}}<span v-if="quantityTone(column, row)" class="sr-only">{{
+									quantityEffectLabel(row)
+								}}</span></span
+							>
 						</template>
 					</td>
 					<td v-if="slots.actions"><slot name="actions" :row="row" :index="index" /></td>

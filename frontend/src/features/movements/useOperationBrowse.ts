@@ -34,11 +34,11 @@ export interface OperationGroup {
   activity_title?: string;
   document_count: number;
   item_count: number;
-  allocation_count: number;
+  allocation_count?: number;
   totals?: ReportRow[];
-  matching_totals?: ReportRow[];
   whole?: {
     quantities: { uom: string; qty: number }[];
+    available_effects: { uom: string; qty: number }[];
     outstanding?: { uom: string; qty: number }[];
     item_count: number;
     line_count: number;
@@ -428,6 +428,7 @@ export function useOperationBrowse(
       loan: query.value.loan,
       record: query.value.record,
       recordDoctype: query.value.recordDoctype,
+      batchNo: query.value.batchNo,
       search: query.value.search,
       sortBy: query.value.sortBy,
       sort: query.value.sort,

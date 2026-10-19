@@ -19,7 +19,7 @@ const { query, scope, status, statusChoices, extraChips } = props.controller;
 			v-model="scope.period"
 			:label="family === 'movements' ? '流动日期' : '借出日期'"
 		/>
-		<label v-if="records || family === 'loans'" class="preview-field">
+		<label v-if="records" class="preview-field">
 			状态
 			<select
 				v-model="status"

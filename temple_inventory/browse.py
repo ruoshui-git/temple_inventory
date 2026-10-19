@@ -162,7 +162,6 @@ def _native_record_page(query, start, page_length):
 		rows = list(projection.rows("native_records", offset=start, limit=size))
 		for row in rows:
 			row["whole"] = _whole_operation(projection.context, row["doctype"], row["document"])
-			row["matching_totals"] = _matching_operation_totals(projection, "lines", row)
 		count = projection.count("native_records")
 		return {
 			"rows": rows,
@@ -394,7 +393,12 @@ def _document_card(query):
 	"""One preview row per native record, with complete unit-separated totals."""
 	with Projection(query) as projection:
 		projection.build()
-		projection.group("records", "card_units", ("stock_uom", "kind"), ("stock_qty", "outstanding"))
+		projection.group(
+			"records",
+			"card_units",
+			("stock_uom", "kind"),
+			("stock_qty", "outstanding", "available_effect"),
+		)
 		rows = []
 		for row in projection.rows("records"):
 			identity = (row["doctype"], row["document"])
@@ -406,7 +410,11 @@ def _document_card(query):
 				rows.append(current)
 			if current is not None:
 				current["quantities"].append(
-					{"qty": row.get("outstanding", row["stock_qty"]), "uom": row["stock_uom"]}
+					{
+						"qty": row.get("outstanding", row["stock_qty"]),
+						"uom": row["stock_uom"],
+						"effect": row.get("available_effect", 0),
+					}
 				)
 		for line in projection.rows("lines" if query["dataset"] == "movements" else "outcomes"):
 			current = next(
@@ -585,12 +593,17 @@ def _operation_projection(query, records):
 
 
 def _whole_operation(context, doctype, name):
+	from temple_inventory.native_balances import reconciliation_allocations
 	from temple_inventory.native_stock import loan_balances
+	from temple_inventory.report_sources import available_stock_effect, document_kind
 
 	doc = context.parent(doctype, name)
 	if not doc:
 		frappe.throw("原生记录不存在或无权访问", frappe.PermissionError)
-	quantities, branches, items, originals = defaultdict(float), set(), set(), set()
+	quantities = defaultdict(float)
+	available_effects = defaultdict(float)
+	branches, items, originals = set(), set(), set()
+	kind = document_kind(doc)
 	for row in doc.items:
 		item = context.item(row.item_code)
 		if not item:
@@ -602,10 +615,30 @@ def _whole_operation(context, doctype, name):
 			else float(row.qty) - (float(row.current_qty or 0) if doc.purpose != "Opening Stock" else 0)
 		)
 		quantities[item.stock_uom] += quantity
+		if doctype == "Stock Entry":
+			available_effects[item.stock_uom] += available_stock_effect(
+				context,
+				docstatus=doc.docstatus,
+				kind=kind,
+				quantity=float(row.get("transfer_qty") or 0),
+				source_warehouse=row.get("s_warehouse") or "",
+				destination_warehouse=row.get("t_warehouse") or "",
+			)
+		else:
+			for allocation in reconciliation_allocations(row):
+				quantity = allocation["actual_qty"] if kind == "Opening" else allocation["difference"]
+				available_effects[item.stock_uom] += available_stock_effect(
+					context,
+					docstatus=doc.docstatus,
+					kind=kind,
+					quantity=quantity,
+					warehouse=row.get("warehouse") or "",
+				)
 		branches.add((row.get("s_warehouse") or row.get("warehouse") or "", row.get("t_warehouse") or ""))
 		if row.get("ti_original_loan"):
 			originals.add(row.ti_original_loan)
 	result = {
+		"kind": kind,
 		"version": str(doc.modified),
 		"editable": bool(
 			doc.docstatus == 0
@@ -624,6 +657,9 @@ def _whole_operation(context, doctype, name):
 			)
 		),
 		"quantities": [{"uom": unit, "qty": quantity} for unit, quantity in sorted(quantities.items())],
+		"available_effects": [
+			{"uom": unit, "qty": quantity} for unit, quantity in sorted(available_effects.items())
+		],
 		"item_count": len(items),
 		"line_count": len(doc.items),
 		"branches": [
@@ -690,25 +726,36 @@ def _operation_analysis_page(projection, source, dimension, start=0, size=30):
 	}
 
 
-def _matching_operation_totals(projection, source, row):
-	metrics = (
-		("stock_qty",)
-		if projection.query["dataset"] == "movements"
-		else ("baseline_qty", "actual_qty", "difference", "stock_qty")
-		if projection.query["dataset"] == "counts"
-		else ("borrowed", "returned", "damaged", "lost", "outstanding", "stock_qty")
-	)
-	columns = [
-		"json_extract(payload, '$.stock_uom')",
-		*(f"sum(json_extract(payload, '$.{field}'))" for field in metrics),
+def _whole_operation_totals(projection, source):
+	"""Summarize each matching native document once using all its native allocations."""
+	documents, totals = {}, defaultdict(lambda: {"borrowed": 0, "outstanding": 0, "available_effect": 0})
+	for row in projection.rows(source):
+		identity = (row["doctype"], row["document"])
+		documents.setdefault(identity, row)
+	for (doctype, name), row in documents.items():
+		whole = _whole_operation(projection.context, doctype, name)
+		for quantity in whole["quantities"]:
+			key = (whole["kind"], row["docstatus"], quantity["uom"])
+			totals[key]["borrowed"] += quantity["qty"]
+		for quantity in whole.get("outstanding", []):
+			key = (whole["kind"], row["docstatus"], quantity["uom"])
+			totals[key]["outstanding"] += quantity["qty"]
+		for quantity in whole["available_effects"]:
+			key = (whole["kind"], row["docstatus"], quantity["uom"])
+			totals[key]["available_effect"] += quantity["qty"]
+	return [
+		{
+			"kind": kind,
+			"outcome_key": "outstanding",
+			"docstatus": status,
+			"stock_uom": uom,
+			"stock_qty": values["borrowed"],
+			"available_effect": values.get("available_effect", 0),
+			"borrowed": values["borrowed"],
+			"outstanding": values["outstanding"],
+		}
+		for (kind, status, uom), values in totals.items()
 	]
-	cursor = projection.db.execute(
-		"select "
-		+ ", ".join(columns)
-		+ " from rows where table_id=? and json_extract(payload, '$.doctype')=? and json_extract(payload, '$.document')=? group by json_extract(payload, '$.stock_uom')",
-		(source, row["doctype"], row["document"]),
-	)
-	return [dict(zip(("stock_uom", *metrics), values, strict=True)) for values in cursor]
 
 
 @frappe.whitelist()
@@ -757,7 +804,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 			)
 			if records:
 				row["whole"] = _whole_operation(projection.context, row["doctype"], row["document"])
-				row["matching_totals"] = _matching_operation_totals(projection, source, row)
+				row.pop("allocation_count", None)
 			else:
 				row["item"] = item_metadata(projection.context.item(row["item_code"]))
 				conditions, params = "json_extract(payload, '$.item_code') = ?", [row["item_code"]]
@@ -771,15 +818,24 @@ def operation_page(query, records=False, start=0, page_length=20):
 				totals = defaultdict(float)
 				for (payload,) in cursor:
 					value = frappe.parse_json(payload)
-					totals[
-						(
-							value.get("kind") or value.get("outcome_key"),
-							value["stock_uom"],
-							value["docstatus"],
-						)
-					] += value["stock_qty"]
+					key = (
+						value.get("outcome_key")
+						if projection.query["dataset"] == "loans"
+						else value.get("kind"),
+						value["stock_uom"],
+						value["docstatus"],
+					)
+					if key not in totals:
+						totals[key] = {"stock_qty": 0, "available_effect": 0}
+					totals[key]["stock_qty"] += value["stock_qty"]
+					totals[key]["available_effect"] += value.get("available_effect", 0)
 				row["totals"] = [
-					{"kind": kind, "stock_uom": unit, "docstatus": status, "stock_qty": quantity}
+					{
+						("outcome_key" if projection.query["dataset"] == "loans" else "kind"): kind,
+						"stock_uom": unit,
+						"docstatus": status,
+						**quantity,
+					}
 					for (kind, unit, status), quantity in totals.items()
 				]
 		from temple_inventory.projections import LOAN_SUMS
@@ -788,7 +844,11 @@ def operation_page(query, records=False, start=0, page_length=20):
 			source,
 			"browse_totals",
 			("kind", "outcome_key", "stock_uom", "docstatus"),
-			LOAN_SUMS if records and projection.query["dataset"] == "loans" else ("stock_qty",),
+			LOAN_SUMS
+			if records and projection.query["dataset"] == "loans"
+			else ("stock_qty",)
+			if projection.query["dataset"] == "loans"
+			else ("stock_qty", "available_effect"),
 		)
 		analysis = {
 			dimension: _operation_analysis_page(projection, source, dimension)
@@ -798,6 +858,8 @@ def operation_page(query, records=False, start=0, page_length=20):
 		complete = next(
 			projection.rows("browse_complete"), {"item_count": 0, "document_count": 0, "allocation_count": 0}
 		)
+		if records:
+			complete.pop("allocation_count", None)
 		category_count = projection.db.execute(
 			"select count(distinct json_extract(payload, '$.category')) from rows where table_id=?", (source,)
 		).fetchone()[0]
@@ -809,7 +871,11 @@ def operation_page(query, records=False, start=0, page_length=20):
 			"query": projection.query,
 			"snapshot": projection.context.snapshot,
 			"summary": {**complete, "category_count": category_count},
-			"totals": list(projection.rows("browse_totals")),
+			"totals": (
+				_whole_operation_totals(projection, source)
+				if records
+				else list(projection.rows("browse_totals"))
+			),
 			"analysis": analysis,
 		}
 

@@ -1,5 +1,36 @@
 # Temple Inventory UI/UX Decisions
 
+## Browse and batch-detail refinements — 2026-10-19
+
+- Desktop browse density follows the shared control token (32px compact, 36px
+  balanced, 44px spacious); typography scales independently. Mobile controls keep
+  at least 44px touch targets. This supersedes unconditional 44px desktop filter,
+  table-control and form-control sizing.
+- Movement and Loan view switches remain beside the title while browse tools
+  collapse. Mobile primary navigation contains 首页、库存、货物流动、借用、报表、更多
+  in a horizontally scrollable bar; secondary inventory links remain available.
+- Expiry quick filters use the shared tab interaction inside the expanded browse
+  toolbar above search; the result count and quantities share the normal-flow
+  summary card. Desktop expiry thumbnails use the shared Item image/lightbox;
+  image actions stay independent from Item and Batch links.
+- A Batch has a dedicated `/batch/:name` detail page for authorized balances,
+  native movement history and permission-checked metadata edits. Its Item link
+  remains separate. Batch filtering uses an exact Batch identity in stock,
+  movement, loan and export queries.
+- Movement and Loan record filters select matching native documents; row and
+  result quantities summarize each matching document once using its full native
+  allocations. Filtered line counts are not presented as record totals. Native
+  document identity remains the drill-through.
+- Available-stock effect uses authorized physical leaves as its default basis.
+  An explicit warehouse selection scopes the effect to all selected authorized
+  leaves, including loaned and damaged leaves; transfers within that set are
+  neutral. Loan/damage decrease availability, usable return/repair increases it,
+  and draft/cancelled documents have neutral effects. Actual movement quantities
+  remain separately visible and unit-separated.
+- Empty table cells remain empty; zero, false, external endpoints, invalid expiry
+  and unavailable/error statuses retain explicit meanings. Loan item browse has
+  one result selector, and records use the shared horizontally scrollable table.
+
 ## Browse filters, summaries and labels — 2026-10-18 supersession
 
 The user supersedes the compact-count subtitle, desktop split filter popovers,

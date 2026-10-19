@@ -2,8 +2,7 @@
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import Overlay from "../../components/ui/Overlay.vue";
-import { ref, computed } from "vue";
+import { computed } from "vue";
 import type { ProductDetail } from "./useProductDetail";
 import type { ReportQuery } from "../../lib/reportContract";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -24,6 +23,7 @@ const emit = defineEmits<{
 	browse: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
 	openExport: [query: ReportQuery];
+	openBatch: [name: string];
 }>();
 const c = props.controller;
 const { stockItem: item, loading, error, tab, batches, files } = c;
@@ -45,7 +45,6 @@ const metrics = computed(() =>
 			}))
 		: [],
 );
-const batchDetail = ref<(typeof batches.value)[number]>();
 const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
@@ -138,11 +137,11 @@ const warehouseReference = useOptionalReferenceData();
 							:key="JSON.stringify([batch.id, batch.location])"
 						>
 							<td>
-								<UiButton @click="batchDetail = batch"
-									>{{ batch.id }} · 查看明细</UiButton
+								<UiButton @click="emit('openBatch', batch.id)"
+									>{{ batch.id }} · 批次资料</UiButton
 								>
 							</td>
-							<td>{{ batch.expiry || "未设置" }}</td>
+							<td>{{ batch.expiry || "无效期" }}</td>
 							<td>
 								{{
 									warehouseLabel(
@@ -236,46 +235,5 @@ const warehouseReference = useOptionalReferenceData();
 				/>
 			</details>
 		</article>
-		<Overlay
-			v-if="batchDetail"
-			title="批次明细"
-			adaptive-creation
-			@close="batchDetail = undefined"
-		>
-			<h3>{{ item?.name }} · {{ batchDetail.id }}</h3>
-			<p>
-				位置
-				{{
-					warehouseLabel(
-						batchDetail.location,
-						warehouseReference?.warehouses || [],
-						batchDetail.label,
-					)
-				}}
-				· 到期
-				{{ batchDetail.expiry || "无效期" }}
-			</p>
-			<p>
-				可用 {{ batchDetail.available }} · 借出 {{ batchDetail.loaned }} · 损坏
-				{{ batchDetail.damaged }} {{ item?.uom }}
-			</p>
-			<UiButton
-				@click="
-					emit('browse', {
-						...c.movementQuery.value,
-						search: batchDetail.id,
-					})
-				"
-				>搜索此批次编号的流动</UiButton
-			><UiButton
-				@click="
-					emit('browse', {
-						...c.loanQuery.value,
-						search: batchDetail.id,
-					})
-				"
-				>搜索此批次编号的借用</UiButton
-			>
-		</Overlay>
 	</section>
 </template>

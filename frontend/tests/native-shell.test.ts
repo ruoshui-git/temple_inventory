@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import AppFrame from "../src/components/AppFrame.vue";
 import {
   primaryNavigation,
+  mobilePrimaryNavigation,
   inventoryNavigation,
   destinationForPath,
 } from "../src/lib/appNavigation";
@@ -26,6 +27,7 @@ describe("shared application frame", () => {
     const wrapper = mount(AppFrame, {
       props: {
         primary: primaryNavigation,
+        mobilePrimary: mobilePrimaryNavigation,
         inventory: inventoryNavigation,
         moreRoute: "/more",
         user: "volunteer",
@@ -37,12 +39,17 @@ describe("shared application frame", () => {
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
     expect(wrapper.find(".sample-mobile-nav").exists()).toBe(true);
+    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(6);
     await wrapper.find("input").setValue("保留输入");
     media.matches = true;
     change?.({ matches: true });
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
     expect(wrapper.find(".sample-sidebar").exists()).toBe(true);
+    expect(
+      wrapper.findAll(".sample-sidebar > nav > .nav-group > button"),
+    ).toHaveLength(5);
+    expect(wrapper.findAll(".preview-tools-link")).toHaveLength(1);
     expect(wrapper.find("input").element.value).toBe("保留输入");
     await wrapper.find(".nav-group button").trigger("click");
     expect(wrapper.emitted("primary")?.at(-1)).toEqual(["/"]);

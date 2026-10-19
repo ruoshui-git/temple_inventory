@@ -21,7 +21,7 @@ export function movementSummaryMetrics(rows: ReportRow[]) {
     if (!matching.length) return [];
     const quantities = new Map<
       string,
-      { uom: string; qty: number; status?: string }
+      { uom: string; qty: number; status?: string; effect: number }
     >();
     const statuses = new Set<string>();
     for (const row of matching) {
@@ -33,8 +33,14 @@ export function movementSummaryMetrics(rows: ReportRow[]) {
             : undefined;
       const uom = String(row.stock_uom);
       const key = `${uom}:${status || ""}`;
-      const quantity = quantities.get(key) || { uom, status, qty: 0 };
+      const quantity = quantities.get(key) || {
+        uom,
+        status,
+        qty: 0,
+        effect: 0,
+      };
       quantity.qty += Number(row.stock_qty || 0);
+      quantity.effect += Number(row.available_effect || 0);
       quantities.set(key, quantity);
       statuses.add(status || "已提交");
     }
@@ -46,7 +52,14 @@ export function movementSummaryMetrics(rows: ReportRow[]) {
         key: kind,
         label: movementLabels[kind] || kind,
         quantities: [...quantities.values()],
-        tone: "neutral" as const,
+        tone:
+          [...quantities.values()].length > 0 &&
+          [...quantities.values()].every((value) => value.effect > 0)
+            ? ("success" as const)
+            : [...quantities.values()].length > 0 &&
+                [...quantities.values()].every((value) => value.effect < 0)
+              ? ("danger" as const)
+              : ("neutral" as const),
       },
     ];
   });

@@ -138,6 +138,30 @@ function service() {
   });
 }
 describe("native operation browsing", () => {
+  it("keeps the item/record switch in the persistent title slot when browse tools collapse", async () => {
+    const { wrapper } = setup(
+      service(),
+      reactive({ family: "movements" as const, records: false }),
+      true,
+    );
+    await flushPromises();
+    const toolbar = wrapper.get(".refined-toolbar");
+    const switcher = wrapper.get(".browse-view-switch");
+    expect(switcher.element.closest(".app-page-title-row")).toBeTruthy();
+    toolbar.element.classList.add("is-compact");
+    await flushPromises();
+    expect(wrapper.get(".browse-view-switch").text()).toContain("按记录");
+    await wrapper
+      .findAll(".browse-view-switch button")
+      .find((button) => button.text() === "按记录")!
+      .trigger("click");
+    expect(
+      wrapper
+        .getComponent(OperationBrowsePage)
+        .emitted("switchView")
+        ?.at(-1)?.[0],
+    ).toBe(true);
+  });
   it("keeps the date header and direction control synchronized for record sorting", async () => {
     const { wrapper } = setup(
       service(),
@@ -152,7 +176,7 @@ describe("native operation browsing", () => {
       "date",
     );
     expect(wrapper.get('th[aria-sort="descending"] button').text()).toContain(
-      "类型 / 日期 ↓",
+      "日期 ↓",
     );
 
     await wrapper.get('button[aria-label="切换为升序"]').trigger("click");

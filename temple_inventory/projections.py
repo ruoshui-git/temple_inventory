@@ -17,7 +17,10 @@ from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import (
 	ReportContext,
 	activity_rows,
+	available_stock_effect,
 	count_rows,
+	document_fields,
+	document_kind,
 	historical_rows,
 	loan_rows,
 	movement_rows,
@@ -81,6 +84,7 @@ LINE_COLUMNS = [
 	"entered_uom",
 	"conversion_factor",
 	"stock_qty",
+	"available_effect",
 	"original_loan",
 	"original_loan_line",
 	"origin_warehouse",
@@ -197,6 +201,7 @@ DISPLAY_COLUMNS = {
 		"loaned",
 		"damaged",
 		"stock_qty",
+		"available_effect",
 		"stock_uom",
 		"kind",
 		"docstatus",
@@ -288,6 +293,7 @@ DISPLAY_COLUMNS = {
 		"entered_uom",
 		"conversion_factor",
 		"stock_qty",
+		"available_effect",
 		"stock_uom",
 		"baseline_qty",
 		"actual_qty",
@@ -546,13 +552,15 @@ class Projection(AbstractContextManager):
 					"borrower",
 					"stock_uom",
 				),
-				("stock_qty",),
+				("stock_qty", "available_effect"),
 			)
+			if view == "records":
+				self.complete_native_records("movements")
 			self.group(
 				"lines",
 				"summary",
 				("item_code", "item_name", "category", "docstatus", "kind", "stock_uom"),
-				("stock_qty",),
+				("stock_qty", "available_effect"),
 			)
 			self.main_table, sums = view, ("stock_qty",)
 		elif dataset == "loans":
@@ -575,6 +583,8 @@ class Projection(AbstractContextManager):
 				),
 				LOAN_SUMS,
 			)
+			if view == "records":
+				self.complete_native_records("loans")
 			self.add("settlements", settlement_rows(context))
 			self.main_table, sums = view, LOAN_SUMS if view != "settlements" else ("stock_qty",)
 		elif dataset == "activities":
@@ -675,6 +685,111 @@ class Projection(AbstractContextManager):
 		self.db.commit()
 		return self
 
+	def complete_native_records(self, dataset):
+		"""Expand selected document records to whole native quantities after line matching."""
+		from temple_inventory.native_balances import reconciliation_allocations
+		from temple_inventory.native_stock import batch_quantities, loan_balances
+
+		selected = {}
+		for row in self.rows("records"):
+			selected[(row["doctype"], row["document"])] = row
+		self.db.execute("delete from rows where table_id='records'")
+		for doctype, name in selected:
+			doc = self.context.parent(doctype, name)
+			if not doc:
+				continue
+			base = document_fields(self.context, doc)
+			groups = {}
+			item_codes = set()
+			balances = loan_balances(name, by_batch=True) if dataset == "loans" else None
+			for line in doc.items:
+				item = self.context.item(line.item_code)
+				if not item:
+					frappe.throw("原生记录包含无权访问的物品", frappe.PermissionError)
+				item_codes.add(item.name)
+				if dataset == "movements":
+					if doctype == "Stock Entry":
+						quantity = float(line.get("transfer_qty") or 0)
+						effect = available_stock_effect(
+							self.context,
+							docstatus=doc.docstatus,
+							kind=base["kind"],
+							quantity=quantity,
+							source_warehouse=line.get("s_warehouse") or "",
+							destination_warehouse=line.get("t_warehouse") or "",
+						)
+						parts = [(quantity, effect)]
+					else:
+						parts = []
+						for allocation in reconciliation_allocations(line):
+							quantity = (
+								allocation["actual_qty"]
+								if base["kind"] == "Opening"
+								else allocation["difference"]
+							)
+							parts.append(
+								(
+									quantity,
+									available_stock_effect(
+										self.context,
+										docstatus=doc.docstatus,
+										kind=base["kind"],
+										quantity=quantity,
+										warehouse=line.get("warehouse") or "",
+									),
+								)
+							)
+					for quantity, effect in parts:
+						group = groups.setdefault(
+							item.stock_uom,
+							{
+								"stock_qty": 0,
+								"available_effect": 0,
+								"item_codes": set(),
+								"allocation_count": 0,
+							},
+						)
+						group["stock_qty"] += quantity
+						group["available_effect"] += effect
+						group["item_codes"].add(item.name)
+						group["allocation_count"] += 1
+				else:
+					for batch, borrowed in batch_quantities(line).items():
+						outcomes = balances[(line.name, batch)]
+						group = groups.setdefault(
+							item.stock_uom,
+							{
+								"stock_qty": 0,
+								"borrowed": 0,
+								"returned": 0,
+								"damaged": 0,
+								"lost": 0,
+								"outstanding": 0,
+								"item_codes": set(),
+								"allocation_count": 0,
+							},
+						)
+						group["borrowed"] += borrowed
+						group["returned"] += outcomes["Returned"]
+						group["damaged"] += outcomes["Damaged"]
+						group["lost"] += outcomes["Lost"]
+						outstanding = borrowed - sum(outcomes.values()) if doc.docstatus == 1 else 0
+						group["outstanding"] += outstanding
+						group["stock_qty"] += outstanding
+						group["item_codes"].add(item.name)
+						group["allocation_count"] += 1
+			for uom, values in groups.items():
+				self.put(
+					"records",
+					{
+						**base,
+						"id": f"{doctype}:{name}:{uom}",
+						"stock_uom": uom,
+						**{key: value for key, value in values.items() if key not in ("item_codes",)},
+						"item_count": len(values["item_codes"]),
+					},
+				)
+
 	def summary(self):
 		table = self.main_table
 		self.group(
@@ -700,6 +815,7 @@ class Projection(AbstractContextManager):
 					"baseline_qty",
 					"actual_qty",
 					"difference",
+					"available_effect",
 				)
 				if field in self.column_names[table]
 			),

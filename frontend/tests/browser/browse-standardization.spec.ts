@@ -199,10 +199,15 @@ for (const surface of [
       const chrome = page.locator(".browse-chrome");
       await expect(chrome.locator("h1")).toBeVisible();
       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
-      await expect(chrome.locator(".browse-sort-control select option:checked")).toHaveCount(1);
+      await expect(
+        chrome.locator(".browse-sort-control select option:checked"),
+      ).toHaveCount(1);
       const tabs = chrome.locator(".browse-tabs button");
+      const minimumTarget = scenario.width >= 1024 ? 36 : 44;
       for (const tab of await tabs.all()) {
-        expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+        expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(
+          minimumTarget,
+        );
         await tab.click();
       }
       release();
@@ -210,7 +215,9 @@ for (const surface of [
       await page.evaluate(() => document.fonts.ready);
       await expect(page.locator(".quantity-summary")).toHaveCount(1);
       for (const tab of await tabs.all()) {
-        expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+        expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(
+          minimumTarget,
+        );
         await tab.click();
       }
       if (surface.startsWith("movements")) {

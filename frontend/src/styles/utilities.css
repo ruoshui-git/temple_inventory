@@ -81,8 +81,8 @@
 .preview-utility-page .report-filters {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-	gap: var(--p-space-3);
-	padding-block: var(--p-space-4);
+	gap: var(--p-control-gap);
+	padding-block: var(--p-control-gap);
 }
 .preview-utility-page .report-filters .preview-field,
 .preview-utility-page .export-review .preview-field {
@@ -95,7 +95,7 @@
 .preview-utility-page .export-review select {
 	min-height: var(--p-control);
 	width: 100%;
-	padding: var(--p-space-2) var(--p-space-3);
+	padding: var(--p-control-pad-y) var(--p-space-3);
 	border: 1px solid var(--p-control-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
@@ -149,7 +149,7 @@
 	z-index: var(--p-z-overlay);
 	display: grid;
 	place-items: center;
-	padding: 16px;
+	padding: var(--p-space-3);
 	background: #1d2923a8;
 }
 .preview-utility-page .export-review {
@@ -167,8 +167,8 @@
 	position: absolute;
 	top: 12px;
 	right: 12px;
-	width: 44px;
-	height: 44px;
+	width: var(--p-control);
+	height: var(--p-control);
 	border: 0;
 	border-radius: 50%;
 	background: transparent;
@@ -231,7 +231,7 @@
 	gap: var(--p-space-3);
 }
 .preview-utility-page .density-choice label {
-	min-height: 44px;
+	min-height: var(--p-control);
 	display: inline-flex;
 	align-items: center;
 	gap: var(--p-space-2);
@@ -276,7 +276,7 @@
 	color: var(--p-accent);
 }
 .preview-utility-page .utility-link {
-	min-height: 44px;
+	min-height: var(--p-control);
 	border: 0;
 	background: transparent;
 	color: var(--p-accent-strong);

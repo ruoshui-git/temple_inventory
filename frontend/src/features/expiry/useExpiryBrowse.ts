@@ -281,6 +281,7 @@ export function useExpiryBrowse(
       loan: query.value.loan,
       record: query.value.record,
       recordDoctype: query.value.recordDoctype,
+      batchNo: query.value.batchNo,
       search: query.value.search,
       sortBy: query.value.sortBy,
       sort: query.value.sort,

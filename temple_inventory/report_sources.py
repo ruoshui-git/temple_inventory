@@ -217,6 +217,8 @@ class ReportContext:
 
 	def matches_line(self, row, *, apply_activity=True, apply_search=True):
 		query = self.query
+		if query.get("batchNo") and row.get("batch_no") != query["batchNo"]:
+			return False
 		if not self.matches_item(row["item_code"]):
 			return False
 		source, target = row.get("source_warehouse"), row.get("destination_warehouse")
@@ -296,6 +298,8 @@ def stock_rows(context):
 		if not quantities and query["includeZero"]:
 			quantities = [(None, 0)]
 		for batch_name, quantity in quantities:
+			if query.get("batchNo") and batch_name != query["batchNo"]:
+				continue
 			allocation_id = json.dumps(
 				[code, warehouse, batch_name or ""], ensure_ascii=False, separators=(",", ":")
 			)
@@ -407,6 +411,33 @@ def batch_allocations(row):
 		yield allocation.batch_no or "", abs(float(allocation.qty)), allocation.name
 
 
+def available_scope_leaves(context):
+	"""Default to usable stock leaves; explicit location scopes include every selected leaf."""
+	return context.selected if context.scope["warehouses"] else context.physical
+
+
+def available_stock_effect(
+	context,
+	*,
+	docstatus,
+	kind,
+	quantity,
+	source_warehouse="",
+	destination_warehouse="",
+	warehouse="",
+):
+	"""Signed native quantity effect on available stock for one movement allocation."""
+	if int(docstatus or 0) != 1:
+		return 0.0
+	leaves = available_scope_leaves(context)
+	if kind in ("Opening", "Reconcile"):
+		return float(quantity or 0) if warehouse in leaves else 0.0
+	return float(quantity or 0) * (
+		int(bool(destination_warehouse) and destination_warehouse in leaves)
+		- int(bool(source_warehouse) and source_warehouse in leaves)
+	)
+
+
 def movement_rows(context, *, include_all_dates=False, apply_activity=True, apply_search=True, statuses=None):
 	query = context.query
 	for doctype in ("Stock Entry", "Stock Reconciliation"):
@@ -467,6 +498,18 @@ def movement_rows(context, *, include_all_dates=False, apply_activity=True, appl
 						row.update(allocation)
 						row["entered_qty"] = quantity
 						row["stock_qty"] = row["difference"] if header["kind"] != "Opening" else quantity
+					available_effect = available_stock_effect(
+						context,
+						docstatus=doc.docstatus,
+						kind=header["kind"],
+						quantity=(row.get("difference") or 0)
+						if doctype == "Stock Reconciliation" and header["kind"] != "Opening"
+						else quantity,
+						source_warehouse=row["source_warehouse"],
+						destination_warehouse=row["destination_warehouse"],
+						warehouse=row["warehouse"],
+					)
+					row["available_effect"] = available_effect
 					if context.matches_line(row, apply_activity=apply_activity, apply_search=apply_search):
 						yield row
 

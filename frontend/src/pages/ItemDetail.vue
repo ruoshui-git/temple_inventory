@@ -29,5 +29,12 @@ const route = useRoute(),
 		@browse="router.push(browseDestination($event))"
 		@open-export="router.push(exportDestination($event))"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
+		@open-batch="
+			(name) =>
+				router.push({
+					path: `/batch/${encodeURIComponent(name)}`,
+					query: { back: route.fullPath },
+				})
+		"
 	/>
 </template>

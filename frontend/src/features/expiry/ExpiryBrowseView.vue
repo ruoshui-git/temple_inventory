@@ -21,6 +21,7 @@ const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: bool
 });
 const emit = defineEmits<{
 	item: [code: string];
+	openBatch: [name: string];
 	newOperation: [kind: string];
 	openExport: [query: ReportQuery];
 }>();
@@ -29,12 +30,10 @@ const c = props.controller,
 const { isMobile } = useResponsiveLayout();
 const filterOpen = ref(false),
 	analysisOpen = ref(false);
-const batchDetail = ref<ReportRow>();
 const scan = ref<InstanceType<typeof ScanPanel>>();
 watch([() => props.active, isMobile], () => {
 	if (props.active === false) filterOpen.value = false;
 	analysisOpen.value = false;
-	batchDetail.value = undefined;
 });
 const choices = [
 	["period", "全部", "all"],
@@ -42,6 +41,24 @@ const choices = [
 	["unexpired", "未过期", "unexpired"],
 	["undated", "无效期", "undated"],
 ] as const;
+function expiryKey(event: KeyboardEvent) {
+	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+	event.preventDefault();
+	const index = choices.findIndex(([key]) => key === query.value.expiryWindow);
+	const next =
+		event.key === "Home"
+			? 0
+			: event.key === "End"
+				? choices.length - 1
+				: (index + (event.key === "ArrowRight" ? 1 : -1) + choices.length) %
+					choices.length;
+	query.value.expiryWindow = choices[next]![0];
+	requestAnimationFrame(() =>
+		document
+			.querySelector<HTMLElement>(`[data-expiry-choice="${choices[next]![0]}"]`)
+			?.focus(),
+	);
+}
 const analysisTable = computed(() => ({
 	id: "expiry-analysis",
 	label: "分析当前结果",
@@ -58,6 +75,9 @@ const analysisTable = computed(() => ({
 }));
 function openItem(row: ReportRow) {
 	if (!result.stale) emit("item", String(row.item_code));
+}
+function openBatch(row: ReportRow) {
+	if (!result.stale) emit("openBatch", String(row.batch_no));
 }
 function sortBy(field: ReportQuery["sortBy"]) {
 	if (query.value.sortBy === field)
@@ -105,19 +125,20 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					@open-full="emit('openExport', $event)"
 			/></template>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
-			<nav class="browse-tabs expiry-browse-tabs" aria-label="效期筛选">
+			<nav class="browse-tabs" role="tablist" aria-label="效期筛选" @keydown="expiryKey">
 				<button
 					v-for="[key, label, facet] in choices"
 					:key="key"
-					:aria-current="query.expiryWindow === key ? 'page' : undefined"
+					role="tab"
+					:data-expiry-choice="key"
+					:aria-selected="query.expiryWindow === key"
+					:tabindex="query.expiryWindow === key ? 0 : -1"
+					aria-controls="expiry-results-panel"
 					@click="query.expiryWindow = key"
 				>
 					{{ label }} <small>{{ result.facets[facet] ?? "…" }}</small>
 				</button>
 			</nav>
-			<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
-				今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
-			</p>
 			<div class="browse-toolbar">
 				<label class="browse-search"
 					><span>搜索</span
@@ -126,6 +147,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						type="search"
 						placeholder="搜索物品、批次或位置"
 				/></label>
+				<UiButton icon="scan" @click="scan?.show()">扫码</UiButton>
 				<FilterButton
 					:expanded="filterOpen"
 					:count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
@@ -157,8 +179,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
 				>
 			</div>
-			<UiButton icon="scan" @click="scan?.show()">扫码</UiButton
-			><template #result-tools
+			<template #result-tools
 				><UiButton v-if="result.initialized" @click="analysisOpen = true"
 					>分析结果</UiButton
 				></template
@@ -177,15 +198,21 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			{{ result.error }} <UiButton @click="c.retry">重试</UiButton>
 		</p>
 		<p v-if="result.stale" role="status">结果正在更新，更新完成后可打开详情。</p>
-		<p v-if="result.initialized" class="browse-result-count">
-			筛选结果：{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品 ·
-			{{ result.total }} 条存放明细
-		</p>
-		<QuantitySummary
+		<section
 			v-if="result.initialized"
-			:metrics="metrics"
-			:loading="result.loading || result.stale"
-		/>
+			class="preview-activity-summary"
+			aria-label="当前效期汇总"
+			aria-live="polite"
+		>
+			<p class="browse-result-count">
+				筛选结果：{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品 ·
+				{{ result.total }} 条存放明细
+			</p>
+			<QuantitySummary :metrics="metrics" :loading="result.loading || result.stale" />
+		</section>
+		<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
+			今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
+		</p>
 		<div class="preview-browse-body">
 			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail">
 				<ExpiryBrowseFilters :controller="c" />
@@ -197,7 +224,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				@close="filterOpen = false"
 				><ExpiryBrowseFilters :controller="c"
 			/></Overlay>
-			<div class="preview-browse-results">
+			<div id="expiry-results-panel" role="tabpanel" class="preview-browse-results">
 				<div v-if="isMobile" class="preview-expiry-mobile">
 					<article
 						v-for="row in result.rows"
@@ -215,7 +242,14 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								@click="openItem(row)"
 							>
 								<strong>{{ row.item_name }}</strong
-								><small>{{ row.category }} · {{ row.batch_no }}</small>
+								><small>{{ row.category }}</small>
+							</button>
+							<button
+								class="browse-row-link"
+								:disabled="result.stale"
+								@click="openBatch(row)"
+							>
+								{{ row.batch_no }} · 批次资料
 							</button>
 						</div>
 						<p>
@@ -225,13 +259,13 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								· {{ formatExpiryDuration(row.remaining_days) }}</small
 							>
 						</p>
-						<UiButton @click="batchDetail = row">查看批次明细</UiButton>
 					</article>
 				</div>
 				<div v-else class="browse-table-wrap">
 					<table class="browse-table">
 						<thead>
 							<tr>
+								<th>图片</th>
 								<th :aria-sort="sortState('identity')">
 									<button @click="sortBy('identity')">
 										物品 / 批次 {{ sortGlyph("identity") }}
@@ -257,18 +291,29 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								:key="String(row.id)"
 								:data-browse-row="String(row.id)"
 							>
+								<td class="expiry-image-cell">
+									<ItemImage :item="c.item(row)" />
+								</td>
 								<td>
-									<button
-										class="browse-row-link"
-										:disabled="result.stale"
-										@click="openItem(row)"
-									>
-										<strong>{{ row.item_name }}</strong
-										><small
-											>{{ row.batch_no }} · {{ row.item_code }} ·
-											{{ row.category }}</small
-										>
-									</button>
+									<div>
+										<div class="expiry-identity-links">
+											<button
+												class="browse-row-link"
+												:disabled="result.stale"
+												@click="openItem(row)"
+											>
+												<strong>{{ row.item_name }}</strong>
+											</button>
+											<button
+												class="browse-row-link"
+												:disabled="result.stale"
+												@click="openBatch(row)"
+											>
+												{{ row.batch_no }} · 批次资料
+											</button>
+										</div>
+										<small>{{ row.item_code }} · {{ row.category }}</small>
+									</div>
 								</td>
 								<td>
 									<span
@@ -287,7 +332,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 									{{
 										typeof row.remaining_days === "number"
 											? formatExpiryDuration(row.remaining_days)
-											: "—"
+											: ""
 									}}
 								</td>
 								<td>
@@ -306,7 +351,6 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 											)
 										}}
 									</p>
-									<UiButton @click="batchDetail = row">查看批次明细</UiButton>
 								</td>
 							</tr>
 						</tbody>
@@ -354,43 +398,5 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				</Overlay>
 			</div>
 		</div>
-		<Overlay
-			v-if="batchDetail"
-			title="批次明细"
-			adaptive-creation
-			@close="batchDetail = undefined"
-		>
-			<h3>{{ batchDetail.item_name }} · {{ batchDetail.batch_no }}</h3>
-			<p>
-				{{
-					warehouseLabel(
-						batchDetail.warehouse,
-						reference.warehouses,
-						batchDetail.warehouse_label,
-					)
-				}}
-				·
-				{{ batchDetail.expiry_date || "无效期" }}
-			</p>
-			<p>
-				可用 {{ batchDetail.available }} · 借出 {{ batchDetail.loaned }} · 损坏
-				{{ batchDetail.damaged }} {{ batchDetail.stock_uom }}
-			</p>
-			<p>生产日期 {{ batchDetail.manufacturing_date || "未填写" }}</p>
-			<QuickExport
-				:query="c.batchQuery(batchDetail)"
-				:active="active"
-				@open-full="emit('openExport', $event)"
-			/>
-		</Overlay>
 	</section>
 </template>
-
-<style scoped>
-.expiry-browse-tabs button {
-	min-width: 0;
-	flex: 1;
-	padding-inline: var(--p-space-1);
-	white-space: normal;
-}
-</style>

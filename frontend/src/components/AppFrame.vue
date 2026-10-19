@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import type { NavigationItem } from "../lib/appNavigation";
 const props = withDefaults(
 	defineProps<{
 		primary: NavigationItem[];
+		mobilePrimary?: NavigationItem[];
 		inventory: NavigationItem[];
 		active?: string;
 		inventorySection?: string;
@@ -24,6 +25,9 @@ const emit = defineEmits<{
 	"update:inventoryExpanded": [value: boolean];
 }>();
 const { isMobile } = useResponsiveLayout();
+const mobileItems = computed(() =>
+	props.mobilePrimary?.length ? props.mobilePrimary : props.primary,
+);
 const mobileNavigation = ref<HTMLElement>();
 let observer: ResizeObserver | undefined;
 let previousHeight = "";
@@ -33,6 +37,18 @@ function measureNavigation() {
 		`${mobileNavigation.value?.getBoundingClientRect().height || 0}px`,
 	);
 }
+watch(
+	() => [props.active, isMobile.value],
+	async () => {
+		await nextTick();
+		if (!isMobile.value) return;
+		mobileNavigation.value
+			?.querySelector<HTMLElement>('[aria-current="page"]')
+			?.scrollIntoView({ block: "nearest", inline: "nearest" });
+		measureNavigation();
+	},
+	{ flush: "post" },
+);
 watch(
 	mobileNavigation,
 	() => {
@@ -133,10 +149,10 @@ onBeforeUnmount(() => {
 			ref="mobileNavigation"
 			class="sample-mobile-nav"
 			aria-label="应用主导航"
-			:style="{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }"
+			:style="{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }"
 		>
 			<button
-				v-for="group in primary"
+				v-for="group in mobileItems"
 				:key="group.key"
 				:aria-current="active === group.key ? 'page' : undefined"
 				@click="choose(group)"

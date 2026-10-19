@@ -48,6 +48,13 @@ const {
 	loanQuantity,
 } = props.controller;
 const showFilters = ref(false);
+function effectLabel(effect: number, uom: string) {
+	return effect > 0
+		? `可用库存增加 ${effect} ${uom}`
+		: effect < 0
+			? `可用库存减少 ${Math.abs(effect)} ${uom}`
+			: `可用库存不变 · ${uom}`;
+}
 const expiryId = useId();
 function expiryKey(event: KeyboardEvent) {
 	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -341,7 +348,22 @@ const { isMobile } = useResponsiveLayout();
 							"
 						>
 							<span>{{ row.label }}</span
-							><strong>{{ quantityText(row.quantities) }}</strong
+							><strong
+								v-for="quantity in row.quantities"
+								:key="quantity.uom"
+								class="stock-effect"
+								:class="
+									quantity.effect > 0
+										? 'is-increase'
+										: quantity.effect < 0
+											? 'is-decrease'
+											: 'is-neutral'
+								"
+								:title="effectLabel(quantity.effect, quantity.uom)"
+								>{{ quantity.qty }} {{ quantity.uom
+								}}<span class="sr-only">{{
+									effectLabel(quantity.effect, quantity.uom)
+								}}</span></strong
 							><small>{{ row.count }} 笔记录</small>
 						</button>
 					</div>
@@ -365,7 +387,24 @@ const { isMobile } = useResponsiveLayout();
 									{{ row.document }} · {{ row.date }} ·
 									{{ row.activity_title || "未关联活动" }}</small
 								></span
-							><b>{{ quantityText(row.quantities || []) }}</b>
+							>
+							<b
+								v-for="quantity in row.quantities || []"
+								:key="quantity.uom"
+								class="stock-effect"
+								:class="
+									Number(quantity.effect || 0) > 0
+										? 'is-increase'
+										: Number(quantity.effect || 0) < 0
+											? 'is-decrease'
+											: 'is-neutral'
+								"
+								:title="effectLabel(Number(quantity.effect || 0), quantity.uom)"
+								>{{ quantity.qty }} {{ quantity.uom
+								}}<span class="sr-only">{{
+									effectLabel(Number(quantity.effect || 0), quantity.uom)
+								}}</span></b
+							>
 						</button>
 					</div>
 					<p v-if="!sections.movement.result.rows.length">期间没有流动记录。</p>

@@ -9,7 +9,7 @@ import type {
 import type { ReferenceData } from "../../services/contracts";
 export const operationLabels: Record<OperationKind, string> = {
   Receive: "入库",
-  Issue: "领用",
+  Issue: "出库",
   Transfer: "调拨",
   Loan: "借出",
   Return: "归还",

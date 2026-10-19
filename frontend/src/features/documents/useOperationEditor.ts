@@ -283,7 +283,7 @@ export function useOperationEditor(props: {
           item_code: string;
           expiry_date: string;
           manufacturing_date: string;
-        }>("catalog.batch_details", { name: line.batch });
+        }>("catalog.batch_metadata", { name: line.batch });
         if (metadata.item_code !== line.code)
           throw new Error("原生批次不属于此物品");
         line.expiry = metadata.expiry_date;

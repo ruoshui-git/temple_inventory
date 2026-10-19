@@ -24,6 +24,12 @@ function changed(query: ReportQuery) {
 		@item="
 			router.push({ path: `/item/${encodeURIComponent($event)}`, query: { tab: 'batches' } })
 		"
+		@open-batch="
+			router.push({
+				path: `/batch/${encodeURIComponent($event)}`,
+				query: { back: route.fullPath },
+			})
+		"
 		@new-operation="router.push(`/new/${$event}`)"
 		@open-export="router.push(exportDestination($event))"
 	/>

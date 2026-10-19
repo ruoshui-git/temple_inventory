@@ -86,6 +86,7 @@ export interface ReportQuery {
   view: string;
   scope: BrowseScope;
   search: string;
+  batchNo: string;
   grouping: string;
   sort: "asc" | "desc";
   sortBy: "identity" | "date" | "modified" | "quantity" | "name";
@@ -122,6 +123,7 @@ export function newReportQuery(
     view: reportDefinitions[dataset].views[0]!.id,
     scope: emptyScope(),
     search: "",
+    batchNo: "",
     grouping: "none",
     sort: "asc",
     sortBy: "identity",

@@ -1,6 +1,7 @@
 /* Shared browse and detail surfaces. */
 .browse-page {
 	min-width: 0;
+	max-width: 100%;
 	padding: 0;
 	background: var(--p-canvas);
 	color: var(--p-ink);
@@ -230,13 +231,16 @@
 	gap: var(--p-space-4);
 }
 .browse-card-footer {
-	min-height: 44px;
+	min-height: var(--p-control);
 	padding: 4px var(--p-space-3);
 	border-top: 1px solid var(--p-border);
 }
 .browse-table-wrap {
 	width: 100%;
+	min-width: 0;
+	max-width: 100%;
 	overflow: auto;
+	overscroll-behavior-inline: contain;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
@@ -261,7 +265,7 @@
 	border-bottom: 0;
 }
 .browse-row-link {
-	min-height: 40px;
+	min-height: var(--p-control);
 }
 .browse-badge {
 	display: inline-flex;
@@ -549,7 +553,7 @@
 .browse-tabs button {
 	flex: none;
 	white-space: nowrap;
-	min-height: max(44px, var(--p-control));
+	min-height: var(--p-control);
 }
 .browse-kind-tabs button[aria-pressed="true"] {
 	border-bottom: 2px solid var(--p-accent);
@@ -570,9 +574,9 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--p-space-2);
-	min-height: 44px;
+	min-height: var(--p-control);
 	max-width: 100%;
-	padding: 10px 14px;
+	padding: var(--p-control-pad-y) 12px;
 	border: 1px solid var(--p-border);
 	background: var(--p-surface);
 	border-radius: 10px;
@@ -586,7 +590,7 @@
 }
 .preview-filter-fields {
 	display: grid;
-	gap: var(--p-space-4);
+	gap: var(--p-control-gap);
 }
 .preview-filter-fields > label {
 	display: grid;
@@ -596,17 +600,17 @@
 .preview-filter-fields input:not([type="checkbox"]) {
 	width: 100%;
 	min-width: 0;
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 .preview-filter-fields fieldset {
 	border: 1px solid var(--p-border);
-	padding: var(--p-space-3);
+	padding: var(--p-control-gap);
 }
 .preview-filter-fields .preview-check {
 	display: flex;
 	align-items: center;
-	min-height: 44px;
-	gap: 10px;
+	min-height: var(--p-control);
+	gap: var(--p-space-2);
 }
 .preview-active-filters {
 	display: flex;
@@ -619,6 +623,8 @@
 }
 .preview-browse-body {
 	display: flex;
+	min-width: 0;
+	max-width: 100%;
 	gap: var(--p-gap);
 	align-items: flex-start;
 }
@@ -632,6 +638,7 @@
 }
 .preview-browse-results {
 	min-width: 0;
+	max-width: 100%;
 	flex: 1;
 }
 .preview-group {
@@ -639,7 +646,7 @@
 }
 .preview-group summary {
 	cursor: pointer;
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 .preview-group summary strong,
 .preview-group summary small {
@@ -674,7 +681,7 @@
 }
 .preview-state-controls summary {
 	cursor: pointer;
-	min-height: 44px;
+	min-height: var(--p-control);
 	padding: var(--p-space-3) 0;
 }
 .preview-state-controls label {
@@ -694,7 +701,7 @@
 	display: grid;
 	gap: 6px;
 	padding: var(--p-space-3);
-	min-height: 44px;
+	min-height: var(--p-control);
 	background: var(--p-soft);
 	text-align: left;
 	border-radius: 10px;
@@ -714,7 +721,7 @@
 	align-items: center;
 	gap: 10px;
 	width: 100%;
-	min-height: 44px;
+	min-height: var(--p-control);
 	text-align: left;
 }
 .preview-bar-track {
@@ -893,7 +900,7 @@
 	color: var(--p-muted);
 }
 .preview-detail-state-control summary {
-	min-height: 44px;
+	min-height: var(--p-control);
 	display: flex;
 	align-items: center;
 	cursor: pointer;
@@ -1010,7 +1017,7 @@
 	}
 }
 .preview-dashboard button {
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 .preview-dashboard .browse-rank-row {
 	flex-wrap: wrap;
@@ -1167,7 +1174,7 @@
 }
 .browse-chrome .browse-tabs button {
 	flex: 0 0 auto;
-	min-height: 44px;
+	min-height: var(--p-control);
 	white-space: nowrap;
 }
 .preview-filter-rail .hierarchy-facet,
@@ -1190,7 +1197,7 @@
 }
 .preview-filter-rail .hierarchy-row,
 .compact-filter-content .hierarchy-row {
-	min-height: 44px;
+	min-height: var(--p-control);
 }
 .browse-chrome.is-compact h1 {
 	font-size: var(--p-section);
@@ -1362,5 +1369,117 @@
 		width: 18px;
 		height: 18px;
 		flex-basis: 18px;
+	}
+}
+
+/* Adaptive browse density: desktop controls follow the density token; mobile keeps touch targets. */
+.app-page-title-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--p-space-3);
+}
+.app-page-title-row h1 {
+	min-width: 0;
+}
+@media (min-width: 1024px) {
+	.browse-page .browse-chrome .browse-tabs button,
+	.browse-page .browse-view-switch button,
+	.browse-page .browse-toolbar > .ui-button,
+	.browse-page .browse-filter-dense .preview-field > input,
+	.browse-page .browse-filter-dense .preview-field > select,
+	.browse-page .browse-filter-dense .period-filter button {
+		min-height: var(--p-control);
+	}
+	.browse-page .browse-table th,
+	.browse-page .browse-table td {
+		padding-block: 6px;
+		line-height: 1.4;
+	}
+}
+.expiry-image-cell {
+	width: 54px;
+	min-width: 54px;
+}
+.expiry-image-cell .item-image-button,
+.expiry-image-cell .preview-item-image {
+	width: 44px;
+	max-width: 44px;
+}
+.expiry-identity-links {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 2px var(--p-space-1);
+}
+.expiry-identity-links .browse-row-link {
+	min-height: var(--p-control);
+	padding-block: 2px;
+}
+.batch-detail-page {
+	display: grid;
+	gap: var(--p-space-4);
+}
+.batch-detail-card {
+	min-width: 0;
+	padding: var(--p-pad);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+	background: var(--p-surface);
+}
+.batch-detail-identity {
+	display: grid;
+	grid-template-columns: 72px minmax(0, 1fr);
+	align-items: center;
+	gap: var(--p-space-4);
+}
+.batch-detail-identity > .preview-item-image,
+.batch-detail-identity > .item-image-button {
+	width: 72px;
+}
+.batch-detail-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-6);
+}
+.batch-detail-meta dd {
+	margin: 0;
+}
+.batch-edit-form {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--p-gap);
+	max-width: 800px;
+}
+.batch-description {
+	grid-column: 1 / -1;
+}
+.loan-record-table table {
+	min-width: 980px;
+}
+.sample-mobile-nav {
+	grid-template-columns: none;
+	justify-content: flex-start;
+	scrollbar-width: none;
+}
+.sample-mobile-nav::-webkit-scrollbar {
+	display: none;
+}
+/* Keep screen-reader-only effect labels anchored to each quantity, not the viewport. */
+.stock-effect {
+	position: relative;
+}
+.stock-effect.is-increase {
+	color: var(--p-success);
+}
+.stock-effect.is-decrease {
+	color: var(--p-danger);
+}
+.stock-effect.is-neutral {
+	color: var(--p-muted);
+}
+@media (max-width: 1023px) {
+	.batch-edit-form {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }

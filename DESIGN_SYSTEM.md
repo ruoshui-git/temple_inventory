@@ -73,8 +73,30 @@ include readable labels and explicitly labeled ERPNext identity/status columns.
 Submitted status reads 已提交; settlement states remain separate.
 
 Dashboard expiry tabs sit between the summary cards and their adjacent list.
-They expose one tab stop, Arrow/Home/End navigation and a labeled panel. Shared
-tab styling recognizes `aria-selected` and `aria-pressed` where appropriate.
+Expiry quick tabs sit in the expanded browse toolbar above search; the result
+count and quantities share the standard normal-flow summary card. Both expose
+Arrow/Home/End navigation and a labeled panel. Shared tab styling recognizes
+`aria-selected` and `aria-pressed` where appropriate.
+
+## Browse refinements — 2026-10-19
+
+Browse controls on desktop use `--p-control` and compact row spacing; text size
+remains independent. Mobile touch targets keep their 44px minimum. Movement and
+Loan switches use `PageHeader`'s persistent title-tools slot so they remain
+available when `BrowseToolbar` compacts. Mobile navigation scrolls horizontally
+and `AppFrame` measures its actual height for content clearance.
+
+Movement projections expose signed `available_effect` from native endpoints and
+authorized leaves, alongside the original transaction quantity. The default is
+the physical-leaf basis; explicit warehouse selections scope effects to every
+selected authorized leaf, including loaned and damaged leaves. Status and unit
+groups stay distinct. `ReportTable` renders absent values as empty while
+preserving explicit booleans, numeric zero and external endpoint labels.
+
+`/batch/:name` uses ERPNext Batch as its sole source. Its detail page shows the
+authorized stock projection and paginated native movement rows; metadata writes
+use the shared optimistic lock and Batch permissions. Exact `batchNo` query state
+is shared by stock, movement, loan and export projections.
 
 ## Validation and fixed geometry
 

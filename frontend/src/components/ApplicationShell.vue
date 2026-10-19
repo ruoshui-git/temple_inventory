@@ -6,6 +6,7 @@ import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import { useReferenceData } from "../services/contracts";
 import {
 	primaryNavigation,
+	mobilePrimaryNavigation,
 	inventoryNavigation,
 	destinationForPath,
 	inventorySectionForPath,
@@ -38,6 +39,7 @@ const title = computed(() => {
 	)
 		return "借用详情";
 	if (route.path.startsWith("/item/")) return "物品资料";
+	if (route.path.startsWith("/batch/")) return "批次资料";
 	if (route.path === "/items/new") return "新建物品";
 	if (route.path === "/settings") return "显示设置";
 	if (route.path === "/drafts") return "草稿";
@@ -55,6 +57,7 @@ async function navigate(path: string) {
 <template>
 	<AppFrame
 		:primary="primaryNavigation"
+		:mobile-primary="mobilePrimaryNavigation"
 		:inventory="inventoryNavigation"
 		:active="active"
 		:inventory-section="inventorySection"
@@ -66,14 +69,6 @@ async function navigate(path: string) {
 		@more="navigate"
 	>
 		<nav class="sample-breadcrumb" aria-label="面包屑">
-			<button
-				v-if="isMobile"
-				class="preview-tools-link"
-				:aria-current="active === 'more' ? 'page' : undefined"
-				@click="navigate('/more')"
-			>
-				更多
-			</button>
 			<RouterLink to="/">寺院物资</RouterLink>
 			<template v-if="owner !== title">
 				<span aria-hidden="true">/</span>

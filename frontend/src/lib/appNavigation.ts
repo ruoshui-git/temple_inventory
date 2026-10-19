@@ -18,6 +18,10 @@ export const primaryNavigation: (NavigationItem & { key: AppDestination })[] = [
   { key: "loans", label: "借用", route: "/loans/items", icon: "loan" },
   { key: "reports", label: "报表", route: "/reports", icon: "download" },
 ];
+export const mobilePrimaryNavigation = [
+  ...primaryNavigation,
+  { key: "more" as const, label: "更多", route: "/more", icon: "more" },
+];
 export const inventoryNavigation: NavigationItem[] = [
   { key: "stock", label: "库存列表", route: "/stock", icon: "box" },
   { key: "expiry", label: "效期批次", route: "/expiry", icon: "table" },
@@ -87,6 +91,7 @@ export function destinationForPath(
     path === "/expiry" ||
     path === "/pending" ||
     path.startsWith("/warehouses") ||
+    path.startsWith("/batch/") ||
     path.startsWith("/item/") ||
     path === "/items/new"
   )

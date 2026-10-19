@@ -707,6 +707,7 @@ export const fixtureServices: InventoryServices = {
       endpoint.startsWith("native_files.") ||
       [
         "catalog.batch_details",
+        "catalog.batch_metadata",
         "catalog.operation_item",
         "catalog.suggest_item_code",
         "catalog.receipt_batch",

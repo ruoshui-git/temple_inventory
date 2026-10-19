@@ -146,6 +146,7 @@ export function reportFilterChips(
       `限定单据：${query.recordDoctype ? query.recordDoctype + " · " : ""}${query.record}`,
       { record: "", recordDoctype: "" },
     );
+  if (query.batchNo) add("batchNo", `批次：${query.batchNo}`, { batchNo: "" });
   if (query.loan) add("loan", `原借用：${query.loan}`, { loan: "" });
   if (query.restrictItems || query.itemCodes.length)
     add(

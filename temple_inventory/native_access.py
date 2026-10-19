@@ -81,7 +81,7 @@ def check_version(doc, version):
 
 
 def load_locked(doctype, name, version, permission="write"):
-	if doctype not in NATIVE_DOCTYPES | {"Item", "Inventory Activity"}:
+	if doctype not in NATIVE_DOCTYPES | {"Item", "Batch", "Inventory Activity"}:
 		frappe.throw("不支持的记录类型")
 	doc = frappe.get_doc(doctype, name, for_update=True)
 	doc.check_permission(permission)

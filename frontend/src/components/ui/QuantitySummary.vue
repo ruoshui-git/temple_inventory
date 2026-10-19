@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import InventoryIcon from "../InventoryIcon.vue";
-export type Quantity = { uom: string; qty: number; status?: string };
+export type Quantity = { uom: string; qty: number; status?: string; effect?: number };
 export type QuantityMetric = {
 	key: string;
 	label: string;
@@ -16,6 +16,19 @@ withDefaults(defineProps<{ metrics: QuantityMetric[]; loading?: boolean; label?:
 
 const formatQuantity = (value: number) =>
 	new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(Number(value || 0));
+function effect(quantity: Quantity) {
+	return ["草稿", "已取消", "计划借出（草稿）"].includes(quantity.status || "")
+		? 0
+		: Number(quantity.effect || 0);
+}
+function effectLabel(quantity: Quantity) {
+	const value = effect(quantity);
+	return value > 0
+		? `可用库存增加 ${formatQuantity(value)} ${quantity.uom}`
+		: value < 0
+			? `可用库存减少 ${formatQuantity(Math.abs(value))} ${quantity.uom}`
+			: `可用库存不变 · ${quantity.uom}`;
+}
 </script>
 
 <template>
@@ -38,9 +51,18 @@ const formatQuantity = (value: number) =>
 					<strong
 						v-for="quantity in metric.quantities"
 						:key="`${quantity.uom}:${quantity.status || ''}`"
+						:class="
+							quantity.effect === undefined
+								? undefined
+								: `stock-effect ${effect(quantity) > 0 ? 'is-increase' : effect(quantity) < 0 ? 'is-decrease' : 'is-neutral'}`
+						"
+						:title="quantity.effect === undefined ? undefined : effectLabel(quantity)"
 					>
 						{{ formatQuantity(quantity.qty) }} <span>{{ quantity.uom }}</span>
 						<small v-if="quantity.status"> · {{ quantity.status }}</small>
+						<span v-if="quantity.effect !== undefined" class="sr-only">{{
+							effectLabel(quantity)
+						}}</span>
 					</strong>
 				</div>
 				<strong v-else-if="!loading" class="quantity-summary-empty">0</strong>

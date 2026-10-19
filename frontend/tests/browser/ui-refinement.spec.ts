@@ -284,9 +284,9 @@ for (const [width, scale, density] of [
       .locator(".inventory-browse-header")
       .boundingBox();
     await page.getByRole("button", { name: "收起工具", exact: true }).click();
-    await expect(page.locator(".browse-compact-summary")).toContainText(
-      "已选 1",
-    );
+    await expect(
+      page.getByRole("region", { name: "已选物品操作" }),
+    ).toContainText("已选择 1 项物品");
     const collapsed = await page
       .locator(".inventory-browse-header")
       .boundingBox();
@@ -329,37 +329,24 @@ for (const [width, scale, density] of [
   });
 }
 for (const width of [390, 1440]) {
-  test(`stable allocation modal and related loans ${width}`, async ({
+  test(`whole movement records and related loans ${width}`, async ({
     page,
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
     await page.goto("/inventory/movements/records");
-    const action = page.getByRole("button", {
-      name: "符合筛选的明细",
-      exact: true,
-    });
+    const record = page.locator(".browse-table tbody tr").first();
+    await expect(record.locator("td").nth(5)).toContainText("20 个");
+    await expect(
+      page.getByRole("button", { name: "符合筛选的明细", exact: true }),
+    ).toHaveCount(0);
+    const action = page.getByRole("button", { name: "关联借出（2）" });
     await expect(action).toBeVisible();
-    const widths = () =>
-      page
-        .locator(".browse-table th")
-        .evaluateAll((cells) =>
-          cells.map((cell) => cell.getBoundingClientRect().width),
-        );
-    const before = await widths();
     await action.click();
-    await expect(page.getByRole("dialog")).toContainText("30 行");
-    await page
-      .getByRole("button", { name: /加载更多 · 符合筛选的明细/ })
-      .click();
-    await expect(page.getByRole("dialog")).toContainText("显示 36 行");
-    expect(await widths()).toEqual(before);
-    await page.screenshot({
-      path: info.outputPath("stable-allocation-modal.png"),
-    });
+    await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(action).toBeFocused();
-    await page.getByRole("button", { name: "关联借出（2）" }).click();
+    await action.click();
     await page.getByRole("button", { name: /文化交流与法会筹备组/ }).click();
     await expect(page.getByRole("dialog")).toContainText("当前未结清 7");
     expect(page.url()).toContain("/movements/records");
@@ -377,7 +364,9 @@ for (const width of [390, 1440]) {
     await expect(
       page.getByRole("button", { name: "关联借出（2）" }),
     ).toBeVisible();
-    await page.screenshot({ path: info.outputPath("quantity-grid.png") });
+    await page.screenshot({
+      path: info.outputPath("whole-record-and-loans.png"),
+    });
   });
   test(`adjacent expiry tabs and square crop ${width}`, async ({
     page,
@@ -553,29 +542,50 @@ test("open movement filter follows the breakpoint without losing selection", asy
   await page.setViewportSize({ width: 1440, height: 1000 });
   await setup(page);
   await page.goto("/inventory/movements/records");
-  await page.getByRole("button", { name: "仓库 / 位置", exact: false }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: /^筛选/ }).click();
+  const selectedLocation = "东院第7层供灯与法会用品长名称";
+  const desktopRail = page.locator(".preview-filter-rail");
+  await expect(desktopRail).toBeVisible();
+  const desktopWarehouseTree = desktopRail.getByRole("tree", {
+    name: "仓库 / 位置选项",
+    exact: true,
+  });
+  const desktopChoice = desktopWarehouseTree
+    .locator("label.preview-choice-label")
+    .filter({ hasText: selectedLocation })
+    .locator("input[type=checkbox]");
+  await desktopChoice.check();
   await page.setViewportSize({ width: 390, height: 1000 });
+  const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
+  await expect(mobileFilters).toBeVisible();
   await expect(
-    page.getByRole("dialog", { name: "筛选", exact: true }),
-  ).toBeVisible();
+    mobileFilters
+      .getByRole("tree", { name: "仓库 / 位置选项", exact: true })
+      .locator("label.preview-choice-label")
+      .filter({ hasText: selectedLocation })
+      .locator("input[type=checkbox]"),
+  ).toBeChecked();
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page
+      .locator(".preview-filter-rail")
+      .getByRole("tree", { name: "仓库 / 位置选项", exact: true })
+      .locator("label.preview-choice-label")
+      .filter({ hasText: selectedLocation })
+      .locator("input[type=checkbox]"),
+  ).toBeChecked();
 });
 
-test("large-text allocation context scrolls without hiding the close action", async ({
+test("large-text related-loan context keeps its close action visible", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, 200);
   await page.goto("/inventory/movements/records");
-  await page
-    .getByRole("button", { name: "符合筛选的明细", exact: true })
-    .click();
+  const trigger = page.getByRole("button", { name: "关联借出（2）" });
+  await trigger.click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("30 行");
+  await expect(dialog).toContainText("寺院志工服务组");
   const close = dialog.getByRole("button", { name: "关闭对话框", exact: true });
   const geometry = await close.evaluate((button) => {
     const box = button.getBoundingClientRect();
@@ -592,4 +602,5 @@ test("large-text allocation context scrolls without hiding the close action", as
   expect(geometry.bottom).toBeLessThan(geometry.viewport / 2);
   await close.click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });

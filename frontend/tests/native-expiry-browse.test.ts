@@ -163,7 +163,7 @@ describe("native expiry browser", () => {
       .find((header) => header.text().includes("库存数量"))!
       .find("button");
     expect(quantityHeader.text()).toContain("库存数量");
-    const quantityCell = wrapper.find("tbody tr td:nth-child(4)");
+    const quantityCell = wrapper.find("tbody tr td:nth-child(5)");
     expect(quantityCell.text()).toContain("11 Nos");
     expect(quantityCell.text()).toContain("可用 2");
     await quantityHeader.trigger("click");

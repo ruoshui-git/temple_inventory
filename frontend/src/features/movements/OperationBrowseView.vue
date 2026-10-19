@@ -3,7 +3,6 @@ import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import Scanner from "../../components/Scanner.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import RelatedLoanPreview from "../loans/RelatedLoanPreview.vue";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -56,15 +55,9 @@ const { isMobile } = useResponsiveLayout();
 const filtersOpen = ref(false),
 	scanOpen = ref(false);
 const analysisOpen = ref(false);
-const inspected = ref<OperationGroup>();
-function inspect(row: OperationGroup) {
-	inspected.value = row;
-	void c.loadDetails(row);
-}
 watch([() => props.active, isMobile], () => {
 	scanOpen.value = false;
 	analysisOpen.value = false;
-	inspected.value = undefined;
 	c.relatedLoans.close();
 });
 const outcomeLabels: Record<string, string> = {
@@ -133,45 +126,44 @@ const metrics = computed(() => {
 	return loanSummaryMetrics(result.totals, props.records);
 });
 function quantities(rows?: { uom: string; qty: number }[]) {
-	return rows?.map((row) => `${row.qty} ${row.uom}`).join(" | ") || "—";
+	return rows?.map((row) => `${row.qty} ${row.uom}`).join(" | ") || "";
 }
 function itemTotals(row: OperationGroup) {
 	const groups =
 		props.family === "movements"
 			? movementSummaryMetrics(row.totals || [])
 			: loanSummaryMetrics(row.totals || [], false);
-	return groups
-		.map(
-			(group) =>
-				`${group.label} ${group.quantities
-					.map(
-						(quantity) =>
-							`${quantity.qty} ${quantity.uom}${quantity.status ? ` · ${quantity.status}` : ""}`,
-					)
-					.join(" | ")}`,
-		)
-		.join(" · ");
-}
-function matching(row: OperationGroup) {
-	const totals = [...(row.matching_totals || [])].sort((a, b) =>
-		String(a.stock_uom).localeCompare(String(b.stock_uom), "zh-CN"),
+	return groups.flatMap((group) =>
+		group.quantities.map((quantity) => ({
+			key: `${group.key}:${quantity.uom}:${quantity.status || ""}`,
+			label: group.label,
+			quantity,
+			effect: "effect" in quantity ? quantity.effect : undefined,
+		})),
 	);
-	const grouped = new Map<string, number>();
-	for (const total of totals) {
-		const uom = String(total.stock_uom);
-		grouped.set(
-			uom,
-			(grouped.get(uom) || 0) +
-				Number(props.family === "loans" ? total.outstanding : total.stock_qty),
-		);
-	}
-	const detail = [...grouped].map(([uom, qty]) => `${qty} ${uom}`).join(" | ");
-	if (!detail) return "—";
-	const label =
-		props.family === "loans"
-			? "未归还"
-			: movementLabels[row.kind || ""] || row.kind || "货物流动";
-	return `${label} ${detail}`;
+}
+function effectLabel(effect: number, uom: string, status?: string) {
+	if (status === "草稿" || status === "已取消") effect = 0;
+	return effect > 0
+		? `可用库存增加 ${effect} ${uom}`
+		: effect < 0
+			? `可用库存减少 ${Math.abs(effect)} ${uom}`
+			: `可用库存不变 · ${uom}`;
+}
+function recordEffect(row: OperationGroup, uom: string) {
+	if (row.docstatus === 0 || row.docstatus === 2) return 0;
+	return Number(row.whole?.available_effects?.find((effect) => effect.uom === uom)?.qty || 0);
+}
+function recordEffectTone(row: OperationGroup, uom: string) {
+	const effect = recordEffect(row, uom);
+	return effect > 0
+		? "stock-effect is-increase"
+		: effect < 0
+			? "stock-effect is-decrease"
+			: "stock-effect is-neutral";
+}
+function recordEffectLabel(row: OperationGroup, uom: string) {
+	return effectLabel(recordEffect(row, uom), uom);
 }
 function openedRecord(row: OperationGroup) {
 	if (result.stale) return;
@@ -226,22 +218,24 @@ function openedRecord(row: OperationGroup) {
 						>登记借出</UiButton
 					></template
 				>
-				<nav
-					class="browse-view-switch"
-					:aria-label="family === 'movements' ? '货物流动视图' : '借用视图'"
+				<template #persistent
+					><nav
+						class="browse-view-switch"
+						:aria-label="family === 'movements' ? '货物流动视图' : '借用视图'"
+					>
+						<button
+							:aria-current="!records ? 'page' : undefined"
+							@click="emit('switchView', false, c.viewQuery(false))"
+						>
+							按物品</button
+						><button
+							:aria-current="records ? 'page' : undefined"
+							@click="emit('switchView', true, c.viewQuery(true))"
+						>
+							按记录
+						</button>
+					</nav></template
 				>
-					<button
-						:aria-current="!records ? 'page' : undefined"
-						@click="emit('switchView', false, c.viewQuery(false))"
-					>
-						按物品</button
-					><button
-						:aria-current="records ? 'page' : undefined"
-						@click="emit('switchView', true, c.viewQuery(true))"
-					>
-						按记录
-					</button>
-				</nav>
 				<div
 					v-if="family === 'movements'"
 					class="browse-tabs browse-kind-tabs"
@@ -312,7 +306,7 @@ function openedRecord(row: OperationGroup) {
 					>
 				</p>
 				<template #result-tools
-					><UiButton v-if="result.initialized" @click="analysisOpen = true"
+					><UiButton v-if="result.initialized && !records" @click="analysisOpen = true"
 						>分析结果</UiButton
 					></template
 				></BrowseToolbar
@@ -352,7 +346,7 @@ function openedRecord(row: OperationGroup) {
 				</aside>
 				<div class="preview-browse-results">
 					<Overlay
-						v-if="analysisOpen"
+						v-if="analysisOpen && !records"
 						title="分析当前结果"
 						adaptive-creation
 						@close="analysisOpen = false"
@@ -406,8 +400,46 @@ function openedRecord(row: OperationGroup) {
 							:name="row.item_name || row.item_code || ''"
 							:context="`${row.item_code} · ${row.category || ''} · ${row.document_count} 笔记录 · 最近 ${row.date || ''}`"
 							@expanded="c.toggle(row, $event)"
-							><template #metrics
-								><span>{{ itemTotals(row) }}</span></template
+							><template #metrics>
+								<span
+									v-for="metric in itemTotals(row)"
+									:key="metric.key"
+									class="operation-total"
+									:class="
+										typeof metric.effect === 'number'
+											? metric.effect > 0
+												? 'stock-effect is-increase'
+												: metric.effect < 0
+													? 'stock-effect is-decrease'
+													: 'stock-effect is-neutral'
+											: undefined
+									"
+									:title="
+										typeof metric.effect === 'number'
+											? effectLabel(
+													metric.effect,
+													metric.quantity.uom,
+													metric.quantity.status,
+												)
+											: undefined
+									"
+								>
+									{{ metric.label }} {{ metric.quantity.qty }}
+									{{ metric.quantity.uom
+									}}<small v-if="metric.quantity.status">
+										· {{ metric.quantity.status }}</small
+									><span
+										v-if="typeof metric.effect === 'number'"
+										class="sr-only"
+										>{{
+											effectLabel(
+												metric.effect,
+												metric.quantity.uom,
+												metric.quantity.status,
+											)
+										}}</span
+									>
+								</span> </template
 							><UiButton
 								:disabled="result.stale"
 								@click="emit('openItem', String(row.item_code))"
@@ -449,13 +481,15 @@ function openedRecord(row: OperationGroup) {
 						<table class="browse-table">
 							<thead>
 								<tr>
-									<th>记录 / 物品</th>
+									<th>记录</th>
+									<th>类型</th>
 									<th :aria-sort="sortState('date')">
 										<button @click="sortRecords('date')">
-											类型 / 日期 {{ sortGlyph("date") }}
+											日期 {{ sortGlyph("date") }}
 										</button>
 									</th>
-									<th>流向</th>
+									<th>来源</th>
+									<th>去向</th>
 									<th>数量</th>
 									<th>状态</th>
 								</tr>
@@ -472,11 +506,7 @@ function openedRecord(row: OperationGroup) {
 											:disabled="result.stale"
 											@click="openedRecord(row)"
 										>
-											{{ row.document
-											}}<small
-												>整单 {{ row.whole?.item_count }} 种物品 ·
-												{{ row.allocation_count }} 条符合筛选的明细</small
-											></button
+											{{ row.document }}</button
 										><UiButton
 											v-if="row.whole?.original_loans?.length"
 											:disabled="result.stale"
@@ -490,8 +520,23 @@ function openedRecord(row: OperationGroup) {
 										>
 									</td>
 									<td>
-										{{ movementLabels[row.kind || ""] || row.kind
-										}}<small>{{ row.date }}</small>
+										{{ movementLabels[row.kind || ""] || row.kind }}
+									</td>
+									<td>{{ row.date }}</td>
+									<td>
+										<div
+											v-for="branch in row.whole?.branches"
+											:key="JSON.stringify(branch)"
+										>
+											{{
+												branch.source
+													? warehouseLabel(
+															branch.source,
+															reference.warehouses,
+														)
+													: "外部"
+											}}
+										</div>
 									</td>
 									<td>
 										<div
@@ -499,23 +544,36 @@ function openedRecord(row: OperationGroup) {
 											:key="JSON.stringify(branch)"
 										>
 											{{
-												warehouseLabel(branch.source, reference.warehouses)
-											}}
-											→
-											{{
-												warehouseLabel(
-													branch.destination,
-													reference.warehouses,
-												)
+												branch.destination
+													? warehouseLabel(
+															branch.destination,
+															reference.warehouses,
+														)
+													: "外部"
 											}}
 										</div>
 									</td>
 									<td>
-										{{ matching(row)
-										}}<small
-											>筛选内数量 · 整单
-											{{ quantities(row.whole?.quantities) }}</small
+										<span
+											v-for="quantity in row.whole?.quantities || []"
+											:key="quantity.uom"
+											class="operation-total"
+											:class="
+												family === 'movements'
+													? recordEffectTone(row, quantity.uom)
+													: undefined
+											"
+											:title="
+												family === 'movements'
+													? recordEffectLabel(row, quantity.uom)
+													: undefined
+											"
 										>
+											{{ quantity.qty }} {{ quantity.uom }}
+											<span v-if="family === 'movements'" class="sr-only">
+												{{ recordEffectLabel(row, quantity.uom) }}
+											</span>
+										</span>
 									</td>
 									<td>
 										{{
@@ -525,57 +583,117 @@ function openedRecord(row: OperationGroup) {
 													? "草稿"
 													: "已取消"
 										}}
-										<UiButton :disabled="result.stale" @click="inspect(row)"
-											>符合筛选的明细</UiButton
-										>
 									</td>
 								</tr>
 							</tbody>
 						</table>
 					</div>
-					<div v-else class="browse-grid browse-grid--two">
-						<article
-							v-for="row in result.rows"
-							:data-browse-row="row.id"
-							:key="row.id"
-							class="browse-card browse-loan-card"
-						>
-							<button
-								class="browse-card-main"
-								:disabled="result.stale"
-								@click="openedRecord(row)"
-							>
-								<h2>{{ row.borrower || "未填写借用方" }}</h2>
-								<span class="browse-badge">{{
-									loanLabels[row.whole?.loan_status || ""] ||
-									row.whole?.loan_status
-								}}</span>
-								<p>{{ row.document }} · 借出日期 {{ row.date }}</p>
-								<p>{{ row.activity_title || "未关联活动" }}</p>
-								<strong
-									>{{ row.docstatus === 0 ? "草稿物品" : "尚未归还" }}
-									{{
-										quantities(
-											row.docstatus === 0
-												? row.whole?.quantities
-												: row.whole?.outstanding,
-										)
-									}}</strong
+					<div
+						v-else
+						class="browse-table-wrap loan-record-table"
+						data-browse-scroll="operations"
+					>
+						<table class="browse-table">
+							<thead>
+								<tr>
+									<th>记录</th>
+									<th>借用方</th>
+									<th>活动</th>
+									<th :aria-sort="sortState('date')">
+										<button @click="sortRecords('date')">
+											借出日期 {{ sortGlyph("date") }}
+										</button>
+									</th>
+									<th>来源</th>
+									<th>去向</th>
+									<th>借出数量</th>
+									<th>未归还数量</th>
+									<th>状态</th>
+									<th>操作</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr
+									v-for="row in result.rows"
+									:key="row.id"
+									:data-browse-row="row.id"
 								>
-								<p>
-									整单 {{ row.whole?.item_count }} 种物品 ·
-									{{ row.allocation_count }} 条符合筛选的明细
-								</p></button
-							><UiButton
-								v-if="row.docstatus === 1 && row.whole?.loan_status === 'Open'"
-								:disabled="result.stale || !reference.operations.Return"
-								@click="emit('settle', String(row.document))"
-								>登记归还</UiButton
-							>
-							<UiButton :disabled="result.stale" @click="inspect(row)"
-								>符合筛选的明细</UiButton
-							>
-						</article>
+									<td>
+										<button
+											class="browse-row-link"
+											:disabled="result.stale"
+											@click="openedRecord(row)"
+										>
+											{{ row.document }}
+										</button>
+									</td>
+									<td>{{ row.borrower || "" }}</td>
+									<td>{{ row.activity_title || "" }}</td>
+									<td>{{ row.date }}</td>
+									<td>
+										<div
+											v-for="branch in row.whole?.branches"
+											:key="JSON.stringify(branch)"
+										>
+											{{
+												branch.source
+													? warehouseLabel(
+															branch.source,
+															reference.warehouses,
+														)
+													: "外部"
+											}}
+										</div>
+									</td>
+									<td>
+										<div
+											v-for="branch in row.whole?.branches"
+											:key="JSON.stringify(branch)"
+										>
+											{{
+												branch.destination
+													? warehouseLabel(
+															branch.destination,
+															reference.warehouses,
+														)
+													: "外部"
+											}}
+										</div>
+									</td>
+									<td>{{ quantities(row.whole?.quantities) }}</td>
+									<td>
+										{{
+											row.docstatus === 1
+												? quantities(row.whole?.outstanding)
+												: ""
+										}}
+									</td>
+									<td>
+										{{
+											row.docstatus === 0
+												? "计划借出（草稿）"
+												: row.docstatus === 2
+													? "已取消"
+													: loanLabels[row.whole?.loan_status || ""] ||
+														row.whole?.loan_status
+										}}
+									</td>
+									<td>
+										<UiButton
+											v-if="
+												row.docstatus === 1 &&
+												row.whole?.loan_status === 'Open'
+											"
+											:disabled="
+												result.stale || !reference.operations.Return
+											"
+											@click="emit('settle', String(row.document))"
+											>登记归还</UiButton
+										>
+									</td>
+								</tr>
+							</tbody>
+						</table>
 					</div>
 					<div
 						v-if="
@@ -600,39 +718,6 @@ function openedRecord(row: OperationGroup) {
 				</div>
 			</div>
 		</div>
-		<Overlay
-			v-if="inspected"
-			title="符合筛选的明细"
-			adaptive-creation
-			@close="inspected = undefined"
-		>
-			<p class="preview-long-text">
-				{{ inspected.document || inspected.item_name }} ·
-				{{ movementLabels[inspected.kind || ""] || "" }} · {{ inspected.date || "" }} ·
-				{{ nativeStatusLabel(inspected.docstatus) }} · 筛选内数量
-				{{ matching(inspected) }} · 整单 {{ quantities(inspected.whole?.quantities) }}
-			</p>
-			<p v-if="result.stale" role="status">上次结果，正在更新；相关操作暂停。</p>
-			<ReportTable
-				v-if="details[inspected.id]"
-				:table="details[inspected.id]!"
-				:total="details[inspected.id]!.total"
-				:initialized="details[inspected.id]!.initialized"
-				:loading="details[inspected.id]!.loading"
-				:error="details[inspected.id]!.error"
-				:document-links="!result.stale"
-				@load-more="c.loadDetails(inspected, true)"
-				@retry="c.loadDetails(inspected, details[inspected.id]!.initialized)"
-				@open-document="
-					(doctype, name) => {
-						if (!result.stale) {
-							inspected = undefined;
-							emit('openDocument', doctype, name);
-						}
-					}
-				"
-			/>
-		</Overlay>
 		<RelatedLoanPreview
 			:controller="c.relatedLoans"
 			:disabled="result.stale"

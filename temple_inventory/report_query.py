@@ -36,6 +36,7 @@ SCOPE_DEFAULT = {
 }
 QUERY_DEFAULT = {
 	"search": "",
+	"batchNo": "",
 	"grouping": "none",
 	"sort": "asc",
 	"sortBy": "identity",

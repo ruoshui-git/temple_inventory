@@ -15,6 +15,79 @@ const table = (length = 65) => ({
   })),
 });
 describe("shared native report table", () => {
+  it("leaves absent table cells empty while retaining zero and false values", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "empty-values",
+          label: "空值和零值",
+          columns: ["missing", "stock_qty", "has_outstanding"],
+          rows: [
+            {
+              id: "ROW-1",
+              missing: null,
+              stock_qty: 0,
+              has_outstanding: false,
+            },
+          ],
+        },
+      },
+    });
+    expect(wrapper.findAll("tbody td").map((cell) => cell.text())).toEqual([
+      "",
+      "0",
+      "否",
+    ]);
+    wrapper.unmount();
+  });
+
+  it("leaves absent lifecycle values blank and colors available-stock quantities by signed effect", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "effects",
+          label: "库存变化",
+          columns: ["docstatus", "stock_qty", "available_effect"],
+          rows: [
+            {
+              id: "missing",
+              docstatus: null,
+              stock_qty: null,
+              available_effect: null,
+            },
+            {
+              id: "increase",
+              docstatus: 1,
+              stock_qty: 3,
+              available_effect: 3,
+              stock_uom: "Nos",
+            },
+            {
+              id: "cancelled",
+              docstatus: 2,
+              stock_qty: 3,
+              available_effect: 0,
+              stock_uom: "Nos",
+            },
+          ],
+        },
+      },
+    });
+    expect(
+      wrapper
+        .findAll("tbody tr")[0]
+        ?.findAll("td")
+        .map((cell) => cell.text()),
+    ).toEqual(["", "", ""]);
+    expect(
+      wrapper.findAll("tbody tr")[1]?.findAll("td")[1]?.find("span").classes(),
+    ).toContain("is-increase");
+    expect(
+      wrapper.findAll("tbody tr")[2]?.findAll("td")[1]?.find("span").classes(),
+    ).toContain("is-neutral");
+    wrapper.unmount();
+  });
+
   it("shows complete/local counts and reveals fixture pages without dropping rows", async () => {
     const wrapper = mount(ReportTable, { props: { table: table() } });
     expect(wrapper.findAll("tbody tr")).toHaveLength(30);

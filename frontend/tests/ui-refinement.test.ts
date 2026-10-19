@@ -50,6 +50,15 @@ it("formats allocation chips with authorized warehouse labels while preserving e
     )?.label,
   ).toContain("Stock Entry / MAT-1 / ROW-1");
 });
+it("exposes exact batch scope in report filters with an explicit clear action", () => {
+  const query = newReportQuery("movements");
+  query.batchNo = "LOT-EXACT-42";
+  const chip = reportFilterChips(query, createReferenceData()).find(
+    (row) => row.key === "batchNo",
+  );
+  expect(chip?.label).toBe("批次：LOT-EXACT-42");
+  expect(chip?.reset.batchNo).toBe("");
+});
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   document.body.innerHTML = "";
