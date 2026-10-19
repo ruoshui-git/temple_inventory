@@ -202,18 +202,19 @@ export function useStockBrowseController(
     })),
   );
   function clear() {
-    constraints.value = newReportQuery("inventory");
-    inStockOnly.value = true;
-    scope.value = {
-      ...scope.value,
-      warehouses: [],
-      categories: [],
-      item: "",
-      activity: "",
-      sources: [],
-      destinations: [],
-      kinds: [],
+    const routeScope = {
+      restrictItems: constraints.value.restrictItems,
+      itemCodes: [...constraints.value.itemCodes],
+      restrictAllocations: constraints.value.restrictAllocations,
+      allocationKeys: [...constraints.value.allocationKeys],
+      itemLocationKeys: [...constraints.value.itemLocationKeys],
+      loan: constraints.value.loan,
+      record: constraints.value.record,
+      recordDoctype: constraints.value.recordDoctype,
     };
+    constraints.value = Object.assign(newReportQuery("inventory"), routeScope);
+    inStockOnly.value = true;
+    scope.value = newReportQuery("inventory").scope;
   }
   const appliedChips = computed(() => [
     ...scopeFilterChips(query.value.scope, reference).map((chip) => ({

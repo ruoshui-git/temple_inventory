@@ -28,7 +28,7 @@ from temple_inventory.report_sources import (
 TABLE_LABELS = {
 	"summary": "汇总",
 	"records": "单据记录",
-	"lines": "分配明细",
+	"lines": "库存明细",
 	"balances": "历史数量余额",
 	"ledger": "原生库存流水",
 	"locations": "库位 / 批次明细",

@@ -130,15 +130,12 @@ def warehouse_scopes():
 	allowed = _allowed_warehouses(settings)
 	physical = {name for name, row in _physical_tree(settings).items() if not row.is_group}
 	physical &= set(allowed)
-	leased_root = visible.get(settings.leased_warehouse)
-	leased = {
-		name
-		for name, row in visible.items()
-		if leased_root
-		and not row.is_group
-		and leased_root.lft < row.lft < leased_root.rgt
-		and _enabled_branch(row, visible)
-	}
+	leased_leaf = visible.get(settings.leased_warehouse)
+	leased = (
+		{leased_leaf.name}
+		if leased_leaf and not leased_leaf.is_group and _enabled_branch(leased_leaf, visible)
+		else set()
+	)
 	damaged_leaf = visible.get(settings.damaged_warehouse)
 	damaged = {damaged_leaf.name} if damaged_leaf and _enabled_branch(damaged_leaf, visible) else set()
 	return settings, visible, physical, leased, damaged
@@ -160,7 +157,7 @@ def _validate_batch(row, item, posting_date):
 		bundle = frappe.get_doc("Serial and Batch Bundle", row.serial_and_batch_bundle)
 		bundle.check_permission("read")
 		if bundle.item_code != item.name or not item.has_batch_no:
-			frappe.throw("批次分配不属于此物品")
+			frappe.throw("批次明细不属于此物品")
 		for entry in bundle.entries:
 			if entry.batch_no:
 				_validate_batch(frappe._dict(batch_no=entry.batch_no), item, posting_date)

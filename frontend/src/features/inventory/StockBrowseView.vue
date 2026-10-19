@@ -16,6 +16,7 @@ import StockDetails from "../../components/StockDetails.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import Scanner from "../../components/Scanner.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import SortControl from "../../components/ui/SortControl.vue";
 
 import type { StockItem } from "../../lib/stockPresentation";
 import type { useStockBrowseController } from "./useStockBrowseController";
@@ -60,6 +61,14 @@ const { isMobile } = useResponsiveLayout();
 const inventoryRoot = ref<HTMLElement>();
 const toolbar = ref<InstanceType<typeof BrowseToolbar>>();
 const browseHeader = computed(() => toolbar.value?.$el as HTMLElement | undefined);
+const sortDirection = computed({
+	get: () => (descending.value ? "desc" : "asc"),
+	set: (value: "asc" | "desc") => (descending.value = value === "desc"),
+});
+const sortFields = [
+	{ value: "name", label: "物品名称" },
+	{ value: "available", label: "可用数量" },
+];
 
 const results = ref<HTMLElement>();
 useFocusVisibility(
@@ -71,11 +80,9 @@ useFocusVisibility(
 );
 const analysisOpen = ref(false);
 const filtersOpen = ref(false),
-	summaryOpen = ref(false),
 	scanOpen = ref(false);
 watch([() => props.active, isMobile], () => {
 	if (props.active === false) filtersOpen.value = false;
-	summaryOpen.value = false;
 	scanOpen.value = false;
 	analysisOpen.value = false;
 });
@@ -140,17 +147,12 @@ watch([() => props.active, isMobile], () => {
 						<InventoryIcon name="table" />列表
 					</button>
 				</div>
-				<div class="button-row">
-					<label class="inline-field"
-						>排序<select v-model="sort" aria-label="库存排序">
-							<option value="name">物品名称</option>
-							<option value="available">可用数量</option>
-						</select></label
-					>
-					<UiButton variant="ghost" icon="sigma" @click="summaryOpen = true"
-						>列汇总</UiButton
-					>
-				</div>
+				<SortControl
+					v-model:field="sort"
+					v-model:direction="sortDirection"
+					:fields="sortFields"
+					label="库存排序"
+				/>
 			</div>
 			<div v-if="appliedChips.length || search" class="chip-row">
 				<button
@@ -165,12 +167,8 @@ watch([() => props.active, isMobile], () => {
 				<button v-if="search" class="chip" @click="search = ''">{{ search }} ×</button>
 				<UiButton variant="ghost" @click="clear">清空筛选</UiButton>
 			</div>
-			<label class="preview-choice-label preview-check"
-				><input type="checkbox" v-model="inStockOnly" />仅有库存</label
-			>
 			<slot name="context-actions" />
 			<template #result-tools>
-				<span>{{ data.snapshot ? data.total : "—" }} 种物品</span>
 				<UiButton :disabled="!data.snapshot" @click="analysisOpen = true"
 					>分析结果</UiButton
 				>
@@ -195,14 +193,28 @@ watch([() => props.active, isMobile], () => {
 			</template>
 		</BrowseToolbar>
 		<section class="surface inventory-surface">
+			<p v-if="data.snapshot" class="browse-result-count">
+				筛选结果：{{ data.total }} 种物品
+			</p>
+			<QuantitySummary
+				v-if="data.snapshot"
+				:metrics="metrics"
+				:loading="status === 'refresh'"
+			/>
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
-				<aside v-if="filtersOpen && !isMobile" class="filter-rail">
+				<aside v-if="filtersOpen && !isMobile" class="filter-rail browse-filter-rail">
 					<h3>筛选库存</h3>
-					<BrowseFilters
-						v-model="scope"
-						:fields="['categories', 'warehouses']"
-						hide-activity
-					/><UiButton variant="ghost" @click="clear">恢复默认筛选</UiButton>
+					<div class="browse-filter-dense">
+						<BrowseFilters
+							v-model="scope"
+							:fields="['categories', 'warehouses']"
+							hide-activity
+						/>
+						<label class="preview-choice-label preview-check">
+							<input type="checkbox" v-model="inStockOnly" />仅有库存
+						</label>
+						<UiButton variant="ghost" @click="clear">恢复默认筛选</UiButton>
+					</div>
 				</aside>
 				<div
 					ref="results"
@@ -311,7 +323,16 @@ watch([() => props.active, isMobile], () => {
 													: 'none'
 											"
 										>
-											<button @click="sortBy('name')">物品名称 ↕</button>
+											<button @click="sortBy('name')">
+												物品名称
+												{{
+													sort === "name"
+														? descending
+															? "↓"
+															: "↑"
+														: "↕"
+												}}
+											</button>
 										</th>
 										<th>位置</th>
 										<th
@@ -324,7 +345,14 @@ watch([() => props.active, isMobile], () => {
 											"
 										>
 											<button @click="sortBy('available')">
-												可用数量 ↕
+												可用数量
+												{{
+													sort === "available"
+														? descending
+															? "↓"
+															: "↑"
+														: "↕"
+												}}
 											</button>
 										</th>
 										<th>效期</th>
@@ -426,10 +454,6 @@ watch([() => props.active, isMobile], () => {
 				<p class="muted">统计完整筛选结果；跨位置的物品数不可相加。</p>
 			</Overlay>
 			<footer class="result-footer">
-				<span v-if="data.snapshot"
-					>已加载 {{ rows.length }} · 筛选结果 {{ data.total }} · 快照（站点时间）
-					{{ siteDateTime(data.snapshot) }}</span
-				>
 				<span v-if="data.stale" role="status">上次结果 · 尚未更新</span>
 				<span v-if="data.error || data.moreError" role="alert"
 					>{{ data.error || data.moreError }}
@@ -449,22 +473,21 @@ watch([() => props.active, isMobile], () => {
 			title="筛选库存"
 			drawer
 			@close="filtersOpen = false"
-			><BrowseFilters
-				v-model="scope"
-				:fields="['categories', 'warehouses']"
-				hide-activity
-			/><template #footer
+			><div class="browse-filter-dense">
+				<BrowseFilters
+					v-model="scope"
+					:fields="['categories', 'warehouses']"
+					hide-activity
+				/>
+				<label class="preview-choice-label preview-check">
+					<input type="checkbox" v-model="inStockOnly" />仅有库存
+				</label>
+			</div>
+			<template #footer
 				><UiButton @click="clear">恢复默认筛选</UiButton
 				><UiButton variant="primary" @click="filtersOpen = false">完成</UiButton></template
 			></Overlay
 		>
-		<Overlay v-if="summaryOpen" title="当前筛选的数量汇总" @close="summaryOpen = false"
-			><p class="muted">覆盖 {{ data.total }} 种匹配物品，按单位分别计算。</p>
-			<QuantitySummary :metrics="metrics" /><template #footer
-				><UiButton @click="summaryOpen = false">完成</UiButton></template
-			></Overlay
-		>
-
 		<Scanner
 			v-if="scanOpen"
 			presentation="modal"

@@ -16,7 +16,10 @@ import PreviewExpiryBrowse from "./support/FixtureHostExpiryBrowse.vue";
 import ExpiryBrowsePage from "../src/features/expiry/ExpiryBrowsePage.vue";
 import { resetReviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
-afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  vi.unstubAllGlobals();
+});
 function page(start = 0): ExpiryPageData {
   return {
     query: newReportQuery("expiry"),
@@ -29,7 +32,7 @@ function page(start = 0): ExpiryPageData {
         batch_no: `BATCH-${start}`,
         warehouse: "ROOM-A",
         available: 2,
-        stock_qty: 2,
+        stock_qty: 11,
         expiry_date: "2026-10-16",
       },
     ],
@@ -57,6 +60,7 @@ function setup(
     initialQuery?: ReturnType<typeof newReportQuery>;
     routeQuery?: string;
   }>({}),
+  view = false,
 ) {
   let c!: ReturnType<typeof useExpiryBrowse>;
   const changed = vi.fn(),
@@ -65,7 +69,7 @@ function setup(
   const child = defineComponent({
     setup() {
       c = useExpiryBrowse(props, changed);
-      return () => h("div");
+      return () => (view ? h(ExpiryBrowsePage, props) : h("div"));
     },
   });
   const root = defineComponent({
@@ -79,7 +83,7 @@ function setup(
   });
   const wrapper = mount(root);
   wrappers.push(wrapper);
-  return { c, call, reference, props, changed };
+  return { c, call, reference, props, changed, wrapper };
 }
 describe("native expiry browser", () => {
   it("keeps repeated URL query parameters invalid at the real route boundary", async () => {
@@ -114,7 +118,7 @@ describe("native expiry browser", () => {
     const controller = wrapper.findComponent(ExpiryBrowsePage).vm.controller;
     expect(controller.result.error).toBe("");
     expect(controller.result.batchCount).toBeGreaterThan(0);
-    expect(wrapper.text()).toContain("条库位分配");
+    expect(wrapper.text()).toContain("条存放明细");
     controller.query.value.search = "RICE";
     await flushPromises();
     expect(controller.result.error).toBe("");
@@ -143,6 +147,44 @@ describe("native expiry browser", () => {
     expect(c.result.rows).toHaveLength(2);
     expect(c.result.batchCount).toBe(200);
   });
+  it("shows total stock quantity in the sortable expiry column and available quantity as secondary context", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const { wrapper } = setup(undefined, reactive({}), true);
+    await flushPromises();
+    const quantityHeader = wrapper
+      .findAll("th")
+      .find((header) => header.text().includes("库存数量"))!
+      .find("button");
+    expect(quantityHeader.text()).toContain("库存数量");
+    const quantityCell = wrapper.find("tbody tr td:nth-child(4)");
+    expect(quantityCell.text()).toContain("11 Nos");
+    expect(quantityCell.text()).toContain("可用 2");
+    await quantityHeader.trigger("click");
+    expect(wrapper.find('th[aria-sort="ascending"] button').text()).toContain(
+      "库存数量 ↑",
+    );
+    expect(
+      wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
+    ).toBe("quantity");
+  });
+  it("does not present confirmed zero summaries while the first result is pending", async () => {
+    let resolve!: (value: ExpiryPageData) => void;
+    const call = vi.fn(
+      () => new Promise<ExpiryPageData>((done) => (resolve = done)),
+    );
+    const { wrapper } = setup(call, reactive({}), true);
+    expect(wrapper.find(".quantity-summary-empty").exists()).toBe(false);
+    resolve(page());
+    await flushPromises();
+    expect(wrapper.find(".quantity-summary-empty").exists()).toBe(false);
+  });
   it("retries a failed appended page at the same native offset", async () => {
     let fail = true;
     const call = vi.fn(async (_endpoint, args) => {
@@ -164,6 +206,10 @@ describe("native expiry browser", () => {
     const query = newReportQuery("expiry");
     query.restrictAllocations = true;
     query.allocationKeys = [];
+    query.itemLocationKeys = [JSON.stringify(["ITEM-A", "ROOM-A"])];
+    query.loan = "LOAN-EXACT";
+    query.record = "RECORD-EXACT";
+    query.recordDoctype = "Stock Entry";
     query.expiryWindow = "expired";
     query.search = "batch";
     query.scope.period = {
@@ -182,10 +228,16 @@ describe("native expiry browser", () => {
     expect(exact.scope.period.from).toBe("2026-10-01");
     c.clearSecondary();
     expect(c.query.value.scope.warehouses).toEqual([]);
-    expect(c.query.value.restrictAllocations).toBe(false);
-    expect(c.query.value.scope.period.from).toBe("2026-10-01");
-    expect(c.query.value.expiryWindow).toBe("expired");
+    expect(c.query.value.restrictAllocations).toBe(true);
+    expect(c.query.value.scope.period.from).toBe("");
+    expect(c.query.value.expiryWindow).toBe("period");
     expect(c.query.value.search).toBe("batch");
+    expect(c.batchQuery(row)).toMatchObject({
+      itemLocationKeys: [JSON.stringify(["ITEM-A", "ROOM-A"])],
+      loan: "LOAN-EXACT",
+      record: "RECORD-EXACT",
+      recordDoctype: "Stock Entry",
+    });
   });
   it("does not request an unrestricted fallback for malformed or wrong-family route data", async () => {
     const call = vi.fn(),

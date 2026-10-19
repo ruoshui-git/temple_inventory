@@ -56,6 +56,8 @@ async function setup(page: Page, scale = 100, density = "balanced") {
         query: args.query,
         summary: [],
         facets: {},
+        totals: [],
+        analysis: {},
         item_count: 0,
         batch_count: 0,
       };

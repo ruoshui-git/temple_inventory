@@ -36,7 +36,7 @@ watch([() => props.active, isMobile], () => {
 	<section class="browse-page">
 		<BrowseToolbar
 			title="损坏待处理"
-			:summary="`损坏待处理 · ${table?.initialized ? c.report.result.total + ' 条分配' : '读取中'}`"
+			:summary="`损坏待处理 · ${table?.initialized ? c.report.result.total + ' 条明细' : '读取中'}`"
 			v-model:search="query.search"
 			search-label="搜索物品、批次或存放位置"
 			:active="active"
@@ -56,7 +56,7 @@ watch([() => props.active, isMobile], () => {
 					<strong>损坏物资待处理</strong>
 					<p>选择修复归库，或将无法使用的物资正式报废。</p>
 				</div>
-				<b v-if="table?.initialized">{{ c.report.result.total }} 条分配</b>
+				<b v-if="table?.initialized">{{ c.report.result.total }} 条明细</b>
 			</div>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
 			<div class="browse-toolbar">
@@ -99,7 +99,7 @@ watch([() => props.active, isMobile], () => {
 				>
 			</div>
 			<template #result-tools
-				><span>{{ c.report.result.total }} 条库位分配</span
+				><span>{{ c.report.result.total }} 条存放明细</span
 				><UiButton :disabled="!table?.initialized" @click="analysisOpen = true"
 					>分析结果</UiButton
 				></template

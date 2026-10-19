@@ -340,9 +340,20 @@
     "dt": "Stock Entry Detail",
     "fieldname": "ti_allocation_note",
     "fieldtype": "Small Text",
-    "label": "分配原因",
+    "label": "处理原因",
     "insert_after": "ti_settlement_outcome",
     "module": "Temple Inventory",
     "name": "Stock Entry Detail-ti_allocation_note"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Warehouse",
+    "fieldname": "ti_room_default",
+    "fieldtype": "Check",
+    "label": "默认房间存放位置",
+    "insert_after": "warehouse_type",
+    "module": "Temple Inventory",
+    "default": "0",
+    "name": "Warehouse-ti_room_default"
   }
 ]

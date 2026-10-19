@@ -84,7 +84,7 @@ describe("gallery renders native production components", () => {
         expect(controller.reviewOpen.value).toBe(true);
         expect(
           document.body.querySelector('[role="dialog"]')?.textContent,
-        ).toContain("55 行分配");
+        ).toContain("55 条明细");
         expect(controller.draft.value.items).toHaveLength(55);
       }
       expect(fetch).not.toHaveBeenCalled();

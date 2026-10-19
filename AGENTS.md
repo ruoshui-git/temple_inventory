@@ -65,8 +65,8 @@ Use standard ERPNext stock documents for physical movements:
 - Receive (stock in) -> Stock Entry / Material Receipt
 - Issue or Loss (stock out) -> Stock Entry / Material Issue
 - Transfer -> Stock Entry / Material Transfer
-- Loan -> Material Transfer into a leaf warehouse beneath Leased
-- Return -> Material Transfer out of the applicable Leased leaf warehouse
+- Loan -> Material Transfer into the single configured 借出 leaf warehouse
+- Return -> Material Transfer out of that configured 借出 leaf warehouse
 - Damage -> Material Transfer into the configured damaged leaf warehouse
 - Future physical-count corrections -> ERPNext reconciliation or adjustment
   mechanisms
@@ -124,10 +124,9 @@ leaf warehouses on the server.
 - `is_group` says whether a warehouse has children.
 
 Do not infer Room versus Location from hierarchy depth or naming conventions.
-`Leased` is an organizational group warehouse. Loaned stock belongs in leaf
-warehouses below it, such as a program or general-loans warehouse. Borrower,
-project, and activity identity belongs in transaction metadata and must not be
-inferred from the warehouse name.
+The configured 借出 warehouse is one leaf beneath the inventory root. Loaned
+stock belongs there; borrower, project, and activity identity belongs in
+transaction metadata and must not be inferred from the warehouse name.
 
 All categories use standard ERPNext `Item` records. Do not add separate item or
 inventory engines for food, costumes, medicine, furniture, or other categories.

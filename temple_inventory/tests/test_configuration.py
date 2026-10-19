@@ -83,7 +83,7 @@ class ConfigurationTests(NativeDocumentTests):
 		with self.assertRaises(frappe.ValidationError):
 			configuration.repair_preview("unknown_pointer", self.root)
 
-	def test_first_initialization_has_a_leased_group_real_leaves_and_no_stock(self):
+	def test_first_initialization_has_a_single_leased_leaf_real_rooms_and_no_stock(self):
 		settings = frappe.get_doc("Temple Inventory Settings")
 		for field in configuration.POINTERS:
 			settings.set(field, None)
@@ -107,10 +107,9 @@ class ConfigurationTests(NativeDocumentTests):
 		self.assertTrue(result["ready"])
 		settings.reload()
 		leased = frappe.get_doc("Warehouse", settings.leased_warehouse)
-		leaf = frappe.get_doc("Warehouse", settings.default_lease_program_warehouse)
-		self.assertTrue(leased.is_group)
-		self.assertFalse(leaf.is_group)
-		self.assertEqual(leaf.parent_warehouse, leased.name)
+		self.assertFalse(leased.is_group)
+		self.assertTrue(leased.warehouse_name.endswith("借出 " + self.token))
+		self.assertEqual(leased.parent_warehouse, settings.root_warehouse)
 		physical = frappe.get_doc("Warehouse", settings.physical_root_warehouse)
 		rooms = frappe.get_all(
 			"Warehouse",
@@ -123,7 +122,7 @@ class ConfigurationTests(NativeDocumentTests):
 		self.assertFalse(
 			frappe.db.exists(
 				"Bin",
-				{"warehouse": ["in", [leased.name, leaf.name, rooms[0].name, settings.damaged_warehouse]]},
+				{"warehouse": ["in", [leased.name, rooms[0].name, settings.damaged_warehouse]]},
 			)
 		)
 

@@ -195,12 +195,12 @@ const warehouseReference = useOptionalReferenceData();
 				@click="!dirty && emit('split')"
 				>{{
 					isSettlement(draft)
-						? "添加处理分配"
+						? "添加处理明细"
 						: item.tracksBatch
 							? draft.kind === "Receive"
-								? "添加批次分配"
-								: "分配其他批次"
-							: "拆分分配"
+								? "添加批次明细"
+								: "添加其他批次明细"
+							: "拆分明细"
 				}}</UiButton
 			><UiButton @click="close">完成详情</UiButton></template
 		>

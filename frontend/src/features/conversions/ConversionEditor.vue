@@ -116,7 +116,7 @@ const {
 				:disabled="disabled || busy || reusableOnly || !canUpdate"
 			/>保存为此物品的常用换算</label
 		>
-		<p v-if="!canUpdate" class="muted">没有更新物品的权限；可仅应用于此分配。</p>
+		<p v-if="!canUpdate" class="muted">没有更新物品的权限；可仅应用于此明细。</p>
 		<p class="muted">已保存的单位与常用换算会保留；取消操作单不会删除它们。</p>
 		<p v-if="error || creationError" role="alert">{{ error || creationError }}</p>
 		<UiButton :disabled="disabled || busy" variant="primary" @click="apply">{{

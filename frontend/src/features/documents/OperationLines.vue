@@ -408,7 +408,7 @@ function changeBatch(line: AllocationLine) {
 						placeholder="物品名称、编号、库位或批次"
 				/></label>
 				<span role="status"
-					>{{ itemCount }} 种物品 · {{ draft.items.length }} 行分配 · {{ totals }}</span
+					>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</span
 				>
 				<label class="preview-choice-label"
 					><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label

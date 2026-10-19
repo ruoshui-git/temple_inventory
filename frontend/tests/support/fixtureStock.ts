@@ -13,9 +13,8 @@ interface StockRow extends ReportRow {
 }
 export function fixtureStockRows(item: StockItem): StockRow[] {
   const leased =
-    reviewSession.warehouses.find(
-      (row) => !row.is_group && row.name.startsWith("借出"),
-    )?.name || "";
+    reviewSession.warehouses.find((row) => !row.is_group && row.name === "借出")
+      ?.name || "";
   const damaged =
     reviewSession.warehouses.find(
       (row) => !row.is_group && row.name.startsWith("损坏待处理"),

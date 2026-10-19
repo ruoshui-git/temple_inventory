@@ -81,7 +81,7 @@ export function reportFilterChips(
           ...(!itemLocation ? [match.batch || "无批次"] : []),
         ].join(" / ");
       }
-      return "所选库位分配（位置暂不可用）";
+      return "所选存放明细（位置暂不可用）";
     }
     const slash = key.indexOf("/");
     return slash < 0
@@ -160,11 +160,11 @@ export function reportFilterChips(
   if (query.restrictAllocations || query.allocationKeys.length)
     add(
       "allocations",
-      `选定分配（${query.allocationKeys.length}）：${query.allocationKeys.map((key) => allocationLabel(key)).join("；") || "范围为空（无结果）"}`,
+      `选定明细（${query.allocationKeys.length}）：${query.allocationKeys.map((key) => allocationLabel(key)).join("；") || "范围为空（无结果）"}`,
       { restrictAllocations: false, allocationKeys: [] },
       false,
       query.allocationKeys.length > 1
-        ? `选定分配（${query.allocationKeys.length}）`
+        ? `选定明细（${query.allocationKeys.length}）`
         : undefined,
     );
   if (query.itemLocationKeys.length)

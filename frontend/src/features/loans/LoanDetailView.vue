@@ -112,7 +112,7 @@ function settle(action: SettlementAction) {
 						遗失 {{ line.outcomes.Lost }} {{ line.stock_uom }}</span
 					>
 					<details>
-						<summary>分配与换算明细</summary>
+						<summary>存放明细与单位换算</summary>
 						<small>原明细 {{ line.name }}</small>
 						<small
 							>原存放
@@ -156,7 +156,7 @@ function settle(action: SettlementAction) {
 				<QuantitySummary :metrics="metrics" />
 			</details>
 			<details>
-				<summary>处理历史（{{ c.history.result.total }} 条分配）</summary>
+				<summary>处理历史（{{ c.history.result.total }} 条明细）</summary>
 				<h2>处理历史</h2>
 				<p v-if="c.history.result.loading" role="status">正在读取处理历史…</p>
 				<p v-if="c.history.result.error" role="alert">

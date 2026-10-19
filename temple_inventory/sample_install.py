@@ -278,9 +278,9 @@ def verify_development_sample():
 				raise AssertionError("Sample original image is public")
 	rooms = {
 		key: frappe.db.get_value("Warehouse", {"company": settings.company, "warehouse_name": label}, "name")
-		for key, label in (("A02", "A02 / 未指定"), ("A02-RACK", "A02 / 货架一 / 上层"))
+		for key, label in (("A02", "A02 / 无货位"), ("A02-RACK", "A02 / 货架一 / 上层"))
 	}
-	rooms.update({"LEASE": settings.default_lease_program_warehouse, "DAMAGED": settings.damaged_warehouse})
+	rooms.update({"LEASE": settings.leased_warehouse, "DAMAGED": settings.damaged_warehouse})
 	loans = [
 		frappe.get_doc(
 			"Stock Entry",

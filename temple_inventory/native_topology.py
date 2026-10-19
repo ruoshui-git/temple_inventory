@@ -7,7 +7,6 @@ SYSTEM_POINTERS = (
 	"root_warehouse",
 	"physical_root_warehouse",
 	"leased_warehouse",
-	"default_lease_program_warehouse",
 	"damaged_warehouse",
 )
 
@@ -27,6 +26,7 @@ def _warehouse_map(company):
 			"warehouse_name",
 			"parent_warehouse",
 			"warehouse_type",
+			"ti_room_default",
 			"company",
 			"is_group",
 			"disabled",
@@ -103,11 +103,13 @@ def _warehouse_presentation(rows):
 			ancestors.append(parent.warehouse_name)
 			seen.add(parent.name)
 			parent = rows.get(parent.parent_warehouse)
+		local_label = "无货位" if row.ti_room_default else row.warehouse_name
 		result.append(
 			{
 				**dict(row),
-				"local_label": row.warehouse_name,
-				"breadcrumb": " / ".join([*reversed(ancestors), row.warehouse_name]),
+				"local_label": local_label,
+				"room_default": bool(row.ti_room_default),
+				"breadcrumb": " / ".join([*reversed(ancestors), local_label]),
 			}
 		)
 	return result

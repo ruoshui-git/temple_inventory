@@ -20,6 +20,63 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeReportTests(NativeDocumentTests):
+	def test_default_leaf_report_label_uses_room_and_minimal_authorized_prefix(self):
+		from temple_inventory.report_sources import ReportContext
+
+		context = ReportContext.__new__(ReportContext)
+		context.warehouses = {
+			"ROOT": frappe._dict(name="ROOT", warehouse_name="寺院仓库", parent_warehouse=""),
+			"PHYSICAL": frappe._dict(name="PHYSICAL", warehouse_name="实体库房", parent_warehouse="ROOT"),
+			"T1": frappe._dict(name="T1", warehouse_name="T1", parent_warehouse="PHYSICAL"),
+			"T2": frappe._dict(name="T2", warehouse_name="T2", parent_warehouse="PHYSICAL"),
+			"ROOM-1": frappe._dict(
+				name="ROOM-1", warehouse_name="A14", parent_warehouse="T1", warehouse_type="Room", is_group=1
+			),
+			"ROOM-2": frappe._dict(
+				name="ROOM-2", warehouse_name="A14", parent_warehouse="T2", warehouse_type="Room", is_group=1
+			),
+			"DEFAULT-1": frappe._dict(
+				name="DEFAULT-1",
+				warehouse_name="无货位",
+				parent_warehouse="ROOM-1",
+				ti_room_default=1,
+			),
+			"DEFAULT-2": frappe._dict(
+				name="DEFAULT-2",
+				warehouse_name="无货位",
+				parent_warehouse="ROOM-2",
+				ti_room_default=1,
+			),
+		}
+		self.assertEqual(context.label("DEFAULT-1"), "T1 / A14")
+		self.assertEqual(context.label("DEFAULT-2"), "T2 / A14")
+		context.warehouses.update(
+			{
+				"SECTION-T1": frappe._dict(name="SECTION-T1", warehouse_name="T1", parent_warehouse="T2"),
+				"ROOM-3": frappe._dict(
+					name="ROOM-3",
+					warehouse_name="A14",
+					parent_warehouse="SECTION-T1",
+					warehouse_type="Room",
+					is_group=1,
+				),
+				"DEFAULT-3": frappe._dict(
+					name="DEFAULT-3",
+					warehouse_name="无货位",
+					parent_warehouse="ROOM-3",
+					ti_room_default=1,
+				),
+			}
+		)
+		self.assertEqual(context.label("DEFAULT-1"), "实体库房 / T1 / A14")
+		self.assertEqual(context.label("DEFAULT-3"), "T2 / T1 / A14")
+		context.warehouses.pop("DEFAULT-3")
+		context.warehouses.pop("ROOM-3")
+		self.assertEqual(context.label("DEFAULT-1"), "T1 / A14")
+		context.warehouses.pop("DEFAULT-2")
+		context.warehouses.pop("ROOM-2")
+		self.assertEqual(context.label("DEFAULT-1"), "A14")
+
 	def test_refinement_display_labels_preserve_native_identity_and_export_audit_values(self):
 		frappe.db.set_value("Warehouse", self.a, "warehouse_name", "供灯-用品")
 		doc = self.submit(self.create(self.movement(quantity=2)))
@@ -423,7 +480,7 @@ class NativeReportTests(NativeDocumentTests):
 			xlsx_path = Path(directory) / "report.xlsx"
 			xlsx_count = exports._write(projection, request, xlsx_path)
 			workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
-			rows = list(workbook["分配明细"].values)
+			rows = list(workbook["库存明细"].values)
 			workbook.close()
 			self.assertEqual(csv_count, xlsx_count)
 			self.assertEqual(len(csv_rows), len(rows) - 1)
@@ -451,7 +508,7 @@ class NativeReportTests(NativeDocumentTests):
 			xlsx_path = Path(directory) / "large.xlsx"
 			self.assertEqual(exports._write(projection, request, xlsx_path), 1005)
 			workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
-			rows = iter(workbook["分配明细"].values)
+			rows = iter(workbook["库存明细"].values)
 			columns = next(rows)
 			ids = [row[columns.index("id")] for row in rows]
 			workbook.close()

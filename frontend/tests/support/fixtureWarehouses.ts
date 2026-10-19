@@ -27,7 +27,7 @@ function topology() {
   for (const row of rows)
     if (!row.parent && row.name !== templeRoot)
       row.parent =
-        row.name.startsWith("借出") || row.name.startsWith("损坏待处理")
+        row.name === "借出" || row.name.startsWith("损坏待处理")
           ? templeRoot
           : physicalRoot;
   const result: NativeWarehouse[] = [];
@@ -40,6 +40,7 @@ function topology() {
       label: row.label,
       parent: row.parent || "",
       type: row.warehouse_type,
+      room_default: false,
       is_group: row.is_group,
       disabled: row.status !== "active",
       version: String(versions.get(row.name) || 1),
@@ -47,11 +48,11 @@ function topology() {
       rgt: 0,
       protected:
         [templeRoot, physicalRoot].includes(row.name) ||
-        row.name.startsWith("借出") ||
+        row.name === "借出" ||
         row.name.startsWith("损坏待处理"),
       can_edit:
         ![templeRoot, physicalRoot].includes(row.name) &&
-        !row.name.startsWith("借出") &&
+        !row.name === "借出" &&
         !row.name.startsWith("损坏待处理"),
     };
     result.push(value);

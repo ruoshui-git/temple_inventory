@@ -18,8 +18,7 @@ export const fixtureConfiguration = reactive({
 const pointers = [
   ["root_warehouse", "寺院仓库根目录", templeRoot],
   ["physical_root_warehouse", "实体仓库根目录", physicalRoot],
-  ["leased_warehouse", "借出仓库组", "借出"],
-  ["default_lease_program_warehouse", "默认借出库位", "借出 / 法会义工组"],
+  ["leased_warehouse", "借出库位", "借出"],
   ["damaged_warehouse", "损坏库位", "损坏待处理 / 斋堂"],
 ] as const;
 function status(): ConfigurationStatus {

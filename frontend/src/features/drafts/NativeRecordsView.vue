@@ -227,7 +227,7 @@ const quantities = (row: NativeRecord) =>
 								><small
 									v-if="row.allocation_count !== row.whole.line_count"
 									class="record-quantity"
-									>符合筛选的分配：{{ row.allocation_count }}</small
+									>符合筛选的明细：{{ row.allocation_count }}</small
 								>
 							</td>
 							<td>{{ row.date }} {{ String(row.time || "").slice(0, 5) }}</td>

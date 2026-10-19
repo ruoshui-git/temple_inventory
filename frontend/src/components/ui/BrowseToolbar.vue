@@ -30,13 +30,6 @@ const automatic = ref(false),
 	choice = ref<boolean>();
 const compact = computed(() => choice.value ?? automatic.value);
 const heading = computed(() => props.title || props.summary.split(" · ")[0]);
-const compactSummary = computed(() =>
-	props.summary.startsWith(heading.value + " · ")
-		? props.summary.slice(heading.value.length + 3)
-		: props.summary === heading.value
-			? ""
-			: props.summary,
-);
 const searchOpen = ref(false);
 const { isMobile } = useResponsiveLayout();
 onDeactivated(() => {
@@ -100,10 +93,7 @@ defineExpose({ compact });
 		:class="{ 'is-compact': compact }"
 	>
 		<PageHeader :title="heading" :compact="compact">
-			<template #subtitle
-				><small v-if="compact" class="browse-compact-summary">{{ compactSummary }}</small
-				><slot v-else name="subtitle"
-			/></template>
+			<template #subtitle><slot v-if="!compact" name="subtitle" /></template>
 			<template #actions>
 				<template v-if="compact">
 					<UiButton icon="search" @click="searchOpen = true">搜索</UiButton>

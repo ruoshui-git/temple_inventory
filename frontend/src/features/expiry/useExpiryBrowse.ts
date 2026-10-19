@@ -100,6 +100,12 @@ export function useExpiryBrowse(
       routeError.value =
         decoded.error ||
         (decoded.query.dataset !== "expiry" ? "此页面需要效期筛选条件" : "");
+      if (
+        !["date", "identity", "quantity", "name"].includes(decoded.query.sortBy)
+      ) {
+        decoded.query.sortBy = "date";
+        decoded.query.sort = "asc";
+      }
       if (JSON.stringify(query.value) !== JSON.stringify(decoded.query))
         query.value = decoded.query;
     },
@@ -266,9 +272,23 @@ export function useExpiryBrowse(
     });
   }
   function clearSecondary() {
-    const period = scope.value.period;
+    const routeScope = {
+      restrictItems: query.value.restrictItems,
+      itemCodes: [...query.value.itemCodes],
+      itemLocationKeys: [...query.value.itemLocationKeys],
+      restrictAllocations: query.value.restrictAllocations,
+      allocationKeys: [...query.value.allocationKeys],
+      loan: query.value.loan,
+      record: query.value.record,
+      recordDoctype: query.value.recordDoctype,
+      search: query.value.search,
+      sortBy: query.value.sortBy,
+      sort: query.value.sort,
+      view: query.value.view,
+    };
     clearReportSecondaryFilters(query.value, reference);
-    scope.value = { ...newReportQuery("expiry").scope, period };
+    Object.assign(query.value, newReportQuery("expiry"), routeScope);
+    scope.value = newReportQuery("expiry").scope;
   }
   function item(row: ReportRow): StockItem {
     return {

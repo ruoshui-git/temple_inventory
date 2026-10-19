@@ -169,7 +169,7 @@ watch([field, warehouse], () => c.clearPreview());
 			><p>公司：{{ company }}</p>
 			<ul>
 				<li>寺院仓库 → 实体库房 → 通用库房（Room，叶子）</li>
-				<li>寺院仓库 → 借出（分组）→ 通用借用（叶子）</li>
+				<li>寺院仓库 → 借出（叶子）</li>
 				<li>寺院仓库 → 损坏待处理（叶子）</li>
 			</ul>
 			<p>此次操作不创建库存数量。</p>

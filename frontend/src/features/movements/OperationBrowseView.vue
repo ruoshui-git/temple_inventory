@@ -5,20 +5,21 @@ import Overlay from "../../components/ui/Overlay.vue";
 import RelatedLoanPreview from "../loans/RelatedLoanPreview.vue";
 import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
-import type { ReportQuery, ReportRow } from "../../lib/reportContract";
+import type { ReportQuery } from "../../lib/reportContract";
 import { movementLabels, scopeFilterChips } from "../../lib/filterPresentation";
-import PeriodFilter from "../../components/ui/PeriodFilter.vue";
-import CompactFilters from "../../components/filters/CompactFilters.vue";
+import FilterButton from "../../components/ui/FilterButton.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ItemGroup from "../../components/ItemGroup.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import SortControl from "../../components/ui/SortControl.vue";
+import { loanSummaryMetrics, movementSummaryMetrics } from "./movementSummary";
+import OperationBrowseFilters from "./OperationBrowseFilters.vue";
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -46,8 +47,6 @@ const {
 	reference,
 	scope,
 	search,
-	status,
-	statusChoices,
 	extraChips,
 	dimension,
 	analysis,
@@ -56,9 +55,7 @@ const {
 const { isMobile } = useResponsiveLayout();
 const filtersOpen = ref(false),
 	scanOpen = ref(false);
-const filters = ref<InstanceType<typeof CompactFilters>>();
-const analysisOpen = ref(false),
-	quantitiesOpen = ref(false);
+const analysisOpen = ref(false);
 const inspected = ref<OperationGroup>();
 function inspect(row: OperationGroup) {
 	inspected.value = row;
@@ -67,7 +64,6 @@ function inspect(row: OperationGroup) {
 watch([() => props.active, isMobile], () => {
 	scanOpen.value = false;
 	analysisOpen.value = false;
-	quantitiesOpen.value = false;
 	inspected.value = undefined;
 	c.relatedLoans.close();
 });
@@ -83,8 +79,6 @@ const loanLabels: Record<string, string> = {
 	Open: "未结清",
 	Settled: "已结清",
 };
-const statusLabel = (value: unknown) =>
-	Number(value) === 0 ? "草稿数量" : Number(value) === 2 ? "已取消数量" : "已提交数量";
 const dimensions: Record<string, string> = {
 	category: "类别 / 单位",
 	location: "来源位置 / 单位",
@@ -92,6 +86,15 @@ const dimensions: Record<string, string> = {
 	borrower: "借用方",
 	month: "月份",
 };
+const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
+function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
+	const previous = scope.value[chip.field];
+	if (Array.isArray(previous))
+		Object.assign(scope.value, {
+			[chip.field]: previous.filter((value) => value !== chip.value),
+		});
+	else Object.assign(scope.value, { [chip.field]: "" });
+}
 const analysisFields: Record<string, string> = {
 	category: "category",
 	location: "source_warehouse",
@@ -99,59 +102,76 @@ const analysisFields: Record<string, string> = {
 	borrower: "borrower",
 	month: "month",
 };
-const sort = computed({
-	get: () =>
-		query.value.sortBy === "quantity"
-			? "quantity"
-			: query.value.sortBy === "name"
-				? "name"
-				: query.value.sort,
-	set: (value: string) => {
-		if (["name", "quantity"].includes(value)) {
-			query.value.sortBy = value as "name" | "quantity";
-			query.value.sort = value === "quantity" ? "desc" : "asc";
-		} else {
-			query.value.sortBy = "date";
-			query.value.sort = value === "asc" ? "asc" : "desc";
-		}
-	},
-});
-const metrics = computed(() =>
-	result.totals.map((row) => ({
-		key: JSON.stringify([row.kind, row.outcome_key, row.docstatus, row.stock_uom]),
-		label: `${props.family === "loans" && props.records ? (Number(row.docstatus) === 0 ? "计划借出" : "未归还") : familyLabel(row)} · ${statusLabel(row.docstatus)}`,
-		quantities: [
-			{
-				uom: String(row.stock_uom),
-				qty: Number(
-					props.family === "loans" && props.records
-						? Number(row.docstatus) === 0
-							? row.borrowed
-							: row.outstanding
-						: row.stock_qty,
-				),
-			},
-		],
-		tone: "neutral" as const,
-	})),
+const sortState = (field: string) =>
+	query.value.sortBy === field
+		? query.value.sort === "asc"
+			? "ascending"
+			: "descending"
+		: "none";
+const sortFields = computed(() =>
+	props.family === "loans" && !props.records
+		? [
+				{ value: "name", label: "物品名称" },
+				{ value: "quantity", label: "数量" },
+			]
+		: [{ value: "date", label: "日期" }],
 );
-function familyLabel(row: ReportRow) {
-	return props.family === "loans" && row.outcome_key
-		? outcomeLabels[String(row.outcome_key)] || String(row.outcome_key)
-		: movementLabels[String(row.kind)] || String(row.kind || "数量");
+const sortGlyph = (field: string) =>
+	query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
+function sortRecords(field: string) {
+	if (query.value.sortBy === field)
+		query.value.sort = query.value.sort === "asc" ? "desc" : "asc";
+	else {
+		query.value.sortBy = field as "date";
+		query.value.sort = "asc";
+	}
 }
+const metrics = computed(() => {
+	if (props.family === "movements") {
+		return movementSummaryMetrics(result.totals);
+	}
+	return loanSummaryMetrics(result.totals, props.records);
+});
 function quantities(rows?: { uom: string; qty: number }[]) {
-	return rows?.map((row) => `${row.qty} ${row.uom}`).join(" · ") || "—";
+	return rows?.map((row) => `${row.qty} ${row.uom}`).join(" | ") || "—";
+}
+function itemTotals(row: OperationGroup) {
+	const groups =
+		props.family === "movements"
+			? movementSummaryMetrics(row.totals || [])
+			: loanSummaryMetrics(row.totals || [], false);
+	return groups
+		.map(
+			(group) =>
+				`${group.label} ${group.quantities
+					.map(
+						(quantity) =>
+							`${quantity.qty} ${quantity.uom}${quantity.status ? ` · ${quantity.status}` : ""}`,
+					)
+					.join(" | ")}`,
+		)
+		.join(" · ");
 }
 function matching(row: OperationGroup) {
-	return (
-		row.matching_totals
-			?.map(
-				(total) =>
-					`${props.family === "loans" ? total.outstanding : total.stock_qty} ${total.stock_uom}`,
-			)
-			.join(" · ") || "—"
+	const totals = [...(row.matching_totals || [])].sort((a, b) =>
+		String(a.stock_uom).localeCompare(String(b.stock_uom), "zh-CN"),
 	);
+	const grouped = new Map<string, number>();
+	for (const total of totals) {
+		const uom = String(total.stock_uom);
+		grouped.set(
+			uom,
+			(grouped.get(uom) || 0) +
+				Number(props.family === "loans" ? total.outstanding : total.stock_qty),
+		);
+	}
+	const detail = [...grouped].map(([uom, qty]) => `${qty} ${uom}`).join(" | ");
+	if (!detail) return "—";
+	const label =
+		props.family === "loans"
+			? "未归还"
+			: movementLabels[row.kind || ""] || row.kind || "货物流动";
+	return `${label} ${detail}`;
 }
 function openedRecord(row: OperationGroup) {
 	if (result.stale) return;
@@ -169,11 +189,11 @@ function openedRecord(row: OperationGroup) {
 				:search-label="family === 'movements' ? '搜索货物流动' : '搜索借用'"
 				:filters-open="filtersOpen"
 				scannable
-				:summary="`${family === 'movements' ? '货物流动' : '借用'} · ${result.initialized ? result.total : '读取中'}`"
+				:summary="family === 'movements' ? '货物流动' : '借用'"
 				:active="active"
 				:filter-count="extraChips.length + scopeFilterChips(scope, reference).length"
 				@scan="scanOpen = true"
-				@filters="filters?.show()"
+				@filters="filtersOpen = !filtersOpen"
 			>
 				<template #actions
 					><QuickExport
@@ -222,11 +242,6 @@ function openedRecord(row: OperationGroup) {
 						按记录
 					</button>
 				</nav>
-				<PeriodFilter
-					:today="reference.siteDate"
-					v-model="scope.period"
-					:label="family === 'movements' ? '流动日期' : '借出日期'"
-				/>
 				<div
 					v-if="family === 'movements'"
 					class="browse-tabs browse-kind-tabs"
@@ -258,57 +273,36 @@ function openedRecord(row: OperationGroup) {
 									: '搜索借用人、活动或物品'
 							" /></label
 					><UiButton icon="scan" @click="scanOpen = true">扫码</UiButton
-					><label v-if="records || family === 'loans'" class="preview-inline-field"
-						>状态<select
-							v-model="status"
-							:aria-label="family === 'movements' ? '流动记录状态' : '借用状态'"
-						>
-							<option
-								v-for="[value, label] in statusChoices"
-								:key="value"
-								:value="value"
-							>
-								{{ label }}
-							</option>
-						</select></label
-					><select
-						v-model="sort"
-						:aria-label="family === 'movements' ? '流动日期排序' : '借用排序'"
-					>
-						<template v-if="family === 'loans' && !records"
-							><option value="name">物品名称</option>
-							<option value="quantity">数量由多到少</option></template
-						><template v-else
-							><option value="desc">日期由新到旧</option>
-							<option value="asc">日期由旧到新</option></template
-						>
-					</select>
+					><FilterButton
+						:expanded="filtersOpen"
+						:count="extraChips.length + scopeFilterChips(scope, reference).length"
+						@click="filtersOpen = !filtersOpen"
+					/>
+					<SortControl
+						v-model:field="query.sortBy"
+						v-model:direction="query.sort"
+						:fields="sortFields"
+						:label="family === 'loans' ? '借用排序' : '流动排序'"
+					/>
 				</div>
-				<CompactFilters
-					ref="filters"
-					v-model="scope"
-					:movement="family === 'movements'"
-					:records="records"
-					:active="active"
-					:extra-count="extraChips.length"
-					:result-count="result.total"
-					:context="`${family}/${records ? 'records' : 'items'}`"
-					@clear="c.clearSecondary"
-					@update:open="filtersOpen = $event"
-					><template #chips
-						><div class="preview-active-filters">
-							<button
-								v-for="chip in extraChips"
-								:key="chip.key"
-								class="chip"
-								:title="chip.label"
-								@click="Object.assign(query, chip.reset)"
-							>
-								{{ chip.summary || chip.label }} ×
-							</button>
-						</div></template
-					></CompactFilters
-				>
+				<div v-if="scopeChips.length || extraChips.length" class="compact-filter-chips">
+					<UiButton
+						v-for="chip in scopeChips"
+						:key="chip.key"
+						variant="ghost"
+						:aria-label="`移除${chip.label}`"
+						@click="removeScopeChip(chip)"
+						>{{ chip.label }} ×</UiButton
+					>
+					<UiButton
+						v-for="chip in extraChips"
+						:key="chip.key"
+						variant="ghost"
+						:aria-label="`移除${chip.label}`"
+						@click="Object.assign(query, chip.reset)"
+						>{{ chip.summary || chip.label }} ×</UiButton
+					>
+				</div>
 				<p v-if="routeError" role="alert">{{ routeError }}</p>
 				<p v-if="family === 'loans'" class="browse-note">
 					按借出日期筛选，显示当前结清情况。<UiButton
@@ -317,15 +311,7 @@ function openedRecord(row: OperationGroup) {
 						>查看期间借还流动</UiButton
 					>
 				</p>
-				<p v-if="result.snapshot" class="browse-note">
-					结果快照（站点时间） {{ siteDateTime(result.snapshot) }} · {{ result.total }}
-					{{ records ? "笔记录" : family === "loans" ? "组物品" : "种物品" }} · 已显示
-					{{ result.rows.length }}
-				</p>
 				<template #result-tools
-					><span
-						>{{ result.initialized ? result.total : "—" }}
-						{{ records ? "笔记录" : "种物品" }}</span
 					><UiButton v-if="result.initialized" @click="analysisOpen = true"
 						>分析结果</UiButton
 					></template
@@ -337,15 +323,10 @@ function openedRecord(row: OperationGroup) {
 				aria-label="当前筛选汇总"
 				aria-live="polite"
 			>
-				<strong
-					>{{ result.summary.document_count || 0 }} 笔记录 ·
-					{{ result.summary.item_count || 0 }} 种物品 ·
-					{{ result.summary.category_count || 0 }} 个类别</strong
-				>
-				<QuantitySummary :metrics="metrics.slice(0, 6)" />
-				<UiButton v-if="metrics.length > 6" @click="quantitiesOpen = true"
-					>查看数量明细</UiButton
-				>
+				<p class="browse-result-count">
+					筛选结果：{{ result.total }} {{ records ? "笔记录" : "种物品" }}
+				</p>
+				<QuantitySummary :metrics="metrics" :loading="result.loading || result.stale" />
 			</section>
 			<p v-if="result.loading" role="status">
 				{{ result.initialized ? "正在更新结果…" : "正在读取结果…" }}
@@ -356,7 +337,19 @@ function openedRecord(row: OperationGroup) {
 			<p v-if="result.error" class="notice-bar danger" role="alert">
 				{{ result.error }} <UiButton @click="c.retry">重试加载</UiButton>
 			</p>
+			<Overlay
+				v-if="filtersOpen && isMobile"
+				title="筛选"
+				drawer
+				@close="filtersOpen = false"
+			>
+				<OperationBrowseFilters :controller="c" :family="family" :records="records" />
+			</Overlay>
 			<div class="preview-browse-body">
+				<aside v-if="filtersOpen && !isMobile" class="preview-filter-rail">
+					<h3>筛选{{ family === "movements" ? "货物流动" : "借用" }}</h3>
+					<OperationBrowseFilters :controller="c" :family="family" :records="records" />
+				</aside>
 				<div class="preview-browse-results">
 					<Overlay
 						v-if="analysisOpen"
@@ -414,17 +407,7 @@ function openedRecord(row: OperationGroup) {
 							:context="`${row.item_code} · ${row.category || ''} · ${row.document_count} 笔记录 · 最近 ${row.date || ''}`"
 							@expanded="c.toggle(row, $event)"
 							><template #metrics
-								><span v-if="family === 'loans'"
-									>{{ outcomeLabels[row.outcome_key || ""] }} ·
-									{{ row.totals?.[0]?.stock_qty || 0 }} {{ row.stock_uom }}</span
-								><span
-									v-else
-									v-for="total in row.totals"
-									:key="JSON.stringify(total)"
-									>{{ movementLabels[String(total.kind)] || total.kind }}
-									{{ total.stock_qty }} {{ total.stock_uom }} ·
-									{{ statusLabel(total.docstatus) }}　</span
-								></template
+								><span>{{ itemTotals(row) }}</span></template
 							><UiButton
 								:disabled="result.stale"
 								@click="emit('openItem', String(row.item_code))"
@@ -467,7 +450,11 @@ function openedRecord(row: OperationGroup) {
 							<thead>
 								<tr>
 									<th>记录 / 物品</th>
-									<th>类型 / 日期</th>
+									<th :aria-sort="sortState('date')">
+										<button @click="sortRecords('date')">
+											类型 / 日期 {{ sortGlyph("date") }}
+										</button>
+									</th>
 									<th>流向</th>
 									<th>数量</th>
 									<th>状态</th>
@@ -487,8 +474,8 @@ function openedRecord(row: OperationGroup) {
 										>
 											{{ row.document
 											}}<small
-												>全单 {{ row.whole?.item_count }} 种物品 ·
-												{{ row.allocation_count }} 行分配匹配</small
+												>整单 {{ row.whole?.item_count }} 种物品 ·
+												{{ row.allocation_count }} 条符合筛选的明细</small
 											></button
 										><UiButton
 											v-if="row.whole?.original_loans?.length"
@@ -526,7 +513,7 @@ function openedRecord(row: OperationGroup) {
 									<td>
 										{{ matching(row)
 										}}<small
-											>匹配行数量 · 全单
+											>筛选内数量 · 整单
 											{{ quantities(row.whole?.quantities) }}</small
 										>
 									</td>
@@ -539,7 +526,7 @@ function openedRecord(row: OperationGroup) {
 													: "已取消"
 										}}
 										<UiButton :disabled="result.stale" @click="inspect(row)"
-											>匹配分配明细</UiButton
+											>符合筛选的明细</UiButton
 										>
 									</td>
 								</tr>
@@ -576,8 +563,8 @@ function openedRecord(row: OperationGroup) {
 									}}</strong
 								>
 								<p>
-									全单 {{ row.whole?.item_count }} 种物品 ·
-									{{ row.allocation_count }} 行分配匹配
+									整单 {{ row.whole?.item_count }} 种物品 ·
+									{{ row.allocation_count }} 条符合筛选的明细
 								</p></button
 							><UiButton
 								v-if="row.docstatus === 1 && row.whole?.loan_status === 'Open'"
@@ -586,7 +573,7 @@ function openedRecord(row: OperationGroup) {
 								>登记归还</UiButton
 							>
 							<UiButton :disabled="result.stale" @click="inspect(row)"
-								>匹配分配明细</UiButton
+								>符合筛选的明细</UiButton
 							>
 						</article>
 					</div>
@@ -608,22 +595,22 @@ function openedRecord(row: OperationGroup) {
 						:disabled="result.stale"
 						:loading="result.loading"
 						@click="c.load(true)"
-						>加载更多 · {{ result.rows.length }} / {{ result.total }}</UiButton
+						>加载更多</UiButton
 					>
 				</div>
 			</div>
 		</div>
 		<Overlay
 			v-if="inspected"
-			title="匹配分配明细"
+			title="符合筛选的明细"
 			adaptive-creation
 			@close="inspected = undefined"
 		>
 			<p class="preview-long-text">
 				{{ inspected.document || inspected.item_name }} ·
 				{{ movementLabels[inspected.kind || ""] || "" }} · {{ inspected.date || "" }} ·
-				{{ nativeStatusLabel(inspected.docstatus) }} · 匹配行 {{ matching(inspected) }} ·
-				全单 {{ quantities(inspected.whole?.quantities) }}
+				{{ nativeStatusLabel(inspected.docstatus) }} · 筛选内数量
+				{{ matching(inspected) }} · 整单 {{ quantities(inspected.whole?.quantities) }}
 			</p>
 			<p v-if="result.stale" role="status">上次结果，正在更新；相关操作暂停。</p>
 			<ReportTable
@@ -646,13 +633,6 @@ function openedRecord(row: OperationGroup) {
 				"
 			/>
 		</Overlay>
-		<Overlay
-			v-if="quantitiesOpen"
-			title="当前筛选数量明细"
-			adaptive-creation
-			@close="quantitiesOpen = false"
-			><QuantitySummary :metrics="metrics"
-		/></Overlay>
 		<RelatedLoanPreview
 			:controller="c.relatedLoans"
 			:disabled="result.stale"

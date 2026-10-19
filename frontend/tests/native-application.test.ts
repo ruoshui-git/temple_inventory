@@ -8,8 +8,13 @@ vi.mock("../src/lib/pwa", () => ({
   registerPwa: vi.fn(),
 }));
 import { ApiError } from "../src/lib/api";
-import { createReferenceData } from "../src/services/contracts";
+import {
+  createReferenceData,
+  hydrateReferenceData,
+  type BootstrapData,
+} from "../src/services/contracts";
 import { useApplication } from "../src/features/application/useApplication";
+import { warehouseLabel } from "../src/lib/warehouseLabel";
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 const sessionValue = (user = "alice") => ({
@@ -72,6 +77,88 @@ function setup(
   return { c, reference, wrapper, session, call };
 }
 describe("native application boundary", () => {
+  it("hydrates native warehouse types so duplicate default rooms receive compact disambiguated labels", () => {
+    const reference = createReferenceData();
+    const result: BootstrapData = {
+      ...bootstrap(),
+      warehouses: [
+        {
+          name: "ROOT",
+          local_label: "寺院仓库",
+          breadcrumb: "寺院仓库",
+          warehouse_type: "Location",
+          is_group: true,
+        },
+        {
+          name: "PHYSICAL",
+          local_label: "实体库房",
+          breadcrumb: "寺院仓库 / 实体库房",
+          parent_warehouse: "ROOT",
+          warehouse_type: "Location",
+          is_group: true,
+        },
+        {
+          name: "T1",
+          local_label: "T1",
+          breadcrumb: "寺院仓库 / 实体库房 / T1",
+          parent_warehouse: "PHYSICAL",
+          warehouse_type: "Location",
+          is_group: true,
+        },
+        {
+          name: "T2",
+          local_label: "T2",
+          breadcrumb: "寺院仓库 / 实体库房 / T2",
+          parent_warehouse: "PHYSICAL",
+          warehouse_type: "Location",
+          is_group: true,
+        },
+        {
+          name: "ROOM-1",
+          local_label: "A14",
+          breadcrumb: "寺院仓库 / 实体库房 / T1 / A14",
+          parent_warehouse: "T1",
+          warehouse_type: "Room",
+          is_group: true,
+        },
+        {
+          name: "ROOM-2",
+          local_label: "A14",
+          breadcrumb: "寺院仓库 / 实体库房 / T2 / A14",
+          parent_warehouse: "T2",
+          warehouse_type: "Room",
+          is_group: true,
+        },
+        {
+          name: "DEFAULT-1",
+          local_label: "无货位",
+          breadcrumb: "寺院仓库 / 实体库房 / T1 / A14 / 无货位",
+          parent_warehouse: "ROOM-1",
+          warehouse_type: "Location",
+          room_default: true,
+          is_group: false,
+        },
+        {
+          name: "DEFAULT-2",
+          local_label: "无货位",
+          breadcrumb: "寺院仓库 / 实体库房 / T2 / A14 / 无货位",
+          parent_warehouse: "ROOM-2",
+          warehouse_type: "Location",
+          room_default: true,
+          is_group: false,
+        },
+      ],
+    };
+
+    hydrateReferenceData(reference, result);
+
+    expect(
+      reference.warehouses.find((row) => row.name === "ROOM-1")?.type,
+    ).toBe("Room");
+    expect(warehouseLabel("DEFAULT-1", reference.warehouses)).toBe("T1 / A14");
+    expect(warehouseLabel("DEFAULT-2", reference.warehouses)).toBe("T2 / A14");
+  });
+
   it("delays worker activation while an editor retains unsaved input and releases its guard on unmount", async () => {
     const pending = ref(true),
       child = defineComponent({

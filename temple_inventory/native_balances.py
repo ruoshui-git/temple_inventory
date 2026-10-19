@@ -33,7 +33,7 @@ def entry_bundle(row, fieldname="serial_and_batch_bundle"):
 				limit_page_length=2,
 			)
 			if len(candidates) > 1:
-				frappe.throw("原明细包含多个批次分配版本，请在 ERPNext 中核对")
+				frappe.throw("原明细包含多个批次明细版本，请在 ERPNext 中核对")
 			name = candidates[0] if candidates else None
 	if (
 		not name
@@ -58,14 +58,14 @@ def entry_bundle(row, fieldname="serial_and_batch_bundle"):
 				limit_page_length=2,
 			)
 			if len(candidates) > 1:
-				frappe.throw("原盘点明细包含多个批次分配版本，请在 ERPNext 中核对")
+				frappe.throw("原盘点明细包含多个批次明细版本，请在 ERPNext 中核对")
 			name = candidates[0] if candidates else None
 	if not name:
 		return None
 	bundle = frappe.get_doc("Serial and Batch Bundle", name)
 	bundle.check_permission("read")
 	if bundle.item_code != row.item_code:
-		frappe.throw("批次分配不属于此物品")
+		frappe.throw("批次明细不属于此物品")
 	for allocation in bundle.entries:
 		if allocation.batch_no:
 			frappe.get_doc("Batch", allocation.batch_no).check_permission("read")

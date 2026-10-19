@@ -311,7 +311,7 @@ async function back() {
 					<p class="muted">
 						{{
 							receive
-								? "按库位 → 物品 → 批次分配填写，数量由分配合计。"
+								? "按库位 → 物品 → 批次明细填写，数量由明细合计。"
 								: "核对库位、现有批次与可处理数量。"
 						}}
 					</p>
@@ -432,7 +432,7 @@ async function back() {
 					><span>各单位分别合计</span>
 				</div>
 				<p class="review-scope">
-					{{ itemCount }} 种物品 · {{ draft.items.length }} 行分配
+					{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细
 				</p>
 				<div class="review-lines-disclosure">
 					<AllocationSummary :draft="draft" collapsible />
@@ -451,7 +451,7 @@ async function back() {
 				{{ draft.postingDate }} ·
 				{{ draft.timeMode === "current" ? "确认时的当前时间" : draft.postingTime }}
 			</p>
-			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 行分配 · {{ totals }}</p>
+			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</p>
 			<AllocationSummary :draft="draft" /><TransactionContext
 				:draft="draft"
 				:activity-label="activityLabel"
@@ -526,7 +526,7 @@ async function back() {
 						: action === "delete"
 							? "仅删除此原生草稿，已创建的物品、分类和单位仍保留。"
 							: action === "duplicate"
-								? "另建原生草稿，保留物品、分配与记录的换算；附件需重新添加。请核对当前库存与入账时间。"
+								? "另建原生草稿，保留物品、明细与单位换算；附件需重新添加。请核对当前库存与入账时间。"
 								: "保留原记录，另建带修订来源的新草稿。"
 				}}
 			</p>

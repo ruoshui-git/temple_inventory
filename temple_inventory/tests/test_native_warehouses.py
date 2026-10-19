@@ -94,6 +94,63 @@ class NativeWarehouseTests(NativeDocumentTests):
 			frappe.db.get_value("Warehouse", row["name"], "warehouse_name"), "Updated Room " + self.token
 		)
 
+	def test_room_default_is_an_explicit_unique_leaf_flag(self):
+		room = warehouses.save_warehouse("Default room " + self.token, self.physical, "Room", True)
+		first = warehouses.save_warehouse("无货位", room["name"], "Location", False, room_default=True)
+		self.assertTrue(first["room_default"])
+		second = warehouses.save_warehouse("备用位置", room["name"], "Location")
+		with self.assertRaises(frappe.ValidationError):
+			warehouses.save_warehouse("错误分组", self.physical, "Room", True, room_default=True)
+		with self.assertRaises(frappe.ValidationError):
+			warehouses.save_warehouse(
+				"第二个默认候选",
+				room["name"],
+				"Location",
+				False,
+				second["name"],
+				second["version"],
+				room_default=True,
+			)
+		self.assertTrue(frappe.db.get_value("Warehouse", first["name"], "ti_room_default"))
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc(
+				{
+					"doctype": "Warehouse",
+					"warehouse_name": "Desk default " + self.token,
+					"company": self.company,
+					"parent_warehouse": room["name"],
+					"warehouse_type": "Location",
+					"is_group": 0,
+					"ti_room_default": 1,
+				}
+			).insert()
+		room_doc = frappe.get_doc("Warehouse", room["name"])
+		with self.assertRaises(frappe.ValidationError):
+			warehouses.save_warehouse(
+				room_doc.warehouse_name,
+				self.physical,
+				"Location",
+				True,
+				room_doc.name,
+				str(room_doc.modified),
+			)
+		self.assertEqual(frappe.db.get_value("Warehouse", room["name"], "warehouse_type"), "Room")
+
+	def test_room_default_native_names_are_unique_but_management_labels_stay_compact(self):
+		first_room = warehouses.save_warehouse("Default A " + self.token, self.physical, "Room", True)
+		second_room = warehouses.save_warehouse("Default B " + self.token, self.physical, "Room", True)
+		first = warehouses.save_warehouse("无货位", first_room["name"], "Location", False, room_default=True)
+		second = warehouses.save_warehouse(
+			"无货位", second_room["name"], "Location", False, room_default=True
+		)
+		self.assertEqual(first["label"], "无货位")
+		self.assertEqual(second["label"], "无货位")
+		self.assertNotEqual(first["name"], second["name"])
+		self.assertNotEqual(
+			frappe.db.get_value("Warehouse", first["name"], "warehouse_name"),
+			frappe.db.get_value("Warehouse", second["name"], "warehouse_name"),
+		)
+
 	def test_existing_stock_allows_metadata_but_rejects_hierarchy_and_disable(self):
 		self.receipt(5)
 		doc = frappe.get_doc("Warehouse", self.a)

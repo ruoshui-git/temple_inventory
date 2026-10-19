@@ -17,6 +17,7 @@ export interface NativeWarehouse {
   label: string;
   parent: string;
   type: string;
+  room_default: boolean;
   is_group: boolean;
   disabled: boolean;
   version: string;
@@ -67,6 +68,7 @@ export function useNativeWarehouses(
     warehouse_type: "Room",
     is_group: false,
     disabled: false,
+    room_default: false,
   });
   const selected = computed(() =>
     tree.value?.rows.find(
@@ -251,6 +253,7 @@ export function useNativeWarehouses(
       warehouse_type: row?.type || "Room",
       is_group: row?.is_group || false,
       disabled: row?.disabled || false,
+      room_default: row?.room_default || false,
     });
     baseline.value = JSON.stringify(form);
     dialogOpen.value = true;
@@ -355,7 +358,7 @@ export function useNativeWarehouses(
       ["label", "parent", "warehouse_type"].some(
         (key) => typeof entry.values[key] !== "string",
       ) ||
-      ["is_group", "disabled"].some(
+      ["is_group", "disabled", "room_default"].some(
         (key) => typeof entry.values[key] !== "boolean",
       )
     ) {

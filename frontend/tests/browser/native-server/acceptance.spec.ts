@@ -309,7 +309,7 @@ test("real matching count finishes without creating an adjustment document", asy
 }) => {
   const query = { dataset: "counts" };
   const before = await call(page.request, "projections.report_page", { query });
-  const warehouse = "A02 / 未指定 - O";
+  const warehouse = "A02 / 无货位 - O";
   await page.goto(
     `/inventory/reconcile/new?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
   );
@@ -580,7 +580,7 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
 }) => {
   const bootstrap = await call(page.request, "browse.bootstrap");
   const warehouse = bootstrap.physical_leaves.find(
-    (name: string) => name.includes("A02") && name.includes("未指定"),
+    (name: string) => name.includes("A02") && name.includes("无货位"),
   );
   expect(warehouse).toBeTruthy();
   let name = "";

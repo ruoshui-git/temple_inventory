@@ -50,7 +50,7 @@ function sourceRows(query: ReportQuery, project: Project): ReportRow[] {
           : value.source_warehouse || "",
       destination_warehouse:
         query.dataset === "loans"
-          ? "借出 / 法会义工组"
+          ? "借出"
           : value.destination_warehouse || value.warehouse || "",
       date: value.date || "",
       time: value.time || "10:00:00",

@@ -208,7 +208,7 @@ describe("native browse service controllers", () => {
     expect(controller.data.total).toBe(205);
     expect(controller.data.next).toBeNull();
   });
-  it("ignores late results and keeps restrictive-empty inherited scope", async () => {
+  it("ignores late results and preserves restrictive-empty inherited scope when clearing filters", async () => {
     const service = services(),
       first = deferred<unknown>();
     vi.mocked(service.call)
@@ -217,6 +217,8 @@ describe("native browse service controllers", () => {
     const incoming = query();
     incoming.restrictItems = true;
     incoming.itemCodes = [];
+    incoming.restrictAllocations = true;
+    incoming.allocationKeys = ["ALLOCATION-EXACT"];
     const props = reactive({ initialQuery: incoming });
     const controller = setup(service, () =>
       useStockBrowseController(props, vi.fn(), vi.fn()),
@@ -229,6 +231,10 @@ describe("native browse service controllers", () => {
     expect(controller.data.rows[0]?.code).toBe("NEW");
     expect(controller.query.value.restrictItems).toBe(true);
     expect(controller.query.value.itemCodes).toEqual([]);
+    controller.clear();
+    expect(controller.query.value.restrictItems).toBe(true);
+    expect(controller.query.value.restrictAllocations).toBe(true);
+    expect(controller.query.value.allocationKeys).toEqual(["ALLOCATION-EXACT"]);
   });
   it("loads detail tables independently and does not replace a new report with an old response", async () => {
     const service = services(),

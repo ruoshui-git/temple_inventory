@@ -394,7 +394,7 @@ def _copy_entry_batches(original, copied):
 		bundle = entry_bundle(previous)
 		if not bundle:
 			if not previous.batch_no:
-				frappe.throw("原明细缺少可核对的批次分配，请在 ERPNext 中处理")
+				frappe.throw("原明细缺少可核对的批次明细，请在 ERPNext 中处理")
 			frappe.get_doc("Batch", previous.batch_no).check_permission("read")
 			row.batch_no, row.use_serial_batch_fields = previous.batch_no, 1
 			continue

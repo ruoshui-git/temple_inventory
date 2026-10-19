@@ -36,7 +36,7 @@ export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
     views: [
       { id: "summary", label: "流动汇总" },
       { id: "records", label: "单据记录" },
-      { id: "lines", label: "分配明细" },
+      { id: "lines", label: "库存明细" },
     ],
     groups: ["item", "category", "location", "kind", "activity", "month"],
     dateLabel: "记账日期",

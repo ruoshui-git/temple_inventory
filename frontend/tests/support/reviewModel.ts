@@ -569,14 +569,6 @@ const defaultWarehouses: ReviewWarehouse[] = [
   {
     name: "借出",
     label: "借出",
-    is_group: true,
-    warehouse_type: "Group",
-    status: "active",
-  },
-  {
-    name: "借出 / 法会义工组",
-    label: "法会义工组",
-    parent: "借出",
     is_group: false,
     warehouse_type: "Location",
     status: "active",
@@ -1404,12 +1396,12 @@ export function submitDraft(
         qty: line.qty,
         uom: line.uom,
         from: settlement
-          ? "借出 / 法会义工组"
+          ? "借出"
           : line.sourceLocation ||
             (kind === "Receive" ? draft.source || "—" : line.location),
         to:
           kind === "Loan"
-            ? "借出 / 法会义工组"
+            ? "借出"
             : kind === "Damage" || line.returnOutcome === "damaged"
               ? "损坏待处理 / 斋堂"
               : kind === "Loss" || line.returnOutcome === "lost"

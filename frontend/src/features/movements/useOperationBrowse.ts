@@ -181,9 +181,13 @@ export function useOperationBrowse(
       : props.family === "movements"
         ? "summary"
         : "outcomes";
-    if (props.records && incoming.sortBy === "quantity") {
-      incoming.sortBy = "date";
-      incoming.sort = "desc";
+    const supportedSorts =
+      props.family === "loans" && !props.records
+        ? ["name", "quantity"]
+        : ["date"];
+    if (!supportedSorts.includes(incoming.sortBy)) {
+      incoming.sortBy = defaults().sortBy;
+      incoming.sort = defaults().sort;
     }
     if (JSON.stringify(query.value) !== JSON.stringify(incoming))
       query.value = incoming;
@@ -294,7 +298,7 @@ export function useOperationBrowse(
     if (!details[row.id])
       details[row.id] = detail(
         row.id,
-        props.records ? "匹配分配明细" : "贡献记录与明细",
+        props.records ? "符合筛选的明细" : "符合筛选的记录与明细",
       );
     const table = details[row.id]!;
     if (
@@ -414,8 +418,23 @@ export function useOperationBrowse(
     ),
   );
   const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
-  function clearSecondary() {
-    for (const chip of extraChips.value) Object.assign(query.value, chip.reset);
+  function clearFilters() {
+    const routeScope = {
+      restrictItems: query.value.restrictItems,
+      itemCodes: [...query.value.itemCodes],
+      itemLocationKeys: [...query.value.itemLocationKeys],
+      restrictAllocations: query.value.restrictAllocations,
+      allocationKeys: [...query.value.allocationKeys],
+      loan: query.value.loan,
+      record: query.value.record,
+      recordDoctype: query.value.recordDoctype,
+      search: query.value.search,
+      sortBy: query.value.sortBy,
+      sort: query.value.sort,
+    };
+    const next = defaults();
+    Object.assign(query.value, next, routeScope);
+    routeError.value = "";
   }
   function reset() {
     routeError.value = "";
@@ -509,7 +528,7 @@ export function useOperationBrowse(
     statusChoices,
     extraChips,
     scopeChips,
-    clearSecondary,
+    clearFilters,
     reset,
     load,
     retry: () => load(retryMore),

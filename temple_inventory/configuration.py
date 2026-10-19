@@ -11,8 +11,7 @@ from temple_inventory.native_access import erpnext_installed, require_frontend_a
 POINTERS = {
 	"root_warehouse": ("寺院仓库根目录", True),
 	"physical_root_warehouse": ("实体仓库根目录", True),
-	"leased_warehouse": ("借出仓库组", True),
-	"default_lease_program_warehouse": ("默认借出库位", False),
+	"leased_warehouse": ("借出库位", False),
 	"damaged_warehouse": ("损坏库位", False),
 }
 
@@ -132,10 +131,9 @@ def status():
 		and leased
 		and (physical.name == leased.name or _inside(physical, leased) or _inside(leased, physical))
 	):
-		blockers.append({"code": "overlap", "message": "实体仓库与借出仓库必须是分开的分组"})
-	default = configured.get("default_lease_program_warehouse")
-	if default and leased and not _inside(default, leased):
-		blockers.append({"code": "lease_leaf", "message": "默认借出库位必须位于借出仓库组下"})
+		blockers.append({"code": "overlap", "message": "实体仓库与借出库位必须分开"})
+	if leased and root and leased.parent_warehouse != root.name:
+		blockers.append({"code": "lease_leaf", "message": "借出库位必须位于寺院仓库根目录下"})
 	damaged = configured.get("damaged_warehouse")
 	if damaged and physical and _inside(damaged, physical):
 		blockers.append({"code": "damaged_physical", "message": "损坏库位不能位于实体仓库分组内"})
@@ -206,16 +204,14 @@ def initialize(company, version):
 	root = create("寺院仓库", group=True)
 	physical = create("实体库房", root, True)
 	leaf = create("通用库房", physical, kind="Room")
-	leased = create("借出", root, True)
-	lease_leaf = create("通用借用", leased)
+	lease_leaf = create("借出", root)
 	damaged = create("损坏待处理", root)
 	settings.update(
 		{
 			"company": company,
 			"root_warehouse": root,
 			"physical_root_warehouse": physical,
-			"leased_warehouse": leased,
-			"default_lease_program_warehouse": lease_leaf,
+			"leased_warehouse": lease_leaf,
 			"damaged_warehouse": damaged,
 		}
 	)

@@ -1,5 +1,31 @@
 # Temple Inventory UI/UX Decisions
 
+## Browse filters, summaries and labels — 2026-10-18 supersession
+
+The user supersedes the compact-count subtitle, desktop split filter popovers,
+wrapping hierarchy labels and inline summary positioning for Stock, Expiry,
+Movement and Loans. Compact browse headers keep the title and labeled controls;
+expanded filters expose the complete filter set in a desktop sidebar or mobile
+drawer. Search, quick type tabs, sort and view controls remain above results.
+Hierarchy label blocks scroll horizontally when needed and retain touch targets.
+Each page has one normal-flow quantity summary above results and one labeled
+result-count line; load progress belongs in the pagination footer. Movement
+quantity cards preserve movement type order, separate stock units and distinguish
+record statuses. Sorting direction and supported fields are shared between
+controls and sortable headers. Report wording uses 明细 for allocation detail.
+
+Loan inventory uses one configured 借出 leaf beneath the inventory root. The
+settings pointer identifies that leaf directly; there is no leased group or
+separate default loan leaf. This supersedes the earlier Leased group/program-leaf
+architecture while retaining borrower and activity metadata on native records.
+
+Each Room may have one explicitly marked default leaf. Daily labels resolve that
+leaf to its room name (for example, A14); duplicate room names gain only the
+shortest authorized ancestor prefix needed to distinguish them (for example,
+T1 / A14). Warehouse management and hierarchical selectors show the leaf as
+无货位 beneath its room. Native Warehouse IDs remain unchanged for audit and
+transaction references.
+
 ## Consistent page headers and Inventory controls — 2026-10-18
 
 - Routed pages share title/Back/action geometry. Desktop utilities precede workflow

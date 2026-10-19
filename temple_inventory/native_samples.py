@@ -33,7 +33,7 @@ def _date(days):
 	return str(getdate(nowdate()) + timedelta(days=days))
 
 
-def _warehouse(company, label, parent, *, group=False, kind="Location"):
+def _warehouse(company, label, parent, *, group=False, kind="Location", room_default=False):
 	return (
 		frappe.get_doc(
 			{
@@ -43,6 +43,7 @@ def _warehouse(company, label, parent, *, group=False, kind="Location"):
 				"parent_warehouse": parent,
 				"is_group": int(group),
 				"warehouse_type": kind,
+				"ti_room_default": int(room_default),
 			}
 		)
 		.insert()
@@ -65,16 +66,16 @@ def _hierarchy(company, data):
 	):
 		frappe.throw("样例安装要求配置范围内没有库存流水；请使用开发站点重置工具")
 	physical = settings.physical_root_warehouse
-	first = _warehouse(company, "第1寺院", physical, group=True)
-	_warehouse(company, "第1寺院通用位置", first, kind="Room")
-	second = _warehouse(company, "第2寺院", physical, group=True)
+	first = _warehouse(company, "T1", physical, group=True)
+	_warehouse(company, "通用位置", first, kind="Room")
+	second = _warehouse(company, "T2", physical, group=True)
 	rooms = {}
 	for row in data["rooms"]:
 		room = _warehouse(company, row["label"], second, group=True, kind="Room")
-		rooms[row["label"]] = _warehouse(company, row["label"] + " / 未指定", room)
+		rooms[row["label"]] = _warehouse(company, row["label"] + " / 无货位", room, room_default=True)
 		if row["label"] == "A02":
 			rooms["A02-RACK"] = _warehouse(company, "A02 / 货架一 / 上层", room)
-	rooms["LEASE"] = settings.default_lease_program_warehouse
+	rooms["LEASE"] = settings.leased_warehouse
 	rooms["DAMAGED"] = settings.damaged_warehouse
 	return rooms
 

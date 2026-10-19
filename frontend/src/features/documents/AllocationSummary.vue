@@ -52,7 +52,7 @@ const groups = computed(() => {
 				"
 				>{{ warehouseLabel(place, reference.warehouses) }} ·
 				{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
-				{{ lines.length }} 行分配 · {{ totals(lines) }}</component
+				{{ lines.length }} 条明细 · {{ totals(lines) }}</component
 			>
 			<p v-for="line in lines" :key="line.id" :data-summary-line-id="line.id">
 				{{ item(line.code)?.name || line.code }} · {{ line.qty }} {{ line.uom }}

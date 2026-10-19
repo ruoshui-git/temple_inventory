@@ -1150,7 +1150,7 @@
 	margin: 0;
 }
 .browse-chrome .expanded-browse-tools {
-	flex: 0 1 auto;
+	flex: 0 0 auto;
 	min-block-size: 0;
 	max-block-size: 50dvh;
 	overflow: auto;
@@ -1158,6 +1158,39 @@
 	min-width: 0;
 	padding: 2px;
 	scrollbar-gutter: stable;
+}
+.browse-chrome .browse-tabs {
+	flex: 0 0 auto;
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	overscroll-behavior-inline: contain;
+}
+.browse-chrome .browse-tabs button {
+	flex: 0 0 auto;
+	min-height: 44px;
+	white-space: nowrap;
+}
+.preview-filter-rail .hierarchy-facet,
+.compact-filter-content .hierarchy-facet {
+	min-width: 0;
+	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+	overscroll-behavior-inline: contain;
+}
+.preview-filter-rail .hierarchy-list,
+.compact-filter-content .hierarchy-list {
+	width: max-content;
+	min-width: 100%;
+}
+.preview-filter-rail .hierarchy-row label > span,
+.compact-filter-content .hierarchy-row label > span {
+	white-space: nowrap;
+	word-break: keep-all;
+}
+.preview-filter-rail .hierarchy-row,
+.compact-filter-content .hierarchy-row {
+	min-height: 44px;
 }
 .browse-chrome.is-compact h1 {
 	font-size: var(--p-section);
@@ -1175,6 +1208,85 @@
 	flex-wrap: wrap;
 	gap: var(--p-space-2);
 	min-width: 0;
+}
+.browse-sort-control {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+	min-width: 0;
+}
+.browse-filter-dense {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+.browse-filter-dense .preview-filter-fields {
+	gap: 8px;
+}
+.browse-filter-dense .preview-filter-fields fieldset {
+	margin: 0;
+	padding: 4px 0;
+}
+.browse-filter-dense .hierarchy-facet {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+.browse-filter-dense .hierarchy-facet header {
+	margin: 0;
+	flex-wrap: nowrap;
+	justify-content: flex-start;
+	gap: 8px;
+	max-width: 100%;
+	overflow-x: auto;
+	white-space: nowrap;
+}
+.browse-filter-dense .hierarchy-facet header h3 {
+	flex-basis: auto;
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+.browse-filter-dense .hierarchy-facet header > * {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+.browse-filter-dense .hierarchy-facet .facet-chips {
+	flex-wrap: nowrap;
+	max-width: 100%;
+	overflow-x: auto;
+	padding-bottom: 2px;
+}
+.browse-filter-dense .hierarchy-facet .facet-chips button {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+.browse-filter-dense .hierarchy-facet .facet-suggestions {
+	min-width: 0;
+	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: auto;
+	margin-top: 4px;
+}
+.browse-filter-dense .hierarchy-list {
+	width: max-content;
+	min-width: 100%;
+}
+.browse-filter-dense .hierarchy-row label > span {
+	white-space: nowrap;
+	word-break: keep-all;
+}
+.filter-rail.browse-filter-rail,
+.preview-filter-rail.browse-filter-rail {
+	padding: 0 8px 0 0;
+}
+.browse-filter-rail > h3 {
+	margin: 0 0 8px;
+}
+.preview-drawer .browse-filter-dense,
+.preview-drawer-content .browse-filter-dense {
+	padding: 0 8px;
 }
 .browse-result-toolbar > :first-child {
 	margin-inline-end: auto;

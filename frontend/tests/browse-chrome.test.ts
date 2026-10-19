@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h, reactive } from "vue";
+import { defineComponent, h, reactive, ref } from "vue";
 import BrowseToolbar from "../src/components/ui/BrowseToolbar.vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
+import OperationBrowseFilters from "../src/features/movements/OperationBrowseFilters.vue";
+import type { OperationBrowse } from "../src/features/movements/useOperationBrowse";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -58,6 +60,7 @@ it("collapses once, honors manual choices, and keeps focus on the persistent dis
   expect(
     document.getElementById(toggle.attributes("aria-controls")),
   ).toBeTruthy();
+  expect(wrapper.find(".browse-compact-summary").exists()).toBe(false);
   surface.scrollTop = 0;
   surface.dispatchEvent(new Event("scroll"));
   await flushPromises();
@@ -81,6 +84,66 @@ it("collapses once, honors manual choices, and keeps focus on the persistent dis
   expect(wrapper.emitted("update:search")?.at(-1)).toEqual(["法会物品"]);
   await wrapper.setProps({ active: false });
   expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("keeps all quick tabs in the shared expanded toolbar", async () => {
+  const wrapper = mount(BrowseToolbar, {
+    props: { title: "货物流动", summary: "货物流动" },
+    slots: {
+      default:
+        '<nav class="browse-tabs" aria-label="流动类型"><button>全部</button><button>入库</button><button>出库</button><button>调拨</button></nav>',
+    },
+  });
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(wrapper.get(".expanded-browse-tools .browse-tabs").exists()).toBe(
+    true,
+  );
+  expect(wrapper.get(".browse-tabs").findAll("button")).toHaveLength(4);
+});
+
+it("exposes every movement filter in the shared panel content", async () => {
+  const reference = createReferenceData();
+  reference.siteDate = "2026-10-18";
+  const call = vi.fn(async () => []);
+  const query = ref(newReportQuery("movements"));
+  const scope = ref(query.value.scope);
+  const controller = {
+    reference,
+    query,
+    scope,
+    status: ref("completed"),
+    statusChoices: ref(["completed", "draft"].map((value) => [value, value])),
+    extraChips: ref([]),
+    reset: vi.fn(),
+  } as unknown as OperationBrowse;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call, report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(OperationBrowseFilters, {
+            controller,
+            family: "movements",
+            records: true,
+          });
+      },
+    }),
+    { attachTo: document.body },
+  );
+  wrappers.push(wrapper);
+  await flushPromises();
+  const titles = wrapper
+    .findAllComponents(HierarchyFilter)
+    .map((tree) => tree.props("title"));
+  expect(titles).toContain("来源位置");
+  expect(titles).toContain("去向位置");
+  expect(wrapper.text()).toContain("流动日期");
+  expect(wrapper.text()).toContain("包括盘点调整");
+  expect(wrapper.text()).toContain("状态");
 });
 
 function stock() {

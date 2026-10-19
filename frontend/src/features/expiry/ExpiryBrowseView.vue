@@ -7,7 +7,6 @@ import type { ExpiryBrowse } from "./useExpiryBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import UiButton from "../../components/ui/UiButton.vue";
-import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import FilterButton from "../../components/ui/FilterButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
@@ -15,6 +14,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
+import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
@@ -59,6 +59,30 @@ const analysisTable = computed(() => ({
 function openItem(row: ReportRow) {
 	if (!result.stale) emit("item", String(row.item_code));
 }
+function sortBy(field: ReportQuery["sortBy"]) {
+	if (query.value.sortBy === field)
+		query.value.sort = query.value.sort === "asc" ? "desc" : "asc";
+	else {
+		query.value.sortBy = field;
+		query.value.sort = "asc";
+	}
+}
+function sortState(field: string) {
+	return query.value.sortBy === field
+		? query.value.sort === "asc"
+			? "ascending"
+			: "descending"
+		: "none";
+}
+const sortFields = [
+	{ value: "date", label: "到期日" },
+	{ value: "identity", label: "物品 / 批次编号" },
+	{ value: "quantity", label: "库存数量" },
+	{ value: "name", label: "物品名称" },
+];
+function sortGlyph(field: ReportQuery["sortBy"]) {
+	return query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
+}
 </script>
 <template>
 	<section class="browse-page">
@@ -102,30 +126,17 @@ function openItem(row: ReportRow) {
 						type="search"
 						placeholder="搜索物品、批次或位置"
 				/></label>
-				<PeriodFilter
-					v-model="scope.period"
-					label="到期日期"
-					:today="reference.siteDate"
-					:active="active"
-				/>
 				<FilterButton
 					:expanded="filterOpen"
 					:count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
 					@click="filterOpen = !filterOpen"
 				/>
-				<div class="button-row">
-					<label class="preview-field"
-						>排序<select v-model="query.sortBy">
-							<option value="date">到期日</option>
-							<option value="identity">物品 / 批次编号</option>
-							<option value="quantity">库存数量</option>
-							<option value="name">物品名称</option>
-						</select></label
-					>
-					<UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
-						query.sort === "asc" ? "升序" : "降序"
-					}}</UiButton>
-				</div>
+				<SortControl
+					v-model:field="query.sortBy"
+					v-model:direction="query.sort"
+					:fields="sortFields"
+					label="效期排序"
+				/>
 			</div>
 			<div class="preview-active-filters">
 				<UiButton
@@ -148,7 +159,6 @@ function openItem(row: ReportRow) {
 			</div>
 			<UiButton icon="scan" @click="scan?.show()">扫码</UiButton
 			><template #result-tools
-				><span>{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品</span
 				><UiButton v-if="result.initialized" @click="analysisOpen = true"
 					>分析结果</UiButton
 				></template
@@ -168,9 +178,14 @@ function openItem(row: ReportRow) {
 		</p>
 		<p v-if="result.stale" role="status">结果正在更新，更新完成后可打开详情。</p>
 		<p v-if="result.initialized" class="browse-result-count">
-			{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品 ·
-			{{ result.total }} 条库位分配 · 已读取 {{ result.rows.length }} 条
+			筛选结果：{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品 ·
+			{{ result.total }} 条存放明细
 		</p>
+		<QuantitySummary
+			v-if="result.initialized"
+			:metrics="metrics"
+			:loading="result.loading || result.stale"
+		/>
 		<div class="preview-browse-body">
 			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail">
 				<ExpiryBrowseFilters :controller="c" />
@@ -217,10 +232,22 @@ function openItem(row: ReportRow) {
 					<table class="browse-table">
 						<thead>
 							<tr>
-								<th>物品 / 批次</th>
-								<th>效期</th>
+								<th :aria-sort="sortState('identity')">
+									<button @click="sortBy('identity')">
+										物品 / 批次 {{ sortGlyph("identity") }}
+									</button>
+								</th>
+								<th :aria-sort="sortState('date')">
+									<button @click="sortBy('date')">
+										效期 {{ sortGlyph("date") }}
+									</button>
+								</th>
 								<th>剩余时间</th>
-								<th>可用量</th>
+								<th :aria-sort="sortState('quantity')">
+									<button @click="sortBy('quantity')">
+										库存数量 {{ sortGlyph("quantity") }}
+									</button>
+								</th>
 								<th>位置</th>
 							</tr>
 						</thead>
@@ -263,7 +290,12 @@ function openItem(row: ReportRow) {
 											: "—"
 									}}
 								</td>
-								<td>{{ row.available }} {{ row.stock_uom }}</td>
+								<td>
+									{{ row.stock_qty }} {{ row.stock_uom }}
+									<small class="expiry-available-quantity"
+										>可用 {{ row.available }}</small
+									>
+								</td>
 								<td>
 									<p>
 										{{
@@ -303,7 +335,6 @@ function openItem(row: ReportRow) {
 					adaptive-creation
 					@close="analysisOpen = false"
 				>
-					<QuantitySummary :metrics="metrics" />
 					<label class="preview-field"
 						>分析维度<select v-model="dimension">
 							<option value="category">类别</option>

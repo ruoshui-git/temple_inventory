@@ -71,7 +71,6 @@ def bootstrap():
 				"root_warehouse",
 				"physical_root_warehouse",
 				"leased_warehouse",
-				"default_lease_program_warehouse",
 				"damaged_warehouse",
 				"photo_required",
 			)

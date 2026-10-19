@@ -149,6 +149,27 @@ class ReportContext:
 		row = self.warehouses.get(warehouse)
 		if not row:
 			return ""
+		if row.get("ti_room_default"):
+			room = self.warehouses.get(row.parent_warehouse)
+			if not room:
+				return row.warehouse_name
+			duplicate_rooms = [
+				candidate
+				for candidate in self.warehouses.values()
+				if candidate.name != room.name
+				and candidate.is_group
+				and candidate.warehouse_type == "Room"
+				and candidate.warehouse_name == room.warehouse_name
+			]
+			if not duplicate_rooms:
+				return room.warehouse_name
+			current_path = self._warehouse_path(room.name)
+			other_paths = [self._warehouse_path(candidate.name) for candidate in duplicate_rooms]
+			for count in range(1, len(current_path) + 1):
+				suffix = current_path[-count:]
+				if all(path[-count:] != suffix for path in other_paths):
+					return " / ".join(suffix)
+			return " / ".join(current_path)
 		label = row.warehouse_name
 		if sum(value.warehouse_name == label for value in self.warehouses.values()) < 2:
 			return label
@@ -159,6 +180,15 @@ class ReportContext:
 			parts.insert(0, parent.warehouse_name)
 			parent = self.warehouses.get(parent.parent_warehouse)
 		return " / ".join(parts)
+
+	def _warehouse_path(self, name):
+		parts, seen = [], set()
+		row = self.warehouses.get(name)
+		while row and row.name not in seen:
+			seen.add(row.name)
+			parts.insert(0, row.warehouse_name)
+			row = self.warehouses.get(row.parent_warehouse)
+		return parts
 
 	def matches_item(self, code, warehouse=None):
 		query = self.query

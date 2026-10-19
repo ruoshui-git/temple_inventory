@@ -101,7 +101,7 @@ describe("explicit native setup and repair", () => {
     await review.trigger("click");
     expect(c.initializeOpen.value).toBe(true);
     expect(call).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).toContain("借出（分组）");
+    expect(document.body.textContent).toContain("借出（叶子）");
     await c.apply(true);
     expect(call).toHaveBeenLastCalledWith("configuration.initialize", {
       company: "TEMPLE",

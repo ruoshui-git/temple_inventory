@@ -144,7 +144,7 @@ export function registerFixtureDraft(draft: ReviewDraft) {
       t_warehouse: ["Issue", "Loss", "Disposal"].includes(draft.kind)
         ? null
         : draft.kind === "Loan"
-          ? "借出 / 法会义工组"
+          ? "借出"
           : draft.kind === "Damage"
             ? "损坏待处理 / 斋堂"
             : line.location,
@@ -550,7 +550,7 @@ export async function fixtureNativeCall(
         conversion_factor: 1,
         transfer_qty: line.qty,
         s_warehouse: line.location || "斋堂 / A-01",
-        t_warehouse: "借出 / 法会义工组",
+        t_warehouse: "借出",
         outcomes: {
           Returned: line.returned,
           Damaged: line.damaged,

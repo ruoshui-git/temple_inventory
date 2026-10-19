@@ -40,7 +40,7 @@ export function decodeAllocationSelection(value: unknown): {
   } catch {
     return {
       allocations: [],
-      error: "库存分配范围无效，请返回来源页面重新选择",
+      error: "库存明细范围无效，请返回来源页面重新选择",
     };
   }
 }

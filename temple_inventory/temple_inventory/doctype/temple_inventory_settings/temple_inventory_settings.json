@@ -6,7 +6,6 @@
     "warehouse_section",
     "root_warehouse",
     "leased_warehouse",
-    "default_lease_program_warehouse",
     "damaged_warehouse",
     "photo_required",
     "allowed_warehouses",
@@ -37,13 +36,7 @@
     {
       "fieldname": "leased_warehouse",
       "fieldtype": "Link",
-      "label": "Leased Programs Warehouse Group",
-      "options": "Warehouse"
-    },
-    {
-      "fieldname": "default_lease_program_warehouse",
-      "fieldtype": "Link",
-      "label": "Default Lease Program Warehouse",
+      "label": "Leased Warehouse Leaf",
       "options": "Warehouse"
     },
     {

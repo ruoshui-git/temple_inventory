@@ -344,6 +344,16 @@ function toggle(name: string) {
 						v-model="form.is_group"
 						type="checkbox"
 					/>分组节点（组织下级，不直接存放库存）</label
+				><label
+					v-if="
+						!form.is_group &&
+						c.tree.value?.rows.find((row) => row.name === form.parent)?.type === 'Room'
+					"
+					class="preview-choice-label"
+					><input
+						v-model="form.room_default"
+						type="checkbox"
+					/>作为此房间的默认存放位置</label
 				><label class="preview-choice-label"
 					><input v-model="form.disabled" type="checkbox" />停用此仓库</label
 				>

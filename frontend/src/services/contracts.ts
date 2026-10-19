@@ -151,7 +151,9 @@ export interface BootstrapData {
     name: string;
     local_label: string;
     breadcrumb: string;
+    room_default?: boolean;
     parent_warehouse?: string;
+    warehouse_type?: string;
     is_group: boolean;
   }[];
   uoms: { name: string; must_be_whole_number: boolean }[];
@@ -180,6 +182,7 @@ export function hydrateReferenceData(
       label: row.local_label,
       search_text: row.breadcrumb,
       parent: row.parent_warehouse,
+      type: row.warehouse_type,
     })),
     units: result.uoms.map((row) => ({
       name: row.name,

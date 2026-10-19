@@ -13,6 +13,7 @@ import {
   type RecoverySnapshot,
 } from "../src/lib/browserRecovery";
 import type { NativeWarehouse } from "../src/features/warehouses/useNativeWarehouses";
+import { warehouseLabel } from "../src/lib/warehouseLabel";
 const wrappers: VueWrapper[] = [];
 beforeEach(() => localStorage.clear());
 afterEach(() => {
@@ -25,6 +26,7 @@ const root: NativeWarehouse = {
   label: "寺院仓库",
   parent: "",
   type: "Location",
+  room_default: false,
   is_group: true,
   disabled: false,
   protected: true,
@@ -107,6 +109,117 @@ function setup(
   return { wrapper, page, c: page.vm.controller, call, report, reference };
 }
 describe("shared native warehouse workspace", () => {
+  it("resolves duplicate and default leaf labels through their authorized parents", () => {
+    const nodes = [
+      { name: "T1", label: "T1" },
+      { name: "T2", label: "T2" },
+      {
+        name: "A14-1",
+        label: "A14",
+        parent: "T1",
+        type: "Room",
+        is_group: true,
+      },
+      {
+        name: "DEFAULT-1",
+        label: "无货位",
+        parent: "A14-1",
+        room_default: true,
+      },
+      {
+        name: "A14-2",
+        label: "A14",
+        parent: "T2",
+        type: "Room",
+        is_group: true,
+      },
+      {
+        name: "DEFAULT-2",
+        label: "无货位",
+        parent: "A14-2",
+        room_default: true,
+      },
+      { name: "OTHER", label: "货架", parent: "A14-1" },
+    ];
+    expect(warehouseLabel("DEFAULT-1", nodes)).toBe("T1 / A14");
+    expect(warehouseLabel("DEFAULT-2", nodes)).toBe("T2 / A14");
+    expect(warehouseLabel("OTHER", nodes)).toBe("货架");
+    expect(
+      warehouseLabel(
+        "DEFAULT-1",
+        nodes.filter((row) => row.name !== "DEFAULT-2"),
+      ),
+    ).toBe("T1 / A14");
+    expect(
+      warehouseLabel(
+        "DEFAULT-1",
+        nodes.filter(
+          (row) => !row.name.startsWith("A14-2") && !row.name.endsWith("2"),
+        ),
+      ),
+    ).toBe("A14");
+  });
+
+  it("uses the shortest authorized suffix through shared root and repeated ancestor labels", () => {
+    const nodes = [
+      { name: "ROOT", label: "寺院仓库" },
+      { name: "PHYSICAL", label: "实体库房", parent: "ROOT" },
+      { name: "T1", label: "T1", parent: "PHYSICAL" },
+      { name: "T2", label: "T2", parent: "PHYSICAL" },
+      {
+        name: "ROOM-1",
+        label: "A14",
+        parent: "T1",
+        type: "Room",
+        is_group: true,
+      },
+      {
+        name: "ROOM-2",
+        label: "A14",
+        parent: "T2",
+        type: "Room",
+        is_group: true,
+      },
+      {
+        name: "DEFAULT-1",
+        label: "无货位",
+        parent: "ROOM-1",
+        room_default: true,
+      },
+      {
+        name: "DEFAULT-2",
+        label: "无货位",
+        parent: "ROOM-2",
+        room_default: true,
+      },
+      { name: "SECTION", label: "T1", parent: "T2" },
+      {
+        name: "ROOM-3",
+        label: "A14",
+        parent: "SECTION",
+        type: "Room",
+        is_group: true,
+      },
+      {
+        name: "DEFAULT-3",
+        label: "无货位",
+        parent: "ROOM-3",
+        room_default: true,
+      },
+    ];
+    expect(warehouseLabel("DEFAULT-1", nodes)).toBe("实体库房 / T1 / A14");
+    expect(warehouseLabel("DEFAULT-3", nodes)).toBe("T2 / T1 / A14");
+    expect(
+      warehouseLabel(
+        "DEFAULT-1",
+        nodes.filter(
+          (node) =>
+            !["ROOM-2", "DEFAULT-2", "ROOM-3", "DEFAULT-3"].includes(node.name),
+        ),
+      ),
+    ).toBe("A14");
+  });
+
   it("loads metadata before querying an exact warehouse scope and retains full unit totals", async () => {
     const { c, wrapper, report, page } = setup();
     expect(wrapper.text()).toContain("正在读取仓库与权限");
@@ -206,6 +319,7 @@ describe("shared native warehouse workspace", () => {
         warehouse_type: "Room",
         is_group: false,
         disabled: false,
+        room_default: false,
       },
     };
     createRecoveryStore("site", "manager", localStorage).save(entry);

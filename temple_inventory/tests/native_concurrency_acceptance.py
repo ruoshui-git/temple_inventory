@@ -75,7 +75,7 @@ def run():
 
 	assert_development_site()
 	frappe.set_user("Administrator")
-	warehouse, item_code = "A02 / 未指定 - O", "TI-SAMPLE-N-WORKFLOW"
+	warehouse, item_code = "A02 / 无货位 - O", "TI-SAMPLE-N-WORKFLOW"
 	loan_name = "MAT-STE-2026-00005"
 	loan = frappe.get_doc("Stock Entry", loan_name)
 	activity_name = loan.ti_activity

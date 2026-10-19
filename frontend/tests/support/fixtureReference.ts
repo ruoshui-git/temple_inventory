@@ -22,14 +22,14 @@ export const galleryReference = reactive({
       .filter(
         (row) =>
           !row.is_group &&
-          !row.name.startsWith("借出") &&
+          row.name !== "借出" &&
           !row.name.startsWith("损坏待处理"),
       )
       .map((row) => row.name);
   },
   get leasedLeaves() {
     return reviewSession.warehouses
-      .filter((row) => !row.is_group && row.name.startsWith("借出"))
+      .filter((row) => !row.is_group && row.name === "借出")
       .map((row) => row.name);
   },
   get damagedLeaves() {

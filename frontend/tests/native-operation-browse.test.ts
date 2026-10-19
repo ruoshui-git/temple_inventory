@@ -138,6 +138,76 @@ function service() {
   });
 }
 describe("native operation browsing", () => {
+  it("keeps the date header and direction control synchronized for record sorting", async () => {
+    const { wrapper } = setup(
+      service(),
+      reactive({ family: "movements" as const, records: true }),
+      true,
+    );
+    await flushPromises();
+    const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    expect(c.query.value.sortBy).toBe("date");
+    expect(c.query.value.sort).toBe("desc");
+    expect(wrapper.get('select[aria-label="流动排序"]').element.value).toBe(
+      "date",
+    );
+    expect(wrapper.get('th[aria-sort="descending"] button').text()).toContain(
+      "类型 / 日期 ↓",
+    );
+
+    await wrapper.get('button[aria-label="切换为升序"]').trigger("click");
+    expect(c.query.value.sort).toBe("asc");
+    expect(wrapper.get('select[aria-label="流动排序"]').element.value).toBe(
+      "date",
+    );
+    expect(wrapper.get('th[aria-sort="ascending"] button').exists()).toBe(true);
+
+    await wrapper.get('th[aria-sort="ascending"] button').trigger("click");
+    expect(c.query.value.sort).toBe("desc");
+    expect(wrapper.get('button[aria-label="切换为升序"]').exists()).toBe(true);
+  });
+
+  it("keeps loan record and item sort fields selected while changing fields and direction", async () => {
+    const call = service();
+    const { wrapper } = setup(
+      call,
+      reactive({ family: "loans" as const, records: false }),
+      true,
+    );
+    await flushPromises();
+    const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    const select = wrapper.get('select[aria-label="借用排序"]');
+    expect(select.element.value).toBe("name");
+    await select.setValue("quantity");
+    expect(c.query.value.sortBy).toBe("quantity");
+    expect(select.element.value).toBe("quantity");
+    expect(c.query.value.sort).toBe("asc");
+    await wrapper.get('button[aria-label="切换为降序"]').trigger("click");
+    expect(c.query.value.sortBy).toBe("quantity");
+    expect(c.query.value.sort).toBe("desc");
+    await select.setValue("name");
+    expect(c.query.value.sortBy).toBe("name");
+    expect(select.element.value).toBe("name");
+    expect(c.query.value.sort).toBe("desc");
+
+    const recordView = setup(
+      service(),
+      reactive({ family: "loans" as const, records: true }),
+      true,
+    );
+    await flushPromises();
+    const records =
+      recordView.wrapper.getComponent(OperationBrowsePage).vm.controller;
+    const recordSort = recordView.wrapper.get('select[aria-label="借用排序"]');
+    expect(records.query.value.sortBy).toBe("date");
+    expect(recordSort.element.value).toBe("date");
+    await recordView.wrapper
+      .get('button[aria-label="切换为升序"]')
+      .trigger("click");
+    expect(records.query.value.sortBy).toBe("date");
+    expect(recordSort.element.value).toBe("date");
+  });
+
   it("keeps complete server groups and totals independent of the loaded page, then loads contributions lazily", async () => {
     const call = service(),
       { c } = setup(call);
@@ -252,18 +322,68 @@ describe("native operation browsing", () => {
     expect(current.loan).toBe("LOAN-EXACT");
     expect(current.search).toBe("typed");
   });
-  it("keeps inherited restrictions through view changes and clears only secondary restrictions", async () => {
+  it("removes scalar item and activity scope chips", async () => {
+    const query = newReportQuery("movements");
+    query.scope.item = "ITEM-A";
+    query.scope.activity = "ACTIVITY-A";
+    const { wrapper } = setup(
+      service(),
+      reactive({
+        family: "movements" as const,
+        records: false,
+        routeQuery: JSON.stringify(query),
+      }),
+      true,
+    );
+    await flushPromises();
+    const chips = wrapper.get(".compact-filter-chips");
+    await chips.get('button[aria-label="移除物品：ITEM-A"]').trigger("click");
+    await wrapper
+      .get('.compact-filter-chips button[aria-label="移除活动：ACTIVITY-A"]')
+      .trigger("click");
+    const current =
+      wrapper.getComponent(OperationBrowsePage).vm.controller.query.value;
+    expect(current.scope.item).toBe("");
+    expect(current.scope.activity).toBe("");
+  });
+  it("normalizes route sort fields that the active view cannot sort", async () => {
+    const query = newReportQuery("movements");
+    query.view = "records";
+    query.sortBy = "quantity";
+    const { c } = setup(
+      service(),
+      reactive({
+        family: "movements" as const,
+        records: true,
+        routeQuery: JSON.stringify(query),
+      }),
+    );
+    await flushPromises();
+    expect(c.query.value.sortBy).toBe("date");
+    expect(c.query.value.sort).toBe("desc");
+    expect(c.query.value.scope).toEqual(query.scope);
+  });
+  it("clears editable filters while retaining route allocation scope and toolbar state", async () => {
     const query = newReportQuery("loans");
     Object.assign(query, {
       restrictItems: true,
       itemCodes: ["ITEM-A"],
+      itemLocationKeys: [JSON.stringify(["ITEM-A", "ROOM-A"])],
       search: "typed",
       loan: "LOAN-EXACT",
+      record: "RECORD-EXACT",
+      recordDoctype: "Stock Entry",
+      restrictAllocations: true,
+      allocationKeys: ["ALLOC-EXACT"],
       loanOutcome: "outstanding",
       sortBy: "name",
       sort: "asc",
     });
     query.scope.period.key = "this_month";
+    query.scope.categories = ["CATEGORY-A"];
+    query.scope.warehouses = ["ROOM-A"];
+    query.scope.item = "ITEM-SCOPE";
+    query.scope.activity = "ACTIVITY-SCOPE";
     const { c } = setup(
       service(),
       reactive({
@@ -288,12 +408,27 @@ describe("native operation browsing", () => {
       loan: "LOAN-EXACT",
       scope: { kinds: ["Loan", "Return", "Damage", "Loss"] },
     });
-    c.clearSecondary();
+    c.clearFilters();
     expect(c.query.value.search).toBe("typed");
-    expect(c.query.value.scope.period.key).toBe("this_month");
+    expect(c.query.value.scope.period.key).toBe("all");
+    expect(c.query.value.scope.categories).toEqual([]);
+    expect(c.query.value.scope.warehouses).toEqual([]);
+    expect(c.query.value.scope.item).toBe("");
+    expect(c.query.value.scope.activity).toBe("");
     expect(c.query.value.loanOutcome).toBe("outstanding");
-    expect(c.query.value.loan).toBe("");
-    expect(c.query.value.restrictItems).toBe(false);
+    expect(c.query.value.loan).toBe("LOAN-EXACT");
+    expect(c.query.value.restrictItems).toBe(true);
+    expect(c.query.value.itemCodes).toEqual(["ITEM-A"]);
+    expect(c.viewQuery(true).itemLocationKeys).toEqual([
+      JSON.stringify(["ITEM-A", "ROOM-A"]),
+    ]);
+    expect(c.viewQuery(true)).toMatchObject({
+      loan: "LOAN-EXACT",
+      record: "RECORD-EXACT",
+      recordDoctype: "Stock Entry",
+    });
+    expect(c.query.value.restrictAllocations).toBe(true);
+    expect(c.query.value.allocationKeys).toEqual(["ALLOC-EXACT"]);
   });
   it("expands an aggregate Item without choosing an arbitrary loan and settles only the explicitly selected native source", async () => {
     const { wrapper } = setup(
