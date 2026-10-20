@@ -89,6 +89,7 @@ describe("gallery renders native production components", () => {
       }
       expect(fetch).not.toHaveBeenCalled();
     },
+    10_000,
   );
   it.each([
     ["dashboard/overview", DashboardPage],

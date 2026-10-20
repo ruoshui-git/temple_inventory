@@ -83,9 +83,9 @@ def _hierarchy(company, data):
 def _references(data):
 	for row in data["categories"]:
 		if not frappe.db.exists("Item Group", row["label"]):
-			catalog.create_category(row["label"], "All Item Groups")
+			catalog.create_category(row["label"])
 	if not frappe.db.exists("Item Group", "演出用品"):
-		catalog.create_category("演出用品", "All Item Groups", is_group=True)
+		catalog.create_category("演出用品", is_group=True)
 	for label in ("演出服装", "演出鞋袜", "演出头饰", "演出道具"):
 		if not frappe.db.exists("Item Group", label):
 			catalog.create_category(label, "演出用品")
@@ -150,7 +150,7 @@ def _items(data, *, attach_images):
 			{
 				"item_code": code,
 				"item_name": label,
-				"item_group": "食品" if unit == "Kg" else "餐具与耗材",
+				"item_group": "" if key == "N-ZERO" else "食品" if unit == "Kg" else "餐具与耗材",
 				"stock_uom": unit,
 				"has_batch_no": batch,
 				"has_expiry_date": expiry,
@@ -374,9 +374,15 @@ def _workflow(company, items, rooms, *, attach_files):
 
 def _count(company, rooms):
 	stamp = _date(-1) + " 12:00:00"
-	baseline = counts.count_baseline(rooms["A02"], stamp, "Selected", [(ITEM_PREFIX + "N-WORKFLOW")])
+	warehouses = [rooms["A02"], rooms["A02-RACK"]]
+	baseline = counts.count_baseline(warehouses, stamp, "Selected", [(ITEM_PREFIX + "N-WORKFLOW")])
 	rows = [
-		dict(row, actual_qty=70, review_state="Reviewed", reason="活动清点差异：少一件")
+		dict(
+			row,
+			actual_qty=float(row["baseline_qty"]) - 1,
+			review_state="Reviewed",
+			reason="活动清点差异：少一件",
+		)
 		for row in baseline["rows"]
 	]
 	draft = counts.save_count(
@@ -385,12 +391,13 @@ def _count(company, rooms):
 			"company": company,
 			"posting_date": _date(-1),
 			"posting_time": "12:00:00",
-			"ti_count_warehouse": rooms["A02"],
+			"ti_count_warehouses": warehouses,
 			"ti_count_scope": "Selected",
 			"ti_count_items": [(ITEM_PREFIX + "N-WORKFLOW")],
 			"ti_baseline_timestamp": baseline["timestamp"],
 			"ti_baseline_fingerprint": baseline["fingerprint"],
 			"ti_count_review": rows,
+			"ti_notes": "开发样例：两个位置的联合盘点",
 		},
 	)
 	return native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
@@ -424,7 +431,7 @@ def install(company, *, attach_images=True, attach_files=True):
 
 
 def assert_balances(rooms, loans):
-	for key, expected in (("A02", 70), ("A02-RACK", 6), ("LEASE", 19), ("DAMAGED", 3)):
+	for key, expected in (("A02", 70), ("A02-RACK", 5), ("LEASE", 19), ("DAMAGED", 3)):
 		actual = get_stock_balance((ITEM_PREFIX + "N-WORKFLOW"), rooms[key])
 		if actual != expected:
 			raise AssertionError(f"Native sample balance mismatch at {key}: {actual} != {expected}")

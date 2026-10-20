@@ -20,6 +20,7 @@ export interface BrowseScope {
   period: DatePeriod;
   warehouses: string[];
   categories: string[];
+  uncategorized: boolean;
   item: string;
   activity: string;
   sources: string[];
@@ -30,6 +31,7 @@ export const emptyScope = (): BrowseScope => ({
   period: { key: "all", from: "", to: "" },
   warehouses: [],
   categories: [],
+  uncategorized: false,
   item: "",
   activity: "",
   sources: [],

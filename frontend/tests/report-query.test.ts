@@ -44,6 +44,21 @@ describe("canonical routed report queries", () => {
       expect(result.query.itemCodes).toEqual([]);
     }
   });
+  it("round trips independent category subtrees and direct root assignments", () => {
+    const query = newReportQuery("inventory");
+    query.scope.categories = ["FOOD", "COSTUMES"];
+    query.scope.uncategorized = true;
+    const decoded = decodeReportQuery(query);
+    expect(decoded.error).toBe("");
+    expect(decoded.query.scope.categories).toEqual(["FOOD", "COSTUMES"]);
+    expect(decoded.query.scope.uncategorized).toBe(true);
+    expect(
+      decodeReportQuery({
+        dataset: "inventory",
+        scope: { uncategorized: 1 },
+      }).error,
+    ).not.toBe("");
+  });
   it("validates date boundaries and requires a bounded historical balance", () => {
     for (const scope of [
       { period: { key: "custom", from: "2026-02-30", to: "2026-03-01" } },

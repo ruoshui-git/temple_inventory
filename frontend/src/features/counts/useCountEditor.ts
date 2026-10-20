@@ -3,6 +3,7 @@ import { savedDocumentExport } from "../documents/savedDocumentExport";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { postingTime } from "../../lib/nativeTime";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { newReportQuery } from "../../lib/reportContract";
 import {
   useInventoryServices,
   useReferenceData,
@@ -21,7 +22,6 @@ import {
   useAttachments,
   type AttachmentEntry,
 } from "../attachments/useAttachments";
-import type { CatalogItem } from "../../lib/catalogPresentation";
 import {
   countKey,
   countIssues,
@@ -29,6 +29,7 @@ import {
   type CountRow,
   type CountValues,
 } from "./countModel";
+import { useMovementHistory } from "../movements/useMovementHistory";
 export function useCountEditor(props: {
   name?: string;
   initialItems?: string[];
@@ -51,6 +52,7 @@ export function useCountEditor(props: {
     removed = ref<CountRow[]>([]),
     baselineError = ref("");
   const names = reactive<Record<string, string>>({});
+  const images = reactive<Record<string, string>>({});
   const candidates = ref<RecoverySnapshot[]>([]),
     action = ref<"delete" | "cancel" | "amend">(),
     leaveRequested = ref(false),
@@ -75,7 +77,9 @@ export function useCountEditor(props: {
   const initial: CountValues = {
     posting_date: reference.siteDate,
     posting_time: reference.siteTime.split(" ")[1] || "00:00:00",
-    ti_count_warehouse: props.warehouse || "",
+    ti_count_warehouses: props.warehouse
+      ? [props.warehouse]
+      : [...reference.physicalLeaves],
     ti_count_scope: props.initialItems?.length ? "Selected" : "Full Location",
     ti_count_items: props.initialItems || [],
     ti_baseline_timestamp: "",
@@ -86,21 +90,34 @@ export function useCountEditor(props: {
     ti_recorder_name: "",
     ti_handler_name: "",
     ti_reviewer_name: "",
-    remarks: "",
+    ti_notes: "",
   };
   function decodeCount(doc: NativeDocument): NativeDocument {
     const selected =
       typeof doc.ti_count_items === "string"
         ? JSON.parse(doc.ti_count_items || "[]")
         : doc.ti_count_items;
+    const warehouses =
+      typeof doc.ti_count_warehouses === "string"
+        ? JSON.parse(doc.ti_count_warehouses || "[]")
+        : doc.ti_count_warehouses;
     return {
       ...doc,
       posting_time: postingTime(doc.posting_time),
       ti_count_items: Array.isArray(selected) ? selected : [],
       ti_count_review: Array.isArray(doc.ti_count_review)
-        ? doc.ti_count_review
+        ? doc.ti_count_review.map((value) => {
+            if (!value || typeof value !== "object") return value;
+            const row = value as CountRow;
+            if (row.review_state === "Reviewed") return row;
+            return {
+              ...row,
+              review_state: "Unreviewed",
+              actual_qty: null,
+            };
+          })
         : [],
-      ti_count_warehouse: doc.ti_count_warehouse || "",
+      ti_count_warehouses: Array.isArray(warehouses) ? warehouses : [],
       ti_count_scope: doc.ti_count_scope,
     };
   }
@@ -110,18 +127,24 @@ export function useCountEditor(props: {
     name?: string,
     version?: string,
   ): Promise<NativeSaveResult> {
-    if (deskOrigin.value && name)
-      return services.call<NativeDocument>("native_api.save_document", {
-        doctype: "Stock Reconciliation",
-        name,
-        version,
-        data: values,
-      });
-    return services.call<NativeSaveResult>("counts.save_count", {
+    if (deskOrigin.value && name) {
+      const result = await services.call<NativeDocument>(
+        "native_api.save_document",
+        {
+          doctype: "Stock Reconciliation",
+          name,
+          version,
+          data: values,
+        },
+      );
+      return decodeCount(result);
+    }
+    const result = await services.call<NativeSaveResult>("counts.save_count", {
       request_id: requestId,
       data: { ...values, company: reference.company },
       ...(name ? { name, version } : {}),
     });
+    return "no_adjustment" in result ? result : decodeCount(result);
   }
   const editor = createNativeEditor({
     site: reference.site,
@@ -175,6 +198,27 @@ export function useCountEditor(props: {
         : reference.capabilities["Stock Reconciliation"]?.create === true),
   );
   const rows = computed(() => values.value.ti_count_review || []);
+  const historyTarget = ref<CountRow>();
+  const historyQuery = computed(() => {
+    const query = newReportQuery("movements");
+    query.view = "lines";
+    query.statuses = [1];
+    query.batchNoExact = true;
+    query.sortBy = "date";
+    query.sort = "desc";
+    if (historyTarget.value) {
+      query.scope.item = historyTarget.value.item_code;
+      query.scope.warehouses = [historyTarget.value.warehouse];
+      query.batchNo = historyTarget.value.batch_no || "";
+    }
+    return query;
+  });
+  const history = useMovementHistory(historyQuery, {
+    itemCode: () => historyTarget.value?.item_code || "",
+    warehouse: () => historyTarget.value?.warehouse || "",
+    batchNo: () => historyTarget.value?.batch_no || "",
+    enabled: () => Boolean(historyTarget.value) && active(),
+  });
   const summary = computed(() => countSummary(rows.value));
   const issues = computed(() => countIssues(rows.value, reference.units));
   const timestamp = computed(
@@ -182,7 +226,7 @@ export function useCountEditor(props: {
   );
   const baselineScope = () =>
     JSON.stringify([
-      values.value.ti_count_warehouse,
+      values.value.ti_count_warehouses,
       values.value.ti_count_scope,
       values.value.ti_count_items,
     ]);
@@ -271,7 +315,7 @@ export function useCountEditor(props: {
       JSON.stringify([
         values.value.posting_date,
         values.value.posting_time,
-        values.value.ti_count_warehouse,
+        values.value.ti_count_warehouses,
         values.value.ti_count_scope,
         values.value.ti_count_items,
         values.value.ti_count_review,
@@ -280,20 +324,26 @@ export function useCountEditor(props: {
         values.value.ti_recorder_name,
         values.value.ti_handler_name,
         values.value.ti_reviewer_name,
-        values.value.remarks,
+        values.value.ti_notes,
       ]),
     changed,
     { flush: "sync" },
   );
   async function loadNames() {
-    for (const code of new Set([
-      ...rows.value.map((row) => row.item_code),
-      ...values.value.items.map((row) => String(row.item_code)),
-    ])) {
-      const item = await services.call<CatalogItem>("catalog.operation_item", {
-        item_code: code,
-      });
-      if (active()) names[code] = item.item_name;
+    const codes = [
+      ...new Set([
+        ...rows.value.map((row) => row.item_code),
+        ...values.value.items.map((row) => String(row.item_code)),
+      ]),
+    ];
+    if (!codes.length) return;
+    const result = await services.call<
+      { name: string; item_name: string; image: string }[]
+    >("catalog.item_summaries", { item_codes: codes });
+    if (!active()) return;
+    for (const item of result) {
+      names[item.name] = item.item_name;
+      images[item.name] = item.image || "";
     }
   }
   async function load(discardDirty = false) {
@@ -335,7 +385,7 @@ export function useCountEditor(props: {
     }
     if (
       !state.identity &&
-      values.value.ti_count_warehouse &&
+      values.value.ti_count_warehouses.length &&
       (values.value.ti_count_scope === "Full Location" ||
         values.value.ti_count_items.length)
     )
@@ -343,8 +393,13 @@ export function useCountEditor(props: {
   }
   async function refresh() {
     if (!canRefresh.value || baselineBusy.value) return;
-    if (!reference.physicalLeaves.includes(values.value.ti_count_warehouse)) {
-      baselineError.value = "请选择有权限的实体末级盘点库位";
+    if (
+      !values.value.ti_count_warehouses.length ||
+      values.value.ti_count_warehouses.some(
+        (name) => !reference.physicalLeaves.includes(name),
+      )
+    ) {
+      baselineError.value = "盘点范围包含无权访问的实体末级位置";
       return;
     }
     if (
@@ -356,7 +411,7 @@ export function useCountEditor(props: {
     }
     const current = ++epoch,
       sentScope = JSON.stringify([
-        values.value.ti_count_warehouse,
+        values.value.ti_count_warehouses,
         timestamp.value,
         values.value.ti_count_scope,
         values.value.ti_count_items,
@@ -382,9 +437,10 @@ export function useCountEditor(props: {
         rows: CountRow[];
         fingerprint: string;
         timestamp: string;
+        warehouses: string[];
         removed_rows: CountRow[];
       }>("counts.count_baseline", {
-        warehouse: values.value.ti_count_warehouse,
+        warehouses: values.value.ti_count_warehouses,
         timestamp: timestamp.value,
         scope: values.value.ti_count_scope,
         item_codes: values.value.ti_count_items,
@@ -400,7 +456,7 @@ export function useCountEditor(props: {
         current !== epoch ||
         sentScope !==
           JSON.stringify([
-            values.value.ti_count_warehouse,
+            values.value.ti_count_warehouses,
             timestamp.value,
             values.value.ti_count_scope,
             values.value.ti_count_items,
@@ -418,6 +474,10 @@ export function useCountEditor(props: {
       removed.value = [...removedByKey.values()];
       removalAcknowledged.value = !removed.value.length;
       values.value.ti_count_review = result.rows;
+      for (const row of result.rows) {
+        if (row.item_name) names[row.item_code] = row.item_name;
+        if (row.image !== undefined) images[row.item_code] = row.image || "";
+      }
       values.value.ti_baseline_timestamp = result.timestamp;
       values.value.ti_baseline_fingerprint = result.fingerprint;
       state.values.baselineScope = baselineScope();
@@ -450,15 +510,21 @@ export function useCountEditor(props: {
     row.review_state = value === "" ? "Unreviewed" : "Reviewed";
     row.needs_review = false;
   }
-  function notFound(row: CountRow) {
-    row.actual_qty = 0;
-    row.review_state = "Not Found";
-    row.reason ||= "未找到";
+  function clearInput(row: CountRow) {
+    row.actual_qty = null;
+    row.review_state = "Unreviewed";
+    row.reason = "";
     row.needs_review = false;
   }
   function rereview(row: CountRow) {
     row.needs_review = false;
     row.review_state = row.actual_qty === null ? "Unreviewed" : "Reviewed";
+  }
+  function openHistory(row: CountRow) {
+    historyTarget.value = row;
+  }
+  function closeHistory() {
+    historyTarget.value = undefined;
   }
   async function save(manual = false) {
     if (!active() || !writable.value || busy.value) return;
@@ -670,6 +736,7 @@ export function useCountEditor(props: {
     values,
     rows,
     names,
+    images,
     reference,
     deskOrigin,
     opening,
@@ -684,6 +751,8 @@ export function useCountEditor(props: {
     summary,
     issues,
     currentBaseline,
+    historyTarget,
+    history,
     canRefresh,
     canSubmit,
     hasDifferences,
@@ -706,8 +775,10 @@ export function useCountEditor(props: {
     refresh,
     chooseItems,
     input,
-    notFound,
+    clearInput,
     rereview,
+    openHistory,
+    closeHistory,
     save,
     review,
     confirm,

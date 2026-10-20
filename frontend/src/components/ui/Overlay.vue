@@ -20,6 +20,7 @@ const props = withDefaults(
 		adaptiveCreation?: boolean;
 		filterSheet?: boolean;
 		transientOwner?: string;
+		initialFocus?: string;
 		panelStyle?: CSSProperties;
 	}>(),
 	{
@@ -42,6 +43,13 @@ let invoker: HTMLElement | null = null;
 let openingLocation = "";
 function closeAfterNavigation() {
 	if (window.location.href !== openingLocation) emit("close");
+}
+function focusInitial() {
+	const target = props.initialFocus
+		? panel.value?.querySelector<HTMLElement>(props.initialFocus)
+		: undefined;
+	if (target && !target.matches(":disabled")) target.focus({ preventScroll: true });
+	else panel.value?.focus({ preventScroll: true });
 }
 let previousOverflow = "";
 let previousPadding = "";
@@ -106,7 +114,7 @@ onMounted(async () => {
 	if (parentStage) {
 		parentStage.active.value = { titleId, close: requestClose };
 		await nextTick();
-		panel.value?.focus({ preventScroll: true });
+		focusInitial();
 		return;
 	}
 	openingLocation = window.location.href;
@@ -133,7 +141,7 @@ onMounted(async () => {
 		element.inert = true;
 	});
 	await nextTick();
-	panel.value?.focus({ preventScroll: true });
+	focusInitial();
 });
 onBeforeUnmount(() => {
 	if (parentStage) {

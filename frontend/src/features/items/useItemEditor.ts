@@ -1,4 +1,5 @@
 import { useUpdateBlocker } from "../../lib/updateSafety";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   useInventoryServices,
@@ -77,6 +78,20 @@ export function useItemEditor(
   }
   const recovery = createRecoveryStore(reference.site, account, storage);
   const candidates = ref<RecoverySnapshot[]>([]);
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    if (model.category === oldName) model.category = category.name;
+    candidates.value = candidates.value.map((candidate) => {
+      if (candidate.values.category !== oldName) return candidate;
+      const updated = {
+        ...candidate,
+        revision: candidate.revision + 1,
+        updatedAt: new Date().toISOString(),
+        values: { ...candidate.values, category: category.name },
+      };
+      recovery.save(updated);
+      return updated;
+    });
+  });
   const initialized = ref(false),
     leaveRequested = ref(false);
   let allowLeave = false,
@@ -308,13 +323,8 @@ export function useItemEditor(
       error.value = "请先完成或取消尚未保存的分类、单位与换算";
       return;
     }
-    if (
-      !model.code.trim() ||
-      !model.name.trim() ||
-      !model.category ||
-      !model.uom
-    ) {
-      error.value = "请填写物品编号、名称、类别，并选择库存单位";
+    if (!model.code.trim() || !model.name.trim() || !model.uom) {
+      error.value = "请填写物品编号、名称，并选择库存单位";
       return;
     }
     busy.value = true;
@@ -379,6 +389,7 @@ export function useItemEditor(
     { immediate: true },
   );
   onBeforeUnmount(() => {
+    stopCategoryRename();
     if (ready && dirty.value) retain();
     window.removeEventListener("beforeunload", beforeUnload);
     disposed = true;

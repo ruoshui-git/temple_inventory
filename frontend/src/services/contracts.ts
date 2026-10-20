@@ -71,6 +71,7 @@ export interface ReferenceData {
   siteTime: string;
   company: string;
   categories: HierarchyFilterNode[];
+  categoryRoot: string;
   warehouses: HierarchyFilterNode[];
   physicalLeaves: string[];
   leasedLeaves: string[];
@@ -91,6 +92,7 @@ export function createReferenceData(): ReferenceData {
     siteTime: "",
     company: "",
     categories: [],
+    categoryRoot: "",
     warehouses: [],
     physicalLeaves: [],
     leasedLeaves: [],
@@ -135,6 +137,7 @@ export interface BootstrapData {
   site: string;
   site_date: string;
   site_time: string;
+  category_root: string;
   settings: Record<string, unknown>;
   physical_leaves: string[];
   leased_leaves: string[];
@@ -146,6 +149,7 @@ export interface BootstrapData {
     is_group: boolean;
     lft: number;
     rgt: number;
+    modified: string;
   }[];
   warehouses: {
     name: string;
@@ -171,11 +175,16 @@ export function hydrateReferenceData(
     siteDate: result.site_date,
     siteTime: result.site_time,
     company: String(result.settings.company || ""),
+    categoryRoot: result.category_root,
     settings: result.settings,
     categories: result.categories.map((row) => ({
       ...row,
       label: row.item_group_name,
-      parent: row.parent_item_group,
+      parent:
+        row.parent_item_group === result.category_root
+          ? ""
+          : row.parent_item_group,
+      version: row.modified,
     })),
     warehouses: result.warehouses.map((row) => ({
       ...row,

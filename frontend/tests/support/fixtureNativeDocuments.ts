@@ -176,60 +176,67 @@ export function registerFixtureDraft(draft: ReviewDraft) {
 }
 function countFingerprint(
   rows: CountRow[],
-  warehouse: string,
+  warehouses: string[],
   timestamp: string,
   scope: string,
 ) {
   return JSON.stringify([
-    warehouse,
+    [...warehouses].sort(),
     timestamp,
     scope,
-    rows.map((row) => [row.item_code, row.batch_no || "", row.baseline_qty]),
+    rows.map((row) => [
+      row.item_code,
+      row.warehouse,
+      row.batch_no || "",
+      row.baseline_qty,
+    ]),
   ]);
 }
 function countBaseline(args: Record<string, unknown>) {
   const selected = (args.item_codes as string[]) || [],
-    warehouse = String(args.warehouse),
+    warehouses = [...new Set((args.warehouses as string[]) || [])].sort(),
     timestamp = String(args.timestamp),
     scope = String(args.scope);
   const oldRows = (args.previous_rows as CountRow[]) || [];
   const rows: CountRow[] = [];
   for (const item of reviewSession.stock) {
     if (scope === "Selected" && !selected.includes(item.code)) continue;
-    const location = item.locations.find((row) => row.location === warehouse);
-    if (!location && scope !== "Selected") continue;
-    const allocations = item.tracksBatch
-      ? location?.batches
-          ?.filter((batch) => batch.available)
-          .map((batch) => ({ batch: batch.id, qty: batch.available })) || []
-      : [{ batch: "", qty: location?.available || 0 }];
-    for (const allocation of allocations) {
-      const old = oldRows.find(
-          (row) =>
-            row.item_code === item.code &&
-            row.warehouse === warehouse &&
-            (row.batch_no || "") === allocation.batch,
-        ),
-        changed = !!old && old.baseline_qty !== allocation.qty;
-      rows.push({
-        item_code: item.code,
-        warehouse,
-        batch_no: allocation.batch || null,
-        stock_uom: item.uom,
-        baseline_qty: allocation.qty,
-        actual_qty: old?.actual_qty ?? null,
-        review_state: changed
-          ? "Unreviewed"
-          : old?.review_state || "Unreviewed",
-        reason: old?.reason || "",
-        needs_review: !old || changed,
-      });
+    for (const warehouse of warehouses) {
+      const location = item.locations.find((row) => row.location === warehouse);
+      if (!location && scope !== "Selected") continue;
+      const allocations = item.tracksBatch
+        ? location?.batches
+            ?.filter((batch) => batch.available)
+            .map((batch) => ({ batch: batch.id, qty: batch.available })) || []
+        : [{ batch: "", qty: location?.available || 0 }];
+      for (const allocation of allocations) {
+        const old = oldRows.find(
+            (row) =>
+              row.item_code === item.code &&
+              row.warehouse === warehouse &&
+              (row.batch_no || "") === allocation.batch,
+          ),
+          changed = !!old && old.baseline_qty !== allocation.qty;
+        rows.push({
+          item_code: item.code,
+          warehouse,
+          batch_no: allocation.batch || null,
+          stock_uom: item.uom,
+          baseline_qty: allocation.qty,
+          actual_qty: old?.actual_qty ?? null,
+          review_state: changed
+            ? "Unreviewed"
+            : old?.review_state || "Unreviewed",
+          reason: old?.reason || "",
+          needs_review: !old || changed,
+        });
+      }
     }
   }
   return {
     rows,
     timestamp,
-    fingerprint: countFingerprint(rows, warehouse, timestamp, scope),
+    fingerprint: countFingerprint(rows, warehouses, timestamp, scope),
     removed_rows: oldRows.filter(
       (row) =>
         !rows.some(
@@ -243,23 +250,22 @@ function countBaseline(args: Record<string, unknown>) {
 }
 export function registerFixtureCount(draft: ReviewDraft) {
   synchronizeSession();
+  const warehouses = draft.countWarehouses?.length
+    ? [...new Set(draft.countWarehouses)].sort()
+    : [
+        ...new Set(draft.lines.map((line) => line.location).filter(Boolean)),
+      ].sort();
   const rows: CountRow[] = draft.lines.map((line) => ({
     item_code: line.code,
-    warehouse: draft.countLocation || line.location,
+    warehouse: line.location,
     batch_no: line.batch || null,
     stock_uom: line.uom,
     baseline_qty: line.qty,
     actual_qty: line.countedQty ?? null,
-    review_state:
-      line.countedQty === undefined
-        ? "Unreviewed"
-        : line.countState === "not_found"
-          ? "Not Found"
-          : "Reviewed",
+    review_state: line.countedQty === undefined ? "Unreviewed" : "Reviewed",
     reason: line.reason || "",
   }));
   const scope = draft.countMode === "full" ? "Full Location" : "Selected",
-    warehouse = draft.countLocation || rows[0]?.warehouse || "",
     timestamp = `${draft.postingDate} ${draft.postingTime || "10:00:00"}`;
   const doc = normalize(
     {
@@ -268,19 +274,19 @@ export function registerFixtureCount(draft: ReviewDraft) {
       kind: "Reconcile",
       posting_date: draft.postingDate,
       posting_time: draft.postingTime || "10:00:00",
-      ti_count_warehouse: warehouse,
+      ti_count_warehouses: warehouses,
       ti_count_scope: scope,
       ti_count_items: [...new Set(rows.map((row) => row.item_code))],
       ti_count_review: rows,
       ti_baseline_timestamp: timestamp,
       ti_baseline_fingerprint: countFingerprint(
         rows,
-        warehouse,
+        warehouses,
         timestamp,
         scope,
       ),
       ti_activity: draft.activity,
-      remarks: draft.note,
+      ti_notes: draft.note,
       items: rows
         .filter(
           (row) =>
@@ -456,7 +462,11 @@ function syncSavedDocument(doc: NativeDocument) {
     lines: input.items,
   };
   if (doc.doctype === "Stock Reconciliation") {
-    value.countLocation = String(doc.ti_count_warehouse || "");
+    const warehouses =
+      typeof doc.ti_count_warehouses === "string"
+        ? JSON.parse(doc.ti_count_warehouses || "[]")
+        : doc.ti_count_warehouses;
+    value.countWarehouses = Array.isArray(warehouses) ? warehouses : [];
     value.countMode =
       doc.ti_count_scope === "Full Location" ? "full" : "selective";
     value.lines = ((doc.ti_count_review || []) as CountRow[]).map((row) => ({
@@ -467,12 +477,7 @@ function syncSavedDocument(doc: NativeDocument) {
       uom: row.stock_uom,
       qty: row.baseline_qty,
       countedQty: row.actual_qty ?? undefined,
-      countState:
-        row.review_state === "Not Found"
-          ? "not_found"
-          : row.review_state === "Unreviewed"
-            ? undefined
-            : "counted",
+      countState: row.review_state === "Unreviewed" ? undefined : "counted",
       reason: row.reason,
     }));
   }

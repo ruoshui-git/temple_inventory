@@ -316,7 +316,12 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 											>
 												<strong>{{ row.item_name }}</strong>
 											</button>
-											<small>{{ row.item_code }} · {{ row.category }}</small>
+											<small
+												>{{ row.item_code
+												}}<template v-if="row.category">
+													· {{ row.category }}</template
+												></small
+											>
 										</div>
 									</div>
 								</td>

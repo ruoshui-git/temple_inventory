@@ -1,52 +1,48 @@
 <script setup lang="ts">
-import { warehouseLabel } from "../../lib/warehouseLabel";
-import { useOptionalReferenceData } from "../../services/contracts";
 import { computed } from "vue";
-import type { CountRow } from "./countModel";
 import { countSummary } from "./countModel";
-const props = defineProps<{ rows: CountRow[]; location?: string }>();
+import type { CountRow } from "./countModel";
+const props = defineProps<{ rows: CountRow[] }>();
 const summary = computed(() => countSummary(props.rows));
 function quantities(values: [string, number][], signed = false) {
 	return (
-		values
-			.map(
-				([unit, qty]) =>
-					`${signed && qty < 0 ? "−" : signed && qty > 0 ? "+" : ""}${signed ? Math.abs(qty) : qty} ${unit}`,
-			)
-			.join(" · ") || "—"
+		values.map(([unit, qty]) => `${signed && qty > 0 ? "+" : ""}${qty} ${unit}`).join(" · ") ||
+		"—"
 	);
 }
-const warehouseReference = useOptionalReferenceData();
 </script>
+
 <template>
-	<div class="preview-count-summary">
-		<p class="count-summary-location">
-			盘点库位：{{
-				location || rows[0]?.warehouse
-					? warehouseLabel(
-							location || rows[0]?.warehouse,
-							warehouseReference?.warehouses || [],
-						)
-					: "待选择"
-			}}
-		</p>
-		<p class="count-summary-progress" role="status">
-			已核对 {{ summary.reviewed }} / {{ summary.total }} 行 ·
-			{{ summary.unreviewed }} 行未核对，不纳入调整
-		</p>
-		<dl>
-			<div class="count-baseline">
-				<dt>账面合计</dt>
-				<dd>{{ quantities(summary.baseline) }}</dd>
-			</div>
-			<div class="count-actual">
-				<dt>已核对实点合计</dt>
-				<dd>{{ summary.reviewed ? quantities(summary.actual) : "尚未核对" }}</dd>
-			</div>
-			<div class="count-difference">
-				<dt>本次调整差异</dt>
-				<dd>{{ summary.reviewed ? quantities(summary.difference, true) : "尚未核对" }}</dd>
-			</div>
-		</dl>
+	<div class="count-summary-strip" role="status">
+		<strong>已核对 {{ summary.reviewed }} / {{ summary.total }} 行</strong>
+		<span>{{ summary.unreviewed }} 行未核对</span>
+		<span>账面合计：{{ quantities(summary.baseline) }}</span>
+		<span>已核对实点合计：{{ summary.reviewed ? quantities(summary.actual) : "—" }}</span>
+		<span
+			>本次调整差异：{{
+				summary.reviewed ? quantities(summary.difference, true) : "—"
+			}}</span
+		>
 	</div>
 </template>
+
+<style scoped>
+.count-summary-strip {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 6px 16px;
+	padding: 9px 12px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-soft);
+}
+.count-summary-strip span {
+	color: var(--p-muted);
+}
+@media (max-width: 1023px) {
+	.count-summary-strip {
+		gap: 8px 12px;
+	}
+}
+</style>

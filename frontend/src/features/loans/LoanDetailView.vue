@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { useReferenceData } from "../../services/contracts";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
@@ -12,6 +11,7 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -74,18 +74,12 @@ function settle(action: SettlementAction) {
 						{{ loan.ti_activity ? `活动 ${loan.ti_activity}` : "未关联活动" }}
 					</p>
 				</div>
-				<span
-					class="browse-badge"
-					:class="
-						c.hasOutstanding.value
-							? 'is-warning'
-							: loan.docstatus === 1
-								? 'is-success'
-								: ''
-					"
-					>{{ nativeStatusLabel(loan.docstatus)
-					}}{{ loan.docstatus === 1 ? ` · ${status}` : "" }}</span
-				>
+				<div class="loan-detail-status">
+					<NativeStatusBadge :status="loan.docstatus" />
+					<span v-if="loan.docstatus === 1" class="browse-badge is-warning">{{
+						status
+					}}</span>
+				</div>
 			</div>
 			<p class="browse-note">
 				借出日期为原记录日期；结余按当前已提交且未取消的处理记录计算。{{
@@ -157,6 +151,7 @@ function settle(action: SettlementAction) {
 				<summary>处理历史（{{ c.history.result.total }} 条明细）</summary>
 				<h2>处理历史</h2>
 				<MovementHistoryTable
+					:show-status="false"
 					mode="handling"
 					include-item
 					:rows="c.history.result.rows"
@@ -217,6 +212,15 @@ function settle(action: SettlementAction) {
 		</article>
 	</section>
 </template>
+
+<style scoped>
+.loan-detail-status {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+</style>
 
 <style scoped>
 .browse-card-heading > div,

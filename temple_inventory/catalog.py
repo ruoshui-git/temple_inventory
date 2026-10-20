@@ -30,13 +30,21 @@ def _image(item):
 	return (images[0].file_url if images else ""), files, images
 
 
+def item_group_root():
+	"""Resolve ERPNext's native Item Group root from its nested-set metadata."""
+	name = frappe.db.get_value("Item Group", {"lft": 1}, "name")
+	if not name:
+		frappe.throw("未找到物品类别根节点")
+	return name
+
+
 def item_metadata(item):
 	image, files, images = _image(item)
 	return {
 		"name": item.name,
 		"item_code": item.name,
 		"item_name": item.item_name,
-		"item_group": item.item_group,
+		"item_group": "" if item.item_group == item_group_root() else item.item_group,
 		"stock_uom": item.stock_uom,
 		"description": item.description or "",
 		"image": image,
@@ -78,12 +86,43 @@ def item_detail(item_code):
 		**item_metadata(item),
 		"inventory": report_page(query),
 		"movements": report_page(
-			{"dataset": "movements", "view": "lines", "scope": {"item": item.name}}, page_length=10
+			{"dataset": "movements", "view": "lines", "statuses": [1], "scope": {"item": item.name}},
+			page_length=10,
 		),
 		"loans": report_page(
-			{"dataset": "loans", "view": "outcomes", "scope": {"item": item.name}}, page_length=10
+			{"dataset": "loans", "view": "outcomes", "statuses": [1], "scope": {"item": item.name}},
+			page_length=10,
 		),
 	}
+
+
+@frappe.whitelist()
+def item_summaries(item_codes):
+	"""Return one permission-filtered metadata query for editor rows."""
+	require_app()
+	if isinstance(item_codes, str):
+		item_codes = frappe.parse_json(item_codes)
+	if not isinstance(item_codes, list) or len(item_codes) > 10000:
+		frappe.throw("物品范围无效")
+	if any(not isinstance(code, str) for code in item_codes):
+		frappe.throw("物品范围无效")
+	return [
+		{"name": row.name, "item_name": row.item_name, "image": row.image or ""}
+		for row in frappe.get_list(
+			"Item",
+			filters={"name": ["in", sorted(set(item_codes)) or [""]]},
+			fields=["name", "item_name", "image"],
+			limit_page_length=0,
+		)
+	]
+
+
+def _query_boolean(value, label):
+	if type(value) is bool:
+		return value
+	if isinstance(value, str) and value.lower() in ("0", "1", "false", "true"):
+		return value.lower() in ("1", "true")
+	frappe.throw(f"{label}筛选值无效")
 
 
 @frappe.whitelist()
@@ -101,10 +140,24 @@ def operation_item(item_code, timestamp=None):
 
 @frappe.whitelist()
 def search_items(
-	search="", start=0, page_length=30, warehouse=None, category=None, in_stock_only=False, item_codes=None
+	search="",
+	start=0,
+	page_length=30,
+	warehouse=None,
+	categories=None,
+	uncategorized=False,
+	in_stock_only=False,
+	item_codes=None,
 ):
 	require_app()
 	start, page_length = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	if categories is None:
+		categories = []
+	elif isinstance(categories, str):
+		categories = frappe.parse_json(categories)
+	if not isinstance(categories, list):
+		frappe.throw("物品类别筛选范围无效")
+	uncategorized = _query_boolean(uncategorized, "无分类")
 	filters = {"disabled": 0, "is_stock_item": 1}
 	if item_codes is not None:
 		selected = frappe.parse_json(item_codes)
@@ -117,13 +170,17 @@ def search_items(
 			"view": "locations",
 			"scope": {
 				"warehouses": [warehouse] if warehouse else [],
-				"categories": [category] if category else [],
+				"categories": categories,
+				"uncategorized": uncategorized,
 			},
 		}
 	)
 	context = ReportContext(query)
-	if category:
-		filters["item_group"] = ["in", sorted(context.categories or set()) or [""]]
+	if categories or uncategorized:
+		groups = set(context.categories or set())
+		if uncategorized:
+			groups.add(context.category_root)
+		filters["item_group"] = ["in", sorted(groups) or [""]]
 	if cint(in_stock_only):
 		positive = {row["item_code"] for row in stock_rows(context) if row["available"] > 0}
 		if item_codes is not None:
@@ -238,8 +295,10 @@ def save_item(data, item_code=None, version=None):
 	for field in ITEM_FIELDS:
 		if field in data:
 			item.set(field, data[field])
-	if not (item.item_name or "").strip() or not item.item_group:
-		frappe.throw("请填写名称并选择类别")
+	if not (item.item_name or "").strip():
+		frappe.throw("请填写物品名称")
+	if not item.item_group:
+		item.item_group = item_group_root()
 	frappe.get_doc("Item Group", item.item_group).check_permission("read")
 	if "barcodes" in data:
 		_barcodes(item, data["barcodes"])
@@ -267,10 +326,48 @@ def set_item_image(item_code, version, file_name):
 	return item_metadata(item)
 
 
+def category_metadata(doc):
+	root = item_group_root()
+	return {
+		"name": doc.name,
+		"label": doc.item_group_name,
+		"parent": "" if doc.name == root or doc.parent_item_group == root else doc.parent_item_group,
+		"is_group": bool(doc.is_group),
+		"version": str(doc.modified),
+		"is_root": doc.name == root,
+		"lft": int(doc.lft or 0),
+		"rgt": int(doc.rgt or 0),
+	}
+
+
+@frappe.whitelist()
+def category_tree():
+	require_app()
+	root = item_group_root()
+	return [
+		{
+			"name": row.name,
+			"label": row.item_group_name,
+			"parent": "" if row.parent_item_group == root else row.parent_item_group,
+			"is_group": bool(row.is_group),
+			"version": str(row.modified),
+			"lft": int(row.lft or 0),
+			"rgt": int(row.rgt or 0),
+		}
+		for row in paged(
+			"Item Group",
+			filters={"name": ["!=", root]},
+			fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt", "modified"],
+			order_by="lft asc, name asc",
+		)
+	]
+
+
 @frappe.whitelist(methods=["POST"])
-def create_category(label, parent, is_group=False):
+def create_category(label, parent=None, is_group=False):
 	require_app()
 	frappe.has_permission("Item Group", "create", throw=True)
+	parent = str(parent or "").strip() or item_group_root()
 	parent_doc = frappe.get_doc("Item Group", parent)
 	parent_doc.check_permission("read")
 	if not parent_doc.is_group:
@@ -288,12 +385,63 @@ def create_category(label, parent, is_group=False):
 			"is_group": cint(is_group),
 		}
 	).insert()
-	return {
-		"name": doc.name,
-		"label": doc.item_group_name,
-		"parent": doc.parent_item_group,
-		"is_group": bool(doc.is_group),
-	}
+	return category_metadata(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def save_category(name, version, data):
+	"""Version-check and save native Item Group metadata, using Frappe rename semantics."""
+	require_app()
+	data = frappe.parse_json(data)
+	if not isinstance(data, dict) or set(data) - {"label", "parent", "is_group"}:
+		frappe.throw("类别资料无效")
+	root = item_group_root()
+	if name == root:
+		frappe.throw("不能修改物品类别根节点", frappe.PermissionError)
+	doc = frappe.get_doc("Item Group", name, for_update=True)
+	doc.check_permission("write")
+	if str(doc.modified) != str(version):
+		frappe.throw("类别已在其他位置更改，请重新载入", frappe.TimestampMismatchError)
+	label = str(data.get("label", doc.item_group_name) or "").strip()
+	if not label:
+		frappe.throw("请填写类别名称")
+	parent_name = str(data.get("parent", doc.parent_item_group) or "").strip() or root
+	parent = frappe.get_doc("Item Group", parent_name)
+	parent.check_permission("read")
+	if not parent.is_group:
+		frappe.throw("父类别必须为分组类别")
+	if parent.name == doc.name or (parent.lft is not None and doc.lft < parent.lft < doc.rgt):
+		frappe.throw("不能将类别移动到自身或下级类别中")
+	group = cint(data.get("is_group", doc.is_group))
+	if not group and frappe.db.exists("Item Group", {"parent_item_group": doc.name}):
+		frappe.throw("此类别含有下级类别，不能改为末级类别")
+	# Item Group uses the label as its native document name.  Metadata edits
+	# (moving a group or changing its child capability) must not pass an
+	# unchanged name through Frappe's rename path.
+	if label != doc.name:
+		if frappe.db.exists("Item Group", label):
+			frappe.throw("类别名称已存在", frappe.DuplicateEntryError)
+		doc = frappe.get_doc(
+			"Item Group", frappe.rename_doc("Item Group", doc.name, label, merge=False), for_update=True
+		)
+	doc.item_group_name = label
+	doc.parent_item_group = parent_name
+	doc.is_group = group
+	doc.save()
+	return category_metadata(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_category(name, version):
+	require_app()
+	if name == item_group_root():
+		frappe.throw("不能删除物品类别根节点", frappe.PermissionError)
+	doc = frappe.get_doc("Item Group", name, for_update=True)
+	doc.check_permission("delete")
+	if str(doc.modified) != str(version):
+		frappe.throw("类别已在其他位置更改，请重新载入", frappe.TimestampMismatchError)
+	frappe.delete_doc("Item Group", name)
+	return {"name": name, "deleted": True}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -422,7 +570,7 @@ def batch_details(name):
 		"scope": {"item": batch.item},
 		"restrictItems": True,
 		"itemCodes": [batch.item],
-		"statuses": [0, 1, 2],
+		"statuses": [1],
 		"sortBy": "date",
 		"sort": "desc",
 	}
@@ -507,7 +655,7 @@ def batch_history(name, start=0, page_length=20):
 			"scope": {"item": batch.item},
 			"restrictItems": True,
 			"itemCodes": [batch.item],
-			"statuses": [0, 1, 2],
+			"statuses": [1],
 			"sortBy": "date",
 			"sort": "desc",
 		},

@@ -186,7 +186,9 @@ def lock_stock_locations(doc, method=None):
 		for field in ("warehouse", "s_warehouse", "t_warehouse"):
 			if row.get(field):
 				locations.add(row.get(field))
-	if doc.get("ti_count_warehouse"):
-		locations.add(doc.ti_count_warehouse)
+	count_warehouses = doc.get("ti_count_warehouses") or []
+	if isinstance(count_warehouses, str):
+		count_warehouses = frappe.parse_json(count_warehouses) or []
+	locations.update(name for name in count_warehouses if name)
 	for location in sorted(locations):
 		frappe.db.get_value("Warehouse", location, "name", for_update=True)

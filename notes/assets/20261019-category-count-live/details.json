@@ -1,0 +1,75 @@
+[
+  {
+    "type": "live-record-browser",
+    "path": "movements/records",
+    "matched": 14,
+    "statuses": [
+      1
+    ]
+  },
+  {
+    "type": "live-record-browser",
+    "path": "loans/records",
+    "matched": 2,
+    "statuses": [
+      1
+    ]
+  },
+  {
+    "type": "native-viewer",
+    "status": 0,
+    "passed": true,
+    "name": "MAT-STE-2026-00015"
+  },
+  {
+    "type": "native-viewer",
+    "status": 1,
+    "passed": true,
+    "name": "MAT-STE-2026-00001"
+  },
+  {
+    "type": "native-viewer",
+    "status": 2,
+    "passed": true,
+    "name": "MAT-STE-2026-00014"
+  },
+  {
+    "type": "live-detail",
+    "path": "item/TI-SAMPLE-N-WORKFLOW",
+    "historyRequests": 1,
+    "historyRows": 13,
+    "alerts": []
+  },
+  {
+    "type": "live-detail",
+    "path": "warehouses/A02%20%2F%20%E6%97%A0%E8%B4%A7%E4%BD%8D%20-%20O",
+    "historyRequests": 1,
+    "historyRows": 19,
+    "alerts": []
+  },
+  {
+    "type": "live-detail",
+    "path": "batch/TI-SAMPLE-BAT-000001",
+    "historyRequests": 0,
+    "historyRows": 0,
+    "alerts": []
+  },
+  {
+    "type": "live-detail",
+    "path": "activities/8o1t8g9oh9",
+    "historyRequests": 0,
+    "historyRows": 0,
+    "alerts": []
+  },
+  {
+    "type": "live-detail",
+    "path": "loans/MAT-STE-2026-00005",
+    "historyRequests": 1,
+    "historyRows": 3,
+    "alerts": []
+  },
+  {
+    "errors": [],
+    "serverErrors": []
+  }
+]

@@ -15,6 +15,8 @@ export type HierarchyFilterNode = {
 	count?: number;
 	room_default?: boolean;
 	type?: string;
+	modified?: string;
+	version?: string;
 };
 
 const props = withDefaults(

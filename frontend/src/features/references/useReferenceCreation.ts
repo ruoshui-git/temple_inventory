@@ -1,4 +1,5 @@
 import { useUpdateBlocker } from "../../lib/updateSafety";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   createRecoveryStore,
@@ -19,10 +20,7 @@ export function useReferenceCreation(
     name = ref(""),
     whole = ref(false),
     group = ref(false),
-    parent = ref(
-      reference.categories.find((row) => row.is_group && !row.parent)?.name ||
-        "",
-    ),
+    parent = ref(""),
     busy = ref(false),
     error = ref("");
   const permitted = computed(
@@ -30,6 +28,22 @@ export function useReferenceCreation(
       reference.capabilities[kind === "unit" ? "UOM" : "Item Group"]?.create ===
       true,
   );
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    if (kind === "category" && parent.value === oldName)
+      parent.value = category.name;
+    if (kind !== "category") return;
+    candidates.value = candidates.value.map((candidate) => {
+      if (candidate.values.parent !== oldName) return candidate;
+      const updated = {
+        ...candidate,
+        revision: candidate.revision + 1,
+        updatedAt: new Date().toISOString(),
+        values: { ...candidate.values, parent: category.name },
+      };
+      recovery.save(updated);
+      return updated;
+    });
+  });
   let disposed = false,
     suppressed = false,
     revision = 0;
@@ -124,6 +138,7 @@ export function useReferenceCreation(
     }
     if (
       kind === "category" &&
+      parent.value &&
       !reference.categories.some(
         (row) => row.name === parent.value && row.is_group,
       )
@@ -161,7 +176,7 @@ export function useReferenceCreation(
           is_group: boolean;
         }>("catalog.create_category", {
           label: name.value.trim(),
-          parent: parent.value,
+          parent: parent.value || null,
           is_group: group.value,
         });
         if (disposed || reference.user !== account) return;
@@ -183,6 +198,7 @@ export function useReferenceCreation(
     }
   }
   onBeforeUnmount(() => {
+    stopCategoryRename();
     if (dirty.value) retain();
     disposed = true;
   });

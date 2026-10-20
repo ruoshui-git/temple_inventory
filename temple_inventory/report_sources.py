@@ -65,6 +65,10 @@ class ReportContext:
 		self.sources = self.expand_warehouses(self.scope["sources"])
 		self.destinations = self.expand_warehouses(self.scope["destinations"])
 		self.categories = self.expand_categories(self.scope["categories"])
+		from temple_inventory.catalog import item_group_root
+
+		self.category_root = item_group_root()
+		self.category_filter_active = bool(self.scope["categories"] or self.scope["uncategorized"])
 
 	def expand_warehouses(self, selection):
 		if not selection:
@@ -140,7 +144,7 @@ class ReportContext:
 		return {
 			"item_code": item.name,
 			"item_name": item.item_name,
-			"category": item.item_group,
+			"category": "" if item.item_group == self.category_root else item.item_group,
 			"stock_uom": item.stock_uom,
 			"image": image,
 			"batch_tracked": bool(item.has_batch_no),
@@ -198,7 +202,12 @@ class ReportContext:
 		if self.scope["item"] and code != self.scope["item"]:
 			return False
 		item = self.item(code)
-		if not item or (self.categories is not None and item.item_group not in self.categories):
+		if not item:
+			return False
+		if self.category_filter_active and not (
+			(self.categories is not None and item.item_group in self.categories)
+			or (self.scope["uncategorized"] and item.item_group == self.category_root)
+		):
 			return False
 		if warehouse and query["itemLocationKeys"]:
 			# JSON keys avoid ambiguity when native names contain slashes.
@@ -218,7 +227,9 @@ class ReportContext:
 
 	def matches_line(self, row, *, apply_activity=True, apply_search=True):
 		query = self.query
-		if query.get("batchNo") and row.get("batch_no") != query["batchNo"]:
+		if query.get("batchNoExact") and (row.get("batch_no") or "") != query["batchNo"]:
+			return False
+		if not query.get("batchNoExact") and query.get("batchNo") and row.get("batch_no") != query["batchNo"]:
 			return False
 		if not self.matches_item(row["item_code"]):
 			return False
@@ -299,7 +310,9 @@ def stock_rows(context):
 		if not quantities and query["includeZero"]:
 			quantities = [(None, 0)]
 		for batch_name, quantity in quantities:
-			if query.get("batchNo") and batch_name != query["batchNo"]:
+			if query.get("batchNoExact") and (batch_name or "") != query["batchNo"]:
+				continue
+			if not query.get("batchNoExact") and query.get("batchNo") and batch_name != query["batchNo"]:
 				continue
 			allocation_id = json.dumps(
 				[code, warehouse, batch_name or ""], ensure_ascii=False, separators=(",", ":")
@@ -398,7 +411,7 @@ def document_fields(context, doc):
 		"recorder": doc.get("ti_recorder_name") or "",
 		"handler": doc.get("ti_handler_name") or "",
 		"reviewer": doc.get("ti_reviewer_name") or "",
-		"notes": doc.get("remarks") or "",
+		"notes": doc.get("ti_notes") or doc.get("remarks") or "",
 		"amended_from": doc.get("amended_from") or "",
 	}
 
@@ -710,8 +723,6 @@ def count_rows(context):
 				review_filter == "reviewed" and state == "Unreviewed"
 			):
 				continue
-			if review_filter == "not-found" and state != "Not Found":
-				continue
 			base = {
 				**document_fields(context, doc),
 				**context.item_fields(item),
@@ -947,6 +958,7 @@ def activity_rows(context, *, metadata=True):
 		related_scope = (
 			context.scope["item"]
 			or context.scope["categories"]
+			or context.scope["uncategorized"]
 			or context.scope["sources"]
 			or context.scope["destinations"]
 			or context.scope["kinds"]

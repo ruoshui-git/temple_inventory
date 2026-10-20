@@ -33,6 +33,12 @@ function nextCount() {
 		@back="back"
 		@open-export="router.push(exportDestination($event))"
 		@new-count="nextCount"
+		@open-document="
+			(doctype, documentName) =>
+				router.push(
+					`/documents/${encodeURIComponent(doctype)}/${encodeURIComponent(documentName)}`,
+				)
+		"
 	/>
 	<p v-else role="alert">{{ selection.error }}</p>
 </template>

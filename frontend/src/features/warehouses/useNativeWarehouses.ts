@@ -131,6 +131,7 @@ export function useNativeWarehouses(
     query.view = "records";
     query.sortBy = "date";
     query.sort = "desc";
+    query.statuses = [1];
     query.scope.warehouses = selected.value ? [selected.value.name] : [];
     return query;
   });

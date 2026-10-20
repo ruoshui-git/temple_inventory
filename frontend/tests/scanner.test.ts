@@ -5,31 +5,77 @@ import Scanner from "../src/components/Scanner.vue";
 
 const state = vi.hoisted(() => ({
   starts: [] as string[],
+  deviceIds: [] as string[],
   stops: 0,
   callbacks: [] as ((value: string) => void)[],
   errors: [] as ((error: unknown) => void)[],
   startError: undefined as Error | undefined,
+  cameras: [] as { deviceId: string; label: string; stableLabel?: string }[],
+  openedDeviceId: "",
+  fallbackDeviceId: "rear-camera",
+  deferredStarts: 0,
+  pendingStarts: [] as (() => void)[],
+  deferredEnumerations: 0,
+  pendingEnumerations: [] as (() => void)[],
 }));
 vi.mock("../src/lib/scanner", () => ({
   cameraError: (error: any) => String(error?.message || error),
   ScannerService: class {
+    selectedCameraId =
+      localStorage.getItem("temple_inventory.scanner_device") || "";
     engineId =
       (localStorage.getItem("temple_inventory.scanner_engine") as any) ||
       "zxing-wasm";
     get engineLabel() {
       return this.engineId === "frappe" ? "Frappe 内置" : "ZXing-WASM";
     }
+    get cameraDeviceId() {
+      return this.selectedCameraId || state.openedDeviceId;
+    }
+    get cameraLabel() {
+      return localStorage.getItem("temple_inventory.scanner_label") || "";
+    }
+    async enumerateCameras() {
+      if (state.deferredEnumerations > 0) {
+        state.deferredEnumerations--;
+        await new Promise<void>((resolve) =>
+          state.pendingEnumerations.push(resolve),
+        );
+      }
+      return state.cameras;
+    }
     async start(
       _container: HTMLElement,
       callback: (value: string) => void,
       onError: (error: unknown) => void,
+      deviceId?: string,
     ) {
+      state.deviceIds.push(deviceId || "");
       if (state.startError) {
         const error = state.startError;
         state.startError = undefined;
         throw error;
       }
+      if (state.deferredStarts > 0) {
+        state.deferredStarts--;
+        await new Promise<void>((resolve) => state.pendingStarts.push(resolve));
+      }
       state.starts.push(this.engineId);
+      state.openedDeviceId = deviceId || state.fallbackDeviceId;
+      this.selectedCameraId = state.openedDeviceId;
+      localStorage.setItem(
+        "temple_inventory.scanner_device",
+        this.selectedCameraId,
+      );
+      const openedCamera = state.cameras.find(
+        (camera) => camera.deviceId === this.selectedCameraId,
+      );
+      if (openedCamera?.stableLabel)
+        localStorage.setItem(
+          "temple_inventory.scanner_label",
+          openedCamera.stableLabel,
+        );
+      else localStorage.removeItem("temple_inventory.scanner_label");
       state.callbacks.push(callback);
       state.errors.push(onError);
     }
@@ -47,18 +93,34 @@ vi.mock("../src/lib/scanner", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.starts.length = 0;
+  state.deviceIds.length = 0;
   state.stops = 0;
   state.callbacks.length = 0;
   state.errors.length = 0;
   state.startError = undefined;
+  state.cameras = [];
+  state.openedDeviceId = "";
+  state.fallbackDeviceId = "rear-camera";
+  state.deferredStarts = 0;
+  state.pendingStarts.length = 0;
+  state.deferredEnumerations = 0;
+  state.pendingEnumerations.length = 0;
   localStorage.clear();
   sessionExpired.value = false;
   Object.defineProperty(window, "isSecureContext", {
     value: true,
     configurable: true,
   });
+  const mediaDevices = new EventTarget() as MediaDevices & {
+    getUserMedia: typeof navigator.mediaDevices.getUserMedia;
+    enumerateDevices: typeof navigator.mediaDevices.enumerateDevices;
+  };
+  Object.assign(mediaDevices, {
+    getUserMedia: vi.fn(),
+    enumerateDevices: vi.fn().mockResolvedValue([]),
+  });
   Object.defineProperty(navigator, "mediaDevices", {
-    value: { getUserMedia: vi.fn() },
+    value: mediaDevices,
     configurable: true,
   });
 });
@@ -151,6 +213,173 @@ describe("Scanner component", () => {
     wrapper.unmount();
   });
 
+  it("offers a device selector after permission and switches to the selected camera", async () => {
+    localStorage.setItem("temple_inventory.scanner_device", "camera-A");
+    state.cameras = [
+      { deviceId: "camera-A", label: "后置相机" },
+      { deviceId: "camera-B", label: "USB 相机" },
+    ];
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["camera-A"]);
+    const select = wrapper.get(".scanner-camera-select select");
+    expect(select.text()).toContain("后置相机");
+    await select.setValue("camera-B");
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["camera-A", "camera-B"]);
+    expect(wrapper.get(".scanner-camera-select select").element).toHaveProperty(
+      "value",
+      "camera-B",
+    );
+    wrapper.unmount();
+  });
+
+  it("restores a uniquely labeled camera when the browser rotates its device ID", async () => {
+    localStorage.setItem("temple_inventory.scanner_device", "old-device-B");
+    localStorage.setItem("temple_inventory.scanner_label", "fake_device_1");
+    state.cameras = [
+      {
+        deviceId: "rotated-device-A",
+        label: "fake_device_0",
+        stableLabel: "fake_device_0",
+      },
+      {
+        deviceId: "rotated-device-B",
+        label: "fake_device_1",
+        stableLabel: "fake_device_1",
+      },
+    ];
+    state.startError = Object.assign(new Error("device missing"), {
+      name: "NotFoundError",
+    });
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["old-device-B", "rotated-device-B"]);
+    expect(wrapper.text()).toContain("已按相机名称恢复上次选择");
+    expect(wrapper.get(".scanner-camera-select select").element).toHaveProperty(
+      "value",
+      "rotated-device-B",
+    );
+    expect(localStorage.getItem("temple_inventory.scanner_device")).toBe(
+      "rotated-device-B",
+    );
+    expect(localStorage.getItem("temple_inventory.scanner_label")).toBe(
+      "fake_device_1",
+    );
+    wrapper.unmount();
+  });
+
+  it.each([
+    {
+      label: "duplicate browser labels",
+      cameras: [
+        {
+          deviceId: "device-A2",
+          label: "USB camera",
+          stableLabel: "USB camera",
+        },
+        {
+          deviceId: "device-B2",
+          label: "USB camera",
+          stableLabel: "USB camera",
+        },
+      ],
+    },
+    {
+      label: "synthesized labels only",
+      cameras: [
+        { deviceId: "device-A2", label: "相机 1" },
+        { deviceId: "device-B2", label: "相机 2" },
+      ],
+    },
+  ])("uses the rear fallback for $label", async ({ cameras }) => {
+    localStorage.setItem("temple_inventory.scanner_device", "old-device");
+    localStorage.setItem("temple_inventory.scanner_label", "USB camera");
+    state.cameras = cameras;
+    state.startError = Object.assign(new Error("device missing"), {
+      name: "NotFoundError",
+    });
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["old-device", ""]);
+    expect(wrapper.text()).toContain("已尝试切换到后置相机");
+    wrapper.unmount();
+  });
+
+  it("does not reconnect a remembered label when pause wins during device enumeration", async () => {
+    localStorage.setItem("temple_inventory.scanner_device", "old-device");
+    localStorage.setItem("temple_inventory.scanner_label", "USB camera");
+    state.cameras = [
+      {
+        deviceId: "rotated-device",
+        label: "USB camera",
+        stableLabel: "USB camera",
+      },
+    ];
+    state.startError = Object.assign(new Error("device missing"), {
+      name: "NotFoundError",
+    });
+    state.deferredEnumerations = 1;
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.pendingEnumerations).toHaveLength(1);
+    await wrapper.setProps({ paused: true });
+    await flushPromises();
+    state.pendingEnumerations[0]!();
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["old-device"]);
+    expect(wrapper.text()).toContain("请确认数量与位置后继续扫描");
+    wrapper.unmount();
+  });
+
+  it("falls back only when a remembered camera disappeared and keeps permission errors retryable", async () => {
+    localStorage.setItem("temple_inventory.scanner_device", "gone-camera");
+    state.cameras = [{ deviceId: "rear-camera", label: "后置相机" }];
+    state.startError = Object.assign(new Error("device missing"), {
+      name: "NotFoundError",
+    });
+    const missing = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.deviceIds.slice(0, 2)).toEqual(["gone-camera", ""]);
+    expect(missing.text()).toContain("上次选择的相机已不可用");
+    expect(state.deviceIds).toHaveLength(2);
+    missing.unmount();
+
+    state.deviceIds.length = 0;
+    localStorage.setItem("temple_inventory.scanner_device", "gone-camera");
+    state.startError = Object.assign(new Error("permission denied"), {
+      name: "NotAllowedError",
+    });
+    const denied = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["gone-camera"]);
+    expect(denied.find("[role=alert]").exists()).toBe(true);
+    denied.unmount();
+  });
+
+  it("switches away from a disconnected selected device and selects the opened fallback", async () => {
+    localStorage.setItem("temple_inventory.scanner_device", "camera-A");
+    state.cameras = [
+      { deviceId: "camera-A", label: "后置相机" },
+      { deviceId: "rear-camera", label: "内置相机" },
+    ];
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    state.cameras = [
+      { deviceId: "rear-camera", label: "内置相机" },
+      { deviceId: "front-camera", label: "前置相机" },
+    ];
+    navigator.mediaDevices.dispatchEvent(new Event("devicechange"));
+    await flushPromises();
+    expect(state.deviceIds).toEqual(["camera-A", ""]);
+    expect(wrapper.text()).toContain("当前相机已断开");
+    expect(wrapper.get(".scanner-camera-select select").element).toHaveProperty(
+      "value",
+      "rear-camera",
+    );
+    wrapper.unmount();
+  });
+
   it("stops on pause, session expiry, close, and unmount, then restarts after recovery", async () => {
     const wrapper = mount(Scanner);
     await flushPromises();
@@ -166,6 +395,7 @@ describe("Scanner component", () => {
     expect(state.stops).toBeGreaterThanOrEqual(2);
     sessionExpired.value = false;
     await flushPromises();
+    expect(state.deviceIds).toEqual(["", "rear-camera", "rear-camera"]);
     expect(state.starts.length).toBe(initialStarts + 2);
     await wrapper.find(".section-title-row button").trigger("click");
     await flushPromises();
@@ -173,6 +403,53 @@ describe("Scanner component", () => {
     wrapper.unmount();
     await flushPromises();
     expect(state.stops).toBe(4);
+  });
+
+  it("restarts after pause during a pending camera open and ignores the stale startup", async () => {
+    state.deferredStarts = 2;
+    const wrapper = mount(Scanner);
+    await flushPromises();
+    expect(state.pendingStarts).toHaveLength(1);
+    await wrapper.setProps({ paused: true });
+    await flushPromises();
+    await wrapper.setProps({ paused: false });
+    await flushPromises();
+    expect(state.pendingStarts).toHaveLength(2);
+
+    state.pendingStarts[0]!();
+    await flushPromises();
+    expect(wrapper.find(".scanner-camera").attributes("aria-busy")).toBe(
+      "true",
+    );
+    state.pendingStarts[1]!();
+    await flushPromises();
+    expect(wrapper.find(".scanner-camera").attributes("aria-busy")).toBe(
+      "false",
+    );
+    expect(wrapper.find("[role=alert]").exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("clears stale startup state when presentation changes while camera open is pending", async () => {
+    state.deferredStarts = 2;
+    const wrapper = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(state.pendingStarts).toHaveLength(1);
+    await wrapper.setProps({ presentation: "modal" });
+    await flushPromises();
+    expect(state.pendingStarts).toHaveLength(2);
+
+    state.pendingStarts[0]!();
+    await flushPromises();
+    expect(
+      document.body.querySelector('.scanner-camera[aria-busy="true"]'),
+    ).toBeTruthy();
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+    state.pendingStarts[1]!();
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("正在打开相机");
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+    wrapper.unmount();
   });
 
   it("keeps manual entry available after an asynchronous decoding failure", async () => {

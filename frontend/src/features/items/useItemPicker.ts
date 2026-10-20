@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   useInventoryServices,
   useReferenceData,
@@ -8,6 +8,7 @@ import {
   type CatalogItem,
 } from "../../lib/catalogPresentation";
 import type { StockItem } from "../../lib/stockPresentation";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 export function useItemPicker(
   props: { eligible?: string[]; timestamp?: string },
   remember: (item: StockItem) => void,
@@ -15,7 +16,8 @@ export function useItemPicker(
   const services = useInventoryServices(),
     reference = useReferenceData();
   const search = ref(""),
-    categoryFilter = ref(""),
+    categoryFilters = ref<string[]>([]),
+    uncategorizedFilter = ref(false),
     locationFilter = ref(""),
     onlyStock = ref(false),
     selected = ref<string[]>([]);
@@ -36,6 +38,16 @@ export function useItemPicker(
     retryMore = false;
   let request: AbortController | undefined,
     detailRequest: AbortController | undefined;
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    if (!categoryFilters.value.includes(oldName)) return;
+    categoryFilters.value = [
+      ...new Set(
+        categoryFilters.value.map((name) =>
+          name === oldName ? category.name : name,
+        ),
+      ),
+    ];
+  });
   async function load(more = false) {
     if (more && (result.loading || result.next === null)) return;
     retryMore = more;
@@ -57,7 +69,8 @@ export function useItemPicker(
           start: more ? result.next : 0,
           page_length: 50,
           warehouse: locationFilter.value || null,
-          category: categoryFilter.value || null,
+          categories: categoryFilters.value,
+          uncategorized: uncategorizedFilter.value,
           in_stock_only: onlyStock.value,
           ...(props.eligible ? { item_codes: props.eligible } : {}),
         },
@@ -90,7 +103,8 @@ export function useItemPicker(
     () =>
       JSON.stringify([
         search.value,
-        categoryFilter.value,
+        categoryFilters.value,
+        uncategorizedFilter.value,
         locationFilter.value,
         onlyStock.value,
         props.eligible,
@@ -132,6 +146,7 @@ export function useItemPicker(
     else selected.value.splice(index, 1);
   }
   onBeforeUnmount(() => {
+    stopCategoryRename();
     disposed = true;
     generation++;
     detailGeneration++;
@@ -141,7 +156,8 @@ export function useItemPicker(
   return {
     reference,
     search,
-    categoryFilter,
+    categoryFilters,
+    uncategorizedFilter,
     locationFilter,
     onlyStock,
     selected,
@@ -153,11 +169,5 @@ export function useItemPicker(
     retry: () => load(retryMore),
     showDetail,
     toggle,
-    categories: computed(() =>
-      reference.categories.map((row) => ({
-        value: row.name,
-        label: row.label || row.name,
-      })),
-    ),
   };
 }

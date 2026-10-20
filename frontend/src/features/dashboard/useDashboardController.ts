@@ -11,6 +11,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { movementLabels } from "../../lib/filterPresentation";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useBrowseState } from "../../lib/browseMemory";
 import {
   useInventoryServices,
@@ -88,9 +89,20 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
   const filters = reactive({
     warehouses: [] as string[],
     categories: [] as string[],
+    uncategorized: false,
     distribution: "location",
     expiry: "expired",
     period: { key: "this_month", from: "", to: "" } as DatePeriod,
+  });
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    if (!filters.categories.includes(oldName)) return;
+    filters.categories = [
+      ...new Set(
+        filters.categories.map((name) =>
+          name === oldName ? category.name : name,
+        ),
+      ),
+    ];
   });
   const reportDataset = ref<ReportDataset>("inventory"),
     announcement = ref("");
@@ -139,6 +151,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     ...emptyScope(),
     warehouses: [...filters.warehouses],
     categories: [...filters.categories],
+    uncategorized: filters.uncategorized,
   }));
   const quickReportQuery = computed(() => {
     const value = newReportQuery(reportDataset.value);
@@ -212,6 +225,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     },
   );
   onBeforeUnmount(() => {
+    stopCategoryRename();
     disposed = true;
     requests.forEach((request) => request.controller.abort());
     requests.clear();

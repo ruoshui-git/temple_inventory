@@ -58,9 +58,10 @@ COUNT_LINE_FIELDS = {"item_code", "warehouse", "batch_no", "qty", "use_serial_ba
 COUNT_HEADER_FIELDS = {
 	"ti_count_scope",
 	"ti_baseline_timestamp",
-	"ti_count_warehouse",
+	"ti_count_warehouses",
 	"ti_count_items",
 	"ti_baseline_fingerprint",
+	"ti_notes",
 }
 REVIEW_FIELDS = {
 	"item_code",
@@ -133,10 +134,12 @@ def _apply(doc, data):
 	if not isinstance(data, dict):
 		frappe.throw("记录内容无效")
 	allowed = HEADER_FIELDS | (COUNT_HEADER_FIELDS if doc.doctype == "Stock Reconciliation" else set())
+	if doc.doctype == "Stock Reconciliation":
+		allowed.discard("remarks")
 	for field in allowed:
 		if field in data:
 			value = data[field]
-			if field == "ti_count_items" and not isinstance(value, str):
+			if field in ("ti_count_items", "ti_count_warehouses") and not isinstance(value, str):
 				value = frappe.as_json(value)
 			doc.set(field, value)
 	if "items" in data:
@@ -178,10 +181,10 @@ def serialize(doc):
 		kind = {"Opening Stock": "Opening", "Stock Reconciliation": "Reconcile"}.get(doc.purpose)
 	data = doc.as_dict()
 	if doc.doctype == "Stock Reconciliation":
-		for original, line in zip(doc.items, data["items"], strict=True):
+		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			line["recorded_count_allocations"] = reconciliation_allocations(original)
 	if doc.doctype == "Stock Entry":
-		for original, line in zip(doc.items, data["items"], strict=True):
+		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			bundle = entry_bundle(original)
 			if bundle:
 				line["recorded_bundle"] = bundle.name
@@ -386,7 +389,7 @@ def _copy_entry_batches(original, copied):
 	retains its exact voucher/child/warehouse identity; no batch is guessed from
 	current stock or Item defaults.
 	"""
-	for previous, row in zip(original.items, copied.items, strict=True):
+	for previous, row in zip(original.get("items"), copied.get("items"), strict=True):
 		item = frappe.get_doc("Item", row.item_code)
 		if not item.has_batch_no:
 			continue

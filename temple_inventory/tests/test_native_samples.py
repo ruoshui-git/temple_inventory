@@ -190,8 +190,8 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertTrue(any(doc.docstatus == 0 for doc in entries))
 			count = frappe.get_doc("Stock Reconciliation", result["reconciliation"])
 			self.assertEqual(count.docstatus, 1)
-			self.assertEqual(len(count.ti_count_review), 1)
-			self.assertEqual(count.ti_count_review[0].difference, -1)
+			self.assertEqual(len(count.ti_count_review), 2)
+			self.assertEqual({row.difference for row in count.ti_count_review}, {-1})
 			self.assertEqual(count.items[0].qty, 70)
 			self.assertEqual(count.items[0].valuation_rate, 10)
 

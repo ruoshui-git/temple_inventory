@@ -1,0 +1,40 @@
+[
+  {
+    "type": "child-delete-guard",
+    "error": "Cannot delete UI-REVIEW-mvfu8m6x-group as it has child nodes"
+  },
+  {
+    "type": "unchanged-name-group-edit",
+    "passed": true
+  },
+  {
+    "type": "category-native-rename",
+    "passed": true
+  },
+  {
+    "type": "optional-item-category-root",
+    "passed": true
+  },
+  {
+    "type": "live-uncategorized-browse",
+    "passed": true
+  },
+  {
+    "type": "linked-item-delete-guard",
+    "error": "Cannot delete or cancel because Item Group UI-REVIEW-mvfu8m6x-child-renamed is linked with Item UI-REVIEW-mvfu8m6x-item"
+  },
+  {
+    "type": "native-category-deletion",
+    "passed": true
+  },
+  {
+    "cleanup": {
+      "doctype": "Item",
+      "name": "UI-REVIEW-mvfu8m6x-item"
+    },
+    "passed": true
+  },
+  {
+    "errors": []
+  }
+]

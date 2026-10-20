@@ -286,6 +286,7 @@ function toggle(name: string) {
 					<template v-if="detail"
 						><h2>最近流动</h2>
 						<MovementHistoryTable
+							:show-status="false"
 							:rows="c.history.result.rows"
 							:total="c.history.result.total"
 							:next="c.history.result.next"

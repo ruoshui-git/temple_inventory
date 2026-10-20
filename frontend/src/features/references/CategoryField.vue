@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import { useReferenceCreation } from "./useReferenceCreation";
-defineProps<{ modelValue?: string; disabled?: boolean; editorTarget?: HTMLElement }>();
+import CategoryFormFields, { type CategoryDraft } from "./CategoryFormFields.vue";
+const props = defineProps<{
+	modelValue?: string;
+	disabled?: boolean;
+	editorTarget?: HTMLElement;
+}>();
 const emit = defineEmits<{
 	"update:modelValue": [value: string];
 	dirtyChange: [dirty: boolean];
@@ -28,6 +33,24 @@ const {
 } = useReferenceCreation("category", (name) => emit("update:modelValue", name));
 const editor = ref<HTMLElement>();
 const trigger = ref<InstanceType<typeof UiButton>>();
+const categoryOptions = computed(() => [
+	{ value: "", label: "无分类" },
+	...reference.categories.map((row) => ({
+		value: row.name,
+		label: row.label || row.name,
+		detail: row.parent
+			? `${reference.categories.find((parent) => parent.name === row.parent)?.label || row.parent} / ${row.label}`
+			: "顶层分类",
+	})),
+]);
+const categoryDraft = computed<CategoryDraft>({
+	get: () => ({ label: name.value, parent: parent.value, is_group: group.value }),
+	set: (value) => {
+		name.value = value.label;
+		parent.value = value.parent;
+		group.value = value.is_group;
+	},
+});
 watch(creating, async (value) => {
 	await nextTick();
 	if (value) editor.value?.querySelector<HTMLInputElement>("input")?.focus();
@@ -41,16 +64,10 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 <template>
 	<div class="preview-supporting-field">
 		<SearchSelect
-			label="分类"
+			label="分类（可选）"
 			:model-value="modelValue"
 			:disabled="disabled || creating || busy"
-			:options="
-				reference.categories.map((row) => ({
-					value: row.name,
-					label: row.label || row.name,
-					detail: row.parent ? `${row.parent} / ${row.label}` : '分类根节点',
-				}))
-			"
+			:options="categoryOptions"
 			@update:model-value="emit('update:modelValue', $event)"
 		/>
 		<UiButton ref="trigger" v-if="!disabled && !creating && permitted" @click="creating = true"
@@ -78,16 +95,11 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 				:disabled="disabled || busy"
 			>
 				<legend>新建分类</legend>
-				<label class="preview-field">分类名称<input v-model="name" /></label
-				><SearchSelect
-					label="上级分类"
-					v-model="parent"
-					:options="
-						reference.categories.filter((row) => row.is_group).map((row) => row.name)
-					"
-				/><label class="preview-choice-label"
-					><input v-model="group" type="checkbox" />允许下级分类</label
-				>
+				<CategoryFormFields
+					v-model="categoryDraft"
+					:categories="reference.categories"
+					:disabled="disabled || busy"
+				/>
 				<p v-if="error" role="alert">{{ error }}</p>
 				<UiButton @click="finish">返回选择</UiButton
 				><UiButton @click="create" :disabled="busy" :loading="busy"

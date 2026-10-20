@@ -13,11 +13,18 @@ import UiButton from "../../components/ui/UiButton.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import Attachments from "../../components/Attachments.vue";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import ItemImage from "../../components/ItemImage.vue";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
-const emit = defineEmits<{ back: []; newCount: []; openExport: [query: ReportQuery] }>();
+const emit = defineEmits<{
+	back: [];
+	newCount: [];
+	openExport: [query: ReportQuery];
+	openDocument: [doctype: string, name: string];
+}>();
 const c = props.controller;
 const {
 	values,
@@ -41,10 +48,10 @@ const {
 	leaveRequested,
 } = c;
 const root = ref<HTMLElement>(),
-	actions = ref<HTMLElement>();
+	actionBar = ref<HTMLElement>();
 useFocusVisibility(
 	root,
-	actions,
+	actionBar,
 	() => true,
 	() => props.active !== false,
 );
@@ -60,6 +67,7 @@ const context = computed(() => ({
 	purpose: "",
 	loanName: "",
 }));
+const reviewedRows = computed(() => rows.value.filter((row) => row.review_state === "Reviewed"));
 const status = computed(
 	() =>
 		({
@@ -75,6 +83,22 @@ const status = computed(
 			cancelled: "已取消",
 		})[state.status],
 );
+function deskItem(row: Record<string, unknown>) {
+	const code = String(row.item_code || "");
+	return {
+		code,
+		name: c.names[code] || code,
+		image: c.images[code] || "",
+		category: "",
+		uom: String(row.stock_uom || ""),
+		tracksBatch: Boolean(row.batch_no || row.serial_and_batch_bundle),
+		tracksExpiry: false,
+		locations: [],
+		available: 0,
+		loaned: 0,
+		damaged: 0,
+	};
+}
 async function back() {
 	if (await c.requestLeave()) emit("back");
 }
@@ -103,7 +127,7 @@ async function back() {
 					: "尚未创建原生记录"
 			}}</span
 			><span role="status">{{ status }}</span
-			><UiButton
+			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity"
 				:disabled="busy"
 				@click="c.dirty.value ? (reloadOpen = true) : c.load(true)"
@@ -188,54 +212,168 @@ async function back() {
 				>创建修订草稿</UiButton
 			>
 		</div>
-		<div v-if="!loading" class="form-layout">
-			<form class="form-main surface" novalidate @submit.prevent="c.review">
-				<section class="form-section form-date-section">
-					<label v-if="writable" class="preview-field"
-						>操作日期<input
-							type="date"
-							v-model="values.posting_date"
-							:disabled="busy" /></label
-					><label v-if="writable" class="preview-field"
-						>操作时间<input
-							type="time"
-							step="1"
-							v-model="values.posting_time"
-							:disabled="busy"
-					/></label>
-					<p v-else>{{ values.posting_date }} {{ values.posting_time }}</p>
-					<p class="muted">账面基准使用这个明确时间点的原生库存记录。</p>
-				</section>
-				<CountWorkspace v-if="!deskOrigin" :controller="c" />
+		<div v-if="!loading" class="count-form-shell">
+			<form class="form-main surface count-form-main" novalidate @submit.prevent="c.review">
+				<details class="form-section">
+					<summary>日期与时间</summary>
+					<div class="form-date-section">
+						<label v-if="writable" class="preview-field"
+							>操作日期<input
+								type="date"
+								v-model="values.posting_date"
+								:disabled="busy" /></label
+						><label v-if="writable" class="preview-field"
+							>操作时间<input
+								type="time"
+								step="1"
+								v-model="values.posting_time"
+								:disabled="busy"
+						/></label>
+						<p v-else>{{ values.posting_date }} {{ values.posting_time }}</p>
+						<p class="muted">账面基准使用这个明确时间点的原生库存记录。</p>
+					</div>
+				</details>
+				<CountWorkspace
+					v-if="!deskOrigin"
+					:controller="c"
+					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+				/>
 				<section v-else class="form-section">
 					<h2>{{ opening ? "原生期初明细" : "ERPNext 原生盘点明细" }}</h2>
-					<p>此记录没有完整库位的核对范围，以下显示其实际原生明细。</p>
-					<article
-						v-for="(row, index) in values.items"
-						:key="String(row.name || index)"
-						class="preview-count-row"
+					<p>
+						{{
+							opening
+								? "期初库存为只读原生记录。"
+								: "保留 ERPNext 原生库位、批次分配和库存单位。"
+						}}
+					</p>
+					<div
+						class="count-table-scroll"
+						role="region"
+						aria-label="原生盘点明细，可横向滚动"
+						tabindex="0"
 					>
-						<strong>{{ c.names[String(row.item_code)] || row.item_code }}</strong
-						><span
-							>{{ warehouseLabel(row.warehouse, c.reference.warehouses)
-							}}<template v-if="row.batch_no"> · {{ row.batch_no }}</template></span
-						><span>原生账面 {{ row.current_qty ?? "未记录" }} {{ row.stock_uom }}</span
-						><label v-if="writable" class="preview-field"
-							>实点<input
-								type="number"
-								min="0"
-								step="any"
-								v-model.number="row.qty"
-								:disabled="busy" /></label
-						><span v-else>实点 {{ row.qty }} {{ row.stock_uom }}</span>
-						<p v-if="row.serial_and_batch_bundle">
-							原生批次组合：{{ row.serial_and_batch_bundle }}
-						</p>
-						<NativeCountAllocations :row="row" />
-					</article>
+						<table class="count-table count-native-table">
+							<thead>
+								<tr>
+									<th>位置</th>
+									<th>物品</th>
+									<th>批次 / 组合</th>
+									<th>库存单位</th>
+									<th>账面数量</th>
+									<th>实点数量</th>
+									<th>批次分配</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr
+									v-for="(row, index) in values.items"
+									:key="String(row.name || index)"
+								>
+									<td>
+										{{
+											warehouseLabel(
+												String(row.warehouse || ""),
+												c.reference.warehouses,
+											)
+										}}
+									</td>
+									<td class="count-item-cell">
+										<div class="count-item-content">
+											<div class="count-item-thumbnail">
+												<ItemImage :item="deskItem(row)" />
+											</div>
+											<div>
+												<strong>{{
+													c.names[String(row.item_code)] || row.item_code
+												}}</strong
+												><small>{{ row.item_code }}</small>
+											</div>
+										</div>
+									</td>
+									<td>
+										{{ row.batch_no || row.serial_and_batch_bundle || "—" }}
+									</td>
+									<td>{{ row.stock_uom }}</td>
+									<td>{{ row.current_qty ?? "未记录" }}</td>
+									<td>
+										<input
+											v-if="writable"
+											class="count-actual-input"
+											type="number"
+											min="0"
+											step="any"
+											v-model.number="row.qty"
+											:disabled="busy"
+											:aria-label="`${c.names[String(row.item_code)] || row.item_code}实点数量`"
+										/><span v-else>{{ row.qty }}</span>
+									</td>
+									<td>
+										<details
+											v-if="
+												row.serial_and_batch_bundle ||
+												(Array.isArray(row.recorded_count_allocations) &&
+													row.recorded_count_allocations.length)
+											"
+										>
+											<summary>查看分配</summary>
+											<NativeCountAllocations :row="row" />
+										</details>
+										<span v-else>—</span>
+									</td>
+								</tr>
+								<tr v-if="!values.items.length">
+									<td colspan="7" class="count-empty">此原生记录没有明细。</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</section>
+				<div
+					v-if="writable || state.confirmationVersion"
+					ref="actionBar"
+					class="count-desk-actions"
+				>
+					<UiButton
+						v-if="!state.confirmationVersion"
+						:disabled="busy || supportingDirty"
+						@click="c.save(true)"
+						>保存草稿</UiButton
+					>
+					<UiButton
+						v-if="!state.confirmationVersion && c.canSubmit.value"
+						variant="primary"
+						:disabled="busy || supportingDirty"
+						@click="c.review"
+						>核对并确认</UiButton
+					>
+					<UiButton
+						v-if="state.confirmationVersion"
+						variant="primary"
+						:loading="busy"
+						@click="c.confirm"
+						>检查上次确认结果</UiButton
+					>
+					<UiButton
+						v-if="
+							state.identity &&
+							(state.server?.permissions as Record<string, boolean>)?.delete
+						"
+						:disabled="busy || !writable"
+						variant="danger"
+						@click="action = 'delete'"
+						>删除原生草稿</UiButton
+					>
+				</div>
+				<details class="form-section count-document-notes">
+					<summary>盘点备注（可选）</summary>
+					<label v-if="writable" class="preview-field"
+						>盘点备注<textarea v-model="values.ti_notes" rows="3" :disabled="busy" />
+					</label>
+					<p v-else class="preview-long-text">{{ values.ti_notes || "未填写" }}</p>
+				</details>
 				<details class="form-section">
-					<summary>补充记录（可选）</summary>
+					<summary>活动、人员与附件</summary>
 					<TransactionContext
 						:draft="context"
 						:activity-label="activityLabel"
@@ -257,12 +395,8 @@ async function back() {
 								v-model="values.ti_handler_name"
 								:disabled="busy" /></label
 						><label class="preview-field"
-							>鉴证人<input
-								v-model="values.ti_reviewer_name"
-								:disabled="busy" /></label
-						><label class="preview-field full-field"
-							>备注<textarea v-model="values.remarks" rows="3" :disabled="busy" />
-						</label>
+							>鉴证人<input v-model="values.ti_reviewer_name" :disabled="busy"
+						/></label>
 					</div>
 					<div v-else>
 						<p>
@@ -271,69 +405,33 @@ async function back() {
 							}}
 							· 鉴证人：{{ values.ti_reviewer_name || "未填写" }}
 						</p>
-						<p class="preview-long-text">{{ values.remarks }}</p>
 					</div>
 				</details>
 				<p v-if="showError && !valid" role="alert" class="form-error">
-					请先读取当前账面基准，至少核对一行，并填写差异原因。输入已保留。
+					请先读取当前账面基准，并至少核对一行。输入已保留。
 				</p>
-				<div
-					v-if="writable || state.confirmationVersion"
-					ref="actions"
-					class="form-actions preview-document-actions"
-				>
-					<span role="status">{{ status }}</span
-					><UiButton
-						v-if="!state.confirmationVersion"
-						:disabled="busy || supportingDirty"
-						@click="c.save(true)"
-						>保存草稿</UiButton
-					><UiButton
-						v-if="!state.confirmationVersion"
-						variant="primary"
-						type="submit"
-						:disabled="busy || supportingDirty"
-						>核对并确认</UiButton
-					><UiButton
-						v-else
-						variant="primary"
-						:disabled="c.hasDifferences.value && !c.canSubmit.value"
-						:loading="busy"
-						@click="c.confirm"
-						>检查上次确认结果</UiButton
-					><UiButton
-						v-if="
-							state.identity &&
-							(state.server?.permissions as Record<string, boolean>)?.delete
-						"
-						:disabled="busy"
-						@click="action = 'delete'"
-						>删除原生草稿</UiButton
-					>
-				</div>
 			</form>
-			<aside class="form-review surface">
-				<span class="eyebrow">确认前检查</span>
-				<h2>盘点汇总</h2>
-				<CountSummary
-					v-if="!deskOrigin"
-					:rows="rows"
-					:location="values.ti_count_warehouse"
-				/>
-				<p v-else>{{ values.items.length }} 行原生盘点明细；没有完整库位核对声明。</p>
-				<p class="muted">仅已核对的差异会变更库存；数量一致时不创建调整记录。</p>
-			</aside>
 		</div>
 		<Overlay v-if="reviewOpen" title="核对并确认盘点" @close="!busy && (reviewOpen = false)"
-			><CountSummary v-if="!deskOrigin" :rows="rows" :location="values.ti_count_warehouse" />
-			<p>{{ values.posting_date }} {{ values.posting_time }}</p>
-			<p v-if="!deskOrigin" v-for="row in rows" :key="c.countKey(row)">
-				{{ c.names[row.item_code] || row.item_code }} ·
-				{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
-				{{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
-				{{ row.review_state === "Unreviewed" ? "尚未核对" : row.actual_qty }}
-				{{ row.stock_uom }} · {{ row.reason }}
+			><CountSummary v-if="!deskOrigin" :rows="rows" />
+			<p v-if="!deskOrigin" class="count-confirmation-note">
+				未核对的行仍保留在本次范围中，但不会进入库存调整。
 			</p>
+			<p v-if="!deskOrigin && values.ti_notes" class="preview-long-text">
+				盘点备注：{{ values.ti_notes }}
+			</p>
+			<p>{{ values.posting_date }} {{ values.posting_time }}</p>
+			<div v-if="!deskOrigin" class="count-confirmation-rows">
+				<p v-for="row in reviewedRows" :key="c.countKey(row)">
+					{{ c.names[row.item_code] || row.item_code }} ·
+					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
+					{{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
+					{{ row.actual_qty ?? "待核对" }} {{ row.stock_uom }} · 差异
+					{{ row.actual_qty === null ? "待核对" : row.actual_qty - row.baseline_qty }}
+					<span v-if="row.reason"> · 原因 {{ row.reason }}</span>
+				</p>
+				<p v-if="!reviewedRows.length" class="muted">尚无已核对行。</p>
+			</div>
 			<div v-else v-for="(row, index) in values.items" :key="String(row.name || index)">
 				<p>
 					{{ row.item_code }} ·
@@ -350,7 +448,9 @@ async function back() {
 				}}
 				· 鉴证人：{{ values.ti_reviewer_name || "未填写" }}
 			</p>
-			<p class="preview-long-text">{{ values.remarks }}</p>
+			<p v-if="deskOrigin && values.ti_notes" class="preview-long-text">
+				{{ values.ti_notes }}
+			</p>
 			<p v-if="state.error" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="reviewOpen = false">返回检查</UiButton
@@ -413,3 +513,118 @@ async function back() {
 		>
 	</section>
 </template>
+
+<style scoped>
+.count-form-shell {
+	min-width: 0;
+}
+.count-form-main {
+	gap: 12px !important;
+	padding: 0 !important;
+	border: 0;
+	box-shadow: none;
+	background: transparent;
+}
+.count-form-main > .form-section {
+	padding: 8px 10px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-surface);
+}
+.count-form-main > .form-section > summary {
+	min-height: 44px;
+	align-content: center;
+	font-weight: 650;
+	cursor: pointer;
+}
+.count-table-scroll {
+	max-width: 100%;
+	overflow: auto;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+}
+.count-native-table {
+	width: 100%;
+	min-width: 850px;
+	border-collapse: collapse;
+}
+.count-native-table th,
+.count-native-table td {
+	padding: 5px 8px;
+	border-bottom: 1px solid var(--p-border);
+	text-align: left;
+	vertical-align: middle;
+}
+.count-native-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--p-surface);
+}
+.count-native-table tbody tr:hover {
+	background: var(--p-soft);
+}
+.count-native-table .count-item-cell {
+	min-width: 220px;
+}
+.count-native-table .count-item-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.count-native-table .count-item-content strong,
+.count-native-table .count-item-content small {
+	display: block;
+}
+.count-native-table .count-item-content strong {
+	max-width: 250px;
+	overflow-wrap: anywhere;
+}
+.count-native-table .count-item-content small {
+	color: var(--p-muted);
+}
+.count-native-table .count-actual-input {
+	box-sizing: border-box;
+	width: 104px;
+	max-width: 120px;
+	min-height: var(--p-control);
+	padding: 3px 7px;
+}
+.count-desk-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+.count-item-thumbnail {
+	width: 38px;
+	height: 38px;
+	flex: 0 0 38px;
+	overflow: hidden;
+}
+@media (max-width: 1023px) {
+	.count-native-table th,
+	.count-native-table td {
+		padding: 5px 8px;
+	}
+	.count-native-table .count-actual-input {
+		width: 112px;
+		min-height: 44px;
+	}
+	.count-desk-actions {
+		position: sticky;
+		bottom: calc(var(--p-mobile-nav-height, 56px) + env(safe-area-inset-bottom));
+		z-index: 3;
+		padding: 8px;
+		background: var(--p-surface);
+	}
+	.count-desk-actions :deep(button) {
+		min-height: 44px;
+		flex: 1;
+	}
+	.count-item-thumbnail {
+		width: 44px;
+		height: 44px;
+		flex-basis: 44px;
+	}
+}
+</style>

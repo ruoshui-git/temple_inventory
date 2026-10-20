@@ -1,7 +1,10 @@
 import { warehouseLabel } from "./warehouseLabel";
 import type { BrowseScope } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
-export type ScopeFilterField = Exclude<keyof BrowseScope, "period">;
+export type ScopeFilterField = Exclude<
+  keyof BrowseScope,
+  "period" | "uncategorized"
+>;
 export const movementLabels: Record<string, string> = {
   Receive: "入库",
   Issue: "出库",
@@ -43,7 +46,7 @@ export function scopeValueLabel(
   return warehouseLabel(value, reference.warehouses);
 }
 export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
-  return (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
+  const chips = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
     (field) => {
       const selected = scope[field];
       const values = Array.isArray(selected)
@@ -59,4 +62,12 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
       }));
     },
   );
+  if (scope.uncategorized)
+    chips.push({
+      key: "uncategorized",
+      field: "categories",
+      value: "__uncategorized__",
+      label: "物品类别：无分类",
+    });
+  return chips;
 }

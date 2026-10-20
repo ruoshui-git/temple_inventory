@@ -190,7 +190,7 @@ describe("native drafts and count records", () => {
     await flushPromises();
     expect(counts.call.mock.calls[0]?.slice(0, 2)).toMatchObject([
       "browse.counts_page",
-      { query: { dataset: "counts", statuses: [1] } },
+      { query: { dataset: "counts", statuses: [0, 1, 2] } },
     ]);
     expect(counts.wrapper.text()).toContain("数量一致的盘点不产生记录");
   });

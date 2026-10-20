@@ -9,8 +9,10 @@ from uuid import uuid4
 import frappe
 from erpnext.stock.doctype.batch.batch import get_batch_qty
 from frappe.utils import add_days, now_datetime, nowdate
+from frappe.utils.nestedset import NestedSetChildExistsError
 
 from temple_inventory import browse, catalog, conversions, counts, native_api, native_files, projections
+from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import ReportContext
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
@@ -239,16 +241,169 @@ class CatalogTests(NativeDocumentTests):
 			{
 				"doctype": "Item Group",
 				"item_group_name": "Parent " + self.token,
-				"parent_item_group": "All Item Groups",
+				"parent_item_group": catalog.item_group_root(),
 				"is_group": 1,
 			}
 		).insert()
 		child = catalog.create_category("Child " + self.token, parent.name)
 		self.assertEqual(child["parent"], parent.name)
+		root_child = catalog.create_category("Root child " + self.token)
+		self.assertEqual(root_child["parent"], "")
 		unit = catalog.create_uom("Unit " + self.token, True)
 		self.assertTrue(unit["must_be_whole_number"])
 		with self.assertRaises(frappe.DuplicateEntryError):
 			catalog.create_uom(unit["name"], False)
+
+	def test_item_category_can_be_blank_on_create_and_clear_to_the_native_root(self):
+		root = catalog.item_group_root()
+		code = "TI-UNCATEGORIZED-" + self.token
+		created = catalog.save_item(
+			{"item_code": code, "item_name": "Uncategorized test", "stock_uom": "Nos"}
+		)
+		self.assertEqual(frappe.db.get_value("Item", code, "item_group"), root)
+		self.assertEqual(created["item_group"], "")
+		category = catalog.create_category("Assigned " + self.token)
+		catalog.save_item(
+			{"item_name": "Uncategorized test", "item_group": category["name"]}, code, created["version"]
+		)
+		item = frappe.get_doc("Item", code)
+		cleared = catalog.save_item({"item_group": ""}, code, str(item.modified))
+		self.assertEqual(frappe.db.get_value("Item", code, "item_group"), root)
+		self.assertEqual(cleared["item_group"], "")
+
+	def test_category_rename_preserves_links_and_delete_uses_native_guards(self):
+		category = catalog.create_category("Rename " + self.token)
+		item = frappe.get_doc("Item", self.item)
+		item.item_group = category["name"]
+		item.save()
+		renamed = catalog.save_category(
+			category["name"], category["version"], {"label": category["label"] + " updated"}
+		)
+		self.assertNotEqual(renamed["name"], category["name"])
+		self.assertEqual(frappe.db.get_value("Item", self.item, "item_group"), renamed["name"])
+		with self.assertRaises(frappe.LinkExistsError):
+			catalog.delete_category(renamed["name"], renamed["version"])
+
+		with self.assertRaises(frappe.TimestampMismatchError):
+			catalog.save_category(renamed["name"], category["version"], {"label": "stale"})
+		with self.assertRaises(frappe.PermissionError):
+			catalog.delete_category(catalog.item_group_root(), "")
+		frappe.db.set_value("Item", self.item, "item_group", catalog.item_group_root())
+		deletable = catalog.create_category("Delete " + self.token)
+		self.assertTrue(catalog.delete_category(deletable["name"], deletable["version"])["deleted"])
+
+	def test_category_metadata_edits_without_renaming_and_hierarchy_guards(self):
+		parent = catalog.create_category("Move parent " + self.token, is_group=True)
+		category = catalog.create_category("Move child " + self.token)
+		moved = catalog.save_category(
+			category["name"],
+			category["version"],
+			{"label": category["label"], "parent": parent["name"], "is_group": True},
+		)
+		self.assertEqual(moved["name"], category["name"])
+		self.assertEqual(moved["parent"], parent["name"])
+		self.assertTrue(moved["is_group"])
+		leaf = catalog.save_category(
+			moved["name"], moved["version"], {"label": moved["label"], "is_group": False}
+		)
+		self.assertFalse(leaf["is_group"])
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_category(
+				leaf["name"], leaf["version"], {"label": leaf["label"], "parent": leaf["name"]}
+			)
+
+		branch = catalog.create_category("Cycle branch " + self.token, is_group=True)
+		child = catalog.create_category("Cycle child " + self.token, branch["name"], is_group=True)
+		branch = catalog.category_metadata(frappe.get_doc("Item Group", branch["name"]))
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_category(
+				branch["name"], branch["version"], {"label": branch["label"], "parent": child["name"]}
+			)
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_category(
+				branch["name"], branch["version"], {"label": branch["label"], "is_group": False}
+			)
+		latest_branch = catalog.category_metadata(frappe.get_doc("Item Group", branch["name"]))
+		with self.assertRaises(NestedSetChildExistsError):
+			catalog.delete_category(latest_branch["name"], latest_branch["version"])
+
+		permission = frappe.permissions.has_permission
+		with patch(
+			"frappe.permissions.has_permission",
+			side_effect=lambda doctype, ptype="read", *args, **kwargs: (
+				False
+				if doctype == "Item Group" and ptype in ("create", "write", "delete")
+				else permission(doctype, ptype, *args, **kwargs)
+			),
+		):
+			with self.assertRaises(frappe.PermissionError):
+				catalog.create_category("Denied " + self.token)
+			with self.assertRaises(frappe.PermissionError):
+				catalog.save_category(leaf["name"], leaf["version"], {"label": leaf["label"] + " edited"})
+			with self.assertRaises(frappe.PermissionError):
+				catalog.delete_category(leaf["name"], leaf["version"])
+
+	def test_uncategorized_scope_is_direct_root_or_selected_category_expansion(self):
+		root = catalog.item_group_root()
+		parent = frappe.get_doc(
+			{
+				"doctype": "Item Group",
+				"item_group_name": "Scoped group " + self.token,
+				"parent_item_group": root,
+				"is_group": 1,
+			}
+		).insert()
+		child = catalog.create_category("Scoped child " + self.token, parent.name)
+		root_item = frappe.new_doc("Item")
+		root_item.update(
+			{
+				"item_code": "TI-ROOT-" + self.token,
+				"item_name": "Root assignment " + self.token,
+				"stock_uom": "Nos",
+				"item_group": root,
+				"is_stock_item": 1,
+			}
+		)
+		root_item.insert()
+		child_item = frappe.new_doc("Item")
+		child_item.update(
+			{
+				"item_code": "TI-CATEGORY-" + self.token,
+				"item_name": "Category assignment " + self.token,
+				"stock_uom": "Nos",
+				"item_group": child["name"],
+				"is_stock_item": 1,
+			}
+		)
+		child_item.insert()
+		other = catalog.create_category("Unselected " + self.token)
+		frappe.db.set_value("Item", self.item, "item_group", other["name"])
+		context = ReportContext(
+			validate_query(
+				{
+					"dataset": "inventory",
+					"scope": {"categories": [parent.name], "uncategorized": True},
+				}
+			)
+		)
+		self.assertTrue(context.matches_item(root_item.name))
+		self.assertTrue(context.matches_item(child_item.name))
+		self.assertFalse(context.matches_item(self.item))
+		self.assertEqual(catalog.item_metadata(root_item)["item_group"], "")
+		selected = catalog.search_items(categories=[parent.name])
+		combined = catalog.search_items(categories=[parent.name], uncategorized=True)
+		unrestricted = catalog.search_items()
+		selected_codes = {row["item_code"] for row in selected["results"]}
+		combined_codes = {row["item_code"] for row in combined["results"]}
+		unrestricted_codes = {row["item_code"] for row in unrestricted["results"]}
+		self.assertIn(child_item.name, selected_codes)
+		self.assertNotIn(root_item.name, selected_codes)
+		self.assertIn(root_item.name, combined_codes)
+		self.assertIn(child_item.name, combined_codes)
+		self.assertNotIn(self.item, combined_codes)
+		self.assertIn(root_item.name, unrestricted_codes)
+		with self.assertRaises(frappe.ValidationError):
+			validate_query({"dataset": "inventory", "scope": {"uncategorized": 1}})
 
 	def test_expired_receipt_and_batch_count_use_native_bundles(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
@@ -299,6 +454,8 @@ class CatalogTests(NativeDocumentTests):
 			self.assertFalse(bootstrap["operation_requirements"]["Return"]["stock_entry_submit"])
 
 	def test_inventory_browser_pages_complete_totals_and_sorts_available_quantity(self):
+		# Stock browse uses the same sanitized Item metadata as selectors and details.
+		frappe.db.set_value("Item", self.item, "item_group", catalog.item_group_root())
 		self.receipt(10)
 		self.submit(self.create(self.movement("Loan", 9, self.a, self.loan_leaf, ti_borrower="Borrower")))
 		other = frappe.get_doc(
@@ -323,6 +480,7 @@ class CatalogTests(NativeDocumentTests):
 		result = browse.inventory_page(query, page_length=1)
 		self.assertEqual(result["matched_count"], 2)
 		self.assertEqual(result["rows"][0]["code"], self.item)
+		self.assertEqual(result["rows"][0]["category"], "")
 		self.assertEqual(result["rows"][0]["available"], 1)
 		self.assertEqual(result["rows"][0]["loaned"], 9)
 		self.assertEqual(sum(row["available"] for row in result["summary"]), 4)
@@ -749,7 +907,7 @@ class CatalogTests(NativeDocumentTests):
 		# keeping the inherited group total unchanged.
 		def reconcile(warehouse, delta):
 			posting = now_datetime()
-			baseline = counts.count_baseline(warehouse, str(posting), "Selected", [self.item])
+			baseline = counts.count_baseline([warehouse], str(posting), "Selected", [self.item])
 			rows = copy.deepcopy(baseline["rows"])
 			for row in rows:
 				row.update(
@@ -763,7 +921,7 @@ class CatalogTests(NativeDocumentTests):
 				"company": self.company,
 				"posting_date": str(posting.date()),
 				"posting_time": str(posting.time()),
-				"ti_count_warehouse": warehouse,
+				"ti_count_warehouses": [warehouse],
 				"ti_count_scope": "Selected",
 				"ti_count_items": [self.item],
 				"ti_baseline_timestamp": baseline["timestamp"],

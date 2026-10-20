@@ -4,6 +4,7 @@ import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import VirtualList from "../../components/ui/VirtualList.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import HierarchyFilter from "../../components/ui/HierarchyFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -37,7 +38,8 @@ const picker = useItemPicker(props, (item) => emit("itemLoaded", item));
 const {
 	reference,
 	search,
-	categoryFilter,
+	categoryFilters,
+	uncategorizedFilter,
 	locationFilter,
 	onlyStock,
 	selected,
@@ -46,7 +48,6 @@ const {
 	detailError,
 	detailLoading,
 	load,
-	categories,
 	toggle,
 } = picker;
 const visible = computed(() => result.rows);
@@ -149,7 +150,15 @@ const warehouseReference = useOptionalReferenceData();
 				<label class="preview-field"
 					>搜索物品<input v-model="search" type="search"
 				/></label>
-				<SearchSelect label="分类筛选" v-model="categoryFilter" :options="categories" />
+				<HierarchyFilter
+					v-model="categoryFilters"
+					:options="reference.categories"
+					title="物品类别"
+					placeholder="搜索类别"
+				/>
+				<label class="preview-choice-label"
+					><input type="checkbox" v-model="uncategorizedFilter" />无分类</label
+				>
 				<SearchSelect
 					label="库位筛选"
 					v-model="locationFilter"
@@ -194,8 +203,10 @@ const warehouseReference = useOptionalReferenceData();
 								<span class="picker-identity"
 									><strong>{{ visible[index]!.name }}</strong
 									><small
-										>{{ visible[index]!.code }} ·
-										{{ visible[index]!.category }}</small
+										>{{ visible[index]!.code
+										}}<template v-if="visible[index]!.category">
+											· {{ visible[index]!.category }}</template
+										></small
 									><small
 										>可用 {{ visible[index]!.available }}
 										{{ visible[index]!.uom }}</small

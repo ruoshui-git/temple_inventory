@@ -44,13 +44,13 @@
       "fieldname": "review_state",
       "fieldtype": "Select",
       "label": "核对状态",
-      "options": "Unreviewed\nReviewed\nNot Found",
+      "options": "Unreviewed\nReviewed",
       "reqd": 1
     },
     {
       "fieldname": "reason",
       "fieldtype": "Small Text",
-      "label": "差异原因"
+      "label": "差异原因（可选）"
     },
     {
       "fieldname": "difference",

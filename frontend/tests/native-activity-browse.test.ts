@@ -127,11 +127,10 @@ describe("native Activity browse scopes", () => {
     const first = setup({ mode: "detail", name: "ACT-A" });
     await flushPromises();
     first.controller.tab.value = "loans";
-    first.controller.recordStatus.value = "all";
     first.controller.recordSearch.value = "ITEM/A";
     first.controller.relatedLoan.value = "LOAN-A";
     await flushPromises();
-    const query = first.changed.mock.lastCall![0];
+    const query = { ...first.changed.mock.lastCall![0], statuses: [0, 1, 2] };
     const linked = setup({
       mode: "detail",
       name: "ACT-A",
@@ -143,7 +142,7 @@ describe("native Activity browse scopes", () => {
     expect(linked.controller.relatedLoan.value).toBe("LOAN-A");
     expect(linked.controller.report.value).toMatchObject({
       view: "loans",
-      statuses: [0, 1, 2],
+      statuses: [1],
       scope: { activity: "ACT-A" },
       loan: "LOAN-A",
     });

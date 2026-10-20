@@ -447,9 +447,10 @@ class NativeDocumentTests(unittest.TestCase):
 		with self.assertRaises(frappe.PermissionError):
 			native_api.create_document("Stock Entry", str(uuid4()), self.movement())
 
-	def count_data(self, actual=None, state="Unreviewed"):
+	def count_data(self, actual=None, state="Unreviewed", warehouses=None):
 		posting = now_datetime()
-		baseline = counts.count_baseline(self.a, str(posting), "Selected", [self.item])
+		warehouses = warehouses or [self.a]
+		baseline = counts.count_baseline(warehouses, str(posting), "Selected", [self.item])
 		rows = copy.deepcopy(baseline["rows"])
 		for row in rows:
 			row.update({"actual_qty": actual, "review_state": state, "reason": "实点差异"})
@@ -457,9 +458,10 @@ class NativeDocumentTests(unittest.TestCase):
 			"company": self.company,
 			"posting_date": str(posting.date()),
 			"posting_time": str(posting.time()),
-			"ti_count_warehouse": self.a,
+			"ti_count_warehouses": warehouses,
 			"ti_count_scope": "Selected",
 			"ti_count_items": [self.item],
+			"ti_notes": "盘点说明可持久保存",
 			"ti_baseline_timestamp": baseline["timestamp"],
 			"ti_baseline_fingerprint": baseline["fingerprint"],
 			"ti_count_review": rows,
@@ -472,14 +474,27 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertTrue(result["no_adjustment"])
 		self.assertEqual(frappe.db.count("Stock Reconciliation"), before)
 
-	def test_blank_count_is_unreviewed_and_zero_not_found_is_deliberate(self):
+	def test_blank_count_is_unreviewed_and_zero_is_a_deliberate_review(self):
 		self.receipt(10)
 		with self.assertRaises(frappe.ValidationError):
 			counts.save_count(str(uuid4()), self.count_data())
-		doc = counts.save_count(str(uuid4()), self.count_data(0, "Not Found"))
+		doc = counts.save_count(str(uuid4()), self.count_data(0, "Reviewed"))
 		self.assertEqual(doc["items"][0].qty, 0)
-		self.assertEqual(doc.ti_count_review[0].review_state, "Not Found")
+		self.assertEqual(doc.ti_count_review[0].review_state, "Reviewed")
 		self.assertEqual(doc.ti_count_review[0].difference, -10)
+
+	def test_same_item_across_locations_posts_one_reconciliation_and_persists_notes(self):
+		self.receipt(10)
+		self.submit(self.create(self.movement(quantity=5, target=self.b)))
+		data = self.count_data(0, "Reviewed", [self.a, self.b])
+		data["ti_count_review"][0]["actual_qty"] = 8
+		doc = counts.save_count(str(uuid4()), data)
+		self.assertEqual(frappe.parse_json(doc.ti_count_warehouses), [self.a, self.b])
+		self.assertEqual(doc.ti_notes, "盘点说明可持久保存")
+		self.assertEqual(len(doc.get("items")), 2)
+		self.assertEqual({row.warehouse: row.qty for row in doc.get("items")}, {self.a: 8, self.b: 0})
+		self.assertEqual({row.warehouse for row in doc.ti_count_review}, {self.a, self.b})
+		self.assertEqual(len({row.item_code for row in doc.ti_count_review}), 1)
 
 	def test_new_donated_item_uses_native_zero_valuation_without_inventing_a_rate(self):
 		data = self.movement(quantity=2)
@@ -513,7 +528,7 @@ class NativeDocumentTests(unittest.TestCase):
 		with self.assertRaises(frappe.TimestampMismatchError):
 			counts.save_count(str(uuid4()), data)
 		refreshed = counts.count_baseline(
-			self.a, str(now_datetime()), "Selected", [self.item], data["ti_count_review"]
+			[self.a], str(now_datetime()), "Selected", [self.item], data["ti_count_review"]
 		)
 		self.assertEqual(refreshed["rows"][0]["actual_qty"], 8)
 		self.assertEqual(refreshed["rows"][0]["review_state"], "Unreviewed")

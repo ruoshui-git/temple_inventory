@@ -2,12 +2,13 @@
 import RemoteSelect from "../ui/RemoteSelect.vue";
 import { useFilterChoices } from "../../features/references/useFilterChoices";
 const { loadItems, loadActivities } = useFilterChoices();
-import { computed } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import HierarchyFilter from "../ui/HierarchyFilter.vue";
 import { useReferenceData } from "../../services/contracts";
 const reference = useReferenceData();
 import { movementLabels } from "../../lib/filterPresentation";
 import { type BrowseScope } from "../../lib/browseQuery";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 const props = defineProps<{
 	modelValue: BrowseScope;
 	movement?: boolean;
@@ -24,6 +25,15 @@ const shows = (field: NonNullable<typeof props.fields>[number]) =>
 function update<K extends keyof BrowseScope>(key: K, value: BrowseScope[K]) {
 	emit("update:modelValue", { ...scope.value, [key]: value });
 }
+const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+	if (!scope.value.categories.includes(oldName)) return;
+	update("categories", [
+		...new Set(
+			scope.value.categories.map((name) => (name === oldName ? category.name : name)),
+		),
+	]);
+});
+onBeforeUnmount(stopCategoryRename);
 const categories = computed(() => reference.categories);
 function toggleKind(kind: string) {
 	update(
@@ -62,6 +72,13 @@ function toggleKind(kind: string) {
 			placeholder="搜索类别"
 			@update:model-value="update('categories', $event)"
 		/>
+		<label v-if="shows('categories')" class="preview-choice-label preview-check">
+			<input
+				type="checkbox"
+				:checked="scope.uncategorized"
+				@change="update('uncategorized', ($event.target as HTMLInputElement).checked)"
+			/>无分类
+		</label>
 		<HierarchyFilter
 			v-if="shows('warehouses')"
 			:model-value="scope.warehouses"

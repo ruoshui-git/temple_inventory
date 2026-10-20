@@ -133,6 +133,7 @@ export interface ReportQuery {
   scope: BrowseScope;
   search: string;
   batchNo: string;
+  batchNoExact: boolean;
   grouping: string;
   sort: "asc" | "desc";
   sortBy: "identity" | "date" | "modified" | "quantity" | "name" | "batch";
@@ -170,6 +171,7 @@ export function newReportQuery(
     scope: emptyScope(),
     search: "",
     batchNo: "",
+    batchNoExact: false,
     grouping: "none",
     sort: "asc",
     sortBy: "identity",

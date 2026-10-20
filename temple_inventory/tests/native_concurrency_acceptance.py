@@ -88,7 +88,7 @@ def run():
 
 	def matching_count():
 		posting = now_datetime()
-		baseline = counts.count_baseline(warehouse, str(posting), "Selected", [item_code])
+		baseline = counts.count_baseline([warehouse], str(posting), "Selected", [item_code])
 		for row in baseline["rows"]:
 			row.update(actual_qty=row["baseline_qty"], review_state="Reviewed")
 		return counts.save_count(
@@ -97,7 +97,7 @@ def run():
 				"company": loan.company,
 				"posting_date": str(posting.date()),
 				"posting_time": str(posting.time()),
-				"ti_count_warehouse": warehouse,
+				"ti_count_warehouses": [warehouse],
 				"ti_count_scope": "Selected",
 				"ti_count_items": [item_code],
 				"ti_baseline_timestamp": baseline["timestamp"],

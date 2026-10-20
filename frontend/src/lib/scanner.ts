@@ -4,12 +4,21 @@ export type ScannerEngineId = "zxing-wasm";
 export interface ScannerEngine {
   readonly id: ScannerEngineId;
   readonly label: string;
+  readonly deviceId?: string;
   start(
     container: HTMLElement,
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
+    deviceId?: string,
   ): Promise<void>;
   stop(): Promise<void>;
+}
+
+export interface ScannerCamera {
+  deviceId: string;
+  label: string;
+  /** The browser-provided label, omitted when the permission-gated label is blank. */
+  stableLabel?: string;
 }
 
 export function cameraError(e: any) {
@@ -59,6 +68,10 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
   private context?: CanvasRenderingContext2D;
   private cancelVideoWait?: () => void;
   private generation = 0;
+  private openedDeviceId?: string;
+  get deviceId() {
+    return this.openedDeviceId;
+  }
   private timer?: ReturnType<typeof setTimeout>;
   private decoding = false;
   private lastDecodeError = 0;
@@ -66,11 +79,18 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     container: HTMLElement,
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
+    deviceId?: string,
   ) {
     await this.stop();
     const generation = ++this.generation;
     this.container = container;
-    this.startup = this.startInternal(container, generation, onScan, onError);
+    this.startup = this.startInternal(
+      container,
+      generation,
+      onScan,
+      onError,
+      deviceId,
+    );
     try {
       await this.startup;
     } catch (error) {
@@ -86,16 +106,21 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     generation: number,
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
+    deviceId?: string,
   ) {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: "environment" } },
+      video: deviceId
+        ? { deviceId: { exact: deviceId } }
+        : { facingMode: { ideal: "environment" } },
     });
     if (generation !== this.generation) {
       stream.getTracks().forEach((track) => track.stop());
       return;
     }
     this.stream = stream;
+    this.openedDeviceId =
+      stream.getVideoTracks?.()[0]?.getSettings?.().deviceId || deviceId;
     const video = document.createElement("video");
     video.muted = true;
     video.autoplay = true;
@@ -219,6 +244,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     if (this.video) this.video.srcObject = null;
     this.stream?.getTracks().forEach((track) => track.stop());
     this.stream = undefined;
+    this.openedDeviceId = undefined;
     this.video = undefined;
     this.canvas = undefined;
     this.context = undefined;
@@ -233,16 +259,23 @@ export interface ScannerEngineFactories {
   "zxing-wasm": () => ScannerEngine;
 }
 const STORAGE_KEY = "temple_inventory.scanner_engine";
+const CAMERA_STORAGE_KEY = "temple_inventory.scanner_device";
+const CAMERA_LABEL_STORAGE_KEY = "temple_inventory.scanner_label";
 export class ScannerService {
   private selected: ScannerEngineId;
   private active?: ScannerEngine;
   private queue = Promise.resolve();
   private factories: ScannerEngineFactories;
   private generation = 0;
+  private selectedCameraId = "";
+  private selectedCameraLabel = "";
   constructor(factories: Partial<ScannerEngineFactories> = {}) {
     this.selected = "zxing-wasm";
     try {
       localStorage.removeItem(STORAGE_KEY);
+      this.selectedCameraId = localStorage.getItem(CAMERA_STORAGE_KEY) || "";
+      this.selectedCameraLabel =
+        localStorage.getItem(CAMERA_LABEL_STORAGE_KEY) || "";
     } catch {
       /* optional storage */
     }
@@ -257,6 +290,36 @@ export class ScannerService {
   get engineLabel() {
     return "ZXing-WASM";
   }
+  get cameraDeviceId() {
+    return this.selectedCameraId;
+  }
+  get cameraLabel() {
+    return this.selectedCameraLabel;
+  }
+  async enumerateCameras(): Promise<ScannerCamera[]> {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter((device) => device.kind === "videoinput")
+      .map((device, index) => {
+        const stableLabel = device.label.trim();
+        return {
+          deviceId: device.deviceId,
+          label: stableLabel || `相机 ${index + 1}`,
+          ...(stableLabel ? { stableLabel } : {}),
+        };
+      });
+  }
+  private async actualCameraLabel(deviceId: string) {
+    if (!deviceId) return "";
+    try {
+      const device = (await navigator.mediaDevices.enumerateDevices()).find(
+        (row) => row.kind === "videoinput" && row.deviceId === deviceId,
+      );
+      return device?.label.trim() || "";
+    } catch {
+      return "";
+    }
+  }
   private enqueue<T>(operation: () => Promise<T>) {
     const next = this.queue.then(operation, operation);
     this.queue = next.then(
@@ -269,6 +332,7 @@ export class ScannerService {
     container: HTMLElement,
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
+    deviceId = this.selectedCameraId,
   ) {
     const generation = ++this.generation;
     return this.enqueue(async () => {
@@ -282,10 +346,37 @@ export class ScannerService {
       const engine = this.factories[this.selected]();
       this.active = engine;
       try {
-        await engine.start(container, onScan, onError);
+        await engine.start(container, onScan, onError, deviceId || undefined);
         if (generation !== this.generation) {
           if (this.active === engine) this.active = undefined;
           await engine.stop();
+        } else {
+          const selectedCameraId = engine.deviceId || deviceId || "";
+          const selectedCameraLabel =
+            await this.actualCameraLabel(selectedCameraId);
+          if (generation !== this.generation) {
+            if (this.active === engine) this.active = undefined;
+            await engine.stop();
+            return;
+          }
+          this.selectedCameraId = selectedCameraId;
+          this.selectedCameraLabel = selectedCameraLabel;
+          try {
+            if (this.selectedCameraId) {
+              localStorage.setItem(CAMERA_STORAGE_KEY, this.selectedCameraId);
+              if (this.selectedCameraLabel)
+                localStorage.setItem(
+                  CAMERA_LABEL_STORAGE_KEY,
+                  this.selectedCameraLabel,
+                );
+              else localStorage.removeItem(CAMERA_LABEL_STORAGE_KEY);
+            } else {
+              localStorage.removeItem(CAMERA_STORAGE_KEY);
+              localStorage.removeItem(CAMERA_LABEL_STORAGE_KEY);
+            }
+          } catch {
+            /* Camera preference is optional. */
+          }
         }
       } catch (error) {
         if (this.active === engine) this.active = undefined;

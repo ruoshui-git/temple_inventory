@@ -284,7 +284,8 @@ watch([() => props.active, isMobile], () => {
 								</div>
 								<div class="stock-card-content">
 									<span class="eyebrow"
-										>{{ item.category }} · {{ item.code }}</span
+										>{{ item.category ? `${item.category} · ` : ""
+										}}{{ item.code }}</span
 									><button class="item-name" @click="openItem(item)">
 										{{ item.name }}
 									</button>

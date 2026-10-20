@@ -8,6 +8,7 @@ import {
 import { useCountEditor } from "../src/features/counts/useCountEditor";
 import { countSummary, type CountRow } from "../src/features/counts/countModel";
 import NativeCountAllocations from "../src/features/counts/NativeCountAllocations.vue";
+import type { NativeDocument } from "../src/features/documents/nativeEditor";
 const wrappers: VueWrapper[] = [];
 it("shows recorded multi-batch book, actual zero and variance without changing native data", () => {
   const row = {
@@ -84,7 +85,9 @@ function service() {
   return vi.fn(async (method: string, args: Record<string, any>) => {
     if (method === "counts.count_baseline")
       return {
-        rows: [row()],
+        rows: ((args.warehouses as string[]) || []).map((warehouse) =>
+          row({ warehouse }),
+        ),
         timestamp: args.timestamp,
         fingerprint: "BASE-1",
         removed_rows: [],
@@ -127,24 +130,53 @@ function service() {
     }
     if (method === "native_api.submit_document")
       return { ...saved, version: "v2", docstatus: 1, editable: false };
+    if (method === "browse.movement_history")
+      return {
+        rows: [],
+        matched_count: 20,
+        next_start: args.start ? null : 20,
+      };
     throw new Error(`Unexpected ${method}`);
   });
 }
 describe("native count form integration", () => {
-  it("keeps blanks unreviewed, separates zero and not-found, and totals stock units independently", async () => {
+  it("loads submitted row history by exact item, location and batch with paging", async () => {
+    const call = service();
+    const { c } = setup(call);
+    await flushPromises();
+    c.openHistory(row({ batch_no: "BATCH-A" }));
+    await flushPromises();
+    const request = call.mock.calls.find(
+      ([method]) => method === "browse.movement_history",
+    )!;
+    expect(request?.[1]).toMatchObject({
+      start: 0,
+      page_length: 20,
+      query: {
+        statuses: [1],
+        batchNo: "BATCH-A",
+        batchNoExact: true,
+        scope: { item: "ITEM-A", warehouses: ["ROOM-A"] },
+      },
+    });
+    c.history.loadMore();
+    await flushPromises();
+    expect(
+      call.mock.calls.some(
+        ([method, args]) =>
+          method === "browse.movement_history" && args.start === 20,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps blanks unreviewed, accepts deliberate zero without a reason, and totals stock units independently", async () => {
     const { c } = setup(service());
     await flushPromises();
     expect(c.summary.value.reviewed).toBe(0);
     expect(c.valid.value).toBe(false);
     c.input(c.rows.value[0]!, "0");
     expect(c.rows.value[0]?.review_state).toBe("Reviewed");
-    expect(c.issues.value[0]?.message).toContain("原因");
-    c.notFound(c.rows.value[0]!);
-    expect(c.rows.value[0]).toMatchObject({
-      actual_qty: 0,
-      review_state: "Not Found",
-      reason: "未找到",
-    });
+    expect(c.issues.value).toHaveLength(0);
     c.input(c.rows.value[0]!, "");
     expect(c.rows.value[0]?.actual_qty).toBeNull();
     expect(c.summary.value.reviewed).toBe(0);
@@ -202,19 +234,41 @@ describe("native count form integration", () => {
     expect(c.state.server?.items[0]?.qty).toBe(8);
     expect(c.summary.value.unreviewed).toBe(1);
   });
+  it("captures multiple locations explicitly and retains same-item rows by location", async () => {
+    const call = service(),
+      { c } = setup(call, {});
+    await flushPromises();
+    expect(c.values.value.ti_count_warehouses).toEqual(["ROOM-A", "ROOM-B"]);
+    expect(c.rows.value.map((value) => value.warehouse)).toEqual([
+      "ROOM-A",
+      "ROOM-B",
+    ]);
+    c.input(c.rows.value[0]!, "8");
+    c.input(c.rows.value[1]!, "0");
+    expect(c.rows.value[0]?.item_code).toBe(c.rows.value[1]?.item_code);
+    expect(c.valid.value).toBe(true);
+    await c.confirm();
+    expect(c.state.status).toBe("submitted");
+    expect(c.state.server?.ti_count_warehouses).toEqual(["ROOM-A", "ROOM-B"]);
+    expect(c.state.server?.items).toHaveLength(2);
+    expect(c.state.server?.items.map((value) => value.warehouse)).toEqual([
+      "ROOM-A",
+      "ROOM-B",
+    ]);
+  });
   it("requires a new baseline after location, selection, scope or timestamp changes", async () => {
     const call = service(),
       { c } = setup(call);
     await flushPromises();
     c.input(c.rows.value[0]!, "10");
     expect(c.valid.value).toBe(true);
-    c.values.value.ti_count_warehouse = "ROOM-B";
+    c.values.value.ti_count_warehouses = ["ROOM-B"];
     expect(c.currentBaseline.value).toBe(false);
     await c.save();
     expect(
       call.mock.calls.some(([method]) => method === "counts.save_count"),
     ).toBe(false);
-    c.values.value.ti_count_warehouse = "ROOM-A";
+    c.values.value.ti_count_warehouses = ["ROOM-A"];
     expect(c.currentBaseline.value).toBe(true);
     c.values.value.ti_count_scope = "Selected";
     expect(c.currentBaseline.value).toBe(false);
@@ -298,6 +352,119 @@ describe("native count form integration", () => {
     expect(
       call.mock.calls.some(([method]) => method === "counts.count_baseline"),
     ).toBe(false);
+  });
+
+  it("treats native unreviewed Float zeros as blank on load and save", async () => {
+    const call = service();
+    const nativeReview = [
+      row({ actual_qty: 0, review_state: "Unreviewed", needs_review: false }),
+      row({
+        item_code: "ITEM-B",
+        actual_qty: 0,
+        review_state: "Reviewed",
+        needs_review: false,
+      }),
+    ];
+    const base = call.getMockImplementation()!;
+    call.mockImplementation(async (method, args) => {
+      if (method === "native_api.load_document")
+        return {
+          doctype: "Stock Reconciliation",
+          name: "COUNT-LOAD",
+          version: "v1",
+          docstatus: 0,
+          purpose: "Stock Reconciliation",
+          editable: true,
+          posting_date: "2026-10-16",
+          posting_time: "10:00:00",
+          ti_count_scope: "Full Location",
+          ti_count_warehouses: ["ROOM-A"],
+          ti_count_items: [],
+          ti_count_review: nativeReview,
+          items: [],
+        };
+      if (method === "catalog.item_summaries") return [];
+      const response = await base(method, args);
+      if (method === "counts.save_count" && !response.no_adjustment)
+        return {
+          ...response,
+          ti_count_review: (response.ti_count_review as CountRow[]).map(
+            (value) =>
+              value.review_state === "Unreviewed"
+                ? { ...value, actual_qty: 0 }
+                : value,
+          ),
+        };
+      return response;
+    });
+
+    const loaded = setup(call, { name: "COUNT-LOAD" });
+    await flushPromises();
+    expect(
+      loaded.c.values.value.ti_count_review.map((value) => value.actual_qty),
+    ).toEqual([null, 0]);
+    expect(loaded.c.values.value.ti_count_review[0]?.review_state).toBe(
+      "Unreviewed",
+    );
+  });
+
+  it("normalizes save responses while preserving reviewed zero", async () => {
+    const call = service();
+    const base = call.getMockImplementation()!;
+    call.mockImplementation(async (method, args) => {
+      if (method === "counts.count_baseline")
+        return {
+          rows: [
+            row({ warehouse: "ROOM-A" }),
+            row({ warehouse: "ROOM-B" }),
+            row({ item_code: "ITEM-B", warehouse: "ROOM-A" }),
+          ],
+          timestamp: args.timestamp,
+          fingerprint: "BASE-1",
+          removed_rows: [],
+        };
+      const response = await base(method, args);
+      if (method === "counts.save_count" && !response.no_adjustment)
+        return {
+          ...response,
+          ti_count_review: (response.ti_count_review as CountRow[]).map(
+            (value) =>
+              value.review_state === "Unreviewed"
+                ? { ...value, actual_qty: 0 }
+                : value,
+          ),
+        };
+      return response;
+    });
+    const { c } = setup(call, {});
+    await flushPromises();
+    c.input(c.rows.value[0]!, "8");
+    c.input(c.rows.value[2]!, "0");
+    await c.save();
+    const savedRows = c.state.server?.ti_count_review as CountRow[];
+    expect(savedRows.map((value) => value.actual_qty)).toEqual([8, null, 0]);
+    expect(savedRows.map((value) => value.review_state)).toEqual([
+      "Reviewed",
+      "Unreviewed",
+      "Reviewed",
+    ]);
+
+    const returned = {
+      ...(c.state.server as NativeDocument),
+      ti_count_review: [
+        row({ actual_qty: 0, review_state: "Unreviewed", needs_review: false }),
+        row({ item_code: "ITEM-B", actual_qty: 0, review_state: "Reviewed" }),
+      ],
+    };
+    call.mockImplementation(async (method, args) =>
+      method === "native_api.load_document"
+        ? returned
+        : method === "catalog.item_summaries"
+          ? []
+          : base(method, args),
+    );
+    await c.load(true);
+    expect(c.rows.value.map((value) => value.actual_qty)).toEqual([null, 0]);
   });
 });
 

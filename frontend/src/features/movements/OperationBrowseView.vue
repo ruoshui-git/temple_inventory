@@ -23,6 +23,7 @@ import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import type { MovementHistoryPage } from "../../lib/reportContract";
 import type { HistoryRow } from "./useMovementHistory";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -131,6 +132,12 @@ const metrics = computed(() => {
 });
 function quantities(rows?: { uom: string; qty: number }[]) {
 	return rows?.map((row) => `${row.qty} ${row.uom}`).join(" | ") || "";
+}
+function itemContext(row: OperationGroup) {
+	const values = [row.item_code];
+	if (row.category) values.push(row.category);
+	values.push(`${row.document_count} 笔记录`, `最近 ${row.date || ""}`);
+	return values.join(" · ");
 }
 function itemTotals(row: OperationGroup) {
 	const groups =
@@ -416,7 +423,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:expanded="c.expanded.has(row.id)"
 							:item="c.stockItem(row)"
 							:name="row.item_name || row.item_code || ''"
-							:context="`${row.item_code} · ${row.category || ''} · ${row.document_count} 笔记录 · 最近 ${row.date || ''}`"
+							:context="itemContext(row)"
 							@expanded="c.toggle(row, $event)"
 							><template #metrics>
 								<span
@@ -688,15 +695,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 											</span>
 										</span>
 									</td>
-									<td>
-										{{
-											row.docstatus === 1
-												? "已提交"
-												: row.docstatus === 0
-													? "草稿"
-													: "已取消"
-										}}
-									</td>
+									<td><NativeStatusBadge :status="row.docstatus" /></td>
 								</tr>
 							</tbody>
 						</table>
@@ -781,15 +780,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												: ""
 										}}
 									</td>
-									<td>
-										{{
-											row.docstatus === 0
-												? "计划借出（草稿）"
-												: row.docstatus === 2
-													? "已取消"
-													: loanLabels[row.whole?.loan_status || ""] ||
-														row.whole?.loan_status
-										}}
+									<td class="loan-record-status">
+										<NativeStatusBadge :status="row.docstatus" />
+										<span v-if="row.docstatus === 1">{{
+											loanLabels[row.whole?.loan_status || ""] ||
+											row.whole?.loan_status
+										}}</span>
 									</td>
 									<td>
 										<UiButton

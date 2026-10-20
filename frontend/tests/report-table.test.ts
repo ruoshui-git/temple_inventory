@@ -78,7 +78,7 @@ describe("shared native report table", () => {
         .findAll("tbody tr")[0]
         ?.findAll("td")
         .map((cell) => cell.text()),
-    ).toEqual(["", "", ""]);
+    ).toEqual(["状态未知", "", ""]);
     expect(
       wrapper.findAll("tbody tr")[1]?.findAll("td")[1]?.find("span").classes(),
     ).toContain("is-increase");

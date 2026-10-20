@@ -39,6 +39,7 @@ export const router = createRouter({
       component: () => import("./pages/BatchDetail.vue"),
     },
     { path: "/more", component: () => import("./pages/More.vue") },
+    { path: "/categories", component: () => import("./pages/Categories.vue") },
     { path: "/reports", component: () => import("./pages/Reports.vue") },
     { path: "/pending", component: () => import("./pages/Pending.vue") },
     {

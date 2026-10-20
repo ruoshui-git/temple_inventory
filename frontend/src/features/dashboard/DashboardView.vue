@@ -93,7 +93,11 @@ const { isMobile } = useResponsiveLayout();
 			>
 			<FilterPanel
 				label="总览范围"
-				:count="filters.warehouses.length + filters.categories.length"
+				:count="
+					filters.warehouses.length +
+					filters.categories.length +
+					Number(filters.uncategorized)
+				"
 				:active="active"
 				@update:open="showFilters = $event"
 			>
@@ -104,6 +108,9 @@ const { isMobile } = useResponsiveLayout();
 						title="仓库 / 位置"
 						placeholder="搜索位置"
 					/>
+					<label class="preview-choice-label"
+						><input v-model="filters.uncategorized" type="checkbox" />无分类</label
+					>
 					<HierarchyFilter
 						v-model="filters.categories"
 						:options="reference.categories"
@@ -115,10 +122,15 @@ const { isMobile } = useResponsiveLayout();
 					><span v-if="sections.inventory.hasResult" role="status"
 						>{{ sections.inventory.result.item_count }} 种物品</span
 					><UiButton
-						:disabled="!filters.warehouses.length && !filters.categories.length"
+						:disabled="
+							!filters.warehouses.length &&
+							!filters.categories.length &&
+							!filters.uncategorized
+						"
 						@click="
 							filters.warehouses = [];
 							filters.categories = [];
+							filters.uncategorized = false;
 						"
 						>清空范围</UiButton
 					></template
@@ -132,7 +144,10 @@ const { isMobile } = useResponsiveLayout();
 							reference.categories.find((row) => row.name === id)?.label ||
 							id,
 					)
-					.join(" · ") || "全部仓库 · 全部类别"
+					.join(" · ") +
+					(filters.uncategorized
+						? `${filters.warehouses.length || filters.categories.length ? " · " : ""}无分类`
+						: "") || "全部仓库 · 全部类别"
 			}}</span>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>

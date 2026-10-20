@@ -18,6 +18,7 @@ import { useExpandedEditor } from "../../composables/useExpandedEditor";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import { useInventoryServices } from "../../services/contracts";
 import { newReportQuery } from "../../lib/reportContract";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 const props = withDefaults(defineProps<{ controller: OperationEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -149,7 +150,7 @@ async function back() {
 					: "尚未创建原生记录"
 			}}</span
 			><span role="status">{{ statusLabels[state.status] }}</span
-			><UiButton
+			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity && !busy"
 				@click="dirty ? (reloadOpen = true) : c.load(true)"
 				>重新读取</UiButton

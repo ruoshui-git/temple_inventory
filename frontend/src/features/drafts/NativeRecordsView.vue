@@ -12,6 +12,7 @@ import CompactFilters from "../../components/filters/CompactFilters.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -108,7 +109,7 @@ const quantities = (row: NativeRecord) =>
 					"
 					variant="primary"
 					@click="emit('newCount')"
-					>开始盘点</UiButton
+					>新建盘点</UiButton
 				></template
 			></PageHeader
 		>
@@ -211,13 +212,7 @@ const quantities = (row: NativeRecord) =>
 							</td>
 							<td>
 								{{ movementLabels[String(row.kind)] || row.kind }} ·
-								{{
-									Number(row.docstatus) === 0
-										? "草稿"
-										: Number(row.docstatus) === 2
-											? "已取消"
-											: "已提交"
-								}}
+								<NativeStatusBadge :status="row.docstatus" />
 							</td>
 							<td>{{ row.activity_title || row.borrower || "—" }}</td>
 							<td>

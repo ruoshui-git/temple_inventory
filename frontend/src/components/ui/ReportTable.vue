@@ -6,6 +6,7 @@ import { siteDateTime } from "../../lib/nativeTime";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { computed, ref, watch, useSlots } from "vue";
 import UiButton from "./UiButton.vue";
+import NativeStatusBadge from "./NativeStatusBadge.vue";
 import type { ReportTable } from "../../lib/reportContract";
 const props = withDefaults(
 	defineProps<{
@@ -244,7 +245,7 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 			"Purchase Receipt": "采购收货",
 			"Delivery Note": "销售发货",
 		},
-		review_state: { Unreviewed: "尚未核对", Reviewed: "已核对", "Not Found": "未找到" },
+		review_state: { Unreviewed: "尚未核对", Reviewed: "已核对" },
 		count_scope: { Selected: "选定物品", "Full Location": "整个库位" },
 		outcome_key: {
 			outstanding: "未归还",
@@ -339,6 +340,10 @@ function quantityEffectLabel(row: Record<string, unknown>) {
 						>
 							{{ row.document }}
 						</button>
+						<NativeStatusBadge
+							v-else-if="column === 'docstatus'"
+							:status="row[column]"
+						/>
 						<template v-else>
 							<span
 								:class="quantityTone(column, row)"

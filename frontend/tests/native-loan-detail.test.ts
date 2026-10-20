@@ -183,6 +183,22 @@ describe("native loan details", () => {
     expect(c.canSettle("returned")).toBe(false);
     expect(c.canSettle("lost")).toBe(true);
   });
+  it("exports the viewed loan at its native status while settlement history stays submitted-only", async () => {
+    const { c, props } = setup(
+      vi.fn(async (endpoint, args) =>
+        endpoint === "native_api.loan_detail"
+          ? loan(args.name, args.name === "CANCELLED" ? 2 : 0)
+          : [],
+      ),
+    );
+    await flushPromises();
+    expect(c.exportQuery.value.statuses).toEqual([0]);
+    expect(c.historyQuery.value.statuses).toEqual([1]);
+    props.name = "CANCELLED";
+    await flushPromises();
+    expect(c.exportQuery.value.statuses).toEqual([2]);
+    expect(c.historyQuery.value.statuses).toEqual([1]);
+  });
   it("rejects stale loan responses and clears unauthorized details and history on navigation", async () => {
     let resolve!: (value: LoanDocument) => void;
     const call = vi.fn((endpoint, args) =>

@@ -82,16 +82,18 @@ export function useLoanDetail(props: { name: string }) {
         : undefined,
     writable: () => false,
   });
-  function query() {
+  function query(statuses: number[]) {
     const value = newReportQuery("loans");
     value.loan = props.name;
-    value.statuses = [0, 1, 2];
+    value.statuses = statuses;
     return value;
   }
-  const exportQuery = computed(query);
+  const exportQuery = computed(() =>
+    query(loan.value ? [loan.value.docstatus] : [0, 1, 2]),
+  );
   const historyQuery = computed(() => ({
-    ...query(),
-    scope: { ...query().scope, kinds: ["Return", "Damage", "Loss"] },
+    ...query([1]),
+    scope: { ...query([1]).scope, kinds: ["Return", "Damage", "Loss"] },
     statuses: [1],
     sortBy: "date" as const,
     sort: "desc" as const,

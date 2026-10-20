@@ -20,7 +20,7 @@ describe("recovery summary", () => {
               stock_uom: "Nos",
               baseline_qty: -2,
               actual_qty: 0,
-              review_state: "Not Found",
+              review_state: "Reviewed",
             },
           ],
         },
@@ -34,7 +34,7 @@ describe("recovery summary", () => {
     expect(wrapper.text()).toContain("未填写");
     expect(wrapper.text()).toContain("库存单位");
     expect(wrapper.text()).toContain("Nos");
-    expect(wrapper.text()).toContain("未找到");
+    expect(wrapper.text()).toContain("已核对");
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
   });
   it("copies the exact supplied recovery payload and exposes exact selectable fallback on failure", async () => {

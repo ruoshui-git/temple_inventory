@@ -98,13 +98,7 @@ export function decodeReportQuery(
       activityStatus: ["all", "active", "archived"],
       loanStatus: ["all", "outstanding", "open", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],
-      countReviewed: [
-        "all",
-        "reviewed",
-        "unreviewed",
-        "difference",
-        "not-found",
-      ],
+      countReviewed: ["all", "reviewed", "unreviewed", "difference"],
       relatedPresence: ["all", "yes", "no", "with", "without"],
       expiryWindow: [
         "period",
@@ -128,9 +122,15 @@ export function decodeReportQuery(
         scope[field] =
           field === "period"
             ? period(candidate.scope[field])
-            : Array.isArray(initial)
-              ? strings(candidate.scope[field])
-              : text(candidate.scope[field]);
+            : typeof initial === "boolean"
+              ? typeof candidate.scope[field] === "boolean"
+                ? candidate.scope[field]
+                : (() => {
+                    throw new Error("筛选范围无效");
+                  })()
+              : Array.isArray(initial)
+                ? strings(candidate.scope[field])
+                : text(candidate.scope[field]);
       }
     }
     if (

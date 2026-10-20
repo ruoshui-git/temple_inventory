@@ -69,7 +69,9 @@ const warehouseReference = useOptionalReferenceData();
 				<span class="browse-item-illustration"><InventoryIcon name="box" /></span>
 				<div class="browse-detail-image"><ItemImage :item="item" /></div>
 				<div class="browse-grow">
-					<span class="eyebrow">{{ item.category }} · {{ item.code }}</span>
+					<span class="eyebrow"
+						>{{ item.category ? `${item.category} · ` : "" }}{{ item.code }}</span
+					>
 					<h2>{{ item.name }}</h2>
 					<p class="muted">按物品代码汇总的库存、借用与损坏情况</p>
 				</div>
@@ -198,6 +200,7 @@ const warehouseReference = useOptionalReferenceData();
 					>
 				</div>
 				<MovementHistoryTable
+					:show-status="false"
 					:rows="c.movements.result.rows"
 					:total="c.movements.result.total"
 					:next="c.movements.result.next"
@@ -215,6 +218,7 @@ const warehouseReference = useOptionalReferenceData();
 					<UiButton @click="emit('browse', c.loanQuery.value)">查看物品借用</UiButton>
 				</div>
 				<MovementHistoryTable
+					:show-status="false"
 					mode="loan-allocation"
 					:rows="c.loans.result.rows"
 					:total="c.loans.result.total"

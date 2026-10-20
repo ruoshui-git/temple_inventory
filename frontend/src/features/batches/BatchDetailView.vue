@@ -7,7 +7,6 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import { documentDestination } from "../../lib/nativeNavigation";
 import { movementLabels } from "../../lib/filterPresentation";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
@@ -207,6 +206,7 @@ function openDocument(row: Record<string, unknown>) {
 		<section v-if="c.batch.value" class="batch-detail-card">
 			<h2>批次流动记录 · {{ c.batch.value.history.matched_count }} 条</h2>
 			<MovementHistoryTable
+				:show-status="false"
 				:rows="c.batch.value.history.rows"
 				:total="c.batch.value.history.matched_count"
 				:next="c.batch.value.history.next_start"

@@ -20,6 +20,9 @@ from temple_inventory.report_sources import batch_allocations, document_fields, 
 @frappe.whitelist()
 def bootstrap():
 	require_app()
+	from temple_inventory.catalog import item_group_root
+
+	category_root = item_group_root()
 	settings, visible, physical, leased, damaged = warehouse_scopes()
 	can_create = bool(frappe.has_permission("Stock Entry", "create"))
 	can_submit = bool(frappe.has_permission("Stock Entry", "submit"))
@@ -79,10 +82,12 @@ def bootstrap():
 		"physical_leaves": sorted(physical),
 		"leased_leaves": sorted(leased),
 		"damaged_leaves": sorted(damaged),
+		"category_root": category_root,
 		"categories": list(
 			paged(
 				"Item Group",
-				fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"],
+				filters={"name": ["!=", category_root]},
+				fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt", "modified"],
 				order_by="lft asc, name asc",
 			)
 		),
@@ -126,7 +131,15 @@ def native_drafts(query=None, start=0, page_length=30):
 @frappe.whitelist()
 def counts_page(query=None, start=0, page_length=30):
 	require_app()
-	query = validate_query(query or {"dataset": "counts", "sortBy": "date", "sort": "desc"})
+	query = validate_query(
+		query
+		or {
+			"dataset": "counts",
+			"sortBy": "date",
+			"sort": "desc",
+			"statuses": [0, 1, 2],
+		}
+	)
 	if query["dataset"] != "counts":
 		frappe.throw("盘点列表需要盘点数据集")
 	query.update({"view": "records", "grouping": "none"})
@@ -509,7 +522,7 @@ def inventory_page(query=None, start=0, page_length=30):
 				{
 					"code": item.name,
 					"name": item.item_name,
-					"category": item.item_group,
+					"category": metadata["item_group"],
 					"uom": item.stock_uom,
 					"image": metadata["image"],
 					"description": item.description or "",

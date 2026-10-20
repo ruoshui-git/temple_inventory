@@ -14,6 +14,7 @@ import {
 } from "../../services/contracts";
 
 import { decodeReportQuery, readReportQuery } from "../../lib/reportQuery";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 export { readReportQuery } from "../../lib/reportQuery";
@@ -55,6 +56,15 @@ export function useReportController(
   const namedViews = ref<NamedView[]>([]),
     viewError = ref(""),
     viewBusy = ref(false);
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    const selected = query.value.scope.categories;
+    if (!selected.includes(oldName)) return;
+    query.value.scope.categories = [
+      ...new Set(
+        selected.map((name) => (name === oldName ? category.name : name)),
+      ),
+    ];
+  });
   let generation = 0;
   const requests = new Set<AbortController>();
   function cancel() {
@@ -187,7 +197,10 @@ export function useReportController(
     },
     { immediate: true },
   );
-  onBeforeUnmount(cancel);
+  onBeforeUnmount(() => {
+    stopCategoryRename();
+    cancel();
+  });
   async function loadViews() {
     try {
       namedViews.value = await services.call<NamedView[]>(

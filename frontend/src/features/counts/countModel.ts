@@ -1,7 +1,9 @@
-export type ReviewState = "Unreviewed" | "Reviewed" | "Not Found";
+export type ReviewState = "Unreviewed" | "Reviewed";
 export interface CountRow {
   name?: string;
   item_code: string;
+  item_name?: string;
+  image?: string;
   warehouse: string;
   batch_no: string | null;
   stock_uom: string;
@@ -15,7 +17,7 @@ export interface CountRow {
 export interface CountValues {
   posting_date: string;
   posting_time: string;
-  ti_count_warehouse: string;
+  ti_count_warehouses: string[];
   ti_count_scope: "Selected" | "Full Location";
   ti_count_items: string[];
   ti_baseline_timestamp: string;
@@ -26,7 +28,7 @@ export interface CountValues {
   ti_recorder_name: string;
   ti_handler_name: string;
   ti_reviewer_name: string;
-  remarks: string;
+  ti_notes: string;
   [field: string]: unknown;
 }
 export function countKey(row: CountRow) {
@@ -80,10 +82,6 @@ export function countIssues(
       Math.abs(row.actual_qty - Math.round(row.actual_qty * 1e6) / 1e6) > 1e-9
     )
       message = "实点数量精度超过允许范围";
-    else if (row.review_state === "Not Found" && row.actual_qty !== 0)
-      message = "未找到的实点数量必须为零";
-    else if (row.actual_qty !== row.baseline_qty && !row.reason.trim())
-      message = "请填写盘点差异原因";
     if (message) issues.push({ key: countKey(row), message });
   }
   return issues;

@@ -85,7 +85,6 @@ export function useActivitiesController(
   const tab = ref<"records" | "loans">("records"),
     recordSearch = ref(""),
     recordType = ref(""),
-    recordStatus = ref("1"),
     recordPeriod = ref<DatePeriod>({ key: "all", from: "", to: "" });
   const detail = ref<ActivityDetail>(),
     loading = ref(false),
@@ -108,12 +107,11 @@ export function useActivitiesController(
           ? "此链接不是活动范围，请恢复活动默认范围。"
           : "");
       if (props.mode === "detail") {
+        query.statuses = [1];
         tab.value = query.view === "loans" ? "loans" : "records";
         recordPeriod.value = query.relatedPeriod;
         recordSearch.value = query.relatedSearch;
         recordType.value = query.scope.kinds[0] || "";
-        recordStatus.value =
-          query.statuses.length === 1 ? String(query.statuses[0]) : "all";
         relatedLoan.value = query.loan;
       }
       Object.assign(state, {
@@ -152,8 +150,7 @@ export function useActivitiesController(
       query.relatedSearch = recordSearch.value;
       query.loan = relatedLoan.value;
       query.scope.kinds = recordType.value ? [recordType.value] : [];
-      query.statuses =
-        recordStatus.value === "all" ? [0, 1, 2] : [Number(recordStatus.value)];
+      query.statuses = [1];
       if (!props.name) {
         query.restrictItems = true;
         query.itemCodes = [];
@@ -222,7 +219,6 @@ export function useActivitiesController(
         tab.value = "records";
         recordSearch.value = "";
         recordType.value = "";
-        recordStatus.value = "1";
         recordPeriod.value = { key: "all", from: "", to: "" };
       }
       void loadDetail();
@@ -418,7 +414,6 @@ export function useActivitiesController(
     tab,
     recordSearch,
     recordType,
-    recordStatus,
     recordPeriod,
     current,
     detail,
@@ -450,7 +445,6 @@ export function useActivitiesController(
       });
       tab.value = "records";
       recordSearch.value = recordType.value = relatedLoan.value = "";
-      recordStatus.value = "1";
       recordPeriod.value = { key: "all", from: "", to: "" };
       scopeError.value = "";
     },

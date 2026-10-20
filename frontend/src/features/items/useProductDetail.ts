@@ -11,6 +11,7 @@ import { newReportQuery, type ReportDataset } from "../../lib/reportContract";
 import { useAttachments } from "../attachments/useAttachments";
 import type { SavedItemConversions } from "../conversions/useConversionEditor";
 import { useBrowseState } from "../../lib/browseMemory";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useMovementHistory } from "../movements/useMovementHistory";
 export function useProductDetail(props: { code: string; tab?: string }) {
   const services = useInventoryServices(),
@@ -56,7 +57,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   const movementQuery = computed(() => {
     const value = query("movements");
     value.view = "records";
-    value.statuses = [0, 1, 2];
+    value.statuses = [1];
     value.sortBy = "date";
     value.sort = "desc";
     return value;
@@ -65,6 +66,10 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     const value = query("loans");
     value.view = "records";
     return value;
+  });
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    if (item.value?.item_group === oldName)
+      item.value.item_group = category.name;
   });
   const visible = computed(
     () => item.value?.item_code === props.code && active(),
@@ -133,6 +138,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     },
   );
   onBeforeUnmount(() => {
+    stopCategoryRename();
     disposed = true;
     generation++;
     request?.abort();

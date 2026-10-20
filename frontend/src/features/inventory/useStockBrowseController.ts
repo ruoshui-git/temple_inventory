@@ -9,6 +9,7 @@ import { reportFilterChips } from "../../lib/reportFilters";
 import { expiryStatus, type StockItem } from "../../lib/stockPresentation";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
+import { onCategoryRenamed } from "../../lib/categoryRename";
 import {
   useInventoryServices,
   useReferenceData,
@@ -49,6 +50,16 @@ export function useStockBrowseController(
     inStockOnly = ref(true),
     analysisDimension = ref<"category" | "location">("category");
   const scope = ref(newReportQuery("inventory").scope);
+  const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
+    if (!scope.value.categories.includes(oldName)) return;
+    scope.value.categories = [
+      ...new Set(
+        scope.value.categories.map((name) =>
+          name === oldName ? category.name : name,
+        ),
+      ),
+    ];
+  });
   const constraints = ref(newReportQuery("inventory"));
   const data = reactive({
     rows: [] as StockItem[],
@@ -183,6 +194,7 @@ export function useStockBrowseController(
     },
   );
   onBeforeUnmount(() => {
+    stopCategoryRename();
     generation++;
     request?.abort();
   });

@@ -89,6 +89,10 @@ const count = computed(() => chips.value.length + props.extraCount);
 const fieldCount = (field: ScopeFilterField) =>
 	chips.value.filter((chip) => chip.field === field).length;
 function remove(field: ScopeFilterField, value: string) {
+	if (value === "__uncategorized__") {
+		scope.value = { ...scope.value, uncategorized: false };
+		return;
+	}
 	const previous = scope.value[field];
 	scope.value = {
 		...scope.value,
@@ -100,6 +104,7 @@ function clear() {
 	const defaults = emptyScope();
 	for (const field of Object.keys(scopeFilterLabels) as ScopeFilterField[])
 		Object.assign(cleared, { [field]: defaults[field] });
+	cleared.uncategorized = false;
 	scope.value = cleared;
 	emit("clear");
 }

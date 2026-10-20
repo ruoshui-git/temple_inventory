@@ -9,6 +9,7 @@ import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import FilterPanel from "../../components/ui/FilterPanel.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { movementLabels } from "../../lib/filterPresentation";
 import { quantityText } from "../dashboard/useDashboardController";
 import { formatQuantity } from "../../lib/formatQuantity";
@@ -43,7 +44,6 @@ const {
 	tab,
 	recordSearch,
 	recordType,
-	recordStatus,
 	recordPeriod,
 	current,
 	detail,
@@ -470,13 +470,6 @@ function tabKey(event: KeyboardEvent) {
 								{{ label }}
 							</option>
 						</select></label
-					><label class="preview-field"
-						>单据状态<select v-model="recordStatus">
-							<option value="1">已提交</option>
-							<option value="0">草稿</option>
-							<option value="2">已取消</option>
-							<option value="all">全部</option>
-						</select></label
 					>
 				</div>
 				<p v-if="relatedLoan">
@@ -496,7 +489,7 @@ function tabKey(event: KeyboardEvent) {
 					<p>
 						{{ siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间" }}
 						· {{ movementLabels[row.kind] }} ·
-						{{ ["草稿", "已提交", "已取消"][row.docstatus] }} · {{ row.relationship }}
+						<NativeStatusBadge :status="row.docstatus" /> · {{ row.relationship }}
 					</p>
 					<p>
 						{{ row.itemName }} · {{ formatQuantity(Number(row.qty || 0)) }}

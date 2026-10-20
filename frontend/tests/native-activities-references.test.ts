@@ -197,6 +197,7 @@ describe("native supporting reference creation", () => {
     );
     controller.name.value = "服装";
     controller.group.value = true;
+    controller.parent.value = "ROOT";
     await controller.create();
     expect(call).toHaveBeenCalledWith("catalog.create_category", {
       label: "服装",

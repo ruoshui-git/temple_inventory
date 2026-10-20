@@ -3,9 +3,9 @@ import { ref, watch, nextTick } from "vue";
 import type { useRelatedLoans } from "./useRelatedLoans";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 const props = defineProps<{
 	controller: ReturnType<typeof useRelatedLoans>;
 	disabled?: boolean;
@@ -65,9 +65,9 @@ function openFull() {
 				</p>
 				<template v-else-if="c.current.value?.loan">
 					<h3>{{ c.current.value.loan.ti_borrower || "未填写借用方" }}</h3>
-					<p>
+					<p class="related-loan-heading">
 						{{ c.current.value.loan.posting_date }} ·
-						{{ nativeStatusLabel(c.current.value.loan.docstatus) }} ·
+						<NativeStatusBadge :status="c.current.value.loan.docstatus" /> ·
 						{{ c.current.value.loan.activity_title || "未关联活动" }}
 					</p>
 					<p class="muted">

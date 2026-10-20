@@ -3,11 +3,11 @@ import { computed, useSlots } from "vue";
 import { useReferenceData } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { movementLabels } from "../../lib/filterPresentation";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { siteDateTime } from "../../lib/nativeTime";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
 import UiButton from "./UiButton.vue";
+import NativeStatusBadge from "./NativeStatusBadge.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -22,6 +22,7 @@ const props = withDefaults(
 		busy?: boolean;
 		historyComplete?: boolean;
 		stale?: boolean;
+		showStatus?: boolean;
 	}>(),
 	{
 		loading: false,
@@ -33,6 +34,7 @@ const props = withDefaults(
 		busy: false,
 		historyComplete: true,
 		stale: false,
+		showStatus: true,
 	},
 );
 const emit = defineEmits<{
@@ -150,9 +152,7 @@ const nameOf = (row: HistoryRow) =>
 									:disabled="stale || loading || busy"
 									@click="record(row)"
 									>{{ row.document }}</UiButton
-								><span class="browse-badge is-neutral">{{
-									nativeStatusLabel(row.docstatus)
-								}}</span>
+								><NativeStatusBadge v-if="showStatus" :status="row.docstatus" />
 							</div>
 						</td>
 						<td>{{ siteDateTime(row.date_time) }}</td>

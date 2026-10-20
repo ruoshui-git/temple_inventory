@@ -93,6 +93,7 @@ export function useNativeRecords(
     if (!props.initialQuery && !props.routeQuery) {
       value.sortBy = props.mode === "drafts" ? "modified" : "date";
       value.sort = "desc";
+      if (props.mode === "counts") value.statuses = [0, 1, 2];
     }
     if (value.sortBy === "quantity")
       routeError.value = "记录包含不同单位，请选择日期或编号排序";

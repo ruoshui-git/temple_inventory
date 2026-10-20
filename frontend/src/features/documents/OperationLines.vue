@@ -497,7 +497,10 @@ function changeBatch(line: AllocationLine) {
 							<div class="preview-line-identity">
 								<strong>{{ stockItem(line.code)?.name || line.code }}</strong
 								><small class="muted"
-									>{{ line.code }} · {{ stockItem(line.code)?.category }}</small
+									>{{ line.code
+									}}<template v-if="stockItem(line.code)?.category">
+										· {{ stockItem(line.code)?.category }}</template
+									></small
 								>
 							</div>
 						</div>

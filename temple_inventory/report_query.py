@@ -28,6 +28,7 @@ SCOPE_DEFAULT = {
 	"period": PERIOD_DEFAULT,
 	"warehouses": [],
 	"categories": [],
+	"uncategorized": False,
 	"item": "",
 	"activity": "",
 	"sources": [],
@@ -37,6 +38,7 @@ SCOPE_DEFAULT = {
 QUERY_DEFAULT = {
 	"search": "",
 	"batchNo": "",
+	"batchNoExact": False,
 	"grouping": "none",
 	"sort": "asc",
 	"sortBy": "identity",
@@ -118,6 +120,8 @@ def validate_query(value):
 		frappe.throw("此数据集不支持所选视图或分组")
 	if dataset == "loans" and query["view"] == "items":
 		query.update({"statuses": [1], "loanStatus": "all", "loanOutcome": "all", "outstandingOnly": False})
+	if dataset == "activities":
+		query["statuses"] = [1]
 	if query["sort"] not in ("asc", "desc") or query["sortBy"] not in (
 		"identity",
 		"date",
@@ -131,7 +135,7 @@ def validate_query(value):
 		"activityStatus": ("all", "active", "archived"),
 		"loanStatus": ("all", "outstanding", "open", "settled"),
 		"loanOutcome": ("all", "outstanding", "returned", "damaged", "lost"),
-		"countReviewed": ("all", "reviewed", "unreviewed", "difference", "not-found"),
+		"countReviewed": ("all", "reviewed", "unreviewed", "difference"),
 		"relatedPresence": ("all", "yes", "no", "with", "without"),
 		"expiryWindow": (
 			"period",
@@ -157,6 +161,8 @@ def validate_query(value):
 			query["scope"][field] = _strings(scope[field])
 		elif isinstance(default, dict):
 			query["scope"][field] = _period(scope[field])
+		elif isinstance(default, bool) and type(scope[field]) is bool:
+			query["scope"][field] = scope[field]
 		elif isinstance(scope[field], str):
 			query["scope"][field] = scope[field]
 		else:

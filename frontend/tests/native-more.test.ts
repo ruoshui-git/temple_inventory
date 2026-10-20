@@ -41,7 +41,7 @@ function setup(
   return { wrapper, page, c: page.vm.controller, host, reference };
 }
 describe("shared More workspace", () => {
-  it("uses complete native draft counts and exposes exactly one new-count entry", async () => {
+  it("uses the shared native count browser as the single count card destination", async () => {
     const { wrapper, page } = setup();
     await flushPromises();
     expect(wrapper.text()).toContain("42");
@@ -50,7 +50,7 @@ describe("shared More workspace", () => {
       .filter((button) => button.text().includes("盘点调整"));
     expect(count).toHaveLength(1);
     await count[0]!.trigger("click");
-    expect(page.emitted("navigate")?.[0]).toEqual(["/reconcile/new"]);
+    expect(page.emitted("navigate")?.[0]).toEqual(["/counts"]);
     expect(wrapper.text()).toContain("volunteer");
   });
   it("keeps failures distinct from zero and allows retrying a failed draft counter", async () => {

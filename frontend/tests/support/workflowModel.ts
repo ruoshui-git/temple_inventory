@@ -72,7 +72,7 @@ export function countLocationLines(
           uom: item.uom,
           qty: batch.available,
           countedQty: undefined as number | undefined,
-          countState: undefined as "counted" | "not_found" | undefined,
+          countState: undefined as "counted" | undefined,
           reason: "",
         })),
       ),
@@ -109,10 +109,18 @@ export function refreshCountBaseline(
   draft: ReviewDraft,
   session: ReviewSession = reviewSession,
 ) {
-  const current = countLocationLines(draft.countLocation || "", session);
+  const warehouses = draft.countWarehouses?.length
+    ? draft.countWarehouses
+    : [...new Set(draft.lines.map((line) => line.location).filter(Boolean))];
+  const current = warehouses.flatMap((warehouse) =>
+    countLocationLines(warehouse, session),
+  );
   for (const line of draft.lines) {
     const row = current.find(
-      (row) => row.code === line.code && row.batch === line.batch,
+      (row) =>
+        row.code === line.code &&
+        row.location === line.location &&
+        row.batch === line.batch,
     );
     line.qty = row?.qty || 0;
   }

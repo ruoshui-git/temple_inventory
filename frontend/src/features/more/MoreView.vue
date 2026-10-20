@@ -49,8 +49,6 @@ const c = props.controller,
 			</div>
 		</section>
 		<section class="more-section">
-			<UiButton @click="emit('navigate', '/counts')">查看盘点记录</UiButton>
-			<UiButton @click="emit('navigate', '/setup')">配置与恢复</UiButton>
 			<h2>账户与设备</h2>
 			<div class="more-grid">
 				<button

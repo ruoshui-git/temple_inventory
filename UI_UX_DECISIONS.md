@@ -1,5 +1,34 @@
 # Temple Inventory UI/UX Decisions
 
+## Native category, count and history refinements — 2026-10-19 supersession
+
+- Item category is optional. An empty selection is a native assignment to the
+  resolved Item Group root; the root and its hierarchy level stay hidden in
+  ordinary labels and selectors. Category filters combine selected subtrees
+  with the independent exact-match `无分类` option. Category management lives
+  at `/categories`; native rename updates linked Items, while normal Frappe
+  permission, child and link guards control deletion.
+- 更多 has one `盘点调整` card opening the native reconciliation browser; its
+  permission-controlled `新建盘点` action opens the editor. 分类 and
+  配置与恢复 share the management group.
+- Item, Batch, Warehouse, Loan and Activity detail histories contain submitted
+  native records only. Browse tables and native document headers use the same
+  always-labeled native status badge; local editor feedback remains separate.
+- A new physical count captures the complete authorized physical leaf set and
+  one posting timestamp. Date and scope settings stay in disclosures. The
+  compact position panel lists physical locations and their ancestors;
+  location, search and review filters change visible rows only, and page changes
+  retain all entered values. Rows use the compact count table and distinguish
+  blank from a deliberate zero. One action area stays reachable while reviewing
+  long counts. Matching counts create no document. Difference reasons and the
+  persisted count note are optional; `Not Found` is retired.
+- Camera scanning remains ZXing-WASM only. When several cameras are available,
+  the shared selector uses permission-revealed labels, remembers the last
+  successfully opened device and its browser-provided label. If an ID rotates,
+  restore by label only when exactly one available camera matches; synthesized
+  labels and duplicate matches never identify a device. If the preferred device
+  disappears, fall back to the rear-facing preference with a notice.
+
 ## Browse and batch-detail refinements — 2026-10-19
 
 - Desktop browse density follows the shared control token (32px compact, 36px

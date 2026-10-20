@@ -12,7 +12,12 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
-const emit = defineEmits<{ back: []; openExport: [query: ReportQuery]; newCount: [] }>();
+const emit = defineEmits<{
+	back: [];
+	openExport: [query: ReportQuery];
+	newCount: [];
+	openDocument: [doctype: string, name: string];
+}>();
 const controller = useCountEditor(props);
 defineExpose({ controller });
 </script>
@@ -23,5 +28,6 @@ defineExpose({ controller });
 		:active="active"
 		@back="emit('back')"
 		@new-count="emit('newCount')"
+		@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 	/>
 </template>

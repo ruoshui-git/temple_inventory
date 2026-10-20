@@ -1,0 +1,241 @@
+<script setup lang="ts">
+import PageHeader from "../../components/ui/PageHeader.vue";
+import UiButton from "../../components/ui/UiButton.vue";
+import Overlay from "../../components/ui/Overlay.vue";
+import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import CategoryFormFields from "./CategoryFormFields.vue";
+import type { useCategoriesController } from "./useCategoriesController";
+
+const props = defineProps<{ controller: ReturnType<typeof useCategoriesController> }>();
+const c = props.controller;
+const {
+	categories,
+	canCreate,
+	canWrite,
+	canDelete,
+	success,
+	error,
+	refreshError,
+	loading,
+	search,
+	dialog,
+	saving,
+	deleting,
+	removeTarget,
+	editing,
+	form,
+	expanded,
+	candidates,
+	recoveryError,
+	recoveryConflict,
+	discardOpen,
+	leaveRequested,
+} = c;
+</script>
+
+<template>
+	<div class="app-shell category-management">
+		<PageHeader title="分类">
+			<p class="muted">管理物品分类层级。删除受物品引用或下级分类保护。</p>
+			<template #actions>
+				<UiButton v-if="canCreate" variant="primary" @click="c.openCreate()"
+					>新建分类</UiButton
+				>
+			</template>
+		</PageHeader>
+		<p v-if="success" role="status">{{ success }}</p>
+		<p v-if="error && !dialog && !removeTarget" role="alert">{{ error }}</p>
+		<div v-if="refreshError" role="alert" class="notice-bar danger">
+			{{ refreshError }}
+			<UiButton :disabled="loading" @click="c.refresh">重新读取分类</UiButton>
+		</div>
+		<p v-if="loading && !categories.length" role="status">正在读取分类…</p>
+		<div class="category-tools">
+			<label class="preview-field">搜索分类<input v-model="search" type="search" /></label>
+			<span class="muted">{{ categories.length }} 个分类</span>
+		</div>
+		<ul class="category-tree" aria-label="物品分类层级">
+			<li v-for="row in categories.filter(c.visible)" :key="row.name">
+				<div
+					class="category-row"
+					:style="{ '--category-depth': Math.min(c.depth(row), 5) }"
+				>
+					<UiButton
+						v-if="row.is_group"
+						class="category-expand"
+						:aria-expanded="expanded.has(row.name) || !!search.trim()"
+						:aria-label="`${expanded.has(row.name) ? '收起' : '展开'} ${row.label}`"
+						@click="c.toggle(row)"
+						>{{ expanded.has(row.name) || search ? "−" : "+" }}</UiButton
+					>
+					<span v-else class="category-expand-spacer" aria-hidden="true" />
+					<strong>{{ row.label }}</strong>
+					<small v-if="row.name !== row.label">{{ row.name }}</small>
+					<span class="category-kind">{{ row.is_group ? "分组" : "末级" }}</span>
+					<UiButton v-if="canCreate && row.is_group" @click="c.openCreate(row.name)"
+						>添加下级</UiButton
+					>
+					<UiButton v-if="canWrite" @click="c.openEdit(row)">编辑</UiButton>
+					<UiButton v-if="canDelete" variant="danger" @click="c.askDelete(row)"
+						>删除</UiButton
+					>
+				</div>
+			</li>
+			<li v-if="!categories.some(c.visible)" class="muted">
+				{{ loading ? "正在读取分类…" : "没有匹配的分类。" }}
+			</li>
+		</ul>
+		<section v-if="candidates.length" class="category-recovery surface">
+			<h2>未完成的分类输入</h2>
+			<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
+			<p v-if="recoveryConflict" role="alert">{{ recoveryConflict }}</p>
+			<article v-for="candidate in candidates" :key="candidate.editorId">
+				<p>{{ candidate.updatedAt }}</p>
+				<RecoverySummary
+					kind="Item Group"
+					:values="candidate.values"
+					:copy-text="JSON.stringify(candidate.values, null, 2)"
+				>
+					<UiButton :disabled="loading" @click="c.recover(candidate)"
+						>检查并恢复</UiButton
+					>
+				</RecoverySummary>
+			</article>
+		</section>
+		<Overlay
+			v-if="dialog && !discardOpen && !leaveRequested"
+			:title="editing ? '编辑分类' : '新建分类'"
+			initial-focus="[data-category-name]"
+			:dismissible="!saving"
+			@close="c.closeEditor"
+		>
+			<CategoryFormFields
+				v-model="form"
+				:categories="categories"
+				:excluded-names="c.parentExclusions(editing)"
+				:disabled="saving"
+			/>
+			<p v-if="error" role="alert">{{ error }}</p>
+			<template #footer>
+				<UiButton :disabled="saving" @click="c.closeEditor">取消</UiButton>
+				<UiButton variant="primary" :loading="saving" @click="c.save">保存</UiButton>
+			</template>
+		</Overlay>
+		<Overlay v-if="discardOpen" title="放弃分类输入？" @close="c.finishDiscard(false)">
+			<p>当前更改已保留在本浏览器。关闭后可以恢复，或明确放弃。</p>
+			<template #footer>
+				<UiButton @click="c.finishDiscard(false)">继续编辑</UiButton>
+				<UiButton variant="danger" @click="c.finishDiscard(true)">放弃输入</UiButton>
+			</template>
+		</Overlay>
+		<Overlay
+			v-if="removeTarget"
+			title="删除分类"
+			:dismissible="!deleting"
+			@close="removeTarget = undefined"
+		>
+			<p>
+				确定删除「{{ removeTarget.label }}」吗？Frappe
+				会阻止删除仍被物品或下级分类引用的类别，并显示具体原因。
+			</p>
+			<p v-if="error" role="alert">{{ error }}</p>
+			<template #footer>
+				<UiButton :disabled="deleting" @click="removeTarget = undefined">取消</UiButton>
+				<UiButton variant="danger" :loading="deleting" @click="c.remove"
+					>确认删除</UiButton
+				>
+			</template>
+		</Overlay>
+		<Overlay v-if="leaveRequested" title="离开分类编辑？" @close="c.finishLeave('stay')">
+			<p>未完成输入保存在当前浏览器和账户中。</p>
+			<template #footer>
+				<UiButton @click="c.finishLeave('stay')">继续编辑</UiButton>
+				<UiButton @click="c.finishLeave('retain')">保留输入并离开</UiButton>
+				<UiButton variant="danger" @click="c.finishLeave('discard')"
+					>放弃输入并离开</UiButton
+				>
+			</template>
+		</Overlay>
+	</div>
+</template>
+
+<style scoped>
+.category-management {
+	padding-bottom: 32px;
+}
+.category-tools {
+	display: flex;
+	align-items: end;
+	gap: 12px;
+	margin-top: 12px;
+}
+.category-tools .preview-field {
+	flex: 1;
+	max-width: 520px;
+}
+.category-tree {
+	list-style: none;
+	padding: 0;
+	margin: 12px 0;
+}
+.category-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 48px;
+	padding: 5px 8px;
+	padding-inline-start: calc(8px + min(var(--category-depth), 5) * 22px);
+	border-bottom: 1px solid var(--p-border);
+}
+.category-row strong {
+	min-width: 100px;
+	max-width: 240px;
+	overflow-wrap: anywhere;
+}
+.category-row small {
+	flex: 1;
+	min-width: 0;
+	color: var(--p-muted);
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+.category-kind {
+	color: var(--p-muted);
+	font-size: 0.8rem;
+}
+.category-expand,
+.category-expand-spacer {
+	width: 36px;
+	min-width: 36px;
+}
+.category-recovery {
+	padding: 12px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+}
+.category-recovery h2 {
+	margin-block: 0 6px;
+	font-size: 1rem;
+}
+@media (max-width: 1023px) {
+	.category-tools {
+		align-items: stretch;
+		flex-wrap: wrap;
+	}
+	.category-tools .preview-field {
+		max-width: none;
+		flex-basis: 100%;
+	}
+	.category-row {
+		flex-wrap: wrap;
+		padding-inline-start: calc(4px + min(var(--category-depth), 5) * 12px);
+	}
+	.category-row strong {
+		flex: 1 1 90px;
+	}
+	.category-kind {
+		margin-inline-end: auto;
+	}
+}
+</style>

@@ -294,17 +294,6 @@
   {
     "doctype": "Custom Field",
     "dt": "Stock Reconciliation",
-    "fieldname": "ti_count_warehouse",
-    "fieldtype": "Link",
-    "label": "盘点位置",
-    "insert_after": "ti_count_scope",
-    "module": "Temple Inventory",
-    "name": "Stock Reconciliation-ti_count_warehouse",
-    "options": "Warehouse"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Reconciliation",
     "fieldname": "ti_count_items",
     "fieldtype": "JSON",
     "label": "选定物品",
@@ -355,5 +344,25 @@
     "module": "Temple Inventory",
     "default": "0",
     "name": "Warehouse-ti_room_default"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Reconciliation",
+    "fieldname": "ti_count_warehouses",
+    "fieldtype": "JSON",
+    "label": "盘点位置范围",
+    "insert_after": "ti_count_scope",
+    "module": "Temple Inventory",
+    "name": "Stock Reconciliation-ti_count_warehouses"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Reconciliation",
+    "fieldname": "ti_notes",
+    "fieldtype": "Long Text",
+    "label": "盘点备注",
+    "insert_after": "ti_reviewer_name",
+    "module": "Temple Inventory",
+    "name": "Stock Reconciliation-ti_notes"
   }
 ]

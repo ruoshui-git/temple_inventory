@@ -43,9 +43,9 @@ export const moreNavigation = [
       {
         key: "count",
         label: "盘点调整",
-        route: "/reconcile/new",
+        route: "/counts",
         icon: "adjust",
-        description: "新建单一库位的实物盘点",
+        description: "查看和调整库存盘点记录",
       },
       {
         key: "drafts",
@@ -57,8 +57,22 @@ export const moreNavigation = [
     ],
   },
   {
-    label: "使用偏好",
+    label: "管理与设置",
     items: [
+      {
+        key: "categories",
+        label: "分类",
+        route: "/categories",
+        icon: "box",
+        description: "管理分类层级与物品归属",
+      },
+      {
+        key: "setup",
+        label: "配置与恢复",
+        route: "/setup",
+        icon: "settings",
+        description: "配置库存范围并恢复开发样例",
+      },
       {
         key: "settings",
         label: "显示设置",

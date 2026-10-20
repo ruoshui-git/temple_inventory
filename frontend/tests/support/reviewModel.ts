@@ -367,7 +367,7 @@ export interface DraftLine {
   sourceLocation?: string;
   loanLineIndex?: number;
   loanName?: string;
-  countState?: "counted" | "not_found";
+  countState?: "counted";
   batch?: string;
   expiry?: string;
   countedQty?: number;
@@ -388,7 +388,7 @@ export interface ReviewDraft {
   purpose?: string;
   postingTime?: string;
   timeMode?: "current" | "manual";
-  countLocation?: string;
+  countWarehouses?: string[];
   countMode?: "selective" | "full";
   baselineStale?: boolean;
   baselineReviewed?: boolean;
@@ -819,7 +819,9 @@ function initialDrafts(): ReviewDraft[] {
           : "Stock Entry";
     if (draft.kind === "Reconcile") {
       draft.countMode = "selective";
-      draft.countLocation = draft.lines[0]?.location;
+      draft.countWarehouses = [
+        ...new Set(draft.lines.map((line) => line.location).filter(Boolean)),
+      ];
       draft.baselineReviewed = true;
     }
   }

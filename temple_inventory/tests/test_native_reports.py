@@ -442,6 +442,17 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(overview["movement_totals"][0]["kind"], "Loan")
 		self.assertTrue(overview["can_write"])
 
+	def test_activity_uncategorized_scope_requires_a_direct_root_assignment(self):
+		category = catalog.create_category("Activity category " + self.token)
+		frappe.db.set_value("Item", self.item, "item_group", category["name"])
+		self.loan(2)
+		query = self.query("activities", "metadata")
+		query["scope"]["uncategorized"] = True
+		self.assertEqual(report_page(query)["matched_count"], 0)
+
+		frappe.db.set_value("Item", self.item, "item_group", catalog.item_group_root())
+		self.assertEqual(report_page(query)["matched_count"], 1)
+
 	def test_counts_report_contains_only_actual_native_reconciliations(self):
 		self.receipt(10)
 		counts.save_count(str(uuid4()), self.count_data(10, "Reviewed"))
