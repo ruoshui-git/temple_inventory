@@ -11,6 +11,7 @@ import {
   provideInventoryServices,
 } from "../src/services/contracts";
 import GroupByFilter from "../src/components/filters/GroupByFilter.vue";
+import FilterDisclosure from "../src/components/ui/FilterDisclosure.vue";
 import { filterPanelSessionKey } from "../src/lib/filterPanelSession";
 import { emptyScope } from "../src/lib/browseQuery";
 import {
@@ -21,6 +22,62 @@ import {
 afterEach(() => {
   localStorage.clear();
   vi.unstubAllGlobals();
+});
+
+it("keeps sidebar hierarchy sections visible and opens the requested collapsed filter editor", async () => {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const staticSection = mount(FilterDisclosure, {
+    props: {
+      label: "物品类别",
+      field: "categories",
+      disclosure: false,
+      summary: "无分类",
+    },
+    slots: { default: "类别树" },
+  });
+  expect(staticSection.find("details").exists()).toBe(false);
+  expect(staticSection.get("section").text()).toContain("物品类别");
+  staticSection.unmount();
+
+  const wrapper = mount(FilterPanel, {
+    props: { label: "筛选", active: true },
+    slots: {
+      default: () =>
+        h("details", { "data-filter-field": "status" }, [
+          h("summary", "状态"),
+          h("input", { "aria-label": "状态编辑器" }),
+        ]),
+    },
+    attachTo: document.body,
+  });
+  await wrapper.vm.show("status");
+  await flushPromises();
+  expect(
+    document
+      .querySelector("details[data-filter-field=status]")
+      ?.hasAttribute("open"),
+  ).toBe(true);
+  const editor = document.querySelector<HTMLInputElement>(
+    'input[aria-label="状态编辑器"]',
+  )!;
+  expect(document.activeElement).toBe(editor);
+  document.querySelector<HTMLDetailsElement>(
+    "details[data-filter-field=status]",
+  )!.open = true;
+  await wrapper.vm.hide();
+  await wrapper.vm.show();
+  await flushPromises();
+  expect(
+    document
+      .querySelector("details[data-filter-field=status]")
+      ?.hasAttribute("open"),
+  ).toBe(false);
+  wrapper.unmount();
 });
 
 it("stages embedded period presets and commits calendar quarters as custom bounds", async () => {
@@ -211,6 +268,7 @@ it("offers labeled rail-edit actions instead of duplicating hierarchy trees in t
                   h(BrowseFilters, {
                     modelValue: emptyScope(),
                     hierarchyInRail: true,
+                    disclosureMode: true,
                     fields: ["categories", "warehouses"],
                   }),
               },
@@ -239,7 +297,7 @@ it("offers labeled rail-edit actions instead of duplicating hierarchy trees in t
   expect(document.body.textContent).toContain("在侧栏中编辑仓库筛选");
   expect(document.querySelectorAll(".hierarchy-list")).toHaveLength(0);
   const categoryAction = document.querySelector<HTMLElement>(
-    ".preview-filter-popover .browse-hierarchy-rail-entry button",
+    '.preview-filter-popover [data-filter-field="categories"] button',
   )!;
   await categoryAction.click();
   await flushPromises();

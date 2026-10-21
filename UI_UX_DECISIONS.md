@@ -1,5 +1,40 @@
 # Temple Inventory UI/UX Decisions
 
+## Browse interaction refinements — 2026-10-21 supersession
+
+- Paginated controls show the loaded and matched totals for their own immediate
+  rows, including nested groups and histories. Expanded descendants never add
+  to a parent page's count. Hierarchy filters choose an explicit initial
+  expansion policy: category trees start with only their visible first level;
+  branches start closed. Warehouse/source/destination branches open only when
+  they contain multiple selectable leaves. Search
+  reveals matching paths temporarily, and reference refresh preserves manual
+  branch choices.
+- Each filter in a megamenu starts collapsed on every opening and summarizes
+  its applied value. Chips open the matching disclosure and focus its editor;
+  grouping stays in a separate labeled section. Date edits remain staged until
+  Apply. Movement and Loan view switches reset filters and inherited scopes to
+  the target view defaults, while route history continues to restore ordinary
+  browsing context.
+- Loan item histories use one shared two-choice scope, `未结清借用` or
+  `全部相关记录`, defaulting to outstanding records. It applies to grouped and
+  ungrouped item histories; `显示已结清物品` remains an independent result
+  filter. Scope changes restart open histories and closed histories load lazily.
+- Browse cards use density geometry tokens for preferred widths, gaps, padding
+  and imagery. Compact cards target a 160px preferred width and wrap to the
+  available content width; text scaling and narrow containers can reduce their
+  column count. Grouped Stock results use the shared table at every width.
+  Mobile interactive targets remain at least 44px.
+- Desktop browse keeps title, view tabs, search and filter/sidebar controls in
+  the persistent row when space allows. Create/export and secondary actions
+  stay in the expandable area below it. Desktop filter popovers open below the
+  trigger and scroll within the remaining viewport. The desktop account menu
+  exposes the shared confirmed logout flow; More retains logout on desktop and
+  mobile.
+
+These decisions supersede the per-item Loan history selectors and the older
+toolbar placement that put create/export actions above search.
+
 ## Browse repair decisions — 2026-10-20 supersession
 
 - The persistent search, applied chips, scan action and filter action share one

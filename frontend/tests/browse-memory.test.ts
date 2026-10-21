@@ -38,6 +38,19 @@ function services() {
 }
 
 describe("browse navigation memory", () => {
+  it("scopes browse-group snapshots to each browser history entry", () => {
+    let entry = "site:manager:/loans?view=items:1";
+    const memory = createBrowseMemory(() => entry);
+    memory.activate();
+    expect(memory.identity()).toBe(entry);
+    entry = "site:manager:/loans?view=records:2";
+    memory.activate();
+    expect(memory.identity()).toBe(entry);
+    entry = "site:manager:/loans?view=items:1";
+    memory.activate();
+    expect(memory.identity()).toBe(entry);
+  });
+
   it("rereads the previous page depth, uses fresh quantities, and never replays writes", async () => {
     let entry = "site:manager:/stock:1";
     const source = services(),

@@ -89,6 +89,17 @@ describe("shared production design system", () => {
       expect(existsSync(resolve(path)), path).toBe(false);
     expect(read("src/main.ts")).not.toContain("frappe-ui/style.css");
   });
+  it("sets explicit initial expansion policies for direct hierarchy filters", () => {
+    expect(read("src/features/dashboard/DashboardView.vue")).toContain(
+      'title="仓库 / 位置"\n\t\t\t\t\t\tplaceholder="搜索位置"\n\t\t\t\t\t\tinitial-expansion="branching-leaves"',
+    );
+    expect(read("src/features/dashboard/DashboardView.vue")).toContain(
+      'title="物品类别"\n\t\t\t\t\t\tplaceholder="搜索类别"\n\t\t\t\t\t\tinitial-expansion="first-level"',
+    );
+    expect(read("src/features/items/ItemPicker.vue")).toContain(
+      'title="物品类别"\n\t\t\t\t\tplaceholder="搜索类别"\n\t\t\t\t\tinitial-expansion="first-level"',
+    );
+  });
 
   it("keeps production independent of fixtures and the gallery independent of authentication, RPC and PWA startup", () => {
     const production = importGraph("src/main.ts");

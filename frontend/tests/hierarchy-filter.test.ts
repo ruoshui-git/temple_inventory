@@ -87,6 +87,118 @@ const nestedNodes = [
 ];
 
 describe("HierarchyFilter", () => {
+  it("keeps category roots closed and expands warehouse branches by selectable leaves only", async () => {
+    const tree = [
+      { name: "root", label: "仓库", is_group: 1, lft: 1, rgt: 14 },
+      {
+        name: "branch",
+        label: "多叶分支",
+        parent: "root",
+        is_group: 1,
+        lft: 2,
+        rgt: 7,
+      },
+      {
+        name: "leaf-a",
+        label: "A",
+        parent: "branch",
+        is_group: 0,
+        lft: 3,
+        rgt: 4,
+      },
+      {
+        name: "leaf-b",
+        label: "B",
+        parent: "branch",
+        is_group: 0,
+        lft: 5,
+        rgt: 6,
+      },
+      {
+        name: "chain",
+        label: "单叶链",
+        parent: "root",
+        is_group: 1,
+        lft: 8,
+        rgt: 13,
+      },
+      {
+        name: "chain-next",
+        label: "末级前一层",
+        parent: "chain",
+        is_group: 1,
+        lft: 9,
+        rgt: 12,
+      },
+      {
+        name: "leaf-c",
+        label: "C",
+        parent: "chain-next",
+        is_group: 0,
+        lft: 10,
+        rgt: 11,
+      },
+    ];
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: [],
+        options: tree,
+        tree,
+        placeholder: "搜索",
+        title: "仓库",
+        initialExpansion: "branching-leaves",
+      },
+    });
+    expect(
+      wrapper
+        .findAll(".hierarchy-row")
+        .map((row) => row.get("label span").text()),
+    ).toEqual(["仓库", "多叶分支", "A", "B", "单叶链"]);
+    expect(
+      wrapper
+        .get('button[aria-label="展开 单叶链"]')
+        .attributes("aria-expanded"),
+    ).toBe("false");
+
+    await wrapper.get('button[aria-label="收起 仓库"]').trigger("click");
+    const refreshed = [
+      ...tree,
+      { name: "new-leaf", parent: "root", is_group: 0 },
+    ];
+    await wrapper.setProps({ options: refreshed, tree: refreshed });
+    expect(wrapper.findAll(".hierarchy-row")).toHaveLength(1);
+    await wrapper.get('input[type="search"]').setValue("C");
+    expect(
+      wrapper
+        .findAll(".hierarchy-row")
+        .some((row) => row.get("label span").text().startsWith("C")),
+    ).toBe(true);
+    await wrapper.get('input[type="search"]').setValue("");
+    expect(wrapper.findAll(".hierarchy-row")).toHaveLength(1);
+    wrapper.unmount();
+
+    const category = mount(HierarchyFilter, {
+      props: {
+        modelValue: [],
+        options: tree,
+        tree,
+        placeholder: "搜索",
+        title: "类别",
+        initialExpansion: "first-level",
+      },
+    });
+    expect(
+      category
+        .findAll(".hierarchy-row")
+        .map((row) => row.get("label span").text()),
+    ).toEqual(["仓库"]);
+    await category.get('button[aria-label="展开 仓库"]').trigger("click");
+    expect(
+      category
+        .findAll(".hierarchy-row")
+        .map((row) => row.get("label span").text()),
+    ).toEqual(["仓库", "多叶分支", "单叶链"]);
+  });
   it("renders the inline tree immediately and supports search, selection, and clear", async () => {
     const wrapper = mount(HierarchyFilter, {
       props: {

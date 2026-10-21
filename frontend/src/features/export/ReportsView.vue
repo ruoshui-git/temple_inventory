@@ -22,7 +22,7 @@ import {
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
 import { computed } from "vue";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
-import { periodLabels } from "../../lib/sitePeriod";
+import { periodLabels, sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
 import type { useExportWorkspaceController } from "./useReportController";
 const props = withDefaults(
@@ -183,25 +183,50 @@ function setGroup(index: number, value: string) {
 									</option>
 								</select></label
 							>
-							<PeriodFilter
+							<details
 								v-if="
 									(dataset !== 'inventory' || query.view === 'historical') &&
 									(dataset !== 'expiry' || query.expiryWindow === 'period')
 								"
-								:today="reference.siteDate"
-								v-model="query.scope.period"
-								:label="definition.dateLabel"
-								field-key="period"
-								embedded
-							/>
-							<template v-if="dataset === 'activities' && query.view === 'records'">
+								class="browse-filter-disclosure"
+								data-filter-field="period"
+							>
+								<summary>
+									{{ definition.dateLabel }}
+									<small>{{
+										sitePeriodSummary(query.scope.period, reference.siteDate)
+									}}</small>
+								</summary>
 								<PeriodFilter
 									:today="reference.siteDate"
-									v-model="query.relatedPeriod"
-									label="关联单据记账日期"
-									field-key="relatedPeriod"
+									v-model="query.scope.period"
+									:label="definition.dateLabel"
+									field-key="period"
 									embedded
 								/>
+							</details>
+							<template v-if="dataset === 'activities' && query.view === 'records'">
+								<details
+									class="browse-filter-disclosure"
+									data-filter-field="relatedPeriod"
+								>
+									<summary>
+										关联单据记账日期
+										<small>{{
+											sitePeriodSummary(
+												query.relatedPeriod,
+												reference.siteDate,
+											)
+										}}</small>
+									</summary>
+									<PeriodFilter
+										:today="reference.siteDate"
+										v-model="query.relatedPeriod"
+										label="关联单据记账日期"
+										field-key="relatedPeriod"
+										embedded
+									/>
+								</details>
 								<label class="preview-field"
 									>关联记录搜索<input v-model="query.relatedSearch"
 								/></label>
@@ -219,6 +244,7 @@ function setGroup(index: number, value: string) {
 							>
 							<BrowseFilters
 								v-model="query.scope"
+								disclosure-mode
 								:hide-activity="
 									['inventory', 'expiry', 'counts'].includes(dataset)
 								"
@@ -230,7 +256,11 @@ function setGroup(index: number, value: string) {
 					</section>
 					<section class="browse-filter-mega-section browse-filter-grouping">
 						<h3>分组</h3>
-						<fieldset class="preview-filter-fields">
+						<fieldset
+							class="preview-filter-fields"
+							data-filter-field="groupBy"
+							tabindex="-1"
+						>
 							<legend>分组 · 最多两级</legend>
 							<label class="preview-field"
 								>第一级分组<select
@@ -272,60 +302,151 @@ function setGroup(index: number, value: string) {
 					<section class="browse-filter-mega-section reports-filter-secondary">
 						<h3>其他筛选与视图</h3>
 						<div class="preview-filter-fields">
-							<label v-if="dataset === 'movements'" class="preview-choice-label"
-								><input
-									type="checkbox"
-									v-model="query.includeAdjustments"
-								/>包含期初与库存调整</label
+							<details
+								v-if="dataset === 'movements'"
+								class="browse-filter-disclosure"
+								data-filter-field="includeAdjustments"
 							>
-							<fieldset v-if="hasReportStatuses(query)">
-								<legend>单据状态</legend>
-								<label
-									v-for="(label, status) in ['草稿', '已提交', '已取消']"
-									:key="status"
-									class="preview-choice-label"
+								<summary>
+									盘点调整
+									<small>{{
+										query.includeAdjustments ? "包括" : "不包括"
+									}}</small>
+								</summary>
+								<label class="preview-choice-label"
 									><input
 										type="checkbox"
-										v-model="query.statuses"
-										:value="status"
-									/>{{ label }}</label
+										v-model="query.includeAdjustments"
+									/>包含期初与库存调整</label
 								>
-							</fieldset>
-							<label
+							</details>
+							<details
+								v-if="hasReportStatuses(query)"
+								class="browse-filter-disclosure"
+								data-filter-field="status"
+							>
+								<summary>
+									单据状态
+									<small>{{
+										query.statuses
+											.map((status) => ["草稿", "已提交", "已取消"][status])
+											.join("、") || "未选择"
+									}}</small>
+								</summary>
+								<fieldset>
+									<label
+										v-for="(label, status) in ['草稿', '已提交', '已取消']"
+										:key="status"
+										class="preview-choice-label"
+										><input
+											type="checkbox"
+											v-model="query.statuses"
+											:value="status"
+										/>{{ label }}</label
+									>
+								</fieldset>
+							</details>
+							<details
 								v-if="
 									['inventory', 'expiry'].includes(dataset) ||
 									(dataset === 'loans' && query.view === 'items')
 								"
-								class="preview-choice-label"
-								><input type="checkbox" v-model="query.includeZero" />{{
-									dataset === "loans" ? "显示已结清物品" : "包含零库存"
-								}}</label
+								class="browse-filter-disclosure"
+								data-filter-field="includeZero"
 							>
-							<label v-if="dataset === 'expiry'" class="preview-choice-label"
-								><input
-									type="checkbox"
-									v-model="query.includeUndated"
-								/>全部日期中包含无效期</label
+								<summary>
+									{{ dataset === "loans" ? "已结清物品" : "零库存" }}
+									<small>{{ query.includeZero ? "显示" : "隐藏" }}</small>
+								</summary>
+								<label class="preview-choice-label"
+									><input type="checkbox" v-model="query.includeZero" />{{
+										dataset === "loans" ? "显示已结清物品" : "包含零库存"
+									}}</label
+								>
+							</details>
+							<details
+								v-if="dataset === 'expiry'"
+								class="browse-filter-disclosure"
+								data-filter-field="includeUndated"
 							>
-							<template v-if="dataset === 'activities'"
-								><label class="preview-field"
-									>归档状态<select v-model="query.activityStatus">
-										<option value="all">全部</option>
-										<option value="active">进行中</option>
-										<option value="archived">已归档</option>
+								<summary>
+									无效期批次
+									<small>{{ query.includeUndated ? "包含" : "不包含" }}</small>
+								</summary>
+								<label class="preview-choice-label"
+									><input
+										type="checkbox"
+										v-model="query.includeUndated"
+									/>全部日期中包含无效期</label
+								>
+							</details>
+							<template v-if="dataset === 'activities'">
+								<details
+									class="browse-filter-disclosure"
+									data-filter-field="activityStatus"
+								>
+									<summary>
+										归档状态
+										<small>{{
+											query.activityStatus === "all"
+												? "全部"
+												: query.activityStatus === "active"
+													? "进行中"
+													: "已归档"
+										}}</small>
+									</summary>
+									<label class="preview-field"
+										>归档状态<select v-model="query.activityStatus">
+											<option value="all">全部</option>
+											<option value="active">进行中</option>
+											<option value="archived">已归档</option>
+										</select></label
+									>
+								</details>
+								<details
+									class="browse-filter-disclosure"
+									data-filter-field="typeId"
+								>
+									<summary>
+										活动类型
+										<small>{{
+											reference.activityTypes.find(
+												(option) => option.value === query.typeId,
+											)?.label ||
+											query.typeId ||
+											"不限"
+										}}</small>
+									</summary>
+									<SearchSelect
+										label="活动类型"
+										v-model="query.typeId"
+										:options="reference.activityTypes"
+									/>
+								</details>
+							</template>
+							<details
+								v-if="dataset === 'counts'"
+								class="browse-filter-disclosure"
+								data-filter-field="countReviewed"
+							>
+								<summary>
+									核对状态
+									<small>{{
+										query.countReviewed === "all"
+											? "全部行"
+											: query.countReviewed === "reviewed"
+												? "已核对"
+												: "未核对"
+									}}</small>
+								</summary>
+								<label class="preview-field"
+									>核对状态<select v-model="query.countReviewed">
+										<option value="all">全部行</option>
+										<option value="reviewed">已核对</option>
+										<option value="unreviewed">未核对</option>
 									</select></label
-								><SearchSelect
-									label="活动类型"
-									v-model="query.typeId"
-									:options="reference.activityTypes"
-							/></template>
-							<label v-if="dataset === 'counts'" class="preview-field"
-								>核对状态<select v-model="query.countReviewed">
-									<option value="all">全部行</option>
-									<option value="reviewed">已核对</option>
-									<option value="unreviewed">未核对</option>
-								</select></label
-							>
+								>
+							</details>
 							<fieldset class="preview-field">
 								<legend>个人命名视图</legend>
 								<label class="preview-field"

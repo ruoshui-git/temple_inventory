@@ -29,8 +29,9 @@ const props = withDefaults(
 		embedded?: boolean;
 		loading?: boolean;
 		error?: string;
+		initialExpansion?: "all" | "first-level" | "branching-leaves" | "collapsed";
 	}>(),
-	{ tree: () => [], embedded: false },
+	{ tree: () => [], embedded: false, initialExpansion: "all" },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string[]] }>();
 
@@ -38,6 +39,7 @@ const root = ref<HTMLElement | null>(null);
 const term = ref("");
 const activeIndex = ref(0);
 const expanded = ref(new Set<string>());
+const initializedNodes = new Set<string>();
 const nodes = computed(() =>
 	[...props.options].sort((a, b) => Number(a.lft || 0) - Number(b.lft || 0)),
 );
@@ -241,7 +243,28 @@ watch(
 	allNodes,
 	(value) => {
 		const next = new Set(expanded.value);
-		for (const node of value) if (node.is_group) next.add(node.name);
+		const available = new Set(value.map((node) => node.name));
+		for (const name of next) if (!available.has(name)) next.delete(name);
+		const children = (node: HierarchyFilterNode) =>
+			value.filter((candidate) => parentOf(candidate) === node.name);
+		const descendantLeaves = (node: HierarchyFilterNode): number => {
+			const direct = children(node);
+			return direct.length
+				? direct.reduce(
+						(count, child) => count + (child.is_group ? descendantLeaves(child) : 1),
+						0,
+					)
+				: 0;
+		};
+		for (const node of value) {
+			const isNewNode = !initializedNodes.has(node.name);
+			initializedNodes.add(node.name);
+			if (!isNewNode || !node.is_group || next.has(node.name)) continue;
+			const shouldExpand =
+				props.initialExpansion === "all" ||
+				(props.initialExpansion === "branching-leaves" && descendantLeaves(node) > 1);
+			if (shouldExpand) next.add(node.name);
+		}
 		expanded.value = next;
 	},
 	{ immediate: true },

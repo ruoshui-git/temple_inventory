@@ -150,12 +150,15 @@ export function createBrowseMemory(context: () => string) {
       upload: services.upload,
     };
   }
-  return { activate, capture, wrap };
+  return { activate, capture, identity: () => active, wrap };
 }
 type BrowseMemory = ReturnType<typeof createBrowseMemory>;
 const key: InjectionKey<BrowseMemory> = Symbol("browse-memory");
 export function provideBrowseMemory(memory: BrowseMemory) {
   provide(key, memory);
+}
+export function useBrowseMemoryIdentity() {
+  return inject(key, undefined)?.identity() || "";
 }
 function rootElement(instance: ReturnType<typeof getCurrentInstance>) {
   // A coordinator may render a conditional fragment around its single surface.

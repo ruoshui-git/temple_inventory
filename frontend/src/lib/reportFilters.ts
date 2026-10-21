@@ -99,7 +99,37 @@ export function reportFilterChips(
     reset: Partial<ReportQuery>,
     fixed = false,
     summary?: string,
-  ) => chips.push({ key, label, reset, fixed, summary });
+  ) => {
+    const fieldByKey: Record<string, string> = {
+      statuses: "status",
+      includeZero: "includeZero",
+      includeUndated: "includeUndated",
+      includeAdjustments: "includeAdjustments",
+      activityStatus: "activityStatus",
+      typeId: "typeId",
+      countReviewed: "countReviewed",
+      record: "record",
+      batchNo: "batchNo",
+      loan: "loan",
+      items: "item",
+      allocations: "allocations",
+      itemLocations: "itemLocations",
+      loanStatus: "status",
+      loanOutcome: "loanOutcome",
+      damageOnly: "damageOnly",
+      activityKind: "activityKind",
+      relatedPresence: "relatedPresence",
+      outstandingOnly: "outstandingOnly",
+    };
+    chips.push({
+      key,
+      label,
+      field: fieldByKey[key] || key,
+      reset,
+      fixed,
+      summary,
+    });
+  };
   if (hasReportStatuses(query)) {
     const isDefault = query.statuses.length === 1 && query.statuses[0] === 1;
     add(

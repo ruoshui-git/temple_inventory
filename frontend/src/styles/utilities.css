@@ -28,15 +28,15 @@
 }
 .preview-utility-page .report-catalog {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
-	gap: var(--p-space-3);
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--p-card-min-width)), 1fr));
+	gap: var(--p-card-gap);
 }
 .preview-utility-page .report-card {
 	display: grid;
 	grid-template-columns: 40px minmax(0, 1fr) auto;
 	align-items: start;
-	gap: var(--p-space-3);
-	padding: var(--p-space-4);
+	gap: var(--p-card-gap);
+	padding: var(--p-card-pad);
 	text-align: left;
 	color: var(--p-ink);
 	cursor: pointer;
@@ -177,16 +177,16 @@
 }
 .preview-utility-page .more-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-	gap: var(--p-space-3);
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--p-card-min-width)), 1fr));
+	gap: var(--p-card-gap);
 }
 .preview-utility-page .more-card {
 	min-height: 150px;
 	display: grid;
 	justify-items: start;
 	align-content: start;
-	gap: var(--p-space-3);
-	padding: var(--p-space-4);
+	gap: var(--p-card-gap);
+	padding: var(--p-card-pad);
 	color: var(--p-ink);
 	text-align: left;
 	cursor: pointer;

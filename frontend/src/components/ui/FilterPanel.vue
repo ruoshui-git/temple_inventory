@@ -47,16 +47,12 @@ function reposition() {
 	const margin = 12;
 	const wide = Boolean(panel.value?.querySelector(".browse-filter-mega"));
 	const width = Math.min(wide ? 760 : 400, window.innerWidth - margin * 2);
-	const height = Math.min(
-		panel.value.getBoundingClientRect().height,
-		window.innerHeight - margin * 2,
-	);
 	const below = anchor.bottom + 8;
-	const top = below + height <= window.innerHeight - margin ? below : anchor.top - height - 8;
 	const next = {
 		left: `${Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin))}px`,
-		top: `${Math.max(margin, Math.min(top, window.innerHeight - height - margin))}px`,
+		top: `${below}px`,
 		width: `${width}px`,
+		maxHeight: `${Math.max(0, window.innerHeight - below - margin)}px`,
 	};
 	// Observing size may schedule another placement; unchanged geometry does not write again.
 	if (JSON.stringify(position.value) !== JSON.stringify(next)) position.value = next;
@@ -68,6 +64,10 @@ async function toggle() {
 	position.value = { visibility: "hidden" };
 	open.value = true;
 	await nextTick();
+	// A filter panel starts with its individual editors closed on each opening.
+	panel.value?.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((item) => {
+		item.open = false;
+	});
 	if (!isMobile.value && open.value) {
 		reposition();
 		// Vue must remove the initial visibility:hidden before the browser can focus it.
@@ -174,7 +174,18 @@ defineExpose({
 		if (!field) return;
 		await nextTick();
 		const content = document.getElementById(panelId.value);
-		const section = content?.querySelector<HTMLElement>(`[data-filter-field="${field}"]`);
+		const section = Array.from(
+			content?.querySelectorAll<HTMLElement>("[data-filter-field]") || [],
+		).find((item) => item.dataset.filterField === field);
+		const disclosure = section?.closest<HTMLDetailsElement>("details");
+		for (
+			let parent = section?.parentElement;
+			parent && parent !== content;
+			parent = parent.parentElement
+		) {
+			if (parent instanceof HTMLDetailsElement) parent.open = true;
+		}
+		if (disclosure) disclosure.open = true;
 		const control = section?.querySelector<HTMLElement>(
 			'input:not([type="hidden"]),select,button,[tabindex="0"]',
 		);

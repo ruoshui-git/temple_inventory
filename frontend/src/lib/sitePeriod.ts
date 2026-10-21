@@ -28,3 +28,9 @@ export function resolveSitePeriod(period: DatePeriod, today: string) {
     to: end.toISOString().slice(0, 10),
   };
 }
+
+export function sitePeriodSummary(period: DatePeriod, today: string) {
+  if (period.key === "all") return "全部时间";
+  const { from, to } = resolveSitePeriod(period, today);
+  return `${periodLabels[period.key] || period.key} · ${from || "未设置"} 至 ${to || "未设置"}`;
+}

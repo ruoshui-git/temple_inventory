@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
 import CountWorkspace from "../src/features/counts/CountWorkspace.vue";
+import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
 import type { CountEditor } from "../src/features/counts/useCountEditor";
 import type { CountRow } from "../src/features/counts/countModel";
 import {
@@ -188,6 +189,9 @@ describe("compact count workspace", () => {
       .findAll("button")
       .find((button) => button.text().startsWith("位置"))!
       .trigger("click");
+    expect(
+      wrapper.findComponent(HierarchyFilter).props("initialExpansion"),
+    ).toBe("branching-leaves");
     await flushPromises();
     const filter = document.body.querySelector<HTMLInputElement>(
       'input[aria-label="显示位置"]',

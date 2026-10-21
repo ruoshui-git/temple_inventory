@@ -256,7 +256,7 @@ watch([() => props.active, isMobile], () => {
 					v-for="(group, index) in quickReportQuery.groupBy"
 					:key="`group:${group}`"
 					:label="`分组：${groupLabels[group] || group}`"
-					@edit="editFilter()"
+					@edit="editFilter('groupBy')"
 					@remove="
 						setGroupBy(
 							removeGroupByField(
@@ -285,21 +285,31 @@ watch([() => props.active, isMobile], () => {
 						<h3>筛选</h3>
 						<BrowseFilters
 							v-model="scope"
+							disclosure-mode
 							:fields="['item', 'categories', 'warehouses']"
 							:hierarchy-in-rail="filtersOpen && !isMobile"
 							hide-activity
-						/><label class="preview-choice-label preview-check"
-							><input type="checkbox" v-model="inStockOnly" />仅有库存</label
-						>
+						/>
+						<details class="browse-filter-disclosure" data-filter-field="includeZero">
+							<summary>
+								库存状态
+								<small>{{ inStockOnly ? "仅有库存" : "包括零库存" }}</small>
+							</summary>
+							<label class="preview-choice-label preview-check"
+								><input type="checkbox" v-model="inStockOnly" />仅有库存</label
+							>
+						</details>
 					</section>
 					<section>
 						<h3>分组</h3>
-						<GroupByFilter
-							:dataset="quickReportQuery.dataset"
-							:view="quickReportQuery.view"
-							:model-value="quickReportQuery.groupBy"
-							@update:model-value="setGroupBy"
-						/>
+						<div data-filter-field="groupBy" tabindex="-1">
+							<GroupByFilter
+								:dataset="quickReportQuery.dataset"
+								:view="quickReportQuery.view"
+								:model-value="quickReportQuery.groupBy"
+								@update:model-value="setGroupBy"
+							/>
+						</div>
 					</section>
 				</div>
 			</template>
@@ -424,7 +434,9 @@ watch([() => props.active, isMobile], () => {
 							<span class="spinner" />正在更新，已有结果仍然保留。
 						</p>
 						<div
-							v-if="isMobile || view === 'card'"
+							v-if="
+								!quickReportQuery.groupBy.length && (isMobile || view === 'card')
+							"
 							class="stock-grid"
 							:class="{ refreshing: status === 'refresh' }"
 						>
@@ -438,6 +450,7 @@ watch([() => props.active, isMobile], () => {
 								<div class="stock-card-image">
 									<ItemImage
 										:has-artwork="!!hasArtwork?.(item)"
+										frame
 										:item="item"
 										interaction="detail"
 										@detail="openItem(item)"
@@ -490,6 +503,9 @@ watch([() => props.active, isMobile], () => {
 							</article>
 						</div>
 						<DataTable
+							v-if="
+								quickReportQuery.groupBy.length || (!isMobile && view === 'table')
+							"
 							data-browse-scroll="inventory-table"
 							ariaLabel="库存物品"
 							table-class="preview-table"
@@ -506,6 +522,16 @@ watch([() => props.active, isMobile], () => {
 								quickReportQuery.groupBy.length
 									? groupPages.hasMore()
 									: data.next !== null
+							"
+							:loaded-count="
+								quickReportQuery.groupBy.length
+									? groupPages.progress().loaded
+									: rows.length
+							"
+							:total-count="
+								quickReportQuery.groupBy.length
+									? groupPages.progress().total
+									: data.total
 							"
 							:loading="
 								data.loading ||
@@ -603,7 +629,9 @@ watch([() => props.active, isMobile], () => {
 										v-if="groupPages.hasMore(group.id)"
 										:loading="group.loading"
 										@click="groupPages.loadMore(group.id)"
-										>加载更多此分组</UiButton
+										>加载更多此分组 ·
+										{{ groupPages.progress(group.id).loaded }} /
+										{{ groupPages.progress(group.id).total }}</UiButton
 									>
 								</div>
 							</template>
@@ -670,10 +698,14 @@ watch([() => props.active, isMobile], () => {
 					<UiButton @click="load(!!data.moreError, true)">重试加载</UiButton></span
 				>
 				<UiButton
-					v-else-if="data.next !== null && (isMobile || view === 'card')"
+					v-else-if="
+						data.next !== null &&
+						!quickReportQuery.groupBy.length &&
+						(isMobile || view === 'card')
+					"
 					:loading="data.loading"
 					@click="load(true)"
-					>加载更多</UiButton
+					>加载更多 · {{ rows.length }} / {{ data.total }}</UiButton
 				>
 			</footer>
 		</section>

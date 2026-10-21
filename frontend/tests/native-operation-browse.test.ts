@@ -12,9 +12,13 @@ import {
 import OperationBrowsePage from "../src/features/movements/OperationBrowsePage.vue";
 import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
 const wrappers: VueWrapper[] = [];
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   document.body.innerHTML = "";
+  if (originalScrollIntoView)
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
 });
 function page(): OperationBrowsePage {
   return {
@@ -213,6 +217,84 @@ function service() {
   });
 }
 describe("native operation browsing", () => {
+  it("builds both view resets from family defaults and leaves the active view untouched", async () => {
+    const props = reactive({ family: "loans" as const, records: false });
+    const query = newReportQuery("loans");
+    Object.assign(query, {
+      search: "held text",
+      loan: "LOAN-1",
+      restrictItems: true,
+      itemCodes: ["ITEM-A"],
+      groupBy: ["borrower"],
+      sortBy: "borrower",
+    });
+    props.initialQuery = query;
+    const { c } = setup(service(), props);
+    await flushPromises();
+    const records = c.viewQuery(true);
+    expect(records).toMatchObject({
+      dataset: "loans",
+      view: "records",
+      search: "",
+      loan: "",
+      restrictItems: false,
+      itemCodes: [],
+      groupBy: [],
+      sortBy: "date",
+      sort: "desc",
+    });
+
+    props.records = true;
+    await flushPromises();
+    expect(c.viewQuery(true)).toEqual(c.query.value);
+    const items = c.viewQuery(false);
+    expect(items).toMatchObject({
+      view: "items",
+      search: "",
+      loan: "",
+      restrictItems: false,
+      itemCodes: [],
+      groupBy: ["item"],
+      sortBy: "item_name",
+      sort: "asc",
+      includeZero: false,
+    });
+  });
+  it("cancels outstanding operation and group reads and clears history state on view reset", async () => {
+    const signals: AbortSignal[] = [];
+    const call = vi.fn(
+      (
+        _endpoint: string,
+        _args: Record<string, unknown>,
+        signal?: AbortSignal,
+      ) =>
+        new Promise<never>((_resolve, reject) => {
+          if (signal) {
+            signals.push(signal);
+            signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          }
+        }),
+    );
+    const props = reactive({ family: "loans" as const, records: false });
+    const { c } = setup(call, props);
+    c.expanded.add("ITEM-A");
+    c.dimension.value = "kind";
+    c.setDetailSort({ id: "ITEM-A" } as never, "item_name");
+    void c.load();
+    await flushPromises();
+
+    expect(signals.length).toBeGreaterThanOrEqual(2);
+    expect(c.viewQuery(true).groupBy).toEqual([]);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+    expect(c.expanded.size).toBe(0);
+    expect(c.dimension.value).toBe("category");
+    expect(c.detailSortBy({ id: "ITEM-A" } as never)).toBe("date");
+    expect(c.detailSortDirection({ id: "ITEM-A" } as never)).toBe("desc");
+  });
   it("loads and renders flat Movement Item history for the canonical summary view", async () => {
     const query = newReportQuery("movements");
     query.view = "summary";
@@ -505,14 +587,14 @@ describe("native operation browsing", () => {
     );
     expect(c.details[row.id]?.total).toBe(42);
     expect(c.details[row.id]?.rows).toHaveLength(2);
-    c.setHistoryScope(row, "all");
+    c.setHistoryScope("all");
     await flushPromises();
     expect(call).toHaveBeenLastCalledWith(
       "browse.operation_contributions",
       expect.objectContaining({ item_code: "ITEM-A", history_scope: "all" }),
       expect.any(AbortSignal),
     );
-    expect(c.historyScopes[row.id]).toBe("all");
+    expect(c.historyScope.value).toBe("all");
   });
   it("loads ungrouped Loan Item history for the entire filtered Item scope", async () => {
     const query = newReportQuery("loans");
@@ -541,10 +623,7 @@ describe("native operation browsing", () => {
     });
     expect(request?.[1]).not.toHaveProperty("item_code");
     expect(c.details["flat-history-scope"]?.rows).toHaveLength(2);
-    c.setHistoryScope(
-      { id: "flat-history-scope", document_count: 0, item_count: 0 },
-      "all",
-    );
+    c.setHistoryScope("all");
     await flushPromises();
     expect(call.mock.calls.at(-1)?.[1]).toMatchObject({ history_scope: "all" });
     c.setDetailSort(
@@ -602,7 +681,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("LOAN-1");
     expect(wrapper.text()).toContain("+5");
-    expect(wrapper.text()).toContain("未结清");
+    expect(wrapper.find(".loan-history-scope").exists()).toBe(false);
     expect(wrapper.text()).toContain("LOAN-2");
     expect(
       wrapper.findAll("tbody tr").filter((row) => /LOAN-[12]/.test(row.text())),
@@ -711,7 +790,7 @@ describe("native operation browsing", () => {
       ),
     ).toHaveLength(2);
   });
-  it("defaults settled item history to all and requests the matching scope", async () => {
+  it("keeps settled item history in the global outstanding scope by default", async () => {
     const base = service();
     const call = vi.fn(async (endpoint, args, signal) => {
       if (endpoint === "browse.operation_page") {
@@ -725,14 +804,61 @@ describe("native operation browsing", () => {
     const row = c.result.rows[0]!;
     c.toggle(row, true);
     await flushPromises();
-    expect(c.historyScopes[row.id]).toBe("all");
+    expect(c.historyScope.value).toBe("outstanding");
     expect(call).toHaveBeenLastCalledWith(
       "browse.operation_contributions",
-      expect.objectContaining({ item_code: "ITEM-A", history_scope: "all" }),
+      expect.objectContaining({
+        item_code: "ITEM-A",
+        history_scope: "outstanding",
+      }),
       expect.any(AbortSignal),
     );
   });
-  it("switches an expanded card to all history when a refresh settles it", async () => {
+  it("does not let an aborted history request clear the replacement request loading state", async () => {
+    let resolveOutstanding: (value: unknown) => void = () => {};
+    let resolveAll: (value: unknown) => void = () => {};
+    const base = service();
+    const call = vi.fn((endpoint, args, signal) => {
+      if (endpoint === "browse.operation_contributions")
+        return new Promise((resolve) => {
+          if (args.history_scope === "outstanding")
+            resolveOutstanding = resolve;
+          else resolveAll = resolve;
+        });
+      return base(endpoint, args, signal);
+    });
+    const { c } = setup(call);
+    await flushPromises();
+    const row = c.result.rows[0]!;
+    c.toggle(row, true);
+    await flushPromises();
+    expect(c.details[row.id]?.loading).toBe(true);
+    c.setHistoryScope("all");
+    await flushPromises();
+    expect(c.details[row.id]?.loading).toBe(true);
+
+    resolveOutstanding({
+      rows: [],
+      columns: [],
+      matched_count: 0,
+      next_start: null,
+    });
+    await flushPromises();
+    expect(c.details[row.id]?.loading).toBe(true);
+
+    resolveAll({
+      rows: [{ id: "ALL-HISTORY" }],
+      columns: [],
+      matched_count: 1,
+      next_start: null,
+    });
+    await flushPromises();
+    expect(c.details[row.id]?.loading).toBe(false);
+    expect(c.details[row.id]?.rows.map(({ id }) => id)).toEqual([
+      "ALL-HISTORY",
+    ]);
+  });
+  it("does not change global history scope when an item settles on refresh", async () => {
     let pages = 0;
     const base = service();
     const call = vi.fn(async (endpoint, args, signal) => {
@@ -751,21 +877,31 @@ describe("native operation browsing", () => {
     const row = c.result.rows[0]!;
     c.toggle(row, true);
     await flushPromises();
-    expect(c.historyScopes[row.id]).toBe("outstanding");
+    expect(c.historyScope.value).toBe("outstanding");
     await c.load();
     await flushPromises();
-    expect(c.historyScopes[row.id]).toBe("all");
+    expect(c.historyScope.value).toBe("outstanding");
     expect(call.mock.calls.at(-1)?.[1]).toEqual(
-      expect.objectContaining({ history_scope: "all" }),
+      expect.objectContaining({ history_scope: "outstanding" }),
     );
   });
-  it("renders all history as the settled-card default and requests that scope", async () => {
+  it("shows a settled-item hint under the outstanding history scope", async () => {
     const base = service();
     const call = vi.fn(async (endpoint, args, signal) => {
       if (endpoint === "browse.operation_page") {
         const result = await base(endpoint, args, signal);
         return { ...result, rows: [{ ...result.rows[0], stock_qty: 0 }] };
       }
+      if (
+        endpoint === "browse.operation_contributions" &&
+        args.history_scope === "outstanding"
+      )
+        return {
+          ...(await base(endpoint, args, signal)),
+          rows: [],
+          matched_count: 0,
+          next_start: null,
+        };
       return base(endpoint, args, signal);
     });
     const { wrapper } = setup(
@@ -778,16 +914,9 @@ describe("native operation browsing", () => {
     const row = controller.result.rows[0]!;
     controller.toggle(row, true);
     await flushPromises();
-    expect(wrapper.get(".loan-history-scope select").element.value).toBe("all");
-    expect(
-      call.mock.calls.filter(
-        ([endpoint]) => endpoint === "browse.operation_contributions",
-      ),
-    ).toContainEqual([
-      "browse.operation_contributions",
-      expect.objectContaining({ history_scope: "all", item_code: "ITEM-A" }),
-      expect.any(AbortSignal),
-    ]);
+    expect(controller.historyScope.value).toBe("outstanding");
+    expect(wrapper.text()).toContain("当前范围没有未结清借用记录");
+    expect(wrapper.find(".loan-history-scope").exists()).toBe(false);
   });
   it("retains prior groups on load-more failure and retries the failed offset", async () => {
     const base = service();
@@ -839,7 +968,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     const row = c.result.rows[0]!;
     c.toggle(row, true);
-    c.setHistoryScope(row, "all");
+    c.setHistoryScope("all");
     await flushPromises();
     expect(c.details[row.id]?.rows).toEqual([{ id: "ALL-SCOPE" }]);
     resolveOutstanding({
@@ -993,10 +1122,13 @@ describe("native operation browsing", () => {
     await flushPromises();
     expect(c.viewQuery(true)).toMatchObject({
       view: "records",
-      restrictItems: true,
-      itemCodes: ["ITEM-A"],
-      loan: "LOAN-EXACT",
+      restrictItems: false,
+      itemCodes: [],
+      loan: "",
       loanOutcome: "all",
+      groupBy: [],
+      sortBy: "date",
+      sort: "desc",
     });
     expect(c.loanHistory()).toMatchObject({
       dataset: "movements",
@@ -1018,13 +1150,11 @@ describe("native operation browsing", () => {
     expect(c.query.value.loan).toBe("LOAN-EXACT");
     expect(c.query.value.restrictItems).toBe(true);
     expect(c.query.value.itemCodes).toEqual(["ITEM-A"]);
-    expect(c.viewQuery(true).itemLocationKeys).toEqual([
-      JSON.stringify(["ITEM-A", "ROOM-A"]),
-    ]);
+    expect(c.viewQuery(true).itemLocationKeys).toEqual([]);
     expect(c.viewQuery(true)).toMatchObject({
-      loan: "LOAN-EXACT",
-      record: "RECORD-EXACT",
-      recordDoctype: "Stock Entry",
+      loan: "",
+      record: "",
+      recordDoctype: "",
     });
     expect(c.query.value.restrictAllocations).toBe(true);
     expect(c.query.value.allocationKeys).toEqual(["ALLOC-EXACT"]);
@@ -1075,7 +1205,7 @@ describe("native operation browsing", () => {
       }),
       expect.any(AbortSignal),
     );
-    expect(wrapper.findAll(".loan-history-scope")).toHaveLength(1);
+    expect(wrapper.findAll(".loan-history-scope")).toHaveLength(0);
     await wrapper.get(".preview-group-trigger").trigger("click");
     await flushPromises();
     expect(
@@ -1098,5 +1228,41 @@ describe("native operation browsing", () => {
     expect(wrapper.text()).toContain("LOAN-1");
     await buttons[1]!.trigger("click");
     expect(surface.emitted("settle")).toEqual([["LOAN-2"]]);
+  });
+  it("reopens filter fields collapsed and opens the grouping editor from its applied chip", async () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    const { wrapper } = setup(
+      service(),
+      reactive({ family: "loans" as const, records: false }),
+      true,
+    );
+    await flushPromises();
+    await wrapper
+      .get('.preview-filter-control button[aria-haspopup="dialog"]')
+      .trigger("click");
+    await flushPromises();
+    const disclosures = Array.from(
+      document.querySelectorAll<HTMLDetailsElement>(
+        ".compact-filter-content .browse-filter-disclosure",
+      ),
+    );
+    expect(disclosures.length).toBeGreaterThan(0);
+    expect(disclosures.every((disclosure) => !disclosure.open)).toBe(true);
+    const done = document.querySelector<HTMLButtonElement>(
+      ".preview-filter-popover footer button",
+    );
+    expect(done).toBeTruthy();
+    done?.click();
+    await flushPromises();
+    await wrapper
+      .findAll(".browse-persistent-chips .browse-active-chip-label")
+      .find((button) => button.text().includes("分组：物品"))!
+      .trigger("click");
+    await flushPromises();
+    const groupBy = document.querySelector<HTMLElement>(
+      '[data-filter-field="groupBy"]',
+    );
+    expect(groupBy).toBeTruthy();
+    expect(groupBy?.contains(document.activeElement)).toBe(true);
   });
 });

@@ -71,6 +71,7 @@ const {
 	reference,
 	scope,
 	search,
+	historyScope,
 	extraChips,
 	dimension,
 	analysis,
@@ -673,15 +674,9 @@ function openedRecord(row: OperationGroup) {
 		? emit("openLoan", String(row.document))
 		: emit("openDocument", String(row.doctype), String(row.document));
 }
-function changeHistoryScope(row: OperationGroup, event: Event) {
-	const value = (event.target as HTMLSelectElement).value;
-	if (value === "outstanding" || value === "all") c.setHistoryScope(row, value);
-}
-function historyScope(row: OperationGroup) {
-	return (
-		c.historyScopes[row.id] ||
-		(row.stock_qty !== undefined && Number(row.stock_qty) <= 0 ? "all" : "outstanding")
-	);
+function switchView(records: boolean) {
+	if (records === props.records) return;
+	emit("switchView", records, c.viewQuery(records));
 }
 function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 	return (details[id]?.rows || []) as unknown as MovementHistoryPage["rows"];
@@ -744,12 +739,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					>
 						<button
 							:aria-current="!records ? 'page' : undefined"
-							@click="emit('switchView', false, c.viewQuery(false))"
+							@click="switchView(false)"
 						>
 							按物品</button
 						><button
 							:aria-current="records ? 'page' : undefined"
-							@click="emit('switchView', true, c.viewQuery(true))"
+							@click="switchView(true)"
 						>
 							按记录
 						</button>
@@ -768,7 +763,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-for="(group, index) in query.groupBy"
 						:key="`group:${group}`"
 						:label="`分组：${groupLabels[group] || group}`"
-						@edit="editFilter()"
+						@edit="editFilter('groupBy')"
 						@remove="
 							query.groupBy = removeGroupByField(
 								query.dataset,
@@ -933,17 +928,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									>物品详情</UiButton
 								>
 							</div>
-							<label
-								v-if="family === 'loans' && c.expanded.has(groupItem(group).id)"
-								class="preview-field loan-history-scope"
-								>记录范围<select
-									:value="historyScope(groupItem(group))"
-									@change="changeHistoryScope(groupItem(group), $event)"
-								>
-									<option value="outstanding">未结清借用</option>
-									<option value="all">全部相关记录</option>
-								</select></label
-							>
 							<MovementHistoryTable
 								v-if="
 									family === 'movements' &&
@@ -968,6 +952,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								@open-loan="emit('openLoan', $event)"
 							>
 							</MovementHistoryTable>
+							<p
+								v-if="
+									family === 'loans' &&
+									historyScope === 'outstanding' &&
+									details[groupItem(group).id]?.initialized &&
+									!details[groupItem(group).id]?.rows.length
+								"
+								class="field-hint"
+							>
+								当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+							</p>
 							<MovementHistoryTable
 								v-else-if="
 									family === 'loans' &&
@@ -1010,6 +1005,20 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</MovementHistoryTable>
 						</ItemGroup>
 					</template>
+					<p
+						v-if="
+							family === 'loans' &&
+							!records &&
+							!query.groupBy.length &&
+							c.expanded.has(flatHistoryItem.id) &&
+							historyScope === 'outstanding' &&
+							details[flatHistoryItem.id]?.initialized &&
+							!details[flatHistoryItem.id]?.rows.length
+						"
+						class="field-hint"
+					>
+						当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+					</p>
 					<DataTable
 						v-if="!records && !showMobileItemCards"
 						data-browse-scroll="operation-items"
@@ -1046,6 +1055,16 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							query.groupBy.length
 								? c.groups.hasMore()
 								: details[flatHistoryItem.id]?.next != null
+						"
+						:loaded-count="
+							query.groupBy.length
+								? c.groups.progress().loaded
+								: details[flatHistoryItem.id]?.rows.length || 0
+						"
+						:total-count="
+							query.groupBy.length
+								? c.groups.progress().total
+								: details[flatHistoryItem.id]?.total || 0
 						"
 						:loading-more="
 							query.groupBy.length
@@ -1319,17 +1338,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										@click="emit('openItem', String(row.item_code))"
 										>物品详情</UiButton
 									>
-									<label
-										v-if="family === 'loans' && c.expanded.has(String(row.id))"
-										class="preview-field loan-history-scope"
-										>记录范围<select
-											:value="historyScope(operationRow(row))"
-											@change="changeHistoryScope(operationRow(row), $event)"
-										>
-											<option value="outstanding">未结清借用</option>
-											<option value="all">全部相关记录</option>
-										</select></label
-									>
 								</div>
 							</template>
 						</template>
@@ -1356,17 +1364,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								v-if="isItemGroup(group) && group.expanded"
 								class="browse-group-details"
 							>
-								<label
-									v-if="family === 'loans'"
-									class="preview-field loan-history-scope"
-									>记录范围<select
-										:value="historyScope(groupItem(group))"
-										@change="changeHistoryScope(groupItem(group), $event)"
-									>
-										<option value="outstanding">未结清借用</option>
-										<option value="all">全部相关记录</option>
-									</select></label
+								<p
+									v-if="
+										family === 'loans' &&
+										historyScope === 'outstanding' &&
+										details[groupItem(group).id]?.initialized &&
+										!details[groupItem(group).id]?.rows.length
+									"
+									class="field-hint"
 								>
+									当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+								</p>
 								<UiButton
 									v-if="details[groupItem(group).id]?.error"
 									@click="c.retryDetails(groupItem(group))"
@@ -1379,7 +1387,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									"
 									:loading="details[groupItem(group).id]?.loading"
 									@click="c.loadDetails(groupItem(group), true)"
-									>加载更多记录</UiButton
+									>加载更多记录 ·
+									{{ details[groupItem(group).id]?.rows.length ?? 0 }} /
+									{{ details[groupItem(group).id]?.total ?? 0 }}</UiButton
 								>
 								<span
 									v-if="details[groupItem(group).id]?.historyComplete === false"
@@ -1395,31 +1405,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									v-if="c.groups.hasMore(group.id)"
 									:loading="group.loading"
 									@click="c.groups.loadMore(group.id)"
-									>加载更多此分组</UiButton
+									>加载更多此分组 · {{ c.groups.progress(group.id).loaded }} /
+									{{ c.groups.progress(group.id).total }}</UiButton
 								>
 							</div>
 						</template>
 					</DataTable>
-					<div
-						v-if="!query.groupBy.length && family === 'loans'"
-						class="browse-group-details loan-history-scope"
-					>
-						<label class="preview-field"
-							>记录范围<select
-								:value="c.historyScopes[flatHistoryItem.id] || 'outstanding'"
-								@change="
-									c.setHistoryScope(
-										flatHistoryItem,
-										($event.target as HTMLSelectElement).value as
-											'all' | 'outstanding',
-									)
-								"
-							>
-								<option value="outstanding">未结清借用</option>
-								<option value="all">全部相关记录</option>
-							</select></label
-						>
-					</div>
 					<DataTable
 						v-if="records"
 						data-browse-scroll="operations"
@@ -1449,6 +1440,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						:has-more="
 							query.groupBy.length ? c.groups.hasMore() : result.next !== null
 						"
+						:loaded-count="
+							query.groupBy.length ? c.groups.progress().loaded : result.rows.length
+						"
+						:total-count="
+							query.groupBy.length ? c.groups.progress().total : result.total
+						"
 						:loading-more="
 							query.groupBy.length
 								? Boolean(groupRoot?.loading && groupRoot.rows.length)
@@ -1469,7 +1466,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								v-if="c.groups.hasMore(group.id)"
 								:loading="group.loading"
 								@click="c.groups.loadMore(group.id)"
-								>加载更多此分组</UiButton
+								>加载更多此分组 · {{ c.groups.progress(group.id).loaded }} /
+								{{ c.groups.progress(group.id).total }}</UiButton
 							>
 						</template>
 						<template #group-column="{ column, group }">

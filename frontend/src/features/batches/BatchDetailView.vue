@@ -223,7 +223,8 @@ function openDocument(row: Record<string, unknown>) {
 				v-if="c.batch.value.locations.next_start !== null"
 				:loading="c.locationsLoading.value"
 				@click="c.moreLocations"
-				>加载更多位置</UiButton
+				>加载更多位置 · {{ c.batch.value.locations.rows.length }} /
+				{{ c.batch.value.locations.matched_count }}</UiButton
 			>
 		</section>
 		<section v-if="c.batch.value" class="batch-detail-card">

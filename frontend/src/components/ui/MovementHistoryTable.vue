@@ -219,6 +219,8 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 			:error="error"
 			:retained="Boolean(rows.length && loading)"
 			:has-more="next !== null"
+			:loaded-count="rows.length"
+			:total-count="total"
 			:loading-more="busy || loading"
 			:row-class="rowClass"
 			:row-label="rowLabel"

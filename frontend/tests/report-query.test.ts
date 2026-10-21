@@ -1,7 +1,7 @@
 import { decodeItemSelection } from "../src/lib/routeSelection";
 import { describe, expect, it } from "vitest";
 import { decodeReportQuery } from "../src/lib/reportQuery";
-import { resolveSitePeriod } from "../src/lib/sitePeriod";
+import { resolveSitePeriod, sitePeriodSummary } from "../src/lib/sitePeriod";
 import {
   newReportQuery,
   reportDefinitions,
@@ -142,16 +142,46 @@ describe("canonical routed report queries", () => {
     ).toBe("");
   });
   it("exposes scalar sortable fields per view without combined-unit totals", () => {
-    expect(sortableColumnsForView("inventory", "summary")).toContain("available");
-    expect(sortableColumnsForView("movements", "records")).toContain("document");
-    expect(sortableColumnsForView("movements", "records")).not.toContain("stock_qty");
-    for (const field of ["document", "doctype", "borrower", "source_warehouse", "destination_warehouse"])
+    expect(sortableColumnsForView("inventory", "summary")).toContain(
+      "available",
+    );
+    expect(sortableColumnsForView("movements", "records")).toContain(
+      "document",
+    );
+    expect(sortableColumnsForView("movements", "records")).not.toContain(
+      "stock_qty",
+    );
+    for (const field of [
+      "document",
+      "doctype",
+      "borrower",
+      "source_warehouse",
+      "destination_warehouse",
+    ])
       expect(sortableColumnsForView("movements", "lines")).toContain(field);
-    for (const field of ["document", "doctype", "kind", "docstatus", "borrower", "source_warehouse", "destination_warehouse"])
+    for (const field of [
+      "document",
+      "doctype",
+      "kind",
+      "docstatus",
+      "borrower",
+      "source_warehouse",
+      "destination_warehouse",
+    ])
       expect(sortableColumnsForView("loans", "outcomes")).toContain(field);
-    expect(sortableColumnsForView("expiry", "batches")).toContain("expiry_date");
-    expect(decodeReportQuery({ dataset: "inventory", sortBy: "quantity" }).error).not.toBe("");
-    expect(decodeReportQuery({ dataset: "movements", view: "records", sortBy: "stock_qty" }).error).not.toBe("");
+    expect(sortableColumnsForView("expiry", "batches")).toContain(
+      "expiry_date",
+    );
+    expect(
+      decodeReportQuery({ dataset: "inventory", sortBy: "quantity" }).error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({
+        dataset: "movements",
+        view: "records",
+        sortBy: "stock_qty",
+      }).error,
+    ).not.toBe("");
   });
   it("resolves current and previous quarters from the site date", () => {
     expect(
@@ -172,6 +202,14 @@ describe("canonical routed report queries", () => {
       from: "2025-10-01",
       to: "2025-12-31",
     });
+  });
+  it("includes applied custom dates in the collapsed period summary", () => {
+    expect(
+      sitePeriodSummary(
+        { key: "custom", from: "2025-04-01", to: "2025-06-30" },
+        "2026-10-21",
+      ),
+    ).toBe("自定义 · 2025-04-01 至 2025-06-30");
   });
 });
 

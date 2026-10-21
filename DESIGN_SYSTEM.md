@@ -1,5 +1,32 @@
 # Temple Inventory Design System
 
+## Browse controls and density refinements — 2026-10-21
+
+Paginated `DataTable` controls receive the loaded and matched counts for their
+current scope. Group pages retain `matched_count`; nested group and history
+controls report their own page totals. `HierarchyFilter` accepts an explicit
+initial expansion policy and only initializes new reference nodes, preserving
+manual disclosure choices across refreshes.
+
+Megamenu fields use native disclosures with concise applied-value summaries.
+The FilterPanel opens the matching disclosure before focusing its editor; the
+separate grouping section remains discoverable. Desktop browse actions occupy
+the expandable row below the persistent title/view/search/filter controls.
+FilterPanel placement stays below its trigger and bounds internal scrolling to
+the remaining viewport.
+
+The shared Loan history scope lives in browse state and restarts expanded item
+histories when changed. `includeZero` remains a separate result filter and the
+history API contract is unchanged. Explicit item/record view changes build from
+target-view defaults. The AppFrame account dropdown uses `frappePlatform` and
+the same confirmation, session validation, retry and redirect behavior as More.
+
+Card geometry uses `--p-card-min-width`, `--p-card-gap` and `--p-card-pad`:
+compact/balanced/spacious preferred widths are 160/225/300px, with 8/16/24px
+gaps. Container width and text scale determine the rendered column count;
+mobile card controls retain 44px targets. These refinements supersede earlier
+per-item Loan history selectors and create/export actions above browse search.
+
 ## Browse repair patterns — 2026-10-20
 
 The persistent browse search uses one semantic surface for chips, typing,

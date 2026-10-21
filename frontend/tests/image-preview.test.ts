@@ -73,4 +73,16 @@ describe("shared native Item artwork", () => {
     ).toContain("其它物品");
     expect(wrapper.find("button.preview-image-enlarge").exists()).toBe(false);
   });
+  it("keeps card artwork inside an explicit density-sized frame", () => {
+    const wrapper = setup({ interaction: "detail", frame: true });
+    expect(wrapper.get(".preview-item-image").classes()).toContain(
+      "preview-item-image--frame",
+    );
+    expect(
+      wrapper.get(".preview-image-detail").attributes("aria-label"),
+    ).toContain(item.name);
+    expect(
+      wrapper.get(".preview-image-enlarge").attributes("aria-label"),
+    ).toContain(item.name);
+  });
 });

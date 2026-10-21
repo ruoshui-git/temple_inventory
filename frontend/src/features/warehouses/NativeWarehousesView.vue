@@ -266,7 +266,8 @@ function toggle(name: string) {
 						v-if="stockTable?.next !== null && stockTable?.next !== undefined"
 						:disabled="stockTable.loading || c.stock.result.stale"
 						@click="c.stock.loadTable(stockTable, true)"
-						>加载更多库存</UiButton
+						>加载更多库存 · {{ stockTable.rows.length }} /
+						{{ stockTable.total }}</UiButton
 					>
 					<div class="browse-actions">
 						<UiButton

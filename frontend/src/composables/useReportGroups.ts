@@ -5,6 +5,7 @@ import type {
   DataTableRecord,
 } from "../lib/dataTable";
 import type { ReportQuery } from "../lib/reportContract";
+import { useBrowseMemoryIdentity } from "../lib/browseMemory";
 import { movementLabels } from "../lib/filterPresentation";
 import {
   useReferenceData,
@@ -15,6 +16,7 @@ import {
 
 interface GroupPageState {
   rows: GroupedReportRow[];
+  total: number;
   next: number | null;
   loading: boolean;
   error: string;
@@ -39,7 +41,12 @@ export function useReportGroups(
   autoLoadRoot = true,
 ) {
   const reference = useReferenceData();
-  let scopeIdentity = JSON.stringify([reference.site, reference.user]);
+  const browseIdentity = useBrowseMemoryIdentity();
+  let scopeIdentity = JSON.stringify([
+    reference.site,
+    reference.user,
+    browseIdentity,
+  ]);
   let activeQueryKey = "";
   const pages = ref<Record<string, GroupPageState>>({});
   const expanded = ref(new Set<string>());
@@ -47,17 +54,19 @@ export function useReportGroups(
   let generation = 0;
   const requests = new Map<string, AbortController>();
   let pendingRestore: { key: string; snapshot: GroupSnapshot } | undefined;
-  const cacheKey = () =>
-    JSON.stringify([reference.site, reference.user, query.value]);
+  const cacheKey = (value: ReportQuery = query.value) =>
+    JSON.stringify([reference.site, reference.user, browseIdentity, value]);
   const stateFor = (path: string[], unit?: string | null) =>
     pages.value[pageKey(path, unit)];
   const current = (token: number) =>
     token === generation &&
-    JSON.stringify([reference.site, reference.user]) === scopeIdentity;
+    JSON.stringify([reference.site, reference.user, browseIdentity]) ===
+      scopeIdentity;
   function cancel() {
     generation++;
     requests.forEach((request) => request.abort());
     requests.clear();
+    Object.values(pages.value).forEach((page) => (page.loading = false));
   }
   function remember(key = activeQueryKey) {
     if (!key || !Object.keys(pages.value).length) return;
@@ -114,6 +123,7 @@ export function useReportGroups(
     if (!page) {
       pages.value[key] = {
         rows: [],
+        total: 0,
         next: 0,
         loading: false,
         error: "",
@@ -155,6 +165,7 @@ export function useReportGroups(
           ]
         : result.rows;
       page.next = result.next_start;
+      page.total = result.matched_count;
       if (result.leaf_columns?.length) page.leafColumns = result.leaf_columns;
       page.initialized = true;
       remember();
@@ -341,9 +352,15 @@ export function useReportGroups(
     rows: GroupedReportRow[],
     next: number | null,
     leafColumns: string[] = [],
+    total?: number,
   ) {
     pages.value[rootKey] = {
       rows,
+      total:
+        total ??
+        (next === null
+          ? rows.length
+          : Math.max(rows.length, pages.value[rootKey]?.total || 0)),
       next,
       loading: false,
       error: "",
@@ -367,6 +384,20 @@ export function useReportGroups(
     const value = group.value as unknown as GroupedReportRow;
     return stateFor(value.group_path || [], value.stock_uom)?.next != null;
   }
+  function progress(groupId?: string) {
+    let page = stateFor([], null);
+    if (groupId) {
+      const group = entries.value.find(
+        (entry): entry is DataTableGroup =>
+          entry.kind === "group" && entry.id === groupId,
+      );
+      if (group) {
+        const value = group.value as unknown as GroupedReportRow;
+        page = stateFor(value.group_path || [], value.stock_uom);
+      }
+    }
+    return { loaded: page?.rows.length || 0, total: page?.total || 0 };
+  }
   function retry(groupId?: string) {
     if (!groupId) return load([], null, false, true);
     const group = entries.value.find(
@@ -384,7 +415,11 @@ export function useReportGroups(
       () => reference.user,
     ],
     () => {
-      const identity = JSON.stringify([reference.site, reference.user]);
+      const identity = JSON.stringify([
+        reference.site,
+        reference.user,
+        browseIdentity,
+      ]);
       if (identity !== scopeIdentity) {
         groupSnapshots.clear();
         pendingRestore = undefined;
@@ -414,7 +449,9 @@ export function useReportGroups(
     toggleGroup,
     loadMore,
     hasMore,
+    progress,
     retry,
+    cancel,
     pages,
     seed,
   };

@@ -130,6 +130,12 @@ describe("shared native report table", () => {
     const wrapper = mount(ReportTable, { props: { table: table() } });
     expect(wrapper.findAll("tbody tr")).toHaveLength(30);
     expect(wrapper.get("caption").text()).toContain("65 行完整结果");
+    expect(
+      wrapper
+        .findAll("button")
+        .find((button) => button.text().startsWith("加载更多"))
+        ?.text(),
+    ).toContain("30 / 65");
     await wrapper
       .findAll("button")
       .find((button) => button.text().startsWith("加载更多"))!

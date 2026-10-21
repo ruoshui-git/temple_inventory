@@ -165,6 +165,9 @@ watch(compact, async (value) => {
 		(value &&
 			!!focused &&
 			!!header?.querySelector(".browse-header-actions")?.contains(focused)) ||
+		(value &&
+			!!focused &&
+			!!header?.querySelector(".browse-expanded-actions")?.contains(focused)) ||
 		(value && !!focused && !!header?.querySelector(".app-page-subtitle")?.contains(focused));
 	const bottom = header?.getBoundingClientRect().bottom || 0;
 	const candidates = Array.from(
@@ -208,9 +211,6 @@ defineExpose({ compact, editFilter });
 		<PageHeader :title="heading" :compact="compact">
 			<template #title-tools><slot name="persistent" /></template>
 			<template #subtitle><slot v-if="!compact" name="subtitle" /></template>
-			<template #actions>
-				<div v-if="!compact" class="browse-header-actions"><slot name="actions" /></div>
-			</template>
 		</PageHeader>
 		<div class="browse-persistent-bar" :aria-label="`${heading}搜索与筛选`">
 			<div class="browse-search-container" :class="{ 'has-chips': $slots.chips }">
@@ -276,6 +276,9 @@ defineExpose({ compact, editFilter });
 			</UiButton>
 		</div>
 		<div v-show="!compact" :id="controlsId" class="expanded-browse-tools">
+			<div v-if="$slots.actions" class="browse-expanded-actions">
+				<slot name="actions" />
+			</div>
 			<slot />
 			<div v-if="$slots['result-tools']" class="browse-result-toolbar">
 				<slot name="result-tools" />

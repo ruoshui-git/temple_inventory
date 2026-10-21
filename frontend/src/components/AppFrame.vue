@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import InventoryIcon from "./InventoryIcon.vue";
+import UiButton from "./ui/UiButton.vue";
+import Overlay from "./ui/Overlay.vue";
+import { frappePlatform } from "../services/frappePlatform";
+import { useLogoutController } from "../features/more/useLogoutController";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import type { NavigationItem } from "../lib/appNavigation";
 import type { AppRouteTarget } from "../lib/routeRegistry";
@@ -26,6 +30,20 @@ const emit = defineEmits<{
 	"update:inventoryExpanded": [value: boolean];
 }>();
 const { isMobile } = useResponsiveLayout();
+const logout = useLogoutController(
+	frappePlatform(() => props.user),
+	() => props.user,
+);
+const {
+	open: logoutOpen,
+	busy: logoutBusy,
+	error: logoutError,
+	close: closeLogout,
+	logout: submitLogout,
+} = logout;
+const accountMenuOpen = ref(false);
+const accountTrigger = ref<HTMLButtonElement>();
+const accountLogout = ref<HTMLButtonElement>();
 const mobileItems = computed(() =>
 	props.mobilePrimary?.length ? props.mobilePrimary : props.primary,
 );
@@ -87,15 +105,51 @@ function closeMenu(returnFocus = false) {
 		document.querySelector<HTMLButtonElement>("[data-inventory-menu-trigger]")?.focus();
 }
 function onKeydown(event: KeyboardEvent) {
-	if (event.key === "Escape") closeMenu(true);
+	if (event.key !== "Escape") return;
+	if (accountMenuOpen.value) {
+		event.preventDefault();
+		event.stopPropagation();
+		accountMenuOpen.value = false;
+		accountTrigger.value?.focus({ preventScroll: true });
+		return;
+	}
+	closeMenu(true);
 }
 function onOutsidePointer(event: PointerEvent) {
+	if (
+		accountMenuOpen.value &&
+		(!(event.target instanceof Element) || !event.target.closest(".app-account-menu"))
+	)
+		accountMenuOpen.value = false;
 	if (
 		!(event.target instanceof Element) ||
 		event.target.closest(".inventory-menu, [data-inventory-menu-trigger]")
 	)
 		return;
 	closeMenu();
+}
+function onAccountFocus(event: FocusEvent) {
+	if (
+		accountMenuOpen.value &&
+		(!(event.target instanceof Element) || !event.target.closest(".app-account-menu"))
+	)
+		accountMenuOpen.value = false;
+}
+watch(
+	() => props.user,
+	() => {
+		accountMenuOpen.value = false;
+		closeLogout();
+	},
+);
+watch(accountMenuOpen, (open) => {
+	if (open) void nextTick(() => accountLogout.value?.focus({ preventScroll: true }));
+});
+function dismissLogout() {
+	closeLogout();
+	if (logoutOpen.value) return;
+	accountMenuOpen.value = false;
+	void nextTick(() => accountTrigger.value?.focus({ preventScroll: true }));
 }
 onMounted(() => {
 	previousHeight = document.documentElement.style.getPropertyValue("--preview-nav-height");
@@ -106,12 +160,14 @@ onMounted(() => {
 	window.addEventListener("resize", measureNavigation);
 	document.addEventListener("keydown", onKeydown);
 	document.addEventListener("pointerdown", onOutsidePointer);
+	document.addEventListener("focusin", onAccountFocus);
 });
 onBeforeUnmount(() => {
 	observer?.disconnect();
 	window.removeEventListener("resize", measureNavigation);
 	document.removeEventListener("keydown", onKeydown);
 	document.removeEventListener("pointerdown", onOutsidePointer);
+	document.removeEventListener("focusin", onAccountFocus);
 	if (previousHeight)
 		document.documentElement.style.setProperty("--preview-nav-height", previousHeight);
 	else document.documentElement.style.removeProperty("--preview-nav-height");
@@ -185,11 +241,39 @@ onBeforeUnmount(() => {
 					</div>
 				</div>
 			</nav>
-			<div class="sidebar-bottom">
-				<span class="avatar">{{ Array.from(user)[0] || "人" }}</span>
-				<div>
-					<strong>{{ user }}</strong
-					><small v-if="accountNote">{{ accountNote }}</small>
+			<div v-if="!isMobile" class="sidebar-bottom app-account-menu">
+				<button
+					ref="accountTrigger"
+					type="button"
+					class="app-account-trigger"
+					aria-haspopup="menu"
+					:aria-expanded="accountMenuOpen"
+					:aria-controls="accountMenuOpen ? 'desktop-account-menu' : undefined"
+					@click="accountMenuOpen = !accountMenuOpen"
+				>
+					<span class="avatar">{{ Array.from(user)[0] || "人" }}</span>
+					<span class="app-account-label">
+						<strong>{{ user }}</strong>
+						<small v-if="accountNote">{{ accountNote }}</small>
+					</span>
+					<InventoryIcon name="chevron-down" />
+				</button>
+				<div
+					v-if="accountMenuOpen"
+					id="desktop-account-menu"
+					class="app-account-dropdown"
+					role="menu"
+					aria-label="账户菜单"
+				>
+					<strong>{{ user }}</strong>
+					<button
+						ref="accountLogout"
+						type="button"
+						role="menuitem"
+						@click="logout.show()"
+					>
+						退出登录
+					</button>
 				</div>
 			</div>
 		</header>
@@ -210,5 +294,20 @@ onBeforeUnmount(() => {
 				<InventoryIcon :name="group.icon" /><span>{{ group.label }}</span>
 			</button>
 		</nav>
+		<Overlay
+			v-if="logoutOpen"
+			title="退出登录"
+			:dismissible="!logoutBusy"
+			@close="dismissLogout"
+		>
+			<p>退出当前账户后，可重新登录继续工作。</p>
+			<p v-if="logoutError" role="alert">{{ logoutError }}</p>
+			<template #footer>
+				<UiButton :disabled="logoutBusy" @click="dismissLogout">取消</UiButton>
+				<UiButton variant="danger" :loading="logoutBusy" @click="submitLogout"
+					>确认退出</UiButton
+				>
+			</template>
+		</Overlay>
 	</div>
 </template>

@@ -93,19 +93,19 @@ export function useOperationBrowse(
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user;
-  function defaults() {
+  function defaults(records = props.records) {
     const query = newReportQuery(props.family);
-    query.view = props.records
+    query.view = records
       ? "records"
       : props.family === "movements"
         ? "summary"
         : "items";
-    query.sortBy = props.records ? "date" : "item_name";
-    query.sort = props.records ? "desc" : "asc";
-    if (!props.records) query.groupBy = ["item"];
-    if (props.family === "movements" && !props.records)
+    query.sortBy = records ? "date" : "item_name";
+    query.sort = records ? "desc" : "asc";
+    if (!records) query.groupBy = ["item"];
+    if (props.family === "movements" && !records)
       query.includeAdjustments = false;
-    if (props.family === "loans" && !props.records) {
+    if (props.family === "loans" && !records) {
       query.loanOutcome = "all";
       query.outstandingOnly = false;
       query.statuses = [1];
@@ -132,7 +132,7 @@ export function useOperationBrowse(
     detailSorts = reactive<
       Record<string, { field: string; direction: "asc" | "desc" }>
     >({}),
-    historyScopes = reactive<Record<string, "outstanding" | "all">>({}),
+    historyScope = ref<"outstanding" | "all">("outstanding"),
     sharedHistorySort = reactive({
       field: "date",
       direction: "desc" as "asc" | "desc",
@@ -241,14 +241,13 @@ export function useOperationBrowse(
     () => ({
       expanded: [...expanded],
       dimension: dimension.value,
-      historyScopes: { ...historyScopes },
+      historyScope: historyScope.value,
     }),
     (value) => {
       expanded.clear();
       for (const id of (value.expanded || []) as string[]) expanded.add(id);
       dimension.value = String(value.dimension || "category");
-      for (const key of Object.keys(historyScopes)) delete historyScopes[key];
-      Object.assign(historyScopes, value.historyScopes || {});
+      historyScope.value = value.historyScope === "all" ? "all" : "outstanding";
     },
     () =>
       result.initialized &&
@@ -280,7 +279,6 @@ export function useOperationBrowse(
         request.signal,
       );
       if (!active(current) || request.signal.aborted) return;
-      const previousRows = result.rows;
       result.rows = more
         ? [
             ...result.rows,
@@ -312,16 +310,6 @@ export function useOperationBrowse(
           };
       }
       for (const row of page.rows) {
-        const previous = previousRows.find((old) => old.id === row.id);
-        if (
-          props.family === "loans" &&
-          query.value.view === "items" &&
-          expanded.has(row.id) &&
-          Number(previous?.stock_qty || 0) > 0 &&
-          row.stock_qty !== undefined &&
-          Number(row.stock_qty) <= 0
-        )
-          historyScopes[row.id] = "all";
         if (expanded.has(row.id)) void loadDetails(row);
       }
       if (
@@ -366,15 +354,6 @@ export function useOperationBrowse(
         row.id,
         props.records ? "符合筛选的明细" : "相关记录",
       );
-    if (props.family === "loans" && query.value.view === "items") {
-      if (
-        row.id !== "flat-history-scope" &&
-        row.stock_qty !== undefined &&
-        Number(row.stock_qty) <= 0
-      )
-        historyScopes[row.id] = "all";
-      else if (!historyScopes[row.id]) historyScopes[row.id] = "outstanding";
-    }
     const table = details[row.id]!;
     if (
       table.loading ||
@@ -446,8 +425,7 @@ export function useOperationBrowse(
                       ...(props.family === "loans" &&
                       query.value.view === "items"
                         ? {
-                            history_scope:
-                              historyScopes[row.id] || "outstanding",
+                            history_scope: historyScope.value,
                           }
                         : {}),
                     }),
@@ -473,7 +451,8 @@ export function useOperationBrowse(
       table.initialized = true;
       table.failedMore = false;
     } catch (reason) {
-      if (request.signal.aborted) return;
+      if (request.signal.aborted || detailRequests.get(row.id) !== request)
+        return;
       if (active(current)) {
         if (isUnavailableError(reason)) clearUnavailable();
         table.error = reason instanceof Error ? reason.message : "明细读取失败";
@@ -567,18 +546,27 @@ export function useOperationBrowse(
       if (!details[row.id]?.error) void loadDetails(row);
     } else expanded.delete(row.id);
   }
-  function setHistoryScope(row: OperationGroup, value: "outstanding" | "all") {
-    historyScopes[row.id] = value;
-    const table = details[row.id];
-    if (!table) return;
-    detailRequests.get(row.id)?.abort();
-    detailRequests.delete(row.id);
-    table.loading = false;
-    table.rows = [];
-    table.total = 0;
-    table.next = 0;
-    table.initialized = false;
-    void loadDetails(row);
+  function setHistoryScope(value: "outstanding" | "all") {
+    if (historyScope.value === value) return;
+    historyScope.value = value;
+    for (const [id, table] of Object.entries(details)) {
+      detailRequests.get(id)?.abort();
+      detailRequests.delete(id);
+      table.loading = false;
+      table.rows = [];
+      table.total = 0;
+      table.next = 0;
+      table.initialized = false;
+      table.error = "";
+      table.failedMore = false;
+      if (!expanded.has(id)) continue;
+      const row =
+        detailRows.get(id) ||
+        (id === "flat-history-scope"
+          ? { id, document_count: 0, item_count: 0 }
+          : undefined);
+      if (row) void loadDetails(row);
+    }
   }
   async function moreAnalysis() {
     const table = analyses[dimension.value];
@@ -715,14 +703,20 @@ export function useOperationBrowse(
   );
   const analysis = computed(() => analyses[dimension.value]);
   function viewQuery(records: boolean): ReportQuery {
-    return {
-      ...JSON.parse(JSON.stringify(query.value)),
-      view: records
-        ? "records"
-        : props.family === "movements"
-          ? "summary"
-          : "items",
-    };
+    if (records === props.records)
+      return JSON.parse(JSON.stringify(query.value));
+    cancel();
+    groups.cancel();
+    historyScope.value = "outstanding";
+    sharedHistorySort.field = "date";
+    sharedHistorySort.direction = "desc";
+    dimension.value = "category";
+    const next = defaults(records);
+    expanded.clear();
+    for (const key of Object.keys(details)) delete details[key];
+    for (const key of Object.keys(analyses)) delete analyses[key];
+    detailRows.clear();
+    return next;
   }
   function loanHistory() {
     const value: ReportQuery = JSON.parse(JSON.stringify(query.value));
@@ -742,7 +736,7 @@ export function useOperationBrowse(
     routeError,
     result,
     details,
-    historyScopes,
+    historyScope,
     analyses,
     dimension,
     analysis,

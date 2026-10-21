@@ -216,7 +216,7 @@ for (const [width, scale, density] of [
     expect(geometry[0]!.height).toBeGreaterThanOrEqual(width < 1024 ? 44 : 32);
     await page.screenshot({ path: info.outputPath("hierarchy.png") });
     if (width < 1024) await page.keyboard.press("Escape");
-    const actions = page.locator(".app-page-actions");
+    const actions = page.locator(".browse-expanded-actions");
     const identity = page.locator(".app-page-identity");
     const actionRect = (await actions.boundingBox())!;
     const identityRect = (await identity.boundingBox())!;

@@ -54,6 +54,14 @@ const visibleLimit = computed(
 );
 const visibleRows = computed(() => props.table.rows.slice(0, visibleLimit.value));
 const groupRoot = computed(() => props.groupPages?.pages.value["[[],null]"]);
+function groupProgress(groupId?: string) {
+	const controller = props.groupPages as
+		| (ReturnType<typeof useReportGroups> & {
+				progress?: (id?: string) => { loaded: number; total: number };
+		  })
+		| undefined;
+	return controller?.progress?.(groupId) || { loaded: 0, total: 0 };
+}
 const presentationOnlyLeafFields = new Set([
 	"image",
 	"batch_tracked",
@@ -374,6 +382,10 @@ function groupMetric(group: DataTableGroup, column: string) {
 				)
 			"
 			:has-more="grouped && groupPages ? groupPages.hasMore() : hasMore"
+			:loaded-count="grouped && groupPages ? groupProgress().loaded : visibleRows.length"
+			:total-count="
+				grouped && groupPages ? groupProgress().total : (total ?? table.rows.length)
+			"
 			:loading-more="
 				grouped && groupPages
 					? Boolean(groupPages.pages.value['[[],null]']?.loading)
@@ -431,7 +443,8 @@ function groupMetric(group: DataTableGroup, column: string) {
 						v-if="groupHasMore(group)"
 						:loading="group.loading"
 						@click="groupLoadMore(group)"
-						>加载更多此分组</UiButton
+						>加载更多此分组 · {{ groupProgress(group.id).loaded }} /
+						{{ groupProgress(group.id).total }}</UiButton
 					>
 				</div>
 			</template>

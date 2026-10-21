@@ -28,6 +28,8 @@ const props = withDefaults(
 		selectedKeys?: string[];
 		hasMore?: boolean;
 		loadingMore?: boolean;
+		loadedCount?: number;
+		totalCount?: number;
 		rowClass?: (row: Record<string, unknown>) => string | Record<string, boolean>;
 		rowLabel?: (row: Record<string, unknown>) => string | undefined;
 		rowAttributes?: (row: Record<string, unknown>) => Record<string, string>;
@@ -48,6 +50,8 @@ const props = withDefaults(
 		selectedKeys: () => [],
 		hasMore: false,
 		loadingMore: false,
+		loadedCount: undefined,
+		totalCount: undefined,
 		rowClass: undefined,
 		sortDirection: "asc",
 	},
@@ -628,7 +632,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		</p>
 		<div v-if="hasMore" class="data-table-more">
 			<button type="button" :disabled="loadingMore" @click="emit('loadMore')">
-				{{ loadingMore ? "正在读取…" : "加载更多" }}
+				{{
+					loadingMore
+						? `正在读取… · ${loadedCount ?? rows.length} / ${totalCount ?? "?"}`
+						: `加载更多 · ${loadedCount ?? rows.length} / ${totalCount ?? "?"}`
+				}}
 			</button>
 		</div>
 	</section>

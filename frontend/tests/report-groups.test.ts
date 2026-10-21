@@ -42,6 +42,7 @@ describe("lazy report groups", () => {
             ],
             null,
             [],
+            42,
           );
           return () => h("div");
         },
@@ -57,6 +58,7 @@ describe("lazy report groups", () => {
       wrappers.push(wrapper);
       await flushPromises();
       const group = groups.entries.value[0];
+      expect(groups.progress()).toEqual({ loaded: 1, total: 42 });
       expect(group?.kind).toBe("group");
       if (group?.kind === "group") {
         expect(group.label).toBe(expected);
@@ -296,6 +298,7 @@ describe("lazy report groups", () => {
     );
     wrappers.push(wrapper);
     await flushPromises();
+    expect(groups.progress()).toEqual({ loaded: 1, total: 1 });
     expect(groups.entries.value[0]).toMatchObject({
       count: 3,
       countLabel: "记录数",
@@ -306,8 +309,10 @@ describe("lazy report groups", () => {
       count: 3,
       countLabel: "记录数",
     });
+    expect(groups.progress("borrower:a")).toEqual({ loaded: 1, total: 3 });
     await groups.loadMore("borrower:a");
     await flushPromises();
+    expect(groups.progress("borrower:a")).toEqual({ loaded: 3, total: 3 });
     expect(groups.entries.value[0]).toMatchObject({
       count: 3,
       countLabel: "记录数",

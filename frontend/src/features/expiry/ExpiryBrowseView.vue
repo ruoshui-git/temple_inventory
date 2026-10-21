@@ -254,16 +254,19 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						<h3>筛选</h3>
 						<ExpiryBrowseFilters
 							:controller="c"
+							disclosure-mode
 							:hierarchy-in-rail="filterOpen && !isMobile"
 						/>
 					</section>
 					<section>
 						<h3>分组</h3>
-						<GroupByFilter
-							v-model="query.groupBy"
-							:dataset="query.dataset"
-							:view="query.view"
-						/>
+						<div data-filter-field="groupBy" tabindex="-1">
+							<GroupByFilter
+								v-model="query.groupBy"
+								:dataset="query.dataset"
+								:view="query.view"
+							/>
+						</div>
 					</section>
 				</div>
 			</template>
@@ -287,7 +290,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					v-for="(group, index) in query.groupBy"
 					:key="`group:${group}`"
 					:label="`分组：${groupLabels[group] || group}`"
-					@edit="editFilter()"
+					@edit="editFilter('groupBy')"
 					@remove="
 						query.groupBy = removeGroupByField(
 							query.dataset,
@@ -443,6 +446,10 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					:error="query.groupBy.length ? groupRoot?.error || result.error : result.error"
 					:retained="Boolean(result.rows.length && result.loading)"
 					:has-more="query.groupBy.length ? c.groups.hasMore() : result.next !== null"
+					:loaded-count="
+						query.groupBy.length ? c.groups.progress().loaded : result.rows.length
+					"
+					:total-count="query.groupBy.length ? c.groups.progress().total : result.total"
 					:loading-more="
 						query.groupBy.length
 							? Boolean(groupRoot?.loading && groupRoot.rows.length)
@@ -530,7 +537,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								v-if="c.groups.hasMore(group.id)"
 								:loading="group.loading"
 								@click="c.groups.loadMore(group.id)"
-								>加载更多此分组</UiButton
+								>加载更多此分组 · {{ c.groups.progress(group.id).loaded }} /
+								{{ c.groups.progress(group.id).total }}</UiButton
 							>
 						</div>
 					</template>
@@ -570,7 +578,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					v-if="isMobile && result.next !== null"
 					:loading="result.loading"
 					@click="c.load(true)"
-					>加载更多</UiButton
+					>加载更多 · {{ result.rows.length }} / {{ result.total }}</UiButton
 				>
 
 				<Overlay

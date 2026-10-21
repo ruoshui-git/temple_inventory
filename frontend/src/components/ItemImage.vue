@@ -10,8 +10,9 @@ const props = withDefaults(
 		item: Pick<StockItem, "code" | "name" | "image" | "files">;
 		interaction?: "detail" | "lightbox";
 		hasArtwork?: boolean;
+		frame?: boolean;
 	}>(),
-	{ interaction: "lightbox" },
+	{ interaction: "lightbox", frame: false },
 );
 const emit = defineEmits<{ detail: [] }>();
 const artwork = useItemArtwork();
@@ -35,7 +36,11 @@ onDeactivated(() => {
 });
 </script>
 <template>
-	<div v-if="interaction === 'detail'" class="preview-item-image">
+	<div
+		v-if="interaction === 'detail'"
+		class="preview-item-image"
+		:class="{ 'preview-item-image--frame': frame }"
+	>
 		<button
 			class="preview-image-detail"
 			:aria-label="`查看${item.name}详情`"
@@ -66,6 +71,7 @@ onDeactivated(() => {
 		v-else-if="source || hasArtwork"
 		type="button"
 		class="item-image-button"
+		:class="{ 'item-image-button--frame': frame }"
 		:aria-label="`放大查看${item.name}图片`"
 		title="查看大图"
 		@click.stop="open = true"
@@ -86,6 +92,9 @@ onDeactivated(() => {
 				/></svg
 		></span>
 	</button>
+	<div v-else-if="frame" class="preview-item-image preview-item-image--frame">
+		<AsyncImage :alt="item.name" fit="contain" width="100%" height="100%" />
+	</div>
 	<AsyncImage v-else :alt="item.name" fit="contain" width="100%" height="100%" />
 	<Overlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"
 		><div class="lightbox-image">
@@ -113,6 +122,19 @@ onDeactivated(() => {
 	aspect-ratio: 1;
 	flex: none;
 }
+.preview-item-image--frame,
+.item-image-button--frame {
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	aspect-ratio: auto;
+}
+.preview-item-image--frame :deep(.async-image),
+.item-image-button--frame :deep(.async-image) {
+	width: 100% !important;
+	height: 100% !important;
+	aspect-ratio: auto !important;
+}
 .preview-image-detail {
 	display: block;
 	width: 100%;
@@ -123,6 +145,13 @@ onDeactivated(() => {
 	width: 100%;
 	height: 100%;
 	aspect-ratio: 1;
+	object-fit: contain;
+}
+.preview-item-image--frame :deep(.product-art),
+.item-image-button--frame :deep(.product-art) {
+	width: 100%;
+	height: 100%;
+	aspect-ratio: auto;
 	object-fit: contain;
 }
 .lightbox-image :deep(.async-image) {

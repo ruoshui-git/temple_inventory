@@ -216,12 +216,14 @@ function tabKey(event: KeyboardEvent) {
 				<UiButton variant="primary" @click="newActivity">新建活动</UiButton>
 			</template>
 			<template #filters>
-				<GroupByFilter
-					v-if="mode === 'list'"
-					v-model="report.groupBy"
-					:dataset="report.dataset"
-					:view="report.view"
-				/>
+				<div v-if="mode === 'list'" data-filter-field="groupBy" tabindex="-1">
+					<GroupByFilter
+						v-if="mode === 'list'"
+						v-model="report.groupBy"
+						:dataset="report.dataset"
+						:view="report.view"
+					/>
+				</div>
 				<div class="preview-filter-fields">
 					<label class="preview-field"
 						>状态<select v-model="state.status">
@@ -271,7 +273,7 @@ function tabKey(event: KeyboardEvent) {
 					v-for="(group, index) in mode === 'list' ? report.groupBy : []"
 					:key="`group:${group}`"
 					:label="`分组：${groupLabels[group] || group}`"
-					@edit="editFilter()"
+					@edit="editFilter('groupBy')"
 					@remove="
 						report.groupBy = removeGroupByField(
 							report.dataset,
@@ -345,6 +347,14 @@ function tabKey(event: KeyboardEvent) {
 						? projection.groups.hasMore()
 						: projection.mainTable.value?.next != null
 				"
+				:loaded-count="
+					report.groupBy.length ? projection.groups.progress().loaded : filtered.length
+				"
+				:total-count="
+					report.groupBy.length
+						? projection.groups.progress().total
+						: (projection.mainTable.value?.total ?? filtered.length)
+				"
 				:loading-more="
 					report.groupBy.length
 						? Boolean(activityGroupRoot?.loading && activityGroupRoot.rows.length)
@@ -402,7 +412,8 @@ function tabKey(event: KeyboardEvent) {
 							v-if="projection.groups.hasMore(group.id)"
 							:loading="group.loading"
 							@click="projection.groups.loadMore(group.id)"
-							>加载更多此分组</UiButton
+							>加载更多此分组 · {{ projection.groups.progress(group.id).loaded }} /
+							{{ projection.groups.progress(group.id).total }}</UiButton
 						>
 					</div>
 				</template>
@@ -672,7 +683,8 @@ function tabKey(event: KeyboardEvent) {
 				v-if="projection.mainTable.value?.next != null"
 				:disabled="projection.mainTable.value.loading"
 				@click="more"
-				>加载更多</UiButton
+				>加载更多 · {{ projection.mainTable.value.rows.length }} /
+				{{ projection.mainTable.value.total }}</UiButton
 			>
 		</template>
 		<Overlay v-if="deleteOpen" title="删除活动" @close="deleteOpen = false"

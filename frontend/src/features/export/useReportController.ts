@@ -147,6 +147,7 @@ export function useReportController(
           page.rows as unknown as import("../../services/contracts").GroupedReportRow[],
           page.next_start,
           page.leaf_columns || [],
+          page.matched_count,
         );
       result.total = page.matched_count;
       result.snapshot = page.snapshot;

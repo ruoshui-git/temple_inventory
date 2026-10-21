@@ -155,6 +155,7 @@ const warehouseReference = useOptionalReferenceData();
 					:options="reference.categories"
 					title="物品类别"
 					placeholder="搜索类别"
+					initial-expansion="first-level"
 				/>
 				<label class="preview-choice-label"
 					><input type="checkbox" v-model="uncategorizedFilter" />无分类</label
@@ -230,7 +231,7 @@ const warehouseReference = useOptionalReferenceData();
 						v-if="result.next !== null"
 						:loading="result.loading"
 						@click="load(true)"
-						>加载更多</UiButton
+						>加载更多 · {{ result.rows.length }} / {{ result.total }}</UiButton
 					>
 				</div>
 				<p v-if="detailLoading" role="status">正在读取库存详情…</p>

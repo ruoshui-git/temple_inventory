@@ -254,6 +254,7 @@ function itemImage(row: CountRow) {
 					title="显示位置"
 					placeholder="搜索位置"
 					embedded
+					initial-expansion="branching-leaves"
 				/>
 			</FilterPanel>
 			<label class="preview-field count-search">

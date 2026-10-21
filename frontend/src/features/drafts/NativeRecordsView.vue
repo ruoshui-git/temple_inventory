@@ -17,6 +17,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
+import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -189,29 +190,52 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			<template #filters>
 				<BrowseFilters
 					v-model="scope"
+					disclosure-mode
 					:movement="mode === 'drafts'"
 					records
 					:hierarchy-in-rail="sidebarOpen && !isMobile"
 				/>
-				<GroupByFilter
-					v-model="query.groupBy"
-					:dataset="query.dataset"
-					:view="query.view"
-				/>
-				<PeriodFilter
-					v-model="scope.period"
-					:today="c.reference.siteDate"
-					label="记账日期"
-					embedded
-				/>
-				<label v-if="mode === 'counts'" class="preview-field"
-					>状态<select v-model="query.statuses">
-						<option :value="[1]">已提交</option>
-						<option :value="[0]">草稿</option>
-						<option :value="[2]">已取消</option>
-						<option :value="[0, 1, 2]">全部状态</option>
-					</select></label
+				<div data-filter-field="groupBy" tabindex="-1">
+					<GroupByFilter
+						v-model="query.groupBy"
+						:dataset="query.dataset"
+						:view="query.view"
+					/>
+				</div>
+				<details class="browse-filter-disclosure" data-filter-field="period">
+					<summary>
+						记账日期
+						<small>{{ sitePeriodSummary(scope.period, c.reference.siteDate) }}</small>
+					</summary>
+					<PeriodFilter
+						v-model="scope.period"
+						:today="c.reference.siteDate"
+						label="记账日期"
+						embedded
+					/>
+				</details>
+				<details
+					v-if="mode === 'counts'"
+					class="browse-filter-disclosure"
+					data-filter-field="status"
 				>
+					<summary>
+						状态
+						<small>{{
+							query.statuses
+								.map((status) => ["草稿", "已提交", "已取消"][status])
+								.join("、") || "未选择"
+						}}</small>
+					</summary>
+					<label class="preview-field"
+						>状态<select v-model="query.statuses">
+							<option :value="[1]">已提交</option>
+							<option :value="[0]">草稿</option>
+							<option :value="[2]">已取消</option>
+							<option :value="[0, 1, 2]">全部状态</option>
+						</select></label
+					>
+				</details>
 				<UiButton @click="c.clear">清空筛选</UiButton>
 			</template>
 			<template #chips="{ editFilter }">
@@ -219,7 +243,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					v-for="(group, index) in query.groupBy"
 					:key="`group:${group}`"
 					:label="`分组：${groupLabels[group] || group}`"
-					@edit="editFilter()"
+					@edit="editFilter('groupBy')"
 					@remove="
 						query.groupBy = removeGroupByField(
 							query.dataset,
@@ -291,6 +315,10 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						:error="query.groupBy.length ? groupRoot?.error || error : error"
 						:retained="Boolean(rows.length && loading)"
 						:has-more="query.groupBy.length ? groups.hasMore() : next !== null"
+						:loaded-count="
+							query.groupBy.length ? groups.progress().loaded : rows.length
+						"
+						:total-count="query.groupBy.length ? groups.progress().total : total"
 						:loading-more="
 							query.groupBy.length
 								? Boolean(groupRoot?.loading && groupRoot.rows.length)
@@ -373,7 +401,8 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 									v-if="groups.hasMore(group.id)"
 									:loading="group.loading"
 									@click="groups.loadMore(group.id)"
-									>加载更多此分组</UiButton
+									>加载更多此分组 · {{ groups.progress(group.id).loaded }} /
+									{{ groups.progress(group.id).total }}</UiButton
 								>
 							</div>
 						</template>

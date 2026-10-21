@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
@@ -8,13 +8,38 @@ import {
 } from "../src/services/contracts";
 
 const wrappers: VueWrapper[] = [];
+let mobile = false;
+const mediaListeners = new Set<(event: { matches: boolean }) => void>();
+beforeEach(() => {
+  mobile = false;
+  mediaListeners.clear();
+  localStorage.clear();
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      get matches() {
+        return query.includes("min-width") ? !mobile : false;
+      },
+      addEventListener: (
+        _: string,
+        listener: (event: { matches: boolean }) => void,
+      ) => mediaListeners.add(listener),
+      removeEventListener: (
+        _: string,
+        listener: (event: { matches: boolean }) => void,
+      ) => mediaListeners.delete(listener),
+    })),
+  );
+});
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   document.body.innerHTML = "";
+  vi.unstubAllGlobals();
 });
 
 describe("inventory grouped table", () => {
   it("loads category, Item, and stock leaves lazily using projection row fields", async () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn();
     const groupCalls: Array<{
       parent_path: string[];
       parent_unit: string | null;
@@ -22,8 +47,21 @@ describe("inventory grouped table", () => {
     const call = vi.fn(async (endpoint: string, args: Record<string, any>) => {
       if (endpoint === "browse.inventory_page")
         return {
-          rows: [],
-          matched_count: 0,
+          rows: [
+            {
+              code: "ITEM-1",
+              name: "Noodles",
+              image: "",
+              category: "Food",
+              uom: "Nos",
+              available: 4,
+              loaned: 0,
+              damaged: 0,
+              locations: [],
+              batches: [],
+            },
+          ],
+          matched_count: 1,
           next_start: null,
           snapshot: "2026-10-20",
           summary: [],
@@ -123,8 +161,56 @@ describe("inventory grouped table", () => {
     wrappers.push(wrapper);
     await flushPromises();
     const page = wrapper.getComponent(StockBrowsePage);
+    page.vm.controller.inStockOnly.value = false;
+    await flushPromises();
+    const zeroStockChip = wrapper
+      .findAll(".browse-active-chip-label")
+      .find((chip) => chip.text().includes("零库存"));
+    expect(zeroStockChip).toBeDefined();
+    await zeroStockChip!.trigger("click");
+    await flushPromises();
+    const zeroStockDisclosure = document.querySelector<HTMLDetailsElement>(
+      '.preview-filter-popover [data-filter-field="includeZero"]',
+    );
+    expect(zeroStockDisclosure?.open).toBe(true);
+    expect(document.activeElement).toBe(
+      zeroStockDisclosure?.querySelector('input[type="checkbox"]'),
+    );
+    document
+      .querySelector<HTMLButtonElement>(
+        ".preview-filter-popover header button",
+      )!
+      .click();
+    await flushPromises();
+    page.vm.controller.inStockOnly.value = true;
+    await flushPromises();
+    expect(wrapper.find(".stock-grid").exists()).toBe(false);
+    expect(
+      wrapper.find('[data-browse-scroll="inventory-table"]').exists(),
+    ).toBe(true);
+    await wrapper
+      .get('.segmented button[aria-pressed="false"]')
+      .trigger("click");
+    expect(wrapper.find(".stock-grid").exists()).toBe(true);
+    expect(
+      wrapper.find('[data-browse-scroll="inventory-table"]').exists(),
+    ).toBe(false);
+    await wrapper
+      .get('.segmented button[aria-pressed="false"]')
+      .trigger("click");
+    mobile = true;
+    mediaListeners.forEach((listener) => listener({ matches: false }));
+    await flushPromises();
+    expect(wrapper.find(".stock-grid").exists()).toBe(true);
+    expect(
+      wrapper.find('[data-browse-scroll="inventory-table"]').exists(),
+    ).toBe(false);
     page.vm.controller.setGroupBy(["category", "item"]);
     await flushPromises();
+    expect(wrapper.find(".stock-grid").exists()).toBe(false);
+    expect(
+      wrapper.find('[data-browse-scroll="inventory-table"]').exists(),
+    ).toBe(true);
     expect(groupCalls).toEqual([{ parent_path: [], parent_unit: null }]);
     await wrapper.get(".data-table-group-toggle").trigger("click");
     await flushPromises();

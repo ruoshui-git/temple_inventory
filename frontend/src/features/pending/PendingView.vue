@@ -40,9 +40,7 @@ const {
 	retry: retryFilterSave,
 } = useFilterRailPreference("stock.damaged", c.reference, true);
 const { isMobile } = useResponsiveLayout();
-const sortColumns = computed(() =>
-	sortableColumnsForView(query.value.dataset, query.value.view),
-);
+const sortColumns = computed(() => sortableColumnsForView(query.value.dataset, query.value.view));
 function sortReport(field: string) {
 	if (!sortColumns.value.includes(field)) return;
 	if (query.value.sortBy === field)
@@ -80,15 +78,18 @@ watch([() => props.active, isMobile], () => {
 			<template #filters>
 				<BrowseFilters
 					v-model="scope"
+					disclosure-mode
 					:fields="['item', 'categories', 'warehouses']"
 					:hierarchy-in-rail="filterOpen && !isMobile"
 					hide-activity
 				/>
-				<GroupByFilter
-					v-model="query.groupBy"
-					:dataset="query.dataset"
-					:view="query.view"
-				/>
+				<div data-filter-field="groupBy" tabindex="-1">
+					<GroupByFilter
+						v-model="query.groupBy"
+						:dataset="query.dataset"
+						:view="query.view"
+					/>
+				</div>
 				<UiButton @click="c.clear">清空筛选</UiButton>
 			</template>
 			<div class="browse-callout">
@@ -105,7 +106,7 @@ watch([() => props.active, isMobile], () => {
 					v-for="(group, index) in query.groupBy"
 					:key="`group:${group}`"
 					:label="`分组：${groupLabels[group] || group}`"
-					@edit="editFilter()"
+					@edit="editFilter('groupBy')"
 					@remove="
 						query.groupBy = removeGroupByField(
 							query.dataset,

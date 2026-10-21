@@ -15,6 +15,7 @@ import {
   installInstructions,
   type InstallPlatform,
 } from "../../lib/installGuidance";
+import { useLogoutController } from "./useLogoutController";
 export interface MoreHost {
   platform(): InstallPlatform;
   standalone(): boolean;
@@ -30,9 +31,12 @@ export function useMoreController(
     reference = useReferenceData(),
     account = reference.user;
   const installOpen = ref(false),
-    logoutOpen = ref(false),
-    busy = ref(false),
-    error = ref(""),
+    installBusy = ref(false),
+    installError = ref("");
+  const logoutController = useLogoutController(host, () => reference.user),
+    logoutOpen = logoutController.open,
+    busy = computed(() => installBusy.value || logoutController.busy.value),
+    error = computed(() => logoutController.error.value || installError.value),
     summaryError = ref(""),
     loading = ref(false),
     draftCount = ref<number>();
@@ -61,43 +65,28 @@ export function useMoreController(
   }
   async function install() {
     if (busy.value || !active()) return;
-    busy.value = true;
-    error.value = "";
+    installBusy.value = true;
+    installError.value = "";
     try {
       if (!(await host.install()) && active() && visible())
         installOpen.value = true;
     } catch (reason) {
       if (active())
-        error.value =
+        installError.value =
           reason instanceof Error ? reason.message : "无法打开安装选项";
     } finally {
-      if (active()) busy.value = false;
-    }
-  }
-  async function logout() {
-    if (busy.value || !active()) return;
-    busy.value = true;
-    error.value = "";
-    try {
-      await host.logout();
-      if (active()) host.afterLogout();
-    } catch (reason) {
-      if (active())
-        error.value =
-          reason instanceof Error ? reason.message : "退出失败，请重试";
-    } finally {
-      if (active()) busy.value = false;
+      if (active()) installBusy.value = false;
     }
   }
   function close() {
     if (!busy.value) {
       installOpen.value = false;
-      logoutOpen.value = false;
+      logoutController.close();
     }
   }
   function deactivate() {
     installOpen.value = false;
-    logoutOpen.value = false;
+    logoutController.close();
   }
   watch(visible, (value) => {
     if (!value) deactivate();
@@ -122,7 +111,7 @@ export function useMoreController(
     canInstall,
     load,
     install,
-    logout,
+    logout: logoutController.logout,
     close,
   };
 }

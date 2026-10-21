@@ -60,6 +60,7 @@ describe("shared application frame", () => {
         active: "inventory",
         inventoryExpanded: false,
       },
+      attachTo: document.body,
     });
     wrappers.push(wrapper);
     await flushPromises();
@@ -152,6 +153,7 @@ describe("shared application frame", () => {
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
     expect(wrapper.find(".sample-mobile-nav").exists()).toBe(true);
+    expect(wrapper.find(".app-account-menu").exists()).toBe(false);
     expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(6);
     await wrapper.find("input").setValue("保留输入");
     media.matches = true;
@@ -159,6 +161,7 @@ describe("shared application frame", () => {
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
     expect(wrapper.find(".sample-sidebar").exists()).toBe(true);
+    expect(wrapper.find(".app-account-menu").exists()).toBe(true);
     expect(
       wrapper.findAll(".sample-sidebar > nav > .nav-group > button"),
     ).toHaveLength(6);
@@ -184,6 +187,51 @@ describe("shared application frame", () => {
     wrapper.unmount();
     wrappers.pop();
     expect(remove).toHaveBeenCalledWith("change", expect.any(Function));
+  });
+
+  it("opens an accessible desktop account menu and restores focus after Escape", async () => {
+    const media = {
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    vi.stubGlobal("matchMedia", () => media);
+    const wrapper = mount(AppFrame, {
+      props: {
+        primary: primaryNavigation,
+        mobilePrimary: mobilePrimaryNavigation,
+        inventory: inventoryNavigation,
+        moreRoute: routeTarget("more"),
+        user: "volunteer",
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    await flushPromises();
+    expect(wrapper.findAll(".app-account-trigger")).toHaveLength(1);
+    const trigger = wrapper.get(".app-account-trigger");
+    expect(
+      wrapper.element.querySelector(".app-account-menu")?.parentElement,
+    ).toBe(wrapper.element.querySelector(".sample-sidebar"));
+    expect(trigger.attributes("aria-haspopup")).toBe("menu");
+    await trigger.trigger("click");
+    expect(wrapper.get("[role=menu]").text()).toContain("volunteer");
+    await document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await flushPromises();
+    expect(wrapper.find("[role=menu]").exists()).toBe(false);
+    expect(document.activeElement).toBe(trigger.element);
+    await trigger.trigger("click");
+    await wrapper.get('[role="menuitem"]').trigger("click");
+    await flushPromises();
+    expect(document.querySelector(".preview-dialog")?.textContent).toContain(
+      "退出当前账户后",
+    );
+    document.querySelector<HTMLButtonElement>(".dialog-footer button")?.click();
+    await flushPromises();
+    expect(document.querySelector(".preview-dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger.element);
   });
 
   it("assigns top navigation and Inventory menu sections from route metadata", () => {

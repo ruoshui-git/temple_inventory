@@ -10,7 +10,7 @@ import {
 	watch,
 } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-import { periodLabels, resolveSitePeriod, type DatePeriod } from "../../lib/sitePeriod";
+import { sitePeriodSummary, type DatePeriod } from "../../lib/sitePeriod";
 import { filterPanelSessionKey } from "../../lib/filterPanelSession";
 import Overlay from "./Overlay.vue";
 import PeriodEditor from "./PeriodEditor.vue";
@@ -72,12 +72,7 @@ onDeactivated(() => {
 	open.value = false;
 });
 const position = ref<Record<string, string>>({});
-const summary = computed(() => {
-	const range = resolveSitePeriod(props.modelValue, props.today);
-	return props.modelValue.key === "all"
-		? "全部时间"
-		: `${periodLabels[props.modelValue.key]} · ${range.from} 至 ${range.to}`;
-});
+const summary = computed(() => sitePeriodSummary(props.modelValue, props.today));
 function show() {
 	document.dispatchEvent(new CustomEvent("preview-filter-panel-open", { detail: owner }));
 	draft.value = { ...props.modelValue };

@@ -7,6 +7,7 @@ import {
   provideInventoryServices,
 } from "../src/services/contracts";
 import type { MoreHost } from "../src/features/more/useMoreController";
+import { useLogoutController } from "../src/features/more/useLogoutController";
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
@@ -39,6 +40,24 @@ function setup(
   wrappers.push(wrapper);
   const page = wrapper.findComponent(MorePage);
   return { wrapper, page, c: page.vm.controller, host, reference };
+}
+function logoutSetup(host: Pick<MoreHost, "logout" | "afterLogout">) {
+  const reference = createReferenceData();
+  Object.assign(reference, { user: "volunteer", site: "site" });
+  let controller!: ReturnType<typeof useLogoutController>;
+  const root = defineComponent({
+    setup() {
+      provideInventoryServices(
+        { call: vi.fn(), report: vi.fn(), upload: vi.fn() },
+        reference,
+      );
+      controller = useLogoutController(host, () => reference.user);
+      return () => h("div");
+    },
+  });
+  const wrapper = mount(root);
+  wrappers.push(wrapper);
+  return { controller, reference };
 }
 describe("shared More workspace", () => {
   it("uses the shared native count browser as the single count card destination", async () => {
@@ -108,5 +127,40 @@ describe("shared More workspace", () => {
     finish();
     await pending;
     expect(host.afterLogout).not.toHaveBeenCalled();
+  });
+  it("shares confirmed logout dismissal, failure retry, and account-change protection", async () => {
+    let fail = true;
+    const host = {
+      logout: vi.fn(async () => {
+        if (fail) throw new Error("退出失败");
+      }),
+      afterLogout: vi.fn(),
+    };
+    const { controller, reference } = logoutSetup(host);
+    controller.show();
+    expect(controller.open.value).toBe(true);
+    controller.close();
+    expect(controller.open.value).toBe(false);
+    controller.show();
+    await controller.logout();
+    expect(controller.error.value).toBe("退出失败");
+    expect(controller.open.value).toBe(true);
+    fail = false;
+    await controller.logout();
+    expect(host.afterLogout).toHaveBeenCalledOnce();
+
+    let finish!: () => void;
+    const guarded = logoutSetup({
+      logout: vi.fn(() => new Promise<void>((done) => (finish = done))),
+      afterLogout: vi.fn(),
+    });
+    guarded.controller.show();
+    const pending = guarded.controller.logout();
+    guarded.reference.user = "another-user";
+    await flushPromises();
+    expect(guarded.controller.open.value).toBe(false);
+    finish();
+    await pending;
+    expect(guarded.controller.open.value).toBe(false);
   });
 });

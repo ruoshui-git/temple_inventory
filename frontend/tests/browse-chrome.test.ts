@@ -321,7 +321,7 @@ it("hydrates the shared Inventory hierarchies and clears inherited categories wi
 it("offers only Item creation until selection and dispatches exact permitted selected identities in compact mode", async () => {
   const { wrapper, page, c, reference } = stock();
   await flushPromises();
-  expect(wrapper.get(".app-page-actions").text()).toContain("新建物品");
+  expect(wrapper.get(".browse-expanded-actions").text()).toContain("新建物品");
   expect(wrapper.find(".stock-selection-actions").exists()).toBe(false);
   c.toggle("A");
   c.toggle("隐藏,中文物品");

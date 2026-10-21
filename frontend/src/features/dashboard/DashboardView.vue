@@ -107,6 +107,7 @@ const { isMobile } = useResponsiveLayout();
 						:options="reference.warehouses"
 						title="仓库 / 位置"
 						placeholder="搜索位置"
+						initial-expansion="branching-leaves"
 					/>
 					<label class="preview-choice-label"
 						><input v-model="filters.uncategorized" type="checkbox" />无分类</label
@@ -116,6 +117,7 @@ const { isMobile } = useResponsiveLayout();
 						:options="reference.categories"
 						title="物品类别"
 						placeholder="搜索类别"
+						initial-expansion="first-level"
 					/>
 				</div>
 				<template #footer
