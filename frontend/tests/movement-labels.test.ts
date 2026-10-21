@@ -19,10 +19,10 @@ describe("shared movement labels", () => {
     });
   });
 
-  it("preserves unknown labels and keeps unselected filters empty", () => {
+  it("keeps unknown enum values generic and unselected filters empty", () => {
     expect(
       scopeValueLabel("kinds", "Custom movement", createReferenceData()),
-    ).toBe("Custom movement");
+    ).toBe("其他类型");
     expect(scopeValueLabel("kinds", "", createReferenceData())).toBe("");
   });
 });

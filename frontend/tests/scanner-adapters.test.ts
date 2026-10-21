@@ -144,9 +144,16 @@ describe("ZxingWasmScannerEngine", () => {
       },
     );
     zxing.read.mockRejectedValue(new Error("bad frame"));
-    const error = vi.fn();
+    const error = vi.fn(),
+      presence = vi.fn();
     const engine = new ZxingWasmScannerEngine();
-    await engine.start(document.createElement("div"), vi.fn(), error);
+    await engine.start(
+      document.createElement("div"),
+      vi.fn(),
+      error,
+      undefined,
+      presence,
+    );
     vi.advanceTimersByTime(250);
     await Promise.resolve();
     await Promise.resolve();
@@ -154,6 +161,7 @@ describe("ZxingWasmScannerEngine", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(error).toHaveBeenCalledTimes(1);
+    expect(presence.mock.calls).toEqual([[null], [null]]);
     expect(zxing.read).toHaveBeenCalledTimes(2);
     await engine.stop();
   });
@@ -189,9 +197,16 @@ describe("ZxingWasmScannerEngine", () => {
     zxing.read
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce([{ text: "A001" }]);
-    const scan = vi.fn();
+    const scan = vi.fn(),
+      presence = vi.fn();
     const engine = new ZxingWasmScannerEngine();
-    await engine.start(document.createElement("div"), scan);
+    await engine.start(
+      document.createElement("div"),
+      scan,
+      undefined,
+      undefined,
+      presence,
+    );
     vi.advanceTimersByTime(250);
     await Promise.resolve();
     expect(zxing.read).toHaveBeenCalledOnce();
@@ -204,6 +219,7 @@ describe("ZxingWasmScannerEngine", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(zxing.read).toHaveBeenCalledTimes(2);
+    expect(presence.mock.calls).toEqual([[false], [true]]);
     expect(scan).toHaveBeenCalledWith("A001");
     expect(create.mock.calls.filter(([tag]) => tag === "canvas")).toHaveLength(
       1,

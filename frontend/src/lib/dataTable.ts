@@ -12,6 +12,49 @@ export interface DataColumn<Row = Record<string, unknown>> {
   align?: "start" | "center" | "end";
 }
 
+const numericColumnIds = new Set([
+  "qty",
+  "quantity",
+  "whole",
+  "transfer_qty",
+  "stock_qty",
+  "available",
+  "loaned",
+  "borrowed",
+  "returned",
+  "damaged",
+  "lost",
+  "outstanding",
+  "opening",
+  "incoming",
+  "outgoing",
+  "adjustment",
+  "closing",
+  "baseline_qty",
+  "actual_qty",
+  "current_qty",
+  "difference",
+  "count",
+  "quantities",
+]);
+
+/** Shared physical alignment for native tables and dynamic report columns. */
+export function dataColumnAlignment(
+  column: DataColumn,
+): "start" | "center" | "end" {
+  if (column.align) return column.align;
+  const id = String(column.id);
+  if (id === "image" || id === "thumbnail") return "center";
+  if (
+    numericColumnIds.has(id) ||
+    id.endsWith("_qty") ||
+    id.endsWith("_count") ||
+    column.className?.split(/\s+/).includes("report-quantity-cell")
+  )
+    return "end";
+  return "start";
+}
+
 export interface DataTableRecord<Row = Record<string, unknown>> {
   kind: "record";
   id: string;

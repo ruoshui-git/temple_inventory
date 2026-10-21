@@ -140,6 +140,59 @@ function service() {
   });
 }
 describe("native count form integration", () => {
+  it("uses first-response current display names and images without an extra catalog query", async () => {
+    const current = {
+      doctype: "Stock Reconciliation",
+      name: "COUNT-CURRENT",
+      version: "v1",
+      docstatus: 1,
+      purpose: "Stock Reconciliation",
+      editable: false,
+      ti_count_warehouses: ["ROOM-A"],
+      ti_count_scope: "Selected",
+      ti_count_items: ["ITEM-A"],
+      items: [
+        {
+          name: "COUNT-LINE",
+          item_code: "ITEM-A",
+          item_name: "旧原生名称",
+          ti_display_item_name: "当前名称",
+          ti_display_image: "/private/files/current-item.webp",
+          warehouse: "ROOM-A",
+          qty: 8,
+        },
+      ],
+      ti_count_review: [
+        {
+          item_code: "ITEM-A",
+          item_name: "旧原生名称",
+          ti_display_item_name: "当前名称",
+          ti_display_image: "/private/files/current-item.webp",
+          warehouse: "ROOM-A",
+          batch_no: null,
+          stock_uom: "Nos",
+          baseline_qty: 10,
+          actual_qty: 8,
+          review_state: "Reviewed",
+          reason: "",
+        },
+      ],
+    } as NativeDocument;
+    const call = vi.fn(async (method: string) => {
+      if (method === "native_api.load_document") return current;
+      if (method === "native_files.attachments") return [];
+      throw new Error(`Unexpected ${method}`);
+    });
+    const { c } = setup(call, { name: current.name });
+    await flushPromises();
+    expect(c.names["ITEM-A"]).toBe("当前名称");
+    expect(c.images["ITEM-A"]).toBe("/private/files/current-item.webp");
+    expect(
+      call.mock.calls.some(([method]) => method === "catalog.item_summaries"),
+    ).toBe(false);
+    expect(c.values.value.items[0]?.ti_display_item_name).toBe("当前名称");
+  });
+
   it("loads submitted row history by exact item, location and batch with paging", async () => {
     const call = service();
     const { c } = setup(call);
@@ -464,6 +517,7 @@ describe("native count form integration", () => {
           : base(method, args),
     );
     await c.load(true);
+    expect(c.state.error).toBe("");
     expect(c.rows.value.map((value) => value.actual_qty)).toEqual([null, 0]);
   });
 });

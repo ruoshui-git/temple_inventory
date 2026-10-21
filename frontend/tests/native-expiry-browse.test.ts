@@ -112,7 +112,9 @@ describe("native expiry browser", () => {
     await flushPromises();
     expect(wrapper.find('[role="alert"]').exists()).toBe(true);
     expect(
-      call.mock.calls.some(([endpoint]) => String(endpoint).startsWith("browse.")),
+      call.mock.calls.some(([endpoint]) =>
+        String(endpoint).startsWith("browse."),
+      ),
     ).toBe(false);
   });
   it("renders the same browser with real gallery services and reactive query state", async () => {
@@ -185,7 +187,7 @@ describe("native expiry browser", () => {
     ).toContain("Nos");
     await quantityHeader.trigger("click");
     expect(wrapper.find('th[aria-sort="ascending"] button').text()).toContain(
-      "库存数量 ↑",
+      "↑库存数量",
     );
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,

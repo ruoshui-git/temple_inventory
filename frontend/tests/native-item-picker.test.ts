@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, reactive } from "vue";
 import { useItemPicker } from "../src/features/items/useItemPicker";
 import {
   createReferenceData,
@@ -13,6 +13,7 @@ afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 
 it("sends multi-category subtree selections and the independent uncategorized scope", async () => {
   let picker!: ReturnType<typeof useItemPicker>;
+  const pickerProps = reactive({ timestamp: "2026-10-21 09:30:00" });
   const reference = createReferenceData();
   reference.user = "volunteer";
   reference.site = "unit-site";
@@ -27,14 +28,14 @@ it("sends multi-category subtree selections and the independent uncategorized sc
       rgt: 8,
     },
   ];
-  const call = vi.fn<InventoryServices["call"]>(async () => ({
-    results: [],
-    matched_count: 0,
-    next_start: null,
-  }));
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint) =>
+    endpoint === "catalog.operation_item"
+      ? ({ item_code: "ITEM-A", item_name: "测试物品", stock: [] } as never)
+      : ({ results: [], matched_count: 0, next_start: null } as never),
+  );
   const child = defineComponent({
     setup() {
-      picker = useItemPicker({}, vi.fn());
+      picker = useItemPicker(pickerProps, vi.fn());
       return () => h("div");
     },
   });
@@ -51,11 +52,14 @@ it("sends multi-category subtree selections and the independent uncategorized sc
   await flushPromises();
   picker.categoryFilters.value = ["FOOD", "COSTUMES"];
   picker.uncategorizedFilter.value = true;
+  picker.warehouseFilters.value = ["WAREHOUSE-A", "WAREHOUSE-B"];
   await flushPromises();
   const args = call.mock.calls.at(-1)?.[1];
   expect(args).toMatchObject({
     categories: ["FOOD", "COSTUMES"],
     uncategorized: true,
+    warehouses: ["WAREHOUSE-A", "WAREHOUSE-B"],
+    timestamp: "2026-10-21 09:30:00",
   });
   window.dispatchEvent(
     new CustomEvent("inventory-category-renamed", {
@@ -70,5 +74,12 @@ it("sends multi-category subtree selections and the independent uncategorized sc
   expect(call.mock.calls.at(-1)?.[1]).toMatchObject({
     categories: ["FOOD-RENAMED", "COSTUMES"],
     uncategorized: true,
+    warehouses: ["WAREHOUSE-A", "WAREHOUSE-B"],
   });
+  await picker.showDetail("ITEM-A");
+  expect(call).toHaveBeenCalledWith(
+    "catalog.operation_item",
+    { item_code: "ITEM-A", timestamp: "2026-10-21 09:30:00" },
+    expect.any(AbortSignal),
+  );
 });

@@ -10,6 +10,7 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import UiButton from "./UiButton.vue";
 import NativeStatusBadge from "./NativeStatusBadge.vue";
 import DataTable from "./DataTable.vue";
+import ItemImage from "../ItemImage.vue";
 import { useReferenceData } from "../../services/contracts";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 
@@ -57,6 +58,7 @@ const reference = useReferenceData();
 const services = useOptionalInventoryServices();
 const slots = useSlots();
 const hasActions = computed(() => Boolean(slots.actions && props.rows.some(canSettle)));
+const loadingMore = computed(() => props.loading && props.initialized && !props.stale);
 const columns = computed<DataColumn[]>(() => {
 	const result: DataColumn[] = [
 		{ id: "document", label: "记录", required: true, sortable: true, minWidth: "190px" },
@@ -218,14 +220,20 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 			:initialized="initialized"
 			:error="error"
 			:retained="Boolean(rows.length && loading)"
+			:stale="stale"
 			:has-more="next !== null"
 			:loaded-count="rows.length"
 			:total-count="total"
-			:loading-more="busy || loading"
+			:loading-more="loadingMore"
 			:row-class="rowClass"
 			:row-label="rowLabel"
 			:cell-class="
-				(column, row) => (column === 'stock_qty' ? quantityClass(history(row)) : '')
+				(column, row) =>
+					column === 'stock_qty'
+						? quantityClass(history(row))
+						: column === 'item_name'
+							? 'history-item-cell'
+							: ''
 			"
 			:services="services"
 			@load-more="emit('loadMore')"
@@ -252,7 +260,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 					row.doctype === "Stock Entry" ? "库存单" : "库存调节"
 				}}</template>
 				<template v-else-if="column.id === 'kind'">{{
-					movementLabels[String(row.kind || "")] || row.kind
+					movementLabels[String(row.kind || "")] || "其他类型"
 				}}</template>
 				<template v-else-if="column.id === 'borrower'">{{
 					"borrower" in row ? row.borrower : ""
@@ -263,7 +271,18 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'destination_warehouse'">{{
 					endpoint(String(row.destination_warehouse || ""))
 				}}</template>
-				<template v-else-if="column.id === 'item_name'">{{ row.item_name }}</template>
+				<div v-else-if="column.id === 'item_name'" class="history-item-identity">
+					<ItemImage
+						:item="{
+							code: String(row.item_code || ''),
+							name: String(row.item_name || row.item_code || ''),
+							image: String(row.image || ''),
+						}"
+						:thumbnail-size="24"
+						:target-size="24"
+					/>
+					<span>{{ row.item_name || row.item_code }}</span>
+				</div>
 				<UiButton
 					v-else-if="column.id === 'item_code'"
 					variant="ghost"
@@ -310,6 +329,24 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 .movement-history-surface {
 	min-width: 0;
 }
+.history-item-identity {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+	min-width: 0;
+}
+.history-item-identity > span {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.movement-history-surface :deep(td.history-item-cell) {
+	padding-block: var(--p-space-2);
+}
+.history-item-identity :deep(.item-image-button--compact-target) {
+	width: 24px !important;
+	height: 24px !important;
+	min-height: 24px;
+}
 .history-record {
 	display: flex;
 	align-items: center;
@@ -349,6 +386,14 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 	font-weight: 400;
 }
 @media (max-width: 1023px) {
+	.movement-history-surface :deep(td.history-item-cell) {
+		padding-block: 0;
+	}
+	.history-item-identity :deep(.item-image-button--compact-target) {
+		width: 44px !important;
+		height: 44px !important;
+		min-height: 44px;
+	}
 	.history-record :deep(.ui-button),
 	.movement-history-surface :deep(td > .ui-button) {
 		min-height: 44px;

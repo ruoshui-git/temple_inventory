@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
 import Overlay from "../src/components/ui/Overlay.vue";
+import DashboardSection from "../src/components/DashboardSection.vue";
+import DocumentLoadingState from "../src/components/ui/DocumentLoadingState.vue";
 import ImageCrop from "../src/components/ui/ImageCrop.vue";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 import { warehouseLabel } from "../src/lib/warehouseLabel";
@@ -13,6 +15,55 @@ import {
   provideInventoryServices,
 } from "../src/services/contracts";
 const wrappers: VueWrapper[] = [];
+it("renders accessible skeleton cards while an existing native document loads", () => {
+  const wrapper = mount(DocumentLoadingState, {
+    props: { label: "正在读取库存单据…" },
+  });
+  wrappers.push(wrapper);
+  expect(wrapper.get('[role="status"]').attributes("aria-busy")).toBe("true");
+  expect(wrapper.get(".visually-hidden").text()).toBe("正在读取库存单据…");
+  expect(wrapper.findAll(".document-loading-card")).toHaveLength(2);
+  expect(wrapper.findAll(".document-loading-card i").length).toBeGreaterThan(4);
+  const editorSkeleton = mount(DocumentLoadingState, {
+    props: { label: "正在读取库存单据…", announce: false },
+  });
+  wrappers.push(editorSkeleton);
+  expect(editorSkeleton.find('[role="status"]').exists()).toBe(false);
+});
+it("keeps dashboard card structure stable while refreshing retained results", async () => {
+  const wrapper = mount(DashboardSection, {
+    props: {
+      title: "库存分布",
+      snapshot: "snapshot-1",
+      section: { status: "ready", hasResult: true },
+    },
+    slots: {
+      heading: () => h("div", { class: "browse-card-heading" }, "库存分布"),
+      default: () => h("div", { class: "distribution-result" }, "已载入结果"),
+    },
+  });
+  wrappers.push(wrapper);
+  const cardShape = Array.from(wrapper.get("article").element.children).map(
+    (element) => element.tagName,
+  );
+
+  await wrapper.setProps({
+    section: { status: "loading", hasResult: true },
+  });
+
+  expect(
+    Array.from(wrapper.get("article").element.children).map(
+      (element) => element.tagName,
+    ),
+  ).toEqual(cardShape);
+  expect(wrapper.findAll('[role="status"]')).toHaveLength(1);
+  expect(wrapper.get(".dashboard-refresh-status").text()).toBe("更新中…");
+  expect(
+    wrapper.get(".dashboard-refresh-status").attributes("aria-label"),
+  ).toBe("正在更新库存分布…");
+  expect(wrapper.find(".dashboard-stale-label").exists()).toBe(false);
+  expect(wrapper.get(".dashboard-result").classes()).toContain("is-stale");
+});
 it("formats allocation chips with authorized warehouse labels while preserving exact query identities", () => {
   const reference = createReferenceData();
   reference.warehouses = [{ name: "东/库 - O", label: "东/库" }];
@@ -133,6 +184,7 @@ it("distinguishes loading, initial failure, successful empty and retained refres
   await wrapper.setProps({
     table: { ...table, rows: [{ docstatus: 1 }] },
     loading: true,
+    stale: true,
   });
   expect(wrapper.text()).toContain("已提交");
   expect(wrapper.text()).toContain("保留当前结果");

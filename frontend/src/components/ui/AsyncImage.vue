@@ -83,10 +83,27 @@ function handleError() {
 			@load="handleLoad"
 			@error="handleError"
 		/>
-		<span v-if="state === 'empty' || state === 'error'" class="async-image__fallback">
-			<slot name="fallback">{{
-				state === "error" ? "图片加载失败" : placeholderLabel
-			}}</slot>
+		<span
+			v-if="state === 'empty' || state === 'error'"
+			class="async-image__fallback"
+			:title="state === 'error' ? '图片加载失败' : placeholderLabel"
+		>
+			<slot name="fallback">
+				<svg
+					class="async-image__placeholder"
+					viewBox="0 0 32 32"
+					fill="none"
+					aria-hidden="true"
+					focusable="false"
+				>
+					<rect x="4.5" y="5.5" width="23" height="21" rx="3" />
+					<circle cx="12" cy="12" r="2.25" />
+					<path d="m7 23 6-6 4 4 3-3 5 5" />
+				</svg>
+				<span class="async-image__fallback-label sr-only">{{
+					state === "error" ? "图片加载失败" : placeholderLabel
+				}}</span>
+			</slot>
 		</span>
 	</span>
 </template>
@@ -95,6 +112,8 @@ function handleError() {
 .async-image {
 	position: relative;
 	display: inline-grid;
+	container-name: async-image;
+	container-type: inline-size;
 	max-width: 100%;
 	place-items: center;
 	overflow: hidden;
@@ -128,19 +147,38 @@ function handleError() {
 	opacity: 0;
 }
 .async-image__fallback {
-	display: inline-grid;
+	display: grid;
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	min-width: 38px;
-	min-height: 38px;
+	min-width: 0;
+	min-height: 0;
 	place-items: center;
-	padding: 6px;
+	padding: 2px;
 	background: var(--p-canvas);
 	color: var(--p-muted);
-	font-size: var(--p-small);
-	line-height: 1.2;
 	text-align: center;
+}
+.async-image__placeholder {
+	width: min(28px, 70%);
+	height: min(28px, 70%);
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+@container async-image (max-width: 32px) {
+	.async-image__fallback {
+		padding: 0;
+		gap: 0;
+	}
+	.async-image__placeholder {
+		width: 65%;
+		height: 65%;
+	}
+	.async-image__placeholder {
+		grid-area: 1 / 1;
+	}
 }
 @keyframes async-image-shimmer {
 	to {

@@ -8,6 +8,7 @@ import type {
 	ColumnPreferencesController,
 	TableCellValue,
 } from "../../lib/dataTable";
+import { dataColumnAlignment } from "../../lib/dataTable";
 
 const props = withDefaults(
 	defineProps<{
@@ -22,6 +23,7 @@ const props = withDefaults(
 		initialized?: boolean;
 		error?: string;
 		retained?: boolean;
+		stale?: boolean;
 		emptyText?: string;
 		loadingText?: string;
 		selectionEnabled?: boolean;
@@ -67,6 +69,7 @@ const emit = defineEmits<{
 }>();
 
 const preferences = computed(() => props.columnPreferences);
+const stale = computed(() => props.stale ?? props.retained);
 const settingsOpen = ref(false);
 const settingsTrigger = ref<HTMLButtonElement>();
 const settingsPanel = ref<HTMLDivElement>();
@@ -348,13 +351,18 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		<p v-if="error && !rows.length" class="data-table-state error" role="alert">
 			{{ error }} <button type="button" @click="emit('retry')">{{ retryText }}</button>
 		</p>
-		<p v-if="loading && retained" class="data-table-refresh-state" role="status">
+		<span
+			v-if="loading && retained && stale"
+			class="sr-only data-table-refresh-status"
+			role="status"
+		>
 			正在更新，保留当前结果…
-		</p>
+		</span>
 		<div
 			class="data-table-scroll"
 			role="region"
 			:aria-label="`可横向滚动：${ariaLabel}`"
+			:aria-busy="loading && retained && stale ? 'true' : undefined"
 			tabindex="0"
 		>
 			<table
@@ -394,22 +402,43 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									: undefined
 							"
 							:style="{ minWidth: column.minWidth }"
-							:class="[`align-${column.align || 'start'}`, column.className]"
+							:class="[`align-${dataColumnAlignment(column)}`, column.className]"
 						>
 							<button
 								v-if="column.sortable"
 								type="button"
-								class="data-table-sort"
+								:class="[
+									'data-table-sort',
+									`align-${dataColumnAlignment(column)}`,
+								]"
+								:aria-label="`${column.label}排序${sortBy === String(column.sortField || column.id) ? (sortDirection === 'asc' ? '：升序' : '：降序') : '：未排序'}`"
 								@click="emit('sort', String(column.sortField || column.id))"
 							>
-								{{ column.label
-								}}<span aria-hidden="true">{{
-									sortBy === String(column.sortField || column.id)
-										? sortDirection === "asc"
-											? " ↑"
-											: " ↓"
-										: ""
-								}}</span>
+								<span
+									v-if="dataColumnAlignment(column) === 'end'"
+									class="data-table-sort-indicator"
+									aria-hidden="true"
+									>{{
+										sortBy === String(column.sortField || column.id)
+											? sortDirection === "asc"
+												? "↑"
+												: "↓"
+											: "↕"
+									}}</span
+								>
+								<span class="data-table-sort-label">{{ column.label }}</span>
+								<span
+									v-if="dataColumnAlignment(column) !== 'end'"
+									class="data-table-sort-indicator"
+									aria-hidden="true"
+									>{{
+										sortBy === String(column.sortField || column.id)
+											? sortDirection === "asc"
+												? "↑"
+												: "↓"
+											: "↕"
+									}}</span
+								>
 							</button>
 							<template v-else>{{ column.label }}</template>
 						</th>
@@ -427,8 +456,33 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 						</th>
 					</tr>
 				</thead>
-				<tbody>
-					<template v-for="(entry, index) in rows" :key="entry.id">
+				<tbody :inert="stale || undefined">
+					<template v-if="loading && !initialized">
+						<tr
+							v-for="row in 5"
+							:key="`loading-${row}`"
+							class="data-table-skeleton-row"
+							aria-hidden="true"
+						>
+							<td v-if="selectionEnabled" class="data-table-selection-column">
+								<span class="data-table-skeleton-control"></span>
+							</td>
+							<td
+								v-for="(column, index) in orderedColumns"
+								:key="String(column.id)"
+								:class="`align-${dataColumnAlignment(column)}`"
+							>
+								<span
+									class="data-table-skeleton-line"
+									:style="{
+										'--skeleton-width': `${38 + ((row + index) % 4) * 13}%`,
+									}"
+								></span>
+							</td>
+							<td v-if="preferences" class="data-table-settings-cell"></td>
+						</tr>
+					</template>
+					<template v-else v-for="(entry, index) in rows" :key="entry.id">
 						<tr
 							:class="[
 								group(entry) ? 'data-table-group-row' : undefined,
@@ -503,7 +557,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									v-for="(column, groupColumnIndex) in orderedColumns"
 									:key="String(column.id)"
 									:class="[
-										`align-${column.align || 'start'}`,
+										`align-${dataColumnAlignment(column)}`,
 										column.className,
 										'data-table-group-cell',
 									]"
@@ -582,7 +636,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									v-for="column in orderedColumns"
 									:key="String(column.id)"
 									:class="[
-										`align-${column.align || 'start'}`,
+										`align-${dataColumnAlignment(column)}`,
 										column.className,
 										cellClass?.(String(column.id), recordValue(entry)),
 									]"

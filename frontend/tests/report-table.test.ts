@@ -16,6 +16,78 @@ const table = (length = 65) => ({
   })),
 });
 describe("shared native report table", () => {
+  it("keeps preview title, status and date columns readable inside the table scroller", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "activity-metadata",
+          label: "活动资料",
+          columns: ["title", "status", "start_date", "end_date"],
+          rows: [
+            {
+              id: "ACT-1",
+              title: "春季法会物资筹备",
+              status: "Active",
+              start_date: "2026-10-21",
+              end_date: "2026-10-22",
+            },
+          ],
+        },
+      },
+    });
+    const headers = wrapper.findAll("thead th");
+    expect(headers.map((header) => header.element.style.minWidth)).toEqual([
+      "12em",
+      "7em",
+      "10em",
+      "10em",
+    ]);
+    expect(wrapper.get(".data-table-scroll").element).toBeTruthy();
+    wrapper.unmount();
+  });
+
+  it("shows a quantity unit only while its matching unit column is hidden", () => {
+    const row = {
+      id: "UNIT-ROW",
+      entered_qty: 2,
+      entered_uom: "Box",
+      stock_qty: 4,
+      stock_uom: "Nos",
+    };
+    const hiddenUnits = mount(ReportTable, {
+      props: {
+        table: {
+          id: "hidden-units",
+          label: "单位列隐藏",
+          columns: ["entered_qty", "stock_qty"],
+          rows: [row],
+        },
+      },
+    });
+    expect(hiddenUnits.get("tbody").text()).toContain("2 Box");
+    expect(hiddenUnits.get("tbody").text()).toContain("4 Nos");
+    hiddenUnits.unmount();
+
+    const visibleUnits = mount(ReportTable, {
+      props: {
+        table: {
+          id: "visible-units",
+          label: "单位列可见",
+          columns: ["entered_qty", "entered_uom", "stock_qty", "stock_uom"],
+          rows: [row],
+        },
+      },
+    });
+    const cells = visibleUnits.get("tbody").findAll("td");
+    expect(cells.map((cell) => cell.text())).toEqual(["2", "Box", "4", "Nos"]);
+    expect(
+      visibleUnits
+        .findAll("thead th")
+        .map((header) => header.element.style.minWidth),
+    ).toEqual(["", "8em", "135px", "8em"]);
+    visibleUnits.unmount();
+  });
+
   it("uses presentation labels and excludes raw image metadata from grouped leaf headers", () => {
     const wrapper = mount(ReportTable, {
       props: {
@@ -150,7 +222,7 @@ describe("shared native report table", () => {
   });
   it("requests server pagination and retry while retaining already loaded native rows", async () => {
     const wrapper = mount(ReportTable, {
-      props: { table: table(30), total: 500, error: "网络中断" },
+      props: { table: table(30), total: 500, error: "网络中断", stale: true },
     });
     expect(wrapper.get("caption").text()).toContain("500 行完整结果");
     await wrapper
@@ -163,8 +235,9 @@ describe("shared native report table", () => {
       .find((button) => button.text() === "重试加载")!
       .trigger("click");
     expect(wrapper.emitted("retry")).toHaveLength(1);
-    await wrapper.setProps({ loading: true });
+    await wrapper.setProps({ loading: true, initialized: true });
     expect(wrapper.findAll("tbody tr")).toHaveLength(30);
+    expect(wrapper.find('[role="status"]').text()).toContain("保留当前结果");
     wrapper.unmount();
   });
   it("renders selectable safe text, explicit booleans and native document drill-through", async () => {
@@ -214,7 +287,7 @@ describe("shared native report table", () => {
             count_label: "原生单据",
             quantity_breakdown: [
               { kind: "Receive", docstatus: 1, stock_qty: 5 },
-              { kind: "Issue", docstatus: 1, stock_qty: 3 },
+              { kind: "Issue", docstatus: 1, stock_qty: 3, stock_uom: "kg" },
             ],
           },
         },
@@ -252,7 +325,7 @@ describe("shared native report table", () => {
     });
     const text = wrapper.text();
     expect(text).toContain("入库（已提交） 5 Nos");
-    expect(text).toContain("出库（已提交） 3 Nos");
+    expect(text).toContain("出库（已提交） 3 kg");
     expect(text).toContain("借出量 8 kg");
     expect(text).toContain("正常归还量 3 kg");
     expect(text).toContain("未归还量 5 kg");

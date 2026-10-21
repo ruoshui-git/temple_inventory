@@ -310,6 +310,13 @@ export function useItemEditor(
     initialized.value = false;
     await load();
   }
+  function setBarcode(value: string) {
+    if (existing.value || busy.value) return;
+    ready = false;
+    model.barcode = value.trim();
+    baseline.value = JSON.stringify(model);
+    ready = true;
+  }
   async function save() {
     if (
       !active() ||
@@ -434,6 +441,7 @@ export function useItemEditor(
     reference,
     baseline,
     reset,
+    setBarcode,
     stockItem: computed(() =>
       existing.value ? presentCatalogItem(existing.value) : undefined,
     ),

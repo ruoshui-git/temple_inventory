@@ -1,4 +1,5 @@
 import { postingTime } from "../../lib/nativeTime";
+import { movementLabels } from "../../lib/filterPresentation";
 import { allocationDestination } from "./operationModel";
 import type { NativeDocument } from "./nativeEditor";
 import type {
@@ -7,17 +8,24 @@ import type {
   OperationKind,
 } from "./operationModel";
 import type { ReferenceData } from "../../services/contracts";
-export const operationLabels: Record<OperationKind, string> = {
-  Receive: "入库",
-  Issue: "出库",
-  Transfer: "调拨",
-  Loan: "借出",
-  Return: "归还",
-  Damage: "损坏",
-  Loss: "遗失",
-  Repair: "修复",
-  Disposal: "报废",
-};
+const operationKinds: OperationKind[] = [
+  "Receive",
+  "Issue",
+  "Transfer",
+  "Loan",
+  "Return",
+  "Damage",
+  "Loss",
+  "Repair",
+  "Disposal",
+];
+export const operationLabels: Record<OperationKind, string> =
+  Object.fromEntries(
+    operationKinds.map((kind) => [
+      kind,
+      kind === "Repair" ? "修复" : movementLabels[kind],
+    ]),
+  ) as Record<OperationKind, string>;
 export function newOperation(
   kind: OperationKind,
   reference: ReferenceData,
@@ -56,6 +64,10 @@ export function decodeOperation(doc: NativeDocument): NativeOperationDocument {
       localId: id,
       name: row.name ? String(row.name) : undefined,
       code: String(row.item_code),
+      displayName: String(row.ti_display_item_name || row.item_name || ""),
+      displayImage: String(row.ti_display_image || ""),
+      displayTracksBatch: Boolean(row.ti_display_tracks_batch),
+      displayTracksExpiry: Boolean(row.ti_display_tracks_expiry),
       qty: Number(
         row.transfer_qty ?? Number(row.qty) * Number(row.conversion_factor),
       ),

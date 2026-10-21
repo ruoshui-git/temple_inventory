@@ -13,5 +13,6 @@ const router = useRouter();
 		@browse="router.push(browseDestination($event))"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
 		@open-export="router.push(exportDestination($event))"
+		@navigate="router.push($event)"
 	/>
 </template>

@@ -444,7 +444,14 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					"
 					:initialized="Boolean(result.initialized || groupRoot?.initialized)"
 					:error="query.groupBy.length ? groupRoot?.error || result.error : result.error"
-					:retained="Boolean(result.rows.length && result.loading)"
+					:stale="query.groupBy.length ? Boolean(groupRoot?.stale) : result.stale"
+					:retained="
+						Boolean(
+							query.groupBy.length
+								? groupRoot?.rows.length && groupRoot.loading && groupRoot.stale
+								: result.rows.length && result.loading && result.stale,
+						)
+					"
 					:has-more="query.groupBy.length ? c.groups.hasMore() : result.next !== null"
 					:loaded-count="
 						query.groupBy.length ? c.groups.progress().loaded : result.rows.length

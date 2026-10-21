@@ -4,6 +4,8 @@ export interface CountRow {
   item_code: string;
   item_name?: string;
   image?: string;
+  ti_display_item_name?: string;
+  ti_display_image?: string;
   warehouse: string;
   batch_no: string | null;
   stock_uom: string;

@@ -134,7 +134,7 @@ describe("migration review saved details", () => {
         expect(dialog.querySelector("tbody")?.textContent).toContain(doc.name);
         (
           Array.from(dialog.querySelectorAll("button")).find(
-            (button) => button.textContent === "打开导出页面",
+            (button) => button.textContent === "打开报表",
           ) as HTMLButtonElement
         ).click();
         await flushPromises();
@@ -297,7 +297,7 @@ describe("migration follow-up", () => {
     await flushPromises();
     expect(report.mock.calls[0]?.[0]).toEqual(quick.props("query"));
     Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent === "打开导出页面")!
+      .find((button) => button.textContent === "打开报表")!
       .click();
     await flushPromises();
     expect(quick.emitted("openFull")?.[0]?.[0]).toEqual(quick.props("query"));

@@ -250,7 +250,15 @@ export function useOperationEditor(props: {
     return JSON.stringify({
       ...encodeOperation(value, reference),
       items: value.items.map(
-        ({ name: _name, outstanding: _outstanding, ...line }) => line,
+        ({
+          name: _name,
+          outstanding: _outstanding,
+          displayName: _displayName,
+          displayImage: _displayImage,
+          displayTracksBatch: _displayTracksBatch,
+          displayTracksExpiry: _displayTracksExpiry,
+          ...line
+        }) => line,
       ),
     });
   }
@@ -265,9 +273,11 @@ export function useOperationEditor(props: {
     { flush: "sync" },
   );
   async function hydrate() {
-    for (const code of new Set(draft.value.items.map((line) => line.code))) {
-      await ensure(code);
-      if (!active()) return;
+    if (!state.identity || state.server?.editable === true) {
+      for (const code of new Set(draft.value.items.map((line) => line.code))) {
+        await ensure(code);
+        if (!active()) return;
+      }
     }
     for (const line of draft.value.items) {
       const item = stock.find((row) => row.code === line.code),
@@ -278,7 +288,15 @@ export function useOperationEditor(props: {
       if (batch) {
         line.expiry = batch.expiry || "";
         line.manufacturingDate = batch.manufacturingDate || "";
-      } else if (line.batch) {
+      } else if (line.batchAllocations?.length) {
+        const recorded = line.batchAllocations.find(
+          (allocation) => allocation.batch === line.batch,
+        );
+        if (recorded) {
+          line.expiry = recorded.expiry || "";
+          line.manufacturingDate = recorded.manufacturingDate || "";
+        }
+      } else if (line.batch && !line.batchAllocations?.length) {
         const metadata = await services.call<{
           item_code: string;
           expiry_date: string;
@@ -714,6 +732,7 @@ export function useOperationEditor(props: {
   );
 
   return {
+    existingDocument: computed(() => Boolean(props.identity)),
     activityLabel,
     savedExportQuery: computed(() =>
       savedDocumentExport(state.server, state.status),

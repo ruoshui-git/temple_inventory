@@ -1152,16 +1152,12 @@ def operation_contributions(
 								),
 								"item_code": key[8],
 								"item_name": values.get("item_name") or key[8],
-								"date_time": " ".join(
-									str(value or "") for value in key[2:4]
-								).strip(),
+								"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
 								"kind": key[4],
 								"source_warehouse": key[5],
 								"destination_warehouse": key[6],
 								"quantity": values["quantity"],
-								"outstanding": (
-									values["outstanding"] if key[4] == "Loan" else None
-								),
+								"outstanding": (values["outstanding"] if key[4] == "Loan" else None),
 								"loan_status": (
 									("Open" if values["outstanding"] > 0 else "Settled")
 									if key[4] == "Loan"
@@ -1320,6 +1316,7 @@ def movement_history(
 			)
 			group["borrower"] = row.get("borrower") or ""
 			group["item_name"] = row.get("item_name") or row["item_code"]
+			group["image"] = row.get("image") or ""
 			quantity = float(row.get("stock_qty") or 0)
 			group["quantity"] += quantity
 			group["available_effect"] += float(row.get("available_effect") or 0)
@@ -1433,6 +1430,7 @@ def movement_history(
 					"loan_balance_effect": values["loan_balance_effect"],
 					"borrower": values.get("borrower", ""),
 					"item_name": values.get("item_name", ""),
+					"image": values.get("image", ""),
 				}
 			)
 		return {
@@ -1486,6 +1484,7 @@ def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, s
 			group["outstanding"] += float(row["outstanding"])
 			group["item_code"] = row["item_code"]
 			group["item_name"] = row["item_name"]
+			group["image"] = row.get("image") or ""
 		field = query["sortBy"]
 		allowed = {
 			"identity",
@@ -1537,6 +1536,7 @@ def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, s
 				"document": key[1],
 				"item_code": values["item_code"],
 				"item_name": values["item_name"],
+				"image": values.get("image", ""),
 				"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
 				"kind": "Loan",
 				"borrower": key[4],

@@ -94,14 +94,12 @@ for (const width of [375, 1440]) {
     title = "重新命名的活动";
     await page.reload();
     await expect(page.locator(".preview-form-page")).toContainText(title);
-    await page.getByRole("button", { name: "快速导出", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "快速导出", exact: true });
+    await page.getByRole("button", { name: "导出", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "导出", exact: true });
     await expect(dialog.locator("tbody")).toContainText("OPENING-1");
     await expect(dialog.locator("tbody")).toContainText("7");
     await expect(dialog.locator("tbody button")).toHaveCount(0);
-    await dialog
-      .getByRole("button", { name: "打开导出页面", exact: true })
-      .focus();
+    await dialog.getByRole("button", { name: "打开报表", exact: true }).focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/inventory\/reports/);
     await expect(page.locator("tbody").first()).toContainText("OPENING-1");

@@ -38,6 +38,10 @@ describe("AsyncImage", () => {
     expect(wrapper.classes()).toContain("async-image--empty");
     expect(wrapper.find("img").exists()).toBe(false);
     expect(wrapper.get(".async-image__fallback").text()).toContain("暂无图片");
+    expect(wrapper.get(".async-image__placeholder").attributes("viewBox")).toBe(
+      "0 0 32 32",
+    );
+    expect(wrapper.get('[role="img"]').attributes("aria-label")).toBe("物品");
   });
 
   it("normalizes numeric string dimensions for correctly sized skeletons", () => {

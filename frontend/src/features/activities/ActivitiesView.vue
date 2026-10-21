@@ -12,6 +12,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { movementLabels } from "../../lib/filterPresentation";
+import { enumPresentationLabel } from "../../lib/presentationLabels";
 import { periodLabels } from "../../lib/sitePeriod";
 import { quantityText } from "../dashboard/useDashboardController";
 import { formatQuantity } from "../../lib/formatQuantity";
@@ -506,7 +507,7 @@ function tabKey(event: KeyboardEvent) {
 				<h3>直接关联 · 终身已提交流动</h3>
 				<div class="activity-movement-totals">
 					<p v-for="count in activityMovementCounts(current.id)" :key="count.kind">
-						{{ movementLabels[count.kind] }} {{ count.count }} 份 ·
+						{{ movementLabels[count.kind] || "其他类型" }} {{ count.count }} 份 ·
 						{{
 							quantityText(
 								(detail?.movement_totals || [])
@@ -607,8 +608,9 @@ function tabKey(event: KeyboardEvent) {
 					>
 					<p>
 						{{ siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间" }}
-						· {{ movementLabels[row.kind] }} ·
-						<NativeStatusBadge :status="row.docstatus" /> · {{ row.relationship }}
+						· {{ movementLabels[row.kind] || "其他类型" }} ·
+						<NativeStatusBadge :status="row.docstatus" /> ·
+						{{ enumPresentationLabel("relationship", row.relationship) }}
 					</p>
 					<p>
 						{{ row.itemName }} · {{ formatQuantity(Number(row.qty || 0)) }}

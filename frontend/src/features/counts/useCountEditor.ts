@@ -318,8 +318,20 @@ export function useCountEditor(props: {
         values.value.ti_count_warehouses,
         values.value.ti_count_scope,
         values.value.ti_count_items,
-        values.value.ti_count_review,
-        values.value.items,
+        values.value.ti_count_review.map(
+          ({
+            ti_display_item_name: _displayName,
+            ti_display_image: _displayImage,
+            ...row
+          }) => row,
+        ),
+        values.value.items.map(
+          ({
+            ti_display_item_name: _displayName,
+            ti_display_image: _displayImage,
+            ...row
+          }) => row,
+        ),
         values.value.ti_activity,
         values.value.ti_recorder_name,
         values.value.ti_handler_name,
@@ -337,9 +349,40 @@ export function useCountEditor(props: {
       ]),
     ];
     if (!codes.length) return;
+    const displayRows = [
+      ...values.value.items,
+      ...values.value.ti_count_review,
+    ];
+    for (const row of displayRows) {
+      const code = String(row.item_code || "");
+      if (row.ti_display_item_name)
+        names[code] = String(row.ti_display_item_name);
+      else if (row.item_name) names[code] = String(row.item_name);
+      if (row.ti_display_image !== undefined)
+        images[code] = String(row.ti_display_image || "");
+      else if (row.image !== undefined) images[code] = String(row.image || "");
+    }
+    const complete = codes.every((code) =>
+      displayRows.some(
+        (row) =>
+          String(row.item_code || "") === code &&
+          row.ti_display_item_name !== undefined &&
+          row.ti_display_image !== undefined,
+      ),
+    );
+    if (complete) return;
+    const missing = codes.filter(
+      (code) =>
+        !displayRows.some(
+          (row) =>
+            String(row.item_code || "") === code &&
+            row.ti_display_item_name !== undefined &&
+            row.ti_display_image !== undefined,
+        ),
+    );
     const result = await services.call<
       { name: string; item_name: string; image: string }[]
-    >("catalog.item_summaries", { item_codes: codes });
+    >("catalog.item_summaries", { item_codes: missing });
     if (!active()) return;
     for (const item of result) {
       names[item.name] = item.item_name;
@@ -654,7 +697,7 @@ export function useCountEditor(props: {
         state.identity = { doctype: response.doctype, name: response.name };
         state.server = decodeCount(response);
         state.version = response.version;
-        state.values = structuredClone(recoveryValues(decodeCount(response)));
+        state.values = JSON.parse(JSON.stringify(decodeCount(response)));
         state.status = response.docstatus === 0 ? "saved" : "cancelled";
         if (selected === "amend") {
           finished.value = false;
@@ -727,6 +770,7 @@ export function useCountEditor(props: {
   );
 
   return {
+    existingDocument: computed(() => Boolean(props.name)),
     activityLabel,
     savedExportQuery: computed(() =>
       savedDocumentExport(state.server, state.status),

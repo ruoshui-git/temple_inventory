@@ -6,6 +6,7 @@ The caller owns commit/rollback. Ordinary hooks and permissions remain enabled.
 
 # ruff: noqa: RUF001 — Chinese sample descriptions are intentional.
 
+from contextvars import ContextVar
 from datetime import timedelta
 from decimal import Decimal
 
@@ -14,13 +15,38 @@ from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
 
 from temple_inventory import activities, catalog, configuration, conversions, counts, native_api
+from temple_inventory.item_code import allocate_item_code
 from temple_inventory.native_stock import loan_balances
-from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT
+from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT, costume_catalog
 from temple_inventory.sample_media import catalog as sample_catalog
 
 REQUEST_PREFIX = "temple-native-samples:v1:"
 ITEM_PREFIX = "TI-SAMPLE-"
 SAMPLE_ACTIVITY_TITLE = "样例：秋季演出与物资周转"
+SAMPLE_MEAL_ACTIVITY_TITLE = "样例：社区共餐物资配送"
+SAMPLE_HISTORY_ACTIVITY_TITLE = "样例：库位物资周转"
+_SITE_DATE = ContextVar("temple_inventory_sample_site_date", default=None)
+EXPIRY_OFFSETS = (-1, -30, -31, -60, -90, -91, 0, 30, 31, 60, 90, 91, 120, 180, -120, -365, 45, 1)
+MANUFACTURING_OFFSETS = (
+	-500,
+	-600,
+	-730,
+	-700,
+	-650,
+	-730,
+	-430,
+	-540,
+	-420,
+	-600,
+	-540,
+	-650,
+	-730,
+	-700,
+	-600,
+	-730,
+	-650,
+	-500,
+)
 EXTRA_ITEMS = (
 	("N-WORKFLOW", "活动周转箱", "Nos", False, False),
 	("N-ZERO", "备用展示支架（暂无库存）", "Nos", False, False),
@@ -29,8 +55,8 @@ EXTRA_ITEMS = (
 )
 
 
-def _date(days):
-	return str(getdate(nowdate()) + timedelta(days=days))
+def _date(days, origin=None):
+	return str(getdate(origin or _SITE_DATE.get() or nowdate()) + timedelta(days=days))
 
 
 def _warehouse(company, label, parent, *, group=False, kind="Location", room_default=False):
@@ -80,7 +106,7 @@ def _hierarchy(company, data):
 	return rooms
 
 
-def _references(data):
+def _references(data, costumes):
 	for row in data["categories"]:
 		if not frappe.db.exists("Item Group", row["label"]):
 			catalog.create_category(row["label"])
@@ -89,7 +115,9 @@ def _references(data):
 	for label in ("演出服装", "演出鞋袜", "演出头饰", "演出道具"):
 		if not frappe.db.exists("Item Group", label):
 			catalog.create_category(label, "演出用品")
-	units = {row["stock_uom"] for row in data["items"]} | {"Kg", "Box"}
+	units = {row["stock_uom"] for row in data["items"]}
+	units.update(row["stock_uom"] for row in costumes)
+	units.update({"Kg", "Box"})
 	for unit in sorted(units):
 		if not frappe.db.exists("UOM", unit):
 			catalog.create_uom(unit, must_be_whole_number=unit != "Kg")
@@ -112,9 +140,9 @@ def _attach_file(filename, content, doctype, name, field=None):
 	).insert()
 
 
-def _items(data, *, attach_images):
-
+def _items(data, costumes, *, attach_images):
 	result = {}
+	costume_item_codes = {}
 	for row in data["items"]:
 		code = ITEM_PREFIX + row["key"]
 		result[row["key"]] = catalog.save_item(
@@ -144,6 +172,37 @@ def _items(data, *, attach_images):
 				item = frappe.get_doc("Item", code)
 				item.image = file.file_url
 				item.save()
+	for row in costumes:
+		code = allocate_item_code()
+		item = catalog.save_item(
+			{
+				"item_code": code,
+				"item_name": row["item_name"],
+				"item_group": row["item_group"],
+				"description": row["description"],
+				"stock_uom": row["stock_uom"],
+				"has_batch_no": row["has_batch_no"],
+				"has_expiry_date": row["has_expiry_date"],
+				"barcodes": [code, row["source_code"]],
+			}
+		)
+		result[row["key"]] = item
+		costume_item_codes[row["source_code"]] = item["item_code"]
+		if not attach_images:
+			continue
+		for image in row["images"]:
+			path = ASSETS / image["output"]
+			file = _attach_file(
+				path.name,
+				path.read_bytes(),
+				"Item",
+				code,
+				field="image" if image["primary"] else None,
+			)
+			if image["primary"]:
+				item = frappe.get_doc("Item", code)
+				item.image = file.file_url
+				item.save()
 	for key, label, unit, batch, expiry in EXTRA_ITEMS:
 		code = ITEM_PREFIX + key
 		result[key] = catalog.save_item(
@@ -157,11 +216,11 @@ def _items(data, *, attach_images):
 				"barcodes": [code],
 			}
 		)
-	return result
+	return result, costume_item_codes
 
 
 def _fiscal_years(company):
-	for year in sorted({getdate(_date(-400)).year, getdate(_date(-60)).year, getdate(nowdate()).year}):
+	for year in sorted({getdate(_date(-400)).year, getdate(_date(-60)).year, getdate(_date(0)).year}):
 		if not frappe.db.exists("Fiscal Year", str(year)):
 			frappe.get_doc(
 				{
@@ -192,6 +251,27 @@ def _line(item, quantity, *, source=None, target=None, **values):
 	}
 
 
+def _batch_bundle(company, item, warehouse, day, transaction, allocations):
+	return frappe.get_doc(
+		{
+			"doctype": "Serial and Batch Bundle",
+			"voucher_type": "Stock Entry",
+			"company": company,
+			"item_code": item["item_code"],
+			"warehouse": warehouse,
+			"type_of_transaction": transaction,
+			"posting_datetime": _date(day) + " 12:00:00",
+			"entries": [
+				{
+					"batch_no": batch,
+					"qty": quantity if transaction == "Inward" else -quantity,
+				}
+				for batch, quantity in allocations
+			],
+		}
+	).insert()
+
+
 def _entry(company, key, kind, lines, days, *, submit=True, attach_file=False, **context):
 	draft = native_api.create_document(
 		"Stock Entry",
@@ -214,8 +294,9 @@ def _entry(company, key, kind, lines, days, *, submit=True, attach_file=False, *
 	return native_api.submit_document("Stock Entry", draft.name, draft.version) if submit else draft
 
 
-def _opening(company, data, items, rooms):
+def _opening(company, data, costumes, items, rooms):
 	lines = []
+	expiry_index = 0
 	for row in data["opening"]:
 		if row["key"] in data["batches"]:
 			continue
@@ -225,9 +306,15 @@ def _opening(company, data, items, rooms):
 	by_key = {row["key"]: row for row in data["items"]}
 	for key, batches in data["batches"].items():
 		item = items[key]
-		for index, batch in enumerate(batches):
+		for batch in batches:
 			batch_id = ITEM_PREFIX + batch["key"]
-			catalog.create_batch(item["item_code"], batch_id, _date(-600), _date((-45, 14, 180)[index]))
+			catalog.create_batch(
+				item["item_code"],
+				batch_id,
+				_date(MANUFACTURING_OFFSETS[expiry_index % len(MANUFACTURING_OFFSETS)]),
+				_date(EXPIRY_OFFSETS[expiry_index % len(EXPIRY_OFFSETS)]),
+			)
+			expiry_index += 1
 			lines.append(
 				_line(
 					item,
@@ -241,6 +328,15 @@ def _opening(company, data, items, rooms):
 	for row in data["items"]:
 		if row.get("opening_qty"):
 			lines.append(_line(items[row["key"]], row["opening_qty"], target=rooms["A04"]))
+	for row in costumes:
+		lines.append(
+			_line(
+				items[row["key"]],
+				row["quantity"],
+				target=rooms[row["room"]],
+				basic_rate=row["rate"],
+			)
+		)
 	lines.append(_line(items["N-WEIGHT"], 12.5, target=rooms["C03"], basic_rate=2))
 	catalog.create_batch(items["N-UNDATED"]["item_code"], ITEM_PREFIX + "UNDATED", _date(-600))
 	lines.append(
@@ -296,12 +392,27 @@ def _workflow(company, items, rooms, *, attach_files):
 			ti_activity=activity["name"],
 		),
 		_entry(company, "issue", "Issue", [_line(item, 3, source=a)], -40, **context),
-		_entry(company, "transfer", "Transfer", [_line(item, 10, source=a, target=b)], -30, **context),
+		_entry(company, "transfer", "Transfer", [_line(item, 15, source=a, target=b)], -30, **context),
 	]
 	loans = [
 		_entry(company, "loan-first", "Loan", [_line(item, 20, source=a, target=leased)], -20, **context),
 		_entry(company, "loan-second", "Loan", [_line(item, 10, source=b, target=leased)], -19, **context),
 	]
+	loans.extend(
+		[
+			_entry(
+				company, "loan-untouched", "Loan", [_line(item, 2, source=a, target=leased)], -18, **context
+			),
+			_entry(
+				company,
+				"loan-fully-settled",
+				"Loan",
+				[_line(item, 5, source=b, target=leased)],
+				-17,
+				**context,
+			),
+		]
+	)
 	documents.extend(loans)
 
 	def settle(loan, quantity, outcome, target):
@@ -319,6 +430,14 @@ def _workflow(company, items, rooms, *, attach_files):
 		[
 			_entry(
 				company,
+				"return-full",
+				"Return",
+				[settle(loans[3], 5, "Returned", a)],
+				-16,
+				**context,
+			),
+			_entry(
+				company,
 				"return-multiple",
 				"Return",
 				[settle(loans[0], 4, "Returned", b), settle(loans[1], 2, "Returned", b)],
@@ -333,6 +452,113 @@ def _workflow(company, items, rooms, *, attach_files):
 			_entry(company, "repair", "Repair", [_line(item, 1, source=damaged, target=a)], -11, **context),
 			_entry(company, "disposal", "Disposal", [_line(item, 1, source=damaged)], -10, **context),
 		]
+	)
+	meal_activity = activities.save_activity(
+		{
+			"title": SAMPLE_MEAL_ACTIVITY_TITLE,
+			"activity_type": "TI-TYPE-DISTRIBUTION",
+			"status": "Active",
+			"start_date": _date(-8),
+			"end_date": _date(4),
+			"description": "跨库位准备共餐物资并记录部分领用。",
+		}
+	)
+	meal_item = items["G-000006"]
+	documents.extend(
+		[
+			_entry(
+				company,
+				"meal-receipt",
+				"Receive",
+				[_line(meal_item, 4, target=rooms["C03"])],
+				-7,
+				ti_activity=meal_activity["name"],
+			),
+			_entry(
+				company,
+				"meal-issue",
+				"Issue",
+				[_line(meal_item, 1, source=rooms["C03"])],
+				-5,
+				ti_activity=meal_activity["name"],
+			),
+		]
+	)
+	history_activity = activities.save_activity(
+		{
+			"title": SAMPLE_HISTORY_ACTIVITY_TITLE,
+			"activity_type": "TI-TYPE-DISTRIBUTION",
+			"status": "Active",
+			"start_date": _date(-56),
+			"end_date": _date(-20),
+			"description": "多次记录库位间的物资准备与发放。",
+		}
+	)
+	for index in range(16):
+		receipt_day = -56 + index * 2
+		issue_day = receipt_day + 1
+		documents.extend(
+			[
+				_entry(
+					company,
+					f"history-receive-{index + 1:02}",
+					"Receive",
+					[_line(item, 1, target=rooms["A04"])],
+					receipt_day,
+					ti_activity=history_activity["name"],
+				),
+				_entry(
+					company,
+					f"history-issue-{index + 1:02}",
+					"Issue",
+					[_line(item, 1, source=rooms["A04"])],
+					issue_day,
+					ti_activity=history_activity["name"],
+				),
+			]
+		)
+	batch_item = items["G-000001"]
+	batches = [ITEM_PREFIX + "BUNDLE-A", ITEM_PREFIX + "BUNDLE-B"]
+	for batch in batches:
+		catalog.create_batch(batch_item["item_code"], batch, _date(-500), _date(45))
+	allocations = [(batches[0], 2), (batches[1], 3)]
+	inbound_bundle = _batch_bundle(company, batch_item, rooms["C03"], -23, "Inward", allocations)
+	documents.append(
+		_entry(
+			company,
+			"bundle-receipt",
+			"Receive",
+			[
+				_line(
+					batch_item,
+					5,
+					target=rooms["C03"],
+					serial_and_batch_bundle=inbound_bundle.name,
+					use_serial_batch_fields=0,
+				)
+			],
+			-23,
+			ti_activity=history_activity["name"],
+		)
+	)
+	outbound_bundle = _batch_bundle(company, batch_item, rooms["C03"], -22, "Outward", allocations)
+	documents.append(
+		_entry(
+			company,
+			"bundle-issue",
+			"Issue",
+			[
+				_line(
+					batch_item,
+					5,
+					source=rooms["C03"],
+					serial_and_batch_bundle=outbound_bundle.name,
+					use_serial_batch_fields=0,
+				)
+			],
+			-22,
+			ti_activity=history_activity["name"],
+		)
 	)
 	# Keep a historical recorded factor distinct from the current reusable factor.
 	current = frappe.get_doc("Item", item["item_code"])
@@ -365,26 +591,40 @@ def _workflow(company, items, rooms, *, attach_files):
 	).insert()
 	desk.submit()
 	desk.cancel()
-	documents.append(native_api.load_document("Stock Entry", desk.name))
+	cancelled = native_api.load_document("Stock Entry", desk.name)
+	documents.append(cancelled)
+	# Amend the cancelled Desk document to leave a native draft with amendment lineage.
+	amended = native_api.amend_document(
+		"Stock Entry", desk.name, cancelled.version, REQUEST_PREFIX + "desk-amended"
+	)
+	documents.append(amended)
 	documents.append(
 		_entry(company, "valid-draft", "Transfer", [_line(item, 1, source=a, target=b)], 0, submit=False)
 	)
-	return documents, loans, activity["name"]
+	return documents, loans, [activity["name"], meal_activity["name"], history_activity["name"]]
 
 
 def _count(company, rooms):
 	stamp = _date(-1) + " 12:00:00"
 	warehouses = [rooms["A02"], rooms["A02-RACK"]]
-	baseline = counts.count_baseline(warehouses, stamp, "Selected", [(ITEM_PREFIX + "N-WORKFLOW")])
-	rows = [
-		dict(
-			row,
-			actual_qty=float(row["baseline_qty"]) - 1,
-			review_state="Reviewed",
-			reason="活动清点差异：少一件",
-		)
-		for row in baseline["rows"]
-	]
+	selected_items = [ITEM_PREFIX + "N-WORKFLOW", ITEM_PREFIX + "N-ZERO"]
+	baseline = counts.count_baseline(warehouses, stamp, "Selected", selected_items)
+	rows = []
+	for row in baseline["rows"]:
+		copy = dict(row)
+		if row["item_code"] == ITEM_PREFIX + "N-WORKFLOW":
+			copy.update(
+				actual_qty=float(row["baseline_qty"]) + (-1 if row["warehouse"] == rooms["A02"] else 1),
+				review_state="Reviewed",
+				reason="活动清点差异",
+			)
+		elif row["warehouse"] == rooms["A02"]:
+			copy.update(actual_qty=float(row["baseline_qty"]), review_state="Reviewed", reason="核对无差异")
+		else:
+			copy.update(
+				actual_qty=float(row["baseline_qty"]) + 2, review_state="Unreviewed", reason="待复核差异"
+			)
+		rows.append(copy)
 	draft = counts.save_count(
 		REQUEST_PREFIX + "count",
 		{
@@ -393,7 +633,7 @@ def _count(company, rooms):
 			"posting_time": "12:00:00",
 			"ti_count_warehouses": warehouses,
 			"ti_count_scope": "Selected",
-			"ti_count_items": [(ITEM_PREFIX + "N-WORKFLOW")],
+			"ti_count_items": selected_items,
 			"ti_baseline_timestamp": baseline["timestamp"],
 			"ti_baseline_fingerprint": baseline["fingerprint"],
 			"ti_count_review": rows,
@@ -404,22 +644,49 @@ def _count(company, rooms):
 
 
 def install(company, *, attach_images=True, attach_files=True):
+	"""Install examples using one site-date anchor for every relative date."""
+	token = _SITE_DATE.set(getdate(nowdate()))
+	try:
+		return _install(company, attach_images=attach_images, attach_files=attach_files)
+	finally:
+		_SITE_DATE.reset(token)
+
+
+def _install(company, *, attach_images=True, attach_files=True):
 	"""Called only by the guarded installer; never commits independently."""
 	from temple_inventory.sample_install import assert_development_site
 
 	assert_development_site()
 	data = sample_catalog()
+	costumes = costume_catalog()
 	_fiscal_years(company)
 	rooms = _hierarchy(company, data)
-	_references(data)
-	items = _items(data, attach_images=attach_images)
-	opening = _opening(company, data, items, rooms)
+	_references(data, costumes)
+	items, costume_item_codes = _items(data, costumes, attach_images=attach_images)
+	opening = _opening(company, data, costumes, items, rooms)
 	documents, loans, activity = _workflow(company, items, rooms, attach_files=attach_files)
+	depleted_batch_issue = _entry(
+		company,
+		"deplete-batch",
+		"Issue",
+		[
+			_line(
+				items["G-000001"],
+				data["batches"]["G-000001"][0]["quantity"],
+				source=rooms["C03"],
+				batch_no=ITEM_PREFIX + "BAT-000001",
+				use_serial_batch_fields=1,
+			)
+		],
+		-390,
+	)
+	documents.append(depleted_batch_issue)
 	reconciliation = _count(company, rooms)
 	assert_balances(rooms, loans)
 	return {
 		"items": len(items),
-		"images": sum(len(row["images"]) for row in data["items"]) if attach_images else 0,
+		"costume_item_codes": costume_item_codes,
+		"images": (sum(len(row["images"]) for row in data["items"] + costumes) if attach_images else 0),
 		"transactions": len(documents) + 2,
 		"opening": opening.name,
 		"stock_entries": [opening.name, *[doc.name for doc in documents]],
@@ -431,11 +698,11 @@ def install(company, *, attach_images=True, attach_files=True):
 
 
 def assert_balances(rooms, loans):
-	for key, expected in (("A02", 70), ("A02-RACK", 5), ("LEASE", 19), ("DAMAGED", 3)):
+	for key, expected in (("A02", 68), ("A02-RACK", 7), ("LEASE", 21), ("DAMAGED", 3)):
 		actual = get_stock_balance((ITEM_PREFIX + "N-WORKFLOW"), rooms[key])
 		if actual != expected:
 			raise AssertionError(f"Native sample balance mismatch at {key}: {actual} != {expected}")
-	for loan, expected in zip(loans, (11, 8), strict=True):
+	for loan, expected in zip(loans, (11, 8, 2, 0), strict=True):
 		settled = sum(sum(values.values()) for values in loan_balances(loan.name).values())
 		if Decimal(str(loan.get("items")[0].transfer_qty)) - settled != expected:
 			raise AssertionError("Native sample original-loan balance mismatch")

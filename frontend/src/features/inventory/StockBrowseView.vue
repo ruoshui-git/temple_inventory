@@ -49,6 +49,7 @@ const {
 	appliedChips,
 	reference,
 	data,
+	loadingMore,
 	search,
 	scope,
 	view,
@@ -405,11 +406,47 @@ watch([() => props.active, isMobile], () => {
 				<div
 					ref="results"
 					class="results-region"
+					:class="{ 'is-stale': data.stale }"
 					:aria-busy="status === 'loading' || status === 'refresh'"
 				>
-					<div v-if="status === 'loading'" class="empty-panel" role="status">
-						<span class="spinner" />正在加载库存…
-						<div class="skeleton" />
+					<div
+						v-if="
+							status === 'loading' &&
+							(quickReportQuery.groupBy.length || (!isMobile && view === 'table'))
+						"
+						class="stock-table-initial-skeleton"
+					>
+						<DataTable
+							ariaLabel="库存物品"
+							table-class="preview-table"
+							:columns="inventoryColumns"
+							:rows="[]"
+							:column-preferences="tablePreferences"
+							:loading="true"
+							:initialized="false"
+							loading-text="正在加载库存…"
+						/>
+					</div>
+					<div
+						v-else-if="status === 'loading'"
+						class="stock-grid stock-grid-skeleton"
+						role="status"
+						aria-label="正在加载库存…"
+					>
+						<article
+							v-for="row in 8"
+							:key="row"
+							class="stock-card-skeleton"
+							aria-hidden="true"
+						>
+							<div class="stock-card-skeleton-image" />
+							<div class="stock-card-skeleton-content">
+								<i class="skeleton short" />
+								<i class="skeleton" />
+								<i class="skeleton short" />
+								<i class="skeleton" />
+							</div>
+						</article>
 					</div>
 					<div v-else-if="status === 'error'" class="empty-panel">
 						<InventoryIcon name="warning" />
@@ -430,7 +467,15 @@ watch([() => props.active, isMobile], () => {
 						<UiButton @click="reset">显示全部物品</UiButton>
 					</div>
 					<template v-else>
-						<p v-if="status === 'refresh'" class="notice-bar" role="status">
+						<p
+							v-if="
+								status === 'refresh' &&
+								!quickReportQuery.groupBy.length &&
+								(isMobile || view === 'card')
+							"
+							class="notice-bar"
+							role="status"
+						>
 							<span class="spinner" />正在更新，已有结果仍然保留。
 						</p>
 						<div
@@ -438,7 +483,8 @@ watch([() => props.active, isMobile], () => {
 								!quickReportQuery.groupBy.length && (isMobile || view === 'card')
 							"
 							class="stock-grid"
-							:class="{ refreshing: status === 'refresh' }"
+							:class="{ refreshing: data.stale }"
+							:inert="data.stale || undefined"
 						>
 							<article
 								v-for="item in rows"
@@ -546,7 +592,17 @@ watch([() => props.active, isMobile], () => {
 							:loading-more="
 								quickReportQuery.groupBy.length
 									? Boolean(groupRoot?.loading && groupRoot.rows.length)
-									: data.loading && rows.length > 0
+									: loadingMore
+							"
+							:stale="
+								quickReportQuery.groupBy.length
+									? Boolean(groupRoot?.stale)
+									: data.stale
+							"
+							:retained="
+								quickReportQuery.groupBy.length
+									? Boolean(groupRoot?.rows.length && groupRoot?.stale)
+									: Boolean(rows.length && data.stale)
 							"
 							:row-class="
 								(row) =>
@@ -687,12 +743,15 @@ watch([() => props.active, isMobile], () => {
 					:loading="data.loading"
 					:initialized="!!data.snapshot"
 					:error="data.error"
+					:stale="data.stale"
 					@retry="load(false, true)"
 				/>
 				<p class="muted">统计完整筛选结果；跨位置的物品数不可相加。</p>
 			</Overlay>
 			<footer class="result-footer">
-				<span v-if="data.stale" role="status">上次结果 · 尚未更新</span>
+				<span v-if="data.stale && status !== 'refresh'" role="status"
+					>上次结果 · 尚未更新</span
+				>
 				<span v-if="data.error || data.moreError" role="alert"
 					>{{ data.error || data.moreError }}
 					<UiButton @click="load(!!data.moreError, true)">重试加载</UiButton></span
@@ -703,7 +762,7 @@ watch([() => props.active, isMobile], () => {
 						!quickReportQuery.groupBy.length &&
 						(isMobile || view === 'card')
 					"
-					:loading="data.loading"
+					:loading="loadingMore"
 					@click="load(true)"
 					>加载更多 · {{ rows.length }} / {{ data.total }}</UiButton
 				>

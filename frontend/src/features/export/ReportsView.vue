@@ -150,6 +150,7 @@ function setGroup(index: number, value: string) {
 				<QuickExport
 					:query="query"
 					:active="active"
+					:show-open-report="false"
 					@open-full="emit('openExport', $event)"
 				/>
 			</template>
@@ -161,28 +162,6 @@ function setGroup(index: number, value: string) {
 					<section class="browse-filter-mega-section">
 						<h3>筛选</h3>
 						<div class="preview-filter-fields">
-							<label class="preview-field"
-								>数据集<select v-model="dataset">
-									<option
-										v-for="(option, id) in reportDefinitions"
-										:key="id"
-										:value="id"
-									>
-										{{ option.label }}
-									</option>
-								</select></label
-							>
-							<label class="preview-field"
-								>视图<select v-model="query.view">
-									<option
-										v-for="view in definition.views"
-										:key="view.id"
-										:value="view.id"
-									>
-										{{ view.label }}
-									</option>
-								</select></label
-							>
 							<details
 								v-if="
 									(dataset !== 'inventory' || query.view === 'historical') &&
@@ -528,6 +507,24 @@ function setGroup(index: number, value: string) {
 				</template>
 			</template>
 		</BrowseToolbar>
+		<div class="report-scope-controls" aria-label="报表范围">
+			<label class="preview-field">
+				报表数据集
+				<select v-model="dataset" aria-label="报表数据集">
+					<option v-for="(option, id) in reportDefinitions" :key="id" :value="id">
+						{{ option.label }}
+					</option>
+				</select>
+			</label>
+			<label class="preview-field">
+				视图
+				<select v-model="query.view" aria-label="报表视图">
+					<option v-for="view in definition.views" :key="view.id" :value="view.id">
+						{{ view.label }}
+					</option>
+				</select>
+			</label>
+		</div>
 		<p v-if="dataset === 'inventory' && query.view !== 'historical'" class="muted">
 			当前库存快照（站点时间）：{{ siteDateTime(result.snapshot) }}
 		</p>
@@ -553,7 +550,9 @@ function setGroup(index: number, value: string) {
 			</aside>
 			<section class="preview-browse-results surface form-section">
 				<div class="compact-filter-toolbar report-results-heading">
-					<h2>{{ definition.label }} · {{ result.total }} 行</h2>
+					<h2>
+						主表：{{ mainTable?.label || definition.label }} · {{ result.total }} 行
+					</h2>
 					<FilterPanel label="排序" :context="panelContext" :active="active">
 						<label class="preview-field"
 							>排序依据<select v-model="query.sortBy">
@@ -574,10 +573,25 @@ function setGroup(index: number, value: string) {
 						>
 					</FilterPanel>
 				</div>
-				<p v-if="result.loading" role="status">
-					{{ result.tables.length ? "正在刷新，当前结果保留" : "正在加载结果…" }}
-				</p>
-				<p v-if="result.stale" role="status">上次结果 · 尚未更新</p>
+				<div
+					v-if="result.loading && !mainTable"
+					class="report-initial-skeleton"
+					role="status"
+				>
+					<span class="sr-only">正在加载结果…</span>
+					<div class="report-initial-skeleton-row" aria-hidden="true">
+						<i v-for="column in 6" :key="column" />
+					</div>
+					<div
+						v-for="row in 5"
+						:key="row"
+						class="report-initial-skeleton-row"
+						aria-hidden="true"
+					>
+						<i v-for="column in 6" :key="column" />
+					</div>
+				</div>
+				<p v-if="result.stale && !result.loading" role="status">上次结果 · 尚未更新</p>
 				<p v-if="result.error" role="alert">
 					{{ result.error }} <UiButton @click="refresh(true)">重试读取</UiButton>
 				</p>
@@ -586,9 +600,10 @@ function setGroup(index: number, value: string) {
 					:table="mainTable"
 					:preference-id="`reports.${query.dataset}.${query.view}.${mainTable.id}`"
 					:total="mainTable.total"
-					:loading="mainTable.loading"
+					:loading="mainTable.loading || result.loading"
 					:initialized="mainTable.initialized"
 					:error="mainTable.error"
+					:stale="result.stale"
 					:sortable-columns="availableSortColumns"
 					:sort-by="query.sortBy"
 					:sort-direction="query.sort"
@@ -607,14 +622,19 @@ function setGroup(index: number, value: string) {
 						(doctype, name) => !result.stale && emit('openDocument', doctype, name)
 					"
 				/>
+				<p
+					v-if="result.tables.some((row) => row.id !== result.main)"
+					class="muted report-supplementary-note"
+				>
+					展开补充表只改变页面显示；XLSX 工作表请在导出对话框中选择。
+				</p>
 				<details
 					v-for="table in result.tables.filter((row) => row.id !== result.main)"
 					:key="table.id"
 					:data-browse-details="'table:' + table.id"
 					@toggle="($event.target as HTMLDetailsElement).open && loadTable(table)"
 				>
-					<summary>{{ table.label }} · {{ table.total }}</summary>
-					<p v-if="table.loading && !table.initialized" role="status">正在读取明细…</p>
+					<summary>补充表：{{ table.label }} · {{ table.total }} 条匹配结果</summary>
 					<ReportTable
 						:table="table"
 						:preference-id="`reports.${query.dataset}.${query.view}.${table.id}`"
@@ -622,6 +642,7 @@ function setGroup(index: number, value: string) {
 						:loading="table.loading"
 						:initialized="table.initialized"
 						:error="table.error"
+						:stale="result.stale"
 						@load-more="loadTable(table, true)"
 						@retry="loadTable(table, table.initialized && table.next !== null, true)"
 						@open-document="

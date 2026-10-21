@@ -6,7 +6,7 @@ import type {
 } from "../lib/dataTable";
 import type { ReportQuery } from "../lib/reportContract";
 import { useBrowseMemoryIdentity } from "../lib/browseMemory";
-import { movementLabels } from "../lib/filterPresentation";
+import { enumPresentationLabel } from "../lib/presentationLabels";
 import {
   useReferenceData,
   type GroupedReportRow,
@@ -21,6 +21,7 @@ interface GroupPageState {
   loading: boolean;
   error: string;
   initialized: boolean;
+  stale: boolean;
   leafColumns: string[];
 }
 
@@ -50,6 +51,9 @@ export function useReportGroups(
   let activeQueryKey = "";
   const pages = ref<Record<string, GroupPageState>>({});
   const expanded = ref(new Set<string>());
+  const displayQuery = ref<ReportQuery>(
+    JSON.parse(JSON.stringify(query.value)),
+  );
   const rootKey = pageKey([]);
   let generation = 0;
   const requests = new Map<string, AbortController>();
@@ -104,7 +108,6 @@ export function useReportGroups(
   function restore(key: string) {
     const snapshot = groupSnapshots.get(key);
     if (!snapshot) return false;
-    pages.value = {};
     expanded.value = new Set(snapshot.expanded.map((node) => node.id));
     pendingRestore = { key, snapshot };
     groupSnapshots.delete(key);
@@ -128,6 +131,7 @@ export function useReportGroups(
         loading: false,
         error: "",
         initialized: false,
+        stale: false,
         leafColumns: [],
       };
       page = pages.value[key];
@@ -142,11 +146,15 @@ export function useReportGroups(
     requests.set(key, request);
     page.loading = true;
     page.error = "";
+    if (!more && page.rows.length) page.stale = true;
     try {
+      const requestQuery = JSON.parse(
+        JSON.stringify(query.value),
+      ) as ReportQuery;
       const result = await services.call<GroupPage>(
         "temple_inventory.projections.group_page",
         {
-          query: JSON.parse(JSON.stringify(query.value)),
+          query: requestQuery,
           parent_path: path,
           parent_unit: unit ?? null,
           start: more ? page.next : 0,
@@ -156,6 +164,15 @@ export function useReportGroups(
         request.signal,
       );
       if (!current(token) || request.signal.aborted) return;
+      if (
+        key === rootKey &&
+        JSON.stringify(displayQuery.value) !== JSON.stringify(requestQuery)
+      ) {
+        pages.value = { [rootKey]: page };
+        displayQuery.value = requestQuery;
+        if (!pendingRestore || pendingRestore.key !== activeQueryKey)
+          expanded.value.clear();
+      }
       page.rows = more
         ? [
             ...page.rows,
@@ -168,6 +185,7 @@ export function useReportGroups(
       page.total = result.matched_count;
       if (result.leaf_columns?.length) page.leafColumns = result.leaf_columns;
       page.initialized = true;
+      page.stale = false;
       remember();
       if (key === rootKey && pendingRestore?.key === activeQueryKey) {
         const restored = pendingRestore;
@@ -186,11 +204,12 @@ export function useReportGroups(
     rows: GroupedReportRow[],
     parentPath: string[],
     parentUnit?: string | null,
+    viewQuery: ReportQuery = displayQuery.value,
   ): DataTableEntry[] {
     const seenDocuments = new Set<string>();
     return rows.flatMap((row) => {
       if (row.row_grain !== "group") {
-        if (query.value.view === "records") {
+        if (viewQuery.view === "records") {
           const value = row as unknown as Record<string, unknown>;
           const identity = `${value.doctype || ""}:${value.document || ""}`;
           if (seenDocuments.has(identity)) return [];
@@ -206,39 +225,22 @@ export function useReportGroups(
       }
       const children = stateFor(row.group_path || [], row.stock_uom);
       const groupField =
-        query.value.groupBy[(row.group_depth || parentPath.length + 1) - 1] ||
-        "";
+        viewQuery.groupBy[(row.group_depth || parentPath.length + 1) - 1] || "";
       const rawLabel = String(row.group_label || "未分类");
-      const label =
-        groupField === "kind"
-          ? movementLabels[rawLabel] || rawLabel
-          : groupField === "status" &&
-              query.value.dataset === "loans" &&
-              query.value.view === "records"
-            ? {
-                Draft: "草稿",
-                Cancelled: "已取消",
-                Open: "未结清",
-                Settled: "已结清",
-                Closed: "已结清",
-              }[rawLabel] || rawLabel
-            : groupField === "docstatus"
-              ? {
-                  "0": "草稿",
-                  Draft: "草稿",
-                  "1": "已提交",
-                  Submitted: "已提交",
-                  "2": "已取消",
-                  Cancelled: "已取消",
-                }[rawLabel] || (/^\d+$/.test(rawLabel) ? "状态未知" : rawLabel)
-              : groupField === "outcome_key"
-                ? {
-                    outstanding: "未归还",
-                    returned: "完好归还",
-                    damaged: "损坏归还",
-                    lost: "遗失",
-                  }[rawLabel] || rawLabel
-                : rawLabel;
+      const label = [
+        "kind",
+        "status",
+        "docstatus",
+        "outcome",
+        "outcome_key",
+      ].includes(groupField)
+        ? enumPresentationLabel(groupField, rawLabel, viewQuery)
+        : groupField === "activityType"
+          ? reference.activityTypes.find(
+              (option) =>
+                option.value === rawLabel || option.label === rawLabel,
+            )?.label || rawLabel
+          : rawLabel;
       const group: DataTableGroup = {
         kind: "group",
         id: row.id,
@@ -248,29 +250,28 @@ export function useReportGroups(
           {
             item: "item_name",
             activity: "activity_title",
-            activity_type: "activity_type_label",
+            activityType: "activity_type_label",
             warehouse: "warehouse",
             source_warehouse: "source_warehouse",
             destination_warehouse: "destination_warehouse",
             kind: "kind",
             borrower: "borrower",
           }[
-            query.value.groupBy[
-              (row.group_depth || parentPath.length + 1) - 1
-            ] || ""
+            viewQuery.groupBy[(row.group_depth || parentPath.length + 1) - 1] ||
+              ""
           ] || undefined,
         countColumn: undefined,
         depth: row.group_depth || parentPath.length + 1,
         count: Number(
-          query.value.view === "records"
+          viewQuery.view === "records"
             ? (row.document_count ?? row.display_count ?? row.row_count ?? 0)
             : (row.display_count ?? row.row_count ?? 0),
         ),
         countLabel:
-          query.value.view === "records"
+          viewQuery.view === "records"
             ? "记录数"
-            : query.value.dataset === "inventory" ||
-                query.value.dataset === "expiry"
+            : viewQuery.dataset === "inventory" ||
+                viewQuery.dataset === "expiry"
               ? "库存行数"
               : "明细条数",
         expanded: expanded.value.has(row.id),
@@ -283,14 +284,21 @@ export function useReportGroups(
       return [
         group,
         ...(group.expanded && children?.initialized
-          ? rowEntries(children.rows, row.group_path || [], row.stock_uom)
+          ? rowEntries(
+              children.rows,
+              row.group_path || [],
+              row.stock_uom,
+              viewQuery,
+            )
           : []),
       ];
     });
   }
   const entries = computed<DataTableEntry[]>(() => {
     const page = pages.value[rootKey];
-    return page?.initialized ? rowEntries(page.rows, [], null) : [];
+    return page?.initialized
+      ? rowEntries(page.rows, [], null, displayQuery.value)
+      : [];
   });
   async function rehydrate(snapshot: GroupSnapshot, key: string) {
     const token = generation;
@@ -365,6 +373,7 @@ export function useReportGroups(
       loading: false,
       error: "",
       initialized: true,
+      stale: false,
       leafColumns,
     };
     remember();
@@ -431,13 +440,11 @@ export function useReportGroups(
       } else if (activeQueryKey) {
         remember(activeQueryKey);
         cancel();
-        pages.value = {};
-        expanded.value.clear();
       }
       activeQueryKey = cacheKey();
       const restored = restore(activeQueryKey);
-      if (!restored && query.value.groupBy.length && autoLoadRoot)
-        void load([], null);
+      if (!restored) pendingRestore = undefined;
+      if (query.value.groupBy.length && autoLoadRoot) void load([], null);
     },
     { immediate: true },
   );

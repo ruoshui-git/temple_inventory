@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   deviceIds: [] as string[],
   stops: 0,
   callbacks: [] as ((value: string) => void)[],
+  presenceCallbacks: [] as ((presence: boolean | null) => void)[],
   errors: [] as ((error: unknown) => void)[],
   startError: undefined as Error | undefined,
   cameras: [] as { deviceId: string; label: string; stableLabel?: string }[],
@@ -49,6 +50,7 @@ vi.mock("../src/lib/scanner", () => ({
       callback: (value: string) => void,
       onError: (error: unknown) => void,
       deviceId?: string,
+      onFramePresence?: (presence: boolean | null) => void,
     ) {
       state.deviceIds.push(deviceId || "");
       if (state.startError) {
@@ -78,6 +80,7 @@ vi.mock("../src/lib/scanner", () => ({
       else localStorage.removeItem("temple_inventory.scanner_label");
       state.callbacks.push(callback);
       state.errors.push(onError);
+      state.presenceCallbacks.push(onFramePresence || (() => {}));
     }
     async stop() {
       state.stops++;
@@ -96,6 +99,7 @@ beforeEach(() => {
   state.deviceIds.length = 0;
   state.stops = 0;
   state.callbacks.length = 0;
+  state.presenceCallbacks.length = 0;
   state.errors.length = 0;
   state.startError = undefined;
   state.cameras = [];
@@ -199,6 +203,37 @@ describe("Scanner component", () => {
     state.callbacks[0]("123");
     expect(wrapper.emitted("scan")).toEqual([["123"]]);
     wrapper.unmount();
+  });
+
+  it("rearms only after 500ms of successful empty frames and keeps errors from counting as absence", async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(Scanner);
+    await flushPromises();
+    state.callbacks[0]!("123");
+    state.callbacks[0]!("123");
+    state.errors[0]!(new Error("bad frame"));
+    vi.advanceTimersByTime(1000);
+    state.callbacks[0]!("123");
+    expect(wrapper.emitted("scan")).toEqual([["123"]]);
+
+    state.presenceCallbacks[0]!(false);
+    vi.advanceTimersByTime(250);
+    // A failed frame resets successful-absence timing even if its visible
+    // error was throttled and the component never received another error.
+    state.presenceCallbacks[0]!(null);
+    vi.advanceTimersByTime(500);
+    state.presenceCallbacks[0]!(false);
+    state.callbacks[0]!("123");
+    expect(wrapper.emitted("scan")).toEqual([["123"]]);
+
+    vi.advanceTimersByTime(250);
+    state.presenceCallbacks[0]!(false);
+    vi.advanceTimersByTime(250);
+    state.presenceCallbacks[0]!(false);
+    state.callbacks[0]!("123");
+    expect(wrapper.emitted("scan")).toEqual([["123"], ["123"]]);
+    wrapper.unmount();
+    vi.useRealTimers();
   });
 
   it("has no engine switch and keeps repeated deliberate manual entry usable", async () => {

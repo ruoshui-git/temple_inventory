@@ -6,6 +6,7 @@ import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
 import { movementLabels } from "../../lib/filterPresentation";
+import { enumPresentationLabel } from "../../lib/presentationLabels";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
@@ -313,7 +314,16 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						loading-text="正在读取原生记录…"
 						:initialized="Boolean(initialized || groupRoot?.initialized)"
 						:error="query.groupBy.length ? groupRoot?.error || error : error"
-						:retained="Boolean(rows.length && loading)"
+						:stale="query.groupBy.length ? Boolean(groupRoot?.stale) : stale"
+						:retained="
+							Boolean(
+								query.groupBy.length
+									? groupRoot?.rows.length &&
+											groupRoot.loading &&
+											groupRoot.stale
+									: rows.length && loading && stale,
+							)
+						"
 						:has-more="query.groupBy.length ? groups.hasMore() : next !== null"
 						:loaded-count="
 							query.groupBy.length ? groups.progress().loaded : rows.length
@@ -347,10 +357,15 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								@click="open(nativeRow(row))"
 							>
 								<strong>{{ row.document }}</strong
-								><small>{{ row.doctype }}</small>
+								><small>{{ enumPresentationLabel("doctype", row.doctype) }}</small>
 							</button>
 							<template v-else-if="column.id === 'kind'">
-								{{ movementLabels[String(row.kind)] || row.kind }} ·
+								{{
+									row.kind
+										? movementLabels[String(row.kind)] || "其他类型"
+										: "原生单据"
+								}}
+								·
 								<NativeStatusBadge :status="Number(row.docstatus)" />
 							</template>
 							<template v-else-if="column.id === 'activity_title'">{{

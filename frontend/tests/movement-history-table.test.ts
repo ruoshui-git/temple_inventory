@@ -62,9 +62,18 @@ describe("typed movement history table", () => {
     expect(wrapper.get("tbody tr").attributes("aria-label")).toContain(
       "增加可用库存",
     );
-    expect(wrapper.findAll("th").map((cell) => cell.text())).toEqual(
-      expect.arrayContaining(["数量", "库存单位"]),
-    );
+    expect(
+      wrapper
+        .findAll("th")
+        .map((cell) => cell.text())
+        .join(" "),
+    ).toContain("数量");
+    expect(
+      wrapper
+        .findAll("th")
+        .map((cell) => cell.text())
+        .join(" "),
+    ).toContain("库存单位");
     expect(
       wrapper.findAll("tbody td span").some((cell) => cell.text() === "5"),
     ).toBe(true);
@@ -175,6 +184,52 @@ describe("typed movement history table", () => {
     expect(wrapper.findAll("th").some((cell) => cell.text() === "操作")).toBe(
       false,
     );
+  });
+
+  it("shows a local load-more indicator without treating refresh as load-more", () => {
+    const reference = createReferenceData();
+    reference.user = "test";
+    const Host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call: vi.fn(), report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(MovementHistoryTable, {
+            rows: [row],
+            total: 2,
+            next: 1,
+            loading: true,
+            initialized: true,
+            stale: false,
+          });
+      },
+    });
+    const wrapper = mount(Host);
+    expect(wrapper.text()).toContain("正在读取… · 1 / 2");
+
+    wrapper.unmount();
+
+    const RefreshHost = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call: vi.fn(), report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(MovementHistoryTable, {
+            rows: [row],
+            total: 2,
+            next: 1,
+            loading: true,
+            initialized: true,
+            stale: true,
+          });
+      },
+    });
+    const refreshing = mount(RefreshHost);
+    expect(refreshing.text()).toContain("加载更多 · 1 / 2");
   });
 
   it("applies physical stock effects to handling rows while keeping their quantities unsigned", () => {

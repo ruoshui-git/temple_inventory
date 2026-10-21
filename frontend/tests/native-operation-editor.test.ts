@@ -129,6 +129,75 @@ function addLine(c: ReturnType<typeof useOperationEditor>) {
   });
 }
 describe("native movement editor integration", () => {
+  it("shows native saved item names immediately in read-only documents without sequential catalog loads", async () => {
+    const original = {
+      ...document({
+        ti_movement_kind: "Issue",
+        posting_date: "2026-10-16",
+        posting_time: "12:00:00",
+        items: [
+          {
+            item_code: "ITEM-A",
+            item_name: "原记录物品名称",
+            ti_display_item_name: "当前物品名称",
+            ti_display_image: "/private/files/permitted-item.webp",
+            ti_display_tracks_batch: true,
+            batch_no: "BATCH-A",
+            recorded_batch_allocations: [
+              {
+                name: "BATCH-LINE-A",
+                batch_no: "BATCH-A",
+                stock_qty: 2,
+                expiry_date: "2027-10-16",
+                manufacturing_date: "2026-01-16",
+              },
+            ],
+            qty: 2,
+            uom: "Nos",
+            conversion_factor: 1,
+            s_warehouse: "ROOM-A",
+          },
+        ],
+      }),
+      docstatus: 1,
+      editable: false,
+    } as NativeDocument;
+    const call = vi.fn(async (method: string) => {
+      if (method === "native_api.load_document") return original;
+      if (method === "native_files.attachments") return [];
+      throw new Error(`Unexpected ${method}`);
+    });
+    const { controller: c, reference } = setup(
+      () =>
+        useOperationEditor({
+          identity: { doctype: "Stock Entry", name: "STE-1" },
+        }),
+      call,
+      vi.fn(),
+      (controller) => h(AllocationSummary, { draft: controller.draft.value }),
+    );
+    await flushPromises();
+
+    expect(c.draft.value.items[0]).toMatchObject({
+      displayName: "当前物品名称",
+      displayImage: "/private/files/permitted-item.webp",
+      expiry: "2027-10-16",
+      manufacturingDate: "2026-01-16",
+    });
+    expect(wrappers.at(-1)?.text()).toContain("当前物品名称");
+    expect(
+      call.mock.calls.some(([method]) => method === "catalog.operation_item"),
+    ).toBe(false);
+    expect(
+      call.mock.calls.some(([method]) => method === "catalog.batch_metadata"),
+    ).toBe(false);
+    const encoded = encodeOperation(c.draft.value, reference);
+    expect(encoded.items[0]).not.toHaveProperty("displayName");
+    expect(encoded.items[0]).not.toHaveProperty("displayImage");
+    expect(encoded.items[0]).not.toHaveProperty("ti_display_item_name");
+    expect(encoded.items[0]).not.toHaveProperty("ti_display_image");
+  });
+
   it("duplicates a completed native record with stable retry identity and recorded factors without copying its files", async () => {
     const original = {
       ...document({

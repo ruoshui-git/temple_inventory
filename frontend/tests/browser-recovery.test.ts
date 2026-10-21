@@ -91,6 +91,23 @@ describe("browser incomplete input recovery", () => {
       }),
     ).toEqual({ notes: "保留\n段落", files: [{ name: "FILE-1" }], nested: {} });
   });
+  it("keeps display-only native metadata out of recovery and later writes", () => {
+    expect(
+      recoveryValues({
+        items: [
+          {
+            item_code: "ITEM-A",
+            item_name: "审计名称",
+            ti_display_item_name: "当前名称",
+            ti_display_image: "/private/files/current.webp",
+            displayName: "当前名称",
+            displayImage: "/private/files/current.webp",
+            displayTracksBatch: true,
+          },
+        ],
+      }),
+    ).toEqual({ items: [{ item_code: "ITEM-A", item_name: "审计名称" }] });
+  });
   it("reports storage denial without pretending input was retained durably", () => {
     const storage = {
       length: 1,

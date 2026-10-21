@@ -496,6 +496,37 @@ test("expiry date header toggles its own sort direction", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await prepare(page);
   await page.goto("/inventory/stock/expiry");
+  const nameHeader = page.getByRole("columnheader", { name: /物品名称/ });
+  const nameButton = nameHeader.getByRole("button");
+  const nameLabel = await nameButton
+    .locator(".data-table-sort-label")
+    .boundingBox();
+  const nameIndicator = await nameButton
+    .locator(".data-table-sort-indicator")
+    .boundingBox();
+  expect(nameLabel).not.toBeNull();
+  expect(nameIndicator).not.toBeNull();
+  expect(nameIndicator!.x - (nameLabel!.x + nameLabel!.width)).toBeLessThan(10);
+
+  const quantityHeader = page.getByRole("columnheader", { name: /库存数量/ });
+  const quantityButton = quantityHeader.getByRole("button");
+  const quantityLabel = await quantityButton
+    .locator(".data-table-sort-label")
+    .boundingBox();
+  const quantityIndicator = await quantityButton
+    .locator(".data-table-sort-indicator")
+    .boundingBox();
+  const quantityCell = await quantityHeader.boundingBox();
+  expect(quantityLabel).not.toBeNull();
+  expect(quantityIndicator).not.toBeNull();
+  expect(quantityCell).not.toBeNull();
+  expect(quantityIndicator!.x).toBeLessThan(quantityLabel!.x);
+  expect(
+    quantityCell!.x +
+      quantityCell!.width -
+      (quantityLabel!.x + quantityLabel!.width),
+  ).toBeLessThan(18);
+
   const dateHeader = page.getByRole("columnheader", { name: /效期/ });
   const before = await dateHeader.getAttribute("aria-sort");
   await dateHeader.getByRole("button").click();
@@ -531,6 +562,45 @@ test("large text and adaptive filter density", async ({ page }, info) => {
     path: info.outputPath("filters-200-mobile.png"),
     fullPage: true,
   });
+  expect(errors).toEqual([]);
+});
+
+test("desktop navigation wraps at the 1024px text scale breakpoint", async ({
+  page,
+}) => {
+  const errors = await prepare(page, 200);
+  await page.setViewportSize({ width: 1024, height: 1000 });
+  await page.goto("/inventory/");
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => {
+    const header = document.querySelector(".sample-sidebar");
+    if (!header) return false;
+    const measured = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--preview-desktop-nav-height",
+      ),
+    );
+    return Math.abs(measured - header.getBoundingClientRect().height) < 1;
+  });
+  const metrics = await page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>(".sample-sidebar")!;
+    const account = document.querySelector<HTMLElement>(".app-account-menu")!;
+    return {
+      width: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      accountRight: account.getBoundingClientRect().right,
+      navigationHeight: header.getBoundingClientRect().height,
+      measuredHeight: Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--preview-desktop-nav-height",
+        ),
+      ),
+    };
+  });
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.width + 1);
+  expect(metrics.accountRight).toBeLessThanOrEqual(metrics.width + 1);
+  expect(metrics.measuredHeight).toBeCloseTo(metrics.navigationHeight, 0);
   expect(errors).toEqual([]);
 });
 

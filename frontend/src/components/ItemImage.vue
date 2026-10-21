@@ -11,6 +11,8 @@ const props = withDefaults(
 		interaction?: "detail" | "lightbox";
 		hasArtwork?: boolean;
 		frame?: boolean;
+		thumbnailSize?: number;
+		targetSize?: number;
 	}>(),
 	{ interaction: "lightbox", frame: false },
 );
@@ -71,9 +73,13 @@ onDeactivated(() => {
 		v-else-if="source || hasArtwork"
 		type="button"
 		class="item-image-button"
-		:class="{ 'item-image-button--frame': frame }"
+		:class="{
+			'item-image-button--frame': frame,
+			'item-image-button--compact-target': targetSize,
+		}"
 		:aria-label="`放大查看${item.name}图片`"
 		title="查看大图"
+		:style="targetSize ? { width: `${targetSize}px`, height: `${targetSize}px` } : undefined"
 		@click.stop="open = true"
 	>
 		<slot v-if="hasArtwork && !source" name="artwork"
@@ -83,8 +89,8 @@ onDeactivated(() => {
 			:src="source"
 			:alt="item.name"
 			fit="contain"
-			width="100%"
-			height="100%"
+			:width="thumbnailSize || '100%'"
+			:height="thumbnailSize || '100%'"
 		/><span class="image-magnifier" aria-hidden="true"
 			><svg viewBox="0 0 16 16" focusable="false">
 				<path
@@ -95,7 +101,13 @@ onDeactivated(() => {
 	<div v-else-if="frame" class="preview-item-image preview-item-image--frame">
 		<AsyncImage :alt="item.name" fit="contain" width="100%" height="100%" />
 	</div>
-	<AsyncImage v-else :alt="item.name" fit="contain" width="100%" height="100%" />
+	<AsyncImage
+		v-else
+		:alt="item.name"
+		fit="contain"
+		:width="thumbnailSize || '100%'"
+		:height="thumbnailSize || '100%'"
+	/>
 	<Overlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"
 		><div class="lightbox-image">
 			<slot v-if="hasArtwork && !source" name="artwork"
@@ -121,6 +133,13 @@ onDeactivated(() => {
 	height: auto;
 	aspect-ratio: 1;
 	flex: none;
+}
+.item-image-button--compact-target {
+	display: grid;
+	place-items: center;
+}
+.item-image-button--compact-target .image-magnifier {
+	display: none;
 }
 .preview-item-image--frame,
 .item-image-button--frame {

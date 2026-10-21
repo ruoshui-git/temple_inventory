@@ -20,6 +20,8 @@ import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import { enumPresentationLabel } from "../../lib/presentationLabels";
+import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -51,6 +53,9 @@ const {
 	reloadOpen,
 	leaveRequested,
 } = c;
+const initialExistingLoad = computed(
+	() => loading.value && c.existingDocument.value && !state.server,
+);
 const root = ref<HTMLElement>(),
 	actionBar = ref<HTMLElement>();
 useFocusVisibility(
@@ -91,8 +96,8 @@ function deskItem(row: Record<string, unknown>) {
 	const code = String(row.item_code || "");
 	return {
 		code,
-		name: c.names[code] || code,
-		image: c.images[code] || "",
+		name: String(row.ti_display_item_name || row.item_name || c.names[code] || code),
+		image: String(row.ti_display_image || row.image || c.images[code] || ""),
 		category: "",
 		uom: String(row.stock_uom || ""),
 		tracksBatch: Boolean(row.batch_no || row.serial_and_batch_bundle),
@@ -167,12 +172,16 @@ async function back() {
 					@open-full="emit('openExport', $event)" /></template
 		></PageHeader>
 		<div class="form-status">
-			<span class="form-record-tag">{{
+			<span v-if="!initialExistingLoad" class="form-record-tag">{{
 				state.identity
-					? `${state.identity.doctype} · ${state.identity.name}`
-					: "尚未创建原生记录"
+					? `${enumPresentationLabel("doctype", state.identity.doctype)} · ${state.identity.name}`
+					: c.existingDocument.value
+						? "正在读取原生记录"
+						: "尚未创建原生记录"
 			}}</span
-			><span role="status">{{ status }}</span
+			><span role="status">{{ initialExistingLoad ? "正在读取原生记录…" : status }}</span
+			><span v-if="loading && state.server" class="async-refresh-status" role="status"
+				>正在刷新…</span
 			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity"
 				:disabled="busy"
@@ -180,8 +189,17 @@ async function back() {
 				>重新读取</UiButton
 			>
 		</div>
-		<p v-if="loading" role="status">正在读取盘点…</p>
-		<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
+		<DocumentLoadingState
+			v-if="initialExistingLoad"
+			label="正在读取盘点记录…"
+			:announce="false"
+		/>
+		<p v-if="state.error" class="notice-bar danger" role="alert">
+			{{ state.error }}
+			<UiButton v-if="c.existingDocument.value && !state.server" @click="c.load(true)"
+				>重新读取</UiButton
+			>
+		</p>
 		<p v-if="state.recoveryError" role="alert">{{ state.recoveryError }}</p>
 		<section v-if="candidates.length" class="surface form-section">
 			<h2>此浏览器的未完成盘点</h2>
@@ -258,7 +276,12 @@ async function back() {
 				>创建修订草稿</UiButton
 			>
 		</div>
-		<div v-if="!loading" class="count-form-shell">
+		<div
+			v-if="!c.existingDocument.value || state.server"
+			class="count-form-shell async-result-region"
+			:class="{ 'is-refreshing': loading && state.server }"
+			:aria-busy="loading && state.server ? 'true' : undefined"
+		>
 			<form class="form-main surface count-form-main" novalidate @submit.prevent="c.review">
 				<details class="form-section">
 					<summary>日期与时间</summary>
@@ -309,7 +332,10 @@ async function back() {
 								<ItemImage :item="deskItem(row)" />
 							</div>
 							<strong v-else-if="column.id === 'item_name'">{{
-								c.names[String(row.item_code)] || row.item_code
+								row.ti_display_item_name ||
+								row.item_name ||
+								c.names[String(row.item_code)] ||
+								row.item_code
 							}}</strong>
 							<template v-else-if="column.id === 'item_code'">{{
 								row.item_code
@@ -331,7 +357,7 @@ async function back() {
 								step="any"
 								v-model.number="countRow(row).qty"
 								:disabled="busy"
-								:aria-label="`${c.names[String(row.item_code)] || row.item_code}实点数量`"
+								:aria-label="`${row.ti_display_item_name || row.item_name || c.names[String(row.item_code)] || row.item_code}实点数量`"
 							/>
 							<template v-else-if="column.id === 'qty'">{{ row.qty }}</template>
 							<details

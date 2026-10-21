@@ -1,6 +1,7 @@
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 
 export type ScannerEngineId = "zxing-wasm";
+export type ScannerFramePresence = boolean | null;
 export interface ScannerEngine {
   readonly id: ScannerEngineId;
   readonly label: string;
@@ -10,6 +11,7 @@ export interface ScannerEngine {
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
     deviceId?: string,
+    onFramePresence?: (presence: ScannerFramePresence) => void,
   ): Promise<void>;
   stop(): Promise<void>;
 }
@@ -80,6 +82,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
     deviceId?: string,
+    onFramePresence?: (presence: ScannerFramePresence) => void,
   ) {
     await this.stop();
     const generation = ++this.generation;
@@ -90,6 +93,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
       onScan,
       onError,
       deviceId,
+      onFramePresence,
     );
     try {
       await this.startup;
@@ -107,6 +111,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
     deviceId?: string,
+    onFramePresence?: (presence: ScannerFramePresence) => void,
   ) {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -133,7 +138,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     await video.play();
     if (generation !== this.generation) return;
     await prepareReader();
-    this.scheduleDecode(generation, onScan, onError);
+    this.scheduleDecode(generation, onScan, onError, onFramePresence);
   }
   private waitForVideo(video: HTMLVideoElement) {
     if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
@@ -176,14 +181,18 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     generation: number,
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
+    onFramePresence?: (presence: ScannerFramePresence) => void,
   ) {
     if (generation === this.generation && this.video) {
       this.timer = setTimeout(() => {
         // decode has a few browser APIs (canvas/video) outside the WASM call
         // that can throw synchronously. Never create an unhandled rejection
         // from the timer; the component must retain manual entry and retry.
-        void this.decode(generation, onScan, onError).catch((error) =>
-          this.reportDecodeError(error, generation, onError),
+        void this.decode(generation, onScan, onError, onFramePresence).catch(
+          (error) => {
+            if (generation === this.generation) onFramePresence?.(null);
+            this.reportDecodeError(error, generation, onError);
+          },
         );
       }, 250);
     }
@@ -192,13 +201,15 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     generation: number,
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
+    onFramePresence?: (presence: ScannerFramePresence) => void,
   ) {
     if (generation !== this.generation || !this.video || this.decoding) return;
     const video = this.video;
     const width = video.videoWidth || video.clientWidth;
     const height = video.videoHeight || video.clientHeight;
     if (!width || !height) {
-      this.scheduleDecode(generation, onScan, onError);
+      onFramePresence?.(null);
+      this.scheduleDecode(generation, onScan, onError, onFramePresence);
       return;
     }
     const canvas = (this.canvas ||= document.createElement("canvas"));
@@ -207,6 +218,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     if (!this.context) this.context = canvas.getContext("2d") || undefined;
     const context = this.context;
     if (!context) {
+      onFramePresence?.(null);
       this.reportDecodeError(
         new Error("浏览器不支持画布读取，请手动输入或使用扫码枪。"),
         generation,
@@ -222,16 +234,20 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
         context.getImageData(0, 0, width, height),
         { maxNumberOfSymbols: 1 },
       );
-      if (generation === this.generation && results[0]?.text)
-        onScan(results[0].text);
+      if (generation === this.generation) {
+        const value = results[0]?.text?.trim() || "";
+        onFramePresence?.(Boolean(value));
+        if (value) onScan(value);
+      }
     } catch (error) {
       // A damaged frame can fail repeatedly. Keep scanning but do not turn the
       // panel into a 4 Hz error announcer.
+      if (generation === this.generation) onFramePresence?.(null);
       this.reportDecodeError(error, generation, onError);
     } finally {
       this.decoding = false;
       if (generation === this.generation)
-        this.scheduleDecode(generation, onScan, onError);
+        this.scheduleDecode(generation, onScan, onError, onFramePresence);
     }
   }
   async stop() {
@@ -333,6 +349,7 @@ export class ScannerService {
     onScan: (value: string) => void,
     onError?: (error: unknown) => void,
     deviceId = this.selectedCameraId,
+    onFramePresence?: (presence: ScannerFramePresence) => void,
   ) {
     const generation = ++this.generation;
     return this.enqueue(async () => {
@@ -346,7 +363,13 @@ export class ScannerService {
       const engine = this.factories[this.selected]();
       this.active = engine;
       try {
-        await engine.start(container, onScan, onError, deviceId || undefined);
+        await engine.start(
+          container,
+          onScan,
+          onError,
+          deviceId || undefined,
+          onFramePresence,
+        );
         if (generation !== this.generation) {
           if (this.active === engine) this.active = undefined;
           await engine.stop();

@@ -39,7 +39,8 @@ export function scopeValueLabel(
     );
   if (field === "item")
     return reference.items.find((row) => row.value === value)?.label || value;
-  if (field === "kinds") return movementLabels[value] || value;
+  if (field === "kinds")
+    return value ? movementLabels[value] || "其他类型" : "";
   if (field === "categories")
     return (
       reference.categories.find((row) => row.name === value)?.label || value

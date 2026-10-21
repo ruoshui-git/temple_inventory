@@ -7,6 +7,7 @@ import { useColumnPreferences } from "../src/composables/useColumnPreferences";
 import {
   moveColumn,
   reconcileColumns,
+  dataColumnAlignment,
   type DataColumn,
 } from "../src/lib/dataTable";
 import {
@@ -28,6 +29,17 @@ const columns: DataColumn[] = [
 ];
 
 describe("table column contracts", () => {
+  it("aligns quantity columns and group metrics with tabular numeric cells", () => {
+    expect(dataColumnAlignment({ id: "quantities", label: "数量" })).toBe(
+      "end",
+    );
+    expect(dataColumnAlignment({ id: "stock_qty", label: "数量" })).toBe("end");
+    expect(dataColumnAlignment({ id: "item_code", label: "物品编码" })).toBe(
+      "start",
+    );
+    expect(dataColumnAlignment({ id: "image", label: "图片" })).toBe("center");
+  });
+
   it("keeps keyboard focus through column reorder and returns it after Escape", async () => {
     const controller = {
       order: ref(["item", "quantity", "retired"]),
@@ -169,6 +181,70 @@ describe("table column contracts", () => {
 });
 
 describe("shared data table", () => {
+  it("shows a shape-matched initial skeleton and keeps headers usable over retained stale rows", async () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "异步结果表格",
+        columns: [
+          { id: "item", label: "物品", sortable: true },
+          { id: "image", label: "图片" },
+          { id: "stock_qty", label: "数量", sortable: true },
+        ],
+        rows: [],
+        loading: true,
+        initialized: false,
+      },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.findAll(".data-table-skeleton-row")).toHaveLength(5);
+    expect(wrapper.get(".data-table-skeleton-row").findAll("td")).toHaveLength(
+      3,
+    );
+    expect(wrapper.get('[aria-label="物品排序：未排序"]').text()).toContain(
+      "↕",
+    );
+    expect(
+      wrapper
+        .get('[aria-label="物品排序：未排序"] .data-table-sort-label')
+        .element.nextElementSibling?.classList.contains(
+          "data-table-sort-indicator",
+        ),
+    ).toBe(true);
+    expect(
+      wrapper
+        .get('[aria-label="数量排序：未排序"]')
+        .element.firstElementChild?.classList.contains(
+          "data-table-sort-indicator",
+        ),
+    ).toBe(true);
+    expect(wrapper.get("th.align-start").attributes("aria-sort")).toBe("none");
+    expect(
+      wrapper.get("th.align-center").attributes("aria-sort"),
+    ).toBeUndefined();
+    expect(wrapper.get("th.align-end").attributes("aria-sort")).toBe("none");
+
+    await wrapper.setProps({
+      rows: [{ kind: "record", id: "A", value: { item: "A" } }],
+      loading: true,
+      initialized: true,
+      retained: true,
+      stale: true,
+    });
+    expect(wrapper.findAll(".data-table-skeleton-row")).toHaveLength(0);
+    expect(wrapper.get(".data-table-refresh-status").attributes("role")).toBe(
+      "status",
+    );
+    expect(wrapper.get(".data-table-refresh-status").classes()).toContain(
+      "sr-only",
+    );
+    expect(wrapper.get(".data-table-scroll").attributes("aria-busy")).toBe(
+      "true",
+    );
+    expect(wrapper.get("tbody").attributes()).toHaveProperty("inert");
+    await wrapper.get('[aria-label="物品排序：未排序"]').trigger("click");
+    expect(wrapper.emitted("sort")?.[0]).toEqual(["item"]);
+  });
+
   it("discloses a whole group row while embedded controls keep their own action", async () => {
     const wrapper = mount(DataTable, {
       props: {
@@ -263,6 +339,7 @@ describe("shared data table", () => {
         loading: true,
         initialized: true,
         retained: true,
+        stale: true,
         error: "网络暂不可用",
         hasMore: true,
       },
@@ -376,7 +453,7 @@ describe("shared data table", () => {
         .findAll("thead th")
         .filter((cell) => !cell.find('[aria-label="设置列"]').exists())
         .map((cell) => cell.text()),
-    ).toEqual(["物品", "旧列"]);
+    ).toEqual(["物品↕", "旧列"]);
   });
 
   it("cancels a queued old-account save and serializes later same-table saves", async () => {
@@ -548,7 +625,7 @@ describe("shared data table", () => {
         .findAll("thead th")
         .filter((cell) => !cell.find('[aria-label="设置列"]').exists())
         .map((cell) => cell.text()),
-    ).toEqual(["物品", "旧列"]);
+    ).toEqual(["物品↕", "旧列"]);
   });
 
   it("mounts report cells with injected account preferences before evaluating columns", async () => {

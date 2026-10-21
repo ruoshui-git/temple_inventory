@@ -283,7 +283,7 @@ export function createNativeEditor(options: {
       state.noAdjustment = false;
       state.identity = identity;
       state.version = response.version;
-      state.values = structuredClone(recoveryValues(response));
+      state.values = JSON.parse(JSON.stringify(response)) as Record<string, unknown>;
       state.status =
         response.docstatus === 1
           ? "submitted"

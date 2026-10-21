@@ -18,6 +18,7 @@ import {
 import { sortableColumnLabels, sortableColumnsForView } from "../../lib/reportContract";
 import { groupLabels } from "../../lib/reportContract";
 import { removeGroupByField } from "../../lib/groupBy";
+import { enumPresentationLabel } from "../../lib/presentationLabels";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
@@ -363,11 +364,15 @@ const groupRoot = computed(() => c.groups.pages.value["[[],null]"]);
 const mobileItemGroups = computed(() => {
 	const rows = (groupRoot.value?.rows || []).filter((row) => row.row_grain === "group");
 	return rows.map((row) => {
+		const field = String(row.group_field || query.value.groupBy[0] || "");
+		const rawLabel = String(row.group_label || "未分类");
 		const group: DataTableGroup = {
 			kind: "group" as const,
 			id: row.id,
 			parentId: row.parent_group_id || undefined,
-			label: row.group_label || "未分类",
+			label: ["kind", "status", "docstatus", "outcome", "outcome_key"].includes(field)
+				? enumPresentationLabel(field, rawLabel, query.value)
+				: rawLabel,
 			depth: row.group_depth || 1,
 			count: Number(row.display_count ?? row.row_count ?? 0),
 			countLabel: "明细条数",
@@ -463,16 +468,6 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 		if (row.borrowed !== undefined) parts.push(`借出 ${row.borrowed} ${unit}`.trim());
 		if (row.outstanding !== undefined) parts.push(`未归还 ${row.outstanding} ${unit}`.trim());
 	} else if (Array.isArray(row.quantity_breakdown)) {
-		const labels: Record<string, string> = {
-			Receive: "入库",
-			Issue: "出库",
-			Transfer: "调拨",
-			Loan: "借出",
-			Return: "归还",
-			Damage: "损坏",
-			Loss: "遗失",
-			Reconcile: "盘点调整",
-		};
 		for (const entry of row.quantity_breakdown as Record<string, unknown>[]) {
 			const quantity = Number(entry.stock_qty || 0);
 			if (!quantity) continue;
@@ -483,7 +478,7 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 				? `（${entry.docstatus === 1 ? "已提交" : entry.docstatus === 2 ? "已取消" : "草稿"}）`
 				: "";
 			parts.push(
-				`${labels[String(entry.kind)] || entry.kind}${status} ${quantity} ${row.stock_uom || ""}`.trim(),
+				`${movementLabels[String(entry.kind)] || "其他类型"}${status} ${quantity} ${row.stock_uom || ""}`.trim(),
 			);
 		}
 	} else if (row.stock_qty !== undefined && row.stock_qty !== null) {
@@ -523,17 +518,16 @@ function groupItem(group: DataTableGroup): OperationGroup {
 			(entry.item_code && entry.item_code === itemCode) ||
 			(entry.item_name && entry.item_name === group.label),
 	);
-	return (
-		row ||
-		({
-			...value,
-			id: String(value.id || group.id),
-			item_code: itemCode || group.label,
-			item_name: String(value.item_name || group.label),
-			document_count: Number(value.document_count || group.count),
-			item_count: Number(value.item_count || 0),
-		} as OperationGroup)
-	);
+	return {
+		...(row || {}),
+		...value,
+		id: String(row?.id || value.id || group.id),
+		item_code: itemCode || row?.item_code || group.label,
+		item_name: String(value.item_name || row?.item_name || group.label),
+		image: String(value.image || row?.image || ""),
+		document_count: Number(value.document_count || row?.document_count || group.count),
+		item_count: Number(value.item_count || row?.item_count || 0),
+	} as OperationGroup;
 }
 function isItemGroup(group: DataTableGroup) {
 	return query.value.groupBy[group.depth - 1] === "item";
@@ -1043,6 +1037,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								? groupRoot?.error || ''
 								: details[flatHistoryItem.id]?.error || result.error
 						"
+						:stale="
+							query.groupBy.length
+								? Boolean(groupRoot?.stale)
+								: result.stale || Boolean(details[flatHistoryItem.id]?.error)
+						"
 						:retained="
 							Boolean(
 								query.groupBy.length
@@ -1123,7 +1122,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									row.item_name || row.item_code
 								}}</small>
 								<template v-else-if="column.id === 'kind'">{{
-									movementLabels[String(row.kind || "")] || row.kind
+									enumPresentationLabel("kind", row.kind)
 								}}</template>
 								<template v-else-if="column.id === 'borrower'">{{
 									row.borrower || ""
@@ -1233,11 +1232,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								/>
 								<div v-else-if="column.id === 'status'" class="loan-record-status">
 									<NativeStatusBadge :status="row.docstatus" /><span
-										v-if="row.docstatus === 1"
+										v-if="row.docstatus === 1 && row.kind === 'Loan'"
 										>{{
-											loanLabels[
-												String(operationRow(row).whole?.loan_status || "")
-											] || operationRow(row).whole?.loan_status
+											enumPresentationLabel(
+												"loan_status",
+												operationRow(row).whole?.loan_status,
+											)
 										}}</span
 									>
 								</div>
@@ -1430,6 +1430,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								: result.initialized
 						"
 						:error="query.groupBy.length ? groupRoot?.error || '' : result.error"
+						:stale="query.groupBy.length ? Boolean(groupRoot?.stale) : result.stale"
 						:retained="
 							Boolean(
 								query.groupBy.length
@@ -1515,7 +1516,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								}}</UiButton
 							>
 							<template v-else-if="column.id === 'kind'">{{
-								movementLabels[String(row.kind || "")] || row.kind
+								enumPresentationLabel("kind", row.kind)
 							}}</template>
 							<template v-else-if="column.id === 'borrower'">{{
 								row.borrower || ""
@@ -1591,11 +1592,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</div>
 							<div v-else-if="column.id === 'status'" class="loan-record-status">
 								<NativeStatusBadge :status="row.docstatus" /><span
-									v-if="row.docstatus === 1"
+									v-if="row.docstatus === 1 && row.kind === 'Loan'"
 									>{{
-										loanLabels[
-											String(operationRow(row).whole?.loan_status || "")
-										] || operationRow(row).whole?.loan_status
+										enumPresentationLabel(
+											"loan_status",
+											operationRow(row).whole?.loan_status,
+										)
 									}}</span
 								>
 							</div>

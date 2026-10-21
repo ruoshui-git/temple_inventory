@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h, reactive, ref } from "vue";
+import { defineComponent, h, nextTick, reactive, ref } from "vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -14,10 +14,14 @@ import { useReportController } from "../src/features/export/useReportController"
 import { useDashboardController } from "../src/features/dashboard/useDashboardController";
 import { useQuickExport } from "../src/features/export/useQuickExport";
 import { useExportWorkspaceController } from "../src/features/export/useReportController";
+import QuickExport from "../src/components/QuickExport.vue";
 import {
   browseDestination,
+  countDestination,
   loanDestination,
+  operationDestination,
 } from "../src/lib/nativeNavigation";
+import DashboardView from "../src/features/dashboard/DashboardView.vue";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -78,6 +82,11 @@ function setup<T>(service: InventoryServices, controller: () => T) {
   });
   wrappers.push(mount(root));
   return result;
+}
+async function setNativeSelect(element: Element, value: string) {
+  (element as HTMLSelectElement).value = value;
+  element.dispatchEvent(new Event("change", { bubbles: true }));
+  await Promise.resolve();
 }
 const job = (status: ExportJob["status"] = "Queued"): ExportJob => ({
   name: "EXPORT-1",
@@ -219,6 +228,36 @@ describe("native browse service controllers", () => {
     expect(controller.data.total).toBe(205);
     expect(controller.data.next).toBeNull();
   });
+  it("keeps load-more local and distinguishes it from a stale full refresh", async () => {
+    const service = services(),
+      pending = deferred<any>(),
+      refreshPending = deferred<any>();
+    vi.mocked(service.call)
+      .mockResolvedValueOnce(stockPage("A"))
+      .mockReturnValueOnce(pending.promise)
+      .mockReturnValueOnce(refreshPending.promise);
+    const controller = setup(service, () =>
+      useStockBrowseController({}, vi.fn(), vi.fn()),
+    );
+    await flushPromises();
+    const nextPage = controller.load(true);
+    expect(controller.loadingMore.value).toBe(true);
+    expect(controller.status.value).toBe("more");
+    pending.resolve(stockPage("B", { next_start: null }));
+    await nextPage;
+    expect(controller.loadingMore.value).toBe(false);
+    expect(controller.status.value).toBe("ready");
+
+    const refresh = controller.load(false, true);
+    expect(controller.data.stale).toBe(true);
+    expect(controller.status.value).toBe("refresh");
+    expect(controller.data.rows.map((row) => row.code)).toEqual(["A", "B"]);
+    refreshPending.reject(new Error("刷新失败"));
+    await refresh;
+    expect(controller.data.rows.map((row) => row.code)).toEqual(["A", "B"]);
+    expect(controller.data.stale).toBe(true);
+    expect(controller.status.value).toBe("ready");
+  });
   it("ignores late results and preserves restrictive-empty inherited scope when clearing filters", async () => {
     const service = services(),
       first = deferred<unknown>();
@@ -281,6 +320,163 @@ describe("native browse service controllers", () => {
 });
 
 describe("background quick export", () => {
+  it("labels loaded activity metadata statuses in the QuickExport preview", async () => {
+    const service = services();
+    const activityQuery = newReportQuery("activities");
+    activityQuery.view = "metadata";
+    vi.mocked(service.report).mockImplementation(async (selected) =>
+      page({
+        query: structuredClone(selected),
+        table: "metadata",
+        columns: ["title", "status", "start_date", "end_date"],
+        rows: [
+          {
+            id: "ACT-1",
+            title: "法会筹备",
+            status: "Active",
+            start_date: "2026-10-21",
+            end_date: "2026-10-22",
+          },
+          {
+            id: "ACT-2",
+            title: "春季义工",
+            status: "Archived",
+            start_date: "2026-10-23",
+            end_date: "2026-10-24",
+          },
+          {
+            id: "ACT-3",
+            title: "灯会复盘",
+            status: "Completed",
+            start_date: "2026-10-25",
+            end_date: "2026-10-26",
+          },
+        ],
+        matched_count: 3,
+      }),
+    );
+    const reference = createReferenceData();
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          provideInventoryServices(service, reference);
+          return () => h(QuickExport, { query: activityQuery });
+        },
+      }),
+    );
+    wrappers.push(wrapper);
+
+    await wrapper.get(".preview-quick-report").trigger("click");
+    await flushPromises();
+
+    const dialog = document.body.querySelector(".preview-dialog")!;
+    expect(dialog.textContent).toContain("进行中");
+    expect(dialog.textContent).toContain("已归档");
+    expect(dialog.textContent).toContain("已完成");
+    expect(dialog.textContent).not.toContain("状态未知");
+    expect(
+      Array.from(dialog.querySelectorAll("thead th"))
+        .map((header) => (header as HTMLElement).style.minWidth)
+        .slice(0, 4),
+    ).toEqual(["12em", "7em", "10em", "10em"]);
+  });
+
+  it("previews and exports a dashboard-selected dataset without committing on cancel", async () => {
+    localStorage.clear();
+    const service = services();
+    const baseQuery = query();
+    const queryForDataset = (dataset: ReportQuery["dataset"]) => {
+      const next = newReportQuery(dataset);
+      next.scope = structuredClone(baseQuery.scope);
+      return next;
+    };
+    vi.mocked(service.call).mockImplementation(async (method) => {
+      if (method === "exports.request_export") return job("Completed");
+      return undefined as never;
+    });
+    vi.mocked(service.report).mockImplementation(async (selected) =>
+      page({
+        query: structuredClone(selected),
+        scope: structuredClone(selected.scope),
+      }),
+    );
+    const reference = createReferenceData();
+    const committed = vi.fn();
+    const child = defineComponent({
+      setup() {
+        return () =>
+          h(QuickExport, {
+            query: baseQuery,
+            queryForDataset,
+            initialDataset: "inventory",
+            allowDatasetSelection: true,
+            onCommitDataset: committed,
+          });
+      },
+    });
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          provideInventoryServices(service, reference);
+          return () => h(child);
+        },
+      }),
+    );
+    wrappers.push(wrapper);
+    await wrapper.get(".preview-quick-report").trigger("click");
+    await flushPromises();
+    expect(
+      document.body.querySelector('select[aria-label="数据范围"]'),
+    ).not.toBeNull();
+    expect(
+      document.body.querySelector('select[aria-label="文件格式"]'),
+    ).not.toBeNull();
+    expect(
+      document.body.querySelector('select[aria-label="XLSX 预览表"]'),
+    ).not.toBeNull();
+    const dataset = document.body.querySelector(".preview-dialog select")!;
+    await setNativeSelect(dataset, "movements");
+    await flushPromises();
+    expect(vi.mocked(service.report).mock.calls.at(-1)?.[0].dataset).toBe(
+      "movements",
+    );
+    await Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "取消")!
+      .click();
+    await flushPromises();
+    expect(committed).not.toHaveBeenCalled();
+
+    await wrapper.get(".preview-quick-report").trigger("click");
+    await flushPromises();
+    const reopenedDataset = document.body.querySelector(
+      ".preview-dialog select",
+    )!;
+    expect((reopenedDataset as HTMLSelectElement).value).toBe("inventory");
+    await setNativeSelect(reopenedDataset, "movements");
+    await flushPromises();
+    await Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "生成文件")!
+      .click();
+    await flushPromises();
+
+    const exportRequest = vi
+      .mocked(service.call)
+      .mock.calls.find(([method]) => method === "exports.request_export");
+    expect(exportRequest?.[1]).toMatchObject({
+      query: { dataset: "movements" },
+    });
+    expect(committed).toHaveBeenCalledWith("movements");
+    await setNativeSelect(
+      document.body.querySelector(".preview-dialog select")!,
+      "counts",
+    );
+    await flushPromises();
+    expect(vi.mocked(service.report).mock.calls.at(-1)?.[0].dataset).toBe(
+      "counts",
+    );
+    expect(document.body.textContent).not.toContain("已生成");
+  });
+
   it("keeps a pending job after a status failure and retries reading without creating another", async () => {
     const service = services();
     vi.mocked(service.call)
@@ -353,6 +549,177 @@ describe("background quick export", () => {
 });
 
 describe("native dashboard cards", () => {
+  it("routes permission-qualified dashboard actions and keeps uncategorized in shared filters", async () => {
+    localStorage.clear();
+    const service = services();
+    vi.mocked(service.call).mockImplementation(
+      async () =>
+        ({
+          query: query(),
+          snapshot: "dashboard-test",
+          rows: [],
+          expiry_rows: { expired: [], upcoming: [] },
+          kind_counts: {},
+          totals: [],
+          buckets: [],
+          matched_count: 0,
+          item_count: 0,
+          expired_count: 0,
+          damaged_item_count: 0,
+        }) as never,
+    );
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      site: "dashboard-actions.local",
+      user: "planner",
+      capabilities: {
+        "Stock Entry": { create: true, read: true },
+        "Stock Reconciliation": { create: true },
+      },
+      operations: {
+        Receive: true,
+        Issue: true,
+        Loan: true,
+        Transfer: true,
+        Return: true,
+        Damage: true,
+        Loss: true,
+        Repair: true,
+        Disposal: true,
+        Reconcile: true,
+      },
+      warehouses: [
+        {
+          name: "ROOM-A",
+          label: "库房甲",
+          local_label: "库房甲",
+          breadcrumb: "总仓 / 库房甲",
+          is_group: false,
+          lft: 1,
+          rgt: 2,
+        },
+      ],
+      categories: [
+        {
+          name: "CATEGORY-A",
+          label: "服装",
+          local_label: "服装",
+          is_group: false,
+          lft: 1,
+          rgt: 2,
+        },
+      ],
+    });
+    const navigate = vi.fn();
+    let controller!: ReturnType<typeof useDashboardController>;
+    const view = defineComponent({
+      setup() {
+        controller = useDashboardController(navigate);
+        return () =>
+          h(DashboardView, {
+            controller,
+            onNavigate: navigate,
+          });
+      },
+    });
+    const root = defineComponent({
+      setup() {
+        provideInventoryServices(service, reference);
+        return () => h(view);
+      },
+    });
+    const wrapper = mount(root);
+    wrappers.push(wrapper);
+    await flushPromises();
+
+    const primary = wrapper
+      .findAll(".dashboard-quick-actions > button")
+      .map((button) => button.text().trim());
+    expect(primary).toEqual(["入库", "出库", "借出", "调拨"]);
+    await wrapper
+      .findAll(".dashboard-quick-actions > button")
+      .find((button) => button.text().trim() === "借出")!
+      .trigger("click");
+    expect(navigate).toHaveBeenCalledWith(operationDestination("Loan"));
+
+    await wrapper.get(".dashboard-more-actions summary").trigger("click");
+    const disposal = wrapper
+      .findAll(".dashboard-more-actions button")
+      .find((button) => button.text().trim() === "报废")!;
+    await disposal.trigger("click");
+    expect(navigate).toHaveBeenLastCalledWith(operationDestination("Disposal"));
+    expect(
+      wrapper.get(".dashboard-more-actions").attributes("open"),
+    ).toBeUndefined();
+    expect(wrapper.text()).toContain("归还 · 选择未结清借用");
+
+    await wrapper
+      .findAll(".dashboard-more-actions button")
+      .find((button) => button.text().trim() === "盘点调整")!
+      .trigger("click");
+    expect(navigate).toHaveBeenLastCalledWith(countDestination());
+    await wrapper
+      .findAll(".dashboard-more-actions button")
+      .find((button) => button.text().includes("归还"))!
+      .trigger("click");
+    const chooser = navigate.mock.lastCall![0] as {
+      name: string;
+      query: Record<string, unknown>;
+    };
+    expect(chooser.name).toBe("loans");
+    expect(chooser.query.view).toBe("items");
+    const loanQuery = JSON.parse(String(chooser.query.query));
+    expect(loanQuery.outstandingOnly).toBe(true);
+    expect(loanQuery.statuses).toEqual([1]);
+
+    reference.operations.Transfer = false;
+    await nextTick();
+    expect(
+      wrapper
+        .findAll(".dashboard-quick-actions > button")
+        .some((button) => button.text().trim() === "调拨"),
+    ).toBe(false);
+    reference.operations.Disposal = false;
+    await nextTick();
+    expect(
+      wrapper
+        .findAll(".dashboard-more-actions button")
+        .some((button) => button.text().trim() === "报废"),
+    ).toBe(false);
+    reference.operations.Reconcile = false;
+    reference.operations.Damage = false;
+    reference.operations.Loss = false;
+    reference.operations.Repair = false;
+    reference.operations.Return = false;
+    reference.capabilities["Stock Entry"]!.read = false;
+    reference.capabilities["Stock Reconciliation"]!.create = false;
+    await nextTick();
+    expect(wrapper.find(".dashboard-more-actions").exists()).toBe(false);
+
+    await wrapper
+      .get('.dashboard-scope-control button[aria-haspopup="dialog"]')
+      .trigger("click");
+    await flushPromises();
+    const filters = document.body.querySelector(".preview-filter-fields")!;
+    expect(
+      Array.from(
+        filters.querySelectorAll<HTMLElement>("[data-filter-field]"),
+      ).map((field) => field.dataset.filterField),
+    ).toEqual(["categories", "warehouses"]);
+    const category = filters.querySelector<HTMLElement>(
+      '[data-filter-field="categories"]',
+    )!;
+    const uncategorized = category.querySelector<HTMLInputElement>(
+      "label.preview-check input[type=checkbox]",
+    )!;
+    uncategorized.click();
+    await nextTick();
+    expect(controller.filters.uncategorized).toBe(true);
+    expect(
+      document.body.querySelector('[data-filter-field="uncategorized"]'),
+    ).toBeNull();
+  });
+
   it("keeps failed card snapshots readable and blocks their drill-through until retry", async () => {
     const service = services(),
       navigate = vi.fn();

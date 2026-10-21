@@ -91,6 +91,7 @@ describe("ZXing-only ScannerService", () => {
       expect.any(Function),
       undefined,
       "selected-camera",
+      undefined,
     );
     expect(service.cameraDeviceId).toBe("opened-camera");
     expect(localStorage.getItem("temple_inventory.scanner_device")).toBe(

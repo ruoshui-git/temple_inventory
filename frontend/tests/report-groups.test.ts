@@ -15,15 +15,61 @@ afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 
 describe("lazy report groups", () => {
   it("formats movement kinds and Loan statuses for display without changing group values", async () => {
-    for (const [dataset, field, rawLabel, expected] of [
-      ["movements", "kind", "Transfer", "调拨"],
-      ["loans", "status", "Settled", "已结清"],
+    for (const [
+      dataset,
+      view,
+      field,
+      groupKey,
+      rawLabel,
+      expected,
+      expectedColumn,
+    ] of [
+      [
+        "movements",
+        "records",
+        "kind",
+        "Transfer",
+        "Transfer",
+        "调拨",
+        undefined,
+      ],
+      [
+        "movements",
+        "records",
+        "kind",
+        "Disposal",
+        "Disposal",
+        "报废",
+        undefined,
+      ],
+      ["loans", "records", "status", "Settled", "Settled", "已结清", undefined],
+      ["movements", "records", "status", "0", "草稿", "草稿", undefined],
+      ["movements", "records", "status", "1", "已提交", "已提交", undefined],
+      ["movements", "records", "status", "2", "已取消", "已取消", undefined],
+      [
+        "activities",
+        "metadata",
+        "activityType",
+        "TI-TYPE-PERFORMANCE",
+        "法会",
+        "法会",
+        "activity_type_label",
+      ],
+      [
+        "activities",
+        "metadata",
+        "status",
+        "Active",
+        "进行中",
+        "进行中",
+        undefined,
+      ],
     ] as const) {
       const reference = createReferenceData();
       Object.assign(reference, { site: `${dataset}.local`, user: "viewer" });
       const services = { call: vi.fn(), report: vi.fn(), upload: vi.fn() };
       const query = ref(newReportQuery(dataset));
-      query.value.view = "records";
+      query.value.view = view;
       query.value.groupBy = [field];
       let groups!: ReturnType<typeof useReportGroups>;
       const consumer = defineComponent({
@@ -32,9 +78,9 @@ describe("lazy report groups", () => {
           groups.seed(
             [
               {
-                id: `${field}:${rawLabel}`,
+                id: `${field}:${groupKey}`,
                 row_grain: "group",
-                group_path: [rawLabel],
+                group_path: [groupKey],
                 group_depth: 1,
                 group_label: rawLabel,
                 has_children: true,
@@ -62,11 +108,103 @@ describe("lazy report groups", () => {
       expect(group?.kind).toBe("group");
       if (group?.kind === "group") {
         expect(group.label).toBe(expected);
+        if (expectedColumn) expect(group.labelColumn).toBe(expectedColumn);
+        expect(group.id).toBe(`${field}:${groupKey}`);
         expect((group.value as Record<string, unknown>).group_label).toBe(
           rawLabel,
         );
       }
     }
+  });
+
+  it("keeps the previous grouped query visible until its replacement arrives", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, { site: "retained-groups.local", user: "viewer" });
+    let resolveNext!: (page: GroupPage) => void;
+    const services = {
+      call: vi.fn((_method: string, args: Record<string, unknown>) => {
+        if ((args.query as { search?: string }).search === "new")
+          return new Promise<GroupPage>((resolve) => (resolveNext = resolve));
+        return Promise.resolve({
+          rows: [
+            {
+              id: "kind:Transfer",
+              row_grain: "group",
+              group_path: ["Transfer"],
+              group_depth: 1,
+              group_label: "Transfer",
+              has_children: true,
+            },
+          ],
+          matched_count: 1,
+          next_start: null,
+          parent_path: [],
+          parent_unit: null,
+          row_grain: "group",
+          query: args.query,
+        } satisfies GroupPage);
+      }),
+      report: vi.fn(),
+      upload: vi.fn(),
+    };
+    const query = ref(newReportQuery("movements"));
+    query.value.view = "records";
+    query.value.groupBy = ["kind"];
+    let groups!: ReturnType<typeof useReportGroups>;
+    const host = defineComponent({
+      setup() {
+        groups = useReportGroups(query, services);
+        return () => h("div");
+      },
+    });
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          provideInventoryServices(services, reference);
+          return () => h(host);
+        },
+      }),
+    );
+    wrappers.push(wrapper);
+    await flushPromises();
+    expect(groups.entries.value[0]).toMatchObject({
+      kind: "group",
+      label: "调拨",
+    });
+
+    query.value.search = "new";
+    await nextTick();
+    expect(groups.entries.value[0]).toMatchObject({
+      kind: "group",
+      label: "调拨",
+    });
+    expect(groups.pages.value["[[],null]"]?.stale).toBe(true);
+
+    resolveNext({
+      rows: [
+        {
+          id: "kind:Disposal",
+          row_grain: "group",
+          group_path: ["Disposal"],
+          group_depth: 1,
+          group_label: "Disposal",
+          has_children: false,
+        },
+      ],
+      matched_count: 1,
+      next_start: null,
+      parent_path: [],
+      parent_unit: null,
+      row_grain: "group",
+      query: query.value,
+    });
+    await flushPromises();
+    expect(groups.entries.value[0]).toMatchObject({
+      kind: "group",
+      label: "报废",
+    });
+    const row = groups.entries.value[0];
+    expect(row?.kind === "group" && row.value.group_label).toBe("Disposal");
   });
 
   it("hides a failed child page when collapsed and restores its retry action when reopened", async () => {

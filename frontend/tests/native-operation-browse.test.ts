@@ -112,7 +112,7 @@ function setup(
   wrappers.push(wrapper);
   return { c, wrapper, changed, reference, props };
 }
-function service() {
+function service(operationPage = page()) {
   return vi.fn(async (endpoint, args) => {
     if (endpoint === "temple_inventory.projections.group_page") {
       const path = args.parent_path || [];
@@ -153,7 +153,7 @@ function service() {
         query: args.query,
       };
     }
-    if (endpoint === "browse.operation_page") return page();
+    if (endpoint === "browse.operation_page") return operationPage;
     if (endpoint === "browse.movement_history")
       return {
         rows: [
@@ -217,6 +217,71 @@ function service() {
   });
 }
 describe("native operation browsing", () => {
+  it("preserves an outstanding-only loan chooser query from dashboard navigation", async () => {
+    const query = newReportQuery("loans");
+    query.view = "items";
+    query.outstandingOnly = true;
+    query.statuses = [1];
+    const { c } = setup(
+      service(),
+      reactive({
+        family: "loans" as const,
+        records: false,
+        routeQuery: JSON.stringify(query),
+      }),
+    );
+    await flushPromises();
+    expect(c.query.value.outstandingOnly).toBe(true);
+    expect(c.query.value.statuses).toEqual([1]);
+  });
+
+  it("uses paginated flat group metadata for thumbnail identity after the first page", async () => {
+    const rows = Array.from({ length: 35 }, (_, index) => ({
+      id: `item:${index + 1}`,
+      row_grain: "group",
+      group_field: "item",
+      group_path: [`ITEM-${index + 1}`],
+      group_depth: 1,
+      group_label: `物品${index + 1}`,
+      item_code: `ITEM-${index + 1}`,
+      item_name: `物品${index + 1}`,
+      image: `/private/files/item-${index + 1}.webp`,
+      has_children: true,
+      stock_uom: "Nos",
+      item_count: 1,
+      document_count: 1,
+    }));
+    const call = vi.fn(async (endpoint, args) => {
+      if (endpoint === "temple_inventory.projections.group_page") {
+        const start = Number(args.start || 0);
+        return {
+          rows: rows.slice(start, start + 30),
+          matched_count: rows.length,
+          next_start: start + 30 < rows.length ? start + 30 : null,
+          parent_path: [],
+          parent_unit: null,
+          row_grain: "group",
+          query: args.query,
+        };
+      }
+      if (endpoint === "browse.operation_page") return page();
+      throw new Error(`Unexpected ${endpoint}`);
+    });
+    const { c } = setup(call);
+    await flushPromises();
+    expect(c.groups.entries.value).toHaveLength(30);
+    await c.groups.loadMore();
+    expect(c.groups.entries.value).toHaveLength(35);
+    const last = c.groups.entries.value.at(-1);
+    expect(last?.kind).toBe("group");
+    if (last?.kind !== "group") throw new Error("Expected a grouped item row");
+    expect(c.stockItem(last.value as never)).toMatchObject({
+      code: "ITEM-35",
+      name: "物品35",
+      image: "/private/files/item-35.webp",
+    });
+  });
+
   it("builds both view resets from family defaults and leaves the active view untouched", async () => {
     const props = reactive({ family: "loans" as const, records: false });
     const query = newReportQuery("loans");
@@ -394,6 +459,55 @@ describe("native operation browsing", () => {
     expect(wrapper.find("tbody").text()).not.toContain("借用数量与结余");
   });
 
+  it("shows loan settlement status only for Loan records and keeps malformed Loan unknown", async () => {
+    const query = newReportQuery("loans");
+    query.view = "records";
+    query.groupBy = [];
+    const base = {
+      doctype: "Stock Entry" as const,
+      docstatus: 1,
+      date: "2026-10-21",
+      stock_uom: "Nos",
+      stock_qty: 1,
+      whole: { quantities: [{ uom: "Nos", qty: 1 }], branches: [] },
+    };
+    const operationPage = {
+      ...page(),
+      query,
+      rows: [
+        {
+          ...base,
+          id: "return",
+          document: "MAT-STE-2026-000010",
+          kind: "Return",
+        },
+        { ...base, id: "loss", document: "MAT-STE-2026-000012", kind: "Loss" },
+        { ...base, id: "loan", document: "MALFORMED-LOAN", kind: "Loan" },
+      ],
+      matched_count: 3,
+      next_start: null,
+    } satisfies OperationBrowsePage;
+    const { wrapper } = setup(
+      service(operationPage),
+      reactive({
+        family: "loans" as const,
+        records: true,
+        routeQuery: JSON.stringify(query),
+      }),
+      true,
+    );
+    await flushPromises();
+    const headers = wrapper.findAll("thead th");
+    const statusIndex = headers.findIndex((header) =>
+      header.text().startsWith("状态"),
+    );
+    expect(statusIndex).toBeGreaterThanOrEqual(0);
+    const status = wrapper
+      .findAll("tbody tr")
+      .map((row) => row.findAll("td")[statusIndex]?.text());
+    expect(status).toEqual(["已提交", "已提交", "已提交借用状态未知"]);
+  });
+
   it("retries failed contribution reads and retries page failures at the same offset", async () => {
     const successPage = {
       rows: [
@@ -500,7 +614,7 @@ describe("native operation browsing", () => {
       "date",
     );
     expect(wrapper.get('th[aria-sort="descending"] button').text()).toContain(
-      "日期 ↓",
+      "日期↓",
     );
 
     await wrapper.get('button[aria-label="切换为升序"]').trigger("click");

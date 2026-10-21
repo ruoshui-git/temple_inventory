@@ -176,6 +176,7 @@ watch([() => props.active, isMobile], () => {
 					:loading="table.loading"
 					:initialized="table.initialized"
 					:error="table.error"
+					:stale="c.report.result.stale"
 					:sortable-columns="sortColumns"
 					:sort-by="query.sortBy"
 					:sort-direction="query.sort"

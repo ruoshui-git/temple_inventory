@@ -5,6 +5,7 @@ only those paths and verifies their bytes again; unrelated/shared files survive.
 These functions are deliberately not whitelisted.
 """
 
+import csv
 import hashlib
 import json
 import os
@@ -14,6 +15,8 @@ import frappe
 
 CATALOG = Path(__file__).parent / "setup" / "native_sample_catalog.json"
 ASSETS = Path(__file__).parent / "setup" / "sample_assets"
+COSTUME_SOURCE = Path(__file__).parent / "setup" / "costumes-data" / "costumes_source_normalized.csv"
+COSTUME_IMAGES = Path(__file__).parent / "setup" / "sample_assets" / "manifest.json"
 MANIFEST = "temple-inventory-reset-media.json"
 DIRECTORIES = ("public/files", "private/files", "public/private/files")
 ATTACHMENT_CONTENT = "Native Temple Inventory development sample receipt.\n原生单据私有附件示例。\n".encode()
@@ -21,6 +24,63 @@ ATTACHMENT_CONTENT = "Native Temple Inventory development sample receipt.\n原�
 
 def catalog():
 	return json.loads(CATALOG.read_text())
+
+
+def costume_catalog():
+	"""Build the real costume import directly from source rows and image manifest."""
+	with COSTUME_SOURCE.open(encoding="utf-8-sig", newline="") as stream:
+		source_rows = list(csv.DictReader(stream))
+	asset_manifest = json.loads(COSTUME_IMAGES.read_text())
+	images_by_code = {}
+	for image in asset_manifest["images"]:
+		if image["dataset"] == "costumes":
+			images_by_code.setdefault(image["key"], []).append(
+				{
+					"output": image["output"],
+					"primary": bool(image["primary"]),
+					"sha256": image["sha256"],
+				}
+			)
+	group_names = {
+		"A-服装": "演出服装",
+		"B-鞋袜": "演出鞋袜",
+		"C-头饰": "演出头饰",
+		"D-道具": "演出道具",
+	}
+	rows = []
+	for row in source_rows:
+		code = row["item_code"].strip()
+		if not code or code not in images_by_code:
+			raise ValueError(f"Costume source or image mapping is incomplete for {code!r}")
+		description = [
+			f"来源分类：{row['notion_type']}",  # noqa: RUF001
+			f"建议类别：{row['suggested_item_group']}",  # noqa: RUF001
+			f"说明：{row['details']}" if row["details"] else "",  # noqa: RUF001
+			f"演出类型：{row['dance_type']}" if row["dance_type"] else "",  # noqa: RUF001
+			f"使用节目：{row['used_programs']}" if row["used_programs"] else "",  # noqa: RUF001
+			f"备注：{row['notes']}" if row["notes"] else "",  # noqa: RUF001
+			f"原始位置：{row['warehouse_site']} / {row['warehouse_room']}",  # noqa: RUF001
+		]
+		rows.append(
+			{
+				"key": f"C-{code}",
+				"source_code": code,
+				"item_name": row["item_name"].strip(),
+				"item_group": group_names[row["notion_type"]],
+				"stock_uom": row["uom"].strip(),
+				"room": row["warehouse_room"].strip(),
+				"quantity": float(row["quantity"]),
+				"has_batch_no": False,
+				"has_expiry_date": False,
+				"rate": 10,
+				"description": "\n".join(value for value in description if value),
+				"images": images_by_code[code],
+				"legacy_names": [row["item_name"].strip()],
+			}
+		)
+	if len(rows) != 96 or sum(len(row["images"]) for row in rows) != 114:
+		raise ValueError("Costume source must contain 96 Items and 114 optimized images")
+	return rows
 
 
 def _digest(path):
@@ -140,10 +200,16 @@ def _sample_items(data):
 	all_items = frappe.get_all("Item", fields=["name", "item_name", "item_group", "image"])
 	known = {(name, row["item_group"]) for row in data["items"] for name in row["legacy_names"]}
 	items = {row.name for row in all_items if (row.item_name, row.item_group) in known}
+	costumes = costume_catalog()
+	known_costumes = {(row["item_name"], row["item_group"]) for row in costumes}
+	items.update(row.name for row in all_items if (row.item_name, row.item_group) in known_costumes)
+	barcodes = ["TI-SAMPLE-" + row["key"] for row in data["items"]]
+	barcodes.extend("TI-SAMPLE-" + row["key"] for row in costumes)
+	barcodes.extend(row["source_code"] for row in costumes)
 	items.update(
 		frappe.get_all(
 			"Item Barcode",
-			filters={"barcode": ["in", ["TI-SAMPLE-" + row["key"] for row in data["items"]]]},
+			filters={"barcode": ["in", barcodes]},
 			pluck="parent",
 		)
 	)
@@ -156,6 +222,7 @@ def inventory(write_manifest=False):
 	assert_development_site()
 	data = catalog()
 	known_hashes = {image["sha256"] for row in data["items"] for image in row["images"]}
+	known_hashes.update(image["sha256"] for row in costume_catalog() for image in row["images"])
 	known_hashes.add(hashlib.sha256(ATTACHMENT_CONTENT).hexdigest())
 	items, item_images = _sample_items(data)
 	files = frappe.get_all(

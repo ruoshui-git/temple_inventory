@@ -18,7 +18,7 @@ export function useItemPicker(
   const search = ref(""),
     categoryFilters = ref<string[]>([]),
     uncategorizedFilter = ref(false),
-    locationFilter = ref(""),
+    warehouseFilters = ref<string[]>([]),
     onlyStock = ref(false),
     selected = ref<string[]>([]);
   const result = reactive({
@@ -68,10 +68,11 @@ export function useItemPicker(
           search: search.value,
           start: more ? result.next : 0,
           page_length: 50,
-          warehouse: locationFilter.value || null,
+          warehouses: warehouseFilters.value,
           categories: categoryFilters.value,
           uncategorized: uncategorizedFilter.value,
           in_stock_only: onlyStock.value,
+          ...(props.timestamp ? { timestamp: props.timestamp } : {}),
           ...(props.eligible ? { item_codes: props.eligible } : {}),
         },
         request.signal,
@@ -105,9 +106,10 @@ export function useItemPicker(
         search.value,
         categoryFilters.value,
         uncategorizedFilter.value,
-        locationFilter.value,
+        warehouseFilters.value,
         onlyStock.value,
         props.eligible,
+        props.timestamp,
       ]),
     () => {
       void load();
@@ -158,7 +160,7 @@ export function useItemPicker(
     search,
     categoryFilters,
     uncategorizedFilter,
-    locationFilter,
+    warehouseFilters,
     onlyStock,
     selected,
     result,

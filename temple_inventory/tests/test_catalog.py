@@ -232,9 +232,12 @@ class CatalogTests(NativeDocumentTests):
 		self.assertIsNone(result["next_start"])
 		self.assertEqual(catalog.search_items(self.item, in_stock_only=True)["matched_count"], 0)
 		self.receipt(3)
-		result = catalog.search_items(self.item, in_stock_only=True, warehouse=self.a)
+		other_receipt = self.movement(quantity=4)
+		other_receipt["items"][0]["t_warehouse"] = self.b
+		self.submit(self.create(other_receipt))
+		result = catalog.search_items(self.item, in_stock_only=True, warehouses=[self.a, self.b])
 		self.assertEqual(result["matched_count"], 1)
-		self.assertEqual(result["results"][0]["stock"][0]["available"], 3)
+		self.assertEqual(sum(row["available"] for row in result["results"][0]["stock"]), 7)
 
 	def test_reference_creation_preserves_parent_and_whole_number_setting(self):
 		parent = frappe.get_doc(
@@ -588,7 +591,7 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(item_page["matched_count"], 1)
 		self.assertEqual(item_page["rows"][0]["stock_qty"], 2)
 		self.assertEqual(item_page["rows"][0]["document_count"], 1)
-		history = browse.operation_contributions(item_query, item_code=self.item)
+		history = browse.operation_contributions(item_query, item_code=self.item, history_sort="asc")
 		self.assertEqual(history["matched_count"], 2)
 		self.assertTrue(history["history_complete"])
 		self.assertEqual([row["quantity"] for row in history["rows"]], [3.0, -1.0])
@@ -596,11 +599,13 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(history["rows"][0]["signed"], True)
 		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Return"])
 		all_item_history = browse.operation_contributions(
-			item_query, item_code=self.item, history_scope="all"
+			item_query, item_code=self.item, history_scope="all", history_sort="asc"
 		)
 		self.assertEqual([row["quantity"] for row in all_item_history["rows"]], [5.0, -3.0])
 		all_query = {**item_query, "includeZero": True}
-		all_history = browse.operation_contributions(all_query, item_code=self.item, history_scope="all")
+		all_history = browse.operation_contributions(
+			all_query, item_code=self.item, history_scope="all", history_sort="asc"
+		)
 		self.assertEqual([row["quantity"] for row in all_history["rows"]], [5.0, -3.0])
 
 		settled_item = frappe.copy_doc(frappe.get_doc("Item", self.item))
@@ -691,12 +696,16 @@ class CatalogTests(NativeDocumentTests):
 		)
 		loss = self.submit(self.create(loss_data))
 		query = {"dataset": "loans", "view": "items", "loan": loan.name}
-		history = browse.operation_contributions(query, item_code=self.item, history_scope="all")
+		history = browse.operation_contributions(
+			query, item_code=self.item, history_scope="all", history_sort="asc"
+		)
 		self.assertTrue(history["history_complete"])
 		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Loss", "Damage"])
 		self.assertEqual([row["quantity"] for row in history["rows"]], [4.0, -1.0, -1.0])
 		frappe.get_doc("Stock Entry", loss.name).cancel()
-		updated = browse.operation_contributions(query, item_code=self.item, history_scope="all")
+		updated = browse.operation_contributions(
+			query, item_code=self.item, history_scope="all", history_sort="asc"
+		)
 		self.assertTrue(updated["history_complete"])
 		self.assertEqual([row["kind"] for row in updated["rows"]], ["Loan", "Damage"])
 		self.assertEqual([row["quantity"] for row in updated["rows"]], [4.0, -1.0])
@@ -761,6 +770,12 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(catalog.scan_code(self.a)["warehouse"]["name"], self.a)
 		self.assertFalse(catalog.scan_code(self.a)["unknown"])
 		self.assertEqual(catalog.operation_item(self.item)["stock"][0]["available"], 3)
+		past = "2000-01-01 00:00:00"
+		search_result = catalog.search_items(self.item, timestamp=past)
+		item_result = catalog.operation_item(self.item, timestamp=past)
+		self.assertEqual(search_result["results"][0]["snapshot"], item_result["snapshot"])
+		self.assertEqual(search_result["results"][0]["stock"], [])
+		self.assertEqual(item_result["stock"], [])
 		self.assertIn(nowdate(), native_api.editor_clock()["timestamp"])
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
 		batch_item = frappe.copy_doc(frappe.get_doc("Item", self.item))

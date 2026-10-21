@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Keep browser font setup scoped to visual-audit processes. Do not alter the
+# product's runtime or the user's system font configuration.
+
+font="${TEMPLE_UI_CJK_FONT:-}"
+for candidate in \
+	/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf \
+	/tmp/NotoSansSC.ttf \
+	/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
+	/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf; do
+	if [[ -z "$font" && -r "$candidate" ]]; then
+		font=$candidate
+	fi
+done
+
+if [[ -z "$font" || ! -r "$font" ]]; then
+	cat >&2 <<'MESSAGE'
+Chinese CJK font preflight failed: no readable Noto Sans CJK font was found.
+Install the platform's Noto CJK font package (Debian/Ubuntu: fonts-noto-cjk),
+or set TEMPLE_UI_CJK_FONT to a readable Noto Sans CJK font file, then rerun.
+MESSAGE
+	exit 1
+fi
+
+font_dir=$(dirname -- "$font")
+config_root="${TMPDIR:-/tmp}/temple-inventory-ui-fontconfig"
+mkdir -p "$config_root/cache"
+config="$config_root/fonts.conf"
+cat >"$config" <<XML
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <include>/etc/fonts/fonts.conf</include>
+  <dir>$font_dir</dir>
+  <cachedir>$config_root/cache</cachedir>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh</string></test>
+    <edit name="family" mode="prepend"><string>Noto Sans CJK SC</string></edit>
+  </match>
+</fontconfig>
+XML
+
+export FONTCONFIG_FILE="$config"
+fc-cache -f "$font_dir"
+matched=$(fc-match -f '%{file}\n%{lang}\n' 'sans:lang=zh')
+matched_file=${matched%%$'\n'*}
+matched_lang=${matched#*$'\n'}
+if [[ ! -r "$matched_file" || "$matched_file" != "$font" && "$matched_file" != *.ttc ]]; then
+	printf 'Chinese font preflight failed: zh matched %s instead of %s\n' "$matched_file" "$font" >&2
+	exit 1
+fi
+if [[ "$matched_lang" != *zh* ]]; then
+	printf 'Chinese font preflight failed: matched font does not advertise zh coverage (%s)\n' "$matched_lang" >&2
+	exit 1
+fi
+
+printf 'Verified Chinese font: %s (zh coverage)\n' "$matched_file"
+if (($#)); then
+	exec "$@"
+fi

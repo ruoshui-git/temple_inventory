@@ -90,14 +90,17 @@ describe("shared production design system", () => {
     expect(read("src/main.ts")).not.toContain("frappe-ui/style.css");
   });
   it("sets explicit initial expansion policies for direct hierarchy filters", () => {
-    expect(read("src/features/dashboard/DashboardView.vue")).toContain(
-      'title="仓库 / 位置"\n\t\t\t\t\t\tplaceholder="搜索位置"\n\t\t\t\t\t\tinitial-expansion="branching-leaves"',
+    expect(read("src/components/filters/BrowseFilters.vue")).toContain(
+      'title="物品类别"\n\t\t\t\t\tplaceholder="搜索类别"\n\t\t\t\t\tinitial-expansion="first-level"',
     );
-    expect(read("src/features/dashboard/DashboardView.vue")).toContain(
-      'title="物品类别"\n\t\t\t\t\t\tplaceholder="搜索类别"\n\t\t\t\t\t\tinitial-expansion="first-level"',
+    expect(read("src/components/filters/BrowseFilters.vue")).toContain(
+      'title="仓库 / 位置"\n\t\t\t\t\tplaceholder="搜索仓库或位置"\n\t\t\t\t\tinitial-expansion="branching-leaves"',
     );
     expect(read("src/features/items/ItemPicker.vue")).toContain(
-      'title="物品类别"\n\t\t\t\t\tplaceholder="搜索类别"\n\t\t\t\t\tinitial-expansion="first-level"',
+      '<BrowseFilters\n\t\t\t\t\t\t\t\tv-model="browseScope"',
+    );
+    expect(read("src/features/items/ItemPicker.vue")).toContain(
+      ":fields=\"['categories', 'warehouses']\"",
     );
   });
 

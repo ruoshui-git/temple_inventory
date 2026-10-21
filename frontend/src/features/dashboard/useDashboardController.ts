@@ -154,12 +154,15 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     uncategorized: filters.uncategorized,
   }));
   const quickReportQuery = computed(() => {
-    const value = newReportQuery(reportDataset.value);
+    return queryForDataset(reportDataset.value);
+  });
+  function queryForDataset(dataset: ReportDataset): ReportQuery {
+    const value = newReportQuery(dataset);
     value.scope = clone(scope.value);
     if (value.dataset === "movements")
       value.scope.period = clone(filters.period);
     return value;
-  });
+  }
   async function updateSection(key: DashboardSectionKey, retry = false) {
     requests.get(key)?.controller.abort();
     const request = {
@@ -332,6 +335,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     announcement,
     reportDataset,
     quickReportQuery,
+    queryForDataset,
     metrics,
     buckets,
     expiryPreview: computed(

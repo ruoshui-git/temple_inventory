@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-documents-v1"
+VERSION = "2026.10.native-costume-import-v4"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -75,7 +75,7 @@ def assert_native_reset_ready(allow_non_developer=0):
 	"""Fail before reinstall if app source would recreate retired business schema."""
 	import json
 
-	from temple_inventory.sample_media import ASSETS, _digest, catalog
+	from temple_inventory.sample_media import ASSETS, _digest, catalog, costume_catalog
 
 	result = assert_development_site(allow_non_developer=allow_non_developer)
 	root = Path(__file__).parent
@@ -104,7 +104,7 @@ def assert_native_reset_ready(allow_non_developer=0):
 		for row in fields
 	):
 		frappe.throw("Native reset is not ready: retired custom-field fixtures remain")
-	for row in catalog()["items"]:
+	for row in catalog()["items"] + costume_catalog():
 		for image in row["images"]:
 			path = ASSETS / image["output"]
 			if not path.resolve().is_relative_to(ASSETS.resolve()) or _digest(path) != image["sha256"]:
@@ -280,8 +280,23 @@ def verify_development_sample():
 	if frappe.db.has_column("Stock Reconciliation", "ti_count_warehouse"):
 		raise AssertionError("Retired singular count warehouse column remains after reset")
 	_assert_leaf_stock(settings)
-	codes = ["TI-SAMPLE-" + row["key"] for row in sample_media.catalog()["items"]]
-	codes.extend("TI-SAMPLE-" + row[0] for row in native_samples.EXTRA_ITEMS)
+	general_codes = ["TI-SAMPLE-" + row["key"] for row in sample_media.catalog()["items"]]
+	extra_codes = ["TI-SAMPLE-" + row[0] for row in native_samples.EXTRA_ITEMS]
+	costumes = sample_media.costume_catalog()
+	barcode_to_parent = {
+		row.barcode: row.parent
+		for row in frappe.get_all(
+			"Item Barcode",
+			filters={"barcode": ["in", [row["source_code"] for row in costumes]]},
+			fields=["barcode", "parent"],
+		)
+	}
+	costume_codes = [barcode_to_parent.get(row["source_code"]) for row in costumes]
+	if any(not code or not code.startswith("ITM-") for code in costume_codes):
+		raise AssertionError("Every real costume source code must resolve to an allocated Item identity")
+	codes = [*general_codes, *extra_codes, *costume_codes]
+	if len(costume_codes) != 96 or len(set(costume_codes)) != 96:
+		raise AssertionError("Costume import must allocate 96 separate Item identities")
 	if frappe.db.count("Item", {"name": ["in", codes]}) != len(codes):
 		raise AssertionError("Native sample catalog is incomplete")
 	for code in codes:
@@ -296,6 +311,26 @@ def verify_development_sample():
 		):
 			if not row.is_private or not row.file_url.startswith("/private/files/"):
 				raise AssertionError("Sample original image is public")
+	for source, code in zip(costumes, costume_codes, strict=True):
+		item = frappe.get_doc("Item", code)
+		if (
+			item.item_name != source["item_name"]
+			or item.stock_uom != source["stock_uom"]
+			or item.item_group != source["item_group"]
+			or frappe.db.get_value("Item Barcode", {"parent": code, "barcode": source["source_code"]}, "name")
+			is None
+		):
+			raise AssertionError(
+				f"Costume source identity or preserved fields are missing for {source['source_code']}"
+			)
+		warehouse = frappe.db.get_value(
+			"Warehouse", {"company": settings.company, "warehouse_name": source["room"] + " / 无货位"}, "name"
+		)
+		if native_samples.get_stock_balance(code, warehouse) != source["quantity"]:
+			raise AssertionError(f"Costume opening quantity differs from source for {source['source_code']}")
+		attachments = frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": code})
+		if attachments != len(source["images"]):
+			raise AssertionError(f"Costume image attachments are incomplete for {source['source_code']}")
 	rooms = {
 		key: frappe.db.get_value("Warehouse", {"company": settings.company, "warehouse_name": label}, "name")
 		for key, label in (("A02", "A02 / 无货位"), ("A02-RACK", "A02 / 货架一 / 上层"))
@@ -306,7 +341,7 @@ def verify_development_sample():
 			"Stock Entry",
 			{"ti_request_key": _request_key("Stock Entry", native_samples.REQUEST_PREFIX + key)},
 		)
-		for key in ("loan-first", "loan-second")
+		for key in ("loan-first", "loan-second", "loan-untouched", "loan-fully-settled")
 	]
 	native_samples.assert_balances(rooms, loans)
 	reconciliation = frappe.get_doc(
@@ -317,13 +352,66 @@ def verify_development_sample():
 	if set(count_warehouses) != {rooms["A02"], rooms["A02-RACK"]}:
 		raise AssertionError("Native sample count does not retain both selected warehouses")
 	count_rows = frappe.parse_json(reconciliation.ti_count_review or "[]")
-	if not count_rows or any(row.get("review_state") != "Reviewed" for row in count_rows):
-		raise AssertionError("Native sample count review is missing reviewed variance rows")
-	if any(
-		abs(float(row.get("actual_qty") or 0) - float(row.get("baseline_qty") or 0)) < 0.00000001
-		for row in count_rows
+	if {row.get("review_state") for row in count_rows} != {"Reviewed", "Unreviewed"}:
+		raise AssertionError("Native sample count must preserve reviewed and unreviewed rows")
+	if not any(row.get("difference") == -1 for row in count_rows) or not any(
+		row.get("difference") == 1 for row in count_rows
 	):
-		raise AssertionError("Native sample count must retain non-zero reviewed variances")
+		raise AssertionError("Native sample count must include positive and negative adjustments")
+	if not any(row.get("review_state") == "Reviewed" and row.get("difference") == 0 for row in count_rows):
+		raise AssertionError("Native sample count must include a reviewed matching row")
+	from temple_inventory import browse
+
+	dashboard_inventory = browse.dashboard_card("inventory")
+	page = browse.inventory_page()
+	if dashboard_inventory["item_count"] != page["matched_count"]:
+		raise AssertionError("Dashboard and browse inventory item counts differ")
+	if dashboard_inventory["totals"] != page["summary"]:
+		raise AssertionError("Dashboard and browse inventory totals differ")
+	expiry = browse.dashboard_card("expiry")
+	if len(expiry["buckets"]) != 6:
+		raise AssertionError("Dashboard expiry buckets are incomplete")
+	expiry_rows = []
+	expiry_start = 0
+	while True:
+		expiry_page = browse.expiry_page({"dataset": "expiry"}, start=expiry_start, page_length=100)
+		expiry_rows.extend(expiry_page["rows"])
+		if expiry_page["next_start"] is None:
+			break
+		expiry_start = expiry_page["next_start"]
+	expected_buckets = {
+		key: set()
+		for key in (
+			"expired_1_30",
+			"expired_31_90",
+			"expired_91_plus",
+			"upcoming_0_30",
+			"upcoming_31_90",
+			"upcoming_91_plus",
+		)
+	}
+	for row in expiry_rows:
+		days = row["remaining_days"]
+		if days is None or row["available"] <= 0:
+			continue
+		key = (
+			"expired_1_30"
+			if -30 <= days < 0
+			else "expired_31_90"
+			if -90 <= days < -30
+			else "expired_91_plus"
+			if days < -90
+			else "upcoming_0_30"
+			if days <= 30
+			else "upcoming_31_90"
+			if days <= 90
+			else "upcoming_91_plus"
+		)
+		expected_buckets[key].add((row["item_code"], row["batch_no"]))
+	if {row["id"]: row["count"] for row in expiry["buckets"]} != {
+		key: len(values) for key, values in expected_buckets.items()
+	}:
+		raise AssertionError("Dashboard expiry buckets differ from the complete expiry browse")
 	media = sample_media.inventory()
 	if media["public_files"]:
 		raise AssertionError("Obsolete public sample media remains")
@@ -333,8 +421,12 @@ def verify_development_sample():
 		"items": len(codes),
 		"media": media,
 		"balances_verified": True,
+		"dashboard_inventory_verified": True,
+		"dashboard_expiry_verified": True,
 		"count_review_verified": True,
 		"count_review_rows": len(count_rows),
+		"costume_source_rows": len(costumes),
+		"costume_images": sum(len(row["images"]) for row in costumes),
 		"retired_schema_absent": True,
 	}
 

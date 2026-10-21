@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
-import { ScannerService, cameraError, type ScannerCamera } from "../lib/scanner";
+import {
+	ScannerService,
+	cameraError,
+	type ScannerCamera,
+	type ScannerFramePresence,
+} from "../lib/scanner";
 import { sessionExpired } from "../lib/sessionState";
 import Overlay from "./ui/Overlay.vue";
 import UiButton from "./ui/UiButton.vue";
 export type ScannerPresentation = "inline" | "modal" | "continuous" | "camera";
 const props = withDefaults(
-	defineProps<{ paused?: boolean; presentation?: ScannerPresentation; submitLabel?: string }>(),
-	{ presentation: "inline", submitLabel: "查找" },
+	defineProps<{
+		paused?: boolean;
+		presentation?: ScannerPresentation;
+		submitLabel?: string;
+		beepOnDecode?: boolean;
+	}>(),
+	{ presentation: "inline", submitLabel: "查找", beepOnDecode: true },
 );
 const emit = defineEmits<{ scan: [value: string]; close: [] }>();
 const area = ref<HTMLElement>(),
@@ -26,16 +36,31 @@ function visibilityChanged() {
 let disposed = false,
 	startGeneration = 0,
 	cameraActive = false,
-	last = "",
-	lastTime = 0;
+	emptySince: number | undefined,
+	seenBarcodes = new Set<string>();
 function decoded(value: string, explicit = false) {
 	value = value.trim();
 	if (!value || paused.value || disposed) return;
-	if (!explicit && value === last && Date.now() - lastTime < 2000) return;
-	last = value;
-	lastTime = Date.now();
-	notifyScan();
+	if (!explicit) {
+		if (seenBarcodes.has(value)) return;
+		seenBarcodes.add(value);
+	}
+	if (props.beepOnDecode) notifyScan();
 	emit("scan", value);
+}
+function framePresence(presence: ScannerFramePresence) {
+	if (presence !== false) {
+		emptySince = undefined;
+		return;
+	}
+	if (seenBarcodes.size && emptySince === undefined) {
+		emptySince = Date.now();
+		return;
+	}
+	if (emptySince !== undefined && Date.now() - emptySince >= 500) {
+		seenBarcodes.clear();
+		emptySince = undefined;
+	}
 }
 function notifyScan() {
 	const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -81,9 +106,13 @@ async function openCamera(
 			area.value,
 			decoded,
 			(reason) => {
-				if (!disposed && generation === startGeneration) error.value = cameraError(reason);
+				if (!disposed && generation === startGeneration) {
+					error.value = cameraError(reason);
+					emptySince = undefined;
+				}
 			},
 			deviceId,
+			framePresence,
 		);
 		if (disposed || generation !== startGeneration) return;
 		cameraActive = true;
@@ -181,6 +210,8 @@ function stopCamera() {
 }
 function close() {
 	disposed = true;
+	seenBarcodes.clear();
+	emptySince = undefined;
 	stopCamera();
 	emit("close");
 }
@@ -202,12 +233,16 @@ onMounted(() => {
 	void start();
 });
 onDeactivated(() => {
+	seenBarcodes.clear();
+	emptySince = undefined;
 	stopCamera();
 });
 onBeforeUnmount(() => {
 	document.removeEventListener("visibilitychange", visibilityChanged);
 	navigator.mediaDevices?.removeEventListener?.("devicechange", devicesChanged);
 	disposed = true;
+	seenBarcodes.clear();
+	emptySince = undefined;
 	stopCamera();
 });
 defineExpose({

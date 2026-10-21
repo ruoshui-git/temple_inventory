@@ -271,6 +271,17 @@ for (const [width, scale, density] of [
     await setup(page, scale, density);
     await page.goto("/inventory/stock");
     await expect(page.locator(".stock-card")).toHaveCount(20);
+    const imageTrigger = page.locator(".item-image-button:visible").first();
+    await expect(imageTrigger).toBeVisible();
+    await imageTrigger.click();
+    const lightbox = page.locator(".preview-overlay").last();
+    const naturalImage = lightbox.locator(".lightbox-image .async-image img");
+    await expect(naturalImage).toBeVisible();
+    const naturalImageBox = await naturalImage.boundingBox();
+    expect(naturalImageBox?.width).toBeGreaterThan(0);
+    expect(naturalImageBox?.height).toBeGreaterThan(0);
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toHaveCount(0);
     await page
       .getByLabel("搜索物品或条码")
       .fill("供灯用品与法会日常储备长关键词");
@@ -338,6 +349,19 @@ for (const width of [390, 1440]) {
     await page.goto("/inventory/movements?view=records");
     const record = page.locator(".browse-table tbody tr").first();
     await expect(record.locator("td").nth(5)).toContainText("20 个");
+    const quantityHeader = page
+      .locator(".browse-table thead th")
+      .filter({ hasText: /数量/ })
+      .first();
+    await expect(quantityHeader).toHaveClass(/align-end/);
+    await expect(quantityHeader.locator("button")).toHaveClass(/align-end/);
+    const quantityCell = record.locator("td.align-end").first();
+    await expect(quantityCell).toBeVisible();
+    expect(
+      await quantityCell.evaluate(
+        (cell) => getComputedStyle(cell).fontVariantNumeric,
+      ),
+    ).toContain("tabular-nums");
     await expect(
       page.getByRole("button", { name: "符合筛选的明细", exact: true }),
     ).toHaveCount(0);
@@ -375,6 +399,16 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
     await page.goto("/inventory/");
+    if (width >= 1024) {
+      const primaryAction = await page
+        .getByRole("button", { name: "入库", exact: true })
+        .boundingBox();
+      const moreAction = await page
+        .locator(".dashboard-more-actions > summary")
+        .boundingBox();
+      expect(primaryAction?.height).toBeDefined();
+      expect(moreAction?.height).toBeCloseTo(primaryAction!.height, 0);
+    }
     const expiry = page.locator(".dashboard-expiry");
     await expect(
       expiry.getByRole("tab", { name: "已过期", exact: true }),

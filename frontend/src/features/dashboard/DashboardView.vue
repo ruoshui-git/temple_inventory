@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import { ref, useId } from "vue";
+import { computed, ref, useId } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DashboardSection from "../../components/DashboardSection.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import FilterPanel from "../../components/ui/FilterPanel.vue";
-import HierarchyFilter from "../../components/ui/HierarchyFilter.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
-import { reportDefinitions, type ReportQuery } from "../../lib/reportContract";
+import {
+	browseDestination,
+	countDestination,
+	operationDestination,
+} from "../../lib/nativeNavigation";
+import { newReportQuery, type ReportDataset, type ReportQuery } from "../../lib/reportContract";
+import { emptyScope, type BrowseScope } from "../../lib/browseQuery";
+import type { AppRouteTarget } from "../../lib/routeRegistry";
 import { movementLabels } from "../../lib/filterPresentation";
 import { quantityText, type useDashboardController } from "./useDashboardController";
 const props = withDefaults(
@@ -24,6 +31,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	openExport: [query: ReportQuery];
+	navigate: [route: AppRouteTarget];
 }>();
 const {
 	reference,
@@ -46,8 +54,10 @@ const {
 	maximum,
 	loading,
 	loanQuantity,
+	queryForDataset,
 } = props.controller;
 const showFilters = ref(false);
+const moreActions = ref<HTMLDetailsElement>();
 function effectLabel(effect: number, uom: string) {
 	return effect > 0
 		? `可用库存增加 ${effect} ${uom}`
@@ -72,85 +82,157 @@ function expiryKey(event: KeyboardEvent) {
 		?.focus();
 }
 const { isMobile } = useResponsiveLayout();
+const dashboardScope = computed<BrowseScope>({
+	get: () => ({
+		...emptyScope(),
+		categories: [...filters.categories],
+		warehouses: [...filters.warehouses],
+		uncategorized: filters.uncategorized,
+	}),
+	set: (scope: BrowseScope) => {
+		filters.categories = [...scope.categories];
+		filters.warehouses = [...scope.warehouses];
+		filters.uncategorized = scope.uncategorized;
+	},
+});
+const scopeLabel = computed(() => {
+	const values = [...filters.warehouses, ...filters.categories].map(
+		(id) =>
+			reference.warehouses.find((row) => row.name === id)?.label ||
+			reference.categories.find((row) => row.name === id)?.label ||
+			id,
+	);
+	if (filters.uncategorized) values.push("无分类");
+	return values.join(" · ") || "全部仓库 · 全部类别";
+});
+const hasMoreActions = computed(
+	() =>
+		(reference.capabilities["Stock Reconciliation"]?.create === true &&
+			reference.operations.Reconcile === true) ||
+		["Damage", "Loss", "Repair", "Disposal"].some(canCreate) ||
+		(reference.capabilities["Stock Entry"]?.read === true &&
+			reference.operations.Return === true),
+);
+function closeMoreActions() {
+	if (moreActions.value) moreActions.value.open = false;
+}
+function canCreate(kind: string) {
+	return (
+		reference.capabilities["Stock Entry"]?.create === true &&
+		reference.operations[kind] === true
+	);
+}
+function quickAction(kind: string) {
+	closeMoreActions();
+	emit("navigate", operationDestination(kind));
+}
+function navigateMore(route: AppRouteTarget) {
+	closeMoreActions();
+	emit("navigate", route);
+}
+function chooseOutstandingLoan() {
+	closeMoreActions();
+	const query = newReportQuery("loans");
+	query.view = "items";
+	query.groupBy = ["item"];
+	query.statuses = [1];
+	query.outstandingOnly = true;
+	emit("navigate", browseDestination(query));
+}
+function datasetChanged(dataset: ReportDataset) {
+	reportDataset.value = dataset;
+}
 </script>
 <template>
 	<div class="preview-dashboard">
-		<PageHeader title="物资总览"
-			><template #actions
-				><UiButton @click="refresh">刷新</UiButton>
+		<PageHeader title="物资总览">
+			<template #actions>
+				<UiButton @click="refresh">刷新</UiButton>
 				<QuickExport
 					:query="quickReportQuery"
+					:query-for-dataset="queryForDataset"
+					:initial-dataset="reportDataset"
+					allow-dataset-selection
 					:active="active"
-					@open-full="emit('openExport', $event)" /></template
-		></PageHeader>
-		<div class="browse-toolbar">
-			<label class="preview-field"
-				>快速导出数据集<select v-model="reportDataset">
-					<option v-for="(definition, id) in reportDefinitions" :key="id" :value="id">
-						{{ definition.label }}
-					</option>
-				</select></label
-			>
-			<FilterPanel
-				label="总览范围"
-				:count="
-					filters.warehouses.length +
-					filters.categories.length +
-					Number(filters.uncategorized)
-				"
-				:active="active"
-				@update:open="showFilters = $event"
-			>
-				<div class="preview-filter-fields">
-					<HierarchyFilter
-						v-model="filters.warehouses"
-						:options="reference.warehouses"
-						title="仓库 / 位置"
-						placeholder="搜索位置"
-						initial-expansion="branching-leaves"
-					/>
-					<label class="preview-choice-label"
-						><input v-model="filters.uncategorized" type="checkbox" />无分类</label
+					@commit-dataset="datasetChanged"
+					@open-full="emit('openExport', $event)"
+				/>
+			</template>
+			<template #trailing>
+				<div class="dashboard-scope-control">
+					<FilterPanel
+						label="总览范围"
+						:count="
+							filters.warehouses.length +
+							filters.categories.length +
+							Number(filters.uncategorized)
+						"
+						:active="active"
+						@update:open="showFilters = $event"
 					>
-					<HierarchyFilter
-						v-model="filters.categories"
-						:options="reference.categories"
-						title="物品类别"
-						placeholder="搜索类别"
-						initial-expansion="first-level"
-					/>
+						<BrowseFilters
+							v-model="dashboardScope"
+							:fields="['warehouses', 'categories']"
+						/>
+						<template #footer>
+							<span v-if="sections.inventory.hasResult" role="status"
+								>{{ sections.inventory.result.item_count }} 种物品</span
+							>
+							<UiButton
+								:disabled="
+									!filters.warehouses.length &&
+									!filters.categories.length &&
+									!filters.uncategorized
+								"
+								@click="
+									filters.warehouses = [];
+									filters.categories = [];
+									filters.uncategorized = false;
+								"
+								>清空范围</UiButton
+							>
+						</template>
+					</FilterPanel>
+					<span class="dashboard-scope-summary">{{ scopeLabel }}</span>
 				</div>
-				<template #footer
-					><span v-if="sections.inventory.hasResult" role="status"
-						>{{ sections.inventory.result.item_count }} 种物品</span
-					><UiButton
-						:disabled="
-							!filters.warehouses.length &&
-							!filters.categories.length &&
-							!filters.uncategorized
+			</template>
+		</PageHeader>
+		<div class="dashboard-quick-actions" aria-label="快速操作">
+			<UiButton v-if="canCreate('Receive')" @click="quickAction('Receive')">入库</UiButton>
+			<UiButton v-if="canCreate('Issue')" @click="quickAction('Issue')">出库</UiButton>
+			<UiButton v-if="canCreate('Loan')" @click="quickAction('Loan')">借出</UiButton>
+			<UiButton v-if="canCreate('Transfer')" @click="quickAction('Transfer')">调拨</UiButton>
+			<details v-if="hasMoreActions" ref="moreActions" class="dashboard-more-actions">
+				<summary>更多</summary>
+				<div class="dashboard-more-actions-menu">
+					<UiButton
+						v-if="
+							reference.capabilities['Stock Reconciliation']?.create === true &&
+							reference.operations.Reconcile === true
 						"
-						@click="
-							filters.warehouses = [];
-							filters.categories = [];
-							filters.uncategorized = false;
+						@click="navigateMore(countDestination())"
+						>盘点调整</UiButton
+					>
+					<UiButton v-if="canCreate('Damage')" @click="quickAction('Damage')"
+						>损坏</UiButton
+					>
+					<UiButton v-if="canCreate('Loss')" @click="quickAction('Loss')">遗失</UiButton>
+					<UiButton v-if="canCreate('Repair')" @click="quickAction('Repair')"
+						>修复</UiButton
+					>
+					<UiButton v-if="canCreate('Disposal')" @click="quickAction('Disposal')"
+						>报废</UiButton
+					>
+					<UiButton
+						v-if="
+							reference.capabilities['Stock Entry']?.read === true &&
+							reference.operations.Return === true
 						"
-						>清空范围</UiButton
-					></template
-				>
-			</FilterPanel>
-			<span>{{
-				[...filters.warehouses, ...filters.categories]
-					.map(
-						(id) =>
-							reference.warehouses.find((row) => row.name === id)?.label ||
-							reference.categories.find((row) => row.name === id)?.label ||
-							id,
-					)
-					.join(" · ") +
-					(filters.uncategorized
-						? `${filters.warehouses.length || filters.categories.length ? " · " : ""}无分类`
-						: "") || "全部仓库 · 全部类别"
-			}}</span>
+						@click="chooseOutstandingLoan"
+						>归还 · 选择未结清借用</UiButton
+					>
+				</div>
+			</details>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>
 		<div class="preview-dashboard-grid" :aria-busy="loading">
@@ -400,7 +482,7 @@ const { isMobile } = useResponsiveLayout();
 									movementLabels[row.kind || ""] ||
 									"库存记录"
 								}}<small
-									>{{ movementLabels[row.kind || ""] || row.kind }} ·
+									>{{ movementLabels[row.kind || ""] || "其他类型" }} ·
 									{{ row.document }} · {{ row.date }} ·
 									{{ row.activity_title || "未关联活动" }}</small
 								></span

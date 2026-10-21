@@ -483,6 +483,20 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertTrue(result["no_adjustment"])
 		self.assertEqual(frappe.db.count("Stock Reconciliation"), before)
 
+	def test_document_display_names_use_current_readable_item_metadata(self):
+		entry = self.receipt(10)
+		old_name = entry.get("items")[0].item_name
+		current_name = f"Renamed Item {self.token}"
+		frappe.db.set_value("Item", self.item, "item_name", current_name, update_modified=False)
+		serialized_entry = native_api.serialize(frappe.get_doc("Stock Entry", entry.name))
+		self.assertEqual(serialized_entry["items"][0]["item_name"], old_name)
+		self.assertEqual(serialized_entry["items"][0]["ti_display_item_name"], current_name)
+
+		count = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		serialized_count = native_api.serialize(frappe.get_doc("Stock Reconciliation", count.name))
+		self.assertEqual(serialized_count["items"][0]["ti_display_item_name"], current_name)
+		self.assertEqual(serialized_count["ti_count_review"][0]["ti_display_item_name"], current_name)
+
 	def test_blank_count_is_unreviewed_and_zero_is_a_deliberate_review(self):
 		self.receipt(10)
 		with self.assertRaises(frappe.ValidationError):

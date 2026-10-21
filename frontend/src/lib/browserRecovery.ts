@@ -28,7 +28,7 @@ export interface RecoveryStorage {
 }
 
 const deniedFields =
-  /^(?:password|csrf_token|csrfToken|accessToken|refreshToken|sessionToken|sid|fileBytes|contentBytes|objectUrl|previewUrl|_content)$/i;
+  /^(?:password|csrf_token|csrfToken|accessToken|refreshToken|sessionToken|sid|fileBytes|contentBytes|objectUrl|previewUrl|_content|displayName|displayImage|displayTracksBatch|displayTracksExpiry|ti_display_item_name|ti_display_image|ti_display_tracks_batch|ti_display_tracks_expiry)$/i;
 function safeValue(value: unknown, depth = 0): JsonValue | undefined {
   if (depth > 30 || value === undefined) return;
   if (value === null || typeof value === "boolean") return value;

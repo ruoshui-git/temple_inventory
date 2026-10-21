@@ -77,6 +77,7 @@ export function useStockBrowseController(
     snapshot: "",
     stale: false,
   });
+  const loadingMore = ref(false);
   const query = computed<ReportQuery>(() => {
     const value = JSON.parse(JSON.stringify(constraints.value)) as ReportQuery;
     value.search = search.value;
@@ -155,6 +156,7 @@ export function useStockBrowseController(
     }
     request = new AbortController();
     data.loading = true;
+    loadingMore.value = more;
     data.error = "";
     data.moreError = "";
     if (!more) data.stale = data.rows.length > 0;
@@ -191,7 +193,10 @@ export function useStockBrowseController(
       if (more) data.moreError = message;
       else data.error = message;
     } finally {
-      if (current === generation) data.loading = false;
+      if (current === generation) {
+        data.loading = false;
+        loadingMore.value = false;
+      }
     }
   }
   watch(
@@ -313,6 +318,7 @@ export function useStockBrowseController(
     appliedChips,
     reference,
     data,
+    loadingMore,
     search,
     view,
     sort,
@@ -338,9 +344,11 @@ export function useStockBrowseController(
     analysis: computed(() => data.analysis[analysisDimension.value]),
     status: computed(() =>
       data.loading
-        ? data.rows.length
-          ? "refresh"
-          : "loading"
+        ? loadingMore.value
+          ? "more"
+          : data.rows.length
+            ? "refresh"
+            : "loading"
         : data.error && !data.rows.length
           ? "error"
           : "ready",

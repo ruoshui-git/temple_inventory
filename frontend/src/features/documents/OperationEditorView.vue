@@ -2,7 +2,7 @@
 import PageHeader from "../../components/ui/PageHeader.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { OperationEditor } from "./useOperationEditor";
 import { operationLabels } from "./operationCodec";
 import OperationLines from "./OperationLines.vue";
@@ -16,9 +16,12 @@ import SearchSelect from "../../components/ui/SearchSelect.vue";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useInventoryServices } from "../../services/contracts";
 import { newReportQuery } from "../../lib/reportContract";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import { enumPresentationLabel } from "../../lib/presentationLabels";
+import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 const props = withDefaults(defineProps<{ controller: OperationEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -60,6 +63,29 @@ const formRoot = ref<HTMLElement>(),
 	reviewBar = ref<HTMLElement>(),
 	lineEditor = ref<InstanceType<typeof OperationLines>>();
 const { expanded, toggle } = useExpandedEditor(formRoot, () => props.active !== false);
+const { isDesktop, isMobile } = useResponsiveLayout();
+const previewCollapsed = ref(false);
+const mobileReviewOpen = ref(false);
+let previousPreviewCollapsed = false;
+watch(expanded, async (value, previous) => {
+	if (value) {
+		previousPreviewCollapsed = previewCollapsed.value;
+		previewCollapsed.value = false;
+	} else if (previous && previousPreviewCollapsed) {
+		await nextTick();
+		previewCollapsed.value = true;
+		await nextTick();
+		formRoot.value?.querySelector<HTMLElement>(".preview-edge-handle")?.focus({
+			preventScroll: true,
+		});
+	}
+});
+watch(isMobile, (mobile) => {
+	if (mobile) {
+		previewCollapsed.value = false;
+		mobileReviewOpen.value = false;
+	}
+});
 useFocusVisibility(
 	formRoot,
 	reviewBar,
@@ -76,6 +102,9 @@ const reloadOpen = ref(false),
 const services = useInventoryServices();
 const editing = computed(
 	() => state.status === "conflict" || !state.server || state.server.editable === true,
+);
+const initialExistingLoad = computed(
+	() => loading.value && c.existingDocument.value && !state.server,
 );
 const itemCount = computed(() => new Set(draft.value.items.map((line) => line.code)).size);
 const totals = computed(() => {
@@ -128,7 +157,12 @@ async function back() {
 }
 </script>
 <template>
-	<section ref="formRoot" class="preview-form-page" :class="{ 'workspace-expanded': expanded }">
+	<section
+		id="operation-editor-preview"
+		ref="formRoot"
+		class="preview-form-page"
+		:class="{ 'workspace-expanded': expanded }"
+	>
 		<PageHeader class="form-page-heading"
 			><div>
 				<h1 tabindex="-1">{{ title }}</h1>
@@ -142,21 +176,36 @@ async function back() {
 					:active="active"
 					@open-full="emit('openExport', $event)" /></template
 		></PageHeader>
-		<p v-if="loading" role="status">正在读取原生记录…</p>
+		<DocumentLoadingState
+			v-if="initialExistingLoad"
+			label="正在读取库存单据…"
+			:announce="false"
+		/>
 		<div class="form-status">
-			<span class="badge neutral">{{
+			<span v-if="!initialExistingLoad" class="badge neutral">{{
 				state.identity
-					? `${state.identity.doctype} · ${state.identity.name}`
-					: "尚未创建原生记录"
+					? `${enumPresentationLabel("doctype", state.identity.doctype)} · ${state.identity.name}`
+					: c.existingDocument.value
+						? "正在读取原生记录"
+						: "尚未创建原生记录"
 			}}</span
-			><span role="status">{{ statusLabels[state.status] }}</span
+			><span role="status">{{
+				initialExistingLoad ? "正在读取原生记录…" : statusLabels[state.status]
+			}}</span
+			><span v-if="loading && state.server" class="async-refresh-status" role="status"
+				>正在刷新…</span
 			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity && !busy"
 				@click="dirty ? (reloadOpen = true) : c.load(true)"
 				>重新读取</UiButton
 			>
 		</div>
-		<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
+		<p v-if="state.error" class="notice-bar danger" role="alert">
+			{{ state.error }}
+			<UiButton v-if="c.existingDocument.value && !state.server" @click="c.load(true)"
+				>重新读取</UiButton
+			>
+		</p>
 		<p v-if="state.recoveryError" class="notice-bar warning" role="alert">
 			{{ state.recoveryError }}
 		</p>
@@ -218,7 +267,17 @@ async function back() {
 				>复制为新草稿</UiButton
 			>
 		</div>
-		<form novalidate class="form-layout" @submit.prevent="review">
+		<form
+			v-if="!c.existingDocument.value || state.server"
+			novalidate
+			class="form-layout async-result-region"
+			:class="{
+				'is-refreshing': loading && state.server,
+				'workspace-review-collapsed': previewCollapsed && isDesktop && !expanded,
+			}"
+			:aria-busy="loading && state.server ? 'true' : undefined"
+			@submit.prevent="review"
+		>
 			<div class="form-main surface">
 				<template v-if="editing">
 					<section class="form-section form-date-section">
@@ -428,24 +487,52 @@ async function back() {
 					>
 				</div>
 			</div>
-			<aside class="form-review surface">
-				<span class="eyebrow">确认前检查</span>
-				<span role="status">{{ statusLabels[state.status] }}</span>
-				<h2>操作汇总</h2>
-				<div class="review-metric">
-					<strong>{{ totals || "尚未添加物品" }}</strong
-					><span>各单位分别合计</span>
-				</div>
-				<p class="review-scope">
-					{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细
-				</p>
-				<div class="review-lines-disclosure">
-					<AllocationSummary :draft="draft" collapsible />
-				</div>
-				<p v-if="draft.kind === 'Loan'">借用方：{{ draft.borrower || "待填写" }}</p>
-				<p v-if="draft.activity">活动：{{ activityLabel }}</p>
-				<p v-if="draft.postingDate">日期：{{ draft.postingDate }}</p>
-				<p class="muted">确认前请核对物品、数量和库位。复核并确认后才变更库存。</p>
+			<aside id="operation-review-panel" class="form-review surface">
+				<UiButton
+					v-if="isDesktop && !expanded"
+					class="preview-edge-handle"
+					:aria-expanded="!previewCollapsed"
+					aria-controls="operation-review-content"
+					:aria-label="previewCollapsed ? '展开确认前检查' : '收起确认前检查到边缘'"
+					@click="previewCollapsed = !previewCollapsed"
+				>
+					{{ previewCollapsed ? "展开检查" : "收起检查" }}
+				</UiButton>
+				<details
+					class="review-preview-disclosure"
+					:open="isDesktop || mobileReviewOpen"
+					@toggle="mobileReviewOpen = ($event.currentTarget as HTMLDetailsElement).open"
+				>
+					<summary class="review-preview-summary">
+						确认前检查 · {{ totals || "尚未添加物品" }} · {{ itemCount }} 种物品
+					</summary>
+					<div
+						id="operation-review-content"
+						class="review-preview-content"
+						:aria-hidden="previewCollapsed ? 'true' : undefined"
+						:inert="previewCollapsed || undefined"
+					>
+						<span class="eyebrow">确认前检查</span>
+						<span role="status">{{ statusLabels[state.status] }}</span>
+						<h2>操作汇总</h2>
+						<div class="review-metric">
+							<strong>{{ totals || "尚未添加物品" }}</strong
+							><span>各单位分别合计</span>
+						</div>
+						<p class="review-scope">
+							{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细
+						</p>
+						<div class="review-lines-disclosure">
+							<AllocationSummary :draft="draft" collapsible />
+						</div>
+						<p v-if="draft.kind === 'Loan'">
+							借用方：{{ draft.borrower || "待填写" }}
+						</p>
+						<p v-if="draft.activity">活动：{{ activityLabel }}</p>
+						<p v-if="draft.postingDate">日期：{{ draft.postingDate }}</p>
+						<p class="muted">确认前请核对物品、数量和库位。复核并确认后才变更库存。</p>
+					</div>
+				</details>
 			</aside>
 		</form>
 		<Overlay

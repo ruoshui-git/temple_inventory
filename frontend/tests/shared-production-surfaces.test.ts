@@ -335,7 +335,7 @@ describe("interactive preview", () => {
     await wrapper.get('input[aria-label="搜索库存"]').setValue("珍珠米");
     await new Promise((resolve) => setTimeout(resolve, 250));
     await flushPromises();
-    await button(wrapper, "快速导出").trigger("click");
+    await button(wrapper, "导出").trigger("click");
     await nextTick();
     expect(document.querySelector(".preview-dialog")?.textContent).toContain(
       "1 行完整结果",

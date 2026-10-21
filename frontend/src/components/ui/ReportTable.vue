@@ -20,6 +20,7 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import type { useReportGroups } from "../../composables/useReportGroups";
 import { reportColumnLabels, reportColumnMinimumWidths } from "../../lib/reportCells";
 import { movementLabels } from "../../lib/filterPresentation";
+import { enumPresentationLabel } from "../../lib/presentationLabels";
 
 const props = withDefaults(
 	defineProps<{
@@ -30,6 +31,7 @@ const props = withDefaults(
 		loading?: boolean;
 		initialized?: boolean;
 		error?: string;
+		stale?: boolean;
 		documentLinks?: boolean;
 		grouped?: boolean;
 		sortableColumns?: string[];
@@ -85,6 +87,8 @@ const quantityColumns = new Set([
 	"actual_qty",
 	"difference",
 	"stock_qty",
+	"entered_qty",
+	"quantity",
 ]);
 const columns = computed<DataColumn[]>(() => {
 	const sourceColumns =
@@ -125,6 +129,27 @@ const columnPreferences =
 				services,
 			)
 		: undefined;
+function columnIsVisible(id: string) {
+	if (columnPreferences) return columnPreferences.visible.value.includes(id);
+	return columns.value.some((column) => String(column.id) === id && column.defaultVisible);
+}
+function unitForQuantity(column: string, row: Record<string, unknown>) {
+	if (column === "entered_qty") return String(row.entered_uom || row.uom || "");
+	if (column === "quantity") return String(row.uom || row.stock_uom || "");
+	return String(row.stock_uom || "");
+}
+function unitColumnVisible(column: string, row: Record<string, unknown>) {
+	if (column === "entered_qty") return columnIsVisible(row.entered_uom ? "entered_uom" : "uom");
+	if (column === "quantity") return columnIsVisible(row.uom ? "uom" : "stock_uom");
+	return columnIsVisible("stock_uom");
+}
+function quantityText(column: string, value: number, row: Record<string, unknown>) {
+	if (column === "quantity") {
+		const sign = row.signed && value > 0 ? "+" : value < 0 ? "−" : "";
+		return `${sign}${formatQuantity(Math.abs(value))}`;
+	}
+	return formatQuantity(value);
+}
 const tableRows = computed<DataTableEntry[]>(() =>
 	props.grouped && props.groupPages
 		? props.groupPages.entries.value
@@ -143,7 +168,26 @@ const hasMore = computed(() =>
 function cell(column: string, value: unknown, row: Record<string, unknown>) {
 	if (["source_warehouse", "destination_warehouse"].includes(column) && !value) return "外部";
 	if (value === "" || value === undefined || value === null) return "";
-	if (column === "docstatus") return nativeStatusLabel(value);
+	if (
+		[
+			"kind",
+			"docstatus",
+			"status",
+			"loan_status",
+			"doctype",
+			"outcome_key",
+			"outcome",
+			"review_state",
+			"count_scope",
+			"relationship",
+		].includes(column)
+	)
+		return enumPresentationLabel(column, value);
+	if (column === "activity_type")
+		return (
+			reference?.activityTypes.find((option) => option.value === String(value))?.label ||
+			"活动类型未知"
+		);
 	if (
 		[
 			"warehouse",
@@ -220,8 +264,11 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 }
 
 function displayCell(column: string, value: unknown, row: Record<string, unknown>) {
-	if (quantityColumns.has(column) && typeof value === "number")
-		return `${formatQuantity(value)} ${String(row.stock_uom || "")}`.trim();
+	if (quantityColumns.has(column) && typeof value === "number") {
+		const quantity = quantityText(column, value, row);
+		if (unitColumnVisible(column, row)) return quantity;
+		return `${quantity} ${unitForQuantity(column, row)}`.trim();
+	}
 	return cell(column, value, row);
 }
 
@@ -292,10 +339,13 @@ function groupSummary(group: DataTableGroup) {
 	const parts = metrics
 		.filter((key) => row[key] !== undefined && row[key] !== null)
 		.filter((key) => key !== "stock_qty" || Number(row[key]) !== 0)
-		.map(
-			(key) =>
-				`${reportColumnLabels[key] || key} ${cell(key, row[key], row)}${row.stock_uom ? ` ${row.stock_uom}` : ""}`,
-		);
+		.map((key) => {
+			const value = row[key];
+			const rendered =
+				typeof value === "number" ? quantityText(key, value, row) : cell(key, value, row);
+			const unit = unitForQuantity(key, row);
+			return `${reportColumnLabels[key] || key} ${rendered}${unit ? ` ${unit}` : ""}`;
+		});
 	if (Array.isArray(row.quantity_breakdown)) {
 		const kindLabels: Record<string, string> = {
 			Receive: "入库",
@@ -317,7 +367,7 @@ function groupSummary(group: DataTableGroup) {
 			const quantity = entry.stock_qty;
 			if (quantity !== undefined && quantity !== null)
 				parts.push(
-					`${kind}${status} ${formatQuantity(Number(quantity))}${row.stock_uom ? ` ${row.stock_uom}` : ""}`,
+					`${kind}${status} ${formatQuantity(Number(quantity))}${entry.stock_uom || entry.uom || row.stock_uom ? ` ${entry.stock_uom || entry.uom || row.stock_uom}` : ""}`,
 				);
 		}
 	}
@@ -334,7 +384,8 @@ function groupMetric(group: DataTableGroup, column: string) {
 					(other) => other.kind === entry.kind && other.docstatus !== entry.docstatus,
 				);
 				const status = hasStatus ? `（${nativeStatusLabel(entry.docstatus)}）` : "";
-				return `${kind}${status} ${formatQuantity(Number(entry.stock_qty))} ${row.stock_uom || ""}`.trim();
+				const unit = entry.stock_uom || entry.uom || row.stock_uom || "";
+				return `${kind}${status} ${formatQuantity(Number(entry.stock_qty))} ${unit}`.trim();
 			})
 			.join(" / ");
 	}
@@ -350,8 +401,8 @@ function groupMetric(group: DataTableGroup, column: string) {
 	)
 		return "";
 	const value = row[column];
-	if (typeof value === "number" && row.stock_uom)
-		return `${cell(column, value, row)} ${row.stock_uom}`;
+	if (typeof value === "number" && unitForQuantity(column, row))
+		return `${quantityText(column, value, row)} ${unitForQuantity(column, row)}`;
 	return value === undefined || value === null ? "" : cell(column, value, row);
 }
 </script>
@@ -374,10 +425,11 @@ function groupMetric(group: DataTableGroup, column: string) {
 				grouped && groupPages ? Boolean(groupRoot?.initialized) : (initialized ?? !loading)
 			"
 			:error="grouped && groupPages ? groupRoot?.error || '' : error"
+			:stale="grouped && groupPages ? Boolean(groupRoot?.stale) : stale"
 			:retained="
 				Boolean(
 					grouped && groupPages
-						? groupRoot?.rows.length && groupRoot.loading
+						? groupRoot?.rows.length && groupRoot.loading && groupRoot.stale
 						: table.rows.length && loading,
 				)
 			"

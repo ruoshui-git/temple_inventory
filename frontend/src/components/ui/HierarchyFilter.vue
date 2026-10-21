@@ -5,6 +5,8 @@ import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
 export type HierarchyFilterNode = {
 	name: string;
 	label?: string;
+	local_label?: string;
+	breadcrumb?: string;
 	search_text?: string;
 	parent?: string;
 	parent_warehouse?: string;
@@ -93,17 +95,25 @@ function isAncestor(ancestor: HierarchyFilterNode, node: HierarchyFilterNode) {
 		Number(ancestor.rgt) > Number(node.rgt),
 	);
 }
+const localLabel = (node: HierarchyFilterNode) =>
+	node.local_label ||
+	(node.label?.includes(" / ") ? node.label.split(" / ").at(-1)?.trim() : node.label) ||
+	node.name;
 const path = (node: HierarchyFilterNode) => {
+	if (node.breadcrumb) return node.breadcrumb;
 	if (node.label?.includes(" / ")) return node.label;
-	const values = [node.label || node.name];
+	const values = [localLabel(node)];
 	let parent = byName.value.get(parentOf(node));
 	const seen = new Set<string>();
 	while (parent && !seen.has(parent.name)) {
 		seen.add(parent.name);
-		values.unshift(parent.label || parent.name);
+		values.unshift(localLabel(parent));
 		parent = byName.value.get(parentOf(parent));
 	}
 	return values.join(" / ");
+};
+const contextPath = (node: HierarchyFilterNode) => {
+	return term.value.trim() ? path(node) : "";
 };
 const normalize = (value: string) =>
 	value
@@ -114,7 +124,9 @@ const normalize = (value: string) =>
 const matches = (node: HierarchyFilterNode) =>
 	!term.value ||
 	normalize(
-		[node.name, node.label || "", node.search_text || "", path(node)].join(" "),
+		[node.name, localLabel(node), node.label || "", node.search_text || "", path(node)].join(
+			" ",
+		),
 	).includes(normalize(term.value));
 const visible = (node: HierarchyFilterNode) =>
 	matches(node) || descendants(node).some((candidate) => matches(candidate));
@@ -335,8 +347,7 @@ watch(term, () => {
 							class="tree-toggle"
 							:aria-expanded="expanded.has(node.name)"
 							:aria-label="
-								(expanded.has(node.name) ? '收起 ' : '展开 ') +
-								(node.label || node.name)
+								(expanded.has(node.name) ? '收起 ' : '展开 ') + localLabel(node)
 							"
 							@click="toggleExpanded(node.name)"
 						>
@@ -354,10 +365,14 @@ watch(term, () => {
 								:indeterminate="partial(node)"
 								@keydown="onKeydown"
 								@change="toggle(node)"
-							/><span :title="path(node)"
-								>{{ node.label || node.name
-								}}<small v-if="term || depth(node) > 4" class="hierarchy-path">{{
-									path(node)
+							/><span
+								class="hierarchy-option-label"
+								:title="term ? path(node) : undefined"
+								><span class="hierarchy-option-primary">{{
+									localLabel(node)
+								}}</span
+								><small v-if="contextPath(node)" class="hierarchy-path">{{
+									contextPath(node)
 								}}</small></span
 							><small v-if="node.count !== undefined" class="facet-result-count">{{
 								node.count

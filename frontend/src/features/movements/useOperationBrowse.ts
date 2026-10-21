@@ -24,6 +24,7 @@ export interface OperationGroup {
   item?: CatalogItem;
   item_code?: string;
   item_name?: string;
+  image?: string;
   category?: string;
   stock_uom?: string;
   stock_qty?: number;
@@ -212,7 +213,6 @@ export function useOperationBrowse(
     if (props.family === "loans" && !props.records) {
       incoming.loanStatus = "all";
       incoming.loanOutcome = "all";
-      incoming.outstandingOnly = false;
       incoming.statuses = [1];
     }
     const supportedSorts = sortableColumnsForView(props.family, incoming.view);
@@ -762,8 +762,23 @@ export function useOperationBrowse(
     moreAnalysis,
     viewQuery,
     loanHistory,
-    stockItem: (row: OperationGroup) =>
-      row.item ? presentCatalogItem(row.item) : undefined,
+    stockItem: (row: OperationGroup) => {
+      if (row.item) return presentCatalogItem(row.item);
+      if (!row.item_code || !row.item_name) return undefined;
+      return {
+        code: row.item_code,
+        name: row.item_name,
+        image: row.image || undefined,
+        category: row.category || "",
+        uom: row.stock_uom || "",
+        tracksBatch: false,
+        tracksExpiry: false,
+        locations: [],
+        available: 0,
+        loaned: 0,
+        damaged: 0,
+      };
+    },
   };
 }
 export type OperationBrowse = ReturnType<typeof useOperationBrowse>;

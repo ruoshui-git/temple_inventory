@@ -948,6 +948,16 @@ export const fixtureServices: InventoryServices = {
     }
     if (endpoint === "catalog.search_items") {
       const query = String(args.search || "").toLocaleLowerCase();
+      const warehouses = Array.isArray(args.warehouses)
+        ? (args.warehouses as string[])
+        : [];
+      const categories = Array.isArray(args.categories)
+        ? (args.categories as string[])
+        : [];
+      const categoryMatches = (category: string) =>
+        !categories.length ||
+        categories.includes(category) ||
+        (args.uncategorized === true && !category);
       const start = Number(args.start || 0),
         size =
           fixtureScenarios.pickerPageSize || Number(args.page_length || 30);
@@ -956,12 +966,19 @@ export const fixtureServices: InventoryServices = {
           `${row.code} ${row.name} ${row.category} ${row.barcode || ""}`
             .toLocaleLowerCase()
             .includes(query) &&
-          (!args.category || row.category === args.category) &&
+          categoryMatches(row.category) &&
           (!Array.isArray(args.item_codes) ||
             args.item_codes.includes(row.code)) &&
-          (!args.warehouse ||
-            row.locations.some((place) => place.location === args.warehouse)) &&
-          (!args.in_stock_only || row.available > 0),
+          (!warehouses.length ||
+            row.locations.some((place) =>
+              warehouses.includes(place.location),
+            )) &&
+          (!args.in_stock_only ||
+            row.locations.some(
+              (place) =>
+                (!warehouses.length || warehouses.includes(place.location)) &&
+                place.available > 0,
+            )),
       );
       return {
         results: matches

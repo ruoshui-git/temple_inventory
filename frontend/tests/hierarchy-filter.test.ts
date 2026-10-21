@@ -152,8 +152,13 @@ describe("HierarchyFilter", () => {
     expect(
       wrapper
         .findAll(".hierarchy-row")
-        .map((row) => row.get("label span").text()),
+        .map((row) =>
+          row
+            .get(".preview-choice-label > span")
+            .element.firstChild?.textContent?.trim(),
+        ),
     ).toEqual(["仓库", "多叶分支", "A", "B", "单叶链"]);
+    expect(wrapper.findAll(".hierarchy-path")).toHaveLength(0);
     expect(
       wrapper
         .get('button[aria-label="展开 单叶链"]')
@@ -168,13 +173,16 @@ describe("HierarchyFilter", () => {
     await wrapper.setProps({ options: refreshed, tree: refreshed });
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(1);
     await wrapper.get('input[type="search"]').setValue("C");
-    expect(
-      wrapper
-        .findAll(".hierarchy-row")
-        .some((row) => row.get("label span").text().startsWith("C")),
-    ).toBe(true);
+    const searchRow = wrapper
+      .findAll(".hierarchy-row")
+      .find((row) => row.get(".hierarchy-option-primary").text() === "C");
+    expect(searchRow).toBeTruthy();
+    expect(searchRow!.get(".hierarchy-path").text()).toBe(
+      "仓库 / 单叶链 / 末级前一层 / C",
+    );
     await wrapper.get('input[type="search"]').setValue("");
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(1);
+    expect(wrapper.findAll(".hierarchy-path")).toHaveLength(0);
     wrapper.unmount();
 
     const category = mount(HierarchyFilter, {
@@ -190,13 +198,21 @@ describe("HierarchyFilter", () => {
     expect(
       category
         .findAll(".hierarchy-row")
-        .map((row) => row.get("label span").text()),
+        .map((row) =>
+          row
+            .get(".preview-choice-label > span")
+            .element.firstChild?.textContent?.trim(),
+        ),
     ).toEqual(["仓库"]);
     await category.get('button[aria-label="展开 仓库"]').trigger("click");
     expect(
       category
         .findAll(".hierarchy-row")
-        .map((row) => row.get("label span").text()),
+        .map((row) =>
+          row
+            .get(".preview-choice-label > span")
+            .element.firstChild?.textContent?.trim(),
+        ),
     ).toEqual(["仓库", "多叶分支", "单叶链"]);
   });
   it("renders the inline tree immediately and supports search, selection, and clear", async () => {
@@ -220,8 +236,23 @@ describe("HierarchyFilter", () => {
     await wrapper.setProps({ modelValue: ["root"] });
     await wrapper.get('input[type="search"]').setValue("A-01");
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(3);
+    expect(
+      wrapper
+        .findAll(".hierarchy-row")
+        .find((row) => row.get(".hierarchy-option-primary").text() === "A-01")
+        ?.get(".hierarchy-path")
+        .text(),
+    ).toBe("仓库 / A 室 / A-01");
+    await wrapper.get('input[type="search"]').setValue("");
+    expect(wrapper.findAll(".hierarchy-path")).toHaveLength(0);
+    await wrapper.get('button[aria-label="收起 仓库"]').trigger("click");
     await wrapper.get('button[aria-label="清除本项"]').trigger("click");
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[]]);
+    await wrapper.setProps({ modelValue: [] });
+    await wrapper.get('input[type="search"]').setValue("");
+    expect(
+      wrapper.get('button[aria-label="展开 仓库"]').attributes("aria-expanded"),
+    ).toBe("false");
   });
 
   it("replaces nested selections with an ancestor and clears its whole branch", async () => {

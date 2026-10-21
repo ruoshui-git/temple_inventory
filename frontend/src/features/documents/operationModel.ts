@@ -21,6 +21,10 @@ export interface AllocationLine {
   localId: string;
   name?: string;
   code: string;
+  displayName?: string;
+  displayImage?: string;
+  displayTracksBatch?: boolean;
+  displayTracksExpiry?: boolean;
   qty: number;
   uom: string;
   location: string;

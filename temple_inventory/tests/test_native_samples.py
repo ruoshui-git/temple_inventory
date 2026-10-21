@@ -8,8 +8,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import frappe
+from erpnext.stock.utils import get_stock_balance
+from frappe.utils import getdate, nowdate
 
 from temple_inventory import configuration, native_samples, sample_media
+from temple_inventory.native_api import _request_key
+from temple_inventory.native_balances import batch_balances
 from temple_inventory.native_stock import MOVEMENT_PURPOSES
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
@@ -173,27 +177,157 @@ class NativeSampleTests(NativeDocumentTests):
 		settings.set("allowed_warehouses", [])
 		settings.save()
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		costumes = sample_media.costume_catalog()
+		test_costumes = [
+			{**row, "source_code": f"TEST-{self.token}-{row['source_code']}"} for row in costumes
+		]
 		with (
 			patch.object(native_samples, "ITEM_PREFIX", "TI-TEST-" + self.token + "-"),
 			patch.object(native_samples, "REQUEST_PREFIX", "temple-native-test:" + self.token + ":"),
 			patch.object(native_samples, "SAMPLE_ACTIVITY_TITLE", "Native Seed " + self.token),
+			patch.object(
+				native_samples,
+				"SAMPLE_MEAL_ACTIVITY_TITLE",
+				"Native Meal Seed " + self.token,
+			),
+			patch.object(
+				native_samples,
+				"SAMPLE_HISTORY_ACTIVITY_TITLE",
+				"Native History Seed " + self.token,
+			),
+			patch.object(native_samples, "costume_catalog", return_value=test_costumes),
 		):
 			result = native_samples.install(company.name, attach_images=False, attach_files=False)
 			self.assertEqual(result["items"], 164)
 			self.assertEqual(result["images"], 0)
+			costumes = test_costumes
+			barcode_to_parent = {
+				row.barcode: row.parent
+				for row in frappe.get_all(
+					"Item Barcode",
+					filters={"barcode": ["in", [row["source_code"] for row in costumes]]},
+					fields=["barcode", "parent"],
+				)
+			}
+			self.assertEqual(len(barcode_to_parent), 96)
+			for source in costumes:
+				code = barcode_to_parent[source["source_code"]]
+				self.assertRegex(code, r"^ITM-\d{6}$")
+				item = frappe.get_doc("Item", code)
+				self.assertEqual(item.item_name, source["item_name"])
+				self.assertEqual(item.stock_uom, source["stock_uom"])
+				self.assertIn(source["source_code"], {row.barcode for row in item.barcodes})
+				warehouse = result["rooms"][source["room"]]
+				self.assertEqual(get_stock_balance(code, warehouse), source["quantity"])
+			self.assertEqual(
+				result["costume_item_codes"],
+				{source["source_code"]: barcode_to_parent[source["source_code"]] for source in costumes},
+			)
 			self.assertTrue(configuration.status()["ready"])
 			entries = [frappe.get_doc("Stock Entry", name) for name in result["stock_entries"]]
 			self.assertEqual(
 				{doc.ti_movement_kind for doc in entries if doc.docstatus == 1}, set(MOVEMENT_PURPOSES)
 			)
 			self.assertTrue(any(doc.docstatus == 2 and not doc.ti_movement_kind for doc in entries))
-			self.assertTrue(any(doc.docstatus == 0 for doc in entries))
+			self.assertGreaterEqual(sum(doc.docstatus == 0 for doc in entries), 2)
+			self.assertTrue(any(doc.amended_from for doc in entries if doc.docstatus == 0))
 			count = frappe.get_doc("Stock Reconciliation", result["reconciliation"])
 			self.assertEqual(count.docstatus, 1)
-			self.assertEqual(len(count.ti_count_review), 2)
-			self.assertEqual({row.difference for row in count.ti_count_review}, {-1})
-			self.assertEqual(count.items[0].qty, 70)
+			self.assertEqual(len(count.ti_count_review), 4)
+			self.assertEqual({row.review_state for row in count.ti_count_review}, {"Reviewed", "Unreviewed"})
+			self.assertIn(-1, {row.difference for row in count.ti_count_review})
+			self.assertIn(1, {row.difference for row in count.ti_count_review})
+			self.assertTrue(
+				any(row.review_state == "Reviewed" and row.difference == 0 for row in count.ti_count_review)
+			)
+			self.assertEqual({row.qty for row in count.items}, {68, 7})
 			self.assertEqual(count.items[0].valuation_rate, 10)
+			self.assertEqual(len(result["loans"]), 4)
+			self.assertEqual(len(result["activity"]), 3)
+			bundle_request_keys = {
+				_request_key("Stock Entry", native_samples.REQUEST_PREFIX + key)
+				for key in ("bundle-receipt", "bundle-issue")
+			}
+			bundle_lines = [
+				line
+				for doc in entries
+				if doc.ti_request_key in bundle_request_keys
+				for line in doc.items
+				if line.serial_and_batch_bundle
+			]
+			self.assertEqual(len(bundle_lines), 2)
+			for line in bundle_lines:
+				bundle = frappe.get_doc("Serial and Batch Bundle", line.serial_and_batch_bundle)
+				self.assertEqual(
+					{row.batch_no: abs(row.qty) for row in bundle.entries},
+					{
+						"TI-TEST-" + self.token + "-BUNDLE-A": 2,
+						"TI-TEST-" + self.token + "-BUNDLE-B": 3,
+					},
+				)
+			from temple_inventory import browse
+
+			history_query = {
+				"dataset": "movements",
+				"view": "lines",
+				"statuses": [1],
+				"scope": {"item": "TI-TEST-" + self.token + "-N-WORKFLOW"},
+			}
+			first_history_page = browse.movement_history(
+				history_query,
+				item_code="TI-TEST-" + self.token + "-N-WORKFLOW",
+				page_length=30,
+			)
+			self.assertGreater(first_history_page["matched_count"], 30)
+			self.assertEqual(first_history_page["next_start"], 30)
+			second_history_page = browse.movement_history(
+				history_query,
+				item_code="TI-TEST-" + self.token + "-N-WORKFLOW",
+				start=first_history_page["next_start"],
+				page_length=30,
+			)
+			self.assertTrue(second_history_page["rows"])
+			before = getdate(nowdate())
+			catalog_data = sample_media.catalog()
+			batch_ids = [
+				"TI-TEST-" + self.token + "-" + batch["key"]
+				for batches in catalog_data["batches"].values()
+				for batch in batches
+			]
+			batch_rows = frappe.get_all(
+				"Batch",
+				filters={"batch_id": ["in", batch_ids]},
+				fields=["item", "batch_id", "manufacturing_date", "expiry_date"],
+			)
+			for key, source_batches in catalog_data["batches"].items():
+				code = "TI-TEST-" + self.token + "-" + key
+				actual_batches = [row for row in batch_rows if row.item == code]
+				self.assertEqual(len(actual_batches), len(source_batches))
+				self.assertGreaterEqual(len({row.manufacturing_date for row in actual_batches}), 2)
+				item_source = next(row for row in catalog_data["items"] if row["key"] == key)
+				remaining = sum(row["quantity"] for row in source_batches) - (6 if key == "G-000001" else 0)
+				self.assertEqual(get_stock_balance(code, result["rooms"][item_source["room"]]), remaining)
+			offsets = {(getdate(row["expiry_date"]) - before).days for row in batch_rows if row.expiry_date}
+			self.assertTrue({-1, -30, -31, -90, -91, 0, 30, 31, 90, 91}.issubset(offsets))
+			depleted = frappe.get_all(
+				"Batch",
+				filters={"batch_id": "TI-TEST-" + self.token + "-BAT-000001"},
+				pluck="name",
+			)
+			self.assertEqual(len(depleted), 1)
+			depleted_balances = batch_balances(
+				"TI-TEST-" + self.token + "-G-000001",
+				result["rooms"]["C03"],
+				str(before),
+				include_zero=True,
+			)
+			self.assertTrue(
+				any(row["batch_no"] == depleted[0] and row["qty"] == 0 for row in depleted_balances)
+			)
+			self.assertEqual(
+				get_stock_balance("TI-TEST-" + self.token + "-G-000001", result["rooms"]["C03"]),
+				26,
+			)
 
 
 def run():

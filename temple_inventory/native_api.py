@@ -183,8 +183,24 @@ def serialize(doc):
 	if doc.doctype == "Stock Reconciliation":
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			line["recorded_count_allocations"] = reconciliation_allocations(original)
-	if doc.doctype == "Stock Entry":
+	if doc.doctype in ("Stock Entry", "Stock Reconciliation"):
+		display_rows = list(data.get("items", []))
+		if doc.doctype == "Stock Reconciliation":
+			display_rows += list(data.get("ti_count_review", []))
+		item_codes = sorted({line.get("item_code") for line in display_rows if line.get("item_code")})
+		from temple_inventory.catalog import item_display_summaries
+
+		item_metadata = item_display_summaries(item_codes)
+		for line in display_rows:
+			metadata = item_metadata.get(line.get("item_code"), {})
+			line["ti_display_item_name"] = metadata.get("item_name", "")
+			line["ti_display_image"] = metadata.get("image", "")
+			if doc.doctype == "Stock Entry":
+				line["ti_display_tracks_batch"] = bool(metadata.get("has_batch_no"))
+				line["ti_display_tracks_expiry"] = bool(metadata.get("has_expiry_date"))
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
+			if doc.doctype != "Stock Entry":
+				continue
 			bundle = entry_bundle(original)
 			if bundle:
 				line["recorded_bundle"] = bundle.name
@@ -200,6 +216,22 @@ def serialize(doc):
 							"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
 						}
 					)
+			elif line.get("batch_no"):
+				batch = frappe.db.get_value(
+					"Batch",
+					line.batch_no,
+					["expiry_date", "manufacturing_date"],
+					as_dict=True,
+				)
+				line["recorded_batch_allocations"] = [
+					{
+						"name": "",
+						"batch_no": line.batch_no,
+						"stock_qty": abs(line.transfer_qty or line.qty),
+						"expiry_date": str(batch.expiry_date or "") if batch else "",
+						"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
+					}
+				]
 	data.update(
 		{
 			"identity": {"doctype": doc.doctype, "name": doc.name},

@@ -2,8 +2,10 @@
 
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
+from collections import defaultdict
+
 import frappe
-from frappe.utils import cint, getdate
+from frappe.utils import cint, get_datetime, getdate
 
 from temple_inventory.item_code import suggest_item_code as next_item_code
 from temple_inventory.native_access import check_item, load_locked, require_app
@@ -117,6 +119,59 @@ def item_summaries(item_codes):
 	]
 
 
+def item_display_summaries(item_codes):
+	"""Batch native line display metadata while honoring each linked File's access."""
+	from temple_inventory.native_files import can_read
+
+	if isinstance(item_codes, str):
+		item_codes = frappe.parse_json(item_codes)
+	if not isinstance(item_codes, list) or len(item_codes) > 10000:
+		frappe.throw("物品范围无效")
+	if any(not isinstance(code, str) for code in item_codes):
+		frappe.throw("物品范围无效")
+	items = frappe.get_list(
+		"Item",
+		filters={"name": ["in", sorted(set(item_codes)) or [""]]},
+		fields=["name", "item_name", "image", "has_batch_no", "has_expiry_date"],
+		limit_page_length=0,
+	)
+	by_name = {row.name: row for row in items}
+	files_by_item = defaultdict(list)
+	if by_name:
+		files = frappe.get_list(
+			"File",
+			filters={
+				"attached_to_doctype": "Item",
+				"attached_to_name": ["in", sorted(by_name)],
+				"is_private": 1,
+			},
+			fields=["name", "attached_to_name", "file_name", "file_type", "file_url"],
+			order_by="creation asc, name asc",
+			limit_page_length=0,
+		)
+		for row in files:
+			file_doc = frappe.get_doc("File", row.name)
+			if file_doc.has_permission("read") and can_read(file_doc):
+				files_by_item[row.attached_to_name].append(row)
+	image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
+	result = {}
+	for name, item in by_name.items():
+		images = [
+			row
+			for row in files_by_item.get(name, [])
+			if str(row.file_type or "").lower() in ("jpg", "jpeg", "png", "gif", "webp", "avif", "svg")
+			or str(row.file_name or "").lower().endswith(image_extensions)
+		]
+		images.sort(key=lambda row: row.file_url != item.image)
+		result[name] = {
+			"item_name": item.item_name,
+			"image": images[0].file_url if images else "",
+			"has_batch_no": bool(item.has_batch_no),
+			"has_expiry_date": bool(item.has_expiry_date),
+		}
+	return result
+
+
 def _query_boolean(value, label):
 	if type(value) is bool:
 		return value
@@ -143,11 +198,12 @@ def search_items(
 	search="",
 	start=0,
 	page_length=30,
-	warehouse=None,
+	warehouses=None,
 	categories=None,
 	uncategorized=False,
 	in_stock_only=False,
 	item_codes=None,
+	timestamp=None,
 ):
 	require_app()
 	start, page_length = max(0, cint(start)), min(100, max(1, cint(page_length)))
@@ -157,6 +213,12 @@ def search_items(
 		categories = frappe.parse_json(categories)
 	if not isinstance(categories, list):
 		frappe.throw("物品类别筛选范围无效")
+	if warehouses is None:
+		warehouses = []
+	elif isinstance(warehouses, str):
+		warehouses = frappe.parse_json(warehouses)
+	if not isinstance(warehouses, list):
+		frappe.throw("仓库筛选范围无效")
 	uncategorized = _query_boolean(uncategorized, "无分类")
 	filters = {"disabled": 0, "is_stock_item": 1}
 	if item_codes is not None:
@@ -169,13 +231,15 @@ def search_items(
 			"dataset": "inventory",
 			"view": "locations",
 			"scope": {
-				"warehouses": [warehouse] if warehouse else [],
+				"warehouses": warehouses,
 				"categories": categories,
 				"uncategorized": uncategorized,
 			},
 		}
 	)
 	context = ReportContext(query)
+	if timestamp:
+		context.snapshot = str(get_datetime(timestamp))
 	if categories or uncategorized:
 		groups = set(context.categories or set())
 		if uncategorized:
@@ -227,7 +291,11 @@ def search_items(
 		if item:
 			metadata = item_metadata(item)
 			stock_query = {**query, "scope": {**query["scope"], "item": item.name}, "includeZero": False}
-			metadata["stock"] = list(stock_rows(ReportContext(validate_query(stock_query))))
+			stock_context = ReportContext(validate_query(stock_query))
+			if timestamp:
+				stock_context.snapshot = context.snapshot
+			metadata["stock"] = list(stock_rows(stock_context))
+			metadata["snapshot"] = stock_context.snapshot
 			results.append(metadata)
 	total = int(count[0].total if count else 0)
 	return {

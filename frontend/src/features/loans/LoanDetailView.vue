@@ -12,6 +12,8 @@ import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import ItemImage from "../../components/ItemImage.vue";
+import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -34,6 +36,7 @@ const actions = [
 const deskLink = computed(() =>
 	loan.value ? `/app/stock-entry/${encodeURIComponent(loan.value.name)}` : "",
 );
+const initialLoad = computed(() => loading.value && !loan.value);
 function settle(action: SettlementAction) {
 	if (loan.value && c.canSettle(action)) emit("settle", loan.value.name, action);
 }
@@ -45,16 +48,26 @@ function settle(action: SettlementAction) {
 			<template #back><UiButton @click="emit('back')">返回</UiButton></template
 			><template #actions
 				><QuickExport
-					v-if="loan"
+					v-if="loan && !loading"
 					:query="c.exportQuery.value"
 					:active="active"
 					@open-full="emit('openExport', $event)" /></template
 		></PageHeader>
-		<p v-if="loading" role="status">正在读取借出记录与当前结余…</p>
+		<DocumentLoadingState
+			v-if="initialLoad"
+			variant="detail"
+			label="正在读取借出记录与结余…"
+		/>
 		<p v-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>
 		</p>
-		<article v-if="loan" class="browse-detail-card">
+		<article
+			v-if="loan"
+			class="browse-detail-card async-result-region"
+			:class="{ 'is-refreshing': loading }"
+			:aria-busy="loading ? 'true' : undefined"
+		>
+			<p v-if="loading" class="async-refresh-status" role="status">正在刷新结余…</p>
 			<div class="browse-card-heading">
 				<div>
 					<span class="eyebrow"
@@ -93,10 +106,32 @@ function settle(action: SettlementAction) {
 				class="browse-loan-line"
 			>
 				<div>
-					<UiButton variant="ghost" size="compact" @click="emit('item', line.item_code)">
-						<strong>{{ line.item_name || line.item_code }}</strong>
-					</UiButton>
-					<small>{{ line.item_code }}</small>
+					<div class="loan-detail-item-identity">
+						<ItemImage
+							:item="{
+								code: String(line.item_code || ''),
+								name: String(
+									line.ti_display_item_name ||
+										line.item_name ||
+										line.item_code ||
+										'',
+								),
+								image: String(line.ti_display_image || ''),
+							}"
+							:thumbnail-size="24"
+							:target-size="24"
+						/>
+						<span
+							><UiButton
+								variant="ghost"
+								size="compact"
+								@click="emit('item', line.item_code)"
+								><strong>{{
+									line.ti_display_item_name || line.item_name || line.item_code
+								}}</strong></UiButton
+							><small>{{ line.item_code }}</small></span
+						>
+					</div>
 				</div>
 				<div>
 					<span
@@ -230,6 +265,16 @@ function settle(action: SettlementAction) {
 .browse-loan-line > div {
 	min-width: 0;
 }
+.loan-detail-item-identity {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+}
+.loan-detail-item-identity :deep(.item-image-button--compact-target) {
+	width: 24px !important;
+	height: 24px !important;
+	min-height: 24px;
+}
 .browse-badge {
 	flex-shrink: 0;
 	white-space: nowrap;
@@ -243,6 +288,11 @@ function settle(action: SettlementAction) {
 @media (max-width: 1023px) {
 	.browse-loan-line {
 		flex-direction: column;
+	}
+	.loan-detail-item-identity :deep(.item-image-button--compact-target) {
+		width: 44px !important;
+		height: 44px !important;
+		min-height: 44px;
 	}
 }
 </style>

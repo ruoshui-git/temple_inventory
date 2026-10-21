@@ -22,6 +22,8 @@ const props = withDefaults(
 		transientOwner?: string;
 		initialFocus?: string;
 		panelStyle?: CSSProperties;
+		panelClass?: string | string[] | Record<string, boolean>;
+		contentClass?: string | string[] | Record<string, boolean>;
 	}>(),
 	{
 		drawer: false,
@@ -181,6 +183,7 @@ onBeforeUnmount(() => {
 				:style="panelStyle"
 				:class="[
 					parentStage ? 'overlay-stage-panel' : 'preview-dialog',
+					panelClass,
 					{
 						'preview-drawer': drawer && !adaptiveCreation,
 						'preview-adaptive-creation': adaptiveCreation,
@@ -205,7 +208,9 @@ onBeforeUnmount(() => {
 						>关闭 ×</UiButton
 					>
 				</header>
-				<div v-show="!activeStage" class="dialog-content"><slot /></div>
+				<div v-show="!activeStage" class="dialog-content" :class="contentClass">
+					<slot />
+				</div>
 				<div
 					v-if="!parentStage"
 					v-show="activeStage"

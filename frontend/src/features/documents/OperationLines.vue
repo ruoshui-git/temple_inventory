@@ -8,9 +8,8 @@ import {
 	setEnteredQty,
 	applyLineConversion,
 } from "../../lib/quantityConversion";
-import ScanPanel from "../scanner/ScanPanel.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
-import { computed, ref, nextTick, watch, onDeactivated } from "vue";
+import { computed, ref, nextTick, watch, onDeactivated, onBeforeUnmount } from "vue";
 import { useOperationContext, type OperationDraft, type AllocationLine } from "./operationModel";
 import { useReferenceData } from "../../services/contracts";
 const context = useOperationContext();
@@ -20,7 +19,8 @@ import { isSettlement, type OperationIssue } from "./operationModel";
 const { lineStock, lineCapacity } = context;
 const operationIssues = context.issues;
 import ItemImage from "../../components/ItemImage.vue";
-import ItemPicker from "../items/ItemPicker.vue";
+import ItemPicker, { type ItemScanOption, type ItemScanResolution } from "../items/ItemPicker.vue";
+import type { StockItem } from "../../lib/stockPresentation";
 import UiButton from "../../components/ui/UiButton.vue";
 
 const props = withDefaults(
@@ -47,37 +47,91 @@ const destination = ref(
 const pickerLines = ref<AllocationLine[]>([]);
 const pickerOpen = ref(false);
 const selectionError = ref("");
-const createFromBarcode = ref<string>();
-const scanConfiguring = ref(false);
-const scannedLine = ref<AllocationLine>();
-const scanError = computed(() =>
-	scannedLine.value
-		? operationIssues(props.draft).find((issue) => issue.lineId === scannedLine.value?.id)
-				?.message || ""
-		: "",
+const scanWarehouse = ref("");
+const scanFeedback = ref("");
+const scanResolution = ref<ItemScanResolution>();
+const scanUndo: Array<{
+	lineId: string;
+	code: string;
+	source: string;
+	destination: string;
+	batch: string;
+	uom: string;
+	conversionFactor: number;
+	beforeQty: number;
+	afterQty: number;
+	created: boolean;
+}> = [];
+const scanUndoRevision = ref(0);
+const scannedLineIds = ref(new Set<string>());
+const canUndoScan = computed(() => {
+	void scanUndoRevision.value;
+	const latest = scanUndo.at(-1);
+	return Boolean(latest && props.draft.items.some((line) => line.id === latest.lineId));
+});
+type ScanContextSnapshot = {
+	activeWarehouse?: string;
+	destination?: string;
+	timestamp?: string;
+};
+type PendingScanResolution = {
+	item: StockItem;
+	batch?: string;
+	context: ScanContextSnapshot;
+	resolve: () => void;
+};
+type ScanAllocationPreference = {
+	source: string;
+	batch: string;
+	destination: string;
+};
+let scanGeneration = 0;
+let pendingScanResolution: PendingScanResolution | undefined;
+const scanAllocationPreferences = new Map<string, ScanAllocationPreference>();
+const scanAffectedLines = computed(() => {
+	void scanUndoRevision.value;
+	return props.draft.items
+		.filter((line) => scannedLineIds.value.has(line.id))
+		.map((line) => ({
+			id: line.id,
+			code: line.code,
+			name: stockItem(line.code)?.name || line.code,
+			qty: Number(line.qty || 0),
+			uom: line.uom,
+			warehouse: receive.value ? line.location : line.sourceLocation || line.location,
+			batch: String(line.batch || ""),
+		}))
+		.sort(
+			(left, right) =>
+				(recency.get(right.id || "") || 0) - (recency.get(left.id || "") || 0),
+		);
+});
+const scanDestination = computed(() =>
+	props.draft.kind === "Loan" ? String(props.draft.loanDestination || "") : destination.value,
 );
-async function scanItem(code: string, batch?: string) {
-	pickerLines.value = [];
-	if (!(await choose(code))) return;
-	scannedLine.value = props.draft.items.at(-1);
-	if (batch && scannedLine.value) {
-		const matches =
-			stockItem(code)?.locations.filter((row) =>
-				row.batches?.some((entry) => entry.id === batch),
-			) || [];
-		const line = scannedLine.value;
-		line.batch = batch;
-		if (!receive.value && matches.length === 1) {
-			line.sourceLocation = matches[0]!.location;
-			if (!["Transfer", "Repair"].includes(props.draft.kind))
-				line.location = line.sourceLocation;
-			changeBatch(line);
-		}
-	}
-	scanConfiguring.value = true;
-	if (scannedLine.value)
-		revealIssue({ message: "", lineId: scannedLine.value.id, field: "qty" });
-}
+const scanDestinationLabel = computed(() =>
+	props.draft.kind === "Receive"
+		? "入库位置"
+		: props.draft.kind === "Loan"
+			? "借用去向"
+			: ["Transfer", "Repair"].includes(props.draft.kind)
+				? "目标库位"
+				: "",
+);
+const scanDestinationOptions = computed<ItemScanOption[]>(() => {
+	const source = scanWarehouse.value || String(props.draft.preferredWarehouse || "");
+	return destinationChoices(source).map((name) => ({
+		value: name,
+		label: warehouseLabel(name, reference.warehouses),
+	}));
+});
+const activeScanWarehouse = computed(() =>
+	receive.value
+		? destination.value
+		: scanWarehouse.value || String(props.draft.preferredWarehouse || ""),
+);
+let scanRecency = 0;
+const recency = new Map<string, number>();
 const detailsLine = ref<AllocationLine>();
 const detailsField = ref<string>();
 const selectedUnit = ref<string>();
@@ -119,13 +173,21 @@ watch(
 	{ immediate: true },
 );
 watch(
-	() => props.active,
-	(active) => {
-		if (active === false) detailsLine.value = undefined;
+	() => [props.active, props.disabled],
+	([active, disabled]) => {
+		if (active === false || disabled === true) {
+			detailsLine.value = undefined;
+			cancelPendingScans();
+		}
 	},
 );
 onDeactivated(() => {
 	detailsLine.value = undefined;
+	cancelPendingScans();
+});
+onBeforeUnmount(cancelPendingScans);
+watch(pickerOpen, (open, wasOpen) => {
+	if (wasOpen && !open) cancelPendingScans();
 });
 const stockItem = (code: string) => context.stock.find((item) => item.code === code);
 const eligible = computed(() => undefined);
@@ -180,10 +242,522 @@ const groups = computed(() => {
 		if (!grouped.has(key)) grouped.set(key, { location, code: line.code, lines: [] });
 		grouped.get(key)!.lines.push(line);
 	}
-	return [...grouped.values()].sort(
-		(a, b) => locations.indexOf(a.location) - locations.indexOf(b.location),
-	);
+	return [...grouped.values()]
+		.map((group) => ({
+			...group,
+			lines: [...group.lines].sort(
+				(a, b) => (recency.get(b.id) || 0) - (recency.get(a.id) || 0),
+			),
+			recent: Math.max(...group.lines.map((line) => recency.get(line.id) || 0)),
+		}))
+		.sort(
+			(a, b) =>
+				b.recent - a.recent ||
+				locations.indexOf(a.location) - locations.indexOf(b.location),
+		);
 });
+function markRecent(line: AllocationLine) {
+	scanRecency++;
+	recency.set(line.id, scanRecency);
+	groupRevision.value++;
+}
+function scanCapacity(code: string, source: string, batch = "") {
+	const item = stockItem(code);
+	if (!item || !source) return 0;
+	const probe: AllocationLine = {
+		id: "scan-capacity",
+		localId: "scan-capacity",
+		code,
+		qty: 0,
+		uom: item.uom,
+		entryUom: item.uom,
+		entryQty: 0,
+		conversionFactor: 1,
+		location: source,
+		sourceLocation: source,
+		batch,
+	};
+	const alreadyRequested = props.draft.items
+		.filter(
+			(line) =>
+				line.code === code &&
+				(line.sourceLocation || line.location) === source &&
+				!line.loanName &&
+				!line.originalLoanLine &&
+				!line.returnOutcome,
+		)
+		.reduce((total, line) => {
+			if (line.batchAllocations?.length)
+				return (
+					total +
+					line.batchAllocations
+						.filter((allocation) => allocation.batch === batch)
+						.reduce((sum, allocation) => sum + Number(allocation.qty || 0), 0)
+				);
+			if (item.tracksBatch && String(line.batch || "") !== batch) return total;
+			return total + Number(line.qty || 0);
+		}, 0);
+	return Math.max(0, lineCapacity(props.draft, probe) - alreadyRequested);
+}
+function destinationChoices(source: string) {
+	if (!["Receive", "Transfer", "Repair", "Loan"].includes(props.draft.kind)) return [];
+	const candidates = props.draft.kind === "Loan" ? reference.leasedLeaves : places.value;
+	return ["Transfer", "Repair"].includes(props.draft.kind)
+		? candidates.filter((name) => name !== source)
+		: candidates;
+}
+function snapshotDestination(context: ScanContextSnapshot) {
+	return (
+		context.destination ||
+		(props.draft.kind === "Loan"
+			? String(props.draft.loanDestination || "")
+			: destination.value)
+	);
+}
+function scanPreferenceKey(code: string, activeWarehouse: string, target: string) {
+	return `${code}\u0000${activeWarehouse}\u0000${target}`;
+}
+function destinationContext(target: string) {
+	return ["Receive", "Transfer", "Repair", "Loan"].includes(props.draft.kind) ? target : "";
+}
+function scanResolutionFor(
+	item: StockItem,
+	scannedBatch: string | undefined,
+	context: ScanContextSnapshot,
+): { resolution?: ItemScanResolution; source: string; batch: string; destination: string } {
+	const receiving = receive.value;
+	const sourcePairs: Array<{ source: string; batch: string; available: number }> = [];
+	const activeSource =
+		context.activeWarehouse ||
+		scanWarehouse.value ||
+		String(props.draft.preferredWarehouse || "");
+	const defaultDestination = snapshotDestination(context);
+	const activeWarehouse = receiving ? activeSource || defaultDestination : activeSource;
+	const targetContext = destinationContext(defaultDestination);
+	const remembered = scanAllocationPreferences.get(
+		scanPreferenceKey(item.code, activeWarehouse, targetContext),
+	);
+	const preference =
+		remembered && (!scannedBatch || scannedBatch === remembered.batch)
+			? remembered
+			: undefined;
+	if (!receiving) {
+		for (const place of item.locations) {
+			if (activeSource && place.location !== activeSource) continue;
+			const batches = item.tracksBatch
+				? (place.batches || []).filter((row) => !scannedBatch || row.id === scannedBatch)
+				: [undefined];
+			for (const batch of batches) {
+				const available = scanCapacity(item.code, place.location, batch?.id || "");
+				if (available >= 1)
+					sourcePairs.push({
+						source: place.location,
+						batch: batch?.id || "",
+						available,
+					});
+			}
+		}
+	}
+	const sourceValues = [...new Set(sourcePairs.map((row) => row.source))];
+	const preferredSourceAvailable = Boolean(
+		preference && sourceValues.includes(preference.source),
+	);
+	const defaultSource = preference
+		? preferredSourceAvailable
+			? preference.source
+			: ""
+		: sourceValues.length === 1
+			? sourceValues[0]!
+			: "";
+	const selectedPairs = defaultSource
+		? sourcePairs.filter((row) => row.source === defaultSource)
+		: sourcePairs;
+	const batchIds = [...new Set(selectedPairs.map((row) => row.batch).filter(Boolean))];
+	const preferredBatchAvailable = Boolean(
+		preference &&
+		preferredSourceAvailable &&
+		selectedPairs.some(
+			(row) => row.source === preference.source && row.batch === preference.batch,
+		),
+	);
+	const defaultBatch = preference
+		? preferredBatchAvailable
+			? preference.batch
+			: ""
+		: scannedBatch && batchIds.includes(scannedBatch)
+			? scannedBatch
+			: batchIds.length === 1
+				? batchIds[0]!
+				: "";
+	const sourceOptions = sourceValues.map((source) => {
+		const available = sourcePairs
+			.filter((row) => row.source === source)
+			.reduce((total, row) => total + row.available, 0);
+		return {
+			value: source,
+			label: warehouseLabel(source, reference.warehouses),
+			available,
+			detail: `可用 ${available} ${item.uom}`,
+		};
+	});
+	const batchOptions = selectedPairs.map((row) => ({
+		value: row.batch,
+		label: row.batch,
+		detail: `可用 ${row.available} ${item.uom}`,
+		source: row.source,
+		available: row.available,
+	}));
+	const destinationValues = destinationChoices(defaultSource);
+	const preferredDestinationAvailable = Boolean(
+		preference && destinationValues.includes(preference.destination),
+	);
+	const validDestination = preference
+		? preferredDestinationAvailable
+			? preference.destination
+			: ""
+		: destinationValues.includes(defaultDestination)
+			? defaultDestination
+			: destinationValues.length === 1
+				? destinationValues[0]!
+				: "";
+	const sourceRequired =
+		!receiving && (preference ? !preferredSourceAvailable : sourceValues.length !== 1);
+	const batchRequired =
+		!receiving &&
+		item.tracksBatch &&
+		(preference ? !preferredBatchAvailable : batchIds.length !== 1);
+	const destinationRequired = ["Receive", "Transfer", "Repair", "Loan"].includes(
+		props.draft.kind,
+	);
+	const rememberedAllocationInvalid = Boolean(
+		preference &&
+		(!preferredSourceAvailable ||
+			(item.tracksBatch && !preferredBatchAvailable) ||
+			(destinationRequired && !preferredDestinationAvailable)),
+	);
+	const unresolved =
+		sourceRequired ||
+		batchRequired ||
+		(destinationRequired && !validDestination) ||
+		rememberedAllocationInvalid ||
+		(!receiving && sourceValues.length === 0);
+	return {
+		source: receiving ? "" : defaultSource,
+		batch: receiving ? scannedBatch || "" : defaultBatch,
+		destination: validDestination,
+		resolution: unresolved
+			? {
+					code: item.code,
+					name: item.name,
+					uom: item.uom,
+					sourceOptions,
+					batchOptions,
+					destinationOptions: destinationValues.map((name) => ({
+						value: name,
+						label: warehouseLabel(name, reference.warehouses),
+					})),
+					defaultSource,
+					defaultBatch: receiving ? scannedBatch || "" : defaultBatch,
+					defaultDestination: validDestination,
+					sourceRequired,
+					batchRequired,
+					destinationRequired,
+					destinationExcludesSource: ["Transfer", "Repair"].includes(props.draft.kind),
+				}
+			: undefined,
+	};
+}
+function scanLineDestination(source: string, destinationName: string) {
+	if (receive.value) return destinationName || destination.value;
+	if (["Transfer", "Repair"].includes(props.draft.kind)) return destinationName;
+	if (props.draft.kind === "Loan") return source;
+	return source;
+}
+function compatibleScanLine(
+	line: AllocationLine,
+	item: StockItem,
+	source: string,
+	destinationName: string,
+	batch: string,
+) {
+	const lineDestination =
+		props.draft.kind === "Loan"
+			? String(line.loanedLocation || props.draft.loanDestination || "")
+			: line.location;
+	return (
+		line.code === item.code &&
+		(line.sourceLocation || (receive.value ? "" : line.location)) === source &&
+		lineDestination === destinationName &&
+		String(line.batch || "") === batch &&
+		line.uom === item.uom &&
+		(line.entryUom || line.uom) === item.uom &&
+		Number(line.conversionFactor || 1) === 1 &&
+		!line.nativeBundle &&
+		!line.recordedBundle &&
+		!line.loanName &&
+		!line.originalLoanLine &&
+		!line.returnOutcome &&
+		!line.batchAllocations?.length
+	);
+}
+function addScannedLine(item: StockItem, batch: string, source: string, destinationName: string) {
+	const lineDestination = scanLineDestination(source, destinationName);
+	const mergeDestination = props.draft.kind === "Loan" ? destinationName : lineDestination;
+	let line = props.draft.items.find((candidate) =>
+		compatibleScanLine(candidate, item, source, mergeDestination, batch),
+	);
+	const created = !line;
+	const beforeQty = line ? Number(line.qty || 0) : 0;
+	if (!line) {
+		const id = crypto.randomUUID();
+		const origin = receive.value ? "" : source;
+		line = {
+			id,
+			localId: id,
+			code: item.code,
+			qty: 0,
+			uom: item.uom,
+			entryUom: item.uom,
+			entryQty: 0,
+			conversionFactor: 1,
+			location: lineDestination,
+			sourceLocation: origin,
+			...(props.draft.kind === "Loan" ? { loanedLocation: destinationName } : {}),
+			batch,
+			expiry:
+				item.locations
+					.flatMap((place) => place.batches || [])
+					.find((row) => row.id === batch)?.expiry || "",
+		};
+		props.draft.items.push(line);
+	}
+	line.qty = beforeQty + 1;
+	line.entryQty = beforeQty + 1;
+	line.entryUom = item.uom;
+	line.conversionFactor = 1;
+	scanUndo.push({
+		lineId: line.id,
+		code: item.code,
+		source,
+		destination: lineDestinationForUndo(line),
+		batch,
+		uom: item.uom,
+		conversionFactor: 1,
+		beforeQty,
+		afterQty: beforeQty + 1,
+		created,
+	});
+	scanUndoRevision.value++;
+	const nextAffected = new Set(scannedLineIds.value);
+	nextAffected.add(line.id);
+	scannedLineIds.value = nextAffected;
+	markRecent(line);
+	const warehouse = receive.value
+		? lineDestination
+		: ["Transfer", "Repair"].includes(props.draft.kind)
+			? `${source} → ${lineDestination}`
+			: source;
+	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${item.uom}${warehouse ? ` · ${warehouseLabel(warehouse, reference.warehouses, warehouse)}` : ""}`;
+}
+function activeScanContext(value: unknown): ScanContextSnapshot {
+	return value && typeof value === "object" ? (value as ScanContextSnapshot) : {};
+}
+function cancelPendingScans() {
+	scanGeneration++;
+	scanAllocationPreferences.clear();
+	const pending = pendingScanResolution;
+	pendingScanResolution = undefined;
+	scanResolution.value = undefined;
+	if (pending) pending.resolve();
+}
+function scanSessionIsCurrent(generation: number) {
+	return (
+		generation === scanGeneration &&
+		pickerOpen.value &&
+		props.active !== false &&
+		!props.disabled
+	);
+}
+async function acceptScannedItem(code: string, batch?: string, captured?: unknown) {
+	if (props.disabled || !pickerOpen.value || props.active === false) return;
+	const generation = scanGeneration;
+	const scanContext = activeScanContext(captured);
+	const item = await context.ensure(code);
+	if (!scanSessionIsCurrent(generation)) return;
+	const prepared = scanResolutionFor(item, batch, scanContext);
+	if (prepared.resolution) {
+		scanResolution.value = prepared.resolution;
+		await new Promise<void>((resolve) => {
+			pendingScanResolution = { item, batch, context: scanContext, resolve };
+		});
+		return;
+	}
+	const destinationName = prepared.destination;
+	if (receive.value && !places.value.includes(destinationName))
+		throw new Error("请选择有效的入库库位");
+	if (!receive.value && scanCapacity(item.code, prepared.source, prepared.batch) < 1)
+		throw new Error("当前库位或批次可用量不足 1 个库存单位");
+	applyScanDestination(destinationName);
+	addScannedLine(item, prepared.batch, prepared.source, destinationName);
+}
+function applyScanDestination(destinationName: string) {
+	if (!destinationName) return;
+	if (props.draft.kind === "Loan") props.draft.loanDestination = destinationName;
+	else if (["Receive", "Transfer", "Repair"].includes(props.draft.kind))
+		destination.value = destinationName;
+}
+function resolveScannedItem(selection: {
+	code: string;
+	source: string;
+	batch: string;
+	destination: string;
+}) {
+	const pending = pendingScanResolution;
+	const item = pending?.item;
+	if (
+		!pending ||
+		!item ||
+		selection.code !== item.code ||
+		!pickerOpen.value ||
+		props.active === false ||
+		props.disabled
+	)
+		return;
+	const { source, batch, destination: target } = selection;
+	const allowedSource = receive.value
+		? ""
+		: pending.context.activeWarehouse ||
+			scanWarehouse.value ||
+			String(props.draft.preferredWarehouse || "");
+	if (receive.value) {
+		if (source || !places.value.includes(target)) return;
+	} else {
+		const place = item.locations.find((row) => row.location === source);
+		if (!place || (allowedSource && source !== allowedSource)) return;
+		const validBatches = item.tracksBatch
+			? (place.batches || [])
+					.filter((row) => !pending.batch || row.id === pending.batch)
+					.filter((row) => scanCapacity(item.code, source, row.id) >= 1)
+					.map((row) => row.id)
+			: [""];
+		if (!validBatches.includes(batch) || scanCapacity(item.code, source, batch) < 1) return;
+	}
+	const destinations = destinationChoices(source);
+	const requiresDestination = ["Receive", "Transfer", "Repair", "Loan"].includes(
+		props.draft.kind,
+	);
+	if (requiresDestination ? !destinations.includes(target) : Boolean(target)) return;
+	if (["Transfer", "Repair"].includes(props.draft.kind) && target === source) return;
+	if (!receive.value) scanWarehouse.value = source;
+	applyScanDestination(target);
+	addScannedLine(item, batch || pending.batch || "", source, target);
+	const activeWarehouse = receive.value ? target : source;
+	scanAllocationPreferences.set(
+		scanPreferenceKey(item.code, activeWarehouse, destinationContext(target)),
+		{ source, batch: batch || pending.batch || "", destination: destinationContext(target) },
+	);
+	scanResolution.value = undefined;
+	pendingScanResolution = undefined;
+	pending.resolve();
+}
+function cancelScannedItem() {
+	const pending = pendingScanResolution;
+	if (!pending) return;
+	scanFeedback.value = `已取消 ${pending.item.name} 的本次扫描`;
+	scanResolution.value = undefined;
+	pendingScanResolution = undefined;
+	pending.resolve();
+}
+function setScanWarehouse(name: string) {
+	if (receive.value) destination.value = name;
+	else scanWarehouse.value = name;
+	scanFeedback.value = `当前扫描库位：${warehouseLabel(name, reference.warehouses, name)}`;
+}
+function setScanDestination(name: string) {
+	if (props.draft.kind === "Loan") props.draft.loanDestination = name;
+	else destination.value = name;
+}
+function finishPickerScan() {
+	if (!pickerLines.value.length) pickerOpen.value = false;
+}
+function undoLatestScan() {
+	const latest = scanUndo.at(-1);
+	const line = props.draft.items.find((candidate) => candidate.id === latest?.lineId);
+	if (!latest || !line) {
+		if (latest) {
+			scanUndo.pop();
+			scanUndoRevision.value++;
+		}
+		return;
+	}
+	const sameAllocation =
+		line.code === latest.code &&
+		(line.sourceLocation || (receive.value ? "" : line.location)) === latest.source &&
+		lineDestinationForUndo(line) === latest.destination &&
+		String(line.batch || "") === latest.batch &&
+		line.uom === latest.uom &&
+		Number(line.conversionFactor || 1) === latest.conversionFactor &&
+		!line.nativeBundle &&
+		!line.recordedBundle &&
+		!line.loanName &&
+		!line.originalLoanLine &&
+		!line.returnOutcome &&
+		!line.batchAllocations?.length;
+	if (
+		!sameAllocation ||
+		Number(line.qty || 0) !== latest.afterQty ||
+		Number(line.entryQty || 0) !== latest.afterQty ||
+		String(line.entryUom || line.uom) !== latest.uom
+	) {
+		scanFeedback.value = "最近扫描对应的数量或分配已更改；为保留你的编辑，无法撤销。";
+		return;
+	}
+	scanUndo.pop();
+	scanUndoRevision.value++;
+	if (latest.created && latest.beforeQty === 0 && latest.afterQty === 1) {
+		if (
+			Object.keys(line).some(
+				(key) =>
+					![
+						"id",
+						"localId",
+						"name",
+						"code",
+						"displayName",
+						"displayImage",
+						"displayTracksBatch",
+						"displayTracksExpiry",
+						"qty",
+						"uom",
+						"entryUom",
+						"entryQty",
+						"conversionFactor",
+						"location",
+						"sourceLocation",
+						"loanedLocation",
+						"batch",
+						"expiry",
+					].includes(key),
+			)
+		) {
+			scanFeedback.value = "此扫描行已添加其他资料；为保留编辑，无法删除整行。";
+			scanUndo.push(latest);
+			scanUndoRevision.value++;
+			return;
+		}
+		props.draft.items.splice(props.draft.items.indexOf(line), 1);
+		scannedLineIds.value = new Set([...scannedLineIds.value].filter((id) => id !== line.id));
+	} else {
+		line.qty = latest.beforeQty;
+		line.entryQty = latest.beforeQty;
+	}
+	scanFeedback.value = "已撤销最近扫描";
+}
+function lineDestinationForUndo(line: AllocationLine) {
+	return props.draft.kind === "Loan"
+		? String(line.loanedLocation || props.draft.loanDestination || "")
+		: line.location;
+}
 async function regroupAfterFocus() {
 	await nextTick();
 	if (!root.value?.contains(document.activeElement)) {
@@ -313,11 +887,7 @@ async function choose(code: string, closePicker = true) {
 	return true;
 }
 async function selectSingle(code: string) {
-	if (createFromBarcode.value !== undefined) {
-		await scanItem(code);
-		const line = scannedLine.value;
-		if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
-	} else await choose(code);
+	await choose(code);
 }
 async function chooseMultiple(codes: string[]) {
 	const start = props.draft.items.length;
@@ -330,16 +900,16 @@ async function chooseMultiple(codes: string[]) {
 	if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
 }
 function pick(lines: AllocationLine[] = []) {
-	createFromBarcode.value = undefined;
 	pickerLines.value = lines;
 	pickerOpen.value = true;
 }
 function remove(line: AllocationLine) {
 	props.draft.items.splice(props.draft.items.indexOf(line), 1);
-	if (scannedLine.value?.id === line.id) {
-		scannedLine.value = undefined;
-		scanConfiguring.value = false;
-	}
+	recency.delete(line.id);
+	for (let index = scanUndo.length - 1; index >= 0; index--)
+		if (scanUndo[index]?.lineId === line.id) scanUndo.splice(index, 1);
+	scanUndoRevision.value++;
+	scannedLineIds.value = new Set([...scannedLineIds.value].filter((id) => id !== line.id));
 }
 function splitOutcome(line: AllocationLine) {
 	props.draft.items.push({
@@ -391,9 +961,13 @@ function changeBatch(line: AllocationLine) {
 	<template v-else>
 		<div ref="root" class="preview-operation-lines" @focusout="regroupAfterFocus">
 			<div class="preview-line-toolbar">
-				<UiButton :aria-pressed="!!expanded" @click="emit('expand')">{{
-					expanded ? "收起工作区" : "展开工作区"
-				}}</UiButton>
+				<UiButton
+					class="preview-full-workspace-action"
+					variant="ghost"
+					:aria-pressed="!!expanded"
+					@click="emit('expand')"
+					>{{ expanded ? "退出完整工作区" : "展开完整工作区" }}</UiButton
+				>
 				<UiButton
 					v-if="!disabled && !settlement"
 					variant="secondary"
@@ -419,31 +993,10 @@ function changeBatch(line: AllocationLine) {
 				<span v-if="search || incompleteOnly" role="status"
 					>显示 {{ visibleIds.size }} / {{ draft.items.length }} 行</span
 				>
-
-				<ScanPanel
-					v-if="!disabled && !settlement"
-					:allow-create="receive"
-					:paused="scanConfiguring || pickerOpen"
-					@item="scanItem"
-					@location="
-						receive ? (destination = $event) : emit('notify', '选择物品后核对来源库位')
-					"
-					@create="
-						(barcode) => {
-							pick();
-							createFromBarcode = barcode;
-						}
-					"
-				/>
 			</div>
-			<p v-if="selectionError" role="alert">{{ selectionError }}</p>
-			<p v-if="scanConfiguring && scanError" role="status">{{ scanError }}</p>
-			<UiButton
-				v-if="scanConfiguring"
-				:disabled="!!scanError"
-				@click="scanConfiguring = false"
-				>配置完成，继续扫描</UiButton
-			>
+			<p v-if="selectionError && !pickerOpen" role="alert">
+				{{ selectionError }}
+			</p>
 			<SearchSelect
 				v-if="receive && !disabled"
 				label="新增物品的入库位置"
@@ -685,8 +1238,19 @@ function changeBatch(line: AllocationLine) {
 				v-if="pickerOpen && !disabled"
 				:allow-create="receive"
 				:mode="pickerLines.length ? 'replace-single' : 'add-multiple'"
-				:context="`入库登记 · ${draft.name}`"
-				:create-barcode="createFromBarcode"
+				:context="'入库登记 · ' + (draft.name || '')"
+				:timestamp="context.timestamp()"
+				:scan-mode="pickerLines.length ? 'selection' : 'operation'"
+				:scan-feedback="scanFeedback"
+				:scan-error="selectionError"
+				:can-undo-scan="canUndoScan"
+				:active-warehouse="activeScanWarehouse"
+				:scan-resolution="scanResolution"
+				:scan-lines="scanAffectedLines"
+				:scan-destination="scanDestination"
+				:scan-destination-label="scanDestinationLabel"
+				:scan-destination-options="scanDestinationOptions"
+				:on-operation-scan="acceptScannedItem"
 				:eligible="eligible"
 				@close="
 					pickerOpen = false;
@@ -696,6 +1260,12 @@ function changeBatch(line: AllocationLine) {
 				@select-multiple="chooseMultiple"
 				@item-loaded="context.remember"
 				@notify="emit('notify', $event)"
+				@scan-location="setScanWarehouse"
+				@scan-destination="setScanDestination"
+				@finish-scan="finishPickerScan"
+				@undo-scan="undoLatestScan"
+				@resolve-scan="resolveScannedItem"
+				@cancel-scan-resolution="cancelScannedItem"
 			/>
 		</div>
 	</template>
