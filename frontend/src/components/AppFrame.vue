@@ -128,7 +128,7 @@ onBeforeUnmount(() => {
 		<header v-if="!isMobile" ref="desktopNavigation" class="sample-sidebar">
 			<div class="sample-brand">
 				<span class="brand-symbol"><InventoryIcon name="box" /></span>
-				<div><strong>寺院物资</strong><small>每一份，都妥善安放</small></div>
+				<div><strong>寺院物资</strong></div>
 			</div>
 			<nav aria-label="应用主导航">
 				<div v-for="group in primary" :key="group.key" class="nav-group">

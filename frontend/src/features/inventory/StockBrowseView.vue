@@ -251,9 +251,6 @@ watch([() => props.active, isMobile], () => {
 			@scan="scanOpen = true"
 			@sidebar="toggleFilters"
 		>
-			<template #subtitle
-				><p class="muted">查看库存、找到位置，让下一次取用更从容。</p></template
-			>
 			<template #chips="{ editFilter }">
 				<BrowseChip
 					v-for="(group, index) in quickReportQuery.groupBy"
