@@ -289,10 +289,10 @@ defineExpose({ state });
 	max-height: 320px;
 	overflow: auto;
 	padding: 8px;
-	background: var(--p-surface, #fff);
+	background: var(--p-surface);
 	border: 1px solid var(--p-border);
 	border-radius: 10px;
-	box-shadow: 0 8px 24px #20332822;
+	box-shadow: var(--p-shadow-raised);
 }
 ul {
 	list-style: none;

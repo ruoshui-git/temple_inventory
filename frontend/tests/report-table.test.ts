@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
+import { ref } from "vue";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 const table = (length = 65) => ({
   id: "records",
@@ -15,6 +16,43 @@ const table = (length = 65) => ({
   })),
 });
 describe("shared native report table", () => {
+  it("uses presentation labels and excludes raw image metadata from grouped leaf headers", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "curated-leaves",
+          label: "分组明细",
+          columns: [],
+          rows: [],
+        },
+        grouped: true,
+        groupPages: {
+          entries: ref([]),
+          leafColumns: ref([
+            "category",
+            "stock_qty",
+            "stock_uom",
+            "image",
+            "batch_tracked",
+          ]),
+          pages: ref({}),
+          hasMore: () => false,
+          loadMore: () => {},
+          toggleGroup: () => {},
+          retry: () => {},
+        } as never,
+      },
+    });
+    expect(wrapper.findAll("thead th").map((cell) => cell.text())).toEqual([
+      "类别",
+      "库存数量",
+      "库存单位",
+    ]);
+    expect(wrapper.find("thead").text()).not.toContain("image");
+    expect(wrapper.find("thead").text()).not.toContain("batch_tracked");
+    wrapper.unmount();
+  });
+
   it("leaves absent table cells empty while retaining zero and false values", () => {
     const wrapper = mount(ReportTable, {
       props: {
@@ -148,6 +186,71 @@ describe("shared native report table", () => {
         .findAll("button")
         .some((button) => button.text().startsWith("加载更多")),
     ).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("summarizes grouped native quantities by unit and omits meaningless zero totals", () => {
+    const groupPages = {
+      entries: ref([
+        {
+          kind: "group",
+          id: "movement-root",
+          label: "入库",
+          depth: 1,
+          count: 2,
+          countLabel: "原生单据",
+          expanded: true,
+          hasChildren: true,
+          value: {
+            stock_uom: "Nos",
+            stock_qty: 0,
+            display_count: 2,
+            count_label: "原生单据",
+            quantity_breakdown: [
+              { kind: "Receive", docstatus: 1, stock_qty: 5 },
+              { kind: "Issue", docstatus: 1, stock_qty: 3 },
+            ],
+          },
+        },
+        {
+          kind: "group",
+          id: "loan-root",
+          label: "借用",
+          depth: 1,
+          count: 1,
+          countLabel: "分配行",
+          expanded: true,
+          hasChildren: true,
+          value: {
+            stock_uom: "kg",
+            borrowed: 8,
+            returned: 3,
+            outstanding: 5,
+            stock_qty: 0,
+            item_count: 1,
+          },
+        },
+      ]),
+      pages: ref({}),
+      hasMore: () => false,
+      loadMore: () => {},
+      toggleGroup: () => {},
+      retry: () => {},
+    } as never;
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: { id: "groups", label: "分组", columns: [], rows: [] },
+        grouped: true,
+        groupPages,
+      },
+    });
+    const text = wrapper.text();
+    expect(text).toContain("入库（已提交） 5 Nos");
+    expect(text).toContain("出库（已提交） 3 Nos");
+    expect(text).toContain("借出量 8 kg");
+    expect(text).toContain("正常归还量 3 kg");
+    expect(text).toContain("未归还量 5 kg");
+    expect(text).not.toContain("库存数量 0");
     wrapper.unmount();
   });
 });

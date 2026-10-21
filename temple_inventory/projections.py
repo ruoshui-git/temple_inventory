@@ -13,7 +13,7 @@ import frappe
 from frappe.utils import cint
 
 from temple_inventory.native_access import require_app
-from temple_inventory.report_query import validate_query
+from temple_inventory.report_query import SORTABLE_COLUMNS, sortable_field, validate_query
 from temple_inventory.report_sources import (
 	ReportContext,
 	activity_rows,
@@ -29,7 +29,7 @@ from temple_inventory.report_sources import (
 	stock_rows,
 )
 
-INTERNAL_TABLES = {"loan_item_page", "linked_settlements"}
+INTERNAL_TABLES = {"loan_item_page", "linked_settlements", "group_source"}
 
 TABLE_LABELS = {
 	"summary": "汇总",
@@ -48,11 +48,54 @@ TABLE_LABELS = {
 	"conversions": "物品常用换算",
 	"warehouses": "位置层级",
 	"files": "私有附件引用",
+	"group_roots": "一级分组",
+	"grouped": "分组汇总",
 }
 STOCK_SUMS = ("available", "loaned", "damaged", "stock_qty")
 LOAN_SUMS = ("borrowed", "returned", "damaged", "lost", "outstanding", "stock_qty")
 HISTORY_SUMS = ("opening", "incoming", "outgoing", "adjustment", "closing", "stock_qty")
 COUNT_SUMS = ("baseline_qty", "actual_qty", "difference", "stock_qty")
+
+
+def group_field_name(query, key):
+	if key == "status":
+		if query["dataset"] == "loans" and query["view"] == "records":
+			return "loan_status"
+		if query["dataset"] == "activities" and query["view"] == "metadata":
+			return "status"
+		return "docstatus"
+	return {
+		"item": "item_code",
+		"category": "category",
+		"location": "warehouse",
+		"kind": "kind",
+		"activityType": "activity_type",
+		"activity": "activity",
+		"borrower": "borrower",
+		"outcome": "outcome",
+		"source": "source_warehouse",
+		"destination": "destination_warehouse",
+		"month": "month",
+	}[key]
+
+
+def group_label(row, query, depth=None):
+	index = -1 if depth is None else depth - 1
+	field = group_field_name(query, query["groupBy"][index])
+	value = row.get(field)
+	if field == "item_code":
+		return row.get("item_name") or value or ""
+	if field == "activity":
+		return row.get("activity_title") or value or ""
+	if field == "warehouse":
+		return row.get("warehouse_label") or value or ""
+	if field in ("source_warehouse", "destination_warehouse"):
+		return row.get(f"{field}_label") or value or ""
+	if field == "activity_type":
+		return row.get("activity_type_label") or value or ""
+	if field == "docstatus":
+		return {0: "草稿", 1: "已提交", 2: "已取消"}.get(value, "状态未知")
+	return str(value or "未指定")
 
 
 ITEM_COLUMNS = ["item_code", "item_name", "category", "stock_uom"]
@@ -111,6 +154,7 @@ FIXED_COLUMNS = {
 		"stock_qty",
 		"item_count",
 		"allocation_count",
+		"item_codes",
 	],
 	"locations": [
 		"id",
@@ -199,6 +243,44 @@ FIXED_COLUMNS = {
 # Screen tables prioritize readable context and quantities. Export writers continue
 # to use column_names, including native audit fields and stable allocation IDs.
 DISPLAY_COLUMNS = {
+	"group_source": [
+		"document",
+		"date",
+		"time",
+		"kind",
+		"docstatus",
+		"loan_status",
+		"doctype",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"warehouse_label",
+		"warehouse",
+		"batch_no",
+		"expiry_date",
+		"remaining_days",
+		"borrower",
+		"activity_title",
+		"source_warehouse",
+		"destination_warehouse",
+		"available",
+		"loaned",
+		"borrowed",
+		"returned",
+		"damaged",
+		"lost",
+		"outstanding",
+		"opening",
+		"incoming",
+		"outgoing",
+		"adjustment",
+		"closing",
+		"baseline_qty",
+		"actual_qty",
+		"difference",
+		"stock_qty",
+	],
 	"loan_items": [
 		"item_name",
 		"outstanding",
@@ -424,13 +506,69 @@ DISPLAY_COLUMNS = {
 
 
 def display_columns(table, columns):
+	if table in ("grouped", "group_roots"):
+		metrics = (*STOCK_SUMS, *LOAN_SUMS, *HISTORY_SUMS, *COUNT_SUMS)
+		return list(dict.fromkeys(
+			field
+			for field in (
+				"group_label", "stock_uom", *metrics, "quantity_breakdown", "row_count", "count_label",
+				"item_count", "document_count", "allocation_count",
+			)
+			if field in columns
+		))
 	return [field for field in DISPLAY_COLUMNS.get(table, columns) if field != "id" and field in columns]
 
 
+def _add_authorized_item_images(context, rows):
+	for row in rows:
+		if not row.get("group_label"):
+			continue
+		item_code = row.get("item_code")
+		item = context.item(item_code) if item_code else None
+		row["image"] = (item.image or "") if item else ""
+	return rows
+
+
+def group_count_grain(query):
+	if query["dataset"] in ("inventory", "expiry"):
+		return "stock_row"
+	if query["dataset"] == "activities" and query["view"] == "metadata":
+		return "activity"
+	if query["dataset"] == "activities":
+		return "allocation"
+	if query["view"] == "records":
+		return "native_document"
+	return "allocation"
+
+
+def group_count_metadata(query, row):
+	grain = group_count_grain(query)
+	return {
+		"count_grain": grain,
+		"count_label": {
+			"stock_row": "库存行",
+			"activity": "活动",
+			"native_document": "原生单据",
+			"allocation": "分配行",
+		}[grain],
+		"display_count": int(row.get("row_count") or 0),
+	}
+
+
 class Projection(AbstractContextManager):
-	def __init__(self, query):
+	def __init__(self, query, *, refresh=False):
+		from frappe.utils import now_datetime
+
 		self.query = validate_query(query)
-		self.context = ReportContext(self.query)
+		self.cache_bypass = refresh
+		from temple_inventory.read_cache import capture_cache_context
+		self.cache_context = None if refresh else capture_cache_context()
+		self.calculation_started = (
+			getattr(frappe.local, "inventory_cache_request_started", None)
+			if self.cache_context
+			else None
+		) or str(now_datetime())
+		self.context = ReportContext(self.query, snapshot=self.calculation_started)
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
 		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
 		self.db.execute("pragma cache_size = -4096")
@@ -439,11 +577,55 @@ class Projection(AbstractContextManager):
 			quantity real, payload text, primary key(table_id, identity)
 		)""")
 		self.main_table = ""
+		self.summary_table = ""
+		self.sums = ()
 		self.column_names = {}
+		self.cache_lock = None
+		self.cache_race_retries = 0
+
+	def __enter__(self):
+		from temple_inventory.read_cache import acquire_projection_lock
+
+		self.cache_lock = acquire_projection_lock(self)
+		return self
 
 	def __exit__(self, *args):
+		from temple_inventory.read_cache import release_projection_lock
+
+		release_projection_lock(self.cache_lock)
 		self.db.close()
 		self.temp.cleanup()
+
+	def _rebuild_uncached_after_cache_failure(self, *, related=False):
+		from frappe.utils import now_datetime
+
+		from temple_inventory.read_cache import restart_owned_read_snapshot
+
+		if not restart_owned_read_snapshot():
+			frappe.throw("缓存验证失败，当前读取事务无法安全重试，请刷新后重试")  # noqa: RUF001
+		# Authorization may have changed while Redis was unavailable. Recheck on
+		# the newly established snapshot before rebuilding any protected rows.
+		require_app()
+		self.cache_context = None
+		self.cache_bypass = True
+		self.calculation_started = str(now_datetime())
+		self.context = ReportContext(self.query, snapshot=self.calculation_started)
+		self.db.close()
+		self.temp.cleanup()
+		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
+		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
+		self.db.execute("pragma cache_size = -4096")
+		self.db.execute(
+			"""create table rows (
+				table_id text, identity text, date text, modified text, name text,
+				quantity real, payload text, primary key(table_id, identity)
+			)"""
+		)
+		self.main_table = ""
+		self.summary_table = ""
+		self.sums = ()
+		self.column_names = {}
+		return self.build(related=related)
 
 	def put(self, table, row):
 		# Display fields accompany exact native identity, including paginated references.
@@ -482,26 +664,19 @@ class Projection(AbstractContextManager):
 	def rows(self, table, *, offset=0, limit=None):
 		if table not in self.column_names:
 			frappe.throw("请选择有效的数据表")
-		field = {
-			"identity": "identity",
-			"date": "date",
-			"modified": "modified",
-			"quantity": "quantity",
-			"name": "name",
-			"batch": "batch",
-		}[self.query["sortBy"]]
+		field = sortable_field(self.query["dataset"], self.query["view"], self.query["sortBy"])
+		if table in ("grouped", "group_roots") and field != "identity" and field not in self.column_names[table]:
+			field = "group_label" if "group_label" in self.column_names[table] else "identity"
 		direction = self.query["sort"]
-		if field == "batch":
-			cursor = self.db.execute(
-				"select payload from rows where table_id=? order by json_extract(payload, '$.batch_no') "
-				f"{direction}, identity {direction} limit ? offset ?",
-				(table, limit if limit is not None else -1, offset),
-			)
-			for (payload,) in cursor:
-				yield json.loads(payload)
-			return
+		sort_expression = (
+			"identity"
+			if field == "identity"
+			else "date"
+			if field == "date"
+			else f"json_extract(payload, '$.{field}')"
+		)
 		cursor = self.db.execute(
-			f"select payload from rows where table_id=? order by {field} {direction}, identity {direction} limit ? offset ?",
+			f"select payload from rows where table_id=? order by {sort_expression} {direction}, identity {direction} limit ? offset ?",
 			(table, limit if limit is not None else -1, offset),
 		)
 		for (payload,) in cursor:
@@ -510,9 +685,41 @@ class Projection(AbstractContextManager):
 	def count(self, table):
 		return self.db.execute("select count(*) from rows where table_id=?", (table,)).fetchone()[0]
 
+	def matching_page(self, table, fields, values, unit, offset, limit):
+		"""Count and sort a scoped child slice in SQLite before materializing it."""
+		sort_field = sortable_field(self.query["dataset"], self.query["view"], self.query["sortBy"])
+		if table in ("grouped", "group_roots") and sort_field != "identity" and sort_field not in self.column_names.get(table, ()):
+			sort_field = "group_label" if "group_label" in self.column_names.get(table, ()) else "identity"
+		if sort_field != "identity" and sort_field not in self.column_names.get(table, ()):
+			frappe.throw("所选分组不支持此排序字段")
+		where = ["table_id=?"]
+		params = [table]
+		for field, value in zip(fields, values, strict=True):
+			where.append(f"coalesce(cast(json_extract(payload, '$.{field}') as text), '')=?")
+			params.append(value)
+		if unit is not None:
+			where.append("coalesce(cast(json_extract(payload, '$.stock_uom') as text), '')=?")
+			params.append(unit)
+		predicate = " and ".join(where)
+		count = self.db.execute(f"select count(*) from rows where {predicate}", params).fetchone()[0]
+		field = sort_field
+		sort_expression = (
+			"identity"
+			if field == "identity"
+			else "date"
+			if field == "date"
+			else f"json_extract(payload, '$.{field}')"
+		)
+		cursor = self.db.execute(
+			f"select payload from rows where {predicate} order by {sort_expression} {self.query['sort']}, identity {self.query['sort']} limit ? offset ?",
+			(*params, limit, offset),
+		)
+		return [json.loads(payload) for (payload,) in cursor], count
+
 	def group(self, source, target, fields, sums, *, maximums=()):
 		self.column_names.setdefault(
-			target, ["id", *fields, *sums, *maximums, "item_count", "document_count", "allocation_count"]
+			target,
+			["id", *fields, *sums, *maximums, "item_count", "document_count", "row_count", "allocation_count"],
 		)
 		# Fields are internal constants, never client-supplied SQL identifiers.
 		expressions = [f"json_extract(payload, '$.{field}')" for field in fields]
@@ -521,11 +728,26 @@ class Projection(AbstractContextManager):
 			*(f"sum(coalesce(json_extract(payload, '$.{field}'), 0))" for field in sums),
 			*(f"max(json_extract(payload, '$.{field}'))" for field in maximums),
 		]
+		is_allocation_source = source in ("lines", "outcomes", "settlements", "browse_contributions") or (
+			source == "group_source"
+			and (
+				(self.query["dataset"] in ("movements", "counts", "loans") and self.query["view"] != "records")
+				or (self.query["dataset"] == "activities" and self.query["view"] == "loans")
+			)
+		)
+		allocation_count = (
+			"sum(coalesce(json_extract(payload, '$.allocation_count'), 0))"
+			if "allocation_count" in self.column_names.get(source, ())
+			else "count(*)"
+			if is_allocation_source
+			else "0"
+		)
 		columns.extend(
 			[
 				"count(distinct json_extract(payload, '$.item_code'))",
 				"count(distinct json_extract(payload, '$.document_id'))",
 				"count(*)",
+				allocation_count,
 			]
 		)
 		grouping = " group by " + ", ".join(expressions) if expressions else ""
@@ -533,34 +755,83 @@ class Projection(AbstractContextManager):
 			"select " + ", ".join(columns) + " from rows where table_id=?" + grouping, (source,)
 		)
 		for values in cursor:
-			if not values[-1]:
+			if not values[-2]:
 				continue
 			row = dict(
 				zip(
-					[*fields, *sums, *maximums, "item_count", "document_count", "allocation_count"],
+					[*fields, *sums, *maximums, "item_count", "document_count", "row_count", "allocation_count"],
 					values,
 					strict=True,
 				)
 			)
+			if "item_codes" in self.column_names.get(source, ()):
+				conditions = ["record_rows.table_id=?"]
+				parameters = [source]
+				for field, value in zip(fields, values[: len(fields)], strict=True):
+					conditions.append(
+						f"coalesce(cast(json_extract(record_rows.payload, '$.{field}') as text), '')=?"
+					)
+					parameters.append(str(value or ""))
+				item_count = self.db.execute(
+					"select count(distinct members.value) from rows record_rows, json_each(record_rows.payload, '$.item_codes') members where "
+					+ " and ".join(conditions),
+					parameters,
+				).fetchone()[0]
+				row["item_count"] = item_count
+			if source == "group_source" and self.query["dataset"] == "movements":
+				conditions = ["table_id=?"]
+				parameters = [source]
+				for field, value in zip(fields, values[: len(fields)], strict=True):
+					conditions.append(
+						f"coalesce(cast(json_extract(payload, '$.{field}') as text), '')=?"
+					)
+					parameters.append(str(value or ""))
+				breakdown_rows = self.db.execute(
+					"select json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus'), "
+					"sum(coalesce(json_extract(payload, '$.stock_qty'), 0)), "
+					"sum(coalesce(json_extract(payload, '$.available_effect'), 0)), "
+					"count(distinct json_extract(payload, '$.document_id')), count(*) "
+					"from rows where " + " and ".join(conditions) +
+					" group by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus') "
+					"order by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus')",
+					parameters,
+				).fetchall()
+				row["quantity_breakdown"] = [
+					{
+						"kind": part[0],
+						"docstatus": part[1],
+						"stock_qty": part[2],
+						"available_effect": part[3],
+						"document_count": part[4],
+						"allocation_count": part[5],
+					}
+					for part in breakdown_rows
+				]
+				# A total across different movement kinds/statuses has no meaningful native quantity.
+				if len(row["quantity_breakdown"]) > 1:
+					row["stock_qty"] = None
 			row["id"] = json.dumps([target, *values[: len(fields)]], ensure_ascii=False)
 			self.put(target, row)
 
 	def build(self, *, related=False):
 		query, context = self.query, self.context
 		dataset, view = query["dataset"], query["view"]
-		if dataset == "inventory" and view == "historical":
+		from temple_inventory.read_cache import restore_projection, store_projection
+
+		restored = not related and restore_projection(self)
+		if not restored and dataset == "inventory" and view == "historical":
 			self.column_names.update({key: list(FIXED_COLUMNS[key]) for key in ("balances", "ledger")})
 			for table, row in historical_rows(context):
 				self.put(table, row)
 			self.main_table, sums = "balances", HISTORY_SUMS
-		elif dataset in ("inventory", "expiry"):
+		elif not restored and dataset in ("inventory", "expiry"):
 			self.add("locations" if dataset == "inventory" else "batches", stock_rows(context))
 			self.main_table = "locations" if dataset == "inventory" else "batches"
 			sums = STOCK_SUMS
 			if dataset == "inventory":
 				self.group("locations", "summary", ("item_code", "item_name", "category", "stock_uom"), sums)
 				self.main_table = view
-		elif dataset == "movements":
+		elif not restored and dataset == "movements":
 			self.add("lines", movement_rows(context))
 			self.group(
 				"lines",
@@ -588,8 +859,8 @@ class Projection(AbstractContextManager):
 				("item_code", "item_name", "category", "docstatus", "kind", "stock_uom"),
 				("stock_qty", "available_effect"),
 			)
-			self.main_table, sums = view, ("stock_qty",)
-		elif dataset == "loans":
+			self.main_table, sums = view, ("stock_qty", "available_effect")
+		elif not restored and dataset == "loans":
 			self.add("outcomes", loan_rows(context))
 			if view == "items":
 				self.add("linked_settlements", linked_settlement_rows(context))
@@ -629,7 +900,7 @@ class Projection(AbstractContextManager):
 				("loan_items" if view == "items" else view),
 				LOAN_SUMS if view in ("items", "outcomes", "records") else ("stock_qty",),
 			)
-		elif dataset == "activities":
+		elif not restored and dataset == "activities":
 			self.add("metadata", activity_rows(context))
 			self.add("records", activity_rows(context, metadata=False))
 			# Select exact original loan lines from the independently scoped native loan projection.
@@ -648,7 +919,7 @@ class Projection(AbstractContextManager):
 				("outcomes" if view == "loans" else view),
 				LOAN_SUMS if view == "loans" else ("stock_qty",),
 			)
-		else:
+		elif not restored:
 			self.add("lines", count_rows(context))
 			self.group(
 				"lines",
@@ -666,32 +937,31 @@ class Projection(AbstractContextManager):
 				COUNT_SUMS,
 			)
 			self.main_table, sums = view, COUNT_SUMS
-		if query["grouping"] != "none":
-			field = {
-				"item": "item_code",
-				"category": "category",
-				"location": "warehouse",
-				"kind": "kind",
-				"activity": "activity",
-				"borrower": "borrower",
-				"month": "month",
-			}[query["grouping"]]
+		if not restored:
+			self.summary_table = self.main_table
+			self.sums = tuple(sums)
+			if not related:
+				store_projection(self)
+		else:
+			sums = self.sums
+		if query["groupBy"]:
+			group_fields = [group_field_name(query, key) for key in query["groupBy"]]
 			source = "loan_item_page" if dataset == "loans" and view == "items" else self.main_table
-			if source in ("records", "summary"):
+			if source == "summary":
 				source = (
 					"lines"
 					if dataset in ("movements", "counts")
-					else "locations"
-					if dataset == "inventory"
 					else "outcomes"
 					if dataset == "loans"
+					else "locations"
+					if dataset == "inventory"
 					else source
 				)
 			# Month/location grouping keeps separate allocation/branch detail tables.
 			self.column_names["group_source"] = []
 			for row in self.rows(source):
 				row["month"] = str(row.get("date") or "")[:7]
-				if field == "warehouse" and not row.get("warehouse"):
+				if "warehouse" in group_fields and not row.get("warehouse"):
 					for direction in ("source_warehouse", "destination_warehouse"):
 						warehouse = row.get(direction)
 						if warehouse and warehouse in context.selected:
@@ -706,25 +976,95 @@ class Projection(AbstractContextManager):
 							)
 				else:
 					self.put("group_source", row)
-			labels = {
-				"item_code": ("item_name",),
-				"activity": ("activity_title", "title"),
-				"warehouse": ("warehouse_label",),
-			}.get(field, ())
 			self.group(
 				"group_source",
 				"grouped",
-				(field, "stock_uom", "docstatus", "kind", "outcome"),
+				(*group_fields, "stock_uom"),
 				sums,
-				maximums=tuple(label for label in labels if label in self.column_names[source]),
+				maximums=tuple(
+					label
+					for group_field in group_fields
+					for label in {
+						"item_code": ("item_name",),
+						"activity": ("activity_title", "title"),
+						"activity_type": ("activity_type_label",),
+						"warehouse": ("warehouse_label",),
+						"source_warehouse": ("source_warehouse_label",),
+						"destination_warehouse": ("destination_warehouse_label",),
+					}.get(group_field, ())
+					if label in self.column_names[source]
+				),
 			)
-			self.db.execute("delete from rows where table_id='group_source'")
-			del self.column_names["group_source"]
-			self.main_table = "grouped"
+			if len(group_fields) == 2:
+				self.group(
+					"group_source",
+					"group_roots",
+					(group_fields[0], "stock_uom"),
+					sums,
+					maximums=tuple(
+						label
+						for label in {
+							"item_code": ("item_name",),
+							"activity": ("activity_title", "title"),
+							"activity_type": ("activity_type_label",),
+							"warehouse": ("warehouse_label",),
+							"source_warehouse": ("source_warehouse_label",),
+							"destination_warehouse": ("destination_warehouse_label",),
+					}.get(group_fields[0], ())
+						if label in self.column_names["group_source"]
+					),
+				)
+				for row in list(self.rows("group_roots")):
+					old_identity = str(row["id"])
+					path = [str(row.get(group_fields[0]) or "")]
+					row["group_path"] = path
+					row["group_depth"] = 1
+					row["parent_group_id"] = None
+					row["has_children"] = True
+					row["row_grain"] = "group"
+					row["group_label"] = group_label(row, query, 1)
+					row.update(group_count_metadata(query, row))
+					row["id"] = json.dumps(["group", *path, row.get("stock_uom") or ""], ensure_ascii=False)
+					self.db.execute(
+						"delete from rows where table_id='group_roots' and identity=?", (old_identity,)
+					)
+					self.put("group_roots", row)
+			self.group_source_table = "group_source"
+			for row in list(self.rows("grouped")):
+				old_identity = str(row["id"])
+				path = [str(row.get(field) or "") for field in group_fields]
+				group_id = ["group", *path, row.get("stock_uom") or ""]
+				row["group_path"] = path
+				row["group_depth"] = len(path)
+				row["parent_group_id"] = (
+					json.dumps(["group", *path[:-1], row.get("stock_uom") or ""], ensure_ascii=False)
+					if len(path) > 1
+					else None
+				)
+				row["has_children"] = True
+				row["row_grain"] = "group"
+				row["group_label"] = group_label(row, query)
+				row.update(group_count_metadata(query, row))
+				row["id"] = json.dumps(group_id, ensure_ascii=False)
+				self.db.execute(
+					"delete from rows where table_id='grouped' and identity=?", (old_identity,)
+				)
+				self.put("grouped", row)
+			self.main_table = "group_roots" if len(group_fields) == 2 else "grouped"
 			TABLE_LABELS.setdefault("grouped", "分组汇总")
 		if related:
 			self.add_related_tables()
 		self.db.commit()
+		if self.cache_context:
+			from temple_inventory.read_cache import _fresh, cache_context_current
+
+			cache_status = cache_context_current(self.cache_context)
+			if cache_status is False:
+				frappe.throw("数据正在更新，请刷新后重试")  # noqa: RUF001
+			if cache_status is None and restored:
+				return self._rebuild_uncached_after_cache_failure(related=related)
+			if restored and not _fresh(self.context.snapshot):
+				return self._rebuild_uncached_after_cache_failure(related=related)
 		return self
 
 	def complete_native_records(self, dataset):
@@ -821,6 +1161,7 @@ class Projection(AbstractContextManager):
 						group["item_codes"].add(item.name)
 						group["allocation_count"] += 1
 			for uom, values in groups.items():
+				item_codes = sorted(values["item_codes"])
 				self.put(
 					"records",
 					{
@@ -828,12 +1169,13 @@ class Projection(AbstractContextManager):
 						"id": f"{doctype}:{name}:{uom}",
 						"stock_uom": uom,
 						**{key: value for key, value in values.items() if key not in ("item_codes",)},
-						"item_count": len(values["item_codes"]),
+						"item_count": len(item_codes),
+						"item_codes": item_codes,
 					},
 				)
 
 	def summary(self):
-		table = self.main_table
+		table = self.summary_table or self.main_table
 		self.group(
 			table,
 			"totals",
@@ -956,25 +1298,40 @@ class Projection(AbstractContextManager):
 
 
 @frappe.whitelist()
-def report_page(query, start=0, page_length=30, table=None, include_related=False):
+def report_page(query, start=0, page_length=30, table=None, include_related=False, refresh=False):
 	require_app()
 	start, page_length = max(0, cint(start)), min(200, max(1, cint(page_length)))
-	with Projection(query) as projection:
-		if type(include_related) is not bool:
-			frappe.throw("请选择是否包含关联资料")
+	if type(include_related) is not bool or type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
+	validated = validate_query(query)
+	return _report_page(validated, start, page_length, table, include_related, refresh)
+
+
+def _report_page(query, start, page_length, table, include_related, refresh=False):
+	with Projection(query, refresh=refresh or include_related) as projection:
 		projection.build(related=include_related)
 		selected = table or projection.main_table
-		if selected not in projection.column_names:
+		if selected not in projection.column_names or selected in INTERNAL_TABLES:
 			frappe.throw("请选择有效的数据表")
 		count = projection.count(selected)
+		rows = list(projection.rows(selected, offset=start, limit=page_length))
+		if projection.query["groupBy"]:
+			_add_authorized_item_images(projection.context, rows)
 		return {
 			"query": projection.query,
 			"scope": projection.context.scope,
 			"period": projection.context.period,
 			"snapshot": projection.context.snapshot,
 			"table": selected,
+			"sortable_columns": list(SORTABLE_COLUMNS[(projection.query["dataset"], projection.query["view"])]),
 			"columns": display_columns(selected, projection.column_names[selected]),
-			"rows": list(projection.rows(selected, offset=start, limit=page_length)),
+			"leaf_columns": display_columns(
+				projection.group_source_table,
+				projection.column_names.get(projection.group_source_table, []),
+			)
+			if projection.query["groupBy"]
+			else [],
+			"rows": rows,
 			"matched_count": count,
 			"next_start": start + page_length if start + page_length < count else None,
 			"summary": projection.summary(),
@@ -983,4 +1340,85 @@ def report_page(query, start=0, page_length=30, table=None, include_related=Fals
 				for key in projection.column_names
 				if key not in INTERNAL_TABLES
 			],
+		}
+
+
+@frappe.whitelist()
+def group_page(query, parent_path=None, parent_unit=None, start=0, page_length=30, refresh=False):
+	"""Page only one requested group's children from the fully filtered projection."""
+	from frappe.utils import cint
+
+	require_app()
+	if type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
+	validated = validate_query(query)
+	group_by = validated["groupBy"]
+	path = frappe.parse_json(parent_path) if isinstance(parent_path, str) else parent_path or []
+	if not group_by or not isinstance(path, list) or len(path) > len(group_by):
+		frappe.throw("请选择有效的分组路径")
+	if any(not isinstance(value, str) or len(value) > 2000 for value in path):
+		frappe.throw("请选择有效的分组路径")
+	if parent_unit is not None and (not isinstance(parent_unit, str) or len(parent_unit) > 2000):
+		frappe.throw("请选择有效的计量单位")
+	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	return _group_page(validated, path, parent_unit, start, size, refresh)
+
+
+def _group_page(validated, path, parent_unit, start, size, refresh=False):
+	group_by = validated["groupBy"]
+	with Projection(validated, refresh=refresh) as projection:
+		projection.build()
+		if len(path) < len(group_by):
+			table = "group_roots" if not path and len(group_by) == 2 else "grouped"
+			fields = [group_field_name(validated, key) for key in group_by[: len(path) + 1]]
+			rows, count = projection.matching_page(table, fields[: len(path)], path, parent_unit, start, size)
+			rows = [row for row in rows if len(row.get("group_path") or []) == len(path) + 1]
+			if group_field_name(validated, group_by[len(path)]) == "item_code":
+				_add_authorized_item_images(projection.context, rows)
+			return {
+				"rows": rows,
+				"matched_count": count,
+				"next_start": start + size if start + size < count else None,
+				"parent_path": path,
+				"parent_unit": parent_unit,
+				"row_grain": "group",
+				"count_grain": group_count_grain(validated),
+				"query": projection.query,
+				"leaf_columns": display_columns(
+					projection.group_source_table,
+					projection.column_names.get(projection.group_source_table, []),
+				),
+			}
+		fields = [group_field_name(validated, key) for key in group_by]
+		source = projection.group_source_table
+		rows, count = projection.matching_page(source, fields, path, parent_unit, start, size)
+		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
+			from temple_inventory.browse import _whole_operation
+
+			for row in rows:
+				whole = _whole_operation(projection.context, row["doctype"], row["document"])
+				row["row_grain"] = "record"
+				row["whole"] = whole
+				row["original_loans"] = whole.get("original_loans", [])
+				row["can_settle"] = bool(
+					validated["dataset"] == "loans"
+					and row.get("docstatus") == 1
+					and whole.get("loan_status") == "Open"
+				)
+		return {
+			"rows": rows,
+			"matched_count": count,
+			"next_start": start + size if start + size < count else None,
+			"parent_path": path,
+			"parent_unit": parent_unit,
+			"row_grain": "stock"
+			if validated["dataset"] in ("inventory", "expiry")
+			else "record"
+			if validated["view"] == "records"
+			else "allocation",
+			"query": projection.query,
+			"leaf_columns": display_columns(
+				source,
+				projection.column_names.get(source, []),
+			),
 		}

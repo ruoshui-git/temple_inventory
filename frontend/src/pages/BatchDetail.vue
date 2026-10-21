@@ -4,6 +4,7 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vu
 import BatchDetailView from "../features/batches/BatchDetailView.vue";
 import { useBatchDetailController } from "../features/batches/useBatchDetailController";
 import { loanDestination } from "../lib/nativeNavigation";
+import { routeTarget } from "../lib/routeRegistry";
 const route = useRoute(),
 	router = useRouter();
 const name = computed(() => String(route.params.name || ""));
@@ -25,12 +26,12 @@ onBeforeRouteUpdate(confirmDiscard);
 		@open-item="
 			(code) =>
 				router.push({
-					path: `/item/${encodeURIComponent(code)}`,
+					...routeTarget('item-detail', { code }),
 					query: { back: route.fullPath },
 				})
 		"
 		@open-document="
-			(destination) => router.push({ path: destination, query: { back: route.fullPath } })
+			(destination) => router.push({ ...destination, query: { back: route.fullPath } })
 		"
 		@open-loan="(name) => router.push(loanDestination(name, route.fullPath))"
 	/>

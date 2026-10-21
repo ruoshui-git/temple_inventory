@@ -275,6 +275,8 @@ for (const [width, scale, density] of [
       .getByLabel("搜索物品或条码")
       .fill("供灯用品与法会日常储备长关键词");
     await page.locator(".card-checkbox input").first().check();
+    const persistentSearch = page.getByLabel("搜索物品或条码");
+    await persistentSearch.focus();
     const expandTools = page.getByRole("button", {
       name: "展开工具",
       exact: true,
@@ -287,17 +289,16 @@ for (const [width, scale, density] of [
     await expect(
       page.getByRole("region", { name: "已选物品操作" }),
     ).toContainText("已选择 1 项物品");
+    await expect(persistentSearch).toBeVisible();
+    await expect(persistentSearch).toBeFocused();
+    await expect(persistentSearch).toHaveValue(
+      "供灯用品与法会日常储备长关键词",
+    );
     const collapsed = await page
       .locator(".inventory-browse-header")
       .boundingBox();
     expect(collapsed!.height).toBeLessThan(expanded!.height);
     await page.screenshot({ path: info.outputPath("collapsed-toolbar.png") });
-    await page.getByRole("button", { name: "搜索", exact: true }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByRole("dialog").getByRole("searchbox")).toHaveValue(
-      "供灯用品与法会日常储备长关键词",
-    );
-    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^筛选/ }).click();
     await expect(page.locator(".hierarchy-list").first()).toBeVisible();
     const indents = await page
@@ -334,7 +335,7 @@ for (const width of [390, 1440]) {
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
-    await page.goto("/inventory/movements/records");
+    await page.goto("/inventory/movements?view=records");
     const record = page.locator(".browse-table tbody tr").first();
     await expect(record.locator("td").nth(5)).toContainText("20 个");
     await expect(
@@ -349,7 +350,7 @@ for (const width of [390, 1440]) {
     await action.click();
     await page.getByRole("button", { name: /文化交流与法会筹备组/ }).click();
     await expect(page.getByRole("dialog")).toContainText("当前未结清 7");
-    expect(page.url()).toContain("/movements/records");
+    expect(page.url()).toContain("/movements?view=records");
     await page.getByRole("button", { name: "返回关联借出列表" }).click();
     await expect(
       page.getByRole("button", { name: /寺院志工服务组/ }),
@@ -391,7 +392,7 @@ for (const width of [390, 1440]) {
       cards,
     );
     await page.screenshot({ path: info.outputPath("dashboard-tabs.png") });
-    await page.goto("/inventory/items/new");
+    await page.goto("/inventory/stock/items/new");
     const dataUrl = await page.evaluate(() => {
       const canvas = document.createElement("canvas");
       canvas.width = 80;
@@ -455,7 +456,7 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await page.getByRole("button", { name: /^筛选/ }).click();
   await page.locator(".hierarchy-row input").first().check();
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.locator(".filter-rail")).toBeVisible();
+  await expect(page.locator(".browse-filter-rail")).toBeVisible();
   await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
   await expect(page.locator(".card-checkbox input").first()).toBeChecked();
   await page.setViewportSize({ width: 390, height: 1000 });
@@ -503,7 +504,7 @@ for (const width of [390, 1440]) {
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page, 200, width === 390 ? "spacious" : "compact");
-    await page.goto("/inventory/warehouses");
+    await page.goto("/inventory/stock/warehouses");
     const toggle = page.locator(".warehouse-toggle").first();
     await expect(toggle).toBeVisible();
     if ((await toggle.getAttribute("aria-expanded")) === "false")
@@ -541,7 +542,7 @@ test("open movement filter follows the breakpoint without losing selection", asy
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await setup(page);
-  await page.goto("/inventory/movements/records");
+  await page.goto("/inventory/movements?view=records");
   await page.getByRole("button", { name: /^筛选/ }).click();
   const selectedLocation = "东院第7层供灯与法会用品长名称";
   const desktopRail = page.locator(".preview-filter-rail");
@@ -581,7 +582,7 @@ test("large-text related-loan context keeps its close action visible", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, 200);
-  await page.goto("/inventory/movements/records");
+  await page.goto("/inventory/movements?view=records");
   const trigger = page.getByRole("button", { name: "关联借出（2）" });
   await trigger.click();
   const dialog = page.getByRole("dialog");

@@ -223,6 +223,15 @@ describe("interactive preview", () => {
   it("shows thumbnails in every list row and no expiry badge for undated items", async () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
     await flushPromises();
+    const plainRow = wrapper
+      .findAll("tbody tr")
+      .find((row) => row.text().includes(items[2].name))!;
+    expect(plainRow.find(".badge").exists()).toBe(false);
+    expect(plainRow.find(".table-item-image").exists()).toBe(true);
+    expect(wrapper.findAll("tbody .table-item-image")).toHaveLength(
+      items.length,
+    );
+    await button(wrapper, "卡片").trigger("click");
     const plainCard = wrapper
       .findAll(".stock-card")
       .find((card) => card.text().includes(items[2].name))!;
@@ -232,10 +241,10 @@ describe("interactive preview", () => {
     expect(wrapper.findAll("tbody .table-item-image")).toHaveLength(
       items.length,
     );
-    const plainRow = wrapper
+    const plainRowAfter = wrapper
       .findAll("tbody tr")
       .find((row) => row.text().includes(items[2].name))!;
-    expect(plainRow.find(".badge").exists()).toBe(false);
+    expect(plainRowAfter.find(".badge").exists()).toBe(false);
     expect(
       wrapper.findAll(".table-item-image .item-image-button"),
     ).toHaveLength(5);
@@ -266,7 +275,7 @@ describe("interactive preview", () => {
       3,
     );
     expect(
-      document.querySelector(".stock-breakdown tfoot")?.textContent,
+      document.querySelector(".stock-breakdown-total")?.textContent,
     ).toContain("128 袋");
     await trigger.trigger("click");
     await trigger.trigger("mouseleave");
@@ -322,8 +331,10 @@ describe("interactive preview", () => {
   });
   it("preserves the active filters when opening contextual export", async () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
-    await nextTick();
-    await wrapper.get('input[aria-label="搜索物品或条码"]').setValue("珍珠米");
+    await flushPromises();
+    await wrapper.get('input[aria-label="搜索库存"]').setValue("珍珠米");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
     await button(wrapper, "快速导出").trigger("click");
     await nextTick();
     expect(document.querySelector(".preview-dialog")?.textContent).toContain(
@@ -338,7 +349,7 @@ describe("interactive preview", () => {
       )!
       .click();
     await nextTick();
-    expect(wrapper.findAll(".stock-card")).toHaveLength(1);
+    expect(wrapper.findAll("tbody tr")).toHaveLength(1);
   });
   it("filters, sorts, and keeps selected-item actions available across views and breakpoints", async () => {
     const wrapper = render(PreviewInventory, { pattern: "proposed" });
@@ -346,9 +357,14 @@ describe("interactive preview", () => {
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
     await button(wrapper, "列表").trigger("click");
     expect(wrapper.findAll("tbody tr.selected")).toHaveLength(1);
-    await button(wrapper, "可用数量 ↕").trigger("click");
-    expect(wrapper.get("tbody tr").text()).toContain("香菇干货");
-    await wrapper.get('input[aria-label="搜索物品或条码"]').setValue("长袖");
+    await wrapper.get('select[aria-label="库存排序"]').setValue("available");
+    expect(wrapper.get('select[aria-label="库存排序"]').element).toHaveProperty(
+      "value",
+      "available",
+    );
+    await wrapper.get('input[aria-label="搜索库存"]').setValue("长袖");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
     expect(wrapper.get(".selection-bar").text()).toContain("已选择 1 项");
     desktop = false;

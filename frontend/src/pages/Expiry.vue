@@ -2,35 +2,35 @@
 import { useRoute, useRouter } from "vue-router";
 import ExpiryBrowsePage from "../features/expiry/ExpiryBrowsePage.vue";
 import { exportDestination } from "../lib/nativeNavigation";
+import { operationDestination } from "../lib/nativeNavigation";
+import { browseRouteTarget, restoreBrowseQueryPayload, routeTarget } from "../lib/routeRegistry";
 import type { ReportQuery } from "../lib/reportContract";
 const route = useRoute(),
 	router = useRouter();
 function changed(query: ReportQuery) {
-	const encoded = JSON.stringify(query);
-	if (route.query.query !== encoded) void router.replace({ query: { query: encoded } });
+	const target = browseRouteTarget(query);
+	if (route.query.query !== target.query?.query || route.query.view !== target.query?.view)
+		void router.replace(target);
 }
 </script>
 
 <template>
 	<ExpiryBrowsePage
-		:route-query="
-			route.query.query === undefined
-				? undefined
-				: typeof route.query.query === 'string'
-					? route.query.query
-					: JSON.stringify(route.query.query)
-		"
+		:route-query="restoreBrowseQueryPayload(route.query.query, 'expiry', route.query.view)"
 		@query-change="changed"
 		@item="
-			router.push({ path: `/item/${encodeURIComponent($event)}`, query: { tab: 'batches' } })
+			router.push({
+				...routeTarget('item-detail', { code: $event }),
+				query: { tab: 'batches' },
+			})
 		"
 		@open-batch="
 			router.push({
-				path: `/batch/${encodeURIComponent($event)}`,
+				...routeTarget('batch-detail', { name: $event }),
 				query: { back: route.fullPath },
 			})
 		"
-		@new-operation="router.push(`/new/${$event}`)"
+		@new-operation="router.push(operationDestination($event))"
 		@open-export="router.push(exportDestination($event))"
 	/>
 </template>

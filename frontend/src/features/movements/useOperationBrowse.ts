@@ -17,6 +17,8 @@ import { presentCatalogItem } from "../../lib/catalogPresentation";
 import { scopeFilterChips } from "../../lib/filterPresentation";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
+import { sortableColumnsForView } from "../../lib/reportContract";
+import { useReportGroups } from "../../composables/useReportGroups";
 export interface OperationGroup {
   id: string;
   item?: CatalogItem;
@@ -98,9 +100,9 @@ export function useOperationBrowse(
       : props.family === "movements"
         ? "summary"
         : "items";
-    query.sortBy =
-      props.records || props.family === "movements" ? "date" : "name";
-    query.sort = query.sortBy === "date" ? "desc" : "asc";
+    query.sortBy = props.records ? "date" : "item_name";
+    query.sort = props.records ? "desc" : "asc";
+    if (!props.records) query.groupBy = ["item"];
     if (props.family === "movements" && !props.records)
       query.includeAdjustments = false;
     if (props.family === "loans" && !props.records) {
@@ -112,6 +114,7 @@ export function useOperationBrowse(
   }
   const query = ref(defaults()),
     routeError = ref("");
+  const groups = useReportGroups(query, services);
   const result = reactive({
     rows: [] as OperationGroup[],
     total: 0,
@@ -126,7 +129,14 @@ export function useOperationBrowse(
   });
   const details = reactive<Record<string, BrowseDetail>>({}),
     analyses = reactive<Record<string, BrowseDetail>>({}),
+    detailSorts = reactive<
+      Record<string, { field: string; direction: "asc" | "desc" }>
+    >({}),
     historyScopes = reactive<Record<string, "outstanding" | "all">>({}),
+    sharedHistorySort = reactive({
+      field: "date",
+      direction: "desc" as "asc" | "desc",
+    }),
     expanded = reactive(new Set<string>()),
     dimension = ref("category");
   let restoring = false,
@@ -135,8 +145,12 @@ export function useOperationBrowse(
     retryMore = false;
   const requests = new Set<AbortController>();
   const detailRequests = new Map<string, AbortController>();
+  const detailRows = new Map<string, OperationGroup>();
   const active = (current = generation) =>
     !disposed && current === generation && reference.user === account;
+  function detailSort(row: OperationGroup) {
+    return sharedHistorySort;
+  }
   function cancel() {
     generation++;
     requests.forEach((request) => request.abort());
@@ -201,10 +215,7 @@ export function useOperationBrowse(
       incoming.outstandingOnly = false;
       incoming.statuses = [1];
     }
-    const supportedSorts =
-      props.family === "loans" && !props.records
-        ? ["name", "quantity"]
-        : ["date"];
+    const supportedSorts = sortableColumnsForView(props.family, incoming.view);
     if (!supportedSorts.includes(incoming.sortBy)) {
       incoming.sortBy = defaults().sortBy;
       incoming.sort = defaults().sort;
@@ -288,6 +299,7 @@ export function useOperationBrowse(
       if (!more) {
         Object.keys(details).forEach((key) => delete details[key]);
         Object.keys(analyses).forEach((key) => delete analyses[key]);
+        detailRows.clear();
       }
       for (const [key, value] of Object.entries(page.analysis)) {
         if (!more || !analyses[key])
@@ -312,6 +324,20 @@ export function useOperationBrowse(
           historyScopes[row.id] = "all";
         if (expanded.has(row.id)) void loadDetails(row);
       }
+      if (
+        !props.records &&
+        !query.value.groupBy.length &&
+        ((props.family === "loans" && query.value.view === "items") ||
+          (props.family === "movements" && query.value.view === "summary"))
+      ) {
+        const flatHistory: OperationGroup = {
+          id: "flat-history-scope",
+          document_count: 0,
+          item_count: 0,
+        };
+        expanded.add(flatHistory.id);
+        await loadDetails(flatHistory);
+      }
     } catch (reason) {
       if (request.signal.aborted) return;
       if (active(current)) {
@@ -334,13 +360,18 @@ export function useOperationBrowse(
   );
   async function loadDetails(row: OperationGroup, more = false, retry = false) {
     if (result.stale || !active()) return;
+    detailRows.set(row.id, row);
     if (!details[row.id])
       details[row.id] = detail(
         row.id,
         props.records ? "符合筛选的明细" : "相关记录",
       );
     if (props.family === "loans" && query.value.view === "items") {
-      if (row.stock_qty !== undefined && Number(row.stock_qty) <= 0)
+      if (
+        row.id !== "flat-history-scope" &&
+        row.stock_qty !== undefined &&
+        Number(row.stock_qty) <= 0
+      )
         historyScopes[row.id] = "all";
       else if (!historyScopes[row.id]) historyScopes[row.id] = "outstanding";
     }
@@ -358,6 +389,26 @@ export function useOperationBrowse(
     table.loading = true;
     table.error = "";
     try {
+      const detailQuery = JSON.parse(
+        JSON.stringify(query.value),
+      ) as ReportQuery;
+      detailQuery.dataset = props.family;
+      detailQuery.view = props.records
+        ? "records"
+        : props.family === "movements"
+          ? "lines"
+          : query.value.view === "items"
+            ? "items"
+            : "outcomes";
+      detailQuery.groupBy = [];
+      const independentLoanItemSort =
+        props.family === "loans" &&
+        query.value.view === "items" &&
+        !props.records;
+      if (!independentLoanItemSort) {
+        detailQuery.sortBy = detailSort(row).field;
+        detailQuery.sort = detailSort(row).direction;
+      }
       const page =
         props.family === "movements" &&
         query.value.view === "summary" &&
@@ -365,8 +416,10 @@ export function useOperationBrowse(
           ? await services.call<MovementHistoryPage>(
               "browse.movement_history",
               {
-                query: JSON.parse(JSON.stringify(query.value)),
+                query: detailQuery,
                 item_code: row.item_code,
+                sort_by: detailSort(row).field,
+                sort: detailSort(row).direction,
                 start: more ? table.next : 0,
                 page_length: 30,
               },
@@ -375,12 +428,20 @@ export function useOperationBrowse(
           : await services.call<BrowseRowsPage & { columns: string[] }>(
               "browse.operation_contributions",
               {
-                query: JSON.parse(JSON.stringify(query.value)),
+                query: detailQuery,
                 records: props.records,
+                ...(independentLoanItemSort
+                  ? {
+                      history_sort_by: detailSort(row).field,
+                      history_sort: detailSort(row).direction,
+                    }
+                  : {}),
                 ...(props.records
                   ? { doctype: row.doctype, name: row.document }
                   : {
-                      item_code: row.item_code,
+                      ...(row.id === "flat-history-scope"
+                        ? {}
+                        : { item_code: row.item_code }),
                       outcome: row.outcome_key,
                       ...(props.family === "loans" &&
                       query.value.view === "items"
@@ -432,10 +493,78 @@ export function useOperationBrowse(
     if (!table) return;
     void loadDetails(row, table.failedMore === true, true);
   }
+  function setDetailSort(row: OperationGroup, field: string) {
+    const allowed =
+      props.family === "movements"
+        ? [
+            "identity",
+            "document",
+            "doctype",
+            "item_name",
+            "item_code",
+            "kind",
+            "docstatus",
+            "date",
+            "time",
+            "source_warehouse",
+            "destination_warehouse",
+            "stock_uom",
+            "stock_qty",
+            "available_effect",
+            "borrower",
+          ]
+        : [
+            "identity",
+            "document",
+            "doctype",
+            "item_name",
+            "item_code",
+            "kind",
+            "docstatus",
+            "date",
+            "time",
+            "source_warehouse",
+            "destination_warehouse",
+            "stock_uom",
+            "borrower",
+            "borrowed",
+            "outstanding",
+          ];
+    if (!allowed.includes(field)) return;
+    const state = detailSort(row);
+    state.direction =
+      state.field === field
+        ? state.direction === "asc"
+          ? "desc"
+          : "asc"
+        : "asc";
+    state.field = field;
+    for (const [id, table] of Object.entries(details)) {
+      detailRequests.get(id)?.abort();
+      table.loading = false;
+      table.rows = [];
+      table.total = 0;
+      table.next = 0;
+      table.initialized = false;
+      if (expanded.has(id)) {
+        const item =
+          id === "flat-history-scope"
+            ? { id, document_count: 0, item_count: 0 }
+            : detailRows.get(id);
+        if (item) void loadDetails(item);
+      }
+    }
+  }
+  function detailSortBy(row: OperationGroup) {
+    return detailSort(row).field;
+  }
+  function detailSortDirection(row: OperationGroup) {
+    return detailSort(row).direction;
+  }
   function toggle(row: OperationGroup, open: boolean) {
     if (open) {
       expanded.add(row.id);
-      void loadDetails(row);
+      if (!details[row.id]?.error) void loadDetails(row);
     } else expanded.delete(row.id);
   }
   function setHistoryScope(row: OperationGroup, value: "outstanding" | "all") {
@@ -609,6 +738,7 @@ export function useOperationBrowse(
   return {
     relatedLoans,
     query,
+    groups,
     routeError,
     result,
     details,
@@ -630,6 +760,9 @@ export function useOperationBrowse(
     retry: () => load(retryMore),
     loadDetails,
     retryDetails,
+    setDetailSort,
+    detailSortBy,
+    detailSortDirection,
     toggle,
     setHistoryScope,
     moreAnalysis,

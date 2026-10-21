@@ -4,8 +4,9 @@ import type { MoreController } from "./useMoreController";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import type { AppRouteTarget } from "../../lib/routeRegistry";
 const props = defineProps<{ controller: MoreController }>();
-const emit = defineEmits<{ navigate: [path: string] }>();
+const emit = defineEmits<{ navigate: [route: AppRouteTarget] }>();
 const c = props.controller,
 	{
 		installOpen,

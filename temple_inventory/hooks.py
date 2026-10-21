@@ -24,6 +24,13 @@ doc_events = {
 	"*": {
 		"before_validate": "temple_inventory.activities.lock_document_references",
 		"before_submit": "temple_inventory.native_balances.lock_stock_locations",
+		"after_insert": "temple_inventory.read_cache.invalidate_after_commit",
+		"on_update": "temple_inventory.read_cache.invalidate_after_commit",
+		"on_update_after_submit": "temple_inventory.read_cache.invalidate_after_commit",
+		"on_submit": "temple_inventory.read_cache.invalidate_after_commit",
+		"on_cancel": "temple_inventory.read_cache.invalidate_after_commit",
+		"on_trash": "temple_inventory.read_cache.invalidate_after_commit",
+		"after_rename": "temple_inventory.read_cache.after_rename",
 	},
 	"Stock Entry": {
 		"before_validate": "temple_inventory.native_stock.before_validate",
@@ -36,10 +43,15 @@ doc_events = {
 	},
 	"Warehouse": {
 		"validate": "temple_inventory.warehouses.validate_native_warehouse",
-		"after_insert": "temple_inventory.native_topology.sync_desk_warehouse_allowlist",
-		"on_update": "temple_inventory.native_topology.sync_desk_warehouse_allowlist",
+		"after_insert": "temple_inventory.read_cache.warehouse_changed",
+		"on_update": "temple_inventory.read_cache.warehouse_changed",
+		"on_trash": "temple_inventory.read_cache.invalidate_after_commit",
 	},
 }
+
+after_job = ["temple_inventory.read_cache.after_job"]
+before_request = ["temple_inventory.read_cache.begin_read_request"]
+clear_cache = ["temple_inventory.read_cache.invalidate_after_clear_cache"]
 
 # Apps
 # ------------------

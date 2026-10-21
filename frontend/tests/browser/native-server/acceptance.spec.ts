@@ -75,7 +75,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     const bootstrap = await call(page.request, "browse.bootstrap");
     const category = bootstrap.categories.find((row) => !row.is_group);
     expect(category).toBeTruthy();
-    await page.goto("/inventory/items/new");
+    await page.goto("/inventory/stock/items/new");
     await page.getByLabel("物品编号", { exact: true }).fill(code);
     await page
       .getByLabel("物品名称", { exact: true })
@@ -101,8 +101,8 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     expect(savedResponse.ok()).toBe(true);
     created = (await savedResponse.json()).message.item_code === code;
     expect(created).toBe(true);
-    await expect(page).toHaveURL(new RegExp(`/item/${code}$`));
-    await page.goto(`/inventory/item/${code}/edit`);
+    await expect(page).toHaveURL(new RegExp(`/stock/items/${code}$`));
+    await page.goto(`/inventory/stock/items/${code}/edit`);
     await page.getByLabel("添加图片", { exact: true }).setInputFiles({
       name: `${code}.png`,
       mimeType: "image/png",
@@ -143,7 +143,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
       .getByLabel("物品名称", { exact: true })
       .fill("原生浏览器验收物品已编辑");
     await page.getByRole("button", { name: "保存物品", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/item/${code}$`));
+    await expect(page).toHaveURL(new RegExp(`/stock/items/${code}$`));
     await page.reload();
     await expect(
       page.getByRole("heading", {
@@ -152,7 +152,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
         exact: true,
       }),
     ).toBeVisible();
-    await page.goto(`/inventory/item/${code}/edit`);
+    await page.goto(`/inventory/stock/items/${code}/edit`);
     await page.getByRole("button", { name: "移除", exact: true }).click();
     await expect(page.getByText("暂无附件", { exact: true })).toBeVisible();
     expect(
@@ -243,7 +243,7 @@ test("real Warehouse editor creates an empty group and edits native metadata", a
   let name = "";
   try {
     const bootstrap = await call(page.request, "browse.bootstrap");
-    await page.goto("/inventory/warehouses");
+    await page.goto("/inventory/stock/warehouses");
     await page
       .getByRole("button", { name: "新建仓库 / 位置", exact: true })
       .click();
@@ -311,7 +311,7 @@ test("real matching count finishes without creating an adjustment document", asy
   const before = await call(page.request, "projections.report_page", { query });
   const warehouse = "A02 / 无货位 - O";
   await page.goto(
-    `/inventory/reconcile/new?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
+    `/inventory/counts/new?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
   );
   const row = page.locator("[data-count-key]");
   await expect(row).toHaveCount(1);
@@ -407,24 +407,24 @@ test("routed native destinations load through their real services", async ({
   });
   const routes = [
     "/",
-    "/expiry",
-    "/movements/items",
-    "/movements/records",
-    "/loans/items",
-    "/loans/records",
+    "/stock/expiry",
+    "/movements?view=items",
+    "/movements?view=records",
+    "/loans?view=items",
+    "/loans?view=records",
     "/loans/MAT-STE-2026-00005",
     "/activities",
-    "/item/TI-SAMPLE-N-WORKFLOW",
+    "/stock/items/TI-SAMPLE-N-WORKFLOW",
     "/reports",
     "/counts",
     "/drafts",
-    "/pending",
-    "/warehouses",
+    "/stock/damaged",
+    "/stock/warehouses",
     "/more",
     "/settings",
-    "/setup",
-    "/documents/Stock%20Entry/MAT-STE-2026-00013",
-    "/reconcile/MAT-RECO-2026-00001",
+    "/settings/setup",
+    "/movements/MAT-STE-2026-00013",
+    "/counts/MAT-RECO-2026-00001",
   ];
   for (const route of routes) {
     await page.goto(`/inventory${route}`);
@@ -457,7 +457,7 @@ test("native operation and count editors mount at mobile with large text", async
     "Repair",
     "Disposal",
   ]) {
-    await page.goto(`/inventory/new/${kind}`);
+    await page.goto(`/inventory/movements/movements/new/${kind}`);
     await expect(page.locator("main h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("alert"), kind).toHaveCount(0);
@@ -465,10 +465,10 @@ test("native operation and count editors mount at mobile with large text", async
       page.getByRole("button", { name: "复核并确认", exact: true }),
     ).toBeVisible();
   }
-  await page.goto("/inventory/reconcile/new");
+  await page.goto("/inventory/counts/new");
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await page.goto("/inventory/documents/Stock%20Entry/MAT-STE-2026-00013");
+  await page.goto("/inventory/movements/MAT-STE-2026-00013");
   await page.waitForLoadState("networkidle");
   await page.evaluate(() =>
     document.documentElement.style.setProperty("--p-text-scale", "2"),
@@ -586,7 +586,7 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
   let name = "";
   try {
     await page.goto(
-      `/inventory/new/Receive?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
+      `/inventory/movements/movements/new/Receive?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
     );
     await page.getByRole("button", { name: "保存草稿", exact: true }).click();
     await expect(page).toHaveURL(/\/documents\/Stock%20Entry\//);

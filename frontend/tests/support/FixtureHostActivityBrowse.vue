@@ -38,7 +38,7 @@ function enter(applyVariant = false) {
 			? reviewSession.filters.movementItems.search
 			: reviewSession.filters.loanItems.search;
 	query.view = props.records ? "records" : props.family === "movement" ? "summary" : "outcomes";
-	query.sortBy = props.records || props.family === "movement" ? "date" : "name";
+	query.sortBy = props.records ? "date" : "item_name";
 	query.sort = query.sortBy === "date" ? "desc" : "asc";
 	if (applyVariant) {
 		if (props.family === "movement")

@@ -49,7 +49,7 @@ def save_display_preferences(theme, density, textScale):
 	return values
 
 
-VIEWS_KEY = "temple_inventory_report_views_v1"
+VIEWS_KEY = "temple_inventory_report_views_v2"
 
 
 def _named_views():

@@ -32,15 +32,19 @@ export function useNativeEditorRoute(editor: () => RoutedEditor | undefined) {
       !["saved", "submitted", "cancelled"].includes(current.state.status)
     )
       return "";
-    return documentDestination(
-      current.state.identity.doctype,
-      current.state.identity.name,
-    ).path;
+    return {
+      ...documentDestination(
+        current.state.identity.doctype,
+        current.state.identity.name,
+      ),
+      query: route.query,
+    };
   });
   watch(
     target,
-    (path) => {
-      if (path && path !== route.path) void router.replace(path);
+    (target) => {
+      if (target && router.resolve(target).path !== route.path)
+        void router.replace(target);
     },
     { flush: "post" },
   );

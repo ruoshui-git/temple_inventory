@@ -3,6 +3,7 @@ import PageHeader from "./components/ui/PageHeader.vue";
 import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
 import ApplicationShell from "./components/ApplicationShell.vue";
+import RouteBreadcrumbs from "./components/RouteBreadcrumbs.vue";
 import UiButton from "./components/ui/UiButton.vue";
 import Overlay from "./components/ui/Overlay.vue";
 import ConfigurationPage from "./features/setup/ConfigurationPage.vue";
@@ -11,6 +12,7 @@ import { frappeServices } from "./services/frappeServices";
 import { useApplication } from "./features/application/useApplication";
 import { updateAvailable } from "./lib/pwa";
 import { createBrowseMemory, provideBrowseMemory } from "./lib/browseMemory";
+import { routeViewIdentity } from "./lib/routeRegistry";
 const route = useRoute(),
 	reference = createReferenceData();
 const pageIdentity = computed(() => {
@@ -18,7 +20,11 @@ const pageIdentity = computed(() => {
 	// navigation to the same path own separate UI state in browser history.
 	void route.fullPath;
 	const position = typeof window === "undefined" ? 0 : window.history.state?.position || 0;
-	return `${reference.site}:${reference.user}:${route.path}:${position}`;
+	return `${reference.site}:${reference.user}:${routeViewIdentity(
+		route.path,
+		position,
+		typeof route.meta.stateIdentity === "string" ? route.meta.stateIdentity : undefined,
+	)}`;
 });
 const browseMemory = createBrowseMemory(() => pageIdentity.value);
 watch(pageIdentity, () => browseMemory.activate(), { immediate: true });
@@ -32,9 +38,11 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 <template>
 	<div class="inventory-app" data-inventory-app>
 		<main v-if="state.gate === 'loading'" class="sample-content">
+			<RouteBreadcrumbs />
 			<p role="status">正在检查登录与库存配置…</p>
 		</main>
 		<main v-else-if="state.gate === 'login'" class="sample-content">
+			<RouteBreadcrumbs />
 			<section class="surface form-section">
 				<PageHeader title="请登录物资管理" />
 				<p>请使用有物资管理权限的账户登录。</p>
@@ -46,6 +54,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 			v-else-if="state.gate === 'forbidden' || state.gate === 'error'"
 			class="sample-content"
 		>
+			<RouteBreadcrumbs />
 			<section class="surface form-section">
 				<PageHeader
 					><h1 tabindex="-1">
@@ -62,6 +71,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 			</section>
 		</main>
 		<main v-else-if="state.gate === 'setup'" class="sample-content">
+			<RouteBreadcrumbs />
 			<ConfigurationPage @changed="c.check" />
 		</main>
 		<template v-else>

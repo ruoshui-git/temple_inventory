@@ -4,7 +4,7 @@ import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import OperationEditorPage from "../features/documents/OperationEditorPage.vue";
 import { decodeItemSelection, decodeAllocationSelection } from "../lib/routeSelection";
-import { usePageDomain } from "../lib/pageDomain";
+import { routeTarget } from "../lib/routeRegistry";
 import { operationLabels } from "../features/documents/operationCodec";
 import type { OperationKind } from "../features/documents/operationModel";
 import { useNativeEditorRoute } from "../lib/nativeEditorRoute";
@@ -13,13 +13,6 @@ const route = useRoute(),
 const editor = ref<InstanceType<typeof OperationEditorPage>>();
 useNativeEditorRoute(() => editor.value?.controller);
 const kind = computed(() => String(route.params.kind || "Receive") as OperationKind);
-usePageDomain(() => {
-	const value = editor.value?.controller.draft.value;
-	const operation = value?.kind || kind.value;
-	return ["Loan", "Return"].includes(operation) || !!value?.loanName || !!route.query.loan
-		? "loans"
-		: "movements";
-});
 const identity = computed(() =>
 	route.params.name
 		? { doctype: "Stock Entry" as const, name: String(route.params.name) }
@@ -41,14 +34,13 @@ onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
 function back() {
 	if (window.history.state.back) router.back();
-	else void router.push("/movements/records");
+	else void router.push(routeTarget("movements", {}, { view: "records" }));
 }
 </script>
 <template>
 	<OperationEditorPage
 		v-if="valid && !selection.error && !allocations.error && !warehouseError"
 		ref="editor"
-		:key="String(route.params.name || route.params.kind) + String(route.query.editor || '')"
 		:kind="kind"
 		:identity="identity"
 		:initial-items="selection.items"

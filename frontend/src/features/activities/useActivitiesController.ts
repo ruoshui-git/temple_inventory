@@ -13,7 +13,11 @@ import {
 } from "../../lib/reportContract";
 import type { DatePeriod } from "../../lib/browseQuery";
 import { decodeReportQuery } from "../../lib/reportQuery";
-import { scopeFilterChips } from "../../lib/filterPresentation";
+import {
+  clearScopeField,
+  scopeFilterFieldChips,
+  type ScopeFilterField,
+} from "../../lib/filterPresentation";
 import { reportFilterChips } from "../../lib/reportFilters";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { movementLabels } from "../../lib/filterPresentation";
@@ -123,9 +127,9 @@ export function useActivitiesController(
         presence: query.relatedPresence,
         outstanding: query.outstandingOnly,
         sort:
-          query.sortBy === "name"
+          query.sortBy === "title"
             ? "title"
-            : query.sortBy === "date"
+            : query.sortBy === "start_date"
               ? "start"
               : "updated",
       });
@@ -138,14 +142,18 @@ export function useActivitiesController(
     query.view = "metadata";
     query.sortBy =
       state.sort === "title"
-        ? "name"
+        ? "title"
         : state.sort === "start"
-          ? "date"
+          ? "start_date"
           : "modified";
     query.sort = state.sort === "updated" ? "desc" : "asc";
     if (props.mode === "detail") {
       query.scope.activity = props.name || "";
       query.view = tab.value;
+      // The list view's sort field may not exist on activity record/loan rows.
+      // Detail tabs use their canonical identity key unless a tab-specific
+      // sort control is added.
+      query.sortBy = "identity";
       query.relatedPeriod = recordPeriod.value;
       query.relatedSearch = recordSearch.value;
       query.loan = relatedLoan.value;
@@ -343,18 +351,18 @@ export function useActivitiesController(
     state.typeId = "";
   }
   const inheritedChips = computed(() => [
-    ...scopeFilterChips(report.value.scope, reference)
+    ...scopeFilterFieldChips(report.value.scope, reference)
       .filter((chip) => !(props.mode === "detail" && chip.field === "activity"))
       .map((chip) => ({
         key: chip.key,
+        field: chip.field,
         label: chip.label,
         remove: () => {
-          const value = inherited.value.scope[chip.field];
-          Object.assign(inherited.value.scope, {
-            [chip.field]: Array.isArray(value)
-              ? value.filter((item) => item !== chip.value)
-              : "",
-          });
+          if (chip.field)
+            clearScopeField(
+              inherited.value.scope,
+              chip.field as ScopeFilterField | "period",
+            );
         },
       })),
     ...reportFilterChips(report.value, reference)
@@ -363,6 +371,7 @@ export function useActivitiesController(
       )
       .map((chip) => ({
         key: chip.key,
+        field: chip.field,
         label: chip.label,
         remove: () => {
           Object.assign(inherited.value, chip.reset);

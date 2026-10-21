@@ -614,7 +614,7 @@ def batch_metadata(name):
 
 
 @frappe.whitelist()
-def batch_locations(name, start=0, page_length=100):
+def batch_locations(name, start=0, page_length=100, sort_by="identity", sort="asc"):
 	from frappe.utils import cint
 
 	require_app()
@@ -631,6 +631,8 @@ def batch_locations(name, start=0, page_length=100):
 			"itemCodes": [batch.item],
 			"includeZero": True,
 			"statuses": [1],
+			"sortBy": sort_by,
+			"sort": sort,
 		},
 		start=max(0, cint(start)),
 		page_length=min(100, max(1, cint(page_length))),

@@ -56,7 +56,7 @@ function fixtureReport(
   if (
     query.dataset === "movements" &&
     query.view === "records" &&
-    query.grouping === "none"
+    query.groupBy.length === 0
   ) {
     const lines = tables.find((value) => value.id === "lines")?.rows || [];
     const fields = [
@@ -166,7 +166,7 @@ function fixtureReport(
     ) as ReportRow;
     const item = reviewSession.stock.find((item) => item.code === row.itemId);
     if (item) converted.batch_tracked = item.tracksBatch;
-    if (query.grouping !== "none" && row.group) {
+    if (query.groupBy.length > 0 && row.group) {
       const field = {
         item: "item_code",
         location: "warehouse",
@@ -175,7 +175,7 @@ function fixtureReport(
         kind: "kind",
         borrower: "borrower",
         month: "month",
-      }[query.grouping];
+      }[query.groupBy[0]];
       if (field) converted[field] = row.group;
     }
     if (row.status && row.documentId) {
@@ -194,7 +194,7 @@ function fixtureReport(
       id:
         ["inventory", "expiry"].includes(query.dataset) &&
         query.view !== "historical" &&
-        query.grouping === "none" &&
+        query.groupBy.length === 0 &&
         converted.warehouse
           ? JSON.stringify([
               converted.item_code,
@@ -278,7 +278,7 @@ function inventoryPage(query: ReportQuery, start: number, size: number) {
     {
       ...query,
       view: "locations",
-      grouping: "none",
+      groupBy: [],
     },
     fixtureStockSession(),
   );

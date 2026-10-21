@@ -109,6 +109,8 @@ function setup(rows = Array.from({ length: 105 }, (_, index) => row(index))) {
     removalAcknowledged: ref(true),
     historyTarget: ref<CountRow>(),
     history: {
+      sortBy: ref("date"),
+      sortDirection: ref<"asc" | "desc">("desc"),
       result: reactive({
         rows: [],
         total: 0,
@@ -286,7 +288,7 @@ describe("compact count workspace", () => {
         .map((input) => (input.element as HTMLInputElement).value),
     ).toEqual(["0", "3", ""]);
     expect(
-      wrapper.findAll("tbody tr[data-count-key]")[2]?.findAll("td")[6]?.text(),
+      wrapper.findAll("tbody tr[data-count-key]")[2]?.findAll("td")[8]?.text(),
     ).toBe("待核对");
 
     await wrapper
@@ -344,7 +346,8 @@ describe("compact count workspace", () => {
       initialized: true,
     });
     await flushPromises();
-    expect(document.body.textContent).toContain("−2 Nos");
+    expect(document.body.textContent).toContain("−2");
+    expect(document.body.textContent).toContain("库存单位");
     const historyDocument = Array.from(
       document.body.querySelectorAll("button"),
     ).find((button) => button.textContent?.includes("ISSUE-1"));

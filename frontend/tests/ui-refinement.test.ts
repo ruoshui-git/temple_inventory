@@ -115,10 +115,18 @@ it("keeps generic action slots while a table without a slot has no action column
   expect(actions.text()).toContain("Act");
 });
 it("distinguishes loading, initial failure, successful empty and retained refresh", async () => {
-  const wrapper = render(ReportTable, { table, loading: true });
+  const wrapper = render(ReportTable, {
+    table,
+    loading: true,
+    initialized: false,
+  });
   expect(wrapper.text()).toContain("正在读取");
   expect(wrapper.text()).not.toContain("没有符合");
-  await wrapper.setProps({ loading: false, error: "failed" });
+  await wrapper.setProps({
+    loading: false,
+    initialized: true,
+    error: "failed",
+  });
   expect(wrapper.text()).not.toContain("没有符合");
   await wrapper.setProps({ error: "" });
   expect(wrapper.text()).toContain("没有符合");
@@ -127,7 +135,7 @@ it("distinguishes loading, initial failure, successful empty and retained refres
     loading: true,
   });
   expect(wrapper.text()).toContain("已提交");
-  expect(wrapper.text()).toContain("保留上次结果");
+  expect(wrapper.text()).toContain("保留当前结果");
 });
 it("resolves duplicate and hyphenated authorized warehouse labels without changing keys", () => {
   const nodes = [

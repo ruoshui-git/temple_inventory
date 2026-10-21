@@ -1,32 +1,63 @@
-export type AppDestination =
-  "home" | "inventory" | "movements" | "loans" | "reports" | "more";
+import {
+  routeRegistry,
+  routeTarget,
+  type AppOwner,
+  type AppRouteTarget,
+} from "./routeRegistry";
+
+export type AppDestination = AppOwner;
 export interface NavigationItem {
   key: string;
   label: string;
-  route: string;
+  route: AppRouteTarget;
   icon: string;
 }
+
 export const primaryNavigation: (NavigationItem & { key: AppDestination })[] = [
-  { key: "home", label: "首页", route: "/", icon: "total" },
-  { key: "inventory", label: "库存", route: "/stock", icon: "box" },
+  { key: "home", label: "首页", route: routeTarget("home"), icon: "total" },
+  { key: "inventory", label: "库存", route: routeTarget("stock"), icon: "box" },
   {
     key: "movements",
     label: "货物流动",
-    route: "/movements/items",
+    route: routeTarget("movements", {}, { view: "items" }),
     icon: "movement",
   },
-  { key: "loans", label: "借用", route: "/loans/items", icon: "loan" },
-  { key: "reports", label: "报表", route: "/reports", icon: "download" },
+  {
+    key: "loans",
+    label: "借用",
+    route: routeTarget("loans", {}, { view: "items" }),
+    icon: "loan",
+  },
+  {
+    key: "reports",
+    label: "报表",
+    route: routeTarget("reports"),
+    icon: "download",
+  },
+  { key: "more", label: "更多", route: routeTarget("more"), icon: "more" },
 ];
-export const mobilePrimaryNavigation = [
-  ...primaryNavigation,
-  { key: "more" as const, label: "更多", route: "/more", icon: "more" },
-];
+
+export const mobilePrimaryNavigation = primaryNavigation;
 export const inventoryNavigation: NavigationItem[] = [
-  { key: "stock", label: "库存列表", route: "/stock", icon: "box" },
-  { key: "expiry", label: "效期批次", route: "/expiry", icon: "table" },
-  { key: "warehouses", label: "仓库", route: "/warehouses", icon: "warehouse" },
-  { key: "pending", label: "损坏待处理", route: "/pending", icon: "warning" },
+  { key: "stock", label: "库存列表", route: routeTarget("stock"), icon: "box" },
+  {
+    key: "expiry",
+    label: "效期批次",
+    route: routeTarget("expiry"),
+    icon: "table",
+  },
+  {
+    key: "warehouses",
+    label: "仓库",
+    route: routeTarget("warehouses"),
+    icon: "warehouse",
+  },
+  {
+    key: "pending",
+    label: "损坏待处理",
+    route: routeTarget("pending"),
+    icon: "warning",
+  },
 ];
 
 export const moreNavigation = [
@@ -36,21 +67,21 @@ export const moreNavigation = [
       {
         key: "activities",
         label: "活动",
-        route: "/activities",
+        route: routeTarget("activities"),
         icon: "calendar",
         description: "活动资料、关联记录与借用结余",
       },
       {
         key: "count",
         label: "盘点调整",
-        route: "/counts",
+        route: routeTarget("counts"),
         icon: "adjust",
         description: "查看和调整库存盘点记录",
       },
       {
         key: "drafts",
         label: "草稿",
-        route: "/drafts",
+        route: routeTarget("drafts"),
         icon: "select",
         description: "继续未完成的库存登记或本机输入",
       },
@@ -62,59 +93,41 @@ export const moreNavigation = [
       {
         key: "categories",
         label: "分类",
-        route: "/categories",
+        route: routeTarget("categories"),
         icon: "box",
         description: "管理分类层级与物品归属",
       },
       {
         key: "setup",
         label: "配置与恢复",
-        route: "/setup",
+        route: routeTarget("setup"),
         icon: "settings",
         description: "配置库存范围并恢复开发样例",
       },
       {
         key: "settings",
         label: "显示设置",
-        route: "/settings",
+        route: routeTarget("settings"),
         icon: "adjust",
         description: "主题、显示密度与文字大小",
       },
     ],
   },
 ];
-export function destinationForPath(
-  path: string,
-  kind = "",
-  loanRelated = false,
-): AppDestination {
-  if (path === "/") return "home";
-  if (path.startsWith("/reports")) return "reports";
-  if (path.startsWith("/loans")) return "loans";
-  if (path.startsWith("/movements")) return "movements";
-  if (
-    path.startsWith("/new/") ||
-    path.startsWith("/documents/Stock%20Entry/") ||
-    path.startsWith("/documents/Stock Entry/")
-  )
-    return ["Loan", "Return"].includes(kind) || loanRelated
-      ? "loans"
-      : "movements";
-  if (
-    path === "/stock" ||
-    path === "/expiry" ||
-    path === "/pending" ||
-    path.startsWith("/warehouses") ||
-    path.startsWith("/batch/") ||
-    path.startsWith("/item/") ||
-    path === "/items/new"
-  )
-    return "inventory";
-  return "more";
+
+export function destinationForRoute(owner?: string): AppDestination {
+  return (
+    ["home", "inventory", "movements", "loans", "reports", "more"].includes(
+      owner || "",
+    )
+      ? owner
+      : "more"
+  ) as AppDestination;
 }
-export function inventorySectionForPath(path: string) {
-  if (path === "/expiry") return "expiry";
-  if (path === "/pending") return "pending";
-  if (path.startsWith("/warehouses")) return "warehouses";
-  return "stock";
+
+export function inventorySectionForRoute(name?: string) {
+  return (
+    routeRegistry.find((route) => route.name === name)?.inventorySection ||
+    "stock"
+  );
 }

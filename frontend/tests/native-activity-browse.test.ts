@@ -109,7 +109,7 @@ describe("native Activity browse scopes", () => {
       activityKind: "Loan",
       typeId: "TYPE-A",
       outstandingOnly: true,
-      sortBy: "date",
+      sortBy: "start_date",
     });
     const linked = setup({ mode: "list", routeQuery: JSON.stringify(query) });
     await flushPromises();

@@ -6,29 +6,29 @@ import {
 	browseDestination,
 	documentDestination,
 	exportDestination,
+	browseStateDestination,
+	operationDestination,
 } from "../lib/nativeNavigation";
 import type { ReportQuery } from "../lib/reportContract";
+import { routeTarget, restoreBrowseQueryPayload } from "../lib/routeRegistry";
 const props = defineProps<{ family: "movements" | "loans" }>();
 const route = useRoute(),
 	router = useRouter();
-const records = computed(() => route.path.endsWith("/records"));
+const records = computed(() => route.query.view === "records");
 const encodedQuery = computed(() =>
-	route.query.query === undefined
-		? undefined
-		: typeof route.query.query === "string"
-			? route.query.query
-			: JSON.stringify(route.query.query),
+	restoreBrowseQueryPayload(route.query.query, props.family, route.query.view),
 );
 function changed(query: ReportQuery) {
-	const encoded = JSON.stringify(query);
-	if (route.query.query !== encoded)
-		void router.replace({ path: route.path, query: { query: encoded } });
+	const target = browseStateDestination(
+		props.family,
+		records.value ? "records" : "items",
+		query,
+	);
+	if (route.query.query !== target.query?.query)
+		void router.replace({ ...target, query: { ...route.query, ...target.query } });
 }
 function switchView(records: boolean, query: ReportQuery) {
-	void router.push({
-		path: `/${props.family}/${records ? "records" : "items"}`,
-		query: { query: JSON.stringify(query) },
-	});
+	void router.push(browseStateDestination(props.family, records ? "records" : "items", query));
 }
 </script>
 <template>
@@ -39,11 +39,11 @@ function switchView(records: boolean, query: ReportQuery) {
 		@query-change="changed"
 		@switch-view="switchView"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
-		@open-loan="router.push(`/loans/${encodeURIComponent($event)}`)"
-		@open-item="router.push(`/item/${encodeURIComponent($event)}`)"
-		@settle="router.push({ path: '/new/Return', query: { loan: $event } })"
+		@open-loan="router.push(routeTarget('loan-overview', { name: $event }))"
+		@open-item="router.push(routeTarget('item-detail', { code: $event }))"
+		@settle="router.push(operationDestination('Return', { loan: $event }))"
 		@browse="router.push(browseDestination($event))"
 		@open-export="router.push(exportDestination($event))"
-		@new-operation="router.push(`/new/${$event}`)"
+		@new-operation="router.push(operationDestination($event))"
 	/>
 </template>

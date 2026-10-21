@@ -1,0 +1,10 @@
+Final rollback-only native integration run
+Date: 2026-10-20
+Command: bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run
+Exit status: 0
+Result: 133 tests passed; 0 failures; 0 errors; elapsed 130.210s.
+
+The runner sets frappe.flags.in_test, rejects inner commits, rolls back all
+fixtures, and audits raw Settings Singles and native source counts before and
+after. Both snapshots were identical: ti_read_generation=20, Warehouses=29,
+Items=164, Stock Entries=15. The output contained no credentials.

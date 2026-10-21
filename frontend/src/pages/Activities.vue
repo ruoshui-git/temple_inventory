@@ -2,35 +2,56 @@
 import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import ActivitiesPage from "../features/activities/ActivitiesPage.vue";
-import { documentDestination, exportDestination } from "../lib/nativeNavigation";
+import {
+	documentDestination,
+	exportDestination,
+	operationDestination,
+} from "../lib/nativeNavigation";
+import {
+	browseRouteTarget,
+	restoreBrowseQueryPayload,
+	routeTarget,
+	serializeBrowseQuery,
+} from "../lib/routeRegistry";
+import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
 import type { ReportQuery } from "../lib/reportContract";
 const route = useRoute(),
 	router = useRouter();
 const page = ref<InstanceType<typeof ActivitiesPage>>();
+useRouteBreadcrumbLabel(() => page.value?.breadcrumbLabel());
 onBeforeRouteLeave(() => page.value?.requestLeave() ?? true);
 onBeforeRouteUpdate(() => page.value?.requestLeave() ?? true);
 const mode = computed(() =>
-	route.path.endsWith("/new") || route.path.endsWith("/edit")
+	route.name === "activity-new" || route.name === "activity-edit"
 		? "form"
 		: route.params.name
 			? "detail"
 			: "list",
 );
 function navigate(mode: "list" | "detail" | "form", name?: string, query?: ReportQuery) {
-	const path =
+	const target =
 		mode === "list"
-			? "/activities"
+			? query
+				? browseRouteTarget(query)
+				: routeTarget("activities")
 			: mode === "form"
 				? name
-					? `/activities/${encodeURIComponent(name)}/edit`
-					: "/activities/new"
-				: `/activities/${encodeURIComponent(name || "")}`;
-	void router.push({ path, query: query ? { query: JSON.stringify(query) } : {} });
+					? routeTarget("activity-edit", { name })
+					: routeTarget("activity-new")
+				: routeTarget("activity-detail", { name: name || "" });
+	void router.push({
+		...target,
+		query: query ? { view: query.view, query: serializeBrowseQuery(query) } : target.query,
+	});
 }
 function changed(query: ReportQuery) {
-	const encoded = JSON.stringify(query);
-	if (route.query.query !== encoded)
-		void router.replace({ path: route.path, query: { ...route.query, query: encoded } });
+	const encoded = serializeBrowseQuery(query);
+	if (route.query.query !== encoded || route.query.view !== query.view)
+		void router.replace({
+			name: route.name!,
+			params: route.params,
+			query: { ...route.query, view: query.view, query: encoded },
+		});
 }
 </script>
 <template>
@@ -38,20 +59,12 @@ function changed(query: ReportQuery) {
 		ref="page"
 		:mode="mode"
 		:name="route.params.name ? String(route.params.name) : undefined"
-		:route-query="
-			route.query.query === undefined
-				? undefined
-				: typeof route.query.query === 'string'
-					? route.query.query
-					: '{'
-		"
+		:route-query="restoreBrowseQueryPayload(route.query.query, 'activities', route.query.view)"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		@navigate="navigate"
 		@query-change="changed"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
-		@new-movement="
-			(kind, activity) => router.push({ path: `/new/${kind}`, query: { activity } })
-		"
+		@new-movement="(kind, activity) => router.push(operationDestination(kind, { activity }))"
 		@open-export="router.push(exportDestination($event))"
 	/>
 </template>

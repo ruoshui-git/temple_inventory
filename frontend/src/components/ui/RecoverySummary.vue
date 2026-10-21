@@ -2,6 +2,10 @@
 import { computed, ref } from "vue";
 import type { JsonValue } from "../../lib/browserRecovery";
 import UiButton from "./UiButton.vue";
+import DataTable from "./DataTable.vue";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
 
 const props = defineProps<{
 	kind: string;
@@ -126,6 +130,35 @@ const rowColumns = computed(() => {
 		["batch_no", "批次"],
 	];
 });
+const tableColumns = computed<DataColumn[]>(() =>
+	rowColumns.value.map(([key, label], index) => ({
+		id: key,
+		label,
+		required: index === 0,
+		defaultVisible: true,
+	})),
+);
+const tableRows = computed<DataTableRecord[]>(() =>
+	rows.value.map((row, index) => ({
+		kind: "record",
+		id: String(row.name || row.item_code || index),
+		value: row as unknown as Record<string, unknown>,
+	})),
+);
+const services = useOptionalInventoryServices();
+const reference = useOptionalReferenceData();
+const preferenceTableId = computed(() => {
+	const kind = props.kind
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "");
+	return `recovery-summary.${kind || "record"}`;
+});
+const tablePrefs =
+	services && reference
+		? useColumnPreferences(preferenceTableId, tableColumns, reference, services)
+		: undefined;
 const enumLabels: Record<string, Record<string, string>> = {
 	kind: {
 		Receive: "入库",
@@ -169,6 +202,9 @@ function format(value: JsonValue | undefined, key?: string): string {
 function valueOf(row: Record<string, JsonValue>, key: string) {
 	return format(row[key], key);
 }
+function recoveryCell(row: Record<string, unknown>, key: string) {
+	return valueOf(row as Record<string, JsonValue>, key);
+}
 async function copy() {
 	try {
 		if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
@@ -191,22 +227,20 @@ async function copy() {
 				<dd class="preview-long-text">{{ field.value }}</dd>
 			</div>
 		</dl>
-		<div v-if="rows.length" class="browse-table-wrap">
-			<table class="browse-table recovery-summary-table">
-				<thead>
-					<tr>
-						<th v-for="[key, label] in rowColumns" :key="key">{{ label }}</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="(row, index) in rows" :key="String(row.name || index)">
-						<td v-for="[key] in rowColumns" :key="key" class="preview-long-text">
-							{{ valueOf(row, key) }}
-						</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
+		<DataTable
+			v-if="rows.length"
+			ariaLabel="恢复摘要明细"
+			table-class="browse-table recovery-summary-table"
+			:columns="tableColumns"
+			:rows="tableRows"
+			:column-preferences="tablePrefs"
+		>
+			<template #cell="{ column, row }"
+				><span class="preview-long-text">{{
+					recoveryCell(row, String(column.id))
+				}}</span></template
+			>
+		</DataTable>
 		<p
 			v-if="pendingUploadReselection || values.pendingUploadReselection === true"
 			class="muted"

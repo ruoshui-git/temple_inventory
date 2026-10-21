@@ -1,6 +1,8 @@
 import type { RecoverySnapshot } from "./browserRecovery";
-import { documentDestination } from "./nativeNavigation";
+import { documentDestination, operationDestination } from "./nativeNavigation";
+import { routeTarget } from "./routeRegistry";
 import { operationLabels } from "../features/documents/operationCodec";
+
 export function recoveryDestination(entry: RecoverySnapshot) {
   const query = { recovery: entry.editorId, editor: crypto.randomUUID() };
   if (entry.editorKind === "Stock Entry") {
@@ -11,35 +13,27 @@ export function recoveryDestination(entry: RecoverySnapshot) {
       };
     const kind = String(entry.values.kind || "");
     if (Object.hasOwn(operationLabels, kind))
-      return { path: `/new/${kind}`, query };
+      return operationDestination(kind, query);
   }
   if (entry.editorKind === "Stock Reconciliation")
-    return {
-      path:
-        entry.identity?.doctype === "Stock Reconciliation"
-          ? `/reconcile/${encodeURIComponent(entry.identity.name)}`
-          : "/reconcile/new",
-      query,
-    };
+    return entry.identity?.doctype === "Stock Reconciliation"
+      ? { ...routeTarget("count-detail", { name: entry.identity.name }), query }
+      : { ...routeTarget("count-new"), query };
   if (entry.editorKind === "Item") {
     const code = String(entry.values.editingCode || "");
-    return {
-      path: code ? `/item/${encodeURIComponent(code)}/edit` : "/items/new",
-      query,
-    };
+    return code
+      ? { ...routeTarget("item-edit", { code }), query }
+      : { ...routeTarget("item-new"), query };
   }
   if (entry.editorKind === "Inventory Activity") {
     const name = String(entry.values.editingActivity || "");
-    return {
-      path: name
-        ? `/activities/${encodeURIComponent(name)}/edit`
-        : "/activities/new",
-      query,
-    };
+    return name
+      ? { ...routeTarget("activity-edit", { name }), query }
+      : { ...routeTarget("activity-new"), query };
   }
   if (entry.editorKind === "Warehouse")
     return {
-      path: "/warehouses",
+      ...routeTarget("warehouses"),
       query: { ...query, edit: String(entry.values.editingWarehouse || "") },
     };
 }

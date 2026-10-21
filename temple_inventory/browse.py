@@ -1,7 +1,5 @@
 """Routed browse/bootstrap/dashboard services over the shared native projections."""
 
-# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
-
 from collections import defaultdict
 
 import frappe
@@ -116,21 +114,25 @@ def bootstrap():
 
 
 @frappe.whitelist()
-def native_drafts(query=None, start=0, page_length=30):
+def native_drafts(query=None, start=0, page_length=30, refresh=False):
 	require_app()
+	if type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
 	query = validate_query(
 		query
 		or {"dataset": "movements", "view": "records", "sortBy": "date", "sort": "desc", "statuses": [0]}
 	)
 	if query["dataset"] != "movements":
 		frappe.throw("草稿列表需要货物流动数据集")
-	query.update({"dataset": "movements", "view": "records", "grouping": "none", "statuses": [0]})
-	return _native_record_page(query, start, page_length)
+	query.update({"dataset": "movements", "view": "records", "statuses": [0]})
+	return _native_record_page(query, start, page_length, refresh=refresh)
 
 
 @frappe.whitelist()
-def counts_page(query=None, start=0, page_length=30):
+def counts_page(query=None, start=0, page_length=30, refresh=False):
 	require_app()
+	if type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
 	query = validate_query(
 		query
 		or {
@@ -142,17 +144,15 @@ def counts_page(query=None, start=0, page_length=30):
 	)
 	if query["dataset"] != "counts":
 		frappe.throw("盘点列表需要盘点数据集")
-	query.update({"view": "records", "grouping": "none"})
-	return _native_record_page(query, start, page_length)
+	query.update({"view": "records"})
+	return _native_record_page(query, start, page_length, refresh=refresh)
 
 
-def _native_record_page(query, start, page_length):
+def _native_record_page(query, start, page_length, refresh=False):
 	from frappe.utils import cint
 
-	if query["sortBy"] == "quantity":
-		frappe.throw("记录包含不同单位，请按日期、更新时间、名称或编号排序")
 	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
-	with Projection(query) as projection:
+	with Projection(query, refresh=refresh) as projection:
 		projection.build()
 		projection.group(
 			"lines",
@@ -188,7 +188,7 @@ def _native_record_page(query, start, page_length):
 @frappe.whitelist()
 def more_summary():
 	require_app()
-	with Projection({"dataset": "movements", "view": "records", "statuses": [0]}) as projection:
+	with Projection({"dataset": "movements", "view": "records", "statuses": [0]}, refresh=True) as projection:
 		projection.build()
 		count = projection.db.execute(
 			"select count(distinct json_extract(payload, '$.document_id')) from rows where table_id='records'"
@@ -196,12 +196,12 @@ def more_summary():
 		return {"draft_count": count, "snapshot": projection.context.snapshot}
 
 
-def _expiry_projection(query):
+def _expiry_projection(query, *, refresh=False):
 	query = validate_query(query)
 	if query["dataset"] != "expiry":
 		frappe.throw("效期列表需要效期数据集")
-	query.update({"view": "batches", "grouping": "none"})
-	return Projection(query)
+	query.update({"view": "batches"})
+	return Projection(query, refresh=refresh)
 
 
 def _expiry_analysis(projection, dimension, start=0, size=30):
@@ -220,12 +220,26 @@ def _expiry_analysis(projection, dimension, start=0, size=30):
 
 
 @frappe.whitelist()
-def expiry_page(query, start=0, page_length=30):
+def expiry_page(query, start=0, page_length=30, refresh=False):
+	require_app()
+	if type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
+	validated = validate_query(query)
+	if validated["dataset"] != "expiry":
+		frappe.throw("效期列表需要效期数据集")
+	validated["view"] = "batches"
+	from frappe.utils import cint
+
+	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	return _expiry_page(validated, start, size, refresh)
+
+
+def _expiry_page(query, start=0, page_length=30, refresh=False):
 	from frappe.utils import cint
 
 	require_app()
 	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
-	with _expiry_projection(query) as projection:
+	with _expiry_projection(query, refresh=refresh) as projection:
 		projection.build()
 		count = projection.count("batches")
 		item_count, batch_count = projection.db.execute(
@@ -248,7 +262,7 @@ def expiry_page(query, start=0, page_length=30):
 		}
 		facet_query = {**projection.query, "expiryWindow": "period"}
 	# Facets cover the complete applicable scope, excluding only their own choice.
-	with _expiry_projection(facet_query) as projection:
+	with _expiry_projection(facet_query, refresh=refresh) as projection:
 		projection.build()
 		today = frappe.utils.nowdate()
 		identity = "json_array(json_extract(payload, '$.item_code'), json_extract(payload, '$.batch_no'))"
@@ -280,7 +294,17 @@ def expiry_analysis(query, dimension, start=0, page_length=30):
 
 
 @frappe.whitelist()
-def dashboard_card(card, scope=None, movement_period=None, distribution="location"):
+def dashboard_card(card, scope=None, movement_period=None, distribution="location", refresh=False):
+	require_app()
+	scope = frappe.parse_json(scope) or {}
+	if card not in ("inventory", "distribution", "expiry", "movement", "loans", "reminders"):
+		frappe.throw("不支持的总览区块")
+	if type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
+	return _dashboard_card(card, scope, movement_period, distribution, refresh)
+
+
+def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 	require_app()
 	scope = frappe.parse_json(scope) or {}
 	if card not in ("inventory", "distribution", "expiry", "movement", "loans", "reminders"):
@@ -293,7 +317,7 @@ def dashboard_card(card, scope=None, movement_period=None, distribution="locatio
 			"from": "",
 			"to": "",
 		}
-		return _document_card(query)
+		return _document_card(query, refresh=refresh)
 	if card == "loans":
 		query.update(
 			{
@@ -304,10 +328,10 @@ def dashboard_card(card, scope=None, movement_period=None, distribution="locatio
 				"sort": "desc",
 			}
 		)
-		return _document_card(query)
+		return _document_card(query, refresh=refresh)
 	if card in ("expiry", "reminders"):
 		query.update({"dataset": "expiry"})
-	with Projection(query) as projection:
+	with Projection(query, refresh=refresh) as projection:
 		projection.build()
 		if card == "inventory":
 			return {
@@ -402,9 +426,9 @@ def dashboard_card(card, scope=None, movement_period=None, distribution="locatio
 		return result
 
 
-def _document_card(query):
+def _document_card(query, refresh=False):
 	"""One preview row per native record, with complete unit-separated totals."""
-	with Projection(query) as projection:
+	with Projection(query, refresh=refresh) as projection:
 		projection.build()
 		projection.group(
 			"records",
@@ -464,7 +488,19 @@ def _document_card(query):
 
 
 @frappe.whitelist()
-def inventory_page(query=None, start=0, page_length=30):
+def inventory_page(query=None, start=0, page_length=30, refresh=False):
+	require_app()
+	if type(refresh) is not bool:
+		frappe.throw("请选择有效的数据范围")
+	validated = validate_query(query or {"dataset": "inventory"})
+	validated["view"] = "summary"
+	from frappe.utils import cint
+
+	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	return _inventory_page(validated, start, size, refresh)
+
+
+def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 	from frappe.utils import cint
 
 	from temple_inventory.catalog import item_metadata
@@ -473,16 +509,10 @@ def inventory_page(query=None, start=0, page_length=30):
 	query = validate_query(query or {"dataset": "inventory"})
 	if query["dataset"] != "inventory" or query["view"] not in ("summary", "locations"):
 		frappe.throw("库存列表需要当前库存视图")
-	query["view"], query["grouping"] = "summary", "none"
+	query["view"] = "summary"
 	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
-	with Projection(query) as projection:
+	with Projection(query, refresh=refresh) as projection:
 		projection.build()
-		# The inventory browser labels this choice as available quantity. Reports
-		# retain their own total-stock quantity ordering.
-		if query["sortBy"] == "quantity":
-			projection.db.execute(
-				"update rows set quantity=json_extract(payload, '$.available') where table_id='summary'"
-			)
 		page = list(projection.rows("summary", offset=start, limit=size))
 		codes = {row["item_code"] for row in page}
 		locations = {code: {} for code in codes}
@@ -608,8 +638,6 @@ def _operation_projection(query, records):
 	query = validate_query(query)
 	if query["dataset"] not in ("movements", "loans"):
 		frappe.throw("请选择货物流动或借用数据")
-	if records and query["sortBy"] == "quantity":
-		frappe.throw("记录视图请按日期、名称或编号排序，混合单位不合计排序")
 	return Projection(query)
 
 
@@ -915,6 +943,8 @@ def operation_contributions(
 	history_scope="outstanding",
 	doctype=None,
 	name=None,
+	history_sort_by=None,
+	history_sort=None,
 	start=0,
 	page_length=30,
 ):
@@ -937,11 +967,12 @@ def operation_contributions(
 			conditions += ["json_extract(payload, '$.doctype')=?", "json_extract(payload, '$.document')=?"]
 			params += [doctype, name]
 		else:
-			if not item_code:
-				frappe.throw("请选择确切的物品")
-			conditions.append("json_extract(payload, '$.item_code')=?")
-			params.append(item_code)
+			if item_code:
+				conditions.append("json_extract(payload, '$.item_code')=?")
+				params.append(item_code)
 			if projection.query["dataset"] == "loans":
+				if projection.query["view"] != "items" and not item_code:
+					frappe.throw("请选择确切的物品")
 				if projection.query["view"] != "items" and outcome not in OPERATION_OUTCOMES:
 					frappe.throw("请选择借用结算结果")
 				if projection.query["view"] != "items":
@@ -951,8 +982,9 @@ def operation_contributions(
 					if history_scope not in ("outstanding", "all"):
 						frappe.throw("请选择有效的借用明细范围")
 					allocations = []
+					allocation_where = " and ".join(conditions) or "1=1"
 					for (payload,) in projection.db.execute(
-						"select payload from rows where table_id='outcomes' and " + " and ".join(conditions),
+						"select payload from rows where table_id='outcomes' and " + allocation_where,
 						params[1:],
 					):
 						allocation = frappe.parse_json(payload)
@@ -992,10 +1024,21 @@ def operation_contributions(
 							row.get("source_warehouse", ""),
 							row.get("destination_warehouse", ""),
 							row["stock_uom"],
+							row.get("item_code", ""),
 						)
-						group = groups.setdefault(key, {"quantity": 0.0, "outstanding": 0.0})
+						group = groups.setdefault(
+							key,
+							{
+								"quantity": 0.0,
+								"outstanding": 0.0,
+								"item_name": row.get("item_name", ""),
+								"original_loans": set(),
+							},
+						)
 						group["quantity"] += quantity
 						group["outstanding"] += outstanding
+						if row.get("original_loan"):
+							group["original_loans"].add(row["original_loan"])
 
 					for allocation in allocations:
 						add_history(
@@ -1020,6 +1063,31 @@ def operation_contributions(
 						abs(observed_events[key] - expected) < 0.000001
 						for key, expected in expected_events.items()
 					)
+					history_sort_by = history_sort_by or "date"
+					history_sort = history_sort or "desc"
+					allowed_history_sorts = {
+						"identity",
+						"document",
+						"doctype",
+						"item_name",
+						"item_code",
+						"kind",
+						"docstatus",
+						"date",
+						"time",
+						"source_warehouse",
+						"destination_warehouse",
+						"stock_uom",
+						"borrower",
+						"borrowed",
+						"outstanding",
+						"quantity",
+					}
+					if history_sort_by not in allowed_history_sorts or history_sort not in (
+						"asc",
+						"desc",
+					):
+						frappe.throw("请选择有效的历史排序", frappe.ValidationError)
 					ordered = sorted(
 						groups.items(),
 						key=lambda pair: (
@@ -1029,7 +1097,34 @@ def operation_contributions(
 							pair[0][5],
 							pair[0][6],
 							pair[0][7],
+							pair[0][8],
 						),
+					)
+
+					def history_sort_value(pair):
+						key, values = pair
+						return {
+							"identity": ":".join(str(value or "") for value in key),
+							"document": key[1],
+							"doctype": key[0],
+							"item_name": values.get("item_name", ""),
+							"item_code": key[8],
+							"kind": key[4],
+							"docstatus": 1,
+							"date": get_datetime(f"{key[2]} {key[3]}"),
+							"time": key[3],
+							"source_warehouse": key[5],
+							"destination_warehouse": key[6],
+							"stock_uom": key[7],
+							"borrower": allocations[0].get("borrower", ""),
+							"borrowed": values["quantity"],
+							"outstanding": values["outstanding"],
+							"quantity": values["quantity"],
+						}[history_sort_by]
+
+					ordered.sort(
+						key=history_sort_value,
+						reverse=history_sort == "desc",
 					)
 					count = len(ordered)
 					page = ordered[start : start + size]
@@ -1055,13 +1150,24 @@ def operation_contributions(
 									),
 									1,
 								),
-								"item_code": item_code,
-								"item_name": allocations[0].get("item_name", item_code),
-								"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
+								"item_code": key[8],
+								"item_name": values.get("item_name") or key[8],
+								"date_time": " ".join(
+									str(value or "") for value in key[2:4]
+								).strip(),
 								"kind": key[4],
 								"source_warehouse": key[5],
 								"destination_warehouse": key[6],
 								"quantity": values["quantity"],
+								"outstanding": (
+									values["outstanding"] if key[4] == "Loan" else None
+								),
+								"loan_status": (
+									("Open" if values["outstanding"] > 0 else "Settled")
+									if key[4] == "Loan"
+									else None
+								),
+								"original_loans": sorted(values["original_loans"]),
 								"stock_uom": key[7],
 								"signed": True,
 								"can_settle": values["outstanding"] > 0,
@@ -1128,12 +1234,18 @@ def _effective_loan_settlement(context, row, cache):
 
 
 @frappe.whitelist()
-def movement_history(query, item_code=None, warehouse=None, batch_no=None, start=0, page_length=30):
+def movement_history(
+	query, item_code=None, warehouse=None, batch_no=None, start=0, page_length=30, sort_by=None, sort=None
+):
 	"""Return movement rows grouped to the requested Item/warehouse/batch identity."""
 	from frappe.utils import cint
 
 	require_app()
 	query = frappe.parse_json(query) if isinstance(query, str) else query
+	query = dict(query or {})
+	query.update({"dataset": "movements", "view": "lines", "groupBy": []})
+	query["sortBy"] = sort_by or "date"
+	query["sort"] = sort or "desc"
 	query = validate_query(query or {})
 	# A detail request may narrow an inherited query, but never widen it.
 	if item_code and (
@@ -1143,8 +1255,6 @@ def movement_history(query, item_code=None, warehouse=None, batch_no=None, start
 		return {"rows": [], "matched_count": 0, "next_start": None, "history_complete": True}
 	if batch_no and query.get("batchNo") and query["batchNo"] != batch_no:
 		return {"rows": [], "matched_count": 0, "next_start": None, "history_complete": True}
-	query["dataset"], query["view"] = "movements", "lines"
-	query["grouping"] = "none"
 	query.setdefault("scope", {})
 	if batch_no:
 		query["batchNo"] = batch_no
@@ -1260,19 +1370,49 @@ def movement_history(query, item_code=None, warehouse=None, batch_no=None, start
 					for outcome in ("Returned", "Damaged", "Lost")
 				):
 					history_complete = False
-		ordered = sorted(
-			groups.items(),
-			key=lambda pair: (
-				get_datetime(f"{pair[0][3]} {pair[0][4]}"),
-				pair[0][0],
-				pair[0][1],
-				pair[0][2],
-				pair[0][6],
-				pair[0][7],
-				pair[0][8],
-			),
-			reverse=True,
-		)
+		field = query["sortBy"]
+		allowed = {
+			"identity",
+			"document",
+			"doctype",
+			"item_name",
+			"item_code",
+			"kind",
+			"docstatus",
+			"date",
+			"time",
+			"source_warehouse",
+			"destination_warehouse",
+			"stock_uom",
+			"stock_qty",
+			"available_effect",
+			"borrower",
+		}
+		if field not in allowed:
+			frappe.throw("请选择有效的排序", frappe.ValidationError)
+
+		def history_sort_value(pair):
+			key, values = pair
+			return {
+				"identity": ":".join(str(value or "") for value in key),
+				"document": key[1],
+				"doctype": key[0],
+				"item_name": values.get("item_name", ""),
+				"item_code": key[2],
+				"kind": key[5],
+				"docstatus": key[9],
+				"date": get_datetime(f"{key[3]} {key[4]}"),
+				"time": key[4],
+				"source_warehouse": key[6],
+				"destination_warehouse": key[7],
+				"stock_uom": key[8],
+				"stock_qty": values["quantity"],
+				"available_effect": values["available_effect"],
+				"borrower": values.get("borrower", ""),
+			}[field]
+
+		ordered = sorted(groups.items(), key=lambda pair: ":".join(str(value or "") for value in pair[0]))
+		ordered.sort(key=history_sort_value, reverse=query["sort"] == "desc")
 		count = len(ordered)
 		rows = []
 		for key, values in ordered[start : start + size]:
@@ -1304,18 +1444,22 @@ def movement_history(query, item_code=None, warehouse=None, batch_no=None, start
 
 
 @frappe.whitelist()
-def loan_item_history(query, item_code, start=0, page_length=30):
+def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, sort=None):
 	"""Return original submitted loan allocations scoped to one Item, grouped before paging."""
 	from frappe.utils import cint
 
 	require_app()
 	query = frappe.parse_json(query) if isinstance(query, str) else query
+	query = dict(query or {})
+	query.update({"dataset": "loans", "view": "outcomes", "groupBy": []})
+	query["sortBy"] = sort_by or "date"
+	query["sort"] = sort or "desc"
 	query = validate_query(query or {})
 	if (query["scope"].get("item") and query["scope"]["item"] != item_code) or (
 		query.get("restrictItems") and item_code not in query.get("itemCodes", [])
 	):
 		return {"rows": [], "matched_count": 0, "next_start": None}
-	query.update({"dataset": "loans", "view": "items", "statuses": [1]})
+	query.update({"statuses": [1]})
 	query.setdefault("scope", {})["item"] = item_code
 	if not query.get("restrictItems"):
 		query["restrictItems"], query["itemCodes"] = True, [item_code]
@@ -1342,11 +1486,49 @@ def loan_item_history(query, item_code, start=0, page_length=30):
 			group["outstanding"] += float(row["outstanding"])
 			group["item_code"] = row["item_code"]
 			group["item_name"] = row["item_name"]
-		ordered = sorted(
-			groups.items(),
-			key=lambda pair: (get_datetime(f"{pair[0][2]} {pair[0][3]}"), pair[0][1], pair[0][5], pair[0][6]),
-			reverse=True,
-		)
+		field = query["sortBy"]
+		allowed = {
+			"identity",
+			"document",
+			"doctype",
+			"item_name",
+			"item_code",
+			"kind",
+			"docstatus",
+			"date",
+			"time",
+			"source_warehouse",
+			"destination_warehouse",
+			"stock_uom",
+			"borrower",
+			"borrowed",
+			"outstanding",
+		}
+		if field not in allowed:
+			frappe.throw("请选择有效的排序", frappe.ValidationError)
+
+		def history_sort_value(pair):
+			key, values = pair
+			return {
+				"identity": ":".join(str(value or "") for value in key),
+				"document": key[1],
+				"doctype": key[0],
+				"item_name": values["item_name"],
+				"item_code": values["item_code"],
+				"kind": "Loan",
+				"docstatus": key[8],
+				"date": get_datetime(f"{key[2]} {key[3]}"),
+				"time": key[3],
+				"source_warehouse": key[5],
+				"destination_warehouse": key[6],
+				"stock_uom": key[7],
+				"borrower": key[4],
+				"borrowed": values["borrowed"],
+				"outstanding": values["outstanding"],
+			}[field]
+
+		ordered = sorted(groups.items(), key=lambda pair: ":".join(str(value or "") for value in pair[0]))
+		ordered.sort(key=history_sort_value, reverse=query["sort"] == "desc")
 		count = len(ordered)
 		rows = [
 			{

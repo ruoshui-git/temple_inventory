@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, useSlots } from "vue";
-import { useReferenceData } from "../../services/contracts";
+import { useOptionalInventoryServices } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { movementLabels } from "../../lib/filterPresentation";
 import { siteDateTime } from "../../lib/nativeTime";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import UiButton from "./UiButton.vue";
 import NativeStatusBadge from "./NativeStatusBadge.vue";
+import DataTable from "./DataTable.vue";
+import { useReferenceData } from "../../services/contracts";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
 
 const props = withDefaults(
 	defineProps<{
@@ -23,6 +27,8 @@ const props = withDefaults(
 		historyComplete?: boolean;
 		stale?: boolean;
 		showStatus?: boolean;
+		sortBy?: string;
+		sortDirection?: "asc" | "desc";
 	}>(),
 	{
 		loading: false,
@@ -35,6 +41,8 @@ const props = withDefaults(
 		historyComplete: true,
 		stale: false,
 		showStatus: true,
+		sortBy: "date",
+		sortDirection: "desc",
 	},
 );
 const emit = defineEmits<{
@@ -43,62 +51,155 @@ const emit = defineEmits<{
 	openItem: [code: string];
 	loadMore: [];
 	retry: [];
+	sort: [column: string];
 }>();
 const reference = useReferenceData();
+const services = useOptionalInventoryServices();
 const slots = useSlots();
-const hasActions = computed(() => !!slots.actions && props.rows.some(canSettle));
+const hasActions = computed(() => Boolean(slots.actions && props.rows.some(canSettle)));
+const columns = computed<DataColumn[]>(() => {
+	const result: DataColumn[] = [
+		{ id: "document", label: "记录", required: true, sortable: true, minWidth: "190px" },
+		{ id: "doctype", label: "单据类型", sortable: true, minWidth: "120px" },
+		{
+			id: "date_time",
+			label: "日期 / 时间",
+			sortable: true,
+			sortField: "date",
+			minWidth: "150px",
+		},
+		...(props.mode === "loan-allocation"
+			? [
+					{
+						id: "borrower",
+						label: "借用方",
+						sortable: true,
+						minWidth: "130px",
+					} as DataColumn,
+				]
+			: [{ id: "kind", label: "类型", sortable: true, minWidth: "110px" } as DataColumn]),
+		{ id: "source_warehouse", label: "来源位置", sortable: true, minWidth: "150px" },
+		{ id: "destination_warehouse", label: "去向位置", sortable: true, minWidth: "150px" },
+	];
+	if (props.includeItem)
+		result.push(
+			{ id: "item_name", label: "物品名称", sortable: true, minWidth: "150px" },
+			{ id: "item_code", label: "物品编码", sortable: true, minWidth: "130px" },
+		);
+	if (props.mode === "loan-allocation") {
+		result.push(
+			{ id: "borrowed", label: "借出数量", sortable: true, minWidth: "120px" },
+			{ id: "outstanding", label: "未归还数量", sortable: true, minWidth: "130px" },
+		);
+	} else {
+		result.push(
+			{ id: "stock_qty", label: "数量", sortable: true, minWidth: "100px" },
+			{ id: "stock_uom", label: "库存单位", sortable: true, minWidth: "100px" },
+		);
+		if (props.mode === "loan-balance")
+			result.push(
+				{ id: "outstanding", label: "未还数量", sortable: true, minWidth: "120px" },
+				{ id: "loan_status", label: "状态", minWidth: "110px" },
+			);
+	}
+	if (hasActions.value)
+		result.push({ id: "_actions", label: "操作", required: true, minWidth: "140px" });
+	return result;
+});
+const columnPreferences = services
+	? useColumnPreferences(`history.${props.mode}`, columns, reference, services)
+	: undefined;
+const rows = computed<DataTableRecord[]>(() =>
+	props.rows.map((row) => ({ kind: "record", id: row.id, value: row })),
+);
+
 function endpoint(value: string) {
 	return value ? warehouseLabel(value, reference.warehouses) : "外部";
 }
+
+function history(row: Record<string, unknown>) {
+	return row as unknown as HistoryRow;
+}
+
 function record(row: HistoryRow) {
 	if (row.doctype === "Stock Entry" && row.kind === "Loan") emit("openLoan", row.document);
 	else emit("openDocument", row.doctype, row.document);
 }
+
 function canSettle(row: HistoryRow) {
 	return Boolean((row as { can_settle?: boolean }).can_settle);
 }
-function quantity(row: HistoryRow, mode: string) {
-	if (mode === "loan-allocation") return "";
-	const value =
-		mode === "loan-balance" && "loan_balance_effect" in row
+
+function loanStatus(row: Record<string, unknown>) {
+	if (row.kind !== "Loan") return "";
+	const labels: Record<string, string> = {
+		Open: "未结清",
+		Settled: "已结清",
+		Closed: "已结清",
+	};
+	return labels[String(row.loan_status || "")] || "";
+}
+
+function quantity(row: HistoryRow) {
+	if (props.mode === "loan-allocation") return "";
+	const amountValue =
+		props.mode === "loan-balance" && "loan_balance_effect" in row
 			? row.loan_balance_effect
 			: "quantity" in row
 				? row.quantity
 				: 0;
-	const amount = formatQuantity(Math.abs(Number(value || 0)));
+	const amount = formatQuantity(Math.abs(Number(amountValue || 0)));
 	const sign =
-		mode === "loan-balance"
-			? Number(value) > 0
+		props.mode === "loan-balance"
+			? Number(amountValue) > 0
 				? "+"
-				: Number(value) < 0
+				: Number(amountValue) < 0
 					? "−"
 					: ""
-			: mode === "handling"
+			: props.mode === "handling"
 				? ""
-				: Number(value) < 0
+				: Number(amountValue) < 0
 					? "−"
 					: "";
-	return `${sign}${amount} ${row.stock_uom}`.trim();
+	return `${sign}${amount}`.trim();
 }
+
 function effect(row: HistoryRow) {
-	if (!("available_effect" in row)) return 0;
-	return Number(row.available_effect || 0);
+	return "available_effect" in row ? Number(row.available_effect || 0) : 0;
 }
+
 function effectText(row: HistoryRow) {
 	const value = effect(row);
 	if (!value) return "可用库存无变化";
 	return `${value > 0 ? "增加" : "减少"}可用库存 ${formatQuantity(Math.abs(value))} ${row.stock_uom}`;
 }
-const uomOf = (row: HistoryRow) => row.stock_uom || "";
-const codeOf = (row: HistoryRow) => String((row as { item_code?: string }).item_code || "");
-const nameOf = (row: HistoryRow) =>
-	String((row as { item_name?: string }).item_name || codeOf(row));
+
+function rowClass(row: Record<string, unknown>) {
+	if (!["movement", "handling"].includes(props.mode)) return "";
+	const value = Number(row.available_effect || 0);
+	return value > 0 ? "history-effect-up" : value < 0 ? "history-effect-down" : "";
+}
+
+function rowLabel(row: Record<string, unknown>) {
+	return ["movement", "handling"].includes(props.mode)
+		? effectText(row as unknown as HistoryRow)
+		: undefined;
+}
+
+function quantityClass(row: HistoryRow) {
+	if (!["movement", "handling"].includes(props.mode)) return "";
+	return effect(row) > 0
+		? "history-effect-quantity-up"
+		: effect(row) < 0
+			? "history-effect-quantity-down"
+			: "";
+}
+
+const title = computed(() => (props.mode === "loan-allocation" ? "物品借用记录" : "库存流动记录"));
 </script>
+
 <template>
-	<section
-		class="movement-history-surface"
-		:aria-label="mode === 'loan-allocation' ? '物品借用记录' : '库存流动记录'"
-	>
+	<section class="movement-history-surface" :aria-label="title">
 		<p
 			v-if="['loan-balance', 'handling'].includes(mode) && !historyComplete"
 			class="notice-bar warning"
@@ -106,152 +207,106 @@ const nameOf = (row: HistoryRow) =>
 		>
 			部分关联处理记录不可用，无法核对未归还数量。
 		</p>
-		<p v-if="loading && !initialized" role="status">正在读取记录…</p>
-		<div
-			v-if="rows.length"
-			class="movement-history-scroll"
-			role="region"
-			aria-label="可横向滚动的流动记录"
-			tabindex="0"
+		<DataTable
+			:ariaLabel="title"
+			:columns="columns"
+			:sort-by="sortBy"
+			:sort-direction="sortDirection"
+			:rows="rows"
+			:column-preferences="columnPreferences"
+			:loading="loading"
+			:initialized="initialized"
+			:error="error"
+			:retained="Boolean(rows.length && loading)"
+			:has-more="next !== null"
+			:loading-more="busy || loading"
+			:row-class="rowClass"
+			:row-label="rowLabel"
+			:cell-class="
+				(column, row) => (column === 'stock_qty' ? quantityClass(history(row)) : '')
+			"
+			:services="services"
+			@load-more="emit('loadMore')"
+			@retry="emit('retry')"
+			@sort="emit('sort', $event)"
 		>
-			<table class="movement-history-table">
-				<thead>
-					<tr>
-						<th>记录</th>
-						<th>日期 / 时间</th>
-						<th v-if="mode !== 'loan-allocation'">类型</th>
-						<th v-if="mode === 'loan-allocation'">借用方</th>
-						<th>来源位置</th>
-						<th>去向位置</th>
-						<th v-if="includeItem">物品</th>
-						<th v-if="mode === 'loan-allocation'">借出数量</th>
-						<th v-if="mode === 'loan-allocation'">未归还数量</th>
-						<th v-else>数量 / 单位</th>
-						<th v-if="hasActions">操作</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr
-						v-for="row in rows"
-						:key="row.id"
-						:class="{
-							'history-effect-up':
-								['movement', 'handling'].includes(mode) && effect(row) > 0,
-							'history-effect-down':
-								['movement', 'handling'].includes(mode) && effect(row) < 0,
-						}"
-						:aria-label="
-							['movement', 'handling'].includes(mode) ? effectText(row) : undefined
-						"
-					>
-						<td class="history-record-cell">
-							<div class="history-record">
-								<UiButton
-									variant="ghost"
-									size="compact"
-									:disabled="stale || loading || busy"
-									@click="record(row)"
-									>{{ row.document }}</UiButton
-								><NativeStatusBadge v-if="showStatus" :status="row.docstatus" />
-							</div>
-						</td>
-						<td>{{ siteDateTime(row.date_time) }}</td>
-						<td v-if="mode !== 'loan-allocation'">
-							{{ movementLabels[row.kind] || row.kind }}
-						</td>
-						<td v-if="mode === 'loan-allocation'">
-							{{ "borrower" in row ? row.borrower : "" }}
-						</td>
-						<td class="history-location">{{ endpoint(row.source_warehouse) }}</td>
-						<td class="history-location">{{ endpoint(row.destination_warehouse) }}</td>
-						<td v-if="includeItem">
-							<UiButton
-								variant="ghost"
-								size="compact"
-								:disabled="stale || loading || busy"
-								@click="emit('openItem', codeOf(row))"
-								>{{ nameOf(row) }}</UiButton
-							>
-						</td>
-						<td v-if="mode === 'loan-allocation'">
-							{{
-								"borrowed" in row
-									? `${formatQuantity(Number(row.borrowed))} ${uomOf(row)}`
-									: ""
-							}}
-						</td>
-						<td v-if="mode === 'loan-allocation'">
-							{{
-								"outstanding" in row
-									? `${formatQuantity(Number(row.outstanding))} ${uomOf(row)}`
-									: ""
-							}}
-						</td>
-						<td
-							v-else
-							:class="{
-								'history-effect-quantity-up':
-									['movement', 'handling'].includes(mode) && effect(row) > 0,
-								'history-effect-quantity-down':
-									['movement', 'handling'].includes(mode) && effect(row) < 0,
-							}"
+			<template #cell="{ column, row }">
+				<template v-if="column.id === 'document'">
+					<div class="history-record">
+						<UiButton
+							variant="ghost"
+							size="compact"
+							:disabled="stale || loading || busy"
+							@click="record(history(row))"
+							>{{ row.document }}</UiButton
 						>
-							{{ quantity(row, mode)
-							}}<small
-								v-if="['movement', 'handling'].includes(mode)"
-								class="history-effect-note"
-								>{{ effectText(row) }}</small
-							>
-						</td>
-						<td v-if="hasActions"><slot name="actions" :row="row" /></td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
-		<p v-else-if="initialized && !loading && !error" class="browse-empty compact">
-			没有符合范围的流动记录。
-		</p>
-		<p v-if="error" role="alert">
-			{{ error }} <UiButton @click="emit('retry')">重试</UiButton>
-		</p>
-		<p v-if="loading && initialized" role="status">正在更新；保留上次读取结果。</p>
-		<UiButton
-			v-if="next !== null"
-			:loading="busy || loading"
-			:disabled="busy || loading"
-			@click="emit('loadMore')"
-			>加载更多</UiButton
-		>
+						<NativeStatusBadge v-if="showStatus" :status="row.docstatus" />
+					</div>
+				</template>
+				<template v-else-if="column.id === 'date_time'">{{
+					siteDateTime(row.date_time)
+				}}</template>
+				<template v-else-if="column.id === 'doctype'">{{
+					row.doctype === "Stock Entry" ? "库存单" : "库存调节"
+				}}</template>
+				<template v-else-if="column.id === 'kind'">{{
+					movementLabels[String(row.kind || "")] || row.kind
+				}}</template>
+				<template v-else-if="column.id === 'borrower'">{{
+					"borrower" in row ? row.borrower : ""
+				}}</template>
+				<template v-else-if="column.id === 'source_warehouse'">{{
+					endpoint(String(row.source_warehouse || ""))
+				}}</template>
+				<template v-else-if="column.id === 'destination_warehouse'">{{
+					endpoint(String(row.destination_warehouse || ""))
+				}}</template>
+				<template v-else-if="column.id === 'item_name'">{{ row.item_name }}</template>
+				<UiButton
+					v-else-if="column.id === 'item_code'"
+					variant="ghost"
+					size="compact"
+					:disabled="stale || loading || busy"
+					@click="emit('openItem', String(row.item_code || ''))"
+					>{{ row.item_code }}</UiButton
+				>
+				<template v-else-if="column.id === 'borrowed'">{{
+					"borrowed" in row
+						? `${formatQuantity(Number(row.borrowed))} ${row.stock_uom || ""}`
+						: ""
+				}}</template>
+				<template v-else-if="column.id === 'outstanding'">{{
+					"outstanding" in row
+						? `${formatQuantity(Number(row.outstanding))} ${row.stock_uom || ""}`
+						: ""
+				}}</template>
+				<template v-else-if="column.id === 'stock_uom'">{{ row.stock_uom }}</template>
+				<template v-else-if="column.id === 'stock_qty'">
+					<span :class="quantityClass(history(row))">{{ quantity(history(row)) }}</span>
+					<small
+						v-if="['movement', 'handling'].includes(mode)"
+						class="history-effect-note"
+						>{{ effectText(history(row)) }}</small
+					>
+				</template>
+				<template
+					v-else-if="
+						column.id === 'outstanding' &&
+						row.kind === 'Loan' &&
+						row.outstanding != null
+					"
+					>{{ formatQuantity(Number(row.outstanding)) }} {{ row.stock_uom }}</template
+				>
+				<template v-else-if="column.id === 'loan_status'">{{ loanStatus(row) }}</template>
+				<slot v-else-if="column.id === '_actions'" name="actions" :row="history(row)" />
+			</template>
+		</DataTable>
 	</section>
 </template>
+
 <style scoped>
 .movement-history-surface {
 	min-width: 0;
-}
-.movement-history-scroll {
-	max-width: 100%;
-	overflow: auto;
-	overscroll-behavior-inline: contain;
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-card);
-}
-.movement-history-table {
-	width: 100%;
-	min-width: 700px;
-	border-collapse: collapse;
-	table-layout: auto;
-}
-.movement-history-table th,
-.movement-history-table td {
-	min-width: 0 !important;
-	padding: 6px 10px;
-	vertical-align: middle;
-	border-bottom: 1px solid var(--p-border);
-	text-align: start;
-}
-.movement-history-table th:first-child,
-.movement-history-table td:first-child {
-	min-width: 118px !important;
 }
 .history-record {
 	display: flex;
@@ -259,16 +314,8 @@ const nameOf = (row: HistoryRow) =>
 	flex-wrap: wrap;
 	gap: 4px;
 }
-.history-record-cell {
-	width: 190px;
-	max-width: 240px;
-}
-.history-location {
-	max-width: 220px;
-	overflow-wrap: anywhere;
-}
 .history-record :deep(.ui-button),
-.movement-history-table td > :deep(.ui-button) {
+.movement-history-surface :deep(td > .ui-button) {
 	min-width: 0;
 	max-width: 154px;
 	height: auto;
@@ -279,10 +326,10 @@ const nameOf = (row: HistoryRow) =>
 	word-break: break-word;
 	white-space: normal;
 }
-.history-effect-up {
+.history-effect-up :deep(td) {
 	background: color-mix(in srgb, var(--p-success) 7%, var(--p-surface));
 }
-.history-effect-down {
+.history-effect-down :deep(td) {
 	background: color-mix(in srgb, var(--p-danger) 7%, var(--p-surface));
 }
 .history-effect-quantity-up {
@@ -301,7 +348,7 @@ const nameOf = (row: HistoryRow) =>
 }
 @media (max-width: 1023px) {
 	.history-record :deep(.ui-button),
-	.movement-history-table td > :deep(.ui-button) {
+	.movement-history-surface :deep(td > .ui-button) {
 		min-height: 44px;
 	}
 }

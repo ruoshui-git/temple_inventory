@@ -1,5 +1,7 @@
 """Shared inclusive date-period resolution for inventory browse APIs."""
 
+from calendar import monthrange
+
 import frappe
 from frappe import _
 from frappe.utils import add_days, getdate, nowdate
@@ -14,6 +16,8 @@ PERIOD_KEYS = {
 	"this_week",
 	"this_month",
 	"this_year",
+	"this_quarter",
+	"last_quarter",
 	"custom",
 }
 
@@ -41,6 +45,23 @@ def resolve_period(filters, default=False, today_provider=nowdate):
 			frappe.throw(_("Invalid custom date range"))
 		if start > end:
 			frappe.throw(_("Start date cannot be after end date"))
+	elif key in ("this_quarter", "last_quarter"):
+		quarter = (today.month - 1) // 3
+		start_month = quarter * 3 + 1
+		if key == "last_quarter":
+			start_month -= 3
+			if start_month < 1:
+				start_month += 12
+				year = today.year - 1
+			else:
+				year = today.year
+		else:
+			year = today.year
+		start = today.replace(year=year, month=start_month, day=1)
+		end_month = start_month + 2
+		end = today if key == "this_quarter" else today.replace(
+			year=year, month=end_month, day=monthrange(year, end_month)[1]
+		)
 	else:
 		end = today
 		if key == "today":

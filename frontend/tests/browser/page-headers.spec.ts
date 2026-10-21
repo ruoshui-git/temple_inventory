@@ -158,10 +158,12 @@ for (const width of [390, 1440]) {
       await toggle.click();
       await expect(analysis).toBeHidden();
       await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
-      await chrome.getByRole("button", { name: "搜索", exact: true }).click();
-      await expect(page.getByRole("dialog")).toBeVisible();
-      await expect(toggle).toHaveAttribute("aria-expanded", "false");
-      await page.keyboard.press("Escape");
+      await expect(
+        chrome.locator(".browse-persistent-search input"),
+      ).toBeVisible();
+      await expect(
+        chrome.locator(".browse-persistent-search input"),
+      ).toHaveAttribute("type", "search");
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
       await toggle.click();
       await expect(analysis).toBeVisible();

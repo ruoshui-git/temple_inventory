@@ -178,6 +178,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
           scope: clone(scope.value),
           movement_period: clone(filters.period),
           distribution: filters.distribution,
+          ...(retry ? { refresh: true } : {}),
         },
         request.controller.signal,
       );

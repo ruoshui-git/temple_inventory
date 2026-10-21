@@ -517,9 +517,9 @@ export function projectReport(
   if (dataset === "inventory" && query.view === "historical") {
     const history = historicalBalances(query, session);
     rows =
-      query.grouping === "none"
+      query.groupBy.length === 0
         ? history.rows
-        : groupRows(history.rows, query.grouping);
+        : groupRows(history.rows, query.groupBy[0]);
     error = history.error;
     extra.push(table("historicalBalances", "库位历史余额", history.rows));
     extra.push(table("ledger", "贡献单据", history.events));
@@ -634,13 +634,13 @@ export function projectReport(
     );
     rows =
       dataset === "inventory" &&
-      (query.view === "summary" || query.grouping !== "none")
+      (query.view === "summary" || query.groupBy.length > 0)
         ? groupRows(
             details,
-            query.grouping === "none" ? "item" : query.grouping,
+            query.groupBy.length === 0 ? "item" : query.groupBy[0],
           ).map((row) => ({
             ...row,
-            ...(query.grouping === "none" || query.grouping === "item"
+            ...(query.groupBy.length === 0 || query.groupBy[0] === "item"
               ? {
                   itemId: row.group!,
                   item:
@@ -659,7 +659,7 @@ export function projectReport(
         : query.view === "summary"
           ? groupRows(
               lines,
-              query.grouping === "none" ? "item" : query.grouping,
+              query.groupBy.length === 0 ? "item" : query.groupBy[0],
             )
           : lines;
     extra.push(table("lines", "分配明细", lines));
@@ -780,7 +780,7 @@ export function projectReport(
       );
       rows = groupRows(
         outcomes,
-        query.grouping === "none" ? "item" : query.grouping,
+        query.groupBy.length === 0 ? "item" : query.groupBy[0],
       );
     }
   } else if (dataset === "activities") {
@@ -981,11 +981,11 @@ export function projectReport(
     if (query.view === "records") rows = uniqueCountDocuments(rows);
   }
   if (
-    query.grouping !== "none" &&
+    query.groupBy.length > 0 &&
     !["summary", "outcomes"].includes(query.view) &&
     dataset !== "inventory"
   )
-    rows = groupRows(rows, query.grouping);
+    rows = groupRows(rows, query.groupBy[0]);
   const sortValue = (row: ReportRow) =>
     query.sortBy === "modified"
       ? String(row.modified || "")
@@ -1358,7 +1358,7 @@ function reportColumns(query: ReportQuery): string[] {
     "stockQty",
   ];
   if (query.dataset === "inventory") {
-    if (query.view === "historical" && query.grouping !== "none")
+    if (query.view === "historical" && query.groupBy.length > 0)
       return [
         "group",
         "groupLabel",
@@ -1381,7 +1381,7 @@ function reportColumns(query: ReportQuery): string[] {
         "adjustment",
         "closing",
       ];
-    if (query.grouping !== "none" && query.grouping !== "item")
+    if (query.groupBy.length > 0 && query.groupBy[0] !== "item")
       return [
         "group",
         "groupLabel",
@@ -1391,7 +1391,7 @@ function reportColumns(query: ReportQuery): string[] {
         "damaged",
         "total",
       ];
-    if (query.view === "summary" || query.grouping === "item")
+    if (query.view === "summary" || query.groupBy[0] === "item")
       return [
         "itemId",
         "item",
@@ -1415,7 +1415,7 @@ function reportColumns(query: ReportQuery): string[] {
     ];
   }
   if (query.dataset === "expiry")
-    return query.grouping !== "none"
+    return query.groupBy.length > 0
       ? ["group", "groupLabel", "stockUom", "available", "damaged", "total"]
       : [
           "itemId",
@@ -1431,7 +1431,7 @@ function reportColumns(query: ReportQuery): string[] {
           "remainingDays",
         ];
   if (query.dataset === "movements")
-    return query.view === "summary" || query.grouping !== "none"
+    return query.view === "summary" || query.groupBy.length > 0
       ? group
       : query.view === "records"
         ? [
@@ -1449,7 +1449,7 @@ function reportColumns(query: ReportQuery): string[] {
   if (query.dataset === "activities")
     return query.view === "loans"
       ? [
-          ...(query.grouping !== "none"
+          ...(query.groupBy.length > 0
             ? ["group", "groupLabel", "lines"]
             : [
                 "activityId",
@@ -1468,7 +1468,7 @@ function reportColumns(query: ReportQuery): string[] {
           "lost",
           "outstanding",
         ]
-      : query.grouping !== "none"
+      : query.groupBy.length > 0
         ? group
         : query.view === "records"
           ? movement
@@ -1491,10 +1491,10 @@ function reportColumns(query: ReportQuery): string[] {
             ];
   if (query.dataset === "loans")
     return query.view === "settlements"
-      ? query.grouping !== "none"
+      ? query.groupBy.length > 0
         ? group
         : movement
-      : query.view === "outcomes" || query.grouping !== "none"
+      : query.view === "outcomes" || query.groupBy.length > 0
         ? group
         : [
             "documentType",
@@ -1512,7 +1512,7 @@ function reportColumns(query: ReportQuery): string[] {
             "lost",
             "outstanding",
           ];
-  return query.grouping !== "none"
+  return query.groupBy.length > 0
     ? [
         "group",
         "groupLabel",

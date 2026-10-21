@@ -226,11 +226,13 @@ describe("shared native warehouse workspace", () => {
     expect(report).not.toHaveBeenCalled();
     await flushPromises();
     expect(report.mock.calls[0]?.[0].scope.warehouses).toEqual(["PHYSICAL"]);
+    expect(report.mock.calls[0]?.[0].sortBy).toBe("item_name");
     expect(c.stock.result.total).toBe(205);
     expect(c.stock.result.summary[0]?.stock_qty).toBe(999);
     c.select(room.name);
     await flushPromises();
     expect(c.stockQuery.value.scope.warehouses).toEqual([room.name]);
+    expect(c.stockQuery.value.sortBy).toBe("item_name");
     expect(wrapper.text()).toContain("999");
     expect(wrapper.text()).toContain("4 Nos");
     await wrapper.find(".browse-rank-row").trigger("click");

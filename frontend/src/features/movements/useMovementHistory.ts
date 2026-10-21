@@ -2,6 +2,7 @@ import {
   computed,
   onBeforeUnmount,
   reactive,
+  ref,
   watch,
   type ComputedRef,
 } from "vue";
@@ -41,6 +42,52 @@ export function useMovementHistory(
     stale: false,
     initialized: false,
   });
+  const sortBy = ref("date");
+  const sortDirection = ref<"asc" | "desc">("desc");
+  const sortableFields = options.loanAllocations
+    ? [
+        "identity",
+        "document",
+        "doctype",
+        "item_name",
+        "item_code",
+        "kind",
+        "docstatus",
+        "date",
+        "time",
+        "source_warehouse",
+        "destination_warehouse",
+        "stock_uom",
+        "borrower",
+        "borrowed",
+        "outstanding",
+      ]
+    : [
+        "identity",
+        "document",
+        "doctype",
+        "item_name",
+        "item_code",
+        "kind",
+        "docstatus",
+        "date",
+        "time",
+        "source_warehouse",
+        "destination_warehouse",
+        "stock_uom",
+        "stock_qty",
+        "available_effect",
+        "borrower",
+      ];
+  function setSort(field: string) {
+    if (!sortableFields.includes(field)) return;
+    if (sortBy.value === field)
+      sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+    else {
+      sortBy.value = field;
+      sortDirection.value = "asc";
+    }
+  }
   let generation = 0,
     request: AbortController | undefined,
     disposed = false,
@@ -78,8 +125,18 @@ export function useMovementHistory(
     result.error = "";
     const start = more ? result.next || 0 : 0;
     try {
+      const historyQuery = JSON.parse(
+        JSON.stringify(query.value),
+      ) as ReportQuery;
+      historyQuery.dataset = options.loanAllocations ? "loans" : "movements";
+      historyQuery.view = options.loanAllocations ? "outcomes" : "lines";
+      historyQuery.groupBy = [];
+      historyQuery.sortBy = sortBy.value;
+      historyQuery.sort = sortDirection.value;
       const args: Record<string, unknown> = {
-        query: JSON.parse(JSON.stringify(query.value)),
+        query: historyQuery,
+        sort_by: sortBy.value,
+        sort: sortDirection.value,
         start,
         page_length: 20,
       };
@@ -138,6 +195,8 @@ export function useMovementHistory(
       options.batchNo?.(),
       options.enabled ? options.enabled() : true,
       options.loanAllocations,
+      sortBy.value,
+      sortDirection.value,
     ]),
   );
   watch(
@@ -169,5 +228,8 @@ export function useMovementHistory(
     refresh: () => load(),
     loadMore: () => load(true),
     retry: () => load(failedMore),
+    sortBy,
+    sortDirection,
+    setSort,
   };
 }

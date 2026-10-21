@@ -1,9 +1,11 @@
 import { decodeItemSelection } from "../src/lib/routeSelection";
 import { describe, expect, it } from "vitest";
 import { decodeReportQuery } from "../src/lib/reportQuery";
+import { resolveSitePeriod } from "../src/lib/sitePeriod";
 import {
   newReportQuery,
   reportDefinitions,
+  sortableColumnsForView,
   type ReportDataset,
 } from "../src/lib/reportContract";
 
@@ -17,6 +19,7 @@ describe("canonical routed report queries", () => {
       for (const view of reportDefinitions[dataset].views) {
         const query = newReportQuery(dataset);
         query.view = view.id;
+        query.groupBy = [];
         query.scope.period = { key: "last_30_days", from: "", to: "" };
         query.restrictItems = true;
         query.itemCodes = [];
@@ -95,6 +98,80 @@ describe("canonical routed report queries", () => {
       scope: { warehouses: ["A", "A", "B"] },
     });
     expect(result.query.scope.warehouses).toEqual(["A", "B"]);
+  });
+  it("validates ordered grouping fields by report grain and rejects the retired field", () => {
+    const query = newReportQuery("inventory");
+    query.groupBy = ["category", "item"];
+    expect(decodeReportQuery(query).error).toBe("");
+    expect(
+      decodeReportQuery({ ...query, groupBy: ["item", "category"] }).error,
+    ).toBe("");
+    expect(
+      decodeReportQuery({ ...query, groupBy: ["item", "item"] }).error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({ ...query, groupBy: ["item", "location"] }).error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({ ...query, groupBy: ["category", "item", "location"] })
+        .error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({ dataset: "inventory", grouping: "item" }).error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({
+        dataset: "movements",
+        view: "summary",
+        groupBy: ["category"],
+      }).error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({
+        dataset: "loans",
+        view: "items",
+        groupBy: ["item", "category"],
+      }).error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({
+        dataset: "loans",
+        view: "items",
+        groupBy: ["category", "item"],
+      }).error,
+    ).toBe("");
+  });
+  it("exposes scalar sortable fields per view without combined-unit totals", () => {
+    expect(sortableColumnsForView("inventory", "summary")).toContain("available");
+    expect(sortableColumnsForView("movements", "records")).toContain("document");
+    expect(sortableColumnsForView("movements", "records")).not.toContain("stock_qty");
+    for (const field of ["document", "doctype", "borrower", "source_warehouse", "destination_warehouse"])
+      expect(sortableColumnsForView("movements", "lines")).toContain(field);
+    for (const field of ["document", "doctype", "kind", "docstatus", "borrower", "source_warehouse", "destination_warehouse"])
+      expect(sortableColumnsForView("loans", "outcomes")).toContain(field);
+    expect(sortableColumnsForView("expiry", "batches")).toContain("expiry_date");
+    expect(decodeReportQuery({ dataset: "inventory", sortBy: "quantity" }).error).not.toBe("");
+    expect(decodeReportQuery({ dataset: "movements", view: "records", sortBy: "stock_qty" }).error).not.toBe("");
+  });
+  it("resolves current and previous quarters from the site date", () => {
+    expect(
+      resolveSitePeriod(
+        { key: "this_quarter", from: "", to: "" },
+        "2026-04-05",
+      ),
+    ).toEqual({
+      from: "2026-04-01",
+      to: "2026-04-05",
+    });
+    expect(
+      resolveSitePeriod(
+        { key: "last_quarter", from: "", to: "" },
+        "2026-01-19",
+      ),
+    ).toEqual({
+      from: "2025-10-01",
+      to: "2025-12-31",
+    });
   });
 });
 

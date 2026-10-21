@@ -180,7 +180,7 @@ describe("scope and permission refresh boundaries", () => {
     expect(changed).toHaveBeenCalledOnce();
     const historical = { ...query(), view: "historical" };
     expect(browseDestination(historical)).toMatchObject({
-      path: "/reports",
+      name: "reports",
       query: { query: JSON.stringify(historical) },
     });
   });
@@ -189,7 +189,8 @@ describe("scope and permission refresh boundaries", () => {
 describe("native browse service controllers", () => {
   it("routes Loan links from batch movement history to the loan detail and back", () => {
     expect(loanDestination("Loan / 01", "/batches/BATCH-1")).toEqual({
-      path: "/loans/Loan%20%2F%2001",
+      name: "loan-overview",
+      params: { name: "Loan / 01" },
       query: { back: "/batches/BATCH-1" },
     });
   });

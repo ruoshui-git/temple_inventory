@@ -1,38 +1,73 @@
 <script setup lang="ts">
-import { computed, ref, onDeactivated, watch, useId, onMounted, onBeforeUnmount } from "vue";
+import {
+	computed,
+	inject,
+	onBeforeUnmount,
+	onDeactivated,
+	onMounted,
+	ref,
+	useId,
+	watch,
+} from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-import Overlay from "./Overlay.vue";
-import UiButton from "./UiButton.vue";
 import { periodLabels, resolveSitePeriod, type DatePeriod } from "../../lib/sitePeriod";
+import { filterPanelSessionKey } from "../../lib/filterPanelSession";
+import Overlay from "./Overlay.vue";
+import PeriodEditor from "./PeriodEditor.vue";
+import UiButton from "./UiButton.vue";
+
 const props = withDefaults(
 	defineProps<{
 		modelValue: DatePeriod;
 		label: string;
 		context?: string;
+		fieldKey?: string;
 		active?: boolean;
+		embedded?: boolean;
 		today: string;
 	}>(),
-	{ active: true },
+	{ active: true, embedded: false },
 );
 const emit = defineEmits<{ "update:modelValue": [value: DatePeriod] }>();
 const { isMobile } = useResponsiveLayout();
 const trigger = ref<HTMLElement>();
 const open = ref(false);
+const draft = ref<DatePeriod>({ ...props.modelValue });
+const error = ref("");
 const owner = useId();
+const formId = `period-${useId()}`;
+const session = inject(filterPanelSessionKey, "");
 function otherPanel(event: Event) {
 	if ((event as CustomEvent).detail !== owner) open.value = false;
 }
-onMounted(() => document.addEventListener("preview-filter-panel-open", otherPanel));
-onBeforeUnmount(() => document.removeEventListener("preview-filter-panel-open", otherPanel));
+function filterPanelClosed(event: Event) {
+	if (!props.embedded || !session || (event as CustomEvent).detail !== session) return;
+	draft.value = { ...props.modelValue };
+	error.value = "";
+}
+onMounted(() => {
+	document.addEventListener("preview-filter-panel-open", otherPanel);
+	document.addEventListener("preview-filter-panel-close", filterPanelClosed);
+});
+onBeforeUnmount(() => {
+	document.removeEventListener("preview-filter-panel-open", otherPanel);
+	document.removeEventListener("preview-filter-panel-close", filterPanelClosed);
+});
 watch(
-	() => [isMobile.value, props.context, props.active],
+	() => [props.modelValue, isMobile.value, props.context, props.active],
 	() => {
+		if (!open.value) draft.value = { ...props.modelValue };
 		open.value = false;
 	},
 	{ flush: "sync" },
 );
-const draft = ref<DatePeriod>({ key: "all", from: "", to: "" });
-const error = ref("");
+watch(
+	() => props.modelValue,
+	(value) => {
+		if (props.embedded && !open.value) draft.value = { ...value };
+	},
+	{ immediate: true },
+);
 onDeactivated(() => {
 	open.value = false;
 });
@@ -70,73 +105,74 @@ function apply() {
 		return;
 	}
 	emit("update:modelValue", { ...draft.value });
+	if (!props.embedded) open.value = false;
+}
+function cancel() {
+	draft.value = { ...props.modelValue };
+	error.value = "";
 	open.value = false;
 }
 </script>
+
 <template>
-	<button
-		ref="trigger"
-		class="preview-period-trigger"
-		:aria-label="`${label}：${summary}`"
-		aria-haspopup="dialog"
-		:aria-expanded="open"
-		@click="show"
+	<div
+		v-if="embedded"
+		class="period-filter-embedded"
+		:data-filter-field="fieldKey || 'period'"
+		tabindex="-1"
 	>
-		<span>{{ label }}</span
-		><strong>{{ summary }}</strong
-		><span aria-hidden="true">▾</span>
-	</button>
-	<Overlay
-		v-if="open"
-		:title="label"
-		:transient-owner="owner"
-		:drawer="isMobile"
-		:panel-style="
-			isMobile
-				? {
-						position: 'fixed',
-						bottom: '0',
-						left: '0',
-						width: '100%',
-						maxHeight: '85dvh',
-						margin: '0',
-					}
-				: position
-		"
-		@close="open = false"
-	>
-		<form :id="`${label}-range`" class="preview-filter-fields" @submit.prevent="apply">
-			<label class="preview-field"
-				>时间范围<select v-model="draft.key" aria-label="时间范围预设">
-					<option v-for="(label, key) in periodLabels" :key="key" :value="key">
-						{{ label }}
-					</option>
-				</select></label
-			>
-			<template v-if="draft.key === 'custom'"
-				><label class="preview-field"
-					>开始日期<input
-						v-model="draft.from"
-						type="date"
-						aria-label="开始日期" /></label
-				><label class="preview-field"
-					>结束日期<input v-model="draft.to" type="date" aria-label="结束日期" /></label
-				><small>包含开始和结束日期当天。</small></template
-			>
-			<p v-else class="muted">
-				{{
-					draft.key === "all"
-						? "不限日期"
-						: `${resolveSitePeriod(draft, today).from} 至 ${resolveSitePeriod(draft, today).to}`
-				}}
-			</p>
+		<h3 class="period-filter-heading">{{ label }}</h3>
+		<form :id="`${formId}-embedded`" @submit.prevent="apply">
+			<PeriodEditor v-model="draft" :label="label" :today="today" />
 			<p v-if="error" role="alert">{{ error }}</p>
 		</form>
-		<template #footer
-			><UiButton @click="open = false">取消</UiButton
-			><UiButton variant="primary" :form="`${label}-range`" type="submit"
-				>应用</UiButton
-			></template
+		<div class="period-filter-actions">
+			<UiButton @click="cancel">撤销日期</UiButton>
+			<UiButton variant="primary" type="submit" :form="`${formId}-embedded`"
+				>应用日期</UiButton
+			>
+		</div>
+	</div>
+	<template v-else>
+		<button
+			ref="trigger"
+			class="preview-period-trigger"
+			:aria-label="`${label}：${summary}`"
+			aria-haspopup="dialog"
+			:aria-expanded="open"
+			@click="show"
 		>
-	</Overlay>
+			<span>{{ label }}</span
+			><strong>{{ summary }}</strong
+			><span aria-hidden="true">▾</span>
+		</button>
+		<Overlay
+			v-if="open"
+			:title="label"
+			:transient-owner="owner"
+			:drawer="isMobile"
+			:panel-style="
+				isMobile
+					? {
+							position: 'fixed',
+							bottom: '0',
+							left: '0',
+							width: '100%',
+							maxHeight: '85dvh',
+							margin: '0',
+						}
+					: position
+			"
+			@close="cancel"
+		>
+			<form :id="`${formId}-range`" @submit.prevent="apply">
+				<PeriodEditor v-model="draft" :label="label" :today="today" />
+				<p v-if="error" role="alert">{{ error }}</p>
+			</form>
+			<template #footer>
+				<UiButton @click="cancel">取消</UiButton>
+				<UiButton variant="primary" :form="`${formId}-range`" type="submit">应用</UiButton>
+			</template>
+		</Overlay>
+	</template>
 </template>

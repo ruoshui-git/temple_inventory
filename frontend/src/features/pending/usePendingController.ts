@@ -6,7 +6,8 @@ import {
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
 import {
-  scopeFilterChips,
+  clearScopeField,
+  scopeFilterFieldChips,
   type ScopeFilterField,
 } from "../../lib/filterPresentation";
 import {
@@ -41,11 +42,10 @@ export function usePendingController(
     const value: ReportQuery = {
       ...decoded.query,
       view: "locations",
-      grouping: "none",
       damageOnly: true,
       includeZero: false,
     };
-    if (!props.initialQuery && !props.routeQuery) value.sortBy = "name";
+    if (!props.initialQuery && !props.routeQuery) value.sortBy = "item_name";
     if (JSON.stringify(query.value) !== JSON.stringify(value))
       query.value = value;
   }
@@ -59,7 +59,7 @@ export function usePendingController(
   });
   const analysisQuery = computed(() => ({
     ...query.value,
-    grouping: dimension.value,
+    groupBy: [dimension.value === "warehouse" ? "location" : dimension.value],
   }));
   const analysis = useReportController(analysisQuery, {
     personalViews: false,
@@ -89,7 +89,9 @@ export function usePendingController(
     get: () => query.value.scope,
     set: (value) => (query.value.scope = value),
   });
-  const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
+  const scopeChips = computed(() =>
+    scopeFilterFieldChips(scope.value, reference),
+  );
   const chips = computed(() =>
     reportFilterChips(query.value, reference).filter(
       (chip) => !["damageOnly", "includeZero"].includes(chip.key),
@@ -106,7 +108,11 @@ export function usePendingController(
       })),
     },
   ]);
-  function removeScope(field: ScopeFilterField, value: string) {
+  function removeScope(field: ScopeFilterField | "period", value?: string) {
+    if (value === undefined) {
+      clearScopeField(scope.value, field);
+      return;
+    }
     const previous = scope.value[field];
     Object.assign(scope.value, {
       [field]: Array.isArray(previous)

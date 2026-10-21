@@ -139,7 +139,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
     await route.fulfill({ json: { message } });
   });
   await page.goto(
-    `/inventory/new/Receive?warehouse=ROOM-A&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
+    `/inventory/movements/movements/new/Receive?warehouse=ROOM-A&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
   );
   await expect(
     page.getByRole("button", { name: "保存草稿", exact: true }),

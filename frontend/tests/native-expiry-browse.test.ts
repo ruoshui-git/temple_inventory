@@ -11,9 +11,9 @@ import {
 } from "../src/features/expiry/useExpiryBrowse";
 import { newReportQuery } from "../src/lib/reportContract";
 import { createRouter, createMemoryHistory, RouterView } from "vue-router";
-import Expiry from "../src/pages/Expiry.vue";
 import PreviewExpiryBrowse from "./support/FixtureHostExpiryBrowse.vue";
 import ExpiryBrowsePage from "../src/features/expiry/ExpiryBrowsePage.vue";
+import { routeRecords } from "../src/lib/routeRegistry";
 import { resetReviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -92,9 +92,12 @@ describe("native expiry browser", () => {
     Object.assign(reference, { user: "volunteer", site: "unit-site" });
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: "/expiry", component: Expiry }],
+      routes: routeRecords,
     });
-    await router.push({ path: "/expiry", query: { query: ["one", "two"] } });
+    await router.push({
+      path: "/stock/expiry",
+      query: { query: ["one", "two"] },
+    });
     const root = defineComponent({
       setup() {
         provideInventoryServices(
@@ -108,7 +111,9 @@ describe("native expiry browser", () => {
     wrappers.push(wrapper);
     await flushPromises();
     expect(wrapper.find('[role="alert"]').exists()).toBe(true);
-    expect(call).not.toHaveBeenCalled();
+    expect(
+      call.mock.calls.some(([endpoint]) => String(endpoint).startsWith("browse.")),
+    ).toBe(false);
   });
   it("renders the same browser with real gallery services and reactive query state", async () => {
     resetReviewSession();
@@ -163,30 +168,42 @@ describe("native expiry browser", () => {
       .find((header) => header.text().includes("库存数量"))!
       .find("button");
     expect(quantityHeader.text()).toContain("库存数量");
-    const quantityCell = wrapper.find("tbody tr td:nth-child(5)");
-    expect(quantityCell.text()).toContain("11 Nos");
+    const headers = wrapper.findAll("thead th").map((header) => header.text());
+    const quantityIndex = headers.findIndex((header) =>
+      header.includes("库存数量"),
+    );
+    const quantityCell = wrapper.find(
+      `tbody tr td:nth-child(${quantityIndex + 1})`,
+    );
+    expect(quantityCell.text()).toContain("11");
     expect(quantityCell.text()).not.toContain("2");
+    const unitIndex = headers.findIndex((header) =>
+      header.includes("库存单位"),
+    );
+    expect(
+      wrapper.find(`tbody tr td:nth-child(${unitIndex + 1})`).text(),
+    ).toContain("Nos");
     await quantityHeader.trigger("click");
     expect(wrapper.find('th[aria-sort="ascending"] button').text()).toContain(
       "库存数量 ↑",
     );
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
-    ).toBe("quantity");
+    ).toBe("stock_qty");
     await wrapper
       .findAll("th button")
       .find((button) => button.text().includes("物品名称"))!
       .trigger("click");
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
-    ).toBe("name");
+    ).toBe("item_name");
     await wrapper
       .findAll("th button")
       .find((button) => button.text().includes("批次编号"))!
       .trigger("click");
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
-    ).toBe("batch");
+    ).toBe("batch_no");
   });
   it("does not present confirmed zero summaries while the first result is pending", async () => {
     let resolve!: (value: ExpiryPageData) => void;

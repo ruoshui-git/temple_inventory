@@ -4,12 +4,16 @@ import {
   type ReportQuery,
   type ReportRow,
 } from "../../lib/reportContract";
-import { scopeFilterChips } from "../../lib/filterPresentation";
+import {
+  clearScopeField,
+  scopeFilterFieldChips,
+} from "../../lib/filterPresentation";
 import { reportFilterChips } from "../../lib/reportFilters";
 import { expiryStatus, type StockItem } from "../../lib/stockPresentation";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { onCategoryRenamed } from "../../lib/categoryRename";
+import { useReportGroups } from "../../composables/useReportGroups";
 import {
   useInventoryServices,
   useReferenceData,
@@ -43,8 +47,8 @@ export function useStockBrowseController(
         : ""),
   );
   const search = ref(""),
-    view = ref("card"),
-    sort = ref("name"),
+    view = ref("table"),
+    sort = ref("item_name"),
     descending = ref(false),
     selected = ref<string[]>([]),
     inStockOnly = ref(true),
@@ -77,11 +81,12 @@ export function useStockBrowseController(
     const value = JSON.parse(JSON.stringify(constraints.value)) as ReportQuery;
     value.search = search.value;
     value.includeZero = !inStockOnly.value;
-    value.sortBy = sort.value === "name" ? "name" : "quantity";
+    value.sortBy = sort.value;
     value.sort = descending.value ? "desc" : "asc";
     value.scope = JSON.parse(JSON.stringify(scope.value));
     return value;
   });
+  const groups = useReportGroups(query, services);
   watch(
     () => JSON.stringify(props.initialQuery),
     () => {
@@ -91,7 +96,17 @@ export function useStockBrowseController(
       scope.value = JSON.parse(JSON.stringify(incoming.scope));
       search.value = incoming.search;
       inStockOnly.value = !incoming.includeZero;
-      sort.value = incoming.sortBy === "quantity" ? "available" : "name";
+      sort.value = [
+        "item_name",
+        "item_code",
+        "category",
+        "stock_uom",
+        "available",
+        "loaned",
+        "damaged",
+      ].includes(incoming.sortBy)
+        ? incoming.sortBy
+        : "item_name";
       descending.value = incoming.sort === "desc";
     },
     { immediate: true },
@@ -107,7 +122,7 @@ export function useStockBrowseController(
       dimension: analysisDimension.value,
     }),
     (value) => {
-      view.value = String(value.view || "card");
+      view.value = String(value.view || "table");
       selected.value = (value.selected || []) as string[];
       analysisDimension.value =
         value.dimension === "location" ? "location" : "category";
@@ -125,7 +140,7 @@ export function useStockBrowseController(
       stale: false,
     });
   }
-  async function load(more = false) {
+  async function load(more = false, refresh = false) {
     if (more && (data.loading || data.next === null)) return;
     const current = ++generation;
     request?.abort();
@@ -146,7 +161,12 @@ export function useStockBrowseController(
     try {
       const result = await services.call<InventoryPage>(
         "browse.inventory_page",
-        { query: query.value, start: more ? data.next : 0, page_length: 30 },
+        {
+          query: query.value,
+          start: more ? data.next : 0,
+          page_length: 30,
+          ...(refresh ? { refresh: true } : {}),
+        },
         request.signal,
       );
       if (current !== generation || reference.user !== account) return;
@@ -229,18 +249,13 @@ export function useStockBrowseController(
     scope.value = newReportQuery("inventory").scope;
   }
   const appliedChips = computed(() => [
-    ...scopeFilterChips(query.value.scope, reference).map((chip) => ({
+    ...scopeFilterFieldChips(query.value.scope, reference).map((chip) => ({
       ...chip,
       remove: () => {
         const nextScope = JSON.parse(
           JSON.stringify(query.value.scope),
         ) as ReportQuery["scope"];
-        const current = nextScope[chip.field];
-        Object.assign(nextScope, {
-          [chip.field]: Array.isArray(current)
-            ? current.filter((value) => value !== chip.value)
-            : "",
-        });
+        clearScopeField(nextScope, chip.field);
         scope.value = nextScope;
       },
     })),
@@ -307,6 +322,10 @@ export function useStockBrowseController(
     analysisDimension,
     scope,
     query,
+    groups,
+    setGroupBy: (groupBy: string[]) => {
+      constraints.value.groupBy = groupBy.slice(0, 2);
+    },
     metrics,
     load,
     clear,
@@ -337,6 +356,9 @@ export function useStockBrowseController(
     },
     openItem: (item: StockItem) => {
       if (!data.stale) openItem(item.code);
+    },
+    openItemCode: (code: string) => {
+      if (!data.stale && code) openItem(code);
     },
     expiryStatus: (item: StockItem) => expiryStatus(item, reference.siteDate),
   };

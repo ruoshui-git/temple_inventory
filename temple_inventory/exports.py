@@ -16,7 +16,7 @@ import xlsxwriter
 from frappe.utils import now_datetime
 
 from temple_inventory.native_access import check_document_scope, check_version, require_app
-from temple_inventory.projections import TABLE_LABELS, Projection
+from temple_inventory.projections import INTERNAL_TABLES, TABLE_LABELS, Projection
 from temple_inventory.report_query import validate_query
 
 EXPORT_DOCTYPE = "Inventory Export Request"
@@ -96,9 +96,9 @@ def request_export(query, export_format="xlsx", tables=None, include_related=Fal
 	if type(include_related) is not bool:
 		frappe.throw("请选择是否包含关联资料")
 	# Validate scope and table names before creating a durable job request.
-	with Projection(validated) as projection:
+	with Projection(validated, refresh=True) as projection:
 		projection.build(related=include_related)
-		if any(table not in projection.column_names for table in selected):
+		if any(table not in projection.column_names or table in INTERNAL_TABLES for table in selected):
 			frappe.throw("请选择有效的数据表")
 	doc = frappe.get_doc(
 		{
@@ -285,7 +285,7 @@ def generate_export(request_name):
 		_save(request)
 		frappe.db.commit()
 		with tempfile.TemporaryDirectory(prefix="ti-export-") as output_dir:
-			with Projection(json.loads(request.query_json)) as projection:
+			with Projection(json.loads(request.query_json), refresh=True) as projection:
 				projection.build(related=bool(request.include_related))
 				request.progress = 60
 				_save(request)

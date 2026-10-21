@@ -113,6 +113,7 @@ function full() {
 		</fieldset>
 		<ReportTable
 			v-if="page"
+			:preference-id="`quick-export.${query.dataset}.${query.view}.${page.table}`"
 			:table="{
 				id: page.table,
 				label: page.tables.find((table) => table.id === page!.table)?.label || '',

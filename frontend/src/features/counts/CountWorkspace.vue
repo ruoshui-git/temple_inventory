@@ -12,10 +12,15 @@ import type { HistoryRow } from "../movements/useMovementHistory";
 import CountSummary from "./CountSummary.vue";
 import type { CountRow } from "./countModel";
 import type { CountEditor } from "./useCountEditor";
+import DataTable from "../../components/ui/DataTable.vue";
+import { useOptionalInventoryServices } from "../../services/contracts";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
 
 const props = defineProps<{ controller: CountEditor }>();
 const emit = defineEmits<{ openDocument: [doctype: string, name: string] }>();
 const c = props.controller;
+const services = useOptionalInventoryServices();
 const {
 	values,
 	rows,
@@ -34,7 +39,7 @@ const {
 const search = ref("");
 const reviewFilter = ref<"all" | "unreviewed" | "difference">("all");
 const selectedLocations = ref<string[]>([]);
-const sortBy = ref<"location" | "item" | "batch">("location");
+const sortBy = ref<"location" | "item_name" | "item_code" | "batch">("location");
 const sortDirection = ref<1 | -1>(1);
 const pageSize = 100;
 const visiblePage = ref(1);
@@ -104,10 +109,11 @@ const sortedRows = computed(() =>
 				warehouseLabel(left.warehouse, reference.warehouses),
 				warehouseLabel(right.warehouse, reference.warehouses),
 			],
-			item: [
+			item_name: [
 				left.item_name || names[left.item_code] || left.item_code,
 				right.item_name || names[right.item_code] || right.item_code,
 			],
+			item_code: [left.item_code, right.item_code],
 			batch: [left.batch_no || "", right.batch_no || ""],
 		}[sortBy.value];
 		const primary = values[0].localeCompare(values[1], "zh-CN") * sortDirection.value;
@@ -134,6 +140,29 @@ const pageCount = computed(() => Math.max(1, Math.ceil(sortedRows.value.length /
 const visibleRows = computed(() =>
 	sortedRows.value.slice((visiblePage.value - 1) * pageSize, visiblePage.value * pageSize),
 );
+const countColumns = computed<DataColumn[]>(() => [
+	{ id: "location", label: "位置", sortable: true, minWidth: "150px" },
+	{ id: "image", label: "图片", defaultVisible: true, minWidth: "72px" },
+	{ id: "item_name", label: "物品名称", sortable: true, required: true, minWidth: "180px" },
+	{ id: "item_code", label: "物品编码", sortable: true, required: true, minWidth: "140px" },
+	{ id: "batch", label: "批次", sortable: true, minWidth: "120px" },
+	{ id: "stock_uom", label: "库存单位", minWidth: "90px" },
+	{ id: "baseline_qty", label: "账面数量", minWidth: "100px", align: "end" },
+	{ id: "actual_qty", label: "实点数量", required: true, minWidth: "140px" },
+	{ id: "difference", label: "差异", minWidth: "100px", align: "end" },
+	{ id: "actions", label: "操作", required: true, minWidth: "240px" },
+]);
+const countColumnPreferences = services
+	? useColumnPreferences("count.workspace", countColumns, reference, services)
+	: undefined;
+const countTableRows = computed<DataTableRecord[]>(() =>
+	visibleRows.value.map((row) => ({ kind: "record", id: c.countKey(row), value: row })),
+);
+const countEmptyText = computed(() =>
+	rows.value.length
+		? "没有符合当前搜索和筛选条件的行。"
+		: "正在读取盘点基准或此范围没有库存行。",
+);
 const hiddenEntered = computed(() => {
 	const visibleKeys = new Set(filteredRows.value.map(c.countKey));
 	return rows.value.filter((row) => hasCountInput(row) && !visibleKeys.has(c.countKey(row)))
@@ -151,13 +180,16 @@ watch([selectedLocations, search, reviewFilter], () => {
 watch(pageCount, (count) => {
 	if (visiblePage.value > count) visiblePage.value = count;
 });
-function sort(field: "location" | "item" | "batch") {
+function sort(field: "location" | "item_name" | "item_code" | "batch") {
 	if (sortBy.value === field) sortDirection.value = sortDirection.value === 1 ? -1 : 1;
 	else {
 		sortBy.value = field;
 		sortDirection.value = 1;
 	}
 	visiblePage.value = 1;
+}
+function countRowAttributes(row: Record<string, unknown>) {
+	return { "data-count-key": c.countKey(row as unknown as CountRow) };
 }
 function input(row: CountRow, event: Event) {
 	c.input(row, (event.target as HTMLInputElement).value);
@@ -277,160 +309,114 @@ function itemImage(row: CountRow) {
 				<input v-model="removalAcknowledged" type="checkbox" />已核对移出的输入
 			</label>
 		</section>
-		<div
-			class="count-table-scroll"
-			role="region"
-			aria-label="盘点明细，可横向滚动"
-			tabindex="0"
+		<DataTable
+			class="count-data-table"
+			ariaLabel="盘点明细"
+			table-class="count-table"
+			:columns="countColumns"
+			:rows="countTableRows"
+			:row-key="(row) => c.countKey(row as unknown as CountRow)"
+			:row-attributes="countRowAttributes"
+			:empty-text="countEmptyText"
+			:sort-by="sortBy"
+			:sort-direction="sortDirection === 1 ? 'asc' : 'desc'"
+			:column-preferences="countColumnPreferences"
+			@sort="sort($event as 'location' | 'item_name' | 'item_code' | 'batch')"
 		>
-			<table class="count-table">
-				<thead>
-					<tr>
-						<th>
-							<button type="button" @click="sort('location')">
-								位置{{
-									sortBy === "location"
-										? sortDirection === 1
-											? " ↑"
-											: " ↓"
-										: ""
-								}}
-							</button>
-						</th>
-						<th>
-							<button type="button" @click="sort('item')">
-								物品{{
-									sortBy === "item" ? (sortDirection === 1 ? " ↑" : " ↓") : ""
-								}}
-							</button>
-						</th>
-						<th>
-							<button type="button" @click="sort('batch')">
-								批次{{
-									sortBy === "batch" ? (sortDirection === 1 ? " ↑" : " ↓") : ""
-								}}
-							</button>
-						</th>
-						<th>库存单位</th>
-						<th>账面数量</th>
-						<th>实点数量</th>
-						<th>差异</th>
-						<th>操作</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr
-						v-for="row in visibleRows"
-						:key="c.countKey(row)"
-						:data-count-key="c.countKey(row)"
+			<template #cell="{ column, row }">
+				<template v-if="column.id === 'location'">{{
+					warehouseLabel(String(row.warehouse || ""), reference.warehouses)
+				}}</template>
+				<div v-else-if="column.id === 'image'" class="count-item-thumbnail">
+					<ItemImage :item="itemImage(row as unknown as CountRow)" />
+				</div>
+				<strong v-else-if="column.id === 'item_name'">{{
+					row.item_name || names[String(row.item_code || "")] || row.item_code
+				}}</strong>
+				<template v-else-if="column.id === 'item_code'">{{ row.item_code }}</template>
+				<template v-else-if="column.id === 'batch'">{{ row.batch_no || "—" }}</template>
+				<template v-else-if="column.id === 'stock_uom'">{{ row.stock_uom }}</template>
+				<template v-else-if="column.id === 'baseline_qty'">{{
+					row.baseline_qty
+				}}</template>
+				<div v-else-if="column.id === 'actual_qty'" class="count-actual-cell">
+					<input
+						v-if="writable"
+						class="count-actual-input"
+						type="number"
+						min="0"
+						:step="
+							reference.units.find((unit) => unit.name === row.stock_uom)?.whole
+								? 1
+								: 'any'
+						"
+						:value="hasCountInput(row as unknown as CountRow) ? row.actual_qty : ''"
+						:disabled="busy || baselineBusy"
+						:aria-label="`${row.item_name || names[String(row.item_code || '')] || row.item_code}实点数量`"
+						:aria-invalid="
+							showError &&
+							issues.some(
+								(issue) => issue.key === c.countKey(row as unknown as CountRow),
+							)
+						"
+						@input="input(row as unknown as CountRow, $event)"
+					/>
+					<span v-else>{{
+						row.review_state === "Unreviewed" ? "未核对" : row.actual_qty
+					}}</span>
+					<div
+						v-if="row.needs_review && row.actual_qty !== null"
+						class="count-baseline-warning"
 					>
-						<td>{{ warehouseLabel(row.warehouse, reference.warehouses) }}</td>
-						<td class="count-item-cell">
-							<div class="count-item-content">
-								<div class="count-item-thumbnail">
-									<ItemImage :item="itemImage(row)" />
-								</div>
-								<div>
-									<strong>{{
-										row.item_name || names[row.item_code] || row.item_code
-									}}</strong
-									><small>{{ row.item_code }}</small>
-								</div>
-							</div>
-						</td>
-						<td>{{ row.batch_no || "—" }}</td>
-						<td>{{ row.stock_uom }}</td>
-						<td>{{ row.baseline_qty }}</td>
-						<td>
-							<div class="count-actual-cell">
-								<input
-									v-if="writable"
-									class="count-actual-input"
-									type="number"
-									min="0"
-									:step="
-										reference.units.find((unit) => unit.name === row.stock_uom)
-											?.whole
-											? 1
-											: 'any'
-									"
-									:value="hasCountInput(row) ? row.actual_qty : ''"
-									:disabled="busy || baselineBusy"
-									:aria-label="`${row.item_name || names[row.item_code] || row.item_code}实点数量`"
-									:aria-invalid="
-										showError &&
-										issues.some((issue) => issue.key === c.countKey(row))
-									"
-									@input="input(row, $event)"
-								/>
-								<span v-else>{{
-									row.review_state === "Unreviewed" ? "未核对" : row.actual_qty
-								}}</span>
-								<div
-									v-if="row.needs_review && row.actual_qty !== null"
-									class="count-baseline-warning"
-								>
-									<span>基准已变化</span>
-									<button
-										type="button"
-										:disabled="busy || baselineBusy"
-										@click="c.rereview(row)"
-									>
-										确认仍按当前实点
-									</button>
-								</div>
-							</div>
-						</td>
-						<td
-							:class="{
-								'count-difference-positive':
-									hasCountInput(row) && row.actual_qty > row.baseline_qty,
-								'count-difference-negative':
-									hasCountInput(row) && row.actual_qty < row.baseline_qty,
-							}"
+						<span>基准已变化</span>
+						<button
+							type="button"
+							:disabled="busy || baselineBusy"
+							@click="c.rereview(row as unknown as CountRow)"
 						>
-							{{
-								hasCountInput(row) === false
-									? "待核对"
-									: `${row.actual_qty - row.baseline_qty > 0 ? "+" : ""}${row.actual_qty - row.baseline_qty}`
-							}}
-						</td>
-						<td class="count-row-actions">
-							<div class="count-row-actions-inner">
-								<UiButton
-									size="compact"
-									:disabled="busy || baselineBusy"
-									@click="c.openHistory(row)"
-									>历史</UiButton
-								>
-								<UiButton
-									v-if="writable"
-									size="compact"
-									:disabled="busy || baselineBusy"
-									@click="clear(row)"
-									>清除输入</UiButton
-								>
-								<UiButton
-									v-if="writable || row.reason"
-									size="compact"
-									@click="notesTarget = row"
-									>备注</UiButton
-								>
-							</div>
-						</td>
-					</tr>
-					<tr v-if="!visibleRows.length">
-						<td colspan="8" class="count-empty">
-							{{
-								rows.length
-									? "没有符合当前搜索和筛选条件的行。"
-									: "正在读取盘点基准或此范围没有库存行。"
-							}}
-						</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
+							确认仍按当前实点
+						</button>
+					</div>
+				</div>
+				<span
+					v-else-if="column.id === 'difference'"
+					:class="{
+						'count-difference-positive':
+							hasCountInput(row as unknown as CountRow) &&
+							Number(row.actual_qty) > Number(row.baseline_qty),
+						'count-difference-negative':
+							hasCountInput(row as unknown as CountRow) &&
+							Number(row.actual_qty) < Number(row.baseline_qty),
+					}"
+					>{{
+						hasCountInput(row as unknown as CountRow)
+							? `${Number(row.actual_qty) - Number(row.baseline_qty) > 0 ? "+" : ""}${Number(row.actual_qty) - Number(row.baseline_qty)}`
+							: "待核对"
+					}}</span
+				>
+				<div v-else-if="column.id === 'actions'" class="count-row-actions-inner">
+					<UiButton
+						size="compact"
+						:disabled="busy || baselineBusy"
+						@click="c.openHistory(row as unknown as CountRow)"
+						>历史</UiButton
+					>
+					<UiButton
+						v-if="writable"
+						size="compact"
+						:disabled="busy || baselineBusy"
+						@click="clear(row as unknown as CountRow)"
+						>清除输入</UiButton
+					>
+					<UiButton
+						v-if="writable || row.reason"
+						size="compact"
+						@click="notesTarget = row as unknown as CountRow"
+						>备注</UiButton
+					>
+				</div>
+			</template>
+		</DataTable>
 		<div v-if="pageCount > 1" class="count-pagination">
 			<UiButton :disabled="visiblePage <= 1" @click="visiblePage--">上一页</UiButton>
 			<span>{{ visiblePage }} / {{ pageCount }}</span>
@@ -466,9 +452,12 @@ function itemImage(row: CountRow) {
 				:error="c.history.result.error"
 				:initialized="c.history.result.initialized"
 				:stale="c.history.result.stale"
+				:sort-by="c.history.sortBy.value"
+				:sort-direction="c.history.sortDirection.value"
 				:show-status="false"
 				@load-more="c.history.loadMore"
 				@retry="c.history.retry"
+				@sort="c.history.setSort"
 				@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 				@open-loan="(name) => emit('openDocument', 'Stock Entry', name)"
 			/>
@@ -553,45 +542,8 @@ function itemImage(row: CountRow) {
 	color: var(--p-muted);
 	font-size: 0.88rem;
 }
-.count-table-scroll {
-	max-width: 100%;
-	overflow: auto;
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-card);
-}
 .count-table {
-	width: 100%;
 	min-width: 990px;
-	border-collapse: collapse;
-}
-.count-table th,
-.count-table td {
-	padding: 5px 8px;
-	border-bottom: 1px solid var(--p-border);
-	text-align: left;
-	vertical-align: middle;
-}
-.count-table th {
-	position: sticky;
-	top: 0;
-	z-index: 1;
-	background: var(--p-surface);
-}
-.count-table th button {
-	min-height: var(--p-control);
-	padding: 0;
-	border: 0;
-	color: inherit;
-	background: none;
-	font: inherit;
-	font-weight: 650;
-	cursor: pointer;
-}
-.count-table tbody tr:hover {
-	background: var(--p-soft);
-}
-.count-table td.count-item-cell {
-	min-width: 220px;
 }
 .count-item-content {
 	display: flex;
@@ -599,9 +551,9 @@ function itemImage(row: CountRow) {
 	gap: 8px;
 }
 .count-item-thumbnail {
-	width: 38px;
-	height: 38px;
-	flex: 0 0 38px;
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
+	flex: 0 0 var(--p-table-thumbnail);
 	overflow: hidden;
 }
 .count-item-content strong,
@@ -642,14 +594,17 @@ function itemImage(row: CountRow) {
 	background: transparent;
 	text-decoration: underline;
 }
-.count-table td.count-row-actions {
-	min-width: 185px;
-}
 .count-row-actions-inner {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	white-space: nowrap;
+}
+.count-row-actions-inner :deep(button) {
+	flex: 0 0 auto;
+	min-width: max-content;
+	white-space: nowrap;
+	word-break: keep-all;
 }
 .count-difference-positive {
 	color: var(--p-success);
@@ -658,11 +613,6 @@ function itemImage(row: CountRow) {
 .count-difference-negative {
 	color: var(--p-danger);
 	font-weight: 650;
-}
-.count-empty {
-	padding: 28px !important;
-	text-align: center !important;
-	color: var(--p-muted);
 }
 .count-removed {
 	display: grid;
@@ -691,18 +641,14 @@ function itemImage(row: CountRow) {
 		flex: 1;
 		min-height: 44px;
 	}
-	.count-table th,
-	.count-table td {
-		padding: 5px 8px;
-	}
 	.count-table .count-actual-input {
 		min-height: 44px;
 		width: 112px;
 	}
 	.count-item-thumbnail {
-		width: 44px;
-		height: 44px;
-		flex-basis: 44px;
+		width: var(--p-table-thumbnail);
+		height: var(--p-table-thumbnail);
+		flex-basis: var(--p-table-thumbnail);
 	}
 	.count-row-actions-inner :deep(button) {
 		min-height: 44px;

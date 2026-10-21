@@ -1,0 +1,72 @@
+{
+  "results": [
+    {
+      "case": "rail-save",
+      "status": []
+    },
+    {
+      "case": "tree-chip",
+      "chips": "物品类别：1 项\n×\n清空筛选",
+      "checked": true
+    },
+    {
+      "case": "date-invalid",
+      "alerts": [
+        "结束日期不能早于开始日期。"
+      ]
+    },
+    {
+      "case": "date-apply",
+      "url": "http://127.0.0.1:8000/inventory/movements?view=records&query={%22scope%22:{%22period%22:{%22key%22:%22custom%22,%22from%22:%222026-01-01%22,%22to%22:%222026-03-31%22},%22warehouses%22:[],%22categories%22:[],%22uncategorized%22:false,%22item%22:%22%22,%22activity%22:%22%22,%22sources%22:[],%22destinations%22:[],%22kinds%22:[]},%22search%22:%22%22,%22batchNo%22:%22%22,%22batchNoExact%22:false,%22groupBy%22:[],%22sort%22:%22desc%22,%22sortBy%22:%22date%22,%22statuses%22:[1],%22includeAdjustments%22:true,%22includeZero%22:false,%22includeUndated%22:true,%22activityStatus%22:%22all%22,%22typeId%22:%22%22,%22record%22:%22%22,%22recordDoctype%22:%22%22,%22loan%22:%22%22,%22itemCodes%22:[],%22restrictItems%22:false,%22itemLocationKeys%22:[],%22relatedPeriod%22:{%22key%22:%22all%22,%22from%22:%22%22,%22to%22:%22%22},%22relatedSearch%22:%22%22,%22loanStatus%22:%22all%22,%22loanOutcome%22:%22all%22,%22expiryWindow%22:%22period%22,%22countReviewed%22:%22all%22,%22allocationKeys%22:[],%22restrictAllocations%22:false,%22damageOnly%22:false,%22activityKind%22:%22%22,%22relatedPresence%22:%22all%22,%22outstandingOnly%22:false}",
+      "chips": "日期：2026-01-01 – 2026-03-31\n×"
+    },
+    {
+      "case": "date-discard",
+      "from": "2026-01-01"
+    },
+    {
+      "case": "future-quarter",
+      "dates": [
+        "2027-10-01",
+        "2027-12-31"
+      ],
+      "label": "流动日期\n时间范围\n全部时间\n今日\n本周\n本月\n本年\n本季度\n上季度\n近7天\n近30天\n近90天\n近365天\n自定义\n快捷年份\n快捷范围\n全年\n第 1 季度\n第 2 季度\n第 3 季度\n第 4 季度\n使用范围\n已选快捷范围：2027-Q4\n开始日期\n结束日期\n包含开始和结束日期当天。\n撤销日期\n应用日期"
+    },
+    {
+      "case": "scanner-open",
+      "iteration": 0,
+      "tracks": [
+        "live"
+      ],
+      "alerts": []
+    },
+    {
+      "case": "scanner-close",
+      "iteration": 0,
+      "tracks": [
+        "ended"
+      ],
+      "dialogs": 0
+    },
+    {
+      "case": "scanner-open",
+      "iteration": 1,
+      "tracks": [
+        "ended",
+        "live"
+      ],
+      "alerts": []
+    },
+    {
+      "case": "scanner-close",
+      "iteration": 1,
+      "tracks": [
+        "ended",
+        "ended"
+      ],
+      "dialogs": 0
+    }
+  ],
+  "errors": [],
+  "failed": []
+}

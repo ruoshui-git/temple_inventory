@@ -1,0 +1,558 @@
+{
+  "results": [
+    {
+      "case": "identities",
+      "e": {
+        "available": 12,
+        "batch_no": "TI-SAMPLE-UNDATED",
+        "batch_tracked": true,
+        "category": "餐具与耗材",
+        "damaged": 0,
+        "expiry_date": "",
+        "id": "[\"TI-SAMPLE-N-UNDATED\",\"A02 / 无货位 - O\",\"TI-SAMPLE-UNDATED\"]",
+        "image": "",
+        "item_code": "TI-SAMPLE-N-UNDATED",
+        "item_name": "无效期批次耗材",
+        "loaned": 0,
+        "manufacturing_date": "2025-02-27",
+        "remaining_days": null,
+        "snapshot": "2026-10-20 20:54:37.662179",
+        "stock_qty": 12,
+        "stock_uom": "Nos",
+        "warehouse": "A02 / 无货位 - O",
+        "warehouse_label": "A02"
+      },
+      "m": {
+        "activity": "",
+        "activity_title": "",
+        "activity_type": "",
+        "allocation_count": 1,
+        "amended_from": "",
+        "available_effect": 12.5,
+        "borrower": "",
+        "date": "2025-09-15",
+        "docstatus": 1,
+        "docstatus_label": "已提交",
+        "doctype": "Stock Entry",
+        "document": "MAT-STE-2026-00001",
+        "document_id": "Stock Entry:MAT-STE-2026-00001",
+        "handler": "",
+        "id": "Stock Entry:MAT-STE-2026-00001:Kg",
+        "item_codes": [
+          "TI-SAMPLE-N-WEIGHT"
+        ],
+        "item_count": 1,
+        "kind": "Receive",
+        "modified": "2026-10-20 19:49:39.040963",
+        "notes": "[TI-SAMPLE] catalog-opening",
+        "posting_timestamp": "2025-09-15 12:00:00",
+        "purpose": "开发样例活动用品",
+        "recorded_by": "Administrator",
+        "recorder": "",
+        "reviewer": "",
+        "source": "开发样例原生入库",
+        "stock_qty": 12.5,
+        "stock_uom": "Kg",
+        "time": "12:00:00"
+      },
+      "l": {
+        "activity": "d96mvc3pu8",
+        "activity_title": "样例：秋季演出与物资周转",
+        "activity_type": "TI-TYPE-PERFORMANCE",
+        "allocation_count": 1,
+        "amended_from": "",
+        "borrowed": 20,
+        "borrower": "样例演出团队",
+        "damaged": 3,
+        "date": "2026-09-30",
+        "docstatus": 1,
+        "docstatus_label": "已提交",
+        "doctype": "Stock Entry",
+        "document": "MAT-STE-2026-00005",
+        "document_id": "Stock Entry:MAT-STE-2026-00005",
+        "handler": "",
+        "id": "Stock Entry:MAT-STE-2026-00005:Nos",
+        "item_codes": [
+          "TI-SAMPLE-N-WORKFLOW"
+        ],
+        "item_count": 1,
+        "kind": "Loan",
+        "lost": 2,
+        "modified": "2026-10-20 19:49:48.534697",
+        "notes": "[TI-SAMPLE] loan-first",
+        "outstanding": 11,
+        "posting_timestamp": "2026-09-30 12:00:00",
+        "purpose": "开发样例活动用品",
+        "recorded_by": "Administrator",
+        "recorder": "",
+        "returned": 4,
+        "reviewer": "",
+        "source": "",
+        "stock_qty": 11,
+        "stock_uom": "Nos",
+        "time": "12:00:00"
+      },
+      "a": {
+        "activity": "d96mvc3pu8",
+        "activity_type": "TI-TYPE-PERFORMANCE",
+        "activity_type_label": "节目",
+        "count_Damage": 1,
+        "count_Disposal": 1,
+        "count_Issue": 1,
+        "count_Loan": 2,
+        "count_Loss": 1,
+        "count_Opening": 0,
+        "count_Receive": 1,
+        "count_Reconcile": 0,
+        "count_Repair": 1,
+        "count_Return": 2,
+        "count_Transfer": 1,
+        "date": "2026-08-21",
+        "description": "原生借出、部分归还、损坏与报损示例",
+        "document_count": 11,
+        "end_date": "2026-10-27",
+        "has_outstanding": true,
+        "id": "d96mvc3pu8",
+        "modified": "2026-10-20 19:49:47.880339",
+        "notes": "首次借出与追加借出属于同一活动。\n归还记录保留原借出明细；一张归还记录可结算多个兼容借出。",
+        "owner": "Administrator",
+        "start_date": "2026-08-21",
+        "status": "Active",
+        "title": "样例：秋季演出与物资周转"
+      },
+      "c": {
+        "actual_qty": 75,
+        "allocation_count": 2,
+        "baseline_qty": 77,
+        "count_scope": "Selected",
+        "date": "2026-10-19",
+        "difference": -2,
+        "docstatus": 1,
+        "docstatus_label": "已提交",
+        "doctype": "Stock Reconciliation",
+        "document": "MAT-RECO-2026-00001",
+        "document_count": 1,
+        "document_id": "Stock Reconciliation:MAT-RECO-2026-00001",
+        "id": "[\"records\", \"Stock Reconciliation\", \"MAT-RECO-2026-00001\", \"Stock Reconciliation:MAT-RECO-2026-00001\", \"2026-10-19\", \"12:00:00\", 1, \"Nos\", \"Selected\"]",
+        "item_count": 1,
+        "row_count": 2,
+        "stock_qty": -2,
+        "stock_uom": "Nos",
+        "time": "12:00:00"
+      },
+      "apiErrors": []
+    },
+    {
+      "name": "item",
+      "route": "/stock/items/TI-SAMPLE-N-WORKFLOW",
+      "breadcrumb": [
+        "寺院物资/库存/TI-SAMPLE-N-WORKFLOW"
+      ],
+      "headings": [
+        "物品详情",
+        "活动周转箱",
+        "物品图片",
+        "最近流动",
+        "借用记录"
+      ],
+      "tables": 3,
+      "rows": 20,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "item-edit",
+      "route": "/stock/items/TI-SAMPLE-N-WORKFLOW/edit",
+      "breadcrumb": [
+        "寺院物资/库存/活动周转箱/编辑"
+      ],
+      "headings": [
+        "编辑物品"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "item-new",
+      "route": "/stock/items/new",
+      "breadcrumb": [
+        "寺院物资/库存/新建物品"
+      ],
+      "headings": [
+        "新建物品"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "movement-new",
+      "route": "/movements/new/Receive",
+      "breadcrumb": [
+        "寺院物资/货物流动/入库"
+      ],
+      "headings": [
+        "入库",
+        "操作物资",
+        "操作汇总"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "loan-new",
+      "route": "/movements/new/Loan",
+      "breadcrumb": [
+        "寺院物资/货物流动/借出"
+      ],
+      "headings": [
+        "借出",
+        "借用对象",
+        "操作物资",
+        "操作汇总"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "count-new",
+      "route": "/counts/new",
+      "breadcrumb": [
+        "寺院物资/盘点调整/新建盘点"
+      ],
+      "headings": [
+        "新建盘点"
+      ],
+      "tables": 1,
+      "rows": 100,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "activity-new",
+      "route": "/activities/new",
+      "breadcrumb": [
+        "寺院物资/活动/新建活动"
+      ],
+      "headings": [
+        "新建活动"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "batch",
+      "route": "/stock/batches/TI-SAMPLE-UNDATED",
+      "breadcrumb": [
+        "寺院物资/库存/效期批次/TI-SAMPLE-UNDATED"
+      ],
+      "headings": [
+        "TI-SAMPLE-UNDATED",
+        "无效期批次耗材",
+        "存放位置 · 1 处",
+        "批次流动记录 · 1 条"
+      ],
+      "tables": 2,
+      "rows": 2,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "warehouse",
+      "route": "/stock/warehouses/A02%20%2F%20%E6%97%A0%E8%B4%A7%E4%BD%8D%20-%20O",
+      "breadcrumb": [
+        "寺院物资/库存/仓库/无货位"
+      ],
+      "headings": [
+        "无货位",
+        "无货位",
+        "最近流动"
+      ],
+      "tables": 1,
+      "rows": 19,
+      "alerts": [
+        "请选择有效的排序 重试库存"
+      ],
+      "overflow": false
+    },
+    {
+      "name": "movement",
+      "route": "/movements/MAT-STE-2026-00001",
+      "breadcrumb": [
+        "寺院物资/货物流动/MAT-STE-2026-00001"
+      ],
+      "headings": [
+        "入库",
+        "操作物资",
+        "操作汇总"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "loan",
+      "route": "/loans/MAT-STE-2026-00005",
+      "breadcrumb": [
+        "寺院物资/借用/MAT-STE-2026-00005"
+      ],
+      "headings": [
+        "借用详情",
+        "样例演出团队",
+        "处理历史",
+        "附件"
+      ],
+      "tables": 1,
+      "rows": 3,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "activity",
+      "route": "/activities/d96mvc3pu8",
+      "breadcrumb": [
+        "寺院物资/活动/样例：秋季演出与物资周转"
+      ],
+      "headings": [
+        "样例：秋季演出与物资周转",
+        "活动概览"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "activity-edit",
+      "route": "/activities/d96mvc3pu8/edit",
+      "breadcrumb": [
+        "寺院物资/活动/样例：秋季演出与物资周转/编辑"
+      ],
+      "headings": [
+        "编辑活动"
+      ],
+      "tables": 0,
+      "rows": 0,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "name": "count",
+      "route": "/counts/MAT-RECO-2026-00001",
+      "breadcrumb": [
+        "寺院物资/盘点调整/MAT-RECO-2026-00001"
+      ],
+      "headings": [
+        "盘点记录"
+      ],
+      "tables": 1,
+      "rows": 2,
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "case": "item-tab",
+      "button": "货物流动",
+      "rows": 0,
+      "alerts": []
+    },
+    {
+      "case": "item-tab",
+      "button": "借用",
+      "rows": 0,
+      "alerts": []
+    },
+    {
+      "case": "open-theme",
+      "theme": "jade",
+      "color": {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(36, 51, 45)"
+      }
+    },
+    {
+      "case": "open-theme",
+      "theme": "bronze",
+      "color": {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(41, 38, 34)"
+      }
+    },
+    {
+      "case": "open-theme",
+      "theme": "blue",
+      "color": {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(32, 41, 56)"
+      }
+    },
+    {
+      "case": "density-theme",
+      "name": "stock",
+      "theme": "jade",
+      "density": "compact",
+      "cell": {
+        "padding": "5px 8px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "stock",
+      "theme": "bronze",
+      "density": "balanced",
+      "cell": {
+        "padding": "12px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "stock",
+      "theme": "blue",
+      "density": "spacious",
+      "cell": {
+        "padding": "18px 16px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "report",
+      "theme": "jade",
+      "density": "compact",
+      "cell": {
+        "padding": "5px 8px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "report",
+      "theme": "bronze",
+      "density": "balanced",
+      "cell": {
+        "padding": "12px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "report",
+      "theme": "blue",
+      "density": "spacious",
+      "cell": {
+        "padding": "18px 16px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "history",
+      "theme": "jade",
+      "density": "compact",
+      "cell": {
+        "padding": "5px 8px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "history",
+      "theme": "bronze",
+      "density": "balanced",
+      "cell": {
+        "padding": "12px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "history",
+      "theme": "blue",
+      "density": "spacious",
+      "cell": {
+        "padding": "18px 16px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "reconciliation",
+      "theme": "jade",
+      "density": "compact",
+      "cell": {
+        "padding": "5px 8px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "reconciliation",
+      "theme": "bronze",
+      "density": "balanced",
+      "cell": {
+        "padding": "12px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "density-theme",
+      "name": "reconciliation",
+      "theme": "blue",
+      "density": "spacious",
+      "cell": {
+        "padding": "18px 16px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "overflow": false
+    },
+    {
+      "case": "200percent",
+      "overflow": false,
+      "input": {
+        "x": 51.1875,
+        "y": 342.765625,
+        "width": 853.5625,
+        "height": 53.1875
+      }
+    },
+    {
+      "case": "200percent-filter",
+      "box": {
+        "x": 1028,
+        "y": 12,
+        "width": 400,
+        "height": 602.328125
+      }
+    }
+  ],
+  "errors": [],
+  "failed": [
+    {
+      "url": "http://127.0.0.1:8000/api/method/temple_inventory.projections.report_page",
+      "status": 417
+    }
+  ]
+}

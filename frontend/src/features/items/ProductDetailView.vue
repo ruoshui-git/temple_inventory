@@ -13,6 +13,11 @@ import UiButton from "../../components/ui/UiButton.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ItemConversions from "./ItemConversions.vue";
+import DataTable from "../../components/ui/DataTable.vue";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { useOptionalInventoryServices } from "../../services/contracts";
+import { useArrayTableSort } from "../../composables/useArrayTableSort";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -45,6 +50,80 @@ const metrics = computed(() =>
 		: [],
 );
 const warehouseReference = useOptionalReferenceData();
+const services = useOptionalInventoryServices();
+const batchColumns = computed<DataColumn[]>(() => [
+	{
+		id: "batch_no",
+		label: "批次",
+		required: true,
+		defaultVisible: true,
+		sortable: true,
+		minWidth: "160px",
+	},
+	{ id: "expiry", label: "效期", defaultVisible: true, sortable: true },
+	{ id: "location", label: "位置", defaultVisible: true, sortable: true, minWidth: "180px" },
+	{ id: "available", label: "可用量", defaultVisible: true, sortable: true },
+	{ id: "loaned", label: "借出", defaultVisible: true, sortable: true },
+	{ id: "damaged", label: "损坏", defaultVisible: true, sortable: true },
+	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
+]);
+const locationColumns = computed<DataColumn[]>(() => [
+	{
+		id: "location",
+		label: "存放位置",
+		required: true,
+		defaultVisible: true,
+		sortable: true,
+		minWidth: "180px",
+	},
+	{ id: "available", label: "可用", defaultVisible: true, sortable: true },
+	{ id: "loaned", label: "借出", defaultVisible: true, sortable: true },
+	{ id: "damaged", label: "损坏", defaultVisible: true, sortable: true },
+	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
+]);
+const batchRows = computed<DataTableRecord[]>(() =>
+	batches.value.map((batch, index) => ({
+		kind: "record",
+		id: `${batch.id}:${batch.location}:${index}`,
+		value: { ...batch, uom: item.value?.uom || "" } as unknown as Record<string, unknown>,
+	})),
+);
+const locationRows = computed<DataTableRecord[]>(() =>
+	(item.value?.locations || []).map((place) => ({
+		kind: "record",
+		id: place.location,
+		value: { ...place, uom: item.value?.uom || "" } as unknown as Record<string, unknown>,
+	})),
+);
+const batchSort = useArrayTableSort(batchRows, "batch_no", [
+	"batch_no",
+	"expiry",
+	"location",
+	"available",
+	"loaned",
+	"damaged",
+	"uom",
+]);
+const locationSort = useArrayTableSort(locationRows, "location", [
+	"location",
+	"available",
+	"loaned",
+	"damaged",
+	"uom",
+]);
+const batchPrefs =
+	services && warehouseReference
+		? useColumnPreferences("item-detail.batches", batchColumns, warehouseReference, services)
+		: undefined;
+const locationPrefs =
+	services && warehouseReference
+		? useColumnPreferences(
+				"item-detail.locations",
+				locationColumns,
+				warehouseReference,
+				services,
+			)
+		: undefined;
 </script>
 <template>
 	<section class="preview-browse-page">
@@ -121,72 +200,62 @@ const warehouseReference = useOptionalReferenceData();
 				</button>
 			</nav>
 			<div v-if="tab === 'batches'" class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>批次</th>
-							<th>效期</th>
-							<th>位置</th>
-							<th>可用量</th>
-							<th>借出</th>
-							<th>损坏</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr
-							v-for="batch in batches"
-							:key="JSON.stringify([batch.id, batch.location])"
+				<DataTable
+					ariaLabel="物品批次库存"
+					table-class="browse-table"
+					:columns="batchColumns"
+					:rows="batchSort.rows.value"
+					:sort-by="batchSort.sortBy.value"
+					:sort-direction="batchSort.sortDirection.value"
+					:column-preferences="batchPrefs"
+					@sort="batchSort.setSort"
+					empty-text="当前没有可显示的批次库存。"
+				>
+					<template #cell="{ column, row }">
+						<UiButton
+							v-if="column.id === 'batch_no'"
+							:aria-label="`打开批次资料：${row.id}`"
+							@click="emit('openBatch', String(row.id))"
+							>{{ row.id }}</UiButton
 						>
-							<td>
-								<UiButton @click="emit('openBatch', batch.id)"
-									>{{ batch.id }} · 批次资料</UiButton
-								>
-							</td>
-							<td>{{ batch.expiry || "无效期" }}</td>
-							<td>
-								{{
-									warehouseLabel(
-										batch.location,
-										warehouseReference?.warehouses || [],
-										batch.label,
-									)
-								}}
-							</td>
-							<td>{{ batch.available }} {{ item.uom }}</td>
-							<td>{{ batch.loaned || 0 }} {{ item.uom }}</td>
-							<td>{{ batch.damaged || 0 }} {{ item.uom }}</td>
-						</tr>
-					</tbody>
-				</table>
+						<template v-else-if="column.id === 'expiry'">{{
+							row.expiry || "无效期"
+						}}</template>
+						<template v-else-if="column.id === 'location'">{{
+							warehouseLabel(
+								String(row.location || ""),
+								warehouseReference?.warehouses || [],
+								String(row.label || ""),
+							)
+						}}</template>
+						<template v-else>{{ row[column.id] ?? 0 }}</template>
+					</template>
+				</DataTable>
 				<p v-if="!batches.length" class="browse-note">当前没有可显示的批次库存。</p>
 			</div>
 			<div v-else class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>存放位置</th>
-							<th>可用</th>
-							<th>借出</th>
-							<th>损坏</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="place in item.locations" :key="place.location">
-							<td>
-								{{
-									warehouseLabel(
-										place.location,
-										warehouseReference?.warehouses || [],
-										place.label,
-									)
-								}}
-							</td>
-							<td>{{ place.available }} {{ item.uom }}</td>
-							<td>{{ place.loaned }} {{ item.uom }}</td>
-							<td>{{ place.damaged }} {{ item.uom }}</td>
-						</tr>
-					</tbody>
-				</table>
+				<DataTable
+					ariaLabel="物品库位余额"
+					table-class="browse-table"
+					:columns="locationColumns"
+					:rows="locationSort.rows.value"
+					:sort-by="locationSort.sortBy.value"
+					:sort-direction="locationSort.sortDirection.value"
+					:column-preferences="locationPrefs"
+					@sort="locationSort.setSort"
+					empty-text="此物品暂无库存。"
+				>
+					<template #cell="{ column, row }">
+						<template v-if="column.id === 'location'">{{
+							warehouseLabel(
+								String(row.location || ""),
+								warehouseReference?.warehouses || [],
+								String(row.label || ""),
+							)
+						}}</template>
+						<template v-else>{{ row[column.id] }}</template>
+					</template>
+				</DataTable>
 				<p v-if="!item.locations.length" class="browse-note">此物品暂无库存。</p>
 			</div>
 			<details>
@@ -208,8 +277,11 @@ const warehouseReference = useOptionalReferenceData();
 					:initialized="c.movements.result.initialized"
 					:error="c.movements.result.error"
 					:stale="c.movements.result.stale"
+					:sort-by="c.movements.sortBy.value"
+					:sort-direction="c.movements.sortDirection.value"
 					@load-more="c.movements.loadMore"
 					@retry="c.movements.refresh"
+					@sort="c.movements.setSort"
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 					@open-loan="(name) => emit('openLoan', name)"
 				/>
@@ -227,8 +299,11 @@ const warehouseReference = useOptionalReferenceData();
 					:initialized="c.loans.result.initialized"
 					:error="c.loans.result.error"
 					:stale="c.loans.result.stale"
+					:sort-by="c.loans.sortBy.value"
+					:sort-direction="c.loans.sortDirection.value"
 					@load-more="c.loans.loadMore"
 					@retry="c.loans.refresh"
+					@sort="c.loans.setSort"
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 					@open-loan="(name) => emit('openLoan', name)"
 				/>

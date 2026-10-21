@@ -266,7 +266,7 @@ watch(term, () => {
 				清除本项
 			</button>
 		</header>
-		<div v-if="selection.length" class="facet-chips">
+		<div v-if="selection.length && !embedded" class="facet-chips">
 			<button
 				v-for="name in selection"
 				:key="name"

@@ -92,7 +92,15 @@ def assert_native_reset_ready(allow_non_developer=0):
 		frappe.throw("Native reset is not ready: retired business DocType source remains")
 	fields = json.loads((root / "fixtures" / "custom_field.json").read_text())
 	if any(
-		row["fieldname"] in {"ti_workspace", "ti_loan", "ti_return", "ti_loss", "ti_responsible_person"}
+		row["fieldname"]
+		in {
+			"ti_workspace",
+			"ti_loan",
+			"ti_return",
+			"ti_loss",
+			"ti_responsible_person",
+			"ti_count_warehouse",
+		}
 		for row in fields
 	):
 		frappe.throw("Native reset is not ready: retired custom-field fixtures remain")
@@ -244,6 +252,7 @@ def verify_development_sample():
 	if frappe.db.exists(
 		"Custom Field",
 		{
+			"module": "Temple Inventory",
 			"fieldname": [
 				"in",
 				[
@@ -255,10 +264,21 @@ def verify_development_sample():
 					"ti_system_role",
 					"ti_fallback_role",
 				],
-			]
+			],
 		},
 	):
 		raise AssertionError("Retired custom fields remain after reset")
+	if frappe.db.exists(
+		"Custom Field",
+		{
+			"module": "Temple Inventory",
+			"dt": "Stock Reconciliation",
+			"fieldname": "ti_count_warehouse",
+		},
+	):
+		raise AssertionError("Retired singular count warehouse field remains after reset")
+	if frappe.db.has_column("Stock Reconciliation", "ti_count_warehouse"):
+		raise AssertionError("Retired singular count warehouse column remains after reset")
 	_assert_leaf_stock(settings)
 	codes = ["TI-SAMPLE-" + row["key"] for row in sample_media.catalog()["items"]]
 	codes.extend("TI-SAMPLE-" + row[0] for row in native_samples.EXTRA_ITEMS)
@@ -289,6 +309,21 @@ def verify_development_sample():
 		for key in ("loan-first", "loan-second")
 	]
 	native_samples.assert_balances(rooms, loans)
+	reconciliation = frappe.get_doc(
+		"Stock Reconciliation",
+		{"ti_request_key": _request_key("Stock Reconciliation", native_samples.REQUEST_PREFIX + "count")},
+	)
+	count_warehouses = frappe.parse_json(reconciliation.ti_count_warehouses or "[]")
+	if set(count_warehouses) != {rooms["A02"], rooms["A02-RACK"]}:
+		raise AssertionError("Native sample count does not retain both selected warehouses")
+	count_rows = frappe.parse_json(reconciliation.ti_count_review or "[]")
+	if not count_rows or any(row.get("review_state") != "Reviewed" for row in count_rows):
+		raise AssertionError("Native sample count review is missing reviewed variance rows")
+	if any(
+		abs(float(row.get("actual_qty") or 0) - float(row.get("baseline_qty") or 0)) < 0.00000001
+		for row in count_rows
+	):
+		raise AssertionError("Native sample count must retain non-zero reviewed variances")
 	media = sample_media.inventory()
 	if media["public_files"]:
 		raise AssertionError("Obsolete public sample media remains")
@@ -298,6 +333,8 @@ def verify_development_sample():
 		"items": len(codes),
 		"media": media,
 		"balances_verified": True,
+		"count_review_verified": True,
+		"count_review_rows": len(count_rows),
 		"retired_schema_absent": True,
 	}
 

@@ -50,7 +50,9 @@ describe("shared More workspace", () => {
       .filter((button) => button.text().includes("盘点调整"));
     expect(count).toHaveLength(1);
     await count[0]!.trigger("click");
-    expect(page.emitted("navigate")?.[0]).toEqual(["/counts"]);
+    expect(page.emitted("navigate")?.[0]).toEqual([
+      { name: "counts", params: {}, query: {} },
+    ]);
     expect(wrapper.text()).toContain("volunteer");
   });
   it("keeps failures distinct from zero and allows retrying a failed draft counter", async () => {

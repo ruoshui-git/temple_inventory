@@ -70,20 +70,6 @@ export function applyDisplayPreferences(values: DisplayPreferences) {
   root.dataset.tiTheme = values.theme;
   root.dataset.tiTextScale = String(values.textScale);
   root.style.setProperty("--p-text-scale", String(values.textScale / 100));
-  const selected = themes.find((entry) => entry.id === values.theme)!;
-  const properties = {
-    canvas: selected.canvas,
-    ink: selected.ink,
-    accent: selected.accent,
-    muted: selected.muted,
-    "control-border": selected.border,
-    soft: selected.soft,
-    "accent-strong": selected.strong,
-    "radius-control": selected.radius,
-    "radius-card": selected.cardRadius,
-  };
-  for (const [key, value] of Object.entries(properties))
-    root.style.setProperty(`--p-${key}`, value);
   if (typeof window !== "undefined")
     window.dispatchEvent(new Event("inventory-text-scale"));
 }

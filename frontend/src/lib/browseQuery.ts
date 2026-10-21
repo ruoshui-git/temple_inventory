@@ -4,6 +4,8 @@ export const periodLabels = {
   this_week: "本周",
   this_month: "本月",
   this_year: "本年",
+  this_quarter: "本季度",
+  last_quarter: "上季度",
   last_7_days: "近7天",
   last_30_days: "近30天",
   last_90_days: "近90天",

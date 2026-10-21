@@ -23,7 +23,7 @@ defineExpose({ controller });
 </script>
 <template>
 	<section v-if="controller.routeError.value" class="surface form-section">
-		<PageHeader title="导出" />
+		<PageHeader title="报表" />
 		<p role="alert">{{ controller.routeError.value }}</p>
 		<UiButton @click="controller.clear">恢复此数据集的默认范围</UiButton>
 	</section>

@@ -6,6 +6,7 @@ import App from "../src/App.vue";
 import Inventory from "../src/pages/Inventory.vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import type { InventoryServices } from "../src/services/contracts";
+import { routeRecords } from "../src/lib/routeRegistry";
 
 const mocked = vi.hoisted(() => ({
   call: vi.fn(),
@@ -80,12 +81,16 @@ describe("routed native browse restoration", () => {
     const placeholder = defineComponent({
       setup: () => () => h("p", "原生详情"),
     });
+    const routes = routeRecords.map((route) =>
+      route.name === "stock"
+        ? { ...route, component: Inventory }
+        : route.name === "item-detail"
+          ? { ...route, component: placeholder }
+          : route,
+    );
     const router = createRouter({
       history: createWebHistory("/memory-test"),
-      routes: [
-        { path: "/stock", component: Inventory },
-        { path: "/item/:code", component: placeholder },
-      ],
+      routes,
     });
     await router.push("/stock");
     const wrapper = mount(App, {
@@ -104,7 +109,7 @@ describe("routed native browse restoration", () => {
     await initial.load(true);
     expect(initial.data.rows).toHaveLength(60);
     const stockPosition = window.history.state.position;
-    await router.push("/item/ITEM-42");
+    await router.push("/stock/items/ITEM-42");
     expect(wrapper.text()).toContain("原生详情");
     router.back();
     await vi.waitFor(() =>
@@ -120,7 +125,7 @@ describe("routed native browse restoration", () => {
     expect(window.history.state.position).toBe(stockPosition);
     router.forward();
     await vi.waitFor(() =>
-      expect(router.currentRoute.value.path).toBe("/item/ITEM-42"),
+      expect(router.currentRoute.value.path).toBe("/stock/items/ITEM-42"),
     );
     router.back();
     await vi.waitFor(() =>
@@ -136,7 +141,7 @@ describe("routed native browse restoration", () => {
     expect(fresh).not.toBe(returned);
     expect(fresh.search.value).toBe("");
     expect(fresh.selected.value).toEqual([]);
-    expect(fresh.view.value).toBe("card");
+    expect(fresh.view.value).toBe("table");
     expect(fresh.data.rows).toHaveLength(30);
     const freshPosition = window.history.state.position;
     // Pressing the active primary again also creates a fresh, independent entry.

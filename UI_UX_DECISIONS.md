@@ -1,5 +1,95 @@
 # Temple Inventory UI/UX Decisions
 
+## Browse repair decisions — 2026-10-20 supersession
+
+- The persistent search, applied chips, scan action and filter action share one
+  focus-within container. Scan and Filter use named icon controls; IME, debounce,
+  scanner lifecycle, canonical filter state, chip overflow and 44px phone targets
+  remain intact. Desktop filter editing separates filters and grouping into
+  labeled columns; phone sheets stack those sections with labels.
+- Table column settings live in the trailing header cell and remain available
+  while a query is loading or empty. Group disclosure acts from the full row,
+  reports `aria-expanded`, and leaves embedded links, selects and buttons as
+  independent controls. Group metrics follow visible columns or carry explicit
+  labels. Grouped child records share the parent table header.
+- Browse summaries show a compact result count first. Full per-unit and
+  per-status analysis is disclosed on demand. Group summaries use one meaningful
+  count and concise quantities; detailed quantities remain discoverable in the
+  expanded view. Movement and Loan `view=items` retain native document-detail
+  history when grouping is removed, and grouped Item history has its own
+  disclosure state.
+- Movement and Loan record tables group native documents without changing their
+  whole-document quantity grain. Their record identity, date/type/location,
+  status, original loan links and settlement eligibility remain available on
+  grouped leaves. Reports identify as `报表`; only applied restrictions count
+  toward the Filter badge.
+
+These decisions supersede the earlier browse toolbar, group summary, and
+summary-card treatment below. Unchanged route, filter and responsive rules
+continue to apply.
+
+## Shared density and text scaling — 2026-10-20 supersession
+
+- Desktop compact, balanced and spacious density use 32px, 36px and 44px shared
+  control heights, 8px, 12px and 16px control gaps, and table-cell padding of
+  5px/8px, 12px/12px and 18px/16px (block/inline). Table thumbnails use 32px,
+  48px and 64px. Density changes geometry and spacing; font size and line height
+  scale independently from the user's text-size setting. Narrow-phone controls
+  retain 44px touch targets. This supersedes older density-specific typography.
+
+## Theme token ownership — 2026-10-20 supersession
+
+- Jade, bronze and blue palettes are defined by centralized `--p-*` tokens in
+  the shared foundation and selected with `data-ti-theme`. Components and page
+  styles consume semantic color, shadow and scrim tokens; theme preview swatches,
+  product artwork, images and camera content keep their intentional colors.
+  This supersedes page-local fixed presentation colors.
+
+## Browse navigation and shared controls — 2026-10-20 supersession
+
+- The six desktop primary destinations are 首页、库存、货物流动、借用、报表、更多.
+  库存 opens an accessible dropdown for 库存列表、效期批次、仓库、损坏待处理;
+  opening the menu does not navigate. The mobile six-item horizontal bar and
+  contextual links remain. This replaces the desktop app sidebar.
+- Search stays visible and persistent in the browse surface. Search modals from
+  compact mode are retired. A hybrid hierarchy sidebar owns category and
+  warehouse restrictions; active hierarchy restrictions remain visible as
+  synchronized search chips. This supersedes both the former all-filter rail
+  and the proposal to remove all sidebars.
+- Browse tables use flattened columns, shared row rendering, zero to two ordered
+  grouping levels, column settings, and compact/balanced/spacious density. Dates
+  are edited in place and include quarter presets. These shared controls replace
+  page-specific table layouts and date dialogs where those were used.
+- Canonical paths are `/stock/items/:code`, `/stock/expiry`,
+  `/stock/batches/:name`, `/stock/warehouses`, `/stock/categories`,
+  `/stock/damaged`, `/movements?view=items|records`,
+  `/movements/new/:kind`, `/movements/:name`, `/loans?view=items|records`,
+  `/loans/:name`, `/counts`, `/counts/new`, `/counts/:name`, and
+  `/settings/setup`. Named route definitions own navigation and breadcrumbs.
+  `更多` is a menu arrangement, not a breadcrumb domain. Retired URL shapes show
+  a deliberate not-found page. Native Stock Entry opens Movement; native Stock
+  Reconciliation opens Counts. Unsupported DocTypes are rejected.
+- Movement and Loan browse mode is controlled by top-level `view=items|records`.
+  Other filters and drill-through context remain URL state. A Loan overview is a
+  contextual page distinct from its native Stock Entry editor.
+
+- Browse filters share one viewport-bounded form/dialog or phone sheet. Search,
+  active filter chips and ordered group chips remain in one persistent toolbar;
+  hierarchy sidebars contain category and warehouse trees only. Sidebar open
+  state is a per-user Frappe default with a local cache scoped by site, account
+  and page/view.
+  Hiding a filter surface never changes its selected values. Date ranges are
+  staged in the shared editor and apply inclusive site-date bounds; named year
+  and quarter shortcuts become editable custom ranges. Compact chips summarize
+  each selected field; its editor retains every individual selected value.
+  Browse grouping is configurable to zero, one or two ordered levels wherever
+  the selected dataset/view supports it. Group fields and ordered sequences
+  come from the active view contract. Inventory location/history and Expiry
+  views include Category, Item and Location at either level. Movement summary
+  and Loan Item views support no grouping, Item, or Category → Item; removing
+  Category from that pair retains Item, while removing Item clears the
+  unsupported Category-only remainder.
+
 ## Native category, count and history refinements — 2026-10-19 supersession
 
 - Item category is optional. An empty selection is a native assignment to the
@@ -171,7 +261,6 @@ the collapsed toolbar and to maintain the separate preview application.
   drill-through scope. Hierarchies cap decoration indentation, and readable text
   tracks/actions reflow independently from touch targets and density.
 
-
 ## Production UI refinement choices — 2026-10-17
 
 The user confirmed three choices for the next implementation:
@@ -276,22 +365,22 @@ production enforcement is unchanged. See [migration coverage](DESIGN_MIGRATION_C
 for implementation evidence and backend prerequisites. Historical entries are retained
 for rationale, not as competing current rules.
 
-| ID | Decision / rationale | Migration impact |
-| --- | --- | --- |
-| UX-01 | ERPNext document type + name identifies transactions. One editor saves one Stock Entry or Stock Reconciliation. Desk and frontend are equal editors; no workspace ownership. | Replace workspace-exclusive guards/write APIs; ERPNext remains the ledger. |
-| UX-02 | Return includes normal/damaged quantities. Loss is a separate explicit operation. Compatible loans may share one return; never silently split documents. | Structured borrowing document/line references on Stock Entry lines; derived balances. |
-| UX-03 | New items default to Nos. Existing units/conversions remain authoritative. Large choices are searchable; contextual item/batch pickers expose availability/location/expiry. | Paginated full-dataset search, never just loaded options. |
-| UX-04 | Count one leaf location, selected items or full location. Blank is unreviewed, zero deliberate. Summaries separate baseline, reviewed actual and differences with reviewed/unreviewed scope. Baseline refresh preserves counts and requires review. | Versioned ERPNext reconciliation adapter. |
-| UX-05 | System Manager is the initial frontend audience; retain document authorization and clear access/session states. | Server gate is future work; preview stays login-free. |
-| UX-06 | Private inventory originals and derivatives through Frappe File. Public preview artwork is non-sensitive fixture material. | Audit thumbnail helper and verify seeded files; no reset in preview work. |
-| UX-07 | Clean database/API/UI preferred over compatibility during rapid development. A DB reset is acceptable during migration. | No obligation to preserve workspace IDs, old adapters or historical schema. Reset is a separate migration action. |
-| UX-08 | Structured activity and purpose remain separate. Explicit supporting-data creation returns to the preserved draft; no stacked overlays. | Preserve queryable fields rather than putting context in Notes. |
-| UX-10 | Preview movements use compact allocations and ordered multi-add; Receive creation uses one adaptive overlay. Text size scales independently from density. Dashboard failures belong to each card. | Preview implemented; production migration/fidelity review pending. |
-| UX-09 | Inventory/Movement/Loans use complete filtered totals and exports. Loading, conflicts and recovery retain input. Submitted documents obey ERPNext lifecycle. | Preserve unknown document fields, reject stale writes; no stock engine in preview. |
-| UX-11 | Activities use immutable IDs and reference-data types (捐赠、购买、分发、节目、投入使用、其它), optional dates/description/plain-text detailed notes, Active/Archived, guarded deletion. | Preview only; reference DocType, version/permission/deletion hooks required. |
-| UX-12 | Remove movement source type/responsible; retain Receive source, non-Receive purpose, activity, borrower, optional personnel and attachments. Fixed/completed values use selectable information. Busy edits retain input controls and buffers. | Coordinated backend custom-field/API retirement remains pending. |
-| UX-14 | Reports/Drafts use compact desktop filter dialogs and one mobile sheet; Dashboard scope and Activities secondary filters open out of flow. Applied chips and complete counts stay visible; dates retain Apply/Cancel. | Preview presentation only; existing rails/tree selection and all report queries remain intact. |
-| UX-13 | One 导出 workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速导出. Primary navigation retains 报表. Formats are independent; named views are session-local. | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
+| ID    | Decision / rationale                                                                                                                                                                                                                                | Migration impact                                                                                                      |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| UX-01 | ERPNext document type + name identifies transactions. One editor saves one Stock Entry or Stock Reconciliation. Desk and frontend are equal editors; no workspace ownership.                                                                        | Replace workspace-exclusive guards/write APIs; ERPNext remains the ledger.                                            |
+| UX-02 | Return includes normal/damaged quantities. Loss is a separate explicit operation. Compatible loans may share one return; never silently split documents.                                                                                            | Structured borrowing document/line references on Stock Entry lines; derived balances.                                 |
+| UX-03 | New items default to Nos. Existing units/conversions remain authoritative. Large choices are searchable; contextual item/batch pickers expose availability/location/expiry.                                                                         | Paginated full-dataset search, never just loaded options.                                                             |
+| UX-04 | Count one leaf location, selected items or full location. Blank is unreviewed, zero deliberate. Summaries separate baseline, reviewed actual and differences with reviewed/unreviewed scope. Baseline refresh preserves counts and requires review. | Versioned ERPNext reconciliation adapter.                                                                             |
+| UX-05 | System Manager is the initial frontend audience; retain document authorization and clear access/session states.                                                                                                                                     | Server gate is future work; preview stays login-free.                                                                 |
+| UX-06 | Private inventory originals and derivatives through Frappe File. Public preview artwork is non-sensitive fixture material.                                                                                                                          | Audit thumbnail helper and verify seeded files; no reset in preview work.                                             |
+| UX-07 | Clean database/API/UI preferred over compatibility during rapid development. A DB reset is acceptable during migration.                                                                                                                             | No obligation to preserve workspace IDs, old adapters or historical schema. Reset is a separate migration action.     |
+| UX-08 | Structured activity and purpose remain separate. Explicit supporting-data creation returns to the preserved draft; no stacked overlays.                                                                                                             | Preserve queryable fields rather than putting context in Notes.                                                       |
+| UX-10 | Preview movements use compact allocations and ordered multi-add; Receive creation uses one adaptive overlay. Text size scales independently from density. Dashboard failures belong to each card.                                                   | Preview implemented; production migration/fidelity review pending.                                                    |
+| UX-09 | Inventory/Movement/Loans use complete filtered totals and exports. Loading, conflicts and recovery retain input. Submitted documents obey ERPNext lifecycle.                                                                                        | Preserve unknown document fields, reject stale writes; no stock engine in preview.                                    |
+| UX-11 | Activities use immutable IDs and reference-data types (捐赠、购买、分发、节目、投入使用、其它), optional dates/description/plain-text detailed notes, Active/Archived, guarded deletion.                                                            | Preview only; reference DocType, version/permission/deletion hooks required.                                          |
+| UX-12 | Remove movement source type/responsible; retain Receive source, non-Receive purpose, activity, borrower, optional personnel and attachments. Fixed/completed values use selectable information. Busy edits retain input controls and buffers.       | Coordinated backend custom-field/API retirement remains pending.                                                      |
+| UX-14 | Reports/Drafts use compact desktop filter dialogs and one mobile sheet; Dashboard scope and Activities secondary filters open out of flow. Applied chips and complete counts stay visible; dates retain Apply/Cancel.                               | Preview presentation only; existing rails/tree selection and all report queries remain intact.                        |
+| UX-13 | One 导出 workspace has Inventory/Expiry/Movements/Loans/Activities/Counts, shared complete-scope projections and 快速导出. Primary navigation retains 报表. Formats are independent; named views are session-local.                                 | ERPNext ledger historical balances, permission-complete scalable exports and per-account presets remain backend work. |
 
 Update this decision record when a durable UI decision changes. The migration
 coverage ledger below is historical; preserve supported capabilities unless their
@@ -963,7 +1052,6 @@ These repairs enforce existing preview contracts; they do not approve production
   below artwork. All affected mobile text actions meet the existing 44px minimum;
   desktop densities and independent image enlargement remain intact.
 
-
 ## Preview usability supersession — 2026-10-13 (UX-03/08/09/10)
 
 - Dashboard cards use non-moving hover/focus feedback; informational metrics stay
@@ -1000,7 +1088,6 @@ These repairs enforce existing preview contracts; they do not approve production
 These decisions do not approve production migration, account preferences or new
 backend behavior. Manual visual/keyboard/zoom review remains outstanding; see
 [implementation and review record](notes/done/20261013_DESIGN_PREVIEW_USABILITY_HANDOFF.md).
-
 
 - **2026-10-13 independent usability review:** Repairs preserve the approved preview contracts: card navigation and retained status belong to the originating section; incomplete-line navigation remains available alongside document-level errors; scanner completion checks the whole draft. Hidden picker surfaces are excluded from keyboard containment and inline discard decisions receive focus. No new production behavior is approved.
 
@@ -1064,7 +1151,6 @@ These decisions apply only to the standalone preview. See the
 current checks and backend requirements; production migration and final visual
 approval remain pending.
 
-
 - **2026-10-14 independent simplification review:** On small screens, the
   warehouse summary remains in normal document flow; one measured save/review
   area stays above the bottom navigation. Notifications appear above the form
@@ -1075,7 +1161,6 @@ approval remain pending.
   on mobile), retains input after failure/cancel requests and restores its edit
   trigger on close. Movement conversion editing continues within allocation
   Details. These changes remain preview-only.
-
 
 ## Activities, reports and information display — 2026-10-15 supersession
 
@@ -1127,7 +1212,6 @@ appropriate to that grouping. Activity lifetime-count chips reset related search
 date and status filters to their submitted lifetime scope. Activity tabs support
 arrow/Home/End keys and associated labeled panels. Quick reports retain list
 sorting, including activity modification time, and describe the applied scope.
-
 
 ## Compact preview filters — 2026-10-16 (UX-14)
 
@@ -1195,7 +1279,6 @@ activation waits while editors retain unsaved input or work in flight. These
 implement the consolidated handoff; remaining parity and visual acceptance are
 tracked in the [execution record](notes/done/20261016_DESIGN_TO_PRODUCTION_PROGRESS.md).
 
-
 ## Native detail and review checkpoint — 2026-10-17
 
 Native Stock Entry duplication creates a new draft with fresh identity and children,
@@ -1207,7 +1290,6 @@ Desk-origin multi-batch counts display their recorded book, actual (including ze
 and variance per Batch; cancellation preserves this historical context. No complete
 location review is inferred for Desk records. These implement the existing handoff;
 full browser/visual acceptance remains in the execution record.
-
 
 The shared expanded editor keeps its measured action bar above mobile navigation;
 review groups retain only explicit user disclosure choices during asynchronous

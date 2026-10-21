@@ -2,7 +2,10 @@
 import { ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import ItemEditorPage from "../features/items/ItemEditorPage.vue";
+import { routeTarget } from "../lib/routeRegistry";
+import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
 const editor = ref<InstanceType<typeof ItemEditorPage>>();
+useRouteBreadcrumbLabel(() => editor.value?.controller.existing.value?.item_name);
 onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
 const route = useRoute(),
@@ -16,6 +19,6 @@ const route = useRoute(),
 		:barcode="typeof route.query.barcode === 'string' ? route.query.barcode : undefined"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		@cancel="router.back()"
-		@saved="router.replace(`/item/${encodeURIComponent($event.item_code)}`)"
+		@saved="router.replace(routeTarget('item-detail', { code: $event.item_code }))"
 	/>
 </template>

@@ -59,9 +59,7 @@ describe("shared account display settings", () => {
     await blue.trigger("click");
     await flushPromises();
     expect(theme.value).toBe("blue");
-    expect(
-      document.documentElement.style.getPropertyValue("--p-radius-control"),
-    ).toBe("6px");
+    expect(document.documentElement.dataset.tiTheme).toBe("blue");
     await wrapper.find('input[value="compact"]').setValue(true);
     await flushPromises();
     await wrapper.find('select[aria-label="文字大小"]').setValue("175");

@@ -6,19 +6,49 @@ import UiButton from "../../components/ui/UiButton.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import { documentDestination } from "../../lib/nativeNavigation";
+import type { AppRouteTarget } from "../../lib/routeRegistry";
 import { movementLabels } from "../../lib/filterPresentation";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
+import DataTable from "../../components/ui/DataTable.vue";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { useOptionalInventoryServices } from "../../services/contracts";
 const props = defineProps<{ controller: BatchDetailController }>();
 const emit = defineEmits<{
 	back: [];
 	openItem: [string];
-	openDocument: [string];
+	openDocument: [AppRouteTarget];
 	openLoan: [string];
 }>();
 const c = props.controller,
 	reference = useReferenceData();
+const services = useOptionalInventoryServices();
+const locationColumns = computed<DataColumn[]>(() => [
+	{
+		id: "warehouse",
+		label: "位置",
+		required: true,
+		defaultVisible: true,
+		sortable: true,
+		sortField: "warehouse_label",
+		minWidth: "180px",
+	},
+	{ id: "stock_qty", label: "批次数量", defaultVisible: true, sortable: true },
+	{ id: "available", label: "可用数量", defaultVisible: true, sortable: true },
+	{ id: "stock_uom", label: "单位", defaultVisible: true, sortable: true },
+]);
+const locationRows = computed<DataTableRecord[]>(() =>
+	(c.batch.value?.locations.rows || []).map((row) => ({
+		kind: "record",
+		id: String(row.id),
+		value: row as unknown as Record<string, unknown>,
+	})),
+);
+const locationPrefs = services
+	? useColumnPreferences("batch-detail.locations", locationColumns, reference, services)
+	: undefined;
 const quantities = computed(() => {
 	const values = new Map<string, { uom: string; stock: number; available: number }>();
 	for (const row of c.batch.value?.locations.summary || []) {
@@ -66,7 +96,7 @@ function endpoint(row: Record<string, unknown>, source: boolean) {
 		: "外部";
 }
 function openDocument(row: Record<string, unknown>) {
-	emit("openDocument", documentDestination(String(row.doctype), String(row.document)).path);
+	emit("openDocument", documentDestination(String(row.doctype), String(row.document)));
 }
 </script>
 <template>
@@ -164,35 +194,28 @@ function openDocument(row: Record<string, unknown>) {
 		</section>
 		<section v-if="c.batch.value" class="batch-detail-card">
 			<h2>存放位置 · {{ c.batch.value.locations.matched_count }} 处</h2>
-			<div class="browse-table-wrap">
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>位置</th>
-							<th>批次数量</th>
-							<th>可用数量</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="row in c.batch.value.locations.rows" :key="String(row.id)">
-							<td>
-								{{
-									warehouseLabel(
-										String(row.warehouse || ""),
-										reference.warehouses,
-										String(row.warehouse_label || ""),
-									)
-								}}
-							</td>
-							<td>{{ row.stock_qty }} {{ row.stock_uom }}</td>
-							<td>{{ row.available }} {{ row.stock_uom }}</td>
-						</tr>
-						<tr v-if="!c.batch.value.locations.rows.length">
-							<td colspan="3">此批次当前没有位置余额</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
+			<DataTable
+				ariaLabel="批次各库位余额"
+				table-class="browse-table"
+				:columns="locationColumns"
+				:rows="locationRows"
+				:sort-by="c.locationsSortBy.value"
+				:sort-direction="c.locationsSortDirection.value"
+				:column-preferences="locationPrefs"
+				@sort="c.sortLocations"
+				empty-text="此批次当前没有位置余额"
+			>
+				<template #cell="{ column, row }">
+					<template v-if="column.id === 'warehouse'">{{
+						warehouseLabel(
+							String(row.warehouse || ""),
+							reference.warehouses,
+							String(row.warehouse_label || ""),
+						)
+					}}</template>
+					<template v-else>{{ row[column.id] }}</template>
+				</template>
+			</DataTable>
 			<p v-if="c.locationError.value" role="alert">
 				{{ c.locationError.value }} <UiButton @click="c.moreLocations">重试</UiButton>
 			</p>
@@ -216,8 +239,7 @@ function openDocument(row: Record<string, unknown>) {
 				@load-more="c.moreHistory"
 				@retry="c.moreHistory"
 				@open-document="
-					(doctype, name) =>
-						emit('openDocument', documentDestination(doctype, name).path)
+					(doctype, name) => emit('openDocument', documentDestination(doctype, name))
 				"
 				@open-loan="emit('openLoan', $event)"
 				@open-item="emit('openItem', $event)"

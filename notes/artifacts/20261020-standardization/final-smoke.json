@@ -1,0 +1,58 @@
+{
+  "out": [
+    {
+      "case": "stock",
+      "rows": 30,
+      "alerts": []
+    },
+    {
+      "case": "rail-scroll",
+      "clientHeight": 637,
+      "scrollHeight": 1731,
+      "scrollTop": 1094,
+      "nestedScrollers": 0
+    },
+    {
+      "case": "lazy-group",
+      "roots": 1,
+      "children": 2,
+      "leaves": 3,
+      "leafRows": 1,
+      "alerts": []
+    },
+    {
+      "case": "route",
+      "path": "/drafts",
+      "headings": [
+        "草稿"
+      ],
+      "alerts": []
+    },
+    {
+      "case": "route",
+      "path": "/stock/warehouses",
+      "headings": [
+        "仓库"
+      ],
+      "alerts": []
+    },
+    {
+      "case": "route",
+      "path": "/auth-complete",
+      "headings": [
+        "登录成功"
+      ],
+      "alerts": []
+    },
+    {
+      "case": "route",
+      "path": "/expiry",
+      "headings": [
+        "页面不存在"
+      ],
+      "alerts": []
+    }
+  ],
+  "errors": [],
+  "failed": []
+}

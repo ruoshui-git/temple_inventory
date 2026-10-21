@@ -473,7 +473,7 @@ class CatalogTests(NativeDocumentTests):
 		self.submit(self.create(data))
 		query = {
 			"dataset": "inventory",
-			"sortBy": "quantity",
+			"sortBy": "available",
 			"sort": "asc",
 			"scope": {"warehouses": [self.root]},
 		}
@@ -652,7 +652,9 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(included_projection["matched_count"], settled_page["matched_count"])
 		self.assertEqual(included_projection["rows"][0]["stock_qty"], settled_page["rows"][0]["stock_qty"])
 		for grouping, expected in (("activity", ""), ("month", nowdate()[:7])):
-			grouped = projections.report_page({**settled_query, "includeZero": True, "grouping": grouping})
+			grouped = projections.report_page(
+				{**settled_query, "view": "outcomes", "includeZero": True, "groupBy": [grouping]}
+			)
 			self.assertEqual(grouped["table"], "grouped")
 			self.assertEqual(grouped["matched_count"], 1)
 			self.assertEqual(grouped["rows"][0][grouping], expected)
@@ -711,7 +713,9 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(balance_effects[loan.name], 4.0)
 		self.assertEqual(balance_effects[damage.name], -1.0)
 		self.assertEqual(balance_effects[loss.name], 0.0)
-		self.submit(self.create(self.movement(quantity=1)))
+		available_data = self.movement(quantity=1)
+		available_data.update({"posting_time": "11:00:00", "ti_time_mode": "Manual"})
+		self.submit(self.create(available_data))
 		later_data = self.movement("Loan", 1, self.a, self.loan_leaf, ti_borrower="History")
 		later_data.update({"posting_time": "12:00:00", "ti_time_mode": "Manual"})
 		later = self.submit(self.create(later_data))
@@ -784,7 +788,7 @@ class CatalogTests(NativeDocumentTests):
 			"dataset": "movements",
 			"scope": {"item": self.item},
 			"record": entry.name,
-			"sortBy": "date",
+			"sortBy": "item_name",
 			"sort": "desc",
 		}
 		page = browse.operation_page(query, page_length=1)
@@ -950,6 +954,63 @@ class CatalogTests(NativeDocumentTests):
 			warehouse=self.a,
 		)
 		self.assertEqual(unrelated["rows"], [])
+
+	def test_history_endpoints_sort_complete_matching_results_before_paging(self):
+		self.receipt(10)
+		issue = self.movement("Issue", 3, self.a, None)
+		self.submit(self.create(issue))
+		movement_query = {
+			"dataset": "movements",
+			"view": "lines",
+			"statuses": [1],
+			"scope": {"item": self.item},
+			"sortBy": "stock_qty",
+			"sort": "asc",
+		}
+		movement_first = browse.movement_history(
+			movement_query, item_code=self.item, start=0, page_length=1, sort_by="stock_qty", sort="asc"
+		)
+		movement_second = browse.movement_history(
+			movement_query, item_code=self.item, start=1, page_length=1, sort_by="stock_qty", sort="asc"
+		)
+		self.assertEqual(movement_first["matched_count"], movement_second["matched_count"])
+		self.assertLessEqual(movement_first["rows"][0]["quantity"], movement_second["rows"][0]["quantity"])
+		self.assertEqual(
+			movement_first["rows"][0]["id"],
+			browse.movement_history(
+				movement_query, item_code=self.item, page_length=1, sort_by="stock_qty", sort="asc"
+			)["rows"][0]["id"],
+		)
+
+		for quantity in (1, 4):
+			self.submit(
+				self.create(
+					self.movement(
+						"Loan", quantity, self.a, self.loan_leaf, ti_borrower="History Sort Borrower"
+					)
+				)
+			)
+		loan_query = {
+			"dataset": "loans",
+			"view": "outcomes",
+			"statuses": [1],
+			"scope": {"item": self.item},
+			"sortBy": "borrowed",
+			"sort": "asc",
+		}
+		loan_first = browse.loan_item_history(
+			loan_query, self.item, start=0, page_length=1, sort_by="borrowed", sort="asc"
+		)
+		loan_second = browse.loan_item_history(
+			loan_query, self.item, start=1, page_length=1, sort_by="borrowed", sort="asc"
+		)
+		self.assertGreaterEqual(loan_second["rows"][0]["borrowed"], loan_first["rows"][0]["borrowed"])
+		self.assertEqual(
+			loan_first["rows"][0]["id"],
+			browse.loan_item_history(loan_query, self.item, page_length=1, sort_by="borrowed", sort="asc")[
+				"rows"
+			][0]["id"],
+		)
 
 	def test_record_exports_expand_partial_item_matches_to_whole_movement_and_loan_documents(self):
 		other = frappe.get_doc(
@@ -1118,6 +1179,13 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual({row["batch_no"] for row in batch_detail["locations"]["rows"]}, {batches[1]})
 		location_page = catalog.batch_locations(batches[1], start=0, page_length=1)
 		self.assertGreaterEqual(location_page["matched_count"], 1)
+		sorted_locations = catalog.batch_locations(
+			batches[1], start=0, page_length=100, sort_by="available", sort="asc"
+		)
+		self.assertEqual(
+			[float(row["available"]) for row in sorted_locations["rows"]],
+			sorted(float(row["available"]) for row in sorted_locations["rows"]),
+		)
 		self.assertEqual(batch_detail["history"]["matched_count"], 2)
 		before_batch_qty = {
 			warehouse: get_batch_qty(batch_no=batches[1], warehouse=warehouse, for_stock_levels=True)
@@ -1185,7 +1253,7 @@ class CatalogTests(NativeDocumentTests):
 			catalog.save_batch(
 				batches[1], old_version, {"manufacturing_date": "", "expiry_date": "", "description": "Stale"}
 			)
-		query = {"dataset": "expiry", "scope": {"item": self.item}, "sortBy": "date"}
+		query = {"dataset": "expiry", "scope": {"item": self.item}, "sortBy": "expiry_date"}
 		page = browse.expiry_page(query, page_length=1)
 		self.assertEqual(page["matched_count"], 5)
 		self.assertEqual(page["batch_count"], 4)

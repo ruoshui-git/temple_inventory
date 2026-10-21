@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import PageHeader from "../../components/ui/PageHeader.vue";
-import { watch } from "vue";
+import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import BrowseChip from "../../components/ui/BrowseChip.vue";
+import { computed, watch } from "vue";
 import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -8,11 +9,27 @@ import { movementLabels } from "../../lib/filterPresentation";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
-import CompactFilters from "../../components/filters/CompactFilters.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import GroupByFilter from "../../components/filters/GroupByFilter.vue";
+import { removeGroupByField } from "../../lib/groupBy";
+import { groupLabels } from "../../lib/reportContract";
+import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
+import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import DataTable from "../../components/ui/DataTable.vue";
+import type {
+	DataColumn,
+	DataTableEntry,
+	DataTableGroup,
+	DataTableRecord,
+} from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { reportColumnLabels } from "../../lib/reportCells";
+import { useOptionalInventoryServices } from "../../services/contracts";
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -30,6 +47,7 @@ const emit = defineEmits<{
 const c = props.controller;
 const {
 	query,
+	groups,
 	scope,
 	rows,
 	loading,
@@ -47,6 +65,17 @@ const {
 	localTarget,
 	extraChips,
 } = c;
+const scopeChips = computed(() => scopeFilterFieldChips(scope.value, c.reference));
+const {
+	open: sidebarOpen,
+	toggle: toggleSidebar,
+	saveError: sidebarSaveError,
+	retry: retrySidebarSave,
+} = useFilterRailPreference(`native-records.${props.mode}`, c.reference, false);
+const { isMobile } = useResponsiveLayout();
+function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
+	clearScopeField(scope.value, chip.field);
+}
 watch(
 	() => props.active,
 	(value) => {
@@ -75,20 +104,56 @@ function localTitle(entry: RecoverySnapshot) {
 }
 const quantities = (row: NativeRecord) =>
 	row.whole.quantities.map((value) => `${value.qty} ${value.uom}`).join(" · ");
+const services = useOptionalInventoryServices();
+const tableColumns = computed<DataColumn[]>(() => [
+	{ id: "document", label: "记录", required: true, defaultVisible: true, minWidth: "180px" },
+	{ id: "kind", label: "类型 / 状态", defaultVisible: true, minWidth: "150px" },
+	{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true, minWidth: "150px" },
+	{ id: "summary", label: "整份记录", defaultVisible: true, minWidth: "240px" },
+	{ id: "date", label: "记账日期", defaultVisible: true, sortable: true, minWidth: "150px" },
+	{ id: "actions", label: "操作", required: true, defaultVisible: true, minWidth: "150px" },
+]);
+const tableRows = computed<DataTableRecord[]>(() =>
+	rows.value.map((row) => ({
+		kind: "record",
+		id: row.id,
+		value: row as unknown as Record<string, unknown>,
+	})),
+);
+const browseRows = computed<DataTableEntry[]>(() =>
+	query.value.groupBy.length ? groups.entries.value : tableRows.value,
+);
+const groupRoot = computed(() => groups.pages.value["[[],null]"]);
+function groupSummary(group: DataTableGroup) {
+	const row = group.value || {};
+	return ["item_count", "document_count", "allocation_count", "stock_uom"]
+		.filter((key) => row[key] !== undefined)
+		.map((key) => `${reportColumnLabels[key] || key} ${row[key]}`)
+		.join(" · ");
+}
+const tablePrefs =
+	services && !routeError.value
+		? useColumnPreferences(`native-records.${props.mode}`, tableColumns, c.reference, services)
+		: undefined;
+function nativeRow(row: Record<string, unknown>): NativeRecord {
+	return row as unknown as NativeRecord;
+}
 </script>
 <template>
 	<section class="preview-page preview-browse-page">
-		<PageHeader
-			><div>
-				<h1 tabindex="-1">{{ mode === "drafts" ? "草稿" : "盘点调整" }}</h1>
-				<p class="browse-subtitle">
-					{{
-						mode === "drafts"
-							? "原生草稿可在 ERPNext 和本应用继续填写，尚未改变库存。"
-							: "仅显示实际保存的原生盘点调整；数量一致的盘点不产生记录。"
-					}}
-				</p>
-			</div>
+		<BrowseToolbar
+			:title="mode === 'drafts' ? '草稿' : '盘点调整'"
+			:summary="mode === 'drafts' ? '草稿' : '盘点调整'"
+			v-model:search="query.search"
+			:search-label="mode === 'drafts' ? '搜索草稿、物品或活动' : '搜索盘点记录或物品'"
+			:active="active"
+			:filter-count="scopeChips.length + extraChips.filter((chip) => !chip.fixed).length + 1"
+			:sidebar-open="sidebarOpen"
+			:sidebar-save-error="sidebarSaveError"
+			:retry-sidebar-save="retrySidebarSave"
+			sidebar-available
+			@sidebar="toggleSidebar"
+		>
 			<template #actions
 				><UiButton
 					@click="
@@ -111,27 +176,34 @@ const quantities = (row: NativeRecord) =>
 					@click="emit('newCount')"
 					>新建盘点</UiButton
 				></template
-			></PageHeader
-		>
-		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
-		<template v-else>
-			<PeriodFilter
-				v-model="scope.period"
-				:today="c.reference.siteDate"
-				label="记账日期"
-				:active="active"
-				:context="mode"
-			/>
-			<CompactFilters
-				v-model="scope"
-				:movement="mode === 'drafts'"
-				records
-				:active="active"
-				:context="mode"
-				:result-count="initialized ? total : undefined"
-				:extra-count="extraChips.length"
-				@clear="c.clear"
 			>
+			<template #subtitle>
+				<p class="browse-subtitle">
+					{{
+						mode === "drafts"
+							? "原生草稿可在 ERPNext 和本应用继续填写，尚未改变库存。"
+							: "仅显示实际保存的原生盘点调整；数量一致的盘点不产生记录。"
+					}}
+				</p>
+			</template>
+			<template #filters>
+				<BrowseFilters
+					v-model="scope"
+					:movement="mode === 'drafts'"
+					records
+					:hierarchy-in-rail="sidebarOpen && !isMobile"
+				/>
+				<GroupByFilter
+					v-model="query.groupBy"
+					:dataset="query.dataset"
+					:view="query.view"
+				/>
+				<PeriodFilter
+					v-model="scope.period"
+					:today="c.reference.siteDate"
+					label="记账日期"
+					embedded
+				/>
 				<label v-if="mode === 'counts'" class="preview-field"
 					>状态<select v-model="query.statuses">
 						<option :value="[1]">已提交</option>
@@ -140,30 +212,43 @@ const quantities = (row: NativeRecord) =>
 						<option :value="[0, 1, 2]">全部状态</option>
 					</select></label
 				>
-			</CompactFilters>
-			<div v-if="extraChips.length" class="compact-filter-chips">
-				<UiButton
+				<UiButton @click="c.clear">清空筛选</UiButton>
+			</template>
+			<template #chips="{ editFilter }">
+				<BrowseChip
+					v-for="(group, index) in query.groupBy"
+					:key="`group:${group}`"
+					:label="`分组：${groupLabels[group] || group}`"
+					@edit="editFilter()"
+					@remove="
+						query.groupBy = removeGroupByField(
+							query.dataset,
+							query.view,
+							query.groupBy,
+							index,
+						)
+					"
+				/>
+				<BrowseChip
+					v-for="chip in scopeChips"
+					:key="chip.key"
+					:label="chip.label"
+					@edit="editFilter(chip.field)"
+					@remove="removeScopeChip(chip)"
+				/>
+				<BrowseChip
 					v-for="chip in extraChips"
 					:key="chip.key"
-					:disabled="chip.fixed"
-					@click="Object.assign(query, chip.reset)"
-					>{{ chip.label }}{{ chip.fixed ? "" : " ×" }}</UiButton
-				>
-			</div>
-			<div class="browse-toolbar">
-				<label class="browse-search"
-					><InventoryIcon name="search" /><input
-						v-model="query.search"
-						type="search"
-						:placeholder="
-							mode === 'drafts' ? '搜索草稿、物品或活动' : '搜索盘点记录或物品'
-						"
-						aria-label="搜索记录"
-				/></label>
+					:label="chip.label"
+					:removable="!chip.fixed"
+					@edit="editFilter(chip.field)"
+					@remove="Object.assign(query, chip.reset)"
+				/>
+			</template>
+			<div class="browse-toolbar browse-sort-only">
 				<label class="preview-field"
 					>排序<select v-model="query.sortBy">
 						<option value="date">记账日期</option>
-						<option value="modified">更新时间</option>
 						<option value="identity">编号</option>
 					</select></label
 				>
@@ -175,86 +260,126 @@ const quantities = (row: NativeRecord) =>
 				>
 				<span v-if="initialized" class="browse-result-count">{{ total }} 份原生记录</span>
 			</div>
-			<p v-if="loading" role="status">
-				{{ stale ? "正在更新，当前结果待核对…" : "正在读取原生记录…" }}
-			</p>
-			<p v-if="error" class="utility-error" role="alert">
-				{{ error }} <UiButton @click="c.load(!!rows.length && !stale)">重试</UiButton>
-			</p>
-			<div
-				v-if="rows.length"
-				class="browse-table-wrap preview-drafts-table"
-				data-browse-scroll="records"
-				:aria-busy="loading"
-			>
-				<table class="browse-table">
-					<thead>
-						<tr>
-							<th>记录</th>
-							<th>类型 / 状态</th>
-							<th>活动 / 借用人</th>
-							<th>整份记录</th>
-							<th>记账日期</th>
-							<th>操作</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr
-							v-for="row in rows"
-							:key="row.id"
-							:data-browse-row="String(row.doctype) + ':' + String(row.document)"
-						>
-							<td>
-								<button class="browse-row-link" @click="open(row)">
-									<strong>{{ row.document }}</strong
-									><small>{{ row.doctype }}</small>
-								</button>
-							</td>
-							<td>
+		</BrowseToolbar>
+		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
+		<template v-else>
+			<div class="preview-browse-body">
+				<aside
+					v-if="sidebarOpen && !isMobile"
+					class="preview-filter-rail browse-filter-rail"
+				>
+					<h3>类别与仓库</h3>
+					<BrowseFilters
+						v-model="scope"
+						:fields="['categories', 'warehouses']"
+						hide-activity
+					/>
+				</aside>
+				<div class="preview-browse-results">
+					<DataTable
+						data-browse-scroll="records"
+						ariaLabel="原生记录"
+						table-class="browse-table"
+						:columns="tableColumns"
+						:rows="browseRows"
+						:column-preferences="tablePrefs"
+						:sort-by="query.sortBy"
+						:sort-direction="query.sort"
+						:loading="loading || Boolean(query.groupBy.length && groupRoot?.loading)"
+						loading-text="正在读取原生记录…"
+						:initialized="Boolean(initialized || groupRoot?.initialized)"
+						:error="query.groupBy.length ? groupRoot?.error || error : error"
+						:retained="Boolean(rows.length && loading)"
+						:has-more="query.groupBy.length ? groups.hasMore() : next !== null"
+						:loading-more="
+							query.groupBy.length
+								? Boolean(groupRoot?.loading && groupRoot.rows.length)
+								: loading && rows.length > 0
+						"
+						:row-attributes="
+							(row) => ({
+								'data-browse-row': `${String(row.doctype)}:${String(row.document)}`,
+							})
+						"
+						empty-text="没有符合条件的原生记录"
+						@sort="
+							(field) => {
+								query.sortBy = field as ReportQuery['sortBy'];
+								c.load();
+							}
+						"
+						@toggle-group="groups.toggleGroup"
+						@retry="query.groupBy.length ? groups.retry() : c.retry()"
+						@load-more="query.groupBy.length ? groups.loadMore() : c.load(true)"
+					>
+						<template #cell="{ column, row }">
+							<button
+								v-if="column.id === 'document'"
+								class="browse-row-link"
+								@click="open(nativeRow(row))"
+							>
+								<strong>{{ row.document }}</strong
+								><small>{{ row.doctype }}</small>
+							</button>
+							<template v-else-if="column.id === 'kind'">
 								{{ movementLabels[String(row.kind)] || row.kind }} ·
-								<NativeStatusBadge :status="row.docstatus" />
-							</td>
-							<td>{{ row.activity_title || row.borrower || "—" }}</td>
-							<td>
-								{{ row.whole.line_count }} 行 ·
-								{{ row.whole.item_count }} 种物品<small class="record-quantity">{{
-									quantities(row)
-								}}</small
-								><small
-									v-if="row.allocation_count !== row.whole.line_count"
+								<NativeStatusBadge :status="Number(row.docstatus)" />
+							</template>
+							<template v-else-if="column.id === 'activity_title'">{{
+								row.activity_title || row.borrower || "—"
+							}}</template>
+							<div v-else-if="column.id === 'summary'">
+								{{ nativeRow(row).whole.line_count }} 行 ·
+								{{ nativeRow(row).whole.item_count }} 种物品
+								<small class="record-quantity">{{
+									quantities(nativeRow(row))
+								}}</small>
+								<small
+									v-if="
+										nativeRow(row).allocation_count !==
+										nativeRow(row).whole.line_count
+									"
 									class="record-quantity"
-									>符合筛选的明细：{{ row.allocation_count }}</small
+									>符合筛选的明细：{{ nativeRow(row).allocation_count }}</small
 								>
-							</td>
-							<td>{{ row.date }} {{ String(row.time || "").slice(0, 5) }}</td>
-							<td>
-								<div class="browse-row-actions">
-									<button class="browse-link" @click="open(row)">
-										{{ row.whole.editable ? "继续填写" : "查看记录" }}</button
-									><button
-										v-if="row.whole.can_delete"
-										class="browse-link is-danger-text"
-										:disabled="!c.canDelete(row)"
-										@click="
-											deleteError = '';
-											deleteTarget = row;
-										"
-									>
-										删除
-									</button>
-								</div>
-							</td>
-						</tr>
-					</tbody>
-				</table>
+							</div>
+							<template v-else-if="column.id === 'date'"
+								>{{ row.date }} {{ String(row.time || "").slice(0, 5) }}</template
+							>
+							<div v-else-if="column.id === 'actions'" class="browse-row-actions">
+								<button class="browse-link" @click="open(nativeRow(row))">
+									{{ nativeRow(row).whole.editable ? "继续填写" : "查看记录" }}
+								</button>
+								<button
+									v-if="nativeRow(row).whole.can_delete"
+									class="browse-link is-danger-text"
+									:disabled="!c.canDelete(nativeRow(row))"
+									@click="
+										deleteError = '';
+										deleteTarget = nativeRow(row);
+									"
+								>
+									删除
+								</button>
+							</div>
+						</template>
+						<template #group="{ group }">
+							<div class="report-group-details">
+								{{ groupSummary(group) }}
+								<UiButton v-if="group.error" @click="groups.retry(group.id)"
+									>重试</UiButton
+								>
+								<UiButton
+									v-if="groups.hasMore(group.id)"
+									:loading="group.loading"
+									@click="groups.loadMore(group.id)"
+									>加载更多此分组</UiButton
+								>
+							</div>
+						</template>
+					</DataTable>
+				</div>
 			</div>
-			<div v-else-if="initialized && !loading && !error" class="browse-empty">
-				<h2>没有符合条件的原生记录</h2>
-				<p>调整筛选或开始新的操作。</p>
-			</div>
-			<UiButton v-if="next !== null" :disabled="loading || stale" @click="c.load(true)"
-				>加载更多</UiButton
-			>
 		</template>
 		<section v-if="mode === 'drafts'" class="surface form-section browser-recovery-list">
 			<h2>此浏览器的未完成输入</h2>

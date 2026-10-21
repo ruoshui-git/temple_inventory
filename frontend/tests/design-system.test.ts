@@ -79,7 +79,7 @@ describe("shared production design system", () => {
         key.startsWith("design:"),
       ),
     ).toBe(false);
-    expect(read("src/styles/app.css").match(/@import/g)).toHaveLength(4);
+    expect(read("src/styles/app.css").match(/@import/g)).toHaveLength(5);
     for (const path of [
       "src/styles/tokens.css",
       "src/styles/primitives.css",
@@ -127,8 +127,16 @@ describe("shared production design system", () => {
         textScale: 175,
       });
       const style = document.documentElement.style;
-      expect(style.getPropertyValue("--p-canvas")).toBe(theme.canvas);
-      expect(style.getPropertyValue("--p-radius-card")).toBe(theme.cardRadius);
+      const themeTokens = new Map(tokens);
+      for (const [key, value] of declarations(
+        `:root[data-ti-theme="${theme.id}"]`,
+      ))
+        themeTokens.set(key, value);
+      expect(themeTokens.get("--p-canvas")).toBe(theme.canvas.toLowerCase());
+      expect(themeTokens.get("--p-ink")).toBe(theme.ink.toLowerCase());
+      expect(themeTokens.get("--p-accent")).toBe(theme.accent.toLowerCase());
+      expect(themeTokens.get("--p-radius-card")).toBe(theme.cardRadius);
+      expect(style.getPropertyValue("--p-canvas")).toBe("");
       expect(style.getPropertyValue("--p-text-scale")).toBe("1.75");
       expect(document.documentElement.dataset.tiTheme).toBe(theme.id);
       for (const color of [theme.ink, theme.muted, theme.accent]) {
@@ -148,6 +156,22 @@ describe("shared production design system", () => {
         ),
       ).toBeGreaterThanOrEqual(4.5);
     expect(tokens.get("--p-focus")).toContain("--p-accent");
+  });
+
+  it("keeps theme-sensitive overlay and shadow colors semantic across shared surfaces", () => {
+    for (const name of [
+      "--p-shadow-color",
+      "--p-shadow-subtle",
+      "--p-shadow-raised",
+      "--p-shadow-menu",
+      "--p-scrim",
+    ])
+      expect(tokens.get(name)).toBeTruthy();
+    for (const path of ["src/styles/browse.css", "src/styles/utilities.css"])
+      expect(read(path)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(read("src/components/ui/SearchSelect.vue")).not.toMatch(
+      /#[0-9a-fA-F]{3,8}\b/,
+    );
   });
 
   it("changes density rhythm independently from text scaling and preserves the mobile touch floor", () => {
@@ -175,6 +199,35 @@ describe("shared production design system", () => {
     ).toBe(true);
     expect(mobileInputs).toContain("max(16px, var(--p-body))");
     expect(tokens.get("--p-body")).toContain("--p-text-scale");
+    expect(tokens.get("--p-table-thumbnail")).toBe("48px");
+    expect(
+      declarations(':root[data-ti-density="compact"]').get(
+        "--p-table-thumbnail",
+      ),
+    ).toBe("32px");
+    expect(
+      declarations(':root[data-ti-density="spacious"]').get(
+        "--p-table-thumbnail",
+      ),
+    ).toBe("64px");
+    foundation.walkRules((rule) => {
+      if (!rule.selector?.includes("data-ti-density")) return;
+      for (const property of [
+        "--p-body",
+        "--p-small",
+        "--p-heading",
+        "--p-section",
+        "--p-line",
+      ])
+        expect(
+          rule.nodes?.some((node) => "prop" in node && node.prop === property),
+        ).toBe(false);
+    });
+    for (const path of [
+      "src/features/counts/CountWorkspace.vue",
+      "src/features/counts/CountEditorView.vue",
+    ])
+      expect(read(path)).toContain("var(--p-table-thumbnail)");
     for (const scale of [100, 125, 150, 175, 200] as const) {
       applyDisplayPreferences({
         theme: "jade",
@@ -186,5 +239,120 @@ describe("shared production design system", () => {
       ).toBe(String(scale / 100));
       expect(document.documentElement.dataset.tiDensity).toBe("compact");
     }
+  });
+
+  it("offsets sticky browse chrome and scroll targets by measured desktop and mobile navigation", () => {
+    const browse = postcss.parse(read("src/styles/browse.css"));
+    const declarationsFor = (stylesheet: postcss.Root, selector: string) => {
+      const values = new Map<string, string>();
+      stylesheet.walkRules(selector, (rule) =>
+        rule.walkDecls((declaration) =>
+          values.set(declaration.prop, declaration.value),
+        ),
+      );
+      return values;
+    };
+    const toolbar = declarationsFor(browse, ".browse-chrome.browse-chrome");
+    expect(toolbar.get("top")).toBe("var(--preview-desktop-nav-height, 0px)");
+    expect(toolbar.get("max-block-size")).toContain(
+      "var(--preview-desktop-nav-height, 0px)",
+    );
+    expect(toolbar.get("max-block-size")).toContain(
+      "var(--preview-nav-height, 0px)",
+    );
+
+    const rail = new Map<string, string>();
+    browse.walkRules((rule) => {
+      if (
+        !rule.selector
+          ?.split(",")
+          .some((part) => part.trim() === ".browse-filter-rail")
+      )
+        return;
+      rule.walkDecls((declaration) =>
+        rail.set(declaration.prop, declaration.value),
+      );
+    });
+    expect(rail.get("width")).toBe("250px");
+    expect(rail.get("align-self")).toBe("start");
+    expect(rail.get("min-height")).toBe("0");
+    expect(rail.get("overflow-x")).toBe("auto");
+    expect(rail.get("overflow-y")).toBe("auto");
+    expect(rail.get("top")).toContain("var(--preview-desktop-nav-height, 0px)");
+    expect(rail.get("top")).toContain("var(--browse-toolbar-height, 0px)");
+    expect(rail.get("max-height")).toContain(
+      "var(--preview-desktop-nav-height, 0px)",
+    );
+    expect(rail.get("max-height")).toContain("var(--preview-nav-height, 0px)");
+    const stock = read("src/features/inventory/StockBrowseView.vue");
+    expect(stock).toContain('class="browse-filter-rail"');
+    expect(stock).not.toContain('class="filter-rail browse-filter-rail"');
+    const inventory = postcss.parse(read("src/styles/foundation.css"));
+    const stockGrid = declarationsFor(
+      inventory,
+      ".inventory-body.with-filters",
+    );
+    expect(stockGrid.get("grid-template-columns")).toBe("250px minmax(0, 1fr)");
+    expect(stockGrid.get("align-items")).toBe("start");
+    expect(
+      declarationsFor(browse, ".browse-persistent-search input").get(
+        "scroll-margin-block-start",
+      ),
+    ).toContain("var(--preview-desktop-nav-height, 0px)");
+
+    const targets = postcss.parse(read("src/styles/foundation.css"));
+    const browseRow = new Map<string, string>();
+    targets.walkRules(".results-region [data-browse-row]", (rule) =>
+      rule.walkDecls((declaration) =>
+        browseRow.set(declaration.prop, declaration.value),
+      ),
+    );
+    expect(browseRow.get("scroll-margin-block-start")).toContain(
+      "var(--preview-desktop-nav-height, 0px)",
+    );
+    const table = postcss.parse(read("src/styles/data-table.css"));
+    const groupTargets = new Map<string, string>();
+    table.walkRules((rule) => {
+      if (!rule.selector?.includes(".data-table-group-toggle")) return;
+      rule.walkDecls((declaration) =>
+        groupTargets.set(declaration.prop, declaration.value),
+      );
+    });
+    expect(groupTargets.get("scroll-margin-block-start")).toContain(
+      "var(--preview-desktop-nav-height, 0px)",
+    );
+    expect(groupTargets.get("scroll-margin-block-start")).toContain(
+      "var(--browse-toolbar-height, 0px)",
+    );
+  });
+
+  it("bounds dense toolbar chips independently from the persistent mobile search", () => {
+    const browse = postcss.parse(read("src/styles/browse.css"));
+    const chipRegion = browse.nodes.find(
+      (node) =>
+        node.type === "rule" && node.selector === ".browse-persistent-chips",
+    );
+    const chipDeclarations = new Map<string, string>();
+    chipRegion?.walkDecls((declaration) =>
+      chipDeclarations.set(declaration.prop, declaration.value),
+    );
+    expect(chipDeclarations.get("max-block-size")).toBe("min(30dvh, 14rem)");
+    expect(chipDeclarations.get("overflow")).toBe("auto");
+    const mobile = browse.nodes.find(
+      (node) =>
+        node.type === "atrule" &&
+        node.name === "media" &&
+        node.params === "(max-width: 600px)",
+    );
+    const mobileSearch = new Map<string, string>();
+    mobile?.walkRules(".browse-persistent-search", (rule) =>
+      rule.walkDecls((declaration) =>
+        mobileSearch.set(declaration.prop, declaration.value),
+      ),
+    );
+    expect(mobileSearch.get("min-width")).toBe("min(9rem, 100%)");
+    expect(mobileSearch.get("flex-basis")).toBe(
+      "clamp(min(9rem, 100%), 48vw, 12rem)",
+    );
   });
 });

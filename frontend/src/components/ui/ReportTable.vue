@@ -1,196 +1,137 @@
 <script setup lang="ts">
-import { useOptionalReferenceData } from "../../services/contracts";
+import { computed, ref, useSlots } from "vue";
+import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { siteDateTime } from "../../lib/nativeTime";
 import { formatQuantity } from "../../lib/formatQuantity";
-import { computed, ref, watch, useSlots } from "vue";
+import type {
+	DataColumn,
+	DataTableEntry,
+	DataTableGroup,
+	DataTableRecord,
+} from "../../lib/dataTable";
+import type { ReportTable as ReportTableData } from "../../lib/reportContract";
 import UiButton from "./UiButton.vue";
 import NativeStatusBadge from "./NativeStatusBadge.vue";
-import type { ReportTable } from "../../lib/reportContract";
+import ItemImage from "../ItemImage.vue";
+import DataTable from "./DataTable.vue";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import type { useReportGroups } from "../../composables/useReportGroups";
+import { reportColumnLabels, reportColumnMinimumWidths } from "../../lib/reportCells";
+import { movementLabels } from "../../lib/filterPresentation";
+
 const props = withDefaults(
 	defineProps<{
-		table: ReportTable;
+		table: ReportTableData;
+		preferenceId?: string;
 		limit?: number;
 		total?: number;
 		loading?: boolean;
 		initialized?: boolean;
 		error?: string;
 		documentLinks?: boolean;
+		grouped?: boolean;
+		sortableColumns?: string[];
+		sortBy?: string;
+		sortDirection?: "asc" | "desc";
+		groupPages?: ReturnType<typeof useReportGroups>;
 	}>(),
-	{ documentLinks: true, initialized: true },
+	{ documentLinks: true },
 );
 const emit = defineEmits<{
 	loadMore: [];
 	retry: [];
 	openDocument: [doctype: string, name: string];
+	sort: [column: string];
 }>();
-const reference = useOptionalReferenceData();
 const slots = useSlots();
-const visibleColumns = computed(() => props.table.columns.filter((column) => column !== "id"));
+const services = useOptionalInventoryServices();
+const reference = useOptionalReferenceData();
 const loaded = ref(30);
 const visibleLimit = computed(
 	() => props.limit ?? (props.total === undefined ? loaded.value : props.table.rows.length),
 );
-watch(
-	() => props.table.rows,
-	() => {
-		loaded.value = 30;
-	},
+const visibleRows = computed(() => props.table.rows.slice(0, visibleLimit.value));
+const groupRoot = computed(() => props.groupPages?.pages.value["[[],null]"]);
+const presentationOnlyLeafFields = new Set([
+	"image",
+	"batch_tracked",
+	"has_expiry_date",
+	"disabled",
+]);
+const quantityColumns = new Set([
+	"available",
+	"loaned",
+	"borrowed",
+	"returned",
+	"damaged",
+	"lost",
+	"outstanding",
+	"opening",
+	"incoming",
+	"outgoing",
+	"adjustment",
+	"closing",
+	"baseline_qty",
+	"actual_qty",
+	"difference",
+	"stock_qty",
+]);
+const columns = computed<DataColumn[]>(() => {
+	const sourceColumns =
+		props.grouped && props.groupPages?.leafColumns?.value.length
+			? props.groupPages.leafColumns.value
+			: props.table.columns;
+	const data: DataColumn[] = sourceColumns
+		.filter(
+			(column) =>
+				column !== "id" && (!props.grouped || !presentationOnlyLeafFields.has(column)),
+		)
+		.map((column) => ({
+			id: column,
+			label: reportColumnLabels[column] || column,
+			defaultVisible: true,
+			required: ["item_code", "itemId", "document", "documentId"].includes(column),
+			sortable: props.sortableColumns?.includes(column) || false,
+			sortField: column,
+			minWidth: reportColumnMinimumWidths[column],
+			className: quantityColumns.has(column) ? "report-quantity-cell" : undefined,
+		}));
+	if (slots.actions)
+		data.push({
+			id: "_actions",
+			label: "操作",
+			defaultVisible: true,
+			required: true,
+			minWidth: "150px",
+		});
+	return data;
+});
+const columnPreferences =
+	services && reference
+		? useColumnPreferences(
+				computed(() => props.preferenceId || `report.${props.table.id}`),
+				columns,
+				reference,
+				services,
+			)
+		: undefined;
+const tableRows = computed<DataTableEntry[]>(() =>
+	props.grouped && props.groupPages
+		? props.groupPages.entries.value
+		: visibleRows.value.map((row, index) => ({
+				kind: "record",
+				id: String(row.id ?? index),
+				value: row,
+			})),
 );
-const labels: Record<string, string> = {
-	posting_timestamp: "入账时间",
-	time: "时间",
-	loan_status: "整笔借用状态",
-	doctype: "记录类型",
-	document: "记录编号",
-	document_id: "记录标识",
-	line_name: "明细编号",
-	bundle_line: "批次明细编号",
-	item_code: "物品编号",
-	item_name: "物品名称",
-	stock_qty: "库存数量",
-	available_effect: "可用库存变化",
-	stock_uom: "库存单位",
-	entered_qty: "填写数量",
-	entered_uom: "填写单位",
-	conversion_factor: "记录换算率",
-	warehouse: "位置",
-	warehouse_label: "位置名称",
-	source_warehouse: "来源位置",
-	destination_warehouse: "目标位置",
-	origin_warehouse: "原存放位置",
-	batch_no: "批次",
-	expiry_date: "到期日期",
-	manufacturing_date: "生产日期",
-	remaining_days: "剩余天数",
-	activity_title: "活动名称",
-	activity_type: "活动类型编号",
-	activity_type_label: "活动类型",
-	original_loan: "原借出编号",
-	original_loan_line: "原借出明细",
-	original_activity: "原借出活动",
-	original_activity_title: "原借出活动名称",
-	outcome: "结算结果",
-	outcome_key: "结清情况",
-	baseline_qty: "账面数量",
-	actual_qty: "已核对实点",
-	difference: "调整差异",
-	review_state: "核对状态",
-	count_scope: "盘点范围",
-	baseline_timestamp: "账面基准时间",
-	period_from: "期间开始",
-	period_to: "期间结束",
-	native_running_qty: "原生流水余额",
-	item_count: "物品种数",
-	document_count: "单据数",
-	allocation_count: "明细条数",
-	has_outstanding: "有未归还借用",
-	start_date: "开始日期",
-	end_date: "结束日期",
-	balance_at: "结余快照",
-	recorded_by: "系统录入账户",
-	amended_from: "修订原记录",
-	file_name: "文件名",
-	parent_doctype: "附件记录类型",
-	snapshot: "快照时间",
-	type: "仓库类型",
-	state: "附件状态",
-	outstandingLines: "未归还明细数",
-	groupLabel: "分组名称",
-	itemIds: "物品编码",
-	loanName: "原借用编号",
-	code: "物品编码",
-	uom: "单位",
-	qty: "借用数量",
-	location: "库位",
-	batch: "批次",
-	quantities: "数量（按单位）",
-	reviewedLines: "已核对行数",
-	unreviewedLines: "未核对行数",
-	reversalOf: "冲销原单据",
-	documentType: "单据类型",
-	documentId: "单据编号",
-	lineId: "明细编号",
-	postingDate: "日期",
-	postingTime: "时间",
-	kind: "流动类型",
-	operation: "操作",
-	status: "状态",
-	docstatus: "状态",
-	itemId: "物品编码",
-	item: "物品",
-	category: "类别",
-	stockQty: "库存数量",
-	stockUom: "库存单位",
-	enteredQty: "填写数量",
-	enteredUom: "填写单位",
-	conversionFactor: "记录换算率",
-	sourceLocationId: "来源库位",
-	locationId: "库位",
-	batchId: "批次",
-	activityId: "活动编号",
-	activity: "活动",
-	activityTypeId: "活动类型编号",
-	activityType: "活动类型",
-	borrower: "借用方",
-	source: "来源",
-	purpose: "用途",
-	recorder: "记录人",
-	handler: "经手人",
-	reviewer: "鉴证人",
-	notes: "详细备注",
-	loanId: "原借用编号",
-	loanLineId: "原借用明细",
-	relationship: "关联来源",
-	group: "分组",
-	lines: "明细数",
-	available: "可用",
-	loaned: "借出",
-	damaged: "损坏",
-	lost: "遗失",
-	total: "合计",
-	borrowed: "借用",
-	returned: "正常归还",
-	outstanding: "未归还",
-	opening: "期初",
-	incoming: "流入",
-	outgoing: "流出",
-	adjustment: "调整",
-	closing: "期末",
-	baseline: "账面",
-	actual: "实点",
-	variance: "有符号差异",
-	reviewed: "已核对",
-	reason: "原因",
-	expiry: "到期日期",
-	manufacturingDate: "生产日期",
-	remainingDays: "剩余天数",
-	title: "名称",
-	start: "开始日期",
-	end: "结束日期",
-	description: "简短说明",
-	owner: "创建人",
-	created: "创建时间",
-	modified: "更新时间",
-	modifiedBy: "修改人",
-	movementCounts: "终身已提交单据数",
-	itemLines: "物品行数",
-	date: "日期",
-	date_time: "日期 / 时间",
-	quantity: "数量 / 单位",
-	id: "标识",
-	balance: "权威基准余额",
-	fileId: "文件编号",
-	fileName: "文件名",
-	label: "名称",
-	parentId: "上级编号",
-	isGroup: "分组节点",
-	tracksBatch: "批次管理",
-	tracksExpiry: "效期管理",
-	factor: "换算率",
-	barcode: "条码",
-};
+const hasMore = computed(() =>
+	props.total !== undefined
+		? props.table.rows.length < props.total && props.limit === undefined
+		: props.limit === undefined && visibleLimit.value < props.table.rows.length,
+);
+
 function cell(column: string, value: unknown, row: Record<string, unknown>) {
 	if (["source_warehouse", "destination_warehouse"].includes(column) && !value) return "外部";
 	if (value === "" || value === undefined || value === null) return "";
@@ -239,6 +180,13 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 		},
 		docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
 		status: { Active: "进行中", Archived: "已归档" },
+		loan_status: {
+			Draft: "草稿",
+			Cancelled: "已取消",
+			Open: "未结清",
+			Settled: "已结清",
+			Closed: "已结清",
+		},
 		doctype: {
 			"Stock Entry": "库存流动",
 			"Stock Reconciliation": "库存调整",
@@ -262,126 +210,246 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 	};
 	return dictionary[column]?.[String(value)] ?? value;
 }
+
+function displayCell(column: string, value: unknown, row: Record<string, unknown>) {
+	if (quantityColumns.has(column) && typeof value === "number")
+		return `${formatQuantity(value)} ${String(row.stock_uom || "")}`.trim();
+	return cell(column, value, row);
+}
+
 function stockEffect(row: Record<string, unknown>) {
 	if (Number(row.docstatus) === 0 || Number(row.docstatus) === 2) return 0;
 	return Number(row.available_effect || 0);
 }
+
 function quantityTone(column: string, row: Record<string, unknown>) {
 	if (row[column] === null || row[column] === undefined || row[column] === "") return "";
 	if (!["stock_qty", "available_effect"].includes(column) || row.available_effect === undefined)
 		return "";
-	const value = stockEffect(row);
-	return value > 0
+	const effect = stockEffect(row);
+	return effect > 0
 		? "stock-effect is-increase"
-		: value < 0
+		: effect < 0
 			? "stock-effect is-decrease"
 			: "stock-effect is-neutral";
 }
+
 function quantityEffectLabel(row: Record<string, unknown>) {
-	const effect = stockEffect(row),
-		unit = String(row.stock_uom || "");
+	const effect = stockEffect(row);
+	const unit = String(row.stock_uom || "");
 	return effect > 0
 		? `可用库存增加 ${effect} ${unit}`
 		: effect < 0
 			? `可用库存减少 ${Math.abs(effect)} ${unit}`
 			: `可用库存不变 · ${unit}`;
 }
+
+function loadMore() {
+	if (props.grouped && props.groupPages) void props.groupPages.loadMore();
+	else if (props.total !== undefined) emit("loadMore");
+	else loaded.value += 30;
+}
+function toggleGroup(id: string) {
+	if (props.groupPages) void props.groupPages.toggleGroup(id);
+}
+function groupLoadMore(group: DataTableGroup) {
+	if (props.groupPages) void props.groupPages.loadMore(group.id);
+}
+function groupRetry(group: DataTableGroup) {
+	if (props.groupPages) void props.groupPages.retry(group.id);
+}
+function groupHasMore(group: DataTableGroup) {
+	return props.groupPages?.hasMore(group.id) || false;
+}
+function groupSummary(group: DataTableGroup) {
+	const row = group.value || {};
+	const metrics = [
+		"available",
+		"loaned",
+		"borrowed",
+		"returned",
+		"damaged",
+		"lost",
+		"outstanding",
+		"opening",
+		"incoming",
+		"outgoing",
+		"adjustment",
+		"closing",
+		"baseline_qty",
+		"actual_qty",
+		"difference",
+		"stock_qty",
+	];
+	const parts = metrics
+		.filter((key) => row[key] !== undefined && row[key] !== null)
+		.filter((key) => key !== "stock_qty" || Number(row[key]) !== 0)
+		.map(
+			(key) =>
+				`${reportColumnLabels[key] || key} ${cell(key, row[key], row)}${row.stock_uom ? ` ${row.stock_uom}` : ""}`,
+		);
+	if (Array.isArray(row.quantity_breakdown)) {
+		const kindLabels: Record<string, string> = {
+			Receive: "入库",
+			Issue: "出库",
+			Transfer: "调拨",
+			Loan: "借出",
+			Return: "归还",
+			Damage: "损坏",
+			Loss: "遗失",
+			Repair: "修复",
+			Disposal: "报废",
+			Reconcile: "盘点调整",
+			Opening: "期初库存",
+		};
+		for (const entry of row.quantity_breakdown as Record<string, unknown>[]) {
+			const kind = kindLabels[String(entry.kind)] || String(entry.kind || "记录");
+			const status =
+				entry.docstatus === undefined ? "" : `（${nativeStatusLabel(entry.docstatus)}）`;
+			const quantity = entry.stock_qty;
+			if (quantity !== undefined && quantity !== null)
+				parts.push(
+					`${kind}${status} ${formatQuantity(Number(quantity))}${row.stock_uom ? ` ${row.stock_uom}` : ""}`,
+				);
+		}
+	}
+	return [...new Set(parts)].join(" · ");
+}
+function groupMetric(group: DataTableGroup, column: string) {
+	const row = group.value || {};
+	if (column === "stock_qty" && Array.isArray(row.quantity_breakdown)) {
+		return (row.quantity_breakdown as Record<string, unknown>[])
+			.filter((entry) => Number(entry.stock_qty || 0) !== 0)
+			.map((entry) => {
+				const kind = movementLabels[String(entry.kind)] || String(entry.kind || "记录");
+				const hasStatus = (row.quantity_breakdown as Record<string, unknown>[]).some(
+					(other) => other.kind === entry.kind && other.docstatus !== entry.docstatus,
+				);
+				const status = hasStatus ? `（${nativeStatusLabel(entry.docstatus)}）` : "";
+				return `${kind}${status} ${formatQuantity(Number(entry.stock_qty))} ${row.stock_uom || ""}`.trim();
+			})
+			.join(" / ");
+	}
+	if (
+		[
+			"item_count",
+			"document_count",
+			"allocation_count",
+			"row_count",
+			"display_count",
+			"stock_uom",
+		].includes(column)
+	)
+		return "";
+	const value = row[column];
+	if (typeof value === "number" && row.stock_uom)
+		return `${cell(column, value, row)} ${row.stock_uom}`;
+	return value === undefined || value === null ? "" : cell(column, value, row);
+}
 </script>
+
 <template>
 	<div
 		class="report-table-wrap"
 		:data-browse-scroll="'table:' + table.id"
-		tabindex="0"
 		:aria-label="table.label + ' · 可横向滚动'"
 	>
-		<table>
-			<caption>
+		<DataTable
+			:ariaLabel="table.label"
+			:columns="columns"
+			:rows="tableRows"
+			:sort-by="sortBy"
+			:sort-direction="sortDirection"
+			:column-preferences="columnPreferences"
+			:loading="grouped && groupPages ? Boolean(groupRoot?.loading) : loading"
+			:initialized="
+				grouped && groupPages ? Boolean(groupRoot?.initialized) : (initialized ?? !loading)
+			"
+			:error="grouped && groupPages ? groupRoot?.error || '' : error"
+			:retained="
+				Boolean(
+					grouped && groupPages
+						? groupRoot?.rows.length && groupRoot.loading
+						: table.rows.length && loading,
+				)
+			"
+			:has-more="grouped && groupPages ? groupPages.hasMore() : hasMore"
+			:loading-more="
+				grouped && groupPages
+					? Boolean(groupPages.pages.value['[[],null]']?.loading)
+					: false
+			"
+			:retry-text="'重试加载'"
+			:row-attributes="
+				(row) => ({ 'data-browse-row': `${table.id}:${String(row.id ?? '')}` })
+			"
+			:services="services"
+			@load-more="loadMore"
+			@toggle-group="toggleGroup"
+			@retry="grouped && groupPages ? groupPages.retry() : emit('retry')"
+			@sort="emit('sort', $event)"
+		>
+			<template #caption>
 				{{
-					table.label
+					(total ?? table.rows.length) +
+					` 行完整结果 · 显示 ${Math.min(visibleLimit, table.rows.length)} 行`
 				}}
-				·
-				{{
-					!table.rows.length && (loading || initialized === false || error)
-						? "—"
-						: (total ?? table.rows.length)
-				}}
-				行完整结果 · 显示
-				{{
-					Math.min(visibleLimit, table.rows.length)
-				}}
-				行
-			</caption>
-			<thead>
-				<tr>
-					<th v-for="column in visibleColumns" :key="column">
-						{{ labels[column] || column }}
-					</th>
-					<th v-if="slots.actions">操作</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr
-					v-for="(row, index) in table.rows.slice(0, visibleLimit)"
-					:key="String(row.id ?? index)"
-					:data-browse-row="table.id + ':' + String(row.id ?? index)"
+			</template>
+			<template #cell="{ column, row, value, index }">
+				<slot v-if="column.id === '_actions'" name="actions" :row="row" :index="index" />
+				<button
+					v-else-if="
+						documentLinks !== false &&
+						column.id === 'document' &&
+						row.doctype &&
+						row.document
+					"
+					class="text-button"
+					@click="emit('openDocument', String(row.doctype), String(row.document))"
 				>
-					<td v-for="column in visibleColumns" :key="column">
-						<button
-							v-if="
-								documentLinks !== false &&
-								column === 'document' &&
-								row.doctype &&
-								row.document
-							"
-							class="text-button"
-							@click="
-								emit('openDocument', String(row.doctype), String(row.document))
-							"
-						>
-							{{ row.document }}
-						</button>
-						<NativeStatusBadge
-							v-else-if="column === 'docstatus'"
-							:status="row[column]"
-						/>
-						<template v-else>
-							<span
-								:class="quantityTone(column, row)"
-								:title="
-									quantityTone(column, row)
-										? quantityEffectLabel(row)
-										: undefined
-								"
-								>{{ cell(column, row[column], row)
-								}}<span v-if="quantityTone(column, row)" class="sr-only">{{
-									quantityEffectLabel(row)
-								}}</span></span
-							>
-						</template>
-					</td>
-					<td v-if="slots.actions">
-						<slot name="actions" :row="row" :index="index" />
-					</td>
-				</tr>
-			</tbody>
-		</table>
-		<p v-if="loading || (initialized === false && !error)" role="status">
-			{{ table.rows.length ? "正在更新，保留上次结果…" : "正在读取记录…" }}
-		</p>
-		<p v-else-if="!error && !table.rows.length" class="muted">没有符合条件的记录</p>
+					{{ row.document }}
+				</button>
+				<NativeStatusBadge v-else-if="column.id === 'docstatus'" :status="value" />
+				<span
+					v-else
+					:class="quantityTone(String(column.id), row)"
+					:title="
+						quantityTone(String(column.id), row) ? quantityEffectLabel(row) : undefined
+					"
+				>
+					{{ displayCell(String(column.id), value, row) }}
+					<span v-if="quantityTone(String(column.id), row)" class="sr-only">{{
+						quantityEffectLabel(row)
+					}}</span>
+				</span>
+			</template>
+			<template v-if="grouped && groupPages" #group="{ group }">
+				<div class="report-group-details">
+					<span>{{ groupSummary(group) }}</span>
+					<UiButton v-if="group.error" @click="groupRetry(group)">重试</UiButton>
+					<UiButton
+						v-if="groupHasMore(group)"
+						:loading="group.loading"
+						@click="groupLoadMore(group)"
+						>加载更多此分组</UiButton
+					>
+				</div>
+			</template>
+			<template v-if="grouped && groupPages" #group-label="{ group }">
+				<span class="data-table-group-visual">
+					<ItemImage
+						v-if="group.value?.item_code && group.value?.image"
+						:item="{
+							code: String(group.value.item_code),
+							name: String(group.value.item_name || group.label),
+							image: String(group.value.image),
+						}"
+					/>
+				</span>
+			</template>
+			<template v-if="grouped && groupPages" #group-column="{ group, column }">
+				<span>{{ groupMetric(group, String(column.id)) }}</span>
+			</template>
+		</DataTable>
 	</div>
-	<p v-if="error" role="alert">
-		{{ error }} <UiButton @click="emit('retry')">重试加载</UiButton>
-	</p>
-	<UiButton
-		v-if="total !== undefined && table.rows.length < total && limit === undefined"
-		:loading="loading"
-		@click="emit('loadMore')"
-		>加载更多 · {{ table.label }}</UiButton
-	>
-	<UiButton
-		v-if="total === undefined && limit === undefined && visibleLimit < table.rows.length"
-		@click="loaded += 30"
-		>加载更多 · {{ table.label }}</UiButton
-	>
 </template>

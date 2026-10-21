@@ -62,7 +62,15 @@ describe("typed movement history table", () => {
     expect(wrapper.get("tbody tr").attributes("aria-label")).toContain(
       "增加可用库存",
     );
-    expect(wrapper.text()).toContain("数量 / 单位");
+    expect(wrapper.findAll("th").map((cell) => cell.text())).toEqual(
+      expect.arrayContaining(["数量", "库存单位"]),
+    );
+    expect(
+      wrapper.findAll("tbody td span").some((cell) => cell.text() === "5"),
+    ).toBe(true);
+    expect(
+      wrapper.findAll("tbody td").some((cell) => cell.text() === "Nos"),
+    ).toBe(true);
     expect(wrapper.findAll("th").some((cell) => cell.text() === "操作")).toBe(
       false,
     );
@@ -124,10 +132,13 @@ describe("typed movement history table", () => {
       },
     });
     const wrapper = mount(Host);
-    const cells = wrapper.findAll("tbody td");
-    expect(cells.at(-1)?.text()).toContain("5 Nos");
+    const cells = wrapper.findAll("tbody td:not(.data-table-settings-cell)");
+    expect(cells.at(-2)?.find("span").text()).toBe("5");
+    expect(cells.at(-1)?.text()).toBe("Nos");
     expect(cells.at(-1)?.text()).not.toContain("+5");
-    expect(cells.at(-1)?.classes()).toContain("history-effect-quantity-down");
+    expect(cells.at(-2)?.find("span").classes()).toContain(
+      "history-effect-quantity-down",
+    );
     expect(wrapper.get("tbody tr").classes()).toContain("history-effect-down");
   });
 
@@ -157,7 +168,7 @@ describe("typed movement history table", () => {
       },
     });
     const wrapper = mount(Host);
-    expect(wrapper.text()).toContain("+5 Nos");
+    expect(wrapper.text()).toContain("+5");
     expect(wrapper.get("tbody tr").classes()).not.toContain(
       "history-effect-up",
     );
@@ -191,8 +202,10 @@ describe("typed movement history table", () => {
       },
     });
     const wrapper = mount(Host);
-    const quantityCell = wrapper.findAll("tbody td").at(-1)!;
-    expect(quantityCell.text()).toContain("3 Nos");
+    const quantityCell = wrapper
+      .findAll("tbody td:not(.data-table-settings-cell)")
+      .at(-2)!;
+    expect(quantityCell.find("span").text()).toBe("3");
     expect(quantityCell.text()).not.toContain("+3");
     expect(quantityCell.classes()).toContain("history-effect-quantity-up");
     expect(wrapper.get("tbody tr").attributes("aria-label")).toContain(

@@ -18,9 +18,11 @@ import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import type { StockItem } from "../../lib/stockPresentation";
 import {
-  scopeFilterChips,
+  clearScopeField,
+  scopeFilterFieldChips,
   type ScopeFilterField,
 } from "../../lib/filterPresentation";
+import { useReportGroups } from "../../composables/useReportGroups";
 export interface ExpiryPageData extends BrowseRowsPage {
   item_count: number;
   batch_count: number;
@@ -39,6 +41,7 @@ export function useExpiryBrowse(
     account = reference.user;
   const query = ref(newReportQuery("expiry")),
     routeError = ref("");
+  const groups = useReportGroups(query, services);
   const result = reactive({
     rows: [] as ReportRow[],
     total: 0,
@@ -87,7 +90,7 @@ export function useExpiryBrowse(
   }
   function defaults() {
     const value = newReportQuery("expiry");
-    value.sortBy = "date";
+    value.sortBy = "expiry_date";
     return value;
   }
   watch(
@@ -101,9 +104,20 @@ export function useExpiryBrowse(
         decoded.error ||
         (decoded.query.dataset !== "expiry" ? "此页面需要效期筛选条件" : "");
       if (
-        !["date", "identity", "quantity", "name"].includes(decoded.query.sortBy)
+        ![
+          "expiry_date",
+          "identity",
+          "stock_qty",
+          "item_name",
+          "item_code",
+          "category",
+          "stock_uom",
+          "warehouse",
+          "remaining_days",
+          "batch_no",
+        ].includes(decoded.query.sortBy)
       ) {
-        decoded.query.sortBy = "date";
+        decoded.query.sortBy = "expiry_date";
         decoded.query.sort = "asc";
       }
       if (JSON.stringify(query.value) !== JSON.stringify(decoded.query))
@@ -124,7 +138,7 @@ export function useExpiryBrowse(
       !result.stale &&
       Object.values(analyses).every((table) => !table.loading),
   );
-  async function load(more = false) {
+  async function load(more = false, refresh = false) {
     if (
       routeError.value ||
       !active() ||
@@ -145,7 +159,12 @@ export function useExpiryBrowse(
     try {
       const value = await services.call<ExpiryPageData>(
         "browse.expiry_page",
-        { query: query.value, start: more ? result.next : 0, page_length: 30 },
+        {
+          query: query.value,
+          start: more ? result.next : 0,
+          page_length: 30,
+          ...(refresh ? { refresh: true } : {}),
+        },
         request.signal,
       );
       if (!active(current)) return;
@@ -262,8 +281,14 @@ export function useExpiryBrowse(
       })),
     })),
   );
-  const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
-  function removeScope(field: ScopeFilterField, value: string) {
+  const scopeChips = computed(() =>
+    scopeFilterFieldChips(scope.value, reference),
+  );
+  function removeScope(field: ScopeFilterField | "period", value?: string) {
+    if (value === undefined) {
+      clearScopeField(scope.value, field);
+      return;
+    }
     const previous = scope.value[field];
     Object.assign(scope.value, {
       [field]: Array.isArray(previous)
@@ -329,6 +354,7 @@ export function useExpiryBrowse(
   });
   return {
     query,
+    groups,
     scope,
     scopeChips,
     removeScope,
@@ -340,7 +366,7 @@ export function useExpiryBrowse(
     dimension,
     analysis,
     load,
-    retry: () => load(retryMore),
+    retry: () => load(retryMore, true),
     moreAnalysis,
     clearSecondary,
     item,

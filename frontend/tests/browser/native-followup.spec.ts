@@ -86,7 +86,7 @@ for (const width of [375, 1440]) {
       await route.fulfill({ json: { message } });
     });
     await nativeUiSession(page);
-    await page.goto("/inventory/documents/Stock%20Reconciliation/OPENING-1");
+    await page.goto("/inventory/counts/OPENING-1");
     await expect(page.locator(".preview-form-page")).toContainText(title);
     await expect(page.locator(".preview-form-page")).not.toContainText(
       "ACT-OPAQUE",
@@ -106,7 +106,7 @@ for (const width of [375, 1440]) {
     await expect(page).toHaveURL(/\/inventory\/reports/);
     await expect(page.locator("tbody").first()).toContainText("OPENING-1");
     expect(queries.length).toBeGreaterThanOrEqual(2);
-    await page.goto("/inventory/documents/Stock%20Reconciliation/OPENING-1");
+    await page.goto("/inventory/counts/OPENING-1");
     denied = true;
     await page.reload();
     await expect(page.locator(".preview-form-page")).toContainText(

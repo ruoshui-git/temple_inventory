@@ -50,7 +50,7 @@ describe("independent report correctness review", () => {
     expect(
       projectReport(query, session).rows.map((row) => row.documentId),
     ).toEqual(["RETURN-EXPLICIT"]);
-    query.grouping = "item";
+    query.groupBy = ["item"];
     const grouped = projectReport(query, session);
     expect(grouped.tables[0]!.columns).toContain("groupLabel");
     expect(grouped.tables[0]!.columns).not.toContain("documentId");
@@ -165,7 +165,7 @@ describe("independent report correctness review", () => {
     const query = newReportQuery("activities");
     query.scope.activity = loan.activity;
     query.view = "loans";
-    query.grouping = "activity";
+    query.groupBy = ["activity"];
     const result = projectReport(query, session);
     expect(new Set(result.rows.map((row) => row.stockUom)).size).toBe(2);
     expect(
@@ -184,7 +184,7 @@ describe("independent report correctness review", () => {
     const query = newReportQuery("activities");
     query.view = "records";
     query.scope.activity = "ACT-0001";
-    query.grouping = "kind";
+    query.groupBy = ["kind"];
     const result = projectReport(query, session);
     expect(result.count).toBeGreaterThan(0);
     expect(
@@ -208,7 +208,7 @@ describe("independent report correctness review", () => {
   it("uses summary columns when location detail is grouped by item", () => {
     const query = newReportQuery("inventory");
     query.view = "locations";
-    query.grouping = "item";
+    query.groupBy = ["item"];
     const table = projectReport(query, session).tables[0]!;
     expect(table.columns).not.toContain("batchId");
     expect(table.columns).not.toContain("locationId");
@@ -233,6 +233,7 @@ describe("independent report correctness review", () => {
     ];
     const query = newReportQuery("movements");
     query.view = "records";
+    query.groupBy = [];
     const rows = projectReport(query, session).rows;
     expect(
       rows.find((row) => row.documentType === "Stock Entry")?.quantities,

@@ -1,5 +1,6 @@
 import { warehouseLabel } from "./warehouseLabel";
 import type { BrowseScope } from "./browseQuery";
+import { periodLabels } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
 export type ScopeFilterField = Exclude<
   keyof BrowseScope,
@@ -43,7 +44,7 @@ export function scopeValueLabel(
     return (
       reference.categories.find((row) => row.name === value)?.label || value
     );
-  return warehouseLabel(value, reference.warehouses);
+  return warehouseLabel(value, reference.warehouses, value);
 }
 export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
   const chips = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
@@ -70,4 +71,71 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
       label: "物品类别：无分类",
     });
   return chips;
+}
+
+/** Compact toolbar chips summarize each field; individual values stay editable in the filter form. */
+export function scopeFilterFieldChips(
+  scope: BrowseScope,
+  reference?: ReferenceData,
+) {
+  const chips: Array<{
+    key: string;
+    field: ScopeFilterField | "period";
+    label: string;
+  }> = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
+    (field) => {
+      const selected = scope[field];
+      const values = Array.isArray(selected)
+        ? [...selected]
+        : selected
+          ? [selected]
+          : [];
+      if (field === "categories" && scope.uncategorized)
+        values.push("__uncategorized__");
+      if (!values.length) return [];
+      const visible = values
+        .slice(0, 2)
+        .map((value) =>
+          value === "__uncategorized__"
+            ? "无分类"
+            : reference
+              ? scopeValueLabel(field, value, reference)
+              : value,
+        );
+      const remaining = values.length - visible.length;
+      return [
+        {
+          key: `field:${field}`,
+          field,
+          label: `${scopeFilterLabels[field]}：${visible.join("、")}${remaining ? ` + ${remaining} 项` : ""}`,
+        },
+      ];
+    },
+  );
+  if (scope.period.key !== "all") {
+    const value =
+      scope.period.key === "custom"
+        ? [scope.period.from, scope.period.to].filter(Boolean).join(" – ") ||
+          "日期待补全"
+        : periodLabels[scope.period.key];
+    chips.push({
+      key: "field:period",
+      field: "period",
+      label: `日期：${value}`,
+    });
+  }
+  return chips;
+}
+
+export function clearScopeField(
+  scope: BrowseScope,
+  field: ScopeFilterField | "period",
+) {
+  if (field === "period") {
+    scope.period = { key: "all", from: "", to: "" };
+    return;
+  }
+  const value = scope[field];
+  Object.assign(scope, { [field]: Array.isArray(value) ? [] : "" });
+  if (field === "categories") scope.uncategorized = false;
 }

@@ -41,7 +41,7 @@ def paged(
 
 
 class ReportContext:
-	def __init__(self, query):
+	def __init__(self, query, snapshot=None):
 		# Bind caches per request; no decorator retains contexts across accounts.
 		from functools import lru_cache
 
@@ -54,7 +54,7 @@ class ReportContext:
 		self.scope = query["scope"]
 		self.period = resolved_period(self.scope["period"])
 		self.related_period = resolved_period(query["relatedPeriod"])
-		self.snapshot = str(now_datetime())
+		self.snapshot = str(snapshot or now_datetime())
 		self.settings, self.warehouses, self.physical, self.leased, self.damaged = warehouse_scopes()
 		self.settings.check_permission("read")
 		self.company = self.settings.company

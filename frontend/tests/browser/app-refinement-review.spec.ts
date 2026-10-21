@@ -319,7 +319,7 @@ for (const width of [1440, 390]) {
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
-    await page.goto("/inventory/movements/records");
+    await page.goto("/inventory/movements?view=records");
     await expect(page.locator("[data-browse-row]")).toHaveCount(3);
     await expect(page.locator("thead th")).toHaveText([
       "记录",
@@ -393,7 +393,7 @@ for (const width of [1440, 390]) {
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
-    await page.goto("/inventory/loans/records");
+    await page.goto("/inventory/loans?view=records");
     await expect(page.locator(".loan-record-table tbody tr")).toHaveCount(3);
     await expect(
       page.getByRole("button", { name: "登记归还", exact: true }),
@@ -440,7 +440,7 @@ for (const width of [1440, 390]) {
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
-    await page.goto("/inventory/expiry");
+    await page.goto("/inventory/stock/expiry");
     await expect(page.locator("[data-browse-row]")).toHaveCount(1);
     await expect(
       page.getByRole("button", { name: "查看批次明细", exact: true }),
@@ -452,7 +452,7 @@ for (const width of [1440, 390]) {
     });
     await page.getByRole("button", { name: /放大查看.*图片/ }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/inventory/expiry");
+    expect(new URL(page.url()).pathname).toBe("/inventory/stock/expiry");
     await page
       .getByRole("dialog")
       .getByRole("button", { name: /关闭/ })
@@ -495,7 +495,7 @@ for (const width of [1440, 390]) {
 test("expiry date header toggles its own sort direction", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await prepare(page);
-  await page.goto("/inventory/expiry");
+  await page.goto("/inventory/stock/expiry");
   const dateHeader = page.getByRole("columnheader", { name: /效期/ });
   const before = await dateHeader.getAttribute("aria-sort");
   await dateHeader.getByRole("button").click();
@@ -508,7 +508,7 @@ test("expiry date header toggles its own sort direction", async ({ page }) => {
 test("large text and adaptive filter density", async ({ page }, info) => {
   const errors = await prepare(page, 200);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/inventory/movements/items");
+  await page.goto("/inventory/movements?view=items");
   await expect(page.locator("[data-browse-row]")).toHaveCount(3);
   await page
     .locator(".browse-toolbar")

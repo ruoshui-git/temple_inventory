@@ -82,6 +82,14 @@
       "fieldtype": "Small Text",
       "label": "Sample Data Error",
       "read_only": 1
+    },
+    {
+      "fieldname": "ti_read_generation",
+      "fieldtype": "Int",
+      "label": "Read Cache Generation",
+      "default": "0",
+      "hidden": 1,
+      "read_only": 1
     }
   ],
   "issingle": 1,

@@ -47,6 +47,8 @@ export function useBatchDetailController(props: {
     saving = ref(false),
     historyLoading = ref(false),
     locationsLoading = ref(false),
+    locationsSortBy = ref("identity"),
+    locationsSortDirection = ref<"asc" | "desc">("asc"),
     error = ref(""),
     historyError = ref(""),
     locationError = ref(""),
@@ -215,6 +217,8 @@ export function useBatchDetailController(props: {
           name: target.name,
           start: target.locations.next_start,
           page_length: 100,
+          sort_by: locationsSortBy.value,
+          sort: locationsSortDirection.value,
         },
         locationRequest.signal,
       );
@@ -234,6 +238,56 @@ export function useBatchDetailController(props: {
       if (active(current)) locationsLoading.value = false;
     }
   }
+  async function sortLocations(field: string) {
+    const target = batch.value;
+    const allowed = [
+      "identity",
+      "warehouse_label",
+      "stock_qty",
+      "available",
+      "stock_uom",
+    ];
+    if (!target || !allowed.includes(field) || locationsLoading.value) return;
+    if (locationsSortBy.value === field) {
+      locationsSortDirection.value =
+        locationsSortDirection.value === "asc" ? "desc" : "asc";
+    } else {
+      locationsSortBy.value = field;
+      locationsSortDirection.value = "asc";
+    }
+    locationRequest?.abort();
+    const current = generation;
+    const controller = new AbortController();
+    locationRequest = controller;
+    locationsLoading.value = true;
+    locationError.value = "";
+    try {
+      const page = await services.call<BatchDetail["locations"]>(
+        "catalog.batch_locations",
+        {
+          name: target.name,
+          start: 0,
+          page_length: 100,
+          sort_by: locationsSortBy.value,
+          sort: locationsSortDirection.value,
+        },
+        controller.signal,
+      );
+      if (!active(current) || batch.value?.name !== target.name) return;
+      target.locations.rows = page.rows;
+      target.locations.next_start = page.next_start;
+      target.locations.matched_count = page.matched_count;
+      target.locations.summary = page.summary;
+    } catch (reason) {
+      if (!controller.signal.aborted && active(current))
+        locationError.value =
+          reason instanceof Error ? reason.message : "位置读取失败";
+    } finally {
+      if (active(current) && locationRequest === controller)
+        locationsLoading.value = false;
+    }
+  }
+
   watch(
     () => unref(props.name),
     () => void load(),
@@ -267,6 +321,8 @@ export function useBatchDetailController(props: {
     saving,
     historyLoading,
     locationsLoading,
+    locationsSortBy,
+    locationsSortDirection,
     error,
     historyError,
     locationError,
@@ -280,6 +336,7 @@ export function useBatchDetailController(props: {
     save,
     moreHistory,
     moreLocations,
+    sortLocations,
   };
 }
 export type BatchDetailController = ReturnType<typeof useBatchDetailController>;

@@ -33,6 +33,7 @@ const controller = useActivitiesController(
 defineExpose({
 	controller,
 	requestLeave: () => view.value?.requestLeave() ?? Promise.resolve(true),
+	breadcrumbLabel: () => view.value?.breadcrumbLabel(),
 });
 </script>
 <template>

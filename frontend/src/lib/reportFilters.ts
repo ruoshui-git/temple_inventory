@@ -5,6 +5,7 @@ import { newReportQuery, type ReportQuery } from "./reportContract";
 export interface ReportFilterChip {
   key: string;
   label: string;
+  field?: string;
   summary?: string;
   reset: Partial<ReportQuery>;
   fixed?: boolean;

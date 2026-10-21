@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
 import BrowseToolbar from "../src/components/ui/BrowseToolbar.vue";
+import BrowseChip from "../src/components/ui/BrowseChip.vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
 import OperationBrowseFilters from "../src/features/movements/OperationBrowseFilters.vue";
@@ -54,7 +55,9 @@ it("collapses once, honors manual choices, and keeps focus on the persistent dis
   await flushPromises();
   const toggle = wrapper.get(".browse-tools-toggle");
   expect(toggle.attributes("aria-expanded")).toBe("false");
-  expect(document.activeElement).toBe(toggle.element);
+  expect(document.activeElement).toBe(
+    wrapper.get('input[type="search"]').element,
+  );
   expect(wrapper.get("h1").isVisible()).toBe(true);
   expect(button(wrapper, "分析结果").isVisible()).toBe(false);
   expect(
@@ -72,18 +75,111 @@ it("collapses once, honors manual choices, and keeps focus on the persistent dis
   expect(toggle.attributes("aria-expanded")).toBe("true");
   expect(button(wrapper, "分析结果").isVisible()).toBe(true);
   await toggle.trigger("click");
-  await button(wrapper, "搜索").trigger("click");
-  await flushPromises();
   expect(toggle.attributes("aria-expanded")).toBe("false");
-  expect(document.querySelector('[role="dialog"]')).toBeTruthy();
-  const search = document.querySelector<HTMLInputElement>(
-    '[role="dialog"] input',
-  )!;
-  search.value = "法会物品";
-  search.dispatchEvent(new Event("input", { bubbles: true }));
+  const search = wrapper.get<HTMLInputElement>(
+    ".browse-persistent-search input",
+  );
+  expect(search.isVisible()).toBe(true);
+  expect(wrapper.findAll('input[type="search"]')).toHaveLength(1);
+  await search.setValue("法会物品");
+  await new Promise((resolve) => setTimeout(resolve, 230));
   expect(wrapper.emitted("update:search")?.at(-1)).toEqual(["法会物品"]);
   await wrapper.setProps({ active: false });
-  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(search.isVisible()).toBe(true);
+});
+
+it("waits for IME composition before emitting the debounced search", async () => {
+  vi.useFakeTimers();
+  const wrapper = mount(BrowseToolbar, {
+    props: { title: "库存", summary: "库存", search: "" },
+  });
+  wrappers.push(wrapper);
+  const input = wrapper.get<HTMLInputElement>(
+    ".browse-persistent-search input",
+  );
+  await input.trigger("compositionstart");
+  await input.setValue("法会物品");
+  await vi.advanceTimersByTimeAsync(400);
+  expect(wrapper.emitted("update:search")).toBeUndefined();
+  await input.trigger("compositionend");
+  await vi.advanceTimersByTimeAsync(220);
+  expect(wrapper.emitted("update:search")?.at(-1)).toEqual(["法会物品"]);
+  vi.useRealTimers();
+});
+
+it("routes a hierarchy chip edit to the matching visible rail control", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const wrapper = mount(BrowseToolbar, {
+    attachTo: host,
+    props: {
+      title: "库存",
+      summary: "库存",
+      sidebarAvailable: true,
+      sidebarOpen: true,
+    },
+    slots: {
+      chips: ({ editFilter }: { editFilter: (field?: string) => void }) =>
+        h(BrowseChip, {
+          label: "物品类别：2 项",
+          onEdit: () => editFilter("categories"),
+        }),
+    },
+  });
+  wrappers.push(wrapper);
+  await flushPromises();
+  const rail = document.createElement("aside");
+  rail.className = "browse-filter-rail";
+  rail.innerHTML = `<fieldset data-filter-field="categories"><input aria-label="类别树搜索" /></fieldset><fieldset data-filter-field="warehouses"><input aria-label="仓库树搜索" /></fieldset>`;
+  wrapper.element.append(rail);
+  const tree = wrapper.element.querySelector<HTMLElement>(
+    '[data-filter-field="categories"]',
+  )!;
+  tree.scrollIntoView = vi.fn();
+  await wrapper.get(".browse-active-chip-label").trigger("click");
+  expect(document.activeElement).toBe(
+    wrapper.element.querySelector('[aria-label="类别树搜索"]'),
+  );
+  expect(tree.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  wrapper.unmount();
+  host.remove();
+});
+
+it("keeps a dense chip list scrollable without placing search or actions inside it", async () => {
+  const wrapper = mount(BrowseToolbar, {
+    props: {
+      title: "库存",
+      summary: "库存",
+      scannable: true,
+      sidebarAvailable: true,
+    },
+    slots: {
+      chips: () =>
+        Array.from({ length: 40 }, (_, index) =>
+          h("button", { key: index, type: "button" }, `筛选项 ${index + 1}`),
+        ),
+    },
+  });
+  wrappers.push(wrapper);
+  await flushPromises();
+  const chips = wrapper.get(".browse-persistent-chips");
+  const bar = wrapper.get(".browse-persistent-bar");
+  expect(chips.findAll("button")).toHaveLength(40);
+  for (const selector of [
+    ".browse-persistent-search input",
+    ".browse-sidebar-toggle",
+    ".browse-tools-toggle",
+  ]) {
+    const control = bar.get(selector);
+    expect(chips.element.contains(control.element)).toBe(false);
+    expect(control.isVisible()).toBe(true);
+  }
+  expect(bar.get('button[aria-haspopup="dialog"]').isVisible()).toBe(true);
+  expect(
+    bar
+      .findAll("button")
+      .some((button) => button.attributes("aria-label") === "扫码"),
+  ).toBe(true);
 });
 
 it("keeps all quick tabs in the shared expanded toolbar", async () => {
@@ -204,25 +300,22 @@ function stock() {
 it("hydrates the shared Inventory hierarchies and clears inherited categories without restoring them", async () => {
   const { wrapper, c, call } = stock();
   await flushPromises();
-  await wrapper
-    .findAll("button")
-    .find((node) => node.text().trim().startsWith("筛选"))!
-    .trigger("click");
+  await wrapper.get('button[aria-label^="筛选"]').trigger("click");
   const category = wrapper
     .findAllComponents(HierarchyFilter)
     .find((tree) => tree.props("title") === "物品类别")!;
   expect(category.props("modelValue")).toEqual(["food", "cloth"]);
-  await category.get('button[aria-label="清除本项"]').trigger("click");
+  await category.get('input[data-facet-index="0"]').setValue(false);
   await flushPromises();
-  expect(c.scope.value.categories).toEqual([]);
+  expect(c.scope.value.categories).toEqual(["cloth"]);
   expect(c.scope.value.warehouses).toEqual(["ROOM"]);
-  expect(call.mock.calls.at(-1)?.[1].query.scope.categories).toEqual([]);
+  expect(call.mock.calls.at(-1)?.[1].query.scope.categories).toEqual(["cloth"]);
   category.vm.$emit("update:modelValue", ["rice", "cloth"]);
   await flushPromises();
   expect(c.query.value.scope.categories).toEqual(["rice", "cloth"]);
-  c.appliedChips.value.find((chip) => chip.value === "rice")!.remove();
+  c.appliedChips.value.find((chip) => chip.field === "categories")!.remove();
   await flushPromises();
-  expect(c.query.value.scope.categories).toEqual(["cloth"]);
+  expect(c.query.value.scope.categories).toEqual([]);
 });
 
 it("offers only Item creation until selection and dispatches exact permitted selected identities in compact mode", async () => {

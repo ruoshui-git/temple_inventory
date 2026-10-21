@@ -1,6 +1,9 @@
 import { emptyScope, periodLabels, type DatePeriod } from "./browseQuery";
 import {
   newReportQuery,
+  groupsForView,
+  groupSequencesForView,
+  sortableColumnsForView,
   reportDefinitions,
   type ReportDataset,
   type ReportQuery,
@@ -55,11 +58,19 @@ export function decodeReportQuery(
     const candidate: unknown =
       typeof value === "string" ? JSON.parse(value) : value;
     if (!record(candidate)) throw new Error("导出设置无效");
+    if (own(candidate, "grouping"))
+      throw new Error("分组设置格式已更新，请重新选择分组");
+    if (
+      Array.isArray(candidate.groupBy) &&
+      new Set(candidate.groupBy).size !== candidate.groupBy.length
+    )
+      throw new Error("分组字段不能重复");
     const dataset =
       candidate.dataset === undefined ? fallback : candidate.dataset;
     if (typeof dataset !== "string" || !own(reportDefinitions, dataset))
       throw new Error("数据集无效");
     const query = newReportQuery(dataset as ReportDataset);
+    query.groupBy = [];
     const target = query as unknown as Record<string, unknown>;
     for (const [field, initial] of Object.entries(query)) {
       if (
@@ -87,14 +98,28 @@ export function decodeReportQuery(
     }
     if (own(candidate, "view")) query.view = text(candidate.view);
     const definition = reportDefinitions[query.dataset];
+    if (!definition.views.some((view) => view.id === query.view))
+      throw new Error("此数据集不支持所选视图或分组");
     if (
-      !definition.views.some((view) => view.id === query.view) ||
-      !["none", ...definition.groups].includes(query.grouping)
+      query.groupBy.length > 2 ||
+      new Set(query.groupBy).size !== query.groupBy.length ||
+      query.groupBy.some(
+        (field) => !groupsForView(query.dataset, query.view).includes(field),
+      )
     )
       throw new Error("此数据集不支持所选视图或分组");
+    if (
+      !groupSequencesForView(query.dataset, query.view).some(
+        (sequence) =>
+          sequence.length === query.groupBy.length &&
+          sequence.every((field, index) => field === query.groupBy[index]),
+      )
+    )
+      throw new Error("此数据集不支持所选视图或分组顺序");
+    if (!sortableColumnsForView(query.dataset, query.view).includes(query.sortBy))
+      throw new Error("此视图不支持此排序字段");
     const enums: Partial<Record<keyof ReportQuery, readonly string[]>> = {
       sort: ["asc", "desc"],
-      sortBy: ["identity", "date", "modified", "quantity", "name", "batch"],
       activityStatus: ["all", "active", "archived"],
       loanStatus: ["all", "outstanding", "open", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],

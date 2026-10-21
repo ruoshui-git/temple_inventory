@@ -16,6 +16,10 @@ import Attachments from "../../components/Attachments.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
+import DataTable from "../../components/ui/DataTable.vue";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { useOptionalInventoryServices } from "../../services/contracts";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -98,6 +102,48 @@ function deskItem(row: Record<string, unknown>) {
 		loaned: 0,
 		damaged: 0,
 	};
+}
+const countColumns = computed<DataColumn[]>(() => [
+	{ id: "warehouse", label: "位置", required: true, defaultVisible: true, minWidth: "150px" },
+	{ id: "image", label: "图片", defaultVisible: true, minWidth: "72px" },
+	{
+		id: "item_name",
+		label: "物品名称",
+		required: true,
+		defaultVisible: true,
+		minWidth: "180px",
+	},
+	{
+		id: "item_code",
+		label: "物品编码",
+		required: true,
+		defaultVisible: true,
+		minWidth: "140px",
+	},
+	{ id: "batch", label: "批次 / 组合", defaultVisible: true, minWidth: "150px" },
+	{ id: "stock_uom", label: "库存单位", defaultVisible: true },
+	{ id: "current_qty", label: "账面数量", defaultVisible: true, align: "end" },
+	{ id: "qty", label: "实点数量", required: true, defaultVisible: true, align: "end" },
+	{ id: "allocations", label: "批次分配", defaultVisible: true },
+]);
+const countTableRows = computed<DataTableRecord[]>(() =>
+	values.value.items.map((row, index) => ({
+		kind: "record",
+		id: String(row.name || index),
+		value: row as unknown as Record<string, unknown>,
+	})),
+);
+const services = useOptionalInventoryServices();
+const countPrefs = services
+	? useColumnPreferences(
+			`count-editor.${String(values.value.name || values.value.doctype || "draft")}`,
+			countColumns,
+			c.reference,
+			services,
+		)
+	: undefined;
+function countRow(row: Record<string, unknown>) {
+	return row as unknown as (typeof values.value.items)[number];
 }
 async function back() {
 	if (await c.requestLeave()) emit("back");
@@ -247,87 +293,61 @@ async function back() {
 								: "保留 ERPNext 原生库位、批次分配和库存单位。"
 						}}
 					</p>
-					<div
-						class="count-table-scroll"
-						role="region"
-						aria-label="原生盘点明细，可横向滚动"
-						tabindex="0"
+					<DataTable
+						ariaLabel="原生盘点明细"
+						table-class="count-table count-native-table"
+						:columns="countColumns"
+						:rows="countTableRows"
+						:column-preferences="countPrefs"
+						empty-text="此原生记录没有明细。"
 					>
-						<table class="count-table count-native-table">
-							<thead>
-								<tr>
-									<th>位置</th>
-									<th>物品</th>
-									<th>批次 / 组合</th>
-									<th>库存单位</th>
-									<th>账面数量</th>
-									<th>实点数量</th>
-									<th>批次分配</th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr
-									v-for="(row, index) in values.items"
-									:key="String(row.name || index)"
-								>
-									<td>
-										{{
-											warehouseLabel(
-												String(row.warehouse || ""),
-												c.reference.warehouses,
-											)
-										}}
-									</td>
-									<td class="count-item-cell">
-										<div class="count-item-content">
-											<div class="count-item-thumbnail">
-												<ItemImage :item="deskItem(row)" />
-											</div>
-											<div>
-												<strong>{{
-													c.names[String(row.item_code)] || row.item_code
-												}}</strong
-												><small>{{ row.item_code }}</small>
-											</div>
-										</div>
-									</td>
-									<td>
-										{{ row.batch_no || row.serial_and_batch_bundle || "—" }}
-									</td>
-									<td>{{ row.stock_uom }}</td>
-									<td>{{ row.current_qty ?? "未记录" }}</td>
-									<td>
-										<input
-											v-if="writable"
-											class="count-actual-input"
-											type="number"
-											min="0"
-											step="any"
-											v-model.number="row.qty"
-											:disabled="busy"
-											:aria-label="`${c.names[String(row.item_code)] || row.item_code}实点数量`"
-										/><span v-else>{{ row.qty }}</span>
-									</td>
-									<td>
-										<details
-											v-if="
-												row.serial_and_batch_bundle ||
-												(Array.isArray(row.recorded_count_allocations) &&
-													row.recorded_count_allocations.length)
-											"
-										>
-											<summary>查看分配</summary>
-											<NativeCountAllocations :row="row" />
-										</details>
-										<span v-else>—</span>
-									</td>
-								</tr>
-								<tr v-if="!values.items.length">
-									<td colspan="7" class="count-empty">此原生记录没有明细。</td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
+						<template #cell="{ column, row }">
+							<template v-if="column.id === 'warehouse'">{{
+								warehouseLabel(String(row.warehouse || ""), c.reference.warehouses)
+							}}</template>
+							<div v-else-if="column.id === 'image'" class="count-item-thumbnail">
+								<ItemImage :item="deskItem(row)" />
+							</div>
+							<strong v-else-if="column.id === 'item_name'">{{
+								c.names[String(row.item_code)] || row.item_code
+							}}</strong>
+							<template v-else-if="column.id === 'item_code'">{{
+								row.item_code
+							}}</template>
+							<template v-else-if="column.id === 'batch'">{{
+								row.batch_no || row.serial_and_batch_bundle || "—"
+							}}</template>
+							<template v-else-if="column.id === 'stock_uom'">{{
+								row.stock_uom
+							}}</template>
+							<template v-else-if="column.id === 'current_qty'">{{
+								row.current_qty ?? "未记录"
+							}}</template>
+							<input
+								v-else-if="column.id === 'qty' && writable"
+								class="count-actual-input"
+								type="number"
+								min="0"
+								step="any"
+								v-model.number="countRow(row).qty"
+								:disabled="busy"
+								:aria-label="`${c.names[String(row.item_code)] || row.item_code}实点数量`"
+							/>
+							<template v-else-if="column.id === 'qty'">{{ row.qty }}</template>
+							<details
+								v-else-if="
+									column.id === 'allocations' &&
+									(row.serial_and_batch_bundle ||
+										(Array.isArray(row.recorded_count_allocations) &&
+											row.recorded_count_allocations.length))
+								"
+							>
+								<summary>查看分配</summary>
+								<NativeCountAllocations :row="countRow(row)" />
+							</details>
+							<span v-else-if="column.id === 'allocations'">—</span>
+						</template>
+					</DataTable>
 				</section>
 				<div
 					v-if="writable || state.confirmationVersion"
@@ -595,10 +615,15 @@ async function back() {
 	justify-content: flex-end;
 	gap: 8px;
 }
+.count-desk-actions :deep(button) {
+	flex: 0 0 auto;
+	white-space: nowrap;
+	word-break: keep-all;
+}
 .count-item-thumbnail {
-	width: 38px;
-	height: 38px;
-	flex: 0 0 38px;
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
+	flex: 0 0 var(--p-table-thumbnail);
 	overflow: hidden;
 }
 @media (max-width: 1023px) {
@@ -622,9 +647,9 @@ async function back() {
 		flex: 1;
 	}
 	.count-item-thumbnail {
-		width: 44px;
-		height: 44px;
-		flex-basis: 44px;
+		width: var(--p-table-thumbnail);
+		height: var(--p-table-thumbnail);
+		flex-basis: var(--p-table-thumbnail);
 	}
 }
 </style>

@@ -1,0 +1,10 @@
+Focused native cache correctness run
+Date: 2026-10-20
+Command: bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run --kwargs '{"test_name":["test_expired_cached_projection_after_grouping_rebuilds_before_serving","test_inflight_projection_discards_build_after_generation_change","test_redis_failure_after_cached_restore_rebuilds_from_fresh_source","test_read_cache_snapshot_age_uses_calculation_start_and_expires_at_ttl"]}'
+Exit status: 0
+Result: 4 tests passed; 0 failures; 0 errors; elapsed 1.109s.
+
+The TTL regression restored a fresh grouped projection, expired it during the
+age check after grouping, then confirmed safe restart and fresh-source output.
+The rollback audit was unchanged: ti_read_generation=20, Warehouses=29,
+Items=164, Stock Entries=15. The output contained no credentials.

@@ -122,7 +122,7 @@ export function useNativeWarehouses(
   const stockQuery = computed(() => {
     const query = newReportQuery("inventory");
     query.view = "locations";
-    query.sortBy = "name";
+    query.sortBy = "item_name";
     query.scope.warehouses = selected.value ? [selected.value.name] : [];
     return query;
   });

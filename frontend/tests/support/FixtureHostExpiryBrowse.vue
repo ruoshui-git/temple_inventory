@@ -17,7 +17,7 @@ watch(
 		);
 		value.scope = JSON.parse(JSON.stringify(reviewSession.filters.expiry.scope));
 		value.includeZero = !reviewSession.filters.expiry.inStock;
-		if (!reviewSession.nativeExpiryQuery) value.sortBy = "date";
+		if (!reviewSession.nativeExpiryQuery) value.sortBy = "expiry_date";
 		value.expiryWindow =
 			props.variant === "soon"
 				? "next_30"

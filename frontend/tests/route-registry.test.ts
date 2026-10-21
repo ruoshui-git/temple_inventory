@@ -1,0 +1,227 @@
+import { describe, expect, it } from "vitest";
+import { createMemoryHistory, createRouter } from "vue-router";
+import {
+  browseStateDestination,
+  documentDestination,
+} from "../src/lib/nativeNavigation";
+import {
+  breadcrumbsForRoute,
+  browseRouteTarget,
+  routeRecords,
+  routeRegistry,
+  routeTarget,
+  restoreBrowseQueryPayload,
+  guardReservedRoute,
+  routeViewIdentity,
+} from "../src/lib/routeRegistry";
+import { newReportQuery } from "../src/lib/reportContract";
+
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: routeRecords,
+});
+router.beforeEach(guardReservedRoute);
+
+describe("canonical application route registry", () => {
+  it("contains only named canonical routes and resolves retired paths as not found", async () => {
+    const names = routeRegistry.map(({ name }) => name);
+    expect(new Set(names).size).toBe(names.length);
+    for (const name of [
+      "home",
+      "stock",
+      "item-new",
+      "item-detail",
+      "expiry",
+      "batch-detail",
+      "warehouses",
+      "warehouse-detail",
+      "categories",
+      "pending",
+      "movements",
+      "movement-new",
+      "movement-detail",
+      "loans",
+      "loan-overview",
+      "counts",
+      "count-new",
+      "count-detail",
+      "activities",
+      "activity-new",
+      "activity-detail",
+      "activity-edit",
+      "drafts",
+      "reports",
+      "settings",
+      "setup",
+      "more",
+      "auth-complete",
+    ]) {
+      expect(names).toContain(name);
+    }
+    const authComplete = routeRegistry.find(
+      ({ name }) => name === "auth-complete",
+    );
+    expect(typeof authComplete?.component).toBe("function");
+    expect(
+      breadcrumbsForRoute({ name: "auth-complete", params: {} }).at(-1),
+    ).toMatchObject({ label: "登录成功", current: true });
+    for (const oldPath of [
+      "/item/ITEM-1",
+      "/expiry",
+      "/warehouses",
+      "/new/Receive",
+      "/reconcile/COUNT-1",
+      "/documents/Stock%20Entry/STE-1",
+      "/movements/records",
+    ]) {
+      await router.push(oldPath);
+      expect(router.currentRoute.value.name).toBe("not-found");
+    }
+  });
+
+  it("encodes native identifiers as one path segment and rejects unsupported DocTypes", () => {
+    const movement = documentDestination("Stock Entry", "物品 A/批次 1");
+    expect(router.resolve(movement).path).toBe(
+      "/movements/%E7%89%A9%E5%93%81%20A%2F%E6%89%B9%E6%AC%A1%201",
+    );
+    const count = documentDestination("Stock Reconciliation", "COUNT / 甲");
+    expect(router.resolve(count).path).toBe("/counts/COUNT%20%2F%20%E7%94%B2");
+    expect(() => documentDestination("Purchase Receipt", "PR-1")).toThrow(
+      /Unsupported native inventory document/,
+    );
+  });
+
+  it("keeps browse mode in the URL and reconstructs omitted dataset/view state", () => {
+    const movement = newReportQuery("movements");
+    movement.view = "records";
+    movement.search = "rice";
+    const target = browseRouteTarget(movement);
+    expect(router.resolve(target).path).toBe("/movements");
+    expect(target.query).toMatchObject({ view: "records" });
+    const payload = JSON.parse(String(target.query?.query));
+    expect(payload).not.toHaveProperty("dataset");
+    expect(payload).not.toHaveProperty("view");
+    expect(
+      JSON.parse(
+        restoreBrowseQueryPayload(
+          target.query?.query,
+          "movements",
+          target.query?.view,
+        ) || "{}",
+      ),
+    ).toMatchObject({ dataset: "movements", view: "records", search: "rice" });
+
+    const loans = newReportQuery("loans");
+    const loanTarget = browseStateDestination("loans", "items", loans);
+    expect(loanTarget.query?.view).toBe("items");
+    expect(JSON.parse(String(loanTarget.query?.query))).not.toHaveProperty(
+      "dataset",
+    );
+
+    for (const dataset of [
+      "inventory",
+      "expiry",
+      "activities",
+      "counts",
+    ] as const) {
+      const state = newReportQuery(dataset);
+      state.search = "rice";
+      const browse = browseRouteTarget(state);
+      const encoded = JSON.parse(String(browse.query?.query));
+      expect(encoded).not.toHaveProperty("dataset");
+      expect(encoded).not.toHaveProperty("view");
+      expect(
+        JSON.parse(
+          restoreBrowseQueryPayload(
+            browse.query?.query,
+            dataset,
+            browse.query?.view,
+          ) || "{}",
+        ),
+      ).toMatchObject({ dataset, view: state.view, search: "rice" });
+    }
+  });
+
+  it("builds route-owned breadcrumb context with one current non-link segment", () => {
+    const item = breadcrumbsForRoute({
+      name: "item-edit",
+      params: { code: "ITEM / 甲" },
+    });
+    expect(item.map(({ label }) => label)).toEqual([
+      "寺院物资",
+      "库存",
+      "ITEM / 甲",
+      "编辑",
+    ]);
+    expect(item.filter(({ current }) => current)).toHaveLength(1);
+    expect(item.at(-1)?.to).toBeUndefined();
+    expect(item.at(-1)?.label).toBe("编辑");
+    expect(item[2]?.authorizedLabel).toBe(true);
+    expect(item[1]?.to).toMatchObject({ name: "stock" });
+    expect(item[2]?.to).toMatchObject({
+      name: "item-detail",
+      params: { code: "ITEM / 甲" },
+    });
+    const loan = breadcrumbsForRoute({
+      name: "loan-overview",
+      params: { name: "借出 01" },
+    });
+    expect(loan.map(({ label }) => label)).toEqual([
+      "寺院物资",
+      "借用",
+      "借出 01",
+    ]);
+  });
+
+  it("does not interpret More as a breadcrumb ancestor", async () => {
+    const activity = breadcrumbsForRoute({
+      name: "activity-detail",
+      params: { name: "春季整理" },
+    });
+    expect(activity.map(({ label }) => label)).toEqual([
+      "寺院物资",
+      "活动",
+      "春季整理",
+    ]);
+    expect(activity.map(({ label }) => label)).not.toContain("更多");
+    expect(routeTarget("movement-new", { kind: "Receive" }).name).toBe(
+      "movement-new",
+    );
+    const createMovement = breadcrumbsForRoute({
+      name: "movement-new",
+      params: { kind: "Receive" },
+    });
+    expect(createMovement.map(({ label }) => label)).toEqual([
+      "寺院物资",
+      "货物流动",
+      "入库",
+    ]);
+    const warehouse = breadcrumbsForRoute({
+      name: "warehouse-detail",
+      params: { warehouse: "warehouse / 甲" },
+    });
+    expect(warehouse.at(-1)?.authorizedLabel).toBe(true);
+
+    await router.push("/movements/new/Receive");
+    expect(router.currentRoute.value.name).toBe("movement-new");
+    await router.push("/movements/new/not-a-kind");
+    expect(router.currentRoute.value.name).toBe("not-found");
+  });
+
+  it("keeps native editor component identity when autosave replaces its URL", () => {
+    const create = routeRegistry.find(
+      (route) => route.name === "movement-new",
+    )!;
+    const detail = routeRegistry.find(
+      (route) => route.name === "movement-detail",
+    )!;
+    expect(create.stateIdentity).toBe("movement-editor");
+    expect(detail.stateIdentity).toBe("movement-editor");
+    expect(routeViewIdentity(create.path, 7, create.stateIdentity)).toBe(
+      routeViewIdentity(detail.path, 7, detail.stateIdentity),
+    );
+    expect(routeViewIdentity(detail.path, 8, detail.stateIdentity)).not.toBe(
+      routeViewIdentity(detail.path, 7, detail.stateIdentity),
+    );
+  });
+});

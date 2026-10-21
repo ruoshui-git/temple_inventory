@@ -1,0 +1,106 @@
+{
+  "review_date": "2026-10-20",
+  "site": "http://127.0.0.1:8000/inventory",
+  "initial_pages": [
+    {
+      "name": "stock",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "expiry",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "movements",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "loans",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "records",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "reports",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "counts",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "count-new",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "warehouses",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "categories",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "pending",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "activities",
+      "document_horizontal_overflow": false
+    },
+    {
+      "name": "settings",
+      "document_horizontal_overflow": false
+    }
+  ],
+  "initial_page_errors": [],
+  "initial_http_failures": [],
+  "group_disclosure_checks": [
+    {
+      "case": "movements-disclosure",
+      "before": {
+        "expanded": "false",
+        "requests": 1
+      },
+      "after": {
+        "expanded": "false",
+        "requests": 1
+      }
+    },
+    {
+      "case": "loans-disclosure",
+      "before": {
+        "expanded": "false",
+        "requests": 2
+      },
+      "after": {
+        "expanded": "false",
+        "requests": 2
+      }
+    }
+  ],
+  "record_grouping": [
+    {
+      "case": "records-grouped-kind",
+      "groups": 0
+    }
+  ],
+  "loan_history_response": [
+    {
+      "status": 417,
+      "exception": "frappe.exceptions.ValidationError: 请选择借用结算结果"
+    }
+  ],
+  "history_text": [
+    {
+      "state": "open",
+      "text": "▸活动周转箱2 分配行\n单据数 2 · 物品种数 1 · 明细条数 2 · 库存单位 Nos · 借出 30 Nos · 已归还 6 Nos · 损坏归还 3 Nos · 遗失 2 Nos · 未归还 19 Nos收起历史\n记录范围\n未结清借用\n全部相关记录\n☷\n\n请选择借用结算结果 重试"
+    },
+    {
+      "state": "closed",
+      "text": "▸活动周转箱2 分配行\n单据数 2 · 物品种数 1 · 明细条数 2 · 库存单位 Nos · 借出 30 Nos · 已归还 6 Nos · 损坏归还 3 Nos · 遗失 2 Nos · 未归还 19 Nos查看历史\n☷\n\n请选择借用结算结果 重试"
+    }
+  ]
+}

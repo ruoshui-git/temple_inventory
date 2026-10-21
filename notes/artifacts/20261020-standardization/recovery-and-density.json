@@ -1,0 +1,87 @@
+{
+  "results": [
+    {
+      "case": "query-breadcrumb",
+      "url": "http://127.0.0.1:8000/inventory/stock/items/TI-SAMPLE-N-UNDATED?tab=batches",
+      "breadcrumb": "寺院物资\n/\n库存\n/\n无效期批次耗材"
+    },
+    {
+      "case": "unsaved-stay",
+      "input": "浏览器检查保留输入"
+    },
+    {
+      "case": "back-recovery",
+      "value": "浏览器检查保留输入",
+      "alerts": [],
+      "prefsErrors": []
+    },
+    {
+      "case": "final-density",
+      "theme": "jade",
+      "density": "compact",
+      "padding": "5px 8px",
+      "font": "14px",
+      "thumb": {
+        "x": 202.1875,
+        "y": 88.84375,
+        "width": 32,
+        "height": 32
+      },
+      "actions": {
+        "nowrap": "nowrap",
+        "height": 32
+      },
+      "inputs": 100
+    },
+    {
+      "case": "final-density",
+      "theme": "bronze",
+      "density": "balanced",
+      "padding": "12px",
+      "font": "14px",
+      "thumb": {
+        "x": 206.1875,
+        "y": 109.859375,
+        "width": 48,
+        "height": 48
+      },
+      "actions": {
+        "nowrap": "nowrap",
+        "height": 36
+      },
+      "inputs": 100
+    },
+    {
+      "case": "final-density",
+      "theme": "blue",
+      "density": "spacious",
+      "padding": "18px 16px",
+      "font": "14px",
+      "thumb": {
+        "x": 210.1875,
+        "y": 143.65625,
+        "width": 64,
+        "height": 64
+      },
+      "actions": {
+        "nowrap": "nowrap",
+        "height": 44
+      },
+      "inputs": 100
+    },
+    {
+      "case": "phone-card",
+      "tables": 0,
+      "cards": 30,
+      "overflow": false
+    },
+    {
+      "case": "guest-shell",
+      "breadcrumb": [],
+      "heading": []
+    }
+  ],
+  "errors": [],
+  "consoleErrors": [],
+  "failed": []
+}

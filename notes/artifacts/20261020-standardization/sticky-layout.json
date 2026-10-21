@@ -1,0 +1,225 @@
+{
+  "out": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "scale": 100,
+      "nav": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 64.6875,
+        "top": 0,
+        "right": 1440,
+        "bottom": 64.6875,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 43.1875,
+        "y": 64.6875,
+        "width": 1353.625,
+        "height": 93.1875,
+        "top": 64.6875,
+        "right": 1396.8125,
+        "bottom": 157.875,
+        "left": 43.1875
+      },
+      "toolbarTop": "64.6875px",
+      "input": {
+        "x": 51.1875,
+        "y": 113.875,
+        "width": 1000.59375,
+        "height": 36,
+        "top": 113.875,
+        "right": 1051.78125,
+        "bottom": 149.875,
+        "left": 51.1875
+      },
+      "inputUncovered": true,
+      "rail": {
+        "x": 68.1875,
+        "y": 157.875,
+        "width": 250,
+        "height": 826.125,
+        "top": 157.875,
+        "right": 318.1875,
+        "bottom": 984,
+        "left": 68.1875
+      },
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "height": 900,
+      "scale": 100,
+      "nav": {
+        "x": 0,
+        "y": 0,
+        "width": 1024,
+        "height": 64.6875,
+        "top": 0,
+        "right": 1024,
+        "bottom": 64.6875,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 24,
+        "y": 64.6875,
+        "width": 976,
+        "height": 93.1875,
+        "top": 64.6875,
+        "right": 1000,
+        "bottom": 157.875,
+        "left": 24
+      },
+      "toolbarTop": "64.6875px",
+      "input": {
+        "x": 32,
+        "y": 113.875,
+        "width": 622.96875,
+        "height": 36,
+        "top": 113.875,
+        "right": 654.96875,
+        "bottom": 149.875,
+        "left": 32
+      },
+      "inputUncovered": true,
+      "rail": {
+        "x": 49,
+        "y": 157.875,
+        "width": 250,
+        "height": 726.125,
+        "top": 157.875,
+        "right": 299,
+        "bottom": 884,
+        "left": 49
+      },
+      "overflow": false
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "scale": 100,
+      "nav": {
+        "x": 0,
+        "y": 0,
+        "width": 1366,
+        "height": 64.6875,
+        "top": 0,
+        "right": 1366,
+        "bottom": 64.6875,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 40.96875,
+        "y": 64.6875,
+        "width": 1284.0625,
+        "height": 93.1875,
+        "top": 64.6875,
+        "right": 1325.03125,
+        "bottom": 157.875,
+        "left": 40.96875
+      },
+      "toolbarTop": "64.6875px",
+      "input": {
+        "x": 48.96875,
+        "y": 113.875,
+        "width": 931.03125,
+        "height": 36,
+        "top": 113.875,
+        "right": 980,
+        "bottom": 149.875,
+        "left": 48.96875
+      },
+      "inputUncovered": true,
+      "rail": {
+        "x": 65.96875,
+        "y": 157.875,
+        "width": 250,
+        "height": 594.125,
+        "top": 157.875,
+        "right": 315.96875,
+        "bottom": 752,
+        "left": 65.96875
+      },
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "scale": 200,
+      "nav": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 108.390625,
+        "top": 0,
+        "right": 1440,
+        "bottom": 108.390625,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 43.1875,
+        "y": 108.390625,
+        "width": 1353.625,
+        "height": 135.578125,
+        "top": 108.390625,
+        "right": 1396.8125,
+        "bottom": 243.96875,
+        "left": 43.1875
+      },
+      "toolbarTop": "108.391px",
+      "input": {
+        "x": 51.1875,
+        "y": 182.78125,
+        "width": 853.5625,
+        "height": 53.1875,
+        "top": 182.78125,
+        "right": 904.75,
+        "bottom": 235.96875,
+        "left": 51.1875
+      },
+      "inputUncovered": true,
+      "rail": {
+        "x": 68.1875,
+        "y": 243.96875,
+        "width": 250,
+        "height": 740.03125,
+        "top": 243.96875,
+        "right": 318.1875,
+        "bottom": 984,
+        "left": 68.1875
+      },
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scale": 100,
+      "toolbar": {
+        "x": 16,
+        "y": 0,
+        "width": 358,
+        "height": 169.1875,
+        "top": 0,
+        "right": 374,
+        "bottom": 169.1875,
+        "left": 16
+      },
+      "toolbarTop": "0px",
+      "input": {
+        "x": 16,
+        "y": 65.1875,
+        "width": 191.96875,
+        "height": 44,
+        "top": 65.1875,
+        "right": 207.96875,
+        "bottom": 109.1875,
+        "left": 16
+      },
+      "inputUncovered": true,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,299 @@
+{
+  "login": 200,
+  "results": [
+    {
+      "route": "/",
+      "breadcrumb": [
+        "寺院物资/首页"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "物资总览",
+        "库存概览",
+        "库存分布",
+        "效期概览",
+        "货物流动",
+        "借出中",
+        "提醒事项"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/stock",
+      "breadcrumb": [
+        "寺院物资/库存"
+      ],
+      "rows": 30,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "库存"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/stock/expiry",
+      "breadcrumb": [
+        "寺院物资/库存/效期批次"
+      ],
+      "rows": 19,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "效期批次"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/stock/damaged",
+      "breadcrumb": [
+        "寺院物资/库存/损坏待处理"
+      ],
+      "rows": 1,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "损坏待处理"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/movements?view=items",
+      "breadcrumb": [
+        "寺院物资/货物流动"
+      ],
+      "rows": 30,
+      "groups": 30,
+      "alerts": [],
+      "headings": [
+        "货物流动"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/movements?view=records",
+      "breadcrumb": [
+        "寺院物资/货物流动"
+      ],
+      "rows": 14,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "货物流动"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/loans?view=items",
+      "breadcrumb": [
+        "寺院物资/借用"
+      ],
+      "rows": 1,
+      "groups": 1,
+      "alerts": [],
+      "headings": [
+        "借用"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/loans?view=records",
+      "breadcrumb": [
+        "寺院物资/借用"
+      ],
+      "rows": 2,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "借用"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/activities",
+      "breadcrumb": [
+        "寺院物资/活动"
+      ],
+      "rows": 1,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "活动"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/drafts",
+      "breadcrumb": [
+        "寺院物资/草稿"
+      ],
+      "rows": 1,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "草稿",
+        "此浏览器的未完成输入"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/counts",
+      "breadcrumb": [
+        "寺院物资/盘点调整"
+      ],
+      "rows": 1,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "盘点调整"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/reports",
+      "breadcrumb": [
+        "寺院物资/报表"
+      ],
+      "rows": 30,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "导出",
+        "库存 · 163 行"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/stock/warehouses",
+      "breadcrumb": [
+        "寺院物资/库存/仓库"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "仓库",
+        "仓库结构",
+        "实体库房"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/stock/categories",
+      "breadcrumb": [
+        "寺院物资/库存/分类"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "分类"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/settings",
+      "breadcrumb": [
+        "寺院物资/显示设置"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "显示设置",
+        "主题",
+        "文字大小",
+        "显示密度"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/settings/setup",
+      "breadcrumb": [
+        "寺院物资/配置与恢复"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "配置与恢复",
+        "配置有效",
+        "当前仓库引用",
+        "修复配置引用"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/more",
+      "breadcrumb": [
+        "寺院物资/更多"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "更多",
+        "工作工具",
+        "管理与设置",
+        "账户与设备"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/auth-complete",
+      "breadcrumb": [
+        "寺院物资/登录成功"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "登录成功"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/expiry",
+      "breadcrumb": [
+        "寺院物资/页面不存在"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "页面不存在"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/definitely-unknown",
+      "breadcrumb": [
+        "寺院物资/页面不存在"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "页面不存在"
+      ],
+      "overflow": false
+    },
+    {
+      "route": "/movements/new/invalid",
+      "breadcrumb": [
+        "寺院物资/页面不存在"
+      ],
+      "rows": 0,
+      "groups": 0,
+      "alerts": [],
+      "headings": [
+        "页面不存在"
+      ],
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "failed": []
+}

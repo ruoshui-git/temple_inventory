@@ -94,7 +94,7 @@ for (const width of [375, 768, 1024, 1440]) {
           (route) => route.fulfill({ json: { message: [] } }),
         );
         await page.goto(
-          "/inventory/documents/Stock%20Entry/" + encodeURIComponent(doc.name),
+          "/inventory/movements/" + encodeURIComponent(doc.name),
         );
         const summary = page.locator(".form-main .preview-allocation-summary");
         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(

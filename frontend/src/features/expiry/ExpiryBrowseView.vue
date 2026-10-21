@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import BrowseChip from "../../components/ui/BrowseChip.vue";
+import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { formatExpiryDuration } from "../../lib/expiryDuration";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
@@ -7,7 +9,10 @@ import type { ExpiryBrowse } from "./useExpiryBrowse";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import UiButton from "../../components/ui/UiButton.vue";
-import FilterButton from "../../components/ui/FilterButton.vue";
+import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import GroupByFilter from "../../components/filters/GroupByFilter.vue";
+import { removeGroupByField } from "../../lib/groupBy";
+import { groupLabels } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -17,6 +22,15 @@ import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
+import DataTable from "../../components/ui/DataTable.vue";
+import type {
+	DataColumn,
+	DataTableEntry,
+	DataTableGroup,
+	DataTableRecord,
+} from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { useOptionalInventoryServices } from "../../services/contracts";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -29,11 +43,15 @@ const emit = defineEmits<{
 const c = props.controller,
 	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis } = c;
 const { isMobile } = useResponsiveLayout();
-const filterOpen = ref(false),
-	analysisOpen = ref(false);
+const {
+	open: filterOpen,
+	toggle: toggleFilter,
+	saveError: filterSaveError,
+	retry: retryFilterSave,
+} = useFilterRailPreference("stock.expiry", reference, true);
+const analysisOpen = ref(false);
 const scan = ref<InstanceType<typeof ScanPanel>>();
 watch([() => props.active, isMobile], () => {
-	if (props.active === false) filterOpen.value = false;
 	analysisOpen.value = false;
 });
 const choices = [
@@ -74,6 +92,85 @@ const analysisTable = computed(() => ({
 	],
 	rows: analysis.value?.rows || [],
 }));
+const expiryColumns: DataColumn[] = [
+	{ id: "image", label: "图片", defaultVisible: true, minWidth: "72px" },
+	{
+		id: "item_name",
+		label: "物品名称",
+		required: true,
+		defaultVisible: true,
+		sortable: true,
+		minWidth: "220px",
+	},
+	{
+		id: "item_code",
+		label: "物品编号",
+		defaultVisible: true,
+		sortable: true,
+		minWidth: "130px",
+	},
+	{ id: "category", label: "类别", defaultVisible: true, sortable: true, minWidth: "130px" },
+	{
+		id: "batch_no",
+		label: "批次编号",
+		required: true,
+		defaultVisible: true,
+		sortable: true,
+		minWidth: "145px",
+	},
+	{ id: "expiry_date", label: "效期", defaultVisible: true, sortable: true, minWidth: "130px" },
+	{
+		id: "remaining_days",
+		label: "剩余时间",
+		defaultVisible: true,
+		sortable: true,
+		minWidth: "125px",
+	},
+	{
+		id: "stock_qty",
+		label: "库存数量",
+		defaultVisible: true,
+		sortable: true,
+		align: "end",
+		minWidth: "110px",
+	},
+	{ id: "stock_uom", label: "库存单位", defaultVisible: true, sortable: true, minWidth: "90px" },
+	{ id: "warehouse", label: "位置", defaultVisible: true, sortable: true, minWidth: "160px" },
+];
+const expiryRows = computed<DataTableRecord[]>(() =>
+	result.rows.map((row) => ({ kind: "record", id: String(row.id), value: row })),
+);
+const displayedRows = computed<DataTableEntry[]>(() =>
+	query.value.groupBy.length ? c.groups.entries.value : expiryRows.value,
+);
+const groupRoot = computed(() => c.groups.pages.value["[[],null]"]);
+function groupSummary(group: DataTableGroup) {
+	const row = group.value || {};
+	const quantities = [
+		["available", "可用"],
+		["loaned", "借出"],
+		["damaged", "损坏"],
+		["stock_qty", "库存数量"],
+	] as const;
+	return [
+		...quantities.flatMap(([key, label]) =>
+			row[key] === undefined
+				? []
+				: [`${label} ${row[key]}${row.stock_uom ? ` ${row.stock_uom}` : ""}`],
+		),
+	].join(" · ");
+}
+const services = useOptionalInventoryServices();
+const tablePreferences =
+	services && !routeError.value
+		? useColumnPreferences(
+				"expiry.batches",
+				computed(() => expiryColumns),
+				reference,
+				services,
+			)
+		: undefined;
+const tableSortBy = computed(() => query.value.sortBy);
 function openItem(row: ReportRow) {
 	if (!result.stale) emit("item", String(row.item_code));
 }
@@ -88,6 +185,23 @@ function sortBy(field: ReportQuery["sortBy"]) {
 		query.value.sort = "asc";
 	}
 }
+function headerSort(column: string) {
+	if (
+		[
+			"item_name",
+			"item_code",
+			"category",
+			"stock_uom",
+			"warehouse",
+			"batch_no",
+			"expiry_date",
+			"remaining_days",
+			"stock_qty",
+			"identity",
+		].includes(column)
+	)
+		sortBy(column);
+}
 function sortState(field: string) {
 	return query.value.sortBy === field
 		? query.value.sort === "asc"
@@ -96,10 +210,15 @@ function sortState(field: string) {
 		: "none";
 }
 const sortFields = [
-	{ value: "date", label: "到期日" },
-	{ value: "name", label: "物品名称" },
-	{ value: "batch", label: "批次编号" },
-	{ value: "quantity", label: "库存数量" },
+	{ value: "expiry_date", label: "到期日" },
+	{ value: "item_name", label: "物品名称" },
+	{ value: "batch_no", label: "批次编号" },
+	{ value: "stock_qty", label: "库存数量" },
+	{ value: "item_code", label: "物品编号" },
+	{ value: "category", label: "类别" },
+	{ value: "stock_uom", label: "库存单位" },
+	{ value: "warehouse", label: "位置" },
+	{ value: "remaining_days", label: "剩余时间" },
 ];
 function sortGlyph(field: ReportQuery["sortBy"]) {
 	return query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
@@ -114,11 +233,14 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			v-model:search="query.search"
 			search-label="搜索物品、批次或位置"
 			:active="active"
-			:filters-open="filterOpen"
+			:sidebar-open="filterOpen"
+			:sidebar-save-error="filterSaveError"
+			:retry-sidebar-save="retryFilterSave"
+			sidebar-available
 			:filter-count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
 			scannable
 			@scan="scan?.show()"
-			@filters="filterOpen = !filterOpen"
+			@sidebar="toggleFilter"
 			><template #actions
 				><QuickExport
 					v-if="!routeError"
@@ -126,6 +248,25 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					:active="active"
 					@open-full="emit('openExport', $event)"
 			/></template>
+			<template #filters>
+				<div class="browse-filter-mega">
+					<section>
+						<h3>筛选</h3>
+						<ExpiryBrowseFilters
+							:controller="c"
+							:hierarchy-in-rail="filterOpen && !isMobile"
+						/>
+					</section>
+					<section>
+						<h3>分组</h3>
+						<GroupByFilter
+							v-model="query.groupBy"
+							:dataset="query.dataset"
+							:view="query.view"
+						/>
+					</section>
+				</div>
+			</template>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
 			<nav class="browse-tabs" role="tablist" aria-label="效期筛选" @keydown="expiryKey">
 				<button
@@ -141,45 +282,44 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					{{ label }} <small>{{ result.facets[facet] ?? "…" }}</small>
 				</button>
 			</nav>
-			<div class="browse-toolbar">
-				<label class="browse-search"
-					><span>搜索</span
-					><input
-						v-model="query.search"
-						type="search"
-						placeholder="搜索物品、批次或位置"
-				/></label>
-				<UiButton icon="scan" @click="scan?.show()">扫码</UiButton>
-				<FilterButton
-					:expanded="filterOpen"
-					:count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
-					@click="filterOpen = !filterOpen"
+			<template #chips="{ editFilter }">
+				<BrowseChip
+					v-for="(group, index) in query.groupBy"
+					:key="`group:${group}`"
+					:label="`分组：${groupLabels[group] || group}`"
+					@edit="editFilter()"
+					@remove="
+						query.groupBy = removeGroupByField(
+							query.dataset,
+							query.view,
+							query.groupBy,
+							index,
+						)
+					"
 				/>
+				<BrowseChip
+					v-for="chip in c.scopeChips.value"
+					:key="chip.key"
+					:label="chip.label"
+					@edit="editFilter(chip.field)"
+					@remove="c.removeScope(chip.field)"
+				/>
+				<BrowseChip
+					v-for="chip in chips"
+					:key="chip.key"
+					:label="chip.summary || chip.label"
+					:removable="!chip.fixed"
+					@edit="editFilter(chip.field)"
+					@remove="Object.assign(query, chip.reset)"
+				/>
+			</template>
+			<div class="browse-toolbar browse-sort-only">
 				<SortControl
 					v-model:field="query.sortBy"
 					v-model:direction="query.sort"
 					:fields="sortFields"
 					label="效期排序"
 				/>
-			</div>
-			<div class="preview-active-filters">
-				<UiButton
-					v-for="chip in c.scopeChips.value"
-					:key="chip.key"
-					variant="ghost"
-					:aria-label="'移除' + chip.label"
-					@click="c.removeScope(chip.field, chip.value)"
-					>{{ chip.label }} ×</UiButton
-				>
-				<UiButton
-					v-for="chip in chips"
-					:key="chip.key"
-					variant="ghost"
-					:aria-label="'移除' + chip.label"
-					:disabled="chip.fixed"
-					@click="Object.assign(query, chip.reset)"
-					>{{ chip.summary || chip.label }} {{ chip.fixed ? "" : "×" }}</UiButton
-				>
 			</div>
 			<template #result-tools
 				><UiButton v-if="result.initialized" @click="analysisOpen = true"
@@ -193,10 +333,10 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			@item="(code, batch) => (query.search = batch || code)"
 			@location="(name) => (scope.warehouses = [name])"
 		/>
-		<p v-if="result.loading" role="status">
+		<p v-if="isMobile && result.loading" role="status">
 			{{ result.rows.length ? "正在更新批次…" : "正在读取批次…" }}
 		</p>
-		<p v-if="result.error" role="alert">
+		<p v-if="isMobile && result.error" role="alert">
 			{{ result.error }} <UiButton @click="c.retry">重试</UiButton>
 		</p>
 		<p v-if="result.stale" role="status">结果正在更新，更新完成后可打开详情。</p>
@@ -210,22 +350,37 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				筛选结果：{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品 ·
 				{{ result.total }} 条存放明细
 			</p>
-			<QuantitySummary :metrics="metrics" :loading="result.loading || result.stale" />
+			<details class="browse-summary-details">
+				<summary>
+					数量分析：{{
+						metrics
+							.slice(0, 2)
+							.flatMap((metric) =>
+								metric.quantities
+									.slice(0, 1)
+									.map(
+										(quantity) =>
+											`${metric.label} ${quantity.qty} ${quantity.uom}`,
+									),
+							)
+							.join(" · ")
+					}}
+					· 查看完整分析
+				</summary>
+				<QuantitySummary :metrics="metrics" :loading="result.loading || result.stale" />
+			</details>
 		</section>
 		<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
 			今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
 		</p>
 		<div class="preview-browse-body">
-			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail">
-				<ExpiryBrowseFilters :controller="c" />
+			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
+				<BrowseFilters
+					v-model="scope"
+					:fields="['categories', 'warehouses']"
+					hide-activity
+				/>
 			</aside>
-			<Overlay
-				v-if="filterOpen && isMobile"
-				title="筛选效期"
-				drawer
-				@close="filterOpen = false"
-				><ExpiryBrowseFilters :controller="c"
-			/></Overlay>
 			<div id="expiry-results-panel" role="tabpanel" class="preview-browse-results">
 				<div v-if="isMobile" class="preview-expiry-mobile">
 					<article
@@ -248,10 +403,11 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							</button>
 							<button
 								class="browse-row-link"
+								:aria-label="`查看批次 ${row.batch_no}`"
 								:disabled="result.stale"
 								@click="openBatch(row)"
 							>
-								{{ row.batch_no }} · 批次资料
+								批次 {{ row.batch_no }}
 							</button>
 						</div>
 						<p>
@@ -271,119 +427,137 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						</p>
 					</article>
 				</div>
-				<div v-else class="browse-table-wrap">
-					<table class="browse-table">
-						<thead>
-							<tr>
-								<th :aria-sort="sortState('name')">
-									<button @click="sortBy('name')">
-										物品名称 {{ sortGlyph("name") }}
-									</button>
-								</th>
-								<th :aria-sort="sortState('batch')">
-									<button @click="sortBy('batch')">
-										批次编号 {{ sortGlyph("batch") }}
-									</button>
-								</th>
-								<th :aria-sort="sortState('date')">
-									<button @click="sortBy('date')">
-										效期 {{ sortGlyph("date") }}
-									</button>
-								</th>
-								<th>剩余时间</th>
-								<th :aria-sort="sortState('quantity')">
-									<button @click="sortBy('quantity')">
-										库存数量 {{ sortGlyph("quantity") }}
-									</button>
-								</th>
-								<th>位置</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr
-								v-for="row in result.rows"
-								:key="String(row.id)"
-								:data-browse-row="String(row.id)"
+				<DataTable
+					data-browse-scroll="expiry-table"
+					ariaLabel="效期批次"
+					table-class="browse-table"
+					:columns="expiryColumns"
+					:rows="displayedRows"
+					:column-preferences="tablePreferences"
+					:sort-by="tableSortBy"
+					:sort-direction="query.sort"
+					:loading="
+						result.loading || Boolean(query.groupBy.length && groupRoot?.loading)
+					"
+					:initialized="Boolean(result.initialized || groupRoot?.initialized)"
+					:error="query.groupBy.length ? groupRoot?.error || result.error : result.error"
+					:retained="Boolean(result.rows.length && result.loading)"
+					:has-more="query.groupBy.length ? c.groups.hasMore() : result.next !== null"
+					:loading-more="
+						query.groupBy.length
+							? Boolean(groupRoot?.loading && groupRoot.rows.length)
+							: result.loading && result.rows.length > 0
+					"
+					empty-text="没有符合条件的批次"
+					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
+					@sort="headerSort"
+					@toggle-group="c.groups.toggleGroup"
+					@retry="query.groupBy.length ? c.groups.retry() : c.retry()"
+					@load-more="query.groupBy.length ? c.groups.loadMore() : c.load(true)"
+				>
+					<template #cell="{ column, row }">
+						<div v-if="column.id === 'image'" class="expiry-item-identity">
+							<ItemImage :item="c.item(row as unknown as ReportRow)" />
+						</div>
+						<button
+							v-else-if="column.id === 'item_name'"
+							class="browse-row-link"
+							:disabled="result.stale"
+							@click="openItem(row as unknown as ReportRow)"
+						>
+							<strong>{{ row.item_name }}</strong>
+						</button>
+						<template v-else-if="column.id === 'item_code'">{{
+							row.item_code
+						}}</template>
+						<template v-else-if="column.id === 'category'">{{
+							row.category || "未分类"
+						}}</template>
+						<button
+							v-else-if="column.id === 'batch_no'"
+							class="browse-row-link"
+							:aria-label="`打开批次资料：${row.batch_no}`"
+							:disabled="result.stale"
+							@click="openBatch(row as unknown as ReportRow)"
+						>
+							{{ row.batch_no }}
+						</button>
+						<span
+							v-else-if="column.id === 'expiry_date'"
+							class="browse-badge"
+							:class="
+								!row.expiry_date
+									? 'is-neutral'
+									: String(row.expiry_date) < reference.siteDate
+										? 'is-danger'
+										: 'is-success'
+							"
+							>{{ row.expiry_date || "无效期" }}</span
+						>
+						<template v-else-if="column.id === 'remaining_days'">{{
+							typeof row.remaining_days === "number"
+								? formatExpiryDuration(row.remaining_days)
+								: ""
+						}}</template>
+						<template v-else-if="column.id === 'stock_qty'"
+							>{{ row.stock_qty
+							}}<span v-if="Number(row.loaned) > 0" class="browse-badge is-warning"
+								>借出</span
+							><span
+								v-else-if="Number(row.damaged) > 0"
+								class="browse-badge is-danger"
+								>损坏</span
+							></template
+						>
+						<template v-else-if="column.id === 'stock_uom'">{{
+							row.stock_uom
+						}}</template>
+						<template v-else-if="column.id === 'warehouse'">{{
+							warehouseLabel(
+								String(row.warehouse || ""),
+								reference.warehouses,
+								String(row.warehouse_label || ""),
+							)
+						}}</template>
+					</template>
+					<template #group="{ group }">
+						<div class="report-group-details">
+							{{ groupSummary(group) }}
+							<UiButton v-if="group.error" @click="c.groups.retry(group.id)"
+								>重试</UiButton
 							>
-								<td>
-									<div class="expiry-item-identity">
-										<ItemImage :item="c.item(row)" />
-										<div>
-											<button
-												class="browse-row-link"
-												:disabled="result.stale"
-												@click="openItem(row)"
-											>
-												<strong>{{ row.item_name }}</strong>
-											</button>
-											<small
-												>{{ row.item_code
-												}}<template v-if="row.category">
-													· {{ row.category }}</template
-												></small
-											>
-										</div>
-									</div>
-								</td>
-								<td>
-									<button
-										class="browse-row-link"
-										:disabled="result.stale"
-										@click="openBatch(row)"
-									>
-										{{ row.batch_no }} · 批次资料
-									</button>
-								</td>
-								<td>
-									<span
-										class="browse-badge"
-										:class="
-											!row.expiry_date
-												? 'is-neutral'
-												: String(row.expiry_date) < reference.siteDate
-													? 'is-danger'
-													: 'is-success'
-										"
-										>{{ row.expiry_date || "无效期" }}</span
-									>
-								</td>
-								<td>
-									{{
-										typeof row.remaining_days === "number"
-											? formatExpiryDuration(row.remaining_days)
-											: ""
-									}}
-								</td>
-								<td>
-									{{ row.stock_qty }} {{ row.stock_uom }}
-									<span
-										v-if="Number(row.loaned) > 0"
-										class="browse-badge is-warning"
-										>借出</span
-									>
-									<span
-										v-else-if="Number(row.damaged) > 0"
-										class="browse-badge is-danger"
-										>损坏</span
-									>
-								</td>
-								<td>
-									<p>
-										{{
-											warehouseLabel(
-												row.warehouse,
-												reference.warehouses,
-												row.warehouse_label,
-											)
-										}}
-									</p>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
+							<UiButton
+								v-if="c.groups.hasMore(group.id)"
+								:loading="group.loading"
+								@click="c.groups.loadMore(group.id)"
+								>加载更多此分组</UiButton
+							>
+						</div>
+					</template>
+					<template #group-column="{ group, column }">
+						<span v-if="column.id === 'image'" class="table-item-image">
+							<ItemImage
+								v-if="group.value?.item_code"
+								:item="c.item(group.value as unknown as ReportRow)"
+							/>
+						</span>
+						<span
+							v-if="
+								['available', 'loaned', 'damaged', 'stock_qty'].includes(
+									String(column.id),
+								) && group.value?.[String(column.id)] !== undefined
+							"
+						>
+							{{ group.value[String(column.id)] }} {{ group.value.stock_uom || "" }}
+						</span>
+						<span v-else-if="column.id === 'stock_uom'">{{
+							group.value?.stock_uom
+						}}</span>
+					</template>
+				</DataTable>
 				<p
 					v-if="
+						isMobile &&
 						result.initialized &&
 						!result.loading &&
 						!result.error &&
@@ -393,7 +567,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					没有符合条件的批次
 				</p>
 				<UiButton
-					v-if="result.next !== null"
+					v-if="isMobile && result.next !== null"
 					:loading="result.loading"
 					@click="c.load(true)"
 					>加载更多</UiButton
@@ -413,6 +587,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					>
 					<ReportTable
 						v-if="analysis"
+						:preference-id="`expiry.analysis.${dimension}`"
 						:table="analysisTable"
 						:total="analysis.matched_count"
 						:loading="analysis.loading"

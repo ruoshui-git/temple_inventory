@@ -6,10 +6,15 @@ import {
 	browseDestination,
 	documentDestination,
 	exportDestination,
+	operationDestination,
+	countDestination,
 } from "../lib/nativeNavigation";
+import { routeTarget } from "../lib/routeRegistry";
+import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
 const route = useRoute(),
 	router = useRouter(),
 	page = ref<InstanceType<typeof NativeWarehousesPage>>();
+useRouteBreadcrumbLabel(() => page.value?.controller.selected.value?.label);
 onBeforeRouteLeave(() => page.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => page.value?.controller.requestLeave() ?? true);
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);
@@ -28,16 +33,13 @@ function selection(warehouse: string, search: string) {
 }
 function back() {
 	if (window.history.state.back) router.back();
-	else void router.push("/warehouses");
+	else void router.push(routeTarget("warehouses"));
 }
 function count(warehouse: string) {
-	void router.push({
-		path: "/reconcile/new",
-		query: { warehouse, editor: crypto.randomUUID() },
-	});
+	void router.push(countDestination({ warehouse, editor: crypto.randomUUID() }));
 }
 function operation(kind: string, warehouse: string) {
-	void router.push({ path: `/new/${kind}`, query: { warehouse, editor: crypto.randomUUID() } });
+	void router.push(operationDestination(kind, { warehouse, editor: crypto.randomUUID() }));
 }
 function saved() {
 	document.dispatchEvent(new Event("inventory-configuration-changed"));
@@ -53,12 +55,12 @@ function saved() {
 		:edit-name="text(route.query.edit)"
 		:recovery-id="text(route.query.recovery)"
 		@selection="selection"
-		@warehouse="(name) => router.push(`/warehouses/${encodeURIComponent(name)}`)"
+		@warehouse="(name) => router.push(routeTarget('warehouse-detail', { warehouse: name }))"
 		@back="back"
-		@item="(code) => router.push(`/item/${encodeURIComponent(code)}`)"
+		@item="(code) => router.push(routeTarget('item-detail', { code }))"
 		@browse="router.push(browseDestination($event))"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
-		@open-loan="(name) => router.push(`/loans/${encodeURIComponent(name)}`)"
+		@open-loan="(name) => router.push(routeTarget('loan-overview', { name }))"
 		@open-export="router.push(exportDestination($event))"
 		@new-count="count"
 		@new-operation="operation"

@@ -9,6 +9,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { sortableColumnsForView } from "../../lib/reportContract";
 import {
   createRecoveryStore,
   type RecoverySnapshot,
@@ -20,6 +21,7 @@ import {
 import type { OperationGroup } from "../movements/useOperationBrowse";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
+import { useReportGroups } from "../../composables/useReportGroups";
 
 export interface NativeRecord extends OperationGroup {
   time?: string;
@@ -48,6 +50,7 @@ export function useNativeRecords(
     account = reference.user;
   const query = ref(newReportQuery("movements")),
     routeError = ref("");
+  const groups = useReportGroups(query, services);
   const rows = ref<NativeRecord[]>([]),
     total = ref(0),
     next = ref<number | null>(null);
@@ -64,6 +67,7 @@ export function useNativeRecords(
     localTarget = ref<RecoverySnapshot>();
   let disposed = false,
     generation = 0,
+    retryMore = false,
     request: AbortController | undefined;
   let storage: Storage | undefined;
   try {
@@ -73,6 +77,38 @@ export function useNativeRecords(
   }
   const recovery = createRecoveryStore(reference.site, account, storage);
   const active = () => !disposed && reference.user === account;
+  function decodeRecordsQuery(
+    source: unknown,
+    dataset: "movements" | "counts",
+  ) {
+    let candidate = source ?? newReportQuery(dataset);
+    if (typeof source === "string") {
+      try {
+        candidate = JSON.parse(source);
+      } catch {
+        // Let the shared decoder report malformed route payloads.
+      }
+    }
+    if (
+      candidate &&
+      typeof candidate === "object" &&
+      !Array.isArray(candidate) &&
+      ((candidate as Record<string, unknown>).dataset === undefined ||
+        (candidate as Record<string, unknown>).dataset === dataset)
+    ) {
+      const normalized: Record<string, unknown> = {
+        ...(candidate as Record<string, unknown>),
+        view: "records",
+      };
+      if (
+        typeof normalized.sortBy !== "string" ||
+        !sortableColumnsForView(dataset, "records").includes(normalized.sortBy)
+      )
+        normalized.sortBy = "date";
+      candidate = normalized;
+    }
+    return decodeReportQuery(candidate, dataset);
+  }
   function readLocal() {
     if (!active()) return;
     const result = recovery.list();
@@ -81,22 +117,20 @@ export function useNativeRecords(
   }
   function enter() {
     const dataset = props.mode === "counts" ? "counts" : "movements";
-    const decoded = decodeReportQuery(
+    const decoded = decodeRecordsQuery(
       props.initialQuery || props.routeQuery,
       dataset,
     );
     routeError.value =
       decoded.error ||
       (decoded.query.dataset !== dataset ? "此页面的数据范围不匹配" : "");
-    const value = { ...decoded.query, view: "records", grouping: "none" };
+    const value = { ...decoded.query, view: "records" };
     if (props.mode === "drafts") value.statuses = [0];
     if (!props.initialQuery && !props.routeQuery) {
-      value.sortBy = props.mode === "drafts" ? "modified" : "date";
+      value.sortBy = "date";
       value.sort = "desc";
       if (props.mode === "counts") value.statuses = [0, 1, 2];
     }
-    if (value.sortBy === "quantity")
-      routeError.value = "记录包含不同单位，请选择日期或编号排序";
     if (JSON.stringify(value) !== JSON.stringify(query.value))
       query.value = value;
   }
@@ -112,7 +146,7 @@ export function useNativeRecords(
     () => undefined,
     () => initialized.value && !loading.value && !stale.value,
   );
-  async function load(more = false) {
+  async function load(more = false, refresh = false) {
     if (more && (loading.value || next.value === null || stale.value)) return;
     request?.abort();
     const current = ++generation;
@@ -125,6 +159,7 @@ export function useNativeRecords(
     request = controller;
     loading.value = true;
     error.value = "";
+    retryMore = more;
     if (!more) stale.value = rows.value.length > 0;
     try {
       const page = await services.call<NativeRecordPage>(
@@ -133,6 +168,7 @@ export function useNativeRecords(
           query: JSON.parse(JSON.stringify(query.value)),
           start: more ? next.value : 0,
           page_length: 30,
+          ...(refresh ? { refresh: true } : {}),
         },
         controller.signal,
       );
@@ -258,6 +294,7 @@ export function useNativeRecords(
   return {
     reference,
     query,
+    groups,
     scope,
     routeError,
     rows,
@@ -271,6 +308,7 @@ export function useNativeRecords(
     extraChips,
     clear,
     load,
+    retry: () => load(retryMore, true),
     deleteTarget,
     deleteBusy,
     deleteError,

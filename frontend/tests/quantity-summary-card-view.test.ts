@@ -149,6 +149,35 @@ describe("native quantity summaries and inventory cards", () => {
     expect(document.body.textContent).toContain("西库");
     expect(document.body.textContent).not.toContain("ROOM-A");
   });
+  it("sorts the complete stock batch detail rows by a scalar quantity and shows one unit column", async () => {
+    const wrapper = mount(StockDetails, {
+      props: { item: item() },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const trigger = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "2 个批次")!;
+    await trigger.trigger("click");
+    await flushPromises();
+    const table = document.body.querySelector<HTMLElement>(".stock-breakdown")!;
+    expect(table.textContent).toContain("单位");
+    const quantityHeader = Array.from(
+      table.querySelectorAll(".data-table-sort"),
+    ).find((button) =>
+      button.textContent?.includes("可用数量"),
+    ) as HTMLButtonElement;
+    quantityHeader.click();
+    await flushPromises();
+    const rows = Array.from(table.querySelectorAll("tbody tr")).map(
+      (row) => row.textContent || "",
+    );
+    expect(rows[0]).toContain("BATCH-B");
+    expect(rows[1]).toContain("BATCH-A");
+    expect(rows.every((row) => (row.match(/kg/g) || []).length === 1)).toBe(
+      true,
+    );
+  });
   it("uses the site date and treats expiry today as unexpired", () => {
     expect(expiryStatus(item(), "2026-10-16")).toBe("已过期");
     const today = item({

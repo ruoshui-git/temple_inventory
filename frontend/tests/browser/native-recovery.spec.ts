@@ -30,7 +30,7 @@ async function prepare(page: Page, account = "manager") {
 }
 
 async function open(page: Page) {
-  await page.goto("/inventory/new/Receive");
+  await page.goto("/inventory/movements/movements/new/Receive");
   await page.getByText("补充记录（可选）", { exact: true }).click();
   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
 }

@@ -5,6 +5,8 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vu
 import { decodeItemSelection } from "../lib/routeSelection";
 import CountEditorPage from "../features/counts/CountEditorPage.vue";
 import { useNativeEditorRoute } from "../lib/nativeEditorRoute";
+import { documentDestination } from "../lib/nativeNavigation";
+import { routeTarget } from "../lib/routeRegistry";
 const route = useRoute(),
 	router = useRouter();
 const editor = ref<InstanceType<typeof CountEditorPage>>();
@@ -15,17 +17,16 @@ onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
 function back() {
 	if (window.history.state.back) router.back();
-	else void router.push("/counts");
+	else void router.push(routeTarget("counts"));
 }
 function nextCount() {
-	void router.push({ path: "/reconcile/new", query: { editor: crypto.randomUUID() } });
+	void router.push(routeTarget("count-new", {}, { editor: crypto.randomUUID() }));
 }
 </script>
 <template>
 	<CountEditorPage
 		v-if="!selection.error"
 		ref="editor"
-		:key="name || String(route.query.editor || 'new')"
 		:name="name"
 		:initial-items="selection.items"
 		:warehouse="typeof route.query.warehouse === 'string' ? route.query.warehouse : undefined"
@@ -34,10 +35,7 @@ function nextCount() {
 		@open-export="router.push(exportDestination($event))"
 		@new-count="nextCount"
 		@open-document="
-			(doctype, documentName) =>
-				router.push(
-					`/documents/${encodeURIComponent(doctype)}/${encodeURIComponent(documentName)}`,
-				)
+			(doctype, documentName) => router.push(documentDestination(doctype, documentName))
 		"
 	/>
 	<p v-else role="alert">{{ selection.error }}</p>

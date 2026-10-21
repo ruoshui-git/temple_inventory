@@ -1,25 +1,42 @@
 import type { ReportQuery } from "./reportContract";
-export function documentDestination(doctype: string, name: string) {
-  return {
-    path: `/documents/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
-  };
-}
+import type { LocationQueryRaw } from "vue-router";
+import {
+  browseRouteTarget,
+  nativeDocumentTarget,
+  routeTarget,
+  serializeBrowseQuery,
+} from "./routeRegistry";
+
+export const documentDestination = nativeDocumentTarget;
+
 export function loanDestination(name: string, back: string) {
-  return { path: `/loans/${encodeURIComponent(name)}`, query: { back } };
+  return routeTarget("loan-overview", { name }, { back });
 }
+
 export function exportDestination(query: ReportQuery) {
-  return { path: "/reports", query: { query: JSON.stringify(query) } };
+  return routeTarget("reports", {}, { query: JSON.stringify(query) });
 }
+
 export function browseDestination(query: ReportQuery) {
-  if (query.dataset === "inventory" && query.view === "historical")
-    return exportDestination(query);
-  const path = {
-    inventory: "/stock",
-    expiry: "/expiry",
-    movements: "/movements/records",
-    loans: "/loans/records",
-    activities: "/activities",
-    counts: "/counts",
-  }[query.dataset];
-  return { path, query: { query: JSON.stringify(query) } };
+  return browseRouteTarget(query);
+}
+
+export function operationDestination(
+  kind: string,
+  query: LocationQueryRaw = {},
+) {
+  return routeTarget("movement-new", { kind }, query);
+}
+
+export function countDestination(query: LocationQueryRaw = {}) {
+  return routeTarget("count-new", {}, query);
+}
+
+export function browseStateDestination(
+  family: "movements" | "loans",
+  view: "items" | "records",
+  query: ReportQuery,
+) {
+  const name = family === "movements" ? "movements" : "loans";
+  return routeTarget(name, {}, { view, query: serializeBrowseQuery(query) });
 }

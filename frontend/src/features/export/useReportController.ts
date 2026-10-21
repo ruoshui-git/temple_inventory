@@ -1,7 +1,9 @@
 import { computed, onBeforeUnmount, reactive, ref, watch, type Ref } from "vue";
 import {
   newReportQuery,
+  groupsForView,
   reportDefinitions,
+  sortableColumnsForView,
   type ReportDataset,
   type ReportQuery,
   type ReportRow,
@@ -17,6 +19,7 @@ import { decodeReportQuery, readReportQuery } from "../../lib/reportQuery";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
+import { useReportGroups } from "../../composables/useReportGroups";
 export { readReportQuery } from "../../lib/reportQuery";
 
 import {
@@ -42,6 +45,7 @@ export function useReportController(
   const services = useInventoryServices();
   const reference = useReferenceData(),
     account = reference.user;
+  const groups = useReportGroups(query, services, false);
   const result = reactive({
     tables: [] as ReportTableState[],
     main: "",
@@ -98,7 +102,7 @@ export function useReportController(
     table.initialized = true;
     table.error = "";
   }
-  async function refresh() {
+  async function refresh(forceFresh = false) {
     cancel();
     if (options.enabled?.value === false) {
       result.tables = [];
@@ -119,7 +123,7 @@ export function useReportController(
     try {
       const page = await services.report(
         query.value,
-        { page_length: 30 },
+        { page_length: 30, ...(forceFresh ? { refresh: true } : {}) },
         controller.signal,
       );
       if (requestGeneration !== generation || reference.user !== account)
@@ -138,6 +142,12 @@ export function useReportController(
       }));
       const main = result.tables.find((table) => table.id === page.table)!;
       merge(main, page);
+      if (query.value.groupBy.length)
+        groups.seed(
+          page.rows as unknown as import("../../services/contracts").GroupedReportRow[],
+          page.next_start,
+          page.leaf_columns || [],
+        );
       result.total = page.matched_count;
       result.snapshot = page.snapshot;
       result.summary = page.summary;
@@ -156,12 +166,16 @@ export function useReportController(
       if (requestGeneration === generation) result.loading = false;
     }
   }
-  async function loadTable(table: ReportTableState, more = false) {
+  async function loadTable(
+    table: ReportTableState,
+    more = false,
+    forceFresh = false,
+  ) {
     if (
       options.enabled?.value === false ||
       result.stale ||
       table.loading ||
-      (!more && table.initialized) ||
+      (!more && table.initialized && !forceFresh) ||
       (more && table.next === null)
     )
       return;
@@ -173,7 +187,12 @@ export function useReportController(
     try {
       const page = await services.report(
         query.value,
-        { table: table.id, start: more ? table.next || 0 : 0, page_length: 30 },
+        {
+          table: table.id,
+          start: more ? table.next || 0 : 0,
+          page_length: 30,
+          ...(forceFresh ? { refresh: true } : {}),
+        },
         controller.signal,
       );
       if (requestGeneration !== generation || reference.user !== account)
@@ -252,6 +271,7 @@ export function useReportController(
     viewBusy,
     manageView,
     loadViews,
+    groups,
   };
 }
 
@@ -319,12 +339,15 @@ export function useExportWorkspaceController(
       (dataset.value === "activities" && query.value.view === "records"),
   );
   watch(
-    () => query.value.view,
-    (view) => {
+    () => [query.value.dataset, query.value.view] as const,
+    ([dataset, view]) => {
       if (view === "historical" && query.value.scope.period.key === "all")
         query.value.scope.period = { key: "this_month", from: "", to: "" };
-      if (!definition.value.groups.includes(query.value.grouping))
-        query.value.grouping = "none";
+      query.value.groupBy = query.value.groupBy.filter((field) =>
+        groupsForView(dataset, view).includes(field),
+      );
+      if (!sortableColumnsForView(dataset, view).includes(query.value.sortBy))
+        query.value.sortBy = "identity";
     },
   );
   watch([() => JSON.stringify(query.value), routeError], () => {

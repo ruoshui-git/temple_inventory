@@ -19,8 +19,9 @@ const props = withDefaults(
 		count?: number;
 		context?: string;
 		active?: boolean;
+		iconOnly?: boolean;
 	}>(),
-	{ count: 0, active: true },
+	{ count: 0, active: true, iconOnly: false },
 );
 const emit = defineEmits<{ "update:open": [value: boolean] }>();
 const { isMobile } = useResponsiveLayout();
@@ -44,7 +45,8 @@ function reposition() {
 	const anchor = triggerElement()?.getBoundingClientRect();
 	if (!anchor) return;
 	const margin = 12;
-	const width = Math.min(400, window.innerWidth - margin * 2);
+	const wide = Boolean(panel.value?.querySelector(".browse-filter-mega"));
+	const width = Math.min(wide ? 760 : 400, window.innerWidth - margin * 2);
 	const height = Math.min(
 		panel.value.getBoundingClientRect().height,
 		window.innerHeight - margin * 2,
@@ -167,21 +169,35 @@ onBeforeUnmount(() => {
 	window.removeEventListener("scroll", reposition, true);
 });
 defineExpose({
-	show: () => {
-		if (!open.value) void toggle();
+	show: async (field?: string) => {
+		if (!open.value) await toggle();
+		if (!field) return;
+		await nextTick();
+		const content = document.getElementById(panelId.value);
+		const section = content?.querySelector<HTMLElement>(`[data-filter-field="${field}"]`);
+		const control = section?.querySelector<HTMLElement>(
+			'input:not([type="hidden"]),select,button,[tabindex="0"]',
+		);
+		(control || section)?.focus({ preventScroll: true });
+		(section || control)?.scrollIntoView({ block: "nearest" });
 	},
+	hide: () => close(true),
 });
 </script>
 <template>
 	<span class="preview-filter-control">
 		<UiButton
 			ref="trigger"
+			:icon="iconOnly ? 'filter' : undefined"
+			:icon-only="iconOnly"
+			:label="`${label}${count ? `，${count}项已应用` : ''}`"
 			:aria-expanded="open"
 			:aria-controls="open ? panelId : undefined"
 			aria-haspopup="dialog"
 			@click="toggle"
 		>
-			{{ label }}<span v-if="count" class="count-dot">{{ count }}</span
+			<span v-if="!iconOnly">{{ label }}</span
+			><span v-if="count" class="count-dot">{{ count }}</span
 			><span aria-hidden="true">▾</span>
 		</UiButton>
 		<Overlay

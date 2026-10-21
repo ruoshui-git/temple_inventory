@@ -45,11 +45,20 @@ class NativeDocumentTests(unittest.TestCase):
 		with self.assertRaises(frappe.AuthenticationError):
 			session.info()
 		frappe.set_user("Administrator")
-		with (
-			patch("frappe.get_roles", return_value=["Stock User"]),
-			self.assertRaises(frappe.PermissionError),
-		):
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": f"ti-session-stock-user-{self.token}@example.test",
+				"first_name": "Session Stock User",
+				"send_welcome_email": 0,
+				"user_type": "System User",
+				"roles": [{"role": "Stock User"}],
+			}
+		).insert()
+		frappe.set_user(user.name)
+		with self.assertRaises(frappe.PermissionError):
 			session.info()
+		frappe.set_user("Administrator")
 		# bench execute has no HTTP session object. The native CSRF generator
 		# belongs to the HTTP session; this case exercises account authorization.
 		with patch("frappe.sessions.get_csrf_token", return_value="test-session-csrf"):

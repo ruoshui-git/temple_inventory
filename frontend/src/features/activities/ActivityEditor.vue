@@ -6,7 +6,10 @@ import { useActivityEditor } from "./useActivityEditor";
 const props = defineProps<{ activityId?: string; contextual?: boolean; recoveryId?: string }>();
 const emit = defineEmits<{ saved: [id: string]; cancel: [] }>();
 const controller = useActivityEditor(props, (name) => emit("saved", name));
-defineExpose({ requestLeave: controller.requestLeave });
+defineExpose({
+	requestLeave: controller.requestLeave,
+	breadcrumbLabel: () => controller.existing.value?.title || undefined,
+});
 const {
 	dirty,
 	recoveryError,

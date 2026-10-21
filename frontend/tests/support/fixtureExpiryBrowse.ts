@@ -22,9 +22,7 @@ export function fixtureExpiryCall(
   const rowsFor = async (value: ReportQuery) =>
     (
       await report(
-        JSON.parse(
-          JSON.stringify({ ...value, view: "batches", grouping: "none" }),
-        ),
+        JSON.parse(JSON.stringify({ ...value, view: "batches", groupBy: [] })),
         { page_length: Number.MAX_SAFE_INTEGER },
       )
     ).rows.map<ReportRow>((row) => ({
@@ -62,7 +60,7 @@ export function fixtureExpiryCall(
   return (async () => {
     const rows = await rowsFor(query);
     rows.sort((a, b) => {
-      const field = query.sortBy === "name" ? "item_name" : "expiry_date";
+      const field = query.sortBy === "item_name" ? "item_name" : "expiry_date";
       return (
         String(a[field] || "").localeCompare(String(b[field] || "")) *
           (query.sort === "desc" ? -1 : 1) ||

@@ -68,6 +68,7 @@ function setup(
   call = vi.fn(async () => response),
   mode: "drafts" | "counts" = "drafts",
   query?: ReturnType<typeof newReportQuery>,
+  routeQuery?: string,
 ) {
   const reference = createReferenceData();
   Object.assign(reference, {
@@ -82,7 +83,8 @@ function setup(
         { call, report: vi.fn(), upload: vi.fn() } as never,
         reference,
       );
-      return () => h(NativeRecordsPage, { mode, initialQuery: query });
+      return () =>
+        h(NativeRecordsPage, { mode, initialQuery: query, routeQuery });
     },
   });
   const wrapper = mount(root);
@@ -91,6 +93,60 @@ function setup(
   return { wrapper, page, c: page.vm.controller, reference, call };
 }
 describe("native drafts and count records", () => {
+  it("starts Drafts with the records sort contract when the route has no query", async () => {
+    const { c, call } = setup();
+    await flushPromises();
+    expect(c.routeError.value).toBe("");
+    expect(c.query.value).toMatchObject({
+      dataset: "movements",
+      view: "records",
+      sortBy: "date",
+      sort: "desc",
+      statuses: [0],
+    });
+    expect(call).toHaveBeenCalledWith(
+      "browse.native_drafts",
+      expect.objectContaining({
+        query: expect.objectContaining({ view: "records", sortBy: "date" }),
+      }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it.each(["quantity", "name", "batch", "item_name"])(
+    "resets retired sort field %s to the native records default while preserving filters",
+    async (sortBy) => {
+      const routeQuery = JSON.stringify({
+        ...newReportQuery("movements"),
+        view: "records",
+        sortBy,
+        search: "保留搜索",
+      });
+      const { wrapper, c, call } = setup(
+        undefined,
+        "drafts",
+        undefined,
+        routeQuery,
+      );
+      await flushPromises();
+      expect(c.routeError.value).toBe("");
+      expect(c.query.value).toMatchObject({
+        view: "records",
+        sortBy: "date",
+        search: "保留搜索",
+        statuses: [0],
+      });
+      expect(call).toHaveBeenCalledWith(
+        "browse.native_drafts",
+        expect.objectContaining({
+          query: expect.objectContaining({ sortBy: "date", view: "records" }),
+        }),
+        expect.any(AbortSignal),
+      );
+      expect(wrapper.text()).not.toContain("此视图不支持此排序字段");
+    },
+  );
+
   it("keeps complete document counts and separate unit quantities, then loads another page without losing rows", async () => {
     const call = vi.fn(async (_endpoint, args) =>
       args.start
@@ -107,7 +163,7 @@ describe("native drafts and count records", () => {
     await flushPromises();
     expect(call.mock.calls[0]?.slice(0, 2)).toMatchObject([
       "browse.native_drafts",
-      { query: { statuses: [0], sortBy: "modified", view: "records" } },
+      { query: { statuses: [0], sortBy: "date", view: "records" } },
     ]);
     expect(wrapper.text()).toContain("205 份原生记录");
     expect(wrapper.text()).toContain("2 Nos · 3 Kg");
@@ -184,7 +240,11 @@ describe("native drafts and count records", () => {
     ]);
     const rejected = setup(vi.fn(), "drafts", newReportQuery("loans"));
     await flushPromises();
-    expect(rejected.call).not.toHaveBeenCalled();
+    expect(
+      rejected.call.mock.calls.some(([endpoint]) =>
+        String(endpoint).startsWith("browse."),
+      ),
+    ).toBe(false);
     expect(rejected.c.routeError.value).toBeTruthy();
     const counts = setup(undefined, "counts");
     await flushPromises();
@@ -201,11 +261,13 @@ describe("native drafts and count records", () => {
         identity: { doctype: "Stock Entry", name: "STE/A,1" },
       }),
     ).toMatchObject({
-      path: "/documents/Stock%20Entry/STE%2FA%2C1",
+      name: "movement-detail",
+      params: { name: "STE/A,1" },
       query: { recovery: "local-a" },
     });
     expect(recoveryDestination(snapshot)).toMatchObject({
-      path: "/new/Receive",
+      name: "movement-new",
+      params: { kind: "Receive" },
     });
     expect(
       recoveryDestination({
@@ -213,7 +275,7 @@ describe("native drafts and count records", () => {
         editorKind: "Item",
         values: { editingCode: "ITEM/A,1" },
       }),
-    ).toMatchObject({ path: "/item/ITEM%2FA%2C1/edit" });
+    ).toMatchObject({ name: "item-edit", params: { code: "ITEM/A,1" } });
     expect(
       recoveryDestination({ ...snapshot, values: { kind: "Unknown" } }),
     ).toBeUndefined();

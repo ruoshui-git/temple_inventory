@@ -19,7 +19,7 @@ function sourceRows(query: ReportQuery, project: Project): ReportRow[] {
     {
       ...copy(query),
       view: query.dataset === "loans" ? "outcomes" : "lines",
-      grouping: "none",
+      groupBy: [],
     },
     {
       table: query.dataset === "loans" ? "balances" : "lines",

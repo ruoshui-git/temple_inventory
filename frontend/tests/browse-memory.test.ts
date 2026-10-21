@@ -54,7 +54,7 @@ describe("browse navigation memory", () => {
       page_length: 2,
     });
     await wrapped.call("native_api.save_document", { name: "DRAFT-A" });
-    entry = "site:manager:/item/A:2";
+    entry = "site:manager:/stock/items/A:2";
     memory.activate();
     entry = "site:manager:/stock:1";
     memory.activate();
@@ -243,7 +243,7 @@ describe("browse navigation memory", () => {
     (first.find("details").element as HTMLDetailsElement).open = true;
     first.unmount();
     wrappers.pop();
-    entry = "site:manager:/item/A:2";
+    entry = "site:manager:/stock/items/A:2";
     memory.activate();
     entry = "site:manager:/stock:1";
     memory.activate();

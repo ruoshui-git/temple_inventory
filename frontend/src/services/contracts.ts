@@ -7,6 +7,7 @@ export interface PageOptions {
   page_length?: number;
   table?: string;
   include_related?: boolean;
+  refresh?: boolean;
 }
 export interface ReportPage {
   query: ReportQuery;
@@ -15,11 +16,73 @@ export interface ReportPage {
   snapshot: string;
   table: string;
   columns: string[];
+  leaf_columns?: string[];
+  sortable_columns: string[];
   rows: ReportRow[];
   matched_count: number;
   next_start: number | null;
   summary: ReportRow[];
   tables: { id: string; label: string; count: number }[];
+}
+export interface GroupPage {
+  rows: GroupedReportRow[];
+  matched_count: number;
+  next_start: number | null;
+  parent_path: string[];
+  parent_unit?: string | null;
+  row_grain: "group" | "record" | "allocation" | "stock";
+  count_grain?: "stock_row" | "activity" | "native_document" | "allocation";
+  query: ReportQuery;
+  leaf_columns?: string[];
+}
+export interface GroupedReportRow {
+  [key: string]:
+    | string
+    | number
+    | boolean
+    | null
+    | string[]
+    | MovementQuantityBreakdown[]
+    | GroupedNativeWhole
+    | undefined;
+  id: string;
+  group_path?: string[];
+  group_depth?: number;
+  parent_group_id?: string | null;
+  group_label?: string;
+  group_field?: string;
+  has_children?: boolean;
+  row_grain?: "group" | "record" | "allocation" | "stock";
+  row_count?: number;
+  count_grain?: "stock_row" | "activity" | "native_document" | "allocation";
+  count_label?: string;
+  display_count?: number;
+  item_count?: number;
+  document_count?: number;
+  allocation_count?: number;
+  stock_uom?: string;
+  quantity_breakdown?: MovementQuantityBreakdown[];
+  whole?: GroupedNativeWhole;
+  original_loans?: string[];
+  can_settle?: boolean;
+}
+export interface GroupedNativeWhole {
+  quantities: { uom: string; qty: number }[];
+  available_effects: { uom: string; qty: number }[];
+  outstanding?: { uom: string; qty: number }[];
+  item_count: number;
+  line_count: number;
+  branches: { source: string; destination: string }[];
+  original_loans: string[];
+  loan_status?: string;
+}
+export interface MovementQuantityBreakdown {
+  kind: string;
+  docstatus: number;
+  stock_qty: number;
+  available_effect: number;
+  document_count: number;
+  allocation_count: number;
 }
 export interface NamedView {
   id: string;
@@ -122,6 +185,9 @@ export function useInventoryServices() {
   const services = inject(serviceKey);
   if (!services) throw new Error("未配置物资管理服务");
   return services;
+}
+export function useOptionalInventoryServices() {
+  return inject(serviceKey, undefined);
 }
 export function provideReferenceData(reference: ReferenceData) {
   provide(referenceKey, reference);

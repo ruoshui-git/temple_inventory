@@ -1,5 +1,40 @@
 # Temple Inventory Design System
 
+## Browse repair patterns — 2026-10-20
+
+The persistent browse search uses one semantic surface for chips, typing,
+scanner and filter actions, with a focus-within ring. Desktop filter dialogs
+may widen to a two-column, labeled filter/group layout; phone filter sheets
+stack the same labeled sections. Keep the input mounted across compact changes
+and preserve semantic tokens and phone touch geometry.
+
+`DataTable` keeps column settings in the trailing header cell, including during
+loading and empty results. Group rows remain in the same table and align their
+content to visible columns. The complete disclosure row supports click and
+keyboard activation, while links and form controls retain their own actions.
+Browse pages show the result count before an optional full quantity analysis.
+Keep all unit/status quantities in that disclosed analysis.
+
+## Shared browse density and table geometry — 2026-10-20 supersession
+
+Desktop compact, balanced and spacious density use 32px, 36px and 44px shared
+control heights, 8px, 12px and 16px control gaps, and table-cell padding of
+5px/8px, 12px/12px and 18px/16px (block/inline). Table thumbnails use 32px,
+48px and 64px. Density controls geometry and spacing; the 14px body type and
+1.6 line-height scale independently with the user's text-size setting. Narrow
+phone controls retain 44px touch targets. This supersedes prior density-specific
+font and line-height changes.
+
+## 2026-10-20 semantic theme token supersession
+
+Jade, bronze and blue palettes now live in the shared `foundation.css` root
+token sets, selected through `data-ti-theme`. Runtime preference application
+sets the theme selector and text scale; component and page styles consume
+semantic palette, shadow and scrim tokens. Product artwork, camera/image content
+and theme preview swatches retain intentional colors. This supersedes fixed
+presentation colors in shared surfaces; visual acceptance remains a separate
+review gate.
+
 The routed production application is the visual review surface. The separate
 preview entry, gallery controls and dedicated build/browser configuration are
 retired. Historical reference: commit `63c7f26` on `version-16`. Test-only service
@@ -10,16 +45,58 @@ Durable interaction decisions live in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md).
 The [refinement record](notes/20261017_UI_REFINEMENT_IMPLEMENTATION.md) maps the
 16 requirements to implementation, checks, visual evidence and limitations.
 
+## Browse navigation and route foundation — 2026-10-20 supersession
+
+`lib/routeRegistry.ts` is the source for stable route names, canonical paths,
+navigation ownership, page capabilities and breadcrumb context. Routed callers
+use named destinations. `ApplicationShell` reads ownership and breadcrumb
+definitions from route metadata; authorized page data may refine a displayed
+name. The desktop shell has six primary destinations and an accessible Inventory
+dropdown. The former desktop sidebar geometry is retired; mobile keeps its
+horizontal six-destination bar and contextual Inventory links. More is a menu
+arrangement, never a breadcrumb ancestor.
+
+Movement and Loan browse mode is carried by top-level `view=items|records`.
+Central route serialization omits duplicate dataset/view fields from those
+browse payloads and reconstructs them from route context. Other filters and
+drill-through identities remain query state. Retired paths do not alias into
+canonical routes; unknown paths render a deliberate not-found state. Native
+Stock Entry and Stock Reconciliation links resolve to Movement and Count routes
+respectively; unsupported DocTypes are rejected.
+
+Shared browse search remains visible in compact mode. Hierarchy restrictions use
+the optional synchronized category/warehouse sidebar and remain represented by
+active chips in the same toolbar as ordered group chips. The sidebar contains
+category and warehouse trees only, below the measured shared browse header.
+Sidebar visibility is saved in the user's Frappe defaults, with a local
+site/account/page-view presentation cache;
+it never owns or clears filter values. The viewport-bounded Filters form remains
+the shared editor on desktop and a sheet on phones. Date ranges stage until Apply,
+use inclusive site-date bounds, and support editable calendar-year and quarter
+shortcuts. Compact chips summarize active fields while the shared editor keeps
+each selected value removable. Supported browse views expose zero to two ordered
+grouping fields from the active view's sequence contract. Inventory location,
+history and Expiry include Category, Item and Location at either grouping level.
+Movement summary and Loan Item allow no grouping, Item, or Category → Item;
+removing Category from that pair retains Item, while removing Item clears the
+unsupported Category-only remainder. Search stays mounted through
+compact/expanded transitions, including IME composition and debounced updates.
+Tables share flattened columns, ordered
+grouping up to two levels, column settings and density tokens. These rules
+supersede page-local search dialogs, all-filter rails, and earlier remove-all-
+sidebar proposals.
+
 ## Production foundation
 
 - `frontend/src/styles/app.css` is the sole stylesheet entry, importing
-  `foundation.css`, `forms.css`, `utilities.css` and `browse.css`.
+  `foundation.css`, `forms.css`, `utilities.css`, `browse.css` and
+  `data-table.css`.
 - Shared `--p-*` semantic tokens own palette, typography, spacing, density,
   status, shape and layers. Jade/blue/bronze, compact/balanced/spacious and
   100–200% text settings apply at the root, including teleported content.
-- `components/AppFrame.vue` owns navigation geometry and measured mobile
-  obstruction; `ApplicationShell.vue` supplies route/account context and a
-  linked breadcrumb trail. The shared responsive boundary is 1024px.
+- `components/AppFrame.vue` owns top navigation and measured mobile obstruction;
+  `ApplicationShell.vue` supplies route/account context and a linked breadcrumb
+  trail from the route registry. The shared responsive boundary is 1024px.
 - `components/ui` contains reusable controls, overlays, filters and tables.
   `components` contains stock, file, scanner and export surfaces. Controllers
   in `features` own requests, native identity, permissions and persistent state.
@@ -239,7 +316,6 @@ Count projections and confirmation labels are shared through `PreviewCountSummar
 stock snapshots and production tokens/components/APIs remain unchanged. Browser
 results and limitations are recorded in the [audit-fix progress note](notes/done/20261013_DESIGN_PREVIEW_AUDIT_FIXES_PROGRESS.md).
 
-
 ## Preview usability geometry and typography — 2026-10-13
 
 Preview typography multiplies the existing density baselines by `--p-text-scale`
@@ -264,7 +340,6 @@ movement; only actions receive pointer/pressed treatment. Reduced motion applies
 The 50-item receiving samples exercise the shared editor rather than the dense
 row gallery. All changes are preview-owned; production migration and manual
 visual review remain pending.
-
 
 Independent usability review adds a 680px editor-container reflow threshold within the unchanged 1024px responsive surface boundary. Mobile floating actions, toasts and return-to-top use measured navigation height. Header tags wrap with text scaling. Dialog tab containment excludes hidden/inert controls and includes visible disclosure summaries. These repair the preview contracts; browser geometry remains subject to the handoff manual checklist.
 
@@ -324,7 +399,6 @@ longer has a conflicting 72×60 rule. Large opt-in fixtures include image, broke
 loading, missing and illustration states. See the execution note for browser
 results and remaining native-zoom/user-approval checks.
 
-
 Independent simplification review: numeric fields remain `7ch` plus padding;
 column tracks use the same body-size basis for headings and rows, even when the
 headings use smaller type. Wide rows visually hide repeated field labels without
@@ -334,7 +408,6 @@ bounded overflow; the warehouse summary remains in document flow. Notifications
 stay clear of these actions. Virtual lists retain the last focused row during
 pointer transfer/detail return and ignore hidden zero-size resize measurements.
 Reusable Item conversions use the shared guarded overlay and focus restoration.
-
 
 ## Activities, reports and information display — 2026-10-15
 
@@ -382,7 +455,6 @@ previews explicitly show at most five. Horizontal scrolling stays inside each
 table, while page controls wrap. Activity/report date controls stay in normal
 document flow on mobile to avoid covering adjacent filters. Activity tab buttons
 use a single keyboard tab stop, arrow/Home/End navigation and labeled panels.
-
 
 ## Compact preview filter geometry — 2026-10-16
 

@@ -294,9 +294,12 @@ function toggle(name: string) {
 							:initialized="c.history.result.initialized"
 							:error="c.history.result.error"
 							:stale="c.history.result.stale"
+							:sort-by="c.history.sortBy.value"
+							:sort-direction="c.history.sortDirection.value"
 							include-item
 							@load-more="c.history.loadMore"
 							@retry="c.history.refresh"
+							@sort="c.history.setSort"
 							@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 							@open-loan="emit('openLoan', $event)"
 							@open-item="emit('item', $event)"
