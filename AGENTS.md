@@ -7,7 +7,9 @@ columns. Format touched TypeScript/Vue with Prettier.
 
 ## Ownership and decision records
 
-- This file owns agent workflow, architecture and security invariants.
+- This file is the shared source of truth for Codex and Claude Code. It owns
+  agent workflow, architecture and security invariants. `CLAUDE.md` imports it;
+  update shared instructions here rather than duplicating them there.
 - Read [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md) before changing user-facing
   behavior. It owns durable interaction, language, accessibility and responsive
   decisions. Update its concise dated supersession log when a durable decision
