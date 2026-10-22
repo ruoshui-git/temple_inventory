@@ -13,6 +13,7 @@ export interface RecoverySnapshot {
   editorId: string;
   editorKind: string;
   identity?: NativeIdentity;
+  requestId?: string;
   baseVersion?: string;
   revision: number;
   updatedAt: string;
@@ -85,6 +86,8 @@ export function createRecoveryStore(
             candidate.identity.doctype,
           ) &&
           typeof candidate.identity.name === "string")) &&
+      (candidate.requestId === undefined ||
+        typeof candidate.requestId === "string") &&
       Number.isSafeInteger(candidate.revision) &&
       candidate.revision >= 0 &&
       !!candidate.values &&

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useOptionalReferenceData } from "../../services/contracts";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseFullPath } from "../../lib/warehouseLabel";
 import { computed, nextTick, ref, watch } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -77,7 +77,7 @@ const warehouseReference = useOptionalReferenceData();
 					单位: line.uom,
 					批次: line.batch,
 					到期: line.expiry,
-					库位: warehouseLabel(line.location, warehouseReference?.warehouses || []),
+					库位: warehouseFullPath(line.location, warehouseReference?.warehouses || []),
 					换算率: line.conversionFactor || 1,
 				}"
 				:key="label"

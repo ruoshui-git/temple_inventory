@@ -65,6 +65,9 @@ kept in Git.
 - Card geometry uses `--p-card-min-width`, `--p-card-gap` and `--p-card-pad`.
   Compact/balanced/spacious preferred widths are 160/225/300px with 8/16/24px
   gaps. Available width and text scale determine the rendered column count.
+- Stock-card artwork fills the card width in a square 1:1 reserved area using
+  contain fit. Density adjusts the card geometry; DataTable image slots remain
+  compact and fixed.
 - Dashboard scope controls sit with the page header on desktop and wrap on
   narrow surfaces. Quick actions sit directly below the header.
 
@@ -82,6 +85,13 @@ kept in Git.
   Keep native Item codes and stored names for audit history; if the Item is no
   longer readable, fall back to its stored name and then code. Images must come
   through permission-filtered Item and File access, never a raw native image URL.
+- `Item.image` is the only primary-image identity. Other private Item Files are
+  attachments, including images; attachment previews use the shared lightbox
+  but never become the main image automatically. The crop overlay uses
+  Cropper.js with a square draggable selection and keyboard movement. Exported
+  thumbnail WebP is quality 0.85, capped at 800px, and never upscaled. Keep
+  original-as-main and original-as-attachment choices available; attachments
+  preserve source bytes.
 
 ## Async presentation
 
@@ -134,6 +144,15 @@ kept in Git.
 - Desktop preview collapse uses a fixed edge handle. The explicit full-workspace
   action has its own state; exiting it restores the previous preview state.
   Mobile has no edge handle and uses the normal disclosure flow.
+- Picker results use DataTable with flattened Item/warehouse row identity;
+  authorized warehouse breadcrumb, stock quantity and row selection stay in the
+  same compact row. Newly created selection preview stays above filtered
+  results. The full-workspace icon sits at the editable panel's upper right,
+  separate from the preview edge handle.
+- ToastHost teleports token-styled messages and exposes polite feedback while
+  remaining available above the active focus-managed overlay. Success feedback
+  uses the normal surface; save/server failures use the danger background and
+  border while retaining their inline error detail.
 
 ## Verification contract
 

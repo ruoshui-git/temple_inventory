@@ -24,7 +24,6 @@ const props = withDefaults(
 const emit = defineEmits<{
 	back: [];
 	openExport: [query: ReportQuery];
-	notify: [message: string];
 }>();
 const controller = useOperationEditor(props);
 defineExpose({ controller });
@@ -35,6 +34,5 @@ defineExpose({ controller });
 		@open-export="emit('openExport', $event)"
 		:active="active"
 		@back="emit('back')"
-		@notify="emit('notify', $event)"
 	/>
 </template>

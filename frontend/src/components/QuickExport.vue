@@ -10,6 +10,7 @@ import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/
 import { scopeFilterChips } from "../lib/filterPresentation";
 import { reportFilterChips } from "../lib/reportFilters";
 import { useReferenceData } from "../services/contracts";
+import { showToast } from "../services/toast";
 const props = withDefaults(
 	defineProps<{
 		query: ReportQuery;
@@ -63,6 +64,19 @@ watch(
 	() => props.initialDataset,
 	(value) => {
 		if (!open.value && value) selectedDataset.value = value;
+	},
+);
+watch(
+	() => job.value?.status,
+	(value, previous) => {
+		if (value === "Completed" && previous !== "Completed")
+			showToast("导出文件已准备好", "success", {
+				label: "下载",
+				action: () => {
+					const url = job.value?.download_url;
+					if (url) window.open(url, "_blank", "noopener");
+				},
+			});
 	},
 );
 function commitDataset() {

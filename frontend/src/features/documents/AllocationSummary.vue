@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseFullPath } from "../../lib/warehouseLabel";
 import { computed, ref } from "vue";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
@@ -64,7 +64,7 @@ const groups = computed(() => {
 				@click="
 					collapsible && ($event.preventDefault(), (choices[place] = !isOpen(place)))
 				"
-				>{{ warehouseLabel(place, reference.warehouses) }} ·
+				>{{ warehouseFullPath(place, reference.warehouses) }} ·
 				{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
 				{{ lines.length }} 条明细 · {{ totals(lines) }}</component
 			>
@@ -93,14 +93,14 @@ const groups = computed(() => {
 							{{
 								draft.kind === "Receive"
 									? "入库"
-									: warehouseLabel(
+									: warehouseFullPath(
 											line.sourceLocation || line.location,
 											reference.warehouses,
 										)
 							}}
 							→
 							{{
-								warehouseLabel(
+								warehouseFullPath(
 									allocationDestination(draft, line, reference.damagedLeaves),
 									reference.warehouses,
 								)
@@ -136,10 +136,16 @@ const groups = computed(() => {
 						<template v-if="tracksExpiry(line) && !line.batchAllocations?.length">
 							· 到期 {{ line.expiry || "未设置" }}</template
 						>
-						<template v-if="line.entryUom">
-							· 输入 {{ enteredQuantity(line) }} {{ line.entryUom }} · 1
-							{{ line.entryUom }} = {{ line.conversionFactor }}
-							{{ line.uom }}</template
+						<template
+							v-if="
+								line.entryUom &&
+								line.entryUom !== line.uom &&
+								Number(line.conversionFactor || 1) !== 1
+							"
+						>
+							· 输入 {{ enteredQuantity(line) }} {{ line.entryUom }} ×
+							{{ line.conversionFactor }} {{ line.uom }}/{{ line.entryUom }} =
+							{{ line.qty }} {{ line.uom }}</template
 						>
 						<template v-if="line.loanName || draft.loanName">
 							· 借出 {{ line.loanName || draft.loanName }}

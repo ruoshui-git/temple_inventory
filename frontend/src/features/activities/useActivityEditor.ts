@@ -9,6 +9,7 @@ import {
   recoveryValues,
   type RecoverySnapshot,
 } from "../../lib/browserRecovery";
+import { showToast } from "../../services/toast";
 export interface NativeActivity {
   name: string;
   title: string;
@@ -204,7 +205,8 @@ export function useActivityEditor(
     error.value = "";
     const current = generation,
       sentRevision = revision,
-      sent = JSON.stringify(input);
+      sent = JSON.stringify(input),
+      wasExisting = Boolean(existing.value);
     try {
       const result = await services.call<NativeActivity>(
         "activities.save_activity",
@@ -242,11 +244,13 @@ export function useActivityEditor(
         return;
       }
       recovery.remove(editorId, sentRevision);
+      showToast(wasExisting ? "活动资料已更新" : "活动已创建");
       saved(result.name);
     } catch (reason) {
       if (!active() || current !== generation) return;
       error.value =
         reason instanceof Error ? reason.message : "活动保存失败，输入已保留";
+      showToast(`活动保存失败：${error.value}`, "danger");
       conflict.value = [
         "TimestampMismatchError",
         "DoesNotExistError",

@@ -11,7 +11,7 @@ import frappe
 from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
 
-from temple_inventory import configuration, native_samples, sample_media
+from temple_inventory import configuration, native_samples, sample_install, sample_media
 from temple_inventory.native_api import _request_key
 from temple_inventory.native_balances import batch_balances
 from temple_inventory.native_stock import MOVEMENT_PURPOSES
@@ -196,6 +196,7 @@ class NativeSampleTests(NativeDocumentTests):
 				"Native History Seed " + self.token,
 			),
 			patch.object(native_samples, "costume_catalog", return_value=test_costumes),
+			patch.object(sample_media, "costume_catalog", return_value=test_costumes),
 		):
 			result = native_samples.install(company.name, attach_images=False, attach_files=False)
 			self.assertEqual(result["items"], 164)
@@ -214,8 +215,9 @@ class NativeSampleTests(NativeDocumentTests):
 				code = barcode_to_parent[source["source_code"]]
 				self.assertRegex(code, r"^ITM-\d{6}$")
 				item = frappe.get_doc("Item", code)
-				self.assertEqual(item.item_name, source["item_name"])
-				self.assertEqual(item.stock_uom, source["stock_uom"])
+				suffix = "" if source["stock_uom"] == "Nos" else f"({source['stock_uom']})"
+				self.assertEqual(item.item_name, source["item_name"] + suffix)
+				self.assertEqual(item.stock_uom, "Nos")
 				self.assertIn(source["source_code"], {row.barcode for row in item.barcodes})
 				warehouse = result["rooms"][source["room"]]
 				self.assertEqual(get_stock_balance(code, warehouse), source["quantity"])
@@ -306,7 +308,9 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertGreaterEqual(len({row.manufacturing_date for row in actual_batches}), 2)
 				item_source = next(row for row in catalog_data["items"] if row["key"] == key)
 				remaining = sum(row["quantity"] for row in source_batches) - (6 if key == "G-000001" else 0)
-				self.assertEqual(get_stock_balance(code, result["rooms"][item_source["room"]]), remaining)
+				self.assertEqual(
+					get_stock_balance(code, result["rooms"]["SAMPLE_" + item_source["room"]]), remaining
+				)
 			offsets = {(getdate(row["expiry_date"]) - before).days for row in batch_rows if row.expiry_date}
 			self.assertTrue({-1, -30, -31, -90, -91, 0, 30, 31, 90, 91}.issubset(offsets))
 			depleted = frappe.get_all(
@@ -317,7 +321,7 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertEqual(len(depleted), 1)
 			depleted_balances = batch_balances(
 				"TI-TEST-" + self.token + "-G-000001",
-				result["rooms"]["C03"],
+				result["rooms"]["SAMPLE_C03"],
 				str(before),
 				include_zero=True,
 			)
@@ -325,9 +329,16 @@ class NativeSampleTests(NativeDocumentTests):
 				any(row["batch_no"] == depleted[0] and row["qty"] == 0 for row in depleted_balances)
 			)
 			self.assertEqual(
-				get_stock_balance("TI-TEST-" + self.token + "-G-000001", result["rooms"]["C03"]),
+				get_stock_balance("TI-TEST-" + self.token + "-G-000001", result["rooms"]["SAMPLE_C03"]),
 				26,
 			)
+			settings.reload()
+			settings.sample_data_status = "Installed"
+			settings.sample_data_version = sample_install.VERSION
+			settings.save(ignore_permissions=True)
+			verified = sample_install.verify_development_sample(require_images=False)
+			self.assertEqual(verified["costume_source_rows"], 96)
+			self.assertTrue(verified["count_review_verified"])
 
 
 def run():

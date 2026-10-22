@@ -13,6 +13,7 @@ import { useUpdateBlocker } from "../../lib/updateSafety";
 import { useReportController } from "../export/useReportController";
 import { useMovementHistory } from "../movements/useMovementHistory";
 import { useBrowseState } from "../../lib/browseMemory";
+import { showToast } from "../../services/toast";
 export interface NativeWarehouse {
   name: string;
   label: string;
@@ -324,7 +325,8 @@ export function useNativeWarehouses(
       return;
     }
     const sent = { ...form },
-      sentRevision = revision;
+      sentRevision = revision,
+      wasExisting = Boolean(editing.value);
     busy.value = true;
     formError.value = "";
     try {
@@ -344,11 +346,16 @@ export function useNativeWarehouses(
       if (!dirty.value) dialogOpen.value = false;
       else retain();
       await load();
-      if (active()) saved();
+      if (active()) {
+        showToast(wasExisting ? "仓库资料已更新" : "仓库已创建");
+        saved();
+      }
     } catch (reason) {
-      if (active())
+      if (active()) {
         formError.value =
           reason instanceof Error ? reason.message : "仓库保存失败，输入仍保留";
+        showToast(`仓库保存失败：${formError.value}`, "danger");
+      }
     } finally {
       if (active()) busy.value = false;
     }

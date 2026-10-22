@@ -18,6 +18,38 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class CatalogTests(NativeDocumentTests):
+	def test_item_image_requires_an_authorized_private_file_attached_to_that_item(self):
+		other = catalog.save_item(
+			{"item_code": f"TI-IMAGE-OWNER-{self.token}", "item_name": "Other owner", "stock_uom": "Nos"}
+		)
+		foreign = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"foreign-{self.token}.png",
+				"content": b"private-original",
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": other["item_code"],
+			}
+		).insert()
+		item = frappe.get_doc("Item", self.item)
+		self.assertNotEqual(foreign.attached_to_name, item.name)
+		self.assertNotIn(foreign.name, {file.name for file in native_files.attachments("Item", item.name)})
+		item.image = foreign.file_url
+		self.assertEqual(catalog.item_metadata(item)["image"], "")
+		self.assertEqual(catalog.item_display_summaries([self.item])[self.item]["image"], "")
+		public = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"public-{self.token}.png",
+				"content": b"public-original",
+				"is_private": 0,
+			}
+		).insert()
+		item.reload()
+		item.image = public.file_url
+		self.assertEqual(catalog.item_metadata(item)["image"], "")
+
 	def test_primary_image_reuses_one_private_file_across_frontend_and_desk_saves(self):
 		file = frappe.get_doc(
 			{
@@ -238,6 +270,98 @@ class CatalogTests(NativeDocumentTests):
 		result = catalog.search_items(self.item, in_stock_only=True, warehouses=[self.a, self.b])
 		self.assertEqual(result["matched_count"], 1)
 		self.assertEqual(sum(row["available"] for row in result["results"][0]["stock"]), 7)
+
+	def test_picker_rows_page_flattened_warehouses_and_include_stockless_receipts(self):
+		self.receipt(3)
+		other_receipt = self.movement(quantity=4)
+		other_receipt["items"][0]["t_warehouse"] = self.b
+		self.submit(self.create(other_receipt))
+		page = catalog.picker_rows(
+			item_codes=[self.item], warehouses=[self.a, self.b], purpose="outbound", page_length=1
+		)
+		self.assertEqual(page["matched_count"], 2)
+		self.assertEqual(len(page["results"]), 1)
+		self.assertIsNotNone(page["next_start"])
+		full_page = catalog.picker_rows(
+			item_codes=[self.item], warehouses=[self.a, self.b], purpose="outbound", page_length=10
+		)
+		self.assertEqual(
+			{row["warehouse"]: row["picker_quantity"] for row in full_page["results"]},
+			{self.a: 3, self.b: 4},
+		)
+		next_page = catalog.picker_rows(
+			item_codes=[self.item],
+			warehouses=[self.a, self.b],
+			purpose="outbound",
+			start=page["next_start"],
+			page_length=1,
+		)
+		self.assertNotEqual(page["results"][0]["warehouse"], next_page["results"][0]["warehouse"])
+		inbound = catalog.picker_rows(
+			item_codes=[self.item],
+			warehouses=[self.a, self.b],
+			receiving_warehouse=self.a,
+			purpose="inbound",
+			page_length=10,
+		)
+		self.assertEqual(inbound["matched_count"], 1)
+		self.assertEqual(inbound["results"][0]["warehouse"], self.a)
+		self.assertEqual(inbound["results"][0]["picker_quantity"], 3)
+		stockless_code = f"TI-STOCKLESS-{self.token}"
+		catalog.save_item({"item_code": stockless_code, "item_name": "Stockless", "stock_uom": "Nos"})
+		stockless = catalog.picker_rows(
+			item_codes=[stockless_code],
+			warehouses=[self.a, self.b],
+			receiving_warehouse=self.a,
+			purpose="inbound",
+			page_length=10,
+		)
+		self.assertEqual(stockless["matched_count"], 1)
+		self.assertEqual(stockless["results"][0]["warehouse"], self.a)
+		self.assertEqual(stockless["results"][0]["picker_quantity"], 0)
+		self.assertEqual(
+			catalog.picker_rows(
+				item_codes=[stockless_code],
+				receiving_warehouse=self.a,
+				purpose="inbound",
+				only_stock=True,
+			)["matched_count"],
+			0,
+		)
+		self.assertEqual(
+			catalog.picker_rows(item_codes=[stockless_code], purpose="count", only_stock=True)[
+				"matched_count"
+			],
+			0,
+		)
+		count_rows = catalog.picker_rows(item_codes=[stockless_code], purpose="count", page_length=10)
+		self.assertEqual(count_rows["matched_count"], 1)
+		self.assertEqual(count_rows["results"][0]["warehouse"], "")
+		damaged_rows = catalog.picker_rows(
+			item_codes=[self.item], warehouses="[]", purpose="damaged", page_length=10
+		)
+		self.assertEqual(damaged_rows["matched_count"], 0)
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		batch_item = frappe.copy_doc(frappe.get_doc("Item", self.item))
+		batch_item.item_code = self.item + "-PICKER-BATCH"
+		batch_item.has_batch_no = 1
+		batch_item.insert()
+		for suffix, quantity in (("A", 4), ("B", 6)):
+			batch = catalog.create_batch(batch_item.name, "TI-PICKER-" + self.token + suffix)
+			data = self.movement(quantity=quantity)
+			data["items"][0].update(
+				{"item_code": batch_item.name, "batch_no": batch["name"], "use_serial_batch_fields": 1}
+			)
+			self.submit(self.create(data))
+		batch_rows = catalog.picker_rows(
+			item_codes=[batch_item.name], warehouses=[self.a], purpose="outbound", page_length=10
+		)
+		self.assertEqual(batch_rows["matched_count"], 1)
+		batch_row = batch_rows["results"][0]
+		self.assertEqual(batch_row["picker_quantity"], 10)
+		self.assertNotIn("batch_no", batch_row["stock"][0])
+		self.assertEqual(len(batch_row["stock"][0]["batch_choices"]), 2)
+		self.assertEqual(sum(row["qty"] for row in batch_row["stock"][0]["batch_choices"]), 10)
 
 	def test_reference_creation_preserves_parent_and_whole_number_setting(self):
 		parent = frappe.get_doc(
@@ -1163,6 +1287,38 @@ class CatalogTests(NativeDocumentTests):
 		line = browse.report_page(line_query)["rows"]
 		damage_line = next(row for row in line if row["document"] == damage.name)
 		self.assertEqual(damage_line["available_effect"], 2)
+
+	def test_expiry_only_batch_keeps_blank_manufacturing_date_and_can_be_received(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.save()
+		batch = catalog.create_batch(
+			self.item,
+			f"TI-EXPIRY-ONLY-{self.token}",
+			expiry_date=add_days(nowdate(), 30),
+		)
+		self.assertEqual(batch["manufacturing_date"], "")
+		data = self.movement(quantity=1)
+		data["items"][0].update({"batch_no": batch["name"], "use_serial_batch_fields": 1})
+		self.submit(self.create(data))
+		expired = catalog.create_batch(
+			self.item,
+			f"TI-EXPIRED-ONLY-{self.token}",
+			expiry_date=add_days(nowdate(), -1),
+		)
+		self.assertEqual(expired["manufacturing_date"], "")
+		self.assertEqual(expired["expiry_date"], add_days(nowdate(), -1))
+		expired_receipt = self.movement(quantity=1)
+		expired_receipt["items"][0].update({"batch_no": expired["name"], "use_serial_batch_fields": 1})
+		self.submit(self.create(expired_receipt))
+		with self.assertRaises(frappe.ValidationError):
+			catalog.create_batch(
+				self.item,
+				f"TI-REVERSED-DATES-{self.token}",
+				manufacturing_date=add_days(nowdate(), -1),
+				expiry_date=add_days(nowdate(), -2),
+			)
 
 	def test_expiry_browser_has_distinct_batch_facets_native_search_and_inclusive_dates(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)

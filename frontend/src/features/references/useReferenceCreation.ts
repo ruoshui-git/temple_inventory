@@ -10,6 +10,7 @@ import {
   useInventoryServices,
   useReferenceData,
 } from "../../services/contracts";
+import { showToast } from "../../services/toast";
 export function useReferenceCreation(
   kind: "unit" | "category",
   selected: (name: string) => void,
@@ -168,6 +169,7 @@ export function useReferenceCreation(
             whole: result.must_be_whole_number,
           });
         selected(result.name);
+        showToast("库存单位已创建");
       } else {
         const result = await services.call<{
           name: string;
@@ -186,13 +188,19 @@ export function useReferenceCreation(
         if (previous) Object.assign(previous, result);
         else reference.categories.push(result);
         selected(result.name);
+        showToast("分类已创建");
       }
       busy.value = false;
       finish();
     } catch (reason) {
-      if (!disposed)
+      if (!disposed) {
         error.value =
           reason instanceof Error ? reason.message : "保存失败，输入已保留";
+        showToast(
+          `${kind === "unit" ? "库存单位" : "分类"}创建失败：${error.value}`,
+          "danger",
+        );
+      }
     } finally {
       if (!disposed) busy.value = false;
     }

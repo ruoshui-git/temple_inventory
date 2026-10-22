@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-costume-import-v4"
+VERSION = "2026.10.native-costume-sample-group-v5"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -33,6 +33,11 @@ def _remove_default_sample_records(company):
 		if frappe.db.exists("Item", {"item_group": group_name}):
 			frappe.throw(f"无法删除默认 Item Group {group_name}：仍有 Item 使用它")
 		frappe.delete_doc("Item Group", group_name, ignore_permissions=True, force=True)
+
+	settings = frappe.get_single("Temple Inventory Settings")
+	from temple_inventory.native_samples import remove_initializer_general_leaf
+
+	remove_initializer_general_leaf(settings)
 
 	root_name = frappe.db.get_value("Warehouse", {"warehouse_name": "All Warehouses", "company": company})
 	if not root_name:
@@ -229,7 +234,7 @@ def install_sample_data(company=None):
 		raise
 
 
-def verify_development_sample():
+def verify_development_sample(*, require_images=True):
 	"""Verify native identities, permissions, balance invariants and private media."""
 	assert_development_site()
 	from temple_inventory import native_samples, sample_media
@@ -238,6 +243,17 @@ def verify_development_sample():
 	settings = _settings()
 	if settings.sample_data_status != "Installed" or settings.sample_data_version != VERSION:
 		frappe.throw("原生开发样例尚未完整安装")
+	if frappe.db.exists(
+		"Warehouse",
+		{"parent_warehouse": settings.physical_root_warehouse, "warehouse_name": "通用库房"},
+	):
+		raise AssertionError("Initializer-owned physical-root 通用库房 must be removed")
+	if not frappe.db.exists("Warehouse", {"warehouse_name": "T1/通用库房", "company": settings.company}):
+		raise AssertionError("T1 通用库房 must remain under its T1 branch")
+	if not frappe.db.exists(
+		"Warehouse", {"warehouse_name": "样例库房", "parent_warehouse": settings.physical_root_warehouse}
+	):
+		raise AssertionError("The sample warehouse group must be a physical-root sibling of T1 and T2")
 	for doctype in (
 		"Inventory Workspace",
 		"Inventory Loan",
@@ -280,8 +296,8 @@ def verify_development_sample():
 	if frappe.db.has_column("Stock Reconciliation", "ti_count_warehouse"):
 		raise AssertionError("Retired singular count warehouse column remains after reset")
 	_assert_leaf_stock(settings)
-	general_codes = ["TI-SAMPLE-" + row["key"] for row in sample_media.catalog()["items"]]
-	extra_codes = ["TI-SAMPLE-" + row[0] for row in native_samples.EXTRA_ITEMS]
+	general_codes = [native_samples.ITEM_PREFIX + row["key"] for row in sample_media.catalog()["items"]]
+	extra_codes = [native_samples.ITEM_PREFIX + row[0] for row in native_samples.EXTRA_ITEMS]
 	costumes = sample_media.costume_catalog()
 	barcode_to_parent = {
 		row.barcode: row.parent
@@ -313,15 +329,21 @@ def verify_development_sample():
 				raise AssertionError("Sample original image is public")
 	for source, code in zip(costumes, costume_codes, strict=True):
 		item = frappe.get_doc("Item", code)
+		expected_name = source["item_name"] + (
+			"" if source["stock_uom"] == "Nos" else f"({source['stock_uom']})"
+		)
 		if (
-			item.item_name != source["item_name"]
-			or item.stock_uom != source["stock_uom"]
+			item.item_name != expected_name
+			or item.stock_uom != "Nos"
 			or item.item_group != source["item_group"]
 			or frappe.db.get_value("Item Barcode", {"parent": code, "barcode": source["source_code"]}, "name")
 			is None
 		):
 			raise AssertionError(
-				f"Costume source identity or preserved fields are missing for {source['source_code']}"
+				f"Costume source identity or preserved fields are missing for {source['source_code']}: "
+				f"name={item.item_name!r}/{expected_name!r}, unit={item.stock_uom!r}, "
+				f"group={item.item_group!r}/{source['item_group']!r}, "
+				f"barcode={frappe.db.get_value('Item Barcode', {'parent': code, 'barcode': source['source_code']}, 'name')!r}"
 			)
 		warehouse = frappe.db.get_value(
 			"Warehouse", {"company": settings.company, "warehouse_name": source["room"] + " / 无货位"}, "name"
@@ -329,11 +351,14 @@ def verify_development_sample():
 		if native_samples.get_stock_balance(code, warehouse) != source["quantity"]:
 			raise AssertionError(f"Costume opening quantity differs from source for {source['source_code']}")
 		attachments = frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": code})
-		if attachments != len(source["images"]):
+		if require_images and attachments != len(source["images"]):
 			raise AssertionError(f"Costume image attachments are incomplete for {source['source_code']}")
 	rooms = {
 		key: frappe.db.get_value("Warehouse", {"company": settings.company, "warehouse_name": label}, "name")
-		for key, label in (("A02", "A02 / 无货位"), ("A02-RACK", "A02 / 货架一 / 上层"))
+		for key, label in (
+			("SAMPLE_A02", "A02 样例 / 无货位"),
+			("SAMPLE_A02-RACK", "A02 样例 / 货架一 / 上层"),
+		)
 	}
 	rooms.update({"LEASE": settings.leased_warehouse, "DAMAGED": settings.damaged_warehouse})
 	loans = [
@@ -349,7 +374,7 @@ def verify_development_sample():
 		{"ti_request_key": _request_key("Stock Reconciliation", native_samples.REQUEST_PREFIX + "count")},
 	)
 	count_warehouses = frappe.parse_json(reconciliation.ti_count_warehouses or "[]")
-	if set(count_warehouses) != {rooms["A02"], rooms["A02-RACK"]}:
+	if set(count_warehouses) != {rooms["SAMPLE_A02"], rooms["SAMPLE_A02-RACK"]}:
 		raise AssertionError("Native sample count does not retain both selected warehouses")
 	count_rows = frappe.parse_json(reconciliation.ti_count_review or "[]")
 	if {row.get("review_state") for row in count_rows} != {"Reviewed", "Unreviewed"}:

@@ -3,7 +3,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { CountEditor } from "./useCountEditor";
 import CountWorkspace from "./CountWorkspace.vue";
 import CountSummary from "./CountSummary.vue";
@@ -19,6 +19,7 @@ import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { showToast } from "../../services/toast";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
@@ -56,6 +57,41 @@ const {
 const initialExistingLoad = computed(
 	() => loading.value && c.existingDocument.value && !state.server,
 );
+async function saveDraft() {
+	await c.save(true);
+	if (state.status === "saved" && !files.incomplete.value) showToast("盘点草稿已保存到库存单据");
+	else if (state.status === "saved" && files.incomplete.value)
+		showToast("盘点草稿已保存，但附件尚未完成上传", "warning");
+	else if (state.status === "matching") showToast("盘点数量与账面相同，无需保存调整");
+	else if (state.status === "local")
+		showToast("输入已保留在此浏览器，尚未保存到服务器", "warning");
+	else if (state.error) showToast(`盘点草稿保存失败：${state.error}`, "danger");
+}
+async function review() {
+	await c.review();
+	if (!showError.value || valid.value) return;
+	await nextTick();
+	root.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+}
+async function confirm() {
+	await c.confirm();
+	if (state.status === "submitted") showToast("盘点调整已提交");
+	else if (state.error) showToast(`盘点确认失败：${state.error}`, "danger");
+}
+async function lifecycle() {
+	const selected = action.value;
+	await c.lifecycle();
+	if (action.value || state.error) {
+		if (state.error) showToast(`盘点操作失败：${state.error}`, "danger");
+		return;
+	}
+	const outcomes: Record<string, string> = {
+		cancel: "盘点调整已取消",
+		amend: "盘点修订草稿已创建",
+		delete: "盘点原生草稿已删除",
+	};
+	if (selected && outcomes[selected]) showToast(outcomes[selected]);
+}
 const root = ref<HTMLElement>(),
 	actionBar = ref<HTMLElement>();
 useFocusVisibility(
@@ -282,7 +318,7 @@ async function back() {
 			:class="{ 'is-refreshing': loading && state.server }"
 			:aria-busy="loading && state.server ? 'true' : undefined"
 		>
-			<form class="form-main surface count-form-main" novalidate @submit.prevent="c.review">
+			<form class="form-main surface count-form-main" novalidate @submit.prevent="review">
 				<details class="form-section">
 					<summary>日期与时间</summary>
 					<div class="form-date-section">
@@ -383,21 +419,21 @@ async function back() {
 					<UiButton
 						v-if="!state.confirmationVersion"
 						:disabled="busy || supportingDirty"
-						@click="c.save(true)"
+						@click="saveDraft"
 						>保存草稿</UiButton
 					>
 					<UiButton
 						v-if="!state.confirmationVersion && c.canSubmit.value"
 						variant="primary"
 						:disabled="busy || supportingDirty"
-						@click="c.review"
+						@click="review"
 						>核对并确认</UiButton
 					>
 					<UiButton
 						v-if="state.confirmationVersion"
 						variant="primary"
 						:loading="busy"
-						@click="c.confirm"
+						@click="confirm"
 						>检查上次确认结果</UiButton
 					>
 					<UiButton
@@ -453,7 +489,7 @@ async function back() {
 						</p>
 					</div>
 				</details>
-				<p v-if="showError && !valid" role="alert" class="form-error">
+				<p v-if="showError && !valid" role="alert" class="notice-bar warning">
 					请先读取当前账面基准，并至少核对一行。输入已保留。
 				</p>
 			</form>
@@ -497,14 +533,14 @@ async function back() {
 			<p v-if="deskOrigin && values.ti_notes" class="preview-long-text">
 				{{ values.ti_notes }}
 			</p>
-			<p v-if="state.error" role="alert">{{ state.error }}</p>
+			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="reviewOpen = false">返回检查</UiButton
 				><UiButton
 					variant="primary"
 					:disabled="c.hasDifferences.value && !c.canSubmit.value"
 					:loading="busy"
-					@click="c.confirm"
+					@click="confirm"
 					>确认提交</UiButton
 				></template
 			></Overlay
@@ -549,10 +585,10 @@ async function back() {
 			"
 			@close="!busy && (action = undefined)"
 			><p>{{ state.identity?.name }}。将执行 ERPNext 原生流程，并重新校验版本与权限。</p>
-			<p v-if="state.error" role="alert">{{ state.error }}</p>
+			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="action = undefined">返回</UiButton
-				><UiButton variant="danger" :loading="busy" @click="c.lifecycle"
+				><UiButton variant="danger" :loading="busy" @click="lifecycle"
 					>确认</UiButton
 				></template
 			></Overlay

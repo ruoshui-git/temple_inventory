@@ -155,6 +155,18 @@ supersession below when a durable user-facing decision changes.
 - Item images use standard Frappe Files and a shared lightbox. Small table/detail
   thumbnails stay compact; editor/picker artwork may be larger. Image actions
   remain independent from Item/Batch links.
+- An Item's `image` field alone identifies its primary image. Every other
+  private Item File, including image files, is an attachment. Replacing the
+  primary image keeps the old File as an attachment; removing it leaves the
+  primary image empty and never promotes an attachment. Cropping offers a
+  square WebP thumbnail capped at 800px without upscaling, use-original, and
+  save-original-as-attachment choices. Attachments keep their original bytes.
+- Stock cards reserve a full-width 1:1 image area with contain fit. Density
+  changes the card's overall geometry; compact DataTable thumbnails keep their
+  existing size.
+- A batch may have an expiry date without a manufacturing date. Compare dates
+  only when both are present; reject a real manufacturing date later than its
+  expiry, while allowing expired receipts.
 - Quick Export is contextual and uses the same selected query for preview and
   generated output. Dashboard may choose a dataset inside the export dialog;
   other contexts remain fixed. Cancelling does not change dashboard scope.
@@ -174,6 +186,9 @@ supersession below when a durable user-facing decision changes.
 - Card-local requests affect only that card; page refresh affects all result
   regions. Query changes retain prior grouped presentation against its old query
   until the new result is ready. Mutation save/conflict behavior stays separate.
+- Blocked validation uses the design-system warning callout, marks the
+  associated fields invalid, and moves focus to the first actionable error.
+  Server and save failures use danger callouts and retain their inline detail.
 
 ## Picker, scanning and export refinements
 
@@ -221,6 +236,23 @@ supersession below when a durable user-facing decision changes.
 - Desktop operation previews have a separate edge collapse control. Full
   workspace mode remains a secondary explicit action and restores the prior
   preview state on exit. Mobile uses its normal disclosure layout.
+- The item picker presents one compact DataTable row per Item and warehouse,
+  with each selected row retaining its warehouse identity. Outbound rows need
+  available quantity; repair/disposal rows need damaged quantity. Inbound rows
+  include stockless Items and bind the selected authorized target warehouse.
+  Count selections deduplicate Item codes while retaining the complete
+  authorized warehouse scope. The picker has no separate stock-detail stage or
+  toolbar-collapse action. Newly created Items remain pinned above filtered
+  results with their receiving location until the picker closes.
+- Picker and form warehouse selectors show complete authorized paths while
+  preserving native warehouse keys in writes.
+- The full-workspace control is an icon at the editable area's upper right;
+  exiting restores the prior preview state. The preview edge remains a separate
+  accessible collapse/restore target; mobile uses its normal disclosure.
+- Toasts report explicit user-triggered outcomes: manual draft save (including
+  browser-only retention), submitted/cancelled/amended/duplicated/deleted
+  results, supporting-data saves, file/image changes, and completed export or
+  copy actions. Autosave, filtering, and routine scan feedback stay local.
 
 ## Durable supersessions
 
@@ -228,6 +260,9 @@ supersession below when a durable user-facing decision changes.
   2026-10-21. They supersede older per-item Loan selectors, desktop browse
   toolbar placements, summary variants, density typography and preview-only
   proposals. The retired standalone preview is not a product surface.
+- **2026-10-21:** ItemPicker rows now identify an Item plus warehouse; primary
+  image identity, crop choices, batch date comparison, explicit outcome toasts,
+  and stock-card image geometry are clarified above.
 - **2026-10-20:** Theme palettes use centralized semantic `--p-*` tokens,
   selected by `data-ti-theme`; components consume tokens. Artwork, photos,
   camera output and theme swatches retain intentional colors.

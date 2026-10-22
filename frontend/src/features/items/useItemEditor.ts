@@ -18,6 +18,7 @@ import {
   useAttachments,
   type AttachmentEntry,
 } from "../attachments/useAttachments";
+import { showToast } from "../../services/toast";
 
 export interface ItemInput {
   code: string;
@@ -159,7 +160,7 @@ export function useItemEditor(
       supportingDirty.value,
   );
   function retain() {
-    if (!ready || !active() || discarded) return;
+    if (!ready || !active() || discarded) return false;
     revision++;
     const result = recovery.save({
       schema: 1,
@@ -180,6 +181,7 @@ export function useItemEditor(
       }),
     });
     recoveryError.value = result.error;
+    return result.durable;
   }
   async function suggest() {
     if (props.code || model.code || !active()) return;
@@ -255,13 +257,14 @@ export function useItemEditor(
       error.value = "此输入属于其它物品";
       return;
     }
+    const source = { editorId: snapshot.editorId, revision: snapshot.revision };
     if (code) {
       try {
         const current = await services.call<CatalogItem>(
           "catalog.operation_item",
           { item_code: code },
         );
-        if (!active()) return;
+        if (!active() || disposed) return;
         if (current.version !== snapshot.baseVersion || !current.can_edit) {
           error.value =
             "物品已更改或无权编辑，不能覆盖原记录；请复制恢复文字后核对";
@@ -279,6 +282,8 @@ export function useItemEditor(
       }
     }
     ready = false;
+    editorId = crypto.randomUUID();
+    revision = 0;
     for (const key of Object.keys(model) as (keyof ItemInput)[])
       if (key in snapshot.values)
         Object.assign(model, { [key]: snapshot.values[key] });
@@ -286,8 +291,14 @@ export function useItemEditor(
       (snapshot.values.attachments || []) as unknown as AttachmentEntry[],
     );
     ready = true;
-    retain();
-    candidates.value = [];
+    const durable = retain();
+    if (durable) {
+      if (recovery.remove(source.editorId, source.revision))
+        candidates.value = candidates.value.filter(
+          (candidate) => candidate.editorId !== source.editorId,
+        );
+      else recoveryError.value = "另一窗口已更新这份未完成输入；其内容保持原样";
+    }
   }
   async function reset() {
     ready = false;
@@ -336,6 +347,7 @@ export function useItemEditor(
     }
     busy.value = true;
     error.value = "";
+    const wasExisting = Boolean(existing.value);
     try {
       const item = await services.call<CatalogItem>("catalog.save_item", {
         data: {
@@ -368,11 +380,13 @@ export function useItemEditor(
         return;
       }
       recovery.remove(editorId, revision);
+      showToast(wasExisting ? "物品资料已更新" : "物品已创建");
       saved(existing.value);
     } catch (reason) {
       if (!active()) return;
       error.value =
         reason instanceof Error ? reason.message : "物品保存失败，输入已保留";
+      showToast(`物品保存失败：${error.value}`, "danger");
       conflict.value = ["TimestampMismatchError", "DoesNotExistError"].includes(
         String((reason as { kind?: string })?.kind),
       );

@@ -190,4 +190,73 @@ describe("native editor lifecycle", () => {
     expect(editor.state.editorId).not.toBe(candidate.editorId);
     expect(editor.state.pendingUploadReselection).toBe(true);
   });
+  it("durably replaces recovered input and reuses its native create request identity", async () => {
+    const { editor, recovery, services } = setup();
+    const candidate: RecoverySnapshot = {
+      schema: 1,
+      site: "site",
+      account: "alice",
+      tabId: "old-tab",
+      editorId: "old-editor",
+      editorKind: "Receive",
+      revision: 3,
+      updatedAt: "now",
+      values: { items: [{ qty: 3 }] },
+      identity: undefined,
+      requestId: "stable-create-request",
+      pendingUploadReselection: false,
+    };
+    recovery.save(candidate);
+    await editor.inspectRecovery(candidate);
+    expect(editor.applyRecovery()).toBe(true);
+    expect(editor.state.requestId).toBe("stable-create-request");
+    const entries = recovery.list().entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.editorId).toBe(editor.state.editorId);
+    await editor.save();
+    expect(services.create).toHaveBeenCalledWith(
+      "Stock Entry",
+      "stable-create-request",
+      expect.objectContaining({ items: [{ qty: 3 }] }),
+    );
+  });
+  it("keeps a source recovery snapshot changed by another tab while replacing its own copy", async () => {
+    const { editor, recovery } = setup();
+    const candidate: RecoverySnapshot = {
+      schema: 1,
+      site: "site",
+      account: "alice",
+      tabId: "old-tab",
+      editorId: "old-editor",
+      editorKind: "Receive",
+      revision: 3,
+      updatedAt: "now",
+      values: { items: [{ qty: 3 }] },
+      identity: undefined,
+      requestId: "stable-create-request",
+      pendingUploadReselection: false,
+    };
+    recovery.save(candidate);
+    await editor.inspectRecovery(candidate);
+    const competitor = {
+      ...candidate,
+      tabId: "other-tab",
+      revision: 4,
+      updatedAt: "later",
+      values: { items: [{ qty: 4 }] },
+    };
+    localStorage.setItem(
+      "temple-inventory:recovery:v1:site:alice:old-editor",
+      JSON.stringify(competitor),
+    );
+    expect(editor.applyRecovery()).toBe(true);
+    const entries = recovery.list().entries;
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.find((entry) => entry.editorId === "old-editor")?.values,
+    ).toEqual(competitor.values);
+    expect(
+      entries.some((entry) => entry.editorId === editor.state.editorId),
+    ).toBe(true);
+  });
 });

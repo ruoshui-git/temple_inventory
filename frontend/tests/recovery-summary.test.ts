@@ -80,6 +80,72 @@ describe("recovery summary", () => {
     expect(wrapper.text()).not.toContain("Loan");
   });
 
+  it("localizes editor status and time mode while omitting an empty Stock Entry name", () => {
+    const wrapper = mount(RecoverySummary, {
+      props: {
+        kind: "Stock Entry",
+        copyText: "{}",
+        values: { name: "", status: "completed", timeMode: "current" },
+      },
+    });
+    expect(wrapper.text()).toContain("已完成");
+    expect(wrapper.text()).toContain("使用当前时间");
+    expect(wrapper.text()).not.toContain("未填写");
+    expect(wrapper.text()).not.toContain("current");
+  });
+
+  it("normalizes sanitized editor rows without exposing child IDs as item names", async () => {
+    const reference = createReferenceData();
+    reference.user = "test-user";
+    reference.site = "test-site";
+    const call = vi.fn(async (endpoint: string) =>
+      endpoint === "catalog.item_display_summaries"
+        ? { "COSTUME-A": { item_name: "绿色古风裙裤" } }
+        : {},
+    );
+    const services: InventoryServices = {
+      call: call as InventoryServices["call"],
+      report: vi.fn(),
+      upload: vi.fn(),
+    };
+    const values = {
+      source: "现场补录",
+      items: [
+        {
+          name: "native-child-row-id",
+          code: "COSTUME-A",
+          item_name: "Stale stored name",
+          entryQty: 2,
+          entryUom: "Nos",
+          sourceLocation: "T1/房间/库位",
+        },
+      ],
+    };
+    const Host = defineComponent({
+      setup() {
+        provideInventoryServices(services, reference);
+        return () =>
+          h(RecoverySummary, {
+            kind: "Stock Entry",
+            values,
+            copyText: JSON.stringify(values),
+          });
+      },
+    });
+    const wrapper = mount(Host);
+    await flushPromises();
+
+    expect(call).toHaveBeenCalledWith("catalog.item_display_summaries", {
+      item_codes: ["COSTUME-A"],
+    });
+    expect(wrapper.text()).toContain("COSTUME-A");
+    expect(wrapper.text()).toContain("绿色古风裙裤");
+    expect(wrapper.text()).not.toContain("native-child-row-id");
+    expect(wrapper.text()).not.toContain("Stale stored name");
+    expect(wrapper.text()).toContain("现场补录");
+    expect(wrapper.find(".preview-info-grid").text()).not.toContain("未填写");
+  });
+
   it.each([
     ["Item", "recovery-summary.item"],
     ["Stock Reconciliation", "recovery-summary.stock-reconciliation"],

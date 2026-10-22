@@ -1349,7 +1349,9 @@
 }
 
 .stock-card-skeleton-image {
-	height: var(--p-card-image-size);
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
 	background: var(--p-soft);
 }
 

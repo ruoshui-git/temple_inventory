@@ -32,6 +32,8 @@ const PickerStub = defineComponent({
   ],
   emits: [
     "close",
+    "select",
+    "selectMultiple",
     "resolveScan",
     "cancelScanResolution",
     "undoScan",
@@ -171,6 +173,38 @@ async function openPicker(wrapper: VueWrapper) {
 }
 
 describe("rapid operation scan integration", () => {
+  it("binds the selected warehouse and its batch after loading complete item context", async () => {
+    const item = stockItem({
+      tracksBatch: true,
+      locations: [
+        {
+          location: "ROOM-A",
+          available: 2,
+          loaned: 0,
+          damaged: 0,
+          batches: [{ id: "BATCH-A", available: 2 }],
+        },
+        {
+          location: "ROOM-B",
+          available: 3,
+          loaned: 0,
+          damaged: 0,
+          batches: [{ id: "BATCH-B", available: 3 }],
+        },
+      ],
+    });
+    const { wrapper, draft, context } = setup("Issue", [item]);
+    const picker = await openPicker(wrapper);
+    picker.vm.$emit("select", { code: "ITEM-A", warehouse: "ROOM-B" });
+    await flushPromises();
+    expect(context.ensure).toHaveBeenCalledWith("ITEM-A");
+    expect(draft.items).toHaveLength(1);
+    expect(draft.items[0]).toMatchObject({
+      sourceLocation: "ROOM-B",
+      batch: "BATCH-B",
+    });
+    expect(context.lineCapacity(draft, draft.items[0]!)).toBe(3);
+  });
   it("adds one stock unit per accepted scan, merges compatible lines and undoes only the latest increment", async () => {
     const { wrapper, draft } = setup();
     const picker = await openPicker(wrapper);

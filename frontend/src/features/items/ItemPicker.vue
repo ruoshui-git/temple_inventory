@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { useOptionalReferenceData } from "../../services/contracts";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseFullPath } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
-import VirtualList from "../../components/ui/VirtualList.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -18,6 +16,10 @@ import SearchSelect from "../../components/ui/SearchSelect.vue";
 import { useItemEditor } from "./useItemEditor";
 import { useItemPicker } from "./useItemPicker";
 import type { StockItem } from "../../lib/stockPresentation";
+import DataTable from "../../components/ui/DataTable.vue";
+import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { useOptionalInventoryServices } from "../../services/contracts";
 
 export type ItemScanOption = {
 	value: string;
@@ -61,6 +63,8 @@ const props = defineProps<{
 	scanError?: string;
 	canUndoScan?: boolean;
 	activeWarehouse?: string;
+	purpose?: "outbound" | "damaged" | "inbound" | "count";
+	receivingWarehouse?: string;
 	scanResolution?: ItemScanResolution;
 	scanLines?: ItemScanDraftLine[];
 	scanDestination?: string;
@@ -70,9 +74,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
 	close: [];
-	select: [code: string];
-	selectMultiple: [codes: string[]];
-	notify: [message: string];
+	select: [selection: { code: string; warehouse: string }];
+	selectMultiple: [selections: { code: string; warehouse: string }[]];
 	itemLoaded: [item: StockItem];
 	scanItem: [code: string, batch?: string, context?: unknown];
 	scanLocation: [name: string];
@@ -89,8 +92,26 @@ const multiple = computed(
 const creating = ref(!!props.allowCreate && props.createBarcode !== undefined),
 	discard = ref(false),
 	pendingMultiple = ref(false),
-	pendingSelection = ref<string>();
+	pendingSelection = ref<{ code: string; warehouse: string }>();
 const picker = useItemPicker(props, (item) => emit("itemLoaded", item));
+const createdPreview = ref<{ code: string; name: string; image: string }>();
+const createdImageItem = computed<StockItem | undefined>(
+	() =>
+		createdPreview.value && {
+			code: createdPreview.value.code,
+			name: createdPreview.value.name,
+			image: createdPreview.value.image,
+			category: "",
+			uom: "",
+			description: "",
+			tracksBatch: false,
+			tracksExpiry: false,
+			locations: [],
+			available: 0,
+			loaned: 0,
+			damaged: 0,
+		},
+);
 const {
 	reference,
 	search,
@@ -100,13 +121,59 @@ const {
 	onlyStock,
 	selected,
 	result,
-	details: detailItem,
-	detailError,
-	detailLoading,
 	load,
-	toggle,
+	ensureSelected,
 } = picker;
 const visible = computed(() => result.rows);
+const quantityLabel = computed(() =>
+	props.purpose === "damaged"
+		? "受损库存"
+		: props.purpose === "inbound"
+			? "目标库位库存"
+			: props.purpose === "count"
+				? "账面库存"
+				: "可用库存",
+);
+const pickerColumns = computed<DataColumn[]>(() => {
+	const columns: DataColumn[] = [
+		{ id: "image", label: "图片", minWidth: "56px", align: "center" },
+		{ id: "name", label: "物品名称", minWidth: "180px" },
+		{ id: "code", label: "编号", minWidth: "130px" },
+		{ id: "category", label: "类别", minWidth: "120px" },
+		{ id: "warehouse", label: "仓库路径", minWidth: "180px" },
+		{ id: "quantity", label: quantityLabel.value, minWidth: "110px", align: "end" },
+	];
+	if (!multiple.value)
+		columns.push({ id: "action", label: "操作", minWidth: "70px", align: "end" });
+	return columns;
+});
+const services = useOptionalInventoryServices();
+const pickerPrefs = services
+	? useColumnPreferences("item-picker.rows", pickerColumns, reference, services)
+	: undefined;
+const tableRows = computed<DataTableRecord[]>(() =>
+	visible.value.map((item) => ({
+		kind: "record",
+		id: picker.pickerRowKey(item),
+		value: item as unknown as Record<string, unknown>,
+	})),
+);
+function rowKey(row: Record<string, unknown>) {
+	return picker.pickerRowKey(row as unknown as (typeof visible.value)[number]);
+}
+function setSelected(key: string, checked: boolean) {
+	if (checked && !selected.value.includes(key)) selected.value.push(key);
+	else if (!checked) selected.value = selected.value.filter((value) => value !== key);
+}
+function selectedRows() {
+	return selected.value.map((key) => {
+		const [code = "", warehouse = ""] = key.split("\u0000");
+		return { code, warehouse };
+	});
+}
+function asStockItem(row: Record<string, unknown>) {
+	return row as unknown as (typeof visible.value)[number];
+}
 const { isMobile } = useResponsiveLayout();
 const sidebarOpen = ref(true);
 const scanPanel = ref<InstanceType<typeof ScanPanel>>();
@@ -128,7 +195,7 @@ const scopeChips = computed(() => scopeFilterFieldChips(browseScope.value, refer
 const activeFilterCount = computed(() => scopeChips.value.length + Number(onlyStock.value));
 const activeWarehouseLabel = computed(() =>
 	props.activeWarehouse
-		? warehouseLabel(props.activeWarehouse, reference.warehouses, props.activeWarehouse)
+		? warehouseFullPath(props.activeWarehouse, reference.warehouses, props.activeWarehouse)
 		: "",
 );
 const resolutionSource = ref("");
@@ -204,7 +271,11 @@ watch(resolutionSource, () => {
 const itemEditor = useItemEditor(
 	{ barcode: props.createBarcode, contextual: true, lazy: true },
 	(item) => {
-		emit("notify", "物品已创建；取消操作单不会删除物品、分类或单位。");
+		createdPreview.value = {
+			code: item.item_code,
+			name: item.item_name,
+			image: item.image || "",
+		};
 		if (props.scanMode === "operation" && scanCreate.value) {
 			creating.value = false;
 			void load();
@@ -213,20 +284,18 @@ const itemEditor = useItemEditor(
 			scanStage.value = true;
 			void acceptCreatedScan();
 		} else if (multiple.value) {
-			if (!selected.value.includes(item.item_code)) selected.value.push(item.item_code);
+			const key = `${item.item_code}\u0000${props.activeWarehouse || ""}`;
+			if (!selected.value.includes(key)) selected.value.push(key);
 			creating.value = false;
 			void load();
 			void itemEditor.reset();
-		} else emit("select", item.item_code);
+		} else emit("select", { code: item.item_code, warehouse: props.activeWarehouse || "" });
 	},
 );
 const dirty = computed(() => itemEditor.dirty.value);
 const content = ref<HTMLElement>(),
 	discardPanel = ref<HTMLElement>(),
-	detailPanel = ref<HTMLElement>(),
 	resultsPort = ref<HTMLElement>();
-const detailCode = ref("");
-let detailInvoker: HTMLElement | undefined;
 let selectionScroll = 0,
 	creationScroll = 0;
 watch(discard, async (value) => {
@@ -235,17 +304,6 @@ watch(discard, async (value) => {
 		discardPanel.value?.focus();
 	}
 });
-async function showStockDetails(code: string) {
-	if (code) detailInvoker = document.activeElement as HTMLElement;
-	detailCode.value = code;
-	await picker.showDetail(code);
-	await nextTick();
-	if (code) detailPanel.value?.focus({ preventScroll: true });
-	else {
-		detailInvoker?.focus({ preventScroll: true });
-		detailInvoker?.scrollIntoView({ block: "nearest" });
-	}
-}
 onMounted(() => {
 	if (creating.value) void itemEditor.load();
 });
@@ -278,14 +336,15 @@ async function openScanner() {
 function scanItem(code: string, batch?: string, context?: unknown) {
 	if (props.scanMode === "operation") {
 		if (multiple.value) {
-			const index = selected.value.indexOf(code);
+			const index = selected.value.indexOf(`${code}\u0000`);
 			if (index >= 0) selected.value.splice(index, 1);
 		}
 		if (props.onOperationScan) return props.onOperationScan(code, batch, context);
 		emit("scanItem", code, batch);
 	} else if (multiple.value) {
-		if (!selected.value.includes(code)) selected.value.push(code);
-	} else selectExisting(code);
+		const key = `${code}\u0000`;
+		if (!selected.value.includes(key)) selected.value.push(key);
+	} else selectExisting(code, "");
 }
 function scanLocation(name: string) {
 	if (props.scanMode === "operation") emit("scanLocation", name);
@@ -341,25 +400,42 @@ function close() {
 	if (dirty.value) discard.value = true;
 	else emit("close");
 }
-function commitSelection() {
+async function commitSelection() {
 	if (dirty.value) {
 		pendingMultiple.value = true;
 		discard.value = true;
-	} else emit("selectMultiple", [...selected.value]);
+	} else {
+		await Promise.all([...new Set(selectedRows().map((row) => row.code))].map(ensureSelected));
+		emit("selectMultiple", selectedRows());
+	}
 }
-function selectExisting(code: string) {
+
+async function selectExisting(code: string, warehouse: string) {
 	if (dirty.value) {
-		pendingSelection.value = code;
+		pendingSelection.value = { code, warehouse };
 		discard.value = true;
-	} else emit("select", code);
+	} else {
+		await ensureSelected(code);
+		emit("select", { code, warehouse });
+	}
 }
-function discardEdits() {
+async function discardEdits() {
+	const multipleSelection = pendingMultiple.value ? selectedRows() : undefined;
+	const singleSelection = pendingSelection.value;
+	pendingSelection.value = undefined;
+	pendingMultiple.value = false;
+	discard.value = false;
 	itemEditor.discard();
-	if (pendingMultiple.value) emit("selectMultiple", [...selected.value]);
-	else if (pendingSelection.value) emit("select", pendingSelection.value);
-	else emit("close");
+	if (multipleSelection) {
+		await Promise.all(
+			[...new Set(multipleSelection.map((row) => row.code))].map(ensureSelected),
+		);
+		emit("selectMultiple", multipleSelection);
+	} else if (singleSelection) {
+		await ensureSelected(singleSelection.code);
+		emit("select", singleSelection);
+	} else emit("close");
 }
-const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
 	<Overlay
@@ -581,97 +657,108 @@ const warehouseReference = useOptionalReferenceData();
 						class="picker-results-scroll"
 						data-browse-scroll="picker-results"
 					>
+						<section
+							v-if="createdPreview && multiple"
+							class="picker-created-preview"
+							aria-label="刚创建并已选择的物品"
+						>
+							<div class="picker-created-image">
+								<ItemImage
+									v-if="createdImageItem"
+									:item="createdImageItem"
+									:thumbnail-size="48"
+									:target-size="48"
+								/>
+							</div>
+							<div class="picker-created-copy">
+								<strong>刚创建 · 已选择</strong
+								><span>{{ createdPreview.name }} · {{ createdPreview.code }}</span>
+								<small v-if="props.activeWarehouse"
+									>入库位置：{{
+										warehouseFullPath(
+											props.activeWarehouse,
+											reference.warehouses,
+										)
+									}}</small
+								>
+							</div>
+						</section>
 						<p v-if="result.loading" role="status">正在加载物品…</p>
 						<p v-if="result.error" role="alert">
 							{{ result.error }}
 							<UiButton @click="picker.retry()">重试加载</UiButton>
 						</p>
-						<div v-show="!detailCode && (!result.loading || result.rows.length)">
-							<VirtualList :keys="visible.map((item) => item.code)" :estimate="150">
-								<template #default="{ index }">
-									<div
-										v-if="visible[index]"
-										class="picker-row"
-										:class="{
-											'is-selected': selected.includes(visible[index]!.code),
-										}"
-										:data-picker-code="visible[index]!.code"
-									>
-										<input
-											v-if="multiple"
-											type="checkbox"
-											:checked="selected.includes(visible[index]!.code)"
-											:aria-label="`选择${visible[index]!.name}`"
-											@change="toggle(visible[index]!.code)"
-										/>
-										<span v-else class="picker-checkbox-slot"></span>
-										<span class="preview-picker-thumb"
-											><ItemImage :item="visible[index]!"
-										/></span>
-										<span class="picker-identity">
-											<strong>{{ visible[index]!.name }}</strong>
-											<small
-												>{{ visible[index]!.code
-												}}<template v-if="visible[index]!.category">
-													· {{ visible[index]!.category }}</template
-												></small
-											>
-											<small
-												>可用 {{ visible[index]!.available }}
-												{{ visible[index]!.uom }}</small
-											>
-										</span>
-										<span class="picker-actions">
-											<UiButton
-												v-if="!multiple"
-												:disabled="result.stale"
-												@click="selectExisting(visible[index]!.code)"
-												>选择</UiButton
-											>
-											<UiButton
-												:disabled="result.stale"
-												@click="showStockDetails(visible[index]!.code)"
-												>库存详情</UiButton
-											>
-										</span>
-									</div>
-								</template>
-							</VirtualList>
-							<UiButton
-								v-if="result.next !== null"
+						<div v-show="!result.loading || result.rows.length">
+							<DataTable
+								ariaLabel="按库存位置显示的物品"
+								:columns="pickerColumns"
+								:column-preferences="pickerPrefs"
+								:rows="tableRows"
 								:loading="result.loading"
-								@click="load(true)"
-								>加载更多 · {{ result.rows.length }} / {{ result.total }}</UiButton
+								:initialized="
+									result.rows.length > 0 || result.total > 0 || !result.loading
+								"
+								:error="result.error"
+								:retained="result.stale"
+								:stale="result.stale"
+								:empty-text="onlyStock ? '没有匹配的库存位置' : '没有匹配的物品'"
+								:selection-enabled="multiple"
+								:selected-keys="selected"
+								:row-key="rowKey"
+								:selection-label="(row) => String(row.name || row.code || '')"
+								:has-more="result.next !== null"
+								:loading-more="result.loading"
+								:loaded-count="result.rows.length"
+								:total-count="result.total"
+								@select="setSelected"
+								@load-more="load(true)"
+								@retry="picker.retry()"
+								class="picker-data-table browse-table--compact"
 							>
+								<template #cell="{ column, row }">
+									<div v-if="column.id === 'image'" class="picker-image-cell">
+										<ItemImage
+											:item="asStockItem(row)"
+											:thumbnail-size="isMobile ? 36 : 32"
+											:target-size="isMobile ? 44 : 36"
+										/>
+									</div>
+									<div
+										v-else-if="column.id === 'name'"
+										class="picker-table-name"
+									>
+										<strong>{{ row.name }}</strong>
+										<small>{{ row.uom }}</small>
+									</div>
+									<template v-else-if="column.id === 'warehouse'">
+										{{
+											row.pickerWarehouse
+												? warehouseFullPath(
+														String(row.pickerWarehouse),
+														reference.warehouses,
+													)
+												: "暂无库存 · 选择目标库位"
+										}}
+									</template>
+									<template v-else-if="column.id === 'quantity'">
+										{{ row.pickerQuantity || 0 }} {{ row.uom }}
+									</template>
+									<UiButton
+										v-else-if="column.id === 'action' && !multiple"
+										size="compact"
+										:disabled="result.stale"
+										@click="
+											selectExisting(
+												String(row.code),
+												String(row.pickerWarehouse || ''),
+											)
+										"
+										>选择</UiButton
+									>
+									<template v-else>{{ row[column.id] }}</template>
+								</template>
+							</DataTable>
 						</div>
-						<p v-if="detailLoading" role="status">正在读取库存详情…</p>
-						<p v-if="detailError" role="alert">{{ detailError }}</p>
-						<section
-							v-if="detailItem"
-							ref="detailPanel"
-							tabindex="-1"
-							class="picker-detail"
-						>
-							<h3>{{ detailItem.name }}</h3>
-							<p v-for="place in detailItem.locations" :key="place.location">
-								{{
-									warehouseLabel(
-										place.location,
-										warehouseReference?.warehouses || [],
-										place.label,
-									)
-								}}
-								· 可用 {{ place.available }} {{ detailItem.uom }}
-								<small v-for="batch in place.batches" :key="batch.id"
-									>{{ batch.id }} · {{ batch.expiry || "无效期" }} ·
-									{{ batch.available }} {{ detailItem.uom }}</small
-								>
-							</p>
-							<UiButton @click="showStockDetails('')">返回物品列表</UiButton>
-						</section>
-						<p v-if="!result.loading && !result.error && !visible.length">
-							没有匹配的物品
-						</p>
 					</div>
 				</div>
 			</div>
@@ -707,53 +794,80 @@ const warehouseReference = useOptionalReferenceData();
 </template>
 
 <style scoped>
-.picker-row {
+.picker-chrome :deep(.browse-tools-toggle) {
+	display: none;
+}
+.picker-chrome :deep(.expanded-browse-tools) {
+	display: block !important;
+}
+.picker-data-table :deep(table) {
+	min-width: 780px;
+}
+.picker-data-table :deep(td) {
+	padding-block: var(--p-space-1);
+}
+.picker-data-table :deep(td:first-child img),
+.picker-data-table :deep(td:first-child .item-image) {
+	width: 36px;
+	height: 36px;
+}
+.picker-image-cell {
 	display: grid;
-	grid-template-columns: 24px 48px minmax(0, 1fr);
+	width: 36px;
+	height: 36px;
+	flex: none;
+	place-items: center;
+}
+.picker-image-cell :deep(.item-image-button),
+.picker-image-cell :deep(.async-image) {
+	flex: none;
+}
+.picker-table-name {
+	display: grid;
+	gap: 2px;
+}
+.picker-table-name small {
+	color: var(--p-muted);
+}
+@media (max-width: 767px) {
+	.picker-image-cell {
+		width: 44px;
+		height: 44px;
+	}
+}
+.picker-created-preview {
+	display: flex;
+	align-items: center;
 	gap: var(--p-space-3);
-	align-items: start;
-	width: 100%;
-	min-height: 44px;
-	padding: var(--p-space-3);
-	border: 1px solid var(--p-border);
+	margin-block-end: var(--p-space-2);
+	padding: var(--p-space-2) var(--p-space-3);
+	border: 1px solid var(--p-accent);
 	border-radius: var(--p-radius-control);
-	text-align: left;
-	margin-block: var(--p-space-2);
-	cursor: pointer;
-}
-.picker-row.is-selected {
 	background: var(--p-soft);
-	border-color: var(--p-accent);
 }
-.picker-row:focus-within {
-	box-shadow: var(--p-focus);
-}
-.picker-row > input {
-	margin-top: 12px;
-}
-.preview-picker-thumb {
-	grid-column: 2;
+.picker-created-image {
 	width: 48px;
 	height: 48px;
+	flex: 0 0 48px;
+	overflow: hidden;
 }
-.picker-identity {
-	grid-column: 3;
+.picker-created-image :deep(.item-image-button),
+.picker-created-image :deep(.async-image) {
+	flex: none;
+}
+.picker-created-copy {
+	display: grid;
+	flex: 1;
+	min-width: 0;
+	gap: 2px;
+	overflow-wrap: anywhere;
+}
+.picker-created-copy > * {
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
-.picker-actions {
-	grid-column: 3;
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--p-space-2);
-}
-.picker-stock {
-	grid-column: 3;
-	min-width: 0;
-	overflow-wrap: anywhere;
-}
-.picker-row small {
-	display: block;
+.picker-created-preview small {
+	color: var(--p-muted);
 }
 .picker-scan-stage {
 	display: grid;

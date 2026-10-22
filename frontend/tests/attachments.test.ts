@@ -21,7 +21,11 @@ const ready = {
   is_private: 1,
 };
 function setup(
-  props: { imagesOnly?: boolean; mode?: "edit" | "display" } = {},
+  props: {
+    imagesOnly?: boolean;
+    imageRole?: "main" | "attachments" | "all";
+    mode?: "edit" | "display";
+  } = {},
 ) {
   const parent = ref<{ doctype: string; name: string }>();
   const account = ref("manager");
@@ -84,7 +88,7 @@ describe("native-parent attachments", () => {
     Object.defineProperty(input.element, "files", { value: [file] });
     await input.trigger("change");
     expect(c.files[0]?.state).toBe("pending");
-    expect(wrapper.text()).toContain("等待有效原生记录保存后上传");
+    expect(wrapper.text()).toContain("保存资料后上传");
     expect(upload).not.toHaveBeenCalled();
     parent.value = { doctype: "Stock Entry", name: "SE-1" };
     await c.finalize();
@@ -97,7 +101,7 @@ describe("native-parent attachments", () => {
     expect(c.files[0]?.state).toBe("ready");
   });
   it("filters image-only input while retaining the full document upload option elsewhere", async () => {
-    const { wrapper, c } = setup({ imagesOnly: true });
+    const { wrapper, c } = setup({ imagesOnly: true, imageRole: "main" });
     const input = wrapper.get<HTMLInputElement>('input[type="file"]');
     expect(input.attributes("accept")).toBe("image/*");
     Object.defineProperty(input.element, "files", {
@@ -109,11 +113,33 @@ describe("native-parent attachments", () => {
     await input.trigger("change");
     expect(c.files).toHaveLength(0);
     const original = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent === "使用原图",
+      (button) => button.textContent === "使用原图作为主图",
     )!;
     original.click();
     await flushPromises();
     expect(c.files.map((file) => file.name)).toEqual(["photo.jpg"]);
+  });
+  it("keeps an image attachment byte-for-byte without mounting the cropper", async () => {
+    const { wrapper, c, parent, upload } = setup({ imageRole: "attachments" });
+    parent.value = { doctype: "Item", name: "ITEM-1" };
+    const original = new File(["original image bytes"], "source.png", {
+      type: "image/png",
+    });
+    const input = wrapper.get<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input.element, "files", { value: [original] });
+    await input.trigger("change");
+    await flushPromises();
+    expect(wrapper.findComponent({ name: "ImageCrop" }).exists()).toBe(false);
+    expect(upload).toHaveBeenCalledWith(
+      original,
+      "Item",
+      "ITEM-1",
+      expect.any(Function),
+    );
+    expect(await (upload.mock.calls[0]![0] as File).text()).toBe(
+      "original image bytes",
+    );
+    expect(c.files[0]?.primary).toBe(false);
   });
   it("requires a confirmed private URL and retries the same parent without losing bytes", async () => {
     const { c, parent, upload } = setup();
@@ -182,6 +208,40 @@ describe("native-parent attachments", () => {
     expect(button(display.wrapper, "移除")).toBeUndefined();
     expect(button(display.wrapper, "查看附件")).toBeDefined();
   });
+  it("uses primary-image labels for the cover and attachment labels for other files", async () => {
+    const main = setup({ imagesOnly: true, imageRole: "main" });
+    expect(main.wrapper.text()).toContain("暂无主图");
+    main.c.load([ready], ready.file_url);
+    await flushPromises();
+    expect(button(main.wrapper, "查看主图")).toBeDefined();
+    expect(main.wrapper.text()).not.toContain("查看附件");
+
+    const attachments = setup({ imageRole: "attachments" });
+    expect(attachments.wrapper.text()).toContain("暂无附件");
+  });
+  it("explicitly replaces the primary while preserving the prior cover as an attachment", async () => {
+    const { c, parent, primary, upload } = setup({
+      imagesOnly: true,
+      imageRole: "main",
+    });
+    parent.value = { doctype: "Item", name: "ITEM-1" };
+    const previous = {
+      ...ready,
+      name: "OLD",
+      file_name: "old.jpg",
+      file_url: "/private/files/old.jpg",
+    };
+    c.load([previous], previous.file_url);
+    const replacement = new File(["new cover"], "new.jpg", {
+      type: "image/jpeg",
+    });
+    c.add([replacement], true);
+    await flushPromises();
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(primary).toHaveBeenCalledWith("FILE-1");
+    expect(c.files.map((file) => file.serverName)).toEqual(["OLD", "FILE-1"]);
+    expect(c.files.map((file) => file.primary)).toEqual([false, true]);
+  });
   it("restores only reselection metadata and rejects a different filename", async () => {
     const { c, parent, upload } = setup();
     parent.value = { doctype: "Stock Entry", name: "SE-1" };
@@ -211,7 +271,10 @@ describe("native-parent attachments", () => {
 });
 
 it("finalizes the selected crop and retained original once, then retries primary metadata without reuploading", async () => {
-  const { c, parent, upload, primary } = setup({ imagesOnly: true });
+  const { c, parent, upload, primary } = setup({
+    imagesOnly: true,
+    imageRole: "main",
+  });
   upload.mockImplementation(async (file) => ({
     ...ready,
     name: `FILE-${file.name}`,

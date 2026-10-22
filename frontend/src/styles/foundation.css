@@ -1305,7 +1305,8 @@ strong {
 	display: grid;
 	place-items: center;
 	width: 100%;
-	height: var(--p-card-image-size);
+	height: auto;
+	aspect-ratio: 1;
 	background: var(--p-soft);
 }
 .stock-card-image > .preview-item-image,
@@ -1813,6 +1814,44 @@ strong {
 .preview-dialog:focus {
 	outline: none;
 }
+.dialog-content:has(> .overlay-stage) {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	overflow: hidden;
+}
+.overlay-stage {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+.overlay-stage-panel {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	min-height: 0;
+	max-height: 100%;
+	background: var(--p-surface);
+	overflow: hidden;
+}
+.overlay-stage-panel > .dialog-content {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	overscroll-behavior: contain;
+}
+.overlay-stage-panel > .dialog-heading,
+.overlay-stage-panel > .dialog-footer {
+	flex: none;
+}
 .dialog-heading {
 	padding: 20px 24px;
 	border-bottom: 1px solid var(--p-border);
@@ -1879,9 +1918,15 @@ strong {
 .preview-toast button {
 	flex: none;
 }
-/* Modal interaction owns focus; background notifications remain available on close. */
-body:has(.preview-overlay) .preview-toast {
-	display: none;
+.preview-toast.is-danger {
+	border-color: var(--p-danger);
+	background: var(--p-danger-bg);
+	color: var(--p-danger);
+}
+.preview-toast.is-warning {
+	border-color: var(--p-warning);
+	background: var(--p-warning-bg);
+	color: var(--p-warning);
 }
 .detail-list {
 	display: grid;

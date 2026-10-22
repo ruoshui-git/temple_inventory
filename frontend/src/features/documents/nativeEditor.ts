@@ -60,7 +60,7 @@ export function createNativeEditor(options: {
 }) {
   const state = reactive({
     editorId: crypto.randomUUID(),
-    requestId: crypto.randomUUID(),
+    requestId: crypto.randomUUID() as string,
     identity: undefined as NativeIdentity | undefined,
     version: undefined as string | undefined,
     revision: 0,
@@ -97,6 +97,7 @@ export function createNativeEditor(options: {
       editorId: state.editorId,
       editorKind: options.editorKind,
       identity: state.identity,
+      requestId: state.requestId,
       baseVersion: state.version,
       revision: state.revision,
       updatedAt: new Date().toISOString(),
@@ -283,7 +284,10 @@ export function createNativeEditor(options: {
       state.noAdjustment = false;
       state.identity = identity;
       state.version = response.version;
-      state.values = JSON.parse(JSON.stringify(response)) as Record<string, unknown>;
+      state.values = JSON.parse(JSON.stringify(response)) as Record<
+        string,
+        unknown
+      >;
       state.status =
         response.docstatus === 1
           ? "submitted"
@@ -365,6 +369,7 @@ export function createNativeEditor(options: {
     }
     // Recover into a fresh editor so another tab's snapshot is never overwritten.
     state.editorId = crypto.randomUUID();
+    state.requestId = candidate.requestId || crypto.randomUUID();
     state.values = structuredClone(recoveryValues(candidate.values));
     state.pendingUploadReselection = candidate.pendingUploadReselection;
     state.revision = 0;
@@ -372,6 +377,8 @@ export function createNativeEditor(options: {
     state.recoveryCandidate = undefined;
     state.status = "local";
     edited();
+    if (state.durable)
+      options.recovery.remove(candidate.editorId, candidate.revision);
     return true;
   }
   function dispose() {

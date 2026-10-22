@@ -21,6 +21,18 @@ function ancestorLabels(
   return labels;
 }
 
+export function warehouseFullPath(
+  name: unknown,
+  nodes: HierarchyFilterNode[],
+  explicit?: unknown,
+): string {
+  if (!name) return "外部";
+  const node = nodes.find((row) => row.name === name);
+  if (!node)
+    return typeof explicit === "string" && explicit ? explicit : "位置暂不可用";
+  return ancestorLabels(node, nodes).join(" / ");
+}
+
 function shortRoomLabel(
   room: HierarchyFilterNode,
   nodes: HierarchyFilterNode[],

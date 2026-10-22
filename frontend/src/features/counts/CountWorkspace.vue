@@ -426,11 +426,12 @@ function itemImage(row: CountRow) {
 		<ItemPicker
 			v-if="pickerOpen"
 			mode="add-multiple"
+			purpose="count"
 			@close="pickerOpen = false"
 			@select-multiple="
-				(codes) => {
+				(selections) => {
 					pickerOpen = false;
-					c.chooseItems(codes);
+					c.chooseItems([...new Set(selections.map((selection) => selection.code))]);
 				}
 			"
 		/>

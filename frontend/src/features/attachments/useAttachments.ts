@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, reactive, ref } from "vue";
 import { useInventoryServices } from "../../services/contracts";
 import { fileMime, type NativeFile } from "../../lib/catalogPresentation";
+import { showToast } from "../../services/toast";
 export interface AttachmentEntry {
   id: string;
   name: string;
@@ -29,6 +30,8 @@ export function useAttachments(options: {
   const bytes = new Map<string, File>(),
     urls = new Map<string, string>();
   let primarySaved = "";
+  let uploadBatchPending = false;
+  const uploadBatchIds = new Set<string>();
   let disposed = false,
     generation = 0;
   let request: AbortController | undefined;
@@ -45,7 +48,7 @@ export function useAttachments(options: {
     loading.value = false;
     initialized.value = true;
     primarySaved =
-      values.find((value) => value.file_url === primary)?.name || primarySaved;
+      values.find((value) => value.file_url === primary)?.name || "";
     for (const value of values) {
       const previous = files.find((row) => row.serverName === value.name);
       if (previous) {
@@ -115,11 +118,9 @@ export function useAttachments(options: {
     }
   }
   function add(values: File[], imagePrimary = false) {
-    const firstPrimary =
-      imagePrimary && !files.some((file) => file.primary)
-        ? values[0]
-        : undefined;
+    const firstPrimary = imagePrimary ? values[0] : undefined;
     if (!active() || !options.writable()) return;
+    if (firstPrimary) files.forEach((row) => (row.primary = false));
     for (const file of values) {
       const id = crypto.randomUUID();
       bytes.set(id, file);
@@ -135,11 +136,13 @@ export function useAttachments(options: {
         progress: 0,
         error: "",
       });
+      uploadBatchIds.add(id);
     }
+    uploadBatchPending = uploadBatchIds.size > 0;
     options.changed?.();
     if (options.parent()) void finalize();
   }
-  async function upload(entry: AttachmentEntry) {
+  async function upload(entry: AttachmentEntry, explicit = false) {
     if (
       !active() ||
       !options.writable() ||
@@ -184,6 +187,7 @@ export function useAttachments(options: {
       entry.url = services.fileDisplayUrl?.(value) || value.file_url;
       entry.state = "ready";
       entry.progress = 100;
+      if (explicit) showToast("附件已上传");
     } catch (reason) {
       if (active()) {
         entry.state = "error";
@@ -191,6 +195,11 @@ export function useAttachments(options: {
           reason instanceof Error
             ? reason.message
             : "上传失败，文件仍保留在本窗口";
+        if (explicit)
+          showToast(`附件上传失败：${entry.error}`, "danger", {
+            label: "重试",
+            action: () => void upload(entry, true),
+          });
       }
     } finally {
       if (active()) options.changed?.();
@@ -205,7 +214,20 @@ export function useAttachments(options: {
       (entry) => entry.primary && entry.state === "ready",
     );
     if (chosen?.serverName && chosen.serverName !== primarySaved)
-      await primary(chosen);
+      await primary(chosen, false);
+    if (uploadBatchPending) {
+      const batch = files.filter((entry) => uploadBatchIds.has(entry.id));
+      if (
+        batch.length &&
+        batch.every((entry) => entry.state === "ready") &&
+        !error.value
+      )
+        showToast(`${batch.length} 个附件已上传`);
+      else if (batch.some((entry) => entry.state === "error"))
+        showToast("部分附件上传失败，请查看文件行并重试", "danger");
+      uploadBatchIds.clear();
+      uploadBatchPending = false;
+    }
   }
   async function remove(entry: AttachmentEntry) {
     if (!active() || !options.writable() || entry.state === "uploading") return;
@@ -230,9 +252,15 @@ export function useAttachments(options: {
       bytes.delete(entry.id);
       files.splice(files.indexOf(entry), 1);
       options.changed?.();
+      showToast("附件已移除");
     } catch (reason) {
       if (active())
         error.value = reason instanceof Error ? reason.message : "附件移除失败";
+      if (active())
+        showToast(`附件移除失败：${error.value}`, "danger", {
+          label: "重试",
+          action: () => void remove(entry),
+        });
     }
   }
   function reselect(entry: AttachmentEntry, file: File) {
@@ -252,7 +280,7 @@ export function useAttachments(options: {
       entry.url = previewUrl(file);
       if (entry.url) urls.set(entry.id, entry.url);
     }
-    void upload(entry);
+    void upload(entry, true);
   }
   function restore(values: AttachmentEntry[]) {
     for (const value of values) {
@@ -273,7 +301,7 @@ export function useAttachments(options: {
       });
     }
   }
-  async function primary(entry: AttachmentEntry) {
+  async function primary(entry: AttachmentEntry, announce = true) {
     if (!active() || !options.primary || !options.writable() || busy.value)
       return;
     if (!entry.serverName) {
@@ -292,10 +320,16 @@ export function useAttachments(options: {
           row.primary = row.id === entry.id;
         });
         options.changed?.();
+        if (announce) showToast("主图已更换；原文件仍作为附件保留");
       }
     } catch (reason) {
       if (active())
         error.value = reason instanceof Error ? reason.message : "主图保存失败";
+      if (active() && announce)
+        showToast(`主图保存失败：${error.value}`, "danger", {
+          label: "重试",
+          action: () => void primary(entry),
+        });
     }
   }
   onBeforeUnmount(() => {

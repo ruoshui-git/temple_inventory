@@ -2,8 +2,6 @@
 
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
-from collections import defaultdict
-
 import frappe
 from frappe.utils import cint, get_datetime, getdate
 
@@ -20,16 +18,10 @@ IMMUTABLE_FIELDS = ("item_code", "stock_uom", "has_batch_no", "has_expiry_date")
 
 def _image(item):
 	files = attachments("Item", item.name)
-	images = [
-		file
-		for file in files
-		if str(file.file_type or "").lower() in ("jpg", "jpeg", "png", "gif", "webp", "avif", "svg")
-		or str(file.file_name or "")
-		.lower()
-		.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".svg"))
-	]
-	images.sort(key=lambda file: file.file_url != item.image)
-	return (images[0].file_url if images else ""), files, images
+	primary = [file for file in files if item.image and file.file_url == item.image]
+	# Item.image is the identity of the cover, but must not bypass File's native
+	# attachment ownership, privacy, and read checks.
+	return (primary[0].file_url if primary else ""), files, primary
 
 
 def item_group_root():
@@ -108,21 +100,24 @@ def item_summaries(item_codes):
 		frappe.throw("物品范围无效")
 	if any(not isinstance(code, str) for code in item_codes):
 		frappe.throw("物品范围无效")
-	return [
-		{"name": row.name, "item_name": row.item_name, "image": row.image or ""}
-		for row in frappe.get_list(
-			"Item",
-			filters={"name": ["in", sorted(set(item_codes)) or [""]]},
-			fields=["name", "item_name", "image"],
-			limit_page_length=0,
-		)
-	]
+	rows = frappe.get_list(
+		"Item",
+		filters={"name": ["in", sorted(set(item_codes)) or [""]]},
+		fields=["name", "item_name"],
+		limit_page_length=0,
+	)
+	result = []
+	for row in rows:
+		item = frappe.get_doc("Item", row.name)
+		image, _files, _primary = _image(item)
+		result.append({"name": row.name, "item_name": row.item_name, "image": image})
+	return result
 
 
+@frappe.whitelist()
 def item_display_summaries(item_codes):
 	"""Batch native line display metadata while honoring each linked File's access."""
-	from temple_inventory.native_files import can_read
-
+	require_app()
 	if isinstance(item_codes, str):
 		item_codes = frappe.parse_json(item_codes)
 	if not isinstance(item_codes, list) or len(item_codes) > 10000:
@@ -136,38 +131,15 @@ def item_display_summaries(item_codes):
 		limit_page_length=0,
 	)
 	by_name = {row.name: row for row in items}
-	files_by_item = defaultdict(list)
-	if by_name:
-		files = frappe.get_list(
-			"File",
-			filters={
-				"attached_to_doctype": "Item",
-				"attached_to_name": ["in", sorted(by_name)],
-				"is_private": 1,
-			},
-			fields=["name", "attached_to_name", "file_name", "file_type", "file_url"],
-			order_by="creation asc, name asc",
-			limit_page_length=0,
-		)
-		for row in files:
-			file_doc = frappe.get_doc("File", row.name)
-			if file_doc.has_permission("read") and can_read(file_doc):
-				files_by_item[row.attached_to_name].append(row)
-	image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
 	result = {}
-	for name, item in by_name.items():
-		images = [
-			row
-			for row in files_by_item.get(name, [])
-			if str(row.file_type or "").lower() in ("jpg", "jpeg", "png", "gif", "webp", "avif", "svg")
-			or str(row.file_name or "").lower().endswith(image_extensions)
-		]
-		images.sort(key=lambda row: row.file_url != item.image)
+	for name, row in by_name.items():
+		item = frappe.get_doc("Item", name)
+		image, _files, _primary = _image(item)
 		result[name] = {
-			"item_name": item.item_name,
-			"image": images[0].file_url if images else "",
-			"has_batch_no": bool(item.has_batch_no),
-			"has_expiry_date": bool(item.has_expiry_date),
+			"item_name": row.item_name,
+			"image": image,
+			"has_batch_no": bool(row.has_batch_no),
+			"has_expiry_date": bool(row.has_expiry_date),
 		}
 	return result
 
@@ -302,6 +274,154 @@ def search_items(
 		"results": results,
 		"matched_count": total,
 		"next_start": start + page_length if start + page_length < total else None,
+	}
+
+
+@frappe.whitelist()
+def picker_rows(
+	search="",
+	start=0,
+	page_length=30,
+	warehouses=None,
+	categories=None,
+	uncategorized=False,
+	item_codes=None,
+	timestamp=None,
+	purpose="outbound",
+	only_stock=False,
+	receiving_warehouse=None,
+):
+	"""Return permission-filtered picker rows flattened by item and warehouse."""
+	require_app()
+	if purpose not in ("outbound", "damaged", "inbound", "count"):
+		frappe.throw("物品选择用途无效")
+	start, page_length = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	if isinstance(warehouses, str):
+		warehouses = frappe.parse_json(warehouses)
+	if not isinstance(warehouses or [], list):
+		frappe.throw("仓库筛选范围无效")
+	if purpose == "damaged" and not warehouses:
+		warehouses = [frappe.get_single("Temple Inventory Settings").damaged_warehouse]
+	if isinstance(categories, str):
+		categories = frappe.parse_json(categories)
+	query = validate_query(
+		{
+			"dataset": "inventory",
+			"view": "locations",
+			"scope": {
+				"warehouses": warehouses or [],
+				"categories": categories or [],
+				"uncategorized": uncategorized,
+			},
+		}
+	)
+	target_context = ReportContext(query)
+	if receiving_warehouse:
+		receiving_context = ReportContext(
+			validate_query({"dataset": "inventory", "scope": {"warehouses": [receiving_warehouse]}})
+		)
+		target_warehouses = sorted(receiving_context.selected)
+	else:
+		target_warehouses = []
+	flat = []
+	item_start = 0
+	while True:
+		page = search_items(
+			search=search,
+			start=item_start,
+			page_length=100,
+			warehouses=warehouses,
+			categories=categories,
+			uncategorized=uncategorized,
+			in_stock_only=False,
+			item_codes=item_codes,
+			timestamp=timestamp,
+		)
+		for item in page["results"]:
+			stocks = item.get("stock") or []
+			quantity_key = "damaged" if purpose == "damaged" else "available"
+			if purpose == "inbound":
+				warehouse = target_warehouses[0] if target_warehouses else ""
+				target_stocks = [row for row in stocks if row.get("warehouse") == warehouse]
+				picker_quantity = sum(float(row.get("available", 0) or 0) for row in target_stocks)
+				if cint(only_stock) and picker_quantity <= 0:
+					continue
+				flat.append(
+					{
+						**item,
+						"stock": target_stocks,
+						"warehouse": warehouse,
+						"warehouse_label": target_context.label(warehouse) if warehouse else "",
+						"picker_quantity": picker_quantity,
+						"batch_choices": [
+							{"batch_no": row["batch_no"], "qty": row.get("available", 0)}
+							for row in target_stocks
+							if row.get("batch_no")
+						],
+					}
+				)
+				continue
+			by_warehouse = {}
+			for stock in stocks:
+				if (purpose == "count" and (not cint(only_stock) or stock.get("available", 0) > 0)) or (
+					purpose != "count" and stock.get(quantity_key, 0) > 0
+				):
+					warehouse = stock.get("warehouse", "")
+					entry = by_warehouse.get(warehouse)
+					if entry is None:
+						entry = {**stock, "batch_choices": []}
+						entry.pop("batch_no", None)
+						entry.pop("expiry_date", None)
+						entry.pop("manufacturing_date", None)
+						entry[quantity_key] = 0
+						by_warehouse[warehouse] = entry
+					entry[quantity_key] = float(entry.get(quantity_key, 0) or 0) + float(
+						stock.get(quantity_key, 0) or 0
+					)
+					if stock.get("batch_no"):
+						entry["batch_choices"].append(
+							{"batch_no": stock["batch_no"], "qty": stock.get(quantity_key, 0)}
+						)
+			locations = list(by_warehouse.values())
+			if locations:
+				for stock in locations:
+					flat.append(
+						{
+							**item,
+							"stock": [stock],
+							"warehouse": stock.get("warehouse", ""),
+							"warehouse_label": stock.get("warehouse_label", ""),
+							"picker_quantity": stock.get("damaged", 0)
+							if purpose == "damaged"
+							else stock.get("available", 0),
+						}
+					)
+			elif purpose == "count" and not cint(only_stock):
+				flat.append(
+					{
+						**item,
+						"stock": [],
+						"warehouse": "",
+						"warehouse_label": "",
+						"picker_quantity": 0,
+						"batch_choices": [],
+					}
+				)
+		if page["next_start"] is None:
+			break
+		item_start = page["next_start"]
+	flat.sort(
+		key=lambda row: (
+			str(row["item_name"]).casefold(),
+			str(row["item_code"]),
+			str(row.get("warehouse_label", "")).casefold(),
+			row.get("warehouse", ""),
+		)
+	)
+	return {
+		"results": flat[start : start + page_length],
+		"matched_count": len(flat),
+		"next_start": start + page_length if start + page_length < len(flat) else None,
 	}
 
 
@@ -452,7 +572,8 @@ def create_category(label, parent=None, is_group=False):
 			"parent_item_group": parent_doc.name,
 			"is_group": cint(is_group),
 		}
-	).insert()
+	)
+	doc.insert()
 	return category_metadata(doc)
 
 
@@ -544,7 +665,14 @@ def create_batch(item_code, batch_id, manufacturing_date=None, expiry_date=None)
 			"manufacturing_date": manufacturing_date,
 			"expiry_date": expiry_date,
 		}
-	).insert()
+	)
+	# Batch defaults otherwise replace an intentionally blank manufacturing date.
+	doc.dont_update_if_missing = ["manufacturing_date"]
+	# Frappe resolves the DocField's "Today" default while constructing the
+	# document, before _set_defaults consults dont_update_if_missing.
+	if not manufacturing_date:
+		doc.manufacturing_date = None
+	doc.insert()
 	return {
 		"name": doc.name,
 		"item_code": item.name,

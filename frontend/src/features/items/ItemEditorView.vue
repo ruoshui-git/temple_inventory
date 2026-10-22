@@ -113,10 +113,17 @@ async function cancel() {
 				@dirty-change="conversionDirty = $event"
 				@updated="controller.conversionsUpdated"
 			/>
-			<h3>物品图片</h3>
+			<h3>主图</h3>
 			<Attachments
 				:controller="files"
 				images-only
+				image-role="main"
+				:disabled="!canWrite || busy || conflict"
+			/>
+			<h3>附件</h3>
+			<Attachments
+				:controller="files"
+				image-role="attachments"
 				:disabled="!canWrite || busy || conflict"
 			/>
 			<div v-if="conflict">

@@ -18,6 +18,7 @@ const props = withDefaults(
 		total?: number;
 		hasMore?: boolean;
 		selectedLabel?: string;
+		invalid?: boolean;
 	}>(),
 	{ pageSize: 20, clearable: true },
 );
@@ -165,6 +166,7 @@ defineExpose({ state });
 					open && state === 'ready' && visible[active] ? id + '-' + active : undefined
 				"
 				:disabled="disabled"
+				:aria-invalid="invalid || undefined"
 				:placeholder="placeholder || '搜索并选择'"
 				:value="open ? query : selected"
 				@focus="open = true"

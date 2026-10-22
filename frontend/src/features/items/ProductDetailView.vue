@@ -164,7 +164,7 @@ const locationPrefs =
 				@dirty-change="c.conversionDirty.value = $event"
 			/>
 			<details>
-				<summary>物品资料与图片（{{ files.files.length }}）</summary>
+				<summary>物品资料与文件（{{ files.files.length }}）</summary>
 				<dl class="browse-detail-grid">
 					<div
 						v-for="(value, label) in {
@@ -181,8 +181,10 @@ const locationPrefs =
 						<dd class="preview-long-text">{{ value }}</dd>
 					</div>
 				</dl>
-				<h2>物品图片</h2>
-				<Attachments :controller="files" images-only mode="display" />
+				<h2>主图</h2>
+				<Attachments :controller="files" images-only image-role="main" mode="display" />
+				<h2>附件</h2>
+				<Attachments :controller="files" image-role="attachments" mode="display" />
 			</details>
 			<QuantitySummary :metrics="metrics" />
 			<nav class="browse-tabs" aria-label="物品库存视图">

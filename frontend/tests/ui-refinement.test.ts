@@ -5,6 +5,7 @@ import Overlay from "../src/components/ui/Overlay.vue";
 import DashboardSection from "../src/components/DashboardSection.vue";
 import DocumentLoadingState from "../src/components/ui/DocumentLoadingState.vue";
 import ImageCrop from "../src/components/ui/ImageCrop.vue";
+import RecoverySummary from "../src/components/ui/RecoverySummary.vue";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 import { warehouseLabel } from "../src/lib/warehouseLabel";
 import { hasReportStatuses, reportFilterChips } from "../src/lib/reportFilters";
@@ -14,6 +15,40 @@ import {
   createReferenceData,
   provideInventoryServices,
 } from "../src/services/contracts";
+const cropperMocks = vi.hoisted(() => {
+  const selection = {
+    width: 1000,
+    height: 1000,
+    aspectRatio: Number.NaN,
+    initialAspectRatio: Number.NaN,
+    keyboard: false,
+    $reset: vi.fn(),
+    $toCanvas: vi.fn(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1000;
+      canvas.height = 1000;
+      return canvas;
+    }),
+  };
+  const image = {
+    $ready: vi.fn(async () => new Image()),
+    $center: vi.fn(),
+    $zoom: vi.fn(),
+    $getTransform: vi.fn(() => [1, 0, 0, 1, 0, 0]),
+    $image: { naturalWidth: 1600, naturalHeight: 1200 },
+  };
+  return {
+    selection,
+    image,
+    createCropper: vi.fn(() => ({
+      getCropperImage: () => image,
+      getCropperSelection: () => selection,
+      getCropperCanvas: () => ({}),
+      destroy: vi.fn(),
+    })),
+  };
+});
+vi.mock("cropperjs", () => ({ createCropper: cropperMocks.createCropper }));
 const wrappers: VueWrapper[] = [];
 it("renders accessible skeleton cards while an existing native document loads", () => {
   const wrapper = mount(DocumentLoadingState, {
@@ -29,6 +64,37 @@ it("renders accessible skeleton cards while an existing native document loads", 
   });
   wrappers.push(editorSkeleton);
   expect(editorSkeleton.find('[role="status"]').exists()).toBe(false);
+});
+it("normalizes sanitized local operation rows for recovery display", () => {
+  const wrapper = mount(RecoverySummary, {
+    props: {
+      kind: "Stock Entry",
+      values: {
+        kind: "Receive",
+        items: [
+          {
+            item_name: "本地新物品",
+            code: "ITEM-LOCAL",
+            name: "native-child-row-id",
+            entryQty: 2,
+            entryUom: "Box",
+            qty: 24,
+            uom: "Nos",
+            location: "ROOM-A",
+            batch: "BATCH-A",
+          },
+        ],
+      },
+      copyText: "{}",
+    },
+  });
+  wrappers.push(wrapper);
+  expect(wrapper.text()).toContain("ITEM-LOCAL");
+  expect(wrapper.text()).toContain("本地新物品");
+  expect(wrapper.text()).toContain("24");
+  expect(wrapper.text()).toContain("Nos");
+  expect(wrapper.text()).toContain("ROOM-A");
+  expect(wrapper.text()).toContain("BATCH-A");
 });
 it("keeps dashboard card structure stable while refreshing retained results", async () => {
   const wrapper = mount(DashboardSection, {
@@ -246,16 +312,13 @@ it("stages a child overlay inside the same dialog and restores its trigger", asy
 });
 describe("square crop choices", () => {
   async function crop() {
-    vi.stubGlobal(
-      "createImageBitmap",
-      vi.fn().mockResolvedValue({ width: 1200, height: 800, close: vi.fn() }),
-    );
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:crop-test");
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       drawImage: vi.fn(),
       clearRect: vi.fn(),
     } as any);
     vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
-      (callback) => callback(new Blob(["crop"], { type: "image/png" })),
+      (callback) => callback(new Blob(["crop"], { type: "image/webp" })),
     );
     const original = new File(["original"], "photo.jpg", {
       type: "image/jpeg",
@@ -274,18 +337,36 @@ describe("square crop choices", () => {
       expect(checkbox.checked).toBe(false);
       checkbox.checked = retain;
       checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-      click("使用裁剪图片");
+      click("使用 WebP 裁剪图");
       await flushPromises();
       const files = wrapper.emitted("choose")![0]![0] as File[];
       expect(files.map((file) => file.name)).toEqual(
-        retain ? ["photo-裁剪.png", "原图-photo.jpg"] : ["photo-裁剪.png"],
+        retain ? ["photo-裁剪.webp", "原图-photo.jpg"] : ["photo-裁剪.webp"],
       );
-      expect(files[0]!.type).toBe("image/png");
+      expect(files[0]!.type).toBe("image/webp");
     },
   );
+  it("keeps crop output at native source resolution when the selected source is small", async () => {
+    cropperMocks.image.$image.naturalWidth = 300;
+    cropperMocks.image.$image.naturalHeight = 260;
+    cropperMocks.selection.width = 900;
+    cropperMocks.selection.height = 900;
+    const { wrapper } = await crop();
+    click("使用 WebP 裁剪图");
+    await flushPromises();
+    expect(cropperMocks.selection.$toCanvas).toHaveBeenLastCalledWith({
+      width: 260,
+      height: 260,
+    });
+    wrapper.unmount();
+    cropperMocks.image.$image.naturalWidth = 1600;
+    cropperMocks.image.$image.naturalHeight = 1200;
+    cropperMocks.selection.width = 1000;
+    cropperMocks.selection.height = 1000;
+  });
   it("uses the original alone or cancels without finalizing any file", async () => {
     const { wrapper, original } = await crop();
-    click("使用原图");
+    click("使用原图作为主图");
     await flushPromises();
     expect(wrapper.emitted("choose")![0]![0]).toEqual([original]);
     wrapper.unmount();

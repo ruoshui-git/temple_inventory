@@ -189,6 +189,94 @@ describe("native Item editing and pending uploads", () => {
     expect(c.model.name).not.toBe("不得覆盖");
     expect(c.error.value).toContain("物品已更改");
   });
+  it("durably replaces the recovered Item snapshot and leaves a competing revision intact", async () => {
+    const { c } = setup(service());
+    await flushPromises();
+    const snapshot = {
+      schema: 1 as const,
+      site: "unit-site",
+      account: "volunteer",
+      tabId: "old-tab",
+      editorId: "source-item-editor",
+      editorKind: "Item",
+      baseVersion: "v1",
+      revision: 2,
+      updatedAt: "now",
+      pendingUploadReselection: false,
+      values: {
+        ...c.model,
+        editingCode: item.item_code,
+        name: "Recovered",
+        attachments: [],
+      },
+    };
+    c.recovery.save(snapshot);
+    await c.recover(snapshot);
+    expect(c.recovery.list().entries).toHaveLength(1);
+    expect(c.recovery.list().entries[0]?.editorId).not.toBe(snapshot.editorId);
+    expect(c.recovery.list().entries[0]?.values.name).toBe("Recovered");
+
+    const competing = {
+      ...snapshot,
+      tabId: "other-tab",
+      revision: 3,
+      values: { ...snapshot.values, name: "Other tab" },
+    };
+    localStorage.setItem(
+      "temple-inventory:recovery:v1:unit-site:volunteer:source-item-editor",
+      JSON.stringify(competing),
+    );
+    await c.recover(snapshot);
+    const entries = c.recovery.list().entries;
+    expect(
+      entries.some(
+        (entry) => entry.editorId === snapshot.editorId && entry.revision === 3,
+      ),
+    ).toBe(true);
+    expect(entries.some((entry) => entry.values.name === "Recovered")).toBe(
+      true,
+    );
+  });
+  it("keeps the source Item recovery snapshot when replacement persistence fails", async () => {
+    const { c } = setup(service());
+    await flushPromises();
+    const snapshot = {
+      schema: 1 as const,
+      site: "unit-site",
+      account: "volunteer",
+      tabId: "old-tab",
+      editorId: "source-item-editor",
+      editorKind: "Item",
+      baseVersion: "v1",
+      revision: 2,
+      updatedAt: "now",
+      pendingUploadReselection: false,
+      values: {
+        ...c.model,
+        editingCode: item.item_code,
+        name: "Recovered",
+        attachments: [],
+      },
+    };
+    c.recovery.save(snapshot);
+    const originalSetItem = Storage.prototype.setItem;
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (key, value) {
+        if (key.endsWith(encodeURIComponent(snapshot.editorId)))
+          originalSetItem.call(this, key, value);
+        else throw new DOMException("storage full", "QuotaExceededError");
+      });
+
+    await c.recover(snapshot);
+
+    setItem.mockRestore();
+    const entries = c.recovery.list().entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.editorId).toBe(snapshot.editorId);
+    expect(entries[0]?.revision).toBe(snapshot.revision);
+    expect(entries[0]?.values.name).toBe("Recovered");
+  });
   it("does not recreate a discarded recovery entry on unmount and resets contextual creation to a fresh native identity", async () => {
     const { c, wrapper } = setup(service());
     await flushPromises();

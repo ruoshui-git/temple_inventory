@@ -20,13 +20,7 @@ const emit = defineEmits<{ detail: [] }>();
 const artwork = useItemArtwork();
 const hasArtwork = computed(() => props.hasArtwork || artwork?.has(props.item.code));
 const open = ref(false);
-const source = computed(
-	() =>
-		props.item.image ||
-		props.item.files?.find((file) => file.type.startsWith("image/") && file.state === "ready")
-			?.url ||
-		"",
-);
+const source = computed(() => props.item.image || "");
 watch(
 	() => [source.value, props.item.code],
 	() => {

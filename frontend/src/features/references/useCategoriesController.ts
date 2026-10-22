@@ -10,6 +10,7 @@ import {
   useReferenceData,
 } from "../../services/contracts";
 import { onCategoryRenamed } from "../../lib/categoryRename";
+import { showToast } from "../../services/toast";
 import type { CategoryDraft } from "./CategoryFormFields.vue";
 
 export interface Category extends Record<string, unknown> {
@@ -399,14 +400,17 @@ export function useCategoriesController() {
         );
       if (!edited) expanded.value.add(result.name);
       success.value = edited ? "类别已保存" : "类别已创建";
+      showToast(success.value);
       clearEditor();
       await refresh();
     } catch (reason) {
-      if (active(current))
+      if (active(current)) {
         error.value =
           reason instanceof Error
             ? reason.message
             : "类别保存失败，请保留输入后重试";
+        showToast(`分类保存失败：${error.value}`, "danger");
+      }
     } finally {
       if (active(current)) saving.value = false;
     }
@@ -431,9 +435,12 @@ export function useCategoriesController() {
       removeTarget.value = undefined;
       success.value = "类别已删除";
       await refresh();
+      showToast("分类已删除");
     } catch (reason) {
-      if (active(current))
+      if (active(current)) {
         error.value = reason instanceof Error ? reason.message : "类别无法删除";
+        showToast(`分类删除失败：${error.value}`, "danger");
+      }
     } finally {
       if (active(current)) deleting.value = false;
     }

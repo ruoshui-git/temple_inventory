@@ -4,6 +4,7 @@ import {
   useReferenceData,
 } from "../../services/contracts";
 import { useUpdateBlocker } from "../../lib/updateSafety";
+import { showToast } from "../../services/toast";
 export interface ConfigurationStatus {
   version: string;
   ready: boolean;
@@ -144,13 +145,16 @@ export function useConfiguration(changed: () => void) {
       message.value = initialize
         ? "必需仓库已建立；尚未导入库存数量。"
         : "配置引用已更新，请核对当前配置状态。";
+      showToast(initialize ? "库存设置已完成" : "库存设置已更新");
       changed();
     } catch (reason) {
-      if (active())
+      if (active()) {
         error.value =
           reason instanceof Error
             ? reason.message
             : "配置保存失败，当前选择仍保留";
+        showToast(`配置保存失败：${error.value}`, "danger");
+      }
     } finally {
       if (active()) busy.value = false;
     }

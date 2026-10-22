@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseFullPath } from "../../lib/warehouseLabel";
 import AllocationDetails from "./AllocationDetails.vue";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
@@ -34,7 +34,7 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
-const emit = defineEmits<{ notify: [message: string]; expand: [] }>();
+const emit = defineEmits<{ expand: [] }>();
 const previewDate = computed(() => reference.siteDate);
 const receive = computed(() => props.draft.kind === "Receive");
 const settlement = computed(() => isSettlement(props.draft));
@@ -122,7 +122,7 @@ const scanDestinationOptions = computed<ItemScanOption[]>(() => {
 	const source = scanWarehouse.value || String(props.draft.preferredWarehouse || "");
 	return destinationChoices(source).map((name) => ({
 		value: name,
-		label: warehouseLabel(name, reference.warehouses),
+		label: warehouseFullPath(name, reference.warehouses),
 	}));
 });
 const activeScanWarehouse = computed(() =>
@@ -395,7 +395,7 @@ function scanResolutionFor(
 			.reduce((total, row) => total + row.available, 0);
 		return {
 			value: source,
-			label: warehouseLabel(source, reference.warehouses),
+			label: warehouseFullPath(source, reference.warehouses),
 			available,
 			detail: `可用 ${available} ${item.uom}`,
 		};
@@ -454,7 +454,7 @@ function scanResolutionFor(
 					batchOptions,
 					destinationOptions: destinationValues.map((name) => ({
 						value: name,
-						label: warehouseLabel(name, reference.warehouses),
+						label: warehouseFullPath(name, reference.warehouses),
 					})),
 					defaultSource,
 					defaultBatch: receiving ? scannedBatch || "" : defaultBatch,
@@ -557,7 +557,7 @@ function addScannedLine(item: StockItem, batch: string, source: string, destinat
 		: ["Transfer", "Repair"].includes(props.draft.kind)
 			? `${source} → ${lineDestination}`
 			: source;
-	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${item.uom}${warehouse ? ` · ${warehouseLabel(warehouse, reference.warehouses, warehouse)}` : ""}`;
+	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${item.uom}${warehouse ? ` · ${warehouseFullPath(warehouse, reference.warehouses, warehouse)}` : ""}`;
 }
 function activeScanContext(value: unknown): ScanContextSnapshot {
 	return value && typeof value === "object" ? (value as ScanContextSnapshot) : {};
@@ -671,7 +671,7 @@ function cancelScannedItem() {
 function setScanWarehouse(name: string) {
 	if (receive.value) destination.value = name;
 	else scanWarehouse.value = name;
-	scanFeedback.value = `当前扫描库位：${warehouseLabel(name, reference.warehouses, name)}`;
+	scanFeedback.value = `当前扫描库位：${warehouseFullPath(name, reference.warehouses, name)}`;
 }
 function setScanDestination(name: string) {
 	if (props.draft.kind === "Loan") props.draft.loanDestination = name;
@@ -856,7 +856,7 @@ function refreshLine(line: AllocationLine) {
 		line.expiry = "";
 	}
 }
-async function choose(code: string, closePicker = true) {
+async function choose(code: string, closePicker = true, selectedWarehouse = "") {
 	selectionError.value = "";
 	try {
 		await context.ensure(code);
@@ -878,20 +878,31 @@ async function choose(code: string, closePicker = true) {
 			];
 	if (!pickerLines.value.length) props.draft.items.push(...targets);
 	for (const line of targets) {
-		if (pickerLines.value.length && line.code === code) continue;
 		line.code = code;
 		refreshLine(line);
+		if (selectedWarehouse) {
+			if (receive.value) line.location = selectedWarehouse;
+			else {
+				line.sourceLocation = selectedWarehouse;
+				if (["Transfer", "Repair"].includes(props.draft.kind)) {
+					if (line.location === selectedWarehouse) line.location = "";
+				} else line.location = selectedWarehouse;
+			}
+			if (receive.value) changeBatch(line);
+			else changeSource(line);
+		}
 	}
 	if (closePicker) pickerOpen.value = false;
 	pickerLines.value = [];
 	return true;
 }
-async function selectSingle(code: string) {
-	await choose(code);
+async function selectSingle(selection: { code: string; warehouse: string }) {
+	await choose(selection.code, true, selection.warehouse);
 }
-async function chooseMultiple(codes: string[]) {
+async function chooseMultiple(selections: { code: string; warehouse: string }[]) {
 	const start = props.draft.items.length;
-	for (const code of codes) if (!(await choose(code, false))) return;
+	for (const selection of selections)
+		if (!(await choose(selection.code, false, selection.warehouse))) return;
 	pickerOpen.value = false;
 	search.value = "";
 	incompleteOnly.value = false;
@@ -964,14 +975,17 @@ function changeBatch(line: AllocationLine) {
 				<UiButton
 					class="preview-full-workspace-action"
 					variant="ghost"
+					:icon="expanded ? 'contract' : 'expand'"
+					icon-only
+					:label="expanded ? '退出完整工作区' : '展开完整工作区'"
 					:aria-pressed="!!expanded"
 					@click="emit('expand')"
-					>{{ expanded ? "退出完整工作区" : "展开完整工作区" }}</UiButton
-				>
+				/>
 				<UiButton
 					v-if="!disabled && !settlement"
 					variant="secondary"
 					icon="box"
+					data-field="items"
 					@click="pick()"
 					>添加物品</UiButton
 				>
@@ -1004,7 +1018,7 @@ function changeBatch(line: AllocationLine) {
 				:options="
 					places.map((name) => ({
 						value: name,
-						label: warehouseLabel(name, reference.warehouses),
+						label: warehouseFullPath(name, reference.warehouses),
 					}))
 				"
 			/>
@@ -1031,7 +1045,7 @@ function changeBatch(line: AllocationLine) {
 				>
 					{{
 						group.location
-							? warehouseLabel(group.location, reference.warehouses)
+							? warehouseFullPath(group.location, reference.warehouses)
 							: "未选择库位"
 					}}
 				</h3>
@@ -1111,13 +1125,21 @@ function changeBatch(line: AllocationLine) {
 								:options="
 									stockItem(line.code)?.locations.map((row) => ({
 										value: row.location,
-										label: warehouseLabel(
+										label: warehouseFullPath(
 											row.location,
 											reference.warehouses,
 											row.label,
 										),
 										detail: `可用 ${row.available} · 损坏 ${row.damaged}`,
 									})) || []
+								"
+								:invalid="
+									(showError || revealErrors) &&
+									lineIssues.some(
+										(issue) =>
+											issue.lineId === line.id &&
+											issue.field === 'sourceLocation',
+									)
 								"
 								@update:model-value="changeSource(line)"
 							/>
@@ -1133,8 +1155,15 @@ function changeBatch(line: AllocationLine) {
 								:options="
 									places.map((name) => ({
 										value: name,
-										label: warehouseLabel(name, reference.warehouses),
+										label: warehouseFullPath(name, reference.warehouses),
 									}))
+								"
+								:invalid="
+									(showError || revealErrors) &&
+									lineIssues.some(
+										(issue) =>
+											issue.lineId === line.id && issue.field === 'location',
+									)
 								"
 							/>
 						</div>
@@ -1211,8 +1240,8 @@ function changeBatch(line: AllocationLine) {
 								(showError || revealErrors) &&
 								lineIssues.some((issue) => issue.lineId === line.id)
 							"
-							class="notice-bar danger allocation-error"
-							role="status"
+							class="notice-bar warning allocation-error"
+							role="alert"
 						>
 							{{ lineIssues.find((issue) => issue.lineId === line.id)?.message }}
 						</p>
@@ -1252,6 +1281,14 @@ function changeBatch(line: AllocationLine) {
 				:scan-destination-options="scanDestinationOptions"
 				:on-operation-scan="acceptScannedItem"
 				:eligible="eligible"
+				:purpose="
+					receive
+						? 'inbound'
+						: ['Repair', 'Disposal'].includes(draft.kind)
+							? 'damaged'
+							: 'outbound'
+				"
+				:receiving-warehouse="receive ? destination : undefined"
 				@close="
 					pickerOpen = false;
 					pickerLines = [];
@@ -1259,7 +1296,6 @@ function changeBatch(line: AllocationLine) {
 				@select="selectSingle"
 				@select-multiple="chooseMultiple"
 				@item-loaded="context.remember"
-				@notify="emit('notify', $event)"
 				@scan-location="setScanWarehouse"
 				@scan-destination="setScanDestination"
 				@finish-scan="finishPickerScan"

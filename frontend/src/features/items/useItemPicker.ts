@@ -9,8 +9,18 @@ import {
 } from "../../lib/catalogPresentation";
 import type { StockItem } from "../../lib/stockPresentation";
 import { onCategoryRenamed } from "../../lib/categoryRename";
+export type PickerStockItem = StockItem & {
+  pickerWarehouse: string;
+  pickerWarehouseLabel: string;
+  pickerQuantity: number;
+};
 export function useItemPicker(
-  props: { eligible?: string[]; timestamp?: string },
+  props: {
+    eligible?: string[];
+    timestamp?: string;
+    receivingWarehouse?: string;
+    purpose?: "outbound" | "damaged" | "inbound" | "count";
+  },
   remember: (item: StockItem) => void,
 ) {
   const services = useInventoryServices(),
@@ -22,22 +32,17 @@ export function useItemPicker(
     onlyStock = ref(false),
     selected = ref<string[]>([]);
   const result = reactive({
-    rows: [] as StockItem[],
+    rows: [] as PickerStockItem[],
     total: 0,
     next: null as number | null,
     loading: false,
     error: "",
     stale: false,
   });
-  const details = ref<StockItem>(),
-    detailError = ref(""),
-    detailLoading = ref(false);
   let generation = 0,
-    detailGeneration = 0,
     disposed = false,
     retryMore = false;
-  let request: AbortController | undefined,
-    detailRequest: AbortController | undefined;
+  let request: AbortController | undefined;
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (!categoryFilters.value.includes(oldName)) return;
     categoryFilters.value = [
@@ -52,6 +57,7 @@ export function useItemPicker(
     if (more && (result.loading || result.next === null)) return;
     retryMore = more;
     const current = ++generation;
+    const account = reference.user;
     request?.abort();
     request = new AbortController();
     result.loading = true;
@@ -59,11 +65,15 @@ export function useItemPicker(
     if (!more) result.stale = result.rows.length > 0;
     try {
       const page = await services.call<{
-        results: CatalogItem[];
+        results: (CatalogItem & {
+          warehouse?: string;
+          warehouse_label?: string;
+          picker_quantity?: number;
+        })[];
         matched_count: number;
         next_start: number | null;
       }>(
-        "catalog.search_items",
+        "catalog.picker_rows",
         {
           search: search.value,
           start: more ? result.next : 0,
@@ -71,21 +81,32 @@ export function useItemPicker(
           warehouses: warehouseFilters.value,
           categories: categoryFilters.value,
           uncategorized: uncategorizedFilter.value,
-          in_stock_only: onlyStock.value,
+          purpose: props.purpose || "outbound",
+          ...(props.purpose === "inbound" && props.receivingWarehouse
+            ? { receiving_warehouse: props.receivingWarehouse }
+            : {}),
+          only_stock: onlyStock.value,
           ...(props.timestamp ? { timestamp: props.timestamp } : {}),
           ...(props.eligible ? { item_codes: props.eligible } : {}),
         },
         request.signal,
       );
-      if (current !== generation || disposed) return;
-      const rows = page.results.map(presentCatalogItem);
-      rows.forEach(remember);
+      if (current !== generation || disposed || account !== reference.user)
+        return;
+      const rows: PickerStockItem[] = page.results.map((row) => ({
+        ...presentCatalogItem(row),
+        pickerWarehouse: row.warehouse || "",
+        pickerWarehouseLabel: row.warehouse_label || "",
+        pickerQuantity: Number(row.picker_quantity || 0),
+      }));
       result.rows = more
         ? [
             ...result.rows,
             ...rows.filter(
               (row) =>
-                !result.rows.some((previous) => previous.code === row.code),
+                !result.rows.some(
+                  (previous) => pickerRowKey(previous) === pickerRowKey(row),
+                ),
             ),
           ]
         : rows;
@@ -93,16 +114,22 @@ export function useItemPicker(
       result.next = page.next_start;
       result.stale = false;
     } catch (reason) {
-      if (current === generation && !disposed)
+      if (current === generation && !disposed && account === reference.user)
         result.error =
           reason instanceof Error ? reason.message : "物品加载失败";
     } finally {
-      if (current === generation && !disposed) result.loading = false;
+      if (current === generation && !disposed && account === reference.user)
+        result.loading = false;
     }
   }
+  function pickerRowKey(row: PickerStockItem) {
+    return `${row.code}\u0000${row.pickerWarehouse || ""}`;
+  }
+  let observedAccount = reference.user;
   watch(
     () =>
       JSON.stringify([
+        reference.user,
         search.value,
         categoryFilters.value,
         uncategorizedFilter.value,
@@ -110,50 +137,48 @@ export function useItemPicker(
         onlyStock.value,
         props.eligible,
         props.timestamp,
+        props.purpose,
+        props.receivingWarehouse,
       ]),
     () => {
+      if (observedAccount !== reference.user) {
+        observedAccount = reference.user;
+        selected.value = [];
+        result.rows = [];
+        result.total = 0;
+        result.next = null;
+        result.error = "";
+        result.stale = false;
+        request?.abort();
+      }
       void load();
     },
     { immediate: true },
   );
-  async function showDetail(code: string) {
-    const current = ++detailGeneration;
-    detailRequest?.abort();
-    details.value = undefined;
-    detailError.value = "";
-    if (!code) return;
-    detailRequest = new AbortController();
-    detailLoading.value = true;
+  async function ensureSelected(code: string) {
+    const account = reference.user;
+    if (!code || disposed || !account) return;
     try {
-      const item = await services.call<CatalogItem>(
-        "catalog.operation_item",
-        { item_code: code, timestamp: props.timestamp },
-        detailRequest.signal,
-      );
-      if (current !== detailGeneration || disposed) return;
-      details.value = presentCatalogItem(item);
-      remember(details.value);
-    } catch (reason) {
-      if (current === detailGeneration && !disposed)
-        detailError.value =
-          reason instanceof Error ? reason.message : "库存详情读取失败";
-    } finally {
-      if (current === detailGeneration && !disposed)
-        detailLoading.value = false;
+      const item = await services.call<CatalogItem>("catalog.operation_item", {
+        item_code: code,
+        timestamp: props.timestamp,
+      });
+      if (!disposed && account === reference.user)
+        remember(presentCatalogItem(item));
+    } catch {
+      // The receiving editor will report its own complete-context read failure.
     }
   }
-  function toggle(code: string) {
-    const index = selected.value.indexOf(code);
-    if (index < 0) selected.value.push(code);
+  function toggle(key: string) {
+    const index = selected.value.indexOf(key);
+    if (index < 0) selected.value.push(key);
     else selected.value.splice(index, 1);
   }
   onBeforeUnmount(() => {
     stopCategoryRename();
     disposed = true;
     generation++;
-    detailGeneration++;
     request?.abort();
-    detailRequest?.abort();
   });
   return {
     reference,
@@ -164,12 +189,10 @@ export function useItemPicker(
     onlyStock,
     selected,
     result,
-    details,
-    detailError,
-    detailLoading,
     load,
     retry: () => load(retryMore),
-    showDetail,
+    ensureSelected,
     toggle,
+    pickerRowKey,
   };
 }

@@ -345,12 +345,20 @@
 
 /* One shared editor for routed movements and the canonical receipt. */
 .preview-line-toolbar {
+	position: relative;
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
 	gap: var(--p-space-3);
 	padding-block: var(--p-space-3);
+	padding-inline-end: 52px;
 	border-bottom: 1px solid var(--p-border);
+}
+.preview-line-toolbar .preview-full-workspace-action {
+	position: absolute;
+	inset-block-start: var(--p-space-2);
+	inset-inline-end: 0;
+	z-index: 2;
 }
 .preview-line-search {
 	flex: 1 1 320px;
@@ -724,10 +732,11 @@
 		inset-inline-start: 0;
 		inset-block-start: 50%;
 		z-index: 1;
-		min-width: 42px;
-		min-height: 112px;
-		padding: var(--p-space-2);
-		writing-mode: vertical-rl;
+		width: 44px;
+		min-width: 44px;
+		height: 44px;
+		min-height: 44px;
+		padding: 0;
 		transform: translateY(-50%);
 		box-shadow: var(--p-shadow);
 	}
@@ -738,9 +747,10 @@
 		grid-template-columns: minmax(0, 1fr) 44px;
 	}
 	.workspace-review-collapsed .form-review {
-		width: 44px;
-		min-width: 44px;
+		width: 48px;
+		min-width: 48px;
 		min-height: 112px;
+		position: relative;
 		padding: 0;
 		overflow: hidden;
 	}
@@ -748,12 +758,14 @@
 		display: none !important;
 	}
 	.workspace-review-collapsed .preview-edge-handle {
-		position: sticky;
-		inset: auto;
-		width: 42px;
-		min-width: 42px;
-		min-height: 112px;
-		transform: none;
+		position: absolute;
+		inset-inline-start: 2px;
+		inset-block-start: 50%;
+		width: 44px;
+		min-width: 44px;
+		height: 44px;
+		min-height: 44px;
+		transform: translateY(-50%);
 		box-shadow: none;
 	}
 }

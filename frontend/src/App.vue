@@ -5,6 +5,7 @@ import { useRoute } from "vue-router";
 import ApplicationShell from "./components/ApplicationShell.vue";
 import RouteBreadcrumbs from "./components/RouteBreadcrumbs.vue";
 import UiButton from "./components/ui/UiButton.vue";
+import ToastHost from "./components/ui/ToastHost.vue";
 import Overlay from "./components/ui/Overlay.vue";
 import ConfigurationPage from "./features/setup/ConfigurationPage.vue";
 import { createReferenceData, provideInventoryServices } from "./services/contracts";
@@ -37,6 +38,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 </script>
 <template>
 	<div class="inventory-app" data-inventory-app>
+		<ToastHost />
 		<main v-if="state.gate === 'loading'" class="sample-content">
 			<RouteBreadcrumbs />
 			<p role="status">正在检查登录与库存配置…</p>

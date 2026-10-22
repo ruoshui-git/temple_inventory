@@ -22,12 +22,12 @@ import { newReportQuery } from "../../lib/reportContract";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
+import { showToast } from "../../services/toast";
 const props = withDefaults(defineProps<{ controller: OperationEditor; active?: boolean }>(), {
 	active: true,
 });
 const emit = defineEmits<{
 	back: [];
-	notify: [message: string];
 	leave: [];
 	openExport: [query: ReportQuery];
 }>();
@@ -127,7 +127,20 @@ const statusLabels = {
 };
 async function review() {
 	await c.review();
-	if (issues.value.length) await lineEditor.value?.revealIssue();
+	if (!issues.value.length) return;
+	const issue = issues.value[0];
+	if (issue?.lineId) {
+		await lineEditor.value?.revealIssue(issue);
+		return;
+	}
+	await nextTick();
+	const field = issue?.field
+		? formRoot.value?.querySelector<HTMLElement>(`[data-field="${issue.field}"]`)
+		: undefined;
+	const target = field?.matches("input, select, button")
+		? field
+		: field?.querySelector<HTMLElement>("input, select, button");
+	target?.focus();
 }
 async function addLoan() {
 	try {
@@ -154,6 +167,35 @@ async function loans(search: string, start: number, signal: AbortSignal) {
 }
 async function back() {
 	if (await c.requestLeave()) emit("back");
+}
+async function saveDraft() {
+	await c.save(true);
+	if (state.status === "saved" && !files.incomplete.value) showToast("草稿已保存到库存单据");
+	else if (state.status === "saved" && files.incomplete.value)
+		showToast("草稿已保存，但附件尚未完成上传", "warning");
+	else if (state.status === "local")
+		showToast("输入已保留在此浏览器，尚未保存到服务器", "warning");
+	else if (state.error) showToast(`草稿保存失败：${state.error}`, "danger");
+}
+async function confirm() {
+	await c.confirm();
+	if (state.status === "submitted") showToast("库存单据已提交");
+	else if (state.error) showToast(`提交失败：${state.error}`, "danger");
+}
+async function lifecycle() {
+	const selected = action.value;
+	await c.lifecycle();
+	if (action.value || state.error) {
+		if (state.error) showToast(`操作失败：${state.error}`, "danger");
+		return;
+	}
+	const outcomes: Record<string, string> = {
+		cancel: "库存单据已取消",
+		amend: "修订草稿已创建",
+		delete: "库存草稿已删除",
+		duplicate: "新库存草稿已创建",
+	};
+	if (selected && outcomes[selected]) showToast(outcomes[selected]);
 }
 </script>
 <template>
@@ -284,6 +326,11 @@ async function back() {
 						<label class="preview-field"
 							>操作日期<input
 								v-model="draft.postingDate"
+								data-field="postingDate"
+								:aria-invalid="
+									showError &&
+									issues.some((issue) => issue.field === 'postingDate')
+								"
 								type="date"
 								:disabled="
 									!writable || busy || draft.timeMode === 'current'
@@ -299,6 +346,11 @@ async function back() {
 						><label v-if="draft.timeMode === 'manual'" class="preview-field"
 							>操作时间<input
 								v-model="draft.postingTime"
+								data-field="postingTime"
+								:aria-invalid="
+									showError &&
+									issues.some((issue) => issue.field === 'postingTime')
+								"
 								type="time"
 								step="1"
 								:disabled="!writable || busy"
@@ -317,9 +369,19 @@ async function back() {
 								><label class="preview-field"
 									>借用人 / 团体<input
 										v-model="draft.borrower"
+										data-field="borrower"
+										:aria-invalid="
+											showError &&
+											issues.some((issue) => issue.field === 'borrower')
+										"
 										:disabled="!writable || busy" /></label
 								><SearchSelect
 									label="借出存放库位"
+									data-field="loanDestination"
+									:invalid="
+										showError &&
+										issues.some((issue) => issue.field === 'loanDestination')
+									"
 									:model-value="draft.loanDestination"
 									@update:model-value="c.setLoanDestination"
 									:options="reference.leasedLeaves"
@@ -388,7 +450,6 @@ async function back() {
 						:expanded="expanded"
 						:active="active"
 						@expand="toggle"
-						@notify="emit('notify', $event)"
 					/>
 				</section>
 				<details ref="supplement" class="form-section">
@@ -443,7 +504,7 @@ async function back() {
 						</div>
 					</dl>
 				</details>
-				<div v-if="showError && issues.length" role="alert" class="notice-bar danger">
+				<div v-if="showError && issues.length" role="alert" class="notice-bar warning">
 					<p v-for="issue in issues.filter((row) => !row.lineId)" :key="issue.field">
 						{{ issue.message }}
 					</p>
@@ -460,7 +521,7 @@ async function back() {
 					<UiButton
 						v-if="!state.confirmationVersion"
 						:disabled="busy || supportingDirty"
-						@click="c.save(true)"
+						@click="saveDraft"
 						>保存草稿</UiButton
 					><UiButton
 						v-if="!state.confirmationVersion && c.canSubmit.value"
@@ -473,7 +534,7 @@ async function back() {
 						v-else-if="state.confirmationVersion"
 						variant="primary"
 						:loading="busy"
-						@click="c.confirm"
+						@click="confirm"
 						>检查上次确认结果</UiButton
 					><small class="muted">复核并确认后才变更库存。</small
 					><UiButton
@@ -496,7 +557,7 @@ async function back() {
 					:aria-label="previewCollapsed ? '展开确认前检查' : '收起确认前检查到边缘'"
 					@click="previewCollapsed = !previewCollapsed"
 				>
-					{{ previewCollapsed ? "展开检查" : "收起检查" }}
+					{{ previewCollapsed ? "‹" : "›" }}
 				</UiButton>
 				<details
 					class="review-preview-disclosure"
@@ -565,10 +626,10 @@ async function back() {
 			</dl>
 			<div class="preview-long-text">{{ draft.note }}</div>
 			<p>{{ files.files.length }} 份附件。确认后此记录及附件不可直接修改。</p>
-			<p v-if="state.error" role="alert">{{ state.error }}</p>
+			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="reviewOpen = false">返回检查</UiButton
-				><UiButton variant="primary" :loading="busy" @click="c.confirm"
+				><UiButton variant="primary" :loading="busy" @click="confirm"
 					>确认提交</UiButton
 				></template
 			></Overlay
@@ -629,10 +690,10 @@ async function back() {
 								: "保留原记录，另建带修订来源的新草稿。"
 				}}
 			</p>
-			<p v-if="state.error" role="alert">{{ state.error }}</p>
+			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="action = undefined">返回</UiButton
-				><UiButton variant="danger" :loading="busy" @click="c.lifecycle"
+				><UiButton variant="danger" :loading="busy" @click="lifecycle"
 					>确认</UiButton
 				></template
 			></Overlay
