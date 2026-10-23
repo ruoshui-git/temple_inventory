@@ -424,6 +424,20 @@ class CatalogTests(NativeDocumentTests):
 					start = page["next_start"]
 				self.assertEqual(paged, full)
 
+	def test_picker_page_sql_queries_are_bounded_for_each_purpose(self):
+		self.receipt(3)
+		self.submit(self.create(self.movement("Damage", quantity=1, source=self.a, target=self.damaged)))
+		cases = [
+			("outbound", {"warehouses": [self.a]}),
+			("damaged", {"warehouses": [self.damaged]}),
+			("inbound", {"receiving_warehouse": self.a}),
+			("count", {"warehouses": [self.a]}),
+		]
+		for purpose, scope in cases:
+			with self.subTest(purpose=purpose), patch.object(frappe.db, "sql", wraps=frappe.db.sql) as sql:
+				catalog.picker_rows(item_codes=[self.item], purpose=purpose, page_length=1, **scope)
+				self.assertLessEqual(sql.call_count, 120)
+
 	def test_reference_creation_preserves_parent_and_whole_number_setting(self):
 		parent = frappe.get_doc(
 			{
@@ -677,6 +691,60 @@ class CatalogTests(NativeDocumentTests):
 		restricted = browse.inventory_page({**query, "restrictItems": True, "itemCodes": []})
 		self.assertEqual(restricted["matched_count"], 0)
 		self.assertEqual(restricted["rows"], [])
+
+	def test_picker_and_stock_browse_return_only_readable_primary_images(self):
+		self.receipt(5)
+		item = frappe.get_doc("Item", self.item)
+		image = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"page-primary-{self.token}.png",
+				"content": base64.b64decode(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+				),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+			}
+		).insert()
+		item.image = image.file_url
+		item.save()
+
+		picker = catalog.picker_rows(purpose="outbound", warehouses=[self.a], page_length=50)
+		stock = browse.inventory_page(
+			{"dataset": "inventory", "scope": {"warehouses": [self.root]}}, page_length=50
+		)
+		self.assertEqual(
+			next(row for row in picker["results"] if row["item_code"] == self.item)["image"], image.file_url
+		)
+		self.assertEqual(
+			next(row for row in stock["rows"] if row["code"] == self.item)["image"], image.file_url
+		)
+
+		foreign_owner = catalog.save_item(
+			{
+				"item_code": f"TI-IMAGE-FOREIGN-{self.token}",
+				"item_name": "Foreign image owner",
+				"stock_uom": "Nos",
+			}
+		)
+		foreign = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"foreign-page-primary-{self.token}.png",
+				"content": b"private",
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": foreign_owner["item_code"],
+			}
+		).insert()
+		frappe.db.set_value("Item", self.item, "image", foreign.file_url)
+		picker = catalog.picker_rows(purpose="outbound", warehouses=[self.a], page_length=50)
+		stock = browse.inventory_page(
+			{"dataset": "inventory", "scope": {"warehouses": [self.root]}}, page_length=50
+		)
+		self.assertEqual(next(row for row in picker["results"] if row["item_code"] == self.item)["image"], "")
+		self.assertEqual(next(row for row in stock["rows"] if row["code"] == self.item)["image"], "")
 
 	def test_multi_batch_native_loan_keeps_original_line_and_per_batch_outcomes(self):
 		from temple_inventory.projections import report_page

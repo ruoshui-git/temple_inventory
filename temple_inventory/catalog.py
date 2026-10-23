@@ -32,8 +32,20 @@ def item_group_root():
 	return name
 
 
-def item_metadata(item):
-	image, files, images = _image(item)
+def item_metadata(item, *, include_attachments=True, context=None):
+	if (
+		include_attachments
+		and context
+		and item.name in getattr(context, "_loaded_attachment_item_codes", set())
+	):
+		files = context._permitted_item_attachments.get(item.name, [])
+		images = [file for file in files if item.image and file["file_url"] == item.image]
+		image = images[0]["file_url"] if images else ""
+	elif include_attachments:
+		image, files, images = _image(item)
+	else:
+		image = context.item_fields(item)["image"] if context else ""
+		files, images = [], []
 	return {
 		"name": item.name,
 		"item_code": item.name,
@@ -257,7 +269,7 @@ def search_items(
 			},
 		}
 	)
-	context = ReportContext(query)
+	context = ReportContext(query, load_item_attachments=False)
 	if timestamp:
 		context.set_snapshot(timestamp)
 	if categories or uncategorized:
@@ -266,7 +278,24 @@ def search_items(
 			groups.add(context.category_root)
 		filters["item_group"] = ["in", sorted(groups) or [""]]
 	if cint(in_stock_only):
-		positive = {row["item_code"] for row in stock_rows(context) if row["available"] > 0}
+		if not timestamp:
+			available_warehouses = context.selected - context.leased - context.damaged
+			positive = {
+				row.item_code
+				for row in paged(
+					"Bin",
+					filters={
+						"warehouse": ["in", sorted(available_warehouses) or [""]],
+						"actual_qty": [">", 0],
+					},
+					fields=["item_code"],
+				)
+			}
+		else:
+			codes = selected if item_codes is not None else None
+			positive = {
+				row["item_code"] for row in stock_rows(context, item_codes=codes) if row["available"] > 0
+			}
 		if item_codes is not None:
 			positive &= set(selected)
 		filters["name"] = ["in", sorted(positive) or [""]]
@@ -305,17 +334,19 @@ def search_items(
 		start=start,
 		limit_page_length=page_length,
 	)
+	page_codes = [row.name for row in rows]
+	context.preload_items(page_codes)
+	context.preload_primary_item_images(page_codes)
+	stocks_by_item = {}
+	for stock in stock_rows(context, item_codes=page_codes):
+		stocks_by_item.setdefault(stock["item_code"], []).append(stock)
 	results = []
 	for row in rows:
 		item = context.item(row.name)
 		if item:
-			metadata = item_metadata(item)
-			stock_query = {**query, "scope": {**query["scope"], "item": item.name}, "includeZero": False}
-			stock_context = ReportContext(validate_query(stock_query))
-			if timestamp:
-				stock_context.set_snapshot(context.snapshot)
-			metadata["stock"] = list(stock_rows(stock_context))
-			metadata["snapshot"] = stock_context.snapshot
+			metadata = item_metadata(item, include_attachments=False, context=context)
+			metadata["stock"] = stocks_by_item.get(item.name, [])
+			metadata["snapshot"] = context.snapshot
 			results.append(metadata)
 	total = int(count[0].total if count else 0)
 	return {

@@ -40,13 +40,16 @@ def paged(
 
 
 class ReportContext:
-	def __init__(self, query, snapshot=None, *, snapshot_is_now=None):
+	def __init__(self, query, snapshot=None, *, snapshot_is_now=None, load_item_attachments=True):
 		# Bind caches per request; no decorator retains contexts across accounts.
 		from functools import lru_cache
 
 		self.item = lru_cache(maxsize=2048)(self.item)
 		self._item_fields = lru_cache(maxsize=2048)(self._item_fields)
-		self._permitted_item_images = None
+		self.load_item_attachments = load_item_attachments
+		self._permitted_item_images = None if load_item_attachments else defaultdict(set)
+		self._loaded_primary_image_codes = set()
+		self._permitted_item_attachments = defaultdict(list)
 		self.activity = lru_cache(maxsize=512)(self.activity)
 		self.parent = lru_cache(maxsize=2048)(self.parent)
 		self.batch = lru_cache(maxsize=512)(self.batch)
@@ -189,6 +192,12 @@ class ReportContext:
 			return
 		if not hasattr(self, "_preloaded_parents"):
 			self._preloaded_parents = {}
+		names = sorted(
+			set(names)
+			- {name for parent_doctype, name in self._preloaded_parents if parent_doctype == doctype}
+		)
+		if not names:
+			return
 		meta = frappe.get_meta(doctype)
 		child_fields = [
 			field
@@ -231,20 +240,73 @@ class ReportContext:
 
 	def preload_item_attachments(self, item_codes):
 		"""Batch-check attached private Files while preserving File read/privacy checks."""
+		if not self.load_item_attachments:
+			return
 		from temple_inventory.native_files import can_read
 
-		self._permitted_item_images = defaultdict(set)
+		if self._permitted_item_images is None:
+			self._permitted_item_images = defaultdict(set)
+		self._loaded_attachment_item_codes = getattr(self, "_loaded_attachment_item_codes", set())
+		codes = set(item_codes) - self._loaded_attachment_item_codes
+		if not codes:
+			return
 		for row in frappe.get_list(
 			"File",
 			filters={
 				"attached_to_doctype": "Item",
-				"attached_to_name": ["in", sorted(set(item_codes)) or [""]],
+				"attached_to_name": ["in", sorted(codes) or [""]],
 				"is_private": 1,
 			},
-			fields=["name", "attached_to_name", "file_url"],
+			fields=[
+				"name",
+				"attached_to_name",
+				"file_name",
+				"file_url",
+				"file_size",
+				"file_type",
+				"creation",
+			],
 			order_by="creation asc, name asc",
 			limit_page_length=0,
 		):
+			file_doc = frappe.get_doc("File", row.name)
+			if file_doc.has_permission("read") and can_read(file_doc):
+				self._permitted_item_images[row.attached_to_name].add(row.file_url)
+				self._permitted_item_attachments[row.attached_to_name].append(dict(row))
+		self._loaded_attachment_item_codes.update(codes)
+
+	def preload_primary_item_images(self, item_codes):
+		"""Permission-check only each selected Item's primary private image."""
+		from temple_inventory.native_files import can_read
+
+		if self._permitted_item_images is None:
+			self._permitted_item_images = defaultdict(set)
+		codes = set(item_codes) - self._loaded_primary_image_codes
+		if not codes:
+			return
+		self._loaded_primary_image_codes.update(codes)
+		images = {
+			row.name: row.image
+			for row in frappe.get_list(
+				"Item", filters={"name": ["in", sorted(codes)]}, fields=["name", "image"]
+			)
+			if row.image
+		}
+		if not images:
+			return
+		for row in frappe.get_list(
+			"File",
+			filters={
+				"attached_to_doctype": "Item",
+				"attached_to_name": ["in", sorted(images)],
+				"file_url": ["in", sorted(set(images.values()))],
+				"is_private": 1,
+			},
+			fields=["name", "attached_to_name", "file_url"],
+			limit_page_length=0,
+		):
+			if row.file_url != images.get(row.attached_to_name):
+				continue
 			file_doc = frappe.get_doc("File", row.name)
 			if file_doc.has_permission("read") and can_read(file_doc):
 				self._permitted_item_images[row.attached_to_name].add(row.file_url)
@@ -307,7 +369,9 @@ class ReportContext:
 
 	def _item_fields(self, code):
 		item = self.item(code)
-		if self._permitted_item_images is None:
+		if not self.load_item_attachments:
+			images = self._permitted_item_images.get(item.name, set())
+		elif self._permitted_item_images is None:
 			from temple_inventory.native_files import attachments
 
 			images = {file.file_url for file in attachments("Item", item.name)}
@@ -402,25 +466,31 @@ class ReportContext:
 		return not apply_search or self.matches_search(row.values())
 
 
-def stock_pairs(context):
+def stock_pairs(context, item_codes=None):
 	"""Page native Bin identities without retaining the whole catalog in memory."""
 	filters = {"warehouse": ["in", sorted(context.selected) or [""]]}
+	if item_codes is not None:
+		filters["item_code"] = ["in", sorted(set(item_codes)) or [""]]
 	for value in paged("Bin", filters=filters, fields=["item_code", "warehouse", "actual_qty"]):
 		yield value.item_code, value.warehouse, float(value.actual_qty or 0)
 	if context.query["includeZero"]:
-		for item in paged("Item", filters={"is_stock_item": 1}, fields=["name"]):
+		item_filters = {"is_stock_item": 1}
+		if item_codes is not None:
+			item_filters["name"] = ["in", sorted(set(item_codes)) or [""]]
+		for item in paged("Item", filters=item_filters, fields=["name"]):
 			if not frappe.db.exists("Bin", {**filters, "item_code": item.name}):
 				yield item.name, "", 0.0
 
 
-def stock_rows(context):
+def stock_rows(context, *, item_codes=None):
 	query = context.query
 	if not context.selected:
 		return
-	pairs = list(stock_pairs(context))
+	pairs = list(stock_pairs(context, item_codes=item_codes))
 	codes = {code for code, _warehouse, _quantity in pairs}
 	context.preload_items(codes)
-	context.preload_item_attachments(codes)
+	if context.load_item_attachments:
+		context.preload_item_attachments(codes)
 	for code, warehouse, bin_quantity in pairs:
 		if not context.matches_item(code, warehouse):
 			continue
@@ -592,13 +662,25 @@ def available_stock_effect(
 	)
 
 
-def movement_rows(context, *, include_all_dates=False, apply_activity=True, apply_search=True, statuses=None):
+def movement_rows(
+	context,
+	*,
+	include_all_dates=False,
+	apply_activity=True,
+	apply_search=True,
+	statuses=None,
+	document_names=None,
+):
 	query = context.query
 	for doctype in ("Stock Entry", "Stock Reconciliation"):
+		if document_names is not None and doctype != "Stock Entry":
+			continue
 		filters = {
 			"company": context.company,
 			"docstatus": ["in", query["statuses"] if statuses is None else statuses],
 		}
+		if document_names is not None:
+			filters["name"] = ["in", sorted(set(document_names)) or [""]]
 		if not include_all_dates:
 			if context.period["date_from"]:
 				filters["posting_date"] = [
@@ -696,6 +778,7 @@ def loan_rows(context):
 	parents = [context._preloaded_parents[("Stock Entry", name)] for name in names]
 	context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
 	context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
+	context.preload_item_attachments(line.item_code for doc in parents for line in doc.get("items") or [])
 	for value in values:
 		loan = context.parent("Stock Entry", value.name)
 		if not loan or not in_period(loan.posting_date, context.period):
@@ -767,9 +850,40 @@ def loan_rows(context):
 					yield row
 
 
+def _settlement_document_names(originals):
+	"""Find candidate native settlement parents without scanning unrelated movements."""
+	originals = set(originals)
+	loan_names = sorted({loan for loan, _line, _item in originals if loan})
+	if not loan_names:
+		return set()
+	parents = set()
+	for start in range(0, len(loan_names), 500):
+		rows = frappe.get_all(
+			"Stock Entry Detail",
+			filters={"ti_original_loan": ["in", loan_names[start : start + 500]]},
+			fields=["parent", "ti_original_loan", "ti_original_loan_line", "item_code"],
+			limit_page_length=0,
+		)
+		parents.update(
+			row.parent
+			for row in rows
+			if (row.ti_original_loan, row.ti_original_loan_line, row.item_code) in originals
+		)
+	return parents
+
+
 def settlement_rows(context):
 	loans = {(row["original_loan_line"], row["batch_no"]): row for row in loan_rows(context)}
-	for row in movement_rows(context, include_all_dates=True, apply_activity=False, apply_search=False):
+	document_names = _settlement_document_names(
+		(row["original_loan"], row["original_loan_line"], row["item_code"]) for row in loans.values()
+	)
+	for row in movement_rows(
+		context,
+		include_all_dates=True,
+		apply_activity=False,
+		apply_search=False,
+		document_names=document_names,
+	):
 		original = loans.get((row["original_loan_line"], row["batch_no"]))
 		if not original or row["original_loan"] != original["original_loan"]:
 			continue
@@ -792,6 +906,9 @@ def linked_settlement_rows(context):
 		for row in loan_rows(context)
 	}
 	if not originals:
+		return
+	document_names = _settlement_document_names((key[0], key[1], key[3]) for key in originals)
+	if not document_names:
 		return
 	query = copy.deepcopy(context.query)
 	query["dataset"], query["view"] = "movements", "lines"
@@ -823,10 +940,14 @@ def linked_settlement_rows(context):
 			"item": "",
 		}
 	)
-	history_context = ReportContext(query)
+	history_context = ReportContext(query, load_item_attachments=context.load_item_attachments)
 	native_purposes = {}
 	for row in movement_rows(
-		history_context, include_all_dates=True, apply_activity=False, apply_search=False
+		history_context,
+		include_all_dates=True,
+		apply_activity=False,
+		apply_search=False,
+		document_names=document_names,
 	):
 		key = (row["original_loan"], row["original_loan_line"], row["batch_no"], row["item_code"])
 		original = originals.get(key)

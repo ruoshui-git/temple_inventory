@@ -514,10 +514,12 @@ def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 		frappe.throw("库存列表需要当前库存视图")
 	query["view"] = "summary"
 	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
-	with Projection(query, refresh=refresh) as projection:
+	with Projection(query, refresh=refresh, load_item_attachments=False) as projection:
 		projection.build()
 		page = list(projection.rows("summary", offset=start, limit=size))
 		codes = {row["item_code"] for row in page}
+		projection.context.preload_primary_item_images(codes)
+		projection.context._item_fields.cache_clear()
 		locations = {code: {} for code in codes}
 		for row in projection.rows("locations"):
 			code, warehouse = row["item_code"], row["warehouse"]
@@ -550,7 +552,7 @@ def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 		results = []
 		for row in page:
 			item = projection.context.item(row["item_code"])
-			metadata = item_metadata(item)
+			metadata = item_metadata(item, include_attachments=False, context=projection.context)
 			results.append(
 				{
 					"code": item.name,
@@ -641,7 +643,7 @@ def _operation_projection(query, records):
 	query = validate_query(query)
 	if query["dataset"] not in ("movements", "loans"):
 		frappe.throw("请选择货物流动或借用数据")
-	return Projection(query)
+	return Projection(query, load_item_attachments=False)
 
 
 def _whole_operation(context, doctype, name):
@@ -783,6 +785,10 @@ def _whole_operation_totals(projection, source):
 	for row in projection.rows(source):
 		identity = (row["doctype"], row["document"])
 		documents.setdefault(identity, row)
+	for doctype in ("Stock Entry", "Stock Reconciliation"):
+		projection.context.preload_parents(
+			doctype, [name for parent_doctype, name in documents if parent_doctype == doctype]
+		)
 	for (doctype, name), row in documents.items():
 		whole = _whole_operation(projection.context, doctype, name)
 		for quantity in whole["quantities"]:
@@ -852,6 +858,15 @@ def operation_page(query, records=False, start=0, page_length=20):
 			maximums=() if records else ("date", "posting_timestamp", "modified"),
 		)
 		rows = list(projection.rows("browse_groups", offset=start, limit=size))
+		if records and rows:
+			for doctype in ("Stock Entry", "Stock Reconciliation"):
+				projection.context.preload_parents(
+					doctype, [row["document"] for row in rows if row["doctype"] == doctype]
+				)
+		if not records and rows:
+			projection.context.load_item_attachments = True
+			projection.context.preload_item_attachments(row["item_code"] for row in rows)
+			projection.context._item_fields.cache_clear()
 		for row in rows:
 			row["id"] = frappe.as_json(
 				["record", row["doctype"], row["document"]]
@@ -862,7 +877,10 @@ def operation_page(query, records=False, start=0, page_length=20):
 				row["whole"] = _whole_operation(projection.context, row["doctype"], row["document"])
 				row.pop("allocation_count", None)
 			else:
-				row["item"] = item_metadata(projection.context.item(row["item_code"]))
+				row["item"] = item_metadata(
+					projection.context.item(row["item_code"]),
+					context=projection.context,
+				)
 				conditions, params = "json_extract(payload, '$.item_code') = ?", [row["item_code"]]
 				if projection.query["dataset"] == "loans" and projection.query["view"] != "items":
 					conditions += " and json_extract(payload, '$.outcome_key') = ?"

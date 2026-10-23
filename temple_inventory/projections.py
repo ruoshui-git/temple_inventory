@@ -580,18 +580,24 @@ def group_count_metadata(query, row):
 
 
 class Projection(AbstractContextManager):
-	def __init__(self, query, *, refresh=False):
+	def __init__(self, query, *, refresh=False, load_item_attachments=True):
 		from frappe.utils import now_datetime
 
 		self.query = validate_query(query)
 		self.cache_bypass = refresh
+		self.load_item_attachments = load_item_attachments
 		from temple_inventory.read_cache import capture_cache_context
 
 		self.cache_context = None if refresh else capture_cache_context()
 		self.calculation_started = (
 			getattr(frappe.local, "inventory_cache_request_started", None) if self.cache_context else None
 		) or str(now_datetime())
-		self.context = ReportContext(self.query, snapshot=self.calculation_started, snapshot_is_now=True)
+		self.context = ReportContext(
+			self.query,
+			snapshot=self.calculation_started,
+			snapshot_is_now=True,
+			load_item_attachments=load_item_attachments,
+		)
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
 		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
 		self.db.execute("pragma cache_size = -4096")
@@ -632,7 +638,12 @@ class Projection(AbstractContextManager):
 		self.cache_context = None
 		self.cache_bypass = True
 		self.calculation_started = str(now_datetime())
-		self.context = ReportContext(self.query, snapshot=self.calculation_started, snapshot_is_now=True)
+		self.context = ReportContext(
+			self.query,
+			snapshot=self.calculation_started,
+			snapshot_is_now=True,
+			load_item_attachments=self.load_item_attachments,
+		)
 		self.db.close()
 		self.temp.cleanup()
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
