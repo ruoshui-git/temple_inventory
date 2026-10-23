@@ -6,7 +6,9 @@ vi.mock("../src/lib/api", () => ({
   request: mocked.request,
   ApiError: class extends Error {},
 }));
-vi.mock("../src/lib/sessionState", () => ({ sessionExpired: { value: false } }));
+vi.mock("../src/lib/sessionState", () => ({
+  sessionExpired: { value: false },
+}));
 vi.mock("../src/lib/uiPreferences", async () => {
   const { ref } = await import("vue");
   return { preferenceUser: ref("alice") };
@@ -50,13 +52,19 @@ describe("read request sharing", () => {
   });
 
   it("keeps mutations independent and drops pending reads when the account changes", async () => {
-    mocked.request.mockImplementation((_path: string, _args: unknown, _form: unknown, signal: AbortSignal) => {
-      if (_path.includes("native_api.delete_document"))
-        return Promise.resolve({ deleted: true });
-      return new Promise((_resolve, reject) => {
-        signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
-      });
-    });
+    mocked.request.mockImplementation(
+      (_path: string, _args: unknown, _form: unknown, signal: AbortSignal) => {
+        if (_path.includes("native_api.delete_document"))
+          return Promise.resolve({ deleted: true });
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    );
     const query = { dataset: "inventory", view: "summary" } as never;
     const oldRead = frappeServices.report(query).catch((error) => error);
     await Promise.resolve();
@@ -65,8 +73,12 @@ describe("read request sharing", () => {
     await expect(oldRead).resolves.toMatchObject({ name: "AbortError" });
 
     await Promise.all([
-      frappeServices.call("native_api.delete_document", { name: "x" }).catch(() => undefined),
-      frappeServices.call("native_api.delete_document", { name: "x" }).catch(() => undefined),
+      frappeServices
+        .call("native_api.delete_document", { name: "x" })
+        .catch(() => undefined),
+      frappeServices
+        .call("native_api.delete_document", { name: "x" })
+        .catch(() => undefined),
     ]);
     expect(mocked.request).toHaveBeenCalledTimes(3);
   });

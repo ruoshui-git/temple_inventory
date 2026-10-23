@@ -23,7 +23,9 @@ const emit = defineEmits<{
 			<select
 				:aria-label="label"
 				:value="field"
-				@change="emit('update:field', ($event.target as HTMLSelectElement).value as TField)"
+				@change="
+					emit('update:field', ($event.target as HTMLSelectElement).value as TField)
+				"
 			>
 				<option v-for="option in fields" :key="option.value" :value="option.value">
 					{{ option.label }}

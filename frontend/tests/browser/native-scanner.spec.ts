@@ -67,7 +67,9 @@ test.beforeEach(async ({ page }) => {
         json: { message: { timestamp: "2026-10-16 12:00:00" } },
       }),
   );
-  await page.goto("/inventory/movements/movements/new/Receive?warehouse=ROOM-A");
+  await page.goto(
+    "/inventory/movements/movements/new/Receive?warehouse=ROOM-A",
+  );
   await expect(
     page.getByRole("heading", { name: "入库", exact: true }),
   ).toBeVisible();

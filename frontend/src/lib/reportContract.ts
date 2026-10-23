@@ -175,7 +175,9 @@ export function groupSequencesForView(
     [],
     ...fields.map((field) => [field]),
     ...fields.flatMap((first) =>
-      fields.filter((second) => second !== first).map((second) => [first, second]),
+      fields
+        .filter((second) => second !== first)
+        .map((second) => [first, second]),
     ),
   ];
 }

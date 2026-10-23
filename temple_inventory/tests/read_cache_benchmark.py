@@ -26,15 +26,9 @@ def run():
 	methods = {
 		"temple_inventory.projections.report_page": projections.report_page,
 		"temple_inventory.projections.group_page": projections.group_page,
-		"temple_inventory.browse.inventory_page": frappe.get_attr(
-			"temple_inventory.browse.inventory_page"
-		),
-		"temple_inventory.browse.expiry_page": frappe.get_attr(
-			"temple_inventory.browse.expiry_page"
-		),
-		"temple_inventory.browse.dashboard_card": frappe.get_attr(
-			"temple_inventory.browse.dashboard_card"
-		),
+		"temple_inventory.browse.inventory_page": frappe.get_attr("temple_inventory.browse.inventory_page"),
+		"temple_inventory.browse.expiry_page": frappe.get_attr("temple_inventory.browse.expiry_page"),
+		"temple_inventory.browse.dashboard_card": frappe.get_attr("temple_inventory.browse.dashboard_card"),
 	}
 	source_names = (
 		"stock_rows",
@@ -87,7 +81,7 @@ def run():
 					name: source_calls[name] - before[name]
 					for name in source_names
 					if source_calls[name] != before[name]
-					},
+				},
 				"matched_count": response.get("matched_count"),
 				"rows": len(response.get("rows", [])),
 				"snapshot": response.get("snapshot"),
@@ -97,9 +91,7 @@ def run():
 
 	try:
 		read_cache.invalidate_now()
-		wrappers = {
-			name: counted(name, getattr(projections, name)) for name in source_names
-		}
+		wrappers = {name: counted(name, getattr(projections, name)) for name in source_names}
 		with (
 			patch.object(projections, "stock_rows", wrappers["stock_rows"]),
 			patch.object(projections, "movement_rows", wrappers["movement_rows"]),
@@ -413,7 +405,7 @@ def cleanup_invalidation_probe_artifacts():
 	frappe.set_user("Administrator")
 	items = frappe.get_all(
 		"Item",
-		filters={"description": ["like", "%[temporary cache probe %]" ]},
+		filters={"description": ["like", "%[temporary cache probe %]"]},
 		fields=["name", "description"],
 	)
 	restored = []
@@ -440,8 +432,5 @@ def cleanup_invalidation_probe_artifacts():
 			"select field, value from tabSingles where doctype='Temple Inventory Settings' order by field",
 			as_dict=True,
 		),
-		"counts": {
-			doctype: frappe.db.count(doctype)
-			for doctype in ("Warehouse", "Item", "Stock Entry")
-		},
+		"counts": {doctype: frappe.db.count(doctype) for doctype in ("Warehouse", "Item", "Stock Entry")},
 	}

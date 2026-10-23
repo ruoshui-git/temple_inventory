@@ -116,7 +116,9 @@ export function decodeReportQuery(
       )
     )
       throw new Error("此数据集不支持所选视图或分组顺序");
-    if (!sortableColumnsForView(query.dataset, query.view).includes(query.sortBy))
+    if (
+      !sortableColumnsForView(query.dataset, query.view).includes(query.sortBy)
+    )
       throw new Error("此视图不支持此排序字段");
     const enums: Partial<Record<keyof ReportQuery, readonly string[]>> = {
       sort: ["asc", "desc"],

@@ -24,10 +24,7 @@ def _rollback_audit_snapshot():
 		"select field, value from tabSingles where doctype='Temple Inventory Settings' order by field",
 		as_dict=True,
 	)
-	counts = {
-		doctype: frappe.db.count(doctype)
-		for doctype in ("Warehouse", "Item", "Stock Entry")
-	}
+	counts = {doctype: frappe.db.count(doctype) for doctype in ("Warehouse", "Item", "Stock Entry")}
 	return {"settings": [dict(row) for row in settings], "counts": counts}
 
 
@@ -63,7 +60,9 @@ def run(test_name=None):
 		# This command runs inside `bench execute`, which commits on successful
 		# return. Keep every fixture in one owned transaction and reject any
 		# inner commit so the command's outer commit has nothing to persist.
-		with patch.object(frappe.db, "commit", side_effect=AssertionError("native inventory tests may not commit")):
+		with patch.object(
+			frappe.db, "commit", side_effect=AssertionError("native inventory tests may not commit")
+		):
 			result = unittest.TextTestRunner(verbosity=2).run(suite)
 		if not result.wasSuccessful():
 			raise AssertionError("Native inventory integration tests failed")
@@ -72,7 +71,9 @@ def run(test_name=None):
 		frappe.flags.in_test = previous_in_test
 	audit_after = _rollback_audit_snapshot()
 	if audit_after != audit_before:
-		raise AssertionError(f"Rollback-only native tests changed persistent data: {audit_before!r} -> {audit_after!r}")
+		raise AssertionError(
+			f"Rollback-only native tests changed persistent data: {audit_before!r} -> {audit_after!r}"
+		)
 	return {
 		"tests": result.testsRun,
 		"failures": len(result.failures),

@@ -93,9 +93,7 @@ for (const width of [375, 768, 1024, 1440]) {
           "**/api/method/temple_inventory.native_files.attachments",
           (route) => route.fulfill({ json: { message: [] } }),
         );
-        await page.goto(
-          "/inventory/movements/" + encodeURIComponent(doc.name),
-        );
+        await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
         const summary = page.locator(".form-main .preview-allocation-summary");
         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
           2,

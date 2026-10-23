@@ -59,8 +59,10 @@ def resolve_period(filters, default=False, today_provider=nowdate):
 			year = today.year
 		start = today.replace(year=year, month=start_month, day=1)
 		end_month = start_month + 2
-		end = today if key == "this_quarter" else today.replace(
-			year=year, month=end_month, day=monthrange(year, end_month)[1]
+		end = (
+			today
+			if key == "this_quarter"
+			else today.replace(year=year, month=end_month, day=monthrange(year, end_month)[1])
 		)
 	else:
 		end = today

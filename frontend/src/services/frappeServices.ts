@@ -37,9 +37,15 @@ function stable(value: unknown): string {
 function accountKey() {
   return `${window.location.host}:${preferenceUser.value}`;
 }
-function sharedRead<T>(key: string, signal: AbortSignal | undefined, start: (signal: AbortSignal) => Promise<T>) {
+function sharedRead<T>(
+  key: string,
+  signal: AbortSignal | undefined,
+  start: (signal: AbortSignal) => Promise<T>,
+) {
   if (signal?.aborted)
-    return Promise.reject(signal.reason || new DOMException("Aborted", "AbortError"));
+    return Promise.reject(
+      signal.reason || new DOMException("Aborted", "AbortError"),
+    );
   let entry = pendingReads.get(key) as SharedRead | undefined;
   if (!entry) {
     const controller = new AbortController();
@@ -52,10 +58,12 @@ function sharedRead<T>(key: string, signal: AbortSignal | undefined, start: (sig
     };
     const current = entry;
     pendingReads.set(key, current);
-    current.promise.finally(() => {
-      current.settled = true;
-      if (pendingReads.get(key) === current) pendingReads.delete(key);
-    }).catch(() => undefined);
+    current.promise
+      .finally(() => {
+        current.settled = true;
+        if (pendingReads.get(key) === current) pendingReads.delete(key);
+      })
+      .catch(() => undefined);
   }
   const current = entry;
   const consumer = Symbol("read-consumer");
@@ -181,8 +189,11 @@ function upload(
 export const frappeServices: InventoryServices = {
   call: (endpoint, args = {}, signal) =>
     shareableReads.has(endpoint) || shareableReads.has(methodPath(endpoint))
-      ? sharedRead(readKey(methodPath(endpoint), args), signal, (sharedSignal) =>
-          request(methodPath(endpoint), args, undefined, sharedSignal),
+      ? sharedRead(
+          readKey(methodPath(endpoint), args),
+          signal,
+          (sharedSignal) =>
+            request(methodPath(endpoint), args, undefined, sharedSignal),
         )
       : request(methodPath(endpoint), args, undefined, signal),
   report: (query, options = {}, signal) => {

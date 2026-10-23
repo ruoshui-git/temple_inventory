@@ -2,10 +2,9 @@
 
 from pathlib import Path
 
-from werkzeug.wrappers import Response
-
 import frappe
 from frappe.website.page_renderers.base_renderer import BaseRenderer
+from werkzeug.wrappers import Response
 
 
 class ServiceWorkerPage(BaseRenderer):

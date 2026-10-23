@@ -61,7 +61,12 @@ const role = computed(() => (current.value?.tone === "success" ? "status" : "ale
 onMounted(() => {
 	window.addEventListener("temple-inventory-toast", receive);
 	observer = new MutationObserver(updateTarget);
-	observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["inert"] });
+	observer.observe(document.body, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		attributeFilter: ["inert"],
+	});
 	updateTarget();
 });
 onBeforeUnmount(() => {
@@ -75,14 +80,21 @@ onBeforeUnmount(() => {
 		<div
 			v-if="current"
 			class="preview-toast"
-			:class="{ 'is-danger': current.tone === 'danger', 'is-warning': current.tone === 'warning' }"
+			:class="{
+				'is-danger': current.tone === 'danger',
+				'is-warning': current.tone === 'warning',
+			}"
 			:role="role"
 			aria-live="polite"
 			aria-atomic="true"
 		>
 			<span>{{ current.message }}</span>
-			<UiButton v-if="current.action" size="compact" @click="runAction">{{ current.action.label }}</UiButton>
-			<UiButton size="compact" variant="ghost" aria-label="关闭通知" @click="dismiss">关闭</UiButton>
+			<UiButton v-if="current.action" size="compact" @click="runAction">{{
+				current.action.label
+			}}</UiButton>
+			<UiButton size="compact" variant="ghost" aria-label="关闭通知" @click="dismiss"
+				>关闭</UiButton
+			>
 		</div>
 	</Teleport>
 </template>

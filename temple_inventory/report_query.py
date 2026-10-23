@@ -37,22 +37,219 @@ DEFINITIONS = {
 	"counts": {"views": ("records", "lines"), "groups": ("item", "location", "kind", "status", "month")},
 }
 SORTABLE_COLUMNS = {
-	("inventory", "summary"): ("identity", "item_name", "item_code", "category", "stock_uom", "available", "loaned", "damaged", "stock_qty"),
-	("inventory", "locations"): ("identity", "item_name", "item_code", "category", "stock_uom", "warehouse_label", "batch_no", "available", "loaned", "damaged", "stock_qty"),
-	("inventory", "historical"): ("identity", "item_name", "item_code", "category", "stock_uom", "warehouse", "period_from", "period_to", "opening", "incoming", "outgoing", "adjustment", "closing"),
-	("expiry", "batches"): ("identity", "item_name", "item_code", "category", "stock_uom", "warehouse", "batch_no", "expiry_date", "remaining_days", "stock_qty"),
-	("movements", "summary"): ("identity", "item_name", "item_code", "category", "stock_uom", "kind", "docstatus", "stock_qty", "available_effect"),
-	("movements", "records"): ("identity", "document", "doctype", "kind", "docstatus", "date", "time", "modified", "item_count", "stock_uom"),
-	("movements", "lines"): ("identity", "document", "doctype", "item_name", "item_code", "category", "kind", "docstatus", "date", "time", "source_warehouse", "destination_warehouse", "stock_uom", "activity", "borrower", "stock_qty", "available_effect"),
-	("loans", "records"): ("identity", "document", "doctype", "borrower", "activity_title", "loan_status", "date", "time", "modified", "stock_uom", "outstanding"),
-	("loans", "items"): ("identity", "item_name", "item_code", "category", "stock_uom", "outstanding", "borrowed", "returned", "damaged", "lost"),
-	("loans", "outcomes"): ("identity", "document", "doctype", "item_name", "item_code", "category", "kind", "docstatus", "date", "time", "source_warehouse", "destination_warehouse", "stock_uom", "borrower", "activity_title", "outcome", "outstanding", "borrowed"),
-	("loans", "settlements"): ("identity", "document", "doctype", "item_name", "item_code", "category", "stock_uom", "borrower", "activity_title", "outcome", "date", "stock_qty"),
-	("activities", "metadata"): ("identity", "title", "activity_type_label", "status", "start_date", "end_date", "modified", "document_count"),
-	("activities", "records"): ("identity", "document", "doctype", "kind", "docstatus", "date", "time", "modified", "activity_title"),
-	("activities", "loans"): ("identity", "document", "doctype", "item_name", "item_code", "category", "stock_uom", "borrower", "activity_title", "outcome", "date", "outstanding"),
-	("counts", "records"): ("identity", "document", "doctype", "kind", "docstatus", "date", "time", "modified", "item_count", "stock_uom", "difference"),
-	("counts", "lines"): ("identity", "item_name", "item_code", "category", "stock_uom", "warehouse", "kind", "date", "baseline_qty", "actual_qty", "difference"),
+	("inventory", "summary"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"available",
+		"loaned",
+		"damaged",
+		"stock_qty",
+	),
+	("inventory", "locations"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"warehouse_label",
+		"batch_no",
+		"available",
+		"loaned",
+		"damaged",
+		"stock_qty",
+	),
+	("inventory", "historical"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"warehouse",
+		"period_from",
+		"period_to",
+		"opening",
+		"incoming",
+		"outgoing",
+		"adjustment",
+		"closing",
+	),
+	("expiry", "batches"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"warehouse",
+		"batch_no",
+		"expiry_date",
+		"remaining_days",
+		"stock_qty",
+	),
+	("movements", "summary"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"kind",
+		"docstatus",
+		"stock_qty",
+		"available_effect",
+	),
+	("movements", "records"): (
+		"identity",
+		"document",
+		"doctype",
+		"kind",
+		"docstatus",
+		"date",
+		"time",
+		"modified",
+		"item_count",
+		"stock_uom",
+	),
+	("movements", "lines"): (
+		"identity",
+		"document",
+		"doctype",
+		"item_name",
+		"item_code",
+		"category",
+		"kind",
+		"docstatus",
+		"date",
+		"time",
+		"source_warehouse",
+		"destination_warehouse",
+		"stock_uom",
+		"activity",
+		"borrower",
+		"stock_qty",
+		"available_effect",
+	),
+	("loans", "records"): (
+		"identity",
+		"document",
+		"doctype",
+		"borrower",
+		"activity_title",
+		"loan_status",
+		"date",
+		"time",
+		"modified",
+		"stock_uom",
+		"outstanding",
+	),
+	("loans", "items"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"outstanding",
+		"borrowed",
+		"returned",
+		"damaged",
+		"lost",
+	),
+	("loans", "outcomes"): (
+		"identity",
+		"document",
+		"doctype",
+		"item_name",
+		"item_code",
+		"category",
+		"kind",
+		"docstatus",
+		"date",
+		"time",
+		"source_warehouse",
+		"destination_warehouse",
+		"stock_uom",
+		"borrower",
+		"activity_title",
+		"outcome",
+		"outstanding",
+		"borrowed",
+	),
+	("loans", "settlements"): (
+		"identity",
+		"document",
+		"doctype",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"borrower",
+		"activity_title",
+		"outcome",
+		"date",
+		"stock_qty",
+	),
+	("activities", "metadata"): (
+		"identity",
+		"title",
+		"activity_type_label",
+		"status",
+		"start_date",
+		"end_date",
+		"modified",
+		"document_count",
+	),
+	("activities", "records"): (
+		"identity",
+		"document",
+		"doctype",
+		"kind",
+		"docstatus",
+		"date",
+		"time",
+		"modified",
+		"activity_title",
+	),
+	("activities", "loans"): (
+		"identity",
+		"document",
+		"doctype",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"borrower",
+		"activity_title",
+		"outcome",
+		"date",
+		"outstanding",
+	),
+	("counts", "records"): (
+		"identity",
+		"document",
+		"doctype",
+		"kind",
+		"docstatus",
+		"date",
+		"time",
+		"modified",
+		"item_count",
+		"stock_uom",
+		"difference",
+	),
+	("counts", "lines"): (
+		"identity",
+		"item_name",
+		"item_code",
+		"category",
+		"stock_uom",
+		"warehouse",
+		"kind",
+		"date",
+		"baseline_qty",
+		"actual_qty",
+		"difference",
+	),
 }
 
 
@@ -66,7 +263,13 @@ def group_sequences_for_view(dataset, view):
 		("movements", "summary"): ("item", "category"),
 		("movements", "records"): ("kind", "status", "activity", "month"),
 		("movements", "lines"): (
-			"item", "category", "source", "destination", "kind", "activity", "month",
+			"item",
+			"category",
+			"source",
+			"destination",
+			"kind",
+			"activity",
+			"month",
 		),
 		("loans", "records"): ("borrower", "activity", "status", "month"),
 		("loans", "items"): ("item", "category"),
@@ -85,9 +288,13 @@ def group_sequences_for_view(dataset, view):
 		*[[field] for field in fields],
 		*[[first, second] for first in fields for second in fields if first != second],
 	]
+
+
 def sortable_field(dataset, view, field):
 	columns = SORTABLE_COLUMNS[(dataset, view)]
 	return field if field in columns else None
+
+
 PERIOD_DEFAULT = {"key": "all", "from": "", "to": ""}
 SCOPE_DEFAULT = {
 	"period": PERIOD_DEFAULT,
@@ -192,8 +399,10 @@ def validate_query(value):
 	if query["view"] not in definition["views"]:
 		frappe.throw("此数据集不支持所选视图或分组")
 	group_by = value.get("groupBy", query["groupBy"])
-	if not isinstance(group_by, list) or len(group_by) > 2 or any(
-		not isinstance(field, str) or field not in definition["groups"] for field in group_by
+	if (
+		not isinstance(group_by, list)
+		or len(group_by) > 2
+		or any(not isinstance(field, str) or field not in definition["groups"] for field in group_by)
 	):
 		frappe.throw("此数据集不支持所选视图或分组")
 	if len(group_by) != len(set(group_by)):
@@ -233,7 +442,10 @@ def validate_query(value):
 		query.update({"statuses": [1], "loanStatus": "all", "loanOutcome": "all", "outstandingOnly": False})
 	if dataset == "activities":
 		query["statuses"] = [1]
-	if query["sort"] not in ("asc", "desc") or query["sortBy"] not in SORTABLE_COLUMNS[(dataset, query["view"])]:
+	if (
+		query["sort"] not in ("asc", "desc")
+		or query["sortBy"] not in SORTABLE_COLUMNS[(dataset, query["view"])]
+	):
 		frappe.throw("请选择有效的排序")
 	for field, allowed in {
 		"activityStatus": ("all", "active", "archived"),
