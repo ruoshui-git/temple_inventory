@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Run one Codex implementation task non-interactively, with the access
+# temple_inventory work needs: writes inside the Bench, network for MariaDB,
+# Redis and package caches, and no approval prompts. Output goes to
+# $CODEX_RUNS_DIR/NAME.{log,last,exit,session,pid}; NAME.last holds only the
+# agent's final report, so callers need not read the full log.
+
+usage() {
+	cat >&2 <<'USAGE'
+Usage: codex-run NAME PROMPT_FILE [--resume SESSION_ID | --fork SESSION_ID] [--model MODEL]
+
+  NAME          Short run name, e.g. location-backend (reused names are overwritten).
+  PROMPT_FILE   Task brief; use - to read it from stdin.
+  --resume ID   Continue an earlier Codex session (same thread).
+  --fork ID     Continue from an earlier session in a new thread (use when
+                resume reports that the thread already has an active writer).
+  --model M     Default: $CODEX_MODEL or gpt-6-luna.
+USAGE
+	exit 2
+}
+
+[[ $# -ge 2 ]] || usage
+name=$1
+prompt=$2
+shift 2
+mode=()
+model="${CODEX_MODEL:-gpt-6-luna}"
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		--resume) mode=(resume "${2:?--resume requires a session id}"); shift 2 ;;
+		--fork) mode=(fork "${2:?--fork requires a session id}"); shift 2 ;;
+		--model) model=${2:?--model requires a value}; shift 2 ;;
+		*) usage ;;
+	esac
+done
+
+bench=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
+runs="${CODEX_RUNS_DIR:-/tmp/codex-runs}"
+mkdir -p "$runs"
+log="$runs/$name.log"
+
+if [[ -f "$runs/$name.pid" ]] && kill -0 "$(cat "$runs/$name.pid")" 2>/dev/null; then
+	echo "codex-run: $name is already running (pid $(cat "$runs/$name.pid"))" >&2
+	exit 1
+fi
+command -v codex >/dev/null || {
+	echo "codex-run: codex CLI not found; run: npm install -g @openai/codex" >&2
+	exit 1
+}
+command -v bwrap >/dev/null ||
+	echo "codex-run: bubblewrap missing; Codex falls back to its bundled copy (sudo apt-get install bubblewrap)" >&2
+
+roots=("$bench" /tmp "$HOME/.cache")
+[[ -d /workspace/.pnpm-store ]] && roots+=(/workspace/.pnpm-store)
+printf -v roots_toml '"%s",' "${roots[@]}"
+
+rm -f "$runs/$name".{last,exit,session}
+echo $$ >"$runs/$name.pid"
+set +e
+(
+	cd "$bench"
+	if [[ $prompt == - ]]; then cat; else cat -- "$prompt"; fi |
+		codex exec "${mode[@]}" \
+			-c "model=\"$model\"" \
+			-c 'sandbox_mode="workspace-write"' \
+			-c 'approval_policy="never"' \
+			-c 'sandbox_workspace_write.network_access=true' \
+			-c "sandbox_workspace_write.writable_roots=[${roots_toml%,}]" \
+			-o "$runs/$name.last" \
+			-
+) >"$log" 2>&1
+status=$?
+set -e
+grep -m1 -oP 'session id: \K\S+' "$log" >"$runs/$name.session" || true
+echo "$status" >"$runs/$name.exit"
+rm -f "$runs/$name.pid"
+echo "codex-run: $name exited $status; session $(cat "$runs/$name.session" 2>/dev/null || echo unknown)"
+echo "codex-run: final report $runs/$name.last; full log $log"
+exit "$status"

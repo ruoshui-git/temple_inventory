@@ -106,6 +106,15 @@ Noto CJK package), then rerun the helper. Launch the browser command beneath the
 helper so it inherits the verified config. Do not add environment setup to the
 product UI.
 
+For ad hoc screenshots against the running dev server, Node cannot resolve
+`development.localhost`. Launch `/usr/bin/chromium-headless-shell` through
+`frontend/node_modules/@playwright/test` with `--no-sandbox` and
+`--host-resolver-rules=MAP development.localhost 127.0.0.1`. Log in by POSTing to
+`/api/method/login` with `fetch` from a page, then browse
+`http://development.localhost:8000/inventory/...`. Wait for data to load before
+capturing, unless you are deliberately capturing a loading state. Save evidence
+under `notes/evidence/<date>-<topic>/`.
+
 ## Development site authorization
 
 The user has authorized local live-browser checks on the exact site
@@ -116,33 +125,66 @@ platform controls. The user has also authorized killing running processes,
 including earlier sessions, and starting local services/servers when required.
 The user explicitly authorized resetting `development.localhost` when the
 selected task scope says to reset development data. Use only the guarded
-`scripts/reset-development-samples`, supply its real database-root credentials
-from the environment/configuration (never assume the Administrator password is
-the DB root password), and preserve the Administrator password. Do not reset a
+`scripts/reset-development-samples` and preserve the Administrator password. The
+devcontainer's MariaDB root credentials and the non-interactive reset command are
+documented in README.md ("Devcontainer database credentials"); use them instead
+of searching, and never substitute the Administrator password. Do not reset a
 different site.
+
+## Resource limits
+
+The devcontainer has about 8 GB of RAM, and VS Code and Bench services already
+use most of it. Overlapping heavy commands have crashed MariaDB and restarted the
+container mid-task. Run every heavy command through `scripts/heavy`, a shared
+lock that queues callers, and never run heavy work in parallel. Heavy commands
+include `pnpm test`, `pnpm build`, the backend test entry point, `bench migrate`,
+the sample reset, Playwright, and Chromium screenshot scripts. Close every browser
+your script launches. Do not start Vite or extra dev servers; reuse the running
+`bench serve` on port 8000. Run at most one Codex implementation task at a time.
+If MariaDB reports "Server has gone away", wait for the service, confirm with a
+trivial `bench execute`, then resume the interrupted step instead of restarting
+the task.
 
 ## Validation
 
-Run frontend commands from `frontend/`:
+Run frontend commands from `frontend/`, one at a time:
 
 ```sh
-pnpm test
+../scripts/heavy pnpm test
 pnpm type-check
-pnpm build
+../scripts/heavy pnpm build
 ```
 
 For backend inventory and native-document changes, run from the bench root:
 
 ```sh
-bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run
+apps/temple_inventory/scripts/heavy bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run
 ```
+
+Format touched Python with the pinned Ruff, from the app root:
+`uvx ruff@0.14.10 check --select=I --fix`, `uvx ruff@0.14.10 format`, then
+`uvx ruff@0.14.10 check`.
+
+Mocked frontend tests do not catch API contract mismatches. When a change
+touches a whitelisted API or a write flow, also run the live-server acceptance
+suite from `frontend/`. It needs `bench serve --port 8000` plus, for export
+jobs, `bench worker`:
+
+```sh
+NATIVE_ADMIN_PASSWORD=admin NATIVE_BASE_URL=http://127.0.0.1:8000 \
+	../scripts/heavy ../scripts/ui-visual-preflight \
+	pnpm exec playwright test -c playwright.native.config.ts
+```
+
+The acceptance tests look up documents and warehouses through the APIs. Never
+hardcode sample document names or warehouse docnames, which change on every reset.
 
 The test entry point rolls back its changes. Add focused regression tests for
 changed behavior and invariants. The development stack uses `mariadb`,
 `redis-cache` and `redis-queue`; do not replace service hostnames with
-`localhost`. If sandbox DNS blocks those hosts, rerun the command with approved
-network access and distinguish connectivity errors from reached test failures.
-Report checks that the environment prevented.
+`localhost`. Codex tasks started through `scripts/codex-run` have network access
+to these services. In another sandbox without it, distinguish connectivity
+errors from reached test failures and report checks the environment prevented.
 
 Prefer clean schema/API/caller updates over compatibility shims. Update schemas,
 fixtures, patches, permissions and tests when changing DocTypes or hooks. Avoid

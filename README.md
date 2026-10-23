@@ -36,15 +36,31 @@ mit
 
 For a disposable development site only, rebuild the complete site database and load
 the Temple Inventory catalog, opening stock, images, and representative inventory
-movements. General demonstration stock and transactions are isolated below the
-`样例物品` branch; costume catalog and opening stock are treated as real data and
-are loaded into the configured A04 location:
+movements. The costume catalog and its opening stock are real data and go into
+`第2寺院 (T2) / A02`. All general demonstration items and movements use only the
+`演示区` area (`演示室甲` with shelf `演示架1`, and `演示室乙`). ERPNext's default
+warehouses are removed.
 
 ```bash
 ./apps/temple_inventory/scripts/reset-development-samples --site development.localhost
 ```
 
-The command requires `developer_mode=1` and an exact `RESET <site>` confirmation.
+The command requires `developer_mode=1`, the MariaDB root password, and an exact
+`RESET <site>` confirmation.
+
+#### Devcontainer database credentials
+
+In the development container, MariaDB runs on host `mariadb` with root user `root` and
+password `123`, set by `MYSQL_ROOT_PASSWORD` in `/workspace/.devcontainer/docker-compose.yml`
+(the frappe_docker devcontainer). This is a local development credential only; it is
+unrelated to the site's `Administrator` password (`admin`). A non-interactive reset:
+
+```bash
+echo "RESET development.localhost" | MARIADB_ROOT_PASSWORD=123 \
+	./apps/temple_inventory/scripts/reset-development-samples --site development.localhost
+```
+
+If the compose file changes the password, that file is the source of truth.
 It permanently removes all database records, does not create a backup, and must
 never be used on a production site. Progress, server errors, and tracebacks are
 shown directly in the terminal and written to `logs/temple-sample-reset-*.log`.
