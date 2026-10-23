@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import NativeWarehousesPage from "../features/warehouses/NativeWarehousesPage.vue";
+import { isBrowseStateUpdate } from "../features/warehouses/warehouseRoute";
 import {
 	browseDestination,
 	documentDestination,
@@ -20,7 +21,9 @@ useRouteBreadcrumbLabel(
 		page.value?.controller.selected.value?.label,
 );
 onBeforeRouteLeave(() => page.value?.controller.requestLeave() ?? true);
-onBeforeRouteUpdate(() => page.value?.controller.requestLeave() ?? true);
+onBeforeRouteUpdate((to, from) =>
+	isBrowseStateUpdate(to, from) ? true : (page.value?.controller.requestLeave() ?? true),
+);
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);
 const validQuery = computed(() =>
 	["warehouse", "search", "edit", "recovery"].every(
