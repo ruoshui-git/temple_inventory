@@ -741,7 +741,7 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
     await page
       .getByRole("button", { name: "放弃并重新读取", exact: true })
       .click();
-    await page.getByText("补充记录（可选）", { exact: true }).click();
+    await page.locator("summary", { hasText: "补充记录" }).click();
     await expect(page.getByLabel("备注", { exact: true })).toHaveValue(
       "Desk 保存的备注",
     );

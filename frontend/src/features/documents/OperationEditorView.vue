@@ -456,7 +456,7 @@ async function lifecycle() {
 				<DisclosureSection
 					v-model:open="supplementOpen"
 					title="补充记录"
-					summary="活动、人员、备注与凭证附件"
+					summary="可选 · 活动、人员、备注与凭证附件"
 				>
 					<div class="form-grid">
 						<TransactionContext
