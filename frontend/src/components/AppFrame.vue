@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "./ui/DisclosureIcon.vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import UiButton from "./ui/UiButton.vue";
@@ -200,10 +201,10 @@ onBeforeUnmount(() => {
 						<InventoryIcon class="nav-leading-icon" :name="group.icon" /><span
 							class="nav-label"
 							>{{ group.label }}</span
-						><InventoryIcon
+						><DisclosureIcon
 							v-if="group.key === 'inventory'"
 							class="nav-chevron"
-							name="chevron-down"
+							variant="popup"
 						/>
 					</button>
 					<button
@@ -256,7 +257,7 @@ onBeforeUnmount(() => {
 						<strong>{{ user }}</strong>
 						<small v-if="accountNote">{{ accountNote }}</small>
 					</span>
-					<InventoryIcon name="chevron-down" />
+					<DisclosureIcon variant="popup" />
 				</button>
 				<div
 					v-if="accountMenuOpen"

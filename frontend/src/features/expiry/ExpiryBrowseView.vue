@@ -18,6 +18,7 @@ import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
@@ -357,7 +358,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				{{ result.total }} 条存放明细
 			</p>
 			<details class="browse-summary-details">
-				<summary>
+				<summary class="ti-disclosure">
+					<DisclosureIcon variant="inline" />
 					数量分析：{{
 						metrics
 							.slice(0, 2)

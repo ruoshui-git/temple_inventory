@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ name: string }>();
+withDefaults(defineProps<{ name: string; strokeWidth?: number }>(), { strokeWidth: 2 });
 const paths: Record<string, string> = {
 	expand: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
 	contract: "M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5",
@@ -39,7 +39,7 @@ const paths: Record<string, string> = {
 		viewBox="0 0 24 24"
 		fill="none"
 		stroke="currentColor"
-		stroke-width="1.6"
+		:stroke-width="strokeWidth"
 		stroke-linecap="round"
 		stroke-linejoin="round"
 	>

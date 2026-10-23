@@ -9,6 +9,7 @@ import type {
 	TableCellValue,
 } from "../../lib/dataTable";
 import { dataColumnAlignment } from "../../lib/dataTable";
+import DisclosureIcon from "./DisclosureIcon.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -544,7 +545,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											:disabled="!entry.hasChildren"
 											@click.stop="emit('toggleGroup', entry.id)"
 										>
-											{{ entry.expanded ? "▾" : "▸" }} {{ entry.label }}
+											<DisclosureIcon variant="inline" /> {{ entry.label }}
 										</button>
 										<span class="data-table-group-count"
 											>{{ entry.countLabel || "记录数" }}
@@ -593,10 +594,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												:disabled="!entry.hasChildren"
 												@click.stop="emit('toggleGroup', entry.id)"
 											>
-												<span aria-hidden="true">{{
-													entry.expanded ? "▾" : "▸"
-												}}</span
-												>{{ entry.label }}
+												<DisclosureIcon variant="inline" />{{
+													entry.label
+												}}
 											</button>
 											<span
 												v-if="

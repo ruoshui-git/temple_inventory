@@ -23,6 +23,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ItemGroup from "../../components/ItemGroup.vue";
 import SortControl from "../../components/ui/SortControl.vue";
@@ -845,7 +846,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					筛选结果：{{ result.total }} {{ records ? "笔记录" : "种物品" }}
 				</p>
 				<details class="browse-summary-details">
-					<summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						数量分析：{{
 							metrics
 								.slice(0, 2)

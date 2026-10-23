@@ -22,6 +22,16 @@ kept in Git.
   teleported content. Use semantic HTML, explicit labels, visible keyboard
   focus, reduced motion and 44px mobile/coarse-pointer targets.
 
+## Disclosure
+
+- Use `DisclosureIcon` for disclosure indicators: inline disclosures show one
+  leading 2.25-stroke chevron-right that rotates in place; popup triggers show a
+  static trailing chevron-down. Keep the icon in a fixed square with a centered
+  transform origin and disable its transition for reduced motion.
+- Use `.ti-disclosure` for simple native `<details>` summaries that need the
+  compact inline treatment. Use `DisclosureSection` for divided detail rows;
+  actions do not toggle the row, and the body aligns with the title start.
+
 ## Density, tables and scrollbars
 
 - Desktop compact/balanced/spacious controls are 32/36/44px high, gaps are

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -565,7 +566,8 @@ async function lifecycle() {
 					:open="isDesktop || mobileReviewOpen"
 					@toggle="mobileReviewOpen = ($event.currentTarget as HTMLDetailsElement).open"
 				>
-					<summary class="review-preview-summary">
+					<summary class="review-preview-summary ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						确认前检查 · {{ totals || "尚未添加物品" }} · {{ itemCount }} 种物品
 					</summary>
 					<div

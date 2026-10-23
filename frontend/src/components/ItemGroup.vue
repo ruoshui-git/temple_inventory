@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from "vue";
 import ItemImage from "./ItemImage.vue";
-import InventoryIcon from "./InventoryIcon.vue";
+import DisclosureIcon from "./ui/DisclosureIcon.vue";
 import type { StockItem } from "../lib/stockPresentation";
 const props = defineProps<{
 	item?: StockItem;
@@ -30,12 +30,12 @@ const id = useId();
 						emit('expanded', localOpen);
 					"
 				>
+					<DisclosureIcon variant="inline" />
 					<span
 						><strong>{{ name }}</strong
 						><small>{{ context }}</small
 						><span class="preview-group-metrics"><slot name="metrics" /></span
 					></span>
-					<InventoryIcon name="chevron-down" :class="{ 'is-expanded': open }" />
 				</button>
 			</h2>
 		</div>

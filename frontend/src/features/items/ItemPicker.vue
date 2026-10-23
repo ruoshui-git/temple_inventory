@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -480,8 +481,8 @@ async function discardEdits() {
 								class="browse-filter-disclosure"
 								data-filter-field="onlyStock"
 							>
-								<summary>
-									库存条件<small>{{
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" /> 库存条件<small>{{
 										onlyStock ? "仅有可用库存" : "不限"
 									}}</small>
 								</summary>

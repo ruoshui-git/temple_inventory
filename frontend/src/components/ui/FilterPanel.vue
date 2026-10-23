@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "./DisclosureIcon.vue";
 import {
 	computed,
 	nextTick,
@@ -209,7 +210,7 @@ defineExpose({
 		>
 			<span v-if="!iconOnly">{{ label }}</span
 			><span v-if="count" class="count-dot">{{ count }}</span
-			><span aria-hidden="true">▾</span>
+			><DisclosureIcon variant="popup" />
 		</UiButton>
 		<Overlay
 			v-if="open && isMobile"

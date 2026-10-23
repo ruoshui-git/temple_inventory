@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "./DisclosureIcon.vue";
 import {
 	computed,
 	inject,
@@ -139,7 +140,7 @@ function cancel() {
 		>
 			<span>{{ label }}</span
 			><strong>{{ summary }}</strong
-			><span aria-hidden="true">▾</span>
+			><DisclosureIcon variant="popup" />
 		</button>
 		<Overlay
 			v-if="open"

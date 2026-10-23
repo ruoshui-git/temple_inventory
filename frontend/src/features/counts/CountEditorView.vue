@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
@@ -302,7 +303,9 @@ async function back() {
 		>
 			<form class="form-main surface count-form-main" novalidate @submit.prevent="review">
 				<details class="form-section">
-					<summary>日期与时间</summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />日期与时间
+					</summary>
 					<div class="form-date-section">
 						<label v-if="writable" class="preview-field"
 							>操作日期<input
@@ -388,7 +391,9 @@ async function back() {
 											row.recorded_count_allocations.length))
 								"
 							>
-								<summary>查看分配</summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />查看分配
+								</summary>
 								<NativeCountAllocations :row="countRow(row)" />
 							</details>
 							<span v-else-if="column.id === 'allocations'">—</span>
@@ -432,14 +437,18 @@ async function back() {
 					>
 				</div>
 				<details class="form-section count-document-notes">
-					<summary>盘点备注（可选）</summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />盘点备注（可选）
+					</summary>
 					<label v-if="writable" class="preview-field"
 						>盘点备注<textarea v-model="values.ti_notes" rows="3" :disabled="busy" />
 					</label>
 					<p v-else class="preview-long-text">{{ values.ti_notes || "未填写" }}</p>
 				</details>
 				<details class="form-section">
-					<summary>活动、人员与附件</summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />活动、人员与附件
+					</summary>
 					<TransactionContext
 						:draft="context"
 						:activity-label="activityLabel"

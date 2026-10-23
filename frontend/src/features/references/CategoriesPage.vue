@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -77,8 +78,8 @@ const {
 							:aria-expanded="expanded.has(row.name) || !!search.trim()"
 							:aria-label="`${expanded.has(row.name) ? '收起' : '展开'} ${row.label}`"
 							@click="c.toggle(row)"
-							>{{ expanded.has(row.name) || search ? "−" : "+" }}</UiButton
-						>
+							><DisclosureIcon variant="inline"
+						/></UiButton>
 						<span v-else class="category-expand-spacer" aria-hidden="true" />
 						<strong>{{ row.label }}</strong>
 						<small v-if="row.name !== row.label">{{ row.name }}</small>

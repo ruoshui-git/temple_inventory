@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, useId } from "vue";
@@ -203,7 +204,9 @@ function datasetChanged(dataset: ReportDataset) {
 			<UiButton v-if="canCreate('Loan')" @click="quickAction('Loan')">借出</UiButton>
 			<UiButton v-if="canCreate('Transfer')" @click="quickAction('Transfer')">调拨</UiButton>
 			<details v-if="hasMoreActions" ref="moreActions" class="dashboard-more-actions">
-				<summary>更多</summary>
+				<summary class="ti-disclosure ti-disclosure-popup">
+					更多<DisclosureIcon variant="popup" />
+				</summary>
 				<div class="dashboard-more-actions-menu">
 					<UiButton
 						v-if="

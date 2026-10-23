@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
@@ -170,7 +171,8 @@ function setGroup(index: number, value: string) {
 								class="browse-filter-disclosure"
 								data-filter-field="period"
 							>
-								<summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
 									{{ definition.dateLabel }}
 									<small>{{
 										sitePeriodSummary(query.scope.period, reference.siteDate)
@@ -189,7 +191,8 @@ function setGroup(index: number, value: string) {
 									class="browse-filter-disclosure"
 									data-filter-field="relatedPeriod"
 								>
-									<summary>
+									<summary class="ti-disclosure">
+										<DisclosureIcon variant="inline" />
 										关联单据记账日期
 										<small>{{
 											sitePeriodSummary(
@@ -286,7 +289,8 @@ function setGroup(index: number, value: string) {
 								class="browse-filter-disclosure"
 								data-filter-field="includeAdjustments"
 							>
-								<summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
 									盘点调整
 									<small>{{
 										query.includeAdjustments ? "包括" : "不包括"
@@ -304,7 +308,8 @@ function setGroup(index: number, value: string) {
 								class="browse-filter-disclosure"
 								data-filter-field="status"
 							>
-								<summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
 									单据状态
 									<small>{{
 										query.statuses
@@ -333,7 +338,8 @@ function setGroup(index: number, value: string) {
 								class="browse-filter-disclosure"
 								data-filter-field="includeZero"
 							>
-								<summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
 									{{ dataset === "loans" ? "已结清物品" : "零库存" }}
 									<small>{{ query.includeZero ? "显示" : "隐藏" }}</small>
 								</summary>
@@ -348,7 +354,8 @@ function setGroup(index: number, value: string) {
 								class="browse-filter-disclosure"
 								data-filter-field="includeUndated"
 							>
-								<summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
 									无效期批次
 									<small>{{ query.includeUndated ? "包含" : "不包含" }}</small>
 								</summary>
@@ -364,7 +371,8 @@ function setGroup(index: number, value: string) {
 									class="browse-filter-disclosure"
 									data-filter-field="activityStatus"
 								>
-									<summary>
+									<summary class="ti-disclosure">
+										<DisclosureIcon variant="inline" />
 										归档状态
 										<small>{{
 											query.activityStatus === "all"
@@ -386,7 +394,8 @@ function setGroup(index: number, value: string) {
 									class="browse-filter-disclosure"
 									data-filter-field="typeId"
 								>
-									<summary>
+									<summary class="ti-disclosure">
+										<DisclosureIcon variant="inline" />
 										活动类型
 										<small>{{
 											reference.activityTypes.find(
@@ -408,7 +417,8 @@ function setGroup(index: number, value: string) {
 								class="browse-filter-disclosure"
 								data-filter-field="countReviewed"
 							>
-								<summary>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
 									核对状态
 									<small>{{
 										query.countReviewed === "all"
@@ -634,7 +644,10 @@ function setGroup(index: number, value: string) {
 					:data-browse-details="'table:' + table.id"
 					@toggle="($event.target as HTMLDetailsElement).open && loadTable(table)"
 				>
-					<summary>补充表：{{ table.label }} · {{ table.total }} 条匹配结果</summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />补充表：{{ table.label }} ·
+						{{ table.total }} 条匹配结果
+					</summary>
 					<ReportTable
 						:table="table"
 						:preference-id="`reports.${query.dataset}.${query.view}.${table.id}`"
@@ -653,7 +666,7 @@ function setGroup(index: number, value: string) {
 			</section>
 		</div>
 		<details>
-			<summary>字段说明</summary>
+			<summary class="ti-disclosure"><DisclosureIcon variant="inline" />字段说明</summary>
 			<p v-if="dataset === 'activities'">
 				物品与库位筛选通过关联单据和借用明细匹配活动；终身流动单据数保持完整。
 			</p>

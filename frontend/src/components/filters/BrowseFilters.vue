@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../ui/DisclosureIcon.vue";
 import RemoteSelect from "../ui/RemoteSelect.vue";
 import { useFilterChoices } from "../../features/references/useFilterChoices";
 const { loadItems, loadActivities } = useFilterChoices();
@@ -67,7 +68,8 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 <template>
 	<div class="preview-filter-fields">
 		<details v-if="shows('item')" class="browse-filter-disclosure" data-filter-field="item">
-			<summary>
+			<summary class="ti-disclosure">
+				<DisclosureIcon variant="inline" />
 				物品
 				<small>{{
 					scope.item
@@ -91,7 +93,8 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 			class="browse-filter-disclosure"
 			data-filter-field="activity"
 		>
-			<summary>
+			<summary class="ti-disclosure">
+				<DisclosureIcon variant="inline" />
 				活动
 				<small>{{
 					scope.activity
@@ -182,7 +185,8 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				class="browse-filter-disclosure"
 				data-filter-field="kinds"
 			>
-				<summary>
+				<summary class="ti-disclosure">
+					<DisclosureIcon variant="inline" />
 					流动类型
 					<small>{{
 						scope.kinds.length
@@ -209,7 +213,8 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				class="browse-filter-disclosure"
 				data-filter-field="sources"
 			>
-				<summary>
+				<summary class="ti-disclosure">
+					<DisclosureIcon variant="inline" />
 					来源位置
 					<small>{{
 						selectedSummary(scope.sources, reference.warehouses) || "不限"
@@ -233,7 +238,8 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				class="browse-filter-disclosure"
 				data-filter-field="destinations"
 			>
-				<summary>
+				<summary class="ti-disclosure">
+					<DisclosureIcon variant="inline" />
 					去向位置
 					<small>{{
 						selectedSummary(scope.destinations, reference.warehouses) || "不限"

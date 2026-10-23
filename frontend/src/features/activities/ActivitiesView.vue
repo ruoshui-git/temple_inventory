@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
@@ -537,7 +538,9 @@ function tabKey(event: KeyboardEvent) {
 				</p>
 
 				<details>
-					<summary>详细备注</summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />详细备注
+					</summary>
 					<div class="preview-long-text activity-notes">
 						{{ current.notes || "未填写备注" }}
 					</div>

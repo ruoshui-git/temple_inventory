@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { nextTick, ref, watch } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -63,7 +64,9 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 		>
 		<p v-if="!permitted" class="muted">没有新建单位的权限；可选择已有单位。</p>
 		<details v-if="candidates.length">
-			<summary>此浏览器有未完成输入</summary>
+			<summary class="ti-disclosure">
+				<DisclosureIcon variant="inline" />此浏览器有未完成输入
+			</summary>
 			<article v-for="candidate in candidates" :key="candidate.editorId">
 				<p>{{ candidate.updatedAt }}</p>
 				<RecoverySummary

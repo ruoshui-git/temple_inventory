@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
@@ -24,7 +25,8 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 					class="browse-filter-disclosure"
 					data-filter-field="historyScope"
 				>
-					<summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						物品历史记录范围
 						<small>{{ historyScope === "all" ? "全部相关记录" : "未结清借用" }}</small>
 					</summary>
@@ -50,7 +52,8 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 					:hierarchy-in-rail="hierarchyInRail"
 				/>
 				<details class="browse-filter-disclosure" data-filter-field="period">
-					<summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						{{ family === "movements" ? "流动日期" : "借出日期" }}
 						<small>{{
 							sitePeriodSummary(scope.period, controller.reference.siteDate)
@@ -68,7 +71,8 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 					class="browse-filter-disclosure"
 					data-filter-field="status"
 				>
-					<summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						状态
 						<small>{{
 							statusChoices.find(([value]) => value === status)?.[1] || "不限"
@@ -95,8 +99,9 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 					class="browse-filter-disclosure"
 					data-filter-field="includeAdjustments"
 				>
-					<summary>
-						盘点调整 <small>{{ query.includeAdjustments ? "包括" : "不包括" }}</small>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" /> 盘点调整
+						<small>{{ query.includeAdjustments ? "包括" : "不包括" }}</small>
 					</summary>
 					<label class="preview-choice-label preview-check"
 						><input
@@ -110,8 +115,9 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 					class="browse-filter-disclosure"
 					data-filter-field="includeZero"
 				>
-					<summary>
-						已结清物品 <small>{{ query.includeZero ? "显示" : "隐藏" }}</small>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" /> 已结清物品
+						<small>{{ query.includeZero ? "显示" : "隐藏" }}</small>
 					</summary>
 					<label class="preview-choice-label preview-check"
 						><input v-model="query.includeZero" type="checkbox" />显示已结清物品</label

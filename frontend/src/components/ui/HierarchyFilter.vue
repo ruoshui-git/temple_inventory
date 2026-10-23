@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
+import DisclosureIcon from "./DisclosureIcon.vue";
 
 export type HierarchyFilterNode = {
 	name: string;
@@ -334,9 +335,7 @@ watch(term, () => {
 							"
 							@click="toggleExpanded(node.name)"
 						>
-							<span aria-hidden="true">{{
-								expanded.has(node.name) ? "▾" : "▸"
-							}}</span>
+							<DisclosureIcon variant="inline" />
 						</button>
 						<span v-else class="tree-spacer" aria-hidden="true"></span>
 						<label class="preview-choice-label">

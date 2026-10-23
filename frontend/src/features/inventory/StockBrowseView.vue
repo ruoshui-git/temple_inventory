@@ -13,6 +13,7 @@ import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -302,7 +303,8 @@ watch([() => props.active, isMobile], () => {
 							hide-activity
 						/>
 						<details class="browse-filter-disclosure" data-filter-field="includeZero">
-							<summary>
+							<summary class="ti-disclosure">
+								<DisclosureIcon variant="inline" />
 								库存状态
 								<small>{{ inStockOnly ? "仅有库存" : "包括零库存" }}</small>
 							</summary>
@@ -384,7 +386,8 @@ watch([() => props.active, isMobile], () => {
 				筛选结果：{{ data.total }} 种物品
 			</p>
 			<details v-if="data.snapshot" class="browse-summary-details">
-				<summary>
+				<summary class="ti-disclosure">
+					<DisclosureIcon variant="inline" />
 					数量分析：{{
 						metrics
 							.slice(0, 2)

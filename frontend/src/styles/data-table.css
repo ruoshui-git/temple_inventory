@@ -316,10 +316,6 @@
 	text-align: start;
 	cursor: pointer;
 }
-.data-table-group-toggle span[aria-hidden="true"] {
-	font-size: 1.2em;
-	font-weight: 700;
-}
 
 .data-table-group-toggle:disabled {
 	cursor: default;

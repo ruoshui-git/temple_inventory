@@ -6,6 +6,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
@@ -147,9 +148,7 @@ function parentLabel(name?: string) {
 							:aria-expanded="expanded.has(row.name)"
 							@click="toggle(row.name)"
 						>
-							<InventoryIcon
-								:name="expanded.has(row.name) ? 'chevron-down' : 'chevron-right'"
-							/></button
+							<DisclosureIcon variant="inline" /></button
 						><span v-else class="warehouse-toggle" aria-hidden="true"></span>
 						<span class="browse-tree-type" aria-hidden="true"
 							><InventoryIcon :name="kindIcon(row.kind)"
@@ -236,7 +235,9 @@ function parentLabel(name?: string) {
 								v-if="selected.can_edit && !selected.protected"
 								class="warehouse-action-menu"
 							>
-								<summary aria-label="更多位置操作">更多</summary>
+								<summary class="ti-disclosure" aria-label="更多位置操作">
+									更多<DisclosureIcon variant="popup" />
+								</summary>
 								<div>
 									<button
 										type="button"

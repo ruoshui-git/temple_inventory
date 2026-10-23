@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { computed, ref, watch } from "vue";
@@ -307,7 +308,8 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					/>
 				</div>
 				<details class="browse-filter-disclosure" data-filter-field="period">
-					<summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						记账日期
 						<small>{{ sitePeriodSummary(scope.period, c.reference.siteDate) }}</small>
 					</summary>
@@ -323,7 +325,8 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					class="browse-filter-disclosure"
 					data-filter-field="status"
 				>
-					<summary>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />
 						状态
 						<small>{{
 							query.statuses

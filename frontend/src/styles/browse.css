@@ -628,15 +628,6 @@
 .preview-group {
 	margin-bottom: var(--p-space-3);
 }
-.preview-group summary {
-	cursor: pointer;
-	min-height: var(--p-control);
-}
-.preview-group summary strong,
-.preview-group summary small {
-	display: block;
-	margin: 6px 0;
-}
 .preview-contribution {
 	display: flex;
 	flex-wrap: wrap;
@@ -1067,9 +1058,6 @@
 	display: block;
 	margin-top: 4px;
 	font-weight: normal;
-}
-.preview-group-trigger .is-expanded {
-	transform: rotate(180deg);
 }
 .preview-browse-controls > .browse-view-switch,
 .preview-browse-controls > .preview-period-trigger {
@@ -1529,8 +1517,7 @@
 }
 .browse-filter-disclosure > summary {
 	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
+	align-items: center;
 	flex-wrap: wrap;
 	gap: var(--p-space-2);
 	min-height: var(--p-control);
@@ -1540,17 +1527,6 @@
 }
 .browse-filter-disclosure > summary::-webkit-details-marker {
 	display: none;
-}
-.browse-filter-disclosure > summary::after {
-	content: "▾";
-	flex: 0 0 auto;
-	margin-left: auto;
-	color: var(--p-muted);
-	font-size: 0.8em;
-	transition: transform var(--p-motion);
-}
-.browse-filter-disclosure[open] > summary::after {
-	transform: rotate(180deg);
 }
 .browse-filter-disclosure > summary small {
 	color: var(--p-muted);
@@ -1798,9 +1774,6 @@
 .browse-compact-summary {
 	color: var(--p-muted);
 }
-.browse-tools-toggle[aria-expanded="true"] svg {
-	transform: rotate(180deg);
-}
 @media (max-width: 600px) {
 	.browse-persistent-search {
 		flex-basis: clamp(min(9rem, 100%), 48vw, 12rem);
@@ -1971,6 +1944,9 @@
 	padding: 0;
 }
 .hierarchy-facet .tree-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	min-height: 28px;
 	height: 28px;
 }

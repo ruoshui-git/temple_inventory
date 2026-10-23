@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "./DisclosureIcon.vue";
 import {
 	computed,
 	nextTick,
@@ -267,11 +268,11 @@ defineExpose({ compact, editFilter });
 			<UiButton
 				class="browse-tools-toggle"
 				variant="ghost"
-				icon="chevron-down"
 				:aria-expanded="!compact"
 				:aria-controls="controlsId"
 				@click="choice = !compact"
 			>
+				<DisclosureIcon variant="inline" />
 				{{ compact ? "展开工具" : "收起工具" }}
 			</UiButton>
 		</div>

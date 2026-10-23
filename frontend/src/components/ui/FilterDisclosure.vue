@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "./DisclosureIcon.vue";
 withDefaults(
 	defineProps<{
 		label: string;
@@ -12,6 +13,7 @@ withDefaults(
 <template>
 	<details v-if="disclosure" class="browse-filter-disclosure" :data-filter-field="field">
 		<summary>
+			<DisclosureIcon variant="inline" />
 			{{ label }}
 			<small>{{ summary }}</small>
 		</summary>

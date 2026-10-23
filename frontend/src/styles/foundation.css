@@ -1754,18 +1754,6 @@ strong {
 .receive-summary > small {
 	display: block;
 }
-.disclosure {
-	display: flex;
-	justify-content: space-between;
-	width: 100%;
-	border: 1px solid var(--p-border);
-	padding: 12px;
-	margin-bottom: 20px;
-	text-align: left;
-}
-.disclosure[aria-expanded="true"] svg {
-	transform: rotate(180deg);
-}
 .attachment-area {
 	border-top: 1px solid var(--p-border);
 	padding-top: 20px;
@@ -3234,22 +3222,6 @@ body:has(.preview-document-actions) .preview-toast {
 	margin: 0;
 }
 
-:where(.preview-activities, .preview-reports, .preview-document-display) summary {
-	min-height: var(--p-control);
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	cursor: pointer;
-}
-:where(.preview-activities, .preview-reports, .preview-document-display) summary::before {
-	content: "▸";
-	flex: none;
-}
-:where(.preview-activities, .preview-reports, .preview-document-display)
-	details[open]
-	> summary::before {
-	content: "▾";
-}
 
 /* Audit repairs: headings and document identities keep readable widths. */
 .browse-heading > div:first-child {
@@ -3413,37 +3385,107 @@ body:has(.preview-document-actions) .preview-toast {
 	flex-direction: column;
 	gap: var(--p-space-2);
 }
-/* Accordion semantics are retained for in-place metadata and recoverable input. */
-:where([data-inventory-app], .preview-dialog) details > summary {
+:where([data-inventory-app], .preview-dialog) details {
+	min-width: 0;
+}
+
+.ti-disclosure-icon {
+	width: 1em;
+	height: 1em;
+	display: inline-flex;
+	flex: 0 0 1em;
+	align-items: center;
+	justify-content: center;
+	transform-origin: 50% 50%;
+	transition: transform var(--p-motion);
+}
+.ti-disclosure-icon svg {
+	width: 1em;
+	height: 1em;
+}
+.ti-disclosure-icon--popup {
+	transition: none;
+}
+:where(details[open] > summary, [aria-expanded="true"]) > .ti-disclosure-icon--inline {
+	transform: rotate(90deg);
+}
+.ti-disclosure {
+	min-height: var(--p-control);
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: var(--p-space-3);
-	min-height: var(--p-control);
-	padding: var(--p-space-2) var(--p-space-3);
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-control);
-	background: var(--p-canvas);
-	color: var(--p-ink);
+	gap: var(--p-space-2);
 	cursor: pointer;
 	list-style: none;
 	font-weight: 600;
 }
-:where([data-inventory-app], .preview-dialog) details > summary::after {
-	content: "⌄";
-	flex: none;
+.ti-disclosure::-webkit-details-marker {
+	display: none;
 }
-:where([data-inventory-app], .preview-dialog) details[open] > summary::after {
-	content: "⌃";
+.ti-disclosure:hover {
+	color: var(--p-accent-strong);
 }
-:where([data-inventory-app], .preview-dialog) details > summary:hover {
+.ti-disclosure-section {
+	min-width: 0;
+	border-bottom: 1px solid var(--p-border);
+}
+.ti-disclosure-section > summary {
+	min-height: var(--p-control);
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+	padding: var(--p-space-2) 0;
+	padding-inline: 4px;
+	margin-inline: -4px;
+	border-radius: var(--p-radius-control);
+	list-style: none;
+	cursor: pointer;
+}
+.ti-disclosure-section > summary::-webkit-details-marker {
+	display: none;
+}
+.ti-disclosure-section > summary:hover {
 	background: var(--p-soft);
 }
-:where([data-inventory-app], .preview-dialog) details[open] > summary {
-	margin-bottom: var(--p-space-3);
+.ti-disclosure-section-title {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 600;
 }
-:where([data-inventory-app], .preview-dialog) details {
-	min-width: 0;
+.ti-disclosure-section-count {
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: var(--p-soft);
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.ti-disclosure-section-summary {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.ti-disclosure-section-actions {
+	margin-inline-start: auto;
+}
+.ti-disclosure-section-body {
+	padding: 0 0 var(--p-space-3) calc(1em + var(--p-space-2));
+}
+@supports (interpolate-size: allow-keywords) {
+	.ti-disclosure-section {
+		interpolate-size: allow-keywords;
+	}
+	.ti-disclosure-section::details-content {
+		height: 0;
+		overflow: clip;
+		transition: content-visibility var(--p-motion) allow-discrete, height var(--p-motion);
+	}
+	.ti-disclosure-section[open]::details-content {
+		height: auto;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.ti-disclosure-icon,
+	.ti-disclosure-section::details-content {
+		transition: none;
+	}
 }
 .hierarchy-facet .hierarchy-row {
 	gap: 4px;

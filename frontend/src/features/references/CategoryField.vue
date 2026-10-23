@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { computed, nextTick, ref, watch } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -74,7 +75,9 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 			>新建分类</UiButton
 		>
 		<details v-if="candidates.length">
-			<summary>此浏览器有未完成输入</summary>
+			<summary class="ti-disclosure">
+				<DisclosureIcon variant="inline" />此浏览器有未完成输入
+			</summary>
 			<article v-for="candidate in candidates" :key="candidate.editorId">
 				<p>{{ candidate.updatedAt }}</p>
 				<RecoverySummary
