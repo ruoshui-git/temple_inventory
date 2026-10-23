@@ -1,14 +1,9 @@
-"""Permission-filtered native Warehouse topology and Desk leaf discovery."""
+"""Permission-filtered native Warehouse topology and location presentation."""
 
 import frappe
 from frappe.utils import cint
 
-SYSTEM_POINTERS = (
-	"root_warehouse",
-	"physical_root_warehouse",
-	"leased_warehouse",
-	"damaged_warehouse",
-)
+SYSTEM_POINTERS = ("root_warehouse", "physical_root_warehouse", "leased_warehouse", "damaged_warehouse")
 
 
 def _settings():
@@ -26,12 +21,15 @@ def _warehouse_map(company):
 			"warehouse_name",
 			"parent_warehouse",
 			"warehouse_type",
-			"ti_room_default",
+			"ti_label",
+			"ti_short_label",
+			"ti_direct_storage",
 			"company",
 			"is_group",
 			"disabled",
 			"lft",
 			"rgt",
+			"modified",
 		],
 		order_by="lft asc, name asc",
 		limit_page_length=0,
@@ -75,7 +73,7 @@ def _physical_tree(settings=None):
 def _enabled_branch(row, visible):
 	seen = set()
 	while row and row.name not in seen:
-		if row.disabled:
+		if cint(row.disabled):
 			return False
 		seen.add(row.name)
 		row = visible.get(row.parent_warehouse)
@@ -89,30 +87,149 @@ def _allowed_warehouses(settings=None):
 		row.warehouse: visible[row.warehouse]
 		for row in settings.get("allowed_warehouses", [])
 		if row.warehouse in visible
-		and not visible[row.warehouse].is_group
+		and not cint(visible[row.warehouse].is_group)
 		and _enabled_branch(visible[row.warehouse], visible)
 	}
 
 
-def _warehouse_presentation(rows):
-	result = []
+def _label(row):
+	return str(row.get("ti_short_label") or row.get("ti_label") or row.get("warehouse_name") or row.name)
+
+
+def _derived_kind(row, direct_by_parent, rows, systems):
+	if row.name in systems or row.warehouse_type == "System":
+		return "system"
+	if cint(row.is_group):
+		if row.warehouse_type in ("Area", "Room", "Shelf"):
+			return row.warehouse_type.lower()
+		if direct_by_parent.get(row.name):
+			parent = rows.get(row.parent_warehouse)
+			return "shelf" if parent and parent.warehouse_type in ("Room", "Shelf") else "room"
+		return "area"
+	return "shelf"
+
+
+def _can_edit(name, systems):
+	if name in systems:
+		return False
+	try:
+		return bool(frappe.has_permission("Warehouse", "write", doc=name))
+	except (frappe.DoesNotExistError, frappe.PermissionError):
+		return False
+
+
+def present_locations(rows, *, physical_root=None, settings=None):
+	"""Return the one canonical, user-facing representation of Warehouse rows."""
+	settings = settings or _settings()
+	physical_root = physical_root or settings.physical_root_warehouse
+	if isinstance(rows, dict):
+		rows = {name: frappe._dict(row) for name, row in rows.items()}
+	else:
+		rows = {row.get("name"): frappe._dict(row) for row in rows if row.get("name")}
+	systems = _system_warehouse_names(settings)
+	direct_by_parent = {}
+	paths = {}
+	owners = {}
 	for name, row in rows.items():
-		ancestors, seen = [], {name}
+		if cint(row.get("ti_direct_storage")):
+			owners[name] = row.parent_warehouse
+			direct_by_parent.setdefault(row.parent_warehouse, []).append(row)
+	for name, row in rows.items():
+		parts, seen, cursor = [], set(), row
+		while cursor and cursor.name not in seen:
+			seen.add(cursor.name)
+			if cursor.name != physical_root and cursor.name != settings.root_warehouse:
+				if not cint(cursor.get("ti_direct_storage")):
+					parts.insert(0, _label(cursor))
+			cursor = rows.get(cursor.parent_warehouse)
+		if name in owners:
+			owner = rows.get(owners[name])
+			parts = paths.get(owner.name, [_label(owner)] if owner else [])
+		paths[name] = parts
+
+	items = []
+	for name, row in rows.items():
 		parent = rows.get(row.parent_warehouse)
-		while parent and parent.name not in seen:
-			ancestors.append(parent.warehouse_name)
-			seen.add(parent.name)
-			parent = rows.get(parent.parent_warehouse)
-		local_label = "无货位" if row.ti_room_default else row.warehouse_name
-		result.append(
+		is_direct = bool(cint(row.get("ti_direct_storage")))
+		owner_name = owners.get(name, "")
+		kind = _derived_kind(row, direct_by_parent, rows, systems)
+		direct = direct_by_parent.get(name, [])
+		missing_direct = kind in {"room", "shelf"} and cint(row.is_group) and not direct
+		path = paths[name]
+		local = _label(row)
+		if is_direct:
+			local = _label(rows.get(owner_name) or row)
+			kind = _derived_kind(rows.get(owner_name) or row, direct_by_parent, rows, systems)
+			path = paths.get(owner_name, path)
+		full_label = str(row.get("ti_label") or row.get("warehouse_name") or row.name)
+		if is_direct and owner_name in rows:
+			full_label = str(rows[owner_name].get("ti_label") or rows[owner_name].warehouse_name)
+		search_text = " ".join(
+			filter(
+				None,
+				[
+					" / ".join(path),
+					full_label,
+					str(row.warehouse_name or ""),
+					str(row.get("ti_short_label") or ""),
+					str(row.get("ti_label") or ""),
+				],
+			)
+		)
+		storable = bool(is_direct or (not cint(row.is_group) and not is_direct) or direct)
+		if missing_direct:
+			storable = False
+		label = local
+		if is_direct and owner_name in rows:
+			label = _label(rows[owner_name])
+		elif kind == "shelf" and parent and parent.name not in (physical_root, settings.root_warehouse):
+			label = f"{_label(parent)} / {local}"
+		items.append(
 			{
-				**dict(row),
-				"local_label": local_label,
-				"room_default": bool(row.ti_room_default),
-				"breadcrumb": " / ".join([*reversed(ancestors), local_label]),
+				"name": name,
+				"label": label,
+				"local_label": str(row.get("ti_label") or ""),
+				"short_label": str(row.get("ti_short_label") or ""),
+				"full_label": full_label,
+				"path": " / ".join(path),
+				"search_text": search_text,
+				"kind": kind,
+				"owner": owner_name,
+				"direct": is_direct,
+				"storable": storable,
+				"missing_direct": missing_direct,
+				"parent": row.parent_warehouse or "",
+				"is_group": bool(cint(row.is_group)),
+				"disabled": bool(cint(row.disabled)),
+				"lft": row.get("lft"),
+				"rgt": row.get("rgt"),
+				"version": str(row.get("modified") or ""),
+				"protected": name in systems,
+				"can_edit": _can_edit(name, systems),
 			}
 		)
-	return result
+	# Keep names unique with the shortest ancestor suffix needed to distinguish peers.
+	by_label = {}
+	for item in items:
+		if not item["direct"]:
+			by_label.setdefault(item["label"], []).append(item)
+	for duplicates in by_label.values():
+		if len(duplicates) < 2:
+			continue
+		for item in duplicates:
+			parts = item["path"].split(" / ")
+			for size in range(2, len(parts) + 1):
+				candidate = " / ".join(parts[-size:])
+				if sum(other["path"].endswith(candidate) for other in duplicates) == 1:
+					item["label"] = candidate
+					break
+			else:
+				item["label"] = item["path"]
+	labels = {item["name"]: item["label"] for item in items}
+	for item in items:
+		if item["direct"] and item["owner"] in labels:
+			item["label"] = labels[item["owner"]]
+	return items
 
 
 def _allow_warehouses(settings, warehouses):
@@ -146,7 +263,7 @@ def _warehouse_is_below(name, ancestor):
 
 
 def sync_desk_warehouse_allowlist(doc, method=None):
-	"""Discover new eligible leaves; preserve deliberate removals from the allowlist."""
+	"""Discover newly created eligible stock leaves and remove ineligible ones."""
 	if not frappe.db.exists("DocType", "Temple Inventory Settings"):
 		return
 	settings = _settings()
@@ -160,7 +277,6 @@ def sync_desk_warehouse_allowlist(doc, method=None):
 			and settings.physical_root_warehouse
 			and not cint(row.is_group)
 			and not cint(row.disabled)
-			and str(row.warehouse_type or "").lower() in {"", "room", "location"}
 			and _warehouse_is_below(row.parent_warehouse, settings.physical_root_warehouse)
 		)
 

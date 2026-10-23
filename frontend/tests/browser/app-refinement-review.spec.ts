@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
 import { newReportQuery } from "../../src/lib/reportContract";
 
 // Review the actual built bundle, with controlled native HTTP responses.
@@ -264,24 +264,16 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
     return route.fulfill({ json: { message } });
   });
   await nativeUiSession(page, scale, {
-    warehouses: [
-      {
-        name: "ROOM-A",
-        local_label: "库房甲",
-        breadcrumb: "库房甲",
-        is_group: false,
-      },
-      {
-        name: "ROOM-B",
-        local_label: "库房乙",
-        breadcrumb: "库房乙",
-        is_group: false,
-      },
+    warehouses: sampleWarehouses,
+    physical_leaves: [
+      "A02-DIRECT",
+      "SHELF-1",
+      "DEMO-A-DIRECT",
+      "ROOM-B-DIRECT",
     ],
     categories: [
       { name: "日常用品", item_group_name: "日常用品", is_group: false },
     ],
-    physical_leaves: ["ROOM-A", "ROOM-B"],
     operations: {
       Receive: true,
       Issue: true,

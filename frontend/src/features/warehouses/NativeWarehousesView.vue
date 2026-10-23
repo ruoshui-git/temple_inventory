@@ -3,6 +3,8 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import type { NativeWarehouses } from "./useNativeWarehouses";
 import type { ReportQuery } from "../../lib/reportContract";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -11,6 +13,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
 	{ active: true },
@@ -40,16 +43,21 @@ const {
 	formError,
 	form,
 	recoveryError,
-	candidates,
 	leaveOpen,
 	editing,
 } = c;
 const stockTable = c.stock.mainTable;
 function physicalType(value: string) {
 	return (
-		({ Room: "房间", Location: "位置" } as Record<string, string>)[value] ||
-		value ||
-		"未设置类型"
+		({ area: "区域", room: "房间", shelf: "货位", system: "系统" } as Record<string, string>)[
+			value
+		] || "位置"
+	);
+}
+function kindIcon(value: string) {
+	return (
+		({ area: "area", room: "room", shelf: "shelf" } as Record<string, string>)[value] ||
+		"warehouse"
 	);
 }
 function toggle(name: string) {
@@ -58,13 +66,21 @@ function toggle(name: string) {
 	else next.add(name);
 	expanded.value = next;
 }
+function addChild(row: { name: string }, kind: "area" | "room" | "shelf") {
+	c.select(row.name);
+	c.openEditor(undefined, "create", kind);
+}
+function parentLabel(name?: string) {
+	if (!name || name === tree.value?.physical_root) return "实体仓库";
+	const parent = tree.value?.rows.find((row) => row.name === name);
+	return parent?.full_label || parent?.label || "实体仓库";
+}
 </script>
 <template>
 	<section class="browse-page">
 		<PageHeader
 			><div>
-				<h1 tabindex="-1">{{ detail ? selected?.label || "仓库详情" : "仓库" }}</h1>
-				<p v-if="detail && selected" class="muted">ERPNext 名称：{{ selected.name }}</p>
+				<h1 tabindex="-1">{{ detail ? selected?.full_label || "位置详情" : "仓库" }}</h1>
 			</div>
 			<template #back
 				><UiButton v-if="detail" @click="emit('back')">返回仓库</UiButton></template
@@ -76,27 +92,27 @@ function toggle(name: string) {
 					:active="active"
 					@open-full="emit('openExport', $event)"
 				/>
-				<UiButton v-if="tree?.can_create" variant="primary" @click="c.openEditor()"
-					>新建仓库 / 位置</UiButton
-				></template
-			></PageHeader
+				<UiButton
+					v-if="!detail && tree?.can_create"
+					variant="primary"
+					@click="
+						c.select(tree.physical_root);
+						c.openEditor(undefined, 'create', 'area');
+					"
+					>添加区域</UiButton
+				>
+			</template></PageHeader
 		>
-		<p v-if="loading" role="status">正在读取仓库与权限…</p>
+		<div v-if="loading && !tree" class="browse-warehouse-layout" aria-hidden="true">
+			<div class="browse-warehouse-tree surface form-section">
+				<SkeletonBlock variant="list" :rows="7" />
+			</div>
+			<div class="surface form-section">
+				<SkeletonBlock variant="detail" :count="3" :rows="5" />
+			</div>
+		</div>
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" class="utility-error" role="alert">{{ recoveryError }}</p>
-		<details v-if="candidates.length" open class="surface form-section">
-			<summary>此浏览器的未完成仓库输入</summary>
-			<p>仅在当前浏览器与账户可用。恢复前会重新读取并核对原仓库版本。</p>
-			<article v-for="entry in candidates" :key="entry.editorId">
-				<RecoverySummary
-					kind="Warehouse"
-					:values="entry.values"
-					:copy-text="JSON.stringify(entry.values, null, 2)"
-				>
-					<UiButton @click="c.recover(entry)">核对后恢复</UiButton>
-				</RecoverySummary>
-			</article>
-		</details>
 		<template v-if="tree && !error">
 			<div v-if="!detail" class="browse-toolbar">
 				<label class="browse-search"
@@ -111,7 +127,7 @@ function toggle(name: string) {
 				<div v-if="!detail" class="browse-warehouse-tree">
 					<div class="browse-card-heading">
 						<div>
-							<h2>仓库结构</h2>
+							<h2>位置结构</h2>
 						</div>
 					</div>
 					<div
@@ -134,141 +150,220 @@ function toggle(name: string) {
 							<InventoryIcon
 								:name="expanded.has(row.name) ? 'chevron-down' : 'chevron-right'"
 							/></button
-						><span v-else class="browse-tree-type"
-							><InventoryIcon name="location"
+						><span v-else class="warehouse-toggle" aria-hidden="true"></span>
+						<span class="browse-tree-type" aria-hidden="true"
+							><InventoryIcon :name="kindIcon(row.kind)"
 						/></span>
 						<button
 							class="browse-grow browse-link"
+							type="button"
 							:aria-pressed="selected?.name === row.name"
 							@click="c.select(row.name)"
 						>
-							<strong>{{ row.label }}</strong
+							<strong :title="row.full_label">{{
+								row.local_label || row.label
+							}}</strong
 							><small
-								>{{ physicalType(row.type) }} ·
-								{{ row.is_group ? "分组" : "可存放库存"
-								}}{{ row.disabled ? " · 已停用" : ""
-								}}{{ row.protected ? " · 系统节点" : "" }}</small
+								>{{ physicalType(row.kind)
+								}}{{ row.disabled ? " · 已停用" : "" }}</small
 							>
 						</button>
-						<div class="warehouse-node-actions">
-							<button class="browse-link" @click="emit('warehouse', row.name)">
-								详情</button
-							><button
-								v-if="row.can_edit"
-								class="browse-link"
-								@click="c.openEditor(row)"
-							>
-								编辑
-							</button>
-						</div>
 					</div>
-					<p v-if="!visibleRows.length" class="browse-empty compact">
-						没有符合搜索的仓库。
+					<p
+						v-if="
+							tree.needs_first_room || !tree.rows.some((row) => row.kind === 'room')
+						"
+						class="browse-empty compact"
+					>
+						<UiButton
+							v-if="tree.can_create"
+							variant="primary"
+							@click="c.openEditor(undefined, 'create', 'room')"
+							>添加第一个房间</UiButton
+						>
+					</p>
+					<p v-else-if="!visibleRows.length" class="browse-empty compact">
+						没有符合搜索的位置。
 					</p>
 				</div>
 				<article v-if="selected" :class="detail ? 'browse-detail-card' : 'browse-card'">
 					<div class="browse-card-heading">
 						<div>
-							<h2>{{ selected.label }}</h2>
-							<p>
-								{{
-									selected.is_group
-										? "分组仓库只汇总下级叶子库位，不直接存放库存。"
-										: "叶子库位 · 实际存放库存"
-								}}
+							<h2>{{ selected.full_label }}</h2>
+							<p v-if="selected.path && selected.path !== selected.name">
+								{{ selected.path }}
 							</p>
+							<p v-if="selected.short_label">简称 {{ selected.short_label }}</p>
 						</div>
-						<UiButton v-if="selected.can_edit" @click="c.openEditor(selected)"
-							>编辑仓库</UiButton
-						>
+						<div class="warehouse-detail-actions">
+							<UiButton
+								v-if="selected.kind === 'area' && tree.can_create"
+								variant="primary"
+								@click="addChild(selected, 'room')"
+								>添加房间</UiButton
+							>
+							<UiButton
+								v-else-if="selected.kind === 'room' && tree.can_create"
+								variant="primary"
+								@click="addChild(selected, 'shelf')"
+								>添加货位</UiButton
+							>
+							<UiButton
+								v-else-if="
+									selected.kind === 'shelf' &&
+									selected.can_edit &&
+									!selected.protected
+								"
+								variant="primary"
+								@click="c.subdivide(selected)"
+								>细分</UiButton
+							>
+							<UiButton
+								v-if="selected.kind === 'area' && tree.can_create"
+								@click="addChild(selected, 'area')"
+								>添加区域</UiButton
+							>
+							<UiButton
+								v-if="
+									selected.missing_direct &&
+									selected.can_edit &&
+									!selected.protected
+								"
+								@click="c.repair(selected)"
+								>缺少直接存放位置 · 补建</UiButton
+							>
+							<details
+								v-if="selected.can_edit && !selected.protected"
+								class="warehouse-action-menu"
+							>
+								<summary aria-label="更多位置操作">更多</summary>
+								<div>
+									<button
+										type="button"
+										@click="c.openEditor(selected, 'rename')"
+									>
+										重命名
+									</button>
+									<button type="button" @click="c.openEditor(selected, 'move')">
+										移动
+									</button>
+									<button type="button" @click="c.toggleDisabled(selected)">
+										{{ selected.disabled ? "启用" : "停用" }}
+									</button>
+								</div>
+							</details>
+							<details>
+								<summary>ERPNext 信息</summary>
+								<dl>
+									<div>
+										<dt>名称</dt>
+										<dd>
+											<code>{{ selected.name }}</code>
+										</dd>
+									</div>
+									<div v-if="selected.owner">
+										<dt>直接存放位置</dt>
+										<dd>
+											<code>{{ selected.owner }}</code>
+										</dd>
+									</div>
+								</dl>
+							</details>
+						</div>
 					</div>
 					<dl class="browse-detail-grid">
 						<div>
 							<dt>物理类型</dt>
-							<dd>{{ physicalType(selected.type) }}</dd>
+							<dd>{{ physicalType(selected.kind) }}</dd>
 						</div>
 						<div>
 							<dt>上级</dt>
-							<dd>
-								{{
-									tree.rows.find((row) => row.name === selected?.parent)
-										?.label ||
-									selected.parent ||
-									"根节点"
-								}}
-							</dd>
+							<dd>{{ parentLabel(selected.parent) }}</dd>
 						</div>
 						<div>
 							<dt>状态</dt>
 							<dd>{{ selected.disabled ? "停用" : "启用" }}</dd>
 						</div>
-						<div>
-							<dt>结构</dt>
-							<dd>{{ selected.is_group ? "分组" : "叶子" }}</dd>
-						</div>
 					</dl>
-					<p v-if="c.stock.result.loading" role="status">
-						{{
-							c.stock.result.stale
-								? "正在更新；以下是上次读取的库存。"
-								: "正在读取此范围的库存…"
-						}}
-					</p>
 					<p v-if="c.stock.result.error" role="alert">
 						{{ c.stock.result.error }}
 						<UiButton @click="c.stock.refresh">重试库存</UiButton>
 					</p>
-					<QuantitySummary
-						v-if="stockTable?.initialized"
-						:metrics="[
-							{
-								key: 'stock',
-								label: '当前范围库存',
-								quantities: c.stock.result.summary.map((row) => ({
-									uom: String(row.stock_uom),
-									qty: Number(row.stock_qty),
-								})),
-							},
-						]"
-					/>
-					<div v-if="stockTable?.rows.length" class="browse-rank-list">
-						<button
-							v-for="row in stockTable.rows"
-							:key="String(row.id)"
-							:data-browse-row="'stock:' + String(row.id)"
-							class="browse-rank-row"
-							@click="emit('item', String(row.item_code))"
-						>
-							<span class="browse-grow"
-								><strong>{{ row.item_name }}</strong
-								><small
-									>{{ row.item_code }} ·
-									{{ row.warehouse_label || "位置暂不可用"
-									}}{{ row.batch_no ? " · 批次 " + row.batch_no : "" }}</small
-								></span
-							><b
-								>{{ row.stock_qty }} <small>{{ row.stock_uom }}</small></b
+					<AsyncRegion
+						:loading="c.stock.result.loading"
+						:initialized="Boolean(stockTable?.initialized)"
+						:stale="Boolean(stockTable?.initialized)"
+						:error="c.stock.result.error"
+						label="此范围库存刷新中。"
+					>
+						<template #skeleton><SkeletonBlock variant="lines" :count="3" /></template>
+						<QuantitySummary
+							v-if="stockTable?.initialized"
+							:metrics="[
+								{
+									key: 'stock',
+									label: '当前范围库存',
+									quantities: c.stock.result.summary.map((row) => ({
+										uom: String(row.stock_uom),
+										qty: Number(row.stock_qty),
+									})),
+								},
+							]"
+						/>
+						<div v-if="stockTable?.rows.length" class="browse-rank-list">
+							<button
+								v-for="row in stockTable.rows"
+								:key="String(row.id)"
+								:data-browse-row="'stock:' + String(row.id)"
+								class="browse-rank-row"
+								@click="emit('item', String(row.item_code))"
 							>
-						</button>
-					</div>
-					<p
-						v-else-if="
-							stockTable?.initialized &&
-							!c.stock.result.loading &&
-							!c.stock.result.error
-						"
-						class="browse-empty compact"
-					>
-						此范围暂无库存。
-					</p>
-					<p v-if="stockTable?.error" role="alert">{{ stockTable.error }}</p>
-					<UiButton
-						v-if="stockTable?.next !== null && stockTable?.next !== undefined"
-						:disabled="stockTable.loading || c.stock.result.stale"
-						@click="c.stock.loadTable(stockTable, true)"
-						>加载更多库存 · {{ stockTable.rows.length }} /
-						{{ stockTable.total }}</UiButton
-					>
+								<span class="browse-grow"
+									><strong>{{ row.item_name }}</strong
+									><small
+										>{{ row.item_code }} ·
+										<span
+											:title="
+												warehousePath(
+													row.warehouse,
+													c.reference.warehouses,
+													row.warehouse_label,
+												)
+											"
+											>{{
+												warehouseLabel(
+													row.warehouse,
+													c.reference.warehouses,
+													row.warehouse_label,
+												)
+											}}</span
+										>
+										{{ row.batch_no ? " · 批次 " + row.batch_no : "" }}</small
+									></span
+								><b
+									>{{ row.stock_qty }} <small>{{ row.stock_uom }}</small></b
+								>
+							</button>
+						</div>
+						<p
+							v-else-if="
+								stockTable?.initialized &&
+								!c.stock.result.loading &&
+								!c.stock.result.error
+							"
+							class="browse-empty compact"
+						>
+							此范围暂无库存。
+						</p>
+						<p v-if="stockTable?.error" role="alert">{{ stockTable.error }}</p>
+						<UiButton
+							v-if="stockTable?.next !== null && stockTable?.next !== undefined"
+							:disabled="stockTable.loading || c.stock.result.stale"
+							@click="c.stock.loadTable(stockTable, true)"
+							>加载更多库存 · {{ stockTable.rows.length }} /
+							{{ stockTable.total }}</UiButton
+						>
+					</AsyncRegion>
 					<div class="browse-actions">
 						<UiButton
 							v-for="action in c.operationActions.value"
@@ -310,7 +405,13 @@ function toggle(name: string) {
 		</template>
 		<Overlay
 			v-if="dialogOpen && active"
-			:title="editing ? '编辑仓库 / 位置' : '新建仓库 / 位置'"
+			:title="
+				c.action.value === 'move'
+					? '移动位置'
+					: c.action.value === 'rename'
+						? '重命名位置'
+						: `添加${physicalType(form.kind)}`
+			"
 			:dismissible="!busy"
 			@close="c.close"
 			><p v-if="formError" class="utility-error" role="alert">{{ formError }}</p>
@@ -324,48 +425,19 @@ function toggle(name: string) {
 				/>
 			</template>
 			<form v-else id="native-warehouse-form" class="browse-dialog" @submit.prevent="c.save">
-				<label class="preview-field"
-					>名称<input v-model="form.label" required autocomplete="off" /></label
-				><SearchSelect
+				<label v-if="c.action.value !== 'move'" class="preview-field"
+					>名称<input v-model="form.label" required autocomplete="off"
+				/></label>
+				<label v-if="c.action.value !== 'move'" class="preview-field"
+					>简称（可选）<input v-model="form.short_label" autocomplete="off"
+				/></label>
+				<SearchSelect
+					v-if="c.action.value !== 'rename'"
 					v-model="form.parent"
-					label="上级节点"
+					:label="c.action.value === 'move' ? '新上级位置' : '上级位置'"
 					:options="c.parentOptions.value"
-				/><label class="preview-field"
-					>物理类型<select v-model="form.warehouse_type">
-						<option value="Room">房间</option>
-						<option value="Location">位置</option>
-						<option
-							v-if="!['Room', 'Location'].includes(form.warehouse_type)"
-							:value="form.warehouse_type"
-						>
-							{{ form.warehouse_type || "请选择类型" }}
-						</option>
-					</select></label
-				><label class="preview-choice-label"
-					><input
-						v-model="form.is_group"
-						type="checkbox"
-					/>分组节点（组织下级，不直接存放库存）</label
-				><label
-					v-if="
-						!form.is_group &&
-						c.tree.value?.rows.find((row) => row.name === form.parent)?.type === 'Room'
-					"
-					class="preview-choice-label"
-					><input
-						v-model="form.room_default"
-						type="checkbox"
-					/>作为此房间的默认存放位置</label
-				><label class="preview-choice-label"
-					><input v-model="form.disabled" type="checkbox" />停用此仓库</label
-				>
-				<p>
-					房间 / 位置表示物理意义，分组 / 叶子单独记录。新建房间
-					默认是可用叶子。已有库存或原生单据的节点保留现有层级。
-				</p>
-				<p v-if="editing" class="muted">
-					原生标识：{{ editing.name }} · 仅更新此表单中的资料。
-				</p>
+				/>
+				<p v-if="c.action.value === 'move'">可选上级仅显示符合此位置类型的启用节点。</p>
 			</form>
 			<template #footer
 				><template v-if="leaveOpen"
@@ -389,10 +461,6 @@ function toggle(name: string) {
 	</section>
 </template>
 <style scoped>
-.warehouse-toggle {
-	flex: 0 0 44px;
-	min-height: 44px;
-}
 .browse-grow {
 	min-width: 0;
 	overflow-wrap: anywhere;
@@ -405,10 +473,53 @@ function toggle(name: string) {
 .browse-grow small {
 	display: block;
 }
-.warehouse-node-actions {
+.warehouse-detail-actions {
 	display: flex;
+	align-items: center;
 	flex-wrap: wrap;
 	gap: var(--p-space-3);
+}
+.warehouse-action-menu {
+	position: relative;
+}
+.warehouse-action-menu > div {
+	position: absolute;
+	right: 0;
+	z-index: 2;
+	display: grid;
+	min-width: 112px;
+	padding: var(--p-space-2);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-surface);
+	box-shadow: var(--p-shadow-subtle);
+}
+.warehouse-action-menu button {
+	min-height: 40px;
+	padding: var(--p-space-2);
+	border: 0;
+	background: transparent;
+	color: var(--p-text);
+	text-align: left;
+}
+.warehouse-action-menu button:hover {
+	background: var(--p-soft);
+}
+.warehouse-toggle {
+	flex: 0 0 32px;
+	width: 32px;
+	min-height: 32px;
+}
+.browse-tree-row .browse-tree-type {
+	width: 32px;
+	height: 32px;
+}
+.browse-tree-row .browse-grow {
+	padding: var(--p-space-2);
+	border-radius: var(--p-radius-control);
+}
+.browse-tree-row.is-selected .browse-grow {
+	background: var(--p-soft);
 }
 @media (max-width: 1023px) {
 	.browse-card-heading {
@@ -417,17 +528,20 @@ function toggle(name: string) {
 	}
 	.browse-tree-row {
 		display: grid;
-		grid-template-columns: 44px minmax(0, 1fr);
+		grid-template-columns: 32px 32px minmax(0, 1fr);
 		gap: var(--p-space-2);
 		padding-left: calc(min(var(--tree-depth, 0), 4) * 8px);
 	}
-	.warehouse-node-actions {
-		grid-column: 2;
-	}
-	.warehouse-node-actions button,
 	.browse-tree-row > button {
-		min-height: 44px;
-		min-width: 44px;
+		min-height: 40px;
+		min-width: 0;
+	}
+	.warehouse-detail-actions {
+		width: 100%;
+	}
+	.warehouse-action-menu > div {
+		left: 0;
+		right: auto;
 	}
 }
 </style>

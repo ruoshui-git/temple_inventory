@@ -38,6 +38,7 @@ import {
   useAttachments,
   type AttachmentEntry,
 } from "../attachments/useAttachments";
+import { showToast } from "../../services/toast";
 export function useOperationEditor(props: {
   kind?: OperationKind;
   identity?: NativeIdentity;
@@ -59,8 +60,7 @@ export function useOperationEditor(props: {
     savePending = ref(0),
     showError = ref(false),
     reviewOpen = ref(false),
-    action = ref<"delete" | "cancel" | "amend" | "duplicate">(),
-    candidates = ref<RecoverySnapshot[]>([]);
+    action = ref<"delete" | "cancel" | "amend" | "duplicate">();
   let ready = false,
     disposed = false,
     discarded = false,
@@ -303,7 +303,7 @@ export function useOperationEditor(props: {
           manufacturing_date: string;
         }>("catalog.batch_metadata", { name: line.batch });
         if (metadata.item_code !== line.code)
-          throw new Error("原生批次不属于此物品");
+          throw new Error("批次不属于此物品");
         line.expiry = metadata.expiry_date;
         line.manufacturingDate = metadata.manufacturing_date;
       }
@@ -407,18 +407,7 @@ export function useOperationEditor(props: {
             manufacturingDate: batch?.manufacturingDate,
           });
         }
-      const local = recovery.list();
-      candidates.value = local.entries.filter(
-        (row) =>
-          row.editorKind === "Stock Entry" &&
-          (props.recoveryId
-            ? row.editorId === props.recoveryId
-            : state.identity
-              ? row.identity?.doctype === state.identity.doctype &&
-                row.identity.name === state.identity.name
-              : !row.identity),
-      );
-      state.recoveryError = local.error;
+      state.recoveryError = recovery.list().error;
       if (!state.identity && props.originalLoan)
         await appendLoan(props.originalLoan);
     } catch (reason) {
@@ -428,7 +417,7 @@ export function useOperationEditor(props: {
       if (active()) {
         loading.value = false;
         ready = true;
-        if (!state.identity && draft.value.items.length) editor.edited();
+        if (!state.identity && draft.value.items.length) editor.retain();
       }
     }
   }
@@ -437,7 +426,7 @@ export function useOperationEditor(props: {
     if (!active() || !writable.value || busy.value) return;
     clearTimeout(timer);
     if (issues(draft.value).length) {
-      editor.retain();
+      editor.retainIncomplete();
       return;
     }
     savePending.value++;
@@ -628,9 +617,9 @@ export function useOperationEditor(props: {
       files.restore(
         (state.values.attachments || []) as unknown as AttachmentEntry[],
       );
-      candidates.value = [];
       await hydrate();
       await refreshLoanBalances();
+      showToast("已恢复上次在此浏览器暂存的内容");
     }
     ready = true;
   }
@@ -717,7 +706,16 @@ export function useOperationEditor(props: {
     document.removeEventListener("inventory-session-restored", sessionRestored);
   });
   void load()
-    .then(() => refreshLoanBalances())
+    .then(async () => {
+      await refreshLoanBalances();
+      if (!props.recoveryId) return;
+      const entry = recovery.read(props.recoveryId);
+      if (!entry || entry.editorKind !== "Stock Entry") {
+        state.recoveryError = "未找到这份浏览器暂存内容，请从草稿列表重新打开";
+        return;
+      }
+      await recover(entry);
+    })
     .catch((reason) => {
       if (active())
         state.error =
@@ -758,7 +756,6 @@ export function useOperationEditor(props: {
     showError,
     reviewOpen,
     action,
-    candidates,
     recover,
     save,
     review,

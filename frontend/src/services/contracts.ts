@@ -2,6 +2,29 @@ import { inject, provide, reactive, type InjectionKey } from "vue";
 import type { ReportQuery, ReportRow } from "../lib/reportContract";
 import type { HierarchyFilterNode } from "../components/ui/HierarchyFilter.vue";
 
+export interface LocationNode {
+  name: string;
+  label: string;
+  local_label: string;
+  short_label: string;
+  full_label: string;
+  path: string;
+  search_text: string;
+  kind: "area" | "room" | "shelf" | "system";
+  owner: string;
+  direct: boolean;
+  storable: boolean;
+  missing_direct: boolean;
+  parent: string;
+  is_group: boolean;
+  disabled: boolean;
+  lft: number;
+  rgt: number;
+  version: string;
+  protected: boolean;
+  can_edit: boolean;
+}
+
 export interface PageOptions {
   start?: number;
   page_length?: number;
@@ -135,7 +158,7 @@ export interface ReferenceData {
   company: string;
   categories: HierarchyFilterNode[];
   categoryRoot: string;
-  warehouses: HierarchyFilterNode[];
+  warehouses: LocationNode[];
   physicalLeaves: string[];
   leasedLeaves: string[];
   damagedLeaves: string[];
@@ -219,12 +242,25 @@ export interface BootstrapData {
   }[];
   warehouses: {
     name: string;
+    label: string;
     local_label: string;
-    breadcrumb: string;
-    room_default?: boolean;
-    parent_warehouse?: string;
-    warehouse_type?: string;
+    short_label: string;
+    full_label: string;
+    path: string;
+    search_text: string;
+    kind: "area" | "room" | "shelf" | "system";
+    owner: string;
+    direct: boolean;
+    storable: boolean;
+    missing_direct: boolean;
+    parent: string;
     is_group: boolean;
+    disabled: boolean;
+    lft: number;
+    rgt: number;
+    version: string;
+    protected: boolean;
+    can_edit: boolean;
   }[];
   uoms: { name: string; must_be_whole_number: boolean }[];
   activity_types: { name: string; label: string; enabled: boolean | number }[];
@@ -252,13 +288,7 @@ export function hydrateReferenceData(
           : row.parent_item_group,
       version: row.modified,
     })),
-    warehouses: result.warehouses.map((row) => ({
-      ...row,
-      label: row.local_label,
-      search_text: row.breadcrumb,
-      parent: row.parent_warehouse,
-      type: row.warehouse_type,
-    })),
+    warehouses: result.warehouses,
     units: result.uoms.map((row) => ({
       name: row.name,
       whole: Boolean(row.must_be_whole_number),

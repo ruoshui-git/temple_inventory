@@ -15,6 +15,6 @@ const deskType = (type: string) => type.toLowerCase().replaceAll(" ", "-");
 				></template
 			></PageHeader
 		>
-		<p>此原生凭证请在 ERPNext 中查看。</p>
+		<p>此凭证请在 ERPNext 中查看。</p>
 	</section>
 </template>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import Overlay from "../../components/ui/Overlay.vue";
-import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import CategoryFormFields from "./CategoryFormFields.vue";
 import type { useCategoriesController } from "./useCategoriesController";
 
@@ -25,7 +26,6 @@ const {
 	editing,
 	form,
 	expanded,
-	candidates,
 	recoveryError,
 	recoveryConflict,
 	discardOpen,
@@ -45,63 +45,58 @@ const {
 		</PageHeader>
 		<p v-if="success" role="status">{{ success }}</p>
 		<p v-if="error && !dialog && !removeTarget" role="alert">{{ error }}</p>
+		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
+		<p v-if="recoveryConflict" class="notice-bar warning" role="alert">
+			{{ recoveryConflict }}
+		</p>
 		<div v-if="refreshError" role="alert" class="notice-bar danger">
 			{{ refreshError }}
 			<UiButton :disabled="loading" @click="c.refresh">重新读取分类</UiButton>
 		</div>
-		<p v-if="loading && !categories.length" role="status">正在读取分类…</p>
 		<div class="category-tools">
 			<label class="preview-field">搜索分类<input v-model="search" type="search" /></label>
-			<span class="muted">{{ categories.length }} 个分类</span>
+			<span v-if="c.initialized.value" class="muted">{{ categories.length }} 个分类</span>
 		</div>
-		<ul class="category-tree" aria-label="物品分类层级">
-			<li v-for="row in categories.filter(c.visible)" :key="row.name">
-				<div
-					class="category-row"
-					:style="{ '--category-depth': Math.min(c.depth(row), 5) }"
-				>
-					<UiButton
-						v-if="row.is_group"
-						class="category-expand"
-						:aria-expanded="expanded.has(row.name) || !!search.trim()"
-						:aria-label="`${expanded.has(row.name) ? '收起' : '展开'} ${row.label}`"
-						@click="c.toggle(row)"
-						>{{ expanded.has(row.name) || search ? "−" : "+" }}</UiButton
+		<AsyncRegion
+			:loading="loading"
+			:initialized="c.initialized.value"
+			:stale="c.initialized.value"
+			:error="error || refreshError"
+			label="分类刷新中。"
+		>
+			<template #skeleton><SkeletonBlock variant="list" :rows="6" /></template>
+			<ul class="category-tree" aria-label="物品分类层级">
+				<li v-for="row in categories.filter(c.visible)" :key="row.name">
+					<div
+						class="category-row"
+						:style="{ '--category-depth': Math.min(c.depth(row), 5) }"
 					>
-					<span v-else class="category-expand-spacer" aria-hidden="true" />
-					<strong>{{ row.label }}</strong>
-					<small v-if="row.name !== row.label">{{ row.name }}</small>
-					<span class="category-kind">{{ row.is_group ? "分组" : "末级" }}</span>
-					<UiButton v-if="canCreate && row.is_group" @click="c.openCreate(row.name)"
-						>添加下级</UiButton
-					>
-					<UiButton v-if="canWrite" @click="c.openEdit(row)">编辑</UiButton>
-					<UiButton v-if="canDelete" variant="danger" @click="c.askDelete(row)"
-						>删除</UiButton
-					>
-				</div>
-			</li>
-			<li v-if="!categories.some(c.visible)" class="muted">
-				{{ loading ? "正在读取分类…" : "没有匹配的分类。" }}
-			</li>
-		</ul>
-		<section v-if="candidates.length" class="category-recovery surface">
-			<h2>未完成的分类输入</h2>
-			<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-			<p v-if="recoveryConflict" role="alert">{{ recoveryConflict }}</p>
-			<article v-for="candidate in candidates" :key="candidate.editorId">
-				<p>{{ candidate.updatedAt }}</p>
-				<RecoverySummary
-					kind="Item Group"
-					:values="candidate.values"
-					:copy-text="JSON.stringify(candidate.values, null, 2)"
-				>
-					<UiButton :disabled="loading" @click="c.recover(candidate)"
-						>检查并恢复</UiButton
-					>
-				</RecoverySummary>
-			</article>
-		</section>
+						<UiButton
+							v-if="row.is_group"
+							class="category-expand"
+							:aria-expanded="expanded.has(row.name) || !!search.trim()"
+							:aria-label="`${expanded.has(row.name) ? '收起' : '展开'} ${row.label}`"
+							@click="c.toggle(row)"
+							>{{ expanded.has(row.name) || search ? "−" : "+" }}</UiButton
+						>
+						<span v-else class="category-expand-spacer" aria-hidden="true" />
+						<strong>{{ row.label }}</strong>
+						<small v-if="row.name !== row.label">{{ row.name }}</small>
+						<span class="category-kind">{{ row.is_group ? "分组" : "末级" }}</span>
+						<UiButton v-if="canCreate && row.is_group" @click="c.openCreate(row.name)"
+							>添加下级</UiButton
+						>
+						<UiButton v-if="canWrite" @click="c.openEdit(row)">编辑</UiButton>
+						<UiButton v-if="canDelete" variant="danger" @click="c.askDelete(row)"
+							>删除</UiButton
+						>
+					</div>
+				</li>
+				<li v-if="!categories.some(c.visible)" class="muted">
+					{{ c.initialized.value ? "没有匹配的分类。" : "" }}
+				</li>
+			</ul>
+		</AsyncRegion>
 		<Overlay
 			v-if="dialog && !discardOpen && !leaveRequested"
 			:title="editing ? '编辑分类' : '新建分类'"

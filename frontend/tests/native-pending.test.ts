@@ -112,7 +112,7 @@ describe("native damaged-stock workspace", () => {
   });
   it("shows loading before an empty result or apparent zero counter", async () => {
     const { wrapper } = setup(vi.fn(() => new Promise(() => {})));
-    expect(wrapper.text()).toContain("正在读取损坏库存");
+    expect(wrapper.find(".skeleton-block--list").exists()).toBe(true);
     expect(wrapper.text()).not.toContain("当前没有符合条件");
     expect(wrapper.text()).not.toContain("0 条分配");
   });

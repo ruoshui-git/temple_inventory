@@ -532,7 +532,7 @@ function setGroup(index: number, value: string) {
 			按借出日期筛选；正常归还、损坏、遗失与未归还为当前结算余额。
 		</p>
 		<p v-if="dataset === 'inventory' && query.view === 'historical'">
-			期初 + 流入 − 流出 + 有符号调整 = 期末。按 ERPNext 原生库存流水计算。
+			期初 + 流入 − 流出 + 有符号调整 = 期末。按 ERPNext 库存流水计算。
 		</p>
 
 		<p v-if="result.error" role="alert">{{ result.error }}</p>
@@ -578,7 +578,7 @@ function setGroup(index: number, value: string) {
 					class="report-initial-skeleton"
 					role="status"
 				>
-					<span class="sr-only">正在加载结果…</span>
+					<span class="sr-only">结果准备中…</span>
 					<div class="report-initial-skeleton-row" aria-hidden="true">
 						<i v-for="column in 6" :key="column" />
 					</div>

@@ -36,6 +36,8 @@ export function useItemPicker(
     total: 0,
     next: null as number | null,
     loading: false,
+    loadingMore: false,
+    initialized: false,
     error: "",
     stale: false,
   });
@@ -61,6 +63,7 @@ export function useItemPicker(
     request?.abort();
     request = new AbortController();
     result.loading = true;
+    result.loadingMore = more;
     result.error = "";
     if (!more) result.stale = result.rows.length > 0;
     try {
@@ -78,7 +81,9 @@ export function useItemPicker(
           search: search.value,
           start: more ? result.next : 0,
           page_length: 50,
-          warehouses: warehouseFilters.value,
+          ...(props.purpose === "inbound"
+            ? {}
+            : { warehouses: warehouseFilters.value }),
           categories: categoryFilters.value,
           uncategorized: uncategorizedFilter.value,
           purpose: props.purpose || "outbound",
@@ -99,6 +104,7 @@ export function useItemPicker(
         pickerWarehouseLabel: row.warehouse_label || "",
         pickerQuantity: Number(row.picker_quantity || 0),
       }));
+      result.initialized = true;
       result.rows = more
         ? [
             ...result.rows,
@@ -120,6 +126,7 @@ export function useItemPicker(
     } finally {
       if (current === generation && !disposed && account === reference.user)
         result.loading = false;
+      result.loadingMore = false;
     }
   }
   function pickerRowKey(row: PickerStockItem) {

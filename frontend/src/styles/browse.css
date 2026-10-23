@@ -1341,30 +1341,6 @@
 	opacity: 0.64;
 }
 
-.stock-card-skeleton {
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-card);
-	background: var(--p-surface);
-	overflow: hidden;
-}
-
-.stock-card-skeleton-image {
-	width: 100%;
-	height: auto;
-	aspect-ratio: 1;
-	background: var(--p-soft);
-}
-
-.stock-card-skeleton-content {
-	display: grid;
-	gap: var(--p-space-2);
-	padding: var(--p-card-pad);
-}
-
-.stock-card-skeleton-content .skeleton {
-	margin: 0;
-}
-
 .report-initial-skeleton {
 	display: grid;
 	gap: 0;

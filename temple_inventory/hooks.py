@@ -44,7 +44,10 @@ doc_events = {
 	"Warehouse": {
 		"validate": "temple_inventory.warehouses.validate_native_warehouse",
 		"after_insert": "temple_inventory.read_cache.warehouse_changed",
-		"on_update": "temple_inventory.read_cache.warehouse_changed",
+		"on_update": [
+			"temple_inventory.warehouses._cascade_warehouse_names",
+			"temple_inventory.read_cache.warehouse_changed",
+		],
 		"on_trash": "temple_inventory.read_cache.invalidate_after_commit",
 	},
 }

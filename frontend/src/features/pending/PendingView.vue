@@ -21,6 +21,7 @@ import ReportTable from "../../components/ui/ReportTable.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
 });
@@ -58,7 +59,7 @@ watch([() => props.active, isMobile], () => {
 	<section class="browse-page">
 		<BrowseToolbar
 			title="损坏待处理"
-			:summary="`损坏待处理 · ${table?.initialized ? c.report.result.total + ' 条明细' : '读取中'}`"
+			:summary="table?.initialized ? `损坏待处理 · ${c.report.result.total} 条明细` : ''"
 			v-model:search="query.search"
 			search-label="搜索物品、批次或存放位置"
 			:active="active"
@@ -151,13 +152,22 @@ watch([() => props.active, isMobile], () => {
 				></template
 			></BrowseToolbar
 		>
-		<p v-if="c.report.result.loading" role="status">
-			{{ table?.rows.length ? "正在更新损坏库存…" : "正在读取损坏库存…" }}
+		<SkeletonBlock
+			v-if="c.report.result.loading && !table?.initialized"
+			variant="list"
+			:rows="5"
+		/>
+		<p
+			v-if="c.report.result.stale && c.report.result.error && !c.report.result.loading"
+			class="notice-bar warning"
+			role="status"
+		>
+			上次结果 · 尚未更新。
 		</p>
 		<p v-if="c.report.result.error" role="alert">
 			{{ c.report.result.error }} <UiButton @click="c.report.refresh(true)">重试</UiButton>
 		</p>
-		<p v-if="c.report.result.stale" role="status">结果正在更新，完成后可继续处理。</p>
+
 		<QuantitySummary :metrics="metrics" :loading="c.report.result.loading" />
 		<div class="preview-browse-body">
 			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
@@ -229,7 +239,13 @@ watch([() => props.active, isMobile], () => {
 							<option value="location">位置</option>
 						</select></label
 					>
-					<p v-if="c.analysis.result.loading" role="status">正在读取分析…</p>
+					<SkeletonBlock
+						v-if="
+							c.analysis.result.loading && !c.analysis.mainTable.value?.initialized
+						"
+						variant="lines"
+						:count="4"
+					/>
 					<p v-if="c.analysis.result.error" role="alert">
 						{{ c.analysis.result.error }}
 						<UiButton @click="c.analysis.refresh">重试分析</UiButton>

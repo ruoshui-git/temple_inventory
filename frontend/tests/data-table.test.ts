@@ -355,7 +355,9 @@ describe("shared data table", () => {
     expect(wrapper.emitted("select")?.[0]).toEqual(["item-1", true]);
     expect(wrapper.emitted("loadMore")).toHaveLength(1);
     expect(wrapper.emitted("retry")).toHaveLength(1);
-    expect(wrapper.text()).toContain("正在更新，保留当前结果");
+    expect(wrapper.get(".data-table-refresh-status").text()).toContain(
+      "保留当前结果，更新完成后可用",
+    );
     expect(wrapper.text()).toContain("网络暂不可用");
   });
 

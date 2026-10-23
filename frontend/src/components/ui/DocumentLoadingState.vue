@@ -1,6 +1,6 @@
 <script setup lang="ts">
 withDefaults(defineProps<{ label?: string; variant?: "form" | "detail"; announce?: boolean }>(), {
-	label: "正在读取记录…",
+	label: "记录加载中…",
 	variant: "form",
 	announce: true,
 });

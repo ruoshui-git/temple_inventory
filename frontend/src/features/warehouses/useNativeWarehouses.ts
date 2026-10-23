@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   useInventoryServices,
   useReferenceData,
+  type LocationNode,
 } from "../../services/contracts";
 import { newReportQuery } from "../../lib/reportContract";
 import {
@@ -14,25 +15,16 @@ import { useReportController } from "../export/useReportController";
 import { useMovementHistory } from "../movements/useMovementHistory";
 import { useBrowseState } from "../../lib/browseMemory";
 import { showToast } from "../../services/toast";
-export interface NativeWarehouse {
-  name: string;
-  label: string;
-  parent: string;
-  type: string;
-  room_default: boolean;
-  is_group: boolean;
-  disabled: boolean;
-  version: string;
-  protected: boolean;
-  can_edit: boolean;
-  lft: number;
-  rgt: number;
-}
+export type NativeWarehouse = LocationNode;
+
+/** The location API takes the native Warehouse Type, not the presenter kind. */
+const warehouseTypes = { area: "Area", room: "Room", shelf: "Shelf" } as const;
 interface WarehouseTree {
   rows: NativeWarehouse[];
   physical_root: string;
   can_create: boolean;
   company: string;
+  needs_first_room?: boolean;
 }
 export function useNativeWarehouses(
   props: {
@@ -60,18 +52,16 @@ export function useNativeWarehouses(
     busy = ref(false),
     formError = ref("");
   const editing = ref<NativeWarehouse>(),
-    baseline = ref(""),
+    action = ref<"create" | "rename" | "move">("create"),
+    form = reactive({
+      kind: "room" as "area" | "room" | "shelf",
+      label: "",
+      short_label: "",
+      parent: "",
+    });
+  const baseline = ref(""),
     recoveryError = ref(""),
-    candidates = ref<RecoverySnapshot[]>([]),
     leaveOpen = ref(false);
-  const form = reactive({
-    label: "",
-    parent: "",
-    warehouse_type: "Room",
-    is_group: false,
-    disabled: false,
-    room_default: false,
-  });
   const selected = computed(() =>
     tree.value?.rows.find(
       (row) => row.name === (props.name || selectedName.value),
@@ -79,10 +69,10 @@ export function useNativeWarehouses(
   );
   let disposed = false,
     generation = 0,
-    request: AbortController | undefined;
-  let revision = 0,
-    editorId = crypto.randomUUID();
-  let openedEditName = "",
+    request: AbortController | undefined,
+    revision = 0,
+    editorId = crypto.randomUUID(),
+    openedEditName = "",
     createdEditorOpened = false;
   const tabId = crypto.randomUUID();
   let storage: Storage | undefined;
@@ -91,8 +81,8 @@ export function useNativeWarehouses(
   } catch {
     /* Keep open input usable. */
   }
-  const recovery = createRecoveryStore(reference.site, account, storage);
-  const active = () => !disposed && reference.user === account;
+  const recovery = createRecoveryStore(reference.site, account, storage),
+    active = () => !disposed && reference.user === account;
   const dirty = computed(
     () => dialogOpen.value && JSON.stringify(form) !== baseline.value,
   );
@@ -102,9 +92,9 @@ export function useNativeWarehouses(
   const physicalSelection = computed(
     () =>
       canUseSelection.value &&
-      !selected.value?.is_group &&
-      !selected.value?.disabled &&
-      reference.physicalLeaves.includes(selected.value!.name),
+      !!selected.value?.storable &&
+      !selected.value.disabled &&
+      reference.physicalLeaves.includes(selected.value.name),
   );
   const operationActions = computed(() =>
     physicalSelection.value
@@ -112,7 +102,7 @@ export function useNativeWarehouses(
           { kind: "Receive", label: "入库到此库位" },
           { kind: "Issue", label: "从此库位出库" },
           { kind: "Transfer", label: "从此库位调拨" },
-        ].filter((action) => reference.operations[action.kind] === true)
+        ].filter((item) => reference.operations[item.kind] === true)
       : [],
   );
   const canCount = computed(
@@ -166,42 +156,49 @@ export function useNativeWarehouses(
       !history.result.loading &&
       !!stock.mainTable.value?.initialized,
   );
-  const parentOptions = computed(() =>
-    (tree.value?.rows || [])
-      .filter(
-        (row) =>
-          row.is_group &&
-          !row.disabled &&
-          (row.name === tree.value?.physical_root ||
-            inside(
-              row,
-              tree.value?.rows.find(
-                (value) => value.name === tree.value?.physical_root,
-              ),
-            )) &&
-          (!editing.value ||
-            (row.name !== editing.value.name && !inside(row, editing.value))),
-      )
-      .map((row) => ({ value: row.name, label: row.label, detail: row.name })),
-  );
   function inside(row: NativeWarehouse, root?: NativeWarehouse) {
     return !!root && row.lft > root.lft && row.rgt < root.rgt;
   }
+  const parentOptions = computed(() => {
+    const kind = form.kind;
+    return (tree.value?.rows || [])
+      .filter((row) => {
+        const allowedKind =
+          kind === "shelf"
+            ? ["room", "shelf"].includes(row.kind)
+            : row.name === tree.value?.physical_root || row.kind === "area";
+        return (
+          allowedKind &&
+          row.is_group &&
+          !row.disabled &&
+          !row.direct &&
+          (!editing.value ||
+            (row.name !== editing.value.name && !inside(row, editing.value)))
+        );
+      })
+      .map((row) => ({ value: row.name, label: row.label, detail: row.path }));
+  });
   const visibleRows = computed(() => {
     const rows = tree.value?.rows || [],
-      term = search.value.trim().toLowerCase();
+      term = search.value.trim().toLocaleLowerCase();
     return rows
+      .filter((row) => !row.direct && row.kind !== "system")
       .filter((row) => {
-        const ancestors = rows.filter((parent) => inside(row, parent));
+        const ancestors = rows.filter(
+          (parent) => inside(row, parent) && !parent.direct,
+        );
         if (term)
-          return `${row.label} ${row.name} ${row.type} ${ancestors.map((parent) => parent.label).join(" ")}`
-            .toLowerCase()
+          return `${row.search_text} ${row.full_label}`
+            .toLocaleLowerCase()
             .includes(term);
         return ancestors.every((parent) => expanded.value.has(parent.name));
       })
       .map((row) => ({
         ...row,
-        depth: rows.filter((parent) => inside(row, parent)).length,
+        depth: rows.filter(
+          (parent) =>
+            inside(row, parent) && !parent.direct && parent.kind !== "system",
+        ).length,
       }));
   });
   function retain() {
@@ -219,6 +216,7 @@ export function useNativeWarehouses(
       values: recoveryValues({
         ...form,
         editingWarehouse: editing.value?.name || "",
+        action: action.value,
       }),
       pendingUploadReselection: false,
     });
@@ -235,28 +233,35 @@ export function useNativeWarehouses(
     },
     { deep: true },
   );
-  function openEditor(row?: NativeWarehouse) {
-    if (!active() || (row ? !row.can_edit : !tree.value?.can_create)) return;
-    dialogOpen.value = false;
+  function openEditor(
+    row?: NativeWarehouse,
+    mode: "create" | "rename" | "move" = row ? "rename" : "create",
+    kind?: "area" | "room" | "shelf",
+  ) {
+    if (
+      !active() ||
+      (row ? !row.can_edit || row.protected : !tree.value?.can_create)
+    )
+      return;
     editing.value = row;
+    action.value = mode;
     formError.value = "";
     recoveryError.value = "";
     editorId = crypto.randomUUID();
     revision = 0;
+    const chosenKind = kind || row?.kind || "room";
+    form.kind = chosenKind as "area" | "room" | "shelf";
+    const selectedParent = selected.value?.name;
+    const defaultParent =
+      selectedParent &&
+      parentOptions.value.some((option) => option.value === selectedParent)
+        ? selectedParent
+        : tree.value?.physical_root || "";
     Object.assign(form, {
-      label: row?.label || "",
-      parent:
-        row?.parent ||
-        (selected.value?.is_group &&
-        parentOptions.value.some(
-          (parent) => parent.value === selected.value?.name,
-        )
-          ? selected.value.name
-          : tree.value?.physical_root || ""),
-      warehouse_type: row?.type || "Room",
-      is_group: row?.is_group || false,
-      disabled: row?.disabled || false,
-      room_default: row?.room_default || false,
+      kind: chosenKind as "area" | "room" | "shelf",
+      label: row?.local_label || "",
+      short_label: row?.short_label || "",
+      parent: row?.parent || defaultParent,
     });
     baseline.value = JSON.stringify(form);
     dialogOpen.value = true;
@@ -269,28 +274,30 @@ export function useNativeWarehouses(
     loading.value = true;
     error.value = "";
     try {
-      const value = await services.call<WarehouseTree>(
-        "warehouses.tree",
-        {},
-        controller.signal,
-      );
+      const [value, configuration] = await Promise.all([
+        services.call<WarehouseTree>("warehouses.tree", {}, controller.signal),
+        services
+          .call<{ needs_first_room?: boolean }>(
+            "configuration.status",
+            {},
+            controller.signal,
+          )
+          .catch(() => undefined),
+      ]);
       if (!active() || current !== generation) return;
       tree.value = value;
+      value.needs_first_room = configuration?.needs_first_room;
       if (!selectedName.value && !props.name)
         selectedName.value = value.physical_root;
       if ((props.name || selectedName.value) && !selected.value)
-        throw new Error("此仓库不存在或当前账户无权读取，请返回仓库列表");
+        throw new Error("此位置不存在或当前账户无权读取，请返回仓库列表");
       if (!expanded.value.size && !browseState.restored)
         expanded.value = new Set(
-          value.rows.filter((row) => row.is_group).map((row) => row.name),
+          value.rows
+            .filter((row) => row.is_group && !row.direct)
+            .map((row) => row.name),
         );
-      const local = recovery.list();
-      recoveryError.value = local.error;
-      candidates.value = local.entries.filter(
-        (row) =>
-          row.editorKind === "Warehouse" &&
-          (!props.recoveryId || row.editorId === props.recoveryId),
-      );
+      recoveryError.value = recovery.list().error;
       if (
         props.editName &&
         openedEditName !== props.editName &&
@@ -298,7 +305,7 @@ export function useNativeWarehouses(
         !props.recoveryId
       ) {
         const target = value.rows.find((row) => row.name === props.editName);
-        if (!target?.can_edit) throw new Error("此仓库不可编辑");
+        if (!target?.can_edit) throw new Error("此位置不可编辑");
         openEditor(target);
         openedEditName = props.editName;
       }
@@ -309,52 +316,102 @@ export function useNativeWarehouses(
     } catch (reason) {
       if (active() && current === generation)
         error.value =
-          reason instanceof Error ? reason.message : "仓库资料读取失败";
+          reason instanceof Error ? reason.message : "位置资料读取失败";
     } finally {
       if (active() && current === generation) loading.value = false;
     }
   }
-  async function save() {
-    if (!active() || busy.value || !dialogOpen.value) return;
-    if (
-      !form.label.trim() ||
-      !form.parent ||
-      !["Room", "Location"].includes(form.warehouse_type)
-    ) {
-      formError.value = "请填写名称，并选择上级与 Room / Location 类型";
-      return;
-    }
-    const sent = { ...form },
-      sentRevision = revision,
-      wasExisting = Boolean(editing.value);
+  async function invoke(
+    endpoint: string,
+    args: Record<string, unknown>,
+    success: string,
+  ) {
+    if (!active() || busy.value) return;
     busy.value = true;
     formError.value = "";
     try {
-      const row = await services.call<NativeWarehouse>(
-        "warehouses.save_warehouse",
-        {
-          ...sent,
-          ...(editing.value
-            ? { name: editing.value.name, version: editing.value.version }
-            : {}),
-        },
-      );
-      if (!active()) return;
-      editing.value = row;
-      baseline.value = JSON.stringify(sent);
-      recovery.remove(editorId, sentRevision);
-      if (!dirty.value) dialogOpen.value = false;
-      else retain();
+      await services.call(endpoint, args);
       await load();
       if (active()) {
-        showToast(wasExisting ? "仓库资料已更新" : "仓库已创建");
+        showToast(success);
         saved();
       }
     } catch (reason) {
       if (active()) {
         formError.value =
-          reason instanceof Error ? reason.message : "仓库保存失败，输入仍保留";
-        showToast(`仓库保存失败：${formError.value}`, "danger");
+          reason instanceof Error ? reason.message : "位置操作失败";
+        showToast(formError.value, "danger");
+      }
+    } finally {
+      if (active()) busy.value = false;
+    }
+  }
+  async function save() {
+    if (!active() || busy.value || !dialogOpen.value) return;
+    if (!form.label.trim() || (action.value !== "rename" && !form.parent)) {
+      formError.value = "请填写名称并选择上级位置";
+      return;
+    }
+    const snapshot = { ...form },
+      sentRevision = revision,
+      mode = action.value,
+      row = editing.value;
+    busy.value = true;
+    formError.value = "";
+    try {
+      if (mode === "create")
+        await services.call("warehouses.create_location", {
+          kind: warehouseTypes[snapshot.kind],
+          label: snapshot.label,
+          short_label: snapshot.short_label,
+          parent: snapshot.parent,
+        });
+      else if (mode === "rename" && row)
+        await services.call("warehouses.rename_location", {
+          name: row.name,
+          label: snapshot.label,
+          short_label: snapshot.short_label,
+          version: row.version,
+        });
+      else if (mode === "move" && row)
+        await services.call("warehouses.move_location", {
+          name: row.name,
+          parent: snapshot.parent,
+          version: row.version,
+        });
+      recovery.remove(editorId, sentRevision);
+      await load();
+      if (active()) {
+        if (mode === "rename" && row && revision > sentRevision) {
+          const refreshed = tree.value?.rows.find(
+            (value) => value.name === row.name,
+          );
+          if (!refreshed) throw new Error("位置已更新，但无法重新读取位置资料");
+          editing.value = refreshed;
+          baseline.value = JSON.stringify({
+            ...form,
+            label: snapshot.label,
+            short_label: snapshot.short_label,
+          });
+          retain();
+          showToast("已保存；保留了保存期间的后续修改");
+          return;
+        }
+        dialogOpen.value = false;
+        showToast(
+          mode === "create"
+            ? "位置已创建"
+            : mode === "move"
+              ? "位置已移动"
+              : "名称已更新",
+        );
+        saved();
+      }
+    } catch (reason) {
+      if (active()) {
+        formError.value =
+          reason instanceof Error ? reason.message : "位置保存失败，输入仍保留";
+        showToast(formError.value, "danger");
       }
     } finally {
       if (active()) busy.value = false;
@@ -364,11 +421,8 @@ export function useNativeWarehouses(
     if (!active() || entry.account !== account || entry.site !== reference.site)
       return;
     if (
-      ["label", "parent", "warehouse_type"].some(
+      ["label", "kind", "parent", "short_label"].some(
         (key) => typeof entry.values[key] !== "string",
-      ) ||
-      ["is_group", "disabled", "room_default"].some(
-        (key) => typeof entry.values[key] !== "boolean",
       )
     ) {
       recoveryError.value = "此输入的格式无效，请复制文字后重新填写";
@@ -379,21 +433,25 @@ export function useNativeWarehouses(
     const name = String(entry.values.editingWarehouse || ""),
       row = tree.value?.rows.find((value) => value.name === name);
     if (name && (!row?.can_edit || row.version !== entry.baseVersion)) {
-      recoveryError.value = "原仓库已更改、删除或无权编辑，请复制输入后核对";
+      recoveryError.value = "原位置已更改、删除或无权编辑，请复制输入后核对";
       return;
     }
-    openEditor(row);
+    openEditor(
+      row,
+      String(entry.values.action || "rename") as "create" | "rename" | "move",
+    );
     if (!dialogOpen.value) return;
     for (const key of Object.keys(form))
       if (key in entry.values)
         Object.assign(form, { [key]: entry.values[key] });
-    candidates.value = [];
     retain();
+    recovery.remove(entry.editorId, entry.revision);
+    showToast("已恢复上次在此浏览器暂存的内容");
   }
   let leaveResolve: ((value: boolean) => void) | undefined;
   function requestLeave(): Promise<boolean> {
     if (busy.value) {
-      formError.value = "正在保存仓库，请稍候";
+      formError.value = "正在保存位置，请稍候";
       return Promise.resolve(false);
     }
     if (!dirty.value) return Promise.resolve(true);
@@ -412,8 +470,29 @@ export function useNativeWarehouses(
     if (await requestLeave()) dialogOpen.value = false;
   }
   function select(name: string) {
-    if (tree.value?.rows.some((row) => row.name === name))
+    if (tree.value?.rows.some((row) => row.name === name && !row.direct))
       selectedName.value = name;
+  }
+  async function toggleDisabled(row: NativeWarehouse) {
+    await invoke(
+      "warehouses.set_disabled",
+      { name: row.name, disabled: !row.disabled, version: row.version },
+      row.disabled ? "位置已启用" : "位置已停用",
+    );
+  }
+  async function subdivide(row: NativeWarehouse) {
+    await invoke(
+      "warehouses.subdivide_shelf",
+      { name: row.name, version: row.version },
+      "货位已细分",
+    );
+  }
+  async function repair(row: NativeWarehouse) {
+    await invoke(
+      "warehouses.repair_direct_storage",
+      { name: row.name, version: row.version },
+      "直接存放位置已补建",
+    );
   }
   watch([selectedName, search], () => {
     if (active()) changed(selectedName.value, search.value);
@@ -433,7 +512,6 @@ export function useNativeWarehouses(
         generation++;
         request?.abort();
         tree.value = undefined;
-        candidates.value = [];
         dialogOpen.value = false;
       }
     },
@@ -462,7 +540,12 @@ export function useNativeWarehouses(
     if (typeof document !== "undefined")
       document.removeEventListener("inventory-session-restored", restored);
   });
-  void load();
+  void load().then(async () => {
+    if (!props.recoveryId) return;
+    const entry = recovery.read(props.recoveryId);
+    if (entry?.editorKind === "Warehouse") await recover(entry);
+    else recoveryError.value = "未找到这份浏览器暂存内容，请从草稿列表重新打开";
+  });
   return {
     reference,
     tree,
@@ -486,10 +569,10 @@ export function useNativeWarehouses(
     busy,
     formError,
     editing,
+    action,
     form,
     dirty,
     recoveryError,
-    candidates,
     recover,
     leaveOpen,
     requestLeave,
@@ -498,6 +581,9 @@ export function useNativeWarehouses(
     openEditor,
     save,
     load,
+    toggleDisabled,
+    subdivide,
+    repair,
   };
 }
 export type NativeWarehouses = ReturnType<typeof useNativeWarehouses>;

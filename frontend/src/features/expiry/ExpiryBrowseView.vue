@@ -23,6 +23,7 @@ import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import DataTable from "../../components/ui/DataTable.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -229,7 +230,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 		<ReturnToTop :active="active" :hidden="isMobile && filterOpen" />
 		<BrowseToolbar
 			title="效期批次"
-			:summary="`效期批次 · ${result.initialized ? result.batchCount + ' 个批次' : '读取中'}`"
+			:summary="result.initialized ? `效期批次 · ${result.batchCount} 个批次` : ''"
 			v-model:search="query.search"
 			search-label="搜索物品、批次或位置"
 			:active="active"
@@ -336,13 +337,15 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			@item="(code, batch) => (query.search = batch || code)"
 			@location="(name) => (scope.warehouses = [name])"
 		/>
-		<p v-if="isMobile && result.loading" role="status">
-			{{ result.rows.length ? "正在更新批次…" : "正在读取批次…" }}
-		</p>
+		<SkeletonBlock
+			v-if="isMobile && result.loading && !result.initialized"
+			variant="list"
+			:rows="5"
+		/>
 		<p v-if="isMobile && result.error" role="alert">
 			{{ result.error }} <UiButton @click="c.retry">重试</UiButton>
 		</p>
-		<p v-if="result.stale" role="status">结果正在更新，更新完成后可打开详情。</p>
+
 		<section
 			v-if="result.initialized"
 			class="preview-activity-summary"

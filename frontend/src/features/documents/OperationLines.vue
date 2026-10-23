@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { warehouseFullPath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import AllocationDetails from "./AllocationDetails.vue";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
@@ -22,6 +22,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import ItemPicker, { type ItemScanOption, type ItemScanResolution } from "../items/ItemPicker.vue";
 import type { StockItem } from "../../lib/stockPresentation";
 import UiButton from "../../components/ui/UiButton.vue";
+import { operationLabels } from "./operationCodec";
 
 const props = withDefaults(
 	defineProps<{
@@ -122,7 +123,8 @@ const scanDestinationOptions = computed<ItemScanOption[]>(() => {
 	const source = scanWarehouse.value || String(props.draft.preferredWarehouse || "");
 	return destinationChoices(source).map((name) => ({
 		value: name,
-		label: warehouseFullPath(name, reference.warehouses),
+		label: warehouseLabel(name, reference.warehouses),
+		detail: warehousePath(name, reference.warehouses),
 	}));
 });
 const activeScanWarehouse = computed(() =>
@@ -395,9 +397,9 @@ function scanResolutionFor(
 			.reduce((total, row) => total + row.available, 0);
 		return {
 			value: source,
-			label: warehouseFullPath(source, reference.warehouses),
+			label: warehouseLabel(source, reference.warehouses),
 			available,
-			detail: `可用 ${available} ${item.uom}`,
+			detail: `${warehousePath(source, reference.warehouses)} · 可用 ${available} ${item.uom}`,
 		};
 	});
 	const batchOptions = selectedPairs.map((row) => ({
@@ -454,7 +456,8 @@ function scanResolutionFor(
 					batchOptions,
 					destinationOptions: destinationValues.map((name) => ({
 						value: name,
-						label: warehouseFullPath(name, reference.warehouses),
+						label: warehouseLabel(name, reference.warehouses),
+						detail: warehousePath(name, reference.warehouses),
 					})),
 					defaultSource,
 					defaultBatch: receiving ? scannedBatch || "" : defaultBatch,
@@ -557,7 +560,7 @@ function addScannedLine(item: StockItem, batch: string, source: string, destinat
 		: ["Transfer", "Repair"].includes(props.draft.kind)
 			? `${source} → ${lineDestination}`
 			: source;
-	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${item.uom}${warehouse ? ` · ${warehouseFullPath(warehouse, reference.warehouses, warehouse)}` : ""}`;
+	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${item.uom}${warehouse ? ` · ${warehouseLabel(warehouse, reference.warehouses, warehouse)}` : ""}`;
 }
 function activeScanContext(value: unknown): ScanContextSnapshot {
 	return value && typeof value === "object" ? (value as ScanContextSnapshot) : {};
@@ -671,7 +674,7 @@ function cancelScannedItem() {
 function setScanWarehouse(name: string) {
 	if (receive.value) destination.value = name;
 	else scanWarehouse.value = name;
-	scanFeedback.value = `当前扫描库位：${warehouseFullPath(name, reference.warehouses, name)}`;
+	scanFeedback.value = `当前扫描库位：${warehouseLabel(name, reference.warehouses, name)}`;
 }
 function setScanDestination(name: string) {
 	if (props.draft.kind === "Loan") props.draft.loanDestination = name;
@@ -972,14 +975,19 @@ function changeBatch(line: AllocationLine) {
 	<template v-else>
 		<div ref="root" class="preview-operation-lines" @focusout="regroupAfterFocus">
 			<div class="preview-line-toolbar">
-				<UiButton
-					class="preview-full-workspace-action"
-					variant="ghost"
-					:icon="expanded ? 'contract' : 'expand'"
-					icon-only
-					:label="expanded ? '退出完整工作区' : '展开完整工作区'"
-					:aria-pressed="!!expanded"
-					@click="emit('expand')"
+				<SearchSelect
+					v-if="receive && !disabled"
+					class="preview-receive-target preview-inline-field"
+					label="入库位置"
+					v-model="destination"
+					:clearable="false"
+					:options="
+						places.map((name) => ({
+							value: name,
+							label: warehouseLabel(name, reference.warehouses),
+							detail: warehousePath(name, reference.warehouses),
+						}))
+					"
 				/>
 				<UiButton
 					v-if="!disabled && !settlement"
@@ -995,15 +1003,18 @@ function changeBatch(line: AllocationLine) {
 						type="search"
 						placeholder="物品名称、编号、库位或批次"
 				/></label>
-				<span role="status"
-					>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</span
-				>
-				<label class="preview-choice-label"
-					><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
-				>
-				<UiButton :disabled="!lineIssues.length" @click="nextIssue"
-					>{{ lineIssues.length }} 处待完善 · 下一个</UiButton
-				>
+				<div class="preview-line-toolbar-status">
+					<span role="status"
+						>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 ·
+						{{ totals }}</span
+					>
+					<label class="preview-choice-label"
+						><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
+					>
+					<UiButton :disabled="!lineIssues.length" @click="nextIssue"
+						>{{ lineIssues.length }} 处待完善 · 下一个</UiButton
+					>
+				</div>
 				<span v-if="search || incompleteOnly" role="status"
 					>显示 {{ visibleIds.size }} / {{ draft.items.length }} 行</span
 				>
@@ -1011,17 +1022,6 @@ function changeBatch(line: AllocationLine) {
 			<p v-if="selectionError && !pickerOpen" role="alert">
 				{{ selectionError }}
 			</p>
-			<SearchSelect
-				v-if="receive && !disabled"
-				label="新增物品的入库位置"
-				v-model="destination"
-				:options="
-					places.map((name) => ({
-						value: name,
-						label: warehouseFullPath(name, reference.warehouses),
-					}))
-				"
-			/>
 			<div class="allocation-columns" aria-hidden="true">
 				<span>物品</span><span>数量 / 单位</span><span>库位</span><span>批次 / 状态</span
 				><span>操作</span>
@@ -1033,6 +1033,11 @@ function changeBatch(line: AllocationLine) {
 				class="location-group"
 			>
 				<h3
+					:title="
+						group.location
+							? warehousePath(group.location, reference.warehouses)
+							: undefined
+					"
 					v-if="
 						!groups
 							.slice(0, groupIndex)
@@ -1045,7 +1050,7 @@ function changeBatch(line: AllocationLine) {
 				>
 					{{
 						group.location
-							? warehouseFullPath(group.location, reference.warehouses)
+							? warehouseLabel(group.location, reference.warehouses)
 							: "未选择库位"
 					}}
 				</h3>
@@ -1125,12 +1130,12 @@ function changeBatch(line: AllocationLine) {
 								:options="
 									stockItem(line.code)?.locations.map((row) => ({
 										value: row.location,
-										label: warehouseFullPath(
+										label: warehouseLabel(
 											row.location,
 											reference.warehouses,
 											row.label,
 										),
-										detail: `可用 ${row.available} · 损坏 ${row.damaged}`,
+										detail: `${warehousePath(row.location, reference.warehouses)} · 可用 ${row.available} · 损坏 ${row.damaged}`,
 									})) || []
 								"
 								:invalid="
@@ -1155,7 +1160,8 @@ function changeBatch(line: AllocationLine) {
 								:options="
 									places.map((name) => ({
 										value: name,
-										label: warehouseFullPath(name, reference.warehouses),
+										label: warehouseLabel(name, reference.warehouses),
+										detail: warehousePath(name, reference.warehouses),
 									}))
 								"
 								:invalid="
@@ -1267,7 +1273,7 @@ function changeBatch(line: AllocationLine) {
 				v-if="pickerOpen && !disabled"
 				:allow-create="receive"
 				:mode="pickerLines.length ? 'replace-single' : 'add-multiple'"
-				:context="'入库登记 · ' + (draft.name || '')"
+				:context="operationLabels[draft.kind] + ' · ' + (draft.name || '')"
 				:timestamp="context.timestamp()"
 				:scan-mode="pickerLines.length ? 'selection' : 'operation'"
 				:scan-feedback="scanFeedback"

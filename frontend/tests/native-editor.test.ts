@@ -57,6 +57,10 @@ function deferred<T>() {
 }
 
 describe("native editor lifecycle", () => {
+  it("starts pristine before the first edit", () => {
+    const { editor } = setup();
+    expect(editor.state.status).toBe("pristine");
+  });
   it("revalidates after login without replacing unsaved values or files, and blocks newer native versions", async () => {
     const { editor, services } = setup();
     await editor.load({ doctype: "Stock Entry", name: "NATIVE-1" });
@@ -82,7 +86,7 @@ describe("native editor lifecycle", () => {
     editor.edited();
     await editor.save();
     expect(services.create).not.toHaveBeenCalled();
-    expect(editor.state.status).toBe("local");
+    expect(editor.state.status).toBe("browser");
     expect(recovery.list().entries).toHaveLength(1);
   });
   it("retains edits made in flight and reconciles row identity without replacing input", async () => {

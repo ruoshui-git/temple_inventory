@@ -91,7 +91,7 @@ describe("explicit native setup and repair", () => {
         : status,
     );
     const { wrapper, c, page } = setup(call);
-    expect(wrapper.text()).toContain("正在读取配置与权限");
+    expect(wrapper.find(".skeleton-block--detail").exists()).toBe(true);
     expect(wrapper.text()).not.toContain("查看初始化结构");
     await flushPromises();
     expect(call).toHaveBeenCalledTimes(1);

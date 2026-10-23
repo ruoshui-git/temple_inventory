@@ -47,7 +47,6 @@ export function useActivityEditor(
     error = ref(""),
     conflict = ref(false),
     recoveryError = ref(""),
-    candidates = ref<RecoverySnapshot[]>([]),
     leaveRequested = ref(false),
     reloadRequested = ref(false),
     baseline = ref(JSON.stringify(input));
@@ -128,17 +127,15 @@ export function useActivityEditor(
         });
       }
       baseline.value = JSON.stringify(input);
-      const local = recovery.list();
-      recoveryError.value = local.error;
-      candidates.value = local.entries.filter(
-        (row) =>
-          row.editorKind === "Inventory Activity" &&
-          (!props.recoveryId || row.editorId === props.recoveryId) &&
-          (props.activityId
-            ? row.values.editingActivity === props.activityId
-            : !row.values.editingActivity || row.values.creating === true),
-      );
+      recoveryError.value = recovery.list().error;
       ready = true;
+      if (props.recoveryId) {
+        const entry = recovery.read(props.recoveryId);
+        if (entry?.editorKind === "Inventory Activity") await recover(entry);
+        else
+          recoveryError.value =
+            "未找到这份浏览器暂存内容，请从草稿列表重新打开";
+      }
     } catch (reason) {
       if (active() && current === generation)
         error.value = reason instanceof Error ? reason.message : "活动读取失败";
@@ -181,8 +178,9 @@ export function useActivityEditor(
       if (key in snapshot.values)
         Object.assign(input, { [key]: snapshot.values[key] });
     ready = true;
-    candidates.value = [];
     retain();
+    recovery.remove(snapshot.editorId, snapshot.revision);
+    showToast("已恢复上次在此浏览器暂存的内容");
   }
   async function save() {
     if (
@@ -331,7 +329,6 @@ export function useActivityEditor(
     recoveryText: computed(() => JSON.stringify(input, null, 2)),
     dirty,
     recoveryError,
-    candidates,
     recovery,
     recover,
     discard,

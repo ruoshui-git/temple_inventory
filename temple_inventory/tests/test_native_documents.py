@@ -70,20 +70,22 @@ class NativeDocumentTests(unittest.TestCase):
 		self.token = frappe.generate_hash(length=10)
 		self.company = frappe.db.get_single_value("Temple Inventory Settings", "company")
 		self.company = self.company or frappe.get_all("Company", pluck="name")[0]
-		for name in ("Room", "Location"):
+		for name in ("Area", "Room", "Shelf", "System"):
 			if not frappe.db.exists("Warehouse Type", name):
 				frappe.get_doc({"doctype": "Warehouse Type", "name": name}).insert()
 
-		def warehouse(label, parent=None, group=0, semantic_type=None):
+		def warehouse(label, parent=None, group=0, semantic_type="System", direct=0):
 			return (
 				frappe.get_doc(
 					{
 						"doctype": "Warehouse",
 						"warehouse_name": f"Native Test {label} {self.token}",
+						"ti_label": f"Native Test {label} {self.token}",
 						"company": self.company,
 						"parent_warehouse": parent,
 						"is_group": group,
 						"warehouse_type": semantic_type,
+						"ti_direct_storage": direct,
 					}
 				)
 				.insert()
@@ -92,10 +94,12 @@ class NativeDocumentTests(unittest.TestCase):
 
 		self.root = warehouse("Root", group=1)
 		self.physical = warehouse("Physical", self.root, 1)
-		self.a = warehouse("A", self.physical, semantic_type="Room")
-		self.b = warehouse("B", self.physical, semantic_type="Room")
-		self.loan_leaf = warehouse("Lease Leaf", self.root, semantic_type="Location")
-		self.damaged = warehouse("Damaged", self.root, semantic_type="Location")
+		self.room_a = warehouse("A Room", self.physical, 1, "Room")
+		self.room_b = warehouse("B Room", self.physical, 1, "Room")
+		self.a = warehouse("A Direct", self.room_a, semantic_type="", direct=1)
+		self.b = warehouse("B Direct", self.room_b, semantic_type="", direct=1)
+		self.loan_leaf = warehouse("Lease Leaf", self.root)
+		self.damaged = warehouse("Damaged", self.root)
 		settings = frappe.get_single("Temple Inventory Settings")
 		settings.company = self.company
 		settings.root_warehouse = self.root

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
 
 // Routed production components with controlled HTTP data. Native inventory
 // correctness is checked separately by the rollback-only backend suite.
@@ -126,23 +126,13 @@ async function prepare(page: Page, textScale: number) {
       },
       { name: "SHORT", item_group_name: "日常用品", is_group: false },
     ],
-    warehouses: [
-      {
-        name: "A14",
-        local_label: "A14",
-        breadcrumb: "T2 / A14",
-        is_group: true,
-      },
-      {
-        name: "DEFAULT-A14",
-        local_label: "无货位",
-        breadcrumb: "T2 / A14 / 无货位",
-        parent_warehouse: "A14",
-        room_default: true,
-        is_group: false,
-      },
+    warehouses: sampleWarehouses,
+    physical_leaves: [
+      "A02-DIRECT",
+      "SHELF-1",
+      "DEMO-A-DIRECT",
+      "ROOM-B-DIRECT",
     ],
-    physical_leaves: ["DEFAULT-A14"],
     operations: {
       Receive: true,
       Issue: true,

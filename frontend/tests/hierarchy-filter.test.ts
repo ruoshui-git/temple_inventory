@@ -177,8 +177,8 @@ describe("HierarchyFilter", () => {
       .findAll(".hierarchy-row")
       .find((row) => row.get(".hierarchy-option-primary").text() === "C");
     expect(searchRow).toBeTruthy();
-    expect(searchRow!.get(".hierarchy-path").text()).toBe(
-      "仓库 / 单叶链 / 末级前一层 / C",
+    expect(searchRow!.get(".hierarchy-option-label").attributes("title")).toBe(
+      "C",
     );
     await wrapper.get('input[type="search"]').setValue("");
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(1);
@@ -240,9 +240,9 @@ describe("HierarchyFilter", () => {
       wrapper
         .findAll(".hierarchy-row")
         .find((row) => row.get(".hierarchy-option-primary").text() === "A-01")
-        ?.get(".hierarchy-path")
-        .text(),
-    ).toBe("仓库 / A 室 / A-01");
+        ?.get(".hierarchy-option-label")
+        .attributes("title"),
+    ).toBe("A-01");
     await wrapper.get('input[type="search"]').setValue("");
     expect(wrapper.findAll(".hierarchy-path")).toHaveLength(0);
     await wrapper.get('button[aria-label="收起 仓库"]').trigger("click");
@@ -253,6 +253,71 @@ describe("HierarchyFilter", () => {
     expect(
       wrapper.get('button[aria-label="展开 仓库"]').attributes("aria-expanded"),
     ).toBe("false");
+  });
+
+  it("hides direct-storage leaves while selecting a Room selects its subtree", async () => {
+    const tree = [
+      {
+        name: "area",
+        label: "T2",
+        local_label: "演示区",
+        is_group: true,
+        lft: 1,
+        rgt: 8,
+      },
+      {
+        name: "room",
+        label: "T2 / A02",
+        local_label: "演示室甲",
+        short_label: "A02",
+        full_label: "演示室甲",
+        search_text: "T2 A02 演示室甲",
+        parent: "area",
+        is_group: true,
+        lft: 2,
+        rgt: 7,
+      },
+      {
+        name: "direct",
+        label: "T2 / A02",
+        local_label: "演示室甲",
+        parent: "room",
+        direct: true,
+        is_group: false,
+        lft: 3,
+        rgt: 4,
+      },
+      {
+        name: "shelf",
+        label: "T2 / A02 / 演示架1",
+        local_label: "演示架1",
+        parent: "room",
+        is_group: false,
+        lft: 5,
+        rgt: 6,
+      },
+    ];
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: [],
+        options: tree,
+        tree,
+        placeholder: "搜索",
+        title: "仓库",
+        initialExpansion: "all",
+      },
+    });
+    expect(wrapper.findAll(".hierarchy-row").map((row) => row.text())).toEqual([
+      expect.stringContaining("演示区"),
+      expect.stringContaining("A02"),
+      expect.stringContaining("演示架1"),
+    ]);
+    expect(wrapper.text()).not.toContain("direct");
+    const roomRow = wrapper
+      .findAll(".hierarchy-row")
+      .find((row) => row.text().includes("A02"));
+    await roomRow!.get('input[type="checkbox"]').setValue(true);
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["room"]]);
   });
 
   it("replaces nested selections with an ancestor and clears its whole branch", async () => {
@@ -378,5 +443,61 @@ describe("HierarchyFilter", () => {
       (wrapper.findAll('input[type="checkbox"]')[4].element as HTMLInputElement)
         .checked,
     ).toBe(true);
+  });
+
+  it("hides Room direct leaves while retaining them in subtree selection", async () => {
+    const tree = [
+      {
+        name: "T2",
+        label: "T2",
+        local_label: "T2",
+        kind: "area",
+        is_group: true,
+        lft: 1,
+        rgt: 8,
+      },
+      {
+        name: "ROOM",
+        label: "A02",
+        local_label: "演示室甲",
+        short_label: "A02",
+        full_label: "演示室甲",
+        path: "T2 / A02",
+        search_text: "T2 A02 演示室甲",
+        parent: "T2",
+        kind: "room",
+        is_group: true,
+        lft: 2,
+        rgt: 7,
+      },
+      {
+        name: "DIRECT",
+        label: "A02",
+        local_label: "演示室甲",
+        parent: "ROOM",
+        kind: "room",
+        direct: true,
+        is_group: false,
+        lft: 3,
+        rgt: 4,
+      },
+    ];
+    const wrapper = mount(HierarchyFilter, {
+      props: {
+        modelValue: [],
+        options: tree,
+        placeholder: "搜索",
+        title: "仓库",
+      },
+    });
+    expect(wrapper.text()).not.toContain("DIRECT");
+    expect(
+      wrapper.findAll(".hierarchy-option-primary").map((node) => node.text()),
+    ).toEqual(["T2", "A02"]);
+    expect(
+      wrapper.findAll(".hierarchy-option-label")[1]?.attributes("title"),
+    ).toBe("演示室甲");
+    await wrapper.findAll('input[type="checkbox"]')[1]!.trigger("change");
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["ROOM"]]);
   });
 });

@@ -1,8 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h, reactive } from "vue";
+import { defineComponent, h, nextTick, reactive } from "vue";
 import { useItemPicker } from "../src/features/items/useItemPicker";
 import ItemPicker from "../src/features/items/ItemPicker.vue";
+import { itemPickerColumns } from "../src/features/items/itemPickerColumns";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -11,6 +12,35 @@ import {
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
+
+it("keeps the picker image column and gives the item name the flexible track", () => {
+  const columns = itemPickerColumns("可用库存", "outbound", true);
+  const image = columns.find((column) => column.id === "image");
+  const name = columns.find((column) => column.id === "name");
+  expect(image).toMatchObject({
+    label: "图片",
+    minWidth: "56px",
+    className: "picker-image-column",
+  });
+  expect(name).toMatchObject({
+    minWidth: "180px",
+    className: "picker-name-column",
+  });
+  expect(name).not.toHaveProperty("width");
+  expect(columns.map((column) => column.id)).toEqual([
+    "image",
+    "name",
+    "code",
+    "category",
+    "warehouse",
+    "quantity",
+  ]);
+  expect(
+    itemPickerColumns("目标库位现有", "inbound", true).map(
+      (column) => column.id,
+    ),
+  ).toEqual(["image", "name", "code", "category", "quantity"]);
+});
 
 it("sends multi-category subtree selections and the independent uncategorized scope", async () => {
   let picker!: ReturnType<typeof useItemPicker>;
@@ -103,6 +133,7 @@ it("sends multi-category subtree selections and the independent uncategorized sc
     purpose: "inbound",
     receiving_warehouse: "WAREHOUSE-B",
   });
+  expect(call.mock.calls.at(-1)?.[1]).not.toHaveProperty("warehouses");
   await picker.ensureSelected("ITEM-A");
   expect(remember).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -113,6 +144,56 @@ it("sends multi-category subtree selections and the independent uncategorized sc
     item_code: "ITEM-A",
     timestamp: "2026-10-21 09:30:00",
   });
+});
+
+it("shows inbound category-only filters and the receiving location stock header", async () => {
+  const reference = createReferenceData();
+  Object.assign(reference, {
+    user: "volunteer",
+    site: "unit-site",
+    warehouses: [
+      {
+        name: "ROOM-A",
+        label: "演示室甲",
+        path: "演示区 / 演示室甲",
+        is_group: false,
+        storable: true,
+      },
+    ],
+  });
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {
+    if (endpoint === "catalog.picker_rows")
+      return { results: [], matched_count: 0, next_start: null } as never;
+    if (endpoint === "table_preferences.get_column_preferences")
+      return {} as never;
+    throw new Error(`Unexpected ${endpoint}`);
+  });
+  const Host = defineComponent({
+    setup() {
+      provideInventoryServices(
+        { call, report: vi.fn(), upload: vi.fn() },
+        reference,
+      );
+      return () =>
+        h(ItemPicker, {
+          purpose: "inbound",
+          receivingWarehouse: "ROOM-A",
+        });
+    },
+  });
+  const wrapper = mount(Host);
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(call).toHaveBeenCalledWith(
+    "table_preferences.get_column_preferences",
+    {
+      table_id: "item-picker.rows.v2",
+    },
+  );
+  const pickerText = document.body.textContent || "";
+  expect(pickerText).not.toContain("仓库 / 位置");
+  expect(pickerText).not.toContain("仓库位置");
+  expect(pickerText).toContain("演示室甲 现有");
 });
 
 it("drops a picker response from the previous account", async () => {
@@ -372,4 +453,85 @@ it("keeps a newly created item pinned in a fixed compact preview when filters hi
   expect(
     document.querySelector(".picker-results-scroll")?.textContent,
   ).toContain("新建样例服装 · ITEM-NEW");
+});
+
+it("shows the initial table skeleton and dims retained rows during a filter request", async () => {
+  const reference = createReferenceData();
+  Object.assign(reference, { user: "volunteer", site: "unit-site" });
+  let resolvePage!: (value: unknown) => void;
+  let resolveInitial!: (value: unknown) => void;
+  let requestCount = 0;
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {
+    if (endpoint === "table_preferences.get_column_preferences")
+      return {} as never;
+    if (endpoint === "catalog.picker_rows") {
+      requestCount++;
+      if (requestCount === 1) {
+        return new Promise((resolve) => {
+          resolveInitial = resolve;
+        }) as never;
+      }
+      return new Promise((resolve) => {
+        resolvePage = resolve;
+      }) as never;
+    }
+    throw new Error(`Unexpected ${endpoint}`);
+  });
+  const Host = defineComponent({
+    setup() {
+      provideInventoryServices(
+        { call, report: vi.fn(), upload: vi.fn() },
+        reference,
+      );
+      return () => h(ItemPicker);
+    },
+  });
+  const wrapper = mount(Host, { attachTo: document.body });
+  wrappers.push(wrapper);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(document.querySelectorAll(".data-table-skeleton-row").length).toBe(5);
+  expect(document.body.textContent).not.toContain("0 个匹配物品");
+  resolveInitial({
+    results: [
+      {
+        item_code: "ITEM-A",
+        item_name: "测试物品",
+        item_group: "用品",
+        stock_uom: "个",
+        description: "",
+        version: "v1",
+        has_batch_no: false,
+        has_expiry_date: false,
+        can_edit: false,
+        barcodes: [],
+        uoms: [],
+        stock: [],
+        warehouse: "ROOM-A",
+        warehouse_label: "演示室甲",
+        picker_quantity: 2,
+      },
+    ],
+    matched_count: 1,
+    next_start: null,
+  });
+  await flushPromises();
+  const search = document.querySelector<HTMLInputElement>(
+    'input[aria-label="搜索物品名称、编号或条码"]',
+  );
+  if (!search) throw new Error("Missing picker search input");
+  search.value = "新筛选";
+  search.dispatchEvent(new Event("input", { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 240));
+  await flushPromises();
+  await nextTick();
+  expect(requestCount).toBe(2);
+  expect(
+    document
+      .querySelector(".picker-table-region")
+      ?.getAttribute("data-refreshing") === "true",
+  ).toBe(true);
+  expect(document.querySelector(".data-table-skeleton-row")).toBeNull();
+  resolvePage({ results: [], matched_count: 0, next_start: null });
+  await flushPromises();
 });

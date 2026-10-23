@@ -1,7 +1,7 @@
 {
  "app": "temple_inventory",
  "bg_color": "gray",
- "creation": "2026-10-18 16:28:42.651836",
+ "creation": "2026-10-22 16:57:01.857551",
  "docstatus": 0,
  "doctype": "Desktop Icon",
  "hidden": 0,
@@ -11,7 +11,7 @@
  "link": "/inventory",
  "link_type": "External",
  "logo_url": "/assets/temple_inventory/logo.png",
- "modified": "2026-10-18 16:28:42.651836",
+ "modified": "2026-10-22 16:57:01.857551",
  "modified_by": "Administrator",
  "name": "\u7269\u8d44\u7ba1\u7406",
  "owner": "Administrator",

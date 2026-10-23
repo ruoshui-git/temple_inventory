@@ -100,14 +100,14 @@ describe("native drafts and count records", () => {
     expect(c.query.value).toMatchObject({
       dataset: "movements",
       view: "records",
-      sortBy: "date",
+      sortBy: "modified",
       sort: "desc",
       statuses: [0],
     });
     expect(call).toHaveBeenCalledWith(
       "browse.native_drafts",
       expect.objectContaining({
-        query: expect.objectContaining({ view: "records", sortBy: "date" }),
+        query: expect.objectContaining({ view: "records", sortBy: "modified" }),
       }),
       expect.any(AbortSignal),
     );
@@ -132,14 +132,17 @@ describe("native drafts and count records", () => {
       expect(c.routeError.value).toBe("");
       expect(c.query.value).toMatchObject({
         view: "records",
-        sortBy: "date",
+        sortBy: "modified",
         search: "保留搜索",
         statuses: [0],
       });
       expect(call).toHaveBeenCalledWith(
         "browse.native_drafts",
         expect.objectContaining({
-          query: expect.objectContaining({ sortBy: "date", view: "records" }),
+          query: expect.objectContaining({
+            sortBy: "modified",
+            view: "records",
+          }),
         }),
         expect.any(AbortSignal),
       );
@@ -158,16 +161,16 @@ describe("native drafts and count records", () => {
         : response,
     );
     const { wrapper, c, page } = setup(call);
-    expect(wrapper.text()).toContain("正在读取原生记录");
+    expect(wrapper.find(".skeleton-block--list").exists()).toBe(true);
     expect(wrapper.text()).not.toContain("没有符合条件");
     await flushPromises();
     expect(call.mock.calls[0]?.slice(0, 2)).toMatchObject([
       "browse.native_drafts",
-      { query: { statuses: [0], sortBy: "date", view: "records" } },
+      { query: { statuses: [0], sortBy: "modified", view: "records" } },
     ]);
-    expect(wrapper.text()).toContain("205 份原生记录");
-    expect(wrapper.text()).toContain("2 Nos · 3 Kg");
-    await wrapper.find(".browse-row-link").trigger("click");
+    expect(wrapper.text()).toContain("2 种物品");
+    expect(wrapper.text()).toContain("草稿单据");
+    await wrapper.find(".draft-entry button").trigger("click");
     expect(page.emitted("openDocument")?.[0]).toEqual([
       "Stock Entry",
       "STE/A,1",
@@ -176,8 +179,43 @@ describe("native drafts and count records", () => {
     expect(c.rows.value).toHaveLength(2);
     expect(c.total.value).toBe(205);
     expect(
-      c.extraChips.value.find((chip) => chip.key === "statuses")?.fixed,
-    ).toBe(true);
+      c.extraChips.value.find((chip) => chip.key === "statuses"),
+    ).toBeUndefined();
+  });
+  it("merges server and browser drafts newest first with source tags and concise summaries", async () => {
+    const newerSnapshot = {
+      ...snapshot,
+      updatedAt: "2026-10-16T10:02:00Z",
+      values: {
+        kind: "Receive",
+        items: [
+          { code: "ITEM-A", location: "WH-A" },
+          { code: "ITEM-B", location: "WH-A" },
+        ],
+      },
+    };
+    createRecoveryStore("site", "volunteer", localStorage).save(newerSnapshot);
+    const { wrapper, c } = setup();
+    await flushPromises();
+    expect(wrapper.findAll(".browse-toolbar")).toHaveLength(0);
+    expect(wrapper.text()).not.toContain("份记录");
+    expect(
+      c.extraChips.value.find((chip) => chip.key === "statuses"),
+    ).toBeUndefined();
+    expect(wrapper.findAll(".drafts-filters select")).toHaveLength(3);
+    expect(wrapper.find(".drafts-filters").text()).toContain("操作");
+    expect(wrapper.find(".drafts-filters").text()).toContain("类型");
+    expect(wrapper.findAll(".drafts-filters .muted")).toHaveLength(1);
+    const entries = wrapper.findAll(".draft-entry");
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.text()).toContain("浏览器暂存");
+    expect(entries[0]?.text()).toContain("2 种物品");
+    expect(entries[1]?.text()).toContain("草稿单据");
+    const filters = wrapper.findAll(".drafts-filters select");
+    await filters[0]!.setValue("入库");
+    await filters[1]!.setValue("browser");
+    expect(wrapper.findAll(".draft-entry")).toHaveLength(1);
+    expect(wrapper.find(".draft-entry").text()).toContain("浏览器暂存");
   });
   it("preserves native and local input on stale-version deletion failure and rechecks the exact version", async () => {
     const store = createRecoveryStore("site", "volunteer", localStorage);
@@ -202,7 +240,7 @@ describe("native drafts and count records", () => {
     c.stale.value = true;
     expect(c.canDelete(nativeRow)).toBe(false);
   });
-  it("never removes a newer local revision and shows only the current account's recovery", async () => {
+  it("never removes a newer local revision and shows only the current account's browser entry", async () => {
     const store = createRecoveryStore("site", "volunteer", localStorage);
     store.save(snapshot);
     createRecoveryStore("site", "another", localStorage).save({
@@ -214,8 +252,10 @@ describe("native drafts and count records", () => {
     await flushPromises();
     expect(c.localEntries.value).toHaveLength(1);
     const resume = wrapper
+      .findAll(".draft-entry")
+      .find((entry) => entry.text().includes("浏览器暂存"))!
       .findAll("button")
-      .find((button) => button.text() === "打开并核对")!;
+      .find((button) => button.text().includes("继续编辑"))!;
     await resume.trigger("click");
     expect(page.emitted("recover")?.[0]).toEqual([snapshot]);
     c.localTarget.value = snapshot;

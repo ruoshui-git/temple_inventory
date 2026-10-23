@@ -10,9 +10,11 @@ import AllocationSummary from "./AllocationSummary.vue";
 import TransactionContext from "./TransactionContext.vue";
 import Attachments from "../../components/Attachments.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import InventoryIcon from "../../components/InventoryIcon.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
@@ -46,7 +48,6 @@ const {
 	showError,
 	reviewOpen,
 	action,
-	candidates,
 } = c;
 const supplement = ref<HTMLDetailsElement>();
 watch(
@@ -75,7 +76,7 @@ watch(expanded, async (value, previous) => {
 		await nextTick();
 		previewCollapsed.value = true;
 		await nextTick();
-		formRoot.value?.querySelector<HTMLElement>(".preview-edge-handle")?.focus({
+		formRoot.value?.querySelector<HTMLElement>(".preview-edge-rail")?.focus({
 			preventScroll: true,
 		});
 	}
@@ -115,9 +116,11 @@ const totals = computed(() => {
 });
 const statusLabels = {
 	matching: "已核对，无需调整",
-	local: "此浏览器未完成输入",
-	saving: "正在保存原生草稿…",
-	saved: "原生草稿已保存",
+	pristine: "",
+	local: "未保存",
+	browser: "已暂存在此浏览器",
+	saving: "正在保存草稿单据…",
+	saved: "已存为草稿单据",
 	error: "保存失败，输入已保留",
 	conflict: "记录已更改，输入已保留",
 	deleted: "记录已删除",
@@ -170,11 +173,10 @@ async function back() {
 }
 async function saveDraft() {
 	await c.save(true);
-	if (state.status === "saved" && !files.incomplete.value) showToast("草稿已保存到库存单据");
+	if (state.status === "saved" && !files.incomplete.value) showToast("已存为草稿单据");
 	else if (state.status === "saved" && files.incomplete.value)
-		showToast("草稿已保存，但附件尚未完成上传", "warning");
-	else if (state.status === "local")
-		showToast("输入已保留在此浏览器，尚未保存到服务器", "warning");
+		showToast("已存为草稿单据，但附件尚未完成上传", "warning");
+	else if (state.status === "local") showToast("内容尚不完整，已暂存在此浏览器", "warning");
 	else if (state.error) showToast(`草稿保存失败：${state.error}`, "danger");
 }
 async function confirm() {
@@ -220,22 +222,17 @@ async function lifecycle() {
 		></PageHeader>
 		<DocumentLoadingState
 			v-if="initialExistingLoad"
-			label="正在读取库存单据…"
+			label="库存单据加载中…"
 			:announce="false"
 		/>
 		<div class="form-status">
-			<span v-if="!initialExistingLoad" class="badge neutral">{{
-				state.identity
-					? `${enumPresentationLabel("doctype", state.identity.doctype)} · ${state.identity.name}`
-					: c.existingDocument.value
-						? "正在读取原生记录"
-						: "尚未创建原生记录"
+			<span v-if="state.identity && !initialExistingLoad" class="form-record-tag"
+				>{{ state.server?.docstatus === 0 ? "草稿单据" : "记录" }}
+				{{ state.identity.name }}</span
+			><span v-if="!initialExistingLoad && state.status !== 'pristine'" role="status">{{
+				statusLabels[state.status]
 			}}</span
-			><span role="status">{{
-				initialExistingLoad ? "正在读取原生记录…" : statusLabels[state.status]
-			}}</span
-			><span v-if="loading && state.server" class="async-refresh-status" role="status"
-				>正在刷新…</span
+			><span v-if="loading && state.server" class="sr-only" role="status">正在刷新…</span
 			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity && !busy"
 				@click="dirty ? (reloadOpen = true) : c.load(true)"
@@ -265,24 +262,6 @@ async function lifecycle() {
 				:pending-upload-reselection="state.pendingUploadReselection"
 			/>
 		</div>
-		<section v-if="candidates.length" class="surface form-section">
-			<h2>此浏览器的未完成输入</h2>
-			<p class="muted">仅在此浏览器和当前账户可用，不会预留库存。</p>
-			<div v-for="candidate in candidates" :key="candidate.editorId">
-				<p>
-					{{ candidate.updatedAt }} ·
-					{{ candidate.identity?.name || "尚未创建原生记录" }}
-				</p>
-				<RecoverySummary
-					:kind="candidate.editorKind"
-					:values="candidate.values"
-					:copy-text="JSON.stringify(candidate.values, null, 2)"
-					:pending-upload-reselection="candidate.pendingUploadReselection"
-				>
-					<UiButton @click="c.recover(candidate)">检查并恢复</UiButton>
-				</RecoverySummary>
-			</div>
-		</section>
 		<div v-if="!loading && state.server && !writable" class="form-actions">
 			<a
 				:href="`/app/${state.server.doctype === 'Stock Entry' ? 'stock-entry' : 'stock-reconciliation'}/${encodeURIComponent(state.server.name)}`"
@@ -295,7 +274,7 @@ async function lifecycle() {
 					(state.server.permissions as Record<string, boolean>)?.cancel
 				"
 				@click="action = 'cancel'"
-				>取消原生记录</UiButton
+				>取消记录</UiButton
 			><UiButton
 				v-if="
 					state.server.docstatus === 2 &&
@@ -384,7 +363,16 @@ async function lifecycle() {
 									"
 									:model-value="draft.loanDestination"
 									@update:model-value="c.setLoanDestination"
-									:options="reference.leasedLeaves"
+									:options="
+										reference.leasedLeaves.map((name) => ({
+											value: name,
+											label: warehouseLabel(name, reference.warehouses),
+											detail:
+												reference.warehouses.find(
+													(row) => row.name === name,
+												)?.path || '',
+										}))
+									"
 									:disabled="!writable || busy" /></template
 							><template v-else
 								><RemoteSelect
@@ -433,7 +421,18 @@ async function lifecycle() {
 					修订来源：{{ draft.amendedFrom }}
 				</p>
 				<section class="form-section operation-section">
-					<h2>操作物资</h2>
+					<div class="operation-heading-row">
+						<h2>操作物资</h2>
+						<UiButton
+							class="preview-full-workspace-action"
+							variant="ghost"
+							:icon="expanded ? 'contract' : 'expand'"
+							icon-only
+							:label="expanded ? '退出完整工作区' : '展开完整工作区'"
+							:aria-pressed="!!expanded"
+							@click="toggle"
+						/>
+					</div>
 					<p class="muted">
 						{{
 							receive
@@ -544,21 +543,23 @@ async function lifecycle() {
 						"
 						:disabled="!writable || busy"
 						@click="action = 'delete'"
-						>删除原生草稿</UiButton
+						>删除草稿单据</UiButton
 					>
 				</div>
 			</div>
 			<aside id="operation-review-panel" class="form-review surface">
-				<UiButton
+				<button
 					v-if="isDesktop && !expanded"
-					class="preview-edge-handle"
+					type="button"
+					class="preview-edge-rail"
 					:aria-expanded="!previewCollapsed"
 					aria-controls="operation-review-content"
 					:aria-label="previewCollapsed ? '展开确认前检查' : '收起确认前检查到边缘'"
 					@click="previewCollapsed = !previewCollapsed"
 				>
-					{{ previewCollapsed ? "‹" : "›" }}
-				</UiButton>
+					<InventoryIcon :name="previewCollapsed ? 'chevron-left' : 'chevron-right'" />
+					<span v-if="previewCollapsed" class="preview-edge-rail-label">确认前检查</span>
+				</button>
 				<details
 					class="review-preview-disclosure"
 					:open="isDesktop || mobileReviewOpen"
@@ -574,7 +575,6 @@ async function lifecycle() {
 						:inert="previewCollapsed || undefined"
 					>
 						<span class="eyebrow">确认前检查</span>
-						<span role="status">{{ statusLabels[state.status] }}</span>
 						<h2>操作汇总</h2>
 						<div class="review-metric">
 							<strong>{{ totals || "尚未添加物品" }}</strong
@@ -671,9 +671,9 @@ async function lifecycle() {
 			v-if="action"
 			:title="
 				action === 'cancel'
-					? '取消此原生记录？'
+					? '取消此记录？'
 					: action === 'delete'
-						? '删除此原生草稿？'
+						? '删除此草稿单据？'
 						: action === 'duplicate'
 							? '复制为新草稿？'
 							: '创建修订草稿？'
@@ -682,11 +682,11 @@ async function lifecycle() {
 			><p>
 				{{ state.identity?.name }}。{{
 					action === "cancel"
-						? "将通过 ERPNext 原生取消流程恢复库存，相关依赖仍会校验。"
+						? "将通过 ERPNext 取消流程恢复库存，相关依赖仍会校验。"
 						: action === "delete"
-							? "仅删除此原生草稿，已创建的物品、分类和单位仍保留。"
+							? "仅删除此草稿单据，已创建的物品、分类和单位仍保留。"
 							: action === "duplicate"
-								? "另建原生草稿，保留物品、明细与单位换算；附件需重新添加。请核对当前库存与入账时间。"
+								? "另建草稿单据，保留物品、明细与单位换算；附件需重新添加。请核对当前库存与入账时间。"
 								: "保留原记录，另建带修订来源的新草稿。"
 				}}
 			</p>

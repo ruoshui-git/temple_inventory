@@ -10,15 +10,16 @@ supersession below when a durable user-facing decision changes.
   Translate only presentation labels; retain native enum keys, IDs and query
   values for grouping, filtering, sorting and writes. User-entered content and
   explicit ERPNext identifiers remain unchanged.
-- Hierarchy filters show the local node name in primary ink. Only while searching,
-  show the matching node's full breadcrumb as smaller muted context. Search
-  matches local names and full paths. Preserve accessibility names and native keys.
+- Hierarchy filters show `local_label` in primary ink and use `full_label` as the
+  accessible title. Search matches the presenter's `search_text`; chips and other
+  warehouse summaries use the canonical short `label` while preserving native keys.
 - Category is optional. Root categories are hidden in ordinary labels and
   selectors. Category filters combine selected subtrees with the independent
   exact-match `无分类` option. Renaming a category updates linked Items; native
   permission, child and link guards control deletion.
-- Warehouse display resolves authorized names and parent paths when names
-  collide. Route values and audit identities keep native keys.
+- Warehouse labels come from the permission-filtered location presenter. Use its
+  short, room-anchored `label` in cells and selectors and its `path` as secondary
+  context or a tooltip. Route values and audit identities keep native keys.
 
 ## Navigation, routes and filters
 
@@ -73,7 +74,7 @@ supersession below when a durable user-facing decision changes.
   and unavailable/error states keep explicit meanings.
 - Category trees start with only their visible first level. Branches start
   closed; warehouse/source/destination branches open only when they contain
-  multiple selectable leaves. Search reveals matching full paths temporarily.
+  multiple selectable leaves. Location search matches presenter search text.
   Reference refresh preserves manual branch choices. Megamenu fields start
   collapsed on each open and summarize applied values; chips open and focus the
   matching editor. Grouping has a separate labeled section.
@@ -102,10 +103,16 @@ supersession below when a durable user-facing decision changes.
   requested. Batch counts appear only for batch-tracked Items; batch details
   show scoped quantity and expiry. Expiry quantity is physical stock in the
   selected location, with loaned and damaged amounts shown separately.
-- Compatible ERPNext warehouses below the configured physical root appear in
-  the app. Warehouses outside it are hidden and never silently adopted. Stock
-  stays in leaf Warehouses; `Warehouse Type` describes meaning and `is_group`
-  describes hierarchy.
+- The location model is Area → Room → Shelf. Room groups and subdivided Shelves
+  have one hidden direct-storage leaf; the tree hides all direct leaves so choosing
+  a Room selects its subtree. Write selectors list storable leaves only and show
+  a Room's direct leaf with the Room label. Areas and Rooms own their structure;
+  shelves are physical storage locations. Compatible Warehouse records outside
+  the configured physical root remain hidden and are never silently adopted.
+- The warehouse manager offers contextual create, rename, move, disable, subdivide
+  and direct-storage repair actions. Names and optional short labels are the only
+  location identity fields edited there; ERPNext identifiers stay in a collapsed
+  details section.
 - Return-to-top appears after 160px on the active scroll surface, scrolls that
   surface to zero and focuses the page heading. It clears measured mobile
   navigation/action obstruction and is hidden while the mobile filter drawer is
@@ -138,6 +145,20 @@ supersession below when a durable user-facing decision changes.
 - Browse and native document headers use the same labeled native status badge.
   Submitted history pages show submitted native documents only. Local editor
   feedback remains separate from document status.
+- A pristine new movement or count form has no record badge or status chip. After
+  the first edit, status uses plain language: `未保存`, `正在保存草稿单据…`,
+  `已存为草稿单据`, `已暂存在此浏览器` or `保存失败`; conflict, deleted and
+  forbidden states remain visible in plain wording. Saved documents show their
+  document name subtly without describing it as “native”.
+- **草稿单据** means a system-saved draft that has not changed stock and can be
+  continued on any device or in ERPNext. **浏览器暂存** means incomplete input
+  retained only in this browser and account; it can be lost with browser data.
+  New forms do not list other browser snapshots. The `/drafts` page combines
+  system movement drafts and browser snapshots, newest first, with kind/source
+  filters, a concise summary, relative time, continue and delete/discard actions.
+  Full recovery data is disclosed per browser row. Opening a recovery link
+  validates and applies the snapshot automatically, then confirms with a toast;
+  inspection failures and version conflicts remain explicit.
 - Activities link by immutable ID. Renames update display metadata, enabled
   types populate selectors, and retired linked types remain readable on
   unrelated edits. Notes are multiline searchable text separate from short
@@ -233,28 +254,59 @@ supersession below when a durable user-facing decision changes.
   throttled visible error; decoder errors are not evidence of absence. Manual
   entry and scan-gun Enter count every deliberate submission. Count entry scanning helps locate an
   Item or Warehouse and never changes actual count quantity.
-- Desktop operation previews have a separate edge collapse control. Full
-  workspace mode remains a secondary explicit action and restores the prior
-  preview state on exit. Mobile uses its normal disclosure layout.
+- Desktop operation previews use a thin, 12px edge rail with a 1px divider,
+  chevron and token-tinted hover/focus state. Its hit area is at least 24px.
+  When collapsed, both the grid column and review panel are 28px; the rail
+  carries the vertical `确认前检查` label. It keeps its expanded state and focus
+  return across full-workspace mode. Mobile has no rail and keeps the disclosure.
+- The icon-only full-workspace control sits at the right of the `操作物资`
+  heading row and remains available in display mode. Receive's `入库位置`
+  selector is compact and inline with the lines toolbar; it lists only storable
+  physical places and writes the selected leaf docname.
 - The item picker presents one compact DataTable row per Item and warehouse,
   with each selected row retaining its warehouse identity. Outbound rows need
-  available quantity; repair/disposal rows need damaged quantity. Inbound rows
-  include stockless Items and bind the selected authorized target warehouse.
+  available quantity; repair/disposal rows need damaged quantity. Inbound shows
+  only the category facet, omits the warehouse column and filter, and ignores
+  warehouse filters in its query. Its quantity header names the receiving
+  location and says `现有`. Inbound rows include stockless Items and bind the
+  selected authorized target warehouse.
   Count selections deduplicate Item codes while retaining the complete
   authorized warehouse scope. The picker has no separate stock-detail stage or
   toolbar-collapse action. Newly created Items remain pinned above filtered
   results with their receiving location until the picker closes.
-- Picker and form warehouse selectors show complete authorized paths while
-  preserving native warehouse keys in writes.
-- The full-workspace control is an icon at the editable area's upper right;
-  exiting restores the prior preview state. The preview edge remains a separate
+- Picker and form warehouse selectors show the canonical label with the full
+  authorized path as detail, while preserving native warehouse keys in writes.
+- The full-workspace control stays on the `操作物资` heading row and restores
+  the prior preview state on exit. The preview edge remains a separate
   accessible collapse/restore target; mobile uses its normal disclosure.
 - Toasts report explicit user-triggered outcomes: manual draft save (including
   browser-only retention), submitted/cancelled/amended/duplicated/deleted
   results, supporting-data saves, file/image changes, and completed export or
   copy actions. Autosave, filtering, and routine scan feedback stay local.
+- The 货物流动 browse header has a compact `草稿` entry with the combined count
+  of system movement drafts and browser movement snapshots; `更多` keeps its
+  separate 草稿 entry.
 
 ## Durable supersessions
+
+- **2026-10-22:** The Area → Room → Shelf presenter replaces legacy warehouse
+  breadcrumbs and `room_default` display rules. The canonical `label` is used for
+  warehouse cells, chips, summaries and selector options; `path` is secondary
+  context. Direct-storage leaves stay hidden from hierarchy trees and are the
+  write value for a Room selection. The redesigned manager uses versioned
+  location APIs and contextual hierarchy actions.
+
+- **2026-10-22:** Data-loading presentation uses shared `AsyncRegion` and `SkeletonBlock` primitives (or `DataTable` skeletons), with retained results dimmed and inert during refresh.
+
+- **2026-10-22:** Movement editor controls use a 28px collapsed preview rail,
+  place workspace expansion on the `操作物资` heading row, and keep the Receive
+  target compact in its toolbar. Inbound ItemPicker omits warehouse filtering
+  and its warehouse column; its stock heading names the receiving location.
+
+- **2026-10-22:** New movement and count forms use a quiet pristine status, and
+  browser recovery candidates are hidden from new forms. `/drafts` combines
+  草稿单据 with 浏览器暂存 entries; recovery links validate and restore
+  automatically. The movement browse header exposes the combined draft count.
 
 - **2026-10-21:** Current rules above consolidate browse refinements through
   2026-10-21. They supersede older per-item Loan selectors, desktop browse

@@ -30,7 +30,7 @@ async function prepare(page: Page, account = "manager") {
 }
 
 async function open(page: Page) {
-  await page.goto("/inventory/movements/movements/new/Receive");
+  await page.goto("/inventory/movements/new/Receive");
   await page.getByText("补充记录（可选）", { exact: true }).click();
   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
 }
@@ -43,7 +43,7 @@ async function snapshots(page: Page) {
   );
 }
 
-test("incomplete input survives reload only after an explicit recovery choice", async ({
+test("incomplete input is restored automatically from its recovery link", async ({
   page,
 }) => {
   await prepare(page);
@@ -52,17 +52,14 @@ test("incomplete input survives reload only after an explicit recovery choice", 
   await expect.poll(async () => (await snapshots(page)).length).toBe(1);
   await page.reload();
   await page.getByText("补充记录（可选）", { exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "此浏览器的未完成输入" }),
-  ).toBeVisible();
+  await expect(page.getByText("尚未保存", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue("");
-  await page.getByRole("button", { name: "检查并恢复", exact: true }).click();
+  const editorId = (await snapshots(page))[0].editorId;
+  await page.goto(`/inventory/movements/new/Receive?recovery=${editorId}`);
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue(
     "恢复验收：尚未添加物品",
   );
-  await expect(
-    page.getByText("尚未创建原生记录", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByText("已恢复上次在此浏览器暂存的内容")).toBeVisible();
 });
 
 test("two tabs retain independent incomplete editors", async ({
@@ -99,9 +96,6 @@ test("another account cannot offer or hydrate the previous account's input", asy
   await page.reload();
   await page.getByText("补充记录（可选）", { exact: true }).click();
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue("");
-  await expect(
-    page.getByRole("button", { name: "检查并恢复", exact: true }),
-  ).toHaveCount(0);
   expect((await snapshots(page))[0].account).toBe("manager");
 });
 
@@ -123,7 +117,8 @@ test("pending uploads recover metadata and require file reselection", async ({
   );
   expect(JSON.stringify(await snapshots(page))).not.toContain("blob:");
   await page.reload();
-  await page.getByRole("button", { name: "检查并恢复", exact: true }).click();
+  const editorId = (await snapshots(page))[0].editorId;
+  await page.goto(`/inventory/movements/new/Receive?recovery=${editorId}`);
   await expect(
     page.getByLabel("需要重新选择文件", { exact: true }),
   ).toBeVisible();

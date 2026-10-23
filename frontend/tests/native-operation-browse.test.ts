@@ -11,6 +11,7 @@ import {
 } from "../src/features/movements/useOperationBrowse";
 import OperationBrowsePage from "../src/features/movements/OperationBrowsePage.vue";
 import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
+import { createRecoveryStore } from "../src/lib/browserRecovery";
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => {
@@ -880,8 +881,8 @@ describe("native operation browsing", () => {
     await wrapper.get(".data-table-group-toggle").trigger("click");
     await flushPromises();
     expect(
-      wrapper.get('.data-table-group-detail-row [role="status"]').text(),
-    ).toContain("正在读取");
+      wrapper.get(".data-table-group-detail-row .data-table-group-skeleton"),
+    ).toBeTruthy();
     rejectFirst(new Error("浏览检查：暂时无法读取历史"));
     await flushPromises();
     expect(
@@ -1378,5 +1379,34 @@ describe("native operation browsing", () => {
     );
     expect(groupBy).toBeTruthy();
     expect(groupBy?.contains(document.activeElement)).toBe(true);
+  });
+  it("shows the combined server and browser movement draft count in the browse header", async () => {
+    localStorage.clear();
+    createRecoveryStore("unit-site", "volunteer", localStorage).save({
+      schema: 1,
+      site: "unit-site",
+      account: "volunteer",
+      tabId: "tab-a",
+      editorId: "browser-draft-a",
+      editorKind: "Stock Entry",
+      revision: 1,
+      updatedAt: "2026-10-20T09:00:00Z",
+      values: { kind: "Receive", items: [] },
+      pendingUploadReselection: false,
+    });
+    const call = service();
+    call.mockImplementation(async (endpoint, args) =>
+      endpoint === "browse.native_drafts"
+        ? { matched_count: 3 }
+        : await service()(endpoint, args),
+    );
+    const { wrapper } = setup(
+      call,
+      reactive({ family: "movements" as const, records: true }),
+      true,
+    );
+    await flushPromises();
+    expect(wrapper.get('a[href="/drafts"]').text()).toContain("草稿");
+    expect(wrapper.get('a[href="/drafts"] span').text()).toBe("4");
   });
 });

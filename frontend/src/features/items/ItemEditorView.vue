@@ -5,6 +5,7 @@ import ItemConversions from "./ItemConversions.vue";
 import ItemFields from "./ItemFields.vue";
 import Attachments from "../../components/Attachments.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import type { useItemEditor } from "./useItemEditor";
 const props = defineProps<{
@@ -22,8 +23,6 @@ const {
 	conflict,
 	dirty,
 	canWrite,
-	candidates,
-	recover,
 	load,
 	save,
 	files,
@@ -52,26 +51,9 @@ async function cancel() {
 		<PageHeader v-if="!contextual" class="form-page-heading"
 			><h1 tabindex="-1">{{ existing ? "编辑物品" : "新建物品" }}</h1></PageHeader
 		>
-		<p v-if="loading" role="status">正在读取物品…</p>
+		<SkeletonBlock v-if="loading && existing" variant="detail" :count="3" :rows="4" />
 		<p v-if="error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-		<details v-if="candidates.length">
-			<summary>此浏览器有未完成的物品输入</summary>
-			<article v-for="candidate in candidates" :key="candidate.editorId">
-				<p>
-					{{ candidate.updatedAt }} ·
-					{{ candidate.baseVersion ? "原物品编辑输入" : "尚未创建物品" }}
-				</p>
-				<RecoverySummary
-					kind="Item"
-					:values="candidate.values"
-					:copy-text="JSON.stringify(candidate.values, null, 2)"
-					:pending-upload-reselection="candidate.pendingUploadReselection"
-				>
-					<UiButton @click="recover(candidate)">核对后恢复输入</UiButton>
-				</RecoverySummary>
-			</article>
-		</details>
 		<form class="surface form-section" @submit.prevent="save">
 			<dl v-if="!canWrite && !loading" class="preview-info-grid">
 				<div

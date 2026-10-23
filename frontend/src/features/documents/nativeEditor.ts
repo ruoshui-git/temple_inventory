@@ -36,7 +36,9 @@ export interface DocumentServices {
 }
 export type EditorState =
   | "matching"
+  | "pristine"
   | "local"
+  | "browser"
   | "saving"
   | "saved"
   | "error"
@@ -67,7 +69,7 @@ export function createNativeEditor(options: {
     savedRevision: -1,
     values: options.values,
     server: undefined as NativeDocument | undefined,
-    status: "local" as EditorState,
+    status: "pristine" as EditorState,
     error: "",
     recoveryError: "",
     durable: false,
@@ -106,6 +108,10 @@ export function createNativeEditor(options: {
     });
     state.durable = result.durable;
     state.recoveryError = result.error;
+  }
+  function retainIncomplete() {
+    retain();
+    state.status = state.durable ? "browser" : "local";
   }
   function edited() {
     if (
@@ -178,8 +184,7 @@ export function createNativeEditor(options: {
       while (pending && active(requestEpoch)) {
         pending = false;
         if (!options.valid(state.values)) {
-          state.status = "local";
-          retain();
+          retainIncomplete();
           return;
         }
         const revision = state.revision;
@@ -390,6 +395,7 @@ export function createNativeEditor(options: {
     state,
     edited,
     retain,
+    retainIncomplete,
     save,
     confirm,
     load,

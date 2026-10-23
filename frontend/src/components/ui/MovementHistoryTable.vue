@@ -4,7 +4,7 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { movementLabels } from "../../lib/filterPresentation";
 import { siteDateTime } from "../../lib/nativeTime";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import UiButton from "./UiButton.vue";
@@ -265,12 +265,25 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'borrower'">{{
 					"borrower" in row ? row.borrower : ""
 				}}</template>
-				<template v-else-if="column.id === 'source_warehouse'">{{
-					endpoint(String(row.source_warehouse || ""))
-				}}</template>
-				<template v-else-if="column.id === 'destination_warehouse'">{{
-					endpoint(String(row.destination_warehouse || ""))
-				}}</template>
+				<template v-else-if="column.id === 'source_warehouse'"
+					><span
+						:title="
+							warehousePath(String(row.source_warehouse || ''), reference.warehouses)
+						"
+						>{{ endpoint(String(row.source_warehouse || "")) }}</span
+					></template
+				>
+				<template v-else-if="column.id === 'destination_warehouse'"
+					><span
+						:title="
+							warehousePath(
+								String(row.destination_warehouse || ''),
+								reference.warehouses,
+							)
+						"
+						>{{ endpoint(String(row.destination_warehouse || "")) }}</span
+					></template
+				>
 				<div v-else-if="column.id === 'item_name'" class="history-item-identity">
 					<ItemImage
 						:item="{

@@ -22,6 +22,8 @@ import Scanner from "../../components/Scanner.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import DataTable from "../../components/ui/DataTable.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -188,7 +190,11 @@ function isStockItemRow(row: StockTableRow): row is StockTableRow & StockItem {
 	return Array.isArray(row.locations);
 }
 function stockLocationLabel(row: StockTableRow) {
-	const location = String(row.warehouse_label || row.warehouse || "");
+	const location = warehouseLabel(
+		row.warehouse || row.warehouse_label,
+		reference.warehouses,
+		row.warehouse_label,
+	);
 	const batch = String(row.batch_no || "");
 	return [location, batch].filter(Boolean).join(" · ") || "—";
 }
@@ -239,7 +245,11 @@ watch([() => props.active, isMobile], () => {
 			ref="toolbar"
 			class="inventory-browse-header"
 			title="库存"
-			:summary="`库存 · ${data.snapshot ? data.total + ' 种' : '读取中'}${selected.length ? ' · 已选 ' + selected.length : ''}`"
+			:summary="
+				data.snapshot
+					? `库存 · ${data.total} 种${selected.length ? ' · 已选 ' + selected.length : ''}`
+					: ''
+			"
 			v-model:search="search"
 			search-label="搜索库存"
 			:active="active"
@@ -424,29 +434,15 @@ watch([() => props.active, isMobile], () => {
 							:column-preferences="tablePreferences"
 							:loading="true"
 							:initialized="false"
-							loading-text="正在加载库存…"
 						/>
 					</div>
 					<div
 						v-else-if="status === 'loading'"
 						class="stock-grid stock-grid-skeleton"
 						role="status"
-						aria-label="正在加载库存…"
+						aria-label="库存结果加载中"
 					>
-						<article
-							v-for="row in 8"
-							:key="row"
-							class="stock-card-skeleton"
-							aria-hidden="true"
-						>
-							<div class="stock-card-skeleton-image" />
-							<div class="stock-card-skeleton-content">
-								<i class="skeleton short" />
-								<i class="skeleton" />
-								<i class="skeleton short" />
-								<i class="skeleton" />
-							</div>
-						</article>
+						<SkeletonBlock v-for="row in 8" :key="row" variant="card" />
 					</div>
 					<div v-else-if="status === 'error'" class="empty-panel">
 						<InventoryIcon name="warning" />
@@ -476,7 +472,7 @@ watch([() => props.active, isMobile], () => {
 							class="notice-bar"
 							role="status"
 						>
-							<span class="spinner" />正在更新，已有结果仍然保留。
+							<span class="sr-only" role="status">库存结果刷新中…</span>
 						</p>
 						<div
 							v-if="
@@ -544,7 +540,12 @@ watch([() => props.active, isMobile], () => {
 										><span>损坏 {{ item.damaged }}</span>
 									</div>
 
-									<StockDetails :item="item" />
+									<StockDetails
+										:item="item"
+										:loading="status === 'refresh'"
+										:initialized="Boolean(data.snapshot)"
+										:stale="data.stale"
+									/>
 								</div>
 							</article>
 						</div>
@@ -647,10 +648,22 @@ watch([() => props.active, isMobile], () => {
 								<StockDetails
 									v-else-if="column.id === 'locations' && isStockItemRow(row)"
 									:item="row"
+									:loading="status === 'refresh'"
+									:initialized="Boolean(data.snapshot)"
+									:stale="data.stale"
 								/>
-								<template v-else-if="column.id === 'locations'">{{
-									stockLocationLabel(row)
-								}}</template>
+								<template v-else-if="column.id === 'locations'"
+									><span
+										:title="
+											warehousePath(
+												row.warehouse || row.warehouse_label,
+												reference.warehouses,
+												row.warehouse_label,
+											)
+										"
+										>{{ stockLocationLabel(row) }}</span
+									></template
+								>
 								<template v-else-if="column.id === 'available'">{{
 									row.available
 								}}</template>

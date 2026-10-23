@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { warehouseFullPath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, ref } from "vue";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
@@ -61,10 +61,11 @@ const groups = computed(() => {
 		>
 			<component
 				:is="collapsible ? 'summary' : 'strong'"
+				:title="warehousePath(place, reference.warehouses)"
 				@click="
 					collapsible && ($event.preventDefault(), (choices[place] = !isOpen(place)))
 				"
-				>{{ warehouseFullPath(place, reference.warehouses) }} ·
+				>{{ warehouseLabel(place, reference.warehouses) }} ·
 				{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
 				{{ lines.length }} 条明细 · {{ totals(lines) }}</component
 			>
@@ -93,14 +94,14 @@ const groups = computed(() => {
 							{{
 								draft.kind === "Receive"
 									? "入库"
-									: warehouseFullPath(
+									: warehouseLabel(
 											line.sourceLocation || line.location,
 											reference.warehouses,
 										)
 							}}
 							→
 							{{
-								warehouseFullPath(
+								warehouseLabel(
 									allocationDestination(draft, line, reference.damagedLeaves),
 									reference.warehouses,
 								)
@@ -120,7 +121,7 @@ const groups = computed(() => {
 										· 到期 {{ allocation.expiry }}</template
 									>
 								</span>
-								· 原生批次组合 {{ line.recordedBundle || line.nativeBundle }}
+								· 批次组合 {{ line.recordedBundle || line.nativeBundle }}
 							</template>
 							<template v-else
 								>· 批次

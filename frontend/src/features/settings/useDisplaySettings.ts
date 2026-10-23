@@ -22,6 +22,7 @@ export function useDisplaySettings() {
     reference = useReferenceData(),
     account = reference.user;
   const loading = ref(false),
+    initialized = ref(false),
     error = ref("");
   let generation = 0,
     disposed = false;
@@ -43,6 +44,7 @@ export function useDisplaySettings() {
       if (value.user !== account)
         throw new Error("账户已更改，请重新打开显示设置");
       refreshServerPreferences(value.user, value.ui_preferences, revision);
+      initialized.value = true;
     } catch (reason) {
       if (active() && current === generation)
         error.value =
@@ -70,6 +72,7 @@ export function useDisplaySettings() {
     textScale,
     account,
     loading,
+    initialized,
     error,
     saveError: preferenceError,
     saveState: preferenceSaveState,

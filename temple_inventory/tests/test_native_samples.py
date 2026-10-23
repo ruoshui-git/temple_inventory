@@ -177,6 +177,7 @@ class NativeSampleTests(NativeDocumentTests):
 		settings.set("allowed_warehouses", [])
 		settings.save()
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		sample_install._remove_default_sample_records(company.name)
 		costumes = sample_media.costume_catalog()
 		test_costumes = [
 			{**row, "source_code": f"TEST-{self.token}-{row['source_code']}"} for row in costumes
@@ -219,7 +220,7 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertEqual(item.item_name, source["item_name"] + suffix)
 				self.assertEqual(item.stock_uom, "Nos")
 				self.assertIn(source["source_code"], {row.barcode for row in item.barcodes})
-				warehouse = result["rooms"][source["room"]]
+				warehouse = result["rooms"]["A02"]
 				self.assertEqual(get_stock_balance(code, warehouse), source["quantity"])
 			self.assertEqual(
 				result["costume_item_codes"],
@@ -306,11 +307,8 @@ class NativeSampleTests(NativeDocumentTests):
 				actual_batches = [row for row in batch_rows if row.item == code]
 				self.assertEqual(len(actual_batches), len(source_batches))
 				self.assertGreaterEqual(len({row.manufacturing_date for row in actual_batches}), 2)
-				item_source = next(row for row in catalog_data["items"] if row["key"] == key)
 				remaining = sum(row["quantity"] for row in source_batches) - (6 if key == "G-000001" else 0)
-				self.assertEqual(
-					get_stock_balance(code, result["rooms"]["SAMPLE_" + item_source["room"]]), remaining
-				)
+				self.assertEqual(get_stock_balance(code, result["rooms"]["DEMO_A"]), remaining)
 			offsets = {(getdate(row["expiry_date"]) - before).days for row in batch_rows if row.expiry_date}
 			self.assertTrue({-1, -30, -31, -90, -91, 0, 30, 31, 90, 91}.issubset(offsets))
 			depleted = frappe.get_all(
@@ -321,7 +319,7 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertEqual(len(depleted), 1)
 			depleted_balances = batch_balances(
 				"TI-TEST-" + self.token + "-G-000001",
-				result["rooms"]["SAMPLE_C03"],
+				result["rooms"]["DEMO_A"],
 				str(before),
 				include_zero=True,
 			)
@@ -329,8 +327,8 @@ class NativeSampleTests(NativeDocumentTests):
 				any(row["batch_no"] == depleted[0] and row["qty"] == 0 for row in depleted_balances)
 			)
 			self.assertEqual(
-				get_stock_balance("TI-TEST-" + self.token + "-G-000001", result["rooms"]["SAMPLE_C03"]),
-				26,
+				get_stock_balance("TI-TEST-" + self.token + "-G-000001", result["rooms"]["DEMO_B"]),
+				0,
 			)
 			settings.reload()
 			settings.sample_data_status = "Installed"

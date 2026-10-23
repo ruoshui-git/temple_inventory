@@ -38,6 +38,7 @@ export function useCategoriesController() {
   const saving = ref(false);
   const deleting = ref(false);
   const loading = ref(false);
+  const initializedState = ref(false);
   const error = ref("");
   const refreshError = ref("");
   const success = ref("");
@@ -49,7 +50,6 @@ export function useCategoriesController() {
   const leaveRequested = ref(false);
   const recoveryError = ref("");
   const recoveryConflict = ref("");
-  const candidates = ref<RecoverySnapshot[]>([]);
   let account = reference.user;
   let site = reference.site;
   let initialized = false;
@@ -71,9 +71,6 @@ export function useCategoriesController() {
   function createRecovery() {
     recovery = createRecoveryStore(reference.site, account, storage);
     const listed = recovery.list();
-    candidates.value = listed.entries.filter(
-      (entry) => entry.editorKind === "Item Group",
-    );
     recoveryError.value = listed.error;
   }
   createRecovery();
@@ -107,35 +104,6 @@ export function useCategoriesController() {
       next.add(category.name);
       expanded.value = next;
     }
-    candidates.value = candidates.value.map((candidate) => {
-      const savedForm = candidate.values.form as
-        Partial<CategoryDraft> | undefined;
-      const savedEdit = candidate.values.editing as
-        { name?: string; version?: string } | null | undefined;
-      if (savedForm?.parent !== oldName && savedEdit?.name !== oldName)
-        return candidate;
-      const updated = {
-        ...candidate,
-        revision: candidate.revision + 1,
-        updatedAt: new Date().toISOString(),
-        values: {
-          ...candidate.values,
-          ...(savedForm?.parent === oldName
-            ? { form: { ...savedForm, parent: category.name } }
-            : {}),
-          ...(savedEdit?.name === oldName
-            ? {
-                editing: {
-                  name: category.name,
-                  version: category.version || savedEdit.version || "",
-                },
-              }
-            : {}),
-        },
-      };
-      recovery.save(updated);
-      return updated;
-    });
   });
   const children = (name: string) =>
     categories.value.filter((row) => row.parent === name);
@@ -226,6 +194,7 @@ export function useCategoriesController() {
       );
       if (!active(current) || controller.signal.aborted) return;
       reference.categories.splice(0, reference.categories.length, ...result);
+      initializedState.value = true;
     } catch (reason) {
       if (!controller.signal.aborted && active(current))
         refreshError.value =
@@ -266,9 +235,6 @@ export function useCategoriesController() {
     baseline.value = emptyDraft();
     error.value = "";
     discardOpen.value = false;
-    candidates.value = recovery
-      .list()
-      .entries.filter((entry) => entry.editorKind === "Item Group");
   }
   function closeEditor() {
     if (saving.value) return;
@@ -348,9 +314,6 @@ export function useCategoriesController() {
         }
       : emptyDraft();
     dialog.value = true;
-    candidates.value = candidates.value.filter(
-      (candidate) => candidate.editorId !== snapshot.editorId,
-    );
     retain();
   }
   async function save() {
@@ -514,6 +477,7 @@ export function useCategoriesController() {
     saving,
     deleting,
     loading,
+    initialized: initializedState,
     refreshError,
     error,
     success,
@@ -526,7 +490,6 @@ export function useCategoriesController() {
     dirty,
     discardOpen,
     leaveRequested,
-    candidates,
     recoveryError,
     recoveryConflict,
     requestLeave,

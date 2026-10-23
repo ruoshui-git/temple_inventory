@@ -56,6 +56,14 @@ class ReportContext:
 		self.related_period = resolved_period(query["relatedPeriod"])
 		self.snapshot = str(snapshot or now_datetime())
 		self.settings, self.warehouses, self.physical, self.leased, self.damaged = warehouse_scopes()
+		from temple_inventory.native_topology import present_locations
+
+		self.location_labels = {
+			row["name"]: row["label"]
+			for row in present_locations(
+				self.warehouses, physical_root=self.settings.physical_root_warehouse, settings=self.settings
+			)
+		}
 		self.settings.check_permission("read")
 		self.company = self.settings.company
 		if not self.company:
@@ -151,49 +159,7 @@ class ReportContext:
 		}
 
 	def label(self, warehouse):
-		row = self.warehouses.get(warehouse)
-		if not row:
-			return ""
-		if row.get("ti_room_default"):
-			room = self.warehouses.get(row.parent_warehouse)
-			if not room:
-				return row.warehouse_name
-			duplicate_rooms = [
-				candidate
-				for candidate in self.warehouses.values()
-				if candidate.name != room.name
-				and candidate.is_group
-				and candidate.warehouse_type == "Room"
-				and candidate.warehouse_name == room.warehouse_name
-			]
-			if not duplicate_rooms:
-				return room.warehouse_name
-			current_path = self._warehouse_path(room.name)
-			other_paths = [self._warehouse_path(candidate.name) for candidate in duplicate_rooms]
-			for count in range(1, len(current_path) + 1):
-				suffix = current_path[-count:]
-				if all(path[-count:] != suffix for path in other_paths):
-					return " / ".join(suffix)
-			return " / ".join(current_path)
-		label = row.warehouse_name
-		if sum(value.warehouse_name == label for value in self.warehouses.values()) < 2:
-			return label
-		parts, seen = [label], {warehouse}
-		parent = self.warehouses.get(row.parent_warehouse)
-		while parent and parent.name not in seen:
-			seen.add(parent.name)
-			parts.insert(0, parent.warehouse_name)
-			parent = self.warehouses.get(parent.parent_warehouse)
-		return " / ".join(parts)
-
-	def _warehouse_path(self, name):
-		parts, seen = [], set()
-		row = self.warehouses.get(name)
-		while row and row.name not in seen:
-			seen.add(row.name)
-			parts.insert(0, row.warehouse_name)
-			row = self.warehouses.get(row.parent_warehouse)
-		return parts
+		return self.location_labels.get(warehouse, "")
 
 	def matches_item(self, code, warehouse=None):
 		query = self.query

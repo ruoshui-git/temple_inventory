@@ -10,7 +10,10 @@ import type { DataColumn, DataTableRecord } from "../lib/dataTable";
 import { useColumnPreferences } from "../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../services/contracts";
 import { useArrayTableSort } from "../composables/useArrayTableSort";
-const props = defineProps<{ item: StockItem }>();
+const props = withDefaults(
+	defineProps<{ item: StockItem; loading?: boolean; initialized?: boolean; stale?: boolean }>(),
+	{ loading: false, initialized: true, stale: false },
+);
 const batches = computed(() => itemBatches(props.item));
 const warehouseReference = useOptionalReferenceData();
 const services = useOptionalInventoryServices();
@@ -131,6 +134,9 @@ const batchPreferences =
 				table-class="stock-breakdown"
 				:columns="locationColumns"
 				:rows="locationSort.rows.value"
+				:loading="loading"
+				:initialized="initialized"
+				:stale="stale"
 				:sort-by="locationSort.sortBy.value"
 				:sort-direction="locationSort.sortDirection.value"
 				:column-preferences="locationPreferences"
@@ -162,6 +168,9 @@ const batchPreferences =
 				table-class="stock-breakdown"
 				:columns="batchColumns"
 				:rows="batchSort.rows.value"
+				:loading="loading"
+				:initialized="initialized"
+				:stale="stale"
 				:sort-by="batchSort.sortBy.value"
 				:sort-direction="batchSort.sortDirection.value"
 				:column-preferences="batchPreferences"

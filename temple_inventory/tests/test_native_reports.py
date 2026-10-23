@@ -66,9 +66,7 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(return_row["quantity"], -3)
 		self.assertEqual(return_row["original_loans"], [loan.name])
 		open_item_loan = next(
-			row
-			for row in all_items["rows"]
-			if row["kind"] == "Loan" and row["item_code"] == other.name
+			row for row in all_items["rows"] if row["kind"] == "Loan" and row["item_code"] == other.name
 		)
 		self.assertEqual(open_item_loan["outstanding"], 4)
 		self.assertEqual(open_item_loan["loan_status"], "Open")
@@ -103,65 +101,85 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(row["whole"]["loan_status"], "Open")
 		self.assertTrue(row["can_settle"])
 
-	def test_default_leaf_report_label_uses_room_and_minimal_authorized_prefix(self):
-		from temple_inventory.report_sources import ReportContext
+	def test_location_presenter_labels_direct_leaves_and_disambiguates_duplicate_rooms(self):
+		from temple_inventory.native_topology import present_locations
 
-		context = ReportContext.__new__(ReportContext)
-		context.warehouses = {
-			"ROOT": frappe._dict(name="ROOT", warehouse_name="寺院仓库", parent_warehouse=""),
-			"PHYSICAL": frappe._dict(name="PHYSICAL", warehouse_name="实体库房", parent_warehouse="ROOT"),
-			"T1": frappe._dict(name="T1", warehouse_name="T1", parent_warehouse="PHYSICAL"),
-			"T2": frappe._dict(name="T2", warehouse_name="T2", parent_warehouse="PHYSICAL"),
+		settings = frappe._dict(root_warehouse="ROOT", physical_root_warehouse="PHYSICAL")
+		rows = {
+			"ROOT": frappe._dict(
+				name="ROOT", warehouse_name="寺院仓库", ti_label="寺院仓库", parent_warehouse="", is_group=1
+			),
+			"PHYSICAL": frappe._dict(
+				name="PHYSICAL",
+				warehouse_name="实体库房",
+				ti_label="实体库房",
+				parent_warehouse="ROOT",
+				is_group=1,
+			),
+			"AREA-1": frappe._dict(
+				name="AREA-1",
+				warehouse_name="T1",
+				ti_label="第一寺院",
+				ti_short_label="T1",
+				parent_warehouse="PHYSICAL",
+				warehouse_type="Area",
+				is_group=1,
+			),
+			"AREA-2": frappe._dict(
+				name="AREA-2",
+				warehouse_name="T2",
+				ti_label="第二寺院",
+				ti_short_label="T2",
+				parent_warehouse="PHYSICAL",
+				warehouse_type="Area",
+				is_group=1,
+			),
 			"ROOM-1": frappe._dict(
-				name="ROOM-1", warehouse_name="A14", parent_warehouse="T1", warehouse_type="Room", is_group=1
+				name="ROOM-1",
+				warehouse_name="T1 / A14",
+				ti_label="A14",
+				parent_warehouse="AREA-1",
+				warehouse_type="Room",
+				is_group=1,
 			),
 			"ROOM-2": frappe._dict(
-				name="ROOM-2", warehouse_name="A14", parent_warehouse="T2", warehouse_type="Room", is_group=1
+				name="ROOM-2",
+				warehouse_name="T2 / A14",
+				ti_label="A14",
+				parent_warehouse="AREA-2",
+				warehouse_type="Room",
+				is_group=1,
 			),
-			"DEFAULT-1": frappe._dict(
-				name="DEFAULT-1",
-				warehouse_name="无货位",
+			"DIRECT-1": frappe._dict(
+				name="DIRECT-1",
+				warehouse_name="T1 / A14 · 直接存放",
+				ti_label="A14",
 				parent_warehouse="ROOM-1",
-				ti_room_default=1,
+				warehouse_type="",
+				is_group=0,
+				ti_direct_storage=1,
 			),
-			"DEFAULT-2": frappe._dict(
-				name="DEFAULT-2",
-				warehouse_name="无货位",
+			"DIRECT-2": frappe._dict(
+				name="DIRECT-2",
+				warehouse_name="T2 / A14 · 直接存放",
+				ti_label="A14",
 				parent_warehouse="ROOM-2",
-				ti_room_default=1,
+				warehouse_type="",
+				is_group=0,
+				ti_direct_storage=1,
 			),
 		}
-		self.assertEqual(context.label("DEFAULT-1"), "T1 / A14")
-		self.assertEqual(context.label("DEFAULT-2"), "T2 / A14")
-		context.warehouses.update(
-			{
-				"SECTION-T1": frappe._dict(name="SECTION-T1", warehouse_name="T1", parent_warehouse="T2"),
-				"ROOM-3": frappe._dict(
-					name="ROOM-3",
-					warehouse_name="A14",
-					parent_warehouse="SECTION-T1",
-					warehouse_type="Room",
-					is_group=1,
-				),
-				"DEFAULT-3": frappe._dict(
-					name="DEFAULT-3",
-					warehouse_name="无货位",
-					parent_warehouse="ROOM-3",
-					ti_room_default=1,
-				),
-			}
-		)
-		self.assertEqual(context.label("DEFAULT-1"), "实体库房 / T1 / A14")
-		self.assertEqual(context.label("DEFAULT-3"), "T2 / T1 / A14")
-		context.warehouses.pop("DEFAULT-3")
-		context.warehouses.pop("ROOM-3")
-		self.assertEqual(context.label("DEFAULT-1"), "T1 / A14")
-		context.warehouses.pop("DEFAULT-2")
-		context.warehouses.pop("ROOM-2")
-		self.assertEqual(context.label("DEFAULT-1"), "A14")
+		presented = {row["name"]: row for row in present_locations(rows, settings=settings)}
+		self.assertEqual(presented["DIRECT-1"]["label"], presented["ROOM-1"]["label"])
+		self.assertIn("T1", presented["ROOM-1"]["label"])
+		self.assertIn("T2", presented["ROOM-2"]["label"])
+		self.assertTrue(presented["DIRECT-1"]["storable"])
+		self.assertEqual(presented["ROOM-1"]["path"], "T1 / A14")
 
 	def test_refinement_display_labels_preserve_native_identity_and_export_audit_values(self):
-		frappe.db.set_value("Warehouse", self.a, "warehouse_name", "供灯-用品")
+		room = frappe.get_doc("Warehouse", self.room_a)
+		room.ti_label = "供灯-用品"
+		room.save()
 		doc = self.submit(self.create(self.movement(quantity=2)))
 		query = self.query("movements", "lines", record=doc.name, statuses=[1])
 		with Projection(query) as projection, tempfile.TemporaryDirectory() as directory:
@@ -375,7 +393,9 @@ class NativeReportTests(NativeDocumentTests):
 				grouped = report_page({**query, "groupBy": [field]})
 				self.assertEqual(grouped["table"], "grouped")
 				self.assertNotIn("id", grouped["columns"])
-				self.assertTrue(all("group_path" in row and row["group_depth"] == 1 for row in grouped["rows"]))
+				self.assertTrue(
+					all("group_path" in row and row["group_depth"] == 1 for row in grouped["rows"])
+				)
 				if grouped["rows"] and field == "item":
 					self.assertIn("group_label", grouped["columns"])
 					self.assertTrue(grouped["rows"][0]["group_label"])
@@ -395,8 +415,24 @@ class NativeReportTests(NativeDocumentTests):
 		with self.assertRaises(Exception):
 			validate_query(self.query("movements", "records", sortBy="stock_qty"))
 		for dataset, view, fields in (
-			("movements", "lines", ("document", "doctype", "borrower", "source_warehouse", "destination_warehouse")),
-			("loans", "outcomes", ("document", "doctype", "kind", "docstatus", "borrower", "source_warehouse", "destination_warehouse")),
+			(
+				"movements",
+				"lines",
+				("document", "doctype", "borrower", "source_warehouse", "destination_warehouse"),
+			),
+			(
+				"loans",
+				"outcomes",
+				(
+					"document",
+					"doctype",
+					"kind",
+					"docstatus",
+					"borrower",
+					"source_warehouse",
+					"destination_warehouse",
+				),
+			),
 		):
 			for field in fields:
 				self.assertEqual(validate_query(self.query(dataset, view, sortBy=field))["sortBy"], field)
@@ -598,9 +634,7 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(child_records["row_grain"], "record")
 		self.assertEqual(child_records["matched_count"], 1)
 		self.assertEqual(child_records["rows"][0]["stock_qty"], 12)
-		matching_lines = report_page(
-			self.query("movements", "lines", record=doc.name, statuses=[1])
-		)
+		matching_lines = report_page(self.query("movements", "lines", record=doc.name, statuses=[1]))
 		self.assertEqual(matching_lines["matched_count"], 1)
 		self.assertEqual(matching_lines["rows"][0]["stock_qty"], 5)
 		self.submit(self.create(self.movement(quantity=2)))
@@ -614,6 +648,7 @@ class NativeReportTests(NativeDocumentTests):
 
 		def resolve(key, today):
 			return resolve_period({"period_key": key}, today_provider=lambda: today)
+
 		self.assertEqual(
 			resolve("this_quarter", "2026-04-05"),
 			{"key": "this_quarter", "date_from": "2026-04-01", "date_to": "2026-04-05"},
@@ -700,13 +735,17 @@ class NativeReportTests(NativeDocumentTests):
 					query={"dataset": "inventory", "view": "summary", "groupBy": ["category"]},
 					cache_bypass=False,
 					cache_context={
-						"generation": "4", "permission": "account-grants", "configuration": "settings",
+						"generation": "4",
+						"permission": "account-grants",
+						"configuration": "settings",
 						"user": frappe.session.user,
 					},
 					temp=SimpleNamespace(name=base),
 					context=SimpleNamespace(snapshot=stamp),
 					column_names={"summary": ["id", "available"]},
-					main_table="summary", summary_table="summary", sums=("available",),
+					main_table="summary",
+					summary_table="summary",
+					sums=("available",),
 				)
 				first.db = sqlite3.connect(f"{base}/projection.sqlite")
 				first.db.execute("create table rows (table_id text, identity text, payload text)")
@@ -750,9 +789,12 @@ class NativeReportTests(NativeDocumentTests):
 						db=sqlite3.connect(rejected_path),
 					)
 					rejected.db.execute("create table rows (table_id text, identity text, payload text)")
-					with patch.object(read_cache, "_request_cacheable", return_value=True), patch.multiple(
-						read_cache,
-						**changed,
+					with (
+						patch.object(read_cache, "_request_cacheable", return_value=True),
+						patch.multiple(
+							read_cache,
+							**changed,
+						),
 					):
 						self.assertFalse(read_cache.restore_projection(rejected))
 					rejected.db.close()
@@ -795,6 +837,7 @@ class NativeReportTests(NativeDocumentTests):
 				("Temple Inventory Settings",),
 				as_dict=True,
 			)
+
 		before_rows = get_revision()
 		before = int(before_rows[0].value) if before_rows else 0
 		frappe.db.savepoint("ti_cache_revision")
@@ -1029,13 +1072,11 @@ class NativeReportTests(NativeDocumentTests):
 		self.addCleanup(read_cache.invalidate_now)
 		old_generation = getattr(frappe.local, "inventory_cache_request_generation", None)
 		old_started = getattr(frappe.local, "inventory_cache_request_started", None)
-		self.addCleanup(
-			lambda: setattr(frappe.local, "inventory_cache_request_generation", old_generation)
-		)
-		self.addCleanup(
-			lambda: setattr(frappe.local, "inventory_cache_request_started", old_started)
-		)
-		with patch.object(frappe.db, "commit", side_effect=AssertionError("cacheable projection committed test data")):
+		self.addCleanup(lambda: setattr(frappe.local, "inventory_cache_request_generation", old_generation))
+		self.addCleanup(lambda: setattr(frappe.local, "inventory_cache_request_started", old_started))
+		with patch.object(
+			frappe.db, "commit", side_effect=AssertionError("cacheable projection committed test data")
+		):
 			self.receipt(3)
 			query = self.query("inventory", "summary")
 			query["scope"]["warehouses"] = [self.a, self.b]
@@ -1057,6 +1098,7 @@ class NativeReportTests(NativeDocumentTests):
 					start=1,
 					page_length=1,
 				)
+
 			class LockTimeout:
 				def acquire(self, blocking=True):
 					return False
@@ -1148,6 +1190,7 @@ class NativeReportTests(NativeDocumentTests):
 				for row in original_stock_rows(context):
 					row["category"] = "fresh-source-marker"
 					yield row
+
 			restore_results = []
 			original_restore = read_cache.restore_projection
 
@@ -1167,9 +1210,7 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(restore_results, [True, False])
 		restart.assert_called_once_with()
 		self.assertEqual(source_reads.call_count, 1)
-		self.assertTrue(
-			any("fresh-source-marker" in (row.get("group_path") or []) for row in second["rows"])
-		)
+		self.assertTrue(any("fresh-source-marker" in (row.get("group_path") or []) for row in second["rows"]))
 
 	def test_uncached_snapshot_restart_rejects_pending_writes(self):
 		from temple_inventory import read_cache
@@ -1433,7 +1474,9 @@ class NativeReportTests(NativeDocumentTests):
 		data = self.movement(quantity=1)
 		data["items"] = [copy.deepcopy(data["items"][0]) for _ in range(1005)]
 		doc = self.create(data)
-		query = self.query("movements", "lines", record=doc.name, statuses=[0], sortBy="item_name", sort="asc")
+		query = self.query(
+			"movements", "lines", record=doc.name, statuses=[0], sortBy="item_name", sort="asc"
+		)
 		preview = report_page(query, page_length=1)
 		self.assertEqual(preview["matched_count"], 1005)
 		self.assertEqual(len(preview["rows"]), 1)

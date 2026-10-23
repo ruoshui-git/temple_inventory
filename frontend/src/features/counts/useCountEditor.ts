@@ -30,6 +30,7 @@ import {
   type CountValues,
 } from "./countModel";
 import { useMovementHistory } from "../movements/useMovementHistory";
+import { showToast } from "../../services/toast";
 export function useCountEditor(props: {
   name?: string;
   initialItems?: string[];
@@ -53,8 +54,7 @@ export function useCountEditor(props: {
     baselineError = ref("");
   const names = reactive<Record<string, string>>({});
   const images = reactive<Record<string, string>>({});
-  const candidates = ref<RecoverySnapshot[]>([]),
-    action = ref<"delete" | "cancel" | "amend">(),
+  const action = ref<"delete" | "cancel" | "amend">(),
     leaveRequested = ref(false),
     supportingDirty = ref(false);
   let ready = false,
@@ -406,17 +406,7 @@ export function useCountEditor(props: {
       state.values.baselineScope = baselineScope();
       await loadNames();
       if (state.identity) await files.fetch();
-      const local = recovery.list();
-      candidates.value = local.entries.filter(
-        (entry) =>
-          entry.editorKind === "Stock Reconciliation" &&
-          (props.recoveryId
-            ? entry.editorId === props.recoveryId
-            : state.identity
-              ? entry.identity?.name === state.identity.name
-              : !entry.identity),
-      );
-      state.recoveryError = local.error;
+      state.recoveryError = recovery.list().error;
     } catch (reason) {
       if (active())
         state.error = reason instanceof Error ? reason.message : "盘点读取失败";
@@ -432,9 +422,9 @@ export function useCountEditor(props: {
       (values.value.ti_count_scope === "Full Location" ||
         values.value.ti_count_items.length)
     )
-      await refresh();
+      await refresh(false);
   }
-  async function refresh() {
+  async function refresh(markEdited = true) {
     if (!canRefresh.value || baselineBusy.value) return;
     if (
       !values.value.ti_count_warehouses.length ||
@@ -472,9 +462,7 @@ export function useCountEditor(props: {
           currentDocument.docstatus !== 0 ||
           !currentDocument.editable
         )
-          throw new Error(
-            "原生记录版本或状态已更改；请复制输入后重新读取原记录",
-          );
+          throw new Error("记录版本或状态已更改；请复制输入后重新读取原记录");
       }
       const result = await services.call<{
         rows: CountRow[];
@@ -529,7 +517,7 @@ export function useCountEditor(props: {
         state.error = "";
       }
       suppressed = false;
-      editor.edited();
+      if (markEdited) editor.edited();
       await loadNames();
     } catch (reason) {
       if (active() && current === epoch)
@@ -574,7 +562,7 @@ export function useCountEditor(props: {
     if (manual) showError.value = true;
     clearTimeout(timer);
     if (!valid.value || supportingDirty.value) {
-      editor.retain();
+      editor.retainIncomplete();
       return;
     }
     savePending.value++;
@@ -614,7 +602,7 @@ export function useCountEditor(props: {
       }
     }
     if (!canSubmit.value) {
-      state.error = "没有确认库存调整的权限，已保存的原生草稿可继续编辑";
+      state.error = "没有确认库存调整的权限，已保存的草稿单据可继续编辑";
       return;
     }
     busy.value = true;
@@ -654,7 +642,7 @@ export function useCountEditor(props: {
         (state.values.attachments || []) as unknown as AttachmentEntry[],
       );
       await loadNames();
-      candidates.value = [];
+      showToast("已恢复上次在此浏览器暂存的内容");
     }
     ready = true;
   }
@@ -760,7 +748,15 @@ export function useCountEditor(props: {
     window.removeEventListener("beforeunload", beforeUnload);
     document.removeEventListener("inventory-session-restored", sessionRestored);
   });
-  void load();
+  void load().then(async () => {
+    if (!props.recoveryId) return;
+    const entry = recovery.read(props.recoveryId);
+    if (!entry || entry.editorKind !== "Stock Reconciliation") {
+      state.recoveryError = "未找到这份浏览器暂存内容，请从草稿列表重新打开";
+      return;
+    }
+    await recover(entry);
+  });
   useUpdateBlocker(
     () =>
       dirty.value ||
@@ -808,7 +804,6 @@ export function useCountEditor(props: {
     discardOpen,
     reloadOpen,
     files,
-    candidates,
     recovery,
     supportingDirty,
     action,

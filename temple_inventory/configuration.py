@@ -7,6 +7,7 @@ import hashlib
 import frappe
 
 from temple_inventory.native_access import erpnext_installed, require_frontend_account
+from temple_inventory.native_topology import present_locations
 
 POINTERS = {
 	"root_warehouse": ("寺院仓库根目录", True),
@@ -60,6 +61,9 @@ def _rows(company):
 		fields=[
 			"name",
 			"warehouse_name",
+			"ti_label",
+			"ti_short_label",
+			"ti_direct_storage",
 			"parent_warehouse",
 			"warehouse_type",
 			"is_group",
@@ -137,9 +141,10 @@ def status():
 	damaged = configured.get("damaged_warehouse")
 	if damaged and physical and _inside(damaged, physical):
 		blockers.append({"code": "damaged_physical", "message": "损坏库位不能位于实体仓库分组内"})
-	leaves = [row for row in rows if not row.is_group and not row.disabled and _inside(row, physical)]
-	if physical and not leaves:
-		blockers.append({"code": "physical_leaf", "message": "实体仓库内还没有启用且可读取的叶子库位"})
+	needs_first_room = bool(
+		physical
+		and not any(row.is_group and row.warehouse_type == "Room" and _inside(row, physical) for row in rows)
+	)
 	if not frappe.has_permission("Stock Entry", "read"):
 		blockers.append({"code": "stock_permission", "message": "当前账户缺少库存记录读取权限"})
 	return {
@@ -157,17 +162,23 @@ def status():
 		),
 		"blockers": blockers,
 		"warnings": [],
+		"needs_first_room": needs_first_room,
 		"pointers": pointers,
 		"candidates": [
 			{
-				"value": row.name,
-				"label": row.warehouse_name,
-				"group": bool(row.is_group),
-				"parent": row.parent_warehouse,
-				"type": row.warehouse_type or "",
-				"version": str(row.modified),
+				"value": item["name"],
+				"label": item["label"],
+				"group": item["is_group"],
+				"parent": item["parent"],
+				"type": item["kind"],
+				"version": item["version"],
+				**item,
 			}
-			for row in rows
+			for item in present_locations(
+				visible,
+				physical_root=(settings.physical_root_warehouse if settings else None),
+				settings=settings,
+			)
 		],
 	}
 
@@ -181,16 +192,17 @@ def initialize(company, version):
 		frappe.throw("已配置的公司不能通过初始化替换")
 	if any(settings.get(field) for field in POINTERS):
 		frappe.throw("已有仓库引用，请逐项核对与修复；不能重新初始化")
-	for name in ("Room", "Location"):
+	for name in ("Area", "Room", "Shelf", "System"):
 		if not frappe.db.exists("Warehouse Type", name):
 			frappe.get_doc({"doctype": "Warehouse Type", "name": name}).insert()
 
-	def create(label, parent=None, group=False, kind="Location"):
+	def create(label, parent=None, group=False, kind="System"):
 		return (
 			frappe.get_doc(
 				{
 					"doctype": "Warehouse",
 					"warehouse_name": label,
+					"ti_label": label,
 					"company": company,
 					"parent_warehouse": parent,
 					"is_group": int(group),
@@ -203,7 +215,6 @@ def initialize(company, version):
 
 	root = create("寺院仓库", group=True)
 	physical = create("实体库房", root, True)
-	leaf = create("通用库房", physical, kind="Room")
 	lease_leaf = create("借出", root)
 	damaged = create("损坏待处理", root)
 	settings.update(
@@ -215,7 +226,7 @@ def initialize(company, version):
 			"damaged_warehouse": damaged,
 		}
 	)
-	settings.set("allowed_warehouses", [{"warehouse": name} for name in (leaf, lease_leaf, damaged)])
+	settings.set("allowed_warehouses", [{"warehouse": name} for name in (lease_leaf, damaged)])
 	settings.save()
 	return status()
 

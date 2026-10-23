@@ -55,14 +55,19 @@ async function removeNative(
   doctype: string,
   name: string,
 ) {
-  const response = await request.post("/api/method/frappe.client.delete", {
-    timeout: 15000,
-    data: { doctype, name },
-    headers: { "X-Frappe-CSRF-Token": csrf },
-  });
-  expect(response.ok(), `cleanup ${doctype}: HTTP ${response.status()}`).toBe(
-    true,
-  );
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await request.post("/api/method/frappe.client.delete", {
+      timeout: 15000,
+      data: { doctype, name },
+      headers: { "X-Frappe-CSRF-Token": csrf },
+    });
+    if (response.ok()) return;
+    const body = await response.text();
+    if (response.status() === 404 && body.includes("DoesNotExistError")) return;
+    if (!body.includes("QueryTimeoutError") || attempt === 2)
+      throw new Error(`cleanup ${doctype}: HTTP ${response.status()} ${body}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 }
 
 test("real Item editor creates, uploads privately, edits and removes its own image", async ({
@@ -81,10 +86,10 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
       .getByLabel("物品名称", { exact: true })
       .fill("原生浏览器验收物品");
     await page
-      .getByRole("combobox", { name: "分类", exact: true })
+      .getByRole("combobox", { name: "分类（可选）", exact: true })
       .fill(category.name);
     await page
-      .getByRole("listbox", { name: "分类", exact: true })
+      .getByRole("listbox", { name: "分类（可选）", exact: true })
       .getByRole("option")
       .first()
       .click();
@@ -103,7 +108,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     expect(created).toBe(true);
     await expect(page).toHaveURL(new RegExp(`/stock/items/${code}$`));
     await page.goto(`/inventory/stock/items/${code}/edit`);
-    await page.getByLabel("添加图片", { exact: true }).setInputFiles({
+    await page.getByLabel("选择主图", { exact: true }).setInputFiles({
       name: `${code}.png`,
       mimeType: "image/png",
       buffer: Buffer.from(
@@ -111,15 +116,22 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
         "base64",
       ),
     });
+    await page
+      .getByRole("button", { name: "使用原图作为主图", exact: true })
+      .click();
     await expect(
-      page.getByRole("button", { name: "设为主图", exact: true }),
+      page.locator("small").filter({ hasText: /^主图$/ }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "设为主图", exact: true }).click();
-    await expect(page.getByText("主图", { exact: true })).toBeVisible();
-    const item = await call(page.request, "catalog.operation_item", {
-      item_code: code,
-    });
-    expect(item.attachments).toHaveLength(1);
+    let item: any;
+    await expect
+      .poll(async () => {
+        item = await call(page.request, "catalog.operation_item", {
+          item_code: code,
+        });
+        return item.image;
+      })
+      .toMatch(/^\/private\/files\//);
+    expect(item.images).toHaveLength(1);
     expect(item.barcodes.map((row) => row.barcode)).toEqual([
       `${code}-A`,
       `${code}-B`,
@@ -154,23 +166,22 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     ).toBeVisible();
     await page.goto(`/inventory/stock/items/${code}/edit`);
     await page.getByRole("button", { name: "移除", exact: true }).click();
-    await expect(page.getByText("暂无附件", { exact: true })).toBeVisible();
-    expect(
-      (await call(page.request, "catalog.operation_item", { item_code: code }))
-        .attachments,
-    ).toEqual([]);
+    await expect
+      .poll(async () => {
+        const current = await call(page.request, "catalog.operation_item", {
+          item_code: code,
+        });
+        return {
+          attachments: current.attachments,
+          images: current.images,
+          image: current.image,
+        };
+      })
+      .toEqual({ attachments: [], images: [], image: "" });
   } finally {
     if (created) {
       test.setTimeout(test.info().timeout + 30000);
-      const item = await call(page.request, "catalog.operation_item", {
-        item_code: code,
-      });
-      for (const file of item.attachments)
-        await call(page.request, "native_files.remove_attachment", {
-          doctype: "Item",
-          name: code,
-          file_name: file.name,
-        });
+      await call(page.request, "catalog.operation_item", { item_code: code });
       await removeNative(page.request, "Item", code);
     }
   }
@@ -236,65 +247,55 @@ test("real Activity editor retains immutable identity across rename, archive and
   }
 });
 
-test("real Warehouse editor creates an empty group and edits native metadata", async ({
+test("real location editor creates an area and renames it with a short name", async ({
   page,
 }) => {
-  const label = `浏览器仓库验收-${crypto.randomUUID().slice(0, 8)}`;
+  const label = `浏览器区域验收-${crypto.randomUUID().slice(0, 8)}`;
+  const short = `验收${crypto.randomUUID().slice(0, 4)}`;
   let name = "";
   try {
-    const bootstrap = await call(page.request, "browse.bootstrap");
     await page.goto("/inventory/stock/warehouses");
     await page
-      .getByRole("button", { name: "新建仓库 / 位置", exact: true })
+      .getByRole("button", { name: "添加区域", exact: true })
+      .first()
       .click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("名称", { exact: true }).fill(label);
-    await dialog
-      .getByRole("combobox", { name: "上级节点", exact: true })
-      .fill(bootstrap.settings.physical_root_warehouse);
-    await dialog
-      .getByRole("listbox", { name: "上级节点", exact: true })
-      .getByRole("option")
-      .first()
-      .click();
-    const group = dialog.getByRole("checkbox", {
-      name: "分组节点（组织下级，不直接存放库存）",
-      exact: true,
-    });
-    await expect(group).not.toBeChecked();
-    await group.check();
-    const saved = page.waitForResponse((response) =>
-      response.url().endsWith("temple_inventory.warehouses.save_warehouse"),
+    const created = page.waitForResponse((response) =>
+      response.url().endsWith("temple_inventory.warehouses.create_location"),
     );
     await dialog
       .getByRole("button", { name: "保存仓库资料", exact: true })
       .click();
-    const response = await saved;
-    expect(response.ok()).toBe(true);
-    name = (await response.json()).message.name;
-    expect(name).toBeTruthy();
+    expect((await created).ok()).toBe(true);
     await expect(dialog).toHaveCount(0);
+    let tree = await call(page.request, "warehouses.tree");
+    const area = tree.rows.find((row) => row.local_label === label);
+    expect(area).toMatchObject({ kind: "area", is_group: true, path: label });
+    name = area.name;
+
     await page
       .getByRole("searchbox", { name: "搜索仓库", exact: true })
       .fill(label);
     await page
       .getByRole("group", { name: label, exact: true })
-      .getByRole("button", { name: "编辑", exact: true })
+      .locator("button[aria-pressed]")
       .click();
+    await page.locator('summary[aria-label="更多位置操作"]').click();
+    await page.getByRole("button", { name: "重命名", exact: true }).click();
     await dialog.getByLabel("名称", { exact: true }).fill(`${label}-修改`);
-    await dialog
-      .getByRole("combobox", { name: "物理类型", exact: true })
-      .selectOption("Location");
+    await dialog.getByLabel("简称（可选）", { exact: true }).fill(short);
     await dialog
       .getByRole("button", { name: "保存仓库资料", exact: true })
       .click();
     await expect(dialog).toHaveCount(0);
-    await page.reload();
-    const tree = await call(page.request, "warehouses.tree");
+    tree = await call(page.request, "warehouses.tree");
     expect(tree.rows.find((row) => row.name === name)).toMatchObject({
-      label: `${label}-修改`,
-      type: "Location",
-      is_group: true,
+      local_label: `${label}-修改`,
+      short_label: short,
+      label: short,
+      path: short,
+      kind: "area",
     });
   } finally {
     if (name) {
@@ -307,19 +308,38 @@ test("real Warehouse editor creates an empty group and edits native metadata", a
 test("real matching count finishes without creating an adjustment document", async ({
   page,
 }) => {
+  const { newReportQuery } = await import("../../../src/lib/reportContract");
+  const warehouseRows = (await call(page.request, "warehouses.tree")).rows;
+  const warehouse = warehouseRows.find(
+    (row) => row.local_label === "A02" && row.direct,
+  );
+  expect(warehouse).toBeTruthy();
+  const stockQuery = {
+    ...newReportQuery("inventory"),
+    view: "locations",
+    scope: {
+      ...newReportQuery("inventory").scope,
+      warehouses: [warehouse.name],
+    },
+  };
+  const stock = await call(page.request, "projections.report_page", {
+    query: stockQuery,
+  });
+  const stockedItem = stock.rows.find((row) => Number(row.stock_qty) > 0);
+  expect(stockedItem).toBeTruthy();
+  const quantity = Number(stockedItem.stock_qty);
   const query = { dataset: "counts" };
   const before = await call(page.request, "projections.report_page", { query });
-  const warehouse = "A02 / 无货位 - O";
   await page.goto(
-    `/inventory/counts/new?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
+    `/inventory/counts/new?warehouse=${encodeURIComponent(warehouse.name)}&items=${encodeURIComponent(JSON.stringify([stockedItem.item_code]))}`,
   );
   const row = page.locator("[data-count-key]");
   await expect(row).toHaveCount(1);
-  await expect(row).toContainText("账面 70");
+  await expect(row).toContainText(String(quantity));
   const matching = page.waitForResponse((response) =>
     response.url().endsWith("temple_inventory.counts.save_count"),
   );
-  await row.locator('input[type="number"]').fill("70");
+  await row.locator('input[type="number"]').fill(String(quantity));
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
   expect((await (await matching).json()).message).toMatchObject({
     no_adjustment: true,
@@ -347,9 +367,59 @@ test("native seed, clean schema, private originals and the real built app", asyn
 }) => {
   const bootstrap = await call(page.request, "browse.bootstrap");
   expect(bootstrap.site).toBe("development.localhost");
-  expect(bootstrap.physical_leaves.length).toBeGreaterThan(10);
+  expect(bootstrap.physical_leaves).toHaveLength(4);
+  const locations = bootstrap.warehouses;
+  const physical = locations.filter(
+    (row) =>
+      row.kind !== "system" &&
+      row.name !== bootstrap.settings.physical_root_warehouse,
+  );
+  const stockLeaves = physical.filter(
+    (row) => row.direct || (!row.is_group && row.kind === "shelf"),
+  );
+  expect(stockLeaves).toHaveLength(4);
+  expect(
+    stockLeaves
+      .map((row) =>
+        row.direct
+          ? physical.find((owner) => owner.name === row.owner)?.local_label
+          : row.local_label,
+      )
+      .sort(),
+  ).toEqual(["A02", "演示室甲", "演示室乙", "演示架1"].sort());
+  expect(
+    physical
+      .filter((row) => !row.direct)
+      .map((row) => `${row.kind}:${row.local_label}`)
+      .sort(),
+  ).toEqual(
+    [
+      "area:第2寺院",
+      "room:A02",
+      "area:演示区",
+      "room:演示室甲",
+      "shelf:演示架1",
+      "room:演示室乙",
+    ].sort(),
+  );
+  expect(physical.map((row) => row.local_label)).not.toContain(
+    "All Warehouses",
+  );
+  expect(physical.map((row) => row.local_label)).not.toContain("Stores");
+  const a02 = physical.find((row) => row.local_label === "A02" && row.direct);
+  expect(a02).toBeTruthy();
+  const { newReportQuery } = await import("../../../src/lib/reportContract");
+  const stockQuery = newReportQuery("inventory");
+  stockQuery.view = "locations";
+  stockQuery.scope.warehouses = [a02.name];
+  const stock = await call(page.request, "projections.report_page", {
+    query: stockQuery,
+  });
+  const sampleItem = stock.rows.find((row) => Number(row.stock_qty) > 0);
+  expect(sampleItem).toBeTruthy();
+  expect(sampleItem.item_code).toMatch(/^ITM-/);
   const item = await call(page.request, "catalog.operation_item", {
-    item_code: "TI-SAMPLE-C-A01",
+    item_code: sampleItem.item_code,
   });
   expect(item.image).toMatch(/^\/private\/files\//);
   const authorized = await page.request.get(item.image);
@@ -374,9 +444,9 @@ test("native seed, clean schema, private originals and the real built app", asyn
     );
   await page.goto("/inventory/stock");
   await expect(
-    page.getByRole("heading", { name: "每一份物资，都有去处。", exact: true }),
+    page.getByRole("heading", { name: "库存", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".stock-card").first()).toBeVisible();
+  await expect(page.getByRole("table").getByRole("row").nth(1)).toBeVisible();
   if (existsSync(font)) {
     await page.addStyleTag({
       content:
@@ -395,6 +465,32 @@ test("native seed, clean schema, private originals and the real built app", asyn
 test("routed native destinations load through their real services", async ({
   page,
 }) => {
+  const submitted = async (
+    query: Record<string, unknown>,
+    predicate: (row: any) => boolean,
+  ) => {
+    const result = await call(page.request, "projections.report_page", {
+      query,
+    });
+    const row = result.rows.find(predicate);
+    expect(row, `submitted record for ${JSON.stringify(query)}`).toBeTruthy();
+    return row.document as string;
+  };
+  const loan = await submitted(
+    { dataset: "loans", view: "records", statuses: [1] },
+    (row) => row.docstatus === 1,
+  );
+  const movement = await submitted(
+    { dataset: "movements", view: "records", statuses: [1] },
+    (row) =>
+      row.docstatus === 1 &&
+      row.kind !== "Opening" &&
+      row.doctype === "Stock Entry",
+  );
+  const count = await submitted(
+    { dataset: "counts", view: "records", statuses: [1] },
+    (row) => row.docstatus === 1 && row.doctype === "Stock Reconciliation",
+  );
   const errors: string[] = [],
     failed: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -412,7 +508,7 @@ test("routed native destinations load through their real services", async ({
     "/movements?view=records",
     "/loans?view=items",
     "/loans?view=records",
-    "/loans/MAT-STE-2026-00005",
+    `/loans/${loan}`,
     "/activities",
     "/stock/items/TI-SAMPLE-N-WORKFLOW",
     "/reports",
@@ -423,8 +519,8 @@ test("routed native destinations load through their real services", async ({
     "/more",
     "/settings",
     "/settings/setup",
-    "/movements/MAT-STE-2026-00013",
-    "/counts/MAT-RECO-2026-00001",
+    `/movements/${movement}`,
+    `/counts/${count}`,
   ];
   for (const route of routes) {
     await page.goto(`/inventory${route}`);
@@ -457,7 +553,7 @@ test("native operation and count editors mount at mobile with large text", async
     "Repair",
     "Disposal",
   ]) {
-    await page.goto(`/inventory/movements/movements/new/${kind}`);
+    await page.goto(`/inventory/movements/new/${kind}`);
     await expect(page.locator("main h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("alert"), kind).toHaveCount(0);
@@ -468,7 +564,19 @@ test("native operation and count editors mount at mobile with large text", async
   await page.goto("/inventory/counts/new");
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await page.goto("/inventory/movements/MAT-STE-2026-00013");
+  const conversionLines = await call(page.request, "projections.report_page", {
+    query: { dataset: "movements", view: "lines", statuses: [1] },
+    page_length: 1000,
+  });
+  const submittedMovement = conversionLines.rows.find(
+    (row) =>
+      row.docstatus === 1 &&
+      row.doctype === "Stock Entry" &&
+      row.entered_uom === "Box" &&
+      Number(row.conversion_factor) === 5,
+  );
+  expect(submittedMovement).toBeTruthy();
+  await page.goto(`/inventory/movements/${submittedMovement.document}`);
   await page.waitForLoadState("networkidle");
   await page.evaluate(() =>
     document.documentElement.style.setProperty("--p-text-scale", "2"),
@@ -480,7 +588,7 @@ test("native operation and count editors mount at mobile with large text", async
     });
   await page.evaluate(() => document.fonts.ready);
   await expect(
-    page.getByText("1 Box = 5 Nos", { exact: false }).first(),
+    page.getByText(/Box × 5 Nos\/Box = \d+ Nos/).first(),
   ).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth + 1,
@@ -580,16 +688,16 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
 }) => {
   const bootstrap = await call(page.request, "browse.bootstrap");
   const warehouse = bootstrap.physical_leaves.find(
-    (name: string) => name.includes("A02") && name.includes("无货位"),
+    (name: string) => name.includes("T2 / A02") && name.includes("直接存放"),
   );
   expect(warehouse).toBeTruthy();
   let name = "";
   try {
     await page.goto(
-      `/inventory/movements/movements/new/Receive?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
+      `/inventory/movements/new/Receive?warehouse=${encodeURIComponent(warehouse)}&items=${encodeURIComponent(JSON.stringify(["TI-SAMPLE-N-WORKFLOW"]))}`,
     );
     await page.getByRole("button", { name: "保存草稿", exact: true }).click();
-    await expect(page).toHaveURL(/\/documents\/Stock%20Entry\//);
+    await expect(page).toHaveURL(/\/inventory\/movements\/MAT-STE-/);
     name = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
     const original = await call(page.request, "native_api.load_document", {
       doctype: "Stock Entry",
@@ -623,7 +731,12 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
     });
     expect(unchanged.remarks).toBe("Desk 保存的备注");
     expect(unchanged.items[0].qty).toBe(1);
-    await expect(page.locator("pre").first()).toContainText('"qty": 2');
+    await expect(
+      page
+        .getByRole("region", { name: "恢复摘要明细" })
+        .getByRole("row")
+        .nth(1),
+    ).toContainText("2");
     await page.getByRole("button", { name: "重新读取", exact: true }).click();
     await page
       .getByRole("button", { name: "放弃并重新读取", exact: true })

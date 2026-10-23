@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { siteDateTime } from "../lib/nativeTime";
 import UiButton from "./ui/UiButton.vue";
+import AsyncRegion from "./ui/AsyncRegion.vue";
 import InventoryIcon from "./InventoryIcon.vue";
 interface DashboardSectionState {
 	status: "ready" | "loading" | "error" | "retrying";
@@ -22,13 +23,7 @@ const skeletonRows = [1, 2, 3, 4];
 			<span
 				class="dashboard-refresh-status"
 				:class="{ 'is-active': section.status === 'loading' }"
-				:aria-hidden="section.status === 'loading' ? undefined : 'true'"
-				:aria-label="
-					section.status === 'loading'
-						? `${section.hasResult ? '正在更新' : '正在加载'}${title}…`
-						: undefined
-				"
-				role="status"
+				aria-hidden="true"
 			>
 				{{ section.status === "loading" ? "更新中…" : "" }}
 			</span>
@@ -56,41 +51,53 @@ const skeletonRows = [1, 2, 3, 4];
 		</div>
 		<p v-if="section.error" class="browse-note">{{ section.error }}</p>
 		<slot name="controls" />
-		<template v-if="section.hasResult">
-			<div class="dashboard-result" :class="{ 'is-stale': section.status !== 'ready' }">
-				<slot />
-			</div>
-		</template>
-		<div
-			v-else-if="section.status === 'loading'"
-			class="dashboard-section-skeleton"
-			:class="`dashboard-section-skeleton--${title}`"
-			aria-hidden="true"
+		<AsyncRegion
+			:loading="section.status === 'loading' || section.status === 'retrying'"
+			:initialized="section.hasResult"
+			:stale="section.hasResult && section.status !== 'ready'"
+			:error="section.error"
+			:label="`${title}数据刷新中…`"
 		>
-			<template v-if="title === '库存概览'">
-				<div v-for="row in skeletonRows" :key="row" class="dashboard-skeleton-metric">
-					<i></i><b></b><span></span>
+			<template #skeleton>
+				<div
+					class="dashboard-section-skeleton"
+					:class="`dashboard-section-skeleton--${title}`"
+				>
+					<template v-if="title === '库存概览'">
+						<div
+							v-for="row in skeletonRows"
+							:key="row"
+							class="dashboard-skeleton-metric"
+						>
+							<i></i><b></b><span></span>
+						</div>
+					</template>
+					<template v-else-if="title === '库存分布'">
+						<div v-for="row in skeletonRows" :key="row" class="dashboard-skeleton-bar">
+							<i></i><span><b></b></span><em></em>
+						</div>
+					</template>
+					<template v-else-if="title === '效期概览'">
+						<div v-for="row in 6" :key="row" class="dashboard-skeleton-tile">
+							<i></i><b></b>
+						</div>
+						<div v-for="row in 3" :key="`row-${row}`" class="dashboard-skeleton-list">
+							<i></i><b></b>
+						</div>
+					</template>
+					<template v-else>
+						<div
+							v-for="row in skeletonRows"
+							:key="row"
+							class="dashboard-skeleton-list"
+						>
+							<i></i><b></b>
+						</div>
+					</template>
 				</div>
 			</template>
-			<template v-else-if="title === '库存分布'">
-				<div v-for="row in skeletonRows" :key="row" class="dashboard-skeleton-bar">
-					<i></i><span><b></b></span><em></em>
-				</div>
-			</template>
-			<template v-else-if="title === '效期概览'">
-				<div v-for="row in 6" :key="row" class="dashboard-skeleton-tile">
-					<i></i><b></b>
-				</div>
-				<div v-for="row in 3" :key="`row-${row}`" class="dashboard-skeleton-list">
-					<i></i><b></b>
-				</div>
-			</template>
-			<template v-else>
-				<div v-for="row in skeletonRows" :key="row" class="dashboard-skeleton-list">
-					<i></i><b></b>
-				</div>
-			</template>
-		</div>
+			<div class="dashboard-result"><slot /></div>
+		</AsyncRegion>
 		<p v-if="snapshot && section.hasResult" class="browse-note">
 			范围快照（站点时间） {{ siteDateTime(snapshot) }}
 		</p>

@@ -69,10 +69,13 @@ class ConfigurationTests(NativeDocumentTests):
 		self.assertEqual(frappe.db.get_value("Stock Entry", entry.name, "docstatus"), 1)
 
 	def test_changed_native_warehouse_invalidates_review_and_wrong_company_or_leaf_cannot_be_root(self):
-		candidate = warehouses.save_warehouse("Repair candidate " + self.token, self.physical, "Room", True)
+		candidate_tree = warehouses.create_location("Area", "Repair candidate " + self.token, self.physical)
+		candidate = next(
+			row for row in candidate_tree["rows"] if row["local_label"] == "Repair candidate " + self.token
+		)
 		preview = configuration.repair_preview("root_warehouse", candidate["name"])
 		doc = frappe.get_doc("Warehouse", candidate["name"])
-		doc.warehouse_name += " Changed"
+		doc.ti_label += " Changed"
 		doc.save()
 		with self.assertRaises(frappe.TimestampMismatchError):
 			configuration.repair_pointer(
@@ -111,18 +114,18 @@ class ConfigurationTests(NativeDocumentTests):
 		self.assertTrue(leased.warehouse_name.endswith("借出 " + self.token))
 		self.assertEqual(leased.parent_warehouse, settings.root_warehouse)
 		physical = frappe.get_doc("Warehouse", settings.physical_root_warehouse)
-		rooms = frappe.get_all(
+		children = frappe.get_all(
 			"Warehouse",
 			filters={"parent_warehouse": physical.name},
 			fields=["name", "warehouse_type", "is_group"],
 		)
-		self.assertEqual(len(rooms), 1)
-		self.assertEqual(rooms[0].warehouse_type, "Room")
-		self.assertFalse(rooms[0].is_group)
+		self.assertEqual(children, [])
+		self.assertTrue(result["needs_first_room"])
+		self.assertTrue(result["ready"])
 		self.assertFalse(
 			frappe.db.exists(
 				"Bin",
-				{"warehouse": ["in", [leased.name, rooms[0].name, settings.damaged_warehouse]]},
+				{"warehouse": ["in", [leased.name, settings.damaged_warehouse]]},
 			)
 		)
 

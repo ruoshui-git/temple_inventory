@@ -195,7 +195,7 @@ export function operationIssues(
       !line.batch &&
       !line.nativeBundle
     )
-      add("batch", "请选择原生批次");
+      add("batch", "请选择批次");
     if (
       draft.kind === "Receive" &&
       item.tracksExpiry &&

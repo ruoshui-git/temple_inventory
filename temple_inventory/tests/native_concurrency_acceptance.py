@@ -75,7 +75,17 @@ def run():
 
 	assert_development_site()
 	frappe.set_user("Administrator")
-	warehouse, item_code = "A02 / 无货位 - O", "TI-SAMPLE-N-WORKFLOW"
+	warehouse = frappe.db.get_value(
+		"Warehouse",
+		{
+			"company": frappe.db.get_single_value("Temple Inventory Settings", "company"),
+			"parent_warehouse": ["is", "set"],
+			"ti_label": "演示室甲",
+			"ti_direct_storage": 1,
+		},
+		"name",
+	)
+	item_code = "TI-SAMPLE-N-WORKFLOW"
 	loan_name = "MAT-STE-2026-00005"
 	loan = frappe.get_doc("Stock Entry", loan_name)
 	activity_name = loan.ti_activity

@@ -1,3 +1,4 @@
+import { sampleWarehouses } from "./fixtures/nativeUi";
 import { expect, test } from "@playwright/test";
 
 // Production routing/transport exercise with controlled native responses.
@@ -37,18 +38,16 @@ test("save, reload and amendment keep the current native identity in the URL", a
         site_date: "2026-10-16",
         site_time: "2026-10-16 12:00:00",
         settings: { company: "TEST" },
-        physical_leaves: ["ROOM-A"],
+        physical_leaves: [
+          "A02-DIRECT",
+          "SHELF-1",
+          "DEMO-A-DIRECT",
+          "ROOM-B-DIRECT",
+        ],
         leased_leaves: [],
         damaged_leaves: [],
         categories: [],
-        warehouses: [
-          {
-            name: "ROOM-A",
-            local_label: "库房甲",
-            breadcrumb: "库房甲",
-            is_group: false,
-          },
-        ],
+        warehouses: sampleWarehouses,
         uoms: [{ name: "Nos", must_be_whole_number: true }],
         activity_types: [],
         capabilities: {
@@ -139,7 +138,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
     await route.fulfill({ json: { message } });
   });
   await page.goto(
-    `/inventory/movements/movements/new/Receive?warehouse=ROOM-A&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
+    `/inventory/movements/movements/new/Receive?warehouse=A02-DIRECT&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
   );
   await expect(
     page.getByRole("button", { name: "保存草稿", exact: true }),
@@ -162,9 +161,9 @@ test("save, reload and amendment keep the current native identity in the URL", a
     .getByRole("button", { name: "确认提交", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "取消原生记录", exact: true }),
+    page.getByRole("button", { name: "取消记录", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "取消原生记录", exact: true }).click();
+  await page.getByRole("button", { name: "取消记录", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "确认", exact: true })

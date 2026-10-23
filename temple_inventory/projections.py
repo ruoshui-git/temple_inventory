@@ -508,14 +508,23 @@ DISPLAY_COLUMNS = {
 def display_columns(table, columns):
 	if table in ("grouped", "group_roots"):
 		metrics = (*STOCK_SUMS, *LOAN_SUMS, *HISTORY_SUMS, *COUNT_SUMS)
-		return list(dict.fromkeys(
-			field
-			for field in (
-				"group_label", "stock_uom", *metrics, "quantity_breakdown", "row_count", "count_label",
-				"item_count", "document_count", "allocation_count",
+		return list(
+			dict.fromkeys(
+				field
+				for field in (
+					"group_label",
+					"stock_uom",
+					*metrics,
+					"quantity_breakdown",
+					"row_count",
+					"count_label",
+					"item_count",
+					"document_count",
+					"allocation_count",
+				)
+				if field in columns
 			)
-			if field in columns
-		))
+		)
 	return [field for field in DISPLAY_COLUMNS.get(table, columns) if field != "id" and field in columns]
 
 
@@ -562,11 +571,10 @@ class Projection(AbstractContextManager):
 		self.query = validate_query(query)
 		self.cache_bypass = refresh
 		from temple_inventory.read_cache import capture_cache_context
+
 		self.cache_context = None if refresh else capture_cache_context()
 		self.calculation_started = (
-			getattr(frappe.local, "inventory_cache_request_started", None)
-			if self.cache_context
-			else None
+			getattr(frappe.local, "inventory_cache_request_started", None) if self.cache_context else None
 		) or str(now_datetime())
 		self.context = ReportContext(self.query, snapshot=self.calculation_started)
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
@@ -665,7 +673,11 @@ class Projection(AbstractContextManager):
 		if table not in self.column_names:
 			frappe.throw("请选择有效的数据表")
 		field = sortable_field(self.query["dataset"], self.query["view"], self.query["sortBy"])
-		if table in ("grouped", "group_roots") and field != "identity" and field not in self.column_names[table]:
+		if (
+			table in ("grouped", "group_roots")
+			and field != "identity"
+			and field not in self.column_names[table]
+		):
 			field = "group_label" if "group_label" in self.column_names[table] else "identity"
 		direction = self.query["sort"]
 		sort_expression = (
@@ -688,7 +700,11 @@ class Projection(AbstractContextManager):
 	def matching_page(self, table, fields, values, unit, offset, limit):
 		"""Count and sort a scoped child slice in SQLite before materializing it."""
 		sort_field = sortable_field(self.query["dataset"], self.query["view"], self.query["sortBy"])
-		if table in ("grouped", "group_roots") and sort_field != "identity" and sort_field not in self.column_names.get(table, ()):
+		if (
+			table in ("grouped", "group_roots")
+			and sort_field != "identity"
+			and sort_field not in self.column_names.get(table, ())
+		):
 			sort_field = "group_label" if "group_label" in self.column_names.get(table, ()) else "identity"
 		if sort_field != "identity" and sort_field not in self.column_names.get(table, ()):
 			frappe.throw("所选分组不支持此排序字段")
@@ -719,7 +735,16 @@ class Projection(AbstractContextManager):
 	def group(self, source, target, fields, sums, *, maximums=()):
 		self.column_names.setdefault(
 			target,
-			["id", *fields, *sums, *maximums, "item_count", "document_count", "row_count", "allocation_count"],
+			[
+				"id",
+				*fields,
+				*sums,
+				*maximums,
+				"item_count",
+				"document_count",
+				"row_count",
+				"allocation_count",
+			],
 		)
 		# Fields are internal constants, never client-supplied SQL identifiers.
 		expressions = [f"json_extract(payload, '$.{field}')" for field in fields]
@@ -731,7 +756,10 @@ class Projection(AbstractContextManager):
 		is_allocation_source = source in ("lines", "outcomes", "settlements", "browse_contributions") or (
 			source == "group_source"
 			and (
-				(self.query["dataset"] in ("movements", "counts", "loans") and self.query["view"] != "records")
+				(
+					self.query["dataset"] in ("movements", "counts", "loans")
+					and self.query["view"] != "records"
+				)
 				or (self.query["dataset"] == "activities" and self.query["view"] == "loans")
 			)
 		)
@@ -759,7 +787,15 @@ class Projection(AbstractContextManager):
 				continue
 			row = dict(
 				zip(
-					[*fields, *sums, *maximums, "item_count", "document_count", "row_count", "allocation_count"],
+					[
+						*fields,
+						*sums,
+						*maximums,
+						"item_count",
+						"document_count",
+						"row_count",
+						"allocation_count",
+					],
 					values,
 					strict=True,
 				)
@@ -782,17 +818,16 @@ class Projection(AbstractContextManager):
 				conditions = ["table_id=?"]
 				parameters = [source]
 				for field, value in zip(fields, values[: len(fields)], strict=True):
-					conditions.append(
-						f"coalesce(cast(json_extract(payload, '$.{field}') as text), '')=?"
-					)
+					conditions.append(f"coalesce(cast(json_extract(payload, '$.{field}') as text), '')=?")
 					parameters.append(str(value or ""))
 				breakdown_rows = self.db.execute(
 					"select json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus'), "
 					"sum(coalesce(json_extract(payload, '$.stock_qty'), 0)), "
 					"sum(coalesce(json_extract(payload, '$.available_effect'), 0)), "
 					"count(distinct json_extract(payload, '$.document_id')), count(*) "
-					"from rows where " + " and ".join(conditions) +
-					" group by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus') "
+					"from rows where "
+					+ " and ".join(conditions)
+					+ " group by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus') "
 					"order by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus')",
 					parameters,
 				).fetchall()
@@ -1010,7 +1045,7 @@ class Projection(AbstractContextManager):
 							"warehouse": ("warehouse_label",),
 							"source_warehouse": ("source_warehouse_label",),
 							"destination_warehouse": ("destination_warehouse_label",),
-					}.get(group_fields[0], ())
+						}.get(group_fields[0], ())
 						if label in self.column_names["group_source"]
 					),
 				)
@@ -1046,9 +1081,7 @@ class Projection(AbstractContextManager):
 				row["group_label"] = group_label(row, query)
 				row.update(group_count_metadata(query, row))
 				row["id"] = json.dumps(group_id, ensure_ascii=False)
-				self.db.execute(
-					"delete from rows where table_id='grouped' and identity=?", (old_identity,)
-				)
+				self.db.execute("delete from rows where table_id='grouped' and identity=?", (old_identity,))
 				self.put("grouped", row)
 			self.main_table = "group_roots" if len(group_fields) == 2 else "grouped"
 			TABLE_LABELS.setdefault("grouped", "分组汇总")
@@ -1276,7 +1309,7 @@ class Projection(AbstractContextManager):
 							{
 								"id": value.name,
 								"warehouse": value.name,
-								"label": value.warehouse_name,
+								"label": self.context.label(value.name),
 								"parent": value.parent_warehouse or "",
 								"warehouse_type": value.warehouse_type or "",
 								"is_group": bool(value.is_group),
@@ -1323,7 +1356,9 @@ def _report_page(query, start, page_length, table, include_related, refresh=Fals
 			"period": projection.context.period,
 			"snapshot": projection.context.snapshot,
 			"table": selected,
-			"sortable_columns": list(SORTABLE_COLUMNS[(projection.query["dataset"], projection.query["view"])]),
+			"sortable_columns": list(
+				SORTABLE_COLUMNS[(projection.query["dataset"], projection.query["view"])]
+			),
 			"columns": display_columns(selected, projection.column_names[selected]),
 			"leaf_columns": display_columns(
 				projection.group_source_table,

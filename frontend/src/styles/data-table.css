@@ -194,6 +194,14 @@
 	width: var(--skeleton-width, 60%);
 	height: 0.8em;
 }
+.data-table-group-skeleton {
+	display: inline-block;
+	width: min(14rem, 45%);
+	height: 14px;
+	border-radius: var(--p-radius-control);
+	background: var(--p-border);
+	animation: preview-pulse 1.5s ease infinite;
+}
 .data-table-skeleton-control {
 	width: 18px;
 	height: 18px;
@@ -430,4 +438,7 @@
 		min-width: 48px;
 		padding-block: 12px;
 	}
+}
+.data-table-scroll.is-refreshing {
+	opacity: 0.58;
 }

@@ -1,7 +1,6 @@
 export type HierarchySelectionNode = {
   name: string;
   parent?: string;
-  parent_warehouse?: string;
   parent_item_group?: string;
   is_group?: number | boolean;
   lft?: number;
@@ -9,7 +8,7 @@ export type HierarchySelectionNode = {
 };
 
 const parentName = (node: HierarchySelectionNode) =>
-  node.parent || node.parent_warehouse || node.parent_item_group || "";
+  node.parent || node.parent_item_group || "";
 
 function isAncestor(
   ancestor: HierarchySelectionNode,

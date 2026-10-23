@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import { useActivityEditor } from "./useActivityEditor";
@@ -13,8 +14,6 @@ defineExpose({
 const {
 	dirty,
 	recoveryError,
-	candidates,
-	recover,
 	requestLeave,
 	finishLeave,
 	leaveRequested,
@@ -47,19 +46,6 @@ async function cancel() {
 <template>
 	<section class="preview-supporting-editor" aria-label="活动资料编辑">
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-		<details v-if="candidates.length">
-			<summary>此浏览器有未完成的活动输入</summary>
-			<p>仅在当前浏览器和账户可用。</p>
-			<article v-for="candidate in candidates" :key="candidate.editorId">
-				<RecoverySummary
-					kind="Inventory Activity"
-					:values="candidate.values"
-					:copy-text="JSON.stringify(candidate.values, null, 2)"
-				>
-					<UiButton @click="recover(candidate)">核对后恢复</UiButton>
-				</RecoverySummary>
-			</article>
-		</details>
 		<section v-if="leaveRequested" role="alert">
 			<p>离开当前活动编辑？未完成输入仅能在此浏览器恢复。</p>
 			<UiButton @click="finishLeave('stay')">继续编辑</UiButton
@@ -79,7 +65,7 @@ async function cancel() {
 				>放弃输入并重新读取</UiButton
 			>
 		</section>
-		<p v-if="loading" role="status">正在读取活动…</p>
+		<SkeletonBlock v-if="loading && !existing" variant="lines" :count="4" />
 		<dl v-if="!writable" class="preview-info-grid">
 			<div v-for="(value, label) in input" :key="label">
 				<dt>{{ fieldLabels[label] }}</dt>

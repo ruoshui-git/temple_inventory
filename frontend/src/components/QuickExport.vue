@@ -2,6 +2,7 @@
 import { siteDateTime } from "../lib/nativeTime";
 import { computed, ref, watch } from "vue";
 import UiButton from "./ui/UiButton.vue";
+import SkeletonBlock from "./ui/SkeletonBlock.vue";
 import Overlay from "./ui/Overlay.vue";
 import ReportTable from "./ui/ReportTable.vue";
 import InventoryIcon from "./InventoryIcon.vue";
@@ -124,7 +125,7 @@ function generateSelected() {
 					: "全部时间"
 			}}
 		</p>
-		<p v-if="loading" role="status">正在读取完整范围与预览…</p>
+		<SkeletonBlock v-if="loading && !page" variant="lines" :count="4" />
 		<p v-if="error" role="alert">
 			{{ error }} <UiButton @click="job ? status() : preview()">重试读取</UiButton>
 		</p>

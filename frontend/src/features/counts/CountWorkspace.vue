@@ -159,9 +159,7 @@ const countTableRows = computed<DataTableRecord[]>(() =>
 	visibleRows.value.map((row) => ({ kind: "record", id: c.countKey(row), value: row })),
 );
 const countEmptyText = computed(() =>
-	rows.value.length
-		? "没有符合当前搜索和筛选条件的行。"
-		: "正在读取盘点基准或此范围没有库存行。",
+	rows.value.length ? "没有符合当前搜索和筛选条件的行。" : "此范围没有库存行。",
 );
 const hiddenEntered = computed(() => {
 	const visibleKeys = new Set(filteredRows.value.map(c.countKey));
@@ -226,7 +224,7 @@ function itemImage(row: CountRow) {
 					<select
 						v-model="values.ti_count_scope"
 						:disabled="busy || baselineBusy"
-						@change="c.refresh"
+						@change="c.refresh()"
 					>
 						<option value="Full Location">全部有库存物品</option>
 						<option value="Selected">选定物品</option>
@@ -316,6 +314,8 @@ function itemImage(row: CountRow) {
 			table-class="count-table"
 			:columns="countColumns"
 			:rows="countTableRows"
+			:loading="baselineBusy"
+			:initialized="!baselineBusy || rows.length > 0"
 			:row-key="(row) => c.countKey(row as unknown as CountRow)"
 			:row-attributes="countRowAttributes"
 			:empty-text="countEmptyText"

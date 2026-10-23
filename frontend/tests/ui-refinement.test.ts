@@ -14,6 +14,7 @@ import { useRelatedLoans } from "../src/features/loans/useRelatedLoans";
 import {
   createReferenceData,
   provideInventoryServices,
+  type LocationNode,
 } from "../src/services/contracts";
 const cropperMocks = vi.hoisted(() => {
   const selection = {
@@ -124,11 +125,13 @@ it("keeps dashboard card structure stable while refreshing retained results", as
   ).toEqual(cardShape);
   expect(wrapper.findAll('[role="status"]')).toHaveLength(1);
   expect(wrapper.get(".dashboard-refresh-status").text()).toBe("更新中…");
-  expect(
-    wrapper.get(".dashboard-refresh-status").attributes("aria-label"),
-  ).toBe("正在更新库存分布…");
+  expect(wrapper.get('.async-result-region [role="status"]').text()).toBe(
+    "库存分布数据刷新中…",
+  );
   expect(wrapper.find(".dashboard-stale-label").exists()).toBe(false);
-  expect(wrapper.get(".dashboard-result").classes()).toContain("is-stale");
+  expect(wrapper.get(".async-result-region").classes()).toContain(
+    "is-refreshing",
+  );
 });
 it("formats allocation chips with authorized warehouse labels while preserving exact query identities", () => {
   const reference = createReferenceData();
@@ -237,7 +240,7 @@ it("distinguishes loading, initial failure, successful empty and retained refres
     loading: true,
     initialized: false,
   });
-  expect(wrapper.text()).toContain("正在读取");
+  expect(wrapper.find(".data-table-skeleton-row").exists()).toBe(true);
   expect(wrapper.text()).not.toContain("没有符合");
   await wrapper.setProps({
     loading: false,
@@ -255,16 +258,35 @@ it("distinguishes loading, initial failure, successful empty and retained refres
   expect(wrapper.text()).toContain("已提交");
   expect(wrapper.text()).toContain("保留当前结果");
 });
-it("resolves duplicate and hyphenated authorized warehouse labels without changing keys", () => {
+it("uses presenter labels and keeps authorized warehouse keys unchanged", () => {
+  const node = (name: string, label: string, path: string): LocationNode => ({
+    name,
+    label,
+    local_label: label,
+    short_label: "",
+    full_label: label,
+    path,
+    search_text: `${path} ${label}`,
+    kind: "shelf",
+    owner: "",
+    direct: false,
+    storable: true,
+    missing_direct: false,
+    parent: "",
+    is_group: false,
+    disabled: false,
+    lft: 1,
+    rgt: 2,
+    version: "",
+    protected: false,
+    can_edit: true,
+  });
   const nodes = [
-    { name: "ROOM-A - COMPANY", label: "东-库房" },
-    { name: "P1", label: "一楼" },
-    { name: "P2", label: "二楼" },
-    { name: "L1", label: "A-01", parent: "P1" },
-    { name: "L2", label: "A-01", parent: "P2" },
+    node("ROOM-A - COMPANY", "东-库房", "东院 / 东-库房"),
+    node("L2", "A-01", "二楼 / A-01"),
   ];
   expect(warehouseLabel("ROOM-A - COMPANY", nodes)).toBe("东-库房");
-  expect(warehouseLabel("L2", nodes)).toBe("二楼 / A-01");
+  expect(warehouseLabel("L2", nodes)).toBe("A-01");
   expect(warehouseLabel("SECRET", nodes)).toBe("位置暂不可用");
   expect(nodes[0]!.name).toBe("ROOM-A - COMPANY");
 });

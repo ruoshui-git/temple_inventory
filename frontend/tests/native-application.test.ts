@@ -14,7 +14,6 @@ import {
   type BootstrapData,
 } from "../src/services/contracts";
 import { useApplication } from "../src/features/application/useApplication";
-import { warehouseLabel } from "../src/lib/warehouseLabel";
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 const sessionValue = (user = "alice") => ({
@@ -41,9 +40,25 @@ const bootstrap = (user = "alice") => ({
   warehouses: [
     {
       name: "ROOM",
+      label: "房间",
       local_label: "房间",
-      breadcrumb: "寺院 / 房间",
+      short_label: "",
+      full_label: "房间",
+      path: "寺院 / 房间",
+      search_text: "寺院 / 房间 房间",
+      kind: "room",
+      owner: "",
+      direct: false,
+      storable: true,
+      missing_direct: false,
+      parent: "",
       is_group: false,
+      disabled: false,
+      lft: 1,
+      rgt: 2,
+      version: "",
+      protected: false,
+      can_edit: false,
     },
   ],
   capabilities: {},
@@ -77,86 +92,77 @@ function setup(
   return { c, reference, wrapper, session, call };
 }
 describe("native application boundary", () => {
-  it("hydrates native warehouse types so duplicate default rooms receive compact disambiguated labels", () => {
+  it("hydrates the canonical presenter labels for rooms and their direct leaves", () => {
     const reference = createReferenceData();
+    const warehouse = (
+      name: string,
+      label: string,
+      path: string,
+      kind: "area" | "room" | "shelf" | "system",
+      parent: string,
+      is_group: boolean,
+      direct = false,
+      owner = "",
+    ) => ({
+      name,
+      label,
+      local_label: label,
+      short_label: "",
+      full_label: label,
+      path,
+      search_text: `${path} ${label}`,
+      kind,
+      owner,
+      direct,
+      storable: !is_group || direct,
+      missing_direct: false,
+      parent,
+      is_group,
+      disabled: false,
+      lft: 0,
+      rgt: 0,
+      version: "",
+      protected: false,
+      can_edit: true,
+    });
     const result: BootstrapData = {
       ...bootstrap(),
       warehouses: [
-        {
-          name: "ROOT",
-          local_label: "寺院仓库",
-          breadcrumb: "寺院仓库",
-          warehouse_type: "Location",
-          is_group: true,
-        },
-        {
-          name: "PHYSICAL",
-          local_label: "实体库房",
-          breadcrumb: "寺院仓库 / 实体库房",
-          parent_warehouse: "ROOT",
-          warehouse_type: "Location",
-          is_group: true,
-        },
-        {
-          name: "T1",
-          local_label: "T1",
-          breadcrumb: "寺院仓库 / 实体库房 / T1",
-          parent_warehouse: "PHYSICAL",
-          warehouse_type: "Location",
-          is_group: true,
-        },
-        {
-          name: "T2",
-          local_label: "T2",
-          breadcrumb: "寺院仓库 / 实体库房 / T2",
-          parent_warehouse: "PHYSICAL",
-          warehouse_type: "Location",
-          is_group: true,
-        },
-        {
-          name: "ROOM-1",
-          local_label: "A14",
-          breadcrumb: "寺院仓库 / 实体库房 / T1 / A14",
-          parent_warehouse: "T1",
-          warehouse_type: "Room",
-          is_group: true,
-        },
-        {
-          name: "ROOM-2",
-          local_label: "A14",
-          breadcrumb: "寺院仓库 / 实体库房 / T2 / A14",
-          parent_warehouse: "T2",
-          warehouse_type: "Room",
-          is_group: true,
-        },
-        {
-          name: "DEFAULT-1",
-          local_label: "无货位",
-          breadcrumb: "寺院仓库 / 实体库房 / T1 / A14 / 无货位",
-          parent_warehouse: "ROOM-1",
-          warehouse_type: "Location",
-          room_default: true,
-          is_group: false,
-        },
-        {
-          name: "DEFAULT-2",
-          local_label: "无货位",
-          breadcrumb: "寺院仓库 / 实体库房 / T2 / A14 / 无货位",
-          parent_warehouse: "ROOM-2",
-          warehouse_type: "Location",
-          room_default: true,
-          is_group: false,
-        },
+        warehouse("ROOT", "寺院仓库", "", "system", "", true),
+        warehouse("PHYSICAL", "实体库房", "", "system", "ROOT", true),
+        warehouse("T1", "T1", "T1", "area", "PHYSICAL", true),
+        warehouse("T2", "T2", "T2", "area", "PHYSICAL", true),
+        warehouse("ROOM-1", "T1 / A14", "T1 / A14", "room", "T1", true),
+        warehouse("ROOM-2", "T2 / A14", "T2 / A14", "room", "T2", true),
+        warehouse(
+          "DIRECT-1",
+          "T1 / A14",
+          "T1 / A14",
+          "room",
+          "ROOM-1",
+          false,
+          true,
+          "ROOM-1",
+        ),
+        warehouse(
+          "DIRECT-2",
+          "T2 / A14",
+          "T2 / A14",
+          "room",
+          "ROOM-2",
+          false,
+          true,
+          "ROOM-2",
+        ),
       ],
     };
 
     hydrateReferenceData(reference, result);
 
-    expect(
-      reference.warehouses.find((row) => row.name === "ROOM-1")?.type,
-    ).toBe("Room");
-    expect(warehouseLabel("DEFAULT-1", reference.warehouses)).toBe("T1 / A14");
-    expect(warehouseLabel("DEFAULT-2", reference.warehouses)).toBe("T2 / A14");
+    const room = reference.warehouses.find((row) => row.name === "ROOM-1");
+    expect(room?.kind).toBe("room");
+    expect(room?.label).toBe("T1 / A14");
+    expect(room?.path).toBe("T1 / A14");
   });
 
   it("delays worker activation while an editor retains unsaved input and releases its guard on unmount", async () => {

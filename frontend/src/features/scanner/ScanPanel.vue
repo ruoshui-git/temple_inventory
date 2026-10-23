@@ -65,6 +65,13 @@ let resumeCamera = false;
 const warehouseOptions = computed(() => {
 	const group = result.value?.warehouse;
 	if (!group?.is_group) return [];
+	const groupNode = reference.warehouses.find((row) => row.name === group.name);
+	if (groupNode?.kind === "room" || groupNode?.kind === "shelf") {
+		const direct = reference.warehouses.find(
+			(row) => row.direct && row.owner === group.name && row.storable,
+		);
+		return direct ? [{ value: direct.name, label: direct.label, detail: direct.path }] : [];
+	}
 	const byName = new Map(reference.warehouses.map((row) => [row.name, row]));
 	const contains = (name: string) => {
 		let current = byName.get(name);
@@ -72,13 +79,13 @@ const warehouseOptions = computed(() => {
 		while (current && !seen.has(current.name)) {
 			if (current.name === group.name) return true;
 			seen.add(current.name);
-			current = byName.get(current.parent || current.parent_warehouse || "");
+			current = byName.get(current.parent || "");
 		}
 		return false;
 	};
 	return reference.warehouses
-		.filter((row) => !row.is_group && contains(row.name))
-		.map((row) => ({ value: row.name, label: row.label || row.name }));
+		.filter((row) => !row.is_group && row.storable && contains(row.name))
+		.map((row) => ({ value: row.name, label: row.label, detail: row.path }));
 });
 
 function closeScan() {
@@ -134,6 +141,11 @@ watch(
 			warehouseOptions.value.length === 1 ? warehouseOptions.value[0]!.value : "";
 	},
 );
+watch([() => result.value?.warehouse?.name, warehouseOptions], () => {
+	const node = reference.warehouses.find((row) => row.name === result.value?.warehouse?.name);
+	if (node?.kind === "room" && warehouseOptions.value.length === 1)
+		void chooseGroupLocation(warehouseOptions.value[0]!.value);
+});
 watch(open, (value) => {
 	if (!value) camera.value = false;
 });

@@ -337,13 +337,35 @@
   {
     "doctype": "Custom Field",
     "dt": "Warehouse",
-    "fieldname": "ti_room_default",
-    "fieldtype": "Check",
-    "label": "默认房间存放位置",
+    "fieldname": "ti_label",
+    "fieldtype": "Data",
+    "label": "本地名称",
+    "description": "warehouse_name 由位置名称路径自动生成。",
     "insert_after": "warehouse_type",
     "module": "Temple Inventory",
+    "name": "Warehouse-ti_label"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Warehouse",
+    "fieldname": "ti_short_label",
+    "fieldtype": "Data",
+    "label": "简称",
+    "insert_after": "ti_label",
+    "module": "Temple Inventory",
+    "name": "Warehouse-ti_short_label"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Warehouse",
+    "fieldname": "ti_direct_storage",
+    "fieldtype": "Check",
+    "label": "直接存放位置",
+    "insert_after": "ti_short_label",
+    "module": "Temple Inventory",
     "default": "0",
-    "name": "Warehouse-ti_room_default"
+    "hidden": 1,
+    "name": "Warehouse-ti_direct_storage"
   },
   {
     "doctype": "Custom Field",

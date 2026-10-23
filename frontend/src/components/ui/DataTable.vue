@@ -46,7 +46,7 @@ const props = withDefaults(
 		error: "",
 		retained: false,
 		emptyText: "没有符合条件的记录",
-		loadingText: "正在读取记录…",
+		loadingText: "表格数据加载中…",
 		retryText: "重试",
 		selectionEnabled: false,
 		selectedKeys: () => [],
@@ -70,6 +70,7 @@ const emit = defineEmits<{
 
 const preferences = computed(() => props.columnPreferences);
 const stale = computed(() => props.stale ?? props.retained);
+const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
 const settingsTrigger = ref<HTMLButtonElement>();
 const settingsPanel = ref<HTMLDivElement>();
@@ -345,24 +346,22 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 			</div>
 		</Teleport>
 
-		<p v-if="loading && !initialized" class="data-table-state" role="status">
+		<p v-if="loading && !initialized" class="sr-only" role="status">
 			{{ loadingText }}
 		</p>
 		<p v-if="error && !rows.length" class="data-table-state error" role="alert">
 			{{ error }} <button type="button" @click="emit('retry')">{{ retryText }}</button>
 		</p>
-		<span
-			v-if="loading && retained && stale"
-			class="sr-only data-table-refresh-status"
-			role="status"
-		>
-			正在更新，保留当前结果…
+		<span v-if="refreshing" class="sr-only data-table-refresh-status" role="status">
+			保留当前结果，更新完成后可用。
 		</span>
 		<div
 			class="data-table-scroll"
+			:class="{ 'is-refreshing': refreshing }"
 			role="region"
 			:aria-label="`可横向滚动：${ariaLabel}`"
-			:aria-busy="loading && retained && stale ? 'true' : undefined"
+			:aria-busy="refreshing ? 'true' : undefined"
+			:inert="refreshing ? true : undefined"
 			tabindex="0"
 		>
 			<table
@@ -456,7 +455,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 						</th>
 					</tr>
 				</thead>
-				<tbody :inert="stale || undefined">
+				<tbody :inert="refreshing || stale || undefined">
 					<template v-if="loading && !initialized">
 						<tr
 							v-for="row in 5"
@@ -669,7 +668,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									'--group-depth': entry.kind === 'group' ? entry.depth : 0,
 								}"
 							>
-								<span v-if="entry.loading" role="status">正在读取…</span>
+								<span
+									v-if="entry.loading"
+									class="data-table-group-skeleton"
+									aria-hidden="true"
+								></span>
 								<span v-if="entry.error" role="alert">{{ entry.error }}</span>
 								<slot name="group" :group="entry" />
 							</td>

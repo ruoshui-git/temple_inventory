@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { computed, watch } from "vue";
-import { warehouseLabel } from "../../lib/warehouseLabel";
 import type { useConfiguration } from "./useConfiguration";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 const props = defineProps<{ controller: ReturnType<typeof useConfiguration> }>();
@@ -22,11 +22,8 @@ const {
 	message,
 	options,
 } = c;
-const warehouseNodes = computed(() =>
-	(status.value?.candidates || []).map((row) => ({ ...row, name: row.value })),
-);
 const locationLabel = (name: string) =>
-	name ? warehouseLabel(name, warehouseNodes.value) : "尚未配置";
+	name ? status.value?.candidates?.find((row) => row.value === name)?.label || name : "尚未配置";
 watch([field, warehouse], () => c.clearPreview());
 </script>
 <template>
@@ -42,7 +39,7 @@ watch([field, warehouse], () => c.clearPreview());
 				></template
 			></PageHeader
 		>
-		<p v-if="loading" role="status">正在读取配置与权限…</p>
+		<SkeletonBlock v-if="loading && !status" variant="detail" :count="3" :rows="3" />
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<p v-if="message" role="status">{{ message }}</p>
 		<template v-if="status">
@@ -98,7 +95,7 @@ watch([field, warehouse], () => c.clearPreview());
 			<section v-if="status.selected_company" class="surface utility-panel">
 				<h2>修复配置引用</h2>
 				<p>
-					选择当前可读取的原生仓库，查看替代范围与影响后再确认。修改引用不会移动库存或调整仓库上级。
+					选择当前可读取的仓库，查看替代范围与影响后再确认。修改引用不会移动库存或调整仓库上级。
 				</p>
 				<label class="preview-field"
 					>配置项<select v-model="field" :disabled="busy">

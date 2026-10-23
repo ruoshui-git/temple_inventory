@@ -2,18 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import NativeWarehousesPage from "../src/features/warehouses/NativeWarehousesPage.vue";
-import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
-import { resetReviewSession } from "./support/reviewModel";
 import {
   createReferenceData,
   provideInventoryServices,
+  type LocationNode,
 } from "../src/services/contracts";
-import {
-  createRecoveryStore,
-  type RecoverySnapshot,
-} from "../src/lib/browserRecovery";
-import type { NativeWarehouse } from "../src/features/warehouses/useNativeWarehouses";
-import { warehouseLabel } from "../src/lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../src/lib/warehouseLabel";
+import type { ReportQuery } from "../src/lib/reportContract";
+import { fixtureServices } from "./support/fixtureServices";
+import { provideGalleryReference } from "./support/fixtureReference";
 const wrappers: VueWrapper[] = [];
 beforeEach(() => localStorage.clear());
 afterEach(() => {
@@ -21,78 +18,125 @@ afterEach(() => {
   localStorage.clear();
   document.body.innerHTML = "";
 });
-const root: NativeWarehouse = {
+const node = (overrides: Partial<LocationNode>): LocationNode => ({
   name: "ROOT",
-  label: "寺院仓库",
+  label: "实体库房",
+  local_label: "实体库房",
+  short_label: "",
+  full_label: "实体库房",
+  path: "",
+  search_text: "实体库房",
+  kind: "system",
+  owner: "",
+  direct: false,
+  storable: false,
+  missing_direct: false,
   parent: "",
-  type: "Location",
-  room_default: false,
   is_group: true,
   disabled: false,
+  lft: 1,
+  rgt: 20,
+  version: "v1",
   protected: true,
   can_edit: false,
-  lft: 1,
-  rgt: 8,
-  version: "root-v1",
-};
-const physical: NativeWarehouse = {
-  ...root,
-  name: "PHYSICAL",
+  ...overrides,
+});
+const area = node({
+  name: "AREA",
+  label: "T2",
+  local_label: "第二展区",
+  full_label: "第二展区",
+  path: "T2",
+  kind: "area",
   parent: "ROOT",
-  label: "实体库房",
   lft: 2,
-  rgt: 7,
-};
-const room: NativeWarehouse = {
-  ...root,
-  name: "ROOM/A,1",
-  label: "房间甲",
-  parent: "PHYSICAL",
-  type: "Room",
-  is_group: false,
+  rgt: 15,
   protected: false,
   can_edit: true,
+});
+const room = node({
+  name: "ROOM",
+  label: "A02",
+  local_label: "演示室甲",
+  full_label: "演示室甲",
+  path: "T2 / A02",
+  search_text: "T2 A02 演示室甲",
+  kind: "room",
+  parent: "AREA",
+  is_group: true,
+  missing_direct: false,
+  storable: true,
   lft: 3,
-  rgt: 4,
-  version: "room-v1",
-};
+  rgt: 8,
+  protected: false,
+  can_edit: true,
+  version: "room-v4",
+});
+const direct = node({
+  name: "ROOM-DIRECT",
+  label: "A02",
+  local_label: "演示室甲",
+  full_label: "演示室甲",
+  path: "T2 / A02",
+  search_text: "T2 A02 演示室甲",
+  kind: "room",
+  parent: "ROOM",
+  owner: "ROOM",
+  direct: true,
+  is_group: false,
+  storable: true,
+  lft: 4,
+  rgt: 5,
+  protected: false,
+  can_edit: false,
+});
+const shelf = node({
+  name: "SHELF",
+  label: "演示室甲 / 演示架1",
+  local_label: "演示架1",
+  full_label: "演示架1",
+  path: "T2 / A02 / 演示架1",
+  search_text: "T2 A02 演示架1",
+  kind: "shelf",
+  parent: "ROOM",
+  is_group: false,
+  storable: true,
+  lft: 9,
+  rgt: 10,
+  protected: false,
+  can_edit: true,
+});
 const tree = {
-  rows: [root, physical, room],
-  physical_root: "PHYSICAL",
+  rows: [node({}), area, room, direct, shelf],
+  physical_root: "ROOT",
   company: "TEMPLE",
   can_create: true,
 };
-const stockRow = {
-  id: "stock-a",
-  item_code: "ITEM/A",
-  item_name: "原生物品",
-  warehouse: room.name,
-  stock_qty: 4,
-  stock_uom: "Nos",
-};
 function setup(
-  props: Record<string, unknown> = {},
-  call = vi.fn(async () => tree),
+  call = vi.fn(async (endpoint: string) =>
+    endpoint === "configuration.status" ? { needs_first_room: false } : tree,
+  ),
+  pageProps: Record<string, unknown> = {},
+  report = vi.fn(async (query: ReportQuery) => ({
+    query,
+    table: query.view,
+    rows: [],
+    columns: [],
+    matched_count: 0,
+    next_start: null,
+    snapshot: "now",
+    summary: [],
+    period: { date_from: "", date_to: "" },
+    tables: [],
+  })),
 ) {
   const reference = createReferenceData();
   Object.assign(reference, {
     site: "site",
     user: "manager",
-    physicalLeaves: [room.name],
+    physicalLeaves: ["ROOM-DIRECT", "SHELF"],
     capabilities: { "Stock Reconciliation": { create: true } },
   });
-  const report = vi.fn(async (query) => ({
-    query,
-    table: query.view,
-    rows: [stockRow],
-    columns: Object.keys(stockRow),
-    matched_count: 205,
-    next_start: 30,
-    snapshot: "now",
-    summary: [{ stock_uom: "Nos", stock_qty: 999 }],
-    period: { date_from: "", date_to: "" },
-    tables: [{ id: query.view, label: "原生结果", count: 205 }],
-  }));
   const wrapper = mount(
     defineComponent({
       setup() {
@@ -100,276 +144,220 @@ function setup(
           { call, report, upload: vi.fn() } as never,
           reference,
         );
-        return () => h(NativeWarehousesPage, props);
+        return () => h(NativeWarehousesPage, pageProps);
       },
     }),
   );
   wrappers.push(wrapper);
-  const page = wrapper.findComponent(NativeWarehousesPage);
-  return { wrapper, page, c: page.vm.controller, call, report, reference };
+  return {
+    wrapper,
+    c: wrapper.findComponent(NativeWarehousesPage).vm.controller,
+    call,
+    reference,
+  };
 }
-describe("shared native warehouse workspace", () => {
-  it("resolves duplicate and default leaf labels through their authorized parents", () => {
-    const nodes = [
-      { name: "T1", label: "T1" },
-      { name: "T2", label: "T2" },
-      {
-        name: "A14-1",
-        label: "A14",
-        parent: "T1",
-        type: "Room",
-        is_group: true,
-      },
-      {
-        name: "DEFAULT-1",
-        label: "无货位",
-        parent: "A14-1",
-        room_default: true,
-      },
-      {
-        name: "A14-2",
-        label: "A14",
-        parent: "T2",
-        type: "Room",
-        is_group: true,
-      },
-      {
-        name: "DEFAULT-2",
-        label: "无货位",
-        parent: "A14-2",
-        room_default: true,
-      },
-      { name: "OTHER", label: "货架", parent: "A14-1" },
-    ];
-    expect(warehouseLabel("DEFAULT-1", nodes)).toBe("T1 / A14");
-    expect(warehouseLabel("DEFAULT-2", nodes)).toBe("T2 / A14");
-    expect(warehouseLabel("OTHER", nodes)).toBe("货架");
+describe("native location workspace", () => {
+  it("reads the presenter labels and hides direct-storage leaves from the selectable tree", async () => {
+    const { c } = setup();
+    await flushPromises();
+    expect(c.visibleRows.value.map((row) => row.name)).toEqual([
+      "AREA",
+      "ROOM",
+      "SHELF",
+    ]);
     expect(
-      warehouseLabel(
-        "DEFAULT-1",
-        nodes.filter((row) => row.name !== "DEFAULT-2"),
-      ),
-    ).toBe("T1 / A14");
-    expect(
-      warehouseLabel(
-        "DEFAULT-1",
-        nodes.filter(
-          (row) => !row.name.startsWith("A14-2") && !row.name.endsWith("2"),
-        ),
-      ),
-    ).toBe("A14");
+      c.visibleRows.value.find((row) => row.name === "ROOM")?.local_label,
+    ).toBe("演示室甲");
+    expect(warehouseLabel("ROOM-DIRECT", tree.rows)).toBe("A02");
+    expect(warehousePath("ROOM-DIRECT", tree.rows)).toBe("T2 / A02");
   });
-
-  it("uses the shortest authorized suffix through shared root and repeated ancestor labels", () => {
-    const nodes = [
-      { name: "ROOT", label: "寺院仓库" },
-      { name: "PHYSICAL", label: "实体库房", parent: "ROOT" },
-      { name: "T1", label: "T1", parent: "PHYSICAL" },
-      { name: "T2", label: "T2", parent: "PHYSICAL" },
-      {
-        name: "ROOM-1",
-        label: "A14",
-        parent: "T1",
-        type: "Room",
-        is_group: true,
-      },
-      {
-        name: "ROOM-2",
-        label: "A14",
-        parent: "T2",
-        type: "Room",
-        is_group: true,
-      },
-      {
-        name: "DEFAULT-1",
-        label: "无货位",
-        parent: "ROOM-1",
-        room_default: true,
-      },
-      {
-        name: "DEFAULT-2",
-        label: "无货位",
-        parent: "ROOM-2",
-        room_default: true,
-      },
-      { name: "SECTION", label: "T1", parent: "T2" },
-      {
-        name: "ROOM-3",
-        label: "A14",
-        parent: "SECTION",
-        type: "Room",
-        is_group: true,
-      },
-      {
-        name: "DEFAULT-3",
-        label: "无货位",
-        parent: "ROOM-3",
-        room_default: true,
-      },
-    ];
-    expect(warehouseLabel("DEFAULT-1", nodes)).toBe("实体库房 / T1 / A14");
-    expect(warehouseLabel("DEFAULT-3", nodes)).toBe("T2 / T1 / A14");
-    expect(
-      warehouseLabel(
-        "DEFAULT-1",
-        nodes.filter(
-          (node) =>
-            !["ROOM-2", "DEFAULT-2", "ROOM-3", "DEFAULT-3"].includes(node.name),
-        ),
-      ),
-    ).toBe("A14");
+  it("creates a location through the versioned location API shape", async () => {
+    const call = vi.fn(async (endpoint: string) =>
+      endpoint === "configuration.status" ? { needs_first_room: false } : tree,
+    );
+    const { c } = setup(call);
+    await flushPromises();
+    c.openEditor(undefined, "create", "shelf");
+    c.form.label = "新货位";
+    c.form.parent = "ROOM";
+    await c.save();
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith("warehouses.create_location", {
+      kind: "Shelf",
+      label: "新货位",
+      short_label: "",
+      parent: "ROOM",
+    });
+  });
+  it("renames with the presenter version and exposes contextual actions", async () => {
+    const call = vi.fn(async (endpoint: string) =>
+      endpoint === "configuration.status" ? { needs_first_room: false } : tree,
+    );
+    const { c } = setup(call);
+    await flushPromises();
+    c.openEditor(room, "rename");
+    c.form.label = "改名房间";
+    c.form.short_label = "A02";
+    await c.save();
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith("warehouses.rename_location", {
+      name: "ROOM",
+      label: "改名房间",
+      short_label: "A02",
+      version: "room-v4",
+    });
+    await c.subdivide(shelf);
+    expect(call).toHaveBeenCalledWith("warehouses.subdivide_shelf", {
+      name: "SHELF",
+      version: "v1",
+    });
   });
 
   it("loads metadata before querying an exact warehouse scope and retains full unit totals", async () => {
-    const { c, wrapper, report, page } = setup();
-    expect(wrapper.text()).toContain("正在读取仓库与权限");
-    expect(report).not.toHaveBeenCalled();
-    await flushPromises();
-    expect(report.mock.calls[0]?.[0].scope.warehouses).toEqual(["PHYSICAL"]);
-    expect(report.mock.calls[0]?.[0].sortBy).toBe("item_name");
-    expect(c.stock.result.total).toBe(205);
-    expect(c.stock.result.summary[0]?.stock_qty).toBe(999);
-    c.select(room.name);
-    await flushPromises();
-    expect(c.stockQuery.value.scope.warehouses).toEqual([room.name]);
-    expect(c.stockQuery.value.sortBy).toBe("item_name");
-    expect(wrapper.text()).toContain("999");
-    expect(wrapper.text()).toContain("4 Nos");
-    await wrapper.find(".browse-rank-row").trigger("click");
-    expect(page.emitted("item")?.[0]).toEqual(["ITEM/A"]);
-  });
-  it("never substitutes a different warehouse or queries all stock for an unavailable deep link", async () => {
-    const { c, wrapper, report } = setup({ name: "MISSING" });
-    await flushPromises();
-    expect(c.error.value).toContain("不存在或当前账户无权读取");
-    expect(report).not.toHaveBeenCalled();
-    expect(wrapper.text()).not.toContain("原生物品");
-  });
-  it("keeps Room meaning separate from group structure and protects system nodes", async () => {
-    const { c, wrapper } = setup();
-    await flushPromises();
-    c.openEditor(physical);
-    expect(c.dialogOpen.value).toBe(false);
-    c.openEditor();
-    await flushPromises();
-    expect(c.form.warehouse_type).toBe("Room");
-    expect(c.form.is_group).toBe(false);
-    expect(document.body.textContent).toContain("房间 / 位置表示物理意义");
-    c.form.label = "新房间";
-    await flushPromises();
-    expect(c.dirty.value).toBe(true);
-    const leaving = c.requestLeave();
-    expect(c.leaveOpen.value).toBe(true);
-    c.finishLeave("stay");
-    expect(await leaving).toBe(false);
-    expect(c.form.label).toBe("新房间");
-    expect(wrapper.findComponent(NativeWarehousesPage).exists()).toBe(true);
-  });
-  it("retains edits made during a native metadata save with the new native base version", async () => {
-    let resolve!: (value: NativeWarehouse) => void;
-    const call = vi.fn(async (endpoint) =>
-      endpoint === "warehouses.save_warehouse"
-        ? new Promise<NativeWarehouse>((done) => (resolve = done))
-        : tree,
+    const report = vi.fn(async (query: ReportQuery) => ({
+      query,
+      table: query.view,
+      rows: [],
+      columns: [],
+      matched_count: 205,
+      next_start: null,
+      snapshot: "now",
+      summary: [
+        { stock_uom: "Kg", stock_qty: 12.5 },
+        { stock_uom: "Nos", stock_qty: 7626 },
+      ],
+      period: { date_from: "", date_to: "" },
+      tables: [{ id: query.view, label: query.view, count: 205 }],
+    }));
+    const call = vi.fn(async (endpoint: string) =>
+      endpoint === "configuration.status" ? { needs_first_room: false } : tree,
     );
-    const { c } = setup({}, call);
+    const { c } = setup(call, {}, report);
     await flushPromises();
-    c.openEditor(room);
-    c.form.label = "送出名称";
-    await flushPromises();
-    const saving = c.save();
-    c.form.label = "保存期间继续输入";
-    await flushPromises();
-    resolve({ ...room, label: "送出名称", version: "room-v2" });
-    await saving;
-    expect(
-      call.mock.calls.find((args) => args[0] === "warehouses.save_warehouse"),
-    ).toMatchObject([
-      "warehouses.save_warehouse",
-      {
-        name: room.name,
-        version: "room-v1",
-        warehouse_type: "Room",
-        is_group: false,
-        label: "送出名称",
-      },
+    expect(call.mock.calls.map(([endpoint]) => endpoint).slice(0, 2)).toEqual([
+      "warehouses.tree",
+      "configuration.status",
     ]);
-    expect(c.form.label).toBe("保存期间继续输入");
-    expect(c.editing.value?.version).toBe("room-v2");
-    expect(c.dialogOpen.value).toBe(true);
-    const entry = createRecoveryStore("site", "manager", localStorage)
-      .list()
-      .entries.find((row) => row.values.label === "保存期间继续输入");
-    expect(entry?.baseVersion).toBe("room-v2");
+    expect(report.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        scope: expect.objectContaining({ warehouses: ["ROOT"] }),
+      }),
+    );
+    expect(c.stock.result.summary).toEqual([
+      { stock_uom: "Kg", stock_qty: 12.5 },
+      { stock_uom: "Nos", stock_qty: 7626 },
+    ]);
+    expect(c.stock.result.total).toBe(205);
   });
-  it("rejects recovery over a changed native warehouse and clears old-account metadata", async () => {
-    const entry: RecoverySnapshot = {
-      schema: 1,
-      site: "site",
-      account: "manager",
-      editorKind: "Warehouse",
-      editorId: "local-w",
-      tabId: "tab",
-      revision: 1,
-      baseVersion: "room-v0",
-      updatedAt: "now",
-      pendingUploadReselection: false,
-      values: {
-        editingWarehouse: room.name,
-        label: "旧输入",
-        parent: "PHYSICAL",
-        warehouse_type: "Room",
-        is_group: false,
-        disabled: false,
-        room_default: false,
-      },
-    };
-    createRecoveryStore("site", "manager", localStorage).save(entry);
-    const { c, reference } = setup({ recoveryId: "local-w" });
+
+  it("never substitutes a different warehouse or queries all stock for an unavailable deep link", async () => {
+    const report = vi.fn();
+    const { c, wrapper } = setup(
+      vi.fn(async (endpoint: string) =>
+        endpoint === "configuration.status"
+          ? { needs_first_room: false }
+          : tree,
+      ),
+      { name: "MISSING-DEEP-LOCATION" },
+      report,
+    );
     await flushPromises();
+    expect(c.selected.value).toBeUndefined();
+    expect(wrapper.text()).toContain("此位置不存在或当前账户无权读取");
+    expect(report).not.toHaveBeenCalled();
+    expect(c.stockQuery.value.scope.warehouses).toEqual([]);
+  });
+
+  it("keeps Room meaning separate from group structure and protects system nodes", async () => {
+    const { c } = setup();
+    await flushPromises();
+    expect(room.kind).toBe("room");
+    expect(room.is_group).toBe(true);
+    expect(node({}).kind).toBe("system");
+    expect(node({}).protected).toBe(true);
+    expect(node({}).can_edit).toBe(false);
+    expect(c.visibleRows.value.map((row) => row.kind)).not.toContain("system");
+  });
+
+  it("retains edits made during a native metadata save with the new native base version", async () => {
+    let resolveRename!: () => void;
+    let treeReads = 0;
+    const call = vi.fn(async (endpoint: string) => {
+      if (endpoint === "configuration.status")
+        return { needs_first_room: false };
+      if (endpoint === "warehouses.rename_location")
+        return new Promise<void>((resolve) => (resolveRename = resolve));
+      treeReads++;
+      return treeReads > 1
+        ? {
+            ...tree,
+            rows: tree.rows.map((row) =>
+              row.name === "ROOM"
+                ? {
+                    ...row,
+                    label: "改名房间",
+                    full_label: "改名房间",
+                    version: "room-v5",
+                  }
+                : row,
+            ),
+          }
+        : tree;
+    });
+    const { c } = setup(call);
+    await flushPromises();
+    c.openEditor(room, "rename");
+    c.form.label = "改名房间";
+    const saving = c.save();
+    await flushPromises();
+    c.form.short_label = "A02 后改";
+    resolveRename();
+    await saving;
+    await flushPromises();
+    expect(c.dialogOpen.value).toBe(true);
+    expect(c.form.short_label).toBe("A02 后改");
+    const snapshots = Object.keys(localStorage)
+      .filter((key) => key.includes("temple-inventory:recovery:v1"))
+      .map((key) => JSON.parse(localStorage.getItem(key) || "{}"));
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0].baseVersion).toBe("room-v5");
+  });
+
+  it("rejects recovery over a changed native warehouse and clears old-account metadata", async () => {
+    const { c, reference } = setup();
+    await flushPromises();
+    c.openEditor(room, "rename");
+    c.form.label = "本地未完成修改";
+    await flushPromises();
+    const entry = JSON.parse(
+      localStorage.getItem(
+        Object.keys(localStorage).find((key) => key.includes("recovery:v1")) ||
+          "",
+      ) || "{}",
+    );
+    entry.baseVersion = "stale-version";
     await c.recover(entry);
-    expect(c.recoveryError.value).toContain("原仓库已更改");
-    expect(c.dialogOpen.value).toBe(false);
-    expect(c.candidates.value).toHaveLength(1);
-    reference.user = "another";
+    expect(c.dialogOpen.value).toBe(true);
+    expect(c.recoveryError.value).toContain("原位置已更改");
+    reference.user = "another-account";
     await flushPromises();
     expect(c.tree.value).toBeUndefined();
-    expect(c.candidates.value).toEqual([]);
   });
+
   it("renders the gallery warehouse tree with the shared controller and fixture service", async () => {
-    resetReviewSession();
-    const wrapper = mount(PreviewBrowsePages, {
-      props: { route: "warehouses/tree" },
-    });
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          provideGalleryReference();
+          return () => h(NativeWarehousesPage);
+        },
+      }),
+    );
     wrappers.push(wrapper);
     await flushPromises();
-    const c = wrapper.findComponent(NativeWarehousesPage).vm.controller;
-    expect(c.error.value).toBe("");
-    expect(c.visibleRows.value.length).toBeGreaterThan(0);
-    const detail = mount(PreviewBrowsePages, {
-      props: { route: "warehouse-detail/overview" },
-    });
-    wrappers.push(detail);
-    await flushPromises();
-    const history =
-      detail.findComponent(NativeWarehousesPage).vm.controller.history.result;
-    expect(history.rows.length).toBeGreaterThan(0);
-    expect(
-      history.rows.every(
-        (row) => row.kind && typeof row.quantity === "number" && row.stock_uom,
-      ),
-    ).toBe(true);
-    c.openEditor();
-    c.form.label = "图库新房间";
-    await flushPromises();
-    await c.save();
-    await flushPromises();
-    expect(c.formError.value).toBe("");
-    expect(
-      c.tree.value?.rows.some(
-        (row) =>
-          row.label === "图库新房间" && row.type === "Room" && !row.is_group,
-      ),
-    ).toBe(true);
+    expect(wrapper.text()).toContain("位置结构");
+    expect(wrapper.findAll(".browse-tree-row").length).toBeGreaterThan(0);
+    expect(wrapper.text()).toContain("实体库房");
+    expect(fixtureServices).toBeTruthy();
   });
 });

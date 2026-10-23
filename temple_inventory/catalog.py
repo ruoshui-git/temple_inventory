@@ -296,6 +296,8 @@ def picker_rows(
 	if purpose not in ("outbound", "damaged", "inbound", "count"):
 		frappe.throw("物品选择用途无效")
 	start, page_length = max(0, cint(start)), min(100, max(1, cint(page_length)))
+	if purpose == "inbound":
+		warehouses = []
 	if isinstance(warehouses, str):
 		warehouses = frappe.parse_json(warehouses)
 	if not isinstance(warehouses or [], list):
@@ -330,7 +332,7 @@ def picker_rows(
 			search=search,
 			start=item_start,
 			page_length=100,
-			warehouses=warehouses,
+			warehouses=[] if purpose == "inbound" else warehouses,
 			categories=categories,
 			uncategorized=uncategorized,
 			in_stock_only=False,
@@ -701,13 +703,31 @@ def scan_code(value):
 	matches = [item_metadata(check_item(code)) for code in sorted(codes)]
 	warehouse = None
 	if frappe.db.exists("Warehouse", value):
-		from temple_inventory.native_topology import _visible_warehouses
+		from temple_inventory.native_topology import _visible_warehouses, present_locations
 
 		doc = frappe.get_doc("Warehouse", value)
 		doc.check_permission("read")
-		if value not in _visible_warehouses():
+		visible = _visible_warehouses()
+		if value not in visible:
 			frappe.throw("无权访问此库存位置", frappe.PermissionError)
-		warehouse = {"name": doc.name, "label": doc.warehouse_name, "is_group": bool(doc.is_group)}
+		if doc.is_group:
+			direct = frappe.db.get_value(
+				"Warehouse", {"parent_warehouse": doc.name, "ti_direct_storage": 1}, "name"
+			)
+			if direct:
+				if direct not in visible:
+					frappe.throw("无权访问此库存位置", frappe.PermissionError)
+				doc = frappe.get_doc("Warehouse", direct)
+				doc.check_permission("read")
+		labels = {
+			row["name"]: row["label"]
+			for row in present_locations(visible, settings=frappe.get_single("Temple Inventory Settings"))
+		}
+		warehouse = {
+			"name": doc.name,
+			"label": labels.get(doc.name, doc.warehouse_name),
+			"is_group": bool(doc.is_group),
+		}
 	return {
 		"unknown": not matches and not warehouse,
 		"barcode": value,

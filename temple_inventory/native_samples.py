@@ -14,7 +14,7 @@ import frappe
 from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
 
-from temple_inventory import activities, catalog, configuration, conversions, counts, native_api
+from temple_inventory import activities, catalog, configuration, conversions, counts, native_api, warehouses
 from temple_inventory.item_code import allocate_item_code
 from temple_inventory.native_stock import loan_balances
 from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT, costume_catalog
@@ -59,55 +59,6 @@ def _date(days, origin=None):
 	return str(getdate(origin or _SITE_DATE.get() or nowdate()) + timedelta(days=days))
 
 
-def _warehouse(company, label, parent, *, group=False, kind="Location", room_default=False):
-	return (
-		frappe.get_doc(
-			{
-				"doctype": "Warehouse",
-				"warehouse_name": label,
-				"company": company,
-				"parent_warehouse": parent,
-				"is_group": int(group),
-				"warehouse_type": kind,
-				"ti_room_default": int(room_default),
-			}
-		)
-		.insert()
-		.name
-	)
-
-
-def remove_initializer_general_leaf(settings):
-	"""Clear the unused initializer leaf only when it has no stock or descendants."""
-	name = frappe.db.get_value(
-		"Warehouse",
-		{"warehouse_name": "通用库房", "parent_warehouse": settings.physical_root_warehouse},
-		"name",
-	)
-	if not name:
-		return
-	if frappe.db.exists("Stock Ledger Entry", {"warehouse": name}) or frappe.get_all(
-		"Bin", filters={"warehouse": name, "actual_qty": ["!=", 0]}, limit_page_length=1
-	):
-		frappe.throw("初始化通用库房仍有库存，不会在样例安装中删除")
-	if frappe.get_all("Warehouse", filters={"parent_warehouse": name}, limit_page_length=1):
-		frappe.throw("初始化通用库房仍有子仓库，不会在样例安装中删除")
-	# Refuse deletion if any native draft or app record still points at the node.
-	for meta in frappe.get_all("DocType", filters={"issingle": 0, "istable": 0}, pluck="name"):
-		for field in frappe.get_meta(meta).fields:
-			if field.fieldtype != "Link" or field.options != "Warehouse":
-				continue
-			if frappe.db.has_column(meta, field.fieldname) and frappe.db.exists(
-				meta, {field.fieldname: name}
-			):
-				frappe.throw("初始化通用库房仍被原生记录引用，不会删除")
-	settings.set(
-		"allowed_warehouses", [row.as_dict() for row in settings.allowed_warehouses if row.warehouse != name]
-	)
-	settings.save(ignore_permissions=True)
-	frappe.delete_doc("Warehouse", name, ignore_permissions=True)
-
-
 def _hierarchy(company, data):
 	settings = frappe.get_single("Temple Inventory Settings")
 	if not settings.root_warehouse:
@@ -115,7 +66,6 @@ def _hierarchy(company, data):
 		settings.reload()
 	if settings.company != company:
 		frappe.throw("样例公司与库存配置不一致")
-	remove_initializer_general_leaf(settings)
 	if frappe.db.sql(
 		"""select 1 from `tabStock Ledger Entry` s join `tabWarehouse` w on w.name=s.warehouse
 		where w.lft >= (select lft from `tabWarehouse` where name=%s)
@@ -124,22 +74,31 @@ def _hierarchy(company, data):
 	):
 		frappe.throw("样例安装要求配置范围内没有库存流水；请使用开发站点重置工具")
 	physical = settings.physical_root_warehouse
-	first = _warehouse(company, "T1", physical, group=True)
-	_warehouse(company, "T1/通用库房", first, kind="Room")
-	second = _warehouse(company, "T2", physical, group=True)
-	rooms = {}
-	sample_group = _warehouse(company, "样例库房", physical, group=True)
-	for row in data["rooms"]:
-		room = _warehouse(company, row["label"], second, group=True, kind="Room")
-		rooms[row["label"]] = _warehouse(company, row["label"] + " / 无货位", room, room_default=True)
-		sample_label = row["label"] + " 样例"
-		sample_room = _warehouse(company, sample_label, sample_group, group=True, kind="Room")
-		rooms["SAMPLE_" + row["label"]] = _warehouse(
-			company, sample_label + " / 无货位", sample_room, room_default=True
-		)
-		if row["label"] == "A02":
-			rooms["A02-RACK"] = _warehouse(company, "A02 / 货架一 / 上层", room)
-			rooms["SAMPLE_A02-RACK"] = _warehouse(company, "A02 样例 / 货架一 / 上层", sample_room)
+	warehouses.create_location("Area", "第2寺院", physical, "T2")
+	t2 = frappe.db.get_value("Warehouse", {"parent_warehouse": physical, "ti_label": "第2寺院"}, "name")
+	warehouses.create_location("Room", "A02", t2)
+	room_a02 = frappe.db.get_value("Warehouse", {"parent_warehouse": t2, "ti_label": "A02"}, "name")
+	warehouses.create_location("Area", "演示区", physical)
+	demo_area = frappe.db.get_value("Warehouse", {"parent_warehouse": physical, "ti_label": "演示区"}, "name")
+	warehouses.create_location("Room", "演示室甲", demo_area)
+	room_a = frappe.db.get_value("Warehouse", {"parent_warehouse": demo_area, "ti_label": "演示室甲"}, "name")
+	warehouses.create_location("Shelf", "演示架1", room_a)
+	warehouses.create_location("Room", "演示室乙", demo_area)
+	room_b = frappe.db.get_value("Warehouse", {"parent_warehouse": demo_area, "ti_label": "演示室乙"}, "name")
+	rooms = {
+		"A02": frappe.db.get_value(
+			"Warehouse", {"parent_warehouse": room_a02, "ti_direct_storage": 1}, "name"
+		),
+		"DEMO_A": frappe.db.get_value(
+			"Warehouse", {"parent_warehouse": room_a, "ti_direct_storage": 1}, "name"
+		),
+		"DEMO_SHELF": frappe.db.get_value(
+			"Warehouse", {"parent_warehouse": room_a, "ti_label": "演示架1"}, "name"
+		),
+		"DEMO_B": frappe.db.get_value(
+			"Warehouse", {"parent_warehouse": room_b, "ti_direct_storage": 1}, "name"
+		),
+	}
 	rooms["LEASE"] = settings.leased_warehouse
 	rooms["DAMAGED"] = settings.damaged_warehouse
 	return rooms
@@ -344,7 +303,7 @@ def _opening(company, data, costumes, items, rooms):
 			_line(
 				items[row["key"]],
 				row["quantity"],
-				target=rooms["SAMPLE_" + row["room"]],
+				target=rooms["DEMO_A"],
 				basic_rate=row["rate"],
 			)
 		)
@@ -364,7 +323,7 @@ def _opening(company, data, costumes, items, rooms):
 				_line(
 					item,
 					batch["quantity"],
-					target=rooms["SAMPLE_" + by_key[key]["room"]],
+					target=rooms["DEMO_A"],
 					batch_no=batch_id,
 					use_serial_batch_fields=1,
 					basic_rate=by_key[key]["rate"],
@@ -372,23 +331,23 @@ def _opening(company, data, costumes, items, rooms):
 			)
 	for row in data["items"]:
 		if row.get("opening_qty"):
-			lines.append(_line(items[row["key"]], row["opening_qty"], target=rooms["SAMPLE_A04"]))
+			lines.append(_line(items[row["key"]], row["opening_qty"], target=rooms["DEMO_A"]))
 	for row in costumes:
 		costume_lines.append(
 			_line(
 				items[row["key"]],
 				row["quantity"],
-				target=rooms[row["room"]],
+				target=rooms["A02"],
 				basic_rate=row["rate"],
 			)
 		)
-	lines.append(_line(items["N-WEIGHT"], 12.5, target=rooms["SAMPLE_C03"], basic_rate=2))
+	lines.append(_line(items["N-WEIGHT"], 12.5, target=rooms["DEMO_B"], basic_rate=2))
 	catalog.create_batch(items["N-UNDATED"]["item_code"], ITEM_PREFIX + "UNDATED", _date(-600))
 	lines.append(
 		_line(
 			items["N-UNDATED"],
 			12,
-			target=rooms["SAMPLE_A02"],
+			target=rooms["DEMO_A"],
 			batch_no=ITEM_PREFIX + "UNDATED",
 			use_serial_batch_fields=1,
 		)
@@ -416,7 +375,7 @@ def _opening(company, data, costumes, items, rooms):
 
 def _workflow(company, items, rooms, *, attach_files):
 	item = items["N-WORKFLOW"]
-	a, b, leased, damaged = (rooms[key] for key in ("SAMPLE_A02", "SAMPLE_A02-RACK", "LEASE", "DAMAGED"))
+	a, b, leased, damaged = (rooms[key] for key in ("DEMO_A", "DEMO_SHELF", "LEASE", "DAMAGED"))
 	activity = activities.save_activity(
 		{
 			"title": SAMPLE_ACTIVITY_TITLE,
@@ -521,7 +480,7 @@ def _workflow(company, items, rooms, *, attach_files):
 				company,
 				"meal-receipt",
 				"Receive",
-				[_line(meal_item, 4, target=rooms["SAMPLE_C03"])],
+				[_line(meal_item, 4, target=rooms["DEMO_B"])],
 				-7,
 				ti_activity=meal_activity["name"],
 			),
@@ -529,7 +488,7 @@ def _workflow(company, items, rooms, *, attach_files):
 				company,
 				"meal-issue",
 				"Issue",
-				[_line(meal_item, 1, source=rooms["SAMPLE_C03"])],
+				[_line(meal_item, 1, source=rooms["DEMO_B"])],
 				-5,
 				ti_activity=meal_activity["name"],
 			),
@@ -554,7 +513,7 @@ def _workflow(company, items, rooms, *, attach_files):
 					company,
 					f"history-receive-{index + 1:02}",
 					"Receive",
-					[_line(item, 1, target=rooms["SAMPLE_A04"])],
+					[_line(item, 1, target=rooms["DEMO_B"])],
 					receipt_day,
 					ti_activity=history_activity["name"],
 				),
@@ -562,7 +521,7 @@ def _workflow(company, items, rooms, *, attach_files):
 					company,
 					f"history-issue-{index + 1:02}",
 					"Issue",
-					[_line(item, 1, source=rooms["SAMPLE_A04"])],
+					[_line(item, 1, source=rooms["DEMO_B"])],
 					issue_day,
 					ti_activity=history_activity["name"],
 				),
@@ -573,7 +532,7 @@ def _workflow(company, items, rooms, *, attach_files):
 	for batch in batches:
 		catalog.create_batch(batch_item["item_code"], batch, _date(-500), _date(45))
 	allocations = [(batches[0], 2), (batches[1], 3)]
-	inbound_bundle = _batch_bundle(company, batch_item, rooms["SAMPLE_C03"], -23, "Inward", allocations)
+	inbound_bundle = _batch_bundle(company, batch_item, rooms["DEMO_B"], -23, "Inward", allocations)
 	documents.append(
 		_entry(
 			company,
@@ -583,7 +542,7 @@ def _workflow(company, items, rooms, *, attach_files):
 				_line(
 					batch_item,
 					5,
-					target=rooms["SAMPLE_C03"],
+					target=rooms["DEMO_B"],
 					serial_and_batch_bundle=inbound_bundle.name,
 					use_serial_batch_fields=0,
 				)
@@ -592,7 +551,7 @@ def _workflow(company, items, rooms, *, attach_files):
 			ti_activity=history_activity["name"],
 		)
 	)
-	outbound_bundle = _batch_bundle(company, batch_item, rooms["SAMPLE_C03"], -22, "Outward", allocations)
+	outbound_bundle = _batch_bundle(company, batch_item, rooms["DEMO_B"], -22, "Outward", allocations)
 	documents.append(
 		_entry(
 			company,
@@ -602,7 +561,7 @@ def _workflow(company, items, rooms, *, attach_files):
 				_line(
 					batch_item,
 					5,
-					source=rooms["SAMPLE_C03"],
+					source=rooms["DEMO_B"],
 					serial_and_batch_bundle=outbound_bundle.name,
 					use_serial_batch_fields=0,
 				)
@@ -657,7 +616,7 @@ def _workflow(company, items, rooms, *, attach_files):
 
 def _count(company, rooms):
 	stamp = _date(-1) + " 12:00:00"
-	warehouses = [rooms["SAMPLE_A02"], rooms["SAMPLE_A02-RACK"]]
+	warehouses = [rooms["DEMO_A"], rooms["DEMO_SHELF"]]
 	selected_items = [ITEM_PREFIX + "N-WORKFLOW", ITEM_PREFIX + "N-ZERO"]
 	baseline = counts.count_baseline(warehouses, stamp, "Selected", selected_items)
 	rows = []
@@ -665,12 +624,11 @@ def _count(company, rooms):
 		copy = dict(row)
 		if row["item_code"] == ITEM_PREFIX + "N-WORKFLOW":
 			copy.update(
-				actual_qty=float(row["baseline_qty"])
-				+ (-1 if row["warehouse"] == rooms["SAMPLE_A02"] else 1),
+				actual_qty=float(row["baseline_qty"]) + (-1 if row["warehouse"] == rooms["DEMO_A"] else 1),
 				review_state="Reviewed",
 				reason="活动清点差异",
 			)
-		elif row["warehouse"] == rooms["SAMPLE_A02"]:
+		elif row["warehouse"] == rooms["DEMO_A"]:
 			copy.update(actual_qty=float(row["baseline_qty"]), review_state="Reviewed", reason="核对无差异")
 		else:
 			copy.update(
@@ -725,7 +683,7 @@ def _install(company, *, attach_images=True, attach_files=True):
 			_line(
 				items["G-000001"],
 				data["batches"]["G-000001"][0]["quantity"],
-				source=rooms["SAMPLE_C03"],
+				source=rooms["DEMO_A"],
 				batch_no=ITEM_PREFIX + "BAT-000001",
 				use_serial_batch_fields=1,
 			)
@@ -755,7 +713,7 @@ def _install(company, *, attach_images=True, attach_files=True):
 
 
 def assert_balances(rooms, loans):
-	for key, expected in (("SAMPLE_A02", 68), ("SAMPLE_A02-RACK", 7), ("LEASE", 21), ("DAMAGED", 3)):
+	for key, expected in (("DEMO_A", 68), ("DEMO_SHELF", 7), ("LEASE", 21), ("DAMAGED", 3)):
 		actual = get_stock_balance((ITEM_PREFIX + "N-WORKFLOW"), rooms[key])
 		if actual != expected:
 			raise AssertionError(f"Native sample balance mismatch at {key}: {actual} != {expected}")

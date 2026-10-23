@@ -232,14 +232,25 @@ async function setup(page: Page, scale = 100, density = "balanced") {
   const warehouses = Array.from({ length: 8 }, (_, i) => ({
     name: i === 7 ? "ROOM-A" : `G${i}`,
     local_label: `东院第${i}层供灯与法会用品长名称`,
-    parent_warehouse: i ? `G${i - 1}` : "",
+    parent: i ? `G${i - 1}` : "",
     is_group: i < 7,
-    breadcrumb: `东院 / ${i}层`,
+    path: `演示区 / ${i}层`,
+    full_label: `东院第${i}层供灯与法会用品长名称`,
+    search_text: `演示区 ${i}层`,
+    label: `第${i}层`,
   }));
   await nativeUiSession(page, scale, {
     warehouses: [
       ...warehouses,
-      { name: "ROOM-B", local_label: "借出保管处", is_group: false },
+      {
+        name: "DEMO-ROOM-B",
+        local_label: "演示室乙",
+        label: "演示室乙",
+        is_group: true,
+        kind: "room",
+        path: "演示区 / 演示室乙",
+        search_text: "演示区 演示室乙",
+      },
     ],
     capabilities: { Item: { create: true }, "Stock Entry": { create: true } },
     operations: { Receive: true },

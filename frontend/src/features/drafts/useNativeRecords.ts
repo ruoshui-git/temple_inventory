@@ -125,9 +125,13 @@ export function useNativeRecords(
       decoded.error ||
       (decoded.query.dataset !== dataset ? "此页面的数据范围不匹配" : "");
     const value = { ...decoded.query, view: "records" };
-    if (props.mode === "drafts") value.statuses = [0];
+    if (props.mode === "drafts") {
+      value.statuses = [0];
+      value.sortBy = "modified";
+      value.sort = "desc";
+    }
     if (!props.initialQuery && !props.routeQuery) {
-      value.sortBy = "date";
+      value.sortBy = props.mode === "drafts" ? "modified" : "date";
       value.sort = "desc";
       if (props.mode === "counts") value.statuses = [0, 1, 2];
     }
@@ -227,13 +231,12 @@ export function useNativeRecords(
     get: () => query.value.scope,
     set: (value) => (query.value.scope = value),
   });
-  const extraChips = computed(() =>
-    reportFilterChips(query.value, reference).map((chip) =>
-      props.mode === "drafts" && chip.key === "statuses"
-        ? { ...chip, label: "原生草稿", reset: {}, fixed: true }
-        : chip,
-    ),
-  );
+  const extraChips = computed(() => {
+    const chips = reportFilterChips(query.value, reference);
+    return props.mode === "drafts"
+      ? chips.filter((chip) => chip.key !== "statuses")
+      : chips;
+  });
   function clear() {
     clearReportSecondaryFilters(query.value, reference);
     query.value.scope = newReportQuery(query.value.dataset).scope;

@@ -27,6 +27,7 @@ const PickerStub = defineComponent({
     "scanFeedback",
     "canUndoScan",
     "activeWarehouse",
+    "context",
     "scanDestination",
     "scanDestinationOptions",
   ],
@@ -195,6 +196,7 @@ describe("rapid operation scan integration", () => {
     });
     const { wrapper, draft, context } = setup("Issue", [item]);
     const picker = await openPicker(wrapper);
+    expect(picker.props("context")).toBe("出库 · ");
     picker.vm.$emit("select", { code: "ITEM-A", warehouse: "ROOM-B" });
     await flushPromises();
     expect(context.ensure).toHaveBeenCalledWith("ITEM-A");

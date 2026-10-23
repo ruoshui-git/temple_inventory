@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useOptionalReferenceData } from "../../services/contracts";
-import { warehouseFullPath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, nextTick, ref, watch } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -77,13 +77,21 @@ const warehouseReference = useOptionalReferenceData();
 					单位: line.uom,
 					批次: line.batch,
 					到期: line.expiry,
-					库位: warehouseFullPath(line.location, warehouseReference?.warehouses || []),
+					库位: warehouseLabel(line.location, warehouseReference?.warehouses || []),
 					换算率: line.conversionFactor || 1,
 				}"
 				:key="label"
 			>
 				<dt>{{ label }}</dt>
-				<dd>{{ value || "未填写" }}</dd>
+				<dd
+					:title="
+						label === '库位'
+							? warehousePath(line.location, warehouseReference?.warehouses || [])
+							: undefined
+					"
+				>
+					{{ value || "未填写" }}
+				</dd>
 			</div>
 		</dl>
 		<div v-else ref="content" class="allocation-details" :inert="discard || undefined">

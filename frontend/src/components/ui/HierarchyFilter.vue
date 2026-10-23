@@ -6,18 +6,18 @@ export type HierarchyFilterNode = {
 	name: string;
 	label?: string;
 	local_label?: string;
-	breadcrumb?: string;
+	short_label?: string;
 	search_text?: string;
+	direct?: boolean;
 	parent?: string;
-	parent_warehouse?: string;
 	parent_item_group?: string;
 	is_group?: number | boolean;
 	lft?: number;
 	rgt?: number;
 	count?: number;
-	room_default?: boolean;
-	type?: string;
-	modified?: string;
+	path?: string;
+	full_label?: string;
+	kind?: string;
 	version?: string;
 };
 
@@ -42,16 +42,18 @@ const term = ref("");
 const activeIndex = ref(0);
 const expanded = ref(new Set<string>());
 const initializedNodes = new Set<string>();
-const nodes = computed(() =>
+const allOptions = computed(() =>
 	[...props.options].sort((a, b) => Number(a.lft || 0) - Number(b.lft || 0)),
 );
-const allNodes = computed(() => (props.tree.length ? props.tree : nodes.value));
+const nodes = computed(() => allOptions.value.filter((node) => !node.direct));
+const allNodes = computed(() => (props.tree.length ? props.tree : allOptions.value));
 const selection = computed(() => normalizeHierarchySelection(props.modelValue, allNodes.value));
 const byName = computed(() => new Map(allNodes.value.map((node) => [node.name, node])));
-const parentOf = (node: HierarchyFilterNode) =>
-	node.parent || node.parent_warehouse || node.parent_item_group || "";
+const parentOf = (node: HierarchyFilterNode) => node.parent || node.parent_item_group || "";
 const childrenOf = (node: HierarchyFilterNode) =>
 	allNodes.value.filter((candidate) => parentOf(candidate) === node.name);
+const visibleChildrenOf = (node: HierarchyFilterNode) =>
+	nodes.value.filter((candidate) => parentOf(candidate) === node.name);
 const roots = computed(() =>
 	nodes.value.filter((node) => !allNodes.value.some((parent) => parent.name === parentOf(node))),
 );
@@ -96,25 +98,8 @@ function isAncestor(ancestor: HierarchyFilterNode, node: HierarchyFilterNode) {
 	);
 }
 const localLabel = (node: HierarchyFilterNode) =>
-	node.local_label ||
-	(node.label?.includes(" / ") ? node.label.split(" / ").at(-1)?.trim() : node.label) ||
-	node.name;
-const path = (node: HierarchyFilterNode) => {
-	if (node.breadcrumb) return node.breadcrumb;
-	if (node.label?.includes(" / ")) return node.label;
-	const values = [localLabel(node)];
-	let parent = byName.value.get(parentOf(node));
-	const seen = new Set<string>();
-	while (parent && !seen.has(parent.name)) {
-		seen.add(parent.name);
-		values.unshift(localLabel(parent));
-		parent = byName.value.get(parentOf(parent));
-	}
-	return values.join(" / ");
-};
-const contextPath = (node: HierarchyFilterNode) => {
-	return term.value.trim() ? path(node) : "";
-};
+	node.short_label || node.local_label || node.label || node.name;
+const path = (node: HierarchyFilterNode) => node.label || node.name;
 const normalize = (value: string) =>
 	value
 		.toLocaleLowerCase()
@@ -123,11 +108,9 @@ const normalize = (value: string) =>
 		.trim();
 const matches = (node: HierarchyFilterNode) =>
 	!term.value ||
-	normalize(
-		[node.name, localLabel(node), node.label || "", node.search_text || "", path(node)].join(
-			" ",
-		),
-	).includes(normalize(term.value));
+	normalize([node.name, node.search_text || "", node.label || ""].join(" ")).includes(
+		normalize(term.value),
+	);
 const visible = (node: HierarchyFilterNode) =>
 	matches(node) || descendants(node).some((candidate) => matches(candidate));
 function depth(node: HierarchyFilterNode) {
@@ -342,7 +325,7 @@ watch(term, () => {
 						:style="{ paddingInlineStart: Math.min(depth(node), 4) * 10 + 'px' }"
 					>
 						<button
-							v-if="childrenOf(node).length"
+							v-if="visibleChildrenOf(node).length"
 							type="button"
 							class="tree-toggle"
 							:aria-expanded="expanded.has(node.name)"
@@ -367,13 +350,10 @@ watch(term, () => {
 								@change="toggle(node)"
 							/><span
 								class="hierarchy-option-label"
-								:title="term ? path(node) : undefined"
+								:title="node.full_label || localLabel(node)"
 								><span class="hierarchy-option-primary">{{
 									localLabel(node)
-								}}</span
-								><small v-if="contextPath(node)" class="hierarchy-path">{{
-									contextPath(node)
-								}}</small></span
+								}}</span></span
 							><small v-if="node.count !== undefined" class="facet-result-count">{{
 								node.count
 							}}</small></label

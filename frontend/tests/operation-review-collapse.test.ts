@@ -23,8 +23,7 @@ const OperationLinesStub = defineComponent({
   name: "OperationLines",
   props: ["expanded"],
   emits: ["expand", "notify"],
-  template:
-    '<button class="preview-full-workspace-action" @click="$emit(\'expand\')">{{ expanded ? "退出完整工作区" : "展开完整工作区" }}</button>',
+  template: "<div />",
 });
 const PageHeaderStub = defineComponent({
   name: "PageHeader",
@@ -148,13 +147,13 @@ describe("operation review rail collapse", () => {
     const { wrapper } = setup(true);
     await flushPromises();
     const form = wrapper.get("form");
-    await wrapper.get(".preview-edge-handle").trigger("click");
+    await wrapper.get(".preview-edge-rail").trigger("click");
     await flushPromises();
     expect(form.classes()).toContain("workspace-review-collapsed");
     expect(wrapper.get(".form-date-section").exists()).toBe(true);
     expect(wrapper.get(".form-main").exists()).toBe(true);
     expect(wrapper.get(".preview-document-actions").exists()).toBe(true);
-    const handle = wrapper.get(".preview-edge-handle");
+    const handle = wrapper.get(".preview-edge-rail");
     const panelId = handle.attributes("aria-controls");
     expect(panelId).toBe("operation-review-content");
     expect(wrapper.get(`#${panelId}`).attributes("aria-hidden")).toBe("true");
@@ -177,7 +176,7 @@ describe("operation review rail collapse", () => {
   it("uses a normal disclosure on mobile and never exposes the desktop edge handle", async () => {
     const { wrapper } = setup(false);
     await flushPromises();
-    expect(wrapper.find(".preview-edge-handle").exists()).toBe(false);
+    expect(wrapper.find(".preview-edge-rail").exists()).toBe(false);
     const disclosure = wrapper.get(".review-preview-disclosure");
     expect((disclosure.element as HTMLDetailsElement).open).toBe(false);
     await wrapper.get(".review-preview-summary").trigger("click");

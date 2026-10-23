@@ -78,20 +78,8 @@ export function useItemEditor(
     /* Memory state remains usable. */
   }
   const recovery = createRecoveryStore(reference.site, account, storage);
-  const candidates = ref<RecoverySnapshot[]>([]);
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (model.category === oldName) model.category = category.name;
-    candidates.value = candidates.value.map((candidate) => {
-      if (candidate.values.category !== oldName) return candidate;
-      const updated = {
-        ...candidate,
-        revision: candidate.revision + 1,
-        updatedAt: new Date().toISOString(),
-        values: { ...candidate.values, category: category.name },
-      };
-      recovery.save(updated);
-      return updated;
-    });
   });
   const initialized = ref(false),
     leaveRequested = ref(false);
@@ -226,18 +214,15 @@ export function useItemEditor(
       } else await suggest();
       if (!active() || current !== generation) return;
       baseline.value = JSON.stringify(model);
-      candidates.value = recovery
-        .list()
-        .entries.filter(
-          (row) =>
-            row.editorKind === "Item" &&
-            (!props.recoveryId || row.editorId === props.recoveryId) &&
-            (props.code
-              ? String(row.values.editingCode || "") === props.code
-              : !row.values.editingCode || row.values.creating === true),
-        );
       ready = true;
       initialized.value = true;
+      if (props.recoveryId) {
+        const entry = recovery.read(props.recoveryId);
+        if (entry?.editorKind === "Item") await recover(entry);
+        else
+          recoveryError.value =
+            "未找到这份浏览器暂存内容，请从草稿列表重新打开";
+      }
     } catch (reason) {
       if (active() && current === generation)
         error.value = reason instanceof Error ? reason.message : "物品读取失败";
@@ -292,13 +277,9 @@ export function useItemEditor(
     );
     ready = true;
     const durable = retain();
-    if (durable) {
-      if (recovery.remove(source.editorId, source.revision))
-        candidates.value = candidates.value.filter(
-          (candidate) => candidate.editorId !== source.editorId,
-        );
-      else recoveryError.value = "另一窗口已更新这份未完成输入；其内容保持原样";
-    }
+    if (durable && !recovery.remove(source.editorId, source.revision))
+      recoveryError.value = "另一窗口已更新这份未完成输入；其内容保持原样";
+    showToast("已恢复上次在此浏览器暂存的内容");
   }
   async function reset() {
     ready = false;
@@ -445,7 +426,6 @@ export function useItemEditor(
     discardOpen,
     dirty,
     canWrite,
-    candidates,
     recovery,
     recover,
     load,

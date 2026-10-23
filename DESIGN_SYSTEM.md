@@ -54,10 +54,12 @@ kept in Git.
   scrollable; phone sheets use the shared focus-managed overlay.
 - Desktop filter dialogs may use two labeled columns for filters and grouping;
   phone sheets stack them. Header/footer remain outside scrolling content.
-  Show the local node name in primary ink by default. During search, show its
-  full breadcrumb as muted `--p-small` context. Paths/search strings may wrap;
-  expansion controls retain their own touch target. Clearing selections or
-  search preserves tree expansion.
+  Show a hierarchy node's `local_label` in primary ink and put its `full_label`
+  in the title. Warehouse nodes use the presenter's `search_text` for matching;
+  direct-storage leaves stay in the selection model but are hidden as rows.
+  Chips use the canonical `label`; full paths belong in tooltips or selector
+  detail. Expansion controls retain their own touch target. Clearing selections
+  or search preserves tree expansion.
 - Hierarchy indentation is 10px per level, capped at 40px. Desktop expander
   tracks are 28px with 16px checkboxes, 4px gaps and 32px minimum rows. Phone
   rows and expanders remain 44px. Keep readable name tracks and allow actions
@@ -95,6 +97,7 @@ kept in Git.
 
 ## Async presentation
 
+- `AsyncRegion` and `SkeletonBlock` are the only data-loading presentation mechanism. Use `DataTable` for table results; `DocumentLoadingState` remains the editor-specific skeleton.
 - Initial requests use shape-matched skeletons. A refresh retains the last
   successful snapshot, layout, scroll and selection; dim only the affected
   result region and show one compact accessible status. Headings and controls
@@ -106,6 +109,16 @@ kept in Git.
   Retain generation/account abort guards. While a grouped query changes, bind
   the prior display to its prior query until new rows arrive. Do not change
   mutation save/conflict semantics.
+
+## Draft labels
+
+- `草稿单据` and `浏览器暂存` use compact pill tags with their document and
+  device icons. Keep both labels readable without color; the icon and text carry
+  the distinction. On the combined drafts page, summaries, relative timestamps
+  and row actions remain visible at phone widths. Full recovery detail stays
+  inside the browser row's disclosure.
+- A pristine new movement or count form has no status chip or record tag. Once
+  edited, show one plain status; a saved document name is secondary text.
 
 ## Overlays, reports and fixed geometry
 
@@ -141,14 +154,19 @@ kept in Git.
   stage. Each accepted scan adds one stock unit and brings the changed row and
   group forward through presentation ordering only. Native child order and row
   identities remain stable; closing the stage cancels scans still in flight.
-- Desktop preview collapse uses a fixed edge handle. The explicit full-workspace
-  action has its own state; exiting it restores the previous preview state.
-  Mobile has no edge handle and uses the normal disclosure flow.
+- Desktop preview collapse uses a 12px edge rail with a 24px hit area, divider,
+  chevron and vertical `确认前检查` label when collapsed. The collapsed grid
+  column and panel are both 28px. The full-workspace icon sits in the right side
+  of the `操作物资` heading row, including display mode; exiting restores the
+  previous preview state and focus returns to the rail. Mobile has no rail and
+  uses the normal disclosure flow.
 - Picker results use DataTable with flattened Item/warehouse row identity;
-  authorized warehouse breadcrumb, stock quantity and row selection stay in the
-  same compact row. Newly created selection preview stays above filtered
-  results. The full-workspace icon sits at the editable panel's upper right,
-  separate from the preview edge handle.
+  canonical warehouse label, full-path tooltip, stock quantity and row selection
+  stay in the same compact row for outbound, damaged and count. Inbound shows
+  only the category rail and omits the warehouse column; its quantity heading
+  is the receiving location label plus `现有`. Newly created selection preview
+  stays above filtered results. The receive target selector is a compact inline
+  control in the lines toolbar and lists storable physical leaves.
 - ToastHost teleports token-styled messages and exposes polite feedback while
   remaining available above the active focus-managed overlay. Success feedback
   uses the normal surface; save/server failures use the danger background and

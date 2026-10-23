@@ -99,9 +99,11 @@ describe("shared production design system", () => {
     expect(read("src/features/items/ItemPicker.vue")).toContain(
       '<BrowseFilters\n\t\t\t\t\t\t\t\tv-model="browseScope"',
     );
-    expect(read("src/features/items/ItemPicker.vue")).toContain(
-      ":fields=\"['categories', 'warehouses']\"",
+    const itemPicker = read("src/features/items/ItemPicker.vue");
+    expect(itemPicker).toMatch(
+      /purpose === 'inbound'\s*\?\s*\['categories'\]\s*:\s*\['categories', 'warehouses'\]/,
     );
+    expect(itemPicker).toContain('props.purpose === "inbound"');
   });
 
   it("keeps production independent of fixtures and the gallery independent of authentication, RPC and PWA startup", () => {

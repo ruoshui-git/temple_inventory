@@ -1,215 +1,144 @@
-"""Native Warehouse metadata, Desk discovery and guarded hierarchy changes."""
+"""Native Warehouse location model, Desk derivation and guarded hierarchy changes."""
 
 import unittest
-from unittest.mock import patch
 
 import frappe
 
-from temple_inventory import warehouses
+from temple_inventory import catalog, warehouses
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeWarehouseTests(NativeDocumentTests):
-	def test_desk_saves_enforce_native_hierarchy_rules_without_frontend_audience_gate(self):
-		self.receipt(5)
-		user = frappe.get_doc(
+	def _create(self, kind, label, parent, short_label=None):
+		warehouses.create_location(kind, label, parent, short_label)
+		return frappe.db.get_value(
+			"Warehouse",
 			{
-				"doctype": "User",
-				"email": f"ti-warehouse-{self.token}@example.test",
-				"first_name": "Native warehouse editor",
-				"send_welcome_email": 0,
-				"roles": [{"role": "Item Manager"}],
-			}
-		).insert()
-		frappe.set_user(user.name)
-		with self.assertRaises(frappe.PermissionError):
-			warehouses.tree()
-		doc = frappe.get_doc("Warehouse", self.a)
-		doc.warehouse_name += " Desk metadata"
-		doc.warehouse_type = "Location"
-		doc.save()
-		self.assertEqual(frappe.db.get_value("Warehouse", self.a, "warehouse_type"), "Location")
-		with self.assertRaises(frappe.ValidationError):
-			doc.is_group = 1
-			doc.save()
-		doc = frappe.get_doc("Warehouse", self.a)
-		with self.assertRaises(frappe.ValidationError):
-			doc.disabled = 1
-			doc.save()
-		protected = frappe.get_doc("Warehouse", self.physical)
-		with self.assertRaises(frappe.PermissionError):
-			protected.warehouse_name += " changed"
-			protected.save()
-
-	def test_desk_empty_groups_respect_children_hidden_scope_and_native_draft_references(self):
-		group = warehouses.save_warehouse("Desk Parent " + self.token, self.physical, "Room", True)
-		child = warehouses.save_warehouse("Desk Child " + self.token, group["name"])
-		second = warehouses.save_warehouse("Desk Second " + self.token, self.physical, "Room", True)
-		doc = frappe.get_doc("Warehouse", group["name"])
-		with self.assertRaises(frappe.ValidationError):
-			doc.is_group = 0
-			doc.save()
-		doc = frappe.get_doc("Warehouse", group["name"])
-		visible = warehouses._visible_warehouses()
-		visible.pop(child["name"])
-		with patch.object(warehouses, "_visible_warehouses", return_value=visible):
-			with self.assertRaises(frappe.PermissionError):
-				doc.parent_warehouse = second["name"]
-				doc.save()
-		self.create(self.movement())
-		doc = frappe.get_doc("Warehouse", self.a)
-		with self.assertRaises(frappe.ValidationError):
-			doc.parent_warehouse = second["name"]
-			doc.save()
-		self.assertEqual(frappe.db.get_value("Warehouse", self.a, "parent_warehouse"), self.physical)
-
-	def test_new_room_is_a_usable_native_leaf_and_uses_recorded_type(self):
-		row = warehouses.save_warehouse("New Room " + self.token, self.physical)
-		self.assertFalse(row["is_group"])
-		self.assertEqual(row["type"], "Room")
-		self.assertTrue(row["can_edit"])
-		self.assertIn(
-			row["name"],
-			{value.warehouse for value in frappe.get_doc("Temple Inventory Settings").allowed_warehouses},
+				"company": self.company,
+				"parent_warehouse": parent,
+				"ti_label": label,
+				"ti_direct_storage": 0,
+			},
+			"name",
 		)
-		doc = frappe.get_doc(
+
+	def test_area_room_shelf_and_direct_storage_model(self):
+		area = self._create("Area", "Area " + self.token, self.physical, "A")
+		room = self._create("Room", "Room " + self.token, area)
+		direct = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		shelf = self._create("Shelf", "Shelf " + self.token, room)
+		self.assertTrue(frappe.db.get_value("Warehouse", area, "is_group"))
+		self.assertTrue(frappe.db.get_value("Warehouse", room, "is_group"))
+		self.assertTrue(direct)
+		self.assertFalse(frappe.db.get_value("Warehouse", direct, "is_group"))
+		self.assertFalse(frappe.db.get_value("Warehouse", shelf, "is_group"))
+		self.assertEqual(
+			frappe.db.get_value("Warehouse", direct, "warehouse_name"),
+			frappe.db.get_value("Warehouse", room, "warehouse_name") + " · 直接存放",
+		)
+
+	def test_desk_insert_rename_and_move_regenerate_native_paths(self):
+		first = self._create("Area", "Desk area " + self.token, self.physical, "D")
+		room = frappe.get_doc(
 			{
 				"doctype": "Warehouse",
-				"warehouse_name": "Desk Room " + self.token,
 				"company": self.company,
-				"parent_warehouse": self.physical,
+				"parent_warehouse": first,
 				"warehouse_type": "Room",
-				"is_group": 0,
+				"is_group": 1,
+				"warehouse_name": frappe.db.get_value("Warehouse", first, "warehouse_name")
+				+ " / Desk room "
+				+ self.token,
 			}
 		).insert()
-		self.assertIn(
-			doc.name,
-			{value.warehouse for value in frappe.get_doc("Temple Inventory Settings").allowed_warehouses},
+		self.assertEqual(room.ti_label, "Desk room " + self.token)
+		self.assertEqual(room.warehouse_name, "D / Desk room " + self.token)
+		warehouses.repair_direct_storage(room.name, str(room.modified))
+		second = self._create("Area", "Second area " + self.token, self.physical)
+		room.ti_label = "Renamed room " + self.token
+		room.save()
+		leaf = frappe.db.get_value(
+			"Warehouse", {"parent_warehouse": room.name, "ti_direct_storage": 1}, "name"
 		)
-		row = warehouses.save_warehouse(
-			"Updated Room " + self.token, self.physical, "Location", False, row["name"], row["version"]
-		)
-		self.assertEqual(row["type"], "Location")
-		self.assertEqual(
-			frappe.db.get_value("Warehouse", row["name"], "warehouse_name"), "Updated Room " + self.token
+		self.assertIn("Renamed room", frappe.db.get_value("Warehouse", leaf, "warehouse_name"))
+		room = frappe.get_doc("Warehouse", room.name)
+		room.parent_warehouse = second
+		room.save()
+		self.assertTrue(
+			frappe.db.get_value("Warehouse", room.name, "warehouse_name").startswith(
+				"Second area " + self.token + " / Renamed room"
+			)
 		)
 
-	def test_room_default_is_an_explicit_unique_leaf_flag(self):
-		room = warehouses.save_warehouse("Default room " + self.token, self.physical, "Room", True)
-		first = warehouses.save_warehouse("无货位", room["name"], "Location", False, room_default=True)
-		self.assertTrue(first["room_default"])
-		second = warehouses.save_warehouse("备用位置", room["name"], "Location")
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse("错误分组", self.physical, "Room", True, room_default=True)
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(
-				"第二个默认候选",
-				room["name"],
-				"Location",
-				False,
-				second["name"],
-				second["version"],
-				room_default=True,
-			)
-		self.assertTrue(frappe.db.get_value("Warehouse", first["name"], "ti_room_default"))
-		with self.assertRaises(frappe.ValidationError):
-			frappe.get_doc(
-				{
-					"doctype": "Warehouse",
-					"warehouse_name": "Desk default " + self.token,
-					"company": self.company,
-					"parent_warehouse": room["name"],
-					"warehouse_type": "Location",
-					"is_group": 0,
-					"ti_room_default": 1,
-				}
-			).insert()
-		room_doc = frappe.get_doc("Warehouse", room["name"])
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(
-				room_doc.warehouse_name,
-				self.physical,
-				"Location",
-				True,
-				room_doc.name,
-				str(room_doc.modified),
-			)
-		self.assertEqual(frappe.db.get_value("Warehouse", room["name"], "warehouse_type"), "Room")
-
-	def test_room_default_native_names_are_unique_but_management_labels_stay_compact(self):
-		first_room = warehouses.save_warehouse("Default A " + self.token, self.physical, "Room", True)
-		second_room = warehouses.save_warehouse("Default B " + self.token, self.physical, "Room", True)
-		first = warehouses.save_warehouse("无货位", first_room["name"], "Location", False, room_default=True)
-		second = warehouses.save_warehouse(
-			"无货位", second_room["name"], "Location", False, room_default=True
-		)
-		self.assertEqual(first["label"], "无货位")
-		self.assertEqual(second["label"], "无货位")
-		self.assertNotEqual(first["name"], second["name"])
-		self.assertNotEqual(
-			frappe.db.get_value("Warehouse", first["name"], "warehouse_name"),
-			frappe.db.get_value("Warehouse", second["name"], "warehouse_name"),
-		)
-
-	def test_existing_stock_allows_metadata_but_rejects_hierarchy_and_disable(self):
-		self.receipt(5)
-		doc = frappe.get_doc("Warehouse", self.a)
-		result = warehouses.save_warehouse(
-			doc.warehouse_name + " renamed", self.physical, "Room", False, self.a, str(doc.modified)
-		)
-		self.assertEqual(
-			frappe.db.get_value("Bin", {"item_code": self.item, "warehouse": self.a}, "actual_qty"), 5
-		)
-		with self.assertRaises(frappe.TimestampMismatchError):
-			warehouses.save_warehouse("stale", self.physical, "Room", False, self.a, str(doc.modified))
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(result["label"], self.physical, "Room", True, self.a, result["version"])
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(
-				result["label"], self.physical, "Room", False, self.a, result["version"], True
-			)
-
-	def test_system_nodes_cycles_outside_parent_and_native_draft_links_are_guarded(self):
-		root = frappe.get_doc("Warehouse", self.physical)
-		with self.assertRaises(frappe.PermissionError):
-			warehouses.save_warehouse(
-				"Protected", self.physical, "Location", True, root.name, str(root.modified)
-			)
-		with self.assertRaises(frappe.PermissionError):
-			warehouses.save_warehouse("Outside", self.root)
-		group = warehouses.save_warehouse("Parent " + self.token, self.physical, "Location", True)
-		child = warehouses.save_warehouse("Child " + self.token, group["name"], "Location", True)
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(
-				group["label"], child["name"], "Location", True, group["name"], group["version"]
-			)
-		draft = self.create(self.movement())
-		doc = frappe.get_doc("Warehouse", self.a)
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(
-				doc.warehouse_name, group["name"], "Room", False, self.a, str(doc.modified)
-			)
-		self.assertEqual(frappe.db.get_value("Stock Entry", draft.name, "docstatus"), 0)
-
-	def test_empty_leaf_can_become_group_without_changing_stock_and_group_with_children_cannot_be_leaf(self):
-		leaf = warehouses.save_warehouse("Empty " + self.token, self.physical)
-		group = warehouses.save_warehouse(
-			leaf["label"], self.physical, "Room", True, leaf["name"], leaf["version"]
-		)
-		self.assertTrue(group["is_group"])
-		self.assertNotIn(
-			group["name"],
-			{value.warehouse for value in frappe.get_doc("Temple Inventory Settings").allowed_warehouses},
-		)
-		warehouses.save_warehouse("Child Leaf " + self.token, group["name"])
-		current = frappe.get_doc("Warehouse", group["name"])
-		with self.assertRaises(frappe.ValidationError):
-			warehouses.save_warehouse(
-				group["label"], self.physical, "Room", False, group["name"], str(current.modified)
-			)
+	def test_duplicate_names_disambiguate_and_short_labels_drive_paths(self):
+		left = self._create("Area", "Left " + self.token, self.physical)
+		right = self._create("Area", "Right " + self.token, self.physical)
+		room_left = self._create("Room", "Same " + self.token, left)
+		room_right = self._create("Room", "Same " + self.token, right)
+		short_room = self._create("Room", "Long room name " + self.token, left, "Concise")
 		rows = warehouses.tree()["rows"]
-		self.assertTrue(next(row for row in rows if row["name"] == self.physical)["protected"])
-		self.assertFalse(next(row for row in rows if row["name"] == self.a)["is_group"])
+		first = next(row for row in rows if row["name"] == room_left)
+		second = next(row for row in rows if row["name"] == room_right)
+		self.assertIn("Left", first["label"])
+		self.assertIn("Right", second["label"])
+		self.assertTrue(frappe.db.get_value("Warehouse", short_room, "warehouse_name").endswith(" / Concise"))
+
+	def test_room_repair_and_subdivide_reference_guards(self):
+		room = self._create("Room", "Repair room " + self.token, self.physical)
+		leaf = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		direct = frappe.get_doc("Warehouse", leaf)
+		direct.is_group = 1
+		with self.assertRaises(frappe.ValidationError):
+			direct.save()
+		frappe.delete_doc("Warehouse", leaf, ignore_permissions=True, force=True)
+		current = frappe.get_doc("Warehouse", room)
+		warehouses.repair_direct_storage(room, str(current.modified))
+		self.assertTrue(frappe.db.exists("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}))
+		shelf = self._create("Shelf", "Used shelf " + self.token, room)
+		self.submit(self.create(self.movement(quantity=2, target=shelf)))
+		current = frappe.get_doc("Warehouse", shelf)
+		with self.assertRaises(frappe.ValidationError):
+			warehouses.subdivide_shelf(shelf, str(current.modified))
+
+	def test_desk_rejects_duplicate_direct_leaves_groups_and_non_containers(self):
+		area = self._create("Area", "Invalid direct area " + self.token, self.physical)
+		room = self._create("Room", "Invalid direct room " + self.token, area)
+		for parent, is_group in ((room, 0), (room, 1), (area, 0)):
+			with self.assertRaises(frappe.ValidationError):
+				frappe.get_doc(
+					{
+						"doctype": "Warehouse",
+						"company": self.company,
+						"parent_warehouse": parent,
+						"warehouse_type": "",
+						"is_group": is_group,
+						"ti_label": "invalid " + self.token,
+						"ti_direct_storage": 1,
+						"warehouse_name": frappe.db.get_value("Warehouse", parent, "warehouse_name")
+						+ " · 直接存放",
+					}
+				).insert()
+
+	def test_unreferenced_shelf_subdivides_and_version_is_checked(self):
+		room = self._create("Room", "Shelf room " + self.token, self.physical)
+		shelf = self._create("Shelf", "Empty shelf " + self.token, room)
+		current = frappe.get_doc("Warehouse", shelf)
+		warehouses.subdivide_shelf(shelf, str(current.modified))
+		self.assertTrue(frappe.db.get_value("Warehouse", shelf, "is_group"))
+		direct = frappe.db.get_value("Warehouse", {"parent_warehouse": shelf, "ti_direct_storage": 1}, "name")
+		self.assertTrue(direct)
+		self.assertEqual(catalog.scan_code(shelf)["warehouse"]["name"], direct)
+		with self.assertRaises(frappe.TimestampMismatchError):
+			warehouses.subdivide_shelf(shelf, str(current.modified))
+
+	def test_tree_uses_canonical_presenter_and_marks_missing_direct(self):
+		room = self._create("Room", "No direct " + self.token, self.physical)
+		leaf = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		frappe.delete_doc("Warehouse", leaf, ignore_permissions=True, force=True)
+		row = next(value for value in warehouses.tree()["rows"] if value["name"] == room)
+		self.assertTrue(row["missing_direct"])
+		self.assertFalse(row["storable"])
+		self.assertEqual(row["kind"], "room")
 
 
 def run():

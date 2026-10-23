@@ -63,12 +63,17 @@ Keep reportable/filterable context in structured fields. Activity is contextual
 metadata and never changes stock. Notes are supplemental.
 
 Stock may exist only in authorized leaf Warehouses. Validate company, configured
-root, User Permissions and allowed leaves on the server. Physical leaves hold
-countable stock; configured loan and damaged leaves are special native-managed
-destinations and are excluded from physical count scope. `Warehouse Type`
-describes physical meaning; `is_group` describes hierarchy and must not be
-inferred from names or depth. Borrower, project and activity identity belong in
-transaction metadata.
+root, User Permissions and allowed leaves on the server. The location hierarchy
+uses Area groups, Room groups with exactly one hidden direct-storage leaf, and
+Shelf leaves; subdividing an unreferenced Shelf turns it into a group with one
+direct-storage leaf. Room and subdivided Shelf stock uses that direct leaf.
+Configured root, physical root, loan and damaged Warehouses remain special
+system nodes; loan and damaged destinations are excluded from physical count
+scope. `Warehouse Type` describes physical meaning; `is_group` describes
+hierarchy and must not be inferred from names or depth. `ti_label` is the local
+name and `ti_short_label` is optional; server-generated `warehouse_name` is the
+path below the physical root, using the short name where present. Borrower,
+project and activity identity belong in transaction metadata.
 
 ## Frontend and security
 

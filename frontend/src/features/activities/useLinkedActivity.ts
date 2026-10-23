@@ -27,7 +27,7 @@ export function useLinkedActivity(
         reference.activities.find((row) => row.value === activity())?.label ||
         "活动暂不可用"
       );
-    return loading.value ? "正在读取活动…" : "活动暂不可用";
+    return loading.value ? "" : "活动暂不可用";
   });
 
   async function refresh() {

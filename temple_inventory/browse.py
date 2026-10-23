@@ -76,7 +76,9 @@ def bootstrap():
 				"photo_required",
 			)
 		},
-		"warehouses": native_topology._warehouse_presentation(visible),
+		"warehouses": native_topology.present_locations(
+			visible, physical_root=settings.physical_root_warehouse, settings=settings
+		),
 		"physical_leaves": sorted(physical),
 		"leased_leaves": sorted(leased),
 		"damaged_leaves": sorted(damaged),

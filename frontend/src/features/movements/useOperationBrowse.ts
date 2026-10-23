@@ -30,6 +30,7 @@ export interface OperationGroup {
   stock_qty?: number;
   date?: string;
   posting_timestamp?: string;
+  modified?: string;
   outcome_key?: string;
   docstatus?: number;
   doctype?: string;

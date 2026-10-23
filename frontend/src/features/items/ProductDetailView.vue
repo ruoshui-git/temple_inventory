@@ -10,6 +10,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ItemConversions from "./ItemConversions.vue";
@@ -139,7 +140,7 @@ const locationPrefs =
 					:active="active"
 					@open-full="emit('openExport', $event)" /></template
 		></PageHeader>
-		<p v-if="loading" role="status">正在读取物品…</p>
+		<SkeletonBlock v-if="loading && !item" variant="detail" :count="3" :rows="4" />
 		<p v-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>
 		</p>
@@ -207,6 +208,8 @@ const locationPrefs =
 					table-class="browse-table"
 					:columns="batchColumns"
 					:rows="batchSort.rows.value"
+					:loading="loading"
+					:initialized="Boolean(item)"
 					:sort-by="batchSort.sortBy.value"
 					:sort-direction="batchSort.sortDirection.value"
 					:column-preferences="batchPrefs"
@@ -241,6 +244,8 @@ const locationPrefs =
 					table-class="browse-table"
 					:columns="locationColumns"
 					:rows="locationSort.rows.value"
+					:loading="loading"
+					:initialized="Boolean(item)"
 					:sort-by="locationSort.sortBy.value"
 					:sort-direction="locationSort.sortDirection.value"
 					:column-preferences="locationPrefs"

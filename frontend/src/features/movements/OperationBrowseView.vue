@@ -6,7 +6,7 @@ import Scanner from "../../components/Scanner.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import RelatedLoanPreview from "../loans/RelatedLoanPreview.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -31,6 +31,7 @@ import OperationBrowseFilters from "./OperationBrowseFilters.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import DataTable from "../../components/ui/DataTable.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -45,6 +46,8 @@ import type { HistoryRow } from "./useMovementHistory";
 import ItemImage from "../../components/ItemImage.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { createRecoveryStore } from "../../lib/browserRecovery";
+import { newReportQuery } from "../../lib/reportContract";
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -87,6 +90,32 @@ const showMobileItemCards = computed(
 		query.value.groupBy[0] === "item",
 );
 const services = useOptionalInventoryServices();
+const draftCount = ref(0);
+async function refreshDraftCount() {
+	if (!services || props.family !== "movements") return;
+	const query = newReportQuery("movements");
+	query.view = "records";
+	query.statuses = [0];
+	try {
+		const page = await services.call<{ matched_count: number }>("browse.native_drafts", {
+			query,
+			start: 0,
+			page_length: 1,
+		});
+		let localCount = 0;
+		try {
+			localCount = createRecoveryStore(reference.site, reference.user, localStorage)
+				.list()
+				.entries.filter((entry) => entry.editorKind === "Stock Entry").length;
+		} catch {
+			/* The server draft count remains available without browser storage. */
+		}
+		draftCount.value = page.matched_count + localCount;
+	} catch {
+		draftCount.value = 0;
+	}
+}
+onMounted(() => void refreshDraftCount());
 const operationColumns = computed<DataColumn[]>(() =>
 	props.family === "movements"
 		? [
@@ -701,7 +730,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						:active="active"
 						@open-full="emit('openExport', $event)"
 					/><template v-if="family === 'movements'"
-						><UiButton
+						><a class="drafts-entry-link" href="/drafts"
+							>草稿 <span>{{ draftCount }}</span></a
+						>
+						<UiButton
 							v-if="reference.operations.Receive"
 							variant="primary"
 							icon="box"
@@ -835,9 +867,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					/>
 				</details>
 			</section>
-			<p v-if="!records && result.loading" role="status">
-				{{ result.initialized ? "正在更新结果…" : "正在读取结果…" }}
-			</p>
+			<SkeletonBlock v-if="!records && result.loading" variant="lines" :count="5" />
 			<p v-if="result.stale" class="notice-bar warning" role="status">
 				上次结果 · 尚未更新，相关操作暂停。
 			</p>
@@ -894,7 +924,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@load-more="c.moreAnalysis"
 							@retry="c.moreAnalysis"
 						/>
-						<p v-else-if="result.loading" role="status">正在读取分析分组…</p>
+						<SkeletonBlock v-else-if="result.loading" variant="list" :rows="4" />
 						<p class="muted">
 							基于完整筛选结果；一条记录涉及多个分组时，各组记录数不可相加。
 						</p>
@@ -1632,3 +1662,24 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 		/>
 	</section>
 </template>
+<style scoped>
+.drafts-entry-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 36px;
+	padding: 6px 10px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	color: var(--p-ink);
+	text-decoration: none;
+}
+.drafts-entry-link span {
+	min-width: 1.5em;
+	padding: 1px 5px;
+	border-radius: 999px;
+	background: var(--p-soft);
+	text-align: center;
+	font-size: var(--p-small);
+}
+</style>

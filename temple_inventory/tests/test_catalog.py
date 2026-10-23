@@ -271,6 +271,19 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(result["matched_count"], 1)
 		self.assertEqual(sum(row["available"] for row in result["results"][0]["stock"]), 7)
 
+	def test_inbound_picker_rows_ignore_warehouse_filter(self):
+		self.receipt(3)
+		page = catalog.picker_rows(
+			item_codes=[self.item],
+			warehouses=[self.b],
+			receiving_warehouse=self.a,
+			purpose="inbound",
+			page_length=10,
+		)
+		self.assertEqual(page["matched_count"], 1)
+		self.assertEqual(page["results"][0]["warehouse"], self.a)
+		self.assertEqual(page["results"][0]["picker_quantity"], 3)
+
 	def test_picker_rows_page_flattened_warehouses_and_include_stockless_receipts(self):
 		self.receipt(3)
 		other_receipt = self.movement(quantity=4)
@@ -299,7 +312,7 @@ class CatalogTests(NativeDocumentTests):
 		self.assertNotEqual(page["results"][0]["warehouse"], next_page["results"][0]["warehouse"])
 		inbound = catalog.picker_rows(
 			item_codes=[self.item],
-			warehouses=[self.a, self.b],
+			warehouses=[self.b],
 			receiving_warehouse=self.a,
 			purpose="inbound",
 			page_length=10,
@@ -893,6 +906,7 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(catalog.search_items(self.item, item_codes=[self.item])["matched_count"], 1)
 		self.assertEqual(catalog.scan_code(self.a)["warehouse"]["name"], self.a)
 		self.assertFalse(catalog.scan_code(self.a)["unknown"])
+		self.assertEqual(catalog.scan_code(self.room_a)["warehouse"]["name"], self.a)
 		self.assertEqual(catalog.operation_item(self.item)["stock"][0]["available"], 3)
 		past = "2000-01-01 00:00:00"
 		search_result = catalog.search_items(self.item, timestamp=past)

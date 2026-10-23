@@ -96,9 +96,11 @@ describe("native quantity summaries and inventory cards", () => {
     expect(wrapper.text()).toContain("4 件");
     await wrapper.setProps({ loading: true });
     expect(wrapper.attributes("aria-busy")).toBe("true");
-    expect(wrapper.text()).toContain("正在更新");
+    expect(wrapper.get(".async-result-region .sr-only").text()).toContain(
+      "数量结果刷新中。",
+    );
     expect(wrapper.find(".quantity-summary-values").exists()).toBe(true);
-    expect(wrapper.text()).toContain("上次结果");
+    expect(wrapper.text()).not.toContain("上次结果");
     await wrapper.setProps({
       metrics: [{ key: "available", label: "可用", quantities: [] }],
     });

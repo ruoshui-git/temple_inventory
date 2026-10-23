@@ -7,13 +7,13 @@ import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import type { LoanDetail, SettlementAction } from "./useLoanDetail";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
-import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -53,11 +53,7 @@ function settle(action: SettlementAction) {
 					:active="active"
 					@open-full="emit('openExport', $event)" /></template
 		></PageHeader>
-		<DocumentLoadingState
-			v-if="initialLoad"
-			variant="detail"
-			label="正在读取借出记录与结余…"
-		/>
+		<SkeletonBlock v-if="initialLoad" variant="detail" :count="3" :rows="5" />
 		<p v-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>
 		</p>
@@ -67,7 +63,7 @@ function settle(action: SettlementAction) {
 			:class="{ 'is-refreshing': loading }"
 			:aria-busy="loading ? 'true' : undefined"
 		>
-			<p v-if="loading" class="async-refresh-status" role="status">正在刷新结余…</p>
+			<span v-if="loading" class="sr-only" role="status">借出结余刷新中。</span>
 			<div class="browse-card-heading">
 				<div>
 					<span class="eyebrow"

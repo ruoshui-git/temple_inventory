@@ -10,10 +10,11 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-costume-sample-group-v5"
+VERSION = "2026.10.native-location-model-v6"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
+	"All Warehouses",
 	"Finished Goods",
 	"Goods In Transit",
 	"Stores",
@@ -34,29 +35,40 @@ def _remove_default_sample_records(company):
 			frappe.throw(f"无法删除默认 Item Group {group_name}：仍有 Item 使用它")
 		frappe.delete_doc("Item Group", group_name, ignore_permissions=True, force=True)
 
-	settings = frappe.get_single("Temple Inventory Settings")
-	from temple_inventory.native_samples import remove_initializer_general_leaf
-
-	remove_initializer_general_leaf(settings)
-
-	root_name = frappe.db.get_value("Warehouse", {"warehouse_name": "All Warehouses", "company": company})
-	if not root_name:
-		return
-
-	children = frappe.get_all(
+	defaults = set()
+	for row in frappe.get_all(
 		"Warehouse",
-		filters={"parent_warehouse": root_name, "warehouse_name": ["in", DEFAULT_SAMPLE_WAREHOUSES]},
-		pluck="name",
-	)
-	for warehouse_name in children:
-		if frappe.db.exists("Stock Ledger Entry", {"warehouse": warehouse_name}):
-			frappe.throw(f"无法删除默认仓库 {warehouse_name}：已有库存流水")
-		frappe.delete_doc("Warehouse", warehouse_name, ignore_permissions=True, force=True)
-
-	if frappe.db.exists("Stock Ledger Entry", {"warehouse": root_name}):
-		frappe.throw(f"无法删除默认根仓库 {root_name}：已有库存流水")
-	if not frappe.get_all("Warehouse", filters={"parent_warehouse": root_name}, limit_page_length=1):
-		frappe.delete_doc("Warehouse", root_name, ignore_permissions=True, force=True)
+		filters={"company": company, "warehouse_name": ["in", DEFAULT_SAMPLE_WAREHOUSES]},
+		fields=["name", "warehouse_name", "lft", "rgt"],
+	):
+		defaults.add(row.name)
+		if row.warehouse_name == "All Warehouses":
+			defaults.update(
+				frappe.get_all(
+					"Warehouse",
+					filters={"company": company, "lft": [">=", row.lft], "rgt": ["<=", row.rgt]},
+					pluck="name",
+				)
+			)
+	if not defaults:
+		return
+	for doctype in ("Company", "Stock Settings"):
+		if not frappe.db.exists("DocType", doctype):
+			continue
+		for field in frappe.get_meta(doctype).fields:
+			if field.fieldtype != "Link" or field.options != "Warehouse":
+				continue
+			docname = company if doctype == "Company" else doctype
+			if frappe.db.get_value(doctype, docname, field.fieldname) in defaults:
+				frappe.db.set_value(doctype, docname, field.fieldname, None, update_modified=False)
+	for name in sorted(
+		defaults, key=lambda value: frappe.db.get_value("Warehouse", value, "lft") or 0, reverse=True
+	):
+		if frappe.db.exists("Stock Ledger Entry", {"warehouse": name}) or frappe.db.exists(
+			"Bin", {"warehouse": name, "actual_qty": ["!=", 0]}
+		):
+			frappe.throw(f"无法删除默认仓库 {name}：已有库存")
+		frappe.delete_doc("Warehouse", name, ignore_permissions=True, force=True)
 
 
 def _progress(message):
@@ -243,17 +255,63 @@ def verify_development_sample(*, require_images=True):
 	settings = _settings()
 	if settings.sample_data_status != "Installed" or settings.sample_data_version != VERSION:
 		frappe.throw("原生开发样例尚未完整安装")
-	if frappe.db.exists(
+	for legacy in DEFAULT_SAMPLE_WAREHOUSES:
+		if frappe.db.exists("Warehouse", {"company": settings.company, "warehouse_name": legacy}):
+			raise AssertionError(f"ERPNext initialized Warehouse remains: {legacy}")
+	root = settings.physical_root_warehouse
+	root_doc = frappe.get_doc("Warehouse", settings.root_warehouse)
+	root_children = frappe.get_all(
 		"Warehouse",
-		{"parent_warehouse": settings.physical_root_warehouse, "warehouse_name": "通用库房"},
-	):
-		raise AssertionError("Initializer-owned physical-root 通用库房 must be removed")
-	if not frappe.db.exists("Warehouse", {"warehouse_name": "T1/通用库房", "company": settings.company}):
-		raise AssertionError("T1 通用库房 must remain under its T1 branch")
-	if not frappe.db.exists(
-		"Warehouse", {"warehouse_name": "样例库房", "parent_warehouse": settings.physical_root_warehouse}
-	):
-		raise AssertionError("The sample warehouse group must be a physical-root sibling of T1 and T2")
+		filters={"parent_warehouse": settings.root_warehouse},
+		pluck="ti_label",
+		order_by="lft asc",
+	)
+	if root_doc.ti_label != "寺院仓库" or root_children != ["实体库房", "借出", "损坏待处理"]:
+		raise AssertionError(f"Configured System roots differ from plan: {root_children!r}")
+	physical_rows = frappe.get_all(
+		"Warehouse",
+		filters={
+			"company": settings.company,
+			"lft": [">=", frappe.db.get_value("Warehouse", root, "lft")],
+			"rgt": ["<=", frappe.db.get_value("Warehouse", root, "rgt")],
+		},
+		fields=[
+			"name",
+			"warehouse_name",
+			"ti_label",
+			"ti_short_label",
+			"ti_direct_storage",
+			"is_group",
+			"warehouse_type",
+			"parent_warehouse",
+		],
+		order_by="lft asc",
+	)
+	actual_tree = [
+		(
+			row.ti_label,
+			row.ti_short_label or "",
+			bool(row.ti_direct_storage),
+			bool(row.is_group),
+			row.warehouse_type,
+			frappe.db.get_value("Warehouse", row.parent_warehouse, "ti_label"),
+		)
+		for row in physical_rows
+		if row.name != root
+	]
+	expected_tree = [
+		("第2寺院", "T2", False, True, "Area", "实体库房"),
+		("A02", "", False, True, "Room", "第2寺院"),
+		("A02", "", True, False, "", "A02"),
+		("演示区", "", False, True, "Area", "实体库房"),
+		("演示室甲", "", False, True, "Room", "演示区"),
+		("演示室甲", "", True, False, "", "演示室甲"),
+		("演示架1", "", False, False, "Shelf", "演示室甲"),
+		("演示室乙", "", False, True, "Room", "演示区"),
+		("演示室乙", "", True, False, "", "演示室乙"),
+	]
+	if actual_tree != expected_tree:
+		raise AssertionError(f"Native sample location tree differs from plan: {actual_tree!r}")
 	for doctype in (
 		"Inventory Workspace",
 		"Inventory Loan",
@@ -345,22 +403,29 @@ def verify_development_sample(*, require_images=True):
 				f"group={item.item_group!r}/{source['item_group']!r}, "
 				f"barcode={frappe.db.get_value('Item Barcode', {'parent': code, 'barcode': source['source_code']}, 'name')!r}"
 			)
+		room = frappe.db.get_value("Warehouse", {"parent_warehouse": root, "ti_label": "第2寺院"}, "name")
+		room = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_label": "A02"}, "name")
 		warehouse = frappe.db.get_value(
-			"Warehouse", {"company": settings.company, "warehouse_name": source["room"] + " / 无货位"}, "name"
+			"Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name"
 		)
 		if native_samples.get_stock_balance(code, warehouse) != source["quantity"]:
 			raise AssertionError(f"Costume opening quantity differs from source for {source['source_code']}")
 		attachments = frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": code})
 		if require_images and attachments != len(source["images"]):
 			raise AssertionError(f"Costume image attachments are incomplete for {source['source_code']}")
+	demo_area = frappe.db.get_value("Warehouse", {"parent_warehouse": root, "ti_label": "演示区"}, "name")
+	room_a = frappe.db.get_value(
+		"Warehouse", {"parent_warehouse": demo_area, "ti_label": "演示室甲", "is_group": 1}, "name"
+	)
+	shelf = frappe.db.get_value("Warehouse", {"parent_warehouse": room_a, "ti_label": "演示架1"}, "name")
 	rooms = {
-		key: frappe.db.get_value("Warehouse", {"company": settings.company, "warehouse_name": label}, "name")
-		for key, label in (
-			("SAMPLE_A02", "A02 样例 / 无货位"),
-			("SAMPLE_A02-RACK", "A02 样例 / 货架一 / 上层"),
-		)
+		"DEMO_A": frappe.db.get_value(
+			"Warehouse", {"parent_warehouse": room_a, "ti_direct_storage": 1}, "name"
+		),
+		"DEMO_SHELF": shelf,
+		"LEASE": settings.leased_warehouse,
+		"DAMAGED": settings.damaged_warehouse,
 	}
-	rooms.update({"LEASE": settings.leased_warehouse, "DAMAGED": settings.damaged_warehouse})
 	loans = [
 		frappe.get_doc(
 			"Stock Entry",
@@ -374,7 +439,7 @@ def verify_development_sample(*, require_images=True):
 		{"ti_request_key": _request_key("Stock Reconciliation", native_samples.REQUEST_PREFIX + "count")},
 	)
 	count_warehouses = frappe.parse_json(reconciliation.ti_count_warehouses or "[]")
-	if set(count_warehouses) != {rooms["SAMPLE_A02"], rooms["SAMPLE_A02-RACK"]}:
+	if set(count_warehouses) != {rooms["DEMO_A"], rooms["DEMO_SHELF"]}:
 		raise AssertionError("Native sample count does not retain both selected warehouses")
 	count_rows = frappe.parse_json(reconciliation.ti_count_review or "[]")
 	if {row.get("review_state") for row in count_rows} != {"Reviewed", "Unreviewed"}:
@@ -440,6 +505,31 @@ def verify_development_sample(*, require_images=True):
 	media = sample_media.inventory()
 	if media["public_files"]:
 		raise AssertionError("Obsolete public sample media remains")
+	warehouse_tree = frappe.get_all(
+		"Warehouse",
+		filters={
+			"company": settings.company,
+			"lft": [">=", frappe.db.get_value("Warehouse", settings.root_warehouse, "lft")],
+			"rgt": ["<=", frappe.db.get_value("Warehouse", settings.root_warehouse, "rgt")],
+		},
+		fields=[
+			"name",
+			"warehouse_name",
+			"ti_label",
+			"ti_short_label",
+			"ti_direct_storage",
+			"is_group",
+			"warehouse_type",
+			"parent_warehouse",
+		],
+		order_by="lft asc",
+	)
+	warehouse_names = set(frappe.get_all("Warehouse", filters={"company": settings.company}, pluck="name"))
+	for doctype, docname in (("Company", settings.company), ("Stock Settings", "Stock Settings")):
+		for field in frappe.get_meta(doctype).fields:
+			if field.fieldtype == "Link" and field.options == "Warehouse":
+				if frappe.db.get_value(doctype, docname, field.fieldname) in warehouse_names:
+					raise AssertionError(f"{doctype}.{field.fieldname} still points at a Warehouse")
 	return {
 		"site": frappe.local.site,
 		"version": VERSION,
@@ -453,6 +543,7 @@ def verify_development_sample(*, require_images=True):
 		"costume_source_rows": len(costumes),
 		"costume_images": sum(len(row["images"]) for row in costumes),
 		"retired_schema_absent": True,
+		"warehouse_tree": [dict(row) for row in warehouse_tree],
 	}
 
 

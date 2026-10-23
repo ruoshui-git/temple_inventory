@@ -3,6 +3,7 @@ import ImageCrop from "./ui/ImageCrop.vue";
 import AsyncImage from "./ui/AsyncImage.vue";
 import { computed, ref } from "vue";
 import UiButton from "./ui/UiButton.vue";
+import SkeletonBlock from "./ui/SkeletonBlock.vue";
 import Overlay from "./ui/Overlay.vue";
 import type { AttachmentEntry, useAttachments } from "../features/attachments/useAttachments";
 const props = defineProps<{
@@ -109,7 +110,11 @@ const visibleFiles = computed(() =>
 			{{ controller.error.value }}
 			<UiButton @click="controller.fetch()">重试读取附件</UiButton>
 		</p>
-		<p v-if="controller.loading.value" role="status">正在读取附件…</p>
+		<SkeletonBlock
+			v-if="controller.loading.value && !controller.initialized.value"
+			variant="list"
+			:rows="3"
+		/>
 		<p
 			v-else-if="
 				!controller.error.value && controller.initialized.value && !visibleFiles.length

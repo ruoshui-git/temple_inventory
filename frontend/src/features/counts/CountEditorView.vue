@@ -49,7 +49,6 @@ const {
 	showError,
 	reviewOpen,
 	action,
-	candidates,
 	supportingDirty,
 	reloadOpen,
 	leaveRequested,
@@ -59,12 +58,11 @@ const initialExistingLoad = computed(
 );
 async function saveDraft() {
 	await c.save(true);
-	if (state.status === "saved" && !files.incomplete.value) showToast("盘点草稿已保存到库存单据");
+	if (state.status === "saved" && !files.incomplete.value) showToast("已存为草稿单据");
 	else if (state.status === "saved" && files.incomplete.value)
-		showToast("盘点草稿已保存，但附件尚未完成上传", "warning");
+		showToast("已存为草稿单据，但附件尚未完成上传", "warning");
 	else if (state.status === "matching") showToast("盘点数量与账面相同，无需保存调整");
-	else if (state.status === "local")
-		showToast("输入已保留在此浏览器，尚未保存到服务器", "warning");
+	else if (state.status === "local") showToast("内容尚不完整，已暂存在此浏览器", "warning");
 	else if (state.error) showToast(`盘点草稿保存失败：${state.error}`, "danger");
 }
 async function review() {
@@ -88,7 +86,7 @@ async function lifecycle() {
 	const outcomes: Record<string, string> = {
 		cancel: "盘点调整已取消",
 		amend: "盘点修订草稿已创建",
-		delete: "盘点原生草稿已删除",
+		delete: "盘点草稿单据已删除",
 	};
 	if (selected && outcomes[selected]) showToast(outcomes[selected]);
 }
@@ -117,12 +115,14 @@ const status = computed(
 	() =>
 		({
 			matching: "已核对，无需调整",
-			local: "此浏览器未完成输入",
-			saving: "正在保存原生草稿…",
-			saved: "原生草稿已保存",
+			pristine: "",
+			local: "未保存",
+			browser: "已暂存在此浏览器",
+			saving: "正在保存草稿单据…",
+			saved: "已存为草稿单据",
 			error: "保存失败，输入已保留",
-			conflict: "原生记录已更改，输入已保留",
-			deleted: "原生记录已删除",
+			conflict: "记录已更改，输入已保留",
+			deleted: "记录已删除",
 			forbidden: "无权访问原记录",
 			submitted: "已提交",
 			cancelled: "已取消",
@@ -208,16 +208,13 @@ async function back() {
 					@open-full="emit('openExport', $event)" /></template
 		></PageHeader>
 		<div class="form-status">
-			<span v-if="!initialExistingLoad" class="form-record-tag">{{
-				state.identity
-					? `${enumPresentationLabel("doctype", state.identity.doctype)} · ${state.identity.name}`
-					: c.existingDocument.value
-						? "正在读取原生记录"
-						: "尚未创建原生记录"
+			<span v-if="state.identity && !initialExistingLoad" class="form-record-tag"
+				>{{ state.server?.docstatus === 0 ? "草稿单据" : "记录" }}
+				{{ state.identity.name }}</span
+			><span v-if="!initialExistingLoad && state.status !== 'pristine'" role="status">{{
+				status
 			}}</span
-			><span role="status">{{ initialExistingLoad ? "正在读取原生记录…" : status }}</span
-			><span v-if="loading && state.server" class="async-refresh-status" role="status"
-				>正在刷新…</span
+			><span v-if="loading && state.server" class="sr-only" role="status">正在刷新…</span
 			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity"
 				:disabled="busy"
@@ -227,7 +224,7 @@ async function back() {
 		</div>
 		<DocumentLoadingState
 			v-if="initialExistingLoad"
-			label="正在读取盘点记录…"
+			label="盘点记录加载中…"
 			:announce="false"
 		/>
 		<p v-if="state.error" class="notice-bar danger" role="alert">
@@ -237,26 +234,11 @@ async function back() {
 			>
 		</p>
 		<p v-if="state.recoveryError" role="alert">{{ state.recoveryError }}</p>
-		<section v-if="candidates.length" class="surface form-section">
-			<h2>此浏览器的未完成盘点</h2>
-			<p>仅在当前浏览器和账户可用，未改变库存。</p>
-			<div v-for="candidate in candidates" :key="candidate.editorId">
-				<p>{{ candidate.updatedAt }} · {{ candidate.identity?.name || "本地输入" }}</p>
-				<RecoverySummary
-					kind="Stock Reconciliation"
-					:values="candidate.values"
-					:copy-text="JSON.stringify(candidate.values, null, 2)"
-					:pending-upload-reselection="candidate.pendingUploadReselection"
-				>
-					<UiButton @click="c.recover(candidate)">检查并恢复</UiButton>
-				</RecoverySummary>
-			</div>
-		</section>
 		<section
 			v-if="['conflict', 'deleted', 'forbidden'].includes(state.status)"
 			class="notice-bar warning"
 		>
-			<p>原生记录不可继续保存，当前输入已保留。</p>
+			<p>记录不可继续保存，当前输入已保留。</p>
 			<RecoverySummary
 				kind="Stock Reconciliation"
 				:values="values"
@@ -266,7 +248,7 @@ async function back() {
 		</section>
 		<section v-if="state.status === 'matching'" class="notice-bar success">
 			<h2>已核对的数量一致，无需库存调整</h2>
-			<p>未创建新的原生记录；未核对的行仍是未完成输入。</p>
+			<p>未创建新的库存记录；未核对的行仍是未完成输入。</p>
 			<p v-if="state.identity">
 				原有草稿 {{ state.identity.name }} 保持原样。请明确删除该草稿，或继续编辑。
 			</p>
@@ -276,7 +258,7 @@ async function back() {
 					(state.server?.permissions as Record<string, boolean>)?.delete
 				"
 				@click="action = 'delete'"
-				>删除原有原生草稿</UiButton
+				>删除原有草稿单据</UiButton
 			>
 			<p v-if="files.files.length">无需调整的盘点没有附件父记录，请移除附件后结束。</p>
 			<UiButton
@@ -301,7 +283,7 @@ async function back() {
 					(state.server.permissions as Record<string, boolean>)?.cancel
 				"
 				@click="action = 'cancel'"
-				>取消原生记录</UiButton
+				>取消记录</UiButton
 			><UiButton
 				v-if="
 					state.server?.docstatus === 2 &&
@@ -335,7 +317,7 @@ async function back() {
 								:disabled="busy"
 						/></label>
 						<p v-else>{{ values.posting_date }} {{ values.posting_time }}</p>
-						<p class="muted">账面基准使用这个明确时间点的原生库存记录。</p>
+						<p class="muted">账面基准使用这个明确时间点的库存记录。</p>
 					</div>
 				</details>
 				<CountWorkspace
@@ -344,21 +326,23 @@ async function back() {
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 				/>
 				<section v-else class="form-section">
-					<h2>{{ opening ? "原生期初明细" : "ERPNext 原生盘点明细" }}</h2>
+					<h2>{{ opening ? "期初明细" : "ERPNext 盘点明细" }}</h2>
 					<p>
 						{{
 							opening
-								? "期初库存为只读原生记录。"
-								: "保留 ERPNext 原生库位、批次分配和库存单位。"
+								? "期初库存为只读库存记录。"
+								: "保留 ERPNext 库位、批次分配和库存单位。"
 						}}
 					</p>
 					<DataTable
-						ariaLabel="原生盘点明细"
+						ariaLabel="盘点明细"
 						table-class="count-table count-native-table"
 						:columns="countColumns"
 						:rows="countTableRows"
+						:loading="loading"
+						:initialized="Boolean(state.server)"
 						:column-preferences="countPrefs"
-						empty-text="此原生记录没有明细。"
+						empty-text="此记录没有明细。"
 					>
 						<template #cell="{ column, row }">
 							<template v-if="column.id === 'warehouse'">{{
@@ -444,7 +428,7 @@ async function back() {
 						:disabled="busy || !writable"
 						variant="danger"
 						@click="action = 'delete'"
-						>删除原生草稿</UiButton
+						>删除草稿单据</UiButton
 					>
 				</div>
 				<details class="form-section count-document-notes">
@@ -518,7 +502,7 @@ async function back() {
 				<p>
 					{{ row.item_code }} ·
 					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
-					{{ row.batch_no || "原生明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
+					{{ row.batch_no || "库存明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
 					实点 {{ row.qty }} {{ row.stock_uom }}
 				</p>
 				<NativeCountAllocations :row="row" />
@@ -578,13 +562,13 @@ async function back() {
 			v-if="action"
 			:title="
 				action === 'delete'
-					? '删除原生草稿？'
+					? '删除草稿单据？'
 					: action === 'cancel'
-						? '取消原生盘点？'
+						? '取消盘点？'
 						: '创建修订草稿？'
 			"
 			@close="!busy && (action = undefined)"
-			><p>{{ state.identity?.name }}。将执行 ERPNext 原生流程，并重新校验版本与权限。</p>
+			><p>{{ state.identity?.name }}。将执行 ERPNext 流程，并重新校验版本与权限。</p>
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="action = undefined">返回</UiButton

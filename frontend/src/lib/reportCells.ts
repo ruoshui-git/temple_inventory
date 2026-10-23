@@ -42,7 +42,7 @@ export const reportColumnLabels: Record<string, string> = {
   baseline_timestamp: "账面基准时间",
   period_from: "期间开始",
   period_to: "期间结束",
-  native_running_qty: "原生流水余额",
+  native_running_qty: "库存流水余额",
   item_count: "物品种数",
   document_count: "单据数",
   allocation_count: "明细条数",

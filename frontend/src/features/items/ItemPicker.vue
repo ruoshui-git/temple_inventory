@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { warehouseFullPath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -19,6 +19,7 @@ import type { StockItem } from "../../lib/stockPresentation";
 import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { itemPickerColumns } from "./itemPickerColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 
 export type ItemScanOption = {
@@ -129,27 +130,17 @@ const quantityLabel = computed(() =>
 	props.purpose === "damaged"
 		? "受损库存"
 		: props.purpose === "inbound"
-			? "目标库位库存"
+			? `${props.receivingWarehouse ? warehouseLabel(props.receivingWarehouse, reference.warehouses) : "目标库位"} 现有`
 			: props.purpose === "count"
 				? "账面库存"
 				: "可用库存",
 );
 const pickerColumns = computed<DataColumn[]>(() => {
-	const columns: DataColumn[] = [
-		{ id: "image", label: "图片", minWidth: "56px", align: "center" },
-		{ id: "name", label: "物品名称", minWidth: "180px" },
-		{ id: "code", label: "编号", minWidth: "130px" },
-		{ id: "category", label: "类别", minWidth: "120px" },
-		{ id: "warehouse", label: "仓库路径", minWidth: "180px" },
-		{ id: "quantity", label: quantityLabel.value, minWidth: "110px", align: "end" },
-	];
-	if (!multiple.value)
-		columns.push({ id: "action", label: "操作", minWidth: "70px", align: "end" });
-	return columns;
+	return itemPickerColumns(quantityLabel.value, props.purpose || "outbound", multiple.value);
 });
 const services = useOptionalInventoryServices();
 const pickerPrefs = services
-	? useColumnPreferences("item-picker.rows", pickerColumns, reference, services)
+	? useColumnPreferences("item-picker.rows.v2", pickerColumns, reference, services)
 	: undefined;
 const tableRows = computed<DataTableRecord[]>(() =>
 	visible.value.map((item) => ({
@@ -183,19 +174,19 @@ const browseScope = computed<BrowseScope>({
 		...emptyScope(),
 		categories: categoryFilters.value,
 		uncategorized: uncategorizedFilter.value,
-		warehouses: warehouseFilters.value,
+		warehouses: props.purpose === "inbound" ? [] : warehouseFilters.value,
 	}),
 	set: (scope) => {
 		categoryFilters.value = scope.categories;
 		uncategorizedFilter.value = scope.uncategorized;
-		warehouseFilters.value = scope.warehouses;
+		warehouseFilters.value = props.purpose === "inbound" ? [] : scope.warehouses;
 	},
 });
 const scopeChips = computed(() => scopeFilterFieldChips(browseScope.value, reference));
 const activeFilterCount = computed(() => scopeChips.value.length + Number(onlyStock.value));
 const activeWarehouseLabel = computed(() =>
 	props.activeWarehouse
-		? warehouseFullPath(props.activeWarehouse, reference.warehouses, props.activeWarehouse)
+		? warehouseLabel(props.activeWarehouse, reference.warehouses, props.activeWarehouse)
 		: "",
 );
 const resolutionSource = ref("");
@@ -455,7 +446,11 @@ async function discardEdits() {
 				<BrowseToolbar
 					class="picker-chrome"
 					title="物品"
-					:summary="`${result.total} 个匹配物品 · 已选 ${selected.length}`"
+					:summary="
+						result.initialized
+							? `${result.total} 个匹配物品 · 已选 ${selected.length}`
+							: ''
+					"
 					v-model:search="search"
 					search-label="搜索物品名称、编号或条码"
 					:filter-count="activeFilterCount"
@@ -474,7 +469,11 @@ async function discardEdits() {
 							<BrowseFilters
 								v-model="browseScope"
 								disclosure-mode
-								:fields="['categories', 'warehouses']"
+								:fields="
+									purpose === 'inbound'
+										? ['categories']
+										: ['categories', 'warehouses']
+								"
 								:hierarchy-in-rail="sidebarOpen && !isMobile"
 							/>
 							<details
@@ -646,10 +645,14 @@ async function discardEdits() {
 				</section>
 				<div v-show="!scanStage" class="picker-browser-grid">
 					<aside v-if="sidebarOpen && !isMobile" class="picker-filter-rail">
-						<h3>类别与仓库</h3>
+						<h3 v-if="purpose !== 'inbound'">类别与仓库</h3>
 						<BrowseFilters
 							v-model="browseScope"
-							:fields="['categories', 'warehouses']"
+							:fields="
+								purpose === 'inbound'
+									? ['categories']
+									: ['categories', 'warehouses']
+							"
 						/>
 					</aside>
 					<div
@@ -675,39 +678,56 @@ async function discardEdits() {
 								><span>{{ createdPreview.name }} · {{ createdPreview.code }}</span>
 								<small v-if="props.activeWarehouse"
 									>入库位置：{{
-										warehouseFullPath(
-											props.activeWarehouse,
-											reference.warehouses,
-										)
+										warehouseLabel(props.activeWarehouse, reference.warehouses)
 									}}</small
 								>
 							</div>
 						</section>
-						<p v-if="result.loading" role="status">正在加载物品…</p>
-						<p v-if="result.error" role="alert">
-							{{ result.error }}
-							<UiButton @click="picker.retry()">重试加载</UiButton>
-						</p>
-						<div v-show="!result.loading || result.rows.length">
+						<div
+							class="picker-table-region"
+							:data-refreshing="
+								result.loading && result.rows.length > 0 && !result.loadingMore
+									? 'true'
+									: undefined
+							"
+							:inert="
+								result.loading && result.rows.length > 0 && !result.loadingMore
+									? true
+									: undefined
+							"
+							:aria-busy="
+								result.loading && result.rows.length > 0 && !result.loadingMore
+									? 'true'
+									: undefined
+							"
+						>
 							<DataTable
 								ariaLabel="按库存位置显示的物品"
 								:columns="pickerColumns"
 								:column-preferences="pickerPrefs"
 								:rows="tableRows"
 								:loading="result.loading"
-								:initialized="
-									result.rows.length > 0 || result.total > 0 || !result.loading
-								"
+								:initialized="result.initialized"
 								:error="result.error"
-								:retained="result.stale"
-								:stale="result.stale"
+								:retained="
+									result.stale ||
+									(result.loading &&
+										result.rows.length > 0 &&
+										!result.loadingMore)
+								"
+								:stale="
+									result.stale ||
+									(result.loading &&
+										result.rows.length > 0 &&
+										!result.loadingMore)
+								"
 								:empty-text="onlyStock ? '没有匹配的库存位置' : '没有匹配的物品'"
 								:selection-enabled="multiple"
 								:selected-keys="selected"
 								:row-key="rowKey"
 								:selection-label="(row) => String(row.name || row.code || '')"
 								:has-more="result.next !== null"
-								:loading-more="result.loading"
+								:loading-more="result.loadingMore"
 								:loaded-count="result.rows.length"
 								:total-count="result.total"
 								@select="setSelected"
@@ -731,14 +751,22 @@ async function discardEdits() {
 										<small>{{ row.uom }}</small>
 									</div>
 									<template v-else-if="column.id === 'warehouse'">
-										{{
-											row.pickerWarehouse
-												? warehouseFullPath(
-														String(row.pickerWarehouse),
-														reference.warehouses,
-													)
-												: "暂无库存 · 选择目标库位"
-										}}
+										<span
+											v-if="row.pickerWarehouse"
+											:title="
+												warehousePath(
+													String(row.pickerWarehouse),
+													reference.warehouses,
+												)
+											"
+											>{{
+												warehouseLabel(
+													String(row.pickerWarehouse),
+													reference.warehouses,
+												)
+											}}</span
+										>
+										<template v-else>暂无库存 · 选择目标库位</template>
 									</template>
 									<template v-else-if="column.id === 'quantity'">
 										{{ row.pickerQuantity || 0 }} {{ row.uom }}
@@ -803,6 +831,22 @@ async function discardEdits() {
 .picker-data-table :deep(table) {
 	min-width: 780px;
 }
+.picker-data-table :deep(.picker-code-column),
+.picker-data-table :deep(.picker-quantity-column),
+.picker-data-table :deep(.picker-category-column) {
+	white-space: nowrap;
+}
+.picker-data-table :deep(.picker-image-column) {
+	width: 56px;
+	min-width: 56px;
+}
+.picker-data-table :deep(.picker-name-column) {
+	width: auto;
+	min-width: 260px;
+}
+.picker-data-table :deep(.picker-code-column) {
+	word-break: keep-all;
+}
 .picker-data-table :deep(td) {
 	padding-block: var(--p-space-1);
 }
@@ -828,6 +872,30 @@ async function discardEdits() {
 }
 .picker-table-name small {
 	color: var(--p-muted);
+}
+@media (min-width: 1280px) {
+	.picker-data-table :deep(table) {
+		width: 100%;
+		min-width: 0;
+		table-layout: fixed;
+	}
+	.picker-data-table :deep(.picker-quantity-column),
+	.picker-data-table :deep(.picker-warehouse-column) {
+		width: 112px;
+	}
+	.picker-data-table :deep(.picker-category-column) {
+		width: 128px;
+	}
+	.picker-data-table :deep(.data-table-settings-heading) {
+		width: 56px;
+	}
+	.picker-data-table :deep(.picker-name-column) {
+		width: auto;
+		min-width: 180px;
+	}
+	.picker-data-table :deep(.picker-code-column) {
+		width: 164px;
+	}
 }
 @media (max-width: 767px) {
 	.picker-image-cell {

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { BatchDetailController } from "./useBatchDetailController";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import { documentDestination } from "../../lib/nativeNavigation";
@@ -129,7 +130,12 @@ function openDocument(row: Record<string, unknown>) {
 				><p v-if="c.batch.value">批次资料 · {{ c.batch.value.item_code }}</p></template
 			>
 		</PageHeader>
-		<p v-if="c.loading.value" role="status">正在读取批次…</p>
+		<SkeletonBlock
+			v-if="c.loading.value && !c.batch.value"
+			variant="detail"
+			:count="3"
+			:rows="3"
+		/>
 		<div v-if="c.error.value" role="alert" class="utility-error">
 			{{ c.error.value }} <UiButton @click="c.reload">重新读取</UiButton>
 		</div>
@@ -199,6 +205,8 @@ function openDocument(row: Record<string, unknown>) {
 				table-class="browse-table"
 				:columns="locationColumns"
 				:rows="locationRows"
+				:loading="c.loading.value"
+				:initialized="Boolean(c.batch.value)"
 				:sort-by="c.locationsSortBy.value"
 				:sort-direction="c.locationsSortDirection.value"
 				:column-preferences="locationPrefs"

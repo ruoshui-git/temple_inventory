@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useSlots } from "vue";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { nativeStatusLabel } from "../../lib/nativeLabels";
 import { siteDateTime } from "../../lib/nativeTime";
 import { formatQuantity } from "../../lib/formatQuantity";
@@ -271,6 +271,20 @@ function displayCell(column: string, value: unknown, row: Record<string, unknown
 	}
 	return cell(column, value, row);
 }
+function warehouseCellTitle(column: string, value: unknown, row: Record<string, unknown>) {
+	if (
+		![
+			"warehouse",
+			"source_warehouse",
+			"destination_warehouse",
+			"origin_warehouse",
+			"locationId",
+			"sourceLocationId",
+		].includes(column)
+	)
+		return undefined;
+	return warehousePath(value, reference?.warehouses || [], row[column + "_label"]);
+}
 
 function stockEffect(row: Record<string, unknown>) {
 	if (Number(row.docstatus) === 0 || Number(row.docstatus) === 2) return 0;
@@ -478,7 +492,10 @@ function groupMetric(group: DataTableGroup, column: string) {
 					v-else
 					:class="quantityTone(String(column.id), row)"
 					:title="
-						quantityTone(String(column.id), row) ? quantityEffectLabel(row) : undefined
+						warehouseCellTitle(String(column.id), value, row) ||
+						(quantityTone(String(column.id), row)
+							? quantityEffectLabel(row)
+							: undefined)
 					"
 				>
 					{{ displayCell(String(column.id), value, row) }}

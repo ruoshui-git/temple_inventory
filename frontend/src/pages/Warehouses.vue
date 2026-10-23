@@ -14,7 +14,11 @@ import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
 const route = useRoute(),
 	router = useRouter(),
 	page = ref<InstanceType<typeof NativeWarehousesPage>>();
-useRouteBreadcrumbLabel(() => page.value?.controller.selected.value?.label);
+useRouteBreadcrumbLabel(
+	() =>
+		page.value?.controller.selected.value?.full_label ||
+		page.value?.controller.selected.value?.label,
+);
 onBeforeRouteLeave(() => page.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => page.value?.controller.requestLeave() ?? true);
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);

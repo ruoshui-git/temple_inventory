@@ -5,6 +5,7 @@ import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 const props = defineProps<{
 	controller: ReturnType<typeof useRelatedLoans>;
@@ -33,7 +34,7 @@ function openFull() {
 			<template v-if="!c.selected.value">
 				<p>选择原借出记录；数量与结清情况属于原借出。</p>
 				<article v-for="name in c.names.value" :key="name" class="related-loan-choice">
-					<p v-if="c.records[name]?.loading" role="status">正在读取借出记录…</p>
+					<SkeletonBlock v-if="c.records[name]?.loading" variant="lines" :count="3" />
 					<template v-else-if="c.records[name]?.loan">
 						<UiButton @click="c.selected.value = name"
 							>{{ c.records[name]!.loan!.ti_borrower || "未填写借用方" }} ·
@@ -58,7 +59,12 @@ function openFull() {
 				<UiButton v-if="c.names.value.length > 1" @click="c.selected.value = ''"
 					>返回关联借出列表</UiButton
 				>
-				<p v-if="c.current.value?.loading" role="status">正在读取原借出与当前结余…</p>
+				<SkeletonBlock
+					v-if="c.current.value?.loading"
+					variant="detail"
+					:count="3"
+					:rows="3"
+				/>
 				<p v-else-if="c.current.value?.error" role="alert">
 					{{ c.current.value.error }}
 					<UiButton @click="c.retry(c.selected.value)">重试</UiButton>

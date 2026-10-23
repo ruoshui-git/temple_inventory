@@ -22,6 +22,7 @@ import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
 import type { useActivitiesController } from "./useActivitiesController";
 import DataTable from "../../components/ui/DataTable.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -202,7 +203,11 @@ function tabKey(event: KeyboardEvent) {
 		<BrowseToolbar
 			v-else
 			title="活动"
-			:summary="`活动 · ${projection.result.total} 个`"
+			:summary="
+				projection.mainTable.value?.initialized
+					? `活动 · ${projection.result.total} 个`
+					: ''
+			"
 			v-model:search="state.search"
 			search-label="搜索活动"
 			:active="active"
@@ -363,7 +368,6 @@ function tabKey(event: KeyboardEvent) {
 				"
 				:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
 				empty-text="没有符合条件的活动。可清空筛选或新建活动。"
-				loading-text="正在加载活动…"
 				@retry="
 					report.groupBy.length ? projection.groups.retry() : projection.refresh(true)
 				"
@@ -668,12 +672,16 @@ function tabKey(event: KeyboardEvent) {
 				</p>
 			</section>
 		</template>
-		<p v-else-if="loading" role="status">正在读取活动…</p>
+		<SkeletonBlock v-else-if="loading" variant="detail" :count="3" :rows="4" />
 		<p v-else role="alert">
 			{{ error || "活动不存在或不可访问。" }} <UiButton @click="loadDetail">重试</UiButton>
 		</p>
 		<template v-if="page === 'activity-detail'">
-			<p v-if="projection.result.loading" role="status">正在更新相关资料…</p>
+			<SkeletonBlock
+				v-if="projection.result.loading && !projection.mainTable.value?.initialized"
+				variant="lines"
+				:count="3"
+			/>
 			<p v-if="projection.result.error" role="alert">
 				{{ projection.result.error }}
 				<UiButton @click="projection.refresh(true)">重试</UiButton>

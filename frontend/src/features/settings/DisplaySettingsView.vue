@@ -3,10 +3,11 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import type { DisplaySettings } from "./useDisplaySettings";
 import { themes, textScales, type TextScale } from "../../lib/displayPreferences";
 import UiButton from "../../components/ui/UiButton.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 const props = defineProps<{ controller: DisplaySettings }>();
 const emit = defineEmits<{ back: [] }>();
 const c = props.controller,
-	{ theme, density, textScale, loading, error, saveError, saveState } = c;
+	{ theme, density, textScale, loading, initialized, error, saveError, saveState } = c;
 const densities = [
 	{ value: "compact", label: "紧凑" },
 	{ value: "balanced", label: "均衡" },
@@ -25,7 +26,7 @@ const densities = [
 			></PageHeader
 		>
 		<p class="muted">当前账户：{{ c.account }}</p>
-		<p v-if="loading" role="status">正在读取账户设置…</p>
+		<SkeletonBlock v-if="loading && !initialized" variant="lines" :count="5" />
 		<p v-if="error" role="alert">
 			{{ error }} <UiButton @click="c.refresh">重新读取</UiButton>
 		</p>

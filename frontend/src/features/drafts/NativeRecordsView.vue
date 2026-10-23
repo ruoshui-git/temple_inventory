@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -23,6 +23,8 @@ import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresenta
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DataTable from "../../components/ui/DataTable.vue";
+import AsyncRegion from "../../components/ui/AsyncRegion.vue";
+import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -32,6 +34,7 @@ import type {
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -104,6 +107,112 @@ function localTitle(entry: RecoverySnapshot) {
 		)[entry.editorKind] || entry.editorKind
 	);
 }
+type DraftListEntry = {
+	id: string;
+	type: "server" | "browser";
+	kind: string;
+	label: string;
+	summary: string;
+	updatedAt: string;
+	absolute: string;
+	server?: NativeRecord;
+	local?: RecoverySnapshot;
+};
+const kindFilter = ref("");
+const typeFilter = ref("all");
+const draftSort = ref("recent");
+function localSummary(entry: RecoverySnapshot) {
+	const values = entry.values as Record<string, unknown>;
+	if (entry.editorKind === "Stock Entry") {
+		const lines = Array.isArray(values.items) ? values.items : [];
+		if (!lines.length)
+			return String(values.source || values.remarks || values.note || "尚未添加物品");
+		const codes = new Set(
+			lines
+				.map((line) =>
+					String(
+						(line as Record<string, unknown>)?.code ||
+							(line as Record<string, unknown>)?.item_code ||
+							"",
+					),
+				)
+				.filter(Boolean),
+		);
+		const first = lines[0] as Record<string, unknown> | undefined;
+		const location =
+			first?.location || first?.warehouse || first?.t_warehouse || values.ti_warehouse;
+		return `${codes.size || lines.length} 种物品${location ? ` → ${warehouseLabel(location, c.reference.warehouses)}` : ""}`;
+	}
+	if (entry.editorKind === "Stock Reconciliation") {
+		const lines = Array.isArray(values.ti_count_review) ? values.ti_count_review : [];
+		const locations = Array.isArray(values.ti_count_warehouses)
+			? values.ti_count_warehouses
+			: [];
+		return `盘点 ${lines.length} 种物品 · ${locations.length} 个库位`;
+	}
+	if (entry.editorKind === "Item") return String(values.name || values.editingCode || "新物品");
+	if (entry.editorKind === "Inventory Activity")
+		return String(values.title || values.editingActivity || "活动资料");
+	if (entry.editorKind === "Warehouse")
+		return String(values.label || values.editingWarehouse || "仓库资料");
+	return "未完成输入";
+}
+function relativeTime(value: string) {
+	const timestamp = new Date(value).getTime();
+	if (!Number.isFinite(timestamp)) return value || "时间未知";
+	const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+	if (minutes < 1) return "刚刚";
+	if (minutes < 60) return `${minutes} 分钟前`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours} 小时前`;
+	const days = Math.floor(hours / 24);
+	return `${days} 天前`;
+}
+const draftEntries = computed<DraftListEntry[]>(() => {
+	if (props.mode !== "drafts") return [];
+	const server: DraftListEntry[] = rows.value.map((row) => {
+		const kind = row.kind ? movementLabels[String(row.kind)] || "其他类型" : "库存操作";
+		const branch =
+			row.whole.branches.find((value) => value.destination) || row.whole.branches[0];
+		const destination = branch?.destination
+			? warehouseLabel(branch.destination, c.reference.warehouses)
+			: "";
+		return {
+			id: `server:${row.id}`,
+			type: "server",
+			kind: String(row.kind || ""),
+			label: kind,
+			summary: `${row.whole.item_count} 种物品${destination ? ` → ${destination}` : ""}`,
+			updatedAt: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
+			absolute: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
+			server: row,
+		};
+	});
+	const browser: DraftListEntry[] = localEntries.value.map((entry) => ({
+		id: `browser:${entry.editorId}`,
+		type: "browser",
+		kind: entry.editorKind,
+		label: localTitle(entry),
+		summary: localSummary(entry),
+		updatedAt: entry.updatedAt,
+		absolute: new Date(entry.updatedAt).toLocaleString("zh-CN"),
+		local: entry,
+	}));
+	const search = query.value.search.trim().toLocaleLowerCase();
+	return [...server, ...browser]
+		.filter((entry) => !kindFilter.value || entry.label === kindFilter.value)
+		.filter((entry) => typeFilter.value === "all" || entry.type === typeFilter.value)
+		.filter(
+			(entry) =>
+				!search ||
+				`${entry.label} ${entry.summary} ${entry.id}`.toLocaleLowerCase().includes(search),
+		)
+		.sort((a, b) =>
+			draftSort.value === "operation"
+				? a.label.localeCompare(b.label, "zh-CN")
+				: new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+		);
+});
 const quantities = (row: NativeRecord) =>
 	row.whole.quantities.map((value) => `${value.qty} ${value.uom}`).join(" · ");
 const services = useOptionalInventoryServices();
@@ -144,10 +253,11 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 <template>
 	<section class="preview-page preview-browse-page">
 		<BrowseToolbar
-			:title="mode === 'drafts' ? '草稿' : '盘点调整'"
-			:summary="mode === 'drafts' ? '草稿' : '盘点调整'"
+			v-if="mode === 'counts'"
+			title="盘点调整"
+			summary="盘点调整"
 			v-model:search="query.search"
-			:search-label="mode === 'drafts' ? '搜索草稿、物品或活动' : '搜索盘点记录或物品'"
+			search-label="搜索盘点记录或物品"
 			:active="active"
 			:filter-count="scopeChips.length + extraChips.filter((chip) => !chip.fixed).length + 1"
 			:sidebar-open="sidebarOpen"
@@ -170,10 +280,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					@open-full="emit('openExport', $event)"
 				/>
 				<UiButton
-					v-if="
-						mode === 'counts' &&
-						c.reference.capabilities['Stock Reconciliation']?.create
-					"
+					v-if="c.reference.capabilities['Stock Reconciliation']?.create"
 					variant="primary"
 					@click="emit('newCount')"
 					>新建盘点</UiButton
@@ -181,18 +288,14 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			>
 			<template #subtitle>
 				<p class="browse-subtitle">
-					{{
-						mode === "drafts"
-							? "原生草稿可在 ERPNext 和本应用继续填写，尚未改变库存。"
-							: "仅显示实际保存的原生盘点调整；数量一致的盘点不产生记录。"
-					}}
+					{{ "仅显示实际保存的盘点调整；数量一致的盘点不产生记录。" }}
 				</p>
 			</template>
 			<template #filters>
 				<BrowseFilters
 					v-model="scope"
 					disclosure-mode
-					:movement="mode === 'drafts'"
+					:movement="false"
 					records
 					:hierarchy-in-rail="sidebarOpen && !isMobile"
 				/>
@@ -283,10 +386,142 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						<option value="asc">升序</option>
 					</select></label
 				>
-				<span v-if="initialized" class="browse-result-count">{{ total }} 份原生记录</span>
+				<span v-if="initialized" class="browse-result-count">{{ total }} 份记录</span>
 			</div>
 		</BrowseToolbar>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
+		<div v-else-if="mode === 'drafts'" class="drafts-browser">
+			<div class="drafts-toolbar">
+				<h1>草稿</h1>
+				<label class="drafts-search"
+					>搜索草稿、物品或活动<input
+						v-model="query.search"
+						type="search"
+						placeholder="输入名称、物品或活动"
+					/>
+				</label>
+				<UiButton
+					@click="
+						c.load();
+						c.readLocal();
+					"
+					>刷新</UiButton
+				>
+			</div>
+			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
+			<details class="drafts-difference">
+				<summary>了解区别</summary>
+				<p>
+					<InventoryIcon name="document" />
+					<strong>草稿单据</strong>：已保存到系统的草稿，尚未改变库存；可在任何设备或
+					ERPNext 中继续。
+				</p>
+				<p>
+					<InventoryIcon name="device" />
+					<strong>浏览器暂存</strong
+					>：内容尚不完整，无法存为草稿单据，暂时保存在此浏览器；换设备或清除浏览器数据会丢失。
+				</p>
+			</details>
+			<div class="drafts-filters">
+				<label
+					>操作<select v-model="kindFilter">
+						<option value="">全部操作</option>
+						<option
+							v-for="kind in [
+								...new Set([
+									...rows.map((row) =>
+										row.kind
+											? movementLabels[String(row.kind)] || '其他类型'
+											: '库存操作',
+									),
+									...localEntries.map(localTitle),
+								]),
+							]"
+							:key="kind"
+							:value="kind"
+						>
+							{{ kind }}
+						</option>
+					</select></label
+				>
+				<label
+					>类型<select v-model="typeFilter">
+						<option value="all">全部</option>
+						<option value="server">草稿单据</option>
+						<option value="browser">浏览器暂存</option>
+					</select></label
+				>
+				<label
+					>排序<select v-model="draftSort">
+						<option value="recent">最近更新</option>
+						<option value="operation">操作名称</option>
+					</select></label
+				>
+				<span v-if="initialized" class="muted">{{ draftEntries.length }} 份草稿</span>
+			</div>
+			<p v-if="localError" class="utility-error" role="alert">{{ localError }}</p>
+			<AsyncRegion
+				:loading="loading"
+				:initialized="initialized"
+				:stale="stale"
+				:error="error"
+				label="草稿刷新中。"
+			>
+				<template #skeleton><SkeletonBlock variant="list" :rows="5" /></template>
+				<ul class="draft-entry-list">
+					<li v-for="entry in draftEntries" :key="entry.id" class="draft-entry">
+						<div class="draft-entry-main">
+							<span class="draft-type-tag" :class="`is-${entry.type}`"
+								><InventoryIcon
+									:name="entry.type === 'server' ? 'document' : 'device'"
+								/>{{ entry.type === "server" ? "草稿单据" : "浏览器暂存" }}</span
+							>
+							<strong>{{ entry.label }}</strong>
+							<span>{{ entry.summary }}</span>
+							<time :datetime="entry.updatedAt" :title="entry.absolute">{{
+								relativeTime(entry.updatedAt)
+							}}</time>
+							<details v-if="entry.local" class="draft-entry-details">
+								<summary>查看详情</summary>
+								<RecoverySummary
+									:kind="entry.local.editorKind"
+									:values="entry.local.values"
+									:copy-text="JSON.stringify(entry.local.values, null, 2)"
+									:pending-upload-reselection="
+										entry.local.pendingUploadReselection
+									"
+								/>
+							</details>
+						</div>
+						<div class="browse-row-actions">
+							<UiButton v-if="entry.server" @click="open(entry.server)"
+								>继续编辑</UiButton
+							>
+							<UiButton
+								v-else-if="entry.local && c.localSupported(entry.local)"
+								@click="emit('recover', entry.local)"
+								>继续编辑</UiButton
+							>
+							<UiButton
+								v-if="entry.server?.whole.can_delete"
+								variant="danger"
+								@click="deleteTarget = entry.server"
+								>删除</UiButton
+							>
+							<UiButton
+								v-else-if="entry.local"
+								variant="danger"
+								@click="localTarget = entry.local"
+								>放弃</UiButton
+							>
+						</div>
+					</li>
+					<li v-if="initialized && !draftEntries.length" class="browse-empty">
+						没有符合条件的草稿。
+					</li>
+				</ul>
+			</AsyncRegion>
+		</div>
 		<template v-else>
 			<div class="preview-browse-body">
 				<aside
@@ -303,7 +538,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				<div class="preview-browse-results">
 					<DataTable
 						data-browse-scroll="records"
-						ariaLabel="原生记录"
+						ariaLabel="库存记录"
 						table-class="browse-table"
 						:columns="tableColumns"
 						:rows="browseRows"
@@ -311,7 +546,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						:sort-by="query.sortBy"
 						:sort-direction="query.sort"
 						:loading="loading || Boolean(query.groupBy.length && groupRoot?.loading)"
-						loading-text="正在读取原生记录…"
+						loading-text="库存记录加载中…"
 						:initialized="Boolean(initialized || groupRoot?.initialized)"
 						:error="query.groupBy.length ? groupRoot?.error || error : error"
 						:stale="query.groupBy.length ? Boolean(groupRoot?.stale) : stale"
@@ -339,7 +574,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								'data-browse-row': `${String(row.doctype)}:${String(row.document)}`,
 							})
 						"
-						empty-text="没有符合条件的原生记录"
+						empty-text="没有符合条件的记录"
 						@sort="
 							(field) => {
 								query.sortBy = field as ReportQuery['sortBy'];
@@ -363,7 +598,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								{{
 									row.kind
 										? movementLabels[String(row.kind)] || "其他类型"
-										: "原生单据"
+										: "库存单据"
 								}}
 								·
 								<NativeStatusBadge :status="Number(row.docstatus)" />
@@ -425,50 +660,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				</div>
 			</div>
 		</template>
-		<section v-if="mode === 'drafts'" class="surface form-section browser-recovery-list">
-			<h2>此浏览器的未完成输入</h2>
-			<p>
-				仅当前浏览器与账户可用，未保存为原生草稿，也没有预留或改变库存。重新打开后需核对原记录，再选择恢复。待上传文件须重新选择。
-			</p>
-			<p v-if="localError" class="utility-error" role="alert">{{ localError }}</p>
-			<p v-else-if="!localEntries.length">没有保留的未完成输入。</p>
-			<article
-				v-for="entry in localEntries"
-				:key="entry.editorId"
-				class="browser-recovery-entry"
-			>
-				<div>
-					<strong>{{ localTitle(entry) }}</strong
-					><small
-						>{{
-							entry.identity?.name ||
-							entry.values.editingCode ||
-							entry.values.editingActivity ||
-							entry.values.editingWarehouse ||
-							"尚无原生记录"
-						}}
-						· {{ entry.updatedAt }}</small
-					>
-				</div>
-				<div class="browse-row-actions">
-					<UiButton v-if="c.localSupported(entry)" @click="emit('recover', entry)"
-						>打开并核对</UiButton
-					><UiButton variant="danger" @click="localTarget = entry">放弃此输入</UiButton>
-				</div>
-				<details>
-					<summary>查看恢复摘要</summary>
-					<RecoverySummary
-						:kind="entry.editorKind"
-						:values="entry.values"
-						:copy-text="JSON.stringify(entry.values, null, 2)"
-						:pending-upload-reselection="entry.pendingUploadReselection"
-					/>
-				</details>
-			</article>
-		</section>
 		<Overlay
 			v-if="deleteTarget && active"
-			title="删除这份原生草稿？"
+			title="删除这份草稿单据？"
 			:dismissible="!deleteBusy"
 			@close="!deleteBusy && (deleteTarget = undefined)"
 			><p>
@@ -497,28 +691,147 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	</section>
 </template>
 <style scoped>
-.record-quantity,
-.browser-recovery-entry small {
+.record-quantity {
 	display: block;
 	color: var(--p-muted);
 }
-.browser-recovery-list {
-	margin-top: var(--p-section-gap, 24px);
+.drafts-browser {
+	display: grid;
+	gap: var(--p-space-3);
 }
-.browser-recovery-entry {
+.drafts-toolbar {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: end;
+	gap: var(--p-space-3);
+}
+.drafts-toolbar h1 {
+	margin: 0;
+}
+.drafts-search {
+	display: grid;
+	gap: 4px;
+	font-size: var(--p-small);
+}
+.drafts-search input {
+	width: 100%;
+}
+
+.drafts-explainer,
+.drafts-difference,
+.drafts-filters,
+.draft-entry-list {
+	margin: 0;
+}
+.drafts-difference {
+	padding: var(--p-space-3);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+}
+.drafts-difference p {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	margin: var(--p-space-2) 0 0;
+}
+.drafts-difference svg {
+	width: 18px;
+	height: 18px;
+}
+.drafts-filters {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
-	padding-block: 16px;
+	align-items: end;
+	gap: var(--p-space-3);
+}
+.drafts-filters label {
+	display: grid;
+	gap: 4px;
+	font-size: var(--p-small);
+}
+.draft-entry-list {
+	display: grid;
+	padding: 0;
+	list-style: none;
+}
+.draft-entry {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--p-space-2) var(--p-space-3);
+	padding: var(--p-space-3) 0;
 	border-top: 1px solid var(--p-border);
 }
-.browser-recovery-entry > div:first-child {
-	flex: 1 1 240px;
+.draft-entry-main {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
-.browser-recovery-entry details {
-	flex-basis: 100%;
+.draft-entry-main time {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.draft-type-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: var(--p-soft);
+	font-size: var(--p-small);
+}
+.draft-type-tag svg {
+	width: 16px;
+	height: 16px;
+}
+.draft-type-tag.is-browser {
+	background: var(--p-warning-bg, var(--p-soft));
+}
+.draft-entry-details {
+	flex: 1 0 100%;
 	min-width: 0;
+}
+.draft-entry-details summary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 4px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--p-accent);
+	cursor: pointer;
+	font-weight: 500;
+}
+.draft-entry-details summary::after {
+	content: none;
+}
+.draft-entry-details summary:hover {
+	background: transparent;
+	text-decoration: underline;
+}
+.draft-entry-details[open] > :not(summary) {
+	margin-block-start: var(--p-space-2);
+}
+@media (max-width: 600px) {
+	.drafts-toolbar {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.drafts-toolbar h1 {
+		grid-column: 1 / -1;
+	}
+	.draft-entry {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.draft-entry .browse-row-actions {
+		display: flex;
+		flex-wrap: nowrap;
+		justify-content: flex-end;
+	}
 }
 </style>

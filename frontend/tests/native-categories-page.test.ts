@@ -277,10 +277,7 @@ describe("category management", () => {
     });
     const { wrapper, controller } = setup(call, editRecovery());
     await flushPromises();
-    await wrapper
-      .findAll("button")
-      .find((button) => button.text() === "检查并恢复")!
-      .trigger("click");
+    await controller.recover(editRecovery());
     await flushPromises();
     expect(controller.editing.value?.name).toBe("CAT-A");
     expect(dialog().textContent).toContain("编辑分类");
@@ -327,14 +324,11 @@ describe("category management", () => {
       });
       const { wrapper, controller } = setup(call, editRecovery());
       await flushPromises();
-      await wrapper
-        .findAll("button")
-        .find((button) => button.text() === "检查并恢复")!
-        .trigger("click");
+      await controller.recover(editRecovery());
       await flushPromises();
       expect(controller.dialog.value).toBe(false);
       expect(treeReads).toBe(2);
-      expect(controller.candidates.value).toHaveLength(1);
+      expect(wrapper.text()).not.toContain("此浏览器有未完成输入");
       expect(controller.recoveryConflict.value).toContain(
         refreshed.length ? "已更改" : "已删除",
       );
