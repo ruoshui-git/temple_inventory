@@ -3,7 +3,13 @@
 import frappe
 from frappe.utils import cint
 
-SYSTEM_POINTERS = ("root_warehouse", "physical_root_warehouse", "leased_warehouse", "damaged_warehouse")
+SYSTEM_POINTERS = (
+	"root_warehouse",
+	"physical_root_warehouse",
+	"system_root_warehouse",
+	"leased_warehouse",
+	"damaged_warehouse",
+)
 
 
 def _settings():
@@ -138,7 +144,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		parts, seen, cursor = [], set(), row
 		while cursor and cursor.name not in seen:
 			seen.add(cursor.name)
-			if cursor.name != physical_root and cursor.name != settings.root_warehouse:
+			if cursor.name not in (physical_root, settings.root_warehouse, settings.system_root_warehouse):
 				if not cint(cursor.get("ti_direct_storage")):
 					parts.insert(0, _label(cursor))
 			cursor = rows.get(cursor.parent_warehouse)

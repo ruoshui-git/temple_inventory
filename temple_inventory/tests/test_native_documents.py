@@ -94,16 +94,18 @@ class NativeDocumentTests(unittest.TestCase):
 
 		self.root = warehouse("Root", group=1)
 		self.physical = warehouse("Physical", self.root, 1)
+		self.system_root = warehouse("System Locations", self.root, 1)
 		self.room_a = warehouse("A Room", self.physical, 1, "Room")
 		self.room_b = warehouse("B Room", self.physical, 1, "Room")
 		self.a = warehouse("A Direct", self.room_a, semantic_type="", direct=1)
 		self.b = warehouse("B Direct", self.room_b, semantic_type="", direct=1)
-		self.loan_leaf = warehouse("Lease Leaf", self.root)
-		self.damaged = warehouse("Damaged", self.root)
+		self.loan_leaf = warehouse("Lease Leaf", self.system_root)
+		self.damaged = warehouse("Damaged", self.system_root)
 		settings = frappe.get_single("Temple Inventory Settings")
 		settings.company = self.company
 		settings.root_warehouse = self.root
 		settings.physical_root_warehouse = self.physical
+		settings.system_root_warehouse = self.system_root
 		settings.leased_warehouse = self.loan_leaf
 		settings.damaged_warehouse = self.damaged
 		settings.set("allowed_warehouses", [{"warehouse": self.a}, {"warehouse": self.b}])

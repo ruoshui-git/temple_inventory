@@ -391,6 +391,16 @@ def set_disabled(name, disabled, version):
 	_, _, doc = _lock_location(name, version)
 	doc.disabled = int(disabled)
 	doc.save()
+	if doc.warehouse_type == "Room" and doc.is_group:
+		for name in frappe.get_all(
+			"Warehouse",
+			filters={"parent_warehouse": doc.name, "ti_direct_storage": 1},
+			pluck="name",
+		):
+			leaf = frappe.get_doc("Warehouse", name, for_update=True)
+			leaf.check_permission("write")
+			leaf.disabled = int(disabled)
+			leaf.save()
 	return tree()
 
 

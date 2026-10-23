@@ -183,7 +183,6 @@ class NativeSampleTests(NativeDocumentTests):
 			{**row, "source_code": f"TEST-{self.token}-{row['source_code']}"} for row in costumes
 		]
 		with (
-			patch.object(native_samples, "ITEM_PREFIX", "TI-TEST-" + self.token + "-"),
 			patch.object(native_samples, "REQUEST_PREFIX", "temple-native-test:" + self.token + ":"),
 			patch.object(native_samples, "SAMPLE_ACTIVITY_TITLE", "Native Seed " + self.token),
 			patch.object(
@@ -231,9 +230,14 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertEqual(
 				{doc.ti_movement_kind for doc in entries if doc.docstatus == 1}, set(MOVEMENT_PURPOSES)
 			)
-			self.assertTrue(any(doc.docstatus == 2 and not doc.ti_movement_kind for doc in entries))
+			self.assertTrue(
+				any(doc.docstatus == 2 and doc.ti_movement_kind in MOVEMENT_PURPOSES for doc in entries)
+			)
+			self.assertFalse(any(not doc.ti_movement_kind for doc in entries))
 			self.assertGreaterEqual(sum(doc.docstatus == 0 for doc in entries), 2)
-			self.assertTrue(any(doc.amended_from for doc in entries if doc.docstatus == 0))
+			amendments = [doc for doc in entries if doc.docstatus == 0 and doc.amended_from]
+			self.assertTrue(amendments)
+			self.assertNotEqual(amendments[0].owner, "Administrator")
 			count = frappe.get_doc("Stock Reconciliation", result["reconciliation"])
 			self.assertEqual(count.docstatus, 1)
 			self.assertEqual(len(count.ti_count_review), 4)
@@ -264,8 +268,8 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertEqual(
 					{row.batch_no: abs(row.qty) for row in bundle.entries},
 					{
-						"TI-TEST-" + self.token + "-BUNDLE-A": 2,
-						"TI-TEST-" + self.token + "-BUNDLE-B": 3,
+						native_samples._batch_id(result["item_codes"]["G-000001"], "Event Bundle A"): 2,
+						native_samples._batch_id(result["item_codes"]["G-000001"], "Event Bundle B"): 3,
 					},
 				)
 			from temple_inventory import browse
@@ -274,18 +278,18 @@ class NativeSampleTests(NativeDocumentTests):
 				"dataset": "movements",
 				"view": "lines",
 				"statuses": [1],
-				"scope": {"item": "TI-TEST-" + self.token + "-N-WORKFLOW"},
+				"scope": {"item": result["item_codes"]["N-WORKFLOW"]},
 			}
 			first_history_page = browse.movement_history(
 				history_query,
-				item_code="TI-TEST-" + self.token + "-N-WORKFLOW",
+				item_code=result["item_codes"]["N-WORKFLOW"],
 				page_length=30,
 			)
 			self.assertGreater(first_history_page["matched_count"], 30)
 			self.assertEqual(first_history_page["next_start"], 30)
 			second_history_page = browse.movement_history(
 				history_query,
-				item_code="TI-TEST-" + self.token + "-N-WORKFLOW",
+				item_code=result["item_codes"]["N-WORKFLOW"],
 				start=first_history_page["next_start"],
 				page_length=30,
 			)
@@ -293,8 +297,8 @@ class NativeSampleTests(NativeDocumentTests):
 			before = getdate(nowdate())
 			catalog_data = sample_media.catalog()
 			batch_ids = [
-				"TI-TEST-" + self.token + "-" + batch["key"]
-				for batches in catalog_data["batches"].values()
+				native_samples._batch_id(result["item_codes"][key], batch["key"])
+				for key, batches in catalog_data["batches"].items()
 				for batch in batches
 			]
 			batch_rows = frappe.get_all(
@@ -303,7 +307,7 @@ class NativeSampleTests(NativeDocumentTests):
 				fields=["item", "batch_id", "manufacturing_date", "expiry_date"],
 			)
 			for key, source_batches in catalog_data["batches"].items():
-				code = "TI-TEST-" + self.token + "-" + key
+				code = result["item_codes"][key]
 				actual_batches = [row for row in batch_rows if row.item == code]
 				self.assertEqual(len(actual_batches), len(source_batches))
 				self.assertGreaterEqual(len({row.manufacturing_date for row in actual_batches}), 2)
@@ -313,12 +317,14 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertTrue({-1, -30, -31, -90, -91, 0, 30, 31, 90, 91}.issubset(offsets))
 			depleted = frappe.get_all(
 				"Batch",
-				filters={"batch_id": "TI-TEST-" + self.token + "-BAT-000001"},
+				filters={
+					"batch_id": native_samples._batch_id(result["item_codes"]["G-000001"], "BAT-000001")
+				},
 				pluck="name",
 			)
 			self.assertEqual(len(depleted), 1)
 			depleted_balances = batch_balances(
-				"TI-TEST-" + self.token + "-G-000001",
+				result["item_codes"]["G-000001"],
 				result["rooms"]["DEMO_A"],
 				str(before),
 				include_zero=True,
@@ -327,7 +333,7 @@ class NativeSampleTests(NativeDocumentTests):
 				any(row["batch_no"] == depleted[0] and row["qty"] == 0 for row in depleted_balances)
 			)
 			self.assertEqual(
-				get_stock_balance("TI-TEST-" + self.token + "-G-000001", result["rooms"]["DEMO_B"]),
+				get_stock_balance(result["item_codes"]["G-000001"], result["rooms"]["DEMO_B"]),
 				0,
 			)
 			settings.reload()

@@ -203,9 +203,7 @@ def _sample_items(data):
 	costumes = costume_catalog()
 	known_costumes = {(row["item_name"], row["item_group"]) for row in costumes}
 	items.update(row.name for row in all_items if (row.item_name, row.item_group) in known_costumes)
-	barcodes = ["TI-SAMPLE-" + row["key"] for row in data["items"]]
-	barcodes.extend("TI-SAMPLE-" + row["key"] for row in costumes)
-	barcodes.extend(row["source_code"] for row in costumes)
+	barcodes = [row["source_code"] for row in costumes]
 	items.update(
 		frappe.get_all(
 			"Item Barcode",

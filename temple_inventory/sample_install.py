@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-location-model-v6"
+VERSION = "2026.10.native-location-model-v8"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -209,7 +209,7 @@ def _complete_setup_wizard():
 	disable_future_access()
 
 
-def install_sample_data(company=None):
+def install_sample_data(company=None, data="full"):
 	"""Install real native samples on the exact authorized development site."""
 	assert_development_site()
 	if "System Manager" not in frappe.get_roles():
@@ -224,7 +224,7 @@ def install_sample_data(company=None):
 	frappe.db.commit()
 	try:
 		_progress("原生仓库、目录、私有图片、库存单据与盘点：开始")
-		result = install(company)
+		result = install(company, data=data, generate_volume=data == "full")
 		settings.reload()
 		_assert_leaf_stock(settings)
 		settings.db_set("sample_data_version", VERSION, update_modified=False)
@@ -246,7 +246,7 @@ def install_sample_data(company=None):
 		raise
 
 
-def verify_development_sample(*, require_images=True):
+def verify_development_sample(*, require_images=True, data="full"):
 	"""Verify native identities, permissions, balance invariants and private media."""
 	assert_development_site()
 	from temple_inventory import native_samples, sample_media
@@ -266,8 +266,18 @@ def verify_development_sample(*, require_images=True):
 		pluck="ti_label",
 		order_by="lft asc",
 	)
-	if root_doc.ti_label != "寺院仓库" or root_children != ["实体库房", "借出", "损坏待处理"]:
+	if root_doc.ti_label != "寺院仓库" or root_children != ["实体库房", "系统位置"]:
 		raise AssertionError(f"Configured System roots differ from plan: {root_children!r}")
+	if (
+		frappe.db.get_value("Warehouse", settings.leased_warehouse, "parent_warehouse")
+		!= settings.system_root_warehouse
+	):
+		raise AssertionError("借出 must be below 系统位置")
+	if (
+		frappe.db.get_value("Warehouse", settings.damaged_warehouse, "parent_warehouse")
+		!= settings.system_root_warehouse
+	):
+		raise AssertionError("损坏待处理 must be below 系统位置")
 	physical_rows = frappe.get_all(
 		"Warehouse",
 		filters={
@@ -299,18 +309,16 @@ def verify_development_sample(*, require_images=True):
 		for row in physical_rows
 		if row.name != root
 	]
-	expected_tree = [
-		("第2寺院", "T2", False, True, "Area", "实体库房"),
-		("A02", "", False, True, "Room", "第2寺院"),
-		("A02", "", True, False, "", "A02"),
-		("演示区", "", False, True, "Area", "实体库房"),
-		("演示室甲", "", False, True, "Room", "演示区"),
-		("演示室甲", "", True, False, "", "演示室甲"),
-		("演示架1", "", False, False, "Shelf", "演示室甲"),
-		("演示室乙", "", False, True, "Room", "演示区"),
-		("演示室乙", "", True, False, "", "演示室乙"),
-	]
-	if actual_tree != expected_tree:
+	required_locations = {
+		("第1寺院", "T1"),
+		("106", ""),
+		("201", ""),
+		("第2寺院", "T2"),
+		("货架1", "S1"),
+		("货架2", "S2"),
+		("临时存放", "TMP"),
+	}
+	if not required_locations.issubset({(row[0], row[1]) for row in actual_tree}):
 		raise AssertionError(f"Native sample location tree differs from plan: {actual_tree!r}")
 	for doctype in (
 		"Inventory Workspace",
@@ -354,8 +362,9 @@ def verify_development_sample(*, require_images=True):
 	if frappe.db.has_column("Stock Reconciliation", "ti_count_warehouse"):
 		raise AssertionError("Retired singular count warehouse column remains after reset")
 	_assert_leaf_stock(settings)
-	general_codes = [native_samples.ITEM_PREFIX + row["key"] for row in sample_media.catalog()["items"]]
-	extra_codes = [native_samples.ITEM_PREFIX + row[0] for row in native_samples.EXTRA_ITEMS]
+	known_names = {name for row in sample_media.catalog()["items"] for name in row["legacy_names"]}
+	known_names.update(row[1] for row in native_samples.EXTRA_ITEMS)
+	general_codes = frappe.get_all("Item", filters={"item_name": ["in", sorted(known_names)]}, pluck="name")
 	costumes = sample_media.costume_catalog()
 	barcode_to_parent = {
 		row.barcode: row.parent
@@ -368,7 +377,7 @@ def verify_development_sample(*, require_images=True):
 	costume_codes = [barcode_to_parent.get(row["source_code"]) for row in costumes]
 	if any(not code or not code.startswith("ITM-") for code in costume_codes):
 		raise AssertionError("Every real costume source code must resolve to an allocated Item identity")
-	codes = [*general_codes, *extra_codes, *costume_codes]
+	codes = [*general_codes, *costume_codes]
 	if len(costume_codes) != 96 or len(set(costume_codes)) != 96:
 		raise AssertionError("Costume import must allocate 96 separate Item identities")
 	if frappe.db.count("Item", {"name": ["in", codes]}) != len(codes):
@@ -413,11 +422,34 @@ def verify_development_sample(*, require_images=True):
 		attachments = frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": code})
 		if require_images and attachments != len(source["images"]):
 			raise AssertionError(f"Costume image attachments are incomplete for {source['source_code']}")
-	demo_area = frappe.db.get_value("Warehouse", {"parent_warehouse": root, "ti_label": "演示区"}, "name")
-	room_a = frappe.db.get_value(
-		"Warehouse", {"parent_warehouse": demo_area, "ti_label": "演示室甲", "is_group": 1}, "name"
-	)
-	shelf = frappe.db.get_value("Warehouse", {"parent_warehouse": room_a, "ti_label": "演示架1"}, "name")
+	if data == "real":
+		return {
+			"items": len(costume_codes),
+			"costume_items": len(costume_codes),
+			"costume_stock_verified": True,
+			"warehouse_tree": [dict(row) for row in physical_rows],
+			"real_data_only": True,
+		}
+	if frappe.db.count("Item") < 600:
+		raise AssertionError("Full seed must contain the real catalog and at least 436 generated Items")
+	if frappe.db.count("Stock Entry", {"docstatus": 1}) < 1500:
+		raise AssertionError("Full seed must contain at least 1,500 submitted native movements")
+	if frappe.db.sql("select name from `tabStock Entry` where coalesce(ti_movement_kind, '')='' limit 1"):
+		raise AssertionError("Every sample Stock Entry must have a native movement kind")
+	if (
+		frappe.db.count("Stock Reconciliation", {"docstatus": 1}) < 18
+		or frappe.db.count("Stock Reconciliation", {"docstatus": 0}) < 2
+	):
+		raise AssertionError("Full seed must contain 18 submitted counts and two count drafts")
+	if frappe.db.count("Stock Entry", {"docstatus": 2}) < 10:
+		raise AssertionError("Full seed must contain ten cancelled typed movements")
+	if len(frappe.db.sql("select name from `tabStock Entry` where amended_from is not null limit 4")) < 4:
+		raise AssertionError("Full seed must contain four native amendments")
+	if frappe.db.count("User", {"user_type": "System User", "enabled": 1}) < 6:
+		raise AssertionError("Full seed must contain five acting test users")
+	t2 = frappe.db.get_value("Warehouse", {"parent_warehouse": root, "ti_label": "第2寺院"}, "name")
+	room_a = frappe.db.get_value("Warehouse", {"parent_warehouse": t2, "ti_label": "A02"}, "name")
+	shelf = frappe.db.get_value("Warehouse", {"parent_warehouse": room_a, "ti_label": "货架1"}, "name")
 	rooms = {
 		"DEMO_A": frappe.db.get_value(
 			"Warehouse", {"parent_warehouse": room_a, "ti_direct_storage": 1}, "name"
@@ -433,7 +465,8 @@ def verify_development_sample(*, require_images=True):
 		)
 		for key in ("loan-first", "loan-second", "loan-untouched", "loan-fully-settled")
 	]
-	native_samples.assert_balances(rooms, loans)
+	workflow_item = frappe.db.get_value("Item", {"item_name": "活动周转箱"}, "name")
+	native_samples.assert_balances(rooms, loans, {"N-WORKFLOW": {"item_code": workflow_item}})
 	reconciliation = frappe.get_doc(
 		"Stock Reconciliation",
 		{"ti_request_key": _request_key("Stock Reconciliation", native_samples.REQUEST_PREFIX + "count")},
@@ -547,6 +580,36 @@ def verify_development_sample(*, require_images=True):
 	}
 
 
+def development_seed_counts():
+	"""Summarize the installed development dataset for reset validation output."""
+	assert_development_site()
+	return {
+		"items": frappe.db.count("Item"),
+		"stock_entries": frappe.db.sql(
+			"""select coalesce(ti_movement_kind, '') as kind, docstatus, count(*) as count
+			from `tabStock Entry` group by ti_movement_kind, docstatus
+			order by kind, docstatus""",
+			as_dict=True,
+		),
+		"reconciliations": frappe.db.sql(
+			"select docstatus, count(*) as count from `tabStock Reconciliation` group by docstatus order by docstatus",
+			as_dict=True,
+		),
+		"warehouses": frappe.db.count("Warehouse"),
+		"uoms_used": frappe.db.sql(
+			"""select stock_uom as uom, count(*) as item_count from `tabItem` where is_stock_item=1
+			group by stock_uom order by stock_uom""",
+			as_dict=True,
+		),
+		"users": frappe.db.get_all(
+			"User",
+			filters={"user_type": "System User", "enabled": 1},
+			fields=["name", "first_name", "email"],
+			order_by="name asc",
+		),
+	}
+
+
 def prepare_development_sample_site(
 	company="Org",
 	abbr="O",
@@ -556,6 +619,7 @@ def prepare_development_sample_site(
 	fiscal_year_start=None,
 	fiscal_year_end=None,
 	allow_non_developer=0,
+	data="full",
 ):
 	"""Configure a freshly reinstalled disposable site and install all sample data.
 
@@ -597,6 +661,6 @@ def prepare_development_sample_site(
 	_remove_default_sample_records(company)
 	frappe.db.commit()
 
-	result = install_sample_data(company=company)
+	result = install_sample_data(company=company, data=data)
 	_progress(f"最终验证：完成（{result['transactions']} 个样例事务）")
 	return result

@@ -14,13 +14,16 @@ from erpnext.stock.stock_ledger import get_previous_sle
 from frappe.utils import get_datetime
 
 
-def entry_bundle(row, fieldname="serial_and_batch_bundle"):
+def entry_bundle(row, fieldname="serial_and_batch_bundle", *, batch_checker=None):
 	"""Resolve the exact original bundle even after native cancellation detaches it."""
 	if fieldname not in ("serial_and_batch_bundle", "current_serial_and_batch_bundle"):
 		raise ValueError("Unsupported native bundle field")
 	name = row.get(fieldname)
 	if not name and row.get("parenttype") == "Stock Entry" and row.get("parent") and row.get("name"):
-		if frappe.db.get_value("Stock Entry", row.parent, "docstatus") == 2:
+		parent_docstatus = row.get("_parent_docstatus")
+		if parent_docstatus is None:
+			parent_docstatus = frappe.db.get_value("Stock Entry", row.parent, "docstatus")
+		if parent_docstatus == 2:
 			candidates = frappe.get_all(
 				"Serial and Batch Bundle",
 				filters={
@@ -40,7 +43,12 @@ def entry_bundle(row, fieldname="serial_and_batch_bundle"):
 		and row.get("doctype") == "Stock Reconciliation Item"
 		and row.get("parent")
 		and row.get("name")
-		and frappe.db.get_value("Stock Reconciliation", row.parent, "docstatus") == 2
+		and (
+			row.get("_parent_docstatus")
+			if row.get("_parent_docstatus") is not None
+			else frappe.db.get_value("Stock Reconciliation", row.parent, "docstatus")
+		)
+		== 2
 	):
 		book = fieldname == "current_serial_and_batch_bundle"
 		quantity = float(row.get("current_qty" if book else "qty") or 0)
@@ -68,18 +76,21 @@ def entry_bundle(row, fieldname="serial_and_batch_bundle"):
 		frappe.throw("批次明细不属于此物品")
 	for allocation in bundle.entries:
 		if allocation.batch_no:
-			frappe.get_doc("Batch", allocation.batch_no).check_permission("read")
+			if batch_checker:
+				batch_checker(allocation.batch_no)
+			else:
+				frappe.get_doc("Batch", allocation.batch_no).check_permission("read")
 	return bundle
 
 
-def reconciliation_allocations(row):
+def reconciliation_allocations(row, *, batch_checker=None):
 	"""Join recorded book/actual bundles, including book batches counted as zero.
 
 	The book bundle reverses the previous quantities (negative for positive stock).
 	Do not query today's ledger: a cancelled count must retain its original baseline.
 	"""
-	current = entry_bundle(row, "current_serial_and_batch_bundle")
-	actual = entry_bundle(row)
+	current = entry_bundle(row, "current_serial_and_batch_bundle", batch_checker=batch_checker)
+	actual = entry_bundle(row, batch_checker=batch_checker)
 	if not current and not actual:
 		baseline = float(row.get("current_qty") or 0)
 		quantity = float(row.get("qty") or 0)

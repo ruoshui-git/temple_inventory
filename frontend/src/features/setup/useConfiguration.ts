@@ -59,6 +59,7 @@ export function useConfiguration(changed: () => void) {
   const groups = new Set([
     "root_warehouse",
     "physical_root_warehouse",
+    "system_root_warehouse",
     "leased_warehouse",
   ]);
   const options = computed(() =>

@@ -28,7 +28,7 @@ it("shows a loaded item name in its routed breadcrumb", async () => {
   const reference = createReferenceData();
   Object.assign(reference, { site: "breadcrumb-test", user: "manager" });
   const item = {
-    item_code: "TI-SAMPLE-N-WORKFLOW",
+    item_code: "ITM-000001",
     item_name: "活动周转箱",
     item_group: "法会用品",
     stock_uom: "Nos",

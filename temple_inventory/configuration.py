@@ -12,6 +12,7 @@ from temple_inventory.native_topology import present_locations
 POINTERS = {
 	"root_warehouse": ("寺院仓库根目录", True),
 	"physical_root_warehouse": ("实体仓库根目录", True),
+	"system_root_warehouse": ("系统位置分组", True),
 	"leased_warehouse": ("借出库位", False),
 	"damaged_warehouse": ("损坏库位", False),
 }
@@ -124,21 +125,31 @@ def status():
 			)
 		pointers.append({"field": field, "label": label, "current": name, "issue": issue})
 	root = configured.get("root_warehouse")
-	for field in ("physical_root_warehouse", "leased_warehouse", "damaged_warehouse"):
+	for field in (
+		"physical_root_warehouse",
+		"system_root_warehouse",
+		"leased_warehouse",
+		"damaged_warehouse",
+	):
 		if field in configured and root and not _inside(configured[field], root):
 			blockers.append(
 				{"code": field + ":outside", "message": POINTERS[field][0] + "不在寺院仓库根目录下"}
 			)
 	physical, leased = configured.get("physical_root_warehouse"), configured.get("leased_warehouse")
+	damaged = configured.get("damaged_warehouse")
 	if (
 		physical
 		and leased
 		and (physical.name == leased.name or _inside(physical, leased) or _inside(leased, physical))
 	):
 		blockers.append({"code": "overlap", "message": "实体仓库与借出库位必须分开"})
-	if leased and root and leased.parent_warehouse != root.name:
-		blockers.append({"code": "lease_leaf", "message": "借出库位必须位于寺院仓库根目录下"})
-	damaged = configured.get("damaged_warehouse")
+	system_root = configured.get("system_root_warehouse")
+	if system_root and root and system_root.parent_warehouse != root.name:
+		blockers.append({"code": "system_root_parent", "message": "系统位置分组必须位于寺院仓库根目录下"})
+	if leased and system_root and leased.parent_warehouse != system_root.name:
+		blockers.append({"code": "lease_leaf", "message": "借出库位必须位于系统位置分组下"})
+	if damaged and system_root and damaged.parent_warehouse != system_root.name:
+		blockers.append({"code": "damaged_leaf", "message": "损坏库位必须位于系统位置分组下"})
 	if damaged and physical and _inside(damaged, physical):
 		blockers.append({"code": "damaged_physical", "message": "损坏库位不能位于实体仓库分组内"})
 	needs_first_room = bool(
@@ -215,13 +226,15 @@ def initialize(company, version):
 
 	root = create("寺院仓库", group=True)
 	physical = create("实体库房", root, True)
-	lease_leaf = create("借出", root)
-	damaged = create("损坏待处理", root)
+	system_root = create("系统位置", root, True)
+	lease_leaf = create("借出", system_root)
+	damaged = create("损坏待处理", system_root)
 	settings.update(
 		{
 			"company": company,
 			"root_warehouse": root,
 			"physical_root_warehouse": physical,
+			"system_root_warehouse": system_root,
 			"leased_warehouse": lease_leaf,
 			"damaged_warehouse": damaged,
 		}

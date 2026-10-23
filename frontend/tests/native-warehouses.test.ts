@@ -106,8 +106,52 @@ const shelf = node({
   protected: false,
   can_edit: true,
 });
+const systemRoot = node({
+  name: "SYSTEM",
+  label: "系统位置",
+  local_label: "系统位置",
+  full_label: "系统位置",
+  path: "系统位置",
+  search_text: "系统位置",
+  kind: "system",
+  parent: "ROOT",
+  lft: 16,
+  rgt: 21,
+  protected: true,
+  can_edit: false,
+});
+const leased = node({
+  name: "LEASED",
+  label: "借出",
+  local_label: "借出",
+  full_label: "借出",
+  path: "借出",
+  search_text: "借出",
+  kind: "system",
+  parent: "SYSTEM",
+  lft: 17,
+  rgt: 18,
+  is_group: false,
+  protected: true,
+  can_edit: false,
+});
+const damaged = node({
+  name: "DAMAGED",
+  label: "损坏待处理",
+  local_label: "损坏待处理",
+  full_label: "损坏待处理",
+  path: "损坏待处理",
+  search_text: "损坏待处理",
+  kind: "system",
+  parent: "SYSTEM",
+  lft: 19,
+  rgt: 20,
+  is_group: false,
+  protected: true,
+  can_edit: false,
+});
 const tree = {
-  rows: [node({}), area, room, direct, shelf],
+  rows: [node({}), area, room, direct, shelf, systemRoot, leased, damaged],
   physical_root: "ROOT",
   company: "TEMPLE",
   can_create: true,
@@ -164,6 +208,9 @@ describe("native location workspace", () => {
       "AREA",
       "ROOM",
       "SHELF",
+      "SYSTEM",
+      "LEASED",
+      "DAMAGED",
     ]);
     expect(
       c.visibleRows.value.find((row) => row.name === "ROOM")?.local_label,
@@ -276,7 +323,8 @@ describe("native location workspace", () => {
     expect(node({}).kind).toBe("system");
     expect(node({}).protected).toBe(true);
     expect(node({}).can_edit).toBe(false);
-    expect(c.visibleRows.value.map((row) => row.kind)).not.toContain("system");
+    expect(c.visibleRows.value.map((row) => row.name)).toContain("SYSTEM");
+    expect(c.visibleRows.value.map((row) => row.name)).toContain("LEASED");
   });
 
   it("retains edits made during a native metadata save with the new native base version", async () => {

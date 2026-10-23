@@ -271,6 +271,15 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(result["matched_count"], 1)
 		self.assertEqual(sum(row["available"] for row in result["results"][0]["stock"]), 7)
 
+	def test_timestamped_item_stock_uses_the_balance_before_a_later_receipt(self):
+		from temple_inventory.native_balances import stock_balance
+
+		self.receipt(5)
+		timestamp = add_days(nowdate(), -1) + " 23:59:59"
+		self.assertEqual(stock_balance(self.item, self.a, timestamp), 0)
+		result = catalog.operation_item(self.item, timestamp)
+		self.assertFalse(any(row["warehouse"] == self.a for row in result["stock"]))
+
 	def test_inbound_picker_rows_ignore_warehouse_filter(self):
 		self.receipt(3)
 		page = catalog.picker_rows(
@@ -375,6 +384,45 @@ class CatalogTests(NativeDocumentTests):
 		self.assertNotIn("batch_no", batch_row["stock"][0])
 		self.assertEqual(len(batch_row["stock"][0]["batch_choices"]), 2)
 		self.assertEqual(sum(row["qty"] for row in batch_row["stock"][0]["batch_choices"]), 10)
+
+	def test_picker_pagination_matches_unpaged_rows_for_each_purpose(self):
+		self.receipt(3)
+		second = self.movement(quantity=4)
+		second["items"][0]["t_warehouse"] = self.b
+		self.submit(self.create(second))
+		damage = self.movement("Damage", quantity=2, source=self.a, target=self.damaged)
+		self.submit(self.create(damage))
+		stockless_code = f"TI-STOCKLESS-{self.token}"
+		catalog.save_item({"item_code": stockless_code, "item_name": "Stockless", "stock_uom": "Nos"})
+		cases = [
+			("outbound", {"warehouses": [self.a, self.b]}),
+			("damaged", {"warehouses": [self.damaged]}),
+			("inbound", {"receiving_warehouse": self.a}),
+			("count", {"warehouses": [self.a, self.b]}),
+		]
+		for purpose, scope in cases:
+			with self.subTest(purpose=purpose):
+				codes = [self.item, stockless_code] if purpose in ("inbound", "count") else [self.item]
+				timestamp = str(frappe.utils.now_datetime())
+				full = catalog.picker_rows(
+					item_codes=codes, purpose=purpose, page_length=10, timestamp=timestamp, **scope
+				)["results"]
+				paged = []
+				start = 0
+				while True:
+					page = catalog.picker_rows(
+						item_codes=codes,
+						purpose=purpose,
+						start=start,
+						page_length=1,
+						timestamp=timestamp,
+						**scope,
+					)
+					paged.extend(page["results"])
+					if page["next_start"] is None:
+						break
+					start = page["next_start"]
+				self.assertEqual(paged, full)
 
 	def test_reference_creation_preserves_parent_and_whole_number_setting(self):
 		parent = frappe.get_doc(

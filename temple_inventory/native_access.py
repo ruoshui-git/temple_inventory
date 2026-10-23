@@ -124,23 +124,44 @@ def check_item(item_code, *, lock=False):
 	return item
 
 
-def check_document_scope(doc):
+def check_document_scope(
+	doc,
+	*,
+	visible_warehouses=None,
+	item_checker=None,
+	batch_checker=None,
+	company_checker=None,
+	warehouse_checker=None,
+):
 	"""A document detail never leaks a hidden allocation through another visible row."""
 	from temple_inventory.native_balances import entry_bundle
 	from temple_inventory.native_topology import _visible_warehouses
 
-	check_company(doc)
-	visible = _visible_warehouses()
+	if company_checker:
+		company_checker(doc)
+	else:
+		check_company(doc)
+	visible = visible_warehouses if visible_warehouses is not None else _visible_warehouses()
 	for row in [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]:
-		check_item(row.item_code)
+		bundle_row = frappe._dict(row.as_dict() if hasattr(row, "as_dict") else dict(row))
+		bundle_row["_parent_docstatus"] = doc.docstatus
+		item = item_checker(row.item_code) if item_checker else check_item(row.item_code)
+		if item is None:
+			frappe.throw("记录包含无权查看的物品", frappe.PermissionError)
 		if row.get("batch_no"):
-			frappe.get_doc("Batch", row.batch_no).check_permission("read")
-		entry_bundle(row)
+			if batch_checker:
+				batch_checker(row.batch_no)
+			else:
+				frappe.get_doc("Batch", row.batch_no).check_permission("read")
+		entry_bundle(bundle_row)
 		if doc.doctype == "Stock Reconciliation":
-			entry_bundle(row, "current_serial_and_batch_bundle")
+			entry_bundle(bundle_row, "current_serial_and_batch_bundle")
 		for field in ("warehouse", "s_warehouse", "t_warehouse"):
 			warehouse = row.get(field)
 			if warehouse:
 				if warehouse not in visible:
 					frappe.throw("记录包含无权查看的位置", frappe.PermissionError)
-				frappe.get_doc("Warehouse", warehouse).check_permission("read")
+				if warehouse_checker:
+					warehouse_checker(warehouse)
+				else:
+					frappe.get_doc("Warehouse", warehouse).check_permission("read")

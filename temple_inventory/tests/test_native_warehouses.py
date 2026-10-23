@@ -4,11 +4,19 @@ import unittest
 
 import frappe
 
-from temple_inventory import catalog, warehouses
+from temple_inventory import catalog, native_topology, warehouses
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeWarehouseTests(NativeDocumentTests):
+	def test_system_location_group_is_presented_with_leaf_labels_without_group_path(self):
+		rows = native_topology._visible_warehouses()
+		presented = {row["name"]: row for row in native_topology.present_locations(rows)}
+		self.assertIn(self.system_root, presented)
+		self.assertEqual(presented[self.loan_leaf]["local_label"], "Native Test Lease Leaf " + self.token)
+		self.assertNotIn("System Locations", presented[self.loan_leaf]["path"])
+		self.assertNotIn("System Locations", presented[self.damaged]["path"])
+
 	def _create(self, kind, label, parent, short_label=None):
 		warehouses.create_location(kind, label, parent, short_label)
 		return frappe.db.get_value(
@@ -36,6 +44,18 @@ class NativeWarehouseTests(NativeDocumentTests):
 			frappe.db.get_value("Warehouse", direct, "warehouse_name"),
 			frappe.db.get_value("Warehouse", room, "warehouse_name") + " · 直接存放",
 		)
+
+	def test_manager_disabling_room_also_disables_its_direct_storage_leaf(self):
+		room = self._create("Room", "Disable room " + self.token, self.physical)
+		leaf = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		current = frappe.get_doc("Warehouse", room)
+		warehouses.set_disabled(room, True, str(current.modified))
+		self.assertTrue(frappe.db.get_value("Warehouse", room, "disabled"))
+		self.assertTrue(frappe.db.get_value("Warehouse", leaf, "disabled"))
+		current = frappe.get_doc("Warehouse", room)
+		warehouses.set_disabled(room, False, str(current.modified))
+		self.assertFalse(frappe.db.get_value("Warehouse", room, "disabled"))
+		self.assertFalse(frappe.db.get_value("Warehouse", leaf, "disabled"))
 
 	def test_desk_insert_rename_and_move_regenerate_native_paths(self):
 		first = self._create("Area", "Desk area " + self.token, self.physical, "D")

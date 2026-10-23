@@ -3,7 +3,7 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import frappe
-from frappe.utils import cint, get_datetime, getdate
+from frappe.utils import cint, getdate
 
 from temple_inventory.item_code import suggest_item_code as next_item_code
 from temple_inventory.native_access import check_item, load_locked, require_app
@@ -152,16 +152,64 @@ def _query_boolean(value, label):
 	frappe.throw(f"{label}筛选值无效")
 
 
+def _picker_flatten_items(items, purpose, only_stock):
+	quantity_key = "damaged" if purpose == "damaged" else "available"
+	flat = []
+	for item in items:
+		by_warehouse = {}
+		for stock in item.get("stock") or []:
+			if (purpose == "count" and (not only_stock or stock.get("available", 0) > 0)) or (
+				purpose != "count" and stock.get(quantity_key, 0) > 0
+			):
+				warehouse = stock.get("warehouse", "")
+				entry = by_warehouse.get(warehouse)
+				if entry is None:
+					entry = {**stock, "batch_choices": []}
+					for field in ("batch_no", "expiry_date", "manufacturing_date"):
+						entry.pop(field, None)
+					entry[quantity_key] = 0
+					by_warehouse[warehouse] = entry
+				entry[quantity_key] = float(entry.get(quantity_key, 0) or 0) + float(
+					stock.get(quantity_key, 0) or 0
+				)
+				if stock.get("batch_no"):
+					entry["batch_choices"].append(
+						{"batch_no": stock["batch_no"], "qty": stock.get(quantity_key, 0)}
+					)
+		for stock in by_warehouse.values():
+			flat.append(
+				{
+					**item,
+					"stock": [stock],
+					"warehouse": stock.get("warehouse", ""),
+					"warehouse_label": stock.get("warehouse_label", ""),
+					"picker_quantity": stock.get("damaged", 0)
+					if purpose == "damaged"
+					else stock.get("available", 0),
+				}
+			)
+		if purpose == "count" and not only_stock and not by_warehouse:
+			flat.append(
+				{
+					**item,
+					"stock": [],
+					"warehouse": "",
+					"warehouse_label": "",
+					"picker_quantity": 0,
+					"batch_choices": [],
+				}
+			)
+	return flat
+
+
 @frappe.whitelist()
 def operation_item(item_code, timestamp=None):
 	"""Complete permission-filtered locations for one selected editor Item."""
-	from frappe.utils import get_datetime
-
 	require_app()
 	item = check_item(item_code)
 	context = ReportContext(validate_query({"dataset": "inventory", "scope": {"item": item.name}}))
 	if timestamp:
-		context.snapshot = str(get_datetime(timestamp))
+		context.set_snapshot(timestamp)
 	return {**item_metadata(item), "stock": list(stock_rows(context)), "snapshot": context.snapshot}
 
 
@@ -211,7 +259,7 @@ def search_items(
 	)
 	context = ReportContext(query)
 	if timestamp:
-		context.snapshot = str(get_datetime(timestamp))
+		context.set_snapshot(timestamp)
 	if categories or uncategorized:
 		groups = set(context.categories or set())
 		if uncategorized:
@@ -265,7 +313,7 @@ def search_items(
 			stock_query = {**query, "scope": {**query["scope"], "item": item.name}, "includeZero": False}
 			stock_context = ReportContext(validate_query(stock_query))
 			if timestamp:
-				stock_context.snapshot = context.snapshot
+				stock_context.set_snapshot(context.snapshot)
 			metadata["stock"] = list(stock_rows(stock_context))
 			metadata["snapshot"] = stock_context.snapshot
 			results.append(metadata)
@@ -325,6 +373,120 @@ def picker_rows(
 		target_warehouses = sorted(receiving_context.selected)
 	else:
 		target_warehouses = []
+	if purpose == "inbound":
+		page = search_items(
+			search=search,
+			start=start,
+			page_length=page_length,
+			warehouses=target_warehouses[:1] if cint(only_stock) else [],
+			categories=categories,
+			uncategorized=uncategorized,
+			in_stock_only=bool(cint(only_stock)),
+			item_codes=item_codes,
+			timestamp=timestamp,
+		)
+		warehouse = target_warehouses[0] if target_warehouses else ""
+		results = []
+		for item in page["results"]:
+			target_stocks = [row for row in item.get("stock") or [] if row.get("warehouse") == warehouse]
+			picker_quantity = sum(float(row.get("available", 0) or 0) for row in target_stocks)
+			results.append(
+				{
+					**item,
+					"stock": target_stocks,
+					"warehouse": warehouse,
+					"warehouse_label": target_context.label(warehouse) if warehouse else "",
+					"picker_quantity": picker_quantity,
+					"batch_choices": [
+						{"batch_no": row["batch_no"], "qty": row.get("available", 0)}
+						for row in target_stocks
+						if row.get("batch_no")
+					],
+				}
+			)
+		return {"results": results, "matched_count": page["matched_count"], "next_start": page["next_start"]}
+	if not timestamp:
+		item_filters = {"disabled": 0, "is_stock_item": 1}
+		if item_codes is not None:
+			selected_codes = frappe.parse_json(item_codes) if isinstance(item_codes, str) else item_codes
+			if not isinstance(selected_codes, list) or any(
+				not isinstance(code, str) for code in selected_codes
+			):
+				frappe.throw("物品选择范围无效")
+			item_filters["name"] = ["in", sorted(set(selected_codes)) or [""]]
+		if categories or uncategorized:
+			groups = set(target_context.categories or set())
+			if _query_boolean(uncategorized, "无分类"):
+				groups.add(target_context.category_root)
+			item_filters["item_group"] = ["in", sorted(groups) or [""]]
+		or_filters = None
+		if search:
+			term = f"%{str(search).strip()}%"
+			or_filters = [
+				["Item", "item_code", "like", term],
+				["Item", "item_name", "like", term],
+				["Item", "description", "like", term],
+				["Item", "item_group", "like", term],
+				["Item Barcode", "barcode", "like", term],
+			]
+		items = frappe.get_list(
+			"Item",
+			filters=item_filters,
+			or_filters=or_filters,
+			fields=["name", "item_name"],
+			order_by="item_name asc, name asc",
+			limit_page_length=0,
+		)
+		item_names = [row.name for row in items]
+		bins = frappe.get_all(
+			"Bin",
+			filters={
+				"item_code": ["in", item_names or [""]],
+				"warehouse": ["in", sorted(target_context.selected) or [""]],
+				"actual_qty": [">", 0],
+			},
+			fields=["item_code", "warehouse"],
+			limit_page_length=0,
+		)
+		eligible = set()
+		for row in bins:
+			if purpose == "damaged":
+				if row.warehouse in target_context.damaged:
+					eligible.add((row.item_code, row.warehouse))
+			elif row.warehouse not in target_context.leased and row.warehouse not in target_context.damaged:
+				eligible.add((row.item_code, row.warehouse))
+		if purpose == "count" and not cint(only_stock):
+			with_stock = {item_code for item_code, _warehouse in eligible}
+			eligible.update((row.name, "") for row in items if row.name not in with_stock)
+		labels = {row.name: row.item_name for row in items}
+		eligible = sorted(
+			eligible,
+			key=lambda pair: (
+				str(labels.get(pair[0], "")).casefold(),
+				pair[0],
+				target_context.label(pair[1]).casefold() if pair[1] else "",
+				pair[1],
+			),
+		)
+		page_pairs = eligible[start : start + page_length]
+		page_codes = sorted({item_code for item_code, _warehouse in page_pairs})
+		page = search_items(
+			search=search,
+			page_length=len(page_codes) or 1,
+			warehouses=warehouses,
+			categories=categories,
+			uncategorized=uncategorized,
+			in_stock_only=False,
+			item_codes=page_codes,
+		)
+		flattened = _picker_flatten_items(page["results"], purpose, bool(cint(only_stock)))
+		rows_by_pair = {(row["item_code"], row.get("warehouse", "")): row for row in flattened}
+		results = [rows_by_pair[pair] for pair in page_pairs if pair in rows_by_pair]
+		return {
+			"results": results,
+			"matched_count": len(eligible),
+			"next_start": start + page_length if start + page_length < len(eligible) else None,
+		}
 	flat = []
 	item_start = 0
 	while True:

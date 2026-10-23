@@ -8,7 +8,6 @@ from collections import defaultdict
 import frappe
 from frappe.utils import get_datetime, getdate, now_datetime, nowdate
 
-from temple_inventory.native_access import check_document_scope
 from temple_inventory.native_balances import (
 	batch_balances,
 	entry_bundle,
@@ -41,19 +40,27 @@ def paged(
 
 
 class ReportContext:
-	def __init__(self, query, snapshot=None):
+	def __init__(self, query, snapshot=None, *, snapshot_is_now=None):
 		# Bind caches per request; no decorator retains contexts across accounts.
 		from functools import lru_cache
 
-		self.item = lru_cache(maxsize=512)(self.item)
-		self._item_fields = lru_cache(maxsize=512)(self._item_fields)
+		self.item = lru_cache(maxsize=2048)(self.item)
+		self._item_fields = lru_cache(maxsize=2048)(self._item_fields)
+		self._permitted_item_images = None
 		self.activity = lru_cache(maxsize=512)(self.activity)
-		self.parent = lru_cache(maxsize=256)(self.parent)
+		self.parent = lru_cache(maxsize=2048)(self.parent)
+		self.batch = lru_cache(maxsize=512)(self.batch)
+		self._warehouse_doc = lru_cache(maxsize=512)(lambda name: frappe.get_doc("Warehouse", name))
+		self._checked_warehouse_permissions = set()
 		self.label = lru_cache(maxsize=512)(self.label)
+		self._loan_balances = lru_cache(maxsize=2048)(
+			lambda name, by_batch=False: loan_balances(name, by_batch=by_batch)
+		)
 		self.query = query
 		self.scope = query["scope"]
 		self.period = resolved_period(self.scope["period"])
 		self.related_period = resolved_period(query["relatedPeriod"])
+		self.snapshot_is_now = snapshot is None if snapshot_is_now is None else snapshot_is_now
 		self.snapshot = str(snapshot or now_datetime())
 		self.settings, self.warehouses, self.physical, self.leased, self.damaged = warehouse_scopes()
 		from temple_inventory.native_topology import present_locations
@@ -68,7 +75,9 @@ class ReportContext:
 		self.company = self.settings.company
 		if not self.company:
 			frappe.throw("请先配置库存公司")
-		frappe.get_doc("Company", self.company).check_permission("read")
+		self._company_doc = frappe.get_doc("Company", self.company)
+		self._company_doc.check_permission("read")
+		self._checked_company_permissions = {self.company}
 		self.selected = self.expand_warehouses(self.scope["warehouses"])
 		self.sources = self.expand_warehouses(self.scope["sources"])
 		self.destinations = self.expand_warehouses(self.scope["destinations"])
@@ -111,7 +120,7 @@ class ReportContext:
 
 	def item(self, code):
 		try:
-			item = frappe.get_doc("Item", code)
+			item = getattr(self, "_preloaded_items", {}).get(code) or frappe.get_doc("Item", code)
 			item.check_permission("read")
 		except frappe.PermissionError, frappe.DoesNotExistError:
 			return None
@@ -121,7 +130,9 @@ class ReportContext:
 		if not name:
 			return None
 		try:
-			activity = frappe.get_doc("Inventory Activity", name)
+			activity = getattr(self, "_preloaded_activities", {}).get(name) or frappe.get_doc(
+				"Inventory Activity", name
+			)
 			activity.check_permission("read")
 		except frappe.PermissionError, frappe.DoesNotExistError:
 			return None
@@ -129,26 +140,180 @@ class ReportContext:
 
 	def parent(self, doctype, name):
 		try:
-			doc = frappe.get_doc(doctype, name)
+			doc = (
+				self._preloaded_parents.get((doctype, name)) if hasattr(self, "_preloaded_parents") else None
+			)
+			doc = doc or frappe.get_doc(doctype, name)
 			doc.check_permission("read")
 			if doc.company != self.company:
 				return None
 			if doctype in ("Stock Entry", "Stock Reconciliation"):
-				check_document_scope(doc)
+				self.check_document_scope(doc)
 		except frappe.PermissionError, frappe.DoesNotExistError:
 			return None
 		return doc
 
+	def batch(self, name):
+		batch = frappe.get_doc("Batch", name)
+		batch.check_permission("read")
+		return batch
+
+	def check_document_scope(self, doc):
+		"""Use the shared scope contract with request-local permission caches."""
+		from temple_inventory.native_access import check_document_scope
+
+		check_document_scope(
+			doc,
+			visible_warehouses=set(self.warehouses),
+			item_checker=self.item,
+			batch_checker=self.batch,
+			company_checker=self.check_document_company,
+			warehouse_checker=self.check_warehouse_permission,
+		)
+
+	def check_document_company(self, doc):
+		if doc.company != self.company:
+			frappe.throw("记录不属于当前库存公司", frappe.PermissionError)
+		if doc.company not in self._checked_company_permissions:
+			self._company_doc.check_permission("read")
+			self._checked_company_permissions.add(doc.company)
+
+	def check_warehouse_permission(self, warehouse):
+		if warehouse not in self._checked_warehouse_permissions:
+			self._warehouse_doc(warehouse).check_permission("read")
+			self._checked_warehouse_permissions.add(warehouse)
+
+	def preload_parents(self, doctype, names):
+		"""Batch-load native headers and child rows after permission-filtered listing."""
+		if not names:
+			return
+		if not hasattr(self, "_preloaded_parents"):
+			self._preloaded_parents = {}
+		meta = frappe.get_meta(doctype)
+		child_fields = [
+			field
+			for field in ("items", "ti_count_review")
+			if meta.get_field(field) and meta.get_field(field).options
+		]
+		for start in range(0, len(names), 500):
+			batch_names = names[start : start + 500]
+			parents = frappe.get_all(
+				doctype,
+				filters={"name": ["in", batch_names]},
+				fields=["*"],
+				limit_page_length=0,
+			)
+			children = {}
+			for field in child_fields:
+				child_doctype = meta.get_field(field).options
+				rows = frappe.get_all(
+					child_doctype,
+					filters={"parent": ["in", batch_names], "parenttype": doctype, "parentfield": field},
+					fields=["*"],
+					order_by="parent asc, idx asc",
+					limit_page_length=0,
+				)
+				by_parent = defaultdict(list)
+				for row in rows:
+					by_parent[row.parent].append(dict(row))
+				children[field] = by_parent
+			for row in parents:
+				payload = {**dict(row), "doctype": doctype}
+				for field in child_fields:
+					payload[field] = [
+						{**child, "_parent_docstatus": row.docstatus}
+						for child in children[field].get(row.name, [])
+					]
+				doc = frappe.new_doc(doctype)
+				doc.update(payload)
+				doc.__islocal = 0
+				self._preloaded_parents[(doctype, row.name)] = doc
+
+	def preload_item_attachments(self, item_codes):
+		"""Batch-check attached private Files while preserving File read/privacy checks."""
+		from temple_inventory.native_files import can_read
+
+		self._permitted_item_images = defaultdict(set)
+		for row in frappe.get_list(
+			"File",
+			filters={
+				"attached_to_doctype": "Item",
+				"attached_to_name": ["in", sorted(set(item_codes)) or [""]],
+				"is_private": 1,
+			},
+			fields=["name", "attached_to_name", "file_url"],
+			order_by="creation asc, name asc",
+			limit_page_length=0,
+		):
+			file_doc = frappe.get_doc("File", row.name)
+			if file_doc.has_permission("read") and can_read(file_doc):
+				self._permitted_item_images[row.attached_to_name].add(row.file_url)
+
+	def preload_items(self, item_codes):
+		"""Load permission-visible Item fields in one query; checks still run per Item."""
+		self._preloaded_items = getattr(self, "_preloaded_items", {})
+		codes = sorted(set(item_codes) - self._preloaded_items.keys())
+		for start in range(0, len(codes), 500):
+			batch_codes = codes[start : start + 500]
+			rows = frappe.get_list("Item", filters={"name": ["in", batch_codes]}, fields=["*"])
+			meta = frappe.get_meta("Item")
+			child_tables = {}
+			for field in ("barcodes", "uoms"):
+				definition = meta.get_field(field)
+				if not definition or not definition.options:
+					continue
+				child_rows = frappe.get_all(
+					definition.options,
+					filters={"parent": ["in", batch_codes], "parenttype": "Item", "parentfield": field},
+					fields=["*"],
+					order_by="parent asc, idx asc",
+					limit_page_length=0,
+				)
+				by_parent = defaultdict(list)
+				for child in child_rows:
+					by_parent[child.parent].append(dict(child))
+				child_tables[field] = by_parent
+			for row in rows:
+				item = frappe.new_doc("Item")
+				payload = dict(row)
+				for field, grouped in child_tables.items():
+					payload[field] = grouped.get(row.name, [])
+				item.update(payload)
+				item.__islocal = 0
+				self._preloaded_items[item.name] = item
+
+	def preload_activities(self, names):
+		self._preloaded_activities = getattr(self, "_preloaded_activities", {})
+		pending = sorted(set(names) - self._preloaded_activities.keys())
+		for start in range(0, len(pending), 500):
+			rows = frappe.get_list(
+				"Inventory Activity", filters={"name": ["in", pending[start : start + 500]]}, fields=["*"]
+			)
+			for row in rows:
+				activity = frappe.new_doc("Inventory Activity")
+				activity.update(dict(row))
+				activity.__islocal = 0
+				self._preloaded_activities[activity.name] = activity
+
 	def item_fields(self, item):
 		return self._item_fields(item.name)
 
-	def _item_fields(self, code):
-		from temple_inventory.native_files import attachments
+	def loan_balances(self, name, *, by_batch=False):
+		return self._loan_balances(name, by_batch)
 
+	def set_snapshot(self, snapshot):
+		self.snapshot = str(get_datetime(snapshot))
+		self.snapshot_is_now = False
+
+	def _item_fields(self, code):
 		item = self.item(code)
-		image = next(
-			(file.file_url for file in attachments("Item", item.name) if file.file_url == item.image), ""
-		)
+		if self._permitted_item_images is None:
+			from temple_inventory.native_files import attachments
+
+			images = {file.file_url for file in attachments("Item", item.name)}
+		else:
+			images = self._permitted_item_images.get(item.name, set())
+		image = item.image if item.image in images else ""
 		return {
 			"item_code": item.name,
 			"item_name": item.item_name,
@@ -240,19 +405,23 @@ class ReportContext:
 def stock_pairs(context):
 	"""Page native Bin identities without retaining the whole catalog in memory."""
 	filters = {"warehouse": ["in", sorted(context.selected) or [""]]}
-	for value in paged("Bin", filters=filters, fields=["item_code", "warehouse"]):
-		yield value.item_code, value.warehouse
+	for value in paged("Bin", filters=filters, fields=["item_code", "warehouse", "actual_qty"]):
+		yield value.item_code, value.warehouse, float(value.actual_qty or 0)
 	if context.query["includeZero"]:
 		for item in paged("Item", filters={"is_stock_item": 1}, fields=["name"]):
 			if not frappe.db.exists("Bin", {**filters, "item_code": item.name}):
-				yield item.name, ""
+				yield item.name, "", 0.0
 
 
 def stock_rows(context):
 	query = context.query
 	if not context.selected:
 		return
-	for code, warehouse in stock_pairs(context):
+	pairs = list(stock_pairs(context))
+	codes = {code for code, _warehouse, _quantity in pairs}
+	context.preload_items(codes)
+	context.preload_item_attachments(codes)
+	for code, warehouse, bin_quantity in pairs:
 		if not context.matches_item(code, warehouse):
 			continue
 		item = context.item(code)
@@ -272,7 +441,14 @@ def stock_rows(context):
 			balances = batch_balances(code, warehouse, context.snapshot, include_zero=query["includeZero"])
 			quantities = [(row.get("batch_no"), row.get("qty", 0)) for row in balances]
 		else:
-			quantities = [(None, stock_balance(code, warehouse, context.snapshot) if warehouse else 0)]
+			quantity = (
+				bin_quantity
+				if warehouse and getattr(context, "snapshot_is_now", False)
+				else stock_balance(code, warehouse, context.snapshot)
+				if warehouse
+				else 0
+			)
+			quantities = [(None, quantity)]
 		if not quantities and query["includeZero"]:
 			quantities = [(None, 0)]
 		for batch_name, quantity in quantities:
@@ -293,9 +469,7 @@ def stock_rows(context):
 				continue
 			batch = None
 			if batch_name:
-				batch = frappe.get_doc("Batch", batch_name)
-				if not batch.has_permission("read"):
-					continue
+				batch = context.batch(batch_name)
 			expiry = str(batch.expiry_date or "") if batch else ""
 			if not context.matches_search(
 				[code, item.item_name, item.description, item.item_group, warehouse, batch_name, expiry]
@@ -382,8 +556,8 @@ def document_fields(context, doc):
 	}
 
 
-def batch_allocations(row):
-	bundle = entry_bundle(row)
+def batch_allocations(row, context=None):
+	bundle = entry_bundle(row, batch_checker=context.batch if context else None)
 	if not bundle:
 		yield row.get("batch_no") or "", float(row.get("transfer_qty") or row.get("qty") or 0), ""
 		return
@@ -431,7 +605,18 @@ def movement_rows(context, *, include_all_dates=False, apply_activity=True, appl
 					"between",
 					[context.period["date_from"], context.period["date_to"]],
 				]
-		for value in paged(doctype, filters=filters):
+		values = list(paged(doctype, filters=filters))
+		names = [value.name for value in values]
+		context.preload_parents(doctype, names)
+		parents = [context._preloaded_parents[(doctype, name)] for name in names]
+		context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
+		context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
+		context.preload_item_attachments(
+			line.item_code
+			for name in names
+			for line in context._preloaded_parents[(doctype, name)].get("items") or []
+		)
+		for value in values:
 			doc = context.parent(doctype, value.name)
 			if not doc:
 				continue
@@ -441,11 +626,11 @@ def movement_rows(context, *, include_all_dates=False, apply_activity=True, appl
 				if not item:
 					continue
 				allocations = (
-					reconciliation_allocations(line)
+					reconciliation_allocations(line, batch_checker=context.batch)
 					if doctype == "Stock Reconciliation"
 					else (
 						{"batch_no": batch, "actual_qty": quantity, "bundle_line": allocation}
-						for batch, quantity, allocation in batch_allocations(line)
+						for batch, quantity, allocation in batch_allocations(line, context)
 					)
 				)
 				for allocation in allocations:
@@ -496,18 +681,26 @@ def movement_rows(context, *, include_all_dates=False, apply_activity=True, appl
 
 def loan_rows(context):
 	query = context.query
-	for value in paged(
-		"Stock Entry",
-		filters={
-			"company": context.company,
-			"ti_movement_kind": "Loan",
-			"docstatus": ["in", [1] if query["view"] == "items" else query["statuses"]],
-		},
-	):
+	values = list(
+		paged(
+			"Stock Entry",
+			filters={
+				"company": context.company,
+				"ti_movement_kind": "Loan",
+				"docstatus": ["in", [1] if query["view"] == "items" else query["statuses"]],
+			},
+		)
+	)
+	names = [value.name for value in values]
+	context.preload_parents("Stock Entry", names)
+	parents = [context._preloaded_parents[("Stock Entry", name)] for name in names]
+	context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
+	context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
+	for value in values:
 		loan = context.parent("Stock Entry", value.name)
 		if not loan or not in_period(loan.posting_date, context.period):
 			continue
-		balances = loan_balances(loan.name, by_batch=True)
+		balances = context.loan_balances(loan.name, by_batch=True)
 		has_outstanding = loan.docstatus == 1 and any(
 			quantity > sum(balances[(line.name, batch)].values())
 			for line in loan.items
@@ -872,33 +1065,49 @@ def historical_rows(context):
 
 def activity_relations(context, activity_name, *, lifetime=False):
 	"""Canonical document + line identities, direct links plus exact original-loan joins."""
-	for row in movement_rows(
-		context,
-		include_all_dates=True,
-		apply_activity=False,
-		apply_search=False,
-		statuses=[1] if lifetime else None,
-	):
-		direct = row["activity"] == activity_name
-		original = context.parent("Stock Entry", row["original_loan"]) if row["original_loan"] else None
-		indirect = False
-		if original and original.ti_activity == activity_name:
-			indirect = any(
-				line.name == row["original_loan_line"] and line.item_code == row["item_code"]
-				for line in original.items
-			)
-		if not direct and not indirect:
-			continue
-		if not lifetime and (
-			not in_period(row["date"], context.related_period)
-			or not context.matches_search(row.values(), related=True)
+	cache = getattr(context, "_activity_relation_cache", None)
+	if cache is None:
+		all_relations = defaultdict(list)
+		lifetime_relations = defaultdict(list)
+		for row in movement_rows(
+			context,
+			include_all_dates=True,
+			apply_activity=False,
+			apply_search=False,
 		):
-			continue
-		yield {
-			**row,
-			"related_activity": activity_name,
-			"relationship": "direct" if direct else "original_loan",
-		}
+			direct_activity = row["activity"]
+			activity_targets = []
+			if direct_activity:
+				activity_targets.append((direct_activity, "direct"))
+			if row["original_loan"]:
+				original = context.parent("Stock Entry", row["original_loan"])
+				if original and original.ti_activity:
+					if any(
+						line.name == row["original_loan_line"] and line.item_code == row["item_code"]
+						for line in original.get("items")
+					):
+						if original.ti_activity and original.ti_activity != direct_activity:
+							activity_targets.append((original.ti_activity, "original_loan"))
+			for activity_name_for_row, relationship in activity_targets:
+				relation = {
+					**row,
+					"related_activity": activity_name_for_row,
+					"relationship": relationship,
+				}
+				all_relations[activity_name_for_row].append(relation)
+				if row["docstatus"] == 1:
+					lifetime_relations[activity_name_for_row].append(relation)
+		cache = (all_relations, lifetime_relations)
+		context._activity_relation_cache = cache
+	relations = cache[1 if lifetime else 0].get(activity_name, ())
+	if lifetime:
+		return iter(relations)
+	return (
+		row
+		for row in relations
+		if in_period(row["date"], context.related_period)
+		and context.matches_search(row.values(), related=True)
+	)
 
 
 def activity_rows(context, *, metadata=True):
@@ -952,7 +1161,7 @@ def activity_rows(context, *, metadata=True):
 				document_count += 1
 			if row["kind"] == "Loan":
 				loan = context.parent("Stock Entry", row["document"])
-				balances = loan_balances(loan.name)
+				balances = context.loan_balances(loan.name)
 				outstanding = outstanding or any(
 					float(line.transfer_qty) > float(sum(balances[line.name].values())) for line in loan.items
 				)

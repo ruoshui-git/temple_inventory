@@ -10,6 +10,7 @@ This permanently erases development.localhost. Other site names are rejected.
 
 Options:
 	--site SITE                 Required exact site name.
+  --data real|full            Seed real costume data or full test volume (default: full).
   --company NAME              Default: Org
   --abbr ABBR                 Default: O
   --country COUNTRY           Default: United States
@@ -28,6 +29,7 @@ USAGE
 }
 
 site=""
+data="full"
 company="Org"
 abbr="O"
 country="United States"
@@ -45,6 +47,7 @@ destructive_ack=0
 while (($#)); do
 	case "$1" in
 		--site) site=${2:?--site requires a value}; shift 2 ;;
+		--data) data=${2:?--data requires a value}; shift 2 ;;
 		--company) company=${2:?--company requires a value}; shift 2 ;;
 		--abbr) abbr=${2:?--abbr requires a value}; shift 2 ;;
 		--country) country=${2:?--country requires a value}; shift 2 ;;
@@ -61,6 +64,11 @@ while (($#)); do
 		*) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
 	esac
 done
+
+if [[ "$data" != "real" && "$data" != "full" ]]; then
+	printf '%s\n' '--data must be real or full.' >&2
+	exit 2
+fi
 
 if [[ ! "$site" =~ ^[A-Za-z0-9.-]+$ ]]; then
 	printf '%s\n' 'You must provide one exact site name with --site.' >&2
@@ -140,7 +148,7 @@ fi
 log_dir="$bench_root/logs"
 mkdir -p "$log_dir"
 log_file="$log_dir/temple-sample-reset-$(date -u +%Y%m%dT%H%M%SZ).log"
-kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end", "allow_non_developer"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end" "$allow_non_developer")
+kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end", "allow_non_developer", "data"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end" "$allow_non_developer" "$data")
 
 run_reset() {
 	if [[ -z "$admin_password" ]]; then
@@ -174,7 +182,8 @@ fi
 
 printf '[temple-sample] Warehouse contract verification: start\n'
 set +e
-verification=$(PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.verify_development_sample 2>&1)
+verification_kwargs=$("$python" -c 'import json, sys; print(json.dumps({"data": sys.argv[1]}))' "$data")
+verification=$(PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.verify_development_sample --kwargs "$verification_kwargs" 2>&1)
 verification_status=$?
 set -e
 printf '%s\n' "$verification"

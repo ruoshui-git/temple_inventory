@@ -209,12 +209,12 @@ class NativeReportTests(NativeDocumentTests):
 		with patch("temple_inventory.native_files.attachments", wraps=attachments) as image_reads:
 			page = report_page(query)
 		self.assertEqual(page["matched_count"], 12)
-		self.assertEqual(image_reads.call_args_list, [unittest.mock.call("Item", self.item)])
-		# The cache must not outlive the request/context or retain another account's
-		# authorization. A second projection performs its own native File check.
+		self.assertEqual(image_reads.call_count, 0)
+		# ReportContext batches private File reads rather than scanning attachments
+		# once per repeated allocation. Its authorization cache is request-local.
 		with patch("temple_inventory.native_files.attachments", wraps=attachments) as image_reads:
 			self.assertEqual(report_page(query)["matched_count"], 12)
-		self.assertEqual(image_reads.call_count, 1)
+		self.assertEqual(image_reads.call_count, 0)
 
 	def test_desk_multi_batch_count_retains_per_batch_baseline_zero_actual_and_cancelled_provenance(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
@@ -1463,6 +1463,27 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(overview["loan_totals"][0]["outstanding"], 3)
 		self.assertEqual(overview["movement_totals"][0]["kind"], "Loan")
 		self.assertTrue(overview["can_write"])
+
+	def test_activity_relations_include_direct_and_original_loan_activities(self):
+		from temple_inventory.report_sources import ReportContext, activity_relations
+
+		loan = self.loan(5)
+		direct_activity = activities.save_activity(
+			{"title": f"Direct activity {self.token}", "activity_type": "TI-TYPE-OTHER"}
+		)
+		row = {
+			"activity": direct_activity["name"],
+			"original_loan": loan.name,
+			"original_loan_line": loan["items"][0].name,
+			"item_code": self.item,
+			"docstatus": 1,
+		}
+		context = ReportContext(self.query("activities", "records"))
+		with patch("temple_inventory.report_sources.movement_rows", return_value=[row]):
+			direct = list(activity_relations(context, direct_activity["name"], lifetime=True))
+			original = list(activity_relations(context, self.activity.name, lifetime=True))
+		self.assertEqual([value["relationship"] for value in direct], ["direct"])
+		self.assertEqual([value["relationship"] for value in original], ["original_loan"])
 
 	def test_activity_uncategorized_scope_requires_a_direct_root_assignment(self):
 		category = catalog.create_category("Activity category " + self.token)

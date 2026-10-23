@@ -6,6 +6,7 @@ The caller owns commit/rollback. Ordinary hooks and permissions remain enabled.
 
 # ruff: noqa: RUF001 — Chinese sample descriptions are intentional.
 
+import random
 from contextvars import ContextVar
 from datetime import timedelta
 from decimal import Decimal
@@ -21,10 +22,9 @@ from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT, costume_ca
 from temple_inventory.sample_media import catalog as sample_catalog
 
 REQUEST_PREFIX = "temple-native-samples:v1:"
-ITEM_PREFIX = "TI-SAMPLE-"
-SAMPLE_ACTIVITY_TITLE = "样例：秋季演出与物资周转"
-SAMPLE_MEAL_ACTIVITY_TITLE = "样例：社区共餐物资配送"
-SAMPLE_HISTORY_ACTIVITY_TITLE = "样例：库位物资周转"
+SAMPLE_ACTIVITY_TITLE = "秋季演出与物资周转"
+SAMPLE_MEAL_ACTIVITY_TITLE = "社区共餐物资配送"
+SAMPLE_HISTORY_ACTIVITY_TITLE = "库位物资周转"
 _SITE_DATE = ContextVar("temple_inventory_sample_site_date", default=None)
 EXPIRY_OFFSETS = (-1, -30, -31, -60, -90, -91, 0, 30, 31, 60, 90, 91, 120, 180, -120, -365, 45, 1)
 MANUFACTURING_OFFSETS = (
@@ -59,7 +59,7 @@ def _date(days, origin=None):
 	return str(getdate(origin or _SITE_DATE.get() or nowdate()) + timedelta(days=days))
 
 
-def _hierarchy(company, data):
+def _hierarchy(company, data, *, full=True):
 	settings = frappe.get_single("Temple Inventory Settings")
 	if not settings.root_warehouse:
 		configuration.initialize(company, configuration.status()["version"])
@@ -74,17 +74,48 @@ def _hierarchy(company, data):
 	):
 		frappe.throw("样例安装要求配置范围内没有库存流水；请使用开发站点重置工具")
 	physical = settings.physical_root_warehouse
-	warehouses.create_location("Area", "第2寺院", physical, "T2")
-	t2 = frappe.db.get_value("Warehouse", {"parent_warehouse": physical, "ti_label": "第2寺院"}, "name")
-	warehouses.create_location("Room", "A02", t2)
-	room_a02 = frappe.db.get_value("Warehouse", {"parent_warehouse": t2, "ti_label": "A02"}, "name")
-	warehouses.create_location("Area", "演示区", physical)
-	demo_area = frappe.db.get_value("Warehouse", {"parent_warehouse": physical, "ti_label": "演示区"}, "name")
-	warehouses.create_location("Room", "演示室甲", demo_area)
-	room_a = frappe.db.get_value("Warehouse", {"parent_warehouse": demo_area, "ti_label": "演示室甲"}, "name")
-	warehouses.create_location("Shelf", "演示架1", room_a)
-	warehouses.create_location("Room", "演示室乙", demo_area)
-	room_b = frappe.db.get_value("Warehouse", {"parent_warehouse": demo_area, "ti_label": "演示室乙"}, "name")
+
+	def add(kind, label, parent, short=None):
+		warehouses.create_location(kind, label, parent, short)
+		return frappe.db.get_value("Warehouse", {"parent_warehouse": parent, "ti_label": label}, "name")
+
+	t1 = add("Area", "第1寺院", physical, "T1")
+	add("Room", "106", t1)
+	add("Room", "201", t1)
+	t2 = add("Area", "第2寺院", physical, "T2")
+	room_a02 = add("Room", "A02", t2)
+	add("Shelf", "货架1", room_a02, "S1")
+	add("Shelf", "货架2", room_a02, "S2")
+	for label in ("A04", "A07", "A14", "B01b", "C06", "C07"):
+		add("Room", label, t2)
+	add("Room", "临时存放", t2, "TMP")
+	room_a = room_a02
+	room_b = frappe.db.get_value("Warehouse", {"parent_warehouse": t2, "ti_label": "A04"}, "name")
+	demo_shelf = frappe.db.get_value("Warehouse", {"parent_warehouse": room_a, "ti_label": "货架1"}, "name")
+	if full:
+		ds = add("Area", "东山寺区", physical, "DS")
+		zt = add("Area", "斋堂", ds, "ZT")
+		kitchen = add("Room", "厨房", zt)
+		fridge = add("Shelf", "冷藏柜", kitchen)
+		warehouses.subdivide_shelf(fridge, str(frappe.db.get_value("Warehouse", fridge, "modified")))
+		for label in ("上层", "下层"):
+			add("Shelf", label, fridge)
+		for label in ("干货架A", "干货架B", "干货架C", "干货架D"):
+			add("Shelf", label, kitchen)
+		add("Room", "餐具间", zt)
+		hall = add("Room", "大殿", ds)
+		for label in ("供桌柜1", "供桌柜2", "供桌柜3"):
+			add("Shelf", label, hall)
+		bookcase = add("Shelf", "经书柜", hall)
+		warehouses.subdivide_shelf(bookcase, str(frappe.db.get_value("Warehouse", bookcase, "modified")))
+		for index in range(1, 7):
+			add("Shelf", f"第{index}格", bookcase)
+		add("Room", "法物流通处临时周转货架（节庆期间使用）", ds)
+		old = add("Room", "旧仓库", ds)
+		warehouses.set_disabled(old, True, str(frappe.db.get_value("Warehouse", old, "modified")))
+		ev = add("Area", "活动现场", physical, "EV")
+		add("Room", "广场帐篷A", ev)
+		add("Room", "广场帐篷B", ev)
 	rooms = {
 		"A02": frappe.db.get_value(
 			"Warehouse", {"parent_warehouse": room_a02, "ti_direct_storage": 1}, "name"
@@ -92,9 +123,7 @@ def _hierarchy(company, data):
 		"DEMO_A": frappe.db.get_value(
 			"Warehouse", {"parent_warehouse": room_a, "ti_direct_storage": 1}, "name"
 		),
-		"DEMO_SHELF": frappe.db.get_value(
-			"Warehouse", {"parent_warehouse": room_a, "ti_label": "演示架1"}, "name"
-		),
+		"DEMO_SHELF": demo_shelf,
 		"DEMO_B": frappe.db.get_value(
 			"Warehouse", {"parent_warehouse": room_b, "ti_direct_storage": 1}, "name"
 		),
@@ -104,8 +133,8 @@ def _hierarchy(company, data):
 	return rooms
 
 
-def _references(data, costumes):
-	for row in data["categories"]:
+def _references(data, costumes, *, include_generated=True):
+	for row in data["categories"] if include_generated else []:
 		if not frappe.db.exists("Item Group", row["label"]):
 			catalog.create_category(row["label"])
 	if not frappe.db.exists("Item Group", "演出用品"):
@@ -113,8 +142,8 @@ def _references(data, costumes):
 	for label in ("演出服装", "演出鞋袜", "演出头饰", "演出道具"):
 		if not frappe.db.exists("Item Group", label):
 			catalog.create_category(label, "演出用品")
-	units = {row["stock_uom"] for row in data["items"]}
-	units.update({"Kg", "Box"})
+	units = {row["stock_uom"] for row in data["items"]} if include_generated else set()
+	units.update({"Kg", "Box"} if include_generated else {row["stock_uom"] for row in costumes})
 	for unit in sorted(units):
 		if not frappe.db.exists("UOM", unit):
 			catalog.create_uom(unit, must_be_whole_number=unit != "Kg")
@@ -137,11 +166,11 @@ def _attach_file(filename, content, doctype, name, field=None):
 	).insert()
 
 
-def _items(data, costumes, *, attach_images):
+def _items(data, costumes, *, attach_images, include_generated=True):
 	result = {}
 	costume_item_codes = {}
-	for row in data["items"]:
-		code = ITEM_PREFIX + row["key"]
+	for row in data["items"] if include_generated else []:
+		code = allocate_item_code()
 		result[row["key"]] = catalog.save_item(
 			{
 				"item_code": code,
@@ -151,7 +180,7 @@ def _items(data, costumes, *, attach_images):
 				"stock_uom": row["stock_uom"],
 				"has_batch_no": row["has_batch_no"],
 				"has_expiry_date": row["has_expiry_date"],
-				"barcodes": [code, ITEM_PREFIX + "SCAN-" + row["key"]],
+				"barcodes": [code],
 			}
 		)
 		if not attach_images:
@@ -201,8 +230,8 @@ def _items(data, costumes, *, attach_images):
 				item = frappe.get_doc("Item", code)
 				item.image = file.file_url
 				item.save()
-	for key, label, unit, batch, expiry in EXTRA_ITEMS:
-		code = ITEM_PREFIX + key
+	for key, label, unit, batch, expiry in EXTRA_ITEMS if include_generated else []:
+		code = allocate_item_code()
 		result[key] = catalog.save_item(
 			{
 				"item_code": code,
@@ -218,7 +247,14 @@ def _items(data, costumes, *, attach_images):
 
 
 def _fiscal_years(company):
-	for year in sorted({getdate(_date(-400)).year, getdate(_date(-60)).year, getdate(_date(0)).year}):
+	for year in sorted(
+		{
+			getdate(_date(-600)).year,
+			getdate(_date(-400)).year,
+			getdate(_date(-60)).year,
+			getdate(_date(0)).year,
+		}
+	):
 		if not frappe.db.exists("Fiscal Year", str(year)):
 			frappe.get_doc(
 				{
@@ -249,6 +285,54 @@ def _line(item, quantity, *, source=None, target=None, **values):
 	}
 
 
+def _seed_users():
+	users = []
+	for first_name, email in (
+		("陈明", "chen.ming@example.com"),
+		("林慧", "lin.hui@example.com"),
+		("王建国", "wang.jianguo@example.com"),
+		("赵雅", "zhao.ya@example.com"),
+		("周平", "zhou.ping@example.com"),
+	):
+		user_name = frappe.db.get_value("User", {"email": email}, "name")
+		if not user_name:
+			user_name = (
+				frappe.get_doc(
+					{
+						"doctype": "User",
+						"email": email,
+						"first_name": first_name,
+						"user_type": "System User",
+						"send_welcome_email": 0,
+						"roles": [
+							{"role": "System Manager"},
+							{"role": "Item Manager"},
+							{"role": "Stock Manager"},
+							{"role": "Stock User"},
+						],
+					}
+				)
+				.insert()
+				.name
+			)
+		users.append(user_name)
+	return users
+
+
+def _as_user(user, method, *args):
+	previous_user = frappe.session.user
+	frappe.set_user(user)
+	try:
+		return method(*args)
+	finally:
+		frappe.set_user(previous_user)
+
+
+def _batch_id(item, label):
+	item_code = item["item_code"] if isinstance(item, dict) else item
+	return f"{item_code} {str(label).replace('-', ' ')}"
+
+
 def _batch_bundle(company, item, warehouse, day, transaction, allocations):
 	return frappe.get_doc(
 		{
@@ -270,33 +354,40 @@ def _batch_bundle(company, item, warehouse, day, transaction, allocations):
 	).insert()
 
 
-def _entry(company, key, kind, lines, days, *, submit=True, attach_file=False, **context):
-	draft = native_api.create_document(
-		"Stock Entry",
-		REQUEST_PREFIX + key,
-		{
-			"company": company,
-			"posting_date": _date(days),
-			"posting_time": "12:00:00",
-			"ti_time_mode": "Manual",
-			"ti_movement_kind": kind,
-			"ti_source_text": "开发样例原生入库" if kind == "Receive" else "",
-			"ti_purpose_text": "开发样例活动用品",
-			"remarks": "[TI-SAMPLE] " + key,
-			"items": lines,
-			**context,
-		},
-	)
-	if attach_file:
-		_attach_file("ti-native-sample-receipt.txt", ATTACHMENT_CONTENT, "Stock Entry", draft.name)
-	return native_api.submit_document("Stock Entry", draft.name, draft.version) if submit else draft
+def _entry(company, key, kind, lines, days, *, submit=True, attach_file=False, actor=None, **context):
+	previous_user = frappe.session.user
+	if actor:
+		frappe.set_user(actor)
+	try:
+		draft = native_api.create_document(
+			"Stock Entry",
+			REQUEST_PREFIX + key,
+			{
+				"company": company,
+				"posting_date": _date(days),
+				"posting_time": "12:00:00",
+				"ti_time_mode": "Manual",
+				"ti_movement_kind": kind,
+				"ti_source_text": "库外接收" if kind == "Receive" else "",
+				"ti_purpose_text": "活动用品",
+				"remarks": key.replace("-", " ").title(),
+				"items": lines,
+				**context,
+			},
+		)
+		if attach_file:
+			_attach_file("ti-native-sample-receipt.txt", ATTACHMENT_CONTENT, "Stock Entry", draft.name)
+		return native_api.submit_document("Stock Entry", draft.name, draft.version) if submit else draft
+	finally:
+		if actor:
+			frappe.set_user(previous_user)
 
 
-def _opening(company, data, costumes, items, rooms):
+def _opening(company, data, costumes, items, rooms, *, include_generated=True):
 	lines = []
 	costume_lines = []
 	expiry_index = 0
-	for row in data["opening"]:
+	for row in data["opening"] if include_generated else []:
 		if row["key"] in data["batches"]:
 			continue
 		lines.append(
@@ -308,10 +399,10 @@ def _opening(company, data, costumes, items, rooms):
 			)
 		)
 	by_key = {row["key"]: row for row in data["items"]}
-	for key, batches in data["batches"].items():
+	for key, batches in data["batches"].items() if include_generated else []:
 		item = items[key]
 		for batch in batches:
-			batch_id = ITEM_PREFIX + batch["key"]
+			batch_id = _batch_id(item, batch["key"])
 			catalog.create_batch(
 				item["item_code"],
 				batch_id,
@@ -329,7 +420,7 @@ def _opening(company, data, costumes, items, rooms):
 					basic_rate=by_key[key]["rate"],
 				)
 			)
-	for row in data["items"]:
+	for row in data["items"] if include_generated else []:
 		if row.get("opening_qty"):
 			lines.append(_line(items[row["key"]], row["opening_qty"], target=rooms["DEMO_A"]))
 	for row in costumes:
@@ -341,17 +432,19 @@ def _opening(company, data, costumes, items, rooms):
 				basic_rate=row["rate"],
 			)
 		)
-	lines.append(_line(items["N-WEIGHT"], 12.5, target=rooms["DEMO_B"], basic_rate=2))
-	catalog.create_batch(items["N-UNDATED"]["item_code"], ITEM_PREFIX + "UNDATED", _date(-600))
-	lines.append(
-		_line(
-			items["N-UNDATED"],
-			12,
-			target=rooms["DEMO_A"],
-			batch_no=ITEM_PREFIX + "UNDATED",
-			use_serial_batch_fields=1,
+	if include_generated:
+		lines.append(_line(items["N-WEIGHT"], 12.5, target=rooms["DEMO_B"], basic_rate=2))
+		undated_batch = _batch_id(items["N-UNDATED"], "Undated Supply")
+		catalog.create_batch(items["N-UNDATED"]["item_code"], undated_batch, _date(-600))
+		lines.append(
+			_line(
+				items["N-UNDATED"],
+				12,
+				target=rooms["DEMO_A"],
+				batch_no=undated_batch,
+				use_serial_batch_fields=1,
+			)
 		)
-	)
 
 	def submit_opening(key, entry_lines):
 		draft = _entry(company, key, "Receive", entry_lines, -400, submit=False)
@@ -367,15 +460,16 @@ def _opening(company, data, costumes, items, rooms):
 		doc.save()
 		return native_api.submit_document("Stock Entry", doc.name, str(doc.modified))
 
-	return {
-		"general": submit_opening("catalog-opening", lines),
-		"costumes": submit_opening("costume-opening", costume_lines),
-	}
+	result = {"costumes": submit_opening("costume-opening", costume_lines)}
+	if include_generated:
+		result["general"] = submit_opening("catalog-opening", lines)
+	return result
 
 
 def _workflow(company, items, rooms, *, attach_files):
 	item = items["N-WORKFLOW"]
 	a, b, leased, damaged = (rooms[key] for key in ("DEMO_A", "DEMO_SHELF", "LEASE", "DAMAGED"))
+	actors = _seed_users()
 	activity = activities.save_activity(
 		{
 			"title": SAMPLE_ACTIVITY_TITLE,
@@ -387,7 +481,7 @@ def _workflow(company, items, rooms, *, attach_files):
 			"notes": "首次借出与追加借出属于同一活动。\n归还记录保留原借出明细；一张归还记录可结算多个兼容借出。",
 		}
 	)
-	context = {"ti_activity": activity["name"], "ti_borrower": "样例演出团队"}
+	context = {"ti_activity": activity["name"], "ti_borrower": "演出团队"}
 	conversions.save_item_conversions(
 		item["item_code"], item["version"], [{"uom": "Box", "conversion_factor": 5}]
 	)
@@ -528,7 +622,7 @@ def _workflow(company, items, rooms, *, attach_files):
 			]
 		)
 	batch_item = items["G-000001"]
-	batches = [ITEM_PREFIX + "BUNDLE-A", ITEM_PREFIX + "BUNDLE-B"]
+	batches = [_batch_id(batch_item, "Event Bundle A"), _batch_id(batch_item, "Event Bundle B")]
 	for batch in batches:
 		catalog.create_batch(batch_item["item_code"], batch, _date(-500), _date(45))
 	allocations = [(batches[0], 2), (batches[1], 3)]
@@ -584,45 +678,51 @@ def _workflow(company, items, rooms, *, attach_files):
 			-4,
 		)
 	)
-	# Native Desk-origin entry has no app kind/request metadata.
-	desk = frappe.get_doc(
-		{
-			"doctype": "Stock Entry",
-			"company": company,
-			"purpose": "Material Receipt",
-			"stock_entry_type": "Material Receipt",
-			"posting_date": _date(-2),
-			"posting_time": "12:00:00",
-			"set_posting_time": 1,
-			"remarks": "[TI-SAMPLE] Desk cancelled receipt",
-			"ti_movement_kind": "",
-			"items": [_line(item, 2, target=a)],
-		}
-	).insert()
-	desk.submit()
-	desk.cancel()
-	cancelled = native_api.load_document("Stock Entry", desk.name)
+	cancelled = _entry(
+		company,
+		"cancelled-receipt",
+		"Receive",
+		[_line(item, 2, target=a)],
+		-2,
+		actor=actors[0],
+	)
+	cancelled = _as_user(
+		actors[0], native_api.cancel_document, "Stock Entry", cancelled.name, str(cancelled.modified)
+	)
 	documents.append(cancelled)
-	# Amend the cancelled Desk document to leave a native draft with amendment lineage.
-	amended = native_api.amend_document(
-		"Stock Entry", desk.name, cancelled.version, REQUEST_PREFIX + "desk-amended"
+	# Keep a real typed amendment owned by the test user instead of Desk-only metadata.
+	amended = _as_user(
+		actors[0],
+		native_api.amend_document,
+		"Stock Entry",
+		cancelled.name,
+		cancelled.version,
+		REQUEST_PREFIX + "cancelled-receipt-amended",
 	)
 	documents.append(amended)
 	documents.append(
-		_entry(company, "valid-draft", "Transfer", [_line(item, 1, source=a, target=b)], 0, submit=False)
+		_entry(
+			company,
+			"valid-draft",
+			"Transfer",
+			[_line(item, 1, source=a, target=b)],
+			0,
+			submit=False,
+			actor=actors[1],
+		)
 	)
 	return documents, loans, [activity["name"], meal_activity["name"], history_activity["name"]]
 
 
-def _count(company, rooms):
+def _count(company, rooms, items):
 	stamp = _date(-1) + " 12:00:00"
 	warehouses = [rooms["DEMO_A"], rooms["DEMO_SHELF"]]
-	selected_items = [ITEM_PREFIX + "N-WORKFLOW", ITEM_PREFIX + "N-ZERO"]
+	selected_items = [items["N-WORKFLOW"]["item_code"], items["N-ZERO"]["item_code"]]
 	baseline = counts.count_baseline(warehouses, stamp, "Selected", selected_items)
 	rows = []
 	for row in baseline["rows"]:
 		copy = dict(row)
-		if row["item_code"] == ITEM_PREFIX + "N-WORKFLOW":
+		if row["item_code"] == items["N-WORKFLOW"]["item_code"]:
 			copy.update(
 				actual_qty=float(row["baseline_qty"]) + (-1 if row["warehouse"] == rooms["DEMO_A"] else 1),
 				review_state="Reviewed",
@@ -647,34 +747,485 @@ def _count(company, rooms):
 			"ti_baseline_timestamp": baseline["timestamp"],
 			"ti_baseline_fingerprint": baseline["fingerprint"],
 			"ti_count_review": rows,
-			"ti_notes": "开发样例：两个位置的联合盘点",
+			"ti_notes": "两个位置的联合盘点",
 		},
 	)
-	return native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+	return native_api.submit_document("Stock Reconciliation", draft["name"], draft["version"])
 
 
-def install(company, *, attach_images=True, attach_files=True):
+def _volume_counts(company, rooms, items, *, count_item=None, submitted=17, drafts=2):
+	"""Add 18 native count submissions and two drafts across the sample period."""
+	warehouses = [rooms["DEMO_A"], rooms["DEMO_SHELF"]]
+	selected_items = [count_item or items["N-WORKFLOW"]["item_code"]]
+	created = []
+	actors = _seed_users()
+	total = submitted + drafts
+	for index in range(total):
+		if index < submitted:
+			days = -547 + index * 517 // max(1, submitted - 1)
+		else:
+			days = -8 + (index - submitted) * 6
+		posting_date = _date(days)
+		posting_time = "23:00:00"
+		stamp = posting_date + " " + posting_time
+		baseline = counts.count_baseline(warehouses, stamp, "Selected", selected_items)
+		rows = []
+		for row in baseline["rows"]:
+			copy = dict(row)
+			copy.update(
+				actual_qty=float(row["baseline_qty"]),
+				review_state="Reviewed",
+				reason="日常库存抽查",
+			)
+			if row["item_code"] == selected_items[0] and row["warehouse"] == rooms["DEMO_A"]:
+				copy["actual_qty"] = float(row["baseline_qty"]) + 1
+			rows.append(copy)
+
+		def save():
+			return counts.save_count(
+				REQUEST_PREFIX + f"volume-count-{index + 1:02}",
+				{
+					"company": company,
+					"posting_date": posting_date,
+					"posting_time": posting_time,
+					"ti_count_warehouses": warehouses,
+					"ti_count_scope": "Selected",
+					"ti_count_items": selected_items,
+					"ti_baseline_timestamp": baseline["timestamp"],
+					"ti_baseline_fingerprint": baseline["fingerprint"],
+					"ti_count_review": rows,
+					"ti_notes": "日常库存抽查",
+				},
+			)
+
+		actor = actors[index % len(actors)]
+		draft = _as_user(actor, save)
+		if index < submitted:
+			draft = _as_user(
+				actor,
+				native_api.submit_document,
+				"Stock Reconciliation",
+				draft["name"],
+				draft["version"],
+			)
+		created.append(draft)
+	return created
+
+
+def _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_names):
+	if kind == "Return":
+		loan = next((value for value in open_loans if value), None)
+		if not loan:
+			frappe.throw("生成归还记录时没有可结算的借用")
+		loan_line = loan["items"][0]
+		key = next(key for key, value in items.items() if value["item_code"] == loan_line.item_code)
+		return _line(
+			items[key],
+			1,
+			source=rooms["LEASE"],
+			target=rooms["DEMO_B"],
+			ti_original_loan=loan.name,
+			ti_original_loan_line=loan_line.name,
+			ti_settlement_outcome="Returned",
+		), {"ti_activity": loan.ti_activity, "ti_borrower": loan.ti_borrower}
+	key = rng.choice(tuple(items))
+	item = items[key]
+	context = {"ti_activity": rng.choice(activity_names)}
+	if kind == "Receive":
+		line = _line(item, 1, target=rooms["DEMO_A"])
+	elif kind == "Issue":
+		line = _line(item, 1, source=rooms["DEMO_A"])
+	elif kind == "Transfer":
+		line = _line(item, 1, source=rooms["DEMO_A"], target=rooms["DEMO_B"])
+	elif kind == "Loan":
+		line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["LEASE"])
+		context["ti_borrower"] = "活动服务团队"
+	elif kind == "Damage":
+		line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["DAMAGED"])
+	elif kind in ("Repair", "Disposal"):
+		available = [name for name, quantity in damaged_qty.items() if quantity > 0]
+		if not available:
+			frappe.throw("生成维修或报废记录时没有真实损坏库存")
+		key = rng.choice(available)
+		item = items[key]
+		line = _line(
+			item,
+			1,
+			source=rooms["DAMAGED"],
+			**({"target": rooms["DEMO_A"]} if kind == "Repair" else {}),
+		)
+	elif kind == "Loss":
+		line = _line(item, 1, source=rooms["DEMO_A"])
+	else:
+		frappe.throw(f"不支持的生成货物流动：{kind}")
+	return line, context
+
+
+def _volume_lifecycle(company, items, rooms, actors, rng, damaged_qty, open_loans, activity_names):
+	"""Add actor-owned native drafts, cancellations and amendments for UI stress."""
+	documents = []
+	draft_kinds = (
+		"Receive",
+		"Issue",
+		"Transfer",
+		"Loan",
+		"Return",
+		"Damage",
+		"Loss",
+		"Repair",
+		"Disposal",
+		"Transfer",
+	)
+	for index, kind in enumerate(draft_kinds):
+		line, context = _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_names)
+		if kind == "Return":
+			loan = next(value for value in open_loans if value)
+			context.update({"ti_activity": loan.ti_activity, "ti_borrower": loan.ti_borrower})
+		if kind == "Loan":
+			context["ti_borrower"] = "活动服务团队"
+		actor = actors[index % len(actors)]
+		documents.append(
+			_entry(
+				company,
+				f"volume-draft-{index + 1:02}",
+				kind,
+				[line],
+				-3,
+				submit=False,
+				actor=actor,
+				**context,
+			)
+		)
+
+	cancel_kinds = ("Receive", "Issue", "Transfer", "Loan", "Damage", "Loss", "Repair", "Disposal", "Receive")
+	for index, kind in enumerate(cancel_kinds):
+		line, context = _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_names)
+		if kind == "Loan":
+			context["ti_borrower"] = "活动服务团队"
+		actor = actors[index % len(actors)]
+		entry = _entry(
+			company,
+			f"volume-cancel-{index + 1:02}",
+			kind,
+			[line],
+			-2,
+			actor=actor,
+			**context,
+		)
+		cancelled = _as_user(
+			actor,
+			native_api.cancel_document,
+			"Stock Entry",
+			entry.name,
+			entry.version,
+		)
+		documents.append(cancelled)
+		if index < 3:
+			amended = _as_user(
+				actor,
+				native_api.amend_document,
+				"Stock Entry",
+				entry.name,
+				cancelled.version,
+				REQUEST_PREFIX + f"volume-amend-{index + 1:02}",
+			)
+			if index < 2:
+				amended = _as_user(
+					actor,
+					native_api.submit_document,
+					"Stock Entry",
+					amended.name,
+					amended.version,
+				)
+			documents.append(amended)
+	return documents
+
+
+def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=1500):
+	"""Create deterministic, native volume data for full development installs."""
+	rng = random.Random(20261023)
+	unit_whole = {
+		"个": True,
+		"双": True,
+		"套": True,
+		"箱": True,
+		"包": True,
+		"瓶": True,
+		"升": False,
+		"米": False,
+		"张": True,
+		"Kg": False,
+	}
+	for unit, whole in unit_whole.items():
+		if not frappe.db.exists("UOM", unit):
+			catalog.create_uom(unit, must_be_whole_number=whole)
+	category_names = ("日常用品", "厨房物资", "法会用品", "办公物资")
+	for label in category_names:
+		if not frappe.db.exists("Item Group", label):
+			catalog.create_category(label)
+	users = _seed_users()
+	activities_list = []
+	for index in range(22):
+		activity = activities.save_activity(
+			{
+				"title": f"秋季物资整理第{index + 1:02}组",
+				"activity_type": "TI-TYPE-DISTRIBUTION" if index % 2 else "TI-TYPE-PERFORMANCE",
+				"status": "Active",
+				"start_date": _date(-547 + index * 22),
+				"end_date": _date(-535 + index * 22),
+				"description": "寺院日常活动物资登记与归还。",
+			}
+		)
+		activities_list.append(activity["name"])
+	unit_choices = list(unit_whole)
+	generated = {}
+	conversion_rows = {}
+	opening_lines = []
+	batch_codes = set()
+	for index in range(436):
+		key = f"V{index + 1:04d}"
+		stock_uom = unit_choices[index % len(unit_choices)]
+		group = category_names[index % len(category_names)]
+		long_name = index % 7 == 0
+		item_name = (
+			f"寺院日常活动用耐用储物及清洁物资组合第{index + 1:04d}号"
+			if long_name
+			else f"{('厨房' if index % 4 == 1 else '法会' if index % 4 == 2 else '日常')}物资 {index + 1:04d}"
+		)
+		batch_tracked = index % 20 == 0
+		item = catalog.save_item(
+			{
+				"item_code": allocate_item_code(),
+				"item_name": item_name,
+				"item_group": "" if index % 17 == 0 else group,
+				"description": "用于寺院日常管理与活动周转。",
+				"stock_uom": stock_uom,
+				"has_batch_no": batch_tracked,
+				"has_expiry_date": batch_tracked,
+			}
+		)
+		generated[key] = item
+		conversions_for_item = [{"uom": stock_uom, "conversion_factor": 1}]
+		if index % 8 == 0:
+			alternates = [unit for unit in unit_choices if unit != stock_uom][:3]
+			conversions_for_item.extend(
+				{
+					"uom": unit,
+					"conversion_factor": 12 if unit == "箱" else 2 if unit == "双" else 6,
+				}
+				for unit in alternates
+			)
+			conversion_result = conversions.save_item_conversions(
+				item["item_code"], item["version"], conversions_for_item
+			)
+			conversion_rows[key] = conversions_for_item
+			item["version"] = conversion_result["version"]
+		if batch_tracked:
+			batch_id = _batch_id(item, f"Lot {index + 1:04d}")
+			catalog.create_batch(item["item_code"], batch_id, _date(-730 - index), _date(60 + index))
+			batch_codes.add(key)
+			opening_lines.append(
+				_line(
+					item,
+					200,
+					target=rooms["DEMO_A"],
+					batch_no=batch_id,
+					use_serial_batch_fields=1,
+				)
+			)
+		else:
+			opening_lines.append(_line(item, 200, target=rooms["DEMO_A"]))
+	if opening_lines:
+		draft = _entry(company, "volume-opening", "Receive", opening_lines, -547, submit=False)
+		opening_doc = frappe.get_doc("Stock Entry", draft.name)
+		opening_doc.is_opening = "Yes"
+		opening_account = frappe.db.get_value(
+			"Account", {"company": company, "account_name": "Temporary Opening", "is_group": 0}, "name"
+		)
+		if not opening_account:
+			frappe.throw("期初库存需要标准 Temporary Opening 科目")
+		for line in opening_doc.items:
+			line.expense_account = opening_account
+		opening_doc.save()
+		opening = native_api.submit_document("Stock Entry", opening_doc.name, str(opening_doc.modified))
+	else:
+		opening = None
+	actors = users
+	physical = [rooms["DEMO_A"], rooms["DEMO_B"], rooms["DEMO_SHELF"]]
+	kind_weights = (
+		("Receive", 0.23),
+		("Issue", 0.21),
+		("Transfer", 0.15),
+		("Loan", 0.12),
+		("Return", 0.10),
+		("Damage", 0.06),
+		("Repair", 0.06),
+		("Loss", 0.04),
+		("Disposal", 0.03),
+	)
+	kind_counts = {kind: int(movement_count * weight) for kind, weight in kind_weights}
+	for index in range(movement_count - sum(kind_counts.values())):
+		kind_counts[("Receive", "Issue", "Transfer")[index % 3]] += 1
+	monthly_kinds = [[] for _ in range(18)]
+	for kind, count in kind_counts.items():
+		for month in range(18):
+			portion = count * (month + 1) // 18 - count * month // 18
+			monthly_kinds[month].extend([kind] * portion)
+	kind_order = ("Receive", "Issue", "Transfer", "Loan", "Loss", "Damage", "Repair", "Disposal", "Return")
+	schedule = []
+	for month_kinds in monthly_kinds:
+		for kind in kind_order:
+			selected = [value for value in month_kinds if value == kind]
+			rng.shuffle(selected)
+			schedule.extend(selected)
+	open_loans = []
+	damaged_qty = {}
+	documents = [opening] if opening else []
+	activity_names = [*activities_list]
+	available_items = {key: value for key, value in generated.items() if key not in batch_codes}
+	count_item = None
+	for index, kind in enumerate(schedule):
+		key = rng.choice(tuple(available_items))
+		item = available_items[key]
+		if kind == "Receive" and count_item is None:
+			count_item = item["item_code"]
+		context = {"ti_activity": rng.choice(activity_names)}
+		if kind == "Loan":
+			context["ti_borrower"] = "活动服务团队"
+			line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["LEASE"])
+			loan = _entry(
+				company,
+				f"volume-{index + 1:04d}",
+				kind,
+				[line],
+				-547 + index * 547 // movement_count,
+				actor=rng.choice(actors),
+				**context,
+			)
+			documents.append(loan)
+			open_loans.append(loan)
+			continue
+		if kind == "Return":
+			loan = open_loans.pop(0)
+			loan_line = loan["items"][0]
+			item_key = next(
+				key for key, value in available_items.items() if value["item_code"] == loan_line.item_code
+			)
+			item = available_items[item_key]
+			context.update({"ti_activity": loan.ti_activity, "ti_borrower": loan.ti_borrower})
+			line = _line(
+				item,
+				1,
+				source=rooms["LEASE"],
+				target=rooms["DEMO_B"],
+				ti_original_loan=loan.name,
+				ti_original_loan_line=loan_line.name,
+				ti_settlement_outcome="Returned",
+			)
+		elif kind in ("Receive", "Issue", "Transfer", "Loss"):
+			if kind == "Receive":
+				line = _line(item, 1, target=rng.choice(physical))
+			elif kind == "Transfer":
+				line = _line(item, 1, source=rooms["DEMO_A"], target=rooms["DEMO_B"])
+			else:
+				line = _line(item, 1, source=rooms["DEMO_A"])
+		elif kind == "Damage":
+			line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["DAMAGED"])
+			damaged_qty[key] = damaged_qty.get(key, 0) + 2
+		elif kind in ("Repair", "Disposal"):
+			pool = [name for name, quantity in damaged_qty.items() if quantity > 0]
+			pool_key = rng.choice(pool)
+			item = available_items[pool_key]
+			line = _line(
+				item,
+				1,
+				source=rooms["DAMAGED"],
+				**({"target": rooms["DEMO_A"]} if kind == "Repair" else {}),
+			)
+			damaged_qty[pool_key] -= 1
+		if key in conversion_rows and kind not in ("Loan", "Return", "Damage", "Repair", "Disposal"):
+			conversion = rng.choice(conversion_rows[key])
+			line["uom"] = conversion["uom"]
+			line["conversion_factor"] = conversion["conversion_factor"]
+		documents.append(
+			_entry(
+				company,
+				f"volume-{index + 1:04d}",
+				kind,
+				[line],
+				-547 + index * 547 // movement_count,
+				actor=rng.choice(actors),
+				**context,
+			)
+		)
+	lifecycle = _volume_lifecycle(
+		company, available_items, rooms, actors, rng, damaged_qty, open_loans, activity_names
+	)
+	documents.extend(lifecycle)
+	return {
+		"items": generated,
+		"documents": documents,
+		"activities": activities_list,
+		"users": users,
+		"batch_items": batch_codes,
+		"conversions": conversion_rows,
+		"count_item": count_item,
+	}
+
+
+def install(company, *, data="full", attach_images=True, attach_files=True, generate_volume=False):
 	"""Install examples using one site-date anchor for every relative date."""
 	token = _SITE_DATE.set(getdate(nowdate()))
 	try:
-		return _install(company, attach_images=attach_images, attach_files=attach_files)
+		return _install(
+			company,
+			data=data,
+			attach_images=attach_images,
+			attach_files=attach_files,
+			generate_volume=generate_volume,
+		)
 	finally:
 		_SITE_DATE.reset(token)
 
 
-def _install(company, *, attach_images=True, attach_files=True):
+def _install(company, *, data="full", attach_images=True, attach_files=True, generate_volume=False):
 	"""Called only by the guarded installer; never commits independently."""
 	from temple_inventory.sample_install import assert_development_site
 
 	assert_development_site()
-	data = sample_catalog()
+	if data not in ("real", "full"):
+		frappe.throw("样例数据模式必须是 real 或 full")
+	catalog_data = sample_catalog()
 	costumes = costume_catalog()
 	_fiscal_years(company)
-	rooms = _hierarchy(company, data)
-	_references(data, costumes)
-	items, costume_item_codes = _items(data, costumes, attach_images=attach_images)
-	opening = _opening(company, data, costumes, items, rooms)
+	rooms = _hierarchy(company, catalog_data, full=data == "full")
+	include_generated = data == "full"
+	_references(catalog_data, costumes, include_generated=include_generated)
+	items, costume_item_codes = _items(
+		catalog_data, costumes, attach_images=attach_images, include_generated=include_generated
+	)
+	opening = _opening(company, catalog_data, costumes, items, rooms, include_generated=include_generated)
+	if not include_generated:
+		return {
+			"items": len(items),
+			"item_codes": {key: item["item_code"] for key, item in items.items()},
+			"costume_item_codes": costume_item_codes,
+			"images": sum(len(row["images"]) for row in costumes) if attach_images else 0,
+			"transactions": 1,
+			"costume_opening": opening["costumes"].name,
+			"stock_entries": [opening["costumes"].name],
+			"rooms": rooms,
+		}
 	documents, loans, activity = _workflow(company, items, rooms, attach_files=attach_files)
+	volume = None
+	volume_counts = []
+	if generate_volume:
+		volume = _generated_volume(company, rooms, catalog_data, costumes)
+		items.update(volume["items"])
+		documents.extend(volume["documents"])
+		activity.extend(volume["activities"])
+	if generate_volume:
+		volume_counts = _volume_counts(company, rooms, items, count_item=volume["count_item"])
 	depleted_batch_issue = _entry(
 		company,
 		"deplete-batch",
@@ -682,22 +1233,26 @@ def _install(company, *, attach_images=True, attach_files=True):
 		[
 			_line(
 				items["G-000001"],
-				data["batches"]["G-000001"][0]["quantity"],
+				catalog_data["batches"]["G-000001"][0]["quantity"],
 				source=rooms["DEMO_A"],
-				batch_no=ITEM_PREFIX + "BAT-000001",
+				batch_no=_batch_id(items["G-000001"], catalog_data["batches"]["G-000001"][0]["key"]),
 				use_serial_batch_fields=1,
 			)
 		],
 		-390,
 	)
 	documents.append(depleted_batch_issue)
-	reconciliation = _count(company, rooms)
-	assert_balances(rooms, loans)
+	reconciliation = _count(company, rooms, items)
+	assert_balances(rooms, loans, items)
 	return {
 		"items": len(items),
+		"item_codes": {key: item["item_code"] for key, item in items.items()},
 		"costume_item_codes": costume_item_codes,
-		"images": (sum(len(row["images"]) for row in data["items"] + costumes) if attach_images else 0),
+		"images": (
+			sum(len(row["images"]) for row in catalog_data["items"] + costumes) if attach_images else 0
+		),
 		"transactions": len(documents) + 3,
+		"volume_counts": len(volume_counts),
 		"opening": opening["general"].name,
 		"costume_opening": opening["costumes"].name,
 		"stock_entries": [
@@ -712,9 +1267,9 @@ def _install(company, *, attach_images=True, attach_files=True):
 	}
 
 
-def assert_balances(rooms, loans):
+def assert_balances(rooms, loans, items):
 	for key, expected in (("DEMO_A", 68), ("DEMO_SHELF", 7), ("LEASE", 21), ("DAMAGED", 3)):
-		actual = get_stock_balance((ITEM_PREFIX + "N-WORKFLOW"), rooms[key])
+		actual = get_stock_balance(items["N-WORKFLOW"]["item_code"], rooms[key])
 		if actual != expected:
 			raise AssertionError(f"Native sample balance mismatch at {key}: {actual} != {expected}")
 	for loan, expected in zip(loans, (11, 8, 2, 0), strict=True):

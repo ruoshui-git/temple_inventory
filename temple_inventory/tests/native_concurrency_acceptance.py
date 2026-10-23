@@ -80,13 +80,17 @@ def run():
 		{
 			"company": frappe.db.get_single_value("Temple Inventory Settings", "company"),
 			"parent_warehouse": ["is", "set"],
-			"ti_label": "演示室甲",
+			"ti_label": "A02",
 			"ti_direct_storage": 1,
 		},
 		"name",
 	)
-	item_code = "TI-SAMPLE-N-WORKFLOW"
-	loan_name = "MAT-STE-2026-00005"
+	item_code = frappe.db.get_value("Item", {"item_name": "活动周转箱"}, "name")
+	loan_name = frappe.db.get_value(
+		"Stock Entry",
+		{"ti_movement_kind": "Loan", "docstatus": 1},
+		"name",
+	)
 	loan = frappe.get_doc("Stock Entry", loan_name)
 	activity_name = loan.ti_activity
 	assert loan.docstatus == 1 and loan.ti_movement_kind == "Loan"

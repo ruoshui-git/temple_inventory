@@ -5,6 +5,7 @@
     "company",
     "warehouse_section",
     "root_warehouse",
+    "system_root_warehouse",
     "leased_warehouse",
     "damaged_warehouse",
     "photo_required",
@@ -31,6 +32,12 @@
       "fieldname": "root_warehouse",
       "fieldtype": "Link",
       "label": "Temple Root Warehouse",
+      "options": "Warehouse"
+    },
+    {
+      "fieldname": "system_root_warehouse",
+      "fieldtype": "Link",
+      "label": "System Locations Group",
       "options": "Warehouse"
     },
     {

@@ -112,7 +112,10 @@ class ConfigurationTests(NativeDocumentTests):
 		leased = frappe.get_doc("Warehouse", settings.leased_warehouse)
 		self.assertFalse(leased.is_group)
 		self.assertTrue(leased.warehouse_name.endswith("借出 " + self.token))
-		self.assertEqual(leased.parent_warehouse, settings.root_warehouse)
+		self.assertEqual(leased.parent_warehouse, settings.system_root_warehouse)
+		self.assertEqual(
+			frappe.db.get_value("Warehouse", settings.system_root_warehouse, "ti_label"), "系统位置"
+		)
 		physical = frappe.get_doc("Warehouse", settings.physical_root_warehouse)
 		children = frappe.get_all(
 			"Warehouse",

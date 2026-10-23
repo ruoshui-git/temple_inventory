@@ -71,6 +71,7 @@ def bootstrap():
 				"company",
 				"root_warehouse",
 				"physical_root_warehouse",
+				"system_root_warehouse",
 				"leased_warehouse",
 				"damaged_warehouse",
 				"photo_required",
@@ -645,7 +646,6 @@ def _operation_projection(query, records):
 
 def _whole_operation(context, doctype, name):
 	from temple_inventory.native_balances import reconciliation_allocations
-	from temple_inventory.native_stock import loan_balances
 	from temple_inventory.report_sources import available_stock_effect, document_kind
 
 	doc = context.parent(doctype, name)
@@ -719,7 +719,7 @@ def _whole_operation(context, doctype, name):
 		"original_loans": sorted(originals),
 	}
 	if doc.get("ti_movement_kind") == "Loan":
-		balances = loan_balances(doc.name)
+		balances = context.loan_balances(doc.name)
 		outstanding = defaultdict(float)
 		for row in doc.items:
 			outstanding[row.stock_uom] += (
@@ -1336,10 +1336,8 @@ def movement_history(
 			if not loan:
 				history_complete = False
 			else:
-				from temple_inventory.native_stock import loan_balances
-
 				expected_outcomes = defaultdict(float)
-				balances = loan_balances(loan.name, by_batch=True)
+				balances = projection.context.loan_balances(loan.name, by_batch=True)
 				selected_kinds = projection.context.scope["kinds"]
 				projection.context.scope["kinds"] = []
 				try:

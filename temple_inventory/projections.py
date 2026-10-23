@@ -591,7 +591,7 @@ class Projection(AbstractContextManager):
 		self.calculation_started = (
 			getattr(frappe.local, "inventory_cache_request_started", None) if self.cache_context else None
 		) or str(now_datetime())
-		self.context = ReportContext(self.query, snapshot=self.calculation_started)
+		self.context = ReportContext(self.query, snapshot=self.calculation_started, snapshot_is_now=True)
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
 		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
 		self.db.execute("pragma cache_size = -4096")
@@ -632,7 +632,7 @@ class Projection(AbstractContextManager):
 		self.cache_context = None
 		self.cache_bypass = True
 		self.calculation_started = str(now_datetime())
-		self.context = ReportContext(self.query, snapshot=self.calculation_started)
+		self.context = ReportContext(self.query, snapshot=self.calculation_started, snapshot_is_now=True)
 		self.db.close()
 		self.temp.cleanup()
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
@@ -1118,7 +1118,7 @@ class Projection(AbstractContextManager):
 	def complete_native_records(self, dataset):
 		"""Expand selected document records to whole native quantities after line matching."""
 		from temple_inventory.native_balances import reconciliation_allocations
-		from temple_inventory.native_stock import batch_quantities, loan_balances
+		from temple_inventory.native_stock import batch_quantities
 
 		selected = {}
 		for row in self.rows("records"):
@@ -1131,7 +1131,7 @@ class Projection(AbstractContextManager):
 			base = document_fields(self.context, doc)
 			groups = {}
 			item_codes = set()
-			balances = loan_balances(name, by_batch=True) if dataset == "loans" else None
+			balances = self.context.loan_balances(name, by_batch=True) if dataset == "loans" else None
 			for line in doc.items:
 				item = self.context.item(line.item_code)
 				if not item:

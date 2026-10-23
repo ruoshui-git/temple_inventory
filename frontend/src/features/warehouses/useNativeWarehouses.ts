@@ -182,10 +182,13 @@ export function useNativeWarehouses(
     const rows = tree.value?.rows || [],
       term = search.value.trim().toLocaleLowerCase();
     return rows
-      .filter((row) => !row.direct && row.kind !== "system")
+      .filter((row) => !row.direct && row.name !== tree.value?.physical_root)
       .filter((row) => {
         const ancestors = rows.filter(
-          (parent) => inside(row, parent) && !parent.direct,
+          (parent) =>
+            inside(row, parent) &&
+            !parent.direct &&
+            parent.name !== tree.value?.physical_root,
         );
         if (term)
           return `${row.search_text} ${row.full_label}`
@@ -197,7 +200,9 @@ export function useNativeWarehouses(
         ...row,
         depth: rows.filter(
           (parent) =>
-            inside(row, parent) && !parent.direct && parent.kind !== "system",
+            inside(row, parent) &&
+            !parent.direct &&
+            parent.name !== tree.value?.physical_root,
         ).length,
       }));
   });
