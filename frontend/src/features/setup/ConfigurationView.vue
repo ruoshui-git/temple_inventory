@@ -6,6 +6,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 const props = defineProps<{ controller: ReturnType<typeof useConfiguration> }>();
 const c = props.controller;
 const {
@@ -126,15 +127,17 @@ watch([field, warehouse], () => c.clearPreview());
 						个叶子库位。
 					</p>
 					<p>{{ preview.impact }}</p>
-					<details>
-						<summary>同时核对其它配置引用</summary>
+					<DisclosureSection
+						title="同时核对其它配置引用"
+						:count="preview.affected_references.length"
+					>
 						<p v-for="other in preview.affected_references" :key="other.field">
 							{{
 								status.pointers.find((pointer) => pointer.field === other.field)
 									?.label
 							}}：{{ locationLabel(other.warehouse) }}
 						</p>
-					</details>
+					</DisclosureSection>
 					<label class="preview-choice-label"
 						><input
 							v-model="confirmed"

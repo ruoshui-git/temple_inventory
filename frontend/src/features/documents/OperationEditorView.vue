@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -50,7 +51,7 @@ const {
 	reviewOpen,
 	action,
 } = c;
-const supplement = ref<HTMLDetailsElement>();
+const supplementOpen = ref(false);
 watch(
 	() =>
 		files.files
@@ -58,7 +59,7 @@ watch(
 			.map((file) => `${file.id}:${file.state}`)
 			.join("|"),
 	(value) => {
-		if (value && supplement.value) supplement.value.open = true;
+		if (value) supplementOpen.value = true;
 	},
 );
 const formRoot = ref<HTMLElement>(),
@@ -452,8 +453,11 @@ async function lifecycle() {
 						@expand="toggle"
 					/>
 				</section>
-				<details ref="supplement" class="form-section">
-					<summary>补充记录（可选）</summary>
+				<DisclosureSection
+					v-model:open="supplementOpen"
+					title="补充记录"
+					summary="活动、人员、备注与凭证附件"
+				>
 					<div class="form-grid">
 						<TransactionContext
 							:draft="draft"
@@ -503,7 +507,7 @@ async function lifecycle() {
 							<dd>{{ value || "未填写" }}</dd>
 						</div>
 					</dl>
-				</details>
+				</DisclosureSection>
 				<div v-if="showError && issues.length" role="alert" class="notice-bar warning">
 					<p v-for="issue in issues.filter((row) => !row.lineId)" :key="issue.field">
 						{{ issue.message }}

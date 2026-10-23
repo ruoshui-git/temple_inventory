@@ -10,6 +10,7 @@ import {
 } from "./operationModel";
 import { useReferenceData } from "../../services/contracts";
 import ItemImage from "../../components/ItemImage.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 const context = useOperationContext();
 const reference = useReferenceData();
 
@@ -54,20 +55,21 @@ const groups = computed(() => {
 <template>
 	<div class="review-list preview-allocation-summary">
 		<component
-			:is="collapsible ? 'details' : 'section'"
+			:is="collapsible ? DisclosureSection : 'section'"
 			v-for="[place, lines] in groups"
 			:key="place"
+			:title="warehouseLabel(place, reference.warehouses)"
+			:count="
+				collapsible ? `${new Set(lines.map((line) => line.code)).size} 种物品` : undefined
+			"
+			:summary="collapsible ? `${lines.length} 条明细 · ${totals(lines)}` : undefined"
 			:open="collapsible ? isOpen(place) : undefined"
+			@update:open="choices[place] = $event"
 		>
-			<component
-				:is="collapsible ? 'summary' : 'strong'"
-				:title="warehousePath(place, reference.warehouses)"
-				@click="
-					collapsible && ($event.preventDefault(), (choices[place] = !isOpen(place)))
-				"
+			<strong v-if="!collapsible" :title="warehousePath(place, reference.warehouses)"
 				>{{ warehouseLabel(place, reference.warehouses) }} ·
 				{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
-				{{ lines.length }} 条明细 · {{ totals(lines) }}</component
+				{{ lines.length }} 条明细 · {{ totals(lines) }}</strong
 			>
 			<div
 				v-for="line in lines"

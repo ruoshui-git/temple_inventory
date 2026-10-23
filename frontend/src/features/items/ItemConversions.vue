@@ -5,6 +5,7 @@ import type { StockItem } from "../../lib/stockPresentation";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ConversionEditor from "../conversions/ConversionEditor.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import type { SavedItemConversions } from "../conversions/useConversionEditor";
 const props = defineProps<{ item: StockItem; disabled?: boolean; inline?: boolean }>();
 const emit = defineEmits<{
@@ -45,8 +46,11 @@ function edit() {
 }
 </script>
 <template>
-	<details v-if="item" class="form-section">
-		<summary>计量单位与换算（{{ item.alternateUnits?.length || 0 }}）</summary>
+	<DisclosureSection
+		v-if="item"
+		title="计量单位与换算"
+		:count="item.alternateUnits?.length || 0"
+	>
 		<p>库存单位：{{ item.uom }}（只读）</p>
 		<p v-for="row in item.alternateUnits" :key="row.uom">
 			1 {{ row.uom }} = {{ row.factor }} {{ item.uom }}
@@ -87,5 +91,5 @@ function edit() {
 			<UiButton v-if="inline" @click="close">关闭换算</UiButton>
 			<template #footer><UiButton @click="close">关闭换算</UiButton></template>
 		</component>
-	</details>
+	</DisclosureSection>
 </template>

@@ -3222,7 +3222,6 @@ body:has(.preview-document-actions) .preview-toast {
 	margin: 0;
 }
 
-
 /* Audit repairs: headings and document identities keep readable widths. */
 .browse-heading > div:first-child {
 	flex: 1 1 180px;
@@ -3446,10 +3445,11 @@ body:has(.preview-document-actions) .preview-toast {
 .ti-disclosure-section > summary:hover {
 	background: var(--p-soft);
 }
-.ti-disclosure-section-title {
+.ti-disclosure-section > summary > .ti-disclosure-section-title {
 	margin: 0;
 	font-size: 1rem;
 	font-weight: 600;
+	line-height: 1.25;
 }
 .ti-disclosure-section-count {
 	padding: 2px 8px;
@@ -3466,7 +3466,7 @@ body:has(.preview-document-actions) .preview-toast {
 	margin-inline-start: auto;
 }
 .ti-disclosure-section-body {
-	padding: 0 0 var(--p-space-3) calc(1em + var(--p-space-2));
+	padding: 0 0 var(--p-space-3) calc(1em + var(--p-space-2) + 4px);
 }
 @supports (interpolate-size: allow-keywords) {
 	.ti-disclosure-section {
@@ -3475,7 +3475,9 @@ body:has(.preview-document-actions) .preview-toast {
 	.ti-disclosure-section::details-content {
 		height: 0;
 		overflow: clip;
-		transition: content-visibility var(--p-motion) allow-discrete, height var(--p-motion);
+		transition:
+			content-visibility var(--p-motion) allow-discrete,
+			height var(--p-motion);
 	}
 	.ti-disclosure-section[open]::details-content {
 		height: auto;

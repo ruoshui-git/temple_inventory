@@ -16,6 +16,7 @@ import DataTable from "../../components/ui/DataTable.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 
 const props = defineProps<{ controller: CountEditor }>();
 const emit = defineEmits<{ openDocument: [doctype: string, name: string] }>();
@@ -214,10 +215,12 @@ function itemImage(row: CountRow) {
 
 <template>
 	<section class="count-workspace">
-		<details class="count-scope-details">
-			<summary>
-				盘点范围与基准 · {{ values.ti_count_warehouses.length }} 个实体末级位置
-			</summary>
+		<DisclosureSection
+			class="count-scope-details"
+			title="盘点范围与基准"
+			:count="values.ti_count_warehouses.length"
+			:summary="`${values.ti_count_warehouses.length} 个实体末级位置`"
+		>
 			<div class="count-scope-controls">
 				<label class="preview-field count-scope-type">
 					盘点方式
@@ -243,7 +246,7 @@ function itemImage(row: CountRow) {
 					>刷新账面基准</UiButton
 				>
 			</div>
-		</details>
+		</DisclosureSection>
 		<div class="count-filter-bar">
 			<FilterPanel label="位置" :count="selectedLocations.length" context="count-location">
 				<HierarchyFilter
@@ -491,12 +494,7 @@ function itemImage(row: CountRow) {
 }
 .count-scope-details {
 	font-size: 0.88rem;
-}
-.count-scope-details > summary {
-	min-height: var(--p-control);
-	align-content: center;
 	color: var(--p-muted);
-	cursor: pointer;
 }
 .count-scope-controls,
 .count-filter-bar,

@@ -14,6 +14,7 @@ import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -135,8 +136,10 @@ function settle(action: SettlementAction) {
 						完好归还 {{ line.outcomes.Returned }} · 损坏 {{ line.outcomes.Damaged }} ·
 						遗失 {{ line.outcomes.Lost }} {{ line.stock_uom }}</span
 					>
-					<details>
-						<summary>存放明细与单位换算</summary>
+					<DisclosureSection
+						title="存放明细与单位换算"
+						:summary="`按 ${line.stock_uom} 汇总`"
+					>
 						<small
 							>原存放
 							{{
@@ -171,16 +174,23 @@ function settle(action: SettlementAction) {
 							{{ allocation.outcomes.Damaged }} · 遗失 {{ allocation.outcomes.Lost }}
 							{{ line.stock_uom }}
 						</div>
-					</details>
+					</DisclosureSection>
 				</div>
 			</div>
-			<details>
-				<summary>按库存单位汇总</summary>
-				<QuantitySummary :metrics="metrics" />
-			</details>
-			<details>
-				<summary>处理历史（{{ c.history.result.total }} 条明细）</summary>
-				<h2>处理历史</h2>
+			<DisclosureSection title="按库存单位汇总" :summary="`${metrics.length} 种库存单位`">
+				<div class="detail-stat-grid">
+					<QuantitySummary :metrics="metrics" />
+				</div>
+			</DisclosureSection>
+			<DisclosureSection
+				title="处理历史"
+				:count="c.history.result.total"
+				:summary="
+					c.history.result.rows[0]?.date_time
+						? `最近 ${String(c.history.result.rows[0].date_time).slice(0, 10)}`
+						: undefined
+				"
+			>
 				<MovementHistoryTable
 					:show-status="false"
 					mode="handling"
@@ -201,17 +211,14 @@ function settle(action: SettlementAction) {
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 					@open-item="emit('item', $event)"
 				/>
-			</details>
-			<details>
-				<summary>附件（{{ files.files.length }}）</summary>
-				<h2>附件</h2>
+			</DisclosureSection>
+			<DisclosureSection title="附件" :count="files.files.length">
 				<p v-if="files.error.value" role="alert">
 					{{ files.error.value }} <UiButton @click="c.loadFiles()">重试</UiButton>
 				</p>
 				<Attachments :controller="files" mode="display" />
-			</details>
-			<details>
-				<summary>记录资料</summary>
+			</DisclosureSection>
+			<DisclosureSection title="记录资料">
 				<dl class="browse-detail-grid">
 					<div
 						v-for="(value, label) in {
@@ -229,7 +236,7 @@ function settle(action: SettlementAction) {
 						<dd class="preview-long-text">{{ value || "未填写" }}</dd>
 					</div>
 				</dl>
-			</details>
+			</DisclosureSection>
 			<div class="browse-actions">
 				<UiButton
 					v-for="[action, label] in actions.filter(([action]) => c.canSettle(action))"
@@ -260,6 +267,9 @@ function settle(action: SettlementAction) {
 .browse-card-heading > div,
 .browse-loan-line > div {
 	min-width: 0;
+}
+.browse-loan-line > div:nth-child(2) {
+	flex: 1;
 }
 .loan-detail-item-identity {
 	display: flex;

@@ -7,6 +7,7 @@ import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
@@ -253,8 +254,7 @@ function parentLabel(name?: string) {
 									</button>
 								</div>
 							</details>
-							<details>
-								<summary>ERPNext 信息</summary>
+							<DisclosureSection title="ERPNext 信息" summary="系统字段与层级信息">
 								<dl>
 									<div>
 										<dt>名称</dt>
@@ -269,7 +269,7 @@ function parentLabel(name?: string) {
 										</dd>
 									</div>
 								</dl>
-							</details>
+							</DisclosureSection>
 						</div>
 					</div>
 					<dl class="browse-detail-grid">

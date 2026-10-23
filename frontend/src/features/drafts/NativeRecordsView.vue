@@ -13,6 +13,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
@@ -412,8 +413,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				>
 			</div>
 			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
-			<details class="drafts-difference">
-				<summary>了解区别</summary>
+			<DisclosureSection title="了解区别" summary="系统草稿与浏览器暂存的差异">
 				<p>
 					<InventoryIcon name="document" />
 					<strong>草稿单据</strong>：已保存到系统的草稿，尚未改变库存；可在任何设备或
@@ -424,7 +424,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					<strong>浏览器暂存</strong
 					>：内容尚不完整，无法存为草稿单据，暂时保存在此浏览器；换设备或清除浏览器数据会丢失。
 				</p>
-			</details>
+			</DisclosureSection>
 			<div class="drafts-filters">
 				<label
 					>操作<select v-model="kindFilter">
@@ -484,8 +484,11 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							<time :datetime="entry.updatedAt" :title="entry.absolute">{{
 								relativeTime(entry.updatedAt)
 							}}</time>
-							<details v-if="entry.local" class="draft-entry-details">
-								<summary>查看详情</summary>
+							<DisclosureSection
+								v-if="entry.local"
+								title="查看详情"
+								summary="此浏览器暂存的输入"
+							>
 								<RecoverySummary
 									:kind="entry.local.editorKind"
 									:values="entry.local.values"
@@ -494,7 +497,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 										entry.local.pendingUploadReselection
 									"
 								/>
-							</details>
+							</DisclosureSection>
 						</div>
 						<div class="browse-row-actions">
 							<UiButton v-if="entry.server" @click="open(entry.server)"
@@ -727,9 +730,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	margin: 0;
 }
 .drafts-difference {
-	padding: var(--p-space-3);
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-card);
+	margin-block: var(--p-space-3);
 }
 .drafts-difference p {
 	display: flex;
@@ -795,31 +796,6 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 .draft-entry-details {
 	flex: 1 0 100%;
 	min-width: 0;
-}
-.draft-entry-details summary {
-	display: inline-flex;
-	align-items: center;
-	justify-content: flex-start;
-	gap: 4px;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: 0;
-	background: transparent;
-	color: var(--p-accent);
-	cursor: pointer;
-	font-weight: 500;
-}
-.draft-entry-details summary::after {
-	content: none;
-}
-.draft-entry-details summary:hover {
-	background: transparent;
-	text-decoration: underline;
-}
-.draft-entry-details[open] > :not(summary) {
-	margin-block-start: var(--p-space-2);
 }
 @media (max-width: 600px) {
 	.drafts-toolbar {

@@ -5,7 +5,6 @@ import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed } from "vue";
 import type { ProductDetail } from "./useProductDetail";
 import type { ReportQuery } from "../../lib/reportContract";
-import InventoryIcon from "../../components/InventoryIcon.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
@@ -14,6 +13,7 @@ import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ItemConversions from "./ItemConversions.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
@@ -146,7 +146,6 @@ const locationPrefs =
 		</p>
 		<article v-if="item" class="browse-detail-card">
 			<div class="browse-item-detail-head">
-				<span class="browse-item-illustration"><InventoryIcon name="box" /></span>
 				<div class="browse-detail-image"><ItemImage :item="item" /></div>
 				<div class="browse-grow">
 					<span class="eyebrow"
@@ -164,8 +163,7 @@ const locationPrefs =
 				@updated="c.conversionsUpdated"
 				@dirty-change="c.conversionDirty.value = $event"
 			/>
-			<details>
-				<summary>物品资料与文件（{{ files.files.length }}）</summary>
+			<DisclosureSection title="物品资料与文件" :count="files.files.length">
 				<dl class="browse-detail-grid">
 					<div
 						v-for="(value, label) in {
@@ -182,12 +180,14 @@ const locationPrefs =
 						<dd class="preview-long-text">{{ value }}</dd>
 					</div>
 				</dl>
-				<h2>主图</h2>
+				<h3>主图</h3>
 				<Attachments :controller="files" images-only image-role="main" mode="display" />
-				<h2>附件</h2>
+				<h3>附件</h3>
 				<Attachments :controller="files" image-role="attachments" mode="display" />
-			</details>
-			<QuantitySummary :metrics="metrics" />
+			</DisclosureSection>
+			<div class="detail-stat-grid">
+				<QuantitySummary :metrics="metrics" />
+			</div>
 			<nav class="browse-tabs" aria-label="物品库存视图">
 				<button
 					:aria-current="tab === 'overview' ? 'page' : undefined"
@@ -265,12 +265,17 @@ const locationPrefs =
 				</DataTable>
 				<p v-if="!item.locations.length" class="browse-note">此物品暂无库存。</p>
 			</div>
-			<details>
-				<summary>
-					流动与借用历史（{{ c.movements.result.total }} / {{ c.loans.result.total }}）
-				</summary>
+			<DisclosureSection
+				title="流动与借用历史"
+				:count="`${c.movements.result.total} / ${c.loans.result.total}`"
+				:summary="
+					c.movements.result.rows[0]?.date_time
+						? `最近 ${String(c.movements.result.rows[0].date_time).slice(0, 10)}`
+						: undefined
+				"
+			>
 				<div class="browse-card-heading">
-					<h2>最近流动</h2>
+					<h3>最近流动</h3>
 					<UiButton @click="emit('browse', c.movementQuery.value)"
 						>查看物品流动</UiButton
 					>
@@ -293,7 +298,7 @@ const locationPrefs =
 					@open-loan="(name) => emit('openLoan', name)"
 				/>
 				<div class="browse-card-heading">
-					<h2>借用记录</h2>
+					<h3>借用记录</h3>
 					<UiButton @click="emit('browse', c.loanQuery.value)">查看物品借用</UiButton>
 				</div>
 				<MovementHistoryTable
@@ -314,7 +319,7 @@ const locationPrefs =
 					@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 					@open-loan="(name) => emit('openLoan', name)"
 				/>
-			</details>
+			</DisclosureSection>
 		</article>
 	</section>
 </template>

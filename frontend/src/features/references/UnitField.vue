@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import { nextTick, ref, watch } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -63,10 +63,12 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 			>新建单位</UiButton
 		>
 		<p v-if="!permitted" class="muted">没有新建单位的权限；可选择已有单位。</p>
-		<details v-if="candidates.length">
-			<summary class="ti-disclosure">
-				<DisclosureIcon variant="inline" />此浏览器有未完成输入
-			</summary>
+		<DisclosureSection
+			v-if="candidates.length"
+			title="此浏览器有未完成输入"
+			:count="candidates.length"
+			:summary="`最近 ${candidates[0].updatedAt}`"
+		>
 			<article v-for="candidate in candidates" :key="candidate.editorId">
 				<p>{{ candidate.updatedAt }}</p>
 				<RecoverySummary
@@ -77,7 +79,7 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 					<UiButton @click="recover(candidate)">恢复输入</UiButton>
 				</RecoverySummary>
 			</article>
-		</details>
+		</DisclosureSection>
 		<p v-if="creating && recoveryError" role="alert">{{ recoveryError }}</p>
 		<Teleport :to="editorTarget || 'body'" :disabled="!editorTarget">
 			<fieldset

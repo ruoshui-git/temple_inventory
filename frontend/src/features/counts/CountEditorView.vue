@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
@@ -302,10 +302,7 @@ async function back() {
 			:aria-busy="loading && state.server ? 'true' : undefined"
 		>
 			<form class="form-main surface count-form-main" novalidate @submit.prevent="review">
-				<details class="form-section">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />日期与时间
-					</summary>
+				<DisclosureSection title="日期与时间" summary="账面基准使用的记录时间点">
 					<div class="form-date-section">
 						<label v-if="writable" class="preview-field"
 							>操作日期<input
@@ -322,7 +319,7 @@ async function back() {
 						<p v-else>{{ values.posting_date }} {{ values.posting_time }}</p>
 						<p class="muted">账面基准使用这个明确时间点的库存记录。</p>
 					</div>
-				</details>
+				</DisclosureSection>
 				<CountWorkspace
 					v-if="!deskOrigin"
 					:controller="c"
@@ -436,19 +433,13 @@ async function back() {
 						>删除草稿单据</UiButton
 					>
 				</div>
-				<details class="form-section count-document-notes">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />盘点备注（可选）
-					</summary>
+				<DisclosureSection title="盘点备注" summary="可选">
 					<label v-if="writable" class="preview-field"
 						>盘点备注<textarea v-model="values.ti_notes" rows="3" :disabled="busy" />
 					</label>
 					<p v-else class="preview-long-text">{{ values.ti_notes || "未填写" }}</p>
-				</details>
-				<details class="form-section">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />活动、人员与附件
-					</summary>
+				</DisclosureSection>
+				<DisclosureSection title="活动、人员与附件" summary="关联背景与记录人员">
 					<TransactionContext
 						:draft="context"
 						:activity-label="activityLabel"
@@ -481,7 +472,7 @@ async function back() {
 							· 鉴证人：{{ values.ti_reviewer_name || "未填写" }}
 						</p>
 					</div>
-				</details>
+				</DisclosureSection>
 				<p v-if="showError && !valid" role="alert" class="notice-bar warning">
 					请先读取当前账面基准，并至少核对一行。输入已保留。
 				</p>
@@ -605,12 +596,6 @@ async function back() {
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
-}
-.count-form-main > .form-section > summary {
-	min-height: 44px;
-	align-content: center;
-	font-weight: 650;
-	cursor: pointer;
 }
 .count-table-scroll {
 	max-width: 100%;

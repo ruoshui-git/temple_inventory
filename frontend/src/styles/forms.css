@@ -294,12 +294,6 @@ select {
 	cursor: pointer;
 	align-content: center;
 }
-.preview-form-page details.form-section {
-	display: block;
-}
-.preview-form-page details.form-section > :not(summary) {
-	margin-top: var(--p-space-3);
-}
 .preview-unit-field {
 	display: grid;
 	gap: var(--p-space-2);

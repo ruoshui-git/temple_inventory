@@ -147,7 +147,12 @@ describe("native loan details", () => {
     ]);
     expect(wrapper.text()).not.toContain("LOAN-A-CHILD-1");
     expect(wrapper.text()).toContain("BATCH-1");
-    expect(wrapper.text()).toContain("处理历史（42 条明细）");
+    const historySummary = wrapper
+      .findAll("summary")
+      .find((summary) => summary.text().includes("处理历史"));
+    expect(historySummary?.find(".ti-disclosure-section-count").text()).toBe(
+      "42",
+    );
     expect(c.history.result.rows).toHaveLength(1);
     expect(c.history.result.rows[0]?.document).toBe("RETURN-A");
     await c.history.loadMore();

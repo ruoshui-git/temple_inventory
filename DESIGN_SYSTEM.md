@@ -31,6 +31,17 @@ kept in Git.
 - Use `.ti-disclosure` for simple native `<details>` summaries that need the
   compact inline treatment. Use `DisclosureSection` for divided detail rows;
   actions do not toggle the row, and the body aligns with the title start.
+- A `DisclosureSection` summary has a leading rotating chevron, a 16px/600
+  title, an optional count pill, an optional muted one-line summary and an
+  optional trailing actions slot. The body starts at the title's inline edge.
+  Keep the summary hover tint inside a small control-radius row inset.
+- Consecutive sections in one card form a single divided list: use one hairline
+  between rows, with no extra row borders or gaps. When other content separates
+  sections, give each section normal block spacing. Keep related detail rows on
+  the same card inset.
+- Put buttons, links or other controls in the `actions` slot when they belong
+  to the section heading. Only blank space in that slot is prevented from
+  toggling the section; interactive controls retain their native behavior.
 
 ## Density, tables and scrollbars
 
