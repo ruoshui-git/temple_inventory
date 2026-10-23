@@ -84,11 +84,14 @@ export function useActivitiesController(
     presence: "all",
     outstanding: false,
     sort: "updated",
+    sortDirection: "desc" as "asc" | "desc",
   });
   const relatedLoan = ref("");
   const tab = ref<"records" | "loans">("records"),
     recordSearch = ref(""),
-    recordType = ref(""),
+    recordKinds = ref<string[]>([]),
+    recordSort = ref<"date" | "identity">("date"),
+    recordSortDirection = ref<"asc" | "desc">("desc"),
     recordPeriod = ref<DatePeriod>({ key: "all", from: "", to: "" });
   const detail = ref<ActivityDetail>(),
     loading = ref(false),
@@ -115,7 +118,9 @@ export function useActivitiesController(
         tab.value = query.view === "loans" ? "loans" : "records";
         recordPeriod.value = query.relatedPeriod;
         recordSearch.value = query.relatedSearch;
-        recordType.value = query.scope.kinds[0] || "";
+        recordKinds.value = [...query.scope.kinds];
+        recordSort.value = query.sortBy === "identity" ? "identity" : "date";
+        recordSortDirection.value = query.sort;
         relatedLoan.value = query.loan;
       }
       Object.assign(state, {
@@ -132,6 +137,7 @@ export function useActivitiesController(
             : query.sortBy === "start_date"
               ? "start"
               : "updated",
+        sortDirection: query.sort,
       });
     },
     { immediate: true },
@@ -146,18 +152,16 @@ export function useActivitiesController(
         : state.sort === "start"
           ? "start_date"
           : "modified";
-    query.sort = state.sort === "updated" ? "desc" : "asc";
+    query.sort = state.sortDirection;
     if (props.mode === "detail") {
       query.scope.activity = props.name || "";
       query.view = tab.value;
-      // The list view's sort field may not exist on activity record/loan rows.
-      // Detail tabs use their canonical identity key unless a tab-specific
-      // sort control is added.
-      query.sortBy = "identity";
+      query.sortBy = recordSort.value;
+      query.sort = recordSortDirection.value;
       query.relatedPeriod = recordPeriod.value;
       query.relatedSearch = recordSearch.value;
       query.loan = relatedLoan.value;
-      query.scope.kinds = recordType.value ? [recordType.value] : [];
+      query.scope.kinds = [...recordKinds.value];
       query.statuses = [1];
       if (!props.name) {
         query.restrictItems = true;
@@ -226,7 +230,7 @@ export function useActivitiesController(
       if (!props.routeQuery) {
         tab.value = "records";
         recordSearch.value = "";
-        recordType.value = "";
+        recordKinds.value = [];
         recordPeriod.value = { key: "all", from: "", to: "" };
       }
       void loadDetail();
@@ -350,9 +354,23 @@ export function useActivitiesController(
     state.status = "active";
     state.typeId = "";
   }
+  function clearRelated() {
+    recordSearch.value = "";
+    recordKinds.value = [];
+    recordPeriod.value = { key: "all", from: "", to: "" };
+    relatedLoan.value = "";
+    inherited.value = newReportQuery("activities");
+    scopeError.value = "";
+  }
   const inheritedChips = computed(() => [
     ...scopeFilterFieldChips(report.value.scope, reference)
-      .filter((chip) => !(props.mode === "detail" && chip.field === "activity"))
+      .filter(
+        (chip) =>
+          !(
+            props.mode === "detail" &&
+            ["activity", "kinds"].includes(chip.field || "")
+          ),
+      )
       .map((chip) => ({
         key: chip.key,
         field: chip.field,
@@ -422,7 +440,22 @@ export function useActivitiesController(
     state,
     tab,
     recordSearch,
-    recordType,
+    recordKinds,
+    recordSort,
+    recordSortDirection,
+    setRecordSort: (column: string) => {
+      const field = column === "document" ? "identity" : "date";
+      if (recordSort.value === field)
+        recordSortDirection.value =
+          recordSortDirection.value === "asc" ? "desc" : "asc";
+      else {
+        recordSort.value = field;
+        recordSortDirection.value = field === "date" ? "desc" : "asc";
+      }
+    },
+    setRecordKinds: (kinds: string[]) => {
+      recordKinds.value = [...kinds];
+    },
     recordPeriod,
     current,
     detail,
@@ -440,6 +473,7 @@ export function useActivitiesController(
     archive,
     remove,
     clear,
+    clearRelated,
     resetScope: () => {
       inherited.value = newReportQuery("activities");
       Object.assign(state, {
@@ -451,9 +485,11 @@ export function useActivitiesController(
         presence: "all",
         outstanding: false,
         sort: "updated",
+        sortDirection: "desc",
       });
       tab.value = "records";
-      recordSearch.value = recordType.value = relatedLoan.value = "";
+      recordSearch.value = relatedLoan.value = "";
+      recordKinds.value = [];
       recordPeriod.value = { key: "all", from: "", to: "" };
       scopeError.value = "";
     },
@@ -466,7 +502,7 @@ export function useActivitiesController(
       relatedLoan.value = name;
       tab.value = "records";
       recordSearch.value = "";
-      recordType.value = "";
+      recordKinds.value = [];
     },
     canWrite: computed(() => detail.value?.can_write === true),
     canDelete: computed(() => detail.value?.can_delete === true),

@@ -28,7 +28,6 @@ function set(index: number, value: string) {
 
 <template>
 	<fieldset class="browse-group-by" aria-label="结果分组">
-		<legend>结果分组</legend>
 		<label class="preview-field"
 			>第一级<select
 				:value="modelValue[0] || ''"

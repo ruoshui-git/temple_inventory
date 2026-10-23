@@ -555,6 +555,15 @@
 	background: var(--p-canvas);
 	padding-bottom: var(--p-space-3);
 }
+.preview-browse-controls.is-embedded {
+	background: transparent;
+}
+.browse-filter-clear {
+	margin-block-start: var(--p-space-2);
+}
+.preview-filter-fields > .browse-filter-clear {
+	margin-block-start: 0;
+}
 .preview-period-trigger {
 	display: flex;
 	flex-wrap: wrap;
@@ -1444,6 +1453,12 @@
 .browse-tabs button[aria-pressed="true"] {
 	color: var(--p-surface);
 }
+.browse-tabs[role="tablist"] button[aria-selected="true"] {
+	color: var(--p-accent-strong);
+	background: transparent;
+	border-bottom: 2px solid var(--p-accent);
+	font-weight: 650;
+}
 
 /* Shared routed-page identity and action placement. */
 .app-page-header {
@@ -1504,6 +1519,9 @@
 	);
 	overflow-anchor: none;
 }
+.browse-chrome.browse-chrome.is-embedded {
+	background: transparent;
+}
 .browse-chrome .app-page-header {
 	display: contents;
 	margin: 0;
@@ -1543,8 +1561,10 @@
 	display: none;
 }
 .browse-filter-disclosure > summary small {
+	margin-left: auto;
 	color: var(--p-muted);
 	font-weight: 400;
+	text-align: right;
 }
 .browse-filter-disclosure[open] > summary {
 	margin-bottom: var(--p-space-2);

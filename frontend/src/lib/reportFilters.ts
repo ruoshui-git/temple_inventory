@@ -120,6 +120,7 @@ export function reportFilterChips(
       activityKind: "activityKind",
       relatedPresence: "relatedPresence",
       outstandingOnly: "outstandingOnly",
+      expiryWindow: "expiryWindow",
     };
     chips.push({
       key,
@@ -180,6 +181,23 @@ export function reportFilterChips(
       `核对状态：${query.countReviewed === "reviewed" ? "已核对" : "未核对"}`,
       { countReviewed: "all" },
     );
+  if (query.dataset === "expiry" && query.expiryWindow !== "period") {
+    const labels: Record<string, string> = {
+      next_7: "未来7天",
+      next_30: "未来30天",
+      next_90: "未来90天",
+      next_365: "未来365天",
+      expired: "已过期",
+      undated: "无效期",
+    };
+    add(
+      "expiryWindow",
+      `到期窗口：${labels[query.expiryWindow] || query.expiryWindow}`,
+      {
+        expiryWindow: "period",
+      },
+    );
+  }
   if (query.record || query.recordDoctype)
     add(
       "record",

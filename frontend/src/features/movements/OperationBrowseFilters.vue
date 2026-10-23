@@ -19,7 +19,6 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 	<div class="operation-browse-filters browse-filter-dense">
 		<div class="browse-filter-mega">
 			<section class="browse-filter-mega-section">
-				<h3>筛选</h3>
 				<details
 					v-if="family === 'loans' && !records"
 					class="browse-filter-disclosure"
@@ -30,7 +29,7 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 						物品历史记录范围
 						<small>{{ historyScope === "all" ? "全部相关记录" : "未结清借用" }}</small>
 					</summary>
-					<div class="filter-segmented" role="group" aria-label="物品历史记录范围">
+					<div class="browse-tabs" role="group" aria-label="物品历史记录范围">
 						<UiButton
 							v-for="[value, label] in [
 								['outstanding', '未结清借用'],
@@ -123,7 +122,9 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 						><input v-model="query.includeZero" type="checkbox" />显示已结清物品</label
 					>
 				</details>
-				<UiButton @click="controller.clearFilters">清空筛选</UiButton>
+				<UiButton class="browse-filter-clear" @click="controller.clearFilters"
+					>清空筛选</UiButton
+				>
 			</section>
 			<section class="browse-filter-mega-section browse-filter-grouping">
 				<h3>分组</h3>

@@ -132,7 +132,6 @@ watch([() => props.active, isMobile], () => {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
-				>
 			</template>
 			<div class="browse-toolbar browse-sort-only">
 				<label class="preview-field"

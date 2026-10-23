@@ -3119,22 +3119,6 @@ body:has(.preview-document-actions) .preview-toast {
 	max-height: 60dvh;
 	overflow: auto;
 }
-.report-inline-controls {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: end;
-	gap: 16px;
-	margin: 12px 0;
-	min-width: 0;
-}
-.report-inline-controls > * {
-	flex: 1 1 220px;
-	min-width: 0;
-	max-width: 100%;
-}
-.report-inline-controls > .ui-button {
-	flex: 0 1 auto;
-}
 .preview-reports .preview-period-trigger,
 .preview-activities .preview-period-trigger {
 	position: static;
@@ -3159,9 +3143,6 @@ body:has(.preview-document-actions) .preview-toast {
 	}
 }
 @media (max-width: 1023px) {
-	.report-inline-controls > * {
-		flex-basis: 100%;
-	}
 }
 
 .preview-activities .form-fields,

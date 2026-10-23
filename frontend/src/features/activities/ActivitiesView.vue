@@ -4,7 +4,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { siteDateTime } from "../../lib/nativeTime";
-import { computed, nextTick, ref } from "vue";
+import { computed, ref } from "vue";
 import ActivityEditor from "./ActivityEditor.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -13,7 +13,6 @@ import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { movementLabels } from "../../lib/filterPresentation";
-import { enumPresentationLabel } from "../../lib/presentationLabels";
 import { periodLabels } from "../../lib/sitePeriod";
 import { quantityText } from "../dashboard/useDashboardController";
 import { formatQuantity } from "../../lib/formatQuantity";
@@ -33,6 +32,8 @@ import type {
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import { RouterLink } from "vue-router";
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 defineExpose({
 	requestLeave: () => activityEditor.value?.requestLeave() ?? Promise.resolve(true),
@@ -62,7 +63,11 @@ const {
 	state,
 	tab,
 	recordSearch,
-	recordType,
+	recordKinds,
+	setRecordKinds,
+	recordSort,
+	recordSortDirection,
+	setRecordSort,
 	recordPeriod,
 	current,
 	detail,
@@ -95,9 +100,11 @@ const {
 	linked,
 	movement,
 	removeSecondary,
+	clearRelated,
 	chip,
 	more,
 } = props.controller;
+const isRelatedTabSelected = (value: "records" | "loans") => tab.value === value;
 const page = computed(() => `activity-${props.mode}`);
 const variant = computed(() => props.name || "new");
 const recordDateChip = computed(() => {
@@ -107,21 +114,35 @@ const recordDateChip = computed(() => {
 		? [value.from, value.to].filter(Boolean).join(" – ") || "日期待补全"
 		: periodLabels[value.key];
 });
-function focusRecordDate() {
-	void nextTick(() => {
-		const editor = document.querySelector<HTMLElement>(
-			'#activity-records-panel [data-filter-field="relatedPeriod"]',
-		);
-		(editor?.querySelector<HTMLElement>("select,input,button") || editor)?.focus();
-	});
-}
 const isEditing = computed(() => !!props.name);
 const activityColumns = computed<DataColumn[]>(() => [
-	{ id: "title", label: "活动", required: true, defaultVisible: true, minWidth: "210px" },
+	{
+		id: "title",
+		label: "活动",
+		required: true,
+		defaultVisible: true,
+		sortable: true,
+		sortField: "title",
+		minWidth: "210px",
+	},
 	{ id: "typeId", label: "类型", defaultVisible: true, minWidth: "130px" },
-	{ id: "period", label: "日期", defaultVisible: true, minWidth: "170px" },
+	{
+		id: "period",
+		label: "日期",
+		defaultVisible: true,
+		sortable: true,
+		sortField: "start_date",
+		minWidth: "170px",
+	},
 	{ id: "status", label: "状态", defaultVisible: true, minWidth: "100px" },
-	{ id: "modified", label: "更新（站点时间）", defaultVisible: true, minWidth: "170px" },
+	{
+		id: "modified",
+		label: "更新（站点时间）",
+		defaultVisible: true,
+		sortable: true,
+		sortField: "modified",
+		minWidth: "170px",
+	},
 	{ id: "actions", label: "关联流动", required: true, defaultVisible: true, minWidth: "220px" },
 ]);
 const activityRows = computed<DataTableRecord[]>(() =>
@@ -131,6 +152,33 @@ const activityRows = computed<DataTableRecord[]>(() =>
 		value: activity as unknown as Record<string, unknown>,
 	})),
 );
+const relatedColumns: DataColumn[] = [
+	{ id: "document", label: "记录", sortable: true, minWidth: "190px" },
+	{ id: "date", label: "日期", sortable: true, minWidth: "150px" },
+	{ id: "kind", label: "类型", minWidth: "110px" },
+	{ id: "status", label: "状态", minWidth: "100px" },
+	{ id: "item", label: "物品", minWidth: "180px" },
+	{ id: "quantity", label: "数量", minWidth: "120px" },
+	{ id: "route", label: "来源 → 去向", minWidth: "220px" },
+];
+const relatedRows = computed<DataTableRecord[]>(() =>
+	filteredRecords.value.map((row, index) => ({
+		kind: "record",
+		id: String(records.value[index]?.id || `${row.documentType}:${row.name}`),
+		value: row as unknown as Record<string, unknown>,
+	})),
+);
+function sortActivity(column: string) {
+	const sort = column === "title" ? "title" : column === "start_date" ? "start" : "updated";
+	if (state.sort === sort) state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
+	else {
+		state.sort = sort;
+		state.sortDirection = sort === "updated" ? "desc" : "asc";
+	}
+}
+function sortRelated(column: string) {
+	setRecordSort(column);
+}
 const activityEntries = computed<DataTableEntry[]>(() =>
 	report.value.groupBy.length ? projection.groups.entries.value : activityRows.value,
 );
@@ -166,15 +214,6 @@ function tabKey(event: KeyboardEvent) {
 <template>
 	<section class="preview-page preview-activities">
 		<p v-if="scopeError" role="alert">{{ scopeError }}</p>
-		<div v-if="mode === 'detail' && inheritedChips.length" class="compact-filter-chips">
-			<UiButton
-				v-for="chip in inheritedChips"
-				:key="chip.key"
-				:title="chip.label"
-				@click="chip.remove()"
-				>{{ chip.label }} ×</UiButton
-			>
-		</div>
 		<PageHeader v-if="page !== 'activity-list'"
 			><div>
 				<h1 tabindex="-1">
@@ -305,15 +344,6 @@ function tabKey(event: KeyboardEvent) {
 					@remove="removeSecondary(chip.key)"
 				/>
 			</template>
-			<div class="browse-sort-only">
-				<label class="preview-field"
-					>排序<select v-model="state.sort">
-						<option value="updated">最近更新优先</option>
-						<option value="title">名称</option>
-						<option value="start">开始日期</option>
-					</select></label
-				>
-			</div>
 		</BrowseToolbar>
 		<ActivityEditor
 			ref="activityEditor"
@@ -333,6 +363,8 @@ function tabKey(event: KeyboardEvent) {
 				table-class="browse-table"
 				:columns="activityColumns"
 				:rows="activityEntries"
+				:sort-by="report.sortBy"
+				:sort-direction="report.sort"
 				:column-preferences="activityPrefs"
 				:loading="
 					projection.result.loading ||
@@ -374,18 +406,17 @@ function tabKey(event: KeyboardEvent) {
 				"
 				@toggle-group="projection.groups.toggleGroup"
 				@load-more="report.groupBy.length ? projection.groups.loadMore() : more()"
+				@sort="sortActivity"
 			>
 				<template #cell="{ column, row }">
-					<UiButton
+					<RouterLink
 						v-if="column.id === 'title'"
-						variant="ghost"
-						:disabled="projection.result.stale"
-						@click="open(String(row.id))"
-						>{{ row.title }}</UiButton
+						:to="{ name: 'activity-detail', params: { name: String(row.id || '') } }"
+						>{{ String(row.title || "") }}</RouterLink
 					>
-					<template v-else-if="column.id === 'typeId'"
-						>{{ activityTypeLabel(String(row.typeId || "")) }} · {{ row.id }}</template
-					>
+					<template v-else-if="column.id === 'typeId'">{{
+						activityTypeLabel(String(row.typeId || ""))
+					}}</template>
 					<template v-else-if="column.id === 'period'"
 						>{{ row.start || "未设日期"
 						}}{{ row.end ? " 至 " + row.end : "" }}</template
@@ -546,100 +577,184 @@ function tabKey(event: KeyboardEvent) {
 					</div>
 				</details>
 			</section>
-			<div class="form-actions" role="tablist" aria-label="活动相关资料" @keydown="tabKey">
-				<UiButton
-					role="tab"
-					id="activity-records-tab"
-					aria-controls="activity-records-panel"
-					:tabindex="tab === 'records' ? 0 : -1"
-					:aria-selected="tab === 'records'"
-					@click="tab = 'records'"
-					>关联记录</UiButton
-				><UiButton
-					role="tab"
-					id="activity-loans-tab"
-					aria-controls="activity-loans-panel"
-					:tabindex="tab === 'loans' ? 0 : -1"
-					:aria-selected="tab === 'loans'"
-					@click="tab = 'loans'"
-					>借用结余</UiButton
-				>
-			</div>
 			<section
 				v-if="tab === 'records'"
 				id="activity-records-panel"
 				aria-labelledby="activity-records-tab"
 				class="surface form-section"
 				role="tabpanel"
+				aria-label="关联记录"
 			>
-				<div class="report-inline-controls">
-					<label class="preview-field"
-						>搜索关联记录<input v-model="recordSearch" /></label
-					><BrowseChip
-						v-if="recordDateChip"
-						:label="`关联单据日期：${recordDateChip}`"
-						@edit="focusRecordDate"
-						@remove="recordPeriod = { key: 'all', from: '', to: '' }"
-					/><PeriodFilter
-						:today="reference.siteDate"
-						v-model="recordPeriod"
-						label="记账日期"
-						field-key="relatedPeriod"
-						embedded
-					/><label class="preview-field"
-						>流动类型<select v-model="recordType">
-							<option value="">全部</option>
-							<option
-								v-for="(label, kind) in movementLabels"
-								:key="kind"
-								:value="kind"
-							>
-								{{ label }}
-							</option>
-						</select></label
-					>
-				</div>
-				<p v-if="relatedLoan">
-					原借用：{{ relatedLoan }}
-					<UiButton @click="relatedLoan = ''">清除原借用限制</UiButton>
-				</p>
-				<article
-					v-for="(row, index) in filteredRecords"
-					:key="index"
-					:data-browse-row="String(records[index]?.id)"
-					class="activity-record"
+				<div
+					class="browse-tabs"
+					role="tablist"
+					aria-label="活动相关资料"
+					@keydown="tabKey"
 				>
-					<UiButton variant="ghost" @click="linked(row.name, row.documentType)"
-						>{{ documentLabels[row.documentType || "Stock Entry"] || "库存记录" }} ·
-						{{ row.name }}</UiButton
+					<button
+						type="button"
+						role="tab"
+						id="activity-records-tab"
+						aria-controls="activity-records-panel"
+						:tabindex="isRelatedTabSelected('records') ? 0 : -1"
+						:aria-selected="isRelatedTabSelected('records')"
+						@click="tab = 'records'"
 					>
-					<p>
-						{{ siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间" }}
-						· {{ movementLabels[row.kind] || "其他类型" }} ·
-						<NativeStatusBadge :status="row.docstatus" /> ·
-						{{ enumPresentationLabel("relationship", row.relationship) }}
-					</p>
-					<p>
-						{{ row.itemName }} · {{ formatQuantity(Number(row.qty || 0)) }}
-						{{ row.uom }} ·
-						{{ row.batch || "无批次" }}
-					</p>
-					<p>{{ row.from }} → {{ row.to }}</p>
-					<p v-if="row.loanName">
-						原借用
-						<UiButton @click="linked(row.loanName!)">{{ row.loanName }}</UiButton>
-					</p>
-				</article>
-				<p
-					v-if="
-						projection.mainTable.value?.initialized &&
-						!projection.result.loading &&
-						!projection.result.error &&
-						!filteredRecords.length
+						关联记录
+					</button>
+					<button
+						type="button"
+						role="tab"
+						id="activity-loans-tab"
+						aria-controls="activity-loans-panel"
+						:tabindex="isRelatedTabSelected('loans') ? 0 : -1"
+						:aria-selected="isRelatedTabSelected('loans')"
+						@click="tab = 'loans'"
+					>
+						借用结余
+					</button>
+				</div>
+				<BrowseToolbar
+					embedded
+					title="活动关联记录"
+					summary="关联记录"
+					v-model:search="recordSearch"
+					search-label="搜索关联记录"
+					:active="active"
+					:filter-count="
+						Number(recordPeriod.key !== 'all') +
+						Number(recordKinds.length > 0) +
+						inheritedChips.length
 					"
 				>
-					没有符合条件的关联记录
-				</p>
+					<template #filters>
+						<div class="preview-filter-fields">
+							<details
+								class="browse-filter-disclosure"
+								data-filter-field="relatedPeriod"
+							>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />
+									记账日期<small>{{ recordDateChip || "不限" }}</small>
+								</summary>
+								<PeriodFilter
+									:today="reference.siteDate"
+									v-model="recordPeriod"
+									label="记账日期"
+									field-key="relatedPeriod"
+									embedded
+								/>
+							</details>
+							<BrowseFilters
+								:model-value="report.scope"
+								:movement="true"
+								:records="true"
+								:fields="['kinds']"
+								disclosure-mode
+								@update:model-value="setRecordKinds($event.kinds)"
+							/>
+							<details
+								v-if="relatedLoan"
+								class="browse-filter-disclosure"
+								data-filter-field="loan"
+							>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />原借用<small>{{
+										relatedLoan
+									}}</small>
+								</summary>
+								<label class="preview-field"
+									>原借用单号<input v-model="relatedLoan"
+								/></label>
+								<UiButton variant="ghost" @click="relatedLoan = ''"
+									>清除原借用限制</UiButton
+								>
+							</details>
+							<UiButton class="browse-filter-clear" @click="clearRelated"
+								>清空筛选</UiButton
+							>
+						</div>
+					</template>
+					<template #chips="{ editFilter }">
+						<BrowseChip
+							v-if="recordDateChip"
+							:label="`记账日期：${recordDateChip}`"
+							@edit="editFilter('relatedPeriod')"
+							@remove="recordPeriod = { key: 'all', from: '', to: '' }"
+						/>
+						<BrowseChip
+							v-for="kind in recordKinds"
+							:key="kind"
+							:label="`流动类型：${movementLabels[kind] || kind}`"
+							@edit="editFilter('kinds')"
+							@remove="setRecordKinds(recordKinds.filter((value) => value !== kind))"
+						/>
+						<BrowseChip
+							v-if="recordSearch"
+							:label="`搜索：${recordSearch}`"
+							@edit="editFilter('search')"
+							@remove="recordSearch = ''"
+						/>
+						<BrowseChip
+							v-for="chip in inheritedChips"
+							:key="chip.key"
+							:label="chip.label"
+							@edit="editFilter(chip.field)"
+							@remove="chip.remove()"
+						/>
+					</template>
+				</BrowseToolbar>
+				<DataTable
+					ariaLabel="活动关联记录"
+					:columns="relatedColumns"
+					:rows="relatedRows"
+					:sort-by="recordSort"
+					:sort-direction="recordSortDirection"
+					:loading="projection.mainTable.value?.loading"
+					:initialized="projection.mainTable.value?.initialized"
+					:error="projection.mainTable.value?.error"
+					:has-more="projection.mainTable.value?.next != null"
+					:loading-more="projection.mainTable.value?.loading"
+					:loaded-count="projection.mainTable.value?.rows.length"
+					:total-count="projection.mainTable.value?.total"
+					@sort="sortRelated"
+					@load-more="more"
+					@retry="projection.refresh(true)"
+				>
+					<template #cell="{ column, row }">
+						<RouterLink
+							v-if="column.id === 'document'"
+							:to="{
+								name:
+									row.documentType === 'Stock Reconciliation'
+										? 'count-detail'
+										: 'movement-detail',
+								params: { name: String(row.name || '') },
+							}"
+							>{{ documentLabels[String(row.documentType || "")] || "库存记录" }} ·
+							{{ String(row.name || "") }}</RouterLink
+						>
+						<template v-else-if="column.id === 'date'">{{
+							siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间"
+						}}</template>
+						<template v-else-if="column.id === 'kind'">{{
+							movementLabels[String(row.kind || "")] || "其他类型"
+						}}</template>
+						<NativeStatusBadge
+							v-else-if="column.id === 'status'"
+							:status="row.docstatus"
+						/>
+						<template v-else-if="column.id === 'item'"
+							>{{ row.itemName }} · {{ row.code }}</template
+						>
+						<template v-else-if="column.id === 'quantity'"
+							>{{ formatQuantity(Number(row.qty || 0)) }} {{ row.uom }}</template
+						>
+						<template v-else-if="column.id === 'route'"
+							>{{ row.from }} → {{ row.to }}</template
+						>
+					</template>
+				</DataTable>
 				<p class="muted">附件通过各单据的详情查看。</p>
 			</section>
 			<section
@@ -648,7 +763,37 @@ function tabKey(event: KeyboardEvent) {
 				aria-labelledby="activity-loans-tab"
 				class="surface form-section"
 				role="tabpanel"
+				aria-label="借用结余"
 			>
+				<div
+					class="browse-tabs"
+					role="tablist"
+					aria-label="活动相关资料"
+					@keydown="tabKey"
+				>
+					<button
+						type="button"
+						role="tab"
+						id="activity-records-tab"
+						aria-controls="activity-records-panel"
+						:tabindex="isRelatedTabSelected('records') ? 0 : -1"
+						:aria-selected="isRelatedTabSelected('records')"
+						@click="tab = 'records'"
+					>
+						关联记录
+					</button>
+					<button
+						type="button"
+						role="tab"
+						id="activity-loans-tab"
+						aria-controls="activity-loans-panel"
+						:tabindex="isRelatedTabSelected('loans') ? 0 : -1"
+						:aria-selected="isRelatedTabSelected('loans')"
+						@click="tab = 'loans'"
+					>
+						借用结余
+					</button>
+				</div>
 				<article
 					v-for="line in loans"
 					:key="line.lineId"
@@ -692,13 +837,6 @@ function tabKey(event: KeyboardEvent) {
 			<p v-if="projection.mainTable.value?.error" role="alert">
 				{{ projection.mainTable.value.error }}
 			</p>
-			<UiButton
-				v-if="projection.mainTable.value?.next != null"
-				:disabled="projection.mainTable.value.loading"
-				@click="more"
-				>加载更多 · {{ projection.mainTable.value.rows.length }} /
-				{{ projection.mainTable.value.total }}</UiButton
-			>
 		</template>
 		<Overlay v-if="deleteOpen" title="删除活动" @close="deleteOpen = false"
 			><p>删除活动「{{ current?.title }}」？已有任何引用的活动不能删除。</p>

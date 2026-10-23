@@ -13,6 +13,8 @@ import {
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import Overlay from "./Overlay.vue";
 import UiButton from "./UiButton.vue";
+import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
+import { scrollBy, scrollOwner } from "../../composables/scrollSurface";
 
 const props = withDefaults(
 	defineProps<{
@@ -43,17 +45,45 @@ function close(restore = false) {
 }
 function reposition() {
 	if (!open.value || isMobile.value || !panel.value) return;
-	const anchor = triggerElement()?.getBoundingClientRect();
+	const button = triggerElement();
+	let anchor = button?.getBoundingClientRect();
 	if (!anchor) return;
 	const margin = 12;
 	const wide = Boolean(panel.value?.querySelector(".browse-filter-mega"));
 	const width = Math.min(wide ? 760 : 400, window.innerWidth - margin * 2);
-	const below = anchor.bottom + 8;
+	const naturalHeight = Math.max(
+		panel.value.scrollHeight,
+		panel.value.getBoundingClientRect().height,
+	);
+	const minimum = Math.min(naturalHeight, 360);
+	const belowSpace = window.innerHeight - margin - anchor.bottom - 8;
+	if (belowSpace < minimum && button) {
+		const owner = scrollOwner(button);
+		const rootStyle = getComputedStyle(document.documentElement);
+		const measuredShellTop =
+			Number.parseFloat(rootStyle.getPropertyValue("--preview-desktop-nav-height")) || 0;
+		const ownerTop = owner instanceof HTMLElement ? owner.getBoundingClientRect().top : 0;
+		const topInset = owner instanceof HTMLElement ? 0 : measuredShellTop;
+		const targetTop = ownerTop + topInset + 16;
+		const delta = anchor.top - targetTop;
+		if (Math.abs(delta) > 1) {
+			scrollBy(owner, delta);
+			anchor = button.getBoundingClientRect();
+		}
+	}
+	const placement = chooseFilterPopoverPlacement({
+		triggerTop: anchor.top,
+		triggerBottom: anchor.bottom,
+		viewportHeight: window.innerHeight,
+		naturalHeight,
+		margin,
+	});
 	const next = {
 		left: `${Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin))}px`,
-		top: `${below}px`,
+		top: `${placement.top}px`,
 		width: `${width}px`,
-		maxHeight: `${Math.max(0, window.innerHeight - below - margin)}px`,
+		maxHeight: `${placement.maxHeight}px`,
+		minHeight: `${placement.minHeight}px`,
 	};
 	// Observing size may schedule another placement; unchanged geometry does not write again.
 	if (JSON.stringify(position.value) !== JSON.stringify(next)) position.value = next;

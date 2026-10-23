@@ -161,7 +161,6 @@ function setGroup(index: number, value: string) {
 			<template #filters>
 				<div class="browse-filter-mega reports-filter-mega">
 					<section class="browse-filter-mega-section">
-						<h3>筛选</h3>
 						<div class="preview-filter-fields">
 							<details
 								v-if="
@@ -209,21 +208,42 @@ function setGroup(index: number, value: string) {
 										embedded
 									/>
 								</details>
-								<label class="preview-field"
-									>关联记录搜索<input v-model="query.relatedSearch"
-								/></label>
+								<details
+									class="browse-filter-disclosure"
+									data-filter-field="relatedSearch"
+								>
+									<summary class="ti-disclosure">
+										<DisclosureIcon variant="inline" />关联记录搜索<small>{{
+											query.relatedSearch || "不限"
+										}}</small>
+									</summary>
+									<label class="preview-field"
+										>关联记录搜索<input v-model="query.relatedSearch"
+									/></label>
+								</details>
 							</template>
-							<label v-if="dataset === 'expiry'" class="preview-field"
-								>到期窗口<select v-model="query.expiryWindow">
-									<option value="period">选定日期期间</option>
-									<option value="next_7">未来7天（含今日）</option>
-									<option value="next_30">未来30天（含今日）</option>
-									<option value="next_90">未来90天（含今日）</option>
-									<option value="next_365">未来365天（含今日）</option>
-									<option value="expired">已过期</option>
-									<option value="undated">无效期</option>
-								</select></label
+							<details
+								v-if="dataset === 'expiry'"
+								class="browse-filter-disclosure"
+								data-filter-field="expiryWindow"
 							>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />到期窗口<small>{{
+										query.expiryWindow
+									}}</small>
+								</summary>
+								<label class="preview-field"
+									>到期窗口<select v-model="query.expiryWindow">
+										<option value="period">选定日期期间</option>
+										<option value="next_7">未来7天（含今日）</option>
+										<option value="next_30">未来30天（含今日）</option>
+										<option value="next_90">未来90天（含今日）</option>
+										<option value="next_365">未来365天（含今日）</option>
+										<option value="expired">已过期</option>
+										<option value="undated">无效期</option>
+									</select></label
+								>
+							</details>
 							<BrowseFilters
 								v-model="query.scope"
 								disclosure-mode
@@ -237,7 +257,6 @@ function setGroup(index: number, value: string) {
 						</div>
 					</section>
 					<section class="browse-filter-mega-section browse-filter-grouping">
-						<h3>分组</h3>
 						<fieldset
 							class="preview-filter-fields"
 							data-filter-field="groupBy"
@@ -468,7 +487,9 @@ function setGroup(index: number, value: string) {
 									相对期间随时间解析，自定义日期固定。视图保存到当前账户。
 								</p>
 							</fieldset>
-							<UiButton @click="clear">重置导出设置</UiButton>
+							<UiButton class="browse-filter-clear" @click="clear"
+								>重置导出设置</UiButton
+							>
 						</div>
 					</section>
 				</div>

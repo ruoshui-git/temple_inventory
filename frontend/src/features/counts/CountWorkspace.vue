@@ -262,7 +262,7 @@ function itemImage(row: CountRow) {
 				搜索物品、批次或位置
 				<input v-model="search" type="search" />
 			</label>
-			<div class="count-review-tabs" role="group" aria-label="核对状态筛选">
+			<div class="browse-tabs" role="group" aria-label="核对状态筛选">
 				<button
 					type="button"
 					:aria-pressed="reviewFilter === 'all'"
@@ -519,24 +519,6 @@ function itemImage(row: CountRow) {
 	flex: 1 1 260px;
 	min-width: 220px;
 }
-.count-review-tabs {
-	display: flex;
-	align-items: center;
-	border: 1px solid var(--p-control-border);
-	border-radius: var(--p-radius-control);
-	overflow: hidden;
-}
-.count-review-tabs button {
-	min-height: var(--p-control);
-	padding: 0 12px;
-	border: 0;
-	color: var(--p-ink);
-	background: var(--p-surface);
-}
-.count-review-tabs button[aria-pressed="true"] {
-	color: var(--p-accent-strong);
-	background: var(--p-soft);
-}
 .count-toolbar {
 	flex-wrap: wrap;
 	color: var(--p-muted);
@@ -634,12 +616,8 @@ function itemImage(row: CountRow) {
 		flex: 1 1 100%;
 		min-width: 0;
 	}
-	.count-review-tabs {
+	.count-filter-bar > .browse-tabs {
 		flex: 1 1 100%;
-	}
-	.count-review-tabs button {
-		flex: 1;
-		min-height: 44px;
 	}
 	.count-table .count-actual-input {
 		min-height: 44px;

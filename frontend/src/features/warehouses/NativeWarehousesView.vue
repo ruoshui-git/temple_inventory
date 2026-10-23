@@ -16,6 +16,8 @@ import ReportTable from "../../components/ui/ReportTable.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { createDebouncedSearch } from "../../lib/debouncedSearch";
+import { onBeforeUnmount } from "vue";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
 	{ active: true },
@@ -49,6 +51,10 @@ const {
 	editing,
 } = c;
 const stockTable = c.stock.mainTable;
+const warehouseSearchDebounce = createDebouncedSearch((value) => {
+	search.value = value;
+});
+onBeforeUnmount(warehouseSearchDebounce.cancel);
 function physicalType(value: string) {
 	return (
 		({ area: "区域", room: "房间", shelf: "货位", system: "系统" } as Record<string, string>)[
@@ -119,10 +125,13 @@ function parentLabel(name?: string) {
 			<div v-if="!detail" class="browse-toolbar">
 				<label class="browse-search"
 					><InventoryIcon name="search" /><input
-						v-model="search"
+						:value="search"
 						type="search"
 						placeholder="搜索仓库、房间或位置"
-						aria-label="搜索仓库" /></label
+						aria-label="搜索仓库"
+						@input="warehouseSearchDebounce.input"
+						@compositionstart="warehouseSearchDebounce.compositionStart"
+						@compositionend="warehouseSearchDebounce.compositionEnd" /></label
 				><span class="browse-result-count">{{ visibleRows.length }} 个节点</span>
 			</div>
 			<div :class="{ 'browse-warehouse-layout': !detail }">

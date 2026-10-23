@@ -112,6 +112,22 @@ describe("native drafts and count records", () => {
       expect.any(AbortSignal),
     );
   });
+  it("uses a local BrowseToolbar search and exposes draft kind, type and sort filters", async () => {
+    const { wrapper, c } = setup();
+    await flushPromises();
+    const search = wrapper.get<HTMLInputElement>(
+      '.browse-persistent-search input[aria-label="搜索草稿、物品或活动"]',
+    );
+    await search.setValue("本地筛选");
+    await new Promise((resolve) => setTimeout(resolve, 230));
+    expect(c.query.value.search).toBe("");
+    await wrapper.get('button[aria-haspopup="dialog"]').trigger("click");
+    await flushPromises();
+    for (const field of ["kindFilter", "typeFilter", "draftSort"])
+      expect(
+        document.querySelector(`[data-filter-field="${field}"]`),
+      ).toBeTruthy();
+  });
 
   it.each(["quantity", "name", "batch", "item_name"])(
     "resets retired sort field %s to the native records default while preserving filters",
@@ -197,23 +213,35 @@ describe("native drafts and count records", () => {
     createRecoveryStore("site", "volunteer", localStorage).save(newerSnapshot);
     const { wrapper, c } = setup();
     await flushPromises();
-    expect(wrapper.findAll(".browse-toolbar")).toHaveLength(0);
+    expect(wrapper.findAll(".preview-browse-controls")).toHaveLength(1);
     expect(wrapper.text()).not.toContain("份记录");
     expect(
       c.extraChips.value.find((chip) => chip.key === "statuses"),
     ).toBeUndefined();
-    expect(wrapper.findAll(".drafts-filters select")).toHaveLength(3);
-    expect(wrapper.find(".drafts-filters").text()).toContain("操作");
-    expect(wrapper.find(".drafts-filters").text()).toContain("类型");
-    expect(wrapper.findAll(".drafts-filters .muted")).toHaveLength(1);
+    await wrapper.get('button[aria-haspopup="dialog"]').trigger("click");
+    await flushPromises();
+    const filters = Array.from(
+      document.querySelectorAll<HTMLSelectElement>(
+        '[data-filter-field="kindFilter"] select, [data-filter-field="typeFilter"] select, [data-filter-field="draftSort"] select',
+      ),
+    );
+    expect(filters).toHaveLength(3);
     const entries = wrapper.findAll(".draft-entry");
     expect(entries).toHaveLength(2);
     expect(entries[0]?.text()).toContain("浏览器暂存");
     expect(entries[0]?.text()).toContain("2 种物品");
     expect(entries[1]?.text()).toContain("草稿单据");
-    const filters = wrapper.findAll(".drafts-filters select");
-    await filters[0]!.setValue("入库");
-    await filters[1]!.setValue("browser");
+    const kindSelect = document.querySelector<HTMLSelectElement>(
+      '[data-filter-field="kindFilter"] select',
+    )!;
+    kindSelect.value = "入库";
+    kindSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    const typeSelect = document.querySelector<HTMLSelectElement>(
+      '[data-filter-field="typeFilter"] select',
+    )!;
+    typeSelect.value = "browser";
+    typeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushPromises();
     expect(wrapper.findAll(".draft-entry")).toHaveLength(1);
     expect(wrapper.find(".draft-entry").text()).toContain("浏览器暂存");
   });

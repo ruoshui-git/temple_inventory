@@ -123,6 +123,7 @@ type DraftListEntry = {
 const kindFilter = ref("");
 const typeFilter = ref("all");
 const draftSort = ref("recent");
+const draftSearch = ref("");
 function localSummary(entry: RecoverySnapshot) {
 	const values = entry.values as Record<string, unknown>;
 	if (entry.editorKind === "Stock Entry") {
@@ -200,7 +201,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 		absolute: new Date(entry.updatedAt).toLocaleString("zh-CN"),
 		local: entry,
 	}));
-	const search = query.value.search.trim().toLocaleLowerCase();
+	const search = draftSearch.value.trim().toLocaleLowerCase();
 	return [...server, ...browser]
 		.filter((entry) => !kindFilter.value || entry.label === kindFilter.value)
 		.filter((entry) => typeFilter.value === "all" || entry.type === typeFilter.value)
@@ -254,6 +255,110 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 </script>
 <template>
 	<section class="preview-page preview-browse-page">
+		<BrowseToolbar
+			v-if="mode === 'drafts'"
+			title="草稿"
+			:summary="initialized ? `草稿 · ${draftEntries.length} 份` : '草稿'"
+			v-model:search="draftSearch"
+			search-label="搜索草稿、物品或活动"
+			:active="active"
+			:filter-count="
+				Number(Boolean(kindFilter)) +
+				Number(typeFilter !== 'all') +
+				Number(draftSort !== 'recent')
+			"
+		>
+			<template #actions>
+				<UiButton
+					@click="
+						c.load();
+						c.readLocal();
+					"
+					>刷新</UiButton
+				>
+			</template>
+			<template #filters>
+				<div class="preview-filter-fields">
+					<div data-filter-field="kindFilter">
+						<label class="preview-field"
+							>操作<select v-model="kindFilter">
+								<option value="">全部操作</option>
+								<option
+									v-for="kind in [
+										...new Set([
+											...rows.map((row) =>
+												row.kind
+													? movementLabels[String(row.kind)] ||
+														'其他类型'
+													: '库存操作',
+											),
+											...localEntries.map(localTitle),
+										]),
+									]"
+									:key="kind"
+									:value="kind"
+								>
+									{{ kind }}
+								</option>
+							</select></label
+						>
+					</div>
+					<div data-filter-field="typeFilter">
+						<label class="preview-field"
+							>类型<select v-model="typeFilter">
+								<option value="all">全部</option>
+								<option value="server">草稿单据</option>
+								<option value="browser">浏览器暂存</option>
+							</select></label
+						>
+					</div>
+					<div data-filter-field="draftSort">
+						<label class="preview-field"
+							>排序<select v-model="draftSort">
+								<option value="recent">最近更新</option>
+								<option value="operation">操作名称</option>
+							</select></label
+						>
+					</div>
+					<UiButton
+						@click="
+							kindFilter = '';
+							typeFilter = 'all';
+							draftSort = 'recent';
+							draftSearch = '';
+						"
+						class="browse-filter-clear"
+						>清空筛选</UiButton
+					>
+				</div>
+			</template>
+			<template #chips="{ editFilter }">
+				<BrowseChip
+					v-if="kindFilter"
+					:label="`操作：${kindFilter}`"
+					@edit="editFilter('kindFilter')"
+					@remove="kindFilter = ''"
+				/>
+				<BrowseChip
+					v-if="typeFilter !== 'all'"
+					:label="`类型：${typeFilter === 'server' ? '草稿单据' : '浏览器暂存'}`"
+					@edit="editFilter('typeFilter')"
+					@remove="typeFilter = 'all'"
+				/>
+				<BrowseChip
+					v-if="draftSort !== 'recent'"
+					label="排序：操作名称"
+					@edit="editFilter('draftSort')"
+					@remove="draftSort = 'recent'"
+				/>
+				<BrowseChip
+					v-if="draftSearch"
+					:label="`搜索：${draftSearch}`"
+					@edit="editFilter()"
+					@remove="draftSearch = ''"
+				/>
+			</template>
+		</BrowseToolbar>
 		<BrowseToolbar
 			v-if="mode === 'counts'"
 			title="盘点调整"
@@ -344,7 +449,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						</select></label
 					>
 				</details>
-				<UiButton @click="c.clear">清空筛选</UiButton>
+				<UiButton class="browse-filter-clear" @click="c.clear">清空筛选</UiButton>
 			</template>
 			<template #chips="{ editFilter }">
 				<BrowseChip
@@ -395,23 +500,6 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		</BrowseToolbar>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<div v-else-if="mode === 'drafts'" class="drafts-browser">
-			<div class="drafts-toolbar">
-				<h1>草稿</h1>
-				<label class="drafts-search"
-					>搜索草稿、物品或活动<input
-						v-model="query.search"
-						type="search"
-						placeholder="输入名称、物品或活动"
-					/>
-				</label>
-				<UiButton
-					@click="
-						c.load();
-						c.readLocal();
-					"
-					>刷新</UiButton
-				>
-			</div>
 			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
 			<DisclosureSection title="了解区别" summary="系统草稿与浏览器暂存的差异">
 				<p>
@@ -425,43 +513,6 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					>：内容尚不完整，无法存为草稿单据，暂时保存在此浏览器；换设备或清除浏览器数据会丢失。
 				</p>
 			</DisclosureSection>
-			<div class="drafts-filters">
-				<label
-					>操作<select v-model="kindFilter">
-						<option value="">全部操作</option>
-						<option
-							v-for="kind in [
-								...new Set([
-									...rows.map((row) =>
-										row.kind
-											? movementLabels[String(row.kind)] || '其他类型'
-											: '库存操作',
-									),
-									...localEntries.map(localTitle),
-								]),
-							]"
-							:key="kind"
-							:value="kind"
-						>
-							{{ kind }}
-						</option>
-					</select></label
-				>
-				<label
-					>类型<select v-model="typeFilter">
-						<option value="all">全部</option>
-						<option value="server">草稿单据</option>
-						<option value="browser">浏览器暂存</option>
-					</select></label
-				>
-				<label
-					>排序<select v-model="draftSort">
-						<option value="recent">最近更新</option>
-						<option value="operation">操作名称</option>
-					</select></label
-				>
-				<span v-if="initialized" class="muted">{{ draftEntries.length }} 份草稿</span>
-			</div>
 			<p v-if="localError" class="utility-error" role="alert">{{ localError }}</p>
 			<AsyncRegion
 				:loading="loading"
@@ -705,27 +756,8 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	display: grid;
 	gap: var(--p-space-3);
 }
-.drafts-toolbar {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
-	align-items: end;
-	gap: var(--p-space-3);
-}
-.drafts-toolbar h1 {
-	margin: 0;
-}
-.drafts-search {
-	display: grid;
-	gap: 4px;
-	font-size: var(--p-small);
-}
-.drafts-search input {
-	width: 100%;
-}
-
 .drafts-explainer,
 .drafts-difference,
-.drafts-filters,
 .draft-entry-list {
 	margin: 0;
 }
@@ -741,17 +773,6 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 .drafts-difference svg {
 	width: 18px;
 	height: 18px;
-}
-.drafts-filters {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: end;
-	gap: var(--p-space-3);
-}
-.drafts-filters label {
-	display: grid;
-	gap: 4px;
-	font-size: var(--p-small);
 }
 .draft-entry-list {
 	display: grid;
@@ -798,12 +819,6 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	min-width: 0;
 }
 @media (max-width: 600px) {
-	.drafts-toolbar {
-		grid-template-columns: minmax(0, 1fr) auto;
-	}
-	.drafts-toolbar h1 {
-		grid-column: 1 / -1;
-	}
 	.draft-entry {
 		grid-template-columns: minmax(0, 1fr);
 	}

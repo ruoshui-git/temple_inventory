@@ -18,6 +18,7 @@ import PageHeader from "./PageHeader.vue";
 import UiButton from "./UiButton.vue";
 import FilterPanel from "./FilterPanel.vue";
 import { browseHierarchyEditKey, filterPanelSessionKey } from "../../lib/filterPanelSession";
+import { createDebouncedSearch } from "../../lib/debouncedSearch";
 const props = withDefaults(
 	defineProps<{
 		title?: string;
@@ -31,8 +32,16 @@ const props = withDefaults(
 		scannable?: boolean;
 		search?: string;
 		searchLabel?: string;
+		embedded?: boolean;
 	}>(),
-	{ active: true, sidebarOpen: false, sidebarAvailable: false, search: "", searchLabel: "搜索" },
+	{
+		active: true,
+		sidebarOpen: false,
+		sidebarAvailable: false,
+		search: "",
+		searchLabel: "搜索",
+		embedded: false,
+	},
 );
 const emit = defineEmits<{
 	scan: [];
@@ -47,40 +56,29 @@ const compact = computed(() => choice.value ?? automatic.value);
 const heading = computed(() => props.title || props.summary.split(" · ")[0]);
 const { isMobile } = useResponsiveLayout();
 const searchInput = ref(props.search);
-const composing = ref(false);
-let searchTimer: ReturnType<typeof setTimeout> | undefined;
-function scheduleSearch(value: string) {
-	if (searchTimer) clearTimeout(searchTimer);
-	searchTimer = setTimeout(() => {
-		if (value !== props.search) emit("update:search", value);
-	}, 220);
-}
+const debouncer = createDebouncedSearch((value) => {
+	if (value !== props.search) emit("update:search", value);
+});
 function inputSearch(event: Event) {
 	searchInput.value = (event.target as HTMLInputElement).value;
-	if (!composing.value) scheduleSearch(searchInput.value);
-}
-function beginComposition() {
-	composing.value = true;
-	if (searchTimer) clearTimeout(searchTimer);
-	searchTimer = undefined;
+	debouncer.input(event);
 }
 function finishComposition(event: CompositionEvent) {
-	composing.value = false;
 	searchInput.value = (event.target as HTMLInputElement).value;
-	scheduleSearch(searchInput.value);
+	debouncer.compositionEnd(event);
 }
 watch(
 	() => props.search,
 	(value) => {
 		searchInput.value = value;
-		if (searchTimer) clearTimeout(searchTimer);
+		debouncer.cancel();
 	},
 );
 onDeactivated(() => {
-	if (searchTimer) clearTimeout(searchTimer);
+	debouncer.cancel();
 });
 onBeforeUnmount(() => {
-	if (searchTimer) clearTimeout(searchTimer);
+	debouncer.cancel();
 });
 const controlsId = useId();
 const filterSessionId = useId();
@@ -90,6 +88,12 @@ function openFilters(field?: string) {
 	void filterPanel.value?.show(field);
 }
 async function editFilter(field?: string) {
+	if (field === "search") {
+		const input = root.value?.querySelector<HTMLInputElement>("[data-browse-search]");
+		input?.focus({ preventScroll: true });
+		input?.scrollIntoView({ block: "nearest" });
+		return;
+	}
 	if (
 		field &&
 		["categories", "warehouses"].includes(field) &&
@@ -207,9 +211,9 @@ defineExpose({ compact, editFilter });
 	<div
 		ref="root"
 		class="preview-browse-controls refined-toolbar browse-chrome"
-		:class="{ 'is-compact': compact }"
+		:class="{ 'is-compact': compact, 'is-embedded': embedded }"
 	>
-		<PageHeader :title="heading" :compact="compact">
+		<PageHeader v-if="!embedded" :title="heading" :compact="compact">
 			<template #title-tools><slot name="persistent" /></template>
 			<template #subtitle><slot v-if="!compact" name="subtitle" /></template>
 		</PageHeader>
@@ -221,12 +225,13 @@ defineExpose({ compact, editFilter });
 				<label class="browse-persistent-search">
 					<span class="sr-only">{{ searchLabel }}</span>
 					<input
+						data-browse-search
 						:value="searchInput"
 						type="search"
 						:aria-label="searchLabel"
 						:placeholder="searchLabel"
 						@input="inputSearch"
-						@compositionstart="beginComposition"
+						@compositionstart="debouncer.compositionStart"
 						@compositionend="finishComposition"
 					/>
 				</label>
