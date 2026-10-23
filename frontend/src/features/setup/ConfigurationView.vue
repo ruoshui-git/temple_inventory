@@ -35,12 +35,17 @@ watch([field, warehouse], () => c.clearPreview());
 				<p class="muted">检查公司、仓库范围与实际存放库位。</p>
 			</div>
 			<template #actions
-				><UiButton :disabled="busy || loading" @click="c.load"
+				><UiButton
+					:loading="loading"
+					loading-label="正在重新检查…"
+					:disabled="busy"
+					@click="c.load"
 					>重新检查</UiButton
 				></template
 			></PageHeader
 		>
 		<SkeletonBlock v-if="loading && !status" variant="detail" :count="3" :rows="3" />
+		<p v-if="loading" class="muted" role="status">正在检查配置…</p>
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<p v-if="message" role="status">{{ message }}</p>
 		<template v-if="status">
@@ -115,7 +120,14 @@ watch([field, warehouse], () => c.clearPreview());
 					:options="options"
 					:disabled="busy"
 				/>
-				<UiButton :disabled="!warehouse || busy" @click="c.review">查看修复影响</UiButton>
+				<p v-if="c.reviewing.value" class="muted" role="status">正在查看修复影响…</p>
+				<UiButton
+					:disabled="!warehouse || busy"
+					:loading="c.reviewing.value"
+					loading-label="正在查看修复影响…"
+					@click="c.review"
+					>查看修复影响</UiButton
+				>
 				<section v-if="preview" class="configuration-impact">
 					<h3>{{ preview.label }}</h3>
 					<p>当前引用：{{ locationLabel(preview.current) }}</p>
@@ -147,7 +159,9 @@ watch([field, warehouse], () => c.clearPreview());
 					>
 					<UiButton
 						variant="primary"
-						:disabled="!confirmed || busy"
+						:disabled="!confirmed"
+						:loading="busy"
+						loading-label="正在应用修复…"
 						@click="c.apply()"
 						>{{ busy ? "正在应用…" : "应用修复" }}</UiButton
 					><UiButton :disabled="busy" @click="c.clearPreview">取消修复</UiButton>
@@ -176,9 +190,13 @@ watch([field, warehouse], () => c.clearPreview());
 			<p v-if="error" role="alert">{{ error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="initializeOpen = false">取消</UiButton
-				><UiButton variant="primary" :disabled="busy" @click="c.apply(true)">{{
-					busy ? "正在建立…" : "确认初始化"
-				}}</UiButton></template
+				><UiButton
+					variant="primary"
+					:loading="busy"
+					loading-label="正在初始化…"
+					@click="c.apply(true)"
+					>{{ busy ? "正在建立…" : "确认初始化" }}</UiButton
+				></template
 			></Overlay
 		>
 	</section>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import DisclosureIcon from "./ui/DisclosureIcon.vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { router } from "../router";
 import InventoryIcon from "./InventoryIcon.vue";
 import UiButton from "./ui/UiButton.vue";
 import Overlay from "./ui/Overlay.vue";
@@ -9,6 +10,7 @@ import { useLogoutController } from "../features/more/useLogoutController";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import type { NavigationItem } from "../lib/appNavigation";
 import type { AppRouteTarget } from "../lib/routeRegistry";
+import { registerRouteProgress } from "../lib/routeProgress";
 const props = withDefaults(
 	defineProps<{
 		primary: NavigationItem[];
@@ -31,6 +33,11 @@ const emit = defineEmits<{
 	"update:inventoryExpanded": [value: boolean];
 }>();
 const { isMobile } = useResponsiveLayout();
+const routeProgressVisible = ref(false);
+const unregisterRouteProgress = registerRouteProgress(router, (value) => {
+	routeProgressVisible.value = value;
+});
+onBeforeUnmount(unregisterRouteProgress);
 const logout = useLogoutController(
 	frappePlatform(() => props.user),
 	() => props.user,
@@ -182,6 +189,13 @@ onBeforeUnmount(() => {
 </script>
 <template>
 	<div class="preview-workspace" :class="{ 'is-mobile': isMobile }">
+		<div
+			v-if="routeProgressVisible"
+			class="route-progress"
+			role="progressbar"
+			aria-label="正在切换页面"
+			aria-valuetext="页面正在加载"
+		></div>
 		<header v-if="!isMobile" ref="desktopNavigation" class="sample-sidebar">
 			<div class="sample-brand">
 				<span class="brand-symbol"><InventoryIcon name="box" /></span>

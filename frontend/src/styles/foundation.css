@@ -3131,8 +3131,89 @@ body:has(.preview-document-actions) .preview-toast {
 .report-table-wrap {
 	max-width: 100%;
 }
+.report-table-caption {
+	margin: 0 0 var(--p-space-2);
+	padding-inline: var(--p-table-cell-x, 12px);
+	font-size: var(--p-small);
+}
 .preview-quick-report {
 	white-space: normal;
+}
+.route-progress {
+	position: fixed;
+	inset: 0 0 auto;
+	z-index: 4000;
+	height: 3px;
+	background: var(--p-accent);
+	transform-origin: left center;
+	animation: route-progress-travel 1.2s ease-in-out infinite;
+}
+@keyframes route-progress-travel {
+	0% {
+		transform: scaleX(0.08);
+	}
+	50% {
+		transform: scaleX(0.72);
+	}
+	100% {
+		transform: scaleX(1);
+	}
+}
+.quick-export-dialog {
+	width: min(720px, 100%);
+}
+.quick-export-content > .preview-long-text,
+.quick-export-content > p {
+	min-width: 0;
+	max-width: 100%;
+	overflow-wrap: anywhere;
+	text-align: start;
+}
+.quick-export-content > .form-fields {
+	display: grid;
+	gap: var(--p-field-gap);
+	min-width: 0;
+}
+.quick-export-content > .quick-export-options {
+	margin-block-start: var(--p-field-gap);
+	/* An auto track would grow to the preview table's width; keep the table scrolling inside. */
+	grid-template-columns: minmax(0, 1fr);
+}
+.quick-export-content .quick-export-intro > p {
+	margin: 0;
+}
+.quick-export-content .quick-export-related {
+	display: grid;
+	gap: var(--p-space-1);
+	min-width: 0;
+}
+.quick-export-content .quick-export-preview-options {
+	gap: var(--p-field-gap);
+}
+.quick-export-content fieldset {
+	display: grid;
+	gap: var(--p-space-2);
+	min-width: 0;
+	margin: 0;
+	padding: var(--p-space-3);
+}
+.quick-export-content legend {
+	padding-inline: var(--p-space-1);
+	font-weight: 600;
+}
+.quick-export-content .preview-related-help {
+	margin: 0;
+	font-size: var(--p-text-sm);
+}
+.quick-export-content .report-table-wrap {
+	min-width: 0;
+	max-width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+	.route-progress {
+		animation: none;
+		transform: scaleX(1);
+	}
 }
 @media (min-width: 1024px) {
 	.activity-card {

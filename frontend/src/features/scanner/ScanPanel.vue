@@ -208,7 +208,13 @@ defineExpose({
 			<label class="preview-field"
 				>扫描值<input v-model="value" :disabled="paused" @keydown.enter.prevent="scan()"
 			/></label>
-			<UiButton :disabled="paused || !value.trim()" @click="scan()">查找</UiButton>
+			<UiButton
+				:disabled="paused || !value.trim()"
+				:loading="loading"
+				loading-label="正在查找…"
+				@click="scan()"
+				>查找</UiButton
+			>
 			<UiButton v-if="stopped" @click="stopped = false">扫描下一项</UiButton>
 			<p v-if="pendingCount" role="status">待处理条码 {{ pendingCount }} 个</p>
 			<p v-if="loading" role="status">正在读取条码…</p>

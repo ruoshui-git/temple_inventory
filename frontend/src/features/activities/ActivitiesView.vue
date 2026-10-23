@@ -224,7 +224,7 @@ function tabKey(event: KeyboardEvent) {
 								? isEditing
 									? "编辑活动"
 									: "新建活动"
-								: current?.title || "活动不可用"
+								: current?.title || (loading ? "正在加载活动…" : "活动不可用")
 					}}
 				</h1>
 			</div>
@@ -492,12 +492,17 @@ function tabKey(event: KeyboardEvent) {
 				<UiButton @click="moreActionsOpen = true">更多操作</UiButton>
 				<Overlay v-if="moreActionsOpen" title="更多操作" @close="moreActionsOpen = false">
 					<div class="form-actions">
-						<UiButton :disabled="busy || !canWrite" @click="archive">{{
-							current.status === "archived" ? "恢复活动" : "归档活动"
-						}}</UiButton
+						<UiButton
+							:disabled="!canWrite"
+							:loading="busy"
+							loading-label="正在更新活动…"
+							@click="archive"
+							>{{
+								current.status === "archived" ? "恢复活动" : "归档活动"
+							}}</UiButton
 						><UiButton
 							variant="danger"
-							:disabled="busy || !canDelete"
+							:disabled="!canDelete"
 							@click="
 								moreActionsOpen = false;
 								deleteOpen = true;
@@ -842,7 +847,11 @@ function tabKey(event: KeyboardEvent) {
 			><p>删除活动「{{ current?.title }}」？已有任何引用的活动不能删除。</p>
 			<template #footer
 				><UiButton @click="deleteOpen = false">取消</UiButton
-				><UiButton variant="danger" :disabled="busy" @click="remove"
+				><UiButton
+					variant="danger"
+					:loading="busy"
+					loading-label="正在删除活动…"
+					@click="remove"
 					>确认删除</UiButton
 				></template
 			></Overlay

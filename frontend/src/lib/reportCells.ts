@@ -10,6 +10,9 @@ export const reportColumnLabels: Record<string, string> = {
   bundle_line: "批次明细编号",
   item_code: "物品编号",
   item_name: "物品名称",
+  batch_tracked: "批次管理",
+  has_expiry_date: "效期管理",
+  disabled: "已停用",
   stock_qty: "库存数量",
   available_effect: "可用库存变化",
   stock_uom: "库存单位",
@@ -54,8 +57,12 @@ export const reportColumnLabels: Record<string, string> = {
   amended_from: "修订原记录",
   file_name: "文件名",
   parent_doctype: "附件记录类型",
+  parent: "关联记录",
   snapshot: "快照时间",
   type: "仓库类型",
+  warehouse_type: "仓库类型",
+  is_group: "分组节点",
+  company: "公司",
   state: "附件状态",
   outstandingLines: "未归还明细数",
   groupLabel: "分组名称",
@@ -150,6 +157,7 @@ export const reportColumnLabels: Record<string, string> = {
   tracksExpiry: "效期管理",
   factor: "换算率",
   barcode: "条码",
+  barcode_type: "条码类型",
 };
 
 export const reportColumnMinimumWidths: Record<string, string> = {

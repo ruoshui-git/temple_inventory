@@ -160,21 +160,17 @@ def _permission_signature(user):
 	"""Read current role/user grants instead of trusting a user-only cache key."""
 	roles = sorted(
 		row.role
-		for row in frappe.get_all(
-			"Has Role", filters={"parent": user, "parenttype": "User"}, fields=["role"]
-		)
+		for row in frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, fields=["role"])
 	)
 	if user == "Administrator":
 		roles.append("System Manager")
 	roles = sorted(set(roles))
-	user_doc = frappe.db.get_value(
-		"User", user, ["enabled", "user_type", "role_profile_name"], as_dict=True
-	) or {}
+	user_doc = (
+		frappe.db.get_value("User", user, ["enabled", "user_type", "role_profile_name"], as_dict=True) or {}
+	)
 	profile = None
 	if user_doc.get("role_profile_name"):
-		profile = frappe.db.get_value(
-			"Role Profile", user_doc.role_profile_name, ["modified"], as_dict=True
-		)
+		profile = frappe.db.get_value("Role Profile", user_doc.role_profile_name, ["modified"], as_dict=True)
 		roles.extend(
 			row.role
 			for row in frappe.get_all(
@@ -191,15 +187,39 @@ def _permission_signature(user):
 		order_by="allow, for_value, applicable_for",
 	)
 	permission_doctypes = [
-		"Item", "Item Group", "Warehouse", "Batch", "Stock Entry", "Stock Reconciliation",
-		"Inventory Activity", "Inventory Activity Type", "Company", "File", "Temple Inventory Settings",
+		"Item",
+		"Item Group",
+		"Warehouse",
+		"Batch",
+		"Stock Entry",
+		"Stock Reconciliation",
+		"Inventory Activity",
+		"Inventory Activity Type",
+		"Company",
+		"File",
+		"Temple Inventory Settings",
 	]
 	role_permissions = frappe.get_all(
 		"DocPerm",
 		filters={"parent": ["in", permission_doctypes], "role": ["in", roles]},
 		fields=[
-			"parent", "role", "permlevel", "read", "write", "create", "delete", "submit", "cancel",
-			"amend", "report", "export", "share", "print", "email", "if_owner", "modified",
+			"parent",
+			"role",
+			"permlevel",
+			"read",
+			"write",
+			"create",
+			"delete",
+			"submit",
+			"cancel",
+			"amend",
+			"report",
+			"export",
+			"share",
+			"print",
+			"email",
+			"if_owner",
+			"modified",
 		],
 		order_by="parent, role, permlevel",
 	)
@@ -207,22 +227,53 @@ def _permission_signature(user):
 		"Custom DocPerm",
 		filters={"parent": ["in", permission_doctypes], "role": ["in", roles]},
 		fields=[
-			"parent", "role", "permlevel", "read", "write", "create", "delete", "submit", "cancel",
-			"amend", "report", "export", "share", "print", "email", "if_owner", "modified",
+			"parent",
+			"role",
+			"permlevel",
+			"read",
+			"write",
+			"create",
+			"delete",
+			"submit",
+			"cancel",
+			"amend",
+			"report",
+			"export",
+			"share",
+			"print",
+			"email",
+			"if_owner",
+			"modified",
 		],
 		order_by="parent, role, permlevel",
 	)
 	share_fields = ["share_doctype", "share_name", "user", "everyone", "read", "write", "share", "modified"]
-	shares = frappe.get_all("DocShare", filters={"user": user}, fields=share_fields, order_by="share_doctype, share_name")
+	shares = frappe.get_all(
+		"DocShare", filters={"user": user}, fields=share_fields, order_by="share_doctype, share_name"
+	)
 	shares.extend(
-		frappe.get_all("DocShare", filters={"everyone": 1}, fields=share_fields, order_by="share_doctype, share_name")
+		frappe.get_all(
+			"DocShare", filters={"everyone": 1}, fields=share_fields, order_by="share_doctype, share_name"
+		)
 	)
 	role_definitions = frappe.get_all(
-		"Role", filters={"name": ["in", roles]}, fields=["name", "desk_access", "disabled", "modified"],
+		"Role",
+		filters={"name": ["in", roles]},
+		fields=["name", "desk_access", "disabled", "modified"],
 		order_by="name",
 	)
 	return _digest(
-		[user, user_doc, profile, roles, role_definitions, user_permissions, role_permissions, custom_permissions, shares]
+		[
+			user,
+			user_doc,
+			profile,
+			roles,
+			role_definitions,
+			user_permissions,
+			role_permissions,
+			custom_permissions,
+			shares,
+		]
 	)
 
 
@@ -405,6 +456,7 @@ def _projection_identity(projection, generation, permission, configuration):
 	query.pop("sort", None)
 	query.pop("sortBy", None)
 	query = {**query, "scope": dict(query.get("scope") or {})}
+	query["include_related"] = bool(getattr(projection, "related", False))
 	for field in ("statuses", "itemCodes", "itemLocationKeys", "allocationKeys"):
 		if isinstance(query.get(field), list):
 			query[field] = sorted(set(query[field]))
@@ -464,6 +516,8 @@ def cache_context_current(context):
 		)
 	except (redis.exceptions.RedisError, OSError, ValueError, TypeError):
 		return None
+
+
 def acquire_projection_lock(projection):
 	"""Wait briefly for a competing base build, then let the caller calculate fresh."""
 	if projection.cache_bypass or not projection.cache_context:
@@ -532,7 +586,10 @@ def restore_projection(projection):
 			connection.close()
 		if data_generation() != generation:
 			return False
-		if _permission_signature(frappe.session.user) != permission or _configuration_signature() != configuration:
+		if (
+			_permission_signature(frappe.session.user) != permission
+			or _configuration_signature() != configuration
+		):
 			return False
 		projection.db.close()
 		staging.replace(Path(projection.temp.name) / "projection.sqlite")
@@ -572,7 +629,10 @@ def store_projection(projection):
 			(json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),),
 		)
 		projection.db.commit()
-		page_count, page_size = projection.db.execute("pragma page_count").fetchone()[0], projection.db.execute("pragma page_size").fetchone()[0]
+		page_count, page_size = (
+			projection.db.execute("pragma page_count").fetchone()[0],
+			projection.db.execute("pragma page_size").fetchone()[0],
+		)
 		if page_count * page_size > MAX_ENTRY_BYTES:
 			return
 		backup_path = Path(projection.temp.name) / "projection.cache"
@@ -585,10 +645,16 @@ def store_projection(projection):
 			return
 		if data_generation() != generation:
 			return
-		if _permission_signature(frappe.session.user) != permission or _configuration_signature() != configuration:
+		if (
+			_permission_signature(frappe.session.user) != permission
+			or _configuration_signature() != configuration
+		):
 			return
 		raw = _redis()
-		age = (now_datetime() - __import__("frappe.utils", fromlist=["get_datetime"]).get_datetime(projection.context.snapshot)).total_seconds()
+		age = (
+			now_datetime()
+			- __import__("frappe.utils", fromlist=["get_datetime"]).get_datetime(projection.context.snapshot)
+		).total_seconds()
 		entry = projection.context.snapshot.encode("utf-8") + b"\n" + database
 		if len(entry) > MAX_ENTRY_BYTES:
 			return

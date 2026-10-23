@@ -215,7 +215,7 @@ describe("typed movement history table", () => {
       },
     });
     const wrapper = mount(Host);
-    expect(wrapper.text()).toContain("正在读取… · 1 / 2");
+    expect(wrapper.text()).toContain("正在加载更多结果…");
 
     wrapper.unmount();
 

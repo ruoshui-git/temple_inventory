@@ -702,6 +702,9 @@ async function discardEdits() {
 									: undefined
 							"
 						>
+							<p v-if="result.stale" class="muted" role="status">
+								物品列表正在更新…
+							</p>
 							<DataTable
 								ariaLabel="按库存位置显示的物品"
 								:columns="pickerColumns"
@@ -814,7 +817,9 @@ async function discardEdits() {
 			<UiButton
 				v-else-if="multiple && !discard"
 				variant="primary"
-				:disabled="!selected.length || result.stale || itemEditor.busy.value"
+				:disabled="!selected.length || itemEditor.busy.value"
+				:loading="result.stale"
+				loading-label="正在更新物品列表…"
 				@click="commitSelection"
 				>添加所选（{{ selected.length }}）</UiButton
 			>

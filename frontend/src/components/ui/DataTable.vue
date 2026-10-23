@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "./UiButton.vue";
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
 import type {
 	DataColumn,
@@ -688,13 +689,14 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 			{{ error }} <button type="button" @click="emit('retry')">{{ retryText }}</button>
 		</p>
 		<div v-if="hasMore" class="data-table-more">
-			<button type="button" :disabled="loadingMore" @click="emit('loadMore')">
-				{{
-					loadingMore
-						? `正在读取… · ${loadedCount ?? rows.length} / ${totalCount ?? "?"}`
-						: `加载更多 · ${loadedCount ?? rows.length} / ${totalCount ?? "?"}`
-				}}
-			</button>
+			<UiButton
+				size="compact"
+				:loading="loadingMore"
+				loading-label="正在加载更多结果…"
+				@click="emit('loadMore')"
+			>
+				加载更多 · {{ loadedCount ?? rows.length }} / {{ totalCount ?? "?" }}
+			</UiButton>
 		</div>
 	</section>
 </template>

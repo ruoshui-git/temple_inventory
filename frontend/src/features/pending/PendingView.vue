@@ -218,7 +218,7 @@ watch([() => props.active, isMobile], () => {
 							>物品详情</UiButton
 						>
 						<QuickExport
-							v-if="!c.report.result.stale"
+							:disabled="c.report.result.stale"
 							:query="c.rowQuery(row as ReportRow)"
 							:active="active"
 							@open-full="emit('openExport', $event)"

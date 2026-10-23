@@ -12,8 +12,13 @@ const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 const ButtonStub = defineComponent({
   name: "UiButton",
+  props: {
+    loading: Boolean,
+    loadingLabel: { type: String, default: "正在处理…" },
+  },
   emits: ["click"],
-  template: "<button @click=\"$emit('click')\"><slot /></button>",
+  template:
+    '<button :disabled="loading" :aria-busy="loading" @click="$emit(\'click\')">{{ loading ? loadingLabel : \'\' }}<slot v-if="!loading" /></button>',
 });
 
 function deferred<T>() {
@@ -72,11 +77,12 @@ describe("inline operation scan panel", () => {
       .findAll("button")
       .find((button) => button.text() === "查找")!
       .trigger("click");
-    await input.setValue("NEXT");
-    await wrapper
+    const searching = wrapper
       .findAll("button")
-      .find((button) => button.text() === "查找")!
-      .trigger("click");
+      .find((button) => button.text() === "正在查找…")!;
+    expect(searching.attributes("aria-busy")).toBe("true");
+    await input.setValue("NEXT");
+    await input.trigger("keydown.enter");
     expect(call).toHaveBeenCalledTimes(1);
     first.resolve({
       unknown: true,

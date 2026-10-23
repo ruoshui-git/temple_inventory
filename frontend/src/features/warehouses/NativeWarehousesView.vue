@@ -93,7 +93,13 @@ function parentLabel(name?: string) {
 			<template #back
 				><UiButton v-if="detail" @click="emit('back')">返回仓库</UiButton></template
 			><template #actions
-				><UiButton :disabled="loading || busy" @click="c.load">刷新</UiButton>
+				><UiButton
+					:disabled="busy"
+					:loading="loading"
+					loading-label="正在刷新仓库…"
+					@click="c.load"
+					>刷新</UiButton
+				>
 				<QuickExport
 					v-if="c.canUseSelection.value"
 					:query="c.stockQuery.value"
@@ -369,6 +375,8 @@ function parentLabel(name?: string) {
 						<UiButton
 							v-if="stockTable?.next !== null && stockTable?.next !== undefined"
 							:disabled="stockTable.loading || c.stock.result.stale"
+							:loading="stockTable.loading"
+							loading-label="正在加载库存…"
 							@click="c.stock.loadTable(stockTable, true)"
 							>加载更多库存 · {{ stockTable.rows.length }} /
 							{{ stockTable.total }}</UiButton

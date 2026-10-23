@@ -11,6 +11,7 @@ withDefaults(
 		disabled?: boolean;
 		type?: "button" | "submit" | "reset";
 		label?: string;
+		loadingLabel?: string;
 	}>(),
 	{
 		variant: "secondary",
@@ -19,6 +20,7 @@ withDefaults(
 		loading: false,
 		disabled: false,
 		type: "button",
+		loadingLabel: "正在处理…",
 	},
 );
 </script>
@@ -41,6 +43,6 @@ withDefaults(
 			<InventoryIcon v-if="icon" :name="icon" />
 			<slot v-if="!iconOnly" />
 		</template>
-		<span v-if="loading && !iconOnly" class="ui-button-loading-label">正在处理…</span>
+		<span v-if="loading && !iconOnly" class="ui-button-loading-label">{{ loadingLabel }}</span>
 	</button>
 </template>

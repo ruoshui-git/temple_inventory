@@ -722,6 +722,11 @@ class NativeReportTests(NativeDocumentTests):
 			read_cache._projection_identity(base_identity, *identity_args),
 			read_cache._projection_identity(reordered_identity, *identity_args),
 		)
+		related_identity = SimpleNamespace(query=base_identity.query, related=True)
+		self.assertNotEqual(
+			read_cache._projection_identity(base_identity, *identity_args),
+			read_cache._projection_identity(related_identity, *identity_args),
+		)
 		with (
 			patch.object(read_cache, "_request_cacheable", return_value=True),
 			patch.object(read_cache, "_redis", return_value=cache),
@@ -766,11 +771,58 @@ class NativeReportTests(NativeDocumentTests):
 				second.db.execute("create table rows (table_id text, identity text, payload text)")
 				self.assertTrue(read_cache.restore_projection(second))
 				self.assertEqual(second.main_table, "summary")
+				self.assertEqual(set(second.column_names), {"summary"})
 				self.assertEqual(second.sums, ("available",))
 				self.assertEqual(second.db.execute("select identity from rows").fetchone()[0], "A")
 				self.assertEqual(second.db.execute("pragma database_list").fetchone()[2], second_path)
 				second.db.close()
 				second_dir.cleanup()
+
+				# Related inventory summaries cache their two base tables and five
+				# authorized reference tables as a distinct complete snapshot.
+				related_dir = tempfile.TemporaryDirectory()
+				related_path = f"{related_dir.name}/projection.sqlite"
+				related = SimpleNamespace(
+					query=first.query,
+					related=True,
+					cache_bypass=False,
+					cache_context=first.cache_context,
+					temp=related_dir,
+					context=SimpleNamespace(snapshot=stamp),
+					column_names={
+						name: ["id"]
+						for name in (
+							"summary",
+							"locations",
+							"items",
+							"barcodes",
+							"conversions",
+							"warehouses",
+							"files",
+						)
+					},
+					main_table="summary",
+					summary_table="summary",
+					sums=("available",),
+					db=sqlite3.connect(related_path),
+				)
+				related.db.execute("create table rows (table_id text, identity text, payload text)")
+				read_cache.store_projection(related)
+				related.db.close()
+				restored_related = SimpleNamespace(
+					query=first.query,
+					related=True,
+					cache_bypass=False,
+					cache_context=first.cache_context,
+					temp=related_dir,
+					context=SimpleNamespace(snapshot=str(now_datetime())),
+					db=sqlite3.connect(f"{related_dir.name}/restore.sqlite"),
+				)
+				restored_related.db.execute("create table rows (table_id text, identity text, payload text)")
+				self.assertTrue(read_cache.restore_projection(restored_related))
+				self.assertEqual(set(restored_related.column_names), set(related.column_names))
+				restored_related.db.close()
+				related_dir.cleanup()
 
 				# Reject snapshots after either the shared source generation or the
 				# current account's grants have changed, even when the key still exists.

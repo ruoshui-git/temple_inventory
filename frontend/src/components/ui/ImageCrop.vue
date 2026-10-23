@@ -15,6 +15,7 @@ const host = ref<HTMLElement>();
 const image = ref<HTMLImageElement>();
 const ready = ref(false);
 const busy = ref(false);
+const pendingAction = ref<"cancel" | "original" | "">("");
 const retain = ref(false);
 const error = ref("");
 let cropper: Cropper | undefined;
@@ -27,6 +28,12 @@ let disposed = false;
 const title = computed(
 	() => `裁剪图片${props.total && props.total > 1 ? `（${props.index} / ${props.total}）` : ""}`,
 );
+function chooseAction(action: "cancel" | "original") {
+	if (busy.value) return;
+	pendingAction.value = action;
+	if (action === "cancel") emit("cancel");
+	else emit("choose", [props.file]);
+}
 
 onMounted(async () => {
 	try {
@@ -205,9 +212,23 @@ onBeforeUnmount(() => {
 			</label>
 		</div>
 		<template #footer>
-			<UiButton :disabled="busy" @click="emit('cancel')">取消此图片</UiButton>
-			<UiButton :disabled="busy" @click="emit('choose', [file])">使用原图作为主图</UiButton>
-			<UiButton :disabled="!ready || busy" @click="reset">重置裁剪</UiButton>
+			<UiButton
+				:disabled="busy || (!!pendingAction && pendingAction !== 'cancel')"
+				:loading="pendingAction === 'cancel'"
+				loading-label="正在取消…"
+				@click="chooseAction('cancel')"
+				>取消此图片</UiButton
+			>
+			<UiButton
+				:disabled="busy || (!!pendingAction && pendingAction !== 'original')"
+				:loading="pendingAction === 'original'"
+				loading-label="正在使用原图…"
+				@click="chooseAction('original')"
+				>使用原图作为主图</UiButton
+			>
+			<UiButton :disabled="!ready || busy || !!pendingAction" @click="reset"
+				>重置裁剪</UiButton
+			>
 			<UiButton variant="primary" :disabled="!ready" :loading="busy" @click="crop"
 				>使用 WebP 裁剪图</UiButton
 			>

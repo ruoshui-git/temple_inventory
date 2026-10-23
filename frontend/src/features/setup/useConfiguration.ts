@@ -44,6 +44,7 @@ export function useConfiguration(changed: () => void) {
   const status = ref<ConfigurationStatus>(),
     loading = ref(false),
     busy = ref(false),
+    reviewing = ref(false),
     error = ref("");
   const company = ref(""),
     field = ref("physical_root_warehouse"),
@@ -94,6 +95,7 @@ export function useConfiguration(changed: () => void) {
   async function review() {
     if (busy.value || !warehouse.value || !status.value || !active()) return;
     busy.value = true;
+    reviewing.value = true;
     error.value = "";
     clearPreview();
     try {
@@ -107,7 +109,10 @@ export function useConfiguration(changed: () => void) {
         error.value =
           reason instanceof Error ? reason.message : "修复影响读取失败";
     } finally {
-      if (active()) busy.value = false;
+      if (active()) {
+        busy.value = false;
+        reviewing.value = false;
+      }
     }
   }
   async function apply(initialize = false) {
@@ -181,6 +186,7 @@ export function useConfiguration(changed: () => void) {
     status,
     loading,
     busy,
+    reviewing,
     error,
     company,
     field,

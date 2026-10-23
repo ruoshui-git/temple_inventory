@@ -133,6 +133,15 @@ function setup(
   return { c, props, reference, report, call, wrapper, settle };
 }
 describe("native loan details", () => {
+  it("keeps the loan detail in a neutral skeleton state before its first response", () => {
+    const pending = new Promise(() => undefined);
+    const call = vi.fn(() => pending);
+    const { wrapper } = setup(call as never, { view: true });
+    expect(wrapper.get("h1").text()).toBe("借用详情");
+    expect(wrapper.find(".skeleton-block").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("借出记录不存在或无权访问");
+  });
+
   it("shows exact original rows and independent stock units, with complete paged settlement history", async () => {
     const { c, wrapper, report, call, settle } = setup(undefined, {
       view: true,

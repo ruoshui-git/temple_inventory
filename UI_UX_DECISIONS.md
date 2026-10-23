@@ -207,6 +207,9 @@ supersession below when a durable user-facing decision changes.
 - Card-local requests affect only that card; page refresh affects all result
   regions. Query changes retain prior grouped presentation against its old query
   until the new result is ready. Mutation save/conflict behavior stays separate.
+- Every pending action is visibly pending on its trigger, and sibling actions
+  stay disabled while it runs. Option lists that are still loading show a
+  skeleton instead of silently changing their choices.
 - Blocked validation uses the design-system warning callout, marks the
   associated fields invalid, and moves focus to the first actionable error.
   Server and save failures use danger callouts and retain their inline detail.
@@ -288,6 +291,12 @@ supersession below when a durable user-facing decision changes.
   separate 草稿 entry.
 
 ## Durable supersessions
+
+- **2026-10-23:** Every pending action is visibly pending on its trigger, and
+  option lists that are still loading show a skeleton. Stale refresh regions
+  dim, become inert and announce their update; route changes use a delayed thin
+  progress bar. Detail pages use neutral loading headings until their first
+  response settles.
 
 - **2026-10-22:** The Area → Room → Shelf presenter replaces legacy warehouse
   breadcrumbs and `room_default` display rules. The canonical `label` is used for

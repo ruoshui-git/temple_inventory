@@ -10,6 +10,7 @@ const emit = defineEmits<{ navigate: [route: AppRouteTarget] }>();
 const c = props.controller,
 	{
 		installOpen,
+		installBusy,
 		logoutOpen,
 		busy,
 		error,
@@ -52,15 +53,16 @@ const c = props.controller,
 		<section class="more-section">
 			<h2>账户与设备</h2>
 			<div class="more-grid">
-				<button
+				<UiButton
 					v-if="canInstall"
 					class="more-card surface"
-					:disabled="busy"
+					:loading="installBusy"
+					loading-label="正在准备安装…"
 					@click="c.install"
 				>
 					<span><InventoryIcon name="download" /></span><strong>安装到手机 / 电脑</strong
 					><small>添加到主屏幕，方便下次打开</small>
-				</button>
+				</UiButton>
 				<div class="more-card surface">
 					<strong>当前账户</strong>
 					<p>{{ c.reference.user }}</p>

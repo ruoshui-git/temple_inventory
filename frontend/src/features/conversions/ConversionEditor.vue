@@ -119,10 +119,20 @@ const {
 		<p v-if="!canUpdate" class="muted">没有更新物品的权限；可仅应用于此明细。</p>
 		<p class="muted">已保存的单位与常用换算会保留；取消操作单不会删除它们。</p>
 		<p v-if="error || creationError" role="alert">{{ error || creationError }}</p>
-		<UiButton :disabled="disabled || busy" variant="primary" @click="apply">{{
-			replacement ? "更新常用换算并应用" : "应用换算"
-		}}</UiButton>
-		<UiButton v-if="conflict || error" :disabled="busy" @click="reload"
+		<UiButton
+			:disabled="disabled"
+			:loading="busy"
+			loading-label="正在应用换算…"
+			variant="primary"
+			@click="apply"
+			>{{ replacement ? "更新常用换算并应用" : "应用换算" }}</UiButton
+		>
+		<UiButton
+			v-if="conflict || error"
+			:disabled="busy"
+			:loading="busy"
+			loading-label="正在重新载入常用换算…"
+			@click="reload"
 			>重新载入常用换算</UiButton
 		>
 	</section>

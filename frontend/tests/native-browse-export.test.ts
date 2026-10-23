@@ -320,6 +320,57 @@ describe("native browse service controllers", () => {
 });
 
 describe("background quick export", () => {
+  it("shows stale preview feedback and related-sheet skeletons, then disables generation after a refresh error", async () => {
+    const service = services();
+    let reject!: (reason: Error) => void;
+    const relatedPending = new Promise<ReportPage>((_resolve, no) => {
+      reject = no;
+    });
+    vi.mocked(service.report)
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(page())
+      .mockReturnValueOnce(relatedPending);
+    const child = defineComponent({
+      setup() {
+        provideInventoryServices(service, createReferenceData());
+        return () => h(QuickExport, { query: query() });
+      },
+    });
+    const wrapper = mount(child);
+    wrappers.push(wrapper);
+    await wrapper.get(".preview-quick-report").trigger("click");
+    await flushPromises();
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    const relatedCheckbox = Array.from(
+      dialog.querySelectorAll<HTMLInputElement>("input[type=checkbox]"),
+    ).find((input) =>
+      input.parentElement?.textContent?.includes("包含相关资料表"),
+    )!;
+    relatedCheckbox.click();
+    await flushPromises();
+    const generate = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("正在更新预览…"),
+    )!;
+    expect(generate).toBeTruthy();
+    expect(
+      dialog
+        .querySelector(".async-result-region.is-refreshing")
+        ?.hasAttribute("inert"),
+    ).toBe(true);
+    expect(
+      dialog.querySelectorAll("fieldset .skeleton-block").length,
+    ).toBeGreaterThan(0);
+    expect(dialog.textContent).toContain(
+      "另加 物品资料、条码、物品常用换算、位置层级、私有附件引用 5 张工作表",
+    );
+    reject(new Error("预览刷新失败"));
+    await flushPromises();
+    const generateButton = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("生成文件"),
+    )!;
+    expect(generateButton.disabled).toBe(true);
+  });
+
   it("labels loaded activity metadata statuses in the QuickExport preview", async () => {
     const service = services();
     const activityQuery = newReportQuery("activities");

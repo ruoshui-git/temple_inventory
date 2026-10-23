@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import VirtualList from "./VirtualList.vue";
+import UiButton from "./UiButton.vue";
 const virtualList = ref<InstanceType<typeof VirtualList>>();
 export type SearchOption = { value: string; label: string; detail?: string; disabled?: boolean };
 const props = withDefaults(
@@ -250,14 +251,15 @@ defineExpose({ state });
 					@click="limit += pageSize"
 				>
 					显示更多（共 {{ matches.length }} 项）</button
-				><button
+				><UiButton
 					v-if="remote && hasMore"
-					type="button"
-					:disabled="loading"
+					size="compact"
+					:loading="loading"
+					loading-label="正在加载更多选项…"
 					@click="emit('loadMore')"
 				>
 					加载更多 · 已加载 {{ matches.length }} / {{ total }}
-				</button>
+				</UiButton>
 				<span class="sr-only" role="status"
 					>{{ total ?? matches.length }} 个匹配选项</span
 				></template

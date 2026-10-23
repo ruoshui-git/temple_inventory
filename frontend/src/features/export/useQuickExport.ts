@@ -13,6 +13,8 @@ const relatedTables = new Set([
   "conversions",
   "warehouses",
 ]);
+export const relatedSheetsHelp =
+  "另加 物品资料、条码、物品常用换算、位置层级、私有附件引用 5 张工作表";
 
 export function useQuickExport(query: Ref<ReportQuery>) {
   const services = useInventoryServices();
@@ -227,6 +229,7 @@ export function useQuickExport(query: Ref<ReportQuery>) {
       () =>
         !!page.value &&
         !loading.value &&
+        !error.value &&
         !generating.value &&
         (format.value === "csv"
           ? !!selectedTable.value

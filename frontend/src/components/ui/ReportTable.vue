@@ -64,6 +64,11 @@ function groupProgress(groupId?: string) {
 		| undefined;
 	return controller?.progress?.(groupId) || { loaded: 0, total: 0 };
 }
+function columnLabel(column: string) {
+	if (column === "parent" && props.table.id === "warehouses") return "上级位置";
+	if (column === "parent" && props.table.id === "files") return "所属物品";
+	return reportColumnLabels[column] || column;
+}
 const presentationOnlyLeafFields = new Set([
 	"image",
 	"batch_tracked",
@@ -102,7 +107,7 @@ const columns = computed<DataColumn[]>(() => {
 		)
 		.map((column) => ({
 			id: column,
-			label: reportColumnLabels[column] || column,
+			label: columnLabel(column),
 			defaultVisible: true,
 			required: ["item_code", "itemId", "document", "documentId"].includes(column),
 			sortable: props.sortableColumns?.includes(column) || false,
@@ -427,6 +432,12 @@ function groupMetric(group: DataTableGroup, column: string) {
 		:data-browse-scroll="'table:' + table.id"
 		:aria-label="table.label + ' · 可横向滚动'"
 	>
+		<p class="report-table-caption muted">
+			{{
+				(total ?? table.rows.length) +
+				` 行完整结果 · 显示 ${Math.min(visibleLimit, table.rows.length)} 行`
+			}}
+		</p>
 		<DataTable
 			:ariaLabel="table.label"
 			:columns="columns"
@@ -467,12 +478,6 @@ function groupMetric(group: DataTableGroup, column: string) {
 			@retry="grouped && groupPages ? groupPages.retry() : emit('retry')"
 			@sort="emit('sort', $event)"
 		>
-			<template #caption>
-				{{
-					(total ?? table.rows.length) +
-					` 行完整结果 · 显示 ${Math.min(visibleLimit, table.rows.length)} 行`
-				}}
-			</template>
 			<template #cell="{ column, row, value, index }">
 				<slot v-if="column.id === '_actions'" name="actions" :row="row" :index="index" />
 				<button

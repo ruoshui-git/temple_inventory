@@ -243,6 +243,21 @@ FIXED_COLUMNS = {
 # Screen tables prioritize readable context and quantities. Export writers continue
 # to use column_names, including native audit fields and stable allocation IDs.
 DISPLAY_COLUMNS = {
+	"items": [
+		"item_code",
+		"item_name",
+		"category",
+		"stock_uom",
+		"description",
+		"batch_tracked",
+		"has_expiry_date",
+		"disabled",
+		"modified",
+	],
+	"barcodes": ["item_code", "barcode", "barcode_type"],
+	"conversions": ["item_code", "uom", "conversion_factor", "stock_uom"],
+	"warehouses": ["warehouse", "label", "parent", "warehouse_type", "is_group", "company"],
+	"files": ["file_name", "parent_doctype", "parent"],
 	"group_source": [
 		"document",
 		"date",
@@ -853,7 +868,8 @@ class Projection(AbstractContextManager):
 		dataset, view = query["dataset"], query["view"]
 		from temple_inventory.read_cache import restore_projection, store_projection
 
-		restored = not related and restore_projection(self)
+		self.related = related
+		restored = restore_projection(self)
 		if not restored and dataset == "inventory" and view == "historical":
 			self.column_names.update({key: list(FIXED_COLUMNS[key]) for key in ("balances", "ledger")})
 			for table, row in historical_rows(context):
@@ -975,8 +991,9 @@ class Projection(AbstractContextManager):
 		if not restored:
 			self.summary_table = self.main_table
 			self.sums = tuple(sums)
-			if not related:
-				store_projection(self)
+			if related:
+				self.add_related_tables()
+			store_projection(self)
 		else:
 			sums = self.sums
 		if query["groupBy"]:
@@ -1085,8 +1102,6 @@ class Projection(AbstractContextManager):
 				self.put("grouped", row)
 			self.main_table = "group_roots" if len(group_fields) == 2 else "grouped"
 			TABLE_LABELS.setdefault("grouped", "分组汇总")
-		if related:
-			self.add_related_tables()
 		self.db.commit()
 		if self.cache_context:
 			from temple_inventory.read_cache import _fresh, cache_context_current
@@ -1341,7 +1356,7 @@ def report_page(query, start=0, page_length=30, table=None, include_related=Fals
 
 
 def _report_page(query, start, page_length, table, include_related, refresh=False):
-	with Projection(query, refresh=refresh or include_related) as projection:
+	with Projection(query, refresh=refresh) as projection:
 		projection.build(related=include_related)
 		selected = table or projection.main_table
 		if selected not in projection.column_names or selected in INTERNAL_TABLES:

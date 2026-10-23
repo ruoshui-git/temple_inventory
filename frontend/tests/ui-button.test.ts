@@ -15,6 +15,14 @@ describe("UiButton", () => {
     expect(button.findAll(".ui-button-loading-label")).toHaveLength(1);
   });
 
+  it("uses an action-specific loading label", () => {
+    const wrapper = mount(UiButton, {
+      props: { loading: true, loadingLabel: "正在更新预览…" },
+      slots: { default: "生成文件" },
+    });
+    expect(wrapper.text()).toBe("正在更新预览…");
+  });
+
   it("supports icon-only accessible controls and variants", async () => {
     const wrapper = mount(UiButton, {
       props: {

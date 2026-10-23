@@ -130,6 +130,10 @@ kept in Git.
   Retain generation/account abort guards. While a grouped query changes, bind
   the prior display to its prior query until new rows arrive. Do not change
   mutation save/conflict semantics.
+- Every pending action shows its state on the triggering control with a concise
+  action-specific label; keep sibling actions disabled. Option lists that are
+  still loading show shape-matched skeleton rows. Route changes show a thin
+  delayed progress bar so fast navigations do not flash.
 
 ## Draft labels
 

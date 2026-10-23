@@ -101,6 +101,7 @@ export function useMoreController(
     reference,
     groups: moreNavigation,
     installOpen,
+    installBusy,
     logoutOpen,
     busy,
     error,

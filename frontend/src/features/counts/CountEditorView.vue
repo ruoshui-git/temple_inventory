@@ -219,6 +219,8 @@ async function back() {
 			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
 				v-if="state.identity"
 				:disabled="busy"
+				:loading="loading"
+				loading-label="正在重新读取…"
 				@click="c.dirty.value ? (reloadOpen = true) : c.load(true)"
 				>重新读取</UiButton
 			>
@@ -572,7 +574,11 @@ async function back() {
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="action = undefined">返回</UiButton
-				><UiButton variant="danger" :loading="busy" @click="lifecycle"
+				><UiButton
+					variant="danger"
+					:loading="busy"
+					:loading-label="action === 'delete' ? '正在删除草稿…' : '正在处理…'"
+					@click="lifecycle"
 					>确认</UiButton
 				></template
 			></Overlay

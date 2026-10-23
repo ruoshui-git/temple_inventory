@@ -98,10 +98,20 @@ const visibleFiles = computed(() =>
 					!disabled
 				"
 				@click="controller.primary(file)"
+				:disabled="
+					controller.actionBusy.value && controller.pendingAction(file) !== 'primary'
+				"
+				:loading="controller.pendingAction(file) === 'primary'"
+				loading-label="正在设为主图…"
 				>设为主图</UiButton
 			><UiButton
 				v-if="mode !== 'display' && !disabled"
-				:disabled="file.state === 'uploading'"
+				:disabled="
+					file.state === 'uploading' ||
+					(controller.actionBusy.value && controller.pendingAction(file) !== 'remove')
+				"
+				:loading="controller.pendingAction(file) === 'remove'"
+				loading-label="正在移除…"
 				@click="controller.remove(file)"
 				>移除</UiButton
 			>

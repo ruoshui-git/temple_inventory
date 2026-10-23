@@ -201,7 +201,17 @@ describe("shared native report table", () => {
   it("shows complete/local counts and reveals fixture pages without dropping rows", async () => {
     const wrapper = mount(ReportTable, { props: { table: table() } });
     expect(wrapper.findAll("tbody tr")).toHaveLength(30);
-    expect(wrapper.get("caption").text()).toContain("65 行完整结果");
+    expect(wrapper.get(".report-table-caption").text()).toContain(
+      "65 行完整结果",
+    );
+    expect(wrapper.get(".report-table-caption").element.parentElement).toBe(
+      wrapper.get(".report-table-wrap").element,
+    );
+    expect(
+      wrapper
+        .get(".report-table-caption")
+        .element.closest(".data-table-scroll"),
+    ).toBeNull();
     expect(
       wrapper
         .findAll("button")
@@ -224,7 +234,9 @@ describe("shared native report table", () => {
     const wrapper = mount(ReportTable, {
       props: { table: table(30), total: 500, error: "网络中断", stale: true },
     });
-    expect(wrapper.get("caption").text()).toContain("500 行完整结果");
+    expect(wrapper.get(".report-table-caption").text()).toContain(
+      "500 行完整结果",
+    );
     await wrapper
       .findAll("button")
       .find((button) => button.text().startsWith("加载更多"))!
@@ -239,6 +251,78 @@ describe("shared native report table", () => {
     expect(wrapper.findAll("tbody tr")).toHaveLength(30);
     expect(wrapper.find('[role="status"]').text()).toContain("保留当前结果");
     wrapper.unmount();
+  });
+
+  it("uses a Chinese label for barcode type columns", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "barcodes",
+          label: "条码",
+          columns: ["item_code", "barcode", "barcode_type"],
+          rows: [
+            {
+              id: "BARCODE-1",
+              item_code: "ITEM-1",
+              barcode: "12345",
+              barcode_type: "EAN",
+            },
+          ],
+        },
+      },
+    });
+    expect(wrapper.findAll("thead th").map((header) => header.text())).toEqual([
+      "物品编号",
+      "条码",
+      "条码类型",
+    ]);
+    wrapper.unmount();
+  });
+
+  it("localizes fields in related item, warehouse and file tables", () => {
+    const cases = [
+      {
+        id: "items",
+        columns: [
+          "description",
+          "batch_tracked",
+          "has_expiry_date",
+          "disabled",
+        ],
+        labels: ["简短说明", "批次管理", "效期管理", "已停用"],
+      },
+      {
+        id: "conversions",
+        columns: ["uom", "conversion_factor", "stock_uom"],
+        labels: ["单位", "记录换算率", "库存单位"],
+      },
+      {
+        id: "warehouses",
+        columns: ["label", "parent", "warehouse_type", "is_group", "company"],
+        labels: ["名称", "上级位置", "仓库类型", "分组节点", "公司"],
+      },
+      {
+        id: "files",
+        columns: ["file_name", "parent_doctype", "parent"],
+        labels: ["文件名", "附件记录类型", "所属物品"],
+      },
+    ];
+    for (const item of cases) {
+      const wrapper = mount(ReportTable, {
+        props: {
+          table: {
+            id: item.id,
+            label: item.id,
+            columns: item.columns,
+            rows: [],
+          },
+        },
+      });
+      expect(
+        wrapper.findAll("thead th").map((header) => header.text()),
+      ).toEqual(item.labels);
+      wrapper.unmount();
+    }
   });
   it("renders selectable safe text, explicit booleans and native document drill-through", async () => {
     const wrapper = mount(ReportTable, { props: { table: table(1) } });

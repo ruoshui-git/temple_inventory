@@ -52,7 +52,9 @@ const {
 		</p>
 		<div v-if="refreshError" role="alert" class="notice-bar danger">
 			{{ refreshError }}
-			<UiButton :disabled="loading" @click="c.refresh">重新读取分类</UiButton>
+			<UiButton :loading="loading" loading-label="正在重新读取分类…" @click="c.refresh"
+				>重新读取分类</UiButton
+			>
 		</div>
 		<div class="category-tools">
 			<label class="preview-field">搜索分类<input v-model="search" type="search" /></label>

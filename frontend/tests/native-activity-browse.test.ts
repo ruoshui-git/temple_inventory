@@ -68,7 +68,10 @@ function setup(input: {
   return { controller, props, changed, navigate, report, call };
 }
 describe("native Activity browse scopes", () => {
-  async function mountActivityView(mode: "list" | "detail") {
+  async function mountActivityView(
+    mode: "list" | "detail",
+    pendingCall?: ReturnType<typeof vi.fn>,
+  ) {
     const reference = createReferenceData();
     reference.user = "Administrator";
     reference.site = "unit-site";
@@ -104,21 +107,23 @@ describe("native Activity browse scopes", () => {
       snapshot: "2026-10-23",
       period: { key: "all", date_from: "", date_to: "" },
     }));
-    const call = vi.fn(async (method: string) =>
-      method === "activities.load_activity"
-        ? {
-            name: "ACT-A",
-            title: "活动名称",
-            status: "Active",
-            summary: {},
-            movement_totals: [],
-            loan_totals: [],
-            outstanding_line_count: 0,
-            can_write: false,
-            can_delete: false,
-          }
-        : null,
-    );
+    const call =
+      pendingCall ??
+      vi.fn(async (method: string) =>
+        method === "activities.load_activity"
+          ? {
+              name: "ACT-A",
+              title: "活动名称",
+              status: "Active",
+              summary: {},
+              movement_totals: [],
+              loan_totals: [],
+              outstanding_line_count: 0,
+              can_write: false,
+              can_delete: false,
+            }
+          : null,
+      );
     let controller!: ReturnType<typeof useActivitiesController>;
     const child = defineComponent({
       setup() {
@@ -161,9 +166,31 @@ describe("native Activity browse scopes", () => {
     await router.isReady();
     const wrapper = mount(root, { global: { plugins: [router] } });
     wrappers.push(wrapper);
-    await flushPromises();
+    if (!pendingCall) await flushPromises();
     return { wrapper, controller };
   }
+
+  it("keeps the detail heading neutral until the first activity response settles", async () => {
+    let resolve!: (value: unknown) => void;
+    const pending = new Promise((done) => (resolve = done));
+    const call = vi.fn(() => pending);
+    const { wrapper } = await mountActivityView("detail", call);
+    expect(wrapper.get("h1").text()).toBe("正在加载活动…");
+    expect(wrapper.text()).not.toContain("活动不可用");
+    resolve({
+      name: "ACT-A",
+      title: "活动名称",
+      status: "Active",
+      summary: {},
+      movement_totals: [],
+      loan_totals: [],
+      outstanding_line_count: 0,
+      can_write: false,
+      can_delete: false,
+    });
+    await flushPromises();
+    expect(wrapper.get("h1").text()).toBe("活动名称");
+  });
 
   it("debounces activity detail search, edits and removes kind chips, and exposes tab roles", async () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();

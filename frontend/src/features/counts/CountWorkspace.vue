@@ -242,6 +242,7 @@ function itemImage(row: CountRow) {
 				<UiButton
 					:disabled="busy || baselineBusy"
 					:loading="baselineBusy"
+					loading-label="正在刷新账面基准…"
 					@click="c.refresh"
 					>刷新账面基准</UiButton
 				>
@@ -311,6 +312,9 @@ function itemImage(row: CountRow) {
 				<input v-model="removalAcknowledged" type="checkbox" />已核对移出的输入
 			</label>
 		</section>
+		<p v-if="baselineBusy" class="muted count-baseline-status" role="status">
+			正在刷新账面基准…
+		</p>
 		<DataTable
 			class="count-data-table"
 			ariaLabel="盘点明细"

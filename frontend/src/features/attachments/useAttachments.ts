@@ -38,6 +38,12 @@ export function useAttachments(options: {
   const active = () =>
     !disposed && options.currentAccount() === options.account;
   const busy = computed(() => files.some((row) => row.state === "uploading"));
+  const pendingActions = ref<Record<string, "primary" | "remove">>({});
+  const actionBusy = computed(
+    () => Object.keys(pendingActions.value).length > 0,
+  );
+  const pendingAction = (entry: AttachmentEntry) =>
+    pendingActions.value[entry.id] || "";
   const incomplete = computed(() => files.some((row) => row.state !== "ready"));
   function release(id: string) {
     const url = urls.get(id);
@@ -230,7 +236,14 @@ export function useAttachments(options: {
     }
   }
   async function remove(entry: AttachmentEntry) {
-    if (!active() || !options.writable() || entry.state === "uploading") return;
+    if (
+      !active() ||
+      !options.writable() ||
+      entry.state === "uploading" ||
+      actionBusy.value
+    )
+      return;
+    pendingActions.value[entry.id] = "remove";
     error.value = "";
     try {
       if (entry.serverName) {
@@ -261,6 +274,8 @@ export function useAttachments(options: {
           label: "重试",
           action: () => void remove(entry),
         });
+    } finally {
+      delete pendingActions.value[entry.id];
     }
   }
   function reselect(entry: AttachmentEntry, file: File) {
@@ -302,34 +317,46 @@ export function useAttachments(options: {
     }
   }
   async function primary(entry: AttachmentEntry, announce = true) {
-    if (!active() || !options.primary || !options.writable() || busy.value)
+    if (
+      !active() ||
+      !options.primary ||
+      !options.writable() ||
+      busy.value ||
+      actionBusy.value
+    )
       return;
-    if (!entry.serverName) {
-      files.forEach((row) => {
-        row.primary = row.id === entry.id;
-      });
-      options.changed?.();
-      return;
-    }
-    error.value = "";
+    pendingActions.value[entry.id] = "primary";
     try {
-      await options.primary(entry.serverName);
-      primarySaved = entry.serverName;
-      if (active()) {
+      if (!entry.serverName) {
         files.forEach((row) => {
           row.primary = row.id === entry.id;
         });
         options.changed?.();
-        if (announce) showToast("主图已更换；原文件仍作为附件保留");
+        return;
       }
-    } catch (reason) {
-      if (active())
-        error.value = reason instanceof Error ? reason.message : "主图保存失败";
-      if (active() && announce)
-        showToast(`主图保存失败：${error.value}`, "danger", {
-          label: "重试",
-          action: () => void primary(entry),
-        });
+      error.value = "";
+      try {
+        await options.primary(entry.serverName);
+        primarySaved = entry.serverName;
+        if (active()) {
+          files.forEach((row) => {
+            row.primary = row.id === entry.id;
+          });
+          options.changed?.();
+          if (announce) showToast("主图已更换；原文件仍作为附件保留");
+        }
+      } catch (reason) {
+        if (active())
+          error.value =
+            reason instanceof Error ? reason.message : "主图保存失败";
+        if (active() && announce)
+          showToast(`主图保存失败：${error.value}`, "danger", {
+            label: "重试",
+            action: () => void primary(entry),
+          });
+      }
+    } finally {
+      delete pendingActions.value[entry.id];
     }
   }
   onBeforeUnmount(() => {
@@ -345,6 +372,8 @@ export function useAttachments(options: {
     initialized,
     error,
     busy,
+    pendingAction,
+    actionBusy,
     incomplete,
     load,
     fetch: fetchFiles,
