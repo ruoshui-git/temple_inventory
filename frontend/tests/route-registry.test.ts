@@ -15,6 +15,8 @@ import {
   routeViewIdentity,
 } from "../src/lib/routeRegistry";
 import { newReportQuery } from "../src/lib/reportContract";
+import { decodeReportQuery } from "../src/lib/reportQuery";
+import { serializeBrowseQuery } from "../src/lib/routeRegistry";
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -114,9 +116,7 @@ describe("canonical application route registry", () => {
     const loans = newReportQuery("loans");
     const loanTarget = browseStateDestination("loans", "items", loans);
     expect(loanTarget.query?.view).toBe("items");
-    expect(JSON.parse(String(loanTarget.query?.query))).not.toHaveProperty(
-      "dataset",
-    );
+    expect(loanTarget.query).not.toHaveProperty("query");
 
     for (const dataset of [
       "inventory",
@@ -140,6 +140,86 @@ describe("canonical application route registry", () => {
         ),
       ).toMatchObject({ dataset, view: state.view, search: "rice" });
     }
+  });
+
+  it("round trips default, single-filter, and deeply changed browse queries compactly", () => {
+    const defaults = newReportQuery("inventory");
+    const defaultTarget = browseRouteTarget(defaults);
+    expect(defaultTarget.query).not.toHaveProperty("query");
+    expect(serializeBrowseQuery(defaults)).toBeUndefined();
+    expect(decodeReportQuery(undefined, "inventory").query).toEqual(defaults);
+
+    const oneFilter = newReportQuery("inventory");
+    oneFilter.search = "rice";
+    const onePayload = serializeBrowseQuery(oneFilter);
+    expect(JSON.parse(onePayload!)).toEqual({ search: "rice" });
+    expect(decodeReportQuery(onePayload, "inventory").query).toEqual(oneFilter);
+    expect(
+      decodeReportQuery(
+        restoreBrowseQueryPayload(onePayload, "inventory", oneFilter.view),
+        "inventory",
+      ).query,
+    ).toEqual(oneFilter);
+
+    const severalFilters = newReportQuery("movements");
+    severalFilters.view = "records";
+    severalFilters.search = "rice";
+    severalFilters.sort = "desc";
+    severalFilters.statuses = [0];
+    severalFilters.groupBy = ["kind"];
+    severalFilters.scope.warehouses = ["WH-1"];
+    severalFilters.scope.period = {
+      key: "custom",
+      from: "2026-10-01",
+      to: "2026-10-23",
+    };
+    const severalPayload = serializeBrowseQuery(severalFilters);
+    expect(JSON.parse(severalPayload!)).toMatchObject({
+      search: "rice",
+      sort: "desc",
+      statuses: [0],
+      groupBy: ["kind"],
+      scope: {
+        warehouses: ["WH-1"],
+        period: { key: "custom", from: "2026-10-01", to: "2026-10-23" },
+      },
+    });
+    expect(JSON.parse(severalPayload!).scope).not.toHaveProperty("categories");
+    const restored = restoreBrowseQueryPayload(
+      severalPayload,
+      "movements",
+      "records",
+    );
+    expect(decodeReportQuery(restored, "movements").query).toEqual(
+      severalFilters,
+    );
+
+    const longForm = JSON.stringify({ ...severalFilters });
+    expect(
+      decodeReportQuery(
+        restoreBrowseQueryPayload(longForm, "movements", "records"),
+        "movements",
+      ).error,
+    ).toBe("");
+
+    const historical = newReportQuery("inventory");
+    historical.view = "historical";
+    historical.scope.period = {
+      key: "custom",
+      from: "2026-10-01",
+      to: "2026-10-23",
+    };
+    const reportTarget = browseRouteTarget(historical);
+    const reportPayload = JSON.parse(String(reportTarget.query?.query));
+    expect(reportPayload).toMatchObject({
+      dataset: "inventory",
+      view: "historical",
+      scope: { period: historical.scope.period },
+    });
+    expect(reportPayload.scope).not.toHaveProperty("categories");
+    expect(decodeReportQuery(reportTarget.query?.query).query).toEqual(
+      historical,
+    );
   });
 
   it("builds route-owned breadcrumb context with one current non-link segment", () => {

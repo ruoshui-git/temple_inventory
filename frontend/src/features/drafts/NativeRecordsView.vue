@@ -482,21 +482,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					@remove="Object.assign(query, chip.reset)"
 				/>
 			</template>
-			<div class="browse-toolbar browse-sort-only">
-				<label class="preview-field"
-					>排序<select v-model="query.sortBy">
-						<option value="date">记账日期</option>
-						<option value="identity">编号</option>
-					</select></label
-				>
-				<label class="preview-field"
-					>顺序<select v-model="query.sort">
-						<option value="desc">降序</option>
-						<option value="asc">升序</option>
-					</select></label
-				>
-				<span v-if="initialized" class="browse-result-count">{{ total }} 份记录</span>
-			</div>
+			<span v-if="initialized" class="browse-result-count">{{ total }} 份记录</span>
 		</BrowseToolbar>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<div v-else-if="mode === 'drafts'" class="drafts-browser">

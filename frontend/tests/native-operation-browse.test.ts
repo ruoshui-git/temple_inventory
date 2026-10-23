@@ -601,7 +601,7 @@ describe("native operation browsing", () => {
         ?.at(-1)?.[0],
     ).toBe(true);
   });
-  it("keeps the date header and direction control synchronized for record sorting", async () => {
+  it("uses the sortable date header as the single record sort control", async () => {
     const { wrapper } = setup(
       service(),
       reactive({ family: "movements" as const, records: true }),
@@ -611,26 +611,24 @@ describe("native operation browsing", () => {
     const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
     expect(c.query.value.sortBy).toBe("date");
     expect(c.query.value.sort).toBe("desc");
-    expect(wrapper.get('select[aria-label="流动排序"]').element.value).toBe(
-      "date",
+    expect(wrapper.find('select[aria-label="流动排序"]').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="切换为升序"]').exists()).toBe(
+      false,
     );
     expect(wrapper.get('th[aria-sort="descending"] button').text()).toContain(
       "日期↓",
     );
 
-    await wrapper.get('button[aria-label="切换为升序"]').trigger("click");
+    await wrapper.get('th[aria-sort="descending"] button').trigger("click");
     expect(c.query.value.sort).toBe("asc");
-    expect(wrapper.get('select[aria-label="流动排序"]').element.value).toBe(
-      "date",
-    );
     expect(wrapper.get('th[aria-sort="ascending"] button').exists()).toBe(true);
 
     await wrapper.get('th[aria-sort="ascending"] button').trigger("click");
     expect(c.query.value.sort).toBe("desc");
-    expect(wrapper.get('button[aria-label="切换为升序"]').exists()).toBe(true);
+    expect(wrapper.find('select[aria-label="流动排序"]').exists()).toBe(false);
   });
 
-  it("keeps loan record and item sort fields selected while changing fields and direction", async () => {
+  it("uses table headers for loan record and item sorting", async () => {
     const call = service();
     const { wrapper } = setup(
       call,
@@ -639,19 +637,21 @@ describe("native operation browsing", () => {
     );
     await flushPromises();
     const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
-    const select = wrapper.get('select[aria-label="借用排序"]');
-    expect(select.element.value).toBe("item_name");
-    await select.setValue("item_code");
-    expect(c.query.value.sortBy).toBe("item_code");
-    expect(select.element.value).toBe("item_code");
-    expect(c.query.value.sort).toBe("asc");
-    await wrapper.get('button[aria-label="切换为降序"]').trigger("click");
-    expect(c.query.value.sortBy).toBe("item_code");
-    expect(c.query.value.sort).toBe("desc");
-    await select.setValue("item_name");
     expect(c.query.value.sortBy).toBe("item_name");
-    expect(select.element.value).toBe("item_name");
-    expect(c.query.value.sort).toBe("desc");
+    expect(wrapper.find('select[aria-label="借用排序"]').exists()).toBe(true);
+    expect(wrapper.find(".data-table th button").exists()).toBe(false);
+    const cardSort = wrapper.get('select[aria-label="借用排序"]');
+    await cardSort.setValue("item_code");
+    expect(c.query.value.sortBy).toBe("item_code");
+    expect(cardSort.element.value).toBe("item_code");
+    const direction = c.query.value.sort;
+    await wrapper
+      .get(
+        `button[aria-label="${direction === "asc" ? "切换为降序" : "切换为升序"}"]`,
+      )
+      .trigger("click");
+    expect(c.query.value.sort).toBe(direction === "asc" ? "desc" : "asc");
+    expect(c.query.value.sortBy).toBe("item_code");
 
     const recordView = setup(
       service(),
@@ -661,14 +661,15 @@ describe("native operation browsing", () => {
     await flushPromises();
     const records =
       recordView.wrapper.getComponent(OperationBrowsePage).vm.controller;
-    const recordSort = recordView.wrapper.get('select[aria-label="借用排序"]');
     expect(records.query.value.sortBy).toBe("date");
-    expect(recordSort.element.value).toBe("date");
+    expect(
+      recordView.wrapper.find('select[aria-label="借用排序"]').exists(),
+    ).toBe(false);
     await recordView.wrapper
-      .get('button[aria-label="切换为升序"]')
+      .get('th[aria-sort="descending"] button')
       .trigger("click");
     expect(records.query.value.sortBy).toBe("date");
-    expect(recordSort.element.value).toBe("date");
+    expect(records.query.value.sort).toBe("asc");
   });
 
   it("keeps complete server groups and totals independent of the loaded page, then loads contributions lazily", async () => {

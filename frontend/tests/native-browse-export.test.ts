@@ -190,7 +190,9 @@ describe("scope and permission refresh boundaries", () => {
     const historical = { ...query(), view: "historical" };
     expect(browseDestination(historical)).toMatchObject({
       name: "reports",
-      query: { query: JSON.stringify(historical) },
+      query: {
+        query: JSON.stringify({ dataset: "inventory", view: "historical" }),
+      },
     });
   });
 });
@@ -734,7 +736,7 @@ describe("native dashboard cards", () => {
     expect(chooser.query.view).toBe("items");
     const loanQuery = JSON.parse(String(chooser.query.query));
     expect(loanQuery.outstandingOnly).toBe(true);
-    expect(loanQuery.statuses).toEqual([1]);
+    expect(loanQuery).not.toHaveProperty("statuses");
 
     reference.operations.Transfer = false;
     await nextTick();

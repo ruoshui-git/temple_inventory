@@ -1,5 +1,9 @@
 import type { LocationQueryRaw, RouteRecordRaw } from "vue-router";
-import type { ReportQuery, ReportDataset } from "./reportContract";
+import {
+  newReportQuery,
+  type ReportQuery,
+  type ReportDataset,
+} from "./reportContract";
 import { operationLabels } from "../features/documents/operationCodec";
 
 export type AppRouteName =
@@ -471,13 +475,22 @@ export function nativeDocumentTarget(
 
 export function browseRouteTarget(query: ReportQuery): AppRouteTarget {
   if (query.dataset === "inventory" && query.view === "historical")
-    return routeTarget("reports", {}, { query: JSON.stringify(query) });
-  if (query.dataset === "inventory" && query.damageOnly)
+    return routeTarget(
+      "reports",
+      {},
+      { query: serializeReportRouteQuery(query) },
+    );
+  if (query.dataset === "inventory" && query.damageOnly) {
+    const encoded = serializeBrowseQuery(query);
     return routeTarget(
       "pending",
       {},
-      { view: query.view, query: serializeBrowseQuery(query) },
+      {
+        view: query.view,
+        ...(encoded ? { query: encoded } : {}),
+      },
     );
+  }
   const names: Partial<Record<ReportDataset, AppRouteName>> = {
     inventory: "stock",
     expiry: "expiry",
@@ -494,12 +507,57 @@ export function browseRouteTarget(query: ReportQuery): AppRouteTarget {
         ? "records"
         : "items"
       : query.view;
-  return routeTarget(name, {}, { view, query: serializeBrowseQuery(query) });
+  const encoded = serializeBrowseQuery(query);
+  return routeTarget(
+    name,
+    {},
+    { view, ...(encoded ? { query: encoded } : {}) },
+  );
 }
 
-export function serializeBrowseQuery(query: ReportQuery): string {
+function deepDifference(initial: unknown, actual: unknown): unknown {
+  if (
+    initial &&
+    actual &&
+    typeof initial === "object" &&
+    typeof actual === "object" &&
+    !Array.isArray(initial) &&
+    !Array.isArray(actual)
+  ) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(actual)) {
+      const difference = deepDifference(
+        (initial as Record<string, unknown>)[key],
+        value,
+      );
+      if (difference !== undefined) result[key] = difference;
+    }
+    return Object.keys(result).length ? result : undefined;
+  }
+  return JSON.stringify(initial) === JSON.stringify(actual)
+    ? undefined
+    : actual;
+}
+
+export function serializeBrowseQuery(query: ReportQuery): string | undefined {
+  const defaults = newReportQuery(query.dataset);
   const { dataset: _dataset, view: _view, ...state } = query;
-  return JSON.stringify(state);
+  const {
+    dataset: _defaultDataset,
+    view: _defaultView,
+    ...defaultState
+  } = defaults;
+  const difference = deepDifference(defaultState, state);
+  return difference === undefined ? undefined : JSON.stringify(difference);
+}
+
+export function serializeReportRouteQuery(query: ReportQuery): string {
+  const filters = serializeBrowseQuery(query);
+  return JSON.stringify({
+    dataset: query.dataset,
+    view: query.view,
+    ...(filters ? JSON.parse(filters) : {}),
+  });
 }
 
 export function restoreBrowseQueryPayload(
@@ -519,21 +577,28 @@ export function restoreBrowseQueryPayload(
       view: _view,
       ...filters
     } = state as Record<string, unknown>;
-    const view = browserView === "records" ? "records" : "items";
-    return JSON.stringify({
-      ...filters,
-      dataset,
-      view:
-        dataset === "movements"
-          ? view === "records"
+    const defaults = newReportQuery(dataset);
+    const view =
+      dataset === "movements"
+        ? browserView === "records"
+          ? "records"
+          : "summary"
+        : dataset === "loans"
+          ? browserView === "records"
             ? "records"
-            : "summary"
-          : dataset === "loans"
-            ? view
-            : typeof browserView === "string" && browserView
-              ? browserView
-              : undefined,
-    });
+            : "items"
+          : typeof browserView === "string" && browserView
+            ? browserView
+            : defaults.view;
+    const scope =
+      filters.scope === undefined
+        ? defaults.scope
+        : filters.scope &&
+            typeof filters.scope === "object" &&
+            !Array.isArray(filters.scope)
+          ? { ...defaults.scope, ...(filters.scope as Record<string, unknown>) }
+          : filters.scope;
+    return JSON.stringify({ ...defaults, ...filters, scope, dataset, view });
   } catch {
     return source;
   }

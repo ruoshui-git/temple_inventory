@@ -352,6 +352,7 @@ watch([() => props.active, isMobile], () => {
 					</button>
 				</div>
 				<SortControl
+					v-if="isMobile || view === 'card'"
 					v-model:field="sort"
 					v-model:direction="sortDirection"
 					:fields="sortFields"

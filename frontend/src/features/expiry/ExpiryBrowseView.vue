@@ -318,7 +318,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					@remove="Object.assign(query, chip.reset)"
 				/>
 			</template>
-			<div class="browse-toolbar browse-sort-only">
+			<div v-if="isMobile" class="browse-toolbar">
 				<SortControl
 					v-model:field="query.sortBy"
 					v-model:direction="query.sort"

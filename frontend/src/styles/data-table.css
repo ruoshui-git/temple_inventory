@@ -438,3 +438,9 @@
 .data-table-scroll.is-refreshing {
 	opacity: 0.58;
 }
+
+/* Mixed-unit totals stack one unit per line so adjacent quantities never run together. */
+.operation-total {
+	display: block;
+	white-space: nowrap;
+}

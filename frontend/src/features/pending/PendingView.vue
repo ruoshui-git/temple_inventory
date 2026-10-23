@@ -10,11 +10,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
-import {
-	groupLabels,
-	sortableColumnLabels,
-	sortableColumnsForView,
-} from "../../lib/reportContract";
+import { groupLabels, sortableColumnsForView } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
@@ -133,17 +129,6 @@ watch([() => props.active, isMobile], () => {
 					@remove="Object.assign(query, chip.reset)"
 				/>
 			</template>
-			<div class="browse-toolbar browse-sort-only">
-				<label class="preview-field"
-					>排序<select v-model="query.sortBy">
-						<option v-for="field in sortColumns" :key="field" :value="field">
-							{{ sortableColumnLabels[field] || field }}
-						</option>
-					</select></label
-				><UiButton @click="query.sort = query.sort === 'asc' ? 'desc' : 'asc'">{{
-					query.sort === "asc" ? "升序" : "降序"
-				}}</UiButton>
-			</div>
 			<template #result-tools
 				><span>{{ c.report.result.total }} 条存放明细</span
 				><UiButton :disabled="!table?.initialized" @click="analysisOpen = true"

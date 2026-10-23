@@ -3,11 +3,11 @@ import { useRoute, useRouter } from "vue-router";
 import ReportsPage from "../features/export/ReportsPage.vue";
 import { documentDestination, exportDestination } from "../lib/nativeNavigation";
 import type { ReportQuery } from "../lib/reportContract";
-import { routeTarget } from "../lib/routeRegistry";
+import { routeTarget, serializeReportRouteQuery } from "../lib/routeRegistry";
 const route = useRoute(),
 	router = useRouter();
 function changed(query: ReportQuery) {
-	const encoded = JSON.stringify(query);
+	const encoded = serializeReportRouteQuery(query);
 	if (route.query.query !== encoded)
 		void router.replace({ ...routeTarget("reports"), query: { query: encoded } });
 }

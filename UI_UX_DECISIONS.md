@@ -42,6 +42,9 @@ supersession below when a durable user-facing decision changes.
   edits stage until Apply, use inclusive site-date bounds and support editable
   year/quarter shortcuts. Chips summarize fields; editors retain each selected
   value. Grouping is zero to two ordered levels from the active view contract.
+- Activity detail, drafts and Reports use the canonical browse toolbar for
+  search, filters and applied chips. Browse URLs omit default query state and
+  serialize only changed fields, including changed fields inside nested scope.
 - Browse scanning sits beside barcode/item search fields and reuses one
   interaction. Open, cancel and failure preserve typed input; generic browse
   scans follow the normal lookup path and release the camera. Camera, hardware
@@ -72,6 +75,8 @@ supersession below when a durable user-facing decision changes.
   per-status analysis is disclosed on demand. Keep units/statuses separate.
   Empty table values stay empty; zero, false, external endpoints, invalid expiry
   and unavailable/error states keep explicit meanings.
+- Sortable table headers are the only sort control while a table is visible.
+  Keep `SortControl` on card views and surfaces without sortable headers.
 - Category trees start with only their visible first level. Branches start
   closed; warehouse/source/destination branches open only when they contain
   multiple selectable leaves. Location search matches presenter search text.
@@ -292,11 +297,14 @@ supersession below when a durable user-facing decision changes.
 
 ## Durable supersessions
 
-- **2026-10-23:** Every pending action is visibly pending on its trigger, and
-  option lists that are still loading show a skeleton. Stale refresh regions
-  dim, become inert and announce their update; route changes use a delayed thin
-  progress bar. Detail pages use neutral loading headings until their first
-  response settles.
+- **2026-10-23:** In-place disclosures use one leading rotating chevron;
+  popup triggers use one static trailing chevron. Detail sections are divided
+  list rows. Activity detail, drafts and Reports use the canonical browse
+  toolbar. Pending actions show state on their triggers, and route changes use
+  a delayed progress bar. Related export projections are cached. Browse URLs
+  omit defaults, and sortable tables use their headers as the sole sort
+  affordance; `SortControl` remains for cards and surfaces without headers.
+  Multi-unit dashboard quantities use the shared aligned quantity presentation.
 
 - **2026-10-22:** The Area → Room → Shelf presenter replaces legacy warehouse
   breadcrumbs and `room_default` display rules. The canonical `label` is used for

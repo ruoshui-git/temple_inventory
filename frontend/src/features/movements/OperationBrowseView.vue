@@ -816,7 +816,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						@remove="Object.assign(query, chip.reset)"
 					/>
 				</template>
-				<div class="browse-toolbar browse-sort-only">
+				<div v-if="showMobileItemCards" class="browse-toolbar">
 					<SortControl
 						v-model:field="query.sortBy"
 						v-model:direction="query.sort"

@@ -357,11 +357,14 @@ describe("interactive preview", () => {
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
     await button(wrapper, "列表").trigger("click");
     expect(wrapper.findAll("tbody tr.selected")).toHaveLength(1);
-    await wrapper.get('select[aria-label="库存排序"]').setValue("available");
-    expect(wrapper.get('select[aria-label="库存排序"]').element).toHaveProperty(
-      "value",
-      "available",
-    );
+    expect(wrapper.find('select[aria-label="库存排序"]').exists()).toBe(false);
+    const availableHeader = wrapper
+      .findAll(".data-table-sort")
+      .find((button) => button.text().includes("可用数量"))!;
+    await availableHeader.trigger("click");
+    expect(
+      availableHeader.element.closest("th")?.getAttribute("aria-sort"),
+    ).toBe("ascending");
     await wrapper.get('input[aria-label="搜索库存"]').setValue("长袖");
     await new Promise((resolve) => setTimeout(resolve, 250));
     await flushPromises();

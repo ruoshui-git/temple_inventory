@@ -4,6 +4,7 @@ import {
   browseRouteTarget,
   nativeDocumentTarget,
   routeTarget,
+  serializeReportRouteQuery,
   serializeBrowseQuery,
 } from "./routeRegistry";
 
@@ -14,7 +15,11 @@ export function loanDestination(name: string, back: string) {
 }
 
 export function exportDestination(query: ReportQuery) {
-  return routeTarget("reports", {}, { query: JSON.stringify(query) });
+  return routeTarget(
+    "reports",
+    {},
+    { query: serializeReportRouteQuery(query) },
+  );
 }
 
 export function browseDestination(query: ReportQuery) {
@@ -38,5 +43,10 @@ export function browseStateDestination(
   query: ReportQuery,
 ) {
   const name = family === "movements" ? "movements" : "loans";
-  return routeTarget(name, {}, { view, query: serializeBrowseQuery(query) });
+  const encoded = serializeBrowseQuery(query);
+  return routeTarget(
+    name,
+    {},
+    { view, ...(encoded ? { query: encoded } : {}) },
+  );
 }

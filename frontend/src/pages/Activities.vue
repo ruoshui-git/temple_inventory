@@ -29,6 +29,7 @@ const mode = computed(() =>
 			: "list",
 );
 function navigate(mode: "list" | "detail" | "form", name?: string, query?: ReportQuery) {
+	const encoded = query ? serializeBrowseQuery(query) : undefined;
 	const target =
 		mode === "list"
 			? query
@@ -41,7 +42,12 @@ function navigate(mode: "list" | "detail" | "form", name?: string, query?: Repor
 				: routeTarget("activity-detail", { name: name || "" });
 	void router.push({
 		...target,
-		query: query ? { view: query.view, query: serializeBrowseQuery(query) } : target.query,
+		query: query
+			? {
+					view: query.view,
+					...(encoded ? { query: encoded } : {}),
+				}
+			: target.query,
 	});
 }
 function changed(query: ReportQuery) {
@@ -50,7 +56,11 @@ function changed(query: ReportQuery) {
 		void router.replace({
 			name: route.name!,
 			params: route.params,
-			query: { ...route.query, view: query.view, query: encoded },
+			query: {
+				...route.query,
+				view: query.view,
+				...(encoded ? { query: encoded } : { query: undefined }),
+			},
 		});
 }
 </script>

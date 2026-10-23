@@ -9,7 +9,6 @@ import { siteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
-import FilterPanel from "../../components/ui/FilterPanel.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import {
@@ -17,7 +16,6 @@ import {
 	groupSequencesForView,
 	groupsForView,
 	reportDefinitions,
-	sortableColumnLabels,
 	sortableColumnsForView,
 } from "../../lib/reportContract";
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
@@ -584,25 +582,6 @@ function setGroup(index: number, value: string) {
 					<h2>
 						主表：{{ mainTable?.label || definition.label }} · {{ result.total }} 行
 					</h2>
-					<FilterPanel label="排序" :context="panelContext" :active="active">
-						<label class="preview-field"
-							>排序依据<select v-model="query.sortBy">
-								<option
-									v-for="column in availableSortColumns"
-									:key="column"
-									:value="column"
-								>
-									{{ sortableColumnLabels[column] || column }}
-								</option>
-							</select></label
-						>
-						<label class="preview-field"
-							>排序<select v-model="query.sort">
-								<option value="asc">升序</option>
-								<option value="desc">降序</option>
-							</select></label
-						>
-					</FilterPanel>
 				</div>
 				<div
 					v-if="result.loading && !mainTable"

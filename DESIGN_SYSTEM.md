@@ -58,6 +58,8 @@ kept in Git.
   a directional arrow when active. Reserve a stable icon gutter, set `aria-sort`
   and keep keyboard focus visible. Column settings stay available during
   loading and empty states.
+- When a sortable table is visible, its headers are the only sort affordance.
+  Use `SortControl` for cards or surfaces without sortable headers.
 - Dense tables scroll horizontally within their own container. Use themed slim
   draggable scrollbars for overflowing desktop filter areas only. Native touch
   and coarse-pointer scrolling, plus forced-colors scrollbars, remain unchanged.
@@ -73,6 +75,9 @@ kept in Git.
   the input mounted when density/layout changes. Filter surfaces are anchored
   below their trigger, bounded by the remaining viewport and internally
   scrollable; phone sheets use the shared focus-managed overlay.
+- Activity detail, drafts and Reports use this browse toolbar. Route query
+  payloads omit default values and include only changed fields; decoding merges
+  changed top-level and nested scope values onto the dataset defaults.
 - Desktop filter dialogs may use two labeled columns for filters and grouping;
   phone sheets stack them. Header/footer remain outside scrolling content.
   Show a hierarchy node's `local_label` in primary ink and put its `full_label`
@@ -134,6 +139,14 @@ kept in Git.
   action-specific label; keep sibling actions disabled. Option lists that are
   still loading show shape-matched skeleton rows. Route changes show a thin
   delayed progress bar so fast navigations do not flash.
+- Related export projections are cached separately from base projections so
+  toggling supplementary sheets can reuse the matching result.
+
+## Multi-unit quantities
+
+- Render multi-unit dashboard and browse values with the shared quantity
+  presentation. Keep each value and unit together, align values consistently,
+  and separate units with spacing and a subtle divider rather than text glyphs.
 
 ## Draft labels
 

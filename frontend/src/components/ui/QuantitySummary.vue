@@ -93,9 +93,12 @@ function effectLabel(quantity: Quantity) {
 	font-variant-numeric: tabular-nums;
 }
 .quantity-summary-values strong + strong::before {
-	content: "|";
+	content: "";
+	display: inline-block;
+	block-size: 0.9em;
+	border-inline-start: 1px solid var(--p-border);
+	vertical-align: -0.08em;
 	color: var(--p-muted);
-	font-weight: 400;
 	margin-inline-end: var(--p-space-3);
 }
 .quantity-summary-values span {
