@@ -44,7 +44,7 @@ site set-config temple_inventory_sample_site 1
 
 log "install sample data"
 site execute temple_inventory.sample_install.prepare_development_sample_site \
-	--kwargs '{"allow_non_developer": 1, "data": "full"}'
+	--kwargs '{"data": "full"}'
 
 log "set demo passwords"
 umask 077
