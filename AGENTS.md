@@ -202,6 +202,7 @@ Run frontend commands from `frontend/`, one at a time:
 
 ```sh
 ../scripts/dx ../scripts/heavy pnpm test
+../scripts/dx pnpm format:check
 ../scripts/dx pnpm type-check
 ../scripts/dx ../scripts/heavy pnpm build
 ```
