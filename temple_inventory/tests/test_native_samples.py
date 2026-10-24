@@ -112,7 +112,7 @@ class SampleMediaTests(unittest.TestCase):
 				json.dumps(
 					{
 						"version": 1,
-						"site": "development.localhost",
+						"site": frappe.local.site,
 						"files": rows,
 						"protected_paths": [],
 					}

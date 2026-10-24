@@ -204,7 +204,7 @@ def build_inventory(site_path, files, sample_items, item_images, known_hashes, s
 			)
 	return {
 		"version": 1,
-		"site": "development.localhost",
+		"site": frappe.local.site,
 		"files": rows,
 		"protected_paths": sorted(protected),
 	}
