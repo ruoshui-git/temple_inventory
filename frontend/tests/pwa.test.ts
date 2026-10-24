@@ -3,6 +3,8 @@ import {
   detectInstallPlatform,
   installInstructions,
   installPwa,
+  dismissUpdate,
+  isUpdateDismissed,
 } from "../src/lib/pwa";
 
 afterEach(() => vi.restoreAllMocks());
@@ -37,5 +39,13 @@ describe("PWA installation helpers", () => {
 
   it("does not attempt a native prompt when the browser has not offered one", async () => {
     await expect(installPwa()).resolves.toBe(false);
+  });
+
+  it("keeps update dismissal scoped to a worker version for the current session", () => {
+    sessionStorage.clear();
+    expect(isUpdateDismissed("worker-a")).toBe(false);
+    dismissUpdate("worker-a");
+    expect(isUpdateDismissed("worker-a")).toBe(true);
+    expect(isUpdateDismissed("worker-b")).toBe(false);
   });
 });

@@ -392,7 +392,7 @@ watch([() => props.active, isMobile], () => {
 				</div>
 			</template>
 		</BrowseToolbar>
-		<section class="surface inventory-surface">
+		<section class="inventory-surface">
 			<BrowseResultSummary
 				v-if="data.snapshot"
 				:label="`${data.total} 种物品`"
@@ -461,7 +461,7 @@ watch([() => props.active, isMobile], () => {
 				/>
 				<div
 					ref="results"
-					class="results-region"
+					class="results-region surface stock-results-card"
 					:class="{ 'is-stale': data.stale }"
 					:aria-busy="status === 'loading' || status === 'refresh'"
 				>

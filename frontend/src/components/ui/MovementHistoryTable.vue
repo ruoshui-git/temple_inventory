@@ -14,6 +14,8 @@ import { useReferenceData } from "../../services/contracts";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import LocationEndpoint from "./LocationEndpoint.vue";
 import RecordRef from "./RecordRef.vue";
+import InventoryIcon from "../InventoryIcon.vue";
+import { kindIcons } from "../../lib/kindIcons";
 
 const props = withDefaults(
 	defineProps<{
@@ -193,6 +195,21 @@ function quantityClass(row: HistoryRow) {
 			: "";
 }
 
+function historyIcon(row: HistoryRow) {
+	return kindIcons[String(row.kind) as keyof typeof kindIcons]?.icon || "movement";
+}
+
+function compactDate(value: string) {
+	const formatted = siteDateTime(value);
+	return formatted.length >= 16 ? formatted.slice(5, 16) : formatted;
+}
+
+function compactDocumentName(value: string) {
+	const segments = value.split(/[/-]/).filter(Boolean);
+	const lastSegment = segments[segments.length - 1] || value;
+	return value.length > 12 ? `…${lastSegment}` : value;
+}
+
 const title = computed(() => (props.mode === "loan-allocation" ? "物品借用记录" : "库存流动记录"));
 </script>
 
@@ -206,6 +223,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 			部分关联处理记录不可用，无法核对未归还数量。
 		</p>
 		<DataTable
+			class="movement-history-table"
 			:ariaLabel="title"
 			:columns="columns"
 			:sort-by="sortBy"
@@ -323,12 +341,98 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<slot v-else-if="column.id === '_actions'" name="actions" :row="history(row)" />
 			</template>
 		</DataTable>
+		<div class="movement-history-mobile" :aria-busy="loading || undefined">
+			<p v-if="loading && !initialized" class="history-mobile-state" role="status">
+				正在加载记录…
+			</p>
+			<p v-if="error" class="history-mobile-state" role="alert">
+				{{ error }} <UiButton size="compact" @click="emit('retry')">重试</UiButton>
+			</p>
+			<button class="history-mobile-sort" type="button" @click="emit('sort', 'date')">
+				日期 {{ sortBy === "date" ? (sortDirection === "asc" ? "↑" : "↓") : "↕" }}
+			</button>
+			<p class="history-mobile-count" role="status">
+				{{ rows.length }} / {{ total }} 条记录
+			</p>
+			<article
+				v-for="row in rows"
+				:key="row.id"
+				class="history-mobile-row"
+				:class="rowClass(row.value)"
+			>
+				<div class="history-mobile-primary">
+					<div class="history-mobile-identity">
+						<InventoryIcon :name="historyIcon(history(row.value))" />
+						<span class="history-mobile-kind">{{
+							movementLabels[String(row.value.kind || "")] || "其他类型"
+						}}</span>
+						<RecordRef
+							:kind="String(row.value.kind || row.value.doctype || 'Activity')"
+							:identity="compactDocumentName(String(row.value.document || ''))"
+							:document-name="String(row.value.document || '')"
+							:accessible-label="`${movementLabels[String(row.value.kind || '')] || '其他类型'}记录 ${row.value.document || ''}`"
+							:disabled="stale || loading || busy"
+							@open="record(history(row.value))"
+						/>
+					</div>
+					<NativeStatusBadge
+						v-if="showStatus"
+						class="history-mobile-status"
+						:status="row.value.docstatus"
+					/>
+				</div>
+				<div class="history-mobile-secondary">
+					<div class="history-mobile-place">
+						<time>{{ compactDate(String(row.value.date_time || "")) }}</time>
+						<span class="history-mobile-endpoints">
+							<LocationEndpoint
+								:warehouse="String(row.value.source_warehouse || '')"
+								:kind="String(row.value.kind || '')"
+								:borrower="
+									'borrower' in row.value ? String(row.value.borrower || '') : ''
+								"
+								role="来源位置"
+							/>
+							<span aria-hidden="true">→</span>
+							<LocationEndpoint
+								:warehouse="String(row.value.destination_warehouse || '')"
+								:kind="String(row.value.kind || '')"
+								:borrower="
+									'borrower' in row.value ? String(row.value.borrower || '') : ''
+								"
+								role="去向位置"
+							/>
+						</span>
+					</div>
+					<strong :class="quantityClass(history(row.value))"
+						>{{ quantity(history(row.value)) }} {{ row.value.stock_uom }}</strong
+					>
+				</div>
+			</article>
+			<p
+				v-if="initialized && !rows.length && !loading && !error"
+				class="history-mobile-state"
+			>
+				没有符合条件的记录
+			</p>
+			<UiButton
+				v-if="next !== null"
+				size="compact"
+				:loading="loadingMore"
+				:disabled="stale"
+				@click="emit('loadMore')"
+				>加载更多 · {{ rows.length }} / {{ total }}</UiButton
+			>
+		</div>
 	</section>
 </template>
 
 <style scoped>
 .movement-history-surface {
 	min-width: 0;
+}
+.movement-history-mobile {
+	display: none;
 }
 .history-item-identity {
 	display: flex;
@@ -387,6 +491,103 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 	font-weight: 400;
 }
 @media (max-width: 1023px) {
+	.movement-history-surface :deep(.movement-history-table) {
+		display: none;
+	}
+	.movement-history-mobile {
+		display: grid;
+		gap: 8px;
+		padding: 8px 0;
+	}
+	.history-mobile-row {
+		min-width: 0;
+		padding: 8px 10px;
+		border: 1px solid var(--p-border);
+		border-radius: var(--p-radius-card);
+		background: var(--p-surface);
+	}
+	.history-mobile-primary,
+	.history-mobile-secondary,
+	.history-mobile-endpoints {
+		display: flex;
+		align-items: center;
+		min-width: 0;
+		gap: 6px;
+	}
+	.history-mobile-primary {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		column-gap: 6px;
+	}
+	.history-mobile-identity {
+		display: flex;
+		align-items: center;
+		min-width: 0;
+		gap: 5px;
+	}
+	.history-mobile-kind {
+		flex: 0 0 auto;
+	}
+	.history-mobile-identity :deep(.record-ref-chip) {
+		flex: 0 1 auto;
+		min-width: 0;
+		max-width: 100%;
+	}
+	.history-mobile-status {
+		white-space: nowrap;
+	}
+	.history-mobile-kind,
+	.history-mobile-secondary time {
+		color: var(--p-muted);
+		white-space: nowrap;
+	}
+	.history-mobile-secondary {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		margin-top: 6px;
+		font-size: var(--p-small);
+	}
+	.history-mobile-place {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		min-width: 0;
+		gap: 4px 8px;
+	}
+	.history-mobile-endpoints {
+		flex-wrap: wrap;
+		justify-content: flex-start;
+		min-width: 0;
+	}
+	.history-mobile-endpoints :deep(.location-endpoint) {
+		max-width: 92px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.history-mobile-secondary strong {
+		grid-column: 2;
+		grid-row: 1;
+		align-self: start;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+	.history-mobile-sort {
+		justify-self: start;
+		padding: 4px 9px;
+		border: 1px solid var(--p-border);
+		border-radius: 999px;
+		background: var(--p-surface);
+		color: var(--p-ink);
+	}
+	.history-mobile-count {
+		margin: -6px 0 0;
+		color: var(--p-muted);
+		font-size: var(--p-small);
+		text-align: start;
+	}
 	.movement-history-surface :deep(td.history-item-cell) {
 		padding-block: 0;
 	}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "./components/ui/PageHeader.vue";
-import { computed, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import ApplicationShell from "./components/ApplicationShell.vue";
 import RouteBreadcrumbs from "./components/RouteBreadcrumbs.vue";
@@ -12,7 +12,8 @@ import ConfigurationPage from "./features/setup/ConfigurationPage.vue";
 import { createReferenceData, provideInventoryServices } from "./services/contracts";
 import { frappeServices } from "./services/frappeServices";
 import { useApplication } from "./features/application/useApplication";
-import { updateAvailable } from "./lib/pwa";
+import { dismissUpdate, isUpdateDismissed, updateAvailable, updateVersion } from "./lib/pwa";
+import { showToast } from "./services/toast";
 import { createBrowseMemory, provideBrowseMemory } from "./lib/browseMemory";
 import { routeViewIdentity } from "./lib/routeRegistry";
 const route = useRoute(),
@@ -35,6 +36,30 @@ provideInventoryServices(services, reference);
 provideBrowseMemory(browseMemory);
 const c = useApplication(reference, services),
 	{ state, resuming, sessionExpired } = c;
+const announcedUpdateVersion = ref("");
+const appMounted = ref(false);
+function announceUpdate() {
+	const version = updateVersion.value;
+	if (!appMounted.value || !updateAvailable.value || !version) return;
+	if (announcedUpdateVersion.value === version) return;
+	announcedUpdateVersion.value = version;
+	if (isUpdateDismissed(version)) return;
+	showToast(
+		c.updateBlocked.value
+			? "发现新版本，请先保存或完成当前输入后更新。"
+			: "发现新版本，可以更新。",
+		"warning",
+		{ label: "更新", disabled: c.updateBlocked.value, action: c.update },
+		`pwa-update:${version}`,
+		true,
+		() => dismissUpdate(version),
+	);
+}
+watch([updateAvailable, updateVersion], announceUpdate);
+onMounted(() => {
+	appMounted.value = true;
+	announceUpdate();
+});
 const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 </script>
 <template>
@@ -111,18 +136,6 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 					><UiButton :loading="state.loading" @click="c.check">重新检查</UiButton>
 				</section>
 				<RouterView :key="contentKey" />
-				<section v-if="updateAvailable" class="notice-bar" role="status">
-					<p>
-						{{
-							c.updateBlocked.value
-								? "发现新版本，请先保存或完成当前输入后更新。"
-								: "发现新版本，可以更新。"
-						}}
-					</p>
-					<UiButton :disabled="c.updateBlocked.value" @click="c.update"
-						>更新并重新加载</UiButton
-					>
-				</section>
 			</ApplicationShell>
 			<Overlay
 				v-if="sessionExpired || resuming || state.accessBlocked"

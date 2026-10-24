@@ -2,6 +2,7 @@ export type ToastTone = "success" | "danger" | "warning";
 export interface ToastAction {
   label: string;
   action: () => void;
+  disabled?: boolean;
 }
 export interface ToastMessage {
   id: string;
@@ -9,6 +10,8 @@ export interface ToastMessage {
   tone: ToastTone;
   dedupeKey?: string;
   action?: ToastAction;
+  persistent?: boolean;
+  onDismiss?: () => void;
 }
 
 export function showToast(
@@ -16,6 +19,8 @@ export function showToast(
   tone: ToastTone = "success",
   action?: ToastAction,
   dedupeKey?: string,
+  persistent = false,
+  onDismiss?: () => void,
 ) {
   if (!message || typeof window === "undefined") return;
   window.dispatchEvent(
@@ -26,6 +31,8 @@ export function showToast(
         tone,
         action,
         dedupeKey,
+        persistent,
+        onDismiss,
       },
     }),
   );

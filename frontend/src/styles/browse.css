@@ -63,7 +63,7 @@
 .browse-tree-row {
 	display: flex;
 	width: 100%;
-	min-height: 56px;
+	min-height: 32px;
 	align-items: center;
 	gap: var(--p-space-3);
 	padding: var(--p-space-2) 0;
@@ -71,6 +71,12 @@
 	border-bottom: 1px solid var(--p-border);
 	border-radius: 0;
 	text-align: left;
+}
+.browse-rank-row {
+	min-height: 56px;
+}
+.browse-tree-row {
+	padding-block: 0;
 }
 .browse-rank-row:last-child {
 	border-bottom: 0;
@@ -1374,6 +1380,8 @@
 	font-size: var(--p-small);
 }
 .preview-group--mobile-list .preview-group-metrics {
+	/* Break only at the · separators; entries use no-break spaces. */
+	word-break: keep-all;
 	display: -webkit-box;
 	min-width: 0;
 	max-width: 100%;
@@ -1387,6 +1395,13 @@
 }
 .preview-group--mobile-list .preview-group-content {
 	padding: 8px 0 4px 64px;
+}
+.preview-group--mobile-list .preview-group-content > .mobile-group-actions,
+.preview-group--mobile-list .preview-group-content > .movement-history-surface,
+.preview-group--mobile-list .preview-group-content > .field-hint {
+	min-width: 0;
+	margin-inline-start: -64px;
+	width: calc(100% + 64px);
 }
 .preview-expiry-mobile {
 	display: grid;
@@ -1753,11 +1768,23 @@
 	place-items: center;
 	justify-content: center;
 	padding: 0;
-	flex: 0 0 44px;
-	width: 44px;
-	height: 44px;
-	min-height: 44px;
+	flex: 0 0 28px;
+	width: 28px;
+	height: 28px;
+	min-height: 28px;
 	line-height: 1;
+}
+@media (pointer: coarse), (max-width: 1023px) {
+	.browse-tree-row .warehouse-toggle,
+	.browse-tree-row .browse-tree-type {
+		flex-basis: 44px;
+		width: 44px;
+		height: 44px;
+		min-height: 44px;
+	}
+	.browse-tree-row {
+		min-height: 44px;
+	}
 }
 .browse-tree-row .warehouse-toggle svg,
 .browse-tree-row .browse-tree-type svg {

@@ -146,7 +146,7 @@
 	padding-block: 8px;
 }
 .damaged-page .data-table-scroll .damaged-row-actions {
-	display: flex !important;
+	display: flex;
 	width: max-content;
 	min-width: max-content;
 	flex-direction: row;
@@ -157,6 +157,32 @@
 .damaged-page .data-table-scroll .damaged-row-actions > * {
 	flex: none;
 	white-space: nowrap;
+}
+.damaged-page .damaged-callout {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+	padding: 6px 10px;
+}
+.damaged-page .damaged-callout > span:nth-child(2) {
+	min-width: 0;
+	flex: 1;
+}
+.damaged-page .damaged-callout > b {
+	margin-inline-start: auto;
+	white-space: nowrap;
+}
+.damaged-page .damaged-disposal-button {
+	color: var(--p-danger);
+}
+.damaged-page .damaged-results-card {
+	min-width: 0;
+	padding: var(--p-space-3);
+}
+.inventory-surface .stock-results-card {
+	min-width: 0;
+	padding: var(--p-space-3);
 }
 .browse-detail-card,
 .form-section {
@@ -169,22 +195,15 @@
 	white-space: nowrap;
 	flex: none;
 }
-.warehouse-stock-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-.warehouse-stock-table th,
-.warehouse-stock-table td {
-	padding: 8px 10px;
-	border-bottom: 1px solid var(--p-border);
-	text-align: left;
-}
-.warehouse-stock-table .align-end {
-	text-align: right;
+.warehouse-stock-table .warehouse-code,
+.warehouse-stock-table .warehouse-nowrap {
 	white-space: nowrap;
 }
-.warehouse-stock-table button {
-	min-height: 32px;
+.warehouse-stock-table .tabular-nums {
+	font-variant-numeric: tabular-nums;
+}
+.warehouse-stock-table .warehouse-item-name {
+	padding-inline: 0;
 }
 .category-row-actions {
 	margin-inline-start: auto;
@@ -192,9 +211,6 @@
 @media (min-width: 601px) {
 	.warehouse-stock-cards {
 		display: none !important;
-	}
-	.warehouse-stock-table {
-		display: table;
 	}
 }
 @media (max-width: 600px) {
@@ -205,8 +221,5 @@
 		display: inline-flex;
 		margin-inline-start: 4px;
 		white-space: nowrap;
-	}
-	.warehouse-stock-table {
-		display: none;
 	}
 }

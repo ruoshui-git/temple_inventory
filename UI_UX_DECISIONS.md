@@ -79,6 +79,20 @@ supersession below when a durable user-facing decision changes.
 - Reports' primary 导出 action opens the QuickExport dialog directly with the
   current query. The overflow menu does not duplicate that action.
 
+## Supersession — 2026-10-24: Phase 8 browse consistency
+
+- Category and warehouse hierarchy rails always sit outside the white result
+  card as a flat panel aligned to the results top. This applies to Stock and
+  Pending alongside Movements, Loans and Reports.
+- Damaged rows use quiet Repair and danger-tone text Disposal actions. Item
+  details and row export live in a `⋯` menu. The row count and analysis control
+  share the result summary line; its explanatory callout stays one compact line.
+- Warehouses uses `BrowseToolbar`: the title, search and node count stay in the
+  shared browse header, 添加区域 is primary, and refresh/export are in overflow.
+- PWA update availability appears as a persistent dismissible `ToastHost` toast
+  with 更新. Dismissal lasts for the session and expires when a newer worker
+  version appears.
+
 ## Supersession — 2026-10-24: compact visual-pass details
 
 - Phone primary navigation always shows all six destinations within the viewport.

@@ -116,6 +116,43 @@ describe("native damaged-stock workspace", () => {
     expect(wrapper.text()).not.toContain("当前没有符合条件");
     expect(wrapper.text()).not.toContain("0 条分配");
   });
+  it("keeps damaged row actions quiet and moves details and export into the row menu", async () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+    const { wrapper } = setup();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+    await flushPromises();
+    const actions = wrapper.get(".damaged-row-actions");
+    const repair = actions
+      .findAll("button")
+      .find((button) => button.text() === "修复归库")!;
+    const disposal = actions
+      .findAll("button")
+      .find((button) => button.text() === "报废")!;
+    expect(repair.classes()).toContain("ui-button--secondary");
+    expect(disposal.classes()).toContain("ui-button--ghost");
+    expect(disposal.classes()).toContain("damaged-disposal-button");
+    expect(
+      actions.findAll("button").some((button) => button.text() === "物品详情"),
+    ).toBe(false);
+    expect(actions.find('[aria-label="更多损坏物品操作"]').exists()).toBe(true);
+    expect(wrapper.get(".damaged-callout").text()).toContain("条明细");
+    expect(wrapper.get(".browse-summary-line").text()).toContain("条存放明细");
+    const rail = wrapper.get(".browse-filter-rail").element;
+    const results = wrapper.get(".damaged-results-card").element;
+    expect(results.contains(rail)).toBe(false);
+    expect(rail.parentElement).toBe(results.parentElement);
+  });
   it("keeps real gallery source locations and search state after query synchronization", async () => {
     resetReviewSession();
     const wrapper = mount(PreviewBrowsePages, {

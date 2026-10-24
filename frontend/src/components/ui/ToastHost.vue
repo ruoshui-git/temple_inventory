@@ -23,7 +23,7 @@ function updateTarget() {
 function showNext() {
 	if (timer) clearTimeout(timer);
 	current.value = queue.shift();
-	if (current.value) timer = setTimeout(showNext, 5000);
+	if (current.value && !current.value.persistent) timer = setTimeout(showNext, 5000);
 }
 function receive(event: Event) {
 	const value = (event as CustomEvent<ToastMessage>).detail;
@@ -36,7 +36,9 @@ function receive(event: Event) {
 	if (!current.value) showNext();
 }
 function dismiss() {
+	const dismissed = current.value;
 	current.value = undefined;
+	dismissed?.onDismiss?.();
 	showNext();
 }
 function runAction() {
@@ -89,11 +91,20 @@ onBeforeUnmount(() => {
 			aria-atomic="true"
 		>
 			<span>{{ current.message }}</span>
-			<UiButton v-if="current.action" size="compact" @click="runAction">{{
-				current.action.label
-			}}</UiButton>
-			<UiButton size="compact" variant="ghost" aria-label="关闭通知" @click="dismiss"
-				>关闭</UiButton
+			<UiButton
+				v-if="current.action"
+				size="compact"
+				:disabled="current.action.disabled"
+				@click="runAction"
+				>{{ current.action.label }}</UiButton
+			>
+			<UiButton
+				size="compact"
+				variant="ghost"
+				aria-label="关闭通知"
+				title="关闭通知"
+				@click="dismiss"
+				>×</UiButton
 			>
 		</div>
 	</Teleport>

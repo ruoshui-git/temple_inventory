@@ -14,9 +14,10 @@ import { groupLabels, sortableColumnsForView } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
-import QuantitySummary from "../../components/ui/QuantitySummary.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
@@ -95,14 +96,9 @@ watch([() => props.active, isMobile], () => {
 				</div>
 				<UiButton @click="c.clear">清空筛选</UiButton>
 			</template>
-			<div class="browse-callout">
+			<div class="browse-callout damaged-callout">
 				<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
-				<div>
-					<strong>损坏物资待处理</strong>
-					<p>
-						所有明细均位于“损坏待处理”位置。选择修复归库，或将无法使用的物资正式报废。
-					</p>
-				</div>
+				<span>损坏物资待处理：明细均位于“损坏待处理”位置，可修复归库或正式报废。</span>
 				<b v-if="table?.initialized">{{ c.report.result.total }} 条明细</b>
 			</div>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
@@ -137,13 +133,7 @@ watch([() => props.active, isMobile], () => {
 					@remove="Object.assign(query, chip.reset)"
 				/>
 			</template>
-			<template #result-tools
-				><span>{{ c.report.result.total }} 条存放明细</span
-				><UiButton :disabled="!table?.initialized" @click="analysisOpen = true"
-					>分析结果</UiButton
-				></template
-			></BrowseToolbar
-		>
+		</BrowseToolbar>
 		<SkeletonBlock
 			v-if="c.report.result.loading && !table?.initialized"
 			variant="list"
@@ -160,7 +150,17 @@ watch([() => props.active, isMobile], () => {
 			{{ c.report.result.error }} <UiButton @click="c.report.refresh(true)">重试</UiButton>
 		</p>
 
-		<QuantitySummary :metrics="metrics" :loading="c.report.result.loading" />
+		<BrowseResultSummary
+			:label="`${c.report.result.total} 条存放明细`"
+			:metrics="metrics"
+			:loading="c.report.result.loading"
+		>
+			<template #controls>
+				<UiButton :disabled="!table?.initialized" @click="analysisOpen = true"
+					>分析结果</UiButton
+				>
+			</template>
+		</BrowseResultSummary>
 		<div class="preview-browse-body">
 			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
 				<div class="filter-rail-heading">
@@ -183,7 +183,7 @@ watch([() => props.active, isMobile], () => {
 				:active="scope.categories.length + scope.warehouses.length > 0"
 				@toggle="toggleFilter"
 			/>
-			<div class="preview-browse-results">
+			<div class="preview-browse-results surface damaged-results-card">
 				<ReportTable
 					v-if="table"
 					sticky-actions
@@ -207,10 +207,10 @@ watch([() => props.active, isMobile], () => {
 					"
 				>
 					<template #actions="{ row }">
-						<div class="damaged-row-actions">
+						<div class="browse-row-actions damaged-row-actions">
 							<UiButton
 								v-if="c.canAct('Repair', row as ReportRow)"
-								variant="primary"
+								variant="secondary"
 								:icon="kindIcons.Repair.icon"
 								@click="
 									emit('operation', 'Repair', c.allocation(row as ReportRow))
@@ -219,25 +219,28 @@ watch([() => props.active, isMobile], () => {
 							>
 							<UiButton
 								v-if="c.canAct('Disposal', row as ReportRow)"
-								variant="danger"
+								variant="ghost"
+								class="damaged-disposal-button"
 								:icon="kindIcons.Disposal.icon"
 								@click="
 									emit('operation', 'Disposal', c.allocation(row as ReportRow))
 								"
 								>报废</UiButton
 							>
-							<UiButton
-								:disabled="c.report.result.stale"
-								icon="box"
-								@click="emit('item', String(row.item_code))"
-								>物品详情</UiButton
-							>
-							<QuickExport
-								:disabled="c.report.result.stale"
-								:query="c.rowQuery(row as ReportRow)"
-								:active="active"
-								@open-full="emit('openExport', $event)"
-							/>
+							<PopupMenu label="更多损坏物品操作" align="end">
+								<UiButton
+									:disabled="c.report.result.stale"
+									icon="box"
+									@click="emit('item', String(row.item_code))"
+									>物品详情</UiButton
+								>
+								<QuickExport
+									:disabled="c.report.result.stale"
+									:query="c.rowQuery(row as ReportRow)"
+									:active="active"
+									@open-full="emit('openExport', $event)"
+								/>
+							</PopupMenu>
 						</div>
 					</template>
 				</ReportTable>

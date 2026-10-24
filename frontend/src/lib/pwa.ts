@@ -6,11 +6,53 @@ interface InstallPromptEvent extends Event {
 }
 
 export const updateAvailable = ref(false);
+export const updateVersion = ref("");
+export function updateDismissalKey(version: string) {
+  return `temple-inventory:update-dismissed:${version}`;
+}
+export function isUpdateDismissed(version: string) {
+  try {
+    return window.sessionStorage.getItem(updateDismissalKey(version)) === "1";
+  } catch {
+    return false;
+  }
+}
+export function dismissUpdate(version: string) {
+  try {
+    window.sessionStorage.setItem(updateDismissalKey(version), "1");
+  } catch {
+    // The current tab still dismisses the toast if storage is unavailable.
+  }
+}
 const installEvent = ref<InstallPromptEvent | null>(null);
 const standalone = ref(false);
 let registration: ServiceWorkerRegistration | undefined;
 let registered = false;
 let reloading = false;
+
+async function workerVersion(worker: ServiceWorker) {
+  try {
+    const response = await fetch(worker.scriptURL, { cache: "no-store" });
+    if (!response.ok) return worker.scriptURL;
+    const content = await response.text();
+    let hash = 2166136261;
+    for (let index = 0; index < content.length; index++) {
+      hash = Math.imul(hash ^ content.charCodeAt(index), 16777619);
+    }
+    return `${worker.scriptURL}:${(hash >>> 0).toString(36)}`;
+  } catch {
+    return worker.scriptURL;
+  }
+}
+
+async function markUpdateAvailable(
+  worker: ServiceWorker | null,
+  controller: ServiceWorker | null,
+) {
+  if (worker?.state !== "installed" || !controller) return;
+  updateVersion.value = await workerVersion(worker);
+  updateAvailable.value = true;
+}
 
 export {
   detectInstallPlatform,
@@ -51,13 +93,6 @@ export async function installPwa() {
   return true;
 }
 
-function showUpdateIfReady(
-  worker: ServiceWorker | null,
-  controller: ServiceWorker | null,
-) {
-  if (worker?.state === "installed" && controller) updateAvailable.value = true;
-}
-
 export async function registerPwa() {
   // The dev server has no built /temple-inventory-sw.js of its own; registering here would
   // only reattach a stale production worker and block Vite HMR reloads with cached responses.
@@ -78,11 +113,16 @@ export async function registerPwa() {
       },
     );
     if (registration.waiting && navigator.serviceWorker.controller)
-      updateAvailable.value = true;
+      void markUpdateAvailable(
+        registration.waiting,
+        navigator.serviceWorker.controller,
+      );
     registration.addEventListener("updatefound", () => {
       const worker = registration?.installing;
-      worker?.addEventListener("statechange", () =>
-        showUpdateIfReady(worker, navigator.serviceWorker.controller),
+      worker?.addEventListener(
+        "statechange",
+        () =>
+          void markUpdateAvailable(worker, navigator.serviceWorker.controller),
       );
     });
     void registration.update().catch(() => undefined);

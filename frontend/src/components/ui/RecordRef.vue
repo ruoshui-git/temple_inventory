@@ -10,6 +10,7 @@ const props = withDefaults(
 		count?: number;
 		status?: string | number;
 		documentName?: string;
+		accessibleLabel?: string;
 		tooltip?: string;
 		measureWord?: string;
 		disabled?: boolean;
@@ -45,7 +46,7 @@ const label = () => {
 	<button
 		type="button"
 		class="record-ref-chip"
-		:aria-label="label()"
+		:aria-label="accessibleLabel || label()"
 		:title="documentName || tooltip || label()"
 		:disabled="disabled"
 		@click="emit('open')"

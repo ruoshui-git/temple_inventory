@@ -68,3 +68,28 @@ it("deduplicates repeated events and clears queued notices on account changes", 
   await flushPromises();
   expect(document.querySelector(".preview-toast")).toBeNull();
 });
+
+it("keeps update notices visible until dismissal and runs the reload action", async () => {
+  vi.useFakeTimers();
+  setup();
+  const reload = vi.fn();
+  showToast(
+    "发现新版本，可以更新。",
+    "warning",
+    { label: "更新", action: reload },
+    "pwa-update:test",
+    true,
+  );
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(5100);
+  expect(document.querySelector(".preview-toast")?.textContent).toContain(
+    "发现新版本",
+  );
+  const buttons = document.querySelectorAll<HTMLButtonElement>(
+    ".preview-toast button",
+  );
+  buttons[0]?.click();
+  await flushPromises();
+  expect(reload).toHaveBeenCalledOnce();
+  expect(document.querySelector(".preview-toast")).toBeNull();
+});

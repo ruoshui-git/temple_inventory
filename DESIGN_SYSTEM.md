@@ -210,6 +210,13 @@ kept in Git.
   changing row height; touch surfaces retain visible actions. Wide-screen
   defaults may add secondary columns at 1440px, with column preferences for
   narrower viewports.
+- **2026-10-24 supersession:** hierarchy filter rails always sit outside the
+  white result card and align with its top edge. Damaged row actions use quiet
+  Repair and danger-tone text Disposal buttons; details and export stay in the
+  row overflow menu. Warehouses uses `BrowseToolbar`, with its node count in the
+  subtitle and secondary refresh/export actions in overflow. PWA update notices
+  use a persistent, dismissible `ToastHost` toast with an 更新 action; dismissal
+  lasts for the session and a newer worker version can show a new notice.
 - Off switches use `--p-switch-off` (or its semantic fallback) for the track;
   it must contrast at least 3:1 against the surface. A visible thumb remains
   distinct from the track in both states.

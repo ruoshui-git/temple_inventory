@@ -408,4 +408,59 @@ describe("native location workspace", () => {
     expect(wrapper.text()).toContain("实体库房");
     expect(fixtureServices).toBeTruthy();
   });
+
+  it("uses DataTable columns with centered artwork, nowrap codes, and end-aligned quantities", async () => {
+    const report = vi.fn(async (query: ReportQuery) => ({
+      query,
+      table: "locations",
+      rows: [
+        {
+          id: "item-1",
+          item_code: "ITM-000123",
+          item_name: "测试物品",
+          image: "/test.webp",
+          warehouse: "SHELF",
+          warehouse_label: "演示架1",
+          warehouse_path: "T2 / A02 / 演示架1",
+          batch_no: "BATCH-1",
+          stock_qty: 12,
+          stock_uom: "Nos",
+        },
+      ],
+      matched_count: 1,
+      next_start: null,
+      snapshot: "now",
+      summary: [],
+      period: { date_from: "", date_to: "" },
+      tables: [
+        {
+          id: "locations",
+          label: "位置",
+          count: 1,
+          columns: [
+            "item_code",
+            "item_name",
+            "warehouse_label",
+            "batch_no",
+            "stock_qty",
+          ],
+        },
+      ],
+    }));
+    const { wrapper } = setup(undefined, { initialWarehouse: "SHELF" }, report);
+    await flushPromises();
+    expect(wrapper.findComponent({ name: "BrowseToolbar" }).exists()).toBe(
+      true,
+    );
+    expect(wrapper.text()).toContain("节点");
+    const table = wrapper.get(".warehouse-stock-table");
+    expect(table.get("th.align-center").exists()).toBe(true);
+    expect(table.get("th.align-end").exists()).toBe(true);
+    expect(table.get('th button[aria-label^="物品排序"]').exists()).toBe(true);
+    expect(table.get('button[aria-label="设置列"]').exists()).toBe(true);
+    expect(table.get("td.warehouse-code").classes()).toContain("align-start");
+    expect(table.text()).toContain("ITM-000123");
+    expect(table.text()).toContain("12 Nos");
+    expect(table.find("[title='T2 / A02 / 演示架1']").exists()).toBe(true);
+  });
 });

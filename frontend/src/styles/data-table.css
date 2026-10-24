@@ -237,6 +237,9 @@
 .data-table-scroll td.align-end {
 	font-variant-numeric: tabular-nums;
 }
+.data-table-scroll td > .browse-row-link {
+	padding-inline: 0;
+}
 .data-table-scroll th.data-table-selection-column,
 .data-table-scroll td.data-table-selection-column {
 	padding-inline: var(--p-space-1) !important;
@@ -476,6 +479,8 @@
 }
 
 .operation-group-metrics {
+	/* Break only at the · separators; entries use no-break spaces. */
+	word-break: keep-all;
 	display: inline-block;
 	max-width: min(42vw, 16rem);
 	white-space: normal;

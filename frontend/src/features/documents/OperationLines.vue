@@ -1344,6 +1344,16 @@ function changeBatch(line: AllocationLine) {
 								class="badge warning"
 								>待完善</span
 							>
+							<span
+								v-if="
+									(showError || revealErrors) &&
+									lineIssues.some((issue) => issue.lineId === line.id)
+								"
+								class="notice-bar warning allocation-error"
+								role="alert"
+							>
+								{{ lineIssues.find((issue) => issue.lineId === line.id)?.message }}
+							</span>
 						</div>
 						<div class="preview-allocation-actions">
 							<UiButton
@@ -1360,16 +1370,6 @@ function changeBatch(line: AllocationLine) {
 								>移除</UiButton
 							>
 						</div>
-						<p
-							v-if="
-								(showError || revealErrors) &&
-								lineIssues.some((issue) => issue.lineId === line.id)
-							"
-							class="notice-bar warning allocation-error"
-							role="alert"
-						>
-							{{ lineIssues.find((issue) => issue.lineId === line.id)?.message }}
-						</p>
 					</article>
 				</div>
 			</section>

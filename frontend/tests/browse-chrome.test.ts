@@ -452,3 +452,12 @@ it("offers new Item as the primary stock action and keeps selected actions avail
   c.selectedAction("Receive");
   expect(page.emitted("newOperation")).toHaveLength(count);
 });
+
+it("renders the Stock hierarchy rail beside, outside its result card", async () => {
+  const { wrapper } = stock();
+  await flushPromises();
+  const rail = wrapper.get(".browse-filter-rail").element;
+  const card = wrapper.get(".stock-results-card").element;
+  expect(card.contains(rail)).toBe(false);
+  expect(rail.parentElement).toBe(card.parentElement);
+});

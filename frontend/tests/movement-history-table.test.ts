@@ -25,6 +25,80 @@ const row = {
   borrower: "",
 };
 describe("typed movement history table", () => {
+  it("renders expanded phone history as stacked records with sort, count and load-more", async () => {
+    const longRow = { ...row, document: "SE-2026-00001124" };
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      user: "test",
+      warehouses: [
+        {
+          name: "ROOM",
+          label: "A02",
+          local_label: "演示室甲",
+          short_label: "A02",
+          full_label: "演示室甲",
+          path: "T2 / A02",
+          search_text: "T2 A02 演示室甲",
+          kind: "room",
+          owner: "",
+          direct: false,
+          storable: true,
+          missing_direct: false,
+          parent: "T2",
+          is_group: false,
+          disabled: false,
+          version: "",
+          protected: false,
+          can_edit: false,
+          lft: 1,
+          rgt: 2,
+        },
+      ],
+    });
+    const Host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call: vi.fn(), report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(MovementHistoryTable, {
+            rows: [longRow],
+            total: 3,
+            next: 1,
+            initialized: true,
+            sortBy: "date",
+            sortDirection: "desc",
+          });
+      },
+    });
+    const wrapper = mount(Host);
+    expect(wrapper.get(".movement-history-mobile").text()).toContain(
+      "1 / 3 条记录",
+    );
+    expect(wrapper.get(".history-mobile-row").text()).toContain("入库");
+    expect(wrapper.get(".history-mobile-row").text()).toContain("…00001124");
+    expect(wrapper.get(".history-mobile-row").text()).toContain("10-19 09:00");
+    expect(wrapper.get(".history-mobile-row").text()).toContain("A02");
+    const mobileRecord = wrapper.get(".history-mobile-row");
+    const referenceChip = mobileRecord.get(".record-ref-chip");
+    expect(referenceChip.text()).toContain("…00001124");
+    expect(referenceChip.attributes("aria-label")).toContain(
+      "SE-2026-00001124",
+    );
+    expect(referenceChip.find(".browse-badge").exists()).toBe(false);
+    expect(mobileRecord.get(".history-mobile-status").text()).toContain(
+      "已提交",
+    );
+    await wrapper.get(".history-mobile-sort").trigger("click");
+    await wrapper
+      .get(".movement-history-mobile button.ui-button")
+      .trigger("click");
+    const table = wrapper.findComponent(MovementHistoryTable);
+    expect(table.emitted("sort")).toEqual([["date"]]);
+    expect(table.emitted("loadMore")).toHaveLength(1);
+  });
+
   it("uses fixed columns, status, accessible effect text, and native document action", async () => {
     const reference = createReferenceData();
     Object.assign(reference, {
