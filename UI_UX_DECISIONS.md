@@ -367,6 +367,10 @@ supersession below when a durable user-facing decision changes.
 
 ## Durable supersessions
 
+- **2026-10-24 — Popup menus:** Menus close on an outside click and never widen
+  the page. Shared action popups anchor to their trigger, flip and clamp within
+  the viewport, and only one popup or filter panel is open at a time.
+
 - **2026-10-23:** In-place disclosures use one leading rotating chevron;
   popup triggers use one static trailing chevron. Detail sections are divided
   list rows. Activity detail, drafts and Reports use the canonical browse

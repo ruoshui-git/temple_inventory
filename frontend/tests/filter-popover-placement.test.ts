@@ -26,4 +26,36 @@ describe("filter popover placement", () => {
       minHeight: 240,
     });
   });
+
+  it("aligns to the end and clamps at the viewport's right margin", () => {
+    const placement = chooseFilterPopoverPlacement({
+      triggerTop: 100,
+      triggerBottom: 140,
+      viewportHeight: 900,
+      naturalHeight: 240,
+      triggerLeft: 940,
+      triggerRight: 1014,
+      viewportWidth: 1024,
+      popupWidth: 240,
+      align: "end",
+      horizontalMargin: 8,
+    });
+    expect(placement.left).toBe(774);
+  });
+
+  it("aligns to the start and clamps a trigger at the right edge", () => {
+    const placement = chooseFilterPopoverPlacement({
+      triggerTop: 100,
+      triggerBottom: 140,
+      viewportHeight: 900,
+      naturalHeight: 240,
+      triggerLeft: 1014,
+      triggerRight: 1024,
+      viewportWidth: 1024,
+      popupWidth: 240,
+      align: "start",
+      horizontalMargin: 8,
+    });
+    expect(placement.left).toBe(776);
+  });
 });

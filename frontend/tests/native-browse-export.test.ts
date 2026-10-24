@@ -708,26 +708,47 @@ describe("native dashboard cards", () => {
       .trigger("click");
     expect(navigate).toHaveBeenCalledWith(operationDestination("Loan"));
 
-    await wrapper.get(".dashboard-more-actions summary").trigger("click");
-    const disposal = wrapper
-      .findAll(".dashboard-more-actions button")
-      .find((button) => button.text().trim() === "报废")!;
-    await disposal.trigger("click");
+    await wrapper
+      .get('.dashboard-more-actions [aria-label="更多"]')
+      .trigger("click");
+    const disposal = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        ".dashboard-more-actions-menu button",
+      ),
+    ).find((button) => button.textContent?.trim() === "报废")!;
+    disposal.click();
+    await flushPromises();
     expect(navigate).toHaveBeenLastCalledWith(operationDestination("Disposal"));
     expect(
-      wrapper.get(".dashboard-more-actions").attributes("open"),
-    ).toBeUndefined();
-    expect(wrapper.text()).toContain("归还 · 选择未结清借用");
+      wrapper
+        .get('.dashboard-more-actions [aria-label="更多"]')
+        .attributes("aria-expanded"),
+    ).toBe("false");
+    expect(document.body.textContent).toContain("归还 · 选择未结清借用");
 
     await wrapper
-      .findAll(".dashboard-more-actions button")
-      .find((button) => button.text().trim() === "盘点调整")!
+      .get('.dashboard-more-actions [aria-label="更多"]')
       .trigger("click");
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        ".dashboard-more-actions-menu button",
+      ),
+    )
+      .find((button) => button.textContent?.trim() === "盘点调整")!
+      .click();
+    await flushPromises();
     expect(navigate).toHaveBeenLastCalledWith(countDestination());
     await wrapper
-      .findAll(".dashboard-more-actions button")
-      .find((button) => button.text().includes("归还"))!
+      .get('.dashboard-more-actions [aria-label="更多"]')
       .trigger("click");
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        ".dashboard-more-actions-menu button",
+      ),
+    )
+      .find((button) => button.textContent?.includes("归还"))!
+      .click();
+    await flushPromises();
     const chooser = navigate.mock.lastCall![0] as {
       name: string;
       query: Record<string, unknown>;

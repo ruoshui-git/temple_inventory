@@ -59,6 +59,20 @@ kept in Git.
   to the section heading. Only blank space in that slot is prevented from
   toggling the section; interactive controls retain their native behavior.
 
+## Popup menus
+
+- Use `PopupMenu` for action menus. Its trigger is a labeled button, and the
+  popup is fixed to the trigger, teleported into the active Overlay when one is
+  open, and layered at `--p-z-menu`. Align to the start or end, keep an 8px
+  viewport margin, open 4px below, and flip above when that side has more room.
+  Bound the height to the available viewport space and scroll inside the menu.
+- Menus close on outside pointerdown, Escape, route change, item activation,
+  or when their anchor leaves the viewport. Escape returns focus to the trigger.
+  Only one transient menu or filter panel may be open at a time.
+- Menu items support ArrowUp/ArrowDown and Home/End; opening by keyboard puts
+  focus on the first item. Respect reduced motion and keep coarse-pointer targets
+  at least 44px high.
+
 ## Density, tables and scrollbars
 
 - Desktop compact/balanced/spacious controls are 32/36/44px high, gaps are

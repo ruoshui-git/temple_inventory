@@ -2,6 +2,7 @@
 import { computed, ref, useId, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import VirtualList from "./VirtualList.vue";
 import UiButton from "./UiButton.vue";
+import { useAnchoredPopup } from "../../composables/useAnchoredPopup";
 const virtualList = ref<InstanceType<typeof VirtualList>>();
 export type SearchOption = {
 	value: string;
@@ -38,12 +39,23 @@ const emit = defineEmits<{
 const id = useId();
 const root = ref<HTMLElement>();
 const input = ref<HTMLInputElement>();
+const popup = ref<HTMLElement>();
+const anchor = ref<HTMLElement>();
+function setInput(element: unknown) {
+	input.value = (element as HTMLInputElement | null) || undefined;
+	anchor.value = input.value;
+}
 function close() {
 	open.value = false;
 	query.value = "";
 }
 function outside(event: PointerEvent) {
-	if (event.target instanceof Node && !root.value?.contains(event.target)) close();
+	if (
+		event.target instanceof Node &&
+		!root.value?.contains(event.target) &&
+		!popup.value?.contains(event.target)
+	)
+		close();
 }
 onMounted(() => document.addEventListener("pointerdown", outside));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", outside));
@@ -57,6 +69,18 @@ const open = ref(false),
 	query = ref(""),
 	active = ref(0),
 	limit = ref(props.pageSize);
+const { style: popupStyle, target: popupTarget } = useAnchoredPopup({
+	anchor,
+	popup,
+	open,
+	align: "start",
+	gap: 4,
+	margin: 8,
+	maxWidth: 360,
+	maxHeight: 360,
+	preferredMinHeight: 240,
+	onClose: () => close(),
+});
 const state = ref<"ready" | "loading" | "error">("ready");
 const options = computed(() =>
 	props.options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)),
@@ -161,7 +185,7 @@ defineExpose({ state });
 		<label :for="id">{{ label }}</label>
 		<div class="search-select-input">
 			<input
-				ref="input"
+				:ref="setInput"
 				:id="id"
 				role="combobox"
 				autocomplete="off"
@@ -195,82 +219,91 @@ defineExpose({ state });
 				×
 			</button>
 		</div>
-		<div v-if="open && !disabled" class="search-select-menu">
-			<p v-if="modelValue" class="muted">已选：{{ selected }}</p>
-			<p v-if="state === 'loading'" role="status">正在查找…</p>
-			<div v-if="state === 'error'" role="alert">
-				{{ error || "选项加载失败" }}
-				<button type="button" @click="remote ? emit('retry') : (state = 'ready')">
-					重试
-				</button>
-			</div>
-			<template v-if="matches.length || state === 'ready'"
-				><VirtualList
-					v-if="virtual"
-					ref="virtualList"
-					:id="id + '-options'"
-					role="listbox"
-					:aria-label="label"
-					:keys="matches.map((option) => option.value)"
-					:estimate="64"
-					><template #default="{ index }"
-						><div
-							:id="id + '-' + index"
-							role="option"
-							:aria-selected="matches[index]?.value === modelValue"
-							:aria-disabled="matches[index]?.disabled"
-							:class="{ active: index === active }"
-							class="virtual-option"
-							@mousedown.prevent
-							@click="
-								matches[index] &&
-								!matches[index]!.disabled &&
-								choose(matches[index]!.value)
-							"
-						>
-							{{ matches[index]?.label
-							}}<small v-if="matches[index]?.detail">{{
-								matches[index]?.detail
-							}}</small>
-						</div></template
-					></VirtualList
-				>
-				<ul v-else :id="id + '-options'" role="listbox" :aria-label="label">
-					<li
-						v-for="(option, index) in visible"
-						:id="id + '-' + index"
-						:key="option.value"
-						role="option"
-						:aria-selected="option.value === modelValue"
-						:aria-disabled="option.disabled"
-						:class="{ active: index === active }"
-						@mousedown.prevent
-						@click="!option.disabled && choose(option.value)"
-					>
-						{{ option.label }}<small v-if="option.detail">{{ option.detail }}</small>
-					</li>
-				</ul>
-				<p v-if="state === 'ready' && !matches.length" role="status">没有匹配的选项</p>
-				<button
-					v-if="!remote && !virtual && matches.length > limit"
-					type="button"
-					@click="limit += pageSize"
-				>
-					显示更多（共 {{ matches.length }} 项）</button
-				><UiButton
-					v-if="remote && hasMore"
-					size="compact"
-					:loading="loading"
-					loading-label="正在加载更多选项…"
-					@click="emit('loadMore')"
-				>
-					加载更多 · 已加载 {{ matches.length }} / {{ total }}
-				</UiButton>
-				<span class="sr-only" role="status"
-					>{{ total ?? matches.length }} 个匹配选项</span
-				></template
+		<Teleport :to="popupTarget">
+			<div
+				v-if="open && !disabled"
+				ref="popup"
+				class="search-select-menu"
+				:class="{ 'has-virtual-list': virtual }"
+				:style="popupStyle"
 			>
-		</div>
+				<p v-if="modelValue" class="muted">已选：{{ selected }}</p>
+				<p v-if="state === 'loading'" role="status">正在查找…</p>
+				<div v-if="state === 'error'" role="alert">
+					{{ error || "选项加载失败" }}
+					<button type="button" @click="remote ? emit('retry') : (state = 'ready')">
+						重试
+					</button>
+				</div>
+				<template v-if="matches.length || state === 'ready'"
+					><VirtualList
+						v-if="virtual"
+						ref="virtualList"
+						:id="id + '-options'"
+						role="listbox"
+						:aria-label="label"
+						:keys="matches.map((option) => option.value)"
+						:estimate="64"
+						><template #default="{ index }"
+							><div
+								:id="id + '-' + index"
+								role="option"
+								:aria-selected="matches[index]?.value === modelValue"
+								:aria-disabled="matches[index]?.disabled"
+								:class="{ active: index === active }"
+								class="virtual-option"
+								@mousedown.prevent
+								@click="
+									matches[index] &&
+									!matches[index]!.disabled &&
+									choose(matches[index]!.value)
+								"
+							>
+								{{ matches[index]?.label
+								}}<small v-if="matches[index]?.detail">{{
+									matches[index]?.detail
+								}}</small>
+							</div></template
+						></VirtualList
+					>
+					<ul v-else :id="id + '-options'" role="listbox" :aria-label="label">
+						<li
+							v-for="(option, index) in visible"
+							:id="id + '-' + index"
+							:key="option.value"
+							role="option"
+							:aria-selected="option.value === modelValue"
+							:aria-disabled="option.disabled"
+							:class="{ active: index === active }"
+							@mousedown.prevent
+							@click="!option.disabled && choose(option.value)"
+						>
+							{{ option.label
+							}}<small v-if="option.detail">{{ option.detail }}</small>
+						</li>
+					</ul>
+					<p v-if="state === 'ready' && !matches.length" role="status">没有匹配的选项</p>
+					<button
+						v-if="!remote && !virtual && matches.length > limit"
+						type="button"
+						@click="limit += pageSize"
+					>
+						显示更多（共 {{ matches.length }} 项）</button
+					><UiButton
+						v-if="remote && hasMore"
+						size="compact"
+						:loading="loading"
+						loading-label="正在加载更多选项…"
+						@click="emit('loadMore')"
+					>
+						加载更多 · 已加载 {{ matches.length }} / {{ total }}
+					</UiButton>
+					<span class="sr-only" role="status"
+						>{{ total ?? matches.length }} 个匹配选项</span
+					></template
+				>
+			</div>
+		</Teleport>
 	</div>
 </template>
 <style scoped>
@@ -290,19 +323,27 @@ defineExpose({ state });
 	width: 100%;
 }
 .search-select-menu {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	min-width: min(280px, 80vw);
-	z-index: 30;
-	max-height: 320px;
+	position: fixed;
+	z-index: var(--p-z-menu);
+	min-width: min(280px, calc(100vw - 16px));
+	max-width: min(360px, calc(100vw - 16px));
+	max-height: var(--popup-max-height, calc(100dvh - 16px));
 	overflow: auto;
 	padding: 8px;
 	background: var(--p-surface);
 	border: 1px solid var(--p-border);
 	border-radius: 10px;
 	box-shadow: var(--p-shadow-raised);
+}
+.search-select-menu.has-virtual-list {
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+.search-select-menu.has-virtual-list :deep(.preview-virtual-list) {
+	min-height: 0;
+	flex: 1 1 auto;
+	overflow: auto;
 }
 ul {
 	list-style: none;

@@ -23,6 +23,7 @@ import { useInventoryServices } from "../../services/contracts";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import { showToast } from "../../services/toast";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
 import {
 	borrowerLoanPageState,
 	type BorrowerLoanPageState,
@@ -303,22 +304,24 @@ async function lifecycle() {
 			><div>
 				<div class="operation-page-title-row">
 					<h1 tabindex="-1">{{ title }}</h1>
-					<details class="editor-overflow-menu">
-						<summary aria-label="更多操作">⋯</summary>
-						<div class="editor-overflow-menu-items">
-							<QuickExport
-								v-if="!loading && c.savedExportQuery.value"
-								:query="c.savedExportQuery.value"
-								:active="active"
-								@open-full="emit('openExport', $event)"
-							/><UiButton
-								v-if="state.identity && state.server?.docstatus === 0"
-								:disabled="!writable || busy"
-								@click="action = 'delete'"
-								>删除草稿单据</UiButton
-							>
-						</div>
-					</details>
+					<PopupMenu
+						class="editor-overflow-menu"
+						label="更多操作"
+						variant="icon"
+						align="end"
+					>
+						<QuickExport
+							v-if="!loading && c.savedExportQuery.value"
+							:query="c.savedExportQuery.value"
+							:active="active"
+							@open-full="emit('openExport', $event)"
+						/><UiButton
+							v-if="state.identity && state.server?.docstatus === 0"
+							:disabled="!writable || busy"
+							@click="action = 'delete'"
+							>删除草稿单据</UiButton
+						>
+					</PopupMenu>
 				</div>
 				<p class="muted">{{ subtitles[draft.kind] }}</p>
 			</div>

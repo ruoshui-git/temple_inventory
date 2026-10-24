@@ -9,6 +9,7 @@ import ItemLine from "../../components/ui/ItemLine.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -249,28 +250,23 @@ function parentLabel(name?: string) {
 								@click="c.repair(selected)"
 								>缺少直接存放位置 · 补建</UiButton
 							>
-							<details
+							<PopupMenu
 								v-if="selected.can_edit && !selected.protected"
+								label="更多位置操作"
+								variant="icon"
+								align="end"
 								class="warehouse-action-menu"
 							>
-								<summary class="ti-disclosure" aria-label="更多位置操作">
-									更多<DisclosureIcon variant="popup" />
-								</summary>
-								<div>
-									<button
-										type="button"
-										@click="c.openEditor(selected, 'rename')"
-									>
-										重命名
-									</button>
-									<button type="button" @click="c.openEditor(selected, 'move')">
-										移动
-									</button>
-									<button type="button" @click="c.toggleDisabled(selected)">
-										{{ selected.disabled ? "启用" : "停用" }}
-									</button>
-								</div>
-							</details>
+								<button type="button" @click="c.openEditor(selected, 'rename')">
+									重命名
+								</button>
+								<button type="button" @click="c.openEditor(selected, 'move')">
+									移动
+								</button>
+								<button type="button" @click="c.toggleDisabled(selected)">
+									{{ selected.disabled ? "启用" : "停用" }}
+								</button>
+							</PopupMenu>
 							<DisclosureSection title="ERPNext 信息" summary="系统字段与层级信息">
 								<dl>
 									<div>
@@ -562,32 +558,6 @@ function parentLabel(name?: string) {
 	flex-wrap: wrap;
 	gap: var(--p-space-3);
 }
-.warehouse-action-menu {
-	position: relative;
-}
-.warehouse-action-menu > div {
-	position: absolute;
-	right: 0;
-	z-index: 2;
-	display: grid;
-	min-width: 112px;
-	padding: var(--p-space-2);
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-control);
-	background: var(--p-surface);
-	box-shadow: var(--p-shadow-subtle);
-}
-.warehouse-action-menu button {
-	min-height: 40px;
-	padding: var(--p-space-2);
-	border: 0;
-	background: transparent;
-	color: var(--p-text);
-	text-align: left;
-}
-.warehouse-action-menu button:hover {
-	background: var(--p-soft);
-}
 .warehouse-toggle {
 	flex: 0 0 32px;
 	width: 32px;
@@ -621,10 +591,6 @@ function parentLabel(name?: string) {
 	}
 	.warehouse-detail-actions {
 		width: 100%;
-	}
-	.warehouse-action-menu > div {
-		left: 0;
-		right: auto;
 	}
 }
 </style>

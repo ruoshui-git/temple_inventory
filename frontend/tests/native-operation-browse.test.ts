@@ -1458,7 +1458,11 @@ describe("native operation browsing", () => {
       true,
     );
     await flushPromises();
-    expect(wrapper.get('a[href="/drafts"]').text()).toContain("草稿");
-    expect(wrapper.get('a[href="/drafts"] span').text()).toBe("4");
+    await wrapper.get('[aria-label="更多操作"]').trigger("click");
+    const drafts = document.querySelector<HTMLAnchorElement>(
+      '.popup-menu-panel a[href="/drafts"]',
+    )!;
+    expect(drafts.textContent).toContain("草稿");
+    expect(drafts.querySelector("span")?.textContent).toBe("4");
   });
 });

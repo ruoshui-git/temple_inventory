@@ -3,6 +3,7 @@ export type FilterPopoverPlacement = {
   top: number;
   maxHeight: number;
   minHeight: number;
+  left?: number;
 };
 
 export function chooseFilterPopoverPlacement(options: {
@@ -13,6 +14,12 @@ export function chooseFilterPopoverPlacement(options: {
   margin?: number;
   gap?: number;
   minimumHeight?: number;
+  triggerLeft?: number;
+  triggerRight?: number;
+  viewportWidth?: number;
+  popupWidth?: number;
+  align?: "start" | "end";
+  horizontalMargin?: number;
 }): FilterPopoverPlacement {
   const margin = options.margin ?? 12;
   const gap = options.gap ?? 8;
@@ -22,7 +29,7 @@ export function chooseFilterPopoverPlacement(options: {
   const above = Math.max(0, options.triggerTop - gap - margin);
   const side = below >= minimum || below >= above ? "below" : "above";
   const available = side === "below" ? below : above;
-  return {
+  const placement: FilterPopoverPlacement = {
     side,
     top:
       side === "below"
@@ -36,4 +43,20 @@ export function chooseFilterPopoverPlacement(options: {
     maxHeight: available,
     minHeight: Math.min(minimum, available),
   };
+  if (options.viewportWidth !== undefined && options.popupWidth !== undefined) {
+    const horizontalMargin = options.horizontalMargin ?? 8;
+    const width = Math.min(
+      options.popupWidth,
+      Math.max(0, options.viewportWidth - horizontalMargin * 2),
+    );
+    const anchorLeft = options.triggerLeft ?? 0;
+    const anchorRight = options.triggerRight ?? anchorLeft;
+    const preferred =
+      options.align === "end" ? anchorRight - width : anchorLeft;
+    placement.left = Math.max(
+      horizontalMargin,
+      Math.min(preferred, options.viewportWidth - width - horizontalMargin),
+    );
+  }
+  return placement;
 }

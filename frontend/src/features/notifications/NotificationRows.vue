@@ -15,6 +15,7 @@ const props = defineProps<{
 	rows: InventoryNotification[];
 	markRead: (name: string) => Promise<void>;
 }>();
+const emit = defineEmits<{ navigate: [] }>();
 const router = useRouter();
 const groups = computed(() => notificationGroups(props.rows));
 async function open(row: InventoryNotification) {
@@ -25,6 +26,7 @@ async function open(row: InventoryNotification) {
 	}
 	const path = row.link.replace(/^\/inventory(?=\/|$)/, "") || "/";
 	void router.push(path);
+	emit("navigate");
 }
 function data(row: InventoryNotification) {
 	return notificationData(row);

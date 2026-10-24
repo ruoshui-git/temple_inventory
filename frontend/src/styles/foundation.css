@@ -42,7 +42,7 @@
 	--p-shadow: 0 16px 48px var(--p-shadow-color);
 	--p-motion: 140ms;
 	--p-z-nav: 20;
-	--p-z-menu: 30;
+	--p-z-menu: 50;
 	--p-z-overlay: 60;
 	--p-z-toast: 70;
 	--p-space-1: 4px;
@@ -747,7 +747,9 @@ strong {
 	width: 100%;
 	margin: 0 auto;
 }
-.sample-content { padding-inline: var(--p-page-gutter); }
+.sample-content {
+	padding-inline: var(--p-page-gutter);
+}
 .sample-breadcrumb {
 	display: flex;
 	gap: 12px;
@@ -1584,29 +1586,6 @@ strong {
 	font-size: var(--p-small);
 	color: var(--p-muted);
 }
-.action-menu {
-	position: relative;
-	flex-shrink: 0;
-}
-.menu-popover {
-	position: absolute;
-	top: calc(100% + 8px);
-	right: 0;
-	width: 180px;
-	padding: 6px;
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-control);
-	box-shadow: var(--p-shadow);
-	background: var(--p-surface);
-	z-index: var(--p-z-menu);
-}
-.menu-popover button {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	text-align: left;
-}
 .empty-panel {
 	display: flex;
 	flex-direction: column;
@@ -2316,10 +2295,6 @@ strong {
 		border-radius: 50%;
 		box-shadow: var(--p-shadow);
 		font-size: calc(24px * var(--p-text-scale, 1));
-	}
-	.current-fab .menu-popover {
-		top: auto;
-		bottom: calc(100% + 12px);
 	}
 	.card-checkbox {
 		width: 44px;

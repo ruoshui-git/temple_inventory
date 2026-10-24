@@ -188,22 +188,6 @@
 }
 .category-row-actions {
 	margin-inline-start: auto;
-	position: relative;
-}
-.category-row-actions > summary {
-	display: none;
-	cursor: pointer;
-	list-style: none;
-}
-.category-row-actions > summary::-webkit-details-marker {
-	display: none;
-}
-.category-row-actions > div {
-	display: flex;
-	gap: 6px;
-}
-.category-row-actions .ui-button {
-	min-height: 34px;
 }
 @media (min-width: 601px) {
 	.warehouse-stock-cards {
@@ -211,13 +195,6 @@
 	}
 	.warehouse-stock-table {
 		display: table;
-	}
-	.category-row-actions > div {
-		opacity: 0;
-	}
-	.category-row:hover .category-row-actions > div,
-	.category-row:focus-within .category-row-actions > div {
-		opacity: 1;
 	}
 }
 @media (max-width: 600px) {
@@ -231,27 +208,5 @@
 	}
 	.warehouse-stock-table {
 		display: none;
-	}
-	.category-row-actions > summary {
-		display: block;
-		min-width: 44px;
-		min-height: 44px;
-		padding: 8px;
-		text-align: center;
-	}
-	.category-row-actions > div {
-		display: none;
-		position: absolute;
-		z-index: 2;
-		inset-inline-end: 0;
-		top: 100%;
-		padding: 8px;
-		border: 1px solid var(--p-border);
-		border-radius: var(--p-radius-card);
-		background: var(--p-surface);
-		box-shadow: var(--p-shadow);
-	}
-	.category-row-actions[open] > div {
-		display: grid;
 	}
 }

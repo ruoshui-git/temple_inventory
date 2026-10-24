@@ -150,10 +150,12 @@ describe("category management", () => {
     const row = wrapper
       .findAll(".category-row")
       .find((element) => element.text().includes("CAT-A"))!;
-    await row
-      .findAll("button")
-      .find((button) => button.text() === "删除")!
-      .trigger("click");
+    await row.get('[aria-label="分类操作"]').trigger("click");
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".popup-menu-panel button"),
+    )
+      .find((button) => button.textContent?.trim() === "删除")!
+      .click();
     await flushPromises();
     await Array.from(dialog().querySelectorAll("button"))
       .find((button) => button.textContent?.includes("确认删除"))!

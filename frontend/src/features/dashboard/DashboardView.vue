@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, useId } from "vue";
@@ -13,6 +12,8 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ItemLine from "../../components/ui/ItemLine.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import {
 	browseDestination,
 	countDestination,
@@ -59,7 +60,6 @@ const {
 	queryForDataset,
 } = props.controller;
 const showFilters = ref(false);
-const moreActions = ref<HTMLDetailsElement>();
 function effectLabel(effect: number, uom: string) {
 	return effect > 0
 		? `可用库存增加 ${effect} ${uom}`
@@ -113,22 +113,16 @@ const hasMoreActions = computed(
 		["Damage", "Loss", "Repair", "Disposal"].some(canCreate) ||
 		reference.operations.Return === true,
 );
-function closeMoreActions() {
-	if (moreActions.value) moreActions.value.open = false;
-}
 function canCreate(kind: string) {
 	return reference.operations[kind] === true;
 }
 function quickAction(kind: string) {
-	closeMoreActions();
 	emit("navigate", operationDestination(kind));
 }
 function navigateMore(route: AppRouteTarget) {
-	closeMoreActions();
 	emit("navigate", route);
 }
 function chooseOutstandingLoan() {
-	closeMoreActions();
 	const query = newReportQuery("loans");
 	query.view = "items";
 	query.groupBy = ["item"];
@@ -201,10 +195,14 @@ function datasetChanged(dataset: ReportDataset) {
 			<UiButton v-if="canCreate('Issue')" @click="quickAction('Issue')">出库</UiButton>
 			<UiButton v-if="canCreate('Loan')" @click="quickAction('Loan')">借出</UiButton>
 			<UiButton v-if="canCreate('Transfer')" @click="quickAction('Transfer')">调拨</UiButton>
-			<details v-if="hasMoreActions" ref="moreActions" class="dashboard-more-actions">
-				<summary class="ti-disclosure ti-disclosure-popup">
-					更多<DisclosureIcon variant="popup" />
-				</summary>
+			<PopupMenu
+				v-if="hasMoreActions"
+				label="更多"
+				variant="labeled"
+				align="end"
+				class="dashboard-more-actions"
+			>
+				<template #trigger>更多<DisclosureIcon variant="popup" /></template>
 				<div class="dashboard-more-actions-menu">
 					<UiButton
 						v-if="reference.operations.Reconcile === true"
@@ -227,7 +225,7 @@ function datasetChanged(dataset: ReportDataset) {
 						>归还 · 选择未结清借用</UiButton
 					>
 				</div>
-			</details>
+			</PopupMenu>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>
 		<div class="preview-dashboard-grid" :aria-busy="loading">

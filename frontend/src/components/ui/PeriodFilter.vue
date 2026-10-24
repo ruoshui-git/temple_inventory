@@ -3,6 +3,7 @@ import DisclosureIcon from "./DisclosureIcon.vue";
 import {
 	computed,
 	inject,
+	nextTick,
 	onBeforeUnmount,
 	onDeactivated,
 	onMounted,
@@ -16,6 +17,7 @@ import { filterPanelSessionKey } from "../../lib/filterPanelSession";
 import Overlay from "./Overlay.vue";
 import PeriodEditor from "./PeriodEditor.vue";
 import UiButton from "./UiButton.vue";
+import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
 
 const props = withDefaults(
 	defineProps<{
@@ -49,10 +51,14 @@ function filterPanelClosed(event: Event) {
 onMounted(() => {
 	document.addEventListener("preview-filter-panel-open", otherPanel);
 	document.addEventListener("preview-filter-panel-close", filterPanelClosed);
+	window.addEventListener("resize", reposition);
+	window.addEventListener("scroll", reposition, true);
 });
 onBeforeUnmount(() => {
 	document.removeEventListener("preview-filter-panel-open", otherPanel);
 	document.removeEventListener("preview-filter-panel-close", filterPanelClosed);
+	window.removeEventListener("resize", reposition);
+	window.removeEventListener("scroll", reposition, true);
 });
 watch(
 	() => [props.modelValue, isMobile.value, props.context, props.active],
@@ -74,22 +80,41 @@ onDeactivated(() => {
 });
 const position = ref<Record<string, string>>({});
 const summary = computed(() => sitePeriodSummary(props.modelValue, props.today));
+function reposition() {
+	if (!open.value || isMobile.value) return;
+	const rect = trigger.value?.getBoundingClientRect();
+	if (!rect) return;
+	const width = Math.min(400, window.innerWidth - 16);
+	const placement = chooseFilterPopoverPlacement({
+		triggerTop: rect.top,
+		triggerBottom: rect.bottom,
+		viewportHeight: window.innerHeight,
+		naturalHeight: 440,
+		margin: 8,
+		gap: 4,
+		minimumHeight: 240,
+		triggerLeft: rect.left,
+		triggerRight: rect.right,
+		viewportWidth: window.innerWidth,
+		popupWidth: width,
+		align: "start",
+		horizontalMargin: 8,
+	});
+	position.value = {
+		position: "fixed",
+		top: `${placement.top}px`,
+		left: `${placement.left ?? 8}px`,
+		width: `${width}px`,
+		maxHeight: `${placement.maxHeight}px`,
+		margin: "0",
+	};
+}
 function show() {
 	document.dispatchEvent(new CustomEvent("preview-filter-panel-open", { detail: owner }));
 	draft.value = { ...props.modelValue };
 	error.value = "";
-	const rect = trigger.value?.getBoundingClientRect();
-	position.value = rect
-		? {
-				position: "fixed",
-				top: `${Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 440))}px`,
-				left: `${Math.max(8, Math.min(rect.left, window.innerWidth - 408))}px`,
-				width: "400px",
-				maxHeight: "calc(100dvh - 16px)",
-				margin: "0",
-			}
-		: {};
 	open.value = true;
+	void nextTick(reposition);
 }
 function apply() {
 	if (draft.value.key === "custom" && (!draft.value.from || !draft.value.to)) {

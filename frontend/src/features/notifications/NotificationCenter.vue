@@ -9,11 +9,13 @@ import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import { useNotifications } from "./useNotifications";
 import NotificationRows from "./NotificationRows.vue";
 import { badgeLabel } from "./model";
+import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
 const c = useNotifications(20);
 const { isMobile } = useResponsiveLayout();
 const router = useRouter();
 const open = ref(false),
 	pendingAll = ref(false);
+const transientOwner = "notification-center";
 const trigger = ref<HTMLButtonElement>();
 const panel = ref<HTMLElement>();
 const popoverStyle = ref<Record<string, string>>({});
@@ -62,28 +64,72 @@ function navigateAll() {
 	close();
 	void router.push({ name: "notifications" });
 }
+function reposition() {
+	if (!open.value || isMobile.value || !trigger.value || !panel.value) return;
+	const rect = trigger.value.getBoundingClientRect();
+	const width = Math.min(440, window.innerWidth - 16);
+	const placement = chooseFilterPopoverPlacement({
+		triggerTop: rect.top,
+		triggerBottom: rect.bottom,
+		viewportHeight: window.innerHeight,
+		naturalHeight: panel.value.scrollHeight,
+		margin: 8,
+		gap: 4,
+		minimumHeight: 180,
+		triggerLeft: rect.left,
+		triggerRight: rect.right,
+		viewportWidth: window.innerWidth,
+		popupWidth: width,
+		align: "end",
+		horizontalMargin: 8,
+	});
+	popoverStyle.value = {
+		left: `${placement.left ?? 8}px`,
+		top: `${placement.top}px`,
+		width: `${width}px`,
+		maxHeight: `${placement.maxHeight}px`,
+	};
+}
+function routeChanged() {
+	close();
+}
+function otherTransient(event: Event) {
+	if ((event as CustomEvent).detail !== transientOwner) close();
+}
 watch(open, (value) => {
 	if (value && !isMobile.value)
-		void nextTick(() => {
-			const rect = trigger.value?.getBoundingClientRect();
-			if (rect)
-				popoverStyle.value = {
-					left: `${Math.max(12, Math.min(rect.left, window.innerWidth - 452))}px`,
-					top: `${Math.min(rect.bottom + 8, window.innerHeight - 120)}px`,
-				};
-			const first = panel.value?.querySelector<HTMLElement>(
-				"button:not(:disabled), a[href]",
-			);
-			(first || panel.value)?.focus({ preventScroll: true });
-		});
+		document.dispatchEvent(
+			new CustomEvent("preview-filter-panel-open", { detail: transientOwner }),
+		);
+	if (value && !isMobile.value)
+		if (value && !isMobile.value)
+			void nextTick(() => {
+				reposition();
+				const first = panel.value?.querySelector<HTMLElement>(
+					"button:not(:disabled), a[href]",
+				);
+				(first || panel.value)?.focus({ preventScroll: true });
+			});
 });
 onMounted(() => {
 	document.addEventListener("keydown", keydown);
 	document.addEventListener("pointerdown", outside);
+	document.addEventListener("preview-filter-panel-open", otherTransient);
+	document.addEventListener("inventory-navigation", routeChanged);
+	window.addEventListener("popstate", routeChanged);
+	window.addEventListener("hashchange", routeChanged);
+	window.addEventListener("resize", reposition);
+	window.addEventListener("scroll", reposition, true);
 });
 onBeforeUnmount(() => {
 	document.removeEventListener("keydown", keydown);
 	document.removeEventListener("pointerdown", outside);
+	document.removeEventListener("preview-filter-panel-open", otherTransient);
+	document.removeEventListener("inventory-navigation", routeChanged);
+	window.removeEventListener("popstate", routeChanged);
+	window.removeEventListener("hashchange", routeChanged);
+	window.removeEventListener("resize", reposition);
+	window.removeEventListener("scroll", reposition, true);
 });
 </script>
 <template>
@@ -110,6 +156,7 @@ onBeforeUnmount(() => {
 			v-if="open && isMobile"
 			title="通知"
 			panel-class="notification-sheet"
+			:transient-owner="transientOwner"
 			@close="close"
 		>
 			<div class="notification-mobile-actions">
@@ -137,7 +184,11 @@ onBeforeUnmount(() => {
 				:count="4"
 			/>
 			<div v-else-if="c.rows.value.length" ref="panel">
-				<NotificationRows :rows="c.rows.value" :mark-read="c.markRead" /><UiButton
+				<NotificationRows
+					:rows="c.rows.value"
+					:mark-read="c.markRead"
+					@navigate="close"
+				/><UiButton
 					v-if="c.hasMore.value"
 					:loading="c.loadingMore.value"
 					@click="c.loadMore"
@@ -185,7 +236,11 @@ onBeforeUnmount(() => {
 				/>
 				<template v-else-if="c.rows.value.length"
 					><div class="notification-popover-list">
-						<NotificationRows :rows="c.rows.value" :mark-read="c.markRead" /><UiButton
+						<NotificationRows
+							:rows="c.rows.value"
+							:mark-read="c.markRead"
+							@navigate="close"
+						/><UiButton
 							v-if="c.hasMore.value"
 							:loading="c.loadingMore.value"
 							@click="c.loadMore"

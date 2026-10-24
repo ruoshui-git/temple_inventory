@@ -339,8 +339,12 @@ describe("interactive preview", () => {
     await wrapper.get('input[aria-label="搜索库存"]').setValue("珍珠米");
     await new Promise((resolve) => setTimeout(resolve, 250));
     await flushPromises();
-    await button(wrapper, "导出").trigger("click");
+    await wrapper.get('[aria-label="更多操作"]').trigger("click");
+    document
+      .querySelector<HTMLButtonElement>(".popup-menu-panel button")!
+      .click();
     await nextTick();
+    await flushPromises();
     expect(document.querySelector(".preview-dialog")?.textContent).toContain(
       "1 行完整结果",
     );
@@ -378,9 +382,7 @@ describe("interactive preview", () => {
     listeners.forEach((callback) => callback({ matches: false }));
     await flushPromises();
     expect(wrapper.find('[aria-label="新建操作"]').exists()).toBe(false);
-    expect(wrapper.get(".browse-header-actions").text()).toContain(
-      "新建物品",
-    );
+    expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
     expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
     expect(wrapper.get(".stock-selection-actions").isVisible()).toBe(true);
     await button(wrapper, "调拨").trigger("click");
