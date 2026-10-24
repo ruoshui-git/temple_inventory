@@ -39,6 +39,8 @@ bench_with "$image" new-site "$SITE_NAME" \
 	--admin-password "$admin_password" \
 	--install-app erpnext --install-app temple_inventory
 site set-config host_name "https://$SITE_NAME"
+# Opt this disposable site in to the guarded sample installer.
+site set-config temple_inventory_sample_site 1
 
 log "install sample data"
 site execute temple_inventory.sample_install.prepare_development_sample_site \

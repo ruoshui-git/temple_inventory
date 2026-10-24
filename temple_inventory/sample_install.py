@@ -76,9 +76,17 @@ def _progress(message):
 
 
 def assert_development_site(allow_non_developer=0):
-	"""Reject destructive sample operations unless explicitly overridden."""
-	if frappe.local.site != "development.localhost":
-		frappe.throw("Sample operations only accept development.localhost")
+	"""Reject destructive sample operations unless explicitly overridden.
+
+	Only development.localhost, or a disposable site whose site config sets
+	``temple_inventory_sample_site`` (CI and the public sample site), accepts them.
+	"""
+	if frappe.local.site != "development.localhost" and not cint(
+		frappe.conf.get("temple_inventory_sample_site")
+	):
+		frappe.throw(
+			"Sample operations only accept development.localhost or a site with temple_inventory_sample_site=1"
+		)
 	if not cint(frappe.conf.get("developer_mode")) and not cint(allow_non_developer):
 		frappe.throw("此命令仅允许在 developer_mode=1 的开发站点执行")
 	installed = set(frappe.get_installed_apps())

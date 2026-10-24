@@ -35,7 +35,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm type-check
       - run: pnpm test
-      - run: pnpm build
+      # vite build needs a bench layout; the image build in sample.yml runs it.
 
   backend:
     runs-on: ubuntu-latest
@@ -91,6 +91,7 @@ jobs:
           bench new-site ci.localhost --db-root-password root --admin-password admin \
             --mariadb-user-host-login-scope=% --install-app erpnext --install-app temple_inventory
           bench --site ci.localhost set-config developer_mode 1
+          bench --site ci.localhost set-config temple_inventory_sample_site 1
       # The same company setup and sample data as development.localhost, which the
       # suite runs against locally.
       - name: Install sample data

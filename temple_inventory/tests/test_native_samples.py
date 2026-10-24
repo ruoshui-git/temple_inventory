@@ -19,6 +19,17 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class SampleMediaTests(unittest.TestCase):
+	def test_sample_operations_require_development_site_or_explicit_sample_opt_in(self):
+		conf = frappe._dict(developer_mode=1)
+		with (
+			patch.object(frappe.local, "site", "inventory.example.org"),
+			patch.object(frappe.local, "conf", conf),
+		):
+			with self.assertRaises(frappe.ValidationError):
+				sample_install.assert_development_site()
+			conf.temple_inventory_sample_site = 1
+			self.assertEqual(sample_install.assert_development_site()["site"], "inventory.example.org")
+
 	def test_inventory_finds_orphans_and_private_thumbnail_bug_but_preserves_shared_files(self):
 		with tempfile.TemporaryDirectory() as folder:
 			root = Path(folder)
