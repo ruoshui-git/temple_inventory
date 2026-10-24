@@ -386,6 +386,17 @@ supersession below when a durable user-facing decision changes.
 
 ## Durable supersessions
 
+- **2026-10-24 — Dashboard clarity:** Inventory distribution omits the zero
+  axis label, sorts stocked groups by item count and shows eight before a
+  disclosure. Empty physical locations in the authorized scope are summarized
+  in a quiet expandable list; they are not plotted with stocked locations.
+  Category distribution labels uncategorized stock `无分类` and omits an empty
+  category summary because there is no finite category set to enumerate. The
+  expiry preview states its five-batch limit and the matching identity count;
+  its rows and full-list link retain the selected expired or dated-not-expired
+  window. Dashboard in-card tabs use the shared compact segmented control and
+  tab semantics.
+
 - **2026-10-24 — Phone Stock list default and two-column cards:** Below 1024px,
   Stock defaults to dense list rows with 64px thumbnails, a two-line Item name,
   code/category metadata and available quantity plus compact loaned/damaged

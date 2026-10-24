@@ -496,9 +496,20 @@ def verify_development_sample(*, require_images=True, data="full"):
 		raise AssertionError("Dashboard and browse inventory item counts differ")
 	if dashboard_inventory["totals"] != page["summary"]:
 		raise AssertionError("Dashboard and browse inventory totals differ")
+	distribution = browse.dashboard_card("distribution")
+	if distribution["empty_count"] != len(distribution["empty_labels"]):
+		raise AssertionError("Dashboard empty-location count differs from its labels")
+	if distribution["rows"] != sorted(
+		distribution["rows"], key=lambda row: (-row["item_count"], row["label"], row["id"])
+	):
+		raise AssertionError("Dashboard distribution is not ordered by descending item count")
 	expiry = browse.dashboard_card("expiry")
 	if len(expiry["buckets"]) != 6:
 		raise AssertionError("Dashboard expiry buckets are incomplete")
+	if expiry["expiry_preview_limit"] != browse.DASHBOARD_EXPIRY_PREVIEW_LIMIT or any(
+		len(rows) > expiry["expiry_preview_limit"] for rows in expiry["expiry_rows"].values()
+	):
+		raise AssertionError("Dashboard expiry preview does not match its disclosed limit")
 	expiry_rows = []
 	expiry_start = 0
 	while True:

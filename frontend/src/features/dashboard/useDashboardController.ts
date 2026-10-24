@@ -68,6 +68,9 @@ export interface DashboardResult {
   query: ReportQuery;
   matched_count: number;
   item_count: number;
+  empty_count: number;
+  empty_labels: string[];
+  expiry_preview_limit: number;
   expired_count: number;
   damaged_item_count: number;
 }
@@ -93,7 +96,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     categories: [] as string[],
     uncategorized: false,
     distribution: "location",
-    expiry: "expired",
+    expiry: "expired" as "expired" | "upcoming",
     period: { key: "this_month", from: "", to: "" } as DatePeriod,
   });
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
@@ -119,6 +122,9 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     query: newReportQuery(),
     matched_count: 0,
     item_count: 0,
+    empty_count: 0,
+    empty_labels: [],
+    expiry_preview_limit: 5,
     expired_count: 0,
     damaged_item_count: 0,
   });
@@ -252,9 +258,10 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     if (blocked("distribution")) return;
     const value = newReportQuery("inventory");
     value.scope = clone(sections.distribution.result.query.scope);
-    if (filters.distribution === "category")
-      value.scope.categories = [row.id || ""];
-    else value.scope.warehouses = [row.id || ""];
+    if (filters.distribution === "category") {
+      value.scope.categories = row.id ? [row.id] : [];
+      value.scope.uncategorized = !row.id;
+    } else value.scope.warehouses = [row.id || ""];
     navigate(value);
   }
   function expiryDrill(id: string) {
@@ -276,6 +283,22 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     if (!dates) return;
     const value = clone(sections.expiry.result.query);
     value.scope.period = { key: "custom", from: dates[0], to: dates[1] };
+    value.expiryWindow = "period";
+    navigate(value);
+  }
+  function expiryPreviewDrill(side: "expired" | "upcoming") {
+    if (blocked("expiry")) return;
+    const offset = (days: number) => {
+      const date = new Date(`${reference.siteDate}T00:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    };
+    const value = clone(sections.expiry.result.query);
+    value.scope.period = {
+      key: "custom",
+      from: side === "expired" ? "1000-01-01" : offset(0),
+      to: side === "expired" ? offset(-1) : "9999-12-31",
+    };
     value.expiryWindow = "period";
     navigate(value);
   }
@@ -313,11 +336,13 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
         kind,
         label,
         count: sections.movement.result.kind_counts[kind] || 0,
-        quantities: totals.map((row) => ({
-          qty: Number(row.stock_qty || 0),
-          uom: String(row.stock_uom || ""),
-          effect: Number(row.available_effect || 0),
-        })),
+        quantities: totals
+          .map((row) => ({
+            qty: Number(row.stock_qty || 0),
+            uom: String(row.stock_uom || ""),
+            effect: Number(row.available_effect || 0),
+          }))
+          .sort((a, b) => Math.abs(b.qty) - Math.abs(a.qty)),
         tone:
           totals.length &&
           totals.every((row) => Number(row.available_effect || 0) > 0)
@@ -350,6 +375,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     drill,
     distributionDrill,
     expiryDrill,
+    expiryPreviewDrill,
     distribution: computed(() => sections.distribution.result.rows),
     maximum: computed(() =>
       Math.max(
@@ -369,6 +395,15 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
           uom: String(row.stock_uom || ""),
         })),
       ),
+    ),
+    expiryCount: computed(() =>
+      buckets.value
+        .filter((bucket) =>
+          filters.expiry === "expired"
+            ? bucket.id.startsWith("expired_")
+            : bucket.id.startsWith("upcoming_"),
+        )
+        .reduce((total, bucket) => total + bucket.count, 0),
     ),
   };
 }

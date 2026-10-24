@@ -12,7 +12,14 @@ from temple_inventory.native_access import require_app
 from temple_inventory.native_stock import MOVEMENT_PURPOSES, warehouse_scopes
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.report_query import validate_query
-from temple_inventory.report_sources import batch_allocations, document_fields, paged
+from temple_inventory.report_sources import (
+	available_scope_leaves,
+	batch_allocations,
+	document_fields,
+	paged,
+)
+
+DASHBOARD_EXPIRY_PREVIEW_LIMIT = 5
 
 
 @frappe.whitelist()
@@ -319,22 +326,53 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 		if card == "distribution":
 			if distribution not in ("location", "category"):
 				frappe.throw("请选择有效的分布方式")
-			groups, items = defaultdict(set), set()
+			groups, items, stocked_locations, group_labels = defaultdict(set), set(), set(), {}
 			for row in projection.rows("locations"):
 				if row["available"] <= 0:
 					continue
+				stocked_locations.add(row["warehouse"])
 				key = row["warehouse"] if distribution == "location" else row["category"]
 				groups[key].add(row["item_code"])
+				if distribution == "category":
+					group_labels[key] = row.get("category_label") or key or "无分类"
 				items.add(row["item_code"])
+			rows = [
+				{
+					"id": key,
+					"label": (projection.context.label(key) or key)
+					if distribution == "location"
+					else group_labels.get(key, key or "无分类"),
+					"item_count": len(values),
+				}
+				for key, values in groups.items()
+			]
+			rows.sort(key=lambda row: (-row["item_count"], row["label"], row["id"]))
+			empty_labels = []
+			if distribution == "location":
+				from temple_inventory.native_topology import present_locations
+
+				labels = {
+					row["name"]: row["label"]
+					for row in present_locations(
+						projection.context.warehouses,
+						physical_root=projection.context.settings.physical_root_warehouse,
+						settings=projection.context.settings,
+					)
+				}
+				empty_labels = sorted(
+					[
+						labels[name]
+						for name in available_scope_leaves(projection.context)
+						if name in projection.context.physical
+						and name not in stocked_locations
+						and name in labels
+					],
+					key=str.casefold,
+				)
 			return {
-				"rows": [
-					{
-						"id": key,
-						"label": projection.context.label(key) if distribution == "location" else key,
-						"item_count": len(values),
-					}
-					for key, values in sorted(groups.items())
-				],
+				"rows": rows,
+				"empty_count": len(empty_labels),
+				"empty_labels": empty_labels,
 				"item_count": len(items),
 				"snapshot": projection.context.snapshot,
 				"query": projection.query,
@@ -377,7 +415,7 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 			else:
 				preview[identity] = dict(row)
 			ordered = sorted(preview, key=lambda identity: (preview[identity]["expiry_date"], *identity))
-			for identity in ordered[5:]:
+			for identity in ordered[DASHBOARD_EXPIRY_PREVIEW_LIMIT:]:
 				del preview[identity]
 
 		result = {
@@ -390,6 +428,7 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 			"buckets": [{"id": key, "count": len(values)} for key, values in buckets.items()],
 			"snapshot": projection.context.snapshot,
 			"query": projection.query,
+			"expiry_preview_limit": DASHBOARD_EXPIRY_PREVIEW_LIMIT,
 		}
 		if card == "reminders":
 			result["expired_count"] = sum(

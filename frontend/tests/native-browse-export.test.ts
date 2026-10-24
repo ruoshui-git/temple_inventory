@@ -606,17 +606,72 @@ describe("native dashboard cards", () => {
     localStorage.clear();
     const service = services();
     vi.mocked(service.call).mockImplementation(
-      async () =>
+      async (_endpoint, args) =>
         ({
           query: query(),
           snapshot: "dashboard-test",
-          rows: [],
-          expiry_rows: { expired: [], upcoming: [] },
-          kind_counts: {},
-          totals: [],
-          buckets: [],
+          rows:
+            args?.card === "distribution"
+              ? args.distribution === "category"
+                ? [{ id: "", label: "无分类", item_count: 2 }]
+                : Array.from({ length: 9 }, (_, index) => ({
+                    id: `L${index}`,
+                    label: `位置 ${index}`,
+                    item_count: 10 - index,
+                  }))
+              : args?.card === "movement"
+                ? []
+                : [],
+          empty_count:
+            args?.card === "distribution" && args.distribution !== "category"
+              ? 2
+              : 0,
+          empty_labels: ["空位置甲", "空位置乙"],
+          expiry_preview_limit: 5,
+          expiry_rows: {
+            expired: [
+              {
+                item_code: "I1",
+                item_name: "物资一",
+                batch_no: "B1",
+                expiry_date: "2026-10-01",
+                warehouse: "A",
+                available: 1,
+                stock_uom: "Nos",
+              },
+            ],
+            upcoming: [
+              {
+                item_code: "I2",
+                item_name: "物资二",
+                batch_no: "B2",
+                expiry_date: "2026-11-01",
+                warehouse: "A",
+                available: 1,
+                stock_uom: "Nos",
+              },
+            ],
+          },
+          kind_counts: { Issue: 1 },
+          totals:
+            args?.card === "movement"
+              ? ["Nos", "Box", "Set"].map((stock_uom, index) => ({
+                  kind: "Issue",
+                  stock_qty: 9 - index,
+                  stock_uom,
+                  available_effect: -1,
+                }))
+              : [],
+          buckets: [
+            { id: "expired_1_30", count: 3 },
+            { id: "expired_31_90", count: 2 },
+            { id: "expired_91_plus", count: 1 },
+            { id: "upcoming_0_30", count: 4 },
+            { id: "upcoming_31_90", count: 2 },
+            { id: "upcoming_91_plus", count: 1 },
+          ],
           matched_count: 0,
-          item_count: 0,
+          item_count: args?.card === "distribution" ? 20 : 0,
           expired_count: 0,
           damaged_item_count: 0,
         }) as never,
@@ -624,6 +679,7 @@ describe("native dashboard cards", () => {
     const reference = createReferenceData();
     Object.assign(reference, {
       site: "dashboard-actions.local",
+      siteDate: "2026-10-16",
       user: "planner",
       capabilities: {
         "Stock Entry": { create: true, read: true },
@@ -697,6 +753,71 @@ describe("native dashboard cards", () => {
     const wrapper = mount(root);
     wrappers.push(wrapper);
     await flushPromises();
+
+    expect(wrapper.findAll('.dashboard-distribution [role="tab"]').length).toBe(
+      2,
+    );
+    expect(
+      wrapper
+        .get('[data-distribution-tab="location"]')
+        .attributes("aria-selected"),
+    ).toBe("true");
+    expect(
+      wrapper.get('[data-expiry-tab="expired"]').attributes("aria-selected"),
+    ).toBe("true");
+    expect(
+      wrapper.findAll(".preview-distribution > .preview-bar"),
+    ).toHaveLength(8);
+    expect(wrapper.find(".preview-bar-axis").exists()).toBe(false);
+    expect(wrapper.text()).toContain("其余 1 个位置");
+    expect(wrapper.text()).toContain("另有 2 个位置当前无可用库存");
+    await wrapper.get(".dashboard-inline-disclosure summary").trigger("click");
+    await nextTick();
+    expect(
+      wrapper.findAll(".dashboard-inline-disclosure[open] .preview-bar"),
+    ).toHaveLength(1);
+    await wrapper.get(".dashboard-empty-locations summary").trigger("click");
+    await nextTick();
+    expect(wrapper.findAll(".dashboard-empty-locations li")).toHaveLength(2);
+    await wrapper.get('[data-distribution-tab="category"]').trigger("click");
+    await flushPromises();
+    expect(
+      wrapper
+        .get('[data-distribution-tab="category"]')
+        .attributes("aria-selected"),
+    ).toBe("true");
+    expect(wrapper.text()).toContain("无分类");
+    expect(wrapper.find(".dashboard-empty-locations").exists()).toBe(false);
+
+    expect(wrapper.findAll('.dashboard-expiry [role="tab"]').length).toBe(2);
+    expect(wrapper.text()).toContain("最早到期的 5 个批次 · 共 6 个");
+    await wrapper.get(".dashboard-expiry .browse-rank-row").trigger("click");
+    expect(navigate.mock.calls.at(-1)?.[0].scope.period).toMatchObject({
+      key: "custom",
+      from: "1000-01-01",
+      to: "2026-10-15",
+    });
+    await wrapper.get(".dashboard-expiry-all").trigger("click");
+    expect(navigate.mock.calls.at(-1)?.[0].scope.period).toMatchObject({
+      key: "custom",
+      from: "1000-01-01",
+      to: "2026-10-15",
+    });
+    await wrapper.get('[data-expiry-tab="upcoming"]').trigger("click");
+    await wrapper.get(".dashboard-expiry .browse-rank-row").trigger("click");
+    expect(navigate.mock.calls.at(-1)?.[0].scope.period).toMatchObject({
+      key: "custom",
+      from: "2026-10-16",
+      to: "9999-12-31",
+    });
+    await wrapper.get(".dashboard-expiry-all").trigger("click");
+    expect(navigate.mock.calls.at(-1)?.[0].scope.period).toMatchObject({
+      key: "custom",
+      from: "2026-10-16",
+      to: "9999-12-31",
+    });
+    expect(wrapper.text()).toContain("最早到期的 5 个批次 · 共 7 个");
+    expect(wrapper.text()).toContain("+1 单位");
 
     const primary = wrapper
       .findAll(".dashboard-quick-actions > button")

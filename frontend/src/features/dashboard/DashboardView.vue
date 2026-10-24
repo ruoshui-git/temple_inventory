@@ -54,12 +54,16 @@ const {
 	drill,
 	distributionDrill,
 	expiryDrill,
+	expiryPreviewDrill,
 	distribution,
 	maximum,
+	expiryCount,
 	loading,
 	loanQuantity,
 	queryForDataset,
 } = props.controller;
+const distributionTop = computed(() => distribution.value.slice(0, 8));
+const distributionRest = computed(() => distribution.value.slice(8));
 const showFilters = ref(false);
 function effectLabel(effect: number, uom: string) {
 	return effect > 0
@@ -68,6 +72,7 @@ function effectLabel(effect: number, uom: string) {
 			? `可用库存减少 ${Math.abs(effect)} ${uom}`
 			: `可用库存不变 · ${uom}`;
 }
+const distributionId = useId();
 const expiryId = useId();
 function expiryKey(event: KeyboardEvent) {
 	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -82,6 +87,21 @@ function expiryKey(event: KeyboardEvent) {
 					: "expired";
 	(event.currentTarget as HTMLElement)
 		.querySelector<HTMLElement>(`[data-expiry-tab="${filters.expiry}"]`)
+		?.focus();
+}
+function distributionKey(event: KeyboardEvent) {
+	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+	event.preventDefault();
+	filters.distribution =
+		event.key === "Home"
+			? "location"
+			: event.key === "End"
+				? "category"
+				: filters.distribution === "location"
+					? "category"
+					: "location";
+	(event.currentTarget as HTMLElement)
+		.querySelector<HTMLElement>(`[data-distribution-tab="${filters.distribution}"]`)
 		?.focus();
 }
 const { isMobile } = useResponsiveLayout();
@@ -299,45 +319,114 @@ function datasetChanged(dataset: ReportDataset) {
 				>
 					<template #heading><h2>库存分布</h2></template>
 					<template #controls
-						><div class="browse-tabs">
+						><div
+							class="segmented dashboard-segmented"
+							role="tablist"
+							aria-label="库存分布方式"
+							@keydown="distributionKey"
+						>
 							<button
-								:aria-pressed="filters.distribution === 'location'"
+								role="tab"
+								:id="`${distributionId}-location`"
+								:data-distribution-tab="'location'"
+								:aria-selected="filters.distribution === 'location'"
+								:tabindex="filters.distribution === 'location' ? 0 : -1"
+								:aria-controls="`${distributionId}-panel`"
 								@click="filters.distribution = 'location'"
 							>
 								按仓库</button
 							><button
-								:aria-pressed="filters.distribution === 'category'"
+								role="tab"
+								:id="`${distributionId}-category`"
+								:data-distribution-tab="'category'"
+								:aria-selected="filters.distribution === 'category'"
+								:tabindex="filters.distribution === 'category' ? 0 : -1"
+								:aria-controls="`${distributionId}-panel`"
 								@click="filters.distribution = 'category'"
 							>
 								按类别
 							</button>
 						</div></template
 					>
-					<strong>物品种数 · {{ sections.distribution.result.item_count }} 种</strong>
-					<p class="browse-note">
-						按物品代码去重；同一物品可出现在多个仓库，分组数量不能相加为总数。
-					</p>
-					<div v-if="distribution.length" class="preview-distribution">
-						<div class="preview-bar-axis">
-							<span>0</span><span>{{ maximum }} 种</span>
-						</div>
-						<button
-							v-for="bar in distribution"
-							:key="bar.id"
-							class="preview-bar"
-							:disabled="blocked('distribution')"
-							@click="distributionDrill(bar)"
+					<div
+						:id="`${distributionId}-panel`"
+						role="tabpanel"
+						:aria-labelledby="`${distributionId}-${filters.distribution}`"
+						tabindex="0"
+					>
+						<strong
+							>物品种数 · {{ sections.distribution.result.item_count }} 种</strong
 						>
-							<span>{{ bar.label }}</span
-							><span class="preview-bar-track"
-								><span
-									:style="{
-										width: `${((bar.item_count || 0) / maximum) * 100}%`,
-									}" /></span
-							><b>{{ bar.item_count }}</b>
-						</button>
+						<p class="browse-note">
+							按物品代码去重；同一物品可出现在多个仓库，分组数量不能相加为总数。
+						</p>
+						<div v-if="distribution.length" class="preview-distribution">
+							<button
+								v-for="bar in distributionTop"
+								:key="bar.id"
+								class="preview-bar"
+								:disabled="blocked('distribution')"
+								@click="distributionDrill(bar)"
+							>
+								<span>{{ bar.label }}</span
+								><span class="preview-bar-track"
+									><span
+										:style="{
+											width: `${((bar.item_count || 0) / maximum) * 100}%`,
+										}" /></span
+								><b>{{ bar.item_count }}</b>
+							</button>
+							<details
+								v-if="distributionRest.length"
+								class="ti-disclosure dashboard-inline-disclosure"
+							>
+								<summary>
+									<DisclosureIcon variant="inline" />其余
+									{{ distributionRest.length }} 个{{
+										filters.distribution === "location" ? "位置" : "类别"
+									}}
+								</summary>
+								<button
+									v-for="bar in distributionRest"
+									:key="bar.id"
+									class="preview-bar"
+									:disabled="blocked('distribution')"
+									@click="distributionDrill(bar)"
+								>
+									<span>{{ bar.label }}</span
+									><span class="preview-bar-track"
+										><span
+											:style="{
+												width: `${((bar.item_count || 0) / maximum) * 100}%`,
+											}" /></span
+									><b>{{ bar.item_count }}</b>
+								</button>
+							</details>
+						</div>
+						<p v-if="!distribution.length">当前范围没有库存分布。</p>
+						<details
+							v-if="
+								filters.distribution === 'location' &&
+								sections.distribution.result.empty_count
+							"
+							class="ti-disclosure dashboard-empty-locations"
+						>
+							<summary>
+								<DisclosureIcon variant="inline" />另有
+								{{ sections.distribution.result.empty_count }} 个位置当前无可用库存
+							</summary>
+							<ul>
+								<li
+									v-for="(label, index) in sections.distribution.result
+										.empty_labels"
+									:key="`${label}-${index}`"
+								>
+									<span>{{ label }}</span
+									><b>0</b>
+								</li>
+							</ul>
+						</details>
 					</div>
-					<p v-else>当前范围没有库存分布。</p>
 				</DashboardSection>
 				<DashboardSection
 					:section="sections.expiry"
@@ -350,13 +439,6 @@ function datasetChanged(dataset: ReportDataset) {
 					<template #heading
 						><div class="browse-card-heading">
 							<h2>效期概览</h2>
-							<button
-								class="browse-link"
-								:disabled="blocked('expiry')"
-								@click="drill('expiry')"
-							>
-								查看全部批次
-							</button>
 						</div></template
 					>
 
@@ -373,7 +455,7 @@ function datasetChanged(dataset: ReportDataset) {
 						</button>
 					</div>
 					<div
-						class="browse-tabs"
+						class="segmented dashboard-segmented"
 						role="tablist"
 						aria-label="批次列表范围"
 						@keydown="expiryKey"
@@ -395,6 +477,10 @@ function datasetChanged(dataset: ReportDataset) {
 							{{ label }}
 						</button>
 					</div>
+					<p class="dashboard-expiry-caption">
+						最早到期的 {{ sections.expiry.result.expiry_preview_limit }} 个批次 · 共
+						{{ expiryCount }} 个
+					</p>
 					<div
 						:id="`${expiryId}-panel`"
 						role="tabpanel"
@@ -407,7 +493,7 @@ function datasetChanged(dataset: ReportDataset) {
 								:key="`${row.item_name}/${row.batch_no}/${row.warehouse}`"
 								class="browse-rank-row"
 								:disabled="blocked('expiry')"
-								@click="drill('expiry')"
+								@click="expiryPreviewDrill(filters.expiry)"
 							>
 								<div class="browse-grow">
 									<ItemLine
@@ -450,6 +536,13 @@ function datasetChanged(dataset: ReportDataset) {
 									: "当前范围没有未过期批次。"
 							}}
 						</p>
+						<button
+							class="browse-link dashboard-expiry-all"
+							:disabled="blocked('expiry')"
+							@click="expiryPreviewDrill(filters.expiry)"
+						>
+							查看全部 {{ expiryCount }} 个
+						</button>
 					</div>
 				</DashboardSection>
 			</div>
@@ -485,6 +578,12 @@ function datasetChanged(dataset: ReportDataset) {
 						<button
 							v-for="row in movementSummary"
 							:key="row.kind"
+							class="dashboard-movement-tile"
+							:title="
+								row.quantities
+									.map((quantity) => `${quantity.qty} ${quantity.uom}`)
+									.join(' · ') || row.label
+							"
 							:disabled="blocked('movement')"
 							@click="
 								drill('movement', {
@@ -497,7 +596,7 @@ function datasetChanged(dataset: ReportDataset) {
 						>
 							<span>{{ row.label }}</span
 							><strong
-								v-for="quantity in row.quantities"
+								v-for="quantity in row.quantities.slice(0, 2)"
 								:key="quantity.uom"
 								class="stock-effect"
 								:class="
@@ -507,12 +606,14 @@ function datasetChanged(dataset: ReportDataset) {
 											? 'is-decrease'
 											: 'is-neutral'
 								"
-								:title="effectLabel(quantity.effect, quantity.uom)"
 								>{{ quantity.qty }} {{ quantity.uom
 								}}<span class="sr-only">{{
 									effectLabel(quantity.effect, quantity.uom)
 								}}</span></strong
-							><small>{{ row.count }} 笔记录</small>
+							><small v-if="row.quantities.length > 2"
+								>+{{ row.quantities.length - 2 }} 单位</small
+							>
+							<small>{{ row.count }} 笔记录</small>
 						</button>
 					</div>
 					<h3>最近记录</h3>

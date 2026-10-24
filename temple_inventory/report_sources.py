@@ -468,6 +468,7 @@ class ReportContext:
 			"item_code": item.name,
 			"item_name": item.item_name,
 			"category": "" if item.item_group == self.category_root else item.item_group,
+			"category_label": "无分类" if item.item_group == self.category_root else item.item_group,
 			"stock_uom": item.stock_uom,
 			"image": image,
 			"batch_tracked": bool(item.has_batch_no),

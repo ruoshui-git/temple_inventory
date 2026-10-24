@@ -14,13 +14,35 @@ import frappe
 from frappe.utils import nowdate
 from openpyxl import load_workbook
 
-from temple_inventory import activities, browse, catalog, counts, exports, native_api, preferences
+from temple_inventory import activities, browse, catalog, counts, exports, native_api, preferences, warehouses
 from temple_inventory.projections import Projection, group_page, report_page
 from temple_inventory.report_query import DEFINITIONS, validate_query
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeReportTests(NativeDocumentTests):
+	def test_dashboard_distribution_reports_only_authorized_enabled_empty_leaves(self):
+		self.submit(self.create(self.movement(target=self.a)))
+		room_label = f"Native Test C Room {self.token}"
+		warehouses.create_location("Room", room_label, self.physical)
+		room = frappe.get_value(
+			"Warehouse", {"company": self.company, "ti_label": room_label, "ti_direct_storage": 0}, "name"
+		)
+		empty_leaf = frappe.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		settings = frappe.get_single("Temple Inventory Settings")
+		settings.append("allowed_warehouses", {"warehouse": empty_leaf})
+		settings.save()
+		warehouse = frappe.get_doc("Warehouse", self.b)
+		warehouse.disabled = 1
+		warehouse.save()
+
+		result = browse.dashboard_card("distribution", refresh=True)
+		self.assertEqual(result["empty_count"], len(result["empty_labels"]))
+		self.assertEqual(result["empty_labels"], [room_label])
+		self.assertNotIn(f"Native Test B Room {self.token}", result["empty_labels"])
+		self.assertNotIn(f"Native Test Lease Leaf {self.token}", result["empty_labels"])
+		self.assertNotIn(f"Native Test Damaged {self.token}", result["empty_labels"])
+
 	def test_entry_bundle_cache_reuses_permission_checked_bundle_within_projection(self):
 		from temple_inventory.native_balances import entry_bundle
 
