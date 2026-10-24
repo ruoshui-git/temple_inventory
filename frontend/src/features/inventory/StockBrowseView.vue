@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { siteDateTime } from "../../lib/nativeTime";
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -12,7 +12,9 @@ import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
 import ReportTable from "../../components/ui/ReportTable.vue";
-import QuantitySummary from "../../components/ui/QuantitySummary.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
@@ -93,7 +95,11 @@ const sortFields = [
 	{ value: "loaned", label: "借出数量" },
 	{ value: "damaged", label: "损坏数量" },
 ];
-const inventoryColumns: DataColumn[] = [
+const wideScreen = ref(window.innerWidth >= 1440);
+function updateWideScreen() { wideScreen.value = window.innerWidth >= 1440; }
+onMounted(() => window.addEventListener("resize", updateWideScreen));
+onBeforeUnmount(() => window.removeEventListener("resize", updateWideScreen));
+const inventoryColumns = computed<DataColumn[]>(() => [
 	{
 		id: "image",
 		label: "图片",
@@ -115,8 +121,8 @@ const inventoryColumns: DataColumn[] = [
 		sortable: true,
 		minWidth: "130px",
 	},
-	{ id: "category", label: "类别", defaultVisible: true, sortable: true, minWidth: "130px" },
-	{ id: "locations", label: "位置与批次", defaultVisible: true, minWidth: "210px" },
+	{ id: "category", label: "类别", defaultVisible: wideScreen.value, sortable: true, minWidth: "130px" },
+	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, minWidth: "210px" },
 	{
 		id: "stock_uom",
 		label: "库存单位",
@@ -149,7 +155,8 @@ const inventoryColumns: DataColumn[] = [
 		minWidth: "100px",
 	},
 	{ id: "expiry", label: "效期", defaultVisible: true, minWidth: "110px" },
-];
+	{ id: "actions", label: "操作", defaultVisible: true, minWidth: "140px" },
+]);
 const tableRows = computed<DataTableRecord[]>(() =>
 	rows.value.map((item) => ({
 		kind: "record",
@@ -208,7 +215,7 @@ const services = useOptionalInventoryServices();
 const tablePreferences = services
 	? useColumnPreferences(
 			"stock.summary",
-			computed(() => inventoryColumns),
+			inventoryColumns,
 			reference,
 			services,
 		)
@@ -216,6 +223,10 @@ const tablePreferences = services
 function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
 	if (checked !== isSelected) props.controller.toggle(code);
+}
+function stockRowAction(row: StockTableRow, kind: string) {
+	if (!isStockItemRow(row)) return;
+	props.controller.rowAction(kind, row);
 }
 
 const results = ref<HTMLElement>();
@@ -327,19 +338,20 @@ watch([() => props.active, isMobile], () => {
 				</div>
 			</template>
 			<template #actions>
-				<QuickExport
-					:query="quickReportQuery"
-					:active="active"
-					@open-full="emit('openExport', $event)"
+				<BrowseOverflowMenu>
+					<QuickExport
+						:query="quickReportQuery"
+						:active="active"
+						@open-full="emit('openExport', $event)"
+					/>
+				</BrowseOverflowMenu>
+				<BrowseSplitButton
+					label="新建物品"
+					kind="Item"
+					icon="box"
+					:options="controller.actions.value.filter((item) => item.kind !== 'Item').map((item) => ({ kind: item.kind, label: item.name, icon: item.icon }))"
+					@select="controller.action"
 				/>
-				<UiButton
-					v-for="item in controller.actions.value"
-					:key="item.kind"
-					:icon="item.icon"
-					variant="primary"
-					@click="controller.action(item.name)"
-					>{{ item.name }}</UiButton
-				>
 			</template>
 			<div class="inventory-context"><slot name="context" /></div>
 			<div class="result-tools">
@@ -383,29 +395,12 @@ watch([() => props.active, isMobile], () => {
 			</template>
 		</BrowseToolbar>
 		<section class="surface inventory-surface">
-			<p v-if="data.snapshot" class="browse-result-count">
-				筛选结果：{{ data.total }} 种物品
-			</p>
-			<details v-if="data.snapshot" class="browse-summary-details">
-				<summary class="ti-disclosure">
-					<DisclosureIcon variant="inline" />
-					数量分析：{{
-						metrics
-							.slice(0, 2)
-							.flatMap((metric) =>
-								metric.quantities
-									.slice(0, 1)
-									.map(
-										(quantity) =>
-											`${metric.label} ${quantity.qty} ${quantity.uom}`,
-									),
-							)
-							.join(" · ")
-					}}
-					· 查看完整分析
-				</summary>
-				<QuantitySummary :metrics="metrics" :loading="status === 'refresh'" />
-			</details>
+			<BrowseResultSummary
+				v-if="data.snapshot"
+				:label="`${data.total} 种物品`"
+				:metrics="metrics"
+				:loading="status === 'refresh'"
+			/>
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
 				<aside v-if="filtersOpen && !isMobile" class="browse-filter-rail">
 					<h3>筛选库存</h3>
@@ -565,6 +560,8 @@ watch([() => props.active, isMobile], () => {
 							:column-preferences="tablePreferences"
 							:row-key="stockSelectionKey"
 							:selection-label="(row) => stockName(row)"
+							empty-action="显示全部物品"
+							@empty-action="reset"
 							:sort-by="sort"
 							:sort-direction="sortDirection"
 							selection-enabled
@@ -630,6 +627,15 @@ watch([() => props.active, isMobile], () => {
 							"
 						>
 							<template #cell="{ column, row }">
+					<div v-if="column.id === 'actions' && isStockItemRow(row)" class="browse-row-actions stock-row-actions">
+						<UiButton variant="ghost" @click="props.controller.openItemCode(stockCode(row))">打开</UiButton>
+						<UiButton
+							v-if="reference.operations.Issue && isStockItemRow(row)"
+							variant="ghost"
+							@click="stockRowAction(row, 'Issue')"
+							>出库</UiButton
+						>
+					</div>
 								<div v-if="column.id === 'image'" class="table-item-image">
 									<ItemImage :item="stockIdentity(row)"></ItemImage>
 								</div>

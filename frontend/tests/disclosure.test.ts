@@ -101,10 +101,11 @@ describe("disclosure primitives", () => {
     const templates = collectVueFiles(root).map((path) =>
       readFileSync(path, "utf8"),
     );
-    for (const template of templates) {
+    for (const template of templates.filter((source) => !source.includes("browse-result-summary-disclosure"))) {
       expect(template).not.toContain("▾");
       expect(template).not.toContain("▸");
     }
+    expect(templates.join("\n")).toContain('class="browse-result-summary-disclosure" aria-hidden="true">▸</span>');
   });
 });
 

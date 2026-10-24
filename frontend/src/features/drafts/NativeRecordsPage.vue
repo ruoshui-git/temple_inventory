@@ -18,6 +18,7 @@ const emit = defineEmits<{
 	recover: [entry: RecoverySnapshot];
 	newCount: [];
 	openExport: [query: ReportQuery];
+	newOperation: [kind: string];
 }>();
 const controller = useNativeRecords(props, (query) => emit("queryChange", query));
 defineExpose({ controller });
@@ -31,5 +32,6 @@ defineExpose({ controller });
 		@recover="emit('recover', $event)"
 		@new-count="emit('newCount')"
 		@open-export="emit('openExport', $event)"
+		@new-operation="emit('newOperation', $event)"
 	/>
 </template>

@@ -270,12 +270,9 @@ describe("shared production design system", () => {
     };
     const toolbar = declarationsFor(browse, ".browse-chrome.browse-chrome");
     expect(toolbar.get("top")).toBe("var(--preview-desktop-nav-height, 0px)");
-    expect(toolbar.get("max-block-size")).toContain(
-      "var(--preview-desktop-nav-height, 0px)",
-    );
-    expect(toolbar.get("max-block-size")).toContain(
-      "var(--preview-nav-height, 0px)",
-    );
+		expect(toolbar.has("max-block-size")).toBe(false);
+		expect(browse.toString()).toContain(".browse-chrome.is-stuck");
+		expect(browse.toString()).toContain("box-shadow: 0 1px 0 var(--p-border)");
 
     const rail = new Map<string, string>();
     browse.walkRules((rule) => {

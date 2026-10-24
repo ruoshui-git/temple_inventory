@@ -132,7 +132,7 @@ async function setup(page: Page, scale = 100, density = "balanced") {
 }
 
 for (const width of [390, 1440]) {
-  test(`shared browse headers and expanded-only analysis at ${width}`, async ({
+  test(`shared browse headers keep search, analysis and page actions visible at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -149,14 +149,10 @@ for (const width of [390, 1440]) {
       await expect(
         chrome.getByRole("heading", { level: 1, name: title, exact: true }),
       ).toBeVisible();
-      const toggle = chrome.locator(".browse-tools-toggle");
-      await expect(toggle).toHaveAttribute("aria-expanded", "true");
-      const analysis = chrome
-        .locator(".browse-result-toolbar")
-        .getByRole("button", { name: "分析结果", exact: true });
-      await expect(analysis).toBeVisible();
-      await toggle.click();
-      await expect(analysis).toBeHidden();
+      await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
+      const analysis = chrome.getByRole("button", { name: "分析结果", exact: true });
+      if (path === "stock" || path === "movements/items" || path === "loans/items")
+        await expect(analysis).toBeVisible();
       await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(
         chrome.locator(".browse-persistent-search input"),
@@ -164,16 +160,8 @@ for (const width of [390, 1440]) {
       await expect(
         chrome.locator(".browse-persistent-search input"),
       ).toHaveAttribute("type", "search");
-      await expect(toggle).toHaveAttribute("aria-expanded", "false");
-      await toggle.click();
-      await expect(analysis).toBeVisible();
-      if (path === "stock" || path === "expiry") {
-        await expect(
-          chrome
-            .locator(".app-page-actions")
-            .getByRole("button", { name: /^(入库|出库|调拨)$/ }),
-        ).toHaveCount(0);
-      }
+      if (path === "stock" || path === "movements/items" || path === "loans/items")
+        await expect(chrome.locator(".browse-header-actions .browse-split-button")).toBeVisible();
     }
   });
 }
@@ -216,7 +204,7 @@ for (const [width, scale, density] of [
     expect(geometry[0]!.height).toBeGreaterThanOrEqual(width < 1024 ? 44 : 32);
     await page.screenshot({ path: info.outputPath("hierarchy.png") });
     if (width < 1024) await page.keyboard.press("Escape");
-    const actions = page.locator(".browse-expanded-actions");
+    const actions = page.locator(".browse-header-actions");
     const identity = page.locator(".app-page-identity");
     const actionRect = (await actions.boundingBox())!;
     const identityRect = (await identity.boundingBox())!;
@@ -233,7 +221,7 @@ for (const [width, scale, density] of [
 }
 
 for (const width of [390, 1440]) {
-  test(`deep-scroll expansion preserves result context and selected actions at ${width}`, async ({
+  test(`deep scroll keeps the persistent header and selected actions at ${width}`, async ({
     page,
   }, info) => {
     await page.setViewportSize({ width, height: 900 });
@@ -242,11 +230,10 @@ for (const width of [390, 1440]) {
     await expect(page.locator(".stock-card")).toHaveCount(60);
     await page.locator(".card-checkbox input").first().check();
     const chrome = page.locator(".browse-chrome");
-    const toggle = chrome.locator(".browse-tools-toggle");
     await page.evaluate(() =>
       window.scrollTo({ top: 1100, behavior: "instant" }),
     );
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
     await expect(chrome.getByRole("heading", { level: 1 })).toBeInViewport();
     await expect(
       chrome
@@ -264,20 +251,11 @@ for (const width of [390, 1440]) {
           ?.getAttribute("data-browse-row");
       });
     expect(anchor).toBeTruthy();
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(chrome.locator(".expanded-browse-tools")).toBeInViewport();
-    await expect(
-      page.locator(`[data-browse-row="${anchor}"]`),
-    ).toBeInViewport();
-    await expect(toggle).toBeFocused();
+    await expect(page.locator(`[data-browse-row="${anchor}"]`)).toBeInViewport();
     await page.evaluate(() =>
       window.scrollBy({ top: 120, behavior: "instant" }),
     );
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await toggle.click();
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await page.screenshot({ path: info.outputPath("compact-selection.png") });
+    await expect(chrome.getByRole("heading", { level: 1 })).toBeInViewport();
+    await page.screenshot({ path: info.outputPath("persistent-selection.png") });
   });
 }

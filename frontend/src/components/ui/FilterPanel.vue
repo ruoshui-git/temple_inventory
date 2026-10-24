@@ -240,7 +240,7 @@ defineExpose({
 		>
 			<span v-if="!iconOnly">{{ label }}</span
 			><span v-if="count" class="count-dot">{{ count }}</span
-			><DisclosureIcon variant="popup" />
+			><DisclosureIcon v-if="!iconOnly" variant="popup" />
 		</UiButton>
 		<Overlay
 			v-if="open && isMobile"

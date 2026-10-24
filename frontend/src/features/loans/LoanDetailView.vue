@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -45,7 +46,7 @@ function settle(action: SettlementAction) {
 	<section class="browse-page">
 		<PageHeader
 			><h1 tabindex="-1">借用详情</h1>
-			<template #back><UiButton @click="emit('back')">返回</UiButton></template
+			<template #back><BackButton @click="emit('back')" /></template
 			><template #actions
 				><QuickExport
 					v-if="loan && !loading"

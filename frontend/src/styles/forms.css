@@ -59,6 +59,12 @@ select {
 .preview-form-page .form-review {
 	padding: var(--p-pad);
 }
+@media (min-width: 1024px) and (pointer: fine) {
+	.preview-form-page .form-main,
+	.preview-form-page .form-review { padding: var(--p-card-inner-pad); }
+	.preview-form-page .form-review { padding-block-end: var(--p-editor-bottom-pad); }
+	.preview-form-page .form-section { padding-block-end: var(--p-space-3); }
+}
 .preview-form-page .form-main {
 	display: grid;
 	gap: var(--p-gap);
@@ -910,14 +916,9 @@ select {
 	text-align: left;
 }
 .record-ref-main > span { white-space: nowrap; }
-.record-ref-main small {
-	max-width: 12em;
-	overflow: hidden;
-	color: var(--p-muted);
-	font-size: var(--p-text-xs);
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
+.record-ref-chip { max-width: 100%; }
+.record-ref-main { overflow: hidden; }
+.data-table-scroll .record-ref-chip { white-space: nowrap; }
 .record-ref-chip .browse-badge { margin-inline-start: var(--p-space-1); }
 .location-endpoint { display: inline-flex; align-items: center; gap: var(--p-space-1); }
 .location-endpoint svg { width: 16px; height: 16px; flex: none; }

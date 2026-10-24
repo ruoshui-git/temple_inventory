@@ -52,10 +52,23 @@ supersession below when a durable user-facing decision changes.
 - Movement and Loan browse mode is top-level `view=items|records`; other filters
   and drill-through identities remain URL state. Explicit view changes apply
   target-view defaults; browser history restores ordinary browse context.
-- Desktop keeps title, view tabs, search and filter/sidebar controls in the
-  persistent row when space allows. Create, export and secondary actions sit in
-  the expandable toolbar below it. Filter popovers open below their trigger and
-  scroll within remaining viewport space.
+- Desktop browse pages keep title, view tabs, search/chips and filter/sidebar
+  controls in a persistent row when space allows. Filter popovers open below
+  their trigger and scroll within remaining viewport space.
+
+## Supersession — 2026-10-24: persistent browse header
+
+- Browse headers do not collapse; remove 收起工具/展开工具. At 1024–1280px,
+  the persistent row wraps in place. The sidebar toggle is icon-only with the
+  tooltip 显示/隐藏筛选侧栏, and the filter control shows its active count.
+- Create actions use a split button with the page's default action on the main
+  face and other permitted kinds in the menu. Export, 草稿 (including its
+  count) and secondary actions go in a `⋯` menu.
+- The count and quantity preview occupy one line directly above results.
+  Browse headers stick below the app bar, gain a hairline/shadow only while
+  stuck, and table headers stick inside their result scrollport.
+- `/` focuses the page search unless the user is typing in an editable field.
+  Escape retains the current search/chip editor behavior.
 
 ## Browse behavior
 

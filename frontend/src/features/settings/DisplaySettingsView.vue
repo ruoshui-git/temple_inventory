@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import type { DisplaySettings } from "./useDisplaySettings";
 import { themes, textScales, type TextScale } from "../../lib/displayPreferences";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -22,7 +23,7 @@ const densities = [
 				<p class="muted">设置保存到当前账户；其它设备下次打开时采用此设置。</p>
 			</div>
 			<template #back
-				><UiButton @click="emit('back')">返回更多</UiButton></template
+				><BackButton @click="emit('back')" /></template
 			></PageHeader
 		>
 		<p class="muted">当前账户：{{ c.account }}</p>

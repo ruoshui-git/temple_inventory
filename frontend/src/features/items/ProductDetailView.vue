@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed } from "vue";
@@ -132,7 +133,7 @@ const locationPrefs =
 			><div>
 				<h1 tabindex="-1">物品详情</h1>
 			</div>
-			<template #back><UiButton @click="emit('back')">返回</UiButton></template
+			<template #back><BackButton @click="emit('back')" /></template
 			><template #actions
 				><QuickExport
 					v-if="item"

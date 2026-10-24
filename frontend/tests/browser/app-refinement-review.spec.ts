@@ -346,7 +346,6 @@ for (const width of [1440, 390]) {
       path: info.outputPath("movement-records.png"),
       fullPage: true,
     });
-    await page.getByRole("button", { name: "收起工具", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "按物品", exact: true }),
     ).toBeVisible();
@@ -354,7 +353,7 @@ for (const width of [1440, 390]) {
       page.getByRole("button", { name: "按记录", exact: true }),
     ).toBeVisible();
     await reviewScreenshot(page, {
-      path: info.outputPath("collapsed-header.png"),
+      path: info.outputPath("persistent-header.png"),
       fullPage: true,
     });
     if (width < 1024) {

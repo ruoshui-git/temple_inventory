@@ -220,8 +220,8 @@ for (const surface of [
       if (surface.startsWith("loans"))
         await expect(page.locator(".quantity-summary-metric")).toHaveCount(1);
       await page.screenshot({ path: info.outputPath("loaded.png") });
-      await chrome.locator(".browse-tools-toggle").click();
-      await expect(chrome.locator(".browse-compact-summary")).toHaveCount(0);
+      await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
+      await expect(chrome.locator(".browse-result-summary")).toBeVisible();
       await chrome.getByRole("button", { name: /^筛选/ }).click();
       const tree = page.getByRole("tree", {
         name: "物品类别选项",

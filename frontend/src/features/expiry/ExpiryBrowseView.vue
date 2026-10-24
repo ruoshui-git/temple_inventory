@@ -6,7 +6,7 @@ import { formatExpiryDuration } from "../../lib/expiryDuration";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
 import type { ExpiryBrowse } from "./useExpiryBrowse";
-import type { ReportQuery, ReportRow } from "../../lib/reportContract";
+import { newReportQuery, type ReportQuery, type ReportRow } from "../../lib/reportContract";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
@@ -17,8 +17,9 @@ import Overlay from "../../components/ui/Overlay.vue";
 import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import QuickExport from "../../components/QuickExport.vue";
-import QuantitySummary from "../../components/ui/QuantitySummary.vue";
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
@@ -45,6 +46,18 @@ const emit = defineEmits<{
 const c = props.controller,
 	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis } = c;
 const { isMobile } = useResponsiveLayout();
+function clearExpiryFilters() {
+	Object.assign(query.value, newReportQuery("expiry"), { sortBy: "expiry_date" });
+}
+const createOptions = computed(() =>
+	["Issue", "Transfer", "Loan", "Return", "Damage", "Loss", "Repair", "Disposal"]
+		.filter((kind) => reference.operations[kind])
+		.map((kind) => ({
+			kind,
+			label: kind === "Repair" ? "修复" : ({ Issue: "出库", Transfer: "调拨", Loan: "借出", Return: "归还", Damage: "损坏", Loss: "遗失", Disposal: "报废" } as Record<string, string>)[kind] || kind,
+			icon: kind === "Loan" || kind === "Return" ? "loan" : "movement",
+		})),
+);
 const {
 	open: filterOpen,
 	toggle: toggleFilter,
@@ -243,13 +256,24 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			scannable
 			@scan="scan?.show()"
 			@sidebar="toggleFilter"
-			><template #actions
-				><QuickExport
+			><template #actions>
+				<BrowseOverflowMenu>
+					<QuickExport
 					v-if="!routeError"
 					:query="query"
 					:active="active"
 					@open-full="emit('openExport', $event)"
-			/></template>
+					/>
+				</BrowseOverflowMenu>
+				<BrowseSplitButton
+					v-if="reference.operations.Receive"
+					label="入库"
+					kind="Receive"
+					icon="receive"
+					:options="createOptions"
+					@select="emit('newOperation', $event)"
+				/>
+			</template>
 			<template #filters>
 				<div class="browse-filter-mega">
 					<section>
@@ -353,30 +377,11 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			aria-label="当前效期汇总"
 			aria-live="polite"
 		>
-			<p class="browse-result-count">
-				筛选结果：{{ result.batchCount }} 个批次 · {{ result.itemCount }} 种物品 ·
-				{{ result.total }} 条存放明细
-			</p>
-			<details class="browse-summary-details">
-				<summary class="ti-disclosure">
-					<DisclosureIcon variant="inline" />
-					数量分析：{{
-						metrics
-							.slice(0, 2)
-							.flatMap((metric) =>
-								metric.quantities
-									.slice(0, 1)
-									.map(
-										(quantity) =>
-											`${metric.label} ${quantity.qty} ${quantity.uom}`,
-									),
-							)
-							.join(" · ")
-					}}
-					· 查看完整分析
-				</summary>
-				<QuantitySummary :metrics="metrics" :loading="result.loading || result.stale" />
-			</details>
+			<BrowseResultSummary
+				:label="`${result.batchCount} 个批次 · ${result.itemCount} 种物品 · ${result.total} 条存放明细`"
+				:metrics="metrics"
+				:loading="result.loading || result.stale"
+			/>
 		</section>
 		<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
 			今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
@@ -468,6 +473,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							: result.loading && result.rows.length > 0
 					"
 					empty-text="没有符合条件的批次"
+					empty-action="清空筛选"
+					@empty-action="clearExpiryFilters"
 					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
 					@sort="headerSort"
 					@toggle-group="c.groups.toggleGroup"

@@ -94,14 +94,14 @@ export const moreNavigation = [
         key: "categories",
         label: "分类",
         route: routeTarget("categories"),
-        icon: "box",
+        icon: "tag",
         description: "管理分类层级与物品归属",
       },
       {
         key: "setup",
         label: "配置与恢复",
         route: routeTarget("setup"),
-        icon: "settings",
+        icon: "sliders",
         description: "配置库存范围并恢复开发样例",
       },
       {

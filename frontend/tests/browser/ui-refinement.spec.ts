@@ -299,15 +299,10 @@ for (const [width, scale, density] of [
     await page.locator(".card-checkbox input").first().check();
     const persistentSearch = page.getByLabel("搜索物品或条码");
     await persistentSearch.focus();
-    const expandTools = page.getByRole("button", {
-      name: "展开工具",
-      exact: true,
-    });
-    if (await expandTools.isVisible()) await expandTools.click();
-    const expanded = await page
+    const headerBefore = await page
       .locator(".inventory-browse-header")
       .boundingBox();
-    await page.getByRole("button", { name: "收起工具", exact: true }).click();
+    await expect(page.locator(".browse-tools-toggle")).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "已选物品操作" }),
     ).toContainText("已选择 1 项物品");
@@ -316,11 +311,11 @@ for (const [width, scale, density] of [
     await expect(persistentSearch).toHaveValue(
       "供灯用品与法会日常储备长关键词",
     );
-    const collapsed = await page
+    const headerAfter = await page
       .locator(".inventory-browse-header")
       .boundingBox();
-    expect(collapsed!.height).toBeLessThan(expanded!.height);
-    await page.screenshot({ path: info.outputPath("collapsed-toolbar.png") });
+    expect(headerAfter!.height).toBeGreaterThan(0);
+    await page.screenshot({ path: info.outputPath("persistent-toolbar.png") });
     await page.getByRole("button", { name: /^筛选/ }).click();
     await expect(page.locator(".hierarchy-list").first()).toBeVisible();
     const indents = await page
@@ -333,8 +328,8 @@ for (const [width, scale, density] of [
     writeFileSync(
       info.outputPath("toolbar-heights.json"),
       JSON.stringify({
-        expanded: expanded!.height,
-        collapsed: collapsed!.height,
+        before: headerBefore!.height,
+        after: headerAfter!.height,
       }),
     );
     await info.attach("toolbar-heights", {

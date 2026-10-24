@@ -11,6 +11,7 @@ withDefaults(
 		disabled?: boolean;
 		type?: "button" | "submit" | "reset";
 		label?: string;
+		title?: string;
 		loadingLabel?: string;
 	}>(),
 	{
@@ -37,6 +38,7 @@ withDefaults(
 		:disabled="disabled || loading"
 		:aria-busy="loading || undefined"
 		:aria-label="iconOnly ? label : undefined"
+		:title="title || (iconOnly ? label : undefined)"
 	>
 		<span v-if="loading" class="ui-button-spinner" aria-hidden="true"></span>
 		<template v-else>

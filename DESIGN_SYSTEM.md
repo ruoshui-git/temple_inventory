@@ -62,7 +62,7 @@ kept in Git.
 ## Density, tables and scrollbars
 
 - Desktop compact/balanced/spacious controls are 32/36/44px high, gaps are
-  8/12/16px, and table cell padding is 5×8, 12×12, and 18×16px (block × inline).
+  8/12/16px, and table cell padding is 5×8, 8×12, and 18×16px (block × inline).
   Thumbnail slots are 32/48/64px. Text size and line height follow independent
   user text scaling. Mobile controls preserve 44px targets at every density.
 - `DataTable` headers, sort buttons, rows, group cells and metrics use the same
@@ -114,6 +114,41 @@ kept in Git.
   compact and fixed.
 - Dashboard scope controls sit with the page header on desktop and wrap on
   narrow surfaces. Quick actions sit directly below the header.
+
+### Desktop browse density and header
+
+- At `(min-width: 1024px) and (pointer: fine)`, page gutters, header spacing,
+  card padding, editor padding and gaps use the density-specific `--p-*`
+  tokens. Balanced browse table rows target 40–44px with 32px artwork. Coarse
+  pointers and phones keep 44px targets and their normal page gutters.
+- Browse headers keep the title, view tabs, search/chips, scan, filter count,
+  sidebar icon and page actions visible. The toolbar never collapses and has no
+  收起工具 control. At narrow desktop widths, controls wrap without horizontal
+  page overflow. `/` focuses the mounted page search unless focus is in an
+  editable field. Escape retains each editor's existing clear/close behavior.
+- Create actions use a split button: the main face starts the page's default
+  operation; its menu lists other permitted kinds. Export, drafts and secondary
+  actions use the `⋯` overflow menu. Icon-only controls have an accessible name
+  and a visible tooltip.
+- The count and quantity preview share one line above results. Show up to two
+  unit values inline; represent more as `+N 单位` and put the complete shared
+  `QuantitySummary` inside the disclosure.
+- The browse header sticks below the measured app bar. Show its hairline/shadow
+  only while stuck. Table headings stick inside the table's own scrollport.
+- A visible hierarchy sidebar is one flat panel aligned with the result top.
+  Its section dividers are hairlines; the rail owns the only vertical scroll.
+  Desktop fine-pointer hierarchy rows are 28–32px and remove nested bordered
+  boxes. Phone tree semantics and touch targets remain unchanged.
+- Desktop table row actions appear on row hover or keyboard focus without
+  changing row height; touch surfaces retain visible actions. Wide-screen
+  defaults may add secondary columns at 1440px, with column preferences for
+  narrower viewports.
+- Off switches use `--p-switch-off` (or its semantic fallback) for the track;
+  it must contrast at least 3:1 against the surface. A visible thumb remains
+  distinct from the track in both states.
+- More tiles use a compact icon-left layout at 64–72px on desktop. Editors use
+  the shared desktop card padding tokens and avoid reserved blank space below
+  their final section.
 
 ## Images and identity
 

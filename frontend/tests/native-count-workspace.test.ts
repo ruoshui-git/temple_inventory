@@ -352,9 +352,9 @@ describe("compact count workspace", () => {
     await flushPromises();
     expect(document.body.textContent).toContain("−2");
     expect(document.body.textContent).toContain("库存单位");
-    const historyDocument = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("ISSUE-1"));
+    const historyDocument = document.body.querySelector<HTMLButtonElement>(
+      'button[title="ISSUE-1"]',
+    );
     expect(historyDocument).toBeTruthy();
     historyDocument!.click();
     await flushPromises();
@@ -391,8 +391,8 @@ describe("compact count workspace", () => {
       initialized: true,
     });
     await flushPromises();
-    const record = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("LOAN-1"),
+    const record = document.body.querySelector<HTMLButtonElement>(
+      'button[title="LOAN-1"]',
     )!;
     record.click();
     await flushPromises();

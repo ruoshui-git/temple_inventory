@@ -378,13 +378,10 @@ describe("interactive preview", () => {
     listeners.forEach((callback) => callback({ matches: false }));
     await flushPromises();
     expect(wrapper.find('[aria-label="新建操作"]').exists()).toBe(false);
-    expect(wrapper.get(".browse-expanded-actions").text()).toContain(
+    expect(wrapper.get(".browse-header-actions").text()).toContain(
       "新建物品",
     );
-    expect(wrapper.get(".browse-expanded-actions").text()).not.toContain(
-      "入库",
-    );
-    await button(wrapper, "收起工具").trigger("click");
+    expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
     expect(wrapper.get(".stock-selection-actions").isVisible()).toBe(true);
     await button(wrapper, "调拨").trigger("click");
     expect(wrapper.emitted("navigate")?.at(-1)).toEqual([

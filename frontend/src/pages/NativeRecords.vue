@@ -41,5 +41,6 @@ function newCount() {
 		@recover="recover"
 		@new-count="newCount"
 		@open-export="router.push(exportDestination($event))"
+		@new-operation="(kind) => router.push(routeTarget('movement-new', { kind }))"
 	/>
 </template>

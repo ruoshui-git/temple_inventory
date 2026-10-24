@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { BatchDetailController } from "./useBatchDetailController";
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
@@ -87,7 +88,7 @@ function openDocument(row: Record<string, unknown>) {
 	<section class="browse-page batch-detail-page">
 		<PageHeader :title="c.batch.value?.name || '批次资料'">
 			<template #back
-				><UiButton variant="ghost" @click="emit('back')">返回</UiButton></template
+				><BackButton @click="emit('back')" /></template
 			>
 			<template #actions>
 				<UiButton

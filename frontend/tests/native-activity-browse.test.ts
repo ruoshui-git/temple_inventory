@@ -193,7 +193,7 @@ describe("native Activity browse scopes", () => {
     const { wrapper, controller } = await mountActivityView("detail");
     expect(wrapper.findAll('[role="tab"]')).toHaveLength(2);
     // Compact toolbars hide their expanded tools, so results must sit outside them.
-    expect(wrapper.find(".expanded-browse-tools table").exists()).toBe(false);
+    expect(wrapper.find(".browse-inline-tools table").exists()).toBe(false);
     expect(wrapper.find('[role="tab"].ui-button').exists()).toBe(false);
     expect(wrapper.find('[role="tab"][aria-selected="true"]').text()).toContain(
       "关联记录",

@@ -275,7 +275,10 @@ export function useStockBrowseController(
   ]);
   const actions = computed(() => [
     { name: "新建物品", kind: "Item", icon: "box" },
-  ]);
+    { name: "入库", kind: "Receive", icon: "receive" },
+    { name: "出库", kind: "Issue", icon: "issue" },
+    { name: "调拨", kind: "Transfer", icon: "transfer" },
+  ].filter((action) => action.kind === "Item" || reference.operations[action.kind] === true));
   const selectedActions = computed(() =>
     selected.value.length
       ? [
@@ -295,6 +298,15 @@ export function useStockBrowseController(
     if (!selectedActions.value.some((action) => action.kind === kind)) return;
     navigate(kind, [...new Set(selected.value)]);
   }
+  function rowAction(kind: string, item: StockItem) {
+    if (
+      scopeError.value ||
+      reference.user !== account ||
+      props.active === false ||
+      reference.operations[kind] !== true
+    ) return;
+    navigate(kind, [item.code]);
+  }
   watch(
     () => JSON.stringify(query.value),
     () => {
@@ -304,7 +316,7 @@ export function useStockBrowseController(
   );
   function action(name: string) {
     if (scopeError.value || reference.user !== account) return;
-    const selectedAction = actions.value.find((action) => action.name === name);
+    const selectedAction = actions.value.find((action) => action.name === name || action.kind === name);
     if (!selectedAction) return;
     navigate(selectedAction.kind);
   }
@@ -312,6 +324,7 @@ export function useStockBrowseController(
     actions,
     selectedActions,
     selectedAction,
+    rowAction,
     scopeError,
     appliedChips,
     reference,

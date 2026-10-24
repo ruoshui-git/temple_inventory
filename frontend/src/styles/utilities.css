@@ -217,6 +217,23 @@
 	background: var(--p-soft);
 	color: var(--p-accent);
 }
+.preview-utility-page .more-card > span { grid-row: auto; align-self: auto; }
+.preview-utility-page .more-card > strong,
+.preview-utility-page .more-card > small { grid-column: auto; }
+@media (min-width: 1024px) and (pointer: fine) {
+	.preview-utility-page .more-card {
+		min-height: 72px;
+		grid-template-columns: 40px minmax(0, 1fr);
+		grid-template-rows: auto auto;
+		align-content: center;
+		column-gap: 12px;
+		row-gap: 2px;
+		padding: var(--p-card-inner-pad, var(--p-card-pad));
+	}
+	.preview-utility-page .more-card > span { grid-row: 1 / span 2; align-self: center; }
+	.preview-utility-page .more-card > strong,
+	.preview-utility-page .more-card > small { grid-column: 2; }
+}
 .notification-center {
 	position: relative;
 	z-index: var(--p-z-menu);
@@ -465,9 +482,9 @@
 	width: 44px;
 	height: 26px;
 	margin: 0;
-	border: 1px solid var(--p-border);
+	border: 1px solid var(--p-switch-off);
 	border-radius: 999px;
-	background: var(--p-canvas);
+	background: var(--p-switch-off);
 	cursor: pointer;
 	transition:
 		background-color 140ms ease,
@@ -489,6 +506,8 @@
 	border-color: var(--p-accent);
 	background: var(--p-accent);
 }
+.notification-switch-row input.is-off,
+.notification-switch-row input:not(:checked) { background: var(--p-switch-off); }
 .notification-switch-row input:checked::before {
 	transform: translateX(18px);
 }

@@ -201,8 +201,8 @@ describe("data clarity components", () => {
     });
     wrappers.push(wrapper);
     expect(wrapper.text()).toContain("活动服务团队 · 07-14");
-    expect(wrapper.text()).toContain("MAT-STE-2026-01279");
-    expect(wrapper.get("button").attributes("title")).toBe("查看原借出记录");
+    expect(wrapper.text()).not.toContain("MAT-STE-2026-01279");
+    expect(wrapper.get("button").attributes("title")).toBe("MAT-STE-2026-01279");
   });
 
   it("names the related kind and identity in RecordRef's accessible label", async () => {
@@ -219,7 +219,7 @@ describe("data clarity components", () => {
     expect(wrapper.get("button").attributes("aria-label")).toBe(
       "借出记录 2 笔借出",
     );
-    expect(wrapper.get("button").attributes("title")).toBe("查看原借出记录");
+    expect(wrapper.get("button").attributes("title")).toBe("STE-42");
     await wrapper.get("button").trigger("click");
     expect(wrapper.emitted("open")).toHaveLength(1);
   });

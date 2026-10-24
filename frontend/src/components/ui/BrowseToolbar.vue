@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import DisclosureIcon from "./DisclosureIcon.vue";
 import {
 	computed,
 	nextTick,
@@ -12,7 +11,7 @@ import {
 	onMounted,
 	onBeforeUnmount,
 } from "vue";
-import { scrollBy, useScrollSurface } from "../../composables/scrollSurface";
+import { useScrollSurface } from "../../composables/scrollSurface";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import PageHeader from "./PageHeader.vue";
 import UiButton from "./UiButton.vue";
@@ -47,15 +46,21 @@ const emit = defineEmits<{
 	scan: [];
 	sidebar: [];
 	"update:search": [value: string];
-	"update:compact": [value: boolean];
 }>();
 const root = ref<HTMLElement>();
-const automatic = ref(false),
-	choice = ref<boolean>();
-const compact = computed(() => choice.value ?? automatic.value);
 const heading = computed(() => props.title || props.summary.split(" · ")[0]);
 const { isMobile } = useResponsiveLayout();
 const searchInput = ref(props.search);
+function focusSearchShortcut(event: KeyboardEvent) {
+	if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+	const target = event.target;
+	if (
+		target instanceof HTMLElement &&
+		(target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+	) return;
+	event.preventDefault();
+	root.value?.querySelector<HTMLInputElement>("[data-browse-search]")?.focus({ preventScroll: true });
+}
 const debouncer = createDebouncedSearch((value) => {
 	if (value !== props.search) emit("update:search", value);
 });
@@ -122,13 +127,14 @@ function filterPanelChanged(open: boolean) {
 			new CustomEvent("preview-filter-panel-close", { detail: filterSessionId }),
 		);
 }
-const { top, owner } = useScrollSurface(root, () => props.active);
+const { top } = useScrollSurface(root, () => props.active);
 let headerObserver: ResizeObserver | undefined;
 let measuredParent: HTMLElement | undefined;
 function measureHeader() {
 	const element = root.value;
 	const parent = element?.parentElement;
 	if (!element || !parent) return;
+	element.classList.toggle("is-stuck", top.value > 0);
 	measuredParent = parent;
 	parent.style.setProperty(
 		"--browse-toolbar-height",
@@ -137,6 +143,7 @@ function measureHeader() {
 }
 onMounted(() => {
 	measureHeader();
+	document.addEventListener("keydown", focusSearchShortcut);
 	if (typeof ResizeObserver !== "undefined" && root.value) {
 		headerObserver = new ResizeObserver(measureHeader);
 		headerObserver.observe(root.value);
@@ -150,72 +157,23 @@ onActivated(() => {
 });
 onDeactivated(() => headerObserver?.disconnect());
 onBeforeUnmount(() => {
+	document.removeEventListener("keydown", focusSearchShortcut);
 	headerObserver?.disconnect();
 	if (measuredParent?.style.getPropertyValue("--browse-toolbar-height"))
 		measuredParent.style.removeProperty("--browse-toolbar-height");
 });
-watch(top, (value) => {
-	if (value > 160) automatic.value = true;
-});
-let transition = 0;
-watch(compact, async (value) => {
-	const generation = ++transition;
-	const header = root.value;
-	const focused = document.activeElement;
-	const hiddenFocus =
-		(value &&
-			!!focused &&
-			!!header?.contains(focused) &&
-			!!header.querySelector(".expanded-browse-tools")?.contains(focused)) ||
-		(value &&
-			!!focused &&
-			!!header?.querySelector(".browse-header-actions")?.contains(focused)) ||
-		(value &&
-			!!focused &&
-			!!header?.querySelector(".browse-expanded-actions")?.contains(focused)) ||
-		(value && !!focused && !!header?.querySelector(".app-page-subtitle")?.contains(focused));
-	const bottom = header?.getBoundingClientRect().bottom || 0;
-	const candidates = Array.from(
-		header?.parentElement?.querySelectorAll<HTMLElement>("[data-browse-row]") || [],
-	).filter(
-		(row) => !header?.contains(row) && row.getBoundingClientRect().top < window.innerHeight,
-	);
-	const anchor =
-		top.value > 0
-			? candidates.find((row) => row.getBoundingClientRect().top >= bottom) ||
-				candidates.find((row) => row.getBoundingClientRect().bottom > bottom)
-			: undefined;
-	const offset = anchor ? anchor.getBoundingClientRect().top - bottom : 0;
-	emit("update:compact", value);
-	await nextTick();
-	if (generation !== transition || !header?.isConnected) return;
-	if (anchor?.isConnected && owner.value) {
-		const headerBottom = header.getBoundingClientRect().bottom;
-		const navTop =
-			document.querySelector(".sample-mobile-nav")?.getBoundingClientRect().top ??
-			window.innerHeight;
-		const viewportBottom = Math.min(window.innerHeight, navTop);
-		const visibleOffset = Math.min(
-			Math.max(0, offset),
-			Math.max(0, viewportBottom - headerBottom - 44),
-		);
-		const delta = anchor.getBoundingClientRect().top - headerBottom - visibleOffset;
-		if (Math.abs(delta) > 1) scrollBy(owner.value, delta);
-	}
-	if (hiddenFocus)
-		header.querySelector<HTMLElement>(".browse-tools-toggle")?.focus({ preventScroll: true });
-});
-defineExpose({ compact, editFilter });
+watch(top, (value) => root.value?.classList.toggle("is-stuck", value > 0));
+defineExpose({ editFilter });
 </script>
 <template>
 	<div
 		ref="root"
 		class="preview-browse-controls refined-toolbar browse-chrome"
-		:class="{ 'is-compact': compact, 'is-embedded': embedded }"
+		:class="{ 'is-embedded': embedded }"
 	>
-		<PageHeader v-if="!embedded" :title="heading" :compact="compact">
+		<PageHeader v-if="!embedded" :title="heading">
 			<template #title-tools><slot name="persistent" /></template>
-			<template #subtitle><slot v-if="!compact" name="subtitle" /></template>
+			<template #subtitle><slot name="subtitle" /></template>
 		</PageHeader>
 		<div class="browse-persistent-bar" :aria-label="`${heading}搜索与筛选`">
 			<div class="browse-search-container" :class="{ 'has-chips': $slots.chips }">
@@ -235,7 +193,7 @@ defineExpose({ compact, editFilter });
 						@compositionend="finishComposition"
 					/>
 				</label>
-				<div class="browse-search-actions">
+			<div class="browse-search-actions">
 					<UiButton
 						v-if="scannable"
 						icon="scan"
@@ -261,30 +219,21 @@ defineExpose({ compact, editFilter });
 				v-if="sidebarAvailable && !isMobile"
 				class="browse-sidebar-toggle"
 				variant="ghost"
+				icon="filter"
+				icon-only
+				title="显示/隐藏筛选侧栏"
+				label="显示/隐藏筛选侧栏"
 				:aria-label="sidebarOpen ? '关闭筛选侧栏' : '打开筛选侧栏'"
 				:aria-expanded="sidebarOpen"
 				@click="emit('sidebar')"
-				>侧栏</UiButton
-			>
+				/>
 			<span v-if="sidebarSaveError" class="browse-preference-error" role="status">
 				{{ sidebarSaveError }}
 				<UiButton variant="ghost" @click="retrySidebarSave?.()">重试同步</UiButton>
 			</span>
-			<UiButton
-				class="browse-tools-toggle"
-				variant="ghost"
-				:aria-expanded="!compact"
-				:aria-controls="controlsId"
-				@click="choice = !compact"
-			>
-				<DisclosureIcon variant="inline" />
-				{{ compact ? "展开工具" : "收起工具" }}
-			</UiButton>
+			<div v-if="$slots.actions" class="browse-header-actions"><slot name="actions" /></div>
 		</div>
-		<div v-show="!compact" :id="controlsId" class="expanded-browse-tools">
-			<div v-if="$slots.actions" class="browse-expanded-actions">
-				<slot name="actions" />
-			</div>
+		<div :id="controlsId" class="browse-inline-tools">
 			<slot />
 			<div v-if="$slots['result-tools']" class="browse-result-toolbar">
 				<slot name="result-tools" />

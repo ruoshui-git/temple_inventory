@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -200,7 +201,7 @@ async function back() {
 				</h1>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
 			</div>
-			<template #back><UiButton variant="ghost" @click="back">返回</UiButton></template
+			<template #back><BackButton @click="back" /></template
 			><template #actions
 				><QuickExport
 					v-if="!loading && c.savedExportQuery.value"

@@ -46,7 +46,7 @@ const label = () => {
 		type="button"
 		class="record-ref-chip"
 		:aria-label="label()"
-		:title="tooltip || documentName || label()"
+		:title="documentName || tooltip || label()"
 		:disabled="disabled"
 		@click="emit('open')"
 	>
@@ -57,7 +57,6 @@ const label = () => {
 					? identity
 					: `${count} ${measureWord}${(kindLabel[kind] || kind) === "借出" ? "借出" : "记录"}`
 			}}</span>
-			<small v-if="documentName">{{ documentName }}</small>
 		</span>
 		<NativeStatusBadge v-if="status !== undefined" :status="status" />
 	</button>

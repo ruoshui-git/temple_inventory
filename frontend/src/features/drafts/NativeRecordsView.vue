@@ -12,6 +12,9 @@ import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+import { operationLabels } from "../documents/operationCodec";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
@@ -50,8 +53,14 @@ const emit = defineEmits<{
 	recover: [entry: RecoverySnapshot];
 	newCount: [];
 	openExport: [query: ReportQuery];
+	newOperation: [kind: string];
 }>();
 const c = props.controller;
+const createOptions = computed(() =>
+	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
+		.filter((kind) => kind !== "Receive" && c.reference.operations[kind])
+		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: "movement" })),
+);
 const {
 	query,
 	groups,
@@ -269,13 +278,10 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			"
 		>
 			<template #actions>
-				<UiButton
-					@click="
-						c.load();
-						c.readLocal();
-					"
-					>刷新</UiButton
-				>
+				<BrowseOverflowMenu>
+					<UiButton @click="c.load(); c.readLocal()">刷新</UiButton>
+				</BrowseOverflowMenu>
+				<BrowseSplitButton label="入库" kind="Receive" icon="receive" :options="createOptions" @select="emit('newOperation', $event)" />
 			</template>
 			<template #filters>
 				<div class="preview-filter-fields">
@@ -373,8 +379,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			sidebar-available
 			@sidebar="toggleSidebar"
 		>
-			<template #actions
-				><UiButton
+			<template #actions>
+				<BrowseOverflowMenu>
+					<UiButton
 					@click="
 						c.load();
 						c.readLocal();
@@ -386,8 +393,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					:active="active"
 					@open-full="emit('openExport', $event)"
 				/>
-				<UiButton variant="primary" @click="emit('newCount')">新建盘点</UiButton></template
-			>
+				</BrowseOverflowMenu>
+				<UiButton variant="primary" @click="emit('newCount')">新建盘点</UiButton>
+			</template>
 			<template #subtitle>
 				<p class="browse-subtitle">
 					{{ "仅显示实际保存的盘点调整；数量一致的盘点不产生记录。" }}

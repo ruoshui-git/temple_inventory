@@ -21,6 +21,7 @@
 	--p-accent-strong: #194c37;
 	--p-soft: #e5eee7;
 	--p-control-border: #829288;
+	--p-switch-off: color-mix(in srgb, var(--p-ink) 65%, var(--p-surface));
 	--p-border: color-mix(in srgb, var(--p-ink) 14%, var(--p-surface));
 	--p-shadow-color: color-mix(in srgb, var(--p-ink) 14%, transparent);
 	--p-shadow-subtle: 0 2px 8px color-mix(in srgb, var(--p-ink) 6%, transparent);
@@ -66,6 +67,10 @@
 	--p-pad: 24px;
 	--p-gap: 20px;
 	--p-line: 1.6;
+	--p-page-gutter: 24px;
+	--p-header-gap: 12px;
+	--p-card-inner-pad: 16px;
+	--p-editor-bottom-pad: 16px;
 }
 :root[data-ti-theme="bronze"] {
 	--p-canvas: #f7f5f0;
@@ -742,13 +747,14 @@ strong {
 	width: 100%;
 	margin: 0 auto;
 }
+.sample-content { padding-inline: var(--p-page-gutter); }
 .sample-breadcrumb {
 	display: flex;
 	gap: 12px;
 	align-items: center;
 	color: var(--p-muted);
 	font-size: calc(12px * var(--p-text-scale, 1));
-	margin-bottom: 32px;
+	margin-bottom: var(--p-header-gap);
 }
 .sample-tag {
 	margin-left: auto;
@@ -2758,6 +2764,33 @@ strong {
 	overflow-anchor: none;
 }
 
+@media (min-width: 1024px) and (pointer: fine) {
+	:root {
+		--p-page-gutter: 24px;
+		--p-header-gap: 6px;
+		--p-card-inner-pad: 16px;
+		--p-editor-bottom-pad: 16px;
+		--p-pad: 20px;
+		--p-gap: 16px;
+	}
+	:root[data-ti-density="compact"] {
+		--p-page-gutter: 18px;
+		--p-header-gap: 4px;
+		--p-card-inner-pad: 12px;
+		--p-editor-bottom-pad: 12px;
+		--p-pad: 14px;
+		--p-gap: 10px;
+	}
+	:root[data-ti-density="spacious"] {
+		--p-page-gutter: 32px;
+		--p-header-gap: 10px;
+		--p-card-inner-pad: 20px;
+		--p-editor-bottom-pad: 20px;
+		--p-pad: 28px;
+		--p-gap: 24px;
+	}
+}
+
 /* Text scaling grows controls naturally and reaches teleported surfaces. */
 button,
 input,
@@ -3440,11 +3473,6 @@ body:has(.preview-document-actions) .preview-toast {
 }
 .compact-action-row small {
 	font-weight: 400;
-}
-.expanded-browse-tools {
-	display: flex;
-	flex-direction: column;
-	gap: var(--p-space-2);
 }
 :where([data-inventory-app], .preview-dialog) details {
 	min-width: 0;

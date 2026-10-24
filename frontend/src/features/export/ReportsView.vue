@@ -10,6 +10,8 @@ import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import {
 	groupLabels,
@@ -24,6 +26,7 @@ import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresenta
 import { periodLabels, sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
 import type { useExportWorkspaceController } from "./useReportController";
+import { operationLabels } from "../documents/operationCodec";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useExportWorkspaceController>;
@@ -34,6 +37,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	openExport: [query: import("../../lib/reportContract").ReportQuery];
+	newOperation: [kind: string];
 }>();
 const {
 	routeError,
@@ -61,6 +65,11 @@ const {
 	groups,
 } = props.controller;
 const availableGroups = computed(() => groupsForView(dataset.value, query.value.view));
+const createOptions = computed(() =>
+	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
+		.filter((kind) => kind !== "Receive" && reference.operations[kind])
+		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: "movement" })),
+);
 const availableSecondGroups = computed(() =>
 	groupSequencesForView(dataset.value, query.value.view)
 		.filter((sequence) => sequence[0] === query.value.groupBy[0] && sequence.length === 2)
@@ -146,11 +155,20 @@ function setGroup(index: number, value: string) {
 			@sidebar="toggleSidebar"
 		>
 			<template #actions>
-				<QuickExport
-					:query="query"
-					:active="active"
-					:show-open-report="false"
-					@open-full="emit('openExport', $event)"
+				<BrowseOverflowMenu>
+					<QuickExport
+						:query="query"
+						:active="active"
+						:show-open-report="false"
+						@open-full="emit('openExport', $event)"
+					/>
+				</BrowseOverflowMenu>
+				<BrowseSplitButton
+					label="入库"
+					kind="Receive"
+					icon="receive"
+					:options="createOptions"
+					@select="emit('newOperation', $event)"
 				/>
 			</template>
 			<template #subtitle

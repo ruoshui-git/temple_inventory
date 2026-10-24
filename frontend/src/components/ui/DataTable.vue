@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "./UiButton.vue";
+import InventoryIcon from "../InventoryIcon.vue";
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
 import type {
 	DataColumn,
@@ -27,6 +28,7 @@ const props = withDefaults(
 		retained?: boolean;
 		stale?: boolean;
 		emptyText?: string;
+		emptyAction?: string;
 		loadingText?: string;
 		selectionEnabled?: boolean;
 		selectedKeys?: string[];
@@ -48,6 +50,7 @@ const props = withDefaults(
 		error: "",
 		retained: false,
 		emptyText: "没有符合条件的记录",
+		emptyAction: "",
 		loadingText: "表格数据加载中…",
 		retryText: "重试",
 		selectionEnabled: false,
@@ -67,6 +70,7 @@ const emit = defineEmits<{
 	selectVisible: [rowKeys: string[], selected: boolean];
 	toggleGroup: [groupId: string];
 	loadMore: [];
+	emptyAction: [];
 	retry: [];
 }>();
 
@@ -450,6 +454,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								class="data-table-column-trigger"
 								:aria-expanded="settingsOpen"
 								aria-label="设置列"
+								title="设置列"
 								@click="toggleSettings"
 							>
 								☷
@@ -682,9 +687,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</tbody>
 			</table>
 		</div>
-		<p v-if="!rows.length && !loading && initialized && !error" class="data-table-state">
-			{{ emptyText }}
-		</p>
+		<div v-if="!rows.length && !loading && initialized && !error" class="data-table-state">
+			<InventoryIcon name="search" />
+			<span>{{ emptyText }}</span>
+			<UiButton v-if="emptyAction" variant="primary" @click="emit('emptyAction')">{{ emptyAction }}</UiButton>
+		</div>
 		<p v-if="error && rows.length" class="data-table-refresh-error" role="alert">
 			{{ error }} <button type="button" @click="emit('retry')">{{ retryText }}</button>
 		</p>

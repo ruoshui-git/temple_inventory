@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -21,7 +22,7 @@ const states: Record<string, string> = {
 		<PageHeader
 			><h1 tabindex="-1">通知设置</h1>
 			<template #back
-				><UiButton @click="router.push('/more')">返回更多</UiButton></template
+				><BackButton @click="router.push('/more')" /></template
 			></PageHeader
 		>
 		<p class="muted">当前账户：{{ c.account }}</p>
@@ -41,6 +42,7 @@ const states: Record<string, string> = {
 						type="checkbox"
 						role="switch"
 						aria-label="接收通知"
+						:class="{ 'is-off': !c.preferences.value.enabled }"
 				/></label>
 				<label
 					v-for="event in c.notificationEvents"
@@ -59,6 +61,7 @@ const states: Record<string, string> = {
 						role="switch"
 						:disabled="!c.preferences.value.enabled"
 						:aria-label="event.label"
+						:class="{ 'is-off': !c.preferences.value[event.key] }"
 					/>
 				</label>
 				<fieldset

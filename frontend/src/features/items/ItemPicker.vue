@@ -841,12 +841,6 @@ async function discardEdits() {
 </template>
 
 <style scoped>
-.picker-chrome :deep(.browse-tools-toggle) {
-	display: none;
-}
-.picker-chrome :deep(.expanded-browse-tools) {
-	display: block !important;
-}
 .picker-data-table :deep(table) {
 	min-width: 780px;
 }

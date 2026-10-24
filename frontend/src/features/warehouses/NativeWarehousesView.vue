@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import type { NativeWarehouses } from "./useNativeWarehouses";
 import type { ReportQuery } from "../../lib/reportContract";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -92,7 +93,7 @@ function parentLabel(name?: string) {
 				<h1 tabindex="-1">{{ detail ? selected?.full_label || "位置详情" : "仓库" }}</h1>
 			</div>
 			<template #back
-				><UiButton v-if="detail" @click="emit('back')">返回仓库</UiButton></template
+				><BackButton v-if="detail" label="返回" @click="emit('back')" /></template
 			><template #actions
 				><UiButton
 					:disabled="busy"

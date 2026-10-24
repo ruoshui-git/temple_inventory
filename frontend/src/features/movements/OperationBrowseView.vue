@@ -6,7 +6,7 @@ import Scanner from "../../components/Scanner.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import RelatedLoanPreview from "../loans/RelatedLoanPreview.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -22,9 +22,11 @@ import { enumPresentationLabel } from "../../lib/presentationLabels";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
-import QuantitySummary from "../../components/ui/QuantitySummary.vue";
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+import { operationLabels } from "../documents/operationCodec";
 import ItemGroup from "../../components/ItemGroup.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import { loanSummaryMetrics, movementSummaryMetrics } from "./movementSummary";
@@ -86,6 +88,18 @@ const {
 	details,
 } = c;
 const { isMobile } = useResponsiveLayout();
+const wideScreen = ref(window.innerWidth >= 1440);
+function updateWideScreen() { wideScreen.value = window.innerWidth >= 1440; }
+onMounted(() => window.addEventListener("resize", updateWideScreen));
+onBeforeUnmount(() => window.removeEventListener("resize", updateWideScreen));
+const createOptions = computed(() => {
+	const kinds = props.family === "movements"
+		? ["Issue", "Transfer", "Loan", "Return", "Damage", "Loss", "Repair", "Disposal"]
+		: ["Return"];
+	return kinds.filter((kind) => reference.operations[kind]).map((kind) => ({
+		kind, label: operationLabels[kind as keyof typeof operationLabels], icon: kind === "Loan" || kind === "Return" ? "loan" : "movement",
+	}));
+});
 const showMobileItemCards = computed(
 	() =>
 		isMobile.value &&
@@ -146,8 +160,8 @@ const operationColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: true, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: true, minWidth: "150px" },
+				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
 				{
 					id: "quantities",
 					label: "数量（按单位）",
@@ -199,8 +213,8 @@ const operationColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: true, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: true, minWidth: "150px" },
+				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
 				{
 					id: "quantities",
 					label: "借出数量（按单位）",
@@ -267,8 +281,8 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortField: "date",
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: true, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: true, minWidth: "150px" },
+				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
 				{
 					id: "quantities",
 					label: "数量（按单位）",
@@ -312,8 +326,8 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortField: "date",
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: true, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: true, minWidth: "150px" },
+				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
 				{
 					id: "borrowed",
 					label: "数量",
@@ -772,40 +786,28 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				@scan="scanOpen = true"
 				@sidebar="toggleFilters"
 			>
-				<template #actions
-					><QuickExport
-						:query="query"
-						:active="active"
-						@open-full="emit('openExport', $event)"
-					/><template v-if="family === 'movements'"
-						><a class="drafts-entry-link" href="/drafts"
-							>草稿 <span>{{ draftCount }}</span></a
-						>
-						<UiButton
-							v-if="reference.operations.Receive"
-							variant="primary"
-							icon="box"
-							@click="emit('newOperation', 'Receive')"
-							>入库</UiButton
-						><UiButton
-							v-if="reference.operations.Issue"
-							icon="movement"
-							@click="emit('newOperation', 'Issue')"
-							>出库</UiButton
-						><UiButton
-							v-if="reference.operations.Transfer"
-							icon="movement"
-							@click="emit('newOperation', 'Transfer')"
-							>调拨</UiButton
-						></template
-					><UiButton
-						v-else-if="reference.operations.Loan"
-						variant="primary"
-						icon="loan"
-						@click="emit('newOperation', 'Loan')"
-						>登记借出</UiButton
-					></template
-				>
+				<template #actions>
+					<BrowseOverflowMenu>
+						<QuickExport
+							:query="query"
+							:active="active"
+							@open-full="emit('openExport', $event)"
+						/>
+						<a v-if="family === 'movements'" class="drafts-entry-link" href="/drafts">
+							草稿 <span>{{ draftCount }}</span>
+						</a>
+					</BrowseOverflowMenu>
+					<BrowseSplitButton
+						v-if="family === 'movements' && reference.operations.Receive"
+						label="入库" kind="Receive" icon="receive" :options="createOptions"
+						@select="emit('newOperation', $event)"
+					/>
+					<BrowseSplitButton
+						v-else-if="family === 'loans' && reference.operations.Loan"
+						label="登记借出" kind="Loan" icon="loan" :options="createOptions"
+						@select="emit('newOperation', $event)"
+					/>
+				</template>
 				<template #persistent
 					><nav
 						class="browse-view-switch"
@@ -889,32 +891,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				aria-label="当前筛选汇总"
 				aria-live="polite"
 			>
-				<p class="browse-result-count">
-					筛选结果：{{ result.total }} {{ records ? "笔记录" : "种物品" }}
-				</p>
-				<details class="browse-summary-details">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />
-						数量分析：{{
-							metrics
-								.slice(0, 2)
-								.flatMap((metric) =>
-									metric.quantities
-										.slice(0, 1)
-										.map(
-											(quantity) =>
-												`${metric.label} ${quantity.qty} ${quantity.uom}`,
-										),
-								)
-								.join(" · ")
-						}}
-						· 查看完整分析
-					</summary>
-					<QuantitySummary
-						:metrics="metrics"
-						:loading="result.loading || result.stale"
-					/>
-				</details>
+				<BrowseResultSummary
+					:label="`${result.total} ${records ? '笔记录' : '种物品'}`"
+					:metrics="metrics"
+					:loading="result.loading || result.stale"
+				/>
 			</section>
 			<SkeletonBlock v-if="!records && result.loading" variant="lines" :count="5" />
 			<p v-if="result.stale" class="notice-bar warning" role="status">
@@ -1172,6 +1153,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									: undefined
 						"
 						empty-text="没有匹配的物品"
+						empty-action="清空筛选"
+						@empty-action="c.reset"
 						:sort-by="c.detailSortBy(flatHistoryItem)"
 						:sort-direction="c.detailSortDirection(flatHistoryItem)"
 						@sort="c.setDetailSort(flatHistoryItem, $event)"
@@ -1573,6 +1556,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 						:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
 						empty-text="没有匹配的记录"
+						empty-action="清空筛选"
+						@empty-action="c.reset"
 						@sort="sortTable"
 						@toggle-group="c.groups.toggleGroup"
 						@retry="query.groupBy.length ? c.groups.retry() : c.retry()"

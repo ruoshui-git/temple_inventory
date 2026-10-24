@@ -173,7 +173,13 @@
 .data-table-scroll th.data-table-settings-heading,
 .data-table-scroll td.data-table-settings-cell {
 	text-align: center;
+	position: sticky;
+	right: 0;
+	z-index: 2;
+	background: var(--p-surface);
+	box-shadow: -6px 0 8px -8px var(--p-shadow-color);
 }
+.data-table-scroll th.data-table-settings-heading { background: var(--p-soft); z-index: 3; }
 
 .data-table-scroll tbody tr:last-child td {
 	border-bottom: 0;
@@ -363,6 +369,15 @@
 	padding: var(--p-space-3);
 	color: var(--p-muted);
 }
+.data-table-state {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: var(--p-space-2);
+	min-height: 84px;
+}
+.data-table-state > svg { width: 22px; height: 22px; color: var(--p-muted); }
 
 .data-table-more {
 	display: flex;
@@ -402,7 +417,7 @@
 }
 
 :root[data-ti-density="balanced"] {
-	--p-table-cell-y: 12px;
+	--p-table-cell-y: 8px;
 	--p-table-cell-x: 12px;
 }
 
@@ -433,6 +448,25 @@
 	.data-table-selection-column {
 		min-width: 48px;
 		padding-block: 12px;
+	}
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+	:root[data-ti-density="balanced"] {
+		--p-table-cell-y: 5px;
+		--p-table-thumbnail: 32px;
+	}
+	.data-table-scroll th,
+	.data-table-scroll td {
+		line-height: 1.35;
+	}
+	.data-table-scroll td > .async-image,
+	.data-table-scroll td .item-image-button,
+	.data-table-scroll td .preview-item-image {
+		width: var(--p-table-thumbnail) !important;
+		height: var(--p-table-thumbnail) !important;
+		max-width: var(--p-table-thumbnail);
+		max-height: var(--p-table-thumbnail);
 	}
 }
 .data-table-scroll.is-refreshing {

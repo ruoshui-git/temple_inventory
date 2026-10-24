@@ -24,5 +24,6 @@ function changed(query: ReportQuery) {
 		@query-change="changed"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
 		@open-export="router.push(exportDestination($event))"
+		@new-operation="(kind) => router.push(routeTarget('movement-new', { kind }))"
 	/>
 </template>

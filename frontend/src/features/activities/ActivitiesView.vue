@@ -11,6 +11,7 @@ import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { movementLabels } from "../../lib/filterPresentation";
 import { periodLabels } from "../../lib/sitePeriod";
@@ -252,11 +253,13 @@ function tabKey(event: KeyboardEvent) {
 			:filter-count="secondaryChips.length + 3"
 		>
 			<template #actions>
-				<QuickExport
-					:query="report"
-					:active="active"
-					@open-full="emit('openExport', $event)"
-				/>
+				<BrowseOverflowMenu>
+					<QuickExport
+						:query="report"
+						:active="active"
+						@open-full="emit('openExport', $event)"
+					/>
+				</BrowseOverflowMenu>
 				<UiButton variant="primary" @click="newActivity">新建活动</UiButton>
 			</template>
 			<template #filters>

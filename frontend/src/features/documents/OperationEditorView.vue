@@ -2,6 +2,7 @@
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
+import BackButton from "../../components/ui/BackButton.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
@@ -321,7 +322,7 @@ async function lifecycle() {
 				</div>
 				<p class="muted">{{ subtitles[draft.kind] }}</p>
 			</div>
-			<template #back><UiButton variant="ghost" @click="back">返回</UiButton></template>
+			<template #back><BackButton @click="back" /></template>
 		</PageHeader>
 		<DocumentLoadingState
 			v-if="initialExistingLoad"
