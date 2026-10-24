@@ -18,12 +18,21 @@ def _erpnext_workspace_names():
 	return [row.name for row in rows]
 
 
-def after_migrate():
+def after_install():
+	"""Reference records a fresh site needs before its first migrate.
+
+	The Desktop Icon is a shipped standard record synced by Frappe; creating it here
+	would make developer mode rewrite the shipped JSON.
+	"""
 	from temple_inventory.activities import seed_activity_types
 	from temple_inventory.notifications import register_types
 
 	seed_activity_types()
 	register_types()
+
+
+def after_migrate():
+	after_install()
 	logo = "/assets/temple_inventory/logo.png"
 	icon = frappe.db.exists("Desktop Icon", "物资管理")
 	doc = frappe.get_doc("Desktop Icon", icon) if icon else frappe.new_doc("Desktop Icon")

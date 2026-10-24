@@ -308,7 +308,7 @@ class NotificationTests(NativeDocumentTests):
 
 	def test_fresh_install_registers_notification_types(self):
 		hooks = frappe.get_hooks("after_install", app_name="temple_inventory")
-		self.assertIn("temple_inventory.deployment.after_migrate", hooks)
+		self.assertIn("temple_inventory.deployment.after_install", hooks)
 		for type_name in notifications.TYPES:
 			self.assertTrue(frappe.db.exists("Notification Type", type_name))
 
