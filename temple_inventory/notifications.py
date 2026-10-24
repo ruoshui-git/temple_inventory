@@ -185,14 +185,16 @@ def enqueue_document_event(doc, method=None):
 		"temple_inventory.notifications.deliver_document_event",
 		doctype=doc.doctype,
 		name=doc.name,
-		event=event,
+		# `event` is a reserved frappe.enqueue parameter and would never reach the job.
+		notification_event=event,
 		amended=bool(method != "on_cancel" and doc.get("amended_from")),
 		actor=frappe.session.user,
 		enqueue_after_commit=True,
 	)
 
 
-def deliver_document_event(doctype, name, event, actor, amended=False):
+def deliver_document_event(doctype, name, notification_event, actor, amended=False):
+	event = notification_event
 	doc = frappe.get_doc(doctype, name)
 	original = frappe.session.user
 	try:

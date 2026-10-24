@@ -257,6 +257,7 @@ onBeforeUnmount(() => {
 				</div>
 			</nav>
 			<div v-if="!isMobile" class="sidebar-bottom app-account-menu">
+				<slot name="notifications" />
 				<button
 					ref="accountTrigger"
 					type="button"
@@ -291,6 +292,9 @@ onBeforeUnmount(() => {
 					</button>
 				</div>
 			</div>
+		</header>
+		<header v-if="isMobile" class="mobile-app-topbar">
+			<strong>寺院物资</strong><slot name="notifications" />
 		</header>
 		<main :id="contentId" class="sample-content"><slot /></main>
 		<nav

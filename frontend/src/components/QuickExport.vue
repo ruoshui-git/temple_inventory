@@ -8,6 +8,8 @@ import Overlay from "./ui/Overlay.vue";
 import ReportTable from "./ui/ReportTable.vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import { relatedSheetsHelp, useQuickExport } from "../features/export/useQuickExport";
+import { markExportWatched } from "../features/export/watchedExport";
+import { useInventoryServices } from "../services/contracts";
 import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
 import { scopeFilterChips } from "../lib/filterPresentation";
 import { reportFilterChips } from "../lib/reportFilters";
@@ -30,6 +32,8 @@ const emit = defineEmits<{
 	commitDataset: [dataset: ReportDataset];
 }>();
 const reference = useReferenceData();
+const services = useInventoryServices();
+const watchedJobs = new Set<string>();
 const selectedDataset = ref(props.initialDataset || props.query.dataset);
 const query = computed(() =>
 	props.allowDatasetSelection && props.queryForDataset
@@ -77,7 +81,7 @@ watch(
 );
 watch(
 	() => job.value?.status,
-	(value, previous) => {
+	async (value, previous) => {
 		if (value === "Completed" && previous !== "Completed")
 			showToast("导出文件已准备好", "success", {
 				label: "下载",
@@ -86,6 +90,20 @@ watch(
 					if (url) window.open(url, "_blank", "noopener");
 				},
 			});
+		const watchedKey = `${job.value?.name}:${job.value?.attempt}:${value}`;
+		if (
+			(value === "Completed" || value === "Failed") &&
+			open.value &&
+			job.value?.name &&
+			!watchedJobs.has(watchedKey)
+		) {
+			watchedJobs.add(watchedKey);
+			try {
+				await markExportWatched(services, job.value.name);
+			} catch {
+				watchedJobs.delete(watchedKey);
+			}
+		}
 	},
 );
 function commitDataset() {
@@ -113,6 +131,7 @@ function generateSelected() {
 		@close="open = false"
 	>
 		<div class="quick-export-intro form-fields">
+			<p v-if="!job" class="muted">文件将在后台生成，完成后会发送通知并提供下载。</p>
 			<p class="preview-long-text">
 				范围：{{ reportDefinitions[query.dataset].label }} ·
 				{{
@@ -236,6 +255,7 @@ function generateSelected() {
 			最多预览 5 行。XLSX 工作表在上方单独选择，导出全部匹配结果；CSV
 			只导出所选的一张表。附件仅包含有权限的文件及记录引用，不含文件内容或临时链接。
 		</p>
+		<p v-if="generating" class="muted">可以关闭此窗口继续工作，完成后会通知你。</p>
 		<p v-if="job" role="status">
 			{{
 				job.status === "Completed"
@@ -251,14 +271,14 @@ function generateSelected() {
 		>
 		<template #footer
 			><UiButton v-if="showOpenReport" @click="full">打开报表</UiButton
-			><UiButton @click="open = false">取消</UiButton
+			><UiButton @click="open = false">关闭</UiButton
 			><UiButton
 				variant="primary"
 				:disabled="!canGenerate"
 				:loading="loading || generating"
 				:loading-label="loading ? '正在更新预览…' : '正在生成…'"
 				@click="generateSelected"
-				>{{ job?.status === "Failed" ? "重试生成" : "生成文件" }}</UiButton
+				>{{ job?.status === "Failed" ? "重试生成" : "开始导出" }}</UiButton
 			></template
 		>
 	</Overlay>

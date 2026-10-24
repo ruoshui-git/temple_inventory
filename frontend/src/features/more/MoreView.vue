@@ -5,6 +5,8 @@ import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import type { AppRouteTarget } from "../../lib/routeRegistry";
+import { routeTarget } from "../../lib/routeRegistry";
+import { computed } from "vue";
 const props = defineProps<{ controller: MoreController }>();
 const emit = defineEmits<{ navigate: [route: AppRouteTarget] }>();
 const c = props.controller,
@@ -20,6 +22,29 @@ const c = props.controller,
 		guidance,
 		canInstall,
 	} = c;
+const displayGroups = computed(() =>
+	c.groups.map((group) =>
+		group.label === "管理与设置"
+			? {
+					...group,
+					items: group.items.flatMap((item) =>
+						item.key === "settings"
+							? [
+									item,
+									{
+										key: "notification-settings",
+										label: "通知设置",
+										route: routeTarget("notification-settings"),
+										icon: "notice",
+										description: "管理应用内通知与本设备推送",
+									},
+								]
+							: [item],
+					),
+				}
+			: group,
+	),
+);
 </script>
 <template>
 	<section class="preview-utility-page">
@@ -29,7 +54,7 @@ const c = props.controller,
 			<UiButton :loading="loading" @click="c.load">重试读取草稿数量</UiButton>
 		</p>
 		<p v-if="error && !logoutOpen && !installOpen" role="alert">{{ error }}</p>
-		<section v-for="group in c.groups" :key="group.label" class="more-section">
+		<section v-for="group in displayGroups" :key="group.label" class="more-section">
 			<h2>{{ group.label }}</h2>
 			<div class="more-grid">
 				<button
@@ -53,16 +78,18 @@ const c = props.controller,
 		<section class="more-section">
 			<h2>账户与设备</h2>
 			<div class="more-grid">
-				<UiButton
+				<button
 					v-if="canInstall"
+					type="button"
 					class="more-card surface"
-					:loading="installBusy"
-					loading-label="正在准备安装…"
+					:disabled="installBusy"
+					:aria-busy="installBusy"
 					@click="c.install"
 				>
-					<span><InventoryIcon name="download" /></span><strong>安装到手机 / 电脑</strong
+					<span><InventoryIcon :name="installBusy ? 'warning' : 'download'" /></span
+					><strong>{{ installBusy ? "正在准备安装…" : "安装到手机 / 电脑" }}</strong
 					><small>添加到主屏幕，方便下次打开</small>
-				</UiButton>
+				</button>
 				<div class="more-card surface">
 					<strong>当前账户</strong>
 					<p>{{ c.reference.user }}</p>

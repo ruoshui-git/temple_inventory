@@ -32,6 +32,8 @@ export type AppRouteName =
   | "activity-edit"
   | "drafts"
   | "reports"
+  | "notifications"
+  | "notification-settings"
   | "settings"
   | "setup"
   | "more"
@@ -106,6 +108,8 @@ const pages = {
   Settings: () => import("../pages/Settings.vue"),
   Setup: () => import("../pages/Setup.vue"),
   More: () => import("../pages/More.vue"),
+  Notifications: () => import("../pages/Notifications.vue"),
+  NotificationSettings: () => import("../pages/NotificationSettings.vue"),
 } as const;
 
 const route = (
@@ -370,6 +374,22 @@ export const routeRegistry: readonly AppRouteDefinition[] = [
     "reports",
     ["browse"],
     [root, { label: "报表", to: { name: "reports" } }],
+  ),
+  route(
+    "notifications",
+    "/notifications",
+    "Notifications",
+    "more",
+    ["browse"],
+    [root, { label: "通知" }],
+  ),
+  route(
+    "notification-settings",
+    "/settings/notifications",
+    "NotificationSettings",
+    "more",
+    ["browse"],
+    [root, { label: "更多", to: { name: "more" } }, { label: "通知设置" }],
   ),
   route(
     "settings",

@@ -368,7 +368,7 @@ describe("background quick export", () => {
     reject(new Error("预览刷新失败"));
     await flushPromises();
     const generateButton = Array.from(dialog.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("生成文件"),
+      (button) => button.textContent?.includes("开始导出"),
     )!;
     expect(generateButton.disabled).toBe(true);
   });
@@ -494,7 +494,7 @@ describe("background quick export", () => {
       "movements",
     );
     await Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "取消")!
+      .find((button) => button.textContent?.trim() === "关闭")!
       .click();
     await flushPromises();
     expect(committed).not.toHaveBeenCalled();
@@ -508,7 +508,7 @@ describe("background quick export", () => {
     await setNativeSelect(reopenedDataset, "movements");
     await flushPromises();
     await Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "生成文件")!
+      .find((button) => button.textContent?.trim() === "开始导出")!
       .click();
     await flushPromises();
 
@@ -757,8 +757,6 @@ describe("native dashboard cards", () => {
     reference.operations.Loss = false;
     reference.operations.Repair = false;
     reference.operations.Return = false;
-    reference.capabilities["Stock Entry"]!.read = false;
-    reference.capabilities["Stock Reconciliation"]!.create = false;
     await nextTick();
     expect(wrapper.find(".dashboard-more-actions").exists()).toBe(false);
 

@@ -81,6 +81,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ["/assets/temple_inventory/frontend/push-handler.js"],
         cleanupOutdatedCaches: true,
         clientsClaim: false,
         skipWaiting: false,

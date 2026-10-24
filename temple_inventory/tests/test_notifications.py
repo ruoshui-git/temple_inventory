@@ -61,7 +61,7 @@ class NotificationTests(NativeDocumentTests):
 		)
 		with patch.object(frappe, "enqueue") as enqueue:
 			notifications.enqueue_document_event(doc, "on_submit")
-		self.assertEqual(enqueue.call_args.kwargs["event"], "movement_submitted")
+		self.assertEqual(enqueue.call_args.kwargs["notification_event"], "movement_submitted")
 		self.assertTrue(enqueue.call_args.kwargs["enqueue_after_commit"])
 
 	def test_export_result_watched_is_created_read_and_contains_row_count(self):
@@ -259,3 +259,28 @@ class NotificationTests(NativeDocumentTests):
 		):
 			result = notifications.inbox()
 		self.assertTrue(result["items"][0].unavailable)
+
+	def test_export_sheet_names_are_valid_for_every_table(self):
+		import io
+
+		import xlsxwriter
+
+		from temple_inventory import exports
+		from temple_inventory.projections import TABLE_LABELS
+
+		workbook = xlsxwriter.Workbook(io.BytesIO(), {"in_memory": True})
+		for table in TABLE_LABELS:
+			for part in (1, 2):
+				workbook.add_worksheet(exports._sheet_name(table, part))
+		workbook.close()
+
+	def test_document_event_job_kwargs_survive_frappe_enqueue(self):
+		# frappe.enqueue consumes its own parameters (e.g. `event`); every kwarg the
+		# job needs must reach it unchanged.
+		import inspect
+
+		from frappe.utils.background_jobs import enqueue
+
+		reserved = set(inspect.signature(enqueue).parameters) - {"kwargs"}
+		job = set(inspect.signature(notifications.deliver_document_event).parameters)
+		self.assertFalse(job & reserved)

@@ -53,6 +53,8 @@ describe("canonical application route registry", () => {
       "activity-edit",
       "drafts",
       "reports",
+      "notifications",
+      "notification-settings",
       "settings",
       "setup",
       "more",

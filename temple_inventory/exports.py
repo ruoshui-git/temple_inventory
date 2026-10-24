@@ -5,6 +5,7 @@
 import csv
 import hashlib
 import json
+import re
 import shutil
 import tempfile
 from contextvars import ContextVar
@@ -227,6 +228,12 @@ def _column_label(field):
 	return labels.get(field, field)
 
 
+def _sheet_name(table, part):
+	# Excel rejects []:*?/\ in sheet names; keep the label readable.
+	label = re.sub(r"[\[\]:*?/\\]", "·", TABLE_LABELS.get(table, table))
+	return f"{label[:24]}{'' if part == 1 else '-' + str(part)}"
+
+
 def _write(projection, doc, path):
 	tables = json.loads(doc.tables_json)
 	if any(table not in projection.column_names for table in tables):
@@ -258,8 +265,7 @@ def _write(projection, doc, path):
 				def new_sheet():
 					nonlocal worksheet, row_index, part
 					part += 1
-					label = TABLE_LABELS.get(table, table)
-					worksheet = workbook.add_worksheet(f"{label[:24]}{'' if part == 1 else '-' + str(part)}")
+					worksheet = workbook.add_worksheet(_sheet_name(table, part))
 					worksheet.write_row(0, 0, [_column_label(field) for field in columns])
 					worksheet.freeze_panes(1, 0)
 					row_index = 1
