@@ -15,6 +15,7 @@ import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useReportGroups } from "../../composables/useReportGroups";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import {
   useInventoryServices,
   useReferenceData,
@@ -47,8 +48,17 @@ export function useStockBrowseController(
         ? "库存列表需要当前库存范围"
         : ""),
   );
+  const { isMobile } = useResponsiveLayout();
   const search = ref(""),
-    view = ref("table"),
+    phoneView = ref<"table" | "card">("table"),
+    desktopView = ref<"table" | "card">("table"),
+    view = computed({
+      get: () => (isMobile.value ? phoneView.value : desktopView.value),
+      set: (value: "table" | "card") => {
+        if (isMobile.value) phoneView.value = value;
+        else desktopView.value = value;
+      },
+    }),
     sort = ref("item_name"),
     descending = ref(false),
     selected = ref<string[]>([]),
@@ -119,12 +129,17 @@ export function useStockBrowseController(
     "inventory",
     () => query.value,
     () => ({
-      view: view.value,
+      phoneView: phoneView.value,
+      desktopView: desktopView.value,
       selected: selected.value,
       dimension: analysisDimension.value,
     }),
     (value) => {
-      view.value = String(value.view || "table");
+      phoneView.value = value.phoneView === "card" ? "card" : "table";
+      desktopView.value =
+        value.desktopView === "card" || value.view === "card"
+          ? "card"
+          : "table";
       selected.value = (value.selected || []) as string[];
       analysisDimension.value =
         value.dimension === "location" ? "location" : "category";

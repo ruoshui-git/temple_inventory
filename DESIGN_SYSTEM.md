@@ -166,11 +166,19 @@ kept in Git.
   rows and expanders remain 44px. Keep readable name tracks and allow actions
   to wrap below identity rather than forcing tall single-character columns.
 - Card geometry uses `--p-card-min-width`, `--p-card-gap` and `--p-card-pad`.
-  Compact/balanced/spacious preferred widths are 160/225/300px with 8/16/24px
-  gaps. Available width and text scale determine the rendered column count.
-- Stock-card artwork fills the card width in a square 1:1 reserved area using
-  contain fit. Density adjusts the card geometry; DataTable image slots remain
-  compact and fixed.
+  Compact/balanced/spacious preferred widths are 160/200/280px with 8/16/24px
+  gaps. Available width and text scale determine the rendered desktop column
+  count.
+- Below 1024px, Stock defaults to list rows with a 64px square contain thumbnail,
+  a two-line name, one muted code/category line and right-aligned quantities.
+  Rows are at least 72px high; the checkbox, row activation and image lightbox
+  have independent targets. Stock cards use two equal columns with a 10px gap,
+  square contain images, a two-line name and one quantity line. Desktop cards
+  retain square contain artwork and density-driven sizing; DataTable image slots
+  remain compact and fixed.
+- Mobile Movement and Loan Item groups use a list row with a 56px thumbnail,
+  Item name, `明细条数 N` and up to two quantity summaries plus `+N`. The expand
+  control remains available and nested history keeps its existing behavior.
 - Dashboard scope controls sit with the page header on desktop and wrap on
   narrow surfaces. Quick actions sit directly below the header.
 

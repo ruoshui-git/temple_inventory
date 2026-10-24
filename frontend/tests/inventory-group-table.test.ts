@@ -201,7 +201,8 @@ describe("inventory grouped table", () => {
     mobile = true;
     mediaListeners.forEach((listener) => listener({ matches: false }));
     await flushPromises();
-    expect(wrapper.find(".stock-grid").exists()).toBe(true);
+    expect(wrapper.find(".stock-list").exists()).toBe(true);
+    expect(wrapper.findAll(".stock-list-row").length).toBeGreaterThan(0);
     expect(
       wrapper.find('[data-browse-scroll="inventory-table"]').exists(),
     ).toBe(false);

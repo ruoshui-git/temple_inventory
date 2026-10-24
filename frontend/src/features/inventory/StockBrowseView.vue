@@ -400,11 +400,7 @@ watch([() => props.active, isMobile], () => {
 				:loading="status === 'refresh'"
 			>
 				<template #controls>
-					<div
-						v-if="!isMobile"
-						class="segmented stock-view-icons"
-						aria-label="库存显示方式"
-					>
+					<div class="segmented stock-view-icons" aria-label="库存显示方式">
 						<button
 							:aria-label="'卡片视图'"
 							:title="'卡片'"
@@ -488,11 +484,23 @@ watch([() => props.active, isMobile], () => {
 					</div>
 					<div
 						v-else-if="status === 'loading'"
-						class="stock-grid stock-grid-skeleton"
+						:class="[
+							'stock-grid-skeleton',
+							isMobile && view === 'table'
+								? 'stock-list stock-list-skeleton'
+								: 'stock-grid',
+						]"
 						role="status"
 						aria-label="库存结果加载中"
 					>
-						<SkeletonBlock v-for="row in 8" :key="row" variant="card" />
+						<SkeletonBlock
+							v-if="isMobile && view === 'table'"
+							variant="stock-row"
+							:rows="8"
+						/>
+						<template v-else>
+							<SkeletonBlock v-for="row in 8" :key="row" variant="card" />
+						</template>
 					</div>
 					<div v-else-if="status === 'error'" class="empty-panel">
 						<InventoryIcon name="warning" />
@@ -525,9 +533,7 @@ watch([() => props.active, isMobile], () => {
 							<span class="sr-only" role="status">库存结果刷新中…</span>
 						</p>
 						<div
-							v-if="
-								!quickReportQuery.groupBy.length && (isMobile || view === 'card')
-							"
+							v-if="!quickReportQuery.groupBy.length && view === 'card'"
 							class="stock-grid"
 							:class="{ refreshing: data.stale }"
 							:inert="data.stale || undefined"
@@ -597,6 +603,61 @@ watch([() => props.active, isMobile], () => {
 										:stale="data.stale"
 									/>
 								</div>
+							</article>
+						</div>
+						<div
+							v-if="!quickReportQuery.groupBy.length && isMobile && view === 'table'"
+							class="stock-list"
+							:class="{ refreshing: data.stale }"
+							:inert="data.stale || undefined"
+						>
+							<article
+								v-for="item in rows"
+								:key="item.code"
+								:data-browse-row="item.code"
+								class="stock-list-row"
+								:class="{ selected: selected.includes(item.code) }"
+							>
+								<div class="stock-list-image" @click.stop>
+									<ItemImage
+										:has-artwork="!!hasArtwork?.(item)"
+										:item="item"
+										:thumbnail-size="64"
+									>
+										<template #artwork
+											><slot name="artwork" :item="item"
+										/></template>
+									</ItemImage>
+								</div>
+								<button class="stock-list-open" @click="openItem(item)">
+									<span class="stock-list-identity">
+										<strong class="stock-list-name">{{ item.name }}</strong>
+										<span class="stock-list-meta"
+											>{{ item.code
+											}}{{
+												item.category ? ` · ${item.category}` : ""
+											}}</span
+										>
+									</span>
+									<span class="stock-list-quantity">
+										<strong>{{ item.available }} {{ item.uom }}</strong>
+										<span
+											v-if="item.loaned || item.damaged"
+											class="stock-list-status"
+										>
+											<span v-if="item.loaned">借 {{ item.loaned }}</span>
+											<span v-if="item.damaged">损 {{ item.damaged }}</span>
+										</span>
+									</span>
+								</button>
+								<label class="stock-list-checkbox" @click.stop>
+									<input
+										type="checkbox"
+										:checked="selected.includes(item.code)"
+										:aria-label="`选择${item.name}`"
+										@change="toggle(item.code)"
+									/>
+								</label>
 							</article>
 						</div>
 						<DataTable

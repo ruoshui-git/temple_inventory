@@ -19,6 +19,7 @@ const wrappers: VueWrapper[] = [];
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   document.body.innerHTML = "";
+  vi.unstubAllGlobals();
 });
 function item(changes: Partial<StockItem> = {}): StockItem {
   return {
@@ -85,6 +86,10 @@ describe("native quantity summaries and inventory cards", () => {
       },
     });
     wrappers.push(wrapper);
+    expect(wrapper.get(".browse-summary-copy").text()).toContain("8 种物品");
+    expect(wrapper.get(".browse-summary-line").element.children[1]).toBe(
+      wrapper.get(".browse-summary-controls").element,
+    );
     expect(wrapper.get(".browse-summary-line").text()).toContain("8 种物品");
     expect(
       wrapper.get(".browse-summary-controls").findAll("button"),
@@ -122,7 +127,13 @@ describe("native quantity summaries and inventory cards", () => {
     expect(wrapper.find(".quantity-summary-empty").exists()).toBe(false);
   });
   it("renders one Item card with available, loaned and damaged quantities, then retains its selected native code", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
     const wrapper = await inventory([item()]);
+    await wrapper.get('button[aria-label="卡片视图"]').trigger("click");
     expect(wrapper.findAll(".stock-card")).toHaveLength(1);
     expect(wrapper.get(".stock-number strong").text()).toBe("8");
     expect(wrapper.get(".stock-secondary").text()).toContain("借出 3");
@@ -136,6 +147,69 @@ describe("native quantity summaries and inventory cards", () => {
     expect(
       wrapper.findComponent(StockBrowsePage).emitted("openItem")?.[0],
     ).toEqual(["ITEM-A"]);
+  });
+  it("defaults phones to list rows with separate image, row and selection targets, then switches to two-column cards", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const wrapper = await inventory([item()]);
+    expect(wrapper.findAll(".stock-list-row")).toHaveLength(1);
+    expect(wrapper.get(".stock-list-name").text()).toBe("大米");
+    expect(wrapper.get(".stock-list-meta").text()).toContain("ITEM-A · 食品");
+    expect(wrapper.get(".stock-list-quantity").text()).toContain("8 kg");
+    expect(wrapper.get(".stock-list-status").text()).toContain("借 3");
+    expect(
+      wrapper.get('.stock-list-image [role="img"]').attributes("aria-label"),
+    ).toBe("大米");
+    await wrapper.get('input[aria-label="选择大米"]').setValue(true);
+    expect(
+      wrapper.findComponent(StockBrowsePage).vm.controller.selected.value,
+    ).toEqual(["ITEM-A"]);
+    expect(
+      wrapper.findComponent(StockBrowsePage).emitted("openItem"),
+    ).toBeUndefined();
+    await wrapper.get(".stock-list-open").trigger("click");
+    expect(
+      wrapper.findComponent(StockBrowsePage).emitted("openItem")?.at(-1),
+    ).toEqual(["ITEM-A"]);
+    await wrapper.get('button[aria-label="卡片视图"]').trigger("click");
+    expect(wrapper.findAll(".stock-card")).toHaveLength(1);
+    expect(wrapper.findAll(".stock-list-row")).toHaveLength(0);
+  });
+  it("retains the phone and desktop view choices independently across viewport changes", async () => {
+    const listeners: Array<(event: { matches: boolean }) => void> = [];
+    const media = { matches: false };
+    vi.stubGlobal("matchMedia", () => ({
+      get matches() {
+        return media.matches;
+      },
+      addEventListener: (
+        _: string,
+        listener: (event: { matches: boolean }) => void,
+      ) => {
+        listeners.push(listener);
+      },
+      removeEventListener: vi.fn(),
+    }));
+    const wrapper = await inventory([item()]);
+    const controller = wrapper.findComponent(StockBrowsePage).vm.controller;
+    expect(controller.view.value).toBe("table");
+    await wrapper.get('button[aria-label="卡片视图"]').trigger("click");
+    expect(controller.view.value).toBe("card");
+
+    media.matches = true;
+    listeners.forEach((listener) => listener({ matches: true }));
+    await flushPromises();
+    expect(controller.view.value).toBe("table");
+    await wrapper.get('button[aria-label="卡片视图"]').trigger("click");
+    expect(controller.view.value).toBe("card");
+
+    media.matches = false;
+    listeners.forEach((listener) => listener({ matches: false }));
+    await flushPromises();
+    expect(controller.view.value).toBe("card");
   });
   it("keeps Item/Batch counts distinct across physical allocations and shows all scoped batch details", async () => {
     const value = item();

@@ -1074,14 +1074,16 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							基于完整筛选结果；一条记录涉及多个分组时，各组记录数不可相加。
 						</p>
 					</Overlay>
-					<template v-if="showMobileItemCards">
+					<div v-if="showMobileItemCards" class="mobile-item-group-list browse-card">
 						<ItemGroup
 							v-for="group in mobileItemGroups"
 							:key="group.id"
 							:data-browse-row="group.id"
 							:item="c.stockItem(groupItem(group))"
 							:name="group.label"
-							:context="groupSummary(group, true)"
+							:context="`明细条数 ${group.count}`"
+							:summary="groupSummaryDisplay(group).replace(/\+(\d+)\s+项/g, '+$1')"
+							mobile-list
 							:expanded="group.expanded"
 							@expanded="toggleMobileItemGroup(group, $event)"
 						>
@@ -1173,7 +1175,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								</template>
 							</MovementHistoryTable>
 						</ItemGroup>
-					</template>
+					</div>
 					<p
 						v-if="
 							family === 'loans' &&

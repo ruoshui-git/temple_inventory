@@ -27,39 +27,43 @@ const accessibleSummary = computed(() => `${props.label}，${entries.value.join(
 
 <template>
 	<div class="browse-summary-line">
-		<strong class="browse-result-summary-label">{{ label }}</strong>
-		<details class="browse-result-summary">
-			<summary :aria-label="accessibleSummary">
-				<span
-					v-for="(entry, index) in preview"
-					:key="entry"
-					class="browse-result-summary-item"
-					:class="{
-						'browse-result-summary-item--detail':
-							index > 0 && index < preview.length - 1,
-					}"
-				>
-					{{ entry
-					}}<span v-if="index < preview.length - 1" aria-hidden="true"> · </span>
-				</span>
-				<span
-					v-for="(entry, index) in mobilePreview"
-					:key="`mobile:${entry}`"
-					class="browse-result-summary-mobile-item"
-				>
-					{{ entry
-					}}<span v-if="index < mobilePreview.length - 1" aria-hidden="true"> · </span>
+		<div class="browse-summary-copy">
+			<strong class="browse-result-summary-label">{{ label }}</strong>
+			<details class="browse-result-summary">
+				<summary :aria-label="accessibleSummary">
 					<span
-						v-if="index === mobilePreview.length - 1 && mobilePreview.length > 1"
-						class="browse-result-summary-mobile-disclosure"
-						aria-hidden="true"
-						>▸</span
+						v-for="(entry, index) in preview"
+						:key="entry"
+						class="browse-result-summary-item"
+						:class="{
+							'browse-result-summary-item--detail':
+								index > 0 && index < preview.length - 1,
+						}"
 					>
-				</span>
-				<span class="browse-result-summary-disclosure" aria-hidden="true">▸</span>
-			</summary>
-			<QuantitySummary :metrics="metrics" :loading="loading" />
-		</details>
+						{{ entry
+						}}<span v-if="index < preview.length - 1" aria-hidden="true"> · </span>
+					</span>
+					<span
+						v-for="(entry, index) in mobilePreview"
+						:key="`mobile:${entry}`"
+						class="browse-result-summary-mobile-item"
+					>
+						{{ entry
+						}}<span v-if="index < mobilePreview.length - 1" aria-hidden="true">
+							·
+						</span>
+						<span
+							v-if="index === mobilePreview.length - 1 && mobilePreview.length > 1"
+							class="browse-result-summary-mobile-disclosure"
+							aria-hidden="true"
+							>▸</span
+						>
+					</span>
+					<span class="browse-result-summary-disclosure" aria-hidden="true">▸</span>
+				</summary>
+				<QuantitySummary :metrics="metrics" :loading="loading" />
+			</details>
+		</div>
 		<div v-if="$slots.controls" class="browse-summary-controls"><slot name="controls" /></div>
 	</div>
 </template>

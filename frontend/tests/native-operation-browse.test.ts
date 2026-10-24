@@ -20,6 +20,7 @@ afterEach(() => {
   if (originalScrollIntoView)
     HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  vi.unstubAllGlobals();
 });
 function page(): OperationBrowsePage {
   return {
@@ -1345,6 +1346,25 @@ describe("native operation browsing", () => {
     await flushPromises();
     const surface = wrapper.findComponent(OperationBrowsePage);
     expect(wrapper.findAll(".preview-group")).toHaveLength(1);
+    expect(wrapper.get(".mobile-item-group-list").classes()).toContain(
+      "browse-card",
+    );
+    expect(wrapper.get(".preview-group").classes()).toContain(
+      "preview-group--mobile-list",
+    );
+    expect(
+      wrapper.get(".mobile-item-group-list").element.children,
+    ).toHaveLength(1);
+    expect(wrapper.get(".preview-group-trigger").text()).toContain(
+      "明细条数 42",
+    );
+    expect(wrapper.get(".preview-group-metrics").text()).toMatch(
+      /借出\s+2\s+Nos/,
+    );
+    expect(wrapper.find(".preview-group-thumbnail").exists()).toBe(true);
+    expect(
+      wrapper.get(".preview-group-trigger").find(".ti-disclosure-icon").element,
+    ).toBe(wrapper.get(".preview-group-trigger").element.lastElementChild);
     expect(
       wrapper.findAll('[data-browse-scroll="operation-items"]'),
     ).toHaveLength(0);
@@ -1358,6 +1378,9 @@ describe("native operation browsing", () => {
     expect(historyContent?.getAttribute("style")).not.toContain(
       "display: none",
     );
+    expect(
+      historyContent?.parentElement?.classList.contains("preview-group"),
+    ).toBe(true);
     expect(wrapper.text()).not.toContain("查看历史");
     expect(call).toHaveBeenCalledWith(
       "browse.operation_contributions",
@@ -1392,6 +1415,11 @@ describe("native operation browsing", () => {
     expect(surface.emitted("settle")).toEqual([["LOAN-2"]]);
   });
   it("reopens filter fields collapsed and opens the grouping editor from its applied chip", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
     HTMLElement.prototype.scrollIntoView = vi.fn();
     const { wrapper } = setup(
       service(),

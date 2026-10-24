@@ -71,6 +71,31 @@ afterEach(() => {
 });
 
 describe("shared production design system", () => {
+  it("keeps the responsive card width tokens and documented phone row geometry", () => {
+    expect(tokens.get("--p-card-min-width")).toBe("200px");
+    expect(
+      declarations(':root[data-ti-density="compact"]').get(
+        "--p-card-min-width",
+      ),
+    ).toBe("160px");
+    expect(
+      declarations(':root[data-ti-density="spacious"]').get(
+        "--p-card-min-width",
+      ),
+    ).toBe("280px");
+    const design = read("../DESIGN_SYSTEM.md");
+    expect(design).toContain("160/200/280px");
+    expect(design).toContain("64px square contain thumbnail");
+    expect(read("src/styles/browse.css")).toContain(
+      "grid-template-columns: repeat(2, minmax(0, 1fr))",
+    );
+    expect(read("src/components/ui/SkeletonBlock.vue")).toContain(
+      "variant === 'stock-row'",
+    );
+    expect(read("src/features/inventory/StockBrowseView.vue")).toContain(
+      'variant="stock-row"',
+    );
+  });
   it("uses the sole production visual entry after gallery retirement", () => {
     expect(read("src/main.ts")).toContain('import "./styles/app.css"');
     expect(existsSync(resolve("design-preview.html"))).toBe(false);

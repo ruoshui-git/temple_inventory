@@ -233,9 +233,9 @@ supersession below when a durable user-facing decision changes.
   primary image empty and never promotes an attachment. Cropping offers a
   square WebP thumbnail capped at 800px without upscaling, use-original, and
   save-original-as-attachment choices. Attachments keep their original bytes.
-- Stock cards reserve a full-width 1:1 image area with contain fit. Density
-  changes the card's overall geometry; compact DataTable thumbnails keep their
-  existing size.
+- Desktop Stock cards use a square contain-fit image area; on phones, list rows
+  are the default and the optional card view uses two columns. Density changes
+  desktop card geometry; compact DataTable thumbnails keep their existing size.
 - A batch may have an expiry date without a manufacturing date. Compare dates
   only when both are present; reject a real manufacturing date later than its
   expiry, while allowing expired receipts.
@@ -385,6 +385,17 @@ supersession below when a durable user-facing decision changes.
   separate 草稿 entry.
 
 ## Durable supersessions
+
+- **2026-10-24 — Phone Stock list default and two-column cards:** Below 1024px,
+  Stock defaults to dense list rows with 64px thumbnails, a two-line Item name,
+  code/category metadata and available quantity plus compact loaned/damaged
+  indicators. The 卡片/列表 control is available on phones. Phone and desktop
+  view choices are retained separately; desktop keeps its existing default and
+  saved choice. Phone cards use two columns with square contain images and a
+  two-line name. This supersedes the earlier rule that Stock cards reserve a
+  full-width 1:1 image; desktop cards retain square artwork. Mobile Movement and
+  Loan Item groups use the same list-row pattern with their existing disclosure
+  and nested history behavior.
 
 - **2026-10-24 — Compact browse chrome, sort and stock tabs:** On phones,
   top-level destination and Stock subpage breadcrumbs are omitted because the

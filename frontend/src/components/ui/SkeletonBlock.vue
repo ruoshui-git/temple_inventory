@@ -1,7 +1,7 @@
 <script setup lang="ts">
 withDefaults(
 	defineProps<{
-		variant?: "lines" | "card" | "list" | "detail";
+		variant?: "lines" | "card" | "list" | "stock-row" | "detail";
 		count?: number;
 		rows?: number;
 	}>(),
@@ -25,6 +25,16 @@ withDefaults(
 				<span class="skeleton-block__list-copy"
 					><i class="skeleton" /><i class="skeleton short"
 				/></span>
+			</div>
+		</template>
+		<template v-else-if="variant === 'stock-row'">
+			<div v-for="row in rows" :key="row" class="skeleton-block__stock-row">
+				<span class="skeleton skeleton-block__stock-avatar" />
+				<span class="skeleton-block__stock-copy"
+					><i class="skeleton" /><i class="skeleton short"
+				/></span>
+				<span class="skeleton-block__stock-quantity skeleton" />
+				<span class="skeleton-block__stock-checkbox" />
 			</div>
 		</template>
 		<template v-else-if="variant === 'card'">
@@ -82,6 +92,44 @@ withDefaults(
 .skeleton-block__list-copy .skeleton {
 	display: block;
 	margin: 0;
+}
+.skeleton-block__stock-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 76px;
+	padding: 6px 4px;
+	border-bottom: 1px solid var(--p-border);
+}
+.skeleton-block__stock-avatar {
+	width: 64px;
+	height: 64px;
+	margin: 0;
+	border-radius: 8px;
+	flex: none;
+}
+.skeleton-block__stock-copy {
+	display: grid;
+	flex: 1;
+	min-width: 0;
+	gap: 6px;
+}
+.skeleton-block__stock-copy .skeleton {
+	display: block;
+	margin: 0;
+}
+.skeleton-block__stock-quantity {
+	width: 48px;
+	height: 12px;
+	margin: 0;
+}
+.skeleton-block__stock-checkbox {
+	display: block;
+	width: 18px;
+	height: 18px;
+	margin-inline: 13px;
+	border: 1px solid var(--p-control-border);
+	border-radius: 3px;
 }
 .skeleton-block__card-image {
 	aspect-ratio: 1;
