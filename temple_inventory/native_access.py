@@ -132,6 +132,8 @@ def check_document_scope(
 	batch_checker=None,
 	company_checker=None,
 	warehouse_checker=None,
+	bundle_cache=None,
+	bundle_loader=None,
 ):
 	"""A document detail never leaks a hidden allocation through another visible row."""
 	from temple_inventory.native_balances import entry_bundle
@@ -153,9 +155,14 @@ def check_document_scope(
 				batch_checker(row.batch_no)
 			else:
 				frappe.get_doc("Batch", row.batch_no).check_permission("read")
-		entry_bundle(bundle_row)
+		entry_bundle(bundle_row, bundle_cache=bundle_cache, bundle_loader=bundle_loader)
 		if doc.doctype == "Stock Reconciliation":
-			entry_bundle(bundle_row, "current_serial_and_batch_bundle")
+			entry_bundle(
+				bundle_row,
+				"current_serial_and_batch_bundle",
+				bundle_cache=bundle_cache,
+				bundle_loader=bundle_loader,
+			)
 		for field in ("warehouse", "s_warehouse", "t_warehouse"):
 			warehouse = row.get(field)
 			if warehouse:

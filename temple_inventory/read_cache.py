@@ -11,7 +11,7 @@ import frappe
 import redis
 from frappe.utils import now_datetime
 
-CACHE_TTL = 15
+CACHE_TTL = 300
 MAX_ENTRY_BYTES = 16 * 1024 * 1024
 IMPLEMENTATION_VERSION = "browse-v1"
 GENERATION_KEY = "temple_inventory:browse:generation"
@@ -51,6 +51,7 @@ READ_DOCTYPES = (
 	"Role Profile",
 	"Sales Invoice",
 	"Serial and Batch Bundle",
+	"Serial and Batch Entry",
 	"Stock Entry",
 	"Stock Ledger Entry",
 	"Stock Reconciliation",
@@ -594,7 +595,9 @@ def restore_projection(projection):
 		projection.db.close()
 		staging.replace(Path(projection.temp.name) / "projection.sqlite")
 		projection.db = sqlite3.connect(Path(projection.temp.name) / "projection.sqlite")
-		projection.db.execute("pragma cache_size = -4096")
+		projection.db.execute("pragma cache_size = -8192")
+		projection.db.execute("pragma journal_mode = memory")
+		projection.db.execute("pragma synchronous = off")
 		projection.column_names = metadata["column_names"]
 		projection.main_table = metadata["main_table"]
 		projection.summary_table = metadata["summary_table"]

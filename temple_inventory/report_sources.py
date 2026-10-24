@@ -18,6 +18,16 @@ from temple_inventory.native_stock import MOVEMENT_PURPOSES, batch_quantities, l
 from temple_inventory.report_query import in_period, resolved_period
 
 
+class _PreloadedRow(dict):
+	"""Light child row for read projections without Frappe Document overhead."""
+
+	def __getattr__(self, field):
+		try:
+			return self[field]
+		except KeyError as error:
+			raise AttributeError(field) from error
+
+
 def paged(
 	doctype, *, filters=None, fields=None, order_by="name asc", page_size=200, or_filters=None, group_by=None
 ):
@@ -40,18 +50,30 @@ def paged(
 
 
 class ReportContext:
-	def __init__(self, query, snapshot=None, *, snapshot_is_now=None, load_item_attachments=True):
+	def __init__(
+		self,
+		query,
+		snapshot=None,
+		*,
+		snapshot_is_now=None,
+		load_item_attachments=True,
+		load_item_children=True,
+	):
 		# Bind caches per request; no decorator retains contexts across accounts.
 		from functools import lru_cache
 
 		self.item = lru_cache(maxsize=2048)(self.item)
 		self._item_fields = lru_cache(maxsize=2048)(self._item_fields)
 		self.load_item_attachments = load_item_attachments
+		self.load_item_children = load_item_children
 		self._permitted_item_images = None if load_item_attachments else defaultdict(set)
 		self._loaded_primary_image_codes = set()
 		self._permitted_item_attachments = defaultdict(list)
+		self._bundle_cache = {}
+		self._preloaded_bundles = {}
+		self._preloaded_batches = {}
 		self.activity = lru_cache(maxsize=512)(self.activity)
-		self.parent = lru_cache(maxsize=2048)(self.parent)
+		self.parent = lru_cache(maxsize=4096)(self.parent)
 		self.batch = lru_cache(maxsize=512)(self.batch)
 		self._warehouse_doc = lru_cache(maxsize=512)(lambda name: frappe.get_doc("Warehouse", name))
 		self._checked_warehouse_permissions = set()
@@ -157,7 +179,7 @@ class ReportContext:
 		return doc
 
 	def batch(self, name):
-		batch = frappe.get_doc("Batch", name)
+		batch = self._preloaded_batches.get(name) or frappe.get_doc("Batch", name)
 		batch.check_permission("read")
 		return batch
 
@@ -172,6 +194,8 @@ class ReportContext:
 			batch_checker=self.batch,
 			company_checker=self.check_document_company,
 			warehouse_checker=self.check_warehouse_permission,
+			bundle_cache=self._bundle_cache,
+			bundle_loader=self.bundle,
 		)
 
 	def check_document_company(self, doc):
@@ -228,13 +252,12 @@ class ReportContext:
 				children[field] = by_parent
 			for row in parents:
 				payload = {**dict(row), "doctype": doctype}
+				doc = frappe.get_doc(payload)
 				for field in child_fields:
-					payload[field] = [
-						{**child, "_parent_docstatus": row.docstatus}
+					doc.__dict__[field] = [
+						_PreloadedRow({**child, "_parent_docstatus": row.docstatus})
 						for child in children[field].get(row.name, [])
 					]
-				doc = frappe.new_doc(doctype)
-				doc.update(payload)
 				doc.__islocal = 0
 				self._preloaded_parents[(doctype, row.name)] = doc
 
@@ -318,29 +341,30 @@ class ReportContext:
 		for start in range(0, len(codes), 500):
 			batch_codes = codes[start : start + 500]
 			rows = frappe.get_list("Item", filters={"name": ["in", batch_codes]}, fields=["*"])
-			meta = frappe.get_meta("Item")
 			child_tables = {}
-			for field in ("barcodes", "uoms"):
-				definition = meta.get_field(field)
-				if not definition or not definition.options:
-					continue
-				child_rows = frappe.get_all(
-					definition.options,
-					filters={"parent": ["in", batch_codes], "parenttype": "Item", "parentfield": field},
-					fields=["*"],
-					order_by="parent asc, idx asc",
-					limit_page_length=0,
-				)
-				by_parent = defaultdict(list)
-				for child in child_rows:
-					by_parent[child.parent].append(dict(child))
-				child_tables[field] = by_parent
+			if self.load_item_children:
+				meta = frappe.get_meta("Item")
+				for field in ("barcodes", "uoms"):
+					definition = meta.get_field(field)
+					if not definition or not definition.options:
+						continue
+					child_rows = frappe.get_all(
+						definition.options,
+						filters={"parent": ["in", batch_codes], "parenttype": "Item", "parentfield": field},
+						fields=["*"],
+						order_by="parent asc, idx asc",
+						limit_page_length=0,
+					)
+					by_parent = defaultdict(list)
+					for child in child_rows:
+						by_parent[child.parent].append(dict(child))
+					child_tables[field] = by_parent
 			for row in rows:
-				item = frappe.new_doc("Item")
 				payload = dict(row)
+				payload["doctype"] = "Item"
+				item = frappe.get_doc(payload)
 				for field, grouped in child_tables.items():
-					payload[field] = grouped.get(row.name, [])
-				item.update(payload)
+					item.__dict__[field] = [_PreloadedRow(child) for child in grouped.get(row.name, [])]
 				item.__islocal = 0
 				self._preloaded_items[item.name] = item
 
@@ -356,6 +380,68 @@ class ReportContext:
 				activity.update(dict(row))
 				activity.__islocal = 0
 				self._preloaded_activities[activity.name] = activity
+
+	def preload_bundles(self, rows):
+		"""Bulk-load permission-filtered native bundles and entry rows for a build."""
+		names = {
+			row.get(field)
+			for row in rows
+			for field in ("serial_and_batch_bundle", "current_serial_and_batch_bundle")
+			if row.get(field)
+		}
+		pending = sorted(names - self._preloaded_bundles.keys())
+		if not pending:
+			return
+		meta = frappe.get_meta("Serial and Batch Bundle")
+		field = meta.get_field("entries")
+		child_doctype = field.options if field else None
+		for start in range(0, len(pending), 500):
+			batch_names = pending[start : start + 500]
+			bundles = frappe.get_list(
+				"Serial and Batch Bundle",
+				filters={"name": ["in", batch_names]},
+				fields=["*"],
+				limit_page_length=0,
+			)
+			entries = defaultdict(list)
+			if child_doctype:
+				for row in frappe.get_all(
+					child_doctype,
+					filters={
+						"parent": ["in", batch_names],
+						"parenttype": "Serial and Batch Bundle",
+						"parentfield": "entries",
+					},
+					fields=["*"],
+					order_by="parent asc, idx asc",
+					limit_page_length=0,
+				):
+					entries[row.parent].append(_PreloadedRow(dict(row)))
+			for row in bundles:
+				payload = {**dict(row), "doctype": "Serial and Batch Bundle"}
+				doc = frappe.get_doc(payload)
+				if child_doctype:
+					doc.__dict__["entries"] = entries.get(row.name, [])
+				self._preloaded_bundles[row.name] = doc
+		self.preload_batches(
+			row.get("batch_no") for bundle in self._preloaded_bundles.values() for row in bundle.entries or []
+		)
+
+	def preload_batches(self, names):
+		pending = sorted({name for name in names if name} - self._preloaded_batches.keys())
+		for start in range(0, len(pending), 500):
+			rows = frappe.get_list(
+				"Batch",
+				filters={"name": ["in", pending[start : start + 500]]},
+				fields=["*"],
+				limit_page_length=0,
+			)
+			for row in rows:
+				payload = {**dict(row), "doctype": "Batch"}
+				self._preloaded_batches[row.name] = frappe.get_doc(payload)
+
+	def bundle(self, name):
+		return self._preloaded_bundles.get(name)
 
 	def item_fields(self, item):
 		return self._item_fields(item.name)
@@ -627,7 +713,12 @@ def document_fields(context, doc):
 
 
 def batch_allocations(row, context=None):
-	bundle = entry_bundle(row, batch_checker=context.batch if context else None)
+	bundle = entry_bundle(
+		row,
+		batch_checker=context.batch if context else None,
+		bundle_cache=context._bundle_cache if context else None,
+		bundle_loader=context.bundle if context else None,
+	)
 	if not bundle:
 		yield row.get("batch_no") or "", float(row.get("transfer_qty") or row.get("qty") or 0), ""
 		return
@@ -691,6 +782,11 @@ def movement_rows(
 		names = [value.name for value in values]
 		context.preload_parents(doctype, names)
 		parents = [context._preloaded_parents[(doctype, name)] for name in names]
+		lines = [
+			line for doc in parents for field in ("items", "ti_count_review") for line in doc.get(field) or []
+		]
+		context.preload_bundles(lines)
+		context.preload_batches(line.get("batch_no") for line in lines)
 		context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
 		context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
 		context.preload_item_attachments(
@@ -708,7 +804,12 @@ def movement_rows(
 				if not item:
 					continue
 				allocations = (
-					reconciliation_allocations(line, batch_checker=context.batch)
+					reconciliation_allocations(
+						line,
+						batch_checker=context.batch,
+						bundle_cache=context._bundle_cache,
+						bundle_loader=context.bundle,
+					)
 					if doctype == "Stock Reconciliation"
 					else (
 						{"batch_no": batch, "actual_qty": quantity, "bundle_line": allocation}
@@ -776,6 +877,9 @@ def loan_rows(context):
 	names = [value.name for value in values]
 	context.preload_parents("Stock Entry", names)
 	parents = [context._preloaded_parents[("Stock Entry", name)] for name in names]
+	lines = [line for doc in parents for line in doc.get("items") or []]
+	context.preload_bundles(lines)
+	context.preload_batches(line.get("batch_no") for line in lines)
 	context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
 	context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
 	context.preload_item_attachments(line.item_code for doc in parents for line in doc.get("items") or [])
@@ -1026,7 +1130,12 @@ def count_rows(context):
 					}
 				]
 			else:
-				allocations = reconciliation_allocations(line)
+				allocations = reconciliation_allocations(
+					line,
+					batch_checker=context.batch,
+					bundle_cache=context._bundle_cache,
+					bundle_loader=context.bundle,
+				)
 			for allocation in allocations:
 				row = {**base, **allocation, "stock_qty": allocation["difference"] or 0}
 				if allocation["batch_no"]:

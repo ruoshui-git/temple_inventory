@@ -7,7 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 import frappe
@@ -21,6 +21,76 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeReportTests(NativeDocumentTests):
+	def test_entry_bundle_cache_reuses_permission_checked_bundle_within_projection(self):
+		from temple_inventory.native_balances import entry_bundle
+
+		bundle = frappe._dict(item_code=self.item, entries=[])
+		bundle.check_permission = Mock()
+		cache = {}
+		row = frappe._dict(serial_and_batch_bundle="BUNDLE-TEST", item_code=self.item)
+		with patch.object(frappe, "get_doc", return_value=bundle) as get_doc:
+			self.assertIs(entry_bundle(row, bundle_cache=cache), bundle)
+			self.assertIs(entry_bundle(row, bundle_cache=cache), bundle)
+		self.assertEqual(get_doc.call_count, 1)
+		bundle.check_permission.assert_called_once_with("read")
+		with self.assertRaises(frappe.ValidationError):
+			entry_bundle({**row, "item_code": "OTHER-ITEM"}, bundle_cache=cache)
+
+	def test_bundle_cache_never_exposes_rows_with_hidden_item_or_warehouse(self):
+		document = self.submit(self.create(self.movement()))
+		query = self.query("movements", "records", record=document.name, statuses=[1])
+		item_class = type(frappe.get_doc("Item", self.item))
+		item_check = item_class.check_permission
+
+		def hide_item(item, *args, **kwargs):
+			if item.name == self.item:
+				raise frappe.PermissionError("Item hidden")
+			return item_check(item, *args, **kwargs)
+
+		with patch.object(item_class, "check_permission", hide_item):
+			self.assertEqual(report_page(query)["matched_count"], 0)
+
+		warehouse_class = type(frappe.get_doc("Warehouse", self.a))
+		warehouse_check = warehouse_class.check_permission
+
+		def hide_warehouse(warehouse, *args, **kwargs):
+			if warehouse.name == self.a:
+				raise frappe.PermissionError("Warehouse hidden")
+			return warehouse_check(warehouse, *args, **kwargs)
+
+		with patch.object(warehouse_class, "check_permission", hide_warehouse):
+			self.assertEqual(report_page(query)["matched_count"], 0)
+
+	def test_unfiltered_movement_record_fast_path_matches_full_expansion(self):
+		self.submit(self.create(self.movement(quantity=2)))
+		query = validate_query(
+			{
+				"dataset": "movements",
+				"view": "records",
+				"sortBy": "date",
+				"sort": "desc",
+				"scope": {"period": {"key": "custom", "from": nowdate(), "to": nowdate()}},
+			}
+		)
+		original_fast_path = Projection._complete_unfiltered_movement_records
+		fast_path_results = []
+
+		def track_fast_path(projection):
+			result = original_fast_path(projection)
+			fast_path_results.append(result)
+			return result
+
+		with patch.object(Projection, "_complete_unfiltered_movement_records", track_fast_path):
+			fast = report_page(query, refresh=True)
+		self.assertEqual(fast_path_results, [True])
+		with patch.object(Projection, "_complete_unfiltered_movement_records", return_value=False):
+			full = report_page(query, refresh=True)
+		self.assertGreater(fast["matched_count"], 0)
+		fast.pop("snapshot")
+		full.pop("snapshot")
+		self.maxDiff = None
+		self.assertEqual(fast, full)
+
 	def test_return_record_page_includes_original_loan_identity_for_multiple_loans(self):
 		self.receipt(10)
 		loans = [
@@ -254,6 +324,7 @@ class NativeReportTests(NativeDocumentTests):
 		with patch("temple_inventory.native_files.attachments", wraps=attachments) as image_reads:
 			page = report_page(query)
 		self.assertEqual(page["matched_count"], 12)
+		self.assertIn("image", page["rows"][0])
 		self.assertEqual(image_reads.call_count, 0)
 		# ReportContext batches private File reads rather than scanning attachments
 		# once per repeated allocation. Its authorization cache is request-local.
@@ -921,9 +992,15 @@ class NativeReportTests(NativeDocumentTests):
 
 		now = frappe.utils.now_datetime()
 		with patch.object(read_cache, "now_datetime", return_value=now):
-			self.assertTrue(read_cache._fresh(str(now - timedelta(seconds=14))))
-			self.assertFalse(read_cache._fresh(str(now - timedelta(seconds=15))))
+			self.assertTrue(read_cache._fresh(str(now - timedelta(seconds=read_cache.CACHE_TTL - 1))))
+			self.assertFalse(read_cache._fresh(str(now - timedelta(seconds=read_cache.CACHE_TTL))))
 			self.assertFalse(read_cache._fresh(str(now + timedelta(seconds=1))))
+
+	def test_read_cache_invalidates_native_bundle_source_documents(self):
+		from temple_inventory import read_cache
+
+		self.assertIn("Serial and Batch Bundle", read_cache.READ_DOCTYPES)
+		self.assertIn("Serial and Batch Entry", read_cache.READ_DOCTYPES)
 
 	def test_durable_cache_revision_update_rolls_back_with_its_source_transaction(self):
 		from temple_inventory import read_cache

@@ -553,6 +553,20 @@ def _add_authorized_item_images(context, rows):
 	return rows
 
 
+def _add_authorized_page_images(context, rows):
+	"""Check only page item covers after the reusable base projection is built."""
+	codes = {row.get("item_code") for row in rows if row.get("image") is not None and row.get("item_code")}
+	context.preload_primary_item_images(codes)
+	context._item_fields.cache_clear()
+	for row in rows:
+		if "image" not in row:
+			continue
+		code = row.get("item_code")
+		item = context.item(code) if code else None
+		row["image"] = context.item_fields(item)["image"] if item else ""
+	return rows
+
+
 def group_count_grain(query):
 	if query["dataset"] in ("inventory", "expiry"):
 		return "stock_row"
@@ -580,12 +594,14 @@ def group_count_metadata(query, row):
 
 
 class Projection(AbstractContextManager):
-	def __init__(self, query, *, refresh=False, load_item_attachments=True):
+	def __init__(self, query, *, refresh=False, load_item_attachments=True, load_item_children=True):
 		from frappe.utils import now_datetime
 
 		self.query = validate_query(query)
 		self.cache_bypass = refresh
-		self.load_item_attachments = load_item_attachments
+		self.hydrate_page_images = load_item_attachments and self.query["dataset"] in ("movements", "loans")
+		self.load_item_attachments = load_item_attachments and not self.hydrate_page_images
+		self.load_item_children = load_item_children
 		from temple_inventory.read_cache import capture_cache_context
 
 		self.cache_context = None if refresh else capture_cache_context()
@@ -596,11 +612,14 @@ class Projection(AbstractContextManager):
 			self.query,
 			snapshot=self.calculation_started,
 			snapshot_is_now=True,
-			load_item_attachments=load_item_attachments,
+			load_item_attachments=self.load_item_attachments,
+			load_item_children=self.load_item_children,
 		)
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
 		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
-		self.db.execute("pragma cache_size = -4096")
+		self.db.execute("pragma cache_size = -8192")
+		self.db.execute("pragma journal_mode = memory")
+		self.db.execute("pragma synchronous = off")
 		self.db.execute("""create table rows (
 			table_id text, identity text, date text, modified text, name text,
 			quantity real, payload text, primary key(table_id, identity)
@@ -643,12 +662,15 @@ class Projection(AbstractContextManager):
 			snapshot=self.calculation_started,
 			snapshot_is_now=True,
 			load_item_attachments=self.load_item_attachments,
+			load_item_children=self.load_item_children,
 		)
 		self.db.close()
 		self.temp.cleanup()
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
 		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
-		self.db.execute("pragma cache_size = -4096")
+		self.db.execute("pragma cache_size = -8192")
+		self.db.execute("pragma journal_mode = memory")
+		self.db.execute("pragma synchronous = off")
 		self.db.execute(
 			"""create table rows (
 				table_id text, identity text, date text, modified text, name text,
@@ -1128,6 +1150,8 @@ class Projection(AbstractContextManager):
 
 	def complete_native_records(self, dataset):
 		"""Expand selected document records to whole native quantities after line matching."""
+		if dataset == "movements" and self._complete_unfiltered_movement_records():
+			return
 		from temple_inventory.native_balances import reconciliation_allocations
 		from temple_inventory.native_stock import batch_quantities
 
@@ -1162,7 +1186,12 @@ class Projection(AbstractContextManager):
 						parts = [(quantity, effect)]
 					else:
 						parts = []
-						for allocation in reconciliation_allocations(line):
+						for allocation in reconciliation_allocations(
+							line,
+							batch_checker=self.context.batch,
+							bundle_cache=self.context._bundle_cache,
+							bundle_loader=self.context.bundle,
+						):
 							quantity = (
 								allocation["actual_qty"]
 								if base["kind"] == "Opening"
@@ -1232,6 +1261,53 @@ class Projection(AbstractContextManager):
 						"item_codes": item_codes,
 					},
 				)
+
+	def _complete_unfiltered_movement_records(self):
+		"""Reuse already-authorized allocation aggregates when the line scope is whole."""
+		query = self.query
+		scope = query["scope"]
+		if any(
+			(
+				scope.get("item"),
+				scope.get("categories"),
+				scope.get("uncategorized"),
+				scope.get("warehouses"),
+				scope.get("sources"),
+				scope.get("destinations"),
+				scope.get("kinds"),
+				scope.get("activity"),
+				query.get("search"),
+				query.get("batchNo"),
+				query.get("record"),
+				query.get("recordDoctype"),
+				query.get("loan"),
+				query.get("damageOnly"),
+				query.get("restrictItems"),
+				query.get("restrictAllocations"),
+				query.get("itemLocationKeys"),
+				query.get("allocationKeys"),
+				not query.get("includeAdjustments", True),
+			)
+		):
+			return False
+		rows = list(self.rows("records"))
+		documents = {
+			(doctype, name): self.context._preloaded_parents.get((doctype, name))
+			for doctype, name in {(row["doctype"], row["document"]) for row in rows}
+		}
+		if any(doc is None for doc in documents.values()):
+			return False
+		self.db.execute("delete from rows where table_id='records'")
+		for row in rows:
+			doctype, name = row["doctype"], row["document"]
+			doc = documents[(doctype, name)]
+			row.pop("document_count", None)
+			row.pop("row_count", None)
+			row.update(document_fields(self.context, doc))
+			row["id"] = f"{doctype}:{name}:{row['stock_uom']}"
+			row["item_codes"] = sorted({line.item_code for line in doc.items if line.item_code})
+			self.put("records", row)
+		return True
 
 	def summary(self):
 		table = self.summary_table or self.main_table
@@ -1367,7 +1443,11 @@ def report_page(query, start=0, page_length=30, table=None, include_related=Fals
 
 
 def _report_page(query, start, page_length, table, include_related, refresh=False):
-	with Projection(query, refresh=refresh) as projection:
+	with Projection(
+		query,
+		refresh=refresh,
+		load_item_children=include_related or query["dataset"] not in ("movements", "loans"),
+	) as projection:
 		projection.build(related=include_related)
 		selected = table or projection.main_table
 		if selected not in projection.column_names or selected in INTERNAL_TABLES:
@@ -1376,6 +1456,8 @@ def _report_page(query, start, page_length, table, include_related, refresh=Fals
 		rows = list(projection.rows(selected, offset=start, limit=page_length))
 		if projection.query["groupBy"]:
 			_add_authorized_item_images(projection.context, rows)
+		elif projection.hydrate_page_images:
+			_add_authorized_page_images(projection.context, rows)
 		return {
 			"query": projection.query,
 			"scope": projection.context.scope,
@@ -1427,7 +1509,11 @@ def group_page(query, parent_path=None, parent_unit=None, start=0, page_length=3
 
 def _group_page(validated, path, parent_unit, start, size, refresh=False):
 	group_by = validated["groupBy"]
-	with Projection(validated, refresh=refresh) as projection:
+	with Projection(
+		validated,
+		refresh=refresh,
+		load_item_children=validated["dataset"] not in ("movements", "loans"),
+	) as projection:
 		projection.build()
 		if len(path) < len(group_by):
 			table = "group_roots" if not path and len(group_by) == 2 else "grouped"

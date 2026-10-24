@@ -10,12 +10,18 @@ browse generation; it does not create or alter inventory documents.
 
 from __future__ import annotations
 
+import cProfile
+import io
 import json
+import pstats
 from concurrent.futures import ThreadPoolExecutor
+from http.cookiejar import CookieJar
 from threading import Barrier, Lock
 from time import perf_counter
 from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.parse import urlencode
+from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 import frappe
 
@@ -396,6 +402,158 @@ def run_invalidation_contract_probe():
 					executor.submit(save_user_roles_in_second_connection, role_user, delete=True).result()
 		finally:
 			frappe.db.rollback()
+
+
+def run_http_cold_load_benchmark():
+	"""Time cold/warm main reads through the local HTTP server as Administrator."""
+	from temple_inventory import read_cache
+	from temple_inventory.native_stock import warehouse_scopes
+
+	base = "http://127.0.0.1:8000"
+	opener = build_opener(HTTPCookieProcessor(CookieJar()))
+
+	def request(path, values=None, *, post=False):
+		url = f"{base}{path}"
+		data = urlencode(values or {}).encode() if post else None
+		if not post and values:
+			url += "?" + urlencode(values)
+		message = Request(
+			url,
+			data=data,
+			headers={"Host": "development.localhost", "Content-Type": "application/x-www-form-urlencoded"},
+		)
+		with opener.open(message, timeout=120) as response:
+			return json.loads(response.read())
+
+	login = request("/api/method/login", {"usr": "Administrator", "pwd": "admin"}, post=True)
+	if login.get("message") != "Logged In":
+		raise RuntimeError(f"Local HTTP login failed: {login!r}")
+
+	_physical_settings, _visible, physical, _leased, _damaged = warehouse_scopes()
+	item = frappe.db.get_value("Item", {"disabled": 0, "is_stock_item": 1}, "name")
+	queries = {
+		"reports": {"dataset": "inventory", "view": "summary", "sortBy": "item_name", "sort": "asc"},
+		"stock browse": {"dataset": "inventory", "view": "summary", "sortBy": "item_name", "sort": "asc"},
+		"movements items": {"dataset": "movements", "view": "summary", "sortBy": "item_name", "sort": "desc"},
+		"movements records": {"dataset": "movements", "view": "records", "sortBy": "date", "sort": "desc"},
+		"loans items": {"dataset": "loans", "view": "items", "sortBy": "item_name", "sort": "desc"},
+		"loans records": {"dataset": "loans", "view": "records", "sortBy": "date", "sort": "desc"},
+		"expiry": {"dataset": "expiry", "view": "batches", "sortBy": "expiry_date", "sort": "asc"},
+	}
+	checks = [
+		("dashboard", "temple_inventory.browse.dashboard_card", {"card": "inventory", "scope": "{}"}),
+		(
+			"stock browse",
+			"temple_inventory.browse.inventory_page",
+			{"query": json.dumps(queries["stock browse"]), "page_length": 30},
+		),
+		(
+			"reports",
+			"temple_inventory.projections.report_page",
+			{"query": json.dumps(queries["reports"]), "page_length": 30},
+		),
+		(
+			"movements items",
+			"temple_inventory.projections.report_page",
+			{"query": json.dumps(queries["movements items"]), "page_length": 30},
+		),
+		(
+			"movements records",
+			"temple_inventory.projections.report_page",
+			{"query": json.dumps(queries["movements records"]), "page_length": 30},
+		),
+		(
+			"loans items",
+			"temple_inventory.projections.report_page",
+			{"query": json.dumps(queries["loans items"]), "page_length": 30},
+		),
+		(
+			"loans records",
+			"temple_inventory.projections.report_page",
+			{"query": json.dumps(queries["loans records"]), "page_length": 30},
+		),
+		(
+			"expiry",
+			"temple_inventory.browse.expiry_page",
+			{"query": json.dumps(queries["expiry"]), "page_length": 30},
+		),
+		(
+			"warehouses",
+			"temple_inventory.warehouses.tree",
+			{},
+		),
+		(
+			"drafts",
+			"temple_inventory.browse.native_drafts",
+			{"query": json.dumps({"dataset": "movements", "view": "records", "statuses": [0]})},
+		),
+		(
+			"picker outbound",
+			"temple_inventory.catalog.picker_rows",
+			{"purpose": "outbound", "page_length": 30},
+		),
+		(
+			"picker inbound",
+			"temple_inventory.catalog.picker_rows",
+			{
+				"purpose": "inbound",
+				"page_length": 30,
+				"receiving_warehouse": sorted(physical)[0] if physical else "",
+			},
+		),
+		(
+			"operation_item",
+			"temple_inventory.catalog.operation_item",
+			{"item_code": item or ""},
+		),
+		("notifications inbox", "temple_inventory.notifications.inbox", {"page": 1, "page_size": 30}),
+	]
+	results = []
+	for label, method, payload in checks:
+		read_cache.invalidate_now()
+		started = perf_counter()
+		cold = request(f"/api/method/{method}", payload)
+		cold_ms = (perf_counter() - started) * 1000
+		started = perf_counter()
+		warm = request(f"/api/method/{method}", payload)
+		warm_ms = (perf_counter() - started) * 1000
+		cold_value = cold.get("message", cold)
+		warm_value = warm.get("message", warm)
+		if isinstance(cold_value, dict) and isinstance(warm_value, dict):
+			if cold_value.get("matched_count") != warm_value.get("matched_count"):
+				raise AssertionError(f"{label} changed matched_count between cold/warm HTTP reads")
+		results.append({"endpoint": label, "cold_ms": round(cold_ms, 2), "warm_ms": round(warm_ms, 2)})
+	return results
+
+
+def run_movement_profile(view="records"):
+	"""Profile a cold movement projection in-process and report cumulative hotspots."""
+	from temple_inventory import projections, read_cache
+
+	if view not in ("summary", "records"):
+		raise ValueError("Movement profile view must be summary or records")
+	method = "temple_inventory.projections.report_page"
+	frappe.local.request = SimpleNamespace(
+		path=f"/api/method/{method}",
+		method="POST",
+		headers={"X-Inventory-Account": frappe.session.user},
+	)
+	frappe.local.form_dict = frappe._dict(cmd=method)
+	read_cache.invalidate_now()
+	read_cache.begin_read_request()
+	query = {"dataset": "movements", "view": view, "sortBy": "date", "sort": "desc"}
+	profile = cProfile.Profile()
+	started = perf_counter()
+	response = profile.runcall(projections.report_page, query, page_length=30, refresh=True)
+	elapsed_ms = (perf_counter() - started) * 1000
+	stream = io.StringIO()
+	pstats.Stats(profile, stream=stream).strip_dirs().sort_stats("cumulative").print_stats(25)
+	return {
+		"view": view,
+		"elapsed_ms": round(elapsed_ms, 2),
+		"matched_count": response.get("matched_count"),
+		"profile": stream.getvalue(),
+	}
 
 
 def cleanup_invalidation_probe_artifacts():

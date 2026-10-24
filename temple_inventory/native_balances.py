@@ -14,11 +14,30 @@ from erpnext.stock.stock_ledger import get_previous_sle
 from frappe.utils import get_datetime
 
 
-def entry_bundle(row, fieldname="serial_and_batch_bundle", *, batch_checker=None):
+def entry_bundle(
+	row, fieldname="serial_and_batch_bundle", *, batch_checker=None, bundle_cache=None, bundle_loader=None
+):
 	"""Resolve the exact original bundle even after native cancellation detaches it."""
 	if fieldname not in ("serial_and_batch_bundle", "current_serial_and_batch_bundle"):
 		raise ValueError("Unsupported native bundle field")
 	name = row.get(fieldname)
+	cache_key = (
+		(fieldname, name)
+		if name
+		else (
+			fieldname,
+			row.get("parenttype") or row.get("doctype"),
+			row.get("parent"),
+			row.get("name"),
+			row.get("warehouse") or row.get("s_warehouse") or row.get("t_warehouse"),
+			row.get("_parent_docstatus"),
+		)
+	)
+	if bundle_cache is not None and cache_key in bundle_cache:
+		bundle = bundle_cache[cache_key]
+		if bundle and bundle.item_code != row.get("item_code"):
+			frappe.throw("批次明细不属于此物品")
+		return bundle
 	if not name and row.get("parenttype") == "Stock Entry" and row.get("parent") and row.get("name"):
 		parent_docstatus = row.get("_parent_docstatus")
 		if parent_docstatus is None:
@@ -69,10 +88,13 @@ def entry_bundle(row, fieldname="serial_and_batch_bundle", *, batch_checker=None
 				frappe.throw("原盘点明细包含多个批次明细版本，请在 ERPNext 中核对")
 			name = candidates[0] if candidates else None
 	if not name:
+		if bundle_cache is not None:
+			bundle_cache[cache_key] = None
 		return None
-	bundle = frappe.get_doc("Serial and Batch Bundle", name)
+	bundle = bundle_loader(name) if bundle_loader else None
+	bundle = bundle or frappe.get_doc("Serial and Batch Bundle", name)
 	bundle.check_permission("read")
-	if bundle.item_code != row.item_code:
+	if bundle.item_code != row.get("item_code"):
 		frappe.throw("批次明细不属于此物品")
 	for allocation in bundle.entries:
 		if allocation.batch_no:
@@ -80,17 +102,27 @@ def entry_bundle(row, fieldname="serial_and_batch_bundle", *, batch_checker=None
 				batch_checker(allocation.batch_no)
 			else:
 				frappe.get_doc("Batch", allocation.batch_no).check_permission("read")
+	if bundle_cache is not None:
+		bundle_cache[cache_key] = bundle
 	return bundle
 
 
-def reconciliation_allocations(row, *, batch_checker=None):
+def reconciliation_allocations(row, *, batch_checker=None, bundle_cache=None, bundle_loader=None):
 	"""Join recorded book/actual bundles, including book batches counted as zero.
 
 	The book bundle reverses the previous quantities (negative for positive stock).
 	Do not query today's ledger: a cancelled count must retain its original baseline.
 	"""
-	current = entry_bundle(row, "current_serial_and_batch_bundle", batch_checker=batch_checker)
-	actual = entry_bundle(row, batch_checker=batch_checker)
+	current = entry_bundle(
+		row,
+		"current_serial_and_batch_bundle",
+		batch_checker=batch_checker,
+		bundle_cache=bundle_cache,
+		bundle_loader=bundle_loader,
+	)
+	actual = entry_bundle(
+		row, batch_checker=batch_checker, bundle_cache=bundle_cache, bundle_loader=bundle_loader
+	)
 	if not current and not actual:
 		baseline = float(row.get("current_qty") or 0)
 		quantity = float(row.get("qty") or 0)
