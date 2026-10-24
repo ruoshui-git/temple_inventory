@@ -9,11 +9,12 @@ import {
 	applyLineConversion,
 } from "../../lib/quantityConversion";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
-import { computed, ref, nextTick, watch, onDeactivated, onBeforeUnmount } from "vue";
+import { computed, ref, nextTick, watch, onDeactivated, onBeforeUnmount, onMounted } from "vue";
 import { useOperationContext, type OperationDraft, type AllocationLine } from "./operationModel";
-import { useReferenceData } from "../../services/contracts";
+import { useReferenceData, useInventoryServices } from "../../services/contracts";
 const context = useOperationContext();
 const reference = useReferenceData();
+const services = useInventoryServices();
 
 import { isSettlement, type OperationIssue } from "./operationModel";
 const { lineStock, lineCapacity } = context;
@@ -23,6 +24,11 @@ import ItemPicker, { type ItemScanOption, type ItemScanResolution } from "../ite
 import type { StockItem } from "../../lib/stockPresentation";
 import UiButton from "../../components/ui/UiButton.vue";
 import { operationLabels } from "./operationCodec";
+import {
+	shouldShowLineTools,
+	transferDestinationOptions,
+	validRememberedLocation,
+} from "./creationFormPresentation";
 
 const props = withDefaults(
 	defineProps<{
@@ -41,12 +47,61 @@ const receive = computed(() => props.draft.kind === "Receive");
 const settlement = computed(() => isSettlement(props.draft));
 const places = computed(() => reference.physicalLeaves);
 const destination = ref(
-	reference.physicalLeaves.includes(String(props.draft.preferredWarehouse || ""))
+	props.draft.kind === "Receive" &&
+		reference.physicalLeaves.includes(String(props.draft.preferredWarehouse || ""))
 		? String(props.draft.preferredWarehouse)
-		: places.value[0] || "",
+		: "",
+);
+const transferDestinations = computed(() =>
+	transferDestinationOptions(
+		places.value,
+		props.draft.items.map((line) => line.sourceLocation || ""),
+	),
+);
+onMounted(async () => {
+	if (destination.value || !["Receive", "Transfer"].includes(props.draft.kind)) return;
+	try {
+		const saved = await services.call<Record<string, string>>(
+			"preferences.creation_locations",
+		);
+		const candidate = validRememberedLocation(
+			props.draft.kind,
+			saved[props.draft.kind],
+			places.value,
+			props.draft.items.map((line) => line.sourceLocation || ""),
+		);
+		if (candidate) destination.value = candidate;
+	} catch {
+		// Remembered locations are optional; the editor still requires an explicit choice.
+	}
+});
+watch(destination, async (value) => {
+	if (!value || !["Receive", "Transfer"].includes(props.draft.kind)) return;
+	if (props.draft.kind === "Receive")
+		for (const line of props.draft.items) line.location = value;
+	try {
+		await services.call("preferences.save_creation_location", {
+			kind: props.draft.kind,
+			warehouse: value,
+		});
+	} catch {
+		// The selection remains valid for this draft if preference storage fails.
+	}
+});
+watch(
+	() => props.draft.items.map((line) => line.sourceLocation || "").join("\u0000"),
+	() => {
+		if (
+			props.draft.kind === "Transfer" &&
+			destination.value &&
+			props.draft.items.some((line) => line.sourceLocation === destination.value)
+		)
+			destination.value = "";
+	},
 );
 const pickerLines = ref<AllocationLine[]>([]);
 const pickerOpen = ref(false);
+const scanOnOpen = ref(false);
 const selectionError = ref("");
 const scanWarehouse = ref("");
 const scanFeedback = ref("");
@@ -124,6 +179,7 @@ const scanDestinationOptions = computed<ItemScanOption[]>(() => {
 	return destinationChoices(source).map((name) => ({
 		value: name,
 		label: warehouseLabel(name, reference.warehouses),
+		title: warehousePath(name, reference.warehouses),
 		detail: warehousePath(name, reference.warehouses),
 	}));
 });
@@ -457,6 +513,7 @@ function scanResolutionFor(
 					destinationOptions: destinationValues.map((name) => ({
 						value: name,
 						label: warehouseLabel(name, reference.warehouses),
+						title: warehousePath(name, reference.warehouses),
 						detail: warehousePath(name, reference.warehouses),
 					})),
 					defaultSource,
@@ -876,7 +933,7 @@ async function choose(code: string, closePicker = true, selectedWarehouse = "") 
 					code,
 					qty: 1,
 					uom: stockItem(code)?.uom || "",
-					location: destination.value,
+					location: receive.value ? destination.value : "",
 				},
 			];
 	if (!pickerLines.value.length) props.draft.items.push(...targets);
@@ -887,7 +944,14 @@ async function choose(code: string, closePicker = true, selectedWarehouse = "") 
 			if (receive.value) line.location = selectedWarehouse;
 			else {
 				line.sourceLocation = selectedWarehouse;
-				if (["Transfer", "Repair"].includes(props.draft.kind)) {
+				if (props.draft.kind === "Transfer") {
+					if (!pickerLines.value.length)
+						line.location =
+							destination.value && destination.value !== selectedWarehouse
+								? destination.value
+								: "";
+					else if (line.location === selectedWarehouse) line.location = "";
+				} else if (props.draft.kind === "Repair") {
 					if (line.location === selectedWarehouse) line.location = "";
 				} else line.location = selectedWarehouse;
 			}
@@ -913,8 +977,9 @@ async function chooseMultiple(selections: { code: string; warehouse: string }[])
 	const line = props.draft.items[start];
 	if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
 }
-function pick(lines: AllocationLine[] = []) {
+function pick(lines: AllocationLine[] = [], scan = false) {
 	pickerLines.value = lines;
+	scanOnOpen.value = scan;
 	pickerOpen.value = true;
 }
 function remove(line: AllocationLine) {
@@ -974,7 +1039,7 @@ function changeBatch(line: AllocationLine) {
 	<AllocationSummary v-if="mode === 'display'" :draft="draft" />
 	<template v-else>
 		<div ref="root" class="preview-operation-lines" @focusout="regroupAfterFocus">
-			<div class="preview-line-toolbar">
+			<div v-if="!draft.items.length" class="operation-lines-empty">
 				<SearchSelect
 					v-if="receive && !disabled"
 					class="preview-receive-target preview-inline-field"
@@ -985,25 +1050,84 @@ function changeBatch(line: AllocationLine) {
 						places.map((name) => ({
 							value: name,
 							label: warehouseLabel(name, reference.warehouses),
+							title: warehousePath(name, reference.warehouses),
+							detail: warehousePath(name, reference.warehouses),
+						}))
+					"
+				/>
+				<p>
+					{{
+						receive
+							? "先选择入库位置，再添加新到物资。"
+							: draft.kind === "Transfer"
+								? "选择要调拨的物品，并为每行指定来源和调入位置。"
+								: draft.kind === "Loan"
+									? "选择要借出的物品，填写借用方后复核。"
+									: draft.kind === "Return"
+										? "从下方未结清借用中加入需要归还的物品。"
+										: "添加本次操作涉及的物品。"
+					}}
+				</p>
+				<UiButton
+					v-if="!disabled && !settlement"
+					variant="primary"
+					icon="box"
+					data-field="items"
+					:disabled="receive && !destination"
+					@click="pick()"
+					>添加物品</UiButton
+				>
+				<UiButton
+					v-if="!disabled && !settlement"
+					variant="secondary"
+					icon="scan"
+					:disabled="receive && !destination"
+					@click="pick([], true)"
+					>扫码添加</UiButton
+				>
+			</div>
+			<div
+				v-if="
+					draft.items.length &&
+					(receive ||
+						props.draft.kind === 'Transfer' ||
+						shouldShowLineTools(draft.items.length))
+				"
+				class="preview-line-toolbar"
+			>
+				<SearchSelect
+					v-if="
+						draft.items.length &&
+						(receive || props.draft.kind === 'Transfer') &&
+						!disabled
+					"
+					class="preview-receive-target preview-inline-field"
+					:label="receive ? '入库位置' : '调入位置'"
+					v-model="destination"
+					:clearable="false"
+					:options="
+						(receive ? places : transferDestinations).map((name) => ({
+							value: name,
+							label: warehouseLabel(name, reference.warehouses),
 							detail: warehousePath(name, reference.warehouses),
 						}))
 					"
 				/>
 				<UiButton
-					v-if="!disabled && !settlement"
+					v-if="draft.items.length && !disabled && !settlement"
 					variant="secondary"
 					icon="box"
 					data-field="items"
 					@click="pick()"
 					>添加物品</UiButton
 				>
-				<label class="preview-inline-field preview-line-search"
+				<label v-if="draft.items.length" class="preview-inline-field preview-line-search"
 					>搜索明细<input
 						v-model="search"
 						type="search"
 						placeholder="物品名称、编号、库位或批次"
 				/></label>
-				<div class="preview-line-toolbar-status">
+				<div v-if="draft.items.length" class="preview-line-toolbar-status">
 					<span role="status"
 						>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 ·
 						{{ totals }}</span
@@ -1015,45 +1139,23 @@ function changeBatch(line: AllocationLine) {
 						>{{ lineIssues.length }} 处待完善 · 下一个</UiButton
 					>
 				</div>
-				<span v-if="search || incompleteOnly" role="status"
+				<span v-if="draft.items.length && (search || incompleteOnly)" role="status"
 					>显示 {{ visibleIds.size }} / {{ draft.items.length }} 行</span
 				>
 			</div>
 			<p v-if="selectionError && !pickerOpen" role="alert">
 				{{ selectionError }}
 			</p>
-			<div class="allocation-columns" aria-hidden="true">
+			<div v-if="draft.items.length" class="allocation-columns" aria-hidden="true">
 				<span>物品</span><span>数量 / 单位</span><span>库位</span><span>批次 / 状态</span
 				><span>操作</span>
 			</div>
 			<section
-				v-for="(group, groupIndex) in groups"
+				v-for="group in groups"
 				:key="group.lines[0]!.id"
 				v-show="group.lines.some((line) => visibleIds.has(line.id))"
 				class="location-group"
 			>
-				<h3
-					:title="
-						group.location
-							? warehousePath(group.location, reference.warehouses)
-							: undefined
-					"
-					v-if="
-						!groups
-							.slice(0, groupIndex)
-							.some(
-								(previous) =>
-									previous.location === group.location &&
-									previous.lines.some((line) => visibleIds.has(line.id)),
-							)
-					"
-				>
-					{{
-						group.location
-							? warehouseLabel(group.location, reference.warehouses)
-							: "未选择库位"
-					}}
-				</h3>
 				<div class="draft-line receive-line">
 					<article
 						v-for="line in group.lines"
@@ -1120,21 +1222,25 @@ function changeBatch(line: AllocationLine) {
 								{{ line.uom }}</small
 							>
 						</div>
-						<div class="allocation-locations">
+						<div
+							class="allocation-locations"
+							:class="{
+								'allocation-locations--transfer': draft.kind === 'Transfer',
+							}"
+						>
 							<SearchSelect
 								v-if="!receive && !settlement"
 								data-field="sourceLocation"
-								label="来源库位"
+								:label="draft.kind === 'Transfer' ? '从' : '来源库位'"
 								v-model="line.sourceLocation"
 								:disabled="disabled"
 								:options="
 									stockItem(line.code)?.locations.map((row) => ({
 										value: row.location,
-										label: warehouseLabel(
-											row.location,
-											reference.warehouses,
-											row.label,
-										),
+										label:
+											row.label ||
+											warehouseLabel(row.location, reference.warehouses),
+										title: warehousePath(row.location, reference.warehouses),
 										detail: `${warehousePath(row.location, reference.warehouses)} · 可用 ${row.available} · 损坏 ${row.damaged}`,
 									})) || []
 								"
@@ -1154,15 +1260,28 @@ function changeBatch(line: AllocationLine) {
 									['Transfer', 'Return', 'Repair'].includes(draft.kind)
 								"
 								data-field="location"
-								label="目标 / 存放库位"
+								:label="
+									draft.kind === 'Transfer'
+										? '到'
+										: receive
+											? '入库位置'
+											: '目标 / 存放库位'
+								"
 								v-model="line.location"
 								:disabled="disabled"
 								:options="
-									places.map((name) => ({
-										value: name,
-										label: warehouseLabel(name, reference.warehouses),
-										detail: warehousePath(name, reference.warehouses),
-									}))
+									places
+										.filter(
+											(name) =>
+												!['Transfer', 'Repair'].includes(draft.kind) ||
+												name !== line.sourceLocation,
+										)
+										.map((name) => ({
+											value: name,
+											label: warehouseLabel(name, reference.warehouses),
+											title: warehousePath(name, reference.warehouses),
+											detail: warehousePath(name, reference.warehouses),
+										}))
 								"
 								:invalid="
 									(showError || revealErrors) &&
@@ -1266,9 +1385,6 @@ function changeBatch(line: AllocationLine) {
 				@replace="replaceFromDetails"
 				@split="splitFromDetails"
 			/>
-			<p v-if="!draft.items.length" class="muted">
-				{{ settlement ? "请先选择未结清借用记录。" : "选择库位后添加物品。" }}
-			</p>
 			<ItemPicker
 				v-if="pickerOpen && !disabled"
 				:allow-create="receive"
@@ -1276,6 +1392,7 @@ function changeBatch(line: AllocationLine) {
 				:context="operationLabels[draft.kind] + ' · ' + (draft.name || '')"
 				:timestamp="context.timestamp()"
 				:scan-mode="pickerLines.length ? 'selection' : 'operation'"
+				:start-in-scan-mode="scanOnOpen"
 				:scan-feedback="scanFeedback"
 				:scan-error="selectionError"
 				:can-undo-scan="canUndoScan"

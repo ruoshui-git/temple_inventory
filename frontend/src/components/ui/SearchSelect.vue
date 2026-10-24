@@ -3,7 +3,13 @@ import { computed, ref, useId, watch, onMounted, onBeforeUnmount, nextTick } fro
 import VirtualList from "./VirtualList.vue";
 import UiButton from "./UiButton.vue";
 const virtualList = ref<InstanceType<typeof VirtualList>>();
-export type SearchOption = { value: string; label: string; detail?: string; disabled?: boolean };
+export type SearchOption = {
+	value: string;
+	label: string;
+	detail?: string;
+	title?: string;
+	disabled?: boolean;
+};
 const props = withDefaults(
 	defineProps<{
 		modelValue?: string;
@@ -55,12 +61,11 @@ const state = ref<"ready" | "loading" | "error">("ready");
 const options = computed(() =>
 	props.options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)),
 );
+const selectedOption = computed(() =>
+	options.value.find((option) => option.value === props.modelValue),
+);
 const selected = computed(
-	() =>
-		props.selectedLabel ||
-		options.value.find((o) => o.value === props.modelValue)?.label ||
-		props.modelValue ||
-		"",
+	() => props.selectedLabel || selectedOption.value?.label || props.modelValue || "",
 );
 const matches = computed(() =>
 	props.remote
@@ -167,6 +172,7 @@ defineExpose({ state });
 					open && state === 'ready' && visible[active] ? id + '-' + active : undefined
 				"
 				:disabled="disabled"
+				:title="selectedOption?.title || selected"
 				:aria-invalid="invalid || undefined"
 				:placeholder="placeholder || '搜索并选择'"
 				:value="open ? query : selected"

@@ -210,7 +210,7 @@ describe("native-parent attachments", () => {
   });
   it("uses primary-image labels for the cover and attachment labels for other files", async () => {
     const main = setup({ imagesOnly: true, imageRole: "main" });
-    expect(main.wrapper.text()).toContain("暂无主图");
+    expect(main.wrapper.text()).toContain("主图预览");
     main.c.load([ready], ready.file_url);
     await flushPromises();
     expect(button(main.wrapper, "查看主图")).toBeDefined();

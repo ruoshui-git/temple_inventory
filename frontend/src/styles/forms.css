@@ -34,6 +34,14 @@ select {
 .preview-form-page .section-title-row p {
 	margin: 0;
 }
+.operation-page-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+}
+.operation-page-title-row h1 {
+	min-width: 0;
+}
 .preview-form-page .form-record-tag {
 	padding: 6px 10px;
 	border-radius: 999px;
@@ -43,7 +51,7 @@ select {
 }
 .preview-form-page .form-layout {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+	grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
 	align-items: start;
 	gap: var(--p-gap);
 }
@@ -209,6 +217,9 @@ select {
 		display: none;
 	}
 	.preview-form-page .form-review > p {
+		display: none;
+	}
+	.preview-form-page .form-review--empty > .review-empty-summary {
 		display: none;
 	}
 	.preview-form-page .form-review .form-actions {
@@ -662,10 +673,38 @@ select {
 		justify-content: start;
 	}
 }
+.compact-allocation .allocation-locations--transfer .preview-search-select > label {
+	position: static;
+	width: auto;
+	height: auto;
+	overflow: visible;
+	clip-path: none;
+	white-space: nowrap;
+}
 .preview-drawer {
 	width: min(640px, 100%);
 }
 @media (max-width: 1023px) {
+	.outstanding-loan-scroll {
+		max-height: min(52vh, 420px);
+	}
+	.outstanding-borrower-toggle {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.outstanding-borrower-toggle small {
+		grid-column: 1;
+	}
+	.outstanding-borrower-toggle svg {
+		grid-column: 2;
+		grid-row: 1 / span 2;
+	}
+	.operation-page-title-row {
+		max-width: 100%;
+	}
+	.operation-page-title-row h1 {
+		flex: 1 1 auto;
+		font-size: clamp(1.15rem, 5vw, var(--p-heading));
+	}
 	.preview-overlay .preview-drawer {
 		width: 100%;
 		height: 100dvh;
@@ -705,6 +744,8 @@ select {
 	z-index: 8;
 	background: var(--p-surface);
 	padding-block: var(--p-space-2);
+	border-top: 1px solid var(--p-border);
+	box-shadow: 0 -4px 12px rgb(20 30 25 / 7%);
 }
 .workspace-expanded .preview-document-actions {
 	position: fixed;
@@ -761,6 +802,202 @@ select {
 
 .preview-operation-lines > * + * {
 	margin-top: var(--p-space-3);
+}
+.operation-lines-empty {
+	min-height: 168px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--p-space-2);
+	padding: var(--p-space-4);
+	text-align: center;
+}
+.operation-lines-empty p {
+	margin: 0;
+	color: var(--p-muted);
+}
+.shared-file-picker {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--p-space-2);
+}
+.shared-file-picker-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	clip-path: inset(50%);
+}
+.shared-file-picker-label {
+	position: relative;
+	min-height: var(--p-control);
+	padding: 0 var(--p-space-3);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	cursor: pointer;
+}
+.shared-file-picker-label input:focus-visible {
+	box-shadow: var(--p-focus);
+}
+.editor-overflow-menu {
+	position: relative;
+}
+.editor-overflow-menu > summary {
+	width: var(--p-control);
+	min-height: var(--p-control);
+	display: grid;
+	place-items: center;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	cursor: pointer;
+}
+.editor-overflow-menu[open] > :not(summary) {
+	position: absolute;
+	right: 0;
+	top: calc(100% + 4px);
+	z-index: 10;
+	min-width: 180px;
+	padding: var(--p-space-2);
+	background: var(--p-surface);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	box-shadow: var(--p-shadow);
+}
+.editor-overflow-menu-items {
+	display: grid;
+	gap: var(--p-space-2);
+}
+.review-empty-summary {
+	margin: 0;
+	padding: var(--p-space-2);
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.form-review--empty {
+	min-height: 0;
+	align-self: start;
+	padding: var(--p-space-2) var(--p-space-3) !important;
+}
+.selected-loan-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-2);
+}
+.record-ref-chip {
+	min-height: 36px;
+	padding-inline: var(--p-space-3);
+	border: 1px solid var(--p-border);
+	border-radius: 999px;
+	background: var(--p-soft);
+	color: var(--p-ink);
+	cursor: pointer;
+}
+.outstanding-borrower-group > h3 {
+	margin: var(--p-space-3) 0 var(--p-space-2);
+}
+.outstanding-loan-scroll {
+	max-height: 420px;
+	width: 100%;
+	overflow: auto;
+	overscroll-behavior: contain;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	padding: var(--p-space-2);
+}
+.outstanding-loan-browser {
+	grid-column: 1 / -1;
+	display: grid;
+	gap: var(--p-space-2);
+	min-width: 0;
+}
+.outstanding-borrower-group {
+	border-bottom: 1px solid var(--p-border);
+}
+.outstanding-borrower-toggle {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: var(--p-space-2);
+	width: 100%;
+	min-height: var(--p-control);
+	padding: var(--p-space-2);
+	border: 0;
+	background: transparent;
+	color: var(--p-ink);
+	text-align: start;
+	cursor: pointer;
+}
+.outstanding-borrower-toggle small {
+	color: var(--p-muted);
+}
+.outstanding-borrower-toggle svg {
+	width: 18px;
+	height: 18px;
+}
+.outstanding-loan-card {
+	margin: var(--p-space-2);
+	padding: var(--p-space-3);
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+}
+.outstanding-loan-heading,
+.outstanding-loan-items > div {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+	flex-wrap: wrap;
+}
+.outstanding-loan-heading > span {
+	color: var(--p-muted);
+}
+.outstanding-loan-heading > a {
+	min-width: 0;
+	margin-inline-end: auto;
+}
+.outstanding-loan-fields {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-3);
+	margin: var(--p-space-2) 0 0;
+}
+.outstanding-loan-fields div {
+	display: flex;
+	gap: 4px;
+}
+.outstanding-loan-fields dt {
+	color: var(--p-muted);
+}
+.outstanding-loan-fields dd {
+	margin: 0;
+}
+.outstanding-loan-items img {
+	width: 40px;
+	height: 40px;
+	object-fit: contain;
+}
+.outstanding-loan-thumbnail-placeholder {
+	width: 40px;
+	height: 40px;
+	display: grid;
+	place-items: center;
+	border-radius: var(--p-radius-control);
+	background: var(--p-soft);
+	color: var(--p-muted);
+}
+.outstanding-loan-thumbnail-placeholder svg {
+	width: 22px;
+	height: 22px;
+}
+.outstanding-loan-items > div {
+	padding-top: var(--p-space-2);
+}
+.preview-form-page .form-main > .form-section:has(.attachment-area) {
+	padding-bottom: var(--p-space-2);
 }
 .workspace-expanded .preview-operation-lines {
 	display: flex;

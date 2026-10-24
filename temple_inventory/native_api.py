@@ -5,6 +5,7 @@
 import hashlib
 
 import frappe
+from frappe.utils import cint
 
 from temple_inventory.native_access import (
 	NATIVE_DOCTYPES,
@@ -483,6 +484,217 @@ def loan_detail(name):
 			for batch, quantity in batch_quantities(row).items()
 		]
 	return data
+
+
+@frappe.whitelist()
+def outstanding_loan_groups(search="", start=0, page_length=30):
+	"""Return permission-scoped summaries for borrowers with outstanding loans."""
+	require_app()
+	start, page_length = max(0, cint(start)), min(50, max(1, cint(page_length)))
+	query = (search or "").strip()
+	activity_names = (
+		frappe.get_list(
+			"Inventory Activity",
+			filters={"title": ["like", f"%{query}%"]},
+			fields=["name"],
+			limit_page_length=100,
+			pluck="name",
+		)
+		if query
+		else []
+	)
+	or_filters = (
+		[
+			{"ti_borrower": ["like", f"%{query}%"]},
+			{"name": ["like", f"%{query}%"]},
+			*([{"ti_activity": ["in", activity_names]}] if activity_names else []),
+		]
+		if query
+		else None
+	)
+	loan_rows = frappe.get_list(
+		"Stock Entry",
+		filters={"docstatus": 1, "ti_movement_kind": "Loan"},
+		or_filters=or_filters,
+		fields=["name", "posting_date", "ti_borrower"],
+		order_by="posting_date desc, modified desc",
+		limit_page_length=0,
+	)
+	loan_rows = [row for row in loan_rows if frappe.has_permission("Stock Entry", "read", doc=row.name)]
+	if not loan_rows:
+		return {"rows": [], "next": None}
+	loan_names = [row.name for row in loan_rows]
+	name_placeholders = ", ".join(["%s"] * len(loan_names))
+	originals = frappe.get_all(
+		"Stock Entry Detail",
+		filters={"parent": ["in", loan_names], "parenttype": "Stock Entry", "parentfield": "items"},
+		fields=["name", "parent", "item_code", "transfer_qty"],
+	)
+	settlements = frappe.db.sql(
+		f"""
+		select original.parent as loan_name, original.name as original_line,
+		       sum(line.transfer_qty) as settled_qty
+		from `tabStock Entry Detail` line
+		join `tabStock Entry` parent on parent.name = line.parent
+		join `tabStock Entry Detail` original on original.name = line.ti_original_loan_line
+		join `tabStock Entry` loan on loan.name = original.parent
+		where line.ti_original_loan in ({name_placeholders}) and parent.docstatus = 1
+		  and loan.name = line.ti_original_loan and loan.docstatus = 1
+		  and loan.ti_movement_kind = 'Loan' and loan.company = parent.company
+		  and original.item_code = line.item_code and original.t_warehouse = line.s_warehouse
+		  and ((parent.ti_movement_kind = 'Return' and parent.purpose = 'Material Transfer'
+		        and line.ti_settlement_outcome in ('Returned', 'Damaged'))
+		    or (parent.ti_movement_kind = 'Damage' and parent.purpose = 'Material Transfer'
+		        and line.ti_settlement_outcome = 'Damaged')
+		    or (parent.ti_movement_kind = 'Loss' and parent.purpose = 'Material Issue'
+		        and line.ti_settlement_outcome = 'Lost'))
+		group by original.parent, original.name
+		""",
+		loan_names,
+		as_dict=True,
+	)
+	settled = {(row.loan_name, row.original_line): float(row.settled_qty or 0) for row in settlements}
+	item_codes = list({row.item_code for row in originals})
+	visible_items = (
+		set(
+			frappe.get_list(
+				"Item",
+				filters={"name": ["in", item_codes]},
+				fields=["name"],
+				limit_page_length=0,
+				pluck="name",
+			)
+		)
+		if item_codes
+		else set()
+	)
+	by_loan = {}
+	for line in originals:
+		if (
+			line.item_code in visible_items
+			and float(line.transfer_qty or 0) - settled.get((line.parent, line.name), 0) > 0
+		):
+			by_loan.setdefault(line.parent, set()).add(line.item_code)
+	groups = {}
+	for row in loan_rows:
+		items = by_loan.get(row.name)
+		if not items:
+			continue
+		borrower = row.ti_borrower or ""
+		group = groups.setdefault(
+			borrower,
+			{"borrower": borrower, "loan_count": 0, "item_count": 0, "latest_date": str(row.posting_date)},
+		)
+		group["loan_count"] += 1
+		group["item_count"] += len(items)
+		group["latest_date"] = max(group["latest_date"], str(row.posting_date))
+	ordered = sorted(groups.values(), key=lambda row: (row["latest_date"], row["borrower"]), reverse=True)
+	page = ordered[start : start + page_length]
+	return {"rows": page, "next": start + len(page) if start + len(page) < len(ordered) else None}
+
+
+@frappe.whitelist()
+def outstanding_loans(search="", borrower=None, start=0, page_length=10):
+	"""List readable submitted loans with outstanding lines for the return editor."""
+	require_app()
+	start, page_length = max(0, cint(start)), min(20, max(1, cint(page_length)))
+	filters = {"docstatus": 1, "ti_movement_kind": "Loan"}
+	if borrower is not None:
+		filters["ti_borrower"] = borrower
+	query = (search or "").strip()
+	activity_names = (
+		frappe.get_list(
+			"Inventory Activity",
+			filters={"title": ["like", f"%{query}%"]},
+			fields=["name"],
+			limit_page_length=100,
+			pluck="name",
+		)
+		if query and query.casefold() not in str(borrower or "").casefold()
+		else []
+	)
+	or_filters = None
+	if query and query.casefold() not in str(borrower or "").casefold():
+		or_filters = [{"name": ["like", f"%{query}%"]}]
+		if activity_names:
+			or_filters.append({"ti_activity": ["in", activity_names]})
+	rows = frappe.get_list(
+		"Stock Entry",
+		filters=filters,
+		or_filters=or_filters
+		if borrower is not None
+		else (
+			[
+				{"ti_borrower": ["like", f"%{query}%"]},
+				{"name": ["like", f"%{query}%"]},
+				*([{"ti_activity": ["in", activity_names]}] if activity_names else []),
+			]
+			if query
+			else None
+		),
+		fields=["name", "posting_date", "ti_borrower", "ti_activity"],
+		order_by="posting_date desc, modified desc",
+		start=start,
+		page_length=page_length,
+	)
+	results = []
+	for row in rows:
+		loan = frappe.get_doc("Stock Entry", row.name)
+		if not loan.has_permission("read"):
+			continue
+		data = loan_detail(row.name)
+		items = []
+		for line in data["items"]:
+			quantity = float(line.get("outstanding_qty") or 0)
+			if quantity <= 0:
+				continue
+			item = frappe.get_doc("Item", line.item_code)
+			if not item.has_permission("read"):
+				continue
+			metadata = frappe.get_attr("temple_inventory.catalog.item_metadata")(item)
+			items.append(
+				{
+					"code": item.name,
+					"name": item.item_name,
+					"image": metadata["image"],
+					"uom": item.stock_uom,
+					"quantity": quantity,
+				}
+			)
+		if items:
+			activity = ""
+			if row.ti_activity:
+				activity_doc = frappe.get_doc("Inventory Activity", row.ti_activity)
+				if activity_doc.has_permission("read"):
+					activity = activity_doc.title
+			results.append(
+				{
+					"name": row.name,
+					"date": str(row.posting_date),
+					"borrower": row.ti_borrower or "",
+					"activity": activity or "",
+					"items": items,
+				}
+			)
+	return {"rows": results, "next": start + len(rows) if len(rows) == page_length else None}
+
+
+@frappe.whitelist()
+def borrower_suggestions():
+	"""Return distinct recent borrowers only from readable submitted Loan entries."""
+	require_app()
+	rows = frappe.get_list(
+		"Stock Entry",
+		filters={"docstatus": 1, "ti_movement_kind": "Loan", "ti_borrower": ["!=", ""]},
+		fields=["name", "ti_borrower"],
+		order_by="posting_date desc, modified desc",
+		page_length=200,
+	)
+	borrowers = []
+	for row in rows:
+		if row.ti_borrower not in borrowers and frappe.has_permission("Stock Entry", "read", doc=row.name):
+			borrowers.append(row.ti_borrower)
+	return borrowers
 
 
 @frappe.whitelist()

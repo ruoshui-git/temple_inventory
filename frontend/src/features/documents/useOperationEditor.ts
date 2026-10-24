@@ -349,11 +349,7 @@ export function useOperationEditor(props: {
           const source =
             props.initialWarehouse ||
             (eligible.length === 1 ? eligible[0]!.location : "");
-          const target =
-            reference.physicalLeaves.length === 1 &&
-            reference.physicalLeaves[0] !== source
-              ? reference.physicalLeaves[0]!
-              : "";
+          const target = "";
           additions.push({
             id,
             localId: id,
@@ -365,10 +361,7 @@ export function useOperationEditor(props: {
             conversionFactor: 1,
             location:
               draft.value.kind === "Receive"
-                ? props.initialWarehouse ||
-                  (reference.physicalLeaves.length === 1
-                    ? reference.physicalLeaves[0]!
-                    : "")
+                ? props.initialWarehouse || ""
                 : ["Transfer", "Repair"].includes(draft.value.kind)
                   ? target
                   : source,
@@ -398,9 +391,7 @@ export function useOperationEditor(props: {
             sourceLocation:
               draft.value.kind === "Receive" ? "" : allocation.warehouse,
             location: ["Transfer", "Repair"].includes(draft.value.kind)
-              ? reference.physicalLeaves.length === 1
-                ? reference.physicalLeaves[0]!
-                : ""
+              ? ""
               : allocation.warehouse,
             batch: allocation.batch_no,
             expiry: batch?.expiry,

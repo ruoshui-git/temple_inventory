@@ -51,6 +51,46 @@ def save_display_preferences(theme, density, textScale):
 
 VIEWS_KEY = "temple_inventory_report_views_v2"
 
+CREATION_LOCATIONS_KEY = "temple_inventory_creation_locations_v1"
+
+
+def _creation_locations():
+	try:
+		value = json.loads(frappe.defaults.get_user_default(CREATION_LOCATIONS_KEY) or "{}")
+	except (TypeError, ValueError):
+		value = {}
+	return value if isinstance(value, dict) else {}
+
+
+@frappe.whitelist()
+def creation_locations():
+	"""Return remembered creation locations that remain writable physical leaves."""
+	from temple_inventory.native_stock import warehouse_scopes
+
+	require_app()
+	physical = warehouse_scopes()[2]
+	values = _creation_locations()
+	return {
+		kind: name for kind, name in values.items() if kind in {"Receive", "Transfer"} and name in physical
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def save_creation_location(kind, warehouse):
+	from temple_inventory.native_stock import warehouse_scopes
+
+	require_app()
+	if kind not in {"Receive", "Transfer"}:
+		frappe.throw("不支持记住此操作的库位")
+	physical = warehouse_scopes()[2]
+	if warehouse not in physical:
+		frappe.throw("请选择当前可操作的实体叶子库位")
+	frappe.get_doc("User", frappe.session.user, for_update=True)
+	values = _creation_locations()
+	values[kind] = warehouse
+	frappe.defaults.set_user_default(CREATION_LOCATIONS_KEY, json.dumps(values, ensure_ascii=False))
+	return {kind: warehouse}
+
 
 def _named_views():
 	try:

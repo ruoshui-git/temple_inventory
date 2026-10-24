@@ -361,11 +361,15 @@ describe("migration follow-up", () => {
       },
     });
     await flushPromises();
-    expect(wrapper.text()).toContain("恢复的归档活动");
+    expect(
+      (wrapper.get('input[role="combobox"]').element as HTMLInputElement).value,
+    ).toBe("恢复的归档活动");
     reference.activities.push({ value: "DENIED", label: "不得使用的缓存标题" });
     c.draft.value.activity = "DENIED";
     await flushPromises();
-    expect(wrapper.text()).toContain("活动暂不可用");
+    expect(
+      (wrapper.get('input[role="combobox"]').element as HTMLInputElement).value,
+    ).toBe("活动暂不可用");
     expect(wrapper.text()).not.toContain("不得使用的缓存标题");
     expect(c.draft.value.activity).toBe("DENIED");
   });

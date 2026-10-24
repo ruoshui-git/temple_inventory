@@ -4,7 +4,7 @@ import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { OperationEditor } from "./useOperationEditor";
 import { operationLabels } from "./operationCodec";
 import OperationLines from "./OperationLines.vue";
@@ -15,18 +15,19 @@ import UiButton from "../../components/ui/UiButton.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
-import SearchSelect from "../../components/ui/SearchSelect.vue";
-import { warehouseLabel } from "../../lib/warehouseLabel";
-import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useInventoryServices } from "../../services/contracts";
-import { newReportQuery } from "../../lib/reportContract";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
-import { enumPresentationLabel } from "../../lib/presentationLabels";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import { showToast } from "../../services/toast";
+import {
+	borrowerLoanPageState,
+	type BorrowerLoanPageState,
+	type OutstandingBorrowerSummary,
+	type OutstandingLoanSummary,
+} from "./creationFormPresentation";
 const props = withDefaults(defineProps<{ controller: OperationEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -40,7 +41,6 @@ const {
 	draft,
 	state,
 	activityLabel,
-	reference,
 	loading,
 	busy,
 	writable,
@@ -100,9 +100,121 @@ const receive = computed(() => draft.value.kind === "Receive"),
 		() => operationLabels[draft.value.kind] || String(state.server?.purpose || "库存记录"),
 	);
 const { supportingDirty, leaveRequested: leaveOpen } = c;
-const reloadOpen = ref(false),
-	loanChoice = ref("");
+const reloadOpen = ref(false);
 const services = useInventoryServices();
+const subtitles: Record<string, string> = {
+	Receive: "登记新到物资及其存放位置。",
+	Issue: "从现有库存领用或发出物资。",
+	Transfer: "在实体库位之间移动物资。",
+	Loan: "登记借出物资及借用方。",
+	Return: "按未结清借用登记归还结果。",
+	Damage: "登记需要处理的受损物资。",
+	Loss: "登记不再计入库存的物资。",
+	Repair: "将已修复物资放回实体库位。",
+	Disposal: "登记受损物资的报废处理。",
+};
+
+const borrowerGroups = ref<OutstandingBorrowerSummary[]>([]),
+	groupLoans = ref<Record<string, BorrowerLoanPageState>>({}),
+	expandedBorrower = ref(""),
+	loanListOpen = ref(true),
+	loanSearch = ref(""),
+	outstandingLoading = ref(false),
+	borrowerGroupsNext = ref<number | null>(null),
+	borrowerSuggestions = ref<string[]>([]);
+let borrowerSearchTimer: ReturnType<typeof setTimeout> | undefined;
+onMounted(async () => {
+	if (draft.value.kind === "Loan") {
+		try {
+			borrowerSuggestions.value = await services.call<string[]>(
+				"native_api.borrower_suggestions",
+			);
+		} catch {
+			borrowerSuggestions.value = [];
+		}
+	}
+	if (draft.value.kind === "Return") await loadOutstandingLoanGroups();
+});
+onBeforeUnmount(() => clearTimeout(borrowerSearchTimer));
+async function loadOutstandingLoanGroups(append = false) {
+	outstandingLoading.value = true;
+	try {
+		const result = await services.call<{
+			rows: OutstandingBorrowerSummary[];
+			next: number | null;
+		}>("native_api.outstanding_loan_groups", {
+			search: loanSearch.value,
+			start: append ? borrowerGroupsNext.value || 0 : 0,
+			page_length: 30,
+		});
+		borrowerGroups.value = append ? [...borrowerGroups.value, ...result.rows] : result.rows;
+		borrowerGroupsNext.value = result.next;
+		if (!append) {
+			groupLoans.value = {};
+			expandedBorrower.value = "";
+		}
+	} catch (reason) {
+		state.error = reason instanceof Error ? reason.message : "未结清借用加载失败";
+	} finally {
+		outstandingLoading.value = false;
+	}
+}
+function scheduleBorrowerSearch() {
+	clearTimeout(borrowerSearchTimer);
+	borrowerSearchTimer = setTimeout(() => void loadOutstandingLoanGroups(), 250);
+}
+async function loadBorrowerLoans(group: OutstandingBorrowerSummary, append = false) {
+	const groupState = borrowerLoanPageState(groupLoans.value, group.borrower);
+	if (groupState.loading || (groupState.next === null && groupState.rows.length)) return;
+	groupState.loading = true;
+	try {
+		const result = await services.call<{
+			rows: OutstandingLoanSummary[];
+			next: number | null;
+		}>("native_api.outstanding_loans", {
+			borrower: group.borrower,
+			search: loanSearch.value,
+			start: append ? groupState.next || 0 : 0,
+			page_length: 10,
+		});
+		groupState.rows = append ? [...groupState.rows, ...result.rows] : result.rows;
+		groupState.next = result.next;
+	} catch (reason) {
+		state.error = reason instanceof Error ? reason.message : "未结清借用加载失败";
+	} finally {
+		groupState.loading = false;
+	}
+}
+async function toggleBorrower(group: OutstandingBorrowerSummary) {
+	if (expandedBorrower.value === group.borrower) {
+		expandedBorrower.value = "";
+		return;
+	}
+	expandedBorrower.value = group.borrower;
+	if (!groupLoans.value[group.borrower]?.rows.length) await loadBorrowerLoans(group);
+}
+const selectedLoanNames = computed(
+	() => [...new Set(draft.value.items.map((line) => line.loanName).filter(Boolean))] as string[],
+);
+watch(selectedLoanNames, (names) => {
+	loanListOpen.value = names.length === 0;
+});
+function removeLoan(name: string) {
+	draft.value.items = draft.value.items.filter((line) => line.loanName !== name);
+	if (!draft.value.items.some((line) => line.loanName)) {
+		draft.value.loanName = "";
+		draft.value.borrower = "";
+		draft.value.activity = "";
+	}
+}
+async function addLoan(name: string) {
+	try {
+		await c.appendLoan(name);
+		loanListOpen.value = false;
+	} catch (reason) {
+		state.error = reason instanceof Error ? reason.message : "借用读取失败";
+	}
+}
 const editing = computed(
 	() => state.status === "conflict" || !state.server || state.server.editable === true,
 );
@@ -147,29 +259,6 @@ async function review() {
 		: field?.querySelector<HTMLElement>("input, select, button");
 	target?.focus();
 }
-async function addLoan() {
-	try {
-		await c.appendLoan(loanChoice.value);
-	} catch (reason) {
-		state.error = reason instanceof Error ? reason.message : "借用读取失败";
-	}
-}
-async function loans(search: string, start: number, signal: AbortSignal) {
-	const query = newReportQuery("loans");
-	query.view = "records";
-	query.search = search;
-	query.loanStatus = "outstanding";
-	const page = await services.report(query, { start, page_length: 30 }, signal);
-	return {
-		rows: page.rows.map((row) => ({
-			value: String(row.document || row.original_loan),
-			label: `${row.borrower || ""} · ${row.document || row.original_loan}`,
-			detail: String(row.activity_title || ""),
-		})),
-		total: page.matched_count,
-		next: page.next_start,
-	};
-}
 async function back() {
 	if (await c.requestLeave()) emit("back");
 }
@@ -211,17 +300,32 @@ async function lifecycle() {
 	>
 		<PageHeader class="form-page-heading"
 			><div>
-				<h1 tabindex="-1">{{ title }}</h1>
-				<p class="muted">核对物品、数量、批次与库位，复核后确认。</p>
+				<div class="operation-page-title-row">
+					<h1 tabindex="-1">{{ title }}</h1>
+					<details class="editor-overflow-menu">
+						<summary aria-label="更多操作">⋯</summary>
+						<div class="editor-overflow-menu-items">
+							<QuickExport
+								v-if="!loading && c.savedExportQuery.value"
+								:query="c.savedExportQuery.value"
+								:active="active"
+								@open-full="emit('openExport', $event)"
+							/><UiButton
+								v-if="
+									state.identity &&
+									(state.server?.permissions as Record<string, boolean>)?.delete
+								"
+								:disabled="!writable || busy"
+								@click="action = 'delete'"
+								>删除草稿单据</UiButton
+							>
+						</div>
+					</details>
+				</div>
+				<p class="muted">{{ subtitles[draft.kind] }}</p>
 			</div>
-			<template #back><UiButton variant="ghost" @click="back">返回</UiButton></template
-			><template #actions
-				><QuickExport
-					v-if="!loading && c.savedExportQuery.value"
-					:query="c.savedExportQuery.value"
-					:active="active"
-					@open-full="emit('openExport', $event)" /></template
-		></PageHeader>
+			<template #back><UiButton variant="ghost" @click="back">返回</UiButton></template>
+		</PageHeader>
 		<DocumentLoadingState
 			v-if="initialExistingLoad"
 			label="库存单据加载中…"
@@ -235,7 +339,10 @@ async function lifecycle() {
 				statusLabels[state.status]
 			}}</span
 			><span v-if="loading && state.server" class="sr-only" role="status">正在刷新…</span
-			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
+			><NativeStatusBadge
+				v-if="state.server && state.server.docstatus !== 0"
+				:status="state.server.docstatus"
+			/><UiButton
 				v-if="state.identity && !busy"
 				@click="dirty ? (reloadOpen = true) : c.load(true)"
 				>重新读取</UiButton
@@ -304,41 +411,49 @@ async function lifecycle() {
 			<div class="form-main surface">
 				<template v-if="editing">
 					<section class="form-section form-date-section">
-						<label class="preview-field"
-							>操作日期<input
-								v-model="draft.postingDate"
-								data-field="postingDate"
-								:aria-invalid="
-									showError &&
-									issues.some((issue) => issue.field === 'postingDate')
-								"
-								type="date"
-								:disabled="
-									!writable || busy || draft.timeMode === 'current'
-								" /></label
-						><label class="preview-field"
-							>时间方式<select
-								v-model="draft.timeMode"
-								:disabled="!writable || busy"
+						<template v-if="draft.timeMode === 'current'">
+							<p class="muted current-time-note">
+								确认时自动记录当前时间。
+								<UiButton variant="ghost" @click="draft.timeMode = 'manual'"
+									>指定时间</UiButton
+								>
+							</p>
+						</template>
+						<template v-else>
+							<label class="preview-field"
+								>操作日期<input
+									v-model="draft.postingDate"
+									data-field="postingDate"
+									type="date"
+									:aria-invalid="
+										showError &&
+										issues.some((issue) => issue.field === 'postingDate')
+									"
+									:disabled="!writable || busy"
+							/></label>
+							<label class="preview-field"
+								>时间方式<select
+									v-model="draft.timeMode"
+									:disabled="!writable || busy"
+								>
+									<option value="current">确认时的当前时间</option>
+									<option value="manual">指定历史时间</option>
+								</select></label
 							>
-								<option value="current">确认时的当前时间</option>
-								<option value="manual">指定历史时间</option>
-							</select></label
-						><label v-if="draft.timeMode === 'manual'" class="preview-field"
-							>操作时间<input
-								v-model="draft.postingTime"
-								data-field="postingTime"
-								:aria-invalid="
-									showError &&
-									issues.some((issue) => issue.field === 'postingTime')
-								"
-								type="time"
-								step="1"
-								:disabled="!writable || busy"
-						/></label>
-						<p v-if="draft.timeMode === 'manual'" class="muted">
-							可用数量按指定日期和时间核对。
-						</p>
+							<label class="preview-field"
+								>操作时间<input
+									v-model="draft.postingTime"
+									data-field="postingTime"
+									type="time"
+									step="1"
+									:aria-invalid="
+										showError &&
+										issues.some((issue) => issue.field === 'postingTime')
+									"
+									:disabled="!writable || busy"
+							/></label>
+							<p class="muted">可用数量按指定日期和时间核对。</p>
+						</template>
 					</section>
 					<section
 						v-if="draft.kind === 'Loan' || draft.kind === 'Return' || draft.loanName"
@@ -346,52 +461,200 @@ async function lifecycle() {
 					>
 						<h2>{{ draft.kind === "Loan" ? "借用对象" : "归还来源" }}</h2>
 						<div class="form-fields">
-							<template v-if="draft.kind === 'Loan'"
-								><label class="preview-field"
+							<template v-if="draft.kind === 'Loan'">
+								<label class="preview-field"
 									>借用人 / 团体<input
 										v-model="draft.borrower"
+										list="recent-borrowers"
 										data-field="borrower"
 										:aria-invalid="
 											showError &&
 											issues.some((issue) => issue.field === 'borrower')
 										"
-										:disabled="!writable || busy" /></label
-								><SearchSelect
-									label="借出存放库位"
-									data-field="loanDestination"
-									:invalid="
-										showError &&
-										issues.some((issue) => issue.field === 'loanDestination')
-									"
-									:model-value="draft.loanDestination"
-									@update:model-value="c.setLoanDestination"
-									:options="
-										reference.leasedLeaves.map((name) => ({
-											value: name,
-											label: warehouseLabel(name, reference.warehouses),
-											detail:
-												reference.warehouses.find(
-													(row) => row.name === name,
-												)?.path || '',
-										}))
-									"
-									:disabled="!writable || busy" /></template
-							><template v-else
-								><RemoteSelect
-									label="关联借用记录"
-									v-model="loanChoice"
-									:load="loans"
-									:disabled="!writable || busy"
-								/><UiButton
-									:disabled="!loanChoice || !writable || busy"
-									@click="addLoan"
-									>加入此借用</UiButton
+										:disabled="!writable || busy"
+								/></label>
+								<datalist id="recent-borrowers">
+									<option
+										v-for="borrower in borrowerSuggestions"
+										:key="borrower"
+										:value="borrower"
+									/>
+								</datalist>
+							</template>
+							<template v-else>
+								<div
+									v-if="selectedLoanNames.length"
+									class="selected-loan-chips"
+									aria-label="已加入的借用"
 								>
-								<p>
-									{{ draft.borrower }} · {{ activityLabel
-									}}<br />可加入同一借用方和活动的多笔借用；遗失使用单独操作。
-								</p></template
-							>
+									<button
+										v-for="name in selectedLoanNames"
+										:key="name"
+										type="button"
+										class="record-ref-chip"
+										@click="removeLoan(name)"
+									>
+										{{
+											borrowerGroups
+												.flatMap(
+													(group) =>
+														groupLoans[group.borrower]?.rows || [],
+												)
+												.find((loan) => loan.name === name)?.borrower ||
+											draft.borrower
+										}}
+										· {{ name }} <span aria-hidden="true">×</span>
+									</button>
+								</div>
+								<UiButton
+									v-if="selectedLoanNames.length"
+									variant="secondary"
+									@click="loanListOpen = !loanListOpen"
+									>{{ loanListOpen ? "收起借用列表" : "添加更多借用" }}</UiButton
+								>
+								<div v-if="loanListOpen" class="outstanding-loan-browser">
+									<label class="preview-field loan-search"
+										>筛选未结清借用<input
+											v-model="loanSearch"
+											type="search"
+											placeholder="借用方、单号或活动"
+											@input="scheduleBorrowerSearch"
+									/></label>
+									<div class="outstanding-loan-scroll">
+										<div
+											v-for="group in borrowerGroups"
+											:key="group.borrower"
+											class="outstanding-borrower-group"
+										>
+											<button
+												type="button"
+												class="outstanding-borrower-toggle"
+												@click="toggleBorrower(group)"
+											>
+												<span>{{ group.borrower || "未填写借用方" }}</span>
+												<small
+													>{{ group.loan_count }} 笔 ·
+													{{ group.item_count }} 项 · 最近
+													{{ group.latest_date }}</small
+												>
+												<InventoryIcon
+													:name="
+														expandedBorrower === group.borrower
+															? 'chevron-down'
+															: 'chevron-right'
+													"
+												/>
+											</button>
+											<template v-if="expandedBorrower === group.borrower">
+												<article
+													v-for="loan in groupLoans[group.borrower]
+														?.rows || []"
+													:key="loan.name"
+													class="outstanding-loan-card"
+												>
+													<div class="outstanding-loan-heading">
+														<a
+															:href="`/inventory/movements/${encodeURIComponent(loan.name)}`"
+															>{{ loan.name }}</a
+														><UiButton
+															:disabled="
+																!writable ||
+																busy ||
+																selectedLoanNames.includes(
+																	loan.name,
+																)
+															"
+															@click="addLoan(loan.name)"
+															>加入</UiButton
+														>
+													</div>
+													<dl class="outstanding-loan-fields">
+														<div>
+															<dt>借出日期</dt>
+															<dd>{{ loan.date }}</dd>
+														</div>
+														<div>
+															<dt>活动</dt>
+															<dd>
+																{{ loan.activity || "未关联活动" }}
+															</dd>
+														</div>
+														<div>
+															<dt>未结清</dt>
+															<dd>
+																{{
+																	loan.items
+																		.map(
+																			(item) =>
+																				`${item.quantity} ${item.uom}`,
+																		)
+																		.join(" · ")
+																}}
+															</dd>
+														</div>
+													</dl>
+													<div class="outstanding-loan-items">
+														<div
+															v-for="item in loan.items"
+															:key="item.code"
+														>
+															<img
+																v-if="item.image"
+																:src="item.image"
+																alt=""
+															/><span
+																v-else
+																class="outstanding-loan-thumbnail-placeholder"
+																><InventoryIcon name="box" /></span
+															><span
+																>{{ item.name }} ·
+																{{ item.quantity }}
+																{{ item.uom }}</span
+															>
+														</div>
+													</div>
+												</article>
+												<p
+													v-if="groupLoans[group.borrower]?.loading"
+													class="muted"
+												>
+													正在加载借用…
+												</p>
+												<UiButton
+													v-if="
+														groupLoans[group.borrower]?.next !== null
+													"
+													:disabled="groupLoans[group.borrower]?.loading"
+													@click="loadBorrowerLoans(group, true)"
+													>加载更多</UiButton
+												>
+											</template>
+										</div>
+										<UiButton
+											v-if="borrowerGroupsNext !== null"
+											:disabled="outstandingLoading"
+											@click="loadOutstandingLoanGroups(true)"
+											>加载更多借用方</UiButton
+										>
+									</div>
+									<p v-if="outstandingLoading" class="muted" role="status">
+										正在加载未结清借用…
+									</p>
+									<p
+										v-else-if="!state.error && !borrowerGroups.length"
+										class="muted"
+									>
+										{{
+											loanSearch
+												? "没有匹配的未结清借用。"
+												: "当前没有未结清借用。"
+										}}
+									</p>
+									<p class="muted">
+										可加入同一借用方和活动的多笔借用；遗失使用单独操作。
+									</p>
+								</div>
+							</template>
 						</div>
 					</section>
 				</template>
@@ -407,16 +670,6 @@ async function lifecycle() {
 					<div v-if="draft.borrower">
 						<dt>借用方</dt>
 						<dd>{{ draft.borrower }}</dd>
-					</div>
-					<div v-if="draft.kind === 'Loan'">
-						<dt>借出存放库位</dt>
-						<dd>
-							{{
-								reference.warehouses.find(
-									(row) => row.name === draft.loanDestination,
-								)?.label || draft.loanDestination
-							}}
-						</dd>
 					</div>
 				</dl>
 				<p v-if="draft.amendedFrom" class="preview-long-text">
@@ -438,8 +691,8 @@ async function lifecycle() {
 					<p class="muted">
 						{{
 							receive
-								? "按库位 → 物品 → 批次明细填写，数量由明细合计。"
-								: "核对库位、现有批次与可处理数量。"
+								? "登记每项物资的数量、批次与存放位置。"
+								: "核对物品数量及本次操作涉及的位置。"
 						}}
 					</p>
 					<OperationLines
@@ -519,7 +772,7 @@ async function lifecycle() {
 					ref="reviewBar"
 					class="form-actions preview-document-actions"
 				>
-					<p class="muted">
+					<p v-if="draft.items.length" class="muted">
 						{{ draft.items.length }} 行 · {{ totals || "尚未添加物品" }}
 					</p>
 					<UiButton
@@ -540,19 +793,15 @@ async function lifecycle() {
 						:loading="busy"
 						@click="confirm"
 						>检查上次确认结果</UiButton
-					><small class="muted">复核并确认后才变更库存。</small
-					><UiButton
-						v-if="
-							state.identity &&
-							(state.server?.permissions as Record<string, boolean>)?.delete
-						"
-						:disabled="!writable || busy"
-						@click="action = 'delete'"
-						>删除草稿单据</UiButton
-					>
+					><small class="muted">复核并确认后才变更库存。</small>
 				</div>
 			</div>
-			<aside id="operation-review-panel" class="form-review surface">
+			<aside
+				id="operation-review-panel"
+				class="form-review surface"
+				:class="{ 'form-review--empty': !draft.items.length }"
+			>
+				<p v-if="!draft.items.length" class="review-empty-summary">尚未添加物品</p>
 				<button
 					v-if="isDesktop && !expanded"
 					type="button"
@@ -570,11 +819,19 @@ async function lifecycle() {
 					:open="isDesktop || mobileReviewOpen"
 					@toggle="mobileReviewOpen = ($event.currentTarget as HTMLDetailsElement).open"
 				>
-					<summary class="review-preview-summary ti-disclosure">
+					<summary
+						:id="draft.items.length ? undefined : 'operation-review-content'"
+						class="review-preview-summary ti-disclosure"
+						:aria-hidden="previewCollapsed ? 'true' : undefined"
+					>
 						<DisclosureIcon variant="inline" />
-						确认前检查 · {{ totals || "尚未添加物品" }} · {{ itemCount }} 种物品
+						<template v-if="draft.items.length"
+							>确认前检查 · {{ totals }} · {{ itemCount }} 种物品</template
+						>
+						<template v-else>尚未添加物品</template>
 					</summary>
 					<div
+						v-if="draft.items.length"
 						id="operation-review-content"
 						class="review-preview-content"
 						:aria-hidden="previewCollapsed ? 'true' : undefined"

@@ -21,6 +21,7 @@ import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { itemPickerColumns } from "./itemPickerColumns";
+import { earliestBatchExpiry, showOnlyStockFilter } from "../documents/creationFormPresentation";
 import { useOptionalInventoryServices } from "../../services/contracts";
 
 export type ItemScanOption = {
@@ -64,6 +65,7 @@ const props = defineProps<{
 	scanFeedback?: string;
 	scanError?: string;
 	canUndoScan?: boolean;
+	startInScanMode?: boolean;
 	activeWarehouse?: string;
 	purpose?: "outbound" | "damaged" | "inbound" | "count";
 	receivingWarehouse?: string;
@@ -139,6 +141,11 @@ const quantityLabel = computed(() =>
 const pickerColumns = computed<DataColumn[]>(() => {
 	return itemPickerColumns(quantityLabel.value, props.purpose || "outbound", multiple.value);
 });
+function earliestExpiry(row: Record<string, unknown>) {
+	const item = row as unknown as StockItem;
+	const earliest = earliestBatchExpiry(item);
+	return earliest ? `最早到期 ${earliest}` : "";
+}
 const services = useOptionalInventoryServices();
 const pickerPrefs = services
 	? useColumnPreferences("item-picker.rows.v2", pickerColumns, reference, services)
@@ -325,6 +332,9 @@ async function openScanner() {
 	await nextTick();
 	scanPanel.value?.show();
 }
+onMounted(() => {
+	if (props.startInScanMode) void openScanner();
+});
 function scanItem(code: string, batch?: string, context?: unknown) {
 	if (props.scanMode === "operation") {
 		if (multiple.value) {
@@ -478,6 +488,7 @@ async function discardEdits() {
 								:hierarchy-in-rail="sidebarOpen && !isMobile"
 							/>
 							<details
+								v-if="showOnlyStockFilter(purpose)"
 								class="browse-filter-disclosure"
 								data-filter-field="onlyStock"
 							>
@@ -752,7 +763,9 @@ async function discardEdits() {
 										class="picker-table-name"
 									>
 										<strong>{{ row.name }}</strong>
-										<small>{{ row.uom }}</small>
+										<small v-if="earliestExpiry(row)">{{
+											earliestExpiry(row)
+										}}</small>
 									</div>
 									<template v-else-if="column.id === 'warehouse'">
 										<span

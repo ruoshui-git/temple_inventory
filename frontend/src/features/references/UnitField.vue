@@ -58,7 +58,6 @@ watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value
 			ref="trigger"
 			v-if="!disabled && !creating && permitted"
 			:disabled="!permitted"
-			variant="ghost"
 			@click="creating = true"
 			>新建单位</UiButton
 		>

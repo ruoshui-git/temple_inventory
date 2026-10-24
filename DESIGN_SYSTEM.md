@@ -22,6 +22,22 @@ kept in Git.
   teleported content. Use semantic HTML, explicit labels, visible keyboard
   focus, reduced motion and 44px mobile/coarse-pointer targets.
 
+## Creation editors
+
+- `Attachments` is the shared file-picker control for editors and new Items.
+  Use a localized button or label to open a visually hidden native input, then
+  show chosen files as a list. The Item main-image role includes a square
+  preview with placeholder artwork before a file is chosen. Use an image icon
+  for main-image and image-attachment controls and a paperclip for general
+  attachments. Never expose the browser's native English file input label.
+- An empty movement editor shows one centered, kind-specific hint and its
+  add/scan actions. Hide line search, completion filters, totals, issue
+  navigation and column headings until at least one line exists. Location
+  selectors required to begin the operation may remain visible.
+- High-volume Return selection uses collapsed borrower summaries and paged loan
+  cards in a bounded internal scroll region; selected loans remain visible as
+  removable chips when the list is collapsed.
+
 ## Disclosure
 
 - Use `DisclosureIcon` for disclosure indicators: inline disclosures show one
@@ -209,6 +225,22 @@ kept in Git.
   remaining available above the active focus-managed overlay. Success feedback
   uses the normal surface; save/server failures use the danger background and
   border while retaining their inline error detail.
+
+## Notifications and install cards
+
+- `NotificationCenter` owns the bell, count badge, running-export ring and
+  responsive inbox surface. Keep the bell target at least 44px, cap visible
+  count text at `99+`, and include `通知，N 条未读` in its accessible name.
+- The desktop panel is a bounded popover with focus containment and Escape and
+  outside-pointer dismissal. Phone presentation uses the shared `Overlay` as a
+  full-height sheet. Inbox rows use a 30px kind icon, stronger subject weight
+  and a colored dot while unread, then relative time and any export action.
+- Notification loading uses shape-matched skeletons before the first result;
+  empty state appears only after a successful response. Keep grouping headings
+  (`今天`, `更早`) and load-more feedback local to the inbox surface.
+- More-grid actions share the `.more-card.surface` grid structure, icon tile,
+  padding and minimum height. Interactive cards use a native button element so
+  button internals do not change card alignment.
 
 ## Verification contract
 

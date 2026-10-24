@@ -221,6 +221,30 @@ supersession below when a durable user-facing decision changes.
 
 ## Picker, scanning and export refinements
 
+- **2026-10-23 — Creation forms, superseding earlier creation-editor behavior:**
+  Receive and Transfer remember the account's last selected physical leaf in
+  Frappe user defaults; saved values are discarded when they are no longer
+  permitted storable leaves. No editor chooses an arbitrary first location.
+  Without a valid remembered Receive location, users choose one before adding
+  items. Transfer's `调入位置` toolbar value seeds newly added lines, while each
+  line keeps an independent destination that cannot equal its source. The fixed
+  leased destination is hidden on Loan forms and remains server-assigned.
+- Borrower inputs remain free text and may suggest distinct borrowers from
+  recent submitted, readable Loan entries. Return starts with filterable
+  outstanding Loan cards grouped by borrower, showing loan date, activity,
+  outstanding items, thumbnails and quantities. Each card can be added; selected
+  Loans appear as removable chips. A return still requires one borrower and
+  activity across all selected Loans and reports that incompatibility clearly.
+- Editor empty states replace line controls and summaries until lines exist.
+  Each shows one kind-specific hint and add/scan actions; a receive editor also
+  requires an explicit or remembered receiving location. Initial load errors
+  and successful empty states are mutually exclusive.
+- **2026-10-24 — Return list at volume:** outstanding Loans are grouped by
+  borrower and collapsed initially. Group summaries show loan and outstanding
+  item counts plus the latest loan date. Expanded groups load 10 Loans at a
+  time inside a bounded, filterable list. Adding a Loan collapses the list to
+  removable selection chips and an `添加更多借用` control.
+
 - Clearing hierarchy search or selections preserves manually expanded tree
   branches. Uncategorized Items remain in the category facet.
 - Every Item thumbnail size uses the same responsive SVG missing/error artwork.
@@ -306,6 +330,15 @@ supersession below when a durable user-facing decision changes.
   affordance; `SortControl` remains for cards and surfaces without headers.
   Multi-unit dashboard quantities use the shared aligned quantity presentation.
 
+- **2026-10-24:** The app bell stays in the desktop app header and mobile top
+  bar, above the bottom navigation. Unread count refreshes on focus, when the
+  document becomes visible, and every 60 seconds while visible; supported app
+  badges mirror that count. Desktop uses a focus-managed popover and phones use
+  the shared full-screen sheet. Export dialogs say `文件将在后台生成，完成后会发送通知并提供下载。`
+  before starting and `可以关闭此窗口继续工作，完成后会通知你。` while running.
+  Push status distinguishes unsupported browsers, denied permission, iOS outside
+  standalone mode and an active subscription.
+
 - **2026-10-22:** The Area → Room → Shelf presenter replaces legacy warehouse
   breadcrumbs and `room_default` display rules. The canonical `label` is used for
   warehouse cells, chips, summaries and selector options; `path` is secondary
@@ -338,3 +371,7 @@ supersession below when a durable user-facing decision changes.
 - **2026-10-19:** Category, count, batch, history and availability rules above
   supersede earlier drafts. Native ERPNext stock and permission boundaries
   remain authoritative.
+
+## Notifications (Phase 4)
+
+Events include submitted movements (per kind), cancelled or amended movements, count adjustments, export completion or failure, and daily expiry digests. All event switches default on except expiry digest, which defaults off. Recipients are enabled System Users with app access, excluding the actor, who have the event enabled, have not disabled Frappe notifications, and pass native read permission for the referenced document. Export results always notify the requester; a result watched live in the export dialog is created as read. Expired export files remain in the inbox with an unavailable state.

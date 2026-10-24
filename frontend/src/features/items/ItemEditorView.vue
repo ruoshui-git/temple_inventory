@@ -55,6 +55,15 @@ async function cancel() {
 		<p v-if="error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
 		<form class="surface form-section" @submit.prevent="save">
+			<section class="item-main-image">
+				<h3>主图</h3>
+				<Attachments
+					:controller="files"
+					images-only
+					image-role="main"
+					:disabled="!canWrite || busy || conflict"
+				/>
+			</section>
 			<dl v-if="!canWrite && !loading" class="preview-info-grid">
 				<div
 					v-for="(value, label) in {
@@ -94,13 +103,6 @@ async function cancel() {
 				:inline="contextual"
 				@dirty-change="conversionDirty = $event"
 				@updated="controller.conversionsUpdated"
-			/>
-			<h3>主图</h3>
-			<Attachments
-				:controller="files"
-				images-only
-				image-role="main"
-				:disabled="!canWrite || busy || conflict"
 			/>
 			<h3>附件</h3>
 			<Attachments

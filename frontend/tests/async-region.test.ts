@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { h } from "vue";
 import AsyncRegion from "../src/components/ui/AsyncRegion.vue";
 import SkeletonBlock from "../src/components/ui/SkeletonBlock.vue";
 
@@ -51,6 +52,26 @@ describe("AsyncRegion", () => {
     });
     wrappers.push(wrapper);
     expect(wrapper.text()).toBe("failed");
+  });
+
+  it("keeps the initial error and successful empty state mutually exclusive", async () => {
+    const wrapper = mount(AsyncRegion, {
+      props: { loading: false, initialized: false, error: "读取失败" },
+      slots: {
+        error: ({ error }: { error: string }) =>
+          h("p", { class: "error" }, error),
+        skeleton: () => h("div", { class: "skeleton" }),
+        default: () => h("p", { class: "empty" }, "暂无记录"),
+      },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.find(".error").text()).toBe("读取失败");
+    expect(wrapper.find(".empty").exists()).toBe(false);
+    expect(wrapper.find(".skeleton").exists()).toBe(false);
+
+    await wrapper.setProps({ initialized: true, error: "" });
+    expect(wrapper.find(".empty").text()).toBe("暂无记录");
+    expect(wrapper.find(".error").exists()).toBe(false);
   });
 });
 

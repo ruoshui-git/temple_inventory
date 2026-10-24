@@ -49,6 +49,14 @@ const ButtonStub = defineComponent({
   template:
     '<button :disabled="disabled" :type="type || \'button\'" @click="$emit(\'click\')"><slot /></button>',
 });
+const SearchSelectStub = defineComponent({
+  name: "SearchSelect",
+  inheritAttrs: false,
+  props: ["label", "modelValue", "options", "disabled"],
+  emits: ["update:modelValue"],
+  template:
+    '<button type="button" v-bind="$attrs" :disabled="disabled">{{ label }}: {{ modelValue }}</button>',
+});
 const stubs = {
   ItemPicker: PickerStub,
   UiButton: ButtonStub,
@@ -78,6 +86,7 @@ function setup(
   kind: "Receive" | "Issue" | "Transfer" = "Issue",
   items: StockItem[] = [stockItem()],
   initialLines: Record<string, unknown>[] = [],
+  withSelectors = false,
 ) {
   const reference = createReferenceData();
   Object.assign(reference, {
@@ -158,7 +167,13 @@ function setup(
       return () => h(OperationLines, { draft, active: true });
     },
   });
-  const wrapper = mount(root, { global: { stubs } });
+  const wrapper = mount(root, {
+    global: {
+      stubs: withSelectors
+        ? { ...stubs, SearchSelect: SearchSelectStub }
+        : stubs,
+    },
+  });
   wrappers.push(wrapper);
   return { wrapper, draft, reference, context, stock };
 }
@@ -174,6 +189,111 @@ async function openPicker(wrapper: VueWrapper) {
 }
 
 describe("rapid operation scan integration", () => {
+  it("keeps the picker warehouse as transfer source and uses the toolbar destination for new rows", async () => {
+    const itemInA02 = stockItem({
+      code: "ITEM-B",
+      locations: [
+        {
+          location: "A02",
+          label: "A02",
+          available: 5,
+          loaned: 0,
+          damaged: 0,
+        },
+        {
+          location: "冷藏柜 / 上层",
+          label: "上层",
+          available: 0,
+          loaned: 0,
+          damaged: 0,
+        },
+      ],
+    });
+    const { wrapper, draft, reference } = setup(
+      "Transfer",
+      [
+        stockItem({
+          locations: [
+            {
+              location: "A02",
+              label: "A02",
+              available: 5,
+              loaned: 0,
+              damaged: 0,
+            },
+          ],
+        }),
+        itemInA02,
+      ],
+      [
+        {
+          id: "existing-transfer-line",
+          code: "ITEM-A",
+          sourceLocation: "A02",
+          location: "冷藏柜 / 上层",
+        },
+      ],
+      true,
+    );
+    reference.physicalLeaves.splice(0, Infinity, "A02", "冷藏柜 / 上层");
+    Object.assign(reference.warehouses[0]!, {
+      name: "A02",
+      label: "A02",
+      short_label: "A02",
+      full_label: "厨房 / A02",
+      path: "DS / ZT / 厨房 / A02",
+    });
+    Object.assign(reference.warehouses[1]!, {
+      name: "冷藏柜 / 上层",
+      label: "上层",
+      short_label: "上层",
+      full_label: "冷藏柜 / 上层",
+      path: "DS / ZT / 冷藏柜 / 上层",
+    });
+    draft.preferredWarehouse = "A02";
+    await flushPromises();
+    const destination = wrapper
+      .findAllComponents(SearchSelectStub)
+      .find((selector) => selector.props("label") === "调入位置");
+    expect(destination).toBeTruthy();
+    expect(
+      (destination!.props("options") as Array<{ value: string }>).map(
+        (option) => option.value,
+      ),
+    ).toEqual(["冷藏柜 / 上层"]);
+    destination!.vm.$emit("update:modelValue", "冷藏柜 / 上层");
+    await flushPromises();
+
+    const picker = await openPicker(wrapper);
+    picker.vm.$emit("selectMultiple", [{ code: "ITEM-B", warehouse: "A02" }]);
+    await flushPromises();
+
+    const added = draft.items.find((line) => line.code === "ITEM-B");
+    expect(added).toMatchObject({
+      sourceLocation: "A02",
+      location: "冷藏柜 / 上层",
+    });
+    const lineSource = wrapper
+      .findAllComponents(SearchSelectStub)
+      .find((selector) => selector.props("label") === "从");
+    expect(lineSource!.props("options")).toContainEqual(
+      expect.objectContaining({ value: "A02", label: "A02" }),
+    );
+    const lineDestination = wrapper
+      .findAllComponents(SearchSelectStub)
+      .find((selector) => selector.props("label") === "到");
+    expect(
+      (lineDestination!.props("options") as Array<{ value: string }>).map(
+        (option) => option.value,
+      ),
+    ).toEqual(["冷藏柜 / 上层"]);
+    expect(
+      (lineDestination!.props("options") as Array<{ value: string }>).some(
+        (option) => option.value === added!.sourceLocation,
+      ),
+    ).toBe(false);
+  });
+
   it("binds the selected warehouse and its batch after loading complete item context", async () => {
     const item = stockItem({
       tracksBatch: true,

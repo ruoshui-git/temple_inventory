@@ -945,7 +945,7 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 	"""Create deterministic, native volume data for full development installs."""
 	rng = random.Random(20261023)
 	unit_whole = {
-		"个": True,
+		"Nos": True,
 		"双": True,
 		"套": True,
 		"箱": True,

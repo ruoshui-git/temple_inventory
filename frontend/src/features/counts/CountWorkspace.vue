@@ -16,6 +16,7 @@ import DataTable from "../../components/ui/DataTable.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { showCountRowsOrEmpty } from "../documents/creationFormPresentation";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 
 const props = defineProps<{ controller: CountEditor }>();
@@ -316,6 +317,7 @@ function itemImage(row: CountRow) {
 			正在刷新账面基准…
 		</p>
 		<DataTable
+			v-if="showCountRowsOrEmpty(!!baselineError, rows.length)"
 			class="count-data-table"
 			ariaLabel="盘点明细"
 			table-class="count-table"

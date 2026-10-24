@@ -24,6 +24,54 @@ from temple_inventory import (
 
 
 class NativeDocumentTests(unittest.TestCase):
+	def test_remembered_creation_locations_are_filtered_against_current_leaves(self):
+		with (
+			patch.object(preferences, "require_app"),
+			patch(
+				"temple_inventory.native_stock.warehouse_scopes",
+				return_value=(None, {}, {"leaf-a"}, set(), set()),
+			),
+			patch.object(
+				preferences,
+				"_creation_locations",
+				return_value={"Receive": "leaf-a", "Transfer": "retired", "Issue": "leaf-a"},
+			),
+		):
+			self.assertEqual(preferences.creation_locations(), {"Receive": "leaf-a"})
+
+	def test_borrower_suggestions_are_distinct_and_read_permission_filtered(self):
+		rows = [
+			frappe._dict(name="LOAN-1", ti_borrower="Readable"),
+			frappe._dict(name="LOAN-2", ti_borrower="Readable"),
+			frappe._dict(name="LOAN-3", ti_borrower="Restricted"),
+		]
+		with (
+			patch.object(native_api, "require_app"),
+			patch.object(frappe, "get_list", return_value=rows),
+			patch.object(frappe, "has_permission", side_effect=lambda _dt, _perm, doc=None: doc != "LOAN-3"),
+		):
+			self.assertEqual(native_api.borrower_suggestions(), ["Readable"])
+
+	def test_outstanding_loans_are_grouped_and_paged_by_borrower(self):
+		borrower = f"分页借用方-{self.token}"
+		first = self.loan(5, borrower)
+		second = self.loan(3, borrower)
+		groups = native_api.outstanding_loan_groups(search=borrower, page_length=1)
+		self.assertEqual(groups["rows"][0]["borrower"], borrower)
+		self.assertEqual(groups["rows"][0]["loan_count"], 2)
+		self.assertEqual(groups["rows"][0]["item_count"], 2)
+		self.assertIsNone(groups["next"])
+		page = native_api.outstanding_loans(borrower=first.ti_borrower, page_length=1)
+		self.assertEqual(len(page["rows"]), 1)
+		self.assertIsNotNone(page["next"])
+		self.assertEqual(page["rows"][0]["name"], second.name)
+		activity_groups = native_api.outstanding_loan_groups(search=self.activity.title)
+		self.assertEqual(activity_groups["rows"][0]["borrower"], borrower)
+		activity_loans = native_api.outstanding_loans(
+			search=self.activity.title, borrower=borrower, page_length=10
+		)
+		self.assertEqual(len(activity_loans["rows"]), 2)
+
 	def test_frontend_account_binding_rejects_old_window_data_and_uploads_after_account_change(self):
 		previous = getattr(frappe.local, "request", None)
 		try:
@@ -162,7 +210,7 @@ class NativeDocumentTests(unittest.TestCase):
 	def receipt(self, quantity=10):
 		return self.submit(self.create(self.movement(quantity=quantity)))
 
-	def loan(self, quantity=5):
+	def loan(self, quantity=5, borrower="测试借用方"):
 		self.receipt(quantity)
 		return self.submit(
 			self.create(
@@ -171,7 +219,7 @@ class NativeDocumentTests(unittest.TestCase):
 					quantity,
 					self.a,
 					self.loan_leaf,
-					ti_borrower="测试借用方",
+					ti_borrower=borrower,
 					ti_activity=self.activity.name,
 				)
 			)
@@ -621,6 +669,24 @@ class NativeDocumentTests(unittest.TestCase):
 			file_doc.save()
 		with self.assertRaises(frappe.PermissionError):
 			native_files.remove_attachment("Stock Entry", completed.name, file_doc.name)
+
+	def test_item_delete_removes_attachments_after_parent_row_is_gone(self):
+		file_doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"item-delete-{self.token}.txt",
+				"content": self.token.encode(),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+			}
+		).insert()
+		from pathlib import Path
+
+		self.addCleanup(lambda: Path(file_doc.get_full_path()).unlink(missing_ok=True))
+		frappe.delete_doc("Item", self.item, ignore_permissions=True, force=True)
+		self.assertFalse(frappe.db.exists("File", file_doc.name))
+		self.assertFalse(frappe.db.exists("Item", self.item))
 
 	def test_file_owner_does_not_bypass_parent_access_or_anonymous_download_denial(self):
 		entry = self.create(self.movement())

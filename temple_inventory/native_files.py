@@ -52,6 +52,11 @@ def validate_file_write(doc, deleting=False):
 	if not links:
 		return
 	for doctype, name in sorted(links):
+		# Frappe removes a document's attachments after deleting the parent row.
+		# During that native cleanup the parent cannot be reloaded for a write check;
+		# the File's own delete permission below still gates removal.
+		if deleting and not frappe.db.exists(doctype, name):
+			continue
 		_parent(doctype, name, write=True)
 	permission = "delete" if deleting else ("create" if doc.is_new() else "write")
 	doc.check_permission(permission)

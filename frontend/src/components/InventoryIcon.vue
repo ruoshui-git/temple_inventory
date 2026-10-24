@@ -1,6 +1,8 @@
 <script setup lang="ts">
 withDefaults(defineProps<{ name: string; strokeWidth?: number }>(), { strokeWidth: 2 });
 const paths: Record<string, string> = {
+	image: "M4 4h16v16H4V4Zm0 12 5-5 4 4 3-3 4 4M9 9h.01",
+	paperclip: "m8 12 7-7a4 4 0 0 1 6 6l-9 9a6 6 0 0 1-8-8l9-9m-1 10 7-7",
 	expand: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
 	contract: "M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5",
 	box: "m3 7 9-4 9 4v10l-9 4-9-4V7Zm9-4v8m9-4-9 4-9-4m9 4v10",
@@ -17,6 +19,16 @@ const paths: Record<string, string> = {
 	location: "M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Zm0-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
 	more: "M4 12h1m6 0h1m6 0h1",
 	notice: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
+	settings:
+		"M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v2m0 14v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M3 12h2m14 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+	cancel: "M5 5l14 14M19 5 5 19",
+	count: "M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4",
+	expiry: "M12 3v9l6 3M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+	receive: "M12 3v12m0 0 5-5m-5 5-5-5M4 17v3h16v-3",
+	issue: "M12 21V9m0 0 5 5m-5-5-5 5M4 4h16v4H4z",
+	transfer: "M4 7h14l-3-3m3 3-3 3M20 17H6l3 3m-3-3 3-3",
+	return: "M8 5 3 10l5 5M3 10h11a5 5 0 0 1 0 10h-3",
+	repair: "m14 7 3-3a4 4 0 0 1-5 5L6 15a3 3 0 1 0 4 4l6-6a4 4 0 0 1 5-5l-3 3",
 	search: "M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
 	scan: "M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4M7 12h10M8 9v6m4-6v6m4-6v6",
 	filter: "M3 4h18l-7 8v7l-4 2v-9L3 4Z",

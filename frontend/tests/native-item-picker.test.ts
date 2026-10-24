@@ -5,6 +5,10 @@ import { useItemPicker } from "../src/features/items/useItemPicker";
 import ItemPicker from "../src/features/items/ItemPicker.vue";
 import { itemPickerColumns } from "../src/features/items/itemPickerColumns";
 import {
+  earliestBatchExpiry,
+  showOnlyStockFilter,
+} from "../src/features/documents/creationFormPresentation";
+import {
   createReferenceData,
   provideInventoryServices,
   type InventoryServices,
@@ -27,6 +31,9 @@ it("keeps the picker image column and gives the item name the flexible track", (
     className: "picker-name-column",
   });
   expect(name).not.toHaveProperty("width");
+  expect(columns.find((column) => column.id === "category")).toMatchObject({
+    defaultVisible: false,
+  });
   expect(columns.map((column) => column.id)).toEqual([
     "image",
     "name",
@@ -40,6 +47,35 @@ it("keeps the picker image column and gives the item name the flexible track", (
       (column) => column.id,
     ),
   ).toEqual(["image", "name", "code", "category", "quantity"]);
+});
+
+it("shows the earliest tracked batch expiry and stock-only picker purposes", () => {
+  const expiry = earliestBatchExpiry({
+    code: "A",
+    name: "A",
+    category: "",
+    uom: "Nos",
+    tracksBatch: true,
+    tracksExpiry: true,
+    available: 3,
+    loaned: 0,
+    damaged: 0,
+    locations: [
+      {
+        location: "L",
+        available: 3,
+        loaned: 0,
+        damaged: 0,
+        batches: [
+          { id: "later", available: 1, expiry: "2026-12-01" },
+          { id: "early", available: 2, expiry: "2026-11-02" },
+        ],
+      },
+    ],
+  });
+  expect(expiry).toBe("2026-11-02");
+  expect(showOnlyStockFilter("outbound")).toBe(false);
+  expect(showOnlyStockFilter("damaged")).toBe(false);
 });
 
 it("sends multi-category subtree selections and the independent uncategorized scope", async () => {

@@ -30,6 +30,7 @@ export function itemPickerColumns(
       label: "类别",
       minWidth: "150px",
       className: "picker-category-column",
+      defaultVisible: false,
     },
   ];
   if (purpose !== "inbound")

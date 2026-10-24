@@ -179,6 +179,12 @@ NATIVE_ADMIN_PASSWORD=admin NATIVE_BASE_URL=http://127.0.0.1:8000 \
 The acceptance tests look up documents and warehouses through the APIs. Never
 hardcode sample document names or warehouse docnames, which change on every reset.
 
+While iterating, run only the affected backend scenarios with
+`execute temple_inventory.tests.test_native_inventory.run --kwargs
+"{'test_name': ['test_a', 'test_b']}"` and the affected frontend files with
+`pnpm exec vitest run tests/<file>.test.ts`. Run each full suite once, after the
+last code change, and reset development data only when seed code changed.
+
 The test entry point rolls back its changes. Add focused regression tests for
 changed behavior and invariants. The development stack uses `mariadb`,
 `redis-cache` and `redis-queue`; do not replace service hostnames with
@@ -189,3 +195,7 @@ errors from reached test failures and report checks the environment prevented.
 Prefer clean schema/API/caller updates over compatibility shims. Update schemas,
 fixtures, patches, permissions and tests when changing DocTypes or hooks. Avoid
 abstractions that add no concrete behavior.
+
+## Notifications backend
+
+Inventory notifications use Frappe `Notification Log` and app-owned `Notification Type` rows registered after migrate, so the same events appear in the Desk bell and the inventory inbox. Per-user JSON defaults control event and movement-kind delivery; daily expiry digests default off. Background event delivery rechecks app access, notification settings, and native document read permission as each recipient. Export results notify the requester, and push subscriptions are stored per user/device with VAPID keys in Temple Inventory Settings.

@@ -200,7 +200,7 @@ async function back() {
 				</h1>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
 			</div>
-			<template #back><UiButton @click="back">返回</UiButton></template
+			<template #back><UiButton variant="ghost" @click="back">返回</UiButton></template
 			><template #actions
 				><QuickExport
 					v-if="!loading && c.savedExportQuery.value"

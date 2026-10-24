@@ -6,6 +6,7 @@ import UiButton from "./ui/UiButton.vue";
 import SkeletonBlock from "./ui/SkeletonBlock.vue";
 import Overlay from "./ui/Overlay.vue";
 import type { AttachmentEntry, useAttachments } from "../features/attachments/useAttachments";
+import InventoryIcon from "./InventoryIcon.vue";
 const props = defineProps<{
 	controller: ReturnType<typeof useAttachments>;
 	disabled?: boolean;
@@ -14,6 +15,10 @@ const props = defineProps<{
 	imageRole?: "main" | "attachments" | "all";
 }>();
 const selected = ref<AttachmentEntry>();
+const picker = ref<HTMLInputElement>();
+function openPicker() {
+	picker.value?.click();
+}
 const cropQueue = ref<File[]>([]);
 const cropIndex = ref(0),
 	cropTotal = ref(0);
@@ -55,14 +60,50 @@ const visibleFiles = computed(() =>
 </script>
 <template>
 	<div class="preview-attachments">
-		<label v-if="mode !== 'display' && !disabled" class="preview-field"
-			>{{ imageRole === "main" ? "选择主图" : imagesOnly ? "添加图片附件" : "添加附件"
-			}}<input
+		<div v-if="imageRole === 'main'" class="main-image-picker-row">
+			<div class="main-image-preview" aria-label="主图预览">
+				<AsyncImage
+					v-if="visibleFiles[0]?.url"
+					:src="visibleFiles[0].url"
+					:alt="visibleFiles[0].name"
+					width="112"
+					height="112"
+					fit="contain"
+				/>
+				<div v-else class="main-image-placeholder">
+					<InventoryIcon name="image" /><span>主图预览</span>
+				</div>
+			</div>
+			<div v-if="mode !== 'display' && !disabled" class="shared-file-picker">
+				<UiButton type="button" icon="image" @click="openPicker">选择主图</UiButton>
+			</div>
+			<input
+				ref="picker"
+				class="shared-file-picker-input"
+				type="file"
+				accept="image/*"
+				@change="choose"
+			/>
+		</div>
+		<div
+			v-if="mode !== 'display' && !disabled && imageRole !== 'main'"
+			class="shared-file-picker"
+		>
+			<UiButton
+				type="button"
+				:icon="imagesOnly ? 'image' : 'paperclip'"
+				@click="openPicker"
+				>{{ imagesOnly ? "添加图片附件" : "添加附件" }}</UiButton
+			>
+			<input
+				ref="picker"
+				class="shared-file-picker-input"
 				type="file"
 				multiple
 				:accept="imagesOnly ? 'image/*' : undefined"
 				@change="choose"
-		/></label>
+			/>
+		</div>
 		<article v-for="file in visibleFiles" :key="file.id">
 			<AsyncImage
 				v-if="file.type.startsWith('image/')"
@@ -84,8 +125,11 @@ const visibleFiles = computed(() =>
 				></template
 			><label
 				v-if="file.state === 'reselect' && !disabled && mode !== 'display'"
-				class="preview-field"
-				>需要重新选择文件<input type="file" @change="reselect(file, $event)" /></label
+				class="shared-file-picker shared-file-picker-label"
+				>重新选择文件<input
+					class="shared-file-picker-input"
+					type="file"
+					@change="reselect(file, $event)" /></label
 			><UiButton v-if="file.url && file.state !== 'uploading'" @click="selected = file">{{
 				imageRole === "main" ? "查看主图" : "查看附件"
 			}}</UiButton
@@ -127,11 +171,14 @@ const visibleFiles = computed(() =>
 		/>
 		<p
 			v-else-if="
-				!controller.error.value && controller.initialized.value && !visibleFiles.length
+				!controller.error.value &&
+				controller.initialized.value &&
+				!visibleFiles.length &&
+				imageRole !== 'main'
 			"
 			class="muted"
 		>
-			{{ imageRole === "main" ? "暂无主图" : "暂无附件" }}
+			暂无附件
 		</p>
 		<ImageCrop
 			v-if="cropQueue[0]"
@@ -166,6 +213,36 @@ article {
 	flex-wrap: wrap;
 	gap: 8px;
 	padding: 8px 0;
+}
+.main-image-picker-row {
+	display: flex;
+	align-items: end;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.main-image-preview {
+	width: 112px;
+	height: 112px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-soft);
+}
+.main-image-preview :deep(.async-image),
+.main-image-placeholder {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.main-image-placeholder {
+	display: grid;
+	place-content: center;
+	justify-items: center;
+	gap: 6px;
+	color: var(--p-muted);
+}
+.main-image-placeholder :deep(svg) {
+	width: 28px;
+	height: 28px;
 }
 article :deep(.async-image) {
 	flex: 0 0 56px;

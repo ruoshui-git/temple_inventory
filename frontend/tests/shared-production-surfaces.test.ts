@@ -320,8 +320,12 @@ describe("interactive preview", () => {
     const wrapper = render(PreviewReceive, { pattern: "proposed" });
     await flushPromises();
     expect(wrapper.find(".form-review").exists()).toBe(true);
-    expect(wrapper.findAll(".form-section")[0].text()).toContain("操作日期");
-    await wrapper.get("select").setValue("manual");
+    expect(wrapper.findAll(".form-section")[0].text()).toContain(
+      "确认时自动记录当前时间",
+    );
+    expect(wrapper.find('input[type="date"]').exists()).toBe(false);
+    await wrapper.get(".current-time-note button").trigger("click");
+    await flushPromises();
     const date = wrapper.findAll(".form-section")[0].get('input[type="date"]');
     await date.setValue("2026-10-12");
     await wrapper.setProps({ pattern: "current" });

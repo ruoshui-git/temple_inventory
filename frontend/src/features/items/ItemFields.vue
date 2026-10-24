@@ -38,9 +38,6 @@ onDeactivated(() => {
 				<dd>{{ model.code }}</dd>
 			</div>
 		</dl>
-		<label v-else class="preview-field"
-			>物品编号<input v-model="model.code" :disabled="disabled"
-		/></label>
 		<label class="preview-field"
 			>物品名称<input v-model="model.name" :disabled="disabled" required
 		/></label>
@@ -63,6 +60,9 @@ onDeactivated(() => {
 			:editor-target="editorTarget"
 			@dirty-change="emit('supportingDirty', 'unit', $event)"
 		/>
+		<label v-if="!editing" class="preview-field"
+			>物品编号<input v-model="model.code" :disabled="disabled"
+		/></label>
 		<label class="preview-field full-width">
 			条码（每行一个，可选）
 			<textarea v-model="model.barcode" :disabled="disabled" />
