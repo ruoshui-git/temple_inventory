@@ -522,22 +522,20 @@ describe("native count form integration", () => {
   });
 });
 
-it("keeps difference drafts editable without submit permission while matching counts may finish locally", async () => {
+it("does not use frontend DocType capabilities to gate count submission", async () => {
   const call = service(),
-    { c, reference } = setup(call);
+    { c } = setup(call);
   await flushPromises();
-  reference.capabilities["Stock Reconciliation"]!.submit = false;
   c.input(c.rows.value[0]!, "8");
   c.rows.value[0]!.reason = "实点";
   await c.confirm();
-  expect(c.state.status).toBe("saved");
-  expect(c.writable.value).toBe(true);
+  expect(c.state.status).toBe("submitted");
+  expect(c.writable.value).toBe(false);
   expect(
     call.mock.calls.some(([method]) => method === "native_api.submit_document"),
-  ).toBe(false);
-  const { c: matching, reference: matchingReference } = setup(service());
+  ).toBe(true);
+  const { c: matching } = setup(service());
   await flushPromises();
-  matchingReference.capabilities["Stock Reconciliation"]!.submit = false;
   matching.input(matching.rows.value[0]!, "10");
   await matching.confirm();
   expect(matching.state.status).toBe("matching");

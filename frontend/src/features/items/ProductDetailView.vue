@@ -154,9 +154,7 @@ const locationPrefs =
 					<h2>{{ item.name }}</h2>
 					<p class="muted">按物品代码汇总的库存、借用与损坏情况</p>
 				</div>
-				<UiButton v-if="item.canEdit" @click="emit('edit', item.code)"
-					>编辑物品资料</UiButton
-				>
+				<UiButton @click="emit('edit', item.code)">编辑物品资料</UiButton>
 			</div>
 			<ItemConversions
 				:item="item"

@@ -93,6 +93,13 @@ boundaries, item access, warehouse scope, native ownership, File privacy,
 immutability and final-submission validation. Return normal Frappe exceptions;
 do not expose raw server HTML.
 
+All users admitted to the frontend are System Managers through
+`native_access.require_frontend_account`, so the frontend does not gate actions
+by per-DocType permissions or consume permission/capability payloads. Keep
+configuration readiness, location topology and document-state checks in the
+frontend. The server remains the only authorization boundary and must continue
+to enforce native permissions and scope on every request.
+
 ## Visual browser preflight
 
 Before every visual browser inspection, run the check through

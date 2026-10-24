@@ -193,9 +193,7 @@ export function useCountEditor(props: {
       !["conflict", "deleted", "forbidden", "submitted", "cancelled"].includes(
         state.status,
       ) &&
-      (state.server
-        ? state.server.editable === true
-        : reference.capabilities["Stock Reconciliation"]?.create === true),
+      (state.server ? state.server.editable === true : true),
   );
   const rows = computed(() => values.value.ti_count_review || []);
   const historyTarget = ref<CountRow>();
@@ -263,16 +261,10 @@ export function useCountEditor(props: {
       !["deleted", "forbidden", "submitted", "cancelled"].includes(
         state.status,
       ) &&
-      (state.server
-        ? state.server.editable === true
-        : reference.capabilities["Stock Reconciliation"]?.create === true),
+      (state.server ? state.server.editable === true : true),
   );
-  const canSubmit = computed(() =>
-    state.server
-      ? ((state.server.permissions as Record<string, boolean> | undefined)
-          ?.submit ??
-        reference.capabilities["Stock Reconciliation"]?.submit === true)
-      : reference.capabilities["Stock Reconciliation"]?.submit === true,
+  const canSubmit = computed(
+    () => !state.server || state.server.docstatus === 0,
   );
   const hasDifferences = computed(
     () =>

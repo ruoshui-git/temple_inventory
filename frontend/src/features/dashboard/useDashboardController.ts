@@ -45,6 +45,8 @@ export interface DashboardRow {
   borrower?: string;
   activity_title?: string;
   item_name?: string;
+  item_code?: string;
+  image?: string;
   batch_no?: string;
   expiry_date?: string;
   warehouse?: string;

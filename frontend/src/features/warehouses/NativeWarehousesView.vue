@@ -4,6 +4,7 @@ import type { NativeWarehouses } from "./useNativeWarehouses";
 import type { ReportQuery } from "../../lib/reportContract";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import ItemLine from "../../components/ui/ItemLine.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
@@ -334,29 +335,46 @@ function parentLabel(name?: string) {
 								class="browse-rank-row"
 								@click="emit('item', String(row.item_code))"
 							>
-								<span class="browse-grow"
-									><strong>{{ row.item_name }}</strong
-									><small
-										>{{ row.item_code }} ·
-										<span
-											:title="
-												warehousePath(
-													row.warehouse,
-													c.reference.warehouses,
-													row.warehouse_label,
-												)
-											"
-											>{{
-												warehouseLabel(
-													row.warehouse,
-													c.reference.warehouses,
-													row.warehouse_label,
-												)
-											}}</span
-										>
-										{{ row.batch_no ? " · 批次 " + row.batch_no : "" }}</small
-									></span
-								><b
+								<div class="browse-grow">
+									<ItemLine
+										:item="{
+											code: String(row.item_code),
+											name: String(row.item_name || row.item_code),
+											image: String(row.image || ''),
+										}"
+									/>
+									<dl class="ti-fields">
+										<div>
+											<dt>编号</dt>
+											<dd>{{ row.item_code }}</dd>
+										</div>
+										<div>
+											<dt>库位</dt>
+											<dd
+												:title="
+													warehousePath(
+														row.warehouse,
+														c.reference.warehouses,
+														row.warehouse_label,
+													)
+												"
+											>
+												{{
+													warehouseLabel(
+														row.warehouse,
+														c.reference.warehouses,
+														row.warehouse_label,
+													)
+												}}
+											</dd>
+										</div>
+										<div v-if="row.batch_no">
+											<dt>批次</dt>
+											<dd>{{ row.batch_no }}</dd>
+										</div>
+									</dl>
+								</div>
+								<b
 									>{{ row.stock_qty }} <small>{{ row.stock_uom }}</small></b
 								>
 							</button>

@@ -77,15 +77,9 @@ export function useCategoriesController() {
   const active = (current = generation) =>
     !disposed && current === generation && account === reference.user;
   const categories = computed(() => reference.categories as Category[]);
-  const canCreate = computed(
-    () => reference.capabilities["Item Group"]?.create === true,
-  );
-  const canWrite = computed(
-    () => reference.capabilities["Item Group"]?.write === true,
-  );
-  const canDelete = computed(
-    () => reference.capabilities["Item Group"]?.delete === true,
-  );
+  const canCreate = computed(() => true);
+  const canWrite = computed(() => true);
+  const canDelete = computed(() => true);
   const dirty = computed(
     () =>
       dialog.value &&

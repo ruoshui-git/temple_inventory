@@ -23,8 +23,6 @@ export interface NativeActivity {
   creation: string;
   owner: string;
   modified_by: string;
-  can_write?: boolean;
-  can_delete?: boolean;
 }
 export function useActivityEditor(
   props: { activityId?: string; recoveryId?: string },
@@ -69,13 +67,7 @@ export function useActivityEditor(
   const active = () => !disposed && account === reference.user;
   const dirty = computed(() => JSON.stringify(input) !== baseline.value);
   const writable = computed(
-    () =>
-      active() &&
-      (existing.value
-        ? existing.value.can_write === true
-        : props.activityId
-          ? false
-          : reference.capabilities["Inventory Activity"]?.create === true),
+    () => active() && (existing.value ? true : !props.activityId),
   );
   function retain() {
     if (!ready || !active() || discarded) return;
@@ -162,8 +154,8 @@ export function useActivityEditor(
           { name },
         );
         if (!active()) return;
-        if (!current.can_write || current.modified !== snapshot.baseVersion) {
-          error.value = "原活动已更改或无权编辑；请复制恢复文字后核对";
+        if (current.modified !== snapshot.baseVersion) {
+          error.value = "原活动已更改；请复制恢复文字后核对";
           return;
         }
         existing.value = current;

@@ -93,14 +93,6 @@ function normalize(
     posting_time: data.posting_time || "10:00:00",
     docstatus: docstatus as 0 | 1 | 2,
     editable: docstatus === 0,
-    permissions: {
-      write: true,
-      submit: true,
-      delete: true,
-      cancel: true,
-      amend: true,
-      duplicate: data.doctype !== "Stock Reconciliation",
-    },
     items: ((data.items || []) as Record<string, unknown>[]).map(
       (line, index) => ({
         ...line,

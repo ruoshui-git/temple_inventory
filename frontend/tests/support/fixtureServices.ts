@@ -21,7 +21,6 @@ import type { ReportQuery, ReportRow } from "../../src/lib/reportContract";
 import { reviewSession } from "./reviewModel";
 import { activities } from "./activityData";
 import {
-  activityPermissions,
   saveActivity,
   activityMovementCounts,
   activityLoanLines,
@@ -614,8 +613,6 @@ function nativeActivity(row: (typeof activities)[number]) {
     creation: row.created,
     owner: row.owner,
     modified_by: row.modifiedBy,
-    can_write: activityPermissions.write,
-    can_delete: activityPermissions.write,
     summary: {
       ...Object.fromEntries(
         activityMovementCounts(row.id).map((count) => [
@@ -672,9 +669,6 @@ export const fixtureServices: InventoryServices = {
               ...row.whole,
               version: doc.version,
               editable: doc.editable,
-              can_delete:
-                doc.docstatus === 0 &&
-                (doc.permissions as Record<string, boolean>).delete,
             },
           };
         }),

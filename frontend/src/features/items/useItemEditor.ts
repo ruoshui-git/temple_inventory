@@ -113,11 +113,7 @@ export function useItemEditor(
   if (typeof window !== "undefined")
     window.addEventListener("beforeunload", beforeUnload);
   const canWrite = computed(() =>
-    existing.value
-      ? existing.value.can_edit === true
-      : props.code
-        ? false
-        : reference.capabilities.Item?.create === true,
+    existing.value ? true : props.code ? false : true,
   );
   const files = useAttachments({
     account,
@@ -250,9 +246,8 @@ export function useItemEditor(
           { item_code: code },
         );
         if (!active() || disposed) return;
-        if (current.version !== snapshot.baseVersion || !current.can_edit) {
-          error.value =
-            "物品已更改或无权编辑，不能覆盖原记录；请复制恢复文字后核对";
+        if (current.version !== snapshot.baseVersion) {
+          error.value = "物品已更改，不能覆盖原记录；请复制恢复文字后核对";
           return;
         }
         existing.value = current;

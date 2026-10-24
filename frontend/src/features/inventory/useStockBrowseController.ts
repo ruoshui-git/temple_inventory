@@ -273,11 +273,9 @@ export function useStockBrowseController(
       },
     })),
   ]);
-  const actions = computed(() =>
-    reference.capabilities.Item?.create === true
-      ? [{ name: "新建物品", kind: "Item", icon: "box" }]
-      : [],
-  );
+  const actions = computed(() => [
+    { name: "新建物品", kind: "Item", icon: "box" },
+  ]);
   const selectedActions = computed(() =>
     selected.value.length
       ? [

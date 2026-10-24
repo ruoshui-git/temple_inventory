@@ -256,10 +256,7 @@ async function back() {
 				原有草稿 {{ state.identity.name }} 保持原样。请明确删除该草稿，或继续编辑。
 			</p>
 			<UiButton
-				v-if="
-					state.identity &&
-					(state.server?.permissions as Record<string, boolean>)?.delete
-				"
+				v-if="state.identity && state.server?.docstatus === 0"
 				@click="action = 'delete'"
 				>删除原有草稿单据</UiButton
 			>
@@ -280,20 +277,9 @@ async function back() {
 				target="_blank"
 				rel="noopener"
 				>在 ERPNext 查看</a
-			><UiButton
-				v-if="
-					state.server?.docstatus === 1 &&
-					(state.server.permissions as Record<string, boolean>)?.cancel
-				"
-				@click="action = 'cancel'"
+			><UiButton v-if="state.server?.docstatus === 1" @click="action = 'cancel'"
 				>取消记录</UiButton
-			><UiButton
-				v-if="
-					state.server?.docstatus === 2 &&
-					!opening &&
-					(state.server.permissions as Record<string, boolean>)?.amend
-				"
-				@click="action = 'amend'"
+			><UiButton v-if="state.server?.docstatus === 2 && !opening" @click="action = 'amend'"
 				>创建修订草稿</UiButton
 			>
 		</div>
@@ -425,10 +411,7 @@ async function back() {
 						>检查上次确认结果</UiButton
 					>
 					<UiButton
-						v-if="
-							state.identity &&
-							(state.server?.permissions as Record<string, boolean>)?.delete
-						"
+						v-if="state.identity && state.server?.docstatus === 0"
 						:disabled="busy || !writable"
 						variant="danger"
 						@click="action = 'delete'"

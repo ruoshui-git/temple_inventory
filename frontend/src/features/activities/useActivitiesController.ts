@@ -298,7 +298,11 @@ export function useActivitiesController(
           originalLine: String(row.original_loan_line || row.line_name),
           batch: String(row.batch_no || ""),
           loanName: String(row.document || row.original_loan || ""),
+          borrower: String(row.borrower || ""),
+          date: String(row.date || row.posting_date || ""),
           code: row.item_code,
+          name: String(row.item_name || row.item_code || ""),
+          image: String(row.image || ""),
           uom: row.stock_uom,
           qty: row.borrowed,
           returned: row.returned,
@@ -398,7 +402,7 @@ export function useActivitiesController(
       })),
   ]);
   async function archive() {
-    if (!detail.value?.can_write || busy.value) return;
+    if (!detail.value || busy.value) return;
     busy.value = true;
     error.value = "";
     try {
@@ -418,7 +422,7 @@ export function useActivitiesController(
     }
   }
   async function remove() {
-    if (!detail.value?.can_delete || busy.value) return;
+    if (!detail.value || busy.value) return;
     busy.value = true;
     error.value = "";
     try {
@@ -504,8 +508,8 @@ export function useActivitiesController(
       recordSearch.value = "";
       recordKinds.value = [];
     },
-    canWrite: computed(() => detail.value?.can_write === true),
-    canDelete: computed(() => detail.value?.can_delete === true),
+    canWrite: computed(() => Boolean(detail.value)),
+    canDelete: computed(() => Boolean(detail.value)),
     open: (id: string) => navigate("detail", id),
     saved: (id: string) => navigate("detail", id),
     edit: () => navigate("form", props.name),

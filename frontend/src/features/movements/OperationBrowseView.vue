@@ -46,6 +46,9 @@ import type { ReportRow } from "../../lib/reportContract";
 import type { HistoryRow } from "./useMovementHistory";
 import ItemImage from "../../components/ItemImage.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import RecordRef from "../../components/ui/RecordRef.vue";
+import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+import { loanReferenceIdentity } from "../../lib/relatedLoanPresentation";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { createRecoveryStore } from "../../lib/browserRecovery";
 import { newReportQuery } from "../../lib/reportContract";
@@ -160,7 +163,7 @@ const operationColumns = computed<DataColumn[]>(() =>
 				},
 				{
 					id: "related_loans",
-					label: "关联借出",
+					label: "原借出",
 					defaultVisible: true,
 					minWidth: "140px",
 				},
@@ -277,7 +280,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 				{ id: "docstatus", label: "状态", defaultVisible: true, minWidth: "100px" },
 				{
 					id: "related_loans",
-					label: "关联借出 / 操作",
+					label: "原借出",
 					required: true,
 					defaultVisible: true,
 					minWidth: "170px",
@@ -483,6 +486,13 @@ function operationRow(row: Record<string, unknown>): OperationGroup {
 								String,
 							)
 						: [],
+				original_loan_details: Array.isArray(whole.original_loan_details)
+					? (whole.original_loan_details as Record<string, unknown>[]).map((detail) => ({
+							name: String(detail.name || ""),
+							borrower: String(detail.borrower || ""),
+							date: String(detail.date || ""),
+						}))
+					: [],
 				loan_status: typeof whole.loan_status === "string" ? whole.loan_status : undefined,
 			},
 		};
@@ -515,6 +525,43 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 		parts.push(`${row.stock_qty} ${row.stock_uom || ""}`.trim());
 	}
 	return parts.join(" · ");
+}
+function countedLocations(row: Record<string, unknown>) {
+	return [
+		...new Set(
+			(operationRow(row).whole?.branches || [])
+				.map((branch) => branch.source)
+				.filter(Boolean),
+		),
+	];
+}
+function relatedLoanNames(row: Record<string, unknown>) {
+	const operation = operationRow(row);
+	const names = operation.whole?.original_loans || row.original_loans;
+	if (Array.isArray(names) && names.length) return names.map(String);
+	return row.original_loan ? [String(row.original_loan)] : [];
+}
+function relatedLoanDetails(row: Record<string, unknown>) {
+	const operation = operationRow(row);
+	const details = operation.whole?.original_loan_details || row.original_loan_details;
+	if (Array.isArray(details))
+		return details as { name?: string; borrower?: string; date?: string }[];
+	if (row.original_loan)
+		return [
+			{
+				name: String(row.original_loan),
+				borrower: String(row.original_loan_borrower || ""),
+				date: String(row.original_loan_date || ""),
+			},
+		];
+	return [];
+}
+function groupLoanMetric(group: DataTableGroup, column: string) {
+	const row = group.value || {};
+	const key = column === "outstanding" ? "outstanding" : "borrowed";
+	const value = row[key];
+	if (value === undefined || value === null) return "";
+	return `${key === "borrowed" ? "借出" : "未归还"} ${formatQuantity(Number(value))} ${String(row.stock_uom || "")}`.trim();
 }
 function openHistoryDocument(row: Record<string, unknown>) {
 	if (row.kind === "Loan") emit("openLoan", String(row.document));
@@ -1201,18 +1248,22 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									{{ formatQuantity(Number(row.outstanding)) }}
 									{{ row.stock_uom }}
 								</template>
-								<template v-else-if="column.id === 'source'">{{
-									warehouseLabel(
-										String(row.source_warehouse || ""),
-										reference.warehouses,
-									) || "外部"
-								}}</template>
-								<template v-else-if="column.id === 'destination'">{{
-									warehouseLabel(
-										String(row.destination_warehouse || ""),
-										reference.warehouses,
-									) || "外部"
-								}}</template>
+								<LocationEndpoint
+									v-else-if="column.id === 'source'"
+									:warehouse="
+										String(row.source_warehouse || row.warehouse || '')
+									"
+									:kind="String(row.kind || '')"
+									:borrower="String(row.borrower || '')"
+									role="来源位置"
+								/>
+								<LocationEndpoint
+									v-else-if="column.id === 'destination'"
+									:warehouse="String(row.destination_warehouse || '')"
+									:kind="String(row.kind || '')"
+									:borrower="String(row.borrower || '')"
+									role="去向位置"
+								/>
 								<template v-else-if="column.id === 'quantities'">
 									<span
 										:class="
@@ -1283,11 +1334,35 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									@click="emit('settle', String(row.document))"
 									>登记归还</UiButton
 								>
-								<UiButton
-									v-else-if="column.id === 'related_loans' && row.original_loan"
-									@click="emit('openLoan', String(row.original_loan))"
-									>查看原借用</UiButton
-								>
+								<RecordRef
+									v-else-if="
+										column.id === 'related_loans' &&
+										relatedLoanNames(row).length
+									"
+									kind="Loan"
+									:identity="
+										loanReferenceIdentity(
+											relatedLoanDetails(row)[0]?.borrower,
+											relatedLoanDetails(row)[0]?.date,
+										) ||
+										relatedLoanNames(row)[0] ||
+										''
+									"
+									:count="
+										relatedLoanNames(row).length > 1
+											? relatedLoanNames(row).length
+											: undefined
+									"
+									:document-name="
+										relatedLoanNames(row).length === 1
+											? relatedLoanDetails(row)[0]?.name ||
+												relatedLoanNames(row)[0] ||
+												''
+											: ''
+									"
+									tooltip="查看原借出记录"
+									@open="c.relatedLoans.show(relatedLoanNames(row))"
+								/>
 							</template>
 							<template v-else>
 								<div v-if="column.id === 'document'" class="browse-item-identity">
@@ -1386,8 +1461,20 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								class="operation-group-metrics"
 								:title="groupSummary(group)"
 								v-if="
-									column.id === (family === 'loans' ? 'borrowed' : 'quantities')
+									family === 'loans' &&
+									['borrowed', 'quantities'].includes(String(column.id))
 								"
+								>{{ groupLoanMetric(group, String(column.id)) }}</span
+							>
+							<span
+								class="operation-group-metrics"
+								v-else-if="family === 'loans' && column.id === 'outstanding'"
+								>{{ groupLoanMetric(group, String(column.id)) }}</span
+							>
+							<span
+								class="operation-group-metrics"
+								:title="groupSummary(group)"
+								v-else-if="family === 'movements' && column.id === 'quantities'"
 								>{{ groupSummary(group) }}</span
 							>
 						</template>
@@ -1530,23 +1617,35 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							>
 								{{ row.document }}
 							</button>
-							<UiButton
+							<RecordRef
 								v-else-if="
-									column.id === 'related_loans' &&
-									operationRow(row).whole?.original_loans?.length
+									column.id === 'related_loans' && relatedLoanNames(row).length
 								"
+								kind="Loan"
+								:identity="
+									loanReferenceIdentity(
+										relatedLoanDetails(row)[0]?.borrower,
+										relatedLoanDetails(row)[0]?.date,
+									) ||
+									relatedLoanNames(row)[0] ||
+									''
+								"
+								:count="
+									relatedLoanNames(row).length > 1
+										? relatedLoanNames(row).length
+										: undefined
+								"
+								:document-name="
+									relatedLoanNames(row).length === 1
+										? relatedLoanDetails(row)[0]?.name ||
+											relatedLoanNames(row)[0] ||
+											''
+										: ''
+								"
+								tooltip="查看原借出记录"
 								:disabled="result.stale"
-								@click="
-									c.relatedLoans.show(
-										operationRow(row).whole?.original_loans || [],
-									)
-								"
-								>{{
-									(operationRow(row).whole?.original_loans || []).length === 1
-										? "查看关联借出"
-										: `关联借出（${(operationRow(row).whole?.original_loans || []).length}）`
-								}}</UiButton
-							>
+								@open="c.relatedLoans.show(relatedLoanNames(row))"
+							/>
 							<template v-else-if="column.id === 'kind'">{{
 								enumPresentationLabel("kind", row.kind)
 							}}</template>
@@ -1557,33 +1656,35 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								row.activity_title || ""
 							}}</template>
 							<template v-else-if="column.id === 'date'">{{ row.date }}</template>
+							<LocationEndpoint
+								v-else-if="column.id === 'source' && row.kind === 'Reconcile'"
+								:locations="countedLocations(row)"
+								kind="Reconcile"
+								role="来源位置"
+							/>
 							<template v-else-if="column.id === 'source'"
-								><div
+								><LocationEndpoint
 									v-for="branch in operationRow(row).whole?.branches || []"
 									:key="JSON.stringify(branch)"
-								>
-									{{
-										branch.source
-											? warehouseLabel(branch.source, reference.warehouses)
-											: "外部"
-									}}
-								</div></template
-							>
+									:warehouse="branch.source"
+									:kind="String(row.kind || '')"
+									:borrower="String(row.borrower || '')"
+									role="来源位置"
+							/></template>
+							<LocationEndpoint
+								v-else-if="column.id === 'destination' && row.kind === 'Reconcile'"
+								kind="Reconcile"
+								role="去向位置"
+							/>
 							<template v-else-if="column.id === 'destination'"
-								><div
+								><LocationEndpoint
 									v-for="branch in operationRow(row).whole?.branches || []"
 									:key="JSON.stringify(branch)"
-								>
-									{{
-										branch.destination
-											? warehouseLabel(
-													branch.destination,
-													reference.warehouses,
-												)
-											: "外部"
-									}}
-								</div></template
-							>
+									:warehouse="branch.destination"
+									:kind="String(row.kind || '')"
+									:borrower="String(row.borrower || '')"
+									role="去向位置"
+							/></template>
 							<template v-else-if="column.id === 'quantities'"
 								><span
 									v-for="quantity in operationRow(row).whole?.quantities || []"

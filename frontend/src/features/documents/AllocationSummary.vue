@@ -11,6 +11,7 @@ import {
 import { useReferenceData } from "../../services/contracts";
 import ItemImage from "../../components/ItemImage.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
+import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 const context = useOperationContext();
 const reference = useReferenceData();
 
@@ -87,87 +88,95 @@ const groups = computed(() => {
 						}}</strong>
 						<span>· {{ line.qty }} {{ line.uom }}</span>
 					</div>
-					<small class="muted">
-						{{ line.code }}
-						<template
-							v-if="allocationDestination(draft, line, reference.damagedLeaves)"
-						>
-							·
-							{{
-								draft.kind === "Receive"
-									? "入库"
-									: warehouseLabel(
-											line.sourceLocation || line.location,
-											reference.warehouses,
-										)
-							}}
-							→
-							{{
-								warehouseLabel(
-									allocationDestination(draft, line, reference.damagedLeaves),
-									reference.warehouses,
-								)
-							}}
-						</template>
-						<template v-if="tracksBatch(line)">
-							<template v-if="line.batch">· 批次 {{ line.batch }}</template>
-							<template v-else-if="line.batchAllocations?.length">
-								<span
-									v-for="allocation in line.batchAllocations"
-									:key="allocation.name"
-									:data-native-batch-line="allocation.name"
-								>
-									· 批次 {{ allocation.batch }} {{ allocation.qty }}
-									{{ line.uom }}
-									<template v-if="allocation.expiry">
-										· 到期 {{ allocation.expiry }}</template
-									>
-								</span>
-								· 批次组合 {{ line.recordedBundle || line.nativeBundle }}
-							</template>
-							<template v-else
-								>· 批次
+					<dl class="ti-fields allocation-summary-fields">
+						<div>
+							<dt>编号</dt>
+							<dd>{{ line.code }}</dd>
+						</div>
+						<div v-if="allocationDestination(draft, line, reference.damagedLeaves)">
+							<dt>来源 → 去向</dt>
+							<dd>
+								<LocationEndpoint
+									:warehouse="
+										draft.kind === 'Receive'
+											? ''
+											: line.sourceLocation || line.location
+									"
+									:kind="draft.kind"
+									role="来源位置"
+								/>
+								→
+								<LocationEndpoint
+									:warehouse="
+										allocationDestination(draft, line, reference.damagedLeaves)
+									"
+									:kind="draft.kind"
+									role="去向位置"
+								/>
+							</dd>
+						</div>
+						<div v-if="tracksBatch(line)">
+							<dt>批次</dt>
+							<dd>
 								{{
-									draft.kind === "Receive" &&
+									line.batch ||
+									line.batchAllocations
+										?.map(
+											(allocation) =>
+												`${allocation.batch} ${allocation.qty} ${line.uom}${allocation.expiry ? ` · 到期 ${allocation.expiry}` : ""}`,
+										)
+										.join(" · ") ||
+									(draft.kind === "Receive" &&
 									draft.status === "draft" &&
 									!line.nativeBundle
 										? "自动生成"
-										: "未记录"
-								}}</template
-							>
-						</template>
-						<template v-if="tracksExpiry(line) && !line.batchAllocations?.length">
-							· 到期 {{ line.expiry || "未设置" }}</template
-						>
-						<template
+										: "未记录")
+								}}
+							</dd>
+						</div>
+						<div v-if="tracksExpiry(line) && !line.batchAllocations?.length">
+							<dt>到期</dt>
+							<dd>{{ line.expiry || "未设置" }}</dd>
+						</div>
+						<div
 							v-if="
 								line.entryUom &&
 								line.entryUom !== line.uom &&
 								Number(line.conversionFactor || 1) !== 1
 							"
 						>
-							· 输入 {{ enteredQuantity(line) }} {{ line.entryUom }} ×
-							{{ line.conversionFactor }} {{ line.uom }}/{{ line.entryUom }} =
-							{{ line.qty }} {{ line.uom }}</template
-						>
-						<template v-if="line.loanName || draft.loanName">
-							· 借出 {{ line.loanName || draft.loanName }}
-						</template>
-						<template v-if="line.returnOutcome">
-							·
-							{{
-								line.returnOutcome === "lost"
-									? "遗失"
-									: line.returnOutcome === "damaged"
-										? "损坏归还"
-										: "完好归还"
-							}}</template
-						>
-						<template v-if="line.manufacturingDate">
-							· 生产 {{ line.manufacturingDate }}</template
-						>
-						<template v-if="line.reason"> · 原因 {{ line.reason }}</template>
-					</small>
+							<dt>换算</dt>
+							<dd>
+								{{ enteredQuantity(line) }} {{ line.entryUom }} ×
+								{{ line.conversionFactor }} {{ line.uom }}/{{ line.entryUom }} =
+								{{ line.qty }} {{ line.uom }}
+							</dd>
+						</div>
+						<div v-if="line.loanName || draft.loanName">
+							<dt>原借出</dt>
+							<dd>{{ line.loanName || draft.loanName }}</dd>
+						</div>
+						<div v-if="line.returnOutcome">
+							<dt>处理结果</dt>
+							<dd>
+								{{
+									line.returnOutcome === "lost"
+										? "遗失"
+										: line.returnOutcome === "damaged"
+											? "损坏归还"
+											: "完好归还"
+								}}
+							</dd>
+						</div>
+						<div v-if="line.manufacturingDate">
+							<dt>生产日期</dt>
+							<dd>{{ line.manufacturingDate }}</dd>
+						</div>
+						<div v-if="line.reason">
+							<dt>原因</dt>
+							<dd>{{ line.reason }}</dd>
+						</div>
+					</dl>
 				</div>
 			</div>
 		</component>

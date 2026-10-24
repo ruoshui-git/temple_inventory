@@ -653,7 +653,7 @@ class CatalogTests(NativeDocumentTests):
 			bootstrap = browse.bootstrap()
 			self.assertTrue(bootstrap["operations"]["Receive"])
 			self.assertTrue(bootstrap["operations"]["Return"])
-			self.assertFalse(bootstrap["operation_requirements"]["Return"]["stock_entry_submit"])
+			self.assertNotIn("stock_entry_submit", bootstrap["operation_requirements"]["Return"])
 
 	def test_inventory_browser_pages_complete_totals_and_sorts_available_quantity(self):
 		# Stock browse uses the same sanitized Item metadata as selectors and details.
@@ -1130,7 +1130,7 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(row["whole"]["version"], draft.version)
 		self.assertEqual(row["whole"]["quantities"], [{"uom": "Kg", "qty": 3}, {"uom": "Nos", "qty": 2}])
 		self.assertTrue(row["whole"]["editable"])
-		self.assertTrue(row["whole"]["can_delete"])
+		self.assertNotIn("can_delete", row["whole"])
 		native_api.delete_document("Stock Entry", draft.name, draft.version)
 		self.assertEqual(browse.more_summary()["draft_count"], before)
 		self.assertEqual(

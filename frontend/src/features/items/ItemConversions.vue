@@ -32,7 +32,7 @@ function close() {
 	}
 }
 function edit() {
-	if (!item.value || props.disabled || !item.value.canEdit) return;
+	if (!item.value || props.disabled) return;
 	dirty.value = false;
 	discard.value = false;
 	line.value = {
@@ -55,7 +55,7 @@ function edit() {
 		<p v-for="row in item.alternateUnits" :key="row.uom">
 			1 {{ row.uom }} = {{ row.factor }} {{ item.uom }}
 		</p>
-		<UiButton v-if="item.canEdit" :disabled="disabled" @click="edit">编辑常用换算</UiButton>
+		<UiButton :disabled="disabled" @click="edit">编辑常用换算</UiButton>
 		<component
 			:is="inline ? 'section' : Overlay"
 			v-if="line"

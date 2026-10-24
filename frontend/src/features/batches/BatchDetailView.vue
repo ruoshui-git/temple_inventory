@@ -79,23 +79,6 @@ const batchMetrics = computed(() => [
 		})),
 	},
 ]);
-function endpoint(row: Record<string, unknown>, source: boolean) {
-	if (row.kind === "Reconcile" || row.kind === "Opening") {
-		const location = String(row.warehouse || "");
-		const positive =
-			row.kind === "Opening" || Number(row.difference ?? row.stock_qty ?? 0) >= 0;
-		const selected = warehouseLabel(
-			location,
-			reference.warehouses,
-			String(row.warehouse_label || ""),
-		);
-		return source ? (positive ? "外部" : selected) : positive ? selected : "外部";
-	}
-	const key = source ? "source_warehouse" : "destination_warehouse";
-	return row[key]
-		? warehouseLabel(String(row[key]), reference.warehouses, String(row[`${key}_label`] || ""))
-		: "外部";
-}
 function openDocument(row: Record<string, unknown>) {
 	emit("openDocument", documentDestination(String(row.doctype), String(row.document)));
 }
@@ -108,7 +91,7 @@ function openDocument(row: Record<string, unknown>) {
 			>
 			<template #actions>
 				<UiButton
-					v-if="c.batch.value?.can_edit && !c.editing.value"
+					v-if="c.batch.value && !c.editing.value"
 					variant="primary"
 					@click="c.beginEdit"
 					>编辑</UiButton

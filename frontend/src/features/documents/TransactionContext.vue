@@ -71,7 +71,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				:disabled="disabled"
 				:load="search"
 				:selected-label="draft.activity ? activityLabel : undefined" /><UiButton
-				v-if="!draft.loanName && reference.capabilities['Inventory Activity']?.create"
+				v-if="!draft.loanName"
 				ref="trigger"
 				:disabled="disabled"
 				class="preview-field-action"

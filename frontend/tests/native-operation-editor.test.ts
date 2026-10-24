@@ -711,23 +711,21 @@ describe("native movement editor integration", () => {
     expect(c.state.error).toContain("原记录已更改");
   });
 });
-it("allows native draft saves without offering stock confirmation when submit permission is absent", async () => {
+it("does not use frontend DocType capabilities to gate stock confirmation", async () => {
   const call = service();
-  const { controller: c, reference } = setup(
+  const { controller: c } = setup(
     () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
     call,
   );
   await flushPromises();
-  reference.capabilities["Stock Entry"]!.submit = false;
   c.draft.value.items[0]!.location = "ROOM-A";
   await c.save();
   expect(c.state.status).toBe("saved");
+  expect(c.canSubmit.value).toBe(true);
   await c.confirm();
-  expect(c.state.error).toContain("没有确认");
-  expect(c.writable.value).toBe(true);
   expect(
     call.mock.calls.some(([method]) => method === "native_api.submit_document"),
-  ).toBe(false);
+  ).toBe(true);
 });
 describe("movement codec", () => {
   it("preserves recorded conversions and native identities independently of Item defaults", () => {

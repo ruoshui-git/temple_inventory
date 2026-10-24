@@ -11,6 +11,7 @@ import FilterPanel from "../../components/ui/FilterPanel.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import ItemLine from "../../components/ui/ItemLine.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import {
 	browseDestination,
@@ -108,20 +109,15 @@ const scopeLabel = computed(() => {
 });
 const hasMoreActions = computed(
 	() =>
-		(reference.capabilities["Stock Reconciliation"]?.create === true &&
-			reference.operations.Reconcile === true) ||
+		reference.operations.Reconcile === true ||
 		["Damage", "Loss", "Repair", "Disposal"].some(canCreate) ||
-		(reference.capabilities["Stock Entry"]?.read === true &&
-			reference.operations.Return === true),
+		reference.operations.Return === true,
 );
 function closeMoreActions() {
 	if (moreActions.value) moreActions.value.open = false;
 }
 function canCreate(kind: string) {
-	return (
-		reference.capabilities["Stock Entry"]?.create === true &&
-		reference.operations[kind] === true
-	);
+	return reference.operations[kind] === true;
 }
 function quickAction(kind: string) {
 	closeMoreActions();
@@ -194,7 +190,9 @@ function datasetChanged(dataset: ReportDataset) {
 							>
 						</template>
 					</FilterPanel>
-					<span class="dashboard-scope-summary">{{ scopeLabel }}</span>
+					<span class="dashboard-scope-summary"
+						><strong>范围</strong> {{ scopeLabel }}</span
+					>
 				</div>
 			</template>
 		</PageHeader>
@@ -209,10 +207,7 @@ function datasetChanged(dataset: ReportDataset) {
 				</summary>
 				<div class="dashboard-more-actions-menu">
 					<UiButton
-						v-if="
-							reference.capabilities['Stock Reconciliation']?.create === true &&
-							reference.operations.Reconcile === true
-						"
+						v-if="reference.operations.Reconcile === true"
 						@click="navigateMore(countDestination())"
 						>盘点调整</UiButton
 					>
@@ -227,10 +222,7 @@ function datasetChanged(dataset: ReportDataset) {
 						>报废</UiButton
 					>
 					<UiButton
-						v-if="
-							reference.capabilities['Stock Entry']?.read === true &&
-							reference.operations.Return === true
-						"
+						v-if="reference.operations.Return === true"
 						@click="chooseOutstandingLoan"
 						>归还 · 选择未结清借用</UiButton
 					>
@@ -382,19 +374,38 @@ function datasetChanged(dataset: ReportDataset) {
 								:disabled="blocked('expiry')"
 								@click="drill('expiry')"
 							>
-								<span
-									>{{ row.item_name
-									}}<small
-										>{{ row.batch_no }} · {{ row.expiry_date }} ·
-										{{
-											warehouseLabel(
-												row.warehouse,
-												reference.warehouses,
-												row.warehouse_label,
-											)
-										}}</small
-									></span
-								><b>{{ row.available }} {{ row.stock_uom }}</b>
+								<div class="browse-grow">
+									<ItemLine
+										:item="{
+											code: String(row.item_code || ''),
+											name: String(row.item_name || row.item_code || ''),
+											image: String(row.image || ''),
+										}"
+									/>
+									<dl class="ti-fields">
+										<div>
+											<dt>批次</dt>
+											<dd>{{ row.batch_no }}</dd>
+										</div>
+										<div>
+											<dt>到期</dt>
+											<dd>{{ row.expiry_date }}</dd>
+										</div>
+										<div>
+											<dt>库位</dt>
+											<dd>
+												{{
+													warehouseLabel(
+														row.warehouse,
+														reference.warehouses,
+														row.warehouse_label,
+													)
+												}}
+											</dd>
+										</div>
+									</dl>
+								</div>
+								<b>{{ row.available }} {{ row.stock_uom }}</b>
 							</button>
 						</div>
 						<p v-if="!expiryPreview.length">

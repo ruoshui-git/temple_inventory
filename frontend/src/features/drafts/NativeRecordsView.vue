@@ -386,12 +386,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					:active="active"
 					@open-full="emit('openExport', $event)"
 				/>
-				<UiButton
-					v-if="c.reference.capabilities['Stock Reconciliation']?.create"
-					variant="primary"
-					@click="emit('newCount')"
-					>新建盘点</UiButton
-				></template
+				<UiButton variant="primary" @click="emit('newCount')">新建盘点</UiButton></template
 			>
 			<template #subtitle>
 				<p class="browse-subtitle">
@@ -546,7 +541,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								>继续编辑</UiButton
 							>
 							<UiButton
-								v-if="entry.server?.whole.can_delete"
+								v-if="entry.server?.docstatus === 0"
 								variant="danger"
 								@click="deleteTarget = entry.server"
 								>删除</UiButton
@@ -672,7 +667,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 									{{ nativeRow(row).whole.editable ? "继续填写" : "查看记录" }}
 								</button>
 								<button
-									v-if="nativeRow(row).whole.can_delete"
+									v-if="nativeRow(row).docstatus === 0"
 									class="browse-link is-danger-text"
 									:disabled="!c.canDelete(nativeRow(row))"
 									@click="

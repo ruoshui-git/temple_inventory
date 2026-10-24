@@ -9,6 +9,7 @@ import ConversionEditor from "../conversions/ConversionEditor.vue";
 import { useOperationContext, type AllocationLine, type OperationDraft } from "./operationModel";
 const context = useOperationContext();
 import { isSettlement } from "./operationModel";
+import ItemLine from "../../components/ui/ItemLine.vue";
 const lineStock = context.lineStock;
 const props = defineProps<{
 	line: AllocationLine;
@@ -59,17 +60,32 @@ watch(
 const warehouseReference = useOptionalReferenceData();
 </script>
 <template>
-	<Overlay :title="`${item.name} · 详情`" drawer @close="close">
+	<Overlay :title="`${item.name} 的批次与换算`" drawer @close="close">
+		<ItemLine :item="item" />
 		<section v-if="line.batchAllocations?.length" class="form-section">
 			<p>
 				此行含 {{ line.batchAllocations.length }} 个批次；更改为单一批次时请核对整行数量。
 			</p>
-			<p v-for="allocation in line.batchAllocations" :key="allocation.name">
-				{{ allocation.batch }} · {{ allocation.qty }} {{ line.uom }}
-				<template v-if="allocation.expiry"> · 到期 {{ allocation.expiry }}</template>
-			</p>
+			<dl
+				v-for="allocation in line.batchAllocations"
+				:key="allocation.name"
+				class="ti-fields"
+			>
+				<div>
+					<dt>批次</dt>
+					<dd>{{ allocation.batch }}</dd>
+				</div>
+				<div>
+					<dt>数量</dt>
+					<dd>{{ allocation.qty }} {{ line.uom }}</dd>
+				</div>
+				<div v-if="allocation.expiry">
+					<dt>到期</dt>
+					<dd>{{ allocation.expiry }}</dd>
+				</div>
+			</dl>
 		</section>
-		<dl v-if="mode === 'display'" class="preview-info-grid">
+		<dl v-if="mode === 'display'" class="ti-fields">
 			<div
 				v-for="(value, label) in {
 					物品: line.code,
@@ -95,7 +111,16 @@ const warehouseReference = useOptionalReferenceData();
 			</div>
 		</dl>
 		<div v-else ref="content" class="allocation-details" :inert="discard || undefined">
-			<p>{{ line.code }} · {{ line.qty }} {{ line.uom }}</p>
+			<dl class="ti-fields">
+				<div>
+					<dt>物品编号</dt>
+					<dd>{{ line.code }}</dd>
+				</div>
+				<div>
+					<dt>数量</dt>
+					<dd>{{ line.qty }} {{ line.uom }}</dd>
+				</div>
+			</dl>
 			<template v-if="item.tracksBatch">
 				<label v-if="draft.kind === 'Receive'" class="preview-field"
 					>批次编号<input

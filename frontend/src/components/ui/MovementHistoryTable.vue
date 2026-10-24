@@ -4,7 +4,6 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { movementLabels } from "../../lib/filterPresentation";
 import { siteDateTime } from "../../lib/nativeTime";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import UiButton from "./UiButton.vue";
@@ -13,6 +12,8 @@ import DataTable from "./DataTable.vue";
 import ItemImage from "../ItemImage.vue";
 import { useReferenceData } from "../../services/contracts";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import LocationEndpoint from "./LocationEndpoint.vue";
+import RecordRef from "./RecordRef.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -114,10 +115,6 @@ const columnPreferences = services
 const rows = computed<DataTableRecord[]>(() =>
 	props.rows.map((row) => ({ kind: "record", id: row.id, value: row })),
 );
-
-function endpoint(value: string) {
-	return value ? warehouseLabel(value, reference.warehouses) : "外部";
-}
 
 function history(row: Record<string, unknown>) {
 	return row as unknown as HistoryRow;
@@ -243,14 +240,18 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 			<template #cell="{ column, row }">
 				<template v-if="column.id === 'document'">
 					<div class="history-record">
-						<UiButton
-							variant="ghost"
-							size="compact"
+						<RecordRef
+							:kind="String(row.kind || row.doctype || 'Activity')"
+							:identity="
+								row.borrower
+									? `${row.borrower} ${siteDateTime(row.date_time)}`
+									: siteDateTime(row.date_time)
+							"
+							:document-name="String(row.document || '')"
+							:status="showStatus ? String(row.docstatus || '') : undefined"
 							:disabled="stale || loading || busy"
-							@click="record(history(row))"
-							>{{ row.document }}</UiButton
-						>
-						<NativeStatusBadge v-if="showStatus" :status="row.docstatus" />
+							@open="record(history(row))"
+						/>
 					</div>
 				</template>
 				<template v-else-if="column.id === 'date_time'">{{
@@ -265,25 +266,20 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'borrower'">{{
 					"borrower" in row ? row.borrower : ""
 				}}</template>
-				<template v-else-if="column.id === 'source_warehouse'"
-					><span
-						:title="
-							warehousePath(String(row.source_warehouse || ''), reference.warehouses)
-						"
-						>{{ endpoint(String(row.source_warehouse || "")) }}</span
-					></template
-				>
-				<template v-else-if="column.id === 'destination_warehouse'"
-					><span
-						:title="
-							warehousePath(
-								String(row.destination_warehouse || ''),
-								reference.warehouses,
-							)
-						"
-						>{{ endpoint(String(row.destination_warehouse || "")) }}</span
-					></template
-				>
+				<LocationEndpoint
+					v-else-if="column.id === 'source_warehouse'"
+					:warehouse="String(row.source_warehouse || '')"
+					:kind="String(row.kind || '')"
+					:borrower="'borrower' in row ? String(row.borrower || '') : ''"
+					role="来源位置"
+				/>
+				<LocationEndpoint
+					v-else-if="column.id === 'destination_warehouse'"
+					:warehouse="String(row.destination_warehouse || '')"
+					:kind="String(row.kind || '')"
+					:borrower="'borrower' in row ? String(row.borrower || '') : ''"
+					role="去向位置"
+				/>
 				<div v-else-if="column.id === 'item_name'" class="history-item-identity">
 					<ItemImage
 						:item="{

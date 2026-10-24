@@ -24,12 +24,6 @@ function setup<T>(call: InventoryServices["call"], create: () => T) {
   const reference = createReferenceData();
   reference.site = "unit-site";
   reference.user = "volunteer";
-  reference.capabilities = Object.fromEntries(
-    ["Inventory Activity", "UOM", "Item Group"].map((doctype) => [
-      doctype,
-      { read: true, create: true, write: true },
-    ]),
-  );
   reference.activityTypes = [
     { value: "TYPE-A", label: "活动", enabled: true },
     { value: "TYPE-DISABLED", label: "停用", enabled: false },
@@ -67,8 +61,6 @@ function activity(overrides: Partial<NativeActivity> = {}): NativeActivity {
     creation: "2026-10-16",
     owner: "Administrator",
     modified_by: "Administrator",
-    can_write: true,
-    can_delete: true,
     ...overrides,
   };
 }

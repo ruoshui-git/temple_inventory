@@ -238,22 +238,8 @@ def serialize(doc):
 			"identity": {"doctype": doc.doctype, "name": doc.name},
 			"version": str(doc.modified),
 			"kind": kind,
-			"permissions": {
-				permission: bool(doc.has_permission(permission))
-				for permission in ("write", "submit", "delete", "cancel", "amend")
-			},
-			"editable": bool(
-				doc.docstatus == 0
-				and kind
-				and kind != "Opening"
-				and frappe.has_permission(doc.doctype, "write", doc)
-			),
+			"editable": bool(doc.docstatus == 0 and kind and kind != "Opening"),
 		}
-	)
-	data["permissions"]["duplicate"] = bool(
-		doc.doctype == "Stock Entry"
-		and kind in MOVEMENT_PURPOSES
-		and frappe.has_permission("Stock Entry", "create")
 	)
 	return data
 

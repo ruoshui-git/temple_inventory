@@ -4,6 +4,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import Scanner from "../../components/Scanner.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import ItemLine from "../../components/ui/ItemLine.vue";
 import { useReferenceData } from "../../services/contracts";
 import { useScanController } from "./useScanController";
 
@@ -232,7 +233,15 @@ defineExpose({
 					/>
 				</label>
 				<article v-for="item in result.matches" :key="item.item_code">
-					<p>{{ item.item_name }} · {{ item.item_code }}</p>
+					<ItemLine
+						:item="{
+							code: item.item_code,
+							name: item.item_name,
+							image: item.image || '',
+						}"
+					>
+						<template #secondary>{{ item.item_code }}</template>
+					</ItemLine>
 					<UiButton
 						:disabled="
 							item.has_batch_no && result.batches.length > 1 && !selectedBatch

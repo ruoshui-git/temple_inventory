@@ -12,6 +12,8 @@ const paths: Record<string, string> = {
 	movement: "M4 7h14l-3-3m3 3-3 3M20 17H6l3 3m-3-3 3-3",
 	adjust: "M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4",
 	loan: "M8 5 3 10l5 5M3 10h11a5 5 0 0 1 0 10h-3",
+	activity: "M3 12h4l2-7 4 14 2-7h6",
+	outward: "M12 3v12m0 0 5-5m-5 5-5-5M4 17v3h16v-3",
 	warehouse: "m3 10 9-7 9 7v10H3V10Zm4 10v-6h10v6M7 10h10",
 	area: "M3 4h18v16H3zM7 8h4v4H7zm6 0h4m-4 4h4m-10 4h10",
 	room: "M4 4h16v16H4zM8 20v-7h8v7M8 8h.01M16 8h.01",
@@ -19,8 +21,7 @@ const paths: Record<string, string> = {
 	location: "M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Zm0-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
 	more: "M4 12h1m6 0h1m6 0h1",
 	notice: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
-	settings:
-		"M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v2m0 14v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M3 12h2m14 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+	settings: "M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4",
 	cancel: "M5 5l14 14M19 5 5 19",
 	count: "M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4",
 	expiry: "M12 3v9l6 3M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",

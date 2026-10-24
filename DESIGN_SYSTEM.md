@@ -252,3 +252,22 @@ alignment, skeleton/refresh retention, image placeholders, scroll containment,
 keyboard access and overlapping touch targets. Fixture-based browser results
 are client evidence; live-service/device evidence must be named separately.
 Source review or automated tests alone do not establish visual acceptance.
+
+## Data clarity components
+
+- `RecordRef` is the shared cross-document chip. It combines a kind icon, an
+  explicit kind name in its accessible label, readable identity or a kind-aware
+  count, optional status and secondary document name. It emits `open` and stays
+  generic enough for records, notifications and recovery links.
+- `LocationEndpoint` presents a movement source or destination. Physical
+  locations use their canonical label in primary ink and the full path as the
+  tooltip. Leased and damaged system leaves are detected from the settings
+  pointers, then shown with their dedicated icon and muted/warning label. Empty
+  endpoints use the outward icon and `外部`, with kind-specific tooltip text.
+  Exports retain native raw values.
+- `ItemLine` pairs the compact shared `ItemImage` and lightbox with the Item
+  name. A secondary slot carries one related identity, such as code or batch.
+  Use it wherever an Item is presented without artwork.
+- Use `.ti-fields` definition lists when a compact summary combines different
+  kinds of values. Keep `·` for lists of the same kind, including quantities
+  with their units.

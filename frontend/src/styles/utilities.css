@@ -290,17 +290,18 @@
 	align-items: center;
 	gap: 8px;
 }
-.sample-brand .notification-center {
+.sidebar-bottom .notification-center {
+	margin-right: 2px;
+}
+.mobile-app-topbar .notification-center {
 	margin-left: auto;
 }
 .mobile-app-topbar {
 	display: none;
 }
 .notification-popover {
-	position: absolute;
-	top: calc(100% + 8px);
-	right: 0;
-	width: min(420px, calc(100vw - 24px));
+	position: fixed;
+	width: min(440px, calc(100vw - 24px));
 	max-height: min(680px, calc(100dvh - 100px));
 	display: flex;
 	flex-direction: column;
@@ -356,9 +357,6 @@
 	padding: 12px 6px;
 	border-bottom: 1px solid var(--p-border);
 }
-.notification-rows li.unread {
-	background: var(--p-soft);
-}
 .notification-kind {
 	width: 30px;
 	height: 30px;
@@ -378,9 +376,14 @@
 	color: var(--p-ink);
 	text-align: left;
 	cursor: pointer;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	overflow-wrap: anywhere;
 }
 .notification-subject.unread {
-	font-weight: 700;
+	font-weight: 600;
 }
 .notification-copy time,
 .notification-unavailable {
@@ -456,9 +459,46 @@
 	color: var(--p-muted);
 }
 .notification-switch-row input {
-	width: 20px;
-	height: 20px;
-	accent-color: var(--p-accent);
+	appearance: none;
+	position: relative;
+	flex: 0 0 44px;
+	width: 44px;
+	height: 26px;
+	margin: 0;
+	border: 1px solid var(--p-border);
+	border-radius: 999px;
+	background: var(--p-canvas);
+	cursor: pointer;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease;
+}
+.notification-switch-row input::before {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--p-surface);
+	box-shadow: var(--p-shadow-subtle);
+	transition: transform 140ms ease;
+}
+.notification-switch-row input:checked {
+	border-color: var(--p-accent);
+	background: var(--p-accent);
+}
+.notification-switch-row input:checked::before {
+	transform: translateX(18px);
+}
+.notification-switch-row input:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: 2px;
+}
+.notification-switch-row input:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
 .notification-kinds {
 	width: 100%;
@@ -530,7 +570,12 @@
 		width: 100%;
 	}
 	.notification-sheet .notification-rows li {
-		grid-template-columns: 30px minmax(0, 1fr) auto;
+		grid-template-columns: 30px minmax(0, 1fr) auto auto;
+	}
+	.notification-sheet .notification-rows .ui-button {
+		min-width: 44px;
+		white-space: nowrap;
+		padding-inline: 8px;
 	}
 }
 .preview-utility-page .utility-panel {

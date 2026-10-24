@@ -221,6 +221,25 @@ supersession below when a durable user-facing decision changes.
 
 ## Picker, scanning and export refinements
 
+- **2026-10-24 — Data clarity and frontend authorization, superseding earlier
+  permission-gated frontend behavior:** Movement endpoints use the shared
+  `LocationEndpoint`: physical locations retain the canonical primary label;
+  leased and damaged destinations use icon plus muted/warning text; empty ends
+  use an outward icon with kind-specific tooltip meaning. Related settlement
+  controls are labeled `原借出`; their read-only dialog is titled `原借出记录 ·
+  只读` and explains that quantity and settlement status follow the original
+  Loan. Cross-document links use the shared kind-labeled `RecordRef`, Item lines
+  include compact artwork, and mixed-value summaries use labeled fields. All
+  frontend users admitted by `require_frontend_account` are System Managers, so
+  per-DocType visibility checks are removed. Configuration readiness and
+  document-state behavior remain; server native permission checks remain the
+  sole authorization boundary. A single original Loan chip names the borrower
+  and month-day, with the document name secondary; multiple originals use
+  `N 笔借出`. Count adjustment rows show distinct counted locations in the source
+  cell joined by `·` and `—` in the destination cell, consistently in records,
+  histories and reports. A count adjustment describes checked locations, not a
+  movement to or from outside inventory.
+
 - **2026-10-23 — Creation forms, superseding earlier creation-editor behavior:**
   Receive and Transfer remember the account's last selected physical leaf in
   Frappe user defaults; saved values are discarded when they are no longer

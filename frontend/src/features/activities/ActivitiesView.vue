@@ -34,6 +34,8 @@ import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import { RouterLink } from "vue-router";
+import RecordRef from "../../components/ui/RecordRef.vue";
+import ItemLine from "../../components/ui/ItemLine.vue";
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 defineExpose({
 	requestLeave: () => activityEditor.value?.requestLeave() ?? Promise.resolve(true),
@@ -52,10 +54,6 @@ const props = withDefaults(
 	{ active: true },
 );
 const emit = defineEmits<{ openExport: [query: ReportQuery] }>();
-const documentLabels: Record<string, string> = {
-	"Stock Entry": "库存操作",
-	"Stock Reconciliation": "库存盘点",
-};
 const {
 	reference,
 	scopeError,
@@ -727,18 +725,19 @@ function tabKey(event: KeyboardEvent) {
 					@retry="projection.refresh(true)"
 				>
 					<template #cell="{ column, row }">
-						<RouterLink
+						<RecordRef
 							v-if="column.id === 'document'"
-							:to="{
-								name:
-									row.documentType === 'Stock Reconciliation'
-										? 'count-detail'
-										: 'movement-detail',
-								params: { name: String(row.name || '') },
-							}"
-							>{{ documentLabels[String(row.documentType || "")] || "库存记录" }} ·
-							{{ String(row.name || "") }}</RouterLink
-						>
+							:kind="String(row.kind || row.documentType || 'Activity')"
+							:identity="String(row.borrower || row.itemName || row.name || '')"
+							:document-name="String(row.name || '')"
+							:status="String(row.docstatus || '')"
+							@open="
+								linked(
+									String(row.name || ''),
+									String(row.documentType || 'Stock Entry'),
+								)
+							"
+						/>
 						<template v-else-if="column.id === 'date'">{{
 							siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间"
 						}}</template>
@@ -749,8 +748,14 @@ function tabKey(event: KeyboardEvent) {
 							v-else-if="column.id === 'status'"
 							:status="row.docstatus"
 						/>
-						<template v-else-if="column.id === 'item'"
-							>{{ row.itemName }} · {{ row.code }}</template
+						<ItemLine
+							v-else-if="column.id === 'item'"
+							:item="{
+								code: String(row.code || ''),
+								name: String(row.itemName || row.code || ''),
+								image: String(row.image || ''),
+							}"
+							><template #secondary>{{ row.code }}</template></ItemLine
 						>
 						<template v-else-if="column.id === 'quantity'"
 							>{{ formatQuantity(Number(row.qty || 0)) }} {{ row.uom }}</template
@@ -805,12 +810,49 @@ function tabKey(event: KeyboardEvent) {
 					:data-browse-row="line.lineId"
 					class="activity-record"
 				>
-					<UiButton @click="linked(line.loanName)">{{ line.loanName }}</UiButton>
-					<p>
-						{{ line.code }} · {{ line.uom }} · 借用 {{ line.qty }} · 正常归还
-						{{ line.returned }} · 损坏 {{ line.damaged }} · 遗失 {{ line.lost }} ·
-						未归还 {{ line.outstanding }}
-					</p>
+					<RecordRef
+						kind="Loan"
+						:identity="
+							line.borrower || line.date
+								? `${line.borrower || '借用方未知'} ${line.date.slice(5)}`
+								: line.loanName
+						"
+						:document-name="line.loanName"
+						@open="linked(String(line.loanName || ''))"
+					/>
+					<ItemLine
+						:item="{
+							code: String(line.code || ''),
+							name: String(line.name || line.code || ''),
+							image: String(line.image || ''),
+						}"
+					/>
+					<dl class="ti-fields">
+						<div>
+							<dt>单位</dt>
+							<dd>{{ line.uom }}</dd>
+						</div>
+						<div>
+							<dt>借用</dt>
+							<dd>{{ line.qty }} {{ line.uom }}</dd>
+						</div>
+						<div>
+							<dt>完好归还</dt>
+							<dd>{{ line.returned }} {{ line.uom }}</dd>
+						</div>
+						<div>
+							<dt>损坏</dt>
+							<dd>{{ line.damaged }} {{ line.uom }}</dd>
+						</div>
+						<div>
+							<dt>遗失</dt>
+							<dd>{{ line.lost }} {{ line.uom }}</dd>
+						</div>
+						<div>
+							<dt>未归还</dt>
+							<dd>{{ line.outstanding }} {{ line.uom }}</dd>
+						</div>
+					</dl>
 					<UiButton @click="showSettlements(line.loanName)">查看结算记录</UiButton>
 				</article>
 				<p

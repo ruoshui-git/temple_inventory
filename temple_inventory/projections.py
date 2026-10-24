@@ -1135,8 +1135,8 @@ class Projection(AbstractContextManager):
 		for row in self.rows("records"):
 			selected[(row["doctype"], row["document"])] = row
 		self.db.execute("delete from rows where table_id='records'")
-		for doctype, name in selected:
-			doc = self.context.parent(doctype, name)
+		documents = [(doctype, name, self.context.parent(doctype, name)) for doctype, name in selected]
+		for doctype, name, doc in documents:
 			if not doc:
 				continue
 			base = document_fields(self.context, doc)
@@ -1456,11 +1456,29 @@ def _group_page(validated, path, parent_unit, start, size, refresh=False):
 		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
 			from temple_inventory.browse import _whole_operation
 
-			for row in rows:
-				whole = _whole_operation(projection.context, row["doctype"], row["document"])
+			whole_rows = [
+				(row, _whole_operation(projection.context, row["doctype"], row["document"])) for row in rows
+			]
+			original_names = {name for _row, whole in whole_rows for name in whole.get("original_loans", [])}
+			projection.context.preload_parents("Stock Entry", original_names)
+			original_details = {}
+			for name in sorted(original_names):
+				loan = projection.context.parent("Stock Entry", name)
+				if loan:
+					original_details[name] = {
+						"name": loan.name,
+						"borrower": loan.get("ti_borrower") or "",
+						"date": str(loan.posting_date),
+					}
+			for row, whole in whole_rows:
 				row["row_grain"] = "record"
 				row["whole"] = whole
 				row["original_loans"] = whole.get("original_loans", [])
+				whole["original_loan_details"] = [
+					original_details[name]
+					for name in whole.get("original_loans", [])
+					if name in original_details
+				]
 				row["can_settle"] = bool(
 					validated["dataset"] == "loans"
 					and row.get("docstatus") == 1

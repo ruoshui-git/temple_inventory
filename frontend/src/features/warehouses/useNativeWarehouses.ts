@@ -106,9 +106,7 @@ export function useNativeWarehouses(
       : [],
   );
   const canCount = computed(
-    () =>
-      physicalSelection.value &&
-      reference.capabilities["Stock Reconciliation"]?.create === true,
+    () => physicalSelection.value && reference.operations.Reconcile === true,
   );
   const stockQuery = computed(() => {
     const query = newReportQuery("inventory");

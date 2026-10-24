@@ -166,7 +166,6 @@ export interface ReferenceData {
   activities: ReferenceOption[];
   activityTypes: ReferenceOption[];
   units: { name: string; whole: boolean }[];
-  capabilities: Record<string, Record<string, boolean>>;
   operations: Record<string, boolean>;
   settings: Record<string, unknown>;
 }
@@ -187,7 +186,6 @@ export function createReferenceData(): ReferenceData {
     activities: [],
     activityTypes: [],
     units: [],
-    capabilities: {},
     operations: {},
     settings: {},
   });
@@ -264,7 +262,6 @@ export interface BootstrapData {
   }[];
   uoms: { name: string; must_be_whole_number: boolean }[];
   activity_types: { name: string; label: string; enabled: boolean | number }[];
-  capabilities: ReferenceData["capabilities"];
   operations: ReferenceData["operations"];
 }
 export function hydrateReferenceData(
@@ -301,7 +298,6 @@ export function hydrateReferenceData(
     physicalLeaves: result.physical_leaves,
     leasedLeaves: result.leased_leaves,
     damagedLeaves: result.damaged_leaves,
-    capabilities: result.capabilities,
     operations: result.operations,
   });
 }

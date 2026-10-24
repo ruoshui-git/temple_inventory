@@ -113,7 +113,7 @@ export function useBatchDetailController(props: {
     description.value = value.description;
   }
   function beginEdit() {
-    if (batch.value?.can_edit) editing.value = true;
+    if (batch.value) editing.value = true;
   }
   function cancelEdit() {
     if (!saving.value && batch.value) {
@@ -125,7 +125,7 @@ export function useBatchDetailController(props: {
   async function save() {
     const current = generation,
       target = batch.value;
-    if (!target?.can_edit || saving.value || !editing.value) return;
+    if (!target || saving.value || !editing.value) return;
     const sent = {
       manufacturing_date: manufacturingDate.value,
       expiry_date: expiryDate.value,

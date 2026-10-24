@@ -35,7 +35,6 @@ const nativeRow = {
   whole: {
     version: "v1",
     editable: true,
-    can_delete: true,
     line_count: 2,
     item_count: 2,
     quantities: [

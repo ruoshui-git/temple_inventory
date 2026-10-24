@@ -311,10 +311,7 @@ async function lifecycle() {
 								:active="active"
 								@open-full="emit('openExport', $event)"
 							/><UiButton
-								v-if="
-									state.identity &&
-									(state.server?.permissions as Record<string, boolean>)?.delete
-								"
+								v-if="state.identity && state.server?.docstatus === 0"
 								:disabled="!writable || busy"
 								@click="action = 'delete'"
 								>删除草稿单据</UiButton
@@ -377,22 +374,12 @@ async function lifecycle() {
 				target="_blank"
 				rel="noopener"
 				>在 ERPNext 查看</a
-			><UiButton
-				v-if="
-					state.server.docstatus === 1 &&
-					(state.server.permissions as Record<string, boolean>)?.cancel
-				"
-				@click="action = 'cancel'"
+			><UiButton v-if="state.server.docstatus === 1" @click="action = 'cancel'"
 				>取消记录</UiButton
-			><UiButton
-				v-if="
-					state.server.docstatus === 2 &&
-					(state.server.permissions as Record<string, boolean>)?.amend
-				"
-				@click="action = 'amend'"
+			><UiButton v-if="state.server.docstatus === 2" @click="action = 'amend'"
 				>创建修订草稿</UiButton
 			><UiButton
-				v-if="(state.server.permissions as Record<string, boolean>)?.duplicate"
+				v-if="state.server.doctype === 'Stock Entry' && state.server.docstatus !== 0"
 				@click="action = 'duplicate'"
 				>复制为新草稿</UiButton
 			>

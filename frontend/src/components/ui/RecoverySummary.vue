@@ -7,6 +7,8 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
 import { showToast } from "../../services/toast";
+import ItemLine from "./ItemLine.vue";
+import LocationEndpoint from "./LocationEndpoint.vue";
 
 const props = defineProps<{
 	kind: string;
@@ -202,7 +204,7 @@ const tableRows = computed<DataTableRecord[]>(() =>
 );
 const services = useOptionalInventoryServices();
 const reference = useOptionalReferenceData();
-const itemMetadata = ref<Record<string, { item_name: string }>>({});
+const itemMetadata = ref<Record<string, { item_name: string; image?: string }>>({});
 let metadataGeneration = 0;
 let disposed = false;
 onBeforeUnmount(() => {
@@ -219,12 +221,11 @@ watch(
 		itemMetadata.value = {};
 		if (!services || !codes.length || !account) return;
 		try {
-			const result = await services.call<Record<string, { item_name: string }>>(
-				"catalog.item_display_summaries",
-				{
-					item_codes: codes,
-				},
-			);
+			const result = await services.call<
+				Record<string, { item_name: string; image?: string }>
+			>("catalog.item_display_summaries", {
+				item_codes: codes,
+			});
 			if (!disposed && generation === metadataGeneration && account === reference?.user)
 				itemMetadata.value = result;
 		} catch {
@@ -349,11 +350,34 @@ async function copy() {
 			:rows="tableRows"
 			:column-preferences="tablePrefs"
 		>
-			<template #cell="{ column, row }"
-				><span class="preview-long-text">{{
+			<template #cell="{ column, row }">
+				<ItemLine
+					v-if="column.id === 'item_name' && row.item_code"
+					:item="{
+						code: String(row.item_code),
+						name: String(
+							itemMetadata[String(row.item_code)]?.item_name ||
+								row.item_name ||
+								row.item_code,
+						),
+						image: String(
+							itemMetadata[String(row.item_code)]?.image ||
+								row.ti_display_image ||
+								'',
+						),
+					}"
+				/>
+				<LocationEndpoint
+					v-else-if="['s_warehouse', 't_warehouse'].includes(String(column.id))"
+					:warehouse="String(row[column.id] || '')"
+					:kind="String(row.ti_movement_kind || row.kind || '')"
+					:borrower="String(row.ti_borrower || '')"
+					:role="column.id === 's_warehouse' ? '来源位置' : '去向位置'"
+				/>
+				<span v-else class="preview-long-text">{{
 					recoveryCell(row, String(column.id))
-				}}</span></template
-			>
+				}}</span>
+			</template>
 		</DataTable>
 		<p
 			v-if="pendingUploadReselection || values.pendingUploadReselection === true"

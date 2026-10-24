@@ -50,6 +50,7 @@ export interface OperationGroup {
     line_count: number;
     branches: { source: string; destination: string }[];
     original_loans: string[];
+    original_loan_details?: { name: string; borrower: string; date: string }[];
     loan_status?: string;
   };
 }

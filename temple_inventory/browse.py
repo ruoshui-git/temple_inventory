@@ -22,9 +22,6 @@ def bootstrap():
 
 	category_root = item_group_root()
 	settings, visible, physical, leased, damaged = warehouse_scopes()
-	can_create = bool(frappe.has_permission("Stock Entry", "create"))
-	can_submit = bool(frappe.has_permission("Stock Entry", "submit"))
-	item_read = bool(frappe.has_permission("Item", "read"))
 	scopes = {
 		"Receive": (set(), physical),
 		"Issue": (physical, set()),
@@ -41,23 +38,16 @@ def bootstrap():
 	for kind, (sources, destinations) in scopes.items():
 		requirements[kind] = {
 			"company": settings.company,
-			"stock_entry_create": can_create,
-			"stock_entry_submit": can_submit,
-			"item_read": item_read,
 			"source_warehouses": sorted(sources),
 			"destination_warehouses": sorted(destinations),
 			"leased_warehouses": sorted(leased) if kind in ("Loan", "Return", "Damage", "Loss") else [],
 		}
 		operations[kind] = bool(
-			can_create
-			and item_read
-			and (sources or kind == "Receive")
+			(sources or kind == "Receive")
 			and (destinations or kind in ("Issue", "Loss", "Disposal"))
 			and (kind != "Transfer" or len(physical) >= 2)
 		)
-	operations["Reconcile"] = bool(
-		frappe.has_permission("Stock Reconciliation", "create") and item_read and physical
-	)
+	operations["Reconcile"] = bool(physical)
 	return {
 		"user": frappe.session.user,
 		"site": frappe.local.site,
@@ -94,23 +84,6 @@ def bootstrap():
 		),
 		"uoms": list(paged("UOM", fields=["name", "uom_name", "must_be_whole_number"])),
 		"activity_types": activity_types(),
-		"capabilities": {
-			doctype: {
-				permission: bool(frappe.has_permission(doctype, permission))
-				for permission in ("read", "create", "write", "delete", "submit", "cancel", "amend")
-			}
-			for doctype in (
-				"Item",
-				"UOM",
-				"Item Group",
-				"Warehouse",
-				"Batch",
-				"Stock Entry",
-				"Stock Reconciliation",
-				"Inventory Activity",
-				"File",
-			)
-		},
 		"operations": operations,
 		"operation_requirements": requirements,
 	}
@@ -695,15 +668,6 @@ def _whole_operation(context, doctype, name):
 		"version": str(doc.modified),
 		"editable": bool(
 			doc.docstatus == 0
-			and doc.has_permission("write")
-			and (
-				(doc.doctype == "Stock Entry" and doc.purpose in MOVEMENT_PURPOSES.values())
-				or (doc.doctype == "Stock Reconciliation" and doc.purpose == "Stock Reconciliation")
-			)
-		),
-		"can_delete": bool(
-			doc.docstatus == 0
-			and doc.has_permission("delete")
 			and (
 				(doc.doctype == "Stock Entry" and doc.purpose in MOVEMENT_PURPOSES.values())
 				or (doc.doctype == "Stock Reconciliation" and doc.purpose == "Stock Reconciliation")
@@ -867,6 +831,26 @@ def operation_page(query, records=False, start=0, page_length=20):
 			projection.context.load_item_attachments = True
 			projection.context.preload_item_attachments(row["item_code"] for row in rows)
 			projection.context._item_fields.cache_clear()
+		if records and rows:
+			whole_by_row = {
+				(row["doctype"], row["document"]): _whole_operation(
+					projection.context, row["doctype"], row["document"]
+				)
+				for row in rows
+			}
+			original_names = {
+				name for whole in whole_by_row.values() for name in whole.get("original_loans", [])
+			}
+			projection.context.preload_parents("Stock Entry", original_names)
+			original_details = {}
+			for name in sorted(original_names):
+				loan = projection.context.parent("Stock Entry", name)
+				if loan:
+					original_details[name] = {
+						"name": loan.name,
+						"borrower": loan.get("ti_borrower") or "",
+						"date": str(loan.posting_date),
+					}
 		for row in rows:
 			row["id"] = frappe.as_json(
 				["record", row["doctype"], row["document"]]
@@ -874,7 +858,13 @@ def operation_page(query, records=False, start=0, page_length=20):
 				else ["item", row["item_code"], row.get("outcome_key")]
 			)
 			if records:
-				row["whole"] = _whole_operation(projection.context, row["doctype"], row["document"])
+				whole = whole_by_row[(row["doctype"], row["document"])]
+				whole["original_loan_details"] = [
+					original_details[name]
+					for name in whole.get("original_loans", [])
+					if name in original_details
+				]
+				row["whole"] = whole
 				row.pop("allocation_count", None)
 			else:
 				row["item"] = item_metadata(
@@ -1309,9 +1299,13 @@ def movement_history(
 			kind = row["kind"]
 			source = row.get("source_warehouse") or ""
 			destination = row.get("destination_warehouse") or ""
-			if kind in ("Opening", "Reconcile"):
+			if kind == "Reconcile":
+				# A count adjustment describes where stock was counted, not a
+				# transfer between a warehouse and the outside world.
+				source, destination = row.get("warehouse") or "", ""
+			elif kind == "Opening":
 				location = row.get("warehouse") or ""
-				if kind == "Opening" or float(row.get("stock_qty") or 0) >= 0:
+				if float(row.get("stock_qty") or 0) >= 0:
 					source, destination = "", location
 				else:
 					source, destination = location, ""

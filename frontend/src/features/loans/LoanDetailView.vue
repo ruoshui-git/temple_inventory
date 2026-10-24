@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
-import { useReferenceData } from "../../services/contracts";
-import { warehouseLabel } from "../../lib/warehouseLabel";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -15,6 +13,8 @@ import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
+import RecordRef from "../../components/ui/RecordRef.vue";
+import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -27,7 +27,6 @@ const emit = defineEmits<{
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller;
-const reference = useReferenceData();
 const { loan, loading, error, files, status, metrics } = c;
 const actions = [
 	["returned", "登记归还"],
@@ -142,22 +141,17 @@ function settle(action: SettlementAction) {
 					>
 						<small
 							>原存放
-							{{
-								warehouseLabel(
-									line.s_warehouse,
-									reference.warehouses,
-									line.s_warehouse_label,
-								)
-							}}
+							<LocationEndpoint
+								:warehouse="line.s_warehouse"
+								kind="Loan"
+								role="来源位置" />
 							→ 实际借出位置
-							{{
-								warehouseLabel(
-									line.t_warehouse,
-									reference.warehouses,
-									line.t_warehouse_label,
-								)
-							}}</small
-						>
+							<LocationEndpoint
+								:warehouse="line.t_warehouse"
+								kind="Loan"
+								:borrower="loan.ti_borrower"
+								role="去向位置"
+						/></small>
 						<small
 							>填写 {{ line.qty }} {{ line.uom }} · 1 {{ line.uom }} =
 							{{ line.conversion_factor }} {{ line.stock_uom }}</small
@@ -245,9 +239,14 @@ function settle(action: SettlementAction) {
 					@click="settle(action)"
 					>{{ label }}</UiButton
 				>
-				<UiButton @click="emit('openDocument', 'Stock Entry', loan.name)">{{
-					loan.docstatus === 0 ? "继续编辑草稿" : "查看记录生命周期"
-				}}</UiButton>
+				<RecordRef
+					kind="Loan"
+					:identity="`${loan.ti_borrower || '未填写借用方'} ${loan.posting_date.slice(5)}`"
+					:status="loan.docstatus"
+					:document-name="loan.name"
+					:tooltip="loan.docstatus === 0 ? '继续编辑草稿' : '查看借出记录'"
+					@open="emit('openDocument', 'Stock Entry', loan.name)"
+				/>
 				<a :href="deskLink" target="_blank" rel="noopener">在 ERPNext Desk 中打开</a>
 			</div>
 		</article>

@@ -143,11 +143,7 @@ def save_activity(data, name=None, version=None):
 		if field in data:
 			doc.set(field, data[field])
 	doc.save()
-	result = doc.as_dict()
-	result.update(
-		{"can_write": bool(doc.has_permission("write")), "can_delete": bool(doc.has_permission("delete"))}
-	)
-	return result
+	return doc.as_dict()
 
 
 @frappe.whitelist()
@@ -182,8 +178,6 @@ def load_activity(name):
 		)
 	return {
 		**doc.as_dict(),
-		"can_write": bool(doc.has_permission("write")),
-		"can_delete": bool(doc.has_permission("delete")),
 		"summary": summary,
 		"movement_totals": movement_totals,
 		"loan_totals": loan_totals,

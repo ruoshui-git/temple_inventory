@@ -185,15 +185,16 @@ describe("recorded line and native reusable conversions", () => {
         "",
       );
   });
-  it("keeps UOM and Item permission separate and allows historical recorded factors", async () => {
+  it("does not gate conversion editing by Item permissions and allows historical factors", async () => {
     const { controller, line, item, call } = setup();
     item.canEdit = false;
     await flushPromises();
-    expect(controller.reuse.value).toBe(false);
+    expect(controller.canUpdate.value).toBe(true);
+    controller.reuse.value = false;
     controller.factor.value = 5;
     await controller.apply();
-    expect(controller.error.value).toContain("已有或本行已记录");
-    expect(line.qty).toBe(18);
+    expect(controller.error.value).toBe("");
+    expect(line.conversionFactor).toBe(5);
     controller.factor.value = 9;
     await controller.apply();
     expect(call).not.toHaveBeenCalled();

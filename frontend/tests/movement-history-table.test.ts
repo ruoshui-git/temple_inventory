@@ -124,7 +124,9 @@ describe("typed movement history table", () => {
     });
     const wrapper = mount(Host),
       table = wrapper.findComponent(MovementHistoryTable);
-    await wrapper.get("tbody .history-record .ui-button").trigger("click");
+    await wrapper
+      .get("tbody .history-record .record-ref-chip")
+      .trigger("click");
     await wrapper.findAll("tbody td button")[1]?.trigger("click");
     expect(table.emitted("openLoan")).toEqual([["SE-1"]]);
     expect(table.emitted("openItem")).toEqual([["A"]]);

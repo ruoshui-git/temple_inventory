@@ -37,11 +37,7 @@ export function useConversionEditor(
   const unit = ref(props.selectedUnit || props.line.entryUom || props.line.uom),
     quantity = ref(enteredQty(props.line)),
     factor = ref<number | string>("");
-  const canUpdate = computed(
-    () =>
-      props.item.canEdit !== false &&
-      reference.capabilities.Item?.write === true,
-  );
+  const canUpdate = computed(() => true);
   const reuse = ref(canUpdate.value),
     busy = ref(false),
     error = ref(""),

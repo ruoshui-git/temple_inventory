@@ -28,7 +28,6 @@ export interface NativeRecord extends OperationGroup {
   whole: NonNullable<OperationGroup["whole"]> & {
     version: string;
     editable: boolean;
-    can_delete: boolean;
   };
 }
 interface NativeRecordPage {
@@ -242,7 +241,7 @@ export function useNativeRecords(
     query.value.scope = newReportQuery(query.value.dataset).scope;
   }
   function canDelete(row: NativeRecord) {
-    return active() && !loading.value && !stale.value && row.whole.can_delete;
+    return active() && !loading.value && !stale.value && row.docstatus === 0;
   }
   async function removeNative() {
     const selected = deleteTarget.value;

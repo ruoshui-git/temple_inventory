@@ -207,15 +207,10 @@ export function useOperationEditor(props: {
         state.status,
       ) &&
       !state.confirmationVersion &&
-      (state.server
-        ? state.server.editable === true
-        : reference.capabilities["Stock Entry"]?.create === true),
+      (state.server ? state.server.editable === true : true),
   );
-  const canSubmit = computed(() =>
-    state.server
-      ? ((state.server.permissions as Record<string, boolean> | undefined)
-          ?.submit ?? reference.capabilities["Stock Entry"]?.submit === true)
-      : reference.capabilities["Stock Entry"]?.submit === true,
+  const canSubmit = computed(
+    () => !state.server || state.server.docstatus === 0,
   );
   const dirty = computed(
     () =>

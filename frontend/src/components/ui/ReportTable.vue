@@ -21,6 +21,7 @@ import type { useReportGroups } from "../../composables/useReportGroups";
 import { reportColumnLabels, reportColumnMinimumWidths } from "../../lib/reportCells";
 import { movementLabels } from "../../lib/filterPresentation";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
+import LocationEndpoint from "./LocationEndpoint.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -171,7 +172,6 @@ const hasMore = computed(() =>
 );
 
 function cell(column: string, value: unknown, row: Record<string, unknown>) {
-	if (["source_warehouse", "destination_warehouse"].includes(column) && !value) return "外部";
 	if (value === "" || value === undefined || value === null) return "";
 	if (
 		[
@@ -492,6 +492,20 @@ function groupMetric(group: DataTableGroup, column: string) {
 				>
 					{{ row.document }}
 				</button>
+				<LocationEndpoint
+					v-else-if="
+						['source_warehouse', 'destination_warehouse'].includes(String(column.id))
+					"
+					:warehouse="
+						String(row.kind || '') === 'Reconcile' &&
+						String(column.id) === 'source_warehouse'
+							? String(row.warehouse || value || '')
+							: String(value || '')
+					"
+					:kind="String(row.kind || '')"
+					:borrower="String(row.borrower || '')"
+					:role="column.id === 'source_warehouse' ? '来源位置' : '去向位置'"
+				/>
 				<NativeStatusBadge v-else-if="column.id === 'docstatus'" :status="value" />
 				<span
 					v-else

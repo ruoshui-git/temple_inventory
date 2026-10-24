@@ -21,6 +21,51 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NativeReportTests(NativeDocumentTests):
+	def test_return_record_page_includes_original_loan_identity_for_multiple_loans(self):
+		self.receipt(10)
+		loans = [
+			self.submit(self.create(self.movement("Loan", 2, self.a, self.loan_leaf, ti_borrower="演出团队")))
+			for _ in range(2)
+		]
+		return_data = self.movement("Return", 1, self.loan_leaf, self.a, ti_borrower="演出团队")
+		return_data["items"] = []
+		for loan in loans:
+			line = self.movement("Return", 1, self.loan_leaf, self.a)["items"][0]
+			line.update(
+				{
+					"ti_original_loan": loan.name,
+					"ti_original_loan_line": loan["items"][0].name,
+					"ti_settlement_outcome": "Returned",
+				}
+			)
+			return_data["items"].append(line)
+		returned = self.submit(self.create(return_data))
+		query = self.query("movements", "records", statuses=[1], groupBy=["kind"], record=returned.name)
+		page = group_page(query, parent_path=["Return"], parent_unit="Nos")
+		self.assertEqual(page["matched_count"], 1)
+		row = page["rows"][0]
+		expected = [
+			{"name": loan.name, "borrower": "演出团队", "date": str(loan.posting_date)} for loan in loans
+		]
+		self.assertEqual(row["whole"]["original_loan_details"], expected)
+		browse_page = browse.operation_page(query, records=True)
+		browse_row = next(row for row in browse_page["rows"] if row["document"] == returned.name)
+		self.assertEqual(browse_row["whole"]["original_loan_details"], expected)
+
+	def test_count_adjustment_history_uses_counted_location_as_source_only(self):
+		self.receipt(10)
+		count = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		native_api.submit_document("Stock Reconciliation", count.name, count.version)
+		page = browse.movement_history(
+			self.query("movements", "lines", statuses=[1], record=count.name),
+			item_code=self.item,
+		)
+		self.assertEqual(page["matched_count"], 1)
+		row = page["rows"][0]
+		self.assertEqual(row["kind"], "Reconcile")
+		self.assertEqual(row["source_warehouse"], self.a)
+		self.assertEqual(row["destination_warehouse"], "")
+
 	def test_loan_item_contributions_keep_items_view_and_apply_independent_stable_sort(self):
 		other = frappe.get_doc(
 			{
@@ -1462,7 +1507,8 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(overview["outstanding_line_count"], 1)
 		self.assertEqual(overview["loan_totals"][0]["outstanding"], 3)
 		self.assertEqual(overview["movement_totals"][0]["kind"], "Loan")
-		self.assertTrue(overview["can_write"])
+		self.assertNotIn("can_write", overview)
+		self.assertNotIn("can_delete", overview)
 
 	def test_activity_relations_include_direct_and_original_loan_activities(self):
 		from temple_inventory.report_sources import ReportContext, activity_relations

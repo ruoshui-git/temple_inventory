@@ -119,8 +119,6 @@ describe("native Activity browse scopes", () => {
               movement_totals: [],
               loan_totals: [],
               outstanding_line_count: 0,
-              can_write: false,
-              can_delete: false,
             }
           : null,
       );
@@ -185,8 +183,6 @@ describe("native Activity browse scopes", () => {
       movement_totals: [],
       loan_totals: [],
       outstanding_line_count: 0,
-      can_write: false,
-      can_delete: false,
     });
     await flushPromises();
     expect(wrapper.get("h1").text()).toBe("活动名称");
