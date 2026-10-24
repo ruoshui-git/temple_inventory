@@ -284,8 +284,10 @@ test("real location editor creates an area and renames it with a short name", as
       .getByRole("group", { name: label, exact: true })
       .locator("button[aria-pressed]")
       .click();
-    await page.locator('summary[aria-label="更多位置操作"]').click();
-    await page.getByRole("button", { name: "重命名", exact: true }).click();
+    await page
+      .getByRole("button", { name: "更多位置操作", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "重命名", exact: true }).click();
     await dialog.getByLabel("名称", { exact: true }).fill(`${label}-修改`);
     await dialog.getByLabel("简称（可选）", { exact: true }).fill(short);
     await dialog
