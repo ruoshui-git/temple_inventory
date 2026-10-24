@@ -8,6 +8,7 @@ const props = withDefaults(
 		label: string;
 		align?: "start" | "end";
 		variant?: "split" | "icon" | "labeled";
+		sheet?: boolean;
 	}>(),
 	{ align: "start", variant: "icon" },
 );
@@ -23,9 +24,9 @@ const { style, target } = useAnchoredPopup({
 	onClose: (restore) => close(restore),
 });
 onUpdated(() =>
-	popup.value
-		?.querySelectorAll<HTMLElement>("button, a[href]")
-		.forEach((item) => item.setAttribute("role", "menuitem")),
+	popup.value?.querySelectorAll<HTMLElement>("button, a[href]").forEach((item) => {
+		if (!item.hasAttribute("role")) item.setAttribute("role", "menuitem");
+	}),
 );
 function close(restoreFocus = false) {
 	if (!open.value) return;
@@ -93,6 +94,7 @@ function activated(event: MouseEvent) {
 				ref="popup"
 				v-show="open"
 				class="popup-menu-panel browse-action-menu"
+				:class="{ 'popup-menu-panel--sheet': sheet }"
 				role="menu"
 				:aria-label="label"
 				:style="style"

@@ -1,6 +1,7 @@
 import { defineComponent, h, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { flushPromises } from "@vue/test-utils";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import {
@@ -47,6 +48,16 @@ beforeEach(() => {
 });
 
 describe("responsive presentation contract", () => {
+  it("keeps compact sticky search, mobile Stock tabs, and fixed actions within obstruction geometry", () => {
+    const browse = readFileSync("src/styles/browse.css", "utf8");
+    const shell = readFileSync("src/styles/foundation.css", "utf8");
+    expect(browse).toContain(".browse-chrome.is-stuck .browse-inline-tools");
+    expect(browse).toContain(".browse-persistent-chips::-webkit-scrollbar");
+    expect(browse).toContain("--preview-nav-height, 84px) + 12px");
+    expect(shell).toContain(".mobile-context a[aria-current]");
+    expect(shell).toContain("--preview-nav-height, 84px) + 68px");
+  });
+
   it("starts mobile-first, switches at 1024px, and cleans up the listener", async () => {
     const Probe = defineComponent({
       setup() {

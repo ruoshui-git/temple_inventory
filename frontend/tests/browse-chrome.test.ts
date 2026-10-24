@@ -6,6 +6,8 @@ import FilterRailEdge from "../src/components/ui/FilterRailEdge.vue";
 import BrowseChip from "../src/components/ui/BrowseChip.vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
+import SortControl from "../src/components/ui/SortControl.vue";
+import BrowseResultSummary from "../src/components/ui/BrowseResultSummary.vue";
 import OperationBrowseFilters from "../src/features/movements/OperationBrowseFilters.vue";
 import type { OperationBrowse } from "../src/features/movements/useOperationBrowse";
 import {
@@ -223,6 +225,79 @@ it("keeps all quick tabs in the shared browse header", async () => {
   await flushPromises();
   expect(wrapper.get(".browse-inline-tools .browse-tabs").exists()).toBe(true);
   expect(wrapper.get(".browse-tabs").findAll("button")).toHaveLength(4);
+});
+
+it("shows sort state in a chip and emits the selected field and direction", async () => {
+  const wrapper = mount(SortControl, {
+    props: {
+      field: "item_name",
+      direction: "asc",
+      fields: [
+        { value: "item_name", label: "物品名称", kind: "text" },
+        { value: "stock_qty", label: "库存数量", kind: "number" },
+      ],
+    },
+  });
+  wrappers.push(wrapper);
+  expect(wrapper.get('[aria-label="排序：物品名称，A→Z"]').text()).toContain(
+    "A→Z",
+  );
+  await wrapper.get('[aria-label="排序：物品名称，A→Z"]').trigger("click");
+  await flushPromises();
+  const choice = Array.from(
+    document.querySelectorAll<HTMLElement>("[role='menuitemradio']"),
+  ).find((item) => item.textContent?.includes("从多到少"));
+  expect(choice).toBeDefined();
+  await choice!.click();
+  expect(wrapper.emitted("update:field")?.at(-1)).toEqual(["stock_qty"]);
+  expect(wrapper.emitted("update:direction")?.at(-1)).toEqual(["desc"]);
+});
+
+it("keeps sort and view actions on the results summary line", async () => {
+  const wrapper = mount(BrowseResultSummary, {
+    props: { label: "10 种物品", metrics: [] },
+    slots: { controls: "<button>排序</button><button>列表</button>" },
+  });
+  wrappers.push(wrapper);
+  expect(wrapper.get(".browse-summary-line").findAll("button")).toHaveLength(2);
+});
+
+it("keeps full quantity labels and a one-quantity mobile preview with disclosure", () => {
+  const wrapper = mount(BrowseResultSummary, {
+    props: {
+      label: "599 种物品",
+      metrics: [
+        {
+          key: "inbound",
+          label: "入库",
+          quantities: [
+            { qty: 8643.5, uom: "Kg" },
+            { qty: 2, uom: "Nos" },
+          ],
+        },
+      ],
+    },
+  });
+  wrappers.push(wrapper);
+  const summary = wrapper.get(".browse-result-summary > summary");
+  expect(summary.attributes("aria-label")).toContain("599 种物品");
+  expect(summary.text()).toContain("入库 8,643.5 Kg");
+  expect(wrapper.get(".browse-summary-line").text()).toContain("599 种物品");
+  expect(summary.findAll(".browse-result-summary-mobile-item")).toHaveLength(2);
+  expect(summary.find(".browse-result-summary-mobile-item").text()).toContain(
+    "入库",
+  );
+  expect(
+    summary.find(".browse-result-summary-mobile-item").text(),
+  ).not.toContain("+1 单位");
+  expect(
+    summary
+      .find(
+        ".browse-result-summary-mobile-item + .browse-result-summary-mobile-item",
+      )
+      .text(),
+  ).toBe("+1 单位▸");
+  expect(wrapper.get(".quantity-summary").exists()).toBe(true);
 });
 
 it("exposes every movement filter in the shared panel content", async () => {

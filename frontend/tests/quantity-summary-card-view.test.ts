@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import QuantitySummary from "../src/components/ui/QuantitySummary.vue";
+import BrowseResultSummary from "../src/components/ui/BrowseResultSummary.vue";
 import StockDetails from "../src/components/StockDetails.vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import {
@@ -75,6 +76,20 @@ async function inventory(rows: StockItem[]) {
   return wrapper;
 }
 describe("native quantity summaries and inventory cards", () => {
+  it("places sort and view controls alongside the result count and quantity preview", () => {
+    const wrapper = mount(BrowseResultSummary, {
+      props: { label: "8 种物品", metrics: [] },
+      slots: {
+        controls:
+          '<button>排序</button><button aria-label="列表视图">列表</button>',
+      },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.get(".browse-summary-line").text()).toContain("8 种物品");
+    expect(
+      wrapper.get(".browse-summary-controls").findAll("button"),
+    ).toHaveLength(2);
+  });
   it("keeps incompatible units separate and labels a pending refresh", async () => {
     const wrapper = mount(QuantitySummary, {
       props: {

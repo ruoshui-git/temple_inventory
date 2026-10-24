@@ -27,6 +27,27 @@ watch(
 	() => (breadcrumbLabel.value = undefined),
 );
 const inventorySection = computed(() => inventorySectionForRoute(String(route.name || "")));
+const hidePhoneBreadcrumb = computed(
+	() =>
+		isMobile.value &&
+		[
+			"home",
+			"stock",
+			"movements",
+			"loans",
+			"reports",
+			"more",
+			"expiry",
+			"warehouses",
+			"pending",
+		].includes(String(route.name || "")),
+);
+const stockTabLabels: Record<string, string> = {
+	stock: "库存",
+	expiry: "效期",
+	warehouses: "仓库",
+	pending: "损坏",
+};
 async function navigate(target: Parameters<typeof router.push>[0]) {
 	document.dispatchEvent(new Event("inventory-navigation"));
 	const forcedTarget =
@@ -51,18 +72,18 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 		@more="navigate"
 	>
 		<template #notifications><NotificationCenter /></template>
-		<RouteBreadcrumbs />
+		<RouteBreadcrumbs v-if="!hidePhoneBreadcrumb" />
 		<nav
 			v-if="isMobile && active === 'inventory'"
 			class="mobile-context"
-			aria-label="库存页面"
+			aria-label="库存子页面"
 		>
 			<RouterLink
 				v-for="item in inventoryNavigation"
 				:key="item.key"
 				:to="item.route"
 				:aria-current="inventorySection === item.key ? 'page' : undefined"
-				>{{ item.label }}</RouterLink
+				>{{ stockTabLabels[item.key] }}</RouterLink
 			>
 		</nav>
 		<slot />

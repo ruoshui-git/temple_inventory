@@ -179,7 +179,14 @@ defineExpose({ editFilter });
 		:class="{ 'is-embedded': embedded }"
 	>
 		<PageHeader v-if="!embedded" :title="heading">
-			<template #title-tools><slot name="persistent" /></template>
+			<template #title-tools>
+				<div class="browse-title-tools">
+					<slot name="persistent" />
+					<div v-if="isMobile && $slots.actions" class="browse-mobile-actions">
+						<slot name="actions" />
+					</div>
+				</div>
+			</template>
 			<template #subtitle><slot name="subtitle" /></template>
 		</PageHeader>
 		<div class="browse-persistent-bar" :aria-label="`${heading}搜索与筛选`">
@@ -238,7 +245,9 @@ defineExpose({ editFilter });
 				{{ sidebarSaveError }}
 				<UiButton variant="ghost" @click="retrySidebarSave?.()">重试同步</UiButton>
 			</span>
-			<div v-if="$slots.actions" class="browse-header-actions"><slot name="actions" /></div>
+			<div v-if="$slots.actions && !isMobile" class="browse-header-actions">
+				<slot name="actions" />
+			</div>
 		</div>
 		<div :id="controlsId" class="browse-inline-tools">
 			<slot />

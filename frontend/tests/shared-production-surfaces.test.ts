@@ -362,6 +362,7 @@ describe("interactive preview", () => {
   it("filters, sorts, and keeps selected-item actions available across views and breakpoints", async () => {
     const wrapper = render(PreviewInventory, { pattern: "proposed" });
     await flushPromises();
+    expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
     await button(wrapper, "列表").trigger("click");
     expect(wrapper.findAll("tbody tr.selected")).toHaveLength(1);
@@ -382,7 +383,10 @@ describe("interactive preview", () => {
     listeners.forEach((callback) => callback({ matches: false }));
     await flushPromises();
     expect(wrapper.find('[aria-label="新建操作"]').exists()).toBe(false);
-    expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
+    expect(wrapper.get(".browse-mobile-actions").exists()).toBe(true);
+    expect(
+      document.body.querySelector(".browse-split-button")?.textContent,
+    ).toContain("新建物品");
     expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
     expect(wrapper.get(".stock-selection-actions").isVisible()).toBe(true);
     await button(wrapper, "调拨").trigger("click");

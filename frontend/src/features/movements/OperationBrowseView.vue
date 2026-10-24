@@ -766,6 +766,13 @@ const sortFields = computed(() =>
 		(field) => ({
 			value: field,
 			label: sortableColumnLabels[field] || field,
+			kind: (/expiry/i.test(field)
+				? "expiry"
+				: /date|month/i.test(field)
+					? "date"
+					: /qty|quantity|borrowed|outstanding|count/i.test(field)
+						? "number"
+						: "text") as "expiry" | "date" | "number" | "text",
 		}),
 	),
 );
@@ -948,25 +955,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						@remove="Object.assign(query, chip.reset)"
 					/>
 				</template>
-				<div v-if="showMobileItemCards" class="browse-toolbar">
-					<SortControl
-						v-model:field="query.sortBy"
-						v-model:direction="query.sort"
-						:fields="sortFields"
-						:label="family === 'loans' ? '借用排序' : '流动排序'"
-					/>
-					<UiButton v-if="result.initialized && !records" @click="analysisOpen = true"
-						>分析结果</UiButton
-					>
-				</div>
 				<p v-if="routeError" role="alert">{{ routeError }}</p>
-				<p v-if="family === 'loans'" class="browse-note">
-					按借出日期筛选，显示当前结清情况。<UiButton
-						variant="ghost"
-						@click="emit('browse', c.loanHistory())"
-						>查看期间借还流动</UiButton
-					>
-				</p>
 			</BrowseToolbar>
 			<section
 				v-if="result.initialized"
@@ -978,7 +967,37 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					:label="`${result.total} ${records ? '笔记录' : '种物品'}`"
 					:metrics="metrics"
 					:loading="result.loading || result.stale"
-				/>
+				>
+					<template #controls>
+						<SortControl
+							v-if="showMobileItemCards"
+							v-model:field="query.sortBy"
+							v-model:direction="query.sort"
+							:fields="sortFields"
+							:label="family === 'loans' ? '借用排序' : '流动排序'"
+						/>
+						<UiButton
+							v-if="!records"
+							icon="report"
+							:icon-only="isMobile"
+							label="分析结果"
+							@click="analysisOpen = true"
+							>分析结果</UiButton
+						>
+						<template v-if="family === 'loans'"
+							><button
+								class="browse-info-button"
+								type="button"
+								title="按借出日期筛选，显示当前结清情况。"
+								aria-label="借用列表说明：按借出日期筛选，显示当前结清情况。"
+							>
+								ⓘ</button
+							><UiButton variant="ghost" @click="emit('browse', c.loanHistory())"
+								>借还流动</UiButton
+							></template
+						>
+					</template>
+				</BrowseResultSummary>
 			</section>
 			<SkeletonBlock v-if="!records && result.loading" variant="lines" :count="5" />
 			<p v-if="result.stale" class="notice-bar warning" role="status">

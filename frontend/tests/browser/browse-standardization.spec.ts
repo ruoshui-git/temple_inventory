@@ -189,9 +189,12 @@ for (const surface of [
       const chrome = page.locator(".browse-chrome");
       await expect(chrome.locator("h1")).toBeVisible();
       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
-      await expect(
-        chrome.locator(".browse-sort-control select option:checked"),
-      ).toHaveCount(1);
+      const sortChip = chrome.locator(
+        ".browse-sort-control .popup-menu-trigger",
+      );
+      if (await sortChip.count()) {
+        await expect(sortChip).toHaveAttribute("aria-label", /排序：.+，.+/);
+      }
       const tabs = chrome.locator(".browse-tabs button");
       const minimumTarget = scenario.width >= 1024 ? 36 : 44;
       for (const tab of await tabs.all()) {

@@ -89,14 +89,14 @@ const sortDirection = computed({
 	set: (value: "asc" | "desc") => (descending.value = value === "desc"),
 });
 const sortFields = [
-	{ value: "item_name", label: "物品名称" },
-	{ value: "item_code", label: "物品编号" },
-	{ value: "category", label: "类别" },
-	{ value: "stock_uom", label: "库存单位" },
-	{ value: "available", label: "可用数量" },
-	{ value: "loaned", label: "借出数量" },
-	{ value: "damaged", label: "损坏数量" },
-];
+	{ value: "item_name", label: "物品名称", kind: "text" },
+	{ value: "item_code", label: "物品编号", kind: "text" },
+	{ value: "category", label: "类别", kind: "text" },
+	{ value: "stock_uom", label: "库存单位", kind: "text" },
+	{ value: "available", label: "可用数量", kind: "number" },
+	{ value: "loaned", label: "借出数量", kind: "number" },
+	{ value: "damaged", label: "损坏数量", kind: "number" },
+] as const;
 const wideScreen = ref(window.innerWidth >= 1440);
 function updateWideScreen() {
 	wideScreen.value = window.innerWidth >= 1440;
@@ -372,26 +372,6 @@ watch([() => props.active, isMobile], () => {
 				/>
 			</template>
 			<div class="inventory-context"><slot name="context" /></div>
-			<div class="result-tools">
-				<div v-if="!isMobile" class="segmented" aria-label="库存显示方式">
-					<button :aria-pressed="view === 'card'" @click="view = 'card'">
-						<InventoryIcon name="card" />卡片
-					</button>
-					<button :aria-pressed="view === 'table'" @click="view = 'table'">
-						<InventoryIcon name="table" />列表
-					</button>
-				</div>
-				<SortControl
-					v-if="isMobile || view === 'card'"
-					v-model:field="sort"
-					v-model:direction="sortDirection"
-					:fields="sortFields"
-					label="库存排序"
-				/>
-				<UiButton :disabled="!data.snapshot" @click="analysisOpen = true"
-					>分析结果</UiButton
-				>
-			</div>
 			<slot name="context-actions" />
 			<template #selection>
 				<div
@@ -418,7 +398,47 @@ watch([() => props.active, isMobile], () => {
 				:label="`${data.total} 种物品`"
 				:metrics="metrics"
 				:loading="status === 'refresh'"
-			/>
+			>
+				<template #controls>
+					<div
+						v-if="!isMobile"
+						class="segmented stock-view-icons"
+						aria-label="库存显示方式"
+					>
+						<button
+							:aria-label="'卡片视图'"
+							:title="'卡片'"
+							:aria-pressed="view === 'card'"
+							@click="view = 'card'"
+						>
+							<InventoryIcon name="card" /><span>卡片</span>
+						</button>
+						<button
+							:aria-label="'列表视图'"
+							:title="'列表'"
+							:aria-pressed="view === 'table'"
+							@click="view = 'table'"
+						>
+							<InventoryIcon name="table" /><span>列表</span>
+						</button>
+					</div>
+					<SortControl
+						v-if="isMobile || view === 'card'"
+						v-model:field="sort"
+						v-model:direction="sortDirection"
+						:fields="sortFields"
+						label="库存排序"
+					/>
+					<UiButton
+						icon="report"
+						:icon-only="isMobile"
+						label="分析结果"
+						:disabled="!data.snapshot"
+						@click="analysisOpen = true"
+						>分析结果</UiButton
+					>
+				</template>
+			</BrowseResultSummary>
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
 				<aside v-if="filtersOpen && !isMobile" class="browse-filter-rail">
 					<div class="filter-rail-heading">

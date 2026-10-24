@@ -727,9 +727,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				:style="{ right: `${pinnedEndInset + 8}px` }"
 				type="button"
 				aria-label="向右滚动查看更多列"
+				title="更多列"
 				@click="scrollMore"
 			>
-				更多列 →
+				<InventoryIcon name="chevron-right" />
 			</button>
 		</div>
 		<div v-if="!rows.length && !loading && initialized && !error" class="data-table-state">

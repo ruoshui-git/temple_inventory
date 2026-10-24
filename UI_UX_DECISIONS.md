@@ -386,6 +386,21 @@ supersession below when a durable user-facing decision changes.
 
 ## Durable supersessions
 
+- **2026-10-24 — Compact browse chrome, sort and stock tabs:** On phones,
+  top-level destination and Stock subpage breadcrumbs are omitted because the
+  bottom navigation and Stock tabs identify the current page; detail routes
+  retain breadcrumb/back navigation. Browse headers use a compact title row and
+  a search/filter row that remains sticky after scrolling; applied filters stay
+  in a single removable horizontal strip. Primary create actions become an
+  accent FAB above the measured bottom navigation; its chevron opens a shared
+  bottom sheet. The FAB hides for open overlays and the on-screen keyboard, and
+  Return to Top stacks above it. SortControl becomes one stateful chip whose
+  radio menu combines field and meaningful direction; desktop tables keep
+  header sorting. Sort, Stock card/list and analysis actions live in the results
+  summary line. Mobile Stock tabs are an underlined horizontal nav directly
+  below the app bar and scroll away with page content, keeping sticky chrome
+  within the 104px height budget.
+
 - **2026-10-24 — Popup menus:** Menus close on an outside click and never widen
   the page. Shared action popups anchor to their trigger, flip and clamp within
   the viewport, and only one popup or filter panel is open at a time.

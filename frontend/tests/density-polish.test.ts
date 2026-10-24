@@ -20,15 +20,41 @@ it("opens the split-button creation menu and emits the selected permitted kind",
     },
   });
   wrappers.push(wrapper);
-  await wrapper.get('[aria-label="选择新建类型"]').trigger("click");
+  document
+    .querySelector<HTMLButtonElement>('[aria-label="选择新建类型"]')!
+    .click();
   await Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
     .find((item) => item.textContent?.includes("出库"))!
     .click();
   expect(wrapper.emitted("select")).toEqual([["Issue"]]);
   await flushPromises();
   expect(
-    wrapper.get('[aria-label="选择新建类型"]').attributes("aria-expanded"),
+    document
+      .querySelector('[aria-label="选择新建类型"]')
+      ?.getAttribute("aria-expanded"),
   ).toBe("false");
+});
+
+it("fires the default action from the mobile FAB and hides it while an overlay is open", async () => {
+  const wrapper = mount(BrowseSplitButton, {
+    attachTo: document.body,
+    props: { label: "入库", kind: "Receive", icon: "receive", options: [] },
+  });
+  wrappers.push(wrapper);
+  document
+    .querySelector<HTMLButtonElement>(".browse-split-button > .ui-button")!
+    .click();
+  expect(wrapper.emitted("select")).toEqual([["Receive"]]);
+  const overlay = document.createElement("div");
+  overlay.className = "preview-overlay";
+  document.body.append(overlay);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(
+    document
+      .querySelector(".browse-split-button")
+      ?.classList.contains("is-hidden"),
+  ).toBe(true);
+  overlay.remove();
 });
 
 it("merges result count with a short multi-unit preview and discloses full quantities", async () => {
@@ -50,7 +76,9 @@ it("merges result count with a short multi-unit preview and discloses full quant
   });
   wrappers.push(wrapper);
   await flushPromises();
-  expect(wrapper.get("summary").text()).toContain("163 种物品");
+  expect(wrapper.get(".browse-result-summary-label").text()).toContain(
+    "163 种物品",
+  );
   expect(wrapper.get("summary").text()).toContain("入库 12.5 Kg");
   expect(wrapper.get("summary").text()).toContain("+1 单位");
   expect(wrapper.get(".quantity-summary").text()).toContain("31 Nos");

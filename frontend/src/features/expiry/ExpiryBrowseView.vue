@@ -217,16 +217,16 @@ function sortState(field: string) {
 		: "none";
 }
 const sortFields = [
-	{ value: "expiry_date", label: "到期日" },
-	{ value: "item_name", label: "物品名称" },
-	{ value: "batch_no", label: "批次编号" },
-	{ value: "stock_qty", label: "库存数量" },
-	{ value: "item_code", label: "物品编号" },
-	{ value: "category", label: "类别" },
-	{ value: "stock_uom", label: "库存单位" },
-	{ value: "warehouse", label: "位置" },
-	{ value: "remaining_days", label: "剩余时间" },
-];
+	{ value: "expiry_date", label: "到期日", kind: "expiry" },
+	{ value: "item_name", label: "物品名称", kind: "text" },
+	{ value: "batch_no", label: "批次编号", kind: "text" },
+	{ value: "stock_qty", label: "库存数量", kind: "number" },
+	{ value: "item_code", label: "物品编号", kind: "text" },
+	{ value: "category", label: "类别", kind: "text" },
+	{ value: "stock_uom", label: "库存单位", kind: "text" },
+	{ value: "warehouse", label: "位置", kind: "text" },
+	{ value: "remaining_days", label: "剩余时间", kind: "expiry" },
+] as const;
 function sortGlyph(field: ReportQuery["sortBy"]) {
 	return query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
 }
@@ -286,7 +286,13 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				</div>
 			</template>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
-			<nav class="browse-tabs" role="tablist" aria-label="效期筛选" @keydown="expiryKey">
+			<nav
+				v-if="!isMobile"
+				class="browse-tabs"
+				role="tablist"
+				aria-label="效期筛选"
+				@keydown="expiryKey"
+			>
 				<button
 					v-for="[key, label, facet] in choices"
 					:key="key"
@@ -301,6 +307,26 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				</button>
 			</nav>
 			<template #chips="{ editFilter }">
+				<nav
+					v-if="isMobile"
+					class="browse-tabs browse-expiry-window-tabs"
+					role="tablist"
+					aria-label="效期筛选"
+					@keydown="expiryKey"
+				>
+					<button
+						v-for="[key, label, facet] in choices"
+						:key="key"
+						role="tab"
+						:data-expiry-choice="key"
+						:aria-selected="query.expiryWindow === key"
+						:tabindex="query.expiryWindow === key ? 0 : -1"
+						aria-controls="expiry-results-panel"
+						@click="query.expiryWindow = key"
+					>
+						{{ label }} {{ result.facets[facet] ?? "…" }}
+					</button>
+				</nav>
 				<BrowseChip
 					v-for="(group, index) in query.groupBy"
 					:key="`group:${group}`"
@@ -331,20 +357,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					@remove="Object.assign(query, chip.reset)"
 				/>
 			</template>
-			<div v-if="isMobile" class="browse-toolbar">
-				<SortControl
-					v-model:field="query.sortBy"
-					v-model:direction="query.sort"
-					:fields="sortFields"
-					label="效期排序"
-				/>
-			</div>
-			<template #result-tools
-				><UiButton v-if="result.initialized" @click="analysisOpen = true"
-					>分析结果</UiButton
-				></template
-			></BrowseToolbar
-		>
+		</BrowseToolbar>
 		<ScanPanel
 			ref="scan"
 			hide-trigger
@@ -370,9 +383,33 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				:label="`${result.batchCount} 个批次 · ${result.itemCount} 种物品 · ${result.total} 条存放明细`"
 				:metrics="metrics"
 				:loading="result.loading || result.stale"
-			/>
+			>
+				<template #controls>
+					<SortControl
+						v-if="isMobile"
+						v-model:field="query.sortBy"
+						v-model:direction="query.sort"
+						:fields="sortFields"
+						label="效期排序"
+					/>
+					<details
+						v-if="isMobile && query.expiryWindow.startsWith('next_')"
+						class="browse-info-popover"
+					>
+						<summary aria-label="效期范围说明" title="效期范围说明">i</summary>
+						<p>今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。</p>
+					</details>
+					<UiButton
+						icon="report"
+						:icon-only="isMobile"
+						label="分析结果"
+						@click="analysisOpen = true"
+						>分析结果</UiButton
+					>
+				</template>
+			</BrowseResultSummary>
 		</section>
-		<p v-if="query.expiryWindow.startsWith('next_')" class="browse-note">
+		<p v-if="!isMobile && query.expiryWindow.startsWith('next_')" class="browse-note">
 			今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
 		</p>
 		<div class="preview-browse-body">

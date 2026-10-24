@@ -684,7 +684,7 @@ describe("native operation browsing", () => {
     expect(wrapper.find('select[aria-label="流动排序"]').exists()).toBe(false);
   });
 
-  it("uses table headers for loan record and item sorting", async () => {
+  it("uses the sort chip for loan item cards and table headers for loan records", async () => {
     const call = service();
     const { wrapper } = setup(
       call,
@@ -694,20 +694,10 @@ describe("native operation browsing", () => {
     await flushPromises();
     const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
     expect(c.query.value.sortBy).toBe("item_name");
-    expect(wrapper.find('select[aria-label="借用排序"]').exists()).toBe(true);
+    expect(
+      wrapper.find('button[aria-label="排序：物品名称，A→Z"]').exists(),
+    ).toBe(true);
     expect(wrapper.find(".data-table th button").exists()).toBe(false);
-    const cardSort = wrapper.get('select[aria-label="借用排序"]');
-    await cardSort.setValue("item_code");
-    expect(c.query.value.sortBy).toBe("item_code");
-    expect(cardSort.element.value).toBe("item_code");
-    const direction = c.query.value.sort;
-    await wrapper
-      .get(
-        `button[aria-label="${direction === "asc" ? "切换为降序" : "切换为升序"}"]`,
-      )
-      .trigger("click");
-    expect(c.query.value.sort).toBe(direction === "asc" ? "desc" : "asc");
-    expect(c.query.value.sortBy).toBe("item_code");
 
     const recordView = setup(
       service(),

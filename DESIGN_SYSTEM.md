@@ -22,6 +22,31 @@ kept in Git.
   teleported content. Use semantic HTML, explicit labels, visible keyboard
   focus, reduced motion and 44px mobile/coarse-pointer targets.
 
+## Mobile browse geometry
+
+- Below 1024px, browse titles use the `--p-mobile-heading` token (22px at the
+  default text scale). The initial header places title, optional view switch and
+  overflow on the first row, then a search field with scan and counted filter
+  control. Once scrolled, the title/action rows collapse and only search/filter
+  remains sticky at the top. The Stock subpage tab strip scrolls away with the
+  page and uses 44px targets; it is not part of sticky height.
+- On phones, applied chips occupy one horizontal touch-scroll line below search,
+  with 32px chip height and accessible remove controls. Do not suppress
+  scrollbars globally.
+- Mobile create FABs sit 12px above the measured `--preview-nav-height` and
+  include a minimum 48px primary face plus a 44px chevron segment. Return to Top
+  uses the same obstruction measurement, with its bottom at nav + 68px, leaving
+  an 8px gap above the 48px FAB. The FAB uses accent/on-accent tokens and hides
+  while an overlay or keyboard is open. Its kind menu and sort menu use a
+  viewport-width bottom sheet with safe-area padding.
+- Results summary lines wrap to at most two compact rows at phone widths. Sort,
+  Stock card/list and analysis controls sit alongside the count and quantity
+  preview. Stock's desktop summary carries card/list and analysis controls so
+  they do not create a second browse-header row.
+- The Stock subpage nav uses a full-width underline strip with a 3px accent
+  underline, strong active ink and horizontal scrolling when enlarged text no
+  longer fits. It scrolls away rather than increasing the sticky stack.
+
 ## Icons
 
 - Movement kinds use the single `frontend/src/lib/kindIcons.ts` map for their

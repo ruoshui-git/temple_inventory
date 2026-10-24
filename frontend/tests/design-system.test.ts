@@ -269,7 +269,7 @@ describe("shared production design system", () => {
       return values;
     };
     const toolbar = declarationsFor(browse, ".browse-chrome.browse-chrome");
-    expect(toolbar.get("top")).toBe("var(--preview-desktop-nav-height, 0px)");
+    expect(toolbar.get("top")).toBe("0");
     expect(toolbar.has("max-block-size")).toBe(false);
     expect(browse.toString()).toContain(".browse-chrome.is-stuck");
     expect(
@@ -355,18 +355,15 @@ describe("shared production design system", () => {
     );
     expect(chipDeclarations.get("max-block-size")).toBe("min(30dvh, 14rem)");
     expect(chipDeclarations.get("overflow")).toBe("auto");
-    const mobile = browse.nodes.find(
-      (node) =>
-        node.type === "atrule" &&
-        node.name === "media" &&
-        node.params === "(max-width: 600px)",
-    );
     const mobileSearch = new Map<string, string>();
-    mobile?.walkRules(".browse-persistent-search", (rule) =>
-      rule.walkDecls((declaration) =>
-        mobileSearch.set(declaration.prop, declaration.value),
-      ),
-    );
+    browse.walkAtRules("media", (media) => {
+      if (media.params !== "(max-width: 600px)") return;
+      media.walkRules(".browse-persistent-search", (rule) =>
+        rule.walkDecls((declaration) =>
+          mobileSearch.set(declaration.prop, declaration.value),
+        ),
+      );
+    });
     expect(mobileSearch.get("min-width")).toBe("min(9rem, 100%)");
     expect(mobileSearch.get("flex-basis")).toBe(
       "clamp(min(9rem, 100%), 48vw, 12rem)",

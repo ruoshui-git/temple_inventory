@@ -97,3 +97,41 @@ it("shows a loaded item name in its routed breadcrumb", async () => {
     item.item_code,
   );
 });
+
+it("hides top-level phone breadcrumbs, keeps detail breadcrumbs, and marks the Stock tab", async () => {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const reference = createReferenceData();
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: routeRecords,
+  });
+  const host = defineComponent({
+    setup() {
+      provideInventoryServices(
+        { call: vi.fn(async () => []), report: vi.fn(), upload: vi.fn() },
+        reference,
+      );
+      return () => h(ApplicationShell, null, { default: () => h("main") });
+    },
+  });
+  const wrapper = mount(host, {
+    attachTo: document.body,
+    global: { plugins: [router] },
+  });
+  wrappers.push(wrapper);
+  await router.push({ name: "stock" });
+  await router.isReady();
+  await flushPromises();
+  expect(wrapper.find('[aria-label="面包屑"]').exists()).toBe(false);
+  expect(
+    wrapper.get(".mobile-context").get('a[aria-current="page"]').text(),
+  ).toBe("库存");
+  await router.push({ name: "item-detail", params: { code: "ITM-000001" } });
+  await flushPromises();
+  expect(wrapper.find('[aria-label="面包屑"]').exists()).toBe(true);
+});

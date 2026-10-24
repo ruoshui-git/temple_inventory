@@ -153,6 +153,9 @@ describe("shared application frame", () => {
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
     expect(wrapper.find(".sample-mobile-nav").exists()).toBe(true);
+    expect(
+      wrapper.get('.sample-mobile-nav button[aria-current="page"]').text(),
+    ).toContain("库存");
     expect(wrapper.find(".app-account-menu").exists()).toBe(false);
     expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(6);
     await wrapper.find("input").setValue("保留输入");

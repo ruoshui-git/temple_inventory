@@ -155,19 +155,26 @@
 }
 .data-table-overflow-hint {
 	position: absolute;
-	top: 6px;
-	right: 28px;
+	top: 27px;
+	transform: translateY(-50%);
 	z-index: 5;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	min-width: 28px;
+	height: 28px;
 	min-height: 28px;
-	padding: 3px 9px;
+	padding: 0;
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: 50%;
 	background: var(--p-surface);
 	color: var(--p-ink);
 	box-shadow: 0 2px 8px var(--p-shadow-color);
-	font: inherit;
-	font-size: var(--p-small);
 	cursor: pointer;
+}
+.data-table-overflow-hint svg {
+	width: 16px;
+	height: 16px;
 }
 .data-table-frame:has(.data-table-scroll.is-overflow-end) .data-table-overflow-hint {
 	display: block;
