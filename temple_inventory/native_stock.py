@@ -24,6 +24,18 @@ MOVEMENT_PURPOSES = {
 	"Repair": "Material Transfer",
 	"Disposal": "Material Issue",
 }
+# Display labels; kept equal to frontend `movementLabels` by test_notifications.
+MOVEMENT_LABELS = {
+	"Receive": "入库",
+	"Issue": "出库",
+	"Transfer": "调拨",
+	"Loan": "借出",
+	"Return": "归还",
+	"Damage": "损坏",
+	"Loss": "遗失",
+	"Repair": "修复归库",
+	"Disposal": "报废",
+}
 
 _copied_conversions = ContextVar("inventory_copied_conversions", default=None)
 

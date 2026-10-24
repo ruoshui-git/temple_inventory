@@ -36,11 +36,15 @@ doc_events = {
 		"before_validate": "temple_inventory.native_stock.before_validate",
 		"before_submit": "temple_inventory.native_stock.before_submit",
 		"before_cancel": "temple_inventory.native_stock.before_cancel",
+		"on_submit": "temple_inventory.notifications.enqueue_document_event",
+		"on_cancel": "temple_inventory.notifications.enqueue_document_event",
 	},
 	"Stock Reconciliation": {
 		"before_validate": "temple_inventory.counts.before_validate",
 		"before_submit": "temple_inventory.counts.before_validate",
+		"on_submit": "temple_inventory.notifications.enqueue_document_event",
 	},
+	"Notification Log": {"after_insert": "temple_inventory.push.notification_after_insert"},
 	"Warehouse": {
 		"validate": "temple_inventory.warehouses.validate_native_warehouse",
 		"after_insert": "temple_inventory.read_cache.warehouse_changed",
@@ -318,10 +322,14 @@ add_to_apps_screen = [
 has_permission = {
 	"File": "temple_inventory.native_files.file_permission",
 	"Inventory Export Request": "temple_inventory.exports.request_permission",
+	"Inventory Push Subscription": "temple_inventory.push.subscription_permission",
 }
 permission_query_conditions = {
 	"Inventory Export Request": "temple_inventory.exports.request_query",
+	"Inventory Push Subscription": "temple_inventory.push.subscription_query",
 }
+
+scheduler_events = {"daily": ["temple_inventory.notifications.daily_expiry_digest"]}
 
 extend_doctype_class = {
 	"File": ["temple_inventory.file.InventoryFileMixin"],

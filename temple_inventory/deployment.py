@@ -20,28 +20,27 @@ def _erpnext_workspace_names():
 
 def after_migrate():
 	from temple_inventory.activities import seed_activity_types
+	from temple_inventory.notifications import register_types
 
 	seed_activity_types()
+	register_types()
 	logo = "/assets/temple_inventory/logo.png"
 	icon = frappe.db.exists("Desktop Icon", "物资管理")
-	if icon:
-		doc = frappe.get_doc("Desktop Icon", icon)
-	else:
-		doc = frappe.new_doc("Desktop Icon")
-		doc.label = "物资管理"
-		doc.icon_type = "App"
-		doc.link_type = "External"
-		doc.link = "/inventory"
-		doc.app = "temple_inventory"
-	doc.label = "物资管理"
-	doc.icon_type = "App"
-	doc.link_type = "External"
-	doc.link = "/inventory"
-	doc.app = "temple_inventory"
-	doc.logo_url = logo
-	doc.hidden = 0
-	doc.standard = 1
-	doc.save(ignore_permissions=True)
+	doc = frappe.get_doc("Desktop Icon", icon) if icon else frappe.new_doc("Desktop Icon")
+	icon_values = {
+		"label": "物资管理",
+		"icon_type": "App",
+		"link_type": "External",
+		"link": "/inventory",
+		"app": "temple_inventory",
+		"logo_url": logo,
+		"hidden": 0,
+		"standard": 1,
+	}
+	if not icon or any(doc.get(field) != value for field, value in icon_values.items()):
+		for field, value in icon_values.items():
+			setattr(doc, field, value)
+		doc.save(ignore_permissions=True)
 	for name in frappe.get_all("Desktop Icon", filters={"app": "erpnext"}, pluck="name", limit_page_length=0):
 		if name != "Stock":
 			frappe.db.set_value("Desktop Icon", name, "hidden", 1, update_modified=False)

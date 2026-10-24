@@ -13,7 +13,11 @@
     "physical_root_warehouse",
     "sample_data_version",
     "sample_data_status",
-    "sample_data_error"
+    "sample_data_error",
+    "push_section",
+    "ti_vapid_public_key",
+    "ti_vapid_private_key",
+    "ti_vapid_subject"
   ],
   "fields": [
     {
@@ -96,6 +100,29 @@
       "label": "Read Cache Generation",
       "default": "0",
       "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "push_section",
+      "fieldtype": "Section Break",
+      "label": "Web Push"
+    },
+    {
+      "fieldname": "ti_vapid_public_key",
+      "fieldtype": "Data",
+      "label": "VAPID Public Key",
+      "read_only": 1
+    },
+    {
+      "fieldname": "ti_vapid_private_key",
+      "fieldtype": "Password",
+      "label": "VAPID Private Key",
+      "hidden": 1
+    },
+    {
+      "fieldname": "ti_vapid_subject",
+      "fieldtype": "Data",
+      "label": "VAPID Contact",
       "read_only": 1
     }
   ],

@@ -127,6 +127,18 @@ def export_status(name):
 
 
 @frappe.whitelist(methods=["POST"])
+def mark_watched(name):
+	require_app()
+	doc = _get(name)
+	frappe.cache.set_value(f"ti-export-watched:{doc.name}", 1, expires_in_sec=86400)
+	if doc.status in ("Completed", "Failed"):
+		from temple_inventory.notifications import export_result
+
+		export_result(doc, watched=True)
+	return {"watched": True}
+
+
+@frappe.whitelist(methods=["POST"])
 def retry_export(name, version):
 	require_app()
 	doc = _get(name, lock=True)
@@ -306,6 +318,11 @@ def generate_export(request_name):
 				request.row_count = row_count
 				request.status, request.progress = "Completed", 100
 				_save(request)
+				from temple_inventory.notifications import export_result
+
+				export_result(
+					request, watched=bool(frappe.cache.get_value(f"ti-export-watched:{request.name}"))
+				)
 				frappe.db.commit()
 	except Exception as error:
 		frappe.db.rollback()
@@ -327,6 +344,9 @@ def generate_export(request_name):
 			request.save(ignore_permissions=True)
 		finally:
 			service_write.reset(token)
+		from temple_inventory.notifications import export_result
+
+		export_result(request, watched=bool(frappe.cache.get_value(f"ti-export-watched:{request.name}")))
 		frappe.log_error(title="Inventory export failed", message=frappe.get_traceback())
 		frappe.db.commit()
 	finally:

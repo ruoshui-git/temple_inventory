@@ -19,6 +19,7 @@ class SchemaAuditTests(unittest.TestCase):
 					"Inventory Activity Type",
 					"Inventory Count Review",
 					"Inventory Export Request",
+					"Inventory Push Subscription",
 					"Temple Inventory Allowed Warehouse",
 					"Temple Inventory Settings",
 				]

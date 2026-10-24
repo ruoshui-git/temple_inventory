@@ -1,0 +1,19 @@
+{
+  "doctype": "DocType",
+  "name": "Inventory Push Subscription",
+  "module": "Temple Inventory",
+  "autoname": "hash",
+  "engine": "InnoDB",
+  "field_order": ["user", "endpoint", "p256dh", "auth", "user_agent_label", "created", "last_success", "last_error"],
+  "fields": [
+    {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User", "reqd": 1, "read_only": 1, "in_list_view": 1},
+    {"fieldname": "endpoint", "fieldtype": "Data", "label": "Endpoint", "reqd": 1, "unique": 1, "hidden": 1},
+    {"fieldname": "p256dh", "fieldtype": "Data", "label": "P256dh", "reqd": 1, "hidden": 1},
+    {"fieldname": "auth", "fieldtype": "Data", "label": "Auth", "reqd": 1, "hidden": 1},
+    {"fieldname": "user_agent_label", "fieldtype": "Data", "label": "Device", "in_list_view": 1},
+    {"fieldname": "created", "fieldtype": "Datetime", "label": "Created", "read_only": 1},
+    {"fieldname": "last_success", "fieldtype": "Datetime", "label": "Last Success", "read_only": 1},
+    {"fieldname": "last_error", "fieldtype": "Small Text", "label": "Last Error", "read_only": 1}
+  ],
+  "permissions": [{"role": "System Manager", "read": 1, "create": 1, "delete": 1}]
+}
