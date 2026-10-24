@@ -73,7 +73,7 @@ describe("recovery summary", () => {
         },
       },
     });
-    expect(wrapper.text()).toContain("借用");
+    expect(wrapper.text()).toContain("借出");
     expect(wrapper.text()).toContain("手动指定");
     expect(wrapper.text()).toContain("已归档");
     expect(wrapper.text()).not.toContain("Manual");

@@ -274,7 +274,7 @@ def before_validate(doc, method=None):
 	if str(get_datetime(doc.ti_baseline_timestamp)) != str(
 		get_datetime(f"{doc.posting_date} {doc.posting_time}")
 	):
-		frappe.throw("盘点基准时间必须与原生库存调整入账时间相同")
+		frappe.throw("盘点基准时间必须与原生盘点调整入账时间相同")
 	if baseline["fingerprint"] != doc.ti_baseline_fingerprint:
 		frappe.throw("账面基准已变化，请刷新并重新核对", frappe.TimestampMismatchError)
 	review_dicts = [row.as_dict() for row in doc.ti_count_review]

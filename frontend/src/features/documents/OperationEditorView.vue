@@ -14,6 +14,7 @@ import TransactionContext from "./TransactionContext.vue";
 import Attachments from "../../components/Attachments.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import { kindIcons } from "../../lib/kindIcons";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
@@ -303,7 +304,12 @@ async function lifecycle() {
 		<PageHeader class="form-page-heading"
 			><div>
 				<div class="operation-page-title-row">
-					<h1 tabindex="-1">{{ title }}</h1>
+					<h1 tabindex="-1">
+						<InventoryIcon
+							class="operation-kind-heading-icon"
+							:name="kindIcons[draft.kind].icon"
+						/>{{ title }}
+					</h1>
 					<PopupMenu
 						class="editor-overflow-menu"
 						label="更多操作"

@@ -2,23 +2,12 @@ import { warehouseLabel } from "./warehouseLabel";
 import type { BrowseScope } from "./browseQuery";
 import { periodLabels } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
+import { movementIcon, movementLabels } from "./kindIcons";
+export { movementLabels } from "./kindIcons";
 export type ScopeFilterField = Exclude<
   keyof BrowseScope,
   "period" | "uncategorized"
 >;
-export const movementLabels: Record<string, string> = {
-  Receive: "入库",
-  Issue: "出库",
-  Transfer: "调拨",
-  Loan: "借出",
-  Return: "归还",
-  Damage: "损坏",
-  Loss: "遗失",
-  Repair: "修复归库",
-  Disposal: "报废",
-  Opening: "期初库存",
-  Reconcile: "库存调整",
-};
 export const scopeFilterLabels: Record<ScopeFilterField, string> = {
   item: "物品",
   activity: "活动",
@@ -61,6 +50,7 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
         field,
         value,
         label: `${scopeFilterLabels[field]}：${scopeValueLabel(field, value, reference)}`,
+        icon: field === "kinds" ? movementIcon(String(value)) : undefined,
       }));
     },
   );
@@ -70,6 +60,7 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
       field: "categories",
       value: "__uncategorized__",
       label: "物品类别：无分类",
+      icon: undefined,
     });
   return chips;
 }
@@ -83,6 +74,7 @@ export function scopeFilterFieldChips(
     key: string;
     field: ScopeFilterField | "period";
     label: string;
+    icon?: string;
   }> = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
     (field) => {
       const selected = scope[field];
@@ -109,6 +101,10 @@ export function scopeFilterFieldChips(
           key: `field:${field}`,
           field,
           label: `${scopeFilterLabels[field]}：${visible.join("、")}${remaining ? ` + ${remaining} 项` : ""}`,
+          icon:
+            field === "kinds" && values.length === 1
+              ? movementIcon(String(values[0]))
+              : undefined,
         },
       ];
     },

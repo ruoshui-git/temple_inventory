@@ -16,6 +16,7 @@ import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import { operationLabels } from "../documents/operationCodec";
 import InventoryIcon from "../../components/InventoryIcon.vue";
+import { kindIcons } from "../../lib/kindIcons";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
@@ -59,7 +60,7 @@ const c = props.controller;
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && c.reference.operations[kind])
-		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: "movement" })),
+		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: kindIcons[kind].icon })),
 );
 const {
 	query,
@@ -110,7 +111,7 @@ function localTitle(entry: RecoverySnapshot) {
 	return (
 		(
 			{
-				"Stock Reconciliation": "盘点",
+				"Stock Reconciliation": kindIcons.Reconcile.label,
 				Item: "物品",
 				"Inventory Activity": "活动",
 				Warehouse: "仓库资料",
@@ -290,13 +291,14 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							c.load();
 							c.readLocal();
 						"
+						icon="refresh"
 						>刷新</UiButton
 					>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
 					label="新建"
 					kind="Receive"
-					icon="receive"
+					:icon="kindIcons.Receive.icon"
 					:options="createOptions"
 					@select="emit('newOperation', $event)"
 				/>
@@ -360,6 +362,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				<BrowseChip
 					v-if="kindFilter"
 					:label="`操作：${kindFilter}`"
+					:icon="kindIcons[kindFilter as keyof typeof kindIcons]?.icon"
 					@edit="editFilter('kindFilter')"
 					@remove="kindFilter = ''"
 				/>
@@ -404,6 +407,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							c.load();
 							c.readLocal();
 						"
+						icon="refresh"
 						>刷新</UiButton
 					>
 					<QuickExport
@@ -412,7 +416,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						@open-full="emit('openExport', $event)"
 					/>
 				</BrowseOverflowMenu>
-				<UiButton variant="primary" @click="emit('newCount')">新建盘点</UiButton>
+				<UiButton variant="primary" icon="count" @click="emit('newCount')"
+					>新建盘点</UiButton
+				>
 			</template>
 			<template #subtitle>
 				<p class="browse-subtitle">
@@ -663,6 +669,13 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								/>
 							</button>
 							<template v-else-if="column.id === 'kind'">
+								<InventoryIcon
+									v-if="row.kind"
+									:name="
+										kindIcons[String(row.kind) as keyof typeof kindIcons]
+											?.icon || 'movement'
+									"
+								/>
 								{{
 									row.kind
 										? movementLabels[String(row.kind)] || "其他类型"

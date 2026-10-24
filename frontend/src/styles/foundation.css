@@ -2996,6 +2996,11 @@ button {
 	font-weight: 500;
 	cursor: pointer;
 }
+.preview-choice-label > svg {
+	width: 16px;
+	height: 16px;
+	color: var(--p-text-muted);
+}
 .preview-utility-page .report-filters .preview-choice-label {
 	display: flex;
 	align-items: center;

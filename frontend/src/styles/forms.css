@@ -42,6 +42,13 @@ select {
 .operation-page-title-row h1 {
 	min-width: 0;
 }
+.operation-page-title-row h1 .operation-kind-heading-icon {
+	width: 20px;
+	height: 20px;
+	margin-inline-end: 8px;
+	color: var(--p-accent-quiet, var(--p-text-muted));
+	vertical-align: -3px;
+}
 .preview-form-page .form-record-tag {
 	padding: 6px 10px;
 	border-radius: 999px;

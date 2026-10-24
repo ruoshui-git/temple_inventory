@@ -522,6 +522,10 @@
 	background: var(--p-soft);
 }
 .browse-view-switch button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
 	min-width: 80px;
 	min-height: var(--p-control);
 	color: var(--p-muted);

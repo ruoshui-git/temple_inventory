@@ -227,19 +227,7 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 	}
 	if (typeof value === "boolean") return value ? "是" : "否";
 	const dictionary: Record<string, Record<string, string>> = {
-		kind: {
-			Receive: "入库",
-			Issue: "出库",
-			Transfer: "调拨",
-			Loan: "借出",
-			Return: "归还",
-			Damage: "损坏",
-			Loss: "遗失",
-			Repair: "修复",
-			Disposal: "报废",
-			Reconcile: "盘点调整",
-			Opening: "期初库存",
-		},
+		kind: movementLabels,
 		docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
 		status: { Active: "进行中", Archived: "已归档" },
 		loan_status: {
@@ -251,7 +239,7 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 		},
 		doctype: {
 			"Stock Entry": "库存流动",
-			"Stock Reconciliation": "库存调整",
+			"Stock Reconciliation": movementLabels.Reconcile,
 			"Purchase Receipt": "采购收货",
 			"Delivery Note": "销售发货",
 		},
@@ -371,21 +359,8 @@ function groupSummary(group: DataTableGroup) {
 			return `${reportColumnLabels[key] || key} ${rendered}${unit ? ` ${unit}` : ""}`;
 		});
 	if (Array.isArray(row.quantity_breakdown)) {
-		const kindLabels: Record<string, string> = {
-			Receive: "入库",
-			Issue: "出库",
-			Transfer: "调拨",
-			Loan: "借出",
-			Return: "归还",
-			Damage: "损坏",
-			Loss: "遗失",
-			Repair: "修复",
-			Disposal: "报废",
-			Reconcile: "盘点调整",
-			Opening: "期初库存",
-		};
 		for (const entry of row.quantity_breakdown as Record<string, unknown>[]) {
-			const kind = kindLabels[String(entry.kind)] || String(entry.kind || "记录");
+			const kind = movementLabels[String(entry.kind)] || String(entry.kind || "记录");
 			const status =
 				entry.docstatus === undefined ? "" : `（${nativeStatusLabel(entry.docstatus)}）`;
 			const quantity = entry.stock_qty;

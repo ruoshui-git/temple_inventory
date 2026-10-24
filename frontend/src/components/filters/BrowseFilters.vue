@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import DisclosureIcon from "../ui/DisclosureIcon.vue";
+import InventoryIcon from "../InventoryIcon.vue";
+import { kindIcons } from "../../lib/kindIcons";
 import RemoteSelect from "../ui/RemoteSelect.vue";
 import { useFilterChoices } from "../../features/references/useFilterChoices";
 const { loadItems, loadActivities } = useFilterChoices();
@@ -196,7 +198,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				</summary>
 				<fieldset tabindex="-1">
 					<label
-						v-for="(label, kind) in movementLabels"
+						v-for="(entry, kind) in kindIcons"
 						v-show="records || !['Opening', 'Reconcile'].includes(kind)"
 						:key="kind"
 						class="preview-choice-label preview-check"
@@ -204,7 +206,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 							type="checkbox"
 							:checked="scope.kinds.includes(kind)"
 							@change="toggleKind(kind)"
-						/>{{ label }}</label
+						/><InventoryIcon :name="entry.icon" />{{ entry.label }}</label
 					>
 				</fieldset>
 			</details>

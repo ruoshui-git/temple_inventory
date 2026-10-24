@@ -87,7 +87,7 @@ def _require_supported_edit(doc):
 		if doc.purpose not in set(MOVEMENT_PURPOSES.values()):
 			frappe.throw("此库存用途请在 ERPNext 中处理")
 	elif doc.purpose != "Stock Reconciliation":
-		frappe.throw("此库存调整用途请在 ERPNext 中处理")
+		frappe.throw("此盘点调整用途请在 ERPNext 中处理")
 
 
 def _request_key(doctype, request_id):

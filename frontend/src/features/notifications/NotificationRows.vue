@@ -71,10 +71,13 @@ function exportFailure(row: InventoryNotification) {
 					<UiButton
 						v-else-if="data(row).status === 'Completed'"
 						size="compact"
+						icon="download"
 						@click="open(row)"
 						>下载</UiButton
 					>
-					<UiButton v-else size="compact" @click="open(row)">打开报表</UiButton>
+					<UiButton v-else size="compact" icon="report" @click="open(row)"
+						>打开报表</UiButton
+					>
 				</template>
 			</li>
 		</ul>

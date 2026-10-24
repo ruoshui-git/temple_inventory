@@ -14,7 +14,7 @@ describe("shared movement labels", () => {
       Loss: "遗失",
       Repair: "修复归库",
       Disposal: "报废",
-      Reconcile: "库存调整",
+      Reconcile: "盘点调整",
       Opening: "期初库存",
     });
   });

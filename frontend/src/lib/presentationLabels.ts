@@ -2,7 +2,7 @@ import { movementLabels } from "./filterPresentation";
 
 const documentTypeLabels: Record<string, string> = {
   "Stock Entry": "库存流动",
-  "Stock Reconciliation": "库存调整",
+  "Stock Reconciliation": "盘点调整",
   "Purchase Receipt": "采购收货",
   "Delivery Note": "销售发货",
 };

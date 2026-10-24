@@ -1,5 +1,4 @@
 import { postingTime } from "../../lib/nativeTime";
-import { movementLabels } from "../../lib/filterPresentation";
 import { allocationDestination } from "./operationModel";
 import type { NativeDocument } from "./nativeEditor";
 import type {
@@ -8,24 +7,7 @@ import type {
   OperationKind,
 } from "./operationModel";
 import type { ReferenceData } from "../../services/contracts";
-const operationKinds: OperationKind[] = [
-  "Receive",
-  "Issue",
-  "Transfer",
-  "Loan",
-  "Return",
-  "Damage",
-  "Loss",
-  "Repair",
-  "Disposal",
-];
-export const operationLabels: Record<OperationKind, string> =
-  Object.fromEntries(
-    operationKinds.map((kind) => [
-      kind,
-      kind === "Repair" ? "修复" : movementLabels[kind],
-    ]),
-  ) as Record<OperationKind, string>;
+export { operationLabels } from "../../lib/kindIcons";
 export function newOperation(
   kind: OperationKind,
   reference: ReferenceData,

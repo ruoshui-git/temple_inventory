@@ -13,6 +13,7 @@ import {
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { useReportController } from "../export/useReportController";
 import { useMovementHistory } from "../movements/useMovementHistory";
+import { kindIcons } from "../../lib/kindIcons";
 import { useBrowseState } from "../../lib/browseMemory";
 import { showToast } from "../../services/toast";
 export type NativeWarehouse = LocationNode;
@@ -99,9 +100,21 @@ export function useNativeWarehouses(
   const operationActions = computed(() =>
     physicalSelection.value
       ? [
-          { kind: "Receive", label: "入库到此库位" },
-          { kind: "Issue", label: "从此库位出库" },
-          { kind: "Transfer", label: "从此库位调拨" },
+          {
+            kind: "Receive",
+            label: "入库到此库位",
+            icon: kindIcons.Receive.icon,
+          },
+          {
+            kind: "Issue",
+            label: `从此库位${kindIcons.Issue.label}`,
+            icon: kindIcons.Issue.icon,
+          },
+          {
+            kind: "Transfer",
+            label: `从此库位${kindIcons.Transfer.label}`,
+            icon: kindIcons.Transfer.icon,
+          },
         ].filter((item) => reference.operations[item.kind] === true)
       : [],
   );

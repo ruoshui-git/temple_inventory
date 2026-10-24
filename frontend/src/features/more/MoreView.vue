@@ -86,7 +86,7 @@ const displayGroups = computed(() =>
 					:aria-busy="installBusy"
 					@click="c.install"
 				>
-					<span><InventoryIcon :name="installBusy ? 'warning' : 'download'" /></span
+					<span><InventoryIcon :name="installBusy ? 'warning' : 'device'" /></span
 					><strong>{{ installBusy ? "正在准备安装…" : "安装到手机 / 电脑" }}</strong
 					><small>添加到主屏幕，方便下次打开</small>
 				</button>

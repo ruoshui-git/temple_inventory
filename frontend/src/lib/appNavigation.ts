@@ -4,6 +4,7 @@ import {
   type AppOwner,
   type AppRouteTarget,
 } from "./routeRegistry";
+import { kindIcons } from "./kindIcons";
 
 export type AppDestination = AppOwner;
 export interface NavigationItem {
@@ -26,13 +27,13 @@ export const primaryNavigation: (NavigationItem & { key: AppDestination })[] = [
     key: "loans",
     label: "借用",
     route: routeTarget("loans", {}, { view: "items" }),
-    icon: "loan",
+    icon: kindIcons.Loan.icon,
   },
   {
     key: "reports",
     label: "报表",
     route: routeTarget("reports"),
-    icon: "download",
+    icon: "report",
   },
   { key: "more", label: "更多", route: routeTarget("more"), icon: "more" },
 ];
@@ -75,8 +76,8 @@ export const moreNavigation = [
         key: "count",
         label: "盘点调整",
         route: routeTarget("counts"),
-        icon: "adjust",
-        description: "查看和调整库存盘点记录",
+        icon: kindIcons.Reconcile.icon,
+        description: "查看和调整盘点调整记录",
       },
       {
         key: "drafts",
@@ -108,7 +109,7 @@ export const moreNavigation = [
         key: "settings",
         label: "显示设置",
         route: routeTarget("settings"),
-        icon: "adjust",
+        icon: kindIcons.Reconcile.icon,
         description: "主题、显示密度与文字大小",
       },
     ],

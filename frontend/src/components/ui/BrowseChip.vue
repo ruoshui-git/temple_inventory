@@ -1,5 +1,6 @@
 <script setup lang="ts">
-withDefaults(defineProps<{ label: string; removable?: boolean }>(), {
+import InventoryIcon from "../InventoryIcon.vue";
+withDefaults(defineProps<{ label: string; removable?: boolean; icon?: string }>(), {
 	removable: true,
 });
 const emit = defineEmits<{ edit: []; remove: [] }>();
@@ -8,6 +9,7 @@ const emit = defineEmits<{ edit: []; remove: [] }>();
 <template>
 	<span class="browse-active-chip">
 		<button type="button" class="browse-active-chip-label" @click="emit('edit')">
+			<InventoryIcon v-if="icon" :name="icon" />
 			{{ label }}
 		</button>
 		<button

@@ -121,7 +121,7 @@ function generateSelected() {
 </script>
 <template>
 	<UiButton class="preview-quick-report" :disabled="disabled" @click="open = true"
-		><InventoryIcon name="download" />导出</UiButton
+		><InventoryIcon name="export" />导出</UiButton
 	>
 	<Overlay
 		v-if="open"

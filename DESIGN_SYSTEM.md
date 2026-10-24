@@ -22,6 +22,17 @@ kept in Git.
   teleported content. Use semantic HTML, explicit labels, visible keyboard
   focus, reduced motion and 44px mobile/coarse-pointer targets.
 
+## Icons
+
+- Movement kinds use the single `frontend/src/lib/kindIcons.ts` map for their
+  canonical label and icon. Reuse that map in menus, filters, rows, records,
+  notifications, drafts, editor headings and More tiles.
+- Every registry path has a distinct glyph. Declare an intentional alias by
+  pointing its name to the canonical key.
+- Use `outside` (door-open) for the 外部 endpoint, `export` (file-down) for
+  导出 actions and `report` (chart-column) for the 报表 destination. Reserve
+  `download` for actual file downloads.
+
 ## Creation editors
 
 - `Attachments` is the shared file-picker control for editors and new Items.

@@ -9,6 +9,7 @@ import { useOptionalInventoryServices, useOptionalReferenceData } from "../../se
 import { showToast } from "../../services/toast";
 import ItemLine from "./ItemLine.vue";
 import LocationEndpoint from "./LocationEndpoint.vue";
+import { movementLabels } from "../../lib/kindIcons";
 
 const props = defineProps<{
 	kind: string;
@@ -248,30 +249,8 @@ const tablePrefs =
 		: undefined;
 const enumLabels: Record<string, Record<string, string>> = {
 	docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
-	kind: {
-		Receive: "入库",
-		Issue: "出库",
-		Transfer: "调拨",
-		Loan: "借用",
-		Return: "归还",
-		Damage: "损坏归还",
-		Loss: "遗失",
-		Repair: "修复",
-		Disposal: "报废",
-		Opening: "期初库存",
-		Reconcile: "库存盘点",
-	},
-	ti_movement_kind: {
-		Receive: "入库",
-		Issue: "出库",
-		Transfer: "调拨",
-		Loan: "借用",
-		Return: "归还",
-		Damage: "损坏归还",
-		Loss: "遗失",
-		Repair: "修复",
-		Disposal: "报废",
-	},
+	kind: movementLabels,
+	ti_movement_kind: movementLabels,
 	review_state: { Reviewed: "已核对", Unreviewed: "未核对" },
 	ti_count_scope: { Selected: "选择的物品", "Full Location": "完整库位" },
 	ti_time_mode: {

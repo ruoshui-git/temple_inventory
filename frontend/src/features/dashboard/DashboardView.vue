@@ -23,6 +23,7 @@ import { newReportQuery, type ReportDataset, type ReportQuery } from "../../lib/
 import { emptyScope, type BrowseScope } from "../../lib/browseQuery";
 import type { AppRouteTarget } from "../../lib/routeRegistry";
 import { movementLabels } from "../../lib/filterPresentation";
+import { kindIcons } from "../../lib/kindIcons";
 import { quantityText, type useDashboardController } from "./useDashboardController";
 const props = withDefaults(
 	defineProps<{
@@ -138,7 +139,7 @@ function datasetChanged(dataset: ReportDataset) {
 	<div class="preview-dashboard">
 		<PageHeader title="物资总览">
 			<template #actions>
-				<UiButton @click="refresh">刷新</UiButton>
+				<UiButton icon="refresh" @click="refresh">刷新</UiButton>
 				<QuickExport
 					:query="quickReportQuery"
 					:query-for-dataset="queryForDataset"
@@ -191,10 +192,30 @@ function datasetChanged(dataset: ReportDataset) {
 			</template>
 		</PageHeader>
 		<div class="dashboard-quick-actions" aria-label="快速操作">
-			<UiButton v-if="canCreate('Receive')" @click="quickAction('Receive')">入库</UiButton>
-			<UiButton v-if="canCreate('Issue')" @click="quickAction('Issue')">出库</UiButton>
-			<UiButton v-if="canCreate('Loan')" @click="quickAction('Loan')">借出</UiButton>
-			<UiButton v-if="canCreate('Transfer')" @click="quickAction('Transfer')">调拨</UiButton>
+			<UiButton
+				v-if="canCreate('Receive')"
+				:icon="kindIcons.Receive.icon"
+				@click="quickAction('Receive')"
+				>{{ kindIcons.Receive.label }}</UiButton
+			>
+			<UiButton
+				v-if="canCreate('Issue')"
+				:icon="kindIcons.Issue.icon"
+				@click="quickAction('Issue')"
+				>{{ kindIcons.Issue.label }}</UiButton
+			>
+			<UiButton
+				v-if="canCreate('Loan')"
+				:icon="kindIcons.Loan.icon"
+				@click="quickAction('Loan')"
+				>{{ kindIcons.Loan.label }}</UiButton
+			>
+			<UiButton
+				v-if="canCreate('Transfer')"
+				:icon="kindIcons.Transfer.icon"
+				@click="quickAction('Transfer')"
+				>{{ kindIcons.Transfer.label }}</UiButton
+			>
 			<PopupMenu
 				v-if="hasMoreActions"
 				label="更多"
@@ -206,23 +227,39 @@ function datasetChanged(dataset: ReportDataset) {
 				<div class="dashboard-more-actions-menu">
 					<UiButton
 						v-if="reference.operations.Reconcile === true"
+						:icon="kindIcons.Reconcile.icon"
 						@click="navigateMore(countDestination())"
-						>盘点调整</UiButton
+						>{{ kindIcons.Reconcile.label }}</UiButton
 					>
-					<UiButton v-if="canCreate('Damage')" @click="quickAction('Damage')"
-						>损坏</UiButton
+					<UiButton
+						v-if="canCreate('Damage')"
+						:icon="kindIcons.Damage.icon"
+						@click="quickAction('Damage')"
+						>{{ kindIcons.Damage.label }}</UiButton
 					>
-					<UiButton v-if="canCreate('Loss')" @click="quickAction('Loss')">遗失</UiButton>
-					<UiButton v-if="canCreate('Repair')" @click="quickAction('Repair')"
-						>修复</UiButton
+					<UiButton
+						v-if="canCreate('Loss')"
+						:icon="kindIcons.Loss.icon"
+						@click="quickAction('Loss')"
+						>{{ kindIcons.Loss.label }}</UiButton
 					>
-					<UiButton v-if="canCreate('Disposal')" @click="quickAction('Disposal')"
-						>报废</UiButton
+					<UiButton
+						v-if="canCreate('Repair')"
+						:icon="kindIcons.Repair.icon"
+						@click="quickAction('Repair')"
+						>{{ kindIcons.Repair.label }}</UiButton
+					>
+					<UiButton
+						v-if="canCreate('Disposal')"
+						:icon="kindIcons.Disposal.icon"
+						@click="quickAction('Disposal')"
+						>{{ kindIcons.Disposal.label }}</UiButton
 					>
 					<UiButton
 						v-if="reference.operations.Return === true"
+						:icon="kindIcons.Return.icon"
 						@click="chooseOutstandingLoan"
-						>归还 · 选择未结清借用</UiButton
+						>{{ kindIcons.Return.label }} · 选择未结清借用</UiButton
 					>
 				</div>
 			</PopupMenu>

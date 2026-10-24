@@ -25,7 +25,7 @@ export const movementLabels: Record<string, string> = {
   Repair: "修复归库",
   Disposal: "报废",
   Opening: "期初库存",
-  Reconcile: "库存调整",
+  Reconcile: "盘点调整",
 };
 export const outcomes = {
   outstanding: "未归还",

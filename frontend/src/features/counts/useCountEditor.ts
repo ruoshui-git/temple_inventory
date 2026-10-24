@@ -594,7 +594,7 @@ export function useCountEditor(props: {
       }
     }
     if (!canSubmit.value) {
-      state.error = "没有确认库存调整的权限，已保存的草稿单据可继续编辑";
+      state.error = "没有确认盘点调整的权限，已保存的草稿单据可继续编辑";
       return;
     }
     busy.value = true;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import InventoryIcon from "../InventoryIcon.vue";
 import NativeStatusBadge from "./NativeStatusBadge.vue";
+import { kindIcons } from "../../lib/kindIcons";
 
 const props = withDefaults(
 	defineProps<{
@@ -17,19 +18,18 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ open: [] }>();
 const icon: Record<string, string> = {
-	Loan: "loan",
-	Return: "return",
-	Reconcile: "count",
+	...Object.fromEntries(Object.entries(kindIcons).map(([key, value]) => [key, value.icon])),
 	Activity: "activity",
-	"Stock Reconciliation": "count",
+	"Stock Reconciliation": kindIcons.Reconcile.icon,
 };
 const kindLabel: Record<string, string> = {
-	Loan: "借出",
-	Return: "归还",
-	Reconcile: "盘点",
+	...Object.fromEntries(Object.entries(kindIcons).map(([key, value]) => [key, value.label])),
+	Loan: kindIcons.Loan.label,
+	Return: kindIcons.Return.label,
+	Reconcile: kindIcons.Reconcile.label,
 	Activity: "活动",
 	"Stock Entry": "库存操作",
-	"Stock Reconciliation": "库存盘点",
+	"Stock Reconciliation": kindIcons.Reconcile.label,
 };
 const label = () => {
 	const kind = kindLabel[props.kind] || props.kind;

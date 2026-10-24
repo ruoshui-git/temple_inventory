@@ -84,6 +84,16 @@ supersession below when a durable user-facing decision changes.
   menu; Drafts uses 新建. Loan settlement actions stay grouped before the quiet
   ERPNext Desk link.
 
+## Supersession — 2026-10-24: movement icons and labels
+
+- A single kind map supplies the icon and canonical Chinese label for each
+  movement kind and count adjustment. Every surface uses the same glyph for a
+  kind, including dashboard actions, menus, filters, records, notifications,
+  drafts, editor headings and More tiles. Glyphs are distinct across kinds.
+- Repair is labeled `修复归库`; Reconcile and Stock Reconciliation are labeled
+  `盘点调整`. Native enum keys, IDs, query values and ERPNext DocType names
+  remain unchanged.
+
 ## Browse behavior
 
 - The shared breakpoint is 1024px. Responsive coordinators mount one active

@@ -1,4 +1,5 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { kindIcons } from "../../lib/kindIcons";
 import {
   newReportQuery,
   type ReportQuery,
@@ -273,18 +274,47 @@ export function useStockBrowseController(
       },
     })),
   ]);
-  const actions = computed(() => [
-    { name: "新建物品", kind: "Item", icon: "box" },
-    { name: "入库", kind: "Receive", icon: "receive" },
-    { name: "出库", kind: "Issue", icon: "issue" },
-    { name: "调拨", kind: "Transfer", icon: "transfer" },
-  ].filter((action) => action.kind === "Item" || reference.operations[action.kind] === true));
+  const actions = computed(() =>
+    [
+      { name: "新建物品", kind: "Item", icon: "box" },
+      {
+        name: kindIcons.Receive.label,
+        kind: "Receive",
+        icon: kindIcons.Receive.icon,
+      },
+      {
+        name: kindIcons.Issue.label,
+        kind: "Issue",
+        icon: kindIcons.Issue.icon,
+      },
+      {
+        name: kindIcons.Transfer.label,
+        kind: "Transfer",
+        icon: kindIcons.Transfer.icon,
+      },
+    ].filter(
+      (action) =>
+        action.kind === "Item" || reference.operations[action.kind] === true,
+    ),
+  );
   const selectedActions = computed(() =>
     selected.value.length
       ? [
-          { name: "入库", kind: "Receive", icon: "download" },
-          { name: "出库", kind: "Issue", icon: "loan" },
-          { name: "调拨", kind: "Transfer", icon: "movement" },
+          {
+            name: kindIcons.Receive.label,
+            kind: "Receive",
+            icon: kindIcons.Receive.icon,
+          },
+          {
+            name: kindIcons.Issue.label,
+            kind: "Issue",
+            icon: kindIcons.Issue.icon,
+          },
+          {
+            name: kindIcons.Transfer.label,
+            kind: "Transfer",
+            icon: kindIcons.Transfer.icon,
+          },
         ].filter((action) => reference.operations[action.kind] === true)
       : [],
   );
@@ -304,7 +334,8 @@ export function useStockBrowseController(
       reference.user !== account ||
       props.active === false ||
       reference.operations[kind] !== true
-    ) return;
+    )
+      return;
     navigate(kind, [item.code]);
   }
   watch(
@@ -316,7 +347,9 @@ export function useStockBrowseController(
   );
   function action(name: string) {
     if (scopeError.value || reference.user !== account) return;
-    const selectedAction = actions.value.find((action) => action.name === name || action.kind === name);
+    const selectedAction = actions.value.find(
+      (action) => action.name === name || action.kind === name,
+    );
     if (!selectedAction) return;
     navigate(selectedAction.kind);
   }

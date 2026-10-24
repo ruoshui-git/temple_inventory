@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import InventoryIcon from "../InventoryIcon.vue";
+import { kindIcons } from "../../lib/kindIcons";
 
 const props = defineProps<{
 	warehouse?: string | null;
@@ -48,7 +49,7 @@ const endpoint = computed(() => {
 	if (props.warehouse && props.warehouse === settings.leased_warehouse)
 		return {
 			label: "借出",
-			icon: "loan",
+			icon: kindIcons.Loan.icon,
 			className: "is-muted",
 			detail: props.borrower ? `借用方：${props.borrower}` : "借出位置",
 		};
@@ -68,7 +69,7 @@ const endpoint = computed(() => {
 		};
 		return {
 			label: "外部",
-			icon: "outward",
+			icon: "outside",
 			className: "is-muted",
 			detail: labels[props.kind] || "库外",
 		};

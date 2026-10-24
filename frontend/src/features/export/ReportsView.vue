@@ -27,6 +27,7 @@ import { periodLabels, sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
 import type { useExportWorkspaceController } from "./useReportController";
 import { operationLabels } from "../documents/operationCodec";
+import { kindIcons } from "../../lib/kindIcons";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useExportWorkspaceController>;
@@ -68,7 +69,7 @@ const availableGroups = computed(() => groupsForView(dataset.value, query.value.
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && reference.operations[kind])
-		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: "movement" })),
+		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: kindIcons[kind].icon })),
 );
 const availableSecondGroups = computed(() =>
 	groupSequencesForView(dataset.value, query.value.view)
@@ -163,7 +164,9 @@ function setGroup(index: number, value: string) {
 						@open-full="emit('openExport', $event)"
 					/>
 				</BrowseOverflowMenu>
-				<UiButton variant="primary" @click="emit('openExport', query)">导出</UiButton>
+				<UiButton variant="primary" icon="export" @click="emit('openExport', query)"
+					>导出</UiButton
+				>
 			</template>
 			<template #subtitle
 				><p class="muted">完整筛选范围 · 数量按单位与状态分别列示</p></template
@@ -329,7 +332,7 @@ function setGroup(index: number, value: string) {
 									><input
 										type="checkbox"
 										v-model="query.includeAdjustments"
-									/>包含期初与库存调整</label
+									/>包含期初与盘点调整</label
 								>
 							</details>
 							<details

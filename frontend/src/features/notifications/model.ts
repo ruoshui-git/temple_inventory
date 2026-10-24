@@ -1,3 +1,5 @@
+import { movementIcon } from "../../lib/kindIcons";
+
 export interface InventoryNotification {
   name: string;
   type: string;
@@ -54,24 +56,6 @@ export function notificationIcon(row: InventoryNotification) {
   if (row.type === "盘点调整") return "count";
   if (row.type === "效期提醒") return "expiry";
   return data.status === "Failed" ? "warning" : "select";
-}
-
-function movementIcon(kind: string) {
-  return (
-    (
-      {
-        Receive: "receive",
-        Issue: "issue",
-        Loss: "cancel",
-        Transfer: "transfer",
-        Loan: "loan",
-        Return: "return",
-        Damage: "warning",
-        Repair: "repair",
-        Disposal: "cancel",
-      } as Record<string, string>
-    )[kind] || "movement"
-  );
 }
 
 export function isDownloadLink(link: string) {

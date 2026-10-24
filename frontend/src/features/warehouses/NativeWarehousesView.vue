@@ -447,14 +447,19 @@ function parentLabel(name?: string) {
 						<UiButton
 							v-for="action in c.operationActions.value"
 							:key="action.kind"
+							:icon="action.icon"
 							@click="emit('newOperation', action.kind, selected.name)"
 							>{{ action.label }}</UiButton
 						>
 						<UiButton
 							:disabled="!c.canUseSelection.value"
+							icon="box"
 							@click="emit('browse', c.stockQuery.value)"
 							>查看完整库存范围</UiButton
-						><UiButton v-if="c.canCount.value" @click="emit('newCount', selected.name)"
+						><UiButton
+							v-if="c.canCount.value"
+							icon="count"
+							@click="emit('newCount', selected.name)"
 							>盘点此库位</UiButton
 						>
 					</div>

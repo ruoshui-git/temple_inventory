@@ -18,6 +18,7 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import { kindIcons } from "../../lib/kindIcons";
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
 });
@@ -192,7 +193,7 @@ watch([() => props.active, isMobile], () => {
 							<UiButton
 								v-if="c.canAct('Repair', row as ReportRow)"
 								variant="primary"
-								icon="loan"
+								:icon="kindIcons.Repair.icon"
 								@click="
 									emit('operation', 'Repair', c.allocation(row as ReportRow))
 								"
@@ -201,7 +202,7 @@ watch([() => props.active, isMobile], () => {
 							<UiButton
 								v-if="c.canAct('Disposal', row as ReportRow)"
 								variant="danger"
-								icon="trash"
+								:icon="kindIcons.Disposal.icon"
 								@click="
 									emit('operation', 'Disposal', c.allocation(row as ReportRow))
 								"
@@ -209,6 +210,7 @@ watch([() => props.active, isMobile], () => {
 							>
 							<UiButton
 								:disabled="c.report.result.stale"
+								icon="box"
 								@click="emit('item', String(row.item_code))"
 								>物品详情</UiButton
 							>

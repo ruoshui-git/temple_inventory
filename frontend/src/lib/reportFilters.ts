@@ -162,7 +162,7 @@ export function reportFilterChips(
       query.includeUndated,
     );
   if (!query.includeAdjustments)
-    add("includeAdjustments", "不含期初与库存调整", {
+    add("includeAdjustments", "不含期初与盘点调整", {
       includeAdjustments: true,
     });
   if (query.activityStatus !== "all")

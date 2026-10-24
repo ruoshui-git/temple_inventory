@@ -19,6 +19,8 @@ import { sortableColumnLabels, sortableColumnsForView } from "../../lib/reportCo
 import { groupLabels } from "../../lib/reportContract";
 import { removeGroupByField } from "../../lib/groupBy";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
+import { kindIcons } from "../../lib/kindIcons";
+import InventoryIcon from "../../components/InventoryIcon.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
@@ -104,7 +106,7 @@ const createOptions = computed(() => {
 		.map((kind) => ({
 			kind,
 			label: operationLabels[kind as keyof typeof operationLabels],
-			icon: kind === "Loan" || kind === "Return" ? "loan" : "movement",
+			icon: kindIcons[kind as keyof typeof kindIcons].icon,
 		}));
 });
 const showMobileItemCards = computed(
@@ -866,7 +868,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-if="family === 'movements' && reference.operations.Receive"
 						label="入库"
 						kind="Receive"
-						icon="receive"
+						:icon="kindIcons.Receive.icon"
 						:options="createOptions"
 						@select="emit('newOperation', $event)"
 					/>
@@ -874,7 +876,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-else-if="family === 'loans' && reference.operations.Loan"
 						label="登记借出"
 						kind="Loan"
-						icon="loan"
+						:icon="kindIcons.Loan.icon"
 						:options="createOptions"
 						@select="emit('newOperation', $event)"
 					/>
@@ -888,12 +890,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:aria-current="!records ? 'page' : undefined"
 							@click="switchView(false)"
 						>
-							按物品</button
+							<InventoryIcon name="box" />按物品</button
 						><button
 							:aria-current="records ? 'page' : undefined"
 							@click="switchView(true)"
 						>
-							按记录
+							<InventoryIcon name="document" />按记录
 						</button>
 					</nav></template
 				>
@@ -924,6 +926,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-for="chip in scopeChips"
 						:key="chip.key"
 						:label="chip.label"
+						:icon="chip.icon"
 						@edit="editFilter(chip.field)"
 						@remove="removeScopeChip(chip)"
 					/>

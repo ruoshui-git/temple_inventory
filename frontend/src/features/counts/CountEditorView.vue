@@ -2,6 +2,8 @@
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
+import InventoryIcon from "../../components/InventoryIcon.vue";
+import { kindIcons } from "../../lib/kindIcons";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -197,6 +199,10 @@ async function back() {
 		<PageHeader class="form-page-heading"
 			><div>
 				<h1 tabindex="-1">
+					<InventoryIcon
+						class="operation-kind-heading-icon"
+						:name="opening ? 'document' : kindIcons.Reconcile.icon"
+					/>
 					{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}
 				</h1>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
@@ -259,7 +265,7 @@ async function back() {
 			/>
 		</section>
 		<section v-if="state.status === 'matching'" class="notice-bar success">
-			<h2>已核对的数量一致，无需库存调整</h2>
+			<h2>已核对的数量一致，无需盘点调整</h2>
 			<p>未创建新的库存记录；未核对的行仍是未完成输入。</p>
 			<p v-if="state.identity">
 				原有草稿 {{ state.identity.name }} 保持原样。请明确删除该草稿，或继续编辑。
@@ -475,7 +481,7 @@ async function back() {
 		<Overlay v-if="reviewOpen" title="核对并确认盘点" @close="!busy && (reviewOpen = false)"
 			><CountSummary v-if="!deskOrigin" :rows="rows" />
 			<p v-if="!deskOrigin" class="count-confirmation-note">
-				未核对的行仍保留在本次范围中，但不会进入库存调整。
+				未核对的行仍保留在本次范围中，但不会进入盘点调整。
 			</p>
 			<p v-if="!deskOrigin && values.ti_notes" class="preview-long-text">
 				盘点备注：{{ values.ti_notes }}

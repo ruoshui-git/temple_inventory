@@ -351,7 +351,7 @@ test("real matching count finishes without creating an adjustment document", asy
   });
   await expect(
     page.getByRole("heading", {
-      name: "已核对的数量一致，无需库存调整",
+      name: "已核对的数量一致，无需盘点调整",
       exact: true,
     }),
   ).toBeVisible();

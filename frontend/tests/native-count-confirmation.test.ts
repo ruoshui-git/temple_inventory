@@ -139,7 +139,7 @@ describe("count confirmation summary", () => {
     const text = dialog!.textContent || "";
     expect(text).toContain("174 行未核对");
     expect(text).toContain(
-      "未核对的行仍保留在本次范围中，但不会进入库存调整。",
+      "未核对的行仍保留在本次范围中，但不会进入盘点调整。",
     );
     expect(text).toContain("盘点备注：复核整批数量");
     expect(text).toContain("核对零数量");

@@ -3,6 +3,7 @@ import {
   useInventoryServices,
   useReferenceData,
 } from "../../services/contracts";
+import { movementLabels } from "../../lib/kindIcons";
 
 export const notificationEvents = [
   { key: "movement_submitted", label: "新货物流动" },
@@ -37,17 +38,6 @@ const kinds = [
   "Repair",
   "Disposal",
 ];
-const kindLabels: Record<string, string> = {
-  Receive: "入库",
-  Issue: "出库",
-  Loss: "遗失",
-  Transfer: "调拨",
-  Loan: "借出",
-  Return: "归还",
-  Damage: "损坏",
-  Repair: "修复",
-  Disposal: "报废",
-};
 function decodeKey(value: string) {
   const padded = value
     .replace(/-/g, "+")
@@ -264,7 +254,7 @@ export function useNotificationSettings() {
     account,
     preferences,
     kinds,
-    kindLabels,
+    kindLabels: movementLabels,
     notificationEvents,
     devices,
     loading,
