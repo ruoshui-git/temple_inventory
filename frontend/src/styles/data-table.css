@@ -117,6 +117,71 @@
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
 }
+.data-table-frame {
+	position: relative;
+	min-width: 0;
+}
+.data-table-frame::before,
+.data-table-frame::after {
+	position: absolute;
+	top: 1px;
+	bottom: 1px;
+	width: 12px;
+	content: "";
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 120ms ease;
+	z-index: 2;
+}
+.data-table-frame::before {
+	left: 1px;
+	background: linear-gradient(
+		90deg,
+		color-mix(in srgb, var(--p-ink) 18%, transparent),
+		transparent
+	);
+}
+.data-table-frame::after {
+	right: 1px;
+	background: linear-gradient(
+		270deg,
+		color-mix(in srgb, var(--p-ink) 18%, transparent),
+		transparent
+	);
+}
+.data-table-frame:has(.data-table-scroll.is-overflow-start)::before,
+.data-table-frame:has(.data-table-scroll.is-overflow-end)::after {
+	opacity: 1;
+}
+.data-table-overflow-hint {
+	position: absolute;
+	top: 6px;
+	right: 28px;
+	z-index: 5;
+	min-height: 28px;
+	padding: 3px 9px;
+	border: 1px solid var(--p-border);
+	border-radius: 999px;
+	background: var(--p-surface);
+	color: var(--p-ink);
+	box-shadow: 0 2px 8px var(--p-shadow-color);
+	font: inherit;
+	font-size: var(--p-small);
+	cursor: pointer;
+}
+.data-table-frame:has(.data-table-scroll.is-overflow-end) .data-table-overflow-hint {
+	display: block;
+}
+.data-table-overflow-hint:hover,
+.data-table-overflow-hint:focus-visible {
+	background: var(--p-soft);
+	outline-color: var(--p-accent);
+}
+@media print {
+	.data-table-overflow-hint {
+		display: none !important;
+	}
+}
 
 .data-table-scroll:focus-visible {
 	outline: 3px solid var(--p-accent);
@@ -130,16 +195,16 @@
 	text-align: start;
 }
 
-.data-table-scroll table.data-table-has-groups {
-	width: max-content;
-	min-width: 100%;
-}
-
 .data-table-scroll th,
 .data-table-scroll td {
 	padding: var(--p-table-cell-y, 12px) var(--p-table-cell-x, 12px);
 	border-bottom: 1px solid var(--p-border);
 	vertical-align: middle;
+}
+@media (min-width: 1440px) {
+	.data-table-scroll:has(table.browse-table) {
+		--p-table-cell-x: 10px;
+	}
 }
 
 .data-table-scroll th {
@@ -405,15 +470,21 @@
 
 .operation-group-metrics {
 	display: inline-block;
-	max-width: min(42vw, 24rem);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	max-width: min(42vw, 16rem);
+	white-space: normal;
 	vertical-align: bottom;
 }
 
 .report-quantity-cell {
-	white-space: nowrap;
+	max-width: 16rem;
+	white-space: normal;
+}
+.data-table-scroll :is(th, td).operation-loan-outstanding-column,
+.data-table-scroll :is(th, td).operation-movement-quantity-column {
+	width: min(16rem, 24vw);
+	min-width: min(9rem, 24vw);
+	max-width: 16rem;
+	white-space: normal;
 }
 
 .data-table-state,

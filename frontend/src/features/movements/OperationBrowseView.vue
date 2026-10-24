@@ -34,6 +34,8 @@ import SortControl from "../../components/ui/SortControl.vue";
 import { loanSummaryMetrics, movementSummaryMetrics } from "./movementSummary";
 import OperationBrowseFilters from "./OperationBrowseFilters.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
+import { compactGroupSummary } from "../../lib/groupSummary";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -173,13 +175,13 @@ const operationColumns = computed<DataColumn[]>(() =>
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "quantities",
@@ -236,13 +238,13 @@ const operationColumns = computed<DataColumn[]>(() =>
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "quantities",
@@ -314,13 +316,13 @@ const itemColumns = computed<DataColumn[]>(() =>
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "quantities",
@@ -336,7 +338,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 					id: "related_loans",
 					label: "原借出",
 					defaultVisible: wideScreen.value,
-					minWidth: "170px",
+					minWidth: "160px",
 				},
 			]
 		: [
@@ -369,13 +371,13 @@ const itemColumns = computed<DataColumn[]>(() =>
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "150px",
+					minWidth: "140px",
 				},
 				{
 					id: "borrowed",
@@ -577,7 +579,10 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 		if (row.borrowed !== undefined) parts.push(`借出 ${row.borrowed} ${unit}`.trim());
 		if (row.outstanding !== undefined) parts.push(`未归还 ${row.outstanding} ${unit}`.trim());
 	} else if (Array.isArray(row.quantity_breakdown)) {
-		for (const entry of row.quantity_breakdown as Record<string, unknown>[]) {
+		const breakdown = [...(row.quantity_breakdown as Record<string, unknown>[])].sort(
+			(a, b) => Number(b.stock_qty || 0) - Number(a.stock_qty || 0),
+		);
+		for (const entry of breakdown) {
 			const quantity = Number(entry.stock_qty || 0);
 			if (!quantity) continue;
 			const parallel = (row.quantity_breakdown as Record<string, unknown>[]).some(
@@ -594,6 +599,9 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 		parts.push(`${row.stock_qty} ${row.stock_uom || ""}`.trim());
 	}
 	return parts.join(" · ");
+}
+function groupSummaryDisplay(group: DataTableGroup, includeCount = false) {
+	return compactGroupSummary(groupSummary(group, includeCount));
 }
 function countedLocations(row: Record<string, unknown>) {
 	return [
@@ -642,7 +650,7 @@ function hiddenGroupMetrics(group: DataTableGroup, visibleColumns: string[]) {
 			parts.push(groupLoanMetric(group, "outstanding"));
 		return parts.filter(Boolean).join(" · ");
 	}
-	return visibleColumns.includes("quantities") ? "" : groupSummary(group);
+	return visibleColumns.includes("quantities") ? "" : groupSummaryDisplay(group);
 }
 function openHistoryDocument(row: Record<string, unknown>) {
 	if (row.kind === "Loan") emit("openLoan", String(row.document));
@@ -715,6 +723,7 @@ const {
 	false,
 );
 const scanOpen = ref(false);
+const filterSheetOpen = ref(false);
 const analysisOpen = ref(false);
 watch([() => props.active, isMobile], () => {
 	scanOpen.value = false;
@@ -836,7 +845,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 </script>
 <template>
 	<section class="browse-page">
-		<ReturnToTop :active="active" :hidden="isMobile && filtersOpen" />
+		<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
 		<div class="preview-activity-browse">
 			<BrowseToolbar
 				:title="family === 'movements' ? '货物流动' : '借用'"
@@ -851,7 +860,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				:active="active"
 				:filter-count="extraChips.length + scopeChips.length"
 				@scan="scanOpen = true"
-				@sidebar="toggleFilters"
+				@filter-open="filterSheetOpen = $event"
 			>
 				<template #actions>
 					<BrowseOverflowMenu>
@@ -983,9 +992,22 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					v-if="filtersOpen && !isMobile"
 					class="preview-filter-rail browse-filter-rail"
 				>
-					<h3>筛选{{ family === "movements" ? "货物流动" : "借用" }}</h3>
+					<div class="filter-rail-heading">
+						<h3>筛选{{ family === "movements" ? "货物流动" : "借用" }}</h3>
+						<FilterRailEdge
+							:open="true"
+							:active="scope.categories.length + scope.warehouses.length > 0"
+							@toggle="toggleFilters"
+						/>
+					</div>
 					<BrowseFilters v-model="scope" :fields="['categories', 'warehouses']" />
 				</aside>
+				<FilterRailEdge
+					v-if="!filtersOpen && !isMobile"
+					:open="false"
+					:active="scope.categories.length + scope.warehouses.length > 0"
+					@toggle="toggleFilters"
+				/>
 				<div class="preview-browse-results">
 					<Overlay
 						v-if="analysisOpen && !records"
@@ -1516,15 +1538,19 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						<template #group-metrics="{ group, visibleColumns }">
 							<span
 								v-if="hiddenGroupMetrics(group, visibleColumns)"
+								role="note"
 								class="operation-group-metrics operation-group-metrics-leading"
-								:title="hiddenGroupMetrics(group, visibleColumns)"
+								:title="groupSummary(group)"
+								:aria-label="groupSummary(group)"
 								>{{ hiddenGroupMetrics(group, visibleColumns) }}</span
 							>
 						</template>
 						<template #group-column="{ group, column }">
 							<span
+								role="note"
 								class="operation-group-metrics"
 								:title="groupSummary(group)"
+								:aria-label="groupSummary(group)"
 								v-if="
 									family === 'loans' &&
 									['borrowed', 'quantities'].includes(String(column.id))
@@ -1532,15 +1558,20 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								>{{ groupLoanMetric(group, String(column.id)) }}</span
 							>
 							<span
+								role="note"
 								class="operation-group-metrics"
+								:title="groupSummary(group)"
+								:aria-label="groupSummary(group)"
 								v-else-if="family === 'loans' && column.id === 'outstanding'"
 								>{{ groupLoanMetric(group, String(column.id)) }}</span
 							>
 							<span
+								role="note"
 								class="operation-group-metrics"
 								:title="groupSummary(group)"
+								:aria-label="groupSummary(group)"
 								v-else-if="family === 'movements' && column.id === 'quantities'"
-								>{{ groupSummary(group) }}</span
+								>{{ groupSummaryDisplay(group) }}</span
 							>
 						</template>
 						<template #group="{ group }">

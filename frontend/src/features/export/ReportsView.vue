@@ -10,8 +10,9 @@ import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
-import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import {
 	groupLabels,
@@ -21,7 +22,7 @@ import {
 	sortableColumnsForView,
 } from "../../lib/reportContract";
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
 import { periodLabels, sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
@@ -37,9 +38,10 @@ const props = withDefaults(
 );
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
-	openExport: [query: import("../../lib/reportContract").ReportQuery];
 	newOperation: [kind: string];
 }>();
+const quickExport = ref<InstanceType<typeof QuickExport>>();
+const filterSheetOpen = ref(false);
 const {
 	routeError,
 	dataset,
@@ -153,18 +155,17 @@ function setGroup(index: number, value: string) {
 			:sidebar-save-error="sidebarSaveError"
 			:retry-sidebar-save="retrySidebarSave"
 			:sidebar-available="sidebarAvailable"
-			@sidebar="toggleSidebar"
+			@filter-open="filterSheetOpen = $event"
 		>
 			<template #actions>
-				<BrowseOverflowMenu>
-					<QuickExport
-						:query="query"
-						:active="active"
-						:show-open-report="false"
-						@open-full="emit('openExport', $event)"
-					/>
-				</BrowseOverflowMenu>
-				<UiButton variant="primary" icon="export" @click="emit('openExport', query)"
+				<QuickExport
+					ref="quickExport"
+					:query="query"
+					:active="active"
+					:show-open-report="false"
+					:show-trigger="false"
+				/>
+				<UiButton variant="primary" icon="export" @click="quickExport?.open()"
 					>导出</UiButton
 				>
 			</template>
@@ -585,13 +586,26 @@ function setGroup(index: number, value: string) {
 				v-if="sidebarOpen && sidebarAvailable && !isMobile"
 				class="preview-filter-rail browse-filter-rail"
 			>
-				<h3>类别与仓库</h3>
+				<div class="filter-rail-heading">
+					<h3>类别与仓库</h3>
+					<FilterRailEdge
+						:open="true"
+						:active="query.scope.categories.length + query.scope.warehouses.length > 0"
+						@toggle="toggleSidebar"
+					/>
+				</div>
 				<BrowseFilters
 					v-model="query.scope"
 					:fields="['categories', 'warehouses']"
 					hide-activity
 				/>
 			</aside>
+			<FilterRailEdge
+				v-if="!sidebarOpen && sidebarAvailable && !isMobile"
+				:open="false"
+				:active="query.scope.categories.length + query.scope.warehouses.length > 0"
+				@toggle="toggleSidebar"
+			/>
 			<section class="preview-browse-results surface form-section">
 				<div class="compact-filter-toolbar report-results-heading">
 					<h2>
@@ -692,4 +706,5 @@ function setGroup(index: number, value: string) {
 			</p>
 		</details>
 	</section>
+	<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
 </template>

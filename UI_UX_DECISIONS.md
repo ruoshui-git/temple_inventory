@@ -59,8 +59,8 @@ supersession below when a durable user-facing decision changes.
 ## Supersession — 2026-10-24: persistent browse header
 
 - Browse headers do not collapse; remove 收起工具/展开工具. At 1024–1280px,
-  the persistent row wraps in place. The sidebar toggle is icon-only with the
-  tooltip 显示/隐藏筛选侧栏, and the filter control shows its active count.
+  the persistent row wraps in place. The filter control shows its active count;
+  sidebar behavior follows the later 2026-10-24 rail supersession below.
 - Create actions use a split button with the page's default action on the main
   face and other permitted kinds in the menu. Export, 草稿 (including its
   count) and secondary actions go in a `⋯` menu.
@@ -69,6 +69,15 @@ supersession below when a durable user-facing decision changes.
   stuck, and table headers stick inside their result scrollport.
 - `/` focuses the page search unless the user is typing in an editable field.
   Escape retains the current search/chip editor behavior.
+
+## Supersession — 2026-10-24: browse rail and Reports export
+
+- The persistent-header rule that called for an icon-only sidebar toggle with
+  tooltip `显示/隐藏筛选侧栏` is superseded. On desktop, the open hierarchy
+  rail owns a `收起筛选侧栏` control; its collapsed 28px edge rail owns the
+  `展开筛选侧栏` control. Phones keep their filter sheet and no hierarchy rail.
+- Reports' primary 导出 action opens the QuickExport dialog directly with the
+  current query. The overflow menu does not duplicate that action.
 
 ## Supersession — 2026-10-24: compact visual-pass details
 

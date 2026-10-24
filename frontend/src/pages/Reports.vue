@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
 import ReportsPage from "../features/export/ReportsPage.vue";
-import { documentDestination, exportDestination } from "../lib/nativeNavigation";
+import { documentDestination } from "../lib/nativeNavigation";
 import type { ReportQuery } from "../lib/reportContract";
 import { routeTarget, serializeReportRouteQuery } from "../lib/routeRegistry";
 const route = useRoute(),
@@ -23,7 +23,6 @@ function changed(query: ReportQuery) {
 		"
 		@query-change="changed"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
-		@open-export="router.push(exportDestination($event))"
 		@new-operation="(kind) => router.push(routeTarget('movement-new', { kind }))"
 	/>
 </template>

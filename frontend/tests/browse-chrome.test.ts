@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
 import BrowseToolbar from "../src/components/ui/BrowseToolbar.vue";
+import FilterRailEdge from "../src/components/ui/FilterRailEdge.vue";
 import BrowseChip from "../src/components/ui/BrowseChip.vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
 import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
@@ -43,23 +44,29 @@ it("keeps browse actions and result controls in the persistent toolbar", async (
     attachTo: surface,
     props: { title: "库存", summary: "库存 · 30 种" },
     slots: {
-	default: '<input aria-label="排序搜索" />',
-		actions: '<button>新建</button><button aria-label="更多操作">更多</button>',
+      default: '<input aria-label="排序搜索" />',
+      actions:
+        '<button>新建</button><button aria-label="更多操作">更多</button>',
       "result-tools": "<button>分析结果</button>",
     },
   });
   wrappers.push(wrapper);
   await flushPromises();
-	expect(wrapper.get(".browse-chrome").text()).not.toMatch(/^\s*>\s*$/m);
-	wrapper.get("input").element.focus();
-	surface.scrollTop = 200;
-	surface.dispatchEvent(new Event("scroll"));
-	await flushPromises();
+  expect(wrapper.get(".browse-chrome").text()).not.toMatch(/^\s*>\s*$/m);
+  wrapper.get("input").element.focus();
+  surface.scrollTop = 200;
+  surface.dispatchEvent(new Event("scroll"));
+  await flushPromises();
   expect(wrapper.get("h1").isVisible()).toBe(true);
   expect(button(wrapper, "分析结果").isVisible()).toBe(true);
-	expect(wrapper.get(".browse-header-actions").text()).toContain("新建");
-	expect(wrapper.get(".browse-header-actions").find('[aria-label="更多操作"]').exists()).toBe(true);
-	expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
+  expect(wrapper.get(".browse-header-actions").text()).toContain("新建");
+  expect(
+    wrapper
+      .get(".browse-header-actions")
+      .find('[aria-label="更多操作"]')
+      .exists(),
+  ).toBe(true);
+  expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
   const search = wrapper.get<HTMLInputElement>(
     ".browse-persistent-search input",
   );
@@ -92,17 +99,22 @@ it("waits for IME composition before emitting the debounced search", async () =>
 });
 
 it("uses / to focus search and ignores the shortcut while editing a field", async () => {
-	const wrapper = mount(BrowseToolbar, { attachTo: document.body, props: { title: "库存", summary: "库存" } });
-	wrappers.push(wrapper);
-	const search = wrapper.get<HTMLInputElement>("[data-browse-search]");
-	const text = document.createElement("input");
-	document.body.append(text);
-	text.focus();
-	text.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
-	expect(document.activeElement).toBe(text);
-	document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
-	expect(document.activeElement).toBe(search.element);
-	text.remove();
+  const wrapper = mount(BrowseToolbar, {
+    attachTo: document.body,
+    props: { title: "库存", summary: "库存" },
+  });
+  wrappers.push(wrapper);
+  const search = wrapper.get<HTMLInputElement>("[data-browse-search]");
+  const text = document.createElement("input");
+  document.body.append(text);
+  text.focus();
+  text.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
+  expect(document.activeElement).toBe(text);
+  document.body.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "/", bubbles: true }),
+  );
+  expect(document.activeElement).toBe(search.element);
+  text.remove();
 });
 
 it("routes a hierarchy chip edit to the matching visible rail control", async () => {
@@ -163,20 +175,40 @@ it("keeps a dense chip list scrollable without placing search or actions inside 
   const chips = wrapper.get(".browse-persistent-chips");
   const bar = wrapper.get(".browse-persistent-bar");
   expect(chips.findAll("button")).toHaveLength(40);
-  for (const selector of [
-    ".browse-persistent-search input",
-    ".browse-sidebar-toggle",
-  ]) {
+  for (const selector of [".browse-persistent-search input"]) {
     const control = bar.get(selector);
     expect(chips.element.contains(control.element)).toBe(false);
     expect(control.isVisible()).toBe(true);
   }
+  expect(bar.find(".browse-sidebar-toggle").exists()).toBe(false);
   expect(bar.get('button[aria-haspopup="dialog"]').isVisible()).toBe(true);
   expect(
     bar
       .findAll("button")
       .some((button) => button.attributes("aria-label") === "扫码"),
   ).toBe(true);
+});
+
+it("moves focus between the open rail collapse control and its collapsed edge", async () => {
+  const wrapper = mount(FilterRailEdge, {
+    attachTo: document.body,
+    props: { open: true, active: true },
+  });
+  wrappers.push(wrapper);
+  await wrapper.get('[aria-label="收起筛选侧栏"]').trigger("click");
+  expect(wrapper.emitted("toggle")).toHaveLength(1);
+  await wrapper.setProps({ open: false });
+  await flushPromises();
+  expect(document.activeElement).toBe(
+    wrapper.get('[aria-label="展开筛选侧栏"]').element,
+  );
+  expect(wrapper.get(".filter-rail-edge").text()).toContain("筛选");
+  await wrapper.get('[aria-label="展开筛选侧栏"]').trigger("click");
+  await wrapper.setProps({ open: true });
+  await flushPromises();
+  expect(document.activeElement).toBe(
+    wrapper.get('[aria-label="收起筛选侧栏"]').element,
+  );
 });
 
 it("keeps all quick tabs in the shared browse header", async () => {
@@ -189,9 +221,7 @@ it("keeps all quick tabs in the shared browse header", async () => {
   });
   wrappers.push(wrapper);
   await flushPromises();
-	expect(wrapper.get(".browse-inline-tools .browse-tabs").exists()).toBe(
-    true,
-  );
+  expect(wrapper.get(".browse-inline-tools .browse-tabs").exists()).toBe(true);
   expect(wrapper.get(".browse-tabs").findAll("button")).toHaveLength(4);
 });
 
@@ -315,17 +345,21 @@ it("hydrates the shared Inventory hierarchies and clears inherited categories wi
   expect(c.query.value.scope.categories).toEqual([]);
 });
 
-	it("offers new Item as the primary stock action and keeps selected actions available", async () => {
+it("offers new Item as the primary stock action and keeps selected actions available", async () => {
   const { wrapper, page, c, reference } = stock();
   await flushPromises();
-	  expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
+  expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
   expect(wrapper.find(".stock-selection-actions").exists()).toBe(false);
-	  expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
+  expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
   c.toggle("A");
   c.toggle("隐藏,中文物品");
   await flushPromises();
   expect(wrapper.get(".stock-selection-actions").isVisible()).toBe(true);
-	  await wrapper.get(".stock-selection-actions").findAll("button").find((node) => node.text().trim() === "调拨")!.trigger("click");
+  await wrapper
+    .get(".stock-selection-actions")
+    .findAll("button")
+    .find((node) => node.text().trim() === "调拨")!
+    .trigger("click");
   expect(page.emitted("newOperation")?.at(-1)).toEqual([
     "Transfer",
     ["A", "隐藏,中文物品"],

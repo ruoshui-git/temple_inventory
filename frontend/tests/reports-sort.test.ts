@@ -16,6 +16,51 @@ afterEach(() => {
 });
 
 describe("report table sorting", () => {
+  it("opens QuickExport from the Reports primary action", async () => {
+    const query = newReportQuery("inventory");
+    const service: InventoryServices = {
+      call: vi.fn(async () => ({ value: false })) as InventoryServices["call"],
+      report: vi.fn(async (current) => ({
+        query: current,
+        scope: current.scope,
+        period: { key: "all", date_from: "", date_to: "" },
+        snapshot: "2026-10-20 10:00",
+        table: "summary",
+        columns: ["item_code", "available"],
+        rows: [{ id: "row-1", item_code: "ITEM-1", available: 3 }],
+        matched_count: 1,
+        next_start: null,
+        summary: [{ stock_uom: "Nos", available: 3 }],
+        tables: [{ id: "summary", label: "库存汇总", count: 1 }],
+      })),
+      upload: vi.fn(),
+    };
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      site: "export-test.local",
+      user: "export-user",
+    });
+    const root = defineComponent({
+      setup() {
+        provideInventoryServices(service, reference);
+        return () => h(ReportsPage, { initialQuery: query });
+      },
+    });
+    const wrapper = mount(root, { attachTo: document.body });
+    wrappers.push(wrapper);
+    await flushPromises();
+    const exportButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("导出"));
+    expect(exportButton).toBeDefined();
+    await exportButton!.trigger("click");
+    await flushPromises();
+    expect(document.body.querySelector(".quick-export-dialog")).not.toBeNull();
+    expect(
+      wrapper.find(".browse-header-actions .preview-quick-report").exists(),
+    ).toBe(false);
+  });
+
   it("sorts the primary report from its scalar header and refreshes the query", async () => {
     const initial = newReportQuery("inventory");
     const service: InventoryServices = {

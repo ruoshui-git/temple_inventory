@@ -17,6 +17,7 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { createDebouncedSearch } from "../../lib/debouncedSearch";
@@ -88,6 +89,7 @@ function parentLabel(name?: string) {
 }
 </script>
 <template>
+	<ReturnToTop :active="active" />
 	<section class="browse-page">
 		<PageHeader
 			><div>

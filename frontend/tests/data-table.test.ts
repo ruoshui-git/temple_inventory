@@ -29,6 +29,45 @@ const columns: DataColumn[] = [
 ];
 
 describe("table column contracts", () => {
+  it("measures horizontal overflow edges and scrolls by most of the visible width", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const wrapper = mount(DataTable, {
+      props: { ariaLabel: "横向表格", columns, rows: [] },
+    });
+    wrappers.push(wrapper);
+    const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    const scrollBy = vi.fn();
+    Object.defineProperties(scroll, {
+      scrollWidth: { configurable: true, value: 900 },
+      clientWidth: { configurable: true, value: 500 },
+      scrollLeft: { configurable: true, writable: true, value: 60 },
+      scrollBy: { configurable: true, value: scrollBy },
+    });
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    expect(scroll.classList.contains("is-overflow-start")).toBe(true);
+    expect(scroll.classList.contains("is-overflow-end")).toBe(true);
+    const hint = wrapper.get(".data-table-overflow-hint");
+    expect(hint.text()).toContain("更多列");
+    await hint.trigger("click");
+    expect(scrollBy).toHaveBeenCalledWith({ left: 400, behavior: "smooth" });
+    Object.defineProperty(scroll, "scrollLeft", {
+      configurable: true,
+      value: 400,
+    });
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    expect(scroll.classList.contains("is-overflow-start")).toBe(true);
+    expect(scroll.classList.contains("is-overflow-end")).toBe(false);
+  });
+
   it("aligns quantity columns and group metrics with tabular numeric cells", () => {
     expect(dataColumnAlignment({ id: "quantities", label: "数量" })).toBe(
       "end",

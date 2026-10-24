@@ -12,6 +12,8 @@ import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import { operationLabels } from "../documents/operationCodec";
@@ -90,6 +92,7 @@ const {
 	retry: retrySidebarSave,
 } = useFilterRailPreference(`native-records.${props.mode}`, c.reference, false);
 const { isMobile } = useResponsiveLayout();
+const filterSheetOpen = ref(false);
 function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
 	clearScopeField(scope.value, chip.field);
 }
@@ -270,6 +273,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 }
 </script>
 <template>
+	<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
 	<section class="preview-page preview-browse-page">
 		<BrowseToolbar
 			v-if="mode === 'drafts'"
@@ -398,7 +402,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			:sidebar-save-error="sidebarSaveError"
 			:retry-sidebar-save="retrySidebarSave"
 			sidebar-available
-			@sidebar="toggleSidebar"
+			@filter-open="filterSheetOpen = $event"
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
@@ -598,13 +602,26 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					v-if="sidebarOpen && !isMobile"
 					class="preview-filter-rail browse-filter-rail"
 				>
-					<h3>类别与仓库</h3>
+					<div class="filter-rail-heading">
+						<h3>类别与仓库</h3>
+						<FilterRailEdge
+							:open="true"
+							:active="scope.categories.length + scope.warehouses.length > 0"
+							@toggle="toggleSidebar"
+						/>
+					</div>
 					<BrowseFilters
 						v-model="scope"
 						:fields="['categories', 'warehouses']"
 						hide-activity
 					/>
 				</aside>
+				<FilterRailEdge
+					v-if="!sidebarOpen && !isMobile"
+					:open="false"
+					:active="scope.categories.length + scope.warehouses.length > 0"
+					@toggle="toggleSidebar"
+				/>
 				<div class="preview-browse-results">
 					<DataTable
 						data-browse-scroll="records"

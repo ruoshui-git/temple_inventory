@@ -502,6 +502,11 @@ describe("native operation browsing", () => {
         const cells = row.findAll("td").map((cell) => cell.text());
         expect(cells).toContain("借出 2 Nos");
         expect(cells).toContain("未归还 1 Nos");
+        expect(
+          row
+            .findAll(".operation-group-metrics[title]")
+            .map((cell) => cell.attributes("title")),
+        ).toContain("借出 2 Nos · 未归还 1 Nos");
       } finally {
         if (previousInnerWidth)
           Object.defineProperty(window, "innerWidth", previousInnerWidth);

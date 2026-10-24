@@ -1280,6 +1280,10 @@ strong {
 	grid-template-columns: 250px minmax(0, 1fr);
 	align-items: start;
 }
+.inventory-body:has(> .filter-rail-edge) {
+	grid-template-columns: 28px minmax(0, 1fr);
+	align-items: start;
+}
 .results-region {
 	min-width: 0;
 }

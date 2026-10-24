@@ -469,6 +469,7 @@ async function discardEdits() {
 					:scannable="true"
 					:sidebar-open="sidebarOpen"
 					:sidebar-available="true"
+					:show-sidebar-toggle="true"
 					@sidebar="sidebarOpen = !sidebarOpen"
 					@scan="openScanner"
 				>

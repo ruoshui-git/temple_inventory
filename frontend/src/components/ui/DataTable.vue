@@ -12,6 +12,7 @@ import type {
 } from "../../lib/dataTable";
 import { dataColumnAlignment } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
+import { useOverflowEdges } from "../../composables/useOverflowEdges";
 
 const props = withDefaults(
 	defineProps<{
@@ -75,6 +76,8 @@ const emit = defineEmits<{
 }>();
 
 const preferences = computed(() => props.columnPreferences);
+const tableScroll = ref<HTMLElement>();
+const { overflowStart, overflowEnd, pinnedEndInset, scrollMore } = useOverflowEdges(tableScroll);
 const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
@@ -361,242 +364,195 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		<span v-if="refreshing" class="sr-only data-table-refresh-status" role="status">
 			保留当前结果，更新完成后可用。
 		</span>
-		<div
-			class="data-table-scroll"
-			:class="{ 'is-refreshing': refreshing }"
-			role="region"
-			:aria-label="`可横向滚动：${ariaLabel}`"
-			:aria-busy="refreshing ? 'true' : undefined"
-			:inert="refreshing ? true : undefined"
-			tabindex="0"
-		>
-			<table
-				:class="[
-					tableClass,
-					{
-						'data-table-has-groups': props.rows.some(
-							(entry) => entry.kind === 'group',
-						),
-					},
-				]"
+		<div class="data-table-frame">
+			<div
+				ref="tableScroll"
+				class="data-table-scroll"
+				:class="{
+					'is-refreshing': refreshing,
+					'is-overflow-start': overflowStart,
+					'is-overflow-end': overflowEnd,
+				}"
+				role="region"
+				:aria-label="`可横向滚动：${ariaLabel}`"
+				:aria-busy="refreshing ? 'true' : undefined"
+				:inert="refreshing ? true : undefined"
+				tabindex="0"
 			>
-				<caption v-if="$slots.caption">
-					<slot name="caption" />
-				</caption>
-				<thead>
-					<tr>
-						<th v-if="selectionEnabled" class="data-table-selection-column">
-							<input
-								type="checkbox"
-								aria-label="选择当前已加载记录"
-								:checked="allVisibleSelected"
-								:indeterminate="hasSomeSelected"
-								@change="toggleVisible"
-							/>
-						</th>
-						<th
-							v-for="column in orderedColumns"
-							:key="String(column.id)"
-							:aria-sort="
-								column.sortable
-									? sortBy === String(column.sortField || column.id)
-										? sortDirection === 'asc'
-											? 'ascending'
-											: 'descending'
-										: 'none'
-									: undefined
-							"
-							:style="{ minWidth: column.minWidth }"
-							:class="[`align-${dataColumnAlignment(column)}`, column.className]"
-						>
-							<button
-								v-if="column.sortable"
-								type="button"
-								:class="[
-									'data-table-sort',
-									`align-${dataColumnAlignment(column)}`,
-								]"
-								:aria-label="`${column.label}排序${sortBy === String(column.sortField || column.id) ? (sortDirection === 'asc' ? '：升序' : '：降序') : '：未排序'}`"
-								@click="emit('sort', String(column.sortField || column.id))"
-							>
-								<span
-									v-if="dataColumnAlignment(column) === 'end'"
-									class="data-table-sort-indicator"
-									aria-hidden="true"
-									>{{
-										sortBy === String(column.sortField || column.id)
-											? sortDirection === "asc"
-												? "↑"
-												: "↓"
-											: "↕"
-									}}</span
-								>
-								<span class="data-table-sort-label">{{ column.label }}</span>
-								<span
-									v-if="dataColumnAlignment(column) !== 'end'"
-									class="data-table-sort-indicator"
-									aria-hidden="true"
-									>{{
-										sortBy === String(column.sortField || column.id)
-											? sortDirection === "asc"
-												? "↑"
-												: "↓"
-											: "↕"
-									}}</span
-								>
-							</button>
-							<template v-else>{{ column.label }}</template>
-						</th>
-						<th v-if="preferences" class="data-table-settings-heading">
-							<button
-								ref="settingsTrigger"
-								type="button"
-								class="data-table-column-trigger"
-								:aria-expanded="settingsOpen"
-								aria-label="设置列"
-								title="设置列"
-								@click="toggleSettings"
-							>
-								☷
-							</button>
-						</th>
-					</tr>
-				</thead>
-				<tbody :inert="refreshing || stale || undefined">
-					<template v-if="loading && !initialized">
-						<tr
-							v-for="row in 5"
-							:key="`loading-${row}`"
-							class="data-table-skeleton-row"
-							aria-hidden="true"
-						>
-							<td v-if="selectionEnabled" class="data-table-selection-column">
-								<span class="data-table-skeleton-control"></span>
-							</td>
-							<td
-								v-for="(column, index) in orderedColumns"
-								:key="String(column.id)"
-								:class="`align-${dataColumnAlignment(column)}`"
-							>
-								<span
-									class="data-table-skeleton-line"
-									:style="{
-										'--skeleton-width': `${38 + ((row + index) % 4) * 13}%`,
-									}"
-								></span>
-							</td>
-							<td v-if="preferences" class="data-table-settings-cell"></td>
-						</tr>
-					</template>
-					<template v-else v-for="(entry, index) in rows" :key="entry.id">
-						<tr
-							:class="[
-								group(entry) ? 'data-table-group-row' : undefined,
-								!group(entry) && rowClass
-									? rowClass(entry.value as Record<string, unknown>)
-									: undefined,
-							]"
-							:tabindex="group(entry) && entry.hasChildren ? 0 : undefined"
-							:role="group(entry) ? 'row' : undefined"
-							:aria-expanded="
-								group(entry) && entry.hasChildren ? entry.expanded : undefined
-							"
-							@click="group(entry) && activateGroup(entry, $event)"
-							@keydown="group(entry) && activateGroupKey(entry, $event)"
-							:aria-label="
-								!group(entry) && rowLabel
-									? rowLabel(entry.value as Record<string, unknown>)
-									: undefined
-							"
-							v-bind="
-								!group(entry) && rowAttributes
-									? rowAttributes(entry.value as Record<string, unknown>)
-									: undefined
-							"
-						>
-							<td
-								v-if="selectionEnabled && !group(entry)"
-								class="data-table-selection-column"
-							>
+				<table
+					:class="[
+						tableClass,
+						{
+							'data-table-has-groups': props.rows.some(
+								(entry) => entry.kind === 'group',
+							),
+						},
+					]"
+				>
+					<caption v-if="$slots.caption">
+						<slot name="caption" />
+					</caption>
+					<thead>
+						<tr>
+							<th v-if="selectionEnabled" class="data-table-selection-column">
 								<input
 									type="checkbox"
-									:aria-label="
-										props.selectionLabel
-											? `选择${props.selectionLabel(entry.value as Record<string, unknown>)}`
-											: `选择记录 ${entry.id}`
-									"
-									:checked="selectedKeys.includes(keyFor(entry))"
-									:disabled="entry.selectable === false"
-									@change="
-										emit(
-											'select',
-											keyFor(entry),
-											($event.target as HTMLInputElement).checked,
-										)
-									"
+									aria-label="选择当前已加载记录"
+									:checked="allVisibleSelected"
+									:indeterminate="hasSomeSelected"
+									@change="toggleVisible"
 								/>
-							</td>
-							<td
-								v-else-if="selectionEnabled"
-								class="data-table-selection-column"
-							></td>
-							<template v-if="group(entry)">
-								<td v-if="!orderedColumns.length" class="data-table-group-cell">
-									<div class="data-table-group-identity">
-										<slot name="group-label" :group="entry" />
-										<button
-											type="button"
-											class="data-table-group-toggle"
-											:aria-expanded="entry.expanded"
-											:disabled="!entry.hasChildren"
-											@click.stop="emit('toggleGroup', entry.id)"
-										>
-											<DisclosureIcon variant="inline" /> {{ entry.label }}
-										</button>
-										<span class="data-table-group-count"
-											>{{ entry.countLabel || "记录数" }}
-											{{ entry.count }}</span
-										>
-										<slot
-											name="group-metrics"
-											:group="entry"
-											:visible-columns="
-												orderedColumns.map((column) => String(column.id))
-											"
-										/>
-									</div>
+							</th>
+							<th
+								v-for="column in orderedColumns"
+								:key="String(column.id)"
+								:aria-sort="
+									column.sortable
+										? sortBy === String(column.sortField || column.id)
+											? sortDirection === 'asc'
+												? 'ascending'
+												: 'descending'
+											: 'none'
+										: undefined
+								"
+								:style="{ minWidth: column.minWidth }"
+								:class="[`align-${dataColumnAlignment(column)}`, column.className]"
+							>
+								<button
+									v-if="column.sortable"
+									type="button"
+									:class="[
+										'data-table-sort',
+										`align-${dataColumnAlignment(column)}`,
+									]"
+									:aria-label="`${column.label}排序${sortBy === String(column.sortField || column.id) ? (sortDirection === 'asc' ? '：升序' : '：降序') : '：未排序'}`"
+									@click="emit('sort', String(column.sortField || column.id))"
+								>
+									<span
+										v-if="dataColumnAlignment(column) === 'end'"
+										class="data-table-sort-indicator"
+										aria-hidden="true"
+										>{{
+											sortBy === String(column.sortField || column.id)
+												? sortDirection === "asc"
+													? "↑"
+													: "↓"
+												: "↕"
+										}}</span
+									>
+									<span class="data-table-sort-label">{{ column.label }}</span>
+									<span
+										v-if="dataColumnAlignment(column) !== 'end'"
+										class="data-table-sort-indicator"
+										aria-hidden="true"
+										>{{
+											sortBy === String(column.sortField || column.id)
+												? sortDirection === "asc"
+													? "↑"
+													: "↓"
+												: "↕"
+										}}</span
+									>
+								</button>
+								<template v-else>{{ column.label }}</template>
+							</th>
+							<th v-if="preferences" class="data-table-settings-heading">
+								<button
+									ref="settingsTrigger"
+									type="button"
+									class="data-table-column-trigger"
+									:aria-expanded="settingsOpen"
+									aria-label="设置列"
+									title="设置列"
+									@click="toggleSettings"
+								>
+									☷
+								</button>
+							</th>
+						</tr>
+					</thead>
+					<tbody :inert="refreshing || stale || undefined">
+						<template v-if="loading && !initialized">
+							<tr
+								v-for="row in 5"
+								:key="`loading-${row}`"
+								class="data-table-skeleton-row"
+								aria-hidden="true"
+							>
+								<td v-if="selectionEnabled" class="data-table-selection-column">
+									<span class="data-table-skeleton-control"></span>
 								</td>
 								<td
-									v-for="(column, groupColumnIndex) in orderedColumns"
+									v-for="(column, index) in orderedColumns"
 									:key="String(column.id)"
-									:class="[
-										`align-${dataColumnAlignment(column)}`,
-										column.className,
-										'data-table-group-cell',
-									]"
-									:style="
-										groupColumnIndex ===
-										Math.max(
-											0,
-											orderedColumns.findIndex(
-												(item) => String(item.id) === entry.labelColumn,
-											),
-										)
-											? { '--group-depth': entry.depth }
-											: undefined
-									"
+									:class="`align-${dataColumnAlignment(column)}`"
 								>
-									<template
-										v-if="
-											groupColumnIndex ===
-											Math.max(
-												0,
-												orderedColumns.findIndex(
-													(item) =>
-														String(item.id) === entry.labelColumn,
-												),
+									<span
+										class="data-table-skeleton-line"
+										:style="{
+											'--skeleton-width': `${38 + ((row + index) % 4) * 13}%`,
+										}"
+									></span>
+								</td>
+								<td v-if="preferences" class="data-table-settings-cell"></td>
+							</tr>
+						</template>
+						<template v-else v-for="(entry, index) in rows" :key="entry.id">
+							<tr
+								:class="[
+									group(entry) ? 'data-table-group-row' : undefined,
+									!group(entry) && rowClass
+										? rowClass(entry.value as Record<string, unknown>)
+										: undefined,
+								]"
+								:tabindex="group(entry) && entry.hasChildren ? 0 : undefined"
+								:role="group(entry) ? 'row' : undefined"
+								:aria-expanded="
+									group(entry) && entry.hasChildren ? entry.expanded : undefined
+								"
+								@click="group(entry) && activateGroup(entry, $event)"
+								@keydown="group(entry) && activateGroupKey(entry, $event)"
+								:aria-label="
+									!group(entry) && rowLabel
+										? rowLabel(entry.value as Record<string, unknown>)
+										: undefined
+								"
+								v-bind="
+									!group(entry) && rowAttributes
+										? rowAttributes(entry.value as Record<string, unknown>)
+										: undefined
+								"
+							>
+								<td
+									v-if="selectionEnabled && !group(entry)"
+									class="data-table-selection-column"
+								>
+									<input
+										type="checkbox"
+										:aria-label="
+											props.selectionLabel
+												? `选择${props.selectionLabel(entry.value as Record<string, unknown>)}`
+												: `选择记录 ${entry.id}`
+										"
+										:checked="selectedKeys.includes(keyFor(entry))"
+										:disabled="entry.selectable === false"
+										@change="
+											emit(
+												'select',
+												keyFor(entry),
+												($event.target as HTMLInputElement).checked,
 											)
 										"
+									/>
+								</td>
+								<td
+									v-else-if="selectionEnabled"
+									class="data-table-selection-column"
+								></td>
+								<template v-if="group(entry)">
+									<td
+										v-if="!orderedColumns.length"
+										class="data-table-group-cell"
 									>
 										<div class="data-table-group-identity">
 											<slot name="group-label" :group="entry" />
@@ -607,20 +563,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												:disabled="!entry.hasChildren"
 												@click.stop="emit('toggleGroup', entry.id)"
 											>
-												<DisclosureIcon variant="inline" />{{
-													entry.label
-												}}
+												<DisclosureIcon variant="inline" />
+												{{ entry.label }}
 											</button>
-											<span
-												v-if="
-													!entry.countColumn ||
-													!orderedColumns.some(
-														(item) =>
-															String(item.id) === entry.countColumn,
-													) ||
-													entry.countColumn === entry.labelColumn
-												"
-												class="data-table-group-count"
+											<span class="data-table-group-count"
 												>{{ entry.countLabel || "记录数" }}
 												{{ entry.count }}</span
 											>
@@ -628,78 +574,163 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												name="group-metrics"
 												:group="entry"
 												:visible-columns="
-													orderedColumns.map((item) => String(item.id))
+													orderedColumns.map((column) =>
+														String(column.id),
+													)
 												"
 											/>
 										</div>
-									</template>
-									<span
-										v-else-if="
-											String(column.id) === entry.countColumn &&
-											entry.countColumn !== entry.labelColumn
+									</td>
+									<td
+										v-for="(column, groupColumnIndex) in orderedColumns"
+										:key="String(column.id)"
+										:class="[
+											`align-${dataColumnAlignment(column)}`,
+											column.className,
+											'data-table-group-cell',
+										]"
+										:style="
+											groupColumnIndex ===
+											Math.max(
+												0,
+												orderedColumns.findIndex(
+													(item) =>
+														String(item.id) === entry.labelColumn,
+												),
+											)
+												? { '--group-depth': entry.depth }
+												: undefined
 										"
-										class="data-table-group-count"
-										>{{ entry.countLabel || "记录数" }} {{ entry.count }}</span
 									>
-									<slot
-										v-else
-										name="group-column"
-										:group="entry"
-										:column="column"
-									/>
-								</td>
-								<td v-if="preferences" class="data-table-settings-cell"></td>
-							</template>
-							<template v-else>
-								<td
-									v-for="column in orderedColumns"
-									:key="String(column.id)"
-									:class="[
-										`align-${dataColumnAlignment(column)}`,
-										column.className,
-										cellClass?.(String(column.id), recordValue(entry)),
-									]"
-								>
-									<slot
-										name="cell"
-										:column="column"
-										:row="recordValue(entry)"
-										:value="cellValue(entry, column)"
-										:index="index"
+										<template
+											v-if="
+												groupColumnIndex ===
+												Math.max(
+													0,
+													orderedColumns.findIndex(
+														(item) =>
+															String(item.id) === entry.labelColumn,
+													),
+												)
+											"
+										>
+											<div class="data-table-group-identity">
+												<slot name="group-label" :group="entry" />
+												<button
+													type="button"
+													class="data-table-group-toggle"
+													:aria-expanded="entry.expanded"
+													:disabled="!entry.hasChildren"
+													@click.stop="emit('toggleGroup', entry.id)"
+												>
+													<DisclosureIcon variant="inline" />{{
+														entry.label
+													}}
+												</button>
+												<span
+													v-if="
+														!entry.countColumn ||
+														!orderedColumns.some(
+															(item) =>
+																String(item.id) ===
+																entry.countColumn,
+														) ||
+														entry.countColumn === entry.labelColumn
+													"
+													class="data-table-group-count"
+													>{{ entry.countLabel || "记录数" }}
+													{{ entry.count }}</span
+												>
+												<slot
+													name="group-metrics"
+													:group="entry"
+													:visible-columns="
+														orderedColumns.map((item) =>
+															String(item.id),
+														)
+													"
+												/>
+											</div>
+										</template>
+										<span
+											v-else-if="
+												String(column.id) === entry.countColumn &&
+												entry.countColumn !== entry.labelColumn
+											"
+											class="data-table-group-count"
+											>{{ entry.countLabel || "记录数" }}
+											{{ entry.count }}</span
+										>
+										<slot
+											v-else
+											name="group-column"
+											:group="entry"
+											:column="column"
+										/>
+									</td>
+									<td v-if="preferences" class="data-table-settings-cell"></td>
+								</template>
+								<template v-else>
+									<td
+										v-for="column in orderedColumns"
+										:key="String(column.id)"
+										:class="[
+											`align-${dataColumnAlignment(column)}`,
+											column.className,
+											cellClass?.(String(column.id), recordValue(entry)),
+										]"
 									>
-										{{ cellValue(entry, column) }}
-									</slot>
-								</td>
-								<td v-if="preferences" class="data-table-settings-cell"></td>
-							</template>
-						</tr>
-						<tr
-							v-if="group(entry) && (entry.detailRow || entry.expanded)"
-							class="data-table-group-detail-row"
-						>
-							<td
-								:colspan="
-									orderedColumns.length +
-									Number(selectionEnabled) +
-									Number(Boolean(preferences))
-								"
-								class="data-table-group-detail-cell"
-								:style="{
-									'--group-depth': entry.kind === 'group' ? entry.depth : 0,
-								}"
+										<slot
+											name="cell"
+											:column="column"
+											:row="recordValue(entry)"
+											:value="cellValue(entry, column)"
+											:index="index"
+										>
+											{{ cellValue(entry, column) }}
+										</slot>
+									</td>
+									<td v-if="preferences" class="data-table-settings-cell"></td>
+								</template>
+							</tr>
+							<tr
+								v-if="group(entry) && (entry.detailRow || entry.expanded)"
+								class="data-table-group-detail-row"
 							>
-								<span
-									v-if="entry.loading"
-									class="data-table-group-skeleton"
-									aria-hidden="true"
-								></span>
-								<span v-if="entry.error" role="alert">{{ entry.error }}</span>
-								<slot name="group" :group="entry" />
-							</td>
-						</tr>
-					</template>
-				</tbody>
-			</table>
+								<td
+									:colspan="
+										orderedColumns.length +
+										Number(selectionEnabled) +
+										Number(Boolean(preferences))
+									"
+									class="data-table-group-detail-cell"
+									:style="{
+										'--group-depth': entry.kind === 'group' ? entry.depth : 0,
+									}"
+								>
+									<span
+										v-if="entry.loading"
+										class="data-table-group-skeleton"
+										aria-hidden="true"
+									></span>
+									<span v-if="entry.error" role="alert">{{ entry.error }}</span>
+									<slot name="group" :group="entry" />
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+			<button
+				v-if="overflowEnd"
+				class="data-table-overflow-hint"
+				:style="{ right: `${pinnedEndInset + 8}px` }"
+				type="button"
+				aria-label="向右滚动查看更多列"
+				@click="scrollMore"
+			>
+				更多列 →
+			</button>
 		</div>
 		<div v-if="!rows.length && !loading && initialized && !error" class="data-table-state">
 			<InventoryIcon name="search" />

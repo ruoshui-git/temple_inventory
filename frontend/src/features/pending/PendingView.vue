@@ -2,7 +2,7 @@
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { PendingController } from "./usePendingController";
 import type { InitialAllocation } from "../../lib/routeSelection";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
@@ -17,7 +17,9 @@ import ReportTable from "../../components/ui/ReportTable.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import { kindIcons } from "../../lib/kindIcons";
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
@@ -38,6 +40,7 @@ const {
 	retry: retryFilterSave,
 } = useFilterRailPreference("stock.damaged", c.reference, true);
 const { isMobile } = useResponsiveLayout();
+const filterSheetOpen = ref(false);
 const sortColumns = computed(() => sortableColumnsForView(query.value.dataset, query.value.view));
 function sortReport(field: string) {
 	if (!sortColumns.value.includes(field)) return;
@@ -53,6 +56,7 @@ watch([() => props.active, isMobile], () => {
 });
 </script>
 <template>
+	<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
 	<section class="browse-page damaged-page">
 		<BrowseToolbar
 			class="damaged-browse-toolbar"
@@ -64,9 +68,9 @@ watch([() => props.active, isMobile], () => {
 			:sidebar-open="filterOpen"
 			:sidebar-save-error="filterSaveError"
 			:retry-sidebar-save="retryFilterSave"
+			@filter-open="filterSheetOpen = $event"
 			sidebar-available
 			:filter-count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
-			@sidebar="toggleFilter"
 			><template #actions
 				><QuickExport
 					v-if="!routeError"
@@ -159,12 +163,26 @@ watch([() => props.active, isMobile], () => {
 		<QuantitySummary :metrics="metrics" :loading="c.report.result.loading" />
 		<div class="preview-browse-body">
 			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
+				<div class="filter-rail-heading">
+					<h3>筛选待处理</h3>
+					<FilterRailEdge
+						:open="true"
+						:active="scope.categories.length + scope.warehouses.length > 0"
+						@toggle="toggleFilter"
+					/>
+				</div>
 				<BrowseFilters
 					v-model="scope"
 					:fields="['categories', 'warehouses']"
 					hide-activity
 				/>
 			</aside>
+			<FilterRailEdge
+				v-if="!filterOpen && !isMobile"
+				:open="false"
+				:active="scope.categories.length + scope.warehouses.length > 0"
+				@toggle="toggleFilter"
+			/>
 			<div class="preview-browse-results">
 				<ReportTable
 					v-if="table"

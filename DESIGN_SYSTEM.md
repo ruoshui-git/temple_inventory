@@ -259,6 +259,16 @@ kept in Git.
 - A quantity omits its suffix only when the matching unit column is visible.
   `entered_qty` follows `entered_uom`; stock quantities follow `stock_uom`.
   Mixed-unit group summaries use the unit attached to each quantity entry.
+- Grouped browse tables keep the same `width: 100%` sizing as flat tables.
+  Quantity summaries show the two largest values and then `+N 项`; the cell
+  title and accessible name retain the complete breakdown. Cap wide quantity
+  columns at 16rem and allow their contents to wrap.
+- Horizontally overflowing `DataTable` and `ReportTable` surfaces measure their
+  scroll edges and expose `is-overflow-start` / `is-overflow-end`. Soft inset
+  shadows mark the edges without covering pinned columns. While more columns
+  remain, a `更多列 →` header pill scrolls by about 80% of the viewport width;
+  it is hidden in print and follows reduced-motion preferences. Vertical wheel
+  input continues to scroll the page.
 - `QuantitySummary` uses text-relative minimum tracks and keeps units/statuses
   separate. History links and metadata wrap or scroll inside their own surface.
 - Fixed bounds are reserved for overlays, internal scrolling, artwork/icons,
@@ -266,6 +276,12 @@ kept in Git.
   geometry, not typography.
 
 ## Operation picker and workspace geometry
+
+- Browse filter rails use a 28px collapsed edge column with a 12px visual rail,
+  at least a 24px hit area, a one-pixel divider, chevron and vertical `筛选`
+  label. An accent dot marks active hierarchy filters. The open rail owns its
+  collapse control at the heading; expanding and collapsing moves focus to the
+  newly visible control. The desktop preference remains page-scoped.
 
 - The operation picker keeps search, scan, filter chips and persistent actions
   in its header; results scroll independently and the selection/create footer

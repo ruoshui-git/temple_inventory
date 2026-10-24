@@ -204,4 +204,28 @@ describe("ReturnToTop", () => {
     expect(wrapper.find("button").exists()).toBe(false);
     wrapper.unmount();
   });
+  it("hides only while the caller reports the mobile filter sheet open", async () => {
+    const owner = document.createElement("main");
+    owner.className = "browse-page";
+    owner.style.overflowY = "auto";
+    Object.defineProperties(owner, {
+      scrollHeight: { configurable: true, value: 1200 },
+      clientHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, writable: true, value: 220 },
+    });
+    document.body.append(owner);
+    const wrapper = mount(ReturnToTop, {
+      attachTo: owner,
+      props: { active: true, hidden: false },
+    });
+    await flushPromises();
+    expect(wrapper.find("button[aria-label='返回顶部']").exists()).toBe(true);
+    await wrapper.setProps({ hidden: true });
+    expect(wrapper.find("button").exists()).toBe(false);
+    await wrapper.setProps({ hidden: false });
+    await flushPromises();
+    expect(wrapper.find("button[aria-label='返回顶部']").exists()).toBe(true);
+    wrapper.unmount();
+    owner.remove();
+  });
 });

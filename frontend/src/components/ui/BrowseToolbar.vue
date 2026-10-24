@@ -25,6 +25,7 @@ const props = withDefaults(
 		filterCount?: number;
 		sidebarOpen?: boolean;
 		sidebarAvailable?: boolean;
+		showSidebarToggle?: boolean;
 		sidebarSaveError?: string;
 		retrySidebarSave?: () => void;
 		active?: boolean;
@@ -37,6 +38,7 @@ const props = withDefaults(
 		active: true,
 		sidebarOpen: false,
 		sidebarAvailable: false,
+		showSidebarToggle: false,
 		search: "",
 		searchLabel: "搜索",
 		embedded: false,
@@ -45,6 +47,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	scan: [];
 	sidebar: [];
+	filterOpen: [open: boolean];
 	"update:search": [value: string];
 }>();
 const root = ref<HTMLElement>();
@@ -57,9 +60,12 @@ function focusSearchShortcut(event: KeyboardEvent) {
 	if (
 		target instanceof HTMLElement &&
 		(target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
-	) return;
+	)
+		return;
 	event.preventDefault();
-	root.value?.querySelector<HTMLInputElement>("[data-browse-search]")?.focus({ preventScroll: true });
+	root.value
+		?.querySelector<HTMLInputElement>("[data-browse-search]")
+		?.focus({ preventScroll: true });
 }
 const debouncer = createDebouncedSearch((value) => {
 	if (value !== props.search) emit("update:search", value);
@@ -122,6 +128,7 @@ async function editFilter(field?: string) {
 }
 provide(browseHierarchyEditKey, (field) => void editFilter(field));
 function filterPanelChanged(open: boolean) {
+	emit("filterOpen", open);
 	if (!open)
 		document.dispatchEvent(
 			new CustomEvent("preview-filter-panel-close", { detail: filterSessionId }),
@@ -193,7 +200,7 @@ defineExpose({ editFilter });
 						@compositionend="finishComposition"
 					/>
 				</label>
-			<div class="browse-search-actions">
+				<div class="browse-search-actions">
 					<UiButton
 						v-if="scannable"
 						icon="scan"
@@ -216,7 +223,7 @@ defineExpose({ editFilter });
 				</div>
 			</div>
 			<UiButton
-				v-if="sidebarAvailable && !isMobile"
+				v-if="showSidebarToggle && !isMobile"
 				class="browse-sidebar-toggle"
 				variant="ghost"
 				icon="filter"
@@ -226,7 +233,7 @@ defineExpose({ editFilter });
 				:aria-label="sidebarOpen ? '关闭筛选侧栏' : '打开筛选侧栏'"
 				:aria-expanded="sidebarOpen"
 				@click="emit('sidebar')"
-				/>
+			/>
 			<span v-if="sidebarSaveError" class="browse-preference-error" role="status">
 				{{ sidebarSaveError }}
 				<UiButton variant="ghost" @click="retrySidebarSave?.()">重试同步</UiButton>

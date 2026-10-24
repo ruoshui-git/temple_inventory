@@ -22,10 +22,17 @@ const props = withDefaults(
 		disabled?: boolean;
 		allowDatasetSelection?: boolean;
 		showOpenReport?: boolean;
+		showTrigger?: boolean;
 		initialDataset?: ReportDataset;
 		queryForDataset?: (dataset: ReportDataset) => ReportQuery;
 	}>(),
-	{ active: true, disabled: false, allowDatasetSelection: false, showOpenReport: true },
+	{
+		active: true,
+		disabled: false,
+		allowDatasetSelection: false,
+		showOpenReport: true,
+		showTrigger: true,
+	},
 );
 const emit = defineEmits<{
 	openFull: [query: ReportQuery];
@@ -118,9 +125,17 @@ function generateSelected() {
 	commitDataset();
 	void generate();
 }
+function openDialog() {
+	if (!props.disabled) open.value = true;
+}
+defineExpose({ open: openDialog });
 </script>
 <template>
-	<UiButton class="preview-quick-report" :disabled="disabled" @click="open = true"
+	<UiButton
+		v-if="showTrigger"
+		class="preview-quick-report"
+		:disabled="disabled"
+		@click="openDialog"
 		><InventoryIcon name="export" />导出</UiButton
 	>
 	<Overlay

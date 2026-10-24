@@ -18,6 +18,8 @@ import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
+import { compactGroupSummary } from "../../lib/groupSummary";
 import ItemImage from "../../components/ItemImage.vue";
 import StockDetails from "../../components/StockDetails.vue";
 import QuickExport from "../../components/QuickExport.vue";
@@ -96,7 +98,9 @@ const sortFields = [
 	{ value: "damaged", label: "损坏数量" },
 ];
 const wideScreen = ref(window.innerWidth >= 1440);
-function updateWideScreen() { wideScreen.value = window.innerWidth >= 1440; }
+function updateWideScreen() {
+	wideScreen.value = window.innerWidth >= 1440;
+}
 onMounted(() => window.addEventListener("resize", updateWideScreen));
 onBeforeUnmount(() => window.removeEventListener("resize", updateWideScreen));
 const inventoryColumns = computed<DataColumn[]>(() => [
@@ -121,7 +125,13 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		sortable: true,
 		minWidth: "130px",
 	},
-	{ id: "category", label: "类别", defaultVisible: wideScreen.value, sortable: true, minWidth: "130px" },
+	{
+		id: "category",
+		label: "类别",
+		defaultVisible: wideScreen.value,
+		sortable: true,
+		minWidth: "130px",
+	},
 	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, minWidth: "210px" },
 	{
 		id: "stock_uom",
@@ -172,11 +182,15 @@ function groupSummary(group: DataTableGroup) {
 	const row = group.value || {};
 	const quantity = ["available", "loaned", "damaged"]
 		.filter((key) => row[key] !== undefined)
+		.sort((a, b) => Number(row[b]) - Number(row[a]))
 		.map(
 			(key) =>
 				`${key === "available" ? "可用" : key === "loaned" ? "借出" : "损坏"} ${row[key]}${row.stock_uom ? ` ${row.stock_uom}` : ""}`,
 		);
 	return quantity.join(" · ");
+}
+function groupSummaryDisplay(group: DataTableGroup) {
+	return compactGroupSummary(groupSummary(group));
 }
 type StockTableRow = Record<string, unknown>;
 function stockCode(row: StockTableRow) {
@@ -213,12 +227,7 @@ function stockExpiryLabel(row: StockTableRow) {
 }
 const services = useOptionalInventoryServices();
 const tablePreferences = services
-	? useColumnPreferences(
-			"stock.summary",
-			inventoryColumns,
-			reference,
-			services,
-		)
+	? useColumnPreferences("stock.summary", inventoryColumns, reference, services)
 	: undefined;
 function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
@@ -245,6 +254,7 @@ const {
 	retry: retryFiltersSave,
 } = useFilterRailPreference("stock.items", reference, true);
 const scanOpen = ref(false);
+const filterSheetOpen = ref(false);
 watch([() => props.active, isMobile], () => {
 	scanOpen.value = false;
 	analysisOpen.value = false;
@@ -272,7 +282,7 @@ watch([() => props.active, isMobile], () => {
 			sidebar-available
 			scannable
 			@scan="scanOpen = true"
-			@sidebar="toggleFilters"
+			@filter-open="filterSheetOpen = $event"
 		>
 			<template #chips="{ editFilter }">
 				<BrowseChip
@@ -349,7 +359,15 @@ watch([() => props.active, isMobile], () => {
 					label="新建物品"
 					kind="Item"
 					icon="box"
-					:options="controller.actions.value.filter((item) => item.kind !== 'Item').map((item) => ({ kind: item.kind, label: item.name, icon: item.icon }))"
+					:options="
+						controller.actions.value
+							.filter((item) => item.kind !== 'Item')
+							.map((item) => ({
+								kind: item.kind,
+								label: item.name,
+								icon: item.icon,
+							}))
+					"
 					@select="controller.action"
 				/>
 			</template>
@@ -403,7 +421,14 @@ watch([() => props.active, isMobile], () => {
 			/>
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
 				<aside v-if="filtersOpen && !isMobile" class="browse-filter-rail">
-					<h3>筛选库存</h3>
+					<div class="filter-rail-heading">
+						<h3>筛选库存</h3>
+						<FilterRailEdge
+							:open="true"
+							:active="scope.categories.length + scope.warehouses.length > 0"
+							@toggle="toggleFilters"
+						/>
+					</div>
 					<div class="browse-filter-dense">
 						<BrowseFilters
 							v-model="scope"
@@ -412,6 +437,12 @@ watch([() => props.active, isMobile], () => {
 						/>
 					</div>
 				</aside>
+				<FilterRailEdge
+					v-if="!filtersOpen && !isMobile"
+					:open="false"
+					:active="scope.categories.length + scope.warehouses.length > 0"
+					@toggle="toggleFilters"
+				/>
 				<div
 					ref="results"
 					class="results-region"
@@ -627,15 +658,22 @@ watch([() => props.active, isMobile], () => {
 							"
 						>
 							<template #cell="{ column, row }">
-					<div v-if="column.id === 'actions' && isStockItemRow(row)" class="browse-row-actions stock-row-actions">
-						<UiButton variant="ghost" @click="props.controller.openItemCode(stockCode(row))">打开</UiButton>
-						<UiButton
-							v-if="reference.operations.Issue && isStockItemRow(row)"
-							variant="ghost"
-							@click="stockRowAction(row, 'Issue')"
-							>出库</UiButton
-						>
-					</div>
+								<div
+									v-if="column.id === 'actions' && isStockItemRow(row)"
+									class="browse-row-actions stock-row-actions"
+								>
+									<UiButton
+										variant="ghost"
+										@click="props.controller.openItemCode(stockCode(row))"
+										>打开</UiButton
+									>
+									<UiButton
+										v-if="reference.operations.Issue && isStockItemRow(row)"
+										variant="ghost"
+										@click="stockRowAction(row, 'Issue')"
+										>出库</UiButton
+									>
+								</div>
 								<div v-if="column.id === 'image'" class="table-item-image">
 									<ItemImage :item="stockIdentity(row)"></ItemImage>
 								</div>
@@ -698,7 +736,12 @@ watch([() => props.active, isMobile], () => {
 							</template>
 							<template #group="{ group }">
 								<div class="report-group-details">
-									{{ groupSummary(group) }}
+									<span
+										role="note"
+										:title="groupSummary(group)"
+										:aria-label="groupSummary(group)"
+										>{{ groupSummaryDisplay(group) }}</span
+									>
 									<UiButton
 										v-if="group.error"
 										@click="groupPages.retry(group.id)"
@@ -791,7 +834,7 @@ watch([() => props.active, isMobile], () => {
 				>
 			</footer>
 		</section>
-		<ReturnToTop :active="active !== false" :hidden="isMobile && filtersOpen" />
+		<ReturnToTop :active="active !== false" :hidden="isMobile && filterSheetOpen" />
 		<Scanner
 			v-if="scanOpen"
 			presentation="modal"

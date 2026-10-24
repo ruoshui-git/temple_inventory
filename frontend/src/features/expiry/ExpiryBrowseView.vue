@@ -23,6 +23,7 @@ import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
@@ -55,6 +56,7 @@ const {
 	retry: retryFilterSave,
 } = useFilterRailPreference("stock.expiry", reference, true);
 const analysisOpen = ref(false);
+const filterSheetOpen = ref(false);
 const scan = ref<InstanceType<typeof ScanPanel>>();
 watch([() => props.active, isMobile], () => {
 	analysisOpen.value = false;
@@ -231,7 +233,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 </script>
 <template>
 	<section class="browse-page">
-		<ReturnToTop :active="active" :hidden="isMobile && filterOpen" />
+		<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
 		<BrowseToolbar
 			title="效期批次"
 			:summary="result.initialized ? `效期批次 · ${result.batchCount} 个批次` : ''"
@@ -241,11 +243,11 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			:sidebar-open="filterOpen"
 			:sidebar-save-error="filterSaveError"
 			:retry-sidebar-save="retryFilterSave"
+			@filter-open="filterSheetOpen = $event"
 			sidebar-available
 			:filter-count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
 			scannable
 			@scan="scan?.show()"
-			@sidebar="toggleFilter"
 			><template #actions>
 				<BrowseOverflowMenu>
 					<QuickExport
@@ -375,12 +377,26 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 		</p>
 		<div class="preview-browse-body">
 			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
+				<div class="filter-rail-heading">
+					<h3>筛选批次</h3>
+					<FilterRailEdge
+						:open="true"
+						:active="scope.categories.length + scope.warehouses.length > 0"
+						@toggle="toggleFilter"
+					/>
+				</div>
 				<BrowseFilters
 					v-model="scope"
 					:fields="['categories', 'warehouses']"
 					hide-activity
 				/>
 			</aside>
+			<FilterRailEdge
+				v-if="!filterOpen && !isMobile"
+				:open="false"
+				:active="scope.categories.length + scope.warehouses.length > 0"
+				@toggle="toggleFilter"
+			/>
 			<div id="expiry-results-panel" role="tabpanel" class="preview-browse-results">
 				<div v-if="isMobile" class="preview-expiry-mobile">
 					<article

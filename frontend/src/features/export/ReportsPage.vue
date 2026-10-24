@@ -16,7 +16,6 @@ const props = withDefaults(
 const emit = defineEmits<{
 	queryChange: [query: ReportQuery];
 	openDocument: [doctype: string, name: string];
-	openExport: [query: ReportQuery];
 	newOperation: [kind: string];
 }>();
 const controller = useExportWorkspaceController(props, (query) => emit("queryChange", query));
@@ -33,7 +32,6 @@ defineExpose({ controller });
 		:controller="controller"
 		:active="active"
 		@open-document="(doctype, name) => emit('openDocument', doctype, name)"
-		@open-export="emit('openExport', $event)"
 		@new-operation="emit('newOperation', $event)"
 	/>
 </template>

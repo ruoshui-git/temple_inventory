@@ -2,6 +2,7 @@
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref } from "vue";
@@ -37,7 +38,10 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import { RouterLink } from "vue-router";
 import RecordRef from "../../components/ui/RecordRef.vue";
 import ItemLine from "../../components/ui/ItemLine.vue";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
+const filterSheetOpen = ref(false);
 defineExpose({
 	requestLeave: () => activityEditor.value?.requestLeave() ?? Promise.resolve(true),
 	breadcrumbLabel: () => activityEditor.value?.breadcrumbLabel() || current.value?.title,
@@ -214,6 +218,7 @@ function tabKey(event: KeyboardEvent) {
 }
 </script>
 <template>
+	<ReturnToTop :active="props.active" :hidden="isMobile && filterSheetOpen" />
 	<section class="preview-page preview-activities">
 		<p v-if="scopeError" role="alert">{{ scopeError }}</p>
 		<PageHeader v-if="page !== 'activity-list'"
@@ -253,6 +258,7 @@ function tabKey(event: KeyboardEvent) {
 			v-model:search="state.search"
 			search-label="搜索活动"
 			:active="active"
+			@filter-open="filterSheetOpen = $event"
 			:filter-count="secondaryChips.length + 3"
 		>
 			<template #actions>
@@ -639,6 +645,7 @@ function tabKey(event: KeyboardEvent) {
 					v-model:search="recordSearch"
 					search-label="搜索关联记录"
 					:active="active"
+					@filter-open="filterSheetOpen = $event"
 					:filter-count="
 						Number(recordPeriod.key !== 'all') +
 						Number(recordKinds.length > 0) +
