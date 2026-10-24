@@ -12,8 +12,9 @@ and for Claude-only orchestration notes.
 `scripts/codex-run`. Launch Codex through that script, not through the
 `codex:codex-rescue` agent or `/codex:rescue`. The plugin runs without network,
 so Codex cannot reach MariaDB or Redis. It also detaches the job, so no
-completion notification arrives. `scripts/codex-run` grants network and Bench
-write access, writes logs under `/tmp/codex-runs/`, and saves only the final
+completion notification arrives. `scripts/codex-run` runs Codex on the WSL host
+with network and Bench write access, so Codex reaches Bench through
+`scripts/dx`. It writes logs under `/tmp/codex-runs/` and saves only the final
 report to `NAME.last`.
 
 1. **Brief.** Write the task brief to a scratchpad file. Name the plan or notes
@@ -44,9 +45,11 @@ report to `NAME.last`.
    reports "already has an active writer", use `--fork SESSION`.
    - Fix trivial blockers yourself, such as a few lines that stop
      verification. Send substantive fixes back to Codex.
-7. **After a container restart or outage.** Edits on disk survive.
+7. **After a container restart or outage.** Edits on disk survive, and Codex
+   sessions on the host keep running unless WSL itself restarted.
    - Check `git status`.
-   - Restart `bench serve --port 8000` and, if exports are involved,
-     `bench worker`.
-   - Confirm MariaDB with a trivial `bench execute`.
+   - Run `docker compose -f dev/compose.yaml up -d`, which restarts `web` and
+     `worker`.
+   - Confirm MariaDB with
+     `scripts/dx bench --site development.localhost execute frappe.ping`.
    - Resume the session with "continue from your `git diff`".

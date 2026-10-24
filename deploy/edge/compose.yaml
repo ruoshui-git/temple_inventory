@@ -1,0 +1,41 @@
+# Shared TLS edge for nonproduction stacks on the sample VPS. Traefik discovers
+# containers on the kufang-edge network that set traefik.enable=true, and gets
+# Let's Encrypt certificates over HTTP-01. Each environment (sample, later
+# staging) is its own compose project that joins this network.
+#
+#   docker compose -f /srv/kufang/edge/compose.yaml up -d
+name: kufang-edge
+
+services:
+  traefik:
+    image: docker.io/traefik:v3.7
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=kufang-edge
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.underscoreHeadersStrategy=delete
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.underscoreHeadersStrategy=delete
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:?set ACME_EMAIL in .env}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - cert-data:/letsencrypt
+    networks:
+      - edge
+    restart: unless-stopped
+
+networks:
+  edge:
+    name: kufang-edge
+
+volumes:
+  cert-data:

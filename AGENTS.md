@@ -100,6 +100,47 @@ configuration readiness, location topology and document-state checks in the
 frontend. The server remains the only authorization boundary and must continue
 to enforce native permissions and scope on every request.
 
+## Development environment
+
+Agents, Git and editors run on the WSL2 host. The checkout is
+`~/code/frappe_docker_wsl/development/frappe-bench/apps/temple_inventory`.
+Bench, MariaDB and Redis run in the `temple_inventory_wsl` compose project from
+[dev/compose.yaml](dev/compose.yaml), which mounts `~/code/frappe_docker_wsl` at
+`/workspace`. The Bench virtualenv only works inside the container, so run
+`bench`, `pnpm`, `uvx`, Playwright and Chromium through `scripts/dx`. It maps the
+current directory to the matching `/workspace` path, runs the command in the
+`frappe` service, and passes environment variables with `env`, as in
+`scripts/dx env NAME=value COMMAND`. Never run `pnpm` or `node` on the host:
+`node_modules` is shared with the container, and the host's `pnpm` may resolve
+to a Windows binary.
+
+The `web` service runs `bench serve` on port 8000, published on the host's
+127.0.0.1, and `worker` runs `bench worker`. Both share the `frappe` network
+namespace, so `127.0.0.1:8000` reaches the server from every container and from
+the host. From the app root:
+
+```sh
+docker compose -f dev/compose.yaml up -d --build      # start, or rebuild the image
+docker compose -f dev/compose.yaml restart web worker # reload Python changes
+docker compose -f dev/compose.yaml logs -f web worker # service logs
+scripts/dx bench --site development.localhost migrate
+```
+
+Bench logs are in `../../logs/`. Rebuilding or restarting containers does not
+affect agents running on the host. Never pass `-v` to `docker compose down`,
+because it deletes the development database volume.
+
+## Branches and deployment
+
+`main` is the trunk; use short-lived `feature/*` and `fix/*` branches and push
+them to `origin`. Direct pushes to `main` are allowed. Every push to `main` is
+tested, built into an image and deployed automatically to
+`https://sample.kufang.online`, so push only commits that pass validation.
+[deploy/README.md](deploy/README.md) owns the image, sample host, deploy and
+recovery procedures. Do not run commands against the sample VPS, GitHub settings
+or DNS without explicit approval. Staging and production promote an existing
+image digest and are separate, approval-gated environments.
+
 ## Visual browser preflight
 
 Before every visual browser inspection, run the check through
@@ -110,8 +151,9 @@ Chinese-language sans-serif match covers `zh`. Known development files are
 `/tmp/NotoSansSC.ttf`. The script also checks system Noto locations. If no CJK
 font is installed, install `fonts-noto-cjk` on Debian/Ubuntu (or the platform's
 Noto CJK package), then rerun the helper. Launch the browser command beneath the
-helper so it inherits the verified config. Do not add environment setup to the
-product UI.
+helper so it inherits the verified config. The development image installs
+`fonts-noto-cjk`, so run both through `scripts/dx`. Do not add environment setup
+to the product UI.
 
 For ad hoc screenshots against the running dev server, Node cannot resolve
 `development.localhost`. Launch `/usr/bin/chromium-headless-shell` through
@@ -133,52 +175,54 @@ including earlier sessions, and starting local services/servers when required.
 The user explicitly authorized resetting `development.localhost` when the
 selected task scope says to reset development data. Use only the guarded
 `scripts/reset-development-samples` and preserve the Administrator password. The
-devcontainer's MariaDB root credentials and the non-interactive reset command are
-documented in README.md ("Devcontainer database credentials"); use them instead
+development MariaDB root credentials and the non-interactive reset command are
+documented in README.md ("Development database credentials"); use them instead
 of searching, and never substitute the Administrator password. Do not reset a
 different site.
 
 ## Resource limits
 
-The devcontainer has about 8 GB of RAM, and VS Code and Bench services already
-use most of it. Overlapping heavy commands have crashed MariaDB and restarted the
-container mid-task. Run every heavy command through `scripts/heavy`, a shared
-lock that queues callers, and never run heavy work in parallel. Heavy commands
-include `pnpm test`, `pnpm build`, the backend test entry point, `bench migrate`,
-the sample reset, Playwright, and Chromium screenshot scripts. Close every browser
-your script launches. Do not start Vite or extra dev servers; reuse the running
-`bench serve` on port 8000. Run at most one Codex implementation task at a time.
-If MariaDB reports "Server has gone away", wait for the service, confirm with a
-trivial `bench execute`, then resume the interrupted step instead of restarting
-the task.
+The WSL VM has 14 GB of RAM (set in the Windows `.wslconfig`), shared by Docker,
+VS Code and the agents. Overlapping heavy commands have crashed MariaDB and
+restarted the container mid-task. Run every heavy command through
+`scripts/heavy`, a shared lock that queues callers, and never run heavy work in
+parallel. The lock file is on the bind mount, so host and container callers
+share it. Heavy commands include `pnpm test`, `pnpm build`, the backend test
+entry point, `bench migrate`, the sample reset, Playwright, Chromium screenshot
+scripts and image builds. Close every browser your script launches. Do not start
+Vite or extra dev servers; reuse the `web` service on port 8000. Run at most one
+Codex implementation task at a time. If MariaDB reports "Server has gone away",
+wait for the service, confirm with `scripts/dx bench --site development.localhost
+execute frappe.ping`, then resume the interrupted step instead of restarting the
+task.
 
 ## Validation
 
 Run frontend commands from `frontend/`, one at a time:
 
 ```sh
-../scripts/heavy pnpm test
-pnpm type-check
-../scripts/heavy pnpm build
+../scripts/dx ../scripts/heavy pnpm test
+../scripts/dx pnpm type-check
+../scripts/dx ../scripts/heavy pnpm build
 ```
 
 For backend inventory and native-document changes, run from the bench root:
 
 ```sh
-apps/temple_inventory/scripts/heavy bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run
+apps/temple_inventory/scripts/dx apps/temple_inventory/scripts/heavy bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run
 ```
 
 Format touched Python with the pinned Ruff, from the app root:
-`uvx ruff@0.14.10 check --select=I --fix`, `uvx ruff@0.14.10 format`, then
-`uvx ruff@0.14.10 check`.
+`scripts/dx uvx ruff@0.14.10 check --select=I --fix`,
+`scripts/dx uvx ruff@0.14.10 format`, then `scripts/dx uvx ruff@0.14.10 check`.
 
 Mocked frontend tests do not catch API contract mismatches. When a change
 touches a whitelisted API or a write flow, also run the live-server acceptance
-suite from `frontend/`. It needs `bench serve --port 8000` plus, for export
-jobs, `bench worker`:
+suite from `frontend/`. It needs the `web` service and, for export jobs, the
+`worker` service:
 
 ```sh
-NATIVE_ADMIN_PASSWORD=admin NATIVE_BASE_URL=http://127.0.0.1:8000 \
+../scripts/dx env NATIVE_ADMIN_PASSWORD=admin NATIVE_BASE_URL=http://127.0.0.1:8000 \
 	../scripts/heavy ../scripts/ui-visual-preflight \
 	pnpm exec playwright test -c playwright.native.config.ts
 ```
@@ -195,9 +239,10 @@ last code change, and reset development data only when seed code changed.
 The test entry point rolls back its changes. Add focused regression tests for
 changed behavior and invariants. The development stack uses `mariadb`,
 `redis-cache` and `redis-queue`; do not replace service hostnames with
-`localhost`. Codex tasks started through `scripts/codex-run` have network access
-to these services. In another sandbox without it, distinguish connectivity
-errors from reached test failures and report checks the environment prevented.
+`localhost`. Codex tasks started through `scripts/codex-run` reach these
+services through `scripts/dx`. In another sandbox without Docker access,
+distinguish connectivity errors from reached test failures and report checks the
+environment prevented.
 
 Prefer clean schema/API/caller updates over compatibility shims. Update schemas,
 fixtures, patches, permissions and tests when changing DocTypes or hooks. Avoid

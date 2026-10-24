@@ -1,0 +1,18 @@
+# Build context for deploy/Containerfile: the app source only.
+.git
+**/node_modules
+**/__pycache__
+.venv
+.ruff_cache
+notes
+dev
+deploy/edge
+deploy/sample
+frontend/test-results
+frontend/playwright-report
+frontend/storybook-static
+frontend/notes
+temple_inventory/public/frontend
+temple_inventory/www/inventory.html
+temple_inventory/setup/costumes-data/images
+temple_inventory/setup/sample_images

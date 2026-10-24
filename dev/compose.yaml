@@ -1,0 +1,84 @@
+# Development stack for the temple_inventory bench. Agents and editors run on the
+# WSL host; Bench, MariaDB and Redis run here. Run commands in the container
+# through scripts/dx. The project name and MariaDB volume match the stack the
+# former devcontainer created, so switching to this file keeps the database.
+#
+#   docker compose -f dev/compose.yaml up -d --build   start or rebuild
+#   docker compose -f dev/compose.yaml restart web     restart bench serve
+#   docker compose -f dev/compose.yaml logs -f web worker
+#
+# Never pass -v to `down`: it deletes the development database.
+name: temple_inventory_wsl
+
+x-bench: &bench
+  image: temple-inventory-dev:latest
+  build:
+    context: .
+    dockerfile: Containerfile
+  init: true
+  environment:
+    SHELL: /bin/bash
+  volumes:
+    # The frappe_docker_wsl checkout; relative to this file unless TI_WORKSPACE is set.
+    - ${TI_WORKSPACE:-../../../../..}:/workspace
+    - frappe-cache:/home/frappe/.cache
+  working_dir: /workspace/development/frappe-bench
+  depends_on:
+    mariadb:
+      condition: service_healthy
+    redis-cache:
+      condition: service_started
+    redis-queue:
+      condition: service_started
+
+services:
+  mariadb:
+    image: docker.io/mariadb:11.8
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: 123
+      MARIADB_AUTO_UPGRADE: 1
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis-cache:
+    image: docker.io/redis:alpine
+    restart: unless-stopped
+
+  redis-queue:
+    image: docker.io/redis:alpine
+    restart: unless-stopped
+
+  # Shell target for scripts/dx. Owns the network namespace, so 127.0.0.1:8000
+  # reaches bench serve from here, from web/worker and from the WSL host.
+  frappe:
+    <<: *bench
+    command: sleep infinity
+    ports:
+      - 127.0.0.1:8000:8000
+    restart: unless-stopped
+
+  web:
+    <<: *bench
+    network_mode: service:frappe
+    command: bash -lc "exec bench serve --port 8000"
+    restart: unless-stopped
+
+  worker:
+    <<: *bench
+    network_mode: service:frappe
+    command: bash -lc "exec bench worker"
+    restart: unless-stopped
+
+volumes:
+  mariadb-data:
+  frappe-cache:

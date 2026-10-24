@@ -1,0 +1,145 @@
+# Sample environment: one Frappe/ERPNext site running a temple_inventory image.
+# Installed at /srv/kufang/sample and driven only by deploy.sh and bootstrap.sh,
+# which pass IMAGE (an immutable ghcr.io digest) through image.env. The sites,
+# logs, db-data and redis-queue-data volumes hold all persistent state; never run
+# `down -v`.
+#
+#   docker compose --env-file .env --env-file image.env ps
+name: kufang-sample
+
+x-frappe: &frappe
+  image: ${IMAGE:?IMAGE comes from image.env}
+  pull_policy: missing
+  restart: unless-stopped
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+    - logs:/home/frappe/frappe-bench/logs
+  networks:
+    - default
+
+services:
+  configurator:
+    <<: *frappe
+    restart: on-failure
+    entrypoint: [bash, -c]
+    command:
+      - >
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host db;
+        bench set-config -gp db_port 3306;
+        bench set-config -g redis_cache redis://redis-cache:6379;
+        bench set-config -g redis_queue redis://redis-queue:6379;
+        bench set-config -g redis_socketio redis://redis-queue:6379;
+        bench set-config -gp socketio_port 9000;
+        bench set-config -g chromium_path /usr/bin/chromium-headless-shell;
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+
+  backend:
+    <<: *frappe
+    environment:
+      GUNICORN_WORKERS: "2"
+      GUNICORN_THREADS: "4"
+      GUNICORN_TIMEOUT: "120"
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  websocket:
+    <<: *frappe
+    command: [node, /home/frappe/frappe-bench/apps/frappe/socketio.js]
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  queue-short:
+    <<: *frappe
+    command: [bench, worker, --queue, "short,default"]
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  queue-long:
+    <<: *frappe
+    command: [bench, worker, --queue, "long,default,short"]
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  scheduler:
+    <<: *frappe
+    command: [bench, schedule]
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  frontend:
+    <<: *frappe
+    command: [nginx-entrypoint.sh]
+    environment:
+      BACKEND: backend:8000
+      SOCKETIO: websocket:9000
+      FRAPPE_SITE_NAME_HEADER: ${SITE_NAME:?}
+      CLIENT_MAX_BODY_SIZE: 50m
+      PROXY_READ_TIMEOUT: "120"
+      UPSTREAM_REAL_IP_ADDRESS: 0.0.0.0/0
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.kufang-sample.rule: Host(`${SITE_NAME}`)
+      traefik.http.routers.kufang-sample.entrypoints: websecure
+      traefik.http.routers.kufang-sample.tls.certresolver: le
+      traefik.http.services.kufang-sample.loadbalancer.server.port: "8080"
+    networks:
+      - default
+      - edge
+    depends_on:
+      - backend
+      - websocket
+
+  db:
+    image: docker.io/mariadb:11.8
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --innodb-buffer-pool-size=256M
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+      MARIADB_AUTO_UPGRADE: "1"
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - db-data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis-cache:
+    image: docker.io/redis:8.6-alpine
+    restart: unless-stopped
+
+  redis-queue:
+    image: docker.io/redis:8.6-alpine
+    volumes:
+      - redis-queue-data:/data
+    restart: unless-stopped
+
+networks:
+  edge:
+    name: kufang-edge
+    external: true
+
+volumes:
+  sites:
+  logs:
+  db-data:
+  redis-queue-data:

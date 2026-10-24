@@ -8,7 +8,7 @@ You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app $URL_OF_THIS_REPO --branch version-16
+bench get-app $URL_OF_THIS_REPO --branch main
 bench install-app temple_inventory
 ```
 
@@ -48,15 +48,16 @@ warehouses are removed.
 The command requires `developer_mode=1`, the MariaDB root password, and an exact
 `RESET <site>` confirmation.
 
-#### Devcontainer database credentials
+#### Development database credentials
 
-In the development container, MariaDB runs on host `mariadb` with root user `root` and
-password `123`, set by `MYSQL_ROOT_PASSWORD` in `/workspace/.devcontainer/docker-compose.yml`
-(the frappe_docker devcontainer). This is a local development credential only; it is
-unrelated to the site's `Administrator` password (`admin`). A non-interactive reset:
+In the development stack, MariaDB runs on host `mariadb` with root user `root` and
+password `123`, set by `MYSQL_ROOT_PASSWORD` in [dev/compose.yaml](dev/compose.yaml).
+This is a local development credential only; it is unrelated to the site's
+`Administrator` password (`admin`). A non-interactive reset, from the bench root on
+the WSL host:
 
 ```bash
-echo "RESET development.localhost" | MARIADB_ROOT_PASSWORD=123 \
+echo "RESET development.localhost" | apps/temple_inventory/scripts/dx env MARIADB_ROOT_PASSWORD=123 \
 	./apps/temple_inventory/scripts/reset-development-samples --site development.localhost
 ```
 
@@ -64,22 +65,13 @@ If the compose file changes the password, that file is the source of truth.
 It permanently removes all database records, does not create a backup, and must
 never be used on a production site. Progress, server errors, and tracebacks are
 shown directly in the terminal and written to `logs/temple-sample-reset-*.log`.
+The script accepts only `development.localhost`. The public sample site is created
+once by [deploy/sample/bootstrap.sh](deploy/sample/bootstrap.sh); see
+[deploy/README.md](deploy/README.md).
 
-The site name is configurable and must already exist in this Bench:
+### Development environment and deployment
 
-```bash
-./apps/temple_inventory/scripts/reset-development-samples --site inventory-demo
-```
-
-For a disposable presentation site that is not configured with `developer_mode=1`,
-both explicit override flags are required:
-
-```bash
-./apps/temple_inventory/scripts/reset-development-samples \
-	--site inventory-demo \
-	--allow-non-developer \
-	--yes-i-understand-this-is-destructive
-```
-
-This still permanently reinstalls the database and is not appropriate for a live
-production site. Use a separate disposable presentation site.
+Agents and Git run on the WSL2 host; Bench, MariaDB and Redis run in Docker. See
+AGENTS.md ("Development environment") for the `scripts/dx` wrapper and compose
+commands, and [deploy/README.md](deploy/README.md) for the sample deployment that
+every push to `main` triggers.

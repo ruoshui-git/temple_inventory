@@ -1,0 +1,70 @@
+# syntax=docker/dockerfile:1.7
+# Deployment image: Frappe + ERPNext at pinned tags plus temple_inventory copied
+# from the build context, so the image matches the checked-out commit exactly.
+# Build from the repository root:
+#   docker build -f deploy/Containerfile --build-arg FRAPPE_VERSION=... \
+#     --build-arg ERPNEXT_VERSION=... -t temple_inventory:local .
+# Modeled on frappe_docker's images/layered/Containerfile.
+ARG FRAPPE_VERSION
+ARG FRAPPE_IMAGE_PREFIX=docker.io/frappe
+
+FROM ${FRAPPE_IMAGE_PREFIX}/build:${FRAPPE_VERSION} AS builder
+ARG FRAPPE_VERSION
+ARG ERPNEXT_VERSION
+USER frappe
+WORKDIR /home/frappe
+RUN test -n "${FRAPPE_VERSION}" && test -n "${ERPNEXT_VERSION}" \
+	&& bench init \
+		--frappe-branch="${FRAPPE_VERSION}" \
+		--frappe-path=https://github.com/frappe/frappe \
+		--no-procfile \
+		--no-backups \
+		--skip-redis-config-generation \
+		--skip-assets \
+		--verbose \
+		/home/frappe/frappe-bench \
+	&& cd /home/frappe/frappe-bench \
+	&& bench get-app --branch="${ERPNEXT_VERSION}" --skip-assets erpnext https://github.com/frappe/erpnext
+
+WORKDIR /home/frappe/frappe-bench
+COPY --chown=frappe:frappe . apps/temple_inventory
+RUN if [ -x env/bin/pip ]; then \
+		env/bin/pip install --no-cache-dir -e apps/temple_inventory; \
+	else \
+		uv pip install --python env/bin/python -e apps/temple_inventory; \
+	fi \
+	&& printf '%s\n' frappe erpnext temple_inventory > sites/apps.txt \
+	&& cd apps/temple_inventory/frontend \
+	&& corepack enable pnpm \
+	&& pnpm install --frozen-lockfile \
+	&& cd /home/frappe/frappe-bench \
+	&& bench build --production \
+	&& rm -rf apps/temple_inventory/frontend/node_modules apps/temple_inventory/node_modules \
+	&& echo "{}" > sites/common_site_config.json \
+	&& find apps -mindepth 1 -path "*/.git" -prune -exec rm -rf {} +
+
+FROM ${FRAPPE_IMAGE_PREFIX}/base:${FRAPPE_VERSION} AS backend
+ARG FRAPPE_VERSION
+ARG ERPNEXT_VERSION
+ARG REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/ruoshui-git/temple_inventory" \
+	org.opencontainers.image.revision="${REVISION}" \
+	org.kufang.frappe-version="${FRAPPE_VERSION}" \
+	org.kufang.erpnext-version="${ERPNEXT_VERSION}"
+USER frappe
+COPY --from=builder --chown=frappe:0 /home/frappe/frappe-bench /home/frappe/frappe-bench
+RUN chmod -R g=u /home/frappe/frappe-bench
+WORKDIR /home/frappe/frappe-bench
+
+# Assets live in the image layer; the entrypoint links them into the sites volume.
+RUN cp -r sites/assets assets && rm -rf sites/assets
+
+VOLUME ["/home/frappe/frappe-bench/sites", "/home/frappe/frappe-bench/logs"]
+
+USER root
+COPY deploy/image/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY deploy/image/start.sh /usr/local/bin/start.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/start.sh
+USER frappe
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["start.sh"]

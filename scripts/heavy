@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Run one memory-heavy development command at a time. The devcontainer has
-# about 8 GB of RAM, and VS Code plus Bench services already use most of it;
-# overlapping test suites, builds, Chromium and resets have taken MariaDB down
-# and restarted the container. Every agent and developer shares this lock, so
-# concurrent callers queue instead of competing for memory.
+# Run one memory-heavy development command at a time. Docker, VS Code and the
+# agents share the WSL VM's memory; overlapping test suites, builds, Chromium
+# and resets have taken MariaDB down and restarted the container. Every agent and
+# developer shares this lock, so concurrent callers queue instead of competing
+# for memory.
 
 if [[ $# -eq 0 ]]; then
 	echo "Usage: heavy COMMAND [ARGS...]" >&2
 	exit 2
 fi
 
-lock="${TEMPLE_HEAVY_LOCK:-/tmp/temple-inventory-heavy.lock}"
+# The lock lives on the bind-mounted checkout, not /tmp, so callers on the WSL
+# host and inside the development container share it.
+development=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd)
+default_lock=/tmp/temple-inventory-heavy.lock
+if [[ -d $development/frappe-bench ]]; then
+	mkdir -p "$development/.locks"
+	default_lock=$development/.locks/heavy.lock
+fi
+lock="${TEMPLE_HEAVY_LOCK:-$default_lock}"
 exec 9>"$lock"
 if ! flock -n 9; then
 	echo "heavy: waiting for another heavy command to finish ($lock)" >&2

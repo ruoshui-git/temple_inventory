@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Run one command in the development container from the WSL host. The working
+# directory maps from the host checkout to /workspace, so `scripts/dx bench ...`
+# from the bench root and `../scripts/dx pnpm test` from frontend/ behave as they
+# would inside the container. Inside the container the command runs directly.
+# Pass environment variables with env: `dx env NAME=value COMMAND`.
+
+if [[ $# -eq 0 ]]; then
+	echo "Usage: dx COMMAND [ARGS...]" >&2
+	exit 2
+fi
+if [[ -f /.dockerenv && -d /workspace/development ]]; then
+	exec "$@"
+fi
+
+app=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+workspace=$(cd -- "$app/../../../.." && pwd)
+if [[ ! -f $workspace/development/frappe-bench/sites/apps.txt ]]; then
+	echo "dx: $app is not the bench checkout under development/frappe-bench/apps" >&2
+	exit 2
+fi
+case $PWD/ in
+	"$workspace"/*) cwd=/workspace${PWD#"$workspace"} ;;
+	*) cwd=/workspace/development/frappe-bench ;;
+esac
+tty=(-T)
+[[ -t 0 && -t 1 ]] && tty=()
+
+exec docker compose -f "$app/dev/compose.yaml" exec "${tty[@]}" -w "$cwd" frappe \
+	bash -lc 'exec "$@"' dx "$@"

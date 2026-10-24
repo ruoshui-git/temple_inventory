@@ -1,0 +1,16 @@
+# Development image for the temple_inventory bench: frappe/bench plus the tools
+# the app's tests and visual checks need, so a rebuild no longer loses them.
+# The bench image already ships Python (pyenv), Node (nvm), uv, honcho and
+# chromium-headless-shell.
+ARG BENCH_IMAGE=docker.io/frappe/bench@sha256:e7397026a3c188c47f5349b18d6313e4d6950aed60d1f35a2958606b5c3555d4
+FROM ${BENCH_IMAGE}
+
+USER root
+RUN apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-noto-cjk \
+	&& rm -rf /var/lib/apt/lists/*
+
+USER frappe
+# Keep in step with "packageManager" in frontend/package.json.
+ARG PNPM_VERSION=10.34.6
+RUN bash -lc "npm install -g pnpm@${PNPM_VERSION}"
