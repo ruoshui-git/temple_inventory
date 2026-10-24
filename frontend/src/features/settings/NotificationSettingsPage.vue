@@ -21,10 +21,8 @@ const states: Record<string, string> = {
 	<section class="preview-utility-page notification-settings-page">
 		<PageHeader
 			><h1 tabindex="-1">通知设置</h1>
-			<template #back
-				><BackButton @click="router.push('/more')" /></template
-			></PageHeader
-		>
+			<template #back><BackButton @click="router.push('/more')" /></template
+		></PageHeader>
 		<p class="muted">当前账户：{{ c.account }}</p>
 		<p class="muted">通知将显示在本设备的通知列表中。</p>
 		<SkeletonBlock v-if="c.loading.value && !c.initialized.value" variant="lines" :count="6" />

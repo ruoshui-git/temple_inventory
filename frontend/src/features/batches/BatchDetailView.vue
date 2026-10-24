@@ -87,9 +87,7 @@ function openDocument(row: Record<string, unknown>) {
 <template>
 	<section class="browse-page batch-detail-page">
 		<PageHeader :title="c.batch.value?.name || '批次资料'">
-			<template #back
-				><BackButton @click="emit('back')" /></template
-			>
+			<template #back><BackButton @click="emit('back')" /></template>
 			<template #actions>
 				<UiButton
 					v-if="c.batch.value && !c.editing.value"

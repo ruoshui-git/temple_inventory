@@ -646,7 +646,7 @@ class NativeReportTests(NativeDocumentTests):
 				reads = [sql for sql in statements if sql.lstrip().lower().startswith("select")]
 				return rows, len(reads)
 
-		small, small_reads = grouped(2)
+		_small, small_reads = grouped(2)
 		large, large_reads = grouped(40)
 		self.assertEqual(small_reads, large_reads)
 		self.assertEqual(len(large), 40)

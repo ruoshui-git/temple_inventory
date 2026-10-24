@@ -91,10 +91,11 @@ jobs:
           bench new-site ci.localhost --db-root-password root --admin-password admin \
             --mariadb-user-host-login-scope=% --install-app erpnext --install-app temple_inventory
           bench --site ci.localhost set-config developer_mode 1
-          bench --site ci.localhost execute erpnext.setup.setup_wizard.setup_wizard.setup_complete \
-            --kwargs '{"args": {"company_name": "Org", "company_abbr": "O", "country": "United States",
-            "currency": "USD", "chart_of_accounts": "Standard", "fy_start_date": "2026-01-01",
-            "fy_end_date": "2026-12-31"}}'
+      # The same company setup and sample data as development.localhost, which the
+      # suite runs against locally.
+      - name: Install sample data
+        working-directory: /home/runner/frappe-bench
+        run: bench --site ci.localhost execute temple_inventory.sample_install.prepare_development_sample_site
       - name: Native inventory tests
         working-directory: /home/runner/frappe-bench
         run: bench --site ci.localhost execute temple_inventory.tests.test_native_inventory.run
