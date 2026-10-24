@@ -758,10 +758,17 @@ def _operation_analysis_group(projection, source, dimension):
 	if dimension not in OPERATION_ANALYSIS:
 		frappe.throw("请选择有效的分析分组")
 	if "browse_analysis_source" not in projection.column_names:
-		projection.add(
-			"browse_analysis_source",
-			({**row, "month": str(row["date"])[:7]} for row in projection.rows(source)),
+		# Copy in SQLite: a Python round-trip re-serializes every source row.
+		projection.db.execute(
+			"insert or replace into rows select 'browse_analysis_source', identity, date, modified, name, "
+			"quantity, json_set(payload, '$.month', substr(cast(json_extract(payload, '$.date') as text), 1, 7)) "
+			"from rows where table_id=?",
+			(source,),
 		)
+		projection.column_names["browse_analysis_source"] = [
+			*projection.column_names.get(source, ()),
+			*(() if "month" in projection.column_names.get(source, ()) else ("month",)),
+		]
 	table = "browse_analysis_" + dimension
 	projection.group(
 		"browse_analysis_source",
@@ -779,6 +786,45 @@ def _operation_analysis_page(projection, source, dimension, start=0, size=30):
 		"rows": list(projection.rows(table, offset=start, limit=size)),
 		"matched_count": count,
 		"next_start": start + size if start + size < count else None,
+	}
+
+
+def _operation_page_totals(projection, source, rows):
+	"""Total each page Item's allocations by kind (or loan outcome), unit and status in one scan."""
+	loans = projection.query["dataset"] == "loans"
+	by_outcome = loans and projection.query["view"] != "items"
+	codes = sorted({row["item_code"] for row in rows})
+	totals = {}
+	cursor = projection.db.execute(
+		"select payload from rows where table_id=? and json_extract(payload, '$.item_code') in ("
+		+ ", ".join("?" * len(codes))
+		+ ") order by identity",
+		(source, *codes),
+	)
+	for (payload,) in cursor:
+		value = frappe.parse_json(payload)
+		item_totals = totals.setdefault(
+			(value["item_code"], value.get("outcome_key") if by_outcome else None), {}
+		)
+		key = (
+			value.get("outcome_key") if loans else value.get("kind"),
+			value["stock_uom"],
+			value["docstatus"],
+		)
+		quantity = item_totals.setdefault(key, {"stock_qty": 0, "available_effect": 0})
+		quantity["stock_qty"] += value["stock_qty"]
+		quantity["available_effect"] += value.get("available_effect", 0)
+	return {
+		identity: [
+			{
+				("outcome_key" if loans else "kind"): kind,
+				"stock_uom": unit,
+				"docstatus": status,
+				**quantity,
+			}
+			for (kind, unit, status), quantity in item_totals.items()
+		]
+		for identity, item_totals in totals.items()
 	}
 
 
@@ -870,6 +916,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 			projection.context.load_item_attachments = True
 			projection.context.preload_item_attachments(row["item_code"] for row in rows)
 			projection.context._item_fields.cache_clear()
+			page_totals = _operation_page_totals(projection, source, rows)
 		if records and rows:
 			whole_by_row = {
 				(row["doctype"], row["document"]): _whole_operation(
@@ -910,37 +957,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 					projection.context.item(row["item_code"]),
 					context=projection.context,
 				)
-				conditions, params = "json_extract(payload, '$.item_code') = ?", [row["item_code"]]
-				if projection.query["dataset"] == "loans" and projection.query["view"] != "items":
-					conditions += " and json_extract(payload, '$.outcome_key') = ?"
-					params.append(row["outcome_key"])
-				cursor = projection.db.execute(
-					"select payload from rows where table_id=? and " + conditions, (source, *params)
-				)
-				# A single Item's totals are small; contribution allocations stay paginated.
-				totals = defaultdict(float)
-				for (payload,) in cursor:
-					value = frappe.parse_json(payload)
-					key = (
-						value.get("outcome_key")
-						if projection.query["dataset"] == "loans"
-						else value.get("kind"),
-						value["stock_uom"],
-						value["docstatus"],
-					)
-					if key not in totals:
-						totals[key] = {"stock_qty": 0, "available_effect": 0}
-					totals[key]["stock_qty"] += value["stock_qty"]
-					totals[key]["available_effect"] += value.get("available_effect", 0)
-				row["totals"] = [
-					{
-						("outcome_key" if projection.query["dataset"] == "loans" else "kind"): kind,
-						"stock_uom": unit,
-						"docstatus": status,
-						**quantity,
-					}
-					for (kind, unit, status), quantity in totals.items()
-				]
+				row["totals"] = page_totals.get((row["item_code"], row.get("outcome_key")), [])
 		from temple_inventory.projections import LOAN_SUMS
 
 		projection.group(

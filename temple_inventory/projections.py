@@ -827,10 +827,65 @@ class Projection(AbstractContextManager):
 			]
 		)
 		grouping = " group by " + ", ".join(expressions) if expressions else ""
+		# Per-group details are aggregated once and joined by each group's text key;
+		# querying them per group rescans the whole source table for every group.
+		keys = [f"coalesce(cast(json_extract(payload, '$.{field}') as text), '')" for field in fields]
+		member_keys = [key.replace("payload", "record_rows.payload") for key in keys]
+		item_counts = (
+			{
+				tuple(values[:-1]): values[-1]
+				for values in self.db.execute(
+					"select "
+					+ ", ".join([*member_keys, "count(distinct members.value)"])
+					+ " from rows record_rows, json_each(record_rows.payload, '$.item_codes') members"
+					" where record_rows.table_id=?"
+					+ (" group by " + ", ".join(member_keys) if member_keys else ""),
+					(source,),
+				)
+			}
+			if "item_codes" in self.column_names.get(source, ())
+			else None
+		)
+		breakdowns = None
+		if source == "group_source" and self.query["dataset"] == "movements":
+			breakdowns = {}
+			for values in self.db.execute(
+				"select "
+				+ ", ".join(
+					[
+						*keys,
+						"json_extract(payload, '$.kind')",
+						"json_extract(payload, '$.docstatus')",
+						"sum(coalesce(json_extract(payload, '$.stock_qty'), 0))",
+						"sum(coalesce(json_extract(payload, '$.available_effect'), 0))",
+						"count(distinct json_extract(payload, '$.document_id'))",
+						"count(*)",
+					]
+				)
+				+ " from rows where table_id=? group by "
+				+ ", ".join(
+					[*keys, "json_extract(payload, '$.kind')", "json_extract(payload, '$.docstatus')"]
+				)
+				+ " order by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus')",
+				(source,),
+			):
+				part = values[len(keys) :]
+				breakdowns.setdefault(tuple(values[: len(keys)]), []).append(
+					{
+						"kind": part[0],
+						"docstatus": part[1],
+						"stock_qty": part[2],
+						"available_effect": part[3],
+						"document_count": part[4],
+						"allocation_count": part[5],
+					}
+				)
 		cursor = self.db.execute(
-			"select " + ", ".join(columns) + " from rows where table_id=?" + grouping, (source,)
+			"select " + ", ".join([*columns, *keys]) + " from rows where table_id=?" + grouping, (source,)
 		)
 		for values in cursor:
+			key = tuple(values[len(columns) :])
+			values = values[: len(columns)]
 			if not values[-2]:
 				continue
 			row = dict(
@@ -848,48 +903,10 @@ class Projection(AbstractContextManager):
 					strict=True,
 				)
 			)
-			if "item_codes" in self.column_names.get(source, ()):
-				conditions = ["record_rows.table_id=?"]
-				parameters = [source]
-				for field, value in zip(fields, values[: len(fields)], strict=True):
-					conditions.append(
-						f"coalesce(cast(json_extract(record_rows.payload, '$.{field}') as text), '')=?"
-					)
-					parameters.append(str(value or ""))
-				item_count = self.db.execute(
-					"select count(distinct members.value) from rows record_rows, json_each(record_rows.payload, '$.item_codes') members where "
-					+ " and ".join(conditions),
-					parameters,
-				).fetchone()[0]
-				row["item_count"] = item_count
-			if source == "group_source" and self.query["dataset"] == "movements":
-				conditions = ["table_id=?"]
-				parameters = [source]
-				for field, value in zip(fields, values[: len(fields)], strict=True):
-					conditions.append(f"coalesce(cast(json_extract(payload, '$.{field}') as text), '')=?")
-					parameters.append(str(value or ""))
-				breakdown_rows = self.db.execute(
-					"select json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus'), "
-					"sum(coalesce(json_extract(payload, '$.stock_qty'), 0)), "
-					"sum(coalesce(json_extract(payload, '$.available_effect'), 0)), "
-					"count(distinct json_extract(payload, '$.document_id')), count(*) "
-					"from rows where "
-					+ " and ".join(conditions)
-					+ " group by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus') "
-					"order by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus')",
-					parameters,
-				).fetchall()
-				row["quantity_breakdown"] = [
-					{
-						"kind": part[0],
-						"docstatus": part[1],
-						"stock_qty": part[2],
-						"available_effect": part[3],
-						"document_count": part[4],
-						"allocation_count": part[5],
-					}
-					for part in breakdown_rows
-				]
+			if item_counts is not None:
+				row["item_count"] = item_counts.get(key, 0)
+			if breakdowns is not None:
+				row["quantity_breakdown"] = breakdowns.get(key, [])
 				# A total across different movement kinds/statuses has no meaningful native quantity.
 				if len(row["quantity_breakdown"]) > 1:
 					row["stock_qty"] = None

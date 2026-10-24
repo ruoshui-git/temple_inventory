@@ -619,6 +619,47 @@ class NativeReportTests(NativeDocumentTests):
 		self.assertEqual(by_kind["Issue"]["available_effect"], -3)
 		self.assertEqual(page["summary"], report_page({**query, "groupBy": []})["summary"])
 
+	def test_group_details_use_constant_queries_for_any_group_count(self):
+		def grouped(group_count):
+			with Projection(self.query("movements", "lines")) as projection:
+				for index in range(group_count * 3):
+					group = f"G{index % group_count:03d}"
+					projection.put(
+						"group_source",
+						{
+							"id": f"row-{index}",
+							"item_code": group,
+							"stock_uom": "Nos",
+							"kind": ("Receive", "Issue")[index // group_count % 2],
+							"docstatus": 1,
+							"stock_qty": index + 1,
+							"available_effect": index + 1,
+							"document_id": f"doc-{index}",
+							"item_codes": [group, f"{group}-extra"],
+						},
+					)
+				statements = []
+				projection.db.set_trace_callback(statements.append)
+				projection.group("group_source", "grouped", ("item_code", "stock_uom"), ("stock_qty",))
+				projection.db.set_trace_callback(None)
+				rows = {row["item_code"]: row for row in projection.rows("grouped")}
+				reads = [sql for sql in statements if sql.lstrip().lower().startswith("select")]
+				return rows, len(reads)
+
+		small, small_reads = grouped(2)
+		large, large_reads = grouped(40)
+		self.assertEqual(small_reads, large_reads)
+		self.assertEqual(len(large), 40)
+		for code, row in large.items():
+			self.assertEqual(row["item_count"], 2, code)
+			parts = {part["kind"]: part for part in row["quantity_breakdown"]}
+			self.assertEqual(set(parts), {"Receive", "Issue"}, code)
+			self.assertEqual(sum(part["allocation_count"] for part in parts.values()), 3, code)
+			self.assertEqual(sum(part["document_count"] for part in parts.values()), 3, code)
+		first = large["G000"]["quantity_breakdown"]
+		# Rows 0, 40 and 80 belong to G000: 0 and 80 are receipts, 40 is an issue.
+		self.assertEqual({part["kind"]: part["stock_qty"] for part in first}, {"Receive": 82, "Issue": 41})
+
 	def test_two_level_group_pages_include_full_authorized_groups_then_lazy_children(self):
 		self.receipt(4)
 		query = self.query("inventory", "summary", groupBy=["category", "item"])
