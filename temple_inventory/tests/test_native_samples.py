@@ -125,7 +125,7 @@ class SampleMediaTests(unittest.TestCase):
 			self.assertEqual((root / "private/files/unrelated").read_bytes(), b"preserve")
 
 
-class NativeSampleTests(NativeDocumentTests):
+class NativeSampleAttachmentTests(NativeDocumentTests):
 	def test_seed_attachments_write_one_private_blob_and_preserve_native_image_field_link(self):
 		root = Path(frappe.get_site_path("private", "files")).resolve()
 		before = set(root.iterdir())
@@ -159,6 +159,65 @@ class NativeSampleTests(NativeDocumentTests):
 			{Path(file.get_full_path()).resolve(), Path(receipt.get_full_path()).resolve()},
 		)
 
+
+class SampleGeneratorUnitTests(unittest.TestCase):
+	def test_realistic_catalog_preserves_name_batch_unit_and_category_rhythms(self):
+		rows = native_samples.generated_product_rows()
+		self.assertEqual(len(rows), 436)
+		self.assertEqual(len({row["item_name"] for row in rows}), 436)
+		self.assertEqual({row["stock_uom"] for row in rows}, set(native_samples.GENERATED_UNITS))
+		self.assertEqual(
+			[row["uncategorized"] for row in rows], [(index + 1) % 17 == 0 for index in range(436)]
+		)
+		self.assertEqual(
+			[row["batch_tracked"] for row in rows], [(index + 1) % 20 == 0 for index in range(436)]
+		)
+		self.assertEqual(
+			[row["has_alternate_uom"] for row in rows], [(index + 1) % 8 == 0 for index in range(436)]
+		)
+		for row in rows:
+			if row["has_alternate_uom"]:
+				alternate_uom, factor = native_samples.generated_alternate_conversion(row)
+				self.assertNotEqual(alternate_uom, row["stock_uom"])
+				self.assertGreater(factor, 0)
+		self.assertEqual(
+			native_samples.generated_alternate_conversion(
+				next(row for row in rows if row["base_name"] == "酱油")
+			),
+			("箱", 12),
+		)
+		self.assertEqual(
+			native_samples.generated_alternate_conversion(
+				next(row for row in rows if row["base_name"] == "垃圾袋")
+			),
+			("包", 10),
+		)
+		long_rows = [
+			rows[index]
+			for index in range(6, 436, 7)
+			if not (
+				len(rows[index]["item_name"]) >= 18
+				and rows[index]["base_name"] in rows[index]["item_name"]
+				and rows[index]["spec"] in rows[index]["item_name"]
+			)
+		]
+		self.assertFalse(long_rows, long_rows)
+		self.assertEqual(set(native_samples.GENERATED_PRODUCT_SPECS), {row["base_name"] for row in rows})
+		self.assertTrue(
+			all(4 <= len(specs) <= 8 for specs in native_samples.GENERATED_PRODUCT_SPECS.values())
+		)
+		self.assertEqual(len({row["base_key"] for row in rows}), 60)
+
+	def test_balance_tracker_rejects_negative_location_or_batch_balance(self):
+		balances = {}
+		native_samples._balance_change(balances, "item", "leaf-a", 3, "lot-1")
+		native_samples._balance_change(balances, "item", "leaf-a", -2, "lot-1")
+		self.assertEqual(str(balances[("item", "leaf-a", "lot-1")]), "1")
+		with self.assertRaises(ValueError):
+			native_samples._balance_change(balances, "item", "leaf-a", -2, "lot-1")
+
+
+class NativeSampleTests(NativeDocumentTests):
 	def test_native_seed_covers_catalog_all_movements_loans_and_real_count_without_legacy_records(self):
 		company = frappe.get_doc(
 			{
@@ -199,6 +258,23 @@ class NativeSampleTests(NativeDocumentTests):
 			patch.object(sample_media, "costume_catalog", return_value=test_costumes),
 		):
 			result = native_samples.install(company.name, attach_images=False, attach_files=False)
+			affinity = result["rooms"].get("AFFINITY", {})
+			physical = set(result["rooms"].get("PHYSICAL_LEAVES", []))
+			self.assertTrue(affinity)
+			self.assertTrue(all(set(pool) <= physical for pool in affinity.values()))
+			for warehouse in set(name for pool in affinity.values() for name in pool):
+				leaf = frappe.db.get_value(
+					"Warehouse", warehouse, ["is_group", "disabled", "warehouse_type"], as_dict=True
+				)
+				self.assertFalse(leaf.is_group)
+				self.assertFalse(leaf.disabled)
+				self.assertNotIn(leaf.warehouse_type, {"Loan", "Damaged"})
+			for row in sample_media.catalog()["items"]:
+				code = result["item_codes"][row["key"]]
+				placements = result["rooms"]["OPENING_PLACEMENTS"][code]
+				self.assertGreaterEqual(len(placements), 1)
+				self.assertLessEqual(len(placements), 3)
+				self.assertTrue(set(placements) <= physical)
 			self.assertEqual(result["items"], 164)
 			self.assertEqual(result["images"], 0)
 			costumes = test_costumes
@@ -312,7 +388,15 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertEqual(len(actual_batches), len(source_batches))
 				self.assertGreaterEqual(len({row.manufacturing_date for row in actual_batches}), 2)
 				remaining = sum(row["quantity"] for row in source_batches) - (6 if key == "G-000001" else 0)
-				self.assertEqual(get_stock_balance(code, result["rooms"]["DEMO_A"]), remaining)
+				warehouses = {
+					warehouse
+					for placement_key, placements in result["rooms"]["BATCH_PLACEMENTS"].items()
+					if placement_key.startswith(f"{code}::")
+					for warehouse in placements
+				}
+				self.assertEqual(
+					sum(get_stock_balance(code, warehouse) for warehouse in warehouses), remaining
+				)
 			offsets = {(getdate(row["expiry_date"]) - before).days for row in batch_rows if row.expiry_date}
 			self.assertTrue({-1, -30, -31, -90, -91, 0, 30, 31, 90, 91}.issubset(offsets))
 			depleted = frappe.get_all(
@@ -325,7 +409,10 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertEqual(len(depleted), 1)
 			depleted_balances = batch_balances(
 				result["item_codes"]["G-000001"],
-				result["rooms"]["DEMO_A"],
+				result["rooms"]["BATCH_PLACEMENTS"][
+					f"{result['item_codes']['G-000001']}::"
+					f"{native_samples._batch_id(result['item_codes']['G-000001'], 'BAT-000001')}"
+				][0],
 				str(before),
 				include_zero=True,
 			)
@@ -340,13 +427,19 @@ class NativeSampleTests(NativeDocumentTests):
 			settings.sample_data_status = "Installed"
 			settings.sample_data_version = sample_install.VERSION
 			settings.save(ignore_permissions=True)
-			verified = sample_install.verify_development_sample(require_images=False)
-			self.assertEqual(verified["costume_source_rows"], 96)
-			self.assertTrue(verified["count_review_verified"])
+			verified = sample_install.verify_development_sample(require_images=False, data="real")
+			self.assertEqual(verified["costume_items"], 96)
+			self.assertTrue(verified["costume_stock_verified"])
 
 
 def run():
 	suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(SampleMediaTests))
+	suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(SampleGeneratorUnitTests))
+	suite.addTests(
+		test
+		for test in unittest.defaultTestLoader.loadTestsFromTestCase(NativeSampleAttachmentTests)
+		if test._testMethodName in NativeSampleAttachmentTests.__dict__
+	)
 	suite.addTest(
 		NativeSampleTests(
 			"test_native_seed_covers_catalog_all_movements_loans_and_real_count_without_legacy_records"

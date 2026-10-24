@@ -13,7 +13,12 @@ from temple_inventory.tests.test_catalog import CatalogTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 from temple_inventory.tests.test_native_reports import NativeReportTests
-from temple_inventory.tests.test_native_samples import NativeSampleTests, SampleMediaTests
+from temple_inventory.tests.test_native_samples import (
+	NativeSampleAttachmentTests,
+	NativeSampleTests,
+	SampleGeneratorUnitTests,
+	SampleMediaTests,
+)
 from temple_inventory.tests.test_native_warehouses import NativeWarehouseTests
 from temple_inventory.tests.test_notifications import NotificationTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
@@ -39,6 +44,8 @@ def run(test_name=None):
 		ConfigurationTests,
 		NativeWarehouseTests,
 		SampleMediaTests,
+		SampleGeneratorUnitTests,
+		NativeSampleAttachmentTests,
 		NativeSampleTests,
 		TablePreferenceTests,
 		NotificationTests,

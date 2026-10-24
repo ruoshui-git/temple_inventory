@@ -7,6 +7,7 @@ The caller owns commit/rollback. Ordinary hooks and permissions remain enabled.
 # ruff: noqa: RUF001 — Chinese sample descriptions are intentional.
 
 import random
+import re
 from contextvars import ContextVar
 from datetime import timedelta
 from decimal import Decimal
@@ -18,7 +19,7 @@ from frappe.utils import getdate, nowdate
 from temple_inventory import activities, catalog, configuration, conversions, counts, native_api, warehouses
 from temple_inventory.item_code import allocate_item_code
 from temple_inventory.native_stock import loan_balances
-from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT, costume_catalog
+from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT, costume_catalog, generated_images
 from temple_inventory.sample_media import catalog as sample_catalog
 
 REQUEST_PREFIX = "temple-native-samples:v1:"
@@ -65,6 +66,481 @@ EXTRA_ITEMS = (
 	("N-WEIGHT", "散装活动用米", "Kg", False, False),
 	("N-UNDATED", "无效期批次耗材", "Nos", True, False),
 )
+
+GENERATED_PRODUCTS = {
+	"日常用品": (
+		"扫帚",
+		"拖把",
+		"水桶",
+		"垃圾袋",
+		"抽纸",
+		"卷纸",
+		"洗手液",
+		"消毒液",
+		"电池",
+		"灯泡",
+		"插线板",
+		"毛巾",
+		"雨伞",
+		"抹布",
+		"清洁刷",
+	),
+	"厨房物资": (
+		"不锈钢汤锅",
+		"炒锅",
+		"砧板",
+		"菜刀",
+		"食用油",
+		"蒸笼",
+		"保鲜盒",
+		"大米",
+		"漏勺",
+		"汤勺",
+		"洗洁精",
+		"电饭煲",
+		"酱油",
+		"米醋",
+		"一次性手套",
+	),
+	"法会用品": (
+		"香炉",
+		"烛台",
+		"供杯",
+		"供盘",
+		"蒲团",
+		"拜垫",
+		"木鱼",
+		"引磬",
+		"经幡",
+		"盘香",
+		"酥油灯",
+		"莲花灯",
+		"檀香",
+		"经书架",
+		"佛前供花瓶",
+	),
+	"办公物资": (
+		"A4打印纸",
+		"签字笔",
+		"文件夹",
+		"订书机",
+		"便签",
+		"计算器",
+		"胶带",
+		"剪刀",
+		"记事本",
+		"印泥",
+		"档案盒",
+		"白板笔",
+		"标签贴纸",
+		"文件袋",
+		"复印纸",
+	),
+}
+GENERATED_PRODUCT_SPECS = {
+	"扫帚": ("木柄 1.2m", "木柄 1.5m", "硬毛", "软毛", "室外款", "加宽 40cm", "塑料柄", "替换扫头"),
+	"拖把": ("平板 40cm", "平板 60cm", "旋转款", "棉线款", "超细纤维", "加长杆", "替换拖布", "家用型"),
+	"水桶": ("8L", "10L", "12L 带盖", "15L", "20L 加厚", "不锈钢 8L", "带刻度", "塑料提手"),
+	"垃圾袋": (
+		"45×50cm 100只",
+		"60×80cm 50只",
+		"加厚 80×100cm",
+		"背心袋",
+		"平口袋",
+		"黑色",
+		"透明",
+		"大号 90×110cm",
+	),
+	"抽纸": ("100抽", "200抽", "原生木浆", "无香型", "三层加厚", "盒装 120抽", "便携装 40抽", "竹浆"),
+	"卷纸": ("3层 12卷", "4层 10卷", "卷筒 180g", "大卷商用", "无芯款", "原生木浆", "加厚款", "竹浆"),
+	"洗手液": ("300ml", "500ml", "补充装 1L", "泡沫型", "柠檬香", "无香型", "抑菌型", "按压瓶"),
+	"消毒液": (
+		"75%酒精 500ml",
+		"75%酒精 1L",
+		"含氯 1L",
+		"喷雾 500ml",
+		"补充装 2L",
+		"无香型",
+		"便携装 100ml",
+		"浓缩型",
+	),
+	"电池": ("AA 4节装", "AAA 4节装", "5号 8节装", "7号 8节装", "碱性", "充电电池", "1.5V", "大容量"),
+	"灯泡": ("LED 9W E27", "LED 12W E27", "暖白", "正白", "球泡 7W", "筒灯 5W", "GU10 7W", "节能型"),
+	"插线板": ("3位 1.8m", "5位 3m", "6位带开关", "USB双口", "过载保护", "国标插孔", "1.5m", "防雷款"),
+	"毛巾": ("纯棉 34×75cm", "纯棉 70×140cm", "速干款", "加厚款", "白色", "黄色", "吸水款", "双层纱"),
+	"雨伞": ("三折款", "直杆 60cm", "自动开收", "晴雨两用", "黑色", "大号 70cm", "儿童款", "防风款"),
+	"抹布": ("超细纤维 30×30cm", "纯棉 40×40cm", "加厚款", "吸水款", "蓝色", "黄色", "厨房专用", "10条装"),
+	"清洁刷": ("长柄锅刷", "硬毛 5cm", "软毛 8cm", "杯刷 30cm", "地刷 25cm", "缝隙刷", "木柄款", "替换刷头"),
+	"不锈钢汤锅": ("24cm", "28cm", "32cm", "双耳加厚", "带盖 26cm", "加深 30cm", "复底 28cm", "商用 36cm"),
+	"炒锅": (
+		"30cm 熟铁",
+		"32cm 不粘",
+		"34cm 炒锅",
+		"带盖 32cm",
+		"平底 28cm",
+		"双耳 36cm",
+		"窒化铁",
+		"轻量款 30cm",
+	),
+	"砧板": (
+		"木质 30×20cm",
+		"木质 40×30cm",
+		"塑料 35×25cm",
+		"双面款",
+		"加厚 3cm",
+		"竹制 38cm",
+		"圆形 30cm",
+		"商用 50×35cm",
+	),
+	"菜刀": ("切片刀", "斩骨刀", "小号", "中号 18cm", "大号 20cm", "不锈钢", "三德刀", "木柄款"),
+	"食用油": ("5L", "10L", "1.8L", "菜籽油 5L", "花生油 5L", "大豆油 10L", "玉米油 5L", "食用调和油 4L"),
+	"蒸笼": ("26cm", "28cm", "30cm", "竹制两层", "竹制三层", "不锈钢 28cm", "带盖 32cm", "加深款"),
+	"保鲜盒": ("500ml", "750ml", "1L", "1.5L", "长方形 2L", "玻璃 800ml", "四件套", "带密封圈"),
+	"大米": ("5kg", "10kg", "东北大米 5kg", "糯米 2.5kg", "籼米 10kg", "粳米 5kg", "真空装 2kg", "散装优选"),
+	"漏勺": ("12cm", "16cm", "20cm", "细孔款", "不锈钢长柄", "油炸滤勺", "加深款", "双耳款"),
+	"汤勺": (
+		"不锈钢 30cm",
+		"不锈钢 35cm",
+		"木柄 28cm",
+		"汤勺 10cm",
+		"大号 12cm",
+		"长柄 40cm",
+		"双层隔热",
+		"商用加深",
+	),
+	"洗洁精": ("500ml", "1L", "2L补充装", "柠檬香", "无香型", "浓缩型", "按压瓶", "商用 5L"),
+	"电饭煲": ("3L", "4L", "5L", "6L商用", "智能预约", "不粘内胆", "IH加热 4L", "小型 2L"),
+	"酱油": (
+		"生抽 500ml",
+		"老抽 500ml",
+		"生抽 1L",
+		"零添加 500ml",
+		"酿造酱油",
+		"蒸鱼豉油 500ml",
+		"低盐型",
+		"商用 5L",
+	),
+	"米醋": ("500ml", "1L", "糯米酿造", "陈酿 500ml", "白米醋", "有机米醋", "无添加", "商用 2L"),
+	"一次性手套": (
+		"S码 100只",
+		"M码 100只",
+		"L码 100只",
+		"加厚款",
+		"食品级",
+		"PE款 200只",
+		"乳胶款",
+		"透明款",
+	),
+	"香炉": ("铜制 12cm", "铜制 18cm", "陶瓷 15cm", "三足款", "带盖款", "小号 10cm", "大号 24cm", "香道款"),
+	"烛台": ("黄铜 18cm", "黄铜 25cm", "一对装", "单支款", "莲花底座", "不锈钢款", "高脚 30cm", "小号 12cm"),
+	"供杯": ("玻璃 60ml", "玻璃 100ml", "青瓷 80ml", "一对装", "三件套", "带盖款", "莲花纹", "不锈钢款"),
+	"供盘": ("直径 18cm", "直径 24cm", "黄铜款", "白瓷款", "莲花纹", "浅口 20cm", "一对装", "不锈钢 28cm"),
+	"蒲团": ("黄色", "红色", "加厚 40cm", "圆形 45cm", "棉麻面", "高密度填充", "深蓝色", "可拆洗"),
+	"拜垫": ("加厚 40cm", "跪垫 45×70cm", "红色", "黄色", "防滑底", "棉麻面", "高密度填充", "可折叠"),
+	"木鱼": ("小号 10cm", "中号 15cm", "大号 20cm", "榉木款", "含鱼槌", "檀木色", "法会用", "加厚音腔"),
+	"引磬": ("铜制 8cm", "铜制 10cm", "含磬槌", "木柄款", "法会用", "小号", "加厚款", "便携套装"),
+	"经幡": ("五色 5m", "五色 10m", "五色 20m", "棉布款", "涤纶款", "户外加厚", "经文印花", "宽幅 30cm"),
+	"盘香": ("4小时", "8小时", "12小时", "24小时", "檀香味", "沉香味", "无烟款", "小盘 20枚"),
+	"酥油灯": ("玻璃杯装", "供灯 100ml", "黄铜灯盏", "陶瓷款", "一对装", "小号 8cm", "加厚灯芯", "耐热杯"),
+	"莲花灯": ("粉色 12cm", "黄色 12cm", "红色 15cm", "电池款", "插电款", "七彩灯", "供桌款", "可遥控"),
+	"檀香": ("线香 21cm", "线香 30cm", "盘香款", "天然檀香", "无烟款", "短支 15cm", "100支装", "礼佛用"),
+	"经书架": ("木制 30cm", "木制 40cm", "折叠款", "双层款", "红木色", "竹制款", "可调角度", "加宽 50cm"),
+	"佛前供花瓶": ("青瓷 20cm", "白瓷 25cm", "一对装", "莲花纹", "铜制款", "小号 15cm", "高脚款", "粉彩款"),
+	"A4打印纸": ("70g 500张", "80g 500张", "彩色", "70g 10包箱", "80g 5包箱", "双面打印", "亮白款", "再生纸"),
+	"签字笔": (
+		"0.5mm黑色",
+		"0.5mm蓝色",
+		"0.7mm黑色",
+		"按动款",
+		"中性笔 12支装",
+		"速干款",
+		"红色 12支装",
+		"商务礼盒",
+	),
+	"文件夹": ("A4单夹", "A4双夹", "透明封面", "加厚款", "蓝色", "抽杆款", "多页插袋", "10个装"),
+	"订书机": ("10号", "12号", "省力型", "金属款", "迷你款", "可订 25页", "重型款", "附订书针"),
+	"便签": ("76×76mm", "黄色 100张", "彩色 5本装", "荧光款", "横线款", "便携 50×50mm", "可再贴", "加厚纸"),
+	"计算器": ("12位桌面款", "8位便携款", "双电源", "太阳能款", "金融型", "大屏幕", "静音按键", "带税率功能"),
+	"胶带": (
+		"透明 18mm",
+		"透明 24mm",
+		"宽幅 48mm",
+		"双面胶 12mm",
+		"美纹纸 24mm",
+		"封箱胶带",
+		"可手撕款",
+		"6卷装",
+	),
+	"剪刀": (
+		"办公 17cm",
+		"不锈钢 21cm",
+		"小号 13cm",
+		"圆头安全款",
+		"左手款",
+		"裁纸 24cm",
+		"防滑手柄",
+		"多用途",
+	),
+	"记事本": ("A5横线", "A6便携", "B5方格", "硬壳 80页", "软抄 60页", "线圈装", "空白页", "皮面款"),
+	"印泥": ("红色 80mm", "红色 100mm", "蓝色", "快干型", "朱砂色", "小号 60mm", "海绵垫", "带盒装"),
+	"档案盒": ("A4 3cm", "A4 5cm", "A4 7.5cm", "加厚 PP", "蓝色", "带标签槽", "牛皮纸款", "10个装"),
+	"白板笔": ("黑色 2mm", "蓝色 2mm", "红色 2mm", "可擦式", "圆头款", "斜头款", "4色套装", "补充墨水款"),
+	"标签贴纸": (
+		"A4 24格",
+		"A4 40格",
+		"热敏 50×30mm",
+		"白色不干胶",
+		"彩色圆点",
+		"防水款",
+		"可书写",
+		"100张装",
+	),
+	"文件袋": ("A4透明", "A4拉链款", "牛津布", "防水款", "按扣式", "加厚 0.3mm", "蓝色", "10个装"),
+	"复印纸": ("70g 500张", "80g 500张", "A4 10包箱", "A3 500张", "高白度", "双面打印", "再生纸", "彩色款"),
+}
+GENERATED_UNITS = ("Nos", "双", "套", "箱", "包", "瓶", "升", "米", "张", "Kg")
+GENERATED_PRODUCT_UOM = {
+	"扫帚": "Nos",
+	"拖把": "套",
+	"水桶": "Nos",
+	"垃圾袋": "箱",
+	"抽纸": "包",
+	"卷纸": "包",
+	"洗手液": "瓶",
+	"消毒液": "升",
+	"电池": "包",
+	"灯泡": "Nos",
+	"插线板": "套",
+	"毛巾": "张",
+	"雨伞": "Nos",
+	"抹布": "包",
+	"清洁刷": "Nos",
+	"不锈钢汤锅": "套",
+	"炒锅": "Nos",
+	"砧板": "Nos",
+	"菜刀": "Nos",
+	"食用油": "升",
+	"蒸笼": "套",
+	"保鲜盒": "套",
+	"大米": "Kg",
+	"漏勺": "Nos",
+	"汤勺": "Nos",
+	"洗洁精": "升",
+	"电饭煲": "套",
+	"酱油": "瓶",
+	"米醋": "瓶",
+	"一次性手套": "双",
+	"香炉": "套",
+	"烛台": "双",
+	"供杯": "套",
+	"供盘": "套",
+	"蒲团": "Nos",
+	"拜垫": "Nos",
+	"木鱼": "Nos",
+	"引磬": "Nos",
+	"经幡": "米",
+	"盘香": "包",
+	"酥油灯": "Nos",
+	"莲花灯": "Nos",
+	"檀香": "包",
+	"经书架": "套",
+	"佛前供花瓶": "Nos",
+	"A4打印纸": "张",
+	"签字笔": "箱",
+	"文件夹": "包",
+	"订书机": "Nos",
+	"便签": "包",
+	"计算器": "Nos",
+	"胶带": "包",
+	"剪刀": "Nos",
+	"记事本": "Nos",
+	"印泥": "套",
+	"档案盒": "Nos",
+	"白板笔": "包",
+	"标签贴纸": "张",
+	"文件袋": "包",
+	"复印纸": "张",
+}
+
+
+def generated_product_rows(count=436):
+	"""Return deterministic realistic names and product keys for generated Items."""
+	products = [(group, name) for group, names in GENERATED_PRODUCTS.items() for name in names]
+	rows = []
+	product_indices = {}
+	for index in range(count):
+		group, base_name = products[index % len(products)]
+		variant_index = product_indices.get(base_name, 0)
+		product_indices[base_name] = variant_index + 1
+		spec = GENERATED_PRODUCT_SPECS[base_name][variant_index % len(GENERATED_PRODUCT_SPECS[base_name])]
+		name = f"{base_name} {spec}"
+		if (index + 1) % 7 == 0:
+			name = {
+				"日常用品": f"寺院客堂及公共区域日常保洁备用{base_name}{spec}物资",
+				"厨房物资": f"寺院斋堂共餐及厨房备餐用{base_name}{spec}用品",
+				"法会用品": f"大殿供奉及法会仪轨活动使用{base_name}{spec}物资",
+				"办公物资": f"寺院库房台账和日常办公用{base_name}{spec}物资",
+			}[group]
+		rows.append(
+			{
+				"key": f"V{index + 1:04d}",
+				"group": group,
+				"base_key": f"P{products.index((group, base_name)) + 1:02d}",
+				"base_name": base_name,
+				"spec": spec,
+				"item_name": name,
+				"stock_uom": GENERATED_PRODUCT_UOM[base_name],
+				"uncategorized": (index + 1) % 17 == 0,
+				"batch_tracked": (index + 1) % 20 == 0,
+				"has_alternate_uom": (index + 1) % 8 == 0,
+			}
+		)
+	return rows
+
+
+def generated_alternate_conversion(product):
+	"""Return a plausible alternate stock conversion for one generated product."""
+	stock_uom = product["stock_uom"]
+	spec = product["spec"]
+	if stock_uom == "Nos":
+		return "箱", 12
+	if stock_uom == "双":
+		return "包", 50
+	if stock_uom == "套":
+		return "箱", 6
+	if stock_uom == "箱":
+		return "包", 10
+	if stock_uom == "包":
+		return "箱", 10
+	if stock_uom == "瓶":
+		return "箱", 12
+	if stock_uom == "升":
+		milliliters = re.search(r"(\d+(?:\.\d+)?)\s*ml\b", spec, re.IGNORECASE)
+		liters = re.search(r"(\d+(?:\.\d+)?)\s*L\b", spec, re.IGNORECASE)
+		factor = (
+			float(milliliters.group(1)) / 1000 if milliliters else float(liters.group(1)) if liters else 1
+		)
+		return "瓶", factor
+	if stock_uom == "米":
+		length = re.search(r"(\d+(?:\.\d+)?)\s*m\b", spec, re.IGNORECASE)
+		factor = float(length.group(1)) if length else 5
+		return "Nos", factor
+	if stock_uom == "张":
+		pack_size = re.search(r"(\d+)\s*张", spec)
+		return "包", int(pack_size.group(1)) if pack_size else 500
+	if stock_uom == "Kg":
+		weight = re.search(r"(\d+(?:\.\d+)?)\s*kg\b", spec, re.IGNORECASE)
+		return "包", float(weight.group(1)) if weight else 5
+	raise ValueError(f"generated product has no alternate conversion: {product['base_name']}")
+
+
+def _physical_leaves(company, root):
+	"""Resolve enabled physical leaves below the configured root at runtime."""
+	settings = frappe.get_single("Temple Inventory Settings")
+	rows = frappe.get_all(
+		"Warehouse",
+		filters={
+			"company": company,
+			"is_group": 0,
+			"disabled": 0,
+			"lft": [">=", frappe.db.get_value("Warehouse", root, "lft")],
+			"rgt": ["<=", frappe.db.get_value("Warehouse", root, "rgt")],
+		},
+		fields=["name", "ti_label", "ti_direct_storage", "parent_warehouse"],
+	)
+	blocked = {
+		root,
+		settings.root_warehouse,
+		settings.physical_root_warehouse,
+		settings.leased_warehouse,
+		settings.damaged_warehouse,
+	}
+	return [row for row in rows if row.name not in blocked]
+
+
+def _category_affinity(company, rooms):
+	"""Build category leaf pools from current warehouse labels, never docnames."""
+	settings = frappe.get_single("Temple Inventory Settings")
+	leaves = _physical_leaves(company, settings.physical_root_warehouse)
+	by_label = {}
+	for row in leaves:
+		label = row.ti_label
+		if row.ti_direct_storage:
+			label = frappe.db.get_value("Warehouse", row.parent_warehouse, "ti_label") or label
+		by_label.setdefault(label, []).append(row.name)
+
+	def choose(*labels):
+		return [name for label in labels for name in by_label.get(label, [])]
+
+	shared = {
+		"食品": choose("冷藏柜", "上层", "下层", "干货架A", "干货架B", "干货架C", "干货架D"),
+		"厨房物资": choose("冷藏柜", "上层", "下层", "干货架A", "干货架B", "干货架C", "干货架D"),
+		"餐具与耗材": choose("餐具间", "厨房"),
+		"佛事用品": choose(
+			"供桌柜1", "供桌柜2", "供桌柜3", "第1格", "第2格", "第3格", "第4格", "第5格", "第6格", "大殿"
+		),
+		"法会用品": choose(
+			"供桌柜1", "供桌柜2", "供桌柜3", "第1格", "第2格", "第3格", "第4格", "第5格", "第6格", "大殿"
+		),
+		"节日装饰": choose("法物流通处临时周转货架（节庆期间使用）", "广场帐篷A", "广场帐篷B"),
+		"工具与设备": choose("106", "201", "C06", "C07"),
+		"园艺与户外": choose("106", "201", "C06", "C07"),
+		"建筑维护": choose("106", "201", "C06", "C07"),
+		"电子与科技": choose("A07", "A14"),
+		"办公物资": choose("A07", "A14"),
+		"日常用品": choose("A02", "货架1", "货架2", "B01b", "临时存放", "A04"),
+		"美妆个护": choose("B01b", "临时存放", "A04"),
+		"药品与健康": choose("B01b", "临时存放", "A04"),
+		"服装与纺织品": choose("B01b", "临时存放", "A04"),
+		"无分类": choose("临时存放"),
+	}
+	all_leaves = [row.name for row in leaves]
+	return {**{key: value for key, value in shared.items() if value}, "__default__": all_leaves}, all_leaves
+
+
+def _leaf_neighbors(company, physical_root, leaves):
+	root_bounds = frappe.db.get_value("Warehouse", physical_root, ["lft", "rgt"], as_dict=True)
+	rows = frappe.get_all(
+		"Warehouse",
+		filters={
+			"company": company,
+			"lft": [">=", root_bounds.lft],
+			"rgt": ["<=", root_bounds.rgt],
+		},
+		fields=["name", "parent_warehouse"],
+	)
+	parents = {row.name: row.parent_warehouse for row in rows}
+	area_by_leaf = {}
+	for leaf in leaves:
+		cursor = leaf
+		while parents.get(cursor) and parents[cursor] != physical_root:
+			cursor = parents[cursor]
+		area_by_leaf[leaf] = cursor
+	return {
+		leaf: [other for other in leaves if other != leaf and area_by_leaf[other] == area]
+		for leaf, area in area_by_leaf.items()
+	}
+
+
+def _balance_change(balances, item_key, warehouse, quantity, batch=None):
+	"""Apply one movement to the per-item, location and optional batch tracker."""
+	key = (item_key, warehouse, batch)
+	updated = balances.get(key, Decimal("0")) + Decimal(str(quantity))
+	if updated < 0:
+		raise ValueError(f"Sample generator would make {key!r} negative: {updated}")
+	balances[key] = updated
+	return updated
+
+
+def _quantity_parts(quantity, count, whole):
+	if whole:
+		base, remainder = divmod(int(quantity), count)
+		return [base + (1 if index < remainder else 0) for index in range(count)]
+	amount = Decimal(str(quantity))
+	part = (amount / count).quantize(Decimal("0.001"))
+	parts = [part] * count
+	parts[-1] = amount - sum(parts[:-1])
+	return parts
 
 
 def _date(days, origin=None):
@@ -142,6 +618,11 @@ def _hierarchy(company, data, *, full=True):
 	}
 	rooms["LEASE"] = settings.leased_warehouse
 	rooms["DAMAGED"] = settings.damaged_warehouse
+	if full:
+		affinity, physical_leaves = _category_affinity(company, rooms)
+		rooms["AFFINITY"] = affinity
+		rooms["PHYSICAL_LEAVES"] = physical_leaves
+		rooms["NEIGHBORS"] = _leaf_neighbors(company, settings.physical_root_warehouse, physical_leaves)
 	return rooms
 
 
@@ -255,6 +736,25 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 				"barcodes": [code],
 			}
 		)
+	if include_generated and attach_images:
+		for image_key, item_key in (
+			("C-HAT", "G-000016"),
+			("C-ROBE", "G-000017"),
+			("C-LAY", "G-000018"),
+			("N-WORKFLOW", "N-WORKFLOW"),
+			("N-WEIGHT", "N-WEIGHT"),
+			("N-UNDATED", "N-UNDATED"),
+		):
+			image = generated_images().get(image_key)
+			if not image:
+				continue
+			path = ASSETS / image["output"]
+			item_code = result[item_key]["item_code"]
+			file = _attach_file(path.name, path.read_bytes(), "Item", item_code, field="image")
+			doc = frappe.get_doc("Item", item_code)
+			doc.image = file.file_url
+			doc.save()
+			result[item_key]["version"] = str(doc.modified)
 	return result, costume_item_codes
 
 
@@ -366,7 +866,19 @@ def _batch_bundle(company, item, warehouse, day, transaction, allocations):
 	).insert()
 
 
-def _entry(company, key, kind, lines, days, *, submit=True, attach_file=False, actor=None, **context):
+def _entry(
+	company,
+	key,
+	kind,
+	lines,
+	days,
+	*,
+	submit=True,
+	attach_file=False,
+	actor=None,
+	posting_time="12:00:00",
+	**context,
+):
 	previous_user = frappe.session.user
 	if actor:
 		frappe.set_user(actor)
@@ -377,7 +889,7 @@ def _entry(company, key, kind, lines, days, *, submit=True, attach_file=False, a
 			{
 				"company": company,
 				"posting_date": _date(days),
-				"posting_time": "12:00:00",
+				"posting_time": posting_time,
 				"ti_time_mode": "Manual",
 				"ti_movement_kind": kind,
 				"ti_source_text": "库外接收" if kind == "Receive" else "",
@@ -399,17 +911,44 @@ def _opening(company, data, costumes, items, rooms, *, include_generated=True):
 	lines = []
 	costume_lines = []
 	expiry_index = 0
+	category_map = rooms.get("AFFINITY", {})
+	item_placements = {}
+
+	def pool_for(category):
+		return category_map.get(category or "无分类") or category_map.get("__default__", [rooms["DEMO_A"]])
+
+	def split_line(item, quantity, pool, *, batch_no=None, basic_rate=None):
+		whole = bool(frappe.db.get_value("UOM", item["stock_uom"], "must_be_whole_number"))
+		location_count = min(len(pool), 1 + (len(item["item_code"]) % 3))
+		if whole:
+			location_count = min(location_count, max(1, int(quantity)))
+		item_code = item["item_code"]
+		placement_pool = item_placements.get(item_code, pool)
+		location_count = min(location_count, len(placement_pool))
+		locations = random.Random(f"split:{item_code}").sample(placement_pool, location_count)
+		item_placements.setdefault(item_code, locations)
+		rooms.setdefault("OPENING_PLACEMENTS", {})[item_code] = list(item_placements[item_code])
+		if batch_no:
+			rooms.setdefault("BATCH_PLACEMENTS", {})[f"{item['item_code']}::{batch_no}"] = locations
+		parts = _quantity_parts(quantity, len(locations), whole)
+		return [
+			_line(
+				item,
+				part,
+				target=warehouse,
+				batch_no=batch_no,
+				use_serial_batch_fields=1 if batch_no else 0,
+				basic_rate=basic_rate,
+			)
+			for warehouse, part in zip(locations, parts, strict=True)
+		]
+
 	for row in data["opening"] if include_generated else []:
 		if row["key"] in data["batches"]:
 			continue
-		lines.append(
-			_line(
-				items[row["key"]],
-				row["quantity"],
-				target=rooms["DEMO_A"],
-				basic_rate=row["rate"],
-			)
-		)
+		item = items[row["key"]]
+		pool = pool_for(next(entry["item_group"] for entry in data["items"] if entry["key"] == row["key"]))
+		lines.extend(split_line(item, row["quantity"], pool, basic_rate=row["rate"]))
 	by_key = {row["key"]: row for row in data["items"]}
 	for key, batches in data["batches"].items() if include_generated else []:
 		item = items[key]
@@ -422,19 +961,24 @@ def _opening(company, data, costumes, items, rooms, *, include_generated=True):
 				_date(EXPIRY_OFFSETS[expiry_index % len(EXPIRY_OFFSETS)]),
 			)
 			expiry_index += 1
-			lines.append(
-				_line(
+			lines.extend(
+				split_line(
 					item,
 					batch["quantity"],
-					target=rooms["DEMO_A"],
+					pool_for(by_key[key]["item_group"]),
 					batch_no=batch_id,
-					use_serial_batch_fields=1,
 					basic_rate=by_key[key]["rate"],
 				)
 			)
 	for row in data["items"] if include_generated else []:
 		if row.get("opening_qty"):
-			lines.append(_line(items[row["key"]], row["opening_qty"], target=rooms["DEMO_A"]))
+			lines.extend(
+				split_line(
+					items[row["key"]],
+					row["opening_qty"],
+					pool_for(row["item_group"]),
+				)
+			)
 	for row in costumes:
 		costume_lines.append(
 			_line(
@@ -824,6 +1368,11 @@ def _volume_counts(company, rooms, items, *, count_item=None, submitted=17, draf
 	return created
 
 
+def _volume_posting_time(index):
+	seconds = index + 1
+	return f"{12 + seconds // 3600:02d}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
+
+
 def _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_names):
 	if kind == "Return":
 		loan = next((value for value in open_loans if value), None)
@@ -835,25 +1384,49 @@ def _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_name
 			items[key],
 			1,
 			source=rooms["LEASE"],
-			target=rooms["DEMO_B"],
+			target=loan_line.s_warehouse,
 			ti_original_loan=loan.name,
 			ti_original_loan_line=loan_line.name,
 			ti_settlement_outcome="Returned",
 		), {"ti_activity": loan.ti_activity, "ti_borrower": loan.ti_borrower}
-	key = rng.choice(tuple(items))
-	item = items[key]
+	key = None
+	item = None
+	warehouse = None
+	if kind in ("Issue", "Transfer", "Loan", "Damage", "Loss"):
+		candidates = [candidate for candidate in items if candidate.startswith("V")]
+		rng.shuffle(candidates)
+		for candidate in candidates:
+			candidate_item = items[candidate]
+			for location in rooms.get("ITEM_AFFINITY", {}).get(candidate, rooms.get("PHYSICAL_LEAVES", [])):
+				if get_stock_balance(candidate_item["item_code"], location, _date(-3)) >= (
+					2 if kind in ("Loan", "Damage") else 1
+				):
+					key, item, warehouse = candidate, candidate_item, location
+					break
+			if item:
+				break
+		if not item:
+			frappe.throw("生成草稿或取消单时没有可用的真实库位库存")
+	else:
+		key = rng.choice(tuple(items))
+		item = items[key]
 	context = {"ti_activity": rng.choice(activity_names)}
 	if kind == "Receive":
-		line = _line(item, 1, target=rooms["DEMO_A"])
+		line = _line(
+			item, 1, target=rng.choice(rooms.get("ITEM_AFFINITY", {}).get(key, rooms["PHYSICAL_LEAVES"]))
+		)
 	elif kind == "Issue":
-		line = _line(item, 1, source=rooms["DEMO_A"])
+		line = _line(item, 1, source=warehouse)
 	elif kind == "Transfer":
-		line = _line(item, 1, source=rooms["DEMO_A"], target=rooms["DEMO_B"])
+		targets = [value for value in rooms.get("ITEM_AFFINITY", {}).get(key, []) if value != warehouse]
+		if not targets:
+			targets = rooms.get("NEIGHBORS", {}).get(warehouse, [])
+		line = _line(item, 1, source=warehouse, target=rng.choice(targets))
 	elif kind == "Loan":
-		line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["LEASE"])
+		line = _line(item, 2, source=warehouse, target=rooms["LEASE"])
 		context["ti_borrower"] = rng.choice(BORROWERS)
 	elif kind == "Damage":
-		line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["DAMAGED"])
+		line = _line(item, 2, source=warehouse, target=rooms["DAMAGED"])
 	elif kind in ("Repair", "Disposal"):
 		available = [name for name, quantity in damaged_qty.items() if quantity > 0]
 		if not available:
@@ -864,10 +1437,14 @@ def _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_name
 			item,
 			1,
 			source=rooms["DAMAGED"],
-			**({"target": rooms["DEMO_A"]} if kind == "Repair" else {}),
+			**(
+				{"target": rng.choice(rooms.get("ITEM_AFFINITY", {}).get(key, rooms["PHYSICAL_LEAVES"]))}
+				if kind == "Repair"
+				else {}
+			),
 		)
 	elif kind == "Loss":
-		line = _line(item, 1, source=rooms["DEMO_A"])
+		line = _line(item, 1, source=warehouse)
 	else:
 		frappe.throw(f"不支持的生成货物流动：{kind}")
 	return line, context
@@ -989,27 +1566,27 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 			}
 		)
 		activities_list.append(activity["name"])
-	unit_choices = list(unit_whole)
+	products = generated_product_rows()
+	image_manifest = generated_images()
 	generated = {}
 	conversion_rows = {}
 	opening_lines = []
 	batch_codes = set()
-	for index in range(436):
-		key = f"V{index + 1:04d}"
-		stock_uom = unit_choices[index % len(unit_choices)]
-		group = category_names[index % len(category_names)]
-		long_name = index % 7 == 0
-		item_name = (
-			f"寺院日常活动用耐用储物及清洁物资组合第{index + 1:04d}号"
-			if long_name
-			else f"{('厨房' if index % 4 == 1 else '法会' if index % 4 == 2 else '日常')}物资 {index + 1:04d}"
-		)
-		batch_tracked = index % 20 == 0
+	opening_balances = {}
+	affinity = rooms.get("AFFINITY", {})
+	physical = rooms.get("PHYSICAL_LEAVES", [rooms["DEMO_A"], rooms["DEMO_B"], rooms["DEMO_SHELF"]])
+	covered_leaves = set()
+	for index, product in enumerate(products):
+		key = product["key"]
+		stock_uom = product["stock_uom"]
+		group = product["group"]
+		item_name = product["item_name"]
+		batch_tracked = product["batch_tracked"]
 		item = catalog.save_item(
 			{
 				"item_code": allocate_item_code(),
 				"item_name": item_name,
-				"item_group": "" if index % 17 == 0 else group,
+				"item_group": "" if product["uncategorized"] else group,
 				"description": "用于寺院日常管理与活动周转。",
 				"stock_uom": stock_uom,
 				"has_batch_no": batch_tracked,
@@ -1017,36 +1594,54 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 			}
 		)
 		generated[key] = item
+		image = image_manifest.get(product["base_key"])
+		if image:
+			path = ASSETS / image["output"]
+			file = _attach_file(path.name, path.read_bytes(), "Item", item["item_code"], field="image")
+			doc = frappe.get_doc("Item", item["item_code"])
+			doc.image = file.file_url
+			doc.save()
+			item["version"] = str(doc.modified)
 		conversions_for_item = [{"uom": stock_uom, "conversion_factor": 1}]
-		if index % 8 == 0:
-			alternates = [unit for unit in unit_choices if unit != stock_uom][:3]
-			conversions_for_item.extend(
-				{
-					"uom": unit,
-					"conversion_factor": 12 if unit == "箱" else 2 if unit == "双" else 6,
-				}
-				for unit in alternates
-			)
+		if product["has_alternate_uom"]:
+			alternate_uom, conversion_factor = generated_alternate_conversion(product)
+			conversions_for_item.append({"uom": alternate_uom, "conversion_factor": conversion_factor})
 			conversion_result = conversions.save_item_conversions(
 				item["item_code"], item["version"], conversions_for_item
 			)
 			conversion_rows[key] = conversions_for_item
 			item["version"] = conversion_result["version"]
+		affinity_category = "无分类" if product["uncategorized"] else group
+		pool = affinity.get(affinity_category) or physical
+		# Guarantee broad shelf coverage, then retain category affinity for the other slots.
+		forced = next(
+			(warehouse for warehouse in physical if warehouse not in covered_leaves and warehouse in pool),
+			None,
+		)
+		chosen = [forced] if forced else []
+		if forced:
+			covered_leaves.add(forced)
+		remaining = [warehouse for warehouse in pool if warehouse not in chosen]
+		chosen.extend(rng.sample(remaining, min(2, len(remaining))))
+		chosen = list(dict.fromkeys(chosen))
+		rooms.setdefault("ITEM_AFFINITY", {})[key] = list(pool)
+		rooms.setdefault("OPENING_PLACEMENTS", {})[item["item_code"]] = chosen
+		opening_quantity = 200.5 if stock_uom in {"Kg", "升", "米"} else 200
 		if batch_tracked:
 			batch_id = _batch_id(item, f"Lot {index + 1:04d}")
 			catalog.create_batch(item["item_code"], batch_id, _date(-730 - index), _date(60 + index))
 			batch_codes.add(key)
-			opening_lines.append(
-				_line(
-					item,
-					200,
-					target=rooms["DEMO_A"],
-					batch_no=batch_id,
-					use_serial_batch_fields=1,
+			parts = _quantity_parts(opening_quantity, len(chosen), stock_uom not in {"Kg", "升", "米"})
+			for warehouse, quantity in zip(chosen, parts, strict=True):
+				opening_lines.append(
+					_line(item, quantity, target=warehouse, batch_no=batch_id, use_serial_batch_fields=1)
 				)
-			)
 		else:
-			opening_lines.append(_line(item, 200, target=rooms["DEMO_A"]))
+			parts = _quantity_parts(opening_quantity, len(chosen), stock_uom not in {"Kg", "升", "米"})
+			for warehouse, quantity in zip(chosen, parts, strict=True):
+				opening_lines.append(_line(item, quantity, target=warehouse))
+		for warehouse, quantity in zip(chosen, parts, strict=True):
+			opening_balances[(key, warehouse)] = quantity
 	if opening_lines:
 		draft = _entry(company, "volume-opening", "Receive", opening_lines, -547, submit=False)
 		opening_doc = frappe.get_doc("Stock Entry", draft.name)
@@ -1063,7 +1658,7 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 	else:
 		opening = None
 	actors = users
-	physical = [rooms["DEMO_A"], rooms["DEMO_B"], rooms["DEMO_SHELF"]]
+	physical = rooms.get("PHYSICAL_LEAVES", [rooms["DEMO_A"], rooms["DEMO_B"], rooms["DEMO_SHELF"]])
 	kind_weights = (
 		("Receive", 0.23),
 		("Issue", 0.21),
@@ -1092,19 +1687,33 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 			schedule.extend(selected)
 	open_loans = []
 	damaged_qty = {}
+	damaged_home = {}
+	balances = {}
+	for (item_key, warehouse), quantity in opening_balances.items():
+		_balance_change(balances, item_key, warehouse, quantity)
 	documents = [opening] if opening else []
 	activity_names = [*activities_list]
 	available_items = {key: value for key, value in generated.items() if key not in batch_codes}
-	count_item = None
+	count_item_key = next(
+		key
+		for (key, warehouse), quantity in opening_balances.items()
+		if warehouse == rooms["DEMO_A"] and key in available_items and quantity > 0
+	)
+	count_item = available_items[count_item_key]["item_code"]
 	for index, kind in enumerate(schedule):
 		key = rng.choice(tuple(available_items))
 		item = available_items[key]
-		if kind == "Receive" and count_item is None:
-			count_item = item["item_code"]
 		context = {"ti_activity": rng.choice(activity_names)}
 		if kind == "Loan":
+			source = rng.choice(
+				[
+					warehouse
+					for (item_key, warehouse, batch), qty in balances.items()
+					if item_key == key and warehouse in physical and batch is None and qty >= 2
+				]
+			)
 			context["ti_borrower"] = rng.choice(BORROWERS)
-			line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["LEASE"])
+			line = _line(item, 2, source=source, target=rooms["LEASE"])
 			loan = _entry(
 				company,
 				f"volume-{index + 1:04d}",
@@ -1112,38 +1721,93 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 				[line],
 				-547 + index * 547 // movement_count,
 				actor=rng.choice(actors),
+				posting_time=_volume_posting_time(index),
 				**context,
 			)
 			documents.append(loan)
-			open_loans.append(loan)
+			_balance_change(balances, key, source, -2)
+			_balance_change(balances, key, rooms["LEASE"], 2)
+			open_loans.append((loan, key, source))
 			continue
 		if kind == "Return":
-			loan = open_loans.pop(0)
+			loan, item_key, return_home = open_loans.pop(0)
 			loan_line = loan["items"][0]
-			item_key = next(
-				key for key, value in available_items.items() if value["item_code"] == loan_line.item_code
-			)
+			key = item_key
 			item = available_items[item_key]
 			context.update({"ti_activity": loan.ti_activity, "ti_borrower": loan.ti_borrower})
 			line = _line(
 				item,
 				1,
 				source=rooms["LEASE"],
-				target=rooms["DEMO_B"],
+				target=return_home,
 				ti_original_loan=loan.name,
 				ti_original_loan_line=loan_line.name,
 				ti_settlement_outcome="Returned",
 			)
 		elif kind in ("Receive", "Issue", "Transfer", "Loss"):
 			if kind == "Receive":
-				line = _line(item, 1, target=rng.choice(physical))
-			elif kind == "Transfer":
-				line = _line(item, 1, source=rooms["DEMO_A"], target=rooms["DEMO_B"])
+				target = rng.choice(rooms["ITEM_AFFINITY"][key])
+				line = _line(item, 1, target=target)
 			else:
-				line = _line(item, 1, source=rooms["DEMO_A"])
+				required = 2
+				sources = [
+					warehouse
+					for (item_key, warehouse, batch), qty in balances.items()
+					if item_key == key and warehouse in physical and batch is None and qty >= required
+				]
+				if not sources:
+					key = next(
+						candidate
+						for candidate in available_items
+						if any(
+							i == candidate and warehouse in physical and b is None and qty >= required
+							for (i, warehouse, b), qty in balances.items()
+						)
+					)
+					item = available_items[key]
+					sources = [
+						warehouse
+						for (item_key, warehouse, batch), qty in balances.items()
+						if item_key == key and warehouse in physical and batch is None and qty >= required
+					]
+				source = rng.choice(sources)
+				if kind == "Transfer":
+					candidates = [
+						warehouse for warehouse in rooms["ITEM_AFFINITY"][key] if warehouse != source
+					]
+					if not candidates:
+						candidates = rooms.get("NEIGHBORS", {}).get(source, [])
+					target = rng.choice(candidates)
+					line = _line(item, 1, source=source, target=target)
+				else:
+					line = _line(item, 1, source=source)
 		elif kind == "Damage":
-			line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["DAMAGED"])
+			source = next(
+				(
+					warehouse
+					for (item_key, warehouse, batch), qty in balances.items()
+					if item_key == key and warehouse in physical and batch is None and qty >= 2
+				),
+				None,
+			)
+			if source is None:
+				key = next(
+					candidate
+					for candidate in available_items
+					if any(
+						i == candidate and warehouse in physical and b is None and qty >= 2
+						for (i, warehouse, b), qty in balances.items()
+					)
+				)
+				item = available_items[key]
+				source = next(
+					warehouse
+					for (item_key, warehouse, batch), qty in balances.items()
+					if item_key == key and warehouse in physical and batch is None and qty >= 2
+				)
+			line = _line(item, 2, source=source, target=rooms["DAMAGED"])
 			damaged_qty[key] = damaged_qty.get(key, 0) + 2
+			damaged_home[key] = source
 		elif kind in ("Repair", "Disposal"):
 			pool = [name for name, quantity in damaged_qty.items() if quantity > 0]
 			pool_key = rng.choice(pool)
@@ -1152,26 +1816,55 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 				item,
 				1,
 				source=rooms["DAMAGED"],
-				**({"target": rooms["DEMO_A"]} if kind == "Repair" else {}),
+				**({"target": damaged_home[pool_key]} if kind == "Repair" else {}),
 			)
 			damaged_qty[pool_key] -= 1
-		if key in conversion_rows and kind not in ("Loan", "Return", "Damage", "Repair", "Disposal"):
+			key = pool_key
+		# Alternate-UOM receipts can add an entire pack; transfers stay in stock UOM
+		# so their source-balance check matches the physical quantity moved.
+		if key in conversion_rows and kind == "Receive":
 			conversion = rng.choice(conversion_rows[key])
 			line["uom"] = conversion["uom"]
 			line["conversion_factor"] = conversion["conversion_factor"]
-		documents.append(
-			_entry(
-				company,
-				f"volume-{index + 1:04d}",
-				kind,
-				[line],
-				-547 + index * 547 // movement_count,
-				actor=rng.choice(actors),
-				**context,
-			)
+		created = _entry(
+			company,
+			f"volume-{index + 1:04d}",
+			kind,
+			[line],
+			-547 + index * 547 // movement_count,
+			actor=rng.choice(actors),
+			posting_time=_volume_posting_time(index),
+			**context,
 		)
+		documents.append(created)
+		actual_qty = Decimal(str(line["qty"])) * Decimal(str(line.get("conversion_factor", 1)))
+		if kind == "Receive":
+			_balance_change(balances, key, line["t_warehouse"], actual_qty)
+		elif kind in ("Issue", "Loss"):
+			_balance_change(balances, key, line["s_warehouse"], -actual_qty)
+		elif kind == "Transfer":
+			_balance_change(balances, key, line["s_warehouse"], -actual_qty)
+			_balance_change(balances, key, line["t_warehouse"], actual_qty)
+		elif kind == "Return":
+			_balance_change(balances, key, rooms["LEASE"], -actual_qty)
+			_balance_change(balances, key, line["t_warehouse"], actual_qty)
+		elif kind == "Damage":
+			_balance_change(balances, key, line["s_warehouse"], -actual_qty)
+			_balance_change(balances, key, rooms["DAMAGED"], actual_qty)
+		elif kind == "Repair":
+			_balance_change(balances, key, rooms["DAMAGED"], -actual_qty)
+			_balance_change(balances, key, line["t_warehouse"], actual_qty)
+		elif kind == "Disposal":
+			_balance_change(balances, key, rooms["DAMAGED"], -actual_qty)
 	lifecycle = _volume_lifecycle(
-		company, available_items, rooms, actors, rng, damaged_qty, open_loans, activity_names
+		company,
+		available_items,
+		rooms,
+		actors,
+		rng,
+		damaged_qty,
+		[loan for loan, _, _ in open_loans],
+		activity_names,
 	)
 	documents.extend(lifecycle)
 	return {
@@ -1238,6 +1931,15 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 		activity.extend(volume["activities"])
 	if generate_volume:
 		volume_counts = _volume_counts(company, rooms, items, count_item=volume["count_item"])
+	depleted_batch = _batch_id(items["G-000001"], catalog_data["batches"]["G-000001"][0]["key"])
+	depleted_placements = rooms.get("BATCH_PLACEMENTS", {}).get(
+		f"{items['G-000001']['item_code']}::{depleted_batch}", [rooms["DEMO_A"]]
+	)
+	depleted_parts = _quantity_parts(
+		catalog_data["batches"]["G-000001"][0]["quantity"],
+		len(depleted_placements),
+		True,
+	)
 	depleted_batch_issue = _entry(
 		company,
 		"deplete-batch",
@@ -1245,11 +1947,12 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 		[
 			_line(
 				items["G-000001"],
-				catalog_data["batches"]["G-000001"][0]["quantity"],
-				source=rooms["DEMO_A"],
-				batch_no=_batch_id(items["G-000001"], catalog_data["batches"]["G-000001"][0]["key"]),
+				quantity,
+				source=warehouse,
+				batch_no=depleted_batch,
 				use_serial_batch_fields=1,
 			)
+			for warehouse, quantity in zip(depleted_placements, depleted_parts, strict=True)
 		],
 		-390,
 	)

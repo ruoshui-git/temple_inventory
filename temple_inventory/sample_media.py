@@ -26,6 +26,20 @@ def catalog():
 	return json.loads(CATALOG.read_text())
 
 
+def generated_images():
+	"""Return the generated product image manifest grouped by base product key."""
+	manifest = json.loads(COSTUME_IMAGES.read_text())
+	return {
+		row["key"]: {
+			"output": row["output"],
+			"primary": bool(row["primary"]),
+			"sha256": row["sha256"],
+		}
+		for row in manifest["images"]
+		if row["dataset"] == "generated"
+	}
+
+
 def costume_catalog():
 	"""Build the real costume import directly from source rows and image manifest."""
 	with COSTUME_SOURCE.open(encoding="utf-8-sig", newline="") as stream:
@@ -220,6 +234,7 @@ def inventory(write_manifest=False):
 	assert_development_site()
 	data = catalog()
 	known_hashes = {image["sha256"] for row in data["items"] for image in row["images"]}
+	known_hashes.update(image["sha256"] for image in generated_images().values())
 	known_hashes.update(image["sha256"] for row in costume_catalog() for image in row["images"])
 	known_hashes.add(hashlib.sha256(ATTACHMENT_CONTENT).hexdigest())
 	items, item_images = _sample_items(data)

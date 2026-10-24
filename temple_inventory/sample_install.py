@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-location-model-v8"
+VERSION = "2026.10.native-location-model-v9"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -297,6 +297,7 @@ def verify_development_sample(*, require_images=True, data="full"):
 			"ti_short_label",
 			"ti_direct_storage",
 			"is_group",
+			"disabled",
 			"warehouse_type",
 			"parent_warehouse",
 		],
@@ -367,6 +368,35 @@ def verify_development_sample(*, require_images=True, data="full"):
 	if frappe.db.has_column("Stock Reconciliation", "ti_count_warehouse"):
 		raise AssertionError("Retired singular count warehouse column remains after reset")
 	_assert_leaf_stock(settings)
+	stock_rows = frappe.db.sql(
+		"""select b.warehouse, b.actual_qty, w.is_group, w.disabled, w.ti_label
+		from `tabBin` b join `tabWarehouse` w on w.name=b.warehouse
+		where w.company=%s and b.actual_qty != 0""",
+		settings.company,
+		as_dict=True,
+	)
+	enabled_physical_leaves = {row.name for row in physical_rows if not row.is_group and not row.disabled}
+	physical_stock = [
+		row for row in stock_rows if row.actual_qty > 0 and row.warehouse in enabled_physical_leaves
+	]
+	if any(row.actual_qty < 0 for row in stock_rows):
+		raise AssertionError("Sample stock contains a negative warehouse balance")
+	if any(row.is_group or row.disabled for row in stock_rows):
+		raise AssertionError("Stock exists in a disabled or group warehouse")
+	stocked_leaves = {row.warehouse for row in physical_stock}
+	if data == "full" and len(stocked_leaves) < 30:
+		raise AssertionError(f"Full sample stocks only {len(stocked_leaves)} physical leaves")
+	items_for_coverage = frappe.get_all("Item", filters={"disabled": 0}, fields=["name", "image"])
+	image_count = 0
+	for item_row in items_for_coverage:
+		if not item_row.image:
+			continue
+		file_name = frappe.db.get_value("File", {"file_url": item_row.image}, "name")
+		if file_name and Path(frappe.get_doc("File", file_name).get_full_path()).is_file():
+			image_count += 1
+	image_coverage = image_count / max(1, len(items_for_coverage))
+	if data == "full" and require_images and image_coverage < 0.9:
+		raise AssertionError(f"Enabled Item image coverage is {image_coverage:.1%}, below 90%")
 	known_names = {name for row in sample_media.catalog()["items"] for name in row["legacy_names"]}
 	known_names.update(row[1] for row in native_samples.EXTRA_ITEMS)
 	general_codes = frappe.get_all("Item", filters={"item_name": ["in", sorted(known_names)]}, pluck="name")
@@ -585,6 +615,23 @@ def verify_development_sample(*, require_images=True, data="full"):
 		"items": len(codes),
 		"media": media,
 		"balances_verified": True,
+		"stocked_physical_leaves": len(stocked_leaves),
+		"stocked_leaves_by_area": frappe.db.sql(
+			"""select coalesce(area.ti_short_label, area.ti_label) as area,
+			count(distinct b.warehouse) as leaf_count
+			from `tabBin` b join `tabWarehouse` w on w.name=b.warehouse
+			join `tabWarehouse` area on area.parent_warehouse=%s
+			and area.lft <= w.lft and area.rgt >= w.rgt
+			where w.company=%s and w.is_group=0 and w.disabled=0 and b.actual_qty>0
+			group by area.name, area.ti_short_label, area.ti_label order by area.lft""",
+			(settings.physical_root_warehouse, settings.company),
+			as_dict=True,
+		),
+		"image_coverage": {
+			"enabled_items": len(items_for_coverage),
+			"with_existing_image": image_count,
+			"ratio": image_coverage,
+		},
 		"dashboard_inventory_verified": True,
 		"dashboard_expiry_verified": True,
 		"count_review_verified": True,

@@ -570,8 +570,19 @@ test("native operation and count editors mount at mobile with large text", async
   await page.goto("/inventory/counts/new");
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("alert")).toHaveCount(0);
+  const workflowItem = (
+    await call(page.request, "catalog.search_items", {
+      search: "活动周转箱",
+      page_length: 1,
+    })
+  ).results[0].item_code;
   const conversionLines = await call(page.request, "projections.report_page", {
-    query: { dataset: "movements", view: "lines", statuses: [1] },
+    query: {
+      dataset: "movements",
+      view: "lines",
+      statuses: [1],
+      scope: { item: workflowItem },
+    },
     page_length: 1000,
   });
   const submittedMovement = conversionLines.rows.find(

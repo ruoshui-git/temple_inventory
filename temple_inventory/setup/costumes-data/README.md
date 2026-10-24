@@ -14,7 +14,7 @@ Source: Notion export supplied by the user.
 Every source record is physically in:
 
 - Site/group warehouse: `第2寺院`
-- Room warehouse: `A04`
+- Room warehouse: `A02`
 
 The canonical installer resolves the actual ERPNext Warehouse document by its warehouse labels and hierarchy.
 
