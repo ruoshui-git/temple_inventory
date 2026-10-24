@@ -101,7 +101,7 @@ status() {
 	echo "site:     $SITE_NAME"
 	echo "current:  $(cat state/current 2>/dev/null || echo none)"
 	echo "previous: $(cat state/previous 2>/dev/null || echo none)"
-	compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
+	[[ -s image.env ]] && compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
 	tail -n 5 state/history 2>/dev/null || true
 }
 
