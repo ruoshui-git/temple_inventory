@@ -213,12 +213,20 @@ async function back() {
 			<span v-if="state.identity && !initialExistingLoad" class="form-record-tag"
 				>{{ state.server?.docstatus === 0 ? "草稿单据" : "记录" }}
 				{{ state.identity.name }}</span
-			><span v-if="!initialExistingLoad && state.status !== 'pristine'" role="status">{{
-				status
-			}}</span
+			><span
+				v-if="
+					!initialExistingLoad &&
+					state.status !== 'pristine' &&
+					state.server?.docstatus !== 1
+				"
+				role="status"
+				>{{ status }}</span
 			><span v-if="loading && state.server" class="sr-only" role="status">正在刷新…</span
 			><NativeStatusBadge v-if="state.server" :status="state.server.docstatus" /><UiButton
-				v-if="state.identity"
+				v-if="
+					state.identity &&
+					(state.server?.docstatus === 0 || state.status === 'conflict')
+				"
 				:disabled="busy"
 				:loading="loading"
 				loading-label="正在重新读取…"

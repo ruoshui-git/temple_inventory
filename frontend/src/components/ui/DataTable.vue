@@ -557,6 +557,13 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											>{{ entry.countLabel || "记录数" }}
 											{{ entry.count }}</span
 										>
+										<slot
+											name="group-metrics"
+											:group="entry"
+											:visible-columns="
+												orderedColumns.map((column) => String(column.id))
+											"
+										/>
 									</div>
 								</td>
 								<td
@@ -617,6 +624,13 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												>{{ entry.countLabel || "记录数" }}
 												{{ entry.count }}</span
 											>
+											<slot
+												name="group-metrics"
+												:group="entry"
+												:visible-columns="
+													orderedColumns.map((item) => String(item.id))
+												"
+											/>
 										</div>
 									</template>
 									<span
@@ -690,7 +704,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		<div v-if="!rows.length && !loading && initialized && !error" class="data-table-state">
 			<InventoryIcon name="search" />
 			<span>{{ emptyText }}</span>
-			<UiButton v-if="emptyAction" variant="primary" @click="emit('emptyAction')">{{ emptyAction }}</UiButton>
+			<UiButton v-if="emptyAction" variant="primary" @click="emit('emptyAction')">{{
+				emptyAction
+			}}</UiButton>
 		</div>
 		<p v-if="error && rows.length" class="data-table-refresh-error" role="alert">
 			{{ error }} <button type="button" @click="emit('retry')">{{ retryText }}</button>

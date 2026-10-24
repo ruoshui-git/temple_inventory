@@ -109,6 +109,7 @@
 }
 
 .data-table-scroll {
+	--data-table-settings-column-width: calc(var(--p-control) + 16px);
 	max-width: 100%;
 	overflow: auto;
 	overscroll-behavior-inline: contain;
@@ -179,7 +180,55 @@
 	background: var(--p-surface);
 	box-shadow: -6px 0 8px -8px var(--p-shadow-color);
 }
-.data-table-scroll th.data-table-settings-heading { background: var(--p-soft); z-index: 3; }
+.data-table-scroll th.data-table-settings-heading {
+	background: var(--p-soft);
+	z-index: 3;
+}
+.data-table-scroll :is(th, td).report-sticky-actions-column {
+	position: sticky;
+	right: var(--data-table-settings-column-width);
+	z-index: 2;
+	background: var(--p-surface);
+	box-shadow: -6px 0 8px -8px var(--p-shadow-color);
+}
+.data-table-scroll th.report-sticky-actions-column {
+	background: var(--p-soft);
+	z-index: 3;
+}
+.data-table-group-row td.report-sticky-actions-column {
+	background: var(--p-soft);
+}
+@media (max-width: 1100px) {
+	.data-table-scroll :is(th, td).operation-loan-outstanding-column {
+		position: sticky;
+		right: var(--data-table-settings-column-width);
+		z-index: 2;
+		width: 140px;
+		min-width: 140px;
+		max-width: 140px;
+		background: var(--p-surface);
+		box-shadow: -6px 0 8px -8px var(--p-shadow-color);
+	}
+	.data-table-scroll :is(th, td).operation-movement-quantity-column {
+		position: sticky;
+		right: var(--data-table-settings-column-width);
+		z-index: 2;
+		width: 200px;
+		min-width: 200px;
+		max-width: 200px;
+		background: var(--p-surface);
+		box-shadow: -6px 0 8px -8px var(--p-shadow-color);
+	}
+	.data-table-scroll th.operation-loan-outstanding-column,
+	.data-table-scroll th.operation-movement-quantity-column {
+		background: var(--p-soft);
+		z-index: 3;
+	}
+	.data-table-group-row td.operation-loan-outstanding-column,
+	.data-table-group-row td.operation-movement-quantity-column {
+		background: var(--p-soft);
+	}
+}
 
 .data-table-scroll tbody tr:last-child td {
 	border-bottom: 0;
@@ -264,6 +313,9 @@
 .data-table-group-row td {
 	background: var(--p-soft);
 	font-weight: 600;
+}
+.data-table-group-row td.data-table-settings-cell {
+	background: var(--p-soft);
 }
 .data-table-group-row[tabindex="0"] {
 	cursor: pointer;
@@ -377,7 +429,11 @@
 	gap: var(--p-space-2);
 	min-height: 84px;
 }
-.data-table-state > svg { width: 22px; height: 22px; color: var(--p-muted); }
+.data-table-state > svg {
+	width: 22px;
+	height: 22px;
+	color: var(--p-muted);
+}
 
 .data-table-more {
 	display: flex;

@@ -230,7 +230,13 @@ const quantities = (row: NativeRecord) =>
 const services = useOptionalInventoryServices();
 const tableColumns = computed<DataColumn[]>(() => [
 	{ id: "document", label: "记录", required: true, defaultVisible: true, minWidth: "180px" },
-	{ id: "kind", label: "类型 / 状态", defaultVisible: true, minWidth: "150px" },
+	{
+		id: "kind",
+		label: "类型 / 状态",
+		defaultVisible: true,
+		minWidth: "150px",
+		className: "native-record-kind-status",
+	},
 	{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true, minWidth: "150px" },
 	{ id: "summary", label: "整份记录", defaultVisible: true, minWidth: "240px" },
 	{ id: "date", label: "记账日期", defaultVisible: true, sortable: true, minWidth: "150px" },
@@ -279,9 +285,21 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
-					<UiButton @click="c.load(); c.readLocal()">刷新</UiButton>
+					<UiButton
+						@click="
+							c.load();
+							c.readLocal();
+						"
+						>刷新</UiButton
+					>
 				</BrowseOverflowMenu>
-				<BrowseSplitButton label="入库" kind="Receive" icon="receive" :options="createOptions" @select="emit('newOperation', $event)" />
+				<BrowseSplitButton
+					label="新建"
+					kind="Receive"
+					icon="receive"
+					:options="createOptions"
+					@select="emit('newOperation', $event)"
+				/>
 			</template>
 			<template #filters>
 				<div class="preview-filter-fields">
@@ -382,17 +400,17 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			<template #actions>
 				<BrowseOverflowMenu>
 					<UiButton
-					@click="
-						c.load();
-						c.readLocal();
-					"
-					>刷新</UiButton
-				>
-				<QuickExport
-					:query="query"
-					:active="active"
-					@open-full="emit('openExport', $event)"
-				/>
+						@click="
+							c.load();
+							c.readLocal();
+						"
+						>刷新</UiButton
+					>
+					<QuickExport
+						:query="query"
+						:active="active"
+						@open-full="emit('openExport', $event)"
+					/>
 				</BrowseOverflowMenu>
 				<UiButton variant="primary" @click="emit('newCount')">新建盘点</UiButton>
 			</template>
@@ -639,6 +657,10 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							>
 								<strong>{{ row.document }}</strong
 								><small>{{ enumPresentationLabel("doctype", row.doctype) }}</small>
+								<NativeStatusBadge
+									class="native-record-mobile-status"
+									:status="Number(row.docstatus)"
+								/>
 							</button>
 							<template v-else-if="column.id === 'kind'">
 								{{
@@ -652,7 +674,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							<template v-else-if="column.id === 'activity_title'">{{
 								row.activity_title || row.borrower || "—"
 							}}</template>
-							<div v-else-if="column.id === 'summary'">
+							<div v-else-if="column.id === 'summary'" class="native-record-summary">
 								{{ nativeRow(row).whole.line_count }} 行 ·
 								{{ nativeRow(row).whole.item_count }} 种物品
 								<small class="record-quantity">{{

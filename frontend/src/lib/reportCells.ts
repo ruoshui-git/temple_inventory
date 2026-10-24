@@ -174,6 +174,8 @@ export const reportColumnMinimumWidths: Record<string, string> = {
   title: "12em",
   category: "130px",
   warehouse: "150px",
+  warehouse_label: "13em",
+  batch_no: "11em",
   source_warehouse: "150px",
   destination_warehouse: "150px",
   borrower: "130px",

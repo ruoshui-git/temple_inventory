@@ -328,7 +328,10 @@ function parentLabel(name?: string) {
 								},
 							]"
 						/>
-						<div v-if="stockTable?.rows.length" class="browse-rank-list">
+						<div
+							v-if="stockTable?.rows.length"
+							class="browse-rank-list warehouse-stock-cards"
+						>
 							<button
 								v-for="row in stockTable.rows"
 								:key="String(row.id)"
@@ -380,6 +383,49 @@ function parentLabel(name?: string) {
 								>
 							</button>
 						</div>
+						<table v-if="stockTable?.rows.length" class="warehouse-stock-table">
+							<thead>
+								<tr>
+									<th>物品</th>
+									<th>编号</th>
+									<th>库位</th>
+									<th>批次</th>
+									<th class="align-end">数量</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="row in stockTable.rows" :key="String(row.id)">
+									<td>
+										<button
+											class="browse-link"
+											@click="emit('item', String(row.item_code))"
+										>
+											<ItemLine
+												:item="{
+													code: String(row.item_code),
+													name: String(row.item_name || row.item_code),
+													image: String(row.image || ''),
+												}"
+											/>
+										</button>
+									</td>
+									<td>{{ row.item_code }}</td>
+									<td>
+										{{
+											warehouseLabel(
+												row.warehouse,
+												c.reference.warehouses,
+												row.warehouse_label,
+											)
+										}}
+									</td>
+									<td>{{ row.batch_no || "—" }}</td>
+									<td class="align-end">
+										{{ row.stock_qty }} {{ row.stock_uom }}
+									</td>
+								</tr>
+							</tbody>
+						</table>
 						<p
 							v-else-if="
 								stockTable?.initialized &&

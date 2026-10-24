@@ -89,16 +89,23 @@ const {
 } = c;
 const { isMobile } = useResponsiveLayout();
 const wideScreen = ref(window.innerWidth >= 1440);
-function updateWideScreen() { wideScreen.value = window.innerWidth >= 1440; }
+function updateWideScreen() {
+	wideScreen.value = window.innerWidth >= 1440;
+}
 onMounted(() => window.addEventListener("resize", updateWideScreen));
 onBeforeUnmount(() => window.removeEventListener("resize", updateWideScreen));
 const createOptions = computed(() => {
-	const kinds = props.family === "movements"
-		? ["Issue", "Transfer", "Loan", "Return", "Damage", "Loss", "Repair", "Disposal"]
-		: ["Return"];
-	return kinds.filter((kind) => reference.operations[kind]).map((kind) => ({
-		kind, label: operationLabels[kind as keyof typeof operationLabels], icon: kind === "Loan" || kind === "Return" ? "loan" : "movement",
-	}));
+	const kinds =
+		props.family === "movements"
+			? ["Issue", "Transfer", "Loan", "Return", "Damage", "Loss", "Repair", "Disposal"]
+			: ["Return"];
+	return kinds
+		.filter((kind) => reference.operations[kind])
+		.map((kind) => ({
+			kind,
+			label: operationLabels[kind as keyof typeof operationLabels],
+			icon: kind === "Loan" || kind === "Return" ? "loan" : "movement",
+		}));
 });
 const showMobileItemCards = computed(
 	() =>
@@ -160,8 +167,18 @@ const operationColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{
+					id: "source",
+					label: "来源位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
+				{
+					id: "destination",
+					label: "去向位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
 				{
 					id: "quantities",
 					label: "数量（按单位）",
@@ -213,8 +230,18 @@ const operationColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{
+					id: "source",
+					label: "来源位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
+				{
+					id: "destination",
+					label: "去向位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
 				{
 					id: "quantities",
 					label: "借出数量（按单位）",
@@ -281,8 +308,18 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortField: "date",
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{
+					id: "source",
+					label: "来源位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
+				{
+					id: "destination",
+					label: "去向位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
 				{
 					id: "quantities",
 					label: "数量（按单位）",
@@ -290,13 +327,13 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					sortField: "stock_qty",
 					minWidth: "170px",
+					className: "operation-movement-quantity-column",
 				},
 				{ id: "docstatus", label: "状态", defaultVisible: true, minWidth: "100px" },
 				{
 					id: "related_loans",
 					label: "原借出",
-					required: true,
-					defaultVisible: true,
+					defaultVisible: wideScreen.value,
 					minWidth: "170px",
 				},
 			]
@@ -326,8 +363,18 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortField: "date",
 					minWidth: "130px",
 				},
-				{ id: "source", label: "来源位置", defaultVisible: wideScreen.value, minWidth: "150px" },
-				{ id: "destination", label: "去向位置", defaultVisible: wideScreen.value, minWidth: "150px" },
+				{
+					id: "source",
+					label: "来源位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
+				{
+					id: "destination",
+					label: "去向位置",
+					defaultVisible: wideScreen.value,
+					minWidth: "150px",
+				},
 				{
 					id: "borrowed",
 					label: "数量",
@@ -337,7 +384,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 					minWidth: "120px",
 				},
 				{ id: "status", label: "状态", defaultVisible: true, minWidth: "110px" },
-				{ id: "actions", label: "操作", defaultVisible: true, minWidth: "120px" },
+				{
+					id: "actions",
+					label: "操作",
+					defaultVisible: wideScreen.value,
+					minWidth: "120px",
+				},
 				{
 					id: "outstanding",
 					label: "未还数量",
@@ -345,6 +397,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					sortField: "outstanding",
 					minWidth: "120px",
+					className: "operation-loan-outstanding-column",
 				},
 			],
 );
@@ -577,6 +630,18 @@ function groupLoanMetric(group: DataTableGroup, column: string) {
 	if (value === undefined || value === null) return "";
 	return `${key === "borrowed" ? "借出" : "未归还"} ${formatQuantity(Number(value))} ${String(row.stock_uom || "")}`.trim();
 }
+function hiddenGroupMetrics(group: DataTableGroup, visibleColumns: string[]) {
+	if (!isItemGroup(group)) return "";
+	if (props.family === "loans") {
+		const parts: string[] = [];
+		if (!visibleColumns.includes("borrowed") && !visibleColumns.includes("quantities"))
+			parts.push(groupLoanMetric(group, "borrowed"));
+		if (!visibleColumns.includes("outstanding"))
+			parts.push(groupLoanMetric(group, "outstanding"));
+		return parts.filter(Boolean).join(" · ");
+	}
+	return visibleColumns.includes("quantities") ? "" : groupSummary(group);
+}
 function openHistoryDocument(row: Record<string, unknown>) {
 	if (row.kind === "Loan") emit("openLoan", String(row.document));
 	else emit("openDocument", String(row.doctype), String(row.document));
@@ -799,12 +864,18 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					</BrowseOverflowMenu>
 					<BrowseSplitButton
 						v-if="family === 'movements' && reference.operations.Receive"
-						label="入库" kind="Receive" icon="receive" :options="createOptions"
+						label="入库"
+						kind="Receive"
+						icon="receive"
+						:options="createOptions"
 						@select="emit('newOperation', $event)"
 					/>
 					<BrowseSplitButton
 						v-else-if="family === 'loans' && reference.operations.Loan"
-						label="登记借出" kind="Loan" icon="loan" :options="createOptions"
+						label="登记借出"
+						kind="Loan"
+						icon="loan"
+						:options="createOptions"
 						@select="emit('newOperation', $event)"
 					/>
 				</template>
@@ -1438,6 +1509,14 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									:item="c.stockItem(groupItem(group))!"
 								/>
 							</span>
+						</template>
+						<template #group-metrics="{ group, visibleColumns }">
+							<span
+								v-if="hiddenGroupMetrics(group, visibleColumns)"
+								class="operation-group-metrics operation-group-metrics-leading"
+								:title="hiddenGroupMetrics(group, visibleColumns)"
+								>{{ hiddenGroupMetrics(group, visibleColumns) }}</span
+							>
 						</template>
 						<template #group-column="{ group, column }">
 							<span

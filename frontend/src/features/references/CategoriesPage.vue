@@ -86,13 +86,23 @@ const {
 						<strong>{{ row.label }}</strong>
 						<small v-if="row.name !== row.label">{{ row.name }}</small>
 						<span class="category-kind">{{ row.is_group ? "分组" : "末级" }}</span>
-						<UiButton v-if="canCreate && row.is_group" @click="c.openCreate(row.name)"
-							>添加下级</UiButton
-						>
-						<UiButton v-if="canWrite" @click="c.openEdit(row)">编辑</UiButton>
-						<UiButton v-if="canDelete" variant="danger" @click="c.askDelete(row)"
-							>删除</UiButton
-						>
+						<details class="category-row-actions">
+							<summary aria-label="分类操作">⋯</summary>
+							<div>
+								<UiButton
+									v-if="canCreate && row.is_group"
+									@click="c.openCreate(row.name)"
+									>添加下级</UiButton
+								>
+								<UiButton v-if="canWrite" @click="c.openEdit(row)">编辑</UiButton>
+								<UiButton
+									v-if="canDelete"
+									variant="danger"
+									@click="c.askDelete(row)"
+									>删除</UiButton
+								>
+							</div>
+						</details>
 					</div>
 				</li>
 				<li v-if="!categories.some(c.visible)" class="muted">

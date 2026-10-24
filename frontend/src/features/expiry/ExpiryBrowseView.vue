@@ -18,7 +18,6 @@ import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
-import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
@@ -49,15 +48,6 @@ const { isMobile } = useResponsiveLayout();
 function clearExpiryFilters() {
 	Object.assign(query.value, newReportQuery("expiry"), { sortBy: "expiry_date" });
 }
-const createOptions = computed(() =>
-	["Issue", "Transfer", "Loan", "Return", "Damage", "Loss", "Repair", "Disposal"]
-		.filter((kind) => reference.operations[kind])
-		.map((kind) => ({
-			kind,
-			label: kind === "Repair" ? "修复" : ({ Issue: "出库", Transfer: "调拨", Loan: "借出", Return: "归还", Damage: "损坏", Loss: "遗失", Disposal: "报废" } as Record<string, string>)[kind] || kind,
-			icon: kind === "Loan" || kind === "Return" ? "loan" : "movement",
-		})),
-);
 const {
 	open: filterOpen,
 	toggle: toggleFilter,
@@ -259,20 +249,17 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			><template #actions>
 				<BrowseOverflowMenu>
 					<QuickExport
-					v-if="!routeError"
-					:query="query"
-					:active="active"
-					@open-full="emit('openExport', $event)"
+						v-if="!routeError"
+						:query="query"
+						:active="active"
+						@open-full="emit('openExport', $event)"
 					/>
+					<UiButton
+						v-if="reference.operations.Receive"
+						@click="emit('newOperation', 'Receive')"
+						>入库</UiButton
+					>
 				</BrowseOverflowMenu>
-				<BrowseSplitButton
-					v-if="reference.operations.Receive"
-					label="入库"
-					kind="Receive"
-					icon="receive"
-					:options="createOptions"
-					@select="emit('newOperation', $event)"
-				/>
 			</template>
 			<template #filters>
 				<div class="browse-filter-mega">

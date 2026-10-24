@@ -142,7 +142,7 @@ const activityColumns = computed<DataColumn[]>(() => [
 		sortField: "modified",
 		minWidth: "170px",
 	},
-	{ id: "actions", label: "关联流动", required: true, defaultVisible: true, minWidth: "220px" },
+	{ id: "actions", label: "关联流动", required: true, defaultVisible: true, minWidth: "150px" },
 ]);
 const activityRows = computed<DataTableRecord[]>(() =>
 	filtered.value.map((activity) => ({
@@ -177,6 +177,9 @@ function sortActivity(column: string) {
 }
 function sortRelated(column: string) {
 	setRecordSort(column);
+}
+function activityKindCounts(id: string) {
+	return [...activityMovementCounts(id)].sort((left, right) => right.count - left.count);
 }
 const activityEntries = computed<DataTableEntry[]>(() =>
 	report.value.groupBy.length ? projection.groups.entries.value : activityRows.value,
@@ -431,13 +434,26 @@ function tabKey(event: KeyboardEvent) {
 					<template v-else-if="column.id === 'modified'">{{
 						siteDateTime(String(row.modified || ""))
 					}}</template>
-					<div v-else-if="column.id === 'actions'" class="form-actions">
+					<div v-else-if="column.id === 'actions'" class="activity-kind-summary">
 						<UiButton
-							v-for="count in activityMovementCounts(String(row.id))"
+							v-for="count in activityKindCounts(String(row.id)).slice(0, 3)"
 							:key="count.kind"
+							variant="ghost"
+							size="compact"
 							@click="chip(String(row.id), count.kind)"
 							>{{ movementLabels[count.kind] }} {{ count.count }}</UiButton
 						>
+						<details
+							v-if="activityKindCounts(String(row.id)).length > 3"
+							class="activity-kind-more"
+						>
+							<summary>+{{ activityKindCounts(String(row.id)).length - 3 }}</summary>
+							<span
+								v-for="count in activityKindCounts(String(row.id)).slice(3)"
+								:key="count.kind"
+								>{{ movementLabels[count.kind] }} {{ count.count }}</span
+							>
+						</details>
 					</div>
 				</template>
 				<template #group="{ group }">
@@ -518,10 +534,6 @@ function tabKey(event: KeyboardEvent) {
 			<section class="surface form-section">
 				<h2>活动概览</h2>
 				<dl class="preview-info-grid">
-					<div>
-						<dt>编号</dt>
-						<dd>{{ current.id }}</dd>
-					</div>
 					<div>
 						<dt>类型</dt>
 						<dd>{{ activityTypeLabel(current.typeId) }}</dd>

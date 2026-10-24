@@ -9,7 +9,7 @@ import {
 	type AllocationLine,
 } from "./operationModel";
 import { useReferenceData } from "../../services/contracts";
-import ItemImage from "../../components/ItemImage.vue";
+import ItemLine from "../../components/ui/ItemLine.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 const context = useOperationContext();
@@ -78,21 +78,14 @@ const groups = computed(() => {
 				class="allocation-summary-entry"
 				:data-summary-line-id="line.id"
 			>
-				<span class="allocation-summary-image"
-					><ItemImage :item="itemIdentity(line)" :thumbnail-size="24" :target-size="24"
-				/></span>
 				<div class="allocation-summary-copy">
 					<div class="allocation-summary-identity">
-						<strong>{{
-							item(line.code)?.name || line.displayName || line.code
-						}}</strong>
+						<ItemLine :item="itemIdentity(line)" :size="24">
+							<template #secondary>{{ line.code }}</template>
+						</ItemLine>
 						<span>· {{ line.qty }} {{ line.uom }}</span>
 					</div>
 					<dl class="ti-fields allocation-summary-fields">
-						<div>
-							<dt>编号</dt>
-							<dd>{{ line.code }}</dd>
-						</div>
 						<div v-if="allocationDestination(draft, line, reference.damagedLeaves)">
 							<dt>来源 → 去向</dt>
 							<dd>
@@ -191,7 +184,7 @@ const groups = computed(() => {
 }
 .preview-allocation-summary .allocation-summary-entry {
 	display: grid;
-	grid-template-columns: 24px minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr);
 	align-items: start;
 	column-gap: var(--p-space-2);
 	margin: var(--p-space-2) 0;
@@ -203,19 +196,6 @@ const groups = computed(() => {
 	align-items: baseline;
 	gap: 4px;
 }
-.allocation-summary-image {
-	display: grid;
-	grid-row: 1 / 3;
-	width: 24px;
-	height: 24px;
-	flex: 0 0 24px;
-	place-items: center;
-}
-.allocation-summary-image :deep(.async-image) {
-	width: 24px;
-	height: 24px;
-	min-height: 0;
-}
 .allocation-summary-copy {
 	display: contents;
 }
@@ -226,20 +206,5 @@ const groups = computed(() => {
 }
 .preview-allocation-summary small {
 	display: block;
-}
-@media (max-width: 1023px), (pointer: coarse) {
-	.preview-allocation-summary .allocation-summary-entry {
-		grid-template-columns: 44px minmax(0, 1fr);
-	}
-	.allocation-summary-image {
-		width: 44px;
-		height: 100%;
-		min-height: 44px;
-	}
-	.allocation-summary-image :deep(.item-image-button--compact-target) {
-		width: 44px !important;
-		height: 44px !important;
-		min-height: 44px;
-	}
 }
 </style>

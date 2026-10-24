@@ -90,10 +90,10 @@ const displayGroups = computed(() =>
 					><strong>{{ installBusy ? "正在准备安装…" : "安装到手机 / 电脑" }}</strong
 					><small>添加到主屏幕，方便下次打开</small>
 				</button>
-				<div class="more-card surface">
+				<div class="more-card surface account-card">
 					<strong>当前账户</strong>
-					<p>{{ c.reference.user }}</p>
-					<UiButton variant="danger" @click="logoutOpen = true">退出登录</UiButton>
+					<p :title="c.reference.user">{{ c.reference.user }}</p>
+					<UiButton variant="ghost" @click="logoutOpen = true">退出登录</UiButton>
 				</div>
 			</div>
 		</section>

@@ -68,8 +68,13 @@ kept in Git.
 - `DataTable` headers, sort buttons, rows, group cells and metrics use the same
   explicit column alignment. Text, dates, IDs and status are left aligned;
   quantities are right aligned with tabular numerals; selection and image
-  controls are centered. Use subtle horizontal separators, never full vertical
-  grid lines. Group metrics align with visible columns or carry clear labels.
+  controls are centered. Group identity leads with its thumbnail, expander,
+  name and count; metrics stay in their matching visible columns, with only
+  hidden metrics summarized after the identity. Use subtle horizontal
+  separators, never full vertical grid lines.
+- Table action columns may stay pinned beside column settings when a page needs
+  its actions visible while the result scrolls horizontally. Keep the pinned
+  column opaque and within the table frame.
 - Sortable headings always show a neutral bidirectional icon when inactive and
   a directional arrow when active. Reserve a stable icon gutter, set `aria-sort`
   and keep keyboard focus visible. Column settings stay available during
@@ -80,6 +85,10 @@ kept in Git.
   draggable scrollbars for overflowing desktop filter areas only. Native touch
   and coarse-pointer scrolling, plus forced-colors scrollbars, remain unchanged.
   Do not globally hide scrollbars.
+- On narrow tables, keep visible quantity columns pinned beside the settings
+  control. Summarize a metric after the group identity only while its metric
+  column is hidden. Repeated context shared by every result belongs once in the
+  page callout, not as a narrow table column.
 - Group disclosure supports keyboard and pointer activation across the row,
   reports `aria-expanded`, and leaves embedded links/buttons/inputs independent.
   Keep nested histories under the shared parent table header. Pagination counts

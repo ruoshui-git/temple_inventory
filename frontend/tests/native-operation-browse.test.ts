@@ -144,6 +144,9 @@ function service(operationPage = page()) {
                 document_count: 42,
                 allocation_count: 50,
                 row_count: 42,
+                borrowed: 2,
+                outstanding: 1,
+                stock_qty: 2,
               },
             ],
         matched_count: 1,
@@ -459,6 +462,54 @@ describe("native operation browsing", () => {
     expect(wrapper.get(".browse-row-link").text()).toBe("SE-1");
     expect(wrapper.find("tbody").text()).not.toContain("借用数量与结余");
   });
+
+  it.each([1440, 1024])(
+    "keeps loan item identity first and metrics in their columns at %ipx",
+    async (width) => {
+      const previousInnerWidth = Object.getOwnPropertyDescriptor(
+        window,
+        "innerWidth",
+      );
+      const previousMatchMedia = globalThis.matchMedia;
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: width,
+      });
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: query.includes("min-width") ? width >= 1024 : false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
+      try {
+        const query = newReportQuery("loans");
+        query.view = "items";
+        query.groupBy = ["item"];
+        const { wrapper } = setup(
+          service(),
+          reactive({
+            family: "loans" as const,
+            records: false,
+            initialQuery: query,
+          }),
+          true,
+        );
+        await flushPromises();
+        const row = wrapper.get(".data-table-group-row");
+        const identity = row.get(".data-table-group-identity").text();
+        expect(identity).toContain("物品甲");
+        expect(identity).not.toContain("借出 2 Nos");
+        expect(identity).not.toContain("未归还 1 Nos");
+        const cells = row.findAll("td").map((cell) => cell.text());
+        expect(cells).toContain("借出 2 Nos");
+        expect(cells).toContain("未归还 1 Nos");
+      } finally {
+        if (previousInnerWidth)
+          Object.defineProperty(window, "innerWidth", previousInnerWidth);
+        else Reflect.deleteProperty(window, "innerWidth");
+        vi.stubGlobal("matchMedia", previousMatchMedia);
+      }
+    },
+  );
 
   it("shows loan settlement status only for Loan records and keeps malformed Loan unknown", async () => {
     const query = newReportQuery("loans");

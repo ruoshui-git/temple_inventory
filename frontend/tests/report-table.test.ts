@@ -16,6 +16,20 @@ const table = (length = 65) => ({
   })),
 });
 describe("shared native report table", () => {
+  it("pins the damaged row actions inside the table frame", () => {
+    const wrapper = mount(ReportTable, {
+      props: { table: table(1), stickyActions: true },
+      slots: { actions: () => "操作" },
+    });
+    expect(wrapper.get("thead th.report-sticky-actions-column").text()).toBe(
+      "操作",
+    );
+    expect(wrapper.get("tbody td.report-sticky-actions-column").text()).toBe(
+      "操作",
+    );
+    wrapper.unmount();
+  });
+
   it("keeps preview title, status and date columns readable inside the table scroller", () => {
     const wrapper = mount(ReportTable, {
       props: {

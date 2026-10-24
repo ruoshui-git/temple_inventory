@@ -26,6 +26,7 @@ import LocationEndpoint from "./LocationEndpoint.vue";
 const props = withDefaults(
 	defineProps<{
 		table: ReportTableData;
+		hiddenColumns?: string[];
 		preferenceId?: string;
 		limit?: number;
 		total?: number;
@@ -34,6 +35,7 @@ const props = withDefaults(
 		error?: string;
 		stale?: boolean;
 		documentLinks?: boolean;
+		stickyActions?: boolean;
 		grouped?: boolean;
 		sortableColumns?: string[];
 		sortBy?: string;
@@ -104,7 +106,9 @@ const columns = computed<DataColumn[]>(() => {
 	const data: DataColumn[] = sourceColumns
 		.filter(
 			(column) =>
-				column !== "id" && (!props.grouped || !presentationOnlyLeafFields.has(column)),
+				column !== "id" &&
+				!props.hiddenColumns?.includes(column) &&
+				(!props.grouped || !presentationOnlyLeafFields.has(column)),
 		)
 		.map((column) => ({
 			id: column,
@@ -122,7 +126,8 @@ const columns = computed<DataColumn[]>(() => {
 			label: "操作",
 			defaultVisible: true,
 			required: true,
-			minWidth: "150px",
+			minWidth: props.stickyActions ? "380px" : "150px",
+			className: props.stickyActions ? "report-sticky-actions-column" : undefined,
 		});
 	return data;
 });

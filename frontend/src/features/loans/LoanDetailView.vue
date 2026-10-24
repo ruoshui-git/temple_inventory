@@ -14,7 +14,6 @@ import QuickExport from "../../components/QuickExport.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
-import RecordRef from "../../components/ui/RecordRef.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
@@ -232,7 +231,7 @@ function settle(action: SettlementAction) {
 					</div>
 				</dl>
 			</DisclosureSection>
-			<div class="browse-actions">
+			<div class="browse-actions loan-detail-actions">
 				<UiButton
 					v-for="[action, label] in actions.filter(([action]) => c.canSettle(action))"
 					:key="action"
@@ -240,15 +239,9 @@ function settle(action: SettlementAction) {
 					@click="settle(action)"
 					>{{ label }}</UiButton
 				>
-				<RecordRef
-					kind="Loan"
-					:identity="`${loan.ti_borrower || '未填写借用方'} ${loan.posting_date.slice(5)}`"
-					:status="loan.docstatus"
-					:document-name="loan.name"
-					:tooltip="loan.docstatus === 0 ? '继续编辑草稿' : '查看借出记录'"
-					@open="emit('openDocument', 'Stock Entry', loan.name)"
-				/>
-				<a :href="deskLink" target="_blank" rel="noopener">在 ERPNext Desk 中打开</a>
+				<a class="loan-desk-link" :href="deskLink" target="_blank" rel="noopener"
+					>在 ERPNext Desk 中打开</a
+				>
 			</div>
 		</article>
 	</section>

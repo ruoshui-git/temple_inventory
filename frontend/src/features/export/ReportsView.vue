@@ -163,13 +163,7 @@ function setGroup(index: number, value: string) {
 						@open-full="emit('openExport', $event)"
 					/>
 				</BrowseOverflowMenu>
-				<BrowseSplitButton
-					label="入库"
-					kind="Receive"
-					icon="receive"
-					:options="createOptions"
-					@select="emit('newOperation', $event)"
-				/>
+				<UiButton variant="primary" @click="emit('openExport', query)">导出</UiButton>
 			</template>
 			<template #subtitle
 				><p class="muted">完整筛选范围 · 数量按单位与状态分别列示</p></template

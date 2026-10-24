@@ -52,8 +52,9 @@ watch([() => props.active, isMobile], () => {
 });
 </script>
 <template>
-	<section class="browse-page">
+	<section class="browse-page damaged-page">
 		<BrowseToolbar
+			class="damaged-browse-toolbar"
 			title="损坏待处理"
 			:summary="table?.initialized ? `损坏待处理 · ${c.report.result.total} 条明细` : ''"
 			v-model:search="query.search"
@@ -93,7 +94,9 @@ watch([() => props.active, isMobile], () => {
 				<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
 				<div>
 					<strong>损坏物资待处理</strong>
-					<p>选择修复归库，或将无法使用的物资正式报废。</p>
+					<p>
+						所有明细均位于“损坏待处理”位置。选择修复归库，或将无法使用的物资正式报废。
+					</p>
 				</div>
 				<b v-if="table?.initialized">{{ c.report.result.total }} 条明细</b>
 			</div>
@@ -164,8 +167,10 @@ watch([() => props.active, isMobile], () => {
 			<div class="preview-browse-results">
 				<ReportTable
 					v-if="table"
+					sticky-actions
 					:preference-id="`pending.${query.dataset}.${query.view}.${table.id}`"
 					:table="table"
+					:hidden-columns="['warehouse_label', 'warehouse']"
 					:total="table.total"
 					:loading="table.loading"
 					:initialized="table.initialized"
@@ -183,31 +188,37 @@ watch([() => props.active, isMobile], () => {
 					"
 				>
 					<template #actions="{ row }">
-						<UiButton
-							v-if="c.canAct('Repair', row as ReportRow)"
-							variant="primary"
-							icon="loan"
-							@click="emit('operation', 'Repair', c.allocation(row as ReportRow))"
-							>修复归库</UiButton
-						>
-						<UiButton
-							v-if="c.canAct('Disposal', row as ReportRow)"
-							variant="danger"
-							icon="trash"
-							@click="emit('operation', 'Disposal', c.allocation(row as ReportRow))"
-							>报废</UiButton
-						>
-						<UiButton
-							:disabled="c.report.result.stale"
-							@click="emit('item', String(row.item_code))"
-							>物品详情</UiButton
-						>
-						<QuickExport
-							:disabled="c.report.result.stale"
-							:query="c.rowQuery(row as ReportRow)"
-							:active="active"
-							@open-full="emit('openExport', $event)"
-						/>
+						<div class="damaged-row-actions">
+							<UiButton
+								v-if="c.canAct('Repair', row as ReportRow)"
+								variant="primary"
+								icon="loan"
+								@click="
+									emit('operation', 'Repair', c.allocation(row as ReportRow))
+								"
+								>修复归库</UiButton
+							>
+							<UiButton
+								v-if="c.canAct('Disposal', row as ReportRow)"
+								variant="danger"
+								icon="trash"
+								@click="
+									emit('operation', 'Disposal', c.allocation(row as ReportRow))
+								"
+								>报废</UiButton
+							>
+							<UiButton
+								:disabled="c.report.result.stale"
+								@click="emit('item', String(row.item_code))"
+								>物品详情</UiButton
+							>
+							<QuickExport
+								:disabled="c.report.result.stale"
+								:query="c.rowQuery(row as ReportRow)"
+								:active="active"
+								@open-full="emit('openExport', $event)"
+							/>
+						</div>
 					</template>
 				</ReportTable>
 

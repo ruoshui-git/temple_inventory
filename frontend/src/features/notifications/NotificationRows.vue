@@ -32,6 +32,11 @@ function data(row: InventoryNotification) {
 function isExport(row: InventoryNotification) {
 	return row.type === "导出完成";
 }
+function exportFailure(row: InventoryNotification) {
+	const value = data(row);
+	if (value.status !== "Failed") return "";
+	return String(value.reason || value.error || value.message || "导出失败，请打开报表重试。");
+}
 </script>
 <template>
 	<div v-for="group in groups" :key="group.label" class="notification-day-group">
@@ -53,7 +58,12 @@ function isExport(row: InventoryNotification) {
 				</div>
 				<span v-if="!row.read" class="notification-unread-dot" aria-label="未读"></span>
 				<template v-if="isExport(row)">
-					<span v-if="row.unavailable" class="notification-unavailable"
+					<small v-if="exportFailure(row)" class="notification-export-reason">{{
+						exportFailure(row)
+					}}</small>
+					<span
+						v-if="data(row).status === 'Completed' && row.unavailable"
+						class="notification-unavailable"
 						>文件已不可用</span
 					>
 					<UiButton

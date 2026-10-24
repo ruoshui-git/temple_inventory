@@ -63,7 +63,6 @@ const loadingMore = computed(() => props.loading && props.initialized && !props.
 const columns = computed<DataColumn[]>(() => {
 	const result: DataColumn[] = [
 		{ id: "document", label: "记录", required: true, sortable: true, minWidth: "190px" },
-		{ id: "doctype", label: "单据类型", sortable: true, minWidth: "120px" },
 		{
 			id: "date_time",
 			label: "日期 / 时间",
@@ -242,11 +241,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 					<div class="history-record">
 						<RecordRef
 							:kind="String(row.kind || row.doctype || 'Activity')"
-							:identity="
-								row.borrower
-									? `${row.borrower} ${siteDateTime(row.date_time)}`
-									: siteDateTime(row.date_time)
-							"
+							:identity="`${movementLabels[String(row.kind || '')] || '流动'} · ${row.document || ''}`"
 							:document-name="String(row.document || '')"
 							:status="showStatus ? String(row.docstatus || '') : undefined"
 							:disabled="stale || loading || busy"
@@ -256,9 +251,6 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				</template>
 				<template v-else-if="column.id === 'date_time'">{{
 					siteDateTime(row.date_time)
-				}}</template>
-				<template v-else-if="column.id === 'doctype'">{{
-					row.doctype === "Stock Entry" ? "库存单" : "库存调节"
 				}}</template>
 				<template v-else-if="column.id === 'kind'">{{
 					movementLabels[String(row.kind || "")] || "其他类型"

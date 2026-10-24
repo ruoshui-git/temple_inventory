@@ -70,6 +70,20 @@ supersession below when a durable user-facing decision changes.
 - `/` focuses the page search unless the user is typing in an editable field.
   Escape retains the current search/chip editor behavior.
 
+## Supersession — 2026-10-24: compact visual-pass details
+
+- Phone primary navigation always shows all six destinations within the viewport.
+  Shared back controls become icon-only at narrow widths and keep an accessible
+  返回 name.
+- Activity identifiers stay out of the overview. Related-record tables scroll
+  within their own result container; movement summaries show the three highest-
+  count kinds inline and disclose the rest on demand.
+- Submitted document headers show the record identity and one native status
+  badge. Reload is available for editable drafts and detected conflicts.
+- Reports use 导出 as their primary action. Expiry keeps 入库 in its overflow
+  menu; Drafts uses 新建. Loan settlement actions stay grouped before the quiet
+  ERPNext Desk link.
+
 ## Browse behavior
 
 - The shared breakpoint is 1024px. Responsive coordinators mount one active
