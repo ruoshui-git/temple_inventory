@@ -47,6 +47,18 @@ MANUFACTURING_OFFSETS = (
 	-650,
 	-500,
 )
+BORROWERS = (
+	"活动服务团队",
+	"演出团队",
+	"斋堂义工组",
+	"法会筹备组",
+	"王建国",
+	"林慧",
+	"社区共餐志愿队",
+	"园林维护组",
+	"陈师傅",
+	"青年团契",
+)
 EXTRA_ITEMS = (
 	("N-WORKFLOW", "活动周转箱", "Nos", False, False),
 	("N-ZERO", "备用展示支架（暂无库存）", "Nos", False, False),
@@ -839,7 +851,7 @@ def _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_name
 		line = _line(item, 1, source=rooms["DEMO_A"], target=rooms["DEMO_B"])
 	elif kind == "Loan":
 		line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["LEASE"])
-		context["ti_borrower"] = "活动服务团队"
+		context["ti_borrower"] = rng.choice(BORROWERS)
 	elif kind == "Damage":
 		line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["DAMAGED"])
 	elif kind in ("Repair", "Disposal"):
@@ -882,7 +894,7 @@ def _volume_lifecycle(company, items, rooms, actors, rng, damaged_qty, open_loan
 			loan = next(value for value in open_loans if value)
 			context.update({"ti_activity": loan.ti_activity, "ti_borrower": loan.ti_borrower})
 		if kind == "Loan":
-			context["ti_borrower"] = "活动服务团队"
+			context["ti_borrower"] = rng.choice(BORROWERS)
 		actor = actors[index % len(actors)]
 		documents.append(
 			_entry(
@@ -901,7 +913,7 @@ def _volume_lifecycle(company, items, rooms, actors, rng, damaged_qty, open_loan
 	for index, kind in enumerate(cancel_kinds):
 		line, context = _volume_line(kind, items, rooms, rng, damaged_qty, open_loans, activity_names)
 		if kind == "Loan":
-			context["ti_borrower"] = "活动服务团队"
+			context["ti_borrower"] = rng.choice(BORROWERS)
 		actor = actors[index % len(actors)]
 		entry = _entry(
 			company,
@@ -1091,7 +1103,7 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 			count_item = item["item_code"]
 		context = {"ti_activity": rng.choice(activity_names)}
 		if kind == "Loan":
-			context["ti_borrower"] = "活动服务团队"
+			context["ti_borrower"] = rng.choice(BORROWERS)
 			line = _line(item, 2, source=rooms["DEMO_A"], target=rooms["LEASE"])
 			loan = _entry(
 				company,

@@ -171,6 +171,16 @@ def _create(user, type_name, subject, doctype, name, url, structured=None, read=
 	)
 
 
+def enqueue(method, **kwargs):
+	"""Queue notification work without ever failing the stock document that triggered it."""
+	if frappe.flags.ti_suppress_notifications:
+		return
+	try:
+		frappe.enqueue(method, enqueue_after_commit=True, **kwargs)
+	except Exception:
+		frappe.log_error(title="Inventory notification not queued", message=frappe.get_traceback())
+
+
 def enqueue_document_event(doc, method=None):
 	if doc.doctype == "Stock Entry" and not doc.get("ti_movement_kind"):
 		return
@@ -181,7 +191,7 @@ def enqueue_document_event(doc, method=None):
 		if doc.doctype == "Stock Reconciliation"
 		else "movement_submitted"
 	)
-	frappe.enqueue(
+	enqueue(
 		"temple_inventory.notifications.deliver_document_event",
 		doctype=doc.doctype,
 		name=doc.name,
@@ -189,7 +199,6 @@ def enqueue_document_event(doc, method=None):
 		notification_event=event,
 		amended=bool(method != "on_cancel" and doc.get("amended_from")),
 		actor=frappe.session.user,
-		enqueue_after_commit=True,
 	)
 
 
@@ -334,6 +343,14 @@ def register_types():
 
 
 def export_result(request, watched=False):
+	"""Notify the requester; a notification failure never changes the export outcome."""
+	try:
+		_export_result(request, watched)
+	except Exception:
+		frappe.log_error(title="Inventory export notification failed", message=frappe.get_traceback())
+
+
+def _export_result(request, watched):
 	from temple_inventory.projections import TABLE_LABELS
 
 	labels = [TABLE_LABELS.get(name, name) for name in json.loads(request.tables_json or "[]")]

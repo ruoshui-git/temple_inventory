@@ -284,3 +284,39 @@ class NotificationTests(NativeDocumentTests):
 		reserved = set(inspect.signature(enqueue).parameters) - {"kwargs"}
 		job = set(inspect.signature(notifications.deliver_document_event).parameters)
 		self.assertFalse(job & reserved)
+
+	def test_full_job_queue_never_blocks_a_stock_submission(self):
+		def overloaded(*args, **kwargs):
+			raise frappe.QueueOverloaded("Too many queued background jobs")
+
+		with (
+			patch.object(frappe, "enqueue", side_effect=overloaded),
+			patch.object(frappe, "log_error") as log,
+		):
+			doc = self.receipt(2)
+		self.assertEqual(frappe.db.get_value("Stock Entry", doc.name, "docstatus"), 1)
+		log.assert_called()
+
+	def test_seeding_flag_suppresses_notification_jobs(self):
+		frappe.flags.ti_suppress_notifications = True
+		try:
+			with patch.object(frappe, "enqueue") as enqueue:
+				self.receipt(1)
+		finally:
+			frappe.flags.ti_suppress_notifications = False
+		enqueue.assert_not_called()
+
+	def test_fresh_install_registers_notification_types(self):
+		hooks = frappe.get_hooks("after_install", app_name="temple_inventory")
+		self.assertIn("temple_inventory.deployment.after_migrate", hooks)
+		for type_name in notifications.TYPES:
+			self.assertTrue(frappe.db.exists("Notification Type", type_name))
+
+	def test_export_notification_failure_never_changes_export_outcome(self):
+		request = SimpleNamespace(name="missing", status="Failed", owner="Administrator")
+		with (
+			patch.object(notifications, "_export_result", side_effect=frappe.ValidationError("boom")),
+			patch.object(frappe, "log_error") as log,
+		):
+			notifications.export_result(request)
+		log.assert_called()

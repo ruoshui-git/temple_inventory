@@ -144,7 +144,9 @@ def send_test():
 def notification_after_insert(doc, method=None):
 	if doc.type not in ("库存流动", "流动撤销", "盘点调整", "导出完成", "效期提醒"):
 		return
-	frappe.enqueue("temple_inventory.push.send_notification", name=doc.name, enqueue_after_commit=True)
+	from temple_inventory.notifications import enqueue
+
+	enqueue("temple_inventory.push.send_notification", name=doc.name)
 
 
 def send_notification(name):

@@ -14,6 +14,8 @@ website_route_rules = [
 	{"from_route": "/inventory/<path:app_path>", "to_route": "inventory"},
 ]
 
+# Fresh installs need the same idempotent integration (notification and activity types).
+after_install = ["temple_inventory.deployment.after_migrate"]
 after_migrate = ["temple_inventory.deployment.after_migrate"]
 
 fixtures = [
@@ -142,7 +144,6 @@ add_to_apps_screen = [
 # ------------
 
 # before_install = "temple_inventory.install.before_install"
-# after_install = "temple_inventory.install.after_install"
 
 # Uninstallation
 # ------------

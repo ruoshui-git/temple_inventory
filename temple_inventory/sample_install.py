@@ -224,7 +224,12 @@ def install_sample_data(company=None, data="full"):
 	frappe.db.commit()
 	try:
 		_progress("原生仓库、目录、私有图片、库存单据与盘点：开始")
-		result = install(company, data=data, generate_volume=data == "full")
+		# Seeded history is not news; notifying every account would also flood the job queue.
+		frappe.flags.ti_suppress_notifications = True
+		try:
+			result = install(company, data=data, generate_volume=data == "full")
+		finally:
+			frappe.flags.ti_suppress_notifications = False
 		settings.reload()
 		_assert_leaf_stock(settings)
 		settings.db_set("sample_data_version", VERSION, update_modified=False)
