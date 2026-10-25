@@ -67,6 +67,14 @@ roots=("$bench" /tmp "$HOME/.cache")
 # A worktree keeps its Git metadata in the main repository; Codex needs it to commit.
 git_common=$(git -C "$app" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
 [[ -n $git_common && $git_common != "$bench"/* ]] && roots+=("$git_common")
+# From a worktree, share the development checkout's heavy lock so Codex queues
+# with every other agent instead of using a private /tmp lock.
+main_development=$(cd -- "$(dirname -- "$git_common")/../../.." 2>/dev/null && pwd || true)
+if [[ -d $main_development/frappe-bench && $bench != "$main_development"/* ]]; then
+	mkdir -p "$main_development/.locks"
+	roots+=("$main_development/.locks")
+	export TEMPLE_HEAVY_LOCK=$main_development/.locks/heavy.lock
+fi
 [[ -d /workspace/.pnpm-store ]] && roots+=(/workspace/.pnpm-store)
 printf -v roots_toml '"%s",' "${roots[@]}"
 

@@ -15,7 +15,8 @@ so Codex cannot reach MariaDB or Redis. It also detaches the job, so no
 completion notification arrives. `scripts/codex-run` runs Codex on the WSL host
 with network and Bench write access, so Codex reaches Bench through
 `scripts/dx`. It writes logs under `/tmp/codex-runs/` and saves only the final
-report to `NAME.last`.
+report to `NAME.last`. Codex's sandbox keeps `.git` read-only, so Codex leaves
+its changes uncommitted; review and commit them yourself.
 
 1. **Brief.** Write the task brief to a scratchpad file. Name the plan or notes
    file, the exact scope, file:line pointers, required validation, and any
