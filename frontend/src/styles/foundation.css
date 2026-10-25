@@ -1927,6 +1927,71 @@ strong {
 	box-shadow: var(--p-shadow);
 	overflow: hidden;
 }
+.preview-overlay:has(.popup-menu-sheet-overlay) {
+	align-items: flex-end;
+	padding: 0;
+}
+.popup-menu-sheet-overlay {
+	width: 100%;
+	max-height: min(82dvh, 720px);
+	border-radius: 18px 18px 0 0;
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.popup-menu-sheet-overlay > .dialog-heading {
+	display: none;
+}
+.popup-menu-sheet-overlay > .dialog-content {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	flex: 1;
+	min-height: 0;
+	padding: 10px 12px 12px;
+	overflow: hidden;
+}
+.popup-menu-sheet-handle {
+	width: 36px;
+	height: 4px;
+	flex: none;
+	align-self: center;
+	border-radius: 999px;
+	background: var(--p-muted);
+	opacity: 0.55;
+}
+.popup-menu-sheet-title {
+	margin: 4px 4px 0;
+	font-size: 1rem;
+}
+.popup-menu-panel--sheet {
+	position: static;
+	width: 100%;
+	max-width: 100%;
+	max-height: min(52dvh, 440px);
+	flex: 1 1 auto;
+	min-height: 0;
+	box-sizing: border-box;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+.popup-menu-sheet-content .popup-menu-panel--sheet {
+	width: 100%;
+	max-width: 100%;
+	border: 0;
+	border-radius: 0;
+	padding: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.popup-menu-sheet-cancel {
+	width: 100%;
+	min-height: 48px;
+	flex: none;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-soft);
+	color: var(--p-text);
+	font: inherit;
+}
 .preview-dialog:focus {
 	outline: none;
 }

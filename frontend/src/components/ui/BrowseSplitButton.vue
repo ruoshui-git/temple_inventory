@@ -23,9 +23,7 @@ const hidden = computed(
 let observer: MutationObserver | undefined;
 function updateOverlayState() {
 	transientOpen.value = Boolean(
-		document.querySelector(
-			".preview-overlay, .preview-filter-popover, .popup-menu-panel--sheet[style*='display: block']",
-		),
+		document.querySelector(".preview-overlay, .preview-filter-popover"),
 	);
 }
 function updateViewport() {

@@ -43,8 +43,10 @@ kept in Git.
   include a minimum 48px primary face plus a 44px chevron segment. Return to Top
   uses the same obstruction measurement, with its bottom at nav + 68px, leaving
   an 8px gap above the 48px FAB. The FAB uses accent/on-accent tokens and hides
-  while an overlay or keyboard is open. Its kind menu and sort menu use a
-  viewport-width bottom sheet with safe-area padding.
+  while an overlay or keyboard is open. Its kind menu and sort menu use the
+  shared phone bottom sheet with a real `--p-scrim` backdrop, decorative
+  handle, accessible title, scrollable menu, full-width 取消 button and
+  safe-area padding. Backdrop, Escape and system Back dismiss the sheet.
 - Results summary lines wrap to at most two compact rows at phone widths. Sort,
   Stock card/list and analysis controls sit alongside the count and quantity
   preview. The quantity disclosure expands a full-width panel below the summary
@@ -116,6 +118,9 @@ kept in Git.
 - Menu items support ArrowUp/ArrowDown and Home/End; opening by keyboard puts
   focus on the first item. Respect reduced motion and keep coarse-pointer targets
   at least 44px high.
+- On phones, `PopupMenu sheet` uses `Overlay`; its opaque sheet sits above the
+  scrim and preserves menu arrow/Home/End and radio semantics. Desktop menus
+  remain anchored.
 - Use the shared layer scale: sticky table content `--p-z-sticky-content` (10),
   sticky page chrome `--p-z-sticky` (20), floating create actions `--p-z-fab`
   (25), app navigation `--p-z-nav` (30), menus and popovers `--p-z-menu` (40),
@@ -307,7 +312,10 @@ kept in Git.
 ## Overlays, reports and fixed geometry
 
 - `Overlay` owns focus containment, background inertness, Escape, scroll lock
-  and focus return. Descendant dialogs become internal stages of that surface.
+  and focus return. It adds a same-URL history marker on open so system Back
+  closes the topmost dismissible overlay. Route navigation replaces the current
+  marker entry, and ordinary close defers Back until no route transition is
+  pending. Descendant dialogs become internal stages of that surface.
   Adaptive creation uses a bounded desktop dialog and full mobile sheet.
   ItemPicker uses a wide bounded desktop dialog and full-height mobile sheet;
   keep its header/search and footer fixed while category/warehouse rails,

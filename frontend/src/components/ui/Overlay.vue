@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { overlayStageKey } from "../../lib/overlayStage";
+import { isOverlayNavigationPending } from "../../lib/overlayHistory";
 import {
 	inject,
 	provide,
@@ -43,8 +44,64 @@ function requestClose() {
 }
 let invoker: HTMLElement | null = null;
 let openingLocation = "";
+const historyMarker = `ti-overlay-${titleId}`;
+let markerActive = false;
+let navigating = false;
+let handlingPop = false;
+let closeHistoryTimer: ReturnType<typeof setTimeout> | undefined;
+function removeMarkerState(state: unknown) {
+	if (!state || typeof state !== "object") return state;
+	const next = { ...(state as Record<string, unknown>) };
+	delete next.tiOverlay;
+	return next;
+}
+function popMarker(event: PopStateEvent) {
+	if (!markerActive || navigating || handlingPop) return;
+	handlingPop = true;
+	if (activeStage.value) activeStage.value.close();
+	else if ((event.state as { tiOverlay?: string } | null)?.tiOverlay === historyMarker) {
+		handlingPop = false;
+		return;
+	} else if (props.dismissible) {
+		emit("close");
+		void nextTick(() => {
+			if (markerActive && panel.value?.isConnected) {
+				try {
+					history.pushState({ ...(history.state || {}), tiOverlay: historyMarker }, "");
+				} catch {
+					/* History API may be unavailable in embedded test environments. */
+				}
+			}
+		});
+	} else {
+		try {
+			history.pushState({ ...(history.state || {}), tiOverlay: historyMarker }, "");
+		} catch {
+			/* History API may be unavailable in embedded test environments. */
+		}
+	}
+	queueMicrotask(() => (handlingPop = false));
+}
+function closeMarkerForNavigation() {
+	navigating = true;
+	const currentMarker = (history.state as { tiOverlay?: string } | null)?.tiOverlay;
+	if (
+		markerActive &&
+		(currentMarker === historyMarker || currentMarker === activeStage.value?.titleId)
+	) {
+		try {
+			history.replaceState(removeMarkerState(history.state), "");
+		} catch {
+			/* No history API. */
+		}
+	}
+	emit("close");
+}
+function navigationStarted() {
+	emit("close");
+}
 function closeAfterNavigation() {
-	if (window.location.href !== openingLocation) emit("close");
+	if (window.location.href !== openingLocation) closeMarkerForNavigation();
 }
 function focusInitial() {
 	const target = props.initialFocus
@@ -115,18 +172,35 @@ onMounted(async () => {
 	invoker = document.activeElement as HTMLElement;
 	if (parentStage) {
 		parentStage.active.value = { titleId, close: requestClose };
+		try {
+			history.pushState({ ...(history.state || {}), tiOverlay: titleId }, "");
+			markerActive = true;
+		} catch {
+			/* Keep internal stages usable where History API is unavailable. */
+		}
 		await nextTick();
 		focusInitial();
 		return;
 	}
 	openingLocation = window.location.href;
-	document.dispatchEvent(
-		new CustomEvent("preview-filter-panel-open", { detail: props.transientOwner || titleId }),
-	);
+	try {
+		history.pushState({ ...(history.state || {}), tiOverlay: historyMarker }, "");
+		markerActive = true;
+	} catch {
+		/* Keep overlays usable where History API is unavailable. */
+	}
+	if (!String(props.panelClass || "").includes("popup-menu-sheet-overlay")) {
+		document.dispatchEvent(
+			new CustomEvent("preview-filter-panel-open", {
+				detail: props.transientOwner || titleId,
+			}),
+		);
+	}
 	document.addEventListener("keydown", documentKeydown);
 	window.addEventListener("hashchange", closeAfterNavigation);
+	window.addEventListener("popstate", popMarker);
 	window.addEventListener("popstate", closeAfterNavigation);
-	document.addEventListener("inventory-navigation", closeAfterNavigation);
+	document.addEventListener("inventory-navigation", navigationStarted);
 	previousOverflow = document.body.style.overflow;
 	previousPadding = document.body.style.paddingRight;
 	const scrollbar = window.innerWidth - document.documentElement.clientWidth;
@@ -146,17 +220,52 @@ onMounted(async () => {
 	focusInitial();
 });
 onBeforeUnmount(() => {
+	if (closeHistoryTimer) clearTimeout(closeHistoryTimer);
 	if (parentStage) {
 		if (parentStage.active.value?.titleId === titleId) parentStage.active.value = undefined;
+		closeHistoryTimer = setTimeout(() => {
+			if (
+				markerActive &&
+				!navigating &&
+				!isOverlayNavigationPending() &&
+				window.location.href === openingLocation &&
+				(history.state as { tiOverlay?: string } | null)?.tiOverlay === titleId
+			) {
+				try {
+					history.back();
+				} catch {
+					/* No History API. */
+				}
+			}
+			markerActive = false;
+		}, 0);
 		void nextTick(() => {
 			if (invoker?.isConnected) invoker.focus({ preventScroll: true });
 		});
 		return;
 	}
 	document.removeEventListener("keydown", documentKeydown);
+	closeHistoryTimer = setTimeout(() => {
+		if (
+			markerActive &&
+			!navigating &&
+			!handlingPop &&
+			!isOverlayNavigationPending() &&
+			window.location.href === openingLocation &&
+			(history.state as { tiOverlay?: string } | null)?.tiOverlay === historyMarker
+		) {
+			try {
+				history.back();
+			} catch {
+				/* No History API. */
+			}
+		}
+		markerActive = false;
+	}, 0);
 	window.removeEventListener("hashchange", closeAfterNavigation);
+	window.removeEventListener("popstate", popMarker);
 	window.removeEventListener("popstate", closeAfterNavigation);
-	document.removeEventListener("inventory-navigation", closeAfterNavigation);
+	document.removeEventListener("inventory-navigation", navigationStarted);
 	document.body.style.overflow = previousOverflow;
 	document.body.style.paddingRight = previousPadding;
 	if (app) app.inert = previousInert;

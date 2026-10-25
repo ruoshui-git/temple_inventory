@@ -121,15 +121,6 @@
 	text-align: center !important;
 	color: var(--p-muted);
 }
-.preview-utility-page .export-scrim {
-	position: fixed;
-	inset: 0;
-	z-index: var(--p-z-overlay);
-	display: grid;
-	place-items: center;
-	padding: var(--p-space-3);
-	background: var(--p-scrim);
-}
 .preview-utility-page .export-review {
 	position: relative;
 	width: min(500px, 100%);

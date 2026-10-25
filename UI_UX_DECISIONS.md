@@ -446,6 +446,13 @@ supersession below when a durable user-facing decision changes.
   window. Dashboard in-card tabs use the shared compact segmented control and
   tab semantics.
 
+- **2026-10-25 — Dismissible phone sheets and system Back:** Phone split-button
+  and sort menus use the shared focus-managed Overlay with an opaque sheet,
+  `--p-scrim` backdrop, decorative handle, accessible title, full-width 取消,
+  safe-area padding, and backdrop/Escape dismissal. System Back closes only the
+  topmost overlay; nondismissible overlays remain open. This supersedes the
+  earlier 2026-10-24 description of phone menus as a bare bottom sheet.
+
 - **2026-10-24 — Phone Stock list default and two-column cards:** Below 1024px,
   Stock defaults to dense list rows with 64px thumbnails, a two-line Item name,
   code/category metadata and available quantity plus compact loaned/damaged

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { nextTick, onUpdated, ref } from "vue";
 import { useAnchoredPopup } from "../../composables/useAnchoredPopup";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import InventoryIcon from "../InventoryIcon.vue";
+import Overlay from "./Overlay.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -13,13 +15,16 @@ const props = withDefaults(
 	{ align: "start", variant: "icon" },
 );
 const emit = defineEmits<{ open: []; close: []; activate: [] }>();
+const responsive = useResponsiveLayout(false);
+const useSheet = ref(false);
+const anchoredOpen = ref(false);
 const anchor = ref<HTMLButtonElement>();
 const popup = ref<HTMLElement>();
 const open = ref(false);
 const { style, target } = useAnchoredPopup({
 	anchor,
 	popup,
-	open,
+	open: anchoredOpen,
 	align: props.align,
 	onClose: (restore) => close(restore),
 });
@@ -31,11 +36,14 @@ onUpdated(() =>
 function close(restoreFocus = false) {
 	if (!open.value) return;
 	open.value = false;
+	anchoredOpen.value = false;
 	emit("close");
 	if (restoreFocus) void nextTick(() => anchor.value?.focus({ preventScroll: true }));
 }
 async function toggle() {
 	if (open.value) return close();
+	useSheet.value = props.sheet && responsive.isSurface("mobile");
+	anchoredOpen.value = !useSheet.value;
 	open.value = true;
 	emit("open");
 	await nextTick();
@@ -89,10 +97,33 @@ function activated(event: MouseEvent) {
 				><InventoryIcon :name="variant === 'split' ? 'chevron-down' : 'more'"
 			/></slot>
 		</button>
-		<Teleport :to="target">
+		<Overlay
+			v-if="useSheet && open"
+			:title="label"
+			panel-class="popup-menu-sheet-overlay"
+			content-class="popup-menu-sheet-content"
+			@close="close()"
+		>
+			<div class="popup-menu-sheet-handle" aria-hidden="true" />
+			<h3 class="popup-menu-sheet-title">{{ label }}</h3>
 			<div
 				ref="popup"
-				v-show="open"
+				class="popup-menu-panel popup-menu-panel--sheet browse-action-menu"
+				role="menu"
+				:aria-label="label"
+				@keydown="keydown"
+				@click="activated"
+			>
+				<slot />
+			</div>
+			<button class="popup-menu-sheet-cancel" type="button" @click="close(true)">
+				取消
+			</button>
+		</Overlay>
+		<Teleport v-else :to="target">
+			<div
+				ref="popup"
+				v-show="open && !useSheet"
 				class="popup-menu-panel browse-action-menu"
 				:class="{ 'popup-menu-panel--sheet': sheet }"
 				role="menu"

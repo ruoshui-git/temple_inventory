@@ -17,6 +17,14 @@ function rect(left: number, top: number, width = 40, height = 30) {
   } as DOMRect;
 }
 function mountMenu(label = "操作菜单") {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => ({
+      matches: true,
+      addEventListener() {},
+      removeEventListener() {},
+    }),
+  });
   const wrapper = mount(PopupMenu, {
     attachTo: document.body,
     props: { label, align: "end" },
@@ -140,6 +148,71 @@ describe("PopupMenu", () => {
     const wrapper = mountMenu();
     await open(wrapper);
     document.dispatchEvent(new Event("inventory-navigation"));
+    await flushPromises();
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  it("uses a dismissible Overlay sheet on phones and selects items", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener() {},
+        removeEventListener() {},
+      }),
+    });
+    const wrapper = mount(PopupMenu, {
+      attachTo: document.body,
+      props: { label: "新建", sheet: true },
+      slots: { default: "<button>Receive</button>" },
+    });
+    wrappers.push(wrapper);
+    await open(wrapper);
+    expect(
+      document.querySelector(".preview-overlay .popup-menu-panel--sheet"),
+      wrapper.html(),
+    ).toBeTruthy();
+    expect(document.querySelector(".popup-menu-sheet-title")?.textContent).toBe(
+      "新建",
+    );
+    await document
+      .querySelector<HTMLElement>(".popup-menu-sheet-cancel")!
+      .click();
+    await flushPromises();
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+    await open(wrapper);
+    await document
+      .querySelector<HTMLElement>(".popup-menu-panel--sheet button")!
+      .click();
+    await flushPromises();
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  it("closes a phone sheet when its real backdrop is tapped", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener() {},
+        removeEventListener() {},
+      }),
+    });
+    const wrapper = mount(PopupMenu, {
+      attachTo: document.body,
+      props: { label: "排序", sheet: true },
+      slots: { default: "<button>顺序</button>" },
+    });
+    wrappers.push(wrapper);
+    await open(wrapper);
+    await document
+      .querySelector(".preview-overlay")!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flushPromises();
     expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
       "false",
