@@ -1,0 +1,20 @@
+# Production host only. The stack's production router explicitly attaches
+# kufang-production-security@docker; no non-production router uses HSTS.
+services:
+  traefik:
+    labels:
+      traefik.http.routers.kufang-production-www.rule: Host(`www.kufang.org`)
+      traefik.http.routers.kufang-production-www.entrypoints: websecure
+      traefik.http.routers.kufang-production-www.tls.certresolver: le
+      traefik.http.routers.kufang-production-www.middlewares: kufang-production-security,kufang-production-www-to-apex
+      traefik.http.routers.kufang-production-www.service: noop@internal
+      traefik.http.middlewares.kufang-production-www-to-apex.redirectregex.regex: ^https?://www\.kufang\.org/(.*)
+      traefik.http.middlewares.kufang-production-www-to-apex.redirectregex.replacement: https://kufang.org/$${1}
+      traefik.http.middlewares.kufang-production-www-to-apex.redirectregex.permanent: "true"
+      traefik.http.middlewares.kufang-production-security.headers.stsseconds: "31536000"
+      traefik.http.middlewares.kufang-production-security.headers.stsincludesubdomains: "true"
+      traefik.http.middlewares.kufang-production-security.headers.contenttypenosniff: "true"
+      traefik.http.middlewares.kufang-production-security.headers.customframeoptionsvalue: SAMEORIGIN
+      # Scope CSP to framing so Frappe Desk's scripts, styles and sockets work.
+      traefik.http.middlewares.kufang-production-security.headers.contentsecuritypolicy: "frame-ancestors 'self'"
+      traefik.http.middlewares.kufang-production-security.headers.referrerpolicy: strict-origin-when-cross-origin

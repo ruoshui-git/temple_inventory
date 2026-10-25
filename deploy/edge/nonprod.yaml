@@ -1,0 +1,12 @@
+# Non-production host only: the kufang.online apex redirects to the demo.
+services:
+  traefik:
+    labels:
+      traefik.http.routers.kufang-apex.rule: Host(`kufang.online`)
+      traefik.http.routers.kufang-apex.entrypoints: websecure
+      traefik.http.routers.kufang-apex.tls.certresolver: le
+      traefik.http.routers.kufang-apex.middlewares: kufang-apex-to-sample
+      traefik.http.routers.kufang-apex.service: noop@internal
+      traefik.http.middlewares.kufang-apex-to-sample.redirectregex.regex: ^https?://kufang\.online/(.*)
+      traefik.http.middlewares.kufang-apex-to-sample.redirectregex.replacement: https://sample.kufang.online/$${1}
+      traefik.http.middlewares.kufang-apex-to-sample.redirectregex.permanent: "false"
