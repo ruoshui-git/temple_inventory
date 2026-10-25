@@ -400,6 +400,18 @@ supersession below when a durable user-facing decision changes.
 
 ## Durable supersessions
 
+- **2026-10-25 — Product name, popup layers and menu anatomy:** The app name in
+  product chrome and breadcrumbs is `物资管理`. UI layers follow one ordered
+  token scale from sticky content through toast, with header navigation and
+  popovers above sticky browse chrome. Popup rows use a consistent optional
+  icon, left label and trailing metadata; draft navigation is a normal menu
+  link. Icon-only controls center glyphs within 0.5px.
+- **2026-10-25 — Table horizontal-scroll cues:** Overflown tables expose paired
+  left/right 80%-page hints, keep pinned columns clear, clip edge shading to
+  the rounded frame and provide a synchronized viewport-bottom scrollbar on
+  fine-pointer desktop while the native scrollbar is offscreen. Cues are hidden
+  for print and respect reduced motion.
+
 - **2026-10-24 — Dashboard clarity:** Inventory distribution omits the zero
   axis label, sorts stocked groups by item count and shows eight before a
   disclosure. Empty physical locations in the authorized scope are summarized

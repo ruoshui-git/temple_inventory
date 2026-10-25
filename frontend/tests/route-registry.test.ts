@@ -230,7 +230,7 @@ describe("canonical application route registry", () => {
       params: { code: "ITEM / 甲" },
     });
     expect(item.map(({ label }) => label)).toEqual([
-      "寺院物资",
+      "物资管理",
       "库存",
       "ITEM / 甲",
       "编辑",
@@ -249,7 +249,7 @@ describe("canonical application route registry", () => {
       params: { name: "借出 01" },
     });
     expect(loan.map(({ label }) => label)).toEqual([
-      "寺院物资",
+      "物资管理",
       "借用",
       "借出 01",
     ]);
@@ -261,7 +261,7 @@ describe("canonical application route registry", () => {
       params: { name: "春季整理" },
     });
     expect(activity.map(({ label }) => label)).toEqual([
-      "寺院物资",
+      "物资管理",
       "活动",
       "春季整理",
     ]);
@@ -274,7 +274,7 @@ describe("canonical application route registry", () => {
       params: { kind: "Receive" },
     });
     expect(createMovement.map(({ label }) => label)).toEqual([
-      "寺院物资",
+      "物资管理",
       "货物流动",
       "入库",
     ]);

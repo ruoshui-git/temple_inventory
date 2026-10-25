@@ -120,6 +120,8 @@
 .data-table-frame {
 	position: relative;
 	min-width: 0;
+	border-radius: var(--p-radius-card);
+	overflow: hidden;
 }
 .data-table-frame::before,
 .data-table-frame::after {
@@ -132,6 +134,7 @@
 	pointer-events: none;
 	transition: opacity 120ms ease;
 	z-index: 2;
+	border-radius: inherit;
 }
 .data-table-frame::before {
 	left: 1px;
@@ -142,7 +145,8 @@
 	);
 }
 .data-table-frame::after {
-	right: 1px;
+	right: calc(var(--data-table-pinned-end, 0px) + 1px);
+	width: max(0px, calc(12px - var(--data-table-pinned-end, 0px)));
 	background: linear-gradient(
 		270deg,
 		color-mix(in srgb, var(--p-ink) 18%, transparent),
@@ -155,7 +159,7 @@
 }
 .data-table-overflow-hint {
 	position: absolute;
-	top: 27px;
+	top: 50%;
 	transform: translateY(-50%);
 	z-index: 5;
 	display: grid;
@@ -176,9 +180,8 @@
 	width: 16px;
 	height: 16px;
 }
-.data-table-frame:has(.data-table-scroll.is-overflow-end) .data-table-overflow-hint {
-	display: block;
-}
+.data-table-overflow-hint-start { left: 8px; }
+.data-table-overflow-hint-end { right: calc(var(--data-table-pinned-end, 0px) + 8px); }
 .data-table-overflow-hint:hover,
 .data-table-overflow-hint:focus-visible {
 	background: var(--p-soft);

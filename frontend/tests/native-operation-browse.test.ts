@@ -1486,6 +1486,6 @@ describe("native operation browsing", () => {
       '.popup-menu-panel a[href="/drafts"]',
     )!;
     expect(drafts.textContent).toContain("草稿");
-    expect(drafts.querySelector("span")?.textContent).toBe("4");
+    expect(drafts.querySelector(".menu-item-meta")?.textContent).toBe("4");
   });
 });

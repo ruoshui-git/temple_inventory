@@ -41,10 +41,12 @@
 	--p-radius-card: 18px;
 	--p-shadow: 0 16px 48px var(--p-shadow-color);
 	--p-motion: 140ms;
-	--p-z-nav: 20;
-	--p-z-menu: 50;
-	--p-z-overlay: 60;
-	--p-z-toast: 70;
+	--p-z-sticky-content: 10;
+	--p-z-sticky: 20;
+	--p-z-nav: 30;
+	--p-z-menu: 40;
+	--p-z-overlay: 50;
+	--p-z-toast: 60;
 	--p-space-1: 4px;
 	--p-space-2: 8px;
 	--p-space-3: 12px;
@@ -139,6 +141,14 @@ textarea {
 }
 button {
 	cursor: pointer;
+}
+button.icon-only,
+.icon-button,
+.popup-menu-trigger:not(.popup-menu-trigger-labeled),
+.data-table-overflow-hint {
+	display: grid;
+	place-items: center;
+	padding: 0;
 }
 button,
 a,
@@ -625,7 +635,7 @@ strong {
 	position: sticky;
 	top: var(--app-header-height, 0px);
 	/* Keep the open disclosure above sticky content headers at tablet widths. */
-	z-index: 40;
+	z-index: var(--p-z-nav);
 	display: flex;
 	align-items: center;
 	gap: clamp(16px, 3vw, 42px);

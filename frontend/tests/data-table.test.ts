@@ -54,13 +54,17 @@ describe("table column contracts", () => {
     await nextTick();
     expect(scroll.classList.contains("is-overflow-start")).toBe(true);
     expect(scroll.classList.contains("is-overflow-end")).toBe(true);
-    const hint = wrapper.get(".data-table-overflow-hint");
+    const hint = wrapper.get(".data-table-overflow-hint-end");
     expect(hint.attributes("aria-label")).toBe("向右滚动查看更多列");
     expect(hint.attributes("title")).toBe("更多列");
     expect(hint.find("svg").exists()).toBe(true);
     expect(hint.text()).toBe("");
     await hint.trigger("click");
     expect(scrollBy).toHaveBeenCalledWith({ left: 400, behavior: "smooth" });
+    const leftHint = wrapper.get(".data-table-overflow-hint-start");
+    expect(leftHint.attributes("aria-label")).toBe("向左滚动查看更多列");
+    await leftHint.trigger("click");
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: -400, behavior: "smooth" });
     Object.defineProperty(scroll, "scrollLeft", {
       configurable: true,
       value: 400,

@@ -10,7 +10,7 @@ from temple_inventory.native_access import erpnext_installed, require_frontend_a
 from temple_inventory.native_topology import present_locations
 
 POINTERS = {
-	"root_warehouse": ("寺院仓库根目录", True),
+	"root_warehouse": ("仓库根目录", True),
 	"physical_root_warehouse": ("实体仓库根目录", True),
 	"system_root_warehouse": ("系统位置分组", True),
 	"leased_warehouse": ("借出库位", False),
@@ -132,9 +132,7 @@ def status():
 		"damaged_warehouse",
 	):
 		if field in configured and root and not _inside(configured[field], root):
-			blockers.append(
-				{"code": field + ":outside", "message": POINTERS[field][0] + "不在寺院仓库根目录下"}
-			)
+			blockers.append({"code": field + ":outside", "message": POINTERS[field][0] + "不在仓库根目录下"})
 	physical, leased = configured.get("physical_root_warehouse"), configured.get("leased_warehouse")
 	damaged = configured.get("damaged_warehouse")
 	if (
@@ -145,7 +143,7 @@ def status():
 		blockers.append({"code": "overlap", "message": "实体仓库与借出库位必须分开"})
 	system_root = configured.get("system_root_warehouse")
 	if system_root and root and system_root.parent_warehouse != root.name:
-		blockers.append({"code": "system_root_parent", "message": "系统位置分组必须位于寺院仓库根目录下"})
+		blockers.append({"code": "system_root_parent", "message": "系统位置分组必须位于仓库根目录下"})
 	if leased and system_root and leased.parent_warehouse != system_root.name:
 		blockers.append({"code": "lease_leaf", "message": "借出库位必须位于系统位置分组下"})
 	if damaged and system_root and damaged.parent_warehouse != system_root.name:
@@ -224,7 +222,7 @@ def initialize(company, version):
 			.name
 		)
 
-	root = create("寺院仓库", group=True)
+	root = create("总仓库", group=True)
 	physical = create("实体库房", root, True)
 	system_root = create("系统位置", root, True)
 	lease_leaf = create("借出", system_root)

@@ -12,7 +12,7 @@ export const themes = [
     strong: "#683A18",
     radius: "10px",
     cardRadius: "14px",
-    description: "温润、有序，延续寺院物资的熟悉感。",
+    description: "温润、有序，延续原有界面的熟悉感。",
   },
   {
     id: "blue",

@@ -33,6 +33,13 @@ def after_install():
 
 def after_migrate():
 	after_install()
+	from temple_inventory.hooks import app_title
+
+	for doctype in ("Website Settings", "System Settings"):
+		settings = frappe.get_single(doctype)
+		if settings.get("app_name") != app_title:
+			settings.app_name = app_title
+			settings.save(ignore_permissions=True)
 	logo = "/assets/temple_inventory/logo.png"
 	icon = frappe.db.exists("Desktop Icon", "物资管理")
 	doc = frappe.get_doc("Desktop Icon", icon) if icon else frappe.new_doc("Desktop Icon")

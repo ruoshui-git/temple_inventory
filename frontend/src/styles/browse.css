@@ -1884,7 +1884,7 @@
 .browse-chrome.browse-chrome {
 	position: sticky;
 	top: var(--preview-desktop-nav-height, 0px);
-	z-index: var(--p-z-menu);
+	z-index: var(--p-z-sticky);
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
@@ -1987,7 +1987,9 @@
 	color: var(--p-ink);
 }
 .browse-action-menu {
-	min-width: min(180px, 100%);
+	width: max-content;
+	min-width: min(9rem, calc(100vw - 16px));
+	max-width: min(24rem, calc(100vw - 16px));
 	padding: 4px;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
@@ -2016,6 +2018,20 @@
 .browse-action-menu > button:hover,
 .browse-action-menu > a:hover {
 	background: var(--p-soft);
+}
+.browse-action-menu > :is(button, a, .ui-button) {
+	justify-content: flex-start;
+}
+.browse-action-menu .menu-item-icon {
+	flex: 0 0 18px;
+}
+.browse-action-menu .menu-item-meta {
+	margin-inline-start: auto;
+	color: var(--p-muted);
+	font-variant-numeric: tabular-nums;
+}
+.browse-action-menu .ui-button {
+	text-align: start;
 }
 .browse-action-menu svg {
 	width: 18px;

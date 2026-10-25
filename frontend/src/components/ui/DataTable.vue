@@ -77,7 +77,8 @@ const emit = defineEmits<{
 
 const preferences = computed(() => props.columnPreferences);
 const tableScroll = ref<HTMLElement>();
-const { overflowStart, overflowEnd, pinnedEndInset, scrollMore } = useOverflowEdges(tableScroll);
+const { overflowStart, overflowEnd, pinnedStartInset, pinnedEndInset, scrollMore } =
+	useOverflowEdges(tableScroll);
 const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
@@ -364,7 +365,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		<span v-if="refreshing" class="sr-only data-table-refresh-status" role="status">
 			保留当前结果，更新完成后可用。
 		</span>
-		<div class="data-table-frame">
+		<div
+			class="data-table-frame"
+			:style="{ '--data-table-pinned-end': `${pinnedEndInset}px` }"
+		>
 			<div
 				ref="tableScroll"
 				class="data-table-scroll"
@@ -722,13 +726,24 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</table>
 			</div>
 			<button
+				v-if="overflowStart"
+				class="data-table-overflow-hint data-table-overflow-hint-start"
+				:style="{ left: `${pinnedStartInset + 8}px` }"
+				type="button"
+				aria-label="向左滚动查看更多列"
+				title="更多列"
+				@click="scrollMore(-1)"
+			>
+				<InventoryIcon name="chevron-left" />
+			</button>
+			<button
 				v-if="overflowEnd"
-				class="data-table-overflow-hint"
+				class="data-table-overflow-hint data-table-overflow-hint-end"
 				:style="{ right: `${pinnedEndInset + 8}px` }"
 				type="button"
 				aria-label="向右滚动查看更多列"
 				title="更多列"
-				@click="scrollMore"
+				@click="scrollMore(1)"
 			>
 				<InventoryIcon name="chevron-right" />
 			</button>

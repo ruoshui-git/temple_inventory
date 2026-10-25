@@ -6,6 +6,7 @@ export function useOverflowEdges(element: Ref<HTMLElement | undefined>) {
   // Distance from the scrollport's right edge to its pinned end columns, so
   // overlays such as the "more columns" hint never cover pinned headers.
   const pinnedEndInset = ref(0);
+  const pinnedStartInset = ref(0);
   let observer: ResizeObserver | undefined;
 
   function measure() {
@@ -20,6 +21,7 @@ export function useOverflowEdges(element: Ref<HTMLElement | undefined>) {
     overflowEnd.value = max > 1 && node.scrollLeft < max - 1;
     const right = node.getBoundingClientRect().right;
     let inset = 0;
+    let startInset = 0;
     for (const cell of Array.from(
       node.querySelectorAll<HTMLElement>("thead th"),
     )) {
@@ -27,9 +29,15 @@ export function useOverflowEdges(element: Ref<HTMLElement | undefined>) {
       if (style.position !== "sticky" || style.right === "auto") continue;
       inset = Math.max(inset, right - cell.getBoundingClientRect().left);
     }
+    for (const cell of Array.from(node.querySelectorAll<HTMLElement>("thead th"))) {
+      const style = getComputedStyle(cell);
+      if (style.position !== "sticky" || style.left === "auto") continue;
+      startInset = Math.max(startInset, cell.getBoundingClientRect().right - node.getBoundingClientRect().left);
+    }
     pinnedEndInset.value = Math.round(inset);
+    pinnedStartInset.value = Math.round(startInset);
   }
-  function scrollMore() {
+  function scrollMore(direction: -1 | 1) {
     const node = element.value;
     if (!node) return;
     const behavior: ScrollBehavior = window.matchMedia(
@@ -37,7 +45,7 @@ export function useOverflowEdges(element: Ref<HTMLElement | undefined>) {
     ).matches
       ? "instant"
       : "smooth";
-    node.scrollBy({ left: Math.round(node.clientWidth * 0.8), behavior });
+    node.scrollBy({ left: Math.round(node.clientWidth * 0.8) * direction, behavior });
   }
   onMounted(() => {
     measure();
@@ -54,5 +62,5 @@ export function useOverflowEdges(element: Ref<HTMLElement | undefined>) {
     observer?.disconnect();
     element.value?.removeEventListener("scroll", measure);
   });
-  return { overflowStart, overflowEnd, pinnedEndInset, measure, scrollMore };
+  return { overflowStart, overflowEnd, pinnedStartInset, pinnedEndInset, measure, scrollMore };
 }

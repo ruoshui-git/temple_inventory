@@ -754,13 +754,13 @@ select {
 .workspace-expanded .form-actions {
 	position: sticky;
 	bottom: var(--p-mobile-nav-height, 0px);
-	z-index: 8;
+		z-index: var(--p-z-sticky-content);
 	background: var(--p-surface);
 }
 .preview-document-actions {
 	position: sticky;
 	bottom: 0;
-	z-index: 8;
+		z-index: var(--p-z-sticky-content);
 	background: var(--p-surface);
 	padding-block: var(--p-space-2);
 	border-top: 1px solid var(--p-border);

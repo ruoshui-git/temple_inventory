@@ -877,7 +877,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@open-full="emit('openExport', $event)"
 						/>
 						<a v-if="family === 'movements'" class="drafts-entry-link" href="/drafts">
-							草稿 <span>{{ draftCount }}</span>
+							<InventoryIcon class="menu-item-icon" name="document" />
+							<span>草稿</span><span class="menu-item-meta">{{ draftCount }}</span>
 						</a>
 					</BrowseOverflowMenu>
 					<BrowseSplitButton
@@ -1886,22 +1887,28 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 </template>
 <style scoped>
 .drafts-entry-link {
-	display: inline-flex;
+	display: flex;
+	width: 100%;
 	align-items: center;
-	gap: 6px;
-	min-height: 36px;
+	gap: 8px;
+	min-height: var(--p-control);
 	padding: 6px 10px;
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-control);
+	border: 0;
+	border-radius: calc(var(--p-radius-control) / 2);
 	color: var(--p-ink);
 	text-decoration: none;
 }
-.drafts-entry-link span {
-	min-width: 1.5em;
+.drafts-entry-link:hover {
+	background: var(--p-soft);
+}
+.drafts-entry-link .menu-item-meta {
 	padding: 1px 5px;
 	border-radius: 999px;
 	background: var(--p-soft);
 	text-align: center;
 	font-size: var(--p-small);
+}
+.drafts-entry-link .menu-item-meta {
+	margin-inline-start: auto;
 }
 </style>

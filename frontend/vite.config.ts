@@ -54,7 +54,7 @@ export default defineConfig({
         id: "/",
         name: "物资管理",
         short_name: "物资管理",
-        description: "寺院物资管理",
+        description: "物资管理",
         lang: "zh-CN",
         start_url: "/",
         scope: "/",

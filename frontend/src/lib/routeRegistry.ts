@@ -70,7 +70,7 @@ export interface AppRouteDefinition {
   breadcrumbs: readonly BreadcrumbDefinition[];
 }
 
-const root = { label: "寺院物资", to: { name: "home" } as AppRouteTarget };
+const root = { label: "物资管理", to: { name: "home" } as AppRouteTarget };
 const inventory = { label: "库存", to: { name: "stock" } as AppRouteTarget };
 const movements = {
   label: "货物流动",
@@ -637,7 +637,7 @@ export function breadcrumbsForRoute(route: {
   const entry = routeRegistry.find(
     (candidate) => candidate.name === route.name,
   );
-  if (!entry) return [{ label: "寺院物资" }, { label: "页面不存在" }];
+  if (!entry) return [{ label: "物资管理" }, { label: "页面不存在" }];
   return entry.breadcrumbs.map((crumb, index) => {
     const paramValue = String(route.params[crumb.param || ""] ?? "");
     return {

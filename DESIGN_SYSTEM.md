@@ -108,6 +108,18 @@ kept in Git.
 - Menu items support ArrowUp/ArrowDown and Home/End; opening by keyboard puts
   focus on the first item. Respect reduced motion and keep coarse-pointer targets
   at least 44px high.
+- Use the shared layer scale: sticky table content `--p-z-sticky-content` (10),
+  sticky page chrome `--p-z-sticky` (20), app navigation `--p-z-nav` (30),
+  menus and popovers `--p-z-menu` (40), overlays/sheets `--p-z-overlay` (50),
+  and toasts `--p-z-toast` (60). Header navigation and its popovers stay above
+  sticky page chrome; popovers opened by chrome or forms stay above the FAB.
+- Popup menu rows use a compact anatomy: optional 18px leading icon, left
+  aligned label and optional trailing metadata. When a panel uses icons, every
+  row has one. Rows share hover, focus and danger states without dividers; panel
+  width follows content within viewport bounds. Draft navigation remains a
+  link rendered with the same row anatomy.
+- Icon-only buttons have zero inline padding and grid centering. Their glyph
+  center must align with the control center within 0.5px.
 
 ## Density, tables and scrollbars
 
@@ -303,12 +315,13 @@ kept in Git.
   Quantity summaries show the two largest values and then `+N 项`; the cell
   title and accessible name retain the complete breakdown. Cap wide quantity
   columns at 16rem and allow their contents to wrap.
-- Horizontally overflowing `DataTable` and `ReportTable` surfaces measure their
-  scroll edges and expose `is-overflow-start` / `is-overflow-end`. Soft inset
-  shadows mark the edges without covering pinned columns. While more columns
-  remain, a `更多列 →` header pill scrolls by about 80% of the viewport width;
-  it is hidden in print and follows reduced-motion preferences. Vertical wheel
-  input continues to scroll the page.
+- Horizontally overflowing tables measure both edges and expose paired 80%-page
+  scroll hints with accessible left/right names. Keep hints clear of pinned
+  columns and track the visible table area. Edge shades are clipped to the
+  rounded frame and stop before pinned end columns. On fine-pointer desktop, a
+  viewport-bottom proxy scrollbar appears only while the table's native bar is
+  below the viewport; it stays synchronized with the table. Hide cues in print
+  and honor reduced motion. Vertical wheel input continues to scroll the page.
 - `QuantitySummary` uses text-relative minimum tracks and keeps units/statuses
   separate. History links and metadata wrap or scroll inside their own surface.
 - Fixed bounds are reserved for overlays, internal scrolling, artwork/icons,
