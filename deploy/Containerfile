@@ -39,9 +39,14 @@ RUN if [ -x env/bin/pip ]; then \
 	&& pnpm install --frozen-lockfile \
 	&& cd /home/frappe/frappe-bench \
 	&& bench build --production \
-	&& rm -rf apps/temple_inventory/frontend/node_modules apps/temple_inventory/node_modules \
+	&& find apps -type d -name node_modules -prune \
+		! -path apps/frappe/node_modules \
+		! -path 'apps/frappe/node_modules/*' \
+		-exec rm -rf {} + \
+	&& rm -rf /home/frappe/.cache /home/frappe/.npm /home/frappe/.local/share/pnpm/store \
 	&& echo "{}" > sites/common_site_config.json \
-	&& find apps -mindepth 1 -path "*/.git" -prune -exec rm -rf {} +
+	&& find apps -mindepth 1 -path "*/.git" -prune -exec rm -rf {} + \
+	&& chmod -R g=u /home/frappe/frappe-bench
 
 FROM ${FRAPPE_IMAGE_PREFIX}/base:${FRAPPE_VERSION} AS backend
 ARG FRAPPE_VERSION
@@ -53,7 +58,9 @@ LABEL org.opencontainers.image.source="https://github.com/ruoshui-git/temple_inv
 	org.kufang.erpnext-version="${ERPNEXT_VERSION}"
 USER frappe
 COPY --from=builder --chown=frappe:0 /home/frappe/frappe-bench /home/frappe/frappe-bench
-RUN chmod -R g=u /home/frappe/frappe-bench
+# The builder already applied g=u to the contents; COPY recreates the bench
+# directory itself, so restore its mode alone (no recursive duplicate layer).
+RUN chmod g=u /home/frappe/frappe-bench
 WORKDIR /home/frappe/frappe-bench
 
 # Assets live in the image layer; the entrypoint links them into the sites volume.
