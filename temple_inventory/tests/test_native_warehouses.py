@@ -160,6 +160,19 @@ class NativeWarehouseTests(NativeDocumentTests):
 		self.assertFalse(row["storable"])
 		self.assertEqual(row["kind"], "room")
 
+	def test_location_search_text_includes_ancestor_local_and_short_labels(self):
+		short_label = "T2 " + self.token
+		area = self._create("Area", "第2寺院 " + self.token, self.physical, short_label)
+		room = self._create("Room", "Search room " + self.token, area)
+		leaf = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		presented = {
+			row["name"]: row
+			for row in native_topology.present_locations(native_topology._visible_warehouses())
+		}
+		search_text = presented[leaf]["search_text"]
+		self.assertIn("第2寺院 " + self.token, search_text)
+		self.assertIn(short_label, search_text)
+
 
 def run():
 	suite = unittest.defaultTestLoader.loadTestsFromTestCase(NativeWarehouseTests)

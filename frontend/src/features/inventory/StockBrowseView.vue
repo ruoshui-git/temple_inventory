@@ -73,7 +73,6 @@ const {
 	analysis,
 	status,
 	load,
-	clear,
 	reset,
 	openItem,
 	expiryStatus,
@@ -308,8 +307,8 @@ watch([() => props.active, isMobile], () => {
 					@edit="editFilter(chip.field)"
 					@remove="chip.remove()"
 				/>
-				<UiButton v-if="appliedChips.length || search" variant="ghost" @click="clear"
-					>清空筛选</UiButton
+				<UiButton v-if="appliedChips.length" variant="ghost" @click="controller.reset"
+					>清除全部</UiButton
 				>
 			</template>
 			<template #filters>

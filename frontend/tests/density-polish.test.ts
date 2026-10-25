@@ -79,8 +79,13 @@ it("merges result count with a short multi-unit preview and discloses full quant
   expect(wrapper.get(".browse-result-summary-label").text()).toContain(
     "163 种物品",
   );
-  expect(wrapper.get("summary").text()).toContain("入库 12.5 Kg");
-  expect(wrapper.get("summary").text()).toContain("+1 单位");
+  expect(wrapper.get(".browse-result-summary-trigger").text()).toContain(
+    "入库 12.5 Kg",
+  );
+  expect(wrapper.get(".browse-result-summary-trigger").text()).toContain(
+    "+1 单位",
+  );
+  await wrapper.get(".browse-result-summary-trigger").trigger("click");
   expect(wrapper.get(".quantity-summary").text()).toContain("31 Nos");
 });
 

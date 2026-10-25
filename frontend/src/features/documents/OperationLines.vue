@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
 import AllocationDetails from "./AllocationDetails.vue";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
@@ -181,6 +181,7 @@ const scanDestinationOptions = computed<ItemScanOption[]>(() => {
 		label: warehouseLabel(name, reference.warehouses),
 		title: warehousePath(name, reference.warehouses),
 		detail: warehousePath(name, reference.warehouses),
+		keywords: warehouseSearchText(name, reference.warehouses),
 	}));
 });
 const activeScanWarehouse = computed(() =>
@@ -456,6 +457,7 @@ function scanResolutionFor(
 			label: warehouseLabel(source, reference.warehouses),
 			available,
 			detail: `${warehousePath(source, reference.warehouses)} · 可用 ${available} ${item.uom}`,
+			keywords: warehouseSearchText(source, reference.warehouses),
 		};
 	});
 	const batchOptions = selectedPairs.map((row) => ({
@@ -515,6 +517,7 @@ function scanResolutionFor(
 						label: warehouseLabel(name, reference.warehouses),
 						title: warehousePath(name, reference.warehouses),
 						detail: warehousePath(name, reference.warehouses),
+						keywords: warehouseSearchText(name, reference.warehouses),
 					})),
 					defaultSource,
 					defaultBatch: receiving ? scannedBatch || "" : defaultBatch,
@@ -1052,6 +1055,7 @@ function changeBatch(line: AllocationLine) {
 							label: warehouseLabel(name, reference.warehouses),
 							title: warehousePath(name, reference.warehouses),
 							detail: warehousePath(name, reference.warehouses),
+							keywords: warehouseSearchText(name, reference.warehouses),
 						}))
 					"
 				/>
@@ -1110,6 +1114,7 @@ function changeBatch(line: AllocationLine) {
 							value: name,
 							label: warehouseLabel(name, reference.warehouses),
 							detail: warehousePath(name, reference.warehouses),
+							keywords: warehouseSearchText(name, reference.warehouses),
 						}))
 					"
 				/>
@@ -1242,6 +1247,10 @@ function changeBatch(line: AllocationLine) {
 											warehouseLabel(row.location, reference.warehouses),
 										title: warehousePath(row.location, reference.warehouses),
 										detail: `${warehousePath(row.location, reference.warehouses)} · 可用 ${row.available} · 损坏 ${row.damaged}`,
+										keywords: warehouseSearchText(
+											row.location,
+											reference.warehouses,
+										),
 									})) || []
 								"
 								:invalid="
@@ -1281,6 +1290,10 @@ function changeBatch(line: AllocationLine) {
 											label: warehouseLabel(name, reference.warehouses),
 											title: warehousePath(name, reference.warehouses),
 											detail: warehousePath(name, reference.warehouses),
+											keywords: warehouseSearchText(
+												name,
+												reference.warehouses,
+											),
 										}))
 								"
 								:invalid="

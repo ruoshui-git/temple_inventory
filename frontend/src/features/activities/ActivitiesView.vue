@@ -104,9 +104,18 @@ const {
 	movement,
 	removeSecondary,
 	clearRelated,
+	resetRelated,
 	chip,
 	more,
 } = props.controller;
+function resetActivityFilters() {
+	clear();
+	state.search = "";
+	state.period = { key: "all", from: "", to: "" };
+	state.sort = "updated";
+	state.sortDirection = "desc";
+	report.value.groupBy = [];
+}
 const isRelatedTabSelected = (value: "records" | "loans") => tab.value === value;
 const page = computed(() => `activity-${props.mode}`);
 const variant = computed(() => props.name || "new");
@@ -353,6 +362,16 @@ function tabKey(event: KeyboardEvent) {
 					@edit="editFilter()"
 					@remove="removeSecondary(chip.key)"
 				/>
+				<UiButton
+					v-if="
+						(mode === 'list' && report.groupBy.length) ||
+						inheritedChips.length ||
+						secondaryChips.length
+					"
+					variant="ghost"
+					@click="resetActivityFilters"
+					>清除全部</UiButton
+				>
 			</template>
 		</BrowseToolbar>
 		<ActivityEditor
@@ -727,6 +746,18 @@ function tabKey(event: KeyboardEvent) {
 							@edit="editFilter(chip.field)"
 							@remove="chip.remove()"
 						/>
+						<UiButton
+							v-if="
+								recordSearch ||
+								recordPeriod.key !== 'all' ||
+								recordKinds.length ||
+								inheritedChips.length ||
+								relatedLoan
+							"
+							variant="ghost"
+							@click="resetRelated"
+							>清除全部</UiButton
+						>
 					</template>
 				</BrowseToolbar>
 				<DataTable

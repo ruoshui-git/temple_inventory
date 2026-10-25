@@ -240,6 +240,12 @@ export function useNativeRecords(
     clearReportSecondaryFilters(query.value, reference);
     query.value.scope = newReportQuery(query.value.dataset).scope;
   }
+  function reset() {
+    const dataset = props.mode === "counts" ? "counts" : "movements";
+    query.value = newReportQuery(dataset);
+    query.value.view = "records";
+    routeError.value = "";
+  }
   function canDelete(row: NativeRecord) {
     return active() && !loading.value && !stale.value && row.docstatus === 0;
   }
@@ -309,6 +315,7 @@ export function useNativeRecords(
     snapshot,
     extraChips,
     clear,
+    reset,
     load,
     retry: () => load(retryMore, true),
     deleteTarget,

@@ -195,18 +195,22 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		full_label = str(row.get("ti_label") or row.get("warehouse_name") or row.name)
 		if is_direct and owner_name in rows:
 			full_label = str(rows[owner_name].get("ti_label") or rows[owner_name].warehouse_name)
-		search_text = " ".join(
-			filter(
-				None,
-				[
-					" / ".join(path),
-					full_label,
-					str(row.warehouse_name or ""),
-					str(row.get("ti_short_label") or ""),
-					str(row.get("ti_label") or ""),
-				],
+		ancestor_terms = []
+		ancestor = rows.get(row.parent_warehouse)
+		while ancestor:
+			ancestor_terms.extend(
+				filter(None, (str(ancestor.get("ti_label") or ""), str(ancestor.get("ti_short_label") or "")))
 			)
-		)
+			ancestor = rows.get(ancestor.parent_warehouse)
+		search_terms = [
+			" / ".join(path),
+			full_label,
+			str(row.warehouse_name or ""),
+			str(row.get("ti_short_label") or ""),
+			str(row.get("ti_label") or ""),
+			*ancestor_terms,
+		]
+		search_text = " ".join(dict.fromkeys(filter(None, search_terms)))
 		storable = bool(is_direct or (not cint(row.is_group) and not is_direct) or direct)
 		if missing_direct:
 			storable = False

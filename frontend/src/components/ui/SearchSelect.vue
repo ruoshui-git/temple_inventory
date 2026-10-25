@@ -8,6 +8,7 @@ export type SearchOption = {
 	value: string;
 	label: string;
 	detail?: string;
+	keywords?: string;
 	title?: string;
 	disabled?: boolean;
 };
@@ -48,6 +49,18 @@ function setInput(element: unknown) {
 function close() {
 	open.value = false;
 	query.value = "";
+}
+function preserveInputFocus(event: MouseEvent) {
+	const menu = popup.value;
+	const scrollbarWidth = menu ? menu.offsetWidth - menu.clientWidth : 0;
+	if (
+		menu &&
+		event.target === menu &&
+		scrollbarWidth > 0 &&
+		event.clientX >= menu.getBoundingClientRect().right - scrollbarWidth
+	)
+		return;
+	event.preventDefault();
 }
 function outside(event: PointerEvent) {
 	if (
@@ -95,7 +108,7 @@ const matches = computed(() =>
 	props.remote
 		? options.value
 		: options.value.filter((o) =>
-				`${o.label} ${o.value} ${o.detail || ""}`
+				`${o.label} ${o.value} ${o.detail || ""} ${o.keywords || ""}`
 					.toLocaleLowerCase()
 					.includes(query.value.trim().toLocaleLowerCase()),
 			),
@@ -176,6 +189,7 @@ defineExpose({ state });
 		@focusout="
 			(event) => {
 				if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) {
+					if (popup?.contains(event.relatedTarget as Node)) return;
 					open = false;
 					query = '';
 				}
@@ -226,6 +240,7 @@ defineExpose({ state });
 				class="search-select-menu"
 				:class="{ 'has-virtual-list': virtual }"
 				:style="popupStyle"
+				@mousedown="preserveInputFocus"
 			>
 				<p v-if="modelValue" class="muted">已选：{{ selected }}</p>
 				<p v-if="state === 'loading'" role="status">正在查找…</p>

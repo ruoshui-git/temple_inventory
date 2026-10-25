@@ -129,6 +129,14 @@ export function usePendingController(
     query.value.damageOnly = true;
     query.value.includeZero = false;
   }
+  function reset() {
+    const value = newReportQuery("inventory");
+    value.view = "locations";
+    value.damageOnly = true;
+    value.includeZero = false;
+    query.value = value;
+    routeError.value = "";
+  }
   function canAct(kind: "Repair" | "Disposal", row: ReportRow) {
     return (
       valid.value &&
@@ -167,6 +175,7 @@ export function usePendingController(
     metrics,
     removeScope,
     clear,
+    reset,
     canAct,
     allocation,
     rowQuery,

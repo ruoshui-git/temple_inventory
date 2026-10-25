@@ -35,6 +35,7 @@ export function useFloatingScrollbar(
   let observedNode: HTMLElement | undefined;
   let frame = 0;
   let syncing = false;
+  let lastProxyWrite: number | undefined;
 
   function measure() {
     if (frame) return;
@@ -75,7 +76,8 @@ export function useFloatingScrollbar(
           : 0;
       if (proxyElement.value && !syncing) {
         syncing = true;
-        proxyElement.value.scrollLeft = node.scrollLeft;
+        lastProxyWrite = node.scrollLeft;
+        proxyElement.value.scrollLeft = lastProxyWrite;
         syncing = false;
       }
       visible.value = shouldShowFloatingScrollbar(
@@ -91,6 +93,14 @@ export function useFloatingScrollbar(
     const node = element.value;
     const proxy = event.currentTarget as HTMLElement;
     if (!node || syncing) return;
+    if (
+      lastProxyWrite !== undefined &&
+      Math.abs(proxy.scrollLeft - lastProxyWrite) <= 1
+    ) {
+      lastProxyWrite = undefined;
+      return;
+    }
+    lastProxyWrite = undefined;
     syncing = true;
     node.scrollLeft = proxy.scrollLeft;
     syncing = false;
@@ -125,7 +135,10 @@ export function useFloatingScrollbar(
   });
   watch(proxyElement, (proxy) => {
     const node = element.value;
-    if (node && proxy) proxy.scrollLeft = node.scrollLeft;
+    if (node && proxy) {
+      lastProxyWrite = node.scrollLeft;
+      proxy.scrollLeft = lastProxyWrite;
+    }
   });
 
   onMounted(() => {

@@ -132,6 +132,12 @@ watch([() => props.active, isMobile], () => {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
+				<UiButton
+					v-if="query.groupBy.length || scopeChips.length || chips.length"
+					variant="ghost"
+					@click="c.reset"
+					>清除全部</UiButton
+				>
 			</template>
 		</BrowseToolbar>
 		<SkeletonBlock

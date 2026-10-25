@@ -28,6 +28,7 @@ export type ItemScanOption = {
 	value: string;
 	label: string;
 	detail?: string;
+	keywords?: string;
 	available?: number;
 };
 export type ItemScanResolution = {

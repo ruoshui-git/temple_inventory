@@ -71,7 +71,16 @@ const warehouseOptions = computed(() => {
 		const direct = reference.warehouses.find(
 			(row) => row.direct && row.owner === group.name && row.storable,
 		);
-		return direct ? [{ value: direct.name, label: direct.label, detail: direct.path }] : [];
+		return direct
+			? [
+					{
+						value: direct.name,
+						label: direct.label,
+						detail: direct.path,
+						keywords: direct.search_text,
+					},
+				]
+			: [];
 	}
 	const byName = new Map(reference.warehouses.map((row) => [row.name, row]));
 	const contains = (name: string) => {
@@ -86,7 +95,12 @@ const warehouseOptions = computed(() => {
 	};
 	return reference.warehouses
 		.filter((row) => !row.is_group && row.storable && contains(row.name))
-		.map((row) => ({ value: row.name, label: row.label, detail: row.path }));
+		.map((row) => ({
+			value: row.name,
+			label: row.label,
+			detail: row.path,
+			keywords: row.search_text,
+		}));
 });
 
 function closeScan() {

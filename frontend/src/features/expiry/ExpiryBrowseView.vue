@@ -6,7 +6,7 @@ import { formatExpiryDuration } from "../../lib/expiryDuration";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
 import type { ExpiryBrowse } from "./useExpiryBrowse";
-import { newReportQuery, type ReportQuery, type ReportRow } from "../../lib/reportContract";
+import { type ReportQuery, type ReportRow } from "../../lib/reportContract";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
@@ -47,7 +47,7 @@ const c = props.controller,
 	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis } = c;
 const { isMobile } = useResponsiveLayout();
 function clearExpiryFilters() {
-	Object.assign(query.value, newReportQuery("expiry"), { sortBy: "expiry_date" });
+	c.reset();
 }
 const {
 	open: filterOpen,
@@ -356,6 +356,12 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
+				<UiButton
+					v-if="query.groupBy.length || c.scopeChips.value.length || chips.length"
+					variant="ghost"
+					@click="c.reset"
+					>清除全部</UiButton
+				>
 			</template>
 		</BrowseToolbar>
 		<ScanPanel

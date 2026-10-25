@@ -137,6 +137,12 @@ const kindFilter = ref("");
 const typeFilter = ref("all");
 const draftSort = ref("recent");
 const draftSearch = ref("");
+function resetDraftFilters(includeSearch = false) {
+	kindFilter.value = "";
+	typeFilter.value = "all";
+	draftSort.value = "recent";
+	if (includeSearch) draftSearch.value = "";
+}
 function localSummary(entry: RecoverySnapshot) {
 	const values = entry.values as Record<string, unknown>;
 	if (entry.editorKind === "Stock Entry") {
@@ -350,14 +356,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							</select></label
 						>
 					</div>
-					<UiButton
-						@click="
-							kindFilter = '';
-							typeFilter = 'all';
-							draftSort = 'recent';
-							draftSearch = '';
-						"
-						class="browse-filter-clear"
+					<UiButton @click="resetDraftFilters()" class="browse-filter-clear"
 						>清空筛选</UiButton
 					>
 				</div>
@@ -388,6 +387,14 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					@edit="editFilter()"
 					@remove="draftSearch = ''"
 				/>
+				<UiButton
+					v-if="
+						draftSearch || kindFilter || typeFilter !== 'all' || draftSort !== 'recent'
+					"
+					variant="ghost"
+					@click="resetDraftFilters(true)"
+					>清除全部</UiButton
+				>
 			</template>
 		</BrowseToolbar>
 		<BrowseToolbar
@@ -512,6 +519,12 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
+				<UiButton
+					v-if="query.groupBy.length || scopeChips.length || extraChips.length"
+					variant="ghost"
+					@click="c.reset"
+					>清除全部</UiButton
+				>
 			</template>
 			<span v-if="initialized" class="browse-result-count">{{ total }} 份记录</span>
 		</BrowseToolbar>

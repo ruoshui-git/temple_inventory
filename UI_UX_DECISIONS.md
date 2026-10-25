@@ -16,6 +16,15 @@ supersession below when a durable user-facing decision changes.
   high-contrast badge; environment theme colours are sample amber `#8a4b08`,
   staging violet `#593d8c` and development blue `#245b9e`.
 
+## Supersession — 2026-10-25: clear-button scope
+
+- A clear button acts on the controls where it appears. A toolbar or applied-chip
+  row button is labeled `清除全部`, appears when a filter chip is active,
+  and resets both search and filters. Search text alone shows only the search
+  field's × control, so the two never duplicate; where search itself is shown as a
+  chip, that chip counts. A filter-panel `清空筛选` clears only the
+  panel's fields and preserves search. The search field keeps its own × control.
+
 ## Language and identity
 
 - Product chrome and operation/status/outcome/document-type values are Chinese.
@@ -144,7 +153,9 @@ supersession below when a durable user-facing decision changes.
   expanded descendants do not add to parent counts. Group pages retain their
   matched count; nested group and history controls report their own totals.
 - Browse summaries show a compact result count first. Full per-unit and
-  per-status analysis is disclosed on demand. Keep units/statuses separate.
+  per-status analysis is disclosed on demand in a full-width panel below the
+  summary line. Controls remain beside the compact summary. Keep units/statuses
+  separate.
   Empty table values stay empty; zero, false, external endpoints, invalid expiry
   and unavailable/error states keep explicit meanings.
 - Sortable table headers are the only sort control while a table is visible.

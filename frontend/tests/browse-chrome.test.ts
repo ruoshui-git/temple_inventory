@@ -259,10 +259,17 @@ it("keeps sort and view actions on the results summary line", async () => {
     slots: { controls: "<button>排序</button><button>列表</button>" },
   });
   wrappers.push(wrapper);
-  expect(wrapper.get(".browse-summary-line").findAll("button")).toHaveLength(2);
+  expect(
+    wrapper.get(".browse-summary-controls").findAll("button"),
+  ).toHaveLength(2);
+  await wrapper.get(".browse-result-summary-trigger").trigger("click");
+  expect(
+    wrapper.get(".browse-summary-controls").findAll("button"),
+  ).toHaveLength(2);
+  expect(wrapper.get(".browse-result-summary-panel").exists()).toBe(true);
 });
 
-it("keeps full quantity labels and a one-quantity mobile preview with disclosure", () => {
+it("keeps full quantity labels and a one-quantity mobile preview with disclosure", async () => {
   const wrapper = mount(BrowseResultSummary, {
     props: {
       label: "599 种物品",
@@ -277,27 +284,41 @@ it("keeps full quantity labels and a one-quantity mobile preview with disclosure
         },
       ],
     },
+    slots: { controls: "<button>分析结果</button>" },
   });
   wrappers.push(wrapper);
-  const summary = wrapper.get(".browse-result-summary > summary");
-  expect(summary.attributes("aria-label")).toContain("599 种物品");
-  expect(summary.text()).toContain("入库 8,643.5 Kg");
+  const disclosure = wrapper.get(".browse-result-summary-trigger");
+  expect(disclosure.attributes("aria-label")).toContain("599 种物品");
+  expect(disclosure.text()).toContain("入库 8,643.5 Kg");
   expect(wrapper.get(".browse-summary-line").text()).toContain("599 种物品");
-  expect(summary.findAll(".browse-result-summary-mobile-item")).toHaveLength(2);
-  expect(summary.find(".browse-result-summary-mobile-item").text()).toContain(
-    "入库",
+  expect(disclosure.findAll(".browse-result-summary-mobile-item")).toHaveLength(
+    2,
   );
   expect(
-    summary.find(".browse-result-summary-mobile-item").text(),
+    disclosure.find(".browse-result-summary-mobile-item").text(),
+  ).toContain("入库");
+  expect(
+    disclosure.find(".browse-result-summary-mobile-item").text(),
   ).not.toContain("+1 单位");
   expect(
-    summary
+    disclosure
       .find(
         ".browse-result-summary-mobile-item + .browse-result-summary-mobile-item",
       )
       .text(),
   ).toBe("+1 单位▸");
+  expect(wrapper.get(".quantity-summary").isVisible()).toBe(false);
+  await disclosure.trigger("click");
+  expect(disclosure.attributes("aria-expanded")).toBe("true");
   expect(wrapper.get(".quantity-summary").exists()).toBe(true);
+  expect(
+    wrapper.get(".browse-result-summary-panel").element.parentElement,
+  ).toBe(wrapper.get(".browse-result-summary").element);
+  expect(
+    wrapper
+      .get(".browse-summary-line")
+      .element.contains(wrapper.get(".browse-summary-controls").element),
+  ).toBe(true);
 });
 
 it("exposes every movement filter in the shared panel content", async () => {

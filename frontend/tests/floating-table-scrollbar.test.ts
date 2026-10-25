@@ -88,6 +88,98 @@ describe("floating table scrollbar", () => {
     wrapper.unmount();
   });
 
+  it("ignores a delayed proxy event after a programmatic table scroll", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    const tableRef = ref<HTMLElement>();
+    const proxyRef = ref<HTMLElement>();
+    let state: ReturnType<typeof useFloatingScrollbar>;
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          state = useFloatingScrollbar(tableRef, proxyRef);
+          return () => h("div", { ref: tableRef });
+        },
+      }),
+    );
+    const table = tableRef.value!;
+    Object.defineProperties(table, {
+      scrollWidth: { configurable: true, value: 1200 },
+      clientWidth: { configurable: true, value: 500 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+      getBoundingClientRect: { configurable: true, value: () => rect(700) },
+    });
+    const proxy = document.createElement("div");
+    Object.defineProperty(proxy, "scrollLeft", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    proxyRef.value = proxy;
+    proxy.addEventListener("scroll", state!.fromProxy);
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+
+    table.scrollLeft = 240;
+    table.dispatchEvent(new Event("scroll"));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    expect(proxy.scrollLeft).toBe(240);
+
+    await new Promise<void>((resolve) =>
+      setTimeout(() => {
+        proxy.dispatchEvent(new Event("scroll"));
+        resolve();
+      }, 0),
+    );
+    expect(table.scrollLeft).toBe(240);
+    wrapper.unmount();
+  });
+
+  it("accepts a user proxy scroll that differs from the last synchronized value", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    const tableRef = ref<HTMLElement>();
+    const proxyRef = ref<HTMLElement>();
+    let state: ReturnType<typeof useFloatingScrollbar>;
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          state = useFloatingScrollbar(tableRef, proxyRef);
+          return () => h("div", { ref: tableRef });
+        },
+      }),
+    );
+    const table = tableRef.value!;
+    Object.defineProperties(table, {
+      scrollWidth: { configurable: true, value: 1200 },
+      clientWidth: { configurable: true, value: 500 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+      getBoundingClientRect: { configurable: true, value: () => rect(700) },
+    });
+    const proxy = document.createElement("div");
+    Object.defineProperty(proxy, "scrollLeft", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    proxyRef.value = proxy;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+
+    proxy.scrollLeft = 360;
+    state!.fromProxy({ currentTarget: proxy } as unknown as Event);
+    expect(table.scrollLeft).toBe(360);
+    wrapper.unmount();
+  });
+
   it("hides for a visible native bar, offscreen tables, and tables behind stuck chrome", () => {
     expect(
       shouldShowFloatingScrollbar({ top: 300, bottom: 900 }, 900, 80, true),

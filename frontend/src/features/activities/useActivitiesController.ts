@@ -357,14 +357,18 @@ export function useActivitiesController(
     scopeError.value = "";
     state.status = "active";
     state.typeId = "";
+    state.period = { key: "all", from: "", to: "" };
   }
   function clearRelated() {
-    recordSearch.value = "";
     recordKinds.value = [];
     recordPeriod.value = { key: "all", from: "", to: "" };
     relatedLoan.value = "";
     inherited.value = newReportQuery("activities");
     scopeError.value = "";
+  }
+  function resetRelated() {
+    clearRelated();
+    recordSearch.value = "";
   }
   const inheritedChips = computed(() => [
     ...scopeFilterFieldChips(report.value.scope, reference)
@@ -478,6 +482,7 @@ export function useActivitiesController(
     remove,
     clear,
     clearRelated,
+    resetRelated,
     resetScope: () => {
       inherited.value = newReportQuery("activities");
       Object.assign(state, {

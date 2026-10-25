@@ -187,7 +187,12 @@ export function useNativeWarehouses(
             (row.name !== editing.value.name && !inside(row, editing.value)))
         );
       })
-      .map((row) => ({ value: row.name, label: row.label, detail: row.path }));
+      .map((row) => ({
+        value: row.name,
+        label: row.label,
+        detail: row.path,
+        keywords: row.search_text,
+      }));
   });
   const visibleRows = computed(() => {
     const rows = tree.value?.rows || [],

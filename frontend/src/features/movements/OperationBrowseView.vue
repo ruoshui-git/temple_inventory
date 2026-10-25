@@ -955,6 +955,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						@edit="editFilter(chip.field)"
 						@remove="Object.assign(query, chip.reset)"
 					/>
+					<UiButton
+						v-if="query.groupBy.length || scopeChips.length || extraChips.length"
+						variant="ghost"
+						@click="c.reset"
+						>清除全部</UiButton
+					>
 				</template>
 				<p v-if="routeError" role="alert">{{ routeError }}</p>
 			</BrowseToolbar>

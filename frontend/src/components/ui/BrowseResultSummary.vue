@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, useId } from "vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 import QuantitySummary, { type QuantityMetric } from "./QuantitySummary.vue";
 const props = defineProps<{
@@ -7,6 +7,8 @@ const props = defineProps<{
 	metrics: QuantityMetric[];
 	loading?: boolean;
 }>();
+const expanded = ref(false);
+const panelId = `browse-quantity-summary-${useId()}`;
 const entries = computed(() =>
 	props.metrics.flatMap((metric) =>
 		metric.quantities.map(
@@ -26,11 +28,18 @@ const accessibleSummary = computed(() => `${props.label}，${entries.value.join(
 </script>
 
 <template>
-	<div class="browse-summary-line">
-		<div class="browse-summary-copy">
-			<strong class="browse-result-summary-label">{{ label }}</strong>
-			<details class="browse-result-summary">
-				<summary :aria-label="accessibleSummary">
+	<div class="browse-result-summary">
+		<div class="browse-summary-line">
+			<div class="browse-summary-copy">
+				<strong class="browse-result-summary-label">{{ label }}</strong>
+				<button
+					class="browse-result-summary-trigger"
+					type="button"
+					:aria-label="accessibleSummary"
+					:aria-expanded="expanded"
+					:aria-controls="panelId"
+					@click="expanded = !expanded"
+				>
 					<span
 						v-for="(entry, index) in preview"
 						:key="entry"
@@ -60,10 +69,14 @@ const accessibleSummary = computed(() => `${props.label}，${entries.value.join(
 						>
 					</span>
 					<span class="browse-result-summary-disclosure" aria-hidden="true">▸</span>
-				</summary>
-				<QuantitySummary :metrics="metrics" :loading="loading" />
-			</details>
+				</button>
+			</div>
+			<div v-if="$slots.controls" class="browse-summary-controls">
+				<slot name="controls" />
+			</div>
 		</div>
-		<div v-if="$slots.controls" class="browse-summary-controls"><slot name="controls" /></div>
+		<div v-show="expanded" :id="panelId" class="browse-result-summary-panel">
+			<QuantitySummary :metrics="metrics" :loading="loading" />
+		</div>
 	</div>
 </template>

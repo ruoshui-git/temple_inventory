@@ -316,6 +316,12 @@ export function useExpiryBrowse(
     Object.assign(query.value, newReportQuery("expiry"), routeScope);
     scope.value = newReportQuery("expiry").scope;
   }
+  function reset() {
+    const value = defaults();
+    query.value = value;
+    scope.value = value.scope;
+    routeError.value = "";
+  }
   function item(row: ReportRow): StockItem {
     return {
       code: String(row.item_code),
@@ -369,6 +375,7 @@ export function useExpiryBrowse(
     retry: () => load(retryMore, true),
     moreAnalysis,
     clearSecondary,
+    reset,
     item,
     batchQuery,
   };

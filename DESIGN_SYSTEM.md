@@ -47,8 +47,10 @@ kept in Git.
   viewport-width bottom sheet with safe-area padding.
 - Results summary lines wrap to at most two compact rows at phone widths. Sort,
   Stock card/list and analysis controls sit alongside the count and quantity
-  preview. Stock's desktop summary carries card/list and analysis controls so
-  they do not create a second browse-header row.
+  preview. The quantity disclosure expands a full-width panel below the summary
+  line, keeping controls in place on desktop and phones. Stock's desktop summary
+  carries card/list and analysis controls so they do not create a second
+  browse-header row.
 - The Stock subpage nav uses a full-width underline strip with a 3px accent
   underline, strong active ink and horizontal scrolling when enlarged text no
   longer fits. It scrolls away rather than increasing the sticky stack.
@@ -217,8 +219,8 @@ kept in Git.
   actions use the `⋯` overflow menu. Icon-only controls have an accessible name
   and a visible tooltip.
 - The count and quantity preview share one line above results. Show up to two
-  unit values inline; represent more as `+N 单位` and put the complete shared
-  `QuantitySummary` inside the disclosure.
+  unit values inline; represent more as `+N 单位`. A disclosure button opens
+  the complete shared `QuantitySummary` in a full-width panel below that line.
 - The browse header sticks below the measured app bar. Show its hairline/shadow
   only while stuck. Table headings stick inside the table's own scrollport.
 - A visible hierarchy sidebar is one flat panel aligned with the result top.
