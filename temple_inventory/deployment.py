@@ -35,11 +35,11 @@ def after_migrate():
 	after_install()
 	from temple_inventory.hooks import app_title
 
+	# Set only app_name: saving the whole System Settings doc would revalidate
+	# unrelated mandatory fields that a site may legitimately leave unset.
 	for doctype in ("Website Settings", "System Settings"):
-		settings = frappe.get_single(doctype)
-		if settings.get("app_name") != app_title:
-			settings.app_name = app_title
-			settings.save(ignore_permissions=True)
+		if frappe.db.get_single_value(doctype, "app_name") != app_title:
+			frappe.db.set_single_value(doctype, "app_name", app_title)
 	logo = "/assets/temple_inventory/logo.png"
 	icon = frappe.db.exists("Desktop Icon", "物资管理")
 	doc = frappe.get_doc("Desktop Icon", icon) if icon else frappe.new_doc("Desktop Icon")
