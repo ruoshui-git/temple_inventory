@@ -363,8 +363,7 @@ JSON manifests. The helper sends an explicit User-Agent because Cloudflare
 rejects Python's default agent.
 
 ```sh
-export PRODUCTION_IPV4=REPLACE_WITH_NEW_VPS_IPV4
-export PRODUCTION_IPV6=REPLACE_WITH_NEW_VPS_IPV6
+export PRODUCTION_IPV4=40.160.103.88
 scripts/spaceship-dns list kufang.org
 scripts/spaceship-dns plan deploy/dns/kufang.org.json
 # Review the entire diff, then, only with DNS change approval:
@@ -374,6 +373,12 @@ scripts/spaceship-dns apply deploy/dns/kufang.online.json --yes
 ```
 
 Unset or invalid production IP placeholders cause refusal before a request.
+
+DNS is IPv4-only for now. Both VPSes have IPv6 addresses (production
+`2604:2dc0:101:200::5da6`, non-production `2604:2dc0:101:200::34a0`), but inbound
+IPv6 has not been verified from outside OVH, and Let's Encrypt prefers IPv6 when
+an AAAA record exists, so an unreachable IPv6 path would break issuance and
+renewal. Add AAAA records only after an external IPv6 HTTPS check passes.
 The helper manages only `(type, name)` pairs present in the file: stale values
 for those pairs are deleted, new values are added, and all other pairs remain
 untouched. `plan` reads DNS but never mutates it. `apply` requires `--yes` and

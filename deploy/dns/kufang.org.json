@@ -7,11 +7,6 @@
       "address": "${PRODUCTION_IPV4}"
     },
     {
-      "type": "AAAA",
-      "name": "@",
-      "address": "${PRODUCTION_IPV6}"
-    },
-    {
       "type": "CNAME",
       "name": "www",
       "cname": "kufang.org"

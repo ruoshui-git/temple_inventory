@@ -151,6 +151,10 @@ rule from an Administrator PowerShell:
 netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0
 ```
 
+WSL does not retry a port it could not forward, so after removing the conflict
+run `docker compose -f dev/compose.yaml up -d --force-recreate frappe web worker`
+to publish the port again.
+
 If forwarding stops working altogether, `wsl --shutdown` (which also stops the
 Docker stack and any agent running in WSL) and reopen the WSL terminal.
 
