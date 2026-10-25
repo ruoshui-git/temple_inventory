@@ -144,17 +144,29 @@ def check_document_scope(
 	else:
 		check_company(doc)
 	visible = visible_warehouses if visible_warehouses is not None else _visible_warehouses()
+	# Rows often repeat an item, batch or location; check each record once per document.
+	checked = set()
+
+	def once(doctype, name, check):
+		if (doctype, name) not in checked:
+			check(name)
+			checked.add((doctype, name))
+
+	def read_item(name):
+		item = item_checker(name) if item_checker else check_item(name)
+		if item is None:
+			frappe.throw("记录包含无权查看的物品", frappe.PermissionError)
+
 	for row in [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]:
 		bundle_row = frappe._dict(row.as_dict() if hasattr(row, "as_dict") else dict(row))
 		bundle_row["_parent_docstatus"] = doc.docstatus
-		item = item_checker(row.item_code) if item_checker else check_item(row.item_code)
-		if item is None:
-			frappe.throw("记录包含无权查看的物品", frappe.PermissionError)
+		once("Item", row.item_code, read_item)
 		if row.get("batch_no"):
-			if batch_checker:
-				batch_checker(row.batch_no)
-			else:
-				frappe.get_doc("Batch", row.batch_no).check_permission("read")
+			once(
+				"Batch",
+				row.batch_no,
+				batch_checker or (lambda name: frappe.get_doc("Batch", name).check_permission("read")),
+			)
 		entry_bundle(bundle_row, bundle_cache=bundle_cache, bundle_loader=bundle_loader)
 		if doc.doctype == "Stock Reconciliation":
 			entry_bundle(
@@ -168,7 +180,9 @@ def check_document_scope(
 			if warehouse:
 				if warehouse not in visible:
 					frappe.throw("记录包含无权查看的位置", frappe.PermissionError)
-				if warehouse_checker:
-					warehouse_checker(warehouse)
-				else:
-					frappe.get_doc("Warehouse", warehouse).check_permission("read")
+				once(
+					"Warehouse",
+					warehouse,
+					warehouse_checker
+					or (lambda name: frappe.get_doc("Warehouse", name).check_permission("read")),
+				)

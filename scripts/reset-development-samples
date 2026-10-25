@@ -157,35 +157,44 @@ log_file="$log_dir/temple-sample-reset-$(date -u +%Y%m%dT%H%M%SZ).log"
 kwargs=$("$python" -c 'import json, sys; print(json.dumps(dict(zip(("company", "abbr", "country", "currency", "chart_of_accounts", "fiscal_year_start", "fiscal_year_end", "allow_non_developer", "data"), sys.argv[1:]))))' "$company" "$abbr" "$country" "$currency" "$chart_of_accounts" "$fiscal_year_start" "$fiscal_year_end" "$allow_non_developer" "$data")
 
 run_reset() {
+	# A seeded site is deterministic for one source tree, framework pair, argument
+	# set and day, so restore a cached snapshot of it when one exists. The restore
+	# recreates the database, so it replaces the reinstall as well as the seed.
+	local snapshot_key snapshot restore=0
+	snapshot_key=$("$script_dir/sample-snapshot" key "$kwargs") || return $?
+	snapshot=$snapshot_root/$snapshot_key
+	if ((use_snapshot)) && "$script_dir/sample-snapshot" fresh "$snapshot"; then
+		restore=1
+	fi
 	if [[ -z "$admin_password" ]]; then
 		admin_password=$("$python" -c 'import secrets; print(secrets.token_urlsafe(32))')
 	fi
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.preserve_administrator_auth || return $?
 	printf '[temple-sample] Known sample media inventory: start\n'
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_media.inventory --kwargs '{"write_manifest":1}' || return $?
-	printf '[temple-sample] Reinstall: start\n'
-	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes \
-		--db-root-username "$db_root_username" \
-		--db-root-password "$db_root_password" \
-		--admin-password "$admin_password" || return $?
-	printf '[temple-sample] Reinstall: complete\n'
+	if ((restore)); then
+		# Remove the old sample media first; the snapshot brings files at the same paths.
+		PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_media.cleanup || return $?
+		printf '[temple-sample] Restoring seeded snapshot %s: start\n' "$snapshot_key"
+		MARIADB_ROOT_USERNAME=$db_root_username MARIADB_ROOT_PASSWORD=$db_root_password \
+			"$script_dir/sample-snapshot" restore "$site" "$snapshot" || return $?
+		printf '[temple-sample] Restoring seeded snapshot %s: complete\n' "$snapshot_key"
+	else
+		printf '[temple-sample] Reinstall: start\n'
+		PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes \
+			--db-root-username "$db_root_username" \
+			--db-root-password "$db_root_password" \
+			--admin-password "$admin_password" || return $?
+		printf '[temple-sample] Reinstall: complete\n'
+	fi
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.restore_administrator_auth || return $?
-	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_media.cleanup || return $?
+	if ((!restore)); then
+		PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_media.cleanup || return $?
+	fi
 	printf '[temple-sample] Purging old background jobs: start\n'
 	PYTHONUNBUFFERED=1 "$bench" purge-jobs --site "$site" || return $?
 	printf '[temple-sample] Purging old background jobs: complete\n'
-	# A seeded site is deterministic for one source tree, framework pair, argument
-	# set and day, so restore a cached snapshot of it when one exists.
-	local snapshot_key snapshot
-	snapshot_key=$("$script_dir/sample-snapshot" key "$kwargs") || return $?
-	snapshot=$snapshot_root/$snapshot_key
-	if ((use_snapshot)) && "$script_dir/sample-snapshot" fresh "$snapshot"; then
-		printf '[temple-sample] Restoring seeded snapshot %s: start\n' "$snapshot_key"
-		PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.preserve_administrator_auth || return $?
-		MARIADB_ROOT_USERNAME=$db_root_username MARIADB_ROOT_PASSWORD=$db_root_password \
-			"$script_dir/sample-snapshot" restore "$site" "$snapshot" || return $?
-		PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.restore_administrator_auth || return $?
-		printf '[temple-sample] Restoring seeded snapshot %s: complete\n' "$snapshot_key"
+	if ((restore)); then
 		return
 	fi
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs" || return $?

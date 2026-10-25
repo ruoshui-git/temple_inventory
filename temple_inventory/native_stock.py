@@ -248,8 +248,12 @@ def before_validate(doc, method=None):
 	_settings, visible, physical, leased, damaged = warehouse_scopes()
 	if kind == "Loan" and not (doc.ti_borrower or "").strip():
 		frappe.throw("请填写借用方")
+	# Rows often repeat an item; authorize and load each one once per document.
+	items = {}
 	for row in doc.get("items", []):
-		item = check_item(row.item_code)
+		if row.item_code not in items:
+			items[row.item_code] = check_item(row.item_code)
+		item = items[row.item_code]
 		if item.disabled or not item.is_stock_item:
 			frappe.throw("物品已停用或不是库存物品")
 		validate_quantity(row, item, doc)

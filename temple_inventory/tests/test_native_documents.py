@@ -578,6 +578,24 @@ class NativeDocumentTests(unittest.TestCase):
 		)
 		self.assertIsNot(native_topology._settings(), changed)
 
+	def test_document_scope_checks_each_repeated_record_once_and_still_rejects_hidden_rows(self):
+		from temple_inventory.native_access import check_document_scope
+
+		entry = frappe.get_doc("Stock Entry", self.receipt(10).name)
+		row = entry.get("items")[0]
+		entry.extend("items", [copy.deepcopy(row.as_dict()) for _ in range(3)])
+		calls = []
+
+		def counted(name):
+			calls.append(name)
+			return frappe.get_doc("Item", name)
+
+		check_document_scope(entry, item_checker=counted)
+		self.assertEqual(calls, [row.item_code])
+		entry.get("items")[-1].item_code = f"TI-HIDDEN-{self.token}"
+		with self.assertRaises(frappe.PermissionError):
+			check_document_scope(entry, item_checker=lambda name: None if "HIDDEN" in name else counted(name))
+
 	def test_blank_count_is_unreviewed_and_zero_is_a_deliberate_review(self):
 		self.receipt(10)
 		with self.assertRaises(frappe.ValidationError):
