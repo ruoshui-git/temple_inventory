@@ -233,11 +233,17 @@ def install_sample_data(company=None, data="full"):
 	try:
 		_progress("原生仓库、目录、私有图片、库存单据与盘点：开始")
 		# Seeded history is not news; notifying every account would also flood the job queue.
+		# Nobody is connected to receive realtime list updates during a seed either.
 		frappe.flags.ti_suppress_notifications = True
+		frappe.flags.ti_sample_seeding = True
+		publish_realtime = frappe.publish_realtime
+		frappe.publish_realtime = lambda *args, **kwargs: None
 		try:
 			result = install(company, data=data, generate_volume=data == "full")
 		finally:
+			frappe.publish_realtime = publish_realtime
 			frappe.flags.ti_suppress_notifications = False
+			frappe.flags.ti_sample_seeding = False
 		settings.reload()
 		_assert_leaf_stock(settings)
 		settings.db_set("sample_data_version", VERSION, update_modified=False)

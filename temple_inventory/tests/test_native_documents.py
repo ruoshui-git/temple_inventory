@@ -551,6 +551,33 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertEqual(serialized_count["items"][0]["ti_display_item_name"], current_name)
 		self.assertEqual(serialized_count["ti_count_review"][0]["ti_display_item_name"], current_name)
 
+	def test_sample_seeding_skips_only_discarded_display_lookups(self):
+		entry = frappe.get_doc("Stock Entry", self.receipt(10).name)
+		frappe.flags.ti_sample_seeding = True
+		try:
+			seeded = native_api.serialize(entry)
+		finally:
+			frappe.flags.ti_sample_seeding = False
+		self.assertEqual(seeded["name"], entry.name)
+		self.assertNotIn("ti_display_item_name", seeded["items"][0])
+		self.assertIn("ti_display_item_name", native_api.serialize(entry)["items"][0])
+
+	def test_topology_settings_copy_is_reused_until_stored_settings_change(self):
+		from temple_inventory import native_topology
+
+		first = native_topology._settings()
+		self.assertIs(native_topology._settings(), first)
+		flipped = int(not first.photo_required)
+		frappe.db.set_single_value("Temple Inventory Settings", "photo_required", flipped)
+		changed = native_topology._settings()
+		self.assertIsNot(changed, first)
+		self.assertEqual(changed.photo_required, flipped)
+		frappe.db.sql(
+			"""update `tabTemple Inventory Allowed Warehouse` set idx = idx + 1000
+			where parent='Temple Inventory Settings'"""
+		)
+		self.assertIsNot(native_topology._settings(), changed)
+
 	def test_blank_count_is_unreviewed_and_zero_is_a_deliberate_review(self):
 		self.receipt(10)
 		with self.assertRaises(frappe.ValidationError):

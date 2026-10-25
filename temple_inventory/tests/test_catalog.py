@@ -50,6 +50,39 @@ class CatalogTests(NativeDocumentTests):
 		item.image = public.file_url
 		self.assertEqual(catalog.item_metadata(item)["image"], "")
 
+	def test_display_summaries_show_only_an_authorized_private_cover_of_that_item(self):
+		def attach(name, item_code):
+			return frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": f"{name}-{self.token}.png",
+					"content": f"{name}-{self.token}".encode(),
+					"is_private": 1,
+					"attached_to_doctype": "Item",
+					"attached_to_name": item_code,
+				}
+			).insert()
+
+		def cover(url):
+			frappe.db.set_value("Item", self.item, "image", url, update_modified=False)
+			return catalog.item_display_summaries([self.item])[self.item]["image"]
+
+		other = catalog.save_item(
+			{"item_code": f"TI-COVER-OWNER-{self.token}", "item_name": "Other owner", "stock_uom": "Nos"}
+		)
+		own = attach("own-cover", self.item)
+		self.assertEqual(cover(own.file_url), own.file_url)
+		self.assertEqual(cover(attach("foreign-cover", other["item_code"]).file_url), "")
+		# Inventory attachments are forced private on save; a File made public
+		# outside that path must still never become a cover.
+		public = attach("public-cover", self.item)
+		frappe.db.set_value("File", public.name, "is_private", 0, update_modified=False)
+		self.assertEqual(cover(public.file_url), "")
+		with patch("frappe.core.doctype.file.file.File.has_permission", return_value=False):
+			self.assertEqual(cover(own.file_url), "")
+		with patch("temple_inventory.catalog.can_read", return_value=False):
+			self.assertEqual(cover(own.file_url), "")
+
 	def test_primary_image_reuses_one_private_file_across_frontend_and_desk_saves(self):
 		file = frappe.get_doc(
 			{
