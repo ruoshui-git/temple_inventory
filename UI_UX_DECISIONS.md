@@ -16,6 +16,16 @@ supersession below when a durable user-facing decision changes.
   high-contrast badge; environment theme colours are sample amber `#8a4b08`,
   staging violet `#593d8c` and development blue `#245b9e`.
 
+## Supersession — 2026-10-25: scanner viewport and photo frames
+
+- Scanner preview is a capped square cover viewport, requests ideal 1920×1080
+  dimensions, decodes only its centered visible square, and displays a
+  nonrestrictive aim box. Torch is capability-gated; accepted camera decodes
+  flash the aim box and vibrate when supported. Real photos have no tint behind
+  them; empty/loading/error placeholders retain a subtle fill, and image buttons
+  use hover/focus rings. This supersedes earlier scanner preview and image-
+  surface presentation rules.
+
 ## Supersession — 2026-10-25: clear-button scope
 
 - A clear button acts on the controls where it appears. A toolbar or applied-chip
@@ -67,9 +77,15 @@ supersession below when a durable user-facing decision changes.
   search, filters and applied chips. Browse URLs omit default query state and
   serialize only changed fields, including changed fields inside nested scope.
 - Browse scanning sits beside barcode/item search fields and reuses one
-  interaction. Open, cancel and failure preserve typed input; generic browse
-  scans follow the normal lookup path and release the camera. Camera, hardware
-  scanner and manual entry converge on the same workflow.
+  interaction. The viewport is a capped 1:1 cover square with a centered wide
+  aim box and guidance hint; decoding uses the visible centered square, not
+  only the aim box. Request ideal 1920×1080 camera dimensions and allow
+  browser fallback. Show torch only when the active track supports it.
+  Accepted camera scans flash the aim box briefly and vibrate where available;
+  reduced motion removes the transition. Open, cancel and failure preserve
+  typed input; generic browse scans follow the normal lookup path and release
+  the camera. Camera, hardware scanner and manual entry converge on the same
+  workflow.
 - Movement and Loan browse mode is top-level `view=items|records`; other filters
   and drill-through identities remain URL state. Explicit view changes apply
   target-view defaults; browser history restores ordinary browse context.
@@ -262,7 +278,10 @@ supersession below when a durable user-facing decision changes.
   independent links. Expiry quantities are physical stock in the displayed
   warehouse; `借出` and `损坏` are shown where applicable.
 - Item images use standard Frappe Files and a shared lightbox. Small table/detail
-  thumbnails stay compact; editor/picker artwork may be larger. Image actions
+  thumbnails stay compact; editor/picker artwork may be larger. Real photos sit
+  directly on the card or page surface, framed by the surrounding border. Tint is
+  reserved for empty, loading and error placeholders. Image buttons use a
+  transparent background and an accent ring on hover and focus. Image actions
   remain independent from Item/Batch links.
 - An Item's `image` field alone identifies its primary image. Every other
   private Item File, including image files, is an attachment. Replacing the
@@ -383,11 +402,15 @@ supersession below when a durable user-facing decision changes.
   quantity. Undo reverses only the latest increment when its quantity and
   allocation remain unchanged, preserving unrelated edits. Accepted scans move
   the changed line and group forward for display without reordering native lines.
-- A camera barcode remains suppressed until at least 500ms of successful empty
-  frames. Every failed frame resets the absence interval independently of the
-  throttled visible error; decoder errors are not evidence of absence. Manual
-  entry and scan-gun Enter count every deliberate submission. Count entry scanning helps locate an
-  Item or Warehouse and never changes actual count quantity.
+- Scanner decoding samples the centered square made visible by the square cover viewport; the aim
+  box is visual guidance only. Request ideal 1920×1080 dimensions, falling back to
+  browser-selected dimensions, and scale decoded squares above 1000px down. A supported track may
+  expose the torch toggle. Accepted camera decodes give a brief success-color aim-box flash and
+  optional vibration; reduced-motion users receive the color change without transition. A camera
+  barcode remains suppressed until at least 500ms of successful empty frames. Every failed frame
+  resets the absence interval independently of the throttled visible error; decoder errors are not
+  evidence of absence. Manual entry and scan-gun Enter count every deliberate submission. Count
+  entry scanning helps locate an Item or Warehouse and never changes actual count quantity.
 - Desktop operation previews use a thin, 12px edge rail with a 1px divider,
   chevron and token-tinted hover/focus state. Its hit area is at least 24px.
   When collapsed, both the grid column and review panel are 28px; the rail

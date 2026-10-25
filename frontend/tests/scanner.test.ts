@@ -13,6 +13,11 @@ const state = vi.hoisted(() => ({
   startError: undefined as Error | undefined,
   cameras: [] as { deviceId: string; label: string; stableLabel?: string }[],
   openedDeviceId: "",
+  torchCalls: [] as boolean[],
+  torchTrack: {
+    getCapabilities: vi.fn(() => ({ torch: false })),
+    applyConstraints: vi.fn(async (_constraints?: unknown) => undefined),
+  },
   fallbackDeviceId: "rear-camera",
   deferredStarts: 0,
   pendingStarts: [] as (() => void)[],
@@ -35,6 +40,15 @@ vi.mock("../src/lib/scanner", () => ({
     }
     get cameraLabel() {
       return localStorage.getItem("temple_inventory.scanner_label") || "";
+    }
+    get torchAvailable() {
+      return Boolean(state.torchTrack.getCapabilities().torch);
+    }
+    async setTorch(enabled: boolean) {
+      state.torchCalls.push(enabled);
+      await state.torchTrack.applyConstraints({
+        advanced: [{ torch: enabled }],
+      });
     }
     async enumerateCameras() {
       if (state.deferredEnumerations > 0) {
@@ -104,6 +118,9 @@ beforeEach(() => {
   state.startError = undefined;
   state.cameras = [];
   state.openedDeviceId = "";
+  state.torchCalls.length = 0;
+  state.torchTrack.getCapabilities.mockReturnValue({ torch: false });
+  state.torchTrack.applyConstraints.mockClear();
   state.fallbackDeviceId = "rear-camera";
   state.deferredStarts = 0;
   state.pendingStarts.length = 0;
@@ -203,6 +220,49 @@ describe("Scanner component", () => {
     state.callbacks[0]("123");
     expect(wrapper.emitted("scan")).toEqual([["123"]]);
     wrapper.unmount();
+  });
+
+  it("shows torch only when available and toggles its requested state", async () => {
+    const withoutTorch = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    expect(withoutTorch.find(".scanner-torch").exists()).toBe(false);
+    withoutTorch.unmount();
+
+    state.torchTrack.getCapabilities.mockReturnValue({ torch: true });
+    const withTorch = mount(Scanner, { props: { presentation: "camera" } });
+    await flushPromises();
+    const toggle = withTorch.get(".scanner-torch");
+    expect(toggle.attributes("aria-pressed")).toBe("false");
+    await toggle.trigger("click");
+    expect(state.torchCalls).toEqual([true]);
+    expect(state.torchTrack.applyConstraints).toHaveBeenCalledWith({
+      advanced: [{ torch: true }],
+    });
+    expect(withTorch.get(".scanner-torch").attributes("aria-pressed")).toBe(
+      "true",
+    );
+    withTorch.unmount();
+  });
+
+  it("flashes the aim box for an accepted camera decode", async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(Scanner);
+    await flushPromises();
+    expect(wrapper.get(".scanner-aim").classes()).not.toContain(
+      "scanner-aim--success",
+    );
+    state.callbacks[0]!("FLASH-1");
+    await flushPromises();
+    expect(wrapper.get(".scanner-aim").classes()).toContain(
+      "scanner-aim--success",
+    );
+    vi.advanceTimersByTime(300);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get(".scanner-aim").classes()).not.toContain(
+      "scanner-aim--success",
+    );
+    wrapper.unmount();
+    vi.useRealTimers();
   });
 
   it("rearms only after 500ms of successful empty frames and keeps errors from counting as absence", async () => {

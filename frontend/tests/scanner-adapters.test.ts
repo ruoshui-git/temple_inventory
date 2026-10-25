@@ -10,11 +10,15 @@ vi.mock("zxing-wasm/reader", () => ({
   readBarcodes: zxing.read,
 }));
 
-import { ZxingWasmScannerEngine } from "../src/lib/scanner";
+import { coverCropRect, ZxingWasmScannerEngine } from "../src/lib/scanner";
 
 function stream() {
-  const track = { stop: vi.fn() };
-  return { getTracks: () => [track], track };
+  const track = {
+    stop: vi.fn(),
+    getCapabilities: vi.fn(() => ({ torch: true })),
+    applyConstraints: vi.fn(async () => undefined),
+  };
+  return { getTracks: () => [track], getVideoTracks: () => [track], track };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -45,6 +49,36 @@ afterEach(() => {
 });
 
 describe("ZxingWasmScannerEngine", () => {
+  it.each([
+    {
+      label: "portrait",
+      width: 1080,
+      height: 1920,
+      sx: 0,
+      sy: 420,
+      side: 1080,
+    },
+    {
+      label: "landscape",
+      width: 1920,
+      height: 1080,
+      sx: 420,
+      sy: 0,
+      side: 1080,
+    },
+    { label: "square", width: 800, height: 800, sx: 0, sy: 0, side: 800 },
+  ])(
+    "computes the centered cover crop for $label input",
+    ({ width, height, sx, sy, side }) => {
+      expect(coverCropRect(width, height)).toEqual({
+        sx,
+        sy,
+        side,
+        outputSide: Math.min(side, 1000),
+      });
+    },
+  );
+
   it("initializes the reader with the bundled app-local WASM URL", async () => {
     const current = stream();
     (navigator.mediaDevices.getUserMedia as any).mockResolvedValue(current);
@@ -290,5 +324,38 @@ describe("ZxingWasmScannerEngine", () => {
     await Promise.resolve();
     expect(scan).not.toHaveBeenCalled();
     expect(current.track.stop).toHaveBeenCalled();
+  });
+
+  it("requests ideal 1920x1080 dimensions and exposes an available torch", async () => {
+    const current = stream();
+    (navigator.mediaDevices.getUserMedia as any).mockResolvedValue(current);
+    const originalCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation(
+      (tag: string, options?: any) => {
+        const element = originalCreate(tag, options);
+        if (tag === "video")
+          Object.defineProperties(element, {
+            videoWidth: { value: 640 },
+            videoHeight: { value: 480 },
+          });
+        return element;
+      },
+    );
+    const engine = new ZxingWasmScannerEngine();
+    await engine.start(document.createElement("div"), vi.fn());
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
+      audio: false,
+      video: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        facingMode: { ideal: "environment" },
+      },
+    });
+    expect(engine.torchAvailable).toBe(true);
+    await engine.setTorch(true);
+    expect(current.track.applyConstraints).toHaveBeenCalledWith({
+      advanced: [{ torch: true }],
+    });
+    await engine.stop();
   });
 });

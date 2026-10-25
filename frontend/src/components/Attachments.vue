@@ -225,7 +225,7 @@ article {
 	height: 112px;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
-	background: var(--p-soft);
+	background: var(--p-surface);
 }
 .main-image-preview :deep(.async-image),
 .main-image-placeholder {
@@ -239,6 +239,7 @@ article {
 	justify-items: center;
 	gap: 6px;
 	color: var(--p-muted);
+	background: var(--p-soft);
 }
 .main-image-placeholder :deep(svg) {
 	width: 28px;

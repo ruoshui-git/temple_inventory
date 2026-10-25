@@ -14,6 +14,8 @@ export interface ScannerEngine {
     onFramePresence?: (presence: ScannerFramePresence) => void,
   ): Promise<void>;
   stop(): Promise<void>;
+  readonly torchAvailable?: boolean;
+  setTorch?(enabled: boolean): Promise<void>;
 }
 
 export interface ScannerCamera {
@@ -21,6 +23,27 @@ export interface ScannerCamera {
   label: string;
   /** The browser-provided label, omitted when the permission-gated label is blank. */
   stableLabel?: string;
+}
+
+export interface CoverCropRect {
+  sx: number;
+  sy: number;
+  side: number;
+  outputSide: number;
+}
+
+export function coverCropRect(
+  width: number,
+  height: number,
+  maxSide = 1000,
+): CoverCropRect {
+  const side = Math.min(width, height);
+  return {
+    sx: (width - side) / 2,
+    sy: (height - side) / 2,
+    side,
+    outputSide: Math.min(side, maxSide),
+  };
 }
 
 export function cameraError(e: any) {
@@ -71,8 +94,25 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
   private cancelVideoWait?: () => void;
   private generation = 0;
   private openedDeviceId?: string;
+  private activeTrack?: MediaStreamTrack;
   get deviceId() {
     return this.openedDeviceId;
+  }
+  get torchAvailable() {
+    try {
+      const capabilities = this.activeTrack?.getCapabilities?.() as
+        (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+      return Boolean(capabilities?.torch);
+    } catch {
+      return false;
+    }
+  }
+  async setTorch(enabled: boolean) {
+    if (!this.torchAvailable || !this.activeTrack)
+      throw new Error("Torch unavailable");
+    await this.activeTrack.applyConstraints({
+      advanced: [{ torch: enabled } as MediaTrackConstraintSet],
+    });
   }
   private timer?: ReturnType<typeof setTimeout>;
   private decoding = false;
@@ -115,15 +155,20 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
   ) {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: deviceId
-        ? { deviceId: { exact: deviceId } }
-        : { facingMode: { ideal: "environment" } },
+      video: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        ...(deviceId
+          ? { deviceId: { exact: deviceId } }
+          : { facingMode: { ideal: "environment" } }),
+      },
     });
     if (generation !== this.generation) {
       stream.getTracks().forEach((track) => track.stop());
       return;
     }
     this.stream = stream;
+    this.activeTrack = stream.getVideoTracks?.()[0];
     this.openedDeviceId =
       stream.getVideoTracks?.()[0]?.getSettings?.().deviceId || deviceId;
     const video = document.createElement("video");
@@ -131,7 +176,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     video.autoplay = true;
     video.playsInline = true;
     video.srcObject = stream;
-    container.replaceChildren(video);
+    container.prepend(video);
     this.video = video;
     await this.waitForVideo(video);
     if (generation !== this.generation) return;
@@ -212,9 +257,10 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
       this.scheduleDecode(generation, onScan, onError, onFramePresence);
       return;
     }
+    const crop = coverCropRect(width, height);
     const canvas = (this.canvas ||= document.createElement("canvas"));
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = crop.outputSide;
+    canvas.height = crop.outputSide;
     if (!this.context) this.context = canvas.getContext("2d") || undefined;
     const context = this.context;
     if (!context) {
@@ -226,12 +272,22 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
       );
       return;
     }
-    context.drawImage(video, 0, 0, width, height);
+    context.drawImage(
+      video,
+      crop.sx,
+      crop.sy,
+      crop.side,
+      crop.side,
+      0,
+      0,
+      crop.outputSide,
+      crop.outputSide,
+    );
     this.decoding = true;
     try {
       const { readBarcodes } = await loadZXing();
       const results = await readBarcodes(
-        context.getImageData(0, 0, width, height),
+        context.getImageData(0, 0, crop.outputSide, crop.outputSide),
         { maxNumberOfSymbols: 1 },
       );
       if (generation === this.generation) {
@@ -258,13 +314,14 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
     this.cancelVideoWait = undefined;
     this.video?.pause();
     if (this.video) this.video.srcObject = null;
+    this.video?.remove();
     this.stream?.getTracks().forEach((track) => track.stop());
     this.stream = undefined;
+    this.activeTrack = undefined;
     this.openedDeviceId = undefined;
     this.video = undefined;
     this.canvas = undefined;
     this.context = undefined;
-    this.container?.replaceChildren();
     this.container = undefined;
     this.decoding = false;
     this.lastDecodeError = 0;
@@ -311,6 +368,15 @@ export class ScannerService {
   }
   get cameraLabel() {
     return this.selectedCameraLabel;
+  }
+  get torchAvailable() {
+    return Boolean(this.active?.torchAvailable);
+  }
+  setTorch(enabled: boolean) {
+    return (
+      this.active?.setTorch?.(enabled) ||
+      Promise.reject(new Error("Torch unavailable"))
+    );
   }
   async enumerateCameras(): Promise<ScannerCamera[]> {
     const devices = await navigator.mediaDevices.enumerateDevices();

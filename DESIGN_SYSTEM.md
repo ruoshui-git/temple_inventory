@@ -266,7 +266,11 @@ kept in Git.
   through permission-filtered Item and File access, never a raw native image URL.
 - `Item.image` is the only primary-image identity. Other private Item Files are
   attachments, including images; attachment previews use the shared lightbox
-  but never become the main image automatically. The crop overlay uses
+  but never become the main image automatically. Photos sit directly on the
+  card or page surface, framed by the surrounding border; a subtle fill is
+  reserved for empty, loading and error states so missing-image slots stay
+  visible. Image buttons keep a transparent background and show an accent ring
+  on hover and keyboard focus. The crop overlay uses
   Cropper.js with a square draggable selection and keyboard movement. Exported
   thumbnail WebP is quality 0.85, capped at 800px, and never upscaled. Keep
   original-as-main and original-as-attachment choices available; attachments
@@ -356,9 +360,18 @@ kept in Git.
 - The operation picker keeps search, scan, filter chips and persistent actions
   in its header; results scroll independently and the selection/create footer
   remains fixed. Desktop category and warehouse rails use shared BrowseFilters.
-- Scanner lookups drain in FIFO order. Successful decoded frames report barcode
-  presence; errors never count as empty frames. Re-arm a held barcode after
-  500ms of successful empty frames. Repeated manual Enter stays deliberate.
+- Scanner video uses a centered square cover viewport capped at min(100%,
+  42dvh, 420px), with the camera requesting ideal 1920×1080 dimensions and
+  gracefully accepting browser-selected dimensions. Decode the centered square
+  visible through cover, scaling frames above 1000px down. A centered wide aim
+  box dims its surround and says 将条码对准框内; it is guidance, not a decode
+  boundary. Show the 手电筒 control only when the active track advertises torch
+  support; failures hide it. Accepted camera scans briefly flash the aim box
+  with --p-success and vibrate where supported; reduced motion removes the
+  flash transition. Scanner lookups drain in FIFO order. Successful decoded
+  frames report barcode presence; errors never count as empty frames. Re-arm a
+  held barcode after 500ms of successful empty frames. Repeated manual Enter
+  stays deliberate.
 - Scan feedback, ambiguity resolution and undo stay visible in the picker scan
   stage. Each accepted scan adds one stock unit and brings the changed row and
   group forward through presentation ordering only. Native child order and row

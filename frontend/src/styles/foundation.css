@@ -175,6 +175,16 @@ button {
 button:hover:not(:disabled) {
 	background: var(--p-soft);
 }
+.item-image-button:hover:not(:disabled),
+.preview-image-detail:hover:not(:disabled) {
+	background: transparent;
+	box-shadow: 0 0 0 2px var(--p-accent);
+}
+.item-image-button:focus-visible,
+.preview-image-detail:focus-visible {
+	background: transparent;
+	box-shadow: var(--p-focus);
+}
 button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
@@ -1350,7 +1360,7 @@ strong {
 	width: 100%;
 	height: auto;
 	aspect-ratio: 1;
-	background: var(--p-soft);
+	background: var(--p-surface);
 }
 .stock-card-image > .preview-item-image,
 .stock-card-image > .item-image-button,

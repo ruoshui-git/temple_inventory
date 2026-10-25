@@ -23,7 +23,10 @@ const emit = defineEmits<{ scan: [value: string]; close: [] }>();
 const area = ref<HTMLElement>(),
 	error = ref(""),
 	manual = ref(""),
-	starting = ref(false);
+	starting = ref(false),
+	torchAvailable = ref(false),
+	torchOn = ref(false),
+	successFlash = ref(false);
 const service = new ScannerService();
 const cameras = ref<ScannerCamera[]>([]),
 	selectedCameraId = ref(service.cameraDeviceId),
@@ -38,12 +41,24 @@ let disposed = false,
 	cameraActive = false,
 	emptySince: number | undefined,
 	seenBarcodes = new Set<string>();
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+function flashSuccess() {
+	successFlash.value = true;
+	if (flashTimer) clearTimeout(flashTimer);
+	flashTimer = setTimeout(() => (successFlash.value = false), 300);
+	try {
+		navigator.vibrate?.(30);
+	} catch {
+		/* Vibration is optional. */
+	}
+}
 function decoded(value: string, explicit = false) {
 	value = value.trim();
 	if (!value || paused.value || disposed) return;
 	if (!explicit) {
 		if (seenBarcodes.has(value)) return;
 		seenBarcodes.add(value);
+		flashSuccess();
 	}
 	if (props.beepOnDecode) notifyScan();
 	emit("scan", value);
@@ -99,6 +114,8 @@ async function openCamera(
 	missingRecovery: "reconnect" | "fallback" | "none",
 ) {
 	if (disposed || paused.value || !area.value || generation !== startGeneration) return;
+	torchAvailable.value = false;
+	torchOn.value = false;
 	starting.value = true;
 	error.value = "";
 	try {
@@ -116,6 +133,8 @@ async function openCamera(
 		);
 		if (disposed || generation !== startGeneration) return;
 		cameraActive = true;
+		torchAvailable.value = service.torchAvailable;
+		torchOn.value = false;
 		selectedCameraId.value = service.cameraDeviceId;
 		await refreshCameras(generation);
 	} catch (reason) {
@@ -202,14 +221,28 @@ function changeCamera() {
 function stopCamera() {
 	startGeneration++;
 	cameraActive = false;
+	torchAvailable.value = false;
+	torchOn.value = false;
 	// Release the presentation-level lock immediately. A getUserMedia request
 	// may still be pending, and its stale finally block must not be responsible
 	// for making a later resume retry possible.
 	starting.value = false;
 	void service.stop();
 }
+async function toggleTorch() {
+	if (!torchAvailable.value || starting.value) return;
+	const next = !torchOn.value;
+	try {
+		await service.setTorch(next);
+		torchOn.value = next;
+	} catch {
+		torchAvailable.value = false;
+		torchOn.value = false;
+	}
+}
 function close() {
 	disposed = true;
+	if (flashTimer) clearTimeout(flashTimer);
 	seenBarcodes.clear();
 	emptySince = undefined;
 	stopCamera();
@@ -286,7 +319,22 @@ defineExpose({
 					: "请确认数量与位置后继续扫描"
 			}}
 		</p>
-		<div ref="area" class="scanner-camera" :aria-busy="starting" />
+		<div ref="area" class="scanner-camera" :aria-busy="starting">
+			<div
+				class="scanner-aim"
+				:class="{ 'scanner-aim--success': successFlash }"
+				aria-hidden="true"
+			>
+				<span class="scanner-aim__hint">将条码对准框内</span>
+			</div>
+		</div>
+		<UiButton
+			v-if="torchAvailable"
+			class="scanner-torch"
+			:aria-pressed="torchOn"
+			@click="toggleTorch"
+			>{{ torchOn ? "关闭手电筒" : "手电筒" }}</UiButton
+		>
 		<p v-if="starting" role="status">正在打开相机…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
 		<UiButton v-if="error" :disabled="starting || paused" @click="start">重试相机</UiButton>
@@ -316,7 +364,10 @@ defineExpose({
 	min-width: 0;
 }
 .scanner-camera {
-	width: 100%;
+	position: relative;
+	width: min(100%, 42dvh, 420px);
+	aspect-ratio: 1;
+	margin-inline: auto;
 	overflow: hidden;
 	border-radius: var(--p-radius-control);
 	background: var(--p-soft);
@@ -327,8 +378,59 @@ defineExpose({
 .scanner-camera :deep(video) {
 	display: block;
 	width: 100%;
-	max-height: 45dvh;
-	object-fit: contain;
+	height: 100%;
+	object-fit: cover;
+}
+.scanner-aim {
+	position: absolute;
+	left: 10%;
+	top: 27.5%;
+	width: 80%;
+	height: 45%;
+	box-sizing: border-box;
+	border: 2px solid var(--p-surface);
+	border-radius: var(--p-radius-control);
+	box-shadow: 0 0 0 999px color-mix(in srgb, var(--p-ink) 42%, transparent);
+	color: var(--p-surface);
+	pointer-events: none;
+	transition:
+		border-color 120ms ease,
+		color 120ms ease;
+}
+.scanner-aim::before {
+	position: absolute;
+	inset: -2px;
+	content: "";
+	background:
+		linear-gradient(currentColor, currentColor) left top / 22px 3px no-repeat,
+		linear-gradient(currentColor, currentColor) left top / 3px 22px no-repeat,
+		linear-gradient(currentColor, currentColor) right top / 22px 3px no-repeat,
+		linear-gradient(currentColor, currentColor) right top / 3px 22px no-repeat,
+		linear-gradient(currentColor, currentColor) left bottom / 22px 3px no-repeat,
+		linear-gradient(currentColor, currentColor) left bottom / 3px 22px no-repeat,
+		linear-gradient(currentColor, currentColor) right bottom / 22px 3px no-repeat,
+		linear-gradient(currentColor, currentColor) right bottom / 3px 22px no-repeat;
+}
+.scanner-aim__hint {
+	position: absolute;
+	left: 50%;
+	bottom: -2rem;
+	transform: translateX(-50%);
+	white-space: nowrap;
+	font-size: var(--p-small);
+	text-shadow: 0 1px 3px var(--p-ink);
+}
+.scanner-aim--success {
+	border-color: var(--p-success);
+	color: var(--p-success);
+}
+.scanner-torch {
+	margin-top: var(--p-space-2);
+}
+@media (prefers-reduced-motion: reduce) {
+	.scanner-aim {
+		transition: none;
+	}
 }
 .scanner-manual {
 	display: flex;
