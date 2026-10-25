@@ -109,10 +109,11 @@ kept in Git.
   focus on the first item. Respect reduced motion and keep coarse-pointer targets
   at least 44px high.
 - Use the shared layer scale: sticky table content `--p-z-sticky-content` (10),
-  sticky page chrome `--p-z-sticky` (20), app navigation `--p-z-nav` (30),
-  menus and popovers `--p-z-menu` (40), overlays/sheets `--p-z-overlay` (50),
-  and toasts `--p-z-toast` (60). Header navigation and its popovers stay above
-  sticky page chrome; popovers opened by chrome or forms stay above the FAB.
+  sticky page chrome `--p-z-sticky` (20), floating create actions `--p-z-fab`
+  (25), app navigation `--p-z-nav` (30), menus and popovers `--p-z-menu` (40),
+  overlays/sheets `--p-z-overlay` (50), and toasts `--p-z-toast` (60). Header
+  navigation and its popovers stay above sticky page chrome; popovers opened by
+  chrome or forms stay above the FAB.
 - Popup menu rows use a compact anatomy: optional 18px leading icon, left
   aligned label and optional trailing metadata. When a panel uses icons, every
   row has one. Rows share hover, focus and danger states without dividers; panel

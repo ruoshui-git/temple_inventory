@@ -95,11 +95,18 @@ const {
 						>
 							<UiButton
 								v-if="canCreate && row.is_group"
+								icon="tag"
 								@click="c.openCreate(row.name)"
 								>添加下级</UiButton
 							>
-							<UiButton v-if="canWrite" @click="c.openEdit(row)">编辑</UiButton>
-							<UiButton v-if="canDelete" variant="danger" @click="c.askDelete(row)"
+							<UiButton v-if="canWrite" icon="settings" @click="c.openEdit(row)"
+								>编辑</UiButton
+							>
+							<UiButton
+								v-if="canDelete"
+								icon="disposal"
+								variant="danger"
+								@click="c.askDelete(row)"
 								>删除</UiButton
 							>
 						</PopupMenu>

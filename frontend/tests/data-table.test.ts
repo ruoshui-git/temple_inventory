@@ -16,6 +16,9 @@ import {
 } from "../src/services/contracts";
 
 const wrappers: VueWrapper[] = [];
+async function nextFrame() {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   vi.useRealTimers();
@@ -43,6 +46,62 @@ describe("table column contracts", () => {
     });
     wrappers.push(wrapper);
     const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    const headerCells = wrapper.findAll<HTMLElement>("thead th");
+    headerCells[0]!.element.style.position = "sticky";
+    headerCells[0]!.element.style.left = "0px";
+    headerCells[0]!.element.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 35,
+        bottom: 30,
+        width: 35,
+        height: 30,
+        toJSON() {},
+      }) as DOMRect;
+    headerCells[2]!.element.style.position = "sticky";
+    headerCells[2]!.element.style.right = "0px";
+    headerCells[2]!.element.getBoundingClientRect = () =>
+      ({
+        x: 410,
+        y: 0,
+        left: 410,
+        top: 0,
+        right: 500,
+        bottom: 30,
+        width: 90,
+        height: 30,
+        toJSON() {},
+      }) as DOMRect;
+    scroll.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 500,
+        bottom: 200,
+        width: 500,
+        height: 200,
+        toJSON() {},
+      }) as DOMRect;
+    let frameTop = 0;
+    wrapper.get<HTMLElement>(
+      ".data-table-frame",
+    ).element.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: frameTop,
+        left: 0,
+        top: frameTop,
+        right: 500,
+        bottom: frameTop + 200,
+        width: 500,
+        height: 200,
+        toJSON() {},
+      }) as DOMRect;
     const scrollBy = vi.fn();
     Object.defineProperties(scroll, {
       scrollWidth: { configurable: true, value: 900 },
@@ -51,6 +110,7 @@ describe("table column contracts", () => {
       scrollBy: { configurable: true, value: scrollBy },
     });
     scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
     await nextTick();
     expect(scroll.classList.contains("is-overflow-start")).toBe(true);
     expect(scroll.classList.contains("is-overflow-end")).toBe(true);
@@ -59,17 +119,32 @@ describe("table column contracts", () => {
     expect(hint.attributes("title")).toBe("更多列");
     expect(hint.find("svg").exists()).toBe(true);
     expect(hint.text()).toBe("");
+    expect(hint.attributes("style")).toContain("right: 622px");
+    expect(
+      wrapper.get(".data-table-overflow-hint-start").attributes("style"),
+    ).toContain("left: 43px");
+    expect(hint.attributes("style")).toContain("top: 100px");
     await hint.trigger("click");
     expect(scrollBy).toHaveBeenCalledWith({ left: 400, behavior: "smooth" });
     const leftHint = wrapper.get(".data-table-overflow-hint-start");
     expect(leftHint.attributes("aria-label")).toBe("向左滚动查看更多列");
     await leftHint.trigger("click");
-    expect(scrollBy).toHaveBeenLastCalledWith({ left: -400, behavior: "smooth" });
+    expect(scrollBy).toHaveBeenLastCalledWith({
+      left: -400,
+      behavior: "smooth",
+    });
+    frameTop = 200;
+    window.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    expect(
+      wrapper.get(".data-table-overflow-hint-start").attributes("style"),
+    ).toContain("top: 300px");
     Object.defineProperty(scroll, "scrollLeft", {
       configurable: true,
       value: 400,
     });
     scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
     await nextTick();
     expect(scroll.classList.contains("is-overflow-start")).toBe(true);
     expect(scroll.classList.contains("is-overflow-end")).toBe(false);

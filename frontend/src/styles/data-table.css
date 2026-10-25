@@ -121,7 +121,6 @@
 	position: relative;
 	min-width: 0;
 	border-radius: var(--p-radius-card);
-	overflow: hidden;
 }
 .data-table-frame::before,
 .data-table-frame::after {
@@ -137,7 +136,8 @@
 	border-radius: inherit;
 }
 .data-table-frame::before {
-	left: 1px;
+	left: calc(var(--data-table-pinned-start, 0px) + 1px);
+	width: max(0px, calc(12px - var(--data-table-pinned-start, 0px)));
 	background: linear-gradient(
 		90deg,
 		color-mix(in srgb, var(--p-ink) 18%, transparent),
@@ -158,7 +158,7 @@
 	opacity: 1;
 }
 .data-table-overflow-hint {
-	position: absolute;
+	position: fixed;
 	top: 50%;
 	transform: translateY(-50%);
 	z-index: 5;
@@ -180,8 +180,6 @@
 	width: 16px;
 	height: 16px;
 }
-.data-table-overflow-hint-start { left: 8px; }
-.data-table-overflow-hint-end { right: calc(var(--data-table-pinned-end, 0px) + 8px); }
 .data-table-overflow-hint:hover,
 .data-table-overflow-hint:focus-visible {
 	background: var(--p-soft);

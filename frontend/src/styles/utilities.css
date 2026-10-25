@@ -318,6 +318,7 @@
 }
 .notification-popover {
 	position: fixed;
+	z-index: var(--p-z-overlay);
 	width: min(440px, calc(100vw - 24px));
 	max-height: min(680px, calc(100dvh - 100px));
 	display: flex;

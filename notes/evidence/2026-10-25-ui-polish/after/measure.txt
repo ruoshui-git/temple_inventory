@@ -1,0 +1,2 @@
+Mobile split geometry 390x844: {"primary":{"top":709.609375,"bottom":757.609375},"chevron":{"top":709.609375,"bottom":757.609375},"maxEdgeDifference":0}
+Centering violations > 0.5px: 0

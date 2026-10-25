@@ -323,6 +323,7 @@ async function lifecycle() {
 							@open-full="emit('openExport', $event)"
 						/><UiButton
 							v-if="state.identity && state.server?.docstatus === 0"
+							icon="disposal"
 							:disabled="!writable || busy"
 							@click="action = 'delete'"
 							>删除草稿单据</UiButton

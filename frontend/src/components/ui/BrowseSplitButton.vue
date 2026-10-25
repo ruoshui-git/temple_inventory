@@ -78,7 +78,9 @@ function choose(kind: string) {
 					role="menuitem"
 					@click="choose(option.kind)"
 				>
-					<InventoryIcon v-if="option.icon" :name="option.icon" />{{ option.label }}
+					<InventoryIcon class="menu-item-icon" :name="option.icon || 'box'" />{{
+						option.label
+					}}
 				</button>
 			</PopupMenu>
 		</div>

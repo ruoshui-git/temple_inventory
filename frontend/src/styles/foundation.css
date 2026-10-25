@@ -43,6 +43,7 @@
 	--p-motion: 140ms;
 	--p-z-sticky-content: 10;
 	--p-z-sticky: 20;
+	--p-z-fab: 25;
 	--p-z-nav: 30;
 	--p-z-menu: 40;
 	--p-z-overlay: 50;
@@ -143,7 +144,8 @@ button {
 	cursor: pointer;
 }
 button.icon-only,
-.icon-button,
+.icon-button.icon-button,
+.ui-button.is-icon-only,
 .popup-menu-trigger:not(.popup-menu-trigger-labeled),
 .data-table-overflow-hint {
 	display: grid;
@@ -2409,7 +2411,7 @@ strong {
 		position: fixed;
 		bottom: calc(92px + env(safe-area-inset-bottom));
 		right: 20px;
-		z-index: var(--p-z-menu);
+		z-index: var(--p-z-fab);
 	}
 	.current-fab > .ui-button {
 		width: 52px;
@@ -2833,6 +2835,9 @@ strong {
 	border-radius: 50%;
 	box-shadow: var(--p-shadow);
 	background: var(--p-surface);
+}
+.has-floating-table-scrollbar .preview-return-top.icon-button {
+	bottom: 48px;
 }
 .preview-return-top svg {
 	transform: rotate(180deg);
@@ -3309,7 +3314,7 @@ body:has(.preview-document-actions) .preview-toast {
 .route-progress {
 	position: fixed;
 	inset: 0 0 auto;
-	z-index: 4000;
+	z-index: var(--p-z-toast);
 	height: 3px;
 	background: var(--p-accent);
 	transform-origin: left center;

@@ -13,6 +13,7 @@ import type {
 import { dataColumnAlignment } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
+import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -77,8 +78,18 @@ const emit = defineEmits<{
 
 const preferences = computed(() => props.columnPreferences);
 const tableScroll = ref<HTMLElement>();
-const { overflowStart, overflowEnd, pinnedStartInset, pinnedEndInset, scrollMore } =
-	useOverflowEdges(tableScroll);
+const tableFrame = ref<HTMLElement>();
+const {
+	overflowStart,
+	overflowEnd,
+	pinnedStartInset,
+	pinnedEndInset,
+	hintTop,
+	hintLeft,
+	hintRight,
+	hintVisible,
+	scrollMore,
+} = useOverflowEdges(tableScroll, tableFrame);
 const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
@@ -256,6 +267,9 @@ function toggleVisible(event: Event) {
 	const selected = (event.target as HTMLInputElement).checked;
 	emit("selectVisible", recordRows.value.map(keyFor), selected);
 }
+function getTableScroll() {
+	return tableScroll.value;
+}
 function activateGroup(entry: DataTableGroup, event: Event) {
 	if (!entry.hasChildren) return;
 	const target = event.target;
@@ -366,8 +380,12 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 			保留当前结果，更新完成后可用。
 		</span>
 		<div
+			ref="tableFrame"
 			class="data-table-frame"
-			:style="{ '--data-table-pinned-end': `${pinnedEndInset}px` }"
+			:style="{
+				'--data-table-pinned-start': `${pinnedStartInset}px`,
+				'--data-table-pinned-end': `${pinnedEndInset}px`,
+			}"
 		>
 			<div
 				ref="tableScroll"
@@ -726,9 +744,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</table>
 			</div>
 			<button
-				v-if="overflowStart"
+				v-if="overflowStart && hintVisible"
 				class="data-table-overflow-hint data-table-overflow-hint-start"
-				:style="{ left: `${pinnedStartInset + 8}px` }"
+				:style="{ top: `${hintTop}px`, left: `${hintLeft}px` }"
 				type="button"
 				aria-label="向左滚动查看更多列"
 				title="更多列"
@@ -737,9 +755,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				<InventoryIcon name="chevron-left" />
 			</button>
 			<button
-				v-if="overflowEnd"
+				v-if="overflowEnd && hintVisible"
 				class="data-table-overflow-hint data-table-overflow-hint-end"
-				:style="{ right: `${pinnedEndInset + 8}px` }"
+				:style="{ top: `${hintTop}px`, right: `${hintRight}px` }"
 				type="button"
 				aria-label="向右滚动查看更多列"
 				title="更多列"
@@ -748,6 +766,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				<InventoryIcon name="chevron-right" />
 			</button>
 		</div>
+		<FloatingTableScrollbar :get-scroll-element="getTableScroll" />
 		<div v-if="!rows.length && !loading && initialized && !error" class="data-table-state">
 			<InventoryIcon name="search" />
 			<span>{{ emptyText }}</span>

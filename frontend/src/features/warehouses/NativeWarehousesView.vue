@@ -317,12 +317,15 @@ function parentLabel(name?: string) {
 								class="warehouse-action-menu"
 							>
 								<button type="button" @click="c.openEditor(selected, 'rename')">
+									<InventoryIcon class="menu-item-icon" name="settings" />
 									重命名
 								</button>
 								<button type="button" @click="c.openEditor(selected, 'move')">
+									<InventoryIcon class="menu-item-icon" name="transfer" />
 									移动
 								</button>
 								<button type="button" @click="c.toggleDisabled(selected)">
+									<InventoryIcon class="menu-item-icon" name="adjust" />
 									{{ selected.disabled ? "启用" : "停用" }}
 								</button>
 							</PopupMenu>
