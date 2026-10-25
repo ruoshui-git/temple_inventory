@@ -1,0 +1,35 @@
+{
+  "domain": "kufang.online",
+  "records": [
+    {
+      "type": "A",
+      "name": "@",
+      "address": "40.160.91.166"
+    },
+    {
+      "type": "AAAA",
+      "name": "@",
+      "address": "2604:2dc0:101:200::34a0"
+    },
+    {
+      "type": "A",
+      "name": "sample",
+      "address": "40.160.91.166"
+    },
+    {
+      "type": "AAAA",
+      "name": "sample",
+      "address": "2604:2dc0:101:200::34a0"
+    },
+    {
+      "type": "A",
+      "name": "staging",
+      "address": "40.160.91.166"
+    },
+    {
+      "type": "AAAA",
+      "name": "staging",
+      "address": "2604:2dc0:101:200::34a0"
+    }
+  ]
+}

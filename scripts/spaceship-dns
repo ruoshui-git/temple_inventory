@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Review and apply narrowly managed Spaceship DNS record sets."""
+
+import argparse
+import ipaddress
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+BASE_URL = "https://spaceship.dev/api/v1"
+USER_AGENT = "Kufang-DNS/1.0 (operator-managed DNS)"
+FIELDS = {
+	"A": ("address",),
+	"AAAA": ("address",),
+	"CNAME": ("cname",),
+	"TXT": ("value",),
+	"MX": ("exchange", "preference"),
+	"CAA": ("flag", "tag", "value"),
+}
+PLACEHOLDER = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
+DOMAIN = re.compile(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z")
+
+
+class DNSError(Exception):
+	"""A safe, operator-facing error that never contains transport bodies or secrets."""
+
+
+def validate_domain(domain):
+	if not isinstance(domain, str) or not DOMAIN.fullmatch(domain):
+		raise DNSError("invalid domain")
+	return domain
+
+
+def resolve(value, environ):
+	if isinstance(value, str):
+
+		def replacement(match):
+			name = match.group(1)
+			if not environ.get(name):
+				raise DNSError(f"required environment variable is unset: {name}")
+			return environ[name]
+
+		value = PLACEHOLDER.sub(replacement, value)
+		if "${" in value:
+			raise DNSError("unresolved environment placeholder")
+		return value
+	if isinstance(value, list):
+		return [resolve(item, environ) for item in value]
+	if isinstance(value, dict):
+		return {key: resolve(item, environ) for key, item in value.items()}
+	return value
+
+
+def record(raw, *, desired=False):
+	if not isinstance(raw, dict) or raw.get("type") not in FIELDS:
+		raise DNSError("unsupported or invalid DNS record")
+	kind = raw["type"]
+	name = raw.get("name")
+	if not isinstance(name, str) or not name or any(ord(char) < 33 for char in name):
+		raise DNSError("invalid DNS record name")
+	keys = ("type", "name", *FIELDS[kind], "ttl")
+	if desired and set(raw) - set(keys):
+		raise DNSError("unknown field in desired DNS record")
+	result = {"type": kind, "name": name}
+	for key in FIELDS[kind]:
+		value = raw.get(key)
+		if key in ("preference", "flag"):
+			limit = 255 if key == "flag" else 65535
+			if type(value) is not int or not 0 <= value <= limit:
+				raise DNSError(f"invalid DNS record {key}")
+		elif not isinstance(value, str) or not value:
+			raise DNSError(f"missing DNS record {key}")
+		result[key] = value
+	if kind in ("A", "AAAA"):
+		try:
+			address = ipaddress.ip_address(result["address"])
+		except ValueError:
+			raise DNSError("invalid DNS IP address") from None
+		if address.version != (4 if kind == "A" else 6):
+			raise DNSError("DNS address family does not match record type")
+	if "ttl" in raw:
+		if type(raw["ttl"]) is not int or raw["ttl"] <= 0:
+			raise DNSError("invalid DNS record ttl")
+		result["ttl"] = raw["ttl"]
+	return result
+
+
+def load_desired(filename, environ=None):
+	try:
+		data = json.loads(Path(filename).read_text())
+	except (OSError, ValueError):
+		raise DNSError("cannot read desired-state JSON file") from None
+	data = resolve(data, os.environ if environ is None else environ)
+	if not isinstance(data, dict) or set(data) != {"domain", "records"}:
+		raise DNSError("desired file must contain domain and records")
+	domain = validate_domain(data["domain"])
+	if not isinstance(data["records"], list) or not data["records"]:
+		raise DNSError("desired records must be a nonempty array")
+	records = [record(item, desired=True) for item in data["records"]]
+	if len({json.dumps(item, sort_keys=True) for item in records}) != len(records):
+		raise DNSError("duplicate desired DNS record")
+	return domain, records
+
+
+def diff(current, desired):
+	"""Only pairs named in desired are managed; an omitted TTL is left alone."""
+	managed = {(item["type"], item["name"]) for item in desired}
+	remaining = [item.copy() for item in current if (item.get("type"), item.get("name")) in managed]
+	add = []
+	for wanted in desired:
+		for index, existing in enumerate(remaining):
+			if all(existing.get(key) == value for key, value in wanted.items()):
+				remaining.pop(index)
+				break
+		else:
+			add.append(wanted)
+	return {"add": add, "delete": [record(item) for item in remaining]}
+
+
+def credentials(filename=None):
+	path = Path(filename or os.environ.get("SPACESHIP_CREDENTIALS", "~/.config/spaceship/credentials"))
+	try:
+		lines = path.expanduser().read_text().splitlines()
+	except (OSError, UnicodeError):
+		raise DNSError("cannot read Spaceship credentials file") from None
+	if len(lines) != 2 or not all(lines) or any("\r" in line or "\n" in line for line in lines):
+		raise DNSError("credentials file must contain two nonempty lines")
+	return lines
+
+
+def transport(method, url, headers, body):
+	request = urllib.request.Request(url, data=body, headers=headers, method=method)
+	try:
+		with urllib.request.urlopen(request, timeout=30) as response:
+			return response.read()
+	except urllib.error.HTTPError as error:
+		raise DNSError(f"Spaceship API request failed (HTTP {error.code})") from None
+	except (OSError, ValueError):
+		raise DNSError("Spaceship API request failed") from None
+
+
+class Client:
+	def __init__(self, key, secret, request=transport):
+		self.headers = {
+			"X-Api-Key": key,
+			"X-Api-Secret": secret,
+			"User-Agent": USER_AGENT,
+			"Content-Type": "application/json",
+		}
+		self.request = request
+
+	def call(self, method, domain, body=None, query=""):
+		validate_domain(domain)
+		url = f"{BASE_URL}/dns/records/{urllib.parse.quote(domain, safe='')}{query}"
+		try:
+			response = self.request(
+				method, url, self.headers.copy(), None if body is None else json.dumps(body).encode()
+			)
+		except DNSError:
+			raise
+		except Exception:
+			# Do not disclose exception text: transports may echo request headers.
+			raise DNSError("Spaceship API request failed") from None
+		if not response:
+			return None
+		try:
+			return json.loads(response)
+		except (ValueError, TypeError):
+			raise DNSError("Spaceship API returned invalid JSON") from None
+
+	def list(self, domain):
+		items = []
+		skip = 0
+		while True:
+			response = self.call("GET", domain, query=f"?take=500&skip={skip}")
+			page = response.get("items") if isinstance(response, dict) else response
+			if not isinstance(page, list) or any(not isinstance(item, dict) for item in page):
+				raise DNSError("Spaceship API returned invalid records")
+			items.extend(page)
+			if len(page) < 500:
+				return items
+			skip += len(page)
+
+	def apply(self, domain, changes):
+		if changes["delete"]:
+			self.call("DELETE", domain, changes["delete"])
+		if changes["add"]:
+			self.call("PUT", domain, {"force": True, "items": changes["add"]})
+
+
+def main(argv=None, *, request=transport, output=None):
+	parser = argparse.ArgumentParser(description=__doc__)
+	subcommands = parser.add_subparsers(dest="action", required=True)
+	subcommands.add_parser("list").add_argument("domain")
+	for name in ("plan", "apply"):
+		command = subcommands.add_parser(name)
+		command.add_argument("file")
+		if name == "apply":
+			command.add_argument("--yes", action="store_true", required=True)
+	args = parser.parse_args(argv)
+	output = output or sys.stdout
+	try:
+		if args.action == "list":
+			domain = validate_domain(args.domain)
+		else:
+			domain, desired = load_desired(args.file)
+		client = Client(*credentials(), request=request)
+		current = client.list(domain)
+		if args.action == "list":
+			result = current
+		else:
+			changes = diff(current, desired)
+			result = {"domain": domain, **changes}
+			if args.action == "apply":
+				client.apply(domain, changes)
+		print(json.dumps(result, indent=2), file=output)
+		return 0
+	except DNSError as error:
+		print(f"spaceship-dns: {error}", file=sys.stderr)
+		return 1
+
+
+if __name__ == "__main__":
+	sys.exit(main())

@@ -1,0 +1,47 @@
+{
+  "domain": "kufang.org",
+  "records": [
+    {
+      "type": "A",
+      "name": "@",
+      "address": "${PRODUCTION_IPV4}"
+    },
+    {
+      "type": "AAAA",
+      "name": "@",
+      "address": "${PRODUCTION_IPV6}"
+    },
+    {
+      "type": "CNAME",
+      "name": "www",
+      "cname": "kufang.org"
+    },
+    {
+      "type": "CAA",
+      "name": "@",
+      "flag": 0,
+      "tag": "issue",
+      "value": "letsencrypt.org"
+    },
+    {
+      "type": "TXT",
+      "name": "resend._domainkey",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCj18V4MvcjJPamZbiCjOIbSD4t8qQv/XzqxHtf5miOUp0rZWb+abQ0K9z20FLeyju/b3qDaiRHzB/hNjHzZ3U1NvqRXSOD8WK33ZxqynK1xOKytitrLI2k/gb0bJXOBCzpDLdFuE41XOEm46ZMbNBd6klVvMJx+d7Jk90pPxK6SwIDAQAB"
+    },
+    {
+      "type": "CNAME",
+      "name": "send",
+      "cname": "send.forge.rmta.net"
+    },
+    {
+      "type": "CNAME",
+      "name": "rsend",
+      "cname": "rsend.forge.rmta.net"
+    },
+    {
+      "type": "TXT",
+      "name": "_dmarc",
+      "value": "v=DMARC1; p=none; adkim=s; aspf=r"
+    }
+  ]
+}
