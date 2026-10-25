@@ -69,7 +69,7 @@ git_common=$(git -C "$app" rev-parse --path-format=absolute --git-common-dir 2>/
 [[ -n $git_common && $git_common != "$bench"/* ]] && roots+=("$git_common")
 # From a worktree, share the development checkout's heavy lock so Codex queues
 # with every other agent instead of using a private /tmp lock.
-main_development=$(cd -- "$(dirname -- "$git_common")/../../.." 2>/dev/null && pwd || true)
+main_development=$(cd -- "$(dirname -- "$git_common")/../../.." 2>/dev/null && pwd) || main_development=
 if [[ -d $main_development/frappe-bench && $bench != "$main_development"/* ]]; then
 	mkdir -p "$main_development/.locks"
 	roots+=("$main_development/.locks")
