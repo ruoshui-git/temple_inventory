@@ -1,11 +1,11 @@
-# Sample environment: one Frappe/ERPNext site running a temple_inventory image.
-# Installed at /srv/kufang/sample and driven only by deploy.sh and bootstrap.sh,
+# One isolated Frappe/ERPNext environment; only Traefik publishes host ports.
+# Installed at /srv/kufang/<env> and driven only by deploy.sh and bootstrap.sh,
 # which pass IMAGE (an immutable ghcr.io digest) through image.env. The sites,
 # logs, db-data and redis-queue-data volumes hold all persistent state; never run
 # `down -v`.
 #
 #   docker compose --env-file .env --env-file image.env ps
-name: kufang-sample
+name: kufang-${ENVIRONMENT:?ENVIRONMENT marker required}
 
 x-frappe: &frappe
   image: ${IMAGE:?IMAGE comes from image.env}
@@ -91,11 +91,12 @@ services:
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.kufang-sample.rule: Host(`${SITE_NAME}`)
-      traefik.http.routers.kufang-sample.entrypoints: websecure
-      traefik.http.routers.kufang-sample.tls.certresolver: le
-      traefik.http.services.kufang-sample.loadbalancer.server.port: "8080"
+      - "traefik.enable=true"
+      - "traefik.http.routers.kufang-${ENVIRONMENT}.rule=Host(`${SITE_NAME}`)"
+      - "traefik.http.routers.kufang-${ENVIRONMENT}.entrypoints=websecure"
+      - "traefik.http.routers.kufang-${ENVIRONMENT}.tls.certresolver=le"
+      - "traefik.http.services.kufang-${ENVIRONMENT}.loadbalancer.server.port=8080"
+      - "traefik.http.routers.kufang-${ENVIRONMENT}.middlewares=${ROUTER_MIDDLEWARES:-}"
     networks:
       - default
       - edge

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Kufang %i backup (New York time)
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 America/New_York
+Persistent=true
+Unit=kufang-backup@%i.service
+
+[Install]
+WantedBy=timers.target

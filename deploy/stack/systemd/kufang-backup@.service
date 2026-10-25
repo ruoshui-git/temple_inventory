@@ -1,0 +1,16 @@
+[Unit]
+Description=Kufang %i local and B2 backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/srv/kufang/%i/ENVIRONMENT
+
+[Service]
+Type=oneshot
+User=kufang-deploy
+Group=kufang-deploy
+UMask=0077
+WorkingDirectory=/srv/kufang/%i
+# This template deliberately refuses every instance except production.
+ExecStartPre=/usr/bin/test %i = production
+ExecStart=/srv/kufang/%i/backup.sh
