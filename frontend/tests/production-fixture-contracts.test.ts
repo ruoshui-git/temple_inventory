@@ -89,7 +89,8 @@ describe("gallery renders native production components", () => {
       }
       expect(fetch).not.toHaveBeenCalled();
     },
-    10_000,
+    // About 4.5 s locally; 2-vCPU CI runners take more than twice as long.
+    30_000,
   );
   it.each([
     ["dashboard/overview", DashboardPage],
