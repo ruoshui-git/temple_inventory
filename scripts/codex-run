@@ -64,6 +64,9 @@ command -v bwrap >/dev/null ||
 	echo "codex-run: bubblewrap missing; Codex falls back to its bundled copy (sudo apt-get install bubblewrap)" >&2
 
 roots=("$bench" /tmp "$HOME/.cache")
+# A worktree keeps its Git metadata in the main repository; Codex needs it to commit.
+git_common=$(git -C "$app" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+[[ -n $git_common && $git_common != "$bench"/* ]] && roots+=("$git_common")
 [[ -d /workspace/.pnpm-store ]] && roots+=(/workspace/.pnpm-store)
 printf -v roots_toml '"%s",' "${roots[@]}"
 
