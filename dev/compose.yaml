@@ -63,8 +63,11 @@ services:
   frappe:
     <<: *bench
     command: sleep infinity
+    # bench serve, and the Vite dev server when you run `scripts/dx pnpm dev`.
+    # TI_DEV_BIND=0.0.0.0 also exposes them on the WSL IP (see README.md).
     ports:
-      - 127.0.0.1:8000:8000
+      - ${TI_DEV_BIND:-127.0.0.1}:8000:8000
+      - ${TI_DEV_BIND:-127.0.0.1}:8080:8080
     restart: unless-stopped
 
   web:
