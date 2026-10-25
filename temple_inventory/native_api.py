@@ -184,7 +184,8 @@ def serialize(doc):
 	if doc.doctype == "Stock Reconciliation":
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			line["recorded_count_allocations"] = reconciliation_allocations(original)
-	if doc.doctype in ("Stock Entry", "Stock Reconciliation"):
+	# The sample seeder discards responses, so it skips their display lookups.
+	if doc.doctype in ("Stock Entry", "Stock Reconciliation") and not frappe.flags.ti_sample_seeding:
 		display_rows = list(data.get("items", []))
 		if doc.doctype == "Stock Reconciliation":
 			display_rows += list(data.get("ti_count_review", []))

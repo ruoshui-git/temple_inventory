@@ -13,7 +13,32 @@ SYSTEM_POINTERS = (
 
 
 def _settings():
-	return frappe.get_single("Temple Inventory Settings")
+	"""Temple Inventory Settings for reading; callers that change it load their own copy.
+
+	Scope checks read the settings several times per save. Building the Single is
+	the costly part, so reuse the copy built for the same stored rows. The rows are
+	read every call, so writes, direct SQL and rolled-back transactions all show.
+	"""
+	state = (
+		tuple(
+			frappe.db.sql(
+				"select field, value from tabSingles where doctype='Temple Inventory Settings' order by field"
+			)
+		),
+		tuple(
+			frappe.db.sql(
+				"""select name, idx, warehouse from `tabTemple Inventory Allowed Warehouse`
+				where parent='Temple Inventory Settings' and parenttype='Temple Inventory Settings'
+				order by idx, name"""
+			)
+		),
+	)
+	cached = getattr(frappe.local, "temple_inventory_settings", None)
+	if cached and cached[0] == state:
+		return cached[1]
+	settings = frappe.get_single("Temple Inventory Settings")
+	frappe.local.temple_inventory_settings = (state, settings)
+	return settings
 
 
 def _warehouse_map(company):
@@ -272,7 +297,8 @@ def sync_desk_warehouse_allowlist(doc, method=None):
 	"""Discover newly created eligible stock leaves and remove ineligible ones."""
 	if not frappe.db.exists("DocType", "Temple Inventory Settings"):
 		return
-	settings = _settings()
+	# This hook may save the allowlist, so it must not modify the shared read copy.
+	settings = frappe.get_single("Temple Inventory Settings")
 	before = doc.get_doc_before_save() if not doc.is_new() else None
 
 	def eligible(row):
