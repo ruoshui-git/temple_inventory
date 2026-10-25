@@ -10,6 +10,7 @@ set -Eeuo pipefail
 usage() {
 	cat >&2 <<'USAGE'
 Usage: codex-run NAME PROMPT_FILE [--resume SESSION_ID | --fork SESSION_ID] [--model MODEL]
+                [--config KEY=VALUE]...
 
   NAME          Short run name, e.g. location-backend (reused names are overwritten).
   PROMPT_FILE   Task brief; use - to read it from stdin.
@@ -17,6 +18,8 @@ Usage: codex-run NAME PROMPT_FILE [--resume SESSION_ID | --fork SESSION_ID] [--m
   --fork ID     Continue from an earlier session in a new thread (use when
                 resume reports that the thread already has an active writer).
   --model M     Default: $CODEX_MODEL or gpt-6-luna.
+  --config K=V  Extra Codex config, repeatable; e.g. service_tier="fast" for fast
+                mode, model_reasoning_effort="high".
 USAGE
 	exit 2
 }
@@ -26,17 +29,25 @@ name=$1
 prompt=$2
 shift 2
 mode=()
+extra=()
 model="${CODEX_MODEL:-gpt-6-luna}"
 while [[ $# -gt 0 ]]; do
 	case $1 in
 		--resume) mode=(resume "${2:?--resume requires a session id}"); shift 2 ;;
 		--fork) mode=(fork "${2:?--fork requires a session id}"); shift 2 ;;
 		--model) model=${2:?--model requires a value}; shift 2 ;;
+		--config) extra+=(-c "${2:?--config requires KEY=VALUE}"); shift 2 ;;
 		*) usage ;;
 	esac
 done
 
-bench=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
+# Run from the Bench when this is its app checkout, so Codex can reach the other
+# apps; from a worktree outside the Bench, confine it to the worktree.
+app=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+bench=$app
+if [[ -f $app/../../sites/apps.txt ]]; then
+	bench=$(cd -- "$app/../.." && pwd)
+fi
 runs="${CODEX_RUNS_DIR:-/tmp/codex-runs}"
 mkdir -p "$runs"
 log="$runs/$name.log"
@@ -68,6 +79,7 @@ set +e
 			-c 'approval_policy="never"' \
 			-c 'sandbox_workspace_write.network_access=true' \
 			-c "sandbox_workspace_write.writable_roots=[${roots_toml%,}]" \
+			"${extra[@]}" \
 			-o "$runs/$name.last" \
 			-
 ) >"$log" 2>&1

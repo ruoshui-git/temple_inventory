@@ -132,14 +132,34 @@ because it deletes the development database volume.
 
 ## Branches and deployment
 
-`main` is the trunk; use short-lived `feature/*` and `fix/*` branches and push
-them to `origin`. Direct pushes to `main` are allowed. Every push to `main` is
-tested, built into an image and deployed automatically to
-`https://sample.kufang.online`, so push only commits that pass validation.
-[deploy/README.md](deploy/README.md) owns the image, sample host, deploy and
-recovery procedures. Do not run commands against the sample VPS, GitHub settings
-or DNS without explicit approval. Staging and production promote an existing
-image digest and are separate, approval-gated environments.
+- `main` is the trunk and the only long-lived branch. Work on short-lived
+  `feature/<topic>` or `fix/<topic>` branches cut from `origin/main`, and push
+  them to `origin`; CI (`.github/workflows/ci.yml`) runs on every branch push.
+- Integrate with a fast-forward: rebase the branch onto `origin/main`, rerun the
+  validation the change needs, then push to `main`. Direct pushes to `main` are
+  allowed; force-pushing or deleting `main` is blocked. Delete merged branches.
+- Commit messages follow Conventional Commits (`feat(scope): ...`, `fix:`,
+  `perf:`, `docs:`, `test:`, `chore:`) with a body explaining why.
+- Every push to `main` is tested, built into one immutable image and deployed
+  to `https://sample.kufang.online`, so push only commits that pass validation.
+  Staging and production never build their own images: they promote an image
+  digest that sample has already run, through manual, approval-gated workflows.
+- [deploy/README.md](deploy/README.md) owns the image, hosts, deploy, backup and
+  recovery procedures. Do not run commands against the VPSes, GitHub settings,
+  DNS or email providers without explicit approval.
+
+## Parallel agents
+
+Several agents may work at once. The main checkout under `frappe-bench/apps/`
+is the one the development Bench runs, so only one agent at a time edits it,
+migrates `development.localhost` or resets its data. Other agents use their own
+Git worktree outside `frappe-bench/` (for example
+`git worktree add ~/code/ti-<topic> -b feature/<topic> origin/main`); a worktree
+cannot run the Bench, so its changes are tested after they land in the main
+checkout or in CI. All agents share the dev database, the `web`/`worker`
+services and the `scripts/heavy` lock: queue heavy work through the lock, never
+restart or rebuild the dev stack while another agent is testing, and rebase on
+`origin/main` immediately before pushing.
 
 ## Visual browser preflight
 

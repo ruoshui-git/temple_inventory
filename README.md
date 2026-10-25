@@ -128,42 +128,43 @@ folder, not "Reopen in Container").
 
 #### Reaching the servers from a Windows browser
 
-The ports are published on WSL's `localhost`. The former devcontainer worked
-because VS Code tunnelled its ports. Since the move to WSL, Windows reaches WSL
-only through WSL's own networking, and plain localhost forwarding does not work
-on this machine. Even a bare `python3 -m http.server` on WSL's `127.0.0.1` is
-unreachable from Windows.
+The ports are published on WSL's `127.0.0.1`, and WSL's localhost forwarding
+(`localhostForwarding=true` in `C:\Users\<you>\.wslconfig`, the default) makes
+them reachable as `http://localhost:8000` and `http://localhost:8080` from a Windows
+browser, which counts as a secure context for PWA install, the service worker and
+the camera scanner. Mirrored networking (`networkingMode=mirrored`) also works but
+is not required.
 
-**Recommended: mirrored networking.** Windows and WSL then share `localhost`, so
-every URL above works as written in a Windows browser. That includes the
-service-worker, PWA-install and camera-scanner features, which browsers allow only
-on `localhost` or HTTPS. Do this once:
+If one port works and another does not, something on Windows is already holding
+that port, and WSL cannot forward it. Check in PowerShell:
 
-1. Add to `C:\Users\<you>\.wslconfig`, under the existing `[wsl2]` section:
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen | Select LocalAddress,OwningProcess
+netsh interface portproxy show all
+```
 
-   ```ini
-   networkingMode=mirrored
-   ```
+On this PC an old `netsh interface portproxy` rule (`0.0.0.0:8000` to
+`127.0.0.1:8000`, owned by the IP Helper service) held port 8000. Remove such a
+rule from an Administrator PowerShell:
 
-2. In PowerShell, run `wsl --shutdown`. This stops every WSL session, the Docker
-   stack and any agent running in WSL, so save your work first. Then reopen your
-   WSL terminal or VS Code window. Docker brings the stack back up by itself.
+```powershell
+netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0
+```
 
-This needs Windows 11 22H2 or later; this machine has build 26300 with WSL 2.7.8.
+If forwarding stops working altogether, `wsl --shutdown` (which also stops the
+Docker stack and any agent running in WSL) and reopen the WSL terminal.
 
-**Fallback without restarting WSL: the WSL IP address.** Publish the ports on
-every WSL interface, then browse to WSL's IP:
+**Fallback: the WSL IP address.** Publish the ports on every WSL interface, then
+browse to WSL's IP:
 
 ```bash
 TI_DEV_BIND=0.0.0.0 docker compose -f dev/compose.yaml up -d
-hostname -I | awk '{print $1}'   # e.g. 172.28.172.239; changes after each WSL restart
+hostname -I | awk '{print $1}'   # changes after each WSL restart
 ```
 
-Then open `http://<that IP>:8000/inventory` or `http://<that IP>:8080/inventory/`.
 A plain-HTTP IP address is not a secure context, so PWA install, the service worker
-and the camera scanner do not work there. To go back to loopback-only, run
-`docker compose -f dev/compose.yaml up -d` without the variable. The WSL IP is
-reachable only from this PC, not from the rest of the network.
+and the camera scanner do not work there. Run `docker compose -f dev/compose.yaml
+up -d` without the variable to go back to loopback-only.
 
 To test PWA install against a real HTTPS site without any of this, use the sample
 deployment at <https://sample.kufang.online/inventory>.
