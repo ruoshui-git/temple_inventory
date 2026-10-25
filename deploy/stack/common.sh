@@ -64,6 +64,7 @@ stop_jobs() { compose stop scheduler queue-short queue-long; }
 site_policy() {
 	local image=$1
 	bench_with "$image" --site "$SITE_NAME" set-config host_name "https://$SITE_NAME"
+	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_environment "$ENVIRONMENT"
 	if [[ $ENVIRONMENT != production ]]; then
 		bench_with "$image" --site "$SITE_NAME" set-config mute_emails 1
 	fi

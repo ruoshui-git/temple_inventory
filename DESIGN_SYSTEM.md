@@ -14,6 +14,12 @@ kept in Git.
   shape, shadows, scrims and layers. Jade, bronze and blue are selected with
   `data-ti-theme`. Components consume semantic tokens; artwork, user images,
   camera content and preview swatches retain intended colors.
+- Non-production app headers show one accessible environment badge beside the
+  brand on desktop and mobile. `--ti-environment-color` is set from the runtime
+  site descriptor; use white badge text. Sample amber `#8a4b08`, staging violet
+  `#593d8c` and development blue `#245b9e` each keep strong white-text contrast.
+  Production uses the existing jade `#28684e` for system theme chrome and hides
+  the badge.
 - `AppFrame` owns navigation and measured mobile obstruction. `ApplicationShell`
   supplies route/account context and registry breadcrumbs. The shared surface
   breakpoint is 1024px. `components/ui` contains reusable controls, overlays,

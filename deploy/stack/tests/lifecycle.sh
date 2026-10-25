@@ -58,6 +58,7 @@ def first(fragment):
 	return next(i for i, line in enumerate(commands) if fragment in line)
 assert first("up -d db redis-cache redis-queue") < first("set-maintenance-mode on")
 assert first("chown -R frappe:") < first("import json, os")
+assert any("set-config temple_inventory_environment staging" in line for line in commands)
 assert first(" restore ") < first("disable-scheduler") < first("up -d scheduler queue-short queue-long")
 assert first("DELETE FROM `__Auth`") < first("up -d scheduler queue-short queue-long")
 image = (root / "staging/state/current").read_text().strip()

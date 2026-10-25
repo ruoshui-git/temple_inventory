@@ -1,5 +1,4 @@
 import { fileURLToPath, URL } from "node:url";
-import fs from "node:fs";
 
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
@@ -25,9 +24,10 @@ export default defineConfig({
     // startup log line, but drop it here to keep dev-server output clean
     // without patching frappe-ui or upgrading the bench CLI.
     frappeui({
-      // Route this SPA is served on by Frappe. Drives the auto-inferred
-      // indexHtmlPath for the production build.
+      // Keep the built shell at the app route path from both Bench and an
+      // isolated worktree checkout.
       frontendRoute: "/inventory",
+      buildConfig: { indexHtmlPath: "../temple_inventory/www/inventory.html" },
       frappeProxy: { port: Number(process.env.TI_DEV_PORT) || undefined },
     }).filter(
       (plugin) =>
@@ -36,6 +36,28 @@ export default defineConfig({
         ),
     ),
     vue(),
+    {
+      name: "temple-inventory-dev-head-defaults",
+      apply: "serve",
+      transformIndexHtml(html) {
+        return html
+          .replace("{{ environment.theme_color or '#28684e' }}", "#28684e")
+          .replace("{{ environment.short_name or '物资管理' }}", "物资管理")
+          .replace("{{ app_title or '物资管理' }}", "物资管理")
+          .replace(
+            "{{ environment.icons.favicon or '/assets/temple_inventory/logo.png' }}",
+            "/assets/temple_inventory/logo.png",
+          )
+          .replace(
+            "{{ environment.icons.apple or '/assets/temple_inventory/frontend/pwa-icons/apple-touch-icon-180.png' }}",
+            "/assets/temple_inventory/frontend/pwa-icons/apple-touch-icon-180.png",
+          )
+          .replace(
+            "{{ manifest_url or '/temple-inventory.webmanifest' }}",
+            "/temple-inventory.webmanifest",
+          );
+      },
+    },
     {
       name: "temple-inventory-zxing-local-wasm",
       enforce: "pre",
@@ -50,36 +72,7 @@ export default defineConfig({
     VitePWA({
       registerType: "prompt",
       injectRegister: null,
-      manifest: {
-        id: "/",
-        name: "物资管理",
-        short_name: "物资管理",
-        description: "物资管理",
-        lang: "zh-CN",
-        start_url: "/",
-        scope: "/",
-        display: "standalone",
-        background_color: "#f4f6f3",
-        theme_color: "#28684e",
-        icons: [
-          {
-            src: "/assets/temple_inventory/frontend/pwa-icons/icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "/assets/temple_inventory/frontend/pwa-icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          {
-            src: "/assets/temple_inventory/frontend/pwa-icons/icon-512-maskable.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
-        ],
-      },
+      manifest: false,
       workbox: {
         importScripts: ["/assets/temple_inventory/frontend/push-handler.js"],
         cleanupOutdatedCaches: true,
@@ -92,31 +85,10 @@ export default defineConfig({
           "assets/**/*.{js,css,wasm,woff,woff2,ttf,otf}",
           "pwa-icons/**/*.{png,svg}",
         ],
+        // Each site links only its own environment's icons; never precache the others.
+        globIgnores: ["pwa-icons/{sample,staging,development}-*"],
       },
     }),
-    {
-      name: "temple-inventory-pwa-manifest-path",
-      closeBundle: {
-        order: "post",
-        handler() {
-          const workerPath = fileURLToPath(
-            new URL(
-              "../temple_inventory/public/frontend/sw.js",
-              import.meta.url,
-            ),
-          );
-          if (!fs.existsSync(workerPath)) return;
-          const worker = fs.readFileSync(workerPath, "utf8");
-          fs.writeFileSync(
-            workerPath,
-            worker.replaceAll(
-              'url:"manifest.webmanifest"',
-              'url:"/assets/temple_inventory/frontend/manifest.webmanifest"',
-            ),
-          );
-        },
-      },
-    },
   ],
   // frappe-ui's optimizer lists bare transitive dependency names; scope them to
   // frappe-ui for pnpm resolution. Keep them prebundled so late discovery does

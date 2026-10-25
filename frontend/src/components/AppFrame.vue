@@ -11,6 +11,8 @@ import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import type { NavigationItem } from "../lib/appNavigation";
 import type { AppRouteTarget } from "../lib/routeRegistry";
 import { registerRouteProgress } from "../lib/routeProgress";
+import { environment } from "../lib/environment";
+import EnvironmentBadge from "./EnvironmentBadge.vue";
 const props = withDefaults(
 	defineProps<{
 		primary: NavigationItem[];
@@ -199,7 +201,9 @@ onBeforeUnmount(() => {
 		<header v-if="!isMobile" ref="desktopNavigation" class="sample-sidebar">
 			<div class="sample-brand">
 				<span class="brand-symbol"><InventoryIcon name="box" /></span>
-				<div><strong>物资管理</strong></div>
+				<div class="brand-title">
+					<strong>物资管理</strong><EnvironmentBadge :environment="environment" />
+				</div>
 			</div>
 			<nav aria-label="应用主导航">
 				<div v-for="group in primary" :key="group.key" class="nav-group">
@@ -294,7 +298,10 @@ onBeforeUnmount(() => {
 			</div>
 		</header>
 		<header v-if="isMobile" class="mobile-app-topbar">
-			<strong>物资管理</strong><slot name="notifications" />
+			<div class="mobile-brand-title">
+				<strong>物资管理</strong><EnvironmentBadge :environment="environment" />
+			</div>
+			<slot name="notifications" />
 		</header>
 		<main :id="contentId" class="sample-content"><slot /></main>
 		<nav

@@ -309,7 +309,13 @@ BACKUP_DIR=/srv/kufang/production/backups/REPLACE_WITH_UTC_TIMESTAMP
 ```
 
 Restores overwrite the target database and files. Do not restore a production
-set into sample. Staging refresh resets the restored hostname and mail policy;
+set into sample. Every deploy and restore writes the site's
+`temple_inventory_environment` setting (`sample`, `staging` or `production`)
+after restore, along with the environment-specific hostname and mail/scheduler
+policy. Restore imports only the source site's `encryption_key` from
+`site_config.json`; the runtime branding setting is never copied from backup.
+This lets all promoted environments use the same immutable image digest.
+Staging refresh resets the restored hostname and mail policy;
 production restore checks health and resumes web traffic and workers as part
 of the operator-invoked restore command. Inspect the chosen set and incident
 state before invoking it, then inspect the application after it returns. Test

@@ -24,6 +24,7 @@ def get_context(context):
 	if frappe.session.user == "Guest":
 		frappe.flags.redirect_location = "/login?" + urlencode({"redirect-to": frappe.request.path})
 		raise frappe.Redirect(http_status_code=302)
+	from temple_inventory.environment import descriptor
 	from temple_inventory.native_access import require_app
 
 	require_app()
@@ -32,6 +33,11 @@ def get_context(context):
 		"user": frappe.session.user,
 		"site_name": frappe.local.site,
 		"lang": frappe.local.lang or "en",
+		"environment": descriptor(),
 	}
+	settings = context.boot["environment"]
+	context.environment = settings
+	context.app_title = settings["title"]
+	context.manifest_url = "/temple-inventory.webmanifest"
 
 	return context

@@ -6,17 +6,25 @@
 			name="viewport"
 			content="width=device-width, initial-scale=1.0, viewport-fit=cover"
 		/>
-		<meta name="theme-color" content="#28684e" />
+		<meta name="theme-color" content="{{ environment.theme_color or '#28684e' }}" />
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-		<meta name="apple-mobile-web-app-title" content="物资管理" />
-		<title>物资管理</title>
-		<link rel="icon" href="/assets/temple_inventory/logo.png" type="image/png" />
+		<meta
+			name="apple-mobile-web-app-title"
+			content="{{ environment.short_name or '物资管理' }}"
+		/>
+		<title>{{ app_title or '物资管理' }}</title>
+		<link
+			rel="icon"
+			href="{{ environment.icons.favicon or '/assets/temple_inventory/logo.png' }}"
+			type="image/png"
+		/>
 		<link
 			rel="apple-touch-icon"
-			href="/assets/temple_inventory/frontend/pwa-icons/apple-touch-icon-180.png"
+			href="{{ environment.icons.apple or '/assets/temple_inventory/frontend/pwa-icons/apple-touch-icon-180.png' }}"
 		/>
+		<link rel="manifest" href="{{ manifest_url or '/temple-inventory.webmanifest' }}" />
 	</head>
 	<body>
 		<div id="app"></div>

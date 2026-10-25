@@ -84,6 +84,11 @@ AGENTS.md ("Development environment") for the `scripts/dx` wrapper and compose
 commands, and [deploy/README.md](deploy/README.md) for the sample deployment that
 every push to `main` triggers.
 
+The development site may set `temple_inventory_environment` in its site config
+to `development`, `sample`, `staging` or `production` for runtime branding. If
+the key is missing, `developer_mode` selects `development`; otherwise the safe
+default is `production`.
+
 ### Running the app locally
 
 Run these from this app's directory in a WSL terminal (VS Code opened on the WSL

@@ -16,6 +16,7 @@ website_route_rules = [
 
 after_install = ["temple_inventory.deployment.after_install"]
 after_migrate = ["temple_inventory.deployment.after_migrate"]
+update_website_context = ["temple_inventory.environment.update_website_context"]
 
 fixtures = [
 	{"dt": "Custom Field", "filters": [["module", "=", "Temple Inventory"]]},
@@ -336,4 +337,7 @@ extend_doctype_class = {
 	"Stock Entry": ["temple_inventory.stock_entry.InventoryStockEntryMixin"],
 }
 
-page_renderer = ["temple_inventory.pwa.ServiceWorkerPage"]
+page_renderer = [
+	"temple_inventory.manifest.ManifestPage",
+	"temple_inventory.pwa.ServiceWorkerPage",
+]

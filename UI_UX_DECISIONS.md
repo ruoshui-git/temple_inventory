@@ -4,6 +4,18 @@ This is the current product decision record. Retired mockups, preview-only
 proposals and implementation chronology belong in Git history. Add a dated
 supersession below when a durable user-facing decision changes.
 
+## Supersession — 2026-10-25: runtime environment identity
+
+- Sample, staging and development sites identify themselves in the browser
+  title/theme, app header, login branding and installed PWA name/icons. The
+  site config key `temple_inventory_environment` controls this at runtime;
+  unknown or missing values default to production except missing on
+  `developer_mode`, which defaults to development. Production keeps its current
+  title, theme, icon set and unbadged header.
+- Environment labels are 演示, 预发布 and 开发. The header uses a named,
+  high-contrast badge; environment theme colours are sample amber `#8a4b08`,
+  staging violet `#593d8c` and development blue `#245b9e`.
+
 ## Language and identity
 
 - Product chrome and operation/status/outcome/document-type values are Chinese.

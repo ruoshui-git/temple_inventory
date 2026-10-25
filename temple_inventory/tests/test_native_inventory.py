@@ -11,6 +11,7 @@ import frappe
 
 from temple_inventory.tests.test_catalog import CatalogTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
+from temple_inventory.tests.test_environment import EnvironmentTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 from temple_inventory.tests.test_native_reports import NativeReportTests
 from temple_inventory.tests.test_native_samples import (
@@ -49,6 +50,7 @@ def run(test_name=None):
 		NativeSampleTests,
 		TablePreferenceTests,
 		NotificationTests,
+		EnvironmentTests,
 		SchemaAuditTests,
 	):
 		# Feature suites inherit the shared savepoint setup and helpers. Run their
