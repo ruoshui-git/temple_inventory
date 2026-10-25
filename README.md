@@ -48,6 +48,14 @@ warehouses are removed.
 The command requires `developer_mode=1`, the MariaDB root password, and an exact
 `RESET <site>` confirmation.
 
+Seeding takes several minutes, so the reset saves the seeded site (database and
+files) under `development/.sample-snapshots/` and restores it on later resets
+instead of seeding again. [scripts/sample-snapshot](scripts/sample-snapshot) keys a
+snapshot by the app's backend source (tests excluded), the Frappe and ERPNext
+commits and the seed arguments. A snapshot is used only on the day, in the site's
+time zone, it was seeded, because sample dates are relative to that day. Pass
+`--no-snapshot` to seed from scratch. CI caches the same snapshot between runs.
+
 #### Development database credentials
 
 In the development stack, MariaDB runs on host `mariadb` with root user `root` and

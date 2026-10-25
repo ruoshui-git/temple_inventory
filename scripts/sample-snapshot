@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Cache a seeded sample site, so resets and CI restore it instead of reseeding.
+# The key covers everything the seed depends on: the app's tracked backend source
+# (tests excluded), the Frappe and ERPNext commits and the seed arguments. Seeded
+# dates are relative to the day of seeding in the site's time zone, so a snapshot
+# records that day and `fresh` rejects it once the day has passed.
+#
+#   sample-snapshot key [SEED_ARGS]        print the cache key
+#   sample-snapshot save SITE DIR          back up SITE with files into DIR
+#   sample-snapshot fresh DIR              succeed if DIR was seeded today
+#   sample-snapshot restore SITE DIR       restore DIR into SITE (needs MARIADB_ROOT_PASSWORD)
+#
+# Run inside the bench environment (the development container or CI).
+
+usage() {
+	sed -n '10,13s/^#   //p' "$app/scripts/sample-snapshot" >&2
+	exit 2
+}
+
+app=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+bench_root=$(cd -- "$app/../.." && pwd)
+cd -- "$bench_root"
+
+key() {
+	local args=${1:-}
+	{
+		(
+			cd -- "$app"
+			git ls-files -z --cached --others --exclude-standard -- temple_inventory \
+				':!temple_inventory/tests' | sort -z |
+				while IFS= read -r -d '' file; do
+					[[ -f $file ]] && sha256sum -- "$file"
+				done
+		)
+		git -C apps/frappe rev-parse HEAD
+		git -C apps/erpnext rev-parse HEAD
+		printf 'args %s\n' "$args"
+	} | sha256sum | cut -c1-16
+}
+
+save() {
+	local site=$1 dir=$2 tmp
+	tmp=$(realpath -m -- "$dir.tmp")
+	rm -rf -- "$tmp"
+	mkdir -p -- "$tmp"
+	bench --site "$site" backup --with-files --backup-path "$tmp"
+	(
+		cd -- "$tmp"
+		# Private first: once it is renamed, only the public archive ends in -files.tar.
+		mv -- ./*-database.sql.gz database.sql.gz
+		mv -- ./*-private-files.tar private.tar
+		mv -- ./*-files.tar public.tar
+		rm -f -- ./*-site_config_backup.json
+	)
+	# Encrypted fields in the dump only decrypt with the key of the site that wrote
+	# them. Frappe creates the key on first use, so a site may not have one yet.
+	(umask 077 && env/bin/python -c 'import json, sys; print(json.load(open(sys.argv[1])).get("encryption_key", ""))' \
+		"sites/$site/site_config.json" >"$tmp/encryption_key")
+	# The seeded day and the site's time zone; restore only while that day lasts.
+	printf '%s %s\n' \
+		"$(bench --site "$site" execute frappe.utils.nowdate | tr -d '"')" \
+		"$(bench --site "$site" execute frappe.utils.get_system_timezone | tr -d '"')" >"$tmp/seeded"
+	rm -rf -- "$dir"
+	mv -- "$tmp" "$dir"
+}
+
+fresh() {
+	local dir=$1 day zone
+	[[ -f $dir/database.sql.gz && -f $dir/seeded ]] || return 1
+	read -r day zone <"$dir/seeded"
+	[[ $(TZ=$zone date +%F) == "$day" ]]
+}
+
+restore() {
+	local site=$1 dir=$2
+	bench --site "$site" restore "$dir/database.sql.gz" \
+		--with-public-files "$dir/public.tar" \
+		--with-private-files "$dir/private.tar" \
+		--db-root-username "${MARIADB_ROOT_USERNAME:-root}" \
+		--db-root-password "${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD is required}" \
+		--force
+	local encryption_key
+	encryption_key=$(cat -- "$dir/encryption_key")
+	if [[ -n $encryption_key ]]; then
+		bench --site "$site" set-config encryption_key "$encryption_key"
+	fi
+	bench --site "$site" clear-cache
+}
+
+case ${1:-} in
+	key) [[ $# -le 2 ]] || usage; key "${2:-}" ;;
+	save) [[ $# -eq 3 ]] || usage; save "$2" "$3" ;;
+	fresh) [[ $# -eq 2 ]] || usage; fresh "$2" ;;
+	restore) [[ $# -eq 3 ]] || usage; restore "$2" "$3" ;;
+	*) usage ;;
+esac

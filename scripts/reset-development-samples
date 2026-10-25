@@ -22,6 +22,7 @@ Options:
   --db-root-password PASSWORD Required unless MARIADB_ROOT_PASSWORD is provided.
   --admin-password PASSWORD   Optional temporary reinstall credential; existing password is preserved.
 	--allow-non-developer       Permit sites without developer_mode=1.
+  --no-snapshot               Seed from scratch instead of restoring a cached seeded snapshot.
 	--yes-i-understand-this-is-destructive
 															Required with --allow-non-developer.
   -h, --help                  Show this help.
@@ -43,6 +44,7 @@ db_root_password="${MARIADB_ROOT_PASSWORD:-}"
 admin_password="${ADMIN_PASSWORD:-}"
 allow_non_developer=0
 destructive_ack=0
+use_snapshot=1
 
 while (($#)); do
 	case "$1" in
@@ -59,6 +61,7 @@ while (($#)); do
 		--db-root-password) db_root_password=${2:?--db-root-password requires a value}; shift 2 ;;
 		--admin-password) admin_password=${2:?--admin-password requires a value}; shift 2 ;;
 		--allow-non-developer) allow_non_developer=1; shift ;;
+		--no-snapshot) use_snapshot=0; shift ;;
 		--yes-i-understand-this-is-destructive) destructive_ack=1; shift ;;
 		-h|--help) usage; exit 0 ;;
 		*) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -102,6 +105,9 @@ if [[ ! -x "$python" ]]; then
 	python=$(command -v python3 || command -v python || true)
 fi
 site_config="$bench_root/sites/$site/site_config.json"
+# Outside the bench, so `bench backup` and Git never pick snapshots up.
+snapshot_root="$bench_root/../.sample-snapshots"
+mkdir -p -- "$snapshot_root"
 
 missing=0
 if [[ ! -x "$bench" ]]; then
@@ -168,7 +174,28 @@ run_reset() {
 	printf '[temple-sample] Purging old background jobs: start\n'
 	PYTHONUNBUFFERED=1 "$bench" purge-jobs --site "$site" || return $?
 	printf '[temple-sample] Purging old background jobs: complete\n'
+	# A seeded site is deterministic for one source tree, framework pair, argument
+	# set and day, so restore a cached snapshot of it when one exists.
+	local snapshot_key snapshot
+	snapshot_key=$("$script_dir/sample-snapshot" key "$kwargs") || return $?
+	snapshot=$snapshot_root/$snapshot_key
+	if ((use_snapshot)) && "$script_dir/sample-snapshot" fresh "$snapshot"; then
+		printf '[temple-sample] Restoring seeded snapshot %s: start\n' "$snapshot_key"
+		PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.preserve_administrator_auth || return $?
+		MARIADB_ROOT_USERNAME=$db_root_username MARIADB_ROOT_PASSWORD=$db_root_password \
+			"$script_dir/sample-snapshot" restore "$site" "$snapshot" || return $?
+		PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.restore_administrator_auth || return $?
+		printf '[temple-sample] Restoring seeded snapshot %s: complete\n' "$snapshot_key"
+		return
+	fi
 	PYTHONUNBUFFERED=1 "$bench" --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs" || return $?
+	if ((use_snapshot)); then
+		printf '[temple-sample] Saving seeded snapshot %s\n' "$snapshot_key"
+		"$script_dir/sample-snapshot" save "$site" "$snapshot" || return $?
+		# Keep the three newest snapshots.
+		find "$snapshot_root" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +4 |
+			cut -d' ' -f2- | xargs -r rm -rf --
+	fi
 }
 
 set +e

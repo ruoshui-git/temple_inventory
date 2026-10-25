@@ -85,18 +85,45 @@ jobs:
           bench set-config -g redis_cache redis://127.0.0.1:13000
           bench set-config -g redis_queue redis://127.0.0.1:11000
           bench set-config -g redis_socketio redis://127.0.0.1:11000
+      # A bare site; the snapshot restore or the app install below fills it.
       - name: Create site
         working-directory: /home/runner/frappe-bench
         run: |
           bench new-site ci.localhost --db-root-password root --admin-password admin \
-            --mariadb-user-host-login-scope=% --install-app erpnext --install-app temple_inventory
+            --mariadb-user-host-login-scope=%
           bench --site ci.localhost set-config developer_mode 1
           bench --site ci.localhost set-config temple_inventory_sample_site 1
-      # The same company setup and sample data as development.localhost, which the
-      # suite runs against locally.
-      - name: Install sample data
+      - name: Sample snapshot key
+        id: snapshot
         working-directory: /home/runner/frappe-bench
-        run: bench --site ci.localhost execute temple_inventory.sample_install.prepare_development_sample_site
+        run: echo "key=$(apps/temple_inventory/scripts/sample-snapshot key)" >>"$GITHUB_OUTPUT"
+      # Seeding takes most of this job; reuse a snapshot seeded today from the same
+      # source tree and framework versions.
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/sample-snapshot
+          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+          restore-keys: sample-snapshot-${{ steps.snapshot.outputs.key }}-
+      - name: Install apps and sample data
+        id: seed
+        working-directory: /home/runner/frappe-bench
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        run: |
+          snapshot=apps/temple_inventory/scripts/sample-snapshot
+          if $snapshot fresh ~/sample-snapshot; then
+            $snapshot restore ci.localhost ~/sample-snapshot
+          else
+            bench --site ci.localhost install-app erpnext temple_inventory
+            bench --site ci.localhost execute temple_inventory.sample_install.prepare_development_sample_site
+            $snapshot save ci.localhost ~/sample-snapshot
+            echo "saved=1" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/save@v4
+        if: steps.seed.outputs.saved == '1'
+        with:
+          path: ~/sample-snapshot
+          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
       - name: Native inventory tests
         working-directory: /home/runner/frappe-bench
         run: bench --site ci.localhost execute temple_inventory.tests.test_native_inventory.run
