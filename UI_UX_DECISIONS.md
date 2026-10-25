@@ -16,6 +16,18 @@ supersession below when a durable user-facing decision changes.
   high-contrast badge; environment theme colours are sample amber `#8a4b08`,
   staging violet `#593d8c` and development blue `#245b9e`.
 
+## Supersession — 2026-10-25: targeted desktop keyboard navigation
+
+- On desktop tables, one body row is the row-level Tab stop. Up/Down move among
+  rows, Home/End go to the edges, Enter activates the row's existing open
+  control (the browse link or Stock item's name action), and Space toggles its
+  selection checkbox when available. Group rows also use
+  Left/Right to collapse/expand. Tab continues through native controls inside
+  the row in DOM order, then leaves the table normally; those controls remain
+  independently reachable. Returning from a detail overlay or route restores
+  focus to the originating row. Operation and count editors use Ctrl+Enter or
+  ⌘+Enter to open their existing review step; the shortcut never submits.
+
 ## Supersession — 2026-10-25: scanner viewport and photo frames
 
 - Scanner preview is a capped square cover viewport, requests ideal 1920×1080

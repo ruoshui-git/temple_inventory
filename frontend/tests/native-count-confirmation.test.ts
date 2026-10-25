@@ -119,6 +119,29 @@ function setup() {
 }
 
 describe("count confirmation summary", () => {
+  it("opens count review with Meta+Enter from a text field without submitting", async () => {
+    const { wrapper, controller } = setup();
+    await flushPromises();
+    vi.spyOn(controller, "review").mockImplementation(async () => {
+      controller.reviewOpen.value = true;
+    });
+    const confirm = vi.spyOn(controller, "confirm");
+    const input = wrapper.get(".count-search input").element;
+    input.focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(event);
+    await flushPromises();
+    expect(event.defaultPrevented).toBe(true);
+    expect(controller.review).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(controller.reviewOpen.value).toBe(true);
+  });
+
   it("lists every reviewed row and excludes unreviewed rows regardless of workspace filters", async () => {
     const { wrapper, controller } = setup();
     await flushPromises();

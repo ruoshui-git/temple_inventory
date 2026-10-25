@@ -396,9 +396,28 @@
 .data-table-group-row[tabindex="0"] {
 	cursor: pointer;
 }
-.data-table-group-row[tabindex="0"]:focus-visible td {
-	outline: 2px solid var(--p-accent);
-	outline-offset: -2px;
+/* Rows draw their focus ring on the cells so the sticky settings column, which paints over the
+   row, still shows the ring's right edge. */
+.data-table-scroll tbody tr[tabindex]:focus-visible {
+	outline: none;
+	box-shadow: none;
+}
+.data-table-scroll tbody tr[tabindex]:focus-visible > td {
+	box-shadow:
+		inset 0 2px 0 var(--p-accent),
+		inset 0 -2px 0 var(--p-accent);
+}
+.data-table-scroll tbody tr[tabindex]:focus-visible > td:first-child {
+	box-shadow:
+		inset 2px 0 0 var(--p-accent),
+		inset 0 2px 0 var(--p-accent),
+		inset 0 -2px 0 var(--p-accent);
+}
+.data-table-scroll tbody tr[tabindex]:focus-visible > td:last-child {
+	box-shadow:
+		inset -2px 0 0 var(--p-accent),
+		inset 0 2px 0 var(--p-accent),
+		inset 0 -2px 0 var(--p-accent);
 }
 
 .data-table-group-row,

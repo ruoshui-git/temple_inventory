@@ -302,6 +302,114 @@ describe("table column contracts", () => {
 });
 
 describe("shared data table", () => {
+  it("roves focus through record and group rows, supports row commands, and clamps after filtering", async () => {
+    const rows = [
+      { kind: "record" as const, id: "A", value: { item: "A" } },
+      {
+        kind: "group" as const,
+        id: "G",
+        label: "组",
+        depth: 0,
+        count: 1,
+        expanded: false,
+        hasChildren: true,
+      },
+      { kind: "record" as const, id: "B", value: { item: "B" } },
+    ];
+    const linkClick = vi.fn();
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "键盘表格",
+        columns,
+        rows,
+        selectionEnabled: true,
+        selectedKeys: [],
+      },
+      slots: {
+        cell: ({ row }: { row: Record<string, unknown> }) =>
+          h(
+            "a",
+            {
+              class: "browse-row-link",
+              href: "#",
+              onClick: (event: Event) => {
+                event.preventDefault();
+                linkClick();
+              },
+            },
+            String(row.item),
+          ),
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const rowElements = () => wrapper.findAll("tbody tr[data-row-id]");
+    expect(rowElements().map((row) => row.attributes("tabindex"))).toEqual([
+      "0",
+      "-1",
+      "-1",
+    ]);
+
+    rowElements()[0]!.element.focus();
+    rowElements()[0]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+    await nextTick();
+    expect(document.activeElement).toBe(rowElements()[1]!.element);
+    rowElements()[1]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+    );
+    expect(wrapper.emitted("toggleGroup")).toBeUndefined();
+    rowElements()[1]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    expect(wrapper.emitted("toggleGroup")).toHaveLength(1);
+    rowElements()[1]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    expect(wrapper.emitted("toggleGroup")).toHaveLength(2);
+
+    rowElements()[1]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+    );
+    await nextTick();
+    expect(document.activeElement).toBe(rowElements()[2]!.element);
+    rowElements()[2]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+    );
+    await nextTick();
+    expect(document.activeElement).toBe(rowElements()[0]!.element);
+    rowElements()[0]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(linkClick).toHaveBeenCalledOnce();
+    rowElements()[0]!.element.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: " ",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(wrapper.emitted("select")?.at(-1)).toEqual(["A", true]);
+
+    const checkbox = wrapper.get('input[aria-label="选择记录 A"]');
+    checkbox.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+    await nextTick();
+    expect(document.activeElement).toBe(rowElements()[0]!.element);
+
+    rowElements()[2]!.element.focus();
+    await wrapper.setProps({ rows: [rows[0]!] });
+    await nextTick();
+    expect(rowElements()[0]!.attributes("tabindex")).toBe("0");
+    expect(document.activeElement).toBe(rowElements()[0]!.element);
+  });
+
   it("shows a shape-matched initial skeleton and keeps headers usable over retained stale rows", async () => {
     const wrapper = mount(DataTable, {
       props: {

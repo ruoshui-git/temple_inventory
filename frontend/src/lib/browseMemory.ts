@@ -19,7 +19,7 @@ interface ScrollSnapshot {
   anchors: { id: string; offset: number }[];
   details: { key: string; open: boolean }[];
   nested: { key: string; top: number; left: number }[];
-  focus?: { row: string; index: number };
+  focus?: { row: string; index: number; rowIndex: number };
 }
 interface UISnapshot {
   scope: string;
@@ -237,6 +237,7 @@ function scrollSnapshot(root: HTMLElement): ScrollSnapshot {
             index: Array.from(
               focusedRow.querySelectorAll("a,button,input,select,textarea"),
             ).indexOf(focused!),
+            rowIndex: rows.indexOf(focusedRow),
           },
         }
       : {}),
@@ -362,14 +363,18 @@ export function useBrowseState(
         void attempt();
         return;
       }
-      const focused =
-        saved.focus &&
-        rows
-          .find((row) => row.dataset.browseRow === saved.focus!.row)
-          ?.querySelectorAll<HTMLElement>("a,button,input,select,textarea")[
-          saved.focus.index
-        ];
-      focused?.focus({ preventScroll: true });
+      if (saved.focus) {
+        const focusedRow =
+          rows.find((row) => row.dataset.browseRow === saved.focus!.row) ||
+          rows[Math.min(saved.focus.rowIndex, Math.max(0, rows.length - 1))];
+        const focused =
+          saved.focus.index < 0
+            ? focusedRow
+            : focusedRow?.querySelectorAll<HTMLElement>(
+                "a,button,input,select,textarea",
+              )[saved.focus.index] || focusedRow;
+        focused?.focus({ preventScroll: true });
+      }
       pending = false;
       rememberPosition();
     });

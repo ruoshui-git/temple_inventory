@@ -17,7 +17,7 @@ const ButtonStub = defineComponent({
   props: ["disabled", "type", "loading", "variant", "ariaPressed"],
   emits: ["click"],
   template:
-    '<button :disabled="disabled" :type="type || \'button\'" v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>',
+    '<button :disabled="disabled" :type="type || \'button\'" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
 });
 const OperationLinesStub = defineComponent({
   name: "OperationLines",
@@ -43,7 +43,7 @@ function setDesktop(matches: boolean) {
   });
 }
 
-function setup(matches: boolean) {
+function setup(matches: boolean, attach = false) {
   setDesktop(matches);
   const reference = createReferenceData();
   Object.assign(reference, {
@@ -120,6 +120,7 @@ function setup(matches: boolean) {
     },
   });
   const wrapper = mount(host, {
+    ...(attach ? { attachTo: document.body } : {}),
     global: {
       stubs: {
         UiButton: ButtonStub,
@@ -139,10 +140,34 @@ function setup(matches: boolean) {
     },
   });
   wrappers.push(wrapper);
-  return { wrapper, draft };
+  return { wrapper, draft, controller };
 }
 
 describe("operation review rail collapse", () => {
+  it("opens review with Ctrl+Enter from a text field and never confirms", async () => {
+    const { wrapper, controller } = setup(true, true);
+    controller.canSubmit.value = true;
+    controller.review = vi.fn(async () => {
+      controller.reviewOpen.value = true;
+    });
+    controller.confirm = vi.fn();
+    await flushPromises();
+    const input = wrapper.get("input").element;
+    input.focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(event);
+    await flushPromises();
+    expect(event.defaultPrevented).toBe(true);
+    expect(controller.review).toHaveBeenCalledOnce();
+    expect(controller.confirm).not.toHaveBeenCalled();
+    expect(controller.reviewOpen.value).toBe(true);
+  });
+
   it("collapses only the review rail and restores the user's preview state after full workspace", async () => {
     const { wrapper } = setup(true);
     await flushPromises();

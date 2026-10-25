@@ -96,6 +96,120 @@ const settingsOpen = ref(false);
 const settingsTrigger = ref<HTMLButtonElement>();
 const settingsPanel = ref<HTMLDivElement>();
 const settingsPanelStyle = ref<Record<string, string>>({});
+const focusedRowId = ref<string>();
+const focusedRowElement = ref<HTMLTableRowElement>();
+const bodyRows = computed(() => props.rows);
+const focusedRowIndex = computed(() => {
+	const index = bodyRows.value.findIndex((row) => row.id === focusedRowId.value);
+	return index < 0 ? 0 : index;
+});
+const rowTabIndex = (row: DataTableEntry) =>
+	bodyRows.value.length && bodyRows.value[focusedRowIndex.value]?.id === row.id ? 0 : -1;
+
+watch(
+	bodyRows,
+	(rows, previous) => {
+		if (!rows.length) {
+			focusedRowId.value = undefined;
+			return;
+		}
+		if (rows.some((row) => row.id === focusedRowId.value)) return;
+		const oldIndex = Math.max(
+			0,
+			previous.findIndex((row) => row.id === focusedRowId.value),
+		);
+		const restoreFocus =
+			focusedRowElement.value &&
+			!focusedRowElement.value.isConnected &&
+			document.activeElement === document.body;
+		focusedRowId.value = rows[Math.min(oldIndex, rows.length - 1)]!.id;
+		if (restoreFocus) void nextTick(() => focusRow(Math.min(oldIndex, rows.length - 1)));
+	},
+	{ flush: "post" },
+);
+
+function rowElements() {
+	return Array.from(
+		tableScroll.value?.querySelectorAll<HTMLTableRowElement>(
+			":scope > table > tbody > tr[data-row-id]",
+		) || [],
+	);
+}
+function focusRow(index: number) {
+	const elements = rowElements();
+	if (!elements.length) return;
+	const next = Math.max(0, Math.min(elements.length - 1, index));
+	const row = elements[next]!;
+	focusedRowId.value = row.dataset.rowId;
+	row.focus({ preventScroll: true });
+	row.scrollIntoView?.({ block: "nearest" });
+}
+function isInteractiveTarget(target: EventTarget | null) {
+	return (
+		target instanceof Element &&
+		Boolean(
+			target.closest(
+				"a,input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox']",
+			),
+		)
+	);
+}
+function onRowFocus(entry: DataTableEntry, event: FocusEvent) {
+	focusedRowId.value = entry.id;
+	focusedRowElement.value = event.currentTarget as HTMLTableRowElement;
+}
+function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
+	if (isInteractiveTarget(event.target)) return;
+	const index = bodyRows.value.findIndex((row) => row.id === entry.id);
+	if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+		event.preventDefault();
+		focusRow(index + (event.key === "ArrowDown" ? 1 : -1));
+		return;
+	}
+	if (event.key === "Home" || event.key === "End") {
+		event.preventDefault();
+		focusRow(event.key === "Home" ? 0 : bodyRows.value.length - 1);
+		return;
+	}
+	if (group(entry) && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+		const shouldExpand = event.key === "ArrowRight";
+		if (entry.hasChildren && entry.expanded !== shouldExpand) {
+			event.preventDefault();
+			emit("toggleGroup", entry.id);
+		}
+		return;
+	}
+	if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+		if (!group(entry) && tableScroll.value) {
+			tableScroll.value.scrollBy?.({ left: event.key === "ArrowRight" ? 80 : -80 });
+			event.preventDefault();
+		}
+		return;
+	}
+	if (event.key === "Enter") {
+		if (group(entry)) {
+			activateGroupKey(entry, event);
+			return;
+		}
+		event.preventDefault();
+		rowElements()
+			.find((row) => row.dataset.rowId === entry.id)
+			?.querySelector<HTMLElement>(".browse-row-link, button.item-name")
+			?.click();
+		return;
+	}
+	if (event.key === " ") {
+		if (group(entry)) {
+			activateGroupKey(entry, event);
+			return;
+		}
+		if (props.selectionEnabled && entry.kind === "record" && entry.selectable !== false) {
+			event.preventDefault();
+			const key = keyFor(entry);
+			emit("select", key, !props.selectedKeys.includes(key));
+		}
+	}
+}
 
 function positionSettingsPanel() {
 	const trigger = settingsTrigger.value;
@@ -399,7 +513,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				:aria-label="`可横向滚动：${ariaLabel}`"
 				:aria-busy="refreshing ? 'true' : undefined"
 				:inert="refreshing ? true : undefined"
-				tabindex="0"
+				tabindex="-1"
 			>
 				<table
 					:class="[
@@ -527,13 +641,19 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										? rowClass(entry.value as Record<string, unknown>)
 										: undefined,
 								]"
-								:tabindex="group(entry) && entry.hasChildren ? 0 : undefined"
+								:data-row-id="entry.id"
+								:data-browse-row="
+									rowAttributes?.(recordValue(entry))?.['data-browse-row'] ||
+									entry.id
+								"
+								:tabindex="rowTabIndex(entry)"
 								:role="group(entry) ? 'row' : undefined"
 								:aria-expanded="
 									group(entry) && entry.hasChildren ? entry.expanded : undefined
 								"
 								@click="group(entry) && activateGroup(entry, $event)"
-								@keydown="group(entry) && activateGroupKey(entry, $event)"
+								@focus="onRowFocus(entry, $event)"
+								@keydown="onRowKeydown(entry, $event)"
 								:aria-label="
 									!group(entry) && rowLabel
 										? rowLabel(entry.value as Record<string, unknown>)

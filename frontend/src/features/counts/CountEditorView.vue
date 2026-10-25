@@ -7,7 +7,7 @@ import { kindIcons } from "../../lib/kindIcons";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { CountEditor } from "./useCountEditor";
 import CountWorkspace from "./CountWorkspace.vue";
 import CountSummary from "./CountSummary.vue";
@@ -96,6 +96,24 @@ async function lifecycle() {
 }
 const root = ref<HTMLElement>(),
 	actionBar = ref<HTMLElement>();
+const reviewShortcutTitle = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘+Enter" : "Ctrl+Enter";
+function reviewShortcut(event: KeyboardEvent) {
+	if (
+		!(event.ctrlKey || event.metaKey) ||
+		event.key !== "Enter" ||
+		props.active === false ||
+		busy.value ||
+		reviewOpen.value ||
+		document.querySelector(".preview-overlay")
+	)
+		return;
+	const button = root.value?.querySelector<HTMLButtonElement>("[data-review-action]");
+	if (!button || button.disabled) return;
+	event.preventDefault();
+	button.click();
+}
+onMounted(() => document.addEventListener("keydown", reviewShortcut));
+onBeforeUnmount(() => document.removeEventListener("keydown", reviewShortcut));
 useFocusVisibility(
 	root,
 	actionBar,
@@ -414,6 +432,8 @@ async function back() {
 					<UiButton
 						v-if="!state.confirmationVersion && c.canSubmit.value"
 						variant="primary"
+						data-review-action
+						:title="reviewShortcutTitle"
 						:disabled="busy || supportingDirty"
 						@click="review"
 						>核对并确认</UiButton

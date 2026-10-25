@@ -5,6 +5,16 @@ behavior is in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md); agent and architecture
 rules are in [AGENTS.md](AGENTS.md). Historical preview and migration detail is
 kept in Git.
 
+## Supersession — 2026-10-25: table focus and editor review shortcut
+
+- Desktop DataTable body rows use one roving Tab stop with the shared focus
+  accent (`--p-accent`) drawn inset on cells so the ring stays visible inside
+  the scrollport and pinned columns. Native links and controls remain in normal
+  DOM Tab order.
+  Below 1024px, row focus styling and keyboard behavior do not alter the visual
+  or touch presentation. Operation and count review buttons expose Ctrl/⌘+Enter
+  in their title; the command opens review only.
+
 ## Foundation and ownership
 
 - `frontend/src/styles/app.css` is the sole active stylesheet entry. It imports
@@ -167,7 +177,10 @@ kept in Git.
   page callout, not as a narrow table column.
 - Group disclosure supports keyboard and pointer activation across the row,
   reports `aria-expanded`, and leaves embedded links/buttons/inputs independent.
-  Keep nested histories under the shared parent table header. Pagination counts
+  On desktop, every body row participates in the table's roving focus sequence;
+  Up/Down, Home/End and Enter operate on the focused row, and group rows support
+  Left/Right disclosure. Nested DataTables keep independent roving state. Keep
+  nested histories under the shared parent table header. Pagination counts
   refer to the immediate rows only.
 
 ## Browse and hierarchy geometry

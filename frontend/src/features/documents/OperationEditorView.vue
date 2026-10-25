@@ -103,6 +103,24 @@ const receive = computed(() => draft.value.kind === "Receive"),
 		() => operationLabels[draft.value.kind] || String(state.server?.purpose || "库存记录"),
 	);
 const { supportingDirty, leaveRequested: leaveOpen } = c;
+const reviewShortcutTitle = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘+Enter" : "Ctrl+Enter";
+function reviewShortcut(event: KeyboardEvent) {
+	if (
+		!(event.ctrlKey || event.metaKey) ||
+		event.key !== "Enter" ||
+		props.active === false ||
+		busy.value ||
+		reviewOpen.value ||
+		document.querySelector(".preview-overlay")
+	)
+		return;
+	const button = formRoot.value?.querySelector<HTMLButtonElement>("[data-review-action]");
+	if (!button || button.disabled) return;
+	event.preventDefault();
+	button.click();
+}
+onMounted(() => document.addEventListener("keydown", reviewShortcut));
+onBeforeUnmount(() => document.removeEventListener("keydown", reviewShortcut));
 const reloadOpen = ref(false);
 const services = useInventoryServices();
 const subtitles: Record<string, string> = {
@@ -791,6 +809,8 @@ async function lifecycle() {
 						v-if="!state.confirmationVersion && c.canSubmit.value"
 						variant="primary"
 						type="submit"
+						data-review-action
+						:title="reviewShortcutTitle"
 						:disabled="busy || supportingDirty"
 						:loading="busy"
 						>复核并确认</UiButton
