@@ -237,6 +237,15 @@ While iterating, run only the affected backend scenarios with
 `pnpm exec vitest run tests/<file>.test.ts`. Run each full suite once, after the
 last code change, and reset development data only when seed code changed.
 
+The reset and CI restore a cached seeded snapshot (`scripts/sample-snapshot`)
+instead of seeding when nothing the seed depends on has changed. The key covers
+every file under `temple_inventory/` except `tests/`, the Frappe and ERPNext
+commits and the seed arguments, and a snapshot is used only on the day it was
+seeded. Any backend change therefore reseeds once and saves a new snapshot
+automatically; never edit or copy snapshots by hand. Pass `--no-snapshot` when
+the seed depends on something the key cannot see, such as uncommitted edits in
+`apps/frappe` or `apps/erpnext`, or when a restored site looks wrong.
+
 The test entry point rolls back its changes. Add focused regression tests for
 changed behavior and invariants. The development stack uses `mariadb`,
 `redis-cache` and `redis-queue`; do not replace service hostnames with
