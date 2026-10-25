@@ -142,8 +142,9 @@ because it deletes the development database volume.
   `perf:`, `docs:`, `test:`, `chore:`) with a body explaining why.
 - Every push to `main` is tested, built into one immutable image and deployed
   to `https://sample.kufang.online`, so push only commits that pass validation.
-  Staging and production never build their own images: they promote an image
-  digest that sample has already run, through manual, approval-gated workflows.
+  Staging and production never build their own images: staging manually refreshes
+  from production backups and promotes a sample digest; production verifies
+  successful staging history and uses a manual, approval-gated workflow.
 - [deploy/README.md](deploy/README.md) owns the image, hosts, deploy, backup and
   recovery procedures. Do not run commands against the VPSes, GitHub settings,
   DNS or email providers without explicit approval.
