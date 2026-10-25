@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { overlayStageKey } from "../../lib/overlayStage";
-import { isOverlayNavigationPending } from "../../lib/overlayHistory";
+import {
+	isOverlayNavigationPending,
+	registerOverlayMarker,
+	trackOverlayMarker,
+} from "../../lib/overlayHistory";
 import {
 	inject,
 	provide,
@@ -49,6 +53,7 @@ let markerActive = false;
 let navigating = false;
 let handlingPop = false;
 let closeHistoryTimer: ReturnType<typeof setTimeout> | undefined;
+let unregisterMarker: (() => void) | undefined;
 function removeMarkerState(state: unknown) {
 	if (!state || typeof state !== "object") return state;
 	const next = { ...(state as Record<string, unknown>) };
@@ -68,6 +73,7 @@ function popMarker(event: PopStateEvent) {
 			if (markerActive && panel.value?.isConnected) {
 				try {
 					history.pushState({ ...(history.state || {}), tiOverlay: historyMarker }, "");
+					trackOverlayMarker(historyMarker);
 				} catch {
 					/* History API may be unavailable in embedded test environments. */
 				}
@@ -76,6 +82,7 @@ function popMarker(event: PopStateEvent) {
 	} else {
 		try {
 			history.pushState({ ...(history.state || {}), tiOverlay: historyMarker }, "");
+			trackOverlayMarker(historyMarker);
 		} catch {
 			/* History API may be unavailable in embedded test environments. */
 		}
@@ -174,6 +181,7 @@ onMounted(async () => {
 		parentStage.active.value = { titleId, close: requestClose };
 		try {
 			history.pushState({ ...(history.state || {}), tiOverlay: titleId }, "");
+			unregisterMarker = registerOverlayMarker(titleId, popMarker);
 			markerActive = true;
 		} catch {
 			/* Keep internal stages usable where History API is unavailable. */
@@ -185,6 +193,7 @@ onMounted(async () => {
 	openingLocation = window.location.href;
 	try {
 		history.pushState({ ...(history.state || {}), tiOverlay: historyMarker }, "");
+		unregisterMarker = registerOverlayMarker(historyMarker, popMarker);
 		markerActive = true;
 	} catch {
 		/* Keep overlays usable where History API is unavailable. */
@@ -198,7 +207,6 @@ onMounted(async () => {
 	}
 	document.addEventListener("keydown", documentKeydown);
 	window.addEventListener("hashchange", closeAfterNavigation);
-	window.addEventListener("popstate", popMarker);
 	window.addEventListener("popstate", closeAfterNavigation);
 	document.addEventListener("inventory-navigation", navigationStarted);
 	previousOverflow = document.body.style.overflow;
@@ -221,6 +229,8 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
 	if (closeHistoryTimer) clearTimeout(closeHistoryTimer);
+	unregisterMarker?.();
+	unregisterMarker = undefined;
 	if (parentStage) {
 		if (parentStage.active.value?.titleId === titleId) parentStage.active.value = undefined;
 		closeHistoryTimer = setTimeout(() => {
@@ -263,7 +273,6 @@ onBeforeUnmount(() => {
 		markerActive = false;
 	}, 0);
 	window.removeEventListener("hashchange", closeAfterNavigation);
-	window.removeEventListener("popstate", popMarker);
 	window.removeEventListener("popstate", closeAfterNavigation);
 	document.removeEventListener("inventory-navigation", navigationStarted);
 	document.body.style.overflow = previousOverflow;

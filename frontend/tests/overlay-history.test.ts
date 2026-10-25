@@ -65,6 +65,101 @@ describe("Overlay history", () => {
     expect(back).toHaveBeenCalledTimes(1);
   });
 
+  it("hides a same-URL close popstate from Vue Router guards", async () => {
+    history.replaceState(null, "", "/beneath");
+    router = createRouter({
+      history: createWebHistory("/"),
+      routes: [
+        { path: "/beneath", component: { render: () => h("div", "beneath") } },
+        { path: "/editor", component: { render: () => h("div", "editor") } },
+      ],
+    });
+    await router.push("/beneath");
+    await router.isReady();
+    const guard = vi.fn(() => false);
+    router.beforeEach(guard);
+    disposeRouter = installOverlayHistory(router);
+    const showing = ref(true);
+    const Host = defineComponent({
+      setup() {
+        return () =>
+          showing.value
+            ? h(Overlay, {
+                title: "确认",
+                onClose: () => (showing.value = false),
+              })
+            : null;
+      },
+    });
+    const wrapper = mount(Host, { attachTo: document.body });
+    wrappers.push(wrapper as TestWrapper);
+    await nextTick();
+    document.querySelector<HTMLElement>(".dialog-heading .ui-button")!.click();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe("/beneath");
+    expect(guard).not.toHaveBeenCalled();
+    expect(history.state?.tiOverlay).toBeUndefined();
+  });
+
+  it("hides a user Back that closes the overlay from Vue Router guards", async () => {
+    history.replaceState(null, "", "/beneath");
+    router = createRouter({
+      history: createWebHistory("/"),
+      routes: [
+        { path: "/beneath", component: { render: () => h("div", "beneath") } },
+      ],
+    });
+    await router.push("/beneath");
+    await router.isReady();
+    const guard = vi.fn(() => true);
+    router.beforeEach(guard);
+    disposeRouter = installOverlayHistory(router);
+    const showing = ref(true);
+    const Host = defineComponent({
+      setup() {
+        return () =>
+          showing.value
+            ? h(Overlay, {
+                title: "确认",
+                onClose: () => (showing.value = false),
+              })
+            : null;
+      },
+    });
+    const wrapper = mount(Host, { attachTo: document.body });
+    wrappers.push(wrapper as TestWrapper);
+    await nextTick();
+    history.back();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await flushPromises();
+    expect(document.querySelector(".preview-overlay")).toBeNull();
+    expect(router.currentRoute.value.path).toBe("/beneath");
+    expect(guard).not.toHaveBeenCalled();
+  });
+
+  it("still sends a real cross-route Back through Vue Router guards", async () => {
+    history.replaceState(null, "", "/beneath");
+    router = createRouter({
+      history: createWebHistory("/"),
+      routes: [
+        { path: "/beneath", component: { render: () => h("div", "beneath") } },
+        { path: "/editor", component: { render: () => h("div", "editor") } },
+      ],
+    });
+    await router.push("/beneath");
+    await router.isReady();
+    const guard = vi.fn(() => true);
+    router.beforeEach(guard);
+    disposeRouter = installOverlayHistory(router);
+    await router.push("/editor");
+    guard.mockClear();
+    await router.back();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(router.currentRoute.value.path).toBe("/beneath");
+    expect(guard).toHaveBeenCalled();
+  });
+
   it("keeps a nondismissible overlay open when Back is pressed", async () => {
     const wrapper = openOverlay({ dismissible: false });
     await wrapper.vm.$nextTick();
