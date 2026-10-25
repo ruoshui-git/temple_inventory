@@ -285,7 +285,7 @@ def verify_development_sample(*, require_images=True, data="full"):
 		pluck="ti_label",
 		order_by="lft asc",
 	)
-	if root_doc.ti_label != "寺院仓库" or root_children != ["实体库房", "系统位置"]:
+	if root_doc.ti_label != "总仓库" or root_children != ["实体库房", "系统位置"]:
 		raise AssertionError(f"Configured System roots differ from plan: {root_children!r}")
 	if (
 		frappe.db.get_value("Warehouse", settings.leased_warehouse, "parent_warehouse")

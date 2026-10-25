@@ -38,10 +38,8 @@ class EnvironmentTests(unittest.TestCase):
 		page = object.__new__(ManifestPage)
 		page.path = ManifestPage.path_name
 		self.assertTrue(page.can_render())
-		with (
-			patch("frappe.session.user", "Guest"),
-			patch("temple_inventory.manifest.manifest", return_value=environment.manifest()),
-		):
+		# The renderer never consults the session, so guests get the same response.
+		with patch("temple_inventory.manifest.manifest", return_value=environment.manifest()):
 			response = page.render()
 		self.assertEqual(response.mimetype, "application/manifest+json")
 		self.assertEqual(response.headers["Cache-Control"], "no-cache")
@@ -72,7 +70,7 @@ class EnvironmentTests(unittest.TestCase):
 		context = SimpleNamespace()
 		local = SimpleNamespace(site="sample.localhost", lang="zh-CN")
 		with (
-			patch("temple_inventory.www.inventory.frappe.session.user", "Administrator"),
+			patch("frappe.session", SimpleNamespace(user="Administrator")),
 			patch("temple_inventory.native_access.require_app"),
 			patch("temple_inventory.www.inventory.frappe.local", local),
 			patch("temple_inventory.www.inventory.frappe.sessions.get_csrf_token", return_value="token"),
