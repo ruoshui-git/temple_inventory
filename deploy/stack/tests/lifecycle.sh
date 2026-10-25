@@ -57,7 +57,7 @@ commands = (root / "calls").read_text().splitlines()
 def first(fragment):
 	return next(i for i, line in enumerate(commands) if fragment in line)
 assert first("up -d db redis-cache redis-queue") < first("set-maintenance-mode on")
-assert first("chown -R frappe:frappe") < first("import json, os")
+assert first("chown -R frappe:") < first("import json, os")
 assert first(" restore ") < first("disable-scheduler") < first("up -d scheduler queue-short queue-long")
 assert first("DELETE FROM `__Auth`") < first("up -d scheduler queue-short queue-long")
 image = (root / "staging/state/current").read_text().strip()

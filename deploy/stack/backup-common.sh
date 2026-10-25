@@ -120,7 +120,7 @@ restore_host_backup() {
 	IMAGE=$image compose create backend
 	IMAGE=$image compose cp "$dir/." backend:/home/frappe/frappe-bench/sites/.restore
 	# Docker cp preserves host-only permissions but creates root-owned files.
-	IMAGE=$image compose run --rm --no-deps -T --user root backend chown -R frappe:frappe \
+	IMAGE=$image compose run --rm --no-deps -T --user root backend chown -R frappe: \
 		/home/frappe/frappe-bench/sites/.restore
 	# Preserve this environment's database credentials. Import only the source
 	# encryption key, which is required to decrypt restored native secrets.
