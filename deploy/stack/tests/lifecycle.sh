@@ -70,9 +70,11 @@ PY
 mkdir -p "$test_root/production"
 cp "$source_dir/"*.sh "$test_root/production/"
 printf 'production\n' >"$test_root/production/ENVIRONMENT"
-printf 'SITE_NAME=kufang.org\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/production/.env"
+printf 'SITE_NAME=kufang.org\nDB_ROOT_PASSWORD=dummy\nADMIN_PASSWORD=fixture-admin\n' >"$test_root/production/.env"
 bash "$test_root/production/bootstrap.sh" "$TEST_IMAGE" >/dev/null
 [[ $(cat "$test_root/production/state/current") == "$TEST_IMAGE" ]]
 [[ $(stat -c %a "$test_root/production/credentials.txt") == 600 ]]
+grep -Fq 'Administrator fixture-admin' "$test_root/production/credentials.txt"
+grep -Fq -- '--admin-password fixture-admin' "$test_root/calls"
 grep -Fq 'SELECT COUNT(*) FROM' "$test_root/calls"
 printf 'PASS: stopped staging refresh order, mail policy, backup ownership, same-digest promotion history, production bootstrap zero-count verification\n'

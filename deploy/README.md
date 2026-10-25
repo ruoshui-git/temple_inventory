@@ -28,11 +28,11 @@ uses the same files from `deploy/stack/`, installed separately:
   edge/{compose.yaml,nonprod.yaml,production.yaml,.env}
   <env>/compose.yaml                 project kufang-<env>
   <env>/{common,backup-common,deploy,bootstrap,backup}.sh
-  <env>/.env                        SITE_NAME, DB_ROOT_PASSWORD; mode 0600
+  <env>/.env                        SITE_NAME, DB_ROOT_PASSWORD, ADMIN_PASSWORD; mode 0600
   <env>/ENVIRONMENT                 exactly sample, staging or production
   <env>/image.env                   IMAGE=<immutable digest>
   <env>/state/{current,previous,history,deploy.lock}
-  <env>/credentials.txt             generated passwords; mode 0600
+  <env>/credentials.txt             bootstrap logins; mode 0600
   <env>/backups/<UTC>/               host backup sets; private
   <env>/logs/backup.log
 ```
@@ -96,6 +96,8 @@ if [ ! -e .env ]; then
   printf 'SITE_NAME=%s\nDB_ROOT_PASSWORD=%s\n' "$SITE" "$password" >.env
 fi
 SETUP
+# Staging and production only: add the operator-chosen Administrator password.
+sudoedit -u kufang-deploy "/srv/kufang/$ENV_NAME/.env"   # ADMIN_PASSWORD=...
 ```
 
 Start the edge with the host's overlay, as `kufang-deploy`:
@@ -199,12 +201,15 @@ IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:REPLACE_WITH_64_LOWERCASE_HEX
 /srv/kufang/staging/bootstrap.sh "$IMAGE"
 ```
 
-Sample loads the full sample set, mutes email and writes random Administrator
-and demo passwords to `credentials.txt` (0600). Production opts into the
+Sample loads the full sample set and mutes email. Like the development site, it
+is a public demo: Administrator and every `*@example.com` demo user log in with
+the password `admin` (also listed in `credentials.txt`). Production opts into the
 installer only during initial setup, uses `data="real"`, company `Org`, abbr
 `O`, United States/USD, sets System Settings time zone `America/New_York`,
 disables any `*@example.com` users and then removes the sample-tooling opt-in.
-Its strong Administrator password is written to `credentials.txt` (0600).
+Staging and production set Administrator to `ADMIN_PASSWORD` from their `.env`
+(bootstrap refuses an empty value) and record it in `credentials.txt` (0600).
+Never commit that password: this repository is public.
 `sample_install.py` explicitly allows this opt-in without developer mode.
 Staging restores the latest complete production backup, mutes email, sets its
 own host name and disables scheduler delivery before exposing the restored

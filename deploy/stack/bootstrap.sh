@@ -10,8 +10,15 @@ image=${1:-}
 lock
 [[ ! -s state/current ]] || die "already bootstrapped"
 [[ ! -e credentials.txt ]] || die "credentials.txt exists; inspect the earlier bootstrap before retrying"
-password() { python3 -c 'import secrets; print(secrets.token_urlsafe(32))'; }
 site() { bench_with "$image" --site "$SITE_NAME" "$@"; }
+# Sample is a public demo whose logins match the development site; staging and
+# production take the operator's Administrator password from their .env.
+if [[ $ENVIRONMENT == sample ]]; then
+	admin_password=admin
+else
+	admin_password=${ADMIN_PASSWORD:-}
+	[[ -n $admin_password ]] || die "ADMIN_PASSWORD is empty in .env"
+fi
 
 if [[ $ENVIRONMENT == staging ]]; then
 	# Restore with the image recorded in the backup to avoid schema downgrades.
@@ -25,7 +32,6 @@ set_image "$image"
 compose up -d db redis-cache redis-queue
 compose run --rm configurator
 
-admin_password=$(password)
 # Write before site creation so an interrupted bootstrap never loses the password.
 printf '# %s logins, created %s\nAdministrator %s\n' "$SITE_NAME" "$(date -u +%FT%TZ)" \
 	"$admin_password" >credentials.txt
@@ -43,9 +49,8 @@ case $ENVIRONMENT in
 		users=$(site execute frappe.get_all --args '["User"]' \
 			--kwargs '{"filters": {"name": ["like", "%@example.com"]}, "pluck": "name"}')
 		for user in $(python3 -c 'import json, sys; print(" ".join(json.loads(sys.argv[1])))' "$users"); do
-			user_password=$(password)
-			site set-password "$user" "$user_password"
-			printf '%s %s\n' "$user" "$user_password" >>credentials.txt
+			site set-password "$user" "$admin_password"
+			printf '%s %s\n' "$user" "$admin_password" >>credentials.txt
 		done
 		;;
 	staging)
