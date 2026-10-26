@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -29,6 +30,7 @@ import { enumPresentationLabel } from "../../lib/presentationLabels";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { useConfirm } from "../../services/confirm";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -40,6 +42,7 @@ const emit = defineEmits<{
 }>();
 const c = props.controller;
 const { isMobile } = useResponsiveLayout();
+const { confirm: confirmDialog } = useConfirm();
 const {
 	values,
 	rows,
@@ -57,7 +60,6 @@ const {
 	reviewOpen,
 	action,
 	supportingDirty,
-	reloadOpen,
 	leaveRequested,
 } = c;
 const initialExistingLoad = computed(
@@ -85,6 +87,22 @@ async function confirm() {
 }
 async function lifecycle() {
 	const selected = action.value;
+	if (!selected) return;
+	const approved = await confirmDialog({
+		title:
+			selected === "delete"
+				? "删除草稿单据？"
+				: selected === "cancel"
+					? "取消盘点？"
+					: "创建修订草稿？",
+		message: `${state.identity?.name || "此盘点"}。将执行 ERPNext 流程，并重新校验版本与权限。`,
+		confirmLabel: selected === "delete" ? "删除草稿" : "确认",
+		tone: selected === "delete" || selected === "cancel" ? "danger" : "default",
+	});
+	if (!approved) {
+		action.value = undefined;
+		return;
+	}
 	await c.lifecycle();
 	if (action.value || state.error) {
 		if (state.error) showToast(`盘点操作失败：${state.error}`, "danger");
@@ -96,6 +114,22 @@ async function lifecycle() {
 		delete: "盘点草稿单据已删除",
 	};
 	if (selected && outcomes[selected]) showToast(outcomes[selected]);
+}
+async function requestLifecycle(kind: "delete" | "cancel" | "amend") {
+	action.value = kind;
+	await lifecycle();
+}
+async function reloadCount() {
+	if (c.dirty.value) {
+		const approved = await confirmDialog({
+			title: "放弃输入并重新读取？",
+			message: "未保存的盘点输入将被放弃，系统会重新读取当前记录。",
+			confirmLabel: "放弃并重新读取",
+			tone: "danger",
+		});
+		if (!approved) return;
+	}
+	await c.load(true);
 }
 const root = ref<HTMLElement>(),
 	actionBar = ref<HTMLElement>();
@@ -318,7 +352,7 @@ async function back() {
 				:disabled="busy"
 				:loading="loading"
 				loading-label="正在重新读取…"
-				@click="c.dirty.value ? (reloadOpen = true) : c.load(true)"
+				@click="reloadCount"
 				>重新读取</UiButton
 			>
 		</div>
@@ -354,7 +388,7 @@ async function back() {
 			</p>
 			<UiButton
 				v-if="state.identity && state.server?.docstatus === 0"
-				@click="action = 'delete'"
+				@click="requestLifecycle('delete')"
 				>删除原有草稿单据</UiButton
 			>
 			<p v-if="files.files.length">无需调整的盘点没有附件父记录，请移除附件后结束。</p>
@@ -375,9 +409,11 @@ async function back() {
 				target="_blank"
 				rel="noopener"
 				>在 ERPNext 查看</a
-			><UiButton v-if="state.server?.docstatus === 1" @click="action = 'cancel'"
+			><UiButton v-if="state.server?.docstatus === 1" @click="requestLifecycle('cancel')"
 				>取消记录</UiButton
-			><UiButton v-if="state.server?.docstatus === 2 && !opening" @click="action = 'amend'"
+			><UiButton
+				v-if="state.server?.docstatus === 2 && !opening"
+				@click="requestLifecycle('amend')"
 				>创建修订草稿</UiButton
 			>
 		</div>
@@ -478,6 +514,7 @@ async function back() {
 											class="native-count-card-input"
 											type="number"
 											inputmode="decimal"
+											enterkeyhint="next"
 											min="0"
 											step="any"
 											v-model.number="countRow(entry.value).qty"
@@ -562,6 +599,8 @@ async function back() {
 								type="number"
 								min="0"
 								step="any"
+								inputmode="decimal"
+								enterkeyhint="next"
 								v-model.number="countRow(row).qty"
 								:disabled="busy"
 								:aria-label="`${row.ti_display_item_name || row.item_name || c.names[String(row.item_code)] || row.item_code}实点数量`"
@@ -618,11 +657,11 @@ async function back() {
 						v-if="state.identity && state.server?.docstatus === 0"
 						:disabled="busy || !writable"
 						variant="danger"
-						@click="action = 'delete'"
+						@click="requestLifecycle('delete')"
 						>删除草稿单据</UiButton
 					>
 				</div>
-				<DisclosureSection title="盘点备注" summary="可选">
+				<DisclosureSection title="盘点备注" summary="填写盘点说明">
 					<label v-if="writable" class="preview-field"
 						>盘点备注<textarea v-model="values.ti_notes" rows="3" :disabled="busy" />
 					</label>
@@ -718,25 +757,6 @@ async function back() {
 				></template
 			></Overlay
 		>
-		<Overlay v-if="reloadOpen" title="放弃输入并重新读取？" @close="reloadOpen = false">
-			<RecoverySummary
-				kind="Stock Reconciliation"
-				:values="values"
-				:copy-text="c.recoveryText.value"
-				:pending-upload-reselection="state.pendingUploadReselection"
-			/>
-			<template #footer
-				><UiButton @click="reloadOpen = false">继续编辑</UiButton
-				><UiButton
-					variant="danger"
-					@click="
-						reloadOpen = false;
-						c.load(true);
-					"
-					>放弃并重新读取</UiButton
-				></template
-			></Overlay
-		>
 		<Overlay v-if="leaveRequested" title="离开当前盘点？" @close="c.finishLeave('stay')"
 			><p>未完成输入仅能在此浏览器恢复，未上传文件需要重新选择。</p>
 			<template #footer
@@ -744,29 +764,6 @@ async function back() {
 				><UiButton @click="c.finishLeave('retain')">保留输入并离开</UiButton
 				><UiButton variant="danger" @click="c.finishLeave('discard')"
 					>放弃输入并离开</UiButton
-				></template
-			></Overlay
-		>
-		<Overlay
-			v-if="action"
-			:title="
-				action === 'delete'
-					? '删除草稿单据？'
-					: action === 'cancel'
-						? '取消盘点？'
-						: '创建修订草稿？'
-			"
-			@close="!busy && (action = undefined)"
-			><p>{{ state.identity?.name }}。将执行 ERPNext 流程，并重新校验版本与权限。</p>
-			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
-			<template #footer
-				><UiButton :disabled="busy" @click="action = undefined">返回</UiButton
-				><UiButton
-					variant="danger"
-					:loading="busy"
-					:loading-label="action === 'delete' ? '正在删除草稿…' : '正在处理…'"
-					@click="lifecycle"
-					>确认</UiButton
 				></template
 			></Overlay
 		>

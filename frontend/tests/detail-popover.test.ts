@@ -24,6 +24,16 @@ describe("DetailPopover", () => {
       document.body.querySelector(".detail-popover-content")?.textContent,
     ).toContain("食品：3 行");
     expect(wrapper.get("button").attributes("aria-expanded")).toBe("true");
+    expect(
+      document.body
+        .querySelector(".detail-popover-content")
+        ?.getAttribute("role"),
+    ).toBe("dialog");
+    expect(
+      document.body
+        .querySelector(".detail-popover-content")
+        ?.getAttribute("aria-modal"),
+    ).toBe("false");
     wrapper.unmount();
   });
 

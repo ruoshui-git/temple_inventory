@@ -285,7 +285,11 @@ function itemImage(row: CountRow) {
 			</FilterPanel>
 			<label class="preview-field count-search">
 				搜索物品、批次或位置
-				<input v-model="search" type="search" />
+				<input
+					v-model="search"
+					type="search"
+					placeholder="输入物品名称、编码、批次或位置"
+				/>
 			</label>
 			<div class="browse-tabs" role="group" aria-label="核对状态筛选">
 				<button
@@ -384,6 +388,7 @@ function itemImage(row: CountRow) {
 							class="count-card-input"
 							type="number"
 							inputmode="decimal"
+							enterkeyhint="next"
 							min="0"
 							:step="
 								reference.units.find((unit) => unit.name === row.stock_uom)?.whole
@@ -493,6 +498,8 @@ function itemImage(row: CountRow) {
 						v-if="writable"
 						class="count-actual-input"
 						type="number"
+						inputmode="decimal"
+						enterkeyhint="next"
 						min="0"
 						:step="
 							reference.units.find((unit) => unit.name === row.stock_uom)?.whole
@@ -620,7 +627,7 @@ function itemImage(row: CountRow) {
 				· {{ warehouseLabel(notesTarget.warehouse, reference.warehouses) }}
 			</p>
 			<label class="preview-field"
-				>差异原因（可选）<textarea
+				>差异原因<textarea
 					v-model="notesTarget.reason"
 					rows="3"
 					:disabled="!writable || busy || baselineBusy"
@@ -843,7 +850,7 @@ function itemImage(row: CountRow) {
 		align-items: stretch;
 	}
 	.count-search {
-		flex: 1 1 100%;
+		flex: 1 1 180px;
 		min-width: 0;
 	}
 	.count-filter-bar > .browse-tabs {

@@ -172,6 +172,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 					minWidth: "130px",
 				},
 				{
+					id: "quantities",
+					label: "数量（按单位）",
+					defaultVisible: true,
+					minWidth: "190px",
+				},
+				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
@@ -182,12 +188,6 @@ const operationColumns = computed<DataColumn[]>(() =>
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
 					minWidth: "140px",
-				},
-				{
-					id: "quantities",
-					label: "数量（按单位）",
-					defaultVisible: true,
-					minWidth: "150px",
 				},
 				{
 					id: "docstatus",
@@ -235,6 +235,18 @@ const operationColumns = computed<DataColumn[]>(() =>
 					minWidth: "130px",
 				},
 				{
+					id: "quantities",
+					label: "借出数量（按单位）",
+					defaultVisible: true,
+					minWidth: "190px",
+				},
+				{
+					id: "outstanding",
+					label: "未归还数量（按单位）",
+					defaultVisible: true,
+					minWidth: "190px",
+				},
+				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
@@ -245,18 +257,6 @@ const operationColumns = computed<DataColumn[]>(() =>
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
 					minWidth: "140px",
-				},
-				{
-					id: "quantities",
-					label: "借出数量（按单位）",
-					defaultVisible: true,
-					minWidth: "150px",
-				},
-				{
-					id: "outstanding",
-					label: "未归还数量（按单位）",
-					defaultVisible: true,
-					minWidth: "160px",
 				},
 				{
 					id: "status",

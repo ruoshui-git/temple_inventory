@@ -14,6 +14,8 @@ import ItemLine from "../../components/ui/ItemLine.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import { summarizeItems } from "../../lib/itemSummary";
+import { formatQuantity } from "../../lib/formatQuantity";
 import {
 	browseDestination,
 	countDestination,
@@ -64,6 +66,15 @@ const {
 } = props.controller;
 const distributionTop = computed(() => distribution.value.slice(0, 8));
 const distributionRest = computed(() => distribution.value.slice(8));
+const inventoryTopMetrics = computed(() =>
+	metrics.value.map((metric) => ({ ...metric, quantities: metric.quantities.slice(0, 3) })),
+);
+const inventoryMoreMetrics = computed(() =>
+	metrics.value.flatMap((metric) => {
+		const rest = metric.quantities.slice(3);
+		return rest.length ? [{ key: metric.key, label: metric.label, quantities: rest }] : [];
+	}),
+);
 const showFilters = ref(false);
 function effectLabel(effect: number, uom: string) {
 	return effect > 0
@@ -368,7 +379,36 @@ function datasetChanged(dataset: ReportDataset) {
 							</button>
 						</div></template
 					>
-					<QuantitySummary :metrics="metrics" />
+					<QuantitySummary :metrics="inventoryTopMetrics" />
+					<details
+						v-if="inventoryMoreMetrics.length"
+						class="ti-disclosure dashboard-unit-disclosure"
+					>
+						<summary>
+							<DisclosureIcon variant="inline" />+{{
+								inventoryMoreMetrics.reduce(
+									(count, metric) => count + metric.quantities.length,
+									0,
+								)
+							}}
+							单位
+						</summary>
+						<p
+							v-for="metric in inventoryMoreMetrics"
+							:key="metric.key"
+							class="dashboard-unit-rest"
+						>
+							<strong>{{ metric.label }}：</strong
+							>{{
+								metric.quantities
+									.map(
+										(quantity) =>
+											`${formatQuantity(quantity.qty)} ${quantity.uom}`,
+									)
+									.join(" · ")
+							}}
+						</p>
+					</details>
 				</DashboardSection>
 				<DashboardSection
 					:section="sections.distribution"
@@ -567,7 +607,7 @@ function datasetChanged(dataset: ReportDataset) {
 									<dl class="ti-fields">
 										<div>
 											<dt>批次</dt>
-											<dd>{{ row.batch_no }}</dd>
+											<dd :title="row.batch_no">{{ row.batch_no }}</dd>
 										</div>
 										<div>
 											<dt>到期</dt>
@@ -685,13 +725,20 @@ function datasetChanged(dataset: ReportDataset) {
 							class="browse-rank-row"
 							:disabled="blocked('movement')"
 							@click="emit('openDocument', row.doctype!, row.document!)"
+							:title="
+								row.item_names?.join('、') ||
+								row.item_name ||
+								movementLabels[row.kind || ''] ||
+								'库存记录'
+							"
+							:aria-label="`${row.item_names?.join('、') || row.item_name || movementLabels[row.kind || ''] || '库存记录'}，${row.document}`"
 						>
 							<span
 								>{{
-									row.item_names?.join("、") ||
-									row.item_name ||
-									movementLabels[row.kind || ""] ||
-									"库存记录"
+									summarizeItems(
+										row.item_names || (row.item_name ? [row.item_name] : []),
+										Number(row.item_count || 0) || (row.item_name ? 1 : 0),
+									)
 								}}<small
 									>{{ movementLabels[row.kind || ""] || "其他类型" }} ·
 									{{ row.document }} · {{ row.date }} ·

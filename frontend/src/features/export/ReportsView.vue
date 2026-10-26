@@ -170,7 +170,7 @@ function setGroup(index: number, value: string) {
 				>
 			</template>
 			<template #subtitle
-				><p class="muted">完整筛选范围 · 数量按单位与状态分别列示</p></template
+				><p class="muted">按所选条件筛选；不同单位或状态的数量会分开显示。</p></template
 			>
 			<template #filters>
 				<div class="browse-filter-mega reports-filter-mega">
@@ -665,7 +665,7 @@ function setGroup(index: number, value: string) {
 					v-if="result.tables.some((row) => row.id !== result.main)"
 					class="muted report-supplementary-note"
 				>
-					展开补充表只改变页面显示；XLSX 工作表请在导出对话框中选择。
+					打开下方补充表可查看更多明细；导出时可在导出窗口中选择要包含的工作表。
 				</p>
 				<details
 					v-for="table in result.tables.filter((row) => row.id !== result.main)"
@@ -700,9 +700,8 @@ function setGroup(index: number, value: string) {
 				物品与库位筛选通过关联单据和借用明细匹配活动；终身流动单据数保持完整。
 			</p>
 			<p>
-				稳定编号与可读名称并列；空白实点表示未核对。单据状态单独分组，转移只计算一次逻辑明细。CSV
-				选择一个平面表；XLSX
-				包含适用汇总与明细。数据与导出均使用当前账户有权查看的完整范围。
+				物品编号和名称会同时显示。盘点数量留空表示未核对；不同状态分别统计，调拨不会重复计算。CSV
+				导出每次包含一张表；Excel 导出会包含相关汇总和明细表。仅包含你有权查看的数据。
 			</p>
 		</details>
 	</section>

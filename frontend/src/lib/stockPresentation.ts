@@ -32,6 +32,7 @@ export interface StockItem {
   barcode?: string;
   tracksBatch: boolean;
   tracksExpiry: boolean;
+  disabled?: boolean;
   locations: StockLocation[];
   available: number;
   loaned: number;

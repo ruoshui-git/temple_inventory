@@ -125,13 +125,13 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		minWidth: "130px",
 	},
 	{
-		id: "category",
-		label: "类别",
-		defaultVisible: wideScreen.value,
+		id: "available",
+		label: "可用数量",
+		defaultVisible: true,
 		sortable: true,
-		minWidth: "130px",
+		align: "end",
+		minWidth: "120px",
 	},
-	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, minWidth: "210px" },
 	{
 		id: "stock_uom",
 		label: "库存单位",
@@ -140,13 +140,13 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		minWidth: "100px",
 	},
 	{
-		id: "available",
-		label: "可用数量",
-		defaultVisible: true,
+		id: "category",
+		label: "类别",
+		defaultVisible: wideScreen.value,
 		sortable: true,
-		align: "end",
-		minWidth: "120px",
+		minWidth: "130px",
 	},
+	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, minWidth: "210px" },
 	{
 		id: "loaned",
 		label: "借出",
@@ -581,6 +581,7 @@ watch([() => props.active, isMobile], () => {
 									><button class="item-name" @click="openItem(item)">
 										{{ item.name }}
 									</button>
+									<span v-if="item.disabled" class="badge neutral">已停用</span>
 									<div class="stock-number">
 										<span
 											><strong>{{ item.available }}</strong>
@@ -631,6 +632,9 @@ watch([() => props.active, isMobile], () => {
 								<button class="stock-list-open" @click="openItem(item)">
 									<span class="stock-list-identity">
 										<strong class="stock-list-name">{{ item.name }}</strong>
+										<span v-if="item.disabled" class="badge neutral"
+											>已停用</span
+										>
 										<span class="stock-list-meta"
 											>{{ item.code
 											}}{{
@@ -764,6 +768,7 @@ watch([() => props.active, isMobile], () => {
 								>
 									{{ stockName(row) }}
 								</button>
+								<span v-if="row.disabled" class="badge neutral">已停用</span>
 								<template v-else-if="column.id === 'item_code'">{{
 									stockCode(row)
 								}}</template>

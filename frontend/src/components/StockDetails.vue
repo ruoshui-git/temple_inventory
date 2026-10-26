@@ -15,6 +15,16 @@ const props = withDefaults(
 	{ loading: false, initialized: true, stale: false },
 );
 const batches = computed(() => itemBatches(props.item));
+const physicalLocations = computed(() =>
+	props.item.locations.filter((row) => Number(row.available) > 0),
+);
+const availableBatches = computed(() => batches.value.filter((row) => Number(row.available) > 0));
+const loanedTotal = computed(() =>
+	props.item.locations.reduce((total, row) => total + Number(row.loaned || 0), 0),
+);
+const damagedTotal = computed(() =>
+	props.item.locations.reduce((total, row) => total + Number(row.damaged || 0), 0),
+);
 const warehouseReference = useOptionalReferenceData();
 const services = useOptionalInventoryServices();
 const locationColumns: DataColumn[] = [
@@ -65,7 +75,7 @@ const batchColumns: DataColumn[] = [
 	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
 ];
 const locationRows = computed<DataTableRecord[]>(() =>
-	props.item.locations.map((row) => ({
+	physicalLocations.value.map((row) => ({
 		kind: "record",
 		id: row.location,
 		value: { ...row, uom: props.item.uom },
@@ -73,17 +83,19 @@ const locationRows = computed<DataTableRecord[]>(() =>
 );
 const batchRows = computed<DataTableRecord[]>(() =>
 	props.item.locations.flatMap((location) =>
-		(location.batches || []).map((batch) => ({
-			kind: "record" as const,
-			id: `${location.location}:${batch.id}`,
-			value: {
-				location: location.location,
-				label: location.label,
-				batch: batch.id,
-				uom: props.item.uom,
-				...batch,
-			},
-		})),
+		(location.batches || [])
+			.filter((batch) => Number(batch.available) > 0)
+			.map((batch) => ({
+				kind: "record" as const,
+				id: `${location.location}:${batch.id}`,
+				value: {
+					location: location.location,
+					label: location.label,
+					batch: batch.id,
+					uom: props.item.uom,
+					...batch,
+				},
+			})),
 	),
 );
 const locationSort = useArrayTableSort(locationRows, "location", ["location", "available", "uom"]);
@@ -115,21 +127,27 @@ const batchPreferences =
 </script>
 <template>
 	<div class="stock-detail-chips">
-		<DetailPopover v-if="item.locations.length" :label="`${item.name}的库位与可用数量`">
+		<DetailPopover
+			v-if="physicalLocations.length || loanedTotal || damagedTotal"
+			:label="`${item.name}的库位与可用数量`"
+		>
 			<template #trigger
 				><InventoryIcon name="warehouse" />{{
-					item.locations.length === 1
+					physicalLocations.length === 1
 						? warehouseLabel(
-								item.locations[0].location,
+								physicalLocations[0].location,
 								warehouseReference?.warehouses || [],
-								item.locations[0].label,
+								physicalLocations[0].label,
 							)
-						: `${item.locations.length} 个库位`
+						: physicalLocations.length
+							? `${physicalLocations.length} 个库位`
+							: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
 				}}</template
 			>
 			<strong>{{ item.name }}</strong>
 			<p class="muted">当前筛选范围 · 可用库存</p>
 			<DataTable
+				v-if="physicalLocations.length"
 				ariaLabel="库位可用数量"
 				table-class="stock-breakdown"
 				:columns="locationColumns"
@@ -153,17 +171,27 @@ const batchPreferences =
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
-			<p class="stock-breakdown-total">合计 {{ item.available }} {{ item.uom }}</p>
+			<p v-if="loanedTotal || damagedTotal" class="stock-breakdown-other muted">
+				另有 借出 {{ loanedTotal }} · 损坏 {{ damagedTotal }}
+			</p>
+			<p v-if="physicalLocations.length" class="stock-breakdown-total">
+				合计 {{ item.available }} {{ item.uom }}
+			</p>
 		</DetailPopover>
 		<span v-else class="muted">暂无库存位置</span>
 		<DetailPopover
-			v-if="item.tracksBatch && batches.length"
+			v-if="item.tracksBatch && (availableBatches.length || loanedTotal || damagedTotal)"
 			:label="`${item.name}的批次信息`"
-			:trigger-text="`${batches.length} 个批次`"
+			:trigger-text="
+				availableBatches.length
+					? `${availableBatches.length} 个批次`
+					: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
+			"
 		>
 			<strong>批次与位置</strong>
 			<p class="muted">当前筛选范围 · 可用库存</p>
 			<DataTable
+				v-if="availableBatches.length"
 				ariaLabel="批次与位置库存"
 				table-class="stock-breakdown"
 				:columns="batchColumns"
@@ -188,6 +216,9 @@ const batchPreferences =
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
+			<p v-if="loanedTotal || damagedTotal" class="stock-breakdown-other muted">
+				另有 借出 {{ loanedTotal }} · 损坏 {{ damagedTotal }}
+			</p>
 		</DetailPopover>
 		<span v-else-if="item.tracksBatch" class="badge neutral">0 批次</span>
 	</div>

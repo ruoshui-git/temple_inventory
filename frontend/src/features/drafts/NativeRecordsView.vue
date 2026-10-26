@@ -43,6 +43,7 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
+import { summarizeItems } from "../../lib/itemSummary";
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -204,7 +205,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 			type: "server",
 			kind: String(row.kind || ""),
 			label: kind,
-			summary: `${row.whole.item_count} 种物品${destination ? ` → ${destination}` : ""}`,
+			summary: `${summarizeItems([], row.whole.item_count)}${destination ? ` → ${destination}` : ""}`,
 			updatedAt: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			absolute: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			server: row,
@@ -564,6 +565,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 									}}</span
 								>
 								<strong>{{ entry.label }}</strong>
+								<strong v-if="entry.server" class="draft-document-name">{{
+									entry.server.document
+								}}</strong>
 							</div>
 							<div class="draft-entry-meta">
 								<span>{{ entry.summary }}</span>
@@ -571,6 +575,8 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 									relativeTime(entry.updatedAt)
 								}}</time>
 							</div>
+						</div>
+						<div class="draft-entry-recovery">
 							<DisclosureSection
 								v-if="entry.local"
 								title="查看详情"
@@ -853,16 +859,34 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	border-top: 1px solid var(--p-border);
 }
 .draft-entry-main {
-	display: flex;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: minmax(0, 1.2fr) minmax(160px, 1fr) auto;
 	align-items: center;
-	gap: 8px 12px;
+	gap: 8px 16px;
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
 .draft-entry-main time {
 	color: var(--p-muted);
 	font-size: var(--p-small);
+}
+.draft-entry-heading {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.draft-entry-meta {
+	display: contents;
+}
+.draft-entry-meta time {
+	grid-column: 3;
+}
+.draft-entry-recovery {
+	grid-column: 1 / -1;
+}
+.draft-document-name {
+	overflow-wrap: anywhere;
 }
 .draft-type-tag {
 	display: inline-flex;
@@ -898,7 +922,8 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	}
 	.draft-entry-main {
 		display: grid;
-		gap: 4px;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 4px 8px;
 	}
 	.draft-entry-heading,
 	.draft-entry-meta {
@@ -906,6 +931,23 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		align-items: center;
 		min-width: 0;
 		gap: 6px;
+	}
+	.draft-entry-heading {
+		grid-column: 1 / -1;
+	}
+	.draft-entry-meta {
+		display: contents;
+	}
+	.draft-entry-meta > span {
+		grid-column: 1;
+	}
+	.draft-entry-meta time {
+		grid-column: 2;
+		grid-row: 2;
+		white-space: nowrap;
+	}
+	.draft-entry-recovery {
+		grid-column: 1 / -1;
 	}
 	.draft-entry-heading strong,
 	.draft-entry-meta > span {
@@ -922,16 +964,21 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		font-size: 0.78rem;
 	}
 	.draft-entry .browse-row-actions {
+		display: grid;
+		grid-template-columns: 1fr;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 4px;
+		gap: 6px;
 	}
 }
 @media (max-width: 600px) {
 	.draft-entry .browse-row-actions :deep(.ui-button) {
-		min-height: 34px;
+		min-height: 44px;
 		padding-inline: 8px;
 		font-size: 0.78rem;
+	}
+	.draft-entry .browse-row-actions :deep(.ui-button--danger) {
+		grid-row: 2;
 	}
 }
 </style>

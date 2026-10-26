@@ -1768,6 +1768,11 @@
 .dashboard-result.is-stale button {
 	color: var(--p-muted);
 }
+@media (max-width: 600px) {
+	.preview-dashboard .browse-rank-row > b {
+		margin-inline-end: 52px;
+	}
+}
 
 .results-region.is-stale .stock-grid {
 	opacity: 0.64;
@@ -3179,6 +3184,47 @@
 }
 .stock-effect.is-neutral {
 	color: var(--p-muted);
+}
+.preview-dashboard .dashboard-inventory .quantity-summary-values strong:nth-of-type(n + 4) {
+	display: none;
+}
+.dashboard-unit-disclosure {
+	margin-top: var(--p-space-2);
+}
+.dashboard-unit-rest {
+	margin: 6px 0 0;
+	color: var(--p-muted);
+}
+.preview-dashboard .dashboard-expiry .ti-fields dd {
+	max-width: 16ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.preview-dashboard .dashboard-movement .browse-rank-row > span:first-child {
+	min-width: 0;
+}
+.preview-dashboard .dashboard-movement .browse-rank-row > span:first-child:not(small) {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+.preview-activity-browse .browse-badge,
+.preview-activity-browse .native-status-badge {
+	white-space: nowrap;
+	min-width: max-content;
+}
+.preview-activity-browse .record-ref-chip {
+	min-height: 44px;
+}
+.preview-activity-browse .operation-item-totals,
+.preview-activity-browse .operation-item-totals .operation-total {
+	min-width: max-content;
+}
+.preview-activity-browse .operation-group-metrics {
+	max-width: none;
+	white-space: nowrap;
 }
 .report-scope-controls {
 	display: grid;
