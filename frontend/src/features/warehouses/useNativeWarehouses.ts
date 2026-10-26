@@ -16,6 +16,8 @@ import { useMovementHistory } from "../movements/useMovementHistory";
 import { kindIcons } from "../../lib/kindIcons";
 import { useBrowseState } from "../../lib/browseMemory";
 import { showToast } from "../../services/toast";
+import { useFormValidation } from "../../composables/useFormValidation";
+import { useConfirm } from "../../services/confirm";
 export type NativeWarehouse = LocationNode;
 
 /** The location API takes the native Warehouse Type, not the presenter kind. */
@@ -61,8 +63,7 @@ export function useNativeWarehouses(
       parent: "",
     });
   const baseline = ref(""),
-    recoveryError = ref(""),
-    leaveOpen = ref(false);
+    recoveryError = ref("");
   const selected = computed(() =>
     tree.value?.rows.find(
       (row) => row.name === (props.name || selectedName.value),
@@ -86,6 +87,22 @@ export function useNativeWarehouses(
     active = () => !disposed && reference.user === account;
   const dirty = computed(
     () => dialogOpen.value && JSON.stringify(form) !== baseline.value,
+  );
+  const validation = useFormValidation();
+  validation.register(
+    "warehouse-label",
+    () => form.label,
+    [(v) => (action.value === "move" || v.trim() ? true : "请输入位置名称")],
+    () => document.querySelector<HTMLElement>("[data-warehouse-name]")?.focus(),
+  );
+  validation.register(
+    "warehouse-parent",
+    () => form.parent,
+    [(v) => (action.value === "rename" || v ? true : "请选择上级位置")],
+    () =>
+      document
+        .querySelector<HTMLElement>("[data-warehouse-parent] input")
+        ?.focus(),
   );
   const canUseSelection = computed(
     () => active() && !loading.value && !error.value && !!selected.value,
@@ -369,10 +386,8 @@ export function useNativeWarehouses(
   }
   async function save() {
     if (!active() || busy.value || !dialogOpen.value) return;
-    if (!form.label.trim() || (action.value !== "rename" && !form.parent)) {
-      formError.value = "请填写名称并选择上级位置";
-      return;
-    }
+    formError.value = "";
+    if (!validation.validate().ok) return;
     const snapshot = { ...form },
       sentRevision = revision,
       mode = action.value,
@@ -469,23 +484,23 @@ export function useNativeWarehouses(
     recovery.remove(entry.editorId, entry.revision);
     showToast("已恢复上次在此浏览器暂存的内容");
   }
-  let leaveResolve: ((value: boolean) => void) | undefined;
-  function requestLeave(): Promise<boolean> {
+  async function requestLeave(): Promise<boolean> {
     if (busy.value) {
       formError.value = "正在保存位置，请稍候";
       return Promise.resolve(false);
     }
-    if (!dirty.value) return Promise.resolve(true);
-    leaveOpen.value = true;
-    return new Promise((resolve) => (leaveResolve = resolve));
-  }
-  function finishLeave(choice: "stay" | "retain" | "discard") {
-    if (choice === "retain" && !retain()) return;
-    if (choice === "discard") recovery.remove(editorId, revision);
-    leaveOpen.value = false;
-    if (choice !== "stay") dialogOpen.value = false;
-    leaveResolve?.(choice !== "stay");
-    leaveResolve = undefined;
+    if (!dirty.value) return true;
+    const accepted = await useConfirm().confirm({
+      title: "离开位置编辑？",
+      message: "当前输入将保留在此浏览器，之后可以恢复。",
+      confirmLabel: "保留输入并离开",
+      cancelLabel: "继续编辑",
+    });
+    if (accepted) {
+      retain();
+      dialogOpen.value = false;
+    }
+    return accepted;
   }
   async function close() {
     if (await requestLeave()) dialogOpen.value = false;
@@ -555,7 +570,6 @@ export function useNativeWarehouses(
     disposed = true;
     generation++;
     request?.abort();
-    leaveResolve?.(false);
     if (typeof window !== "undefined")
       window.removeEventListener("beforeunload", beforeUnload);
     if (typeof document !== "undefined")
@@ -592,12 +606,11 @@ export function useNativeWarehouses(
     editing,
     action,
     form,
+    validation,
     dirty,
     recoveryError,
     recover,
-    leaveOpen,
     requestLeave,
-    finishLeave,
     close,
     openEditor,
     save,

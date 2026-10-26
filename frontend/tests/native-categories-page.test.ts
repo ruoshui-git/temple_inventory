@@ -13,6 +13,7 @@ import {
   createReferenceData,
   provideInventoryServices,
 } from "../src/services/contracts";
+import { resolveConfirm } from "../src/services/confirm";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -166,10 +167,7 @@ describe("category management", () => {
     )
       .find((button) => button.textContent?.trim() === "删除")!
       .click();
-    await flushPromises();
-    await Array.from(dialog().querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("确认删除"))!
-      .click();
+    resolveConfirm(true);
     await flushPromises();
     expect(call).toHaveBeenCalledWith("catalog.delete_category", {
       name: "CAT-A",
@@ -234,7 +232,7 @@ describe("category management", () => {
     expect(wrapper.text()).not.toContain("OLD-ACCOUNT");
   });
 
-  it("stages edit discard and route-leave confirmations in one dialog", async () => {
+  it("uses the shared confirmation for discard and route leave", async () => {
     const call = vi.fn(async (endpoint: string) => {
       if (endpoint === "catalog.category_tree") return [category("CAT-A")];
       throw new Error(`Unexpected ${endpoint}`);
@@ -249,12 +247,7 @@ describe("category management", () => {
     await Array.from(dialog().querySelectorAll("button"))
       .find((button) => button.textContent?.includes("取消"))!
       .click();
-    await flushPromises();
-    expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(dialog().textContent).toContain("放弃分类输入");
-    await Array.from(dialog().querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("继续编辑"))!
-      .click();
+    resolveConfirm(false);
     await flushPromises();
     expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(dialog().textContent).toContain("编辑分类");
@@ -265,12 +258,9 @@ describe("category management", () => {
     expect(document.activeElement).toBe(nameField);
 
     const pending = controller.requestLeave();
+    resolveConfirm(false);
     await flushPromises();
     expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(dialog().textContent).toContain("离开分类编辑");
-    await Array.from(dialog().querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("继续编辑"))!
-      .click();
     await pending;
     await flushPromises();
     expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);

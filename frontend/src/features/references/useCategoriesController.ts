@@ -12,6 +12,8 @@ import {
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { showToast } from "../../services/toast";
 import type { CategoryDraft } from "./CategoryFormFields.vue";
+import { useFormValidation } from "../../composables/useFormValidation";
+import { useConfirm } from "../../services/confirm";
 
 export interface Category extends Record<string, unknown> {
   name: string;
@@ -45,9 +47,14 @@ export function useCategoriesController() {
   const removeTarget = ref<Category>();
   const editing = ref<Category>();
   const form = ref<CategoryDraft>(emptyDraft());
+  const validation = useFormValidation();
+  validation.register(
+    "category-label",
+    () => form.value.label,
+    [(v) => (v.trim() ? true : "请输入分类名称")],
+    () => document.querySelector<HTMLElement>("[data-category-name]")?.focus(),
+  );
   const baseline = ref<CategoryDraft>(emptyDraft());
-  const discardOpen = ref(false);
-  const leaveRequested = ref(false);
   const recoveryError = ref("");
   const recoveryConflict = ref("");
   let account = reference.user;
@@ -60,7 +67,6 @@ export function useCategoriesController() {
   let editorId: string = crypto.randomUUID();
   let revision = 0;
   let recovery: ReturnType<typeof createRecoveryStore>;
-  let leaveResolve: ((value: boolean) => void) | undefined;
   let allowLeave = false;
   let storage: Storage | undefined;
   try {
@@ -228,12 +234,20 @@ export function useCategoriesController() {
     form.value = emptyDraft();
     baseline.value = emptyDraft();
     error.value = "";
-    discardOpen.value = false;
   }
-  function closeEditor() {
+  async function closeEditor() {
     if (saving.value) return;
-    if (dirty.value) discardOpen.value = true;
-    else clearEditor();
+    if (
+      dirty.value &&
+      !(await useConfirm().confirm({
+        title: "放弃分类输入？",
+        message: "当前更改已暂存在本浏览器。",
+        confirmLabel: "放弃输入",
+        tone: "danger",
+      }))
+    )
+      return;
+    clearEditor();
   }
   async function recover(snapshot: RecoverySnapshot) {
     if (
@@ -318,10 +332,8 @@ export function useCategoriesController() {
     )
       return;
     const label = form.value.label.trim();
-    if (!label) {
-      error.value = "请填写分类名称";
-      return;
-    }
+    error.value = "";
+    if (!validation.validate().ok) return;
     if (
       form.value.parent &&
       !categories.value.some(
@@ -332,7 +344,6 @@ export function useCategoriesController() {
       return;
     }
     saving.value = true;
-    error.value = "";
     success.value = "";
     const current = generation;
     const edited = editing.value;
@@ -372,10 +383,20 @@ export function useCategoriesController() {
       if (active(current)) saving.value = false;
     }
   }
-  function askDelete(row: Category) {
+  async function askDelete(row: Category) {
     if (!canDelete.value) return;
+    if (
+      !(await useConfirm().confirm({
+        title: "删除分类？",
+        message: `确定删除「${row.label}」吗？Frappe 会阻止删除仍被物品或下级分类引用的类别，并显示具体原因。`,
+        confirmLabel: "确认删除",
+        tone: "danger",
+      }))
+    )
+      return;
     removeTarget.value = row;
     error.value = "";
+    await remove();
   }
   async function remove() {
     const target = removeTarget.value;
@@ -396,6 +417,7 @@ export function useCategoriesController() {
     } catch (reason) {
       if (active(current)) {
         error.value = reason instanceof Error ? reason.message : "类别无法删除";
+        removeTarget.value = undefined;
         showToast(`分类删除失败：${error.value}`, "danger");
       }
     } finally {
@@ -408,22 +430,19 @@ export function useCategoriesController() {
     else next.add(row.name);
     expanded.value = next;
   }
-  function requestLeave(): Promise<boolean> {
-    if (allowLeave || !dirty.value) return Promise.resolve(true);
-    leaveRequested.value = true;
-    return new Promise((resolve) => (leaveResolve = resolve));
-  }
-  function finishLeave(choice: "stay" | "retain" | "discard") {
-    if (choice === "retain") retain();
-    if (choice === "discard") clearEditor();
-    allowLeave = choice !== "stay";
-    leaveRequested.value = false;
-    leaveResolve?.(allowLeave);
-    leaveResolve = undefined;
-  }
-  function finishDiscard(discard: boolean) {
-    if (discard) clearEditor();
-    else discardOpen.value = false;
+  async function requestLeave(): Promise<boolean> {
+    if (allowLeave || !dirty.value) return true;
+    const accepted = await useConfirm().confirm({
+      title: "离开分类编辑？",
+      message: "未完成输入保留在此浏览器。",
+      confirmLabel: "保留并离开",
+      cancelLabel: "继续编辑",
+    });
+    if (accepted) {
+      retain();
+      allowLeave = true;
+    }
+    return accepted;
   }
   watch(
     () => [reference.user, reference.site],
@@ -438,8 +457,6 @@ export function useCategoriesController() {
       loading.value = false;
       removeTarget.value = undefined;
       dialog.value = false;
-      discardOpen.value = false;
-      leaveRequested.value = false;
       recoveryConflict.value = "";
       form.value = emptyDraft();
       baseline.value = emptyDraft();
@@ -478,17 +495,14 @@ export function useCategoriesController() {
     removeTarget,
     editing,
     form,
+    validation,
     canCreate,
     canWrite,
     canDelete,
     dirty,
-    discardOpen,
-    leaveRequested,
     recoveryError,
     recoveryConflict,
     requestLeave,
-    finishLeave,
-    finishDiscard,
     parentExclusions,
     depth,
     visible,

@@ -17,6 +17,7 @@ import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import FormField from "../../components/ui/FormField.vue";
 const props = defineProps<{ controller: BatchDetailController }>();
 const emit = defineEmits<{
 	back: [];
@@ -162,18 +163,42 @@ function openDocument(row: Record<string, unknown>) {
 				</div>
 			</dl>
 			<template v-if="c.editing.value">
-				<form class="batch-edit-form" @submit.prevent="c.save">
-					<label
-						>生产日期<input v-model="c.manufacturingDate.value" type="date"
-					/></label>
-					<label>到期日期<input v-model="c.expiryDate.value" type="date" /></label>
-					<label class="batch-description"
-						>批次说明<textarea
-							v-model="c.description.value"
-							rows="3"
-							maxlength="2000"
-						/>
-					</label>
+				<form class="batch-edit-form" novalidate @submit.prevent="c.save">
+					<FormField
+						for="batch-manufacturing-date"
+						label="生产日期"
+						:error="c.validation.errors['batch-manufacturing-date']"
+						><template #default="{ fieldAttrs }"
+							><input
+								v-model="c.manufacturingDate.value"
+								type="date"
+								:id="fieldAttrs.id"
+								:aria-describedby="fieldAttrs['aria-describedby']"
+								:aria-invalid="!!fieldAttrs['aria-invalid']" /></template
+					></FormField>
+					<FormField
+						for="batch-expiry-date"
+						label="到期日期"
+						:error="c.validation.errors['batch-expiry-date']"
+						><template #default="{ fieldAttrs }"
+							><input
+								v-model="c.expiryDate.value"
+								type="date"
+								:id="fieldAttrs.id"
+								:aria-describedby="fieldAttrs['aria-describedby']"
+								:aria-invalid="!!fieldAttrs['aria-invalid']" /></template
+					></FormField>
+					<FormField class="batch-description" label="批次说明"
+						><template #default="{ fieldAttrs }">
+							<textarea
+								v-model="c.description.value"
+								rows="3"
+								maxlength="2000"
+								:id="fieldAttrs.id"
+								:aria-describedby="fieldAttrs['aria-describedby']"
+								:aria-invalid="!!fieldAttrs['aria-invalid']"
+							/></template
+					></FormField>
 				</form>
 			</template>
 			<p v-else-if="c.batch.value.description" class="batch-description-preview">

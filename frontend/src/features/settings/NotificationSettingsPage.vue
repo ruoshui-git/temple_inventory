@@ -152,3 +152,23 @@ const states: Record<string, string> = {
 		</template>
 	</section>
 </template>
+
+<style scoped>
+.notification-kinds {
+	margin-block: 16px 0;
+	padding-top: 20px;
+}
+.notification-kinds legend {
+	padding-inline: 6px;
+}
+@media (pointer: coarse) {
+	.notification-kinds label {
+		min-height: 44px;
+	}
+	.notification-kinds input {
+		width: 22px;
+		min-height: 22px;
+		min-width: 22px;
+	}
+}
+</style>

@@ -22,6 +22,7 @@ import type { ReportQuery } from "../../lib/reportContract";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
+import { useConfirm } from "../../services/confirm";
 import type { useActivitiesController } from "./useActivitiesController";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -59,6 +60,7 @@ const props = withDefaults(
 	{ active: true },
 );
 const emit = defineEmits<{ openExport: [query: ReportQuery] }>();
+const confirm = useConfirm().confirm;
 const {
 	reference,
 	scopeError,
@@ -108,6 +110,19 @@ const {
 	chip,
 	more,
 } = props.controller;
+async function confirmActivityDelete() {
+	if (
+		!(await confirm({
+			title: "删除活动？",
+			message: `删除活动「${current.value?.title || ""}」？已有任何引用的活动不能删除。`,
+			confirmLabel: "确认删除",
+			tone: "danger",
+		}))
+	)
+		return;
+	deleteOpen.value = false;
+	await props.controller.remove();
+}
 function resetActivityFilters() {
 	clear();
 	state.search = "";
@@ -547,7 +562,7 @@ function tabKey(event: KeyboardEvent) {
 							:disabled="!canDelete"
 							@click="
 								moreActionsOpen = false;
-								deleteOpen = true;
+								confirmActivityDelete();
 							"
 							>删除活动</UiButton
 						>
@@ -938,18 +953,5 @@ function tabKey(event: KeyboardEvent) {
 				{{ projection.mainTable.value.error }}
 			</p>
 		</template>
-		<Overlay v-if="deleteOpen" title="删除活动" @close="deleteOpen = false"
-			><p>删除活动「{{ current?.title }}」？已有任何引用的活动不能删除。</p>
-			<template #footer
-				><UiButton @click="deleteOpen = false">取消</UiButton
-				><UiButton
-					variant="danger"
-					:loading="busy"
-					loading-label="正在删除活动…"
-					@click="remove"
-					>确认删除</UiButton
-				></template
-			></Overlay
-		>
 	</section>
 </template>

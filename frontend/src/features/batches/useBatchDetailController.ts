@@ -4,6 +4,8 @@ import {
   useReferenceData,
 } from "../../services/contracts";
 import type { MovementHistoryRow, ReportRow } from "../../lib/reportContract";
+import { useFormValidation } from "../../composables/useFormValidation";
+import { useConfirm } from "../../services/confirm";
 
 export interface BatchDetail {
   name: string;
@@ -33,6 +35,7 @@ export function useBatchDetailController(props: {
 }) {
   const services = useInventoryServices();
   const reference = useReferenceData();
+  const validation = useFormValidation();
   let account = reference.user,
     generation = 0,
     disposed = false,
@@ -60,6 +63,28 @@ export function useBatchDetailController(props: {
       (manufacturingDate.value !== batch.value.manufacturing_date ||
         expiryDate.value !== batch.value.expiry_date ||
         description.value !== batch.value.description),
+  );
+  validation.register(
+    "batch-manufacturing-date",
+    () => manufacturingDate.value,
+    [
+      (v) =>
+        !v || !expiryDate.value || v <= expiryDate.value
+          ? true
+          : "生产日期不能晚于到期日期",
+    ],
+    () => document.getElementById("batch-manufacturing-date")?.focus(),
+  );
+  validation.register(
+    "batch-expiry-date",
+    () => expiryDate.value,
+    [
+      (v) =>
+        !v || !manufacturingDate.value || v >= manufacturingDate.value
+          ? true
+          : "到期日期不能早于生产日期",
+    ],
+    () => document.getElementById("batch-expiry-date")?.focus(),
   );
   const active = (current: number) =>
     !disposed && current === generation && account === reference.user;
@@ -99,10 +124,15 @@ export function useBatchDetailController(props: {
       if (active(current)) loading.value = false;
     }
   }
-  function reload() {
+  async function reload() {
     if (
       dirty.value &&
-      !window.confirm("重新读取会放弃未保存的修改，是否继续？")
+      !(await useConfirm().confirm({
+        title: "重新读取批次资料？",
+        message: "重新读取会放弃未保存的修改。",
+        confirmLabel: "放弃并重新读取",
+        tone: "danger",
+      }))
     )
       return;
     void load();
@@ -115,8 +145,19 @@ export function useBatchDetailController(props: {
   function beginEdit() {
     if (batch.value) editing.value = true;
   }
-  function cancelEdit() {
-    if (!saving.value && batch.value) {
+  async function cancelEdit() {
+    if (saving.value || !batch.value) return;
+    if (
+      dirty.value &&
+      !(await useConfirm().confirm({
+        title: "放弃批次修改？",
+        message: "未保存的修改将丢失。",
+        confirmLabel: "放弃修改",
+        tone: "danger",
+      }))
+    )
+      return;
+    {
       setDraft(batch.value);
       editing.value = false;
       error.value = "";
@@ -126,6 +167,8 @@ export function useBatchDetailController(props: {
     const current = generation,
       target = batch.value;
     if (!target || saving.value || !editing.value) return;
+    error.value = "";
+    if (!validation.validate().ok) return;
     const sent = {
       manufacturing_date: manufacturingDate.value,
       expiry_date: expiryDate.value,
@@ -329,6 +372,7 @@ export function useBatchDetailController(props: {
     success,
     editing,
     dirty,
+    validation,
     load,
     reload,
     beginEdit,

@@ -31,8 +31,6 @@ const {
 	expanded,
 	recoveryError,
 	recoveryConflict,
-	discardOpen,
-	leaveRequested,
 } = c;
 </script>
 
@@ -118,56 +116,35 @@ const {
 			</ul>
 		</AsyncRegion>
 		<Overlay
-			v-if="dialog && !discardOpen && !leaveRequested"
+			v-if="dialog"
 			:title="editing ? '编辑分类' : '新建分类'"
 			initial-focus="[data-category-name]"
 			:dismissible="!saving"
 			@close="c.closeEditor"
 		>
-			<CategoryFormFields
-				v-model="form"
-				:categories="categories"
-				:excluded-names="c.parentExclusions(editing)"
-				:disabled="saving"
-			/>
-			<p v-if="error" role="alert">{{ error }}</p>
+			<form
+				id="category-editor-form"
+				class="category-editor-form"
+				novalidate
+				@submit.prevent="c.save"
+			>
+				<CategoryFormFields
+					v-model="form"
+					:categories="categories"
+					:excluded-names="c.parentExclusions(editing)"
+					:name-error="c.validation.errors['category-label']"
+					:disabled="saving"
+				/>
+				<p v-if="error" role="alert">{{ error }}</p>
+			</form>
 			<template #footer>
 				<UiButton :disabled="saving" @click="c.closeEditor">取消</UiButton>
-				<UiButton variant="primary" :loading="saving" @click="c.save">保存</UiButton>
-			</template>
-		</Overlay>
-		<Overlay v-if="discardOpen" title="放弃分类输入？" @close="c.finishDiscard(false)">
-			<p>当前更改已保留在本浏览器。关闭后可以恢复，或明确放弃。</p>
-			<template #footer>
-				<UiButton @click="c.finishDiscard(false)">继续编辑</UiButton>
-				<UiButton variant="danger" @click="c.finishDiscard(true)">放弃输入</UiButton>
-			</template>
-		</Overlay>
-		<Overlay
-			v-if="removeTarget"
-			title="删除分类"
-			:dismissible="!deleting"
-			@close="removeTarget = undefined"
-		>
-			<p>
-				确定删除「{{ removeTarget.label }}」吗？Frappe
-				会阻止删除仍被物品或下级分类引用的类别，并显示具体原因。
-			</p>
-			<p v-if="error" role="alert">{{ error }}</p>
-			<template #footer>
-				<UiButton :disabled="deleting" @click="removeTarget = undefined">取消</UiButton>
-				<UiButton variant="danger" :loading="deleting" @click="c.remove"
-					>确认删除</UiButton
-				>
-			</template>
-		</Overlay>
-		<Overlay v-if="leaveRequested" title="离开分类编辑？" @close="c.finishLeave('stay')">
-			<p>未完成输入保存在当前浏览器和账户中。</p>
-			<template #footer>
-				<UiButton @click="c.finishLeave('stay')">继续编辑</UiButton>
-				<UiButton @click="c.finishLeave('retain')">保留输入并离开</UiButton>
-				<UiButton variant="danger" @click="c.finishLeave('discard')"
-					>放弃输入并离开</UiButton
+				<UiButton
+					variant="primary"
+					type="submit"
+					form="category-editor-form"
+					:loading="saving"
+					>保存</UiButton
 				>
 			</template>
 		</Overlay>
@@ -177,6 +154,11 @@ const {
 <style scoped>
 .category-management {
 	padding-bottom: 32px;
+}
+@media (pointer: coarse) {
+	:global(.category-editor-form .preview-choice-label) {
+		min-height: 44px;
+	}
 }
 .category-tools {
 	display: flex;

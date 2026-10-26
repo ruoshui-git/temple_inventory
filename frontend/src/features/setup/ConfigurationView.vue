@@ -7,6 +7,7 @@ import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
+import FormField from "../../components/ui/FormField.vue";
 const props = defineProps<{ controller: ReturnType<typeof useConfiguration> }>();
 const c = props.controller;
 const {
@@ -68,13 +69,26 @@ watch([field, warehouse], () => c.clearPreview());
 			</section>
 			<section v-if="status.can_initialize" class="surface utility-panel">
 				<h2>建立必需仓库</h2>
-				<label class="preview-field"
-					>公司<select v-model="company" :disabled="busy">
-						<option value="">请选择</option>
-						<option v-for="value in status.companies" :key="value" :value="value">
-							{{ value }}
-						</option>
-					</select></label
+				<FormField
+					for="configuration-company"
+					class="preview-field"
+					label="公司"
+					required
+					:error="c.validation.errors['configuration-company']"
+					><template #default="{ fieldAttrs }"
+						><select
+							v-model="company"
+							:id="fieldAttrs.id"
+							:aria-describedby="fieldAttrs['aria-describedby']"
+							:aria-invalid="!!fieldAttrs['aria-invalid']"
+							:disabled="busy"
+						>
+							<option value="">请选择</option>
+							<option v-for="value in status.companies" :key="value" :value="value">
+								{{ value }}
+							</option>
+						</select></template
+					></FormField
 				>
 				<p>建立实体、借出与损坏存放结构。普通初始化只建立仓库，不导入示例物品或库存。</p>
 				<UiButton
@@ -114,12 +128,21 @@ watch([field, warehouse], () => c.clearPreview());
 						</option>
 					</select></label
 				>
-				<SearchSelect
-					v-model="warehouse"
+				<FormField
 					label="替代仓库"
-					:options="options"
-					:disabled="busy"
-				/>
+					required
+					:error="c.validation.errors['configuration-warehouse']"
+					><template #default="{ fieldAttrs }"
+						><SearchSelect
+							v-model="warehouse"
+							label="替代仓库"
+							external-label
+							:options="options"
+							:disabled="busy"
+							:id="fieldAttrs.id"
+							:aria-described-by="fieldAttrs['aria-describedby']"
+							:aria-invalid="!!fieldAttrs['aria-invalid']" /></template
+				></FormField>
 				<p v-if="c.reviewing.value" class="muted" role="status">正在查看修复影响…</p>
 				<UiButton
 					:disabled="!warehouse || busy"
@@ -218,6 +241,11 @@ watch([field, warehouse], () => c.clearPreview());
 	margin-block: 20px;
 	padding-block: 16px;
 	border-block: 1px solid var(--p-border);
+}
+@media (pointer: coarse) {
+	.configuration-impact :deep(.preview-choice-label) {
+		min-height: 44px;
+	}
 }
 @media (max-width: 600px) {
 	.configuration-pointers {

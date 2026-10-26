@@ -14,6 +14,7 @@ import {
   type NativeActivity,
 } from "../src/features/activities/useActivityEditor";
 import { useReferenceCreation } from "../src/features/references/useReferenceCreation";
+import { resolveConfirm } from "../src/services/confirm";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -67,6 +68,22 @@ function activity(overrides: Partial<NativeActivity> = {}): NativeActivity {
 }
 
 describe("native Activity editing", () => {
+  it("marks required activity fields before submitting", async () => {
+    const call = vi.fn();
+    const { controller } = setup(call as InventoryServices["call"], () =>
+      useActivityEditor({}, vi.fn()),
+    );
+    await flushPromises();
+    await controller.save();
+    expect(controller.validation.errors["activity-title"]).toBe(
+      "请输入活动名称",
+    );
+    expect(controller.validation.errors["activity-type"]).toBe(
+      "请选择活动类型",
+    );
+    expect(call).not.toHaveBeenCalled();
+  });
+
   it("keeps the native identity and version when renaming and preserves multiline plain notes", async () => {
     const call = vi
       .fn()
@@ -248,20 +265,19 @@ describe("Activity browser recovery", () => {
     expect(saved).not.toHaveBeenCalled();
     expect(c.recovery.list().entries[0]?.baseVersion).toBe("v2");
   });
-  it("guards leaving invalid input and discards only the chosen browser revision", async () => {
+  it("uses the shared confirmation before leaving and retains the recovery draft", async () => {
     const { controller: c } = setup(vi.fn(), () =>
       useActivityEditor({}, vi.fn()),
     );
     await flushPromises();
     c.input.notes = "尚未填写名称";
     const leaving = c.requestLeave();
-    expect(c.leaveRequested.value).toBe(true);
-    c.finishLeave("stay");
+    resolveConfirm(false);
     expect(await leaving).toBe(false);
     const next = c.requestLeave();
-    c.finishLeave("discard");
+    resolveConfirm(true);
     expect(await next).toBe(true);
-    expect(c.recovery.list().entries).toHaveLength(0);
+    expect(c.recovery.list().entries).toHaveLength(1);
   });
 });
 

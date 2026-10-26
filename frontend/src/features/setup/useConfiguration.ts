@@ -5,6 +5,7 @@ import {
 } from "../../services/contracts";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { showToast } from "../../services/toast";
+import { useFormValidation } from "../../composables/useFormValidation";
 export interface ConfigurationStatus {
   version: string;
   ready: boolean;
@@ -49,6 +50,22 @@ export function useConfiguration(changed: () => void) {
   const company = ref(""),
     field = ref("physical_root_warehouse"),
     warehouse = ref("");
+  const validation = useFormValidation();
+  validation.register(
+    "configuration-company",
+    () => company.value,
+    [(v) => (v ? true : "请选择公司")],
+    () => document.getElementById("configuration-company")?.focus(),
+  );
+  validation.register(
+    "configuration-warehouse",
+    () => warehouse.value,
+    [(v) => (v ? true : "请选择替代仓库")],
+    () =>
+      document
+        .querySelector<HTMLElement>("[data-configuration-warehouse] input")
+        ?.focus(),
+  );
   const preview = ref<RepairPreview>(),
     confirmed = ref(false),
     initializeOpen = ref(false),
@@ -94,7 +111,13 @@ export function useConfiguration(changed: () => void) {
     confirmed.value = false;
   }
   async function review() {
-    if (busy.value || !warehouse.value || !status.value || !active()) return;
+    if (
+      busy.value ||
+      !status.value ||
+      !active() ||
+      !validation.validateField("configuration-warehouse")
+    )
+      return;
     busy.value = true;
     reviewing.value = true;
     error.value = "";
@@ -117,6 +140,8 @@ export function useConfiguration(changed: () => void) {
     }
   }
   async function apply(initialize = false) {
+    if (initialize && !validation.validateField("configuration-company"))
+      return;
     if (
       busy.value ||
       !active() ||
@@ -197,6 +222,7 @@ export function useConfiguration(changed: () => void) {
     initializeOpen,
     message,
     options,
+    validation,
     clearPreview,
     load,
     review,

@@ -25,7 +25,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
-import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import FormField from "../../components/ui/FormField.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, ref } from "vue";
 const props = withDefaults(
@@ -57,7 +57,6 @@ const {
 	formError,
 	form,
 	recoveryError,
-	leaveOpen,
 	editing,
 } = c;
 const stockTable = c.stock.mainTable;
@@ -583,45 +582,65 @@ function parentLabel(name?: string) {
 			@close="c.close"
 			><p v-if="formError" class="utility-error" role="alert">{{ formError }}</p>
 			<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-			<template v-if="leaveOpen"
-				><p>离开前可将当前输入保留在此浏览器，或明确放弃。</p>
-				<RecoverySummary
-					kind="Warehouse"
-					:values="form"
-					:copy-text="JSON.stringify(form, null, 2)"
-				/>
-			</template>
-			<form v-else id="native-warehouse-form" class="browse-dialog" @submit.prevent="c.save">
-				<label v-if="c.action.value !== 'move'" class="preview-field"
-					>名称<input v-model="form.label" required autocomplete="off"
-				/></label>
-				<label v-if="c.action.value !== 'move'" class="preview-field"
-					>简称（可选）<input v-model="form.short_label" autocomplete="off"
-				/></label>
-				<SearchSelect
+			<form
+				id="native-warehouse-form"
+				class="browse-dialog"
+				novalidate
+				@submit.prevent="c.save"
+			>
+				<FormField
+					v-if="c.action.value !== 'move'"
+					label="名称"
+					required
+					:error="c.validation.errors['warehouse-label']"
+					><template #default="{ fieldAttrs }"
+						><input
+							data-warehouse-name
+							v-model="form.label"
+							:id="fieldAttrs.id"
+							:aria-describedby="fieldAttrs['aria-describedby']"
+							:aria-invalid="!!fieldAttrs['aria-invalid']"
+							autocomplete="off" /></template
+				></FormField>
+				<FormField
+					v-if="c.action.value !== 'move'"
+					label="简称"
+					hint="填写后会在位置路径中显示简称。"
+					><template #default="{ fieldAttrs }"
+						><input
+							v-model="form.short_label"
+							:id="fieldAttrs.id"
+							:aria-describedby="fieldAttrs['aria-describedby']"
+							:aria-invalid="!!fieldAttrs['aria-invalid']"
+							autocomplete="off" /></template
+				></FormField>
+				<FormField
 					v-if="c.action.value !== 'rename'"
-					v-model="form.parent"
 					:label="c.action.value === 'move' ? '新上级位置' : '上级位置'"
-					:options="c.parentOptions.value"
-				/>
+					required
+					:error="c.validation.errors['warehouse-parent']"
+				>
+					<template #default="{ fieldAttrs }"
+						><SearchSelect
+							v-model="form.parent"
+							:label="c.action.value === 'move' ? '新上级位置' : '上级位置'"
+							external-label
+							:options="c.parentOptions.value"
+							:id="fieldAttrs.id"
+							:aria-described-by="fieldAttrs['aria-describedby']"
+							:aria-invalid="!!fieldAttrs['aria-invalid']"
+					/></template>
+				</FormField>
 				<p v-if="c.action.value === 'move'">可选上级仅显示符合此位置类型的启用节点。</p>
 			</form>
 			<template #footer
-				><template v-if="leaveOpen"
-					><UiButton @click="c.finishLeave('stay')">继续编辑</UiButton
-					><UiButton @click="c.finishLeave('retain')">保留输入并离开</UiButton
-					><UiButton variant="danger" @click="c.finishLeave('discard')"
-						>放弃输入并离开</UiButton
-					></template
-				><template v-else
-					><UiButton :disabled="busy" @click="c.close">取消</UiButton
-					><UiButton
-						variant="primary"
-						type="submit"
-						form="native-warehouse-form"
-						:disabled="busy"
-						>{{ busy ? "正在保存…" : "保存仓库资料" }}</UiButton
-					></template
+				><UiButton :disabled="busy" @click="c.close">取消</UiButton
+				><UiButton
+					variant="primary"
+					type="submit"
+					form="native-warehouse-form"
+					:disabled="busy"
+					>{{ busy ? "正在保存…" : "保存仓库资料" }}</UiButton
 				></template
 			>
 		</Overlay>

@@ -10,6 +10,8 @@ import {
   type RecoverySnapshot,
 } from "../../lib/browserRecovery";
 import { showToast } from "../../services/toast";
+import { useFormValidation } from "../../composables/useFormValidation";
+import { useConfirm } from "../../services/confirm";
 export interface NativeActivity {
   name: string;
   title: string;
@@ -31,6 +33,7 @@ export function useActivityEditor(
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user;
+  const validation = useFormValidation();
   const existing = ref<NativeActivity>(),
     input = reactive({
       title: "",
@@ -45,16 +48,13 @@ export function useActivityEditor(
     error = ref(""),
     conflict = ref(false),
     recoveryError = ref(""),
-    leaveRequested = ref(false),
-    reloadRequested = ref(false),
     baseline = ref(JSON.stringify(input));
   let generation = 0,
     disposed = false,
     ready = false,
     discarded = false,
     revision = 0,
-    allowLeave = false,
-    leaveResolve: ((value: boolean) => void) | undefined;
+    allowLeave = false;
   let request: AbortController | undefined, storage: Storage | undefined;
   try {
     storage = localStorage;
@@ -66,6 +66,38 @@ export function useActivityEditor(
     tabId = crypto.randomUUID();
   const active = () => !disposed && account === reference.user;
   const dirty = computed(() => JSON.stringify(input) !== baseline.value);
+  validation.register(
+    "activity-title",
+    () => input.title,
+    [(v) => (v.trim() ? true : "请输入活动名称")],
+    () => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
+  );
+  validation.register(
+    "activity-type",
+    () => input.typeId,
+    [(v) => (v ? true : "请选择活动类型")],
+    () => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
+  );
+  validation.register(
+    "activity-start",
+    () => input.start,
+    [
+      (v) =>
+        !input.end || !v || v <= input.end ? true : "开始日期不能晚于结束日期",
+    ],
+    () => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
+  );
+  validation.register(
+    "activity-end",
+    () => input.end,
+    [
+      (v) =>
+        !v || !input.start || v >= input.start
+          ? true
+          : "结束日期不能早于开始日期",
+    ],
+    () => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
+  );
   const writable = computed(
     () => active() && (existing.value ? true : !props.activityId),
   );
@@ -183,14 +215,8 @@ export function useActivityEditor(
       conflict.value
     )
       return;
-    if (!input.title.trim() || !input.typeId) {
-      error.value = "请填写活动名称和类型";
-      return;
-    }
-    if (input.start && input.end && input.end < input.start) {
-      error.value = "结束日期不能早于开始日期";
-      return;
-    }
+    error.value = "";
+    if (!validation.validate().ok) return;
     busy.value = true;
     error.value = "";
     const current = generation,
@@ -255,20 +281,31 @@ export function useActivityEditor(
     discarded = true;
     recovery.remove(editorId, revision);
   }
-  function requestLeave(): Promise<boolean> {
-    if (allowLeave || !dirty.value) return Promise.resolve(true);
-    leaveRequested.value = true;
-    return new Promise((resolve) => {
-      leaveResolve = resolve;
+  async function requestLeave(): Promise<boolean> {
+    if (allowLeave || !dirty.value) return true;
+    const confirm = useConfirm();
+    const choice = await confirm.confirm({
+      title: "离开活动编辑？",
+      message: "未完成输入将保留在此浏览器。选择继续编辑可取消离开。",
+      confirmLabel: "保留并离开",
+      cancelLabel: "继续编辑",
+      tone: "default",
     });
+    if (choice) retain();
+    allowLeave = choice;
+    return choice;
   }
-  function finishLeave(choice: "stay" | "retain" | "discard") {
-    if (choice === "discard") discard();
-    else if (choice === "retain") retain();
-    allowLeave = choice !== "stay";
-    leaveRequested.value = false;
-    leaveResolve?.(allowLeave);
-    leaveResolve = undefined;
+  async function reload() {
+    if (!dirty.value) return load();
+    const accepted = await useConfirm().confirm({
+      title: "重新读取活动？",
+      message: "重新读取会替换当前输入。",
+      confirmLabel: "放弃输入并重新读取",
+      tone: "danger",
+    });
+    if (accepted) {
+      void load();
+    }
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     if (dirty.value && !discarded) {
@@ -325,8 +362,7 @@ export function useActivityEditor(
     recover,
     discard,
     requestLeave,
-    finishLeave,
-    leaveRequested,
-    reloadRequested,
+    reload,
+    validation,
   };
 }

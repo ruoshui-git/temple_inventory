@@ -113,6 +113,21 @@ describe("batch detail controller", () => {
     expect(controller.editing.value).toBe(true);
     expect(controller.error.value).toContain("其他人修改");
   });
+  it("rejects manufacturing dates later than expiry before saving", async () => {
+    const call = vi.fn(async () => detail("BATCH-A"));
+    const { controller } = setup(call as InventoryServices["call"]);
+    await flushPromises();
+    controller.beginEdit();
+    controller.manufacturingDate.value = "2027-02-01";
+    controller.expiryDate.value = "2027-01-01";
+    const result = controller.validation.validate();
+    expect(result.ok).toBe(false);
+    expect(result.errors["batch-manufacturing-date"]).toContain(
+      "生产日期不能晚于到期日期",
+    );
+    await controller.save();
+    expect(call).toHaveBeenCalledTimes(1);
+  });
   it("retries paged history, deduplicates rows, and appends location pages", async () => {
     let historyAttempt = 0;
     const call = vi.fn(

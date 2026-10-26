@@ -3,6 +3,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import FormField from "../../components/ui/FormField.vue";
 import { useActivityEditor } from "./useActivityEditor";
 const props = defineProps<{ activityId?: string; contextual?: boolean; recoveryId?: string }>();
 const emit = defineEmits<{ saved: [id: string]; cancel: [] }>();
@@ -12,12 +13,9 @@ defineExpose({
 	breadcrumbLabel: () => controller.existing.value?.title || undefined,
 });
 const {
-	dirty,
 	recoveryError,
 	requestLeave,
-	finishLeave,
-	leaveRequested,
-	reloadRequested,
+	reload,
 	input,
 	existing,
 	loading,
@@ -26,7 +24,6 @@ const {
 	error,
 	conflict,
 	save,
-	load,
 	types,
 	reference,
 	recoveryText,
@@ -46,25 +43,6 @@ async function cancel() {
 <template>
 	<section class="preview-supporting-editor" aria-label="活动资料编辑">
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-		<section v-if="leaveRequested" role="alert">
-			<p>离开当前活动编辑？未完成输入仅能在此浏览器恢复。</p>
-			<UiButton @click="finishLeave('stay')">继续编辑</UiButton
-			><UiButton @click="finishLeave('retain')">保留输入并离开</UiButton
-			><UiButton variant="danger" @click="finishLeave('discard')">放弃输入并离开</UiButton>
-		</section>
-		<section v-if="reloadRequested" role="alert">
-			<p>重新读取会替换当前输入，请先复制需要保留的文字。</p>
-			<RecoverySummary kind="Inventory Activity" :values="input" :copy-text="recoveryText" />
-			<UiButton @click="reloadRequested = false">继续编辑</UiButton
-			><UiButton
-				variant="danger"
-				@click="
-					reloadRequested = false;
-					load();
-				"
-				>放弃输入并重新读取</UiButton
-			>
-		</section>
 		<SkeletonBlock v-if="loading && !existing" variant="lines" :count="4" />
 		<dl v-if="!writable" class="preview-info-grid">
 			<div v-for="(value, label) in input" :key="label">
@@ -79,22 +57,75 @@ async function cancel() {
 				</dd>
 			</div>
 		</dl>
-		<fieldset v-else class="form-fields" :disabled="busy || loading || conflict">
-			<label class="preview-field">名称 *<input v-model="input.title" required /></label>
-			<SearchSelect label="类型 *" v-model="input.typeId" :options="types" />
-			<label class="preview-field"
-				>开始日期<input type="date" v-model="input.start"
-			/></label>
-			<label class="preview-field">结束日期<input type="date" v-model="input.end" /></label>
-			<label class="preview-field full-field"
-				>简短说明<input v-model="input.description"
-			/></label>
-			<label class="preview-field full-field"
-				>详细备注<textarea v-model="input.notes" rows="7" aria-label="详细备注" /><small
-					>纯文本，保留段落与换行。</small
-				></label
+		<form v-else class="form-fields" novalidate @submit.prevent="save">
+			<FormField
+				label="名称"
+				required
+				:error="controller.validation.errors['activity-title']"
 			>
-		</fieldset>
+				<template #default="{ fieldAttrs }"
+					><input
+						v-model="input.title"
+						:id="fieldAttrs.id"
+						:aria-describedby="fieldAttrs['aria-describedby']"
+						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						:disabled="busy || loading || conflict"
+						autocomplete="name"
+				/></template>
+			</FormField>
+			<FormField label="类型" required :error="controller.validation.errors['activity-type']"
+				><template #default="{ fieldAttrs }"
+					><SearchSelect
+						label="类型"
+						external-label
+						v-model="input.typeId"
+						:options="types"
+						:id="fieldAttrs.id"
+						:aria-described-by="fieldAttrs['aria-describedby']"
+						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						:disabled="busy || loading || conflict" /></template
+			></FormField>
+			<FormField label="开始日期" :error="controller.validation.errors['activity-start']"
+				><template #default="{ fieldAttrs }"
+					><input
+						type="date"
+						v-model="input.start"
+						:id="fieldAttrs.id"
+						:aria-describedby="fieldAttrs['aria-describedby']"
+						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						:disabled="busy || loading || conflict" /></template
+			></FormField>
+			<FormField label="结束日期" :error="controller.validation.errors['activity-end']"
+				><template #default="{ fieldAttrs }"
+					><input
+						type="date"
+						v-model="input.end"
+						:id="fieldAttrs.id"
+						:aria-describedby="fieldAttrs['aria-describedby']"
+						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						:disabled="busy || loading || conflict" /></template
+			></FormField>
+			<FormField class="full-field" label="简短说明"
+				><template #default="{ fieldAttrs }"
+					><input
+						v-model="input.description"
+						:id="fieldAttrs.id"
+						:aria-describedby="fieldAttrs['aria-describedby']"
+						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						:disabled="busy || loading || conflict" /></template
+			></FormField>
+			<FormField class="full-field" label="详细备注" hint="纯文本，保留段落与换行。"
+				><template #default="{ fieldAttrs }">
+					<textarea
+						v-model="input.notes"
+						rows="7"
+						:id="fieldAttrs.id"
+						:aria-describedby="fieldAttrs['aria-describedby']"
+						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						:disabled="busy || loading || conflict"
+					/></template
+			></FormField>
+		</form>
 		<p v-if="existing" class="muted">
 			编号 {{ existing.name }} · 标题可以修改，关联记录保持不变。
 		</p>
@@ -102,7 +133,7 @@ async function cancel() {
 		<div v-if="conflict">
 			<p>原记录已变化。当前输入已保留；重新读取会替换当前输入。</p>
 			<RecoverySummary kind="Inventory Activity" :values="input" :copy-text="recoveryText" />
-			<UiButton @click="dirty ? (reloadRequested = true) : load()">重新读取</UiButton>
+			<UiButton @click="reload">重新读取</UiButton>
 		</div>
 		<div class="form-actions">
 			<UiButton @click="cancel">{{ contextual ? "返回选择" : "取消" }}</UiButton
