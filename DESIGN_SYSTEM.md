@@ -5,6 +5,36 @@ behavior is in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md); agent and architecture
 rules are in [AGENTS.md](AGENTS.md). Historical preview and migration detail is
 kept in Git.
 
+## Supersession — 2026-10-26: forms, confirmations, stacking and mobile shell
+
+- `FormField` owns label, red `*` (aria-hidden), hint and inline error, and
+  passes `id`, `aria-describedby`, `aria-invalid` and `aria-required` to its
+  control through `fieldAttrs`. Inline errors are plain danger text below the
+  control; `FormErrorSummary` lists errors for long forms. `useFormValidation`
+  registers rules, clears a field's error on edit and focuses the first invalid
+  field. Forms use `novalidate`.
+- `ConfirmDialog` is hosted once by `AppFrame`; `useConfirm().confirm()`
+  resolves true or false. It is an alertdialog above any open Overlay, with the
+  cancel action focused and a danger tone for destructive actions.
+- Overlays stack: a dialog opened inside another opens above it, the parent
+  stays visible and inert, and Escape/Back close only the top layer before
+  focus returns to the opener. `size="small"` is a compact dialog on desktop
+  and a bottom sheet on phones.
+- Toasts render in one body-level stack, top-right below the measured header on
+  desktop and below the top bar on phones, newest first, with safe-area insets.
+- Hover tints sit behind `@media (hover: hover)`. Text-like buttons pad their
+  tint with an equal negative margin so text never touches its edge.
+- DataTable keeps the settings-column width and sticky position fixed at both
+  overflow edges; hint buttons fade instead of unmounting and edge state uses
+  hysteresis. Cell chips truncate with an ellipsis and a title.
+- `taskEditor` routes hide the phone bottom navigation. `useVirtualKeyboard`
+  tracks the on-screen keyboard, keeps the focused field visible and hides
+  sticky action bars while typing. Landscape phones use compact browse chrome;
+  the frame, sticky bars and sheets pad for left/right safe areas.
+- Movement editor batch cards group native lines by Item and location with a
+  read-only total and an inline batch-row table (phone: compact cards). The
+  lines toolbar is sticky on desktop only.
+
 ## Supersession — 2026-10-25: table focus and editor review shortcut
 
 - Desktop DataTable body rows use one roving Tab stop with the shared focus
@@ -332,7 +362,7 @@ kept in Git.
   and focus return. It adds a same-URL history marker on open so system Back
   closes the topmost dismissible overlay. Route navigation replaces the current
   marker entry, and ordinary close defers Back until no route transition is
-  pending. Descendant dialogs become internal stages of that surface.
+  pending. A dialog opened inside another stacks above it as its own layer.
   Adaptive creation uses a bounded desktop dialog and full mobile sheet.
   ItemPicker uses a wide bounded desktop dialog and full-height mobile sheet;
   keep its header/search and footer fixed while category/warehouse rails,
@@ -381,9 +411,9 @@ kept in Git.
 - Scanner video uses a centered square cover viewport capped at min(100%,
   42dvh, 420px), with the camera requesting ideal 1920×1080 dimensions and
   gracefully accepting browser-selected dimensions. Decode the centered square
-  visible through cover, scaling frames above 1000px down. A centered wide aim
-  box dims its surround and says 将条码对准框内; it is guidance, not a decode
-  boundary. Show the 手电筒 control only when the active track advertises torch
+  visible through cover, scaling frames above 1000px down. A centered square
+  corner-bracket aim frame dims its surround and says 将条码或二维码对准取景框;
+  it is guidance, not a decode boundary. Show the 手电筒 control only when the active track advertises torch
   support; failures hide it. Accepted camera scans briefly flash the aim box
   with --p-success and vibrate where supported; reduced motion removes the
   flash transition. Scanner lookups drain in FIFO order. Successful decoded
@@ -407,8 +437,8 @@ kept in Git.
   is the receiving location label plus `现有`. Newly created selection preview
   stays above filtered results. The receive target selector is a compact inline
   control in the lines toolbar and lists storable physical leaves.
-- ToastHost teleports token-styled messages and exposes polite feedback while
-  remaining available above the active focus-managed overlay. Success feedback
+- ToastHost renders one body-level stack below the app header (phones: below
+  the top bar) above every overlay and exposes polite feedback. Success feedback
   uses the normal surface; save/server failures use the danger background and
   border while retaining their inline error detail.
 

@@ -4,6 +4,44 @@ This is the current product decision record. Retired mockups, preview-only
 proposals and implementation chronology belong in Git history. Add a dated
 supersession below when a durable user-facing decision changes.
 
+## Supersession — 2026-10-26: forms, editors, items and mobile feedback
+
+- Forms mark required fields with a red `*` (controls carry `aria-required`)
+  and drop `（可选）` except where optionality is not obvious. Every form
+  validates on the client before submitting, shows each error beside its field,
+  marks it invalid and focuses the first one; server failures keep a danger
+  callout. Leave, reload, discard and delete prompts use one modal confirm
+  dialog with the safe action focused, never inline text or `window.confirm`.
+- Supporting creation (新建分类, 新建单位, unit conversion) opens a small
+  dialog stacked above the current one; Escape and Back close only the top
+  layer. The picker's item creation keeps `取消编辑 · 返回选择物品 ·
+  创建并使用物品` in one fixed footer with the last as the only primary action.
+- Batch-tracked editor lines render as one Item card with a read-only total and
+  one batch row per native line, so quantity lives on batches. Blank Receive
+  batch IDs are generated on save as `YYYYMMDD-###` (ERPNext naming series,
+  daily sequence). Unit conversion has its own dialog; applying it returns focus
+  to the quantity. `记住此换算（下次自动使用）` stays checked by default and
+  shows the factor it would replace.
+- The editor lines toolbar sticks while scrolling on desktop; newly added cards
+  appear first with a brief highlight without reordering native rows. Phones
+  add 添加物品 to the bottom action bar and hide the bottom navigation inside
+  task editors. Editor item data loads in one request; reopened drafts show
+  skeleton cards with a loading caption, and opening a draft never writes.
+- 记录效期 implies and locks 按批次管理. A blank new Item code is allocated
+  from the series on save. Items can change batch/expiry tracking until ERPNext
+  forbids it (submitted transactions), be 停用 only with zero stock everywhere
+  and 删除 only when nothing links to them. Units list enabled UOMs by use,
+  then count units, then common measures, with no translated names.
+- Autocomplete inputs keep their value on focus with the text selected; the
+  list shows every option with the current one marked until the user types,
+  and Escape or leaving restores the value. Toasts stack top-right below the
+  header on desktop and below the top bar on phones, on every page.
+- The stock location count lists physical locations with stock only; loaned
+  and damaged totals appear as a separate line. Multi-item records summarize as
+  `首个物品 等 N 种物品`. The scanner frame is a format-neutral square and
+  decoding uses the whole visible preview. The cropper starts at the largest
+  centered square. Hover tints apply only on hover-capable pointers.
+
 ## Supersession — 2026-10-26: phone page chrome and content
 
 - Phones hide the breadcrumb (back, section tabs and bottom nav carry
@@ -121,8 +159,8 @@ supersession below when a durable user-facing decision changes.
   search, filters and applied chips. Browse URLs omit default query state and
   serialize only changed fields, including changed fields inside nested scope.
 - Browse scanning sits beside barcode/item search fields and reuses one
-  interaction. The viewport is a capped 1:1 cover square with a centered wide
-  aim box and guidance hint; decoding uses the visible centered square, not
+  interaction. The viewport is a capped 1:1 cover square with a centered square
+  aim frame and guidance hint; decoding uses the visible centered square, not
   only the aim box. Request ideal 1920×1080 camera dimensions and allow
   browser fallback. Show torch only when the active track supports it.
   Accepted camera scans flash the aim box briefly and vibrate where available;
