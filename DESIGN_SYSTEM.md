@@ -349,9 +349,14 @@ kept in Git.
   Quantity summaries show the two largest values and then `+N 项`; the cell
   title and accessible name retain the complete breakdown. Cap wide quantity
   columns at 16rem and allow their contents to wrap.
-- Horizontally overflowing tables measure both edges and expose paired 80%-page
-  scroll hints with accessible left/right names. Keep hints clear of pinned
-  columns and track the visible table area. Edge shades are clipped to the
+- Horizontally overflowing tables measure both edges. On desktop they expose
+  paired 80%-page scroll hints with accessible left/right names, kept clear of
+  pinned columns, tracking the visible table area and rendered only while the
+  table is displayed. Phones show no hint buttons: an in-frame edge fade marks
+  each side with more columns and swiping scrolls. On phones, pinned groups
+  wider than about a third of the scrollport are unpinned, the column-settings
+  trigger moves out of the table body, and a pointer tap never changes the
+  horizontal scroll position. Edge shades are clipped to the
   rounded frame and stop before pinned end columns. On fine-pointer desktop, a
   viewport-bottom proxy scrollbar appears only while the table's native bar is
   below the viewport; it stays synchronized with the table. Hide cues in print

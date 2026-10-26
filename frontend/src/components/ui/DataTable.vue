@@ -84,16 +84,20 @@ const {
 	overflowEnd,
 	pinnedStartInset,
 	pinnedEndInset,
+	mobileUnpinStart,
+	mobileUnpinEnd,
 	hintTop,
 	hintLeft,
 	hintRight,
 	hintVisible,
 	scrollMore,
 } = useOverflowEdges(tableScroll, tableFrame);
+const isMobile = ref(typeof window !== "undefined" && window.innerWidth < 1024);
 const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
 const settingsTrigger = ref<HTMLButtonElement>();
+const mobileSettingsTrigger = ref<HTMLButtonElement>();
 const settingsPanel = ref<HTMLDivElement>();
 const settingsPanelStyle = ref<Record<string, string>>({});
 const focusedRowId = ref<string>();
@@ -154,6 +158,16 @@ function isInteractiveTarget(target: EventTarget | null) {
 		)
 	);
 }
+function onRowPointerDown(entry: DataTableEntry, event: PointerEvent) {
+	if (isInteractiveTarget(event.target)) return;
+	const row = event.currentTarget as HTMLTableRowElement;
+	const scroll = tableScroll.value;
+	const scrollLeft = scroll?.scrollLeft ?? 0;
+	focusedRowId.value = entry.id;
+	focusedRowElement.value = row;
+	row.focus({ preventScroll: true });
+	if (scroll && scroll.scrollLeft !== scrollLeft) scroll.scrollLeft = scrollLeft;
+}
 function onRowFocus(entry: DataTableEntry, event: FocusEvent) {
 	focusedRowId.value = entry.id;
 	focusedRowElement.value = event.currentTarget as HTMLTableRowElement;
@@ -212,7 +226,7 @@ function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
 }
 
 function positionSettingsPanel() {
-	const trigger = settingsTrigger.value;
+	const trigger = (isMobile.value ? mobileSettingsTrigger : settingsTrigger).value;
 	const panel = settingsPanel.value;
 	if (!settingsOpen.value || !trigger || !panel) return;
 	const margin = 12;
@@ -244,7 +258,10 @@ function positionSettingsPanel() {
 
 function closeSettings(returnFocus = false) {
 	settingsOpen.value = false;
-	if (returnFocus) void nextTick(() => settingsTrigger.value?.focus());
+	if (returnFocus)
+		void nextTick(() =>
+			(isMobile.value ? mobileSettingsTrigger : settingsTrigger).value?.focus(),
+		);
 }
 
 function onDocumentKeydown(event: KeyboardEvent) {
@@ -255,6 +272,7 @@ function onDocumentKeydown(event: KeyboardEvent) {
 }
 
 function toggleSettings() {
+	updateSettingsViewport();
 	settingsOpen.value = !settingsOpen.value;
 	if (settingsOpen.value)
 		void nextTick(() => {
@@ -263,7 +281,12 @@ function toggleSettings() {
 		});
 }
 
+function updateSettingsViewport() {
+	isMobile.value = typeof window !== "undefined" && window.innerWidth < 1024;
+}
+
 function repositionOpenPanel() {
+	updateSettingsViewport();
 	if (settingsOpen.value) void nextTick(positionSettingsPanel);
 }
 
@@ -273,7 +296,8 @@ function onDocumentPointer(event: PointerEvent) {
 		settingsOpen.value &&
 		target instanceof Node &&
 		!settingsPanel.value?.contains(target) &&
-		!settingsTrigger.value?.contains(target)
+		!settingsTrigger.value?.contains(target) &&
+		!mobileSettingsTrigger.value?.contains(target)
 	)
 		closeSettings();
 }
@@ -493,6 +517,19 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		<span v-if="refreshing" class="sr-only data-table-refresh-status" role="status">
 			保留当前结果，更新完成后可用。
 		</span>
+		<div v-if="preferences && isMobile" class="data-table-mobile-toolbar">
+			<button
+				ref="mobileSettingsTrigger"
+				type="button"
+				class="data-table-column-trigger"
+				:aria-expanded="settingsOpen"
+				aria-label="设置列"
+				title="设置列"
+				@click="toggleSettings"
+			>
+				☷
+			</button>
+		</div>
 		<div
 			ref="tableFrame"
 			class="data-table-frame"
@@ -508,6 +545,8 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 					'is-refreshing': refreshing,
 					'is-overflow-start': overflowStart,
 					'is-overflow-end': overflowEnd,
+					'is-mobile-unpin-start': mobileUnpinStart,
+					'is-mobile-unpin-end': mobileUnpinEnd,
 				}"
 				role="region"
 				:aria-label="`可横向滚动：${ariaLabel}`"
@@ -592,7 +631,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								</button>
 								<template v-else>{{ column.label }}</template>
 							</th>
-							<th v-if="preferences" class="data-table-settings-heading">
+							<th
+								v-if="preferences && !isMobile"
+								class="data-table-settings-heading"
+							>
 								<button
 									ref="settingsTrigger"
 									type="button"
@@ -630,7 +672,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										}"
 									></span>
 								</td>
-								<td v-if="preferences" class="data-table-settings-cell"></td>
+								<td
+									v-if="preferences && !isMobile"
+									class="data-table-settings-cell"
+								></td>
 							</tr>
 						</template>
 						<template v-else v-for="(entry, index) in rows" :key="entry.id">
@@ -653,6 +698,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								"
 								@click="group(entry) && activateGroup(entry, $event)"
 								@focus="onRowFocus(entry, $event)"
+								@pointerdown="onRowPointerDown(entry, $event)"
 								@keydown="onRowKeydown(entry, $event)"
 								:aria-label="
 									!group(entry) && rowLabel
@@ -810,7 +856,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											:column="column"
 										/>
 									</td>
-									<td v-if="preferences" class="data-table-settings-cell"></td>
+									<td
+										v-if="preferences && !isMobile"
+										class="data-table-settings-cell"
+									></td>
 								</template>
 								<template v-else>
 									<td
@@ -832,7 +881,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											{{ cellValue(entry, column) }}
 										</slot>
 									</td>
-									<td v-if="preferences" class="data-table-settings-cell"></td>
+									<td
+										v-if="preferences && !isMobile"
+										class="data-table-settings-cell"
+									></td>
 								</template>
 							</tr>
 							<tr
@@ -843,7 +895,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:colspan="
 										orderedColumns.length +
 										Number(selectionEnabled) +
-										Number(Boolean(preferences))
+										Number(Boolean(preferences && !isMobile))
 									"
 									class="data-table-group-detail-cell"
 									:style="{

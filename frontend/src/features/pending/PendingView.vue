@@ -216,6 +216,7 @@ watch([() => props.active, isMobile], () => {
 						<div class="browse-row-actions damaged-row-actions">
 							<UiButton
 								v-if="c.canAct('Repair', row as ReportRow)"
+								class="damaged-desktop-action"
 								variant="secondary"
 								:icon="kindIcons.Repair.icon"
 								@click="
@@ -226,14 +227,38 @@ watch([() => props.active, isMobile], () => {
 							<UiButton
 								v-if="c.canAct('Disposal', row as ReportRow)"
 								variant="ghost"
-								class="damaged-disposal-button"
+								class="damaged-disposal-button damaged-desktop-action"
 								:icon="kindIcons.Disposal.icon"
 								@click="
 									emit('operation', 'Disposal', c.allocation(row as ReportRow))
 								"
 								>报废</UiButton
 							>
-							<PopupMenu label="更多损坏物品操作" align="end">
+							<PopupMenu label="更多损坏物品操作" align="end" sheet>
+								<UiButton
+									v-if="c.canAct('Repair', row as ReportRow)"
+									class="damaged-mobile-menu-action"
+									variant="secondary"
+									:icon="kindIcons.Repair.icon"
+									@click="
+										emit('operation', 'Repair', c.allocation(row as ReportRow))
+									"
+									>修复归库</UiButton
+								>
+								<UiButton
+									v-if="c.canAct('Disposal', row as ReportRow)"
+									class="damaged-mobile-menu-action"
+									variant="ghost"
+									:icon="kindIcons.Disposal.icon"
+									@click="
+										emit(
+											'operation',
+											'Disposal',
+											c.allocation(row as ReportRow),
+										)
+									"
+									>报废</UiButton
+								>
 								<UiButton
 									:disabled="c.report.result.stale"
 									icon="box"

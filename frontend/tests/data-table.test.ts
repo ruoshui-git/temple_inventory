@@ -43,6 +43,7 @@ describe("table column contracts", () => {
     );
     const wrapper = mount(DataTable, {
       props: { ariaLabel: "横向表格", columns, rows: [] },
+      attachTo: document.body,
     });
     wrappers.push(wrapper);
     const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
@@ -88,6 +89,14 @@ describe("table column contracts", () => {
         toJSON() {},
       }) as DOMRect;
     let frameTop = 0;
+    Object.defineProperty(
+      wrapper.get<HTMLElement>(".data-table-frame").element,
+      "offsetParent",
+      {
+        configurable: true,
+        value: document.body,
+      },
+    );
     wrapper.get<HTMLElement>(
       ".data-table-frame",
     ).element.getBoundingClientRect = () =>
@@ -148,6 +157,186 @@ describe("table column contracts", () => {
     await nextTick();
     expect(scroll.classList.contains("is-overflow-start")).toBe(true);
     expect(scroll.classList.contains("is-overflow-end")).toBe(false);
+  });
+
+  it("uses frame edge fades and an external settings control on phones", async () => {
+    const priorWidth = Object.getOwnPropertyDescriptor(window, "innerWidth");
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 390,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches:
+          query.includes("max-width") || query.includes("max-width: 1023px")
+            ? true
+            : false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const controller = {
+      order: ref(["item", "quantity", "retired"]),
+      visible: ref(["item", "quantity", "retired"]),
+      saveState: ref("saved"),
+      saveError: ref(""),
+      reset: vi.fn(),
+      toggle: vi.fn(),
+      reorder: vi.fn(),
+      retry: vi.fn(),
+    };
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "手机表格",
+        columns,
+        rows: [],
+        columnPreferences: controller as never,
+      },
+    });
+    wrappers.push(wrapper);
+    const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    Object.defineProperties(scroll, {
+      scrollWidth: { configurable: true, value: 900 },
+      clientWidth: { configurable: true, value: 390 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    });
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextTick();
+    expect(wrapper.findAll(".data-table-overflow-hint")).toHaveLength(0);
+    expect(scroll.classList.contains("is-overflow-end")).toBe(true);
+    expect(
+      wrapper
+        .find(".data-table-mobile-toolbar button[aria-label='设置列']")
+        .exists(),
+    ).toBe(true);
+    expect(wrapper.get(".data-table-frame").attributes("style")).toContain(
+      "--data-table-pinned-end: 0px",
+    );
+    scroll.scrollLeft = 300;
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextTick();
+    expect(scroll.classList.contains("is-overflow-start")).toBe(true);
+    expect(scroll.classList.contains("is-overflow-end")).toBe(true);
+    Object.defineProperty(window, "innerWidth", priorWidth!);
+  });
+
+  it("unpins an end column group only after it crosses the phone-width threshold", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query.includes("max-width"),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "窄表格",
+        columns: [
+          {
+            id: "actions",
+            label: "操作",
+            className: "report-sticky-actions-column",
+          },
+        ],
+        rows: [],
+      },
+    });
+    wrappers.push(wrapper);
+    const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    const header = wrapper.get<HTMLElement>("thead th").element;
+    header.style.position = "sticky";
+    header.style.right = "0px";
+    let pinnedWidth = 130;
+    header.getBoundingClientRect = () =>
+      ({
+        left: 390 - pinnedWidth,
+        right: 390,
+        width: pinnedWidth,
+        top: 0,
+        bottom: 30,
+        height: 30,
+      }) as DOMRect;
+    scroll.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        right: 390,
+        width: 390,
+        top: 0,
+        bottom: 200,
+        height: 200,
+      }) as DOMRect;
+    Object.defineProperties(scroll, {
+      scrollWidth: { configurable: true, value: 900 },
+      clientWidth: { configurable: true, value: 390 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    });
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextTick();
+    expect(scroll.classList.contains("is-mobile-unpin-end")).toBe(false);
+    pinnedWidth = 150;
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextTick();
+    expect(scroll.classList.contains("is-mobile-unpin-end")).toBe(true);
+    expect(wrapper.get(".data-table-frame").attributes("style")).toContain(
+      "--data-table-pinned-end: 0px",
+    );
+  });
+
+  it("does not show desktop arrows for a table without a visible layout box", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const wrapper = mount(DataTable, {
+      props: { ariaLabel: "隐藏表格", columns, rows: [] },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const frame = wrapper.get<HTMLElement>(".data-table-frame").element;
+    frame.style.display = "none";
+    const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    Object.defineProperties(scroll, {
+      scrollWidth: { configurable: true, value: 900 },
+      clientWidth: { configurable: true, value: 390 },
+    });
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextTick();
+    expect(wrapper.findAll(".data-table-overflow-hint")).toHaveLength(0);
+  });
+
+  it("focuses a row on pointer interaction without changing horizontal scroll", async () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "可聚焦表格",
+        columns,
+        rows: [{ kind: "record", id: "row-1", value: { item: "物品" } }],
+      },
+    });
+    wrappers.push(wrapper);
+    const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    Object.defineProperty(scroll, "scrollLeft", {
+      configurable: true,
+      writable: true,
+      value: 120,
+    });
+    const row = wrapper.get<HTMLTableRowElement>(
+      "tbody tr[data-row-id]",
+    ).element;
+    const focus = vi.spyOn(row, "focus");
+    row.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(scroll.scrollLeft).toBe(120);
   });
 
   it("aligns quantity columns and group metrics with tabular numeric cells", () => {

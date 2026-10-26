@@ -10,6 +10,8 @@ export function useOverflowEdges(
   // overlays such as the "more columns" hint never cover pinned headers.
   const pinnedEndInset = ref(0);
   const pinnedStartInset = ref(0);
+  const mobileUnpinStart = ref(false);
+  const mobileUnpinEnd = ref(false);
   const hintTop = ref(0);
   const hintLeft = ref(0);
   const hintRight = ref(0);
@@ -23,6 +25,8 @@ export function useOverflowEdges(
       overflowStart.value = false;
       overflowEnd.value = false;
       hintVisible.value = false;
+      mobileUnpinStart.value = false;
+      mobileUnpinEnd.value = false;
       return;
     }
     const max = node.scrollWidth - node.clientWidth;
@@ -48,11 +52,24 @@ export function useOverflowEdges(
         cell.getBoundingClientRect().right - node.getBoundingClientRect().left,
       );
     }
-    pinnedEndInset.value = Math.round(inset);
-    pinnedStartInset.value = Math.round(startInset);
+    const phone =
+      (typeof window.matchMedia === "function" &&
+        window.matchMedia("(max-width: 1023px)").matches) ||
+      window.innerWidth < 1024;
+    mobileUnpinStart.value = phone && startInset > node.clientWidth * 0.35;
+    mobileUnpinEnd.value = phone && inset > node.clientWidth * 0.35;
+    pinnedEndInset.value = mobileUnpinEnd.value ? 0 : Math.round(inset);
+    pinnedStartInset.value = mobileUnpinStart.value
+      ? 0
+      : Math.round(startInset);
     const frameNode = frame.value;
     if (frameNode) {
       const rect = frameNode.getBoundingClientRect();
+      const hasLayout =
+        frameNode.isConnected &&
+        frameNode.offsetParent !== null &&
+        rect.width > 0 &&
+        rect.height > 0;
       const chrome = Array.from(
         document.querySelectorAll<HTMLElement>(
           ".browse-chrome.is-stuck, .sample-sidebar, .mobile-app-topbar",
@@ -67,7 +84,8 @@ export function useOverflowEdges(
         document.querySelector<HTMLElement>(".sample-mobile-nav");
       const bottomLimit =
         mobileNav?.getBoundingClientRect().top ?? window.innerHeight;
-      hintVisible.value = rect.bottom > chrome && rect.top < bottomLimit;
+      hintVisible.value =
+        !phone && hasLayout && rect.bottom > chrome && rect.top < bottomLimit;
       const visibleTop = Math.max(rect.top + 16, chrome + 14);
       const visibleBottom = Math.min(rect.bottom - 16, bottomLimit - 14);
       hintTop.value =
@@ -129,6 +147,8 @@ export function useOverflowEdges(
     overflowEnd,
     pinnedStartInset,
     pinnedEndInset,
+    mobileUnpinStart,
+    mobileUnpinEnd,
     hintTop,
     hintLeft,
     hintRight,

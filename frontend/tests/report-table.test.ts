@@ -16,6 +16,24 @@ const table = (length = 65) => ({
   })),
 });
 describe("shared native report table", () => {
+  it("keeps sortable report labels present beside their indicator", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "phone-header-label",
+          label: "库存汇总",
+          columns: ["item_name", "available"],
+          rows: [],
+        },
+        sortableColumns: ["available"],
+      },
+    });
+    const availableHeader = wrapper.findAll("thead th")[1]!;
+    expect(availableHeader.find(".data-table-sort-label").text()).toBe("可用");
+    expect(availableHeader.element.style.minWidth).toBe("125px");
+    wrapper.unmount();
+  });
+
   it("pins the damaged row actions inside the table frame", () => {
     const wrapper = mount(ReportTable, {
       props: { table: table(1), stickyActions: true },

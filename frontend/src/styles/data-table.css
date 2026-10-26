@@ -15,6 +15,12 @@
 .data-table-column-settings {
 	position: relative;
 }
+.data-table-mobile-toolbar {
+	display: none;
+	min-height: 0;
+	justify-content: flex-end;
+	margin-bottom: var(--p-space-1);
+}
 
 .data-table-column-trigger,
 .data-table-column-order button {
@@ -127,7 +133,7 @@
 	position: absolute;
 	top: 1px;
 	bottom: 1px;
-	width: 12px;
+	width: 30px;
 	content: "";
 	opacity: 0;
 	pointer-events: none;
@@ -137,20 +143,18 @@
 }
 .data-table-frame::before {
 	left: calc(var(--data-table-pinned-start, 0px) + 1px);
-	width: max(0px, calc(12px - var(--data-table-pinned-start, 0px)));
 	background: linear-gradient(
 		90deg,
-		color-mix(in srgb, var(--p-ink) 18%, transparent),
-		transparent
+		var(--p-surface),
+		color-mix(in srgb, var(--p-surface) 0%, transparent)
 	);
 }
 .data-table-frame::after {
 	right: calc(var(--data-table-pinned-end, 0px) + 1px);
-	width: max(0px, calc(12px - var(--data-table-pinned-end, 0px)));
 	background: linear-gradient(
 		270deg,
-		color-mix(in srgb, var(--p-ink) 18%, transparent),
-		transparent
+		var(--p-surface),
+		color-mix(in srgb, var(--p-surface) 0%, transparent)
 	);
 }
 .data-table-frame:has(.data-table-scroll.is-overflow-start)::before,
@@ -179,6 +183,85 @@
 .data-table-overflow-hint svg {
 	width: 16px;
 	height: 16px;
+}
+@media (max-width: 1023px) {
+	.data-table-mobile-toolbar {
+		display: flex;
+	}
+	.data-table-scroll th.data-table-settings-heading,
+	.data-table-scroll td.data-table-settings-cell {
+		display: none !important;
+	}
+	.data-table-frame::before,
+	.data-table-frame::after {
+		z-index: 3;
+		width: 30px;
+		background-color: transparent;
+	}
+	.data-table-frame::before {
+		left: calc(var(--data-table-pinned-start, 0px) + 1px);
+		background: linear-gradient(90deg, var(--p-canvas, var(--p-surface)), transparent);
+	}
+	.data-table-frame::after {
+		right: calc(var(--data-table-pinned-end, 0px) + 1px);
+		background: linear-gradient(270deg, var(--p-canvas, var(--p-surface)), transparent);
+	}
+	.data-table-scroll.is-mobile-unpin-start :is(th, td).report-sticky-start-column,
+	.data-table-scroll.is-mobile-unpin-start :is(th, td).operation-sticky-start-column {
+		position: static !important;
+		inset-inline-start: auto !important;
+		box-shadow: none !important;
+	}
+	.data-table-scroll.is-mobile-unpin-end :is(th, td).report-sticky-actions-column,
+	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-loan-outstanding-column,
+	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-movement-quantity-column {
+		position: static !important;
+		inset-inline-end: auto !important;
+		box-shadow: none !important;
+	}
+	.data-table-frame:has(.data-table-scroll.is-overflow-start)::before,
+	.data-table-frame:has(.data-table-scroll.is-overflow-end)::after {
+		opacity: 1;
+	}
+	.data-table-overflow-hint {
+		display: none !important;
+	}
+	.data-table-scroll th.align-end {
+		min-width: 5.5em;
+	}
+	.data-table-sort-label {
+		white-space: nowrap;
+	}
+	.data-table-scroll th,
+	.data-table-scroll td {
+		padding-block: 6px;
+		padding-inline: 8px;
+		line-height: 1.35;
+	}
+	.data-table-scroll table {
+		width: max-content;
+		min-width: 100%;
+	}
+	.data-table-scroll tbody tr:not(.data-table-group-detail-row) {
+		height: 48px;
+	}
+	.data-table-scroll :is(th, td).report-sticky-actions-column {
+		width: 52px !important;
+		min-width: 52px !important;
+		max-width: 52px !important;
+		padding-inline: 4px;
+	}
+	.damaged-page .data-table-scroll .damaged-row-actions {
+		width: auto;
+		min-width: 0;
+	}
+	.damaged-page .damaged-desktop-action,
+	.damaged-page .damaged-mobile-menu-action {
+		display: none !important;
+	}
+	.damaged-page .damaged-mobile-menu-action {
+		display: inline-flex !important;
+	}
 }
 .data-table-overflow-hint:hover,
 .data-table-overflow-hint:focus-visible {
@@ -354,7 +437,8 @@
 	align-items: center;
 	justify-content: flex-start;
 	gap: 0.35em;
-	width: 100%;
+	width: max-content;
+	min-width: 100%;
 	min-height: var(--p-control);
 	padding: 0;
 	border: 0;
@@ -378,7 +462,8 @@
 	text-align: center;
 }
 .data-table-sort-label {
-	min-width: 0;
+	flex: 0 0 auto;
+	min-width: max-content;
 }
 .data-table-sort:focus-visible {
 	outline: 2px solid var(--p-accent);
@@ -636,4 +721,7 @@
 .operation-total {
 	display: block;
 	white-space: nowrap;
+}
+.damaged-mobile-menu-action {
+	display: none !important;
 }
