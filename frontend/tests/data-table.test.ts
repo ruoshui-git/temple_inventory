@@ -208,7 +208,9 @@ describe("table column contracts", () => {
     expect(scroll.classList.contains("is-overflow-end")).toBe(true);
     expect(
       wrapper
-        .find(".data-table-mobile-toolbar button[aria-label='设置列']")
+        .find(
+          "thead th.data-table-settings-heading button[aria-label='设置列']",
+        )
         .exists(),
     ).toBe(true);
     expect(wrapper.get(".data-table-frame").attributes("style")).toContain(

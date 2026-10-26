@@ -13,8 +13,9 @@ const props = withDefaults(
 		frame?: boolean;
 		thumbnailSize?: number;
 		targetSize?: number;
+		fit?: "contain" | "cover";
 	}>(),
-	{ interaction: "lightbox", frame: false },
+	{ interaction: "lightbox", frame: false, fit: "contain" },
 );
 const emit = defineEmits<{ detail: [] }>();
 const artwork = useItemArtwork();
@@ -48,7 +49,7 @@ onDeactivated(() => {
 				v-else
 				:src="source"
 				:alt="item.name"
-				fit="contain"
+				:fit="fit"
 				width="100%"
 				height="100%"
 			/>
@@ -82,7 +83,7 @@ onDeactivated(() => {
 			v-else
 			:src="source"
 			:alt="item.name"
-			fit="contain"
+			:fit="fit"
 			:width="thumbnailSize || '100%'"
 			:height="thumbnailSize || '100%'"
 		/><span class="image-magnifier" aria-hidden="true"

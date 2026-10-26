@@ -90,6 +90,15 @@ function editRecovery(name = "CAT-A", version = "CAT-A-v1"): RecoverySnapshot {
 }
 
 describe("category management", () => {
+  it("uses the shared accessible search field", async () => {
+    const { wrapper } = setup(vi.fn(async () => []));
+    await flushPromises();
+    const search = wrapper.find(".shared-search-field input");
+    expect(search.attributes("aria-label")).toBe("搜索分类");
+    expect(wrapper.find(".category-tools > label.preview-field").exists()).toBe(
+      false,
+    );
+  });
   it("creates a root category and separates successful mutation from failed list refresh", async () => {
     let treeReads = 0;
     const call = vi.fn(async (endpoint: string, args: Record<string, any>) => {

@@ -334,6 +334,14 @@ async function lifecycle() {
 						variant="icon"
 						align="end"
 					>
+						<a
+							v-if="state.identity && state.server"
+							class="phone-erpnext-link"
+							:href="`/app/${state.server.doctype === 'Stock Entry' ? 'stock-entry' : 'stock-reconciliation'}/${encodeURIComponent(state.server.name)}`"
+							target="_blank"
+							rel="noopener"
+							>在 ERPNext 查看</a
+						>
 						<QuickExport
 							v-if="!loading && c.savedExportQuery.value"
 							:query="c.savedExportQuery.value"
@@ -357,7 +365,16 @@ async function lifecycle() {
 			label="库存单据加载中…"
 			:announce="false"
 		/>
-		<div class="form-status">
+		<div
+			v-if="
+				!isMobile ||
+				state.identity ||
+				state.status !== 'pristine' ||
+				loading ||
+				state.server
+			"
+			class="form-status"
+		>
 			<span v-if="state.identity && !initialExistingLoad" class="form-record-tag"
 				>{{ state.server?.docstatus === 0 ? "草稿单据" : "记录" }}
 				{{ state.identity.name }}</span
@@ -408,6 +425,7 @@ async function lifecycle() {
 		</div>
 		<div v-if="!loading && state.server && !writable" class="form-actions">
 			<a
+				class="desk-link"
 				:href="`/app/${state.server.doctype === 'Stock Entry' ? 'stock-entry' : 'stock-reconciliation'}/${encodeURIComponent(state.server.name)}`"
 				target="_blank"
 				rel="noopener"
@@ -792,12 +810,18 @@ async function lifecycle() {
 					</p>
 					<p>{{ issues.length }} 处待完善，输入已保留。</p>
 				</div>
+				<p
+					v-if="isMobile && (writable || state.confirmationVersion)"
+					class="muted editor-action-helper"
+				>
+					复核并确认后才变更库存。
+				</p>
 				<div
 					v-if="writable || state.confirmationVersion"
 					ref="reviewBar"
 					class="form-actions preview-document-actions"
 				>
-					<p v-if="draft.items.length" class="muted">
+					<p class="muted">
 						{{ draft.items.length }} 行 · {{ totals || "尚未添加物品" }}
 					</p>
 					<UiButton
@@ -820,7 +844,8 @@ async function lifecycle() {
 						:loading="busy"
 						@click="confirm"
 						>检查上次确认结果</UiButton
-					><small class="muted">复核并确认后才变更库存。</small>
+					>
+					<small v-if="!isMobile" class="muted">复核并确认后才变更库存。</small>
 				</div>
 			</div>
 			<aside

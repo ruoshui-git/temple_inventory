@@ -27,6 +27,7 @@ import { showToast } from "../../services/toast";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
@@ -249,26 +250,54 @@ async function back() {
 </script>
 <template>
 	<section ref="root" class="preview-form-page">
-		<PageHeader class="form-page-heading"
-			><div>
-				<h1 tabindex="-1">
-					<InventoryIcon
-						class="operation-kind-heading-icon"
-						:name="opening ? 'document' : kindIcons.Reconcile.icon"
-					/>
-					{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}
-				</h1>
+		<PageHeader class="form-page-heading">
+			<div>
+				<div class="operation-page-title-row">
+					<h1 tabindex="-1">
+						<InventoryIcon
+							class="operation-kind-heading-icon"
+							:name="opening ? 'document' : kindIcons.Reconcile.icon"
+						/>
+						{{ opening ? "期初库存" : state.identity ? "盘点记录" : "新建盘点" }}
+					</h1>
+					<PopupMenu
+						v-if="state.identity && state.server"
+						class="count-editor-overflow-menu"
+						label="更多操作"
+						variant="icon"
+						align="end"
+					>
+						<a
+							class="phone-erpnext-link"
+							:href="`/app/stock-reconciliation/${encodeURIComponent(state.identity.name)}`"
+							target="_blank"
+							rel="noopener"
+							>在 ERPNext 查看</a
+						>
+					</PopupMenu>
+				</div>
 				<p class="muted">按库存单位核对；留空表示尚未核对，零表示实点为零。</p>
 			</div>
-			<template #back><BackButton @click="back" /></template
-			><template #actions
-				><QuickExport
+			<template #back><BackButton @click="back" /></template>
+			<template #actions>
+				<QuickExport
 					v-if="!loading && c.savedExportQuery.value"
 					:query="c.savedExportQuery.value"
 					:active="active"
-					@open-full="emit('openExport', $event)" /></template
-		></PageHeader>
-		<div class="form-status">
+					@open-full="emit('openExport', $event)"
+				/>
+			</template>
+		</PageHeader>
+		<div
+			v-if="
+				!isMobile ||
+				state.identity ||
+				state.status !== 'pristine' ||
+				loading ||
+				state.server
+			"
+			class="form-status"
+		>
 			<span v-if="state.identity && !initialExistingLoad" class="form-record-tag"
 				>{{ state.server?.docstatus === 0 ? "草稿单据" : "记录" }}
 				{{ state.identity.name }}</span
@@ -341,6 +370,7 @@ async function back() {
 		</p>
 		<div v-if="state.identity" class="form-actions">
 			<a
+				class="desk-link"
 				:href="`/app/stock-reconciliation/${encodeURIComponent(state.identity.name)}`"
 				target="_blank"
 				rel="noopener"
@@ -559,6 +589,9 @@ async function back() {
 					ref="actionBar"
 					class="count-desk-actions"
 				>
+					<p v-if="!state.confirmationVersion" class="count-action-summary">
+						{{ reviewedRows.length }}/{{ rows.length }} 行已核对
+					</p>
 					<UiButton
 						v-if="!state.confirmationVersion"
 						:disabled="busy || supportingDirty"
@@ -904,11 +937,26 @@ async function back() {
 		min-height: 44px;
 	}
 	.count-desk-actions {
-		position: sticky;
-		bottom: calc(var(--p-mobile-nav-height, 56px) + env(safe-area-inset-bottom));
-		z-index: 3;
+		position: fixed;
+		left: 16px;
+		right: 16px;
+		bottom: calc(var(--preview-nav-height, 84px) + 8px + env(safe-area-inset-bottom));
+		z-index: var(--p-z-sticky-content);
+		align-items: center;
 		padding: 8px;
+		border: 1px solid var(--p-border);
+		border-radius: 14px;
 		background: var(--p-surface);
+		box-shadow: 0 -4px 12px rgb(20 30 25 / 7%);
+	}
+	.count-action-summary {
+		flex: 1 1 auto;
+		min-width: 0;
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--p-small);
 	}
 	.count-desk-actions :deep(button) {
 		min-height: 44px;

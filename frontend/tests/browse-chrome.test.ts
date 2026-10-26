@@ -191,6 +191,30 @@ it("keeps a dense chip list scrollable without placing search or actions inside 
   ).toBe(true);
 });
 
+it("toggles edge fades as the applied chip row overflows and scrolls", async () => {
+  const wrapper = mount(BrowseToolbar, {
+    props: { title: "效期", summary: "效期" },
+    slots: { chips: () => h("span", { class: "chip" }, "批次状态：未过期") },
+  });
+  wrappers.push(wrapper);
+  await flushPromises();
+  const row = wrapper.get(".browse-persistent-chips");
+  Object.defineProperties(row.element, {
+    clientWidth: { configurable: true, value: 160 },
+    scrollWidth: { configurable: true, value: 420 },
+  });
+  await row.trigger("scroll");
+  expect(row.classes()).toContain("has-overflow-end");
+  expect(row.classes()).not.toContain("has-overflow-start");
+  Object.defineProperty(row.element, "scrollLeft", {
+    configurable: true,
+    value: 80,
+  });
+  await row.trigger("scroll");
+  expect(row.classes()).toContain("has-overflow-start");
+  expect(row.classes()).toContain("has-overflow-end");
+});
+
 it("moves focus between the open rail collapse control and its collapsed edge", async () => {
   const wrapper = mount(FilterRailEdge, {
     attachTo: document.body,

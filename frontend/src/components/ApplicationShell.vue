@@ -27,26 +27,13 @@ watch(
 	() => (breadcrumbLabel.value = undefined),
 );
 const inventorySection = computed(() => inventorySectionForRoute(String(route.name || "")));
-const hidePhoneBreadcrumb = computed(
-	() =>
-		isMobile.value &&
-		[
-			"home",
-			"stock",
-			"movements",
-			"loans",
-			"reports",
-			"more",
-			"expiry",
-			"warehouses",
-			"pending",
-		].includes(String(route.name || "")),
-);
+const hidePhoneBreadcrumb = computed(() => isMobile.value);
 const stockTabLabels: Record<string, string> = {
 	stock: "库存",
 	expiry: "效期",
 	warehouses: "仓库",
 	pending: "损坏",
+	categories: "分类",
 };
 async function navigate(target: Parameters<typeof router.push>[0]) {
 	document.dispatchEvent(new Event("inventory-navigation"));

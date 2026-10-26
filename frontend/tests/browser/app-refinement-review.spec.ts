@@ -10,6 +10,7 @@ const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const publicRoot = path.join(appRoot, "temple_inventory/public/frontend");
 const indexPath = path.join(publicRoot, "index.html");
 const fontPath = [
+  process.env.TEMPLE_UI_CJK_FONT,
   process.env.NATIVE_UI_REVIEW_FONT,
   "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf",
 ].find((candidate) => Boolean(candidate && existsSync(candidate)));
@@ -101,7 +102,7 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
     if (url.pathname === "/review-font.otf" && fontPath)
       return route.fulfill({
         body: readFileSync(fontPath),
-        contentType: "font/otf",
+        contentType: fontPath.endsWith(".ttc") ? "font/collection" : "font/otf",
       });
     if (url.pathname === "/review-font.otf")
       return route.fulfill({ status: 404, body: "" });
@@ -313,15 +314,16 @@ for (const width of [1440, 390]) {
     const errors = await prepare(page);
     await page.goto("/inventory/movements?view=records");
     await expect(page.locator("[data-browse-row]")).toHaveCount(3);
-    await expect(page.locator("thead th")).toHaveText([
-      "记录",
-      "类型",
-      /日期/,
-      "来源",
-      "去向",
-      "数量",
-      "状态",
-    ]);
+    const headers = (
+      await page
+        .locator("thead th:not(.data-table-settings-heading)")
+        .allTextContents()
+    ).join(" ");
+    const expectedHeaders =
+      width >= 1024
+        ? ["记录", "类型", "日期", "来源位置", "去向位置", "数量", "状态"]
+        : ["记录", "类型", "日期", "数量", "状态"];
+    for (const label of expectedHeaders) expect(headers).toContain(label);
     await expect(page.locator("tbody .stock-effect.is-increase")).toHaveCount(
       1,
     );
@@ -385,23 +387,20 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
     await page.goto("/inventory/loans?view=records");
-    await expect(page.locator(".loan-record-table tbody tr")).toHaveCount(3);
+    const loanRows = page.locator("[data-browse-row]");
+    await expect(loanRows).toHaveCount(3);
     await expect(
       page.getByRole("button", { name: "登记归还", exact: true }),
     ).toHaveCount(3);
-    await expect(
-      page.locator(".loan-record-table tbody tr").first().locator("td").nth(1),
-    ).toBeEmpty();
-    await expect(
-      page.locator(".loan-record-table tbody tr").first().locator("td").nth(2),
-    ).toBeEmpty();
+    await expect(loanRows.first().locator("td").nth(1)).toBeEmpty();
+    await expect(loanRows.first().locator("td").nth(2)).toBeEmpty();
     if (width < 1024) {
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth + 1,
         ),
       ).toBe(true);
-      const tableScrollport = page.locator(".loan-record-table");
+      const tableScrollport = page.locator(".data-table-scroll").first();
       expect(
         await tableScrollport.evaluate((el) => el.scrollWidth > el.clientWidth),
       ).toBe(true);
@@ -412,12 +411,11 @@ for (const width of [1440, 390]) {
       fullPage: true,
     });
     await page.getByRole("button", { name: "按物品", exact: true }).click();
-    await expect(page.locator(".preview-group-metrics")).toHaveCount(3);
-    await expect(page.locator(".preview-group-metrics").first()).toContainText(
-      "未归还",
+    await expect(page.locator(".browse-result-summary")).toContainText(
+      "3 种物品",
     );
-    await expect(page.locator(".preview-group-metrics").first()).toContainText(
-      "12 Nos",
+    await expect(page.locator(".browse-result-summary")).toContainText(
+      "未归还 36 Nos",
     );
     await reviewScreenshot(page, {
       path: info.outputPath("loan-items.png"),

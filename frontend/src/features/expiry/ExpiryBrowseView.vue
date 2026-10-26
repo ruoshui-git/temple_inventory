@@ -85,6 +85,14 @@ function expiryKey(event: KeyboardEvent) {
 			?.focus(),
 	);
 }
+function expiryStatus(row: ReportRow) {
+	if (!row.expiry_date) return { label: "无效期", tone: "is-neutral" };
+	if (String(row.expiry_date) < reference.siteDate)
+		return { label: "已过期", tone: "is-danger" };
+	if (typeof row.remaining_days === "number" && row.remaining_days <= 30)
+		return { label: "即将到期", tone: "is-warning" };
+	return { label: "未过期", tone: "is-success" };
+}
 const analysisTable = computed(() => ({
 	id: "expiry-analysis",
 	label: "分析当前结果",
@@ -446,9 +454,9 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						v-for="row in result.rows"
 						:key="String(row.id)"
 						:data-browse-row="String(row.id)"
-						class="browse-card"
+						class="browse-card expiry-phone-card"
 					>
-						<div class="preview-group-heading">
+						<div class="expiry-phone-identity">
 							<div class="preview-group-thumbnail">
 								<ItemImage :item="c.item(row)" />
 							</div>
@@ -460,30 +468,28 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								<strong>{{ row.item_name }}</strong
 								><small>{{ row.category }}</small>
 							</button>
-							<button
-								class="browse-row-link"
-								:aria-label="`查看批次 ${row.batch_no}`"
-								:disabled="result.stale"
-								@click="openBatch(row)"
-							>
-								批次 {{ row.batch_no }}
-							</button>
 						</div>
-						<p>
-							{{ row.expiry_date || "无效期" }} · {{ row.stock_qty }}
-							{{ row.stock_uom }}
-							<span v-if="Number(row.loaned) > 0" class="browse-badge is-warning"
-								>借出</span
-							>
+						<button
+							class="browse-row-link expiry-phone-batch"
+							:aria-label="`查看批次 ${row.batch_no}`"
+							:disabled="result.stale"
+							@click="openBatch(row)"
+						>
+							批次 {{ row.batch_no }}
+						</button>
+						<div class="expiry-phone-meta">
+							<span>{{ row.expiry_date || "无效期" }}</span>
+							<span>{{ row.stock_qty }} {{ row.stock_uom }}</span>
 							<span
-								v-else-if="Number(row.damaged) > 0"
-								class="browse-badge is-danger"
-								>损坏</span
+								class="browse-badge"
+								:class="expiryStatus(row as unknown as ReportRow).tone"
 							>
-							<small v-if="typeof row.remaining_days === 'number'">
-								· {{ formatExpiryDuration(row.remaining_days) }}</small
-							>
-						</p>
+								{{ expiryStatus(row as unknown as ReportRow).label }}
+							</span>
+							<small v-if="typeof row.remaining_days === 'number'">{{
+								formatExpiryDuration(row.remaining_days)
+							}}</small>
+						</div>
 					</article>
 				</div>
 				<DataTable
@@ -674,3 +680,55 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 		</div>
 	</section>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+	.expiry-phone-card {
+		display: grid;
+		gap: 6px;
+		padding: 10px;
+	}
+	.expiry-phone-identity {
+		display: grid;
+		grid-template-columns: 40px minmax(0, 1fr);
+		align-items: center;
+		gap: 9px;
+	}
+	.expiry-phone-identity .preview-group-thumbnail {
+		grid-row: 1 / span 2;
+		width: 40px;
+		height: 40px;
+	}
+	.expiry-phone-identity > .browse-row-link {
+		grid-column: 2;
+		min-height: 0;
+		padding: 0;
+	}
+	.expiry-phone-identity > .browse-row-link strong {
+		display: block;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.expiry-phone-identity > .browse-row-link small {
+		display: block;
+		color: var(--p-muted);
+	}
+	.expiry-phone-batch {
+		justify-self: start;
+		min-height: 32px;
+		padding: 0;
+		font-size: 0.84rem;
+	}
+	.expiry-phone-meta {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px 10px;
+		font-size: 0.84rem;
+	}
+	.expiry-phone-meta small {
+		color: var(--p-muted);
+	}
+}
+</style>

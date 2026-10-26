@@ -44,7 +44,11 @@ function exportFailure(row: InventoryNotification) {
 	<div v-for="group in groups" :key="group.label" class="notification-day-group">
 		<h3>{{ group.label }}</h3>
 		<ul class="notification-rows">
-			<li v-for="row in group.items" :key="row.name" :class="{ unread: !row.read }">
+			<li
+				v-for="row in group.items"
+				:key="row.name"
+				:class="{ unread: !row.read, 'is-export': isExport(row) }"
+			>
 				<div class="notification-kind">
 					<InventoryIcon :name="notificationIcon(row)" />
 				</div>

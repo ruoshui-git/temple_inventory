@@ -114,3 +114,81 @@ const displayGroups = computed(() =>
 		>
 	</section>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+	.more-section {
+		margin-block: 12px;
+	}
+	.more-section h2 {
+		margin-block: 0 6px;
+	}
+	.more-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
+		border: 1px solid var(--p-border);
+		border-radius: var(--p-radius-card);
+		background: var(--p-surface);
+		overflow: hidden;
+	}
+	.more-card {
+		min-height: 64px !important;
+		grid-template-columns: 36px minmax(0, 1fr) 16px;
+		grid-template-rows: auto auto;
+		align-content: center !important;
+		align-items: center;
+		column-gap: 10px;
+		row-gap: 1px;
+		padding: 8px 12px !important;
+		border: 0 !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
+		border-bottom: 1px solid var(--p-border) !important;
+	}
+	.more-card:last-child {
+		border-bottom: 0 !important;
+	}
+	.more-card > span {
+		grid-column: 1;
+		grid-row: 1 / span 2;
+		width: 36px !important;
+		height: 36px !important;
+	}
+	.more-card > strong,
+	.more-card > small {
+		grid-column: 2;
+		min-width: 0;
+	}
+	.more-card > strong {
+		align-self: end;
+		font-size: 0.95rem;
+	}
+	.more-card > small {
+		align-self: start;
+		font-size: 0.78rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.more-card:is(button)::after {
+		grid-column: 3;
+		grid-row: 1 / span 2;
+		content: "›";
+		justify-self: end;
+		color: var(--p-muted);
+		font-size: 1.3rem;
+	}
+	.account-card {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.account-card strong,
+	.account-card p {
+		grid-column: 1;
+	}
+	.account-card .ui-button {
+		grid-column: 2;
+		grid-row: 1 / span 2;
+	}
+}
+</style>

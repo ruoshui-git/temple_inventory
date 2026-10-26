@@ -57,6 +57,8 @@ if [[ "$matched_lang" != *zh* ]]; then
 fi
 
 printf 'Verified Chinese font: %s (zh coverage)\n' "$matched_file"
+export TEMPLE_UI_CJK_FONT="$font"
+export AUDIT_CJK_FONT="$font"
 if (($#)); then
 	exec "$@"
 fi

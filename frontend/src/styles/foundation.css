@@ -3175,15 +3175,20 @@ button {
 	.preview-toast {
 		bottom: calc(var(--preview-nav-height, 84px) + 12px);
 	}
+	.sample-content {
+		padding-block-start: 16px;
+		padding-inline: 16px;
+	}
 }
 
 @media (max-width: 1023px) {
 	.preview-return-top.icon-button {
-		bottom: calc(var(--preview-nav-height, 84px) + 68px + env(safe-area-inset-bottom));
+		bottom: calc(var(--preview-nav-height, 84px) + 76px + env(safe-area-inset-bottom));
 		width: 44px;
 		height: 44px;
 		min-width: 44px;
 		min-height: 44px;
+		right: 16px;
 	}
 }
 

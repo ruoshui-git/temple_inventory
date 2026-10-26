@@ -79,6 +79,8 @@ const emit = defineEmits<{
 const preferences = computed(() => props.columnPreferences);
 const tableScroll = ref<HTMLElement>();
 const tableFrame = ref<HTMLElement>();
+const headerHeight = ref(56);
+let headerObserver: ResizeObserver | undefined;
 const {
 	overflowStart,
 	overflowEnd,
@@ -97,7 +99,7 @@ const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
 const settingsTrigger = ref<HTMLButtonElement>();
-const mobileSettingsTrigger = ref<HTMLButtonElement>();
+const settingsOutlet = ref<HTMLElement>();
 const settingsPanel = ref<HTMLDivElement>();
 const settingsPanelStyle = ref<Record<string, string>>({});
 const focusedRowId = ref<string>();
@@ -113,6 +115,8 @@ const rowTabIndex = (row: DataTableEntry) =>
 watch(
 	bodyRows,
 	(rows, previous) => {
+		if (isMobile.value && !settingsOutlet.value?.isConnected)
+			void nextTick(updateSettingsViewport);
 		if (!rows.length) {
 			focusedRowId.value = undefined;
 			return;
@@ -226,7 +230,7 @@ function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
 }
 
 function positionSettingsPanel() {
-	const trigger = (isMobile.value ? mobileSettingsTrigger : settingsTrigger).value;
+	const trigger = settingsTrigger.value;
 	const panel = settingsPanel.value;
 	if (!settingsOpen.value || !trigger || !panel) return;
 	const margin = 12;
@@ -258,10 +262,7 @@ function positionSettingsPanel() {
 
 function closeSettings(returnFocus = false) {
 	settingsOpen.value = false;
-	if (returnFocus)
-		void nextTick(() =>
-			(isMobile.value ? mobileSettingsTrigger : settingsTrigger).value?.focus(),
-		);
+	if (returnFocus) void nextTick(() => settingsTrigger.value?.focus());
 }
 
 function onDocumentKeydown(event: KeyboardEvent) {
@@ -282,7 +283,22 @@ function toggleSettings() {
 }
 
 function updateSettingsViewport() {
-	isMobile.value = typeof window !== "undefined" && window.innerWidth < 1024;
+	const mobile = typeof window !== "undefined" && window.innerWidth < 1024;
+	if (mobile === isMobile.value && (!mobile || settingsOutlet.value?.isConnected)) return;
+	isMobile.value = mobile;
+	settingsOutlet.value = undefined;
+	if (!isMobile.value || !tableFrame.value) return;
+	for (
+		let parent = tableFrame.value.parentElement;
+		parent && parent !== document.body;
+		parent = parent.parentElement
+	) {
+		const outlet = parent.querySelector<HTMLElement>(".browse-summary-copy");
+		if (outlet) {
+			settingsOutlet.value = outlet;
+			return;
+		}
+	}
 }
 
 function repositionOpenPanel() {
@@ -296,8 +312,7 @@ function onDocumentPointer(event: PointerEvent) {
 		settingsOpen.value &&
 		target instanceof Node &&
 		!settingsPanel.value?.contains(target) &&
-		!settingsTrigger.value?.contains(target) &&
-		!mobileSettingsTrigger.value?.contains(target)
+		!settingsTrigger.value?.contains(target)
 	)
 		closeSettings();
 }
@@ -336,12 +351,25 @@ watch(
 	{ flush: "post" },
 );
 onMounted(() => {
+	updateSettingsViewport();
+	const updateHeaderHeight = () => {
+		const header = tableScroll.value?.querySelector("thead");
+		if (header) headerHeight.value = Math.ceil(header.getBoundingClientRect().height);
+	};
+	updateHeaderHeight();
+	headerObserver =
+		tableScroll.value && typeof ResizeObserver !== "undefined"
+			? new ResizeObserver(updateHeaderHeight)
+			: undefined;
+	const header = tableScroll.value?.querySelector("thead");
+	if (header) headerObserver?.observe(header);
 	document.addEventListener("pointerdown", onDocumentPointer);
 	document.addEventListener("keydown", onDocumentKeydown);
 	window.addEventListener("resize", repositionOpenPanel);
 	window.addEventListener("scroll", repositionOpenPanel, true);
 });
 onScopeDispose(() => {
+	headerObserver?.disconnect();
 	document.removeEventListener("pointerdown", onDocumentPointer);
 	document.removeEventListener("keydown", onDocumentKeydown);
 	window.removeEventListener("resize", repositionOpenPanel);
@@ -507,6 +535,21 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</div>
 			</div>
 		</Teleport>
+		<Teleport v-if="preferences && isMobile && settingsOutlet" :to="settingsOutlet">
+			<div class="data-table-settings-outlet">
+				<button
+					ref="settingsTrigger"
+					type="button"
+					class="data-table-column-trigger"
+					:aria-expanded="settingsOpen"
+					aria-label="设置列"
+					title="设置列"
+					@click="toggleSettings"
+				>
+					☷
+				</button>
+			</div>
+		</Teleport>
 
 		<p v-if="loading && !initialized" class="sr-only" role="status">
 			{{ loadingText }}
@@ -517,25 +560,15 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 		<span v-if="refreshing" class="sr-only data-table-refresh-status" role="status">
 			保留当前结果，更新完成后可用。
 		</span>
-		<div v-if="preferences && isMobile" class="data-table-mobile-toolbar">
-			<button
-				ref="mobileSettingsTrigger"
-				type="button"
-				class="data-table-column-trigger"
-				:aria-expanded="settingsOpen"
-				aria-label="设置列"
-				title="设置列"
-				@click="toggleSettings"
-			>
-				☷
-			</button>
-		</div>
 		<div
 			ref="tableFrame"
 			class="data-table-frame"
 			:style="{
 				'--data-table-pinned-start': `${pinnedStartInset}px`,
 				'--data-table-pinned-end': `${pinnedEndInset}px`,
+				'--data-table-header-height': `${headerHeight}px`,
+				'--data-table-settings-column-width':
+					isMobile && settingsOutlet ? '0px' : undefined,
 			}"
 		>
 			<div
@@ -632,7 +665,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								<template v-else>{{ column.label }}</template>
 							</th>
 							<th
-								v-if="preferences && !isMobile"
+								v-if="preferences && (!isMobile || !settingsOutlet)"
 								class="data-table-settings-heading"
 							>
 								<button

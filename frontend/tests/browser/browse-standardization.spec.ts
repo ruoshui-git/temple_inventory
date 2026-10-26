@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
+import {
+  auditCjkFontType,
+  nativeUiSession,
+  requiredAuditCjkFont,
+  sampleWarehouses,
+} from "./fixtures/nativeUi";
 
 // Routed production components with controlled HTTP data. Native inventory
 // correctness is checked separately by the rollback-only backend suite.
@@ -141,9 +146,12 @@ async function prepare(page: Page, textScale: number) {
       Return: true,
     },
   });
-  const font = "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf";
+  const font = requiredAuditCjkFont();
   await page.route("**/review-font.otf", (route) =>
-    route.fulfill({ body: readFileSync(font), contentType: "font/otf" }),
+    route.fulfill({
+      body: readFileSync(font),
+      contentType: auditCjkFontType(font),
+    }),
   );
   await page.addInitScript(() =>
     document.addEventListener("DOMContentLoaded", () => {
@@ -224,7 +232,7 @@ for (const surface of [
         await expect(page.locator(".quantity-summary-metric")).toHaveCount(1);
       await page.screenshot({ path: info.outputPath("loaded.png") });
       await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
-      await expect(chrome.locator(".browse-result-summary")).toBeVisible();
+      await expect(page.locator(".browse-result-summary")).toBeVisible();
       await chrome.getByRole("button", { name: /^筛选/ }).click();
       const tree = page.getByRole("tree", {
         name: "物品类别选项",

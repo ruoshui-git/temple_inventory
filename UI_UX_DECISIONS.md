@@ -4,6 +4,25 @@ This is the current product decision record. Retired mockups, preview-only
 proposals and implementation chronology belong in Git history. Add a dated
 supersession below when a durable user-facing decision changes.
 
+## Supersession — 2026-10-26: phone page chrome and content
+
+- Phones hide the breadcrumb (back, section tabs and bottom nav carry
+  wayfinding). Page and editor headers put back, title and a quiet `⋯` icon on
+  one line with the subtitle below; desktop keeps the breadcrumb and actions.
+- Phones use a 16px page gutter and compact card padding without nested double
+  padding. Lists reserve space for the floating create button; editors reserve
+  space for a one-row sticky action bar. Chip rows in the search field fade at
+  overflowing edges. On detail pages the ERPNext link moves into `⋯` on phones.
+- Table column settings sit beside the result summary (or in a reserved header
+  cell) as a quiet icon, never over header text.
+- Home: a four-column 入库/出库/借出/调拨 grid with 更多; refresh/export are
+  secondary. More: grouped compact rows with icon, title, description and
+  chevron. Notifications: 全部已读 on the tab row. Item detail: three-up stats
+  and the zoom control on the photo corner; item edit shows one main-image
+  preview with grouped actions. Expiry cards order identity, batch, then
+  date/quantity/status badge. Drafts rows keep actions inline. Categories use
+  the shared search field and indent only by hierarchy depth.
+
 ## Supersession — 2026-10-26: phone tables, picker and count lines
 
 - Phone tables (below 1024px) drop the floating `<`/`>` buttons for in-frame

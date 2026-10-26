@@ -1,10 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
-import { nativeUiSession } from "./fixtures/nativeUi";
-const font = "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf";
+import {
+  auditCjkFontType,
+  nativeUiSession,
+  requiredAuditCjkFont,
+} from "./fixtures/nativeUi";
+const font = requiredAuditCjkFont();
 async function setup(page: Page, scale = 100, density = "balanced") {
   await page.route("**/refinement-font.otf", (route) =>
-    route.fulfill({ body: readFileSync(font), contentType: "font/otf" }),
+    route.fulfill({
+      body: readFileSync(font),
+      contentType: auditCjkFontType(font),
+    }),
   );
   await page.addInitScript(() =>
     document.addEventListener("DOMContentLoaded", () => {

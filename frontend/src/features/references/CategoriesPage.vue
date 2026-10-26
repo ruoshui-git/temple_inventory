@@ -8,6 +8,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import CategoryFormFields from "./CategoryFormFields.vue";
 import type { useCategoriesController } from "./useCategoriesController";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
+import SearchField from "../../components/ui/SearchField.vue";
 
 const props = defineProps<{ controller: ReturnType<typeof useCategoriesController> }>();
 const c = props.controller;
@@ -58,7 +59,7 @@ const {
 			>
 		</div>
 		<div class="category-tools">
-			<label class="preview-field">搜索分类<input v-model="search" type="search" /></label>
+			<SearchField v-model="search" label="搜索分类" />
 			<span v-if="c.initialized.value" class="muted">{{ categories.length }} 个分类</span>
 		</div>
 		<AsyncRegion
@@ -83,7 +84,6 @@ const {
 							@click="c.toggle(row)"
 							><DisclosureIcon variant="inline"
 						/></UiButton>
-						<span v-else class="category-expand-spacer" aria-hidden="true" />
 						<strong>{{ row.label }}</strong>
 						<small v-if="row.name !== row.label">{{ row.name }}</small>
 						<span class="category-kind">{{ row.is_group ? "分组" : "末级" }}</span>
@@ -188,6 +188,14 @@ const {
 	flex: 1;
 	max-width: 520px;
 }
+.category-tools .shared-search-field {
+	flex: 1;
+	max-width: 520px;
+	min-height: var(--p-control);
+	border: 1px solid var(--p-control-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-surface);
+}
 .category-tree {
 	list-style: none;
 	padding: 0;
@@ -224,6 +232,16 @@ const {
 	width: 36px;
 	min-width: 36px;
 }
+.category-row :deep(.category-row-actions .popup-menu-trigger) {
+	width: 36px;
+	min-width: 36px;
+	min-height: 36px;
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+	box-shadow: none;
+	color: var(--p-muted);
+}
 .category-recovery {
 	padding: 12px;
 	border: 1px solid var(--p-border);
@@ -234,17 +252,26 @@ const {
 	font-size: 1rem;
 }
 @media (max-width: 1023px) {
+	.category-management > :deep(.app-page-header) {
+		margin-top: 16px;
+	}
 	.category-tools {
 		align-items: stretch;
 		flex-wrap: wrap;
 	}
-	.category-tools .preview-field {
+	.category-tools .shared-search-field {
 		max-width: none;
 		flex-basis: 100%;
 	}
 	.category-row {
 		flex-wrap: wrap;
 		padding-inline-start: calc(4px + min(var(--category-depth), 5) * 12px);
+	}
+	.category-row:has(.category-expand) {
+		padding-inline-start: calc(4px + min(var(--category-depth), 5) * 12px);
+	}
+	.category-row:not(:has(.category-expand)) {
+		padding-inline-start: calc(4px + max(0, min(var(--category-depth), 5) - 1) * 12px);
 	}
 	.category-row strong {
 		flex: 1 1 90px;

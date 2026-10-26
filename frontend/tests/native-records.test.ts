@@ -227,6 +227,13 @@ describe("native drafts and count records", () => {
     expect(filters).toHaveLength(3);
     const entries = wrapper.findAll(".draft-entry");
     expect(entries).toHaveLength(2);
+    expect(
+      entries[0]?.find(".draft-entry-heading .draft-type-tag").exists(),
+    ).toBe(true);
+    expect(entries[0]?.find(".draft-entry-meta time").exists()).toBe(true);
+    expect(
+      entries[0]?.find(".browse-row-actions .ui-button").attributes("class"),
+    ).toContain("ui-button--compact");
     expect(entries[0]?.text()).toContain("浏览器暂存");
     expect(entries[0]?.text()).toContain("2 种物品");
     expect(entries[1]?.text()).toContain("草稿单据");

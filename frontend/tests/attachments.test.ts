@@ -213,7 +213,12 @@ describe("native-parent attachments", () => {
     expect(main.wrapper.text()).toContain("主图预览");
     main.c.load([ready], ready.file_url);
     await flushPromises();
-    expect(button(main.wrapper, "查看主图")).toBeDefined();
+    expect(button(main.wrapper, "查看")).toBeDefined();
+    expect(main.wrapper.findAll(".main-image-preview")).toHaveLength(1);
+    expect(main.wrapper.find(".main-image-actions").text()).toContain(
+      "选择主图",
+    );
+    expect(main.wrapper.find(".main-image-file-row").exists()).toBe(true);
     expect(main.wrapper.text()).not.toContain("查看附件");
 
     const attachments = setup({ imageRole: "attachments" });

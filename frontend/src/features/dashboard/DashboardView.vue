@@ -158,7 +158,7 @@ function datasetChanged(dataset: ReportDataset) {
 <template>
 	<div class="preview-dashboard">
 		<PageHeader title="物资总览">
-			<template #actions>
+			<template v-if="!isMobile" #actions>
 				<UiButton icon="refresh" @click="refresh">刷新</UiButton>
 				<QuickExport
 					:query="quickReportQuery"
@@ -237,6 +237,55 @@ function datasetChanged(dataset: ReportDataset) {
 				>{{ kindIcons.Transfer.label }}</UiButton
 			>
 			<PopupMenu
+				v-if="!isMobile && hasMoreActions"
+				label="更多"
+				variant="labeled"
+				align="end"
+				class="dashboard-more-actions"
+			>
+				<template #trigger>更多<DisclosureIcon variant="popup" /></template>
+				<div class="dashboard-more-actions-menu">
+					<UiButton
+						v-if="reference.operations.Reconcile === true"
+						:icon="kindIcons.Reconcile.icon"
+						@click="navigateMore(countDestination())"
+						>{{ kindIcons.Reconcile.label }}</UiButton
+					>
+					<UiButton
+						v-if="canCreate('Damage')"
+						:icon="kindIcons.Damage.icon"
+						@click="quickAction('Damage')"
+						>{{ kindIcons.Damage.label }}</UiButton
+					>
+					<UiButton
+						v-if="canCreate('Loss')"
+						:icon="kindIcons.Loss.icon"
+						@click="quickAction('Loss')"
+						>{{ kindIcons.Loss.label }}</UiButton
+					>
+					<UiButton
+						v-if="canCreate('Repair')"
+						:icon="kindIcons.Repair.icon"
+						@click="quickAction('Repair')"
+						>{{ kindIcons.Repair.label }}</UiButton
+					>
+					<UiButton
+						v-if="canCreate('Disposal')"
+						:icon="kindIcons.Disposal.icon"
+						@click="quickAction('Disposal')"
+						>{{ kindIcons.Disposal.label }}</UiButton
+					>
+					<UiButton
+						v-if="reference.operations.Return === true"
+						:icon="kindIcons.Return.icon"
+						@click="chooseOutstandingLoan"
+						>{{ kindIcons.Return.label }} · 选择未结清借用</UiButton
+					>
+				</div>
+			</PopupMenu>
+		</div>
+		<div v-if="isMobile" class="dashboard-secondary-actions" aria-label="总览其他操作">
+			<PopupMenu
 				v-if="hasMoreActions"
 				label="更多"
 				variant="labeled"
@@ -283,6 +332,18 @@ function datasetChanged(dataset: ReportDataset) {
 					>
 				</div>
 			</PopupMenu>
+			<UiButton icon="refresh" variant="ghost" size="compact" @click="refresh"
+				>刷新</UiButton
+			>
+			<QuickExport
+				:query="quickReportQuery"
+				:query-for-dataset="queryForDataset"
+				:initial-dataset="reportDataset"
+				allow-dataset-selection
+				:active="active"
+				@commit-dataset="datasetChanged"
+				@open-full="emit('openExport', $event)"
+			/>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>
 		<div class="preview-dashboard-grid" :aria-busy="loading">
@@ -770,3 +831,58 @@ function datasetChanged(dataset: ReportDataset) {
 		<ReturnToTop :active="active" :hidden="isMobile && showFilters" />
 	</div>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+	.dashboard-quick-actions {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 8px;
+	}
+	.dashboard-quick-actions > :deep(.ui-button),
+	.dashboard-quick-actions > :deep(.popup-menu-trigger) {
+		min-width: 0;
+		min-height: 68px;
+		padding: 7px 2px;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 0.78rem;
+	}
+	.dashboard-quick-actions > :deep(.ui-button svg) {
+		width: 20px;
+		height: 20px;
+	}
+	.dashboard-secondary-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 8px;
+		margin-top: -4px;
+	}
+	.dashboard-secondary-actions :deep(.ui-button),
+	.dashboard-secondary-actions :deep(.popup-menu-trigger) {
+		min-height: 36px;
+		padding: 4px 8px;
+		border-color: transparent;
+		background: transparent;
+		box-shadow: none;
+		color: var(--p-muted);
+		font-size: 0.84rem;
+	}
+	.dashboard-inventory :deep(.browse-card-heading) {
+		justify-content: flex-start;
+		align-items: center;
+		gap: 8px;
+	}
+	.dashboard-inventory :deep(.browse-card-heading h2) {
+		margin: 0;
+	}
+	.dashboard-inventory :deep(.browse-card-heading > :first-child) {
+		flex: 0 1 auto;
+	}
+	.dashboard-inventory :deep(.browse-card-heading .browse-link) {
+		margin-inline-start: 0;
+		white-space: nowrap;
+	}
+}
+</style>

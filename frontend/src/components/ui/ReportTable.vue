@@ -118,7 +118,12 @@ const columns = computed<DataColumn[]>(() => {
 			sortable: props.sortableColumns?.includes(column) || false,
 			sortField: column,
 			minWidth: reportColumnMinimumWidths[column],
-			className: quantityColumns.has(column) ? "report-quantity-cell" : undefined,
+			className: [
+				quantityColumns.has(column) ? "report-quantity-cell" : "",
+				["batch", "batch_no"].includes(column) ? "report-batch-column" : "",
+			]
+				.filter(Boolean)
+				.join(" "),
 		}));
 	if (slots.actions)
 		data.push({

@@ -3,10 +3,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
 
 async function setup(page: Page, scale = 100, density = "balanced") {
-  const font = "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf";
+  const font =
+    process.env.TEMPLE_UI_CJK_FONT ||
+    "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf";
   if (existsSync(font)) {
     await page.route("**/header-review-font.otf", (route) =>
-      route.fulfill({ body: readFileSync(font), contentType: "font/otf" }),
+      route.fulfill({
+        body: readFileSync(font),
+        contentType: font.endsWith(".ttc") ? "font/collection" : "font/otf",
+      }),
     );
     await page.addInitScript(() =>
       document.addEventListener("DOMContentLoaded", () => {
@@ -150,8 +155,15 @@ for (const width of [390, 1440]) {
         chrome.getByRole("heading", { level: 1, name: title, exact: true }),
       ).toBeVisible();
       await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
-      const analysis = chrome.getByRole("button", { name: "分析结果", exact: true });
-      if (path === "stock" || path === "movements/items" || path === "loans/items")
+      const analysis = chrome.getByRole("button", {
+        name: "分析结果",
+        exact: true,
+      });
+      if (
+        path === "stock" ||
+        path === "movements/items" ||
+        path === "loans/items"
+      )
         await expect(analysis).toBeVisible();
       await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(
@@ -160,8 +172,14 @@ for (const width of [390, 1440]) {
       await expect(
         chrome.locator(".browse-persistent-search input"),
       ).toHaveAttribute("type", "search");
-      if (path === "stock" || path === "movements/items" || path === "loans/items")
-        await expect(chrome.locator(".browse-header-actions .browse-split-button")).toBeVisible();
+      if (
+        path === "stock" ||
+        path === "movements/items" ||
+        path === "loans/items"
+      )
+        await expect(
+          chrome.locator(".browse-header-actions .browse-split-button"),
+        ).toBeVisible();
     }
   });
 }
@@ -251,11 +269,15 @@ for (const width of [390, 1440]) {
           ?.getAttribute("data-browse-row");
       });
     expect(anchor).toBeTruthy();
-    await expect(page.locator(`[data-browse-row="${anchor}"]`)).toBeInViewport();
+    await expect(
+      page.locator(`[data-browse-row="${anchor}"]`),
+    ).toBeInViewport();
     await page.evaluate(() =>
       window.scrollBy({ top: 120, behavior: "instant" }),
     );
     await expect(chrome.getByRole("heading", { level: 1 })).toBeInViewport();
-    await page.screenshot({ path: info.outputPath("persistent-selection.png") });
+    await page.screenshot({
+      path: info.outputPath("persistent-selection.png"),
+    });
   });
 }

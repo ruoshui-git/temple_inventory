@@ -20,6 +20,7 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { useArrayTableSort } from "../../composables/useArrayTableSort";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -34,6 +35,7 @@ const emit = defineEmits<{
 	openBatch: [name: string];
 }>();
 const c = props.controller;
+const { isMobile } = useResponsiveLayout();
 const { stockItem: item, loading, error, tab, batches, files } = c;
 const metrics = computed(() =>
 	item.value
@@ -147,7 +149,9 @@ const locationPrefs =
 		</p>
 		<article v-if="item" class="browse-detail-card">
 			<div class="browse-item-detail-head">
-				<div class="browse-detail-image"><ItemImage :item="item" /></div>
+				<div class="browse-detail-image">
+					<ItemImage :item="item" :fit="isMobile ? 'cover' : 'contain'" />
+				</div>
 				<div class="browse-grow">
 					<span class="eyebrow"
 						>{{ item.category ? `${item.category} · ` : "" }}{{ item.code }}</span
@@ -322,3 +326,57 @@ const locationPrefs =
 		</article>
 	</section>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+	.browse-detail-card {
+		margin-top: 8px;
+	}
+	.browse-item-detail-head {
+		row-gap: 8px;
+		margin-bottom: 12px;
+	}
+	.browse-item-detail-head h2 {
+		margin-block: 2px 4px;
+	}
+	.browse-item-detail-head .muted {
+		margin: 0;
+	}
+	.browse-detail-image {
+		height: 140px;
+		overflow: visible;
+	}
+	.browse-detail-image :deep(.item-image-button),
+	.browse-detail-image :deep(.preview-item-image) {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		aspect-ratio: 1;
+	}
+	.browse-detail-image :deep(.preview-image-detail) {
+		display: block;
+		width: 100%;
+		aspect-ratio: 1;
+	}
+	.browse-detail-image :deep(.preview-image-enlarge) {
+		position: absolute;
+		right: 4px;
+		bottom: 4px;
+		z-index: 1;
+	}
+	.browse-detail-image :deep(.item-image-button .image-magnifier) {
+		position: absolute;
+		right: 8px;
+		bottom: 24px;
+		z-index: 1;
+	}
+	.detail-stat-grid :deep(.quantity-summary) {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 6px;
+	}
+	.detail-stat-grid :deep(.quantity-summary > *) {
+		min-width: 0;
+		padding: 8px 6px;
+	}
+}
+</style>

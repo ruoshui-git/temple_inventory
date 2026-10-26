@@ -19,7 +19,6 @@
 	display: none;
 	min-height: 0;
 	justify-content: flex-end;
-	margin-bottom: var(--p-space-1);
 }
 
 .data-table-column-trigger,
@@ -36,6 +35,25 @@
 
 .data-table-column-trigger:hover,
 .data-table-column-order button:hover:not(:disabled) {
+	background: var(--p-soft);
+}
+.data-table-settings-outlet {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+}
+.data-table-settings-outlet .data-table-column-trigger {
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	box-shadow: none;
+}
+.data-table-settings-outlet .data-table-column-trigger:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: 2px;
+}
+.data-table-settings-outlet .data-table-column-trigger:hover,
+.data-table-settings-outlet .data-table-column-trigger:active {
 	background: var(--p-soft);
 }
 
@@ -123,6 +141,15 @@
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
 }
+.data-table-scroll.is-overflow-end {
+	--data-table-settings-column-width: 0px;
+}
+.data-table-scroll.is-overflow-end th.data-table-settings-heading {
+	position: static;
+	inset-inline-end: auto;
+	z-index: auto;
+	box-shadow: none;
+}
 .data-table-frame {
 	position: relative;
 	min-width: 0;
@@ -186,9 +213,48 @@
 }
 @media (max-width: 1023px) {
 	.data-table-mobile-toolbar {
-		display: flex;
+		display: none;
 	}
-	.data-table-scroll th.data-table-settings-heading,
+	.data-table-scroll th.data-table-settings-heading {
+		position: sticky;
+		right: 0;
+		z-index: 4;
+		display: table-cell !important;
+		width: 56px;
+		min-width: 56px;
+		padding: 0 6px;
+		background: var(--p-soft);
+		text-align: center;
+	}
+	.data-table-scroll {
+		--data-table-settings-column-width: 56px;
+	}
+	.data-table-scroll th.data-table-settings-heading .data-table-column-trigger {
+		width: 44px;
+		min-width: 44px;
+		min-height: 44px;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		box-shadow: none;
+	}
+	.data-table-scroll th.data-table-settings-heading .data-table-column-trigger:hover,
+	.data-table-scroll th.data-table-settings-heading .data-table-column-trigger:active {
+		background: var(--p-soft);
+	}
+	.data-table-scroll th.data-table-settings-heading .data-table-column-trigger:focus-visible {
+		outline: 2px solid var(--p-accent);
+		outline-offset: 2px;
+	}
+	.data-table-scroll caption {
+		padding-inline-end: 48px;
+	}
+	.data-table-scroll thead th {
+		width: max-content;
+		min-width: 5.5em;
+		max-width: none;
+		white-space: normal;
+	}
 	.data-table-scroll td.data-table-settings-cell {
 		display: none !important;
 	}
@@ -204,7 +270,12 @@
 	}
 	.data-table-frame::after {
 		right: calc(var(--data-table-pinned-end, 0px) + 1px);
-		background: linear-gradient(270deg, var(--p-canvas, var(--p-surface)), transparent);
+		background: linear-gradient(
+			180deg,
+			var(--p-soft) 0 var(--data-table-header-height, 56px),
+			var(--p-surface) var(--data-table-header-height, 56px) 100%
+		);
+		mask-image: linear-gradient(270deg, black, transparent);
 	}
 	.data-table-scroll.is-mobile-unpin-start :is(th, td).report-sticky-start-column,
 	.data-table-scroll.is-mobile-unpin-start :is(th, td).operation-sticky-start-column {
@@ -235,8 +306,25 @@
 	.data-table-scroll th,
 	.data-table-scroll td {
 		padding-block: 6px;
-		padding-inline: 8px;
+		padding-inline: 12px;
 		line-height: 1.35;
+	}
+	.data-table-scroll th.data-table-settings-heading {
+		padding-inline: 6px;
+	}
+	.data-table-scroll .data-table-sort {
+		width: 100%;
+		min-width: 0;
+		flex-wrap: wrap;
+	}
+	.data-table-scroll .data-table-sort-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		white-space: normal;
+	}
+	.data-table-scroll th.report-batch-column {
+		min-width: 72px !important;
+		padding-inline: 16px !important;
 	}
 	.data-table-scroll table {
 		width: max-content;

@@ -1,4 +1,22 @@
 import type { Page } from "@playwright/test";
+import { existsSync } from "node:fs";
+
+export const auditCjkFont = [
+  process.env.TEMPLE_UI_CJK_FONT,
+  process.env.NATIVE_UI_REVIEW_FONT,
+  "/tmp/temple-inventory-ui-audit/fonts/NotoSansCJKsc-Regular.otf",
+  "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+  "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf",
+].find((candidate) => Boolean(candidate && existsSync(candidate)));
+
+export function auditCjkFontType(font = auditCjkFont) {
+  return font?.endsWith(".ttc") ? "font/collection" : "font/otf";
+}
+
+export function requiredAuditCjkFont() {
+  if (!auditCjkFont) throw new Error("No readable CJK audit font is available");
+  return auditCjkFont;
+}
 
 function place(
   name: string,

@@ -86,6 +86,21 @@ function setup(
   return { c, call, reference, props, changed, wrapper };
 }
 describe("native expiry browser", () => {
+  it("renders phone batch cards as identity, batch and unseparated expiry metadata", async () => {
+    const { wrapper } = setup(
+      vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),
+      reactive({}),
+      true,
+    );
+    await flushPromises();
+    const card = wrapper.find(".expiry-phone-card");
+    expect(card.exists()).toBe(true);
+    expect(card.find(".expiry-phone-identity").text()).toContain("物品甲");
+    expect(card.find(".expiry-phone-batch").text()).toContain("BATCH-0");
+    expect(card.find(".expiry-phone-meta .browse-badge").exists()).toBe(true);
+    expect(card.find(".expiry-phone-meta .browse-badge").text()).toBe("未过期");
+    expect(card.find(".expiry-phone-meta").text()).not.toContain("·");
+  });
   it("keeps repeated URL query parameters invalid at the real route boundary", async () => {
     const call = vi.fn(),
       reference = createReferenceData();

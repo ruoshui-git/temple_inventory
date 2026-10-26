@@ -98,7 +98,7 @@ it("shows a loaded item name in its routed breadcrumb", async () => {
   );
 });
 
-it("hides top-level phone breadcrumbs, keeps detail breadcrumbs, and marks the Stock tab", async () => {
+it("hides phone breadcrumbs and keeps the stock section active for categories", async () => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
@@ -131,7 +131,13 @@ it("hides top-level phone breadcrumbs, keeps detail breadcrumbs, and marks the S
   expect(
     wrapper.get(".mobile-context").get('a[aria-current="page"]').text(),
   ).toBe("库存");
+  await router.push({ name: "categories" });
+  await flushPromises();
+  expect(wrapper.find('[aria-label="面包屑"]').exists()).toBe(false);
+  expect(
+    wrapper.get(".mobile-context").get('a[aria-current="page"]').text(),
+  ).toBe("库存");
   await router.push({ name: "item-detail", params: { code: "ITM-000001" } });
   await flushPromises();
-  expect(wrapper.find('[aria-label="面包屑"]').exists()).toBe(true);
+  expect(wrapper.find('[aria-label="面包屑"]').exists()).toBe(false);
 });

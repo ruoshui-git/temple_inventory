@@ -555,16 +555,22 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				<ul class="draft-entry-list">
 					<li v-for="entry in draftEntries" :key="entry.id" class="draft-entry">
 						<div class="draft-entry-main">
-							<span class="draft-type-tag" :class="`is-${entry.type}`"
-								><InventoryIcon
-									:name="entry.type === 'server' ? 'document' : 'device'"
-								/>{{ entry.type === "server" ? "草稿单据" : "浏览器暂存" }}</span
-							>
-							<strong>{{ entry.label }}</strong>
-							<span>{{ entry.summary }}</span>
-							<time :datetime="entry.updatedAt" :title="entry.absolute">{{
-								relativeTime(entry.updatedAt)
-							}}</time>
+							<div class="draft-entry-heading">
+								<span class="draft-type-tag" :class="`is-${entry.type}`"
+									><InventoryIcon
+										:name="entry.type === 'server' ? 'document' : 'device'"
+									/>{{
+										entry.type === "server" ? "草稿单据" : "浏览器暂存"
+									}}</span
+								>
+								<strong>{{ entry.label }}</strong>
+							</div>
+							<div class="draft-entry-meta">
+								<span>{{ entry.summary }}</span>
+								<time :datetime="entry.updatedAt" :title="entry.absolute">{{
+									relativeTime(entry.updatedAt)
+								}}</time>
+							</div>
 							<DisclosureSection
 								v-if="entry.local"
 								title="查看详情"
@@ -581,23 +587,29 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							</DisclosureSection>
 						</div>
 						<div class="browse-row-actions">
-							<UiButton v-if="entry.server" @click="open(entry.server)"
+							<UiButton
+								v-if="entry.server"
+								size="compact"
+								@click="open(entry.server)"
 								>继续编辑</UiButton
 							>
 							<UiButton
 								v-else-if="entry.local && c.localSupported(entry.local)"
+								size="compact"
 								@click="emit('recover', entry.local)"
 								>继续编辑</UiButton
 							>
 							<UiButton
 								v-if="entry.server?.docstatus === 0"
 								variant="danger"
+								size="compact"
 								@click="deleteTarget = entry.server"
 								>删除</UiButton
 							>
 							<UiButton
 								v-else-if="entry.local"
 								variant="danger"
+								size="compact"
 								@click="localTarget = entry.local"
 								>放弃</UiButton
 							>
@@ -872,14 +884,54 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	flex: 1 0 100%;
 	min-width: 0;
 }
-@media (max-width: 600px) {
+@media (max-width: 1023px) {
+	.drafts-explainer {
+		margin-top: 8px;
+		color: var(--p-muted);
+		font-size: 0.84rem;
+	}
 	.draft-entry {
-		grid-template-columns: minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px;
+		padding-block: 10px;
+	}
+	.draft-entry-main {
+		display: grid;
+		gap: 4px;
+	}
+	.draft-entry-heading,
+	.draft-entry-meta {
+		display: flex;
+		align-items: center;
+		min-width: 0;
+		gap: 6px;
+	}
+	.draft-entry-heading strong,
+	.draft-entry-meta > span {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.draft-entry-heading strong {
+		font-size: 0.92rem;
+	}
+	.draft-entry-meta {
+		color: var(--p-muted);
+		font-size: 0.78rem;
 	}
 	.draft-entry .browse-row-actions {
-		display: flex;
-		flex-wrap: nowrap;
+		align-items: center;
 		justify-content: flex-end;
+		gap: 4px;
+	}
+}
+@media (max-width: 600px) {
+	.draft-entry .browse-row-actions :deep(.ui-button) {
+		min-height: 34px;
+		padding-inline: 8px;
+		font-size: 0.78rem;
 	}
 }
 </style>

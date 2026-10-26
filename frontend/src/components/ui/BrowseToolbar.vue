@@ -51,9 +51,22 @@ const emit = defineEmits<{
 	"update:search": [value: string];
 }>();
 const root = ref<HTMLElement>();
+const chips = ref<HTMLElement>();
+const chipOverflowStart = ref(false);
+const chipOverflowEnd = ref(false);
 const heading = computed(() => props.title || props.summary.split(" · ")[0]);
 const { isMobile } = useResponsiveLayout();
 const searchInput = ref(props.search);
+function measureChips() {
+	const element = chips.value;
+	if (!element) {
+		chipOverflowStart.value = false;
+		chipOverflowEnd.value = false;
+		return;
+	}
+	chipOverflowStart.value = element.scrollLeft > 1;
+	chipOverflowEnd.value = element.scrollWidth - element.clientWidth - element.scrollLeft > 1;
+}
 function focusSearchShortcut(event: KeyboardEvent) {
 	if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
 	const target = event.target;
@@ -136,6 +149,8 @@ function filterPanelChanged(open: boolean) {
 }
 const { top } = useScrollSurface(root, () => props.active);
 let headerObserver: ResizeObserver | undefined;
+let chipObserver: ResizeObserver | undefined;
+let chipMutationObserver: MutationObserver | undefined;
 let measuredParent: HTMLElement | undefined;
 function measureHeader() {
 	const element = root.value;
@@ -150,15 +165,30 @@ function measureHeader() {
 }
 onMounted(() => {
 	measureHeader();
+	measureChips();
 	document.addEventListener("keydown", focusSearchShortcut);
 	if (typeof ResizeObserver !== "undefined" && root.value) {
 		headerObserver = new ResizeObserver(measureHeader);
 		headerObserver.observe(root.value);
 	}
+	chips.value?.addEventListener("scroll", measureChips, { passive: true });
+	if (typeof ResizeObserver !== "undefined" && chips.value) {
+		chipObserver = new ResizeObserver(measureChips);
+		chipObserver.observe(chips.value);
+	}
+	if (typeof MutationObserver !== "undefined" && chips.value) {
+		chipMutationObserver = new MutationObserver(measureChips);
+		chipMutationObserver.observe(chips.value, {
+			childList: true,
+			subtree: true,
+			characterData: true,
+		});
+	}
 });
 onActivated(() => {
 	void nextTick(() => {
 		measureHeader();
+		measureChips();
 		if (root.value) headerObserver?.observe(root.value);
 	});
 });
@@ -166,6 +196,9 @@ onDeactivated(() => headerObserver?.disconnect());
 onBeforeUnmount(() => {
 	document.removeEventListener("keydown", focusSearchShortcut);
 	headerObserver?.disconnect();
+	chipObserver?.disconnect();
+	chipMutationObserver?.disconnect();
+	chips.value?.removeEventListener("scroll", measureChips);
 	if (measuredParent?.style.getPropertyValue("--browse-toolbar-height"))
 		measuredParent.style.removeProperty("--browse-toolbar-height");
 });
@@ -191,7 +224,17 @@ defineExpose({ editFilter });
 		</PageHeader>
 		<div class="browse-persistent-bar" :aria-label="`${heading}搜索与筛选`">
 			<div class="browse-search-container" :class="{ 'has-chips': $slots.chips }">
-				<div v-if="$slots.chips" class="browse-persistent-chips" aria-label="已应用筛选">
+				<div
+					v-if="$slots.chips"
+					ref="chips"
+					class="browse-persistent-chips"
+					:class="{
+						'has-overflow-start': chipOverflowStart,
+						'has-overflow-end': chipOverflowEnd,
+					}"
+					aria-label="已应用筛选"
+					@scroll="measureChips"
+				>
 					<slot name="chips" :open-filters="openFilters" :edit-filter="editFilter" />
 				</div>
 				<label class="browse-persistent-search">

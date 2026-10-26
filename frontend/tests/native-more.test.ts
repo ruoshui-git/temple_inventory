@@ -60,6 +60,15 @@ function logoutSetup(host: Pick<MoreHost, "logout" | "afterLogout">) {
   return { controller, reference };
 }
 describe("shared More workspace", () => {
+  it("renders destinations as compact content rows with title and description", async () => {
+    const { wrapper } = setup();
+    await flushPromises();
+    const row = wrapper.find("button.more-card");
+    expect(row.exists()).toBe(true);
+    expect(row.element.children[0]?.tagName).toBe("SPAN");
+    expect(row.find("strong").exists()).toBe(true);
+    expect(row.find("small").exists()).toBe(true);
+  });
   it("uses the shared native count browser as the single count card destination", async () => {
     const { wrapper, page } = setup();
     await flushPromises();

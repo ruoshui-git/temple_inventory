@@ -74,8 +74,53 @@ const visibleFiles = computed(() =>
 					<InventoryIcon name="image" /><span>主图预览</span>
 				</div>
 			</div>
-			<div v-if="mode !== 'display' && !disabled" class="shared-file-picker">
-				<UiButton type="button" icon="image" @click="openPicker">选择主图</UiButton>
+			<div class="main-image-actions">
+				<UiButton
+					v-if="mode !== 'display' && !disabled"
+					type="button"
+					icon="image"
+					@click="openPicker"
+					>选择主图</UiButton
+				>
+				<UiButton
+					v-if="visibleFiles[0]?.url"
+					type="button"
+					icon="expand"
+					@click="selected = visibleFiles[0]"
+					>查看</UiButton
+				>
+				<UiButton
+					v-if="visibleFiles[0] && mode !== 'display' && !disabled"
+					type="button"
+					icon="disposal"
+					variant="danger"
+					:disabled="visibleFiles[0].state === 'uploading'"
+					@click="controller.remove(visibleFiles[0])"
+					>移除</UiButton
+				>
+			</div>
+			<p v-if="visibleFiles[0]?.state === 'pending'" class="main-image-status">
+				保存资料后上传
+			</p>
+			<p
+				v-else-if="visibleFiles[0]?.state === 'uploading'"
+				class="main-image-status"
+				role="status"
+			>
+				上传中 {{ visibleFiles[0].progress }}%
+			</p>
+			<div
+				v-else-if="visibleFiles[0]?.state === 'error'"
+				class="main-image-status"
+				role="alert"
+			>
+				{{ visibleFiles[0].error }}
+				<UiButton
+					v-if="!disabled && mode !== 'display'"
+					size="compact"
+					@click="controller.upload(visibleFiles[0]!, true)"
+					>重试上传</UiButton
+				>
 			</div>
 			<input
 				ref="picker"
@@ -104,7 +149,11 @@ const visibleFiles = computed(() =>
 				@change="choose"
 			/>
 		</div>
-		<article v-for="file in visibleFiles" :key="file.id">
+		<article
+			v-for="file in visibleFiles"
+			:key="file.id"
+			:class="{ 'main-image-file-row': imageRole === 'main' }"
+		>
 			<AsyncImage
 				v-if="file.type.startsWith('image/')"
 				:src="file.url"
@@ -219,6 +268,38 @@ article {
 	align-items: end;
 	flex-wrap: wrap;
 	gap: 12px;
+}
+.main-image-actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.main-image-status {
+	flex: 1 0 100%;
+	margin: 0 0 0 124px;
+	color: var(--p-muted);
+}
+.main-image-status[role="alert"] {
+	color: var(--p-danger);
+}
+@media (max-width: 1023px) {
+	.main-image-picker-row {
+		align-items: center;
+	}
+	.main-image-file-row {
+		display: none;
+	}
+}
+@media (min-width: 1024px) {
+	.main-image-actions {
+		display: block;
+		align-self: end;
+	}
+	.main-image-actions > :deep(.ui-button:not(:first-child)),
+	.main-image-status {
+		display: none;
+	}
 }
 .main-image-preview {
 	width: 112px;
