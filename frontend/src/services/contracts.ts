@@ -260,7 +260,11 @@ export interface BootstrapData {
     protected: boolean;
     can_edit: boolean;
   }[];
-  uoms: { name: string; must_be_whole_number: boolean }[];
+  uoms: {
+    name: string;
+    must_be_whole_number: boolean;
+    category: string | null;
+  }[];
   activity_types: { name: string; label: string; enabled: boolean | number }[];
   operations: ReferenceData["operations"];
 }

@@ -44,6 +44,9 @@ export function useItemPicker(
   let generation = 0,
     disposed = false,
     retryMore = false;
+  const loadedItems = new Map<string, StockItem>();
+  const pendingSelected = new Map<string, (() => void)[]>();
+  let selectedFlushScheduled = false;
   let request: AbortController | undefined;
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (!categoryFilters.value.includes(oldName)) return;
@@ -66,6 +69,7 @@ export function useItemPicker(
     result.loadingMore = more;
     result.error = "";
     if (!more) result.stale = result.rows.length > 0;
+    if (!more) loadedItems.clear();
     try {
       const page = await services.call<{
         results: (CatalogItem & {
@@ -165,15 +169,60 @@ export function useItemPicker(
   async function ensureSelected(code: string) {
     const account = reference.user;
     if (!code || disposed || !account) return;
+    const key = `${code}\u0000${props.timestamp || "now"}`;
+    const cached = loadedItems.get(key);
+    if (cached) {
+      remember(cached);
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      const pending = pendingSelected.get(key) || [];
+      pending.push(resolve);
+      pendingSelected.set(key, pending);
+      if (selectedFlushScheduled) return;
+      selectedFlushScheduled = true;
+      queueMicrotask(() => void flushSelected(account));
+    });
+  }
+  async function flushSelected(account: string) {
+    selectedFlushScheduled = false;
+    const keys = [...pendingSelected.keys()];
+    const codes = keys.map((key) => key.slice(0, key.indexOf("\u0000")));
+    const callbacks = new Map(
+      keys.map((key) => [key, pendingSelected.get(key) || []]),
+    );
+    for (const key of keys) pendingSelected.delete(key);
+    const resolveAll = () => {
+      for (const key of keys) {
+        for (const resolve of callbacks.get(key) || []) resolve();
+      }
+    };
+    if (disposed || account !== reference.user) {
+      resolveAll();
+      return;
+    }
     try {
-      const item = await services.call<CatalogItem>("catalog.operation_item", {
-        item_code: code,
+      const result = await services.call<{
+        items: CatalogItem[];
+        errors: { item_code: string; error: string }[];
+      }>("catalog.operation_items", {
+        item_codes: codes,
         timestamp: props.timestamp,
       });
-      if (!disposed && account === reference.user)
-        remember(presentCatalogItem(item));
+      if (!disposed && account === reference.user) {
+        for (const item of result.items) {
+          const presented = presentCatalogItem(item);
+          loadedItems.set(
+            `${item.item_code}\u0000${props.timestamp || "now"}`,
+            presented,
+          );
+          remember(presented);
+        }
+      }
     } catch {
-      // The receiving editor will report its own complete-context read failure.
+      // The receiving editor reports any complete-context read failure.
+    } finally {
+      resolveAll();
     }
   }
   function toggle(key: string) {

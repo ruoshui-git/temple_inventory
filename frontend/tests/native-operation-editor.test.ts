@@ -100,7 +100,10 @@ function document(
 function service() {
   let saved: NativeDocument;
   return vi.fn(async (method, args) => {
-    if (method === "catalog.operation_item") return structuredClone(item);
+    if (method === "catalog.operation_items")
+      return { items: [structuredClone(item)], errors: [] };
+    if (method === "catalog.batch_metadata_many") return {};
+    if (method === "catalog.receipt_batches") return { batches: [] };
     if (method === "native_files.attachments") return [];
     if (method === "native_api.editor_clock")
       return { timestamp: "2026-10-16 11:22:33" };
@@ -187,10 +190,12 @@ describe("native movement editor integration", () => {
     });
     expect(wrappers.at(-1)?.text()).toContain("当前物品名称");
     expect(
-      call.mock.calls.some(([method]) => method === "catalog.operation_item"),
+      call.mock.calls.some(([method]) => method === "catalog.operation_items"),
     ).toBe(false);
     expect(
-      call.mock.calls.some(([method]) => method === "catalog.batch_metadata"),
+      call.mock.calls.some(
+        ([method]) => method === "catalog.batch_metadata_many",
+      ),
     ).toBe(false);
     const encoded = encodeOperation(c.draft.value, reference);
     expect(encoded.items[0]).not.toHaveProperty("displayName");
@@ -229,14 +234,19 @@ describe("native movement editor integration", () => {
     let attempts = 0;
     const call = vi.fn(async (method, args) => {
       if (method === "native_api.load_document") return original;
-      if (method === "catalog.operation_item")
+      if (method === "catalog.operation_items")
         return {
-          ...item,
-          can_edit: false,
-          uoms: [
-            { uom: "Nos", conversion_factor: 1 },
-            { uom: "Box", conversion_factor: 8 },
+          items: [
+            {
+              ...item,
+              can_edit: false,
+              uoms: [
+                { uom: "Nos", conversion_factor: 1 },
+                { uom: "Box", conversion_factor: 8 },
+              ],
+            },
           ],
+          errors: [],
         };
       if (method === "native_files.attachments")
         return args.name === "STE-1"
@@ -328,8 +338,19 @@ describe("native movement editor integration", () => {
     const call = vi.fn(
       async (method: string, args: Record<string, any> = {}) => {
         if (method === "native_api.load_document") return original;
-        if (method === "catalog.operation_item")
-          return { ...item, has_batch_no: true, has_expiry_date: true };
+        if (method === "catalog.operation_items")
+          return {
+            items: [{ ...item, has_batch_no: true, has_expiry_date: true }],
+            errors: [],
+          };
+        if (method === "catalog.batch_metadata_many")
+          return {
+            "BATCH-OLD": {
+              item_code: item.item_code,
+              expiry_date: "",
+              manufacturing_date: "",
+            },
+          };
         if (method === "native_files.attachments") return [];
         if (method === "native_api.save_document")
           return { ...document(args.data, "v2"), items: original.items };
@@ -367,7 +388,7 @@ describe("native movement editor integration", () => {
       conversion_factor: 1,
     });
     expect(
-      call.mock.calls.some(([method]) => method === "catalog.receipt_batch"),
+      call.mock.calls.some(([method]) => method === "catalog.receipt_batches"),
     ).toBe(false);
   });
   it("keeps an explicitly selected warehouse source even when another location has stock", async () => {
@@ -406,10 +427,15 @@ describe("native movement editor integration", () => {
   it("prefills Repair from the chosen damaged allocation and requires an explicit physical destination", async () => {
     const base = service(),
       call = vi.fn(async (method, args) =>
-        method === "catalog.operation_item"
+        method === "catalog.operation_items"
           ? {
-              ...item,
-              stock: [{ warehouse: "DAMAGED", damaged: 5, available: 0 }],
+              items: [
+                {
+                  ...item,
+                  stock: [{ warehouse: "DAMAGED", damaged: 5, available: 0 }],
+                },
+              ],
+              errors: [],
             }
           : base(method, args),
       );
@@ -808,9 +834,18 @@ it("initializes selected Items atomically and only once across lookup retries an
   const base = service();
   let fail = true;
   const call = vi.fn(async (method, args) => {
-    if (method === "catalog.operation_item" && args.item_code === "ITEM-B") {
+    if (
+      method === "catalog.operation_items" &&
+      (args.item_codes as string[]).includes("ITEM-B")
+    ) {
       if (fail) throw new Error("物品暂不可用");
-      return { ...structuredClone(item), item_code: "ITEM-B" };
+      return {
+        items: (args.item_codes as string[]).map((item_code) => ({
+          ...structuredClone(item),
+          item_code,
+        })),
+        errors: [],
+      };
     }
     return base(method, args);
   });

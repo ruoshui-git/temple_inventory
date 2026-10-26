@@ -36,7 +36,8 @@ export const expiryBuckets = [
   { id: "upcoming_91_plus", label: ">90 天后到期" },
 ];
 export interface DashboardRow {
-  item_names?: string;
+  item_names?: string[];
+  item_count?: number;
   id?: string;
   doctype?: string;
   document?: string;
@@ -56,7 +57,6 @@ export interface DashboardRow {
   stock_uom?: string;
   quantities?: { qty: number; uom: string; effect?: number }[];
   label?: string;
-  item_count?: number;
 }
 export interface DashboardResult {
   rows: DashboardRow[];

@@ -18,6 +18,155 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class CatalogTests(NativeDocumentTests):
+	def test_operation_items_batches_accessible_items_and_per_code_errors(self):
+		result = catalog.operation_items([self.item, "missing-item-for-batch-test"])
+		self.assertEqual([row["item_code"] for row in result["items"]], [self.item])
+		self.assertEqual(result["errors"][0]["item_code"], "missing-item-for-batch-test")
+		self.assertIn("error", result["errors"][0])
+
+	def test_operation_items_filters_an_item_permission_failure_per_code(self):
+		blocked = catalog.save_item(
+			{"item_code": f"TI-BLOCKED-{self.token}", "item_name": "Blocked", "stock_uom": "Nos"}
+		)["item_code"]
+		from frappe.model.document import Document
+
+		original = Document.check_permission
+
+		def check_permission(doc, permtype="read", permlevel=None):
+			if doc.doctype == "Item" and doc.name == blocked and permtype == "read":
+				raise frappe.PermissionError
+			return original(doc, permtype, permlevel)
+
+		with patch.object(Document, "check_permission", autospec=True, side_effect=check_permission):
+			result = catalog.operation_items([self.item, blocked])
+		self.assertEqual([row["item_code"] for row in result["items"]], [self.item])
+		self.assertEqual(result["errors"][0]["item_code"], blocked)
+
+	def test_uom_bootstrap_filters_disabled_units_and_returns_category(self):
+		unit_name = f"TI-Count-{self.token}"
+		catalog.create_uom(unit_name, must_be_whole_number=True)
+		enabled_name = f"TI-Count-Enabled-{self.token}"
+		catalog.create_uom(enabled_name, must_be_whole_number=True)
+		frappe.get_doc("UOM", unit_name).db_set("enabled", 0)
+		rows = browse.bootstrap()["uoms"]
+		names = [row["name"] for row in rows]
+		self.assertNotIn(unit_name, set(names))
+		self.assertIn(enabled_name, names)
+		used = set(
+			row[0]
+			for row in frappe.db.sql(
+				"""select stock_uom from `tabItem` union
+				select uom from `tabUOM Conversion Detail` where parenttype='Item'"""
+			)
+		)
+		self.assertGreater(
+			names.index(enabled_name), max(names.index(name) for name in used if name in names)
+		)
+		unused_measures = set(browse.COMMON_MEASURES) - used
+		if any(name in names for name in unused_measures):
+			self.assertLess(
+				names.index(enabled_name),
+				min(names.index(name) for name in unused_measures if name in names),
+			)
+		self.assertTrue(all("category" in row for row in rows))
+		self.assertEqual(rows, browse.ranked_uoms())
+
+	def test_blank_item_code_uses_the_native_item_series(self):
+		result = catalog.save_item({"item_name": "Generated code", "stock_uom": "Nos"})
+		self.assertRegex(result["item_code"], r"^ITM-\d{6}$")
+
+	def test_item_tracking_toggles_use_submitted_transaction_guards(self):
+		item = catalog.save_item(
+			{"item_code": f"TI-TRACK-{self.token}", "item_name": "Tracking", "stock_uom": "Nos"}
+		)
+		current = frappe.get_doc("Item", item["item_code"])
+		updated = catalog.save_item(
+			{"has_batch_no": 1}, item_code=item["item_code"], version=str(current.modified)
+		)
+		self.assertTrue(updated["has_batch_no"])
+		self.assertTrue(updated["tracking_changeable"])
+		self.receipt(1)
+		current = frappe.get_doc("Item", self.item)
+		status = catalog.item_lifecycle(self.item)
+		self.assertFalse(status["tracking_changeable"])
+		self.assertIn("新建物品", status["tracking_change_reason"])
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_item({"has_batch_no": 1}, item_code=self.item, version=str(current.modified))
+
+	def test_expiry_tracking_requires_dated_batches_and_batch_tracking_cannot_be_removed(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = catalog.save_item(
+			{
+				"item_code": f"TI-EXPIRY-GUARD-{self.token}",
+				"item_name": "Expiry guard",
+				"stock_uom": "Nos",
+				"has_batch_no": 1,
+			}
+		)
+		catalog.create_batch(item["item_code"], f"TI-UNDATED-{self.token}")
+		current = frappe.get_doc("Item", item["item_code"])
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_item(
+				{"has_expiry_date": 1}, item_code=item["item_code"], version=str(current.modified)
+			)
+		with self.assertRaises(frappe.ValidationError):
+			catalog.save_item({"has_batch_no": 0}, item_code=item["item_code"], version=str(current.modified))
+
+	def test_item_disable_requires_zero_stock_and_delete_uses_link_checks(self):
+		self.receipt(1)
+		current = frappe.get_doc("Item", self.item)
+		with self.assertRaises(frappe.ValidationError):
+			catalog.set_item_disabled(self.item, True, str(current.modified))
+		with self.assertRaises(frappe.LinkExistsError):
+			catalog.delete_item(self.item, str(current.modified))
+		item = catalog.save_item(
+			{"item_code": f"TI-DELETE-{self.token}", "item_name": "Unlinked", "stock_uom": "Nos"}
+		)
+		current = frappe.get_doc("Item", item["item_code"])
+		disabled = catalog.set_item_disabled(item["item_code"], True, str(current.modified))
+		self.assertTrue(disabled["disabled"])
+		self.assertTrue(catalog.item_detail(item["item_code"])["disabled"])
+		current = frappe.get_doc("Item", item["item_code"])
+		self.assertTrue(catalog.item_lifecycle(item["item_code"])["can_delete"])
+		self.assertTrue(catalog.delete_item(item["item_code"], str(current.modified))["deleted"])
+
+	def test_receipt_batches_are_idempotent_and_use_the_daily_series(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = catalog.save_item(
+			{
+				"item_code": f"TI-BATCH-REQUEST-{self.token}",
+				"item_name": "Batch request",
+				"stock_uom": "Nos",
+				"has_batch_no": 1,
+			}
+		)
+		row = {
+			"item_code": item["item_code"],
+			"batch_id": "",
+			"local_id": "line-stable-1",
+			"manufacturing_date": None,
+			"expiry_date": None,
+		}
+		first = catalog.receipt_batches([row])["batches"][0]
+		second = catalog.receipt_batches([row])["batches"][0]
+		self.assertEqual(first["name"], second["name"])
+		self.assertRegex(first["name"], r"^\d{8}-\d{3}$")
+
+	def test_item_and_batch_location_views_do_not_request_zero_rows(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		frappe.db.set_value("Item", self.item, "has_batch_no", 1)
+		batch = catalog.create_batch(self.item, f"TI-ZERO-{self.token}")
+		queries = []
+		with patch(
+			"temple_inventory.catalog.report_page",
+			side_effect=lambda query, **_kwargs: (queries.append(query) or {}),
+		):
+			catalog.item_detail(self.item)
+			catalog.batch_details(batch["name"])
+			catalog.batch_locations(batch["name"])
+		self.assertTrue(queries)
+		self.assertTrue(all(query.get("includeZero") is not True for query in queries))
+
 	def test_item_image_requires_an_authorized_private_file_attached_to_that_item(self):
 		other = catalog.save_item(
 			{"item_code": f"TI-IMAGE-OWNER-{self.token}", "item_name": "Other owner", "stock_uom": "Nos"}
@@ -310,7 +459,7 @@ class CatalogTests(NativeDocumentTests):
 		self.receipt(5)
 		timestamp = add_days(nowdate(), -1) + " 23:59:59"
 		self.assertEqual(stock_balance(self.item, self.a, timestamp), 0)
-		result = catalog.operation_item(self.item, timestamp)
+		result = catalog.operation_items([self.item], timestamp)["items"][0]
 		self.assertFalse(any(row["warehouse"] == self.a for row in result["stock"]))
 
 	def test_inbound_picker_rows_ignore_warehouse_filter(self):
@@ -671,6 +820,10 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(sum(row["item_count"] for row in distribution["rows"]), 2)
 		self.assertEqual(len(browse.dashboard_card("expiry", scope)["buckets"]), 6)
 		self.assertEqual(browse.dashboard_card("movement", scope)["matched_count"], 2)
+		recent = browse.dashboard_card("movement", scope)["rows"][0]
+		self.assertEqual(recent["item_count"], 1)
+		self.assertIsInstance(recent["item_names"], list)
+		self.assertLessEqual(len(recent["item_names"]), 2)
 		self.assertIn(self.a, browse.bootstrap()["physical_leaves"])
 		bootstrap = browse.bootstrap()
 		self.assertIn(self.loan_leaf, {row["name"] for row in bootstrap["warehouses"]})
@@ -1056,10 +1209,10 @@ class CatalogTests(NativeDocumentTests):
 		self.assertEqual(catalog.scan_code(self.a)["warehouse"]["name"], self.a)
 		self.assertFalse(catalog.scan_code(self.a)["unknown"])
 		self.assertEqual(catalog.scan_code(self.room_a)["warehouse"]["name"], self.a)
-		self.assertEqual(catalog.operation_item(self.item)["stock"][0]["available"], 3)
+		self.assertEqual(catalog.operation_items([self.item])["items"][0]["stock"][0]["available"], 3)
 		past = "2000-01-01 00:00:00"
 		search_result = catalog.search_items(self.item, timestamp=past)
-		item_result = catalog.operation_item(self.item, timestamp=past)
+		item_result = catalog.operation_items([self.item], timestamp=past)["items"][0]
 		self.assertEqual(search_result["results"][0]["snapshot"], item_result["snapshot"])
 		self.assertEqual(search_result["results"][0]["stock"], [])
 		self.assertEqual(item_result["stock"], [])
@@ -1070,13 +1223,19 @@ class CatalogTests(NativeDocumentTests):
 		batch_item.has_batch_no, batch_item.has_expiry_date = 1, 1
 		batch_item.insert()
 		batch_id = "TI-PREP-" + self.token
-		first = catalog.receipt_batch(batch_item.name, batch_id, expiry_date=add_days(nowdate(), 30))
+		row = {
+			"item_code": batch_item.name,
+			"batch_id": batch_id,
+			"local_id": "stable-line",
+			"expiry_date": add_days(nowdate(), 30),
+		}
+		first = catalog.receipt_batches([row])["batches"][0]
 		self.assertEqual(
-			catalog.receipt_batch(batch_item.name, batch_id, expiry_date=add_days(nowdate(), 30))["name"],
+			catalog.receipt_batches([row])["batches"][0]["name"],
 			first["name"],
 		)
 		with self.assertRaises(frappe.ValidationError):
-			catalog.receipt_batch(batch_item.name, batch_id, expiry_date=add_days(nowdate(), 60))
+			catalog.receipt_batches([{**row, "expiry_date": add_days(nowdate(), 60)}])
 
 	def test_native_operation_groups_and_contributions_page_after_complete_filtering(self):
 		other = frappe.copy_doc(frappe.get_doc("Item", self.item))
@@ -1504,7 +1663,7 @@ class CatalogTests(NativeDocumentTests):
 		data["items"][0].update({"batch_no": batches[1], "use_serial_batch_fields": 1})
 		self.submit(self.create(data))
 		batch_detail = catalog.batch_details(batches[1])
-		batch_metadata = catalog.batch_metadata(batches[1])
+		batch_metadata = catalog.batch_metadata_many([batches[1]])[batches[1]]
 		self.assertEqual(batch_metadata["name"], batch_detail["name"])
 		self.assertNotIn("locations", batch_metadata)
 		self.assertNotIn("history", batch_metadata)

@@ -93,8 +93,26 @@ function service() {
         fingerprint: "BASE-1",
         removed_rows: [],
       };
-    if (method === "catalog.operation_item")
-      return { item_code: "ITEM-A", item_name: "测试物品" };
+    if (method === "catalog.operation_items")
+      return {
+        items: [
+          {
+            item_code: "ITEM-A",
+            item_name: "测试物品",
+            item_group: "",
+            stock_uom: "Nos",
+            description: "",
+            version: "v1",
+            has_batch_no: false,
+            has_expiry_date: false,
+            can_edit: true,
+            barcodes: [],
+            uoms: [],
+            stock: [],
+          },
+        ],
+        errors: [],
+      };
     if (method === "native_files.attachments") return [];
     if (method === "counts.save_count") {
       const rows = args.data.ti_count_review as CountRow[];

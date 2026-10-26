@@ -386,5 +386,27 @@
     "insert_after": "ti_reviewer_name",
     "module": "Temple Inventory",
     "name": "Stock Reconciliation-ti_notes"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Batch",
+    "fieldname": "ti_request_key",
+    "fieldtype": "Data",
+    "label": "Temple Request Key",
+    "module": "Temple Inventory",
+    "unique": 1,
+    "hidden": 1,
+    "name": "Batch-ti_request_key"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Batch",
+    "fieldname": "ti_request_user",
+    "fieldtype": "Link",
+    "options": "User",
+    "label": "Temple Request User",
+    "module": "Temple Inventory",
+    "hidden": 1,
+    "name": "Batch-ti_request_user"
   }
 ]

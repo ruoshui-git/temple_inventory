@@ -229,6 +229,7 @@ export interface OperationContext {
   stock: StockItem[];
   remember(item: StockItem): void;
   ensure(code: string): Promise<StockItem>;
+  ensureMany(codes: string[]): Promise<Map<string, StockItem>>;
   timestamp(): string | undefined;
   issues(draft: OperationDraft): OperationIssue[];
   lineStock(line: AllocationLine): ReturnType<typeof lineStock>;

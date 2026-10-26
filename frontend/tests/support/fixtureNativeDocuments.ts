@@ -40,6 +40,32 @@ function synchronizeSession() {
   sequence = 0;
 }
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+function fixtureBatch(name: string): Record<string, unknown> | undefined {
+  if (batches.has(name)) return copy(batches.get(name));
+  for (const item of reviewSession.stock)
+    for (const place of item.locations)
+      for (const batch of place.batches || [])
+        if (batch.id === name)
+          return {
+            name: batch.id,
+            item_code: item.code,
+            expiry_date: batch.expiry || "",
+            manufacturing_date: "",
+            disabled: false,
+          };
+  for (const draft of reviewSession.drafts)
+    for (const line of draft.lines)
+      if (line.batch === name)
+        return {
+          name: line.batch,
+          item_code: line.code,
+          expiry_date: line.expiry || "",
+          manufacturing_date: line.manufacturingDate || "",
+          disabled: false,
+        };
+  return undefined;
+}
+
 function key(doctype: string, name: string) {
   return JSON.stringify([doctype, name]);
 }
@@ -672,51 +698,47 @@ export async function fixtureNativeCall(
     if (index >= 0) list.splice(index, 1);
     return { deleted: true };
   }
-  if (
-    endpoint === "catalog.batch_details" ||
-    endpoint === "catalog.batch_metadata"
-  ) {
-    if (batches.has(String(args.name)))
-      return copy(batches.get(String(args.name)));
-    for (const item of reviewSession.stock)
-      for (const place of item.locations)
-        for (const batch of place.batches || [])
-          if (batch.id === args.name)
-            return {
-              name: batch.id,
-              item_code: item.code,
-              expiry_date: batch.expiry || "",
-              manufacturing_date: "",
-              disabled: false,
-            };
-    for (const draft of reviewSession.drafts)
-      for (const line of draft.lines)
-        if (line.batch === args.name)
-          return {
-            name: line.batch,
-            item_code: line.code,
-            expiry_date: line.expiry || "",
-            manufacturing_date: line.manufacturingDate || "",
-            disabled: false,
-          };
-    throw new Error("原生批次不存在");
+  if (endpoint === "catalog.batch_details") {
+    const batch = fixtureBatch(String(args.name));
+    if (!batch) throw new Error("原生批次不存在");
+    return batch;
   }
-  if (endpoint === "catalog.operation_item")
-    return fixtureCatalogItem(String(args.item_code));
+  if (endpoint === "catalog.operation_items") {
+    const codes = args.item_codes as string[];
+    return { items: codes.map(fixtureCatalogItem), errors: [] };
+  }
+  if (endpoint === "catalog.batch_metadata_many") {
+    const result: Record<string, unknown> = {};
+    for (const name of args.names as string[]) {
+      const batch = fixtureBatch(name);
+      if (batch) result[name] = batch;
+    }
+    return result;
+  }
+  if (endpoint === "catalog.item_lifecycle")
+    return {
+      disabled: false,
+      tracking_changeable: true,
+      tracking_change_reason: "",
+      can_delete: true,
+    };
   if (endpoint === "catalog.suggest_item_code")
     return { item_code: `ITM-${String(1000 + sequence + 1).padStart(6, "0")}` };
-  if (endpoint === "catalog.receipt_batch") {
-    const name = String(args.batch_id),
-      previous = batches.get(name);
-    if (previous) return copy(previous);
-    const batch = {
-      name,
-      item_code: args.item_code,
-      expiry_date: args.expiry_date || "",
-      manufacturing_date: args.manufacturing_date || "",
-    };
-    batches.set(name, batch);
-    return copy(batch);
+  if (endpoint === "catalog.receipt_batches") {
+    const result = (args.rows as Record<string, unknown>[]).map((row) => {
+      const name = String(
+        row.batch_id || `20261026-${String(++sequence).padStart(3, "0")}`,
+      );
+      if (!batches.has(name))
+        batches.set(name, {
+          name,
+          item_code: row.item_code,
+          expiry_date: row.expiry_date || "",
+          manufacturing_date: row.manufacturing_date || "",
+        });
+      return { local_id: row.local_id, name };
+    });
+    return { batches: result };
   }
   if (endpoint === "catalog.scan_code") {
     const value = String(args.value),

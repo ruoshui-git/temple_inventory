@@ -688,7 +688,7 @@ function datasetChanged(dataset: ReportDataset) {
 						>
 							<span
 								>{{
-									row.item_names ||
+									row.item_names?.join("、") ||
 									row.item_name ||
 									movementLabels[row.kind || ""] ||
 									"库存记录"

@@ -2,9 +2,13 @@
 
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
+import hashlib
+
 import frappe
+from frappe.model.naming import make_autoname
 from frappe.utils import cint, getdate
 
+from temple_inventory.item_code import allocate_item_code
 from temple_inventory.item_code import suggest_item_code as next_item_code
 from temple_inventory.native_access import check_item, load_locked, require_app
 from temple_inventory.native_files import attachments, can_read
@@ -13,7 +17,7 @@ from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import ReportContext, paged, stock_rows
 
 ITEM_FIELDS = ("item_name", "item_group", "description")
-IMMUTABLE_FIELDS = ("item_code", "stock_uom", "has_batch_no", "has_expiry_date")
+IMMUTABLE_FIELDS = ("item_code", "stock_uom")
 
 
 def _image(item):
@@ -32,7 +36,7 @@ def item_group_root():
 	return name
 
 
-def item_metadata(item, *, include_attachments=True, context=None):
+def item_metadata(item, *, include_attachments=True, include_lifecycle=False, context=None):
 	if (
 		include_attachments
 		and context
@@ -46,11 +50,15 @@ def item_metadata(item, *, include_attachments=True, context=None):
 	else:
 		image = context.item_fields(item)["image"] if context else ""
 		files, images = [], []
+	tracking = tracking_change_status(item) if include_lifecycle else {"allowed": False, "reason": ""}
+	can_delete = _item_can_delete(item) if include_lifecycle else False
 	return {
 		"name": item.name,
 		"item_code": item.name,
 		"item_name": item.item_name,
-		"item_group": "" if item.item_group == item_group_root() else item.item_group,
+		"item_group": ""
+		if item.item_group == (context.category_root if context else item_group_root())
+		else item.item_group,
 		"stock_uom": item.stock_uom,
 		"description": item.description or "",
 		"image": image,
@@ -65,12 +73,21 @@ def item_metadata(item, *, include_attachments=True, context=None):
 			{
 				"name": row.name,
 				"uom": row.uom,
+				"category": getattr(context, "uom_category", {}).get(row.uom),
 				"conversion_factor": float(row.conversion_factor),
-				"must_be_whole_number": bool(frappe.get_cached_value("UOM", row.uom, "must_be_whole_number")),
+				"must_be_whole_number": bool(
+					getattr(context, "uom_whole", {}).get(
+						row.uom, frappe.get_cached_value("UOM", row.uom, "must_be_whole_number")
+					)
+				),
 			}
 			for row in item.uoms
 		],
 		"can_edit": item.has_permission("write"),
+		"disabled": bool(item.disabled),
+		"tracking_changeable": tracking["allowed"],
+		"tracking_change_reason": tracking["reason"],
+		"can_delete": can_delete,
 		"attachments": files,
 		"images": images,
 	}
@@ -87,9 +104,9 @@ def suggest_item_code():
 def item_detail(item_code):
 	require_app()
 	item = check_item(item_code)
-	query = {"dataset": "inventory", "view": "locations", "scope": {"item": item.name}, "includeZero": True}
+	query = {"dataset": "inventory", "view": "locations", "scope": {"item": item.name}}
 	return {
-		**item_metadata(item),
+		**item_metadata(item, include_lifecycle=True),
 		"inventory": report_page(query),
 		"movements": report_page(
 			{"dataset": "movements", "view": "lines", "statuses": [1], "scope": {"item": item.name}},
@@ -100,6 +117,39 @@ def item_detail(item_code):
 			page_length=10,
 		),
 	}
+
+
+@frappe.whitelist()
+def item_lifecycle(item_code):
+	require_app()
+	item = check_item(item_code)
+	tracking = tracking_change_status(item)
+	return {
+		"disabled": bool(item.disabled),
+		"tracking_changeable": tracking["allowed"],
+		"tracking_change_reason": tracking["reason"],
+		"can_delete": _item_can_delete(item),
+	}
+
+
+def _item_can_delete(item):
+	try:
+		from frappe.model.delete_doc import get_dynamic_linked_docs, get_linked_docs
+
+		return not (get_linked_docs(item, method="Delete") or get_dynamic_linked_docs(item))
+	except Exception:
+		return False
+
+
+def tracking_change_status(item):
+	"""Use ERPNext's native submitted-document link checks for tracking edits."""
+	try:
+		linked = item._get_linked_submitted_documents(["has_batch_no", "has_expiry_date"])
+	except (AttributeError, TypeError):
+		linked = None
+	if linked:
+		return {"allowed": False, "reason": "已有已提交库存单据，不能更改批次或效期追踪；请新建物品"}
+	return {"allowed": True, "reason": ""}
 
 
 @frappe.whitelist()
@@ -234,14 +284,53 @@ def _picker_flatten_items(items, purpose, only_stock):
 
 
 @frappe.whitelist()
-def operation_item(item_code, timestamp=None):
-	"""Complete permission-filtered locations for one selected editor Item."""
+def operation_items(item_codes, timestamp=None):
+	"""Return accessible selected Items together with per-code access errors."""
 	require_app()
-	item = check_item(item_code)
-	context = ReportContext(validate_query({"dataset": "inventory", "scope": {"item": item.name}}))
+	if isinstance(item_codes, str):
+		item_codes = frappe.parse_json(item_codes)
+	if not isinstance(item_codes, list) or len(item_codes) > 200:
+		frappe.throw("物品范围无效")
+	codes = list(dict.fromkeys(code.strip() for code in item_codes if isinstance(code, str) and code.strip()))
+	if len(codes) != len([code for code in item_codes if isinstance(code, str) and code.strip()]):
+		frappe.throw("物品范围无效")
+	context = ReportContext(validate_query({"dataset": "inventory", "scope": {}}))
 	if timestamp:
 		context.set_snapshot(timestamp)
-	return {**item_metadata(item), "stock": list(stock_rows(context)), "snapshot": context.snapshot}
+	context.preload_items(codes)
+	context.preload_item_attachments(codes)
+	uom_names = sorted(
+		{uom.uom for code in codes for uom in getattr(context._preloaded_items.get(code), "uoms", [])}
+	)
+	uoms = frappe.get_list(
+		"UOM",
+		filters={"name": ["in", uom_names or [""]]},
+		fields=["name", "must_be_whole_number", "category"],
+		limit_page_length=0,
+	)
+	context.uom_whole = {row.name: bool(row.must_be_whole_number) for row in uoms}
+	context.uom_category = {row.name: row.category for row in uoms}
+	rows = list(stock_rows(context, item_codes=codes))
+	by_code = {}
+	for row in rows:
+		by_code.setdefault(row["item_code"], []).append(row)
+	items, errors = [], []
+	for code in codes:
+		try:
+			item = context._preloaded_items.get(code)
+			if not item:
+				frappe.throw("物品不存在或无权访问", frappe.PermissionError)
+			item.check_permission("read")
+			items.append(
+				{
+					**item_metadata(item, include_lifecycle=False, context=context),
+					"stock": by_code.get(code, []),
+					"snapshot": context.snapshot,
+				}
+			)
+		except (frappe.PermissionError, frappe.DoesNotExistError):
+			errors.append({"item_code": code, "error": "物品不存在或无权访问"})
+	return {"items": items, "errors": errors, "snapshot": context.snapshot}
 
 
 @frappe.whitelist()
@@ -674,22 +763,46 @@ def save_item(data, item_code=None, version=None):
 				else str(data.get(field)) != str(item.get(field))
 			)
 			if field in data and changed:
-				frappe.throw("现有物品的编号、库存单位与追踪方式不能在此更改")
+				frappe.throw("现有物品的编号与库存单位不能在此更改")
+		tracking_changed = any(
+			field in data and bool(cint(data[field])) != bool(item.get(field))
+			for field in ("has_batch_no", "has_expiry_date")
+		)
+		enabling_expiry = (
+			"has_expiry_date" in data and cint(data["has_expiry_date"]) and not cint(item.has_expiry_date)
+		)
+		if tracking_changed:
+			status = tracking_change_status(item)
+			if not status["allowed"]:
+				frappe.throw(status["reason"])
+			if "has_batch_no" in data:
+				item.has_batch_no = cint(data["has_batch_no"])
+			if "has_expiry_date" in data:
+				item.has_expiry_date = cint(data["has_expiry_date"])
+			if item.has_expiry_date:
+				item.has_batch_no = 1
+			if not item.has_batch_no and frappe.db.exists("Batch", {"item": item.name}):
+				frappe.throw("此物品已有批次记录，不能关闭批次管理；请新建物品")
+		if enabling_expiry and frappe.db.sql(
+			"select name from `tabBatch` where item=%s and (expiry_date is null or expiry_date='') limit 1",
+			item.name,
+		):
+			frappe.throw("此物品存在未填写到期日期的批次，不能启用效期追踪；请先补全批次日期或新建物品")
 	else:
 		item = frappe.new_doc("Item")
 		item.check_permission("create")
-		item.item_code = str(data.get("item_code") or "").strip()
+		item.item_code = str(data.get("item_code") or "").strip() or allocate_item_code()
 		item.stock_uom = data.get("stock_uom")
 		item.has_batch_no = cint(data.get("has_batch_no"))
 		item.has_expiry_date = cint(data.get("has_expiry_date"))
 		item.is_stock_item = 1
-		if not item.item_code or not item.stock_uom:
-			frappe.throw("请填写物品编号并选择计量单位")
+		if not item.stock_uom:
+			frappe.throw("请选择计量单位")
 		if frappe.db.exists("Item", item.item_code):
 			frappe.throw("此物品编号已存在，请保留输入并使用新建议编号", frappe.DuplicateEntryError)
 		frappe.get_doc("UOM", item.stock_uom).check_permission("read")
-		if item.has_expiry_date and not item.has_batch_no:
-			frappe.throw("效期管理需要启用批次管理")
+		if item.has_expiry_date:
+			item.has_batch_no = 1
 		if item.has_batch_no and not frappe.db.get_single_value(
 			"Stock Settings", "enable_serial_and_batch_no_for_item"
 		):
@@ -702,10 +815,41 @@ def save_item(data, item_code=None, version=None):
 	if not item.item_group:
 		item.item_group = item_group_root()
 	frappe.get_doc("Item Group", item.item_group).check_permission("read")
+	if item_code and tracking_changed:
+		item.has_batch_no = cint(item.has_batch_no)
+		item.has_expiry_date = cint(item.has_expiry_date)
 	if "barcodes" in data:
 		_barcodes(item, data["barcodes"])
 	item.save()
-	return item_metadata(item)
+	return item_metadata(item, include_lifecycle=True)
+
+
+@frappe.whitelist(methods=["POST"])
+def set_item_disabled(item_code, disabled, version):
+	require_app()
+	if type(disabled) is not bool:
+		frappe.throw("停用状态无效")
+	item = load_locked("Item", item_code, version)
+	if disabled:
+		stock_rows = frappe.db.sql(
+			"select warehouse from `tabBin` where item_code=%s and actual_qty != 0 limit 1", item.name
+		)
+		if stock_rows:
+			frappe.throw("物品在一个或多个库位仍有库存（含借出和损坏），清零后才能停用")
+	item.disabled = int(disabled)
+	item.save()
+	return item_metadata(item, include_lifecycle=True)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_item(item_code, version):
+	require_app()
+	item = load_locked("Item", item_code, version)
+	try:
+		frappe.delete_doc("Item", item.name)
+	except frappe.LinkExistsError:
+		frappe.throw("此物品仍被其它记录引用，不能删除；请先处理关联记录", frappe.LinkExistsError)
+	return {"item_code": item_code, "deleted": True}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -950,27 +1094,116 @@ def scan_code(value):
 
 
 @frappe.whitelist(methods=["POST"])
-def receipt_batch(item_code, batch_id, manufacturing_date=None, expiry_date=None):
-	"""Retry-safe explicit receipt batch creation; never rewrite an existing batch."""
+def receipt_batches(rows):
+	"""Resolve/create receipt batches under one account lock with stable retry identities."""
 	require_app()
-	item = check_item(item_code, lock=True)
-	batch_id = str(batch_id or "").strip()
-	if not batch_id or len(batch_id) > 140:
-		frappe.throw("请提供有效批次编号")
-	if frappe.db.exists("Batch", batch_id):
-		batch = frappe.get_doc("Batch", batch_id)
+	if isinstance(rows, str):
+		rows = frappe.parse_json(rows)
+	if not isinstance(rows, list) or len(rows) > 200:
+		frappe.throw("批次范围无效")
+	lock_name = f"ti_receipt_batches:{frappe.session.user}"[:64]
+	locked = frappe.db.sql("select get_lock(%s, 10)", lock_name)[0][0]
+	if locked != 1:
+		frappe.throw("批次创建繁忙，请稍后重试")
+	try:
+		result = []
+		seen = set()
+		for row in rows:
+			if not isinstance(row, dict):
+				frappe.throw("批次内容无效")
+			item_code = str(row.get("item_code") or "").strip()
+			local_id = str(row.get("local_id") or "").strip()
+			if not item_code or not local_id or len(local_id) > 140:
+				frappe.throw("批次请求身份无效")
+			identity = (item_code, local_id)
+			if identity in seen:
+				frappe.throw("批次请求身份重复")
+			seen.add(identity)
+			item = check_item(item_code, lock=True)
+			if not item.has_batch_no:
+				frappe.throw("此物品未启用批次管理")
+			request_key = hashlib.sha256(
+				f"{frappe.session.user}\0Batch\0{item_code}\0{local_id}".encode()
+			).hexdigest()
+			name = frappe.db.get_value(
+				"Batch",
+				{"ti_request_key": request_key, "ti_request_user": frappe.session.user},
+				"name",
+				for_update=True,
+			)
+			batch_id = str(row.get("batch_id") or "").strip()
+			generated_batch = not batch_id
+			if name:
+				batch = frappe.get_doc("Batch", name)
+				batch.check_permission("read")
+				if batch.item != item.name or (batch_id and batch.name != batch_id):
+					frappe.throw("此批次请求身份已用于其它批次")
+				for field in ("manufacturing_date", "expiry_date"):
+					value = row.get(field)
+					expected = str(getdate(value)) if value else ""
+					if str(batch.get(field) or "") != expected:
+						frappe.throw("此批次请求日期已变更，请使用新的批次行")
+			else:
+				if not batch_id:
+					batch_id = make_autoname(".YYYY..MM..DD.-.###")
+				if frappe.db.exists("Batch", batch_id):
+					batch = frappe.get_doc("Batch", batch_id)
+					batch.check_permission("read")
+					if batch.item != item.name or batch.disabled:
+						frappe.throw("此批次属于其它物品或已停用")
+					for field, value in (
+						("manufacturing_date", row.get("manufacturing_date")),
+						("expiry_date", row.get("expiry_date")),
+					):
+						if value and str(batch.get(field) or "") != str(getdate(value)):
+							frappe.throw("现有批次日期不同，请核对或使用新的批次编号")
+				else:
+					batch_result = create_batch(
+						item.name, batch_id, row.get("manufacturing_date"), row.get("expiry_date")
+					)
+					batch = frappe.get_doc("Batch", batch_result["name"])
+				if generated_batch:
+					batch.ti_request_key = request_key
+					batch.ti_request_user = frappe.session.user
+					batch.save(ignore_permissions=True)
+			result.append(
+				{
+					"local_id": local_id,
+					"name": batch.name,
+					"manufacturing_date": str(batch.manufacturing_date or ""),
+					"expiry_date": str(batch.expiry_date or ""),
+				}
+			)
+		return {"batches": result}
+	finally:
+		frappe.db.sql("select release_lock(%s)", lock_name)
+
+
+@frappe.whitelist()
+def batch_metadata_many(names):
+	require_app()
+	if isinstance(names, str):
+		names = frappe.parse_json(names)
+	if not isinstance(names, list) or len(names) > 1000 or any(not isinstance(name, str) for name in names):
+		frappe.throw("批次范围无效")
+	rows = frappe.get_list(
+		"Batch",
+		filters={"name": ["in", sorted(set(names)) or [""]]},
+		fields=["name", "item", "expiry_date", "manufacturing_date"],
+		limit_page_length=0,
+	)
+	result = {}
+	for row in rows:
+		batch = frappe.get_doc("Batch", row.name)
 		batch.check_permission("read")
-		if batch.item != item.name or batch.disabled:
-			frappe.throw("此批次属于其它物品或已停用")
-		for field, value in (("manufacturing_date", manufacturing_date), ("expiry_date", expiry_date)):
-			if value and str(batch.get(field) or "") != str(getdate(value)):
-				frappe.throw("现有批次日期不同，请核对或使用新的批次编号")
-		return {
-			"name": batch.name,
-			"manufacturing_date": str(batch.manufacturing_date or ""),
-			"expiry_date": str(batch.expiry_date or ""),
+		check_item(row.item)
+		result[row.name] = {
+			"name": row.name,
+			"item_code": row.item,
+			"expiry_date": str(row.expiry_date or ""),
+			"manufacturing_date": str(row.manufacturing_date or ""),
 		}
-	return create_batch(item.name, batch_id, manufacturing_date, expiry_date)
+	return result
 
 
 @frappe.whitelist()
@@ -988,7 +1221,6 @@ def batch_details(name):
 		"scope": {"item": batch.item},
 		"restrictItems": True,
 		"itemCodes": [batch.item],
-		"includeZero": True,
 		"statuses": [1],
 	}
 	history_query = {
@@ -1022,26 +1254,6 @@ def batch_details(name):
 
 
 @frappe.whitelist()
-def batch_metadata(name):
-	"""Return only the metadata needed while inspecting a native Batch reference."""
-	require_app()
-	batch = frappe.get_doc("Batch", name)
-	batch.check_permission("read")
-	check_item(batch.item)
-	return {
-		"name": batch.name,
-		"item_code": batch.item,
-		"item": item_metadata(frappe.get_doc("Item", batch.item)),
-		"expiry_date": str(batch.expiry_date or ""),
-		"manufacturing_date": str(batch.manufacturing_date or ""),
-		"description": batch.get("description") or "",
-		"disabled": bool(batch.disabled),
-		"version": str(batch.modified),
-		"can_edit": bool(batch.has_permission("write") and frappe.has_permission("Batch", "write")),
-	}
-
-
-@frappe.whitelist()
 def batch_locations(name, start=0, page_length=100, sort_by="identity", sort="asc"):
 	from frappe.utils import cint
 
@@ -1057,7 +1269,6 @@ def batch_locations(name, start=0, page_length=100, sort_by="identity", sort="as
 			"scope": {"item": batch.item},
 			"restrictItems": True,
 			"itemCodes": [batch.item],
-			"includeZero": True,
 			"statuses": [1],
 			"sortBy": sort_by,
 			"sort": sort,

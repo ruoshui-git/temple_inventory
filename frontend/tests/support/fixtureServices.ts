@@ -512,7 +512,8 @@ function dashboardCard(args: Record<string, unknown>) {
       return {
         doctype: rows[0]!.documentType || "Stock Entry",
         document: name,
-        item_names: [...new Set(rows.map((row) => row.itemName))].join("、"),
+        item_count: new Set(rows.map((row) => row.itemName)).size,
+        item_names: [...new Set(rows.map((row) => row.itemName))].slice(0, 2),
         kind: rows[0]!.kind,
         activity_title:
           activities.find((activity) => activity.id === rows[0]!.activity)
@@ -705,10 +706,11 @@ export const fixtureServices: InventoryServices = {
       endpoint.startsWith("native_files.") ||
       [
         "catalog.batch_details",
-        "catalog.batch_metadata",
-        "catalog.operation_item",
+        "catalog.batch_metadata_many",
+        "catalog.item_lifecycle",
+        "catalog.operation_items",
         "catalog.suggest_item_code",
-        "catalog.receipt_batch",
+        "catalog.receipt_batches",
         "catalog.scan_code",
         "catalog.save_item",
         "catalog.set_item_image",

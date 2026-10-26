@@ -74,7 +74,22 @@ function service() {
           .split("\n")
           .map((barcode) => ({ barcode })),
       };
-    if (method === "catalog.operation_item") return structuredClone(item);
+    if (method === "catalog.operation_items")
+      return { items: [structuredClone(item)], errors: [] };
+    if (method === "catalog.item_lifecycle")
+      return {
+        tracking_changeable: true,
+        tracking_change_reason: "",
+        can_delete: true,
+        disabled: false,
+      };
+    if (method === "catalog.item_lifecycle")
+      return {
+        tracking_changeable: true,
+        tracking_change_reason: "",
+        can_delete: true,
+        disabled: false,
+      };
     throw new Error(`Unexpected ${method}`);
   });
 }
@@ -179,9 +194,16 @@ describe("native Item editing and pending uploads", () => {
     expect(c.existing.value?.item_code).toBe(item.item_code);
     expect(c.files.files[0]?.state).toBe("reselect");
     call.mockImplementation(async (method) =>
-      method === "catalog.operation_item"
-        ? { ...item, version: "changed" }
-        : { item_code: item.item_code },
+      method === "catalog.operation_items"
+        ? { items: [{ ...item, version: "changed" }], errors: [] }
+        : method === "catalog.item_lifecycle"
+          ? {
+              tracking_changeable: true,
+              tracking_change_reason: "",
+              can_delete: true,
+              disabled: false,
+            }
+          : { item_code: item.item_code },
     );
     await c.recover({
       ...snapshot,

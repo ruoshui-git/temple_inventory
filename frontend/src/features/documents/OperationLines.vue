@@ -46,10 +46,14 @@ const previewDate = computed(() => reference.siteDate);
 const receive = computed(() => props.draft.kind === "Receive");
 const settlement = computed(() => isSettlement(props.draft));
 const places = computed(() => reference.physicalLeaves);
+const lineDestination = String(props.draft.items.find((line) => line.location)?.location || "");
+const initialDestination = props.draft.name
+	? lineDestination
+	: lineDestination || String(props.draft.preferredWarehouse || "");
 const destination = ref(
-	props.draft.kind === "Receive" &&
-		reference.physicalLeaves.includes(String(props.draft.preferredWarehouse || ""))
-		? String(props.draft.preferredWarehouse)
+	["Receive", "Transfer"].includes(props.draft.kind) &&
+		reference.physicalLeaves.includes(initialDestination)
+		? initialDestination
 		: "",
 );
 const transferDestinations = computed(() =>
@@ -59,7 +63,12 @@ const transferDestinations = computed(() =>
 	),
 );
 onMounted(async () => {
-	if (destination.value || !["Receive", "Transfer"].includes(props.draft.kind)) return;
+	if (
+		destination.value ||
+		props.draft.name ||
+		!["Receive", "Transfer"].includes(props.draft.kind)
+	)
+		return;
 	try {
 		const saved = await services.call<Record<string, string>>(
 			"preferences.creation_locations",
@@ -75,7 +84,7 @@ onMounted(async () => {
 		// Remembered locations are optional; the editor still requires an explicit choice.
 	}
 });
-watch(destination, async (value) => {
+async function destinationChanged(value: string) {
 	if (!value || !["Receive", "Transfer"].includes(props.draft.kind)) return;
 	if (props.draft.kind === "Receive")
 		for (const line of props.draft.items) line.location = value;
@@ -87,7 +96,7 @@ watch(destination, async (value) => {
 	} catch {
 		// The selection remains valid for this draft if preference storage fails.
 	}
-});
+}
 watch(
 	() => props.draft.items.map((line) => line.sourceLocation || "").join("\u0000"),
 	() => {
@@ -103,6 +112,7 @@ const pickerLines = ref<AllocationLine[]>([]);
 const pickerOpen = ref(false);
 const scanOnOpen = ref(false);
 const selectionError = ref("");
+const multiAdding = ref(false);
 const scanWarehouse = ref("");
 const scanFeedback = ref("");
 const scanResolution = ref<ItemScanResolution>();
@@ -922,7 +932,7 @@ function refreshLine(line: AllocationLine) {
 async function choose(code: string, closePicker = true, selectedWarehouse = "") {
 	selectionError.value = "";
 	try {
-		await context.ensure(code);
+		if (!stockItem(code)) await context.ensure(code);
 	} catch (reason) {
 		selectionError.value = reason instanceof Error ? reason.message : "物品读取失败，请重试";
 		return false;
@@ -970,15 +980,31 @@ async function selectSingle(selection: { code: string; warehouse: string }) {
 	await choose(selection.code, true, selection.warehouse);
 }
 async function chooseMultiple(selections: { code: string; warehouse: string }[]) {
+	if (multiAdding.value || !selections.length) return;
+	multiAdding.value = true;
+	selectionError.value = "";
 	const start = props.draft.items.length;
-	for (const selection of selections)
-		if (!(await choose(selection.code, false, selection.warehouse))) return;
-	pickerOpen.value = false;
-	search.value = "";
-	incompleteOnly.value = false;
-	await nextTick();
-	const line = props.draft.items[start];
-	if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
+	try {
+		const available = await context.ensureMany(selections.map((selection) => selection.code));
+		const inaccessible = [...new Set(selections.map((selection) => selection.code))].filter(
+			(code) => !available.has(code),
+		);
+		if (inaccessible.length)
+			selectionError.value = `${inaccessible.join("、")}：物品不存在或无权访问`;
+		for (const selection of selections)
+			if (!available.has(selection.code)) continue;
+			else if (!(await choose(selection.code, false, selection.warehouse))) return;
+		pickerOpen.value = false;
+		search.value = "";
+		incompleteOnly.value = false;
+		await nextTick();
+		const line = props.draft.items[start];
+		if (line) await revealIssue({ message: "", lineId: line.id, field: "qty" });
+	} catch (reason) {
+		selectionError.value = reason instanceof Error ? reason.message : "物品加载失败，请重试";
+	} finally {
+		multiAdding.value = false;
+	}
 }
 function pick(lines: AllocationLine[] = [], scan = false) {
 	pickerLines.value = lines;
@@ -1048,6 +1074,7 @@ function changeBatch(line: AllocationLine) {
 					class="preview-receive-target preview-inline-field"
 					label="入库位置"
 					v-model="destination"
+					@update:model-value="destinationChanged"
 					:clearable="false"
 					:options="
 						places.map((name) => ({
@@ -1108,6 +1135,7 @@ function changeBatch(line: AllocationLine) {
 					class="preview-receive-target preview-inline-field"
 					:label="receive ? '入库位置' : '调入位置'"
 					v-model="destination"
+					@update:model-value="destinationChanged"
 					:clearable="false"
 					:options="
 						(receive ? places : transferDestinations).map((name) => ({

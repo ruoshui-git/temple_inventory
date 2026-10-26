@@ -213,21 +213,24 @@ it("sends multi-category subtree selections and the independent uncategorized sc
       rgt: 8,
     },
   ];
-  const call = vi.fn<InventoryServices["call"]>(async (endpoint) =>
-    endpoint === "catalog.operation_item"
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint, args) =>
+    endpoint === "catalog.operation_items"
       ? ({
-          item_code: "ITEM-A",
-          item_name: "测试物品",
-          item_group: "",
-          stock_uom: "Nos",
-          description: "",
-          version: "v1",
-          has_batch_no: false,
-          has_expiry_date: false,
-          can_edit: true,
-          barcodes: [],
-          uoms: [],
-          stock: [{ warehouse: "A", available: 2, stock_uom: "Nos" }],
+          items: ((args?.item_codes as string[]) || []).map((item_code) => ({
+            item_code,
+            item_name: "测试物品",
+            item_group: "",
+            stock_uom: "Nos",
+            description: "",
+            version: "v1",
+            has_batch_no: false,
+            has_expiry_date: false,
+            can_edit: true,
+            barcodes: [],
+            uoms: [],
+            stock: [{ warehouse: "A", available: 2, stock_uom: "Nos" }],
+          })),
+          errors: [],
         } as never)
       : ({ results: [], matched_count: 0, next_start: null } as never),
   );
@@ -284,14 +287,22 @@ it("sends multi-category subtree selections and the independent uncategorized sc
     receiving_warehouse: "WAREHOUSE-B",
   });
   expect(call.mock.calls.at(-1)?.[1]).not.toHaveProperty("warehouses");
-  await picker.ensureSelected("ITEM-A");
+  await Promise.all([
+    picker.ensureSelected("ITEM-A"),
+    picker.ensureSelected("ITEM-B"),
+  ]);
   expect(remember).toHaveBeenCalledWith(
     expect.objectContaining({
       locations: [expect.objectContaining({ location: "A", available: 2 })],
     }),
   );
-  expect(call).toHaveBeenCalledWith("catalog.operation_item", {
-    item_code: "ITEM-A",
+  expect(
+    call.mock.calls.filter(
+      ([endpoint]) => endpoint === "catalog.operation_items",
+    ),
+  ).toHaveLength(1);
+  expect(call).toHaveBeenCalledWith("catalog.operation_items", {
+    item_codes: ["ITEM-A", "ITEM-B"],
     timestamp: "2026-10-21 09:30:00",
   });
 });
@@ -454,7 +465,8 @@ it("continues the pending row selection once after discarding a dirty item draft
       } as never;
     if (endpoint === "catalog.suggest_item_code")
       return { item_code: "ITEM-NEW" } as never;
-    if (endpoint === "catalog.operation_item") return item as never;
+    if (endpoint === "catalog.operation_items")
+      return { items: [item], errors: [] } as never;
     if (endpoint === "table_preferences.get_column_preferences")
       return {} as never;
     throw new Error(`Unexpected ${endpoint}`);

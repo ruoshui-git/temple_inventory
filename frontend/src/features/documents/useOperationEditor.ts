@@ -61,6 +61,9 @@ export function useOperationEditor(props: {
     showError = ref(false),
     reviewOpen = ref(false),
     action = ref<"delete" | "cancel" | "amend" | "duplicate">();
+  const hydrating = ref(false);
+  const itemCache = new Map<string, StockItem>();
+  const confirmedBatches = new Map<string, string>();
   let ready = false,
     disposed = false,
     discarded = false,
@@ -95,6 +98,7 @@ export function useOperationEditor(props: {
   let amendmentRequestId = crypto.randomUUID();
   const recovery = createRecoveryStore(reference.site, account, storage);
   function remember(item: StockItem) {
+    itemCache.set(cacheKey(item.code), item);
     const existing = stock.find((row) => row.code === item.code);
     if (existing) Object.assign(existing, item);
     else stock.push(item);
@@ -104,15 +108,43 @@ export function useOperationEditor(props: {
       ? `${draft.value.postingDate} ${draft.value.postingTime}`
       : undefined;
   }
+  function cacheKey(code: string) {
+    return `${code}\u0000${timestamp() || "now"}`;
+  }
   async function ensure(code: string) {
-    const item = presentCatalogItem(
-      await services.call<CatalogItem>("catalog.operation_item", {
-        item_code: code,
+    if (!active()) throw new DOMException("Account changed", "AbortError");
+    const cached = itemCache.get(cacheKey(code));
+    if (cached) return cached;
+    const items = await ensureMany([code]);
+    const item = items.get(code);
+    if (!item) throw new Error("物品不存在或无权访问");
+    return item;
+  }
+  async function ensureMany(codes: string[]) {
+    if (!active()) throw new DOMException("Account changed", "AbortError");
+    const unique = [...new Set(codes.filter(Boolean))];
+    const missing = unique.filter((code) => !itemCache.has(cacheKey(code)));
+    if (missing.length) {
+      const result = await services.call<{
+        items: CatalogItem[];
+        errors: { item_code: string; error: string }[];
+      }>("catalog.operation_items", {
+        item_codes: missing,
         timestamp: timestamp(),
+      });
+      if (!active()) throw new DOMException("Account changed", "AbortError");
+      for (const entry of result.items) {
+        const item = presentCatalogItem(entry);
+        itemCache.set(cacheKey(entry.item_code), item);
+        if (active()) remember(item);
+      }
+    }
+    return new Map(
+      unique.flatMap((code) => {
+        const item = itemCache.get(cacheKey(code));
+        return item ? [[code, item] as const] : [];
       }),
     );
-    if (active()) remember(item);
-    return item;
   }
   function issues(value: OperationDraft) {
     return operationIssues(value, {
@@ -125,21 +157,46 @@ export function useOperationEditor(props: {
   }
   async function prepare(value: Record<string, unknown>) {
     const sent = value as unknown as OperationDraft;
-    if (sent.kind === "Receive")
-      for (const line of sent.items) {
-        if (!stock.find((row) => row.code === line.code)?.tracksBatch) continue;
-        if (line.nativeBundle) continue;
-        const result = await services.call<{ name: string }>(
-          "catalog.receipt_batch",
-          {
-            item_code: line.code,
-            batch_id: line.batch || `TI-B-${line.localId}`,
-            manufacturing_date: line.manufacturingDate || null,
-            expiry_date: line.expiry || null,
-          },
+    if (sent.kind === "Receive") {
+      const signature = (line: AllocationLine) =>
+        JSON.stringify([
+          line.code,
+          line.batch || "",
+          line.manufacturingDate || "",
+          line.expiry || "",
+        ]);
+      const rows = sent.items.flatMap((line) =>
+        !stock.find((row) => row.code === line.code)?.tracksBatch ||
+        line.nativeBundle
+          ? []
+          : confirmedBatches.get(line.localId) === signature(line)
+            ? []
+            : [
+                {
+                  item_code: line.code,
+                  batch_id: line.batch || "",
+                  local_id: line.localId,
+                  manufacturing_date: line.manufacturingDate || null,
+                  expiry_date: line.expiry || null,
+                },
+              ],
+      );
+      if (rows.length) {
+        const result = await services.call<{
+          batches: { local_id: string; name: string }[];
+        }>("catalog.receipt_batches", { rows });
+        const names = new Map(
+          result.batches.map((row) => [row.local_id, row.name]),
         );
-        line.batch = result.name;
+        for (const row of rows) {
+          const line = sent.items.find((item) => item.localId === row.local_id);
+          if (line) {
+            line.batch = names.get(row.local_id) || line.batch;
+            confirmedBatches.set(line.localId, signature(line));
+          }
+        }
       }
+    }
     return encodeOperation(sent, reference);
   }
   const editor = createNativeEditor({
@@ -234,6 +291,7 @@ export function useOperationEditor(props: {
   provideOperationContext({
     stock,
     ensure,
+    ensureMany,
     remember,
     timestamp,
     issues,
@@ -269,11 +327,33 @@ export function useOperationEditor(props: {
   );
   async function hydrate() {
     if (!state.identity || state.server?.editable === true) {
-      for (const code of new Set(draft.value.items.map((line) => line.code))) {
-        await ensure(code);
-        if (!active()) return;
-      }
+      const codes = [...new Set(draft.value.items.map((line) => line.code))];
+      const loaded = await ensureMany(codes);
+      if (codes.some((code) => !loaded.has(code)))
+        throw new Error("部分物品不存在或无权访问，请检查草稿明细");
+      if (!active()) return;
     }
+    const batchNames = state.identity
+      ? [
+          ...new Set(
+            draft.value.items
+              .filter((line) => line.batch && !line.batchAllocations?.length)
+              .map((line) => line.batch),
+          ),
+        ]
+      : [];
+    const batchMetadata = batchNames.length
+      ? await services.call<
+          Record<
+            string,
+            {
+              item_code: string;
+              expiry_date: string;
+              manufacturing_date: string;
+            }
+          >
+        >("catalog.batch_metadata_many", { names: batchNames })
+      : {};
     for (const line of draft.value.items) {
       const item = stock.find((row) => row.code === line.code),
         batch = item?.locations
@@ -292,11 +372,8 @@ export function useOperationEditor(props: {
           line.manufacturingDate = recorded.manufacturingDate || "";
         }
       } else if (line.batch && !line.batchAllocations?.length) {
-        const metadata = await services.call<{
-          item_code: string;
-          expiry_date: string;
-          manufacturing_date: string;
-        }>("catalog.batch_metadata", { name: line.batch });
+        const metadata = batchMetadata[line.batch];
+        if (!metadata) throw new Error("批次资料无法读取");
         if (metadata.item_code !== line.code)
           throw new Error("批次不属于此物品");
         line.expiry = metadata.expiry_date;
@@ -310,6 +387,7 @@ export function useOperationEditor(props: {
     if (loading.value) return;
     state.error = "";
     loading.value = true;
+    hydrating.value = true;
     ready = false;
     clearTimeout(timer);
     try {
@@ -332,9 +410,11 @@ export function useOperationEditor(props: {
         props.initialItems?.length
       ) {
         const additions: AllocationLine[] = [];
-        for (const code of new Set(props.initialItems)) {
-          const item = await ensure(code);
-          if (!active()) return;
+        const codes = [...new Set(props.initialItems)];
+        const loaded = await ensureMany(codes);
+        for (const code of codes) {
+          const item = loaded.get(code);
+          if (!item) continue;
           const id = crypto.randomUUID();
           const eligible = item.locations.filter((place) =>
             ["Repair", "Disposal"].includes(draft.value.kind)
@@ -366,10 +446,14 @@ export function useOperationEditor(props: {
         draft.value.items.push(...additions);
         initialItemsApplied = true;
       }
-      if (!state.identity && props.initialAllocations?.length)
+      if (!state.identity && props.initialAllocations?.length) {
+        await ensureMany([
+          ...new Set(props.initialAllocations.map((row) => row.item_code)),
+        ]);
         for (const allocation of props.initialAllocations) {
-          const item = await ensure(allocation.item_code),
+          const item = itemCache.get(cacheKey(allocation.item_code)),
             id = crypto.randomUUID();
+          if (!item) continue;
           if (!active()) return;
           const batch = item.locations
             .find((place) => place.location === allocation.warehouse)
@@ -393,6 +477,7 @@ export function useOperationEditor(props: {
             manufacturingDate: batch?.manufacturingDate,
           });
         }
+      }
       state.recoveryError = recovery.list().error;
       if (!state.identity && props.originalLoan)
         await appendLoan(props.originalLoan);
@@ -402,6 +487,7 @@ export function useOperationEditor(props: {
     } finally {
       if (active()) {
         loading.value = false;
+        hydrating.value = false;
         ready = true;
         if (!state.identity && draft.value.items.length) editor.retain();
       }
@@ -731,6 +817,7 @@ export function useOperationEditor(props: {
     stock,
     reference,
     loading,
+    hydrating,
     busy,
     savePending,
     writable,

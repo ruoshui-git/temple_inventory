@@ -56,21 +56,33 @@ test("save, reload and amendment keep the current native identity in the URL", a
         },
         operations: { Receive: true },
       };
-    else if (method === "temple_inventory.catalog.operation_item")
+    else if (method === "temple_inventory.catalog.operation_items")
       message = {
-        item_code: args.item_code,
-        item_name: "测试物品",
-        item_group: "用品",
-        stock_uom: "Nos",
-        description: "",
-        version: "item-v1",
-        has_batch_no: false,
-        has_expiry_date: false,
-        can_edit: false,
-        barcodes: [],
-        uoms: [{ uom: "Nos", conversion_factor: 1 }],
-        stock: [],
-        attachments: [],
+        items: [
+          {
+            item_code: args.item_codes?.[0],
+            item_name: "测试物品",
+            item_group: "用品",
+            stock_uom: "Nos",
+            description: "",
+            version: "item-v1",
+            has_batch_no: false,
+            has_expiry_date: false,
+            can_edit: false,
+            barcodes: [],
+            uoms: [{ uom: "Nos", conversion_factor: 1 }],
+            stock: [],
+            attachments: [],
+          },
+        ],
+        errors: [],
+      };
+    else if (method === "temple_inventory.catalog.item_lifecycle")
+      message = {
+        disabled: false,
+        tracking_changeable: true,
+        tracking_change_reason: "",
+        can_delete: true,
       };
     else if (method === "temple_inventory.native_files.attachments")
       message = [];

@@ -20,6 +20,45 @@ from temple_inventory.report_sources import (
 )
 
 DASHBOARD_EXPIRY_PREVIEW_LIMIT = 5
+COMMON_MEASURES = {
+	"Kg": 0,
+	"Gram": 1,
+	"Litre": 2,
+	"Meter": 3,
+	"Centimeter": 4,
+	"Millimeter": 5,
+	"Square Meter": 6,
+	"Cubic Meter": 7,
+	"Millilitre": 8,
+}
+
+
+def ranked_uoms():
+	"""Enabled UOMs ordered by current use, count units, common measures, then category."""
+	used = dict(
+		frappe.db.sql(
+			"""select uom, count(distinct item) from (
+			select stock_uom as uom, name as item from `tabItem`
+			union all
+			select uom, parent as item from `tabUOM Conversion Detail` where parenttype='Item'
+		) as used where uom is not null and uom!='' group by uom"""
+		)
+	)
+	rows = list(
+		paged("UOM", filters={"enabled": 1}, fields=["name", "uom_name", "must_be_whole_number", "category"])
+	)
+
+	def rank(row):
+		name = row.name
+		if name in used:
+			return (0, -int(used[name]), name.casefold())
+		if row.must_be_whole_number and not row.category:
+			return (1, 0, name.casefold())
+		if name in COMMON_MEASURES:
+			return (2, COMMON_MEASURES[name], name.casefold())
+		return (3, str(row.category or "").casefold(), name.casefold())
+
+	return [dict(row) for row in sorted(rows, key=rank)]
 
 
 @frappe.whitelist()
@@ -89,7 +128,7 @@ def bootstrap():
 				order_by="lft asc, name asc",
 			)
 		),
-		"uoms": list(paged("UOM", fields=["name", "uom_name", "must_be_whole_number"])),
+		"uoms": ranked_uoms(),
 		"activity_types": activity_types(),
 		"operations": operations,
 		"operation_requirements": requirements,
@@ -482,7 +521,8 @@ def _document_card(query, refresh=False):
 				if line["item_name"] not in names:
 					names.append(line["item_name"])
 		for row in rows:
-			row["item_names"] = "、".join(row.get("item_names", []))
+			row["item_count"] = len(row.get("item_names", []))
+			row["item_names"] = row.get("item_names", [])[:2]
 		kind_counts = dict(
 			projection.db.execute(
 				"select json_extract(payload, '$.kind'), count(distinct json_extract(payload, '$.document_id')) from rows where table_id='records' group by json_extract(payload, '$.kind')"

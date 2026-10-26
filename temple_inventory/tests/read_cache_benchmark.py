@@ -502,9 +502,9 @@ def run_http_cold_load_benchmark():
 			},
 		),
 		(
-			"operation_item",
-			"temple_inventory.catalog.operation_item",
-			{"item_code": item or ""},
+			"operation_items",
+			"temple_inventory.catalog.operation_items",
+			{"item_codes": [item] if item else []},
 		),
 		("notifications inbox", "temple_inventory.notifications.inbox", {"page": 1, "page_size": 30}),
 	]

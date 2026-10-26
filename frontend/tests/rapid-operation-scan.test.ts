@@ -132,6 +132,15 @@ function setup(
       if (!item) throw new Error("物品不存在");
       return item;
     }),
+    ensureMany: vi.fn(
+      async (codes: string[]) =>
+        new Map(
+          codes.flatMap((code) => {
+            const item = findItem(code);
+            return item ? [[code, item] as const] : [];
+          }),
+        ),
+    ),
     timestamp: () => "2026-10-21 10:00:00",
     issues: () => [],
     lineStock: (line) =>
@@ -151,11 +160,11 @@ function setup(
         : place.available;
     },
   };
+  const call = vi.fn(
+    async () => ({ results: [], matched_count: 0, next_start: null }) as never,
+  );
   const services: InventoryServices = {
-    call: vi.fn(
-      async () =>
-        ({ results: [], matched_count: 0, next_start: null }) as never,
-    ),
+    call,
     report: vi.fn(
       async () => ({ rows: [], matched_count: 0, next_start: null }) as never,
     ),
@@ -176,7 +185,7 @@ function setup(
     },
   });
   wrappers.push(wrapper);
-  return { wrapper, draft, reference, context, stock };
+  return { wrapper, draft, reference, context, stock, call };
 }
 
 async function openPicker(wrapper: VueWrapper) {
@@ -320,7 +329,7 @@ describe("rapid operation scan integration", () => {
     expect(picker.props("context")).toBe("出库 · ");
     picker.vm.$emit("select", { code: "ITEM-A", warehouse: "ROOM-B" });
     await flushPromises();
-    expect(context.ensure).toHaveBeenCalledWith("ITEM-A");
+    expect(context.ensure).not.toHaveBeenCalled();
     expect(draft.items).toHaveLength(1);
     expect(draft.items[0]).toMatchObject({
       sourceLocation: "ROOM-B",
@@ -704,5 +713,23 @@ describe("rapid operation scan integration", () => {
     finish(stockItem());
     await pending;
     expect(draft.items).toHaveLength(0);
+  });
+
+  it("derives a reopened Receive destination from its lines without saving a preference", async () => {
+    const receive = setup(
+      "Receive",
+      [stockItem()],
+      [{ id: "existing-line", location: "ROOM-B" }],
+      true,
+    );
+    await flushPromises();
+    const selector = receive.wrapper
+      .findAllComponents(SearchSelectStub)
+      .find((component) => component.props("label") === "入库位置");
+    expect(selector?.props("modelValue")).toBe("ROOM-B");
+    expect(receive.call).not.toHaveBeenCalledWith(
+      "preferences.save_creation_location",
+      expect.anything(),
+    );
   });
 });

@@ -472,6 +472,7 @@ class ReportContext:
 			"stock_uom": item.stock_uom,
 			"image": image,
 			"batch_tracked": bool(item.has_batch_no),
+			"disabled": bool(item.disabled),
 		}
 
 	def label(self, warehouse):

@@ -69,21 +69,33 @@ for (const width of [375, 1024, 1440]) {
           analysis: { category: [], location: [] },
           query: args.query,
         };
-      } else if (method === "temple_inventory.catalog.operation_item")
+      } else if (method === "temple_inventory.catalog.operation_items")
         message = {
-          item_code: args.item_code,
-          item_name: "原生物品详情",
-          item_group: "用品",
-          stock_uom: "个",
-          description: "",
-          version: "v1",
-          has_batch_no: false,
-          has_expiry_date: false,
-          can_edit: false,
-          barcodes: [],
-          uoms: [],
-          stock: [],
-          attachments: [],
+          items: [
+            {
+              item_code: args.item_codes?.[0],
+              item_name: "原生物品详情",
+              item_group: "用品",
+              stock_uom: "个",
+              description: "",
+              version: "v1",
+              has_batch_no: false,
+              has_expiry_date: false,
+              can_edit: false,
+              barcodes: [],
+              uoms: [],
+              stock: [],
+              attachments: [],
+            },
+          ],
+          errors: [],
+        };
+      else if (method === "temple_inventory.catalog.item_lifecycle")
+        message = {
+          disabled: false,
+          tracking_changeable: true,
+          tracking_change_reason: "",
+          can_delete: true,
         };
       else if (method === "temple_inventory.notifications.inbox")
         message = { items: [], unread_count: 0, has_running_exports: false };

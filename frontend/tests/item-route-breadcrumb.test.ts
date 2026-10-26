@@ -45,7 +45,15 @@ it("shows a loaded item name in its routed breadcrumb", async () => {
     stock: [],
   };
   const call = vi.fn(async (endpoint: string) => {
-    if (endpoint === "catalog.operation_item") return item;
+    if (endpoint === "catalog.operation_items")
+      return { items: [item], errors: [] };
+    if (endpoint === "catalog.item_lifecycle")
+      return {
+        disabled: false,
+        tracking_changeable: true,
+        tracking_change_reason: "",
+        can_delete: true,
+      };
     if (
       endpoint === "browse.movement_history" ||
       endpoint === "browse.loan_item_history"
@@ -83,8 +91,8 @@ it("shows a loaded item name in its routed breadcrumb", async () => {
   await router.isReady();
   await flushPromises();
   expect(call).toHaveBeenCalledWith(
-    "catalog.operation_item",
-    { item_code: item.item_code },
+    "catalog.operation_items",
+    { item_codes: [item.item_code] },
     expect.any(AbortSignal),
   );
   expect(wrapper.get('[aria-label="面包屑"]').text()).toContain("活动周转箱");

@@ -72,24 +72,29 @@ for (const [width, textScale] of [
         },
       );
       await page.route(
-        "**/api/method/temple_inventory.catalog.operation_item",
+        "**/api/method/temple_inventory.catalog.operation_items",
         (route) =>
           route.fulfill({
             json: {
               message: {
-                item_code: "ITEM/BATCH,1",
-                item_name: "长名称法会供养物品 · 保留原生批次与历史换算",
-                item_group: "用品",
-                stock_uom: "Nos",
-                description: "",
-                version: "item-v2",
-                has_batch_no: true,
-                has_expiry_date: true,
-                can_edit: false,
-                barcodes: [],
-                uoms: [{ uom: "箱", conversion_factor: 8 }],
-                stock: [],
-                attachments: [],
+                items: [
+                  {
+                    item_code: "ITEM/BATCH,1",
+                    item_name: "长名称法会供养物品 · 保留原生批次与历史换算",
+                    item_group: "用品",
+                    stock_uom: "Nos",
+                    description: "",
+                    version: "item-v2",
+                    has_batch_no: true,
+                    has_expiry_date: true,
+                    can_edit: false,
+                    barcodes: [],
+                    uoms: [{ uom: "箱", conversion_factor: 8 }],
+                    stock: [],
+                    attachments: [],
+                  },
+                ],
+                errors: [],
               },
             },
           }),

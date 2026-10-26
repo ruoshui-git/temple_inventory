@@ -19,6 +19,12 @@ async function call(request: APIRequestContext, method: string, data = {}) {
   expect(body.exc_type, `${method} native error`).toBeUndefined();
   return body.message;
 }
+async function operationItem(request: APIRequestContext, code: string) {
+  const result = await call(request, "catalog.operation_items", {
+    item_codes: [code],
+  });
+  return result.items[0];
+}
 test.beforeEach(async ({ page }) => {
   test.skip(
     !process.env.NATIVE_ADMIN_PASSWORD,
@@ -129,9 +135,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     let item: any;
     await expect
       .poll(async () => {
-        item = await call(page.request, "catalog.operation_item", {
-          item_code: code,
-        });
+        item = await operationItem(page.request, code);
         return item.image;
       })
       .toMatch(/^\/private\/files\//);
@@ -172,9 +176,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     await page.getByRole("button", { name: "移除", exact: true }).click();
     await expect
       .poll(async () => {
-        const current = await call(page.request, "catalog.operation_item", {
-          item_code: code,
-        });
+        const current = await operationItem(page.request, code);
         return {
           attachments: current.attachments,
           images: current.images,
@@ -420,9 +422,7 @@ test("native seed, clean schema, private originals and the real built app", asyn
   const sampleItem = stock.rows.find((row) => Number(row.stock_qty) > 0);
   expect(sampleItem).toBeTruthy();
   expect(sampleItem.item_code).toMatch(/^ITM-/);
-  const item = await call(page.request, "catalog.operation_item", {
-    item_code: sampleItem.item_code,
-  });
+  const item = await operationItem(page.request, sampleItem.item_code);
   expect(item.image).toMatch(/^\/private\/files\//);
   const authorized = await page.request.get(item.image);
   expect(authorized.ok()).toBe(true);

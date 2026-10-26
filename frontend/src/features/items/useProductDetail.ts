@@ -17,7 +17,14 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user;
-  const item = ref<CatalogItem>(),
+  const item = ref<
+      CatalogItem & {
+        disabled?: boolean;
+        tracking_changeable?: boolean;
+        tracking_change_reason?: string;
+        can_delete?: boolean;
+      }
+    >(),
     loading = ref(false),
     error = ref(""),
     tab = ref(props.tab === "batches" ? "batches" : "overview"),
@@ -26,6 +33,19 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     disposed = false,
     request: AbortController | undefined;
   const active = () => !disposed && reference.user === account;
+  async function loadItem(code: string, signal?: AbortSignal) {
+    const result = await services.call<{
+      items: CatalogItem[];
+      errors: { item_code: string; error: string }[];
+    }>("catalog.operation_items", { item_codes: [code] }, signal);
+    const loaded = result.items.find((row) => row.item_code === code);
+    if (!loaded)
+      throw new Error(
+        result.errors.find((row) => row.item_code === code)?.error ||
+          "物品不存在或无权访问",
+      );
+    return loaded;
+  }
   const files = useAttachments({
     account,
     currentAccount: () => reference.user,
@@ -101,11 +121,16 @@ export function useProductDetail(props: { code: string; tab?: string }) {
       files.clear();
     }
     try {
-      const result = await services.call<CatalogItem>(
-        "catalog.operation_item",
-        { item_code: props.code },
-        request.signal,
-      );
+      const [loaded, lifecycle] = await Promise.all([
+        loadItem(props.code, request.signal),
+        services.call<{
+          disabled: boolean;
+          tracking_changeable: boolean;
+          tracking_change_reason: string;
+          can_delete: boolean;
+        }>("catalog.item_lifecycle", { item_code: props.code }, request.signal),
+      ]);
+      const result = { ...loaded, ...lifecycle };
       if (!active() || current !== generation) return;
       item.value = result;
       files.load(result.attachments || [], result.image);

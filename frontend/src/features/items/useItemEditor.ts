@@ -47,6 +47,19 @@ export function useItemEditor(
     generation = 0;
   let request: AbortController | undefined;
   const active = () => !disposed && account === reference.user;
+  async function loadItem(code: string, signal?: AbortSignal) {
+    const result = await services.call<{
+      items: CatalogItem[];
+      errors: { item_code: string; error: string }[];
+    }>("catalog.operation_items", { item_codes: [code] }, signal);
+    const item = result.items.find((row) => row.item_code === code);
+    if (!item)
+      throw new Error(
+        result.errors.find((row) => row.item_code === code)?.error ||
+          "物品不存在或无权访问",
+      );
+    return item;
+  }
   const model = reactive<ItemInput>({
     code: "",
     name: "",
@@ -58,7 +71,14 @@ export function useItemEditor(
     tracksExpiry: false,
   });
   const supportingDirty = ref(false);
-  const existing = ref<CatalogItem>(),
+  const existing = ref<
+      CatalogItem & {
+        tracking_changeable?: boolean;
+        tracking_change_reason?: string;
+        disabled?: boolean;
+        can_delete?: boolean;
+      }
+    >(),
     loading = ref(false),
     busy = ref(false),
     error = ref(""),
@@ -189,11 +209,18 @@ export function useItemEditor(
     conflict.value = false;
     try {
       if (props.code) {
-        const item = await services.call<CatalogItem>(
-          "catalog.operation_item",
-          { item_code: props.code },
-          request.signal,
-        );
+        const [loaded, lifecycle] = await Promise.all([
+          loadItem(props.code, request.signal),
+          services.call<{
+            tracking_changeable: boolean;
+            tracking_change_reason: string;
+          }>(
+            "catalog.item_lifecycle",
+            { item_code: props.code },
+            request.signal,
+          ),
+        ]);
+        const item = { ...loaded, ...lifecycle };
         if (!active() || current !== generation) return;
         existing.value = item;
         Object.assign(model, {
@@ -241,10 +268,14 @@ export function useItemEditor(
     const source = { editorId: snapshot.editorId, revision: snapshot.revision };
     if (code) {
       try {
-        const current = await services.call<CatalogItem>(
-          "catalog.operation_item",
-          { item_code: code },
-        );
+        const [loaded, lifecycle] = await Promise.all([
+          loadItem(code),
+          services.call<{
+            tracking_changeable: boolean;
+            tracking_change_reason: string;
+          }>("catalog.item_lifecycle", { item_code: code }),
+        ]);
+        const current = { ...loaded, ...lifecycle };
         if (!active() || disposed) return;
         if (current.version !== snapshot.baseVersion) {
           error.value = "物品已更改，不能覆盖原记录；请复制恢复文字后核对";
