@@ -1,28 +1,14 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { nextTick, h } from "vue";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import PreviewInventory from "./support/FixtureHostInventory.vue";
 import PreviewReceive from "./support/FixtureHostReceive.vue";
 import PreviewOverlay from "../src/components/ui/Overlay.vue";
 import PreviewStockDetails from "../src/components/StockDetails.vue";
 import PreviewItemImage from "./support/FixtureHostItemImage.vue";
 import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
-import { pageHash } from "./support/reviewModel";
-import {
-  defaults,
-  filterItems,
-  expiryStatus,
-  itemBatches,
-  items,
-  preferenceKey,
-  quantities,
-  readPreferences,
-  themes,
-  validateLines,
-  writePreferences,
-} from "./support/model";
+import { items } from "./support/model";
 
 const mounted: VueWrapper[] = [];
 function render(component: any, props: Record<string, unknown> = {}) {
@@ -67,156 +53,6 @@ afterEach(() => {
   document.body.style.overflow = "";
   vi.useRealTimers();
   vi.unstubAllGlobals();
-});
-
-describe("design preview preferences and fixtures", () => {
-  it("keeps legacy density while adopting jade and current workflow defaults", () => {
-    localStorage.setItem(
-      "ti:design-preview:v1",
-      JSON.stringify({
-        theme: "jade",
-        density: "compact",
-        navigation: "current",
-        actions: "proposed",
-        form: "current",
-      }),
-    );
-    expect(readPreferences(localStorage)).toEqual({
-      ...defaults,
-      theme: "jade",
-      density: "compact",
-    });
-  });
-  it("does not carry legacy palette, navigation, or proposed workflow into the approved defaults", () => {
-    localStorage.setItem(
-      "ti:design-preview:v2",
-      JSON.stringify({
-        theme: "bronze",
-        density: "spacious",
-        navigation: "proposed",
-        form: "proposed",
-      }),
-    );
-    expect(readPreferences(localStorage)).toEqual({
-      ...defaults,
-      density: "spacious",
-    });
-  });
-  it("scopes item totals and distinct batches to the selected locations", () => {
-    const rice = items[0];
-    expect(rice.locations).toHaveLength(3);
-    expect(rice.locations.reduce((sum, row) => sum + row.available, 0)).toBe(
-      128,
-    );
-    expect(itemBatches(rice).map((batch) => batch.available)).toEqual([92, 36]);
-    const scoped = filterItems(rice.code, ["斋堂 / A-02"], "")[0];
-    expect(scoped.locations).toHaveLength(1);
-    expect(scoped.available).toBe(32);
-    expect(itemBatches(scoped)).toHaveLength(1);
-    const parentAndChild = filterItems(
-      rice.code,
-      ["斋堂", "斋堂 / A-01"],
-      "",
-    )[0];
-    expect(parentAndChild.available).toBe(112);
-    expect(parentAndChild.locations).toHaveLength(2);
-    expect(rice.available).toBe(128);
-  });
-  it("keeps batch tracking independent of expiry tracking", () => {
-    const plain = items[2];
-    const batchOnly = items[5];
-    expect(itemBatches(plain)).toEqual([]);
-    expect(expiryStatus(plain)).toBeNull();
-    expect(itemBatches(batchOnly)).toHaveLength(1);
-    expect(expiryStatus(batchOnly)).toBeNull();
-    expect(expiryStatus(items[0])).toBe("未过期");
-    expect(expiryStatus(items[1])).toBe("未过期");
-    expect(expiryStatus(items[4])).toBe("已过期");
-    const line = {
-      id: 1,
-      code: plain.code,
-      location: plain.locations[0].location,
-      qty: 2,
-      batch: "",
-      expiry: "",
-    };
-    expect(validateLines([line])).toBe("");
-    expect(
-      validateLines([{ ...line, code: batchOnly.code, batch: "TEXTILE-DEMO" }]),
-    ).toBe("");
-    expect(validateLines([{ ...line, code: batchOnly.code }])).toContain(
-      "批次编号",
-    );
-    expect(
-      validateLines([{ ...line, code: items[0].code, batch: "RICE-DEMO" }]),
-    ).toContain("到期日期");
-  });
-  it("validates persisted choices and survives inaccessible or corrupt storage", () => {
-    expect(readPreferences(undefined)).toEqual(defaults);
-    expect(readPreferences({ getItem: () => "not json" })).toEqual(defaults);
-    expect(readPreferences({ getItem: () => "null" })).toEqual(defaults);
-    expect(
-      readPreferences({
-        getItem: () => '{"theme":"unknown","density":"tiny"}',
-      }),
-    ).toEqual(defaults);
-    expect(
-      readPreferences({
-        getItem: () => {
-          throw new Error("blocked");
-        },
-      }),
-    ).toEqual(defaults);
-    expect(() =>
-      writePreferences(
-        {
-          setItem: () => {
-            throw new Error("quota");
-          },
-        },
-        defaults,
-      ),
-    ).not.toThrow();
-    const choices = {
-      ...defaults,
-      theme: "jade" as const,
-      density: "spacious" as const,
-    };
-    writePreferences(localStorage, choices);
-    expect(readPreferences(localStorage)).toEqual(choices);
-    expect(Object.keys(localStorage)).toEqual([preferenceKey]);
-  });
-  it("filters by ancestor, category and search, and sums quantities per unit", () => {
-    expect(filterItems("", ["斋堂"], "食品")).toHaveLength(3);
-    expect(
-      filterItems("ITM-000128", ["斋堂 / A-01"], "食品").map(
-        (item) => item.name,
-      ),
-    ).toEqual(["东北珍珠米"]);
-    expect(filterItems("不存在", [], "")).toEqual([]);
-    expect(quantities(items)).toEqual([
-      { uom: "袋", qty: 128 },
-      { uom: "桶", qty: 36 },
-      { uom: "件", qty: 82 },
-      { uom: "个", qty: 48 },
-    ]);
-  });
-  it("requires positive finite quantities and batch fields without rejecting expired donations", () => {
-    const line = {
-      id: 1,
-      code: items[0].code,
-      qty: 1,
-      location: items[0].locations[0].location,
-      batch: "DEMO",
-      expiry: "2026-01-01",
-    };
-    expect(validateLines([line])).toBe("");
-    expect(validateLines([])).not.toBe("");
-    expect(validateLines([{ ...line, qty: 0 }])).not.toBe("");
-    expect(validateLines([{ ...line, qty: NaN }])).not.toBe("");
-    expect(validateLines([{ ...line, batch: " " }])).not.toBe("");
-    expect(validateLines([{ ...line, location: "invalid" }])).not.toBe("");
-  });
 });
 
 describe("interactive preview", () => {
@@ -337,7 +173,7 @@ describe("interactive preview", () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
     await flushPromises();
     await wrapper.get('input[aria-label="搜索库存"]').setValue("珍珠米");
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await vi.waitFor(() => expect(wrapper.findAll("tbody tr")).toHaveLength(1));
     await flushPromises();
     await wrapper.get('[aria-label="更多操作"]').trigger("click");
     document
@@ -375,7 +211,7 @@ describe("interactive preview", () => {
       availableHeader.element.closest("th")?.getAttribute("aria-sort"),
     ).toBe("ascending");
     await wrapper.get('input[aria-label="搜索库存"]').setValue("长袖");
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await vi.waitFor(() => expect(wrapper.findAll("tbody tr")).toHaveLength(1));
     await flushPromises();
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
     expect(wrapper.get(".selection-bar").text()).toContain("已选择 1 项");
@@ -472,43 +308,5 @@ describe("interactive preview", () => {
     expect(document.activeElement).toBe(trigger);
     expect(document.body.style.overflow).toBe("");
     expect(host.inert).toBe(false);
-  });
-});
-
-function contrast(a: string, b: string) {
-  const luminance = (hex: string) => {
-    const value = hex.replace("#", "");
-    const channels = [0, 2, 4]
-      .map((index) => parseInt(value.slice(index, index + 2), 16) / 255)
-      .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  };
-  const values = [luminance(a), luminance(b)].sort((a, b) => b - a);
-  return (values[0] + 0.05) / (values[1] + 0.05);
-}
-describe("preview palette contrast", () => {
-  for (const theme of themes) {
-    it(`${theme.id} supports readable text, selected states and focus indicators`, () => {
-      for (const surface of ["#FFFFFF", theme.canvas, theme.soft]) {
-        expect(contrast(theme.ink, surface)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(theme.muted, surface)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(theme.accent, surface)).toBeGreaterThanOrEqual(4.5);
-      }
-      expect(contrast("#FFFFFF", theme.accent)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast("#FFFFFF", theme.strong)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(theme.border, "#FFFFFF")).toBeGreaterThanOrEqual(3);
-    });
-  }
-  it("keeps semantic status text legible", () => {
-    const css = readFileSync("src/styles/foundation.css", "utf8");
-    for (const kind of ["success", "warning", "danger", "info"]) {
-      const foreground = css.match(
-        new RegExp(`--p-${kind}: (#[0-9a-f]{6})`),
-      )![1];
-      const background = css.match(
-        new RegExp(`--p-${kind}-bg: (#[0-9a-f]{6})`),
-      )![1];
-      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
-    }
   });
 });

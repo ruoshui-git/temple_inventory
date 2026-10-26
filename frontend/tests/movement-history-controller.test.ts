@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, reactive, computed } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";

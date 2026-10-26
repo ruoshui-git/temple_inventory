@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { nextTick } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

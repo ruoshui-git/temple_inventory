@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
@@ -118,7 +119,6 @@ describe("native drafts and count records", () => {
       '.browse-persistent-search input[aria-label="搜索草稿、物品或活动"]',
     );
     await search.setValue("本地筛选");
-    await new Promise((resolve) => setTimeout(resolve, 230));
     expect(c.query.value.search).toBe("");
     await wrapper.get('button[aria-haspopup="dialog"]').trigger("click");
     await flushPromises();

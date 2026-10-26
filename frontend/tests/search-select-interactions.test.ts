@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import SearchSelect from "../src/components/ui/SearchSelect.vue";
@@ -33,6 +34,64 @@ function mountSelect(props: Record<string, unknown>) {
 }
 
 describe("SearchSelect interactions", () => {
+  it("moves through teleported options by keyboard, selects, and closes without losing input focus", async () => {
+    const wrapper = mountSelect({
+      options: [
+        { value: "A", label: "位置 A" },
+        { value: "B", label: "位置 B" },
+      ],
+    });
+    const input = wrapper.get<HTMLInputElement>("input[role=combobox]");
+    input.element.focus();
+    await flushPromises();
+    const popup = document.body.querySelector<HTMLElement>(
+      ".search-select-menu",
+    );
+    expect(popup).not.toBeNull();
+
+    await input.trigger("keydown", { key: "ArrowDown" });
+    expect(
+      popup?.querySelector('[role="option"].active')?.textContent,
+    ).toContain("位置 B");
+    await input.trigger("keydown", { key: "ArrowUp" });
+    expect(
+      popup?.querySelector('[role="option"].active')?.textContent,
+    ).toContain("位置 A");
+    await input.trigger("keydown", { key: "ArrowDown" });
+    await input.trigger("keydown", { key: "Enter" });
+    expect(wrapper.emitted("update:modelValue")).toEqual([["B"]]);
+    expect(input.attributes("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(input.element);
+  });
+
+  it("closes on Escape while retaining input focus, and lets Tab leave", async () => {
+    const wrapper = mountSelect({
+      options: [{ value: "A", label: "位置 A" }],
+    });
+    const input = wrapper.get<HTMLInputElement>("input[role=combobox]");
+    const next = document.createElement("button");
+    next.textContent = "下一个控件";
+    document.body.append(next);
+    input.element.focus();
+    await flushPromises();
+    await input.trigger("keydown", { key: "Escape" });
+    expect(document.body.querySelector(".search-select-menu")).toBeNull();
+    expect(document.activeElement).toBe(input.element);
+    input.element.focus();
+    await flushPromises();
+    const tab = new KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.element.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(false);
+    next.focus();
+    await flushPromises();
+    expect(document.activeElement).toBe(next);
+    expect(document.body.querySelector(".search-select-menu")).toBeNull();
+  });
+
   it("keeps local search open and reveals more rows after 显示更多", async () => {
     const wrapper = mountSelect({
       options: Array.from({ length: 25 }, (_, index) => ({

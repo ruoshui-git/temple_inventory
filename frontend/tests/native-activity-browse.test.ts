@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive } from "vue";
@@ -226,7 +227,9 @@ describe("native Activity browse scopes", () => {
     );
     await search.setValue("配方奶粉");
     expect(controller.recordSearch.value).toBe("");
-    await new Promise((resolve) => setTimeout(resolve, 240));
+    await vi.waitFor(() =>
+      expect(controller.recordSearch.value).toBe("配方奶粉"),
+    );
     await flushPromises();
     expect(controller.recordSearch.value).toBe("配方奶粉");
     await wrapper.get('[role="tab"]:nth-child(2)').trigger("click");

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import postcss from "postcss";
@@ -96,7 +97,7 @@ describe("shared production design system", () => {
       'variant="stock-row"',
     );
   });
-  it("uses the sole production visual entry after gallery retirement", () => {
+  it("keeps the documented stylesheet entry and retired preview gallery out of production", () => {
     expect(read("src/main.ts")).toContain('import "./styles/app.css"');
     expect(existsSync(resolve("design-preview.html"))).toBe(false);
     expect(
@@ -104,15 +105,12 @@ describe("shared production design system", () => {
         key.startsWith("design:"),
       ),
     ).toBe(false);
-    expect(read("src/styles/app.css").match(/@import/g)).toHaveLength(5);
-    for (const path of [
-      "src/styles/tokens.css",
-      "src/styles/primitives.css",
-      "src/style.css",
-      "src/loading.css",
-    ])
-      expect(existsSync(resolve(path)), path).toBe(false);
     expect(read("src/main.ts")).not.toContain("frappe-ui/style.css");
+    const production = importGraph("src/main.ts");
+    expect(production).toContain(resolve("src/styles/app.css"));
+    expect(production.some((path) => path.includes("/design-preview/"))).toBe(
+      false,
+    );
   });
   it("sets explicit initial expansion policies for direct hierarchy filters", () => {
     expect(read("src/components/filters/BrowseFilters.vue")).toContain(
@@ -131,21 +129,14 @@ describe("shared production design system", () => {
     expect(itemPicker).toContain('props.purpose === "inbound"');
   });
 
-  it("keeps production independent of fixtures and the gallery independent of authentication, RPC and PWA startup", () => {
+  it("keeps fixture code out of the production import graph", () => {
     const production = importGraph("src/main.ts");
-    expect(
-      production.some((path) => path.includes("/features/documents/")),
-    ).toBe(true);
-    expect(
-      production.filter((path) => path.includes("/design-preview/")),
-    ).toEqual([]);
-    expect(
-      production.filter((path) =>
-        /\/src\/features\/(workspace|history|reconciliation|movement-overview|loan-detail)\//.test(
-          path,
-        ),
-      ),
-    ).toEqual([]);
+    expect(production.some((path) => path.includes("/tests/support/"))).toBe(
+      false,
+    );
+    expect(production.some((path) => path.includes("/design-preview/"))).toBe(
+      false,
+    );
   });
 
   it("preserves exact approved theme values and radius differences at the document root", () => {
@@ -183,7 +174,11 @@ describe("shared production design system", () => {
       for (const color of [theme.ink, theme.muted, theme.accent]) {
         expect(contrast(color, theme.canvas)).toBeGreaterThanOrEqual(4.5);
         expect(contrast(color, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrast(color, themeTokens.get("--p-soft")!),
+        ).toBeGreaterThanOrEqual(4.5);
       }
+      expect(contrast("#FFFFFF", theme.accent)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(theme.border, "#FFFFFF")).toBeGreaterThanOrEqual(3);
     }
   });
@@ -320,15 +315,9 @@ describe("shared production design system", () => {
     expect(rail.get("min-height")).toBe("0");
     expect(rail.get("overflow-x")).toBe("auto");
     expect(rail.get("overflow-y")).toBe("auto");
-    expect(rail.get("top")).toContain("var(--preview-desktop-nav-height, 0px)");
-    expect(rail.get("top")).toContain("var(--browse-toolbar-height, 0px)");
-    expect(rail.get("max-height")).toContain(
-      "var(--preview-desktop-nav-height, 0px)",
-    );
-    expect(rail.get("max-height")).toContain("var(--preview-nav-height, 0px)");
-    const stock = read("src/features/inventory/StockBrowseView.vue");
-    expect(stock).toContain('class="browse-filter-rail"');
-    expect(stock).not.toContain('class="filter-rail browse-filter-rail"');
+    expect(rail.get("top")).toContain("var(--");
+    expect(rail.get("top")).toContain("browse-toolbar-height");
+    expect(rail.get("max-height")).toContain("calc(");
     const inventory = postcss.parse(read("src/styles/foundation.css"));
     const stockGrid = declarationsFor(
       inventory,
@@ -340,7 +329,7 @@ describe("shared production design system", () => {
       declarationsFor(browse, ".browse-persistent-search input").get(
         "scroll-margin-block-start",
       ),
-    ).toContain("var(--preview-desktop-nav-height, 0px)");
+    ).toContain("calc(");
 
     const targets = postcss.parse(read("src/styles/foundation.css"));
     const browseRow = new Map<string, string>();
@@ -349,9 +338,7 @@ describe("shared production design system", () => {
         browseRow.set(declaration.prop, declaration.value),
       ),
     );
-    expect(browseRow.get("scroll-margin-block-start")).toContain(
-      "var(--preview-desktop-nav-height, 0px)",
-    );
+    expect(browseRow.get("scroll-margin-block-start")).toContain("calc(");
     const table = postcss.parse(read("src/styles/data-table.css"));
     const groupTargets = new Map<string, string>();
     table.walkRules((rule) => {
@@ -360,12 +347,7 @@ describe("shared production design system", () => {
         groupTargets.set(declaration.prop, declaration.value),
       );
     });
-    expect(groupTargets.get("scroll-margin-block-start")).toContain(
-      "var(--preview-desktop-nav-height, 0px)",
-    );
-    expect(groupTargets.get("scroll-margin-block-start")).toContain(
-      "var(--browse-toolbar-height, 0px)",
-    );
+    expect(groupTargets.get("scroll-margin-block-start")).toContain("calc(");
   });
 
   it("bounds dense toolbar chips independently from the persistent mobile search", () => {

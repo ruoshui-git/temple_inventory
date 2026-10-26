@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import NativeStatusBadge from "../src/components/ui/NativeStatusBadge.vue";

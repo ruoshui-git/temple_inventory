@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import MovementHistoryTable from "../src/components/ui/MovementHistoryTable.vue";

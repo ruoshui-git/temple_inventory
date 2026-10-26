@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ScannerService, type ScannerEngine } from "../src/lib/scanner";
 function engine(deviceId?: string) {

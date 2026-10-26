@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { afterEach, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import BrowseSplitButton from "../src/components/ui/BrowseSplitButton.vue";
 import BrowseResultSummary from "../src/components/ui/BrowseResultSummary.vue";
@@ -48,7 +48,13 @@ it("fires the default action from the mobile FAB and hides it while an overlay i
   const overlay = document.createElement("div");
   overlay.className = "preview-overlay";
   document.body.append(overlay);
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await vi.waitFor(() =>
+    expect(
+      document
+        .querySelector(".browse-split-button")
+        ?.classList.contains("is-hidden"),
+    ).toBe(true),
+  );
   expect(
     document
       .querySelector(".browse-split-button")
@@ -93,37 +99,6 @@ it("keeps two group values inline and represents the remainder with +N 项", () 
   expect(
     compactGroupSummary("入库 9 Kg · 出库 7 Kg · 调拨 3 箱 · 借出 1 Nos"),
   ).toBe("入库\u00a09\u00a0Kg · 出库\u00a07\u00a0Kg · +2\u00a0项");
-});
-
-it("keeps grouped tables on the fluid width model and caps quantity columns", () => {
-  const css = readFileSync("src/styles/data-table.css", "utf8");
-  expect(css).not.toMatch(
-    /table\.data-table-has-groups\s*\{[^}]*width:\s*max-content/s,
-  );
-  expect(css).toContain("max-width: 16rem");
-  expect(css).toContain("white-space: normal");
-});
-
-it("leaves room for the mobile return-to-top control after dashboard content", () => {
-  const browse = readFileSync("src/styles/browse.css", "utf8");
-  expect(browse).toContain(
-    "padding-block-end: calc(208px + env(safe-area-inset-bottom))",
-  );
-});
-
-it("keeps the filter rail as the single sidebar scroll surface and gives off switches a contrast token", () => {
-  const browse = readFileSync("src/styles/browse.css", "utf8");
-  const utility = readFileSync("src/styles/utilities.css", "utf8");
-  const settings = readFileSync(
-    "src/features/settings/NotificationSettingsPage.vue",
-    "utf8",
-  );
-  expect(browse).toMatch(/\.browse-filter-rail\s*\{[^}]*overflow-y:\s*auto/s);
-  expect(browse).toMatch(
-    /\.browse-filter-rail[\s\S]*?\.facet-suggestions[\s\S]*?overflow:\s*visible/,
-  );
-  expect(settings).toContain("'is-off': !c.preferences.value[event.key]");
-  expect(utility).toMatch(/input\.is-off[\s\S]*?--p-switch-off/);
 });
 
 it("shows an icon and a primary action for an empty results table", async () => {

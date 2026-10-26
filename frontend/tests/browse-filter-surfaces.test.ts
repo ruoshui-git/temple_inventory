@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, h, provide, reactive, ref } from "vue";
@@ -404,7 +405,10 @@ it("stores rail visibility in the user's Frappe defaults and retries a failed sa
   );
   await flushPromises();
   await wrapper.get("button[aria-pressed]").trigger("click");
-  await new Promise((resolve) => setTimeout(resolve, 260));
+  await vi.waitFor(() =>
+    expect(wrapper.get('[role="alert"]').text()).toContain("未保存"),
+  );
+
   await flushPromises();
   expect(call).toHaveBeenCalled();
   expect(wrapper.get('[role="alert"]').text()).toContain("未保存");

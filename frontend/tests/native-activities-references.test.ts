@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { useLinkedActivity } from "../src/features/activities/useLinkedActivity";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";

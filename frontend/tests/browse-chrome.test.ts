@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
@@ -75,7 +76,10 @@ it("keeps browse actions and result controls in the persistent toolbar", async (
   expect(search.isVisible()).toBe(true);
   expect(wrapper.findAll('input[type="search"]')).toHaveLength(1);
   await search.setValue("法会物品");
-  await new Promise((resolve) => setTimeout(resolve, 230));
+  await vi.waitFor(() =>
+    expect(wrapper.emitted("update:search")?.at(-1)).toEqual(["法会物品"]),
+  );
+
   expect(wrapper.emitted("update:search")?.at(-1)).toEqual(["法会物品"]);
   await wrapper.setProps({ active: false });
   expect(search.isVisible()).toBe(true);

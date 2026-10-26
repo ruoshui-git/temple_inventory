@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, nextTick, ref, type VueWrapper } from "vue";
 import {
@@ -13,6 +14,15 @@ const wrappers: VueWrapper[] = [];
 let disposeRouter: (() => void) | undefined;
 let router: ReturnType<typeof createRouter> | undefined;
 function openOverlay(props: Record<string, unknown> = {}) {
+  const historySyncRouter = createRouter({
+    history: createWebHistory("/"),
+    routes: [
+      { path: "/:pathMatch(.*)*", component: { render: () => h("div") } },
+    ],
+  });
+  const disposeHistorySync = installOverlayHistory(historySyncRouter);
+  disposeHistorySync();
+  historySyncRouter.options.history.destroy();
   const wrapper = mount(Overlay, {
     attachTo: document.body,
     props: { title: "测试对话框", ...props },
@@ -22,6 +32,8 @@ function openOverlay(props: Record<string, unknown> = {}) {
 }
 
 afterEach(async () => {
+  vi.useRealTimers();
+  vi.useFakeTimers();
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   await nextTick();
   disposeRouter?.();
@@ -29,13 +41,13 @@ afterEach(async () => {
   router?.options.history.destroy();
   router = undefined;
   document.body.innerHTML = "";
-  vi.useRealTimers();
   try {
     history.replaceState(null, "", location.pathname);
   } catch {
     // History may be unavailable in restricted test environments.
   }
-  await new Promise((resolve) => setTimeout(resolve, 5));
+  await vi.runAllTimersAsync();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -95,7 +107,10 @@ describe("Overlay history", () => {
     wrappers.push(wrapper as TestWrapper);
     await nextTick();
     document.querySelector<HTMLElement>(".dialog-heading .ui-button")!.click();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() =>
+      expect(router!.currentRoute.value.path).toBe("/beneath"),
+    );
+    await vi.waitFor(() => expect(history.state?.tiOverlay).toBeUndefined());
     await flushPromises();
     expect(router.currentRoute.value.path).toBe("/beneath");
     expect(guard).not.toHaveBeenCalled();
@@ -131,7 +146,10 @@ describe("Overlay history", () => {
     wrappers.push(wrapper as TestWrapper);
     await nextTick();
     history.back();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() =>
+      expect(document.querySelector(".preview-overlay")).toBeNull(),
+    );
+    await vi.waitFor(() => expect(history.state?.tiOverlay).toBeUndefined());
     await flushPromises();
     expect(document.querySelector(".preview-overlay")).toBeNull();
     expect(router.currentRoute.value.path).toBe("/beneath");
@@ -155,9 +173,63 @@ describe("Overlay history", () => {
     await router.push("/editor");
     guard.mockClear();
     await router.back();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await vi.waitFor(() =>
+      expect(router!.currentRoute.value.path).toBe("/beneath"),
+    );
     expect(router.currentRoute.value.path).toBe("/beneath");
     expect(guard).toHaveBeenCalled();
+  });
+
+  it("closes an overlay before a dirty editor's route leave guard runs", async () => {
+    history.replaceState(null, "", "/list");
+    const dirty = ref(false);
+    const confirmLeave = vi.fn(() => false);
+    router = createRouter({
+      history: createWebHistory("/"),
+      routes: [
+        { path: "/list", component: { render: () => h("div", "list") } },
+        { path: "/editor", component: { render: () => h("div", "editor") } },
+      ],
+    });
+    await router.push("/list");
+    await router.isReady();
+    router.beforeEach((to, from) =>
+      dirty.value && from.path === "/editor" ? confirmLeave() : true,
+    );
+    disposeRouter = installOverlayHistory(router);
+    await router.push("/editor");
+    dirty.value = true;
+    confirmLeave.mockClear();
+
+    const showing = ref(true);
+    const Host = defineComponent({
+      setup() {
+        return () =>
+          showing.value
+            ? h(Overlay, {
+                title: "编辑选项",
+                onClose: () => (showing.value = false),
+              })
+            : null;
+      },
+    });
+    const wrapper = mount(Host, { attachTo: document.body });
+    wrappers.push(wrapper as TestWrapper);
+    await nextTick();
+    await vi.waitFor(() => expect(history.state?.tiOverlay).toBeDefined());
+
+    window.history.back();
+    await vi.waitFor(() =>
+      expect(document.querySelector(".preview-overlay")).toBeNull(),
+    );
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe("/editor");
+    expect(confirmLeave).not.toHaveBeenCalled();
+
+    window.history.back();
+    await vi.waitFor(() => expect(confirmLeave).toHaveBeenCalledOnce());
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe("/editor");
   });
 
   it("keeps a nondismissible overlay open when Back is pressed", async () => {
@@ -241,7 +313,7 @@ describe("Overlay history", () => {
     expect(router.currentRoute.value.path).toBe("/editor");
     expect(history.state?.tiOverlay).toBeUndefined();
     await router.back();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(window.location.pathname).toBe("/beneath"));
     expect(window.location.pathname).toBe("/beneath");
   });
 });

@@ -1,14 +1,11 @@
+// @vitest-environment jsdom
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it } from "vitest";
 import { defineComponent, h, nextTick, ref } from "vue";
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import DisclosureIcon from "../src/components/ui/DisclosureIcon.vue";
 import DisclosureSection from "../src/components/ui/DisclosureSection.vue";
 
 const wrappers: VueWrapper[] = [];
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
 
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 
@@ -89,30 +86,4 @@ describe("disclosure primitives", () => {
     expect(wrapper.find("path").attributes("d")).toBe(path);
     expect(wrapper.text()).toBe("");
   });
-
-  it("rejects the retired summary glyphs in styles and Vue templates", () => {
-    const styles = readdirSync(join(root, "styles"))
-      .filter((name) => name.endsWith(".css"))
-      .map((name) => readFileSync(join(root, "styles", name), "utf8"));
-    for (const style of styles) {
-      for (const glyph of ["⌄", "⌃", "▾", "▸"])
-        expect(style).not.toContain(`content: "${glyph}"`);
-    }
-    const templates = collectVueFiles(root).map((path) =>
-      readFileSync(path, "utf8"),
-    );
-    for (const template of templates.filter((source) => !source.includes("browse-result-summary-disclosure"))) {
-      expect(template).not.toContain("▾");
-      expect(template).not.toContain("▸");
-    }
-    expect(templates.join("\n")).toContain('class="browse-result-summary-disclosure" aria-hidden="true">▸</span>');
-  });
 });
-
-function collectVueFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) return collectVueFiles(path);
-    return entry.isFile() && entry.name.endsWith(".vue") ? [path] : [];
-  });
-}

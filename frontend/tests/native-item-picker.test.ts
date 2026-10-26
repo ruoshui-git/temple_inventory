@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, nextTick, reactive } from "vue";
@@ -669,7 +670,7 @@ it("shows the initial table skeleton and dims retained rows during a filter requ
   if (!search) throw new Error("Missing picker search input");
   search.value = "新筛选";
   search.dispatchEvent(new Event("input", { bubbles: true }));
-  await new Promise((resolve) => setTimeout(resolve, 240));
+  await vi.waitFor(() => expect(requestCount).toBe(2));
   await flushPromises();
   await nextTick();
   expect(requestCount).toBe(2);

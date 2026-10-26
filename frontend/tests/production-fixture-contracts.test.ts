@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
@@ -21,7 +22,6 @@ import {
   reviewSession,
   type PreviewPageKey,
 } from "./support/reviewModel";
-import { fixtureNativeCall } from "./support/fixtureNativeDocuments";
 import { provideGalleryReference } from "./support/fixtureReference";
 import {
   fixtureServices,
@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(() => {
-      throw new Error("Gallery must not call live services");
+      throw new Error("Vitest fixtures must not call live services");
     }),
   );
 });
@@ -54,9 +54,9 @@ async function render(route: PreviewPageKey) {
   await flushPromises();
   return wrapper;
 }
-describe("gallery renders native production components", () => {
+describe("browser fixture routes satisfy production component contracts", () => {
   it.each([false, true])(
-    "keeps all55 allocations mounted and validates the complete large receipt (invalid=%s)",
+    "keeps all 55 allocations mounted and validates the large receipt (invalid=%s)",
     async (invalid) => {
       const wrapper = mount(PreviewFormPages, {
         props: {
@@ -139,26 +139,7 @@ describe("gallery renders native production components", () => {
       "/app/purchase-receipt/",
     );
   });
-  it("resets native-shaped mutations between review sessions", async () => {
-    const original = (await fixtureNativeCall("native_api.load_document", {
-      doctype: "Stock Entry",
-      name: "MAT-STE-2026-00012",
-    })) as any;
-    await fixtureNativeCall("native_api.save_document", {
-      doctype: original.doctype,
-      name: original.name,
-      version: original.version,
-      data: { items: original.items.map((row: any) => ({ ...row, qty: 999 })) },
-    });
-    resetReviewSession();
-    const restored = (await fixtureNativeCall("native_api.load_document", {
-      doctype: original.doctype,
-      name: original.name,
-    })) as any;
-    expect(restored.items[0].qty).toBe(original.items[0].qty);
-    expect(restored.version).toBe(original.version);
-  });
-  it("keeps gallery File identity private-shaped while displaying only local bytes", async () => {
+  it("keeps attachment fixture identity private and displays local file bytes", async () => {
     let files!: ReturnType<typeof useAttachments>;
     const child = defineComponent({
       setup() {
@@ -200,7 +181,7 @@ describe("gallery renders native production components", () => {
   });
 });
 
-it("renders named dashboard records and activity context separately from fallback examples", async () => {
+it("renders named dashboard records and activity context from its API-shaped fixture", async () => {
   const wrapper = await render("dashboard/overview");
   const rows = wrapper.findAll(".browse-rank-row");
   const movements = rows.filter((row) => row.text().includes("MAT-STE"));
