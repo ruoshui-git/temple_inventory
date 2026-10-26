@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import frappe
 from erpnext.stock.doctype.batch.batch import get_batch_qty
-from frappe.utils import add_days, now_datetime, nowdate
+from frappe.utils import add_days, getdate, now_datetime, nowdate
 from frappe.utils.nestedset import NestedSetChildExistsError
 
 from temple_inventory import browse, catalog, conversions, counts, native_api, native_files, projections
@@ -151,6 +151,46 @@ class CatalogTests(NativeDocumentTests):
 		second = catalog.receipt_batches([row])["batches"][0]
 		self.assertEqual(first["name"], second["name"])
 		self.assertRegex(first["name"], r"^\d{8}-\d{3}$")
+
+	def test_generated_receipt_batch_dates_can_be_updated_on_the_same_request(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = catalog.save_item(
+			{
+				"item_code": f"TI-BATCH-DATE-REQUEST-{self.token}",
+				"item_name": "Batch date request",
+				"stock_uom": "Nos",
+				"has_batch_no": 1,
+				"has_expiry_date": 1,
+			}
+		)
+		row = {
+			"item_code": item["item_code"],
+			"batch_id": "",
+			"local_id": "stable-date-line",
+			"manufacturing_date": nowdate(),
+			"expiry_date": add_days(nowdate(), 30),
+		}
+		first = catalog.receipt_batches([row])["batches"][0]
+		updated_row = {
+			**row,
+			"batch_id": first["name"],
+			"local_id": "native-child-after-reopen",
+			"manufacturing_date": add_days(nowdate(), 1),
+			"expiry_date": add_days(nowdate(), 45),
+		}
+		updated = catalog.receipt_batches([updated_row])["batches"][0]
+		self.assertEqual(updated["name"], first["name"])
+		self.assertEqual(updated["manufacturing_date"], str(getdate(updated_row["manufacturing_date"])))
+		self.assertEqual(updated["expiry_date"], str(getdate(updated_row["expiry_date"])))
+		with self.assertRaises(frappe.ValidationError):
+			catalog.receipt_batches(
+				[
+					{
+						**updated_row,
+						"manufacturing_date": add_days(nowdate(), 60),
+					}
+				]
+			)
 
 	def test_item_and_batch_location_views_do_not_request_zero_rows(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)

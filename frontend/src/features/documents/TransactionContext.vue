@@ -5,6 +5,7 @@ import { useInventoryServices, useReferenceData } from "../../services/contracts
 import { newReportQuery } from "../../lib/reportContract";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import FormField from "../../components/ui/FormField.vue";
 import ActivityEditor from "../activities/ActivityEditor.vue";
 const props = defineProps<{
 	draft: Pick<OperationDraft, "source" | "purpose" | "activity" | "loanName"> & { kind: string };
@@ -70,7 +71,8 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				v-model="draft.activity"
 				:disabled="disabled"
 				:load="search"
-				:selected-label="draft.activity ? activityLabel : undefined" /><UiButton
+				:selected-label="draft.activity ? activityLabel : undefined"
+			/><UiButton
 				v-if="!draft.loanName"
 				ref="trigger"
 				:disabled="disabled"
@@ -79,11 +81,25 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				>新建活动</UiButton
 			>
 			<p v-if="draft.loanName" class="muted">活动由原借用记录确定。</p>
-			<label class="preview-field" v-if="draft.kind === 'Receive'"
-				>来源<input v-model="draft.source" :disabled="disabled" /></label
-			><label class="preview-field" v-else
-				>用途<input v-model="draft.purpose" :disabled="disabled" /></label
-		></template>
+			<FormField v-if="draft.kind === 'Receive'" label="来源">
+				<template #default="{ fieldAttrs }">
+					<input
+						v-model="draft.source"
+						v-bind="fieldAttrs as any"
+						:disabled="disabled"
+					/>
+				</template>
+			</FormField>
+			<FormField v-else label="用途">
+				<template #default="{ fieldAttrs }">
+					<input
+						v-model="draft.purpose"
+						v-bind="fieldAttrs as any"
+						:disabled="disabled"
+					/>
+				</template>
+			</FormField>
+		</template>
 		<ActivityEditor v-else contextual class="full-field" @saved="finish" @cancel="finish()" />
 	</div>
 </template>

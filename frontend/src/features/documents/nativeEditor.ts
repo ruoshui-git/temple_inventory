@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import { confirm as confirmDialog } from "../../services/confirm";
 import {
   recoveryValues,
   type BrowserRecoveryStore,
@@ -145,10 +146,14 @@ export function createNativeEditor(options: {
   function mergeRowIdentities(
     sent: Record<string, unknown>,
     response: NativeDocument,
+    originalItems: Record<string, unknown>[],
   ) {
     if (!Array.isArray(sent.items) || !Array.isArray(state.values.items))
       return;
-    const identifiers = new Map<string, string>();
+    const identifiers = new Map<
+      string,
+      { name: string; originalBatch: unknown; savedBatch: unknown }
+    >();
     sent.items.forEach((row, index) => {
       if (
         row &&
@@ -156,15 +161,22 @@ export function createNativeEditor(options: {
         "localId" in row &&
         response.items[index]?.name
       )
-        identifiers.set(
-          String(row.localId),
-          String(response.items[index]!.name),
-        );
+        identifiers.set(String(row.localId), {
+          name: String(response.items[index]!.name),
+          originalBatch: originalItems[index]?.batch,
+          savedBatch: (row as Record<string, unknown>).batch,
+        });
     });
     for (const row of state.values.items) {
       if (row && typeof row === "object" && "localId" in row) {
-        const name = identifiers.get(String(row.localId));
-        if (name) Object.assign(row, { name });
+        const saved = identifiers.get(String(row.localId));
+        if (!saved) continue;
+        Object.assign(row, { name: saved.name });
+        if (
+          row.batch === saved.originalBatch &&
+          saved.savedBatch !== saved.originalBatch
+        )
+          Object.assign(row, { batch: saved.savedBatch });
       }
     }
   }
@@ -189,6 +201,9 @@ export function createNativeEditor(options: {
         }
         const revision = state.revision;
         const sent = structuredClone(recoveryValues(state.values));
+        const originalItems = Array.isArray(sent.items)
+          ? structuredClone(sent.items as Record<string, unknown>[])
+          : [];
         state.status = "saving";
         state.error = "";
         try {
@@ -214,7 +229,7 @@ export function createNativeEditor(options: {
           state.identity = { doctype: response.doctype, name: response.name };
           state.version = response.version;
           state.savedRevision = revision;
-          mergeRowIdentities(sent, response);
+          mergeRowIdentities(sent, response, originalItems);
           if (state.revision === revision) {
             state.status = "saved";
             options.recovery.remove(state.editorId, revision);
@@ -275,17 +290,21 @@ export function createNativeEditor(options: {
     try {
       const response = await options.services.load(identity);
       if (!active(requestEpoch)) return;
-      state.server = response;
       if (
         !discardDirty &&
         state.revision > 0 &&
         state.revision > state.savedRevision
       ) {
-        state.status = "conflict";
-        state.error = "当前仍有未保存输入，请选择保留、复制或放弃后重新载入";
-        retain();
-        return;
+        const accepted = await confirmDialog({
+          title: "放弃未保存输入并重新读取？",
+          message: "重新读取会替换当前编辑内容。",
+          confirmLabel: "放弃并重新读取",
+          cancelLabel: "继续编辑",
+          tone: "danger",
+        });
+        if (!accepted || !active(requestEpoch)) return;
       }
+      state.server = response;
       state.noAdjustment = false;
       state.identity = identity;
       state.version = response.version;

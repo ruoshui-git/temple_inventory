@@ -199,6 +199,73 @@ async function openPicker(wrapper: VueWrapper) {
 }
 
 describe("rapid operation scan integration", () => {
+  it("groups batch child rows into one editable card and adds a native row per batch", async () => {
+    const tracked = stockItem({
+      tracksBatch: true,
+      tracksExpiry: true,
+      locations: [
+        {
+          location: "ROOM-A",
+          available: 5,
+          loaned: 0,
+          damaged: 0,
+          batches: [
+            {
+              id: "BATCH-A",
+              available: 2,
+              damaged: 0,
+              expiry: "2027-01-01",
+            },
+            {
+              id: "BATCH-B",
+              available: 3,
+              damaged: 0,
+              expiry: "2027-02-01",
+            },
+          ],
+        },
+      ],
+    });
+    const { wrapper, draft } = setup(
+      "Receive",
+      [tracked],
+      [
+        {
+          id: "batch-row-a",
+          code: "ITEM-A",
+          qty: 2,
+          location: "ROOM-A",
+          batch: "BATCH-A",
+          expiry: "2027-01-01",
+        },
+        {
+          id: "batch-row-b",
+          code: "ITEM-A",
+          qty: 3,
+          location: "ROOM-A",
+          batch: "BATCH-B",
+          expiry: "2027-02-01",
+        },
+      ],
+    );
+
+    const cards = wrapper.findAll(".allocation-card");
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.text()).toContain("5 Nos");
+    expect(
+      cards[0]!.findAll(".batch-subrow:not(.batch-subrow--header)"),
+    ).toHaveLength(2);
+    const originalIds = draft.items.map((line) => line.id);
+    await cards[0]!.get("button.add-batch-row").trigger("click");
+    expect(draft.items).toHaveLength(3);
+    expect(draft.items.slice(0, 2).map((line) => line.id)).toEqual(originalIds);
+    expect(
+      wrapper
+        .find(".allocation-card")
+        .findAll(".batch-subrow:not(.batch-subrow--header)"),
+    ).toHaveLength(3);
+  });
+
   it("keeps the picker warehouse as transfer source and uses the toolbar destination for new rows", async () => {
     const itemInA02 = stockItem({
       code: "ITEM-B",

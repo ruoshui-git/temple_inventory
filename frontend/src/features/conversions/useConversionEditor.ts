@@ -34,7 +34,11 @@ export function useConversionEditor(
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData();
-  const unit = ref(props.selectedUnit || props.line.entryUom || props.line.uom),
+  const initialUnit =
+    props.selectedUnit === "__other"
+      ? ""
+      : props.selectedUnit || props.line.entryUom || props.line.uom;
+  const unit = ref(initialUnit),
     quantity = ref(enteredQty(props.line)),
     factor = ref<number | string>("");
   const canUpdate = computed(() => true);
@@ -84,9 +88,7 @@ export function useConversionEditor(
     ]);
   const baseline = ref(snapshot());
   const dirty = computed(
-    () =>
-      snapshot() !== baseline.value ||
-      unit.value !== (props.line.entryUom || props.line.uom),
+    () => snapshot() !== baseline.value || unit.value !== initialUnit,
   );
   watch(dirty, dirtyChanged, { immediate: true });
   watch(canUpdate, (value) => {

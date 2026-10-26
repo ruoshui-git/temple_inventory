@@ -1125,24 +1125,54 @@ def receipt_batches(rows):
 			request_key = hashlib.sha256(
 				f"{frappe.session.user}\0Batch\0{item_code}\0{local_id}".encode()
 			).hexdigest()
+			batch_id = str(row.get("batch_id") or "").strip()
 			name = frappe.db.get_value(
 				"Batch",
 				{"ti_request_key": request_key, "ti_request_user": frappe.session.user},
 				"name",
 				for_update=True,
 			)
-			batch_id = str(row.get("batch_id") or "").strip()
+			if not name and batch_id:
+				name = frappe.db.get_value(
+					"Batch",
+					{
+						"name": batch_id,
+						"ti_request_user": frappe.session.user,
+						"ti_request_key": ["is", "set"],
+					},
+					"name",
+					for_update=True,
+				)
 			generated_batch = not batch_id
 			if name:
 				batch = frappe.get_doc("Batch", name)
 				batch.check_permission("read")
 				if batch.item != item.name or (batch_id and batch.name != batch_id):
 					frappe.throw("此批次请求身份已用于其它批次")
-				for field in ("manufacturing_date", "expiry_date"):
-					value = row.get(field)
-					expected = str(getdate(value)) if value else ""
-					if str(batch.get(field) or "") != expected:
+				requested_dates = {
+					field: getdate(row[field]) if row.get(field) else None
+					for field in ("manufacturing_date", "expiry_date")
+				}
+				if (
+					requested_dates["manufacturing_date"]
+					and requested_dates["expiry_date"]
+					and requested_dates["manufacturing_date"] > requested_dates["expiry_date"]
+				):
+					frappe.throw("到期日期不能早于生产日期")
+				changed_dates = any(
+					str(batch.get(field) or "") != str(value or "")
+					for field, value in requested_dates.items()
+				)
+				if changed_dates:
+					generated_for_request = (
+						bool(batch.get("ti_request_key"))
+						and batch.get("ti_request_user") == frappe.session.user
+					)
+					if not generated_for_request or _batch_has_submitted_reference(batch.name):
 						frappe.throw("此批次请求日期已变更，请使用新的批次行")
+					batch.manufacturing_date = requested_dates["manufacturing_date"]
+					batch.expiry_date = requested_dates["expiry_date"]
+					batch.save(ignore_permissions=True)
 			else:
 				if not batch_id:
 					batch_id = make_autoname(".YYYY..MM..DD.-.###")
@@ -1177,6 +1207,18 @@ def receipt_batches(rows):
 		return {"batches": result}
 	finally:
 		frappe.db.sql("select release_lock(%s)", lock_name)
+
+
+def _batch_has_submitted_reference(batch_name):
+	"""Return whether a posted ledger row or serial/batch allocation uses this batch."""
+	if frappe.db.exists("Stock Ledger Entry", {"batch_no": batch_name, "is_cancelled": 0}):
+		return True
+	return bool(
+		frappe.db.exists(
+			"Serial and Batch Entry",
+			{"batch_no": batch_name, "is_cancelled": 0, "docstatus": 1},
+		)
+	)
 
 
 @frappe.whitelist()

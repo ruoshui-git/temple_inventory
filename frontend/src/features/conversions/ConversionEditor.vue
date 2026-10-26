@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import Overlay from "../../components/ui/Overlay.vue";
+import FormField from "../../components/ui/FormField.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import { useFormValidation } from "../../composables/useFormValidation";
 import type { ConversionLine } from "../../lib/quantityConversion";
 import type { StockItem } from "../../lib/stockPresentation";
 import { useConversionEditor, type SavedItemConversions } from "./useConversionEditor";
@@ -41,80 +44,139 @@ const {
 	creating,
 	name: newName,
 	whole,
-	permitted: createUnit,
+	permitted: canCreateUnit,
 	create,
+	finish: finishCreation,
+	busy: creationBusy,
 	error: creationError,
 } = creation;
+const unitValidation = useFormValidation();
+unitValidation.register(
+	"conversion-unit-name",
+	() => newName.value,
+	[(value) => (value.trim() ? true : "请输入计量单位")],
+	() => document.querySelector<HTMLElement>(".preview-conversion-unit-name")?.focus(),
+);
+async function closeCreation() {
+	await finishCreation();
+}
+async function saveNewUnit() {
+	if (!unitValidation.validate().ok) return;
+	await create();
+}
 </script>
 <template>
 	<section class="preview-conversion-editor">
 		<h3>单位与换算</h3>
-		<SearchSelect
-			data-field="entryUom"
-			label="输入单位"
-			v-model="unit"
-			:options="reference.units.map((row) => row.name)"
-			:disabled="disabled || busy"
-		/>
+		<FormField label="输入单位" required>
+			<template #default="{ fieldAttrs }">
+				<SearchSelect
+					v-bind="fieldAttrs as any"
+					external-label
+					data-field="entryUom"
+					label="输入单位"
+					v-model="unit"
+					:options="reference.units.map((row) => row.name)"
+					:disabled="disabled || busy"
+				/>
+			</template>
+		</FormField>
 		<p>库存单位：{{ line.uom }}（只读）</p>
 		<UiButton
-			v-if="!creating"
-			:disabled="disabled || busy || !createUnit"
+			v-if="!creating && canCreateUnit"
+			:disabled="disabled || busy || !canCreateUnit"
 			@click="creating = true"
 			>新建单位</UiButton
 		>
-		<p v-if="!createUnit" class="muted">没有新建单位的权限，可选择已有单位。</p>
-		<fieldset v-if="creating" :disabled="disabled || busy">
-			<label class="preview-field">单位名称<input v-model="newName" /></label>
-			<label class="preview-choice-label"
-				><input v-model="whole" type="checkbox" />只允许整数数量</label
+		<Overlay v-if="creating" title="新建单位" size="small" @close="closeCreation">
+			<FormField
+				label="计量单位"
+				required
+				:error="unitValidation.errors['conversion-unit-name']"
 			>
-			<UiButton @click="create">保存并使用单位</UiButton>
-			<UiButton
-				@click="
-					creating = false;
-					newName = '';
-				"
-				>取消新建单位</UiButton
-			>
-		</fieldset>
+				<template #default="{ fieldAttrs }">
+					<input
+						v-model="newName"
+						v-bind="fieldAttrs as any"
+						class="preview-conversion-unit-name"
+						:disabled="creationBusy"
+						autocapitalize="off"
+						autocorrect="off"
+						spellcheck="false"
+					/>
+				</template>
+			</FormField>
+			<label class="preview-choice-label">
+				<input v-model="whole" type="checkbox" :disabled="creationBusy" />
+				只允许整数数量
+			</label>
+			<p v-if="creationError" class="utility-error" role="alert">{{ creationError }}</p>
+			<template #footer>
+				<UiButton :disabled="creationBusy" @click="closeCreation">取消</UiButton>
+				<UiButton
+					variant="primary"
+					:disabled="creationBusy"
+					:loading="creationBusy"
+					@click="saveNewUnit"
+					>保存并使用单位</UiButton
+				>
+			</template>
+		</Overlay>
 		<dl v-if="unit === line.uom" class="preview-info-grid">
 			<div>
 				<dt>单位换算</dt>
 				<dd>1 {{ unit }} = 1 {{ line.uom }}</dd>
 			</div>
 		</dl>
-		<label v-else class="preview-field"
-			>1 {{ unit || "所选单位" }} = （{{ line.uom }}）<input
-				data-field="conversionFactor"
-				v-model="factor"
-				type="number"
-				step="any"
-				min="0"
-				:disabled="disabled || busy"
-		/></label>
-		<label v-if="!reusableOnly" class="preview-field"
-			>输入数量（{{ unit }}）<input
-				v-model="quantity"
-				type="number"
-				step="any"
-				:disabled="disabled || busy"
-		/></label>
+		<FormField v-else label="单位换算" required :error="error || undefined">
+			<template #default="{ fieldAttrs }">
+				<div class="conversion-factor-control">
+					<span>1 {{ unit || "所选单位" }} =</span>
+					<input
+						v-bind="fieldAttrs as any"
+						data-field="conversionFactor"
+						v-model="factor"
+						type="number"
+						inputmode="decimal"
+						enterkeyhint="next"
+						step="any"
+						min="0"
+						:disabled="disabled || busy"
+					/>
+					<span>{{ line.uom }}</span>
+				</div>
+			</template>
+		</FormField>
+		<FormField
+			v-if="!reusableOnly"
+			:label="'输入数量（' + unit + '）'"
+			required
+			:error="error || undefined"
+		>
+			<template #default="{ fieldAttrs }">
+				<input
+					v-bind="fieldAttrs as any"
+					v-model="quantity"
+					type="number"
+					inputmode="decimal"
+					enterkeyhint="next"
+					step="any"
+					:disabled="disabled || busy"
+				/>
+			</template>
+		</FormField>
 		<p v-if="!reusableOnly" role="status">
 			{{ quantity }} {{ unit }} · 折合
 			{{ factor === "" ? "待填写比例" : Number(quantity) * Number(factor) }} {{ line.uom }}
 		</p>
-		<p v-if="replacement">
-			原换算：1 {{ unit }} = {{ savedFactor }} {{ line.uom }}；新换算：1 {{ unit }} =
-			{{ factor }} {{ line.uom }}
-		</p>
+		<p v-if="replacement">将替换原换算：1 {{ unit }} = {{ savedFactor }} {{ line.uom }}</p>
 		<p v-if="reusableOnly">保存为此物品的常用换算：是</p>
 		<label v-else class="preview-choice-label"
 			><input
 				v-model="reuse"
 				type="checkbox"
 				:disabled="disabled || busy || reusableOnly || !canUpdate"
-			/>保存为此物品的常用换算</label
+			/>记住此换算（下次自动使用）</label
 		>
 		<p v-if="!canUpdate" class="muted">没有更新物品的权限；可仅应用于此明细。</p>
 		<p class="muted">已保存的单位与常用换算会保留；取消操作单不会删除它们。</p>
@@ -142,6 +204,15 @@ const {
 	display: grid;
 	gap: var(--p-space-3);
 	min-width: 0;
+}
+.conversion-factor-control {
+	display: grid;
+	grid-template-columns: auto minmax(5ch, 1fr) auto;
+	align-items: center;
+	gap: var(--p-space-2);
+}
+.conversion-factor-control input {
+	min-width: 5ch;
 }
 p {
 	overflow-wrap: anywhere;

@@ -17,6 +17,10 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
+import FormField from "../../components/ui/FormField.vue";
+import { useFormValidation } from "../../composables/useFormValidation";
+import { useConfirm } from "../../services/confirm";
+import { useVirtualKeyboard } from "../../composables/useVirtualKeyboard";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -45,6 +49,7 @@ const {
 	state,
 	activityLabel,
 	loading,
+	hydrating,
 	busy,
 	writable,
 	dirty,
@@ -68,8 +73,27 @@ watch(
 const formRoot = ref<HTMLElement>(),
 	reviewBar = ref<HTMLElement>(),
 	lineEditor = ref<InstanceType<typeof OperationLines>>();
+const visualViewport = window.visualViewport;
+function syncOperationViewport() {
+	const root = formRoot.value;
+	if (!root || !visualViewport) return;
+	root.style.setProperty("--operation-visual-width", `${visualViewport.width}px`);
+	root.style.setProperty("--operation-visual-height", `${visualViewport.height}px`);
+	root.style.setProperty("--operation-visual-left", `${visualViewport.offsetLeft}px`);
+	root.style.setProperty("--operation-visual-top", `${visualViewport.offsetTop}px`);
+}
+onMounted(() => {
+	syncOperationViewport();
+	visualViewport?.addEventListener("resize", syncOperationViewport);
+	visualViewport?.addEventListener("scroll", syncOperationViewport);
+});
+onBeforeUnmount(() => {
+	visualViewport?.removeEventListener("resize", syncOperationViewport);
+	visualViewport?.removeEventListener("scroll", syncOperationViewport);
+});
 const { expanded, toggle } = useExpandedEditor(formRoot, () => props.active !== false);
 const { isDesktop, isMobile } = useResponsiveLayout();
+const { keyboardOpen } = useVirtualKeyboard();
 const previewCollapsed = ref(false);
 const mobileReviewOpen = ref(false);
 let previousPreviewCollapsed = false;
@@ -121,8 +145,9 @@ function reviewShortcut(event: KeyboardEvent) {
 }
 onMounted(() => document.addEventListener("keydown", reviewShortcut));
 onBeforeUnmount(() => document.removeEventListener("keydown", reviewShortcut));
-const reloadOpen = ref(false);
 const services = useInventoryServices();
+const { confirm: confirmDialog } = useConfirm();
+const validation = useFormValidation();
 const subtitles: Record<string, string> = {
 	Receive: "登记新到物资及其存放位置。",
 	Issue: "从现有库存领用或发出物资。",
@@ -217,6 +242,24 @@ async function toggleBorrower(group: OutstandingBorrowerSummary) {
 const selectedLoanNames = computed(
 	() => [...new Set(draft.value.items.map((line) => line.loanName).filter(Boolean))] as string[],
 );
+validation.register(
+	"borrower",
+	() => draft.value.borrower,
+	[
+		(value) =>
+			draft.value.kind !== "Loan" || String(value || "").trim()
+				? true
+				: "请填写借用人或团体",
+	],
+	() => formRoot.value?.querySelector<HTMLElement>('[data-field="borrower"]')?.focus(),
+);
+validation.register(
+	"returnBorrower",
+	() => selectedLoanNames.value.length,
+	[(value) => (draft.value.kind !== "Return" || value ? true : "请选择未结清的原借用记录")],
+	() =>
+		formRoot.value?.querySelector<HTMLElement>('[data-field="returnBorrower"] input')?.focus(),
+);
 watch(selectedLoanNames, (names) => {
 	loanListOpen.value = names.length === 0;
 });
@@ -238,6 +281,9 @@ async function addLoan(name: string) {
 }
 const editing = computed(
 	() => state.status === "conflict" || !state.server || state.server.editable === true,
+);
+const canOfferPicker = computed(
+	() => draft.value.kind !== "Return" && !draft.value.items.some((line) => !!line.loanName),
 );
 const initialExistingLoad = computed(
 	() => loading.value && c.existingDocument.value && !state.server,
@@ -264,6 +310,10 @@ const statusLabels = {
 	cancelled: "已取消",
 };
 async function review() {
+	if (!validation.validate().ok) {
+		showError.value = true;
+		return;
+	}
 	await c.review();
 	if (!issues.value.length) return;
 	const issue = issues.value[0];
@@ -283,6 +333,30 @@ async function review() {
 async function back() {
 	if (await c.requestLeave()) emit("back");
 }
+async function reloadDocument() {
+	if (
+		(dirty.value || supportingDirty.value) &&
+		!(await confirmDialog({
+			title: "放弃当前输入并重新读取？",
+			message: "重新读取会替换当前页面的输入。",
+			confirmLabel: "放弃并重新读取",
+			cancelLabel: "继续编辑",
+			tone: "danger",
+		}))
+	)
+		return;
+	await c.load(true);
+}
+watch(leaveOpen, async (open) => {
+	if (!open) return;
+	const accepted = await confirmDialog({
+		title: "离开当前编辑？",
+		message: "未完成输入会保留在此浏览器；待上传文件需要重新选择。",
+		confirmLabel: "保留输入并离开",
+		cancelLabel: "继续编辑",
+	});
+	c.finishLeave(accepted ? "retain" : "stay");
+});
 async function saveDraft() {
 	await c.save(true);
 	if (state.status === "saved" && !files.incomplete.value) showToast("已存为草稿单据");
@@ -396,13 +470,13 @@ async function lifecycle() {
 					!busy &&
 					(state.server?.docstatus === 0 || state.status === 'conflict')
 				"
-				@click="dirty ? (reloadOpen = true) : c.load(true)"
+				@click="reloadDocument"
 				>重新读取</UiButton
 			>
 		</div>
 		<p v-if="state.error" class="notice-bar danger" role="alert">
 			{{ state.error }}
-			<UiButton v-if="c.existingDocument.value && !state.server" @click="c.load(true)"
+			<UiButton v-if="c.existingDocument.value && !state.server" @click="reloadDocument"
 				>重新读取</UiButton
 			>
 		</p>
@@ -505,17 +579,21 @@ async function lifecycle() {
 						<h2>{{ draft.kind === "Loan" ? "借用对象" : "归还来源" }}</h2>
 						<div class="form-fields">
 							<template v-if="draft.kind === 'Loan'">
-								<label class="preview-field"
-									>借用人 / 团体<input
-										v-model="draft.borrower"
-										list="recent-borrowers"
-										data-field="borrower"
-										:aria-invalid="
-											showError &&
-											issues.some((issue) => issue.field === 'borrower')
-										"
-										:disabled="!writable || busy"
-								/></label>
+								<FormField
+									label="借用人 / 团体"
+									required
+									:error="validation.errors.borrower"
+								>
+									<template #default="{ fieldAttrs }">
+										<input
+											v-model="draft.borrower"
+											v-bind="fieldAttrs as any"
+											list="recent-borrowers"
+											data-field="borrower"
+											:disabled="!writable || busy"
+										/>
+									</template>
+								</FormField>
 								<datalist id="recent-borrowers">
 									<option
 										v-for="borrower in borrowerSuggestions"
@@ -556,13 +634,23 @@ async function lifecycle() {
 									>{{ loanListOpen ? "收起借用列表" : "添加更多借用" }}</UiButton
 								>
 								<div v-if="loanListOpen" class="outstanding-loan-browser">
-									<label class="preview-field loan-search"
-										>筛选未结清借用<input
-											v-model="loanSearch"
-											type="search"
-											placeholder="借用方、单号或活动"
-											@input="scheduleBorrowerSearch"
-									/></label>
+									<FormField
+										data-field="returnBorrower"
+										class="preview-field loan-search"
+										label="未结清借用方"
+										:required="draft.kind === 'Return'"
+										:error="validation.errors.returnBorrower"
+									>
+										<template #default="{ fieldAttrs }">
+											<input
+												v-model="loanSearch"
+												v-bind="fieldAttrs as any"
+												type="search"
+												placeholder="借用方、单号或活动"
+												@input="scheduleBorrowerSearch"
+											/>
+										</template>
+									</FormField>
 									<div class="outstanding-loan-scroll">
 										<div
 											v-for="group in borrowerGroups"
@@ -744,6 +832,7 @@ async function lifecycle() {
 						:mode="editing ? 'edit' : 'display'"
 						:disabled="!writable || busy"
 						:show-error="showError"
+						:hydrating="hydrating"
 						:expanded="expanded"
 						:active="active"
 						@expand="toggle"
@@ -752,7 +841,7 @@ async function lifecycle() {
 				<DisclosureSection
 					v-model:open="supplementOpen"
 					title="补充记录"
-					summary="可选 · 活动、人员、备注与凭证附件"
+					summary="活动、人员、备注与凭证附件"
 				>
 					<div class="form-grid">
 						<TransactionContext
@@ -761,17 +850,20 @@ async function lifecycle() {
 							:disabled="!writable || busy"
 							:mode="editing ? 'edit' : 'display'"
 							@dirty-change="supportingDirty = $event"
-						/><label v-if="editing" class="preview-field full-width"
-							>备注<textarea
-								v-model="draft.note"
-								rows="3"
-								:disabled="!writable || busy"
-							/>
-						</label>
+						/><FormField v-if="editing" class="full-width" label="备注">
+							<template #default="{ fieldAttrs }">
+								<textarea
+									v-model="draft.note"
+									v-bind="fieldAttrs as any"
+									rows="3"
+									:disabled="!writable || busy"
+								/>
+							</template>
+						</FormField>
 						<div v-else class="preview-long-text">{{ draft.note }}</div>
 					</div>
 					<div class="attachment-area">
-						<h3>凭证附件 <small class="muted">可选</small></h3>
+						<h3>凭证附件</h3>
 						<Attachments
 							:controller="files"
 							:disabled="!writable || busy"
@@ -779,15 +871,23 @@ async function lifecycle() {
 						/>
 					</div>
 					<fieldset v-if="editing" class="people-fields" :disabled="!writable || busy">
-						<legend>现场人员（可选）</legend>
+						<legend>现场人员</legend>
 						<div class="form-grid">
-							<label class="preview-field"
-								>记录人<input v-model="draft.recorder" /></label
-							><label class="preview-field"
-								>经手人<input v-model="draft.handler" /></label
-							><label class="preview-field"
-								>鉴证人<input v-model="draft.reviewer"
-							/></label>
+							<FormField label="记录人">
+								<template #default="{ fieldAttrs }">
+									<input v-model="draft.recorder" v-bind="fieldAttrs as any" />
+								</template>
+							</FormField>
+							<FormField label="经手人">
+								<template #default="{ fieldAttrs }">
+									<input v-model="draft.handler" v-bind="fieldAttrs as any" />
+								</template>
+							</FormField>
+							<FormField label="鉴证人">
+								<template #default="{ fieldAttrs }">
+									<input v-model="draft.reviewer" v-bind="fieldAttrs as any" />
+								</template>
+							</FormField>
 						</div>
 					</fieldset>
 					<dl v-else class="preview-info-grid">
@@ -820,10 +920,19 @@ async function lifecycle() {
 					v-if="writable || state.confirmationVersion"
 					ref="reviewBar"
 					class="form-actions preview-document-actions"
+					:class="{ 'is-keyboard-open': keyboardOpen }"
 				>
 					<p class="muted">
 						{{ draft.items.length }} 行 · {{ totals || "尚未添加物品" }}
 					</p>
+					<UiButton
+						v-if="isMobile && canOfferPicker && writable && !state.confirmationVersion"
+						variant="secondary"
+						icon="box"
+						:disabled="busy || !lineEditor?.itemPickerReady()"
+						@click="lineEditor?.openPicker()"
+						>添加物品</UiButton
+					>
 					<UiButton
 						v-if="!state.confirmationVersion"
 						:disabled="busy || supportingDirty"
@@ -874,6 +983,7 @@ async function lifecycle() {
 					<summary
 						:id="draft.items.length ? undefined : 'operation-review-content'"
 						class="review-preview-summary ti-disclosure"
+						aria-label="展开或收起确认前检查摘要"
 						:aria-hidden="previewCollapsed ? 'true' : undefined"
 					>
 						<DisclosureIcon variant="inline" />
@@ -949,39 +1059,6 @@ async function lifecycle() {
 				></template
 			></Overlay
 		>
-		<Overlay v-if="reloadOpen" title="放弃当前输入并重新读取？" @close="reloadOpen = false"
-			><p>重新读取会替换当前页面的输入。可先复制保留。</p>
-			<template #footer
-				><RecoverySummary
-					:kind="
-						String(
-							state.values.ti_movement_kind || state.values.purpose || 'Stock Entry',
-						)
-					"
-					:values="state.values"
-					:copy-text="c.recoveryText.value"
-				/>
-				<UiButton @click="reloadOpen = false">继续编辑</UiButton
-				><UiButton
-					variant="danger"
-					@click="
-						reloadOpen = false;
-						c.load(true);
-					"
-					>放弃并重新读取</UiButton
-				></template
-			></Overlay
-		>
-		<Overlay v-if="leaveOpen" title="离开当前编辑？" @close="c.finishLeave('stay')"
-			><p>未完成输入仅能在此浏览器恢复；待上传文件需要重新选择。</p>
-			<template #footer
-				><UiButton @click="c.finishLeave('stay')">继续编辑</UiButton
-				><UiButton @click="c.finishLeave('retain')">保留输入并离开</UiButton
-				><UiButton variant="danger" @click="c.finishLeave('discard')"
-					>放弃输入并离开</UiButton
-				></template
-			></Overlay
-		>
 		<Overlay
 			v-if="action"
 			:title="
@@ -1015,3 +1092,51 @@ async function lifecycle() {
 		>
 	</section>
 </template>
+
+<style scoped>
+:deep(.app-page-identity) {
+	align-items: flex-start;
+}
+
+:deep(.app-page-identity > .back-button) {
+	margin-top: 4px;
+}
+
+:deep(.review-preview-summary) {
+	min-height: 48px;
+	padding: var(--p-space-2) var(--p-space-3);
+	font-size: var(--p-body);
+}
+
+@media (max-width: 1023px) {
+	.preview-document-actions {
+		left: calc(var(--operation-visual-left, 0px) + 12px);
+		right: auto;
+		width: calc(var(--operation-visual-width, 100vw) - 24px);
+		max-width: calc(var(--operation-visual-width, 100vw) - 24px);
+		top: calc(
+			var(--operation-visual-top, 0px) + var(--operation-visual-height, 100dvh) - 66px
+		);
+		bottom: auto;
+		box-sizing: border-box;
+	}
+
+	.preview-document-actions.is-keyboard-open {
+		display: none !important;
+	}
+
+	.preview-document-actions {
+		grid-template-columns: minmax(0, 1fr) auto auto auto;
+		padding-bottom: max(6px, env(safe-area-inset-bottom));
+	}
+
+	.preview-document-actions > .ui-button {
+		min-height: 44px;
+	}
+
+	:deep(.review-preview-summary) {
+		min-height: 52px;
+		font-size: var(--p-body);
+	}
+}
+</style>

@@ -24,7 +24,10 @@ const OperationLinesStub = defineComponent({
   name: "OperationLines",
   props: ["expanded"],
   emits: ["expand", "notify"],
-  template: "<div />",
+  setup(_, { expose }) {
+    expose({ itemPickerReady: () => true, openPicker: vi.fn() });
+    return () => h("div");
+  },
 });
 const PageHeaderStub = defineComponent({
   name: "PageHeader",

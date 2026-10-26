@@ -9,6 +9,7 @@ import {
   createRecoveryStore,
   type RecoverySnapshot,
 } from "../src/lib/browserRecovery";
+import * as confirmService from "../src/services/confirm";
 
 const document = (changes: Partial<NativeDocument> = {}): NativeDocument => ({
   doctype: "Stock Entry",
@@ -62,6 +63,40 @@ describe("native editor lifecycle", () => {
     const { editor } = setup();
     expect(editor.state.status).toBe("pristine");
   });
+  it("asks before replacing dirty input during a reload", async () => {
+    const { editor } = setup();
+    await editor.load({ doctype: "Stock Entry", name: "NATIVE-1" });
+    editor.state.values.remarks = "保留此输入";
+    editor.edited();
+    expect(editor.state.revision).toBeGreaterThan(editor.state.savedRevision);
+    const confirm = vi
+      .spyOn(confirmService, "confirm")
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const cancelledReload = editor.load({
+      doctype: "Stock Entry",
+      name: "NATIVE-1",
+    });
+    await cancelledReload;
+    expect(confirm).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ title: "放弃未保存输入并重新读取？" }),
+    );
+    expect(editor.state.values.remarks).toBe("保留此输入");
+    expect(editor.state.status).toBe("local");
+    expect(editor.state.error).toBe("");
+
+    const acceptedReload = editor.load({
+      doctype: "Stock Entry",
+      name: "NATIVE-1",
+    });
+    await acceptedReload;
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(editor.state.values.remarks).toBeUndefined();
+    expect(editor.state.status).toBe("saved");
+    confirm.mockRestore();
+  });
   it("revalidates after login without replacing unsaved values or files, and blocks newer native versions", async () => {
     const { editor, services } = setup();
     await editor.load({ doctype: "Stock Entry", name: "NATIVE-1" });
@@ -112,6 +147,26 @@ describe("native editor lifecycle", () => {
     expect(editor.state.status).toBe("saved");
     expect(recovery.list().entries).toHaveLength(0);
   });
+  it("keeps a server-generated batch ID on the matching line after a receipt save", async () => {
+    const { editor, services } = setup();
+    vi.mocked(services.create).mockImplementation(
+      async (_doctype, _requestId, values) => {
+        const items = values.items as Record<string, unknown>[];
+        items[0]!.batch = "BATCH-1";
+        return document({ items: [{ name: "ROW-1", batch: "BATCH-1" }] });
+      },
+    );
+    editor.state.values.items = [{ localId: "local-row", qty: 1 }];
+    editor.edited();
+
+    await editor.save();
+
+    expect((editor.state.values.items as any[])[0]).toMatchObject({
+      localId: "local-row",
+      name: "ROW-1",
+      batch: "BATCH-1",
+    });
+  });
   it("does not send queued input or apply responses after an account switch", async () => {
     const { editor, services, switchAccount } = setup();
     const first = deferred<NativeDocument>();
@@ -139,8 +194,13 @@ describe("native editor lifecycle", () => {
     expect(editor.state.status).toBe("conflict");
     expect(editor.state.values.remarks).toBe("未完成输入");
     expect(recovery.list().entries).toHaveLength(1);
+    const confirm = vi
+      .spyOn(confirmService, "confirm")
+      .mockResolvedValueOnce(false);
     await editor.load({ doctype: "Stock Entry", name: "NATIVE-1" });
+    expect(confirm).toHaveBeenCalledTimes(1);
     expect(editor.state.values.remarks).toBe("未完成输入");
+    confirm.mockRestore();
   });
   it("retries a lost confirmation response using the same native draft version", async () => {
     const { editor, services } = setup();
