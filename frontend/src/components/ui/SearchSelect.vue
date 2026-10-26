@@ -28,6 +28,10 @@ const props = withDefaults(
 		hasMore?: boolean;
 		selectedLabel?: string;
 		invalid?: boolean;
+		id?: string;
+		ariaDescribedBy?: string;
+		ariaInvalid?: boolean | "true" | "false";
+		externalLabel?: boolean;
 	}>(),
 	{ pageSize: 20, clearable: true },
 );
@@ -37,7 +41,8 @@ const emit = defineEmits<{
 	loadMore: [];
 	retry: [];
 }>();
-const id = useId();
+const generatedId = useId();
+const id = computed(() => props.id || generatedId);
 const root = ref<HTMLElement>();
 const input = ref<HTMLInputElement>();
 const popup = ref<HTMLElement>();
@@ -49,6 +54,7 @@ function setInput(element: unknown) {
 function close() {
 	open.value = false;
 	query.value = "";
+	typed.value = false;
 }
 function preserveInputFocus(event: MouseEvent) {
 	const menu = popup.value;
@@ -80,6 +86,7 @@ watch(
 );
 const open = ref(false),
 	query = ref(""),
+	typed = ref(false),
 	active = ref(0),
 	limit = ref(props.pageSize);
 const { style: popupStyle, target: popupTarget } = useAnchoredPopup({
@@ -107,11 +114,13 @@ const selected = computed(
 const matches = computed(() =>
 	props.remote
 		? options.value
-		: options.value.filter((o) =>
-				`${o.label} ${o.value} ${o.detail || ""} ${o.keywords || ""}`
-					.toLocaleLowerCase()
-					.includes(query.value.trim().toLocaleLowerCase()),
-			),
+		: !typed.value
+			? options.value
+			: options.value.filter((o) =>
+					`${o.label} ${o.value} ${o.detail || ""} ${o.keywords || ""}`
+						.toLocaleLowerCase()
+						.includes(query.value.trim().toLocaleLowerCase()),
+				),
 );
 const virtual = computed(() => matches.value.length > 100);
 const visible = computed(() =>
@@ -123,7 +132,20 @@ watch(query, () => {
 	if (props.remote && open.value) emit("search", query.value);
 });
 watch(open, (value) => {
-	if (value && props.remote) emit("search", query.value);
+	if (!value) return;
+	active.value = Math.max(
+		0,
+		matches.value.findIndex((option) => option.value === props.modelValue),
+	);
+	if (!props.remote && active.value >= limit.value) limit.value = active.value + props.pageSize;
+	if (props.remote) emit("search", query.value);
+	void nextTick(() => {
+		if (virtual.value && active.value >= 0) virtualList.value?.scrollToIndex(active.value);
+		else
+			root.value
+				?.querySelector("[role=option][aria-selected=true]")
+				?.scrollIntoView?.({ block: "nearest" });
+	});
 });
 watch(
 	() => [props.loading, props.error],
@@ -192,15 +214,17 @@ defineExpose({ state });
 					if (popup?.contains(event.relatedTarget as Node)) return;
 					open = false;
 					query = '';
+					typed = false;
 				}
 			}
 		"
 	>
-		<label :for="id">{{ label }}</label>
+		<label v-if="!externalLabel" :for="id">{{ label }}</label>
 		<div class="search-select-input">
 			<input
 				:ref="setInput"
 				:id="id"
+				:aria-describedby="ariaDescribedBy"
 				role="combobox"
 				autocomplete="off"
 				:aria-expanded="open"
@@ -211,18 +235,25 @@ defineExpose({ state });
 				"
 				:disabled="disabled"
 				:title="selectedOption?.title || selected"
-				:aria-invalid="invalid || undefined"
+				:aria-invalid="invalid || ariaInvalid || undefined"
 				:placeholder="placeholder || '搜索并选择'"
-				:value="open ? query : selected"
-				@focus="open = true"
-				@click="open = true"
+				:value="open && typed ? query : selected"
+				@focus="
+					open = true;
+					typed = false;
+					query = '';
+					nextTick(() => input?.select());
+				"
+				@click="!open && (open = true)"
 				@input="
 					query = ($event.target as HTMLInputElement).value;
+					typed = true;
 					open = true;
 				"
 				@keydown="key"
 			/><button
 				v-if="clearable && modelValue && !disabled"
+				class="search-select-clear"
 				type="button"
 				:aria-label="'清除' + label"
 				@click="
@@ -242,7 +273,6 @@ defineExpose({ state });
 				:style="popupStyle"
 				@mousedown="preserveInputFocus"
 			>
-				<p v-if="modelValue" class="muted">已选：{{ selected }}</p>
 				<p v-if="state === 'loading'" role="status">正在查找…</p>
 				<div v-if="state === 'error'" role="alert">
 					{{ error || "选项加载失败" }}
@@ -329,13 +359,29 @@ defineExpose({ state });
 	gap: var(--p-field-gap);
 }
 .search-select-input {
-	display: flex;
-	align-items: center;
-	gap: 4px;
+	position: relative;
 }
 .search-select-input input {
 	min-width: 0;
 	width: 100%;
+	padding-inline-end: 44px;
+}
+.search-select-clear {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 36px;
+	min-width: 36px;
+	min-height: 36px;
+	padding: 0;
+}
+@media (pointer: coarse) {
+	.search-select-clear {
+		width: 44px;
+		min-width: 44px;
+		min-height: 44px;
+	}
 }
 .search-select-menu {
 	position: fixed;
@@ -376,9 +422,13 @@ li,
 	border-radius: 6px;
 }
 li.active,
-.virtual-option.active,
-li:hover {
+.virtual-option.active {
 	background: var(--p-soft);
+}
+@media (hover: hover) {
+	li:hover {
+		background: var(--p-soft);
+	}
 }
 li[aria-disabled="true"] {
 	opacity: 0.5;

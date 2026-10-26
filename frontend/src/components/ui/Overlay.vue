@@ -6,6 +6,7 @@ import {
 	trackOverlayMarker,
 } from "../../lib/overlayHistory";
 import {
+	computed,
 	inject,
 	provide,
 	nextTick,
@@ -24,6 +25,9 @@ const props = withDefaults(
 		drawer?: boolean;
 		adaptiveCreation?: boolean;
 		filterSheet?: boolean;
+		size?: "default" | "small";
+		role?: "dialog" | "alertdialog";
+		descriptionId?: string;
 		transientOwner?: string;
 		initialFocus?: string;
 		panelStyle?: CSSProperties;
@@ -33,6 +37,8 @@ const props = withDefaults(
 	{
 		drawer: false,
 		dismissible: true,
+		size: "default",
+		role: "dialog",
 	},
 );
 const emit = defineEmits<{ close: [] }>();
@@ -41,7 +47,18 @@ const titleId = useId();
 const parentStage = inject(overlayStageKey, undefined);
 const stageHost = ref<HTMLElement>();
 const activeStage = ref<{ titleId: string; close(): void }>();
-if (!parentStage) provide(overlayStageKey, { host: stageHost, active: activeStage });
+const panelClasses = computed(() => [
+	parentStage ? "overlay-stage-panel" : "preview-dialog",
+	props.panelClass,
+	{
+		"preview-drawer": props.drawer && !props.adaptiveCreation,
+		"preview-adaptive-creation": props.adaptiveCreation,
+		"preview-filter-sheet": props.filterSheet,
+		"preview-dialog--small": props.size === "small",
+	},
+]);
+// Nested overlays are separate modal layers. The previous overlay is inerted by
+// the top layer and becomes active again when that layer closes.
 function requestClose() {
 	if (activeStage.value) activeStage.value.close();
 	else if (props.dismissible) emit("close");
@@ -138,7 +155,18 @@ function isTabbable(element: HTMLElement) {
 }
 let underlyingOverlays: Array<{ element: HTMLElement; inert: boolean }> = [];
 function documentKeydown(event: KeyboardEvent) {
-	if (!event.defaultPrevented && !panel.value?.closest("[inert]")) keydown(event);
+	let inert = false;
+	for (
+		let ancestor: HTMLElement | null | undefined = panel.value;
+		ancestor;
+		ancestor = ancestor.parentElement
+	) {
+		if (ancestor.inert) {
+			inert = true;
+			break;
+		}
+	}
+	if (!event.defaultPrevented && !inert) keydown(event);
 }
 function keydown(event: KeyboardEvent) {
 	if (event.key === "Escape") {
@@ -281,6 +309,7 @@ onBeforeUnmount(() => {
 	underlyingOverlays.forEach(({ element, inert }) => {
 		element.inert = inert;
 	});
+	if (invoker?.isConnected) invoker.focus({ preventScroll: true });
 	void nextTick(() => {
 		if (invoker?.isConnected) invoker.focus({ preventScroll: true });
 	});
@@ -299,18 +328,11 @@ onBeforeUnmount(() => {
 			<section
 				ref="panel"
 				:style="panelStyle"
-				:class="[
-					parentStage ? 'overlay-stage-panel' : 'preview-dialog',
-					panelClass,
-					{
-						'preview-drawer': drawer && !adaptiveCreation,
-						'preview-adaptive-creation': adaptiveCreation,
-						'preview-filter-sheet': filterSheet,
-					},
-				]"
-				:role="parentStage ? 'region' : 'dialog'"
+				:class="panelClasses"
+				:role="props.role"
 				:aria-modal="parentStage ? undefined : true"
 				:aria-labelledby="activeStage?.titleId || titleId"
+				:aria-describedby="descriptionId"
 				tabindex="-1"
 			>
 				<header v-show="!activeStage" class="dialog-heading">
@@ -319,7 +341,7 @@ onBeforeUnmount(() => {
 						<p v-if="subtitle">{{ subtitle }}</p>
 					</div>
 					<UiButton
-						v-if="dismissible"
+						v-if="dismissible && !filterSheet"
 						variant="ghost"
 						aria-label="关闭对话框"
 						@click="requestClose"

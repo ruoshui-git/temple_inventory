@@ -290,6 +290,8 @@ defineExpose({
 		:is="presentation === 'modal' ? Overlay : 'section'"
 		:title="presentation === 'modal' ? '扫描条码' : undefined"
 		:class="presentation === 'modal' ? undefined : 'inventory-scanner'"
+		:drawer="presentation === 'modal'"
+		:panel-class="presentation === 'modal' ? 'inventory-scanner' : undefined"
 		@close="close"
 	>
 		<div
@@ -325,7 +327,7 @@ defineExpose({
 				:class="{ 'scanner-aim--success': successFlash }"
 				aria-hidden="true"
 			>
-				<span class="scanner-aim__hint">将条码对准框内</span>
+				<span class="scanner-aim__hint">将条码或二维码对准取景框</span>
 			</div>
 		</div>
 		<UiButton
@@ -353,10 +355,6 @@ defineExpose({
 				submitLabel
 			}}</UiButton>
 		</form>
-
-		<template v-if="presentation === 'modal'" #footer
-			><UiButton @click="close">关闭相机</UiButton></template
-		>
 	</component>
 </template>
 <style scoped>
@@ -383,13 +381,13 @@ defineExpose({
 }
 .scanner-aim {
 	position: absolute;
-	left: 10%;
-	top: 27.5%;
-	width: 80%;
-	height: 45%;
+	left: 50%;
+	top: 50%;
+	width: min(76%, 76%);
+	height: auto;
+	aspect-ratio: 1;
+	transform: translate(-50%, -50%);
 	box-sizing: border-box;
-	border: 2px solid var(--p-surface);
-	border-radius: var(--p-radius-control);
 	box-shadow: 0 0 0 999px color-mix(in srgb, var(--p-ink) 42%, transparent);
 	color: var(--p-surface);
 	pointer-events: none;
@@ -399,7 +397,7 @@ defineExpose({
 }
 .scanner-aim::before {
 	position: absolute;
-	inset: -2px;
+	inset: 0;
 	content: "";
 	background:
 		linear-gradient(currentColor, currentColor) left top / 22px 3px no-repeat,

@@ -33,9 +33,9 @@
 	cursor: pointer;
 }
 
-.data-table-column-trigger:hover,
-.data-table-column-order button:hover:not(:disabled) {
-	background: var(--p-soft);
+@media (hover: hover) {
+	.data-table-column-trigger:hover,
+	.data-table-column-order button:hover:not(:disabled) { background: var(--p-soft); }
 }
 .data-table-settings-outlet {
 	display: inline-flex;
@@ -141,15 +141,6 @@
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
 }
-.data-table-scroll.is-overflow-end {
-	--data-table-settings-column-width: 0px;
-}
-.data-table-scroll.is-overflow-end th.data-table-settings-heading {
-	position: static;
-	inset-inline-end: auto;
-	z-index: auto;
-	box-shadow: none;
-}
 .data-table-frame {
 	position: relative;
 	min-width: 0;
@@ -206,6 +197,12 @@
 	color: var(--p-ink);
 	box-shadow: 0 2px 8px var(--p-shadow-color);
 	cursor: pointer;
+	transition: opacity 120ms ease, visibility 120ms ease;
+}
+.data-table-overflow-hint.is-hidden {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
 }
 .data-table-overflow-hint svg {
 	width: 16px;
@@ -442,7 +439,8 @@
 	background: var(--p-soft);
 	z-index: 3;
 }
-.data-table-group-row td.report-sticky-actions-column {
+.data-table-group-row.is-expanded td,
+.data-table-group-row.is-expanded td.report-sticky-actions-column {
 	background: var(--p-soft);
 }
 @media (max-width: 1100px) {
@@ -510,14 +508,20 @@
 	margin-inline: auto;
 }
 
-.data-table-scroll tbody tr:hover:not(.data-table-group-row) td {
-	background: var(--p-soft);
+@media (hover: hover) {
+	.data-table-scroll tbody tr:hover:not(.data-table-group-row) td { background: var(--p-soft); }
 }
 
 .data-table-selection-column {
 	width: 44px;
 	min-width: 44px;
 	text-align: center;
+}
+.data-table-row-checkbox {
+	display: inline-grid;
+	width: 100%;
+	min-height: 32px;
+	place-items: center;
 }
 
 .data-table-sort {
@@ -560,11 +564,7 @@
 }
 
 .data-table-group-row td {
-	background: var(--p-soft);
 	font-weight: 600;
-}
-.data-table-group-row td.data-table-settings-cell {
-	background: var(--p-soft);
 }
 .data-table-group-row[tabindex="0"] {
 	cursor: pointer;

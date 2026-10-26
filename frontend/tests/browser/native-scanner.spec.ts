@@ -38,24 +38,29 @@ test.beforeEach(async ({ page }) => {
     },
   );
   await page.route(
-    "**/api/method/temple_inventory.catalog.operation_item",
+    "**/api/method/temple_inventory.catalog.operation_items",
     (route) =>
       route.fulfill({
         json: {
           message: {
-            item_code: "RICE",
-            item_name: "大米",
-            item_group: "食品",
-            stock_uom: "Nos",
-            description: "",
-            version: "v1",
-            has_batch_no: false,
-            has_expiry_date: false,
-            can_edit: false,
-            barcodes: [],
-            uoms: [{ uom: "Nos", conversion_factor: 1 }],
-            stock: [],
-            attachments: [],
+            items: [
+              {
+                item_code: "RICE",
+                item_name: "大米",
+                item_group: "食品",
+                stock_uom: "Nos",
+                description: "",
+                version: "v1",
+                has_batch_no: false,
+                has_expiry_date: false,
+                can_edit: false,
+                barcodes: [],
+                uoms: [{ uom: "Nos", conversion_factor: 1 }],
+                stock: [],
+                attachments: [],
+              },
+            ],
+            errors: [],
           },
         },
       }),

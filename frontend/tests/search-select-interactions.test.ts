@@ -34,6 +34,27 @@ function mountSelect(props: Record<string, unknown>) {
 }
 
 describe("SearchSelect interactions", () => {
+	it("shows the current value selected until typing starts, then filters the options", async () => {
+		const wrapper = mountSelect({
+			modelValue: "B",
+			options: [
+				{ value: "A", label: "位置 A" },
+				{ value: "B", label: "位置 B" },
+				{ value: "C", label: "位置 C" },
+			],
+		});
+		const input = wrapper.get<HTMLInputElement>("input[role=combobox]");
+		input.element.focus();
+		await flushPromises();
+		expect(input.element.value).toBe("位置 B");
+		expect(document.body.querySelectorAll('[role="option"]')).toHaveLength(3);
+		expect(document.body.querySelector('[role="option"][aria-selected="true"]')?.textContent).toContain("位置 B");
+		await input.setValue("位置 C");
+		await flushPromises();
+		expect(document.body.querySelectorAll('[role="option"]')).toHaveLength(1);
+		expect(document.body.querySelector('[role="option"]')?.textContent).toContain("位置 C");
+	});
+
   it("moves through teleported options by keyboard, selects, and closes without losing input focus", async () => {
     const wrapper = mountSelect({
       options: [

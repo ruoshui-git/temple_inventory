@@ -7,8 +7,13 @@ const emit = defineEmits<{ edit: []; remove: [] }>();
 </script>
 
 <template>
-	<span class="browse-active-chip">
-		<button type="button" class="browse-active-chip-label" @click="emit('edit')">
+	<span class="browse-active-chip" :title="label">
+		<button
+			type="button"
+			class="browse-active-chip-label"
+			:title="label"
+			@click="emit('edit')"
+		>
 			<InventoryIcon v-if="icon" :name="icon" />
 			{{ label }}
 		</button>

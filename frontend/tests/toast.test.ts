@@ -34,7 +34,7 @@ function setup() {
   return { reference, wrapper };
 }
 
-it("keeps actionable warning feedback inside the active dialog and runs its action", async () => {
+it("keeps actionable warning feedback in the global toast stack and runs its action", async () => {
   const { wrapper } = setup();
   const dialog = document.createElement("section");
   dialog.className = "preview-dialog";
@@ -46,11 +46,11 @@ it("keeps actionable warning feedback inside the active dialog and runs its acti
     action,
   });
   await flushPromises();
-  const toast = dialog.querySelector<HTMLElement>(
+  const toast = document.querySelector<HTMLElement>(
     '[role="alert"].preview-toast',
   );
   expect(toast).not.toBeNull();
-  expect(dialog.contains(toast)).toBe(true);
+  expect(dialog.contains(toast)).toBe(false);
   expect(toast?.textContent).toContain("草稿仅保存在此浏览器");
   toast?.querySelectorAll("button")[0]?.click();
   await flushPromises();

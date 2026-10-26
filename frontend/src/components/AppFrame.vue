@@ -13,6 +13,8 @@ import type { AppRouteTarget } from "../lib/routeRegistry";
 import { registerRouteProgress } from "../lib/routeProgress";
 import { environment } from "../lib/environment";
 import EnvironmentBadge from "./EnvironmentBadge.vue";
+import ConfirmDialog from "./ui/ConfirmDialog.vue";
+import { useVirtualKeyboard } from "../composables/useVirtualKeyboard";
 const props = withDefaults(
 	defineProps<{
 		primary: NavigationItem[];
@@ -35,6 +37,8 @@ const emit = defineEmits<{
 	"update:inventoryExpanded": [value: boolean];
 }>();
 const { isMobile } = useResponsiveLayout();
+const taskEditor = computed(() => Boolean(router.currentRoute.value.meta.taskEditor));
+const { keyboardOpen } = useVirtualKeyboard();
 const routeProgressVisible = ref(false);
 const unregisterRouteProgress = registerRouteProgress(router, (value) => {
 	routeProgressVisible.value = value;
@@ -59,9 +63,11 @@ const mobileItems = computed(() =>
 );
 const desktopNavigation = ref<HTMLElement>();
 const mobileNavigation = ref<HTMLElement>();
+const mobileTopbar = ref<HTMLElement>();
 let observer: ResizeObserver | undefined;
 let previousHeight = "";
 let previousDesktopHeight = "";
+let previousTopbarHeight = "";
 function measureNavigation() {
 	document.documentElement.style.setProperty(
 		"--preview-nav-height",
@@ -71,9 +77,13 @@ function measureNavigation() {
 		"--preview-desktop-nav-height",
 		`${desktopNavigation.value?.getBoundingClientRect().height || 0}px`,
 	);
+	document.documentElement.style.setProperty(
+		"--mobile-app-topbar-height",
+		`${mobileTopbar.value?.getBoundingClientRect().height || 0}px`,
+	);
 }
 watch(
-	() => [props.active, isMobile.value],
+	() => [props.active, isMobile.value, taskEditor.value, keyboardOpen.value],
 	async () => {
 		await nextTick();
 		if (!isMobile.value) return;
@@ -85,13 +95,14 @@ watch(
 	{ flush: "post" },
 );
 watch(
-	[desktopNavigation, mobileNavigation],
+	[desktopNavigation, mobileNavigation, mobileTopbar],
 	() => {
 		observer?.disconnect();
 		if (typeof ResizeObserver !== "undefined") {
 			observer = new ResizeObserver(measureNavigation);
 			if (desktopNavigation.value) observer.observe(desktopNavigation.value);
 			if (mobileNavigation.value) observer.observe(mobileNavigation.value);
+			if (mobileTopbar.value) observer.observe(mobileTopbar.value);
 		}
 		measureNavigation();
 	},
@@ -166,6 +177,9 @@ onMounted(() => {
 	previousDesktopHeight = document.documentElement.style.getPropertyValue(
 		"--preview-desktop-nav-height",
 	);
+	previousTopbarHeight = document.documentElement.style.getPropertyValue(
+		"--mobile-app-topbar-height",
+	);
 	measureNavigation();
 	window.addEventListener("resize", measureNavigation);
 	document.addEventListener("keydown", onKeydown);
@@ -187,10 +201,23 @@ onBeforeUnmount(() => {
 			previousDesktopHeight,
 		);
 	else document.documentElement.style.removeProperty("--preview-desktop-nav-height");
+	if (previousTopbarHeight)
+		document.documentElement.style.setProperty(
+			"--mobile-app-topbar-height",
+			previousTopbarHeight,
+		);
+	else document.documentElement.style.removeProperty("--mobile-app-topbar-height");
 });
 </script>
 <template>
-	<div class="preview-workspace" :class="{ 'is-mobile': isMobile }">
+	<div
+		class="preview-workspace"
+		:class="{
+			'is-mobile': isMobile,
+			'is-task-editor': taskEditor,
+			'keyboard-open': keyboardOpen,
+		}"
+	>
 		<div
 			v-if="routeProgressVisible"
 			class="route-progress"
@@ -297,7 +324,7 @@ onBeforeUnmount(() => {
 				</div>
 			</div>
 		</header>
-		<header v-if="isMobile" class="mobile-app-topbar">
+		<header v-if="isMobile" ref="mobileTopbar" class="mobile-app-topbar">
 			<div class="mobile-brand-title">
 				<strong>物资管理</strong><EnvironmentBadge :environment="environment" />
 			</div>
@@ -305,7 +332,7 @@ onBeforeUnmount(() => {
 		</header>
 		<main :id="contentId" class="sample-content"><slot /></main>
 		<nav
-			v-if="isMobile"
+			v-if="isMobile && !taskEditor"
 			ref="mobileNavigation"
 			class="sample-mobile-nav"
 			aria-label="应用主导航"
@@ -335,5 +362,6 @@ onBeforeUnmount(() => {
 				>
 			</template>
 		</Overlay>
+		<ConfirmDialog />
 	</div>
 </template>

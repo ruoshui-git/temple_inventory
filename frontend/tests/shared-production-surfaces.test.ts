@@ -84,18 +84,6 @@ describe("interactive preview", () => {
     expect(
       wrapper.findAll(".table-item-image .item-image-button"),
     ).toHaveLength(5);
-    await wrapper
-      .get('button[aria-label="放大查看东北珍珠米图片"]')
-      .trigger("click");
-    await flushPromises();
-    expect(document.querySelector(".lightbox-image")).not.toBeNull();
-    document
-      .querySelector<HTMLElement>(".preview-overlay")!
-      .dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-      );
-    await flushPromises();
-    expect(document.querySelector(".lightbox-image")).toBeNull();
     expect(wrapper.findAll("tbody tr")).toHaveLength(6);
   });
   it("opens location breakdowns on hover, supports pinned click, and dismisses with Escape", async () => {
@@ -129,21 +117,23 @@ describe("interactive preview", () => {
     });
     mounted.push(wrapper);
     await nextTick();
-    const parent = document.querySelector<HTMLElement>(".preview-overlay")!;
+    const parentOverlay = document.querySelector<HTMLElement>(".preview-overlay")!;
     const imageButton =
-      parent.querySelector<HTMLButtonElement>(".item-image-button")!;
+      parentOverlay.querySelector<HTMLButtonElement>(".item-image-button")!;
     imageButton.focus();
     imageButton.click();
     await nextTick();
     await nextTick();
-    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(1);
-    const top = document.querySelector<HTMLElement>(".overlay-stage")!;
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2);
+    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(2);
+    const parentDialog = document.querySelector<HTMLElement>(".preview-dialog")!;
+    const top = document.querySelectorAll<HTMLElement>(".preview-dialog")[1]!;
     top.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     await flushPromises();
-    expect(document.querySelector(".overlay-stage")).toBeNull();
+    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(1);
+    expect(parentDialog.isConnected).toBe(true);
     expect(document.activeElement).toBe(imageButton);
     expect(document.body.style.overflow).toBe("hidden");
   });

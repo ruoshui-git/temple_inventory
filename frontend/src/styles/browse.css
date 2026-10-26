@@ -74,9 +74,13 @@
 }
 .browse-rank-row {
 	min-height: 56px;
+	padding-inline: 6px;
+	margin-inline: -6px;
 }
+.browse-hierarchy-section > .preview-choice-label { margin-inline-start: 32px; }
 .browse-tree-row {
-	padding-block: 0;
+	padding: 6px;
+	margin: -6px;
 }
 .browse-rank-row:last-child {
 	border-bottom: 0;
@@ -352,6 +356,60 @@
 		flex: 1 1 4rem;
 		overflow-wrap: anywhere;
 		white-space: normal;
+	}
+}
+
+@media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
+	.sample-content:has(.browse-page) {
+		padding-block-start: 0 !important;
+		padding-inline: 8px;
+	}
+	.browse-chrome .app-page-identity {
+		display: none;
+	}
+	.browse-chrome.browse-chrome,
+	.browse-toolbar {
+		gap: 2px;
+		margin-block: 2px;
+		padding-block: 2px;
+	}
+	.browse-chrome .browse-persistent-bar {
+		gap: 4px;
+	}
+	.browse-persistent-search input {
+		min-height: 36px;
+	}
+	.browse-summary-line {
+		flex-wrap: nowrap;
+		gap: 4px;
+		margin-block: 2px;
+	}
+	.browse-summary-copy {
+		flex: 1 1 0;
+		gap: 3px;
+		font-size: 12px;
+		white-space: nowrap;
+	}
+	.browse-summary-controls {
+		flex: 0 0 auto;
+		flex-wrap: nowrap;
+		gap: 2px;
+	}
+	.browse-summary-controls > .ui-button:not(.is-icon-only),
+	.browse-summary-controls > .browse-sort-control button,
+	.stock-view-icons button {
+		min-height: 44px;
+	}
+	.sample-mobile-nav {
+		min-height: 44px;
+		padding-block: 1px;
+		gap: 0;
+	}
+	.sample-mobile-nav button {
+		min-height: 44px;
+		padding-block: 2px;
+		gap: 2px;
+		font-size: 10px;
 	}
 }
 
@@ -1068,7 +1126,8 @@
 	flex-wrap: wrap;
 	gap: 0 6px;
 	min-height: 30px;
-	padding: 0;
+	padding: 4px 6px;
+	margin: -4px -6px;
 	border: 0;
 	background: transparent;
 	color: var(--p-muted);
@@ -1368,7 +1427,8 @@
 	min-height: 56px;
 	align-items: center;
 	gap: 8px;
-	padding: 0;
+	padding: 6px;
+	margin: -6px;
 	font: inherit;
 }
 .preview-group--mobile-list .preview-group-identity {
@@ -2252,6 +2312,8 @@
 .browse-active-chip {
 	display: inline-flex;
 	align-items: center;
+	min-width: 0;
+	max-width: 100%;
 	max-width: min(20rem, 100%);
 	border: 1px solid var(--p-border);
 	border-radius: 999px;
@@ -2268,8 +2330,11 @@
 }
 .browse-active-chip-label {
 	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	padding: 4px 8px 4px 10px;
-	white-space: normal;
 	text-align: start;
 	overflow-wrap: anywhere;
 }

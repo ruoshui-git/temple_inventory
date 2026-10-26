@@ -291,7 +291,7 @@ it("uses presenter labels and keeps authorized warehouse keys unchanged", () => 
   expect(warehouseLabel("SECRET", nodes)).toBe("位置暂不可用");
   expect(nodes[0]!.name).toBe("ROOM-A - COMPANY");
 });
-it("stages a child overlay inside the same dialog and restores its trigger", async () => {
+it("stacks a child overlay above its parent and restores its trigger", async () => {
   const child = ref(false);
   const wrapper = render(
     defineComponent({
@@ -320,17 +320,15 @@ it("stages a child overlay inside the same dialog and restores its trigger", asy
   (document.querySelector("button") as HTMLElement).focus();
   click("裁剪");
   await flushPromises();
-  expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-  expect(
-    document.querySelector('[role="dialog"]')!.getAttribute("aria-labelledby"),
-  ).toBe(document.querySelector(".overlay-stage h2")!.id);
+  expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2);
+  expect(document.querySelectorAll(".preview-overlay")).toHaveLength(2);
   document
-    .querySelector(".preview-dialog")!
+    .querySelectorAll<HTMLElement>(".preview-dialog")[1]!
     .dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
   await flushPromises();
-  expect(document.querySelector(".overlay-stage")).toBeNull();
+  expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(document.activeElement?.textContent).toBe("裁剪");
 });
 describe("square crop choices", () => {
@@ -360,7 +358,7 @@ describe("square crop choices", () => {
       expect(checkbox.checked).toBe(false);
       checkbox.checked = retain;
       checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-      click("使用 WebP 裁剪图");
+      click("使用裁剪后的图片");
       await flushPromises();
       const files = wrapper.emitted("choose")![0]![0] as File[];
       expect(files.map((file) => file.name)).toEqual(
@@ -375,7 +373,7 @@ describe("square crop choices", () => {
     cropperMocks.selection.width = 900;
     cropperMocks.selection.height = 900;
     const { wrapper } = await crop();
-    click("使用 WebP 裁剪图");
+    click("使用裁剪后的图片");
     await flushPromises();
     expect(cropperMocks.selection.$toCanvas).toHaveBeenLastCalledWith({
       width: 260,

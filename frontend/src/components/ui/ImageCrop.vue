@@ -45,6 +45,7 @@ onMounted(async () => {
 		if (!cropImage || !selection) throw new Error("cropper elements unavailable");
 		selection.aspectRatio = 1;
 		selection.initialAspectRatio = 1;
+		selection.initialCoverage = 1;
 		selection.keyboard = true;
 		selection.maxInset = "auto";
 		await cropImage.$ready();
@@ -197,7 +198,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<Overlay :title="title" adaptive-creation @close="emit('cancel')">
+	<Overlay
+		:title="title"
+		panel-class="image-crop-dialog"
+		adaptive-creation
+		@close="emit('cancel')"
+	>
 		<p>{{ file.name }} · 拖动方形选区调整范围；方向键可微调位置。</p>
 		<p v-if="!ready && !error" role="status">正在读取图片方向与尺寸…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
@@ -230,7 +236,7 @@ onBeforeUnmount(() => {
 				>重置裁剪</UiButton
 			>
 			<UiButton variant="primary" :disabled="!ready" :loading="busy" @click="crop"
-				>使用 WebP 裁剪图</UiButton
+				>使用裁剪后的图片</UiButton
 			>
 		</template>
 	</Overlay>
@@ -242,6 +248,12 @@ onBeforeUnmount(() => {
 	height: min(65vh, 28rem);
 	margin: var(--p-space-3) auto;
 	background: var(--p-soft);
+}
+
+.preview-form-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .cropper-host :deep(cropper-canvas) {

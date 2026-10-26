@@ -636,31 +636,14 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:aria-label="`${column.label}排序${sortBy === String(column.sortField || column.id) ? (sortDirection === 'asc' ? '：升序' : '：降序') : '：未排序'}`"
 									@click="emit('sort', String(column.sortField || column.id))"
 								>
-									<span
-										v-if="dataColumnAlignment(column) === 'end'"
-										class="data-table-sort-indicator"
-										aria-hidden="true"
-										>{{
-											sortBy === String(column.sortField || column.id)
-												? sortDirection === "asc"
-													? "↑"
-													: "↓"
-												: "↕"
-										}}</span
-									>
 									<span class="data-table-sort-label">{{ column.label }}</span>
-									<span
-										v-if="dataColumnAlignment(column) !== 'end'"
-										class="data-table-sort-indicator"
-										aria-hidden="true"
-										>{{
-											sortBy === String(column.sortField || column.id)
-												? sortDirection === "asc"
-													? "↑"
-													: "↓"
-												: "↕"
-										}}</span
-									>
+									<span class="data-table-sort-indicator" aria-hidden="true">{{
+										sortBy === String(column.sortField || column.id)
+											? sortDirection === "asc"
+												? "↑"
+												: "↓"
+											: "↕"
+									}}</span>
 								</button>
 								<template v-else>{{ column.label }}</template>
 							</th>
@@ -715,6 +698,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 							<tr
 								:class="[
 									group(entry) ? 'data-table-group-row' : undefined,
+									group(entry) && entry.expanded ? 'is-expanded' : undefined,
 									!group(entry) && rowClass
 										? rowClass(entry.value as Record<string, unknown>)
 										: undefined,
@@ -748,23 +732,25 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									v-if="selectionEnabled && !group(entry)"
 									class="data-table-selection-column"
 								>
-									<input
-										type="checkbox"
-										:aria-label="
-											props.selectionLabel
-												? `选择${props.selectionLabel(entry.value as Record<string, unknown>)}`
-												: `选择记录 ${entry.id}`
-										"
-										:checked="selectedKeys.includes(keyFor(entry))"
-										:disabled="entry.selectable === false"
-										@change="
-											emit(
-												'select',
-												keyFor(entry),
-												($event.target as HTMLInputElement).checked,
-											)
-										"
-									/>
+									<label class="data-table-row-checkbox">
+										<input
+											type="checkbox"
+											:aria-label="
+												props.selectionLabel
+													? `选择${props.selectionLabel(entry.value as Record<string, unknown>)}`
+													: `选择记录 ${entry.id}`
+											"
+											:checked="selectedKeys.includes(keyFor(entry))"
+											:disabled="entry.selectable === false"
+											@change="
+												emit(
+													'select',
+													keyFor(entry),
+													($event.target as HTMLInputElement).checked,
+												)
+											"
+										/>
+									</label>
 								</td>
 								<td
 									v-else-if="selectionEnabled"
@@ -949,7 +935,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</table>
 			</div>
 			<button
-				v-if="overflowStart && hintVisible"
+				:aria-hidden="!(overflowStart && hintVisible)"
+				:tabindex="overflowStart && hintVisible ? 0 : -1"
+				:class="{ 'is-hidden': !(overflowStart && hintVisible) }"
 				class="data-table-overflow-hint data-table-overflow-hint-start"
 				:style="{ top: `${hintTop}px`, left: `${hintLeft}px` }"
 				type="button"
@@ -960,7 +948,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				<InventoryIcon name="chevron-left" />
 			</button>
 			<button
-				v-if="overflowEnd && hintVisible"
+				:aria-hidden="!(overflowEnd && hintVisible)"
+				:tabindex="overflowEnd && hintVisible ? 0 : -1"
+				:class="{ 'is-hidden': !(overflowEnd && hintVisible) }"
 				class="data-table-overflow-hint data-table-overflow-hint-end"
 				:style="{ top: `${hintTop}px`, right: `${hintRight}px` }"
 				type="button"

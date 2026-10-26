@@ -228,7 +228,8 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
           args.card === "movement"
             ? history.rows.map((r) => ({
                 ...r,
-                item_names: item.item_name,
+                item_count: 1,
+                item_names: [item.item_name],
                 quantities: [{ qty: 12, uom: "Nos", effect: 12 }],
               }))
             : [],

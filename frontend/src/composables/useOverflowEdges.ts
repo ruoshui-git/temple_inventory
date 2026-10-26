@@ -1,5 +1,9 @@
 import { onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 
+export function edgeIsOverflowing(gap: number, wasOverflowing: boolean) {
+	return gap > (wasOverflowing ? 1 : 8);
+}
+
 export function useOverflowEdges(
   element: Ref<HTMLElement | undefined>,
   frame: Ref<HTMLElement | undefined>,
@@ -30,8 +34,10 @@ export function useOverflowEdges(
       return;
     }
     const max = node.scrollWidth - node.clientWidth;
-    overflowStart.value = max > 1 && node.scrollLeft > 1;
-    overflowEnd.value = max > 1 && node.scrollLeft < max - 1;
+    const leftGap = node.scrollLeft;
+    const rightGap = max - node.scrollLeft;
+    overflowStart.value = max > 1 && edgeIsOverflowing(leftGap, overflowStart.value);
+    overflowEnd.value = max > 1 && edgeIsOverflowing(rightGap, overflowEnd.value);
     const right = node.getBoundingClientRect().right;
     let inset = 0;
     let startInset = 0;

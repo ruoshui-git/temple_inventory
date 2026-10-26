@@ -62,6 +62,7 @@ export interface AppRouteDefinition {
   owner: AppOwner;
   inventorySection?: "stock" | "expiry" | "warehouses" | "pending";
   stateIdentity?: string;
+  taskEditor?: boolean;
   reservedParams?: Readonly<Record<string, readonly string[]>>;
   allowedParams?: Readonly<Record<string, readonly string[]>>;
   capabilities: readonly (
@@ -134,6 +135,14 @@ const route = (
   reservedParams,
   allowedParams,
   stateIdentity,
+  taskEditor: [
+    "item-new",
+    "item-edit",
+    "movement-new",
+    "movement-detail",
+    "count-new",
+    "count-detail",
+  ].includes(name),
 });
 
 export const routeRegistry: readonly AppRouteDefinition[] = [
@@ -437,6 +446,7 @@ export const routeRecords: RouteRecordRaw[] = routeRegistry.map((entry) => ({
     inventorySection: entry.inventorySection,
     stateIdentity: entry.stateIdentity,
     reservedParams: entry.reservedParams,
+    taskEditor: entry.taskEditor,
   },
 }));
 

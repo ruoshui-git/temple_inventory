@@ -205,7 +205,11 @@ describe("table column contracts", () => {
     scroll.dispatchEvent(new Event("scroll"));
     await nextFrame();
     await nextTick();
-    expect(wrapper.findAll(".data-table-overflow-hint")).toHaveLength(0);
+    expect(
+      wrapper
+        .findAll(".data-table-overflow-hint")
+        .every((hint) => hint.attributes("aria-hidden") === "true"),
+    ).toBe(true);
     expect(scroll.classList.contains("is-overflow-end")).toBe(true);
     expect(
       wrapper
@@ -315,7 +319,11 @@ describe("table column contracts", () => {
     scroll.dispatchEvent(new Event("scroll"));
     await nextFrame();
     await nextTick();
-    expect(wrapper.findAll(".data-table-overflow-hint")).toHaveLength(0);
+    expect(
+      wrapper
+        .findAll(".data-table-overflow-hint")
+        .every((hint) => hint.attributes("aria-hidden") === "true"),
+    ).toBe(true);
   });
 
   it("focuses a row on pointer interaction without changing horizontal scroll", async () => {
@@ -633,8 +641,8 @@ describe("shared data table", () => {
     ).toBe(true);
     expect(
       wrapper
-        .get('[aria-label="数量排序：未排序"]')
-        .element.firstElementChild?.classList.contains(
+        .get('[aria-label="数量排序：未排序"] .data-table-sort-label')
+        .element.nextElementSibling?.classList.contains(
           "data-table-sort-indicator",
         ),
     ).toBe(true);
