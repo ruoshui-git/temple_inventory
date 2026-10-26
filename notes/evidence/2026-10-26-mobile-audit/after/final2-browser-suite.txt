@@ -1,0 +1,2272 @@
+Verified Chinese font: /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc (zh coverage)
+
+> temple-inventory-frontend@0.0.0 test:browser /workspace/development/frappe-bench/apps/temple_inventory/frontend
+> playwright test
+
+
+Running 78 tests using 1 worker
+
+  ✓   1 tests/browser/app-refinement-review.spec.ts:310:3 › records, compact header and navigation at 1440 (4.1s)
+  ✘   2 tests/browser/app-refinement-review.spec.ts:384:3 › loan records and item summaries at 1440 (7.3s)
+  ✘   3 tests/browser/app-refinement-review.spec.ts:427:3 › expiry lightbox, batch route, edit conflict at 1440 (45.9s)
+  ✘   4 tests/browser/app-refinement-review.spec.ts:310:3 › records, compact header and navigation at 390 (2.3s)
+  ✓   5 tests/browser/app-refinement-review.spec.ts:384:3 › loan records and item summaries at 390 (1.5s)
+  ✘   6 tests/browser/app-refinement-review.spec.ts:427:3 › expiry lightbox, batch route, edit conflict at 390 (6.6s)
+  ✓   7 tests/browser/app-refinement-review.spec.ts:484:1 › expiry date header toggles its own sort direction (1.1s)
+  ✘   8 tests/browser/app-refinement-review.spec.ts:528:1 › large text and adaptive filter density (6.6s)
+  ✓   9 tests/browser/app-refinement-review.spec.ts:557:1 › desktop navigation wraps at the 1024px text scale breakpoint (1.3s)
+  ✓  10 tests/browser/app-refinement-review.spec.ts:596:1 › dashboard uses the same increase/decrease quantity colors (1.4s)
+  ✓  11 tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / desktop (1.7s)
+  ✘  12 tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / phone-large-text (7.1s)
+  ✘  13 tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / zoom-200-effective-viewport (7.1s)
+  ✘  14 tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / desktop (6.8s)
+  ✘  15 tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / phone-large-text (6.7s)
+  ✘  16 tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / zoom-200-effective-viewport (6.7s)
+  ✘  17 tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / desktop (6.7s)
+  ✘  18 tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / phone-large-text (6.7s)
+  ✘  19 tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / zoom-200-effective-viewport (6.7s)
+  ✘  20 tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / desktop (6.7s)
+  ✘  21 tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / phone-large-text (6.7s)
+  ✘  22 tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / zoom-200-effective-viewport (6.7s)
+  ✘  23 tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / desktop (6.7s)
+  ✘  24 tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / phone-large-text (6.7s)
+  ✘  25 tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / zoom-200-effective-viewport (6.7s)
+  ✘  26 tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / desktop (6.7s)
+  ✘  27 tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / phone-large-text (6.7s)
+  ✘  28 tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / zoom-200-effective-viewport (6.7s)
+  ✓  29 tests/browser/dashboard.spec.ts:5:1 › phone dashboard keeps create actions in four columns and secondary actions reachable (768ms)
+  ✓  30 tests/browser/dashboard.spec.ts:61:1 › dashboard retains applied scope and dismisses its filter across 1024px (946ms)
+  ✘  31 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 375px / 100% (5.4s)
+  ✘  32 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 375px / 200% (5.4s)
+  ✘  33 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 768px / 100% (5.4s)
+  ✘  34 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 768px / 200% (5.4s)
+  ✘  35 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1024px / 100% (5.4s)
+  ✘  36 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1024px / 200% (5.4s)
+  ✘  37 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1440px / 100% (5.4s)
+  ✘  38 tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1440px / 200% (5.4s)
+  ✘  39 tests/browser/native-editor-route.spec.ts:6:1 › save, reload and amendment keep the current native identity in the URL (5.3s)
+  ✓  40 tests/browser/native-followup.spec.ts:6:3 › fresh linked activities and scoped opening export at 375 (2.9s)
+  ✓  41 tests/browser/native-followup.spec.ts:6:3 › fresh linked activities and scoped opening export at 1440 (2.4s)
+  ✘  42 tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 375px (46.6s)
+  ✘  43 tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 1024px (46.7s)
+  ✘  44 tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 1440px (46.6s)
+  ✘  45 tests/browser/native-recovery.spec.ts:46:1 › incomplete input is restored automatically from its recovery link (45.1s)
+  ✘  46 tests/browser/native-recovery.spec.ts:65:1 › two tabs retain independent incomplete editors (45.1s)
+  ✘  47 tests/browser/native-recovery.spec.ts:88:1 › another account cannot offer or hydrate the previous account's input (45.1s)
+  ✘  48 tests/browser/native-recovery.spec.ts:102:1 › pending uploads recover metadata and require file reselection (45.1s)
+  ✘  49 tests/browser/native-recovery.spec.ts:128:1 › blocked recovery storage keeps the form usable and its leave guard active (45.1s)
+  ✘  50 tests/browser/native-scanner.spec.ts:79:1 › manual and hardware-style scans preserve input and configure the same allocation (5.4s)
+  ✘  51 tests/browser/native-scanner.spec.ts:105:3 › ZXing-WASM decodes deterministic camera frames and releases tracks (5.4s)
+  ✘  52 tests/browser/page-headers.spec.ts:140:3 › shared browse headers keep search, analysis and page actions visible at 390 (7.0s)
+  ✘  53 tests/browser/page-headers.spec.ts:140:3 › shared browse headers keep search, analysis and page actions visible at 1440 (7.5s)
+  ✘  54 tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 320/100/compact (7.0s)
+  ✘  55 tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 390/200/spacious (6.9s)
+  ✘  56 tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 1024/100/balanced (7.0s)
+  ✘  57 tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 1440/200/compact (7.0s)
+  ✘  58 tests/browser/page-headers.spec.ts:242:3 › deep scroll keeps the persistent header and selected actions at 390 (6.9s)
+  ✘  59 tests/browser/page-headers.spec.ts:242:3 › deep scroll keeps the persistent header and selected actions at 1440 (7.0s)
+  ✓  60 tests/browser/ui-layer-contract.spec.ts:18:3 › icon centering and teleported menu layering at 1440×900 (250ms)
+  ✓  61 tests/browser/ui-layer-contract.spec.ts:18:3 › icon centering and teleported menu layering at 1100×800 (224ms)
+  ✓  62 tests/browser/ui-layer-contract.spec.ts:18:3 › icon centering and teleported menu layering at 390×844 (212ms)
+  ✘  63 tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 320/100/compact (6.8s)
+  ✘  64 tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 390/200/spacious (6.8s)
+  ✘  65 tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 1440/100/balanced (6.9s)
+  ✘  66 tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 320/200/balanced (6.9s)
+  ✘  67 tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 390/100/spacious (6.9s)
+  ✘  68 tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 1440/200/compact (6.9s)
+  ✘  69 tests/browser/ui-refinement.spec.ts:357:3 › whole movement records and related loans 390 (6.8s)
+  ✘  70 tests/browser/ui-refinement.spec.ts:409:3 › adjacent expiry tabs and square crop 390 (8.8s)
+  ✘  71 tests/browser/ui-refinement.spec.ts:357:3 › whole movement records and related loans 1440 (7.0s)
+  ✘  72 tests/browser/ui-refinement.spec.ts:409:3 › adjacent expiry tabs and square crop 1440 (45.8s)
+  ✘  73 tests/browser/ui-refinement.spec.ts:494:1 › stock state and open filter survive the shared breakpoint (6.9s)
+  ✘  74 tests/browser/ui-refinement.spec.ts:515:1 › records whether native Chromium keyboard zoom is available (6.9s)
+  ✘  75 tests/browser/ui-refinement.spec.ts:549:3 › centered warehouse icons and readable long labels 390 (1.9s)
+  ✘  76 tests/browser/ui-refinement.spec.ts:549:3 › centered warehouse icons and readable long labels 1440 (2.0s)
+  ✘  77 tests/browser/ui-refinement.spec.ts:587:1 › open movement filter follows the breakpoint without losing selection (7.1s)
+  ✘  78 tests/browser/ui-refinement.spec.ts:627:1 › large-text related-loan context keeps its close action visible (45.8s)
+
+
+  1) tests/browser/app-refinement-review.spec.ts:384:3 › loan records and item summaries at 1440 ───
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.browse-result-summary')
+    Expected substring: "3 种物品"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('.browse-result-summary') with timeout 5000ms
+      - waiting for locator('.browse-result-summary')
+
+
+      412 |     });
+      413 |     await page.getByRole("button", { name: "按物品", exact: true }).click();
+    > 414 |     await expect(page.locator(".browse-result-summary")).toContainText(
+          |                                                          ^
+      415 |       "3 种物品",
+      416 |     );
+      417 |     await expect(page.locator(".browse-result-summary")).toContainText(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/app-refinement-review.spec.ts:414:58
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-loan-07162--and-item-summaries-at-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-loan-07162--and-item-summaries-at-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-loan-07162--and-item-summaries-at-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) tests/browser/app-refinement-review.spec.ts:427:3 › expiry lightbox, batch route, edit conflict at 1440 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /BATCH-001.*批次/ }).first()
+
+
+      450 |       .getByRole("button", { name: /BATCH-001.*批次/ })
+      451 |       .first()
+    > 452 |       .click();
+          |        ^
+      453 |     await expect(page.locator(".batch-detail-page")).toBeVisible();
+      454 |     await expect(page.locator(".batch-detail-page")).toContainText("已提交");
+      455 |     await expect(page.locator(".batch-detail-page")).toContainText("入库");
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/app-refinement-review.spec.ts:452:8
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-expi-9f26c-route-edit-conflict-at-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-expi-9f26c-route-edit-conflict-at-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-expi-9f26c-route-edit-conflict-at-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) tests/browser/app-refinement-review.spec.ts:310:3 › records, compact header and navigation at 390 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      362 |       const nav = page.locator(".sample-mobile-nav");
+      363 |       await expect(nav.getByRole("button")).toHaveCount(6);
+    > 364 |       expect(await nav.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(
+          |                                                                           ^
+      365 |         true,
+      366 |       );
+      367 |       await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/app-refinement-review.spec.ts:364:75
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-reco-af674-eader-and-navigation-at-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-reco-af674-eader-and-navigation-at-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-reco-af674-eader-and-navigation-at-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) tests/browser/app-refinement-review.spec.ts:427:3 › expiry lightbox, batch route, edit conflict at 390 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-browse-row]')
+    Expected: 1
+    Received: 2
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-browse-row]') with timeout 5000ms
+      - waiting for locator('[data-browse-row]')
+        14 × locator resolved to 2 elements
+           - unexpected value "2"
+
+
+      431 |     const errors = await prepare(page);
+      432 |     await page.goto("/inventory/stock/expiry");
+    > 433 |     await expect(page.locator("[data-browse-row]")).toHaveCount(1);
+          |                                                     ^
+      434 |     await expect(
+      435 |       page.getByRole("button", { name: "查看批次明细", exact: true }),
+      436 |     ).toHaveCount(0);
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/app-refinement-review.spec.ts:433:53
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-expi-e3247--route-edit-conflict-at-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-expi-e3247--route-edit-conflict-at-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-expi-e3247--route-edit-conflict-at-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) tests/browser/app-refinement-review.spec.ts:528:1 › large text and adaptive filter density ────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-browse-row]')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-browse-row]') with timeout 5000ms
+      - waiting for locator('[data-browse-row]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      530 |   await page.setViewportSize({ width: 1440, height: 1000 });
+      531 |   await page.goto("/inventory/movements?view=items");
+    > 532 |   await expect(page.locator("[data-browse-row]")).toHaveCount(3);
+          |                                                   ^
+      533 |   await page
+      534 |     .locator(".browse-toolbar")
+      535 |     .getByRole("button", { name: /^筛选/ })
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/app-refinement-review.spec.ts:532:51
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-large-text-and-adaptive-filter-density/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-large-text-and-adaptive-filter-density/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/app-refinement-review-large-text-and-adaptive-filter-density/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / phone-large-text 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('tree', { name: '物品类别选项', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('tree', { name: '物品类别选项', exact: true }) with timeout 5000ms
+      - waiting for getByRole('tree', { name: '物品类别选项', exact: true })
+
+
+      239 |         exact: true,
+      240 |       });
+    > 241 |       await expect(tree).toBeVisible();
+          |                          ^
+      242 |       const dimensions = await tree.evaluate((element) => {
+      243 |         const scroller = element.closest(".facet-suggestions")!;
+      244 |         const label = element.querySelector("label > span")!;
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:241:26
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-sto-a8488-te-filters-phone-large-text/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-sto-a8488-te-filters-phone-large-text/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-sto-a8488-te-filters-phone-large-text/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / zoom-200-effective-viewport 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('tree', { name: '物品类别选项', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('tree', { name: '物品类别选项', exact: true }) with timeout 5000ms
+      - waiting for getByRole('tree', { name: '物品类别选项', exact: true })
+
+
+      239 |         exact: true,
+      240 |       });
+    > 241 |       await expect(tree).toBeVisible();
+          |                          ^
+      242 |       const dimensions = await tree.evaluate((element) => {
+      243 |         const scroller = element.closest(".facet-suggestions")!;
+      244 |         const label = element.querySelector("label > span")!;
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:241:26
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-sto-aabfb-zoom-200-effective-viewport/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-sto-aabfb-zoom-200-effective-viewport/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-sto-aabfb-zoom-200-effective-viewport/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / desktop 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-922df-nd-complete-filters-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-922df-nd-complete-filters-desktop/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-922df-nd-complete-filters-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / phone-large-text 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-27c27-te-filters-phone-large-text/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-27c27-te-filters-phone-large-text/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-27c27-te-filters-phone-large-text/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / zoom-200-effective-viewport 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-c0cca-zoom-200-effective-viewport/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-c0cca-zoom-200-effective-viewport/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-exp-c0cca-zoom-200-effective-viewport/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / desktop 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-b3799-nd-complete-filters-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-b3799-nd-complete-filters-desktop/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-b3799-nd-complete-filters-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / phone-large-text 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-0037f-te-filters-phone-large-text/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-0037f-te-filters-phone-large-text/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-0037f-te-filters-phone-large-text/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / zoom-200-effective-viewport 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-5fcc0-zoom-200-effective-viewport/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-5fcc0-zoom-200-effective-viewport/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-5fcc0-zoom-200-effective-viewport/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / desktop 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-fd1a8-nd-complete-filters-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-fd1a8-nd-complete-filters-desktop/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-fd1a8-nd-complete-filters-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / phone-large-text 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-befa4-te-filters-phone-large-text/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-befa4-te-filters-phone-large-text/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-befa4-te-filters-phone-large-text/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / zoom-200-effective-viewport 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-35dc4-zoom-200-effective-viewport/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-35dc4-zoom-200-effective-viewport/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-mov-35dc4-zoom-200-effective-viewport/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / desktop 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-bc772-nd-complete-filters-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-bc772-nd-complete-filters-desktop/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-bc772-nd-complete-filters-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / phone-large-text 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-35eb1-te-filters-phone-large-text/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-35eb1-te-filters-phone-large-text/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-35eb1-te-filters-phone-large-text/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / zoom-200-effective-viewport 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-b36cf-zoom-200-effective-viewport/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-b36cf-zoom-200-effective-viewport/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-b36cf-zoom-200-effective-viewport/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / desktop 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-71d17-nd-complete-filters-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-71d17-nd-complete-filters-desktop/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-71d17-nd-complete-filters-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / phone-large-text 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-67748-te-filters-phone-large-text/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-67748-te-filters-phone-large-text/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-67748-te-filters-phone-large-text/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / zoom-200-effective-viewport 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').locator('h1')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').locator('h1') with timeout 5000ms
+      - waiting for locator('.browse-chrome').locator('h1')
+
+
+      196 |       await page.goto(`/inventory/${surface}`);
+      197 |       const chrome = page.locator(".browse-chrome");
+    > 198 |       await expect(chrome.locator("h1")).toBeVisible();
+          |                                          ^
+      199 |       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
+      200 |       const sortChip = chrome.locator(
+      201 |         ".browse-sort-control .popup-menu-trigger",
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/browse-standardization.spec.ts:198:42
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-1e9e7-zoom-200-effective-viewport/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-1e9e7-zoom-200-effective-viewport/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/browse-standardization-loa-1e9e7-zoom-200-effective-viewport/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 375px / 100% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-e8407-h-allocations-at-375px-100-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-e8407-h-allocations-at-375px-100-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-e8407-h-allocations-at-375px-100-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 375px / 200% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-7cf20-h-allocations-at-375px-200-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-7cf20-h-allocations-at-375px-200-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-7cf20-h-allocations-at-375px-200-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 768px / 100% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-6d790-h-allocations-at-768px-100-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-6d790-h-allocations-at-768px-100-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-6d790-h-allocations-at-768px-100-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 768px / 200% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-0f352-h-allocations-at-768px-200-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-0f352-h-allocations-at-768px-200-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-0f352-h-allocations-at-768px-200-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1024px / 100% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-2c690--allocations-at-1024px-100-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-2c690--allocations-at-1024px-100-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-2c690--allocations-at-1024px-100-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1024px / 200% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-7725e--allocations-at-1024px-200-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-7725e--allocations-at-1024px-200-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-7725e--allocations-at-1024px-200-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  29) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1440px / 100% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-be08a--allocations-at-1440px-100-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-be08a--allocations-at-1440px-100-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-be08a--allocations-at-1440px-100-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30) tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1440px / 200% 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]') with timeout 5000ms
+      - waiting for locator('.form-main .preview-allocation-summary').locator('[data-native-batch-line]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+       96 |         await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
+       97 |         const summary = page.locator(".form-main .preview-allocation-summary");
+    >  98 |         await expect(summary.locator("[data-native-batch-line]")).toHaveCount(
+          |                                                                   ^
+       99 |           2,
+      100 |         );
+      101 |         await expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-batch-display.spec.ts:98:67
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-957d6--allocations-at-1440px-200-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-957d6--allocations-at-1440px-200-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-batch-display-cance-957d6--allocations-at-1440px-200-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  31) tests/browser/native-editor-route.spec.ts:6:1 › save, reload and amendment keep the current native identity in the URL 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: '保存草稿', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('button', { name: '保存草稿', exact: true }) with timeout 5000ms
+      - waiting for getByRole('button', { name: '保存草稿', exact: true })
+
+
+      143 |   await expect(
+      144 |     page.getByRole("button", { name: "保存草稿", exact: true }),
+    > 145 |   ).toBeVisible();
+          |     ^
+      146 |   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+      147 |   await expect(page).toHaveURL(
+      148 |     /\/inventory\/documents\/Stock%20Entry\/STE-NEW$/,
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-editor-route.spec.ts:145:5
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-editor-route-save-r-68ef5--native-identity-in-the-URL/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-editor-route-save-r-68ef5--native-identity-in-the-URL/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-editor-route-save-r-68ef5--native-identity-in-the-URL/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  32) tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 375px 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: '列表', exact: true })
+
+
+      119 |     }
+      120 |     await expect(page.locator("[data-browse-row]")).toHaveCount(30);
+    > 121 |     await page.getByRole("button", { name: "列表", exact: true }).click();
+          |                                                                 ^
+      122 |     await page.getByRole("button", { name: "加载更多", exact: true }).click();
+      123 |     await expect(page.locator("[data-browse-row]")).toHaveCount(60);
+      124 |     const row = page.locator('[data-browse-row="ITEM-42"]');
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-navigation-memory.spec.ts:121:65
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-f0f30-esponsive-position-at-375px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-f0f30-esponsive-position-at-375px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-f0f30-esponsive-position-at-375px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33) tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 1024px 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: '列表', exact: true })
+
+
+      119 |     }
+      120 |     await expect(page.locator("[data-browse-row]")).toHaveCount(30);
+    > 121 |     await page.getByRole("button", { name: "列表", exact: true }).click();
+          |                                                                 ^
+      122 |     await page.getByRole("button", { name: "加载更多", exact: true }).click();
+      123 |     await expect(page.locator("[data-browse-row]")).toHaveCount(60);
+      124 |     const row = page.locator('[data-browse-row="ITEM-42"]');
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-navigation-memory.spec.ts:121:65
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-20044-sponsive-position-at-1024px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-20044-sponsive-position-at-1024px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-20044-sponsive-position-at-1024px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  34) tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 1440px 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: '列表', exact: true })
+
+
+      119 |     }
+      120 |     await expect(page.locator("[data-browse-row]")).toHaveCount(30);
+    > 121 |     await page.getByRole("button", { name: "列表", exact: true }).click();
+          |                                                                 ^
+      122 |     await page.getByRole("button", { name: "加载更多", exact: true }).click();
+      123 |     await expect(page.locator("[data-browse-row]")).toHaveCount(60);
+      124 |     const row = page.locator('[data-browse-row="ITEM-42"]');
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-navigation-memory.spec.ts:121:65
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-f8447-sponsive-position-at-1440px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-f8447-sponsive-position-at-1440px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-navigation-memory-b-f8447-sponsive-position-at-1440px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  35) tests/browser/native-recovery.spec.ts:46:1 › incomplete input is restored automatically from its recovery link 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByText('补充记录（可选）', { exact: true })
+
+
+      32 | async function open(page: Page) {
+      33 |   await page.goto("/inventory/movements/new/Receive");
+    > 34 |   await page.getByText("补充记录（可选）", { exact: true }).click();
+         |                                                     ^
+      35 |   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
+      36 | }
+      37 |
+        at open (/workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:34:53)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:50:3
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-recovery-incomplete-a1e6a-ally-from-its-recovery-link/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-recovery-incomplete-a1e6a-ally-from-its-recovery-link/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-recovery-incomplete-a1e6a-ally-from-its-recovery-link/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  36) tests/browser/native-recovery.spec.ts:65:1 › two tabs retain independent incomplete editors ──
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByText('补充记录（可选）', { exact: true })
+
+
+      32 | async function open(page: Page) {
+      33 |   await page.goto("/inventory/movements/new/Receive");
+    > 34 |   await page.getByText("补充记录（可选）", { exact: true }).click();
+         |                                                     ^
+      35 |   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
+      36 | }
+      37 |
+        at open (/workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:34:53)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:70:3
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-recovery-two-tabs-r-ec24c-ependent-incomplete-editors/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-recovery-two-tabs-r-ec24c-ependent-incomplete-editors/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-recovery-two-tabs-r-ec24c-ependent-incomplete-editors/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  37) tests/browser/native-recovery.spec.ts:88:1 › another account cannot offer or hydrate the previous account's input 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByText('补充记录（可选）', { exact: true })
+
+
+      32 | async function open(page: Page) {
+      33 |   await page.goto("/inventory/movements/new/Receive");
+    > 34 |   await page.getByText("补充记录（可选）", { exact: true }).click();
+         |                                                     ^
+      35 |   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
+      36 | }
+      37 |
+        at open (/workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:34:53)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:92:3
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-recovery-another-ac-e0e21-he-previous-account-s-input/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-recovery-another-ac-e0e21-he-previous-account-s-input/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-recovery-another-ac-e0e21-he-previous-account-s-input/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  38) tests/browser/native-recovery.spec.ts:102:1 › pending uploads recover metadata and require file reselection 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByText('补充记录（可选）', { exact: true })
+
+
+      32 | async function open(page: Page) {
+      33 |   await page.goto("/inventory/movements/new/Receive");
+    > 34 |   await page.getByText("补充记录（可选）", { exact: true }).click();
+         |                                                     ^
+      35 |   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
+      36 | }
+      37 |
+        at open (/workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:34:53)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:106:3
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-recovery-pending-up-175a7-nd-require-file-reselection/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-recovery-pending-up-175a7-nd-require-file-reselection/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-recovery-pending-up-175a7-nd-require-file-reselection/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  39) tests/browser/native-recovery.spec.ts:128:1 › blocked recovery storage keeps the form usable and its leave guard active 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByText('补充记录（可选）', { exact: true })
+
+
+      32 | async function open(page: Page) {
+      33 |   await page.goto("/inventory/movements/new/Receive");
+    > 34 |   await page.getByText("补充记录（可选）", { exact: true }).click();
+         |                                                     ^
+      35 |   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
+      36 | }
+      37 |
+        at open (/workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:34:53)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-recovery.spec.ts:140:3
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-recovery-blocked-re-1d157--and-its-leave-guard-active/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-recovery-blocked-re-1d157--and-its-leave-guard-active/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-recovery-blocked-re-1d157--and-its-leave-guard-active/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  40) tests/browser/native-scanner.spec.ts:79:1 › manual and hardware-style scans preserve input and configure the same allocation 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: '入库', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: '入库', exact: true }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: '入库', exact: true })
+
+
+      73 |   await expect(
+      74 |     page.getByRole("heading", { name: "入库", exact: true }),
+    > 75 |   ).toBeVisible();
+         |     ^
+      76 |   await page.getByText("扫描物品 / 批次 / 库位", { exact: true }).click();
+      77 | });
+      78 |
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-scanner.spec.ts:75:5
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-scanner-manual-and--981ea-nfigure-the-same-allocation/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-scanner-manual-and--981ea-nfigure-the-same-allocation/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-scanner-manual-and--981ea-nfigure-the-same-allocation/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  41) tests/browser/native-scanner.spec.ts:105:3 › ZXing-WASM decodes deterministic camera frames and releases tracks 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: '入库', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: '入库', exact: true }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: '入库', exact: true })
+
+
+      73 |   await expect(
+      74 |     page.getByRole("heading", { name: "入库", exact: true }),
+    > 75 |   ).toBeVisible();
+         |     ^
+      76 |   await page.getByText("扫描物品 / 批次 / 库位", { exact: true }).click();
+      77 | });
+      78 |
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/native-scanner.spec.ts:75:5
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/native-scanner-ZXing-WASM--be95a--frames-and-releases-tracks/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/native-scanner-ZXing-WASM--be95a--frames-and-releases-tracks/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/native-scanner-ZXing-WASM--be95a--frames-and-releases-tracks/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  42) tests/browser/page-headers.spec.ts:140:3 › shared browse headers keep search, analysis and page actions visible at 390 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').getByRole('button', { name: '分析结果', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').getByRole('button', { name: '分析结果', exact: true }) with timeout 5000ms
+      - waiting for locator('.browse-chrome').getByRole('button', { name: '分析结果', exact: true })
+
+
+      165 |         path === "loans/items"
+      166 |       )
+    > 167 |         await expect(analysis).toBeVisible();
+          |                                ^
+      168 |       await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
+      169 |       await expect(
+      170 |         chrome.locator(".browse-persistent-search input"),
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:167:32
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-shared-browse-51938-page-actions-visible-at-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-shared-browse-51938-page-actions-visible-at-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-shared-browse-51938-page-actions-visible-at-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  43) tests/browser/page-headers.spec.ts:140:3 › shared browse headers keep search, analysis and page actions visible at 1440 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.browse-chrome').getByRole('button', { name: '分析结果', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.browse-chrome').getByRole('button', { name: '分析结果', exact: true }) with timeout 5000ms
+      - waiting for locator('.browse-chrome').getByRole('button', { name: '分析结果', exact: true })
+
+
+      165 |         path === "loans/items"
+      166 |       )
+    > 167 |         await expect(analysis).toBeVisible();
+          |                                ^
+      168 |       await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
+      169 |       await expect(
+      170 |         chrome.locator(".browse-persistent-search input"),
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:167:32
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-shared-browse-919f4-age-actions-visible-at-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-shared-browse-919f4-age-actions-visible-at-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-shared-browse-919f4-age-actions-visible-at-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  44) tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 320/100/compact 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 60
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      197 |     await setup(page, scale, density);
+      198 |     await page.goto("/inventory/stock");
+    > 199 |     await expect(page.locator(".stock-card")).toHaveCount(60);
+          |                                               ^
+      200 |     await page.evaluate(() => document.fonts.ready);
+      201 |     await expect(page.locator(".browse-chrome h1")).toBeInViewport();
+      202 |     await page.screenshot({ path: info.outputPath("expanded-header.png") });
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:199:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-dd93c-der-actions-320-100-compact/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-dd93c-der-actions-320-100-compact/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-dd93c-der-actions-320-100-compact/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  45) tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 390/200/spacious 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 60
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      197 |     await setup(page, scale, density);
+      198 |     await page.goto("/inventory/stock");
+    > 199 |     await expect(page.locator(".stock-card")).toHaveCount(60);
+          |                                               ^
+      200 |     await page.evaluate(() => document.fonts.ready);
+      201 |     await expect(page.locator(".browse-chrome h1")).toBeInViewport();
+      202 |     await page.screenshot({ path: info.outputPath("expanded-header.png") });
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:199:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-23520-er-actions-390-200-spacious/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-23520-er-actions-390-200-spacious/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-23520-er-actions-390-200-spacious/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  46) tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 1024/100/balanced 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 60
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      197 |     await setup(page, scale, density);
+      198 |     await page.goto("/inventory/stock");
+    > 199 |     await expect(page.locator(".stock-card")).toHaveCount(60);
+          |                                               ^
+      200 |     await page.evaluate(() => document.fonts.ready);
+      201 |     await expect(page.locator(".browse-chrome h1")).toBeInViewport();
+      202 |     await page.screenshot({ path: info.outputPath("expanded-header.png") });
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:199:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-c596d-r-actions-1024-100-balanced/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-c596d-r-actions-1024-100-balanced/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-c596d-r-actions-1024-100-balanced/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  47) tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 1440/200/compact 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 60
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      197 |     await setup(page, scale, density);
+      198 |     await page.goto("/inventory/stock");
+    > 199 |     await expect(page.locator(".stock-card")).toHaveCount(60);
+          |                                               ^
+      200 |     await page.evaluate(() => document.fonts.ready);
+      201 |     await expect(page.locator(".browse-chrome h1")).toBeInViewport();
+      202 |     await page.screenshot({ path: info.outputPath("expanded-header.png") });
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:199:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-26a4c-er-actions-1440-200-compact/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-26a4c-er-actions-1440-200-compact/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-aligned-hiera-26a4c-er-actions-1440-200-compact/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  48) tests/browser/page-headers.spec.ts:242:3 › deep scroll keeps the persistent header and selected actions at 390 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 60
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      246 |     await setup(page);
+      247 |     await page.goto("/inventory/stock");
+    > 248 |     await expect(page.locator(".stock-card")).toHaveCount(60);
+          |                                               ^
+      249 |     await page.locator(".card-checkbox input").first().check();
+      250 |     const chrome = page.locator(".browse-chrome");
+      251 |     await page.evaluate(() =>
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:248:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-deep-scroll-k-a3f6a-and-selected-actions-at-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-deep-scroll-k-a3f6a-and-selected-actions-at-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-deep-scroll-k-a3f6a-and-selected-actions-at-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  49) tests/browser/page-headers.spec.ts:242:3 › deep scroll keeps the persistent header and selected actions at 1440 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 60
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      246 |     await setup(page);
+      247 |     await page.goto("/inventory/stock");
+    > 248 |     await expect(page.locator(".stock-card")).toHaveCount(60);
+          |                                               ^
+      249 |     await page.locator(".card-checkbox input").first().check();
+      250 |     const chrome = page.locator(".browse-chrome");
+      251 |     await page.evaluate(() =>
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/page-headers.spec.ts:248:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/page-headers-deep-scroll-k-049bc-nd-selected-actions-at-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/page-headers-deep-scroll-k-049bc-nd-selected-actions-at-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/page-headers-deep-scroll-k-049bc-nd-selected-actions-at-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  50) tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 320/100/compact ──────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      289 |     await setup(page, scale, density);
+      290 |     await page.goto("/inventory/stock");
+    > 291 |     await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                               ^
+      292 |     const imageTrigger = page.locator(".item-image-button:visible").first();
+      293 |     await expect(imageTrigger).toBeVisible();
+      294 |     await imageTrigger.click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:291:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-320-100-compact/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-320-100-compact/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-320-100-compact/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  51) tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 390/200/spacious ─────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      289 |     await setup(page, scale, density);
+      290 |     await page.goto("/inventory/stock");
+    > 291 |     await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                               ^
+      292 |     const imageTrigger = page.locator(".item-image-button:visible").first();
+      293 |     await expect(imageTrigger).toBeVisible();
+      294 |     await imageTrigger.click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:291:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-390-200-spacious/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-390-200-spacious/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-390-200-spacious/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  52) tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 1440/100/balanced ────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      289 |     await setup(page, scale, density);
+      290 |     await page.goto("/inventory/stock");
+    > 291 |     await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                               ^
+      292 |     const imageTrigger = page.locator(".item-image-button:visible").first();
+      293 |     await expect(imageTrigger).toBeVisible();
+      294 |     await imageTrigger.click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:291:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-1440-100-balanced/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-1440-100-balanced/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-1440-100-balanced/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  53) tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 320/200/balanced ─────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      289 |     await setup(page, scale, density);
+      290 |     await page.goto("/inventory/stock");
+    > 291 |     await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                               ^
+      292 |     const imageTrigger = page.locator(".item-image-button:visible").first();
+      293 |     await expect(imageTrigger).toBeVisible();
+      294 |     await imageTrigger.click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:291:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-320-200-balanced/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-320-200-balanced/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-320-200-balanced/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  54) tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 390/100/spacious ─────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      289 |     await setup(page, scale, density);
+      290 |     await page.goto("/inventory/stock");
+    > 291 |     await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                               ^
+      292 |     const imageTrigger = page.locator(".item-image-button:visible").first();
+      293 |     await expect(imageTrigger).toBeVisible();
+      294 |     await imageTrigger.click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:291:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-390-100-spacious/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-390-100-spacious/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-390-100-spacious/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  55) tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 1440/200/compact ─────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      289 |     await setup(page, scale, density);
+      290 |     await page.goto("/inventory/stock");
+    > 291 |     await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                               ^
+      292 |     const imageTrigger = page.locator(".item-image-button:visible").first();
+      293 |     await expect(imageTrigger).toBeVisible();
+      294 |     await imageTrigger.click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:291:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-1440-200-compact/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-1440-200-compact/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-compact-stock-and-hierarchy-1440-200-compact/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  56) tests/browser/ui-refinement.spec.ts:357:3 › whole movement records and related loans 390 ─────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.browse-table tbody tr').first().locator('td').nth(5)
+    Expected substring: "20 个"
+    Received string:    "2 笔借出"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" locator('.browse-table tbody tr').first().locator('td').nth(5) with timeout 5000ms
+      - waiting for locator('.browse-table tbody tr').first().locator('td').nth(5)
+        - locator resolved to <td class="align-start">…</td>
+        - unexpected value ""
+        13 × locator resolved to <td class="align-start">…</td>
+           - unexpected value "2 笔借出"
+
+
+      362 |     await page.goto("/inventory/movements?view=records");
+      363 |     const record = page.locator(".browse-table tbody tr").first();
+    > 364 |     await expect(record.locator("td").nth(5)).toContainText("20 个");
+          |                                               ^
+      365 |     const quantityHeader = page
+      366 |       .locator(".browse-table thead th")
+      367 |       .filter({ hasText: /数量/ })
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:364:47
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-whole-movement-records-and-related-loans-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-whole-movement-records-and-related-loans-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-whole-movement-records-and-related-loans-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  57) tests/browser/ui-refinement.spec.ts:409:3 › adjacent expiry tabs and square crop 390 ─────────
+
+    Error: expect(locator).not.toBeChecked() failed
+
+    Locator: getByLabel('保留原图（额外的原图附件）')
+    Expected: not checked
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "not toBeChecked" getByLabel('保留原图（额外的原图附件）') with timeout 5000ms
+      - waiting for getByLabel('保留原图（额外的原图附件）')
+
+
+      461 |     await expect(
+      462 |       page.getByLabel("保留原图（额外的原图附件）"),
+    > 463 |     ).not.toBeChecked();
+          |           ^
+      464 |     await page.screenshot({ path: info.outputPath("crop-choices.png") });
+      465 |     await page.getByRole("button", { name: "使用原图", exact: true }).click();
+      466 |     const image = page.locator(".preview-attachments .async-image").first();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:463:11
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-adjacent-expiry-tabs-and-square-crop-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-adjacent-expiry-tabs-and-square-crop-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-adjacent-expiry-tabs-and-square-crop-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  58) tests/browser/ui-refinement.spec.ts:357:3 › whole movement records and related loans 1440 ────
+
+    Error: expect(locator).toHaveClass(expected) failed
+
+    Locator: locator('.browse-table thead th').filter({ hasText: /数量/ }).first().locator('button')
+    Expected pattern: /align-end/
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveClass" locator('.browse-table thead th').filter({ hasText: /数量/ }).first().locator('button') with timeout 5000ms
+      - waiting for locator('.browse-table thead th').filter({ hasText: /数量/ }).first().locator('button')
+
+
+      368 |       .first();
+      369 |     await expect(quantityHeader).toHaveClass(/align-end/);
+    > 370 |     await expect(quantityHeader.locator("button")).toHaveClass(/align-end/);
+          |                                                    ^
+      371 |     const quantityCell = record.locator("td.align-end").first();
+      372 |     await expect(quantityCell).toBeVisible();
+      373 |     expect(
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:370:52
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-whole-movement-records-and-related-loans-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-whole-movement-records-and-related-loans-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-whole-movement-records-and-related-loans-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  59) tests/browser/ui-refinement.spec.ts:409:3 › adjacent expiry tabs and square crop 1440 ────────
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.boundingBox: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for locator('.dashboard-more-actions > summary')
+
+
+      419 |       const moreAction = await page
+      420 |         .locator(".dashboard-more-actions > summary")
+    > 421 |         .boundingBox();
+          |          ^
+      422 |       expect(primaryAction?.height).toBeDefined();
+      423 |       expect(moreAction?.height).toBeCloseTo(primaryAction!.height, 0);
+      424 |     }
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:421:10
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-adjacent-expiry-tabs-and-square-crop-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-adjacent-expiry-tabs-and-square-crop-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-adjacent-expiry-tabs-and-square-crop-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  60) tests/browser/ui-refinement.spec.ts:494:1 › stock state and open filter survive the shared breakpoint 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      498 |   await setup(page);
+      499 |   await page.goto("/inventory/stock");
+    > 500 |   await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                             ^
+      501 |   await page.getByLabel("搜索物品或条码").fill("法会用品");
+      502 |   await page.locator(".card-checkbox input").first().check();
+      503 |   await page.getByRole("button", { name: /^筛选/ }).click();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:500:45
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-stock-state--58caf-rvive-the-shared-breakpoint/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-stock-state--58caf-rvive-the-shared-breakpoint/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-stock-state--58caf-rvive-the-shared-breakpoint/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  61) tests/browser/ui-refinement.spec.ts:515:1 › records whether native Chromium keyboard zoom is available 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.stock-card')
+    Expected: 20
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('.stock-card') with timeout 5000ms
+      - waiting for locator('.stock-card')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      519 |   await setup(page);
+      520 |   await page.goto("/inventory/stock");
+    > 521 |   await expect(page.locator(".stock-card")).toHaveCount(20);
+          |                                             ^
+      522 |   const measure = () =>
+      523 |     page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
+      524 |   const before = await measure();
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:521:45
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-records-whet-3a7f3--keyboard-zoom-is-available/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-records-whet-3a7f3--keyboard-zoom-is-available/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-records-whet-3a7f3--keyboard-zoom-is-available/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  62) tests/browser/ui-refinement.spec.ts:549:3 › centered warehouse icons and readable long labels 390 
+
+    Error: locator.evaluate: TypeError: Cannot read properties of null (reading 'getBoundingClientRect')
+        at eval (eval at evaluate (:311:30), <anonymous>:3:42)
+        at UtilityScript.evaluate (<anonymous>:313:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at eval (eval at evaluate (:311:30), <anonymous>:3:42)
+        at UtilityScript.evaluate (<anonymous>:313:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:564:10
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-centered-war-e18f4-nd-readable-long-labels-390/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-centered-war-e18f4-nd-readable-long-labels-390/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-centered-war-e18f4-nd-readable-long-labels-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  63) tests/browser/ui-refinement.spec.ts:549:3 › centered warehouse icons and readable long labels 1440 
+
+    Error: locator.evaluate: TypeError: Cannot read properties of null (reading 'getBoundingClientRect')
+        at eval (eval at evaluate (:311:30), <anonymous>:3:42)
+        at UtilityScript.evaluate (<anonymous>:313:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at eval (eval at evaluate (:311:30), <anonymous>:3:42)
+        at UtilityScript.evaluate (<anonymous>:313:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:564:10
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-centered-war-5782e-d-readable-long-labels-1440/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-centered-war-5782e-d-readable-long-labels-1440/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-centered-war-5782e-d-readable-long-labels-1440/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  64) tests/browser/ui-refinement.spec.ts:587:1 › open movement filter follows the breakpoint without losing selection 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.preview-filter-rail')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.preview-filter-rail') with timeout 5000ms
+      - waiting for locator('.preview-filter-rail')
+
+
+      594 |   const selectedLocation = "东院第7层供灯与法会用品长名称";
+      595 |   const desktopRail = page.locator(".preview-filter-rail");
+    > 596 |   await expect(desktopRail).toBeVisible();
+          |                             ^
+      597 |   const desktopWarehouseTree = desktopRail.getByRole("tree", {
+      598 |     name: "仓库 / 位置选项",
+      599 |     exact: true,
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:596:29
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-open-movemen-45124-nt-without-losing-selection/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-open-movemen-45124-nt-without-losing-selection/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-open-movemen-45124-nt-without-losing-selection/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  65) tests/browser/ui-refinement.spec.ts:627:1 › large-text related-loan context keeps its close action visible 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: locator.click: Test timeout of 45000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: '关联借出（2）' })
+
+
+      632 |   await page.goto("/inventory/movements?view=records");
+      633 |   const trigger = page.getByRole("button", { name: "关联借出（2）" });
+    > 634 |   await trigger.click();
+          |                 ^
+      635 |   const dialog = page.getByRole("dialog");
+      636 |   await expect(dialog).toContainText("寺院志工服务组");
+      637 |   const close = dialog.getByRole("button", { name: "关闭对话框", exact: true });
+        at /workspace/development/frappe-bench/apps/temple_inventory/frontend/tests/browser/ui-refinement.spec.ts:634:17
+
+    Error Context: ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-large-text-r-f14a0-ps-its-close-action-visible/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-large-text-r-f14a0-ps-its-close-action-visible/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../../../../../tmp/temple-inventory-native-ui/ui-refinement-large-text-r-f14a0-ps-its-close-action-visible/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  65 failed
+    tests/browser/app-refinement-review.spec.ts:384:3 › loan records and item summaries at 1440 ────
+    tests/browser/app-refinement-review.spec.ts:427:3 › expiry lightbox, batch route, edit conflict at 1440 
+    tests/browser/app-refinement-review.spec.ts:310:3 › records, compact header and navigation at 390 
+    tests/browser/app-refinement-review.spec.ts:427:3 › expiry lightbox, batch route, edit conflict at 390 
+    tests/browser/app-refinement-review.spec.ts:528:1 › large text and adaptive filter density ─────
+    tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / phone-large-text 
+    tests/browser/browse-standardization.spec.ts:186:5 › stock loaded controls and complete filters / zoom-200-effective-viewport 
+    tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / desktop 
+    tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / phone-large-text 
+    tests/browser/browse-standardization.spec.ts:186:5 › expiry loaded controls and complete filters / zoom-200-effective-viewport 
+    tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / desktop 
+    tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / phone-large-text 
+    tests/browser/browse-standardization.spec.ts:186:5 › movements/items loaded controls and complete filters / zoom-200-effective-viewport 
+    tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / desktop 
+    tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / phone-large-text 
+    tests/browser/browse-standardization.spec.ts:186:5 › movements/records loaded controls and complete filters / zoom-200-effective-viewport 
+    tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / desktop 
+    tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / phone-large-text 
+    tests/browser/browse-standardization.spec.ts:186:5 › loans/items loaded controls and complete filters / zoom-200-effective-viewport 
+    tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / desktop 
+    tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / phone-large-text 
+    tests/browser/browse-standardization.spec.ts:186:5 › loans/records loaded controls and complete filters / zoom-200-effective-viewport 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 375px / 100% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 375px / 200% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 768px / 100% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 768px / 200% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1024px / 100% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1024px / 200% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1440px / 100% 
+    tests/browser/native-batch-display.spec.ts:7:5 › cancelled native batch allocations at 1440px / 200% 
+    tests/browser/native-editor-route.spec.ts:6:1 › save, reload and amendment keep the current native identity in the URL 
+    tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 375px 
+    tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 1024px 
+    tests/browser/native-navigation-memory.spec.ts:7:3 › browse history, pages and responsive position at 1440px 
+    tests/browser/native-recovery.spec.ts:46:1 › incomplete input is restored automatically from its recovery link 
+    tests/browser/native-recovery.spec.ts:65:1 › two tabs retain independent incomplete editors ────
+    tests/browser/native-recovery.spec.ts:88:1 › another account cannot offer or hydrate the previous account's input 
+    tests/browser/native-recovery.spec.ts:102:1 › pending uploads recover metadata and require file reselection 
+    tests/browser/native-recovery.spec.ts:128:1 › blocked recovery storage keeps the form usable and its leave guard active 
+    tests/browser/native-scanner.spec.ts:79:1 › manual and hardware-style scans preserve input and configure the same allocation 
+    tests/browser/native-scanner.spec.ts:105:3 › ZXing-WASM decodes deterministic camera frames and releases tracks 
+    tests/browser/page-headers.spec.ts:140:3 › shared browse headers keep search, analysis and page actions visible at 390 
+    tests/browser/page-headers.spec.ts:140:3 › shared browse headers keep search, analysis and page actions visible at 1440 
+    tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 320/100/compact 
+    tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 390/200/spacious 
+    tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 1024/100/balanced 
+    tests/browser/page-headers.spec.ts:193:3 › aligned hierarchy and header actions 1440/200/compact 
+    tests/browser/page-headers.spec.ts:242:3 › deep scroll keeps the persistent header and selected actions at 390 
+    tests/browser/page-headers.spec.ts:242:3 › deep scroll keeps the persistent header and selected actions at 1440 
+    tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 320/100/compact ────────
+    tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 390/200/spacious ───────
+    tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 1440/100/balanced ──────
+    tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 320/200/balanced ───────
+    tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 390/100/spacious ───────
+    tests/browser/ui-refinement.spec.ts:285:3 › compact stock and hierarchy 1440/200/compact ───────
+    tests/browser/ui-refinement.spec.ts:357:3 › whole movement records and related loans 390 ───────
+    tests/browser/ui-refinement.spec.ts:409:3 › adjacent expiry tabs and square crop 390 ───────────
+    tests/browser/ui-refinement.spec.ts:357:3 › whole movement records and related loans 1440 ──────
+    tests/browser/ui-refinement.spec.ts:409:3 › adjacent expiry tabs and square crop 1440 ──────────
+    tests/browser/ui-refinement.spec.ts:494:1 › stock state and open filter survive the shared breakpoint 
+    tests/browser/ui-refinement.spec.ts:515:1 › records whether native Chromium keyboard zoom is available 
+    tests/browser/ui-refinement.spec.ts:549:3 › centered warehouse icons and readable long labels 390 
+    tests/browser/ui-refinement.spec.ts:549:3 › centered warehouse icons and readable long labels 1440 
+    tests/browser/ui-refinement.spec.ts:587:1 › open movement filter follows the breakpoint without losing selection 
+    tests/browser/ui-refinement.spec.ts:627:1 › large-text related-loan context keeps its close action visible 
+  13 passed (15.8m)
+ ELIFECYCLE  Command failed with exit code 1.
