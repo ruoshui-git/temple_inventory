@@ -4,6 +4,19 @@ This is the current product decision record. Retired mockups, preview-only
 proposals and implementation chronology belong in Git history. Add a dated
 supersession below when a durable user-facing decision changes.
 
+## Supersession — 2026-10-26: phone tables, picker and count lines
+
+- Phone tables (below 1024px) drop the floating `<`/`>` buttons for in-frame
+  edge fades; wide pinned groups unpin, the ☷ column settings leave the table
+  body, and 损坏 row actions collapse into one `⋯` sheet menu.
+- The phone item picker shows selectable Stock-style rows (two-line name,
+  code/category, purpose-specific quantity, location/batch context); tapping
+  anywhere on a row toggles selection. Desktop keeps the table.
+- Phone count lines are compact cards with a visible numeric count input, book
+  quantity, difference and the existing line actions, paged 100 at a time;
+  Enter advances to the next input. Blank stays uncounted, zero is a counted
+  zero, and submitted lines are read-only. Desktop keeps the table.
+
 ## Supersession — 2026-10-25: runtime environment identity
 
 - Sample, staging and development sites identify themselves in the browser

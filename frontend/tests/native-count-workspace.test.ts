@@ -36,9 +36,12 @@ function row(
   };
 }
 
-function setup(rows = Array.from({ length: 105 }, (_, index) => row(index))) {
+function setup(
+  rows = Array.from({ length: 105 }, (_, index) => row(index)),
+  mobile = false,
+) {
   vi.stubGlobal("matchMedia", () => ({
-    matches: true,
+    matches: !mobile,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   }));
@@ -165,6 +168,73 @@ function setup(rows = Array.from({ length: 105 }, (_, index) => row(index))) {
 }
 
 describe("compact count workspace", () => {
+  it("shows phone count cards with blank-versus-zero input and live differences", async () => {
+    const { wrapper, controller } = setup(
+      [row(0, "ROOM-A"), row(1, "ROOM-B")],
+      true,
+    );
+    await flushPromises();
+    expect(wrapper.findAll(".count-card")).toHaveLength(2);
+    expect(wrapper.find(".count-data-table").exists()).toBe(false);
+    const inputs = wrapper.findAll<HTMLInputElement>(".count-card-input");
+    expect(inputs[0]!.element.type).toBe("number");
+    expect(inputs[0]!.attributes("inputmode")).toBe("decimal");
+    expect((inputs[0]!.element as HTMLInputElement).value).toBe("");
+
+    await inputs[0]!.setValue("0");
+    expect(controller.rows.value[0]?.actual_qty).toBe(0);
+    expect(controller.rows.value[0]?.review_state).toBe("Reviewed");
+    expect(wrapper.findAll(".count-card-difference")[0]?.text()).toBe(
+      "差异 -4",
+    );
+    await inputs[0]!.setValue("");
+    expect(controller.rows.value[0]?.actual_qty).toBeNull();
+    expect(controller.rows.value[0]?.review_state).toBe("Unreviewed");
+  });
+
+  it("keeps desktop counts in DataTable and pages phone cards at 100 rows", async () => {
+    const desktop = setup();
+    await flushPromises();
+    expect(desktop.wrapper.find(".count-data-table").exists()).toBe(true);
+    expect(desktop.wrapper.findAll(".count-card")).toHaveLength(0);
+    desktop.wrapper.unmount();
+
+    const phone = setup(
+      Array.from({ length: 105 }, (_, index) => row(index)),
+      true,
+    );
+    await flushPromises();
+    expect(phone.wrapper.findAll(".count-card")).toHaveLength(100);
+    await phone.wrapper
+      .findAll("button")
+      .find((button) => button.text() === "下一页")!
+      .trigger("click");
+    expect(phone.wrapper.findAll(".count-card")).toHaveLength(5);
+  });
+
+  it("renders phone count cards as read-only when the count is not writable", async () => {
+    const { wrapper, controller } = setup([row(0, "ROOM-A")], true);
+    controller.writable.value = false;
+    await flushPromises();
+    expect(wrapper.findAll(".count-card-input")).toHaveLength(0);
+    expect(wrapper.find(".count-card-entry").text()).toContain("未核对");
+  });
+
+  it("moves Enter to the next phone count input without submitting the form", async () => {
+    const { wrapper } = setup([row(0, "ROOM-A"), row(1, "ROOM-B")], true);
+    await flushPromises();
+    const inputs = wrapper.findAll<HTMLInputElement>(".count-card-input");
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    inputs[0]!.element.dispatchEvent(event);
+    await flushPromises();
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(inputs[1]!.element);
+  });
+
   it("retains entered quantities across search and location filters and clamps pagination", async () => {
     const { wrapper, controller } = setup();
     await flushPromises();

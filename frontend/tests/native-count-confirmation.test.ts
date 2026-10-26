@@ -38,9 +38,9 @@ function countRow(
   };
 }
 
-function setup() {
+function setup(mobile = false, submittedNative = false) {
   vi.stubGlobal("matchMedia", () => ({
-    matches: true,
+    matches: !mobile,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   }));
@@ -84,6 +84,28 @@ function setup() {
     capabilities: { "Stock Reconciliation": { create: true, submit: true } },
   });
   const call = vi.fn(async (method: string, args: Record<string, unknown>) => {
+    if (method === "native_api.load_document" && submittedNative)
+      return {
+        doctype: "Stock Reconciliation",
+        name: String(args.name),
+        version: "v1",
+        docstatus: 1,
+        purpose: "Stock Reconciliation",
+        editable: false,
+        posting_date: "2026-10-19",
+        posting_time: "10:00:00",
+        items: [
+          {
+            name: "SUBMITTED-ROW",
+            item_code: "SUBMITTED-ITEM",
+            item_name: "已提交物品",
+            warehouse: "ROOM-A",
+            qty: 3,
+            current_qty: 2,
+            stock_uom: "Nos",
+          },
+        ],
+      };
     if (method === "counts.count_baseline")
       return {
         rows: baselineRows,
@@ -100,7 +122,9 @@ function setup() {
   let controller!: ReturnType<typeof useCountEditor>;
   const editor = defineComponent({
     setup() {
-      controller = useCountEditor({});
+      controller = useCountEditor({
+        name: submittedNative ? "SUBMITTED-COUNT" : undefined,
+      });
       return () => h(CountEditorView, { controller });
     },
   });
@@ -119,6 +143,15 @@ function setup() {
 }
 
 describe("count confirmation summary", () => {
+  it("renders submitted native count cards as read-only on phones", async () => {
+    const { wrapper } = setup(true, true);
+    await flushPromises();
+    expect(wrapper.findAll(".native-count-card")).toHaveLength(1);
+    expect(wrapper.findAll(".native-count-card-input")).toHaveLength(0);
+    expect(wrapper.find(".native-count-card").text()).toContain("已提交物品");
+    expect(wrapper.find(".native-count-card").text()).toContain("3 Nos");
+  });
+
   it("opens count review with Meta+Enter from a text field without submitting", async () => {
     const { wrapper, controller } = setup();
     await flushPromises();

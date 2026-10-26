@@ -7,7 +7,7 @@ import { kindIcons } from "../../lib/kindIcons";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { CountEditor } from "./useCountEditor";
 import CountWorkspace from "./CountWorkspace.vue";
 import CountSummary from "./CountSummary.vue";
@@ -27,6 +27,7 @@ import { showToast } from "../../services/toast";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -37,6 +38,7 @@ const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 }>();
 const c = props.controller;
+const { isMobile } = useResponsiveLayout();
 const {
 	values,
 	rows,
@@ -196,6 +198,20 @@ const countTableRows = computed<DataTableRecord[]>(() =>
 		value: row as unknown as Record<string, unknown>,
 	})),
 );
+const nativePageSize = 100;
+const nativePage = ref(1);
+const nativePageCount = computed(() =>
+	Math.max(1, Math.ceil(countTableRows.value.length / nativePageSize)),
+);
+const nativeVisibleRows = computed(() =>
+	countTableRows.value.slice(
+		(nativePage.value - 1) * nativePageSize,
+		nativePage.value * nativePageSize,
+	),
+);
+watch(countTableRows, () => {
+	if (nativePage.value > nativePageCount.value) nativePage.value = nativePageCount.value;
+});
 const services = useOptionalInventoryServices();
 const countPrefs = services
 	? useColumnPreferences(
@@ -207,6 +223,25 @@ const countPrefs = services
 	: undefined;
 function countRow(row: Record<string, unknown>) {
 	return row as unknown as (typeof values.value.items)[number];
+}
+async function nextNativeCountInput(event: KeyboardEvent) {
+	event.preventDefault();
+	const current = event.currentTarget as HTMLInputElement;
+	const inputs = Array.from(
+		current
+			.closest(".native-count-card-list")
+			?.querySelectorAll<HTMLInputElement>(".native-count-card-input:not(:disabled)") || [],
+	);
+	const index = inputs.indexOf(current);
+	if (index >= 0 && index < inputs.length - 1) {
+		inputs[index + 1]?.focus();
+	} else if (index === inputs.length - 1 && nativePage.value < nativePageCount.value) {
+		nativePage.value++;
+		await nextTick();
+		document
+			.querySelector<HTMLInputElement>(".native-count-card-input:not(:disabled)")
+			?.focus();
+	}
 }
 async function back() {
 	if (await c.requestLeave()) emit("back");
@@ -355,7 +390,108 @@ async function back() {
 								: "保留 ERPNext 库位、批次分配和库存单位。"
 						}}
 					</p>
+					<div v-if="isMobile" class="native-count-card-list">
+						<p v-if="!nativeVisibleRows.length" class="data-table-state">
+							此记录没有明细。
+						</p>
+						<article
+							v-for="entry in nativeVisibleRows"
+							:key="entry.id"
+							class="native-count-card"
+						>
+							<template v-if="entry.kind === 'record'">
+								<div class="native-count-card-heading">
+									<div class="count-item-thumbnail">
+										<ItemImage :item="deskItem(entry.value)" />
+									</div>
+									<div class="native-count-card-identity">
+										<strong>{{
+											entry.value.ti_display_item_name ||
+											entry.value.item_name ||
+											c.names[String(entry.value.item_code)] ||
+											entry.value.item_code
+										}}</strong>
+										<small
+											>{{ entry.value.item_code
+											}}<template
+												v-if="
+													entry.value.batch_no ||
+													entry.value.serial_and_batch_bundle
+												"
+											>
+												·
+												{{
+													entry.value.batch_no ||
+													entry.value.serial_and_batch_bundle
+												}}</template
+											></small
+										>
+										<small>{{
+											warehouseLabel(
+												String(entry.value.warehouse || ""),
+												c.reference.warehouses,
+											)
+										}}</small>
+									</div>
+								</div>
+								<div class="native-count-card-counts">
+									<div>
+										<span>账面</span
+										><strong
+											>{{ entry.value.current_qty ?? "未记录" }}
+											{{ entry.value.stock_uom }}</strong
+										>
+									</div>
+									<label v-if="writable" class="native-count-card-entry">
+										实点数量
+										<input
+											class="native-count-card-input"
+											type="number"
+											inputmode="decimal"
+											min="0"
+											step="any"
+											v-model.number="countRow(entry.value).qty"
+											:disabled="busy"
+											:aria-label="`${entry.value.ti_display_item_name || entry.value.item_name || c.names[String(entry.value.item_code)] || entry.value.item_code}实点数量`"
+											@keydown.enter="nextNativeCountInput"
+										/>
+									</label>
+									<div v-else>
+										<span>实点数量</span
+										><strong
+											>{{ entry.value.qty ?? "未核对" }}
+											{{ entry.value.stock_uom }}</strong
+										>
+									</div>
+								</div>
+								<details
+									v-if="
+										entry.value.serial_and_batch_bundle ||
+										(Array.isArray(entry.value.recorded_count_allocations) &&
+											entry.value.recorded_count_allocations.length)
+									"
+								>
+									<summary class="ti-disclosure">
+										<DisclosureIcon variant="inline" />查看分配
+									</summary>
+									<NativeCountAllocations :row="countRow(entry.value)" />
+								</details>
+							</template>
+						</article>
+						<div v-if="nativePageCount > 1" class="native-count-pagination">
+							<UiButton :disabled="nativePage <= 1" @click="nativePage--"
+								>上一页</UiButton
+							>
+							<span>{{ nativePage }} / {{ nativePageCount }}</span>
+							<UiButton
+								:disabled="nativePage >= nativePageCount"
+								@click="nativePage++"
+								>下一页</UiButton
+							>
+						</div>
+					</div>
 					<DataTable
+						v-else
 						ariaLabel="盘点明细"
 						table-class="count-table count-native-table"
 						:columns="countColumns"
@@ -689,6 +825,74 @@ async function back() {
 	height: var(--p-table-thumbnail);
 	flex: 0 0 var(--p-table-thumbnail);
 	overflow: hidden;
+}
+.native-count-card-list {
+	display: grid;
+	gap: 8px;
+}
+.native-count-card {
+	min-width: 0;
+	padding: 10px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+	background: var(--p-surface);
+}
+.native-count-card-heading {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 10px;
+}
+.native-count-card-identity {
+	display: grid;
+	min-width: 0;
+	gap: 2px;
+}
+.native-count-card-identity strong,
+.native-count-card-identity small {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	word-break: break-word;
+}
+.native-count-card-identity strong {
+	-webkit-line-clamp: 2;
+}
+.native-count-card-identity small {
+	color: var(--p-muted);
+	-webkit-line-clamp: 1;
+}
+.native-count-card-counts {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(116px, 0.9fr);
+	align-items: center;
+	gap: 10px;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--p-border);
+}
+.native-count-card-counts > div,
+.native-count-card-entry {
+	display: grid;
+	gap: 3px;
+}
+.native-count-card-counts span,
+.native-count-card-entry {
+	color: var(--p-muted);
+	font-size: 0.78rem;
+}
+.native-count-card-input {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	min-height: 44px;
+	padding: 4px 8px;
+}
+.native-count-pagination {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
 }
 @media (max-width: 1023px) {
 	.count-native-table th,
