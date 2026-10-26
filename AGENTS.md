@@ -151,16 +151,20 @@ because it deletes the development database volume.
 
 ## Parallel agents
 
-Several agents may work at once. The main checkout under `frappe-bench/apps/`
-is the one the development Bench runs, so only one agent at a time edits it,
-migrates `development.localhost` or resets its data. Other agents use their own
-Git worktree outside `frappe-bench/` (for example
-`git worktree add ~/code/ti-<topic> -b feature/<topic> origin/main`); a worktree
-cannot run the Bench, so its changes are tested after they land in the main
-checkout or in CI. All agents share the dev database, the `web`/`worker`
-services and the `scripts/heavy` lock: queue heavy work through the lock, never
-restart or rebuild the dev stack while another agent is testing, and rebase on
-`origin/main` immediately before pushing.
+One Claude Code session orchestrates the main checkout under
+`frappe-bench/apps/`, the one the development Bench runs. Stop stale Claude Code
+sessions before starting work. The orchestrator may run several Codex tasks at
+once in that checkout when their files do not overlap: give each brief explicit
+do-not-touch files and keep dependent tasks sequential. A task's validation can
+see another task's in-progress edits, so it reports failures outside its own
+scope instead of fixing them. All tasks share the dev database, the
+`web`/`worker` services and the `scripts/heavy` lock: queue heavy work through
+the lock, and never restart or rebuild the dev stack, migrate or reset data
+while another task is testing. Work that must stay off the running Bench, such
+as deployment changes, can use a Git worktree outside `frappe-bench/` (for
+example `git worktree add ~/code/ti-<topic> -b feature/<topic> origin/main`); a
+worktree cannot run the Bench, so its changes are tested after they land in the
+main checkout or in CI. Rebase on `origin/main` immediately before pushing.
 
 ## Visual browser preflight
 
@@ -211,8 +215,8 @@ parallel. The lock file is on the bind mount, so host and container callers
 share it. Heavy commands include `pnpm test`, `pnpm build`, the backend test
 entry point, `bench migrate`, the sample reset, Playwright, Chromium screenshot
 scripts and image builds. Close every browser your script launches. Do not start
-Vite or extra dev servers; reuse the `web` service on port 8000. Run at most one
-Codex implementation task at a time. If MariaDB reports "Server has gone away",
+Vite or extra dev servers; reuse the `web` service on port 8000. If MariaDB
+reports "Server has gone away",
 wait for the service, confirm with `scripts/dx bench --site development.localhost
 execute frappe.ping`, then resume the interrupted step instead of restarting the
 task.

@@ -21,8 +21,9 @@ its changes uncommitted; review and commit them yourself.
 1. **Brief.** Write the task brief to a scratchpad file. Name the plan or notes
    file, the exact scope, file:line pointers, required validation, and any
    screenshots to capture. Codex reads `AGENTS.md` itself, so do not restate its
-   rules. Split dependent work into sequential tasks, and never run two Codex
-   tasks at once.
+   rules. Split dependent work into sequential tasks. Run independent tasks in
+   parallel only when their files do not overlap (see "Parallel agents" in
+   `AGENTS.md`).
 2. **Launch.** Run `scripts/codex-run NAME BRIEF` with Bash `run_in_background`.
    Its exit wakes you, however long the task takes.
 3. **Watch.** In the same turn, arm a Monitor on `scripts/codex-watch NAME 20 45`
