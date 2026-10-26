@@ -78,6 +78,17 @@ fi
 [[ -d /workspace/.pnpm-store ]] && roots+=(/workspace/.pnpm-store)
 printf -v roots_toml '"%s",' "${roots[@]}"
 
+# The host's node tools may resolve to Windows binaries and share node_modules
+# with the container, so shadow them with stubs that point Codex at scripts/dx.
+guard="$runs/host-node-guard"
+mkdir -p "$guard"
+for tool in node npm npx pnpm corepack; do
+	printf '#!/bin/sh\necho "%s: not on the WSL host; run it through scripts/dx (see AGENTS.md)" >&2\nexit 127\n' \
+		"$tool" >"$guard/$tool"
+	chmod +x "$guard/$tool"
+done
+export PATH="$guard:$PATH"
+
 rm -f "$runs/$name".{last,exit,session}
 echo $$ >"$runs/$name.pid"
 set +e
