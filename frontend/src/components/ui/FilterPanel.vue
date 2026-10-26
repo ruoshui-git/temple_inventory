@@ -174,12 +174,8 @@ watch(
 watch(isMobile, async () => {
 	if (!open.value) return;
 	observer?.disconnect();
-	if (isMobile.value) {
-		close();
-		return;
-	}
 	await nextTick();
-	if (open.value) {
+	if (!isMobile.value && open.value) {
 		reposition();
 		await nextTick();
 		panel.value?.focus({ preventScroll: true });
