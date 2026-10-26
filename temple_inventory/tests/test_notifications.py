@@ -167,8 +167,8 @@ class NotificationTests(NativeDocumentTests):
 	def test_subjects_use_presenter_locations_amendment_wording_and_difference_rows(self):
 		actor_name = "陈明"
 		lines = [
-			frappe._dict(s_warehouse="SRC", t_warehouse="DST", item_code="ITEM-1"),
-			frappe._dict(s_warehouse="SRC", t_warehouse="DST", item_code="ITEM-1"),
+			frappe._dict(s_warehouse="SRC", t_warehouse="DST", item_code="ITEM-1", item_name="肥皂盒"),
+			frappe._dict(s_warehouse="SRC", t_warehouse="DST", item_code="ITEM-1", item_name="肥皂盒"),
 		]
 		movement = frappe._dict(
 			doctype="Stock Entry",
@@ -183,7 +183,24 @@ class NotificationTests(NativeDocumentTests):
 					notifications._subject(movement, "movement_cancelled"), "陈明 修改了调拨 STE-test"
 				)
 				self.assertEqual(
-					notifications._subject(movement, "movement_submitted"), "陈明 调拨 1 种物品 · A01 → B02"
+					notifications._subject(movement, "movement_submitted"), "陈明 调拨 肥皂盒 · A01 → B02"
+				)
+				lines.append(
+					frappe._dict(
+						s_warehouse="SRC",
+						t_warehouse="DST",
+						item_code="ITEM-2",
+						item_name="一次性口罩 10个(1包) JIAYI Disposable mask",
+					)
+				)
+				self.assertEqual(
+					notifications._subject(movement, "movement_submitted"),
+					"陈明 调拨 肥皂盒 等 2 种物品 · A01 → B02",
+				)
+				lines.reverse()
+				self.assertEqual(
+					notifications._subject(movement, "movement_submitted"),
+					"陈明 调拨 一次性口罩 10个(1包) JIAYI Dis… 等 2 种物品 · A01 → B02",
 				)
 		movement.amended_from = None
 		with patch.object(frappe.db, "get_value", return_value=actor_name):

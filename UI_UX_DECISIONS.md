@@ -38,7 +38,7 @@ supersession below when a durable user-facing decision changes.
   header on desktop and below the top bar on phones, on every page.
 - The stock location count lists physical locations with stock only; loaned
   and damaged totals appear as a separate line. Multi-item records summarize as
-  `首个物品 等 N 种物品`. The scanner frame is a format-neutral square and
+  `首个物品 等 N 种物品`, including movement notification subjects. The scanner frame is a format-neutral square and
   decoding uses the whole visible preview. The cropper starts at the largest
   centered square. Hover tints apply only on hover-capable pointers.
 

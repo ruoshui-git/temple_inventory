@@ -13,6 +13,7 @@ TYPES = ("库存流动", "流动撤销", "盘点调整", "导出完成", "效期
 KEY = "temple_inventory_notifications_v1"
 EVENTS = ("movement_submitted", "movement_cancelled", "count_adjustment", "export_result", "expiry_digest")
 KINDS = tuple(MOVEMENT_PURPOSES)
+ITEM_NAME_LIMIT = 24
 DEFAULTS = {
 	"enabled": True,
 	**{event: event != "expiry_digest" for event in EVENTS},
@@ -92,8 +93,7 @@ def _subject(doc, event, amended=None):
 			return f"{actor} {verb}{label} {doc.name}"
 		location = _primary_location(doc, kind)
 		location_text = f" · {location}" if location else ""
-		item_count = len({row.get("item_code") for row in doc.get("items") or [] if row.get("item_code")})
-		return f"{actor} {label} {item_count} 种物品{location_text}"
+		return f"{actor} {label} {_item_summary(doc.get('items') or [])}{location_text}"
 	differences = sum(
 		1
 		for row in doc.get("items") or []
@@ -102,6 +102,21 @@ def _subject(doc, event, amended=None):
 		and Decimal(str(row.get("current_qty"))) != Decimal(str(row.get("qty")))
 	)
 	return f"{actor} 提交盘点调整 · {differences} 处差异"
+
+
+def _item_summary(lines):
+	"""Match the frontend summary: the first Item name, then `等 N 种物品` for several Items."""
+	names = {}
+	for row in lines:
+		code = row.get("item_code")
+		if code and code not in names:
+			names[code] = str(row.get("item_name") or code).strip()
+	if not names:
+		return "0 种物品"
+	first = next(iter(names.values()))
+	if len(first) > ITEM_NAME_LIMIT:
+		first = f"{first[: ITEM_NAME_LIMIT - 1]}…"
+	return first if len(names) == 1 else f"{first} 等 {len(names)} 种物品"
 
 
 def _primary_location(doc, kind):
