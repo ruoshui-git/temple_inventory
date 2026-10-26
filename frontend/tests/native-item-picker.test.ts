@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
+vi.mock("../src/services/confirm", () => ({
+  useConfirm: () => ({ confirm: vi.fn(async () => true) }),
+}));
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, nextTick, reactive } from "vue";
 import { useItemPicker } from "../src/features/items/useItemPicker";
@@ -417,7 +420,7 @@ it("drops a picker response from the previous account", async () => {
   expect(picker.result.total).toBe(0);
 });
 
-it("continues the pending row selection once after discarding a dirty item draft", async () => {
+it("continues the pending row selection once after confirming discard of a dirty item draft", async () => {
   mockPickerViewport(true);
   const reference = createReferenceData();
   Object.assign(reference, {
@@ -506,15 +509,12 @@ it("continues the pending row selection once after discarding a dirty item draft
   await flushPromises();
   await click("返回选择物品");
   await click("选择");
-  expect(document.body.textContent).toContain("放弃未保存的物品");
-  await click("放弃填写");
 
   expect(selected).toHaveBeenCalledTimes(1);
   expect(selected).toHaveBeenCalledWith({
     code: "ITEM-A",
     warehouse: "ROOM-A",
   });
-  expect(document.body.textContent).not.toContain("放弃未保存的物品");
 });
 
 it("keeps a newly created item pinned in a fixed compact preview when filters hide it", async () => {

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import CategoryField from "../references/CategoryField.vue";
 import UnitField from "../references/UnitField.vue";
-import { onDeactivated, ref, watch } from "vue";
+import { onBeforeUnmount, onDeactivated, ref, watch } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import FormField from "../../components/ui/FormField.vue";
+import { useFormValidation } from "../../composables/useFormValidation";
 import Scanner from "../../components/Scanner.vue";
 import type { ItemInput } from "./useItemEditor";
 import { appendBarcode as appendBarcodeValue } from "./barcodeInput";
@@ -11,10 +13,29 @@ const props = defineProps<{
 	model: ItemInput;
 	editing?: boolean;
 	disabled?: boolean;
-	editorTarget?: HTMLElement;
+	suggestedCode?: string;
+	trackingChangeable?: boolean;
+	trackingChangeReason?: string;
 }>();
-const emit = defineEmits<{ supportingDirty: [field: "category" | "unit", dirty: boolean] }>();
 const scannerOpen = ref(false);
+const validation = useFormValidation();
+const unregisterName = validation.register(
+	"item-name",
+	() => props.model.name,
+	[(v) => (v.trim() ? true : "请输入名称")],
+	() => document.getElementById("item-name")?.focus(),
+);
+const unregisterUom = validation.register(
+	"item-uom",
+	() => props.model.uom,
+	[(v) => (v ? true : "请选择计量单位")],
+	() => document.querySelector<HTMLElement>(".preview-unit-field input")?.focus(),
+);
+onBeforeUnmount(() => {
+	unregisterName.unregister();
+	unregisterUom.unregister();
+});
+defineExpose({ validate: validation.validate });
 function appendBarcode(value: string) {
 	if (props.disabled) return;
 	props.model.barcode = appendBarcodeValue(props.model.barcode, value);
@@ -38,15 +59,15 @@ onDeactivated(() => {
 				<dd>{{ model.code }}</dd>
 			</div>
 		</dl>
-		<label class="preview-field"
-			>物品名称<input v-model="model.name" :disabled="disabled" required
-		/></label>
-		<CategoryField
-			v-model="model.category"
-			:disabled="disabled"
-			:editor-target="editorTarget"
-			@dirty-change="emit('supportingDirty', 'category', $event)"
-		/>
+		<FormField label="名称" for="item-name" required :error="validation.errors['item-name']"
+			><template #default="{ fieldAttrs }"
+				><input
+					v-model="model.name"
+					v-bind="fieldAttrs as any"
+					:disabled="disabled"
+					required /></template
+		></FormField>
+		<CategoryField v-model="model.category" :disabled="disabled" />
 		<dl v-if="editing" class="preview-info-grid">
 			<div>
 				<dt>库存单位</dt>
@@ -57,40 +78,58 @@ onDeactivated(() => {
 			v-else
 			v-model="model.uom"
 			:disabled="disabled"
-			:editor-target="editorTarget"
-			@dirty-change="emit('supportingDirty', 'unit', $event)"
+			required
+			:error="validation.errors['item-uom']"
 		/>
-		<label v-if="!editing" class="preview-field"
-			>物品编号<input v-model="model.code" :disabled="disabled"
-		/></label>
-		<label class="preview-field full-width">
-			条码（每行一个，可选）
-			<textarea v-model="model.barcode" :disabled="disabled" />
-		</label>
+		<FormField v-if="!editing" label="物品编号"
+			><template #default="{ fieldAttrs }"
+				><div class="item-code-control">
+					<input
+						v-model="model.code"
+						v-bind="fieldAttrs as any"
+						:placeholder="
+							suggestedCode ? `留空自动生成（${suggestedCode}）` : '留空自动生成'
+						"
+						:disabled="disabled"
+						autocapitalize="off"
+						autocorrect="off"
+						spellcheck="false"
+					/><UiButton
+						v-if="suggestedCode && model.code !== suggestedCode"
+						size="compact"
+						aria-label="恢复自动编号"
+						title="恢复自动编号"
+						@click="model.code = suggestedCode || ''"
+						>↻</UiButton
+					>
+				</div></template
+			></FormField
+		>
+		<FormField class="full-width item-barcode-field" label="条码" hint="每行一个"
+			><template #default="{ fieldAttrs }">
+				<textarea
+					v-model="model.barcode"
+					v-bind="fieldAttrs as any"
+					:disabled="disabled"
+					autocapitalize="off"
+					autocorrect="off"
+					spellcheck="false"
+				/></template
+		></FormField>
 		<div class="full-width">
 			<UiButton icon="scan" :disabled="disabled" @click="scannerOpen = true"
 				>扫码添加条码</UiButton
 			>
 		</div>
-		<Overlay
-			v-if="scannerOpen"
-			title="扫码添加条码"
-			adaptive-creation
-			@close="scannerOpen = false"
-		>
-			<Scanner
-				presentation="inline"
-				submit-label="添加条码"
-				:paused="disabled"
-				@scan="appendBarcode"
-				@close="scannerOpen = false"
-			/>
-		</Overlay>
-		<label class="preview-field full-width">
-			物品说明（可选）
-			<textarea v-model="model.description" :disabled="disabled" />
-		</label>
-		<template v-if="editing"
+		<FormField class="full-width" label="物品说明"
+			><template #default="{ fieldAttrs }">
+				<textarea
+					v-model="model.description"
+					v-bind="fieldAttrs as any"
+					:disabled="disabled"
+				/></template
+		></FormField>
+		<template v-if="editing && !trackingChangeable"
 			><dl class="preview-info-grid">
 				<div>
 					<dt>按批次管理</dt>
@@ -100,23 +139,58 @@ onDeactivated(() => {
 					<dt>记录效期</dt>
 					<dd>{{ model.tracksExpiry ? "是" : "否" }}</dd>
 				</div>
-			</dl></template
+			</dl>
+			<p v-if="trackingChangeReason" class="muted">
+				{{ trackingChangeReason }}；如需更改，请新建物品。
+			</p></template
 		>
-		<template v-else
-			><label class="preview-choice-label"
+		<template v-else>
+			<label class="preview-choice-label"
 				><input
 					type="checkbox"
 					v-model="model.tracksBatch"
 					:disabled="disabled || model.tracksExpiry"
 				/>按批次管理</label
-			><label class="preview-choice-label"
+			>
+			<label class="preview-choice-label"
 				><input
 					type="checkbox"
 					v-model="model.tracksExpiry"
 					:disabled="disabled"
+					@change="
+						($event.target as HTMLInputElement).checked && (model.tracksBatch = true)
+					"
 				/>记录效期</label
 			>
-			<p class="muted">批次、数量和效期在入库单中填写。</p></template
-		>
+			<p class="muted">
+				{{ model.tracksExpiry ? "效期按批次记录" : "批次、数量和效期在入库单中填写。" }}
+			</p>
+		</template>
+		<Overlay
+			v-if="scannerOpen"
+			title="扫码添加条码"
+			adaptive-creation
+			@close="scannerOpen = false"
+			><Scanner
+				presentation="inline"
+				submit-label="添加条码"
+				:paused="disabled"
+				@scan="appendBarcode"
+				@close="scannerOpen = false"
+		/></Overlay>
 	</div>
 </template>
+<style scoped>
+.item-code-control {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.item-code-control input {
+	min-width: 0;
+	flex: 1;
+}
+.item-barcode-field textarea {
+	width: min(100%, 640px);
+}
+</style>

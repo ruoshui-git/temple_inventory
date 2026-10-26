@@ -27,6 +27,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     >(),
     loading = ref(false),
     error = ref(""),
+    lifecycleBusy = ref(false),
     tab = ref(props.tab === "batches" ? "batches" : "overview"),
     conversionDirty = ref(false);
   let generation = 0,
@@ -148,6 +149,40 @@ export function useProductDetail(props: { code: string; tab?: string }) {
       item.value.uoms = value.conversions;
     }
   }
+  async function setDisabled(disabled: boolean) {
+    if (!item.value || lifecycleBusy.value) return;
+    lifecycleBusy.value = true;
+    try {
+      const result = await services.call<{ version: string }>(
+        "catalog.set_item_disabled",
+        {
+          item_code: item.value.item_code,
+          disabled,
+          version: item.value.version,
+        },
+      );
+      if (item.value) {
+        item.value.version = result.version;
+        item.value.disabled = disabled;
+      }
+    } finally {
+      lifecycleBusy.value = false;
+    }
+  }
+  async function deleteItem() {
+    if (!item.value || lifecycleBusy.value) return false;
+    lifecycleBusy.value = true;
+    try {
+      await services.call("catalog.delete_item", {
+        item_code: item.value.item_code,
+        version: item.value.version,
+      });
+      item.value = undefined;
+      return true;
+    } finally {
+      lifecycleBusy.value = false;
+    }
+  }
   watch(
     () => props.code,
     () => {
@@ -184,6 +219,9 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     load,
     conversionsUpdated,
     conversionDirty,
+    lifecycleBusy,
+    setDisabled,
+    deleteItem,
   };
 }
 export type ProductDetail = ReturnType<typeof useProductDetail>;

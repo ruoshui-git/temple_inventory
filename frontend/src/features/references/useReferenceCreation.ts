@@ -11,12 +11,14 @@ import {
   useReferenceData,
 } from "../../services/contracts";
 import { showToast } from "../../services/toast";
+import { useConfirm } from "../../services/confirm";
 export function useReferenceCreation(
   kind: "unit" | "category",
   selected: (name: string) => void,
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData();
+  const { confirm } = useConfirm();
   const creating = ref(false),
     name = ref(""),
     whole = ref(false),
@@ -109,8 +111,17 @@ export function useReferenceCreation(
     retain();
   }
   watch([name, whole, group, parent], retain, { flush: "sync" });
-  function finish() {
+  async function finish(confirmDirty = true) {
     if (busy.value) return;
+    if (
+      confirmDirty &&
+      dirty.value &&
+      !(await confirm({
+        title: `放弃新建${kind === "unit" ? "单位" : "分类"}？`,
+        message: "尚未保存的输入将丢失。",
+      }))
+    )
+      return;
     suppressed = true;
     recovery.remove(editorId, revision);
     creating.value = false;
@@ -187,7 +198,7 @@ export function useReferenceCreation(
         showToast("分类已创建");
       }
       busy.value = false;
-      finish();
+      await finish(false);
     } catch (reason) {
       if (!disposed) {
         error.value =

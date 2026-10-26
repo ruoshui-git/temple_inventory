@@ -21,6 +21,9 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { useArrayTableSort } from "../../composables/useArrayTableSort";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
+import { useConfirm } from "../../services/confirm";
+import { showToast } from "../../services/toast";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -33,9 +36,11 @@ const emit = defineEmits<{
 	openLoan: [name: string];
 	openExport: [query: ReportQuery];
 	openBatch: [name: string];
+	deleted: [];
 }>();
 const c = props.controller;
 const { isMobile } = useResponsiveLayout();
+const { confirm } = useConfirm();
 const { stockItem: item, loading, error, tab, batches, files } = c;
 const metrics = computed(() =>
 	item.value
@@ -55,6 +60,52 @@ const metrics = computed(() =>
 );
 const warehouseReference = useOptionalReferenceData();
 const services = useOptionalInventoryServices();
+const lifecycleItem = computed(() => c.item.value);
+const hasStock = computed(() =>
+	Boolean(item.value && (item.value.available || item.value.loaned || item.value.damaged)),
+);
+async function toggleDisabled() {
+	const current = lifecycleItem.value;
+	if (!current) return;
+	const disabled = !current.disabled;
+	if (
+		!(await confirm({
+			title: disabled ? "停用物品？" : "启用物品？",
+			message: disabled
+				? "停用后，物品不会出现在可选物品列表中。"
+				: "启用后，物品会重新出现在可选物品列表中。",
+			confirmLabel: disabled ? "停用" : "启用",
+		}))
+	)
+		return;
+	try {
+		await c.setDisabled(disabled);
+		showToast(disabled ? "物品已停用" : "物品已启用");
+	} catch (reason) {
+		showToast(reason instanceof Error ? reason.message : "物品状态更新失败", "danger");
+	}
+}
+async function removeItem() {
+	const current = lifecycleItem.value;
+	if (!current) return;
+	if (
+		!(await confirm({
+			title: "删除物品？",
+			message: "此操作无法撤销。",
+			confirmLabel: "删除物品",
+			tone: "danger",
+		}))
+	)
+		return;
+	try {
+		if (await c.deleteItem()) {
+			showToast("物品已删除");
+			emit("deleted");
+		}
+	} catch (reason) {
+		showToast(reason instanceof Error ? reason.message : "物品删除失败", "danger");
+	}
+}
 const batchColumns = computed<DataColumn[]>(() => [
 	{
 		id: "batch_no",
@@ -158,9 +209,37 @@ const locationPrefs =
 					>
 					<h2>{{ item.name }}</h2>
 					<p class="muted">按物品代码汇总的库存、借用与损坏情况</p>
+					<span v-if="lifecycleItem?.disabled" class="item-disabled-badge">已停用</span>
 				</div>
-				<UiButton @click="emit('edit', item.code)">编辑物品资料</UiButton>
+				<div class="item-detail-actions">
+					<UiButton @click="emit('edit', item.code)">编辑物品资料</UiButton
+					><PopupMenu label="物品操作" align="end" sheet
+						><button
+							type="button"
+							:disabled="
+								c.lifecycleBusy.value ||
+								(lifecycleItem?.disabled === false && hasStock)
+							"
+							@click="toggleDisabled"
+						>
+							{{ lifecycleItem?.disabled ? "启用物品" : "停用物品" }}</button
+						><button
+							type="button"
+							class="danger"
+							:disabled="c.lifecycleBusy.value || lifecycleItem?.can_delete !== true"
+							@click="removeItem"
+						>
+							删除物品
+						</button></PopupMenu
+					>
+				</div>
 			</div>
+			<p v-if="lifecycleItem?.disabled === false && hasStock" class="muted">
+				物品仍有库存，清空全部库位的可用、借出和损坏数量后才能停用。
+			</p>
+			<p v-if="lifecycleItem?.can_delete === false" class="muted">
+				物品仍被其它记录引用，解除关联后才能删除。
+			</p>
 			<ItemConversions
 				:item="item"
 				@updated="c.conversionsUpdated"
@@ -328,6 +407,19 @@ const locationPrefs =
 </template>
 
 <style scoped>
+.item-detail-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.item-disabled-badge {
+	display: inline-flex;
+	border-radius: 999px;
+	padding: 2px 8px;
+	color: var(--p-color-warning-800);
+	background: var(--p-color-warning-100);
+	font-size: 0.8rem;
+}
 @media (max-width: 1023px) {
 	.browse-detail-card {
 		margin-top: 8px;

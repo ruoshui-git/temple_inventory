@@ -14,6 +14,7 @@ const emit = defineEmits<{
 	openLoan: [name: string];
 	openExport: [query: ReportQuery];
 	openBatch: [name: string];
+	deleted: [];
 }>();
 const controller = useProductDetail(props);
 defineExpose({ controller });
@@ -30,5 +31,6 @@ defineExpose({ controller });
 		@open-loan="emit('openLoan', $event)"
 		@open-export="emit('openExport', $event)"
 		@open-batch="emit('openBatch', $event)"
+		@deleted="emit('deleted')"
 	/>
 </template>

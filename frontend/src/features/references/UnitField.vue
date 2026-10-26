@@ -1,103 +1,141 @@
 <script setup lang="ts">
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import Overlay from "../../components/ui/Overlay.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import FormField from "../../components/ui/FormField.vue";
+import { useFormValidation } from "../../composables/useFormValidation";
 import { useReferenceCreation } from "./useReferenceCreation";
-defineProps<{ modelValue?: string; disabled?: boolean; editorTarget?: HTMLElement }>();
-const emit = defineEmits<{
-	"update:modelValue": [value: string];
-	dirtyChange: [dirty: boolean];
-}>();
+const props = withDefaults(
+	defineProps<{ modelValue?: string; disabled?: boolean; required?: boolean; error?: string }>(),
+	{ required: false },
+);
+const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 const {
 	reference,
 	creating,
 	name,
 	whole,
-	group,
-	parent,
 	busy,
 	error,
 	permitted,
 	finish,
 	create,
-	dirty,
 	candidates,
-	recoveryError,
 	recover,
-} = useReferenceCreation("unit", (name) => emit("update:modelValue", name));
-const editor = ref<HTMLElement>();
+} = useReferenceCreation("unit", (value) => emit("update:modelValue", value));
 const trigger = ref<InstanceType<typeof UiButton>>();
 watch(creating, async (value) => {
-	await nextTick();
-	if (value) editor.value?.querySelector<HTMLInputElement>("input")?.focus();
-	else (trigger.value?.$el as HTMLElement)?.focus();
+	if (!value) {
+		await nextTick();
+		(
+			document.querySelector<HTMLElement>(
+				".preview-supporting-field .search-select-input input",
+			) || (trigger.value?.$el as HTMLElement | undefined)
+		)?.focus();
+	}
 });
-watch([dirty, creating], () => emit("dirtyChange", dirty.value || creating.value), {
-	immediate: true,
-	flush: "sync",
-});
+const validation = useFormValidation();
+validation.register(
+	"unit-name",
+	() => name.value,
+	[(v) => (v.trim() ? true : "请输入计量单位")],
+	() => document.querySelector<HTMLElement>(".preview-unit-create input")?.focus(),
+);
+const requiredError = computed(() => props.error || validation.errors["unit-name"]);
+const unitOptions = computed(() =>
+	reference.units.map((unit) => ({
+		value: unit.name,
+		label: unit.name,
+		detail: [
+			(unit as typeof unit & { category?: string }).category,
+			unit.whole ? "整数数量" : "允许小数",
+		]
+			.filter(Boolean)
+			.join(" · "),
+	})),
+);
+async function close() {
+	await finish();
+}
+async function submit() {
+	if (!validation.validate().ok) return;
+	await create();
+}
 </script>
 <template>
-	<div class="preview-unit-field preview-supporting-field">
-		<SearchSelect
-			label="计量单位"
-			:model-value="modelValue"
-			:options="
-				reference.units.map((unit) => ({
-					value: unit.name,
-					label: unit.name,
-					detail: unit.whole ? '整数数量' : '允许小数',
-				}))
-			"
-			:disabled="disabled || busy"
-			@update:model-value="emit('update:modelValue', $event)"
-		/>
-		<UiButton
-			ref="trigger"
-			v-if="!disabled && !creating && permitted"
-			:disabled="!permitted"
-			@click="creating = true"
-			>新建单位</UiButton
-		>
+	<div class="preview-supporting-field preview-unit-field">
+		<div class="supporting-field-control">
+			<FormField label="计量单位" :required="required" :error="requiredError"
+				><template #default="{ fieldAttrs }"
+					><SearchSelect
+						v-bind="fieldAttrs as any"
+						external-label
+						label="计量单位"
+						:model-value="modelValue"
+						:options="unitOptions"
+						:disabled="disabled || busy"
+						@update:model-value="
+							emit('update:modelValue', $event)
+						" /></template></FormField
+			><UiButton
+				ref="trigger"
+				v-if="!disabled && !creating && permitted"
+				@click="creating = true"
+				>新建单位</UiButton
+			>
+		</div>
 		<p v-if="!permitted" class="muted">没有新建单位的权限；可选择已有单位。</p>
 		<DisclosureSection
 			v-if="candidates.length"
 			title="此浏览器有未完成输入"
 			:count="candidates.length"
 			:summary="`最近 ${candidates[0].updatedAt}`"
-		>
-			<article v-for="candidate in candidates" :key="candidate.editorId">
+			><article v-for="candidate in candidates" :key="candidate.editorId">
 				<p>{{ candidate.updatedAt }}</p>
 				<RecoverySummary
 					kind="UOM"
 					:values="candidate.values"
 					:copy-text="JSON.stringify(candidate.values, null, 2)"
+					><UiButton @click="recover(candidate)">恢复输入</UiButton></RecoverySummary
 				>
-					<UiButton @click="recover(candidate)">恢复输入</UiButton>
-				</RecoverySummary>
-			</article>
-		</DisclosureSection>
-		<p v-if="creating && recoveryError" role="alert">{{ recoveryError }}</p>
-		<Teleport :to="editorTarget || 'body'" :disabled="!editorTarget">
-			<fieldset
-				ref="editor"
-				class="preview-supporting-editor"
-				v-if="creating"
-				:disabled="disabled || busy"
-			>
-				<legend>新建单位</legend>
-				<label class="preview-field">单位名称<input v-model="name" /></label>
-				<label class="preview-choice-label"
+			</article></DisclosureSection
+		>
+		<Overlay v-if="creating" title="新建单位" size="small" @close="close"
+			><form class="preview-unit-create" novalidate @submit.prevent="submit">
+				<FormField label="计量单位" required :error="validation.errors['unit-name']"
+					><template #default="{ fieldAttrs }"
+						><input v-model="name" v-bind="fieldAttrs as any" /></template></FormField
+				><label class="preview-choice-label"
 					><input v-model="whole" type="checkbox" />只允许整数数量</label
 				>
 				<p v-if="error" role="alert">{{ error }}</p>
-				<UiButton @click="finish">取消</UiButton>
-				<UiButton @click="create" :disabled="busy" :loading="busy"
-					>保存并使用单位</UiButton
-				>
-			</fieldset>
-		</Teleport>
+				<div class="dialog-actions">
+					<UiButton @click="close">取消</UiButton
+					><UiButton variant="primary" :disabled="busy" :loading="busy" type="submit"
+						>保存并使用单位</UiButton
+					>
+				</div>
+			</form></Overlay
+		>
 	</div>
 </template>
+<style scoped>
+.supporting-field-control {
+	display: flex;
+	align-items: end;
+	gap: 8px;
+}
+.supporting-field-control :deep(.form-field) {
+	flex: 1;
+	min-width: 0;
+}
+.dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+}
+</style>

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import type { HierarchyFilterNode } from "../../components/ui/HierarchyFilter.vue";
+import FormField from "../../components/ui/FormField.vue";
 
 export interface CategoryDraft {
 	label: string;
@@ -14,6 +15,7 @@ const props = withDefaults(
 		categories: HierarchyFilterNode[];
 		disabled?: boolean;
 		excludedNames?: string[];
+		nameError?: string;
 	}>(),
 	{ disabled: false, excludedNames: () => [] },
 );
@@ -36,14 +38,15 @@ function update<K extends keyof CategoryDraft>(field: K, value: CategoryDraft[K]
 </script>
 
 <template>
-	<label class="preview-field">
-		分类名称<input
-			data-category-name
-			:value="modelValue.label"
-			:disabled="disabled"
-			@input="update('label', ($event.target as HTMLInputElement).value)"
-		/>
-	</label>
+	<FormField label="分类名称" required :error="nameError"
+		><template #default="{ fieldAttrs }"
+			><input
+				v-bind="fieldAttrs as any"
+				data-category-name
+				:value="modelValue.label"
+				:disabled="disabled"
+				@input="update('label', ($event.target as HTMLInputElement).value)" /></template
+	></FormField>
 	<SearchSelect
 		label="上级分类"
 		:model-value="modelValue.parent"

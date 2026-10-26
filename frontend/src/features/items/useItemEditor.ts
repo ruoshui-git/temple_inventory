@@ -19,6 +19,7 @@ import {
   type AttachmentEntry,
 } from "../attachments/useAttachments";
 import { showToast } from "../../services/toast";
+import { useConfirm } from "../../services/confirm";
 
 export interface ItemInput {
   code: string;
@@ -42,6 +43,7 @@ export function useItemEditor(
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData();
+  const { confirm } = useConfirm();
   const account = reference.user;
   let disposed = false,
     generation = 0;
@@ -70,7 +72,7 @@ export function useItemEditor(
     tracksBatch: false,
     tracksExpiry: false,
   });
-  const supportingDirty = ref(false);
+  const suggestedCode = ref("");
   const existing = ref<
       CatalogItem & {
         tracking_changeable?: boolean;
@@ -101,28 +103,23 @@ export function useItemEditor(
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (model.category === oldName) model.category = category.name;
   });
-  const initialized = ref(false),
-    leaveRequested = ref(false);
-  let allowLeave = false,
-    leaveResolve: ((value: boolean) => void) | undefined;
-  function requestLeave(): Promise<boolean> {
-    if (allowLeave || !dirty.value) return Promise.resolve(true);
-    leaveRequested.value = true;
-    return new Promise((resolve) => {
-      leaveResolve = resolve;
-    });
+  const initialized = ref(false);
+  function discard() {
+    discarded = true;
+    recovery.remove(editorId, revision);
+    baseline.value = JSON.stringify(model);
   }
-  function finishLeave(choice: "stay" | "retain" | "discard") {
-    if (choice === "retain" && supportingDirty.value) return;
-    if (choice === "retain") retain();
-    if (choice === "discard") {
-      discarded = true;
-      recovery.remove(editorId, revision);
-    }
-    allowLeave = choice !== "stay";
-    leaveRequested.value = false;
-    leaveResolve?.(allowLeave);
-    leaveResolve = undefined;
+  async function requestLeave(): Promise<boolean> {
+    if (!dirty.value) return true;
+    if (
+      !(await confirm({
+        title: "离开物品编辑？",
+        message: "未保存的输入将丢失。",
+      }))
+    )
+      return false;
+    discard();
+    return true;
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     if (dirty.value && !discarded) {
@@ -159,9 +156,8 @@ export function useItemEditor(
   });
   const dirty = computed(
     () =>
-      JSON.stringify(model) !== baseline.value ||
-      files.incomplete.value ||
-      supportingDirty.value,
+      !discarded &&
+      (JSON.stringify(model) !== baseline.value || files.incomplete.value),
   );
   function retain() {
     if (!ready || !active() || discarded) return false;
@@ -192,6 +188,7 @@ export function useItemEditor(
     const result = await services.call<{ item_code: string }>(
       "catalog.suggest_item_code",
     );
+    if (active()) suggestedCode.value = result.item_code;
     if (active() && !model.code) {
       const previous = JSON.parse(baseline.value || JSON.stringify(model));
       model.code = result.item_code;
@@ -325,6 +322,7 @@ export function useItemEditor(
       tracksBatch: false,
       tracksExpiry: false,
     });
+    suggestedCode.value = "";
     initialized.value = false;
     await load();
   }
@@ -344,14 +342,6 @@ export function useItemEditor(
       conflict.value
     )
       return;
-    if (supportingDirty.value) {
-      error.value = "请先完成或取消尚未保存的分类、单位与换算";
-      return;
-    }
-    if (!model.code.trim() || !model.name.trim() || !model.uom) {
-      error.value = "请填写物品编号、名称，并选择库存单位";
-      return;
-    }
     busy.value = true;
     error.value = "";
     const wasExisting = Boolean(existing.value);
@@ -427,10 +417,7 @@ export function useItemEditor(
   useUpdateBlocker(() => dirty.value || busy.value);
 
   return {
-    leaveRequested,
     requestLeave,
-    finishLeave,
-    supportingDirty,
     conversionsUpdated: (value: {
       version: string;
       conversions: { uom: string; conversion_factor: number }[];
@@ -457,6 +444,7 @@ export function useItemEditor(
     load,
     save,
     suggest,
+    suggestedCode,
     files,
     reference,
     baseline,
@@ -468,9 +456,6 @@ export function useItemEditor(
     recoveryText: computed(() =>
       JSON.stringify({ ...model, attachments: files.files }, null, 2),
     ),
-    discard: () => {
-      discarded = true;
-      recovery.remove(editorId, revision);
-    },
+    discard,
   };
 }

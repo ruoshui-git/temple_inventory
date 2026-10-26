@@ -23,6 +23,8 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { itemPickerColumns } from "./itemPickerColumns";
 import { earliestBatchExpiry, showOnlyStockFilter } from "../documents/creationFormPresentation";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
+import { useConfirm } from "../../services/confirm";
 
 export type ItemScanOption = {
 	value: string;
@@ -95,9 +97,7 @@ const multiple = computed(
 	() => props.mode === "add-multiple" && props.createBarcode === undefined,
 );
 const creating = ref(!!props.allowCreate && props.createBarcode !== undefined),
-	discard = ref(false),
-	pendingMultiple = ref(false),
-	pendingSelection = ref<{ code: string; warehouse: string }>();
+	pendingMultiple = ref(false);
 const picker = useItemPicker(props, (item) => emit("itemLoaded", item));
 const createdPreview = ref<{ code: string; name: string; image: string }>();
 const createdImageItem = computed<StockItem | undefined>(
@@ -190,6 +190,8 @@ function asStockItem(row: Record<string, unknown>) {
 }
 const { isMobile } = useResponsiveLayout();
 const sidebarOpen = ref(true);
+const { confirm } = useConfirm();
+const creationSubtitle = computed(() => (props.context || "入库登记").replace(/\s*·\s*$/, ""));
 const scanPanel = ref<InstanceType<typeof ScanPanel>>();
 const scanStage = ref(false);
 const browseScope = computed<BrowseScope>({
@@ -308,16 +310,9 @@ const itemEditor = useItemEditor(
 );
 const dirty = computed(() => itemEditor.dirty.value);
 const content = ref<HTMLElement>(),
-	discardPanel = ref<HTMLElement>(),
 	resultsPort = ref<HTMLElement>();
 let selectionScroll = 0,
 	creationScroll = 0;
-watch(discard, async (value) => {
-	if (value) {
-		await nextTick();
-		discardPanel.value?.focus();
-	}
-});
 onMounted(() => {
 	if (creating.value) void itemEditor.load();
 });
@@ -327,9 +322,7 @@ async function showCreate(value: boolean) {
 	if (creating.value) creationScroll = scrollport?.scrollTop || 0;
 	else selectionScroll = scrollport?.scrollTop || 0;
 	creating.value = value;
-	discard.value = false;
 	pendingMultiple.value = false;
-	pendingSelection.value = undefined;
 	await nextTick();
 	content.value
 		?.querySelector<HTMLInputElement>(value ? "form input" : ".preview-picker-selection input")
@@ -341,6 +334,9 @@ function clearScope(field: ScopeFilterField | "period") {
 		categoryFilters.value = [];
 		uncategorizedFilter.value = false;
 	} else if (field === "warehouses") warehouseFilters.value = [];
+}
+function createItem() {
+	content.value?.querySelector<HTMLFormElement>(".picker-creation-scroll form")?.requestSubmit();
 }
 async function openScanner() {
 	scanStage.value = true;
@@ -410,65 +406,59 @@ function confirmScanResolution() {
 		destination: resolutionDestination.value,
 	});
 }
-function close() {
+async function close() {
 	if (itemEditor.busy.value || itemEditor.files.busy.value) return;
-	pendingSelection.value = undefined;
 	pendingMultiple.value = false;
-	if (dirty.value) discard.value = true;
-	else emit("close");
+	if (
+		dirty.value &&
+		!(await confirm({ title: "放弃填写？", message: "未保存的物品输入将丢失。" }))
+	)
+		return;
+	itemEditor.discard();
+	emit("close");
 }
 async function commitSelection() {
-	if (dirty.value) {
-		pendingMultiple.value = true;
-		discard.value = true;
-	} else {
+	if (pendingMultiple.value || !selected.value.length) return;
+	if (
+		dirty.value &&
+		!(await confirm({ title: "放弃填写？", message: "未保存的物品输入将丢失。" }))
+	)
+		return;
+	pendingMultiple.value = true;
+	try {
+		if (dirty.value) itemEditor.discard();
+		picker.result.error = "";
 		await Promise.all([...new Set(selectedRows().map((row) => row.code))].map(ensureSelected));
-		emit("selectMultiple", selectedRows());
+		if (!picker.result.error) emit("selectMultiple", selectedRows());
+	} catch (reason) {
+		picker.result.error = reason instanceof Error ? reason.message : "物品资料加载失败";
+	} finally {
+		pendingMultiple.value = false;
 	}
 }
 
 async function selectExisting(code: string, warehouse: string) {
-	if (dirty.value) {
-		pendingSelection.value = { code, warehouse };
-		discard.value = true;
-	} else {
-		await ensureSelected(code);
-		emit("select", { code, warehouse });
-	}
-}
-async function discardEdits() {
-	const multipleSelection = pendingMultiple.value ? selectedRows() : undefined;
-	const singleSelection = pendingSelection.value;
-	pendingSelection.value = undefined;
-	pendingMultiple.value = false;
-	discard.value = false;
-	itemEditor.discard();
-	if (multipleSelection) {
-		await Promise.all(
-			[...new Set(multipleSelection.map((row) => row.code))].map(ensureSelected),
-		);
-		emit("selectMultiple", multipleSelection);
-	} else if (singleSelection) {
-		await ensureSelected(singleSelection.code);
-		emit("select", singleSelection);
-	} else emit("close");
+	if (
+		dirty.value &&
+		!(await confirm({ title: "放弃填写？", message: "未保存的物品输入将丢失。" }))
+	)
+		return;
+	if (dirty.value) itemEditor.discard();
+	await ensureSelected(code);
+	emit("select", { code, warehouse });
 }
 </script>
 <template>
 	<Overlay
 		:title="creating ? '新建物品' : '选择物品'"
-		:subtitle="creating ? context || '入库登记' : undefined"
+		:subtitle="creating ? creationSubtitle : undefined"
 		panel-class="preview-item-picker-dialog"
 		content-class="preview-item-picker-content"
 		:adaptive-creation="creating"
 		@close="close"
 	>
 		<div ref="content" class="preview-picker-content">
-			<div
-				v-show="!creating"
-				class="preview-picker-selection"
-				:inert="discard ? true : undefined"
-			>
+			<div v-show="!creating" class="preview-picker-selection">
 				<BrowseToolbar
 					class="picker-chrome"
 					title="物品"
@@ -484,8 +474,7 @@ async function discardEdits() {
 					:scannable="true"
 					:sidebar-open="sidebarOpen"
 					:sidebar-available="true"
-					:show-sidebar-toggle="true"
-					@sidebar="sidebarOpen = !sidebarOpen"
+					:show-sidebar-toggle="false"
 					@scan="openScanner"
 				>
 					<template #persistent>
@@ -538,6 +527,9 @@ async function discardEdits() {
 						/>
 					</template>
 				</BrowseToolbar>
+				<p v-if="result.error" class="notice-bar danger" role="alert">
+					{{ result.error }}
+				</p>
 				<section v-show="scanStage" class="picker-scan-stage" aria-label="快速扫描">
 					<p v-if="scanMode === 'operation'" class="muted scan-help">
 						每次扫描添加1个库存单位
@@ -672,16 +664,29 @@ async function discardEdits() {
 					/>
 				</section>
 				<div v-show="!scanStage" class="picker-browser-grid">
-					<aside v-if="sidebarOpen && !isMobile" class="picker-filter-rail">
-						<h3 v-if="purpose !== 'inbound'">类别与仓库</h3>
-						<BrowseFilters
-							v-model="browseScope"
-							:fields="
-								purpose === 'inbound'
-									? ['categories']
-									: ['categories', 'warehouses']
-							"
-						/>
+					<aside
+						v-if="!isMobile"
+						class="picker-filter-rail"
+						:class="{ 'picker-filter-rail--collapsed': !sidebarOpen }"
+					>
+						<div class="filter-rail-heading">
+							<h3 v-if="sidebarOpen">筛选</h3>
+							<FilterRailEdge
+								:open="sidebarOpen"
+								:active="activeFilterCount > 0"
+								@toggle="sidebarOpen = !sidebarOpen"
+							/>
+						</div>
+						<div v-if="sidebarOpen">
+							<BrowseFilters
+								v-model="browseScope"
+								:fields="
+									purpose === 'inbound'
+										? ['categories']
+										: ['categories', 'warehouses']
+								"
+							/>
+						</div>
 					</aside>
 					<div
 						ref="resultsPort"
@@ -956,32 +961,34 @@ async function discardEdits() {
 					</div>
 				</div>
 			</div>
-			<div v-show="creating" class="picker-creation-scroll" :inert="discard || undefined">
+			<div v-show="creating" class="picker-creation-scroll">
 				<ItemEditorView :controller="itemEditor" contextual @cancel="showCreate(false)" />
-			</div>
-
-			<div v-if="discard" ref="discardPanel" tabindex="-1" role="alert">
-				<p>放弃未保存的物品、分类或单位资料？已创建的分类和单位仍会保留。</p>
-				<UiButton @click="showCreate(true)">继续填写</UiButton
-				><UiButton @click="discardEdits">放弃填写</UiButton>
 			</div>
 		</div>
 		<template #footer>
 			<UiButton
-				v-if="scanStage && !creating && !discard"
+				v-if="scanStage && !creating"
 				variant="primary"
 				@click="scanPanel?.finishScanning()"
 				>完成扫描</UiButton
 			>
-			<UiButton v-else-if="creating && !discard" @click="showCreate(false)"
-				>返回选择物品（保留填写）</UiButton
-			>
+			<template v-else-if="creating">
+				<UiButton @click="close">取消编辑</UiButton>
+				<UiButton @click="showCreate(false)">返回选择物品（保留填写）</UiButton>
+				<UiButton
+					variant="primary"
+					:disabled="itemEditor.busy.value || pendingMultiple"
+					:loading="itemEditor.busy.value"
+					@click="createItem"
+					>创建并使用物品</UiButton
+				>
+			</template>
 			<UiButton
-				v-else-if="multiple && !discard"
+				v-else-if="multiple"
 				variant="primary"
-				:disabled="!selected.length || itemEditor.busy.value"
-				:loading="result.stale"
-				loading-label="正在更新物品列表…"
+				:disabled="!selected.length || pendingMultiple"
+				:loading="pendingMultiple"
+				loading-label="正在添加所选物品…"
 				@click="commitSelection"
 				>添加所选（{{ selected.length }}）</UiButton
 			>
@@ -992,6 +999,40 @@ async function discardEdits() {
 <style scoped>
 .picker-data-table :deep(table) {
 	min-width: 780px;
+}
+.picker-browser-grid:has(> .picker-filter-rail--collapsed) {
+	grid-template-columns: 28px minmax(0, 1fr);
+}
+.picker-filter-rail--collapsed {
+	padding: 0;
+	overflow: visible;
+}
+.picker-filter-rail--collapsed .filter-rail-heading {
+	justify-content: center;
+}
+:global(.preview-item-picker-dialog .dialog-footer) {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+}
+@media (min-width: 1024px) {
+	.picker-chrome :deep(.preview-filter-control) {
+		display: none;
+	}
+}
+@media (max-width: 640px) {
+	:global(.preview-item-picker-dialog .dialog-footer) {
+		flex-wrap: wrap;
+	}
+	:global(.preview-item-picker-dialog .dialog-footer > :last-child) {
+		order: 2;
+		width: 100%;
+	}
+	:global(.preview-item-picker-dialog .dialog-footer > :not(:last-child)) {
+		order: 1;
+		flex: 1;
+	}
 }
 .picker-data-table :deep(.picker-code-column),
 .picker-data-table :deep(.picker-quantity-column),

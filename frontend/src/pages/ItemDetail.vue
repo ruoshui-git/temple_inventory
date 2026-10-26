@@ -9,12 +9,13 @@ import {
 } from "../lib/nativeNavigation";
 import { routeTarget } from "../lib/routeRegistry";
 import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
+import { useConfirm } from "../services/confirm";
 const detail = ref<InstanceType<typeof ProductDetailPage>>();
+const { confirm } = useConfirm();
 useRouteBreadcrumbLabel(() => detail.value?.controller.item.value?.item_name);
-function leave() {
+async function leave() {
 	if (!detail.value?.controller.conversionDirty.value) return true;
-	detail.value.controller.error.value = "请先保存或放弃尚未应用的换算后离开";
-	return false;
+	return confirm({ title: "放弃换算？", message: "尚未保存的常用换算将丢失。" });
 }
 onBeforeRouteLeave(leave);
 onBeforeRouteUpdate((to, from) => to.params.code === from.params.code || leave());
@@ -33,6 +34,7 @@ const route = useRoute(),
 		@open-export="router.push(exportDestination($event))"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
 		@open-loan="(name) => router.push(routeTarget('loan-overview', { name }))"
+		@deleted="router.push(routeTarget('stock'))"
 		@open-batch="
 			(name) =>
 				router.push({

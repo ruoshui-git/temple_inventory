@@ -18,6 +18,7 @@ export interface CatalogItem {
   has_batch_no: boolean;
   has_expiry_date: boolean;
   can_edit: boolean;
+  disabled?: boolean;
   barcodes: { barcode: string }[];
   uoms: { uom: string; conversion_factor: number }[];
   attachments?: NativeFile[];
@@ -74,6 +75,7 @@ export function presentCatalogItem(item: CatalogItem): StockItem {
     canEdit: item.can_edit,
     tracksBatch: item.has_batch_no,
     tracksExpiry: item.has_expiry_date,
+    disabled: item.disabled,
     barcode: item.barcodes.map((row) => row.barcode).join("\n"),
     alternateUnits: item.uoms
       .filter((row) => row.uom !== item.stock_uom)

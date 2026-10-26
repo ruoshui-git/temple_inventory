@@ -202,7 +202,7 @@ export function useItemPicker(
       return;
     }
     try {
-      const result = await services.call<{
+      const loaded = await services.call<{
         items: CatalogItem[];
         errors: { item_code: string; error: string }[];
       }>("catalog.operation_items", {
@@ -210,7 +210,7 @@ export function useItemPicker(
         timestamp: props.timestamp,
       });
       if (!disposed && account === reference.user) {
-        for (const item of result.items) {
+        for (const item of loaded.items) {
           const presented = presentCatalogItem(item);
           loadedItems.set(
             `${item.item_code}\u0000${props.timestamp || "now"}`,
@@ -218,9 +218,16 @@ export function useItemPicker(
           );
           remember(presented);
         }
+        if (loaded.errors.length)
+          result.error = loaded.errors
+            .map((row) => `${row.item_code}：${row.error}`)
+            .join("；");
+        else result.error = "";
       }
-    } catch {
-      // The receiving editor reports any complete-context read failure.
+    } catch (reason) {
+      if (!disposed && account === reference.user)
+        result.error =
+          reason instanceof Error ? reason.message : "物品资料加载失败";
     } finally {
       resolveAll();
     }

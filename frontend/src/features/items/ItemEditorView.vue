@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import ItemConversions from "./ItemConversions.vue";
 import ItemFields from "./ItemFields.vue";
 import Attachments from "../../components/Attachments.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
+import { useConfirm } from "../../services/confirm";
 import type { useItemEditor } from "./useItemEditor";
 const props = defineProps<{
 	controller: ReturnType<typeof useItemEditor>;
@@ -27,23 +28,22 @@ const {
 	save,
 	files,
 	recoveryText,
-	discardOpen,
-	discard,
 } = props.controller;
-const support = ref<HTMLElement>();
-const categoryDirty = ref(false),
-	unitDirty = ref(false),
-	conversionDirty = ref(false);
-watch(
-	[categoryDirty, unitDirty, conversionDirty],
-	() => {
-		props.controller.supportingDirty.value =
-			categoryDirty.value || unitDirty.value || conversionDirty.value;
-	},
-	{ flush: "sync" },
-);
+const conversionDirty = ref(false);
+const itemFields = ref<InstanceType<typeof ItemFields>>();
+const { confirm } = useConfirm();
 async function cancel() {
-	if (await props.controller.requestLeave()) emit("cancel");
+	if (
+		!dirty.value ||
+		(await confirm({ title: "取消编辑？", message: "未保存的物品输入将丢失。" }))
+	) {
+		props.controller.discard();
+		emit("cancel");
+	}
+}
+function submit() {
+	if (!itemFields.value?.validate().ok) return;
+	void save();
 }
 </script>
 <template>
@@ -54,7 +54,7 @@ async function cancel() {
 		<SkeletonBlock v-if="loading && existing" variant="detail" :count="3" :rows="4" />
 		<p v-if="error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
-		<form class="surface form-section" @submit.prevent="save">
+		<form class="surface form-section" novalidate @submit.prevent="submit">
 			<section class="item-main-image">
 				<h3>主图</h3>
 				<Attachments
@@ -84,16 +84,14 @@ async function cancel() {
 			</dl>
 			<fieldset v-else :disabled="loading || busy || conflict" class="item-fields">
 				<ItemFields
+					ref="itemFields"
 					:model="model"
 					:editing="!!existing"
 					:disabled="loading || busy || conflict || !canWrite"
-					:editor-target="support"
-					@supporting-dirty="
-						(field, value) =>
-							field === 'category' ? (categoryDirty = value) : (unitDirty = value)
-					"
+					:suggested-code="controller.suggestedCode.value"
+					:tracking-changeable="existing?.tracking_changeable"
+					:tracking-change-reason="existing?.tracking_change_reason"
 				/>
-				<div ref="support" class="preview-supporting-editors" />
 			</fieldset>
 			<p v-if="!canWrite && !loading">没有编辑权限。当前资料可选中复制。</p>
 			<ItemConversions
@@ -120,50 +118,18 @@ async function cancel() {
 				/>
 				<UiButton @click="load">重新读取物品</UiButton>
 			</div>
-			<div class="form-actions">
+			<div v-if="!contextual" class="form-actions">
 				<UiButton @click="cancel">取消编辑</UiButton
 				><UiButton
 					v-if="canWrite"
 					variant="primary"
 					type="submit"
 					:loading="busy"
-					:disabled="
-						loading ||
-						busy ||
-						conflict ||
-						categoryDirty ||
-						unitDirty ||
-						conversionDirty
-					"
+					:disabled="loading || busy || conflict || conversionDirty"
 					>{{ contextual ? "创建并使用物品" : "保存物品" }}</UiButton
 				>
 			</div>
 		</form>
-		<section v-if="controller.leaveRequested.value" class="notice-bar" role="alert">
-			<p>离开当前物品编辑？未完成输入仅能在此浏览器恢复，待上传文件需要重新选择。</p>
-			<p v-if="controller.supportingDirty.value">
-				请先完成或取消尚未保存的分类、单位与换算，才能保留输入离开。
-			</p>
-			<UiButton @click="controller.finishLeave('stay')">继续编辑</UiButton
-			><UiButton
-				:disabled="controller.supportingDirty.value"
-				@click="controller.finishLeave('retain')"
-				>保留输入并离开</UiButton
-			><UiButton variant="danger" @click="controller.finishLeave('discard')"
-				>放弃输入并离开</UiButton
-			>
-		</section>
-		<div v-if="discardOpen" class="notice-bar" role="alert">
-			<p>放弃当前未保存输入？已经创建的物品、分类和单位会保留。</p>
-			<UiButton @click="discardOpen = false">继续编辑</UiButton
-			><UiButton
-				@click="
-					discard();
-					emit('cancel');
-				"
-				>放弃未保存输入</UiButton
-			>
-		</div>
 	</section>
 </template>
 <style scoped>
