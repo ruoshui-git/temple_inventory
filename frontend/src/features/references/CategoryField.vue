@@ -77,11 +77,11 @@ async function submit() {
 			/><UiButton
 				ref="trigger"
 				v-if="!disabled && permitted"
+				class="reference-create-button"
 				aria-label="新建分类"
 				title="新建分类"
 				@click="creating = true"
-				><span class="category-create-short">+ 分类</span
-				><span class="category-create-full">新建分类</span></UiButton
+				>+ 分类</UiButton
 			>
 		</div>
 		<DisclosureSection
@@ -128,24 +128,15 @@ async function submit() {
 	flex: 1;
 	min-width: 0;
 }
-.category-create-short {
-	display: none;
+.supporting-field-control :deep(.reference-create-button) {
+	flex: 0 0 auto;
+	min-width: 5.5rem;
+	white-space: nowrap;
 }
 .dialog-actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;
 	margin-top: 16px;
-}
-@media (max-width: 640px) {
-	.category-create-full {
-		display: none;
-	}
-	.category-create-short {
-		display: inline;
-	}
-	.category-create-short {
-		white-space: nowrap;
-	}
 }
 </style>

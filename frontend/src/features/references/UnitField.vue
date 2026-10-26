@@ -78,8 +78,11 @@ async function submit() {
 			><UiButton
 				ref="trigger"
 				v-if="!disabled && !creating && permitted"
+				class="reference-create-button"
+				aria-label="新建单位"
+				title="新建单位"
 				@click="creating = true"
-				>新建单位</UiButton
+				>+ 单位</UiButton
 			>
 		</div>
 		<p v-if="!permitted" class="muted">没有新建单位的权限；可选择已有单位。</p>
@@ -126,6 +129,11 @@ async function submit() {
 .supporting-field-control :deep(.form-field) {
 	flex: 1;
 	min-width: 0;
+}
+.supporting-field-control :deep(.reference-create-button) {
+	flex: 0 0 auto;
+	min-width: 5.5rem;
+	white-space: nowrap;
 }
 .dialog-actions {
 	display: flex;

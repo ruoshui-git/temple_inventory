@@ -1420,23 +1420,25 @@ function receiveBatchChanged(line: AllocationLine) {
 						/>
 					</template>
 				</FormField>
-				<UiButton
-					v-if="!disabled && !settlement"
-					variant="secondary"
-					icon="box"
-					data-field="items"
-					:disabled="!canAddItem"
-					@click="pick()"
-					>添加物品</UiButton
-				>
-				<UiButton
-					v-if="!disabled && !settlement"
-					variant="secondary"
-					icon="scan"
-					:disabled="!canAddItem"
-					@click="pick([], true)"
-					>扫码添加</UiButton
-				>
+				<div class="preview-line-toolbar-actions">
+					<UiButton
+						v-if="!disabled && !settlement"
+						variant="secondary"
+						icon="box"
+						data-field="items"
+						:disabled="!canAddItem"
+						@click="pick()"
+						>添加物品</UiButton
+					>
+					<UiButton
+						v-if="!disabled && !settlement"
+						variant="secondary"
+						icon="scan"
+						:disabled="!canAddItem"
+						@click="pick([], true)"
+						>扫码添加</UiButton
+					>
+				</div>
 				<label class="preview-inline-field preview-line-search"
 					>搜索明细<input
 						v-model="search"
@@ -1444,16 +1446,18 @@ function receiveBatchChanged(line: AllocationLine) {
 						placeholder="物品名称、编号、库位或批次"
 				/></label>
 				<div class="preview-line-toolbar-status">
-					<span role="status"
+					<span class="preview-line-toolbar-summary" role="status"
 						>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 ·
 						{{ totals }}</span
 					>
-					<label class="preview-choice-label"
-						><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
-					>
-					<UiButton :disabled="!lineIssues.length" @click="nextIssue"
-						>{{ lineIssues.length }} 处待完善 · 下一个</UiButton
-					>
+					<div class="preview-line-toolbar-incomplete">
+						<label class="preview-choice-label"
+							><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
+						>
+						<UiButton :disabled="!lineIssues.length" @click="nextIssue"
+							>{{ lineIssues.length }} 处待完善 · 下一个</UiButton
+						>
+					</div>
 				</div>
 				<span v-if="search || incompleteOnly" role="status"
 					>显示 {{ visibleIds.size }} / {{ draft.items.length }} 行</span
@@ -1531,12 +1535,14 @@ function receiveBatchChanged(line: AllocationLine) {
 								]"
 								@update:model-value="selectUnit(group.lines[0]!, $event)"
 							/>
-							<small>{{ group.lines.length }} 个批次</small>
-							<strong
-								:title="`合计 ${groupTotal(group)} ${group.lines[0]!.uom}，只读`"
-								>{{ groupTotal(group) }} {{ group.lines[0]!.uom }}</strong
-							>
-							<small>合计</small>
+							<div class="allocation-card-total-summary">
+								<small>{{ group.lines.length }} 个批次</small>
+								<strong
+									:title="`合计 ${groupTotal(group)} ${group.lines[0]!.uom}，只读`"
+									>{{ groupTotal(group) }} {{ group.lines[0]!.uom }}</strong
+								>
+								<small>合计</small>
+							</div>
 						</div>
 					</header>
 					<div class="allocation-card-controls">
@@ -2282,33 +2288,124 @@ function receiveBatchChanged(line: AllocationLine) {
 		top: auto;
 		box-shadow: none;
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto auto;
+		grid-template-columns: minmax(0, 1fr);
 	}
 
 	.preview-line-toolbar .preview-receive-target {
 		max-width: none;
+		width: 100%;
+		min-width: 0;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 4px;
 	}
 
+	.preview-line-toolbar .preview-receive-target > label {
+		white-space: normal;
+	}
+
+	.preview-line-toolbar .preview-receive-target > .search-select-input {
+		width: 100%;
+	}
+
+	.preview-line-toolbar-actions,
 	.preview-line-search {
-		grid-column: 1 / -1;
+		grid-column: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		width: 100%;
+		min-width: 0;
+		gap: 4px;
+	}
+
+	.preview-line-search input {
+		width: 100%;
+		min-width: 0;
+		flex: none;
 	}
 
 	.preview-line-toolbar-status {
-		grid-column: 1 / -1;
-		flex-wrap: nowrap;
+		grid-column: 1;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		align-items: start;
+		flex-wrap: initial;
 		gap: 8px;
 		font-size: 0.875rem;
 	}
 
-	.preview-line-toolbar-status > span:first-child {
+	.preview-line-toolbar-summary {
+		display: block;
+		width: 100%;
 		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 
-	.preview-line-toolbar-status .ui-button {
-		flex: 0 0 auto;
+	.preview-line-toolbar-incomplete {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.preview-line-toolbar-incomplete .preview-choice-label {
+		white-space: normal;
+		min-width: 0;
+	}
+
+	.preview-line-toolbar-incomplete .ui-button {
+		flex: 0 1 auto;
+		max-width: 100%;
+		white-space: normal;
+	}
+
+	.preview-line-toolbar-actions {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.preview-line-toolbar-actions .ui-button {
+		min-width: 0;
+		width: 100%;
+		white-space: normal;
+	}
+
+	.allocation-card-heading {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: flex-start;
+	}
+
+	.allocation-identity {
+		width: 100%;
+	}
+
+	.allocation-card-total {
+		display: contents;
+	}
+
+	.allocation-card-unit {
+		grid-column: 1;
+		grid-row: 2;
+		width: 100%;
+		max-width: none;
+		text-align: start;
+	}
+
+	.allocation-card-total-summary {
+		grid-column: 2;
+		grid-row: 1;
+		align-self: center;
+	}
+
+	.allocation-card-total-summary > small:first-child {
+		display: none;
 	}
 }
 
@@ -2324,23 +2421,8 @@ function receiveBatchChanged(line: AllocationLine) {
 		white-space: nowrap;
 	}
 
-	.allocation-card-heading {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 9rem;
-		align-items: flex-start;
-	}
-
-	.allocation-identity {
-		width: 100%;
-	}
-
 	.allocation-card-controls {
 		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.allocation-card-total {
-		min-width: 0;
-		width: 100%;
 	}
 
 	.batch-subrow--header {
