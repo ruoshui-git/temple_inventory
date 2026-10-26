@@ -1334,7 +1334,7 @@ function receiveBatchChanged(line: AllocationLine) {
 				>
 					<template #default="{ fieldAttrs }">
 						<SearchSelect
-							v-bind="fieldAttrs as any"
+							v-bind="fieldAttrs"
 							external-label
 							label="入库位置"
 							data-field="location"
@@ -1402,7 +1402,7 @@ function receiveBatchChanged(line: AllocationLine) {
 				>
 					<template #default="{ fieldAttrs }">
 						<SearchSelect
-							v-bind="fieldAttrs as any"
+							v-bind="fieldAttrs"
 							external-label
 							:label="receive ? '入库位置' : '调入位置'"
 							:data-field="receive ? 'location' : 'destination'"
@@ -1514,9 +1514,29 @@ function receiveBatchChanged(line: AllocationLine) {
 							</div>
 						</div>
 						<div v-if="hasBatchRows(group.code)" class="allocation-card-total">
+							<SearchSelect
+								class="allocation-card-unit"
+								label="单位"
+								:clearable="false"
+								:model-value="group.lines[0]!.entryUom || group.lines[0]!.uom"
+								:disabled="disabled || hydrating"
+								:options="[
+									group.lines[0]!.uom,
+									...(stockItem(group.code)?.alternateUnits?.map((row) => ({
+										value: row.uom,
+										label: row.uom,
+										detail: `1 ${row.uom} = ${row.factor} ${group.lines[0]!.uom}`,
+									})) || []),
+									{ value: '__other', label: '设置换算…' },
+								]"
+								@update:model-value="selectUnit(group.lines[0]!, $event)"
+							/>
 							<small>{{ group.lines.length }} 个批次</small>
-							<strong>{{ groupTotal(group) }} {{ group.lines[0]!.uom }}</strong>
-							<small>合计 · 只读</small>
+							<strong
+								:title="`合计 ${groupTotal(group)} ${group.lines[0]!.uom}，只读`"
+								>{{ groupTotal(group) }} {{ group.lines[0]!.uom }}</strong
+							>
+							<small>合计</small>
 						</div>
 					</header>
 					<div class="allocation-card-controls">
@@ -1640,7 +1660,10 @@ function receiveBatchChanged(line: AllocationLine) {
 								:invalid="lineInvalid(group.lines[0]!, 'location')"
 								@update:model-value="changeGroupLocation(group, $event)"
 							/>
-							<p v-if="receive" class="allocation-location-value">
+							<p
+								v-if="receive && group.lines[0]!.location !== destination"
+								class="allocation-location-value"
+							>
 								入库位置：{{
 									warehouseLabel(
 										destination,
@@ -1650,32 +1673,16 @@ function receiveBatchChanged(line: AllocationLine) {
 								}}
 							</p>
 						</div>
-						<div
-							v-if="hasBatchRows(group.code)"
-							class="allocation-quantity allocation-card-unit"
-						>
-							<SearchSelect
-								label="单位"
-								:clearable="false"
-								:model-value="group.lines[0]!.entryUom || group.lines[0]!.uom"
-								:disabled="disabled || hydrating"
-								:options="[
-									group.lines[0]!.uom,
-									...(stockItem(group.code)?.alternateUnits?.map(
-										(row) => row.uom,
-									) || []),
-									{ value: '__other', label: '设置换算…' },
-								]"
-								@update:model-value="selectUnit(group.lines[0]!, $event)"
-							/>
-							<small
-								v-if="group.lines[0]!.entryUom !== group.lines[0]!.uom"
-								class="allocation-equivalent"
-								>数量按 {{ group.lines[0]!.entryUom }} 输入，合计仍按
-								{{ group.lines[0]!.uom }} 计算。</small
-							>
-						</div>
 					</div>
+					<small
+						v-if="
+							hasBatchRows(group.code) &&
+							group.lines[0]!.entryUom !== group.lines[0]!.uom
+						"
+						class="allocation-equivalent"
+						>数量按 {{ group.lines[0]!.entryUom }} 输入，合计仍按
+						{{ group.lines[0]!.uom }} 计算。</small
+					>
 					<div
 						v-if="hasBatchRows(group.code)"
 						class="allocation-batch-table"
@@ -2152,8 +2159,9 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 
 .allocation-card-total {
-	display: grid;
-	justify-items: end;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
 	text-align: end;
 	flex: 0 0 auto;
 	min-width: max-content;
@@ -2175,11 +2183,11 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 
 .allocation-card-unit {
-	grid-column: 1 / -1;
+	width: min(100%, 9rem);
 }
 
-.allocation-card-unit > .preview-search-select {
-	max-width: 18rem;
+.allocation-card-total .allocation-card-unit .search-select-input {
+	min-height: 40px;
 }
 
 .allocation-batch-table {
@@ -2270,30 +2278,69 @@ function receiveBatchChanged(line: AllocationLine) {
 
 @media (max-width: 1023px) {
 	.preview-line-toolbar {
-		top: calc(env(safe-area-inset-top, 0px) + var(--mobile-app-topbar-height, 52px));
+		position: static;
+		top: auto;
+		box-shadow: none;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+	}
+
+	.preview-line-toolbar .preview-receive-target {
+		max-width: none;
+	}
+
+	.preview-line-search {
+		grid-column: 1 / -1;
+	}
+
+	.preview-line-toolbar-status {
+		grid-column: 1 / -1;
+		flex-wrap: nowrap;
+		gap: 8px;
+		font-size: 0.875rem;
+	}
+
+	.preview-line-toolbar-status > span:first-child {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.preview-line-toolbar-status .ui-button {
+		flex: 0 0 auto;
 	}
 }
 
 @media (max-width: 620px) {
 	.preview-line-toolbar {
-		gap: var(--p-space-2);
-		padding: var(--p-space-2);
+		gap: 6px;
+		padding: 8px;
 	}
 
 	.preview-line-toolbar .ui-button {
 		min-height: 44px;
+		padding-inline: 8px;
+		white-space: nowrap;
 	}
 
 	.allocation-card-heading {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 9rem;
 		align-items: flex-start;
+	}
+
+	.allocation-identity {
+		width: 100%;
 	}
 
 	.allocation-card-controls {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.allocation-card-unit {
-		grid-column: auto;
+	.allocation-card-total {
+		min-width: 0;
+		width: 100%;
 	}
 
 	.batch-subrow--header {

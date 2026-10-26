@@ -45,6 +45,7 @@ const props = withDefaults(
 		tableClass?: string;
 		retryText?: string;
 		columnPreferences?: ColumnPreferencesController;
+		compact?: boolean;
 	}>(),
 	{
 		loading: false,
@@ -535,7 +536,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</div>
 			</div>
 		</Teleport>
-		<Teleport v-if="preferences && isMobile && settingsOutlet" :to="settingsOutlet">
+		<Teleport
+			v-if="preferences && !compact && isMobile && settingsOutlet"
+			:to="settingsOutlet"
+		>
 			<div class="data-table-settings-outlet">
 				<button
 					ref="settingsTrigger"
@@ -582,7 +586,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 					'is-mobile-unpin-end': mobileUnpinEnd,
 				}"
 				role="region"
-				:aria-label="`可横向滚动：${ariaLabel}`"
+				:aria-label="compact ? ariaLabel : `可横向滚动：${ariaLabel}`"
 				:aria-busy="refreshing ? 'true' : undefined"
 				:inert="refreshing ? true : undefined"
 				tabindex="-1"
@@ -636,19 +640,36 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:aria-label="`${column.label}排序${sortBy === String(column.sortField || column.id) ? (sortDirection === 'asc' ? '：升序' : '：降序') : '：未排序'}`"
 									@click="emit('sort', String(column.sortField || column.id))"
 								>
+									<span
+										v-if="dataColumnAlignment(column) === 'end'"
+										class="data-table-sort-indicator"
+										aria-hidden="true"
+										>{{
+											sortBy === String(column.sortField || column.id)
+												? sortDirection === "asc"
+													? "↑"
+													: "↓"
+												: "↕"
+										}}</span
+									>
 									<span class="data-table-sort-label">{{ column.label }}</span>
-									<span class="data-table-sort-indicator" aria-hidden="true">{{
-										sortBy === String(column.sortField || column.id)
-											? sortDirection === "asc"
-												? "↑"
-												: "↓"
-											: "↕"
-									}}</span>
+									<span
+										v-if="dataColumnAlignment(column) !== 'end'"
+										class="data-table-sort-indicator"
+										aria-hidden="true"
+										>{{
+											sortBy === String(column.sortField || column.id)
+												? sortDirection === "asc"
+													? "↑"
+													: "↓"
+												: "↕"
+										}}</span
+									>
 								</button>
 								<template v-else>{{ column.label }}</template>
 							</th>
 							<th
-								v-if="preferences && (!isMobile || !settingsOutlet)"
+								v-if="preferences && !compact && (!isMobile || !settingsOutlet)"
 								class="data-table-settings-heading"
 							>
 								<button
@@ -689,7 +710,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									></span>
 								</td>
 								<td
-									v-if="preferences && !isMobile"
+									v-if="preferences && !compact && !isMobile"
 									class="data-table-settings-cell"
 								></td>
 							</tr>
@@ -876,7 +897,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										/>
 									</td>
 									<td
-										v-if="preferences && !isMobile"
+										v-if="preferences && !compact && !isMobile"
 										class="data-table-settings-cell"
 									></td>
 								</template>
@@ -901,7 +922,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										</slot>
 									</td>
 									<td
-										v-if="preferences && !isMobile"
+										v-if="preferences && !compact && !isMobile"
 										class="data-table-settings-cell"
 									></td>
 								</template>
@@ -914,7 +935,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:colspan="
 										orderedColumns.length +
 										Number(selectionEnabled) +
-										Number(Boolean(preferences && !isMobile))
+										Number(Boolean(preferences && !compact && !isMobile))
 									"
 									class="data-table-group-detail-cell"
 									:style="{
@@ -935,6 +956,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</table>
 			</div>
 			<button
+				v-if="!compact"
 				:aria-hidden="!(overflowStart && hintVisible)"
 				:tabindex="overflowStart && hintVisible ? 0 : -1"
 				:class="{ 'is-hidden': !(overflowStart && hintVisible) }"
@@ -948,6 +970,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				<InventoryIcon name="chevron-left" />
 			</button>
 			<button
+				v-if="!compact"
 				:aria-hidden="!(overflowEnd && hintVisible)"
 				:tabindex="overflowEnd && hintVisible ? 0 : -1"
 				:class="{ 'is-hidden': !(overflowEnd && hintVisible) }"
@@ -961,7 +984,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				<InventoryIcon name="chevron-right" />
 			</button>
 		</div>
-		<FloatingTableScrollbar :get-scroll-element="getTableScroll" />
+		<FloatingTableScrollbar v-if="!compact" :get-scroll-element="getTableScroll" />
 		<div v-if="!rows.length && !loading && initialized && !error" class="data-table-state">
 			<InventoryIcon name="search" />
 			<span>{{ emptyText }}</span>

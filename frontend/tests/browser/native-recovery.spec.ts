@@ -145,9 +145,9 @@ test("blocked recovery storage keeps the form usable and its leave guard active"
   await expect(page.getByLabel("来源", { exact: true })).toBeEditable();
   expect(await snapshots(page)).toEqual([]);
   await page.getByRole("button", { name: "返回", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
   await page
-    .getByRole("dialog")
+    .getByRole("alertdialog")
     .getByRole("button", { name: "继续编辑", exact: true })
     .click();
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue(

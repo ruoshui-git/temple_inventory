@@ -83,20 +83,12 @@ async function search(search: string, start: number, signal: AbortSignal) {
 			<p v-if="draft.loanName" class="muted">活动由原借用记录确定。</p>
 			<FormField v-if="draft.kind === 'Receive'" label="来源">
 				<template #default="{ fieldAttrs }">
-					<input
-						v-model="draft.source"
-						v-bind="fieldAttrs as any"
-						:disabled="disabled"
-					/>
+					<input v-model="draft.source" v-bind="fieldAttrs" :disabled="disabled" />
 				</template>
 			</FormField>
 			<FormField v-else label="用途">
 				<template #default="{ fieldAttrs }">
-					<input
-						v-model="draft.purpose"
-						v-bind="fieldAttrs as any"
-						:disabled="disabled"
-					/>
+					<input v-model="draft.purpose" v-bind="fieldAttrs" :disabled="disabled" />
 				</template>
 			</FormField>
 		</template>

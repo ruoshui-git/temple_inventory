@@ -41,7 +41,7 @@ function update<K extends keyof CategoryDraft>(field: K, value: CategoryDraft[K]
 	<FormField label="分类名称" required :error="nameError"
 		><template #default="{ fieldAttrs }"
 			><input
-				v-bind="fieldAttrs as any"
+				v-bind="fieldAttrs"
 				data-category-name
 				:value="modelValue.label"
 				:disabled="disabled"

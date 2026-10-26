@@ -49,12 +49,7 @@ const unitOptions = computed(() =>
 	reference.units.map((unit) => ({
 		value: unit.name,
 		label: unit.name,
-		detail: [
-			(unit as typeof unit & { category?: string }).category,
-			unit.whole ? "整数数量" : "允许小数",
-		]
-			.filter(Boolean)
-			.join(" · "),
+		detail: [unit.category, unit.whole ? "整数数量" : "允许小数"].filter(Boolean).join(" · "),
 	})),
 );
 async function close() {
@@ -71,7 +66,7 @@ async function submit() {
 			<FormField label="计量单位" :required="required" :error="requiredError"
 				><template #default="{ fieldAttrs }"
 					><SearchSelect
-						v-bind="fieldAttrs as any"
+						v-bind="fieldAttrs"
 						external-label
 						label="计量单位"
 						:model-value="modelValue"
@@ -107,7 +102,7 @@ async function submit() {
 			><form class="preview-unit-create" novalidate @submit.prevent="submit">
 				<FormField label="计量单位" required :error="validation.errors['unit-name']"
 					><template #default="{ fieldAttrs }"
-						><input v-model="name" v-bind="fieldAttrs as any" /></template></FormField
+						><input v-model="name" v-bind="fieldAttrs" /></template></FormField
 				><label class="preview-choice-label"
 					><input v-model="whole" type="checkbox" />只允许整数数量</label
 				>

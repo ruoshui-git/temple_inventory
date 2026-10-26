@@ -974,7 +974,14 @@ async function selectExisting(code: string, warehouse: string) {
 			>
 			<template v-else-if="creating">
 				<UiButton @click="close">取消编辑</UiButton>
-				<UiButton @click="showCreate(false)">返回选择物品（保留填写）</UiButton>
+				<UiButton
+					class="picker-return-choice"
+					aria-label="返回选择物品（保留填写）"
+					title="返回选择物品（保留填写）"
+					@click="showCreate(false)"
+					><span class="picker-return-short">返回选择</span
+					><span class="picker-return-full">返回选择物品（保留填写）</span></UiButton
+				>
 				<UiButton
 					variant="primary"
 					:disabled="itemEditor.busy.value || pendingMultiple"
@@ -1001,10 +1008,10 @@ async function selectExisting(code: string, warehouse: string) {
 	min-width: 780px;
 }
 .picker-browser-grid:has(> .picker-filter-rail--collapsed) {
-	grid-template-columns: 28px minmax(0, 1fr);
+	grid-template-columns: 40px minmax(0, 1fr);
 }
 .picker-filter-rail--collapsed {
-	padding: 0;
+	padding: 8px 0;
 	overflow: visible;
 }
 .picker-filter-rail--collapsed .filter-rail-heading {
@@ -1021,7 +1028,18 @@ async function selectExisting(code: string, warehouse: string) {
 		display: none;
 	}
 }
+@media (min-width: 641px) {
+	.picker-return-short {
+		display: none;
+	}
+}
 @media (max-width: 640px) {
+	.picker-return-full {
+		display: none;
+	}
+	.picker-return-short {
+		white-space: nowrap;
+	}
 	:global(.preview-item-picker-dialog .dialog-footer) {
 		flex-wrap: wrap;
 	}

@@ -66,9 +66,7 @@ async function cancel() {
 				<template #default="{ fieldAttrs }"
 					><input
 						v-model="input.title"
-						:id="fieldAttrs.id"
-						:aria-describedby="fieldAttrs['aria-describedby']"
-						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict"
 						autocomplete="name"
 				/></template>
@@ -80,9 +78,7 @@ async function cancel() {
 						external-label
 						v-model="input.typeId"
 						:options="types"
-						:id="fieldAttrs.id"
-						:aria-described-by="fieldAttrs['aria-describedby']"
-						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict" /></template
 			></FormField>
 			<FormField label="开始日期" :error="controller.validation.errors['activity-start']"
@@ -90,9 +86,7 @@ async function cancel() {
 					><input
 						type="date"
 						v-model="input.start"
-						:id="fieldAttrs.id"
-						:aria-describedby="fieldAttrs['aria-describedby']"
-						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict" /></template
 			></FormField>
 			<FormField label="结束日期" :error="controller.validation.errors['activity-end']"
@@ -100,18 +94,14 @@ async function cancel() {
 					><input
 						type="date"
 						v-model="input.end"
-						:id="fieldAttrs.id"
-						:aria-describedby="fieldAttrs['aria-describedby']"
-						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict" /></template
 			></FormField>
 			<FormField class="full-field" label="简短说明"
 				><template #default="{ fieldAttrs }"
 					><input
 						v-model="input.description"
-						:id="fieldAttrs.id"
-						:aria-describedby="fieldAttrs['aria-describedby']"
-						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict" /></template
 			></FormField>
 			<FormField class="full-field" label="详细备注" hint="纯文本，保留段落与换行。"
@@ -119,9 +109,7 @@ async function cancel() {
 					<textarea
 						v-model="input.notes"
 						rows="7"
-						:id="fieldAttrs.id"
-						:aria-describedby="fieldAttrs['aria-describedby']"
-						:aria-invalid="!!fieldAttrs['aria-invalid']"
+						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict"
 					/></template
 			></FormField>

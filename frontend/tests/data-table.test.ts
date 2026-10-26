@@ -641,8 +641,8 @@ describe("shared data table", () => {
     ).toBe(true);
     expect(
       wrapper
-        .get('[aria-label="数量排序：未排序"] .data-table-sort-label')
-        .element.nextElementSibling?.classList.contains(
+        .get('[aria-label="数量排序：未排序"]')
+        .element.firstElementChild?.classList.contains(
           "data-table-sort-indicator",
         ),
     ).toBe(true);

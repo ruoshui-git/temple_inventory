@@ -165,7 +165,7 @@ export interface ReferenceData {
   items: ReferenceOption[];
   activities: ReferenceOption[];
   activityTypes: ReferenceOption[];
-  units: { name: string; whole: boolean }[];
+  units: { name: string; whole: boolean; category?: string | null }[];
   operations: Record<string, boolean>;
   settings: Record<string, unknown>;
 }
@@ -293,6 +293,7 @@ export function hydrateReferenceData(
     units: result.uoms.map((row) => ({
       name: row.name,
       whole: Boolean(row.must_be_whole_number),
+      category: row.category,
     })),
     activityTypes: result.activity_types.map((row) => ({
       value: row.name,

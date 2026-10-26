@@ -171,6 +171,15 @@
 	gap: var(--p-field-gap);
 	min-width: 0;
 }
+.form-field > label,
+.preview-search-select > label {
+	font-size: 0.875rem;
+	font-weight: 500;
+	line-height: 1.4;
+}
+.preview-search-select.preview-field {
+	font-weight: 400;
+}
 .form-field-required {
 	color: var(--p-danger);
 	margin-inline-start: 4px;

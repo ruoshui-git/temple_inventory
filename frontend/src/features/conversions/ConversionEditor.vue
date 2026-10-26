@@ -71,12 +71,18 @@ async function saveNewUnit() {
 		<FormField label="输入单位" required>
 			<template #default="{ fieldAttrs }">
 				<SearchSelect
-					v-bind="fieldAttrs as any"
+					v-bind="fieldAttrs"
 					external-label
 					data-field="entryUom"
 					label="输入单位"
 					v-model="unit"
-					:options="reference.units.map((row) => row.name)"
+					:options="
+						reference.units.map((row) => ({
+							value: row.name,
+							label: row.name,
+							detail: row.category || undefined,
+						}))
+					"
 					:disabled="disabled || busy"
 				/>
 			</template>
@@ -97,7 +103,7 @@ async function saveNewUnit() {
 				<template #default="{ fieldAttrs }">
 					<input
 						v-model="newName"
-						v-bind="fieldAttrs as any"
+						v-bind="fieldAttrs"
 						class="preview-conversion-unit-name"
 						:disabled="creationBusy"
 						autocapitalize="off"
@@ -133,7 +139,7 @@ async function saveNewUnit() {
 				<div class="conversion-factor-control">
 					<span>1 {{ unit || "所选单位" }} =</span>
 					<input
-						v-bind="fieldAttrs as any"
+						v-bind="fieldAttrs"
 						data-field="conversionFactor"
 						v-model="factor"
 						type="number"
@@ -155,7 +161,7 @@ async function saveNewUnit() {
 		>
 			<template #default="{ fieldAttrs }">
 				<input
-					v-bind="fieldAttrs as any"
+					v-bind="fieldAttrs"
 					v-model="quantity"
 					type="number"
 					inputmode="decimal"

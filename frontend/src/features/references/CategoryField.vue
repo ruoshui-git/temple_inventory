@@ -74,8 +74,14 @@ async function submit() {
 				:disabled="disabled || creating || busy"
 				:options="categoryOptions"
 				@update:model-value="emit('update:modelValue', $event)"
-			/><UiButton ref="trigger" v-if="!disabled && permitted" @click="creating = true"
-				>新建分类</UiButton
+			/><UiButton
+				ref="trigger"
+				v-if="!disabled && permitted"
+				aria-label="新建分类"
+				title="新建分类"
+				@click="creating = true"
+				><span class="category-create-short">+ 分类</span
+				><span class="category-create-full">新建分类</span></UiButton
 			>
 		</div>
 		<DisclosureSection
@@ -122,10 +128,24 @@ async function submit() {
 	flex: 1;
 	min-width: 0;
 }
+.category-create-short {
+	display: none;
+}
 .dialog-actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;
 	margin-top: 16px;
+}
+@media (max-width: 640px) {
+	.category-create-full {
+		display: none;
+	}
+	.category-create-short {
+		display: inline;
+	}
+	.category-create-short {
+		white-space: nowrap;
+	}
 }
 </style>

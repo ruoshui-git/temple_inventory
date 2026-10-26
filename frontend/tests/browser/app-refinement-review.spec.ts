@@ -480,6 +480,10 @@ for (const width of [1440, 390]) {
       fullPage: true,
     });
     await page.getByRole("button", { name: "取消", exact: true }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "放弃修改", exact: true })
+      .click();
     await page.getByRole("button", { name: "返回", exact: true }).click();
     await expect(page.locator("[data-browse-row]")).toHaveCount(
       width < 1024 ? 2 : 1,

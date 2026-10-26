@@ -811,8 +811,10 @@ async function back() {
 	z-index: 1;
 	background: var(--p-surface);
 }
-.count-native-table tbody tr:hover {
-	background: var(--p-soft);
+@media (hover: hover) {
+	.count-native-table tbody tr:hover {
+		background: var(--p-soft);
+	}
 }
 .count-native-table .count-item-cell {
 	min-width: 220px;

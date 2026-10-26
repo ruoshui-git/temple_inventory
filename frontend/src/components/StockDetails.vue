@@ -25,6 +25,14 @@ const loanedTotal = computed(() =>
 const damagedTotal = computed(() =>
 	props.item.locations.reduce((total, row) => total + Number(row.damaged || 0), 0),
 );
+const otherStockSummary = computed(() =>
+	[
+		loanedTotal.value ? `借出 ${loanedTotal.value}` : "",
+		damagedTotal.value ? `损坏 ${damagedTotal.value}` : "",
+	]
+		.filter(Boolean)
+		.join(" · "),
+);
 const warehouseReference = useOptionalReferenceData();
 const services = useOptionalInventoryServices();
 const locationColumns: DataColumn[] = [
@@ -155,6 +163,7 @@ const batchPreferences =
 				:loading="loading"
 				:initialized="initialized"
 				:stale="stale"
+				compact
 				:sort-by="locationSort.sortBy.value"
 				:sort-direction="locationSort.sortDirection.value"
 				:column-preferences="locationPreferences"
@@ -171,8 +180,8 @@ const batchPreferences =
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
-			<p v-if="loanedTotal || damagedTotal" class="stock-breakdown-other muted">
-				另有 借出 {{ loanedTotal }} · 损坏 {{ damagedTotal }}
+			<p v-if="otherStockSummary" class="stock-breakdown-other muted">
+				另有 {{ otherStockSummary }}
 			</p>
 			<p v-if="physicalLocations.length" class="stock-breakdown-total">
 				合计 {{ item.available }} {{ item.uom }}
@@ -199,6 +208,7 @@ const batchPreferences =
 				:loading="loading"
 				:initialized="initialized"
 				:stale="stale"
+				compact
 				:sort-by="batchSort.sortBy.value"
 				:sort-direction="batchSort.sortDirection.value"
 				:column-preferences="batchPreferences"
@@ -216,8 +226,8 @@ const batchPreferences =
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
-			<p v-if="loanedTotal || damagedTotal" class="stock-breakdown-other muted">
-				另有 借出 {{ loanedTotal }} · 损坏 {{ damagedTotal }}
+			<p v-if="otherStockSummary" class="stock-breakdown-other muted">
+				另有 {{ otherStockSummary }}
 			</p>
 		</DetailPopover>
 		<span v-else-if="item.tracksBatch" class="badge neutral">0 批次</span>

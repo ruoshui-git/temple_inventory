@@ -1904,8 +1904,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 	color: var(--p-ink);
 	text-decoration: none;
 }
-.drafts-entry-link:hover {
-	background: var(--p-soft);
+@media (hover: hover) {
+	.drafts-entry-link:hover {
+		background: var(--p-soft);
+	}
 }
 .drafts-entry-link .menu-item-meta {
 	padding: 1px 5px;

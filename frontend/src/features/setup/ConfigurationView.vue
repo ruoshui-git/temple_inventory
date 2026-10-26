@@ -76,13 +76,7 @@ watch([field, warehouse], () => c.clearPreview());
 					required
 					:error="c.validation.errors['configuration-company']"
 					><template #default="{ fieldAttrs }"
-						><select
-							v-model="company"
-							:id="fieldAttrs.id"
-							:aria-describedby="fieldAttrs['aria-describedby']"
-							:aria-invalid="!!fieldAttrs['aria-invalid']"
-							:disabled="busy"
-						>
+						><select v-model="company" v-bind="fieldAttrs" :disabled="busy">
 							<option value="">请选择</option>
 							<option v-for="value in status.companies" :key="value" :value="value">
 								{{ value }}
@@ -139,9 +133,7 @@ watch([field, warehouse], () => c.clearPreview());
 							external-label
 							:options="options"
 							:disabled="busy"
-							:id="fieldAttrs.id"
-							:aria-described-by="fieldAttrs['aria-describedby']"
-							:aria-invalid="!!fieldAttrs['aria-invalid']" /></template
+							v-bind="fieldAttrs" /></template
 				></FormField>
 				<p v-if="c.reviewing.value" class="muted" role="status">正在查看修复影响…</p>
 				<UiButton

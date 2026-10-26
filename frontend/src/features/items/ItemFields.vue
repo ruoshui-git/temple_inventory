@@ -63,7 +63,7 @@ onDeactivated(() => {
 			><template #default="{ fieldAttrs }"
 				><input
 					v-model="model.name"
-					v-bind="fieldAttrs as any"
+					v-bind="fieldAttrs"
 					:disabled="disabled"
 					required /></template
 		></FormField>
@@ -86,7 +86,7 @@ onDeactivated(() => {
 				><div class="item-code-control">
 					<input
 						v-model="model.code"
-						v-bind="fieldAttrs as any"
+						v-bind="fieldAttrs"
 						:placeholder="
 							suggestedCode ? `留空自动生成（${suggestedCode}）` : '留空自动生成'
 						"
@@ -109,7 +109,7 @@ onDeactivated(() => {
 			><template #default="{ fieldAttrs }">
 				<textarea
 					v-model="model.barcode"
-					v-bind="fieldAttrs as any"
+					v-bind="fieldAttrs"
 					:disabled="disabled"
 					autocapitalize="off"
 					autocorrect="off"
@@ -125,7 +125,7 @@ onDeactivated(() => {
 			><template #default="{ fieldAttrs }">
 				<textarea
 					v-model="model.description"
-					v-bind="fieldAttrs as any"
+					v-bind="fieldAttrs"
 					:disabled="disabled"
 				/></template
 		></FormField>

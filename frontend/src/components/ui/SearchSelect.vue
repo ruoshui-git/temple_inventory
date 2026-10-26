@@ -31,6 +31,7 @@ const props = withDefaults(
 		id?: string;
 		ariaDescribedBy?: string;
 		ariaInvalid?: boolean | "true" | "false";
+		ariaRequired?: boolean | "true" | "false";
 		externalLabel?: boolean;
 	}>(),
 	{ pageSize: 20, clearable: true },
@@ -225,6 +226,7 @@ defineExpose({ state });
 				:ref="setInput"
 				:id="id"
 				:aria-describedby="ariaDescribedBy"
+				:aria-required="ariaRequired || undefined"
 				role="combobox"
 				autocomplete="off"
 				:aria-expanded="open"

@@ -56,8 +56,10 @@ const { visible, style, thumbStyle, spacerWidth, fromProxy } = useFloatingScroll
 	border: 2px solid var(--p-soft);
 	border-radius: 999px;
 }
-.floating-table-scrollbar::-webkit-scrollbar-thumb:hover {
-	background: var(--p-accent);
+@media (hover: hover) {
+	.floating-table-scrollbar::-webkit-scrollbar-thumb:hover {
+		background: var(--p-accent);
+	}
 }
 .floating-table-scrollbar-thumb {
 	position: absolute;
@@ -68,8 +70,10 @@ const { visible, style, thumbStyle, spacerWidth, fromProxy } = useFloatingScroll
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-surface) 35%, transparent);
 	pointer-events: none;
 }
-.floating-table-scrollbar-shell:hover .floating-table-scrollbar-thumb {
-	background: var(--p-accent);
+@media (hover: hover) {
+	.floating-table-scrollbar-shell:hover .floating-table-scrollbar-thumb {
+		background: var(--p-accent);
+	}
 }
 @media not all and (hover: hover) and (pointer: fine) {
 	.floating-table-scrollbar-shell {

@@ -597,9 +597,7 @@ function parentLabel(name?: string) {
 						><input
 							data-warehouse-name
 							v-model="form.label"
-							:id="fieldAttrs.id"
-							:aria-describedby="fieldAttrs['aria-describedby']"
-							:aria-invalid="!!fieldAttrs['aria-invalid']"
+							v-bind="fieldAttrs"
 							autocomplete="off" /></template
 				></FormField>
 				<FormField
@@ -609,9 +607,7 @@ function parentLabel(name?: string) {
 					><template #default="{ fieldAttrs }"
 						><input
 							v-model="form.short_label"
-							:id="fieldAttrs.id"
-							:aria-describedby="fieldAttrs['aria-describedby']"
-							:aria-invalid="!!fieldAttrs['aria-invalid']"
+							v-bind="fieldAttrs"
 							autocomplete="off" /></template
 				></FormField>
 				<FormField
@@ -626,9 +622,7 @@ function parentLabel(name?: string) {
 							:label="c.action.value === 'move' ? '新上级位置' : '上级位置'"
 							external-label
 							:options="c.parentOptions.value"
-							:id="fieldAttrs.id"
-							:aria-described-by="fieldAttrs['aria-describedby']"
-							:aria-invalid="!!fieldAttrs['aria-invalid']"
+							v-bind="fieldAttrs"
 					/></template>
 				</FormField>
 				<p v-if="c.action.value === 'move'">可选上级仅显示符合此位置类型的启用节点。</p>

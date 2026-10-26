@@ -172,9 +172,7 @@ function openDocument(row: Record<string, unknown>) {
 							><input
 								v-model="c.manufacturingDate.value"
 								type="date"
-								:id="fieldAttrs.id"
-								:aria-describedby="fieldAttrs['aria-describedby']"
-								:aria-invalid="!!fieldAttrs['aria-invalid']" /></template
+								v-bind="fieldAttrs" /></template
 					></FormField>
 					<FormField
 						for="batch-expiry-date"
@@ -184,9 +182,7 @@ function openDocument(row: Record<string, unknown>) {
 							><input
 								v-model="c.expiryDate.value"
 								type="date"
-								:id="fieldAttrs.id"
-								:aria-describedby="fieldAttrs['aria-describedby']"
-								:aria-invalid="!!fieldAttrs['aria-invalid']" /></template
+								v-bind="fieldAttrs" /></template
 					></FormField>
 					<FormField class="batch-description" label="批次说明"
 						><template #default="{ fieldAttrs }">
@@ -194,9 +190,7 @@ function openDocument(row: Record<string, unknown>) {
 								v-model="c.description.value"
 								rows="3"
 								maxlength="2000"
-								:id="fieldAttrs.id"
-								:aria-describedby="fieldAttrs['aria-describedby']"
-								:aria-invalid="!!fieldAttrs['aria-invalid']"
+								v-bind="fieldAttrs"
 							/></template
 					></FormField>
 				</form>

@@ -587,7 +587,7 @@ async function lifecycle() {
 									<template #default="{ fieldAttrs }">
 										<input
 											v-model="draft.borrower"
-											v-bind="fieldAttrs as any"
+											v-bind="fieldAttrs"
 											list="recent-borrowers"
 											data-field="borrower"
 											:disabled="!writable || busy"
@@ -644,7 +644,7 @@ async function lifecycle() {
 										<template #default="{ fieldAttrs }">
 											<input
 												v-model="loanSearch"
-												v-bind="fieldAttrs as any"
+												v-bind="fieldAttrs"
 												type="search"
 												placeholder="借用方、单号或活动"
 												@input="scheduleBorrowerSearch"
@@ -854,7 +854,7 @@ async function lifecycle() {
 							<template #default="{ fieldAttrs }">
 								<textarea
 									v-model="draft.note"
-									v-bind="fieldAttrs as any"
+									v-bind="fieldAttrs"
 									rows="3"
 									:disabled="!writable || busy"
 								/>
@@ -875,17 +875,17 @@ async function lifecycle() {
 						<div class="form-grid">
 							<FormField label="记录人">
 								<template #default="{ fieldAttrs }">
-									<input v-model="draft.recorder" v-bind="fieldAttrs as any" />
+									<input v-model="draft.recorder" v-bind="fieldAttrs" />
 								</template>
 							</FormField>
 							<FormField label="经手人">
 								<template #default="{ fieldAttrs }">
-									<input v-model="draft.handler" v-bind="fieldAttrs as any" />
+									<input v-model="draft.handler" v-bind="fieldAttrs" />
 								</template>
 							</FormField>
 							<FormField label="鉴证人">
 								<template #default="{ fieldAttrs }">
-									<input v-model="draft.reviewer" v-bind="fieldAttrs as any" />
+									<input v-model="draft.reviewer" v-bind="fieldAttrs" />
 								</template>
 							</FormField>
 						</div>
@@ -922,9 +922,7 @@ async function lifecycle() {
 					class="form-actions preview-document-actions"
 					:class="{ 'is-keyboard-open': keyboardOpen }"
 				>
-					<p class="muted">
-						{{ draft.items.length }} 行 · {{ totals || "尚未添加物品" }}
-					</p>
+					<p class="muted">{{ draft.items.length }} 行</p>
 					<UiButton
 						v-if="isMobile && canOfferPicker && writable && !state.confirmationVersion"
 						variant="secondary"
