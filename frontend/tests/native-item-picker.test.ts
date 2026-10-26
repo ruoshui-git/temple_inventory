@@ -15,7 +15,120 @@ import {
 } from "../src/services/contracts";
 
 const wrappers: VueWrapper[] = [];
-afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  vi.unstubAllGlobals();
+});
+
+function mockPickerViewport(initialDesktop = false) {
+  let desktop = initialDesktop;
+  const listeners = new Set<(event: { matches: boolean }) => void>();
+  const media = {
+    get matches() {
+      return desktop;
+    },
+    media: "(min-width: 1024px)",
+    addEventListener: (
+      _: string,
+      listener: (event: { matches: boolean }) => void,
+    ) => listeners.add(listener),
+    removeEventListener: (
+      _: string,
+      listener: (event: { matches: boolean }) => void,
+    ) => listeners.delete(listener),
+  };
+  vi.stubGlobal("matchMedia", (query: string) =>
+    query === "(min-width: 1024px)" ? media : { matches: false },
+  );
+  return (next: boolean) => {
+    desktop = next;
+    listeners.forEach((listener) => listener({ matches: next }));
+  };
+}
+
+const pickerRows = ["ITEM-A", "ITEM-B"].map((code, index) => ({
+  item_code: code,
+  item_name: `测试物品 ${index + 1}`,
+  item_group: "工具",
+  stock_uom: "个",
+  description: "",
+  version: "v1",
+  has_batch_no: true,
+  has_expiry_date: true,
+  can_edit: false,
+  barcodes: [],
+  uoms: [],
+  stock: [],
+  warehouse: "ROOM-A",
+  warehouse_label: "演示室甲",
+  picker_quantity: index + 2,
+}));
+
+function pickerHost(call: InventoryServices["call"]) {
+  const reference = createReferenceData();
+  Object.assign(reference, { user: "volunteer", site: "unit-site" });
+  return defineComponent({
+    setup() {
+      provideInventoryServices(
+        { call, report: vi.fn(), upload: vi.fn() },
+        reference,
+      );
+      return () => h(ItemPicker, { mode: "add-multiple" });
+    },
+  });
+}
+
+it("uses selectable phone list rows and preserves selection when switching to desktop", async () => {
+  const setDesktop = mockPickerViewport(false);
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {
+    if (endpoint === "catalog.picker_rows")
+      return {
+        results: pickerRows,
+        matched_count: 2,
+        next_start: null,
+      } as never;
+    if (endpoint === "table_preferences.get_column_preferences")
+      return {} as never;
+    throw new Error(`Unexpected ${endpoint}`);
+  });
+  const wrapper = mount(pickerHost(call), { attachTo: document.body });
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(document.querySelector("[role='listbox']")).not.toBeNull();
+  expect(document.querySelector(".picker-data-table")).toBeNull();
+  expect(document.querySelectorAll("[role='option']")).toHaveLength(2);
+  document.querySelectorAll<HTMLElement>("[role='option']")[0]!.click();
+  document.querySelectorAll<HTMLElement>("[role='option']")[1]!.click();
+  await nextTick();
+  expect(document.querySelector(".picker-phone-row.selected")).not.toBeNull();
+  expect(document.body.textContent).toContain("添加所选（2）");
+
+  setDesktop(true);
+  await nextTick();
+  expect(document.querySelector(".picker-data-table")).not.toBeNull();
+  expect(document.querySelector("[role='listbox']")).toBeNull();
+  expect(document.body.textContent).toContain("添加所选（2）");
+});
+
+it("keeps the DataTable presentation on desktop", async () => {
+  mockPickerViewport(true);
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {
+    if (endpoint === "catalog.picker_rows")
+      return {
+        results: pickerRows,
+        matched_count: 2,
+        next_start: null,
+      } as never;
+    if (endpoint === "table_preferences.get_column_preferences")
+      return {} as never;
+    throw new Error(`Unexpected ${endpoint}`);
+  });
+  const wrapper = mount(pickerHost(call), { attachTo: document.body });
+  wrappers.push(wrapper);
+  await flushPromises();
+  expect(document.querySelector(".picker-data-table")).not.toBeNull();
+  expect(document.querySelector("[role='listbox']")).toBeNull();
+});
 
 it("keeps the picker image column and gives the item name the flexible track", () => {
   const columns = itemPickerColumns("可用库存", "outbound", true);
@@ -183,6 +296,7 @@ it("sends multi-category subtree selections and the independent uncategorized sc
 });
 
 it("shows inbound category-only filters and the receiving location stock header", async () => {
+  mockPickerViewport(true);
   const reference = createReferenceData();
   Object.assign(reference, {
     user: "volunteer",
@@ -220,12 +334,7 @@ it("shows inbound category-only filters and the receiving location stock header"
   const wrapper = mount(Host);
   wrappers.push(wrapper);
   await flushPromises();
-  expect(call).toHaveBeenCalledWith(
-    "table_preferences.get_column_preferences",
-    {
-      table_id: "item-picker.rows.v2",
-    },
-  );
+  expect(document.querySelector(".picker-data-table")).not.toBeNull();
   const pickerText = document.body.textContent || "";
   expect(pickerText).not.toContain("仓库 / 位置");
   expect(pickerText).not.toContain("仓库位置");
@@ -297,6 +406,7 @@ it("drops a picker response from the previous account", async () => {
 });
 
 it("continues the pending row selection once after discarding a dirty item draft", async () => {
+  mockPickerViewport(true);
   const reference = createReferenceData();
   Object.assign(reference, {
     user: "volunteer",
@@ -364,8 +474,8 @@ it("continues the pending row selection once after discarding a dirty item draft
   const thumbnail = document.querySelector<HTMLButtonElement>(
     ".picker-image-cell .item-image-button",
   );
-  expect(thumbnail?.style.width).toBe("44px");
-  expect(thumbnail?.style.height).toBe("44px");
+  expect(thumbnail?.style.width).toBe("36px");
+  expect(thumbnail?.style.height).toBe("36px");
   const click = async (label: string) => {
     const button = Array.from(document.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.includes(label),
@@ -492,6 +602,7 @@ it("keeps a newly created item pinned in a fixed compact preview when filters hi
 });
 
 it("shows the initial table skeleton and dims retained rows during a filter request", async () => {
+  mockPickerViewport(true);
   const reference = createReferenceData();
   Object.assign(reference, { user: "volunteer", site: "unit-site" });
   let resolvePage!: (value: unknown) => void;

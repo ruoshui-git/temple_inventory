@@ -165,6 +165,20 @@ function setSelected(key: string, checked: boolean) {
 	if (checked && !selected.value.includes(key)) selected.value.push(key);
 	else if (!checked) selected.value = selected.value.filter((value) => value !== key);
 }
+function togglePickerRow(item: (typeof visible.value)[number]) {
+	if (result.stale) return;
+	if (multiple.value)
+		setSelected(
+			picker.pickerRowKey(item),
+			!selected.value.includes(picker.pickerRowKey(item)),
+		);
+	else void selectExisting(item.code, item.pickerWarehouse || "");
+}
+function onPickerRowKeydown(event: KeyboardEvent, item: (typeof visible.value)[number]) {
+	if (event.key !== "Enter" && event.key !== " ") return;
+	event.preventDefault();
+	togglePickerRow(item);
+}
 function selectedRows() {
 	return selected.value.map((key) => {
 		const [code = "", warehouse = ""] = key.split("\u0000");
@@ -673,6 +687,17 @@ async function discardEdits() {
 						ref="resultsPort"
 						class="picker-results-scroll"
 						data-browse-scroll="picker-results"
+						@scroll="
+							if (
+								isMobile &&
+								result.next !== null &&
+								!result.loadingMore &&
+								resultsPort &&
+								resultsPort.scrollTop + resultsPort.clientHeight >=
+									resultsPort.scrollHeight - 160
+							)
+								load(true);
+						"
 					>
 						<section
 							v-if="createdPreview && multiple"
@@ -718,7 +743,129 @@ async function discardEdits() {
 							<p v-if="result.stale" class="muted" role="status">
 								物品列表正在更新…
 							</p>
+							<div
+								v-if="isMobile"
+								class="picker-phone-list stock-list"
+								role="listbox"
+								aria-label="选择物品"
+								:aria-multiselectable="multiple ? 'true' : undefined"
+							>
+								<p v-if="result.error" class="empty-panel" role="alert">
+									{{ result.error }}
+									<UiButton @click="picker.retry()">重试</UiButton>
+								</p>
+								<p
+									v-else-if="!result.initialized && result.loading"
+									class="muted picker-list-message"
+									role="status"
+								>
+									正在加载物品…
+								</p>
+								<p v-else-if="!visible.length" class="muted picker-list-message">
+									{{ onlyStock ? "没有匹配的库存位置" : "没有匹配的物品" }}
+								</p>
+								<article
+									v-for="item in visible"
+									:key="picker.pickerRowKey(item)"
+									class="stock-list-row picker-phone-row"
+									:class="{
+										selected: selected.includes(picker.pickerRowKey(item)),
+									}"
+									:aria-selected="selected.includes(picker.pickerRowKey(item))"
+									:aria-label="`${item.name}，${item.code}${item.category ? ` · ${item.category}` : ''}`"
+									:aria-disabled="result.stale"
+									:tabindex="result.stale ? -1 : 0"
+									role="option"
+									@click="togglePickerRow(item)"
+									@keydown="onPickerRowKeydown($event, item)"
+								>
+									<div class="stock-list-image picker-phone-image" @click.stop>
+										<ItemImage
+											:item="item"
+											:thumbnail-size="56"
+											:target-size="56"
+										/>
+									</div>
+									<span class="stock-list-identity picker-phone-identity">
+										<strong class="stock-list-name">{{ item.name }}</strong>
+										<span class="stock-list-meta"
+											>{{ item.code
+											}}<template v-if="item.category">
+												· {{ item.category }}</template
+											></span
+										>
+										<small
+											v-if="purpose === 'inbound' && receivingWarehouse"
+											class="picker-phone-location"
+											>目标位置 ·
+											{{
+												warehouseLabel(
+													receivingWarehouse,
+													reference.warehouses,
+												)
+											}}</small
+										>
+										<small
+											v-if="item.pickerWarehouse && purpose !== 'inbound'"
+											class="picker-phone-location"
+											:title="
+												warehousePath(
+													item.pickerWarehouse,
+													reference.warehouses,
+												)
+											"
+											>{{
+												warehouseLabel(
+													item.pickerWarehouse,
+													reference.warehouses,
+												)
+											}}</small
+										>
+										<small
+											v-else-if="purpose !== 'inbound'"
+											class="picker-phone-location"
+											>暂无库存 · 选择目标库位</small
+										>
+										<small
+											v-if="earliestExpiry(item)"
+											class="picker-phone-expiry"
+											>{{ earliestExpiry(item) }}</small
+										>
+									</span>
+									<span class="stock-list-quantity picker-phone-quantity">
+										<strong
+											>{{ item.pickerQuantity || 0 }} {{ item.uom }}</strong
+										>
+										<span>{{
+											purpose === "inbound" ? "现有" : quantityLabel
+										}}</span>
+									</span>
+									<span
+										class="stock-list-checkbox picker-phone-check"
+										aria-hidden="true"
+									>
+										<span class="picker-phone-checkmark">{{
+											selected.includes(picker.pickerRowKey(item)) ? "✓" : ""
+										}}</span>
+									</span>
+								</article>
+								<p
+									v-if="result.loading && result.rows.length"
+									class="muted picker-list-message"
+									role="status"
+								>
+									物品列表正在更新…
+								</p>
+								<UiButton
+									v-if="result.next !== null"
+									class="picker-phone-more"
+									:disabled="result.loadingMore"
+									@click="load(true)"
+									>{{ result.loadingMore ? "正在加载…" : "加载更多" }}</UiButton
+								>
+							</div>
 							<DataTable
+								v-else
 								ariaLabel="按库存位置显示的物品"
 								:columns="pickerColumns"
 								:column-preferences="pickerPrefs"
@@ -887,6 +1034,68 @@ async function discardEdits() {
 }
 .picker-table-name small {
 	color: var(--p-muted);
+}
+.picker-phone-list {
+	align-content: start;
+}
+.picker-phone-row {
+	grid-template-columns: 56px minmax(0, 1fr) auto 44px;
+	min-height: 72px;
+	gap: 8px;
+	padding: 8px 4px;
+}
+.picker-phone-row[aria-disabled="true"] {
+	opacity: 0.72;
+}
+.picker-phone-image,
+.picker-phone-image :deep(.item-image-button),
+.picker-phone-image :deep(.preview-item-image),
+.picker-phone-image :deep(.async-image) {
+	width: 56px;
+	height: 56px;
+	min-width: 56px;
+}
+.picker-phone-identity {
+	align-self: center;
+}
+.picker-phone-location,
+.picker-phone-expiry {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	line-height: 1.3;
+}
+.picker-phone-quantity {
+	max-width: 92px;
+	white-space: normal;
+	text-align: right;
+}
+.picker-phone-quantity > strong {
+	font-size: var(--p-small);
+}
+.picker-phone-quantity > span {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.picker-phone-checkmark {
+	display: grid;
+	width: 22px;
+	height: 22px;
+	place-items: center;
+	border: 1px solid var(--p-border-strong, var(--p-border));
+	border-radius: 5px;
+	color: white;
+	font-size: 15px;
+}
+.picker-phone-row.selected .picker-phone-checkmark {
+	border-color: var(--p-accent);
+	background: var(--p-accent);
+}
+.picker-list-message {
+	margin: var(--p-space-4);
+}
+.picker-phone-more {
+	justify-self: center;
+	margin: var(--p-space-3);
 }
 @media (min-width: 1280px) {
 	.picker-data-table :deep(table) {
