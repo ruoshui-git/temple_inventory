@@ -31,7 +31,7 @@ async function prepare(page: Page, account = "manager") {
 
 async function open(page: Page) {
   await page.goto("/inventory/movements/new/Receive");
-  await page.getByText("补充记录（可选）", { exact: true }).click();
+  await page.locator("summary").filter({ hasText: "补充记录" }).click();
   await expect(page.getByLabel("来源", { exact: true })).toBeVisible();
 }
 
@@ -51,7 +51,7 @@ test("incomplete input is restored automatically from its recovery link", async 
   await page.getByLabel("来源", { exact: true }).fill("恢复验收：尚未添加物品");
   await expect.poll(async () => (await snapshots(page)).length).toBe(1);
   await page.reload();
-  await page.getByText("补充记录（可选）", { exact: true }).click();
+  await page.locator("summary").filter({ hasText: "补充记录" }).click();
   await expect(page.getByText("尚未保存", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue("");
   const editorId = (await snapshots(page))[0].editorId;
@@ -94,7 +94,7 @@ test("another account cannot offer or hydrate the previous account's input", asy
   await expect.poll(async () => (await snapshots(page)).length).toBe(1);
   await prepare(page, "other-manager");
   await page.reload();
-  await page.getByText("补充记录（可选）", { exact: true }).click();
+  await page.locator("summary").filter({ hasText: "补充记录" }).click();
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue("");
   expect((await snapshots(page))[0].account).toBe("manager");
 });
@@ -104,11 +104,15 @@ test("pending uploads recover metadata and require file reselection", async ({
 }) => {
   await prepare(page);
   await open(page);
-  await page.getByLabel("添加附件", { exact: true }).setInputFiles({
-    name: "未上传凭据.txt",
-    mimeType: "text/plain",
-    buffer: Buffer.from("PRIVATE-FILE-BYTES-MUST-NOT-BE-STORED"),
-  });
+  await page.getByRole("button", { name: "添加附件", exact: true }).click();
+  await page
+    .locator('input[type="file"]')
+    .last()
+    .setInputFiles({
+      name: "未上传凭据.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("PRIVATE-FILE-BYTES-MUST-NOT-BE-STORED"),
+    });
   await expect
     .poll(async () => (await snapshots(page))[0]?.pendingUploadReselection)
     .toBe(true);
@@ -119,9 +123,7 @@ test("pending uploads recover metadata and require file reselection", async ({
   await page.reload();
   const editorId = (await snapshots(page))[0].editorId;
   await page.goto(`/inventory/movements/new/Receive?recovery=${editorId}`);
-  await expect(
-    page.getByLabel("需要重新选择文件", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("重新选择文件", { exact: true })).toBeVisible();
   await expect(page.getByText("未上传凭据.txt", { exact: true })).toBeVisible();
 });
 

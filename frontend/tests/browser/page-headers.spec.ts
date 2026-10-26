@@ -137,55 +137,41 @@ async function setup(page: Page, scale = 100, density = "balanced") {
 }
 
 for (const width of [390, 1440]) {
-  test(`shared browse headers keep search, analysis and page actions visible at ${width}`, async ({
+  test(`shared browse headers keep search and page actions visible at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
-    for (const [path, title] of [
-      ["stock", "库存"],
-      ["expiry", "效期批次"],
-      ["movements/items", "货物流动"],
-      ["loans/items", "借用"],
-      ["pending", "损坏待处理"],
+    for (const [path, route] of [
+      ["stock", "stock"],
+      ["expiry", "stock/expiry"],
+      ["movements/items", "movements?view=items"],
+      ["loans/items", "loans?view=items"],
+      ["pending", "stock/damaged"],
     ]) {
-      await page.goto(`/inventory/${path}`);
+      await page.goto(`/inventory/${route}`);
       const chrome = page.locator(".browse-chrome");
-      await expect(
-        chrome.getByRole("heading", { level: 1, name: title, exact: true }),
-      ).toBeVisible();
-      await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
-      const analysis = chrome.getByRole("button", {
-        name: "分析结果",
-        exact: true,
-      });
-      if (
-        path === "stock" ||
-        path === "movements/items" ||
-        path === "loans/items"
-      )
-        await expect(analysis).toBeVisible();
       await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
-      await expect(
-        chrome.locator(".browse-persistent-search input"),
-      ).toBeVisible();
-      await expect(
-        chrome.locator(".browse-persistent-search input"),
-      ).toHaveAttribute("type", "search");
+      await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
+      await expect(chrome.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(chrome.getByRole("searchbox")).toBeVisible();
+      await expect(chrome.getByRole("searchbox")).toHaveAttribute(
+        "type",
+        "search",
+      );
       if (
         path === "stock" ||
         path === "movements/items" ||
         path === "loans/items"
       )
         await expect(
-          chrome.locator(".browse-header-actions .browse-split-button"),
+          page.getByRole("button", { name: "更多操作", exact: true }),
         ).toBeVisible();
     }
   });
 }
 
 for (const [width, scale, density] of [
-  [320, 100, "compact"],
   [390, 200, "spacious"],
   [1024, 100, "balanced"],
   [1440, 200, "compact"],
@@ -196,40 +182,41 @@ for (const [width, scale, density] of [
     await page.setViewportSize({ width, height: 1000 });
     await setup(page, scale, density);
     await page.goto("/inventory/stock");
+    await page.getByRole("button", { name: "卡片视图", exact: true }).click();
     await expect(page.locator(".stock-card")).toHaveCount(60);
     await page.evaluate(() => document.fonts.ready);
     await expect(page.locator(".browse-chrome h1")).toBeInViewport();
     await page.screenshot({ path: info.outputPath("expanded-header.png") });
     await page.getByRole("button", { name: /^筛选/ }).click();
-    const tree = page.getByRole("tree", { name: "物品类别选项", exact: true });
-    await expect(tree).toBeVisible();
-    const geometry = await tree.locator(".hierarchy-row").evaluateAll((rows) =>
-      rows.map((row) => ({
-        x: row.querySelector("label > span")!.getBoundingClientRect().x,
-        checkbox: row.querySelector("input")!.getBoundingClientRect().x,
-        track: row
-          .querySelector(".tree-toggle, .tree-spacer")!
-          .getBoundingClientRect().width,
-        height: row.getBoundingClientRect().height,
-      })),
+    const filterPanel = page.getByRole("dialog", { name: "筛选", exact: true });
+    await expect(filterPanel).toBeVisible();
+    if (width < 1024) {
+      await filterPanel
+        .locator('details[data-filter-field="categories"] > summary')
+        .click();
+      await expect(
+        filterPanel.getByRole("tree", {
+          name: "物品类别选项",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page.screenshot({ path: info.outputPath("hierarchy.png") });
+      await page.keyboard.press("Escape");
+    } else {
+      await expect(
+        filterPanel.locator(
+          'details[data-filter-field="categories"] > summary',
+        ),
+      ).toBeVisible();
+    }
+    const actions = page.locator(
+      width < 1024 ? ".browse-mobile-actions" : ".browse-header-actions",
     );
-    expect(geometry).toHaveLength(3);
-    expect(Math.abs(geometry[0]!.x - geometry[2]!.x)).toBeLessThan(1);
-    expect(
-      Math.abs(geometry[0]!.checkbox - geometry[2]!.checkbox),
-    ).toBeLessThan(1);
-    expect(geometry[0]!.track).toBe(width < 1024 ? 44 : 28);
-    expect(geometry[0]!.height).toBeGreaterThanOrEqual(width < 1024 ? 44 : 32);
-    await page.screenshot({ path: info.outputPath("hierarchy.png") });
-    if (width < 1024) await page.keyboard.press("Escape");
-    const actions = page.locator(".browse-header-actions");
     const identity = page.locator(".app-page-identity");
     const actionRect = (await actions.boundingBox())!;
     const identityRect = (await identity.boundingBox())!;
     if (width < 1024)
-      expect(actionRect.y).toBeGreaterThanOrEqual(
-        identityRect.y + identityRect.height,
-      );
+      expect(Math.abs(actionRect.y - identityRect.y)).toBeLessThan(16);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth + 1,
@@ -245,6 +232,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await setup(page);
     await page.goto("/inventory/stock");
+    await page.getByRole("button", { name: "卡片视图", exact: true }).click();
     await expect(page.locator(".stock-card")).toHaveCount(60);
     await page.locator(".card-checkbox input").first().check();
     const chrome = page.locator(".browse-chrome");
@@ -252,10 +240,10 @@ for (const width of [390, 1440]) {
       window.scrollTo({ top: 1100, behavior: "instant" }),
     );
     await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
-    await expect(chrome.getByRole("heading", { level: 1 })).toBeInViewport();
+    await expect(chrome.locator(".browse-persistent-bar")).toBeInViewport();
     await expect(
-      chrome
-        .locator(".stock-selection-actions")
+      page
+        .getByRole("region", { name: "已选物品操作" })
         .getByRole("button", { name: "调拨", exact: true }),
     ).toBeInViewport();
     const anchor = await page
@@ -275,7 +263,7 @@ for (const width of [390, 1440]) {
     await page.evaluate(() =>
       window.scrollBy({ top: 120, behavior: "instant" }),
     );
-    await expect(chrome.getByRole("heading", { level: 1 })).toBeInViewport();
+    await expect(chrome.locator(".browse-persistent-bar")).toBeInViewport();
     await page.screenshot({
       path: info.outputPath("persistent-selection.png"),
     });

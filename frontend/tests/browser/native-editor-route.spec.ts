@@ -12,6 +12,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
   let document: Record<string, unknown> | undefined;
   let creates = 0,
     amendments = 0;
+  const loadedNames: string[] = [];
   const permissions = {
     write: true,
     submit: true,
@@ -95,9 +96,10 @@ test("save, reload and amendment keep the current native identity in the URL", a
         })),
       };
       message = document;
-    } else if (method === "temple_inventory.native_api.load_document")
+    } else if (method === "temple_inventory.native_api.load_document") {
+      loadedNames.push(String(args.name));
       message = document;
-    else if (method === "temple_inventory.native_api.save_document") {
+    } else if (method === "temple_inventory.native_api.save_document") {
       document = { ...document, ...args.data, version: "2026-10-16 12:00:02" };
       message = document;
     } else if (method === "temple_inventory.native_api.submit_document") {
@@ -127,7 +129,13 @@ test("save, reload and amendment keep the current native identity in the URL", a
         version: "2026-10-16 12:00:05",
       };
       message = document;
-    } else {
+    } else if (method === "temple_inventory.notifications.inbox")
+      message = { items: [], unread_count: 0, has_running_exports: false };
+    else if (method === "temple_inventory.preferences.creation_locations")
+      message = { Receive: "A02-DIRECT" };
+    else if (method === "temple_inventory.preferences.save_creation_location")
+      message = {};
+    else {
       unexpected.push(method);
       await route.fulfill({
         status: 500,
@@ -138,18 +146,13 @@ test("save, reload and amendment keep the current native identity in the URL", a
     await route.fulfill({ json: { message } });
   });
   await page.goto(
-    `/inventory/movements/movements/new/Receive?warehouse=A02-DIRECT&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
+    `/inventory/movements/new/Receive?warehouse=A02-DIRECT&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
   );
   await expect(
     page.getByRole("button", { name: "保存草稿", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
-  await expect(page).toHaveURL(
-    /\/inventory\/documents\/Stock%20Entry\/STE-NEW$/,
-  );
-  await expect(
-    page.getByText("STE-NEW", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/inventory\/movements\/STE-NEW(?:\?|$)/);
   await page.reload();
   await expect(
     page.getByRole("button", { name: "复核并确认", exact: true }),
@@ -173,13 +176,12 @@ test("save, reload and amendment keep the current native identity in the URL", a
     .getByRole("dialog")
     .getByRole("button", { name: "确认", exact: true })
     .click();
-  await expect(page).toHaveURL(
-    /\/inventory\/documents\/Stock%20Entry\/STE-AMENDED$/,
-  );
+  await expect(page).toHaveURL(/\/inventory\/movements\/STE-AMENDED(?:\?|$)/);
   await page.reload();
   await expect(
     page.getByRole("button", { name: "保存草稿", exact: true }),
   ).toBeVisible();
+  expect(loadedNames).toContain("STE-NEW");
   expect(creates).toBe(1);
   expect(amendments).toBe(1);
   expect(errors).toEqual([]);

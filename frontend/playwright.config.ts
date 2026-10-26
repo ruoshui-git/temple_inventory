@@ -7,6 +7,9 @@ export default defineConfig({
   outputDir: process.env.NATIVE_UI_RESULTS || "/tmp/temple-inventory-native-ui",
   workers: 1,
   timeout: 45000,
+  reporter: process.env.CI
+    ? [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]]
+    : "list",
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 390, height: 844 },

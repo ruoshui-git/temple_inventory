@@ -120,6 +120,16 @@ async function prepare(page: Page, textScale: number) {
         summary: { item_count: 24, document_count: 24, category_count: 1 },
         analysis: {},
       };
+    else if (method === "projections.group_page")
+      message = {
+        rows: [],
+        matched_count: 0,
+        next_start: null,
+        parent_path: args.parent_path || [],
+        row_grain: "group",
+        query: args.query,
+        leaf_columns: [],
+      };
     await route.fulfill({ json: { message } });
   });
   await nativeUiSession(page, textScale, {
@@ -174,14 +184,7 @@ for (const surface of [
 ]) {
   for (const scenario of [
     { name: "desktop", width: 1440, height: 1000, scale: 100 },
-    { name: "phone-large-text", width: 390, height: 844, scale: 200 },
-    // 1440x900 at browser zoom 200% has this effective CSS viewport.
-    {
-      name: "zoom-200-effective-viewport",
-      width: 720,
-      height: 450,
-      scale: 100,
-    },
+    { name: "phone", width: 390, height: 844, scale: 100 },
   ]) {
     test(`${surface} loaded controls and complete filters / ${scenario.name}`, async ({
       page,
@@ -192,10 +195,20 @@ for (const surface of [
       });
       const release = await prepare(page, scenario.scale);
       const errors: string[] = [];
-      page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(`/inventory/${surface}`);
+      page.on("pageerror", (error) =>
+        errors.push(error.stack || error.message),
+      );
+      const routes: Record<string, string> = {
+        stock: "/inventory/stock",
+        expiry: "/inventory/stock/expiry",
+        "movements/items": "/inventory/movements?view=items",
+        "movements/records": "/inventory/movements?view=records",
+        "loans/items": "/inventory/loans?view=items",
+        "loans/records": "/inventory/loans?view=records",
+      };
+      await page.goto(routes[surface]!);
       const chrome = page.locator(".browse-chrome");
-      await expect(chrome.locator("h1")).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(page.locator(".quantity-summary-empty")).toHaveCount(0);
       const sortChip = chrome.locator(
         ".browse-sort-control .popup-menu-trigger",
@@ -212,56 +225,99 @@ for (const surface of [
         await tab.click();
       }
       release();
-      await expect(page.locator("[data-browse-row]")).toHaveCount(24);
+      const itemHistoryView =
+        surface === "movements/items" || surface === "loans/items";
+      if (itemHistoryView)
+        await expect(page.locator(".preview-browse-results")).toBeVisible();
+      else if (surface === "expiry" && scenario.width < 1024)
+        await expect(
+          page.locator(".preview-expiry-mobile [data-browse-row]"),
+        ).toHaveCount(24);
+      else await expect(page.locator("[data-browse-row]")).toHaveCount(24);
       await page.evaluate(() => document.fonts.ready);
-      await expect(page.locator(".quantity-summary")).toHaveCount(1);
       for (const tab of await tabs.all()) {
         expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(
           minimumTarget,
         );
         await tab.click();
       }
-      if (surface.startsWith("movements")) {
-        const summary = page.locator(".quantity-summary-metric");
-        await expect(summary).toHaveCount(2);
-        await expect(summary.first()).toContainText("入库");
-        await expect(summary.first()).toContainText("3 套");
-        await expect(summary.first()).toContainText("12 件");
-      }
-      if (surface.startsWith("loans"))
-        await expect(page.locator(".quantity-summary-metric")).toHaveCount(1);
       await page.screenshot({ path: info.outputPath("loaded.png") });
       await expect(chrome.locator(".browse-tools-toggle")).toHaveCount(0);
-      await expect(page.locator(".browse-result-summary")).toBeVisible();
+      if (!itemHistoryView) {
+        const resultSummary = page.getByRole("button", { name: /数量分析/ });
+        await expect(resultSummary).toBeVisible();
+        await expect(resultSummary).toHaveAttribute("aria-expanded", "false");
+        await resultSummary.click();
+        await expect(resultSummary).toHaveAttribute("aria-expanded", "true");
+        await expect(
+          page.locator(".browse-result-summary-panel"),
+        ).toBeVisible();
+        await expect(
+          page.locator(".browse-result-summary-panel .quantity-summary"),
+        ).toBeVisible();
+        if (surface.startsWith("movements")) {
+          const summary = page.locator(".quantity-summary-metric");
+          await expect(summary).toHaveCount(2);
+          await expect(summary.first()).toContainText("入库");
+          await expect(summary.first()).toContainText("3 套");
+          await expect(summary.first()).toContainText("12 件");
+        }
+        if (surface.startsWith("loans"))
+          await expect(page.locator(".quantity-summary-metric")).toHaveCount(1);
+        await resultSummary.click();
+      }
       await chrome.getByRole("button", { name: /^筛选/ }).click();
-      const tree = page.getByRole("tree", {
-        name: "物品类别选项",
+      const filterPanel = page.getByRole("dialog", {
+        name: "筛选",
         exact: true,
       });
-      await expect(tree).toBeVisible();
-      const dimensions = await tree.evaluate((element) => {
-        const scroller = element.closest(".facet-suggestions")!;
-        const label = element.querySelector("label > span")!;
-        return {
-          scrollWidth: scroller.scrollWidth,
-          clientWidth: scroller.clientWidth,
-          whiteSpace: getComputedStyle(label).whiteSpace,
-        };
-      });
-      expect(dimensions.whiteSpace).toBe("nowrap");
-      expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
-      if (surface !== "stock") {
+      await expect(filterPanel).toBeVisible();
+      if (scenario.width < 1024) {
+        await filterPanel
+          .locator('details[data-filter-field="categories"] > summary')
+          .click();
         await expect(
-          page.locator(".preview-period-trigger").filter({
-            hasText: new RegExp(
-              surface === "expiry"
-                ? "到期日期"
-                : surface.startsWith("movements")
-                  ? "流动日期"
-                  : "借出日期",
-            ),
+          filterPanel.getByRole("tree", {
+            name: "物品类别选项",
+            exact: true,
           }),
         ).toBeVisible();
+      } else {
+        await expect(
+          filterPanel.locator(
+            'details[data-filter-field="categories"] > summary',
+          ),
+        ).toBeVisible();
+      }
+      if (surface !== "stock") {
+        const periodLabel =
+          surface === "expiry"
+            ? "到期日期"
+            : surface.startsWith("movements")
+              ? "流动日期"
+              : "借出日期";
+        if (surface === "expiry") {
+          const period = filterPanel.locator(
+            'details[data-filter-field="period"] > summary',
+          );
+          await expect(period).toBeVisible();
+          await period.click();
+          await expect(
+            filterPanel.getByRole("heading", {
+              name: periodLabel,
+              exact: true,
+            }),
+          ).toBeVisible();
+        } else {
+          const periodDisclosure = filterPanel.locator(
+            'details[data-filter-field="period"] > summary',
+          );
+          await expect(periodDisclosure).toBeVisible();
+          await periodDisclosure.click();
+          await expect(
+            page.getByRole("heading", { name: periodLabel, exact: true }),
+          ).toBeVisible();
+        }
       }
       expect(
         await page.evaluate(

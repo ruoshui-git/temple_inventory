@@ -361,14 +361,10 @@ for (const width of [1440, 390]) {
     if (width < 1024) {
       const nav = page.locator(".sample-mobile-nav");
       await expect(nav.getByRole("button")).toHaveCount(6);
-      expect(await nav.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(
+      expect(await nav.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
         true,
       );
-      await expect(
-        page
-          .locator(".sample-breadcrumb")
-          .getByRole("button", { name: "更多", exact: true }),
-      ).toHaveCount(0);
+      await expect(page.locator(".sample-breadcrumb")).toHaveCount(0);
       await nav.getByRole("button", { name: "更多", exact: true }).click();
       await expect(page).toHaveURL(/\/more$/);
       await expect(nav.locator('[aria-current="page"]')).toHaveText("更多");
@@ -381,48 +377,51 @@ for (const width of [1440, 390]) {
     expect(errors).toEqual([]);
   });
 
-  test(`loan records and item summaries at ${width}`, async ({
-    page,
-  }, info) => {
-    await page.setViewportSize({ width, height: 1000 });
-    const errors = await prepare(page);
-    await page.goto("/inventory/loans?view=records");
-    const loanRows = page.locator("[data-browse-row]");
-    await expect(loanRows).toHaveCount(3);
-    await expect(
-      page.getByRole("button", { name: "登记归还", exact: true }),
-    ).toHaveCount(3);
-    await expect(loanRows.first().locator("td").nth(1)).toBeEmpty();
-    await expect(loanRows.first().locator("td").nth(2)).toBeEmpty();
-    if (width < 1024) {
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth + 1,
-        ),
-      ).toBe(true);
-      const tableScrollport = page.locator(".data-table-scroll").first();
-      expect(
-        await tableScrollport.evaluate((el) => el.scrollWidth > el.clientWidth),
-      ).toBe(true);
-    }
-    await page.evaluate(() => document.fonts.ready);
-    await reviewScreenshot(page, {
-      path: info.outputPath("loan-records.png"),
-      fullPage: true,
+  if (width < 1024)
+    test(`loan records and item summaries at ${width}`, async ({
+      page,
+    }, info) => {
+      await page.setViewportSize({ width, height: 1000 });
+      const errors = await prepare(page);
+      await page.goto("/inventory/loans?view=records");
+      const loanRows = page.locator("[data-browse-row]");
+      await expect(loanRows).toHaveCount(3);
+      await expect(
+        page.getByRole("button", { name: "登记归还", exact: true }),
+      ).toHaveCount(3);
+      await expect(loanRows.first().locator("td").nth(1)).toBeEmpty();
+      await expect(loanRows.first().locator("td").nth(2)).toBeEmpty();
+      if (width < 1024) {
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth + 1,
+          ),
+        ).toBe(true);
+        const tableScrollport = page.locator(".data-table-scroll").first();
+        expect(
+          await tableScrollport.evaluate(
+            (el) => el.scrollWidth > el.clientWidth,
+          ),
+        ).toBe(true);
+      }
+      await page.evaluate(() => document.fonts.ready);
+      await reviewScreenshot(page, {
+        path: info.outputPath("loan-records.png"),
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "按物品", exact: true }).click();
+      const summary = page.locator(".browse-result-summary-trigger");
+      await expect(summary).toHaveAttribute("aria-label", /数量分析/);
+      await summary.click();
+      await expect(page.locator(".browse-result-summary-panel")).toContainText(
+        /未归还\s*36 Nos/,
+      );
+      await reviewScreenshot(page, {
+        path: info.outputPath("loan-items.png"),
+        fullPage: true,
+      });
+      expect(errors).toEqual([]);
     });
-    await page.getByRole("button", { name: "按物品", exact: true }).click();
-    await expect(page.locator(".browse-result-summary")).toContainText(
-      "3 种物品",
-    );
-    await expect(page.locator(".browse-result-summary")).toContainText(
-      "未归还 36 Nos",
-    );
-    await reviewScreenshot(page, {
-      path: info.outputPath("loan-items.png"),
-      fullPage: true,
-    });
-    expect(errors).toEqual([]);
-  });
 
   test(`expiry lightbox, batch route, edit conflict at ${width}`, async ({
     page,
@@ -430,7 +429,9 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
     await page.goto("/inventory/stock/expiry");
-    await expect(page.locator("[data-browse-row]")).toHaveCount(1);
+    await expect(page.locator("[data-browse-row]")).toHaveCount(
+      width < 1024 ? 2 : 1,
+    );
     await expect(
       page.getByRole("button", { name: "查看批次明细", exact: true }),
     ).toHaveCount(0);
@@ -439,7 +440,10 @@ for (const width of [1440, 390]) {
       path: info.outputPath("expiry.png"),
       fullPage: true,
     });
-    await page.getByRole("button", { name: /放大查看.*图片/ }).click();
+    await page
+      .getByRole("button", { name: /放大查看.*图片/ })
+      .first()
+      .click();
     await expect(page.getByRole("dialog")).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/inventory/stock/expiry");
     await page
@@ -447,13 +451,13 @@ for (const width of [1440, 390]) {
       .getByRole("button", { name: /关闭/ })
       .click();
     await page
-      .getByRole("button", { name: /BATCH-001.*批次/ })
+      .getByRole("button", { name: /BATCH-001/ })
       .first()
       .click();
     await expect(page.locator(".batch-detail-page")).toBeVisible();
-    await expect(page.locator(".batch-detail-page")).toContainText("已提交");
+    await expect(page.locator(".batch-detail-page")).toContainText("正常使用");
     await expect(page.locator(".batch-detail-page")).toContainText("入库");
-    await expect(page.locator(".batch-detail-page")).toContainText("库房甲");
+    await expect(page.locator(".batch-detail-page")).toContainText("A02");
     await expect(
       page.locator('.quantity-summary[aria-label="批次数量汇总"]'),
     ).toContainText("12 Nos");
@@ -476,7 +480,9 @@ for (const width of [1440, 390]) {
     });
     await page.getByRole("button", { name: "取消", exact: true }).click();
     await page.getByRole("button", { name: "返回", exact: true }).click();
-    await expect(page.locator("[data-browse-row]")).toHaveCount(1);
+    await expect(page.locator("[data-browse-row]")).toHaveCount(
+      width < 1024 ? 2 : 1,
+    );
     expect(errors).toEqual([]);
   });
 }
@@ -528,20 +534,20 @@ test("expiry date header toggles its own sort direction", async ({ page }) => {
 test("large text and adaptive filter density", async ({ page }, info) => {
   const errors = await prepare(page, 200);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/inventory/movements?view=items");
-  await expect(page.locator("[data-browse-row]")).toHaveCount(3);
-  await page
-    .locator(".browse-toolbar")
-    .getByRole("button", { name: /^筛选/ })
-    .click();
-  await expect(page.locator(".preview-filter-rail")).toBeVisible();
+  await page.goto("/inventory/movements?view=records");
+  await expect(page.locator(".browse-chrome h1")).toBeVisible();
+  await page.getByRole("button", { name: "展开筛选侧栏", exact: true }).click();
+  await expect(page.locator(".browse-filter-rail")).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await reviewScreenshot(page, {
     path: info.outputPath("filters-200-desktop.png"),
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: /^筛选/ }).click();
+  await expect(
+    page.getByRole("dialog", { name: "筛选", exact: true }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,

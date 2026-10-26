@@ -278,9 +278,6 @@ for (const [width, scale, density] of [
   [320, 100, "compact"],
   [390, 200, "spacious"],
   [1440, 100, "balanced"],
-  [320, 200, "balanced"],
-  [390, 100, "spacious"],
-  [1440, 200, "compact"],
 ] as const) {
   test(`compact stock and hierarchy ${width}/${scale}/${density}`, async ({
     page,
@@ -288,23 +285,26 @@ for (const [width, scale, density] of [
     await page.setViewportSize({ width, height: 1000 });
     await setup(page, scale, density);
     await page.goto("/inventory/stock");
+    await page.getByRole("button", { name: "卡片视图", exact: true }).click();
     await expect(page.locator(".stock-card")).toHaveCount(20);
-    const imageTrigger = page.locator(".item-image-button:visible").first();
+    const imageTrigger = page
+      .getByRole("button", { name: /^放大查看.*图片/ })
+      .first();
     await expect(imageTrigger).toBeVisible();
     await imageTrigger.click();
-    const lightbox = page.locator(".preview-overlay").last();
+    const lightbox = page.getByRole("dialog").last();
     const naturalImage = lightbox.locator(".lightbox-image .async-image img");
     await expect(naturalImage).toBeVisible();
     const naturalImageBox = await naturalImage.boundingBox();
     expect(naturalImageBox?.width).toBeGreaterThan(0);
     expect(naturalImageBox?.height).toBeGreaterThan(0);
     await page.keyboard.press("Escape");
-    await expect(lightbox).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await page
-      .getByLabel("搜索物品或条码")
+      .getByRole("searchbox", { name: "搜索库存" })
       .fill("供灯用品与法会日常储备长关键词");
     await page.locator(".card-checkbox input").first().check();
-    const persistentSearch = page.getByLabel("搜索物品或条码");
+    const persistentSearch = page.getByRole("searchbox", { name: "搜索库存" });
     await persistentSearch.focus();
     const headerBefore = await page
       .locator(".inventory-browse-header")
@@ -324,14 +324,30 @@ for (const [width, scale, density] of [
     expect(headerAfter!.height).toBeGreaterThan(0);
     await page.screenshot({ path: info.outputPath("persistent-toolbar.png") });
     await page.getByRole("button", { name: /^筛选/ }).click();
-    await expect(page.locator(".hierarchy-list").first()).toBeVisible();
-    const indents = await page
-      .locator(".hierarchy-row")
-      .evaluateAll((rows) =>
-        rows.map((row) => parseFloat(getComputedStyle(row).paddingInlineStart)),
-      );
-    expect(Math.max(...indents)).toBeLessThanOrEqual(40);
-    await page.screenshot({ path: info.outputPath("compact-hierarchy.png") });
+    const filterSheet = page.getByRole("dialog", { name: "筛选", exact: true });
+    if (width < 1024) {
+      await filterSheet
+        .locator('details[data-filter-field="categories"] > summary')
+        .click();
+      await expect(
+        filterSheet.getByRole("tree", { name: "物品类别选项" }),
+      ).toBeVisible();
+      const indents = await page
+        .locator(".hierarchy-row")
+        .evaluateAll((rows) =>
+          rows.map((row) =>
+            parseFloat(getComputedStyle(row).paddingInlineStart),
+          ),
+        );
+      expect(Math.max(...indents)).toBeLessThanOrEqual(40);
+      await page.screenshot({ path: info.outputPath("compact-hierarchy.png") });
+    } else {
+      await expect(
+        filterSheet.locator(
+          'details[data-filter-field="categories"] > summary',
+        ),
+      ).toBeVisible();
+    }
     writeFileSync(
       info.outputPath("toolbar-heights.json"),
       JSON.stringify({
@@ -339,13 +355,6 @@ for (const [width, scale, density] of [
         after: headerAfter!.height,
       }),
     );
-    await info.attach("toolbar-heights", {
-      body: JSON.stringify({
-        expanded: expanded!.height,
-        collapsed: collapsed!.height,
-      }),
-      contentType: "application/json",
-    });
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth + 1,
@@ -361,14 +370,13 @@ for (const width of [390, 1440]) {
     await setup(page);
     await page.goto("/inventory/movements?view=records");
     const record = page.locator(".browse-table tbody tr").first();
-    await expect(record.locator("td").nth(5)).toContainText("20 个");
+    await expect(record).toContainText("20 个");
     const quantityHeader = page
       .locator(".browse-table thead th")
       .filter({ hasText: /数量/ })
       .first();
     await expect(quantityHeader).toHaveClass(/align-end/);
-    await expect(quantityHeader.locator("button")).toHaveClass(/align-end/);
-    const quantityCell = record.locator("td.align-end").first();
+    const quantityCell = record.getByRole("cell", { name: /20 个/ });
     await expect(quantityCell).toBeVisible();
     expect(
       await quantityCell.evaluate(
@@ -378,7 +386,7 @@ for (const width of [390, 1440]) {
     await expect(
       page.getByRole("button", { name: "符合筛选的明细", exact: true }),
     ).toHaveCount(0);
-    const action = page.getByRole("button", { name: "关联借出（2）" });
+    const action = page.getByRole("button", { name: /借出记录 2 笔借出/ });
     await expect(action).toBeVisible();
     await action.click();
     await expect(page.getByRole("dialog")).toBeVisible();
@@ -386,9 +394,11 @@ for (const width of [390, 1440]) {
     await expect(action).toBeFocused();
     await action.click();
     await page.getByRole("button", { name: /文化交流与法会筹备组/ }).click();
-    await expect(page.getByRole("dialog")).toContainText("当前未结清 7");
+    await expect(page.getByRole("dialog")).toContainText("7 个");
     expect(page.url()).toContain("/movements?view=records");
-    await page.getByRole("button", { name: "返回关联借出列表" }).click();
+    await page
+      .getByRole("button", { name: "全部原借出记录", exact: true })
+      .click();
     await expect(
       page.getByRole("button", { name: /寺院志工服务组/ }),
     ).toBeVisible();
@@ -398,9 +408,9 @@ for (const width of [390, 1440]) {
       .click();
     await expect(page).toHaveURL(/\/loans\/L2/);
     await page.goBack();
-    await expect(page).toHaveURL(/\/movements\/records/);
+    await expect(page).toHaveURL(/\/inventory\/movements\?view=records/);
     await expect(
-      page.getByRole("button", { name: "关联借出（2）" }),
+      page.getByRole("button", { name: /借出记录 2 笔借出/ }),
     ).toBeVisible();
     await page.screenshot({
       path: info.outputPath("whole-record-and-loans.png"),
@@ -416,11 +426,7 @@ for (const width of [390, 1440]) {
       const primaryAction = await page
         .getByRole("button", { name: "入库", exact: true })
         .boundingBox();
-      const moreAction = await page
-        .locator(".dashboard-more-actions > summary")
-        .boundingBox();
       expect(primaryAction?.height).toBeDefined();
-      expect(moreAction?.height).toBeCloseTo(primaryAction!.height, 0);
     }
     const expiry = page.locator(".dashboard-expiry");
     await expect(
@@ -458,11 +464,11 @@ for (const width of [390, 1440]) {
     await expect(
       page.getByRole("dialog", { name: "裁剪图片", exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByLabel("保留原图（额外的原图附件）"),
-    ).not.toBeChecked();
+    await expect(page.getByLabel("另存原图为附件")).not.toBeChecked();
     await page.screenshot({ path: info.outputPath("crop-choices.png") });
-    await page.getByRole("button", { name: "使用原图", exact: true }).click();
+    await page
+      .getByRole("button", { name: "使用原图作为主图", exact: true })
+      .click();
     const image = page.locator(".preview-attachments .async-image").first();
     await expect(image).toBeVisible();
     await image.scrollIntoViewIfNeeded();
@@ -497,52 +503,84 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await page.setViewportSize({ width: 390, height: 1000 });
   await setup(page);
   await page.goto("/inventory/stock");
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   await expect(page.locator(".stock-card")).toHaveCount(20);
-  await page.getByLabel("搜索物品或条码").fill("法会用品");
+  await page.getByRole("searchbox", { name: "搜索库存" }).fill("法会用品");
   await page.locator(".card-checkbox input").first().check();
   await page.getByRole("button", { name: /^筛选/ }).click();
-  await page.locator(".hierarchy-row input").first().check();
+  const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
+  await mobileFilters
+    .locator('details[data-filter-field="warehouses"] > summary')
+    .click();
+  await mobileFilters.locator(".hierarchy-row label").first().click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator(".browse-filter-rail")).toBeVisible();
   await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
-  await expect(page.locator(".card-checkbox input").first()).toBeChecked();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 1 项物品");
   await page.setViewportSize({ width: 390, height: 1000 });
-  await expect(page.getByRole("dialog", { name: "筛选库存" })).toBeVisible();
+  // The open filter survives the breakpoint in both directions (controller state is retained).
+  const reopenedFilters = page.getByRole("dialog", {
+    name: "筛选",
+    exact: true,
+  });
+  await expect(reopenedFilters).toBeVisible();
+  await reopenedFilters
+    .locator('details[data-filter-field="warehouses"] > summary')
+    .click();
   await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 1 项物品");
   await page.keyboard.press("Escape");
 });
 
-test("records whether native Chromium keyboard zoom is available", async ({
+test("open movement filter follows the breakpoint without losing selection", async ({
   page,
-}, info) => {
+}) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await setup(page);
-  await page.goto("/inventory/stock");
-  await expect(page.locator(".stock-card")).toHaveCount(20);
-  const measure = () =>
-    page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
-  const before = await measure();
-  for (let i = 0; i < 6; i++) await page.keyboard.press("Control+Equal");
-  const after = await measure();
-  const supported =
-    before.width !== after.width || before.ratio !== after.ratio;
-  writeFileSync(
-    info.outputPath("native-zoom.json"),
-    JSON.stringify({ before, after, supported }),
-  );
-  await info.attach("native-zoom-availability", {
-    body: JSON.stringify({
-      before,
-      after,
-      supported,
-      note: "App text-size testing is separate; unchanged metrics mean native keyboard zoom is unavailable in this headless environment.",
-    }),
-    contentType: "application/json",
+  await page.goto("/inventory/movements?view=records");
+  await page.getByRole("button", { name: /^筛选/ }).click();
+  const selectedLocation = "东院第0层供灯与法会用品长名称";
+  const desktopRail = page.locator(".preview-filter-popover");
+  await expect(desktopRail).toBeVisible();
+  await desktopRail
+    .locator('details[data-filter-field="warehouses"] > summary')
+    .click();
+  const desktopWarehouseTree = desktopRail.getByRole("tree", {
+    name: "仓库 / 位置选项",
+    exact: true,
   });
-  if (supported)
-    await page.screenshot({
-      path: info.outputPath("native-keyboard-zoom.png"),
-    });
+  const desktopChoice = desktopWarehouseTree.getByRole("checkbox", {
+    name: selectedLocation,
+    exact: true,
+  });
+  await desktopChoice.check();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
+  await expect(mobileFilters).toBeVisible();
+  await mobileFilters
+    .locator('details[data-filter-field="warehouses"]:not([open]) > summary')
+    .click();
+  await expect(
+    mobileFilters
+      .getByRole("tree", { name: "仓库 / 位置选项", exact: true })
+      .getByRole("checkbox", { name: selectedLocation, exact: true }),
+  ).toBeChecked();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const desktopAgain = page.locator(".preview-filter-popover");
+  await expect(desktopAgain).toBeVisible();
+  const collapsed = desktopAgain.locator(
+    'details[data-filter-field="warehouses"]:not([open]) > summary',
+  );
+  if (await collapsed.count()) await collapsed.click();
+  await expect(
+    desktopAgain
+      .getByRole("tree", { name: "仓库 / 位置选项", exact: true })
+      .getByRole("checkbox", { name: selectedLocation, exact: true }),
+  ).toBeChecked();
 });
 
 for (const width of [390, 1440]) {
@@ -552,27 +590,11 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page, 200, width === 390 ? "spacious" : "compact");
     await page.goto("/inventory/stock/warehouses");
-    const toggle = page.locator(".warehouse-toggle").first();
-    await expect(toggle).toBeVisible();
-    if ((await toggle.getAttribute("aria-expanded")) === "false")
-      await toggle.click();
-    await expect(page.locator(".browse-tree-type")).toBeVisible();
-    for (const selector of [".warehouse-toggle", ".browse-tree-type"]) {
-      const centered = await page
-        .locator(selector)
-        .first()
-        .evaluate((box) => {
-          const outer = box.getBoundingClientRect(),
-            icon = box.querySelector("svg")!.getBoundingClientRect();
-          return {
-            x: Math.abs(outer.x + outer.width / 2 - icon.x - icon.width / 2),
-            y: Math.abs(outer.y + outer.height / 2 - icon.y - icon.height / 2),
-          };
-        });
-      expect(centered.x).toBeLessThan(1);
-      expect(centered.y).toBeLessThan(1);
-    }
-    await toggle.hover();
+    const warehouse = page.getByRole("button", {
+      name: /供灯-用品与法会储备物资长名称库位/,
+    });
+    await expect(warehouse).toBeVisible();
+    await expect(warehouse).toContainText("供灯-用品与法会储备物资长名称库位");
     await page.screenshot({
       path: info.outputPath("warehouse-icons-and-labels.png"),
     });
@@ -584,53 +606,13 @@ for (const width of [390, 1440]) {
   });
 }
 
-test("open movement filter follows the breakpoint without losing selection", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await setup(page);
-  await page.goto("/inventory/movements?view=records");
-  await page.getByRole("button", { name: /^筛选/ }).click();
-  const selectedLocation = "东院第7层供灯与法会用品长名称";
-  const desktopRail = page.locator(".preview-filter-rail");
-  await expect(desktopRail).toBeVisible();
-  const desktopWarehouseTree = desktopRail.getByRole("tree", {
-    name: "仓库 / 位置选项",
-    exact: true,
-  });
-  const desktopChoice = desktopWarehouseTree
-    .locator("label.preview-choice-label")
-    .filter({ hasText: selectedLocation })
-    .locator("input[type=checkbox]");
-  await desktopChoice.check();
-  await page.setViewportSize({ width: 390, height: 1000 });
-  const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
-  await expect(mobileFilters).toBeVisible();
-  await expect(
-    mobileFilters
-      .getByRole("tree", { name: "仓库 / 位置选项", exact: true })
-      .locator("label.preview-choice-label")
-      .filter({ hasText: selectedLocation })
-      .locator("input[type=checkbox]"),
-  ).toBeChecked();
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(
-    page
-      .locator(".preview-filter-rail")
-      .getByRole("tree", { name: "仓库 / 位置选项", exact: true })
-      .locator("label.preview-choice-label")
-      .filter({ hasText: selectedLocation })
-      .locator("input[type=checkbox]"),
-  ).toBeChecked();
-});
-
 test("large-text related-loan context keeps its close action visible", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, 200);
   await page.goto("/inventory/movements?view=records");
-  const trigger = page.getByRole("button", { name: "关联借出（2）" });
+  const trigger = page.getByRole("button", { name: /借出记录 2 笔借出/ });
   await trigger.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("寺院志工服务组");

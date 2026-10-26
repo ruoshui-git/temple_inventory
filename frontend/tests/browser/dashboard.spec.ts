@@ -58,7 +58,7 @@ test("phone dashboard keeps create actions in four columns and secondary actions
 });
 
 // Production coordinator/transport with controlled native card responses.
-test("dashboard retains applied scope and dismisses its filter across 1024px", async ({
+test("dashboard retains applied scope and its open filter across 1024px", async ({
   page,
 }) => {
   const reads: Record<string, any>[] = [],
@@ -106,9 +106,8 @@ test("dashboard retains applied scope and dismisses its filter across 1024px", a
     )
     .toBe(true);
   await page.setViewportSize({ width: 375, height: 900 });
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /总览范围.*1/ })).toBeVisible();
-  await page.getByRole("button", { name: "总览范围", exact: false }).click();
+  // Controllers retain open dialogs across the 1024px breakpoint (AGENTS.md).
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(
     page.getByRole("dialog").getByRole("checkbox", { name: /演示室甲/ }),
   ).toBeChecked();
@@ -116,6 +115,7 @@ test("dashboard retains applied scope and dismisses its filter across 1024px", a
     .getByRole("dialog")
     .getByRole("button", { name: "完成", exact: true })
     .click();
+  await expect(page.getByRole("button", { name: /总览范围.*1/ })).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,

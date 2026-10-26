@@ -67,13 +67,15 @@ test.beforeEach(async ({ page }) => {
         json: { message: { timestamp: "2026-10-16 12:00:00" } },
       }),
   );
-  await page.goto(
-    "/inventory/movements/movements/new/Receive?warehouse=ROOM-A",
-  );
+  await page.goto("/inventory/movements/new/Receive?warehouse=A02-DIRECT");
   await expect(
     page.getByRole("heading", { name: "入库", exact: true }),
   ).toBeVisible();
-  await page.getByText("扫描物品 / 批次 / 库位", { exact: true }).click();
+  await page.getByRole("button", { name: "展开完整工作区" }).click();
+  const warehouse = page.getByRole("combobox", { name: "入库位置" });
+  await warehouse.click();
+  await page.getByRole("option", { name: /A02/ }).click();
+  await page.getByRole("button", { name: "扫码添加", exact: true }).click();
 });
 
 test("manual and hardware-style scans preserve input and configure the same allocation", async ({
@@ -84,21 +86,26 @@ test("manual and hardware-style scans preserve input and configure the same allo
   await expect(
     page.getByText("未找到 UNKNOWN-999", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByLabel("扫描值", { exact: true })).toHaveValue(
+    "UNKNOWN-999",
+  );
   await expect(
     page.getByRole("button", { name: "新建物品", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "完成扫描", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "扫码添加", exact: true }).click();
   await page.getByLabel("扫描值", { exact: true }).fill("6931234567890");
   await page.getByLabel("扫描值", { exact: true }).press("Enter");
-  await page
-    .getByRole("button", { name: "配置数量与库位", exact: true })
-    .click();
-  await expect(page.locator("[data-line-id]")).toHaveCount(1);
-  await expect(page.locator("[data-line-id]")).toContainText("大米");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "扫描物品 / 批次 / 库位" }).click();
   await expect(page.getByLabel("扫描值", { exact: true })).toHaveValue(
     "6931234567890",
   );
+  await expect(page.getByRole("region", { name: "已扫描明细" })).toContainText(
+    "大米",
+  );
+  await page.getByRole("button", { name: "完成扫描", exact: true }).click();
+  await expect(page.locator("[data-line-id]")).toHaveCount(1);
+  await expect(page.locator("[data-line-id]")).toContainText("大米");
 });
 
 for (const engine of ["ZXing-WASM"])
