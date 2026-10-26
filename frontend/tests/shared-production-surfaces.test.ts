@@ -117,7 +117,8 @@ describe("interactive preview", () => {
     });
     mounted.push(wrapper);
     await nextTick();
-    const parentOverlay = document.querySelector<HTMLElement>(".preview-overlay")!;
+    const parentOverlay =
+      document.querySelector<HTMLElement>(".preview-overlay")!;
     const imageButton =
       parentOverlay.querySelector<HTMLButtonElement>(".item-image-button")!;
     imageButton.focus();
@@ -126,7 +127,8 @@ describe("interactive preview", () => {
     await nextTick();
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2);
     expect(document.querySelectorAll(".preview-overlay")).toHaveLength(2);
-    const parentDialog = document.querySelector<HTMLElement>(".preview-dialog")!;
+    const parentDialog =
+      document.querySelector<HTMLElement>(".preview-dialog")!;
     const top = document.querySelectorAll<HTMLElement>(".preview-dialog")[1]!;
     top.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
@@ -149,7 +151,9 @@ describe("interactive preview", () => {
     expect(wrapper.findAll(".form-section")[0].text()).toContain(
       "确认时自动记录当前时间",
     );
-    expect(wrapper.find('input[type="date"]').exists()).toBe(false);
+    expect(
+      wrapper.findAll(".form-section")[0]!.find('input[type="date"]').exists(),
+    ).toBe(false);
     await wrapper.get(".current-time-note button").trigger("click");
     await flushPromises();
     const date = wrapper.findAll(".form-section")[0].get('input[type="date"]');
@@ -226,7 +230,7 @@ describe("interactive preview", () => {
   it("validates receiving input and confirms through the shared native service contract", async () => {
     const wrapper = render(PreviewReceive, { pattern: "current" });
     await flushPromises();
-    const qty = wrapper.get('input[aria-label="东北珍珠米数量"]');
+    const qty = wrapper.get('.allocation-card input[data-field="qty"]');
     await qty.setValue(0);
     await wrapper.get("form").trigger("submit");
     await flushPromises();
@@ -243,9 +247,9 @@ describe("interactive preview", () => {
     confirm.click();
     await flushPromises();
     expect(wrapper.text()).toContain("已提交");
-    expect(wrapper.find('input[aria-label="东北珍珠米数量"]').exists()).toBe(
-      false,
-    );
+    expect(
+      wrapper.find('.allocation-card input[data-field="qty"]').exists(),
+    ).toBe(false);
   });
   it("traps overlay focus, handles Escape, restores focus and releases scroll locking", async () => {
     const host = document.createElement("div");

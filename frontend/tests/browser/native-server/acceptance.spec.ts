@@ -1,4 +1,9 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+} from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 
 // Real Frappe HTTP and built assets: no native API responses are intercepted.
@@ -88,20 +93,16 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     expect(category).toBeTruthy();
     await page.goto("/inventory/stock/items/new");
     await page.getByLabel("物品编号", { exact: true }).fill(code);
+    await page.locator("#item-name").fill("原生浏览器验收物品");
     await page
-      .getByLabel("物品名称", { exact: true })
-      .fill("原生浏览器验收物品");
-    await page
-      .getByRole("combobox", { name: "分类（可选）", exact: true })
+      .getByRole("combobox", { name: "分类", exact: true })
       .fill(category.name);
     await page
-      .getByRole("listbox", { name: "分类（可选）", exact: true })
+      .getByRole("listbox", { name: "分类", exact: true })
       .getByRole("option")
       .first()
       .click();
-    await page
-      .getByLabel("条码（每行一个，可选）", { exact: true })
-      .fill(`${code}-A\n${code}-B`);
+    await page.getByLabel("条码", { exact: true }).fill(`${code}-A\n${code}-B`);
     const saved = page.waitForResponse(
       (response) =>
         response.url().endsWith("temple_inventory.catalog.save_item") &&
@@ -159,9 +160,7 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
     } finally {
       await guest.close();
     }
-    await page
-      .getByLabel("物品名称", { exact: true })
-      .fill("原生浏览器验收物品已编辑");
+    await page.locator("#item-name").fill("原生浏览器验收物品已编辑");
     await page.getByRole("button", { name: "保存物品", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/stock/items/${code}$`));
     await page.reload();
@@ -187,7 +186,12 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
   } finally {
     if (created) {
       test.setTimeout(test.info().timeout + 30000);
-      await removeNative(page.request, "Item", code);
+      const current = await operationItem(page.request, code);
+      if (current)
+        await call(page.request, "catalog.delete_item", {
+          item_code: code,
+          version: current.version,
+        });
     }
   }
 });
@@ -199,10 +203,10 @@ test("real Activity editor retains immutable identity across rename, archive and
   let name = "";
   try {
     await page.goto("/inventory/activities/new");
-    await page.getByLabel("名称 *", { exact: true }).fill(title);
-    await page.getByRole("combobox", { name: "类型 *", exact: true }).click();
+    await page.getByRole("textbox", { name: "名称", exact: true }).fill(title);
+    await page.getByRole("combobox", { name: "类型", exact: true }).click();
     await page
-      .getByRole("listbox", { name: "类型 *", exact: true })
+      .getByRole("listbox", { name: "类型", exact: true })
       .getByRole("option")
       .first()
       .click();
@@ -219,7 +223,9 @@ test("real Activity editor retains immutable identity across rename, archive and
     expect(name).toBeTruthy();
     await expect(page).toHaveURL(new RegExp(`/activities/${name}$`));
     await page.getByRole("button", { name: "编辑", exact: true }).click();
-    await page.getByLabel("名称 *", { exact: true }).fill(`${title}-修改`);
+    await page
+      .getByRole("textbox", { name: "名称", exact: true })
+      .fill(`${title}-修改`);
     await page.getByRole("button", { name: "保存活动", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       `${title}-修改`,
@@ -265,7 +271,9 @@ test("real location editor creates an area and renames it with a short name", as
       .first()
       .click();
     const dialog = page.getByRole("dialog");
-    await dialog.getByLabel("名称", { exact: true }).fill(label);
+    await dialog
+      .getByRole("textbox", { name: "名称", exact: true })
+      .fill(label);
     const created = page.waitForResponse((response) =>
       response.url().endsWith("temple_inventory.warehouses.create_location"),
     );
@@ -290,8 +298,12 @@ test("real location editor creates an area and renames it with a short name", as
       .getByRole("button", { name: "更多位置操作", exact: true })
       .click();
     await page.getByRole("menuitem", { name: "重命名", exact: true }).click();
-    await dialog.getByLabel("名称", { exact: true }).fill(`${label}-修改`);
-    await dialog.getByLabel("简称（可选）", { exact: true }).fill(short);
+    await dialog
+      .getByRole("textbox", { name: "名称", exact: true })
+      .fill(`${label}-修改`);
+    await dialog
+      .getByRole("textbox", { name: "简称", exact: true })
+      .fill(short);
     await dialog
       .getByRole("button", { name: "保存仓库资料", exact: true })
       .click();
@@ -810,6 +822,295 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
           name,
           version: current.version,
         });
+    }
+  }
+});
+
+test("real movement editor writes batch receipts, existing-batch outbound flows, loans and returns", async ({
+  page,
+}) => {
+  test.setTimeout(300000);
+  const bootstrap = await call(page.request, "browse.bootstrap");
+  const physical = bootstrap.physical_leaves as string[];
+  const leased = bootstrap.leased_leaves as string[];
+  expect(physical.length).toBeGreaterThan(1);
+  expect(leased).toHaveLength(1);
+  const source = physical[0]!;
+  const target = physical.find((warehouse) => warehouse !== source)!;
+  const manufacturingDate = String(bootstrap.site_date || "2026-01-01");
+  const warehouseLabel = (name: string) =>
+    bootstrap.warehouses.find((row: any) => row.name === name)?.label || name;
+  async function chooseWarehouse(combobox: Locator, warehouse: string) {
+    const label = warehouseLabel(warehouse);
+    await combobox.fill(label);
+    await page.getByRole("option").filter({ hasText: label }).first().click();
+  }
+  const token = crypto.randomUUID().replaceAll("-", "").slice(0, 10);
+  const code = `TI-T4-MOVE-${token}`;
+  const unit = `T4-Box-${token}`;
+  const borrower = `T4 borrower ${token}`;
+  const item = await call(page.request, "catalog.save_item", {
+    data: {
+      item_code: code,
+      item_name: `T4 batch movement ${token}`,
+      stock_uom: "Nos",
+      has_batch_no: 1,
+      has_expiry_date: 1,
+    },
+  });
+  expect(item.item_code).toBe(code);
+  await call(page.request, "catalog.create_uom", {
+    label: unit,
+    must_be_whole_number: true,
+  });
+  const submitted: string[] = [];
+  const drafts = new Set<string>();
+  const generatedBatches = new Set<string>();
+  const editorUrl = (kind: string) => {
+    const query = new URLSearchParams({
+      warehouse: source,
+      items: JSON.stringify([code]),
+    });
+    return `/inventory/movements/new/${kind}?${query}`;
+  };
+  async function saveDraft(expectedBatchDate?: {
+    batch: string;
+    localId: string;
+    expiry: string;
+  }) {
+    await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+    await expect(page).toHaveURL(/\/inventory\/movements\/MAT-STE-/);
+    const name = decodeURIComponent(
+      new URL(page.url()).pathname.split("/").at(-1)!,
+    );
+    await expect
+      .poll(
+        async () => {
+          if (expectedBatchDate) {
+            const updated = await call(
+              page.request,
+              "catalog.receipt_batches",
+              {
+                rows: [
+                  {
+                    item_code: code,
+                    batch_id: expectedBatchDate.batch,
+                    local_id: expectedBatchDate.localId,
+                    manufacturing_date: manufacturingDate,
+                    expiry_date: expectedBatchDate.expiry,
+                  },
+                ],
+              },
+            );
+            return String(updated.batches[0]?.expiry_date || "").slice(0, 10);
+          }
+          const doc = await call(page.request, "native_api.load_document", {
+            doctype: "Stock Entry",
+            name,
+          });
+          return doc.docstatus;
+        },
+        { timeout: 30000, intervals: [200, 500, 1000] },
+      )
+      .toBe(expectedBatchDate?.expiry || 0);
+    const result = await call(page.request, "native_api.load_document", {
+      doctype: "Stock Entry",
+      name,
+    });
+    drafts.add(name);
+    return result;
+  }
+  async function submitCurrent() {
+    const submittedResponse = page.waitForResponse((response) =>
+      response.url().endsWith("temple_inventory.native_api.submit_document"),
+    );
+    await page.getByRole("button", { name: "复核并确认", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "确认提交", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "确认提交", exact: true }).click();
+    const response = await submittedResponse;
+    expect(response.ok()).toBe(true);
+    const result = (await response.json()).message;
+    expect(result.docstatus).toBe(1);
+    submitted.push(result.name);
+    return result;
+  }
+  async function pickBatch(card: Locator, batch: string) {
+    const selector = card.getByRole("combobox", { name: "现有批次" });
+    await selector.fill(batch);
+    await page.getByRole("option").filter({ hasText: batch }).first().click();
+  }
+  try {
+    await page.goto(editorUrl("Receive"));
+    const card = page.locator(".allocation-card").filter({ hasText: code });
+    await expect(card).toHaveCount(1);
+    const destination = page.getByRole("combobox", { name: "入库位置" });
+    await chooseWarehouse(destination, source);
+
+    const unitSelect = card.getByRole("combobox", { name: "单位" });
+    await unitSelect.fill("设置换算");
+    await page.getByRole("option", { name: "设置换算…", exact: true }).click();
+    const conversion = page.getByRole("dialog").last();
+    const conversionUnit = conversion.getByRole("combobox", {
+      name: "输入单位",
+    });
+    await conversionUnit.fill(unit);
+    await page.getByRole("option", { name: unit, exact: true }).click();
+    await expect(conversion.getByText(`1 ${unit} =`)).toBeVisible();
+    await conversion.locator('[data-field="conversionFactor"]').fill("5");
+    await conversion.getByRole("button", { name: "应用换算" }).click();
+    await expect(card.locator('input[data-field="qty"]').first()).toBeFocused();
+
+    await card.getByRole("button", { name: "+ 添加批次" }).click();
+    const rows = card.locator(".batch-subrow:not(.batch-subrow--header)");
+    await expect(rows).toHaveCount(2);
+    for (const [index, quantity] of ["1", "2"].entries()) {
+      const row = rows.nth(index);
+      await row.locator('input[data-field="batch"]').fill("");
+      await row.locator('input[data-field="qty"]').fill(quantity);
+      await row
+        .locator('input[data-field="manufacturingDate"]')
+        .fill(manufacturingDate);
+      await row.locator('input[data-field="expiry"]').fill("2099-04-01");
+    }
+    let draft = await saveDraft();
+    const receiveName = draft.name as string;
+    const received = await call(page.request, "native_api.load_document", {
+      doctype: "Stock Entry",
+      name: receiveName,
+    });
+    expect(received.items).toHaveLength(2);
+    const batchIds = received.items.map((line: any) => line.batch_no as string);
+    for (const batch of batchIds) generatedBatches.add(batch);
+    expect(batchIds.every(Boolean)).toBe(true);
+    expect(new Set(batchIds).size).toBe(2);
+    const visibleBatchIds = await rows
+      .locator('input[data-field="batch"]')
+      .evaluateAll((inputs) =>
+        inputs.map((input) => (input as HTMLInputElement).value),
+      );
+    expect([...visibleBatchIds].sort()).toEqual([...batchIds].sort());
+
+    const generatedBatchRow = rows.nth(visibleBatchIds.indexOf(batchIds[0]!));
+    await generatedBatchRow
+      .locator('input[data-field="expiry"]')
+      .fill("2099-05-01");
+    draft = await saveDraft({
+      batch: batchIds[0]!,
+      localId: String(received.items[0]!.name),
+      expiry: "2099-05-01",
+    });
+    expect(draft.name).toBe(receiveName);
+    const receiveDoc = await submitCurrent();
+    expect(receiveDoc.items).toHaveLength(2);
+
+    await page.goto(editorUrl("Issue"));
+    const issueCard = page
+      .locator(".allocation-card")
+      .filter({ hasText: code });
+    await expect(issueCard).toBeVisible();
+    await pickBatch(issueCard, batchIds[0]!);
+    await issueCard.locator('input[data-field="qty"]').fill("2");
+    await submitCurrent();
+
+    await page.goto(editorUrl("Transfer"));
+    const transferCard = page
+      .locator(".allocation-card")
+      .filter({ hasText: code });
+    await expect(transferCard).toBeVisible();
+    const transferDestination = page.getByRole("combobox", {
+      name: "调入位置",
+    });
+    await chooseWarehouse(transferDestination, target);
+    await chooseWarehouse(
+      transferCard.getByRole("combobox", { name: "到" }),
+      target,
+    );
+    await pickBatch(transferCard, batchIds[1]!);
+    await transferCard.locator('input[data-field="qty"]').fill("1");
+    await submitCurrent();
+
+    await page.goto(editorUrl("Loan"));
+    const loanCard = page.locator(".allocation-card").filter({ hasText: code });
+    await expect(loanCard).toBeVisible();
+    await page.getByLabel("借用人 / 团体").fill(borrower);
+    await pickBatch(loanCard, batchIds[1]!);
+    await loanCard.locator('input[data-field="qty"]').fill("1");
+    const loanDoc = await submitCurrent();
+
+    await page.goto("/inventory/movements/new/Return");
+    await page.getByRole("searchbox", { name: /未结清借用方/ }).fill(borrower);
+    await expect(
+      page
+        .locator(".outstanding-borrower-toggle")
+        .filter({ hasText: borrower }),
+    ).toBeVisible();
+    await page
+      .locator(".outstanding-borrower-toggle")
+      .filter({ hasText: borrower })
+      .click();
+    const outstandingLoan = page
+      .locator(".outstanding-loan-card")
+      .filter({ hasText: loanDoc.name });
+    await expect(outstandingLoan).toBeVisible();
+    await outstandingLoan
+      .getByRole("button", { name: "加入", exact: true })
+      .click();
+    const returnCard = page
+      .locator(".allocation-card")
+      .filter({ hasText: code });
+    await expect(returnCard).toBeVisible();
+    await submitCurrent();
+  } finally {
+    for (const name of submitted.reverse()) {
+      try {
+        const current = await call(page.request, "native_api.load_document", {
+          doctype: "Stock Entry",
+          name,
+        });
+        if (current.docstatus === 1)
+          await call(page.request, "native_api.cancel_document", {
+            doctype: "Stock Entry",
+            name,
+            version: current.version,
+          });
+      } catch {
+        // Preserve the original acceptance failure if cleanup is blocked by a stock dependency.
+      }
+    }
+    for (const name of drafts) {
+      try {
+        const current = await call(page.request, "native_api.load_document", {
+          doctype: "Stock Entry",
+          name,
+        });
+        if (current.docstatus === 0)
+          await call(page.request, "native_api.delete_document", {
+            doctype: "Stock Entry",
+            name,
+            version: current.version,
+          });
+      } catch {
+        // A submitted or blocked draft is retained for inspection.
+      }
+    }
+    for (const name of generatedBatches) {
+      try {
+        await removeNative(page.request, "Batch", name);
+      } catch {
+        // Keep cleanup best-effort so the acceptance failure remains visible.
+      }
+    }
+    for (const [doctype, name] of [
+      ["Item", code],
+      ["UOM", unit],
+    ] as const) {
+      try {
+        await removeNative(page.request, doctype, name);
+      } catch {
+        // Keep cleanup best-effort so the acceptance failure remains visible.
+      }
     }
   }
 });

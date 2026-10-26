@@ -166,10 +166,26 @@
 	background: var(--p-danger-bg);
 	color: var(--p-danger);
 }
-.form-field { display: grid; gap: var(--p-field-gap); min-width: 0; }
-.form-field-required { color: var(--p-danger); margin-inline-start: 4px; }
-.form-field-error { margin: 0; }
-.form-error-summary ul { margin: var(--p-space-2) 0 0; padding-inline-start: 1.25rem; }
+.form-field {
+	display: grid;
+	gap: var(--p-field-gap);
+	min-width: 0;
+}
+.form-field-required {
+	color: var(--p-danger);
+	margin-inline-start: 4px;
+}
+.form-field-error {
+	margin: 0;
+	padding: 0;
+	background: none;
+	font-size: 0.875em;
+	line-height: 1.4;
+}
+.form-error-summary ul {
+	margin: var(--p-space-2) 0 0;
+	padding-inline-start: 1.25rem;
+}
 .preview-utility-page .more-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--p-card-min-width)), 1fr));
@@ -212,9 +228,14 @@
 	background: var(--p-soft);
 	color: var(--p-accent);
 }
-.preview-utility-page .more-card > span { grid-row: auto; align-self: auto; }
+.preview-utility-page .more-card > span {
+	grid-row: auto;
+	align-self: auto;
+}
 .preview-utility-page .more-card > strong,
-.preview-utility-page .more-card > small { grid-column: auto; }
+.preview-utility-page .more-card > small {
+	grid-column: auto;
+}
 @media (min-width: 1024px) and (pointer: fine) {
 	.preview-utility-page .more-card {
 		min-height: 72px;
@@ -225,9 +246,14 @@
 		row-gap: 2px;
 		padding: var(--p-card-inner-pad, var(--p-card-pad));
 	}
-	.preview-utility-page .more-card > span { grid-row: 1 / span 2; align-self: center; }
+	.preview-utility-page .more-card > span {
+		grid-row: 1 / span 2;
+		align-self: center;
+	}
 	.preview-utility-page .more-card > strong,
-	.preview-utility-page .more-card > small { grid-column: 2; }
+	.preview-utility-page .more-card > small {
+		grid-column: 2;
+	}
 }
 .notification-center {
 	position: relative;
@@ -246,7 +272,9 @@
 	cursor: pointer;
 }
 @media (hover: hover) {
-	.notification-trigger:hover { background: var(--p-canvas); }
+	.notification-trigger:hover {
+		background: var(--p-canvas);
+	}
 }
 .notification-trigger:focus-visible {
 	outline: 2px solid var(--p-accent);
@@ -504,7 +532,9 @@
 	background: var(--p-accent);
 }
 .notification-switch-row input.is-off,
-.notification-switch-row input:not(:checked) { background: var(--p-switch-off); }
+.notification-switch-row input:not(:checked) {
+	background: var(--p-switch-off);
+}
 .notification-switch-row input:checked::before {
 	transform: translateX(18px);
 }
