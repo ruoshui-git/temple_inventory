@@ -203,7 +203,7 @@ describe("native expiry browser", () => {
     ).toContain("Nos");
     await quantityHeader.trigger("click");
     expect(wrapper.find('th[aria-sort="ascending"] button').text()).toContain(
-      "↑库存数量",
+      "库存数量↑",
     );
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,

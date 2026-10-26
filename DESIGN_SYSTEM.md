@@ -27,6 +27,8 @@ kept in Git.
 - DataTable keeps the settings-column width and sticky position fixed at both
   overflow edges; hint buttons fade instead of unmounting and edge state uses
   hysteresis. Cell chips truncate with an ellipsis and a title.
+  Sortable headers put the sort icon after the label in every column; a
+  right-aligned column ends with the icon at its edge.
 - `taskEditor` routes hide the phone bottom navigation. `useVirtualKeyboard`
   tracks the on-screen keyboard, keeps the focused field visible and hides
   sticky action bars while typing. Landscape phones use compact browse chrome;

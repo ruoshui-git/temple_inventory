@@ -640,31 +640,14 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:aria-label="`${column.label}排序${sortBy === String(column.sortField || column.id) ? (sortDirection === 'asc' ? '：升序' : '：降序') : '：未排序'}`"
 									@click="emit('sort', String(column.sortField || column.id))"
 								>
-									<span
-										v-if="dataColumnAlignment(column) === 'end'"
-										class="data-table-sort-indicator"
-										aria-hidden="true"
-										>{{
-											sortBy === String(column.sortField || column.id)
-												? sortDirection === "asc"
-													? "↑"
-													: "↓"
-												: "↕"
-										}}</span
-									>
 									<span class="data-table-sort-label">{{ column.label }}</span>
-									<span
-										v-if="dataColumnAlignment(column) !== 'end'"
-										class="data-table-sort-indicator"
-										aria-hidden="true"
-										>{{
-											sortBy === String(column.sortField || column.id)
-												? sortDirection === "asc"
-													? "↑"
-													: "↓"
-												: "↕"
-										}}</span
-									>
+									<span class="data-table-sort-indicator" aria-hidden="true">{{
+										sortBy === String(column.sortField || column.id)
+											? sortDirection === "asc"
+												? "↑"
+												: "↓"
+											: "↕"
+									}}</span>
 								</button>
 								<template v-else>{{ column.label }}</template>
 							</th>

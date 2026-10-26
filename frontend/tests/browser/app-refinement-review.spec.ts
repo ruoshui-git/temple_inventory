@@ -520,11 +520,16 @@ test("expiry date header toggles its own sort direction", async ({ page }) => {
   expect(quantityLabel).not.toBeNull();
   expect(quantityIndicator).not.toBeNull();
   expect(quantityCell).not.toBeNull();
-  expect(quantityIndicator!.x).toBeLessThan(quantityLabel!.x);
+  expect(
+    quantityIndicator!.x - (quantityLabel!.x + quantityLabel!.width),
+  ).toBeGreaterThanOrEqual(0);
+  expect(
+    quantityIndicator!.x - (quantityLabel!.x + quantityLabel!.width),
+  ).toBeLessThan(10);
   expect(
     quantityCell!.x +
       quantityCell!.width -
-      (quantityLabel!.x + quantityLabel!.width),
+      (quantityIndicator!.x + quantityIndicator!.width),
   ).toBeLessThan(18);
 
   const dateHeader = page.getByRole("columnheader", { name: /效期/ });
