@@ -29,7 +29,7 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 						物品历史记录范围
 						<small>{{ historyScope === "all" ? "全部相关记录" : "未结清借用" }}</small>
 					</summary>
-					<div class="browse-tabs" role="group" aria-label="物品历史记录范围">
+					<div class="segmented" role="group" aria-label="物品历史记录范围">
 						<UiButton
 							v-for="[value, label] in [
 								['outstanding', '未结清借用'],

@@ -7,6 +7,7 @@ import { useFilterRailPreference } from "../../composables/useFilterRailPreferen
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { siteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
+import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import QuickExport from "../../components/QuickExport.vue";
@@ -162,6 +163,15 @@ function setGroup(index: number, value: string) {
 					ref="quickExport"
 					:query="query"
 					:active="active"
+					:preview="false"
+					:matched-count="result.total"
+					:tables="
+						result.tables.map((table) => ({
+							id: table.id,
+							label: table.label,
+							count: table.total,
+						}))
+					"
 					:show-open-report="false"
 					:show-trigger="false"
 				/>
@@ -630,8 +640,8 @@ function setGroup(index: number, value: string) {
 						<i v-for="column in 6" :key="column" />
 					</div>
 				</div>
-				<p v-if="result.stale && !result.loading" role="status">上次结果 · 尚未更新</p>
-				<p v-if="result.error" role="alert">
+				<BrowseRefreshNotice :show="result.refreshFailed" :retry="() => refresh(true)" />
+				<p v-if="result.error && !result.refreshFailed" role="alert">
 					{{ result.error }} <UiButton @click="refresh(true)">重试读取</UiButton>
 				</p>
 				<ReportTable
@@ -665,7 +675,7 @@ function setGroup(index: number, value: string) {
 					v-if="result.tables.some((row) => row.id !== result.main)"
 					class="muted report-supplementary-note"
 				>
-					打开下方补充表可查看更多明细；导出时可在导出窗口中选择要包含的工作表。
+					打开下方补充表可查看更多明细；导出对话框可选择要包含的工作表。
 				</p>
 				<details
 					v-for="table in result.tables.filter((row) => row.id !== result.main)"
@@ -701,7 +711,7 @@ function setGroup(index: number, value: string) {
 			</p>
 			<p>
 				物品编号和名称会同时显示。盘点数量留空表示未核对；不同状态分别统计，调拨不会重复计算。CSV
-				导出每次包含一张表；Excel 导出会包含相关汇总和明细表。仅包含你有权查看的数据。
+				导出每次包含一张表；XLSX 可选择工作表和相关资料表。仅包含你有权查看的数据。
 			</p>
 		</details>
 	</section>

@@ -214,29 +214,29 @@ export function useNativeWarehouses(
   const visibleRows = computed(() => {
     const rows = tree.value?.rows || [],
       term = search.value.trim().toLocaleLowerCase();
+    const matches = term
+      ? rows.filter((row) =>
+          `${row.search_text} ${row.full_label}`
+            .toLocaleLowerCase()
+            .includes(term),
+        )
+      : [];
     return rows
-      .filter((row) => !row.direct && row.name !== tree.value?.physical_root)
+      .filter((row) => !row.direct)
       .filter((row) => {
         const ancestors = rows.filter(
-          (parent) =>
-            inside(row, parent) &&
-            !parent.direct &&
-            parent.name !== tree.value?.physical_root,
+          (parent) => inside(row, parent) && !parent.direct,
         );
         if (term)
-          return `${row.search_text} ${row.full_label}`
-            .toLocaleLowerCase()
-            .includes(term);
+          return matches.some(
+            (match) => match.name === row.name || inside(match, row),
+          );
         return ancestors.every((parent) => expanded.value.has(parent.name));
       })
       .map((row) => ({
         ...row,
-        depth: rows.filter(
-          (parent) =>
-            inside(row, parent) &&
-            !parent.direct &&
-            parent.name !== tree.value?.physical_root,
-        ).length,
+        depth: rows.filter((parent) => inside(row, parent) && !parent.direct)
+          .length,
       }));
   });
   function retain() {

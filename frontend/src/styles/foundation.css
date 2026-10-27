@@ -1681,10 +1681,15 @@ strong {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+	line-height: 1.25;
 	text-align: left;
 	color: var(--p-accent);
 	background: var(--p-soft);
 	font-size: var(--p-small);
+}
+.detail-popover-trigger > svg {
+	display: block;
+	flex: 0 0 auto;
 }
 .detail-popover-content {
 	position: fixed;

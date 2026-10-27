@@ -22,7 +22,7 @@ describe("AsyncRegion", () => {
     expect(wrapper.text()).not.toContain("result");
   });
 
-  it("retains, dims and inerts initialized content during refresh", () => {
+  it("dims pending results and restores them after a failed refresh", async () => {
     const wrapper = mount(AsyncRegion, {
       props: {
         loading: true,
@@ -41,6 +41,13 @@ describe("AsyncRegion", () => {
     ).toBeDefined();
     expect(wrapper.get('[role="status"]').text()).toBe("刷新库存");
     expect(wrapper.text()).toContain("result action");
+    await wrapper.setProps({ loading: false, stale: false, error: "读取失败" });
+    expect(wrapper.get(".async-result-region").classes()).not.toContain(
+      "is-refreshing",
+    );
+    expect(wrapper.get(".async-result-region").attributes("inert")).toBe(
+      undefined,
+    );
   });
 
   it("does not show a skeleton after an initial request fails", () => {

@@ -393,6 +393,9 @@
 	border-bottom: 1px solid var(--p-border);
 	vertical-align: middle;
 }
+.data-table-scroll tbody td {
+	vertical-align: middle;
+}
 @media (min-width: 1440px) {
 	.data-table-scroll:has(table.browse-table) {
 		--p-table-cell-x: 10px;
@@ -484,10 +487,25 @@
 	white-space: nowrap;
 	vertical-align: middle;
 }
-.data-table-scroll td:is(.data-column-chip, .data-column-text) > :first-child,
-.data-table-scroll td.data-column-chip .detail-popover-trigger {
+.data-table-scroll td.data-column-chip > :first-child {
+	/* Keep the component's own layout (often inline-flex) intact. The 1% column
+	   stays content-sized while only the component's label is clipped below. */
+	width: max-content;
+	max-width: 220px;
+	min-width: 0;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll td
+	:is(.record-ref-chip, .detail-popover-trigger, .location-endpoint, .browse-badge, .browse-active-chip) {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	white-space: nowrap;
+}
+.data-table-scroll td.data-column-text > :first-child {
+	/* Plain text cells have no internal label span to clamp. */
 	display: inline-block;
-	/* overflow: hidden alone would let the 1% column collapse to zero */
 	width: max-content;
 	max-width: 220px;
 	min-width: 0;
@@ -495,6 +513,109 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	vertical-align: middle;
+}
+.data-table-scroll td.data-column-text > :first-child:is(
+		.record-ref-chip,
+		.location-endpoint,
+		.browse-badge,
+		.browse-active-chip,
+		.stock-detail-chips,
+		.detail-popover
+	) {
+	display: inline-flex;
+	width: max-content;
+	max-width: 220px;
+	min-width: 0;
+	overflow: visible;
+	align-items: center;
+	flex-wrap: nowrap;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll td .browse-badge {
+	max-width: 220px;
+	align-items: center;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll td .location-endpoint {
+	max-width: 220px;
+	align-items: center;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll td .location-endpoint > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.data-table-scroll td .record-ref-chip {
+	width: max-content;
+	max-width: 220px;
+	align-items: center;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll td .record-ref-chip > svg {
+	display: block;
+	flex: 0 0 auto;
+}
+.data-table-scroll td .record-ref-main {
+	flex: 0 1 auto;
+	max-width: 100%;
+	min-width: 0;
+	align-items: center;
+}
+.data-table-scroll td .record-ref-main > span {
+	display: block;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.data-table-scroll td .stock-detail-chips {
+	flex-wrap: nowrap;
+	width: max-content;
+	max-width: 220px;
+	min-width: 0;
+}
+.data-table-scroll td .stock-detail-chips > .detail-popover {
+	display: inline-flex;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+.data-table-scroll td .detail-popover-trigger {
+	width: max-content;
+	max-width: 220px;
+	min-width: 0;
+	white-space: nowrap;
+}
+.data-table-scroll td .detail-popover-trigger > svg {
+	display: block;
+	flex: 0 0 auto;
+}
+.data-table-scroll td .stock-detail-trigger-label {
+	display: block;
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.data-table-scroll td .browse-active-chip {
+	width: max-content;
+	max-width: 220px;
+	min-width: 0;
+	white-space: nowrap;
+}
+.data-table-scroll td .browse-active-chip-label {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+.data-table-scroll td .browse-active-chip-label svg {
+	flex: 0 0 auto;
 }
 .data-table-scroll :is(th, td).data-column-actions {
 	min-width: max-content;
@@ -504,6 +625,9 @@
 	min-width: max-content;
 	flex-wrap: nowrap;
 	white-space: nowrap;
+}
+.data-table-scroll td.data-column-actions .stock-row-actions {
+	opacity: 1;
 }
 .data-table-scroll td.data-column-actions :is(button, .ui-button) {
 	flex: none;
@@ -515,12 +639,6 @@
 .data-table-scroll td:not(.data-column-primary, .data-column-actions) {
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-.data-table-scroll td:not(.data-column-primary, .data-column-actions) * {
-	max-width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap !important;
 }
 .data-table-scroll td.data-column-number {
 	font-variant-numeric: tabular-nums;

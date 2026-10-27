@@ -2,9 +2,15 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import {
+  browseDestination,
   browseStateDestination,
   documentDestination,
+  exportDestination,
 } from "../src/lib/nativeNavigation";
+import {
+  activityLoansTarget,
+  activityMovementTarget,
+} from "../src/features/activities/activityRoutes";
 import {
   breadcrumbsForRoute,
   browseRouteTarget,
@@ -223,6 +229,89 @@ describe("canonical application route registry", () => {
     expect(decodeReportQuery(reportTarget.query?.query).query).toEqual(
       historical,
     );
+  });
+
+  it("sanitizes route targets to the destination view contract", () => {
+    const loans = newReportQuery("movements");
+    loans.view = "records";
+    loans.groupBy = ["item"];
+    loans.scope.activity = "ACT-1";
+    loans.scope.kinds = ["Loan"];
+    loans.outstandingOnly = true;
+    loans.loanStatus = "outstanding";
+    const target = browseRouteTarget(loans);
+    const restored = restoreBrowseQueryPayload(
+      target.query?.query,
+      "movements",
+      target.query?.view,
+    );
+    const decoded = decodeReportQuery(restored, "movements");
+    expect(decoded.error).toBe("");
+    expect(decoded.query).toMatchObject({
+      dataset: "movements",
+      view: "records",
+      groupBy: [],
+      outstandingOnly: false,
+      loanStatus: "all",
+      scope: { activity: "ACT-1", kinds: ["Loan"] },
+    });
+  });
+
+  it("keeps every browse-link builder decodable against its target report contract", () => {
+    const movement = newReportQuery("movements");
+    movement.view = "records";
+    movement.groupBy = ["kind"];
+    movement.scope.activity = "ACT-1";
+    movement.scope.kinds = ["Loan"];
+    const loan = newReportQuery("loans");
+    loan.view = "records";
+    loan.groupBy = ["activity"];
+    loan.scope.activity = "ACT-1";
+    const stock = newReportQuery("inventory");
+    stock.search = "rice";
+    const damaged = newReportQuery("inventory");
+    damaged.damageOnly = true;
+    damaged.scope.warehouses = ["WH-1"];
+    const expiry = newReportQuery("expiry");
+    expiry.expiryWindow = "expired";
+    const counts = newReportQuery("counts");
+    counts.view = "records";
+    const targets = [
+      browseRouteTarget(movement),
+      browseDestination(movement),
+      browseStateDestination("movements", "records", movement),
+      browseStateDestination("loans", "records", loan),
+      exportDestination(stock),
+      activityMovementTarget("ACT-1", "Loan"),
+      activityLoansTarget("ACT-1"),
+      browseRouteTarget(loan),
+      browseRouteTarget(damaged),
+      browseRouteTarget(expiry),
+      browseRouteTarget(counts),
+    ];
+    for (const target of targets) {
+      const name = String(target.name);
+      const dataset =
+        name === "stock" || name === "pending"
+          ? "inventory"
+          : name === "expiry"
+            ? "expiry"
+            : (name as "movements" | "loans" | "activities" | "counts");
+      expect(router.resolve(target).matched.length, `${name} route`).toBe(1);
+      const raw = target.query?.query;
+      const payload =
+        name === "reports"
+          ? raw
+          : restoreBrowseQueryPayload(raw, dataset, target.query?.view);
+      const decoded = decodeReportQuery(payload, dataset);
+      expect(decoded.error, `${name} browse link`).toBe("");
+      if (
+        target === targets[0] ||
+        target === targets[1] ||
+        target === targets[2]
+      )
+        expect(decoded.query.scope.activity).toBe("ACT-1");
+    }
   });
 
   it("builds route-owned breadcrumb context with one current non-link segment", () => {

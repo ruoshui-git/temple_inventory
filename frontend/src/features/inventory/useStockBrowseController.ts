@@ -83,6 +83,7 @@ export function useStockBrowseController(
     loading: true,
     error: "",
     moreError: "",
+    refreshFailed: false,
     summary: [] as ReportRow[],
     analysis: { category: [], location: [] } as InventoryPage["analysis"],
     snapshot: "",
@@ -155,6 +156,7 @@ export function useStockBrowseController(
       analysis: { category: [], location: [] },
       snapshot: "",
       stale: false,
+      refreshFailed: false,
     });
   }
   async function load(more = false, refresh = false) {
@@ -175,6 +177,7 @@ export function useStockBrowseController(
     loadingMore.value = more;
     data.error = "";
     data.moreError = "";
+    data.refreshFailed = false;
     if (!more) data.stale = data.rows.length > 0;
     try {
       const result = await services.call<InventoryPage>(
@@ -202,12 +205,17 @@ export function useStockBrowseController(
       data.analysis = result.analysis;
       data.snapshot = result.snapshot;
       data.stale = false;
+      data.refreshFailed = false;
     } catch (error) {
       if (current !== generation || reference.user !== account) return;
       if (isUnavailableError(error)) clearData();
       const message = error instanceof Error ? error.message : "库存加载失败";
       if (more) data.moreError = message;
-      else data.error = message;
+      else {
+        data.error = message;
+        data.stale = false;
+        data.refreshFailed = data.rows.length > 0;
+      }
     } finally {
       if (current === generation) {
         data.loading = false;

@@ -136,7 +136,7 @@ const batchPreferences =
 			:label="`${item.name}的库位与可用数量`"
 		>
 			<template #trigger
-				><InventoryIcon name="warehouse" />{{
+				><InventoryIcon name="warehouse" /><span class="stock-detail-trigger-label">{{
 					physicalLocations.length === 1
 						? warehouseLabel(
 								physicalLocations[0].location,
@@ -146,7 +146,7 @@ const batchPreferences =
 						: physicalLocations.length
 							? `${physicalLocations.length} 个库位`
 							: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
-				}}</template
+				}}</span></template
 			>
 			<strong>{{ item.name }}</strong>
 			<p class="muted">当前筛选范围 · 可用库存</p>

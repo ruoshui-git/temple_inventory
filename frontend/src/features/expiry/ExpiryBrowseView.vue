@@ -94,6 +94,12 @@ function expiryStatus(row: ReportRow) {
 		return { label: "即将到期", tone: "is-warning" };
 	return { label: "未过期", tone: "is-success" };
 }
+function expiryCount(facet: string) {
+	return result.facets[facet] ?? "…";
+}
+function expiryRemaining(days: number) {
+	return days < 0 ? `过期${Math.abs(days)}天` : days === 0 ? "今天到期" : `剩${days}天`;
+}
 const analysisTable = computed(() => ({
 	id: "expiry-analysis",
 	label: "分析当前结果",
@@ -254,7 +260,30 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			:filter-count="c.scopeChips.value.length + chips.filter((chip) => !chip.fixed).length"
 			scannable
 			@scan="scan?.show()"
-			><template #actions>
+		>
+			<template #persistent>
+				<nav
+					v-if="!isMobile"
+					class="browse-view-switch expiry-window-switch"
+					role="tablist"
+					aria-label="效期范围"
+					@keydown="expiryKey"
+				>
+					<button
+						v-for="[key, label, facet] in choices"
+						:key="key"
+						role="tab"
+						:data-expiry-choice="key"
+						:aria-selected="query.expiryWindow === key"
+						:tabindex="query.expiryWindow === key ? 0 : -1"
+						aria-controls="expiry-results-panel"
+						@click="query.expiryWindow = key"
+					>
+						{{ label }} <small>{{ expiryCount(facet) }}</small>
+					</button>
+				</nav>
+			</template>
+			<template #actions>
 				<BrowseOverflowMenu>
 					<QuickExport
 						v-if="!routeError"
@@ -292,30 +321,10 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				</div>
 			</template>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
-			<nav
-				v-if="!isMobile"
-				class="browse-tabs"
-				role="tablist"
-				aria-label="效期筛选"
-				@keydown="expiryKey"
-			>
-				<button
-					v-for="[key, label, facet] in choices"
-					:key="key"
-					role="tab"
-					:data-expiry-choice="key"
-					:aria-selected="query.expiryWindow === key"
-					:tabindex="query.expiryWindow === key ? 0 : -1"
-					aria-controls="expiry-results-panel"
-					@click="query.expiryWindow = key"
-				>
-					{{ label }} <small>{{ result.facets[facet] ?? "…" }}</small>
-				</button>
-			</nav>
 			<template #chips="{ editFilter }">
 				<nav
 					v-if="isMobile"
-					class="browse-tabs browse-expiry-window-tabs"
+					class="browse-view-switch browse-expiry-window-switch"
 					role="tablist"
 					aria-label="效期筛选"
 					@keydown="expiryKey"
@@ -330,7 +339,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						aria-controls="expiry-results-panel"
 						@click="query.expiryWindow = key"
 					>
-						{{ label }} {{ result.facets[facet] ?? "…" }}
+						<span>{{ label }}</span
+						><small>{{ expiryCount(facet) }}</small>
 					</button>
 				</nav>
 				<BrowseChip
@@ -487,9 +497,11 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							>
 								{{ expiryStatus(row as unknown as ReportRow).label }}
 							</span>
-							<small v-if="typeof row.remaining_days === 'number'">{{
-								formatExpiryDuration(row.remaining_days)
-							}}</small>
+							<small
+								v-if="typeof row.remaining_days === 'number'"
+								:title="formatExpiryDuration(row.remaining_days)"
+								>{{ expiryRemaining(row.remaining_days) }}</small
+							>
 						</div>
 					</article>
 				</div>
@@ -573,11 +585,13 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							"
 							>{{ row.expiry_date || "无效期" }}</span
 						>
-						<template v-else-if="column.id === 'remaining_days'">{{
-							typeof row.remaining_days === "number"
-								? formatExpiryDuration(row.remaining_days)
-								: ""
-						}}</template>
+						<template v-else-if="column.id === 'remaining_days'">
+							<span
+								v-if="typeof row.remaining_days === 'number'"
+								:title="formatExpiryDuration(row.remaining_days)"
+								>{{ expiryRemaining(row.remaining_days) }}</span
+							>
+						</template>
 						<template v-else-if="column.id === 'stock_qty'"
 							>{{ row.stock_qty
 							}}<span v-if="Number(row.loaned) > 0" class="browse-badge is-warning"

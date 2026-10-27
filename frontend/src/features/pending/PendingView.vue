@@ -20,6 +20,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import { kindIcons } from "../../lib/kindIcons";
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
@@ -145,21 +146,18 @@ watch([() => props.active, isMobile], () => {
 			variant="list"
 			:rows="5"
 		/>
-		<p
-			v-if="c.report.result.stale && c.report.result.error && !c.report.result.loading"
-			class="notice-bar warning"
-			role="status"
-		>
-			上次结果 · 尚未更新。
-		</p>
-		<p v-if="c.report.result.error" role="alert">
+		<BrowseRefreshNotice
+			:show="c.report.result.refreshFailed"
+			:retry="() => c.report.refresh(true)"
+		/>
+		<p v-if="c.report.result.error && !c.report.result.refreshFailed" role="alert">
 			{{ c.report.result.error }} <UiButton @click="c.report.refresh(true)">重试</UiButton>
 		</p>
 
 		<BrowseResultSummary
 			:label="`${c.report.result.total} 条存放明细`"
 			:metrics="metrics"
-			:loading="c.report.result.loading"
+			:loading="c.report.result.loading && !table?.initialized"
 		>
 			<template #controls>
 				<UiButton :disabled="!table?.initialized" @click="analysisOpen = true"

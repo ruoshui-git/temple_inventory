@@ -87,6 +87,21 @@ function setup(
   return { c, call, reference, props, changed, wrapper };
 }
 describe("native expiry browser", () => {
+  it("renders all expiry windows as one in-page segmented switch with counts", async () => {
+    const { wrapper } = setup(
+      vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),
+      reactive({}),
+      true,
+    );
+    await flushPromises();
+    const segmented = wrapper.find(".browse-expiry-window-switch");
+    expect(segmented.exists()).toBe(true);
+    expect(segmented.classes()).toContain("browse-view-switch");
+    expect(segmented.attributes("role")).toBe("tablist");
+    expect(segmented.findAll('[role="tab"]')).toHaveLength(4);
+    expect(segmented.text()).toContain("全部200");
+    expect(segmented.text()).toContain("无效期1");
+  });
   it("renders phone batch cards as identity, batch and unseparated expiry metadata", async () => {
     const { wrapper } = setup(
       vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),

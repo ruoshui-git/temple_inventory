@@ -13,6 +13,7 @@ import {
 } from "../src/features/movements/useOperationBrowse";
 import OperationBrowsePage from "../src/features/movements/OperationBrowsePage.vue";
 import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
+import { decodeReportQuery } from "../src/lib/reportQuery";
 import { createRecoveryStore } from "../src/lib/browserRecovery";
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
@@ -118,6 +119,11 @@ function setup(
       {
         path: "/items/:code",
         name: "item-detail",
+        component: defineComponent(() => () => h("div")),
+      },
+      {
+        path: "/drafts",
+        name: "drafts",
         component: defineComponent(() => () => h("div")),
       },
     ],
@@ -572,7 +578,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     const headers = wrapper.findAll("thead th");
     const statusIndex = headers.findIndex((header) =>
-      header.text().startsWith("状态"),
+      header.text().startsWith("当前结清状态"),
     );
     expect(statusIndex).toBeGreaterThanOrEqual(0);
     const status = wrapper
@@ -1187,7 +1193,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     expect(state.c.routeError.value).toBeTruthy();
     expect(malformed.mock.calls[0]?.[1].query).toMatchObject({
-      restrictItems: true,
+      restrictItems: false,
       itemCodes: [],
     });
   });
@@ -1263,8 +1269,8 @@ describe("native operation browsing", () => {
       }),
     );
     await flushPromises();
-    expect(c.query.value.sortBy).toBe("identity");
-    expect(c.query.value.sort).toBe("asc");
+    expect(c.query.value.sortBy).toBe("date");
+    expect(c.query.value.sort).toBe("desc");
     expect(c.query.value.scope).toEqual(query.scope);
   });
   it("clears editable filters while retaining route allocation scope and toolbar state", async () => {
@@ -1313,9 +1319,13 @@ describe("native operation browsing", () => {
       view: "records",
       restrictItems: true,
       itemCodes: ["ITEM-A"],
-      loan: "LOAN-EXACT",
+      loan: "",
+      groupBy: [],
+      sortBy: "date",
+      sort: "desc",
       scope: { kinds: ["Loan", "Return", "Damage", "Loss"] },
     });
+    expect(decodeReportQuery(c.loanHistory()).error).toBe("");
     c.clearFilters();
     expect(c.query.value.search).toBe("typed");
     expect(c.query.value.scope.period.key).toBe("all");

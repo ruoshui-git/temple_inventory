@@ -182,7 +182,11 @@ describe("scope and permission refresh boundaries", () => {
     );
     await flushPromises();
     expect(controller.routeError.value).toBeTruthy();
-    expect(service.report).not.toHaveBeenCalled();
+    expect(service.report).toHaveBeenCalledOnce();
+    expect(vi.mocked(service.report).mock.calls[0]?.[0]).toMatchObject({
+      dataset: "inventory",
+      view: "summary",
+    });
     expect(changed).not.toHaveBeenCalled();
     controller.clear();
     await flushPromises();
@@ -253,12 +257,14 @@ describe("native browse service controllers", () => {
 
     const refresh = controller.load(false, true);
     expect(controller.data.stale).toBe(true);
+    expect(controller.data.refreshFailed).toBe(false);
     expect(controller.status.value).toBe("refresh");
     expect(controller.data.rows.map((row) => row.code)).toEqual(["A", "B"]);
     refreshPending.reject(new Error("刷新失败"));
     await refresh;
     expect(controller.data.rows.map((row) => row.code)).toEqual(["A", "B"]);
-    expect(controller.data.stale).toBe(true);
+    expect(controller.data.stale).toBe(false);
+    expect(controller.data.refreshFailed).toBe(true);
     expect(controller.status.value).toBe("ready");
   });
   it("ignores late results and preserves restrictive-empty inherited scope when clearing filters", async () => {
@@ -323,6 +329,49 @@ describe("native browse service controllers", () => {
 });
 
 describe("background quick export", () => {
+  it("starts a compact export without requesting a preview", async () => {
+    const service = services();
+    vi.mocked(service.call).mockResolvedValue(job());
+    const child = defineComponent({
+      setup() {
+        provideInventoryServices(service, createReferenceData());
+        return () =>
+          h(QuickExport, {
+            query: query(),
+            preview: false,
+            matchedCount: 205,
+            tables: [
+              { id: "summary", label: "汇总", count: 205 },
+              { id: "locations", label: "位置明细", count: 410 },
+            ],
+          });
+      },
+    });
+    const wrapper = mount(child);
+    wrappers.push(wrapper);
+    await wrapper.get(".preview-quick-report").trigger("click");
+    await flushPromises();
+    expect(vi.mocked(service.report)).not.toHaveBeenCalled();
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    expect(dialog.textContent).toContain("205 条匹配结果");
+    expect(dialog.querySelector(".report-table")).toBeNull();
+    expect(dialog.textContent).not.toContain("预览表");
+    const checkboxes = dialog.querySelectorAll(
+      'fieldset input[type="checkbox"]',
+    );
+    expect(checkboxes).toHaveLength(2);
+    Array.from(dialog.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "开始导出")!
+      .click();
+    await flushPromises();
+    expect(vi.mocked(service.call)).toHaveBeenCalledWith(
+      "exports.request_export",
+      expect.objectContaining({
+        export_format: "xlsx",
+        tables: ["summary", "locations"],
+      }),
+    );
+  });
   it("shows stale preview feedback and related-sheet skeletons, then disables generation after a refresh error", async () => {
     const service = services();
     let reject!: (reason: Error) => void;

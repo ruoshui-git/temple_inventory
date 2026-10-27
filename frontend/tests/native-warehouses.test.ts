@@ -206,6 +206,7 @@ describe("native location workspace", () => {
     const { c } = setup();
     await flushPromises();
     expect(c.visibleRows.value.map((row) => row.name)).toEqual([
+      "ROOT",
       "AREA",
       "ROOM",
       "SHELF",
@@ -213,6 +214,11 @@ describe("native location workspace", () => {
       "LEASED",
       "DAMAGED",
     ]);
+    expect(c.visibleRows.value[0]?.depth).toBe(0);
+    expect(
+      c.visibleRows.value.find((row) => row.name === "ROOT")?.is_group,
+    ).toBe(true);
+    expect(c.selected.value?.name).toBe("ROOT");
     expect(
       c.visibleRows.value.find((row) => row.name === "ROOM")?.local_label,
     ).toBe("演示室甲");

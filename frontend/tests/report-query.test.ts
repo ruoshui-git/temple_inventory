@@ -31,7 +31,7 @@ describe("canonical routed report queries", () => {
         expect(result.query).toEqual(query);
       }
   });
-  it("rejects malformed nested scope without broadening it into all records", () => {
+  it("uses visible defaults after malformed links", () => {
     for (const value of [
       "{",
       { dataset: "__proto__" },
@@ -43,8 +43,8 @@ describe("canonical routed report queries", () => {
     ]) {
       const result = decodeReportQuery(value);
       expect(result.error).not.toBe("");
-      expect(result.query.restrictItems).toBe(true);
-      expect(result.query.itemCodes).toEqual([]);
+      expect(result.error).toBe("链接中的筛选条件无效，已显示默认结果");
+      expect(result.query).toEqual(newReportQuery());
     }
   });
   it("round trips independent category subtrees and direct root assignments", () => {

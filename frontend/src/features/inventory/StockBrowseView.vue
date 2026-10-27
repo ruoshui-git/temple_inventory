@@ -28,6 +28,7 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import type {
 	DataColumn,
@@ -391,7 +392,7 @@ watch([() => props.active, isMobile], () => {
 				v-if="data.snapshot"
 				:label="`${data.total} 种物品`"
 				:metrics="metrics"
-				:loading="status === 'refresh'"
+				:loading="false"
 			>
 				<template #controls>
 					<div class="segmented stock-view-icons" aria-label="库存显示方式">
@@ -429,6 +430,7 @@ watch([() => props.active, isMobile], () => {
 					>
 				</template>
 			</BrowseResultSummary>
+			<BrowseRefreshNotice :show="data.refreshFailed" :retry="() => load(false, true)" />
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
 				<aside v-if="filtersOpen && !isMobile" class="browse-filter-rail">
 					<div class="filter-rail-heading">
@@ -515,17 +517,6 @@ watch([() => props.active, isMobile], () => {
 						<UiButton @click="reset">显示全部物品</UiButton>
 					</div>
 					<template v-else>
-						<p
-							v-if="
-								status === 'refresh' &&
-								!quickReportQuery.groupBy.length &&
-								(isMobile || view === 'card')
-							"
-							class="notice-bar"
-							role="status"
-						>
-							<span class="sr-only" role="status">库存结果刷新中…</span>
-						</p>
 						<div
 							v-if="!quickReportQuery.groupBy.length && view === 'card'"
 							class="stock-grid"
@@ -745,7 +736,8 @@ watch([() => props.active, isMobile], () => {
 								>
 									<UiButton
 										v-if="reference.operations.Issue && isStockItemRow(row)"
-										variant="ghost"
+										variant="secondary"
+										:disabled="data.stale"
 										@click="stockRowAction(row, 'Issue')"
 										>出库</UiButton
 									>
@@ -893,10 +885,7 @@ watch([() => props.active, isMobile], () => {
 				<p class="muted">统计完整筛选结果；跨位置的物品数不可相加。</p>
 			</Overlay>
 			<footer class="result-footer">
-				<span v-if="data.stale && status !== 'refresh'" role="status"
-					>上次结果 · 尚未更新</span
-				>
-				<span v-if="data.error || data.moreError" role="alert"
+				<span v-if="(data.error && !data.refreshFailed) || data.moreError" role="alert"
 					>{{ data.error || data.moreError }}
 					<UiButton @click="load(!!data.moreError, true)">重试加载</UiButton></span
 				>

@@ -127,6 +127,7 @@ export function useOperationBrowse(
     snapshot: "",
     loading: false,
     error: "",
+    refreshFailed: false,
     stale: false,
     initialized: false,
   });
@@ -171,6 +172,7 @@ export function useOperationBrowse(
       totals: [],
       snapshot: "",
       loading: false,
+      refreshFailed: false,
       stale: false,
       initialized: false,
     });
@@ -202,10 +204,8 @@ export function useOperationBrowse(
     routeError.value = decoded?.error || "";
     const incoming = decoded?.query || defaults();
     if (incoming.dataset !== props.family) {
-      routeError.value = "数据范围与当前页面不一致，请返回来源页面";
-      incoming.restrictItems = true;
-      incoming.itemCodes = [];
-      incoming.dataset = props.family;
+      routeError.value = "链接中的筛选条件无效，已显示默认结果";
+      Object.assign(incoming, defaults());
     }
     incoming.view = props.records
       ? "records"
@@ -267,6 +267,7 @@ export function useOperationBrowse(
     retryMore = more;
     result.loading = true;
     result.error = "";
+    result.refreshFailed = false;
     if (!more) result.stale = result.initialized;
     const sent = JSON.parse(JSON.stringify(query.value));
     try {
@@ -295,6 +296,7 @@ export function useOperationBrowse(
       result.totals = page.totals;
       result.snapshot = page.snapshot;
       result.stale = false;
+      result.refreshFailed = false;
       result.initialized = true;
       if (!more) {
         Object.keys(details).forEach((key) => delete details[key]);
@@ -334,6 +336,8 @@ export function useOperationBrowse(
         if (isUnavailableError(reason)) clearUnavailable();
         result.error =
           reason instanceof Error ? reason.message : "读取失败，原结果仍保留";
+        result.refreshFailed = result.initialized;
+        result.stale = false;
       }
     } finally {
       requests.delete(request);
@@ -721,10 +725,17 @@ export function useOperationBrowse(
     return next;
   }
   function loanHistory() {
-    const value: ReportQuery = JSON.parse(JSON.stringify(query.value));
-    value.dataset = "movements";
-    value.scope.kinds = ["Loan", "Return", "Damage", "Loss"];
+    const source = query.value;
+    const value = newReportQuery("movements");
     value.view = "records";
+    value.scope = JSON.parse(JSON.stringify(source.scope));
+    value.search = source.search;
+    value.restrictItems = source.restrictItems;
+    value.itemCodes = [...source.itemCodes];
+    value.sort = "desc";
+    value.sortBy = "date";
+    value.statuses = [...source.statuses];
+    value.scope.kinds = ["Loan", "Return", "Damage", "Loss"];
     return value;
   }
   onBeforeUnmount(() => {

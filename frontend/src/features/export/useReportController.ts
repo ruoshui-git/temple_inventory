@@ -54,6 +54,7 @@ export function useReportController(
     total: 0,
     loading: false,
     error: "",
+    refreshFailed: false,
     stale: false,
     period: "",
   });
@@ -119,6 +120,7 @@ export function useReportController(
     requests.add(controller);
     result.loading = true;
     result.error = "";
+    result.refreshFailed = false;
     result.stale = result.tables.some((table) => table.rows.length > 0);
     try {
       const page = await services.report(
@@ -156,11 +158,16 @@ export function useReportController(
         ? `${page.period.date_from} 至 ${page.period.date_to}`
         : "全部时间";
       result.stale = false;
+      result.refreshFailed = false;
     } catch (error) {
       if (requestGeneration === generation && reference.user === account) {
         if (isUnavailableError(error)) clearUnavailable();
         result.error =
           error instanceof Error ? error.message : "读取导出数据失败";
+        result.refreshFailed = result.tables.some(
+          (table) => table.rows.length > 0,
+        );
+        result.stale = false;
       }
     } finally {
       requests.delete(controller);
@@ -312,7 +319,7 @@ export function useExportWorkspaceController(
     immediate: true,
   });
   const report = useReportController(query, {
-    enabled: computed(() => !routeError.value),
+    enabled: computed(() => true),
   });
   const viewName = ref(""),
     selectedPreset = ref("");

@@ -168,12 +168,9 @@ export function decodeReportQuery(
       throw new Error("历史数量余额需要有起止日期的范围");
     return { query, error: "" };
   } catch (reason) {
-    const query = newReportQuery(fallback);
-    query.restrictItems = true;
-    query.itemCodes = [];
     return {
-      query,
-      error: `链接中的筛选设置无效：${reason instanceof Error ? reason.message : "无法读取"}。请清除限制或重新选择范围。`,
+      query: newReportQuery(fallback),
+      error: "链接中的筛选条件无效，已显示默认结果",
     };
   }
 }

@@ -2995,28 +2995,30 @@
 	box-shadow: var(--p-shadow-menu);
 	color: var(--p-ink);
 }
-.browse-expiry-window-tabs {
-	flex: 0 0 auto;
-	align-items: center;
+.expiry-window-switch small {
+	font-variant-numeric: tabular-nums;
+	color: var(--p-muted);
+}
+.expiry-window-switch {
+	width: auto;
+}
+.browse-expiry-window-switch {
+	width: 100%;
 	gap: 2px;
 	margin: 0;
-	border: 0;
-	overflow-y: hidden;
 }
-.browse-expiry-window-tabs button {
-	min-height: 32px;
-	padding: 4px 7px;
-	border: 1px solid var(--p-border);
-	border-radius: 999px;
-	background: var(--p-surface);
-	color: var(--p-muted);
+.browse-expiry-window-switch button {
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 38px;
+	padding: 4px 5px;
+	gap: 3px;
 	font-size: var(--p-small);
-	white-space: nowrap;
 }
-.browse-expiry-window-tabs button[aria-selected="true"] {
-	border-color: var(--p-accent);
-	background: var(--p-soft);
-	color: var(--p-accent-strong);
+@media (max-width: 1023px) {
+	.browse-expiry-window-switch {
+		width: 100%;
+	}
 }
 .browse-filter-dense .hierarchy-facet .facet-chips {
 	flex-wrap: nowrap;

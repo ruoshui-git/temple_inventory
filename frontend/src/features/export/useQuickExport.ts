@@ -6,6 +6,12 @@ import {
 } from "../../services/contracts";
 import type { ReportQuery } from "../../lib/reportContract";
 
+export interface ExportTableChoice {
+  id: string;
+  label: string;
+  count: number;
+}
+
 const relatedTables = new Set([
   "files",
   "items",
@@ -16,7 +22,11 @@ const relatedTables = new Set([
 export const relatedSheetsHelp =
   "另加 物品资料、条码、物品常用换算、位置层级、私有附件引用 5 张工作表";
 
-export function useQuickExport(query: Ref<ReportQuery>) {
+export function useQuickExport(
+  query: Ref<ReportQuery>,
+  previewEnabled: () => boolean = () => true,
+  tableChoices: () => ExportTableChoice[] = () => [],
+) {
   const services = useInventoryServices();
   const open = ref(false),
     format = ref<"xlsx" | "csv">("xlsx"),
@@ -60,7 +70,7 @@ export function useQuickExport(query: Ref<ReportQuery>) {
     generating.value = false;
   }
   async function preview() {
-    if (!open.value || disposed) return;
+    if (!previewEnabled() || !open.value || disposed) return;
     const current = ++previewGeneration;
     previewRequest?.abort();
     previewRequest = new AbortController();
@@ -101,6 +111,25 @@ export function useQuickExport(query: Ref<ReportQuery>) {
       if (current === previewGeneration && !disposed) loading.value = false;
     }
   }
+  function syncTableChoices() {
+    if (previewEnabled() || page.value) return;
+    const choices = tableChoices();
+    const valid = new Set(choices.map((table) => table.id));
+    selectedSheets.value = selectedSheets.value.filter((id) => valid.has(id));
+    if (!selectedSheets.value.length)
+      selectedSheets.value = choices
+        .filter((table) => !relatedTables.has(table.id))
+        .map((table) => table.id);
+    if (!valid.has(selectedTable.value))
+      selectedTable.value = choices[0]?.id || "";
+    if (related.value)
+      for (const table of choices)
+        if (
+          relatedTables.has(table.id) &&
+          !selectedSheets.value.includes(table.id)
+        )
+          selectedSheets.value.push(table.id);
+  }
   async function status(current = jobGeneration) {
     if (!job.value || !open.value || disposed || current !== jobGeneration)
       return;
@@ -135,7 +164,9 @@ export function useQuickExport(query: Ref<ReportQuery>) {
     }
   }
   async function generate() {
-    if (generating.value || !page.value || disposed) return;
+    if (generating.value || (previewEnabled() && !page.value) || disposed)
+      return;
+    syncTableChoices();
     const current = ++jobGeneration;
     const chosenConfiguration = configuration.value;
     const failed =
@@ -159,7 +190,10 @@ export function useQuickExport(query: Ref<ReportQuery>) {
               format.value === "csv"
                 ? [selectedTable.value]
                 : selectedSheets.value.filter((id) =>
-                    page.value?.tables.some((table) => table.id === id),
+                    (previewEnabled()
+                      ? page.value?.tables || []
+                      : tableChoices()
+                    ).some((table) => table.id === id),
                   ),
             include_related: related.value,
           });
@@ -177,8 +211,10 @@ export function useQuickExport(query: Ref<ReportQuery>) {
     }
   }
   watch([selectedTable, related], () => {
-    void preview();
+    if (previewEnabled()) void preview();
+    else syncTableChoices();
   });
+  watch(tableChoices, syncTableChoices, { deep: true });
   watch(configuration, () => {
     if (jobConfiguration && jobConfiguration !== configuration.value)
       invalidateJob();
@@ -190,7 +226,8 @@ export function useQuickExport(query: Ref<ReportQuery>) {
       selectedTable.value = "";
       selectedSheets.value = [];
       page.value = undefined;
-      void preview();
+      if (previewEnabled()) void preview();
+      else syncTableChoices();
     },
   );
   watch(open, (value) => {
@@ -200,7 +237,8 @@ export function useQuickExport(query: Ref<ReportQuery>) {
       loading.value = false;
       stopPolling();
     } else {
-      void preview();
+      if (previewEnabled()) void preview();
+      else syncTableChoices();
       if (job.value) void status();
     }
   });
@@ -227,14 +265,17 @@ export function useQuickExport(query: Ref<ReportQuery>) {
     generate,
     canGenerate: computed(
       () =>
-        !!page.value &&
-        !loading.value &&
-        !error.value &&
+        (previewEnabled()
+          ? !!page.value && !loading.value && !error.value
+          : true) &&
         !generating.value &&
         (format.value === "csv"
           ? !!selectedTable.value
           : selectedSheets.value.some((id) =>
-              page.value?.tables.some((table) => table.id === id),
+              (previewEnabled()
+                ? page.value?.tables || []
+                : tableChoices()
+              ).some((table) => table.id === id),
             )),
     ),
   };

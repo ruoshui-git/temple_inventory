@@ -1,6 +1,10 @@
 import type { LocationQueryRaw, RouteRecordRaw } from "vue-router";
 import {
   newReportQuery,
+  groupsForView,
+  groupSequencesForView,
+  sortableColumnsForView,
+  reportDefinitions,
   type ReportQuery,
   type ReportDataset,
 } from "./reportContract";
@@ -504,19 +508,20 @@ export function nativeDocumentTarget(
 }
 
 export function browseRouteTarget(query: ReportQuery): AppRouteTarget {
-  if (query.dataset === "inventory" && query.view === "historical")
+  const target = sanitizeBrowseQuery(query);
+  if (target.dataset === "inventory" && target.view === "historical")
     return routeTarget(
       "reports",
       {},
-      { query: serializeReportRouteQuery(query) },
+      { query: serializeReportRouteQuery(target) },
     );
-  if (query.dataset === "inventory" && query.damageOnly) {
-    const encoded = serializeBrowseQuery(query);
+  if (target.dataset === "inventory" && target.damageOnly) {
+    const encoded = serializeBrowseQuery(target);
     return routeTarget(
       "pending",
       {},
       {
-        view: query.view,
+        view: target.view,
         ...(encoded ? { query: encoded } : {}),
       },
     );
@@ -529,20 +534,110 @@ export function browseRouteTarget(query: ReportQuery): AppRouteTarget {
     activities: "activities",
     counts: "counts",
   };
-  const name = names[query.dataset];
-  if (!name) throw new Error(`Unsupported browse dataset: ${query.dataset}`);
+  const name = names[target.dataset];
+  if (!name) throw new Error(`Unsupported browse dataset: ${target.dataset}`);
   const view =
-    query.dataset === "movements" || query.dataset === "loans"
-      ? query.view === "records"
+    target.dataset === "movements" || target.dataset === "loans"
+      ? target.view === "records"
         ? "records"
         : "items"
-      : query.view;
-  const encoded = serializeBrowseQuery(query);
+      : target.view;
+  const encoded = serializeBrowseQuery(target);
   return routeTarget(
     name,
     {},
     { view, ...(encoded ? { query: encoded } : {}) },
   );
+}
+
+/** Keep only fields and grouping choices accepted by the destination report view. */
+export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
+  const dataset = reportDefinitions[source.dataset]
+    ? source.dataset
+    : "inventory";
+  const definition = reportDefinitions[dataset];
+  const view = definition.views.some((option) => option.id === source.view)
+    ? source.view
+    : definition.views[0]!.id;
+  const target = newReportQuery(dataset);
+  target.view = view;
+  const allowedGroups = groupSequencesForView(dataset, view);
+  target.groupBy = allowedGroups.some(
+    (sequence) =>
+      sequence.length === source.groupBy.length &&
+      sequence.every((field, index) => field === source.groupBy[index]),
+  )
+    ? [...source.groupBy]
+    : [];
+
+  // Scope fields are shared structurally; dataset-specific extras are copied below
+  // only when the destination query exposes the same field.
+  for (const [field, value] of Object.entries(source.scope)) {
+    if (field in target.scope) {
+      (target.scope as unknown as Record<string, unknown>)[field] =
+        structuredClone(value);
+    }
+  }
+  const sourceFields = source as unknown as Record<string, unknown>;
+  const targetFields = target as unknown as Record<string, unknown>;
+  const excludedFields: Partial<Record<ReportDataset, readonly string[]>> = {
+    movements: ["loanStatus", "loanOutcome", "outstandingOnly"],
+    inventory: [
+      "loanStatus",
+      "loanOutcome",
+      "outstandingOnly",
+      "activityStatus",
+      "typeId",
+      "activityKind",
+      "relatedPresence",
+    ],
+    expiry: [
+      "loanStatus",
+      "loanOutcome",
+      "outstandingOnly",
+      "activityStatus",
+      "typeId",
+      "activityKind",
+      "relatedPresence",
+    ],
+    loans: [
+      "expiryWindow",
+      "includeUndated",
+      "countReviewed",
+      "damageOnly",
+      "relatedPresence",
+    ],
+    activities: [
+      "expiryWindow",
+      "includeUndated",
+      "countReviewed",
+      "damageOnly",
+      "loanOutcome",
+      "outstandingOnly",
+    ],
+    counts: [
+      "expiryWindow",
+      "includeUndated",
+      "loanStatus",
+      "loanOutcome",
+      "outstandingOnly",
+      "activityStatus",
+      "typeId",
+      "activityKind",
+      "relatedPresence",
+    ],
+  };
+  const excluded = new Set(excludedFields[dataset] || []);
+  for (const field of Object.keys(targetFields)) {
+    if (["dataset", "view", "scope", "groupBy"].includes(field)) continue;
+    if (excluded.has(field)) continue;
+    if (!(field in sourceFields)) continue;
+    targetFields[field] = structuredClone(sourceFields[field]);
+  }
+  if (!sortableColumnsForView(dataset, view).includes(target.sortBy))
+    target.sortBy = "item_name";
+  if (!groupsForView(dataset, view).length) target.groupBy = [];
+  return target;
 }
 
 function deepDifference(initial: unknown, actual: unknown): unknown {

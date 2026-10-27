@@ -7,7 +7,11 @@ import AsyncRegion from "./ui/AsyncRegion.vue";
 import Overlay from "./ui/Overlay.vue";
 import ReportTable from "./ui/ReportTable.vue";
 import InventoryIcon from "./InventoryIcon.vue";
-import { relatedSheetsHelp, useQuickExport } from "../features/export/useQuickExport";
+import {
+	relatedSheetsHelp,
+	useQuickExport,
+	type ExportTableChoice,
+} from "../features/export/useQuickExport";
 import { markExportWatched } from "../features/export/watchedExport";
 import { useInventoryServices } from "../services/contracts";
 import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
@@ -23,6 +27,9 @@ const props = withDefaults(
 		allowDatasetSelection?: boolean;
 		showOpenReport?: boolean;
 		showTrigger?: boolean;
+		preview?: boolean;
+		matchedCount?: number;
+		tables?: ExportTableChoice[];
 		initialDataset?: ReportDataset;
 		queryForDataset?: (dataset: ReportDataset) => ReportQuery;
 	}>(),
@@ -32,6 +39,8 @@ const props = withDefaults(
 		allowDatasetSelection: false,
 		showOpenReport: true,
 		showTrigger: true,
+		preview: true,
+		tables: () => [],
 	},
 );
 const emit = defineEmits<{
@@ -47,7 +56,11 @@ const query = computed(() =>
 		? props.queryForDataset(selectedDataset.value)
 		: props.query,
 );
-const controller = useQuickExport(query);
+const controller = useQuickExport(
+	query,
+	() => props.preview,
+	() => props.tables,
+);
 const {
 	open,
 	format,
@@ -66,7 +79,7 @@ const {
 } = controller;
 const hasRelatedTables = computed(
 	() =>
-		page.value?.tables.some((table) =>
+		(page.value?.tables || props.tables).some((table) =>
 			["items", "barcodes", "conversions", "warehouses", "files"].includes(table.id),
 		) ?? false,
 );
@@ -163,10 +176,10 @@ defineExpose({ open: openDialog });
 						.join("；") || "全部有权查看的结果"
 				}}
 			</p>
-			<p v-if="page">
+			<p v-if="props.preview && page">
 				当前预览表共 {{ page.matched_count }} 条匹配结果；文件包含所选表的完整结果。
 			</p>
-			<p v-if="page" class="muted">
+			<p v-if="props.preview && page" class="muted">
 				范围快照（站点时间） {{ siteDateTime(page.snapshot) }} ·
 				{{
 					page.period.date_from
@@ -175,9 +188,12 @@ defineExpose({ open: openDialog });
 				}}
 			</p>
 		</div>
-		<SkeletonBlock v-if="loading && !page" variant="lines" :count="4" />
+		<SkeletonBlock v-if="props.preview && loading && !page" variant="lines" :count="4" />
 		<p v-if="error" role="alert">
 			{{ error }} <UiButton @click="job ? status() : preview()">重试读取</UiButton>
+		</p>
+		<p v-if="!props.preview" class="quick-export-match-count">
+			{{ matchedCount ?? 0 }} 条匹配结果
 		</p>
 		<div class="quick-export-options form-fields">
 			<label v-if="allowDatasetSelection" class="preview-field"
@@ -204,6 +220,7 @@ defineExpose({ open: openDialog });
 				<p v-if="related" class="muted preview-related-help">{{ relatedSheetsHelp }}</p>
 			</div>
 			<AsyncRegion
+				v-if="props.preview"
 				:loading="loading"
 				:initialized="!!page"
 				:stale="true"
@@ -265,8 +282,34 @@ defineExpose({ open: openDialog });
 				</div>
 				<template #skeleton><SkeletonBlock variant="lines" :count="4" /></template>
 			</AsyncRegion>
+			<div v-else class="quick-export-preview-options form-fields">
+				<label v-if="format === 'csv'" class="preview-field">
+					CSV 导出表
+					<select v-model="selectedTable" aria-label="CSV 导出表" :disabled="generating">
+						<option v-for="table in props.tables" :key="table.id" :value="table.id">
+							{{ table.label }}（{{ table.count }}）
+						</option>
+					</select>
+				</label>
+				<fieldset v-if="format === 'xlsx'">
+					<legend>工作表</legend>
+					<label
+						v-for="table in props.tables"
+						:key="table.id"
+						class="preview-choice-label"
+					>
+						<input
+							type="checkbox"
+							v-model="selectedSheets"
+							:value="table.id"
+							:disabled="generating"
+						/>
+						{{ table.label }}（{{ table.count }}）
+					</label>
+				</fieldset>
+			</div>
 		</div>
-		<p class="muted">
+		<p v-if="props.preview" class="muted">
 			最多预览 5 行。XLSX 工作表在上方单独选择，导出全部匹配结果；CSV
 			只导出所选的一张表。附件仅包含有权限的文件及记录引用，不含文件内容或临时链接。
 		</p>

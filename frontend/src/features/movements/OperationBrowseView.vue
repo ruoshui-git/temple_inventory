@@ -39,6 +39,7 @@ import { compactGroupSummary } from "../../lib/groupSummary";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
+import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -252,7 +253,7 @@ const operationColumns = computed<DataColumn[]>(() =>
 				},
 				{
 					id: "status",
-					label: "状态",
+					label: "当前结清状态",
 					required: true,
 					defaultVisible: true,
 					sortable: true,
@@ -858,10 +859,14 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:active="active"
 							@open-full="emit('openExport', $event)"
 						/>
-						<a v-if="family === 'movements'" class="drafts-entry-link" href="/drafts">
+						<RouterLink
+							v-if="family === 'movements'"
+							class="drafts-entry-link"
+							:to="routeTarget('drafts')"
+						>
 							<InventoryIcon class="menu-item-icon" name="document" />
 							<span>草稿</span><span class="menu-item-meta">{{ draftCount }}</span>
-						</a>
+						</RouterLink>
 					</BrowseOverflowMenu>
 					<BrowseSplitButton
 						v-if="family === 'movements' && reference.operations.Receive"
@@ -924,7 +929,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					<BrowseChip
 						v-for="chip in scopeChips"
 						:key="chip.key"
-						:label="chip.label"
+						:label="
+							chip.field === 'period' && family === 'loans'
+								? chip.label.replace('日期：', '借出日期：')
+								: chip.label
+						"
 						:icon="chip.icon"
 						@edit="editFilter(chip.field)"
 						@remove="removeScopeChip(chip)"
@@ -955,7 +964,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				<BrowseResultSummary
 					:label="`${result.total} ${records ? '笔记录' : '种物品'}`"
 					:metrics="metrics"
-					:loading="result.loading || result.stale"
+					:loading="result.loading && !result.initialized"
 				>
 					<template #controls>
 						<SortControl
@@ -973,26 +982,26 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@click="analysisOpen = true"
 							>分析结果</UiButton
 						>
-						<template v-if="family === 'loans'"
-							><button
-								class="browse-info-button"
-								type="button"
-								title="按借出日期筛选，显示当前结清情况。"
-								aria-label="借用列表说明：按借出日期筛选，显示当前结清情况。"
-							>
-								ⓘ</button
-							><UiButton variant="ghost" @click="emit('browse', c.loanHistory())"
-								>借还流动</UiButton
-							></template
+						<UiButton
+							v-if="family === 'loans'"
+							variant="ghost"
+							@click="emit('browse', c.loanHistory())"
+							>借还流动</UiButton
 						>
 					</template>
 				</BrowseResultSummary>
 			</section>
-			<SkeletonBlock v-if="!records && result.loading" variant="lines" :count="5" />
-			<p v-if="result.stale" class="notice-bar warning" role="status">
-				上次结果 · 尚未更新，相关操作暂停。
-			</p>
-			<p v-if="!records && result.error" class="notice-bar danger" role="alert">
+			<SkeletonBlock
+				v-if="!records && result.loading && !result.initialized"
+				variant="lines"
+				:count="5"
+			/>
+			<BrowseRefreshNotice :show="result.refreshFailed" :retry="() => c.load()" />
+			<p
+				v-if="!records && result.error && !result.refreshFailed"
+				class="notice-bar danger"
+				role="alert"
+			>
 				{{ result.error }} <UiButton @click="c.retry">重试加载</UiButton>
 			</p>
 			<div class="preview-browse-body">

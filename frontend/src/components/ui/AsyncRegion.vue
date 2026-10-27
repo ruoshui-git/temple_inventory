@@ -7,7 +7,7 @@ withDefaults(
 		error?: string;
 		label?: string;
 	}>(),
-	{ stale: false, error: "", label: "结果刷新中…" },
+	{ stale: false, error: "", label: "正在更新结果" },
 );
 </script>
 
