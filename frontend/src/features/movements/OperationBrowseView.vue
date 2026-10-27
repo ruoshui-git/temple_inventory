@@ -731,6 +731,25 @@ const dimensions: Record<string, string> = {
 	month: "月份",
 };
 const scopeChips = computed(() => scopeFilterFieldChips(scope.value, reference));
+// Activity filters usually arrive by link, before anyone opens the activity
+// picker, so resolve the title the chip shows instead of the immutable ID.
+watch(
+	() => scope.value.activity,
+	async (id) => {
+		if (!id || !services || reference.activities.some((row) => row.value === id)) return;
+		try {
+			const result = await services.call<{ name: string; title: string }>(
+				"activities.load_activity",
+				{ name: id },
+			);
+			if (result.name === id && result.title)
+				reference.activities.push({ value: id, label: result.title });
+		} catch {
+			// The chip keeps showing the ID when the activity cannot be read.
+		}
+	},
+	{ immediate: true },
+);
 function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
 	clearScopeField(scope.value, chip.field);
 }

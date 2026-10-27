@@ -430,9 +430,8 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
     await page.goto("/inventory/stock/expiry");
-    await expect(page.locator("[data-browse-row]")).toHaveCount(
-      width < 1024 ? 2 : 1,
-    );
+    // Phones mount the card list only, never the table alongside it.
+    await expect(page.locator("[data-browse-row]")).toHaveCount(1);
     await expect(
       page.getByRole("button", { name: "查看批次明细", exact: true }),
     ).toHaveCount(0);
@@ -485,9 +484,8 @@ for (const width of [1440, 390]) {
       .getByRole("button", { name: "放弃修改", exact: true })
       .click();
     await page.getByRole("button", { name: "返回", exact: true }).click();
-    await expect(page.locator("[data-browse-row]")).toHaveCount(
-      width < 1024 ? 2 : 1,
-    );
+    // Phones mount the card list only, never the table alongside it.
+    await expect(page.locator("[data-browse-row]")).toHaveCount(1);
     expect(errors).toEqual([]);
   });
 }

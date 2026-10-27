@@ -457,7 +457,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				@toggle="toggleFilter"
 			/>
 			<div id="expiry-results-panel" role="tabpanel" class="preview-browse-results">
-				<div v-if="isMobile" class="preview-expiry-mobile">
+				<div v-if="isMobile && !query.groupBy.length" class="preview-expiry-mobile">
 					<article
 						v-for="row in result.rows"
 						:key="String(row.id)"
@@ -505,7 +505,9 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						</div>
 					</article>
 				</div>
+				<!-- Phones show ungrouped results as cards; grouped results stay tabular. -->
 				<DataTable
+					v-if="!isMobile || query.groupBy.length"
 					data-browse-scroll="expiry-table"
 					ariaLabel="效期批次"
 					table-class="browse-table"
