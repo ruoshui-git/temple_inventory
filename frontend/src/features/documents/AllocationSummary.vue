@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { unitLabel, sortByUnit } from "../../lib/units";
 import { computed, ref } from "vue";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
 	useOperationContext,
 	allocationDestination,
+	operationSectionLocation,
 	type OperationDraft,
 	type AllocationLine,
 } from "./operationModel";
@@ -40,12 +42,14 @@ function totals(lines: AllocationLine[]) {
 	lines.forEach((line) =>
 		values.set(line.uom, (values.get(line.uom) || 0) + Number(line.qty || 0)),
 	);
-	return [...values].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
+	return sortByUnit([...values], ([uom]) => uom)
+		.map(([uom, qty]) => `${qty} ${unitLabel(uom)}`)
+		.join(" · ");
 }
 const groups = computed(() => {
 	const result = new Map<string, AllocationLine[]>();
 	for (const line of props.draft.items) {
-		const place = line.sourceLocation || line.location || "未选择库位";
+		const place = operationSectionLocation(props.draft.kind, line) || "未选择库位";
 		if (!result.has(place)) result.set(place, []);
 		result.get(place)!.push(line);
 	}
@@ -83,7 +87,9 @@ const groups = computed(() => {
 						<ItemLine :item="itemIdentity(line)" :size="24">
 							<template #secondary>{{ line.code }}</template>
 						</ItemLine>
-						<span>· {{ line.qty }} {{ line.uom }}</span>
+						<span class="allocation-summary-quantity"
+							>· {{ line.qty }} {{ unitLabel(line.uom) }}</span
+						>
 					</div>
 					<dl class="ti-fields allocation-summary-fields">
 						<div v-if="allocationDestination(draft, line, reference.damagedLeaves)">
@@ -116,7 +122,7 @@ const groups = computed(() => {
 									line.batchAllocations
 										?.map(
 											(allocation) =>
-												`${allocation.batch} ${allocation.qty} ${line.uom}${allocation.expiry ? ` · 到期 ${allocation.expiry}` : ""}`,
+												`${allocation.batch} ${allocation.qty} ${unitLabel(line.uom)}${allocation.expiry ? ` · 到期 ${allocation.expiry}` : ""}`,
 										)
 										.join(" · ") ||
 									(draft.kind === "Receive" &&
@@ -140,9 +146,11 @@ const groups = computed(() => {
 						>
 							<dt>换算</dt>
 							<dd>
-								{{ enteredQuantity(line) }} {{ line.entryUom }} ×
-								{{ line.conversionFactor }} {{ line.uom }}/{{ line.entryUom }} =
-								{{ line.qty }} {{ line.uom }}
+								{{ enteredQuantity(line) }} {{ unitLabel(line.entryUom) }} ×
+								{{ line.conversionFactor }} {{ unitLabel(line.uom) }}/{{
+									unitLabel(line.entryUom)
+								}}
+								= {{ line.qty }} {{ unitLabel(line.uom) }}
 							</dd>
 						</div>
 						<div v-if="line.loanName || draft.loanName">
@@ -195,6 +203,9 @@ const groups = computed(() => {
 	min-width: 0;
 	align-items: baseline;
 	gap: 4px;
+}
+.allocation-summary-quantity {
+	white-space: nowrap;
 }
 .allocation-summary-copy {
 	display: contents;

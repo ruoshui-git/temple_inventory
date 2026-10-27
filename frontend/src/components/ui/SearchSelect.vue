@@ -30,6 +30,8 @@ const props = withDefaults(
 		invalid?: boolean;
 		id?: string;
 		ariaDescribedBy?: string;
+		ariaLabel?: string;
+		ariaLabelledBy?: string;
 		ariaInvalid?: boolean | "true" | "false";
 		ariaRequired?: boolean | "true" | "false";
 		externalLabel?: boolean;
@@ -203,7 +205,12 @@ function key(event: KeyboardEvent) {
 		if (state.value === "ready" && option && !option.disabled) choose(option.value);
 	}
 }
-defineExpose({ state });
+defineExpose({
+	state,
+	focus() {
+		input.value?.focus();
+	},
+});
 </script>
 <template>
 	<div
@@ -225,6 +232,8 @@ defineExpose({ state });
 			<input
 				:ref="setInput"
 				:id="id"
+				:aria-label="ariaLabel"
+				:aria-labelledby="ariaLabelledBy"
 				:aria-describedby="ariaDescribedBy"
 				:aria-required="ariaRequired || undefined"
 				role="combobox"
@@ -298,6 +307,7 @@ defineExpose({ state });
 								:aria-selected="matches[index]?.value === modelValue"
 								:aria-disabled="matches[index]?.disabled"
 								:class="{ active: index === active }"
+								:title="matches[index]?.title"
 								class="virtual-option"
 								@mousedown.prevent
 								@click="
@@ -322,6 +332,7 @@ defineExpose({ state });
 							:aria-selected="option.value === modelValue"
 							:aria-disabled="option.disabled"
 							:class="{ active: index === active }"
+							:title="option.title"
 							@mousedown.prevent
 							@click="!option.disabled && choose(option.value)"
 						>

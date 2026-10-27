@@ -642,11 +642,6 @@ export function useOperationEditor(props: {
     draft.value.loanName ||= name;
     draft.value.items.push(...additions);
   }
-  function setLoanDestination(value: string) {
-    if (!writable.value || draft.value.kind !== "Loan") return;
-    draft.value.loanDestination = value;
-    for (const line of draft.value.items) line.loanedLocation = value;
-  }
   async function refreshLoanBalances() {
     for (const name of new Set(
       draft.value.items.flatMap((line) =>
@@ -835,7 +830,6 @@ export function useOperationEditor(props: {
     confirm,
     load,
     appendLoan,
-    setLoanDestination,
     refreshLoanBalances,
     lifecycle,
     discard,

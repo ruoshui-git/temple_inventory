@@ -42,6 +42,7 @@ export function decodeOperation(doc: NativeDocument): NativeOperationDocument {
   const items: AllocationLine[] = doc.items.map((row) => {
     const id = String(row.name || crypto.randomUUID());
     return {
+      nativeFields: { ...row },
       id,
       localId: id,
       name: row.name ? String(row.name) : undefined,
@@ -130,29 +131,41 @@ export function encodeOperation(
     ti_handler_name: draft.handler,
     ti_reviewer_name: draft.reviewer,
     remarks: draft.note,
-    items: draft.items.map((line) => ({
-      ...(line.name ? { name: line.name } : {}),
-      item_code: line.code,
-      qty: line.entryQty,
-      uom: line.entryUom,
-      conversion_factor: line.conversionFactor,
-      s_warehouse:
-        draft.kind === "Receive" ? null : line.sourceLocation || line.location,
-      t_warehouse:
-        allocationDestination(draft, line, reference.damagedLeaves) || null,
-      batch_no: line.batch || null,
-      serial_and_batch_bundle: line.nativeBundle || null,
-      use_serial_batch_fields: line.nativeBundle ? 0 : 1,
-      ti_original_loan: line.loanName || null,
-      ti_original_loan_line: line.originalLoanLine || null,
-      ti_settlement_outcome: line.loanName
-        ? draft.kind === "Loss"
-          ? "Lost"
-          : draft.kind === "Damage" || line.returnOutcome === "damaged"
-            ? "Damaged"
-            : "Returned"
-        : null,
-      ti_allocation_note: line.reason || "",
-    })),
+    items: draft.items.map((line) => {
+      const nativeFields = { ...(line.nativeFields || {}) };
+      // These catalog display snapshots are refreshed from the current Item
+      // presentation and must not survive unrelated edits as stale values.
+      delete nativeFields.ti_display_item_name;
+      delete nativeFields.ti_display_image;
+      delete nativeFields.ti_display_tracks_batch;
+      delete nativeFields.ti_display_tracks_expiry;
+      return {
+        ...nativeFields,
+        ...(line.name ? { name: line.name } : {}),
+        item_code: line.code,
+        qty: line.entryQty,
+        uom: line.entryUom,
+        conversion_factor: line.conversionFactor,
+        s_warehouse:
+          draft.kind === "Receive"
+            ? null
+            : line.sourceLocation || line.location,
+        t_warehouse:
+          allocationDestination(draft, line, reference.damagedLeaves) || null,
+        batch_no: line.batch || null,
+        serial_and_batch_bundle: line.nativeBundle || null,
+        use_serial_batch_fields: line.nativeBundle ? 0 : 1,
+        ti_original_loan: line.loanName || null,
+        ti_original_loan_line: line.originalLoanLine || null,
+        ti_settlement_outcome: line.loanName
+          ? draft.kind === "Loss"
+            ? "Lost"
+            : draft.kind === "Damage" || line.returnOutcome === "damaged"
+              ? "Damaged"
+              : "Returned"
+          : null,
+        ti_allocation_note: line.reason || "",
+      };
+    }),
   };
 }

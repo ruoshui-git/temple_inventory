@@ -618,9 +618,7 @@ test("native operation and count editors mount at mobile with large text", async
         '@font-face { font-family: NativeAudit; src: url("/__native-acceptance-font.otf") } body,button,input,select {font-family:NativeAudit,sans-serif!important}',
     });
   await page.evaluate(() => document.fonts.ready);
-  await expect(
-    page.getByText(/Box × 5 Nos\/Box = \d+ Nos/).first(),
-  ).toBeVisible();
+  await expect(page.getByText(/箱 × 5 个\/箱 = \d+ 个/).first()).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth + 1,
   );
@@ -847,7 +845,8 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
   }
   const token = crypto.randomUUID().replaceAll("-", "").slice(0, 10);
   const code = `TI-T4-MOVE-${token}`;
-  const unit = `T4-Box-${token}`;
+  const plainCode = `TI-T4-PLAIN-${token}`;
+  const unit = "箱";
   const borrower = `T4 borrower ${token}`;
   const item = await call(page.request, "catalog.save_item", {
     data: {
@@ -859,17 +858,21 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     },
   });
   expect(item.item_code).toBe(code);
-  await call(page.request, "catalog.create_uom", {
-    label: unit,
-    must_be_whole_number: true,
+  const plainItem = await call(page.request, "catalog.save_item", {
+    data: {
+      item_code: plainCode,
+      item_name: `T4 plain movement ${token}`,
+      stock_uom: "Nos",
+    },
   });
+  expect(plainItem.item_code).toBe(plainCode);
   const submitted: string[] = [];
   const drafts = new Set<string>();
   const generatedBatches = new Set<string>();
-  const editorUrl = (kind: string) => {
+  const editorUrl = (kind: string, warehouse = source) => {
     const query = new URLSearchParams({
-      warehouse: source,
-      items: JSON.stringify([code]),
+      warehouse,
+      items: JSON.stringify(kind === "Receive" ? [code, plainCode] : [code]),
     });
     return `/inventory/movements/new/${kind}?${query}`;
   };
@@ -937,15 +940,22 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     return result;
   }
   async function pickBatch(card: Locator, batch: string) {
-    const selector = card.getByRole("combobox", { name: "现有批次" });
+    const selector = card.getByRole("combobox", { name: /批次$/ });
     await selector.fill(batch);
     await page.getByRole("option").filter({ hasText: batch }).first().click();
   }
   try {
     await page.goto(editorUrl("Receive"));
-    const card = page.locator(".allocation-card").filter({ hasText: code });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const card = page
+      .locator(".operation-compact-row")
+      .filter({ hasText: code })
+      .first();
     await expect(card).toHaveCount(1);
-    const destination = page.getByRole("combobox", { name: "入库位置" });
+    const destination = page.getByRole("combobox", {
+      name: "入库位置",
+      exact: true,
+    });
     await chooseWarehouse(destination, source);
 
     const unitSelect = card.getByRole("combobox", { name: "单位" });
@@ -958,13 +968,56 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     await conversionUnit.fill(unit);
     await page.getByRole("option", { name: unit, exact: true }).click();
     await expect(conversion.getByText(`1 ${unit} =`)).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath("unit-conversion-dialog.png"),
+    });
     await conversion.locator('[data-field="conversionFactor"]').fill("5");
     await conversion.getByRole("button", { name: "应用换算" }).click();
     await expect(card.locator('input[data-field="qty"]').first()).toBeFocused();
 
-    await card.getByRole("button", { name: "+ 添加批次" }).click();
-    const rows = card.locator(".batch-subrow:not(.batch-subrow--header)");
+    await card.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    await card.locator(".operation-row-menu summary").click();
+    await page.screenshot({
+      path: test.info().outputPath("row-menu-open.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("row-menu-open-phone.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await card.getByRole("button", { name: "复制为新行" }).click();
+    const rows = page
+      .locator(".operation-compact-row")
+      .filter({ hasText: code });
     await expect(rows).toHaveCount(2);
+    const secondUnit = rows.nth(1).getByRole("combobox", { name: "单位" });
+    await secondUnit.fill("个");
+    await page.getByRole("option", { name: "个", exact: true }).click();
+    await rows.nth(1).locator(".operation-row-menu summary").click();
+    const rowMove = rows.nth(1).getByRole("combobox", { name: "移到其他位置" });
+    await rowMove.fill(warehouseLabel(target));
+    await expect(
+      page
+        .getByRole("option")
+        .filter({ hasText: warehouseLabel(target) })
+        .first(),
+    ).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath("move-location-picker.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("move-location-picker-phone.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page
+      .getByRole("option")
+      .filter({ hasText: warehouseLabel(target) })
+      .first()
+      .click();
+    await page.keyboard.press("Escape");
     for (const [index, quantity] of ["1", "2"].entries()) {
       const row = rows.nth(index);
       await row.locator('input[data-field="batch"]').fill("");
@@ -974,14 +1027,48 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
         .fill(manufacturingDate);
       await row.locator('input[data-field="expiry"]').fill("2099-04-01");
     }
+    await rows.first().locator('input[data-field="expiry"]').fill("");
+    await page.locator("[data-review-action]").click();
+    await expect(rows.first().locator(".utility-error")).toContainText(
+      "请填写到期日期",
+    );
+    await page.screenshot({
+      path: test.info().outputPath("receive-inline-validation-desktop.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await rows
+      .first()
+      .evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await page.screenshot({
+      path: test.info().outputPath("receive-inline-validation-phone.png"),
+    });
+    await rows.first().locator('input[data-field="expiry"]').fill("2099-04-01");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({
+      path: test.info().outputPath("receive-two-sections-desktop.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("receive-two-sections-phone.png"),
+    });
+    await page.screenshot({
+      path: test.info().outputPath("receive-two-sections-phone-full.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
     let draft = await saveDraft();
     const receiveName = draft.name as string;
     const received = await call(page.request, "native_api.load_document", {
       doctype: "Stock Entry",
       name: receiveName,
     });
-    expect(received.items).toHaveLength(2);
-    const batchIds = received.items.map((line: any) => line.batch_no as string);
+    expect(received.items).toHaveLength(3);
+    expect(
+      received.items.some((line: any) => line.item_code === plainCode),
+    ).toBe(true);
+    const batchIds = received.items
+      .filter((line: any) => line.item_code === code)
+      .map((line: any) => line.batch_no as string);
     for (const batch of batchIds) generatedBatches.add(batch);
     expect(batchIds.every(Boolean)).toBe(true);
     expect(new Set(batchIds).size).toBe(2);
@@ -1003,36 +1090,58 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     });
     expect(draft.name).toBe(receiveName);
     const receiveDoc = await submitCurrent();
-    expect(receiveDoc.items).toHaveLength(2);
+    expect(receiveDoc.items).toHaveLength(3);
 
     await page.goto(editorUrl("Issue"));
     const issueCard = page
-      .locator(".allocation-card")
+      .locator(".operation-compact-row")
       .filter({ hasText: code });
     await expect(issueCard).toBeVisible();
     await pickBatch(issueCard, batchIds[0]!);
     await issueCard.locator('input[data-field="qty"]').fill("2");
+    await page.screenshot({
+      path: test.info().outputPath("issue-row.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("issue-row-phone.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await submitCurrent();
 
-    await page.goto(editorUrl("Transfer"));
+    await page.goto(editorUrl("Transfer", target));
     const transferCard = page
-      .locator(".allocation-card")
+      .locator(".operation-compact-row")
       .filter({ hasText: code });
     await expect(transferCard).toBeVisible();
     const transferDestination = page.getByRole("combobox", {
       name: "调入位置",
+      exact: true,
     });
-    await chooseWarehouse(transferDestination, target);
+    await chooseWarehouse(transferDestination, source);
+    await page.screenshot({
+      path: test.info().outputPath("transfer-toolbar-destination.png"),
+    });
     await chooseWarehouse(
-      transferCard.getByRole("combobox", { name: "到" }),
-      target,
+      transferCard.getByRole("combobox", { name: "调入" }),
+      source,
     );
     await pickBatch(transferCard, batchIds[1]!);
     await transferCard.locator('input[data-field="qty"]').fill("1");
+    await page.screenshot({
+      path: test.info().outputPath("transfer-row-destination.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("transfer-row-destination-phone.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await submitCurrent();
 
     await page.goto(editorUrl("Loan"));
-    const loanCard = page.locator(".allocation-card").filter({ hasText: code });
+    const loanCard = page
+      .locator(".operation-compact-row")
+      .filter({ hasText: code });
     await expect(loanCard).toBeVisible();
     await page.getByLabel("借用人 / 团体").fill(borrower);
     await pickBatch(loanCard, batchIds[1]!);
@@ -1058,10 +1167,58 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
       .getByRole("button", { name: "加入", exact: true })
       .click();
     const returnCard = page
-      .locator(".allocation-card")
+      .locator(".operation-compact-row")
       .filter({ hasText: code });
     await expect(returnCard).toBeVisible();
+    await returnCard.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    await expect(
+      returnCard.getByRole("combobox", { name: /归还结果$/ }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath("return-outcome.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await returnCard.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    await page.screenshot({
+      path: test.info().outputPath("return-outcome-phone.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(returnCard).toBeVisible();
     await submitCurrent();
+
+    await page.goto(editorUrl("Damage", source));
+    const damageRow = page
+      .locator(".operation-compact-row")
+      .filter({ hasText: code })
+      .first();
+    await expect(damageRow).toBeVisible();
+    await pickBatch(damageRow, batchIds[0]!);
+    await damageRow.locator('input[data-field="qty"]').fill("1");
+    await damageRow.getByLabel("原因").fill("Acceptance damage reason");
+    await page.screenshot({
+      path: test.info().outputPath("damage-inline-reason.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("damage-inline-reason-phone.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await submitCurrent();
+
+    await page.goto(`/inventory/stock/items/${encodeURIComponent(code)}`);
+    await page.locator("summary").filter({ hasText: "计量单位与换算" }).click();
+    await page.getByRole("button", { name: "编辑常用换算" }).click();
+    await page.screenshot({
+      path: test.info().outputPath("item-conversions-dialog.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("item-conversions-dialog-phone.png"),
+    });
   } finally {
     for (const name of submitted.reverse()) {
       try {
@@ -1104,6 +1261,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     }
     for (const [doctype, name] of [
       ["Item", code],
+      ["Item", plainCode],
       ["UOM", unit],
     ] as const) {
       try {

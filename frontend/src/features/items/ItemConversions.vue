@@ -8,6 +8,7 @@ import ConversionEditor from "../conversions/ConversionEditor.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import type { SavedItemConversions } from "../conversions/useConversionEditor";
 import { useConfirm } from "../../services/confirm";
+import { unitLabel } from "../../lib/units";
 const props = defineProps<{ item: StockItem; disabled?: boolean; inline?: boolean }>();
 const emit = defineEmits<{
 	dirtyChange: [dirty: boolean];
@@ -46,18 +47,12 @@ function edit() {
 		title="计量单位与换算"
 		:count="item.alternateUnits?.length || 0"
 	>
-		<p>库存单位：{{ item.uom }}（只读）</p>
+		<p>库存单位：{{ unitLabel(item.uom) }}（只读）</p>
 		<p v-for="row in item.alternateUnits" :key="row.uom">
-			1 {{ row.uom }} = {{ row.factor }} {{ item.uom }}
+			1 {{ unitLabel(row.uom) }} = {{ row.factor }} {{ unitLabel(item.uom) }}
 		</p>
 		<UiButton :disabled="disabled" @click="edit">编辑常用换算</UiButton>
-		<component
-			:is="inline ? 'section' : Overlay"
-			v-if="line"
-			:title="`${item.name} · 常用换算`"
-			drawer
-			@close="close"
-		>
+		<Overlay v-if="line" :title="`${item.name} · 常用换算`" @close="close">
 			<div>
 				<ConversionEditor
 					:item="item"
@@ -72,8 +67,7 @@ function edit() {
 					"
 				/>
 			</div>
-			<UiButton v-if="inline" @click="close">关闭换算</UiButton>
 			<template #footer><UiButton @click="close">关闭换算</UiButton></template>
-		</component>
+		</Overlay>
 	</DisclosureSection>
 </template>

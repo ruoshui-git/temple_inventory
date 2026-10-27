@@ -50,6 +50,146 @@ export interface AllocationLine {
     expiry?: string;
     manufacturingDate?: string;
   }[];
+  /** Exact native child row snapshot used to preserve fields this editor does not know. */
+  nativeFields?: Record<string, unknown>;
+}
+
+export function operationLocationKind(
+  kind: OperationKind,
+): "source" | "target" {
+  return ["Receive", "Return", "Repair"].includes(kind) ? "target" : "source";
+}
+
+export function operationSectionLocation(
+  kind: OperationKind,
+  line: AllocationLine,
+) {
+  return operationLocationKind(kind) === "target"
+    ? line.location
+    : line.sourceLocation || line.location;
+}
+
+export interface OperationLocationSection {
+  location: string;
+  lines: AllocationLine[];
+}
+
+/** Groups without changing native row order or identities. */
+export function operationSections(
+  draft: OperationDraft,
+): OperationLocationSection[] {
+  const byLocation = new Map<string, AllocationLine[]>();
+  for (const line of draft.items) {
+    const location = operationSectionLocation(draft.kind, line);
+    const rows = byLocation.get(location) || [];
+    rows.push(line);
+    byLocation.set(location, rows);
+  }
+  return [...byLocation].map(([location, lines]) => ({ location, lines }));
+}
+
+export function moveOperationLine(
+  draft: OperationDraft,
+  line: AllocationLine,
+  location: string,
+) {
+  if (operationLocationKind(draft.kind) === "target") line.location = location;
+  else {
+    line.sourceLocation = location;
+    if (!["Transfer", "Repair"].includes(draft.kind)) line.location = location;
+  }
+}
+
+export function moveOperationSection(
+  draft: OperationDraft,
+  section: OperationLocationSection,
+  location: string,
+) {
+  for (const line of section.lines) moveOperationLine(draft, line, location);
+}
+
+/** Compatible ordinary allocations can merge; native bundles and outcome rows stay distinct. */
+export function mergeCompatibleOperationLines(draft: OperationDraft) {
+  const kept: AllocationLine[] = [];
+  const compatible = new Map<string, AllocationLine>();
+  const nativeKnownFields = new Set([
+    "name",
+    "item_code",
+    "item_name",
+    "qty",
+    "uom",
+    "stock_uom",
+    "transfer_qty",
+    "conversion_factor",
+    "s_warehouse",
+    "t_warehouse",
+    "batch_no",
+    "serial_and_batch_bundle",
+    "recorded_bundle",
+    "recorded_batch_allocations",
+    "use_serial_batch_fields",
+    "ti_original_loan",
+    "ti_original_loan_line",
+    "ti_settlement_outcome",
+    "ti_allocation_note",
+    "ti_display_item_name",
+    "ti_display_image",
+    "ti_display_tracks_batch",
+    "ti_display_tracks_expiry",
+  ]);
+  for (const line of draft.items) {
+    if (
+      line.nativeBundle ||
+      line.recordedBundle ||
+      line.batchAllocations?.length ||
+      line.loanName ||
+      line.returnOutcome
+    ) {
+      kept.push(line);
+      continue;
+    }
+    const key = JSON.stringify([
+      line.code,
+      line.sourceLocation || "",
+      line.location,
+      line.batch || "",
+      line.reason || "",
+      line.entryUom || line.uom,
+      line.conversionFactor || 1,
+      Object.fromEntries(
+        Object.entries(line.nativeFields || {})
+          .filter(([field]) => !nativeKnownFields.has(field))
+          .sort(([left], [right]) => left.localeCompare(right)),
+      ),
+    ]);
+    const prior = compatible.get(key);
+    if (!prior) {
+      compatible.set(key, line);
+      kept.push(line);
+    } else {
+      prior.qty += line.qty;
+      prior.entryQty = Number(prior.entryQty || 0) + Number(line.entryQty || 0);
+    }
+  }
+  draft.items.splice(0, draft.items.length, ...kept);
+}
+
+export function copyOperationLine(line: AllocationLine): AllocationLine {
+  return {
+    ...line,
+    id: crypto.randomUUID(),
+    localId: crypto.randomUUID(),
+    name: undefined,
+    nativeFields: undefined,
+    qty: 0,
+    entryQty: 0,
+    batch: "",
+    expiry: "",
+    manufacturingDate: "",
+    nativeBundle: undefined,
+    recordedBundle: undefined,
+    batchAllocations: undefined,
+  };
 }
 export interface OperationDraft {
   name: string;

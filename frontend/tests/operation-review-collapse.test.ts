@@ -101,7 +101,6 @@ function setup(matches: boolean, attach = false) {
     requestLeave: vi.fn(async () => true),
     review: vi.fn(async () => {}),
     save: vi.fn(),
-    setLoanDestination: vi.fn(),
   };
   const host = defineComponent({
     setup() {

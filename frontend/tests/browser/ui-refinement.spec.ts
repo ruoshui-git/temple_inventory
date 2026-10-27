@@ -479,7 +479,11 @@ for (const width of [390, 1440]) {
     );
     await expect(page.getByLabel("另存原图为附件")).not.toBeChecked();
     await page.screenshot({
-      path: `../notes/evidence/2026-10-27-ui-feedback/scanner/item-thumbnail-cropper-${width < 1024 ? "phone" : "desktop"}.png`,
+      path: test
+        .info()
+        .outputPath(
+          `item-thumbnail-cropper-${width < 1024 ? "phone" : "desktop"}.png`,
+        ),
       fullPage: true,
     });
     await page.screenshot({ path: info.outputPath("crop-choices.png") });

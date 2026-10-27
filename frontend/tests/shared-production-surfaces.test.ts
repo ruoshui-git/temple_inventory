@@ -160,7 +160,7 @@ describe("interactive preview", () => {
     await date.setValue("2026-10-12");
     await wrapper.setProps({ pattern: "current" });
     expect((date.element as HTMLInputElement).value).toBe("2026-10-12");
-    expect(wrapper.findAll(".preview-allocation")).toHaveLength(1);
+    expect(wrapper.findAll(".operation-compact-row")).toHaveLength(1);
     expect(wrapper.text()).toContain("GALLERY-RECEIVE");
   });
   it("preserves the active filters when opening contextual export", async () => {
@@ -230,7 +230,7 @@ describe("interactive preview", () => {
   it("validates receiving input and confirms through the shared native service contract", async () => {
     const wrapper = render(PreviewReceive, { pattern: "current" });
     await flushPromises();
-    const qty = wrapper.get('.allocation-card input[data-field="qty"]');
+    const qty = wrapper.get('.operation-compact-row input[data-field="qty"]');
     await qty.setValue(0);
     await wrapper.get("form").trigger("submit");
     await flushPromises();
@@ -248,7 +248,7 @@ describe("interactive preview", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("已提交");
     expect(
-      wrapper.find('.allocation-card input[data-field="qty"]').exists(),
+      wrapper.find('.operation-compact-row input[data-field="qty"]').exists(),
     ).toBe(false);
   });
   it("traps overlay focus, handles Escape, restores focus and releases scroll locking", async () => {

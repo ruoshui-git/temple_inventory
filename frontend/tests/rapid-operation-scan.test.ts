@@ -61,7 +61,6 @@ const SearchSelectStub = defineComponent({
 const stubs = {
   ItemPicker: PickerStub,
   UiButton: ButtonStub,
-  AllocationDetails: true,
   AllocationSummary: true,
   ItemImage: true,
   SearchSelect: true,
@@ -84,7 +83,8 @@ function stockItem(overrides: Partial<StockItem> = {}): StockItem {
 }
 
 function setup(
-  kind: "Receive" | "Issue" | "Transfer" = "Issue",
+  kind:
+    "Receive" | "Issue" | "Transfer" | "Damage" | "Loss" | "Return" = "Issue",
   items: StockItem[] = [stockItem()],
   initialLines: Record<string, unknown>[] = [],
   withSelectors = false,
@@ -189,9 +189,9 @@ function setup(
 }
 
 async function openPicker(wrapper: VueWrapper) {
-  const add = wrapper
-    .findAll("button")
-    .find((button) => button.text() === "添加物品");
+  const add = wrapper.find('button[aria-label="添加物品"]').exists()
+    ? wrapper.find('button[aria-label="添加物品"]')
+    : wrapper.findAll("button").find((button) => button.text() === "添加物品");
   expect(add).toBeTruthy();
   await add!.trigger("click");
   await flushPromises();
@@ -199,7 +199,7 @@ async function openPicker(wrapper: VueWrapper) {
 }
 
 describe("rapid operation scan integration", () => {
-  it("groups batch child rows into one editable card and adds a native row per batch", async () => {
+  it("renders each batch as a native row with its own unit and duplicates it blank", async () => {
     const tracked = stockItem({
       tracksBatch: true,
       tracksExpiry: true,
@@ -234,6 +234,9 @@ describe("rapid operation scan integration", () => {
           id: "batch-row-a",
           code: "ITEM-A",
           qty: 2,
+          entryQty: 1,
+          entryUom: "Box",
+          conversionFactor: 2,
           location: "ROOM-A",
           batch: "BATCH-A",
           expiry: "2027-01-01",
@@ -242,28 +245,70 @@ describe("rapid operation scan integration", () => {
           id: "batch-row-b",
           code: "ITEM-A",
           qty: 3,
+          entryQty: 3,
+          entryUom: "Nos",
           location: "ROOM-A",
           batch: "BATCH-B",
           expiry: "2027-02-01",
         },
       ],
+      true,
     );
 
-    const cards = wrapper.findAll(".allocation-card");
-    expect(cards).toHaveLength(1);
-    expect(cards[0]!.text()).toContain("5 Nos");
+    const rows = wrapper.findAll(".operation-compact-row");
+    expect(rows).toHaveLength(2);
     expect(
-      cards[0]!.findAll(".batch-subrow:not(.batch-subrow--header)"),
-    ).toHaveLength(2);
+      rows.map(
+        (row) =>
+          (row.get('input[data-field="batch"]').element as HTMLInputElement)
+            .value,
+      ),
+    ).toEqual(["BATCH-A", "BATCH-B"]);
+    expect(draft.items.map((line) => line.entryUom)).toEqual(["Box", "Nos"]);
     const originalIds = draft.items.map((line) => line.id);
-    await cards[0]!.get("button.add-batch-row").trigger("click");
+    const duplicate = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "复制为新行");
+    expect(duplicate).toBeTruthy();
+    await duplicate!.trigger("click");
     expect(draft.items).toHaveLength(3);
-    expect(draft.items.slice(0, 2).map((line) => line.id)).toEqual(originalIds);
     expect(
-      wrapper
-        .find(".allocation-card")
-        .findAll(".batch-subrow:not(.batch-subrow--header)"),
-    ).toHaveLength(3);
+      draft.items
+        .filter((line) => originalIds.includes(line.id))
+        .map((line) => line.id),
+    ).toEqual(originalIds);
+    expect(draft.items[1]).toMatchObject({
+      batch: "",
+      entryUom: "Box",
+      entryQty: 0,
+      qty: 0,
+    });
+    expect(wrapper.findAll(".operation-compact-row")).toHaveLength(3);
+  });
+
+  it("shows damage reason and Return outcome as editable row fields", async () => {
+    const damage = setup(
+      "Damage",
+      [stockItem()],
+      [{ id: "damage-row", reason: "磨损" }],
+      true,
+    );
+    expect(
+      damage.wrapper.find(".operation-row-reason input").element,
+    ).toHaveProperty("value", "磨损");
+    const returned = setup(
+      "Return",
+      [stockItem()],
+      [{ id: "return-row", loanName: "LOAN-1", returnOutcome: "damaged" }],
+      true,
+    );
+    const outcome = returned.wrapper
+      .findAllComponents(SearchSelectStub)
+      .find((select) => String(select.props("label")).endsWith("归还结果"));
+    expect(outcome?.props("modelValue")).toBe("damaged");
+    outcome?.vm.$emit("update:modelValue", "returned");
+    await flushPromises();
+    expect(returned.draft.items[0]?.returnOutcome).toBe("returned");
   });
 
   it("keeps the picker warehouse as transfer source and uses the toolbar destination for new rows", async () => {
@@ -352,13 +397,11 @@ describe("rapid operation scan integration", () => {
     });
     const lineSource = wrapper
       .findAllComponents(SearchSelectStub)
-      .find((selector) => selector.props("label") === "从");
-    expect(lineSource!.props("options")).toContainEqual(
-      expect.objectContaining({ value: "A02", label: "A02" }),
-    );
+      .find((selector) => selector.props("label") === "调出位置");
+    expect(lineSource?.props("modelValue")).toBe("A02");
     const lineDestination = wrapper
       .findAllComponents(SearchSelectStub)
-      .find((selector) => selector.props("label") === "到");
+      .find((selector) => String(selector.props("label")).endsWith("调入位置"));
     expect(
       (lineDestination!.props("options") as Array<{ value: string }>).map(
         (option) => option.value,

@@ -26,6 +26,7 @@ import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useInventoryServices } from "../../services/contracts";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import { unitLabel, sortByUnit } from "../../lib/units";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import { showToast } from "../../services/toast";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
@@ -293,7 +294,9 @@ const totals = computed(() => {
 	const values = new Map<string, number>();
 	for (const line of draft.value.items)
 		values.set(line.uom, (values.get(line.uom) || 0) + Number(line.qty || 0));
-	return [...values].map(([unit, qty]) => `${qty} ${unit}`).join(" · ");
+	return sortByUnit([...values], ([unit]) => unit)
+		.map(([unit, qty]) => `${qty} ${unitLabel(unit)}`)
+		.join(" · ");
 });
 const statusLabels = {
 	matching: "已核对，无需调整",
@@ -717,7 +720,7 @@ async function lifecycle() {
 																	loan.items
 																		.map(
 																			(item) =>
-																				`${item.quantity} ${item.uom}`,
+																				`${item.quantity} ${unitLabel(item.uom)}`,
 																		)
 																		.join(" · ")
 																}}
@@ -740,7 +743,7 @@ async function lifecycle() {
 															><span
 																>{{ item.name }} ·
 																{{ item.quantity }}
-																{{ item.uom }}</span
+																{{ unitLabel(item.uom) }}</span
 															>
 														</div>
 													</div>
@@ -841,7 +844,7 @@ async function lifecycle() {
 				<DisclosureSection
 					v-model:open="supplementOpen"
 					title="补充记录"
-					summary="活动、人员、备注与凭证附件"
+					summary="活动、人员、备注与附件"
 				>
 					<div class="form-grid">
 						<TransactionContext
@@ -863,7 +866,7 @@ async function lifecycle() {
 						<div v-else class="preview-long-text">{{ draft.note }}</div>
 					</div>
 					<div class="attachment-area">
-						<h3>凭证附件</h3>
+						<h3>附件</h3>
 						<Attachments
 							:controller="files"
 							:disabled="!writable || busy"

@@ -123,7 +123,7 @@ for (const fixture of ["barcode.png", "barcode-rotated.png"])
     ).toBeVisible({ timeout: 30000 });
     if (fixture === "barcode.png")
       await page.screenshot({
-        path: "../notes/evidence/2026-10-27-ui-feedback/scanner/image-success.png",
+        path: test.info().outputPath("image-success.png"),
         fullPage: true,
       });
     await page.getByRole("button", { name: /6931234567890 ·/ }).click();
@@ -143,7 +143,7 @@ test("opens the ItemFields barcode scanner in a compact dialog", async ({
   await page.getByRole("button", { name: "扫码添加条码", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.screenshot({
-    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/item-fields-desktop.png",
+    path: test.info().outputPath("item-fields-desktop.png"),
     fullPage: true,
   });
 });
@@ -158,13 +158,13 @@ test("shows camera control with Chromium fake media and captures scanner layouts
     page.locator(".scanner-camera-name, .scanner-camera-select").first(),
   ).toBeVisible();
   await page.screenshot({
-    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/scan-panel-desktop.png",
+    path: test.info().outputPath("scan-panel-desktop.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "停用相机", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
-    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/scan-panel-phone.png",
+    path: test.info().outputPath("scan-panel-phone.png"),
     fullPage: true,
   });
 });
@@ -209,7 +209,7 @@ test("Stock browse scanner is a compact centered dialog with enumerated camera",
     )
     .toBeLessThan(500);
   await page.screenshot({
-    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/stock-scanner-desktop.png",
+    path: test.info().outputPath("stock-scanner-desktop.png"),
     fullPage: true,
   });
 });
@@ -223,7 +223,7 @@ test("Expiry uses the same ScanPanel dialog presentation", async ({ page }) => {
   await page.getByRole("button", { name: "扫码", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.screenshot({
-    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/expiry-scan-panel-desktop.png",
+    path: test.info().outputPath("expiry-scan-panel-desktop.png"),
     fullPage: true,
   });
 });
@@ -240,7 +240,7 @@ test("shows crop fallback for an undecodable local image", async ({ page }) => {
   ).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("button", { name: "旋转 90°" })).toBeVisible();
   await page.screenshot({
-    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/image-failure-crop.png",
+    path: test.info().outputPath("image-failure-crop.png"),
     fullPage: true,
   });
 });

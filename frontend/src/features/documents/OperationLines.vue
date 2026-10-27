@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
-import AllocationDetails from "./AllocationDetails.vue";
+import { unitLabel, sortByUnit } from "../../lib/units";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
 	recordConversion,
@@ -12,8 +12,27 @@ import SearchSelect from "../../components/ui/SearchSelect.vue";
 import FormField from "../../components/ui/FormField.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
-import { computed, ref, nextTick, watch, onDeactivated, onBeforeUnmount, onMounted } from "vue";
-import { useOperationContext, type OperationDraft, type AllocationLine } from "./operationModel";
+import {
+	computed,
+	ref,
+	nextTick,
+	watch,
+	onDeactivated,
+	onBeforeUnmount,
+	onMounted,
+	useId,
+} from "vue";
+import {
+	useOperationContext,
+	type OperationDraft,
+	type AllocationLine,
+	type OperationLocationSection,
+	operationSections,
+	moveOperationLine,
+	moveOperationSection,
+	mergeCompatibleOperationLines,
+	copyOperationLine,
+} from "./operationModel";
 import { useReferenceData, useInventoryServices } from "../../services/contracts";
 const context = useOperationContext();
 const reference = useReferenceData();
@@ -95,8 +114,6 @@ onMounted(async () => {
 });
 async function destinationChanged(value: string) {
 	if (!value || !["Receive", "Transfer"].includes(props.draft.kind)) return;
-	if (props.draft.kind === "Receive")
-		for (const line of props.draft.items) line.location = value;
 	try {
 		await services.call("preferences.save_creation_location", {
 			kind: props.draft.kind,
@@ -210,34 +227,13 @@ const activeScanWarehouse = computed(() =>
 );
 let scanRecency = 0;
 const recency = new Map<string, number>();
-const detailsLine = ref<AllocationLine>();
-const detailsField = ref<string>();
 const conversionTarget = ref<{
 	line: AllocationLine;
 	lines: AllocationLine[];
 	unit: string;
 }>();
 const conversionDirty = ref(false);
-function showDetails(line: AllocationLine, field?: string) {
-	detailsField.value = field;
-	detailsLine.value = line;
-}
-async function replaceFromDetails() {
-	const line = detailsLine.value;
-	const group = groups.value.find((group) => group.lines.some((row) => row.id === line?.id));
-	detailsLine.value = undefined;
-	await nextTick();
-	if (group) pick(group.lines);
-}
-function splitFromDetails() {
-	const line = detailsLine.value;
-	if (line) settlement.value ? splitOutcome(line) : addBatch(line);
-	detailsLine.value = undefined;
-}
 function selectUnit(line: AllocationLine, unit: string) {
-	const group = groups.value.find((row) =>
-		row.lines.some((candidate) => candidate.id === line.id),
-	);
 	const factor =
 		unit === line.uom
 			? 1
@@ -245,13 +241,12 @@ function selectUnit(line: AllocationLine, unit: string) {
 	if (!factor || unit === "__other") {
 		conversionTarget.value = {
 			line,
-			lines: group?.lines || [line],
+			lines: [line],
 			unit,
 		};
 		conversionDirty.value = false;
 	} else {
-		for (const row of group?.lines || [line])
-			applyLineConversion(row, unit, factor, row.qty / factor);
+		applyLineConversion(line, unit, factor, line.qty / factor);
 	}
 }
 async function closeConversion() {
@@ -304,14 +299,12 @@ watch(
 	() => [props.active, props.disabled],
 	([active, disabled]) => {
 		if (active === false || disabled === true) {
-			detailsLine.value = undefined;
 			conversionTarget.value = undefined;
 			cancelPendingScans();
 		}
 	},
 );
 onDeactivated(() => {
-	detailsLine.value = undefined;
 	conversionTarget.value = undefined;
 	cancelPendingScans();
 });
@@ -330,15 +323,11 @@ const canAddItem = computed(
 		!props.hydrating &&
 		!multiAdding.value &&
 		!settlement.value &&
-		(!receive.value || !!destination.value),
+		(!receive.value ||
+			!!destination.value ||
+			props.draft.items.some((line) => !!line.location)),
 );
 const hasBatchRows = (code: string) => Boolean(stockItem(code)?.tracksBatch);
-function groupTotal(group: { lines: AllocationLine[] }) {
-	return group.lines.reduce((total, line) => total + Number(line.qty || 0), 0);
-}
-function groupHasHighlight(group: { lines: AllocationLine[] }) {
-	return group.lines.some((line) => highlightedLineIds.value.has(line.id));
-}
 function lineIssue(line: AllocationLine, field: string) {
 	return lineIssues.value.find((issue) => issue.lineId === line.id && issue.field === field);
 }
@@ -348,18 +337,13 @@ function lineInvalid(line: AllocationLine, field: string) {
 function lineIssueId(line: AllocationLine, field: string) {
 	return "operation-issue-" + line.id + "-" + field;
 }
-function changeGroupSource(group: { lines: AllocationLine[] }, source: string) {
-	for (const line of group.lines) {
-		line.sourceLocation = source;
-		changeSource(line);
-	}
-}
-function changeGroupLocation(group: { lines: AllocationLine[] }, location: string) {
-	for (const line of group.lines) line.location = location;
-}
 const root = ref<HTMLElement>();
 const search = ref("");
 const incompleteOnly = ref(false);
+const sectionHeaderId = useId();
+const addingSection = ref(false);
+const addSectionSelect = ref<InstanceType<typeof SearchSelect>>();
+const addSectionPicker = ref<HTMLElement>();
 const revealErrors = ref(false);
 const pendingLineIds = ref(new Set<string>());
 const issues = computed(() =>
@@ -377,9 +361,155 @@ const totals = computed(() => {
 	props.draft.items.forEach((line) =>
 		quantities.set(line.uom, (quantities.get(line.uom) || 0) + Number(line.qty || 0)),
 	);
-	return [...quantities].map(([uom, qty]) => `${qty} ${uom}`).join(" · ");
+	return sortByUnit([...quantities], ([uom]) => uom)
+		.map(([uom, qty]) => `${qty} ${unitLabel(uom)}`)
+		.join(" · ");
 });
 const itemCount = computed(() => new Set(props.draft.items.map((line) => line.code)).size);
+const emptySectionLocations = ref<string[]>([]);
+const sectionLabel = computed(
+	() =>
+		({
+			Receive: "入库位置",
+			Issue: "出库位置",
+			Loss: "遗失位置",
+			Loan: "借出位置",
+			Damage: "损坏位置",
+			Disposal: "报废位置",
+			Transfer: "调出位置",
+			Return: "归还位置",
+			Repair: "修复后位置",
+		})[props.draft.kind],
+);
+const addSectionLabel = computed(() => `+ 添加${sectionLabel.value}`);
+function sectionHasBatch(section: OperationLocationSection) {
+	return section.lines.some((line) => hasBatchRows(line.code));
+}
+function sectionHasOutcome(section: OperationLocationSection) {
+	return props.draft.kind === "Return" && section.lines.some((line) => !!line.loanName);
+}
+function sectionGridTemplate(section: OperationLocationSection) {
+	const columns = ["minmax(180px, 1.6fr)"];
+	if (sectionHasBatch(section))
+		columns.push("minmax(112px, 1fr)", "minmax(94px, 0.82fr)", "minmax(110px, 0.9fr)");
+	columns.push("88px", "96px");
+	if (props.draft.kind === "Transfer") columns.push("minmax(128px, 1fr)");
+	if (["Damage", "Loss"].includes(props.draft.kind)) columns.push("minmax(120px, 0.95fr)");
+	if (sectionHasOutcome(section)) columns.push("minmax(128px, 1fr)");
+	columns.push("40px");
+	return columns.join(" ");
+}
+function lineName(line: AllocationLine) {
+	return stockItem(line.code)?.name || line.displayName || line.code;
+}
+const fixedSectionLocation = computed(
+	() =>
+		["Repair", "Disposal"].includes(props.draft.kind) &&
+		sections.value.some((section) => reference.damagedLeaves.includes(section.location)),
+);
+const locationOptions = computed(() =>
+	places.value.map((name) => ({
+		value: name,
+		label: warehouseLabel(name, reference.warehouses),
+		title: warehousePath(name, reference.warehouses),
+		detail: warehousePath(name, reference.warehouses),
+		keywords: warehouseSearchText(name, reference.warehouses),
+	})),
+);
+const sections = computed(() => {
+	const grouped = operationSections(props.draft);
+	for (const location of emptySectionLocations.value)
+		if (!grouped.some((section) => section.location === location))
+			grouped.push({ location, lines: [] });
+	return grouped;
+});
+function addEmptySection(location: string) {
+	if (location && !sections.value.some((section) => section.location === location))
+		emptySectionLocations.value.push(location);
+	if (receive.value && location) {
+		destination.value = location;
+		void destinationChanged(location);
+	}
+	addingSection.value = false;
+}
+function startAddingSection() {
+	addingSection.value = true;
+	void nextTick(() => addSectionSelect.value?.focus());
+}
+function cancelAddingSection() {
+	addingSection.value = false;
+}
+function blurAddSection(event: FocusEvent) {
+	const next = event.relatedTarget;
+	if (!(next instanceof Node) || !addSectionPicker.value?.contains(next)) cancelAddingSection();
+}
+function moveSection(section: OperationLocationSection, location: string) {
+	moveOperationSection(props.draft, section, location);
+	if (receive.value && location) {
+		destination.value = location;
+		void destinationChanged(location);
+	}
+	emptySectionLocations.value = emptySectionLocations.value.filter(
+		(value) => value !== location,
+	);
+	mergeCompatibleOperationLines(props.draft);
+}
+function moveLine(line: AllocationLine, location: string) {
+	moveOperationLine(props.draft, line, location);
+	if (receive.value && location) {
+		destination.value = location;
+		void destinationChanged(location);
+	}
+	mergeCompatibleOperationLines(props.draft);
+}
+function closeLineMenu(line: AllocationLine) {
+	void nextTick(() => {
+		const row = Array.from(
+			root.value?.querySelectorAll<HTMLElement>("[data-line-id]") || [],
+		).find((element) => element.dataset.lineId === line.id);
+		row?.querySelector("details.operation-row-menu")?.removeAttribute("open");
+	});
+}
+function moveLineFromMenu(line: AllocationLine, location: string) {
+	moveLine(line, location);
+	closeLineMenu(line);
+}
+function sectionLocationOptions(section: OperationLocationSection) {
+	return locationOptions.value.filter(
+		(option) =>
+			props.draft.kind !== "Transfer" ||
+			section.lines.every((line) => line.location !== option.value),
+	);
+}
+function lineLocationOptions(section: OperationLocationSection, line: AllocationLine) {
+	return sectionLocationOptions(section)
+		.filter(
+			(option) =>
+				option.value !== section.location &&
+				(props.draft.kind !== "Transfer" || option.value !== line.location),
+		)
+		.map((option) => {
+			const node = reference.warehouses.find((row) => row.name === option.value);
+			return {
+				...option,
+				label: node?.short_label || node?.local_label || option.label,
+				title: option.title || warehousePath(option.value, reference.warehouses),
+			};
+		});
+}
+function duplicateLine(line: AllocationLine) {
+	const copy = copyOperationLine(line);
+	props.draft.items.splice(props.draft.items.indexOf(line) + 1, 0, copy);
+	markRecent(copy);
+	closeLineMenu(line);
+}
+function pickAt(location: string) {
+	if (receive.value) {
+		destination.value = location;
+		void destinationChanged(location);
+	} else scanWarehouse.value = location;
+	pick();
+}
 const visibleIds = computed(
 	() =>
 		new Set(
@@ -398,74 +528,9 @@ const visibleIds = computed(
 				.map((line) => line.id),
 		),
 );
-// Keep a row's grouping anchor while fields inside the editor have focus.
-const anchors = new Map<string, string>();
-const groupRevision = ref(0);
 const highlightedLineIds = ref(new Set<string>());
 const highlightTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const knownLineIds = new Set(props.draft.items.map((line) => line.id));
-const groups = computed(() => {
-	void groupRevision.value;
-	const grouped = new Map<
-		string,
-		{
-			key: string;
-			location: string;
-			sourceLocation: string;
-			targetLocation: string;
-			code: string;
-			lines: AllocationLine[];
-		}
-	>();
-	const locations: string[] = [];
-	for (const line of props.draft.items) {
-		const source = line.sourceLocation || line.loanedLocation || line.location;
-		const current = receive.value ? line.location : source;
-		if (!anchors.has(line.id)) anchors.set(line.id, current);
-		const location = anchors.get(line.id)!;
-		if (!locations.includes(location)) locations.push(location);
-		const target = ["Transfer", "Repair", "Return"].includes(props.draft.kind)
-			? line.location
-			: props.draft.kind === "Loan"
-				? line.loanedLocation || props.draft.loanDestination
-				: receive.value
-					? line.location
-					: "";
-		const loan = line.loanName || props.draft.loanName || "";
-		const separateLine = stockItem(line.code)?.tracksBatch ? "" : line.id;
-		const key = JSON.stringify([
-			line.code,
-			location,
-			target,
-			loan,
-			line.returnOutcome || "",
-			separateLine,
-		]);
-		if (!grouped.has(key))
-			grouped.set(key, {
-				key,
-				location,
-				sourceLocation: source,
-				targetLocation: target,
-				code: line.code,
-				lines: [],
-			});
-		grouped.get(key)!.lines.push(line);
-	}
-	return [...grouped.values()]
-		.map((group) => ({
-			...group,
-			lines: [...group.lines].sort(
-				(a, b) => (recency.get(b.id) || 0) - (recency.get(a.id) || 0),
-			),
-			recent: Math.max(...group.lines.map((line) => recency.get(line.id) || 0)),
-		}))
-		.sort(
-			(a, b) =>
-				b.recent - a.recent ||
-				locations.indexOf(a.location) - locations.indexOf(b.location),
-		);
-});
 function markRecent(line: AllocationLine) {
 	scanRecency++;
 	recency.set(line.id, scanRecency);
@@ -483,7 +548,6 @@ function markRecent(line: AllocationLine) {
 			highlightTimers.delete(line.id);
 		}, 1400),
 	);
-	groupRevision.value++;
 }
 watch(
 	() => props.draft.items.map((line) => line.id),
@@ -503,7 +567,6 @@ watch(
 			if (timer) clearTimeout(timer);
 			highlightTimers.delete(id);
 		}
-		groupRevision.value++;
 	},
 	{ flush: "sync" },
 );
@@ -552,6 +615,14 @@ function destinationChoices(source: string) {
 		? candidates.filter((name) => name !== source)
 		: candidates;
 }
+function receiveScanLocation(code: string) {
+	const matchingLine = [...props.draft.items]
+		.reverse()
+		.find((line) => line.code === code && line.location);
+	if (matchingLine?.location) return matchingLine.location;
+	const latestLine = [...props.draft.items].reverse().find((line) => line.location);
+	return latestLine?.location || destination.value;
+}
 function snapshotDestination(context: ScanContextSnapshot) {
 	return (
 		context.destination ||
@@ -577,7 +648,9 @@ function scanResolutionFor(
 		context.activeWarehouse ||
 		scanWarehouse.value ||
 		String(props.draft.preferredWarehouse || "");
-	const defaultDestination = snapshotDestination(context);
+	const defaultDestination = receiving
+		? snapshotDestination(context) || receiveScanLocation(item.code)
+		: snapshotDestination(context);
 	const activeWarehouse = receiving ? activeSource || defaultDestination : activeSource;
 	const targetContext = destinationContext(defaultDestination);
 	const remembered = scanAllocationPreferences.get(
@@ -643,14 +716,14 @@ function scanResolutionFor(
 			value: source,
 			label: warehouseLabel(source, reference.warehouses),
 			available,
-			detail: `${warehousePath(source, reference.warehouses)} · 可用 ${available} ${item.uom}`,
+			detail: `${warehousePath(source, reference.warehouses)} · 可用 ${available} ${unitLabel(item.uom)}`,
 			keywords: warehouseSearchText(source, reference.warehouses),
 		};
 	});
 	const batchOptions = selectedPairs.map((row) => ({
 		value: row.batch,
 		label: row.batch,
-		detail: `可用 ${row.available} ${item.uom}`,
+		detail: `可用 ${row.available} ${unitLabel(item.uom)}`,
 		source: row.source,
 		available: row.available,
 	}));
@@ -807,7 +880,7 @@ function addScannedLine(item: StockItem, batch: string, source: string, destinat
 		: ["Transfer", "Repair"].includes(props.draft.kind)
 			? `${source} → ${lineDestination}`
 			: source;
-	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${item.uom}${warehouse ? ` · ${warehouseLabel(warehouse, reference.warehouses, warehouse)}` : ""}`;
+	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${unitLabel(item.uom)}${warehouse ? ` · ${warehouseLabel(warehouse, reference.warehouses, warehouse)}` : ""}`;
 }
 function activeScanContext(value: unknown): ScanContextSnapshot {
 	return value && typeof value === "object" ? (value as ScanContextSnapshot) : {};
@@ -1008,24 +1081,11 @@ function lineDestinationForUndo(line: AllocationLine) {
 		? String(line.loanedLocation || props.draft.loanDestination || "")
 		: line.location;
 }
-async function regroupAfterFocus() {
-	await nextTick();
-	if (!root.value?.contains(document.activeElement)) {
-		anchors.clear();
-		groupRevision.value++;
-	}
-}
 async function revealIssue(issue: OperationIssue | undefined = lineIssues.value[0]) {
 	if (!issue?.lineId) return;
 	if (issue.message) revealErrors.value = true;
 	search.value = "";
 	incompleteOnly.value = false;
-	const hidden = ["reason", "returnOutcome", "loanName"].includes(issue.field || "");
-	const line = props.draft.items.find((line) => line.id === issue.lineId);
-	if (hidden && line) {
-		showDetails(line, issue.field);
-		return;
-	}
 	await nextTick();
 	const row = Array.from(root.value?.querySelectorAll<HTMLElement>("[data-line-id]") || []).find(
 		(row) => row.dataset.lineId === issue.lineId,
@@ -1066,7 +1126,6 @@ function openPicker() {
 	pick();
 }
 defineExpose({ revealIssue, itemPickerReady, openPicker });
-let sequence = 0;
 function refreshLine(line: AllocationLine) {
 	const item = stockItem(line.code);
 	if (!item) return;
@@ -1257,38 +1316,6 @@ function remove(line: AllocationLine) {
 	scanUndoRevision.value++;
 	scannedLineIds.value = new Set([...scannedLineIds.value].filter((id) => id !== line.id));
 }
-function splitOutcome(line: AllocationLine) {
-	const addition: AllocationLine = {
-		...line,
-		name: undefined,
-		localId: crypto.randomUUID(),
-		id: line.id + "-outcome-" + ++sequence,
-		qty: 1,
-		entryQty: 1 / (line.conversionFactor || 1),
-		returnOutcome: "returned",
-	};
-	props.draft.items.push(addition);
-	markRecent(addition);
-}
-function addBatch(line: AllocationLine) {
-	const factor = Number(line.conversionFactor || 1);
-	const addition: AllocationLine = {
-		...line,
-		name: undefined,
-		localId: crypto.randomUUID(),
-		id: line.id + "-batch-" + ++sequence,
-		qty: factor,
-		entryQty: 1,
-		batch: "",
-		expiry: "",
-		manufacturingDate: "",
-		nativeBundle: undefined,
-		recordedBundle: undefined,
-		batchAllocations: undefined,
-	};
-	props.draft.items.push(addition);
-	markRecent(addition);
-}
 function changeSource(line: AllocationLine) {
 	const source = line.sourceLocation;
 	if (!receive.value && !["Transfer", "Repair"].includes(props.draft.kind))
@@ -1324,7 +1351,7 @@ function receiveBatchChanged(line: AllocationLine) {
 <template>
 	<AllocationSummary v-if="mode === 'display'" :draft="draft" />
 	<template v-else>
-		<div ref="root" class="preview-operation-lines" @focusout="regroupAfterFocus">
+		<div ref="root" class="preview-operation-lines">
 			<div v-if="!draft.items.length && !hydrating" class="operation-lines-empty">
 				<FormField
 					v-if="receive && !disabled"
@@ -1392,27 +1419,30 @@ function receiveBatchChanged(line: AllocationLine) {
 						shouldShowLineTools(draft.items.length))
 				"
 				class="preview-line-toolbar"
-				:class="{ 'is-keyboard-open': keyboardOpen }"
+				:class="{
+					'is-keyboard-open': keyboardOpen,
+					'has-transfer-destination': draft.kind === 'Transfer' && !disabled,
+				}"
 			>
 				<FormField
-					v-if="(receive || draft.kind === 'Transfer') && !disabled"
+					v-if="draft.kind === 'Transfer' && !disabled"
 					class="preview-receive-target"
-					:label="receive ? '入库位置' : '调入位置'"
-					:required="receive"
+					label="调入位置"
 				>
 					<template #default="{ fieldAttrs }">
 						<SearchSelect
 							v-bind="fieldAttrs"
 							external-label
-							:label="receive ? '入库位置' : '调入位置'"
-							:data-field="receive ? 'location' : 'destination'"
+							label="调入位置"
+							data-field="destination"
 							v-model="destination"
 							@update:model-value="destinationChanged"
 							:clearable="false"
 							:options="
-								(receive ? places : transferDestinations).map((name) => ({
+								transferDestinations.map((name) => ({
 									value: name,
 									label: warehouseLabel(name, reference.warehouses),
+									title: warehousePath(name, reference.warehouses),
 									detail: warehousePath(name, reference.warehouses),
 									keywords: warehouseSearchText(name, reference.warehouses),
 								}))
@@ -1421,15 +1451,6 @@ function receiveBatchChanged(line: AllocationLine) {
 					</template>
 				</FormField>
 				<div class="preview-line-toolbar-actions">
-					<UiButton
-						v-if="!disabled && !settlement"
-						variant="secondary"
-						icon="box"
-						data-field="items"
-						:disabled="!canAddItem"
-						@click="pick()"
-						>添加物品</UiButton
-					>
 					<UiButton
 						v-if="!disabled && !settlement"
 						variant="secondary"
@@ -1484,263 +1505,120 @@ function receiveBatchChanged(line: AllocationLine) {
 				</article>
 			</div>
 			<section
-				v-for="group in groups"
-				:key="group.key"
-				v-show="group.lines.some((line) => visibleIds.has(line.id))"
-				class="location-group"
+				v-for="(section, sectionIndex) in sections"
+				:key="section.location"
+				class="operation-location-section"
 			>
-				<article
-					v-if="hydrating || !stockItem(group.code)"
-					class="operation-line-skeleton"
+				<header class="operation-location-heading">
+					<strong :id="`${sectionHeaderId}-${sectionIndex}`">{{ sectionLabel }}</strong>
+					<SearchSelect
+						class="operation-section-location"
+						:label="sectionLabel"
+						external-label
+						:aria-labelled-by="`${sectionHeaderId}-${sectionIndex}`"
+						:model-value="section.location"
+						:disabled="disabled || hydrating || fixedSectionLocation"
+						:invalid="
+							section.lines.some((line) =>
+								lineInvalid(
+									line,
+									['Receive', 'Return', 'Repair'].includes(draft.kind)
+										? 'location'
+										: 'sourceLocation',
+								),
+							)
+						"
+						:clearable="false"
+						:options="sectionLocationOptions(section)"
+						@update:model-value="moveSection(section, $event)"
+					/>
+					<span class="muted operation-section-count"
+						>{{ section.lines.length }} 行</span
+					>
+					<button
+						v-if="!disabled && !settlement"
+						type="button"
+						class="operation-add-item-quiet"
+						aria-label="添加物品"
+						@click="pickAt(section.location)"
+					>
+						<span class="operation-add-item-desktop">+ 添加物品</span>
+						<span class="operation-add-item-phone" aria-hidden="true">+</span>
+					</button>
+				</header>
+				<div
+					class="operation-column-headings"
+					:style="{ '--operation-grid-template': sectionGridTemplate(section) }"
 					aria-hidden="true"
 				>
-					<SkeletonBlock variant="detail" :count="3" :rows="2" />
-				</article>
+					<span>物品</span>
+					<template v-if="sectionHasBatch(section)">
+						<span>批次</span><span>效期</span><span>生产日期</span>
+					</template>
+					<span>数量</span><span>单位</span>
+					<span v-if="draft.kind === 'Transfer'">调入</span>
+					<span v-if="['Damage', 'Loss'].includes(draft.kind)">原因</span>
+					<span v-if="sectionHasOutcome(section)">归还结果</span>
+					<span>⋯</span>
+				</div>
 				<article
-					v-else
-					class="preview-allocation compact-allocation allocation-card"
-					:class="{ 'allocation-card--recent': groupHasHighlight(group) }"
-					:data-line-id="hasBatchRows(group.code) ? undefined : group.lines[0]!.id"
+					v-for="line in section.lines.filter((row) => visibleIds.has(row.id))"
+					:key="line.id"
+					class="operation-compact-row"
+					:class="{
+						'operation-compact-row--recent': highlightedLineIds.has(line.id),
+						'is-batch-tracked': hasBatchRows(line.code),
+					}"
+					:style="{ '--operation-grid-template': sectionGridTemplate(section) }"
+					:data-line-id="line.id"
 				>
-					<header class="allocation-card-heading">
-						<div class="allocation-identity">
-							<div class="preview-group-thumbnail">
-								<ItemImage :item="stockItem(group.code)!" />
-							</div>
-							<div class="preview-line-identity">
-								<strong>{{ stockItem(group.code)?.name || group.code }}</strong>
-								<small class="muted"
-									>{{ group.code
-									}}<template v-if="stockItem(group.code)?.category">
-										· {{ stockItem(group.code)?.category }}</template
-									></small
-								>
-							</div>
-						</div>
-						<div v-if="hasBatchRows(group.code)" class="allocation-card-total">
-							<SearchSelect
-								class="allocation-card-unit"
-								label="单位"
-								:clearable="false"
-								:model-value="group.lines[0]!.entryUom || group.lines[0]!.uom"
-								:disabled="disabled || hydrating"
-								:options="[
-									group.lines[0]!.uom,
-									...(stockItem(group.code)?.alternateUnits?.map((row) => ({
-										value: row.uom,
-										label: row.uom,
-										detail: `1 ${row.uom} = ${row.factor} ${group.lines[0]!.uom}`,
-									})) || []),
-									{ value: '__other', label: '设置换算…' },
-								]"
-								@update:model-value="selectUnit(group.lines[0]!, $event)"
+					<div class="operation-row-item">
+						<div class="operation-row-thumbnail">
+							<ItemImage
+								v-if="stockItem(line.code)"
+								:item="stockItem(line.code)!"
+								:thumbnail-size="32"
+								:target-size="32"
 							/>
-							<div class="allocation-card-total-summary">
-								<small>{{ group.lines.length }} 个批次</small>
-								<strong
-									:title="`合计 ${groupTotal(group)} ${group.lines[0]!.uom}，只读`"
-									>{{ groupTotal(group) }} {{ group.lines[0]!.uom }}</strong
-								>
-								<small>合计</small>
-							</div>
 						</div>
-					</header>
-					<div class="allocation-card-controls">
-						<div v-if="!hasBatchRows(group.code)" class="allocation-quantity">
-							<template v-for="line in group.lines" :key="line.id">
-								<label class="preview-field">
-									<span class="allocation-field-label">数量</span>
-									<input
-										data-field="qty"
-										type="number"
-										inputmode="decimal"
-										enterkeyhint="next"
-										min="0"
-										step="any"
-										:value="enteredQty(line)"
-										:disabled="disabled || hydrating"
-										:aria-label="
-											(stockItem(line.code)?.name || line.code) + '数量'
-										"
-										:aria-invalid="lineInvalid(line, 'qty')"
-										:aria-describedby="
-											lineInvalid(line, 'qty')
-												? lineIssueId(line, 'qty')
-												: undefined
-										"
-										@input="
-											setEnteredQty(
-												line,
-												Number(($event.target as HTMLInputElement).value),
-											)
-										"
-									/>
-									<p
-										v-if="lineInvalid(line, 'qty')"
-										:id="lineIssueId(line, 'qty')"
-										class="utility-error"
-									>
-										{{ lineIssue(line, "qty")?.message }}
-									</p>
-								</label>
-								<SearchSelect
-									label="单位"
-									:clearable="false"
-									:model-value="line.entryUom || line.uom"
-									:disabled="disabled || hydrating"
-									:options="[
-										line.uom,
-										...(stockItem(line.code)?.alternateUnits?.map(
-											(row) => row.uom,
-										) || []),
-										{ value: '__other', label: '设置换算…' },
-									]"
-									@update:model-value="selectUnit(line, $event)"
-								/>
-								<small
-									v-if="line.entryUom !== line.uom"
-									class="allocation-equivalent"
-									>{{ enteredQty(line) }} {{ line.entryUom }} · 折合
-									{{ line.qty }} {{ line.uom }}</small
-								>
-							</template>
-						</div>
-						<div class="allocation-locations">
-							<SearchSelect
-								v-if="!receive && !settlement"
-								data-field="sourceLocation"
-								:label="draft.kind === 'Transfer' ? '从' : '来源库位'"
-								:model-value="
-									group.lines[0]!.sourceLocation || group.lines[0]!.location
-								"
-								:disabled="disabled || hydrating"
-								:options="
-									stockItem(group.code)?.locations.map((row) => ({
-										value: row.location,
-										label:
-											row.label ||
-											warehouseLabel(row.location, reference.warehouses),
-										title: warehousePath(row.location, reference.warehouses),
-										detail:
-											warehousePath(row.location, reference.warehouses) +
-											' · 可用 ' +
-											row.available +
-											' · 损坏 ' +
-											row.damaged,
-										keywords: warehouseSearchText(
-											row.location,
-											reference.warehouses,
-										),
-									})) || []
-								"
-								:invalid="lineInvalid(group.lines[0]!, 'sourceLocation')"
-								@update:model-value="changeGroupSource(group, $event)"
-							/>
-							<SearchSelect
-								v-if="
-									!receive &&
-									['Transfer', 'Return', 'Repair'].includes(draft.kind)
-								"
-								data-field="location"
-								:label="draft.kind === 'Transfer' ? '到' : '目标 / 存放库位'"
-								:model-value="group.lines[0]!.location"
-								:disabled="disabled || hydrating"
-								:options="
-									places
-										.filter(
-											(name) =>
-												!['Transfer', 'Repair'].includes(draft.kind) ||
-												name !== group.lines[0]!.sourceLocation,
-										)
-										.map((name) => ({
-											value: name,
-											label: warehouseLabel(name, reference.warehouses),
-											title: warehousePath(name, reference.warehouses),
-											detail: warehousePath(name, reference.warehouses),
-											keywords: warehouseSearchText(
-												name,
-												reference.warehouses,
-											),
-										}))
-								"
-								:invalid="lineInvalid(group.lines[0]!, 'location')"
-								@update:model-value="changeGroupLocation(group, $event)"
-							/>
-							<p
-								v-if="receive && group.lines[0]!.location !== destination"
-								class="allocation-location-value"
-							>
-								入库位置：{{
+						<div class="operation-compact-identity">
+							<strong :title="lineName(line)">{{ lineName(line) }}</strong>
+							<small class="muted">{{ line.code }}</small>
+							<small v-if="draft.kind === 'Repair'" class="muted"
+								>损坏来源：{{
 									warehouseLabel(
-										destination,
+										line.sourceLocation || "",
 										reference.warehouses,
-										destination || "未选择",
+										"未指定",
 									)
-								}}
-							</p>
+								}}</small
+							>
 						</div>
 					</div>
-					<small
-						v-if="
-							hasBatchRows(group.code) &&
-							group.lines[0]!.entryUom !== group.lines[0]!.uom
-						"
-						class="allocation-equivalent"
-						>数量按 {{ group.lines[0]!.entryUom }} 输入，合计仍按
-						{{ group.lines[0]!.uom }} 计算。</small
-					>
-					<div
-						v-if="hasBatchRows(group.code)"
-						class="allocation-batch-table"
-						:class="{
-							'has-expiry': stockItem(group.code)?.tracksExpiry,
-							'has-manufacturing':
-								receive || group.lines.some((line) => line.manufacturingDate),
-							'is-receive': receive,
-						}"
-					>
-						<div class="batch-subrow batch-subrow--header" aria-hidden="true">
-							<span>批次编号</span>
-							<span v-if="stockItem(group.code)?.tracksExpiry">到期日期</span>
-							<span
-								v-if="
-									receive || group.lines.some((line) => line.manufacturingDate)
-								"
-								>生产日期</span
-							>
-							<span>数量</span>
-							<span>操作</span>
-						</div>
-						<div
-							v-for="line in group.lines"
-							:key="line.id"
-							class="batch-subrow"
-							:data-line-id="line.id"
-						>
-							<div class="batch-subrow-field" data-label="批次编号">
-								<label v-if="receive" class="preview-field">
-									<span>批次编号</span>
-									<input
-										data-field="batch"
-										v-model="line.batch"
-										placeholder="留空自动生成"
-										autocapitalize="off"
-										autocorrect="off"
-										spellcheck="false"
-										:disabled="disabled || hydrating"
-										:aria-invalid="lineInvalid(line, 'batch')"
-										:aria-describedby="
-											lineInvalid(line, 'batch')
-												? lineIssueId(line, 'batch')
-												: undefined
-										"
-										@input="receiveBatchChanged(line)"
-									/>
-								</label>
+					<div v-if="sectionHasBatch(section)" class="operation-row-batch">
+						<div class="operation-row-cell operation-row-batch-id">
+							<span class="operation-phone-field-label">批次</span>
+							<template v-if="hasBatchRows(line.code)">
+								<input
+									v-if="receive"
+									data-field="batch"
+									v-model="line.batch"
+									:aria-label="`${lineName(line)}批次`"
+									placeholder="自动生成"
+									:disabled="disabled || hydrating"
+									:aria-invalid="lineInvalid(line, 'batch')"
+									:aria-describedby="
+										lineInvalid(line, 'batch')
+											? lineIssueId(line, 'batch')
+											: undefined
+									"
+									@input="receiveBatchChanged(line)"
+								/>
 								<SearchSelect
 									v-else-if="!settlement && !line.batchAllocations?.length"
-									data-field="batch"
-									label="现有批次"
+									:label="`${lineName(line)}批次`"
+									external-label
+									:aria-label="`${lineName(line)}批次`"
 									:model-value="line.batch"
 									:disabled="disabled || hydrating"
 									:invalid="lineInvalid(line, 'batch')"
@@ -1748,14 +1626,7 @@ function receiveBatchChanged(line: AllocationLine) {
 										(lineStock(line)?.batches || []).map((batch) => ({
 											value: batch.id,
 											label: batch.id,
-											title: batch.id,
-											detail:
-												'可用 ' +
-												batch.available +
-												' · 损坏 ' +
-												(batch.damaged || 0) +
-												' · 到期 ' +
-												(batch.expiry || '无效期'),
+											detail: `可用 ${batch.available} · 到期 ${batch.expiry || '无效期'}`,
 										}))
 									"
 									@update:model-value="
@@ -1763,225 +1634,260 @@ function receiveBatchChanged(line: AllocationLine) {
 										changeBatch(line);
 									"
 								/>
-								<p v-else class="batch-readonly">
-									{{
-										line.batch ||
-										(line.batchAllocations?.length
-											? "已记录多批次"
-											: "原借出未记录批次")
-									}}
-								</p>
-								<p
-									v-if="lineInvalid(line, 'batch')"
-									:id="lineIssueId(line, 'batch')"
-									class="utility-error"
-									role="alert"
-								>
-									{{ lineIssue(line, "batch")?.message }}
-								</p>
-							</div>
-							<div
-								v-if="stockItem(group.code)?.tracksExpiry"
-								class="batch-subrow-field"
-								data-label="到期日期"
-							>
-								<label v-if="receive" class="preview-field">
-									<span>到期日期</span>
-									<input
-										data-field="expiry"
-										v-model="line.expiry"
-										type="date"
-										:disabled="disabled || hydrating"
-										:aria-invalid="lineInvalid(line, 'expiry')"
-										:aria-describedby="
-											lineInvalid(line, 'expiry')
-												? lineIssueId(line, 'expiry')
-												: undefined
-										"
-									/>
-								</label>
-								<p v-else class="batch-readonly">{{ line.expiry || "无效期" }}</p>
-								<p
-									v-if="lineInvalid(line, 'expiry')"
-									:id="lineIssueId(line, 'expiry')"
-									class="utility-error"
-									role="alert"
-								>
-									{{ lineIssue(line, "expiry")?.message }}
-								</p>
-							</div>
-							<div
-								v-if="receive || group.lines.some((row) => row.manufacturingDate)"
-								class="batch-subrow-field"
-								data-label="生产日期"
-							>
-								<template v-if="receive">
-									<label class="preview-field">
-										<span>生产日期</span>
-										<input
-											data-field="manufacturingDate"
-											v-model="line.manufacturingDate"
-											type="date"
-											:disabled="disabled || hydrating"
-											:aria-invalid="lineInvalid(line, 'manufacturingDate')"
-											:aria-describedby="
-												lineInvalid(line, 'manufacturingDate')
-													? lineIssueId(line, 'manufacturingDate')
-													: undefined
-											"
-										/>
-									</label>
-								</template>
-								<p v-else class="batch-readonly">
-									{{ line.manufacturingDate || "—" }}
-								</p>
-								<p
-									v-if="lineInvalid(line, 'manufacturingDate')"
-									:id="lineIssueId(line, 'manufacturingDate')"
-									class="utility-error"
-									role="alert"
-								>
-									{{ lineIssue(line, "manufacturingDate")?.message }}
-								</p>
-							</div>
-							<div
-								class="batch-subrow-field batch-subrow-quantity"
-								data-label="数量"
-							>
-								<label class="preview-field">
-									<span>数量</span>
-									<input
-										data-field="qty"
-										type="number"
-										inputmode="decimal"
-										enterkeyhint="next"
-										min="0"
-										step="any"
-										:value="enteredQty(line)"
-										:disabled="disabled || hydrating"
-										:aria-label="
-											(stockItem(line.code)?.name || line.code) + '批次数量'
-										"
-										:aria-invalid="lineInvalid(line, 'qty')"
-										:aria-describedby="
-											lineInvalid(line, 'qty')
-												? lineIssueId(line, 'qty')
-												: undefined
-										"
-										@input="
-											setEnteredQty(
-												line,
-												Number(($event.target as HTMLInputElement).value),
-											)
-										"
-									/>
-								</label>
-								<p
-									v-if="lineInvalid(line, 'qty')"
-									:id="lineIssueId(line, 'qty')"
-									class="utility-error"
-									role="alert"
-								>
-									{{ lineIssue(line, "qty")?.message }}
-								</p>
-								<small class="muted">{{ line.entryUom || line.uom }}</small>
-							</div>
-							<div class="batch-subrow-actions">
-								<UiButton
-									v-if="!disabled"
-									variant="ghost"
-									:aria-label="
-										'移除' +
-										(stockItem(line.code)?.name || line.code) +
-										'的批次行'
-									"
-									@click="remove(line)"
-									>移除</UiButton
-								>
-							</div>
-						</div>
-						<UiButton
-							v-if="!disabled && !settlement"
-							variant="secondary"
-							class="add-batch-row"
-							@click="addBatch(group.lines[0]!)"
-							>+ 添加批次</UiButton
-						>
-					</div>
-					<div
-						v-if="
-							settlement ||
-							lineIssues.some((issue) =>
-								group.lines.some((line) => line.id === issue.lineId),
-							)
-						"
-						class="allocation-context"
-					>
-						<small v-if="settlement"
-							>借出 {{ group.lines[0]!.loanName || draft.loanName }} ·
-							{{
-								group.lines[0]!.returnOutcome === "damaged"
-									? "损坏归还"
-									: group.lines[0]!.returnOutcome === "lost"
-										? "遗失"
-										: "完好归还"
-							}}</small
-						>
-						<small
-							v-if="
-								draft.kind === 'Damage' ||
-								group.lines[0]!.returnOutcome === 'damaged'
-							"
-						>
-							移入损坏待处理
-						</small>
-						<small v-if="draft.kind === 'Loan'">移入借出库位</small>
-						<template v-if="showError || revealErrors">
+								<span v-else class="operation-cell-value">{{
+									line.batch ||
+									(line.batchAllocations?.length
+										? "已记录多批次"
+										: "原借出未记录批次")
+								}}</span>
+							</template>
 							<p
-								v-for="issue in lineIssues.filter(
-									(entry) =>
-										group.lines.some((line) => line.id === entry.lineId) &&
-										!['batch', 'expiry', 'manufacturingDate', 'qty'].includes(
-											entry.field,
-										),
-								)"
-								:key="issue.lineId + '-' + issue.field"
-								class="notice-bar warning allocation-error"
-								role="alert"
+								v-if="lineInvalid(line, 'batch')"
+								:id="lineIssueId(line, 'batch')"
+								class="utility-error"
 							>
-								{{ issue.message }}
+								{{ lineIssue(line, "batch")?.message }}
 							</p>
-						</template>
+						</div>
+						<div class="operation-row-cell operation-row-expiry">
+							<span class="operation-phone-field-label">效期</span>
+							<template v-if="hasBatchRows(line.code)">
+								<input
+									v-if="receive && stockItem(line.code)?.tracksExpiry"
+									data-field="expiry"
+									v-model="line.expiry"
+									type="date"
+									:aria-label="`${lineName(line)}效期`"
+									:disabled="disabled || hydrating"
+									:aria-invalid="lineInvalid(line, 'expiry')"
+									:aria-describedby="
+										lineInvalid(line, 'expiry')
+											? lineIssueId(line, 'expiry')
+											: undefined
+									"
+								/>
+								<span v-else class="operation-cell-value">{{
+									line.expiry || "无效期"
+								}}</span>
+							</template>
+							<p
+								v-if="lineInvalid(line, 'expiry')"
+								:id="lineIssueId(line, 'expiry')"
+								class="utility-error"
+							>
+								{{ lineIssue(line, "expiry")?.message }}
+							</p>
+						</div>
+						<div class="operation-row-cell operation-row-manufacturing">
+							<span class="operation-phone-field-label">生产日期</span>
+							<template v-if="hasBatchRows(line.code)">
+								<input
+									v-if="receive"
+									data-field="manufacturingDate"
+									v-model="line.manufacturingDate"
+									type="date"
+									:aria-label="`${lineName(line)}生产日期`"
+									:disabled="disabled || hydrating"
+									:aria-invalid="lineInvalid(line, 'manufacturingDate')"
+									:aria-describedby="
+										lineInvalid(line, 'manufacturingDate')
+											? lineIssueId(line, 'manufacturingDate')
+											: undefined
+									"
+								/>
+								<span v-else class="operation-cell-value">{{
+									line.manufacturingDate || "—"
+								}}</span>
+							</template>
+						</div>
 					</div>
-					<div class="preview-allocation-actions">
-						<UiButton
-							variant="secondary"
-							:aria-label="(stockItem(group.code)?.name || group.code) + '详情'"
-							@click="showDetails(group.lines[0]!)"
-							>详情</UiButton
+					<div class="operation-row-controls">
+						<label class="operation-row-cell operation-row-quantity">
+							<span class="operation-phone-field-label">数量</span>
+							<input
+								data-field="qty"
+								type="number"
+								inputmode="decimal"
+								min="0"
+								step="any"
+								:value="enteredQty(line)"
+								:disabled="disabled || hydrating"
+								:aria-label="`${lineName(line)}数量`"
+								:aria-invalid="lineInvalid(line, 'qty')"
+								:aria-describedby="
+									lineInvalid(line, 'qty') ? lineIssueId(line, 'qty') : undefined
+								"
+								@input="
+									setEnteredQty(
+										line,
+										Number(($event.target as HTMLInputElement).value),
+									)
+								"
+							/>
+							<p
+								v-if="lineInvalid(line, 'qty')"
+								:id="lineIssueId(line, 'qty')"
+								class="utility-error"
+							>
+								{{ lineIssue(line, "qty")?.message }}
+							</p>
+						</label>
+						<label class="operation-row-cell operation-row-unit">
+							<span class="operation-phone-field-label">单位</span>
+							<SearchSelect
+								:label="`${lineName(line)}单位`"
+								external-label
+								:aria-label="`${lineName(line)}单位`"
+								:model-value="line.entryUom || line.uom"
+								:disabled="disabled || hydrating"
+								:clearable="false"
+								:options="[
+									{ value: line.uom, label: unitLabel(line.uom) },
+									...(stockItem(line.code)?.alternateUnits?.map((row) => ({
+										value: row.uom,
+										label: unitLabel(row.uom),
+										detail: `1 ${unitLabel(row.uom)} = ${row.factor} ${unitLabel(line.uom)}`,
+									})) || []),
+									{ value: '__other', label: '设置换算…' },
+								]"
+								@update:model-value="selectUnit(line, $event)"
+							/>
+						</label>
+						<label
+							v-if="draft.kind === 'Transfer'"
+							class="operation-row-cell operation-row-destination"
 						>
-						<UiButton
-							v-if="!hasBatchRows(group.code) && !disabled"
-							variant="ghost"
-							:aria-label="
-								'移除' + (stockItem(group.code)?.name || group.code) + '明细'
-							"
-							@click="remove(group.lines[0]!)"
-							>移除</UiButton
+							<span class="operation-phone-field-label">调入</span>
+							<SearchSelect
+								:label="`${lineName(line)}调入位置`"
+								external-label
+								:aria-label="`${lineName(line)}调入位置`"
+								:model-value="line.location"
+								:disabled="disabled || hydrating"
+								:invalid="lineInvalid(line, 'location')"
+								:options="
+									places
+										.filter(
+											(name) =>
+												name !== (line.sourceLocation || line.location),
+										)
+										.map((name) => ({
+											value: name,
+											label: warehouseLabel(name, reference.warehouses),
+											title: warehousePath(name, reference.warehouses),
+											detail: warehousePath(name, reference.warehouses),
+										}))
+								"
+								@update:model-value="line.location = $event"
+							/>
+						</label>
+						<label
+							v-if="['Damage', 'Loss'].includes(draft.kind)"
+							class="operation-row-cell operation-row-reason"
 						>
+							<span class="operation-phone-field-label">原因</span>
+							<input
+								v-model="line.reason"
+								:disabled="disabled || hydrating"
+								:aria-label="`${lineName(line)}原因`"
+								placeholder="填写原因"
+							/>
+							<p
+								v-if="lineInvalid(line, 'reason')"
+								:id="lineIssueId(line, 'reason')"
+								class="utility-error"
+							>
+								{{ lineIssue(line, "reason")?.message }}
+							</p>
+						</label>
+						<label
+							v-if="draft.kind === 'Return' && line.loanName"
+							class="operation-row-cell operation-row-outcome"
+						>
+							<span class="operation-phone-field-label">归还结果</span>
+							<SearchSelect
+								:label="`${lineName(line)}归还结果`"
+								external-label
+								:aria-label="`${lineName(line)}归还结果`"
+								:model-value="line.returnOutcome || 'returned'"
+								:disabled="disabled || hydrating"
+								:clearable="false"
+								:options="[
+									{ value: 'returned', label: '完好归还' },
+									{ value: 'damaged', label: '损坏归还' },
+									{ value: 'lost', label: '遗失' },
+								]"
+								@update:model-value="
+									line.returnOutcome = $event as 'returned' | 'damaged' | 'lost'
+								"
+							/>
+						</label>
+						<span
+							v-if="sectionHasOutcome(section) && !line.loanName"
+							class="operation-row-cell operation-row-empty"
+							aria-hidden="true"
+						></span>
 					</div>
+					<details class="operation-row-menu">
+						<summary aria-label="明细操作">⋯</summary>
+						<div class="operation-row-menu-content">
+							<SearchSelect
+								:label="'移到其他位置'"
+								external-label
+								aria-label="移到其他位置"
+								model-value=""
+								placeholder="选择其他位置"
+								:disabled="disabled || hydrating || fixedSectionLocation"
+								:options="lineLocationOptions(section, line)"
+								@update:model-value="moveLineFromMenu(line, $event)"
+							/>
+							<button type="button" :disabled="disabled" @click="pick([line])">
+								更换物品
+							</button>
+							<button
+								type="button"
+								:disabled="disabled"
+								@click="duplicateLine(line)"
+							>
+								复制为新行
+							</button>
+							<button type="button" :disabled="disabled" @click="remove(line)">
+								删除
+							</button>
+						</div>
+					</details>
 				</article>
 			</section>
-			<AllocationDetails
-				v-if="detailsLine && stockItem(detailsLine.code)"
-				:line="detailsLine"
-				:draft="draft"
-				:disabled="disabled"
-				:field="detailsField"
-				@close="detailsLine = undefined"
-				@replace="replaceFromDetails"
-				@split="splitFromDetails"
-			/>
+			<div
+				v-if="!disabled && !settlement && draft.items.length"
+				class="operation-add-section"
+			>
+				<UiButton v-if="!addingSection" variant="ghost" @click="startAddingSection">{{
+					addSectionLabel
+				}}</UiButton>
+				<div
+					v-else
+					ref="addSectionPicker"
+					class="operation-add-section-picker"
+					@keydown.esc.capture.prevent="cancelAddingSection"
+					@focusout="blurAddSection"
+				>
+					<span :id="`${sectionHeaderId}-add`" class="operation-add-section-label">{{
+						addSectionLabel
+					}}</span>
+					<SearchSelect
+						ref="addSectionSelect"
+						:label="addSectionLabel"
+						external-label
+						:aria-labelled-by="`${sectionHeaderId}-add`"
+						placeholder="搜索库位"
+						model-value=""
+						:clearable="false"
+						:options="locationOptions"
+						@update:model-value="addEmptySection($event)"
+					/>
+				</div>
+			</div>
 			<Overlay
 				v-if="conversionTarget && stockItem(conversionTarget.line.code)"
 				:title="
@@ -2066,44 +1972,51 @@ function receiveBatchChanged(line: AllocationLine) {
 	position: sticky;
 	top: calc(var(--preview-desktop-nav-height, 64px) + 8px);
 	z-index: var(--p-z-sticky-content, 10);
+	display: grid;
+	grid-template-columns: auto minmax(180px, 1fr) auto auto auto;
+	align-items: center;
+	gap: var(--p-space-2);
 	background: var(--p-surface);
 	border: 1px solid var(--p-border-soft);
 	border-radius: var(--p-radius-card);
 	box-shadow: 0 3px 12px rgb(20 30 25 / 8%);
 	padding: var(--p-space-2);
-	display: flex;
-	flex-wrap: wrap;
-	align-items: end;
-	gap: var(--p-space-2);
 }
-
+.preview-line-toolbar.has-transfer-destination {
+	grid-template-columns: minmax(200px, 240px) auto minmax(180px, 1fr) auto auto auto;
+}
 .preview-line-toolbar.is-keyboard-open {
 	display: none;
 }
-
 .preview-line-toolbar .preview-receive-target {
-	flex: 1 1 220px;
-	max-width: 360px;
+	margin: 0;
+	min-width: 0;
 }
-
+.preview-line-toolbar .preview-receive-target .preview-search-select {
+	min-width: 0;
+}
+.preview-line-toolbar-actions,
+.preview-line-toolbar-status,
+.preview-line-toolbar-incomplete {
+	display: contents;
+}
 .preview-line-search {
-	flex: 1 1 200px;
+	min-width: 0;
+	margin: 0;
 }
-
 .preview-line-search input {
-	min-height: 44px;
+	min-height: 36px;
 }
-
-.preview-line-toolbar-status {
-	display: flex;
-	flex: 1 1 100%;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--p-space-2);
+.preview-line-toolbar-summary {
+	min-width: 0;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	white-space: nowrap;
 }
-
-.preview-line-toolbar-status > span:first-child {
-	margin-right: auto;
+.preview-line-toolbar > span[role="status"] {
+	grid-column: 1 / -1;
+	color: var(--p-muted);
+	font-size: var(--p-small);
 }
 
 .operation-lines-empty {
@@ -2133,153 +2046,10 @@ function receiveBatchChanged(line: AllocationLine) {
 	gap: var(--p-space-3);
 }
 
-.allocation-card {
-	display: grid;
-	gap: var(--p-space-3);
-	min-width: 0;
-	padding: var(--p-space-3);
-	border: 1px solid var(--p-border-soft);
-	border-radius: var(--p-radius-card);
-	background: var(--p-surface);
-	transition:
-		background-color 180ms ease,
-		border-color 180ms ease,
-		box-shadow 180ms ease;
-}
-
-.preview-operation-lines .compact-allocation.allocation-card {
-	grid-template-columns: minmax(0, 1fr);
-}
-
-.allocation-card--recent {
+.operation-compact-row--recent {
 	border-color: var(--p-accent);
 	background: color-mix(in srgb, var(--p-accent) 8%, var(--p-surface));
 	box-shadow: 0 0 0 2px color-mix(in srgb, var(--p-accent) 18%, transparent);
-}
-
-.allocation-card-heading {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--p-space-3);
-}
-
-.allocation-card-total {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	text-align: end;
-	flex: 0 0 auto;
-	min-width: max-content;
-}
-
-.allocation-card-total > * {
-	white-space: nowrap;
-}
-
-.allocation-card-total strong {
-	font-size: 1.125em;
-}
-
-.allocation-card-controls {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-	align-items: start;
-	gap: var(--p-space-3);
-}
-
-.allocation-card-unit {
-	width: min(100%, 9rem);
-}
-
-.allocation-card-total .allocation-card-unit .search-select-input {
-	min-height: 40px;
-}
-
-.allocation-batch-table {
-	min-width: 0;
-	border-top: 1px solid var(--p-border-soft);
-}
-
-.batch-subrow {
-	display: grid;
-	grid-template-columns: minmax(150px, 1.4fr) minmax(100px, 0.8fr) auto;
-	align-items: start;
-	gap: var(--p-space-2);
-	padding: var(--p-space-2) 0;
-	border-bottom: 1px solid var(--p-border-soft);
-}
-
-.batch-subrow--header {
-	color: var(--p-muted);
-	font-size: var(--p-small);
-}
-
-.allocation-batch-table.has-expiry:not(.has-manufacturing) .batch-subrow {
-	grid-template-columns: minmax(150px, 1.3fr) minmax(130px, 1fr) minmax(100px, 0.8fr) auto;
-}
-
-.allocation-batch-table.has-manufacturing:not(.has-expiry) .batch-subrow {
-	grid-template-columns: minmax(150px, 1.3fr) minmax(130px, 1fr) minmax(100px, 0.8fr) auto;
-}
-
-.allocation-batch-table.has-expiry.has-manufacturing .batch-subrow {
-	grid-template-columns:
-		minmax(150px, 1.3fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 0.8fr)
-		auto;
-}
-
-.batch-subrow--header > span {
-	padding-inline: var(--p-space-2);
-}
-
-.batch-subrow-field,
-.batch-subrow-quantity {
-	min-width: 0;
-}
-
-.batch-subrow-field .preview-field {
-	display: grid;
-	gap: 4px;
-}
-
-.batch-subrow-field input,
-.batch-subrow-quantity input {
-	width: 100%;
-	min-width: 0;
-}
-
-.batch-subrow-quantity input {
-	max-width: 10rem;
-}
-
-@media (min-width: 621px) {
-	.batch-subrow:not(.batch-subrow--header) .batch-subrow-field .preview-field > span,
-	.batch-subrow-quantity .preview-field > span {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-	}
-}
-
-.batch-readonly {
-	min-height: 44px;
-	display: flex;
-	align-items: center;
-	margin: 0;
-	overflow-wrap: anywhere;
-}
-
-.batch-subrow-actions {
-	display: flex;
-	justify-content: end;
-	align-items: end;
-}
-
-.add-batch-row {
-	margin-top: var(--p-space-2);
 }
 
 @media (max-width: 1023px) {
@@ -2287,125 +2057,33 @@ function receiveBatchChanged(line: AllocationLine) {
 		position: static;
 		top: auto;
 		box-shadow: none;
-		display: grid;
-		grid-template-columns: minmax(0, 1fr);
+		grid-template-columns: auto minmax(0, 1fr);
 	}
 
-	.preview-line-toolbar .preview-receive-target {
-		max-width: none;
-		width: 100%;
-		min-width: 0;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 4px;
-	}
-
-	.preview-line-toolbar .preview-receive-target > label {
-		white-space: normal;
-	}
-
-	.preview-line-toolbar .preview-receive-target > .search-select-input {
-		width: 100%;
-	}
-
-	.preview-line-toolbar-actions,
-	.preview-line-search {
-		grid-column: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		width: 100%;
-		min-width: 0;
-		gap: 4px;
-	}
-
-	.preview-line-search input {
-		width: 100%;
-		min-width: 0;
-		flex: none;
+	.preview-line-toolbar.has-transfer-destination .preview-receive-target,
+	.preview-line-search,
+	.preview-line-toolbar-summary,
+	.preview-line-toolbar-incomplete,
+	.preview-line-toolbar > span[role="status"] {
+		grid-column: 1 / -1;
 	}
 
 	.preview-line-toolbar-status {
-		grid-column: 1;
 		display: grid;
+		grid-column: 1 / -1;
 		grid-template-columns: minmax(0, 1fr);
-		align-items: start;
-		flex-wrap: initial;
-		gap: 8px;
-		font-size: 0.875rem;
-	}
-
-	.preview-line-toolbar-summary {
-		display: block;
-		width: 100%;
-		min-width: 0;
-		white-space: normal;
-		overflow-wrap: anywhere;
+		gap: var(--p-space-1);
 	}
 
 	.preview-line-toolbar-incomplete {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		min-width: 0;
-	}
-
-	.preview-line-toolbar-incomplete .preview-choice-label {
-		white-space: normal;
-		min-width: 0;
-	}
-
-	.preview-line-toolbar-incomplete .ui-button {
-		flex: 0 1 auto;
-		max-width: 100%;
-		white-space: normal;
-	}
-
-	.preview-line-toolbar-actions {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 6px;
-		min-width: 0;
+		gap: var(--p-space-2);
 	}
 
 	.preview-line-toolbar-actions .ui-button {
-		min-width: 0;
-		width: 100%;
-		white-space: normal;
-	}
-
-	.allocation-card-heading {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		align-items: flex-start;
-	}
-
-	.allocation-identity {
-		width: 100%;
-	}
-
-	.allocation-card-total {
-		display: contents;
-	}
-
-	.allocation-card-unit {
-		grid-column: 1;
-		grid-row: 2;
-		width: 100%;
-		max-width: none;
-		text-align: start;
-	}
-
-	.allocation-card-total-summary {
-		grid-column: 2;
-		grid-row: 1;
-		align-self: center;
-	}
-
-	.allocation-card-total-summary > small:first-child {
-		display: none;
+		min-height: 36px;
 	}
 }
 
@@ -2419,54 +2097,6 @@ function receiveBatchChanged(line: AllocationLine) {
 		min-height: 44px;
 		padding-inline: 8px;
 		white-space: nowrap;
-	}
-
-	.allocation-card-controls {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.batch-subrow--header {
-		display: none;
-	}
-
-	.allocation-batch-table .batch-subrow {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		gap: var(--p-space-2);
-		padding: var(--p-space-3) 0;
-	}
-
-	.allocation-batch-table.has-expiry.has-manufacturing .batch-subrow,
-	.allocation-batch-table.has-expiry:not(.has-manufacturing) .batch-subrow,
-	.allocation-batch-table.has-manufacturing:not(.has-expiry) .batch-subrow {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-	}
-
-	.batch-subrow-field,
-	.batch-subrow-quantity {
-		padding: var(--p-space-2);
-		border: 1px solid var(--p-border-soft);
-		border-radius: var(--p-radius-control);
-		background: var(--p-soft);
-	}
-
-	.batch-subrow-field input,
-	.batch-subrow-quantity input {
-		min-height: 44px;
-	}
-
-	.batch-subrow-actions {
-		grid-column: 1 / -1;
-		justify-content: flex-end;
-	}
-
-	.batch-subrow-actions .ui-button {
-		min-height: 44px;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.allocation-card {
-		transition: none;
 	}
 }
 </style>

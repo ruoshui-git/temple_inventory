@@ -6,6 +6,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import { useFormValidation } from "../../composables/useFormValidation";
 import type { ConversionLine } from "../../lib/quantityConversion";
 import type { StockItem } from "../../lib/stockPresentation";
+import { unitLabel } from "../../lib/units";
 import { useConversionEditor, type SavedItemConversions } from "./useConversionEditor";
 const props = defineProps<{
 	line: ConversionLine;
@@ -79,7 +80,7 @@ async function saveNewUnit() {
 					:options="
 						reference.units.map((row) => ({
 							value: row.name,
-							label: row.name,
+							label: unitLabel(row.name),
 							detail: row.category || undefined,
 						}))
 					"
@@ -87,7 +88,7 @@ async function saveNewUnit() {
 				/>
 			</template>
 		</FormField>
-		<p>库存单位：{{ line.uom }}（只读）</p>
+		<p>库存单位：{{ unitLabel(line.uom) }}（只读）</p>
 		<UiButton
 			v-if="!creating && canCreateUnit"
 			:disabled="disabled || busy || !canCreateUnit"
@@ -131,13 +132,13 @@ async function saveNewUnit() {
 		<dl v-if="unit === line.uom" class="preview-info-grid">
 			<div>
 				<dt>单位换算</dt>
-				<dd>1 {{ unit }} = 1 {{ line.uom }}</dd>
+				<dd>1 {{ unitLabel(unit) }} = 1 {{ unitLabel(line.uom) }}</dd>
 			</div>
 		</dl>
 		<FormField v-else label="单位换算" required :error="error || undefined">
 			<template #default="{ fieldAttrs }">
 				<div class="conversion-factor-control">
-					<span>1 {{ unit || "所选单位" }} =</span>
+					<span>1 {{ unitLabel(unit) || "所选单位" }} =</span>
 					<input
 						v-bind="fieldAttrs"
 						data-field="conversionFactor"
@@ -149,13 +150,13 @@ async function saveNewUnit() {
 						min="0"
 						:disabled="disabled || busy"
 					/>
-					<span>{{ line.uom }}</span>
+					<span>{{ unitLabel(line.uom) }}</span>
 				</div>
 			</template>
 		</FormField>
 		<FormField
 			v-if="!reusableOnly"
-			:label="'输入数量（' + unit + '）'"
+			:label="'输入数量（' + unitLabel(unit) + '）'"
 			required
 			:error="error || undefined"
 		>
@@ -172,10 +173,13 @@ async function saveNewUnit() {
 			</template>
 		</FormField>
 		<p v-if="!reusableOnly" role="status">
-			{{ quantity }} {{ unit }} · 折合
-			{{ factor === "" ? "待填写比例" : Number(quantity) * Number(factor) }} {{ line.uom }}
+			{{ quantity }} {{ unitLabel(unit) }} · 折合
+			{{ factor === "" ? "待填写比例" : Number(quantity) * Number(factor) }}
+			{{ unitLabel(line.uom) }}
 		</p>
-		<p v-if="replacement">将替换原换算：1 {{ unit }} = {{ savedFactor }} {{ line.uom }}</p>
+		<p v-if="replacement">
+			将替换原换算：1 {{ unitLabel(unit) }} = {{ savedFactor }} {{ unitLabel(line.uom) }}
+		</p>
 		<p v-if="reusableOnly">保存为此物品的常用换算：是</p>
 		<label v-else class="preview-choice-label"
 			><input
