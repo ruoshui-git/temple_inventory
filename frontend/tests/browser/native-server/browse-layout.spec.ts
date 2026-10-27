@@ -1,13 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
-
-const evidence = resolve(
-  process.cwd(),
-  "../notes/evidence/2026-10-27-ui-feedback/browse-pages",
-);
-mkdirSync(evidence, { recursive: true });
-
 test.beforeEach(async ({ page }) => {
   test.skip(
     !process.env.NATIVE_ADMIN_PASSWORD,
@@ -35,7 +26,9 @@ async function capture(page: Page, name: string, width: number, height = 844) {
     }
   });
   await page.waitForTimeout(350);
-  await page.screenshot({ path: resolve(evidence, `${name}-${width}.png`) });
+  await page.screenshot({
+    path: test.info().outputPath(`${name}-${width}.png`),
+  });
 }
 
 async function assertSingleLineCells(page: Page) {
