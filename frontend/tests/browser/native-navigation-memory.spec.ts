@@ -177,7 +177,11 @@ for (const width of [375, 1024, 1440]) {
         { once: true },
       ),
     );
-    await row.getByRole("button", { name: /长名称物品42/ }).click();
+    // Desktop tables link the name; phone list rows keep a name button.
+    await row
+      .getByRole("link", { name: /长名称物品42/ })
+      .or(row.getByRole("button", { name: /长名称物品42/ }))
+      .click();
     await expect(
       page.getByRole("heading", { name: "物品详情", exact: true }),
     ).toBeVisible();

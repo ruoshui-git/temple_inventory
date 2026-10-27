@@ -15,13 +15,15 @@ watch(c.unreadOnly, () => void c.refresh());
 			><h1 tabindex="-1">通知</h1>
 			></PageHeader
 		>
-		<div class="notification-page-toolbar" role="group" aria-label="通知筛选">
-			<button :aria-pressed="!c.unreadOnly.value" @click="c.unreadOnly.value = false">
-				全部
-			</button>
-			<button :aria-pressed="c.unreadOnly.value" @click="c.unreadOnly.value = true">
-				未读
-			</button>
+		<div class="notification-page-actions">
+			<div class="segmented" role="group" aria-label="通知筛选">
+				<button :aria-pressed="!c.unreadOnly.value" @click="c.unreadOnly.value = false">
+					全部
+				</button>
+				<button :aria-pressed="c.unreadOnly.value" @click="c.unreadOnly.value = true">
+					未读
+				</button>
+			</div>
 			<UiButton
 				class="notification-mark-all"
 				size="compact"
@@ -47,17 +49,23 @@ watch(c.unreadOnly, () => void c.refresh());
 </template>
 
 <style scoped>
+.notification-page-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+	margin-bottom: 8px;
+}
+.notification-mark-all {
+	margin-inline-start: auto;
+}
 @media (max-width: 1023px) {
 	.notification-page :deep(.app-page-header) {
 		margin-bottom: 8px;
 	}
-	.notification-page-toolbar {
+	.notification-page-actions {
 		width: 100%;
-		display: flex;
-		align-items: center;
-		margin-bottom: 8px;
 	}
-	.notification-page-toolbar .notification-mark-all {
+	.notification-page-actions .notification-mark-all {
 		margin-inline-start: auto;
 		min-height: 34px;
 		padding-inline: 10px;

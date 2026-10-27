@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { unitLabel } from "../../lib/units";
 import { ref, watch, nextTick } from "vue";
 import type { useRelatedLoans } from "./useRelatedLoans";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -40,7 +41,9 @@ function settlement(line: LoanLine) {
 		Number(line.outcomes.Returned || 0) +
 		Number(line.outcomes.Damaged || 0) +
 		Number(line.outcomes.Lost || 0);
-	return total > 0 ? `已结算 ${total} ${line.stock_uom}` : `未结清 ${line.stock_uom}`;
+	return total > 0
+		? `已结算 ${total} ${unitLabel(line.stock_uom)}`
+		: `未结清 ${unitLabel(line.stock_uom)}`;
 }
 </script>
 
@@ -181,11 +184,22 @@ function settlement(line: LoanLine) {
 											}}</strong></span
 										>
 									</td>
-									<td>{{ line.transfer_qty }} {{ line.stock_uom }}</td>
-									<td>{{ line.outcomes.Returned }} {{ line.stock_uom }}</td>
-									<td>{{ line.outcomes.Damaged }} {{ line.stock_uom }}</td>
-									<td>{{ line.outcomes.Lost }} {{ line.stock_uom }}</td>
-									<td>{{ line.outstanding_qty }} {{ line.stock_uom }}</td>
+									<td>
+										{{ line.transfer_qty }} {{ unitLabel(line.stock_uom) }}
+									</td>
+									<td>
+										{{ line.outcomes.Returned }}
+										{{ unitLabel(line.stock_uom) }}
+									</td>
+									<td>
+										{{ line.outcomes.Damaged }} {{ unitLabel(line.stock_uom) }}
+									</td>
+									<td>
+										{{ line.outcomes.Lost }} {{ unitLabel(line.stock_uom) }}
+									</td>
+									<td>
+										{{ line.outstanding_qty }} {{ unitLabel(line.stock_uom) }}
+									</td>
 									<td>
 										<LocationEndpoint
 											:warehouse="line.s_warehouse"

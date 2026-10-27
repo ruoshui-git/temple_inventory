@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { unitLabel } from "../../lib/units";
 import { computed } from "vue";
 const props = defineProps<{ row: Record<string, unknown> }>();
 interface Allocation {
@@ -22,7 +23,7 @@ const allocations = computed(
 				<dt>{{ allocation.batch_no || "无批次" }}</dt>
 				<dd>
 					账面 {{ allocation.baseline_qty }} · 实点 {{ allocation.actual_qty }} · 差异
-					{{ allocation.difference }} {{ row.stock_uom }}
+					{{ allocation.difference }} {{ unitLabel(row.stock_uom) }}
 				</dd>
 			</template>
 		</dl>

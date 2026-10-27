@@ -126,7 +126,7 @@ async function selectExisting() {
 				><label class="preview-choice-label"
 					><input v-model="whole" type="checkbox" />只允许整数数量</label
 				>
-				<p v-if="error" role="alert">{{ error }}</p>
+				<div v-if="error" class="notice-bar warning" role="alert">{{ error }}</div>
 				<div class="dialog-actions">
 					<UiButton @click="close">取消</UiButton
 					><UiButton v-if="existingUnit" @click="selectExisting">使用此单位</UiButton

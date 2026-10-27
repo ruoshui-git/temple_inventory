@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { unitLabel } from "../../lib/units";
 import CategoryField from "../references/CategoryField.vue";
 import UnitField from "../references/UnitField.vue";
 import { onBeforeUnmount, onDeactivated, ref, watch } from "vue";
@@ -71,7 +72,7 @@ onDeactivated(() => {
 		<dl v-if="editing" class="preview-info-grid">
 			<div>
 				<dt>库存单位</dt>
-				<dd>{{ model.uom }}</dd>
+				<dd>{{ unitLabel(model.uom) }}</dd>
 			</div>
 		</dl>
 		<UnitField

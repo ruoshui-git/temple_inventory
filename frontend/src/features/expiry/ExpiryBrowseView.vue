@@ -603,7 +603,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							></template
 						>
 						<template v-else-if="column.id === 'stock_uom'">{{
-							row.stock_uom
+							unitLabel(row.stock_uom)
 						}}</template>
 						<template v-else-if="column.id === 'warehouse'">{{
 							warehouseLabel(
@@ -646,7 +646,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							{{ unitLabel(String(group.value.stock_uom || "")) }}
 						</span>
 						<span v-else-if="column.id === 'stock_uom'">{{
-							group.value?.stock_uom
+							unitLabel(group.value?.stock_uom)
 						}}</span>
 					</template>
 				</DataTable>

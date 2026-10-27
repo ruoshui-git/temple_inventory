@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { unitLabel } from "../../lib/units";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
@@ -503,7 +504,7 @@ async function back() {
 										<span>账面</span
 										><strong
 											>{{ entry.value.current_qty ?? "未记录" }}
-											{{ entry.value.stock_uom }}</strong
+											{{ unitLabel(entry.value.stock_uom) }}</strong
 										>
 									</div>
 									<label v-if="writable" class="native-count-card-entry">
@@ -525,7 +526,7 @@ async function back() {
 										<span>实点数量</span
 										><strong
 											>{{ entry.value.qty ?? "未核对" }}
-											{{ entry.value.stock_uom }}</strong
+											{{ unitLabel(entry.value.stock_uom) }}</strong
 										>
 									</div>
 								</div>
@@ -586,7 +587,7 @@ async function back() {
 								row.batch_no || row.serial_and_batch_bundle || "—"
 							}}</template>
 							<template v-else-if="column.id === 'stock_uom'">{{
-								row.stock_uom
+								unitLabel(row.stock_uom)
 							}}</template>
 							<template v-else-if="column.id === 'current_qty'">{{
 								row.current_qty ?? "未记录"
@@ -718,7 +719,7 @@ async function back() {
 					{{ c.names[row.item_code] || row.item_code }} ·
 					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
 					{{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
-					{{ row.actual_qty ?? "待核对" }} {{ row.stock_uom }} · 差异
+					{{ row.actual_qty ?? "待核对" }} {{ unitLabel(row.stock_uom) }} · 差异
 					{{ row.actual_qty === null ? "待核对" : row.actual_qty - row.baseline_qty }}
 					<span v-if="row.reason"> · 原因 {{ row.reason }}</span>
 				</p>
@@ -729,7 +730,7 @@ async function back() {
 					{{ row.item_code }} ·
 					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
 					{{ row.batch_no || "库存明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
-					实点 {{ row.qty }} {{ row.stock_uom }}
+					实点 {{ row.qty }} {{ unitLabel(row.stock_uom) }}
 				</p>
 				<NativeCountAllocations :row="row" />
 			</div>

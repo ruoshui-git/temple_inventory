@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { siteDateTime } from "../lib/nativeTime";
-import UiButton from "./ui/UiButton.vue";
 import AsyncRegion from "./ui/AsyncRegion.vue";
-import InventoryIcon from "./InventoryIcon.vue";
+import BrowseRefreshNotice from "./ui/BrowseRefreshNotice.vue";
 interface DashboardSectionState {
 	status: "ready" | "loading" | "error" | "retrying";
 	hasResult: boolean;
@@ -28,28 +27,16 @@ const skeletonRows = [1, 2, 3, 4];
 				{{ section.status === "loading" ? "更新中…" : "" }}
 			</span>
 		</div>
-		<div
-			v-if="section.status === 'error' || section.status === 'retrying'"
-			class="dashboard-failure"
-			role="alert"
+		<BrowseRefreshNotice
+			:show="section.status === 'error' || section.status === 'retrying'"
+			:retry="() => emit('retry')"
+		/>
+		<p
+			v-if="section.error && section.status !== 'error' && section.status !== 'retrying'"
+			class="browse-note"
 		>
-			<InventoryIcon name="warning" aria-hidden="true" />
-			<div>
-				<strong>更新失败</strong>
-				<p>
-					{{ title }}未能更新。{{
-						section.hasResult ? "保留上次结果，请重试。" : "暂时无法加载，请重试。"
-					}}
-				</p>
-			</div>
-			<UiButton
-				:disabled="section.status === 'retrying'"
-				:aria-label="`重试${title}`"
-				@click="emit('retry')"
-				>{{ section.status === "retrying" ? "正在重试…" : "重试" }}</UiButton
-			>
-		</div>
-		<p v-if="section.error" class="browse-note">{{ section.error }}</p>
+			{{ section.error }}
+		</p>
 		<slot name="controls" />
 		<AsyncRegion
 			:loading="section.status === 'loading' || section.status === 'retrying'"

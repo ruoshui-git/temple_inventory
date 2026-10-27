@@ -391,7 +391,7 @@ function sectionHasOutcome(section: OperationLocationSection) {
 function sectionGridTemplate(section: OperationLocationSection) {
 	const columns = ["minmax(180px, 1.6fr)"];
 	if (sectionHasBatch(section))
-		columns.push("minmax(112px, 1fr)", "minmax(94px, 0.82fr)", "minmax(110px, 0.9fr)");
+		columns.push("minmax(176px, 1.35fr)", "minmax(72px, 0.62fr)", "minmax(88px, 0.75fr)");
 	columns.push("88px", "96px");
 	if (props.draft.kind === "Transfer") columns.push("minmax(128px, 1fr)");
 	if (["Damage", "Loss"].includes(props.draft.kind)) columns.push("minmax(120px, 0.95fr)");
@@ -2002,8 +2002,12 @@ function receiveBatchChanged(line: AllocationLine) {
 	display: contents;
 }
 .preview-line-search {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
 	min-width: 0;
 	margin: 0;
+	white-space: nowrap;
 }
 .preview-line-search input {
 	min-height: 36px;
@@ -2012,6 +2016,10 @@ function receiveBatchChanged(line: AllocationLine) {
 	min-width: 0;
 	color: var(--p-muted);
 	font-size: var(--p-small);
+	white-space: nowrap;
+}
+.preview-line-toolbar-incomplete > button {
+	flex: 0 0 auto;
 	white-space: nowrap;
 }
 .preview-line-toolbar > span[role="status"] {
@@ -2060,6 +2068,9 @@ function receiveBatchChanged(line: AllocationLine) {
 		box-shadow: none;
 		grid-template-columns: auto minmax(0, 1fr);
 	}
+	.preview-line-toolbar.has-transfer-destination {
+		grid-template-columns: minmax(0, 1fr);
+	}
 
 	.preview-line-toolbar.has-transfer-destination .preview-receive-target,
 	.preview-line-search,
@@ -2074,6 +2085,12 @@ function receiveBatchChanged(line: AllocationLine) {
 		grid-column: 1 / -1;
 		grid-template-columns: minmax(0, 1fr);
 		gap: var(--p-space-1);
+	}
+	.preview-line-search {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 4px;
+		white-space: normal;
 	}
 
 	.preview-line-toolbar-incomplete {

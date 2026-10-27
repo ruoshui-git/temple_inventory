@@ -272,7 +272,27 @@ defineExpose({
 			<label class="preview-choice-label"
 				><input type="checkbox" v-model="continuous" />连续扫描</label
 			>
-			<UiButton @click="camera = !camera">{{ camera ? "停用相机" : "启用相机" }}</UiButton>
+			<div class="scan-panel-actions">
+				<UiButton @click="camera = !camera">{{
+					camera ? "停用相机" : "启用相机"
+				}}</UiButton>
+				<div class="scan-image-actions">
+					<input
+						ref="imageInput"
+						hidden
+						style="display: none"
+						type="file"
+						accept="image/*"
+						@change="
+							decodeImage(($event.target as HTMLInputElement).files?.[0]);
+							($event.target as HTMLInputElement).value = '';
+						"
+					/>
+					<UiButton :disabled="imageBusy" @click="imageInput?.click()"
+						>从图片识别</UiButton
+					>
+				</div>
+			</div>
 			<Scanner
 				v-if="camera"
 				presentation="camera"
@@ -282,18 +302,6 @@ defineExpose({
 				@close="camera = false"
 			/>
 			<div class="scan-image-tools">
-				<input
-					ref="imageInput"
-					hidden
-					style="display: none"
-					type="file"
-					accept="image/*"
-					@change="
-						decodeImage(($event.target as HTMLInputElement).files?.[0]);
-						($event.target as HTMLInputElement).value = '';
-					"
-				/>
-				<UiButton :disabled="imageBusy" @click="imageInput?.click()">从图片识别</UiButton>
 				<p v-if="imageBusy" role="status">
 					正在识别… <UiButton @click="imageAbort?.abort()">取消</UiButton>
 				</p>
@@ -394,3 +402,21 @@ defineExpose({
 		</div>
 	</component>
 </template>
+
+<style scoped>
+.scan-panel-actions,
+.scan-image-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--p-space-2);
+}
+.scan-panel-actions > *,
+.scan-image-actions > :deep(.ui-button) {
+	flex: 1 1 0;
+	min-width: 0;
+}
+.scan-panel-actions :deep(.ui-button) {
+	width: 100%;
+	white-space: nowrap;
+}
+</style>

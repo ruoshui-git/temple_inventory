@@ -496,6 +496,7 @@ defineExpose({
 }
 .scanner-camera-select {
 	margin-top: var(--p-space-3);
+	margin-bottom: var(--p-space-3);
 }
 .scanner-camera :deep(video) {
 	display: block;

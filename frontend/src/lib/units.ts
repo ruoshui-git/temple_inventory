@@ -1,8 +1,11 @@
-export type UnitLike =
-  string | { name: string; label?: string } | null | undefined;
+// Row values are often typed `unknown`; anything that is not a unit object is
+// read as its string form.
+export type UnitLike = unknown;
 
 function unitName(uom: UnitLike): string {
-  return typeof uom === "string" ? uom : uom?.name || "";
+  if (uom && typeof uom === "object" && "name" in uom)
+    return String((uom as { name: unknown }).name || "");
+  return uom == null ? "" : String(uom);
 }
 
 type UnitSource = { units: { name: string; label?: string }[] };
@@ -21,7 +24,8 @@ function units() {
 export function unitLabel(uom: UnitLike): string {
   const name = unitName(uom);
   if (!name) return "";
-  if (typeof uom === "object" && uom?.label) return uom.label;
+  if (uom && typeof uom === "object" && "label" in uom && uom.label)
+    return String(uom.label);
   return units().find((unit) => unit.name === name)?.label || name;
 }
 

@@ -292,7 +292,7 @@ function itemImage(row: CountRow) {
 					placeholder="输入物品名称、编码、批次或位置"
 				/>
 			</label>
-			<div class="browse-tabs" role="group" aria-label="核对状态筛选">
+			<div class="segmented" role="group" aria-label="核对状态筛选">
 				<button
 					type="button"
 					:aria-pressed="reviewFilter === 'all'"

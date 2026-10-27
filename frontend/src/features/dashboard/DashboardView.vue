@@ -408,9 +408,12 @@ function datasetChanged(dataset: ReportDataset) {
 								:aria-expanded="metric.expanded"
 								@click="toggleInventoryMetric(metric.key)"
 							>
-								<DisclosureIcon variant="inline" />{{
-									metric.expanded ? "收起" : `+${metric.rest} 单位`
-								}}
+								<DisclosureIcon
+									variant="inline"
+									:style="{
+										transform: metric.expanded ? 'rotate(90deg)' : undefined,
+									}"
+								/>{{ metric.expanded ? "收起" : `+${metric.rest} 单位` }}
 							</button>
 						</article>
 					</div>
@@ -632,7 +635,7 @@ function datasetChanged(dataset: ReportDataset) {
 										</div>
 									</dl>
 								</div>
-								<b>{{ row.available }} {{ row.stock_uom }}</b>
+								<b>{{ row.available }} {{ unitLabel(row.stock_uom) }}</b>
 							</button>
 						</div>
 						<p v-if="!expiryPreview.length">
@@ -764,7 +767,7 @@ function datasetChanged(dataset: ReportDataset) {
 											: 'is-neutral'
 								"
 								:title="effectLabel(Number(quantity.effect || 0), quantity.uom)"
-								>{{ quantity.qty }} {{ quantity.uom
+								>{{ quantity.qty }} {{ unitLabel(quantity.uom)
 								}}<span class="sr-only">{{
 									effectLabel(Number(quantity.effect || 0), quantity.uom)
 								}}</span></b

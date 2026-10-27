@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { unitLabel } from "../../lib/units";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
@@ -580,7 +581,8 @@ async function selectExisting(code: string, warehouse: string) {
 							确认扫描明细 · {{ scanResolution.name }}
 						</h3>
 						<p class="muted">
-							请先确认来源、批次和目标位置，再添加 1 {{ scanResolution.uom }}。
+							请先确认来源、批次和目标位置，再添加 1
+							{{ unitLabel(scanResolution.uom) }}。
 						</p>
 						<SearchSelect
 							v-if="scanResolution.sourceOptions.length"
@@ -621,7 +623,7 @@ async function selectExisting(code: string, warehouse: string) {
 								variant="primary"
 								:disabled="!canResolveScan"
 								@click="confirmScanResolution"
-								>添加 1 {{ scanResolution.uom }}</UiButton
+								>添加 1 {{ unitLabel(scanResolution.uom) }}</UiButton
 							>
 						</div>
 					</section>
@@ -637,7 +639,7 @@ async function selectExisting(code: string, warehouse: string) {
 								:key="line.id || line.code + line.warehouse + line.batch"
 							>
 								<strong>{{ line.name }} · {{ line.code }}</strong>
-								<span>{{ line.qty }} {{ line.uom }}</span>
+								<span>{{ line.qty }} {{ unitLabel(line.uom) }}</span>
 								<small
 									>{{ line.warehouse
 									}}<template v-if="line.batch">
@@ -839,7 +841,8 @@ async function selectExisting(code: string, warehouse: string) {
 									</span>
 									<span class="stock-list-quantity picker-phone-quantity">
 										<strong
-											>{{ item.pickerQuantity || 0 }} {{ item.uom }}</strong
+											>{{ item.pickerQuantity || 0 }}
+											{{ unitLabel(item.uom) }}</strong
 										>
 										<span>{{
 											purpose === "inbound" ? "现有" : quantityLabel
@@ -940,7 +943,7 @@ async function selectExisting(code: string, warehouse: string) {
 										<template v-else>暂无库存 · 选择目标库位</template>
 									</template>
 									<template v-else-if="column.id === 'quantity'">
-										{{ row.pickerQuantity || 0 }} {{ row.uom }}
+										{{ row.pickerQuantity || 0 }} {{ unitLabel(row.uom) }}
 									</template>
 									<UiButton
 										v-else-if="column.id === 'action' && !multiple"
