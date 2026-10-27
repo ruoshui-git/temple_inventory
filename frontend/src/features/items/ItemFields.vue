@@ -169,7 +169,8 @@ onDeactivated(() => {
 		<Overlay
 			v-if="scannerOpen"
 			title="扫码添加条码"
-			adaptive-creation
+			size="small"
+			panel-class="inventory-scanner"
 			@close="scannerOpen = false"
 			><Scanner
 				presentation="inline"

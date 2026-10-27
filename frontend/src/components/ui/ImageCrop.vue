@@ -7,9 +7,10 @@ import {
 	clampSquareSelection,
 	cropBoundsInset,
 	imageBoundsInCanvas,
+	largestCenteredSquare,
 } from "../../lib/imageCropBounds";
 
-const props = defineProps<{ file: File; index?: number; total?: number }>();
+const props = defineProps<{ file: File; index?: number; total?: number; freeAspect?: boolean }>();
 const emit = defineEmits<{ choose: [files: File[]]; cancel: [] }>();
 const host = ref<HTMLElement>();
 const image = ref<HTMLImageElement>();
@@ -24,6 +25,8 @@ let transformListener: (() => void) | undefined;
 let updateBoundsQueued = false;
 let objectUrl = "";
 let disposed = false;
+let initialSelection = { x: 0, y: 0, width: 0, height: 0 };
+let initialSelectionSet = false;
 
 const title = computed(
 	() => `裁剪图片${props.total && props.total > 1 ? `（${props.index} / ${props.total}）` : ""}`,
@@ -43,8 +46,8 @@ onMounted(async () => {
 		const cropImage = cropper.getCropperImage();
 		const selection = cropper.getCropperSelection();
 		if (!cropImage || !selection) throw new Error("cropper elements unavailable");
-		selection.aspectRatio = 1;
-		selection.initialAspectRatio = 1;
+		selection.aspectRatio = props.freeAspect ? NaN : 1;
+		selection.initialAspectRatio = props.freeAspect ? NaN : 1;
 		selection.initialCoverage = 1;
 		selection.keyboard = true;
 		selection.maxInset = "auto";
@@ -64,16 +67,50 @@ onMounted(async () => {
 				)
 					return;
 				const bounds = imageBoundsInCanvas(imageRect, canvasRect);
+				if (!initialSelectionSet) {
+					const initial = props.freeAspect
+						? {
+								x: bounds.left + (bounds.right - bounds.left) * 0.05,
+								y: bounds.top + (bounds.bottom - bounds.top) * 0.05,
+								width: (bounds.right - bounds.left) * 0.9,
+								height: (bounds.bottom - bounds.top) * 0.9,
+							}
+						: largestCenteredSquare(bounds);
+					if (initial.width)
+						selection.$change(
+							initial.x,
+							initial.y,
+							initial.width,
+							initial.height,
+							props.freeAspect ? NaN : 1,
+							true,
+						);
+					initialSelection = { ...initial };
+					initialSelectionSet = Boolean(initial.width && initial.height);
+				}
 				selection.minInset = cropBoundsInset(bounds, canvasRect.width, canvasRect.height);
-				const bounded = clampSquareSelection(
-					{
-						x: selection.x,
-						y: selection.y,
-						width: selection.width,
-						height: selection.height,
-					},
-					bounds,
-				);
+				const bounded = props.freeAspect
+					? {
+							x: Math.max(
+								bounds.left,
+								Math.min(selection.x, bounds.right - selection.width),
+							),
+							y: Math.max(
+								bounds.top,
+								Math.min(selection.y, bounds.bottom - selection.height),
+							),
+							width: Math.min(selection.width, bounds.right - bounds.left),
+							height: Math.min(selection.height, bounds.bottom - bounds.top),
+						}
+					: clampSquareSelection(
+							{
+								x: selection.x,
+								y: selection.y,
+								width: selection.width,
+								height: selection.height,
+							},
+							bounds,
+						);
 				if (
 					Math.abs(bounded.x - selection.x) > 0.01 ||
 					Math.abs(bounded.y - selection.y) > 0.01 ||
@@ -106,6 +143,25 @@ onMounted(async () => {
 				transformListener = queueBoundsUpdate;
 				cropImage.addEventListener("transform", transformListener);
 				updateBounds();
+				const observer =
+					typeof ResizeObserver === "undefined"
+						? undefined
+						: new ResizeObserver(() => updateBounds());
+				observer?.observe(canvas);
+				observer?.observe(cropImage.$image);
+				const waitForLayout = () => {
+					if (disposed) {
+						observer?.disconnect();
+						return;
+					}
+					const rect = cropImage.$image.getBoundingClientRect();
+					if (!rect.width || !rect.height) requestAnimationFrame(waitForLayout);
+					else {
+						updateBounds();
+						observer?.disconnect();
+					}
+				};
+				requestAnimationFrame(waitForLayout);
 			}
 			ready.value = true;
 		}
@@ -129,27 +185,27 @@ async function crop() {
 		const transform = cropImage.$getTransform();
 		const scale = Math.hypot(transform[0] || 0, transform[1] || 0);
 		if (!scale) throw new Error("image scale unavailable");
-		const sourceCrop = Math.floor(
-			Math.min(
-				selection.width / scale,
-				selection.height / scale,
-				sourceImage.naturalWidth,
-				sourceImage.naturalHeight,
-			),
-		);
-		const outputSize = Math.min(800, sourceCrop);
-		if (outputSize < 1) throw new Error("crop is too small");
+		const sourceWidth = Math.min(selection.width / scale, sourceImage.naturalWidth);
+		const sourceHeight = Math.min(selection.height / scale, sourceImage.naturalHeight);
+		const outputScale = Math.min(1, 800 / Math.max(sourceWidth, sourceHeight));
+		const sourceSquare = Math.floor(Math.min(sourceWidth, sourceHeight));
+		const outputWidth = props.freeAspect
+			? Math.max(1, Math.round(sourceWidth * outputScale))
+			: Math.min(800, sourceSquare);
+		const outputHeight = props.freeAspect
+			? Math.max(1, Math.round(sourceHeight * outputScale))
+			: outputWidth;
 		const selectedCanvas = await selection.$toCanvas({
-			width: outputSize,
-			height: outputSize,
+			width: outputWidth,
+			height: outputHeight,
 		});
 		if (disposed) return;
 		const output = document.createElement("canvas");
-		output.width = outputSize;
-		output.height = outputSize;
+		output.width = outputWidth;
+		output.height = outputHeight;
 		const context = output.getContext("2d");
 		if (!context) throw new Error("canvas unavailable");
-		context.drawImage(selectedCanvas, 0, 0, outputSize, outputSize);
+		context.drawImage(selectedCanvas, 0, 0, outputWidth, outputHeight);
 		const blob = await new Promise<Blob>((resolve, reject) =>
 			output.toBlob(
 				(value) => (value ? resolve(value) : reject(new Error("无法生成裁剪图片"))),
@@ -177,8 +233,20 @@ async function crop() {
 }
 
 function reset() {
-	cropper?.getCropperSelection()?.$reset();
+	const selection = cropper?.getCropperSelection();
+	if (selection && initialSelection.width)
+		selection.$change(
+			initialSelection.x,
+			initialSelection.y,
+			initialSelection.width,
+			initialSelection.height,
+			props.freeAspect ? NaN : 1,
+			true,
+		);
 	cropper?.getCropperImage()?.$center();
+}
+function rotate() {
+	cropper?.getCropperImage()?.$rotate(90);
 }
 function zoom(factor: number) {
 	cropper?.getCropperImage()?.$zoom(factor);
@@ -204,21 +272,31 @@ onBeforeUnmount(() => {
 		adaptive-creation
 		@close="emit('cancel')"
 	>
-		<p>{{ file.name }} · 拖动方形选区调整范围；方向键可微调位置。</p>
+		<p>
+			{{ file.name }} ·
+			{{
+				freeAspect ? "拖动选区框定条码区域。" : "拖动方形选区调整范围；方向键可微调位置。"
+			}}
+		</p>
+		<p v-if="freeAspect">未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。</p>
 		<p v-if="!ready && !error" role="status">正在读取图片方向与尺寸…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
-		<div ref="host" class="cropper-host">
+		<div ref="host" class="cropper-host" :class="{ 'cropper-host--free': freeAspect }">
 			<img ref="image" :alt="file.name" />
 		</div>
 		<div v-if="ready" class="preview-form-grid">
-			<UiButton @click="zoom(-0.1)">缩小图片</UiButton>
-			<UiButton @click="zoom(0.1)">放大图片</UiButton>
-			<label class="preview-choice-label">
-				<input v-model="retain" type="checkbox" />另存原图为附件
-			</label>
+			<template v-if="!freeAspect">
+				<UiButton @click="zoom(-0.1)">缩小图片</UiButton>
+				<UiButton @click="zoom(0.1)">放大图片</UiButton>
+				<label class="preview-choice-label">
+					<input v-model="retain" type="checkbox" />另存原图为附件
+				</label>
+			</template>
 		</div>
 		<template #footer>
+			<UiButton v-if="freeAspect" @click="rotate">旋转 90°</UiButton>
 			<UiButton
+				v-if="!freeAspect"
 				:disabled="busy || (!!pendingAction && pendingAction !== 'cancel')"
 				:loading="pendingAction === 'cancel'"
 				loading-label="正在取消…"
@@ -226,16 +304,23 @@ onBeforeUnmount(() => {
 				>取消此图片</UiButton
 			>
 			<UiButton
+				v-if="!freeAspect"
 				:disabled="busy || (!!pendingAction && pendingAction !== 'original')"
 				:loading="pendingAction === 'original'"
 				loading-label="正在使用原图…"
 				@click="chooseAction('original')"
 				>使用原图作为主图</UiButton
 			>
-			<UiButton :disabled="!ready || busy || !!pendingAction" @click="reset"
+			<UiButton
+				v-if="!freeAspect"
+				:disabled="!ready || busy || !!pendingAction"
+				@click="reset"
 				>重置裁剪</UiButton
 			>
-			<UiButton variant="primary" :disabled="!ready" :loading="busy" @click="crop"
+			<UiButton v-if="freeAspect" :disabled="!ready || busy" :loading="busy" @click="crop"
+				>框选后重试</UiButton
+			>
+			<UiButton v-else variant="primary" :disabled="!ready" :loading="busy" @click="crop"
 				>使用裁剪后的图片</UiButton
 			>
 		</template>
@@ -261,7 +346,7 @@ onBeforeUnmount(() => {
 	height: 100%;
 }
 
-.cropper-host :deep(cropper-selection) {
+.cropper-host:not(.cropper-host--free) :deep(cropper-selection) {
 	aspect-ratio: 1;
 }
 </style>

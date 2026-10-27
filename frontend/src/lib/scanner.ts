@@ -25,6 +25,148 @@ export interface ScannerCamera {
   stableLabel?: string;
 }
 
+export type ImageBarcode = { text: string; format: string };
+export type ImageDecodeOptions = {
+  signal?: AbortSignal;
+  onProgress?: (attempt: number) => void;
+  readBarcodes?: (
+    input: Blob | ImageData,
+    options: Record<string, unknown>,
+  ) => Promise<Array<{ text?: string; format?: string }>>;
+};
+
+const yieldToUI = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+function uniqueBarcodes(
+  results: Array<{ text?: string; format?: string }>,
+): ImageBarcode[] {
+  const seen = new Set<string>();
+  return results.flatMap((result) => {
+    const text = result.text?.trim() || "";
+    const format = result.format || "未知格式";
+    const key = `${text}\u0000${format}`;
+    if (!text || seen.has(key)) return [];
+    seen.add(key);
+    return [{ text, format }];
+  });
+}
+
+export async function decodeBarcodeImage(
+  blob: Blob,
+  options: ImageDecodeOptions = {},
+): Promise<ImageBarcode[]> {
+  const readBarcodes = options.readBarcodes || (await loadZXing()).readBarcodes;
+  const concurrency = Math.max(1, navigator.hardwareConcurrency || 2);
+  const attempts: Array<
+    () => Promise<Array<{ text?: string; format?: string }>>
+  > = [];
+  const check = () => {
+    if (options.signal?.aborted)
+      throw new DOMException("Canceled", "AbortError");
+  };
+  const add = (
+    input: Blob | (() => ImageData),
+    readerOptions: Record<string, unknown>,
+  ) => {
+    attempts.push(() =>
+      readBarcodes(
+        typeof input === "function" ? input() : input,
+        readerOptions as any,
+      ),
+    );
+  };
+  add(blob, { maxNumberOfSymbols: 8 });
+  add(blob, { maxNumberOfSymbols: 8, tryDenoise: true });
+  add(blob, {
+    maxNumberOfSymbols: 8,
+    tryDenoise: true,
+    binarizer: "GlobalHistogram",
+  });
+  add(blob, {
+    maxNumberOfSymbols: 8,
+    tryDenoise: true,
+    binarizer: "FixedThreshold",
+  });
+  const bitmap = await createImageBitmap(blob, {
+    imageOrientation: "from-image",
+  });
+  try {
+    const maxSide = Math.max(bitmap.width, bitmap.height);
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("无法读取图片");
+    const imageAtSize = (limit: number) => {
+      const scale = Math.min(1, limit / maxSide);
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return context.getImageData(0, 0, canvas.width, canvas.height);
+    };
+    for (const limit of [2000, 1200, 800]) {
+      add(() => imageAtSize(limit), {
+        maxNumberOfSymbols: 8,
+        tryDenoise: true,
+      });
+    }
+    const rotationLimit = concurrency <= 2 ? 1200 : 2000;
+    for (const degrees of [-45, -30, -15, 15, 30, 45]) {
+      add(
+        () => {
+          const scale = Math.min(1, rotationLimit / maxSide);
+          const sourceWidth = Math.max(1, Math.round(bitmap.width * scale));
+          const sourceHeight = Math.max(1, Math.round(bitmap.height * scale));
+          const radians = (degrees * Math.PI) / 180;
+          const width = Math.ceil(
+            Math.abs(sourceWidth * Math.cos(radians)) +
+              Math.abs(sourceHeight * Math.sin(radians)),
+          );
+          const height = Math.ceil(
+            Math.abs(sourceWidth * Math.sin(radians)) +
+              Math.abs(sourceHeight * Math.cos(radians)),
+          );
+          canvas.width = width;
+          canvas.height = height;
+          context.save();
+          context.translate(width / 2, height / 2);
+          context.rotate(radians);
+          context.drawImage(
+            bitmap,
+            0,
+            0,
+            bitmap.width,
+            bitmap.height,
+            -sourceWidth / 2,
+            -sourceHeight / 2,
+            sourceWidth,
+            sourceHeight,
+          );
+          context.restore();
+          return context.getImageData(0, 0, width, height);
+        },
+        { maxNumberOfSymbols: 8, tryDenoise: true },
+      );
+    }
+    for (let index = 0; index < attempts.length; index++) {
+      check();
+      options.onProgress?.(index + 1);
+      const found = uniqueBarcodes(await attempts[index]!());
+      if (found.length) return found;
+      if (index % Math.max(1, Math.floor(concurrency / 2)) === 0)
+        await yieldToUI();
+    }
+    return [];
+  } finally {
+    bitmap.close();
+  }
+}
+
+export function cameraListPresentation(cameras: ScannerCamera[]) {
+  return cameras.length > 1
+    ? "select"
+    : cameras.length === 1
+      ? "static"
+      : "hidden";
+}
+
 export interface CoverCropRect {
   sx: number;
   sy: number;
@@ -386,7 +528,7 @@ export class ScannerService {
         const stableLabel = device.label.trim();
         return {
           deviceId: device.deviceId,
-          label: stableLabel || `相机 ${index + 1}`,
+          label: stableLabel || `摄像头 ${index + 1}`,
           ...(stableLabel ? { stableLabel } : {}),
         };
       });

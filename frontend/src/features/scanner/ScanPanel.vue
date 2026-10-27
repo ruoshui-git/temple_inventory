@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onDeactivated, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import Scanner from "../../components/Scanner.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import ImageCrop from "../../components/ui/ImageCrop.vue";
 import ItemLine from "../../components/ui/ItemLine.vue";
 import { useReferenceData } from "../../services/contracts";
 import { useScanController } from "./useScanController";
@@ -59,6 +60,59 @@ const {
 	props.captureContext,
 );
 const open = ref(false);
+const imageInput = ref<HTMLInputElement>();
+const imageBusy = ref(false);
+const imageResults = ref<{ text: string; format: string }[]>([]);
+const imageForCrop = ref<File>();
+const imageError = ref("");
+let imageAbort: AbortController | undefined;
+async function decodeImage(file?: File) {
+	if (!file) return;
+	imageForCrop.value = file;
+	imageAbort?.abort();
+	imageAbort = new AbortController();
+	imageBusy.value = true;
+	imageError.value = "";
+	imageResults.value = [];
+	try {
+		const { decodeBarcodeImage } = await import("../../lib/scanner");
+		imageResults.value = await decodeBarcodeImage(file, { signal: imageAbort.signal });
+		if (imageResults.value.length) imageForCrop.value = undefined;
+		if (!imageResults.value.length)
+			imageError.value = "未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。";
+	} catch (error) {
+		if ((error as Error).name !== "AbortError")
+			imageError.value = "图片读取失败，请换一张图片重试。";
+	} finally {
+		imageBusy.value = false;
+	}
+}
+function retryCropped(files: File[]) {
+	imageForCrop.value = undefined;
+	if (files[0]) void decodeImage(files[0]);
+}
+function imageFromTransfer(files: FileList | null) {
+	const file = files && Array.from(files).find((entry) => entry.type.startsWith("image/"));
+	if (file) void decodeImage(file);
+}
+function pasteImage(event: ClipboardEvent) {
+	if (!open.value) return;
+	const file = Array.from(event.clipboardData?.files || []).find((entry) =>
+		entry.type.startsWith("image/"),
+	);
+	if (file?.type.startsWith("image/")) {
+		event.preventDefault();
+		void decodeImage(file);
+	}
+}
+function dropImage(event: DragEvent) {
+	imageFromTransfer(event.dataTransfer?.files || null);
+}
+onMounted(() => document.addEventListener("paste", pasteImage));
+onBeforeUnmount(() => {
+	document.removeEventListener("paste", pasteImage);
+	imageAbort?.abort();
+});
 const selectedBatch = ref("");
 const selectedWarehouse = ref("");
 const resumeAfterConfiguration = ref(false);
@@ -197,10 +251,18 @@ defineExpose({
 		:is="inline ? 'section' : Overlay"
 		v-if="open"
 		class="scan-panel"
-		v-bind="inline ? {} : { title: '扫描物品 / 批次 / 库位', adaptiveCreation: true }"
+		v-bind="
+			inline
+				? {}
+				: {
+						title: '扫描物品 / 批次 / 库位',
+						size: 'small',
+						panelClass: 'inventory-scanner',
+					}
+		"
 		v-on="inline ? {} : { close: closeScan }"
 	>
-		<div class="scan-panel-content">
+		<div class="scan-panel-content" @dragover.prevent @drop.prevent="dropImage">
 			<div v-if="inline" class="scan-panel-heading">
 				<h2>快速扫描</h2>
 				<UiButton v-if="!hideFinishAction" variant="primary" @click="finishScanning"
@@ -210,7 +272,7 @@ defineExpose({
 			<label class="preview-choice-label"
 				><input type="checkbox" v-model="continuous" />连续扫描</label
 			>
-			<UiButton @click="camera = !camera">{{ camera ? "关闭相机" : "打开相机" }}</UiButton>
+			<UiButton @click="camera = !camera">{{ camera ? "停用相机" : "启用相机" }}</UiButton>
 			<Scanner
 				v-if="camera"
 				presentation="camera"
@@ -219,6 +281,47 @@ defineExpose({
 				@scan="scan"
 				@close="camera = false"
 			/>
+			<div class="scan-image-tools">
+				<input
+					ref="imageInput"
+					hidden
+					style="display: none"
+					type="file"
+					accept="image/*"
+					@change="
+						decodeImage(($event.target as HTMLInputElement).files?.[0]);
+						($event.target as HTMLInputElement).value = '';
+					"
+				/>
+				<UiButton :disabled="imageBusy" @click="imageInput?.click()">从图片识别</UiButton>
+				<p v-if="imageBusy" role="status">
+					正在识别… <UiButton @click="imageAbort?.abort()">取消</UiButton>
+				</p>
+				<p
+					v-if="imageError && !(imageForCrop && imageError.startsWith('未识别到条码'))"
+					role="status"
+				>
+					{{ imageError }}
+				</p>
+				<ul v-if="imageResults.length" aria-label="识别结果">
+					<li v-for="choice in imageResults" :key="choice.text + choice.format">
+						<UiButton
+							@click="
+								imageResults = [];
+								scan(choice.text);
+							"
+							>{{ choice.text }} · {{ choice.format }}</UiButton
+						>
+					</li>
+				</ul>
+				<ImageCrop
+					v-if="imageForCrop && imageError.startsWith('未识别到条码')"
+					:file="imageForCrop"
+					free-aspect
+					@choose="retryCropped"
+					@cancel="imageForCrop = undefined"
+				/>
+			</div>
 			<p v-if="props.paused" role="status">请先完成当前物品解析，再继续扫描</p>
 			<label class="preview-field"
 				>扫描值<input v-model="value" :disabled="paused" @keydown.enter.prevent="scan()"

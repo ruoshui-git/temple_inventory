@@ -446,6 +446,9 @@ for (const width of [390, 1440]) {
     );
     await page.screenshot({ path: info.outputPath("dashboard-tabs.png") });
     await page.goto("/inventory/stock/items/new");
+    await page.setViewportSize(
+      width < 1024 ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+    );
     const dataUrl = await page.evaluate(() => {
       const canvas = document.createElement("canvas");
       canvas.width = 80;
@@ -464,7 +467,21 @@ for (const width of [390, 1440]) {
     await expect(
       page.getByRole("dialog", { name: "裁剪图片", exact: true }),
     ).toBeVisible();
+    await expect(page.locator("cropper-selection")).toBeVisible();
+    const cropSelection = await page
+      .locator("cropper-selection")
+      .evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+    expect(Math.abs(cropSelection.width - cropSelection.height)).toBeLessThan(
+      1,
+    );
     await expect(page.getByLabel("另存原图为附件")).not.toBeChecked();
+    await page.screenshot({
+      path: `../notes/evidence/2026-10-27-ui-feedback/scanner/item-thumbnail-cropper-${width < 1024 ? "phone" : "desktop"}.png`,
+      fullPage: true,
+    });
     await page.screenshot({ path: info.outputPath("crop-choices.png") });
     await page
       .getByRole("button", { name: "使用原图作为主图", exact: true })

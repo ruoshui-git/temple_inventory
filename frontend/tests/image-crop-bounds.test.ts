@@ -3,7 +3,27 @@ import {
   clampSquareSelection,
   cropBoundsInset,
   imageBoundsInCanvas,
+  largestCenteredSquare,
 } from "../src/lib/imageCropBounds";
+
+it("starts with the largest centered square only after layout is nonzero", () => {
+  expect(
+    largestCenteredSquare({ left: 20, top: 10, right: 420, bottom: 310 }),
+  ).toEqual({
+    x: 70,
+    y: 10,
+    width: 300,
+    height: 300,
+  });
+  expect(
+    largestCenteredSquare({ left: 0, top: 0, right: 0, bottom: 0 }),
+  ).toEqual({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+  });
+});
 
 it("keeps the crop square inside the transformed source image after zooming out", () => {
   const bounds = imageBoundsInCanvas(

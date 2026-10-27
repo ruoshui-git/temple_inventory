@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
   pendingEnumerations: [] as (() => void)[],
 }));
 vi.mock("../src/lib/scanner", () => ({
+  cameraListPresentation: (cameras: { deviceId: string; label: string }[]) =>
+    cameras.length > 1 ? "select" : cameras.length === 1 ? "static" : "hidden",
   cameraError: (error: any) => String(error?.message || error),
   ScannerService: class {
     selectedCameraId =
@@ -423,7 +425,7 @@ describe("Scanner component", () => {
     await flushPromises();
     state.pendingEnumerations[0]!();
     await flushPromises();
-    expect(state.deviceIds).toEqual(["old-device"]);
+    expect(state.deviceIds).toEqual([]);
     expect(wrapper.text()).toContain("请确认数量与位置后继续扫描");
     wrapper.unmount();
   });
@@ -493,12 +495,9 @@ describe("Scanner component", () => {
     await flushPromises();
     expect(state.deviceIds).toEqual(["", "rear-camera", "rear-camera"]);
     expect(state.starts.length).toBe(initialStarts + 2);
-    await wrapper.find(".section-title-row button").trigger("click");
-    await flushPromises();
-    expect(state.stops).toBe(3);
     wrapper.unmount();
     await flushPromises();
-    expect(state.stops).toBe(4);
+    expect(state.stops).toBe(3);
   });
 
   it("restarts after pause during a pending camera open and ignores the stale startup", async () => {
@@ -562,9 +561,11 @@ describe("Scanner component", () => {
 
   it("shows an initial startup failure and retries without losing manual entry", async () => {
     state.startError = new Error("initial camera failure");
+    state.cameras = [{ deviceId: "fake", label: "摄像头 1" }];
     const wrapper = mount(Scanner);
     await flushPromises();
     expect(wrapper.text()).toContain("initial camera failure");
+    expect(wrapper.find(".scanner-camera-name").text()).toContain("摄像头 1");
     expect(wrapper.find("form").exists()).toBe(true);
     const retry = wrapper
       .findAll("button")

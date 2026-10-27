@@ -72,7 +72,9 @@ describe("inline operation scan panel", () => {
       .trigger("click");
     await nextTick();
 
-    const input = wrapper.get('input:not([type="checkbox"])');
+    const input = wrapper.get(
+      'input:not([type="checkbox"]):not([type="file"])',
+    );
     await input.setValue("UNKNOWN");
     await wrapper
       .findAll("button")

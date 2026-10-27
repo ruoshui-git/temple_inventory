@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ScannerService, type ScannerEngine } from "../src/lib/scanner";
+import {
+  cameraListPresentation,
+  ScannerService,
+  type ScannerCamera,
+  type ScannerEngine,
+} from "../src/lib/scanner";
 function engine(deviceId?: string) {
   return {
     id: "zxing-wasm",
@@ -25,6 +30,17 @@ beforeEach(() => {
   });
 });
 describe("ZXing-only ScannerService", () => {
+  it("chooses the correct camera-list presentation", () => {
+    const rows: ScannerCamera[] = [{ deviceId: "one", label: "摄像头 1" }];
+    expect(cameraListPresentation([])).toBe("hidden");
+    expect(cameraListPresentation(rows)).toBe("static");
+    expect(
+      cameraListPresentation([
+        ...rows,
+        { deviceId: "two", label: "后置摄像头" },
+      ]),
+    ).toBe("select");
+  });
   it.each(["frappe", "other", "zxing-wasm"])(
     "ignores the retired saved engine %s",
     async (stored) => {
@@ -70,7 +86,7 @@ describe("ZXing-only ScannerService", () => {
     ]);
     const service = new ScannerService();
     await expect(service.enumerateCameras()).resolves.toEqual([
-      { deviceId: "rear", label: "相机 1" },
+      { deviceId: "rear", label: "摄像头 1" },
       {
         deviceId: "front",
         label: "Built-in camera",

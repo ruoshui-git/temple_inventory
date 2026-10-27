@@ -113,6 +113,138 @@ test("manual and hardware-style scans preserve input and configure the same allo
   await expect(page.locator("[data-line-id]")).toContainText("大米");
 });
 
+for (const fixture of ["barcode.png", "barcode-rotated.png"])
+  test(`decodes ${fixture} from the local image picker`, async ({ page }) => {
+    const input = page.locator('input[type="file"][accept="image/*"]').first();
+    await input.setInputFiles(`tests/browser/fixtures/${fixture}`);
+    await expect(page.getByText("正在识别…")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /6931234567890 ·/ }),
+    ).toBeVisible({ timeout: 30000 });
+    if (fixture === "barcode.png")
+      await page.screenshot({
+        path: "../notes/evidence/2026-10-27-ui-feedback/scanner/image-success.png",
+        fullPage: true,
+      });
+    await page.getByRole("button", { name: /6931234567890 ·/ }).click();
+    await expect(
+      page.getByRole("region", { name: "已扫描明细" }),
+    ).toContainText("大米");
+  });
+
+test("opens the ItemFields barcode scanner in a compact dialog", async ({
+  page,
+}) => {
+  await page.goto("/inventory/stock/items/new");
+  await expect(
+    page.getByRole("button", { name: "扫码添加条码", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "扫码添加条码", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.screenshot({
+    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/item-fields-desktop.png",
+    fullPage: true,
+  });
+});
+
+test("shows camera control with Chromium fake media and captures scanner layouts", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "启用相机", exact: true }).click();
+  await expect(page.locator(".scanner-camera video")).toBeVisible();
+  await expect(
+    page.locator(".scanner-camera-name, .scanner-camera-select").first(),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/scan-panel-desktop.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "停用相机", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/scan-panel-phone.png",
+    fullPage: true,
+  });
+});
+
+test("Stock browse scanner is a compact centered dialog with enumerated camera", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/stock");
+  await page.evaluate(() => {
+    const devices = navigator.mediaDevices.enumerateDevices.bind(
+      navigator.mediaDevices,
+    );
+    Object.defineProperty(navigator.mediaDevices, "enumerateDevices", {
+      configurable: true,
+      value: async () => [
+        ...(await devices()),
+        {
+          kind: "videoinput" as MediaDeviceKind,
+          deviceId: "fake_device_1",
+          groupId: "fake_group",
+          label: "Fake Secondary Camera",
+        } as MediaDeviceInfo,
+      ],
+    });
+  });
+  await expect(
+    page.getByRole("button", { name: "扫码", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await page.getByRole("button", { name: "扫码", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.locator(".scanner-camera video")).toBeVisible();
+  await expect(page.locator(".scanner-camera-select select")).toBeVisible();
+  await expect
+    .poll(() => page.locator(".scanner-camera-select select").inputValue())
+    .not.toBe("");
+  await expect
+    .poll(() =>
+      page
+        .locator(".preview-dialog")
+        .evaluate((node) => node.getBoundingClientRect().width),
+    )
+    .toBeLessThan(500);
+  await page.screenshot({
+    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/stock-scanner-desktop.png",
+    fullPage: true,
+  });
+});
+
+test("Expiry uses the same ScanPanel dialog presentation", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/stock/expiry");
+  await expect(
+    page.getByRole("button", { name: "扫码", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await page.getByRole("button", { name: "扫码", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.screenshot({
+    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/expiry-scan-panel-desktop.png",
+    fullPage: true,
+  });
+});
+
+test("shows crop fallback for an undecodable local image", async ({ page }) => {
+  await page
+    .locator('input[type="file"][accept="image/*"]')
+    .first()
+    .setInputFiles("tests/browser/fixtures/blank.png");
+  await expect(
+    page.getByText("未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。", {
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole("button", { name: "旋转 90°" })).toBeVisible();
+  await page.screenshot({
+    path: "../notes/evidence/2026-10-27-ui-feedback/scanner/image-failure-crop.png",
+    fullPage: true,
+  });
+});
+
 for (const engine of ["ZXing-WASM"])
   test(`${engine} decodes deterministic camera frames and releases tracks`, async ({
     page,

@@ -11,6 +11,19 @@ export type CropSelection = {
   height: number;
 };
 
+export function largestCenteredSquare(bounds: CropBounds): CropSelection {
+  const size = Math.max(
+    0,
+    Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top),
+  );
+  return {
+    x: bounds.left + (bounds.right - bounds.left - size) / 2,
+    y: bounds.top + (bounds.bottom - bounds.top - size) / 2,
+    width: size,
+    height: size,
+  };
+}
+
 export function imageBoundsInCanvas(
   image: Pick<DOMRect, "left" | "top" | "right" | "bottom">,
   canvas: Pick<DOMRect, "left" | "top">,

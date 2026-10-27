@@ -3,12 +3,14 @@ import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, wat
 import {
 	ScannerService,
 	cameraError,
+	cameraListPresentation,
 	type ScannerCamera,
 	type ScannerFramePresence,
 } from "../lib/scanner";
 import { sessionExpired } from "../lib/sessionState";
 import Overlay from "./ui/Overlay.vue";
 import UiButton from "./ui/UiButton.vue";
+import ImageCrop from "./ui/ImageCrop.vue";
 export type ScannerPresentation = "inline" | "modal" | "continuous" | "camera";
 const props = withDefaults(
 	defineProps<{
@@ -28,6 +30,12 @@ const area = ref<HTMLElement>(),
 	torchOn = ref(false),
 	successFlash = ref(false);
 const service = new ScannerService();
+const imageBusy = ref(false),
+	imageError = ref(""),
+	imageChoices = ref<{ text: string; format: string }[]>([]),
+	imageInput = ref<HTMLInputElement>();
+const imageForCrop = ref<File>();
+let imageAbort: AbortController | undefined;
 const cameras = ref<ScannerCamera[]>([]),
 	selectedCameraId = ref(service.cameraDeviceId),
 	deviceNotice = ref("");
@@ -106,7 +114,66 @@ function notifyScan() {
 
 async function start() {
 	const generation = ++startGeneration;
+	await refreshCameras(generation);
 	await openCamera(generation, selectedCameraId.value || service.cameraDeviceId, "reconnect");
+}
+async function decodeImage(file: File) {
+	imageForCrop.value = file;
+	imageAbort?.abort();
+	imageAbort = new AbortController();
+	imageBusy.value = true;
+	imageError.value = "";
+	imageChoices.value = [];
+	try {
+		const { decodeBarcodeImage } = await import("../lib/scanner");
+		imageChoices.value = await decodeBarcodeImage(file, { signal: imageAbort.signal });
+		if (imageChoices.value.length) imageForCrop.value = undefined;
+		if (!imageChoices.value.length)
+			imageError.value = "未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。";
+	} catch (reason) {
+		if ((reason as Error).name !== "AbortError")
+			imageError.value = "图片读取失败，请换一张图片重试。";
+	} finally {
+		imageBusy.value = false;
+	}
+}
+function retryCroppedImage(files: File[]) {
+	imageForCrop.value = undefined;
+	if (files[0]) void decodeImage(files[0]);
+}
+function onImageFile(event: Event) {
+	const input = event.target as HTMLInputElement;
+	const file = input.files?.[0];
+	if (file) void decodeImage(file);
+	input.value = "";
+}
+function pasteImage(event: ClipboardEvent) {
+	const file = Array.from(event.clipboardData?.files || []).find((entry) =>
+		entry.type.startsWith("image/"),
+	);
+	if (file && props.presentation !== "camera") {
+		event.preventDefault();
+		void decodeImage(file);
+	}
+}
+function dropImage(event: DragEvent) {
+	const file = Array.from(event.dataTransfer?.files || []).find((entry) =>
+		entry.type.startsWith("image/"),
+	);
+	if (file) {
+		event.preventDefault();
+		void decodeImage(file);
+	}
+}
+function acceptImageChoice(choice: { text: string }) {
+	imageAbort?.abort();
+	imageChoices.value = [];
+	imageError.value = "";
+	decoded(choice.text, true);
+}
+function cancelImageDecode() {
+	imageAbort?.abort();
+	imageBusy.value = false;
 }
 async function openCamera(
 	generation: number,
@@ -162,6 +229,7 @@ async function openCamera(
 		} else {
 			cameraActive = false;
 			error.value = cameraError(reason);
+			await refreshCameras(generation);
 		}
 	} finally {
 		if (!disposed && generation === startGeneration) starting.value = false;
@@ -262,6 +330,7 @@ watch(
 );
 onMounted(() => {
 	document.addEventListener("visibilitychange", visibilityChanged);
+	document.addEventListener("paste", pasteImage);
 	navigator.mediaDevices?.addEventListener?.("devicechange", devicesChanged);
 	void start();
 });
@@ -271,7 +340,9 @@ onDeactivated(() => {
 	stopCamera();
 });
 onBeforeUnmount(() => {
+	imageAbort?.abort();
 	document.removeEventListener("visibilitychange", visibilityChanged);
+	document.removeEventListener("paste", pasteImage);
 	navigator.mediaDevices?.removeEventListener?.("devicechange", devicesChanged);
 	disposed = true;
 	seenBarcodes.clear();
@@ -288,10 +359,16 @@ defineExpose({
 <template>
 	<component
 		:is="presentation === 'modal' ? Overlay : 'section'"
-		:title="presentation === 'modal' ? '扫描条码' : undefined"
-		:class="presentation === 'modal' ? undefined : 'inventory-scanner'"
-		:drawer="presentation === 'modal'"
-		:panel-class="presentation === 'modal' ? 'inventory-scanner' : undefined"
+		v-bind="
+			presentation === 'modal'
+				? {
+						title: '扫描条码',
+						drawer: false,
+						size: 'small',
+						panelClass: 'inventory-scanner',
+					}
+				: { class: 'inventory-scanner' }
+		"
 		@close="close"
 	>
 		<div
@@ -299,9 +376,11 @@ defineExpose({
 			class="section-title-row"
 		>
 			<h3>{{ presentation === "continuous" ? "连续扫码" : "扫描条码" }}</h3>
-			<UiButton @click="close">关闭相机</UiButton>
 		</div>
-		<label v-if="cameras.length > 1" class="preview-field scanner-camera-select">
+		<label
+			v-if="cameraListPresentation(cameras) === 'select'"
+			class="preview-field scanner-camera-select"
+		>
 			相机
 			<select
 				v-model="selectedCameraId"
@@ -313,6 +392,9 @@ defineExpose({
 				</option>
 			</select>
 		</label>
+		<p v-else-if="cameras.length === 1" class="scanner-camera-name" role="status">
+			相机：{{ cameras[0]?.label }}
+		</p>
 		<p v-if="deviceNotice" role="status">{{ deviceNotice }}</p>
 		<p v-if="paused" role="status">
 			{{
@@ -321,7 +403,13 @@ defineExpose({
 					: "请确认数量与位置后继续扫描"
 			}}
 		</p>
-		<div ref="area" class="scanner-camera" :aria-busy="starting">
+		<div
+			ref="area"
+			class="scanner-camera"
+			:aria-busy="starting"
+			@dragover.prevent
+			@drop="dropImage"
+		>
 			<div
 				class="scanner-aim"
 				:class="{ 'scanner-aim--success': successFlash }"
@@ -355,6 +443,42 @@ defineExpose({
 				submitLabel
 			}}</UiButton>
 		</form>
+		<div v-if="presentation !== 'camera'" class="scanner-image-tools">
+			<input
+				ref="imageInput"
+				hidden
+				style="display: none"
+				type="file"
+				accept="image/*"
+				@change="onImageFile"
+			/>
+			<UiButton :disabled="imageBusy || paused" @click="imageInput?.click()"
+				>从图片识别</UiButton
+			>
+			<p v-if="imageBusy" role="status">
+				正在识别… <UiButton @click="cancelImageDecode">取消</UiButton>
+			</p>
+			<p
+				v-if="imageError && !(imageForCrop && imageError.startsWith('未识别到条码'))"
+				role="status"
+			>
+				{{ imageError }}
+			</p>
+			<ul v-if="imageChoices.length" aria-label="识别结果">
+				<li v-for="choice in imageChoices" :key="choice.text + choice.format">
+					<UiButton @click="acceptImageChoice(choice)"
+						>{{ choice.text }} · {{ choice.format }}</UiButton
+					>
+				</li>
+			</ul>
+		</div>
+		<ImageCrop
+			v-if="imageForCrop && imageError.startsWith('未识别到条码')"
+			:file="imageForCrop"
+			free-aspect
+			@choose="retryCroppedImage"
+			@cancel="imageForCrop = undefined"
+		/>
 	</component>
 </template>
 <style scoped>
@@ -363,7 +487,7 @@ defineExpose({
 }
 .scanner-camera {
 	position: relative;
-	width: min(100%, 42dvh, 420px);
+	width: min(100%, 34dvh, 360px);
 	aspect-ratio: 1;
 	margin-inline: auto;
 	overflow: hidden;
