@@ -4,6 +4,64 @@ This is the current product decision record. Retired mockups, preview-only
 proposals and implementation chronology belong in Git history. Add a dated
 supersession below when a durable user-facing decision changes.
 
+## Supersession — 2026-10-27: units, tables, editors, scanner and browse links
+
+- **Units:** ERPNext UOM names stay the native identity, link and filter key.
+  The app-owned `UOM.ti_label` is the display label everywhere (frontend,
+  exports, notifications and Desk via title-field Property Setters); a blank
+  label falls back to the name. One curated server map seeds blank labels only:
+  count units in Chinese (Nos→个, Box→箱, Pair→双, Set→套) and measures as short
+  symbols (kg, g, L, mL, m, cm, in, ft, lb, oz). Enabled UOM names and labels
+  never collide after trimming and case folding; a clash names the existing
+  unit and offers 使用此单位. Search matches label and name. Samples reuse
+  ERPNext records and add only 包、瓶、张.
+- **Unit order:** every multi-unit list orders units by how many Items use them
+  (the bootstrap ranking), unknown units last. Dashboard inventory cards show
+  three units and expand per card with `+N 单位`.
+- **Site time:** the site timezone is `America/New_York`; an unset timezone is
+  set on migrate. Relative times convert site wall time with that timezone and
+  compare against the real clock.
+- **Tables:** columns declare a semantic kind. Non-primary kinds (numbers,
+  units, codes, dates, status, chips, actions) size to their content and never
+  wrap; the single primary name column takes the remaining width and clamps to
+  two lines with the full value in `title`. Long names never force horizontal
+  scrolling on their own; a table that already fits keeps any spare width in
+  the primary column. Wherever a separate 物品详情/打开 action duplicated it, the
+  item or record name is the detail link.
+- **Activities:** the list shows the three most frequent kinds; `+N` opens an
+  anchored popover of kind links instead of growing the row. Activity detail
+  shows kind tiles and an outstanding-loan tile that link to Movements and
+  Loans filtered by the activity; it embeds no record tables.
+- **Editors:** lines are grouped into location sections (Receive, Return and
+  Repair by target; outbound kinds and Transfer by source, Transfer keeping a
+  per-row 调入). A section header selects its location and moves its rows; the
+  bottom action adds a section. One native line is one compact row with its own
+  batch, dates, quantity and unit; the row menu offers 移到其他位置、更换物品、
+  复制为新行、删除. Reason and return outcome are inline. The 详情 drawer is
+  retired. The attachment heading is `附件`.
+- **Overlays:** content surfaces use centered dialogs (full-screen sheets on
+  phones); right-side drawers are retired. The editor's 确认前检查 panel is page
+  layout, not an overlay.
+- **Scanner:** every scanner is a dialog with one close action; ItemPicker keeps
+  its inline scan stage. The camera control appears whenever a camera is
+  enumerated. 从图片识别 decodes a picked, pasted or dropped image on the device
+  with a bounded retry ladder, then offers crop and quarter-turn retry; nothing
+  is uploaded. The cropper starts at the largest centered square once the image
+  has a layout size, and reset restores it.
+- **Tabs:** underline tabs navigate between pages or sections; segmented
+  controls switch views or filters within a page. The Expiry window switch is a
+  segmented control beside the title.
+- **Browse links and refresh:** browse links are sanitized against the target
+  view contract, so an incompatible grouping is dropped rather than producing an
+  empty page; an invalid incoming query shows default results with a warning.
+  Refresh dims retained results; a failed refresh restores them under a compact
+  `更新失败` warning with 重试. Technical "previous result" wording is not shown.
+- **Pages:** Warehouses shows the physical root as a tree node beside 系统位置.
+  The Loans date filter and status column name their meaning (`借出日期`,
+  `当前结清状态`) instead of a tooltip-only note. The Reports 导出 dialog omits
+  the preview because the page is the preview. `新货物流动类型` sits under the
+  `新货物流动` switch.
+
 ## Supersession — 2026-10-26: forms, editors, items and mobile feedback
 
 - Forms mark required fields with a red `*` (controls carry `aria-required`)
@@ -16,8 +74,8 @@ supersession below when a durable user-facing decision changes.
   dialog stacked above the current one; Escape and Back close only the top
   layer. The picker's item creation keeps `取消编辑 · 返回选择物品 ·
   创建并使用物品` in one fixed footer with the last as the only primary action.
-- Batch-tracked editor lines render as one Item card with a read-only total and
-  one batch row per native line, so quantity lives on batches. Blank Receive
+- Batch-tracked editor lines render one row per native line (superseded
+  2026-10-27: no per-Item card or shared unit). Blank Receive
   batch IDs are generated on save as `YYYYMMDD-###` (ERPNext naming series,
   daily sequence). Unit conversion has its own dialog; applying it returns focus
   to the quantity. `记住此换算（下次自动使用）` stays checked by default and
@@ -31,7 +89,7 @@ supersession below when a durable user-facing decision changes.
   from the series on save. Items can change batch/expiry tracking until ERPNext
   forbids it (submitted transactions), be 停用 only with zero stock everywhere
   and 删除 only when nothing links to them. Units list enabled UOMs by use,
-  then count units, then common measures, with no translated names.
+  then count units, then common measures, shown by their app label.
 - Autocomplete inputs keep their value on focus with the text selected; the
   list shows every option with the current one marked until the user types,
   and Escape or leaving restores the value. Toasts stack top-right below the
@@ -39,7 +97,7 @@ supersession below when a durable user-facing decision changes.
 - The stock location count lists physical locations with stock only; loaned
   and damaged totals appear as a separate line. Multi-item records summarize as
   `首个物品 等 N 种物品`, including movement notification subjects. The scanner frame is a format-neutral square and
-  decoding uses the whole visible preview. The cropper starts at the largest
+  decoding uses the centered visible square. The cropper starts at the largest
   centered square. Hover tints apply only on hover-capable pointers.
 
 ## Supersession — 2026-10-26: phone page chrome and content
@@ -322,7 +380,8 @@ supersession below when a durable user-facing decision changes.
   physical unit. UOM choices resolve to existing ERPNext records; new UOM
   creation retains the current draft. New Items are available immediately in
   the transaction that opened their editor.
-- Receiving and stock-out operations can contain multiple location sections.
+- Receiving and stock-out operations can contain multiple location sections
+  (see the 2026-10-27 editor rules).
   Expired batches may be received; show their state without blocking a valid
   receipt solely because the batch expired. Optional recorder, handler and
   reviewer text stays distinct from the system account that created the

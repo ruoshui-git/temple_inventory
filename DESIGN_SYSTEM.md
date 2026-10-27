@@ -5,6 +5,35 @@ behavior is in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md); agent and architecture
 rules are in [AGENTS.md](AGENTS.md). Historical preview and migration detail is
 kept in Git.
 
+## Supersession — 2026-10-27: column kinds, units, sections and dialogs
+
+- `DataColumn.kind` (`number`, `unit`, `code`, `date`, `datetime`, `status`,
+  `chip`, `text`, `thumb`, `actions`, `primary`) maps to a `data-column-<kind>`
+  class; there are no per-column pixel widths. Non-primary kinds use
+  `width: 1%` and `nowrap`, so they size to their content under auto table
+  layout; code, chip and text content caps itself (160/220px) with an ellipsis,
+  using `width: max-content` so a capped element cannot collapse its column.
+  The single primary column has a 200px minimum, clamps to two lines and is the
+  only column that absorbs spare width. Kind is inferred from common column ids
+  when a definition omits it.
+- Units render through `lib/units.ts`: `unitLabel()` for text and `sortByUnit()`
+  / `compareUnits()` for ordering. The reference-data provider registers its
+  store so the helpers work outside component setup.
+- Editor location sections share one grid between their muted column-header row
+  and their rows, so batch, date, quantity, unit and action cells align. Batch
+  and date columns render only when the section has a batch-tracked line.
+  Section headers keep the visible kind label as the selector's accessible
+  name. Phones use three-line row cards and sticky section headers.
+- Activity detail kind tiles reuse the dashboard movement-tile look: label,
+  bold top-three unit quantities, `+N 单位` and record count; the whole tile is
+  the link.
+- Scanner dialogs use the small dialog size with the square preview, camera
+  control, manual entry and 从图片识别 in one column. There is no right-side
+  drawer presentation for content.
+- Segmented controls (`.segmented`, `.browse-view-switch`) switch views or
+  filters within a page; underline `.browse-tabs` navigate between pages or
+  sections.
+
 ## Supersession — 2026-10-26: forms, confirmations, stacking and mobile shell
 
 - `FormField` owns label, red `*` (aria-hidden), hint and inline error, and
