@@ -1,4 +1,5 @@
 import { useUpdateBlocker } from "../../lib/updateSafety";
+import { unitLabel } from "../../lib/units";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
