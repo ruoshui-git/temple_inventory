@@ -9,10 +9,15 @@ import PreviewStockDetails from "../src/components/StockDetails.vue";
 import PreviewItemImage from "./support/FixtureHostItemImage.vue";
 import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
 import { items } from "./support/model";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 
 const mounted: VueWrapper[] = [];
 function render(component: any, props: Record<string, unknown> = {}) {
-  const wrapper = mount(component, { props, attachTo: document.body });
+  const wrapper = mount(component, {
+    props,
+    attachTo: document.body,
+    global: { stubs: { RouterLink: RouterLinkStub } },
+  });
   mounted.push(wrapper);
   return wrapper;
 }
@@ -199,7 +204,7 @@ describe("interactive preview", () => {
     expect(wrapper.find('select[aria-label="库存排序"]').exists()).toBe(false);
     const availableHeader = wrapper
       .findAll(".data-table-sort")
-      .find((button) => button.text().includes("可用数量"))!;
+      .find((button) => button.text().includes("可用"))!;
     await availableHeader.trigger("click");
     expect(
       availableHeader.element.closest("th")?.getAttribute("aria-sort"),

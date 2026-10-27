@@ -15,6 +15,7 @@ import LoanDetailPage from "../src/features/loans/LoanDetailPage.vue";
 import ExpiryBrowsePage from "../src/features/expiry/ExpiryBrowsePage.vue";
 import DashboardPage from "../src/features/dashboard/DashboardPage.vue";
 import OperationBrowsePage from "../src/features/movements/OperationBrowsePage.vue";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 import Attachments from "../src/components/Attachments.vue";
 import { useAttachments } from "../src/features/attachments/useAttachments";
 import {
@@ -49,6 +50,7 @@ async function render(route: PreviewPageKey) {
   const wrapper = mount(PreviewBrowsePages, {
     props: { route },
     attachTo: document.body,
+    global: { stubs: { RouterLink: RouterLinkStub } },
   });
   wrappers.push(wrapper);
   await flushPromises();

@@ -1562,8 +1562,9 @@ function receiveBatchChanged(line: AllocationLine) {
 					<span>⋯</span>
 				</div>
 				<article
-					v-for="line in section.lines.filter((row) => visibleIds.has(row.id))"
+					v-for="line in section.lines"
 					:key="line.id"
+					v-show="visibleIds.has(line.id)"
 					class="operation-compact-row"
 					:class="{
 						'operation-compact-row--recent': highlightedLineIds.has(line.id),
