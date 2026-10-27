@@ -16,6 +16,7 @@ from temple_inventory.native_balances import (
 )
 from temple_inventory.native_stock import MOVEMENT_PURPOSES, batch_quantities, loan_balances, warehouse_scopes
 from temple_inventory.report_query import in_period, resolved_period
+from temple_inventory.uom_labels import uom_label
 
 
 class _PreloadedRow(dict):
@@ -470,6 +471,7 @@ class ReportContext:
 			"category": "" if item.item_group == self.category_root else item.item_group,
 			"category_label": "无分类" if item.item_group == self.category_root else item.item_group,
 			"stock_uom": item.stock_uom,
+			"stock_uom_label": uom_label(item.stock_uom),
 			"image": image,
 			"batch_tracked": bool(item.has_batch_no),
 			"disabled": bool(item.disabled),
@@ -834,6 +836,7 @@ def movement_rows(
 						"batch_no": batch,
 						"entered_qty": float(line.qty or 0),
 						"entered_uom": line.get("uom") or item.stock_uom,
+						"entered_uom_label": uom_label(line.get("uom") or item.stock_uom),
 						"conversion_factor": float(line.get("conversion_factor") or 1),
 						"stock_qty": quantity,
 						"original_loan": line.get("ti_original_loan") or "",
@@ -928,6 +931,7 @@ def loan_rows(context):
 					"entered_qty": borrowed / float(line.conversion_factor),
 					"native_line_entered_qty": float(line.qty),
 					"entered_uom": line.uom,
+					"entered_uom_label": uom_label(line.uom),
 					"conversion_factor": float(line.conversion_factor),
 					"borrowed": borrowed,
 					"returned": float(outcomes["Returned"]),

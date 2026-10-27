@@ -336,6 +336,16 @@
   },
   {
     "doctype": "Custom Field",
+    "dt": "UOM",
+    "fieldname": "ti_label",
+    "fieldtype": "Data",
+    "label": "显示名称",
+    "insert_after": "uom_name",
+    "module": "Temple Inventory",
+    "name": "UOM-ti_label"
+  },
+  {
+    "doctype": "Custom Field",
     "dt": "Warehouse",
     "fieldname": "ti_label",
     "fieldtype": "Data",

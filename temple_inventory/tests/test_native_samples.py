@@ -202,7 +202,7 @@ class SampleGeneratorUnitTests(unittest.TestCase):
 			native_samples.generated_alternate_conversion(
 				next(row for row in rows if row["base_name"] == "酱油")
 			),
-			("箱", 12),
+			("Box", 12),
 		)
 		self.assertEqual(
 			native_samples.generated_alternate_conversion(

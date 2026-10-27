@@ -717,6 +717,7 @@ def prepare_development_sample_site(
 			"company_name": company,
 			"company_abbr": abbr,
 			"country": country,
+			"timezone": "America/New_York",
 			"currency": currency,
 			"chart_of_accounts": chart_of_accounts,
 			"domain": None,
@@ -728,6 +729,10 @@ def prepare_development_sample_site(
 	frappe.set_user("Administrator")
 	_progress("ERPNext Company、会计科目与默认设置：开始")
 	setup_complete(args)
+	frappe.db.set_single_value("System Settings", "time_zone", "America/New_York")
+	from temple_inventory.uom_labels import seed_labels
+
+	seed_labels()
 	stock_settings = frappe.get_single("Stock Settings")
 	if not stock_settings.enable_serial_and_batch_no_for_item:
 		stock_settings.enable_serial_and_batch_no_for_item = 1

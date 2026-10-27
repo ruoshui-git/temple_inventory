@@ -17,6 +17,8 @@ const {
 	reference,
 	creating,
 	name,
+	displayLabel,
+	existingUnit,
 	whole,
 	busy,
 	error,
@@ -48,8 +50,14 @@ const requiredError = computed(() => props.error || validation.errors["unit-name
 const unitOptions = computed(() =>
 	reference.units.map((unit) => ({
 		value: unit.name,
-		label: unit.name,
-		detail: [unit.category, unit.whole ? "整数数量" : "允许小数"].filter(Boolean).join(" · "),
+		label: unit.label || unit.name,
+		detail: [
+			unit.label && unit.label !== unit.name ? unit.name : "",
+			unit.category,
+			unit.whole ? "整数数量" : "允许小数",
+		]
+			.filter(Boolean)
+			.join(" · "),
 	})),
 );
 async function close() {
@@ -58,6 +66,12 @@ async function close() {
 async function submit() {
 	if (!validation.validate().ok) return;
 	await create();
+}
+async function selectExisting() {
+	const unit = reference.units.find((row) => row.name === existingUnit.value);
+	if (!unit) return;
+	emit("update:modelValue", unit.name);
+	await finish(false);
 }
 </script>
 <template>
@@ -106,12 +120,16 @@ async function submit() {
 				<FormField label="计量单位" required :error="validation.errors['unit-name']"
 					><template #default="{ fieldAttrs }"
 						><input v-model="name" v-bind="fieldAttrs" /></template></FormField
+				><FormField label="显示名称" hint="可选；留空时使用单位名称"
+					><template #default="{ fieldAttrs }"
+						><input v-model="displayLabel" v-bind="fieldAttrs" /></template></FormField
 				><label class="preview-choice-label"
 					><input v-model="whole" type="checkbox" />只允许整数数量</label
 				>
 				<p v-if="error" role="alert">{{ error }}</p>
 				<div class="dialog-actions">
 					<UiButton @click="close">取消</UiButton
+					><UiButton v-if="existingUnit" @click="selectExisting">使用此单位</UiButton
 					><UiButton variant="primary" :disabled="busy" :loading="busy" type="submit"
 						>保存并使用单位</UiButton
 					>

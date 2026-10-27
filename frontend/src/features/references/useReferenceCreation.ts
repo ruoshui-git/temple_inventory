@@ -21,6 +21,8 @@ export function useReferenceCreation(
   const { confirm } = useConfirm();
   const creating = ref(false),
     name = ref(""),
+    displayLabel = ref(""),
+    existingUnit = ref(""),
     whole = ref(false),
     group = ref(false),
     parent = ref(""),
@@ -65,6 +67,7 @@ export function useReferenceCreation(
   const dirty = computed(
     () =>
       !!name.value ||
+      !!displayLabel.value ||
       whole.value ||
       group.value ||
       parent.value !== initialParent,
@@ -85,6 +88,7 @@ export function useReferenceCreation(
       pendingUploadReselection: false,
       values: recoveryValues({
         name: name.value,
+        displayLabel: displayLabel.value,
         whole: whole.value,
         group: group.value,
         parent: parent.value,
@@ -102,6 +106,7 @@ export function useReferenceCreation(
       return;
     suppressed = true;
     name.value = String(snapshot.values.name || "");
+    displayLabel.value = String(snapshot.values.displayLabel || "");
     whole.value = snapshot.values.whole === true;
     group.value = snapshot.values.group === true;
     parent.value = String(snapshot.values.parent || initialParent);
@@ -110,7 +115,7 @@ export function useReferenceCreation(
     suppressed = false;
     retain();
   }
-  watch([name, whole, group, parent], retain, { flush: "sync" });
+  watch([name, displayLabel, whole, group, parent], retain, { flush: "sync" });
   async function finish(confirmDirty = true) {
     if (busy.value) return;
     if (
@@ -126,10 +131,12 @@ export function useReferenceCreation(
     recovery.remove(editorId, revision);
     creating.value = false;
     name.value = "";
+    displayLabel.value = "";
     whole.value = false;
     group.value = false;
     parent.value = initialParent;
     error.value = "";
+    existingUnit.value = "";
     suppressed = false;
   }
   async function create() {
@@ -158,11 +165,29 @@ export function useReferenceCreation(
     error.value = "";
     try {
       if (kind === "unit") {
+        const normalizedName = name.value.trim().toLocaleLowerCase();
+        const normalizedLabel = displayLabel.value.trim().toLocaleLowerCase();
+        const clash = reference.units.find((unit) => {
+          const nameKey = unit.name.trim().toLocaleLowerCase();
+          const labelKey = (unit.label || unit.name).trim().toLocaleLowerCase();
+          return [normalizedName, normalizedLabel].some(
+            (key) => key && (key === nameKey || key === labelKey),
+          );
+        });
+        if (clash) {
+          existingUnit.value = clash.name;
+          const clashText = normalizedLabel || normalizedName;
+          error.value = `「${clashText}」已被单位 ${unitLabel(clash.name)} 使用`;
+          busy.value = false;
+          return;
+        }
         const result = await services.call<{
           name: string;
+          label: string;
           must_be_whole_number: boolean;
         }>("catalog.create_uom", {
           label: name.value.trim(),
+          display_label: displayLabel.value.trim(),
           must_be_whole_number: whole.value,
         });
         if (disposed || reference.user !== account) return;
@@ -173,6 +198,7 @@ export function useReferenceCreation(
         else
           reference.units.push({
             name: result.name,
+            label: result.label || result.name,
             whole: result.must_be_whole_number,
           });
         selected(result.name);
@@ -203,6 +229,12 @@ export function useReferenceCreation(
       if (!disposed) {
         error.value =
           reason instanceof Error ? reason.message : "保存失败，输入已保留";
+        const kindValue =
+          reason && typeof reason === "object" && "kind" in reason
+            ? String((reason as { kind: string }).kind)
+            : "";
+        const clashMatch = /^UOM_CLASH:(.+)$/.exec(kindValue);
+        existingUnit.value = clashMatch?.[1] || "";
         showToast(
           `${kind === "unit" ? "库存单位" : "分类"}创建失败：${error.value}`,
           "danger",
@@ -223,6 +255,8 @@ export function useReferenceCreation(
     reference,
     creating,
     name,
+    displayLabel,
+    existingUnit,
     whole,
     group,
     parent,

@@ -11,7 +11,16 @@ from erpnext.stock.doctype.batch.batch import get_batch_qty
 from frappe.utils import add_days, getdate, now_datetime, nowdate
 from frappe.utils.nestedset import NestedSetChildExistsError
 
-from temple_inventory import browse, catalog, conversions, counts, native_api, native_files, projections
+from temple_inventory import (
+	browse,
+	catalog,
+	conversions,
+	counts,
+	native_api,
+	native_files,
+	projections,
+	uom_labels,
+)
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import ReportContext
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
@@ -69,7 +78,35 @@ class CatalogTests(NativeDocumentTests):
 				min(names.index(name) for name in unused_measures if name in names),
 			)
 		self.assertTrue(all("category" in row for row in rows))
+		self.assertTrue(all("label" in row for row in rows))
 		self.assertEqual(rows, browse.ranked_uoms())
+
+	def test_uom_labels_seed_blank_only_and_skip_clashes(self):
+		name = f"TI-LABEL-{self.token}"
+		clashing = f"TI-LABEL-CLASH-{self.token}"
+		frappe.get_doc({"doctype": "UOM", "uom_name": name}).insert()
+		frappe.get_doc({"doctype": "UOM", "uom_name": clashing, "ti_label": "curated"}).insert()
+		with patch.dict(uom_labels.DEFAULT_LABELS, {name: "单位甲", clashing: "单位乙"}):
+			uom_labels.seed_labels()
+			self.assertEqual(frappe.db.get_value("UOM", name, "ti_label"), "单位甲")
+			self.assertEqual(frappe.db.get_value("UOM", clashing, "ti_label"), "curated")
+			frappe.get_doc({"doctype": "UOM", "uom_name": "单位乙"}).insert()
+			frappe.db.set_value("UOM", clashing, "ti_label", None)
+			uom_labels.seed_labels()
+			self.assertFalse(frappe.db.get_value("UOM", clashing, "ti_label"))
+
+	def test_uom_name_and_label_clashes_are_case_insensitive_and_skip_disabled(self):
+		existing = f"TI-CLASH-{self.token}"
+		frappe.get_doc({"doctype": "UOM", "uom_name": existing, "ti_label": "Visible Label"}).insert()
+		for values in (
+			{"uom_name": "visible label"},
+			{"uom_name": f"TI-NEW-{self.token}", "ti_label": existing.lower()},
+		):
+			with self.assertRaises(frappe.ValidationError) as error:
+				frappe.get_doc({"doctype": "UOM", **values}).insert()
+			self.assertIn(existing, str(error.exception))
+		frappe.db.set_value("UOM", existing, "enabled", 0)
+		frappe.get_doc({"doctype": "UOM", "uom_name": "visible label"}).insert()
 
 	def test_blank_item_code_uses_the_native_item_series(self):
 		result = catalog.save_item({"item_name": "Generated code", "stock_uom": "Nos"})

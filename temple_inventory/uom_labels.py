@@ -1,0 +1,97 @@
+"""App-owned display labels for common ERPNext units of measure."""
+
+import frappe
+
+DEFAULT_LABELS = {
+	"Nos": "个",
+	"Box": "箱",
+	"Pair": "双",
+	"Set": "套",
+	"Unit": "件",
+	"Dozen": "打",
+	"Kg": "kg",
+	"Gram": "g",
+	"Milligram": "mg",
+	"Tonne": "t",
+	"Litre": "L",
+	"Millilitre": "mL",
+	"Meter": "m",
+	"Centimeter": "cm",
+	"Millimeter": "mm",
+	"Kilometer": "km",
+	"Inch": "in",
+	"Foot": "ft",
+	"Yard": "yd",
+	"Pound": "lb",
+	"Ounce": "oz",
+	"Square Meter": "m²",
+	"Square Foot": "ft²",
+	"Cubic Meter": "m³",
+	"Gallon Liquid (US)": "gal",
+}
+
+
+def _normalized(value):
+	return str(value or "").strip().casefold()
+
+
+def uom_label(name):
+	"""Return an app display label, falling back to the native UOM name."""
+	if not name:
+		return ""
+	return _labels().get(name) or name
+
+
+def _labels():
+	# Report and export rows call this per cell, so load all labels once per request or job.
+	labels = getattr(frappe.local, "temple_inventory_uom_labels", None)
+	if labels is None:
+		labels = {}
+		if frappe.get_meta("UOM").has_field("ti_label"):
+			labels = dict(
+				frappe.get_all(
+					"UOM", filters={"ti_label": ["is", "set"]}, fields=["name", "ti_label"], as_list=True
+				)
+			)
+		frappe.local.temple_inventory_uom_labels = labels
+	return labels
+
+
+def seed_labels():
+	"""Fill blank labels from the curated map without replacing edits or clashes."""
+	for name, label in DEFAULT_LABELS.items():
+		if not frappe.db.exists("UOM", name):
+			continue
+		if frappe.db.get_value("UOM", name, "ti_label"):
+			continue
+		if _clashing_unit(name, label):
+			continue
+		frappe.db.set_value("UOM", name, "ti_label", label, update_modified=False)
+
+
+def _clashing_unit(current_name, value):
+	key = _normalized(value)
+	if not key:
+		return None
+	for row in frappe.get_all(
+		"UOM", filters={"enabled": 1}, fields=["name", "ti_label"], limit_page_length=0
+	):
+		if row.name == current_name:
+			continue
+		if key in {_normalized(row.name), _normalized(row.ti_label)}:
+			return row.name
+	return None
+
+
+def validate_uom(doc, method=None):
+	"""Prevent enabled UOM names and labels from colliding with one another."""
+	frappe.local.temple_inventory_uom_labels = None
+	if not doc.get("enabled", 1):
+		return
+	for value in (doc.name, doc.get("ti_label")):
+		if not str(value or "").strip():
+			continue
+		other = _clashing_unit(doc.name, value)
+		if other:
+			label = str(value).strip()
+			frappe.throw(f"「{label}」已被单位 {other} 使用", title=f"UOM_CLASH:{other}")

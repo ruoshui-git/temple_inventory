@@ -45,7 +45,11 @@ def ranked_uoms():
 		)
 	)
 	rows = list(
-		paged("UOM", filters={"enabled": 1}, fields=["name", "uom_name", "must_be_whole_number", "category"])
+		paged(
+			"UOM",
+			filters={"enabled": 1},
+			fields=["name", "uom_name", "must_be_whole_number", "category", "ti_label"],
+		)
 	)
 
 	def rank(row):
@@ -58,7 +62,7 @@ def ranked_uoms():
 			return (2, COMMON_MEASURES[name], name.casefold())
 		return (3, str(row.category or "").casefold(), name.casefold())
 
-	return [dict(row) for row in sorted(rows, key=rank)]
+	return [{**dict(row), "label": row.ti_label or row.name} for row in sorted(rows, key=rank)]
 
 
 @frappe.whitelist()

@@ -11,10 +11,43 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from temple_inventory import notifications, push
 from temple_inventory.native_stock import MOVEMENT_LABELS, MOVEMENT_PURPOSES
+from temple_inventory.patches import fix_expiry_notification_links, set_site_timezone
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class NotificationTests(NativeDocumentTests):
+	def test_generated_notification_link_patterns_match_inventory_routes(self):
+		source = (Path(__file__).resolve().parents[1] / "notifications.py").read_text()
+		for pattern in (
+			"/inventory/{'counts' if doctype == 'Stock Reconciliation' else 'movements'}/{name}",
+			"/api/method/temple_inventory.exports.download_export?name=",
+			"/inventory/reports",
+			"/inventory/stock/expiry",
+		):
+			self.assertIn(pattern, source)
+
+	def test_timezone_patch_only_fills_an_empty_timezone(self):
+		with (
+			patch.object(frappe.db, "get_single_value", return_value=""),
+			patch.object(frappe.db, "set_single_value") as set_value,
+		):
+			set_site_timezone.execute()
+		set_value.assert_called_once_with("System Settings", "time_zone", "America/New_York")
+		with (
+			patch.object(frappe.db, "get_single_value", return_value="Europe/Paris"),
+			patch.object(frappe.db, "set_single_value") as set_value,
+		):
+			set_site_timezone.execute()
+		set_value.assert_not_called()
+
+	def test_expiry_notification_link_patch_rewrites_legacy_rows(self):
+		with patch.object(frappe.db, "sql") as sql:
+			fix_expiry_notification_links.execute()
+		sql.assert_called_once_with(
+			"""update `tabNotification Log` set link=%s where link=%s""",
+			("/inventory/stock/expiry", "/inventory/expiry"),
+		)
+
 	def test_expiry_digest_defaults_off_and_other_events_on(self):
 		with patch.object(frappe.defaults, "get_user_default", return_value=None):
 			preferences = notifications._prefs()

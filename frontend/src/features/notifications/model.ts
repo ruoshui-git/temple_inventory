@@ -1,4 +1,7 @@
+import { getCurrentInstance } from "vue";
 import { movementIcon } from "../../lib/kindIcons";
+import { siteWallTimestamp } from "../../lib/nativeTime";
+import { useOptionalReferenceData } from "../../services/contracts";
 
 export interface InventoryNotification {
   name: string;
@@ -21,11 +24,37 @@ export function badgeLabel(count: number) {
   return count > 99 ? "99+" : count > 0 ? String(count) : "";
 }
 
+function siteTimezone() {
+  return (
+    (getCurrentInstance() ? useOptionalReferenceData() : undefined)?.timezone ||
+    ""
+  );
+}
+
+function siteDateKey(epoch: number, timezone: string) {
+  try {
+    if (timezone)
+      return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(
+        new Date(epoch),
+      );
+  } catch {
+    /* fall back to the browser date */
+  }
+  const date = new Date(epoch);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export function notificationGroups(
   rows: InventoryNotification[],
-  today = new Date(),
+  today?: Date | string,
 ) {
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const timezone = siteTimezone();
+  const todayKey =
+    typeof today === "string"
+      ? today
+      : today instanceof Date
+        ? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+        : siteDateKey(Date.now(), timezone);
   return [
     {
       label: "今天",
@@ -62,8 +91,9 @@ export function isDownloadLink(link: string) {
   return link.includes("exports.download_export");
 }
 
-export function relativeTime(value: string, now = Date.now()) {
-  const stamp = Date.parse(value.replace(" ", "T"));
+export function relativeTime(value: string, now?: number) {
+  const stamp = siteWallTimestamp(value, siteTimezone());
+  now ??= Date.now();
   const minutes = Math.max(0, Math.floor((now - stamp) / 60000));
   if (minutes < 1) return "刚刚";
   if (minutes < 60) return `${minutes} 分钟前`;

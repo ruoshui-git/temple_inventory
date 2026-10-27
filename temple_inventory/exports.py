@@ -19,6 +19,7 @@ from frappe.utils import now_datetime
 from temple_inventory.native_access import check_document_scope, check_version, require_app
 from temple_inventory.projections import INTERNAL_TABLES, TABLE_LABELS, Projection
 from temple_inventory.report_query import validate_query
+from temple_inventory.uom_labels import uom_label
 
 EXPORT_DOCTYPE = "Inventory Export Request"
 service_write = ContextVar("inventory_export_service_write", default=False)
@@ -246,7 +247,7 @@ def _write(projection, doc, path):
 			writer = csv.writer(output)
 			writer.writerow([_column_label(field) for field in columns])
 			for row in projection.rows(table):
-				writer.writerow([_csv_value(row.get(field)) for field in columns])
+				writer.writerow([_csv_value(_display_cell(row, field)) for field in columns])
 				count += 1
 	else:
 		with xlsxwriter.Workbook(
@@ -274,10 +275,16 @@ def _write(projection, doc, path):
 				for row in projection.rows(table):
 					if row_index >= 1048576:
 						new_sheet()
-					worksheet.write_row(row_index, 0, [row.get(field) for field in columns])
+					worksheet.write_row(row_index, 0, [_display_cell(row, field) for field in columns])
 					row_index += 1
 					count += 1
 	return count
+
+
+def _display_cell(row, field):
+	if field in ("stock_uom", "entered_uom", "uom"):
+		return uom_label(row.get(field))
+	return row.get(field)
 
 
 def _csv_value(value):

@@ -2,6 +2,7 @@
 import { computed, ref, useId } from "vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 import QuantitySummary, { type QuantityMetric } from "./QuantitySummary.vue";
+import { unitLabel, sortByUnit } from "../../lib/units";
 const props = defineProps<{
 	label: string;
 	metrics: QuantityMetric[];
@@ -11,8 +12,9 @@ const expanded = ref(false);
 const panelId = `browse-quantity-summary-${useId()}`;
 const entries = computed(() =>
 	props.metrics.flatMap((metric) =>
-		metric.quantities.map(
-			(quantity) => `${metric.label} ${formatQuantity(quantity.qty)} ${quantity.uom}`,
+		sortByUnit(metric.quantities, (quantity) => quantity.uom).map(
+			(quantity) =>
+				`${metric.label} ${formatQuantity(quantity.qty)} ${unitLabel(quantity.uom)}`,
 		),
 	),
 );

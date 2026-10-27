@@ -8,6 +8,7 @@ from frappe.utils import nowdate
 
 from temple_inventory.native_access import require_app
 from temple_inventory.native_stock import MOVEMENT_LABELS, MOVEMENT_PURPOSES
+from temple_inventory.uom_labels import uom_label
 
 TYPES = ("库存流动", "流动撤销", "盘点调整", "导出完成", "效期提醒")
 KEY = "temple_inventory_notifications_v1"
@@ -152,6 +153,17 @@ def _primary_location(doc, kind):
 
 
 def _create(user, type_name, subject, doctype, name, url, structured=None, read=0, from_user=None):
+	def with_unit_labels(value):
+		if isinstance(value, list):
+			return [with_unit_labels(item) for item in value]
+		if not isinstance(value, dict):
+			return value
+		result = {key: with_unit_labels(item) for key, item in value.items()}
+		for field in ("stock_uom", "entered_uom", "uom"):
+			if result.get(field):
+				result[f"{field}_label"] = uom_label(result[field])
+		return result
+
 	filters = {
 		"for_user": user,
 		"type": type_name,
@@ -177,7 +189,7 @@ def _create(user, type_name, subject, doctype, name, url, structured=None, read=
 				"document_type": doctype or None,
 				"document_name": name or None,
 				"link": url,
-				"email_content": json.dumps(structured or {}, ensure_ascii=False),
+				"email_content": json.dumps(with_unit_labels(structured or {}), ensure_ascii=False),
 				"read": read,
 			}
 		)
@@ -430,7 +442,7 @@ def daily_expiry_digest():
 				f"未来效期提醒 · {len(new_rows)} 批",
 				"",
 				"",
-				"/inventory/expiry",
+				"/inventory/stock/expiry",
 				{"batches": new_rows[:100], "digest_key": nowdate()},
 			)
 		finally:

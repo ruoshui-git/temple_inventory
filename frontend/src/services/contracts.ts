@@ -1,6 +1,7 @@
 import { inject, provide, reactive, type InjectionKey } from "vue";
 import type { ReportQuery, ReportRow } from "../lib/reportContract";
 import type { HierarchyFilterNode } from "../components/ui/HierarchyFilter.vue";
+import { setUnitSource } from "../lib/units";
 
 export interface LocationNode {
   name: string;
@@ -155,6 +156,7 @@ export interface ReferenceData {
   site: string;
   siteDate: string;
   siteTime: string;
+  timezone: string;
   company: string;
   categories: HierarchyFilterNode[];
   categoryRoot: string;
@@ -165,7 +167,12 @@ export interface ReferenceData {
   items: ReferenceOption[];
   activities: ReferenceOption[];
   activityTypes: ReferenceOption[];
-  units: { name: string; whole: boolean; category?: string | null }[];
+  units: {
+    name: string;
+    label: string;
+    whole: boolean;
+    category?: string | null;
+  }[];
   operations: Record<string, boolean>;
   settings: Record<string, unknown>;
 }
@@ -175,6 +182,7 @@ export function createReferenceData(): ReferenceData {
     site: "",
     siteDate: "",
     siteTime: "",
+    timezone: "",
     company: "",
     categories: [],
     categoryRoot: "",
@@ -201,6 +209,7 @@ export function provideInventoryServices(
 ) {
   provide(serviceKey, services);
   provide(referenceKey, reference);
+  setUnitSource(reference);
 }
 export function useInventoryServices() {
   const services = inject(serviceKey);
@@ -212,6 +221,7 @@ export function useOptionalInventoryServices() {
 }
 export function provideReferenceData(reference: ReferenceData) {
   provide(referenceKey, reference);
+  setUnitSource(reference);
 }
 export function useReferenceData() {
   const reference = inject(referenceKey);
@@ -224,6 +234,7 @@ export interface BootstrapData {
   site: string;
   site_date: string;
   site_time: string;
+  timezone: string;
   category_root: string;
   settings: Record<string, unknown>;
   physical_leaves: string[];
@@ -262,6 +273,7 @@ export interface BootstrapData {
   }[];
   uoms: {
     name: string;
+    label: string;
     must_be_whole_number: boolean;
     category: string | null;
   }[];
@@ -277,6 +289,7 @@ export function hydrateReferenceData(
     site: result.site,
     siteDate: result.site_date,
     siteTime: result.site_time,
+    timezone: result.timezone || "",
     company: String(result.settings.company || ""),
     categoryRoot: result.category_root,
     settings: result.settings,
@@ -292,6 +305,7 @@ export function hydrateReferenceData(
     warehouses: result.warehouses,
     units: result.uoms.map((row) => ({
       name: row.name,
+      label: row.label || row.name,
       whole: Boolean(row.must_be_whole_number),
       category: row.category,
     })),

@@ -60,14 +60,16 @@ export async function request(
     )
       sessionExpired.value = true;
     let message = body.message || "操作失败";
+    let errorKind = body.exc_type || "";
     try {
       const messages = JSON.parse(body._server_messages || "[]");
-      message =
-        messages
-          .map((m: any) =>
-            typeof m === "string" ? JSON.parse(m).message : m.message,
-          )
-          .join("\n") || message;
+      const payloads = messages.map((entry: any) =>
+        typeof entry === "string" ? JSON.parse(entry) : entry,
+      );
+      const title = payloads.find((entry: any) => entry?.title)?.title;
+      if (typeof title === "string" && title.startsWith("UOM_CLASH:"))
+        errorKind = title;
+      message = payloads.map((m: any) => m.message).join("\n") || message;
     } catch {
       /* use server message */
     }
@@ -79,7 +81,7 @@ export async function request(
             /Not permitted|permission denied/i.test(clean)
           ? "您没有执行此操作的权限"
           : clean || "操作失败";
-    throw new ApiError(translated, r.status, body.exc_type);
+    throw new ApiError(translated, r.status, errorKind);
   }
   return body.message;
 }

@@ -28,6 +28,7 @@ from temple_inventory.report_sources import (
 	settlement_rows,
 	stock_rows,
 )
+from temple_inventory.uom_labels import uom_label
 
 INTERNAL_TABLES = {"loan_item_page", "linked_settlements", "group_source"}
 
@@ -740,7 +741,11 @@ class Projection(AbstractContextManager):
 			(table, limit if limit is not None else -1, offset),
 		)
 		for (payload,) in cursor:
-			yield json.loads(payload)
+			row = json.loads(payload)
+			for field in ("stock_uom", "entered_uom", "uom"):
+				if row.get(field):
+					row[f"{field}_label"] = uom_label(row[field])
+			yield row
 
 	def count(self, table):
 		return self.db.execute("select count(*) from rows where table_id=?", (table,)).fetchone()[0]

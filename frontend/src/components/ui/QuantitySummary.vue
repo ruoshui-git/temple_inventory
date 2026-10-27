@@ -3,6 +3,7 @@ import InventoryIcon from "../InventoryIcon.vue";
 import AsyncRegion from "./AsyncRegion.vue";
 import SkeletonBlock from "./SkeletonBlock.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { unitLabel } from "../../lib/units";
 export type Quantity = { uom: string; qty: number; status?: string; effect?: number };
 export type QuantityMetric = {
 	key: string;
@@ -25,10 +26,10 @@ function effect(quantity: Quantity) {
 function effectLabel(quantity: Quantity) {
 	const value = effect(quantity);
 	return value > 0
-		? `可用库存增加 ${formatQuantity(value)} ${quantity.uom}`
+		? `可用库存增加 ${formatQuantity(value)} ${unitLabel(quantity.uom)}`
 		: value < 0
-			? `可用库存减少 ${formatQuantity(Math.abs(value))} ${quantity.uom}`
-			: `可用库存不变 · ${quantity.uom}`;
+			? `可用库存减少 ${formatQuantity(Math.abs(value))} ${unitLabel(quantity.uom)}`
+			: `可用库存不变 · ${unitLabel(quantity.uom)}`;
 }
 </script>
 
@@ -67,7 +68,8 @@ function effectLabel(quantity: Quantity) {
 								quantity.effect === undefined ? undefined : effectLabel(quantity)
 							"
 						>
-							{{ formatQuantity(quantity.qty) }} <span>{{ quantity.uom }}</span>
+							{{ formatQuantity(quantity.qty) }}
+							<span>{{ unitLabel(quantity.uom) }}</span>
 							<small v-if="quantity.status"> · {{ quantity.status }}</small>
 							<span v-if="quantity.effect !== undefined" class="sr-only">{{
 								effectLabel(quantity)

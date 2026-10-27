@@ -992,18 +992,25 @@ def delete_category(name, version):
 
 
 @frappe.whitelist(methods=["POST"])
-def create_uom(label, must_be_whole_number=False):
+def create_uom(label, must_be_whole_number=False, display_label=""):
 	require_app()
 	frappe.has_permission("UOM", "create", throw=True)
 	label = str(label or "").strip()
 	if not label:
 		frappe.throw("请填写计量单位名称")
-	if frappe.db.exists("UOM", label):
-		frappe.throw("计量单位已存在", frappe.DuplicateEntryError)
 	doc = frappe.get_doc(
-		{"doctype": "UOM", "uom_name": label, "must_be_whole_number": cint(must_be_whole_number)}
+		{
+			"doctype": "UOM",
+			"uom_name": label,
+			"ti_label": str(display_label or "").strip(),
+			"must_be_whole_number": cint(must_be_whole_number),
+		}
 	).insert()
-	return {"name": doc.name, "must_be_whole_number": bool(doc.must_be_whole_number)}
+	return {
+		"name": doc.name,
+		"label": doc.ti_label or doc.name,
+		"must_be_whole_number": bool(doc.must_be_whole_number),
+	}
 
 
 @frappe.whitelist(methods=["POST"])

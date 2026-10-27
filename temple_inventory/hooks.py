@@ -56,6 +56,7 @@ doc_events = {
 		],
 		"on_trash": "temple_inventory.read_cache.invalidate_after_commit",
 	},
+	"UOM": {"validate": "temple_inventory.uom_labels.validate_uom"},
 }
 
 after_job = ["temple_inventory.read_cache.after_job"]

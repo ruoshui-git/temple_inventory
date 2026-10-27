@@ -29,10 +29,44 @@ def after_install():
 
 	seed_activity_types()
 	register_types()
+	_ensure_uom_property_setters()
+
+
+def _ensure_uom_property_setters():
+	"""Keep Desk UOM links searchable and display the app-owned title field."""
+	for field, prop, value, prop_type in (
+		(None, "title_field", "ti_label", "Data"),
+		(None, "show_title_field_in_link", "1", "Check"),
+		(None, "search_fields", "uom_name,ti_label", "Data"),
+		(None, "translated_doctype", "0", "Check"),
+	):
+		name = frappe.db.get_value(
+			"Property Setter",
+			{"doc_type": "UOM", "doctype_or_field": "DocType", "property": prop},
+			"name",
+		)
+		if name:
+			frappe.db.set_value("Property Setter", name, "value", value, update_modified=False)
+		else:
+			frappe.make_property_setter(
+				{
+					"doctype": "UOM",
+					"doctype_or_field": "DocType",
+					"field_name": field,
+					"property": prop,
+					"value": value,
+					"property_type": prop_type,
+				},
+				validate_fields_for_doctype=True,
+			)
+	frappe.clear_cache(doctype="UOM")
 
 
 def after_migrate():
 	after_install()
+	from temple_inventory.uom_labels import seed_labels
+
+	seed_labels()
 	from temple_inventory.hooks import app_title
 
 	# Set only app_name: saving the whole System Settings doc would revalidate

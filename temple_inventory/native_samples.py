@@ -298,55 +298,55 @@ GENERATED_PRODUCT_SPECS = {
 	"文件袋": ("A4透明", "A4拉链款", "牛津布", "防水款", "按扣式", "加厚 0.3mm", "蓝色", "10个装"),
 	"复印纸": ("70g 500张", "80g 500张", "A4 10包箱", "A3 500张", "高白度", "双面打印", "再生纸", "彩色款"),
 }
-GENERATED_UNITS = ("Nos", "双", "套", "箱", "包", "瓶", "升", "米", "张", "Kg")
+GENERATED_UNITS = ("Nos", "Pair", "Set", "Box", "包", "瓶", "Litre", "Meter", "张", "Kg")
 GENERATED_PRODUCT_UOM = {
 	"扫帚": "Nos",
-	"拖把": "套",
+	"拖把": "Set",
 	"水桶": "Nos",
-	"垃圾袋": "箱",
+	"垃圾袋": "Box",
 	"抽纸": "包",
 	"卷纸": "包",
 	"洗手液": "瓶",
-	"消毒液": "升",
+	"消毒液": "Litre",
 	"电池": "包",
 	"灯泡": "Nos",
-	"插线板": "套",
+	"插线板": "Set",
 	"毛巾": "张",
 	"雨伞": "Nos",
 	"抹布": "包",
 	"清洁刷": "Nos",
-	"不锈钢汤锅": "套",
+	"不锈钢汤锅": "Set",
 	"炒锅": "Nos",
 	"砧板": "Nos",
 	"菜刀": "Nos",
-	"食用油": "升",
-	"蒸笼": "套",
-	"保鲜盒": "套",
+	"食用油": "Litre",
+	"蒸笼": "Set",
+	"保鲜盒": "Set",
 	"大米": "Kg",
 	"漏勺": "Nos",
 	"汤勺": "Nos",
-	"洗洁精": "升",
-	"电饭煲": "套",
+	"洗洁精": "Litre",
+	"电饭煲": "Set",
 	"酱油": "瓶",
 	"米醋": "瓶",
-	"一次性手套": "双",
-	"香炉": "套",
-	"烛台": "双",
-	"供杯": "套",
-	"供盘": "套",
+	"一次性手套": "Pair",
+	"香炉": "Set",
+	"烛台": "Pair",
+	"供杯": "Set",
+	"供盘": "Set",
 	"蒲团": "Nos",
 	"拜垫": "Nos",
 	"木鱼": "Nos",
 	"引磬": "Nos",
-	"经幡": "米",
+	"经幡": "Meter",
 	"盘香": "包",
 	"酥油灯": "Nos",
 	"莲花灯": "Nos",
 	"檀香": "包",
-	"经书架": "套",
+	"经书架": "Set",
 	"佛前供花瓶": "Nos",
 	"A4打印纸": "张",
-	"签字笔": "箱",
+	"签字笔": "Box",
 	"文件夹": "包",
 	"订书机": "Nos",
 	"便签": "包",
@@ -354,7 +354,7 @@ GENERATED_PRODUCT_UOM = {
 	"胶带": "包",
 	"剪刀": "Nos",
 	"记事本": "Nos",
-	"印泥": "套",
+	"印泥": "Set",
 	"档案盒": "Nos",
 	"白板笔": "包",
 	"标签贴纸": "张",
@@ -403,25 +403,25 @@ def generated_alternate_conversion(product):
 	stock_uom = product["stock_uom"]
 	spec = product["spec"]
 	if stock_uom == "Nos":
-		return "箱", 12
-	if stock_uom == "双":
+		return "Box", 12
+	if stock_uom == "Pair":
 		return "包", 50
-	if stock_uom == "套":
-		return "箱", 6
-	if stock_uom == "箱":
+	if stock_uom == "Set":
+		return "Box", 6
+	if stock_uom == "Box":
 		return "包", 10
 	if stock_uom == "包":
-		return "箱", 10
+		return "Box", 10
 	if stock_uom == "瓶":
-		return "箱", 12
-	if stock_uom == "升":
+		return "Box", 12
+	if stock_uom == "Litre":
 		milliliters = re.search(r"(\d+(?:\.\d+)?)\s*ml\b", spec, re.IGNORECASE)
 		liters = re.search(r"(\d+(?:\.\d+)?)\s*L\b", spec, re.IGNORECASE)
 		factor = (
 			float(milliliters.group(1)) / 1000 if milliliters else float(liters.group(1)) if liters else 1
 		)
 		return "瓶", factor
-	if stock_uom == "米":
+	if stock_uom == "Meter":
 		length = re.search(r"(\d+(?:\.\d+)?)\s*m\b", spec, re.IGNORECASE)
 		factor = float(length.group(1)) if length else 5
 		return "Nos", factor
@@ -1535,13 +1535,13 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 	rng = random.Random(20261023)
 	unit_whole = {
 		"Nos": True,
-		"双": True,
-		"套": True,
-		"箱": True,
+		"Pair": True,
+		"Set": True,
+		"Box": True,
 		"包": True,
 		"瓶": True,
-		"升": False,
-		"米": False,
+		"Litre": False,
+		"Meter": False,
 		"张": True,
 		"Kg": False,
 	}
@@ -1626,18 +1626,18 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 		chosen = list(dict.fromkeys(chosen))
 		rooms.setdefault("ITEM_AFFINITY", {})[key] = list(pool)
 		rooms.setdefault("OPENING_PLACEMENTS", {})[item["item_code"]] = chosen
-		opening_quantity = 200.5 if stock_uom in {"Kg", "升", "米"} else 200
+		opening_quantity = 200.5 if stock_uom in {"Kg", "Litre", "Meter"} else 200
 		if batch_tracked:
 			batch_id = _batch_id(item, f"Lot {index + 1:04d}")
 			catalog.create_batch(item["item_code"], batch_id, _date(-730 - index), _date(60 + index))
 			batch_codes.add(key)
-			parts = _quantity_parts(opening_quantity, len(chosen), stock_uom not in {"Kg", "升", "米"})
+			parts = _quantity_parts(opening_quantity, len(chosen), stock_uom not in {"Kg", "Litre", "Meter"})
 			for warehouse, quantity in zip(chosen, parts, strict=True):
 				opening_lines.append(
 					_line(item, quantity, target=warehouse, batch_no=batch_id, use_serial_batch_fields=1)
 				)
 		else:
-			parts = _quantity_parts(opening_quantity, len(chosen), stock_uom not in {"Kg", "升", "米"})
+			parts = _quantity_parts(opening_quantity, len(chosen), stock_uom not in {"Kg", "Litre", "Meter"})
 			for warehouse, quantity in zip(chosen, parts, strict=True):
 				opening_lines.append(_line(item, quantity, target=warehouse))
 		for warehouse, quantity in zip(chosen, parts, strict=True):

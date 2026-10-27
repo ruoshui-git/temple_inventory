@@ -10,7 +10,7 @@ from temple_inventory import schema_audit
 class SchemaAuditTests(unittest.TestCase):
 	def test_source_manifest_matches_app_owned_fixture_and_doctype_json(self):
 		manifest = schema_audit._source_manifest()
-		self.assertEqual(len(manifest["custom_fields"]), 37)
+		self.assertEqual(len(manifest["custom_fields"]), 38)
 		self.assertEqual(
 			manifest["doctypes"],
 			sorted(
