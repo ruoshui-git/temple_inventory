@@ -11,7 +11,20 @@ import {
 } from "../src/services/contracts";
 import { newReportQuery } from "../src/lib/reportContract";
 import { decodeAllocationSelection } from "../src/lib/routeSelection";
+import { createMemoryHistory, createRouter } from "vue-router";
 const wrappers: VueWrapper[] = [];
+function testRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: "/items/:code",
+        name: "item-detail",
+        component: { template: "<div />" },
+      },
+    ],
+  });
+}
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   document.body.innerHTML = "";
@@ -29,7 +42,7 @@ function result(query: unknown) {
   return {
     query,
     table: "locations",
-    columns: ["item_code", "warehouse", "batch_no", "damaged"],
+    columns: ["item_code", "item_name", "warehouse", "batch_no", "damaged"],
     rows: [row],
     matched_count: 205,
     next_start: 30,
@@ -58,7 +71,7 @@ function setup(
       return () => h(PendingPage, { initialQuery: query });
     },
   });
-  const wrapper = mount(root);
+  const wrapper = mount(root, { global: { plugins: [testRouter()] } });
   wrappers.push(wrapper);
   const page = wrapper.findComponent(PendingPage);
   return { wrapper, page, c: page.vm.controller, report, reference };
@@ -129,6 +142,7 @@ describe("native damaged-stock workspace", () => {
     });
     const { wrapper } = setup();
     await flushPromises();
+    expect(wrapper.get(".browse-row-link").text()).toBe("待修物品");
     const actions = wrapper.get(".damaged-row-actions");
     const repair = actions
       .findAll("button")
@@ -164,6 +178,7 @@ describe("native damaged-stock workspace", () => {
     resetReviewSession();
     const wrapper = mount(PreviewBrowsePages, {
       props: { route: "pending/actionable" },
+      global: { plugins: [testRouter()] },
     });
     wrappers.push(wrapper);
     await flushPromises();

@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -99,6 +100,7 @@ describe("responsive presentation contract", () => {
           return () => h(StockBrowsePage);
         },
       }),
+      { global: { stubs: { RouterLink: RouterLinkStub } } },
     );
     await flushPromises();
     const controller = wrapper.getComponent(StockBrowsePage).vm.controller;

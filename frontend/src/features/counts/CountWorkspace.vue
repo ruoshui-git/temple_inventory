@@ -19,6 +19,7 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { showCountRowsOrEmpty } from "../documents/creationFormPresentation";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { unitLabel } from "../../lib/units";
 
 const props = defineProps<{ controller: CountEditor }>();
 const emit = defineEmits<{ openDocument: [doctype: string, name: string] }>();
@@ -145,16 +146,16 @@ const visibleRows = computed(() =>
 	sortedRows.value.slice((visiblePage.value - 1) * pageSize, visiblePage.value * pageSize),
 );
 const countColumns = computed<DataColumn[]>(() => [
-	{ id: "location", label: "位置", sortable: true, minWidth: "150px" },
-	{ id: "image", label: "图片", defaultVisible: true, minWidth: "72px" },
-	{ id: "item_name", label: "物品名称", sortable: true, required: true, minWidth: "180px" },
-	{ id: "item_code", label: "物品编码", sortable: true, required: true, minWidth: "140px" },
-	{ id: "batch", label: "批次", sortable: true, minWidth: "120px" },
-	{ id: "stock_uom", label: "库存单位", minWidth: "90px" },
-	{ id: "baseline_qty", label: "账面数量", minWidth: "100px", align: "end" },
-	{ id: "actual_qty", label: "实点数量", required: true, minWidth: "140px" },
-	{ id: "difference", label: "差异", minWidth: "100px", align: "end" },
-	{ id: "actions", label: "操作", required: true, minWidth: "240px" },
+	{ id: "location", label: "位置", sortable: true },
+	{ id: "image", label: "图片", defaultVisible: true },
+	{ id: "item_name", label: "物品名称", sortable: true, required: true },
+	{ id: "item_code", label: "物品编码", sortable: true, required: true },
+	{ id: "batch", label: "批次", sortable: true },
+	{ id: "stock_uom", label: "库存单位" },
+	{ id: "baseline_qty", label: "账面数量", align: "end" },
+	{ id: "actual_qty", label: "实点数量", required: true },
+	{ id: "difference", label: "差异", align: "end" },
+	{ id: "actions", label: "操作", required: true },
 ]);
 const countColumnPreferences = services
 	? useColumnPreferences("count.workspace", countColumns, reference, services)
@@ -334,7 +335,7 @@ function itemImage(row: CountRow) {
 				{{ row.item_name || names[row.item_code] || row.item_code }} ·
 				{{ warehouseLabel(row.warehouse, reference.warehouses) }} ·
 				{{ row.batch_no || "无批次" }} · {{ row.actual_qty ?? "未核对" }}
-				{{ row.stock_uom }}
+				{{ unitLabel(String(row.stock_uom || "")) }}
 			</p>
 			<label v-if="writable" class="preview-choice-label">
 				<input v-model="removalAcknowledged" type="checkbox" />已核对移出的输入
@@ -376,7 +377,10 @@ function itemImage(row: CountRow) {
 				<div class="count-card-counts">
 					<div class="count-card-book">
 						<span>账面</span
-						><strong>{{ row.baseline_qty }} {{ row.stock_uom }}</strong>
+						><strong
+							>{{ row.baseline_qty }}
+							{{ unitLabel(String(row.stock_uom || "")) }}</strong
+						>
 					</div>
 					<div class="count-card-entry">
 						<label :for="`count-input-${encodeURIComponent(c.countKey(row))}`"
@@ -406,7 +410,7 @@ function itemImage(row: CountRow) {
 						/>
 						<strong v-else
 							>{{ hasCountInput(row) ? row.actual_qty : "未核对" }}
-							{{ row.stock_uom }}</strong
+							{{ unitLabel(String(row.stock_uom || "")) }}</strong
 						>
 						<span
 							v-if="hasCountInput(row) && row.actual_qty !== row.baseline_qty"
@@ -489,7 +493,9 @@ function itemImage(row: CountRow) {
 				}}</strong>
 				<template v-else-if="column.id === 'item_code'">{{ row.item_code }}</template>
 				<template v-else-if="column.id === 'batch'">{{ row.batch_no || "—" }}</template>
-				<template v-else-if="column.id === 'stock_uom'">{{ row.stock_uom }}</template>
+				<template v-else-if="column.id === 'stock_uom'">{{
+					unitLabel(String(row.stock_uom || ""))
+				}}</template>
 				<template v-else-if="column.id === 'baseline_qty'">{{
 					row.baseline_qty
 				}}</template>

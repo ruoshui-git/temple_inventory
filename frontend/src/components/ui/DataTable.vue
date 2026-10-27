@@ -10,10 +10,11 @@ import type {
 	ColumnPreferencesController,
 	TableCellValue,
 } from "../../lib/dataTable";
-import { dataColumnAlignment } from "../../lib/dataTable";
+import { dataColumnAlignment, dataColumnKind } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
+import { unitLabel } from "../../lib/units";
 
 const props = withDefaults(
 	defineProps<{
@@ -391,6 +392,14 @@ const orderedColumns = computed(() => {
 		.map((id) => byId.get(id))
 		.filter((column): column is DataColumn => Boolean(column));
 });
+function columnKind(column: DataColumn) {
+	const kind = dataColumnKind(column);
+	if (kind !== "primary") return kind;
+	const firstPrimary = orderedColumns.value.find(
+		(candidate) => dataColumnKind(candidate) === "primary",
+	);
+	return firstPrimary === column ? "primary" : "text";
+}
 const recordRows = computed(() =>
 	props.rows.filter(
 		(row): row is DataTableRecord => row.kind === "record" && row.selectable !== false,
@@ -624,8 +633,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											: 'none'
 										: undefined
 								"
-								:style="{ minWidth: column.minWidth }"
-								:class="[`align-${dataColumnAlignment(column)}`, column.className]"
+								:class="[
+									`align-${dataColumnAlignment(column)}`,
+									`data-column-${columnKind(column)}`,
+									column.className,
+								]"
 							>
 								<button
 									v-if="column.sortable"
@@ -772,7 +784,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												@click.stop="emit('toggleGroup', entry.id)"
 											>
 												<DisclosureIcon variant="inline" />
-												{{ entry.label }}
+												<span
+													class="data-table-group-name"
+													:title="entry.label"
+													>{{ entry.label }}</span
+												>
 											</button>
 											<span class="data-table-group-count"
 												>{{ entry.countLabel || "记录数" }}
@@ -794,6 +810,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										:key="String(column.id)"
 										:class="[
 											`align-${dataColumnAlignment(column)}`,
+											`data-column-${columnKind(column)}`,
 											column.className,
 											'data-table-group-cell',
 										]"
@@ -831,9 +848,12 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 													:disabled="!entry.hasChildren"
 													@click.stop="emit('toggleGroup', entry.id)"
 												>
-													<DisclosureIcon variant="inline" />{{
-														entry.label
-													}}
+													<DisclosureIcon variant="inline" />{{ " " }}
+													<span
+														class="data-table-group-name"
+														:title="entry.label"
+														>{{ entry.label }}</span
+													>
 												</button>
 												<span
 													v-if="
@@ -887,9 +907,17 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										:key="String(column.id)"
 										:class="[
 											`align-${dataColumnAlignment(column)}`,
+											`data-column-${columnKind(column)}`,
 											column.className,
 											cellClass?.(String(column.id), recordValue(entry)),
 										]"
+										:title="
+											['primary', 'code', 'chip'].includes(
+												columnKind(column),
+											)
+												? String(cellValue(entry, column) ?? '')
+												: undefined
+										"
 									>
 										<slot
 											name="cell"
@@ -898,7 +926,13 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											:value="cellValue(entry, column)"
 											:index="index"
 										>
-											{{ cellValue(entry, column) }}
+											{{
+												columnKind(column) === "unit"
+													? unitLabel(
+															String(cellValue(entry, column) || ""),
+														)
+													: cellValue(entry, column)
+											}}
 										</slot>
 									</td>
 									<td

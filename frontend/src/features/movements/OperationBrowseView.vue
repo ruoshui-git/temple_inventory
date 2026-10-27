@@ -29,7 +29,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import { operationLabels } from "../documents/operationCodec";
-import ItemGroup from "../../components/ItemGroup.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import { loanSummaryMetrics, movementSummaryMetrics } from "./movementSummary";
 import OperationBrowseFilters from "./OperationBrowseFilters.vue";
@@ -58,6 +58,9 @@ import { loanReferenceIdentity } from "../../lib/relatedLoanPresentation";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { createRecoveryStore } from "../../lib/browserRecovery";
 import { newReportQuery } from "../../lib/reportContract";
+import { RouterLink } from "vue-router";
+import { routeTarget } from "../../lib/routeRegistry";
+import { sortByUnit, unitLabel } from "../../lib/units";
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -151,112 +154,101 @@ const operationColumns = computed<DataColumn[]>(() =>
 				{
 					id: "document",
 					label: "记录",
+					kind: "primary",
 					required: true,
 					defaultVisible: true,
 					sortable: true,
 					sortField: "identity",
-					minWidth: "190px",
 				},
 				{
 					id: "kind",
 					label: "类型",
 					defaultVisible: true,
 					sortable: true,
-					minWidth: "110px",
 				},
 				{
 					id: "date",
 					label: "日期",
 					defaultVisible: true,
 					sortable: true,
-					minWidth: "130px",
 				},
 				{
 					id: "quantities",
 					label: "数量（按单位）",
 					defaultVisible: true,
-					minWidth: "190px",
+					align: "end",
 				},
 				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "docstatus",
 					label: "状态",
 					required: true,
 					defaultVisible: true,
-					minWidth: "100px",
 				},
 				{
 					id: "related_loans",
 					label: "原借出",
 					defaultVisible: true,
-					minWidth: "140px",
 				},
 			]
 		: [
 				{
 					id: "document",
 					label: "记录",
+					kind: "primary",
 					required: true,
 					defaultVisible: true,
 					sortable: true,
 					sortField: "identity",
-					minWidth: "190px",
 				},
 				{
 					id: "borrower",
 					label: "借用方",
 					defaultVisible: true,
 					sortable: true,
-					minWidth: "130px",
 				},
 				{
 					id: "activity_title",
 					label: "活动",
 					defaultVisible: true,
 					sortable: true,
-					minWidth: "140px",
 				},
 				{
 					id: "date",
 					label: "借出日期",
 					defaultVisible: true,
 					sortable: true,
-					minWidth: "130px",
 				},
 				{
 					id: "quantities",
 					label: "借出数量（按单位）",
 					defaultVisible: true,
-					minWidth: "190px",
+					align: "end",
 				},
 				{
 					id: "outstanding",
 					label: "未归还数量（按单位）",
 					defaultVisible: true,
-					minWidth: "190px",
+					align: "end",
 				},
 				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "status",
@@ -265,14 +257,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "loan_status",
-					minWidth: "140px",
 				},
 				{
 					id: "actions",
 					label: "操作",
 					required: true,
 					defaultVisible: true,
-					minWidth: "130px",
 				},
 			],
 );
@@ -292,9 +282,9 @@ const itemColumns = computed<DataColumn[]>(() =>
 				{
 					id: "document",
 					label: "记录",
+					kind: "primary",
 					required: true,
 					defaultVisible: true,
-					minWidth: "190px",
 				},
 				{
 					id: "kind",
@@ -302,7 +292,6 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "kind",
-					minWidth: "110px",
 				},
 				{
 					id: "date",
@@ -310,46 +299,42 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "date",
-					minWidth: "130px",
 				},
 				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "quantities",
 					label: "数量（按单位）",
 					defaultVisible: true,
+					align: "end",
 					sortable: true,
 					sortField: "stock_qty",
-					minWidth: "170px",
 					className: "operation-movement-quantity-column",
 				},
-				{ id: "docstatus", label: "状态", defaultVisible: true, minWidth: "100px" },
+				{ id: "docstatus", label: "状态", defaultVisible: true },
 				{
 					id: "related_loans",
 					label: "原借出",
 					defaultVisible: wideScreen.value,
-					minWidth: "160px",
 				},
 			]
 		: [
 				{
 					id: "document",
 					label: "记录",
+					kind: "primary",
 					required: true,
 					defaultVisible: true,
 					sortable: true,
 					sortField: "document",
-					minWidth: "180px",
 				},
 				{
 					id: "kind",
@@ -357,7 +342,6 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "kind",
-					minWidth: "110px",
 				},
 				{
 					id: "date",
@@ -365,19 +349,16 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "date",
-					minWidth: "130px",
 				},
 				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: wideScreen.value,
-					minWidth: "140px",
 				},
 				{
 					id: "borrowed",
@@ -385,14 +366,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "borrowed",
-					minWidth: "120px",
 				},
-				{ id: "status", label: "状态", defaultVisible: true, minWidth: "110px" },
+				{ id: "status", label: "状态", defaultVisible: true },
 				{
 					id: "actions",
 					label: "操作",
 					defaultVisible: wideScreen.value,
-					minWidth: "120px",
 				},
 				{
 					id: "outstanding",
@@ -400,7 +379,6 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "outstanding",
-					minWidth: "120px",
 					className: "operation-loan-outstanding-column",
 				},
 			],
@@ -575,12 +553,13 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 	const parts: string[] = [];
 	if (includeCount) parts.push(`明细条数 ${group.count}`);
 	if (props.family === "loans") {
-		const unit = String(row.stock_uom || "");
+		const unit = unitLabel(String(row.stock_uom || ""));
 		if (row.borrowed !== undefined) parts.push(`借出 ${row.borrowed} ${unit}`.trim());
 		if (row.outstanding !== undefined) parts.push(`未归还 ${row.outstanding} ${unit}`.trim());
 	} else if (Array.isArray(row.quantity_breakdown)) {
-		const breakdown = [...(row.quantity_breakdown as Record<string, unknown>[])].sort(
-			(a, b) => Number(b.stock_qty || 0) - Number(a.stock_qty || 0),
+		const breakdown = sortByUnit(
+			row.quantity_breakdown as Record<string, unknown>[],
+			(entry) => String(entry.stock_uom || row.stock_uom || ""),
 		);
 		for (const entry of breakdown) {
 			const quantity = Number(entry.stock_qty || 0);
@@ -592,11 +571,11 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 				? `（${entry.docstatus === 1 ? "已提交" : entry.docstatus === 2 ? "已取消" : "草稿"}）`
 				: "";
 			parts.push(
-				`${movementLabels[String(entry.kind)] || "其他类型"}${status} ${quantity} ${row.stock_uom || ""}`.trim(),
+				`${movementLabels[String(entry.kind)] || "其他类型"}${status} ${quantity} ${unitLabel(String(row.stock_uom || ""))}`.trim(),
 			);
 		}
 	} else if (row.stock_qty !== undefined && row.stock_qty !== null) {
-		parts.push(`${row.stock_qty} ${row.stock_uom || ""}`.trim());
+		parts.push(`${row.stock_qty} ${unitLabel(String(row.stock_uom || ""))}`.trim());
 	}
 	return parts.join(" · ");
 }
@@ -638,7 +617,7 @@ function groupLoanMetric(group: DataTableGroup, column: string) {
 	const key = column === "outstanding" ? "outstanding" : "borrowed";
 	const value = row[key];
 	if (value === undefined || value === null) return "";
-	return `${key === "borrowed" ? "借出" : "未归还"} ${formatQuantity(Number(value))} ${String(row.stock_uom || "")}`.trim();
+	return `${key === "borrowed" ? "借出" : "未归还"} ${formatQuantity(Number(value))} ${unitLabel(String(row.stock_uom || ""))}`.trim();
 }
 function hiddenGroupMetrics(group: DataTableGroup, visibleColumns: string[]) {
 	if (!isItemGroup(group)) return "";
@@ -791,7 +770,9 @@ const metrics = computed(() => {
 	return loanSummaryMetrics(result.totals, props.records);
 });
 function quantities(rows?: { uom: string; qty: number }[]) {
-	return rows?.map((row) => `${row.qty} ${row.uom}`).join(" | ") || "";
+	return sortByUnit(rows || [], (row) => row.uom)
+		.map((row) => `${formatQuantity(row.qty)} ${unitLabel(row.uom)}`)
+		.join(" | ");
 }
 function itemContext(row: OperationGroup) {
 	const values = [row.item_code];
@@ -815,10 +796,11 @@ function itemTotals(row: OperationGroup) {
 }
 function effectLabel(effect: number, uom: string, status?: string) {
 	if (status === "草稿" || status === "已取消") effect = 0;
+	const unit = unitLabel(uom);
 	return effect > 0
-		? `可用库存增加 ${effect} ${uom}`
+		? `可用库存增加 ${effect} ${unit}`
 		: effect < 0
-			? `可用库存减少 ${Math.abs(effect)} ${uom}`
+			? `可用库存减少 ${Math.abs(effect)} ${unit}`
 			: `可用库存不变 · ${uom}`;
 }
 function recordEffect(row: OperationGroup, uom: string) {
@@ -1082,106 +1064,148 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						</p>
 					</Overlay>
 					<div v-if="showMobileItemCards" class="mobile-item-group-list browse-card">
-						<ItemGroup
+						<article
 							v-for="group in mobileItemGroups"
 							:key="group.id"
+							class="preview-group preview-group--mobile-list browse-card"
 							:data-browse-row="group.id"
-							:item="c.stockItem(groupItem(group))"
-							:name="group.label"
-							:context="`明细条数 ${group.count}`"
-							:summary="groupSummaryDisplay(group).replace(/\+(\d+)\s+项/g, '+$1')"
-							mobile-list
-							:expanded="group.expanded"
-							@expanded="toggleMobileItemGroup(group, $event)"
 						>
-							<div class="mobile-group-actions">
-								<UiButton
-									:disabled="result.stale"
-									@click="
-										emit(
-											'openItem',
-											String(group.value?.item_code || group.label),
-										)
-									"
-									>物品详情</UiButton
+							<div
+								class="preview-group-heading"
+								style="grid-template-columns: 56px minmax(0, 1fr) 24px"
+							>
+								<div
+									v-if="c.stockItem(groupItem(group))"
+									class="preview-group-thumbnail"
 								>
-							</div>
-							<MovementHistoryTable
-								v-if="
-									family === 'movements' &&
-									c.expanded.has(groupItem(group).id) &&
-									details[groupItem(group).id]
-								"
-								:rows="movementHistoryRows(groupItem(group).id)"
-								:total="details[groupItem(group).id]!.total"
-								:next="details[groupItem(group).id]!.next"
-								:loading="details[groupItem(group).id]!.loading"
-								:error="details[groupItem(group).id]!.error"
-								:initialized="details[groupItem(group).id]!.initialized"
-								:stale="result.stale"
-								:sort-by="c.detailSortBy(groupItem(group))"
-								:sort-direction="c.detailSortDirection(groupItem(group))"
-								@load-more="c.loadDetails(groupItem(group), true)"
-								@retry="c.retryDetails(groupItem(group))"
-								@sort="c.setDetailSort(groupItem(group), $event)"
-								@open-document="
-									(doctype, name) => emit('openDocument', doctype, name)
-								"
-								@open-loan="emit('openLoan', $event)"
-							>
-							</MovementHistoryTable>
-							<p
-								v-if="
-									family === 'loans' &&
-									historyScope === 'outstanding' &&
-									details[groupItem(group).id]?.initialized &&
-									!details[groupItem(group).id]?.rows.length
-								"
-								class="field-hint"
-							>
-								当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
-							</p>
-							<MovementHistoryTable
-								v-else-if="
-									family === 'loans' &&
-									c.expanded.has(groupItem(group).id) &&
-									details[groupItem(group).id]
-								"
-								:rows="details[groupItem(group).id]!.rows as HistoryRow[]"
-								:total="details[groupItem(group).id]!.total"
-								:next="details[groupItem(group).id]!.next"
-								:loading="details[groupItem(group).id]!.loading"
-								:error="details[groupItem(group).id]!.error"
-								:initialized="details[groupItem(group).id]!.initialized"
-								:stale="result.stale"
-								:history-complete="details[groupItem(group).id]!.historyComplete"
-								:sort-by="c.detailSortBy(groupItem(group))"
-								:sort-direction="c.detailSortDirection(groupItem(group))"
-								mode="loan-balance"
-								@load-more="c.loadDetails(groupItem(group), true)"
-								@retry="c.retryDetails(groupItem(group))"
-								@sort="c.setDetailSort(groupItem(group), $event)"
-								@open-document="
-									(doctype, name) => emit('openDocument', doctype, name)
-								"
-								@open-loan="emit('openLoan', $event)"
-							>
-								<template #actions="{ row: contribution }">
-									<UiButton
-										v-if="
-											contribution.kind === 'Loan' && contribution.can_settle
+									<ItemImage :item="c.stockItem(groupItem(group))!" />
+								</div>
+								<h2
+									style="
+										display: grid;
+										grid-column: 2;
+										grid-row: 1;
+										min-width: 0;
+									"
+								>
+									<RouterLink
+										class="browse-row-link"
+										:to="
+											routeTarget('item-detail', {
+												code: String(
+													group.value?.item_code || group.label,
+												),
+											})
 										"
-										:disabled="
-											result.stale ||
-											details[groupItem(group).id]!.loading ||
-											!reference.operations.Return
-										"
-										@click="emit('settle', String(contribution.document))"
-										>登记归还</UiButton
+										>{{ group.label }}</RouterLink
 									>
-								</template>
-							</MovementHistoryTable>
-						</ItemGroup>
+									<small>明细条数 {{ group.count }}</small>
+									<span class="preview-group-metrics">{{
+										groupSummaryDisplay(group).replace(/\+(\d+)\s+项/g, "+$1")
+									}}</span>
+								</h2>
+								<button
+									type="button"
+									class="preview-group-trigger"
+									style="
+										grid-column: 3;
+										grid-row: 1;
+										width: 32px;
+										min-height: 44px;
+										padding: 0;
+									"
+									:aria-expanded="group.expanded"
+									:aria-controls="`mobile-operation-group-${group.id}`"
+									@click="toggleMobileItemGroup(group, !group.expanded)"
+								>
+									<DisclosureIcon variant="inline" />
+								</button>
+							</div>
+							<div
+								v-show="group.expanded"
+								:id="`mobile-operation-group-${group.id}`"
+								class="preview-group-content"
+							>
+								<MovementHistoryTable
+									v-if="
+										family === 'movements' &&
+										c.expanded.has(groupItem(group).id) &&
+										details[groupItem(group).id]
+									"
+									:rows="movementHistoryRows(groupItem(group).id)"
+									:total="details[groupItem(group).id]!.total"
+									:next="details[groupItem(group).id]!.next"
+									:loading="details[groupItem(group).id]!.loading"
+									:error="details[groupItem(group).id]!.error"
+									:initialized="details[groupItem(group).id]!.initialized"
+									:stale="result.stale"
+									:sort-by="c.detailSortBy(groupItem(group))"
+									:sort-direction="c.detailSortDirection(groupItem(group))"
+									@load-more="c.loadDetails(groupItem(group), true)"
+									@retry="c.retryDetails(groupItem(group))"
+									@sort="c.setDetailSort(groupItem(group), $event)"
+									@open-document="
+										(doctype, name) => emit('openDocument', doctype, name)
+									"
+									@open-loan="emit('openLoan', $event)"
+								>
+								</MovementHistoryTable>
+								<p
+									v-if="
+										family === 'loans' &&
+										historyScope === 'outstanding' &&
+										details[groupItem(group).id]?.initialized &&
+										!details[groupItem(group).id]?.rows.length
+									"
+									class="field-hint"
+								>
+									当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+								</p>
+								<MovementHistoryTable
+									v-else-if="
+										family === 'loans' &&
+										c.expanded.has(groupItem(group).id) &&
+										details[groupItem(group).id]
+									"
+									:rows="details[groupItem(group).id]!.rows as HistoryRow[]"
+									:total="details[groupItem(group).id]!.total"
+									:next="details[groupItem(group).id]!.next"
+									:loading="details[groupItem(group).id]!.loading"
+									:error="details[groupItem(group).id]!.error"
+									:initialized="details[groupItem(group).id]!.initialized"
+									:stale="result.stale"
+									:history-complete="
+										details[groupItem(group).id]!.historyComplete
+									"
+									:sort-by="c.detailSortBy(groupItem(group))"
+									:sort-direction="c.detailSortDirection(groupItem(group))"
+									mode="loan-balance"
+									@load-more="c.loadDetails(groupItem(group), true)"
+									@retry="c.retryDetails(groupItem(group))"
+									@sort="c.setDetailSort(groupItem(group), $event)"
+									@open-document="
+										(doctype, name) => emit('openDocument', doctype, name)
+									"
+									@open-loan="emit('openLoan', $event)"
+								>
+									<template #actions="{ row: contribution }">
+										<UiButton
+											v-if="
+												contribution.kind === 'Loan' &&
+												contribution.can_settle
+											"
+											:disabled="
+												result.stale ||
+												details[groupItem(group).id]!.loading ||
+												!reference.operations.Return
+											"
+											@click="emit('settle', String(contribution.document))"
+											>登记归还</UiButton
+										>
+									</template>
+								</MovementHistoryTable>
+							</div>
+						</article>
 					</div>
 					<p
 						v-if="
@@ -1343,7 +1367,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 											),
 										)
 									}}
-									{{ row.stock_uom }}
+									{{ unitLabel(String(row.stock_uom || "")) }}
 								</template>
 								<template
 									v-else-if="
@@ -1353,7 +1377,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									"
 								>
 									{{ formatQuantity(Number(row.outstanding)) }}
-									{{ row.stock_uom }}
+									{{ unitLabel(String(row.stock_uom || "")) }}
 								</template>
 								<LocationEndpoint
 									v-else-if="column.id === 'source'"
@@ -1403,7 +1427,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												),
 											)
 										}}
-										{{ row.stock_uom || "" }}
+										{{ unitLabel(String(row.stock_uom || "")) }}
 									</span>
 									<small
 										v-if="family === 'movements'"
@@ -1477,13 +1501,16 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										v-if="c.stockItem(operationRow(row))"
 										:item="c.stockItem(operationRow(row))!"
 									/>
-									<button
+									<RouterLink
 										class="browse-row-link"
-										:disabled="result.stale"
-										@click="emit('openItem', String(row.item_code))"
+										:to="
+											routeTarget('item-detail', {
+												code: String(row.item_code || ''),
+											})
+										"
 									>
 										{{ row.item_name || row.item_code }}
-									</button>
+									</RouterLink>
 								</div>
 								<template v-else-if="column.id === 'kind'">{{
 									row.category || "物品汇总"
@@ -1521,7 +1548,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												: undefined
 										"
 										>{{ metric.label }} {{ metric.quantity.qty }}
-										{{ metric.quantity.uom
+										{{ unitLabel(metric.quantity.uom)
 										}}<small v-if="metric.quantity.status">
 											· {{ metric.quantity.status }}</small
 										></span
@@ -1546,11 +1573,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												? "收起历史"
 												: "查看历史"
 										}}</UiButton
-									>
-									<UiButton
-										:disabled="result.stale"
-										@click="emit('openItem', String(row.item_code))"
-										>物品详情</UiButton
 									>
 								</div>
 							</template>
@@ -1723,7 +1745,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									group.value?.stock_qty !== undefined
 								"
 							>
-								{{ group.value.stock_qty }} {{ group.value.stock_uom }}
+								{{ group.value.stock_qty }}
+								{{ unitLabel(String(group.value.stock_uom || "")) }}
 							</span>
 							<span
 								v-else-if="
@@ -1731,7 +1754,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									group.value?.outstanding !== undefined
 								"
 							>
-								{{ group.value.outstanding }} {{ group.value.stock_uom }}
+								{{ group.value.outstanding }}
+								{{ unitLabel(String(group.value.stock_uom || "")) }}
 							</span>
 						</template>
 						<template #cell="{ column, row }">
@@ -1813,7 +1837,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							/></template>
 							<template v-else-if="column.id === 'quantities'"
 								><span
-									v-for="quantity in operationRow(row).whole?.quantities || []"
+									v-for="quantity in sortByUnit(
+										operationRow(row).whole?.quantities || [],
+										(entry) => entry.uom,
+									)"
 									:key="quantity.uom"
 									class="operation-total"
 									:class="
@@ -1832,7 +1859,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												)
 											: undefined
 									"
-									>{{ quantity.qty }} {{ quantity.uom
+									>{{ quantity.qty }} {{ unitLabel(quantity.uom)
 									}}<span v-if="family === 'movements'" class="sr-only">{{
 										recordEffectLabel(
 											row as unknown as OperationGroup,

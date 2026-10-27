@@ -1896,6 +1896,18 @@
 	width: 100%;
 	max-width: 100%;
 }
+.browse-item-identity {
+	display: flex;
+	min-width: 0;
+	max-width: 360px;
+	align-items: center;
+	gap: var(--p-space-2);
+}
+.browse-item-identity .browse-row-link {
+	min-width: 0;
+	flex: 1;
+	overflow-wrap: anywhere;
+}
 .browse-table td > .ui-button {
 	max-width: 100%;
 	white-space: normal;
@@ -3248,21 +3260,64 @@
 .stock-effect.is-neutral {
 	color: var(--p-muted);
 }
-.preview-dashboard .dashboard-inventory .quantity-summary-values strong:nth-of-type(n + 4) {
-	display: none;
+.dashboard-inventory-metrics {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: start;
+	gap: 12px;
+	margin-block: 12px;
+}
+.dashboard-inventory-metric {
+	align-self: start;
+	min-width: 0;
+	padding: 12px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	background: var(--p-canvas);
+}
+.dashboard-inventory-metric > small {
+	display: block;
+	margin-bottom: 4px;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.dashboard-inventory-quantities {
+	display: grid;
+	gap: 2px;
+}
+.dashboard-inventory-quantities strong {
+	font-size: var(--p-section);
+	font-variant-numeric: tabular-nums;
+}
+.dashboard-inventory-quantities span {
+	margin-inline-start: 4px;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	font-weight: 400;
 }
 .dashboard-unit-disclosure {
-	margin-top: var(--p-space-2);
-}
-.dashboard-unit-disclosure > summary {
-	list-style: none;
-}
-.dashboard-unit-disclosure > summary::-webkit-details-marker {
-	display: none;
-}
-.dashboard-unit-rest {
-	margin: 6px 0 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	justify-self: start;
+	min-height: 28px;
+	padding: 0;
+	border: 0;
+	background: transparent;
 	color: var(--p-muted);
+	cursor: pointer;
+	font: inherit;
+}
+.dashboard-unit-disclosure[aria-expanded="true"] .ti-disclosure-icon {
+	transform: rotate(90deg);
+}
+.dashboard-unit-disclosure .ti-disclosure-icon {
+	transition: transform 140ms ease;
+}
+@media (max-width: 600px) {
+	.dashboard-inventory-metrics {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }
 .preview-dashboard .dashboard-expiry .ti-fields dd {
 	max-width: 16ch;

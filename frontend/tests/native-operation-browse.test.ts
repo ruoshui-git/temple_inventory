@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -111,7 +112,20 @@ function setup(
       return () => (view ? h(OperationBrowsePage, props) : h(child));
     },
   });
-  const wrapper = mount(root, { attachTo: document.body });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: "/items/:code",
+        name: "item-detail",
+        component: defineComponent(() => () => h("div")),
+      },
+    ],
+  });
+  const wrapper = mount(root, {
+    attachTo: document.body,
+    global: { plugins: [router] },
+  });
   wrappers.push(wrapper);
   return { c, wrapper, changed, reference, props };
 }
@@ -1356,7 +1370,10 @@ describe("native operation browsing", () => {
     expect(
       wrapper.get(".mobile-item-group-list").element.children,
     ).toHaveLength(1);
-    expect(wrapper.get(".preview-group-trigger").text()).toContain(
+    expect(wrapper.get(".mobile-item-group-list .browse-row-link").text()).toBe(
+      "物品甲",
+    );
+    expect(wrapper.get(".mobile-item-group-list h2 small").text()).toBe(
       "明细条数 42",
     );
     expect(wrapper.get(".preview-group-metrics").text()).toMatch(

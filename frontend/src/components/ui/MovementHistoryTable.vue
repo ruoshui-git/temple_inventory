@@ -16,6 +16,9 @@ import LocationEndpoint from "./LocationEndpoint.vue";
 import RecordRef from "./RecordRef.vue";
 import InventoryIcon from "../InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
+import { RouterLink } from "vue-router";
+import { routeTarget } from "../../lib/routeRegistry";
+import { unitLabel } from "../../lib/units";
 
 const props = withDefaults(
 	defineProps<{
@@ -64,13 +67,12 @@ const hasActions = computed(() => Boolean(slots.actions && props.rows.some(canSe
 const loadingMore = computed(() => props.loading && props.initialized && !props.stale);
 const columns = computed<DataColumn[]>(() => {
 	const result: DataColumn[] = [
-		{ id: "document", label: "记录", required: true, sortable: true, minWidth: "190px" },
+		{ id: "document", label: "记录", required: true, sortable: true },
 		{
 			id: "date_time",
 			label: "日期 / 时间",
 			sortable: true,
 			sortField: "date",
-			minWidth: "150px",
 		},
 		...(props.mode === "loan-allocation"
 			? [
@@ -78,36 +80,34 @@ const columns = computed<DataColumn[]>(() => {
 						id: "borrower",
 						label: "借用方",
 						sortable: true,
-						minWidth: "130px",
 					} as DataColumn,
 				]
-			: [{ id: "kind", label: "类型", sortable: true, minWidth: "110px" } as DataColumn]),
-		{ id: "source_warehouse", label: "来源位置", sortable: true, minWidth: "150px" },
-		{ id: "destination_warehouse", label: "去向位置", sortable: true, minWidth: "150px" },
+			: [{ id: "kind", label: "类型", sortable: true } as DataColumn]),
+		{ id: "source_warehouse", label: "来源位置", sortable: true },
+		{ id: "destination_warehouse", label: "去向位置", sortable: true },
 	];
 	if (props.includeItem)
 		result.push(
-			{ id: "item_name", label: "物品名称", sortable: true, minWidth: "150px" },
-			{ id: "item_code", label: "物品编码", sortable: true, minWidth: "130px" },
+			{ id: "item_name", label: "物品名称", sortable: true },
+			{ id: "item_code", label: "物品编码", sortable: true },
 		);
 	if (props.mode === "loan-allocation") {
 		result.push(
-			{ id: "borrowed", label: "借出数量", sortable: true, minWidth: "120px" },
-			{ id: "outstanding", label: "未归还数量", sortable: true, minWidth: "130px" },
+			{ id: "borrowed", label: "借出数量", sortable: true },
+			{ id: "outstanding", label: "未归还数量", sortable: true },
 		);
 	} else {
 		result.push(
-			{ id: "stock_qty", label: "数量", sortable: true, minWidth: "100px" },
-			{ id: "stock_uom", label: "库存单位", sortable: true, minWidth: "100px" },
+			{ id: "stock_qty", label: "数量", sortable: true },
+			{ id: "stock_uom", label: "库存单位", sortable: true },
 		);
 		if (props.mode === "loan-balance")
 			result.push(
-				{ id: "outstanding", label: "未还数量", sortable: true, minWidth: "120px" },
-				{ id: "loan_status", label: "状态", minWidth: "110px" },
+				{ id: "outstanding", label: "未还数量", sortable: true },
+				{ id: "loan_status", label: "状态" },
 			);
 	}
-	if (hasActions.value)
-		result.push({ id: "_actions", label: "操作", required: true, minWidth: "140px" });
+	if (hasActions.value) result.push({ id: "_actions", label: "操作", required: true });
 	return result;
 });
 const columnPreferences = services
@@ -171,7 +171,7 @@ function effect(row: HistoryRow) {
 function effectText(row: HistoryRow) {
 	const value = effect(row);
 	if (!value) return "可用库存无变化";
-	return `${value > 0 ? "增加" : "减少"}可用库存 ${formatQuantity(Math.abs(value))} ${row.stock_uom}`;
+	return `${value > 0 ? "增加" : "减少"}可用库存 ${formatQuantity(Math.abs(value))} ${unitLabel(String(row.stock_uom || ""))}`;
 }
 
 function rowClass(row: Record<string, unknown>) {
@@ -300,27 +300,26 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 						:thumbnail-size="24"
 						:target-size="24"
 					/>
-					<span>{{ row.item_name || row.item_code }}</span>
+					<RouterLink
+						class="browse-row-link"
+						:to="routeTarget('item-detail', { code: String(row.item_code || '') })"
+						>{{ row.item_name || row.item_code }}</RouterLink
+					>
 				</div>
-				<UiButton
-					v-else-if="column.id === 'item_code'"
-					variant="ghost"
-					size="compact"
-					:disabled="stale || loading || busy"
-					@click="emit('openItem', String(row.item_code || ''))"
-					>{{ row.item_code }}</UiButton
-				>
+				<span v-else-if="column.id === 'item_code'">{{ row.item_code }}</span>
 				<template v-else-if="column.id === 'borrowed'">{{
 					"borrowed" in row
-						? `${formatQuantity(Number(row.borrowed))} ${row.stock_uom || ""}`
+						? `${formatQuantity(Number(row.borrowed))} ${unitLabel(String(row.stock_uom || ""))}`
 						: ""
 				}}</template>
 				<template v-else-if="column.id === 'outstanding'">{{
 					"outstanding" in row
-						? `${formatQuantity(Number(row.outstanding))} ${row.stock_uom || ""}`
+						? `${formatQuantity(Number(row.outstanding))} ${unitLabel(String(row.stock_uom || ""))}`
 						: ""
 				}}</template>
-				<template v-else-if="column.id === 'stock_uom'">{{ row.stock_uom }}</template>
+				<template v-else-if="column.id === 'stock_uom'">{{
+					unitLabel(String(row.stock_uom || ""))
+				}}</template>
 				<template v-else-if="column.id === 'stock_qty'">
 					<span :class="quantityClass(history(row))">{{ quantity(history(row)) }}</span>
 					<small
@@ -335,7 +334,8 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 						row.kind === 'Loan' &&
 						row.outstanding != null
 					"
-					>{{ formatQuantity(Number(row.outstanding)) }} {{ row.stock_uom }}</template
+					>{{ formatQuantity(Number(row.outstanding)) }}
+					{{ unitLabel(String(row.stock_uom || "")) }}</template
 				>
 				<template v-else-if="column.id === 'loan_status'">{{ loanStatus(row) }}</template>
 				<slot v-else-if="column.id === '_actions'" name="actions" :row="history(row)" />
@@ -405,7 +405,8 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 						</span>
 					</div>
 					<strong :class="quantityClass(history(row.value))"
-						>{{ quantity(history(row.value)) }} {{ row.value.stock_uom }}</strong
+						>{{ quantity(history(row.value)) }}
+						{{ unitLabel(String(row.value.stock_uom || "")) }}</strong
 					>
 				</div>
 			</article>

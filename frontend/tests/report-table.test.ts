@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import { ref } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 const table = (length = 65) => ({
   id: "records",
@@ -31,7 +32,7 @@ describe("shared native report table", () => {
     });
     const availableHeader = wrapper.findAll("thead th")[1]!;
     expect(availableHeader.find(".data-table-sort-label").text()).toBe("可用");
-    expect(availableHeader.element.style.minWidth).toBe("125px");
+    expect(availableHeader.classes()).toContain("data-column-number");
     wrapper.unmount();
   });
 
@@ -46,6 +47,22 @@ describe("shared native report table", () => {
     expect(wrapper.get("tbody td.report-sticky-actions-column").text()).toBe(
       "操作",
     );
+    wrapper.unmount();
+  });
+
+  it("keeps the pending sticky action offset at zero when settings move to the caption", async () => {
+    const wrapper = mount(ReportTable, {
+      props: { table: table(1), stickyActions: true },
+      slots: { actions: () => "修复归库 · 报废 · ⋯" },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(wrapper.get(".data-table-frame").attributes("style")).toContain(
+      "--data-table-settings-column-width: 0px",
+    );
+    expect(
+      wrapper.get(".data-table-scroll").attributes("style") || "",
+    ).not.toContain("data-table-settings-column-width");
     wrapper.unmount();
   });
 
@@ -69,14 +86,47 @@ describe("shared native report table", () => {
       },
     });
     const headers = wrapper.findAll("thead th");
-    expect(headers.map((header) => header.element.style.minWidth)).toEqual([
-      "12em",
-      "7em",
-      "10em",
-      "10em",
+    expect(
+      headers.map((header) =>
+        header.classes().find((value) => value.startsWith("data-column-")),
+      ),
+    ).toEqual([
+      "data-column-primary",
+      "data-column-status",
+      "data-column-date",
+      "data-column-date",
     ]);
     expect(wrapper.get(".data-table-scroll").element).toBeTruthy();
     wrapper.unmount();
+  });
+
+  it("renders report item names as the detail link", async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: "/items/:code",
+          name: "item-detail",
+          component: { template: "<div />" },
+        },
+      ],
+    });
+    await router.push("/items/ITEM-1");
+    await router.isReady();
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "item-name-link",
+          label: "库存记录",
+          columns: ["item_name", "item_code"],
+          rows: [{ id: "ITEM-1", item_name: "测试物品", item_code: "ITEM-1" }],
+        },
+      },
+      global: { plugins: [router] },
+    });
+    const link = wrapper.get("a.browse-row-link");
+    expect(link.text()).toBe("测试物品");
+    expect(link.attributes("href")).toBe("/items/ITEM-1");
   });
 
   it("shows a quantity unit only while its matching unit column is hidden", () => {
@@ -116,8 +166,15 @@ describe("shared native report table", () => {
     expect(
       visibleUnits
         .findAll("thead th")
-        .map((header) => header.element.style.minWidth),
-    ).toEqual(["", "8em", "135px", "8em"]);
+        .map((header) =>
+          header.classes().find((value) => value.startsWith("data-column-")),
+        ),
+    ).toEqual([
+      "data-column-number",
+      "data-column-unit",
+      "data-column-number",
+      "data-column-unit",
+    ]);
     visibleUnits.unmount();
   });
 

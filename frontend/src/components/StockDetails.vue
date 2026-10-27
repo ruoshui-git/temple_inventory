@@ -10,6 +10,7 @@ import type { DataColumn, DataTableRecord } from "../lib/dataTable";
 import { useColumnPreferences } from "../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../services/contracts";
 import { useArrayTableSort } from "../composables/useArrayTableSort";
+import { unitLabel } from "../lib/units";
 const props = withDefaults(
 	defineProps<{ item: StockItem; loading?: boolean; initialized?: boolean; stale?: boolean }>(),
 	{ loading: false, initialized: true, stale: false },
@@ -27,8 +28,8 @@ const damagedTotal = computed(() =>
 );
 const otherStockSummary = computed(() =>
 	[
-		loanedTotal.value ? `借出 ${loanedTotal.value}` : "",
-		damagedTotal.value ? `损坏 ${damagedTotal.value}` : "",
+		loanedTotal.value ? `借出 ${loanedTotal.value} ${unitLabel(props.item.uom)}` : "",
+		damagedTotal.value ? `损坏 ${damagedTotal.value} ${unitLabel(props.item.uom)}` : "",
 	]
 		.filter(Boolean)
 		.join(" · "),
@@ -42,7 +43,6 @@ const locationColumns: DataColumn[] = [
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "130px",
 	},
 	{
 		id: "available",
@@ -50,7 +50,6 @@ const locationColumns: DataColumn[] = [
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
-		minWidth: "100px",
 	},
 	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
 ];
@@ -61,7 +60,6 @@ const batchColumns: DataColumn[] = [
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "130px",
 	},
 	{
 		id: "batch",
@@ -69,7 +67,6 @@ const batchColumns: DataColumn[] = [
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "130px",
 	},
 	{
 		id: "available",
@@ -77,9 +74,8 @@ const batchColumns: DataColumn[] = [
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
-		minWidth: "100px",
 	},
-	{ id: "expiry", label: "效期", defaultVisible: true, sortable: true, minWidth: "100px" },
+	{ id: "expiry", label: "效期", defaultVisible: true, sortable: true },
 	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
 ];
 const locationRows = computed<DataTableRecord[]>(() =>
@@ -177,6 +173,9 @@ const batchPreferences =
 							String(row.label || ""),
 						)
 					}}</template>
+					<template v-else-if="column.id === 'uom'">{{
+						unitLabel(String(row.uom || ""))
+					}}</template>
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
@@ -184,7 +183,7 @@ const batchPreferences =
 				另有 {{ otherStockSummary }}
 			</p>
 			<p v-if="physicalLocations.length" class="stock-breakdown-total">
-				合计 {{ item.available }} {{ item.uom }}
+				合计 {{ item.available }} {{ unitLabel(item.uom) }}
 			</p>
 		</DetailPopover>
 		<span v-else class="muted">暂无库存位置</span>

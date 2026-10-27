@@ -35,7 +35,22 @@ async function prepare(page: Page, textScale: number) {
       tracksBatch: true,
       tracksExpiry: true,
       image: "",
-      locations: [],
+      locations: [
+        {
+          location: "A01",
+          label: "礼堂储物室第一层",
+          available: 4,
+          loaned: 0,
+          damaged: 0,
+        },
+        {
+          location: "A02",
+          label: "礼堂储物室第二层",
+          available: 4,
+          loaned: 0,
+          damaged: 0,
+        },
+      ],
       date: "2026-10-18",
       document: `MAT-${i}`,
       doctype: "Stock Entry",
@@ -234,6 +249,19 @@ for (const surface of [
           page.locator(".preview-expiry-mobile [data-browse-row]"),
         ).toHaveCount(24);
       else await expect(page.locator("[data-browse-row]")).toHaveCount(24);
+      if (surface === "stock" && scenario.width >= 1024) {
+        const oversizedRows = await page
+          .locator(".data-table-scroll table.browse-table tbody tr")
+          .evaluateAll((rows) =>
+            rows
+              .filter((row) => row.getBoundingClientRect().height > 72)
+              .map((row) => ({
+                text: row.textContent?.trim(),
+                height: row.getBoundingClientRect().height,
+              })),
+          );
+        expect(oversizedRows).toEqual([]);
+      }
       await page.evaluate(() => document.fonts.ready);
       for (const tab of await tabs.all()) {
         expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(

@@ -1,5 +1,140 @@
 export type TableCellValue = string | number | boolean | null | undefined;
 
+export type DataColumnKind =
+  | "number"
+  | "unit"
+  | "code"
+  | "date"
+  | "datetime"
+  | "status"
+  | "chip"
+  | "thumb"
+  | "actions"
+  | "text"
+  | "primary";
+
+const numberColumns = new Set([
+  "qty",
+  "quantity",
+  "whole",
+  "transfer_qty",
+  "stock_qty",
+  "available",
+  "loaned",
+  "borrowed",
+  "returned",
+  "damaged",
+  "lost",
+  "outstanding",
+  "opening",
+  "incoming",
+  "outgoing",
+  "adjustment",
+  "closing",
+  "baseline_qty",
+  "actual_qty",
+  "current_qty",
+  "difference",
+  "count",
+  "quantities",
+  "available_effect",
+]);
+const dateColumns = new Set([
+  "date",
+  "posting_date",
+  "start_date",
+  "end_date",
+  "period_from",
+  "period_to",
+  "expiry_date",
+  "manufacturing_date",
+  "remaining_days",
+  "start",
+  "end",
+  "expiry",
+]);
+const dateTimeColumns = new Set([
+  "time",
+  "date_time",
+  "posting_time",
+  "posting_timestamp",
+  "modified",
+  "creation",
+  "snapshot",
+  "balance_at",
+  "baseline_timestamp",
+  "created",
+  "updated",
+]);
+const primaryColumns = new Set([
+  "item_name",
+  "itemName",
+  "name",
+  "title",
+  "activity_title",
+  "summary",
+  "description",
+]);
+
+/** Resolve a semantic width preset for both explicit and legacy column definitions. */
+export function dataColumnKind(
+  column: Pick<DataColumn, "id" | "label" | "kind">,
+): DataColumnKind {
+  if (column.kind) return column.kind;
+  const id = String(column.id);
+  if (id === "quantities") return "text";
+  if (numberColumns.has(id) || id.endsWith("_qty") || id.endsWith("_count"))
+    return "number";
+  if (["uom", "stock_uom", "entered_uom", "unit"].includes(id)) return "unit";
+  if (["image", "thumbnail"].includes(id)) return "thumb";
+  if (["actions", "_actions"].includes(id) || column.label === "操作")
+    return "actions";
+  if (
+    ["status", "docstatus", "loan_status", "review_state", "outcome"].includes(
+      id,
+    )
+  )
+    return "status";
+  if (dateTimeColumns.has(id)) return "datetime";
+  if (dateColumns.has(id)) return "date";
+  if (primaryColumns.has(id)) return "primary";
+  if (
+    [
+      "item_code",
+      "code",
+      "document",
+      "document_id",
+      "id",
+      "batch",
+      "batch_no",
+      "line_name",
+    ].includes(id)
+  )
+    return "code";
+  if (
+    [
+      "warehouse",
+      "warehouse_label",
+      "category",
+      "kind",
+      "type",
+      "activity_type_label",
+    ].includes(id)
+  )
+    return "chip";
+  return "text";
+}
+
+export function dataColumnPreset(
+  column: Pick<DataColumn, "id" | "label" | "kind">,
+) {
+  const kind = dataColumnKind(column);
+  return {
+    kind,
+    className: `data-column-${kind}`,
+  };
+}
+
 export interface DataColumn<Row = Record<string, unknown>> {
   id: (keyof Row & string) | string;
   label: string;
@@ -7,7 +142,7 @@ export interface DataColumn<Row = Record<string, unknown>> {
   required?: boolean;
   sortable?: boolean;
   sortField?: string;
-  minWidth?: string;
+  kind?: DataColumnKind;
   className?: string;
   align?: "start" | "center" | "end";
 }
@@ -44,6 +179,7 @@ export function dataColumnAlignment(
 ): "start" | "center" | "end" {
   if (column.align) return column.align;
   const id = String(column.id);
+  if (column.kind === "text" || id === "quantities") return "start";
   if (id === "image" || id === "thumbnail") return "center";
   if (
     numericColumnIds.has(id) ||

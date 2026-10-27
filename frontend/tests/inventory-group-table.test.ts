@@ -7,6 +7,7 @@ import {
   createReferenceData,
   provideInventoryServices,
 } from "../src/services/contracts";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 
 const wrappers: VueWrapper[] = [];
 let mobile = false;
@@ -157,7 +158,10 @@ describe("inventory grouped table", () => {
           return () => h(StockBrowsePage);
         },
       }),
-      { attachTo: document.body },
+      {
+        attachTo: document.body,
+        global: { stubs: { RouterLink: RouterLinkStub } },
+      },
     );
     wrappers.push(wrapper);
     await flushPromises();
@@ -242,8 +246,9 @@ describe("inventory grouped table", () => {
     expect(wrapper.find('[aria-label="选择Noodles"]').exists()).toBe(true);
     await wrapper.get('[aria-label="选择Noodles"]').setValue(true);
     expect(page.vm.controller.selected.value).toEqual(["ITEM-1"]);
-    await wrapper.get(".item-name").trigger("click");
-    expect(page.emitted("openItem")).toEqual([["ITEM-1"]]);
+    expect(wrapper.get(".item-name").attributes("href")).toBe(
+      "/stock/items/ITEM-1",
+    );
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
     expect(
       call.mock.calls.some(

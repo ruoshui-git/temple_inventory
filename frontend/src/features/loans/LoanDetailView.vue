@@ -15,6 +15,7 @@ import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+import { unitLabel } from "../../lib/units";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -133,11 +134,12 @@ function settle(action: SettlementAction) {
 					<span
 						>借出 {{ line.transfer_qty }} · 未结清 {{ line.outstanding_qty }} ·
 						完好归还 {{ line.outcomes.Returned }} · 损坏 {{ line.outcomes.Damaged }} ·
-						遗失 {{ line.outcomes.Lost }} {{ line.stock_uom }}</span
+						遗失 {{ line.outcomes.Lost }}
+						{{ unitLabel(String(line.stock_uom || "")) }}</span
 					>
 					<DisclosureSection
 						title="存放明细与单位换算"
-						:summary="`按 ${line.stock_uom} 汇总`"
+						:summary="`按 ${unitLabel(String(line.stock_uom || ''))} 汇总`"
 					>
 						<small
 							>原存放
@@ -153,8 +155,9 @@ function settle(action: SettlementAction) {
 								role="去向位置"
 						/></small>
 						<small
-							>填写 {{ line.qty }} {{ line.uom }} · 1 {{ line.uom }} =
-							{{ line.conversion_factor }} {{ line.stock_uom }}</small
+							>填写 {{ line.qty }} {{ unitLabel(String(line.uom || "")) }} · 1
+							{{ unitLabel(String(line.uom || "")) }} = {{ line.conversion_factor }}
+							{{ unitLabel(String(line.stock_uom || "")) }}</small
 						>
 						<div
 							v-for="allocation in line.allocations"
@@ -166,7 +169,7 @@ function settle(action: SettlementAction) {
 							{{ allocation.outstanding_qty }} · 完好归还
 							{{ allocation.outcomes.Returned }} · 损坏
 							{{ allocation.outcomes.Damaged }} · 遗失 {{ allocation.outcomes.Lost }}
-							{{ line.stock_uom }}
+							{{ unitLabel(String(line.stock_uom || "")) }}
 						</div>
 					</DisclosureSection>
 				</div>

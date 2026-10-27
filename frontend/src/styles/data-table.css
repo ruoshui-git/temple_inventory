@@ -139,7 +139,6 @@
 }
 
 .data-table-scroll {
-	--data-table-settings-column-width: calc(var(--p-control) + 16px);
 	max-width: 100%;
 	overflow: auto;
 	overscroll-behavior-inline: contain;
@@ -150,6 +149,7 @@
 .data-table-frame {
 	position: relative;
 	min-width: 0;
+	--data-table-settings-column-width: calc(var(--p-control) + 16px);
 	border-radius: var(--p-radius-card);
 }
 .data-table-frame::before,
@@ -231,7 +231,7 @@
 		background: var(--p-soft);
 		text-align: center;
 	}
-	.data-table-scroll {
+	.data-table-frame {
 		--data-table-settings-column-width: 56px;
 	}
 	.data-table-scroll th.data-table-settings-heading .data-table-column-trigger {
@@ -343,10 +343,10 @@
 		height: 48px;
 	}
 	.data-table-scroll :is(th, td).report-sticky-actions-column {
-		width: 52px !important;
-		min-width: 52px !important;
-		max-width: 52px !important;
-		padding-inline: 4px;
+		width: max-content;
+		min-width: max-content;
+		max-width: none;
+		padding-inline: 6px;
 	}
 	.damaged-page .data-table-scroll .damaged-row-actions {
 		width: auto;
@@ -409,6 +409,121 @@
 	font-weight: 650;
 	text-align: inherit;
 	white-space: nowrap;
+}
+/* Column sizing: every non-primary kind shrinks to its content (width: 1%) and
+   never wraps; the single primary column is the only auto column, so it takes
+   whatever space is left and clamps long names to two lines. Cell max-width is
+   ignored by auto table layout, so caps apply to the cell content instead. */
+.data-table-scroll :is(th, td).data-column-primary {
+	min-width: 200px;
+	white-space: normal;
+}
+.data-table-scroll td.data-column-primary {
+	overflow: hidden;
+}
+.data-table-scroll td.data-column-primary > :first-child {
+	display: block;
+	min-width: 0;
+	width: 100%;
+	max-width: 360px;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+	text-overflow: ellipsis;
+}
+.data-table-scroll td.data-column-primary :is(a, button, strong, .item-line-name) {
+	display: -webkit-box;
+	width: 100%;
+	max-width: 360px;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+.data-table-scroll td.data-column-primary .data-table-group-name {
+	display: -webkit-box;
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow-wrap: anywhere;
+}
+.data-table-scroll
+	:is(th, td):is(
+		.data-column-number,
+		.data-column-unit,
+		.data-column-code,
+		.data-column-date,
+		.data-column-datetime,
+		.data-column-status,
+		.data-column-chip,
+		.data-column-text,
+		.data-column-thumb,
+		.data-column-actions,
+		.report-quantity-cell
+	) {
+	width: 1%;
+	white-space: nowrap;
+}
+.data-table-scroll :is(th, td).data-column-number {
+	min-width: 56px;
+}
+.data-table-scroll :is(th, td).data-column-unit {
+	min-width: 48px;
+}
+.data-table-scroll :is(th, td).data-column-thumb {
+	min-width: 56px;
+}
+.data-table-scroll td.data-column-code > :first-child {
+	display: inline-block;
+	width: max-content;
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll td:is(.data-column-chip, .data-column-text) > :first-child,
+.data-table-scroll td.data-column-chip .detail-popover-trigger {
+	display: inline-block;
+	/* overflow: hidden alone would let the 1% column collapse to zero */
+	width: max-content;
+	max-width: 220px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.data-table-scroll :is(th, td).data-column-actions {
+	min-width: max-content;
+}
+.data-table-scroll td.data-column-actions .browse-row-actions {
+	width: max-content;
+	min-width: max-content;
+	flex-wrap: nowrap;
+	white-space: nowrap;
+}
+.data-table-scroll td.data-column-actions :is(button, .ui-button) {
+	flex: none;
+	white-space: nowrap;
+}
+.data-table-scroll :is(th, td):not(.data-column-primary) {
+	white-space: nowrap;
+}
+.data-table-scroll td:not(.data-column-primary, .data-column-actions) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.data-table-scroll td:not(.data-column-primary, .data-column-actions) * {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap !important;
+}
+.data-table-scroll td.data-column-number {
+	font-variant-numeric: tabular-nums;
 }
 .data-table-scroll :is(th, td).align-start {
 	text-align: start;
@@ -640,11 +755,15 @@
 
 .data-table-group-identity {
 	display: flex;
-	width: max-content;
+	width: 100%;
 	max-width: 100%;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
 	gap: 0 var(--p-space-2);
+}
+.data-table-group-count {
+	flex: none;
+	white-space: nowrap;
 }
 
 .data-table-group-detail-cell {

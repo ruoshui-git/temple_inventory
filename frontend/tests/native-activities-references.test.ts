@@ -189,10 +189,13 @@ describe("native supporting reference creation", () => {
     await controller.create();
     expect(call).toHaveBeenLastCalledWith("catalog.create_uom", {
       label: "箱",
+      display_label: "",
       must_be_whole_number: true,
     });
     expect(selected).toHaveBeenCalledWith("箱");
-    expect(reference.units).toEqual([{ name: "箱", whole: true }]);
+    expect(reference.units).toEqual([
+      expect.objectContaining({ name: "箱", whole: true }),
+    ]);
   });
   it("preserves the selected parent and group meaning for a new category", async () => {
     const call = vi.fn().mockResolvedValue({

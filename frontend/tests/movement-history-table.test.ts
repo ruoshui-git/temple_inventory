@@ -7,6 +7,7 @@ import {
   provideInventoryServices,
 } from "../src/services/contracts";
 import { defineComponent, h } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 
 const row = {
   id: "Stock Entry:SE-1",
@@ -197,14 +198,29 @@ describe("typed movement history table", () => {
           });
       },
     });
-    const wrapper = mount(Host),
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: "/items/:code",
+          name: "item-detail",
+          component: { template: "<div />" },
+        },
+      ],
+    });
+    const wrapper = mount(Host, { global: { plugins: [router] } }),
       table = wrapper.findComponent(MovementHistoryTable);
     await wrapper
       .get("tbody .history-record .record-ref-chip")
       .trigger("click");
-    await wrapper.findAll("tbody td button")[1]?.trigger("click");
     expect(table.emitted("openLoan")).toEqual([["SE-1"]]);
-    expect(table.emitted("openItem")).toEqual([["A"]]);
+    expect(wrapper.get(".browse-row-link").text()).toBe("物品甲");
+    const itemCodeCell = wrapper.get("tbody tr td:nth-child(7)");
+    expect(itemCodeCell.text()).toBe("A");
+    expect(itemCodeCell.find("button").exists()).toBe(false);
+    expect(
+      wrapper.findAll("tbody td span").some((cell) => cell.text() === "A"),
+    ).toBe(true);
   });
 
   it("keeps physical quantities unsigned for Issue while showing the decrease", () => {

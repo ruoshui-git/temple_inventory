@@ -9,26 +9,26 @@ export function itemPickerColumns(
     {
       id: "image",
       label: "图片",
-      minWidth: "56px",
+      kind: "thumb",
       className: "picker-image-column",
       align: "center",
     },
     {
       id: "name",
       label: "物品名称",
-      minWidth: "180px",
+      kind: "primary",
       className: "picker-name-column",
     },
     {
       id: "code",
       label: "编号",
-      minWidth: "164px",
+      kind: "code",
       className: "picker-code-column",
     },
     {
       id: "category",
       label: "类别",
-      minWidth: "150px",
+      kind: "chip",
       className: "picker-category-column",
       defaultVisible: false,
     },
@@ -37,13 +37,13 @@ export function itemPickerColumns(
     columns.push({
       id: "warehouse",
       label: "仓库位置",
-      minWidth: "112px",
+      kind: "chip",
       className: "picker-warehouse-column",
     });
   columns.push({
     id: "quantity",
     label: quantityLabel,
-    minWidth: "112px",
+    kind: "number",
     className: "picker-quantity-column",
     align: "end",
   });
@@ -51,7 +51,7 @@ export function itemPickerColumns(
     columns.push({
       id: "action",
       label: "操作",
-      minWidth: "60px",
+      kind: "actions",
       align: "end",
     });
   return columns;

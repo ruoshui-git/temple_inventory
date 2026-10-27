@@ -204,23 +204,21 @@ function deskItem(row: Record<string, unknown>) {
 	};
 }
 const countColumns = computed<DataColumn[]>(() => [
-	{ id: "warehouse", label: "位置", required: true, defaultVisible: true, minWidth: "150px" },
-	{ id: "image", label: "图片", defaultVisible: true, minWidth: "72px" },
+	{ id: "warehouse", label: "位置", required: true, defaultVisible: true },
+	{ id: "image", label: "图片", defaultVisible: true },
 	{
 		id: "item_name",
 		label: "物品名称",
 		required: true,
 		defaultVisible: true,
-		minWidth: "180px",
 	},
 	{
 		id: "item_code",
 		label: "物品编码",
 		required: true,
 		defaultVisible: true,
-		minWidth: "140px",
 	},
-	{ id: "batch", label: "批次 / 组合", defaultVisible: true, minWidth: "150px" },
+	{ id: "batch", label: "批次 / 组合", defaultVisible: true },
 	{ id: "stock_uom", label: "库存单位", defaultVisible: true },
 	{ id: "current_qty", label: "账面数量", defaultVisible: true, align: "end" },
 	{ id: "qty", label: "实点数量", required: true, defaultVisible: true, align: "end" },

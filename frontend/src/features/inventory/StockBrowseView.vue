@@ -37,6 +37,9 @@ import type {
 } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import { RouterLink } from "vue-router";
+import { routeTarget } from "../../lib/routeRegistry";
+import { unitLabel } from "../../lib/units";
 
 import type { StockItem } from "../../lib/stockPresentation";
 import type { useStockBrowseController } from "./useStockBrowseController";
@@ -107,7 +110,6 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		id: "image",
 		label: "图片",
 		defaultVisible: true,
-		minWidth: "72px",
 	},
 	{
 		id: "item_name",
@@ -115,45 +117,39 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		defaultVisible: true,
 		required: true,
 		sortable: true,
-		minWidth: "230px",
 	},
 	{
 		id: "item_code",
 		label: "物品编号",
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "130px",
 	},
 	{
 		id: "available",
-		label: "可用数量",
+		label: "可用",
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
-		minWidth: "120px",
 	},
 	{
 		id: "stock_uom",
 		label: "库存单位",
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "100px",
 	},
 	{
 		id: "category",
 		label: "类别",
 		defaultVisible: wideScreen.value,
 		sortable: true,
-		minWidth: "130px",
 	},
-	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, minWidth: "210px" },
+	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, kind: "chip" },
 	{
 		id: "loaned",
 		label: "借出",
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
-		minWidth: "100px",
 	},
 	{
 		id: "damaged",
@@ -161,10 +157,9 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
-		minWidth: "100px",
 	},
-	{ id: "expiry", label: "效期", defaultVisible: true, minWidth: "110px" },
-	{ id: "actions", label: "操作", defaultVisible: true, minWidth: "140px" },
+	{ id: "expiry", label: "效期", defaultVisible: true },
+	{ id: "actions", label: "操作", defaultVisible: true },
 ]);
 const tableRows = computed<DataTableRecord[]>(() =>
 	rows.value.map((item) => ({
@@ -184,7 +179,7 @@ function groupSummary(group: DataTableGroup) {
 		.sort((a, b) => Number(row[b]) - Number(row[a]))
 		.map(
 			(key) =>
-				`${key === "available" ? "可用" : key === "loaned" ? "借出" : "损坏"} ${row[key]}${row.stock_uom ? ` ${row.stock_uom}` : ""}`,
+				`${key === "available" ? "可用" : key === "loaned" ? "借出" : "损坏"} ${row[key]}${row.stock_uom ? ` ${unitLabel(String(row.stock_uom))}` : ""}`,
 		);
 	return quantity.join(" · ");
 }
@@ -199,7 +194,7 @@ function stockName(row: StockTableRow) {
 	return String(row.name || row.item_name || stockCode(row));
 }
 function stockUnit(row: StockTableRow) {
-	return String(row.uom || row.stock_uom || "");
+	return unitLabel(String(row.uom || row.stock_uom || ""));
 }
 function stockSelectionKey(row: StockTableRow) {
 	return stockCode(row) || String(row.id || "");
@@ -585,7 +580,7 @@ watch([() => props.active, isMobile], () => {
 									<div class="stock-number">
 										<span
 											><strong>{{ item.available }}</strong>
-											{{ item.uom }}</span
+											{{ unitLabel(item.uom) }}</span
 										><small>可用库存</small>
 									</div>
 									<div class="stock-secondary">
@@ -643,7 +638,9 @@ watch([() => props.active, isMobile], () => {
 										>
 									</span>
 									<span class="stock-list-quantity">
-										<strong>{{ item.available }} {{ item.uom }}</strong>
+										<strong
+											>{{ item.available }} {{ unitLabel(item.uom) }}</strong
+										>
 										<span
 											v-if="item.loaned || item.damaged"
 											class="stock-list-status"
@@ -747,11 +744,6 @@ watch([() => props.active, isMobile], () => {
 									class="browse-row-actions stock-row-actions"
 								>
 									<UiButton
-										variant="ghost"
-										@click="props.controller.openItemCode(stockCode(row))"
-										>打开</UiButton
-									>
-									<UiButton
 										v-if="reference.operations.Issue && isStockItemRow(row)"
 										variant="ghost"
 										@click="stockRowAction(row, 'Issue')"
@@ -761,13 +753,14 @@ watch([() => props.active, isMobile], () => {
 								<div v-if="column.id === 'image'" class="table-item-image">
 									<ItemImage :item="stockIdentity(row)"></ItemImage>
 								</div>
-								<button
+								<RouterLink
 									v-else-if="column.id === 'item_name'"
-									class="item-name"
-									@click="props.controller.openItemCode(stockCode(row))"
+									class="item-name browse-row-link"
+									:to="routeTarget('item-detail', { code: stockCode(row) })"
+									:title="stockName(row)"
 								>
 									{{ stockName(row) }}
-								</button>
+								</RouterLink>
 								<span v-if="row.disabled" class="badge neutral">已停用</span>
 								<template v-else-if="column.id === 'item_code'">{{
 									stockCode(row)
@@ -857,7 +850,7 @@ watch([() => props.active, isMobile], () => {
 									"
 								>
 									{{ group.value[String(column.id)] }}
-									{{ group.value.stock_uom || "" }}
+									{{ unitLabel(String(group.value.stock_uom || "")) }}
 								</span>
 							</template>
 						</DataTable>

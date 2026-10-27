@@ -34,6 +34,7 @@ import type {
 } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
+import { unitLabel } from "../../lib/units";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -108,38 +109,34 @@ const analysisTable = computed(() => ({
 	rows: analysis.value?.rows || [],
 }));
 const expiryColumns: DataColumn[] = [
-	{ id: "image", label: "图片", defaultVisible: true, minWidth: "72px" },
+	{ id: "image", label: "图片", defaultVisible: true },
 	{
 		id: "item_name",
 		label: "物品名称",
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "220px",
 	},
 	{
 		id: "item_code",
 		label: "物品编号",
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "130px",
 	},
-	{ id: "category", label: "类别", defaultVisible: true, sortable: true, minWidth: "130px" },
+	{ id: "category", label: "类别", defaultVisible: true, sortable: true },
 	{
 		id: "batch_no",
 		label: "批次编号",
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "145px",
 	},
-	{ id: "expiry_date", label: "效期", defaultVisible: true, sortable: true, minWidth: "130px" },
+	{ id: "expiry_date", label: "效期", defaultVisible: true, sortable: true },
 	{
 		id: "remaining_days",
 		label: "剩余时间",
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "125px",
 	},
 	{
 		id: "stock_qty",
@@ -147,10 +144,9 @@ const expiryColumns: DataColumn[] = [
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
-		minWidth: "110px",
 	},
-	{ id: "stock_uom", label: "库存单位", defaultVisible: true, sortable: true, minWidth: "90px" },
-	{ id: "warehouse", label: "位置", defaultVisible: true, sortable: true, minWidth: "160px" },
+	{ id: "stock_uom", label: "库存单位", defaultVisible: true, sortable: true },
+	{ id: "warehouse", label: "位置", defaultVisible: true, sortable: true },
 ];
 const expiryRows = computed<DataTableRecord[]>(() =>
 	result.rows.map((row) => ({ kind: "record", id: String(row.id), value: row })),
@@ -171,7 +167,9 @@ function groupSummary(group: DataTableGroup) {
 		...quantities.flatMap(([key, label]) =>
 			row[key] === undefined
 				? []
-				: [`${label} ${row[key]}${row.stock_uom ? ` ${row.stock_uom}` : ""}`],
+				: [
+						`${label} ${row[key]}${row.stock_uom ? ` ${unitLabel(String(row.stock_uom))}` : ""}`,
+					],
 		),
 	].join(" · ");
 }
@@ -479,7 +477,10 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						</button>
 						<div class="expiry-phone-meta">
 							<span>{{ row.expiry_date || "无效期" }}</span>
-							<span>{{ row.stock_qty }} {{ row.stock_uom }}</span>
+							<span
+								>{{ row.stock_qty }}
+								{{ unitLabel(String(row.stock_uom || "")) }}</span
+							>
 							<span
 								class="browse-badge"
 								:class="expiryStatus(row as unknown as ReportRow).tone"
@@ -627,7 +628,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								) && group.value?.[String(column.id)] !== undefined
 							"
 						>
-							{{ group.value[String(column.id)] }} {{ group.value.stock_uom || "" }}
+							{{ group.value[String(column.id)] }}
+							{{ unitLabel(String(group.value.stock_uom || "")) }}
 						</span>
 						<span v-else-if="column.id === 'stock_uom'">{{
 							group.value?.stock_uom

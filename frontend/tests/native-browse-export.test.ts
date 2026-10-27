@@ -428,11 +428,13 @@ describe("background quick export", () => {
     expect(dialog.textContent).toContain("已归档");
     expect(dialog.textContent).toContain("已完成");
     expect(dialog.textContent).not.toContain("状态未知");
-    expect(
-      Array.from(dialog.querySelectorAll("thead th"))
-        .map((header) => (header as HTMLElement).style.minWidth)
-        .slice(0, 4),
-    ).toEqual(["12em", "7em", "10em", "10em"]);
+    // Column widths come from semantic kind classes, not inline minimums.
+    const headers = Array.from(dialog.querySelectorAll("thead th")).slice(0, 4);
+    expect(headers).toHaveLength(4);
+    for (const header of headers) {
+      expect(header.className).toMatch(/data-column-[a-z]+/);
+      expect((header as HTMLElement).style.minWidth).toBe("");
+    }
   });
 
   it("previews and exports a dashboard-selected dataset without committing on cancel", async () => {
@@ -662,7 +664,15 @@ describe("native dashboard cards", () => {
                   stock_uom,
                   available_effect: -1,
                 }))
-              : [],
+              : args?.card === "inventory"
+                ? ["Nos", "Box", "Set", "Kg"].map((stock_uom) => ({
+                    available: 1,
+                    stock_qty: 1,
+                    loaned: 1,
+                    damaged: 1,
+                    stock_uom,
+                  }))
+                : [],
           buckets: [
             { id: "expired_1_30", count: 3 },
             { id: "expired_31_90", count: 2 },
@@ -754,6 +764,21 @@ describe("native dashboard cards", () => {
     const wrapper = mount(root);
     wrappers.push(wrapper);
     await flushPromises();
+
+    const inventoryCard = wrapper.get('[data-section="inventory"]');
+    expect(
+      inventoryCard.findAll(".dashboard-inventory-quantities strong"),
+    ).toHaveLength(12);
+    expect(inventoryCard.findAll(".dashboard-unit-disclosure")).toHaveLength(4);
+    const firstDisclosure = inventoryCard.findAll(
+      ".dashboard-unit-disclosure",
+    )[0]!;
+    expect(firstDisclosure.text()).toContain("+1 单位");
+    await firstDisclosure.trigger("click");
+    expect(firstDisclosure.attributes("aria-expanded")).toBe("true");
+    expect(
+      inventoryCard.findAll(".dashboard-inventory-quantities strong"),
+    ).toHaveLength(13);
 
     expect(wrapper.findAll('.dashboard-distribution [role="tab"]').length).toBe(
       2,

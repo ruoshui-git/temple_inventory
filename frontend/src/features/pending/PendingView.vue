@@ -259,12 +259,6 @@ watch([() => props.active, isMobile], () => {
 									"
 									>报废</UiButton
 								>
-								<UiButton
-									:disabled="c.report.result.stale"
-									icon="box"
-									@click="emit('item', String(row.item_code))"
-									>物品详情</UiButton
-								>
 								<QuickExport
 									:disabled="c.report.result.stale"
 									:query="c.rowQuery(row as ReportRow)"

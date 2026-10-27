@@ -19,7 +19,6 @@ import {
   type ScopeFilterField,
 } from "../../lib/filterPresentation";
 import { reportFilterChips } from "../../lib/reportFilters";
-import { warehouseLabel } from "../../lib/warehouseLabel";
 import { movementLabels } from "../../lib/filterPresentation";
 import {
   useInventoryServices,
@@ -86,13 +85,6 @@ export function useActivitiesController(
     sort: "updated",
     sortDirection: "desc" as "asc" | "desc",
   });
-  const relatedLoan = ref("");
-  const tab = ref<"records" | "loans">("records"),
-    recordSearch = ref(""),
-    recordKinds = ref<string[]>([]),
-    recordSort = ref<"date" | "identity">("date"),
-    recordSortDirection = ref<"asc" | "desc">("desc"),
-    recordPeriod = ref<DatePeriod>({ key: "all", from: "", to: "" });
   const detail = ref<ActivityDetail>(),
     loading = ref(false),
     error = ref(""),
@@ -113,16 +105,6 @@ export function useActivitiesController(
         (query.dataset !== "activities"
           ? "此链接不是活动范围，请恢复活动默认范围。"
           : "");
-      if (props.mode === "detail") {
-        query.statuses = [1];
-        tab.value = query.view === "loans" ? "loans" : "records";
-        recordPeriod.value = query.relatedPeriod;
-        recordSearch.value = query.relatedSearch;
-        recordKinds.value = [...query.scope.kinds];
-        recordSort.value = query.sortBy === "identity" ? "identity" : "date";
-        recordSortDirection.value = query.sort;
-        relatedLoan.value = query.loan;
-      }
       Object.assign(state, {
         search: query.search,
         status: query.activityStatus,
@@ -153,34 +135,18 @@ export function useActivitiesController(
           ? "start_date"
           : "modified";
     query.sort = state.sortDirection;
-    if (props.mode === "detail") {
-      query.scope.activity = props.name || "";
-      query.view = tab.value;
-      query.sortBy = recordSort.value;
-      query.sort = recordSortDirection.value;
-      query.relatedPeriod = recordPeriod.value;
-      query.relatedSearch = recordSearch.value;
-      query.loan = relatedLoan.value;
-      query.scope.kinds = [...recordKinds.value];
-      query.statuses = [1];
-      if (!props.name) {
-        query.restrictItems = true;
-        query.itemCodes = [];
-      }
-    } else {
-      query.search = state.search;
-      query.activityStatus = state.status;
-      query.typeId = state.typeId;
-      query.scope.period = state.period;
-      query.activityKind = state.kind;
-      query.relatedPresence = state.presence;
-      query.outstandingOnly = state.outstanding;
-    }
+    query.search = state.search;
+    query.activityStatus = state.status;
+    query.typeId = state.typeId;
+    query.scope.period = state.period;
+    query.activityKind = state.kind;
+    query.relatedPresence = state.presence;
+    query.outstandingOnly = state.outstanding;
     return query;
   });
   const projection = useReportController(report, {
     personalViews: false,
-    enabled: computed(() => props.mode !== "form" && !scopeError.value),
+    enabled: computed(() => props.mode === "list" && !scopeError.value),
   });
   useBrowseState(
     `activities/${props.mode}/${props.name || "list"}`,
@@ -224,15 +190,6 @@ export function useActivitiesController(
   watch(
     () => [props.mode, props.name],
     () => {
-      if (!props.routeQuery) {
-        relatedLoan.value = "";
-      }
-      if (!props.routeQuery) {
-        tab.value = "records";
-        recordSearch.value = "";
-        recordKinds.value = [];
-        recordPeriod.value = { key: "all", from: "", to: "" };
-      }
       void loadDetail();
     },
     { immediate: true },
@@ -242,7 +199,7 @@ export function useActivitiesController(
     if (activated) {
       // Returning from the separately cached editor must re-read its saved data.
       void loadDetail();
-      if (props.mode !== "form" && !scopeError.value) void projection.refresh();
+      if (props.mode === "list" && !scopeError.value) void projection.refresh();
     }
     activated = true;
   });
@@ -259,58 +216,6 @@ export function useActivitiesController(
   const filtered = computed(
     () =>
       projection.mainTable.value?.rows.map((row) => presentActivity(row)) || [],
-  );
-  const records = computed(() =>
-    tab.value === "records" ? projection.mainTable.value?.rows || [] : [],
-  );
-  const filteredRecords = computed(() =>
-    records.value.map((row) => ({
-      name: String(row.document || ""),
-      documentType: String(row.doctype || "Stock Entry"),
-      date: row.date,
-      postingTime: row.time,
-      kind: String(row.kind || ""),
-      docstatus: Number(row.docstatus),
-      relationship:
-        row.relationship === "original_loan" ? "原借用关联" : "直接关联",
-      itemName: row.item_name,
-      code: row.item_code,
-      qty: row.stock_qty,
-      uom: row.stock_uom,
-      batch: row.batch_no,
-      from: warehouseLabel(
-        row.source_warehouse,
-        reference.warehouses,
-        row.source_warehouse_label,
-      ),
-      to: warehouseLabel(
-        row.destination_warehouse,
-        reference.warehouses,
-        row.destination_warehouse_label,
-      ),
-      loanName: String(row.original_loan || ""),
-    })),
-  );
-  const loans = computed(() =>
-    tab.value === "loans"
-      ? (projection.mainTable.value?.rows || []).map((row) => ({
-          lineId: String(row.id),
-          originalLine: String(row.original_loan_line || row.line_name),
-          batch: String(row.batch_no || ""),
-          loanName: String(row.document || row.original_loan || ""),
-          borrower: String(row.borrower || ""),
-          date: String(row.date || row.posting_date || ""),
-          code: row.item_code,
-          name: String(row.item_name || row.item_code || ""),
-          image: String(row.image || ""),
-          uom: row.stock_uom,
-          qty: row.borrowed,
-          returned: row.returned,
-          damaged: row.damaged,
-          lost: row.lost,
-          outstanding: row.outstanding,
-        }))
-      : [],
   );
   const activityMovementCounts = (id: string) => {
     const source =
@@ -359,17 +264,6 @@ export function useActivitiesController(
     state.typeId = "";
     state.period = { key: "all", from: "", to: "" };
   }
-  function clearRelated() {
-    recordKinds.value = [];
-    recordPeriod.value = { key: "all", from: "", to: "" };
-    relatedLoan.value = "";
-    inherited.value = newReportQuery("activities");
-    scopeError.value = "";
-  }
-  function resetRelated() {
-    clearRelated();
-    recordSearch.value = "";
-  }
   const inheritedChips = computed(() => [
     ...scopeFilterFieldChips(report.value.scope, reference)
       .filter(
@@ -401,7 +295,6 @@ export function useActivitiesController(
         label: chip.label,
         remove: () => {
           Object.assign(inherited.value, chip.reset);
-          if ("loan" in chip.reset) relatedLoan.value = "";
         },
       })),
   ]);
@@ -446,31 +339,9 @@ export function useActivitiesController(
     scopeError,
     inheritedChips,
     state,
-    tab,
-    recordSearch,
-    recordKinds,
-    recordSort,
-    recordSortDirection,
-    setRecordSort: (column: string) => {
-      const field = column === "document" ? "identity" : "date";
-      if (recordSort.value === field)
-        recordSortDirection.value =
-          recordSortDirection.value === "asc" ? "desc" : "asc";
-      else {
-        recordSort.value = field;
-        recordSortDirection.value = field === "date" ? "desc" : "asc";
-      }
-    },
-    setRecordKinds: (kinds: string[]) => {
-      recordKinds.value = [...kinds];
-    },
-    recordPeriod,
     current,
     detail,
     filtered,
-    filteredRecords,
-    records,
-    loans,
     report,
     projection,
     loading,
@@ -481,8 +352,6 @@ export function useActivitiesController(
     archive,
     remove,
     clear,
-    clearRelated,
-    resetRelated,
     resetScope: () => {
       inherited.value = newReportQuery("activities");
       Object.assign(state, {
@@ -496,23 +365,12 @@ export function useActivitiesController(
         sort: "updated",
         sortDirection: "desc",
       });
-      tab.value = "records";
-      recordSearch.value = relatedLoan.value = "";
-      recordKinds.value = [];
-      recordPeriod.value = { key: "all", from: "", to: "" };
       scopeError.value = "";
     },
     clearSecondary,
     secondaryChips,
     activityMovementCounts,
     activityTypeLabel,
-    relatedLoan,
-    showSettlements: (name: string) => {
-      relatedLoan.value = name;
-      tab.value = "records";
-      recordSearch.value = "";
-      recordKinds.value = [];
-    },
     canWrite: computed(() => Boolean(detail.value)),
     canDelete: computed(() => Boolean(detail.value)),
     open: (id: string) => navigate("detail", id),
@@ -530,13 +388,6 @@ export function useActivitiesController(
       if (key === "kind") state.kind = "";
       if (key === "presence") state.presence = "all";
       if (key === "outstanding") state.outstanding = false;
-    },
-    chip: (id: string, kind: string) => {
-      const query = newReportQuery("activities");
-      query.view = "records";
-      query.scope.activity = id;
-      query.scope.kinds = [kind];
-      navigate("detail", id, query);
     },
     more: () => {
       const table = projection.mainTable.value;

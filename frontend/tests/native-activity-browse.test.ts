@@ -116,9 +116,12 @@ describe("native Activity browse scopes", () => {
               name: "ACT-A",
               title: "活动名称",
               status: "Active",
-              summary: {},
-              movement_totals: [],
-              loan_totals: [],
+              summary: { count_Receive: 2, count_Issue: 1 },
+              movement_totals: [
+                { kind: "Receive", stock_uom: "件", stock_qty: 8 },
+                { kind: "Issue", stock_uom: "套", stock_qty: 2 },
+              ],
+              loan_totals: [{ stock_uom: "个", outstanding: 3 }],
               outstanding_line_count: 0,
             }
           : null,
@@ -159,6 +162,16 @@ describe("native Activity browse scopes", () => {
           name: "activity-detail",
           component: { render: () => h("div") },
         },
+        {
+          path: "/movements",
+          name: "movements",
+          component: { render: () => h("div") },
+        },
+        {
+          path: "/loans",
+          name: "loans",
+          component: { render: () => h("div") },
+        },
       ],
     });
     await router.push("/");
@@ -189,53 +202,19 @@ describe("native Activity browse scopes", () => {
     expect(wrapper.get("h1").text()).toBe("活动名称");
   });
 
-  it("debounces activity detail search, edits and removes kind chips, and exposes tab roles", async () => {
+  it("renders linked overview tiles without record tabs or empty icon slots", async () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
-    const { wrapper, controller } = await mountActivityView("detail");
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(2);
-    // Compact toolbars hide their expanded tools, so results must sit outside them.
-    expect(wrapper.find(".browse-inline-tools table").exists()).toBe(false);
-    expect(wrapper.find('[role="tab"].ui-button').exists()).toBe(false);
-    expect(wrapper.find('[role="tab"][aria-selected="true"]').text()).toContain(
-      "关联记录",
-    );
-    expect(
-      wrapper
-        .findAll(".browse-active-chip")
-        .some((chip) => chip.text().includes("活动：")),
-    ).toBe(false);
-    expect(
-      document.querySelector('[data-filter-field="activity"]'),
-    ).toBeFalsy();
-    expect(controller.report.value.scope.activity).toBe("ACT-A");
-    controller.setRecordKinds(["Issue"]);
-    await flushPromises();
-    const kindChip = wrapper
-      .findAll(".browse-active-chip")
-      .find((chip) => chip.text().includes("流动类型"));
-    expect(kindChip?.text()).toContain("出库");
-    await kindChip!.get(".browse-active-chip-label").trigger("click");
-    await flushPromises();
-    expect(
-      document.querySelector('details[data-filter-field="kinds"][open]'),
-    ).toBeTruthy();
-    await kindChip!.get(".browse-active-chip-remove").trigger("click");
-    await flushPromises();
-    expect(controller.recordKinds.value).toEqual([]);
-    const search = wrapper.get<HTMLInputElement>(
-      "#activity-records-panel input[data-browse-search]",
-    );
-    await search.setValue("配方奶粉");
-    expect(controller.recordSearch.value).toBe("");
-    await vi.waitFor(() =>
-      expect(controller.recordSearch.value).toBe("配方奶粉"),
-    );
-    await flushPromises();
-    expect(controller.recordSearch.value).toBe("配方奶粉");
-    await wrapper.get('[role="tab"]:nth-child(2)').trigger("click");
-    expect(wrapper.find('[role="tab"][aria-selected="true"]').text()).toContain(
-      "借用结余",
-    );
+    const { wrapper } = await mountActivityView("detail");
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
+    expect(wrapper.find("#activity-records-panel").exists()).toBe(false);
+    expect(wrapper.find(".activity-movement-tiles").exists()).toBe(true);
+    expect(wrapper.findAll(".activity-movement-tile")).toHaveLength(3);
+    expect(wrapper.text()).toContain("入库");
+    expect(wrapper.text()).toContain("出库");
+    expect(wrapper.text()).toContain("当前未归还");
+    expect(wrapper.find(".activity-movement-tile-icon").exists()).toBe(false);
+    expect(wrapper.text()).toContain("查看全部记录");
+    expect(wrapper.text()).toContain("查看借用");
   });
 
   it("renders the activity name as a route link in the activities list", async () => {
@@ -301,59 +280,5 @@ describe("native Activity browse scopes", () => {
       sort: "start",
     });
     expect(linked.controller.report.value).toEqual(query);
-  });
-  it("carries the complete native detail tab and original-loan constraint in the URL", async () => {
-    const first = setup({ mode: "detail", name: "ACT-A" });
-    await flushPromises();
-    first.controller.tab.value = "loans";
-    first.controller.recordSearch.value = "ITEM/A";
-    first.controller.relatedLoan.value = "LOAN-A";
-    await flushPromises();
-    const query = { ...first.changed.mock.lastCall![0], statuses: [0, 1, 2] };
-    const linked = setup({
-      mode: "detail",
-      name: "ACT-A",
-      routeQuery: JSON.stringify(query),
-    });
-    await flushPromises();
-    expect(linked.controller.tab.value).toBe("loans");
-    expect(linked.controller.recordSearch.value).toBe("ITEM/A");
-    expect(linked.controller.relatedLoan.value).toBe("LOAN-A");
-    expect(linked.controller.report.value).toMatchObject({
-      view: "loans",
-      statuses: [1],
-      scope: { activity: "ACT-A" },
-      loan: "LOAN-A",
-    });
-  });
-  it("maps activity detail kind filters to the scope kinds array and table sort to the query", async () => {
-    const { controller, changed } = setup({ mode: "detail", name: "ACT-A" });
-    await flushPromises();
-    controller.setRecordKinds(["Issue", "Transfer"]);
-    controller.setRecordSort("document");
-    await flushPromises();
-    expect(changed.mock.lastCall?.[0]).toMatchObject({
-      scope: { activity: "ACT-A", kinds: ["Issue", "Transfer"] },
-      sortBy: "identity",
-    });
-    controller.setRecordKinds([]);
-    await flushPromises();
-    expect(changed.mock.lastCall?.[0].scope.kinds).toEqual([]);
-  });
-  it("opens lifetime kind counts with submitted records and no prior related search or dates", async () => {
-    const { controller, navigate } = setup({ mode: "list" });
-    await flushPromises();
-    controller.chip("ACT-A", "Loan");
-    expect(navigate).toHaveBeenCalledWith(
-      "detail",
-      "ACT-A",
-      expect.objectContaining({
-        view: "records",
-        statuses: [1],
-        relatedSearch: "",
-        relatedPeriod: { key: "all", from: "", to: "" },
-        scope: expect.objectContaining({ activity: "ACT-A", kinds: ["Loan"] }),
-      }),
-    );
   });
 });

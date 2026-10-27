@@ -13,11 +13,8 @@ import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
-import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { movementLabels } from "../../lib/filterPresentation";
 import { periodLabels } from "../../lib/sitePeriod";
-import { quantityText } from "../dashboard/useDashboardController";
-import { formatQuantity } from "../../lib/formatQuantity";
 import type { ReportQuery } from "../../lib/reportContract";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
@@ -37,9 +34,11 @@ import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import { RouterLink } from "vue-router";
-import RecordRef from "../../components/ui/RecordRef.vue";
-import ItemLine from "../../components/ui/ItemLine.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import DetailPopover from "../../components/ui/DetailPopover.vue";
+import { activityLoansTarget, activityMovementTarget } from "./activityRoutes";
+import { sortByUnit, unitLabel } from "../../lib/units";
+import { formatQuantity } from "../../lib/formatQuantity";
 const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
@@ -66,20 +65,9 @@ const {
 	scopeError,
 	inheritedChips,
 	state,
-	tab,
-	recordSearch,
-	recordKinds,
-	setRecordKinds,
-	recordSort,
-	recordSortDirection,
-	setRecordSort,
-	recordPeriod,
 	current,
 	detail,
 	filtered,
-	filteredRecords,
-	records,
-	loans,
 	report,
 	projection,
 	loading,
@@ -93,8 +81,6 @@ const {
 	secondaryChips,
 	activityMovementCounts,
 	activityTypeLabel,
-	relatedLoan,
-	showSettlements,
 	canWrite,
 	canDelete,
 	open,
@@ -105,9 +91,6 @@ const {
 	linked,
 	movement,
 	removeSecondary,
-	clearRelated,
-	resetRelated,
-	chip,
 	more,
 } = props.controller;
 async function confirmActivityDelete() {
@@ -131,16 +114,8 @@ function resetActivityFilters() {
 	state.sortDirection = "desc";
 	report.value.groupBy = [];
 }
-const isRelatedTabSelected = (value: "records" | "loans") => tab.value === value;
 const page = computed(() => `activity-${props.mode}`);
 const variant = computed(() => props.name || "new");
-const recordDateChip = computed(() => {
-	if (recordPeriod.value.key === "all") return "";
-	const value = recordPeriod.value;
-	return value.key === "custom"
-		? [value.from, value.to].filter(Boolean).join(" – ") || "日期待补全"
-		: periodLabels[value.key];
-});
 const isEditing = computed(() => !!props.name);
 const activityColumns = computed<DataColumn[]>(() => [
 	{
@@ -150,49 +125,30 @@ const activityColumns = computed<DataColumn[]>(() => [
 		defaultVisible: true,
 		sortable: true,
 		sortField: "title",
-		minWidth: "210px",
 	},
-	{ id: "typeId", label: "类型", defaultVisible: true, minWidth: "130px" },
+	{ id: "typeId", label: "类型", defaultVisible: true },
 	{
 		id: "period",
 		label: "日期",
 		defaultVisible: true,
 		sortable: true,
 		sortField: "start_date",
-		minWidth: "170px",
 	},
-	{ id: "status", label: "状态", defaultVisible: true, minWidth: "100px" },
+	{ id: "status", label: "状态", defaultVisible: true },
 	{
 		id: "modified",
 		label: "更新（站点时间）",
 		defaultVisible: true,
 		sortable: true,
 		sortField: "modified",
-		minWidth: "170px",
 	},
-	{ id: "actions", label: "关联流动", required: true, defaultVisible: true, minWidth: "150px" },
+	{ id: "actions", label: "关联流动", required: true, defaultVisible: true },
 ]);
 const activityRows = computed<DataTableRecord[]>(() =>
 	filtered.value.map((activity) => ({
 		kind: "record",
 		id: activity.id,
 		value: activity as unknown as Record<string, unknown>,
-	})),
-);
-const relatedColumns: DataColumn[] = [
-	{ id: "document", label: "记录", sortable: true, minWidth: "190px" },
-	{ id: "date", label: "日期", sortable: true, minWidth: "150px" },
-	{ id: "kind", label: "类型", minWidth: "110px" },
-	{ id: "status", label: "状态", minWidth: "100px" },
-	{ id: "item", label: "物品", minWidth: "180px" },
-	{ id: "quantity", label: "数量", minWidth: "120px" },
-	{ id: "route", label: "来源 → 去向", minWidth: "220px" },
-];
-const relatedRows = computed<DataTableRecord[]>(() =>
-	filteredRecords.value.map((row, index) => ({
-		kind: "record",
-		id: String(records.value[index]?.id || `${row.documentType}:${row.name}`),
-		value: row as unknown as Record<string, unknown>,
 	})),
 );
 function sortActivity(column: string) {
@@ -203,11 +159,28 @@ function sortActivity(column: string) {
 		state.sortDirection = sort === "updated" ? "desc" : "asc";
 	}
 }
-function sortRelated(column: string) {
-	setRecordSort(column);
-}
 function activityKindCounts(id: string) {
 	return [...activityMovementCounts(id)].sort((left, right) => right.count - left.count);
+}
+function activityTarget(id: string, kind?: string) {
+	return activityMovementTarget(id, kind);
+}
+function movementQuantities(kind: string) {
+	const totals = (detail.value?.movement_totals || [])
+		.filter((row) => row.kind === kind)
+		.map((row) => ({ uom: String(row.stock_uom || ""), qty: Number(row.stock_qty || 0) }));
+	const byUnit = new Map<string, number>();
+	for (const row of totals) byUnit.set(row.uom, (byUnit.get(row.uom) || 0) + row.qty);
+	const sorted = sortByUnit([...byUnit], ([uom]) => uom);
+	return { shown: sorted.slice(0, 3), remaining: Math.max(0, sorted.length - 3), total: sorted };
+}
+function outstandingQuantities() {
+	const byUnit = new Map<string, number>();
+	for (const row of detail.value?.loan_totals || []) {
+		const unit = String(row.stock_uom || "");
+		byUnit.set(unit, (byUnit.get(unit) || 0) + Number(row.outstanding || 0));
+	}
+	return sortByUnit([...byUnit], ([unit]) => unit);
 }
 const activityEntries = computed<DataTableEntry[]>(() =>
 	report.value.groupBy.length ? projection.groups.entries.value : activityRows.value,
@@ -224,22 +197,6 @@ const services = useOptionalInventoryServices();
 const activityPrefs = services
 	? useColumnPreferences("activities.list", activityColumns, reference, services)
 	: undefined;
-function tabKey(event: KeyboardEvent) {
-	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-	event.preventDefault();
-	tab.value =
-		event.key === "Home"
-			? "records"
-			: event.key === "End"
-				? "loans"
-				: tab.value === "records"
-					? "loans"
-					: "records";
-	const buttons = (event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
-		'[role="tab"]',
-	);
-	buttons[tab.value === "records" ? 0 : 1]?.focus();
-}
 </script>
 <template>
 	<ReturnToTop :active="props.active" :hidden="isMobile && filterSheetOpen" />
@@ -402,116 +359,130 @@ function tabKey(event: KeyboardEvent) {
 			<p v-if="projection.result.snapshot" role="status">
 				{{ projection.result.total }} 个活动 · 流动标签为终身已提交单据数
 			</p>
-			<DataTable
-				ariaLabel="活动列表"
-				table-class="browse-table"
-				:columns="activityColumns"
-				:rows="activityEntries"
-				:sort-by="report.sortBy"
-				:sort-direction="report.sort"
-				:column-preferences="activityPrefs"
-				:loading="
-					projection.result.loading ||
-					Boolean(report.groupBy.length && activityGroupRoot?.loading)
-				"
-				:initialized="
-					Boolean(
-						projection.mainTable.value?.initialized || activityGroupRoot?.initialized,
-					)
-				"
-				:error="
-					report.groupBy.length
-						? activityGroupRoot?.error || projection.result.error
-						: projection.result.error
-				"
-				:retained="Boolean(filtered.length && projection.result.loading)"
-				:has-more="
-					report.groupBy.length
-						? projection.groups.hasMore()
-						: projection.mainTable.value?.next != null
-				"
-				:loaded-count="
-					report.groupBy.length ? projection.groups.progress().loaded : filtered.length
-				"
-				:total-count="
-					report.groupBy.length
-						? projection.groups.progress().total
-						: (projection.mainTable.value?.total ?? filtered.length)
-				"
-				:loading-more="
-					report.groupBy.length
-						? Boolean(activityGroupRoot?.loading && activityGroupRoot.rows.length)
-						: Boolean(projection.mainTable.value?.loading && filtered.length)
-				"
-				:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
-				empty-text="没有符合条件的活动。可清空筛选或新建活动。"
-				@retry="
-					report.groupBy.length ? projection.groups.retry() : projection.refresh(true)
-				"
-				@toggle-group="projection.groups.toggleGroup"
-				@load-more="report.groupBy.length ? projection.groups.loadMore() : more()"
-				@sort="sortActivity"
-			>
-				<template #cell="{ column, row }">
-					<RouterLink
-						v-if="column.id === 'title'"
-						:to="{ name: 'activity-detail', params: { name: String(row.id || '') } }"
-						>{{ String(row.title || "") }}</RouterLink
-					>
-					<template v-else-if="column.id === 'typeId'">{{
-						activityTypeLabel(String(row.typeId || ""))
-					}}</template>
-					<template v-else-if="column.id === 'period'"
-						>{{ row.start || "未设日期"
-						}}{{ row.end ? " 至 " + row.end : "" }}</template
-					>
-					<template v-else-if="column.id === 'status'"
-						>{{ row.status === "archived" ? "已归档" : "进行中"
-						}}<span v-if="row.has_outstanding" class="badge warning">
-							· 有未归还借用</span
-						></template
-					>
-					<template v-else-if="column.id === 'modified'">{{
-						siteDateTime(String(row.modified || ""))
-					}}</template>
-					<div v-else-if="column.id === 'actions'" class="activity-kind-summary">
-						<UiButton
-							v-for="count in activityKindCounts(String(row.id)).slice(0, 3)"
-							:key="count.kind"
-							variant="ghost"
-							size="compact"
-							@click="chip(String(row.id), count.kind)"
-							>{{ movementLabels[count.kind] }} {{ count.count }}</UiButton
+			<div class="activity-list-scroll" data-browse-scroll="activities">
+				<DataTable
+					ariaLabel="活动列表"
+					table-class="browse-table"
+					:columns="activityColumns"
+					:rows="activityEntries"
+					:sort-by="report.sortBy"
+					:sort-direction="report.sort"
+					:column-preferences="activityPrefs"
+					:loading="
+						projection.result.loading ||
+						Boolean(report.groupBy.length && activityGroupRoot?.loading)
+					"
+					:initialized="
+						Boolean(
+							projection.mainTable.value?.initialized ||
+							activityGroupRoot?.initialized,
+						)
+					"
+					:error="
+						report.groupBy.length
+							? activityGroupRoot?.error || projection.result.error
+							: projection.result.error
+					"
+					:retained="Boolean(filtered.length && projection.result.loading)"
+					:has-more="
+						report.groupBy.length
+							? projection.groups.hasMore()
+							: projection.mainTable.value?.next != null
+					"
+					:loaded-count="
+						report.groupBy.length
+							? projection.groups.progress().loaded
+							: filtered.length
+					"
+					:total-count="
+						report.groupBy.length
+							? projection.groups.progress().total
+							: (projection.mainTable.value?.total ?? filtered.length)
+					"
+					:loading-more="
+						report.groupBy.length
+							? Boolean(activityGroupRoot?.loading && activityGroupRoot.rows.length)
+							: Boolean(projection.mainTable.value?.loading && filtered.length)
+					"
+					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
+					empty-text="没有符合条件的活动。可清空筛选或新建活动。"
+					@retry="
+						report.groupBy.length
+							? projection.groups.retry()
+							: projection.refresh(true)
+					"
+					@toggle-group="projection.groups.toggleGroup"
+					@load-more="report.groupBy.length ? projection.groups.loadMore() : more()"
+					@sort="sortActivity"
+				>
+					<template #cell="{ column, row }">
+						<RouterLink
+							v-if="column.id === 'title'"
+							class="browse-row-link"
+							:to="{
+								name: 'activity-detail',
+								params: { name: String(row.id || '') },
+							}"
+							>{{ String(row.title || "") }}</RouterLink
 						>
-						<details
-							v-if="activityKindCounts(String(row.id)).length > 3"
-							class="activity-kind-more"
+						<template v-else-if="column.id === 'typeId'">{{
+							activityTypeLabel(String(row.typeId || ""))
+						}}</template>
+						<template v-else-if="column.id === 'period'"
+							>{{ row.start || "未设日期"
+							}}{{ row.end ? " 至 " + row.end : "" }}</template
 						>
-							<summary>+{{ activityKindCounts(String(row.id)).length - 3 }}</summary>
-							<span
-								v-for="count in activityKindCounts(String(row.id)).slice(3)"
+						<template v-else-if="column.id === 'status'"
+							>{{ row.status === "archived" ? "已归档" : "进行中"
+							}}<span v-if="row.has_outstanding" class="badge warning">
+								· 有未归还借用</span
+							></template
+						>
+						<template v-else-if="column.id === 'modified'">{{
+							siteDateTime(String(row.modified || ""))
+						}}</template>
+						<div v-else-if="column.id === 'actions'" class="activity-kind-summary">
+							<RouterLink
+								v-for="count in activityKindCounts(String(row.id)).slice(0, 3)"
 								:key="count.kind"
-								>{{ movementLabels[count.kind] }} {{ count.count }}</span
+								:to="activityTarget(String(row.id), count.kind)"
+								>{{ movementLabels[count.kind] }} {{ count.count }}</RouterLink
 							>
-						</details>
-					</div>
-				</template>
-				<template #group="{ group }">
-					<div class="report-group-details">
-						{{ activityGroupSummary(group) }}
-						<UiButton v-if="group.error" @click="projection.groups.retry(group.id)"
-							>重试</UiButton
-						>
-						<UiButton
-							v-if="projection.groups.hasMore(group.id)"
-							:loading="group.loading"
-							@click="projection.groups.loadMore(group.id)"
-							>加载更多此分组 · {{ projection.groups.progress(group.id).loaded }} /
-							{{ projection.groups.progress(group.id).total }}</UiButton
-						>
-					</div>
-				</template>
-			</DataTable>
+							<DetailPopover
+								v-if="activityKindCounts(String(row.id)).length > 3"
+								:label="`${String(row.title || '活动')}的全部流动类型`"
+								trigger-class="activity-kind-more"
+								:trigger-text="`+${activityKindCounts(String(row.id)).length - 3}`"
+							>
+								<RouterLink
+									v-for="count in activityKindCounts(String(row.id))"
+									:key="count.kind"
+									:to="activityTarget(String(row.id), count.kind)"
+									class="activity-kind-popover-link"
+									>{{ movementLabels[count.kind] || "其他类型" }}
+									{{ count.count }}</RouterLink
+								>
+							</DetailPopover>
+						</div>
+					</template>
+					<template #group="{ group }">
+						<div class="report-group-details">
+							{{ activityGroupSummary(group) }}
+							<UiButton v-if="group.error" @click="projection.groups.retry(group.id)"
+								>重试</UiButton
+							>
+							<UiButton
+								v-if="projection.groups.hasMore(group.id)"
+								:loading="group.loading"
+								@click="projection.groups.loadMore(group.id)"
+								>加载更多此分组 ·
+								{{ projection.groups.progress(group.id).loaded }} /
+								{{ projection.groups.progress(group.id).total }}</UiButton
+							>
+						</div>
+					</template>
+				</DataTable>
+			</div>
 		</template>
 		<template v-else-if="current">
 			<div class="form-actions">
@@ -598,33 +569,47 @@ function tabKey(event: KeyboardEvent) {
 					</div>
 				</dl>
 				<p class="preview-long-text">{{ current.description || "未填写说明" }}</p>
-				<h3>直接关联 · 终身已提交流动</h3>
-				<div class="activity-movement-totals">
-					<p v-for="count in activityMovementCounts(current.id)" :key="count.kind">
-						{{ movementLabels[count.kind] || "其他类型" }} {{ count.count }} 份 ·
-						{{
-							quantityText(
-								(detail?.movement_totals || [])
-									.filter((row) => row.kind === count.kind)
-									.map((row) => ({
-										qty: Number(row.stock_qty),
-										uom: String(row.stock_uom),
-									})),
-							)
-						}}
-					</p>
+				<h3>货物流动</h3>
+				<div class="activity-movement-tiles">
+					<RouterLink
+						v-for="count in activityKindCounts(current.id)"
+						:key="count.kind"
+						class="activity-movement-tile"
+						:to="activityTarget(current.id, count.kind)"
+					>
+						<strong>{{ movementLabels[count.kind] || "其他类型" }}</strong>
+						<span class="activity-movement-tile-quantities">
+							<b
+								v-for="[uom, qty] in movementQuantities(count.kind).shown"
+								:key="uom"
+							>
+								{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+							</b>
+							<small v-if="movementQuantities(count.kind).remaining"
+								>+{{ movementQuantities(count.kind).remaining }} 单位</small
+							>
+						</span>
+						<span class="activity-movement-tile-count">{{ count.count }} 份记录</span>
+					</RouterLink>
+					<RouterLink
+						class="activity-movement-tile activity-outstanding-tile"
+						:to="activityLoansTarget(current.id)"
+					>
+						<strong>当前未归还</strong>
+						<span class="activity-movement-tile-quantities">
+							<b v-for="[uom, qty] in outstandingQuantities()" :key="uom">
+								{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+							</b>
+						</span>
+						<span class="activity-movement-tile-count"
+							>{{ detail?.outstanding_line_count || 0 }} 行未归还</span
+						>
+					</RouterLink>
 				</div>
-				<p>
-					当前未归还：{{ detail?.outstanding_line_count || 0 }} 行 ·
-					{{
-						quantityText(
-							(detail?.loan_totals || []).map((row) => ({
-								qty: Number(row.outstanding),
-								uom: String(row.stock_uom),
-							})),
-						)
-					}}
-				</p>
+				<nav class="activity-detail-links" aria-label="活动记录">
+					<RouterLink :to="activityTarget(current.id)">查看全部记录</RouterLink>
+					<RouterLink :to="activityLoansTarget(current.id)">查看借用</RouterLink>
+				</nav>
 
 				<details>
 					<summary class="ti-disclosure">
@@ -635,323 +620,10 @@ function tabKey(event: KeyboardEvent) {
 					</div>
 				</details>
 			</section>
-			<section
-				v-if="tab === 'records'"
-				id="activity-records-panel"
-				aria-labelledby="activity-records-tab"
-				class="surface form-section"
-				role="tabpanel"
-				aria-label="关联记录"
-			>
-				<div
-					class="browse-tabs"
-					role="tablist"
-					aria-label="活动相关资料"
-					@keydown="tabKey"
-				>
-					<button
-						type="button"
-						role="tab"
-						id="activity-records-tab"
-						aria-controls="activity-records-panel"
-						:tabindex="isRelatedTabSelected('records') ? 0 : -1"
-						:aria-selected="isRelatedTabSelected('records')"
-						@click="tab = 'records'"
-					>
-						关联记录
-					</button>
-					<button
-						type="button"
-						role="tab"
-						id="activity-loans-tab"
-						aria-controls="activity-loans-panel"
-						:tabindex="isRelatedTabSelected('loans') ? 0 : -1"
-						:aria-selected="isRelatedTabSelected('loans')"
-						@click="tab = 'loans'"
-					>
-						借用结余
-					</button>
-				</div>
-				<BrowseToolbar
-					embedded
-					title="活动关联记录"
-					summary="关联记录"
-					v-model:search="recordSearch"
-					search-label="搜索关联记录"
-					:active="active"
-					@filter-open="filterSheetOpen = $event"
-					:filter-count="
-						Number(recordPeriod.key !== 'all') +
-						Number(recordKinds.length > 0) +
-						inheritedChips.length
-					"
-				>
-					<template #filters>
-						<div class="preview-filter-fields">
-							<details
-								class="browse-filter-disclosure"
-								data-filter-field="relatedPeriod"
-							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									记账日期<small>{{ recordDateChip || "不限" }}</small>
-								</summary>
-								<PeriodFilter
-									:today="reference.siteDate"
-									v-model="recordPeriod"
-									label="记账日期"
-									field-key="relatedPeriod"
-									embedded
-								/>
-							</details>
-							<BrowseFilters
-								:model-value="report.scope"
-								:movement="true"
-								:records="true"
-								:fields="['kinds']"
-								disclosure-mode
-								@update:model-value="setRecordKinds($event.kinds)"
-							/>
-							<details
-								v-if="relatedLoan"
-								class="browse-filter-disclosure"
-								data-filter-field="loan"
-							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />原借用<small>{{
-										relatedLoan
-									}}</small>
-								</summary>
-								<label class="preview-field"
-									>原借用单号<input v-model="relatedLoan"
-								/></label>
-								<UiButton variant="ghost" @click="relatedLoan = ''"
-									>清除原借用限制</UiButton
-								>
-							</details>
-							<UiButton class="browse-filter-clear" @click="clearRelated"
-								>清空筛选</UiButton
-							>
-						</div>
-					</template>
-					<template #chips="{ editFilter }">
-						<BrowseChip
-							v-if="recordDateChip"
-							:label="`记账日期：${recordDateChip}`"
-							@edit="editFilter('relatedPeriod')"
-							@remove="recordPeriod = { key: 'all', from: '', to: '' }"
-						/>
-						<BrowseChip
-							v-for="kind in recordKinds"
-							:key="kind"
-							:label="`流动类型：${movementLabels[kind] || kind}`"
-							@edit="editFilter('kinds')"
-							@remove="setRecordKinds(recordKinds.filter((value) => value !== kind))"
-						/>
-						<BrowseChip
-							v-if="recordSearch"
-							:label="`搜索：${recordSearch}`"
-							@edit="editFilter('search')"
-							@remove="recordSearch = ''"
-						/>
-						<BrowseChip
-							v-for="chip in inheritedChips"
-							:key="chip.key"
-							:label="chip.label"
-							@edit="editFilter(chip.field)"
-							@remove="chip.remove()"
-						/>
-						<UiButton
-							v-if="
-								recordSearch ||
-								recordPeriod.key !== 'all' ||
-								recordKinds.length ||
-								inheritedChips.length ||
-								relatedLoan
-							"
-							variant="ghost"
-							@click="resetRelated"
-							>清除全部</UiButton
-						>
-					</template>
-				</BrowseToolbar>
-				<DataTable
-					ariaLabel="活动关联记录"
-					:columns="relatedColumns"
-					:rows="relatedRows"
-					:sort-by="recordSort"
-					:sort-direction="recordSortDirection"
-					:loading="projection.mainTable.value?.loading"
-					:initialized="projection.mainTable.value?.initialized"
-					:error="projection.mainTable.value?.error"
-					:has-more="projection.mainTable.value?.next != null"
-					:loading-more="projection.mainTable.value?.loading"
-					:loaded-count="projection.mainTable.value?.rows.length"
-					:total-count="projection.mainTable.value?.total"
-					@sort="sortRelated"
-					@load-more="more"
-					@retry="projection.refresh(true)"
-				>
-					<template #cell="{ column, row }">
-						<RecordRef
-							v-if="column.id === 'document'"
-							:kind="String(row.kind || row.documentType || 'Activity')"
-							:identity="String(row.borrower || row.itemName || row.name || '')"
-							:document-name="String(row.name || '')"
-							:status="String(row.docstatus || '')"
-							@open="
-								linked(
-									String(row.name || ''),
-									String(row.documentType || 'Stock Entry'),
-								)
-							"
-						/>
-						<template v-else-if="column.id === 'date'">{{
-							siteDateTime(`${row.date} ${row.postingTime || ""}`) || "未记录时间"
-						}}</template>
-						<template v-else-if="column.id === 'kind'">{{
-							movementLabels[String(row.kind || "")] || "其他类型"
-						}}</template>
-						<NativeStatusBadge
-							v-else-if="column.id === 'status'"
-							:status="row.docstatus"
-						/>
-						<ItemLine
-							v-else-if="column.id === 'item'"
-							:item="{
-								code: String(row.code || ''),
-								name: String(row.itemName || row.code || ''),
-								image: String(row.image || ''),
-							}"
-							><template #secondary>{{ row.code }}</template></ItemLine
-						>
-						<template v-else-if="column.id === 'quantity'"
-							>{{ formatQuantity(Number(row.qty || 0)) }} {{ row.uom }}</template
-						>
-						<template v-else-if="column.id === 'route'"
-							>{{ row.from }} → {{ row.to }}</template
-						>
-					</template>
-				</DataTable>
-				<p class="muted">附件通过各单据的详情查看。</p>
-			</section>
-			<section
-				v-else
-				id="activity-loans-panel"
-				aria-labelledby="activity-loans-tab"
-				class="surface form-section"
-				role="tabpanel"
-				aria-label="借用结余"
-			>
-				<div
-					class="browse-tabs"
-					role="tablist"
-					aria-label="活动相关资料"
-					@keydown="tabKey"
-				>
-					<button
-						type="button"
-						role="tab"
-						id="activity-records-tab"
-						aria-controls="activity-records-panel"
-						:tabindex="isRelatedTabSelected('records') ? 0 : -1"
-						:aria-selected="isRelatedTabSelected('records')"
-						@click="tab = 'records'"
-					>
-						关联记录
-					</button>
-					<button
-						type="button"
-						role="tab"
-						id="activity-loans-tab"
-						aria-controls="activity-loans-panel"
-						:tabindex="isRelatedTabSelected('loans') ? 0 : -1"
-						:aria-selected="isRelatedTabSelected('loans')"
-						@click="tab = 'loans'"
-					>
-						借用结余
-					</button>
-				</div>
-				<article
-					v-for="line in loans"
-					:key="line.lineId"
-					:data-browse-row="line.lineId"
-					class="activity-record"
-				>
-					<RecordRef
-						kind="Loan"
-						:identity="
-							line.borrower || line.date
-								? `${line.borrower || '借用方未知'} ${line.date.slice(5)}`
-								: line.loanName
-						"
-						:document-name="line.loanName"
-						@open="linked(String(line.loanName || ''))"
-					/>
-					<ItemLine
-						:item="{
-							code: String(line.code || ''),
-							name: String(line.name || line.code || ''),
-							image: String(line.image || ''),
-						}"
-					/>
-					<dl class="ti-fields">
-						<div>
-							<dt>单位</dt>
-							<dd>{{ line.uom }}</dd>
-						</div>
-						<div>
-							<dt>借用</dt>
-							<dd>{{ line.qty }} {{ line.uom }}</dd>
-						</div>
-						<div>
-							<dt>完好归还</dt>
-							<dd>{{ line.returned }} {{ line.uom }}</dd>
-						</div>
-						<div>
-							<dt>损坏</dt>
-							<dd>{{ line.damaged }} {{ line.uom }}</dd>
-						</div>
-						<div>
-							<dt>遗失</dt>
-							<dd>{{ line.lost }} {{ line.uom }}</dd>
-						</div>
-						<div>
-							<dt>未归还</dt>
-							<dd>{{ line.outstanding }} {{ line.uom }}</dd>
-						</div>
-					</dl>
-					<UiButton @click="showSettlements(line.loanName)">查看结算记录</UiButton>
-				</article>
-				<p
-					v-if="
-						projection.mainTable.value?.initialized &&
-						!projection.result.loading &&
-						!projection.result.error &&
-						!loans.length
-					"
-				>
-					暂无借用结余
-				</p>
-			</section>
 		</template>
 		<SkeletonBlock v-else-if="loading" variant="detail" :count="3" :rows="4" />
 		<p v-else role="alert">
 			{{ error || "活动不存在或不可访问。" }} <UiButton @click="loadDetail">重试</UiButton>
 		</p>
-		<template v-if="page === 'activity-detail'">
-			<SkeletonBlock
-				v-if="projection.result.loading && !projection.mainTable.value?.initialized"
-				variant="lines"
-				:count="3"
-			/>
-			<p v-if="projection.result.error" role="alert">
-				{{ projection.result.error }}
-				<UiButton @click="projection.refresh(true)">重试</UiButton>
-			</p>
-			<p v-if="projection.mainTable.value?.error" role="alert">
-				{{ projection.mainTable.value.error }}
-			</p>
-		</template>
 	</section>
 </template>

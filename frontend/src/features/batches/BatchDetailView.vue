@@ -18,6 +18,7 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import FormField from "../../components/ui/FormField.vue";
+import { sortByUnit, unitLabel } from "../../lib/units";
 const props = defineProps<{ controller: BatchDetailController }>();
 const emit = defineEmits<{
 	back: [];
@@ -36,7 +37,6 @@ const locationColumns = computed<DataColumn[]>(() => [
 		defaultVisible: true,
 		sortable: true,
 		sortField: "warehouse_label",
-		minWidth: "180px",
 	},
 	{ id: "stock_qty", label: "批次数量", defaultVisible: true, sortable: true },
 	{ id: "available", label: "可用数量", defaultVisible: true, sortable: true },
@@ -61,7 +61,7 @@ const quantities = computed(() => {
 		value.available += Number(row.available || 0);
 		values.set(uom, value);
 	}
-	return [...values.values()];
+	return sortByUnit([...values.values()], (quantity) => quantity.uom);
 });
 const batchMetrics = computed(() => [
 	{
@@ -221,6 +221,9 @@ function openDocument(row: Record<string, unknown>) {
 							reference.warehouses,
 							String(row.warehouse_label || ""),
 						)
+					}}</template>
+					<template v-else-if="column.id === 'stock_uom'">{{
+						unitLabel(String(row.stock_uom || ""))
 					}}</template>
 					<template v-else>{{ row[column.id] }}</template>
 				</template>

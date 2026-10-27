@@ -11,6 +11,7 @@ import {
   type LoanDocument,
 } from "../src/features/loans/useLoanDetail";
 import LoanDetailView from "../src/features/loans/LoanDetailView.vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
 function loan(name = "LOAN-A", docstatus: 0 | 1 | 2 = 1): LoanDocument {
@@ -129,7 +130,17 @@ function setup(
       return () => h(child);
     },
   });
-  const wrapper = mount(root);
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: "/items/:code",
+        name: "item-detail",
+        component: { template: "<div />" },
+      },
+    ],
+  });
+  const wrapper = mount(root, { global: { plugins: [router] } });
   wrappers.push(wrapper);
   return { c, props, reference, report, call, wrapper, settle };
 }

@@ -18,10 +18,14 @@ import ItemImage from "../ItemImage.vue";
 import DataTable from "./DataTable.vue";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import type { useReportGroups } from "../../composables/useReportGroups";
-import { reportColumnLabels, reportColumnMinimumWidths } from "../../lib/reportCells";
+import { reportColumnLabels } from "../../lib/reportCells";
+import { dataColumnKind } from "../../lib/dataTable";
 import { movementLabels } from "../../lib/filterPresentation";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import LocationEndpoint from "./LocationEndpoint.vue";
+import { RouterLink } from "vue-router";
+import { routeTarget } from "../../lib/routeRegistry";
+import { unitLabel, sortByUnit } from "../../lib/units";
 
 const props = withDefaults(
 	defineProps<{
@@ -117,7 +121,9 @@ const columns = computed<DataColumn[]>(() => {
 			required: ["item_code", "itemId", "document", "documentId"].includes(column),
 			sortable: props.sortableColumns?.includes(column) || false,
 			sortField: column,
-			minWidth: reportColumnMinimumWidths[column],
+			kind: quantityColumns.has(column)
+				? "number"
+				: dataColumnKind({ id: column, label: columnLabel(column) }),
 			className: [
 				quantityColumns.has(column) ? "report-quantity-cell" : "",
 				["batch", "batch_no"].includes(column) ? "report-batch-column" : "",
@@ -131,7 +137,7 @@ const columns = computed<DataColumn[]>(() => {
 			label: "操作",
 			defaultVisible: true,
 			required: true,
-			minWidth: props.stickyActions ? "380px" : "150px",
+			kind: "actions",
 			className: props.stickyActions ? "report-sticky-actions-column" : undefined,
 		});
 	return data;
@@ -308,7 +314,7 @@ function quantityTone(column: string, row: Record<string, unknown>) {
 
 function quantityEffectLabel(row: Record<string, unknown>) {
 	const effect = stockEffect(row);
-	const unit = String(row.stock_uom || "");
+	const unit = unitLabel(String(row.stock_uom || ""));
 	return effect > 0
 		? `可用库存增加 ${effect} ${unit}`
 		: effect < 0
@@ -361,17 +367,20 @@ function groupSummary(group: DataTableGroup) {
 			const rendered =
 				typeof value === "number" ? quantityText(key, value, row) : cell(key, value, row);
 			const unit = unitForQuantity(key, row);
-			return `${reportColumnLabels[key] || key} ${rendered}${unit ? ` ${unit}` : ""}`;
+			return `${reportColumnLabels[key] || key} ${rendered}${unit ? ` ${unitLabel(unit)}` : ""}`;
 		});
 	if (Array.isArray(row.quantity_breakdown)) {
-		for (const entry of row.quantity_breakdown as Record<string, unknown>[]) {
+		for (const entry of sortByUnit(
+			row.quantity_breakdown as Record<string, unknown>[],
+			(entry) => String(entry.stock_uom || entry.uom || row.stock_uom || ""),
+		)) {
 			const kind = movementLabels[String(entry.kind)] || String(entry.kind || "记录");
 			const status =
 				entry.docstatus === undefined ? "" : `（${nativeStatusLabel(entry.docstatus)}）`;
 			const quantity = entry.stock_qty;
 			if (quantity !== undefined && quantity !== null)
 				parts.push(
-					`${kind}${status} ${formatQuantity(Number(quantity))}${entry.stock_uom || entry.uom || row.stock_uom ? ` ${entry.stock_uom || entry.uom || row.stock_uom}` : ""}`,
+					`${kind}${status} ${formatQuantity(Number(quantity))}${entry.stock_uom || entry.uom || row.stock_uom ? ` ${unitLabel(String(entry.stock_uom || entry.uom || row.stock_uom))}` : ""}`,
 				);
 		}
 	}
@@ -380,8 +389,12 @@ function groupSummary(group: DataTableGroup) {
 function groupMetric(group: DataTableGroup, column: string) {
 	const row = group.value || {};
 	if (column === "stock_qty" && Array.isArray(row.quantity_breakdown)) {
-		return (row.quantity_breakdown as Record<string, unknown>[])
-			.filter((entry) => Number(entry.stock_qty || 0) !== 0)
+		return sortByUnit(
+			(row.quantity_breakdown as Record<string, unknown>[]).filter(
+				(entry) => Number(entry.stock_qty || 0) !== 0,
+			),
+			(entry) => String(entry.stock_uom || entry.uom || row.stock_uom || ""),
+		)
 			.map((entry) => {
 				const kind = movementLabels[String(entry.kind)] || String(entry.kind || "记录");
 				const hasStatus = (row.quantity_breakdown as Record<string, unknown>[]).some(
@@ -389,7 +402,7 @@ function groupMetric(group: DataTableGroup, column: string) {
 				);
 				const status = hasStatus ? `（${nativeStatusLabel(entry.docstatus)}）` : "";
 				const unit = entry.stock_uom || entry.uom || row.stock_uom || "";
-				return `${kind}${status} ${formatQuantity(Number(entry.stock_qty))} ${unit}`.trim();
+				return `${kind}${status} ${formatQuantity(Number(entry.stock_qty))} ${unitLabel(String(unit))}`.trim();
 			})
 			.join(" / ");
 	}
@@ -406,7 +419,7 @@ function groupMetric(group: DataTableGroup, column: string) {
 		return "";
 	const value = row[column];
 	if (typeof value === "number" && unitForQuantity(column, row))
-		return `${quantityText(column, value, row)} ${unitForQuantity(column, row)}`;
+		return `${quantityText(column, value, row)} ${unitLabel(unitForQuantity(column, row))}`;
 	return value === undefined || value === null ? "" : cell(column, value, row);
 }
 </script>
@@ -465,6 +478,12 @@ function groupMetric(group: DataTableGroup, column: string) {
 		>
 			<template #cell="{ column, row, value, index }">
 				<slot v-if="column.id === '_actions'" name="actions" :row="row" :index="index" />
+				<RouterLink
+					v-else-if="column.id === 'item_name' && row.item_code"
+					:to="routeTarget('item-detail', { code: String(row.item_code) })"
+					class="browse-row-link"
+					>{{ value || row.item_code }}</RouterLink
+				>
 				<button
 					v-else-if="
 						documentLinks !== false &&
@@ -502,7 +521,13 @@ function groupMetric(group: DataTableGroup, column: string) {
 							: undefined)
 					"
 				>
-					{{ displayCell(String(column.id), value, row) }}
+					{{
+						column.id === "stock_uom" ||
+						column.id === "entered_uom" ||
+						column.id === "uom"
+							? unitLabel(String(value || ""))
+							: displayCell(String(column.id), value, row)
+					}}
 					<span v-if="quantityTone(String(column.id), row)" class="sr-only">{{
 						quantityEffectLabel(row)
 					}}</span>

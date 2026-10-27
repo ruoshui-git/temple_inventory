@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 import BrowseToolbar from "../src/components/ui/BrowseToolbar.vue";
 import FilterRailEdge from "../src/components/ui/FilterRailEdge.vue";
 import BrowseChip from "../src/components/ui/BrowseChip.vue";
@@ -431,6 +432,16 @@ function stock() {
     summary: [],
     analysis: { category: [], location: [] },
   }));
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: "/items/:code",
+        name: "item-detail",
+        component: { template: "<div />" },
+      },
+    ],
+  });
   const wrapper = mount(
     defineComponent({
       setup() {
@@ -441,7 +452,7 @@ function stock() {
         return () => h(StockBrowsePage, props);
       },
     }),
-    { attachTo: document.body },
+    { attachTo: document.body, global: { plugins: [router] } },
   );
   wrappers.push(wrapper);
   const page = wrapper.getComponent(StockBrowsePage);

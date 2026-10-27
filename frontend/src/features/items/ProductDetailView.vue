@@ -24,6 +24,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import { showToast } from "../../services/toast";
+import { unitLabel } from "../../lib/units";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -113,10 +114,9 @@ const batchColumns = computed<DataColumn[]>(() => [
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "160px",
 	},
 	{ id: "expiry", label: "效期", defaultVisible: true, sortable: true },
-	{ id: "location", label: "位置", defaultVisible: true, sortable: true, minWidth: "180px" },
+	{ id: "location", label: "位置", defaultVisible: true, sortable: true },
 	{ id: "available", label: "可用量", defaultVisible: true, sortable: true },
 	{ id: "loaned", label: "借出", defaultVisible: true, sortable: true },
 	{ id: "damaged", label: "损坏", defaultVisible: true, sortable: true },
@@ -129,7 +129,6 @@ const locationColumns = computed<DataColumn[]>(() => [
 		required: true,
 		defaultVisible: true,
 		sortable: true,
-		minWidth: "180px",
 	},
 	{ id: "available", label: "可用", defaultVisible: true, sortable: true },
 	{ id: "loaned", label: "借出", defaultVisible: true, sortable: true },
@@ -322,6 +321,9 @@ const locationPrefs =
 								String(row.label || ""),
 							)
 						}}</template>
+						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'">{{
+							unitLabel(String(row[column.id] || ""))
+						}}</template>
 						<template v-else>{{ row[column.id] ?? 0 }}</template>
 					</template>
 				</DataTable>
@@ -348,6 +350,9 @@ const locationPrefs =
 								warehouseReference?.warehouses || [],
 								String(row.label || ""),
 							)
+						}}</template>
+						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'">{{
+							unitLabel(String(row[column.id] || ""))
 						}}</template>
 						<template v-else>{{ row[column.id] }}</template>
 					</template>

@@ -27,6 +27,7 @@ import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FormField from "../../components/ui/FormField.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { unitLabel } from "../../lib/units";
 import { computed, ref } from "vue";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
@@ -63,24 +64,22 @@ const stockTable = c.stock.mainTable;
 const services = useOptionalInventoryServices();
 const stockSort = ref({ field: "item_name", direction: "asc" as "asc" | "desc" });
 const stockColumns: DataColumn[] = [
-	{ id: "image", label: "图片", align: "center", minWidth: "48px" },
-	{ id: "item_name", label: "物品", sortable: true, minWidth: "180px" },
+	{ id: "image", label: "图片", align: "center" },
+	{ id: "item_name", label: "物品", sortable: true },
 	{
 		id: "item_code",
 		label: "编号",
 		sortable: true,
 		className: "warehouse-code",
-		minWidth: "110px",
 	},
-	{ id: "warehouse_label", label: "库位", sortable: true, minWidth: "130px" },
-	{ id: "batch_no", label: "批次", sortable: true, minWidth: "100px" },
+	{ id: "warehouse_label", label: "库位", sortable: true },
+	{ id: "batch_no", label: "批次", sortable: true },
 	{
 		id: "stock_qty",
 		label: "数量",
 		sortable: true,
 		align: "end",
 		className: "tabular-nums",
-		minWidth: "100px",
 	},
 ];
 const stockPreferences = services
@@ -436,7 +435,8 @@ function parentLabel(name?: string) {
 									</dl>
 								</div>
 								<b
-									>{{ row.stock_qty }} <small>{{ row.stock_uom }}</small></b
+									>{{ row.stock_qty }}
+									<small>{{ unitLabel(String(row.stock_uom || "")) }}</small></b
 								>
 							</button>
 						</div>
@@ -500,7 +500,9 @@ function parentLabel(name?: string) {
 								<span
 									v-else-if="column.id === 'stock_qty'"
 									class="warehouse-nowrap tabular-nums"
-									>{{ `${row.stock_qty} ${row.stock_uom}` }}</span
+									>{{
+										`${row.stock_qty} ${unitLabel(String(row.stock_uom || ""))}`
+									}}</span
 								>
 							</template>
 						</DataTable>

@@ -15,6 +15,7 @@ import {
   itemBatches,
   type StockItem,
 } from "../src/lib/stockPresentation";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -72,7 +73,10 @@ async function inventory(rows: StockItem[]) {
       return () => h(StockBrowsePage);
     },
   });
-  const wrapper = mount(host, { attachTo: document.body });
+  const wrapper = mount(host, {
+    attachTo: document.body,
+    global: { stubs: { RouterLink: RouterLinkStub } },
+  });
   wrappers.push(wrapper);
   await flushPromises();
   return wrapper;

@@ -44,6 +44,7 @@ import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { summarizeItems } from "../../lib/itemSummary";
+import { sortByUnit, unitLabel } from "../../lib/units";
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -237,21 +238,22 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 		);
 });
 const quantities = (row: NativeRecord) =>
-	row.whole.quantities.map((value) => `${value.qty} ${value.uom}`).join(" · ");
+	sortByUnit(row.whole.quantities, (value) => value.uom)
+		.map((value) => `${value.qty} ${unitLabel(value.uom)}`)
+		.join(" · ");
 const services = useOptionalInventoryServices();
 const tableColumns = computed<DataColumn[]>(() => [
-	{ id: "document", label: "记录", required: true, defaultVisible: true, minWidth: "180px" },
+	{ id: "document", label: "记录", required: true, defaultVisible: true },
 	{
 		id: "kind",
 		label: "类型 / 状态",
 		defaultVisible: true,
-		minWidth: "150px",
 		className: "native-record-kind-status",
 	},
-	{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true, minWidth: "150px" },
-	{ id: "summary", label: "整份记录", defaultVisible: true, minWidth: "240px" },
-	{ id: "date", label: "记账日期", defaultVisible: true, sortable: true, minWidth: "150px" },
-	{ id: "actions", label: "操作", required: true, defaultVisible: true, minWidth: "150px" },
+	{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true },
+	{ id: "summary", label: "整份记录", defaultVisible: true },
+	{ id: "date", label: "记账日期", defaultVisible: true, sortable: true },
+	{ id: "actions", label: "操作", required: true, defaultVisible: true },
 ]);
 const tableRows = computed<DataTableRecord[]>(() =>
 	rows.value.map((row) => ({

@@ -81,8 +81,18 @@ async function setup(page: Page, scale = 100, density = "balanced") {
       message = {
         query: args.query,
         scope: args.query.scope,
-        rows: [],
-        matched_count: 0,
+        rows: [
+          {
+            id: "PENDING-ROW",
+            item_name: "损坏待处理物品",
+            item_code: "ITEM-PENDING",
+            available: 8,
+            loaned: 2,
+            damaged: 1,
+            stock_uom: "个",
+          },
+        ],
+        matched_count: 1,
         next_start: null,
         snapshot: "2026-10-18 10:00:00",
         table: "summary",
@@ -159,6 +169,42 @@ for (const width of [390, 1440]) {
         "type",
         "search",
       );
+      if ((path === "stock" || path === "pending") && width >= 1024) {
+        const rows = page.locator(".data-table-scroll tbody tr");
+        const oversizedRows = await rows.evaluateAll((items) =>
+          items
+            .filter((row) => row.getBoundingClientRect().height > 72)
+            .map((row) => ({
+              text: row.textContent?.trim(),
+              height: row.getBoundingClientRect().height,
+            })),
+        );
+        expect(oversizedRows).toEqual([]);
+        const oversizedCells = await page
+          .locator(
+            ".data-table-scroll tbody td:not(.data-column-primary, .data-table-settings-cell, .data-table-selection-column)",
+          )
+          .evaluateAll((cells) =>
+            cells
+              .filter((cell) => cell.getBoundingClientRect().height > 72)
+              .map((cell) => ({
+                text: cell.textContent?.trim(),
+                height: cell.getBoundingClientRect().height,
+              })),
+          );
+        expect(oversizedCells).toEqual([]);
+        if (path === "pending") {
+          await expect(rows).toHaveCount(1);
+          const tableFrame = page.locator(".data-table-frame").first();
+          await expect(tableFrame).toHaveCSS(
+            "--data-table-settings-column-width",
+            "0px",
+          );
+          await expect(
+            page.locator(".report-sticky-actions-column").first(),
+          ).toHaveCSS("right", "0px");
+        }
+      }
       if (
         path === "stock" ||
         path === "movements/items" ||

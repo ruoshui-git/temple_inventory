@@ -140,14 +140,14 @@ it("keeps the picker image column and gives the item name the flexible track", (
   const name = columns.find((column) => column.id === "name");
   expect(image).toMatchObject({
     label: "图片",
-    minWidth: "56px",
+    kind: "thumb",
     className: "picker-image-column",
   });
   expect(name).toMatchObject({
-    minWidth: "180px",
+    kind: "primary",
     className: "picker-name-column",
   });
-  expect(name).not.toHaveProperty("width");
+  expect(name).not.toHaveProperty("minWidth");
   expect(columns.find((column) => column.id === "category")).toMatchObject({
     defaultVisible: false,
   });

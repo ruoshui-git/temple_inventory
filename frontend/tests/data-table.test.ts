@@ -9,6 +9,8 @@ import {
   moveColumn,
   reconcileColumns,
   dataColumnAlignment,
+  dataColumnKind,
+  dataColumnPreset,
   type DataColumn,
 } from "../src/lib/dataTable";
 import {
@@ -352,13 +354,63 @@ describe("table column contracts", () => {
 
   it("aligns quantity columns and group metrics with tabular numeric cells", () => {
     expect(dataColumnAlignment({ id: "quantities", label: "数量" })).toBe(
-      "end",
+      "start",
     );
     expect(dataColumnAlignment({ id: "stock_qty", label: "数量" })).toBe("end");
     expect(dataColumnAlignment({ id: "item_code", label: "物品编码" })).toBe(
       "start",
     );
     expect(dataColumnAlignment({ id: "image", label: "图片" })).toBe("center");
+  });
+
+  it("maps semantic column kinds to their sizing classes", () => {
+    for (const kind of [
+      "number",
+      "unit",
+      "code",
+      "date",
+      "datetime",
+      "status",
+      "chip",
+      "thumb",
+      "actions",
+      "text",
+      "primary",
+    ] as const) {
+      const preset = dataColumnPreset({ id: kind, label: kind, kind });
+      expect(preset).toEqual({
+        kind,
+        className: `data-column-${kind}`,
+      });
+    }
+    expect(dataColumnKind({ id: "item_name", label: "物品名称" })).toBe(
+      "primary",
+    );
+    expect(dataColumnKind({ id: "stock_uom", label: "库存单位" })).toBe("unit");
+    expect(dataColumnKind({ id: "available", label: "可用" })).toBe("number");
+  });
+
+  it("gives only the first primary column the flexible width", () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "名称列",
+        columns: [
+          { id: "item_name", label: "物品名称" },
+          { id: "title", label: "记录名称" },
+        ],
+        rows: [],
+      },
+    });
+    expect(
+      wrapper
+        .findAll("thead th")
+        .map((cell) =>
+          cell
+            .classes()
+            .find((className) => className.startsWith("data-column-")),
+        ),
+    ).toEqual(["data-column-primary", "data-column-text"]);
+    wrapper.unmount();
   });
 
   it("keeps keyboard focus through column reorder and returns it after Escape", async () => {
