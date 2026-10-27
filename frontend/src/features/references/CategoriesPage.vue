@@ -58,7 +58,11 @@ const {
 		</div>
 		<div class="category-tools">
 			<SearchField v-model="search" label="搜索分类" />
-			<span v-if="c.initialized.value" class="muted">{{ categories.length }} 个分类</span>
+			<div class="browse-result-summary" aria-live="polite">
+				<span v-if="c.initialized.value"
+					>{{ categories.filter(c.visible).length }} 个分类</span
+				>
+			</div>
 		</div>
 		<AsyncRegion
 			:loading="loading"
@@ -74,14 +78,17 @@ const {
 						class="category-row"
 						:style="{ '--category-depth': Math.min(c.depth(row), 5) }"
 					>
-						<UiButton
+						<button
 							v-if="row.is_group"
+							type="button"
 							class="category-expand"
 							:aria-expanded="expanded.has(row.name) || !!search.trim()"
 							:aria-label="`${expanded.has(row.name) ? '收起' : '展开'} ${row.label}`"
 							@click="c.toggle(row)"
-							><DisclosureIcon variant="inline"
-						/></UiButton>
+						>
+							<DisclosureIcon variant="inline" />
+						</button>
+						<span v-else class="category-expand-spacer" aria-hidden="true" />
 						<strong>{{ row.label }}</strong>
 						<small v-if="row.name !== row.label">{{ row.name }}</small>
 						<span class="category-kind">{{ row.is_group ? "分组" : "末级" }}</span>
@@ -162,9 +169,13 @@ const {
 }
 .category-tools {
 	display: flex;
-	align-items: end;
+	align-items: center;
 	gap: 12px;
 	margin-top: 12px;
+}
+.category-tools .browse-result-summary {
+	margin-inline-start: auto;
+	white-space: nowrap;
 }
 .category-tools .preview-field {
 	flex: 1;
@@ -184,7 +195,8 @@ const {
 	margin: 12px 0;
 }
 .category-row {
-	display: flex;
+	display: grid;
+	grid-template-columns: 36px minmax(180px, 240px) minmax(0, 1fr) 4.5rem 36px;
 	align-items: center;
 	gap: 8px;
 	min-height: 48px;
@@ -193,12 +205,13 @@ const {
 	border-bottom: 1px solid var(--p-border);
 }
 .category-row strong {
-	min-width: 100px;
-	max-width: 240px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	overflow-wrap: anywhere;
 }
 .category-row small {
-	flex: 1;
 	min-width: 0;
 	color: var(--p-muted);
 	text-overflow: ellipsis;
@@ -214,15 +227,22 @@ const {
 	width: 36px;
 	min-width: 36px;
 }
-.category-row :deep(.category-row-actions .popup-menu-trigger) {
-	width: 36px;
-	min-width: 36px;
+.category-expand-spacer {
+	height: 36px;
+}
+.category-expand {
+	display: grid;
+	place-items: center;
 	min-height: 36px;
 	padding: 0;
-	border-color: transparent;
+	border: 0;
+	border-radius: var(--p-radius-control);
 	background: transparent;
-	box-shadow: none;
 	color: var(--p-muted);
+	cursor: pointer;
+}
+.category-expand[aria-expanded="true"] .ti-disclosure-icon {
+	transform: rotate(90deg);
 }
 .category-recovery {
 	padding: 12px;
@@ -246,20 +266,28 @@ const {
 		flex-basis: 100%;
 	}
 	.category-row {
-		flex-wrap: wrap;
+		grid-template-columns: 36px minmax(0, 1fr) 4.5rem 36px;
 		padding-inline-start: calc(4px + min(var(--category-depth), 5) * 12px);
 	}
-	.category-row:has(.category-expand) {
-		padding-inline-start: calc(4px + min(var(--category-depth), 5) * 12px);
+	.category-row small {
+		grid-column: 2 / 4;
+		grid-row: 2;
 	}
-	.category-row:not(:has(.category-expand)) {
-		padding-inline-start: calc(4px + max(0, min(var(--category-depth), 5) - 1) * 12px);
+	.category-row .category-row-actions {
+		grid-column: 4;
+		grid-row: 1;
+	}
+	.category-expand-spacer {
+		grid-column: 1;
+		grid-row: 1;
 	}
 	.category-row strong {
-		flex: 1 1 90px;
+		grid-column: 2;
+		max-width: none;
 	}
 	.category-kind {
-		margin-inline-end: auto;
+		grid-column: 3;
+		grid-row: 1;
 	}
 }
 </style>

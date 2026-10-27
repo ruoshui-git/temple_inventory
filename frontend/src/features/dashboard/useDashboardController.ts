@@ -11,6 +11,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { movementLabels } from "../../lib/filterPresentation";
+import { sortByUnit, unitLabel } from "../../lib/units";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useBrowseState } from "../../lib/browseMemory";
 import {
@@ -84,7 +85,11 @@ export function quantityText(rows: { qty: number; uom: string }[]) {
   const units = new Map<string, number>();
   for (const row of rows)
     units.set(row.uom, (units.get(row.uom) || 0) + row.qty);
-  return [...units].map(([uom, qty]) => `${qty} ${uom}`).join(" · ") || "0";
+  return (
+    sortByUnit([...units], ([uom]) => uom)
+      .map(([uom, qty]) => `${qty} ${unitLabel(uom)}`)
+      .join(" · ") || "0"
+  );
 }
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -310,12 +315,15 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
       { key: "damaged", label: "损坏", tone: "damaged" },
     ].map((metric) => ({
       ...metric,
-      quantities: sections.inventory.result.totals
-        .filter((row) => Number(row[metric.key]))
-        .map((row) => ({
-          uom: String(row.stock_uom || ""),
-          qty: Number(row[metric.key]),
-        })),
+      quantities: sortByUnit(
+        sections.inventory.result.totals
+          .filter((row) => Number(row[metric.key]))
+          .map((row) => ({
+            uom: String(row.stock_uom || ""),
+            qty: Number(row[metric.key]),
+          })),
+        (quantity) => quantity.uom,
+      ),
     })),
   );
   const buckets = computed(() =>
@@ -336,13 +344,14 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
         kind,
         label,
         count: sections.movement.result.kind_counts[kind] || 0,
-        quantities: totals
-          .map((row) => ({
+        quantities: sortByUnit(
+          totals.map((row) => ({
             qty: Number(row.stock_qty || 0),
             uom: String(row.stock_uom || ""),
             effect: Number(row.available_effect || 0),
-          }))
-          .sort((a, b) => Math.abs(b.qty) - Math.abs(a.qty)),
+          })),
+          (quantity) => quantity.uom,
+        ),
         tone:
           totals.length &&
           totals.every((row) => Number(row.available_effect || 0) > 0)

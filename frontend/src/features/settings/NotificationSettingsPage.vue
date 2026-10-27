@@ -42,40 +42,40 @@ const states: Record<string, string> = {
 						aria-label="接收通知"
 						:class="{ 'is-off': !c.preferences.value.enabled }"
 				/></label>
-				<label
-					v-for="event in c.notificationEvents"
-					:key="event.key"
-					class="notification-switch-row"
-				>
-					<span
-						><strong>{{ event.label }}</strong
-						><small v-if="'defaultOff' in event && event.defaultOff"
-							>默认关闭</small
-						></span
-					>
-					<input
-						v-model="c.preferences.value[event.key]"
-						type="checkbox"
-						role="switch"
-						:disabled="!c.preferences.value.enabled"
-						:aria-label="event.label"
-						:class="{ 'is-off': !c.preferences.value[event.key] }"
-					/>
-				</label>
-				<fieldset
-					class="notification-kinds"
-					:disabled="
-						!c.preferences.value.enabled || !c.preferences.value.movement_submitted
-					"
-				>
-					<legend>新货物流动类型</legend>
-					<label v-for="kind in c.kinds" :key="kind"
-						><input
-							v-model="c.preferences.value.movement_kinds[kind]"
+				<template v-for="event in c.notificationEvents" :key="event.key">
+					<label class="notification-switch-row">
+						<span
+							><strong>{{ event.label }}</strong
+							><small v-if="'defaultOff' in event && event.defaultOff"
+								>默认关闭</small
+							></span
+						>
+						<input
+							v-model="c.preferences.value[event.key]"
 							type="checkbox"
-						/>{{ c.kindLabels[kind] }}</label
+							role="switch"
+							:disabled="!c.preferences.value.enabled"
+							:aria-label="event.label"
+							:class="{ 'is-off': !c.preferences.value[event.key] }"
+						/>
+					</label>
+					<fieldset
+						v-if="
+							event.key === 'movement_submitted' &&
+							c.preferences.value.movement_submitted
+						"
+						class="notification-kinds"
+						:disabled="!c.preferences.value.enabled"
 					>
-				</fieldset>
+						<legend>新货物流动类型</legend>
+						<label v-for="kind in c.kinds" :key="kind"
+							><input
+								v-model="c.preferences.value.movement_kinds[kind]"
+								type="checkbox"
+							/>{{ c.kindLabels[kind] }}</label
+						>
+					</fieldset>
+				</template>
 				<div class="notification-save-row">
 					<p role="status" aria-live="polite">
 						{{

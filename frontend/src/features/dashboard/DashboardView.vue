@@ -8,7 +8,6 @@ import QuickExport from "../../components/QuickExport.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import FilterPanel from "../../components/ui/FilterPanel.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
-import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import ItemLine from "../../components/ui/ItemLine.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
@@ -16,6 +15,7 @@ import PopupMenu from "../../components/ui/PopupMenu.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { summarizeItems } from "../../lib/itemSummary";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { unitLabel } from "../../lib/units";
 import {
 	browseDestination,
 	countDestination,
@@ -66,15 +66,24 @@ const {
 } = props.controller;
 const distributionTop = computed(() => distribution.value.slice(0, 8));
 const distributionRest = computed(() => distribution.value.slice(8));
-const inventoryTopMetrics = computed(() =>
-	metrics.value.map((metric) => ({ ...metric, quantities: metric.quantities.slice(0, 3) })),
+const expandedInventoryMetrics = ref(new Set<string>());
+const inventoryMetrics = computed(() =>
+	metrics.value.map((metric) => ({
+		...metric,
+		expanded: expandedInventoryMetrics.value.has(metric.key),
+		quantities: metric.quantities.slice(
+			0,
+			expandedInventoryMetrics.value.has(metric.key) ? undefined : 3,
+		),
+		rest: Math.max(0, metric.quantities.length - 3),
+	})),
 );
-const inventoryMoreMetrics = computed(() =>
-	metrics.value.flatMap((metric) => {
-		const rest = metric.quantities.slice(3);
-		return rest.length ? [{ key: metric.key, label: metric.label, quantities: rest }] : [];
-	}),
-);
+function toggleInventoryMetric(key: string) {
+	const next = new Set(expandedInventoryMetrics.value);
+	if (next.has(key)) next.delete(key);
+	else next.add(key);
+	expandedInventoryMetrics.value = next;
+}
 const showFilters = ref(false);
 function effectLabel(effect: number, uom: string) {
 	return effect > 0
@@ -379,36 +388,32 @@ function datasetChanged(dataset: ReportDataset) {
 							</button>
 						</div></template
 					>
-					<QuantitySummary :metrics="inventoryTopMetrics" />
-					<details
-						v-if="inventoryMoreMetrics.length"
-						class="ti-disclosure dashboard-unit-disclosure"
-					>
-						<summary>
-							<DisclosureIcon variant="inline" />+{{
-								inventoryMoreMetrics.reduce(
-									(count, metric) => count + metric.quantities.length,
-									0,
-								)
-							}}
-							单位
-						</summary>
-						<p
-							v-for="metric in inventoryMoreMetrics"
+					<div class="dashboard-inventory-metrics">
+						<article
+							v-for="metric in inventoryMetrics"
 							:key="metric.key"
-							class="dashboard-unit-rest"
+							class="dashboard-inventory-metric"
 						>
-							<strong>{{ metric.label }}：</strong
-							>{{
-								metric.quantities
-									.map(
-										(quantity) =>
-											`${formatQuantity(quantity.qty)} ${quantity.uom}`,
-									)
-									.join(" · ")
-							}}
-						</p>
-					</details>
+							<small>{{ metric.label }}</small>
+							<div class="dashboard-inventory-quantities">
+								<strong v-for="quantity in metric.quantities" :key="quantity.uom">
+									{{ formatQuantity(quantity.qty) }}
+									<span>{{ unitLabel(quantity.uom) }}</span>
+								</strong>
+							</div>
+							<button
+								v-if="metric.rest"
+								type="button"
+								class="dashboard-unit-disclosure"
+								:aria-expanded="metric.expanded"
+								@click="toggleInventoryMetric(metric.key)"
+							>
+								<DisclosureIcon variant="inline" />{{
+									metric.expanded ? "收起" : `+${metric.rest} 单位`
+								}}
+							</button>
+						</article>
+					</div>
 				</DashboardSection>
 				<DashboardSection
 					:section="sections.distribution"
@@ -682,7 +687,9 @@ function datasetChanged(dataset: ReportDataset) {
 							class="dashboard-movement-tile"
 							:title="
 								row.quantities
-									.map((quantity) => `${quantity.qty} ${quantity.uom}`)
+									.map(
+										(quantity) => `${quantity.qty} ${unitLabel(quantity.uom)}`,
+									)
 									.join(' · ') || row.label
 							"
 							:disabled="blocked('movement')"
@@ -707,7 +714,7 @@ function datasetChanged(dataset: ReportDataset) {
 											? 'is-decrease'
 											: 'is-neutral'
 								"
-								>{{ quantity.qty }} {{ quantity.uom
+								>{{ quantity.qty }} {{ unitLabel(quantity.uom)
 								}}<span class="sr-only">{{
 									effectLabel(quantity.effect, quantity.uom)
 								}}</span></strong

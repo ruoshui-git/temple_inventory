@@ -557,17 +557,28 @@
 }
 .notification-kinds {
 	width: 100%;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12px 20px;
-	padding: 12px;
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-control);
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px 16px;
+	margin: -12px 0 8px 24px;
+	padding: 0 12px 8px;
+	border: 0;
+	border-inline-start: 2px solid var(--p-border);
+}
+.notification-kinds legend {
+	margin-bottom: 0;
+	padding-inline: 4px;
 }
 .notification-kinds label {
 	display: inline-flex;
 	align-items: center;
 	gap: 7px;
+}
+@media (max-width: 600px) {
+	.notification-kinds {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		margin-inline-start: 12px;
+	}
 }
 .notification-save-row {
 	width: 100%;

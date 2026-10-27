@@ -4,8 +4,26 @@ import {
   movementSummaryMetrics,
 } from "../src/features/movements/movementSummary";
 import type { ReportRow } from "../src/lib/reportContract";
+import { setUnitSource } from "../src/lib/units";
 
 describe("movement quantity summary", () => {
+  it("sorts units by the shared unit rank within each movement kind", () => {
+    setUnitSource({
+      units: [
+        { name: "Box", label: "箱" },
+        { name: "Nos", label: "个" },
+      ],
+    });
+    const metrics = movementSummaryMetrics([
+      { kind: "Receive", stock_uom: "Nos", stock_qty: 1 },
+      { kind: "Receive", stock_uom: "Box", stock_qty: 2 },
+    ] as ReportRow[]);
+    expect(metrics[0]?.quantities.map(({ uom }) => uom)).toEqual([
+      "Box",
+      "Nos",
+    ]);
+    setUnitSource(undefined);
+  });
   it("keeps canonical movement order, separates units and marks only draft/cancelled quantities", () => {
     const rows = [
       { kind: "Loss", stock_uom: "件", stock_qty: 2, docstatus: 1 },
@@ -19,8 +37,8 @@ describe("movement quantity summary", () => {
     expect(metrics.map((metric) => metric.key)).toEqual(["Receive", "Loss"]);
     expect(metrics[0]?.quantities).toEqual([
       { uom: "袋", qty: 4, status: "已取消", effect: 0 },
-      { uom: "箱", qty: 3, status: "草稿", effect: 0 },
       { uom: "袋", qty: 5, status: "已提交", effect: 0 },
+      { uom: "箱", qty: 3, status: "草稿", effect: 0 },
     ]);
     expect(metrics[1]?.quantities).toEqual([
       { uom: "件", qty: 2, status: undefined, effect: 0 },
@@ -99,9 +117,9 @@ describe("movement quantity summary", () => {
       "遗失",
     ]);
     expect(itemMetrics[0]?.quantities).toEqual([
-      { uom: "套", qty: 6, status: "已提交" },
       { uom: "件", qty: 3, status: "草稿" },
       { uom: "件", qty: 5, status: "已取消" },
+      { uom: "套", qty: 6, status: "已提交" },
     ]);
     const recordMetrics = loanSummaryMetrics(
       [

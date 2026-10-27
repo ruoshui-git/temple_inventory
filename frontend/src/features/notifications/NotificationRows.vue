@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import type { InventoryNotification } from "./model";
+import { routeRegistry } from "../../lib/routeRegistry";
 import {
 	isDownloadLink,
 	notificationData,
@@ -25,6 +26,15 @@ async function open(row: InventoryNotification) {
 		return;
 	}
 	const path = row.link.replace(/^\/inventory(?=\/|$)/, "") || "/";
+	const matched = routeRegistry.some((route) => {
+		if (route.name === "not-found") return false;
+		const pattern = route.path.replace(/:[^/]+/g, "[^/]+");
+		return new RegExp(`^${pattern}/?$`).test(path);
+	});
+	if (!matched) {
+		emit("navigate");
+		return;
+	}
 	void router.push(path);
 	emit("navigate");
 }

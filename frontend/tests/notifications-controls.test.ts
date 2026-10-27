@@ -90,6 +90,24 @@ function harness(
 }
 
 describe("notification controller flows", () => {
+  it("sorts quantityText with the shared unit order and labels", async () => {
+    const { quantityText } =
+      await import("../src/features/dashboard/useDashboardController");
+    const { setUnitSource } = await import("../src/lib/units");
+    setUnitSource({
+      units: [
+        { name: "Box", label: "箱" },
+        { name: "Nos", label: "个" },
+      ],
+    });
+    expect(
+      quantityText([
+        { uom: "Nos", qty: 1 },
+        { uom: "Box", qty: 2 },
+      ]),
+    ).toBe("2 箱 · 1 个");
+    setUnitSource(undefined);
+  });
   it("refreshes unread count on focus and visibility and after marking a row read", async () => {
     let unread = 1;
     const call = vi.fn(async (endpoint: string) => {

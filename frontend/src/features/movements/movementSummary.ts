@@ -1,5 +1,6 @@
 import { movementLabels } from "../../lib/filterPresentation";
 import type { ReportRow } from "../../lib/reportContract";
+import { sortByUnit } from "../../lib/units";
 
 const MOVEMENT_ORDER = [
   "Receive",
@@ -51,7 +52,10 @@ export function movementSummaryMetrics(rows: ReportRow[]) {
       {
         key: kind,
         label: movementLabels[kind] || kind,
-        quantities: [...quantities.values()],
+        quantities: sortByUnit(
+          [...quantities.values()],
+          (quantity) => quantity.uom,
+        ),
         tone:
           [...quantities.values()].length > 0 &&
           [...quantities.values()].every((value) => value.effect > 0)
@@ -136,7 +140,10 @@ export function loanSummaryMetrics(rows: ReportRow[], records: boolean) {
       return {
         key,
         label: "借用数量",
-        quantities: [...quantities.values()],
+        quantities: sortByUnit(
+          [...quantities.values()],
+          (quantity) => quantity.uom,
+        ),
         tone: "neutral" as const,
       };
     }
@@ -155,7 +162,10 @@ export function loanSummaryMetrics(rows: ReportRow[], records: boolean) {
     return {
       key,
       label: summaryLabel,
-      quantities: [...quantities.values()],
+      quantities: sortByUnit(
+        [...quantities.values()],
+        (quantity) => quantity.uom,
+      ),
       tone: "neutral" as const,
     };
   });
