@@ -2150,6 +2150,15 @@
 .browse-action-menu .menu-item-icon {
 	flex: 0 0 18px;
 }
+.browse-action-menu .menu-item-stack {
+	display: grid;
+	gap: 2px;
+}
+.browse-action-menu .menu-item-hint {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	white-space: normal;
+}
 .browse-action-menu .menu-item-meta {
 	margin-inline-start: auto;
 	color: var(--p-muted);

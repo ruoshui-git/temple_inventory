@@ -3547,6 +3547,10 @@ button {
 	max-width: 100%;
 }
 .report-table-caption {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--p-space-2);
 	margin: 0 0 var(--p-space-2);
 	padding-inline: var(--p-table-cell-x, 12px);
 	font-size: var(--p-small);

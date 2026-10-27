@@ -29,6 +29,13 @@ kept in Git.
   hysteresis. Cell chips truncate with an ellipsis and a title.
   Sortable headers put the sort icon after the label in every column; a
   right-aligned column ends with the icon at its edge.
+- A top-level table puts its ☷ column settings in the page's result summary,
+  or in a caption marked `data-table-settings-outlet` (Reports), at every
+  width, so no empty settings column is pinned and edge fades meet the table
+  border. Nested tables and a second table sharing an outlet keep a header
+  cell; rows run beneath it unless a content column is pinned at the end.
+- Unavailable item lifecycle actions explain why in a second line of their
+  menu row, not as page text.
 - `taskEditor` routes hide the phone bottom navigation. `useVirtualKeyboard`
   tracks the on-screen keyboard, keeps the focused field visible and hides
   sticky action bars while typing. Landscape phones use compact browse chrome;

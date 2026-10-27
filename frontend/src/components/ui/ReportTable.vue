@@ -417,12 +417,12 @@ function groupMetric(group: DataTableGroup, column: string) {
 		:data-browse-scroll="'table:' + table.id"
 		:aria-label="table.label + ' · 可横向滚动'"
 	>
-		<p class="report-table-caption muted">
-			{{
+		<div class="report-table-caption muted" data-table-settings-outlet>
+			<span>{{
 				(total ?? table.rows.length) +
 				` 行完整结果 · 显示 ${Math.min(visibleLimit, table.rows.length)} 行`
-			}}
-		</p>
+			}}</span>
+		</div>
 		<DataTable
 			:ariaLabel="table.label"
 			:columns="columns"

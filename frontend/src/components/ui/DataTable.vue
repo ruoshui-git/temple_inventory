@@ -95,7 +95,6 @@ const {
 	hintVisible,
 	scrollMore,
 } = useOverflowEdges(tableScroll, tableFrame);
-const isMobile = ref(typeof window !== "undefined" && window.innerWidth < 1024);
 const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
 const settingsOpen = ref(false);
@@ -116,8 +115,7 @@ const rowTabIndex = (row: DataTableEntry) =>
 watch(
 	bodyRows,
 	(rows, previous) => {
-		if (isMobile.value && !settingsOutlet.value?.isConnected)
-			void nextTick(updateSettingsViewport);
+		if (!settingsOutlet.value?.isConnected) void nextTick(updateSettingsViewport);
 		if (!rows.length) {
 			focusedRowId.value = undefined;
 			return;
@@ -284,21 +282,24 @@ function toggleSettings() {
 }
 
 function updateSettingsViewport() {
-	const mobile = typeof window !== "undefined" && window.innerWidth < 1024;
-	if (mobile === isMobile.value && (!mobile || settingsOutlet.value?.isConnected)) return;
-	isMobile.value = mobile;
+	if (settingsOutlet.value?.isConnected) return;
 	settingsOutlet.value = undefined;
-	if (!isMobile.value || !tableFrame.value) return;
+	const frame = tableFrame.value;
+	// Only a top-level table may move its column settings into the nearest result summary or
+	// caption marked `data-table-settings-outlet`; nested tables and a second table sharing the
+	// same outlet keep their settings header cell.
+	if (!frame || frame.parentElement?.closest(".data-table-frame")) return;
 	for (
-		let parent = tableFrame.value.parentElement;
+		let parent = frame.parentElement;
 		parent && parent !== document.body;
 		parent = parent.parentElement
 	) {
-		const outlet = parent.querySelector<HTMLElement>(".browse-summary-copy");
-		if (outlet) {
-			settingsOutlet.value = outlet;
-			return;
-		}
+		const outlet = parent.querySelector<HTMLElement>(
+			".browse-summary-copy, [data-table-settings-outlet]",
+		);
+		if (!outlet) continue;
+		if (!outlet.querySelector(".data-table-settings-outlet")) settingsOutlet.value = outlet;
+		return;
 	}
 }
 
@@ -536,10 +537,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				</div>
 			</div>
 		</Teleport>
-		<Teleport
-			v-if="preferences && !compact && isMobile && settingsOutlet"
-			:to="settingsOutlet"
-		>
+		<Teleport v-if="preferences && !compact && settingsOutlet" :to="settingsOutlet">
 			<div class="data-table-settings-outlet">
 				<button
 					ref="settingsTrigger"
@@ -571,8 +569,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				'--data-table-pinned-start': `${pinnedStartInset}px`,
 				'--data-table-pinned-end': `${pinnedEndInset}px`,
 				'--data-table-header-height': `${headerHeight}px`,
-				'--data-table-settings-column-width':
-					isMobile && settingsOutlet ? '0px' : undefined,
+				'--data-table-settings-column-width': settingsOutlet ? '0px' : undefined,
 			}"
 		>
 			<div
@@ -652,7 +649,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								<template v-else>{{ column.label }}</template>
 							</th>
 							<th
-								v-if="preferences && !compact && (!isMobile || !settingsOutlet)"
+								v-if="preferences && !compact && !settingsOutlet"
 								class="data-table-settings-heading"
 							>
 								<button
@@ -693,7 +690,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									></span>
 								</td>
 								<td
-									v-if="preferences && !compact && !isMobile"
+									v-if="preferences && !compact && !settingsOutlet"
 									class="data-table-settings-cell"
 								></td>
 							</tr>
@@ -880,7 +877,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										/>
 									</td>
 									<td
-										v-if="preferences && !compact && !isMobile"
+										v-if="preferences && !compact && !settingsOutlet"
 										class="data-table-settings-cell"
 									></td>
 								</template>
@@ -905,7 +902,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 										</slot>
 									</td>
 									<td
-										v-if="preferences && !compact && !isMobile"
+										v-if="preferences && !compact && !settingsOutlet"
 										class="data-table-settings-cell"
 									></td>
 								</template>
@@ -918,7 +915,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:colspan="
 										orderedColumns.length +
 										Number(selectionEnabled) +
-										Number(Boolean(preferences && !compact && !isMobile))
+										Number(Boolean(preferences && !compact && !settingsOutlet))
 									"
 									class="data-table-group-detail-cell"
 									:style="{

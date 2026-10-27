@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 
 export function edgeIsOverflowing(gap: number, wasOverflowing: boolean) {
-	return gap > (wasOverflowing ? 1 : 8);
+  return gap > (wasOverflowing ? 1 : 8);
 }
 
 export function useOverflowEdges(
@@ -36,8 +36,10 @@ export function useOverflowEdges(
     const max = node.scrollWidth - node.clientWidth;
     const leftGap = node.scrollLeft;
     const rightGap = max - node.scrollLeft;
-    overflowStart.value = max > 1 && edgeIsOverflowing(leftGap, overflowStart.value);
-    overflowEnd.value = max > 1 && edgeIsOverflowing(rightGap, overflowEnd.value);
+    overflowStart.value =
+      max > 1 && edgeIsOverflowing(leftGap, overflowStart.value);
+    overflowEnd.value =
+      max > 1 && edgeIsOverflowing(rightGap, overflowEnd.value);
     const right = node.getBoundingClientRect().right;
     let inset = 0;
     let startInset = 0;
@@ -46,6 +48,8 @@ export function useOverflowEdges(
     )) {
       const style = getComputedStyle(cell);
       if (style.position !== "sticky" || style.right === "auto") continue;
+      // The settings heading pins only its header cell; rows run beneath it to the border.
+      if (cell.classList.contains("data-table-settings-heading")) continue;
       inset = Math.max(inset, right - cell.getBoundingClientRect().left);
     }
     for (const cell of Array.from(

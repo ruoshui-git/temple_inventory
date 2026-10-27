@@ -444,6 +444,20 @@
 	background: var(--p-soft);
 	z-index: 3;
 }
+/* Settings body cells are empty: unless a content column is pinned beside them, let rows
+   scroll under them so the edge fade sits on the table border instead of inside it. */
+.data-table-scroll:not(
+		:has(
+			.report-sticky-actions-column,
+			.operation-loan-outstanding-column,
+			.operation-movement-quantity-column
+		)
+	)
+	td.data-table-settings-cell {
+	position: static;
+	background: transparent;
+	box-shadow: none;
+}
 .data-table-scroll :is(th, td).report-sticky-actions-column {
 	position: sticky;
 	right: var(--data-table-settings-column-width);

@@ -222,24 +222,31 @@ const locationPrefs =
 							"
 							@click="toggleDisabled"
 						>
-							{{ lifecycleItem?.disabled ? "启用物品" : "停用物品" }}</button
+							<span class="menu-item-stack"
+								>{{ lifecycleItem?.disabled ? "启用物品" : "停用物品"
+								}}<small
+									v-if="lifecycleItem?.disabled === false && hasStock"
+									class="menu-item-hint"
+									>仍有库存（含借出、损坏），清零后才能停用</small
+								></span
+							></button
 						><button
 							type="button"
 							class="danger"
 							:disabled="c.lifecycleBusy.value || lifecycleItem?.can_delete !== true"
 							@click="removeItem"
 						>
-							删除物品
+							<span class="menu-item-stack"
+								>删除物品<small
+									v-if="lifecycleItem?.can_delete === false"
+									class="menu-item-hint"
+									>已被单据或其它记录引用，不能删除</small
+								></span
+							>
 						</button></PopupMenu
 					>
 				</div>
 			</div>
-			<p v-if="lifecycleItem?.disabled === false && hasStock" class="muted">
-				物品仍有库存，清空全部库位的可用、借出和损坏数量后才能停用。
-			</p>
-			<p v-if="lifecycleItem?.can_delete === false" class="muted">
-				物品仍被其它记录引用，解除关联后才能删除。
-			</p>
 			<ItemConversions
 				:item="item"
 				@updated="c.conversionsUpdated"
