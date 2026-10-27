@@ -1,0 +1,26 @@
+[
+  {
+    "family": "movements",
+    "requestedExpanded": 5,
+    "available": 30,
+    "expandedBefore": 5,
+    "historyRowsBefore": 25,
+    "historyRowsAfter": 25,
+    "restoreMs": 6621,
+    "calls": 5,
+    "callTimingsMs": [
+      2173,
+      2511,
+      2532,
+      2532,
+      2532
+    ],
+    "methods": [
+      "temple_inventory.browse.movement_history",
+      "temple_inventory.browse.movement_history",
+      "temple_inventory.browse.movement_history",
+      "temple_inventory.browse.movement_history",
+      "temple_inventory.browse.movement_history"
+    ]
+  }
+]

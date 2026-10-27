@@ -1,0 +1,36 @@
+[
+  {
+    "family": "loans",
+    "requestedExpanded": 10,
+    "available": 30,
+    "expandedBefore": 10,
+    "historyRowsBefore": 20,
+    "historyRowsAfter": 20,
+    "restoreMs": 1477,
+    "calls": 10,
+    "callTimingsMs": [
+      154,
+      228,
+      292,
+      357,
+      426,
+      493,
+      596,
+      696,
+      763,
+      864
+    ],
+    "methods": [
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions",
+      "temple_inventory.browse.operation_contributions"
+    ]
+  }
+]

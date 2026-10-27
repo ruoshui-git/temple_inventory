@@ -1,0 +1,18 @@
+[
+  {
+    "family": "loans",
+    "requestedExpanded": 1,
+    "available": 30,
+    "expandedBefore": 1,
+    "historyRowsBefore": 3,
+    "historyRowsAfter": 3,
+    "restoreMs": 593,
+    "calls": 1,
+    "callTimingsMs": [
+      70
+    ],
+    "methods": [
+      "temple_inventory.browse.operation_contributions"
+    ]
+  }
+]

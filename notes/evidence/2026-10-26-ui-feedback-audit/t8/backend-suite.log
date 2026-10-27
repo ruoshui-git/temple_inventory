@@ -1,0 +1,32 @@
+Starting test run with parameters: site=development.localhost, app=temple_inventory, verbose=False, tests=(), force=False, profile=False, junit_xml_output=/workspace/development/frappe-bench/apps/temple_inventory/notes/evidence/2026-10-26-ui-feedback-audit/t8/backend-suite.xml, failfast=False, skip_before_tests=False, debug=False, selected_categories=[]
+View detailed logs (using --verbose): /workspace/development/frappe-bench/logs/frappe.testing.log
+xmlrunner not found. Please install it to use XML output.
+
+Running 1322 unspecified-category tests for temple_inventory
+.....................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................F.......................F............................................................................................................................................................
+======================================================================
+FAIL: test_expiry_digest_defaults_off_and_other_events_on (temple_inventory.tests.test_notifications.NotificationTests.test_expiry_digest_defaults_off_and_other_events_on)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/development/frappe-bench/apps/temple_inventory/temple_inventory/tests/test_notifications.py", line 23, in test_expiry_digest_defaults_off_and_other_events_on
+    self.assertTrue(all(preferences["movement_kinds"].values()))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_recipient_filter_requires_app_role_master_event_and_notification_settings (temple_inventory.tests.test_notifications.NotificationTests.test_recipient_filter_requires_app_role_master_event_and_notification_settings)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/development/frappe-bench/apps/temple_inventory/temple_inventory/tests/test_notifications.py", line 44, in test_recipient_filter_requires_app_role_master_event_and_notification_settings
+    self.assertTrue(
+    ~~~~~~~~~~~~~~~^
+    	notifications._user_allowed("manager@example.com", "movement_submitted", "Receive")
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 1322 tests in 1185.952s
+
+FAILED (failures=2)
