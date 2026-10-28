@@ -11,7 +11,7 @@ import {
   quantities,
   movementLabels,
 } from "./browseModel";
-export const expiryBuckets = [
+const expiryBuckets = [
   { key: "expired_1_30", label: "已过期 1–30 天" },
   { key: "expired_31_90", label: "已过期 31–90 天" },
   { key: "expired_over_90", label: "已过期 >90 天" },
@@ -37,7 +37,7 @@ function expiryBucket(expiry?: string, today = previewDate) {
             ? "upcoming_31_90"
             : "upcoming_over_90";
 }
-export function dashboardScope(session: ReviewSession) {
+function dashboardScope(session: ReviewSession) {
   const scope = emptyScope();
   scope.categories = [...session.filters.dashboard.categories];
   scope.warehouses = [...session.filters.dashboard.warehouses];

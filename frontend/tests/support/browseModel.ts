@@ -27,13 +27,6 @@ export const movementLabels: Record<string, string> = {
   Opening: "期初库存",
   Reconcile: "盘点调整",
 };
-export const outcomes = {
-  outstanding: "未归还",
-  returned: "已归还",
-  damaged: "损坏",
-  lost: "遗失",
-};
-type Outcome = keyof typeof outcomes;
 export function resolvePeriod(period: PreviewPeriod, today = previewDate) {
   if (period.key === "all") return { from: "", to: "" };
   if (period.key === "custom") return { from: period.from, to: period.to };
@@ -50,22 +43,6 @@ export function resolvePeriod(period: PreviewPeriod, today = previewDate) {
 export function inPeriod(date: string, period: PreviewPeriod) {
   const { from, to } = resolvePeriod(period);
   return (!from || date >= from) && (!to || date <= to);
-}
-function matchesExpiry(
-  expiry: string | undefined,
-  status: string,
-  today = previewDate,
-) {
-  if (status === "all") return true;
-  if (status === "undated") return !expiry;
-  if (!expiry) return false;
-  if (status === "expired") return expiry < today;
-  if (status === "unexpired") return expiry >= today;
-  if (status === "soon") {
-    const days = (Date.parse(expiry) - Date.parse(today)) / 86400000;
-    return days >= 0 && days <= 30;
-  }
-  return true;
 }
 export function movementSummary(
   rows: ReviewMovement[],
@@ -167,26 +144,6 @@ export function quantityText(rows: { qty: number; uom: string }[]) {
       .join(" · ") || "0"
   );
 }
-function groupMovements(rows: ReviewMovement[]) {
-  const groups = new Map<string, ReviewMovement[]>();
-  rows.forEach((row) =>
-    groups.set(row.code, [...(groups.get(row.code) || []), row]),
-  );
-  return [...groups].map(([code, lines]) => ({
-    code,
-    name: lines[0].itemName,
-    lines,
-    count: new Set(lines.map((row) => row.name)).size,
-    latest: lines
-      .map((row) => row.date)
-      .sort()
-      .at(-1)!,
-    totals: [...new Set(lines.map((row) => row.kind))].map((kind) => ({
-      kind,
-      text: quantityText(lines.filter((row) => row.kind === kind)),
-    })),
-  }));
-}
 export function remaining(line: ReviewLoan["lines"][number]) {
   return Math.max(0, line.qty - line.returned - line.damaged - line.lost);
 }
@@ -222,55 +179,4 @@ export function filterLoans(
       ),
     }))
     .filter((loan) => loan.lines.length);
-}
-export function groupLoans(
-  loans: ReviewLoan[],
-  outcome: string,
-  session: ReviewSession,
-) {
-  type Entry = {
-    loan: ReviewLoan;
-    line: ReviewLoan["lines"][number];
-    qty: number;
-  };
-  const groups = new Map<
-    string,
-    {
-      code: string;
-      name: string;
-      outcome: Outcome;
-      uom: string;
-      qty: number;
-      entries: Entry[];
-    }
-  >();
-  loans
-    .filter((loan) => loan.status !== "draft")
-    .forEach((loan) =>
-      loan.lines.forEach((line) => {
-        (Object.keys(outcomes) as Outcome[])
-          .filter((key) => outcome === "all" || outcome === key)
-          .forEach((key) => {
-            const qty = key === "outstanding" ? remaining(line) : line[key];
-            if (qty <= 0) return;
-            const id = `${line.code}:${key}`;
-            const item = session.stock.find((item) => item.code === line.code);
-            const group = groups.get(id) || {
-              code: line.code,
-              name: item?.name || line.code,
-              outcome: key,
-              uom: item?.uom || "",
-              qty: 0,
-              entries: [],
-            };
-            group.qty += qty;
-            group.entries.push({ loan, line, qty });
-            groups.set(id, group);
-          });
-      }),
-    );
-  return [...groups.values()].map((group) => ({
-    ...group,
-    count: new Set(group.entries.map((entry) => entry.loan.name)).size,
-  }));
 }

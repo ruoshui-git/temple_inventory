@@ -628,22 +628,11 @@ function nativeActivity(row: (typeof activities)[number]) {
   };
 }
 
-/** Gallery-only service controls; shared product components contain no simulations. */
-const fixtureScenarios = reactive({
-  failEndpoint: "",
-  failReport: false,
-  reportDelay: 0,
-  pickerPageSize: 0,
-});
 export const fixtureServices: InventoryServices = {
   async call<T>(
     endpoint: string,
     args: Record<string, unknown> = {},
   ): Promise<T> {
-    if (fixtureScenarios.failEndpoint === endpoint) {
-      fixtureScenarios.failEndpoint = "";
-      throw new Error("示例服务暂时失败，输入和选择已保留，请重试");
-    }
     if (endpoint.startsWith("warehouses."))
       return fixtureWarehouseCall(endpoint, args) as T;
     if (endpoint.startsWith("configuration."))
@@ -955,8 +944,7 @@ export const fixtureServices: InventoryServices = {
         categories.includes(category) ||
         (args.uncategorized === true && !category);
       const start = Number(args.start || 0),
-        size =
-          fixtureScenarios.pickerPageSize || Number(args.page_length || 30);
+        size = Number(args.page_length || 30);
       const matches = reviewSession.stock.filter(
         (row) =>
           `${row.code} ${row.name} ${row.category} ${row.barcode || ""}`
@@ -1004,14 +992,6 @@ export const fixtureServices: InventoryServices = {
     throw new Error(`示例服务尚未配置：${endpoint}`);
   },
   async report(query, options) {
-    if (fixtureScenarios.reportDelay)
-      await new Promise((resolve) =>
-        setTimeout(resolve, fixtureScenarios.reportDelay),
-      );
-    if (fixtureScenarios.failReport) {
-      fixtureScenarios.failReport = false;
-      throw new Error("示例读取失败，当前范围已保留，请重试");
-    }
     return fixtureReport(JSON.parse(JSON.stringify(query)), options);
   },
   upload: fixtureUpload,

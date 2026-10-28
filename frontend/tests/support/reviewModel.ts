@@ -67,20 +67,6 @@ const route = <P extends PreviewPage>(
 
 const previewPages: readonly PreviewPageRoute[] = [
   route("dashboard", "overview", "/", "物资总览", "首页"),
-  route(
-    "movement-form",
-    "Receive-50",
-    "/preview/receive-50",
-    "50种物品入库 · 完整",
-    "表单",
-  ),
-  route(
-    "movement-form",
-    "Receive-50-invalid",
-    "/preview/receive-50-invalid",
-    "50种物品入库 · 待完善",
-    "表单",
-  ),
   route("inventory", "list", "/stock", "库存列表", "库存"),
   route("inventory", "filtered", "/stock", "筛选结果", "库存"),
   route("inventory", "empty", "/stock", "无匹配结果", "库存"),
@@ -302,13 +288,6 @@ const previewPages: readonly PreviewPageRoute[] = [
         "导出",
       ),
   ),
-  route(
-    "activity-list",
-    "large",
-    "/preview/activities-large",
-    "活动 · 长文本与大结果集",
-    "更多",
-  ),
   route("activity-list", "active", "/activities", "活动", "更多"),
   route(
     "activity-detail",
@@ -363,20 +342,6 @@ export function getPreviewPage(key: string) {
       "更多",
     );
   return undefined;
-}
-
-function pageHash(key: PreviewPageKey) {
-  return `#review/${encodeURIComponent(key)}`;
-}
-
-function pageFromHash(hash: string) {
-  const encoded = hash.match(/^#review\/(.+)$/)?.[1];
-  if (!encoded) return undefined;
-  try {
-    return getPreviewPage(decodeURIComponent(encoded));
-  } catch {
-    return undefined;
-  }
 }
 
 export type OperationKind =
@@ -1263,206 +1228,6 @@ function matchesLoanLine(
       ? (borrowed.batch || "") === (line.batch || "")
       : index === line.loanLineIndex)
   );
-}
-
-function submitDraft(
-  kind: DraftKind,
-  name?: string,
-  session: ReviewSession = reviewSession,
-) {
-  const draft = findDraft(kind, name, session);
-  if (!draft) return undefined;
-  if (draft.status !== "draft") return draft;
-  if (
-    kind === "Return" &&
-    draft.lines.some((line) => line.returnOutcome === "lost")
-  )
-    return undefined;
-  const linkedLoan = draft.loanName
-    ? session.loans.find((loan) => loan.name === draft.loanName)
-    : undefined;
-  if (
-    (kind === "Return" || draft.loanName) &&
-    ["Return", "Damage", "Loss"].includes(kind) &&
-    (!linkedLoan || !draft.lines.length)
-  )
-    return undefined;
-  const settlement = ["Return", "Damage", "Loss"].includes(kind) && linkedLoan;
-  if (settlement) {
-    const requested = new Map<string, number>();
-    const allocations: {
-      borrowed: ReviewLoan["lines"][number];
-      qty: number;
-      outcome: "returned" | "damaged" | "lost";
-    }[] = [];
-    for (const line of draft.lines) {
-      const loan = session.loans.find(
-        (row) => row.name === (line.loanName || draft.loanName),
-      );
-      if (
-        !loan ||
-        loan.borrower !== draft.borrower ||
-        loan.activity !== draft.activity ||
-        !Number.isFinite(line.qty) ||
-        line.qty <= 0
-      )
-        return undefined;
-      const index =
-        line.loanLineIndex ??
-        loan.lines.findIndex((row, i) => matchesLoanLine(line, row, i));
-      const borrowed = loan.lines[index];
-      if (!borrowed || !matchesLoanLine(line, borrowed, index))
-        return undefined;
-      const key = `${loan.name}/${index}`;
-      requested.set(key, (requested.get(key) || 0) + line.qty);
-      if (
-        requested.get(key)! >
-        borrowed.qty - borrowed.returned - borrowed.damaged - borrowed.lost
-      )
-        return undefined;
-      allocations.push({
-        borrowed,
-        qty: line.qty,
-        outcome:
-          kind === "Loss"
-            ? "lost"
-            : kind === "Damage"
-              ? "damaged"
-              : line.returnOutcome || "returned",
-      });
-    }
-    for (const allocation of allocations)
-      allocation.borrowed[allocation.outcome] += allocation.qty;
-    for (const loan of session.loans)
-      loan.status = loan.lines.some(
-        (line) => line.qty > line.returned + line.damaged + line.lost,
-      )
-        ? "outstanding"
-        : loan.lines.some((line) => line.lost)
-          ? "lost"
-          : loan.lines.some((line) => line.damaged)
-            ? "damaged"
-            : "returned";
-  }
-  if (draft.timeMode !== "manual") draft.postingTime = "10:30";
-  draft.saved = true;
-  draft.version = (draft.version || 1) + 1;
-  assignReceiptBatchIds(draft, session);
-  draft.status = "completed";
-  if (kind === "Item") {
-    const item = session.stock.find(
-      (candidate) => candidate.code === draft.itemCode,
-    );
-    if (item) {
-      item.barcode = draft.barcode;
-      item.description = draft.description;
-      item.images = draft.images;
-      item.files = draft.files;
-      item.name = draft.itemName?.trim() || item.name;
-      item.category = draft.category?.trim() || item.category;
-    }
-  } else if (kind === "Reconcile") {
-    draft.lines
-      .filter(
-        (line) =>
-          line.countedQty !== undefined && String(line.countedQty) !== "",
-      )
-      .forEach((line) => {
-        const item = session.stock.find(
-          (candidate) => candidate.code === line.code,
-        );
-        if (!item) return;
-        session.movements.unshift({
-          lineId: line.id,
-          postingTime: draft.postingTime,
-          name: draft.name,
-          kind: "Reconcile",
-          docstatus: 1,
-          date: draft.postingDate,
-          code: item.code,
-          itemName: item.name,
-          qty: (line.countedQty ?? line.qty) - line.qty,
-          bookQty: line.qty,
-          countedQty: line.countedQty,
-          reason: line.reason,
-          uom: line.uom,
-          from: "样本账面数量",
-          to: line.location,
-          activity: draft.activity || undefined,
-        });
-      });
-  } else {
-    if (kind === "Loan" && draft.lines.length) {
-      session.loans.unshift({
-        name: draft.name,
-        borrower: draft.borrower,
-        activity: draft.activity,
-        loanDate: draft.postingDate,
-        status: "outstanding",
-        lines: draft.lines.map((line) => ({
-          code: line.code,
-          qty: line.qty,
-          returned: 0,
-          damaged: 0,
-          lost: 0,
-          location: line.sourceLocation || line.location,
-          batch: line.batch,
-        })),
-      });
-    }
-    draft.lines.forEach((line) => {
-      const item = session.stock.find(
-        (candidate) => candidate.code === line.code,
-      );
-      if (!item) return;
-      session.movements.unshift({
-        lineId: line.id,
-        postingTime: draft.postingTime,
-        name: draft.name,
-        kind:
-          kind === "Return" && line.returnOutcome === "damaged"
-            ? "Damage"
-            : kind === "Return" && line.returnOutcome === "lost"
-              ? "Loss"
-              : kind,
-        docstatus: 1,
-        date: draft.postingDate,
-        code: item.code,
-        itemName: item.name,
-        qty: line.qty,
-        uom: line.uom,
-        from: settlement
-          ? "借出"
-          : line.sourceLocation ||
-            (kind === "Receive" ? draft.source || "—" : line.location),
-        to:
-          kind === "Loan"
-            ? "借出"
-            : kind === "Damage" || line.returnOutcome === "damaged"
-              ? "损坏待处理 / 斋堂"
-              : kind === "Loss" || line.returnOutcome === "lost"
-                ? "遗失"
-                : kind === "Disposal"
-                  ? "报废"
-                  : kind === "Issue"
-                    ? "领用"
-                    : line.location,
-        batch: line.batch,
-        entryUom: line.entryUom,
-        entryQty: line.entryQty,
-        conversionFactor: line.conversionFactor,
-        manufacturingDate: line.manufacturingDate,
-        loanLineIndex: line.loanLineIndex,
-        reason: line.reason,
-        loanName:
-          kind === "Loan" ? draft.name : line.loanName || draft.loanName,
-        borrower: draft.borrower || undefined,
-        activity: draft.activity || undefined,
-      });
-    });
-  }
-  captureSavedDraft(draft);
-  return draft;
 }
 
 function warehouseFixtureNodes() {

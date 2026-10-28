@@ -1,12 +1,7 @@
-import { reactive } from "vue";
 import {
   defaultDisplayPreferences,
   type DisplayPreferences,
 } from "../../src/lib/displayPreferences";
-const fixtureDisplayScenario = reactive({
-  failRead: false,
-  failSave: false,
-});
 let confirmed: DisplayPreferences = { ...defaultDisplayPreferences };
 function seedFixtureDisplay(values: DisplayPreferences) {
   confirmed = {
@@ -20,13 +15,7 @@ export function fixtureDisplayCall(
   args: Record<string, unknown>,
 ) {
   if (endpoint === "session.info") {
-    if (fixtureDisplayScenario.failRead)
-      throw new Error("图库账户设置读取失败");
     return { user: "gallery-reviewer", ui_preferences: { ...confirmed } };
-  }
-  if (fixtureDisplayScenario.failSave) {
-    fixtureDisplayScenario.failSave = false;
-    throw new Error("图库账户设置保存失败");
   }
   seedFixtureDisplay(args as unknown as DisplayPreferences);
   return { ...confirmed };
