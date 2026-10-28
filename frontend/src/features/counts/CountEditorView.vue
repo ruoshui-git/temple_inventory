@@ -205,24 +205,39 @@ function deskItem(row: Record<string, unknown>) {
 	};
 }
 const countColumns = computed<DataColumn[]>(() => [
-	{ id: "warehouse", label: "位置", required: true, defaultVisible: true },
+	{
+		id: "warehouse",
+		label: "位置",
+		required: true,
+		defaultVisible: true,
+		className: "count-required-heading",
+	},
 	{ id: "image", label: "图片", defaultVisible: true },
 	{
 		id: "item_name",
 		label: "物品名称",
 		required: true,
 		defaultVisible: true,
+		className: "count-required-heading",
 	},
 	{
 		id: "item_code",
 		label: "物品编码",
 		required: true,
 		defaultVisible: true,
+		className: "count-required-heading",
 	},
 	{ id: "batch", label: "批次 / 组合", defaultVisible: true },
 	{ id: "stock_uom", label: "库存单位", defaultVisible: true },
 	{ id: "current_qty", label: "账面数量", defaultVisible: true, align: "end" },
-	{ id: "qty", label: "实点数量", required: true, defaultVisible: true, align: "end" },
+	{
+		id: "qty",
+		label: "实点数量",
+		required: true,
+		defaultVisible: true,
+		align: "end",
+		className: "count-required-heading",
+	},
 	{ id: "allocations", label: "批次分配", defaultVisible: true },
 ]);
 const countTableRows = computed<DataTableRecord[]>(() =>
@@ -508,7 +523,7 @@ async function back() {
 										>
 									</div>
 									<label v-if="writable" class="native-count-card-entry">
-										实点数量
+										实点数量 <b class="required-mark">*</b>
 										<input
 											class="native-count-card-input"
 											type="number"
@@ -772,6 +787,11 @@ async function back() {
 <style scoped>
 .count-form-shell {
 	min-width: 0;
+}
+:deep(.count-table th.count-required-heading)::after {
+	content: " *";
+	color: var(--p-danger);
+	font-weight: 700;
 }
 .count-form-main {
 	gap: 12px !important;

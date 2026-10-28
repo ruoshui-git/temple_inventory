@@ -29,6 +29,32 @@ export function unitLabel(uom: UnitLike): string {
   return units().find((unit) => unit.name === name)?.label || name;
 }
 
+export type UnitOption = { value: string; label: string; detail?: string };
+
+export function unitOption(
+  uom: UnitLike,
+  options: {
+    factor?: number;
+    stockUom?: UnitLike;
+    category?: string | null;
+    whole?: boolean;
+  } = {},
+): UnitOption {
+  const name = unitName(uom);
+  const label = unitLabel(uom);
+  const details = [label !== name ? name : ""];
+  if (options.factor !== undefined && options.stockUom) {
+    details.push(
+      `1 ${label} = ${options.factor} ${unitLabel(options.stockUom)}`,
+    );
+  }
+  if (options.category) details.push(options.category);
+  if (options.whole !== undefined)
+    details.push(options.whole ? "整数数量" : "允许小数");
+  const detail = details.filter(Boolean).join(" · ");
+  return { value: name, label, ...(detail ? { detail } : {}) };
+}
+
 export function unitRank(uom: UnitLike): number {
   const name = unitName(uom);
   if (!name) return Number.MAX_SAFE_INTEGER;

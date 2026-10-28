@@ -148,10 +148,19 @@ function onImageFile(event: Event) {
 	input.value = "";
 }
 function pasteImage(event: ClipboardEvent) {
+	if (props.presentation === "camera") return;
+	const root = area.value?.closest<HTMLElement>(".inventory-scanner");
+	if (!root?.isConnected || root.closest("[hidden], [aria-hidden='true']")) return;
+	const target = event.target;
+	const editable =
+		target instanceof HTMLElement &&
+		(target.isContentEditable || target.matches("input, textarea, [contenteditable='true']"));
+	if (editable && !root.contains(target)) return;
+	if (event.clipboardData?.getData("text/plain")) return;
 	const file = Array.from(event.clipboardData?.files || []).find((entry) =>
 		entry.type.startsWith("image/"),
 	);
-	if (file && props.presentation !== "camera") {
+	if (file) {
 		event.preventDefault();
 		void decodeImage(file);
 	}

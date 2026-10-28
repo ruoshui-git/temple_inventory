@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
-import { unitLabel, sortByUnit } from "../../lib/units";
+import { unitLabel, unitOption, sortByUnit } from "../../lib/units";
+import { formatQuantity } from "../../lib/formatQuantity";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
 	recordConversion,
@@ -389,10 +390,10 @@ function sectionHasOutcome(section: OperationLocationSection) {
 	return props.draft.kind === "Return" && section.lines.some((line) => !!line.loanName);
 }
 function sectionGridTemplate(section: OperationLocationSection) {
-	const columns = ["minmax(180px, 1.6fr)"];
+	const columns = ["minmax(156px, 1.35fr)"];
 	if (sectionHasBatch(section))
-		columns.push("minmax(176px, 1.35fr)", "minmax(72px, 0.62fr)", "minmax(88px, 0.75fr)");
-	columns.push("88px", "96px");
+		columns.push("minmax(132px, 1fr)", "minmax(132px, 0.95fr)", "minmax(132px, 0.95fr)");
+	columns.push("88px", "96px", "88px");
 	if (props.draft.kind === "Transfer") columns.push("minmax(128px, 1fr)");
 	if (["Damage", "Loss"].includes(props.draft.kind)) columns.push("minmax(120px, 0.95fr)");
 	if (sectionHasOutcome(section)) columns.push("minmax(128px, 1fr)");
@@ -1393,23 +1394,23 @@ function receiveBatchChanged(line: AllocationLine) {
 										: "添加本次操作涉及的物品。"
 					}}
 				</p>
-				<UiButton
-					v-if="!disabled && !settlement"
-					variant="secondary"
-					icon="box"
-					data-field="items"
-					:disabled="!canAddItem"
-					@click="pick()"
-					>添加物品</UiButton
-				>
-				<UiButton
-					v-if="!disabled && !settlement"
-					variant="secondary"
-					icon="scan"
-					:disabled="!canAddItem"
-					@click="pick([], true)"
-					>扫码添加</UiButton
-				>
+				<div v-if="!disabled && !settlement" class="operation-empty-actions">
+					<UiButton
+						variant="secondary"
+						icon="box"
+						data-field="items"
+						:disabled="!canAddItem"
+						@click="pick()"
+						>添加物品</UiButton
+					>
+					<UiButton
+						variant="secondary"
+						icon="scan"
+						:disabled="!canAddItem"
+						@click="pick([], true)"
+						>扫码添加</UiButton
+					>
+				</div>
 			</div>
 			<div
 				v-if="
@@ -1510,7 +1511,9 @@ function receiveBatchChanged(line: AllocationLine) {
 				class="operation-location-section"
 			>
 				<header class="operation-location-heading">
-					<strong :id="`${sectionHeaderId}-${sectionIndex}`">{{ sectionLabel }}</strong>
+					<strong :id="`${sectionHeaderId}-${sectionIndex}`"
+						>{{ sectionLabel }} <b class="required-mark">*</b></strong
+					>
 					<SearchSelect
 						class="operation-section-location"
 						:label="sectionLabel"
@@ -1538,12 +1541,12 @@ function receiveBatchChanged(line: AllocationLine) {
 					<button
 						v-if="!disabled && !settlement"
 						type="button"
-						class="operation-add-item-quiet"
+						class="operation-add-item-action"
 						aria-label="添加物品"
 						@click="pickAt(section.location)"
 					>
-						<span class="operation-add-item-desktop">+ 添加物品</span>
-						<span class="operation-add-item-phone" aria-hidden="true">+</span>
+						<span class="operation-add-item-desktop">＋ 添加物品</span>
+						<span class="operation-add-item-phone" aria-hidden="true">＋</span>
 					</button>
 				</header>
 				<div
@@ -1551,11 +1554,39 @@ function receiveBatchChanged(line: AllocationLine) {
 					:style="{ '--operation-grid-template': sectionGridTemplate(section) }"
 					aria-hidden="true"
 				>
-					<span>物品</span>
+					<span>物品 <b class="required-mark">*</b></span>
 					<template v-if="sectionHasBatch(section)">
-						<span>批次</span><span>效期</span><span>生产日期</span>
+						<span
+							>批次
+							<b
+								v-if="
+									draft.kind !== 'Receive' &&
+									section.lines.some(
+										(line) =>
+											stockItem(line.code)?.tracksBatch &&
+											!line.nativeBundle,
+									)
+								"
+								class="required-mark"
+								>*</b
+							></span
+						><span
+							>效期
+							<b
+								v-if="
+									draft.kind === 'Receive' &&
+									section.lines.some(
+										(line) => stockItem(line.code)?.tracksExpiry,
+									)
+								"
+								class="required-mark"
+								>*</b
+							></span
+						><span>生产日期 <small class="muted">可选</small></span>
 					</template>
-					<span>数量</span><span>单位</span>
+					<span>数量 <b class="required-mark">*</b></span
+					><span>单位 <b class="required-mark">*</b></span
+					><span class="operation-stock-total-heading" aria-hidden="true"></span>
 					<span v-if="draft.kind === 'Transfer'">调入</span>
 					<span v-if="['Damage', 'Loss'].includes(draft.kind)">原因</span>
 					<span v-if="sectionHasOutcome(section)">归还结果</span>
@@ -1742,18 +1773,36 @@ function receiveBatchChanged(line: AllocationLine) {
 								:model-value="line.entryUom || line.uom"
 								:disabled="disabled || hydrating"
 								:clearable="false"
+								data-field="uom"
 								:options="[
-									{ value: line.uom, label: unitLabel(line.uom) },
-									...(stockItem(line.code)?.alternateUnits?.map((row) => ({
-										value: row.uom,
-										label: unitLabel(row.uom),
-										detail: `1 ${unitLabel(row.uom)} = ${row.factor} ${unitLabel(line.uom)}`,
-									})) || []),
+									unitOption(line.uom),
+									...(stockItem(line.code)?.alternateUnits?.map((row) =>
+										unitOption(row.uom, {
+											factor: row.factor,
+											stockUom: line.uom,
+										}),
+									) || []),
 									{ value: '__other', label: '设置换算…' },
 								]"
 								@update:model-value="selectUnit(line, $event)"
 							/>
 						</label>
+						<span
+							v-if="line.entryUom && line.entryUom !== line.uom"
+							class="operation-row-stock-total muted"
+							>=
+							{{
+								formatQuantity(
+									enteredQty(line) * Number(line.conversionFactor || 1),
+								)
+							}}
+							{{ unitLabel(line.uom) }}</span
+						>
+						<span
+							v-else
+							class="operation-row-stock-total-empty"
+							aria-hidden="true"
+						></span>
 						<label
 							v-if="draft.kind === 'Transfer'"
 							class="operation-row-cell operation-row-destination"
@@ -1863,9 +1912,14 @@ function receiveBatchChanged(line: AllocationLine) {
 				v-if="!disabled && !settlement && draft.items.length"
 				class="operation-add-section"
 			>
-				<UiButton v-if="!addingSection" variant="ghost" @click="startAddingSection">{{
-					addSectionLabel
-				}}</UiButton>
+				<button
+					v-if="!addingSection"
+					class="operation-add-section-quiet"
+					type="button"
+					@click="startAddingSection"
+				>
+					{{ addSectionLabel }}
+				</button>
 				<div
 					v-else
 					ref="addSectionPicker"
@@ -2042,7 +2096,17 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 
 .operation-lines-empty > .preview-receive-target {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	align-items: center;
+	column-gap: var(--p-space-2);
 	width: min(100%, 28rem);
+}
+.operation-empty-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--p-space-2);
 }
 
 .operation-lines-loading-caption {

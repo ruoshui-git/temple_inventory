@@ -708,21 +708,46 @@ select {
 	min-height: 36px;
 	padding-block: 4px;
 }
-.operation-add-item-quiet {
+.operation-add-item-action {
 	grid-column: 5;
 	justify-self: end;
 	min-height: 36px;
 	padding: 0 var(--p-space-2);
-	border: 0;
+	border: 1px solid var(--p-border-soft);
 	border-radius: var(--p-radius-control);
-	background: transparent;
+	background: var(--p-surface);
 	color: var(--p-accent-strong);
 	font: inherit;
+	font-weight: 600;
 	white-space: nowrap;
 	cursor: pointer;
 }
-.operation-add-item-quiet:hover {
+.operation-add-item-action:hover {
 	background: var(--p-surface-muted);
+}
+.operation-add-section-quiet {
+	padding: 4px 0;
+	border: 0;
+	background: transparent;
+	color: var(--p-muted);
+	font: inherit;
+	cursor: pointer;
+}
+.operation-add-section-quiet:hover {
+	color: var(--p-text);
+}
+.operation-row-stock-total,
+.operation-row-stock-total-empty {
+	align-self: center;
+	font-size: 0.75rem;
+	white-space: nowrap;
+}
+.operation-stock-total-heading {
+	min-width: 0;
+}
+.required-mark {
+	color: var(--p-danger);
+	font-weight: 700;
 }
 .operation-add-item-phone {
 	display: none;
@@ -740,6 +765,13 @@ select {
 	color: var(--p-muted);
 	font-size: var(--p-small);
 	line-height: 1.2;
+}
+.operation-column-headings > * {
+	white-space: nowrap;
+}
+.operation-column-headings small {
+	display: inline-block;
+	white-space: nowrap;
 }
 .operation-column-headings > :last-child {
 	text-align: center;
@@ -925,7 +957,7 @@ select {
 	.operation-section-count {
 		display: none;
 	}
-	.operation-add-item-quiet {
+	.operation-add-item-action {
 		grid-column: 3;
 		grid-row: 1;
 		width: 40px;
@@ -970,9 +1002,9 @@ select {
 		grid-column: 1 / -1;
 		grid-row: 2;
 		grid-template-columns:
-			minmax(72px, 0.7fr)
-			minmax(108px, 1.15fr)
-			minmax(108px, 1.15fr);
+			minmax(58px, 0.55fr)
+			minmax(132px, 1.2fr)
+			minmax(132px, 1.2fr);
 		gap: 2px;
 	}
 	.operation-row-cell {
@@ -999,12 +1031,16 @@ select {
 		grid-row: 3;
 	}
 	.operation-row-quantity {
-		flex: 0 0 64px;
-		width: 64px;
+		flex: 0 0 84px;
+		width: 84px;
 	}
 	.operation-row-unit {
 		flex: 0 0 84px;
 		width: 84px;
+	}
+	.operation-row-stock-total,
+	.operation-row-stock-total-empty {
+		flex: 0 0 auto;
 	}
 	.operation-row-destination,
 	.operation-row-reason,

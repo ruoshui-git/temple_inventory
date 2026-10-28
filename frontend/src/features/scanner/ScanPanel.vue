@@ -97,6 +97,13 @@ function imageFromTransfer(files: FileList | null) {
 }
 function pasteImage(event: ClipboardEvent) {
 	if (!open.value) return;
+	const target = event.target;
+	const editable =
+		target instanceof HTMLElement &&
+		(target.isContentEditable || target.matches("input, textarea, [contenteditable='true']"));
+	const surface = document.querySelector<HTMLElement>(".scan-panel");
+	if (editable && surface && !surface.contains(target)) return;
+	if (event.clipboardData?.getData("text/plain")) return;
 	const file = Array.from(event.clipboardData?.files || []).find((entry) =>
 		entry.type.startsWith("image/"),
 	);

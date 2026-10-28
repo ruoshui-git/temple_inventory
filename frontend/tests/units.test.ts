@@ -11,6 +11,7 @@ import {
   sortByUnit,
   unitLabel,
   unitRank,
+  unitOption,
 } from "../src/lib/units";
 
 describe("shared unit labels and ordering", () => {
@@ -67,6 +68,26 @@ describe("shared unit labels and ordering", () => {
     expect(unitLabel("Box")).toBe("箱");
     reference.units = [];
     expect(unitLabel("Box")).toBe("Box");
+    setUnitSource(undefined);
+  });
+
+  it("builds translated unit options with native names and conversion factors", () => {
+    const reference = createReferenceData();
+    reference.units = [
+      { name: "Nos", label: "个", whole: true },
+      { name: "Box", label: "箱", whole: true },
+    ];
+    setUnitSource(reference);
+    expect(unitOption("Nos")).toEqual({
+      value: "Nos",
+      label: "个",
+      detail: "Nos",
+    });
+    expect(unitOption("Box", { factor: 12, stockUom: "Nos" })).toEqual({
+      value: "Box",
+      label: "箱",
+      detail: "Box · 1 箱 = 12 个",
+    });
     setUnitSource(undefined);
   });
 });

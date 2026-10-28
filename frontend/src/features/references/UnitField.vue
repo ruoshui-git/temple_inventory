@@ -8,6 +8,7 @@ import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import FormField from "../../components/ui/FormField.vue";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useReferenceCreation } from "./useReferenceCreation";
+import { unitOption } from "../../lib/units";
 const props = withDefaults(
 	defineProps<{ modelValue?: string; disabled?: boolean; required?: boolean; error?: string }>(),
 	{ required: false },
@@ -47,19 +48,7 @@ validation.register(
 	() => document.querySelector<HTMLElement>(".preview-unit-create input")?.focus(),
 );
 const requiredError = computed(() => props.error || validation.errors["unit-name"]);
-const unitOptions = computed(() =>
-	reference.units.map((unit) => ({
-		value: unit.name,
-		label: unit.label || unit.name,
-		detail: [
-			unit.label && unit.label !== unit.name ? unit.name : "",
-			unit.category,
-			unit.whole ? "整数数量" : "允许小数",
-		]
-			.filter(Boolean)
-			.join(" · "),
-	})),
-);
+const unitOptions = computed(() => reference.units.map((unit) => unitOption(unit.name, unit)));
 async function close() {
 	await finish();
 }

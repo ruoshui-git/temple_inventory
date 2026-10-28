@@ -29,6 +29,54 @@ function deferred<T>() {
 }
 
 describe("inline operation scan panel", () => {
+  it("does not decode an image pasted into the item title while creating from scan", async () => {
+    const call = vi.fn<InventoryServices["call"]>(
+      async () =>
+        ({
+          results: [],
+          matched_count: 0,
+          next_start: null,
+        }) as never,
+    );
+    const host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call, report: vi.fn(), upload: vi.fn() },
+          createReferenceData(),
+        );
+        return () =>
+          h("div", [
+            h(ScanPanel, { inline: true, allowCreate: true }),
+            h("input", { id: "item-name", "aria-label": "名称" }),
+          ]);
+      },
+    });
+    const wrapper = mount(host, {
+      global: {
+        stubs: { UiButton: ButtonStub, SearchSelect: true, Scanner: true },
+      },
+    });
+    wrappers.push(wrapper);
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "扫描物品 / 批次 / 库位")!
+      .trigger("click");
+    await flushPromises();
+    const title = wrapper.get("#item-name").element;
+    const event = new Event("paste", {
+      bubbles: true,
+      cancelable: true,
+    }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        files: [new File(["image"], "clipboard.png", { type: "image/png" })],
+        getData: () => "",
+      },
+    });
+    title.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("holds later scans while an unknown item is created, then resumes the queued barcode", async () => {
     const first = deferred<unknown>();
     const call = vi.fn<InventoryServices["call"]>((endpoint, args) => {

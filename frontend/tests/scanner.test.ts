@@ -150,6 +150,46 @@ beforeEach(() => {
 });
 
 describe("Scanner component", () => {
+  it("leaves image pastes in an outside editable title field untouched", async () => {
+    const wrapper = mount(Scanner, { props: { presentation: "modal" } });
+    await flushPromises();
+    const title = document.createElement("input");
+    title.setAttribute("aria-label", "名称");
+    document.body.append(title);
+    const event = new Event("paste", {
+      bubbles: true,
+      cancelable: true,
+    }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        files: [new File(["image"], "clipboard.png", { type: "image/png" })],
+        getData: () => "",
+      },
+    });
+    title.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    title.remove();
+    wrapper.unmount();
+  });
+
+  it("does not intercept an image paste when the clipboard also contains text", async () => {
+    const wrapper = mount(Scanner, { props: { presentation: "modal" } });
+    await flushPromises();
+    const event = new Event("paste", {
+      bubbles: true,
+      cancelable: true,
+    }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        files: [new File(["image"], "clipboard.png", { type: "image/png" })],
+        getData: () => "item title",
+      },
+    });
+    document.querySelector('[role="dialog"]')!.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    wrapper.unmount();
+  });
+
   it("embeds camera feedback without duplicating its parent's manual field and close action", async () => {
     const wrapper = mount(Scanner, { props: { presentation: "camera" } });
     await flushPromises();

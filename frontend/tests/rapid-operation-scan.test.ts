@@ -286,6 +286,80 @@ describe("rapid operation scan integration", () => {
     expect(wrapper.findAll(".operation-compact-row")).toHaveLength(3);
   });
 
+  it("marks required line columns and shows a converted stock total beside the unit", async () => {
+    const tracked = stockItem({
+      tracksBatch: true,
+      tracksExpiry: true,
+      alternateUnits: [{ uom: "Box", factor: 12 }],
+    });
+    const plain = stockItem({ code: "ITEM-B", name: "普通物品" });
+    const { wrapper, reference } = setup(
+      "Receive",
+      [tracked, plain],
+      [
+        {
+          id: "converted-row",
+          code: "ITEM-A",
+          qty: 10080,
+          entryQty: 840,
+          entryUom: "Box",
+          conversionFactor: 12,
+          location: "ROOM-A",
+          batch: "BATCH-A",
+        },
+        {
+          id: "plain-row",
+          code: "ITEM-B",
+          qty: 3,
+          entryQty: 3,
+          entryUom: "Nos",
+          conversionFactor: 1,
+          location: "ROOM-A",
+        },
+      ],
+      true,
+    );
+    reference.units = [
+      { name: "Nos", label: "个", whole: true },
+      { name: "Box", label: "箱", whole: true },
+    ];
+    await flushPromises();
+    const headings = wrapper.get(".operation-column-headings").text();
+    expect(headings).toMatch(/物品\s+\*/);
+    expect(headings).toMatch(/数量\s+\*/);
+    expect(headings).toMatch(/单位\s+\*/);
+    expect(headings).toMatch(/效期\s+\*/);
+    expect(headings).toMatch(/生产日期\s+可选/);
+    expect(wrapper.get(".operation-row-stock-total").text()).toContain(
+      "= 10,080 个",
+    );
+    const rowEls = wrapper.findAll(".operation-compact-row");
+    const gridTemplate = wrapper
+      .get(".operation-column-headings")
+      .element.getAttribute("style");
+    expect(gridTemplate).toContain("minmax(132px, 0.95fr)");
+    expect(gridTemplate).toContain("88px 96px 88px");
+    for (const row of rowEls) {
+      expect(row.element.getAttribute("style")).toBe(gridTemplate);
+      expect(
+        row.findAll(".operation-row-batch .operation-row-cell"),
+      ).toHaveLength(3);
+      expect(
+        row.findAll(
+          ".operation-row-stock-total, .operation-row-stock-total-empty",
+        ),
+      ).toHaveLength(1);
+    }
+    const unitPicker = wrapper
+      .findAllComponents(SearchSelectStub)
+      .find((field) => String(field.props("label")).includes("单位"));
+    expect(unitPicker?.props("options")).toContainEqual({
+      value: "Box",
+      label: "箱",
+      detail: "Box · 1 箱 = 12 个",
+    });
+  });
+
   it("shows damage reason and Return outcome as editable row fields", async () => {
     const damage = setup(
       "Damage",
