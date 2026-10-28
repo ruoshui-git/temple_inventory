@@ -1,5 +1,5 @@
 import type { InjectionKey, Ref } from "vue";
-export interface OverlayStage {
+interface OverlayStage {
   host: Ref<HTMLElement | undefined>;
   active: Ref<{ titleId: string; close(): void } | undefined>;
 }

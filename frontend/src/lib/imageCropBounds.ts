@@ -1,10 +1,10 @@
-export type CropBounds = {
+type CropBounds = {
   left: number;
   top: number;
   right: number;
   bottom: number;
 };
-export type CropSelection = {
+type CropSelection = {
   x: number;
   y: number;
   width: number;

@@ -1,4 +1,4 @@
-export type FilterPopoverPlacement = {
+type FilterPopoverPlacement = {
   side: "below" | "above";
   top: number;
   maxHeight: number;

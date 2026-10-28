@@ -50,7 +50,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import { useConfirm } from "../../services/confirm";
 import { useVirtualKeyboard } from "../../composables/useVirtualKeyboard";
 import ConversionEditor from "../conversions/ConversionEditor.vue";
-import { operationLabels } from "./operationCodec";
+import { operationLabels } from "../../lib/presentationLabels";
 import {
 	shouldShowLineTools,
 	transferDestinationOptions,
@@ -64,7 +64,6 @@ const props = withDefaults(
 		mode?: "edit" | "display";
 		showError?: boolean;
 		hydrating?: boolean;
-		expanded?: boolean;
 		active?: boolean;
 	}>(),
 	{ active: true, hydrating: false },
@@ -979,7 +978,11 @@ function resolveScannedItem(selection: {
 	const activeWarehouse = receive.value ? target : source;
 	scanAllocationPreferences.set(
 		scanPreferenceKey(item.code, activeWarehouse, destinationContext(target)),
-		{ source, batch: batch || pending.batch || "", destination: destinationContext(target) },
+		{
+			source,
+			batch: batch || pending.batch || "",
+			destination: destinationContext(target),
+		},
 	);
 	scanResolution.value = undefined;
 	pendingScanResolution = undefined;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import DisclosureIcon from "../ui/DisclosureIcon.vue";
+import FilterDisclosure from "../ui/FilterDisclosure.vue";
 
 const props = defineProps<{
 	modelValue: "enabled" | "disabled" | "all";
@@ -9,12 +9,7 @@ const labels = { enabled: "启用", disabled: "停用", all: "全部" };
 </script>
 
 <template>
-	<details class="browse-filter-disclosure" data-filter-field="itemStatus">
-		<summary class="ti-disclosure">
-			<DisclosureIcon variant="inline" />物品状态<small>{{
-				labels[props.modelValue]
-			}}</small>
-		</summary>
+	<FilterDisclosure label="物品状态" :summary="labels[props.modelValue]" field="itemStatus">
 		<label class="preview-field">
 			<select
 				:value="modelValue"
@@ -31,5 +26,5 @@ const labels = { enabled: "启用", disabled: "停用", all: "全部" };
 				<option value="all">全部</option>
 			</select>
 		</label>
-	</details>
+	</FilterDisclosure>
 </template>

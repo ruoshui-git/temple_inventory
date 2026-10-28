@@ -3,7 +3,7 @@ import { useRoute, useRouter } from "vue-router";
 import ExpiryBrowsePage from "../features/expiry/ExpiryBrowsePage.vue";
 import { exportDestination } from "../lib/nativeNavigation";
 import { operationDestination } from "../lib/nativeNavigation";
-import { browseRouteTarget, restoreBrowseQueryPayload, routeTarget } from "../lib/routeRegistry";
+import { browseRouteQuery, browseRouteTarget, routeTarget } from "../lib/routeRegistry";
 import type { ReportQuery } from "../lib/reportContract";
 const route = useRoute(),
 	router = useRouter();
@@ -16,7 +16,7 @@ function changed(query: ReportQuery) {
 
 <template>
 	<ExpiryBrowsePage
-		:route-query="restoreBrowseQueryPayload(route.query.query, 'expiry', route.query.view)"
+		:route-query="browseRouteQuery(route.query.query, 'expiry', route.query.view)"
 		@query-change="changed"
 		@item="
 			router.push({

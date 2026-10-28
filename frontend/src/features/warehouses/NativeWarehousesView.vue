@@ -29,6 +29,7 @@ import FormField from "../../components/ui/FormField.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { unitLabel } from "../../lib/units";
 import { computed, ref } from "vue";
+import { compareTableValues, nextTableSort } from "../../composables/useArrayTableSort";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
 	{ active: true },
@@ -94,17 +95,13 @@ const stockRows = computed<DataTableRecord[]>(() => {
 	const values = [...(stockTable.value?.rows || [])].sort((a, b) => {
 		const left = a[stockSort.value.field],
 			right = b[stockSort.value.field];
-		const comparison = String(left ?? "").localeCompare(String(right ?? ""), "zh", {
-			numeric: true,
-		});
+		const comparison = compareTableValues(left, right);
 		return stockSort.value.direction === "asc" ? comparison : -comparison;
 	});
 	return values.map((row) => ({ kind: "record", id: String(row.id), value: row }));
 });
 function sortStock(field: string) {
-	if (stockSort.value.field === field)
-		stockSort.value.direction = stockSort.value.direction === "asc" ? "desc" : "asc";
-	else stockSort.value = { field, direction: "asc" };
+	stockSort.value = nextTableSort(field, stockSort.value.field, stockSort.value.direction);
 }
 function physicalType(value: string) {
 	return (

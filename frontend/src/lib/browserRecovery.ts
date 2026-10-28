@@ -20,7 +20,7 @@ export interface RecoverySnapshot {
   values: { [key: string]: JsonValue };
   pendingUploadReselection: boolean;
 }
-export interface RecoveryStorage {
+interface RecoveryStorage {
   readonly length: number;
   key(index: number): string | null;
   getItem(key: string): string | null;

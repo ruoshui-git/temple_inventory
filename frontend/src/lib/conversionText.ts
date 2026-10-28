@@ -1,7 +1,6 @@
-import { formatQuantity } from "./formatQuantity";
-import { unitLabel } from "./units";
+import { formatQuantity, formatQuantityWithUnit } from "./formatQuantity";
 
-export interface ConversionTextInput {
+interface ConversionTextInput {
   qty: number;
   uom: string;
   factor: number;
@@ -23,8 +22,9 @@ export function formatConversion({
     factor <= 0
   )
     return null;
-  const entered = `${formatQuantity(qty)} ${unitLabel(uom)}`;
-  const stock = `${formatQuantity(qty * factor)} ${unitLabel(stockUom)}`;
-  const rate = `1 ${unitLabel(uom)} = ${formatQuantity(factor)} ${unitLabel(stockUom)}`;
+  const entered = formatQuantityWithUnit(qty, uom);
+  const stock = formatQuantityWithUnit(qty * factor, stockUom);
+  const enteredUnit = formatQuantityWithUnit(1, uom).replace(/^1\s*/, "");
+  const rate = `1 ${enteredUnit} = ${formatQuantityWithUnit(factor, stockUom)}`;
   return `${entered} = ${stock}${qty === 1 ? "" : `（${rate}）`}`;
 }

@@ -55,8 +55,9 @@ class NotificationTests(NativeDocumentTests):
 		self.assertTrue(preferences["movement_submitted"])
 		self.assertTrue(all(preferences["movement_kinds"].values()))
 		self.assertEqual(set(notifications.KINDS), set(MOVEMENT_PURPOSES))
-		source = (Path(__file__).resolve().parents[2] / "frontend/src/lib/kindIcons.ts").read_text()
-		frontend = dict(re.findall(r'\s*([A-Za-z]+):\s*\{ icon: "[^"]+", label: "([^"]+)" \}', source))
+		source = (Path(__file__).resolve().parents[2] / "frontend/src/lib/presentationLabels.ts").read_text()
+		block = re.search(r"export const movementLabels[^{]*\{(.*?)\};", source, re.S).group(1)
+		frontend = dict(re.findall(r'([A-Za-z]+):\s*"([^"]+)"', block))
 		self.assertEqual({kind: frontend[kind] for kind in MOVEMENT_LABELS}, MOVEMENT_LABELS)
 
 	def test_push_subscription_permission_is_owner_only(self):

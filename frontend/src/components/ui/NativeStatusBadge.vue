@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
+import { nativeStatusLabel } from "../../lib/presentationLabels";
 
 const props = defineProps<{ status: unknown }>();
 const tone = computed(() => {

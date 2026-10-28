@@ -6,12 +6,12 @@ import { decodeReportQuery } from "../lib/reportQuery";
 import type { ReportQuery } from "../lib/reportContract";
 import { exportDestination } from "../lib/nativeNavigation";
 import { countDestination, operationDestination } from "../lib/nativeNavigation";
-import { browseRouteTarget, restoreBrowseQueryPayload, routeTarget } from "../lib/routeRegistry";
+import { browseRouteQuery, browseRouteTarget, routeTarget } from "../lib/routeRegistry";
 const route = useRoute(),
 	router = useRouter();
 const decoded = computed(() =>
 	decodeReportQuery(
-		restoreBrowseQueryPayload(route.query.query, "inventory", route.query.view),
+		browseRouteQuery(route.query.query, "inventory", route.query.view),
 		"inventory",
 	),
 );

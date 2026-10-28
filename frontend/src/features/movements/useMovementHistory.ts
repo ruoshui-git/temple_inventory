@@ -16,6 +16,7 @@ import type {
   ReportQuery,
 } from "../../lib/reportContract";
 import { isUnavailableError } from "../../lib/serviceFailure";
+import { nextTableSort } from "../../composables/useArrayTableSort";
 
 export type HistoryRow =
   MovementHistoryPage["rows"][number] | LoanItemHistoryRow;
@@ -81,12 +82,9 @@ export function useMovementHistory(
       ];
   function setSort(field: string) {
     if (!sortableFields.includes(field)) return;
-    if (sortBy.value === field)
-      sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
-    else {
-      sortBy.value = field;
-      sortDirection.value = "asc";
-    }
+    const next = nextTableSort(field, sortBy.value, sortDirection.value);
+    sortBy.value = next.field;
+    sortDirection.value = next.direction;
   }
   let generation = 0,
     request: AbortController | undefined,

@@ -2,6 +2,7 @@
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
+import { nextTableSort } from "../../composables/useArrayTableSort";
 import { formatExpiryDuration } from "../../lib/expiryDuration";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
@@ -211,12 +212,9 @@ function openBatch(row: ReportRow) {
 	if (!result.stale) emit("openBatch", String(row.batch_no));
 }
 function sortBy(field: ReportQuery["sortBy"]) {
-	if (query.value.sortBy === field)
-		query.value.sort = query.value.sort === "asc" ? "desc" : "asc";
-	else {
-		query.value.sortBy = field;
-		query.value.sort = "asc";
-	}
+	const next = nextTableSort(field, query.value.sortBy, query.value.sort);
+	query.value.sortBy = next.field;
+	query.value.sort = next.direction;
 }
 function headerSort(column: string) {
 	if (

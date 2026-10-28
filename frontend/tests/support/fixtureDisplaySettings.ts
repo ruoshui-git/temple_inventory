@@ -3,12 +3,12 @@ import {
   defaultDisplayPreferences,
   type DisplayPreferences,
 } from "../../src/lib/displayPreferences";
-export const fixtureDisplayScenario = reactive({
+const fixtureDisplayScenario = reactive({
   failRead: false,
   failSave: false,
 });
 let confirmed: DisplayPreferences = { ...defaultDisplayPreferences };
-export function seedFixtureDisplay(values: DisplayPreferences) {
+function seedFixtureDisplay(values: DisplayPreferences) {
   confirmed = {
     theme: values.theme,
     density: values.density,

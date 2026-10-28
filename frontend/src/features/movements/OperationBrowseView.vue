@@ -10,15 +10,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import type { ReportQuery } from "../../lib/reportContract";
-import {
-	clearScopeField,
-	movementLabels,
-	scopeFilterFieldChips,
-} from "../../lib/filterPresentation";
+import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
 import { sortableColumnLabels, sortableColumnsForView } from "../../lib/reportContract";
 import { groupLabels } from "../../lib/reportContract";
 import { removeGroupByField } from "../../lib/groupBy";
-import { enumPresentationLabel } from "../../lib/presentationLabels";
+import { enumPresentationLabel, movementLabels } from "../../lib/presentationLabels";
+import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { kindIcons } from "../../lib/kindIcons";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -28,7 +25,7 @@ import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
-import { operationLabels } from "../documents/operationCodec";
+import { operationLabels } from "../../lib/presentationLabels";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import { loanSummaryMetrics, movementSummaryMetrics } from "./movementSummary";
@@ -620,7 +617,7 @@ function groupLoanMetric(group: DataTableGroup, column: string) {
 	const key = column === "outstanding" ? "outstanding" : "borrowed";
 	const value = row[key];
 	if (value === undefined || value === null) return "";
-	return `${key === "borrowed" ? "借出" : "未归还"} ${formatQuantity(Number(value))} ${unitLabel(String(row.stock_uom || ""))}`.trim();
+	return `${key === "borrowed" ? "借出" : "未归还"} ${formatQuantityWithUnit(Number(value), String(row.stock_uom || ""))}`.trim();
 }
 function hiddenGroupMetrics(group: DataTableGroup, visibleColumns: string[]) {
 	if (!isItemGroup(group)) return "";
@@ -712,19 +709,6 @@ watch([() => props.active, isMobile], () => {
 	analysisOpen.value = false;
 	c.relatedLoans.close();
 });
-const outcomeLabels: Record<string, string> = {
-	outstanding: "未归还",
-	returned: "完好归还",
-	damaged: "损坏归还",
-	lost: "遗失",
-};
-const loanLabels: Record<string, string> = {
-	Draft: "草稿",
-	Cancelled: "已取消",
-	Open: "未结清",
-	Settled: "已结清",
-	Closed: "已结清",
-};
 const dimensions: Record<string, string> = {
 	category: "类别 / 单位",
 	location: "来源位置 / 单位",
@@ -742,7 +726,9 @@ watch(
 		try {
 			const result = await services.call<{ name: string; title: string }>(
 				"activities.load_activity",
-				{ name: id },
+				{
+					name: id,
+				},
 			);
 			if (result.name === id && result.title)
 				reference.activities.push({ value: id, label: result.title });
@@ -793,7 +779,7 @@ const metrics = computed(() => {
 });
 function quantities(rows?: { uom: string; qty: number }[]) {
 	return sortByUnit(rows || [], (row) => row.uom)
-		.map((row) => `${formatQuantity(row.qty)} ${unitLabel(row.uom)}`)
+		.map((row) => formatQuantityWithUnit(row.qty, row.uom))
 		.join(" | ");
 }
 function itemContext(row: OperationGroup) {

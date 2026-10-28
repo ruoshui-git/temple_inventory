@@ -10,8 +10,9 @@ import {
   type ReportQuery,
   type ReportRow,
 } from "../../lib/reportContract";
-import { movementLabels } from "../../lib/filterPresentation";
-import { sortByUnit, unitLabel } from "../../lib/units";
+import { movementLabels } from "../../lib/presentationLabels";
+import { sortByUnit } from "../../lib/units";
+import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useBrowseState } from "../../lib/browseMemory";
 import {
@@ -28,6 +29,12 @@ export const dashboardSections = {
   reminders: "提醒事项",
 } as const;
 export type DashboardSectionKey = keyof typeof dashboardSections;
+
+function offset(siteDate: string, days: number) {
+  const date = new Date(`${siteDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 export const expiryBuckets = [
   { id: "expired_1_30", label: "已过期 1–30 天" },
   { id: "expired_31_90", label: "已过期 31–90 天" },
@@ -87,7 +94,7 @@ export function quantityText(rows: { qty: number; uom: string }[]) {
     units.set(row.uom, (units.get(row.uom) || 0) + row.qty);
   return (
     sortByUnit([...units], ([uom]) => uom)
-      .map(([uom, qty]) => `${qty} ${unitLabel(uom)}`)
+      .map(([uom, qty]) => formatQuantityWithUnit(qty, uom))
       .join(" · ") || "0"
   );
 }
@@ -271,18 +278,25 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
   }
   function expiryDrill(id: string) {
     if (blocked("expiry")) return;
-    const offset = (days: number) => {
-      const date = new Date(`${reference.siteDate}T00:00:00Z`);
-      date.setUTCDate(date.getUTCDate() + days);
-      return date.toISOString().slice(0, 10);
-    };
     const bounds: Record<string, [string, string]> = {
-      expired_1_30: [offset(-30), offset(-1)],
-      expired_31_90: [offset(-90), offset(-31)],
-      expired_91_plus: ["1000-01-01", offset(-91)],
-      upcoming_0_30: [offset(0), offset(30)],
-      upcoming_31_90: [offset(31), offset(90)],
-      upcoming_91_plus: [offset(91), "9999-12-31"],
+      expired_1_30: [
+        offset(reference.siteDate, -30),
+        offset(reference.siteDate, -1),
+      ],
+      expired_31_90: [
+        offset(reference.siteDate, -90),
+        offset(reference.siteDate, -31),
+      ],
+      expired_91_plus: ["1000-01-01", offset(reference.siteDate, -91)],
+      upcoming_0_30: [
+        offset(reference.siteDate, 0),
+        offset(reference.siteDate, 30),
+      ],
+      upcoming_31_90: [
+        offset(reference.siteDate, 31),
+        offset(reference.siteDate, 90),
+      ],
+      upcoming_91_plus: [offset(reference.siteDate, 91), "9999-12-31"],
     };
     const dates = bounds[id];
     if (!dates) return;
@@ -293,16 +307,11 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
   }
   function expiryPreviewDrill(side: "expired" | "upcoming") {
     if (blocked("expiry")) return;
-    const offset = (days: number) => {
-      const date = new Date(`${reference.siteDate}T00:00:00Z`);
-      date.setUTCDate(date.getUTCDate() + days);
-      return date.toISOString().slice(0, 10);
-    };
     const value = clone(sections.expiry.result.query);
     value.scope.period = {
       key: "custom",
-      from: side === "expired" ? "1000-01-01" : offset(0),
-      to: side === "expired" ? offset(-1) : "9999-12-31",
+      from: side === "expired" ? "1000-01-01" : offset(reference.siteDate, 0),
+      to: side === "expired" ? offset(reference.siteDate, -1) : "9999-12-31",
     };
     value.expiryWindow = "period";
     navigate(value);

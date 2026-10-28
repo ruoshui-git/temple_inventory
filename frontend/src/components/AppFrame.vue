@@ -23,7 +23,6 @@ const props = withDefaults(
 		active?: string;
 		inventorySection?: string;
 		inventoryExpanded?: boolean;
-		moreRoute: AppRouteTarget;
 		user: string;
 		accountNote?: string;
 		contentId?: string;

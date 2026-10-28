@@ -1,13 +1,32 @@
 import { computed, ref, type ComputedRef } from "vue";
 import type { DataTableRecord } from "../lib/dataTable";
 
-function compareValues(left: unknown, right: unknown) {
+const tableCollator = new Intl.Collator("zh-CN", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+export function compareTableValues(left: unknown, right: unknown) {
   if (typeof left === "number" && typeof right === "number")
     return left - right;
-  return String(left ?? "").localeCompare(String(right ?? ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  return tableCollator.compare(String(left ?? ""), String(right ?? ""));
+}
+
+export function nextTableSort(
+  field: string,
+  currentField: string,
+  currentDirection: "asc" | "desc",
+  initialDirection: "asc" | "desc" = "asc",
+) {
+  return {
+    field,
+    direction:
+      currentField === field
+        ? currentDirection === "asc"
+          ? "desc"
+          : "asc"
+        : initialDirection,
+  } as const;
 }
 
 /** Sort a complete in-memory table, preserving a stable identity order for ties. */
@@ -24,23 +43,17 @@ export function useArrayTableSort(
       const leftValue = left.value[sortBy.value];
       const rightValue = right.value[sortBy.value];
       return (
-        compareValues(leftValue, rightValue) * direction ||
-        String(left.id).localeCompare(String(right.id), undefined, {
-          numeric: true,
-          sensitivity: "base",
-        })
+        compareTableValues(leftValue, rightValue) * direction ||
+        compareTableValues(left.id, right.id)
       );
     });
   });
 
   function setSort(field: string) {
     if (!allowedFields.includes(field)) return;
-    if (sortBy.value === field) {
-      sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
-      return;
-    }
-    sortBy.value = field;
-    sortDirection.value = "asc";
+    const next = nextTableSort(field, sortBy.value, sortDirection.value);
+    sortBy.value = next.field;
+    sortDirection.value = next.direction;
   }
 
   return { rows: sortedRows, sortBy, sortDirection, setSort };

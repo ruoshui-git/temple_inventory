@@ -3,7 +3,7 @@ import {
   useInventoryServices,
   useReferenceData,
 } from "../../services/contracts";
-import { movementLabels } from "../../lib/kindIcons";
+import { movementLabels } from "../../lib/presentationLabels";
 
 export const notificationEvents = [
   { key: "movement_submitted", label: "新货物流动" },

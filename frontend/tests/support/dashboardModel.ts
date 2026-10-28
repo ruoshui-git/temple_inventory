@@ -19,7 +19,7 @@ export const expiryBuckets = [
   { key: "upcoming_31_90", label: "31–90 天内到期" },
   { key: "upcoming_over_90", label: ">90 天后到期" },
 ];
-export function expiryBucket(expiry?: string, today = previewDate) {
+function expiryBucket(expiry?: string, today = previewDate) {
   if (!expiry) return "";
   const days = Math.round(
     (Date.parse(`${expiry}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) /

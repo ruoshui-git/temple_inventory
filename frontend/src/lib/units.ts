@@ -1,6 +1,6 @@
 // Row values are often typed `unknown`; anything that is not a unit object is
 // read as its string form.
-export type UnitLike = unknown;
+type UnitLike = unknown;
 
 function unitName(uom: UnitLike): string {
   if (uom && typeof uom === "object" && "name" in uom)
@@ -29,7 +29,7 @@ export function unitLabel(uom: UnitLike): string {
   return units().find((unit) => unit.name === name)?.label || name;
 }
 
-export type UnitOption = { value: string; label: string; detail?: string };
+type UnitOption = { value: string; label: string; detail?: string };
 
 export function unitOption(
   uom: UnitLike,

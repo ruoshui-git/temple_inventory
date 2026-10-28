@@ -37,7 +37,7 @@ export type PreviewPage =
 
 export type PreviewPageKey = `${PreviewPage}/${string}`;
 
-export interface PreviewPageRoute {
+interface PreviewPageRoute {
   key: PreviewPageKey;
   page: PreviewPage;
   variant: string;
@@ -65,7 +65,7 @@ const route = <P extends PreviewPage>(
   readOnly,
 });
 
-export const previewPages: readonly PreviewPageRoute[] = [
+const previewPages: readonly PreviewPageRoute[] = [
   route("dashboard", "overview", "/", "物资总览", "首页"),
   route(
     "movement-form",
@@ -160,14 +160,6 @@ export const previewPages: readonly PreviewPageRoute[] = [
     "entry-detail",
     "/movements/MAT-STE-2026-00003",
     "库存分录详情",
-    "货物流动",
-    true,
-  ),
-  route(
-    "movement-records",
-    "external",
-    "/app/purchase-receipt/MAT-PRE-2026-00001",
-    "其他 ERPNext 库存凭证",
     "货物流动",
     true,
   ),
@@ -373,11 +365,11 @@ export function getPreviewPage(key: string) {
   return undefined;
 }
 
-export function pageHash(key: PreviewPageKey) {
+function pageHash(key: PreviewPageKey) {
   return `#review/${encodeURIComponent(key)}`;
 }
 
-export function pageFromHash(hash: string) {
+function pageFromHash(hash: string) {
   const encoded = hash.match(/^#review\/(.+)$/)?.[1];
   if (!encoded) return undefined;
   try {
@@ -397,8 +389,8 @@ export type OperationKind =
   | "Loss"
   | "Repair"
   | "Disposal";
-export type DraftKind = OperationKind | "Reconcile" | "Item";
-export type DraftStatus = "draft" | "completed" | "cancelled";
+type DraftKind = OperationKind | "Reconcile" | "Item";
+type DraftStatus = "draft" | "completed" | "cancelled";
 
 export interface DraftLine {
   id: string;
@@ -506,7 +498,7 @@ export interface ReviewLoan {
   }[];
 }
 
-export interface ReviewPending {
+interface ReviewPending {
   name: string;
   kind: "damage";
   title: string;
@@ -525,7 +517,7 @@ export interface ReviewWarehouse {
   status: "active" | "inactive";
 }
 
-export interface ReviewFilters {
+interface ReviewFilters {
   movementScope: BrowseScope;
   loanScope: BrowseScope;
   dashboard: {
@@ -1037,7 +1029,7 @@ defaultMovements.forEach((row, index) => {
   row.postingTime ||= "09:30:00";
 });
 
-export function createReviewSession(
+function createReviewSession(
   stock: StockItem[] = items.map((item) => structuredClone(item)),
 ): ReviewSession {
   const session = reactive({
@@ -1169,11 +1161,11 @@ export function captureSavedDraft(draft: ReviewDraft, session?: ReviewSession) {
   savedDocuments.set(toRaw(draft), snapshot);
   return snapshot;
 }
-export function savedDraftSnapshot(draft: ReviewDraft) {
+function savedDraftSnapshot(draft: ReviewDraft) {
   return savedDocuments.get(toRaw(draft)) || captureSavedDraft(draft);
 }
 
-export function findDraft(
+function findDraft(
   kind: DraftKind,
   name?: string,
   session: ReviewSession = reviewSession,
@@ -1232,7 +1224,7 @@ export function createDraft(
   return session.drafts[0]!;
 }
 
-export function updateDraft(
+function updateDraft(
   kind: DraftKind,
   patch: Partial<Omit<ReviewDraft, "kind" | "name">>,
   name?: string,
@@ -1245,7 +1237,7 @@ export function updateDraft(
   return draft;
 }
 
-export function assignReceiptBatchIds(
+function assignReceiptBatchIds(
   draft: ReviewDraft,
   session: ReviewSession = reviewSession,
 ) {
@@ -1260,7 +1252,7 @@ export function assignReceiptBatchIds(
 }
 
 /** Retain the contributing loan line when an item/batch spans locations. */
-export function matchesLoanLine(
+function matchesLoanLine(
   line: DraftLine,
   borrowed: ReviewLoan["lines"][number],
   index: number,
@@ -1273,7 +1265,7 @@ export function matchesLoanLine(
   );
 }
 
-export function submitDraft(
+function submitDraft(
   kind: DraftKind,
   name?: string,
   session: ReviewSession = reviewSession,
@@ -1473,7 +1465,7 @@ export function submitDraft(
   return draft;
 }
 
-export function warehouseFixtureNodes() {
+function warehouseFixtureNodes() {
   return reviewSession.warehouses.map((node) => ({ ...node }));
 }
 

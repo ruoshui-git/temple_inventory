@@ -10,19 +10,16 @@ import {
   type ReviewSession,
 } from "./reviewModel";
 
-export const activityPermissions = reactive({
+const activityPermissions = reactive({
   write: true,
   delete: true,
   hiddenReferences: [] as string[],
 });
-export type ActivityInput = Pick<
+type ActivityInput = Pick<
   PreviewActivity,
   "title" | "typeId" | "start" | "end" | "description" | "notes"
 >;
-export function validateActivity(
-  input: ActivityInput,
-  current?: PreviewActivity,
-) {
+function validateActivity(input: ActivityInput, current?: PreviewActivity) {
   if (!input.title.trim()) return "请填写活动名称";
   if (
     activities.some(
@@ -139,7 +136,7 @@ export function activityLoanLines(
       })),
     );
 }
-export function activityDeleteError(
+function activityDeleteError(
   id: string,
   session: ReviewSession = reviewSession,
 ) {
@@ -172,11 +169,11 @@ export function setActivityArchived(id: string, archived: boolean) {
   }
   return "";
 }
-export function retireActivityType(id: string) {
+function retireActivityType(id: string) {
   const type = activityTypes.find((row) => row.id === id);
   if (type) type.enabled = false;
 }
-export function deleteActivityType(id: string) {
+function deleteActivityType(id: string) {
   if (activities.some((row) => row.typeId === id))
     return "活动类型已被引用，不能删除";
   const index = activityTypes.findIndex((row) => row.id === id);

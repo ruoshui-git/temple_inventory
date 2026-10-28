@@ -6,6 +6,10 @@ export function formatQuantity(value: number) {
   );
 }
 
-export function formatQuantityWithUnit(value: number, uom: string) {
-  return `${formatQuantity(value)} ${unitLabel(uom)}`;
+export function formatQuantityWithUnit(
+  value: number,
+  uom: unknown,
+  unknownUnit = "未知单位",
+) {
+  return `${formatQuantity(value)} ${unitLabel(uom) || unknownUnit}`;
 }

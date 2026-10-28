@@ -40,7 +40,7 @@ export {
   type ReportDefinition,
   type ReportQuery,
 } from "../../src/lib/reportContract";
-export const reportStates = reactive(
+const reportStates = reactive(
   Object.fromEntries(
     (Object.keys(reportDefinitions) as ReportDataset[]).map((dataset) => [
       dataset,
@@ -48,15 +48,15 @@ export const reportStates = reactive(
     ]),
   ) as Record<ReportDataset, ReportQuery>,
 );
-export const reportWorkspace = reactive({
+const reportWorkspace = reactive({
   dataset: "inventory" as ReportDataset,
   incoming: undefined as ReportQuery | undefined,
 });
-export const namedReportViews = reactive<
+const namedReportViews = reactive<
   { id: number; name: string; query: ReportQuery }[]
 >([]);
 let nextReportViewId = 1;
-export function saveReportView(name: string, query: ReportQuery) {
+function saveReportView(name: string, query: ReportQuery) {
   if (!name.trim()) return "请填写视图名称";
   if (namedReportViews.some((row) => row.name === name.trim()))
     return "视图名称已存在";
@@ -67,7 +67,7 @@ export function saveReportView(name: string, query: ReportQuery) {
   });
   return "";
 }
-export function renameReportView(id: number, name: string) {
+function renameReportView(id: number, name: string) {
   if (
     !name.trim() ||
     namedReportViews.some((row) => row.id !== id && row.name === name.trim())
@@ -208,7 +208,7 @@ function movementLines(
     });
 }
 /** Authoritative fixture checkpoints and ledger events; never derived from current stock. */
-export const historicalCheckpoints = [
+const historicalCheckpoints = [
   {
     date: "2026-09-30",
     itemId: "ITM-000128",
@@ -293,7 +293,7 @@ export const historicalEvents = [
   itemId: "ITM-000128",
   stockUom: "袋",
 }));
-export function historicalBalances(
+function historicalBalances(
   query: ReportQuery,
   session: ReviewSession = reviewSession,
 ) {
@@ -1119,7 +1119,7 @@ export function projectReport(
     scope: reportScopeLabel(query),
   };
 }
-export function reportScopeLabel(query: ReportQuery) {
+function reportScopeLabel(query: ReportQuery) {
   const range = resolvePeriod(query.scope.period);
   const relatedRange = resolvePeriod(query.relatedPeriod);
   return [
@@ -1238,7 +1238,7 @@ function referencedWarehouses(tables: ReportTable[], session: ReviewSession) {
     }
   return names;
 }
-export function matchesReportExpiry(expiry: string, query: ReportQuery) {
+function matchesReportExpiry(expiry: string, query: ReportQuery) {
   if (expiry && !inPeriod(expiry, query.scope.period)) return false;
   if (!expiry && (!query.includeUndated || query.scope.period.key !== "all"))
     return false;
@@ -1302,7 +1302,7 @@ function reportLoans(
       })),
   ];
 }
-export function reportGroupingChoices(query: ReportQuery) {
+function reportGroupingChoices(query: ReportQuery) {
   if (query.dataset === "activities" && query.view === "loans")
     return ["activity", "item"];
   if (

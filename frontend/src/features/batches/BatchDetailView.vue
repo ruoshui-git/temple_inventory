@@ -9,7 +9,7 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import { documentDestination } from "../../lib/nativeNavigation";
 import type { AppRouteTarget } from "../../lib/routeRegistry";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";

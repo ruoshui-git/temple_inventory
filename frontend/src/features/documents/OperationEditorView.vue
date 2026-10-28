@@ -9,7 +9,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { OperationEditor } from "./useOperationEditor";
-import { operationLabels } from "./operationCodec";
+import { operationLabels } from "../../lib/presentationLabels";
 import OperationLines from "./OperationLines.vue";
 import AllocationSummary from "./AllocationSummary.vue";
 import TransactionContext from "./TransactionContext.vue";
@@ -29,7 +29,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useInventoryServices } from "../../services/contracts";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { unitLabel, sortByUnit } from "../../lib/units";
-import { formatQuantity } from "../../lib/formatQuantity";
+import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { operationSectionLocation } from "./operationModel";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
@@ -185,9 +185,8 @@ let borrowerSearchTimer: ReturnType<typeof setTimeout> | undefined;
 onMounted(async () => {
 	if (draft.value.kind === "Loan") {
 		try {
-			borrowerSuggestions.value = await services.call<string[]>(
-				"native_api.borrower_suggestions",
-			);
+			const result = await services.call<{ value: string }[]>("people.borrowers");
+			borrowerSuggestions.value = result.map((row) => row.value);
 		} catch {
 			borrowerSuggestions.value = [];
 		}
@@ -313,7 +312,7 @@ function stockUnit(line: (typeof draft.value.items)[number]) {
 	);
 }
 function unitTotal(unit: string, qty: number) {
-	return `${formatQuantity(qty)} ${unitLabel(unit) || unit || "未知单位"}`;
+	return formatQuantityWithUnit(qty, unit);
 }
 const totals = computed(() => {
 	const values = new Map<string, number>();
@@ -948,7 +947,6 @@ async function lifecycle() {
 						:disabled="!writable || busy"
 						:show-error="showError"
 						:hydrating="hydrating"
-						:expanded="expanded"
 						:active="active"
 						@expand="toggle"
 					/>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { formatQuantity } from "../../lib/formatQuantity";
+import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { unitLabel } from "../../lib/units";
 
 const props = defineProps<{ name: unknown; qty?: number | string }>();
@@ -16,6 +16,6 @@ const nativeName = computed(() => {
 
 <template>
 	<span :title="nativeName">{{
-		qty === undefined ? label : `${formatQuantity(Number(qty))} ${label}`
+		qty === undefined ? label : formatQuantityWithUnit(Number(qty), props.name)
 	}}</span>
 </template>

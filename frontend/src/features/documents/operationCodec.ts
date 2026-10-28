@@ -7,7 +7,6 @@ import type {
   OperationKind,
 } from "./operationModel";
 import type { ReferenceData } from "../../services/contracts";
-export { operationLabels } from "../../lib/kindIcons";
 export function newOperation(
   kind: OperationKind,
   reference: ReferenceData,

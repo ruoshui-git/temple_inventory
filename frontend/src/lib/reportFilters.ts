@@ -1,8 +1,12 @@
 import type { ReferenceData } from "../services/contracts";
-import { movementLabels } from "./filterPresentation";
+import {
+  movementLabels,
+  reportLoanStatusLabels,
+  reportOutcomeLabels,
+} from "./presentationLabels";
 import { warehouseLabel } from "./warehouseLabel";
 import { newReportQuery, type ReportQuery } from "./reportContract";
-export interface ReportFilterChip {
+interface ReportFilterChip {
   key: string;
   label: string;
   field?: string;
@@ -17,21 +21,6 @@ export function hasReportStatuses(query: ReportQuery) {
     (query.dataset === "activities" && query.view === "records")
   );
 }
-const loanLabels: Record<string, string> = {
-  open: "未结清",
-  outstanding: "未结清",
-  settled: "已结清",
-  returned: "已归还",
-  damaged: "损坏结清",
-  lost: "遗失结清",
-  draft: "草稿",
-};
-const outcomeLabels: Record<string, string> = {
-  returned: "正常归还",
-  damaged: "损坏",
-  lost: "遗失",
-  outstanding: "未归还",
-};
 // Presentation only: preserve enable flags, even when an inherited restriction is empty.
 export function reportFilterChips(
   query: ReportQuery,
@@ -263,13 +252,13 @@ export function reportFilterChips(
   if (query.loanStatus !== "all")
     add(
       "loanStatus",
-      `借用状态：${loanLabels[query.loanStatus] || query.loanStatus}`,
+      `借用状态：${reportLoanStatusLabels[query.loanStatus] || query.loanStatus}`,
       { loanStatus: "all" },
     );
   if (query.loanOutcome !== "all")
     add(
       "loanOutcome",
-      `归还结果：${outcomeLabels[query.loanOutcome] || query.loanOutcome}`,
+      `归还结果：${reportOutcomeLabels[query.loanOutcome] || query.loanOutcome}`,
       { loanOutcome: "all" },
     );
   if (query.damageOnly)

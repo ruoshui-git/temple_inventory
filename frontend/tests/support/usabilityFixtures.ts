@@ -59,9 +59,7 @@ export function receivingFixture(
 }
 
 /** Explicit opt-in, with mixed units, long identities and varied batch/location scope. */
-export function installLargePickerFixture(
-  session: ReviewSession = reviewSession,
-) {
+function installLargePickerFixture(session: ReviewSession = reviewSession) {
   for (let index = 0; index < 1000; index++) {
     const source = fixtureItems[index % fixtureItems.length]!;
     const code = `PICKER-1000-${String(index + 1).padStart(4, "0")}`;

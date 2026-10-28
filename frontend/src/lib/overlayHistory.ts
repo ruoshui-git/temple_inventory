@@ -54,7 +54,7 @@ export function isOverlayNavigationPending() {
   return navigationPending;
 }
 
-export function replaceOverlayNavigation(
+function replaceOverlayNavigation(
   target: RouteLocationRaw,
 ): RouteLocationRaw | void {
   if (replacingOverlayNavigation) {

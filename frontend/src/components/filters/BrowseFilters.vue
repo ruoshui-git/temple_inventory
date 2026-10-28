@@ -11,7 +11,7 @@ import FilterDisclosure from "../ui/FilterDisclosure.vue";
 import type { HierarchyFilterNode } from "../ui/HierarchyFilter.vue";
 import { useReferenceData } from "../../services/contracts";
 const reference = useReferenceData();
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { type BrowseScope } from "../../lib/browseQuery";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { browseHierarchyEditKey } from "../../lib/filterPanelSession";

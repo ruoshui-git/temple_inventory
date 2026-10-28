@@ -1,4 +1,4 @@
-export type HierarchySelectionNode = {
+type HierarchySelectionNode = {
   name: string;
   parent?: string;
   parent_item_group?: string;

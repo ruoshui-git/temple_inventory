@@ -9,7 +9,7 @@ import {
 } from "../lib/nativeNavigation";
 import {
 	browseRouteTarget,
-	restoreBrowseQueryPayload,
+	browseRouteQuery,
 	routeTarget,
 	serializeBrowseQuery,
 } from "../lib/routeRegistry";
@@ -69,7 +69,7 @@ function changed(query: ReportQuery) {
 		ref="page"
 		:mode="mode"
 		:name="route.params.name ? String(route.params.name) : undefined"
-		:route-query="restoreBrowseQueryPayload(route.query.query, 'activities', route.query.view)"
+		:route-query="browseRouteQuery(route.query.query, 'activities', route.query.view)"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		@navigate="navigate"
 		@query-change="changed"

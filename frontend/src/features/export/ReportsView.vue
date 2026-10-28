@@ -30,7 +30,7 @@ import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresenta
 import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
 import type { useExportWorkspaceController } from "./useReportController";
-import { operationLabels } from "../documents/operationCodec";
+import { operationLabels } from "../../lib/presentationLabels";
 import { kindIcons } from "../../lib/kindIcons";
 import { useFilterChoices } from "../references/useFilterChoices";
 const props = withDefaults(
@@ -88,7 +88,11 @@ function setPersonName(name: string) {
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && reference.operations[kind])
-		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: kindIcons[kind].icon })),
+		.map((kind) => ({
+			kind,
+			label: operationLabels[kind]!,
+			icon: kindIcons[kind as keyof typeof kindIcons].icon,
+		})),
 );
 const availableSecondGroups = computed(() =>
 	groupSequencesForView(dataset.value, query.value.view)

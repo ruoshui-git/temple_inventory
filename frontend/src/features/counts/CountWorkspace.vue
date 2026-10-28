@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { compareTableValues, nextTableSort } from "../../composables/useArrayTableSort";
 import FilterPanel from "../../components/ui/FilterPanel.vue";
 import HierarchyFilter from "../../components/ui/HierarchyFilter.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -121,7 +122,7 @@ const sortedRows = computed(() =>
 			item_code: [left.item_code, right.item_code],
 			batch: [left.batch_no || "", right.batch_no || ""],
 		}[sortBy.value];
-		const primary = values[0].localeCompare(values[1], "zh-CN") * sortDirection.value;
+		const primary = compareTableValues(values[0], values[1]) * sortDirection.value;
 		if (primary) return primary;
 		const stable = [
 			[
@@ -135,10 +136,10 @@ const sortedRows = computed(() =>
 			[left.batch_no || "", right.batch_no || ""],
 		];
 		for (const [first, second] of stable) {
-			const order = first.localeCompare(second, "zh-CN");
+			const order = compareTableValues(first, second);
 			if (order) return order;
 		}
-		return c.countKey(left).localeCompare(c.countKey(right));
+		return compareTableValues(c.countKey(left), c.countKey(right));
 	}),
 );
 const pageCount = computed(() => Math.max(1, Math.ceil(sortedRows.value.length / pageSize)));
@@ -184,11 +185,9 @@ watch(pageCount, (count) => {
 	if (visiblePage.value > count) visiblePage.value = count;
 });
 function sort(field: "location" | "item_name" | "item_code" | "batch") {
-	if (sortBy.value === field) sortDirection.value = sortDirection.value === 1 ? -1 : 1;
-	else {
-		sortBy.value = field;
-		sortDirection.value = 1;
-	}
+	const next = nextTableSort(field, sortBy.value, sortDirection.value === 1 ? "asc" : "desc");
+	sortBy.value = next.field as typeof sortBy.value;
+	sortDirection.value = next.direction === "asc" ? 1 : -1;
 	visiblePage.value = 1;
 }
 function countRowAttributes(row: Record<string, unknown>) {
@@ -334,7 +333,8 @@ function itemImage(row: CountRow) {
 			<p v-for="(row, index) in removed" :key="index">
 				{{ row.item_name || names[row.item_code] || row.item_code }} ·
 				{{ warehouseLabel(row.warehouse, reference.warehouses) }} ·
-				{{ row.batch_no || "无批次" }} · {{ row.actual_qty ?? "未核对" }}
+				{{ row.batch_no || "无批次" }} ·
+				{{ row.actual_qty ?? "未核对" }}
 				{{ unitLabel(String(row.stock_uom || "")) }}
 			</p>
 			<label v-if="writable" class="preview-choice-label">

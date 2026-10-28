@@ -9,7 +9,7 @@ import {
 } from "./displayPreferences";
 export type { Density, DisplayPreferences } from "./displayPreferences";
 
-export type PreferenceSaveState = "saved" | "saving" | "error";
+type PreferenceSaveState = "saved" | "saving" | "error";
 export const density = ref(defaultDisplayPreferences.density);
 export const theme = ref(defaultDisplayPreferences.theme);
 export const textScale = ref(defaultDisplayPreferences.textScale);
@@ -21,9 +21,7 @@ const CACHE_PREFIX = "temple-inventory:ui-preferences:v2:";
 let accountEpoch = 0;
 let editRevision = 0;
 
-export function isDisplayPreferences(
-  value: unknown,
-): value is DisplayPreferences {
+function isDisplayPreferences(value: unknown): value is DisplayPreferences {
   if (!value || typeof value !== "object") return false;
   const candidate = value as DisplayPreferences;
   return (

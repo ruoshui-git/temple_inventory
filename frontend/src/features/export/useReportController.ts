@@ -15,12 +15,11 @@ import {
   type ReportPage,
 } from "../../services/contracts";
 
-import { decodeReportQuery, readReportQuery } from "../../lib/reportQuery";
+import { decodeReportQuery } from "../../lib/reportQuery";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { useReportGroups } from "../../composables/useReportGroups";
-export { readReportQuery } from "../../lib/reportQuery";
 
 import {
   reportFilterChips,
@@ -310,7 +309,9 @@ export function useExportWorkspaceController(
     const incoming = decoded?.query;
     if (incoming) {
       dataset.value = incoming.dataset;
-      states[incoming.dataset] = readReportQuery(JSON.stringify(incoming));
+      states[incoming.dataset] = decodeReportQuery(
+        JSON.stringify(incoming),
+      ).query;
     } else if (props.variant && props.variant in reportDefinitions)
       dataset.value = props.variant as ReportDataset;
     restoring = false;
@@ -369,7 +370,9 @@ export function useExportWorkspaceController(
     const selected = chosenView.value;
     if (!selected) return;
     dataset.value = selected.query.dataset;
-    states[dataset.value] = readReportQuery(JSON.stringify(selected.query));
+    states[dataset.value] = decodeReportQuery(
+      JSON.stringify(selected.query),
+    ).query;
     viewName.value = selected.title;
   }
   async function save() {

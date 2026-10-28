@@ -1,4 +1,4 @@
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import type { ReportRow } from "../../lib/reportContract";
 import { sortByUnit } from "../../lib/units";
 

@@ -2,7 +2,7 @@
 import { computed, useSlots } from "vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { siteDateTime } from "../../lib/nativeTime";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
@@ -56,7 +56,6 @@ const props = withDefaults(
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	openLoan: [name: string];
-	openItem: [code: string];
 	loadMore: [];
 	retry: [];
 	sort: [column: string];

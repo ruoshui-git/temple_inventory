@@ -1,4 +1,4 @@
-export interface InventoryAttachment {
+interface InventoryAttachment {
   id: string;
   name: string;
   type: string;

@@ -19,7 +19,7 @@ import {
   type ScopeFilterField,
 } from "../../lib/filterPresentation";
 import { reportFilterChips } from "../../lib/reportFilters";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import {
   useInventoryServices,
   useReferenceData,

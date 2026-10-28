@@ -2,9 +2,9 @@
 import { computed, ref, useSlots } from "vue";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
-import { nativeStatusLabel } from "../../lib/nativeLabels";
+import { nativeStatusLabel, tablePresentationLabel } from "../../lib/presentationLabels";
 import { siteDateTime } from "../../lib/nativeTime";
-import { formatQuantity } from "../../lib/formatQuantity";
+import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -20,7 +20,7 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import type { useReportGroups } from "../../composables/useReportGroups";
 import { reportColumnLabels } from "../../lib/reportCells";
 import { dataColumnKind } from "../../lib/dataTable";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import LocationEndpoint from "./LocationEndpoint.vue";
 import { RouterLink } from "vue-router";
@@ -254,39 +254,7 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 		return `${row.signed && value > 0 ? "+" : value < 0 ? "−" : ""}${amount} ${String(row.stock_uom || "")}`.trim();
 	}
 	if (typeof value === "boolean") return value ? "是" : "否";
-	const dictionary: Record<string, Record<string, string>> = {
-		kind: movementLabels,
-		docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
-		status: { Active: "进行中", Archived: "已归档" },
-		loan_status: {
-			Draft: "草稿",
-			Cancelled: "已取消",
-			Open: "未结清",
-			Settled: "已结清",
-			Closed: "已结清",
-		},
-		doctype: {
-			"Stock Entry": "库存流动",
-			"Stock Reconciliation": movementLabels.Reconcile,
-			"Purchase Receipt": "采购收货",
-			"Delivery Note": "销售发货",
-		},
-		review_state: { Unreviewed: "尚未核对", Reviewed: "已核对" },
-		count_scope: { Selected: "选定物品", "Full Location": "整个库位" },
-		outcome_key: {
-			outstanding: "未归还",
-			returned: "完好归还",
-			damaged: "损坏归还",
-			lost: "遗失",
-		},
-		outcome: { Returned: "完好归还", Damaged: "损坏归还", Lost: "遗失" },
-		relationship: {
-			direct: "直接关联",
-			"via original loan": "经原借出关联",
-			indirect: "经原借出关联",
-		},
-	};
-	return dictionary[column]?.[String(value)] ?? value;
+	return tablePresentationLabel(column, value);
 }
 
 function displayCell(column: string, value: unknown, row: Record<string, unknown>) {
@@ -389,10 +357,13 @@ function groupSummary(group: DataTableGroup) {
 			const status =
 				entry.docstatus === undefined ? "" : `（${nativeStatusLabel(entry.docstatus)}）`;
 			const quantity = entry.stock_qty;
-			if (quantity !== undefined && quantity !== null)
-				parts.push(
-					`${kind}${status} ${formatQuantity(Number(quantity))}${entry.stock_uom || entry.uom || row.stock_uom ? ` ${unitLabel(String(entry.stock_uom || entry.uom || row.stock_uom))}` : ""}`,
-				);
+			if (quantity !== undefined && quantity !== null) {
+				const unit = entry.stock_uom || entry.uom || row.stock_uom;
+				const amount = unit
+					? formatQuantityWithUnit(Number(quantity), String(unit))
+					: formatQuantity(Number(quantity));
+				parts.push(`${kind}${status} ${amount}`);
+			}
 		}
 	}
 	return [...new Set(parts)].join(" · ");
@@ -413,7 +384,7 @@ function groupMetric(group: DataTableGroup, column: string) {
 				);
 				const status = hasStatus ? `（${nativeStatusLabel(entry.docstatus)}）` : "";
 				const unit = entry.stock_uom || entry.uom || row.stock_uom || "";
-				return `${kind}${status} ${formatQuantity(Number(entry.stock_qty))} ${unitLabel(String(unit))}`.trim();
+				return `${kind}${status} ${formatQuantityWithUnit(Number(entry.stock_qty), String(unit))}`.trim();
 			})
 			.join(" / ");
 	}
@@ -430,7 +401,7 @@ function groupMetric(group: DataTableGroup, column: string) {
 		return "";
 	const value = row[column];
 	if (typeof value === "number" && unitForQuantity(column, row))
-		return `${quantityText(column, value, row)} ${unitLabel(unitForQuantity(column, row))}`;
+		return formatQuantityWithUnit(value, unitForQuantity(column, row));
 	return value === undefined || value === null ? "" : cell(column, value, row);
 }
 </script>

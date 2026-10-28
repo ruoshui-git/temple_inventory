@@ -84,9 +84,6 @@ describe("shared production design system", () => {
         "--p-card-min-width",
       ),
     ).toBe("280px");
-    const design = read("../DESIGN_SYSTEM.md");
-    expect(design).toContain("160/200/280px");
-    expect(design).toContain("64px square contain thumbnail");
     expect(read("src/styles/browse.css")).toContain(
       "grid-template-columns: repeat(2, minmax(0, 1fr))",
     );
@@ -99,12 +96,6 @@ describe("shared production design system", () => {
   });
   it("keeps the documented stylesheet entry and retired preview gallery out of production", () => {
     expect(read("src/main.ts")).toContain('import "./styles/app.css"');
-    expect(existsSync(resolve("design-preview.html"))).toBe(false);
-    expect(
-      Object.keys(JSON.parse(read("package.json")).scripts).some((key) =>
-        key.startsWith("design:"),
-      ),
-    ).toBe(false);
     expect(read("src/main.ts")).not.toContain("frappe-ui/style.css");
     const production = importGraph("src/main.ts");
     expect(production).toContain(resolve("src/styles/app.css"));

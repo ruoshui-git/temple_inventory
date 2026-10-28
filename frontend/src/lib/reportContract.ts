@@ -181,7 +181,7 @@ export function groupSequencesForView(
     ),
   ];
 }
-export const sortableColumnsByView: Record<string, string[]> = {
+const sortableColumnsByView: Record<string, string[]> = {
   "inventory:summary": [
     "identity",
     "item_name",

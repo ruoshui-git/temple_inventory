@@ -1,6 +1,6 @@
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 
-export type ScannerEngineId = "zxing-wasm";
+type ScannerEngineId = "zxing-wasm";
 export type ScannerFramePresence = boolean | null;
 export interface ScannerEngine {
   readonly id: ScannerEngineId;
@@ -25,8 +25,8 @@ export interface ScannerCamera {
   stableLabel?: string;
 }
 
-export type ImageBarcode = { text: string; format: string };
-export type ImageDecodeOptions = {
+type ImageBarcode = { text: string; format: string };
+type ImageDecodeOptions = {
   signal?: AbortSignal;
   onProgress?: (attempt: number) => void;
   readBarcodes?: (
@@ -167,7 +167,7 @@ export function cameraListPresentation(cameras: ScannerCamera[]) {
       : "hidden";
 }
 
-export interface CoverCropRect {
+interface CoverCropRect {
   sx: number;
   sy: number;
   side: number;
@@ -470,7 +470,7 @@ export class ZxingWasmScannerEngine implements ScannerEngine {
   }
 }
 
-export interface ScannerEngineFactories {
+interface ScannerEngineFactories {
   "zxing-wasm": () => ScannerEngine;
 }
 const STORAGE_KEY = "temple_inventory.scanner_engine";

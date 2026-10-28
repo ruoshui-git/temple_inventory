@@ -1,7 +1,7 @@
 import type { RecoverySnapshot } from "./browserRecovery";
 import { documentDestination, operationDestination } from "./nativeNavigation";
 import { routeTarget } from "./routeRegistry";
-import { operationLabels } from "../features/documents/operationCodec";
+import { operationLabels } from "./presentationLabels";
 
 export function recoveryDestination(entry: RecoverySnapshot) {
   const query = { recovery: entry.editorId, editor: crypto.randomUUID() };

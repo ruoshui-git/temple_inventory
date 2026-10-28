@@ -6,6 +6,7 @@ import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { siteDateTime } from "../../lib/nativeTime";
 import { computed, ref } from "vue";
+import { nextTableSort } from "../../composables/useArrayTableSort";
 import ActivityEditor from "./ActivityEditor.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -13,7 +14,7 @@ import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { periodLabels } from "../../lib/sitePeriod";
 import type { ReportQuery } from "../../lib/reportContract";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
@@ -38,7 +39,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { activityLoansTarget, activityMovementTarget } from "./activityRoutes";
 import { sortByUnit, unitLabel } from "../../lib/units";
-import { formatQuantity } from "../../lib/formatQuantity";
+import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
@@ -154,11 +155,14 @@ const activityRows = computed<DataTableRecord[]>(() =>
 );
 function sortActivity(column: string) {
 	const sort = column === "title" ? "title" : column === "start_date" ? "start" : "updated";
-	if (state.sort === sort) state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
-	else {
-		state.sort = sort;
-		state.sortDirection = sort === "updated" ? "desc" : "asc";
-	}
+	const next = nextTableSort(
+		sort,
+		state.sort,
+		state.sortDirection,
+		sort === "updated" ? "desc" : "asc",
+	);
+	state.sort = next.field;
+	state.sortDirection = next.direction;
 }
 function activityKindCounts(id: string) {
 	return [...activityMovementCounts(id)].sort((left, right) => right.count - left.count);
@@ -596,7 +600,7 @@ const activityPrefs = services
 									v-for="[uom, qty] in movementQuantities(count.kind).shown"
 									:key="uom"
 								>
-									{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+									{{ formatQuantityWithUnit(qty, uom) }}
 								</b>
 								<template v-if="expandedActivityKinds.has(count.kind)">
 									<b
@@ -606,7 +610,7 @@ const activityPrefs = services
 										:key="`extra-${uom}`"
 										class="activity-movement-expanded-unit"
 									>
-										{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+										{{ formatQuantityWithUnit(qty, uom) }}
 									</b>
 								</template>
 							</span>
@@ -637,7 +641,7 @@ const activityPrefs = services
 						<strong>当前未归还</strong>
 						<span class="activity-movement-tile-quantities">
 							<b v-for="[uom, qty] in outstandingQuantities()" :key="uom">
-								{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+								{{ formatQuantityWithUnit(qty, uom) }}
 							</b>
 						</span>
 						<span class="activity-movement-tile-count"

@@ -10,7 +10,7 @@ import {
   type Ref,
 } from "vue";
 
-export type ScrollOwner = HTMLElement | Window;
+type ScrollOwner = HTMLElement | Window;
 export function scrollOwner(element: HTMLElement | null): ScrollOwner {
   for (let node = element; node; node = node.parentElement) {
     if (

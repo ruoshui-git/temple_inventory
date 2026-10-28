@@ -1,5 +1,4 @@
-export type EnvironmentName =
-  "production" | "sample" | "staging" | "development";
+type EnvironmentName = "production" | "sample" | "staging" | "development";
 export type EnvironmentDescriptor = {
   environment: EnvironmentName;
   label: string;

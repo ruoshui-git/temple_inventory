@@ -8,9 +8,9 @@ import {
 } from "../src/services/contracts";
 import {
   notificationGroups,
-  relativeTime,
   type InventoryNotification,
 } from "../src/features/notifications/model";
+import { relativeTime } from "../src/lib/nativeTime";
 
 describe("site timezone helpers", () => {
   afterEach(() => {

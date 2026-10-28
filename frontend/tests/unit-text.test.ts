@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it } from "vitest";
 import UnitText from "../src/components/ui/UnitText.vue";
 import { setUnitSource } from "../src/lib/units";
+import { formatQuantityWithUnit } from "../src/lib/formatQuantity";
 
 describe("UnitText", () => {
   afterEach(() => setUnitSource(undefined));
@@ -19,5 +20,10 @@ describe("UnitText", () => {
     const wrapper = mount(UnitText, { props: { name: "Nos", qty: 12 } });
     expect(wrapper.text()).toBe("12 Nos");
     expect(wrapper.attributes("title")).toBeUndefined();
+  });
+
+  it("uses the canonical optional unknown-unit fallback", () => {
+    expect(formatQuantityWithUnit(2, "Unknown")).toBe("2 Unknown");
+    expect(formatQuantityWithUnit(2, "", "单位未知")).toBe("2 单位未知");
   });
 });

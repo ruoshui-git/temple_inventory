@@ -6,7 +6,7 @@ import { computed, ref, watch } from "vue";
 import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -16,7 +16,7 @@ import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
-import { operationLabels } from "../documents/operationCodec";
+import { operationLabels } from "../../lib/presentationLabels";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
@@ -45,7 +45,8 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { summarizeItems } from "../../lib/itemSummary";
 import { sortByUnit, unitLabel } from "../../lib/units";
-import { relativeTime } from "../notifications/model";
+import { formatQuantityWithUnit } from "../../lib/formatQuantity";
+import { relativeTime } from "../../lib/nativeTime";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useFilterChoices } from "../references/useFilterChoices";
 const filterChoices = useFilterChoices();
@@ -68,7 +69,11 @@ const c = props.controller;
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && c.reference.operations[kind])
-		.map((kind) => ({ kind, label: operationLabels[kind]!, icon: kindIcons[kind].icon })),
+		.map((kind) => ({
+			kind,
+			label: operationLabels[kind]!,
+			icon: kindIcons[kind as keyof typeof kindIcons].icon,
+		})),
 );
 const {
 	query,
@@ -257,7 +262,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 });
 const quantities = (row: NativeRecord) =>
 	sortByUnit(row.whole.quantities, (value) => value.uom)
-		.map((value) => `${value.qty} ${unitLabel(value.uom)}`)
+		.map((value) => formatQuantityWithUnit(Number(value.qty), value.uom))
 		.join(" · ");
 const services = useOptionalInventoryServices();
 const tableColumns = computed<DataColumn[]>(() => [

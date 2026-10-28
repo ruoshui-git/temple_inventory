@@ -12,7 +12,7 @@ export interface PreviewAttachment {
   state: "uploading" | "ready" | "error";
 }
 export { activities } from "./activityData";
-export function addLoanToDraft(
+function addLoanToDraft(
   draft: ReviewDraft,
   name: string,
   session: ReviewSession = reviewSession,
@@ -53,7 +53,7 @@ export function addLoanToDraft(
   });
   return "";
 }
-export function countLocationLines(
+function countLocationLines(
   location: string,
   session: ReviewSession = reviewSession,
 ) {
@@ -105,7 +105,7 @@ export function countSummary(draft: Pick<ReviewDraft, "lines">) {
   };
 }
 
-export function refreshCountBaseline(
+function refreshCountBaseline(
   draft: ReviewDraft,
   session: ReviewSession = reviewSession,
 ) {
@@ -134,13 +134,13 @@ export function refreshCountBaseline(
   draft.baselineStale = false;
   draft.baselineReviewed = false;
 }
-export interface EditSnapshot {
+interface EditSnapshot {
   version: number;
   status: ReviewDraft["status"];
   deleted: boolean;
   document: ReviewDraft;
 }
-export function externalSnapshot(
+function externalSnapshot(
   draft: ReviewDraft,
   action: "edit" | "submit" | "cancel" | "delete",
 ): EditSnapshot {
@@ -155,10 +155,10 @@ export function externalSnapshot(
   if (action === "edit") document.note = "ERPNext 更新的备注";
   return { version, status, deleted: action === "delete", document };
 }
-export function recordIdentity(draft: ReviewDraft) {
+function recordIdentity(draft: ReviewDraft) {
   return `${draft.documentType || (draft.kind === "Reconcile" ? "Stock Reconciliation" : "Stock Entry")}/${draft.name}`;
 }
-export function warehouseEditError(
+function warehouseEditError(
   name: string,
   parent: string,
   session: ReviewSession = reviewSession,
@@ -184,7 +184,7 @@ export function warehouseEditError(
     return "请选择实体仓库下的上级节点";
   return "";
 }
-export function isSystemWarehouse(
+function isSystemWarehouse(
   name: string,
   session: ReviewSession = reviewSession,
 ) {
@@ -198,7 +198,7 @@ export function isSystemWarehouse(
   }
   return false;
 }
-export function physicalLeafWarehouses(session: ReviewSession = reviewSession) {
+function physicalLeafWarehouses(session: ReviewSession = reviewSession) {
   return session.warehouses.filter(
     (row) =>
       !row.is_group &&
@@ -208,7 +208,7 @@ export function physicalLeafWarehouses(session: ReviewSession = reviewSession) {
 }
 
 /** Fixture document lifecycle. Only loan projections change; stock remains a snapshot. */
-export function cancelPreviewDocument(
+function cancelPreviewDocument(
   draft: ReviewDraft,
   session: ReviewSession = reviewSession,
 ) {
@@ -273,7 +273,7 @@ export function cancelPreviewDocument(
 }
 
 /** A future API adapter can use this to ignore responses from superseded searches. */
-export function latestOptionSearch<T>(fetch: (query: string) => Promise<T[]>) {
+function latestOptionSearch<T>(fetch: (query: string) => Promise<T[]>) {
   let generation = 0;
   return async (query: string) => {
     const mine = ++generation;

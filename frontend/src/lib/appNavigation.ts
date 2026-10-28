@@ -6,7 +6,7 @@ import {
 } from "./routeRegistry";
 import { kindIcons } from "./kindIcons";
 
-export type AppDestination = AppOwner;
+type AppDestination = AppOwner;
 export interface NavigationItem {
   key: string;
   label: string;

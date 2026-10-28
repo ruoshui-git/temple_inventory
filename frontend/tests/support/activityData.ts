@@ -1,6 +1,6 @@
 import { reactive } from "vue";
 
-export interface ActivityType {
+interface ActivityType {
   id: string;
   label: string;
   enabled: boolean;
@@ -66,7 +66,7 @@ export function activityLabel(id?: string) {
 export function activityTypeLabel(id: string) {
   return activityTypes.find((row) => row.id === id)?.label || id;
 }
-export function activityOptions(current = "", includeArchived = false) {
+function activityOptions(current = "", includeArchived = false) {
   return activities
     .filter(
       (row) => includeArchived || row.status === "active" || row.id === current,

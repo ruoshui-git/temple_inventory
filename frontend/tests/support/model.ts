@@ -13,7 +13,7 @@ export {
   type TextScale,
 } from "../../src/lib/displayPreferences";
 export type Pattern = "current" | "proposed";
-export type PreviewPreferences = {
+type PreviewPreferences = {
   textScale: TextScale;
   theme: ThemeId;
   density: Density;
@@ -21,7 +21,7 @@ export type PreviewPreferences = {
   actions: Pattern;
   form: Pattern;
 };
-export const preferenceKey = "ti:design-preview:v3";
+const preferenceKey = "ti:design-preview:v3";
 export const defaults: PreviewPreferences = {
   textScale: 100,
   theme: "jade",
@@ -31,7 +31,7 @@ export const defaults: PreviewPreferences = {
   form: "current",
 };
 
-export function readPreferences(
+function readPreferences(
   storage: Pick<Storage, "getItem"> | undefined,
 ): PreviewPreferences {
   try {
@@ -60,7 +60,7 @@ export function readPreferences(
     return { ...defaults };
   }
 }
-export function writePreferences(
+function writePreferences(
   storage: Pick<Storage, "setItem"> | undefined,
   preferences: PreviewPreferences,
 ) {
@@ -235,7 +235,7 @@ const fixtures: ItemFixture[] = [
   },
 ];
 export const items = fixtures.map(summarize);
-export const warehouseNodes = [
+const warehouseNodes = [
   { name: "斋堂", label: "斋堂", is_group: true },
   ...locations.slice(0, 2).map((location, index) => ({
     name: location,
@@ -255,7 +255,7 @@ export const warehouseNodes = [
     ).length,
   },
 ];
-export function filterItems(
+function filterItems(
   search: string,
   warehouses: string[],
   category: string,
@@ -317,7 +317,7 @@ export function quantities(
   );
   return [...totals].map(([uom, qty]) => ({ uom, qty }));
 }
-export type ReceiveLine = {
+type ReceiveLine = {
   id: number;
   code: string;
   qty: number;
@@ -325,7 +325,7 @@ export type ReceiveLine = {
   batch: string;
   expiry: string;
 };
-export function validateLines(lines: ReceiveLine[]) {
+function validateLines(lines: ReceiveLine[]) {
   if (!lines.length) return "请先添加至少一项物品。";
   if (lines.some((line) => !Number.isFinite(line.qty) || line.qty <= 0))
     return "数量必须大于 0，请检查标记的物品。";

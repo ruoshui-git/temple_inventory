@@ -17,7 +17,7 @@ export const periodLabels = {
   last_365_days: "近365天",
   custom: "自定义",
 };
-export type PeriodKey = keyof typeof periodLabels;
+type PeriodKey = keyof typeof periodLabels;
 export interface DatePeriod {
   key: PeriodKey;
   from: string;

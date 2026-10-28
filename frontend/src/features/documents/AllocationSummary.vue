@@ -5,7 +5,7 @@ import DataTable from "../../components/ui/DataTable.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 import UnitText from "../../components/ui/UnitText.vue";
-import { formatQuantity } from "../../lib/formatQuantity";
+import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { formatConversion } from "../../lib/conversionText";
 import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
 import { routeTarget } from "../../lib/routeRegistry";
@@ -80,7 +80,7 @@ function totals(lines: AllocationLine[]) {
 		values.set(uom, (values.get(uom) || 0) + Number(line.qty || 0));
 	});
 	return sortByUnit([...values], ([uom]) => uom)
-		.map(([uom, qty]) => `${formatQuantity(qty)} ${unitLabel(uom) || uom || "未知单位"}`)
+		.map(([uom, qty]) => formatQuantityWithUnit(qty, uom))
 		.join(" · ");
 }
 const sections = computed(() => {
@@ -208,7 +208,7 @@ function quantityText(line: AllocationLine) {
 			uom: enteredUnit,
 			factor: Number(line.conversionFactor || 1),
 			stockUom: line.uom,
-		}) || `${formatQuantity(enteredQty(line))} ${unitLabel(enteredUnit)}`
+		}) || formatQuantityWithUnit(enteredQty(line), enteredUnit)
 	);
 }
 function lineFor(row: Record<string, unknown>) {

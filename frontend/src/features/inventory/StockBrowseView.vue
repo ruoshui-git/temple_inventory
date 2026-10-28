@@ -16,7 +16,7 @@ import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
@@ -322,16 +322,15 @@ watch([() => props.active, isMobile], () => {
 							:model-value="quickReportQuery.itemStatus"
 							@update:model-value="setItemStatus"
 						/>
-						<details class="browse-filter-disclosure" data-filter-field="includeZero">
-							<summary class="ti-disclosure">
-								<DisclosureIcon variant="inline" />
-								库存状态
-								<small>{{ inStockOnly ? "仅有库存" : "包括零库存" }}</small>
-							</summary>
+						<FilterDisclosure
+							label="库存状态"
+							:summary="inStockOnly ? '仅有库存' : '包括零库存'"
+							field="includeZero"
+						>
 							<label class="preview-choice-label preview-check"
 								><input type="checkbox" v-model="inStockOnly" />仅有库存</label
 							>
-						</details>
+						</FilterDisclosure>
 					</section>
 					<section>
 						<h3>分组</h3>

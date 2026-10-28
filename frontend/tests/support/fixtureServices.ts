@@ -629,7 +629,7 @@ function nativeActivity(row: (typeof activities)[number]) {
 }
 
 /** Gallery-only service controls; shared product components contain no simulations. */
-export const fixtureScenarios = reactive({
+const fixtureScenarios = reactive({
   failEndpoint: "",
   failReport: false,
   reportDelay: 0,

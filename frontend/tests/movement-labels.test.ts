@@ -1,6 +1,7 @@
 import { createReferenceData } from "../src/services/contracts";
 import { describe, expect, it } from "vitest";
-import { scopeValueLabel, movementLabels } from "../src/lib/filterPresentation";
+import { scopeValueLabel } from "../src/lib/filterPresentation";
+import { movementLabels } from "../src/lib/presentationLabels";
 
 describe("shared movement labels", () => {
   it("presents every supported movement kind in Chinese", () => {

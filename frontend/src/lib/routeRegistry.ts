@@ -8,9 +8,13 @@ import {
   type ReportQuery,
   type ReportDataset,
 } from "./reportContract";
-import { operationLabels } from "../features/documents/operationCodec";
+import { operationLabels } from "./presentationLabels";
+import {
+  normalizeBrowseQueryPayload,
+  normalizeReportQuery,
+} from "./reportQuery";
 
-export type AppRouteName =
+type AppRouteName =
   | "home"
   | "stock"
   | "item-new"
@@ -52,7 +56,7 @@ export interface AppRouteTarget {
 }
 export type AppOwner =
   "home" | "inventory" | "movements" | "loans" | "reports" | "more";
-export interface BreadcrumbDefinition {
+interface BreadcrumbDefinition {
   label?: string;
   param?: string;
   paramLabel?: "movement-kind";
@@ -60,7 +64,7 @@ export interface BreadcrumbDefinition {
   to?: AppRouteTarget;
   toName?: AppRouteName;
 }
-export interface AppRouteDefinition {
+interface AppRouteDefinition {
   name: AppRouteName;
   path: string;
   component: NonNullable<RouteRecordRaw["component"]>;
@@ -561,104 +565,9 @@ export function browseRouteTarget(query: ReportQuery): AppRouteTarget {
   );
 }
 
-/** Keep only fields and grouping choices accepted by the destination report view. */
+/** Keep route query normalization in the report query owner. */
 export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
-  const dataset = reportDefinitions[source.dataset]
-    ? source.dataset
-    : "inventory";
-  const definition = reportDefinitions[dataset];
-  const view = definition.views.some((option) => option.id === source.view)
-    ? source.view
-    : definition.views[0]!.id;
-  const target = newReportQuery(dataset);
-  target.view = view;
-  const allowedGroups = groupSequencesForView(dataset, view);
-  target.groupBy = allowedGroups.some(
-    (sequence) =>
-      sequence.length === source.groupBy.length &&
-      sequence.every((field, index) => field === source.groupBy[index]),
-  )
-    ? [...source.groupBy]
-    : [];
-
-  // Scope fields are shared structurally; dataset-specific extras are copied below
-  // only when the destination query exposes the same field.
-  for (const [field, value] of Object.entries(source.scope)) {
-    if (field in target.scope) {
-      (target.scope as unknown as Record<string, unknown>)[field] =
-        structuredClone(value);
-    }
-  }
-  if (dataset !== "expiry" && target.scope.tracking === "batch_only")
-    target.scope.tracking = "all";
-  const sourceFields = source as unknown as Record<string, unknown>;
-  const targetFields = target as unknown as Record<string, unknown>;
-  const excludedFields: Partial<Record<ReportDataset, readonly string[]>> = {
-    movements: ["loanStatus", "loanOutcome", "outstandingOnly", "borrower"],
-    inventory: [
-      "loanStatus",
-      "loanOutcome",
-      "outstandingOnly",
-      "activityStatus",
-      "typeId",
-      "activityKind",
-      "relatedPresence",
-      "borrower",
-      "person",
-    ],
-    expiry: [
-      "loanStatus",
-      "loanOutcome",
-      "outstandingOnly",
-      "activityStatus",
-      "typeId",
-      "activityKind",
-      "relatedPresence",
-      "person",
-      "borrower",
-    ],
-    loans: [
-      "expiryWindow",
-      "includeUndated",
-      "countReviewed",
-      "damageOnly",
-      "relatedPresence",
-    ],
-    activities: [
-      "expiryWindow",
-      "includeUndated",
-      "countReviewed",
-      "damageOnly",
-      "loanOutcome",
-      "outstandingOnly",
-      "person",
-      "borrower",
-      "itemStatus",
-    ],
-    counts: [
-      "expiryWindow",
-      "includeUndated",
-      "loanStatus",
-      "loanOutcome",
-      "outstandingOnly",
-      "activityStatus",
-      "typeId",
-      "activityKind",
-      "relatedPresence",
-      "borrower",
-    ],
-  };
-  const excluded = new Set(excludedFields[dataset] || []);
-  for (const field of Object.keys(targetFields)) {
-    if (["dataset", "view", "scope", "groupBy"].includes(field)) continue;
-    if (excluded.has(field)) continue;
-    if (!(field in sourceFields)) continue;
-    targetFields[field] = structuredClone(sourceFields[field]);
-  }
-  if (!sortableColumnsForView(dataset, view).includes(target.sortBy))
-    target.sortBy = "item_name";
-  if (!groupsForView(dataset, view).length) target.groupBy = [];
-  return target;
+  return normalizeReportQuery(source);
 }
 
 function deepDifference(initial: unknown, actual: unknown): unknown {
@@ -711,46 +620,12 @@ export function restoreBrowseQueryPayload(
   dataset: ReportDataset,
   browserView: unknown,
 ): string | undefined {
-  if (encoded == null) return undefined;
-  const source =
-    typeof encoded === "string" ? encoded : JSON.stringify(encoded);
-  try {
-    const state: unknown = JSON.parse(source);
-    if (!state || typeof state !== "object" || Array.isArray(state))
-      return source;
-    const {
-      dataset: _dataset,
-      view: _view,
-      ...filters
-    } = state as Record<string, unknown>;
-    const defaults = newReportQuery(dataset);
-    const view =
-      dataset === "movements"
-        ? browserView === "records"
-          ? "records"
-          : "summary"
-        : dataset === "loans"
-          ? browserView === "records"
-            ? "records"
-            : "items"
-          : typeof browserView === "string" && browserView
-            ? browserView
-            : defaults.view;
-    const scope =
-      filters.scope === undefined
-        ? defaults.scope
-        : filters.scope &&
-            typeof filters.scope === "object" &&
-            !Array.isArray(filters.scope)
-          ? { ...defaults.scope, ...(filters.scope as Record<string, unknown>) }
-          : filters.scope;
-    return JSON.stringify({ ...defaults, ...filters, scope, dataset, view });
-  } catch {
-    return source;
-  }
+  return normalizeBrowseQueryPayload(encoded, dataset, browserView);
 }
 
-export interface RouteBreadcrumb {
+export const browseRouteQuery = restoreBrowseQueryPayload;
+
+interface RouteBreadcrumb {
   label: string;
   to?: AppRouteTarget;
   current?: boolean;

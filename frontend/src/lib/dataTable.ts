@@ -1,6 +1,6 @@
 export type TableCellValue = string | number | boolean | null | undefined;
 
-export type DataColumnKind =
+type DataColumnKind =
   | "number"
   | "unit"
   | "code"
@@ -224,7 +224,7 @@ export interface ColumnPreference {
   hidden: string[];
 }
 
-export interface ReconciledColumns {
+interface ReconciledColumns {
   order: string[];
   visible: string[];
 }

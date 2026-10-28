@@ -5,7 +5,6 @@ import PendingPage from "../../src/features/pending/PendingPage.vue";
 import LoanDetailPage from "../../src/features/loans/LoanDetailPage.vue";
 import OperationEditorPage from "../../src/features/documents/OperationEditorPage.vue";
 import CountEditorPage from "../../src/features/counts/CountEditorPage.vue";
-import NativeVoucherLink from "../../src/components/NativeVoucherLink.vue";
 import PreviewNativeRecords from "./FixtureHostNativeRecords.vue";
 import PreviewNativeWarehouses from "./FixtureHostNativeWarehouses.vue";
 import PreviewExpiryBrowse from "./FixtureHostExpiryBrowse.vue";
@@ -32,7 +31,7 @@ const page = computed(() => getPreviewPage(props.route)!);
 const movementDetail = computed(
 	() =>
 		page.value.page === "movement-records" &&
-		["detail", "selected", "opening", "workspace-detail", "entry-detail", "external"].includes(
+		["detail", "selected", "opening", "workspace-detail", "entry-detail"].includes(
 			page.value.variant,
 		),
 );
@@ -43,7 +42,6 @@ const movementName = computed(
 			"workspace-detail": "MAT-STE-2026-00017",
 			"entry-detail": "MAT-STE-2026-00003",
 			selected: reviewSession.selectedMovementName || "MAT-STE-2026-00009",
-			external: "MAT-PRE-2026-00001",
 		})[page.value.variant] || "MAT-STE-2026-00012",
 );
 const loanName = computed(() =>
@@ -190,11 +188,6 @@ function browse(query: ReportQuery) {
 			(name, action) =>
 				settle(name, action === 'damaged', action === 'lost' ? 'Loss' : 'Return')
 		"
-	/>
-	<NativeVoucherLink
-		v-else-if="movementDetail && page.variant === 'external'"
-		doctype="Purchase Receipt"
-		:name="movementName"
 	/>
 	<CountEditorPage
 		v-else-if="movementDetail && page.variant === 'opening'"

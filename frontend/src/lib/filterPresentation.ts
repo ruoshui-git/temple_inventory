@@ -2,14 +2,14 @@ import { warehouseLabel } from "./warehouseLabel";
 import type { BrowseScope } from "./browseQuery";
 import { periodLabels } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
-import { movementIcon, movementLabels } from "./kindIcons";
+import { movementIcon } from "./kindIcons";
+import { movementLabels } from "./presentationLabels";
 import { sitePeriodSummary } from "./sitePeriod";
-export { movementLabels } from "./kindIcons";
 export type ScopeFilterField = Exclude<
   keyof BrowseScope,
   "period" | "uncategorized"
 >;
-export const scopeFilterLabels: Record<ScopeFilterField, string> = {
+const scopeFilterLabels: Record<ScopeFilterField, string> = {
   item: "物品",
   activity: "活动",
   categories: "物品类别",

@@ -6,7 +6,6 @@ import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
 import OperationEditorPage from "../src/features/documents/OperationEditorPage.vue";
 import PreviewFormPages from "./support/FixtureHostFormPages.vue";
 import CountEditorPage from "../src/features/counts/CountEditorPage.vue";
-import NativeVoucherLink from "../src/components/NativeVoucherLink.vue";
 import ProductDetailPage from "../src/features/items/ProductDetailPage.vue";
 import NativeRecordsPage from "../src/features/drafts/NativeRecordsPage.vue";
 import NativeWarehousesPage from "../src/features/warehouses/NativeWarehousesPage.vue";
@@ -128,19 +127,12 @@ describe("browser fixture routes satisfy production component contracts", () => 
       expect(fetch).not.toHaveBeenCalled();
     },
   );
-  it("uses shared opening/count and unsupported-native-voucher displays", async () => {
+  it("uses the shared opening/count display", async () => {
     const opening = await render("movement-records/opening");
     expect(
       opening.getComponent(CountEditorPage).vm.controller.opening.value,
     ).toBe(true);
     expect(opening.text()).toContain("期初库存");
-    const external = await render("movement-records/external");
-    expect(external.getComponent(NativeVoucherLink).props("doctype")).toBe(
-      "Purchase Receipt",
-    );
-    expect(external.get("a").attributes("href")).toContain(
-      "/app/purchase-receipt/",
-    );
   });
   it("keeps attachment fixture identity private and displays local file bytes", async () => {
     let files!: ReturnType<typeof useAttachments>;

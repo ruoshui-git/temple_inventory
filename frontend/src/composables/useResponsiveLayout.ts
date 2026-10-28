@@ -1,12 +1,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 
 /** The breakpoint shared by the application shell and every browse surface. */
-export const RESPONSIVE_BREAKPOINT = 1024;
-export const RESPONSIVE_MEDIA_QUERY = `(min-width: ${RESPONSIVE_BREAKPOINT}px)`;
+const RESPONSIVE_BREAKPOINT = 1024;
+const RESPONSIVE_MEDIA_QUERY = `(min-width: ${RESPONSIVE_BREAKPOINT}px)`;
 
-export type ResponsiveSurface = "desktop" | "mobile";
+type ResponsiveSurface = "desktop" | "mobile";
 
-export interface ResponsiveLayout {
+interface ResponsiveLayout {
   isDesktop: Ref<boolean>;
   isMobile: Readonly<Ref<boolean>>;
   surface: Readonly<Ref<ResponsiveSurface>>;

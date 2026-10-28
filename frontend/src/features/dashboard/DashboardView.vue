@@ -28,7 +28,7 @@ import {
 import { newReportQuery, type ReportDataset, type ReportQuery } from "../../lib/reportContract";
 import { emptyScope, type BrowseScope } from "../../lib/browseQuery";
 import type { AppRouteTarget } from "../../lib/routeRegistry";
-import { movementLabels } from "../../lib/filterPresentation";
+import { movementLabels } from "../../lib/presentationLabels";
 import { kindIcons } from "../../lib/kindIcons";
 import { quantityText, type useDashboardController } from "./useDashboardController";
 const props = withDefaults(

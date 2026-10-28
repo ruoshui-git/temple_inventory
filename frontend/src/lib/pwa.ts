@@ -7,7 +7,7 @@ interface InstallPromptEvent extends Event {
 
 export const updateAvailable = ref(false);
 export const updateVersion = ref("");
-export function updateDismissalKey(version: string) {
+function updateDismissalKey(version: string) {
   return `temple-inventory:update-dismissed:${version}`;
 }
 export function isUpdateDismissed(version: string) {

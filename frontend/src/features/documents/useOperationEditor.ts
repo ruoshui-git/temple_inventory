@@ -23,8 +23,8 @@ import {
   encodeOperation,
   decodeOperation,
   newOperation,
-  operationLabels,
 } from "./operationCodec";
+import { operationLabels } from "../../lib/presentationLabels";
 import {
   operationIssues,
   lineStock,

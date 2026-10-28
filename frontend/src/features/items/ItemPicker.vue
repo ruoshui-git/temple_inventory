@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { unitLabel } from "../../lib/units";
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
@@ -493,23 +493,19 @@ async function selectExisting(code: string, warehouse: string) {
 								"
 								:hierarchy-in-rail="sidebarOpen && !isMobile"
 							/>
-							<details
+							<FilterDisclosure
 								v-if="showOnlyStockFilter(purpose)"
-								class="browse-filter-disclosure"
-								data-filter-field="onlyStock"
+								label="库存条件"
+								:summary="onlyStock ? '仅有可用库存' : '不限'"
+								field="onlyStock"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" /> 库存条件<small>{{
-										onlyStock ? "仅有可用库存" : "不限"
-									}}</small>
-								</summary>
 								<label class="preview-choice-label"
 									><input
 										type="checkbox"
 										v-model="onlyStock"
 									/>仅有可用库存</label
 								>
-							</details>
+							</FilterDisclosure>
 						</div>
 					</template>
 					<template #chips="{ openFilters, editFilter }">

@@ -6,7 +6,7 @@ import {
   type DataColumn,
 } from "../lib/dataTable";
 
-export type ColumnSaveState = "saved" | "saving" | "error";
+type ColumnSaveState = "saved" | "saving" | "error";
 
 const CACHE_PREFIX = "temple-inventory:table-columns:v1:";
 const memory = new Map<string, ColumnPreference>();

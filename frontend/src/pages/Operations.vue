@@ -10,13 +10,13 @@ import {
 	operationDestination,
 } from "../lib/nativeNavigation";
 import type { ReportQuery } from "../lib/reportContract";
-import { routeTarget, restoreBrowseQueryPayload } from "../lib/routeRegistry";
+import { browseRouteQuery, routeTarget } from "../lib/routeRegistry";
 const props = defineProps<{ family: "movements" | "loans" }>();
 const route = useRoute(),
 	router = useRouter();
 const records = computed(() => route.query.view === "records");
 const encodedQuery = computed(() =>
-	restoreBrowseQueryPayload(route.query.query, props.family, route.query.view),
+	browseRouteQuery(route.query.query, props.family, route.query.view),
 );
 function changed(query: ReportQuery) {
 	const target = browseStateDestination(

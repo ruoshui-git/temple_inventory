@@ -1,6 +1,6 @@
 import { reactive, readonly, watch } from "vue";
 
-export type ValidationRule<T = unknown> = (
+type ValidationRule<T = unknown> = (
   value: T,
 ) => string | undefined | null | true;
 type Field = {

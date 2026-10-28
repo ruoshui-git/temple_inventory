@@ -52,7 +52,6 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 		:active="active"
 		:inventory-section="inventorySection"
 		v-model:inventory-expanded="inventoryExpanded"
-		:more-route="primaryNavigation.find((item) => item.key === 'more')!.route"
 		:user="reference.user"
 		@primary="navigate"
 		@inventory="navigate"

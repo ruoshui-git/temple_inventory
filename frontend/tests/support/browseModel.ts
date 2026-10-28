@@ -33,7 +33,7 @@ export const outcomes = {
   damaged: "损坏",
   lost: "遗失",
 };
-export type Outcome = keyof typeof outcomes;
+type Outcome = keyof typeof outcomes;
 export function resolvePeriod(period: PreviewPeriod, today = previewDate) {
   if (period.key === "all") return { from: "", to: "" };
   if (period.key === "custom") return { from: period.from, to: period.to };
@@ -51,7 +51,7 @@ export function inPeriod(date: string, period: PreviewPeriod) {
   const { from, to } = resolvePeriod(period);
   return (!from || date >= from) && (!to || date <= to);
 }
-export function matchesExpiry(
+function matchesExpiry(
   expiry: string | undefined,
   status: string,
   today = previewDate,
@@ -103,7 +103,7 @@ export function matchesWarehouse(
   }
   return false;
 }
-export function matchesCategory(
+function matchesCategory(
   category: string,
   selected: string[],
   session: ReviewSession,
@@ -167,7 +167,7 @@ export function quantityText(rows: { qty: number; uom: string }[]) {
       .join(" · ") || "0"
   );
 }
-export function groupMovements(rows: ReviewMovement[]) {
+function groupMovements(rows: ReviewMovement[]) {
   const groups = new Map<string, ReviewMovement[]>();
   rows.forEach((row) =>
     groups.set(row.code, [...(groups.get(row.code) || []), row]),

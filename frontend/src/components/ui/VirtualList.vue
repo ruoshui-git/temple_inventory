@@ -2,7 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 const props = withDefaults(
 	defineProps<{ keys: string[]; estimate?: number; threshold?: number }>(),
-	{ estimate: 120, threshold: 100 },
+	{
+		estimate: 120,
+		threshold: 100,
+	},
 );
 const viewport = ref<HTMLElement>();
 // Retain the last focused row through pointer focus transfer and detail-return.

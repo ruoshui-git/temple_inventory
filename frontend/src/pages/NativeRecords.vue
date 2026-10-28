@@ -7,15 +7,14 @@ import { recoveryDestination } from "../lib/recoveryNavigation";
 import type { RecoverySnapshot } from "../lib/browserRecovery";
 import type { ReportQuery } from "../lib/reportContract";
 import { routeTarget } from "../lib/routeRegistry";
-import { restoreBrowseQueryPayload, serializeBrowseQuery } from "../lib/routeRegistry";
+import { browseRouteQuery, serializeBrowseQuery } from "../lib/routeRegistry";
 const route = useRoute(),
 	router = useRouter();
 const mode = computed(() => (route.name === "counts" ? "counts" : "drafts"));
 const routeQuery = computed(() => {
 	const value = route.query.query;
 	if (value == null) return undefined;
-	if (mode.value === "counts")
-		return restoreBrowseQueryPayload(value, "counts", route.query.view);
+	if (mode.value === "counts") return browseRouteQuery(value, "counts", route.query.view);
 	return typeof value === "string" ? value : JSON.stringify(value);
 });
 function changed(query: ReportQuery) {

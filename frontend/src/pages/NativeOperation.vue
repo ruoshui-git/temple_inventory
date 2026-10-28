@@ -5,7 +5,7 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vu
 import OperationEditorPage from "../features/documents/OperationEditorPage.vue";
 import { decodeItemSelection, decodeAllocationSelection } from "../lib/routeSelection";
 import { routeTarget } from "../lib/routeRegistry";
-import { operationLabels } from "../features/documents/operationCodec";
+import { operationLabels } from "../lib/presentationLabels";
 import type { OperationKind } from "../features/documents/operationModel";
 import { useNativeEditorRoute } from "../lib/nativeEditorRoute";
 const route = useRoute(),

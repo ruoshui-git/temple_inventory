@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, useId } from "vue";
-import { formatQuantity } from "../../lib/formatQuantity";
+import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import QuantitySummary, { type QuantityMetric } from "./QuantitySummary.vue";
 import { unitLabel, sortByUnit } from "../../lib/units";
 const props = defineProps<{
@@ -13,8 +13,7 @@ const panelId = `browse-quantity-summary-${useId()}`;
 const entries = computed(() =>
 	props.metrics.flatMap((metric) =>
 		sortByUnit(metric.quantities, (quantity) => quantity.uom).map(
-			(quantity) =>
-				`${metric.label} ${formatQuantity(quantity.qty)} ${unitLabel(quantity.uom)}`,
+			(quantity) => `${metric.label} ${formatQuantityWithUnit(quantity.qty, quantity.uom)}`,
 		),
 	),
 );

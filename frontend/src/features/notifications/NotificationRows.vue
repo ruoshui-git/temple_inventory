@@ -5,13 +5,8 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import type { InventoryNotification } from "./model";
 import { routeRegistry } from "../../lib/routeRegistry";
-import {
-	isDownloadLink,
-	notificationData,
-	notificationGroups,
-	notificationIcon,
-	relativeTime,
-} from "./model";
+import { relativeTime } from "../../lib/nativeTime";
+import { isDownloadLink, notificationData, notificationGroups, notificationIcon } from "./model";
 const props = defineProps<{
 	rows: InventoryNotification[];
 	markRead: (name: string) => Promise<void>;

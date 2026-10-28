@@ -9,7 +9,7 @@ import { useOptionalInventoryServices, useOptionalReferenceData } from "../../se
 import { showToast } from "../../services/toast";
 import ItemLine from "./ItemLine.vue";
 import LocationEndpoint from "./LocationEndpoint.vue";
-import { movementLabels } from "../../lib/kindIcons";
+import { recoveryLabels } from "../../lib/presentationLabels";
 
 const props = defineProps<{
 	kind: string;
@@ -247,40 +247,11 @@ const tablePrefs =
 	services && reference
 		? useColumnPreferences(preferenceTableId, tableColumns, reference, services)
 		: undefined;
-const enumLabels: Record<string, Record<string, string>> = {
-	docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
-	kind: movementLabels,
-	ti_movement_kind: movementLabels,
-	review_state: { Reviewed: "已核对", Unreviewed: "未核对" },
-	ti_count_scope: { Selected: "选择的物品", "Full Location": "完整库位" },
-	ti_time_mode: {
-		Manual: "手动指定",
-		Now: "使用当前时间",
-		manual: "手动指定",
-		current: "使用当前时间",
-	},
-	status: {
-		Active: "启用",
-		Archived: "已归档",
-		Inactive: "停用",
-		Draft: "草稿",
-		Submitted: "已提交",
-		Completed: "已完成",
-		Cancelled: "已取消",
-		Current: "当前",
-		Manual: "手动指定",
-		draft: "草稿",
-		completed: "已完成",
-		cancelled: "已取消",
-		current: "当前",
-		manual: "手动指定",
-	},
-};
 function format(value: JsonValue | undefined, key?: string): string {
 	if (value === undefined || value === null || value === "") return "未填写";
 	if (typeof value === "boolean") return value ? "是" : "否";
 	if (typeof value === "string" || typeof value === "number") {
-		const label = key ? enumLabels[key]?.[String(value)] : undefined;
+		const label = key ? recoveryLabels[key]?.[String(value)] : undefined;
 		return label || String(value);
 	}
 	return Array.isArray(value) ? `${value.length} 项` : "已填写";

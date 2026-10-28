@@ -1,4 +1,4 @@
-export interface CategoryRename {
+interface CategoryRename {
   oldName: string;
   category: {
     name: string;

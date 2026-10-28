@@ -86,7 +86,7 @@ export function applyLineConversion(
   line.conversionFactor = factor;
   setEnteredQty(line, quantity);
 }
-export function saveItemConversion(
+function saveItemConversion(
   code: string,
   unit: string,
   factor: number,
