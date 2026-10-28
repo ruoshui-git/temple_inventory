@@ -445,9 +445,7 @@ def verify_development_sample(*, require_images=True, data="full"):
 				raise AssertionError("Sample original image is public")
 	for source, code in zip(costumes, costume_codes, strict=True):
 		item = frappe.get_doc("Item", code)
-		expected_name = source["item_name"] + (
-			"" if source["stock_uom"] == "Nos" else f"({source['stock_uom']})"
-		)
+		expected_name = f"{source['item_name']}({source['source_unit']})"
 		if (
 			item.item_name != expected_name
 			or item.stock_uom != "Nos"

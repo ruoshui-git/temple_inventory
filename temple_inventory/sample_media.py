@@ -81,7 +81,8 @@ def costume_catalog():
 				"source_code": code,
 				"item_name": row["item_name"].strip(),
 				"item_group": group_names[row["notion_type"]],
-				"stock_uom": row["uom"].strip(),
+				# Costumes are stocked in Nos; the source unit only qualifies the name.
+				"source_unit": row["uom"].strip(),
 				"room": row["warehouse_room"].strip(),
 				"quantity": float(row["quantity"]),
 				"has_batch_no": False,

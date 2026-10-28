@@ -245,6 +245,17 @@ class SampleGeneratorUnitTests(unittest.TestCase):
 		)
 		self.assertEqual(len({row["base_key"] for row in rows}), 60)
 
+	def test_real_seed_stocks_costumes_in_nos_without_creating_units(self):
+		# Source units such as 个 or 套 are UOM labels, so creating them as UOMs clashes.
+		with (
+			patch.object(native_samples.frappe.db, "exists", return_value=True),
+			patch.object(native_samples.catalog, "create_uom") as create_uom,
+			patch.object(native_samples.activities, "seed_activity_types"),
+		):
+			native_samples._references(sample_media.catalog(), include_generated=False)
+		create_uom.assert_not_called()
+		self.assertFalse(any("stock_uom" in row for row in sample_media.costume_catalog()))
+
 	def test_balance_tracker_rejects_negative_location_or_batch_balance(self):
 		balances = {}
 		native_samples._balance_change(balances, "item", "leaf-a", 3, "lot-1")
@@ -328,8 +339,7 @@ class NativeSampleTests(NativeDocumentTests):
 				code = barcode_to_parent[source["source_code"]]
 				self.assertRegex(code, r"^ITM-\d{6}$")
 				item = frappe.get_doc("Item", code)
-				suffix = "" if source["stock_uom"] == "Nos" else f"({source['stock_uom']})"
-				self.assertEqual(item.item_name, source["item_name"] + suffix)
+				self.assertEqual(item.item_name, f"{source['item_name']}({source['source_unit']})")
 				self.assertEqual(item.stock_uom, "Nos")
 				self.assertIn(source["source_code"], {row.barcode for row in item.barcodes})
 				warehouse = result["rooms"]["A02"]

@@ -626,7 +626,7 @@ def _hierarchy(company, data, *, full=True):
 	return rooms
 
 
-def _references(data, costumes, *, include_generated=True):
+def _references(data, *, include_generated=True):
 	for row in data["categories"] if include_generated else []:
 		if not frappe.db.exists("Item Group", row["label"]):
 			catalog.create_category(row["label"])
@@ -635,8 +635,8 @@ def _references(data, costumes, *, include_generated=True):
 	for label in ("演出服装", "演出鞋袜", "演出头饰", "演出道具"):
 		if not frappe.db.exists("Item Group", label):
 			catalog.create_category(label, "演出用品")
-	units = {row["stock_uom"] for row in data["items"]} if include_generated else set()
-	units.update({"Kg", "Box"} if include_generated else {row["stock_uom"] for row in costumes})
+	# Real data stocks every costume in Nos, so it creates no units.
+	units = {row["stock_uom"] for row in data["items"]} | {"Kg", "Box"} if include_generated else set()
 	for unit in sorted(units):
 		if not frappe.db.exists("UOM", unit):
 			catalog.create_uom(unit, must_be_whole_number=unit != "Kg")
@@ -701,7 +701,7 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 				_save_primary_image(item, file)
 	for row in costumes:
 		code = allocate_item_code()
-		unit_suffix = "" if row["stock_uom"] == "Nos" else f"({row['stock_uom']})"
+		unit_suffix = f"({row['source_unit']})"
 		item = catalog.save_item(
 			{
 				"item_code": code,
@@ -1910,7 +1910,7 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 	_fiscal_years(company)
 	rooms = _hierarchy(company, catalog_data, full=data == "full")
 	include_generated = data == "full"
-	_references(catalog_data, costumes, include_generated=include_generated)
+	_references(catalog_data, include_generated=include_generated)
 	items, costume_item_codes = _items(
 		catalog_data, costumes, attach_images=attach_images, include_generated=include_generated
 	)
