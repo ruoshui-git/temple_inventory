@@ -122,6 +122,7 @@ def _authorized_original(item):
 def thumbnail(item, size, v):
 	"""Serve one authorized Item derivative, falling back to its authorized original."""
 	from temple_inventory.native_access import check_item, require_app
+	from temple_inventory.native_files import is_private_original
 
 	require_app()
 	if str(size) not in {str(value) for value in VARIANT_SIZES}:
@@ -145,7 +146,7 @@ def thumbnail(item, size, v):
 		"name",
 	)
 	selected = frappe.get_doc("File", variant_name) if variant_name else original
-	if not selected.is_private or not selected.file_url.startswith("/private/files/"):
+	if not is_private_original(selected):
 		frappe.throw("物品主图必须是私有文件", frappe.PermissionError)
 	content_type = (
 		"image/webp"

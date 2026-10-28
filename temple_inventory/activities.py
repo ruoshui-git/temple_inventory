@@ -117,7 +117,6 @@ def seed_activity_types():
 			).insert(ignore_permissions=True, set_name=name)
 
 
-@frappe.whitelist()
 def activity_types():
 	require_app()
 	return frappe.get_list(

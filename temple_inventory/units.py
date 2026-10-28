@@ -7,10 +7,7 @@ from frappe.utils import cint
 
 from temple_inventory.catalog import create_uom
 from temple_inventory.native_access import require_app
-
-
-def _clear_uom_cache():
-	frappe.local.temple_inventory_uom_labels = None
+from temple_inventory.uom_labels import clear_uom_label_cache
 
 
 def _transaction_units(names):
@@ -110,7 +107,7 @@ def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, en
 		doc.enabled = cint(enabled)
 		if not doc.enabled:
 			doc.save()
-	_clear_uom_cache()
+	clear_uom_label_cache()
 	return _unit_row(doc)
 
 
@@ -123,5 +120,5 @@ def delete_unit(name):
 	if not row["deletable"]:
 		frappe.throw(row["delete_reason"])
 	frappe.delete_doc("UOM", name)
-	_clear_uom_cache()
+	clear_uom_label_cache()
 	return {"name": name, "deleted": True}

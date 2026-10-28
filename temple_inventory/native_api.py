@@ -667,24 +667,6 @@ def outstanding_loans(search="", borrower=None, start=0, page_length=10):
 
 
 @frappe.whitelist()
-def borrower_suggestions():
-	"""Return distinct recent borrowers only from readable submitted Loan entries."""
-	require_app()
-	rows = frappe.get_list(
-		"Stock Entry",
-		filters={"docstatus": 1, "ti_movement_kind": "Loan", "ti_borrower": ["!=", ""]},
-		fields=["name", "ti_borrower"],
-		order_by="posting_date desc, modified desc",
-		page_length=200,
-	)
-	borrowers = []
-	for row in rows:
-		if row.ti_borrower not in borrowers and frappe.has_permission("Stock Entry", "read", doc=row.name):
-			borrowers.append(row.ti_borrower)
-	return borrowers
-
-
-@frappe.whitelist()
 def editor_clock():
 	require_app()
 	return {"timestamp": str(frappe.utils.now_datetime())}

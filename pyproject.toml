@@ -47,7 +47,6 @@ ignore = [
     "E402", # module level import not at top of file
     "E501", # line too long
     "E741", # ambiguous variable name
-    "F401", # "unused" imports
     "F403", # can't detect undefined names from * import
     "F405", # can't detect undefined names from * import
     "F722", # syntax error in forward type annotation
@@ -59,6 +58,9 @@ ignore = [
     "UP040", # Use type aliases instead of type annotations
 ]
 typing-modules = ["frappe.types.DF"]
+
+[tool.ruff.lint.per-file-ignores]
+"temple_inventory/projections.py" = ["F401"]
 
 [tool.ruff.format]
 quote-style = "double"

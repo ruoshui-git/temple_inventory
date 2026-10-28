@@ -5,8 +5,6 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import frappe
-
 from temple_inventory import environment
 from temple_inventory.manifest import ManifestPage
 

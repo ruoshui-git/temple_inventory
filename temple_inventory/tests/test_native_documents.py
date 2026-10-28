@@ -39,18 +39,31 @@ class NativeDocumentTests(unittest.TestCase):
 		):
 			self.assertEqual(preferences.creation_locations(), {"Receive": "leaf-a"})
 
-	def test_borrower_suggestions_are_distinct_and_read_permission_filtered(self):
-		rows = [
-			frappe._dict(name="LOAN-1", ti_borrower="Readable"),
-			frappe._dict(name="LOAN-2", ti_borrower="Readable"),
-			frappe._dict(name="LOAN-3", ti_borrower="Restricted"),
-		]
-		with (
-			patch.object(native_api, "require_app"),
-			patch.object(frappe, "get_list", return_value=rows),
-			patch.object(frappe, "has_permission", side_effect=lambda _dt, _perm, doc=None: doc != "LOAN-3"),
-		):
-			self.assertEqual(native_api.borrower_suggestions(), ["Readable"])
+	def test_borrower_suggestions_are_distinct_counted_and_searchable(self):
+		from temple_inventory.people import borrowers
+
+		frequent = f"常借用方-{self.token}"
+		rare = f"偶借用方-{self.token}"
+		self.loan(1, frequent)
+		self.loan(1, frequent)
+		self.loan(1, rare)
+		rows = {row["value"]: row for row in borrowers(search=self.token)}
+		self.assertEqual(set(rows), {frequent, rare})
+		self.assertEqual((rows[frequent]["count"], rows[rare]["count"]), (2, 1))
+		self.assertEqual(borrowers(search=self.token)[0]["value"], frequent)
+
+	def test_app_permission_hook_is_boolean_and_never_queues_messages(self):
+		from temple_inventory.api import has_app_permission
+
+		self.assertTrue(has_app_permission())
+		previous = frappe.session.user
+		frappe.local.message_log = []
+		try:
+			frappe.set_user("Guest")
+			self.assertFalse(has_app_permission())
+		finally:
+			frappe.set_user(previous)
+		self.assertEqual(frappe.local.message_log, [])
 
 	def test_outstanding_loans_are_grouped_and_paged_by_borrower(self):
 		borrower = f"分页借用方-{self.token}"

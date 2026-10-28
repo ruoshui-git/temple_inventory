@@ -62,28 +62,29 @@ def erpnext_installed():
 	return "erpnext" in frappe.get_installed_apps()
 
 
-def require_frontend_account(check_account=True):
+def frontend_account_denial():
+	"""Return (message, exception) when the session may not use the frontend, else None."""
 	if frappe.session.user == "Guest":
-		frappe.throw("请先完成登录", frappe.AuthenticationError)
+		return "请先完成登录", frappe.AuthenticationError
 	# Frappe's role list is shared through Redis and may remain warm until
 	# after_commit. API reads must reflect a committed role change immediately,
 	# including a revoke between cache fill and a subsequent page request.
 	user = frappe.session.user
 	if user == "Administrator":
-		roles = {"System Manager"}
-	else:
-		account = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
-		if not account or not account.enabled or account.user_type != "System User":
-			frappe.throw("当前账户无权使用物资管理", frappe.PermissionError)
-		roles = set(
-			frappe.db.get_all(
-				"Has Role",
-				filters={"parent": user, "parenttype": "User"},
-				pluck="role",
-			)
-		)
+		return None
+	account = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
+	if not account or not account.enabled or account.user_type != "System User":
+		return "当前账户无权使用物资管理", frappe.PermissionError
+	roles = frappe.db.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
 	if "System Manager" not in roles:
-		frappe.throw("当前账户无权使用物资管理", frappe.PermissionError)
+		return "当前账户无权使用物资管理", frappe.PermissionError
+	return None
+
+
+def require_frontend_account(check_account=True):
+	denial = frontend_account_denial()
+	if denial:
+		frappe.throw(*denial)
 	# Discard request-local permission objects that could have been built from
 	# the pre-change role list. The role gate above itself uses a current read.
 	frappe.local.user_perms = None

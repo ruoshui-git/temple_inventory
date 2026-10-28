@@ -991,7 +991,6 @@ def delete_category(name, version):
 	return {"name": name, "deleted": True}
 
 
-@frappe.whitelist(methods=["POST"])
 def create_uom(label, must_be_whole_number=False, display_label=""):
 	require_app()
 	frappe.has_permission("UOM", "create", throw=True)
@@ -1013,7 +1012,6 @@ def create_uom(label, must_be_whole_number=False, display_label=""):
 	}
 
 
-@frappe.whitelist(methods=["POST"])
 def create_batch(item_code, batch_id, manufacturing_date=None, expiry_date=None):
 	require_app()
 	item = check_item(item_code)

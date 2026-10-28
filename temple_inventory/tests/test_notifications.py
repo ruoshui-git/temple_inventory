@@ -161,8 +161,6 @@ class NotificationTests(NativeDocumentTests):
 		set_value.assert_not_called()
 
 	def test_webpush_real_encryption_accepts_stored_base64url_private_key(self):
-		from pywebpush import webpush
-
 		private = ec.generate_private_key(ec.SECP256R1())
 		private_raw = private.private_numbers().private_value.to_bytes(32, "big")
 		public_raw = private.public_key().public_bytes(

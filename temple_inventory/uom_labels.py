@@ -35,6 +35,10 @@ def _normalized(value):
 	return str(value or "").strip().casefold()
 
 
+def clear_uom_label_cache():
+	frappe.local.temple_inventory_uom_labels = None
+
+
 def uom_label(name):
 	"""Return an app display label, falling back to the native UOM name."""
 	if not name:
@@ -85,7 +89,7 @@ def _clashing_unit(current_name, value):
 
 def validate_uom(doc, method=None):
 	"""Prevent enabled UOM names and labels from colliding with one another."""
-	frappe.local.temple_inventory_uom_labels = None
+	clear_uom_label_cache()
 	if not doc.get("enabled", 1):
 		return
 	for value in (doc.name, doc.get("ti_label")):

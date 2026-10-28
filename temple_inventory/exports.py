@@ -3,7 +3,6 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import csv
-import hashlib
 import json
 import re
 import shutil
@@ -14,7 +13,6 @@ from urllib.parse import quote
 
 import frappe
 import xlsxwriter
-from frappe.utils import now_datetime
 
 from temple_inventory.native_access import check_document_scope, check_version, require_app
 from temple_inventory.projections import INTERNAL_TABLES, TABLE_LABELS, Projection

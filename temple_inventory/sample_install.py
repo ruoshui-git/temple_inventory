@@ -658,36 +658,6 @@ def verify_development_sample(*, require_images=True, data="full"):
 	}
 
 
-def development_seed_counts():
-	"""Summarize the installed development dataset for reset validation output."""
-	assert_development_site()
-	return {
-		"items": frappe.db.count("Item"),
-		"stock_entries": frappe.db.sql(
-			"""select coalesce(ti_movement_kind, '') as kind, docstatus, count(*) as count
-			from `tabStock Entry` group by ti_movement_kind, docstatus
-			order by kind, docstatus""",
-			as_dict=True,
-		),
-		"reconciliations": frappe.db.sql(
-			"select docstatus, count(*) as count from `tabStock Reconciliation` group by docstatus order by docstatus",
-			as_dict=True,
-		),
-		"warehouses": frappe.db.count("Warehouse"),
-		"uoms_used": frappe.db.sql(
-			"""select stock_uom as uom, count(*) as item_count from `tabItem` where is_stock_item=1
-			group by stock_uom order by stock_uom""",
-			as_dict=True,
-		),
-		"users": frappe.db.get_all(
-			"User",
-			filters={"user_type": "System User", "enabled": 1},
-			fields=["name", "first_name", "email"],
-			order_by="name asc",
-		),
-	}
-
-
 def prepare_development_sample_site(
 	company="Org",
 	abbr="O",

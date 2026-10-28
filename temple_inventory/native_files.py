@@ -26,6 +26,10 @@ def _parent(doctype, name, *, write=False):
 	return doc
 
 
+def is_private_original(doc):
+	return bool(doc.is_private and (doc.file_url or "").startswith("/private/files/"))
+
+
 def validate_file_write(doc, deleting=False):
 	check_request_account()
 	previous = None
@@ -79,7 +83,7 @@ def can_read(doc):
 		_parent(doc.attached_to_doctype, doc.attached_to_name)
 	except frappe.PermissionError, frappe.AuthenticationError, frappe.DoesNotExistError:
 		return False
-	return bool(doc.is_private and (doc.file_url or "").startswith("/private/files/"))
+	return is_private_original(doc)
 
 
 def file_permission(doc, ptype=None, user=None, **kwargs):
