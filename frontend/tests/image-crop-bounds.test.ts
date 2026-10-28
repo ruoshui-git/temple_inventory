@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import {
   clampSquareSelection,
-  cropBoundsInset,
+  fitImageAspect,
   imageBoundsInCanvas,
   largestCenteredSquare,
 } from "../src/lib/imageCropBounds";
@@ -34,7 +34,17 @@ it("keeps the crop square inside the transformed source image after zooming out"
   expect(
     clampSquareSelection({ x: 260, y: 290, width: 180, height: 180 }, bounds),
   ).toEqual({ x: 160, y: 160, width: 180, height: 180 });
-  expect(cropBoundsInset(bounds, 400, 400)).toBe("40px 60px 60px 40px");
+});
+
+it("fits square and wide images into a stage without changing their aspect", () => {
+  expect(fitImageAspect(512, 448, 320, 320)).toEqual({
+    width: 448,
+    height: 448,
+  });
+  expect(fitImageAspect(512, 448, 480, 240)).toEqual({
+    width: 512,
+    height: 256,
+  });
 });
 
 it("shrinks a crop selection when the transformed source no longer fits its size", () => {

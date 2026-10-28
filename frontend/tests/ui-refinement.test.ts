@@ -334,6 +334,10 @@ it("stacks a child overlay above its parent and restores its trigger", async () 
 describe("square crop choices", () => {
   async function crop() {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:crop-test");
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       drawImage: vi.fn(),
       clearRect: vi.fn(),

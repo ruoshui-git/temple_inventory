@@ -659,6 +659,15 @@ def _attach_file(filename, content, doctype, name, field=None):
 	).insert()
 
 
+def _save_primary_image(item, file):
+	"""Save the private original and ensure its derivatives exist for sample Items."""
+	item.image = file.file_url
+	item.save()
+	from temple_inventory.item_images import sync_item_image
+
+	sync_item_image(item)
+
+
 def _items(data, costumes, *, attach_images, include_generated=True):
 	result = {}
 	costume_item_codes = {}
@@ -689,8 +698,7 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 			)
 			if image["primary"]:
 				item = frappe.get_doc("Item", code)
-				item.image = file.file_url
-				item.save()
+				_save_primary_image(item, file)
 	for row in costumes:
 		code = allocate_item_code()
 		unit_suffix = "" if row["stock_uom"] == "Nos" else f"({row['stock_uom']})"
@@ -721,8 +729,7 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 			)
 			if image["primary"]:
 				item = frappe.get_doc("Item", code)
-				item.image = file.file_url
-				item.save()
+				_save_primary_image(item, file)
 	for key, label, unit, batch, expiry in EXTRA_ITEMS if include_generated else []:
 		code = allocate_item_code()
 		result[key] = catalog.save_item(
@@ -752,8 +759,7 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 			item_code = result[item_key]["item_code"]
 			file = _attach_file(path.name, path.read_bytes(), "Item", item_code, field="image")
 			doc = frappe.get_doc("Item", item_code)
-			doc.image = file.file_url
-			doc.save()
+			_save_primary_image(doc, file)
 			result[item_key]["version"] = str(doc.modified)
 	return result, costume_item_codes
 
@@ -1599,8 +1605,7 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 			path = ASSETS / image["output"]
 			file = _attach_file(path.name, path.read_bytes(), "Item", item["item_code"], field="image")
 			doc = frappe.get_doc("Item", item["item_code"])
-			doc.image = file.file_url
-			doc.save()
+			_save_primary_image(doc, file)
 			item["version"] = str(doc.modified)
 		conversions_for_item = [{"uom": stock_uom, "conversion_factor": 1}]
 		if product["has_alternate_uom"]:

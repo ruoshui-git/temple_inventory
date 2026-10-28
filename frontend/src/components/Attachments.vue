@@ -67,7 +67,7 @@ const visibleFiles = computed(() =>
 					:src="visibleFiles[0].url"
 					:alt="visibleFiles[0].name"
 					width="112"
-					height="112"
+					natural
 					fit="contain"
 				/>
 				<div v-else class="main-image-placeholder">
@@ -303,10 +303,8 @@ article {
 }
 .main-image-preview {
 	width: 112px;
-	height: 112px;
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-control);
-	background: var(--p-surface);
+	max-height: 112px;
+	overflow: hidden;
 }
 .main-image-preview :deep(.async-image),
 .main-image-placeholder {

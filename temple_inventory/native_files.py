@@ -10,6 +10,7 @@ from temple_inventory.native_access import (
 )
 
 PARENTS = NATIVE_DOCTYPES | {"Item", "Inventory Activity"}
+IMAGE_VARIANT_FIELD = "ti_image_variant"
 
 
 def _parent(doctype, name, *, write=False):
@@ -71,6 +72,9 @@ def validate_file_write(doc, deleting=False):
 def can_read(doc):
 	if doc.attached_to_doctype not in PARENTS or not doc.attached_to_name:
 		return None
+	# Derivatives are served only by the versioned, Item-authorized image endpoint.
+	if doc.attached_to_doctype == "Item" and doc.attached_to_field == IMAGE_VARIANT_FIELD:
+		return False
 	try:
 		_parent(doc.attached_to_doctype, doc.attached_to_name)
 	except frappe.PermissionError, frappe.AuthenticationError, frappe.DoesNotExistError:
@@ -112,10 +116,20 @@ def attachments(doctype, name):
 	for value in frappe.get_list(
 		"File",
 		filters={"attached_to_doctype": doctype, "attached_to_name": name, "is_private": 1},
-		fields=["name", "file_name", "file_url", "file_size", "file_type", "creation"],
+		fields=[
+			"name",
+			"file_name",
+			"file_url",
+			"file_size",
+			"file_type",
+			"creation",
+			"attached_to_field",
+		],
 		order_by="creation asc, name asc",
 		limit_page_length=0,
 	):
+		if value.attached_to_field == IMAGE_VARIANT_FIELD:
+			continue
 		file_doc = frappe.get_doc("File", value.name)
 		if file_doc.has_permission("read") and can_read(file_doc):
 			result.append(value)
@@ -131,6 +145,8 @@ def remove_attachment(doctype, name, file_name):
 	file_doc = frappe.get_doc("File", file_name, for_update=True)
 	if (file_doc.attached_to_doctype, file_doc.attached_to_name) != (doctype, name):
 		frappe.throw("附件不属于此记录", frappe.PermissionError)
+	if doctype == "Item" and file_doc.attached_to_field == IMAGE_VARIANT_FIELD:
+		frappe.throw("主图缩略图由系统管理", frappe.PermissionError)
 	file_doc.check_permission("delete")
 	if doctype == "Item" and parent.image == file_doc.file_url:
 		parent.image = None

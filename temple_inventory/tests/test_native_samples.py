@@ -1,17 +1,18 @@
 """Native sample installation under rollback and bounded media cleanup scenarios."""
 
-import base64
 import hashlib
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
 import frappe
 from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
+from PIL import Image
 
-from temple_inventory import configuration, native_samples, sample_install, sample_media
+from temple_inventory import configuration, native_files, native_samples, sample_install, sample_media
 from temple_inventory.native_api import _request_key
 from temple_inventory.native_balances import batch_balances
 from temple_inventory.native_stock import MOVEMENT_PURPOSES
@@ -144,12 +145,12 @@ class SampleMediaTests(unittest.TestCase):
 
 
 class NativeSampleAttachmentTests(NativeDocumentTests):
-	def test_seed_attachments_write_one_private_blob_and_preserve_native_image_field_link(self):
+	def test_seed_primary_image_adds_hidden_derivatives_and_preserves_the_original(self):
 		root = Path(frappe.get_site_path("private", "files")).resolve()
 		before = set(root.iterdir())
-		content = base64.b64decode(
-			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
-		)
+		buffer = BytesIO()
+		Image.new("RGB", (32, 24), "red").save(buffer, "PNG")
+		content = buffer.getvalue()
 		file = native_samples._attach_file(
 			f"seed-image-{self.token}.png", content, "Item", self.item, "image"
 		)
@@ -158,12 +159,29 @@ class NativeSampleAttachmentTests(NativeDocumentTests):
 		self.assertTrue(file.is_private)
 		self.assertEqual(file.attached_to_field, "image")
 		item = frappe.get_doc("Item", self.item)
-		item.image = file.file_url
-		item.save()
-		self.assertEqual(
-			frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": self.item}), 1
+		native_samples._save_primary_image(item, file)
+		variants = frappe.get_all(
+			"File",
+			filters={
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+				"attached_to_field": "ti_image_variant",
+			},
+			fields=["name", "file_name", "is_private"],
 		)
-		self.assertEqual(set(root.iterdir()) - before, {Path(file.get_full_path()).resolve()})
+		self.assertEqual(len(variants), 2)
+		self.assertTrue(all(row.is_private for row in variants))
+		self.assertEqual(
+			{size for size in (160, 640) if any(f"-{size}-" in row.file_name for row in variants)},
+			{160, 640},
+		)
+		self.assertEqual({entry.name for entry in native_files.attachments("Item", self.item)}, {file.name})
+		paths = {Path(file.get_full_path()).resolve()}
+		paths.update(Path(frappe.get_doc("File", row.name).get_full_path()).resolve() for row in variants)
+		self.assertEqual(set(root.iterdir()) - before, paths)
+		self.assertEqual(
+			frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": self.item}), 3
+		)
 		entry = self.create(self.movement())
 		receipt = native_samples._attach_file(
 			f"seed-receipt-{self.token}.txt",
@@ -172,9 +190,10 @@ class NativeSampleAttachmentTests(NativeDocumentTests):
 			entry.name,
 		)
 		self.assertTrue(receipt.is_private)
+		paths.add(Path(receipt.get_full_path()).resolve())
 		self.assertEqual(
 			set(root.iterdir()) - before,
-			{Path(file.get_full_path()).resolve(), Path(receipt.get_full_path()).resolve()},
+			paths,
 		)
 
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
 import Attachments from "../src/components/Attachments.vue";
+import AsyncImage from "../src/components/ui/AsyncImage.vue";
 import { useAttachments } from "../src/features/attachments/useAttachments";
 import {
   createReferenceData,
@@ -78,6 +79,12 @@ function button(wrapper: VueWrapper, label: string) {
   return wrapper.findAll("button").find((value) => value.text() === label)!;
 }
 describe("native-parent attachments", () => {
+  it("previews a primary image at its own aspect without a framed square", async () => {
+    const { wrapper, c } = setup({ imageRole: "main" });
+    c.load([ready], ready.file_url);
+    await flushPromises();
+    expect(wrapper.getComponent(AsyncImage).props("natural")).toBe(true);
+  });
   it("keeps input files pending until a valid native parent exists and never forces camera capture", async () => {
     const { wrapper, c, parent, upload } = setup();
     const input = wrapper.get<HTMLInputElement>('input[type="file"]');

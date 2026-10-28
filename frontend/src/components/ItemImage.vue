@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onDeactivated, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { useItemArtwork } from "../services/itemArtwork";
 import AsyncImage from "./ui/AsyncImage.vue";
 import Overlay from "./ui/Overlay.vue";
@@ -22,6 +22,44 @@ const artwork = useItemArtwork();
 const hasArtwork = computed(() => props.hasArtwork || artwork?.has(props.item.code));
 const open = ref(false);
 const source = computed(() => props.item.image || "");
+const displayHost = ref<HTMLElement>();
+const renderedWidth = ref(0);
+const pixelRatio = ref(1);
+const hostMeasured = ref(false);
+let resizeObserver: ResizeObserver | undefined;
+const updateRatio = () => (pixelRatio.value = window.devicePixelRatio || 1);
+function imageVersion(url: string) {
+	let hash = 2166136261;
+	for (const byte of new TextEncoder().encode(url))
+		hash = Math.imul(hash ^ byte, 16777619) >>> 0;
+	return hash.toString(16).padStart(8, "0");
+}
+const derivativeSource = computed(() => {
+	if (!source.value || !hostMeasured.value) return "";
+	const cssWidth = renderedWidth.value || props.targetSize || props.thumbnailSize || 160;
+	const size = cssWidth * pixelRatio.value > 160 ? 640 : 160;
+	return `/api/method/temple_inventory.item_images.thumbnail?item=${encodeURIComponent(props.item.code)}&size=${size}&v=${imageVersion(source.value)}`;
+});
+onMounted(() => {
+	pixelRatio.value = window.devicePixelRatio || 1;
+	renderedWidth.value =
+		displayHost.value?.getBoundingClientRect().width ||
+		props.targetSize ||
+		props.thumbnailSize ||
+		160;
+	hostMeasured.value = true;
+	window.addEventListener("resize", updateRatio);
+	if (displayHost.value && typeof ResizeObserver !== "undefined") {
+		resizeObserver = new ResizeObserver(([entry]) => {
+			renderedWidth.value = entry?.contentRect.width || 0;
+		});
+		resizeObserver.observe(displayHost.value);
+	}
+});
+onBeforeUnmount(() => {
+	window.removeEventListener("resize", updateRatio);
+	resizeObserver?.disconnect();
+});
 watch(
 	() => [source.value, props.item.code],
 	() => {
@@ -36,6 +74,7 @@ onDeactivated(() => {
 	<div
 		v-if="interaction === 'detail'"
 		class="preview-item-image"
+		ref="displayHost"
 		:class="{ 'preview-item-image--frame': frame }"
 	>
 		<button
@@ -47,7 +86,7 @@ onDeactivated(() => {
 				><component v-if="artwork" :is="artwork.component" :code="item.code" /></slot
 			><AsyncImage
 				v-else
-				:src="source"
+				:src="derivativeSource"
 				:alt="item.name"
 				:fit="fit"
 				width="100%"
@@ -68,6 +107,7 @@ onDeactivated(() => {
 		v-else-if="source || hasArtwork"
 		type="button"
 		class="item-image-button"
+		ref="displayHost"
 		:class="{
 			'item-image-button--frame': frame,
 			'item-image-button--compact-target': targetSize,
@@ -81,7 +121,7 @@ onDeactivated(() => {
 			><component v-if="artwork" :is="artwork.component" :code="item.code" /></slot
 		><AsyncImage
 			v-else
-			:src="source"
+			:src="derivativeSource"
 			:alt="item.name"
 			:fit="fit"
 			:width="thumbnailSize || '100%'"

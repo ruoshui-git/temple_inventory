@@ -28,14 +28,22 @@ describe("shared native Item artwork", () => {
     expect(wrapper.find("img").exists()).toBe(false);
     expect(wrapper.find("button").exists()).toBe(false);
   });
-  it("keeps a stable placeholder after a failed authorized-original request", async () => {
+  it("requests the private derivative and keeps a stable placeholder on failure", async () => {
     const wrapper = setup({});
+    await flushPromises();
     expect(wrapper.get('[role="img"]').attributes("aria-busy")).toBe("true");
-    expect(wrapper.get("img").attributes("src")).toBe(item.image);
+    expect(wrapper.get("img").attributes("src")).toContain(
+      "/api/method/temple_inventory.item_images.thumbnail?item=ITEM-1&size=160&v=",
+    );
     await wrapper.get("img").trigger("error");
     expect(wrapper.text()).toContain("图片加载失败");
     expect(wrapper.find("img").exists()).toBe(false);
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+  });
+  it("requests the large derivative for a large rendered target", async () => {
+    const wrapper = setup({ targetSize: 200 });
+    await flushPromises();
+    expect(wrapper.get("img").attributes("src")).toContain("&size=640&v=");
   });
   it("opens one lightbox, contains focus, and restores the trigger on Escape", async () => {
     const wrapper = setup({});

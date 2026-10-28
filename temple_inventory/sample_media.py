@@ -239,8 +239,17 @@ def inventory(write_manifest=False):
 	known_hashes.add(hashlib.sha256(ATTACHMENT_CONTENT).hexdigest())
 	items, item_images = _sample_items(data)
 	files = frappe.get_all(
-		"File", fields=["name", "file_url", "thumbnail_url", "attached_to_doctype", "attached_to_name"]
+		"File",
+		fields=[
+			"name",
+			"file_url",
+			"thumbnail_url",
+			"attached_to_doctype",
+			"attached_to_name",
+			"attached_to_field",
+		],
 	)
+	files = [file for file in files if file.attached_to_field != "ti_image_variant"]
 	from temple_inventory.native_api import _request_key
 	from temple_inventory.native_samples import REQUEST_PREFIX
 

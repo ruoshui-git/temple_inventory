@@ -46,6 +46,9 @@ doc_events = {
 		"before_submit": "temple_inventory.counts.before_validate",
 		"on_submit": "temple_inventory.notifications.enqueue_document_event",
 	},
+	"Item": {
+		"on_update": "temple_inventory.item_images.sync_item_image",
+	},
 	"Notification Log": {"after_insert": "temple_inventory.push.notification_after_insert"},
 	"Warehouse": {
 		"validate": "temple_inventory.warehouses.validate_native_warehouse",

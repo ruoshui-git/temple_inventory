@@ -11,6 +11,19 @@ export type CropSelection = {
   height: number;
 };
 
+export function fitImageAspect(
+  maxWidth: number,
+  maxHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+) {
+  const scale = Math.min(maxWidth / imageWidth, maxHeight / imageHeight);
+  return {
+    width: Math.max(1, Math.round(imageWidth * scale)),
+    height: Math.max(1, Math.round(imageHeight * scale)),
+  };
+}
+
 export function largestCenteredSquare(bounds: CropBounds): CropSelection {
   const size = Math.max(
     0,
@@ -53,12 +66,4 @@ export function clampSquareSelection(
     width: size,
     height: size,
   };
-}
-
-export function cropBoundsInset(
-  bounds: CropBounds,
-  canvasWidth: number,
-  canvasHeight: number,
-) {
-  return `${Math.max(0, bounds.top)}px ${Math.max(0, canvasWidth - bounds.right)}px ${Math.max(0, canvasHeight - bounds.bottom)}px ${Math.max(0, bounds.left)}px`;
 }

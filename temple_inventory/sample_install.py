@@ -268,7 +268,7 @@ def install_sample_data(company=None, data="full"):
 def verify_development_sample(*, require_images=True, data="full"):
 	"""Verify native identities, permissions, balance invariants and private media."""
 	assert_development_site()
-	from temple_inventory import native_samples, sample_media
+	from temple_inventory import item_images, native_samples, sample_media
 	from temple_inventory.native_api import _request_key
 
 	settings = _settings()
@@ -468,7 +468,10 @@ def verify_development_sample(*, require_images=True, data="full"):
 		)
 		if native_samples.get_stock_balance(code, warehouse) != source["quantity"]:
 			raise AssertionError(f"Costume opening quantity differs from source for {source['source_code']}")
-		attachments = frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": code})
+		item_files = {"attached_to_doctype": "Item", "attached_to_name": code}
+		attachments = frappe.db.count("File", item_files) - frappe.db.count(
+			"File", {**item_files, "attached_to_field": item_images.VARIANT_FIELD}
+		)
 		if require_images and attachments != len(source["images"]):
 			raise AssertionError(f"Costume image attachments are incomplete for {source['source_code']}")
 	if data == "real":

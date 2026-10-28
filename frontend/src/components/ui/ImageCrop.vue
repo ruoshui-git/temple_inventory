@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { createCropper, type Cropper } from "cropperjs";
 import Overlay from "./Overlay.vue";
 import UiButton from "./UiButton.vue";
 import {
 	clampSquareSelection,
-	cropBoundsInset,
+	fitImageAspect,
 	imageBoundsInCanvas,
 	largestCenteredSquare,
 } from "../../lib/imageCropBounds";
@@ -15,6 +15,7 @@ const emit = defineEmits<{ choose: [files: File[]]; cancel: [] }>();
 const host = ref<HTMLElement>();
 const image = ref<HTMLImageElement>();
 const ready = ref(false);
+const stageSize = ref({ width: 512, height: 448 });
 const busy = ref(false);
 const pendingAction = ref<"cancel" | "original" | "">("");
 const retain = ref(false);
@@ -22,7 +23,6 @@ const error = ref("");
 let cropper: Cropper | undefined;
 let cropImageElement: HTMLElement | undefined;
 let transformListener: (() => void) | undefined;
-let updateBoundsQueued = false;
 let objectUrl = "";
 let disposed = false;
 let initialSelection = { x: 0, y: 0, width: 0, height: 0 };
@@ -51,10 +51,23 @@ onMounted(async () => {
 		selection.initialCoverage = 1;
 		selection.keyboard = true;
 		selection.maxInset = "auto";
+		selection.minInset = "0px";
 		await cropImage.$ready();
 		if (!disposed) {
 			const canvas = cropper.getCropperCanvas();
 			if (!canvas) throw new Error("cropper canvas unavailable");
+			const natural = cropImage.$image;
+			const maxWidth = Math.min(512, host.value?.clientWidth || 512);
+			const maxHeight = Math.min(window.innerHeight * 0.65, 448);
+			stageSize.value = fitImageAspect(
+				maxWidth,
+				maxHeight,
+				natural.naturalWidth,
+				natural.naturalHeight,
+			);
+			await nextTick();
+			cropImage.$center();
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 			const updateBounds = () => {
 				if (disposed || !cropImage?.$image || !selection || !canvas) return;
 				const canvasRect = canvas.getBoundingClientRect();
@@ -88,7 +101,6 @@ onMounted(async () => {
 					initialSelection = { ...initial };
 					initialSelectionSet = Boolean(initial.width && initial.height);
 				}
-				selection.minInset = cropBoundsInset(bounds, canvasRect.width, canvasRect.height);
 				const bounded = props.freeAspect
 					? {
 							x: Math.max(
@@ -122,33 +134,26 @@ onMounted(async () => {
 						bounded.y,
 						bounded.width,
 						bounded.height,
-						1,
+						props.freeAspect ? NaN : 1,
 						true,
 					);
 			};
-			const queueBoundsUpdate = () => {
-				if (updateBoundsQueued) return;
-				updateBoundsQueued = true;
-				queueMicrotask(() => {
-					updateBoundsQueued = false;
-					updateBounds();
-				});
-			};
+			const onActionEnd = () => updateBounds();
 			if (
 				typeof canvas.getBoundingClientRect === "function" &&
 				typeof cropImage.$image?.getBoundingClientRect === "function" &&
 				typeof cropImage.addEventListener === "function"
 			) {
 				cropImageElement = cropImage;
-				transformListener = queueBoundsUpdate;
+				transformListener = updateBounds;
 				cropImage.addEventListener("transform", transformListener);
+				canvas.addEventListener("actionend", onActionEnd);
 				updateBounds();
 				const observer =
 					typeof ResizeObserver === "undefined"
 						? undefined
 						: new ResizeObserver(() => updateBounds());
 				observer?.observe(canvas);
-				observer?.observe(cropImage.$image);
 				const waitForLayout = () => {
 					if (disposed) {
 						observer?.disconnect();
@@ -281,7 +286,12 @@ onBeforeUnmount(() => {
 		<p v-if="freeAspect">未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。</p>
 		<p v-if="!ready && !error" role="status">正在读取图片方向与尺寸…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
-		<div ref="host" class="cropper-host" :class="{ 'cropper-host--free': freeAspect }">
+		<div
+			ref="host"
+			class="cropper-host"
+			:class="{ 'cropper-host--free': freeAspect }"
+			:style="{ width: `${stageSize.width}px`, height: `${stageSize.height}px` }"
+		>
 			<img ref="image" :alt="file.name" />
 		</div>
 		<div v-if="ready" class="preview-form-grid">
@@ -329,8 +339,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .cropper-host {
-	width: min(100%, 32rem);
-	height: min(65vh, 28rem);
+	max-width: 100%;
+	max-height: 65vh;
 	margin: var(--p-space-3) auto;
 	background: var(--p-soft);
 }
