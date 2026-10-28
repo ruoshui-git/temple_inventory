@@ -321,9 +321,9 @@ it("stacks a child overlay above its parent and restores its trigger", async () 
   click("裁剪");
   await flushPromises();
   expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2);
-  expect(document.querySelectorAll(".preview-overlay")).toHaveLength(2);
+  expect(document.querySelectorAll(".ui-overlay")).toHaveLength(2);
   document
-    .querySelectorAll<HTMLElement>(".preview-dialog")[1]!
+    .querySelectorAll<HTMLElement>(".ui-dialog")[1]!
     .dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );

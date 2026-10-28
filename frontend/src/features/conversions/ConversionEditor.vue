@@ -59,7 +59,7 @@ unitValidation.register(
 	"conversion-unit-name",
 	() => newName.value,
 	[(value) => (value.trim() ? true : "请输入计量单位")],
-	() => document.querySelector<HTMLElement>(".preview-conversion-unit-name")?.focus(),
+	() => document.querySelector<HTMLElement>(".conversion-unit-name")?.focus(),
 );
 async function closeCreation() {
 	await finishCreation();
@@ -76,7 +76,7 @@ async function selectExistingUnit() {
 }
 </script>
 <template>
-	<section class="preview-conversion-editor">
+	<section class="conversion-editor">
 		<h3>单位与换算</h3>
 		<FormField label="输入单位" required>
 			<template #default="{ fieldAttrs }">
@@ -112,7 +112,7 @@ async function selectExistingUnit() {
 					<input
 						v-model="newName"
 						v-bind="fieldAttrs"
-						class="preview-conversion-unit-name"
+						class="conversion-unit-name"
 						:disabled="creationBusy"
 						autocapitalize="off"
 						autocorrect="off"
@@ -125,7 +125,7 @@ async function selectExistingUnit() {
 					><input v-model="newDisplayLabel" v-bind="fieldAttrs" :disabled="creationBusy"
 				/></template>
 			</FormField>
-			<label class="preview-choice-label">
+			<label class="form-choice-label">
 				<input v-model="whole" type="checkbox" :disabled="creationBusy" />
 				只允许整数数量
 			</label>
@@ -144,7 +144,7 @@ async function selectExistingUnit() {
 				>
 			</template>
 		</Overlay>
-		<dl v-if="unit === line.uom" class="preview-info-grid">
+		<dl v-if="unit === line.uom" class="info-grid">
 			<div>
 				<dt>单位换算</dt>
 				<dd>1 {{ unitLabel(unit) }} = 1 {{ unitLabel(line.uom) }}</dd>
@@ -203,7 +203,7 @@ async function selectExistingUnit() {
 			将替换原换算：1 {{ unitLabel(unit) }} = {{ savedFactor }} {{ unitLabel(line.uom) }}
 		</p>
 		<p v-if="reusableOnly">保存为此物品的常用换算：是</p>
-		<label v-else class="preview-choice-label"
+		<label v-else class="form-choice-label"
 			><input
 				v-model="reuse"
 				type="checkbox"
@@ -232,7 +232,7 @@ async function selectExistingUnit() {
 	</section>
 </template>
 <style scoped>
-.preview-conversion-editor {
+.conversion-editor {
 	display: grid;
 	gap: var(--p-space-3);
 	min-width: 0;

@@ -48,13 +48,13 @@ const parentStage = inject(overlayStageKey, undefined);
 const stageHost = ref<HTMLElement>();
 const activeStage = ref<{ titleId: string; close(): void }>();
 const panelClasses = computed(() => [
-	parentStage ? "overlay-stage-panel" : "preview-dialog",
+	parentStage ? "overlay-stage-panel" : "ui-dialog",
 	props.panelClass,
 	{
-		"preview-drawer": props.drawer && !props.adaptiveCreation,
-		"preview-adaptive-creation": props.adaptiveCreation,
-		"preview-filter-sheet": props.filterSheet,
-		"preview-dialog--small": props.size === "small",
+		"ui-drawer": props.drawer && !props.adaptiveCreation,
+		"adaptive-creation": props.adaptiveCreation,
+		"browse-filter-sheet": props.filterSheet,
+		"ui-dialog--small": props.size === "small",
 	},
 ]);
 // Nested overlays are separate modal layers. The previous overlay is inerted by
@@ -228,7 +228,7 @@ onMounted(async () => {
 	}
 	if (!String(props.panelClass || "").includes("popup-menu-sheet-overlay")) {
 		document.dispatchEvent(
-			new CustomEvent("preview-filter-panel-open", {
+			new CustomEvent("browse-filter-panel-open", {
 				detail: props.transientOwner || titleId,
 			}),
 		);
@@ -246,7 +246,7 @@ onMounted(async () => {
 	app = document.querySelector<HTMLElement>("[data-inventory-app]");
 	previousInert = app?.inert || false;
 	if (app) app.inert = true;
-	underlyingOverlays = Array.from(document.querySelectorAll<HTMLElement>(".preview-overlay"))
+	underlyingOverlays = Array.from(document.querySelectorAll<HTMLElement>(".ui-overlay"))
 		.filter((element) => !element.contains(panel.value || null))
 		.map((element) => ({ element, inert: Boolean(element.inert) }));
 	underlyingOverlays.forEach(({ element }) => {
@@ -321,7 +321,7 @@ onBeforeUnmount(() => {
 		:to="parentStage?.host.value || 'body'"
 	>
 		<div
-			:class="parentStage ? 'overlay-stage' : 'preview-overlay'"
+			:class="parentStage ? 'overlay-stage' : 'ui-overlay'"
 			@click.self="requestClose"
 			@keydown="keydown"
 		>

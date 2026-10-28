@@ -1356,11 +1356,11 @@ function receiveBatchChanged(line: AllocationLine) {
 <template>
 	<AllocationSummary v-if="mode === 'display'" :draft="draft" />
 	<template v-else>
-		<div ref="root" class="preview-operation-lines">
+		<div ref="root" class="operation-lines-panel">
 			<div v-if="!draft.items.length && !hydrating" class="operation-lines-empty">
 				<FormField
 					v-if="receive && !disabled"
-					class="preview-receive-target"
+					class="receive-target"
 					label="入库位置"
 					required
 				>
@@ -1423,7 +1423,7 @@ function receiveBatchChanged(line: AllocationLine) {
 						props.draft.kind === 'Transfer' ||
 						shouldShowLineTools(draft.items.length))
 				"
-				class="preview-line-toolbar"
+				class="line-toolbar"
 				:class="{
 					'is-keyboard-open': keyboardOpen,
 					'has-transfer-destination': draft.kind === 'Transfer' && !disabled,
@@ -1431,7 +1431,7 @@ function receiveBatchChanged(line: AllocationLine) {
 			>
 				<FormField
 					v-if="draft.kind === 'Transfer' && !disabled"
-					class="preview-receive-target"
+					class="receive-target"
 					label="调入位置"
 				>
 					<template #default="{ fieldAttrs }">
@@ -1455,7 +1455,7 @@ function receiveBatchChanged(line: AllocationLine) {
 						/>
 					</template>
 				</FormField>
-				<div class="preview-line-toolbar-actions">
+				<div class="line-toolbar-actions">
 					<UiButton
 						v-if="!disabled && !settlement"
 						variant="secondary"
@@ -1465,19 +1465,19 @@ function receiveBatchChanged(line: AllocationLine) {
 						>扫码添加</UiButton
 					>
 				</div>
-				<label class="preview-inline-field preview-line-search"
+				<label class="inline-field line-search"
 					>搜索明细<input
 						v-model="search"
 						type="search"
 						placeholder="物品名称、编号、库位或批次"
 				/></label>
-				<div class="preview-line-toolbar-status">
-					<span class="preview-line-toolbar-summary" role="status"
+				<div class="line-toolbar-status">
+					<span class="line-toolbar-summary" role="status"
 						>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 ·
 						{{ totals }}</span
 					>
-					<div class="preview-line-toolbar-incomplete">
-						<label class="preview-choice-label"
+					<div class="line-toolbar-incomplete">
+						<label class="form-choice-label"
 							><input v-model="incompleteOnly" type="checkbox" />仅看待完善</label
 						>
 						<UiButton :disabled="!lineIssues.length" @click="nextIssue"
@@ -2021,15 +2021,15 @@ function receiveBatchChanged(line: AllocationLine) {
 </template>
 
 <style scoped>
-.preview-operation-lines {
+.operation-lines-panel {
 	min-width: 0;
 	display: grid;
 	gap: var(--p-space-3);
 }
 
-.preview-line-toolbar {
+.line-toolbar {
 	position: sticky;
-	top: calc(var(--preview-desktop-nav-height, 64px) + 8px);
+	top: calc(var(--app-desktop-nav-height, 64px) + 8px);
 	z-index: var(--p-z-sticky-content, 10);
 	display: grid;
 	grid-template-columns: auto minmax(180px, 1fr) auto auto auto;
@@ -2041,25 +2041,25 @@ function receiveBatchChanged(line: AllocationLine) {
 	box-shadow: 0 3px 12px rgb(20 30 25 / 8%);
 	padding: var(--p-space-2);
 }
-.preview-line-toolbar.has-transfer-destination {
+.line-toolbar.has-transfer-destination {
 	grid-template-columns: minmax(200px, 240px) auto minmax(180px, 1fr) auto auto auto;
 }
-.preview-line-toolbar.is-keyboard-open {
+.line-toolbar.is-keyboard-open {
 	display: none;
 }
-.preview-line-toolbar .preview-receive-target {
+.line-toolbar .receive-target {
 	margin: 0;
 	min-width: 0;
 }
-.preview-line-toolbar .preview-receive-target .preview-search-select {
+.line-toolbar .receive-target .search-select {
 	min-width: 0;
 }
-.preview-line-toolbar-actions,
-.preview-line-toolbar-status,
-.preview-line-toolbar-incomplete {
+.line-toolbar-actions,
+.line-toolbar-status,
+.line-toolbar-incomplete {
 	display: contents;
 }
-.preview-line-search {
+.line-search {
 	display: flex;
 	align-items: center;
 	gap: var(--p-space-2);
@@ -2067,20 +2067,20 @@ function receiveBatchChanged(line: AllocationLine) {
 	margin: 0;
 	white-space: nowrap;
 }
-.preview-line-search input {
+.line-search input {
 	min-height: 36px;
 }
-.preview-line-toolbar-summary {
+.line-toolbar-summary {
 	min-width: 0;
 	color: var(--p-muted);
 	font-size: var(--p-small);
 	white-space: nowrap;
 }
-.preview-line-toolbar-incomplete > button {
+.line-toolbar-incomplete > button {
 	flex: 0 0 auto;
 	white-space: nowrap;
 }
-.preview-line-toolbar > span[role="status"] {
+.line-toolbar > span[role="status"] {
 	grid-column: 1 / -1;
 	color: var(--p-muted);
 	font-size: var(--p-small);
@@ -2099,12 +2099,24 @@ function receiveBatchChanged(line: AllocationLine) {
 	margin: 0;
 }
 
-.operation-lines-empty > .preview-receive-target {
+.operation-lines-empty > .receive-target {
+	margin-block-start: 77px;
+	margin-block-end: -77px;
 	display: grid;
 	grid-template-columns: max-content minmax(0, 1fr);
 	align-items: center;
 	column-gap: var(--p-space-2);
 	width: min(100%, 28rem);
+}
+@media (min-width: 1024px) {
+	.operation-lines-empty {
+		padding-block-end: calc(var(--p-space-3) + 4px);
+	}
+}
+@media (max-width: 1023px) {
+	.operation-lines-empty > .receive-target {
+		margin-block: 0;
+	}
 }
 .operation-empty-actions {
 	display: flex;
@@ -2130,56 +2142,56 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 
 @media (max-width: 1023px) {
-	.preview-line-toolbar {
+	.line-toolbar {
 		position: static;
 		top: auto;
 		box-shadow: none;
 		grid-template-columns: auto minmax(0, 1fr);
 	}
-	.preview-line-toolbar.has-transfer-destination {
+	.line-toolbar.has-transfer-destination {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.preview-line-toolbar.has-transfer-destination .preview-receive-target,
-	.preview-line-search,
-	.preview-line-toolbar-summary,
-	.preview-line-toolbar-incomplete,
-	.preview-line-toolbar > span[role="status"] {
+	.line-toolbar.has-transfer-destination .receive-target,
+	.line-search,
+	.line-toolbar-summary,
+	.line-toolbar-incomplete,
+	.line-toolbar > span[role="status"] {
 		grid-column: 1 / -1;
 	}
 
-	.preview-line-toolbar-status {
+	.line-toolbar-status {
 		display: grid;
 		grid-column: 1 / -1;
 		grid-template-columns: minmax(0, 1fr);
 		gap: var(--p-space-1);
 	}
-	.preview-line-search {
+	.line-search {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		gap: 4px;
 		white-space: normal;
 	}
 
-	.preview-line-toolbar-incomplete {
+	.line-toolbar-incomplete {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--p-space-2);
 	}
 
-	.preview-line-toolbar-actions .ui-button {
+	.line-toolbar-actions .ui-button {
 		min-height: 36px;
 	}
 }
 
 @media (max-width: 620px) {
-	.preview-line-toolbar {
+	.line-toolbar {
 		gap: 6px;
 		padding: 8px;
 	}
 
-	.preview-line-toolbar .ui-button {
+	.line-toolbar .ui-button {
 		min-height: 44px;
 		padding-inline: 8px;
 		white-space: nowrap;

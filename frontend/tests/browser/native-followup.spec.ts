@@ -87,13 +87,11 @@ for (const width of [375, 1440]) {
     });
     await nativeUiSession(page);
     await page.goto("/inventory/counts/OPENING-1");
-    await expect(page.locator(".preview-form-page")).toContainText(title);
-    await expect(page.locator(".preview-form-page")).not.toContainText(
-      "ACT-OPAQUE",
-    );
+    await expect(page.locator(".form-page")).toContainText(title);
+    await expect(page.locator(".form-page")).not.toContainText("ACT-OPAQUE");
     title = "重新命名的活动";
     await page.reload();
-    await expect(page.locator(".preview-form-page")).toContainText(title);
+    await expect(page.locator(".form-page")).toContainText(title);
     await page.getByRole("button", { name: "导出", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "导出", exact: true });
     await expect(dialog.locator("tbody")).toContainText("OPENING-1");
@@ -107,9 +105,7 @@ for (const width of [375, 1440]) {
     await page.goto("/inventory/counts/OPENING-1");
     denied = true;
     await page.reload();
-    await expect(page.locator(".preview-form-page")).toContainText(
-      "活动暂不可用",
-    );
+    await expect(page.locator(".form-page")).toContainText("活动暂不可用");
     expect(errors).toEqual([]);
   });
 }

@@ -22,9 +22,7 @@ const hidden = computed(
 );
 let observer: MutationObserver | undefined;
 function updateOverlayState() {
-	transientOpen.value = Boolean(
-		document.querySelector(".preview-overlay, .preview-filter-popover"),
-	);
+	transientOpen.value = Boolean(document.querySelector(".ui-overlay, .browse-filter-popover"));
 }
 function updateViewport() {
 	const viewport = window.visualViewport;

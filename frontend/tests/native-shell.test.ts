@@ -46,9 +46,9 @@ describe("shared application frame", () => {
     vi.stubGlobal("matchMedia", () => media);
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     HTMLElement.prototype.scrollIntoView = vi.fn();
-    document.documentElement.style.setProperty("--preview-nav-height", "91px");
+    document.documentElement.style.setProperty("--app-nav-height", "91px");
     document.documentElement.style.setProperty(
-      "--preview-desktop-nav-height",
+      "--app-desktop-nav-height",
       "73px",
     );
     const wrapper = mount(AppFrame, {
@@ -65,7 +65,7 @@ describe("shared application frame", () => {
     wrappers.push(wrapper);
     await flushPromises();
 
-    const desktop = wrapper.find(".sample-sidebar");
+    const desktop = wrapper.find(".app-sidebar");
     let desktopHeight = 82;
     vi.spyOn(desktop.element, "getBoundingClientRect").mockImplementation(
       () => ({ height: desktopHeight }) as DOMRect,
@@ -73,11 +73,11 @@ describe("shared application frame", () => {
     window.dispatchEvent(new Event("resize"));
     expect(
       document.documentElement.style.getPropertyValue(
-        "--preview-desktop-nav-height",
+        "--app-desktop-nav-height",
       ),
     ).toBe("82px");
     expect(
-      document.documentElement.style.getPropertyValue("--preview-nav-height"),
+      document.documentElement.style.getPropertyValue("--app-nav-height"),
     ).toBe("0px");
     expect(observed).toContain(desktop.element);
 
@@ -85,14 +85,14 @@ describe("shared application frame", () => {
     resize?.([], {} as ResizeObserver);
     expect(
       document.documentElement.style.getPropertyValue(
-        "--preview-desktop-nav-height",
+        "--app-desktop-nav-height",
       ),
     ).toBe("104px");
 
     media.matches = false;
     change?.({ matches: false });
     await flushPromises();
-    const mobile = wrapper.find(".sample-mobile-nav");
+    const mobile = wrapper.find(".app-mobile-nav");
     let mobileHeight = 58;
     vi.spyOn(mobile.element, "getBoundingClientRect").mockImplementation(
       () => ({ height: mobileHeight }) as DOMRect,
@@ -100,11 +100,11 @@ describe("shared application frame", () => {
     window.dispatchEvent(new Event("resize"));
     expect(
       document.documentElement.style.getPropertyValue(
-        "--preview-desktop-nav-height",
+        "--app-desktop-nav-height",
       ),
     ).toBe("0px");
     expect(
-      document.documentElement.style.getPropertyValue("--preview-nav-height"),
+      document.documentElement.style.getPropertyValue("--app-nav-height"),
     ).toBe("58px");
     expect(observed).toContain(mobile.element);
     expect(observed).not.toContain(desktop.element);
@@ -112,16 +112,16 @@ describe("shared application frame", () => {
     mobileHeight = 66;
     resize?.([], {} as ResizeObserver);
     expect(
-      document.documentElement.style.getPropertyValue("--preview-nav-height"),
+      document.documentElement.style.getPropertyValue("--app-nav-height"),
     ).toBe("66px");
     wrapper.unmount();
     wrappers.pop();
     expect(
-      document.documentElement.style.getPropertyValue("--preview-nav-height"),
+      document.documentElement.style.getPropertyValue("--app-nav-height"),
     ).toBe("91px");
     expect(
       document.documentElement.style.getPropertyValue(
-        "--preview-desktop-nav-height",
+        "--app-desktop-nav-height",
       ),
     ).toBe("73px");
   });
@@ -151,21 +151,21 @@ describe("shared application frame", () => {
     wrappers.push(wrapper);
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
-    expect(wrapper.find(".sample-mobile-nav").exists()).toBe(true);
+    expect(wrapper.find(".app-mobile-nav").exists()).toBe(true);
     expect(
-      wrapper.get('.sample-mobile-nav button[aria-current="page"]').text(),
+      wrapper.get('.app-mobile-nav button[aria-current="page"]').text(),
     ).toContain("库存");
     expect(wrapper.find(".app-account-menu").exists()).toBe(false);
-    expect(wrapper.findAll(".sample-mobile-nav button")).toHaveLength(6);
+    expect(wrapper.findAll(".app-mobile-nav button")).toHaveLength(6);
     await wrapper.find("input").setValue("保留输入");
     media.matches = true;
     change?.({ matches: true });
     await flushPromises();
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
-    expect(wrapper.find(".sample-sidebar").exists()).toBe(true);
+    expect(wrapper.find(".app-sidebar").exists()).toBe(true);
     expect(wrapper.find(".app-account-menu").exists()).toBe(true);
     expect(
-      wrapper.findAll(".sample-sidebar > nav > .nav-group > button"),
+      wrapper.findAll(".app-sidebar > nav > .nav-group > button"),
     ).toHaveLength(6);
     expect(wrapper.find(".inventory-menu").exists()).toBe(false);
     expect(wrapper.find("input").element.value).toBe("保留输入");
@@ -213,7 +213,7 @@ describe("shared application frame", () => {
     const trigger = wrapper.get(".app-account-trigger");
     expect(
       wrapper.element.querySelector(".app-account-menu")?.parentElement,
-    ).toBe(wrapper.element.querySelector(".sample-sidebar"));
+    ).toBe(wrapper.element.querySelector(".app-sidebar"));
     expect(trigger.attributes("aria-haspopup")).toBe("menu");
     await trigger.trigger("click");
     expect(wrapper.get("[role=menu]").text()).toContain("volunteer");
@@ -226,12 +226,12 @@ describe("shared application frame", () => {
     await trigger.trigger("click");
     await wrapper.get('[role="menuitem"]').trigger("click");
     await flushPromises();
-    expect(document.querySelector(".preview-dialog")?.textContent).toContain(
+    expect(document.querySelector(".ui-dialog")?.textContent).toContain(
       "退出当前账户后",
     );
     document.querySelector<HTMLButtonElement>(".dialog-footer button")?.click();
     await flushPromises();
-    expect(document.querySelector(".preview-dialog")).toBeNull();
+    expect(document.querySelector(".ui-dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger.element);
   });
 

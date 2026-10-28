@@ -56,7 +56,7 @@ describe("shared UI foundations", () => {
   });
 
   it("selects responsive toast placement classes", () => {
-    expect(toastPlacementClass(true)).toBe("preview-toast--phone");
-    expect(toastPlacementClass(false)).toBe("preview-toast--desktop");
+    expect(toastPlacementClass(true)).toBe("notification-toast--phone");
+    expect(toastPlacementClass(false)).toBe("notification-toast--desktop");
   });
 });

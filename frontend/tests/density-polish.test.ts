@@ -46,7 +46,7 @@ it("fires the default action from the mobile FAB and hides it while an overlay i
     .click();
   expect(wrapper.emitted("select")).toEqual([["Receive"]]);
   const overlay = document.createElement("div");
-  overlay.className = "preview-overlay";
+  overlay.className = "ui-overlay";
   document.body.append(overlay);
   await vi.waitFor(() =>
     expect(

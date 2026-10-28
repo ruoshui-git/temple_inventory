@@ -360,19 +360,19 @@ for (const width of [1440, 390]) {
       fullPage: true,
     });
     if (width < 1024) {
-      const nav = page.locator(".sample-mobile-nav");
+      const nav = page.locator(".app-mobile-nav");
       await expect(nav.getByRole("button")).toHaveCount(6);
       expect(await nav.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
         true,
       );
-      await expect(page.locator(".sample-breadcrumb")).toHaveCount(0);
+      await expect(page.locator(".app-breadcrumb")).toHaveCount(0);
       await nav.getByRole("button", { name: "更多", exact: true }).click();
       await expect(page).toHaveURL(/\/more$/);
       await expect(nav.locator('[aria-current="page"]')).toHaveText("更多");
     } else
       await expect(
         page
-          .locator(".sample-sidebar")
+          .locator(".app-sidebar")
           .getByRole("button", { name: "更多", exact: true }),
       ).toHaveCount(1);
     expect(errors).toEqual([]);
@@ -577,17 +577,17 @@ test("desktop navigation wraps at the 1024px text scale breakpoint", async ({
   await page.waitForLoadState("networkidle");
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(() => {
-    const header = document.querySelector(".sample-sidebar");
+    const header = document.querySelector(".app-sidebar");
     if (!header) return false;
     const measured = Number.parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
-        "--preview-desktop-nav-height",
+        "--app-desktop-nav-height",
       ),
     );
     return Math.abs(measured - header.getBoundingClientRect().height) < 1;
   });
   const metrics = await page.evaluate(() => {
-    const header = document.querySelector<HTMLElement>(".sample-sidebar")!;
+    const header = document.querySelector<HTMLElement>(".app-sidebar")!;
     const account = document.querySelector<HTMLElement>(".app-account-menu")!;
     return {
       width: window.innerWidth,
@@ -596,7 +596,7 @@ test("desktop navigation wraps at the 1024px text scale breakpoint", async ({
       navigationHeight: header.getBoundingClientRect().height,
       measuredHeight: Number.parseFloat(
         getComputedStyle(document.documentElement).getPropertyValue(
-          "--preview-desktop-nav-height",
+          "--app-desktop-nav-height",
         ),
       ),
     };

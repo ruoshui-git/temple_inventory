@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
@@ -39,16 +39,12 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 	<div class="operation-browse-filters browse-filter-dense">
 		<div class="browse-filter-mega">
 			<section class="browse-filter-mega-section">
-				<details
+				<FilterDisclosure
 					v-if="family === 'loans' && !records"
-					class="browse-filter-disclosure"
-					data-filter-field="historyScope"
+					label="物品历史记录范围"
+					field="historyScope"
+					:summary="historyScope === 'all' ? '全部相关记录' : '未结清借用'"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />
-						物品历史记录范围
-						<small>{{ historyScope === "all" ? "全部相关记录" : "未结清借用" }}</small>
-					</summary>
 					<div class="segmented" role="group" aria-label="物品历史记录范围">
 						<UiButton
 							v-for="[value, label] in [
@@ -62,7 +58,7 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 							>{{ label }}</UiButton
 						>
 					</div>
-				</details>
+				</FilterDisclosure>
 				<BrowseFilters
 					v-model="scope"
 					disclosure-mode
@@ -70,28 +66,24 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 					:records="records"
 					:hierarchy-in-rail="hierarchyInRail"
 				/>
-				<details class="browse-filter-disclosure" data-filter-field="period">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />
-						{{ family === "movements" ? "流动日期" : "借出日期" }}
-						<small>{{
-							sitePeriodSummary(scope.period, controller.reference.siteDate)
-						}}</small>
-					</summary>
+				<FilterDisclosure
+					:label="family === 'movements' ? '流动日期' : '借出日期'"
+					field="period"
+					:summary="sitePeriodSummary(scope.period, controller.reference.siteDate)"
+				>
 					<PeriodFilter
 						:today="controller.reference.siteDate"
 						v-model="scope.period"
 						:label="family === 'movements' ? '流动日期' : '借出日期'"
 						embedded
 					/>
-				</details>
+				</FilterDisclosure>
 				<ItemStatusFilter v-model="query.itemStatus" />
-				<details class="browse-filter-disclosure" data-filter-field="person">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />人员<small>{{
-							query.person.name || "不限"
-						}}</small>
-					</summary>
+				<FilterDisclosure
+					label="人员"
+					field="person"
+					:summary="query.person.name || '不限'"
+				>
 					<RemoteSelect
 						label="人员"
 						:model-value="query.person.name"
@@ -99,7 +91,7 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 						:load="loadPeople"
 						@update:model-value="setPersonName($event)"
 					/>
-					<label class="preview-field"
+					<label class="form-field"
 						>角色<select
 							v-model="query.person.role"
 							aria-label="人员角色"
@@ -114,38 +106,32 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 							</option>
 						</select></label
 					>
-				</details>
-				<details
+				</FilterDisclosure>
+				<FilterDisclosure
 					v-if="family === 'loans'"
-					class="browse-filter-disclosure"
-					data-filter-field="borrower"
+					label="借用方"
+					field="borrower"
+					:summary="query.borrower || '不限'"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />借用方<small>{{
-							query.borrower || "不限"
-						}}</small>
-					</summary>
 					<RemoteSelect label="借用方" v-model="query.borrower" :load="loadBorrowers" />
-				</details>
-				<details
+				</FilterDisclosure>
+				<FilterDisclosure
 					v-if="family === 'loans'"
-					class="browse-filter-disclosure"
-					data-filter-field="loanOutcome"
+					label="归还结果"
+					field="loanOutcome"
+					:summary="
+						query.loanOutcome === 'all'
+							? '全部'
+							: query.loanOutcome === 'returned'
+								? '归还'
+								: query.loanOutcome === 'damaged'
+									? '损坏'
+									: query.loanOutcome === 'lost'
+										? '遗失'
+										: '未归还'
+					"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />归还结果<small>{{
-							query.loanOutcome === "all"
-								? "全部"
-								: query.loanOutcome === "returned"
-									? "归还"
-									: query.loanOutcome === "damaged"
-										? "损坏"
-										: query.loanOutcome === "lost"
-											? "遗失"
-											: "未归还"
-						}}</small>
-					</summary>
-					<label class="preview-field"
+					<label class="form-field"
 						><select v-model="query.loanOutcome" aria-label="归还结果">
 							<option value="all">全部</option>
 							<option value="returned">归还</option>
@@ -153,20 +139,14 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 							<option value="lost">遗失</option>
 						</select></label
 					>
-				</details>
-				<details
+				</FilterDisclosure>
+				<FilterDisclosure
 					v-if="records"
-					class="browse-filter-disclosure"
-					data-filter-field="status"
+					label="状态"
+					field="status"
+					:summary="statusChoices.find(([value]) => value === status)?.[1] || '不限'"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />
-						状态
-						<small>{{
-							statusChoices.find(([value]) => value === status)?.[1] || "不限"
-						}}</small>
-					</summary>
-					<label class="preview-field">
+					<label class="form-field">
 						状态
 						<select
 							v-model="status"
@@ -181,36 +161,30 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 							</option>
 						</select>
 					</label>
-				</details>
-				<details
+				</FilterDisclosure>
+				<FilterDisclosure
 					v-if="family === 'movements'"
-					class="browse-filter-disclosure"
-					data-filter-field="includeAdjustments"
+					label="盘点调整"
+					field="includeAdjustments"
+					:summary="query.includeAdjustments ? '包括' : '不包括'"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" /> 盘点调整
-						<small>{{ query.includeAdjustments ? "包括" : "不包括" }}</small>
-					</summary>
-					<label class="preview-choice-label preview-check"
+					<label class="form-choice-label form-check"
 						><input
 							v-model="query.includeAdjustments"
 							type="checkbox"
 						/>包括盘点调整</label
 					>
-				</details>
-				<details
+				</FilterDisclosure>
+				<FilterDisclosure
 					v-if="family === 'loans' && !records"
-					class="browse-filter-disclosure"
-					data-filter-field="includeZero"
+					label="已结清物品"
+					field="includeZero"
+					:summary="query.includeZero ? '显示' : '隐藏'"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" /> 已结清物品
-						<small>{{ query.includeZero ? "显示" : "隐藏" }}</small>
-					</summary>
-					<label class="preview-choice-label preview-check"
+					<label class="form-choice-label form-check"
 						><input v-model="query.includeZero" type="checkbox" />显示已结清物品</label
 					>
-				</details>
+				</FilterDisclosure>
 				<UiButton class="browse-filter-clear" @click="controller.clearFilters"
 					>清空筛选</UiButton
 				>

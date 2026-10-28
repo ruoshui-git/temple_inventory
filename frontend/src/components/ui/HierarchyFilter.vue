@@ -338,7 +338,7 @@ watch(term, () => {
 							<DisclosureIcon variant="inline" />
 						</button>
 						<span v-else class="tree-spacer" aria-hidden="true"></span>
-						<label class="preview-choice-label">
+						<label class="form-choice-label">
 							<input
 								:data-facet-index="index"
 								@focus="activeIndex = index"

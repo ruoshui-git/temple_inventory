@@ -30,7 +30,7 @@ const unregisterUom = validation.register(
 	"item-uom",
 	() => props.model.uom,
 	[(v) => (v ? true : "请选择计量单位")],
-	() => document.querySelector<HTMLElement>(".preview-unit-field input")?.focus(),
+	() => document.querySelector<HTMLElement>(".unit-field input")?.focus(),
 );
 onBeforeUnmount(() => {
 	unregisterName.unregister();
@@ -53,8 +53,8 @@ onDeactivated(() => {
 });
 </script>
 <template>
-	<div class="form-fields preview-creation-fields">
-		<dl v-if="editing" class="preview-info-grid">
+	<div class="form-fields creation-fields">
+		<dl v-if="editing" class="info-grid">
 			<div>
 				<dt>物品编号</dt>
 				<dd>{{ model.code }}</dd>
@@ -69,7 +69,7 @@ onDeactivated(() => {
 					required /></template
 		></FormField>
 		<CategoryField v-model="model.category" :disabled="disabled" />
-		<dl v-if="editing" class="preview-info-grid">
+		<dl v-if="editing" class="info-grid">
 			<div>
 				<dt>库存单位</dt>
 				<dd>{{ unitLabel(model.uom) }}</dd>
@@ -131,7 +131,7 @@ onDeactivated(() => {
 				/></template
 		></FormField>
 		<template v-if="editing && !trackingChangeable"
-			><dl class="preview-info-grid">
+			><dl class="info-grid">
 				<div>
 					<dt>按批次管理</dt>
 					<dd>{{ model.tracksBatch ? "是" : "否" }}</dd>
@@ -146,14 +146,14 @@ onDeactivated(() => {
 			</p></template
 		>
 		<template v-else>
-			<label class="preview-choice-label"
+			<label class="form-choice-label"
 				><input
 					type="checkbox"
 					v-model="model.tracksBatch"
 					:disabled="disabled || model.tracksExpiry"
 				/>按批次管理</label
 			>
-			<label class="preview-choice-label"
+			<label class="form-choice-label"
 				><input
 					type="checkbox"
 					v-model="model.tracksExpiry"

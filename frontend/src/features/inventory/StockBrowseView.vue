@@ -327,7 +327,7 @@ watch([() => props.active, isMobile], () => {
 							:summary="inStockOnly ? '仅有库存' : '包括零库存'"
 							field="includeZero"
 						>
-							<label class="preview-choice-label preview-check"
+							<label class="form-choice-label form-check"
 								><input type="checkbox" v-model="inStockOnly" />仅有库存</label
 							>
 						</FilterDisclosure>
@@ -473,7 +473,7 @@ watch([() => props.active, isMobile], () => {
 					>
 						<DataTable
 							ariaLabel="库存物品"
-							table-class="preview-table"
+							table-class="data-table"
 							:columns="inventoryColumns"
 							:rows="[]"
 							:column-preferences="tablePreferences"
@@ -660,7 +660,7 @@ watch([() => props.active, isMobile], () => {
 							"
 							data-browse-scroll="inventory-table"
 							ariaLabel="库存物品"
-							table-class="preview-table"
+							table-class="data-table"
 							:columns="inventoryColumns"
 							:rows="browseTableRows"
 							:column-preferences="tablePreferences"
@@ -858,7 +858,7 @@ watch([() => props.active, isMobile], () => {
 				adaptive-creation
 				@close="analysisOpen = false"
 			>
-				<label class="preview-field"
+				<label class="form-field"
 					>分组<select v-model="analysisDimension">
 						<option value="category">类别 / 单位</option>
 						<option value="location">位置 / 单位</option>

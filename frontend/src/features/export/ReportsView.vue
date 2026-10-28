@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
@@ -154,7 +155,7 @@ function setGroup(index: number, value: string) {
 }
 </script>
 <template>
-	<section class="preview-page preview-reports">
+	<section class="page reports-page">
 		<p v-if="routeError" role="alert">{{ routeError }}</p>
 		<BrowseToolbar
 			title="报表"
@@ -201,22 +202,18 @@ function setGroup(index: number, value: string) {
 			<template #filters>
 				<div class="browse-filter-mega reports-filter-mega">
 					<section class="browse-filter-mega-section">
-						<div class="preview-filter-fields">
-							<details
+						<div class="browse-filter-fields">
+							<FilterDisclosure
 								v-if="
 									(dataset !== 'inventory' || query.view === 'historical') &&
 									(dataset !== 'expiry' || query.expiryWindow === 'period')
 								"
-								class="browse-filter-disclosure"
-								data-filter-field="period"
+								:label="definition.dateLabel"
+								field="period"
+								:summary="
+									sitePeriodSummary(query.scope.period, reference.siteDate)
+								"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									{{ definition.dateLabel }}
-									<small>{{
-										sitePeriodSummary(query.scope.period, reference.siteDate)
-									}}</small>
-								</summary>
 								<PeriodFilter
 									:today="reference.siteDate"
 									v-model="query.scope.period"
@@ -224,22 +221,15 @@ function setGroup(index: number, value: string) {
 									field-key="period"
 									embedded
 								/>
-							</details>
+							</FilterDisclosure>
 							<template v-if="dataset === 'activities' && query.view === 'records'">
-								<details
-									class="browse-filter-disclosure"
-									data-filter-field="relatedPeriod"
+								<FilterDisclosure
+									label="关联单据记账日期"
+									field="relatedPeriod"
+									:summary="
+										sitePeriodSummary(query.relatedPeriod, reference.siteDate)
+									"
 								>
-									<summary class="ti-disclosure">
-										<DisclosureIcon variant="inline" />
-										关联单据记账日期
-										<small>{{
-											sitePeriodSummary(
-												query.relatedPeriod,
-												reference.siteDate,
-											)
-										}}</small>
-									</summary>
 									<PeriodFilter
 										:today="reference.siteDate"
 										v-model="query.relatedPeriod"
@@ -247,32 +237,24 @@ function setGroup(index: number, value: string) {
 										field-key="relatedPeriod"
 										embedded
 									/>
-								</details>
-								<details
-									class="browse-filter-disclosure"
-									data-filter-field="relatedSearch"
+								</FilterDisclosure>
+								<FilterDisclosure
+									label="关联记录搜索"
+									field="relatedSearch"
+									:summary="query.relatedSearch || '不限'"
 								>
-									<summary class="ti-disclosure">
-										<DisclosureIcon variant="inline" />关联记录搜索<small>{{
-											query.relatedSearch || "不限"
-										}}</small>
-									</summary>
-									<label class="preview-field"
+									<label class="form-field"
 										>关联记录搜索<input v-model="query.relatedSearch"
 									/></label>
-								</details>
+								</FilterDisclosure>
 							</template>
-							<details
+							<FilterDisclosure
 								v-if="dataset === 'expiry'"
-								class="browse-filter-disclosure"
-								data-filter-field="expiryWindow"
+								label="到期窗口"
+								field="expiryWindow"
+								:summary="query.expiryWindow"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />到期窗口<small>{{
-										query.expiryWindow
-									}}</small>
-								</summary>
-								<label class="preview-field"
+								<label class="form-field"
 									>到期窗口<select v-model="query.expiryWindow">
 										<option value="period">选定日期期间</option>
 										<option value="next_7">未来7天（含今日）</option>
@@ -283,7 +265,7 @@ function setGroup(index: number, value: string) {
 										<option value="undated">无效期</option>
 									</select></label
 								>
-							</details>
+							</FilterDisclosure>
 							<BrowseFilters
 								v-model="query.scope"
 								disclosure-mode
@@ -299,16 +281,12 @@ function setGroup(index: number, value: string) {
 								v-if="dataset !== 'activities'"
 								v-model="query.itemStatus"
 							/>
-							<details
+							<FilterDisclosure
 								v-if="['movements', 'loans', 'counts'].includes(dataset)"
-								class="browse-filter-disclosure"
-								data-filter-field="person"
+								label="人员"
+								field="person"
+								:summary="query.person.name || '不限'"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />人员<small>{{
-										query.person.name || "不限"
-									}}</small>
-								</summary>
 								<RemoteSelect
 									label="人员"
 									:model-value="query.person.name"
@@ -316,7 +294,7 @@ function setGroup(index: number, value: string) {
 									:load="loadPeople"
 									@update:model-value="setPersonName($event)"
 								/>
-								<label class="preview-field"
+								<label class="form-field"
 									>角色<select
 										v-model="query.person.role"
 										aria-label="人员角色"
@@ -331,42 +309,36 @@ function setGroup(index: number, value: string) {
 										</option>
 									</select></label
 								>
-							</details>
-							<details
+							</FilterDisclosure>
+							<FilterDisclosure
 								v-if="dataset === 'loans'"
-								class="browse-filter-disclosure"
-								data-filter-field="borrower"
+								label="借用方"
+								field="borrower"
+								:summary="query.borrower || '不限'"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />借用方<small>{{
-										query.borrower || "不限"
-									}}</small>
-								</summary>
 								<RemoteSelect
 									label="借用方"
 									v-model="query.borrower"
 									:load="loadBorrowers"
 								/>
-							</details>
-							<details
+							</FilterDisclosure>
+							<FilterDisclosure
 								v-if="dataset === 'loans'"
-								class="browse-filter-disclosure"
-								data-filter-field="loanOutcome"
+								label="归还结果"
+								field="loanOutcome"
+								:summary="
+									query.loanOutcome === 'all'
+										? '全部'
+										: query.loanOutcome === 'returned'
+											? '归还'
+											: query.loanOutcome === 'damaged'
+												? '损坏'
+												: query.loanOutcome === 'lost'
+													? '遗失'
+													: '未归还'
+								"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />归还结果<small>{{
-										query.loanOutcome === "all"
-											? "全部"
-											: query.loanOutcome === "returned"
-												? "归还"
-												: query.loanOutcome === "damaged"
-													? "损坏"
-													: query.loanOutcome === "lost"
-														? "遗失"
-														: "未归还"
-									}}</small>
-								</summary>
-								<label class="preview-field"
+								<label class="form-field"
 									>归还结果<select
 										v-model="query.loanOutcome"
 										aria-label="归还结果"
@@ -378,17 +350,17 @@ function setGroup(index: number, value: string) {
 										<option value="outstanding">未归还</option>
 									</select></label
 								>
-							</details>
+							</FilterDisclosure>
 						</div>
 					</section>
 					<section class="browse-filter-mega-section browse-filter-grouping">
 						<fieldset
-							class="preview-filter-fields"
+							class="browse-filter-fields"
 							data-filter-field="groupBy"
 							tabindex="-1"
 						>
 							<legend>分组 · 最多两级</legend>
-							<label class="preview-field"
+							<label class="form-field"
 								>第一级分组<select
 									:value="query.groupBy[0] || ''"
 									@change="
@@ -405,7 +377,7 @@ function setGroup(index: number, value: string) {
 									</option>
 								</select></label
 							>
-							<label class="preview-field"
+							<label class="form-field"
 								>第二级分组<select
 									:value="query.groupBy[1] || ''"
 									@change="
@@ -427,45 +399,35 @@ function setGroup(index: number, value: string) {
 					</section>
 					<section class="browse-filter-mega-section reports-filter-secondary">
 						<h3>其他筛选与视图</h3>
-						<div class="preview-filter-fields">
-							<details
+						<div class="browse-filter-fields">
+							<FilterDisclosure
 								v-if="dataset === 'movements'"
-								class="browse-filter-disclosure"
-								data-filter-field="includeAdjustments"
+								label="盘点调整"
+								field="includeAdjustments"
+								:summary="query.includeAdjustments ? '包括' : '不包括'"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									盘点调整
-									<small>{{
-										query.includeAdjustments ? "包括" : "不包括"
-									}}</small>
-								</summary>
-								<label class="preview-choice-label"
+								<label class="form-choice-label"
 									><input
 										type="checkbox"
 										v-model="query.includeAdjustments"
 									/>包含期初与盘点调整</label
 								>
-							</details>
-							<details
+							</FilterDisclosure>
+							<FilterDisclosure
 								v-if="hasReportStatuses(query)"
-								class="browse-filter-disclosure"
-								data-filter-field="status"
+								label="单据状态"
+								field="status"
+								:summary="
+									query.statuses
+										.map((status) => ['草稿', '已提交', '已取消'][status])
+										.join('、') || '未选择'
+								"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									单据状态
-									<small>{{
-										query.statuses
-											.map((status) => ["草稿", "已提交", "已取消"][status])
-											.join("、") || "未选择"
-									}}</small>
-								</summary>
 								<fieldset>
 									<label
 										v-for="(label, status) in ['草稿', '已提交', '已取消']"
 										:key="status"
-										class="preview-choice-label"
+										class="form-choice-label"
 										><input
 											type="checkbox"
 											v-model="query.statuses"
@@ -473,116 +435,96 @@ function setGroup(index: number, value: string) {
 										/>{{ label }}</label
 									>
 								</fieldset>
-							</details>
-							<details
+							</FilterDisclosure>
+							<FilterDisclosure
 								v-if="
 									['inventory', 'expiry'].includes(dataset) ||
 									(dataset === 'loans' && query.view === 'items')
 								"
-								class="browse-filter-disclosure"
-								data-filter-field="includeZero"
+								:label="dataset === 'loans' ? '已结清物品' : '零库存'"
+								field="includeZero"
+								:summary="query.includeZero ? '显示' : '隐藏'"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									{{ dataset === "loans" ? "已结清物品" : "零库存" }}
-									<small>{{ query.includeZero ? "显示" : "隐藏" }}</small>
-								</summary>
-								<label class="preview-choice-label"
+								<label class="form-choice-label"
 									><input type="checkbox" v-model="query.includeZero" />{{
 										dataset === "loans" ? "显示已结清物品" : "包含零库存"
 									}}</label
 								>
-							</details>
-							<details
+							</FilterDisclosure>
+							<FilterDisclosure
 								v-if="dataset === 'expiry'"
-								class="browse-filter-disclosure"
-								data-filter-field="includeUndated"
+								label="无效期批次"
+								field="includeUndated"
+								:summary="query.includeUndated ? '包含' : '不包含'"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									无效期批次
-									<small>{{ query.includeUndated ? "包含" : "不包含" }}</small>
-								</summary>
-								<label class="preview-choice-label"
+								<label class="form-choice-label"
 									><input
 										type="checkbox"
 										v-model="query.includeUndated"
 									/>全部日期中包含无效期</label
 								>
-							</details>
+							</FilterDisclosure>
 							<template v-if="dataset === 'activities'">
-								<details
-									class="browse-filter-disclosure"
-									data-filter-field="activityStatus"
+								<FilterDisclosure
+									label="归档状态"
+									field="activityStatus"
+									:summary="
+										query.activityStatus === 'all'
+											? '全部'
+											: query.activityStatus === 'active'
+												? '进行中'
+												: '已归档'
+									"
 								>
-									<summary class="ti-disclosure">
-										<DisclosureIcon variant="inline" />
-										归档状态
-										<small>{{
-											query.activityStatus === "all"
-												? "全部"
-												: query.activityStatus === "active"
-													? "进行中"
-													: "已归档"
-										}}</small>
-									</summary>
-									<label class="preview-field"
+									<label class="form-field"
 										>归档状态<select v-model="query.activityStatus">
 											<option value="all">全部</option>
 											<option value="active">进行中</option>
 											<option value="archived">已归档</option>
 										</select></label
 									>
-								</details>
-								<details
-									class="browse-filter-disclosure"
-									data-filter-field="typeId"
+								</FilterDisclosure>
+								<FilterDisclosure
+									label="活动类型"
+									field="typeId"
+									:summary="
+										reference.activityTypes.find(
+											(option) => option.value === query.typeId,
+										)?.label ||
+										query.typeId ||
+										'不限'
+									"
 								>
-									<summary class="ti-disclosure">
-										<DisclosureIcon variant="inline" />
-										活动类型
-										<small>{{
-											reference.activityTypes.find(
-												(option) => option.value === query.typeId,
-											)?.label ||
-											query.typeId ||
-											"不限"
-										}}</small>
-									</summary>
 									<SearchSelect
 										label="活动类型"
 										v-model="query.typeId"
 										:options="reference.activityTypes"
 									/>
-								</details>
+								</FilterDisclosure>
 							</template>
-							<details
+							<FilterDisclosure
 								v-if="dataset === 'counts'"
-								class="browse-filter-disclosure"
-								data-filter-field="countReviewed"
+								label="核对状态"
+								field="countReviewed"
+								:summary="
+									query.countReviewed === 'all'
+										? '全部行'
+										: query.countReviewed === 'reviewed'
+											? '已核对'
+											: '未核对'
+								"
 							>
-								<summary class="ti-disclosure">
-									<DisclosureIcon variant="inline" />
-									核对状态
-									<small>{{
-										query.countReviewed === "all"
-											? "全部行"
-											: query.countReviewed === "reviewed"
-												? "已核对"
-												: "未核对"
-									}}</small>
-								</summary>
-								<label class="preview-field"
+								<label class="form-field"
 									>核对状态<select v-model="query.countReviewed">
 										<option value="all">全部行</option>
 										<option value="reviewed">已核对</option>
 										<option value="unreviewed">未核对</option>
 									</select></label
 								>
-							</details>
-							<fieldset class="preview-field">
+							</FilterDisclosure>
+							<fieldset class="form-field">
 								<legend>个人命名视图</legend>
-								<label class="preview-field"
+								<label class="form-field"
 									>已保存视图<select
 										v-model="selectedPreset"
 										@change="usePreset"
@@ -596,7 +538,7 @@ function setGroup(index: number, value: string) {
 											{{ view.title }}
 										</option>
 									</select></label
-								><label class="preview-field"
+								><label class="form-field"
 									>视图名称<input v-model="viewName"
 								/></label>
 								<div class="browse-result-toolbar">
@@ -664,7 +606,7 @@ function setGroup(index: number, value: string) {
 			</template>
 		</BrowseToolbar>
 		<div class="report-scope-controls" aria-label="报表范围">
-			<label class="preview-field">
+			<label class="form-field">
 				报表数据集
 				<select v-model="dataset" aria-label="报表数据集">
 					<option v-for="(option, id) in reportDefinitions" :key="id" :value="id">
@@ -672,7 +614,7 @@ function setGroup(index: number, value: string) {
 					</option>
 				</select>
 			</label>
-			<label class="preview-field">
+			<label class="form-field">
 				视图
 				<select v-model="query.view" aria-label="报表视图">
 					<option v-for="view in definition.views" :key="view.id" :value="view.id">
@@ -692,10 +634,10 @@ function setGroup(index: number, value: string) {
 		</p>
 
 		<p v-if="result.error" role="alert">{{ result.error }}</p>
-		<div class="preview-browse-body">
+		<div class="browse-body">
 			<aside
 				v-if="sidebarOpen && sidebarAvailable && !isMobile"
-				class="preview-filter-rail browse-filter-rail"
+				class="browse-filter-rail browse-filter-rail"
 			>
 				<div class="filter-rail-heading">
 					<h3>类别与仓库</h3>
@@ -717,7 +659,7 @@ function setGroup(index: number, value: string) {
 				:active="query.scope.categories.length + query.scope.warehouses.length > 0"
 				@toggle="toggleSidebar"
 			/>
-			<section class="preview-browse-results surface form-section">
+			<section class="browse-results surface form-section">
 				<div class="compact-filter-toolbar report-results-heading">
 					<h2>
 						主表：{{ mainTable?.label || definition.label }} · {{ result.total }} 行

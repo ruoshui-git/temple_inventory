@@ -29,7 +29,7 @@ const locationLabel = (name: string) =>
 watch([field, warehouse], () => c.clearPreview());
 </script>
 <template>
-	<section class="preview-utility-page">
+	<section class="utility-page">
 		<PageHeader
 			><div>
 				<h1 tabindex="-1">配置与恢复</h1>
@@ -71,7 +71,7 @@ watch([field, warehouse], () => c.clearPreview());
 				<h2>建立必需仓库</h2>
 				<FormField
 					for="configuration-company"
-					class="preview-field"
+					class="form-field"
 					label="公司"
 					required
 					:error="c.validation.errors['configuration-company']"
@@ -111,7 +111,7 @@ watch([field, warehouse], () => c.clearPreview());
 				<p>
 					选择当前可读取的仓库，查看替代范围与影响后再确认。修改引用不会移动库存或调整仓库上级。
 				</p>
-				<label class="preview-field"
+				<label class="form-field"
 					>配置项<select v-model="field" :disabled="busy">
 						<option
 							v-for="pointer in status.pointers"
@@ -165,7 +165,7 @@ watch([field, warehouse], () => c.clearPreview());
 							}}：{{ locationLabel(other.warehouse) }}
 						</p>
 					</DisclosureSection>
-					<label class="preview-choice-label"
+					<label class="form-choice-label"
 						><input
 							v-model="confirmed"
 							type="checkbox"
@@ -235,7 +235,7 @@ watch([field, warehouse], () => c.clearPreview());
 	border-block: 1px solid var(--p-border);
 }
 @media (pointer: coarse) {
-	.configuration-impact :deep(.preview-choice-label) {
+	.configuration-impact :deep(.form-choice-label) {
 		min-height: 44px;
 	}
 }

@@ -286,10 +286,10 @@ async function copy() {
 </script>
 <template>
 	<section class="recovery-summary" aria-label="恢复输入摘要">
-		<dl v-if="fields.length" class="preview-info-grid">
+		<dl v-if="fields.length" class="info-grid">
 			<div v-for="field in fields" :key="field.key">
 				<dt>{{ field.label }}</dt>
-				<dd class="preview-long-text">{{ field.value }}</dd>
+				<dd class="content-long-text">{{ field.value }}</dd>
 			</div>
 		</dl>
 		<DataTable
@@ -324,7 +324,7 @@ async function copy() {
 					:borrower="String(row.ti_borrower || '')"
 					:role="column.id === 's_warehouse' ? '来源位置' : '去向位置'"
 				/>
-				<span v-else class="preview-long-text">{{
+				<span v-else class="content-long-text">{{
 					recoveryCell(row, String(column.id))
 				}}</span>
 			</template>

@@ -61,7 +61,7 @@ function reposition() {
 		const owner = scrollOwner(button);
 		const rootStyle = getComputedStyle(document.documentElement);
 		const measuredShellTop =
-			Number.parseFloat(rootStyle.getPropertyValue("--preview-desktop-nav-height")) || 0;
+			Number.parseFloat(rootStyle.getPropertyValue("--app-desktop-nav-height")) || 0;
 		const ownerTop = owner instanceof HTMLElement ? owner.getBoundingClientRect().top : 0;
 		const topInset = owner instanceof HTMLElement ? 0 : measuredShellTop;
 		const targetTop = ownerTop + topInset + 16;
@@ -91,7 +91,7 @@ function reposition() {
 async function toggle() {
 	if (open.value) return close(true);
 	if (!props.active) return;
-	document.dispatchEvent(new CustomEvent("preview-filter-panel-open", { detail: id }));
+	document.dispatchEvent(new CustomEvent("browse-filter-panel-open", { detail: id }));
 	position.value = { visibility: "hidden" };
 	open.value = true;
 	await nextTick();
@@ -184,7 +184,7 @@ watch(isMobile, async () => {
 });
 onDeactivated(() => close());
 onMounted(() => {
-	document.addEventListener("preview-filter-panel-open", otherPanel);
+	document.addEventListener("browse-filter-panel-open", otherPanel);
 	document.addEventListener("pointerdown", outside);
 	document.addEventListener("focusin", outside);
 	window.addEventListener("resize", reposition);
@@ -193,7 +193,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
 	observer?.disconnect();
-	document.removeEventListener("preview-filter-panel-open", otherPanel);
+	document.removeEventListener("browse-filter-panel-open", otherPanel);
 	document.removeEventListener("pointerdown", outside);
 	document.removeEventListener("focusin", outside);
 	window.removeEventListener("resize", reposition);
@@ -227,7 +227,7 @@ defineExpose({
 });
 </script>
 <template>
-	<span class="preview-filter-control">
+	<span class="browse-filter-control">
 		<UiButton
 			ref="trigger"
 			:icon="iconOnly ? 'filter' : undefined"
@@ -263,7 +263,7 @@ defineExpose({
 				v-if="open && !isMobile"
 				:id="panelId"
 				ref="panel"
-				class="preview-filter-popover"
+				class="browse-filter-popover"
 				:style="position"
 				role="dialog"
 				:aria-labelledby="`${id}-title`"

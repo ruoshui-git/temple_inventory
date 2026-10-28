@@ -82,7 +82,7 @@ export function useOverflowEdges(
         rect.height > 0;
       const chrome = Array.from(
         document.querySelectorAll<HTMLElement>(
-          ".browse-chrome.is-stuck, .sample-sidebar, .mobile-app-topbar",
+          ".browse-chrome.is-stuck, .app-sidebar, .mobile-app-topbar",
         ),
       ).reduce((bottom, item) => {
         const box = item.getBoundingClientRect();
@@ -90,8 +90,7 @@ export function useOverflowEdges(
           ? Math.max(bottom, box.bottom)
           : bottom;
       }, 0);
-      const mobileNav =
-        document.querySelector<HTMLElement>(".sample-mobile-nav");
+      const mobileNav = document.querySelector<HTMLElement>(".app-mobile-nav");
       const bottomLimit =
         mobileNav?.getBoundingClientRect().top ?? window.innerHeight;
       hintVisible.value =

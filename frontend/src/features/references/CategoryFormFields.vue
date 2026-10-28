@@ -54,7 +54,7 @@ function update<K extends keyof CategoryDraft>(field: K, value: CategoryDraft[K]
 		:options="parentOptions"
 		@update:model-value="update('parent', $event)"
 	/>
-	<label class="preview-choice-label">
+	<label class="form-choice-label">
 		<input
 			:checked="modelValue.is_group"
 			type="checkbox"

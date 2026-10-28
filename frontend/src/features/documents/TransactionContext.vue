@@ -43,7 +43,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 }
 </script>
 <template>
-	<dl v-if="mode === 'display'" class="preview-info-grid">
+	<dl v-if="mode === 'display'" class="info-grid">
 		<div>
 			<dt>关联活动</dt>
 			<dd>
@@ -57,7 +57,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 	</dl>
 	<div v-else class="form-fields">
 		<template v-if="!creating"
-			><dl v-if="draft.loanName" class="preview-info-grid">
+			><dl v-if="draft.loanName" class="info-grid">
 				<div>
 					<dt>关联活动</dt>
 					<dd>
@@ -76,7 +76,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				v-if="!draft.loanName"
 				ref="trigger"
 				:disabled="disabled"
-				class="preview-field-action"
+				class="form-field-action"
 				@click="creating = true"
 				>新建活动</UiButton
 			>

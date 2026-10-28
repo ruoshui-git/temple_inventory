@@ -29,9 +29,8 @@ watch(creating, async (value) => {
 	if (!value) {
 		await nextTick();
 		(
-			document.querySelector<HTMLElement>(
-				".preview-supporting-field .search-select-input input",
-			) || (trigger.value?.$el as HTMLElement | undefined)
+			document.querySelector<HTMLElement>(".supporting-field .search-select-input input") ||
+			(trigger.value?.$el as HTMLElement | undefined)
 		)?.focus();
 	}
 });
@@ -66,7 +65,7 @@ async function submit() {
 }
 </script>
 <template>
-	<div class="preview-supporting-field">
+	<div class="supporting-field">
 		<div class="supporting-field-control">
 			<SearchSelect
 				label="分类"

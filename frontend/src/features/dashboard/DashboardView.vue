@@ -193,7 +193,7 @@ function datasetChanged(dataset: ReportDataset) {
 }
 </script>
 <template>
-	<div class="preview-dashboard">
+	<div class="dashboard">
 		<PageHeader title="物资总览">
 			<template v-if="!isMobile" #actions>
 				<UiButton icon="refresh" @click="refresh">刷新</UiButton>
@@ -383,8 +383,8 @@ function datasetChanged(dataset: ReportDataset) {
 			/>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>
-		<div class="preview-dashboard-grid" :aria-busy="loading">
-			<div class="preview-dashboard-column">
+		<div class="dashboard-grid" :aria-busy="loading">
+			<div class="dashboard-column">
 				<DashboardSection
 					:section="sections.inventory"
 					:snapshot="sections.inventory.result.snapshot"
@@ -485,16 +485,16 @@ function datasetChanged(dataset: ReportDataset) {
 						<p class="browse-note">
 							按物品代码去重；同一物品可出现在多个仓库，分组数量不能相加为总数。
 						</p>
-						<div v-if="distribution.length" class="preview-distribution">
+						<div v-if="distribution.length" class="distribution">
 							<button
 								v-for="bar in distributionTop"
 								:key="bar.id"
-								class="preview-bar"
+								class="chart-bar"
 								:disabled="blocked('distribution')"
 								@click="distributionDrill(bar)"
 							>
 								<span>{{ bar.label }}</span
-								><span class="preview-bar-track"
+								><span class="chart-bar-track"
 									><span
 										:style="{
 											width: `${((bar.item_count || 0) / maximum) * 100}%`,
@@ -514,12 +514,12 @@ function datasetChanged(dataset: ReportDataset) {
 								<button
 									v-for="bar in distributionRest"
 									:key="bar.id"
-									class="preview-bar"
+									class="chart-bar"
 									:disabled="blocked('distribution')"
 									@click="distributionDrill(bar)"
 								>
 									<span>{{ bar.label }}</span
-									><span class="preview-bar-track"
+									><span class="chart-bar-track"
 										><span
 											:style="{
 												width: `${((bar.item_count || 0) / maximum) * 100}%`,
@@ -567,7 +567,7 @@ function datasetChanged(dataset: ReportDataset) {
 						</div></template
 					>
 
-					<div class="preview-expiry-grid">
+					<div class="expiry-grid">
 						<button
 							v-for="bucket in buckets"
 							:key="bucket.id"
@@ -675,7 +675,7 @@ function datasetChanged(dataset: ReportDataset) {
 					</div>
 				</DashboardSection>
 			</div>
-			<div class="preview-dashboard-column">
+			<div class="dashboard-column">
 				<DashboardSection
 					:section="sections.movement"
 					:snapshot="sections.movement.result.snapshot"
@@ -703,7 +703,7 @@ function datasetChanged(dataset: ReportDataset) {
 							label="流动日期"
 						/><small>日期仅影响本卡片</small></template
 					>
-					<div class="preview-movement-summary">
+					<div class="movement-summary">
 						<div
 							v-for="row in movementSummary"
 							:key="row.kind"

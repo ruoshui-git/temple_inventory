@@ -204,7 +204,7 @@ test("Stock browse scanner is a compact centered dialog with enumerated camera",
   await expect
     .poll(() =>
       page
-        .locator(".preview-dialog")
+        .locator(".ui-dialog")
         .evaluate((node) => node.getBoundingClientRect().width),
     )
     .toBeLessThan(500);

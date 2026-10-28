@@ -51,7 +51,7 @@ watch(
 	},
 );
 const role = (tone: ToastTone) => (tone === "success" ? "status" : "alert");
-const placement = ref("preview-toast--desktop");
+const placement = ref("notification-toast--desktop");
 function updatePlacement() {
 	const phone =
 		typeof window.matchMedia === "function" &&
@@ -71,11 +71,11 @@ onBeforeUnmount(() => {
 </script>
 <template>
 	<Teleport to="body">
-		<div v-if="messages.length" class="preview-toast-stack" :class="placement">
+		<div v-if="messages.length" class="notification-toast-stack" :class="placement">
 			<div
 				v-for="current in messages"
 				:key="current.id"
-				class="preview-toast"
+				class="notification-toast"
 				:class="{
 					'is-danger': current.tone === 'danger',
 					'is-warning': current.tone === 'warning',

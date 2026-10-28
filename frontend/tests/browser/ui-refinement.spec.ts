@@ -432,7 +432,7 @@ for (const width of [390, 1440]) {
     await expect(
       expiry.getByRole("tab", { name: "已过期", exact: true }),
     ).toBeVisible();
-    const cards = await expiry.locator(".preview-expiry-grid").textContent();
+    const cards = await expiry.locator(".expiry-grid").textContent();
     await expiry.getByRole("tab", { name: "已过期", exact: true }).focus();
     await page.keyboard.press("ArrowRight");
     await expect(
@@ -441,9 +441,7 @@ for (const width of [390, 1440]) {
     await expect(expiry.getByRole("tabpanel")).toContainText(
       "即将到期的供灯油",
     );
-    expect(await expiry.locator(".preview-expiry-grid").textContent()).toBe(
-      cards,
-    );
+    expect(await expiry.locator(".expiry-grid").textContent()).toBe(cards);
     await page.screenshot({ path: info.outputPath("dashboard-tabs.png") });
     await page.goto("/inventory/stock/items/new");
     await page.setViewportSize(
@@ -490,7 +488,7 @@ for (const width of [390, 1440]) {
     await page
       .getByRole("button", { name: "使用原图作为主图", exact: true })
       .click();
-    const image = page.locator(".preview-attachments .async-image").first();
+    const image = page.locator(".attachments .async-image").first();
     await expect(image).toBeVisible();
     await image.scrollIntoViewIfNeeded();
     const metrics = await image.evaluate((frame) => {
@@ -578,7 +576,7 @@ test("open movement filter follows the breakpoint without losing selection", asy
   await page.goto("/inventory/movements?view=records");
   await page.getByRole("button", { name: /^筛选/ }).click();
   const selectedLocation = "东院第0层供灯与法会用品长名称";
-  const desktopRail = page.locator(".preview-filter-popover");
+  const desktopRail = page.locator(".browse-filter-popover");
   await expect(desktopRail).toBeVisible();
   await desktopRail
     .locator('details[data-filter-field="warehouses"] > summary')
@@ -604,7 +602,7 @@ test("open movement filter follows the breakpoint without losing selection", asy
       .getByRole("checkbox", { name: selectedLocation, exact: true }),
   ).toBeChecked();
   await page.setViewportSize({ width: 1440, height: 1000 });
-  const desktopAgain = page.locator(".preview-filter-popover");
+  const desktopAgain = page.locator(".browse-filter-popover");
   await expect(desktopAgain).toBeVisible();
   const collapsed = desktopAgain.locator(
     'details[data-filter-field="warehouses"]:not([open]) > summary',

@@ -181,7 +181,7 @@ const locationPrefs =
 		: undefined;
 </script>
 <template>
-	<section class="preview-browse-page">
+	<section class="browse-page">
 		<PageHeader
 			><div>
 				<h1 tabindex="-1">物品详情</h1>
@@ -266,7 +266,7 @@ const locationPrefs =
 						:key="label"
 					>
 						<dt>{{ label }}</dt>
-						<dd class="preview-long-text">{{ value }}</dd>
+						<dd class="content-long-text">{{ value }}</dd>
 					</div>
 				</dl>
 				<h3>主图</h3>
@@ -452,18 +452,18 @@ const locationPrefs =
 		overflow: visible;
 	}
 	.browse-detail-image :deep(.item-image-button),
-	.browse-detail-image :deep(.preview-item-image) {
+	.browse-detail-image :deep(.item-image) {
 		position: relative;
 		width: 100%;
 		height: 100%;
 		aspect-ratio: 1;
 	}
-	.browse-detail-image :deep(.preview-image-detail) {
+	.browse-detail-image :deep(.item-image-detail) {
 		display: block;
 		width: 100%;
 		aspect-ratio: 1;
 	}
-	.browse-detail-image :deep(.preview-image-enlarge) {
+	.browse-detail-image :deep(.item-image-enlarge) {
 		position: absolute;
 		right: 4px;
 		bottom: 4px;

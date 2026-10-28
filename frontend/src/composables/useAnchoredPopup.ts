@@ -22,7 +22,7 @@ export function useAnchoredPopup(options: {
   let resizeObserver: ResizeObserver | undefined;
   function updateTarget() {
     const overlay = options.anchor.value?.closest<HTMLElement>(
-      ".preview-dialog, .overlay-stage-panel",
+      ".ui-dialog, .overlay-stage-panel",
     );
     target.value = overlay || "body";
   }
@@ -120,7 +120,7 @@ export function useAnchoredPopup(options: {
   function listen() {
     if (listening) return;
     listening = true;
-    document.addEventListener("preview-filter-panel-open", otherPopup);
+    document.addEventListener("browse-filter-panel-open", otherPopup);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", keydown);
     document.addEventListener("inventory-navigation", routeChanged);
@@ -137,7 +137,7 @@ export function useAnchoredPopup(options: {
     if (!listening) return;
     listening = false;
     resizeObserver?.disconnect();
-    document.removeEventListener("preview-filter-panel-open", otherPopup);
+    document.removeEventListener("browse-filter-panel-open", otherPopup);
     document.removeEventListener("pointerdown", outside, true);
     document.removeEventListener("keydown", keydown);
     document.removeEventListener("inventory-navigation", routeChanged);
@@ -152,7 +152,7 @@ export function useAnchoredPopup(options: {
       return;
     }
     document.dispatchEvent(
-      new CustomEvent("preview-filter-panel-open", { detail: owner }),
+      new CustomEvent("browse-filter-panel-open", { detail: owner }),
     );
     updateTarget();
     await nextTick();

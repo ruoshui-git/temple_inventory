@@ -243,10 +243,10 @@ for (const surface of [
       const itemHistoryView =
         surface === "movements/items" || surface === "loans/items";
       if (itemHistoryView)
-        await expect(page.locator(".preview-browse-results")).toBeVisible();
+        await expect(page.locator(".browse-results")).toBeVisible();
       else if (surface === "expiry" && scenario.width < 1024)
         await expect(
-          page.locator(".preview-expiry-mobile [data-browse-row]"),
+          page.locator(".expiry-mobile [data-browse-row]"),
         ).toHaveCount(24);
       else await expect(page.locator("[data-browse-row]")).toHaveCount(24);
       if (surface === "stock" && scenario.width >= 1024) {

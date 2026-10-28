@@ -147,11 +147,11 @@ describe("Overlay history", () => {
     await nextTick();
     history.back();
     await vi.waitFor(() =>
-      expect(document.querySelector(".preview-overlay")).toBeNull(),
+      expect(document.querySelector(".ui-overlay")).toBeNull(),
     );
     await vi.waitFor(() => expect(history.state?.tiOverlay).toBeUndefined());
     await flushPromises();
-    expect(document.querySelector(".preview-overlay")).toBeNull();
+    expect(document.querySelector(".ui-overlay")).toBeNull();
     expect(router.currentRoute.value.path).toBe("/beneath");
     expect(guard).not.toHaveBeenCalled();
   });
@@ -220,7 +220,7 @@ describe("Overlay history", () => {
 
     window.history.back();
     await vi.waitFor(() =>
-      expect(document.querySelector(".preview-overlay")).toBeNull(),
+      expect(document.querySelector(".ui-overlay")).toBeNull(),
     );
     await flushPromises();
     expect(router.currentRoute.value.path).toBe("/editor");
@@ -306,7 +306,7 @@ describe("Overlay history", () => {
       });
     });
     document
-      .querySelector<HTMLElement>(".preview-dialog .dialog-content button")!
+      .querySelector<HTMLElement>(".ui-dialog .dialog-content button")!
       .click();
     await editorNavigation;
     await flushPromises();

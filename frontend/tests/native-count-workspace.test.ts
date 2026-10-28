@@ -272,7 +272,7 @@ describe("compact count workspace", () => {
     filter!.dispatchEvent(new Event("input", { bubbles: true }));
     await flushPromises();
     const tree = document.body.querySelector<HTMLElement>(
-      ".preview-filter-popover",
+      ".browse-filter-popover",
     )!;
     expect(tree.textContent).not.toContain("借出区");
     const room = Array.from(

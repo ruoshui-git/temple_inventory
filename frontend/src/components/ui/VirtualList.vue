@@ -151,7 +151,7 @@ defineExpose({ scrollToIndex });
 <template>
 	<div
 		ref="viewport"
-		class="preview-virtual-list"
+		class="virtual-list"
 		:class="{ 'is-virtual': enabled }"
 		:data-total="keys.length"
 		@scroll="top = ($event.target as HTMLElement).scrollTop"
@@ -182,7 +182,7 @@ defineExpose({ scrollToIndex });
 	</div>
 </template>
 <style scoped>
-.preview-virtual-list {
+.virtual-list {
 	min-width: 0;
 	overflow-anchor: none;
 }

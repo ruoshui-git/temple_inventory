@@ -144,11 +144,7 @@ function openDialog() {
 defineExpose({ open: openDialog });
 </script>
 <template>
-	<UiButton
-		v-if="showTrigger"
-		class="preview-quick-report"
-		:disabled="disabled"
-		@click="openDialog"
+	<UiButton v-if="showTrigger" class="quick-report" :disabled="disabled" @click="openDialog"
 		><InventoryIcon name="export" />导出</UiButton
 	>
 	<Overlay
@@ -160,7 +156,7 @@ defineExpose({ open: openDialog });
 	>
 		<div class="quick-export-intro form-fields">
 			<p v-if="!job" class="muted">文件将在后台生成，完成后会发送通知并提供下载。</p>
-			<p class="preview-long-text">
+			<p class="content-long-text">
 				范围：{{ reportDefinitions[query.dataset].label }} ·
 				{{
 					reportDefinitions[query.dataset].views.find((view) => view.id === query.view)
@@ -196,28 +192,28 @@ defineExpose({ open: openDialog });
 			{{ matchedCount ?? 0 }} 条匹配结果
 		</p>
 		<div class="quick-export-options form-fields">
-			<label v-if="allowDatasetSelection" class="preview-field"
+			<label v-if="allowDatasetSelection" class="form-field"
 				>数据范围<select v-model="selectedDataset" aria-label="数据范围">
 					<option v-for="(definition, id) in reportDefinitions" :key="id" :value="id">
 						{{ definition.label }}
 					</option>
 				</select></label
 			>
-			<label class="preview-field"
+			<label class="form-field"
 				>文件格式<select v-model="format" aria-label="文件格式" :disabled="generating">
 					<option value="xlsx">XLSX · 汇总与明细表</option>
 					<option value="csv">CSV · 单一平面表</option>
 				</select></label
 			>
 			<div class="quick-export-related">
-				<label class="preview-choice-label"
+				<label class="form-choice-label"
 					><input
 						type="checkbox"
 						v-model="related"
 						:disabled="generating"
 					/>包含相关资料表</label
 				>
-				<p v-if="related" class="muted preview-related-help">{{ relatedSheetsHelp }}</p>
+				<p v-if="related" class="muted related-help">{{ relatedSheetsHelp }}</p>
 			</div>
 			<AsyncRegion
 				v-if="props.preview"
@@ -226,8 +222,8 @@ defineExpose({ open: openDialog });
 				:stale="true"
 				label="正在更新预览…"
 			>
-				<div class="quick-export-preview-options form-fields">
-					<label class="preview-field"
+				<div class="quick-export-options form-fields">
+					<label class="form-field"
 						>{{
 							format === "csv"
 								? "CSV 导出表（仅一张表）"
@@ -256,7 +252,7 @@ defineExpose({ open: openDialog });
 						<label
 							v-for="table in page.tables"
 							:key="table.id"
-							class="preview-choice-label"
+							class="form-choice-label"
 							><input
 								type="checkbox"
 								v-model="selectedSheets"
@@ -282,8 +278,8 @@ defineExpose({ open: openDialog });
 				</div>
 				<template #skeleton><SkeletonBlock variant="lines" :count="4" /></template>
 			</AsyncRegion>
-			<div v-else class="quick-export-preview-options form-fields">
-				<label v-if="format === 'csv'" class="preview-field">
+			<div v-else class="quick-export-options form-fields">
+				<label v-if="format === 'csv'" class="form-field">
 					CSV 导出表
 					<select v-model="selectedTable" aria-label="CSV 导出表" :disabled="generating">
 						<option v-for="table in props.tables" :key="table.id" :value="table.id">
@@ -293,11 +289,7 @@ defineExpose({ open: openDialog });
 				</label>
 				<fieldset v-if="format === 'xlsx'">
 					<legend>工作表</legend>
-					<label
-						v-for="table in props.tables"
-						:key="table.id"
-						class="preview-choice-label"
-					>
+					<label v-for="table in props.tables" :key="table.id" class="form-choice-label">
 						<input
 							type="checkbox"
 							v-model="selectedSheets"

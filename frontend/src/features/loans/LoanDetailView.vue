@@ -245,7 +245,7 @@ function settle(action: SettlementAction) {
 						:key="label"
 					>
 						<dt>{{ label }}</dt>
-						<dd class="preview-long-text">
+						<dd class="content-long-text">
 							<RouterLink
 								v-if="value && personRole(label)"
 								:to="personDestination(String(value), personRole(label)!)"

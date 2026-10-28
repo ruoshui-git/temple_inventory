@@ -118,7 +118,7 @@ watch(expanded, async (value, previous) => {
 		await nextTick();
 		previewCollapsed.value = true;
 		await nextTick();
-		formRoot.value?.querySelector<HTMLElement>(".preview-edge-rail")?.focus({
+		formRoot.value?.querySelector<HTMLElement>(".form-review-edge-rail")?.focus({
 			preventScroll: true,
 		});
 	}
@@ -148,7 +148,7 @@ function reviewShortcut(event: KeyboardEvent) {
 		props.active === false ||
 		busy.value ||
 		reviewOpen.value ||
-		document.querySelector(".preview-overlay")
+		document.querySelector(".ui-overlay")
 	)
 		return;
 	const button = formRoot.value?.querySelector<HTMLButtonElement>("[data-review-action]");
@@ -504,7 +504,7 @@ async function lifecycle() {
 	<section
 		id="operation-editor-preview"
 		ref="formRoot"
-		class="preview-form-page"
+		class="form-page"
 		:class="{ 'workspace-expanded': expanded }"
 	>
 		<PageHeader class="form-page-heading"
@@ -651,7 +651,7 @@ async function lifecycle() {
 							</p>
 						</template>
 						<template v-else>
-							<label class="preview-field"
+							<label class="form-field"
 								>操作日期<input
 									v-model="draft.postingDate"
 									data-field="postingDate"
@@ -662,7 +662,7 @@ async function lifecycle() {
 									"
 									:disabled="!writable || busy"
 							/></label>
-							<label class="preview-field"
+							<label class="form-field"
 								>时间方式<select
 									v-model="draft.timeMode"
 									:disabled="!writable || busy"
@@ -671,7 +671,7 @@ async function lifecycle() {
 									<option value="manual">指定历史时间</option>
 								</select></label
 							>
-							<label class="preview-field"
+							<label class="form-field"
 								>操作时间<input
 									v-model="draft.postingTime"
 									data-field="postingTime"
@@ -750,7 +750,7 @@ async function lifecycle() {
 								<div v-if="loanListOpen" class="outstanding-loan-browser">
 									<FormField
 										data-field="returnBorrower"
-										class="preview-field loan-search"
+										class="form-field loan-search"
 										label="未结清借用方"
 										:required="draft.kind === 'Return'"
 										:error="validation.errors.returnBorrower"
@@ -903,7 +903,7 @@ async function lifecycle() {
 						</div>
 					</section>
 				</template>
-				<dl v-else class="preview-info-grid form-section">
+				<dl v-else class="info-grid form-section">
 					<div>
 						<dt>操作日期</dt>
 						<dd>{{ draft.postingDate }}</dd>
@@ -917,14 +917,14 @@ async function lifecycle() {
 						<dd>{{ draft.borrower }}</dd>
 					</div>
 				</dl>
-				<p v-if="draft.amendedFrom" class="preview-long-text">
+				<p v-if="draft.amendedFrom" class="content-long-text">
 					修订来源：{{ draft.amendedFrom }}
 				</p>
 				<section class="form-section operation-section">
 					<div class="operation-heading-row">
 						<h2>操作物资</h2>
 						<UiButton
-							class="preview-full-workspace-action"
+							class="full-workspace-action"
 							variant="ghost"
 							:icon="expanded ? 'contract' : 'expand'"
 							icon-only
@@ -973,7 +973,7 @@ async function lifecycle() {
 								/>
 							</template>
 						</FormField>
-						<div v-else class="preview-long-text">{{ draft.note }}</div>
+						<div v-else class="content-long-text">{{ draft.note }}</div>
 					</div>
 					<div class="attachment-area">
 						<h3>附件</h3>
@@ -1003,7 +1003,7 @@ async function lifecycle() {
 							</FormField>
 						</div>
 					</fieldset>
-					<dl v-else class="preview-info-grid">
+					<dl v-else class="info-grid">
 						<div
 							v-for="(value, label) in {
 								记录人: draft.recorder,
@@ -1038,7 +1038,7 @@ async function lifecycle() {
 				<div
 					v-if="writable || state.confirmationVersion"
 					ref="reviewBar"
-					class="form-actions preview-document-actions"
+					class="form-actions document-actions"
 					:class="{ 'is-keyboard-open': keyboardOpen }"
 				>
 					<p class="muted">{{ draft.items.length }} 行</p>
@@ -1083,23 +1083,25 @@ async function lifecycle() {
 				<button
 					v-if="isDesktop && !expanded"
 					type="button"
-					class="preview-edge-rail"
+					class="form-review-edge-rail"
 					:aria-expanded="!previewCollapsed"
 					aria-controls="operation-review-content"
 					:aria-label="previewCollapsed ? '展开确认前检查' : '收起确认前检查到边缘'"
 					@click="previewCollapsed = !previewCollapsed"
 				>
 					<InventoryIcon :name="previewCollapsed ? 'chevron-left' : 'chevron-right'" />
-					<span v-if="previewCollapsed" class="preview-edge-rail-label">确认前检查</span>
+					<span v-if="previewCollapsed" class="form-review-edge-rail-label"
+						>确认前检查</span
+					>
 				</button>
 				<details
-					class="review-preview-disclosure"
+					class="review-disclosure"
 					:open="isDesktop || mobileReviewOpen"
 					@toggle="mobileReviewOpen = ($event.currentTarget as HTMLDetailsElement).open"
 				>
 					<summary
 						:id="draft.items.length ? undefined : 'operation-review-content'"
-						class="review-preview-summary ti-disclosure"
+						class="review-summary ti-disclosure"
 						aria-label="展开或收起确认前检查摘要"
 						:aria-hidden="previewCollapsed ? 'true' : undefined"
 					>
@@ -1113,7 +1115,7 @@ async function lifecycle() {
 					<div
 						v-if="draft.items.length"
 						id="operation-review-content"
-						class="review-preview-content"
+						class="review-content"
 						:aria-hidden="previewCollapsed ? 'true' : undefined"
 						:inert="previewCollapsed || undefined"
 					>
@@ -1173,7 +1175,7 @@ async function lifecycle() {
 			</p>
 			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</p>
 			<AllocationSummary :draft="draft" />
-			<dl v-if="reviewContext.filled.length" class="preview-info-grid">
+			<dl v-if="reviewContext.filled.length" class="info-grid">
 				<div v-for="field in reviewContext.filled" :key="field.label">
 					<dt>{{ field.label }}</dt>
 					<dd>{{ field.value }}</dd>
@@ -1182,7 +1184,7 @@ async function lifecycle() {
 			<p v-if="reviewContext.missing.length" class="muted">
 				未填写：{{ reviewContext.missing.map((field) => field.label).join("、") }}
 			</p>
-			<div class="preview-long-text">{{ draft.note }}</div>
+			<div class="content-long-text">{{ draft.note }}</div>
 			<p>{{ files.files.length }} 份附件。确认后此记录及附件不可直接修改。</p>
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
@@ -1238,7 +1240,7 @@ async function lifecycle() {
 	margin-top: 4px;
 }
 
-:deep(.review-preview-summary) {
+:deep(.review-summary) {
 	min-height: 48px;
 	padding: var(--p-space-2) var(--p-space-3);
 	font-size: var(--p-body);
@@ -1283,7 +1285,7 @@ async function lifecycle() {
 }
 
 @media (max-width: 1023px) {
-	.preview-document-actions {
+	.document-actions {
 		left: calc(var(--operation-visual-left, 0px) + 12px);
 		right: auto;
 		width: calc(var(--operation-visual-width, 100vw) - 24px);
@@ -1295,20 +1297,20 @@ async function lifecycle() {
 		box-sizing: border-box;
 	}
 
-	.preview-document-actions.is-keyboard-open {
+	.document-actions.is-keyboard-open {
 		display: none !important;
 	}
 
-	.preview-document-actions {
+	.document-actions {
 		grid-template-columns: minmax(0, 1fr) auto auto auto;
 		padding-bottom: max(6px, env(safe-area-inset-bottom));
 	}
 
-	.preview-document-actions > .ui-button {
+	.document-actions > .ui-button {
 		min-height: 44px;
 	}
 
-	:deep(.review-preview-summary) {
+	:deep(.review-summary) {
 		min-height: 52px;
 		font-size: var(--p-body);
 		white-space: nowrap;

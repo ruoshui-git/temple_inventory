@@ -211,7 +211,7 @@ const activityPrefs = services
 </script>
 <template>
 	<ReturnToTop :active="props.active" :hidden="isMobile && filterSheetOpen" />
-	<section class="preview-page preview-activities">
+	<section class="page activities-page">
 		<p v-if="scopeError" role="alert">{{ scopeError }}</p>
 		<PageHeader v-if="page !== 'activity-list'"
 			><div>
@@ -272,8 +272,8 @@ const activityPrefs = services
 						:view="report.view"
 					/>
 				</div>
-				<div class="preview-filter-fields">
-					<label class="preview-field"
+				<div class="browse-filter-fields">
+					<label class="form-field"
 						>状态<select v-model="state.status">
 							<option value="active">进行中</option>
 							<option value="archived">已归档</option>
@@ -294,7 +294,7 @@ const activityPrefs = services
 					<small
 						>按活动起止日期与所选范围重叠筛选；未填写开始或结束日期视为持续活动。</small
 					>
-					<label class="preview-field"
+					<label class="form-field"
 						>流动类型<select v-model="state.kind">
 							<option value="">全部</option>
 							<option
@@ -306,14 +306,14 @@ const activityPrefs = services
 							</option>
 						</select></label
 					>
-					<label class="preview-field"
+					<label class="form-field"
 						>关联记录<select v-model="state.presence">
 							<option value="all">全部</option>
 							<option value="yes">有记录</option>
 							<option value="no">无记录</option>
 						</select></label
 					>
-					<label class="preview-choice-label"
+					<label class="form-choice-label"
 						><input type="checkbox" v-model="state.outstanding" />有未归还借用</label
 					>
 					<UiButton @click="clear">清空筛选</UiButton>
@@ -558,7 +558,7 @@ const activityPrefs = services
 			<p v-if="error" role="alert">{{ error }}</p>
 			<section class="surface form-section">
 				<h2>活动概览</h2>
-				<dl class="preview-info-grid">
+				<dl class="info-grid">
 					<div>
 						<dt>类型</dt>
 						<dd>{{ activityTypeLabel(current.typeId) }}</dd>
@@ -582,7 +582,7 @@ const activityPrefs = services
 						<dd>{{ current.modifiedBy }} · {{ siteDateTime(current.modified) }}</dd>
 					</div>
 				</dl>
-				<p class="preview-long-text">{{ current.description || "未填写说明" }}</p>
+				<p class="content-long-text">{{ current.description || "未填写说明" }}</p>
 				<h3>货物流动</h3>
 				<div class="activity-movement-tiles">
 					<div
@@ -658,7 +658,7 @@ const activityPrefs = services
 					<summary class="ti-disclosure">
 						<DisclosureIcon variant="inline" />详细备注
 					</summary>
-					<div class="preview-long-text activity-notes">
+					<div class="content-long-text activity-notes">
 						{{ current.notes || "未填写备注" }}
 					</div>
 				</details>

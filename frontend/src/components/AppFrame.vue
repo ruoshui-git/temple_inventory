@@ -69,11 +69,11 @@ let previousDesktopHeight = "";
 let previousTopbarHeight = "";
 function measureNavigation() {
 	document.documentElement.style.setProperty(
-		"--preview-nav-height",
+		"--app-nav-height",
 		`${mobileNavigation.value?.getBoundingClientRect().height || 0}px`,
 	);
 	document.documentElement.style.setProperty(
-		"--preview-desktop-nav-height",
+		"--app-desktop-nav-height",
 		`${desktopNavigation.value?.getBoundingClientRect().height || 0}px`,
 	);
 	document.documentElement.style.setProperty(
@@ -172,9 +172,9 @@ function dismissLogout() {
 	void nextTick(() => accountTrigger.value?.focus({ preventScroll: true }));
 }
 onMounted(() => {
-	previousHeight = document.documentElement.style.getPropertyValue("--preview-nav-height");
+	previousHeight = document.documentElement.style.getPropertyValue("--app-nav-height");
 	previousDesktopHeight = document.documentElement.style.getPropertyValue(
-		"--preview-desktop-nav-height",
+		"--app-desktop-nav-height",
 	);
 	previousTopbarHeight = document.documentElement.style.getPropertyValue(
 		"--mobile-app-topbar-height",
@@ -192,14 +192,14 @@ onBeforeUnmount(() => {
 	document.removeEventListener("pointerdown", onOutsidePointer);
 	document.removeEventListener("focusin", onAccountFocus);
 	if (previousHeight)
-		document.documentElement.style.setProperty("--preview-nav-height", previousHeight);
-	else document.documentElement.style.removeProperty("--preview-nav-height");
+		document.documentElement.style.setProperty("--app-nav-height", previousHeight);
+	else document.documentElement.style.removeProperty("--app-nav-height");
 	if (previousDesktopHeight)
 		document.documentElement.style.setProperty(
-			"--preview-desktop-nav-height",
+			"--app-desktop-nav-height",
 			previousDesktopHeight,
 		);
-	else document.documentElement.style.removeProperty("--preview-desktop-nav-height");
+	else document.documentElement.style.removeProperty("--app-desktop-nav-height");
 	if (previousTopbarHeight)
 		document.documentElement.style.setProperty(
 			"--mobile-app-topbar-height",
@@ -210,7 +210,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
 	<div
-		class="preview-workspace"
+		class="app-workspace"
 		:class="{
 			'is-mobile': isMobile,
 			'is-task-editor': taskEditor,
@@ -224,8 +224,8 @@ onBeforeUnmount(() => {
 			aria-label="正在切换页面"
 			aria-valuetext="页面正在加载"
 		></div>
-		<header v-if="!isMobile" ref="desktopNavigation" class="sample-sidebar">
-			<div class="sample-brand">
+		<header v-if="!isMobile" ref="desktopNavigation" class="app-sidebar">
+			<div class="app-brand">
 				<span class="brand-symbol"><InventoryIcon name="box" /></span>
 				<div class="brand-title">
 					<strong>物资管理</strong><EnvironmentBadge :environment="environment" />
@@ -329,11 +329,11 @@ onBeforeUnmount(() => {
 			</div>
 			<slot name="notifications" />
 		</header>
-		<main :id="contentId" class="sample-content"><slot /></main>
+		<main :id="contentId" class="app-content"><slot /></main>
 		<nav
 			v-if="isMobile && !taskEditor"
 			ref="mobileNavigation"
-			class="sample-mobile-nav"
+			class="app-mobile-nav"
 			aria-label="应用主导航"
 			:style="{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }"
 		>

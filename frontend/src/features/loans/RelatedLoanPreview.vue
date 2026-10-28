@@ -213,7 +213,7 @@ function settlement(line: LoanLine) {
 					</div>
 					<div v-if="c.current.value.loan.remarks" class="related-loan-remarks">
 						<strong>备注</strong>
-						<p class="preview-long-text">{{ c.current.value.loan.remarks }}</p>
+						<p class="content-long-text">{{ c.current.value.loan.remarks }}</p>
 					</div>
 				</template>
 			</template>

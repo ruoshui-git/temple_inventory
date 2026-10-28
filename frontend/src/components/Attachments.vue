@@ -59,7 +59,7 @@ const visibleFiles = computed(() =>
 );
 </script>
 <template>
-	<div class="preview-attachments">
+	<div class="attachments">
 		<div v-if="imageRole === 'main'" class="main-image-picker-row">
 			<div class="main-image-preview" aria-label="主图预览">
 				<AsyncImage

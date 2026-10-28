@@ -246,7 +246,7 @@ function itemImage(row: CountRow) {
 			:summary="`${values.ti_count_warehouses.length} 个实体末级位置`"
 		>
 			<div class="count-scope-controls">
-				<label class="preview-field count-scope-type">
+				<label class="form-field count-scope-type">
 					盘点方式
 					<select
 						v-model="values.ti_count_scope"
@@ -283,7 +283,7 @@ function itemImage(row: CountRow) {
 					initial-expansion="branching-leaves"
 				/>
 			</FilterPanel>
-			<label class="preview-field count-search">
+			<label class="form-field count-search">
 				搜索物品、批次或位置
 				<input
 					v-model="search"
@@ -337,7 +337,7 @@ function itemImage(row: CountRow) {
 				{{ row.actual_qty ?? "未核对" }}
 				{{ unitLabel(String(row.stock_uom || "")) }}
 			</p>
-			<label v-if="writable" class="preview-choice-label">
+			<label v-if="writable" class="form-choice-label">
 				<input v-model="removalAcknowledged" type="checkbox" />已核对移出的输入
 			</label>
 		</section>
@@ -632,7 +632,7 @@ function itemImage(row: CountRow) {
 				}}
 				· {{ warehouseLabel(notesTarget.warehouse, reference.warehouses) }}
 			</p>
-			<label class="preview-field"
+			<label class="form-field"
 				>差异原因<textarea
 					v-model="notesTarget.reason"
 					rows="3"
@@ -761,7 +761,7 @@ function itemImage(row: CountRow) {
 .count-pagination {
 	justify-content: center;
 }
-.count-workspace :deep(.preview-filter-popover .hierarchy-inline-tree),
+.count-workspace :deep(.browse-filter-popover .hierarchy-inline-tree),
 .count-workspace :deep(.compact-filter-content .hierarchy-inline-tree) {
 	max-height: min(45dvh, 320px);
 	overflow: auto;

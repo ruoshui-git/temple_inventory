@@ -16,7 +16,7 @@ const densities = [
 ] as const;
 </script>
 <template>
-	<section class="preview-utility-page">
+	<section class="utility-page">
 		<PageHeader
 			><div>
 				<h1 tabindex="-1">显示设置</h1>
@@ -56,7 +56,7 @@ const densities = [
 				</button>
 			</div>
 			<h2>文字大小</h2>
-			<label class="preview-field"
+			<label class="form-field"
 				>文字大小<select
 					aria-label="文字大小"
 					:value="textScale"
@@ -78,7 +78,7 @@ const densities = [
 			<h2>显示密度</h2>
 			<p class="muted">文字大小独立于间距和控件尺寸。</p>
 			<div class="density-choice">
-				<label v-for="option in densities" :key="option.value" class="preview-choice-label"
+				<label v-for="option in densities" :key="option.value" class="form-choice-label"
 					><input
 						type="radio"
 						name="display-density"

@@ -215,7 +215,7 @@ defineExpose({
 <template>
 	<div
 		ref="root"
-		class="preview-search-select preview-field"
+		class="search-select form-field"
 		@focusout="
 			(event) => {
 				if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) {
@@ -365,7 +365,7 @@ defineExpose({
 	</div>
 </template>
 <style scoped>
-.preview-search-select {
+.search-select {
 	position: relative;
 	min-width: 0;
 	display: grid;
@@ -414,7 +414,7 @@ defineExpose({
 	display: flex;
 	flex-direction: column;
 }
-.search-select-menu.has-virtual-list :deep(.preview-virtual-list) {
+.search-select-menu.has-virtual-list :deep(.virtual-list) {
 	min-height: 0;
 	flex: 1 1 auto;
 	overflow: auto;

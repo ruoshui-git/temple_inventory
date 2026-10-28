@@ -10,7 +10,7 @@ function update(value: DatePeriod) {
 
 <template>
 	<div class="period-editor">
-		<label class="preview-field"
+		<label class="form-field"
 			>时间范围<select
 				:value="modelValue.key"
 				:aria-label="`${label}时间范围预设`"
@@ -55,7 +55,7 @@ function update(value: DatePeriod) {
 			</select></label
 		>
 		<template v-if="modelValue.key === 'custom'">
-			<label class="preview-field"
+			<label class="form-field"
 				>开始日期<input
 					:value="modelValue.from"
 					type="date"
@@ -65,7 +65,7 @@ function update(value: DatePeriod) {
 					"
 				/>
 			</label>
-			<label class="preview-field"
+			<label class="form-field"
 				>结束日期<input
 					:value="modelValue.to"
 					type="date"

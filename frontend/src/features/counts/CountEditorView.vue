@@ -146,7 +146,7 @@ function reviewShortcut(event: KeyboardEvent) {
 		props.active === false ||
 		busy.value ||
 		reviewOpen.value ||
-		document.querySelector(".preview-overlay")
+		document.querySelector(".ui-overlay")
 	)
 		return;
 	const button = root.value?.querySelector<HTMLButtonElement>("[data-review-action]");
@@ -301,7 +301,7 @@ async function back() {
 }
 </script>
 <template>
-	<section ref="root" class="preview-form-page">
+	<section ref="root" class="form-page">
 		<PageHeader class="form-page-heading">
 			<div>
 				<div class="operation-page-title-row">
@@ -444,12 +444,12 @@ async function back() {
 			<form class="form-main surface count-form-main" novalidate @submit.prevent="review">
 				<DisclosureSection title="日期与时间" summary="账面基准使用的记录时间点">
 					<div class="form-date-section">
-						<label v-if="writable" class="preview-field"
+						<label v-if="writable" class="form-field"
 							>操作日期<input
 								type="date"
 								v-model="values.posting_date"
 								:disabled="busy" /></label
-						><label v-if="writable" class="preview-field"
+						><label v-if="writable" class="form-field"
 							>操作时间<input
 								type="time"
 								step="1"
@@ -680,10 +680,10 @@ async function back() {
 					>
 				</div>
 				<DisclosureSection title="盘点备注" summary="填写盘点说明">
-					<label v-if="writable" class="preview-field"
+					<label v-if="writable" class="form-field"
 						>盘点备注<textarea v-model="values.ti_notes" rows="3" :disabled="busy" />
 					</label>
-					<p v-else class="preview-long-text">{{ values.ti_notes || "未填写" }}</p>
+					<p v-else class="content-long-text">{{ values.ti_notes || "未填写" }}</p>
 				</DisclosureSection>
 				<DisclosureSection title="活动、人员与附件" summary="关联背景与记录人员">
 					<TransactionContext
@@ -698,15 +698,15 @@ async function back() {
 						:disabled="!writable || busy"
 					/>
 					<div v-if="writable" class="form-fields">
-						<label class="preview-field"
+						<label class="form-field"
 							>记录人<input
 								v-model="values.ti_recorder_name"
 								:disabled="busy" /></label
-						><label class="preview-field"
+						><label class="form-field"
 							>经手人<input
 								v-model="values.ti_handler_name"
 								:disabled="busy" /></label
-						><label class="preview-field"
+						><label class="form-field"
 							>鉴证人<input v-model="values.ti_reviewer_name" :disabled="busy"
 						/></label>
 					</div>
@@ -738,7 +738,7 @@ async function back() {
 			<p v-if="!deskOrigin" class="count-confirmation-note">
 				未核对的行仍保留在本次范围中，但不会进入盘点调整。
 			</p>
-			<p v-if="!deskOrigin && values.ti_notes" class="preview-long-text">
+			<p v-if="!deskOrigin && values.ti_notes" class="content-long-text">
 				盘点备注：{{ values.ti_notes }}
 			</p>
 			<p>{{ values.posting_date }} {{ values.posting_time }}</p>
@@ -769,7 +769,7 @@ async function back() {
 				}}
 				· 鉴证人：{{ values.ti_reviewer_name || "未填写" }}
 			</p>
-			<p v-if="deskOrigin && values.ti_notes" class="preview-long-text">
+			<p v-if="deskOrigin && values.ti_notes" class="content-long-text">
 				{{ values.ti_notes }}
 			</p>
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
@@ -971,7 +971,7 @@ async function back() {
 		position: fixed;
 		left: 16px;
 		right: 16px;
-		bottom: calc(var(--preview-nav-height, 84px) + 8px + env(safe-area-inset-bottom));
+		bottom: calc(var(--app-nav-height, 84px) + 8px + env(safe-area-inset-bottom));
 		z-index: var(--p-z-sticky-content);
 		align-items: center;
 		padding: 8px;

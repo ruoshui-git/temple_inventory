@@ -411,7 +411,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 
 		<section
 			v-if="result.initialized"
-			class="preview-activity-summary"
+			class="activity-summary"
 			aria-label="当前效期汇总"
 			aria-live="polite"
 		>
@@ -448,8 +448,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 		<p v-if="!isMobile && query.expiryWindow.startsWith('next_')" class="browse-note">
 			今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。
 		</p>
-		<div class="preview-browse-body">
-			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
+		<div class="browse-body">
+			<aside v-if="filterOpen && !isMobile" class="browse-filter-rail browse-filter-rail">
 				<div class="filter-rail-heading">
 					<h3>筛选批次</h3>
 					<FilterRailEdge
@@ -470,8 +470,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 				:active="scope.categories.length + scope.warehouses.length > 0"
 				@toggle="toggleFilter"
 			/>
-			<div id="expiry-results-panel" role="tabpanel" class="preview-browse-results">
-				<div v-if="isMobile && !query.groupBy.length" class="preview-expiry-mobile">
+			<div id="expiry-results-panel" role="tabpanel" class="browse-results">
+				<div v-if="isMobile && !query.groupBy.length" class="expiry-mobile">
 					<article
 						v-for="row in result.rows"
 						:key="String(row.id)"
@@ -479,7 +479,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						class="browse-card expiry-phone-card"
 					>
 						<div class="expiry-phone-identity">
-							<div class="preview-group-thumbnail">
+							<div class="browse-group-thumbnail">
 								<ItemImage :item="c.item(row)" />
 							</div>
 							<button
@@ -689,7 +689,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					adaptive-creation
 					@close="analysisOpen = false"
 				>
-					<label class="preview-field"
+					<label class="form-field"
 						>分析维度<select v-model="dimension">
 							<option value="category">类别</option>
 							<option value="warehouse">位置</option>
@@ -725,7 +725,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 		align-items: center;
 		gap: 9px;
 	}
-	.expiry-phone-identity .preview-group-thumbnail {
+	.expiry-phone-identity .browse-group-thumbnail {
 		grid-row: 1 / span 2;
 		width: 40px;
 		height: 40px;

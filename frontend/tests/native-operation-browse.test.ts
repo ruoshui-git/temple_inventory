@@ -1370,12 +1370,12 @@ describe("native operation browsing", () => {
     );
     await flushPromises();
     const surface = wrapper.findComponent(OperationBrowsePage);
-    expect(wrapper.findAll(".preview-group")).toHaveLength(1);
+    expect(wrapper.findAll(".browse-group")).toHaveLength(1);
     expect(wrapper.get(".mobile-item-group-list").classes()).toContain(
       "browse-card",
     );
-    expect(wrapper.get(".preview-group").classes()).toContain(
-      "preview-group--mobile-list",
+    expect(wrapper.get(".browse-group").classes()).toContain(
+      "browse-group--mobile-list",
     );
     expect(
       wrapper.get(".mobile-item-group-list").element.children,
@@ -1386,20 +1386,20 @@ describe("native operation browsing", () => {
     const count = wrapper.get(".mobile-item-group-list h2 small");
     expect(count.text()).toBe("42 条");
     expect(count.attributes("title")).toBe("明细条数 42");
-    expect(wrapper.get(".preview-group-metrics").text()).toMatch(
+    expect(wrapper.get(".browse-group-metrics").text()).toMatch(
       /借出\s+2\s+Nos/,
     );
-    expect(wrapper.find(".preview-group-thumbnail").exists()).toBe(true);
+    expect(wrapper.find(".browse-group-thumbnail").exists()).toBe(true);
     expect(
-      wrapper.get(".preview-group-trigger").find(".ti-disclosure-icon").element,
-    ).toBe(wrapper.get(".preview-group-trigger").element.lastElementChild);
+      wrapper.get(".browse-group-trigger").find(".ti-disclosure-icon").element,
+    ).toBe(wrapper.get(".browse-group-trigger").element.lastElementChild);
     expect(
       wrapper.findAll('[data-browse-scroll="operation-items"]'),
     ).toHaveLength(0);
-    await wrapper.get(".preview-group-trigger").trigger("click");
+    await wrapper.get(".browse-group-trigger").trigger("click");
     await flushPromises();
     expect(
-      wrapper.get(".preview-group-trigger").attributes("aria-expanded"),
+      wrapper.get(".browse-group-trigger").attributes("aria-expanded"),
     ).toBe("true");
     const historyContent = wrapper.get(".movement-history-surface").element
       .parentElement;
@@ -1407,7 +1407,7 @@ describe("native operation browsing", () => {
       "display: none",
     );
     expect(
-      historyContent?.parentElement?.classList.contains("preview-group"),
+      historyContent?.parentElement?.classList.contains("browse-group"),
     ).toBe(true);
     expect(wrapper.text()).not.toContain("查看历史");
     expect(call).toHaveBeenCalledWith(
@@ -1419,13 +1419,13 @@ describe("native operation browsing", () => {
       expect.any(AbortSignal),
     );
     expect(wrapper.findAll(".loan-history-scope")).toHaveLength(0);
-    await wrapper.get(".preview-group-trigger").trigger("click");
+    await wrapper.get(".browse-group-trigger").trigger("click");
     await flushPromises();
     expect(
-      wrapper.get(".preview-group-trigger").attributes("aria-expanded"),
+      wrapper.get(".browse-group-trigger").attributes("aria-expanded"),
     ).toBe("false");
     expect(historyContent?.getAttribute("style")).toContain("display: none");
-    await wrapper.get(".preview-group-trigger").trigger("click");
+    await wrapper.get(".browse-group-trigger").trigger("click");
     await flushPromises();
     expect(surface.emitted("openLoan")).toBeUndefined();
     const buttons = wrapper
@@ -1456,7 +1456,7 @@ describe("native operation browsing", () => {
     );
     await flushPromises();
     await wrapper
-      .get('.preview-filter-control button[aria-haspopup="dialog"]')
+      .get('.browse-filter-control button[aria-haspopup="dialog"]')
       .trigger("click");
     await flushPromises();
     const disclosures = Array.from(
@@ -1467,7 +1467,7 @@ describe("native operation browsing", () => {
     expect(disclosures.length).toBeGreaterThan(0);
     expect(disclosures.every((disclosure) => !disclosure.open)).toBe(true);
     const done = document.querySelector<HTMLButtonElement>(
-      ".preview-filter-popover footer button",
+      ".browse-filter-popover footer button",
     );
     expect(done).toBeTruthy();
     done?.click();

@@ -3,24 +3,6 @@
 	color: var(--p-ink);
 }
 
-.data-table-toolbar {
-	display: flex;
-	min-height: var(--p-control);
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--p-space-2);
-	position: relative;
-}
-
-.data-table-column-settings {
-	position: relative;
-}
-.data-table-mobile-toolbar {
-	display: none;
-	min-height: 0;
-	justify-content: flex-end;
-}
-
 .data-table-column-trigger,
 .data-table-column-order button {
 	width: var(--p-control);
@@ -217,19 +199,8 @@
 	height: 16px;
 }
 @media (max-width: 1023px) {
-	.data-table-mobile-toolbar {
-		display: none;
-	}
 	.data-table-scroll th.data-table-settings-heading {
-		position: sticky;
-		right: 0;
-		z-index: 4;
 		display: table-cell !important;
-		width: 56px;
-		min-width: 56px;
-		padding: 0 6px;
-		background: var(--p-soft);
-		text-align: center;
 	}
 	.data-table-frame {
 		--data-table-settings-column-width: 56px;
@@ -286,12 +257,6 @@
 		);
 		mask-image: linear-gradient(270deg, black, transparent);
 	}
-	.data-table-scroll.is-mobile-unpin-start :is(th, td).report-sticky-start-column,
-	.data-table-scroll.is-mobile-unpin-start :is(th, td).operation-sticky-start-column {
-		position: static !important;
-		inset-inline-start: auto !important;
-		box-shadow: none !important;
-	}
 	.data-table-scroll.is-mobile-unpin-end :is(th, td).report-sticky-actions-column,
 	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-loan-outstanding-column,
 	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-movement-quantity-column {
@@ -306,9 +271,6 @@
 	.data-table-overflow-hint {
 		display: none !important;
 	}
-	.data-table-scroll th.align-end {
-		min-width: 5.5em;
-	}
 	.data-table-sort-label {
 		white-space: nowrap;
 	}
@@ -319,7 +281,15 @@
 		line-height: 1.35;
 	}
 	.data-table-scroll th.data-table-settings-heading {
+		position: sticky;
+		right: 0;
+		z-index: 4;
+		width: 56px;
+		min-width: 56px;
+		background: var(--p-soft);
 		padding-inline: 6px;
+		padding: 0 6px;
+		text-align: center;
 	}
 	.data-table-scroll .data-table-sort {
 		width: 100%;
@@ -776,7 +746,7 @@
 	height: 14px;
 	border-radius: var(--p-radius-control);
 	background: var(--p-border);
-	animation: preview-pulse 1.5s ease infinite;
+	animation: loading-pulse 1.5s ease infinite;
 }
 .data-table-skeleton-control {
 	width: 18px;
@@ -875,7 +845,7 @@
 .data-table-group-toggle,
 .data-table-scroll {
 	scroll-margin-block-start: calc(
-		var(--preview-desktop-nav-height, 0px) + var(--browse-toolbar-height, 0px) +
+		var(--app-desktop-nav-height, 0px) + var(--browse-toolbar-height, 0px) +
 			var(--p-space-3)
 	);
 }
@@ -887,7 +857,6 @@
 .data-table-group-identity {
 	display: flex;
 	width: max-content;
-	min-width: 100%;
 	max-width: 100%;
 	flex-wrap: nowrap;
 	align-items: center;
@@ -928,18 +897,6 @@
 	flex: 0 1 auto;
 	min-width: 0;
 	width: auto;
-}
-.data-table-scroll td.data-column-primary .data-table-group-name {
-	display: block;
-	min-width: min(8em, 40vw);
-	width: auto;
-	max-width: min(320px, 36vw);
-	flex: 0 1 auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	-webkit-line-clamp: unset;
-	overflow-wrap: normal;
 }
 .data-table-group-identity .operation-group-metrics {
 	max-width: none;
@@ -997,17 +954,17 @@
 }
 
 .data-table-group-visual > .item-image-button,
-.data-table-group-visual > .preview-item-image {
+.data-table-group-visual > .item-image {
 	width: 100%;
 	height: 100%;
 }
 
 .data-table-group-count {
-	margin-inline-start: 0;
 	flex: 0 0 auto;
 	color: var(--p-muted);
-	font-size: var(--p-small);
 	white-space: nowrap;
+	margin-inline-start: 0;
+	font-size: var(--p-small);
 }
 
 .operation-group-metrics {
@@ -1098,6 +1055,16 @@
 }
 
 @media (max-width: 1023px) {
+	.data-table-scroll.is-mobile-unpin-end :is(th, td).report-sticky-actions-column,
+	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-loan-outstanding-column,
+	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-movement-quantity-column {
+		position: static !important;
+		inset-inline-end: auto !important;
+		box-shadow: none !important;
+	}
+	.data-table-scroll th.align-end {
+		min-width: 5.5em;
+	}
 	.data-table-column-trigger,
 	.data-table-column-order button,
 	.data-table-column-panel label,
@@ -1133,7 +1100,7 @@
 	}
 	.data-table-scroll td > .async-image,
 	.data-table-scroll td .item-image-button,
-	.data-table-scroll td .preview-item-image {
+	.data-table-scroll td .item-image {
 		width: var(--p-table-thumbnail) !important;
 		height: var(--p-table-thumbnail) !important;
 		max-width: var(--p-table-thumbnail);
@@ -1151,4 +1118,95 @@
 }
 .damaged-mobile-menu-action {
 	display: none !important;
+}
+.damaged-page .data-table-group-row.is-expanded td,
+.damaged-page .data-table-group-row.is-expanded td.report-sticky-actions-column {
+	background: var(--p-surface);
+}
+.data-table-group-identity {
+	min-width: 100%;
+}
+.data-table-scroll td.data-column-primary .data-table-group-name {
+	display: block;
+	min-width: min(8em, 40vw);
+	width: auto;
+	max-width: min(320px, 36vw);
+	flex: 0 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	-webkit-line-clamp: unset;
+	overflow-wrap: normal;
+}
+.operation-group-metrics-leading {
+	max-width: min(35vw, 22rem);
+}
+.native-record-summary {
+	white-space: nowrap;
+}
+.native-record-summary small {
+	display: inline;
+	margin-inline-start: 6px;
+	color: var(--p-muted);
+}
+.native-record-mobile-status {
+	display: none;
+}
+.activities-page #activity-records-panel,
+.activities-page #activity-records-panel > *,
+.activities-page .data-table {
+	min-width: 0;
+	max-width: 100%;
+}
+.activities-page .data-table-scroll {
+	max-width: 100%;
+	min-width: 0;
+	width: 100%;
+	overflow-x: auto;
+}
+.damaged-page .data-table-scroll tbody tr:not(.data-table-group-detail-row) {
+	height: auto;
+}
+.damaged-page .data-table-scroll tbody td {
+	padding-block: 8px;
+}
+.damaged-page .data-table-scroll .damaged-row-actions {
+	display: flex;
+	width: max-content;
+	min-width: max-content;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 4px;
+}
+.damaged-page .data-table-scroll .damaged-row-actions > * {
+	flex: none;
+	white-space: nowrap;
+}
+.warehouse-stock-table .warehouse-code,
+.warehouse-stock-table .warehouse-nowrap {
+	white-space: nowrap;
+}
+.warehouse-stock-table .tabular-nums {
+	font-variant-numeric: tabular-nums;
+}
+.warehouse-stock-table .warehouse-item-name {
+	padding-inline: 0;
+}
+@media (min-width: 601px) {
+	.warehouse-stock-cards {
+		display: none !important;
+	}
+}
+@media (max-width: 600px) {
+	.browse-results .native-record-kind-status {
+		display: none;
+	}
+}
+@media (max-width: 600px) {
+	.native-record-mobile-status {
+		display: inline-flex;
+		margin-inline-start: 4px;
+		white-space: nowrap;
+	}
 }

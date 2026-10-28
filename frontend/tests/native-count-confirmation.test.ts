@@ -191,7 +191,7 @@ describe("count confirmation summary", () => {
 
     controller.reviewOpen.value = true;
     await flushPromises();
-    const dialog = document.body.querySelector<HTMLElement>(".preview-overlay");
+    const dialog = document.body.querySelector<HTMLElement>(".ui-overlay");
     expect(dialog).not.toBeNull();
     const text = dialog!.textContent || "";
     expect(text).toContain("174 行未核对");

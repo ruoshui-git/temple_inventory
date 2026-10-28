@@ -18,7 +18,7 @@ const states: Record<string, string> = {
 };
 </script>
 <template>
-	<section class="preview-utility-page notification-settings-page">
+	<section class="utility-page notification-settings-page">
 		<PageHeader
 			><h1 tabindex="-1">通知设置</h1>
 			<template #back><BackButton @click="router.push('/more')" /></template

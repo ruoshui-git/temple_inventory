@@ -23,21 +23,21 @@ export function useFocusVisibility(
   function reveal() {
     frame = 0;
     if (!listening || !root.value) return;
-    const nav = document.querySelector<HTMLElement>(".sample-mobile-nav");
+    const nav = document.querySelector<HTMLElement>(".app-mobile-nav");
     const navRect = nav?.getBoundingClientRect();
     const navHeight = navRect?.height || 0;
     const editorRect = root.value.getBoundingClientRect();
     root.value.style.setProperty(
-      "--preview-editor-left",
+      "--form-editor-left",
       `${Math.max(12, editorRect.left)}px`,
     );
     root.value.style.setProperty(
-      "--preview-editor-right",
+      "--form-editor-right",
       `${Math.max(12, window.innerWidth - editorRect.right)}px`,
     );
-    root.value.style.setProperty("--preview-nav-height", `${navHeight}px`);
+    root.value.style.setProperty("--app-nav-height", `${navHeight}px`);
     root.value.style.setProperty(
-      "--preview-review-height",
+      "--form-review-height",
       `${review.value?.getBoundingClientRect().height || 0}px`,
     );
     const field = document.activeElement;
@@ -67,7 +67,7 @@ export function useFocusVisibility(
       ) - 12;
     for (const action of Array.from(
       document.querySelectorAll<HTMLElement>(
-        ".current-fab > button, .browse-mobile-fab-trigger, .preview-return-top",
+        ".current-fab > button, .browse-mobile-fab-trigger, .return-top",
       ),
     )) {
       if (action === field || !action.getClientRects().length) continue;
@@ -122,7 +122,7 @@ export function useFocusVisibility(
       observer.observe(root.value);
       if (review.value) observer.observe(review.value);
       if (topChrome?.value) observer.observe(topChrome.value);
-      const nav = document.querySelector(".sample-mobile-nav");
+      const nav = document.querySelector(".app-mobile-nav");
       if (nav) observer.observe(nav);
     }
     schedule();

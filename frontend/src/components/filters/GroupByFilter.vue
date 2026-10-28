@@ -28,7 +28,7 @@ function set(index: number, value: string) {
 
 <template>
 	<fieldset class="browse-group-by" aria-label="结果分组">
-		<label class="preview-field"
+		<label class="form-field"
 			>第一级<select
 				:value="modelValue[0] || ''"
 				@change="set(0, ($event.target as HTMLSelectElement).value)"
@@ -39,7 +39,7 @@ function set(index: number, value: string) {
 				</option>
 			</select></label
 		>
-		<label class="preview-field"
+		<label class="form-field"
 			>第二级<select
 				:value="modelValue[1] || ''"
 				@change="set(1, ($event.target as HTMLSelectElement).value)"

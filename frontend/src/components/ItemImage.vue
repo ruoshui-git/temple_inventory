@@ -73,12 +73,12 @@ onDeactivated(() => {
 <template>
 	<div
 		v-if="interaction === 'detail'"
-		class="preview-item-image"
+		class="item-image"
 		ref="displayHost"
-		:class="{ 'preview-item-image--frame': frame }"
+		:class="{ 'item-image--frame': frame }"
 	>
 		<button
-			class="preview-image-detail"
+			class="item-image-detail"
 			:aria-label="`查看${item.name}详情`"
 			@click.stop="emit('detail')"
 		>
@@ -95,7 +95,7 @@ onDeactivated(() => {
 		</button>
 		<button
 			v-if="source || hasArtwork"
-			class="preview-image-enlarge"
+			class="item-image-enlarge"
 			:aria-label="`放大查看${item.name}图片`"
 			title="查看大图"
 			@click.stop="open = true"
@@ -133,7 +133,7 @@ onDeactivated(() => {
 				/></svg
 		></span>
 	</button>
-	<div v-else-if="frame" class="preview-item-image preview-item-image--frame">
+	<div v-else-if="frame" class="item-image item-image--frame">
 		<AsyncImage :alt="item.name" fit="contain" width="100%" height="100%" />
 	</div>
 	<AsyncImage
@@ -162,7 +162,7 @@ onDeactivated(() => {
 </template>
 
 <style scoped>
-.preview-item-image,
+.item-image,
 .item-image-button {
 	width: 100%;
 	height: auto;
@@ -176,32 +176,32 @@ onDeactivated(() => {
 .item-image-button--compact-target .image-magnifier {
 	display: none;
 }
-.preview-item-image--frame,
+.item-image--frame,
 .item-image-button--frame {
 	width: 100%;
 	height: 100%;
 	min-height: 0;
 	aspect-ratio: auto;
 }
-.preview-item-image--frame :deep(.async-image),
+.item-image--frame :deep(.async-image),
 .item-image-button--frame :deep(.async-image) {
 	width: 100% !important;
 	height: 100% !important;
 	aspect-ratio: auto !important;
 }
-.preview-image-detail {
+.item-image-detail {
 	display: block;
 	width: 100%;
 	height: 100%;
 }
-.preview-item-image :deep(.product-art),
+.item-image :deep(.product-art),
 .item-image-button :deep(.product-art) {
 	width: 100%;
 	height: 100%;
 	aspect-ratio: 1;
 	object-fit: contain;
 }
-.preview-item-image--frame :deep(.product-art),
+.item-image--frame :deep(.product-art),
 .item-image-button--frame :deep(.product-art) {
 	width: 100%;
 	height: 100%;

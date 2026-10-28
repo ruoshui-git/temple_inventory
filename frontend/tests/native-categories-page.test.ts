@@ -97,7 +97,7 @@ describe("category management", () => {
     await flushPromises();
     const search = wrapper.find(".shared-search-field input");
     expect(search.attributes("aria-label")).toBe("搜索分类");
-    expect(wrapper.find(".category-tools > label.preview-field").exists()).toBe(
+    expect(wrapper.find(".category-tools > label.form-field").exists()).toBe(
       false,
     );
   });

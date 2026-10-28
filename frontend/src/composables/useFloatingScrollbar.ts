@@ -54,7 +54,7 @@ export function useFloatingScrollbar(
       const overflowing = node.scrollWidth > node.clientWidth + 1;
       const chromeBottom = Array.from(
         document.querySelectorAll<HTMLElement>(
-          ".browse-chrome.is-stuck, .sample-sidebar, .mobile-app-topbar",
+          ".browse-chrome.is-stuck, .app-sidebar, .mobile-app-topbar",
         ),
       ).reduce((bottom, item) => {
         const box = item.getBoundingClientRect();

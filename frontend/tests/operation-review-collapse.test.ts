@@ -185,9 +185,7 @@ describe("operation review rail collapse", () => {
     expect(wrapper.text()).toContain("27 个");
     expect(wrapper.text()).not.toContain("2 箱");
     expect(wrapper.find(".review-lines-disclosure").exists()).toBe(false);
-    expect(wrapper.find(".review-preview-content .eyebrow").exists()).toBe(
-      false,
-    );
+    expect(wrapper.find(".review-content .eyebrow").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("确认前请核对物品、数量和库位");
   });
 
@@ -253,12 +251,8 @@ describe("operation review rail collapse", () => {
       location: "ROOM-A",
     });
     await flushPromises();
-    expect(wrapper.find(".review-preview-summary").text()).toContain(
-      "操作汇总",
-    );
-    expect(wrapper.find(".review-preview-summary").text()).not.toContain(
-      "确认前检查",
-    );
+    expect(wrapper.find(".review-summary").text()).toContain("操作汇总");
+    expect(wrapper.find(".review-summary").text()).not.toContain("确认前检查");
   });
 
   it("keeps the edit aside aggregated and jumps to the first incomplete line", async () => {
@@ -336,24 +330,24 @@ describe("operation review rail collapse", () => {
     const { wrapper } = setup(true);
     await flushPromises();
     const form = wrapper.get("form");
-    await wrapper.get(".preview-edge-rail").trigger("click");
+    await wrapper.get(".form-review-edge-rail").trigger("click");
     await flushPromises();
     expect(form.classes()).toContain("workspace-review-collapsed");
     expect(wrapper.get(".form-date-section").exists()).toBe(true);
     expect(wrapper.get(".form-main").exists()).toBe(true);
-    expect(wrapper.get(".preview-document-actions").exists()).toBe(true);
-    const handle = wrapper.get(".preview-edge-rail");
+    expect(wrapper.get(".document-actions").exists()).toBe(true);
+    const handle = wrapper.get(".form-review-edge-rail");
     const panelId = handle.attributes("aria-controls");
     expect(panelId).toBe("operation-review-content");
     expect(wrapper.get(`#${panelId}`).attributes("aria-hidden")).toBe("true");
 
-    await wrapper.get(".preview-full-workspace-action").trigger("click");
+    await wrapper.get(".full-workspace-action").trigger("click");
     await flushPromises();
     expect(wrapper.get("#operation-editor-preview").classes()).toContain(
       "workspace-expanded",
     );
     expect(form.classes()).not.toContain("workspace-review-collapsed");
-    await wrapper.get(".preview-full-workspace-action").trigger("click");
+    await wrapper.get(".full-workspace-action").trigger("click");
     await flushPromises();
     expect(wrapper.get("#operation-editor-preview").classes()).not.toContain(
       "workspace-expanded",
@@ -365,10 +359,10 @@ describe("operation review rail collapse", () => {
   it("uses a normal disclosure on mobile and never exposes the desktop edge handle", async () => {
     const { wrapper } = setup(false);
     await flushPromises();
-    expect(wrapper.find(".preview-edge-rail").exists()).toBe(false);
-    const disclosure = wrapper.get(".review-preview-disclosure");
+    expect(wrapper.find(".form-review-edge-rail").exists()).toBe(false);
+    const disclosure = wrapper.get(".review-disclosure");
     expect((disclosure.element as HTMLDetailsElement).open).toBe(false);
-    await wrapper.get(".review-preview-summary").trigger("click");
+    await wrapper.get(".review-summary").trigger("click");
     await flushPromises();
     expect((disclosure.element as HTMLDetailsElement).open).toBe(true);
     expect(wrapper.get("form").classes()).not.toContain(

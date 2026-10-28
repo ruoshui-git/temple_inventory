@@ -63,7 +63,7 @@ describe("stacked overlays", () => {
     opener.focus();
     opener.click();
     await flushPromises();
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(2);
+    expect(document.querySelectorAll(".ui-overlay")).toHaveLength(2);
     document.dispatchEvent(
       new KeyboardEvent("keydown", {
         key: "Escape",
@@ -74,7 +74,7 @@ describe("stacked overlays", () => {
     await nextTick();
     await flushPromises();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(1);
+    expect(document.querySelectorAll(".ui-overlay")).toHaveLength(1);
     expect(document.activeElement).toBe(opener);
     document.dispatchEvent(
       new KeyboardEvent("keydown", {
@@ -84,7 +84,7 @@ describe("stacked overlays", () => {
       }),
     );
     await flushPromises();
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(0);
+    expect(document.querySelectorAll(".ui-overlay")).toHaveLength(0);
   });
 
   it("Back closes the top stacked modal and leaves its parent active", async () => {
@@ -142,7 +142,7 @@ describe("stacked overlays", () => {
     window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
     await flushPromises();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(1);
+    expect(document.querySelectorAll(".ui-overlay")).toHaveLength(1);
     expect(document.activeElement).toBe(opener);
   });
 });

@@ -163,7 +163,7 @@ const {
 	padding-bottom: 32px;
 }
 @media (pointer: coarse) {
-	:global(.category-editor-form .preview-choice-label) {
+	:global(.category-editor-form .form-choice-label) {
 		min-height: 44px;
 	}
 }
@@ -177,7 +177,7 @@ const {
 	margin-inline-start: auto;
 	white-space: nowrap;
 }
-.category-tools .preview-field {
+.category-tools .form-field {
 	flex: 1;
 	max-width: 520px;
 }

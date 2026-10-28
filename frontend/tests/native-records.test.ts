@@ -258,7 +258,7 @@ describe("native drafts and count records", () => {
     createRecoveryStore("site", "volunteer", localStorage).save(newerSnapshot);
     const { wrapper, c } = setup();
     await flushPromises();
-    expect(wrapper.findAll(".preview-browse-controls")).toHaveLength(1);
+    expect(wrapper.findAll(".browse-controls")).toHaveLength(1);
     expect(wrapper.text()).not.toContain("份记录");
     expect(
       c.extraChips.value.find((chip) => chip.key === "statuses"),

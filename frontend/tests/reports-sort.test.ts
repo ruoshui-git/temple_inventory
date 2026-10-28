@@ -57,9 +57,9 @@ describe("report table sorting", () => {
     await exportButton!.trigger("click");
     await flushPromises();
     expect(document.body.querySelector(".quick-export-dialog")).not.toBeNull();
-    expect(
-      wrapper.find(".browse-header-actions .preview-quick-report").exists(),
-    ).toBe(false);
+    expect(wrapper.find(".browse-header-actions .quick-report").exists()).toBe(
+      false,
+    );
   });
 
   it("sorts the primary report from its scalar header and refreshes the query", async () => {

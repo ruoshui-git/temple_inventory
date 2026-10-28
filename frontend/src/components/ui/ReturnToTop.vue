@@ -19,7 +19,7 @@ function returnToTop() {
 	if (!surface) return;
 	const owner = scrollOwner(surface);
 	const page = surface.closest<HTMLElement>(
-		".browse-page, .preview-dashboard, .inventory-surface, .inventory-example",
+		".browse-page, .dashboard, .inventory-surface, .inventory-example",
 	);
 	const heading =
 		page?.querySelector<HTMLElement>("h1") ||
@@ -39,7 +39,7 @@ function returnToTop() {
 	<span ref="root">
 		<IconButton
 			v-if="visible"
-			class="preview-return-top"
+			class="return-top"
 			label="返回顶部"
 			:title="isMobile ? '' : '返回顶部'"
 			@click="returnToTop"

@@ -34,9 +34,8 @@ watch(creating, async (value) => {
 	if (!value) {
 		await nextTick();
 		(
-			document.querySelector<HTMLElement>(
-				".preview-supporting-field .search-select-input input",
-			) || (trigger.value?.$el as HTMLElement | undefined)
+			document.querySelector<HTMLElement>(".supporting-field .search-select-input input") ||
+			(trigger.value?.$el as HTMLElement | undefined)
 		)?.focus();
 	}
 });
@@ -45,7 +44,7 @@ validation.register(
 	"unit-name",
 	() => name.value,
 	[(v) => (v.trim() ? true : "请输入计量单位")],
-	() => document.querySelector<HTMLElement>(".preview-unit-create input")?.focus(),
+	() => document.querySelector<HTMLElement>(".unit-create input")?.focus(),
 );
 const requiredError = computed(() => props.error || validation.errors["unit-name"]);
 const unitOptions = computed(() => reference.units.map((unit) => unitOption(unit.name, unit)));
@@ -64,7 +63,7 @@ async function selectExisting() {
 }
 </script>
 <template>
-	<div class="preview-supporting-field preview-unit-field">
+	<div class="supporting-field unit-field">
 		<div class="supporting-field-control">
 			<FormField label="计量单位" :required="required" :error="requiredError"
 				><template #default="{ fieldAttrs }"
@@ -105,14 +104,14 @@ async function selectExisting() {
 			</article></DisclosureSection
 		>
 		<Overlay v-if="creating" title="新建单位" size="small" @close="close"
-			><form class="preview-unit-create" novalidate @submit.prevent="submit">
+			><form class="unit-create" novalidate @submit.prevent="submit">
 				<FormField label="计量单位" required :error="validation.errors['unit-name']"
 					><template #default="{ fieldAttrs }"
 						><input v-model="name" v-bind="fieldAttrs" /></template></FormField
 				><FormField label="显示名称" hint="可选；留空时使用单位名称"
 					><template #default="{ fieldAttrs }"
 						><input v-model="displayLabel" v-bind="fieldAttrs" /></template></FormField
-				><label class="preview-choice-label"
+				><label class="form-choice-label"
 					><input v-model="whole" type="checkbox" />只允许整数数量</label
 				>
 				<div v-if="error" class="notice-bar warning" role="alert">{{ error }}</div>

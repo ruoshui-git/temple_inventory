@@ -99,7 +99,7 @@ function otherTransient(event: Event) {
 watch(open, (value) => {
 	if (value && !isMobile.value)
 		document.dispatchEvent(
-			new CustomEvent("preview-filter-panel-open", { detail: transientOwner }),
+			new CustomEvent("browse-filter-panel-open", { detail: transientOwner }),
 		);
 	if (value && !isMobile.value)
 		if (value && !isMobile.value)
@@ -114,7 +114,7 @@ watch(open, (value) => {
 onMounted(() => {
 	document.addEventListener("keydown", keydown);
 	document.addEventListener("pointerdown", outside);
-	document.addEventListener("preview-filter-panel-open", otherTransient);
+	document.addEventListener("browse-filter-panel-open", otherTransient);
 	document.addEventListener("inventory-navigation", routeChanged);
 	window.addEventListener("popstate", routeChanged);
 	window.addEventListener("hashchange", routeChanged);
@@ -124,7 +124,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	document.removeEventListener("keydown", keydown);
 	document.removeEventListener("pointerdown", outside);
-	document.removeEventListener("preview-filter-panel-open", otherTransient);
+	document.removeEventListener("browse-filter-panel-open", otherTransient);
 	document.removeEventListener("inventory-navigation", routeChanged);
 	window.removeEventListener("popstate", routeChanged);
 	window.removeEventListener("hashchange", routeChanged);

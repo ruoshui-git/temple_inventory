@@ -359,7 +359,7 @@ describe("background quick export", () => {
     });
     const wrapper = mount(child);
     wrappers.push(wrapper);
-    await wrapper.get(".preview-quick-report").trigger("click");
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
     expect(vi.mocked(service.report)).not.toHaveBeenCalled();
     const dialog = document.body.querySelector(".quick-export-dialog")!;
@@ -400,7 +400,7 @@ describe("background quick export", () => {
     });
     const wrapper = mount(child);
     wrappers.push(wrapper);
-    await wrapper.get(".preview-quick-report").trigger("click");
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
     const dialog = document.body.querySelector(".quick-export-dialog")!;
     const relatedCheckbox = Array.from(
@@ -479,10 +479,10 @@ describe("background quick export", () => {
     );
     wrappers.push(wrapper);
 
-    await wrapper.get(".preview-quick-report").trigger("click");
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
 
-    const dialog = document.body.querySelector(".preview-dialog")!;
+    const dialog = document.body.querySelector(".ui-dialog")!;
     expect(dialog.textContent).toContain("进行中");
     expect(dialog.textContent).toContain("已归档");
     expect(dialog.textContent).toContain("已完成");
@@ -538,7 +538,7 @@ describe("background quick export", () => {
       }),
     );
     wrappers.push(wrapper);
-    await wrapper.get(".preview-quick-report").trigger("click");
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
     expect(
       document.body.querySelector('select[aria-label="数据范围"]'),
@@ -549,7 +549,7 @@ describe("background quick export", () => {
     expect(
       document.body.querySelector('select[aria-label="XLSX 预览表"]'),
     ).not.toBeNull();
-    const dataset = document.body.querySelector(".preview-dialog select")!;
+    const dataset = document.body.querySelector(".ui-dialog select")!;
     await setNativeSelect(dataset, "movements");
     await flushPromises();
     expect(vi.mocked(service.report).mock.calls.at(-1)?.[0].dataset).toBe(
@@ -561,11 +561,9 @@ describe("background quick export", () => {
     await flushPromises();
     expect(committed).not.toHaveBeenCalled();
 
-    await wrapper.get(".preview-quick-report").trigger("click");
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
-    const reopenedDataset = document.body.querySelector(
-      ".preview-dialog select",
-    )!;
+    const reopenedDataset = document.body.querySelector(".ui-dialog select")!;
     expect((reopenedDataset as HTMLSelectElement).value).toBe("inventory");
     await setNativeSelect(reopenedDataset, "movements");
     await flushPromises();
@@ -582,7 +580,7 @@ describe("background quick export", () => {
     });
     expect(committed).toHaveBeenCalledWith("movements");
     await setNativeSelect(
-      document.body.querySelector(".preview-dialog select")!,
+      document.body.querySelector(".ui-dialog select")!,
       "counts",
     );
     await flushPromises();
@@ -863,16 +861,14 @@ describe("native dashboard cards", () => {
     expect(
       wrapper.get('[data-expiry-tab="expired"]').attributes("aria-selected"),
     ).toBe("true");
-    expect(
-      wrapper.findAll(".preview-distribution > .preview-bar"),
-    ).toHaveLength(8);
-    expect(wrapper.find(".preview-bar-axis").exists()).toBe(false);
+    expect(wrapper.findAll(".distribution > .chart-bar")).toHaveLength(8);
+    expect(wrapper.find(".chart-bar-axis").exists()).toBe(false);
     expect(wrapper.text()).toContain("其余 1 个位置");
     expect(wrapper.text()).toContain("另有 2 个位置当前无可用库存");
     await wrapper.get(".dashboard-inline-disclosure summary").trigger("click");
     await nextTick();
     expect(
-      wrapper.findAll(".dashboard-inline-disclosure[open] .preview-bar"),
+      wrapper.findAll(".dashboard-inline-disclosure[open] .chart-bar"),
     ).toHaveLength(1);
     await wrapper.get(".dashboard-empty-locations summary").trigger("click");
     await nextTick();
@@ -1004,7 +1000,7 @@ describe("native dashboard cards", () => {
       .get('.dashboard-scope-control button[aria-haspopup="dialog"]')
       .trigger("click");
     await flushPromises();
-    const filters = document.body.querySelector(".preview-filter-fields")!;
+    const filters = document.body.querySelector(".browse-filter-fields")!;
     expect(
       Array.from(
         filters.querySelectorAll<HTMLElement>("[data-filter-field]"),
@@ -1014,7 +1010,7 @@ describe("native dashboard cards", () => {
       '[data-filter-field="categories"]',
     )!;
     const uncategorized = category.querySelector<HTMLInputElement>(
-      "label.preview-check input[type=checkbox]",
+      "label.form-check input[type=checkbox]",
     )!;
     uncategorized.click();
     await nextTick();

@@ -41,13 +41,13 @@ async function cancel() {
 }
 </script>
 <template>
-	<section class="preview-supporting-editor" aria-label="活动资料编辑">
+	<section class="supporting-editor" aria-label="活动资料编辑">
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
 		<SkeletonBlock v-if="loading && !existing" variant="lines" :count="4" />
-		<dl v-if="!writable" class="preview-info-grid">
+		<dl v-if="!writable" class="info-grid">
 			<div v-for="(value, label) in input" :key="label">
 				<dt>{{ fieldLabels[label] }}</dt>
-				<dd class="preview-long-text">
+				<dd class="content-long-text">
 					{{
 						label === "typeId"
 							? reference.activityTypes.find((row) => row.value === value)?.label ||

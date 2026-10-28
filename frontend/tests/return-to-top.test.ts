@@ -67,7 +67,7 @@ describe("ReturnToTop", () => {
       setup() {
         return () =>
           h("main", { class: "scroll-owner" }, [
-            h("div", { class: "preview-dashboard" }, [
+            h("div", { class: "dashboard" }, [
               h("h1", "Dashboard"),
               h("section", { class: "cached browse-page" }, [
                 h("h1", "Cached"),
@@ -90,9 +90,7 @@ describe("ReturnToTop", () => {
     owner.dispatchEvent(new Event("scroll"));
     await flushPromises();
     await wrapper.get("button[aria-label='返回顶部']").trigger("click");
-    expect(document.activeElement).toBe(
-      wrapper.get(".preview-dashboard > h1").element,
-    );
+    expect(document.activeElement).toBe(wrapper.get(".dashboard > h1").element);
     wrapper.unmount();
   });
   it("does not let focus visibility interrupt ReturnToTop for a visible sticky inventory heading", async () => {

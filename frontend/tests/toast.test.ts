@@ -37,7 +37,7 @@ function setup() {
 it("keeps actionable warning feedback in the global toast stack and runs its action", async () => {
   const { wrapper } = setup();
   const dialog = document.createElement("section");
-  dialog.className = "preview-dialog";
+  dialog.className = "ui-dialog";
   document.body.append(dialog);
   await flushPromises();
   const action = vi.fn();
@@ -47,7 +47,7 @@ it("keeps actionable warning feedback in the global toast stack and runs its act
   });
   await flushPromises();
   const toast = document.querySelector<HTMLElement>(
-    '[role="alert"].preview-toast',
+    '[role="alert"].notification-toast',
   );
   expect(toast).not.toBeNull();
   expect(dialog.contains(toast)).toBe(false);
@@ -55,7 +55,7 @@ it("keeps actionable warning feedback in the global toast stack and runs its act
   toast?.querySelectorAll("button")[0]?.click();
   await flushPromises();
   expect(action).toHaveBeenCalledOnce();
-  expect(document.querySelector(".preview-toast")).toBeNull();
+  expect(document.querySelector(".notification-toast")).toBeNull();
 });
 
 it("deduplicates repeated events and clears queued notices on account changes", async () => {
@@ -64,10 +64,10 @@ it("deduplicates repeated events and clears queued notices on account changes", 
   showToast("已保存", "success", undefined, "save-1");
   showToast("已保存", "success", undefined, "save-1");
   await flushPromises();
-  expect(document.querySelectorAll(".preview-toast")).toHaveLength(1);
+  expect(document.querySelectorAll(".notification-toast")).toHaveLength(1);
   reference.user = "another-account";
   await flushPromises();
-  expect(document.querySelector(".preview-toast")).toBeNull();
+  expect(document.querySelector(".notification-toast")).toBeNull();
 });
 
 it("keeps update notices visible until dismissal and runs the reload action", async () => {
@@ -83,14 +83,14 @@ it("keeps update notices visible until dismissal and runs the reload action", as
   );
   await flushPromises();
   await vi.advanceTimersByTimeAsync(5100);
-  expect(document.querySelector(".preview-toast")?.textContent).toContain(
+  expect(document.querySelector(".notification-toast")?.textContent).toContain(
     "发现新版本",
   );
   const buttons = document.querySelectorAll<HTMLButtonElement>(
-    ".preview-toast button",
+    ".notification-toast button",
   );
   buttons[0]?.click();
   await flushPromises();
   expect(reload).toHaveBeenCalledOnce();
-  expect(document.querySelector(".preview-toast")).toBeNull();
+  expect(document.querySelector(".notification-toast")).toBeNull();
 });

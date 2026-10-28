@@ -65,11 +65,11 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 <template>
 	<div class="inventory-app" data-inventory-app>
 		<ToastHost />
-		<main v-if="state.gate === 'loading'" class="sample-content">
+		<main v-if="state.gate === 'loading'" class="app-content">
 			<RouteBreadcrumbs />
 			<SkeletonBlock variant="lines" :count="4" />
 		</main>
-		<main v-else-if="state.gate === 'login'" class="sample-content">
+		<main v-else-if="state.gate === 'login'" class="app-content">
 			<RouteBreadcrumbs />
 			<section class="surface form-section">
 				<PageHeader title="请登录物资管理" />
@@ -78,10 +78,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 				><UiButton :loading="state.loading" @click="c.check">重新检查登录</UiButton>
 			</section>
 		</main>
-		<main
-			v-else-if="state.gate === 'forbidden' || state.gate === 'error'"
-			class="sample-content"
-		>
+		<main v-else-if="state.gate === 'forbidden' || state.gate === 'error'" class="app-content">
 			<RouteBreadcrumbs />
 			<section class="surface form-section">
 				<PageHeader
@@ -98,7 +95,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 				><a href="/login?redirect-to=%2Finventory">切换登录账户</a>
 			</section>
 		</main>
-		<main v-else-if="state.gate === 'setup'" class="sample-content">
+		<main v-else-if="state.gate === 'setup'" class="app-content">
 			<RouteBreadcrumbs />
 			<ConfigurationPage @changed="c.check" />
 		</main>

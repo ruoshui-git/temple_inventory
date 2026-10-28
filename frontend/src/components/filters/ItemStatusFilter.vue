@@ -10,7 +10,7 @@ const labels = { enabled: "启用", disabled: "停用", all: "全部" };
 
 <template>
 	<FilterDisclosure label="物品状态" :summary="labels[props.modelValue]" field="itemStatus">
-		<label class="preview-field">
+		<label class="form-field">
 			<select
 				:value="modelValue"
 				aria-label="物品状态"

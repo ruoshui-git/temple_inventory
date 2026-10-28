@@ -144,7 +144,7 @@ describe("recovery summary", () => {
     expect(wrapper.text()).not.toContain("native-child-row-id");
     expect(wrapper.text()).not.toContain("Stale stored name");
     expect(wrapper.text()).toContain("现场补录");
-    expect(wrapper.find(".preview-info-grid").text()).not.toContain("未填写");
+    expect(wrapper.find(".info-grid").text()).not.toContain("未填写");
   });
 
   it.each([

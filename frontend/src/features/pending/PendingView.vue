@@ -167,8 +167,8 @@ watch([() => props.active, isMobile], () => {
 				>
 			</template>
 		</BrowseResultSummary>
-		<div class="preview-browse-body">
-			<aside v-if="filterOpen && !isMobile" class="preview-filter-rail browse-filter-rail">
+		<div class="browse-body">
+			<aside v-if="filterOpen && !isMobile" class="browse-filter-rail browse-filter-rail">
 				<div class="filter-rail-heading">
 					<h3>筛选待处理</h3>
 					<FilterRailEdge
@@ -195,7 +195,7 @@ watch([() => props.active, isMobile], () => {
 				"
 				@toggle="toggleFilter"
 			/>
-			<div class="preview-browse-results surface damaged-results-card">
+			<div class="browse-results surface damaged-results-card">
 				<ReportTable
 					v-if="table"
 					sticky-actions
@@ -282,7 +282,7 @@ watch([() => props.active, isMobile], () => {
 					adaptive-creation
 					@close="analysisOpen = false"
 				>
-					<label class="preview-field"
+					<label class="form-field"
 						>分析维度<select v-model="dimension">
 							<option value="category">类别</option>
 							<option value="location">位置</option>

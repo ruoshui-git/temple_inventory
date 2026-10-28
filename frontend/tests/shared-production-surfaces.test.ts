@@ -122,8 +122,7 @@ describe("interactive preview", () => {
     });
     mounted.push(wrapper);
     await nextTick();
-    const parentOverlay =
-      document.querySelector<HTMLElement>(".preview-overlay")!;
+    const parentOverlay = document.querySelector<HTMLElement>(".ui-overlay")!;
     const imageButton =
       parentOverlay.querySelector<HTMLButtonElement>(".item-image-button")!;
     imageButton.focus();
@@ -131,15 +130,14 @@ describe("interactive preview", () => {
     await nextTick();
     await nextTick();
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2);
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(2);
-    const parentDialog =
-      document.querySelector<HTMLElement>(".preview-dialog")!;
-    const top = document.querySelectorAll<HTMLElement>(".preview-dialog")[1]!;
+    expect(document.querySelectorAll(".ui-overlay")).toHaveLength(2);
+    const parentDialog = document.querySelector<HTMLElement>(".ui-dialog")!;
+    const top = document.querySelectorAll<HTMLElement>(".ui-dialog")[1]!;
     top.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     await flushPromises();
-    expect(document.querySelectorAll(".preview-overlay")).toHaveLength(1);
+    expect(document.querySelectorAll(".ui-overlay")).toHaveLength(1);
     expect(parentDialog.isConnected).toBe(true);
     expect(document.activeElement).toBe(imageButton);
     expect(document.body.style.overflow).toBe("hidden");
@@ -180,15 +178,15 @@ describe("interactive preview", () => {
       .click();
     await nextTick();
     await flushPromises();
-    expect(document.querySelector(".preview-dialog")?.textContent).toContain(
+    expect(document.querySelector(".ui-dialog")?.textContent).toContain(
       "1 行完整结果",
     );
-    expect(document.querySelector(".preview-dialog")?.textContent).toContain(
+    expect(document.querySelector(".ui-dialog")?.textContent).toContain(
       "珍珠米",
     );
     document
       .querySelector<HTMLButtonElement>(
-        '.preview-dialog button[aria-label="关闭对话框"]',
+        '.ui-dialog button[aria-label="关闭对话框"]',
       )!
       .click();
     await nextTick();
@@ -246,7 +244,7 @@ describe("interactive preview", () => {
     await wrapper.get("form").trigger("submit");
     await flushPromises();
     const confirm = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".preview-dialog button"),
+      document.querySelectorAll<HTMLButtonElement>(".ui-dialog button"),
     ).find((node) => node.textContent?.trim() === "确认提交")!;
     expect(confirm).toBeDefined();
     confirm.click();

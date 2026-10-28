@@ -47,7 +47,7 @@ const displayGroups = computed(() =>
 );
 </script>
 <template>
-	<section class="preview-utility-page">
+	<section class="utility-page">
 		<PageHeader><h1 tabindex="-1">更多</h1></PageHeader>
 		<p v-if="summaryError" role="alert">
 			{{ summaryError }}

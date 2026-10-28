@@ -175,16 +175,14 @@ describe("inventory grouped table", () => {
     await zeroStockChip!.trigger("click");
     await flushPromises();
     const zeroStockDisclosure = document.querySelector<HTMLDetailsElement>(
-      '.preview-filter-popover [data-filter-field="includeZero"]',
+      '.browse-filter-popover [data-filter-field="includeZero"]',
     );
     expect(zeroStockDisclosure?.open).toBe(true);
     expect(document.activeElement).toBe(
       zeroStockDisclosure?.querySelector('input[type="checkbox"]'),
     );
     document
-      .querySelector<HTMLButtonElement>(
-        ".preview-filter-popover header button",
-      )!
+      .querySelector<HTMLButtonElement>(".browse-filter-popover header button")!
       .click();
     await flushPromises();
     page.vm.controller.inStockOnly.value = true;

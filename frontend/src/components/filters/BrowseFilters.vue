@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import DisclosureIcon from "../ui/DisclosureIcon.vue";
 import InventoryIcon from "../InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import RemoteSelect from "../ui/RemoteSelect.vue";
@@ -80,18 +79,17 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 }
 </script>
 <template>
-	<div class="preview-filter-fields">
-		<details v-if="shows('item')" class="browse-filter-disclosure" data-filter-field="item">
-			<summary class="ti-disclosure">
-				<DisclosureIcon variant="inline" />
-				物品
-				<small>{{
-					scope.item
-						? reference.items.find((row) => row.value === scope.item)?.label ||
-							scope.item
-						: "不限"
-				}}</small>
-			</summary>
+	<div class="browse-filter-fields">
+		<FilterDisclosure
+			v-if="shows('item')"
+			label="物品"
+			field="item"
+			:summary="
+				scope.item
+					? reference.items.find((row) => row.value === scope.item)?.label || scope.item
+					: '不限'
+			"
+		>
 			<RemoteSelect
 				data-filter-field="item-editor"
 				tabindex="-1"
@@ -101,22 +99,18 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				:selected-label="reference.items.find((row) => row.value === scope.item)?.label"
 				@update:model-value="update('item', $event)"
 			/>
-		</details>
-		<details
+		</FilterDisclosure>
+		<FilterDisclosure
 			v-if="!hideActivity && shows('activity')"
-			class="browse-filter-disclosure"
-			data-filter-field="activity"
+			label="活动"
+			field="activity"
+			:summary="
+				scope.activity
+					? reference.activities.find((row) => row.value === scope.activity)?.label ||
+						scope.activity
+					: '不限'
+			"
 		>
-			<summary class="ti-disclosure">
-				<DisclosureIcon variant="inline" />
-				活动
-				<small>{{
-					scope.activity
-						? reference.activities.find((row) => row.value === scope.activity)
-								?.label || scope.activity
-						: "不限"
-				}}</small>
-			</summary>
 			<RemoteSelect
 				data-filter-field="activity-editor"
 				tabindex="-1"
@@ -128,7 +122,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				"
 				@update:model-value="update('activity', $event)"
 			/>
-		</details>
+		</FilterDisclosure>
 		<FilterDisclosure
 			v-if="shows('categories')"
 			label="物品类别"
@@ -158,7 +152,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 					initial-expansion="first-level"
 					@update:model-value="update('categories', $event)"
 				/>
-				<label class="preview-choice-label preview-check">
+				<label class="form-choice-label form-check">
 					<input
 						type="checkbox"
 						:checked="scope.uncategorized"
@@ -176,7 +170,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 			:disclosure="disclosureMode"
 			:summary="trackingLabel"
 		>
-			<label class="preview-field"
+			<label class="form-field"
 				><select
 					:value="scope.tracking"
 					aria-label="物品追踪"
@@ -220,26 +214,22 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 			</fieldset>
 		</FilterDisclosure>
 		<template v-if="movement">
-			<details
+			<FilterDisclosure
 				v-if="shows('kinds')"
-				class="browse-filter-disclosure"
-				data-filter-field="kinds"
+				label="流动类型"
+				field="kinds"
+				:summary="
+					scope.kinds.length
+						? scope.kinds.map((kind) => movementLabels[kind] || kind).join('、')
+						: '不限'
+				"
 			>
-				<summary class="ti-disclosure">
-					<DisclosureIcon variant="inline" />
-					流动类型
-					<small>{{
-						scope.kinds.length
-							? scope.kinds.map((kind) => movementLabels[kind] || kind).join("、")
-							: "不限"
-					}}</small>
-				</summary>
 				<fieldset tabindex="-1">
 					<label
 						v-for="(entry, kind) in kindIcons"
 						v-show="records || !['Opening', 'Reconcile'].includes(kind)"
 						:key="kind"
-						class="preview-choice-label preview-check"
+						class="form-choice-label form-check"
 						><input
 							type="checkbox"
 							:checked="scope.kinds.includes(kind)"
@@ -247,19 +237,13 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 						/><InventoryIcon :name="entry.icon" />{{ entry.label }}</label
 					>
 				</fieldset>
-			</details>
-			<details
+			</FilterDisclosure>
+			<FilterDisclosure
 				v-if="shows('sources')"
-				class="browse-filter-disclosure"
-				data-filter-field="sources"
+				label="来源位置"
+				field="sources"
+				:summary="selectedSummary(scope.sources, reference.warehouses) || '不限'"
 			>
-				<summary class="ti-disclosure">
-					<DisclosureIcon variant="inline" />
-					来源位置
-					<small>{{
-						selectedSummary(scope.sources, reference.warehouses) || "不限"
-					}}</small>
-				</summary>
 				<fieldset class="browse-hierarchy-section" tabindex="-1">
 					<HierarchyFilter
 						v-if="shows('sources')"
@@ -272,19 +256,13 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 						@update:model-value="update('sources', $event)"
 					/>
 				</fieldset>
-			</details>
-			<details
+			</FilterDisclosure>
+			<FilterDisclosure
 				v-if="shows('destinations')"
-				class="browse-filter-disclosure"
-				data-filter-field="destinations"
+				label="去向位置"
+				field="destinations"
+				:summary="selectedSummary(scope.destinations, reference.warehouses) || '不限'"
 			>
-				<summary class="ti-disclosure">
-					<DisclosureIcon variant="inline" />
-					去向位置
-					<small>{{
-						selectedSummary(scope.destinations, reference.warehouses) || "不限"
-					}}</small>
-				</summary>
 				<fieldset class="browse-hierarchy-section" tabindex="-1">
 					<HierarchyFilter
 						v-if="shows('destinations')"
@@ -297,7 +275,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 						@update:model-value="update('destinations', $event)"
 					/>
 				</fieldset>
-			</details>
+			</FilterDisclosure>
 		</template>
 	</div>
 </template>

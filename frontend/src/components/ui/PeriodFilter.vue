@@ -49,14 +49,14 @@ function filterPanelClosed(event: Event) {
 	error.value = "";
 }
 onMounted(() => {
-	document.addEventListener("preview-filter-panel-open", otherPanel);
-	document.addEventListener("preview-filter-panel-close", filterPanelClosed);
+	document.addEventListener("browse-filter-panel-open", otherPanel);
+	document.addEventListener("browse-filter-panel-close", filterPanelClosed);
 	window.addEventListener("resize", reposition);
 	window.addEventListener("scroll", reposition, true);
 });
 onBeforeUnmount(() => {
-	document.removeEventListener("preview-filter-panel-open", otherPanel);
-	document.removeEventListener("preview-filter-panel-close", filterPanelClosed);
+	document.removeEventListener("browse-filter-panel-open", otherPanel);
+	document.removeEventListener("browse-filter-panel-close", filterPanelClosed);
 	window.removeEventListener("resize", reposition);
 	window.removeEventListener("scroll", reposition, true);
 });
@@ -110,7 +110,7 @@ function reposition() {
 	};
 }
 function show() {
-	document.dispatchEvent(new CustomEvent("preview-filter-panel-open", { detail: owner }));
+	document.dispatchEvent(new CustomEvent("browse-filter-panel-open", { detail: owner }));
 	draft.value = { ...props.modelValue };
 	error.value = "";
 	open.value = true;
@@ -157,7 +157,7 @@ function cancel() {
 	<template v-else>
 		<button
 			ref="trigger"
-			class="preview-period-trigger"
+			class="period-trigger"
 			:aria-label="`${label}：${summary}`"
 			aria-haspopup="dialog"
 			:aria-expanded="open"

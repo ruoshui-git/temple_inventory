@@ -155,7 +155,7 @@ describe("HierarchyFilter", () => {
         .findAll(".hierarchy-row")
         .map((row) =>
           row
-            .get(".preview-choice-label > span")
+            .get(".form-choice-label > span")
             .element.firstChild?.textContent?.trim(),
         ),
     ).toEqual(["仓库", "多叶分支", "A", "B", "单叶链"]);
@@ -201,7 +201,7 @@ describe("HierarchyFilter", () => {
         .findAll(".hierarchy-row")
         .map((row) =>
           row
-            .get(".preview-choice-label > span")
+            .get(".form-choice-label > span")
             .element.firstChild?.textContent?.trim(),
         ),
     ).toEqual(["仓库"]);
@@ -211,7 +211,7 @@ describe("HierarchyFilter", () => {
         .findAll(".hierarchy-row")
         .map((row) =>
           row
-            .get(".preview-choice-label > span")
+            .get(".form-choice-label > span")
             .element.firstChild?.textContent?.trim(),
         ),
     ).toEqual(["仓库", "多叶分支", "单叶链"]);

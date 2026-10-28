@@ -17,7 +17,7 @@ const breadcrumbs = computed(() => {
 </script>
 
 <template>
-	<nav class="sample-breadcrumb" aria-label="面包屑">
+	<nav class="app-breadcrumb" aria-label="面包屑">
 		<template v-for="(crumb, index) in breadcrumbs" :key="`${index}-${crumb.label}`">
 			<span v-if="index" aria-hidden="true">/</span>
 			<RouterLink v-if="crumb.to" :to="crumb.to">{{ crumb.label }}</RouterLink>

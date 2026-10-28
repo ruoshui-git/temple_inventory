@@ -20,6 +20,7 @@ import { operationLabels } from "../../lib/presentationLabels";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
+import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
@@ -306,7 +307,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 </script>
 <template>
 	<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
-	<section class="preview-page preview-browse-page">
+	<section class="page browse-page">
 		<BrowseToolbar
 			v-if="mode === 'drafts'"
 			title="草稿"
@@ -340,9 +341,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				/>
 			</template>
 			<template #filters>
-				<div class="preview-filter-fields">
+				<div class="browse-filter-fields">
 					<div data-filter-field="kindFilter">
-						<label class="preview-field"
+						<label class="form-field"
 							>操作<select v-model="kindFilter">
 								<option value="">全部操作</option>
 								<option
@@ -366,7 +367,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						>
 					</div>
 					<div data-filter-field="typeFilter">
-						<label class="preview-field"
+						<label class="form-field"
 							>类型<select v-model="typeFilter">
 								<option value="all">全部</option>
 								<option value="server">草稿单据</option>
@@ -375,7 +376,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						>
 					</div>
 					<div data-filter-field="draftSort">
-						<label class="preview-field"
+						<label class="form-field"
 							>排序<select v-model="draftSort">
 								<option value="recent">最近更新</option>
 								<option value="operation">操作名称</option>
@@ -470,12 +471,11 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					records
 					:hierarchy-in-rail="sidebarOpen && !isMobile"
 				/>
-				<details class="browse-filter-disclosure" data-filter-field="person">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />人员<small>{{
-							query.person.name || "不限"
-						}}</small>
-					</summary>
+				<FilterDisclosure
+					label="人员"
+					field="person"
+					:summary="query.person.name || '不限'"
+				>
 					<RemoteSelect
 						label="人员"
 						:model-value="query.person.name"
@@ -483,7 +483,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						:load="loadPeople"
 						@update:model-value="setPersonName($event)"
 					/>
-					<label class="preview-field"
+					<label class="form-field"
 						>角色<select
 							v-model="query.person.role"
 							aria-label="人员角色"
@@ -498,7 +498,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							</option>
 						</select></label
 					>
-				</details>
+				</FilterDisclosure>
 				<div data-filter-field="groupBy" tabindex="-1">
 					<GroupByFilter
 						v-model="query.groupBy"
@@ -506,34 +506,29 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						:view="query.view"
 					/>
 				</div>
-				<details class="browse-filter-disclosure" data-filter-field="period">
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />
-						记账日期
-						<small>{{ sitePeriodSummary(scope.period, c.reference.siteDate) }}</small>
-					</summary>
+				<FilterDisclosure
+					label="记账日期"
+					field="period"
+					:summary="sitePeriodSummary(scope.period, c.reference.siteDate)"
+				>
 					<PeriodFilter
 						v-model="scope.period"
 						:today="c.reference.siteDate"
 						label="记账日期"
 						embedded
 					/>
-				</details>
-				<details
+				</FilterDisclosure>
+				<FilterDisclosure
 					v-if="mode === 'counts'"
-					class="browse-filter-disclosure"
-					data-filter-field="status"
+					label="状态"
+					field="status"
+					:summary="
+						query.statuses
+							.map((status) => ['草稿', '已提交', '已取消'][status])
+							.join('、') || '未选择'
+					"
 				>
-					<summary class="ti-disclosure">
-						<DisclosureIcon variant="inline" />
-						状态
-						<small>{{
-							query.statuses
-								.map((status) => ["草稿", "已提交", "已取消"][status])
-								.join("、") || "未选择"
-						}}</small>
-					</summary>
-					<label class="preview-field"
+					<label class="form-field"
 						>状态<select v-model="query.statuses">
 							<option :value="[1]">已提交</option>
 							<option :value="[0]">草稿</option>
@@ -541,7 +536,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 							<option :value="[0, 1, 2]">全部状态</option>
 						</select></label
 					>
-				</details>
+				</FilterDisclosure>
 				<UiButton class="browse-filter-clear" @click="c.clear">清空筛选</UiButton>
 			</template>
 			<template #chips="{ editFilter }">
@@ -693,10 +688,10 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 			</AsyncRegion>
 		</div>
 		<template v-else>
-			<div class="preview-browse-body">
+			<div class="browse-body">
 				<aside
 					v-if="sidebarOpen && !isMobile"
-					class="preview-filter-rail browse-filter-rail"
+					class="browse-filter-rail browse-filter-rail"
 				>
 					<div class="filter-rail-heading">
 						<h3>类别与仓库</h3>
@@ -718,7 +713,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					:active="scope.categories.length + scope.warehouses.length > 0"
 					@toggle="toggleSidebar"
 				/>
-				<div class="preview-browse-results">
+				<div class="browse-results">
 					<DataTable
 						data-browse-scroll="records"
 						ariaLabel="库存记录"

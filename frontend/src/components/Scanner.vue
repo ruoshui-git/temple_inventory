@@ -388,7 +388,7 @@ defineExpose({
 		</div>
 		<label
 			v-if="cameraListPresentation(cameras) === 'select'"
-			class="preview-field scanner-camera-select"
+			class="form-field scanner-camera-select"
 		>
 			相机
 			<select
@@ -442,7 +442,7 @@ defineExpose({
 			class="scanner-manual"
 			@submit.prevent="decoded(manual, true)"
 		>
-			<label class="preview-field"
+			<label class="form-field"
 				>条码 / 编号 / 扫码枪<input
 					v-model="manual"
 					:disabled="paused"

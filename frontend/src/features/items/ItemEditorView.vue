@@ -47,7 +47,7 @@ function submit() {
 }
 </script>
 <template>
-	<section class="preview-form-page">
+	<section class="form-page">
 		<PageHeader v-if="!contextual" class="form-page-heading"
 			><h1 tabindex="-1">{{ existing ? "编辑物品" : "新建物品" }}</h1></PageHeader
 		>
@@ -64,7 +64,7 @@ function submit() {
 					:disabled="!canWrite || busy || conflict"
 				/>
 			</section>
-			<dl v-if="!canWrite && !loading" class="preview-info-grid">
+			<dl v-if="!canWrite && !loading" class="info-grid">
 				<div
 					v-for="(value, label) in {
 						物品编号: model.code,
@@ -79,7 +79,7 @@ function submit() {
 					:key="label"
 				>
 					<dt>{{ label }}</dt>
-					<dd class="preview-long-text">{{ value || "未填写" }}</dd>
+					<dd class="content-long-text">{{ value || "未填写" }}</dd>
 				</div>
 			</dl>
 			<fieldset v-else :disabled="loading || busy || conflict" class="item-fields">

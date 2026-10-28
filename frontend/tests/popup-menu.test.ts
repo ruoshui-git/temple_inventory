@@ -172,7 +172,7 @@ describe("PopupMenu", () => {
     wrappers.push(wrapper);
     await open(wrapper);
     expect(
-      document.querySelector(".preview-overlay .popup-menu-panel--sheet"),
+      document.querySelector(".ui-overlay .popup-menu-panel--sheet"),
       wrapper.html(),
     ).toBeTruthy();
     expect(document.querySelector(".popup-menu-sheet-title")?.textContent).toBe(
@@ -212,7 +212,7 @@ describe("PopupMenu", () => {
     wrappers.push(wrapper);
     await open(wrapper);
     await document
-      .querySelector(".preview-overlay")!
+      .querySelector(".ui-overlay")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flushPromises();
     expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(

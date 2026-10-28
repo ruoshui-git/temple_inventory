@@ -838,7 +838,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 <template>
 	<section class="browse-page">
 		<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
-		<div class="preview-activity-browse">
+		<div class="activity-browse">
 			<BrowseToolbar
 				:title="family === 'movements' ? '货物流动' : '借用'"
 				v-model:search="search"
@@ -959,7 +959,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 			</BrowseToolbar>
 			<section
 				v-if="result.initialized"
-				class="preview-activity-summary"
+				class="activity-summary"
 				aria-label="当前筛选汇总"
 				aria-live="polite"
 			>
@@ -1006,10 +1006,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 			>
 				{{ result.error }} <UiButton @click="c.retry">重试加载</UiButton>
 			</p>
-			<div class="preview-browse-body">
+			<div class="browse-body">
 				<aside
 					v-if="filtersOpen && !isMobile"
-					class="preview-filter-rail browse-filter-rail"
+					class="browse-filter-rail browse-filter-rail"
 				>
 					<div class="filter-rail-heading">
 						<h3>筛选{{ family === "movements" ? "货物流动" : "借用" }}</h3>
@@ -1027,14 +1027,14 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					:active="scope.categories.length + scope.warehouses.length > 0"
 					@toggle="toggleFilters"
 				/>
-				<div class="preview-browse-results">
+				<div class="browse-results">
 					<Overlay
 						v-if="analysisOpen && !records"
 						title="分析当前结果"
 						adaptive-creation
 						@close="analysisOpen = false"
 					>
-						<label class="preview-field"
+						<label class="form-field"
 							>分组<select v-model="dimension">
 								<option
 									v-for="(label, value) in dimensions"
@@ -1078,13 +1078,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						<article
 							v-for="group in mobileItemGroups"
 							:key="group.id"
-							class="preview-group preview-group--mobile-list browse-card"
+							class="browse-group browse-group--mobile-list browse-card"
 							:data-browse-row="group.id"
 						>
-							<div class="preview-group-heading mobile-operation-group-heading">
+							<div class="browse-group-heading mobile-operation-group-heading">
 								<div
 									v-if="c.stockItem(groupItem(group))"
-									class="preview-group-thumbnail"
+									class="browse-group-thumbnail"
 								>
 									<ItemImage :item="c.stockItem(groupItem(group))!" />
 								</div>
@@ -1105,7 +1105,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										>{{ group.count }} 条</small
 									>
 									<span
-										class="preview-group-metrics"
+										class="browse-group-metrics"
 										:title="groupSummaryDisplay(group)"
 										>{{
 											groupSummaryDisplay(group).replace(
@@ -1117,7 +1117,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								</h2>
 								<button
 									type="button"
-									class="preview-group-trigger"
+									class="browse-group-trigger"
 									:aria-expanded="group.expanded"
 									:aria-controls="`mobile-operation-group-${group.id}`"
 									@click="toggleMobileItemGroup(group, !group.expanded)"
@@ -1128,7 +1128,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							<div
 								v-show="group.expanded"
 								:id="`mobile-operation-group-${group.id}`"
-								class="preview-group-content"
+								class="browse-group-content"
 							>
 								<MovementHistoryTable
 									v-if="

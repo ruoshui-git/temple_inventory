@@ -144,7 +144,7 @@ function filterPanelChanged(open: boolean) {
 	emit("filterOpen", open);
 	if (!open)
 		document.dispatchEvent(
-			new CustomEvent("preview-filter-panel-close", { detail: filterSessionId }),
+			new CustomEvent("browse-filter-panel-close", { detail: filterSessionId }),
 		);
 }
 const { top } = useScrollSurface(root, () => props.active);
@@ -208,7 +208,7 @@ defineExpose({ editFilter });
 <template>
 	<div
 		ref="root"
-		class="preview-browse-controls refined-toolbar browse-chrome"
+		class="browse-controls refined-toolbar browse-chrome"
 		:class="{ 'is-embedded': embedded }"
 	>
 		<PageHeader v-if="!embedded" :title="heading">

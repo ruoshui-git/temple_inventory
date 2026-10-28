@@ -45,7 +45,7 @@ const periodSummary = () =>
 			:disclosure="Boolean(disclosureMode)"
 			:summary="query.includeZero ? '包含' : '不包含'"
 		>
-			<label class="preview-choice-label"
+			<label class="form-choice-label"
 				><input v-model="query.includeZero" type="checkbox" />包含零库存批次</label
 			>
 		</FilterDisclosure>
@@ -55,7 +55,7 @@ const periodSummary = () =>
 			:disclosure="Boolean(disclosureMode)"
 			:summary="query.includeUndated ? '包含' : '不包含'"
 		>
-			<label class="preview-choice-label"
+			<label class="form-choice-label"
 				><input
 					v-model="query.includeUndated"
 					type="checkbox"

@@ -65,10 +65,10 @@ describe("shared native Item artwork", () => {
   });
   it("separates detail navigation from enlarge and dismisses a stale image after Item changes", async () => {
     const wrapper = setup({ interaction: "detail" });
-    await wrapper.get("button.preview-image-detail").trigger("click");
+    await wrapper.get("button.item-image-detail").trigger("click");
     expect(wrapper.emitted("detail")).toEqual([[]]);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    await wrapper.get("button.preview-image-enlarge").trigger("click");
+    await wrapper.get("button.item-image-enlarge").trigger("click");
     await flushPromises();
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(wrapper.emitted("detail")).toHaveLength(1);
@@ -78,20 +78,18 @@ describe("shared native Item artwork", () => {
     await flushPromises();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(
-      wrapper.get("button.preview-image-detail").attributes("aria-label"),
+      wrapper.get("button.item-image-detail").attributes("aria-label"),
     ).toContain("其它物品");
-    expect(wrapper.find("button.preview-image-enlarge").exists()).toBe(false);
+    expect(wrapper.find("button.item-image-enlarge").exists()).toBe(false);
   });
   it("keeps card artwork inside an explicit density-sized frame", () => {
     const wrapper = setup({ interaction: "detail", frame: true });
-    expect(wrapper.get(".preview-item-image").classes()).toContain(
-      "preview-item-image--frame",
-    );
+    expect(wrapper.get(".item-image").classes()).toContain("item-image--frame");
     expect(
-      wrapper.get(".preview-image-detail").attributes("aria-label"),
+      wrapper.get(".item-image-detail").attributes("aria-label"),
     ).toContain(item.name);
     expect(
-      wrapper.get(".preview-image-enlarge").attributes("aria-label"),
+      wrapper.get(".item-image-enlarge").attributes("aria-label"),
     ).toContain(item.name);
   });
 });

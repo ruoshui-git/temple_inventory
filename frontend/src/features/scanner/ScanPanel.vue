@@ -276,7 +276,7 @@ defineExpose({
 					>完成扫描</UiButton
 				>
 			</div>
-			<label class="preview-choice-label"
+			<label class="form-choice-label"
 				><input type="checkbox" v-model="continuous" />连续扫描</label
 			>
 			<div class="scan-panel-actions">
@@ -338,7 +338,7 @@ defineExpose({
 				/>
 			</div>
 			<p v-if="props.paused" role="status">请先完成当前物品解析，再继续扫描</p>
-			<label class="preview-field"
+			<label class="form-field"
 				>扫描值<input v-model="value" :disabled="paused" @keydown.enter.prevent="scan()"
 			/></label>
 			<UiButton
@@ -356,7 +356,7 @@ defineExpose({
 			</p>
 			<div v-if="result">
 				<p v-if="result.matches.length > 1">此条码对应多个物品，请选择并核对编号。</p>
-				<label v-if="result.batches.length > 1" class="preview-field">
+				<label v-if="result.batches.length > 1" class="form-field">
 					选择批次
 					<SearchSelect
 						label="扫描批次"

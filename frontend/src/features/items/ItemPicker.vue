@@ -326,7 +326,7 @@ async function showCreate(value: boolean) {
 	pendingMultiple.value = false;
 	await nextTick();
 	content.value
-		?.querySelector<HTMLInputElement>(value ? "form input" : ".preview-picker-selection input")
+		?.querySelector<HTMLInputElement>(value ? "form input" : ".item-picker-selection input")
 		?.focus({ preventScroll: true });
 	if (scrollport) scrollport.scrollTop = value ? creationScroll : selectionScroll;
 }
@@ -453,13 +453,13 @@ async function selectExisting(code: string, warehouse: string) {
 	<Overlay
 		:title="creating ? '新建物品' : '选择物品'"
 		:subtitle="creating ? creationSubtitle : undefined"
-		panel-class="preview-item-picker-dialog"
-		content-class="preview-item-picker-content"
+		panel-class="item-picker-dialog"
+		content-class="item-picker-content"
 		:adaptive-creation="creating"
 		@close="close"
 	>
-		<div ref="content" class="preview-picker-content">
-			<div v-show="!creating" class="preview-picker-selection">
+		<div ref="content" class="item-picker-content">
+			<div v-show="!creating" class="item-picker-selection">
 				<BrowseToolbar
 					class="picker-chrome"
 					title="物品"
@@ -499,7 +499,7 @@ async function selectExisting(code: string, warehouse: string) {
 								:summary="onlyStock ? '仅有可用库存' : '不限'"
 								field="onlyStock"
 							>
-								<label class="preview-choice-label"
+								<label class="form-choice-label"
 									><input
 										type="checkbox"
 										v-model="onlyStock"
@@ -1016,14 +1016,14 @@ async function selectExisting(code: string, warehouse: string) {
 .picker-filter-rail--collapsed .filter-rail-heading {
 	justify-content: center;
 }
-:global(.preview-item-picker-dialog .dialog-footer) {
+:global(.item-picker-dialog .dialog-footer) {
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
 	gap: 8px;
 }
 @media (min-width: 1024px) {
-	.picker-chrome :deep(.preview-filter-control) {
+	.picker-chrome :deep(.browse-filter-control) {
 		display: none;
 	}
 }
@@ -1039,14 +1039,14 @@ async function selectExisting(code: string, warehouse: string) {
 	.picker-return-short {
 		white-space: nowrap;
 	}
-	:global(.preview-item-picker-dialog .dialog-footer) {
+	:global(.item-picker-dialog .dialog-footer) {
 		flex-wrap: wrap;
 	}
-	:global(.preview-item-picker-dialog .dialog-footer > :last-child) {
+	:global(.item-picker-dialog .dialog-footer > :last-child) {
 		order: 2;
 		width: 100%;
 	}
-	:global(.preview-item-picker-dialog .dialog-footer > :not(:last-child)) {
+	:global(.item-picker-dialog .dialog-footer > :not(:last-child)) {
 		order: 1;
 		flex: 1;
 	}
@@ -1107,7 +1107,7 @@ async function selectExisting(code: string, warehouse: string) {
 }
 .picker-phone-image,
 .picker-phone-image :deep(.item-image-button),
-.picker-phone-image :deep(.preview-item-image),
+.picker-phone-image :deep(.item-image),
 .picker-phone-image :deep(.async-image) {
 	width: 56px;
 	height: 56px;
@@ -1267,34 +1267,34 @@ async function selectExisting(code: string, warehouse: string) {
 	overflow: auto;
 	overscroll-behavior: contain;
 }
-.preview-picker-thumb :deep(svg) {
+.item-picker-thumb :deep(svg) {
 	width: 100%;
 	height: 100%;
 }
-.preview-picker-content {
-	container: preview-creation / inline-size;
+.item-picker-content {
+	container: creation / inline-size;
 }
-.preview-creation-fields {
+.creation-fields {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: var(--p-space-4);
 }
-.preview-creation-fields > * {
+.creation-fields > * {
 	min-width: 0;
 }
-.preview-creation-fields .full-width {
+.creation-fields .full-width {
 	grid-column: 1 / -1;
 }
-.preview-supporting-editors:empty {
+.supporting-editors:empty {
 	display: none;
 }
-.preview-creation-fields > .muted,
-.preview-creation-fields > [role="alert"] {
+.creation-fields > .muted,
+.creation-fields > [role="alert"] {
 	grid-column: 1 / -1;
 }
 /* The dialog body, rather than the viewport, determines readable columns. */
-@container preview-creation (max-width: 38em) {
-	.preview-creation-fields {
+@container creation (max-width: 38em) {
+	.creation-fields {
 		grid-template-columns: minmax(0, 1fr);
 	}
 }

@@ -294,11 +294,11 @@ onBeforeUnmount(() => {
 		>
 			<img ref="image" :alt="file.name" />
 		</div>
-		<div v-if="ready" class="preview-form-grid">
+		<div v-if="ready" class="form-grid">
 			<template v-if="!freeAspect">
 				<UiButton @click="zoom(-0.1)">缩小图片</UiButton>
 				<UiButton @click="zoom(0.1)">放大图片</UiButton>
-				<label class="preview-choice-label">
+				<label class="form-choice-label">
 					<input v-model="retain" type="checkbox" />另存原图为附件
 				</label>
 			</template>
@@ -345,7 +345,7 @@ onBeforeUnmount(() => {
 	background: var(--p-soft);
 }
 
-.preview-form-grid {
+.form-grid {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;

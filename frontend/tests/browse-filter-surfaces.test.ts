@@ -99,7 +99,7 @@ it("shows relative and calendar period keys without the old shortcut rows", asyn
   });
   expect(wrapper.text()).not.toContain("快捷年份");
   expect(wrapper.text()).not.toContain("使用范围");
-  expect(wrapper.find(".preview-period-trigger").exists()).toBe(false);
+  expect(wrapper.find(".period-trigger").exists()).toBe(false);
   wrapper.unmount();
 });
 
@@ -153,11 +153,11 @@ it("discards an unapplied date draft when the shared filter panel dismisses", as
   const editor = wrapper.getComponent(PeriodFilter);
   await editor.find("select").setValue("last_30_days");
   document.dispatchEvent(
-    new CustomEvent("preview-filter-panel-close", { detail: "another-panel" }),
+    new CustomEvent("browse-filter-panel-close", { detail: "another-panel" }),
   );
   expect(editor.find("select").element.value).toBe("last_30_days");
   document.dispatchEvent(
-    new CustomEvent("preview-filter-panel-close", { detail: "panel-a" }),
+    new CustomEvent("browse-filter-panel-close", { detail: "panel-a" }),
   );
   await editor.get("form").trigger("submit");
   expect(editor.emitted("update:modelValue")?.at(-1)?.[0]).toEqual({
@@ -189,7 +189,7 @@ it("discards a mobile date draft on real Escape and restores focus to the filter
               onUpdateOpen: (open: boolean) => {
                 if (!open)
                   document.dispatchEvent(
-                    new CustomEvent("preview-filter-panel-close", {
+                    new CustomEvent("browse-filter-panel-close", {
                       detail: session,
                     }),
                   );
@@ -296,11 +296,11 @@ it("offers labeled rail-edit actions instead of duplicating hierarchy trees in t
   expect(document.body.textContent).toContain("在侧栏中编辑仓库筛选");
   expect(document.querySelectorAll(".hierarchy-list")).toHaveLength(0);
   const categoryAction = document.querySelector<HTMLElement>(
-    '.preview-filter-popover [data-filter-field="categories"] button',
+    '.browse-filter-popover [data-filter-field="categories"] button',
   )!;
   await categoryAction.click();
   await flushPromises();
-  expect(document.querySelector(".preview-filter-popover")).toBeNull();
+  expect(document.querySelector(".browse-filter-popover")).toBeNull();
   expect(document.activeElement).toBe(
     wrapper.element.querySelector('[aria-label="类别树搜索"]'),
   );
