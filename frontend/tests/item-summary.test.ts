@@ -14,7 +14,7 @@ describe("summarizeItems", () => {
     expect(summarizeItems([], 3)).toBe("物品 等 3 种物品");
   });
 
-	it("uses the supplied names when a count is missing", () => {
-		expect(summarizeItems(["肥皂盒", "纸巾"], 0)).toBe("肥皂盒 等 2 种物品");
-	});
+  it("uses the supplied names when a count is missing", () => {
+    expect(summarizeItems(["肥皂盒", "纸巾"], 0)).toBe("肥皂盒 等 2 种物品");
+  });
 });

@@ -15,7 +15,7 @@ export interface ToastMessage {
 }
 
 export function toastPlacementClass(phone: boolean) {
-	return phone ? "preview-toast--phone" : "preview-toast--desktop";
+  return phone ? "preview-toast--phone" : "preview-toast--desktop";
 }
 
 export function showToast(
