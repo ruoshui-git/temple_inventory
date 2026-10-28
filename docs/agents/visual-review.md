@@ -11,3 +11,13 @@ Use `/usr/bin/chromium-headless-shell` through `frontend/node_modules/@playwrigh
 Save review evidence under the gitignored `notes/evidence/<date>-<topic>/`. Container scripts can write under `/workspace`; host and container `/tmp` directories are not shared. Do not add evidence to committed paths.
 
 Inspect realistic Chinese and long names at desktop, phone and 1024px; cover density/text scaling, retained refresh, image placeholders, scroll containment, keyboard access and overlapping touch targets. Distinguish fixture browser results from live-service or device evidence.
+
+## Visual parity for refactors
+
+A refactor that touches CSS or templates must look identical. Build the pre-change frontend (for example
+`git stash` your work, `git checkout <base> -- frontend/src`, build), capture a fixed state list (each route at
+1440×900 and 390×844, plus expanded groups, hovered rows and open filter panels, with animations disabled), then
+restore your work (`git restore --source=HEAD --staged --worktree frontend/src`, `git stash pop`), rebuild,
+capture again on the same data and pixel-diff each pair. Inspect every non-zero diff: only live data (relative
+times, snapshot timestamps, changed counts) may differ.
+

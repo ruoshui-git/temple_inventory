@@ -20,6 +20,8 @@ Shared Codex/Claude guide; follow repository instructions.
 
 Backend domains (`temple_inventory/`): stock/counts, catalog/locations/activities, scoped browse/reports/exports, access/files/session. Frontend routes: `frontend/src/pages/`; UI/controllers: `frontend/src/features/`, `components/`, `services/`. Tests: `temple_inventory/tests/`, `frontend/tests/`. Sample reset: `sample_install.py`, `native_samples.py`, `scripts/reset-development-samples`.
 
+Reuse shared helpers instead of re-implementing them: frontend `lib/formatQuantity.ts` (quantity + unit text), `components/ui/UnitText.vue`, `composables/useArrayTableSort.ts`, `lib/presentationLabels.ts` (status/kind labels), `lib/reportQuery.ts` (browse query normalization), `lib/nativeTime.ts`; backend `native_access` (access gates), `warehouse_names.py`, `uom_labels.py`, `people.py`, `report_sources.whole_operation`.
+
 ## Inventory invariants
 
 - ERPNext alone owns stock: Stock Entry for operations, Stock Reconciliation for counts; Purchase Receipt/Delivery Note only for real purchasing/sales. No shadow ledger, quantity table, inventory engine, image or attachment store.
