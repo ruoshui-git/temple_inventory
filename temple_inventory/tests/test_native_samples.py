@@ -477,22 +477,3 @@ class NativeSampleTests(NativeDocumentTests):
 			verified = sample_install.verify_development_sample(require_images=False, data="real")
 			self.assertEqual(verified["costume_items"], 96)
 			self.assertTrue(verified["costume_stock_verified"])
-
-
-def run():
-	suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(SampleMediaTests))
-	suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(SampleGeneratorUnitTests))
-	suite.addTests(
-		test
-		for test in unittest.defaultTestLoader.loadTestsFromTestCase(NativeSampleAttachmentTests)
-		if test._testMethodName in NativeSampleAttachmentTests.__dict__
-	)
-	suite.addTest(
-		NativeSampleTests(
-			"test_native_seed_covers_catalog_all_movements_loans_and_real_count_without_legacy_records"
-		)
-	)
-	result = unittest.TextTestRunner(verbosity=2).run(suite)
-	if not result.wasSuccessful():
-		raise AssertionError("Native sample validation failed")
-	return {"tests": result.testsRun, "failures": len(result.failures), "errors": len(result.errors)}

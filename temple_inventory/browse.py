@@ -19,14 +19,14 @@ from temple_inventory.report_sources import (
 	paged,
 	whole_operation,
 )
-from temple_inventory.uom_labels import COMMON_MEASURES as COMMON_MEASURES
-from temple_inventory.uom_labels import ranked_uoms
 
 DASHBOARD_EXPIRY_PREVIEW_LIMIT = 5
 
 
 @frappe.whitelist()
 def bootstrap():
+	from temple_inventory.uom_labels import ranked_uoms
+
 	require_app()
 	from temple_inventory.catalog import item_group_root
 

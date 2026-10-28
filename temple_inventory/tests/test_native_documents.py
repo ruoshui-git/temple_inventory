@@ -815,14 +815,3 @@ class NativeDocumentTests(unittest.TestCase):
 			self.submit(self.create(self.movement("Issue", 2, self.a)))
 			with self.assertRaises(frappe.ValidationError):
 				self.submit(draft)
-
-
-def run():
-	result = unittest.TextTestRunner(verbosity=2).run(
-		unittest.defaultTestLoader.loadTestsFromTestCase(NativeDocumentTests)
-	)
-	if not result.wasSuccessful():
-		raise AssertionError(
-			f"Native integration failed: {len(result.failures)} failures, {len(result.errors)} errors"
-		)
-	return {"tests": result.testsRun, "failures": 0, "errors": 0}

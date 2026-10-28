@@ -10,12 +10,22 @@ from unittest.mock import patch
 import frappe
 
 from temple_inventory.tests.test_browse_golden import BrowseGoldenTests
-from temple_inventory.tests.test_catalog import CatalogTests
+from temple_inventory.tests.test_catalog_batches import CatalogBatchesTests
+from temple_inventory.tests.test_catalog_images import CatalogImagesTests
+from temple_inventory.tests.test_catalog_items import CatalogItemsTests
+from temple_inventory.tests.test_catalog_lifecycle import CatalogLifecycleTests
+from temple_inventory.tests.test_catalog_pickers import CatalogPickersTests
+from temple_inventory.tests.test_catalog_units import CatalogUnitsTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_environment import EnvironmentTests
 from temple_inventory.tests.test_item_images import ItemImageTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
-from temple_inventory.tests.test_native_reports import NativeReportTests
+from temple_inventory.tests.test_native_reports_cache import NativeReportsCacheTests
+from temple_inventory.tests.test_native_reports_expiry import NativeReportsExpiryTests
+from temple_inventory.tests.test_native_reports_exports import NativeReportsExportsTests
+from temple_inventory.tests.test_native_reports_filters import NativeReportsFiltersTests
+from temple_inventory.tests.test_native_reports_loans import NativeReportsLoansTests
+from temple_inventory.tests.test_native_reports_projections import NativeReportsProjectionsTests
 from temple_inventory.tests.test_native_samples import (
 	NativeSampleAttachmentTests,
 	NativeSampleTests,
@@ -42,10 +52,20 @@ def run(test_name=None):
 	selected_names = {test_name} if isinstance(test_name, str) else set(test_name or ())
 	suite = unittest.TestSuite()
 	for case in (
+		CatalogBatchesTests,
+		CatalogImagesTests,
+		CatalogItemsTests,
+		CatalogLifecycleTests,
+		CatalogPickersTests,
+		CatalogUnitsTests,
+		NativeReportsCacheTests,
+		NativeReportsExportsTests,
+		NativeReportsExpiryTests,
+		NativeReportsFiltersTests,
+		NativeReportsLoansTests,
+		NativeReportsProjectionsTests,
 		NativeDocumentTests,
 		BrowseGoldenTests,
-		CatalogTests,
-		NativeReportTests,
 		ConfigurationTests,
 		NativeWarehouseTests,
 		ItemImageTests,

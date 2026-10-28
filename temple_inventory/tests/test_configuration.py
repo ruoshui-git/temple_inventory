@@ -1,6 +1,5 @@
 """Native initialization and explicit configuration repairs; every test rolls back."""
 
-import unittest
 from unittest.mock import patch
 
 import frappe
@@ -145,13 +144,3 @@ class ConfigurationTests(NativeDocumentTests):
 			frappe.db.get_single_value("Temple Inventory Settings", "physical_root_warehouse"),
 			"Missing " + self.token,
 		)
-
-
-def run():
-	suite = unittest.defaultTestLoader.loadTestsFromTestCase(ConfigurationTests)
-	# Inherited tests have their own suite and are not duplicated here.
-	suite = unittest.TestSuite(test for test in suite if test._testMethodName in ConfigurationTests.__dict__)
-	result = unittest.TextTestRunner(verbosity=2).run(suite)
-	if not result.wasSuccessful():
-		raise AssertionError("Configuration integration tests failed")
-	return {"tests": result.testsRun, "failures": len(result.failures), "errors": len(result.errors)}

@@ -1,7 +1,5 @@
 """Native Warehouse location model, Desk derivation and guarded hierarchy changes."""
 
-import unittest
-
 import frappe
 
 from temple_inventory import catalog, native_topology, warehouses
@@ -262,14 +260,3 @@ class NativeWarehouseTests(NativeDocumentTests):
 		search_text = presented[leaf]["search_text"]
 		self.assertIn("第2寺院 " + self.token, search_text)
 		self.assertIn(short_label, search_text)
-
-
-def run():
-	suite = unittest.defaultTestLoader.loadTestsFromTestCase(NativeWarehouseTests)
-	suite = unittest.TestSuite(
-		test for test in suite if test._testMethodName in NativeWarehouseTests.__dict__
-	)
-	result = unittest.TextTestRunner(verbosity=2).run(suite)
-	if not result.wasSuccessful():
-		raise AssertionError("Native Warehouse integration tests failed")
-	return {"tests": result.testsRun, "failures": len(result.failures), "errors": len(result.errors)}
