@@ -9,7 +9,7 @@ from temple_inventory import native_topology
 from temple_inventory.activities import activity_types
 from temple_inventory.configuration import status as configuration_status
 from temple_inventory.native_access import require_app
-from temple_inventory.native_stock import MOVEMENT_PURPOSES, warehouse_scopes
+from temple_inventory.native_stock import warehouse_scopes
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import (
@@ -17,52 +17,12 @@ from temple_inventory.report_sources import (
 	batch_allocations,
 	document_fields,
 	paged,
+	whole_operation,
 )
+from temple_inventory.uom_labels import COMMON_MEASURES as COMMON_MEASURES
+from temple_inventory.uom_labels import ranked_uoms
 
 DASHBOARD_EXPIRY_PREVIEW_LIMIT = 5
-COMMON_MEASURES = {
-	"Kg": 0,
-	"Gram": 1,
-	"Litre": 2,
-	"Meter": 3,
-	"Centimeter": 4,
-	"Millimeter": 5,
-	"Square Meter": 6,
-	"Cubic Meter": 7,
-	"Millilitre": 8,
-}
-
-
-def ranked_uoms():
-	"""Enabled UOMs ordered by current use, count units, common measures, then category."""
-	used = dict(
-		frappe.db.sql(
-			"""select uom, count(distinct item) from (
-			select stock_uom as uom, name as item from `tabItem`
-			union all
-			select uom, parent as item from `tabUOM Conversion Detail` where parenttype='Item'
-		) as used where uom is not null and uom!='' group by uom"""
-		)
-	)
-	rows = list(
-		paged(
-			"UOM",
-			filters={"enabled": 1},
-			fields=["name", "uom_name", "must_be_whole_number", "category", "ti_label"],
-		)
-	)
-
-	def rank(row):
-		name = row.name
-		if name in used:
-			return (0, -int(used[name]), name.casefold())
-		if row.must_be_whole_number and not row.category:
-			return (1, 0, name.casefold())
-		if name in COMMON_MEASURES:
-			return (2, COMMON_MEASURES[name], name.casefold())
-		return (3, str(row.category or "").casefold(), name.casefold())
-
-	return [{**dict(row), "label": row.ti_label or row.name} for row in sorted(rows, key=rank)]
 
 
 @frappe.whitelist()
@@ -200,7 +160,7 @@ def _native_record_page(query, start, page_length, refresh=False):
 		)
 		rows = list(projection.rows("native_records", offset=start, limit=size))
 		for row in rows:
-			row["whole"] = _whole_operation(projection.context, row["doctype"], row["document"])
+			row["whole"] = whole_operation(projection.context, row["doctype"], row["document"])
 			row["item_name"] = row["whole"].get("item_name", "")
 		count = projection.count("native_records")
 		return {
@@ -703,97 +663,6 @@ def _operation_projection(query, records):
 	return Projection(query, load_item_attachments=False)
 
 
-def _whole_operation(context, doctype, name):
-	from temple_inventory.native_balances import reconciliation_allocations
-	from temple_inventory.report_sources import available_stock_effect, document_kind
-
-	doc = context.parent(doctype, name)
-	if not doc:
-		frappe.throw("原生记录不存在或无权访问", frappe.PermissionError)
-	quantities = defaultdict(float)
-	available_effects = defaultdict(float)
-	branches, items, originals = set(), set(), set()
-	first_item_name = ""
-	kind = document_kind(doc)
-	for row in doc.items:
-		item = context.item(row.item_code)
-		if not item:
-			frappe.throw("原生记录包含无权访问的物品", frappe.PermissionError)
-		items.add(item.name)
-		if not first_item_name:
-			first_item_name = item.item_name or item.name
-		quantity = (
-			float(row.get("transfer_qty") or 0)
-			if doctype == "Stock Entry"
-			else float(row.qty) - (float(row.current_qty or 0) if doc.purpose != "Opening Stock" else 0)
-		)
-		quantities[item.stock_uom] += quantity
-		if doctype == "Stock Entry":
-			available_effects[item.stock_uom] += available_stock_effect(
-				context,
-				docstatus=doc.docstatus,
-				kind=kind,
-				quantity=float(row.get("transfer_qty") or 0),
-				source_warehouse=row.get("s_warehouse") or "",
-				destination_warehouse=row.get("t_warehouse") or "",
-			)
-		else:
-			for allocation in reconciliation_allocations(row):
-				quantity = allocation["actual_qty"] if kind == "Opening" else allocation["difference"]
-				available_effects[item.stock_uom] += available_stock_effect(
-					context,
-					docstatus=doc.docstatus,
-					kind=kind,
-					quantity=quantity,
-					warehouse=row.get("warehouse") or "",
-				)
-		branches.add((row.get("s_warehouse") or row.get("warehouse") or "", row.get("t_warehouse") or ""))
-		if row.get("ti_original_loan"):
-			originals.add(row.ti_original_loan)
-	result = {
-		"kind": kind,
-		"version": str(doc.modified),
-		"editable": bool(
-			doc.docstatus == 0
-			and (
-				(doc.doctype == "Stock Entry" and doc.purpose in MOVEMENT_PURPOSES.values())
-				or (doc.doctype == "Stock Reconciliation" and doc.purpose == "Stock Reconciliation")
-			)
-		),
-		"quantities": [{"uom": unit, "qty": quantity} for unit, quantity in sorted(quantities.items())],
-		"available_effects": [
-			{"uom": unit, "qty": quantity} for unit, quantity in sorted(available_effects.items())
-		],
-		"item_count": len(items),
-		"item_name": first_item_name,
-		"line_count": len(doc.items),
-		"branches": [
-			{"source": source, "destination": destination} for source, destination in sorted(branches)
-		],
-		"original_loans": sorted(originals),
-	}
-	if doc.get("ti_movement_kind") == "Loan":
-		balances = context.loan_balances(doc.name)
-		outstanding = defaultdict(float)
-		for row in doc.items:
-			outstanding[row.stock_uom] += (
-				float(row.transfer_qty) - float(sum(balances[row.name].values())) if doc.docstatus == 1 else 0
-			)
-		result["outstanding"] = [
-			{"uom": unit, "qty": quantity} for unit, quantity in sorted(outstanding.items())
-		]
-		result["loan_status"] = (
-			"Draft"
-			if doc.docstatus == 0
-			else "Cancelled"
-			if doc.docstatus == 2
-			else "Open"
-			if any(outstanding.values())
-			else "Settled"
-		)
-	return result
-
-
 OPERATION_ANALYSIS = {
 	"category": "category",
 	"location": "source_warehouse",
@@ -888,7 +757,7 @@ def _whole_operation_totals(projection, source):
 			doctype, [name for parent_doctype, name in documents if parent_doctype == doctype]
 		)
 	for (doctype, name), row in documents.items():
-		whole = _whole_operation(projection.context, doctype, name)
+		whole = whole_operation(projection.context, doctype, name)
 		for quantity in whole["quantities"]:
 			key = (whole["kind"], row["docstatus"], quantity["uom"])
 			totals[key]["borrowed"] += quantity["qty"]
@@ -968,7 +837,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 			page_totals = _operation_page_totals(projection, source, rows)
 		if records and rows:
 			whole_by_row = {
-				(row["doctype"], row["document"]): _whole_operation(
+				(row["doctype"], row["document"]): whole_operation(
 					projection.context, row["doctype"], row["document"]
 				)
 				for row in rows

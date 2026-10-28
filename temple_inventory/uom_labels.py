@@ -29,6 +29,17 @@ DEFAULT_LABELS = {
 	"Cubic Meter": "m³",
 	"Gallon Liquid (US)": "gal",
 }
+COMMON_MEASURES = {
+	"Kg": 0,
+	"Gram": 1,
+	"Litre": 2,
+	"Meter": 3,
+	"Centimeter": 4,
+	"Millimeter": 5,
+	"Square Meter": 6,
+	"Cubic Meter": 7,
+	"Millilitre": 8,
+}
 
 
 def _normalized(value):
@@ -44,6 +55,40 @@ def uom_label(name):
 	if not name:
 		return ""
 	return _labels().get(name) or name
+
+
+def ranked_uoms():
+	"""Enabled UOMs ordered by current use, count units, common measures, then category."""
+	from temple_inventory.report_sources import paged
+
+	used = dict(
+		frappe.db.sql(
+			"""select uom, count(distinct item) from (
+			select stock_uom as uom, name as item from `tabItem`
+			union all
+			select uom, parent as item from `tabUOM Conversion Detail` where parenttype='Item'
+		) as used where uom is not null and uom!='' group by uom"""
+		)
+	)
+	rows = list(
+		paged(
+			"UOM",
+			filters={"enabled": 1},
+			fields=["name", "uom_name", "must_be_whole_number", "category", "ti_label"],
+		)
+	)
+
+	def rank(row):
+		name = row.name
+		if name in used:
+			return (0, -int(used[name]), name.casefold())
+		if row.must_be_whole_number and not row.category:
+			return (1, 0, name.casefold())
+		if name in COMMON_MEASURES:
+			return (2, COMMON_MEASURES[name], name.casefold())
+		return (3, str(row.category or "").casefold(), name.casefold())
+
+	return [{**dict(row), "label": row.ti_label or row.name} for row in sorted(rows, key=rank)]
 
 
 def _labels():

@@ -15,6 +15,7 @@ from frappe.utils import nowdate
 from openpyxl import load_workbook
 
 from temple_inventory import activities, browse, catalog, counts, exports, native_api, preferences, warehouses
+from temple_inventory.periods import resolve_period
 from temple_inventory.projections import Projection, group_page, report_page
 from temple_inventory.report_query import DEFINITIONS, validate_query
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
@@ -22,6 +23,17 @@ from temple_inventory.warehouse_names import DIRECT_STORAGE_SUFFIX
 
 
 class NativeReportTests(NativeDocumentTests):
+	def test_period_resolution_matches_shared_frontend_fixture(self):
+		fixture_path = Path(__file__).parents[2] / "frontend" / "tests" / "fixtures" / "periods.json"
+		fixture = json.loads(fixture_path.read_text())
+		for key, expected in fixture["periods"].items():
+			filters = {"period_key": key}
+			if key == "custom":
+				filters.update(date_from=expected["from"], date_to=expected["to"])
+			resolved = resolve_period(filters, today_provider=lambda: fixture["site_date"])
+			self.assertEqual(resolved["date_from"], expected["from"], key)
+			self.assertEqual(resolved["date_to"], expected["to"], key)
+
 	def test_dashboard_distribution_reports_only_authorized_enabled_empty_leaves(self):
 		self.submit(self.create(self.movement(target=self.a)))
 		room_label = f"Native Test C Room {self.token}"

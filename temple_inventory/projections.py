@@ -20,13 +20,13 @@ from temple_inventory.report_sources import (
 	available_stock_effect,
 	count_rows,
 	document_fields,
-	document_kind,
 	historical_rows,
 	linked_settlement_rows,
 	loan_rows,
 	movement_rows,
 	settlement_rows,
 	stock_rows,
+	whole_operation,
 )
 from temple_inventory.uom_labels import uom_label
 
@@ -1567,10 +1567,8 @@ def _group_page(validated, path, parent_unit, start, size, refresh=False):
 		source = projection.group_source_table
 		rows, count = projection.matching_page(source, fields, path, parent_unit, start, size)
 		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
-			from temple_inventory.browse import _whole_operation
-
 			whole_rows = [
-				(row, _whole_operation(projection.context, row["doctype"], row["document"])) for row in rows
+				(row, whole_operation(projection.context, row["doctype"], row["document"])) for row in rows
 			]
 			original_names = {name for _row, whole in whole_rows for name in whole.get("original_loans", [])}
 			projection.context.preload_parents("Stock Entry", original_names)

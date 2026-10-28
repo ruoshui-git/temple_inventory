@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import frappe
 
+from temple_inventory.tests.test_browse_golden import BrowseGoldenTests
 from temple_inventory.tests.test_catalog import CatalogTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_environment import EnvironmentTests
@@ -42,6 +43,7 @@ def run(test_name=None):
 	suite = unittest.TestSuite()
 	for case in (
 		NativeDocumentTests,
+		BrowseGoldenTests,
 		CatalogTests,
 		NativeReportTests,
 		ConfigurationTests,
