@@ -168,7 +168,7 @@ function settlement(line: LoanLine) {
 									<th>损坏</th>
 									<th>遗失</th>
 									<th>未结清</th>
-									<th>来源→去向</th>
+									<th>原存放</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -205,13 +205,6 @@ function settlement(line: LoanLine) {
 											:warehouse="line.s_warehouse"
 											kind="Loan"
 											role="来源位置"
-										/>
-										→
-										<LocationEndpoint
-											:warehouse="line.t_warehouse"
-											kind="Loan"
-											:borrower="c.current.value.loan.ti_borrower"
-											role="去向位置"
 										/>
 									</td>
 								</tr>

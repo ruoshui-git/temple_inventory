@@ -27,6 +27,10 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useInventoryServices } from "../../services/contracts";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { unitLabel, sortByUnit } from "../../lib/units";
+import { formatQuantity } from "../../lib/formatQuantity";
+import { operationSectionLocation } from "./operationModel";
+import { useReferenceData } from "../../services/contracts";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import { showToast } from "../../services/toast";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
@@ -45,6 +49,7 @@ const emit = defineEmits<{
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller;
+const reference = useReferenceData();
 const {
 	draft,
 	state,
@@ -283,6 +288,7 @@ async function addLoan(name: string) {
 const editing = computed(
 	() => state.status === "conflict" || !state.server || state.server.editable === true,
 );
+const readOnly = computed(() => !editing.value);
 const canOfferPicker = computed(
 	() => draft.value.kind !== "Return" && !draft.value.items.some((line) => !!line.loanName),
 );
@@ -290,13 +296,112 @@ const initialExistingLoad = computed(
 	() => loading.value && c.existingDocument.value && !state.server,
 );
 const itemCount = computed(() => new Set(draft.value.items.map((line) => line.code)).size);
+function stockUnit(line: (typeof draft.value.items)[number]) {
+	return String(
+		line.nativeFields?.stock_uom ||
+			line.uom ||
+			c.stock.find((item) => item.code === line.code)?.uom ||
+			line.entryUom ||
+			"",
+	);
+}
+function unitTotal(unit: string, qty: number) {
+	return `${formatQuantity(qty)} ${unitLabel(unit) || unit || "未知单位"}`;
+}
 const totals = computed(() => {
 	const values = new Map<string, number>();
-	for (const line of draft.value.items)
-		values.set(line.uom, (values.get(line.uom) || 0) + Number(line.qty || 0));
+	for (const line of draft.value.items) {
+		const unit = stockUnit(line);
+		values.set(unit, (values.get(unit) || 0) + Number(line.qty || 0));
+	}
 	return sortByUnit([...values], ([unit]) => unit)
-		.map(([unit, qty]) => `${qty} ${unitLabel(unit)}`)
+		.map(([unit, qty]) => unitTotal(unit, qty))
 		.join(" · ");
+});
+const locationTotals = computed(() => {
+	const groups = new Map<string, typeof draft.value.items>();
+	for (const line of draft.value.items) {
+		const location = operationSectionLocation(draft.value.kind, line) || "未选择库位";
+		if (!groups.has(location)) groups.set(location, []);
+		groups.get(location)!.push(line);
+	}
+	return [...groups.entries()].map(([location, lines]) => {
+		const quantities = new Map<string, number>();
+		for (const line of lines) {
+			const unit = stockUnit(line);
+			quantities.set(unit, (quantities.get(unit) || 0) + Number(line.qty || 0));
+		}
+		const summary = sortByUnit([...quantities], ([unit]) => unit)
+			.map(([unit, qty]) => unitTotal(unit, qty))
+			.join(" · ");
+		return {
+			location,
+			items: new Set(lines.map((line) => line.code)).size,
+			lines: lines.length,
+			summary,
+		};
+	});
+});
+const lineIssues = computed(() => {
+	const grouped = new Map<string, (typeof issues.value)[number][]>();
+	for (const issue of issues.value) {
+		if (!issue.lineId) continue;
+		const list = grouped.get(issue.lineId) || [];
+		list.push(issue);
+		grouped.set(issue.lineId, list);
+	}
+	return [...grouped.entries()].map(([lineId, rows]) => ({ lineId, issues: rows }));
+});
+const lineIssueSummary = computed(() => {
+	const labels = new Map<string, Set<string>>();
+	const fieldLabels: Record<string, string> = {
+		qty: "数量",
+		expiry: "效期",
+		location: "库位",
+		sourceLocation: "库位",
+		batch: "批次",
+		loanName: "原借出",
+		code: "物品",
+	};
+	for (const group of lineIssues.value) {
+		for (const issue of group.issues) {
+			const label = fieldLabels[issue.field] || "其他检查";
+			const lines = labels.get(label) || new Set<string>();
+			lines.add(group.lineId);
+			labels.set(label, lines);
+		}
+	}
+	return [...labels.entries()].map(([label, lines]) => `${label} ${lines.size} 行`);
+});
+async function jumpToFirstIncompleteLine() {
+	const issue = lineIssues.value[0]?.issues[0];
+	if (issue) await lineEditor.value?.revealIssue(issue);
+}
+const reviewContext = computed(() => {
+	const fields = [
+		{
+			label: "关联活动",
+			value: draft.value.activity ? activityLabel.value : "",
+			relevant: true,
+		},
+		{
+			label: draft.value.kind === "Receive" ? "来源" : "用途",
+			value: draft.value.kind === "Receive" ? draft.value.source : draft.value.purpose,
+			relevant: true,
+		},
+		{
+			label: "借用方",
+			value: draft.value.borrower,
+			relevant: ["Loan", "Return"].includes(draft.value.kind),
+		},
+		{ label: "记录人", value: draft.value.recorder, relevant: true },
+		{ label: "经手人", value: draft.value.handler, relevant: true },
+		{ label: "鉴证人", value: draft.value.reviewer, relevant: true },
+	];
+	return {
+		filled: fields.filter((field) => Boolean(field.value)),
+		missing: fields.filter((field) => field.relevant && !field.value),
+	};
 });
 const statusLabels = {
 	matching: "已核对，无需调整",
@@ -989,7 +1094,8 @@ async function lifecycle() {
 					>
 						<DisclosureIcon variant="inline" />
 						<template v-if="draft.items.length"
-							>确认前检查 · {{ totals }} · {{ itemCount }} 种物品</template
+							>{{ readOnly ? "操作汇总" : "确认前检查" }} · {{ totals }} ·
+							{{ itemCount }} 种物品</template
 						>
 						<template v-else>尚未添加物品</template>
 					</summary>
@@ -1000,7 +1106,7 @@ async function lifecycle() {
 						:aria-hidden="previewCollapsed ? 'true' : undefined"
 						:inert="previewCollapsed || undefined"
 					>
-						<span class="eyebrow">确认前检查</span>
+						<span v-if="!readOnly" class="eyebrow">确认前检查</span>
 						<h2>操作汇总</h2>
 						<div class="review-metric">
 							<strong>{{ totals || "尚未添加物品" }}</strong
@@ -1009,15 +1115,39 @@ async function lifecycle() {
 						<p class="review-scope">
 							{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细
 						</p>
-						<div class="review-lines-disclosure">
-							<AllocationSummary :draft="draft" collapsible />
+						<ul class="review-location-totals">
+							<li v-for="group in locationTotals" :key="group.location">
+								<strong>{{
+									warehouseLabel(group.location, reference.warehouses)
+								}}</strong>
+								<span>{{ group.items }} 种物品 · {{ group.lines }} 条明细</span>
+								<span>{{ group.summary || "暂无数量" }}</span>
+							</li>
+						</ul>
+						<div v-if="!readOnly" class="review-line-checks">
+							<div class="review-line-checks-heading">
+								<strong>{{ lineIssues.length }} 行待完善</strong>
+								<UiButton
+									v-if="lineIssues.length"
+									variant="ghost"
+									size="compact"
+									@click="jumpToFirstIncompleteLine"
+									>定位首行</UiButton
+								>
+							</div>
+							<p v-if="lineIssueSummary.length" class="muted">
+								{{ lineIssueSummary.join(" · ") }}
+							</p>
+							<p v-else class="muted">明细检查通过</p>
 						</div>
 						<p v-if="draft.kind === 'Loan'">
 							借用方：{{ draft.borrower || "待填写" }}
 						</p>
 						<p v-if="draft.activity">活动：{{ activityLabel }}</p>
 						<p v-if="draft.postingDate">日期：{{ draft.postingDate }}</p>
-						<p class="muted">确认前请核对物品、数量和库位。复核并确认后才变更库存。</p>
+						<p v-if="!readOnly" class="muted">
+							确认前请核对物品、数量和库位。复核并确认后才变更库存。
+						</p>
 					</div>
 				</details>
 			</aside>
@@ -1031,25 +1161,16 @@ async function lifecycle() {
 				{{ draft.timeMode === "current" ? "确认时的当前时间" : draft.postingTime }}
 			</p>
 			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</p>
-			<AllocationSummary :draft="draft" /><TransactionContext
-				:draft="draft"
-				:activity-label="activityLabel"
-				mode="display"
-			/>
-			<dl class="preview-info-grid">
-				<div
-					v-for="(value, label) in {
-						借用方: draft.borrower,
-						记录人: draft.recorder,
-						经手人: draft.handler,
-						鉴证人: draft.reviewer,
-					}"
-					:key="label"
-				>
-					<dt>{{ label }}</dt>
-					<dd>{{ value || "未填写" }}</dd>
+			<AllocationSummary :draft="draft" />
+			<dl v-if="reviewContext.filled.length" class="preview-info-grid">
+				<div v-for="field in reviewContext.filled" :key="field.label">
+					<dt>{{ field.label }}</dt>
+					<dd>{{ field.value }}</dd>
 				</div>
 			</dl>
+			<p v-if="reviewContext.missing.length" class="muted">
+				未填写：{{ reviewContext.missing.map((field) => field.label).join("、") }}
+			</p>
 			<div class="preview-long-text">{{ draft.note }}</div>
 			<p>{{ files.files.length }} 份附件。确认后此记录及附件不可直接修改。</p>
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
@@ -1086,7 +1207,10 @@ async function lifecycle() {
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="action = undefined">返回</UiButton
-				><UiButton variant="danger" :loading="busy" @click="lifecycle"
+				><UiButton
+					:variant="action === 'duplicate' ? 'primary' : 'danger'"
+					:loading="busy"
+					@click="lifecycle"
 					>确认</UiButton
 				></template
 			></Overlay
@@ -1107,6 +1231,44 @@ async function lifecycle() {
 	min-height: 48px;
 	padding: var(--p-space-2) var(--p-space-3);
 	font-size: var(--p-body);
+}
+
+.review-location-totals {
+	display: grid;
+	gap: var(--p-space-2);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.review-location-totals li {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+	padding-block: var(--p-space-2);
+	border-bottom: 1px solid var(--p-border);
+}
+
+.review-location-totals li > span {
+	color: var(--p-text-muted);
+	font-size: var(--p-small);
+}
+
+.review-line-checks {
+	margin-block-start: var(--p-space-3);
+	padding-block-start: var(--p-space-2);
+	border-top: 1px solid var(--p-border);
+}
+
+.review-line-checks-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--p-space-2);
+}
+
+.review-line-checks > p {
+	margin: var(--p-space-1) 0 0;
 }
 
 @media (max-width: 1023px) {
@@ -1138,6 +1300,9 @@ async function lifecycle() {
 	:deep(.review-preview-summary) {
 		min-height: 52px;
 		font-size: var(--p-body);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 }
 </style>

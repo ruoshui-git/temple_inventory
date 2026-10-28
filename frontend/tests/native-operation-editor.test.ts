@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -17,10 +18,23 @@ import type { NativeDocument } from "../src/features/documents/nativeEditor";
 import { useAttachments } from "../src/features/attachments/useAttachments";
 import AllocationSummary from "../src/features/documents/AllocationSummary.vue";
 const wrappers: VueWrapper[] = [];
+function setDesktop(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches,
+      media: "(min-width: 1024px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+beforeEach(() => setDesktop(true));
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 const item = {
   item_code: "ITEM-A",
@@ -74,7 +88,22 @@ function setup<T>(
       return () => h(child);
     },
   });
-  wrappers.push(mount(root));
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: "/items/:code",
+        name: "item-detail",
+        component: { template: "<div />" },
+      },
+      {
+        path: "/batches/:name",
+        name: "batch-detail",
+        component: { template: "<div />" },
+      },
+    ],
+  });
+  wrappers.push(mount(root, { global: { plugins: [router] } }));
   return { controller, reference, call, upload };
 }
 function document(
@@ -151,14 +180,14 @@ describe("native movement editor integration", () => {
               {
                 name: "BATCH-LINE-A",
                 batch_no: "BATCH-A",
-                stock_qty: 2,
+                stock_qty: 24,
                 expiry_date: "2027-10-16",
                 manufacturing_date: "2026-01-16",
               },
             ],
             qty: 2,
-            uom: "Nos",
-            conversion_factor: 1,
+            uom: "Box",
+            conversion_factor: 12,
             s_warehouse: "ROOM-A",
           },
         ],
@@ -180,6 +209,17 @@ describe("native movement editor integration", () => {
       vi.fn(),
       (controller) => h(AllocationSummary, { draft: controller.draft.value }),
     );
+    Object.assign(reference, {
+      warehouses: [
+        {
+          name: "ROOM-A",
+          label: "房间甲",
+          path: "房间甲",
+          search_text: "房间甲",
+          is_group: false,
+        },
+      ],
+    });
     await flushPromises();
 
     expect(c.draft.value.items[0]).toMatchObject({
@@ -189,6 +229,50 @@ describe("native movement editor integration", () => {
       manufacturingDate: "2026-01-16",
     });
     expect(wrappers.at(-1)?.text()).toContain("当前物品名称");
+    expect(
+      wrappers.at(-1)?.find('.data-table[aria-label="单据物品明细"]').exists(),
+    ).toBe(true);
+    expect(wrappers.at(-1)?.findAll(".data-table-group-row")).toHaveLength(1);
+    expect(
+      wrappers
+        .at(-1)
+        ?.get(".data-table-group-row")
+        .text()
+        .match(/房间甲/g),
+    ).toHaveLength(1);
+    expect(wrappers.at(-1)?.get(".data-table-group-row").text()).toContain(
+      "1 种物品 · 1 条明细 · 24 Nos",
+    );
+    expect(
+      wrappers
+        .at(-1)
+        ?.get(".data-table-group-toggle")
+        .attributes("aria-expanded"),
+    ).toBe("true");
+    await wrappers.at(-1)?.get(".data-table-group-toggle").trigger("click");
+    expect(
+      wrappers
+        .at(-1)
+        ?.get(".data-table-group-toggle")
+        .attributes("aria-expanded"),
+    ).toBe("false");
+    expect(wrappers.at(-1)?.find(".allocation-item-link").exists()).toBe(false);
+    await wrappers.at(-1)?.get(".data-table-group-toggle").trigger("click");
+    expect(
+      wrappers.at(-1)?.find(".allocation-item-link").attributes("href"),
+    ).toContain("/items/ITEM-A");
+    expect(
+      wrappers
+        .at(-1)
+        ?.get("tr:not(.data-table-group-row) td.data-column-code")
+        .text(),
+    ).toBe("BATCH-A");
+    expect(
+      wrappers
+        .at(-1)
+        ?.get("tr:not(.data-table-group-row) td.data-column-number")
+        .text(),
+    ).toBe("2 Box（24 Nos）");
     expect(
       call.mock.calls.some(([method]) => method === "catalog.operation_items"),
     ).toBe(false);
@@ -202,6 +286,72 @@ describe("native movement editor integration", () => {
     expect(encoded.items[0]).not.toHaveProperty("displayImage");
     expect(encoded.items[0]).not.toHaveProperty("ti_display_item_name");
     expect(encoded.items[0]).not.toHaveProperty("ti_display_image");
+  });
+
+  it("uses compact collapsible line rows on the phone surface", async () => {
+    setDesktop(false);
+    const longItemName = "物品甲物品甲物品甲物品甲物品甲物品甲物品甲";
+    const original = {
+      ...document({
+        ti_movement_kind: "Receive",
+        posting_date: "2026-10-16",
+        posting_time: "12:00:00",
+        items: [
+          {
+            item_code: "ITEM-A",
+            item_name: longItemName,
+            qty: 2,
+            uom: "Box",
+            conversion_factor: 12,
+            t_warehouse: "ROOM-A",
+            batch_no: "BATCH-PHONE",
+            ti_display_item_name: longItemName,
+            ti_display_tracks_batch: true,
+            ti_display_tracks_expiry: true,
+            recorded_batch_allocations: [
+              {
+                name: "BATCH-PHONE-LINE",
+                batch_no: "BATCH-PHONE",
+                stock_qty: 24,
+                expiry_date: "2027-10-16",
+              },
+            ],
+          },
+        ],
+      }),
+      docstatus: 1,
+      editable: false,
+    } as NativeDocument;
+    const call = vi.fn(async (method: string) => {
+      if (method === "native_api.load_document") return original;
+      if (method === "native_files.attachments") return [];
+      throw new Error(`Unexpected ${method}`);
+    });
+    setup(
+      () =>
+        useOperationEditor({
+          identity: { doctype: "Stock Entry", name: original.name },
+        }),
+      call,
+      vi.fn(),
+      (controller) => h(AllocationSummary, { draft: controller.draft.value }),
+    );
+    await flushPromises();
+
+    const wrapper = wrappers.at(-1)!;
+    expect(wrapper.find(".allocation-phone-list").exists()).toBe(true);
+    expect(wrapper.find(".data-table").exists()).toBe(false);
+    expect(wrapper.get(".allocation-item-link").attributes("title")).toBe(
+      longItemName,
+    );
+    expect(wrapper.text()).toContain("2 Box（24 Nos）");
+    expect(wrapper.text()).toContain("BATCH-PHONE");
+    expect(wrapper.text()).toContain("效期 2027-10-16");
+    await wrapper.get(".allocation-phone-group-toggle").trigger("click");
+    expect(
+      wrapper.get(".allocation-phone-group-toggle").attributes("aria-expanded"),
+    ).toBe("false");
+    expect(wrapper.find(".allocation-phone-row").exists()).toBe(false);
   });
 
   it("duplicates a completed native record with stable retry identity and recorded factors without copying its files", async () => {
@@ -368,8 +518,14 @@ describe("native movement editor integration", () => {
     );
     await flushPromises();
     const wrapper = wrappers.at(-1)!;
-    expect(wrapper.text()).toContain("BATCH-A 2 Nos");
-    expect(wrapper.text()).toContain("BATCH-B 3 Nos");
+    expect(wrapper.text()).toContain("BATCH-A");
+    expect(wrapper.text()).toContain("BATCH-B");
+    expect(
+      wrapper
+        .findAll("tr:not(.data-table-group-row) td.data-column-code")
+        .map((cell) => cell.text()),
+    ).toEqual(["BATCH-A · BATCH-B"]);
+    expect(wrapper.text()).not.toContain("BATCH-A 2 Nos");
     expect(wrapper.text()).toContain("2026-10-20");
     expect(wrapper.text()).not.toContain("自动生成");
     expect(c.issues.value).toEqual([]);

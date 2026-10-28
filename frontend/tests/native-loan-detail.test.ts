@@ -168,6 +168,9 @@ describe("native loan details", () => {
     ]);
     expect(wrapper.text()).not.toContain("LOAN-A-CHILD-1");
     expect(wrapper.text()).toContain("BATCH-1");
+    expect(wrapper.text()).toContain("原存放");
+    expect(wrapper.text()).not.toContain("实际借出位置");
+    expect(wrapper.text()).not.toContain("填写 5");
     const historySummary = wrapper
       .findAll("summary")
       .find((summary) => summary.text().includes("处理历史"));

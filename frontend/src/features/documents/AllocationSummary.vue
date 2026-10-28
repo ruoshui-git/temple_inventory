@@ -1,52 +1,87 @@
 <script setup lang="ts">
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
-import { unitLabel, sortByUnit } from "../../lib/units";
 import { computed, ref } from "vue";
+import { RouterLink } from "vue-router";
+import DataTable from "../../components/ui/DataTable.vue";
+import ItemImage from "../../components/ItemImage.vue";
+import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+import { formatQuantity } from "../../lib/formatQuantity";
+import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
+import { routeTarget } from "../../lib/routeRegistry";
+import { sortByUnit, unitLabel } from "../../lib/units";
+import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
 	useOperationContext,
-	allocationDestination,
 	operationSectionLocation,
 	type OperationDraft,
 	type AllocationLine,
 } from "./operationModel";
 import { useReferenceData } from "../../services/contracts";
-import ItemLine from "../../components/ui/ItemLine.vue";
-import DisclosureSection from "../../components/ui/DisclosureSection.vue";
-import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+
 const context = useOperationContext();
 const reference = useReferenceData();
-
+const { isMobile } = useResponsiveLayout();
 const props = defineProps<{ draft: OperationDraft; collapsible?: boolean }>();
+type AllocationRow = Record<string, unknown> & {
+	line?: AllocationLine;
+	place?: string;
+};
+const expanded = ref(new Set<string>());
 const item = (code: string) => context.stock.find((row) => row.code === code);
-function itemIdentity(line: AllocationLine) {
-	const current = item(line.code);
-	return {
-		code: line.code,
-		name: current?.name || line.displayName || line.code,
-		image: current?.image || line.displayImage || "",
-		files: current?.files,
-	};
+function lineBatch(line: AllocationLine) {
+	return (
+		line.batch ||
+		line.batchAllocations
+			?.map((allocation) => allocation.batch)
+			.filter(Boolean)
+			.join(" · ") ||
+		(props.draft.kind === "Receive" && props.draft.status === "draft" && !line.nativeBundle
+			? "自动生成"
+			: "")
+	);
 }
-const tracksBatch = (line: AllocationLine) =>
-	item(line.code)?.tracksBatch ?? line.displayTracksBatch ?? false;
-const tracksExpiry = (line: AllocationLine) =>
-	item(line.code)?.tracksExpiry ?? line.displayTracksExpiry ?? false;
-const enteredQuantity = enteredQty;
-const choices = ref<Record<string, boolean>>({});
-function isOpen(place: string) {
-	return choices.value[place] ?? (groups.value.length === 1 && props.draft.items.length <= 5);
+function batchIds(line: AllocationLine) {
+	const ids = line.batchAllocations?.map((allocation) => allocation.batch).filter(Boolean) || [];
+	if (ids.length) return [...new Set(ids)];
+	return line.batch ? [line.batch] : [];
+}
+function lineExpiry(line: AllocationLine) {
+	return (
+		line.expiry ||
+		line.batchAllocations
+			?.map((allocation) => allocation.expiry)
+			.filter(Boolean)
+			.join(" · ") ||
+		""
+	);
+}
+function lineManufacturingDate(line: AllocationLine) {
+	return (
+		line.manufacturingDate ||
+		line.batchAllocations
+			?.map((allocation) => allocation.manufacturingDate)
+			.filter(Boolean)
+			.join(" · ") ||
+		""
+	);
+}
+function stockUnit(line: AllocationLine) {
+	return String(
+		line.nativeFields?.stock_uom || line.uom || item(line.code)?.uom || line.entryUom || "",
+	);
 }
 function totals(lines: AllocationLine[]) {
 	const values = new Map<string, number>();
-	lines.forEach((line) =>
-		values.set(line.uom, (values.get(line.uom) || 0) + Number(line.qty || 0)),
-	);
+	lines.forEach((line) => {
+		const uom = stockUnit(line);
+		values.set(uom, (values.get(uom) || 0) + Number(line.qty || 0));
+	});
 	return sortByUnit([...values], ([uom]) => uom)
-		.map(([uom, qty]) => `${qty} ${unitLabel(uom)}`)
+		.map(([uom, qty]) => `${formatQuantity(qty)} ${unitLabel(uom) || uom || "未知单位"}`)
 		.join(" · ");
 }
-const groups = computed(() => {
+const sections = computed(() => {
 	const result = new Map<string, AllocationLine[]>();
 	for (const line of props.draft.items) {
 		const place = operationSectionLocation(props.draft.kind, line) || "未选择库位";
@@ -55,167 +90,420 @@ const groups = computed(() => {
 	}
 	return [...result.entries()];
 });
+const columns = computed<DataColumn[]>(() => {
+	const lines = props.draft.items;
+	const list: DataColumn[] = [
+		{ id: "image", label: "", kind: "thumb", defaultVisible: true, required: true },
+		{ id: "item_name", label: "物品", kind: "primary", defaultVisible: true, required: true },
+		{ id: "quantity", label: "数量", kind: "number", defaultVisible: true, required: true },
+	];
+	if (lines.some((line) => lineBatch(line)))
+		list.splice(2, 0, { id: "batch", label: "批次", kind: "code", defaultVisible: true });
+	if (lines.some((line) => lineExpiry(line)))
+		list.splice(3, 0, { id: "expiry", label: "效期", kind: "date", defaultVisible: true });
+	if (lines.some((line) => lineManufacturingDate(line)))
+		list.splice(
+			list.findIndex((column) => column.id === "quantity"),
+			0,
+			{
+				id: "manufacturing_date",
+				label: "生产日期",
+				kind: "date",
+				defaultVisible: true,
+			},
+		);
+	if (props.draft.kind === "Transfer" && lines.some((line) => line.location))
+		list.push({ id: "destination", label: "调入", kind: "text", defaultVisible: true });
+	if (lines.some((line) => line.loanName || props.draft.loanName))
+		list.push({ id: "original_loan", label: "原借出", kind: "code", defaultVisible: true });
+	if (lines.some((line) => line.returnOutcome))
+		list.push({ id: "outcome", label: "处理结果", kind: "status", defaultVisible: true });
+	if (lines.some((line) => line.reason))
+		list.push({ id: "reason", label: "原因", kind: "text", defaultVisible: true });
+	if (lines.some((line) => line.note || line.allocationNote))
+		list.push({ id: "note", label: "备注", kind: "text", defaultVisible: true });
+	return list;
+});
+const tableRows = computed<DataTableEntry<AllocationRow>[]>(() => {
+	const result: DataTableEntry<AllocationRow>[] = [];
+	for (const [place, lines] of sections.value) {
+		const id = `location:${place}`;
+		const isExpanded = !expanded.value.has(id);
+		result.push({
+			kind: "group",
+			id,
+			label: warehouseLabel(place, reference.warehouses),
+			labelColumn: "item_name",
+			countColumn: "item_name",
+			depth: 0,
+			count: new Set(lines.map((line) => line.code)).size,
+			countLabel: "种物品",
+			expanded: isExpanded,
+			hasChildren: lines.length > 0,
+			value: { place },
+		});
+		if (!isExpanded) continue;
+		for (const line of lines) {
+			const current = item(line.code);
+			result.push({
+				kind: "record",
+				id: line.id,
+				value: {
+					line,
+					code: line.code,
+					item_name: current?.name || line.displayName || line.code,
+					image: current?.image || line.displayImage || "",
+					batch: lineBatch(line),
+					batch_name: line.batch || line.batchAllocations?.[0]?.batch || "",
+					expiry: lineExpiry(line),
+					manufacturing_date: lineManufacturingDate(line),
+					quantity: enteredQty(line),
+				},
+			});
+		}
+	}
+	return result;
+});
+function toggleGroup(groupId: string) {
+	const next = new Set(expanded.value);
+	if (next.has(groupId)) next.delete(groupId);
+	else next.add(groupId);
+	expanded.value = next;
+}
+function groupLines(group: DataTableGroup) {
+	const place = String(group.value?.place || "");
+	return sections.value.find(([location]) => location === place)?.[1] || [];
+}
+function phoneDetails(line: AllocationLine) {
+	const details = batchIds(line);
+	if (!details.length && lineBatch(line)) details.push(lineBatch(line));
+	const expiry = lineExpiry(line);
+	if (expiry) details.push(`效期 ${expiry}`);
+	const manufacturingDate = lineManufacturingDate(line);
+	if (manufacturingDate) details.push(`生产 ${manufacturingDate}`);
+	if (props.draft.kind === "Transfer" && line.location)
+		details.push(`调入 ${warehouseLabel(line.location, reference.warehouses)}`);
+	if (line.loanName || props.draft.loanName)
+		details.push(`原借出 ${line.loanName || props.draft.loanName}`);
+	if (line.returnOutcome)
+		details.push(
+			line.returnOutcome === "lost"
+				? "遗失"
+				: line.returnOutcome === "damaged"
+					? "损坏归还"
+					: "完好归还",
+		);
+	if (line.reason) details.push(`原因 ${line.reason}`);
+	if (line.note || line.allocationNote) details.push(`备注 ${line.note || line.allocationNote}`);
+	return details;
+}
+function quantityText(line: AllocationLine) {
+	const enteredUnit = line.entryUom || line.uom;
+	const entered = `${formatQuantity(enteredQty(line))} ${unitLabel(enteredUnit)}`;
+	if (enteredUnit === line.uom) return entered;
+	return `${entered}（${formatQuantity(Number(line.qty || 0))} ${unitLabel(line.uom)}）`;
+}
+function lineFor(row: Record<string, unknown>) {
+	return row.line as AllocationLine;
+}
+function itemFor(row: Record<string, unknown>) {
+	const code = String(row.code || "");
+	return {
+		code,
+		name: String(row.item_name || code),
+		image: String(row.image || ""),
+		files: item(code)?.files,
+	};
+}
 </script>
 
 <template>
-	<div class="review-list preview-allocation-summary">
-		<component
-			:is="collapsible ? DisclosureSection : 'section'"
-			v-for="[place, lines] in groups"
-			:key="place"
-			:title="warehouseLabel(place, reference.warehouses)"
-			:count="
-				collapsible ? `${new Set(lines.map((line) => line.code)).size} 种物品` : undefined
-			"
-			:summary="collapsible ? `${lines.length} 条明细 · ${totals(lines)}` : undefined"
-			:open="collapsible ? isOpen(place) : undefined"
-			@update:open="choices[place] = $event"
-		>
-			<strong v-if="!collapsible" :title="warehousePath(place, reference.warehouses)"
-				>{{ warehouseLabel(place, reference.warehouses) }} ·
-				{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
-				{{ lines.length }} 条明细 · {{ totals(lines) }}</strong
+	<div v-if="isMobile" class="allocation-phone-list" aria-label="单据物品明细">
+		<section v-for="[place, lines] in sections" :key="place" class="allocation-phone-group">
+			<button
+				type="button"
+				class="allocation-phone-group-toggle"
+				:aria-expanded="!expanded.has(`location:${place}`)"
+				@click="toggleGroup(`location:${place}`)"
 			>
-			<div
-				v-for="line in lines"
-				:key="line.id"
-				class="allocation-summary-entry"
-				:data-summary-line-id="line.id"
-			>
-				<div class="allocation-summary-copy">
-					<div class="allocation-summary-identity">
-						<ItemLine :item="itemIdentity(line)" :size="24">
-							<template #secondary>{{ line.code }}</template>
-						</ItemLine>
-						<span class="allocation-summary-quantity"
-							>· {{ line.qty }} {{ unitLabel(line.uom) }}</span
-						>
+				<span class="allocation-phone-group-heading">
+					<strong :title="warehousePath(place, reference.warehouses)">{{
+						warehouseLabel(place, reference.warehouses)
+					}}</strong>
+					<span
+						>{{ new Set(lines.map((line) => line.code)).size }} 种物品 ·
+						{{ lines.length }} 条明细 · {{ totals(lines) }}</span
+					>
+				</span>
+				<span class="allocation-phone-chevron" aria-hidden="true">{{
+					expanded.has(`location:${place}`) ? "›" : "⌄"
+				}}</span>
+			</button>
+			<div v-if="!expanded.has(`location:${place}`)" class="allocation-phone-rows">
+				<article v-for="line in lines" :key="line.id" class="allocation-phone-row">
+					<ItemImage
+						:item="{
+							code: line.code,
+							name: item(line.code)?.name || line.displayName || line.code,
+							image: item(line.code)?.image || line.displayImage || '',
+							files: item(line.code)?.files,
+						}"
+						:thumbnail-size="48"
+						:target-size="48"
+					/>
+					<div class="allocation-phone-copy">
+						<div class="allocation-phone-primary">
+							<RouterLink
+								class="allocation-item-link"
+								:title="item(line.code)?.name || line.displayName || line.code"
+								:to="routeTarget('item-detail', { code: line.code })"
+								>{{
+									item(line.code)?.name || line.displayName || line.code
+								}}</RouterLink
+							>
+							<strong class="allocation-phone-quantity">{{
+								quantityText(line)
+							}}</strong>
+						</div>
+						<div v-if="phoneDetails(line).length" class="allocation-phone-meta">
+							<template
+								v-for="(detail, index) in phoneDetails(line)"
+								:key="`${line.id}:${detail}`"
+							>
+								<span v-if="index"> · </span>
+								<RouterLink
+									v-if="batchIds(line).includes(detail)"
+									:to="routeTarget('batch-detail', { name: detail })"
+									>{{ detail }}</RouterLink
+								>
+								<span v-else>{{ detail }}</span>
+							</template>
+						</div>
 					</div>
-					<dl class="ti-fields allocation-summary-fields">
-						<div v-if="allocationDestination(draft, line, reference.damagedLeaves)">
-							<dt>来源 → 去向</dt>
-							<dd>
-								<LocationEndpoint
-									:warehouse="
-										draft.kind === 'Receive'
-											? ''
-											: line.sourceLocation || line.location
-									"
-									:kind="draft.kind"
-									role="来源位置"
-								/>
-								→
-								<LocationEndpoint
-									:warehouse="
-										allocationDestination(draft, line, reference.damagedLeaves)
-									"
-									:kind="draft.kind"
-									role="去向位置"
-								/>
-							</dd>
-						</div>
-						<div v-if="tracksBatch(line)">
-							<dt>批次</dt>
-							<dd>
-								{{
-									line.batch ||
-									line.batchAllocations
-										?.map(
-											(allocation) =>
-												`${allocation.batch} ${allocation.qty} ${unitLabel(line.uom)}${allocation.expiry ? ` · 到期 ${allocation.expiry}` : ""}`,
-										)
-										.join(" · ") ||
-									(draft.kind === "Receive" &&
-									draft.status === "draft" &&
-									!line.nativeBundle
-										? "自动生成"
-										: "未记录")
-								}}
-							</dd>
-						</div>
-						<div v-if="tracksExpiry(line) && !line.batchAllocations?.length">
-							<dt>到期</dt>
-							<dd>{{ line.expiry || "未设置" }}</dd>
-						</div>
-						<div
-							v-if="
-								line.entryUom &&
-								line.entryUom !== line.uom &&
-								Number(line.conversionFactor || 1) !== 1
-							"
-						>
-							<dt>换算</dt>
-							<dd>
-								{{ enteredQuantity(line) }} {{ unitLabel(line.entryUom) }} ×
-								{{ line.conversionFactor }} {{ unitLabel(line.uom) }}/{{
-									unitLabel(line.entryUom)
-								}}
-								= {{ line.qty }} {{ unitLabel(line.uom) }}
-							</dd>
-						</div>
-						<div v-if="line.loanName || draft.loanName">
-							<dt>原借出</dt>
-							<dd>{{ line.loanName || draft.loanName }}</dd>
-						</div>
-						<div v-if="line.returnOutcome">
-							<dt>处理结果</dt>
-							<dd>
-								{{
-									line.returnOutcome === "lost"
-										? "遗失"
-										: line.returnOutcome === "damaged"
-											? "损坏归还"
-											: "完好归还"
-								}}
-							</dd>
-						</div>
-						<div v-if="line.manufacturingDate">
-							<dt>生产日期</dt>
-							<dd>{{ line.manufacturingDate }}</dd>
-						</div>
-						<div v-if="line.reason">
-							<dt>原因</dt>
-							<dd>{{ line.reason }}</dd>
-						</div>
-					</dl>
-				</div>
+				</article>
 			</div>
-		</component>
+		</section>
 	</div>
+	<DataTable
+		v-else
+		:class="['allocation-summary-table', { 'is-collapsible': collapsible }]"
+		ariaLabel="单据物品明细"
+		:columns="columns"
+		:rows="tableRows"
+		:compact="collapsible"
+		empty-text="没有物品明细"
+		@toggle-group="toggleGroup"
+	>
+		<template #group-metrics="{ group }">
+			<span class="allocation-group-metrics">
+				{{ group.count }} 种物品 · {{ groupLines(group).length }} 条明细 ·
+				{{ totals(groupLines(group)) }}
+			</span>
+		</template>
+		<template #cell="{ column, row }">
+			<template v-if="column.id === 'image'">
+				<ItemImage
+					:item="{
+						...itemFor(row),
+					}"
+					:thumbnail-size="32"
+					:target-size="32"
+				/>
+			</template>
+			<RouterLink
+				v-else-if="column.id === 'item_name'"
+				class="allocation-item-link"
+				:title="String(row.item_name || '')"
+				:to="routeTarget('item-detail', { code: String(row.code || '') })"
+				>{{ String(row.item_name || "") }}</RouterLink
+			>
+			<template v-else-if="column.id === 'batch'">
+				<template v-if="lineFor(row).batchAllocations?.length">
+					<span
+						v-for="(allocation, index) in lineFor(row).batchAllocations"
+						:key="allocation.name || allocation.batch"
+						class="allocation-batch-values"
+					>
+						<span v-if="index"> · </span>
+						<RouterLink
+							v-if="allocation.batch"
+							class="allocation-batch-link"
+							:to="routeTarget('batch-detail', { name: allocation.batch })"
+							>{{ allocation.batch }}</RouterLink
+						>
+					</span>
+				</template>
+				<RouterLink
+					v-else-if="row.batch_name"
+					class="allocation-batch-link"
+					:to="routeTarget('batch-detail', { name: String(row.batch_name) })"
+					>{{ String(row.batch) }}</RouterLink
+				>
+				<template v-else>{{ String(row.batch || "") }}</template>
+			</template>
+			<template v-else-if="column.id === 'quantity'">
+				<span class="allocation-quantity">{{ quantityText(lineFor(row)) }}</span>
+			</template>
+			<template v-else-if="column.id === 'destination'">
+				<LocationEndpoint
+					:warehouse="lineFor(row).location"
+					kind="Transfer"
+					role="去向位置"
+				/>
+			</template>
+			<template v-else-if="column.id === 'original_loan'">{{
+				lineFor(row).loanName || draft.loanName
+			}}</template>
+			<template v-else-if="column.id === 'outcome'">
+				{{
+					lineFor(row).returnOutcome === "lost"
+						? "遗失"
+						: lineFor(row).returnOutcome === "damaged"
+							? "损坏归还"
+							: "完好归还"
+				}}
+			</template>
+			<template v-else-if="column.id === 'reason'">{{ lineFor(row).reason }}</template>
+			<template v-else-if="column.id === 'note'">{{
+				lineFor(row).note || lineFor(row).allocationNote
+			}}</template>
+		</template>
+	</DataTable>
 </template>
 
 <style scoped>
-.preview-allocation-summary {
-	display: grid;
-	gap: var(--p-space-3);
+.allocation-summary-table {
 	min-width: 0;
 }
-.preview-allocation-summary .allocation-summary-entry {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	align-items: start;
-	column-gap: var(--p-space-2);
-	margin: var(--p-space-2) 0;
-	overflow-wrap: anywhere;
+.allocation-group-metrics {
+	margin-inline-start: var(--p-space-2);
+	color: var(--p-text-muted);
+	font-size: var(--p-small);
 }
-.allocation-summary-identity {
-	display: flex;
-	min-width: 0;
-	align-items: baseline;
-	gap: 4px;
+.allocation-summary-table.is-collapsible .allocation-group-metrics {
+	flex: 1 0 100%;
+	margin-inline-start: 1.5rem;
+	white-space: normal;
 }
-.allocation-summary-quantity {
+.allocation-summary-table.is-collapsible :deep(.data-table-group-identity) {
+	flex-wrap: wrap;
+}
+.allocation-item-link {
+	display: -webkit-box;
+	max-width: 28rem;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	text-decoration: none;
+}
+.allocation-item-link:hover {
+	text-decoration: underline;
+}
+.allocation-quantity {
+	display: inline-block;
 	white-space: nowrap;
 }
-.allocation-summary-copy {
-	display: contents;
+.allocation-summary-table :deep(.data-table-group-count) {
+	display: none;
 }
-.allocation-summary-copy,
-.allocation-summary-identity > * {
+.allocation-batch-link {
+	white-space: nowrap;
+}
+.allocation-summary-table :deep(td.data-column-code > .allocation-batch-link) {
+	width: max-content;
+	max-width: none;
+	overflow: visible;
+	text-overflow: clip;
+}
+.allocation-summary-table :deep(td.data-column-code > .allocation-batch-values) {
+	display: inline-block;
+	width: max-content;
+	max-width: none;
+	overflow: visible;
+	text-overflow: clip;
+	white-space: nowrap;
+}
+.allocation-phone-list {
+	display: grid;
+	gap: var(--p-space-3);
+}
+.allocation-phone-group {
 	min-width: 0;
+}
+.allocation-phone-group-toggle {
+	display: flex;
+	width: 100%;
+	min-height: 48px;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--p-space-2);
+	padding: var(--p-space-2) 0;
+	border: 0;
+	border-bottom: 1px solid var(--p-border);
+	background: transparent;
+	color: inherit;
+	text-align: left;
+}
+.allocation-phone-group-heading {
+	display: grid;
+	min-width: 0;
+	gap: 2px;
+}
+.allocation-phone-group-heading > strong,
+.allocation-phone-group-heading > span {
 	overflow-wrap: anywhere;
 }
-.preview-allocation-summary small {
-	display: block;
+.allocation-phone-group-heading > span,
+.allocation-phone-meta {
+	color: var(--p-text-muted);
+	font-size: var(--p-small);
+}
+.allocation-phone-chevron {
+	flex: none;
+	font-size: 1.2rem;
+}
+.allocation-phone-rows {
+	display: grid;
+}
+.allocation-phone-row {
+	display: grid;
+	grid-template-columns: 48px minmax(0, 1fr);
+	min-width: 0;
+	align-items: center;
+	gap: var(--p-space-2);
+	padding: var(--p-space-2) 0;
+	border-bottom: 1px solid var(--p-border);
+}
+.allocation-phone-copy {
+	min-width: 0;
+}
+.allocation-phone-primary {
+	display: flex;
+	min-width: 0;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--p-space-2);
+}
+.allocation-phone-primary .allocation-item-link {
+	display: -webkit-box;
+	min-width: 0;
+	flex: 1 1 auto;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	-webkit-line-clamp: 2;
+}
+.allocation-phone-quantity {
+	flex: none;
+	text-align: right;
+	white-space: nowrap;
+}
+.allocation-phone-quantity > span {
+	color: var(--p-text-muted);
+	font-weight: 400;
+}
+.allocation-phone-meta {
+	margin-top: 2px;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
 }
 </style>

@@ -9,6 +9,7 @@ import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import type { SavedItemConversions } from "../conversions/useConversionEditor";
 import { useConfirm } from "../../services/confirm";
 import { unitLabel } from "../../lib/units";
+import { formatConversion } from "../../lib/conversionText";
 const props = defineProps<{ item: StockItem; disabled?: boolean; inline?: boolean }>();
 const emit = defineEmits<{
 	dirtyChange: [dirty: boolean];
@@ -49,7 +50,9 @@ function edit() {
 	>
 		<p>库存单位：{{ unitLabel(item.uom) }}（只读）</p>
 		<p v-for="row in item.alternateUnits" :key="row.uom">
-			1 {{ unitLabel(row.uom) }} = {{ row.factor }} {{ unitLabel(item.uom) }}
+			{{
+				formatConversion({ qty: 1, uom: row.uom, factor: row.factor, stockUom: item.uom })
+			}}
 		</p>
 		<UiButton :disabled="disabled" @click="edit">编辑常用换算</UiButton>
 		<Overlay v-if="line" :title="`${item.name} · 常用换算`" @close="close">

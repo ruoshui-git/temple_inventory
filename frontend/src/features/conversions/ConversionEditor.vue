@@ -7,6 +7,7 @@ import { useFormValidation } from "../../composables/useFormValidation";
 import type { ConversionLine } from "../../lib/quantityConversion";
 import type { StockItem } from "../../lib/stockPresentation";
 import { unitLabel } from "../../lib/units";
+import { formatConversion } from "../../lib/conversionText";
 import { useConversionEditor, type SavedItemConversions } from "./useConversionEditor";
 const props = defineProps<{
 	line: ConversionLine;
@@ -173,9 +174,16 @@ async function saveNewUnit() {
 			</template>
 		</FormField>
 		<p v-if="!reusableOnly" role="status">
-			{{ quantity }} {{ unitLabel(unit) }} · 折合
-			{{ factor === "" ? "待填写比例" : Number(quantity) * Number(factor) }}
-			{{ unitLabel(line.uom) }}
+			{{
+				factor === ""
+					? `${quantity} ${unitLabel(unit)} · 待填写比例`
+					: formatConversion({
+							qty: Number(quantity),
+							uom: unit,
+							factor: Number(factor),
+							stockUom: line.uom,
+						}) || `${quantity} ${unitLabel(unit)}`
+			}}
 		</p>
 		<p v-if="replacement">
 			将替换原换算：1 {{ unitLabel(unit) }} = {{ savedFactor }} {{ unitLabel(line.uom) }}

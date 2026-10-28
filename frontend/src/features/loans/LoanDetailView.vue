@@ -16,6 +16,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 import { unitLabel } from "../../lib/units";
+import { formatConversion } from "../../lib/conversionText";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -146,18 +147,25 @@ function settle(action: SettlementAction) {
 							<LocationEndpoint
 								:warehouse="line.s_warehouse"
 								kind="Loan"
-								role="来源位置" />
-							→ 实际借出位置
-							<LocationEndpoint
-								:warehouse="line.t_warehouse"
-								kind="Loan"
-								:borrower="loan.ti_borrower"
-								role="去向位置"
+								role="来源位置"
 						/></small>
 						<small
-							>填写 {{ line.qty }} {{ unitLabel(String(line.uom || "")) }} · 1
-							{{ unitLabel(String(line.uom || "")) }} = {{ line.conversion_factor }}
-							{{ unitLabel(String(line.stock_uom || "")) }}</small
+							v-if="
+								formatConversion({
+									qty: Number(line.qty),
+									uom: String(line.uom || ''),
+									factor: Number(line.conversion_factor),
+									stockUom: String(line.stock_uom || ''),
+								})
+							"
+							>{{
+								formatConversion({
+									qty: Number(line.qty),
+									uom: String(line.uom || ""),
+									factor: Number(line.conversion_factor),
+									stockUom: String(line.stock_uom || ""),
+								})
+							}}</small
 						>
 						<div
 							v-for="allocation in line.allocations"

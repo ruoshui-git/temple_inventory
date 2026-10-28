@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
 import {
@@ -18,14 +18,15 @@ const ButtonStub = defineComponent({
   props: ["disabled", "type", "loading", "variant", "ariaPressed"],
   emits: ["click"],
   template:
-    '<button :disabled="disabled" :type="type || \'button\'" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
+    '<button :disabled="disabled" :type="type || \'button\'" :data-variant="variant" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
 });
+const revealIssue = vi.fn();
 const OperationLinesStub = defineComponent({
   name: "OperationLines",
   props: ["expanded"],
   emits: ["expand", "notify"],
   setup(_, { expose }) {
-    expose({ itemPickerReady: () => true, openPicker: vi.fn() });
+    expose({ itemPickerReady: () => true, openPicker: vi.fn(), revealIssue });
     return () => h("div");
   },
 });
@@ -33,6 +34,9 @@ const PageHeaderStub = defineComponent({
   name: "PageHeader",
   template:
     '<header class="form-page-heading"><slot /><slot name="back" /><slot name="actions" /></header>',
+});
+const OverlayStub = defineComponent({
+  template: '<div class="overlay-stub"><slot /><slot name="footer" /></div>',
 });
 
 function setDesktop(matches: boolean) {
@@ -57,7 +61,10 @@ function setup(matches: boolean, attach = false) {
     siteTime: "2026-10-21 10:00:00",
     physicalLeaves: ["ROOM-A"],
     warehouses: [{ name: "ROOM-A", label: "房间甲", is_group: false }],
-    units: [{ name: "Nos", whole: true }],
+    units: [
+      { name: "Nos", label: "个", whole: true },
+      { name: "Sheet", label: "张", whole: true },
+    ],
   });
   const draft = reactive(newOperation("Receive", reference));
   const state = reactive({
@@ -134,7 +141,7 @@ function setup(matches: boolean, attach = false) {
         TransactionContext: true,
         Attachments: true,
         RecoverySummary: true,
-        Overlay: true,
+        Overlay: OverlayStub,
         SearchSelect: true,
         RemoteSelect: true,
         NativeStatusBadge: true,
@@ -147,6 +154,160 @@ function setup(matches: boolean, attach = false) {
 }
 
 describe("operation review rail collapse", () => {
+  beforeEach(() => revealIssue.mockClear());
+  it("shows only location and overall aggregates in a read-only review rail", async () => {
+    const { wrapper, draft, controller } = setup(true);
+    Object.assign(controller.state, { server: { editable: false } });
+    draft.items.push(
+      {
+        id: "LINE-A",
+        localId: "LINE-A",
+        code: "ITEM-A",
+        qty: 24,
+        uom: "Nos",
+        entryQty: 2,
+        entryUom: "Box",
+        location: "ROOM-A",
+      },
+      {
+        id: "LINE-B",
+        localId: "LINE-B",
+        code: "ITEM-B",
+        qty: 3,
+        uom: "Nos",
+        location: "ROOM-B",
+      },
+    );
+    await flushPromises();
+    expect(wrapper.findAll(".review-location-totals li")).toHaveLength(2);
+    expect(wrapper.text()).toContain("3 个");
+    expect(wrapper.text()).toContain("24 个");
+    expect(wrapper.text()).toContain("27 个");
+    expect(wrapper.text()).not.toContain("2 箱");
+    expect(wrapper.find(".review-lines-disclosure").exists()).toBe(false);
+    expect(wrapper.find(".review-preview-content .eyebrow").exists()).toBe(
+      false,
+    );
+    expect(wrapper.text()).not.toContain("确认前请核对物品、数量和库位");
+  });
+
+  it("keeps stock-unit labels on every overall and location total", async () => {
+    const { wrapper, draft, controller } = setup(true);
+    Object.assign(controller.state, { server: { editable: false } });
+    draft.items.push(
+      {
+        id: "LINE-NOS",
+        localId: "LINE-NOS",
+        code: "ITEM-NOS",
+        qty: 24,
+        uom: "Nos",
+        entryQty: 2,
+        entryUom: "Box",
+        location: "ROOM-A",
+      },
+      {
+        id: "LINE-SHEET",
+        localId: "LINE-SHEET",
+        code: "ITEM-SHEET",
+        qty: 1,
+        uom: "",
+        entryQty: 1,
+        entryUom: "Sheet",
+        nativeFields: { stock_uom: "Sheet" },
+        location: "ROOM-B",
+      },
+    );
+    await flushPromises();
+    expect(wrapper.text()).toContain("24 个 · 1 张");
+    expect(wrapper.text()).not.toMatch(/(?:^| · )1(?: ·|$)/);
+  });
+
+  it("summarizes only relevant empty review fields and omits empty irrelevant fields", async () => {
+    const { wrapper, draft, controller } = setup(true);
+    draft.items.push({
+      id: "LINE-A",
+      localId: "LINE-A",
+      code: "ITEM-A",
+      qty: 1,
+      uom: "Nos",
+      location: "ROOM-A",
+    });
+    controller.reviewOpen.value = true;
+    await flushPromises();
+    expect(wrapper.text()).toContain(
+      "未填写：关联活动、来源、记录人、经手人、鉴证人",
+    );
+    expect(wrapper.text()).not.toContain("借用方");
+    expect(wrapper.text()).not.toContain("未填写来源");
+  });
+
+  it("uses 操作汇总 in the read-only phone summary", async () => {
+    const { wrapper, draft, controller } = setup(false);
+    Object.assign(controller.state, { server: { editable: false } });
+    draft.items.push({
+      id: "LINE-A",
+      localId: "LINE-A",
+      code: "ITEM-A",
+      qty: 1,
+      uom: "Nos",
+      location: "ROOM-A",
+    });
+    await flushPromises();
+    expect(wrapper.find(".review-preview-summary").text()).toContain(
+      "操作汇总",
+    );
+    expect(wrapper.find(".review-preview-summary").text()).not.toContain(
+      "确认前检查",
+    );
+  });
+
+  it("keeps the edit aside aggregated and jumps to the first incomplete line", async () => {
+    const { wrapper, draft, controller } = setup(true);
+    draft.items.push(
+      {
+        id: "LINE-A",
+        localId: "LINE-A",
+        code: "ITEM-A",
+        qty: 0,
+        uom: "Nos",
+        location: "ROOM-A",
+      },
+      {
+        id: "LINE-B",
+        localId: "LINE-B",
+        code: "ITEM-B",
+        qty: 1,
+        uom: "Nos",
+        location: "ROOM-B",
+      },
+    );
+    controller.issues.value = [
+      { lineId: "LINE-A", field: "qty", message: "请填写有效数量" },
+      { lineId: "LINE-A", field: "expiry", message: "请填写效期" },
+      { lineId: "LINE-B", field: "location", message: "请选择库位" },
+    ];
+    await flushPromises();
+
+    expect(wrapper.findAll(".review-location-totals li")).toHaveLength(2);
+    expect(wrapper.text()).toContain("2 行待完善");
+    expect(wrapper.text()).toContain("数量 1 行 · 效期 1 行 · 库位 1 行");
+    expect(wrapper.find(".review-lines-disclosure").exists()).toBe(false);
+    await wrapper.get(".review-line-checks button").trigger("click");
+    expect(revealIssue).toHaveBeenCalledWith(controller.issues.value[0]);
+  });
+
+  it("uses a normal primary confirmation tone when duplicating a document", async () => {
+    const { wrapper, controller } = setup(true);
+    controller.action.value = "duplicate";
+    await flushPromises();
+    expect(
+      wrapper
+        .findAll(".overlay-stub button")
+        .at(-1)
+        ?.attributes("data-variant"),
+    ).toBe("primary");
+  });
+
   it("opens review with Ctrl+Enter from a text field and never confirms", async () => {
     const { wrapper, controller } = setup(true, true);
     controller.canSubmit.value = true;

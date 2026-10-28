@@ -66,6 +66,7 @@ describe("browser fixture routes satisfy production component contracts", () => 
           variant: invalid ? "Receive-50-invalid" : "Receive-50",
         },
         attachTo: document.body,
+        global: { stubs: { RouterLink: RouterLinkStub } },
       });
       wrappers.push(wrapper);
       await flushPromises();

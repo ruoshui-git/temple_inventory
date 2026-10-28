@@ -14,7 +14,9 @@ export const RouterLinkStub = defineComponent({
           ? props.to
           : target.name === "item-detail"
             ? `/stock/items/${encodeURIComponent(target.params?.code || "")}`
-            : "#";
+            : target.name === "movements"
+              ? `/movements${target.query ? `?${new URLSearchParams(target.query as Record<string, string>)}` : ""}`
+              : "#";
       return h("a", { href }, slots.default?.());
     };
   },

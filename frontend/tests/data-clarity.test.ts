@@ -203,7 +203,9 @@ describe("data clarity components", () => {
     wrappers.push(wrapper);
     expect(wrapper.text()).toContain("活动服务团队 · 07-14");
     expect(wrapper.text()).not.toContain("MAT-STE-2026-01279");
-    expect(wrapper.get("button").attributes("title")).toBe("MAT-STE-2026-01279");
+    expect(wrapper.get("button").attributes("title")).toBe(
+      "MAT-STE-2026-01279",
+    );
   });
 
   it("names the related kind and identity in RecordRef's accessible label", async () => {
@@ -311,7 +313,8 @@ describe("data clarity components", () => {
     document.querySelector<HTMLButtonElement>(".related-loan-card")?.click();
     await flushPromises();
     expect(document.body.textContent).toContain("完好归还");
-    expect(document.body.textContent).toContain("来源→去向");
+    expect(document.body.textContent).toContain("原存放");
+    expect(document.body.textContent).not.toContain("来源→去向");
     expect(document.body.textContent).toContain("活动周转箱");
     expect(document.body.textContent).toContain("备注");
   });
