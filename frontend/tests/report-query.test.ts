@@ -99,6 +99,25 @@ describe("canonical routed report queries", () => {
     });
     expect(result.query.scope.warehouses).toEqual(["A", "B"]);
   });
+  it("round trips item tracking, person, borrower and item status filters", () => {
+    const query = newReportQuery("loans");
+    query.scope.tracking = "expiry";
+    query.person = { name: "张三", role: "handler" };
+    query.borrower = "办公室";
+    query.loanOutcome = "damaged";
+    query.itemStatus = "disabled";
+    expect(decodeReportQuery(query)).toMatchObject({ error: "", query });
+    expect(
+      decodeReportQuery({ ...query, person: { name: "张三", role: "witness" } })
+        .error,
+    ).not.toBe("");
+    expect(
+      decodeReportQuery({
+        ...query,
+        scope: { ...query.scope, tracking: "batch_only" },
+      }).error,
+    ).not.toBe("");
+  });
   it("validates ordered grouping fields by report grain and rejects the retired field", () => {
     const query = newReportQuery("inventory");
     query.groupBy = ["category", "item"];
@@ -202,6 +221,12 @@ describe("canonical routed report queries", () => {
       from: "2025-10-01",
       to: "2025-12-31",
     });
+    expect(
+      resolveSitePeriod({ key: "q2", from: "", to: "" }, "2026-10-20"),
+    ).toEqual({ from: "2026-04-01", to: "2026-06-30" });
+    expect(
+      resolveSitePeriod({ key: "last_year", from: "", to: "" }, "2026-10-20"),
+    ).toEqual({ from: "2025-01-01", to: "2025-12-31" });
   });
   it("includes applied custom dates in the collapsed period summary", () => {
     expect(
@@ -209,7 +234,7 @@ describe("canonical routed report queries", () => {
         { key: "custom", from: "2025-04-01", to: "2025-06-30" },
         "2026-10-21",
       ),
-    ).toBe("自定义 · 2025-04-01 至 2025-06-30");
+    ).toBe("自定义（2025-04-01 至 2025-06-30）");
   });
 });
 

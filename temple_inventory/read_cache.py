@@ -13,7 +13,7 @@ from frappe.utils import now_datetime
 
 CACHE_TTL = 300
 MAX_ENTRY_BYTES = 16 * 1024 * 1024
-IMPLEMENTATION_VERSION = "browse-v2"
+IMPLEMENTATION_VERSION = "browse-v3"
 GENERATION_KEY = "temple_inventory:browse:generation"
 LOCK_WAIT_SECONDS = 3
 CACHEABLE_METHODS = {
@@ -467,6 +467,14 @@ def _projection_identity(projection, generation, permission, configuration):
 	for field in ("search", "relatedSearch"):
 		if isinstance(query.get(field), str):
 			query[field] = query[field].strip().casefold()
+	for field in ("borrower",):
+		if isinstance(query.get(field), str):
+			query[field] = query[field].strip().casefold()
+	if isinstance(query.get("person"), dict):
+		query["person"] = {
+			**query["person"],
+			"name": str(query["person"].get("name") or "").strip().casefold(),
+		}
 	for period in (query["scope"].get("period"), query.get("relatedPeriod")):
 		if not isinstance(period, dict) or not period.get("key"):
 			continue

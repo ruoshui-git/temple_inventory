@@ -1,18 +1,38 @@
 <script setup lang="ts">
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import type { OperationBrowse } from "./useOperationBrowse";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
-
+import RemoteSelect from "../../components/ui/RemoteSelect.vue";
+import { useFilterChoices } from "../references/useFilterChoices";
+const choices = useFilterChoices();
 const props = defineProps<{
 	controller: OperationBrowse;
 	family: "movements" | "loans";
 	records: boolean;
 	hierarchyInRail?: boolean;
 }>();
+const personRoleLabels: Record<string, string> = {
+	any: "任一角色",
+	recorder: "记录人",
+	handler: "经手人",
+	reviewer: "鉴证人",
+};
+const loadPeople = (search: string, start: number, signal: AbortSignal) =>
+	choices.loadPeople(search, start, signal, String(props.controller.query.value.person.role));
+const loadBorrowers = choices.loadBorrowers;
+function setPersonName(name: string) {
+	query.value.person = {
+		...query.value.person,
+		name,
+		...(name ? {} : { role: "any" }),
+	};
+}
+
 const { query, scope, status, statusChoices, extraChips, historyScope } = props.controller;
 </script>
 <template>
@@ -64,6 +84,75 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 						:label="family === 'movements' ? '流动日期' : '借出日期'"
 						embedded
 					/>
+				</details>
+				<ItemStatusFilter v-model="query.itemStatus" />
+				<details class="browse-filter-disclosure" data-filter-field="person">
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />人员<small>{{
+							query.person.name || "不限"
+						}}</small>
+					</summary>
+					<RemoteSelect
+						label="人员"
+						:model-value="query.person.name"
+						:context="query.person.role"
+						:load="loadPeople"
+						@update:model-value="setPersonName($event)"
+					/>
+					<label class="preview-field"
+						>角色<select
+							v-model="query.person.role"
+							aria-label="人员角色"
+							:disabled="!query.person.name"
+						>
+							<option
+								v-for="(label, role) in personRoleLabels"
+								:key="role"
+								:value="role"
+							>
+								{{ label }}
+							</option>
+						</select></label
+					>
+				</details>
+				<details
+					v-if="family === 'loans'"
+					class="browse-filter-disclosure"
+					data-filter-field="borrower"
+				>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />借用方<small>{{
+							query.borrower || "不限"
+						}}</small>
+					</summary>
+					<RemoteSelect label="借用方" v-model="query.borrower" :load="loadBorrowers" />
+				</details>
+				<details
+					v-if="family === 'loans'"
+					class="browse-filter-disclosure"
+					data-filter-field="loanOutcome"
+				>
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />归还结果<small>{{
+							query.loanOutcome === "all"
+								? "全部"
+								: query.loanOutcome === "returned"
+									? "归还"
+									: query.loanOutcome === "damaged"
+										? "损坏"
+										: query.loanOutcome === "lost"
+											? "遗失"
+											: "未归还"
+						}}</small>
+					</summary>
+					<label class="preview-field"
+						>归还结果<select v-model="query.loanOutcome" aria-label="归还结果">
+							<option value="all">全部</option>
+							<option value="returned">归还</option>
+							<option value="damaged">损坏</option>
+							<option value="lost">遗失</option>
+						</select></label
+					>
 				</details>
 				<details
 					v-if="records"

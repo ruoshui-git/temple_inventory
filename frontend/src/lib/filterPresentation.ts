@@ -3,6 +3,7 @@ import type { BrowseScope } from "./browseQuery";
 import { periodLabels } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
 import { movementIcon, movementLabels } from "./kindIcons";
+import { sitePeriodSummary } from "./sitePeriod";
 export { movementLabels } from "./kindIcons";
 export type ScopeFilterField = Exclude<
   keyof BrowseScope,
@@ -16,6 +17,7 @@ export const scopeFilterLabels: Record<ScopeFilterField, string> = {
   kinds: "流动类型",
   sources: "来源位置",
   destinations: "去向位置",
+  tracking: "物品追踪",
 };
 export function scopeValueLabel(
   field: ScopeFilterField,
@@ -34,17 +36,31 @@ export function scopeValueLabel(
     return (
       reference.categories.find((row) => row.name === value)?.label || value
     );
+  if (field === "tracking")
+    return (
+      (
+        {
+          batch: "按批次管理",
+          expiry: "记录效期",
+          none: "不按批次管理",
+          batch_only: "仅批次（不记录效期）",
+        } as Record<string, string>
+      )[value] || value
+    );
   return warehouseLabel(value, reference.warehouses, value);
 }
 export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
   const chips = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
     (field) => {
       const selected = scope[field];
-      const values = Array.isArray(selected)
-        ? selected
-        : selected
-          ? [selected]
-          : [];
+      const values =
+        field === "tracking" && selected === "all"
+          ? []
+          : Array.isArray(selected)
+            ? selected
+            : selected
+              ? [selected]
+              : [];
       return values.map((value) => ({
         key: `${field}:${value}`,
         field,
@@ -78,11 +94,14 @@ export function scopeFilterFieldChips(
   }> = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
     (field) => {
       const selected = scope[field];
-      const values = Array.isArray(selected)
-        ? [...selected]
-        : selected
-          ? [selected]
-          : [];
+      const values =
+        field === "tracking" && selected === "all"
+          ? []
+          : Array.isArray(selected)
+            ? [...selected]
+            : selected
+              ? [selected]
+              : [];
       if (field === "categories" && scope.uncategorized)
         values.push("__uncategorized__");
       if (!values.length) return [];
@@ -91,9 +110,11 @@ export function scopeFilterFieldChips(
         .map((value) =>
           value === "__uncategorized__"
             ? "无分类"
-            : reference
-              ? scopeValueLabel(field, value, reference)
-              : value,
+            : field === "tracking"
+              ? scopeValueLabel(field, value, reference as ReferenceData)
+              : reference
+                ? scopeValueLabel(field, value, reference)
+                : value,
         );
       const remaining = values.length - visible.length;
       return [
@@ -110,8 +131,9 @@ export function scopeFilterFieldChips(
     },
   );
   if (scope.period.key !== "all") {
-    const value =
-      scope.period.key === "custom"
+    const value = reference
+      ? sitePeriodSummary(scope.period, reference.siteDate)
+      : scope.period.key === "custom"
         ? [scope.period.from, scope.period.to].filter(Boolean).join(" – ") ||
           "日期待补全"
         : periodLabels[scope.period.key];
@@ -130,6 +152,10 @@ export function clearScopeField(
 ) {
   if (field === "period") {
     scope.period = { key: "all", from: "", to: "" };
+    return;
+  }
+  if (field === "tracking") {
+    scope.tracking = "all";
     return;
   }
   const value = scope[field];

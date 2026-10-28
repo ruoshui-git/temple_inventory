@@ -7,14 +7,11 @@ import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import NotificationRows from "./NotificationRows.vue";
 import { useNotifications } from "./useNotifications";
 const c = useNotifications(20, true);
-watch(c.unreadOnly, () => void c.refresh());
+watch([c.unreadOnly, c.notificationType], () => void c.refresh());
 </script>
 <template>
 	<section class="preview-utility-page notification-page">
-		<PageHeader
-			><h1 tabindex="-1">通知</h1>
-			></PageHeader
-		>
+		<PageHeader><h1 tabindex="-1">通知</h1></PageHeader>
 		<div class="notification-page-actions">
 			<div class="segmented" role="group" aria-label="通知筛选">
 				<button :aria-pressed="!c.unreadOnly.value" @click="c.unreadOnly.value = false">
@@ -24,6 +21,18 @@ watch(c.unreadOnly, () => void c.refresh());
 					未读
 				</button>
 			</div>
+			<label class="preview-field notification-type-filter"
+				>通知类型<select v-model="c.notificationType.value" aria-label="通知类型">
+					<option value="all">全部类型</option>
+					<option
+						v-for="type in c.notificationTypes.value"
+						:key="type.value"
+						:value="type.value"
+					>
+						{{ type.label }}
+					</option>
+				</select></label
+			>
 			<UiButton
 				class="notification-mark-all"
 				size="compact"

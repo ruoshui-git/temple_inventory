@@ -46,5 +46,32 @@ export function useFilterChoices() {
       remember(reference.activities, rows);
       return { rows, total: result.matched_count, next: result.next_start };
     },
+    async loadPeople(
+      search: string,
+      _start: number,
+      signal: AbortSignal,
+      role = "any",
+    ) {
+      const result = await services.call<
+        { value: string; label: string; count: number }[]
+      >("people.recorded_names", { search, role, limit: 30 }, signal);
+      const rows = result.map((row) => ({
+        value: row.value,
+        label: row.label,
+        detail: `${row.count} 条记录`,
+      }));
+      return { rows, total: result.length, next: null };
+    },
+    async loadBorrowers(search: string, _start: number, signal: AbortSignal) {
+      const result = await services.call<
+        { value: string; label: string; count: number }[]
+      >("people.borrowers", { search, limit: 30 }, signal);
+      const rows = result.map((row) => ({
+        value: row.value,
+        label: row.label,
+        detail: `${row.count} 条借用`,
+      }));
+      return { rows, total: result.length, next: null };
+    },
   };
 }

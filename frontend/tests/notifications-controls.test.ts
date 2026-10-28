@@ -31,13 +31,16 @@ afterEach(() => {
 function harness(
   controller: "inbox" | "settings",
   call: ReturnType<typeof vi.fn>,
+  fullPage = false,
 ) {
   const reference = createReferenceData();
   Object.assign(reference, { user: "alice", site: "site" });
   const Child = defineComponent({
     setup() {
       const c =
-        controller === "inbox" ? useNotifications() : useNotificationSettings();
+        controller === "inbox"
+          ? useNotifications(20, fullPage)
+          : useNotificationSettings();
       const settings = "preferences" in c;
       return () =>
         h("div", [
@@ -49,6 +52,30 @@ function harness(
             },
             "mark",
           ),
+          settings
+            ? null
+            : h(
+                "select",
+                {
+                  id: "notification-type",
+                  value: c.notificationType.value,
+                  onChange: (event: Event) =>
+                    (c.notificationType.value = (
+                      event.target as HTMLSelectElement
+                    ).value),
+                },
+                [
+                  h("option", { value: "all" }, "全部类型"),
+                  h("option", { value: "效期提醒" }, "效期提醒"),
+                ],
+              ),
+          settings
+            ? null
+            : h(
+                "button",
+                { id: "refresh", onClick: () => c.refresh() },
+                "refresh",
+              ),
           h(
             "button",
             { id: "save", onClick: () => ("save" in c ? c.save() : undefined) },
@@ -147,6 +174,27 @@ describe("notification controller flows", () => {
     ).toBeGreaterThanOrEqual(3);
     expect(call).toHaveBeenCalledWith("notifications.mark_read", {
       names: '["N-1"]',
+    });
+  });
+
+  it("sends the selected notification type to the inbox endpoint", async () => {
+    const call = vi.fn(async (endpoint: string) => {
+      if (endpoint === "notifications.inbox_types")
+        return [{ value: "效期提醒", label: "效期提醒" }];
+      if (endpoint === "notifications.inbox")
+        return { items: [], unread_count: 0, has_running_exports: false };
+      return 0;
+    });
+    const wrapper = harness("inbox", call, true);
+    await flushPromises();
+    await wrapper.get("#notification-type").setValue("效期提醒");
+    await wrapper.get("#refresh").trigger("click");
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith("notifications.inbox", {
+      page: 1,
+      page_size: 20,
+      unread_only: false,
+      notification_type: "效期提醒",
     });
   });
 

@@ -284,10 +284,14 @@ def _app_types():
 
 
 @frappe.whitelist()
-def inbox(page=1, page_size=30, unread_only=False):
+def inbox(page=1, page_size=30, unread_only=False, notification_type="all"):
 	require_app()
 	page, page_size = max(1, int(page)), min(100, max(1, int(page_size)))
 	filters = {"for_user": frappe.session.user, "type": ["in", _app_types()]}
+	if notification_type and notification_type != "all":
+		if notification_type not in _app_types():
+			frappe.throw("请选择有效的通知类型")
+		filters["type"] = notification_type
 	if frappe.utils.cint(unread_only):
 		filters["read"] = 0
 	rows = frappe.get_all(
@@ -322,6 +326,20 @@ def inbox(page=1, page_size=30, unread_only=False):
 			)
 		),
 	}
+
+
+@frappe.whitelist()
+def inbox_types():
+	"""List enabled app-owned Notification Types for the current inbox."""
+	require_app()
+	rows = frappe.get_all(
+		"Notification Type",
+		filters={"type_name": ["in", _app_types()], "enabled": 1},
+		fields=["type_name"],
+		order_by="type_name asc",
+	)
+	enabled = {row.type_name for row in rows}
+	return [{"value": name, "label": name} for name in _app_types() if name in enabled]
 
 
 @frappe.whitelist()

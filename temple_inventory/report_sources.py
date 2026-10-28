@@ -474,6 +474,7 @@ class ReportContext:
 			"stock_uom_label": uom_label(item.stock_uom),
 			"image": image,
 			"batch_tracked": bool(item.has_batch_no),
+			"expiry_tracked": bool(item.has_expiry_date),
 			"disabled": bool(item.disabled),
 		}
 
@@ -488,6 +489,20 @@ class ReportContext:
 			return False
 		item = self.item(code)
 		if not item:
+			return False
+		tracking = self.scope.get("tracking", "all")
+		if tracking == "batch" and not item.has_batch_no:
+			return False
+		if tracking == "expiry" and not item.has_expiry_date:
+			return False
+		if tracking == "batch_only" and (not item.has_batch_no or item.has_expiry_date):
+			return False
+		if tracking == "none" and (item.has_batch_no or item.has_expiry_date):
+			return False
+		status = query.get("itemStatus", "enabled")
+		if status == "enabled" and item.disabled:
+			return False
+		if status == "disabled" and not item.disabled:
 			return False
 		if self.category_filter_active and not (
 			(self.categories is not None and item.item_group in self.categories)
@@ -547,6 +562,21 @@ class ReportContext:
 			return False
 		if query["loan"] and query["loan"] not in (row.get("original_loan"), row.get("document")):
 			return False
+		borrower = query.get("borrower", "").strip().casefold()
+		if borrower and borrower not in str(row.get("borrower") or "").casefold():
+			return False
+		person = query.get("person", {})
+		person_name = str(person.get("name") or "").strip().casefold()
+		if person_name:
+			fields = {
+				"recorder": row.get("recorder"),
+				"handler": row.get("handler"),
+				"reviewer": row.get("reviewer"),
+			}
+			role = person.get("role", "any")
+			values = fields.values() if role == "any" else (fields.get(role),)
+			if not any(person_name in str(value or "").casefold() for value in values):
+				return False
 		if query["damageOnly"] and not (
 			row.get("kind") in ("Damage", "Repair", "Disposal")
 			or row.get("outcome") == "Damaged"
@@ -948,13 +978,9 @@ def loan_rows(context):
 					if has_outstanding
 					else "Settled",
 				}
-				if query["view"] != "items" and query["outstandingOnly"] and outstanding <= 0:
+				if query["outstandingOnly"] and outstanding <= 0:
 					continue
-				if (
-					query["view"] != "items"
-					and query["loanOutcome"] != "all"
-					and row.get(query["loanOutcome"], 0) <= 0
-				):
+				if query["loanOutcome"] != "all" and row.get(query["loanOutcome"], 0) <= 0:
 					continue
 				if context.matches_line(row):
 					yield row
@@ -1359,10 +1385,12 @@ def activity_rows(context, *, metadata=True):
 			continue
 		if query["typeId"] and activity.activity_type != query["typeId"]:
 			continue
-		if context.scope["period"]["key"] != "all" and (
-			not activity.start_date or not in_period(activity.start_date, context.period)
-		):
-			continue
+		if context.scope["period"]["key"] != "all":
+			period_from, period_to = context.period["date_from"], context.period["date_to"]
+			if (activity.end_date and getdate(activity.end_date) < getdate(period_from)) or (
+				activity.start_date and getdate(activity.start_date) > getdate(period_to)
+			):
+				continue
 		if not context.matches_search([activity.name, activity.title, activity.description, activity.notes]):
 			continue
 		has_relations = next(activity_relations(context, activity.name), None) is not None

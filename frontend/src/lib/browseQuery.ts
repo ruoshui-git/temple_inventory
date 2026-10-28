@@ -6,6 +6,11 @@ export const periodLabels = {
   this_year: "本年",
   this_quarter: "本季度",
   last_quarter: "上季度",
+  q1: "第1季度",
+  q2: "第2季度",
+  q3: "第3季度",
+  q4: "第4季度",
+  last_year: "去年",
   last_7_days: "近7天",
   last_30_days: "近30天",
   last_90_days: "近90天",
@@ -28,6 +33,7 @@ export interface BrowseScope {
   sources: string[];
   destinations: string[];
   kinds: string[];
+  tracking: "all" | "batch" | "expiry" | "none" | "batch_only";
 }
 export const emptyScope = (): BrowseScope => ({
   period: { key: "all", from: "", to: "" },
@@ -39,4 +45,5 @@ export const emptyScope = (): BrowseScope => ({
   sources: [],
   destinations: [],
   kinds: [],
+  tracking: "all",
 });

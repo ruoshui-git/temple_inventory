@@ -79,7 +79,17 @@ export function decodeReportQuery(
       )
         continue;
       const actual = candidate[field];
-      if (typeof initial === "boolean") {
+      if (field === "person") {
+        if (
+          !record(actual) ||
+          typeof actual.name !== "string" ||
+          !["any", "recorder", "handler", "reviewer"].includes(
+            String(actual.role),
+          )
+        )
+          throw new Error("人员筛选无效");
+        target[field] = { name: text(actual.name), role: actual.role };
+      } else if (typeof initial === "boolean") {
         if (typeof actual !== "boolean") throw new Error("筛选值必须为是或否");
         target[field] = actual;
       } else if (typeof initial === "string") target[field] = text(actual);
@@ -125,6 +135,7 @@ export function decodeReportQuery(
       activityStatus: ["all", "active", "archived"],
       loanStatus: ["all", "outstanding", "open", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],
+      itemStatus: ["enabled", "disabled", "all"],
       countReviewed: ["all", "reviewed", "unreviewed", "difference"],
       relatedPresence: ["all", "yes", "no", "with", "without"],
       expiryWindow: [
@@ -160,6 +171,14 @@ export function decodeReportQuery(
                 : text(candidate.scope[field]);
       }
     }
+    if (
+      !(["all", "batch", "expiry", "none", "batch_only"] as string[]).includes(
+        query.scope.tracking,
+      )
+    )
+      throw new Error("物品追踪筛选无效");
+    if (query.scope.tracking === "batch_only" && query.dataset !== "expiry")
+      throw new Error("此数据集不支持该物品追踪筛选");
     if (
       query.dataset === "inventory" &&
       query.view === "historical" &&

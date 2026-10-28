@@ -42,6 +42,7 @@ import { formatQuantity } from "../../lib/formatQuantity";
 const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
+const expandedActivityKinds = ref(new Set<string>());
 defineExpose({
 	requestLeave: () => activityEditor.value?.requestLeave() ?? Promise.resolve(true),
 	breadcrumbLabel: () => activityEditor.value?.breadcrumbLabel() || current.value?.title,
@@ -174,6 +175,12 @@ function movementQuantities(kind: string) {
 	const sorted = sortByUnit([...byUnit], ([uom]) => uom);
 	return { shown: sorted.slice(0, 3), remaining: Math.max(0, sorted.length - 3), total: sorted };
 }
+function toggleActivityKind(kind: string) {
+	const expanded = new Set(expandedActivityKinds.value);
+	if (expanded.has(kind)) expanded.delete(kind);
+	else expanded.add(kind);
+	expandedActivityKinds.value = expanded;
+}
 function outstandingQuantities() {
 	const byUnit = new Map<string, number>();
 	for (const row of detail.value?.loan_totals || []) {
@@ -277,9 +284,12 @@ const activityPrefs = services
 					<PeriodFilter
 						:today="reference.siteDate"
 						v-model="state.period"
-						label="开始日期"
+						label="活动日期"
 						embedded
 					/>
+					<small
+						>按活动起止日期与所选范围重叠筛选；未填写开始或结束日期视为持续活动。</small
+					>
 					<label class="preview-field"
 						>流动类型<select v-model="state.kind">
 							<option value="">全部</option>
@@ -571,26 +581,55 @@ const activityPrefs = services
 				<p class="preview-long-text">{{ current.description || "未填写说明" }}</p>
 				<h3>货物流动</h3>
 				<div class="activity-movement-tiles">
-					<RouterLink
+					<div
 						v-for="count in activityKindCounts(current.id)"
 						:key="count.kind"
-						class="activity-movement-tile"
-						:to="activityTarget(current.id, count.kind)"
+						class="activity-movement-card"
 					>
-						<strong>{{ movementLabels[count.kind] || "其他类型" }}</strong>
-						<span class="activity-movement-tile-quantities">
-							<b
-								v-for="[uom, qty] in movementQuantities(count.kind).shown"
-								:key="uom"
+						<RouterLink
+							class="activity-movement-tile"
+							:to="activityTarget(current.id, count.kind)"
+						>
+							<strong>{{ movementLabels[count.kind] || "其他类型" }}</strong>
+							<span class="activity-movement-tile-quantities">
+								<b
+									v-for="[uom, qty] in movementQuantities(count.kind).shown"
+									:key="uom"
+								>
+									{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+								</b>
+								<template v-if="expandedActivityKinds.has(count.kind)">
+									<b
+										v-for="[uom, qty] in movementQuantities(
+											count.kind,
+										).total.slice(3)"
+										:key="`extra-${uom}`"
+										class="activity-movement-expanded-unit"
+									>
+										{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
+									</b>
+								</template>
+							</span>
+						</RouterLink>
+						<div class="activity-movement-meta-line">
+							<span class="activity-movement-tile-count"
+								>{{ count.count }} 份记录</span
 							>
-								{{ formatQuantity(qty) }} {{ unitLabel(uom) }}
-							</b>
-							<small v-if="movementQuantities(count.kind).remaining"
-								>+{{ movementQuantities(count.kind).remaining }} 单位</small
+							<button
+								v-if="movementQuantities(count.kind).remaining"
+								type="button"
+								class="activity-movement-disclosure"
+								:aria-expanded="expandedActivityKinds.has(count.kind)"
+								@click="toggleActivityKind(count.kind)"
 							>
-						</span>
-						<span class="activity-movement-tile-count">{{ count.count }} 份记录</span>
-					</RouterLink>
+								{{
+									expandedActivityKinds.has(count.kind)
+										? "收起"
+										: `+${movementQuantities(count.kind).remaining} 单位`
+								}}
+							</button>
+						</div>
+					</div>
 					<RouterLink
 						class="activity-movement-tile activity-outstanding-tile"
 						:to="activityLoansTarget(current.id)"

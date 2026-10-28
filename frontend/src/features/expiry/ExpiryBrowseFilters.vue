@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ExpiryBrowse } from "./useExpiryBrowse";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
@@ -19,10 +20,12 @@ const periodSummary = () =>
 		<BrowseFilters
 			v-model="scope"
 			:disclosure-mode="disclosureMode"
-			:fields="['item', 'categories', 'warehouses']"
+			:fields="['item', 'categories', 'tracking', 'warehouses']"
+			expiry-only
 			:hierarchy-in-rail="hierarchyInRail"
 			hide-activity
 		/>
+		<ItemStatusFilter v-model="query.itemStatus" />
 		<FilterDisclosure
 			label="到期日期"
 			field="period"

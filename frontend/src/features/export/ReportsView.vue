@@ -3,6 +3,7 @@ import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { siteDateTime } from "../../lib/nativeTime";
@@ -10,6 +11,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
+import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
@@ -25,11 +27,12 @@ import {
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
 import { computed, ref } from "vue";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
-import { periodLabels, sitePeriodSummary } from "../../lib/sitePeriod";
+import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
 import type { useExportWorkspaceController } from "./useReportController";
 import { operationLabels } from "../documents/operationCodec";
 import { kindIcons } from "../../lib/kindIcons";
+import { useFilterChoices } from "../references/useFilterChoices";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useExportWorkspaceController>;
@@ -69,6 +72,19 @@ const {
 	groups,
 } = props.controller;
 const availableGroups = computed(() => groupsForView(dataset.value, query.value.view));
+const filterChoices = useFilterChoices();
+const personRoleLabels: Record<string, string> = {
+	any: "任一角色",
+	recorder: "记录人",
+	handler: "经手人",
+	reviewer: "鉴证人",
+};
+const loadPeople = (search: string, start: number, signal: AbortSignal) =>
+	filterChoices.loadPeople(search, start, signal, query.value.person.role);
+const loadBorrowers = filterChoices.loadBorrowers;
+function setPersonName(name: string) {
+	query.value.person = { ...query.value.person, name, ...(name ? {} : { role: "any" }) };
+}
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && reference.operations[kind])
@@ -83,11 +99,9 @@ const scopeChips = computed(() => scopeFilterFieldChips(query.value.scope, refer
 const periodChip = computed(() => {
 	const period = query.value.scope.period;
 	if (period.key === "all") return undefined;
-	const label =
-		period.key === "custom"
-			? [period.from, period.to].filter(Boolean).join(" – ") || "日期待补全"
-			: periodLabels[period.key] || period.key;
-	return { label: `期间：${label}` };
+	return {
+		label: `${definition.value.dateLabel}：${sitePeriodSummary(period, reference.siteDate)}`,
+	};
 });
 const relatedPeriodChip = computed(() => {
 	if (
@@ -97,11 +111,9 @@ const relatedPeriodChip = computed(() => {
 	)
 		return undefined;
 	const value = query.value.relatedPeriod;
-	const summary =
-		value.key === "custom"
-			? [value.from, value.to].filter(Boolean).join(" – ")
-			: periodLabels[value.key];
-	return { label: `关联单据日期：${summary || "日期待补全"}` };
+	return {
+		label: `关联单据记账日期：${sitePeriodSummary(value, reference.siteDate)}`,
+	};
 });
 const availableSortColumns = computed(() =>
 	sortableColumnsForView(dataset.value, query.value.view),
@@ -275,9 +287,94 @@ function setGroup(index: number, value: string) {
 									['inventory', 'expiry', 'counts'].includes(dataset)
 								"
 								:movement="movementFilters"
+								:expiry-only="dataset === 'expiry'"
 								:hierarchy-in-rail="sidebarOpen && sidebarAvailable && !isMobile"
 								records
 							/>
+							<ItemStatusFilter
+								v-if="dataset !== 'activities'"
+								v-model="query.itemStatus"
+							/>
+							<details
+								v-if="['movements', 'loans', 'counts'].includes(dataset)"
+								class="browse-filter-disclosure"
+								data-filter-field="person"
+							>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />人员<small>{{
+										query.person.name || "不限"
+									}}</small>
+								</summary>
+								<RemoteSelect
+									label="人员"
+									:model-value="query.person.name"
+									:context="query.person.role"
+									:load="loadPeople"
+									@update:model-value="setPersonName($event)"
+								/>
+								<label class="preview-field"
+									>角色<select
+										v-model="query.person.role"
+										aria-label="人员角色"
+										:disabled="!query.person.name"
+									>
+										<option
+											v-for="(label, role) in personRoleLabels"
+											:key="role"
+											:value="role"
+										>
+											{{ label }}
+										</option>
+									</select></label
+								>
+							</details>
+							<details
+								v-if="dataset === 'loans'"
+								class="browse-filter-disclosure"
+								data-filter-field="borrower"
+							>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />借用方<small>{{
+										query.borrower || "不限"
+									}}</small>
+								</summary>
+								<RemoteSelect
+									label="借用方"
+									v-model="query.borrower"
+									:load="loadBorrowers"
+								/>
+							</details>
+							<details
+								v-if="dataset === 'loans'"
+								class="browse-filter-disclosure"
+								data-filter-field="loanOutcome"
+							>
+								<summary class="ti-disclosure">
+									<DisclosureIcon variant="inline" />归还结果<small>{{
+										query.loanOutcome === "all"
+											? "全部"
+											: query.loanOutcome === "returned"
+												? "归还"
+												: query.loanOutcome === "damaged"
+													? "损坏"
+													: query.loanOutcome === "lost"
+														? "遗失"
+														: "未归还"
+									}}</small>
+								</summary>
+								<label class="preview-field"
+									>归还结果<select
+										v-model="query.loanOutcome"
+										aria-label="归还结果"
+									>
+										<option value="all">全部</option>
+										<option value="returned">归还</option>
+										<option value="damaged">损坏</option>
+										<option value="lost">遗失</option>
+										<option value="outstanding">未归还</option>
+									</select></label
+								>
+							</details>
 						</div>
 					</section>
 					<section class="browse-filter-mega-section browse-filter-grouping">

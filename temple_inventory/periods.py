@@ -18,6 +18,11 @@ PERIOD_KEYS = {
 	"this_year",
 	"this_quarter",
 	"last_quarter",
+	"q1",
+	"q2",
+	"q3",
+	"q4",
+	"last_year",
 	"custom",
 }
 
@@ -45,9 +50,14 @@ def resolve_period(filters, default=False, today_provider=nowdate):
 			frappe.throw(_("Invalid custom date range"))
 		if start > end:
 			frappe.throw(_("Start date cannot be after end date"))
-	elif key in ("this_quarter", "last_quarter"):
+	elif key in ("this_quarter", "last_quarter", "q1", "q2", "q3", "q4"):
 		quarter = (today.month - 1) // 3
-		start_month = quarter * 3 + 1
+		if key.startswith("q"):
+			quarter = int(key[1:]) - 1
+			start_month = quarter * 3 + 1
+			year = today.year
+		else:
+			start_month = quarter * 3 + 1
 		if key == "last_quarter":
 			start_month -= 3
 			if start_month < 1:
@@ -64,6 +74,10 @@ def resolve_period(filters, default=False, today_provider=nowdate):
 			if key == "this_quarter"
 			else today.replace(year=year, month=end_month, day=monthrange(year, end_month)[1])
 		)
+	elif key == "last_year":
+		year = today.year - 1
+		start = today.replace(year=year, month=1, day=1)
+		end = today.replace(year=year, month=12, day=31)
 	else:
 		end = today
 		if key == "today":

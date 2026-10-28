@@ -306,6 +306,7 @@ SCOPE_DEFAULT = {
 	"sources": [],
 	"destinations": [],
 	"kinds": [],
+	"tracking": "all",
 }
 QUERY_DEFAULT = {
 	"search": "",
@@ -338,6 +339,9 @@ QUERY_DEFAULT = {
 	"activityKind": "",
 	"relatedPresence": "all",
 	"outstandingOnly": False,
+	"borrower": "",
+	"itemStatus": "enabled",
+	"person": {"name": "", "role": "any"},
 }
 
 
@@ -376,6 +380,8 @@ def validate_query(value):
 	}
 	for field, default in QUERY_DEFAULT.items():
 		if field not in value:
+			continue
+		if field == "person":
 			continue
 		candidate = value[field]
 		if isinstance(default, bool):
@@ -439,7 +445,7 @@ def validate_query(value):
 		frappe.throw("此数据集不支持所选视图或分组顺序")
 	query["groupBy"] = list(group_by)
 	if dataset == "loans" and query["view"] == "items":
-		query.update({"statuses": [1], "loanStatus": "all", "loanOutcome": "all", "outstandingOnly": False})
+		query.update({"statuses": [1], "loanStatus": "all", "outstandingOnly": False})
 	if dataset == "activities":
 		query["statuses"] = [1]
 	if (
@@ -451,6 +457,7 @@ def validate_query(value):
 		"activityStatus": ("all", "active", "archived"),
 		"loanStatus": ("all", "outstanding", "open", "settled"),
 		"loanOutcome": ("all", "outstanding", "returned", "damaged", "lost"),
+		"itemStatus": ("enabled", "disabled", "all"),
 		"countReviewed": ("all", "reviewed", "unreviewed", "difference"),
 		"relatedPresence": ("all", "yes", "no", "with", "without"),
 		"expiryWindow": (
@@ -466,6 +473,13 @@ def validate_query(value):
 	}.items():
 		if query[field] not in allowed:
 			frappe.throw("请选择有效的筛选值")
+	person = value.get("person", {})
+	if not isinstance(person, dict) or not isinstance(person.get("name", ""), str):
+		frappe.throw("人员筛选无效")
+	role = person.get("role", "any")
+	if role not in ("any", "recorder", "handler", "reviewer"):
+		frappe.throw("人员筛选无效")
+	query["person"] = {"name": person.get("name", "")[:2000], "role": role}
 	scope = value.get("scope", {})
 	if not isinstance(scope, dict):
 		frappe.throw("筛选范围无效")
@@ -483,6 +497,10 @@ def validate_query(value):
 			query["scope"][field] = scope[field]
 		else:
 			frappe.throw("筛选范围无效")
+	if query["scope"]["tracking"] not in ("all", "batch", "expiry", "none", "batch_only"):
+		frappe.throw("请选择有效的物品追踪方式")
+	if query["scope"]["tracking"] == "batch_only" and dataset != "expiry":
+		frappe.throw("此数据集不支持该物品追踪筛选")
 	if dataset == "inventory" and query["view"] == "historical" and query["scope"]["period"]["key"] == "all":
 		frappe.throw("历史库存需要有起止日期的范围")
 	return query

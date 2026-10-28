@@ -17,6 +17,8 @@ export function useNotifications(pageSize = 20, fullPage = false) {
   const loadingMore = ref(false);
   const error = ref("");
   const unreadOnly = ref(false);
+  const notificationType = ref("all");
+  const notificationTypes = ref<{ value: string; label: string }[]>([]);
   const hasMore = ref(true);
   let generation = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -66,6 +68,7 @@ export function useNotifications(pageSize = 20, fullPage = false) {
           page: reset ? 1 : Math.floor(rows.value.length / pageSize) + 1,
           page_size: pageSize,
           unread_only: fullPage && unreadOnly.value,
+          notification_type: fullPage ? notificationType.value : "all",
         },
       );
       if (!active() || current !== generation) return;
@@ -118,6 +121,13 @@ export function useNotifications(pageSize = 20, fullPage = false) {
   }
   onMounted(() => {
     void load();
+    if (fullPage)
+      void services
+        .call<{ value: string; label: string }[]>("notifications.inbox_types")
+        .then((rows) => {
+          if (active()) notificationTypes.value = rows;
+        })
+        .catch(() => undefined);
     window.addEventListener("focus", refreshOnFocus);
     window.addEventListener("inventory-notification-refresh", refreshOnAction);
     document.addEventListener("visibilitychange", refreshOnVisibility);
@@ -146,6 +156,8 @@ export function useNotifications(pageSize = 20, fullPage = false) {
     loadingMore,
     error,
     unreadOnly,
+    notificationType,
+    notificationTypes,
     hasMore,
     load,
     loadMore,

@@ -23,6 +23,15 @@ export function resolveSitePeriod(period: DatePeriod, today: string) {
     end.setTime(start.getTime());
     end.setUTCMonth(start.getUTCMonth() + 3, 0);
   }
+  if (/^q[1-4]$/.test(period.key)) {
+    const quarter = Number(period.key.slice(1)) - 1;
+    start.setUTCFullYear(date.getUTCFullYear(), quarter * 3, 1);
+    end.setUTCFullYear(date.getUTCFullYear(), quarter * 3 + 3, 0);
+  }
+  if (period.key === "last_year") {
+    start.setUTCFullYear(date.getUTCFullYear() - 1, 0, 1);
+    end.setUTCFullYear(date.getUTCFullYear() - 1, 11, 31);
+  }
   return {
     from: start.toISOString().slice(0, 10),
     to: end.toISOString().slice(0, 10),
@@ -32,5 +41,5 @@ export function resolveSitePeriod(period: DatePeriod, today: string) {
 export function sitePeriodSummary(period: DatePeriod, today: string) {
   if (period.key === "all") return "全部时间";
   const { from, to } = resolveSitePeriod(period, today);
-  return `${periodLabels[period.key] || period.key} · ${from || "未设置"} 至 ${to || "未设置"}`;
+  return `${periodLabels[period.key] || period.key}（${from || "未设置"} 至 ${to || "未设置"}）`;
 }

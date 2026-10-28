@@ -18,6 +18,7 @@ import {
   routeRegistry,
   routeTarget,
   restoreBrowseQueryPayload,
+  sanitizeBrowseQuery,
   guardReservedRoute,
   routeViewIdentity,
 } from "../src/lib/routeRegistry";
@@ -255,6 +256,14 @@ describe("canonical application route registry", () => {
       loanStatus: "all",
       scope: { activity: "ACT-1", kinds: ["Loan"] },
     });
+
+    const expirySource = newReportQuery("loans");
+    expirySource.borrower = "张三";
+    const expiryTarget = sanitizeBrowseQuery({
+      ...expirySource,
+      dataset: "expiry",
+    });
+    expect(expiryTarget.borrower).toBe("");
   });
 
   it("keeps every browse-link builder decodable against its target report contract", () => {

@@ -836,6 +836,92 @@ class NativeReportTests(NativeDocumentTests):
 			resolve("last_quarter", "2026-01-19"),
 			{"key": "last_quarter", "date_from": "2025-10-01", "date_to": "2025-12-31"},
 		)
+		for key, expected in (
+			("q1", ("2026-01-01", "2026-03-31")),
+			("q2", ("2026-04-01", "2026-06-30")),
+			("q3", ("2026-07-01", "2026-09-30")),
+			("q4", ("2026-10-01", "2026-12-31")),
+			("last_year", ("2025-01-01", "2025-12-31")),
+		):
+			resolved = resolve(key, "2026-10-28")
+			self.assertEqual((resolved["date_from"], resolved["date_to"]), expected)
+
+	def test_filter_contract_validates_tracking_people_borrower_and_item_status(self):
+		query = self.query(
+			"loans",
+			"records",
+			scope={"item": self.item, "warehouses": [self.root], "tracking": "expiry"},
+			person={"name": "张三", "role": "handler"},
+			borrower="办公室",
+			itemStatus="disabled",
+			loanOutcome="damaged",
+		)
+		self.assertEqual(query["scope"]["tracking"], "expiry")
+		self.assertEqual(query["person"], {"name": "张三", "role": "handler"})
+		self.assertEqual(query["borrower"], "办公室")
+		self.assertEqual(query["itemStatus"], "disabled")
+		item_outcome_query = self.query("loans", "items", loanOutcome="lost")
+		self.assertEqual(item_outcome_query["loanOutcome"], "lost")
+		with self.assertRaises(frappe.ValidationError):
+			validate_query({**query, "person": {"name": "张三", "role": "witness"}})
+		with self.assertRaises(frappe.ValidationError):
+			validate_query({**query, "scope": {**query["scope"], "tracking": "invalid"}})
+
+	def test_report_line_person_filter_matches_header_names_case_insensitively(self):
+		from temple_inventory.report_sources import ReportContext
+
+		query = self.query("movements", "lines", person={"name": "张", "role": "handler"})
+		context = ReportContext(query)
+		row = {
+			"item_code": self.item,
+			"source_warehouse": self.a,
+			"destination_warehouse": "",
+			"warehouse": "",
+			"kind": "Issue",
+			"handler": "李张三",
+			"recorder": "王五",
+			"reviewer": "",
+		}
+		self.assertTrue(context.matches_line(row))
+		context.query["person"] = {"name": "张", "role": "reviewer"}
+		self.assertFalse(context.matches_line(row))
+
+	def test_item_tracking_and_enabled_status_match_catalog_flags(self):
+		from types import SimpleNamespace
+
+		from temple_inventory.report_sources import ReportContext
+
+		context = ReportContext(self.query("inventory", "summary"))
+		item = SimpleNamespace(
+			name=self.item,
+			item_group="All Item Groups",
+			has_batch_no=1,
+			has_expiry_date=1,
+			disabled=0,
+			check_permission=lambda *_args, **_kwargs: None,
+		)
+		context._preloaded_items = {self.item: item}
+		self.assertTrue(context.matches_item(self.item))
+		context.scope["tracking"] = "batch"
+		self.assertTrue(context.matches_item(self.item))
+		context.scope["tracking"] = "none"
+		self.assertFalse(context.matches_item(self.item))
+		context.scope["tracking"] = "batch_only"
+		self.assertFalse(context.matches_item(self.item))
+		context.scope["tracking"] = "expiry"
+		self.assertTrue(context.matches_item(self.item))
+		context.query["itemStatus"] = "disabled"
+		self.assertFalse(context.matches_item(self.item))
+
+	def test_people_filter_choices_are_distinct_and_substring_searchable(self):
+		from temple_inventory.people import borrowers, recorded_names
+
+		self.submit(self.create(self.movement(ti_recorder_name="测试张三", ti_handler_name="经手张三")))
+		loan = self.loan(2, borrower="借用张三")
+		recorded = recorded_names(search="张三", role="any")
+		self.assertEqual({row["value"] for row in recorded}, {"测试张三", "经手张三"})
+		self.assertTrue(all(row["count"] >= 1 for row in recorded))
+		self.assertEqual(borrowers(search="张三")[0]["value"], loan.ti_borrower)
 
 	def test_read_cache_round_trips_base_sqlite_projection_into_private_database(self):
 		from types import SimpleNamespace
@@ -1670,6 +1756,41 @@ class NativeReportTests(NativeDocumentTests):
 			original = list(activity_relations(context, self.activity.name, lifetime=True))
 		self.assertEqual([value["relationship"] for value in direct], ["direct"])
 		self.assertEqual([value["relationship"] for value in original], ["original_loan"])
+
+	def test_activity_period_matches_date_overlap_and_open_ends(self):
+		activities_inside = [
+			activities.save_activity(
+				{
+					"title": f"Overlap {suffix} {self.token}",
+					"activity_type": "TI-TYPE-OTHER",
+					"start_date": start,
+					"end_date": end,
+				}
+			)
+			for suffix, start, end in (
+				("before-start", "2026-10-01", "2026-10-22"),
+				("open-start", "", "2026-10-22"),
+				("open-end", "2026-10-24", ""),
+				("unbounded", "", ""),
+			)
+		]
+		outside = activities.save_activity(
+			{
+				"title": f"No overlap {self.token}",
+				"activity_type": "TI-TYPE-OTHER",
+				"start_date": "2026-10-26",
+				"end_date": "2026-11-01",
+			}
+		)
+		query = self.query(
+			"activities",
+			"metadata",
+			scope={"period": {"key": "custom", "from": "2026-10-21", "to": "2026-10-25"}},
+		)
+		rows = report_page(query)["rows"]
+		names = {row["id"] for row in rows}
+		self.assertTrue(all(value["name"] in names for value in activities_inside))
+		self.assertNotIn(outside["name"], names)
 
 	def test_activity_uncategorized_scope_requires_a_direct_root_assignment(self):
 		category = catalog.create_category("Activity category " + self.token)

@@ -81,7 +81,7 @@ it("keeps sidebar hierarchy sections visible and opens the requested collapsed f
   wrapper.unmount();
 });
 
-it("stages embedded period presets and commits calendar quarters as custom bounds", async () => {
+it("shows relative and calendar period keys without the old shortcut rows", async () => {
   const wrapper = mount(PeriodFilter, {
     props: {
       modelValue: { key: "all", from: "", to: "" },
@@ -90,22 +90,20 @@ it("stages embedded period presets and commits calendar quarters as custom bound
       embedded: true,
     },
   });
-  const selects = wrapper.findAll("select");
-  await wrapper.get('input[aria-label="记账日期快捷年份"]').setValue("2025");
-  await selects[1]!.setValue("2");
-  await wrapper.get("button").trigger("click");
-  expect(wrapper.emitted("update:modelValue")).toBeUndefined();
+  await wrapper.get('select[aria-label="记账日期时间范围预设"]').setValue("q2");
   await wrapper.get("form").trigger("submit");
   expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toEqual({
-    key: "custom",
-    from: "2025-04-01",
-    to: "2025-06-30",
+    key: "q2",
+    from: "",
+    to: "",
   });
+  expect(wrapper.text()).not.toContain("快捷年份");
+  expect(wrapper.text()).not.toContain("使用范围");
   expect(wrapper.find(".preview-period-trigger").exists()).toBe(false);
   wrapper.unmount();
 });
 
-it("supports arbitrary future quarters, editable inclusive bounds, and inline validation", async () => {
+it("supports custom inclusive bounds and inline validation", async () => {
   const wrapper = mount(PeriodFilter, {
     props: {
       modelValue: { key: "all", from: "", to: "" },
@@ -114,9 +112,9 @@ it("supports arbitrary future quarters, editable inclusive bounds, and inline va
       embedded: true,
     },
   });
-  await wrapper.get('input[aria-label="日期快捷年份"]').setValue("2052");
-  await wrapper.get('select[aria-label="日期快捷年份范围"]').setValue("3");
-  await wrapper.get("button").trigger("click");
+  await wrapper.get('select[aria-label="日期时间范围预设"]').setValue("custom");
+  await wrapper.get('input[aria-label="日期开始日期"]').setValue("2052-07-01");
+  await wrapper.get('input[aria-label="日期结束日期"]').setValue("2052-09-30");
   expect(wrapper.get('input[aria-label="日期开始日期"]').element.value).toBe(
     "2052-07-01",
   );
@@ -309,7 +307,7 @@ it("offers labeled rail-edit actions instead of duplicating hierarchy trees in t
   wrapper.unmount();
 });
 
-it("opens with the applied custom range and keeps independent date fields addressable", async () => {
+it("keeps custom ranges addressable without reverse-detecting calendar presets", async () => {
   const wrapper = mount(PeriodFilter, {
     props: {
       modelValue: { key: "custom", from: "2025-04-01", to: "2025-06-30" },
@@ -323,11 +321,11 @@ it("opens with the applied custom range and keeps independent date fields addres
   expect(
     wrapper.get('input[aria-label="关联日期开始日期"]').element.value,
   ).toBe("2025-04-01");
-  expect(wrapper.text()).toContain("2025-Q2");
+  expect(wrapper.text()).not.toContain("2025-Q2");
   await wrapper
     .get('input[aria-label="关联日期结束日期"]')
     .setValue("2025-06-29");
-  expect(wrapper.text()).not.toContain("已选快捷范围：2025-Q2");
+  expect(wrapper.text()).not.toContain("快捷范围");
   wrapper.unmount();
 });
 
@@ -560,6 +558,54 @@ it("keeps selected scope values editable while toolbar chips summarize fields", 
     reference,
   );
   expect(unresolvedLocation[0]?.label).toContain("AUTHORIZED-LOCATION-ID");
+});
+
+it("offers expiry-only tracking choices and emits the shared tracking key", async () => {
+  const reference = reactive(createReferenceData());
+  const services = {
+    call: vi.fn(async () => []),
+    report: vi.fn(),
+    upload: vi.fn(),
+  } as unknown as import("../src/services/contracts").InventoryServices;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        provideInventoryServices(services, reference);
+        return () =>
+          h(BrowseFilters, {
+            modelValue: emptyScope(),
+            fields: ["tracking"],
+            disclosureMode: true,
+            expiryOnly: true,
+            "onUpdate:modelValue": (value) => value,
+          });
+      },
+    }),
+  );
+  const select = wrapper.get('select[aria-label="物品追踪"]');
+  expect(
+    select.findAll("option").map((option) => option.element.value),
+  ).toEqual(["all", "expiry", "batch_only"]);
+  await select.setValue("batch_only");
+  expect(
+    wrapper
+      .findComponent(BrowseFilters)
+      .emitted("update:modelValue")
+      ?.at(-1)?.[0],
+  ).toMatchObject({ tracking: "batch_only" });
+  wrapper.unmount();
+});
+
+it("labels the active tracking scope in its editable toolbar chip", () => {
+  const chips = scopeFilterFieldChips({
+    ...emptyScope(),
+    tracking: "expiry",
+  });
+  expect(chips).toContainEqual({
+    key: "field:tracking",
+    field: "tracking",
+    label: "物品追踪：记录效期",
+  });
 });
 
 it("shows active date scopes as removable field chips", () => {

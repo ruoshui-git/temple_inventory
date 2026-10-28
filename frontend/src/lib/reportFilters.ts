@@ -121,6 +121,9 @@ export function reportFilterChips(
       relatedPresence: "relatedPresence",
       outstandingOnly: "outstandingOnly",
       expiryWindow: "expiryWindow",
+      borrower: "borrower",
+      person: "person",
+      itemStatus: "itemStatus",
     };
     chips.push({
       key,
@@ -206,6 +209,27 @@ export function reportFilterChips(
     );
   if (query.batchNo) add("batchNo", `批次：${query.batchNo}`, { batchNo: "" });
   if (query.loan) add("loan", `原借用：${query.loan}`, { loan: "" });
+  if (query.borrower)
+    add("borrower", `借用方：${query.borrower}`, { borrower: "" });
+  if (query.person.name) {
+    const roleLabels: Record<string, string> = {
+      any: "人员",
+      recorder: "记录人",
+      handler: "经手人",
+      reviewer: "鉴证人",
+    };
+    add(
+      "person",
+      `${roleLabels[query.person.role] || "人员"}：${query.person.name}`,
+      { person: { name: "", role: "any" } },
+    );
+  }
+  if (query.itemStatus !== "enabled")
+    add(
+      "itemStatus",
+      `物品状态：${query.itemStatus === "disabled" ? "停用" : "全部"}`,
+      { itemStatus: "enabled" },
+    );
   if (query.restrictItems || query.itemCodes.length)
     add(
       "items",
@@ -245,7 +269,7 @@ export function reportFilterChips(
   if (query.loanOutcome !== "all")
     add(
       "loanOutcome",
-      `借用结果：${outcomeLabels[query.loanOutcome] || query.loanOutcome}`,
+      `归还结果：${outcomeLabels[query.loanOutcome] || query.loanOutcome}`,
       { loanOutcome: "all" },
     );
   if (query.damageOnly)

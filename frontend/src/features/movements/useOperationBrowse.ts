@@ -214,7 +214,6 @@ export function useOperationBrowse(
         : "items";
     if (props.family === "loans" && !props.records) {
       incoming.loanStatus = "all";
-      incoming.loanOutcome = "all";
       incoming.statuses = [1];
     }
     const supportedSorts = sortableColumnsForView(props.family, incoming.view);
@@ -629,7 +628,7 @@ export function useOperationBrowse(
   const primaryChip = (key: string) =>
     props.family === "movements"
       ? props.records && key === "statuses"
-      : key === (props.records ? "loanStatus" : "loanOutcome");
+      : props.records && key === "loanStatus";
   const extraChips = computed(() =>
     reportFilterChips(query.value, reference).filter(
       (chip) => !chip.fixed && !primaryChip(chip.key),

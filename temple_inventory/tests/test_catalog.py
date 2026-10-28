@@ -1160,7 +1160,7 @@ class CatalogTests(NativeDocumentTests):
 			}
 		)
 		self.assertEqual(canonical["query"]["statuses"], [1])
-		self.assertEqual(canonical["query"]["loanOutcome"], "all")
+		self.assertEqual(canonical["query"]["loanOutcome"], "lost")
 		self.assertEqual(canonical["query"]["loanStatus"], "all")
 		self.assertFalse(canonical["query"]["outstandingOnly"])
 		self.assertEqual(canonical["table"], "loan_items")

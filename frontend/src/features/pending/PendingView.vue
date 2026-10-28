@@ -8,6 +8,7 @@ import type { InitialAllocation } from "../../lib/routeSelection";
 import type { ReportQuery, ReportRow } from "../../lib/reportContract";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels, sortableColumnsForView } from "../../lib/reportContract";
@@ -84,10 +85,11 @@ watch([() => props.active, isMobile], () => {
 				<BrowseFilters
 					v-model="scope"
 					disclosure-mode
-					:fields="['item', 'categories', 'warehouses']"
+					:fields="['item', 'categories', 'tracking', 'warehouses']"
 					:hierarchy-in-rail="filterOpen && !isMobile"
 					hide-activity
 				/>
+				<ItemStatusFilter v-model="query.itemStatus" />
 				<div data-filter-field="groupBy" tabindex="-1">
 					<GroupByFilter
 						v-model="query.groupBy"
@@ -171,20 +173,26 @@ watch([() => props.active, isMobile], () => {
 					<h3>筛选待处理</h3>
 					<FilterRailEdge
 						:open="true"
-						:active="scope.categories.length + scope.warehouses.length > 0"
+						:active="
+							scope.categories.length + scope.warehouses.length > 0 ||
+							scope.tracking !== 'all'
+						"
 						@toggle="toggleFilter"
 					/>
 				</div>
 				<BrowseFilters
 					v-model="scope"
-					:fields="['categories', 'warehouses']"
+					:fields="['categories', 'tracking', 'warehouses']"
 					hide-activity
 				/>
 			</aside>
 			<FilterRailEdge
 				v-if="!filterOpen && !isMobile"
 				:open="false"
-				:active="scope.categories.length + scope.warehouses.length > 0"
+				:active="
+					scope.categories.length + scope.warehouses.length > 0 ||
+					scope.tracking !== 'all'
+				"
 				@toggle="toggleFilter"
 			/>
 			<div class="preview-browse-results surface damaged-results-card">

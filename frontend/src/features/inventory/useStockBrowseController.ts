@@ -277,6 +277,9 @@ export function useStockBrowseController(
     inStockOnly.value = true;
     scope.value = newReportQuery("inventory").scope;
   }
+  function setItemStatus(value: ReportQuery["itemStatus"]) {
+    constraints.value.itemStatus = value;
+  }
   const appliedChips = computed(() => [
     ...scopeFilterFieldChips(query.value.scope, reference).map((chip) => ({
       ...chip,
@@ -392,6 +395,7 @@ export function useStockBrowseController(
     descending,
     selected,
     inStockOnly,
+    setItemStatus,
     analysisDimension,
     scope,
     query,

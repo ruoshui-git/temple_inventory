@@ -309,6 +309,27 @@ class NotificationTests(NativeDocumentTests):
 			result = notifications.inbox()
 		self.assertTrue(result["items"][0].unavailable)
 
+	def test_inbox_type_filter_is_app_scoped_and_validated(self):
+		row = frappe._dict(name="NL-expiry", type="效期提醒", document_type="", document_name="")
+		with (
+			patch.object(notifications, "require_app"),
+			patch.object(notifications, "unread_count", return_value=1),
+			patch.object(frappe, "get_all", return_value=[row]) as get_all,
+			patch.object(frappe.db, "exists", return_value=False),
+		):
+			result = notifications.inbox(notification_type="效期提醒")
+		self.assertEqual(result["items"][0].type, "效期提醒")
+		self.assertEqual(get_all.call_args.kwargs["filters"]["type"], "效期提醒")
+		with patch.object(notifications, "require_app"), self.assertRaises(frappe.ValidationError):
+			notifications.inbox(notification_type="其他应用通知")
+
+	def test_inbox_type_choices_only_include_enabled_app_notification_types(self):
+		with (
+			patch.object(notifications, "require_app"),
+			patch.object(frappe, "get_all", return_value=[frappe._dict(type_name="库存流动")]),
+		):
+			self.assertEqual(notifications.inbox_types(), [{"value": "库存流动", "label": "库存流动"}])
+
 	def test_export_sheet_names_are_valid_for_every_table(self):
 		import io
 

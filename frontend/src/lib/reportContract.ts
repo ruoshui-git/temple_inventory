@@ -105,7 +105,7 @@ export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
       { id: "loans", label: "借用结余" },
     ],
     groups: ["activity", "kind"],
-    dateLabel: "活动开始日期",
+    dateLabel: "活动日期",
   },
   counts: {
     label: "盘点",
@@ -488,6 +488,9 @@ export interface ReportQuery {
   activityKind: string;
   relatedPresence: string;
   outstandingOnly: boolean;
+  borrower: string;
+  itemStatus: "enabled" | "disabled" | "all";
+  person: { name: string; role: "any" | "recorder" | "handler" | "reviewer" };
 }
 export function newReportQuery(
   dataset: ReportDataset = "inventory",
@@ -527,5 +530,8 @@ export function newReportQuery(
     activityKind: "",
     relatedPresence: "all",
     outstandingOnly: false,
+    borrower: "",
+    itemStatus: "enabled",
+    person: { name: "", role: "any" },
   };
 }

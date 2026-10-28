@@ -23,10 +23,12 @@ const props = withDefaults(
 		hideActivity?: boolean;
 		hierarchyInRail?: boolean;
 		disclosureMode?: boolean;
+		expiryOnly?: boolean;
 		fields?: Array<
 			| "item"
 			| "activity"
 			| "categories"
+			| "tracking"
 			| "warehouses"
 			| "kinds"
 			| "sources"
@@ -38,6 +40,16 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:modelValue": [scope: BrowseScope] }>();
 const editHierarchy = inject(browseHierarchyEditKey, () => {});
 const scope = computed(() => props.modelValue);
+const trackingLabel = computed(() => {
+	const labels: Record<string, string> = {
+		all: "全部物品",
+		batch: "按批次管理",
+		batch_only: "仅批次（不记录效期）",
+		expiry: "记录效期",
+		none: "不按批次管理",
+	};
+	return labels[scope.value.tracking] || "全部物品";
+});
 const shows = (field: NonNullable<typeof props.fields>[number]) =>
 	!props.fields || props.fields.includes(field);
 function update<K extends keyof BrowseScope>(key: K, value: BrowseScope[K]) {
@@ -156,6 +168,32 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 					/>无分类
 				</label>
 			</fieldset>
+		</FilterDisclosure>
+		<FilterDisclosure
+			v-if="shows('tracking')"
+			label="物品追踪"
+			field="tracking"
+			:disclosure="disclosureMode"
+			:summary="trackingLabel"
+		>
+			<label class="preview-field"
+				>物品追踪<select
+					:value="scope.tracking"
+					aria-label="物品追踪"
+					@change="
+						update(
+							'tracking',
+							($event.target as HTMLSelectElement).value as BrowseScope['tracking'],
+						)
+					"
+				>
+					<option value="all">全部物品</option>
+					<option v-if="!expiryOnly" value="batch">按批次管理</option>
+					<option value="expiry">记录效期</option>
+					<option v-if="expiryOnly" value="batch_only">仅批次（不记录效期）</option>
+					<option v-if="!expiryOnly" value="none">不按批次管理</option>
+				</select></label
+			>
 		</FilterDisclosure>
 		<FilterDisclosure
 			v-if="shows('warehouses')"

@@ -276,7 +276,10 @@ export function useActivitiesController(
       .map((chip) => ({
         key: chip.key,
         field: chip.field,
-        label: chip.label,
+        label:
+          chip.field === "period"
+            ? chip.label.replace(/^日期：/, "活动日期：")
+            : chip.label,
         remove: () => {
           if (chip.field)
             clearScopeField(

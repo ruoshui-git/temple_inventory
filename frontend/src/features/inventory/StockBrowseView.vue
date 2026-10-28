@@ -8,6 +8,7 @@ import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
+import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
@@ -72,6 +73,7 @@ const {
 	query: quickReportQuery,
 	groups: groupPages,
 	setGroupBy,
+	setItemStatus,
 	metrics,
 	rows,
 	analysis,
@@ -314,9 +316,13 @@ watch([() => props.active, isMobile], () => {
 						<BrowseFilters
 							v-model="scope"
 							disclosure-mode
-							:fields="['item', 'categories', 'warehouses']"
+							:fields="['item', 'categories', 'tracking', 'warehouses']"
 							:hierarchy-in-rail="filtersOpen && !isMobile"
 							hide-activity
+						/>
+						<ItemStatusFilter
+							:model-value="quickReportQuery.itemStatus"
+							@update:model-value="setItemStatus"
 						/>
 						<details class="browse-filter-disclosure" data-filter-field="includeZero">
 							<summary class="ti-disclosure">
