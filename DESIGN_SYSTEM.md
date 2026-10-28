@@ -1,557 +1,67 @@
-# Temple Inventory Design System
+# Design system
 
-This file defines the current reusable visual contracts. Durable product
-behavior is in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md); agent and architecture
-rules are in [AGENTS.md](AGENTS.md). Historical preview and migration detail is
-kept in Git.
+This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md) owns behavior and interaction; [AGENTS.md](AGENTS.md) owns architecture and workflow. Keep only reusable current-state rules here.
 
-## Supersession — 2026-10-28: group rows, document tables, units and images
+## Foundations
 
-- DataTable group identity cells opt out of the primary-column clamp: image,
-  disclosure, single-line ellipsized label (full text in `title`), count and
-  metrics stay on one no-wrap row. A group detail row renders only when the
-  entry sets `detailRow`.
-- Read-only movement lines reuse DataTable location groups with semantic
-  column kinds; phones mount one compact list surface (thumbnail, two-line
-  clamped name, right-aligned quantity, muted batch/expiry line). Totals are
-  per stock unit.
-- Units: `unitOption()` (`lib/units.ts`) builds every unit choice (label,
-  native name, `1 X = n Y`); `UnitText` renders standalone units with the
-  native name in `title`; `formatConversion()` (`lib/conversionText.ts`) is
-  the only conversion wording. Editor line grids reserve aligned cells for
-  batch, dates and the muted stock total on every row.
-- `ItemImage` requests the 160px or 640px WebP derivative from
-  `item_images.thumbnail` by rendered CSS size × device pixel ratio; full-size
-  viewers use the private original. The crop stage fits the image aspect
-  within 512px × 65vh.
-- Dashboard and Activity kind tiles are links; `+N 单位`/`收起` is a quiet
-  inline text control on the record-count line, outside the link. Browse row
-  links show hover underline and focus rings; base `code` uses the app font
-  with tabular numerals; `LocationEndpoint` uses one 16px icon aligned to the
-  text.
-- Filter facets stay inside the filter disclosure pattern; autocomplete facets
-  (人员, 借用方) reuse the shared remote select with the person role select
-  beside the name. Period presets use native `<optgroup>`s.
-- Unavailable menu actions keep their label on one line and the reason on a
-  muted second line.
+- Shared semantic `--p-*` tokens own palette, status, spacing, density, type, shape, shadows, scrims and layer scale. Themes use `data-ti-theme`; artwork, photos, camera content and theme swatches retain their intended colors.
+- Jade, bronze and blue are the app palettes. Non-production environment badge colors are sample amber `#8a4b08`, staging violet `#593d8c`, development blue `#245b9e`, all with white text. Production uses jade `#28684e` chrome and no badge.
+- AppFrame owns navigation and measured mobile obstruction. ApplicationShell supplies route/account context and registry breadcrumbs. Shared breakpoint is 1024px; coordinators mount one surface at a time.
+- Text scale is independent of density, including teleported content. Use semantic HTML, explicit labels, visible focus, reduced motion and 44px mobile/coarse-pointer targets.
+- Layer order: sticky table content 10, sticky page chrome 20, FAB 25, app navigation 30, menus/popovers 40, overlays 50, toasts 60. Menus from header/form chrome stay above sticky content and FAB.
 
-## Supersession — 2026-10-27: column kinds, units, sections and dialogs
+## Shared component catalogue
 
-- `DataColumn.kind` (`number`, `unit`, `code`, `date`, `datetime`, `status`,
-  `chip`, `text`, `thumb`, `actions`, `primary`) maps to a `data-column-<kind>`
-  class; there are no per-column pixel widths. Non-primary kinds use
-  `width: 1%` and `nowrap`, so they size to their content under auto table
-  layout; code, chip and text content caps itself (160/220px) with an ellipsis,
-  using `width: max-content` so a capped element cannot collapse its column.
-  The single primary column has a 200px minimum, clamps to two lines and is the
-  only column that absorbs spare width. Kind is inferred from common column ids
-  when a definition omits it.
-- Units render through `lib/units.ts`: `unitLabel()` for text and `sortByUnit()`
-  / `compareUnits()` for ordering. The reference-data provider registers its
-  store so the helpers work outside component setup.
-- Editor location sections share one grid between their muted column-header row
-  and their rows, so batch, date, quantity, unit and action cells align. Batch
-  and date columns render only when the section has a batch-tracked line.
-  Section headers keep the visible kind label as the selector's accessible
-  name. Phones use three-line row cards and sticky section headers.
-- Activity detail kind tiles reuse the dashboard movement-tile look: label,
-  bold top-three unit quantities, `+N 单位` and record count; the whole tile is
-  the link.
-- Scanner dialogs use the small dialog size with the square preview, camera
-  control, manual entry and 从图片识别 in one column. There is no right-side
-  drawer presentation for content.
-- Segmented controls (`.segmented`, `.browse-view-switch`) switch views or
-  filters within a page; underline `.browse-tabs` navigate between pages or
-  sections.
+- **DataTable:** declare semantic column kinds (`number`, `unit`, `code`, `date`, `datetime`, `status`, `chip`, `text`, `thumb`, `actions`, `primary`). Under auto table layout, cell `max-width` is ignored: cap inner text with `width: max-content; max-width`. A long nowrap group label can widen its column; constrain its container with `width: 0; min-width: 100%`. One primary column absorbs spare width and clamps names to two lines; group identity uses a single-line ellipsized name with thumbnail/disclosure/count and aligned metrics. Keep optional detail rows explicit. Sort headers expose stable icon gutter and `aria-sort`; visible table headers are the sole sort control. Settings/edge cues stay in result summary/outlet. Group disclosure and desktop roving focus remain keyboard-operable; pinned columns stay opaque. Phone overflow uses edge fades, desktop scroll hints/proxy scrollbar; do not globally hide scrollbars.
+- **Overlay / ConfirmDialog / ToastHost:** Overlay owns focus containment/return, inert background, Escape, scroll lock, system Back and stacking. Use bounded desktop dialog and phone sheet. ConfirmDialog is one AppFrame host above overlays. ToastHost is one body-level stack below desktop header/phone top bar and above overlays.
+- **PopupMenu / Disclosure:** PopupMenu anchors/flips/clamps to viewport, scrolls internally and closes on outside pointer, Escape, route change, activation or lost anchor. Phone presentation is an Overlay sheet. One transient menu/filter panel at a time. Menu keyboard supports arrows and Home/End. Disclosure uses one leading rotating chevron; popup triggers use a static trailing chevron. Use DisclosureSection for divided detail rows.
+- **FormField / useFormValidation:** FormField owns label, required mark, hint and inline error; pass ids and ARIA state to controls. useFormValidation clears edited errors and focuses the first invalid control. Forms use inline field errors and danger callouts for server failures.
+- **BrowseToolbar / FilterPanel / SortControl:** Search, chips, scan and filter share a mounted toolbar. Filters are viewport-bounded with internal scroll; phone sheets stack fields and keep header/footer fixed. Hierarchy rails remain outside the result card and align with its top. Use SortControl only without sortable table headers.
+- **AsyncRegion / skeletons:** AsyncRegion and SkeletonBlock own data-load states; DataTable provides table skeletons and DocumentLoadingState is editor-specific. Match skeleton shape, retain/dim stale results during refresh and keep errors distinct from successful empty results.
+- **ItemImage / ItemLine:** ItemImage reserves stable dimensions and uses shared missing/error SVG artwork. ItemLine pairs image/lightbox and Item name, with one secondary related identity.
+- **LocationEndpoint / QuantitySummary / UnitText:** Use semantic endpoint treatments for physical, leased/damaged and outside locations. QuantitySummary keeps unit/status categories distinct and complete breakdown in accessible text. UnitText is the standalone unit presentation; keep quantity and unit together.
+- **Attachments:** shared file picker uses a localized button/label, hidden native input and chosen-file list. Main-image controls use image icons; general attachments use paperclip. Never show native English file-input text.
+- **Scanner dialog:** small dialog, square preview, camera controls, manual entry and image recognition in one column. ItemPicker retains its inline scan stage.
+- **NotificationCenter:** bell target at least 44px, count capped at `99+`, accessible name includes unread count. Desktop bounded popover; phone full-height sheet. Rows use kind icon, emphasized subject, unread dot, relative time and export action.
 
-## Supersession — 2026-10-26: forms, confirmations, stacking and mobile shell
+## Geometry
 
-- `FormField` owns label, red `*` (aria-hidden), hint and inline error, and
-  passes `id`, `aria-describedby`, `aria-invalid` and `aria-required` to its
-  control through `fieldAttrs`. Inline errors are plain danger text below the
-  control; `FormErrorSummary` lists errors for long forms. `useFormValidation`
-  registers rules, clears a field's error on edit and focuses the first invalid
-  field. Forms use `novalidate`.
-- `ConfirmDialog` is hosted once by `AppFrame`; `useConfirm().confirm()`
-  resolves true or false. It is an alertdialog above any open Overlay, with the
-  cancel action focused and a danger tone for destructive actions.
-- Overlays stack: a dialog opened inside another opens above it, the parent
-  stays visible and inert, and Escape/Back close only the top layer before
-  focus returns to the opener. `size="small"` is a compact dialog on desktop
-  and a bottom sheet on phones.
-- Toasts render in one body-level stack, top-right below the measured header on
-  desktop and below the top bar on phones, newest first, with safe-area insets.
-- Hover tints sit behind `@media (hover: hover)`. Text-like buttons pad their
-  tint with an equal negative margin so text never touches its edge.
-- DataTable keeps the settings-column width and sticky position fixed at both
-  overflow edges; hint buttons fade instead of unmounting and edge state uses
-  hysteresis. Cell chips truncate with an ellipsis and a title.
-  Sortable headers put the sort icon after the label in every column; a
-  right-aligned column ends with the icon at its edge.
-- A top-level table puts its ☷ column settings in the page's result summary,
-  or in a caption marked `data-table-settings-outlet` (Reports), at every
-  width, so no empty settings column is pinned and edge fades meet the table
-  border. Nested tables and a second table sharing an outlet keep a header
-  cell; rows run beneath it unless a content column is pinned at the end.
-- Unavailable item lifecycle actions explain why in a second line of their
-  menu row, not as page text.
-- `taskEditor` routes hide the phone bottom navigation. `useVirtualKeyboard`
-  tracks the on-screen keyboard, keeps the focused field visible and hides
-  sticky action bars while typing. Landscape phones use compact browse chrome;
-  the frame, sticky bars and sheets pad for left/right safe areas.
-- Movement editor batch cards group native lines by Item and location with a
-  read-only total and an inline batch-row table (phone: compact cards). The
-  lines toolbar is sticky on desktop only.
+### Density and desktop browse
 
-## Supersession — 2026-10-25: table focus and editor review shortcut
+- Compact/balanced/spacious controls are 32/36/44px; gaps 8/12/16px; table cell padding 5×8, 8×12, 18×16px (block×inline); thumbnail slots 32/48/64px. Text size and line height scale independently. Mobile targets remain 44px at every density.
+- Fine-pointer desktop browse rows target 40–44px at balanced density with 32px artwork. Desktop page/card/editor spacing uses density tokens. Card preferred widths are 160/200/280px and gaps 8/16/24px.
+- Browse header keeps title, tabs, search/chips, scan, filter count and actions visible; it wraps at narrow desktop widths. It sticks under measured app bar; hairline/shadow appears only while stuck. Table headings stick in their own scrollport. Summary count/quantity and controls share a compact line; full analysis expands below.
+- Open hierarchy rail owns its collapse control; collapsed browse filter edge is 28px wide with a divider, chevron, vertical label and active dot. It sits outside the result card. ItemPicker reserves a 40px collapsed grid track for that edge. The operation review panel is a separate 28px column with a 12px visual control; do not conflate the two.
+- Desktop hierarchy indentation is 10px per level capped at 40px; fine-pointer rows 28–32px. Keep name tracks readable and allow actions to wrap below identity. DataTable uses subtle horizontal separators, no full vertical grid lines.
 
-- Desktop DataTable body rows use one roving Tab stop with the shared focus
-  accent (`--p-accent`) drawn inset on cells so the ring stays visible inside
-  the scrollport and pinned columns. Native links and controls remain in normal
-  DOM Tab order.
-  Below 1024px, row focus styling and keyboard behavior do not alter the visual
-  or touch presentation. Operation and count review buttons expose Ctrl/⌘+Enter
-  in their title; the command opens review only.
+### Phone browse and actions
 
-## Foundation and ownership
+- Phone browse title uses the 22px mobile-heading token; initial title/action row sits above search/filter. After scroll only search/filter remains sticky. Stock subpage tabs scroll away. Applied chips share one horizontal touch-scroll line, 32px high.
+- Stock defaults to list: 64px square contain thumbnail, two-line name, muted code/category and right-aligned quantities; minimum row height 72px. Card view has two columns, square contain images, two-line name and quantity. Movement/Loan item groups use 56px thumbnails and compact quantity summaries.
+- Desktop expiry overview rows remain single-line; compact DataTable thumbnails do not grow row height.
+- Result summaries wrap to at most two compact rows. Create FAB sits 12px above measured navigation, primary face at least 48px and separate 44px menu segment. Return-to-top sits above it with an 8px gap. Hide FAB while overlays/keyboard are open. Phone sort and kind menus are opaque Overlay sheets with scrim, handle, title, full-width cancel and safe-area padding.
+- Phone list/detail gutter is 16px; avoid nested double padding. Sticky editor action bar occupies one row; keyboard visibility keeps focused controls clear and hides sticky actions while typing. Landscape phones use compact browse chrome and safe-area padding.
 
-- `frontend/src/styles/app.css` is the sole active stylesheet entry. It imports
-  `foundation.css`, `forms.css`, `utilities.css`, `browse.css` and
-  `data-table.css`.
-- The shared `--p-*` tokens own theme palette, status, spacing, density, type,
-  shape, shadows, scrims and layers. Jade, bronze and blue are selected with
-  `data-ti-theme`. Components consume semantic tokens; artwork, user images,
-  camera content and preview swatches retain intended colors.
-- Non-production app headers show one accessible environment badge beside the
-  brand on desktop and mobile. `--ti-environment-color` is set from the runtime
-  site descriptor; use white badge text. Sample amber `#8a4b08`, staging violet
-  `#593d8c` and development blue `#245b9e` each keep strong white-text contrast.
-  Production uses the existing jade `#28684e` for system theme chrome and hides
-  the badge.
-- `AppFrame` owns navigation and measured mobile obstruction. `ApplicationShell`
-  supplies route/account context and registry breadcrumbs. The shared surface
-  breakpoint is 1024px. `components/ui` contains reusable controls, overlays,
-  filters and tables; feature controllers own data and permissions.
-- Keep typography independent of density. Root text scale applies to normal and
-  teleported content. Use semantic HTML, explicit labels, visible keyboard
-  focus, reduced motion and 44px mobile/coarse-pointer targets.
+### Cards, picker, workspace and scanner
 
-## Mobile browse geometry
+- More tiles are compact icon-left rows, 64–72px high. Editors use shared card padding and no reserved blank area under the last section. Phone dashboard quick actions sit directly below the header.
+- ItemPicker uses a wide bounded desktop dialog and full-height phone sheet. Header/search and footer stay fixed; category/warehouse rails, results and scan/create stages scroll internally. Its toolbar stays outside result scrollport. Desktop Rails use shared BrowseFilters.
+- Operation editor shares one grid between section column headings and line rows. Receive target stays compact in lines toolbar. Full-workspace toggle stays in 操作物资 heading row. Review panel collapse is independent from picker rail; restore prior state/focus on exit.
+- Scanner video is a centered square cover viewport capped at `min(100%, 42dvh, 420px)`. Scanner control sizes and touch targets follow shared tokens.
+- On desktop DataTable overflow, paired 80%-page hints track the visible scrollport and stay clear of pinned columns; a viewport-bottom proxy scrollbar appears only when the native bar is below viewport. On phones, in-frame fades show overflow; wide pinned groups unpin and settings move outside table body. Keep touch scroll native, hide cues in print, honor reduced motion.
 
-- Below 1024px, browse titles use the `--p-mobile-heading` token (22px at the
-  default text scale). The initial header places title, optional view switch and
-  overflow on the first row, then a search field with scan and counted filter
-  control. Once scrolled, the title/action rows collapse and only search/filter
-  remains sticky at the top. The Stock subpage tab strip scrolls away with the
-  page and uses 44px targets; it is not part of sticky height.
-- On phones, applied chips occupy one horizontal touch-scroll line below search,
-  with 32px chip height and accessible remove controls. Do not suppress
-  scrollbars globally.
-- Mobile create FABs sit 12px above the measured `--preview-nav-height` and
-  include a minimum 48px primary face plus a 44px chevron segment. Return to Top
-  uses the same obstruction measurement, with its bottom at nav + 68px, leaving
-  an 8px gap above the 48px FAB. The FAB uses accent/on-accent tokens and hides
-  while an overlay or keyboard is open. Its kind menu and sort menu use the
-  shared phone bottom sheet with a real `--p-scrim` backdrop, decorative
-  handle, accessible title, scrollable menu, full-width 取消 button and
-  safe-area padding. Backdrop, Escape and system Back dismiss the sheet.
-- Results summary lines wrap to at most two compact rows at phone widths. Sort,
-  Stock card/list and analysis controls sit alongside the count and quantity
-  preview. The quantity disclosure expands a full-width panel below the summary
-  line, keeping controls in place on desktop and phones. Stock's desktop summary
-  carries card/list and analysis controls so they do not create a second
-  browse-header row.
-- The Stock subpage nav uses a full-width underline strip with a 3px accent
-  underline, strong active ink and horizontal scrolling when enlarged text no
-  longer fits. It scrolls away rather than increasing the sticky stack.
+## Icons and visual hierarchy
 
-## Icons
-
-- Movement kinds use the single `frontend/src/lib/kindIcons.ts` map for their
-  canonical label and icon. Reuse that map in menus, filters, rows, records,
-  notifications, drafts, editor headings and More tiles.
-- Every registry path has a distinct glyph. Declare an intentional alias by
-  pointing its name to the canonical key.
-- Use `outside` (door-open) for the 外部 endpoint, `export` (file-down) for
-  导出 actions and `report` (chart-column) for the 报表 destination. Reserve
-  `download` for actual file downloads.
-
-## Creation editors
-
-- `Attachments` is the shared file-picker control for editors and new Items.
-  Use a localized button or label to open a visually hidden native input, then
-  show chosen files as a list. The Item main-image role includes a square
-  preview with placeholder artwork before a file is chosen. Use an image icon
-  for main-image and image-attachment controls and a paperclip for general
-  attachments. Never expose the browser's native English file input label.
-- An empty movement editor shows one centered, kind-specific hint and its
-  add/scan actions. Hide line search, completion filters, totals, issue
-  navigation and column headings until at least one line exists. Location
-  selectors required to begin the operation may remain visible.
-- High-volume Return selection uses collapsed borrower summaries and paged loan
-  cards in a bounded internal scroll region; selected loans remain visible as
-  removable chips when the list is collapsed.
-
-## Disclosure
-
-- Use `DisclosureIcon` for disclosure indicators: inline disclosures show one
-  leading 2.25-stroke chevron-right that rotates in place; popup triggers show a
-  static trailing chevron-down. Keep the icon in a fixed square with a centered
-  transform origin and disable its transition for reduced motion.
-- Use `.ti-disclosure` for simple native `<details>` summaries that need the
-  compact inline treatment. Use `DisclosureSection` for divided detail rows;
-  actions do not toggle the row, and the body aligns with the title start.
-- A `DisclosureSection` summary has a leading rotating chevron, a 16px/600
-  title, an optional count pill, an optional muted one-line summary and an
-  optional trailing actions slot. The body starts at the title's inline edge.
-  Keep the summary hover tint inside a small control-radius row inset.
-- Consecutive sections in one card form a single divided list: use one hairline
-  between rows, with no extra row borders or gaps. When other content separates
-  sections, give each section normal block spacing. Keep related detail rows on
-  the same card inset.
-- Put buttons, links or other controls in the `actions` slot when they belong
-  to the section heading. Only blank space in that slot is prevented from
-  toggling the section; interactive controls retain their native behavior.
-
-## Popup menus
-
-- Use `PopupMenu` for action menus. Its trigger is a labeled button, and the
-  popup is fixed to the trigger, teleported into the active Overlay when one is
-  open, and layered at `--p-z-menu`. Align to the start or end, keep an 8px
-  viewport margin, open 4px below, and flip above when that side has more room.
-  Bound the height to the available viewport space and scroll inside the menu.
-- Menus close on outside pointerdown, Escape, route change, item activation,
-  or when their anchor leaves the viewport. Escape returns focus to the trigger.
-  Only one transient menu or filter panel may be open at a time.
-- Menu items support ArrowUp/ArrowDown and Home/End; opening by keyboard puts
-  focus on the first item. Respect reduced motion and keep coarse-pointer targets
-  at least 44px high.
-- On phones, `PopupMenu sheet` uses `Overlay`; its opaque sheet sits above the
-  scrim and preserves menu arrow/Home/End and radio semantics. Desktop menus
-  remain anchored.
-- Use the shared layer scale: sticky table content `--p-z-sticky-content` (10),
-  sticky page chrome `--p-z-sticky` (20), floating create actions `--p-z-fab`
-  (25), app navigation `--p-z-nav` (30), menus and popovers `--p-z-menu` (40),
-  overlays/sheets `--p-z-overlay` (50), and toasts `--p-z-toast` (60). Header
-  navigation and its popovers stay above sticky page chrome; popovers opened by
-  chrome or forms stay above the FAB.
-- Popup menu rows use a compact anatomy: optional 18px leading icon, left
-  aligned label and optional trailing metadata. When a panel uses icons, every
-  row has one. Rows share hover, focus and danger states without dividers; panel
-  width follows content within viewport bounds. Draft navigation remains a
-  link rendered with the same row anatomy.
-- Icon-only buttons have zero inline padding and grid centering. Their glyph
-  center must align with the control center within 0.5px.
-
-## Density, tables and scrollbars
-
-- Desktop compact/balanced/spacious controls are 32/36/44px high, gaps are
-  8/12/16px, and table cell padding is 5×8, 8×12, and 18×16px (block × inline).
-  Thumbnail slots are 32/48/64px. Text size and line height follow independent
-  user text scaling. Mobile controls preserve 44px targets at every density.
-- `DataTable` headers, sort buttons, rows, group cells and metrics use the same
-  explicit column alignment. Text, dates, IDs and status are left aligned;
-  quantities are right aligned with tabular numerals; selection and image
-  controls are centered. Group identity leads with its thumbnail, expander,
-  name and count; metrics stay in their matching visible columns, with only
-  hidden metrics summarized after the identity. Use subtle horizontal
-  separators, never full vertical grid lines.
-- Table action columns may stay pinned beside column settings when a page needs
-  its actions visible while the result scrolls horizontally. Keep the pinned
-  column opaque and within the table frame.
-- Sortable headings always show a neutral bidirectional icon when inactive and
-  a directional arrow when active. Reserve a stable icon gutter, set `aria-sort`
-  and keep keyboard focus visible. Column settings stay available during
-  loading and empty states.
-- When a sortable table is visible, its headers are the only sort affordance.
-  Use `SortControl` for cards or surfaces without sortable headers.
-- Dense tables scroll horizontally within their own container. Use themed slim
-  draggable scrollbars for overflowing desktop filter areas only. Native touch
-  and coarse-pointer scrolling, plus forced-colors scrollbars, remain unchanged.
-  Do not globally hide scrollbars.
-- On narrow tables, keep visible quantity columns pinned beside the settings
-  control. Summarize a metric after the group identity only while its metric
-  column is hidden. Repeated context shared by every result belongs once in the
-  page callout, not as a narrow table column.
-- Group disclosure supports keyboard and pointer activation across the row,
-  reports `aria-expanded`, and leaves embedded links/buttons/inputs independent.
-  On desktop, every body row participates in the table's roving focus sequence;
-  Up/Down, Home/End and Enter operate on the focused row, and group rows support
-  Left/Right disclosure. Nested DataTables keep independent roving state. Keep
-  nested histories under the shared parent table header. Pagination counts
-  refer to the immediate rows only.
-
-## Browse and hierarchy geometry
-
-- Keep search, applied chips, scan and filter in one focus-within toolbar. Keep
-  the input mounted when density/layout changes. Filter surfaces are anchored
-  below their trigger, bounded by the remaining viewport and internally
-  scrollable; phone sheets use the shared focus-managed overlay.
-- Activity detail, drafts and Reports use this browse toolbar. Route query
-  payloads omit default values and include only changed fields; decoding merges
-  changed top-level and nested scope values onto the dataset defaults.
-- Desktop filter dialogs may use two labeled columns for filters and grouping;
-  phone sheets stack them. Header/footer remain outside scrolling content.
-  Show a hierarchy node's `local_label` in primary ink and put its `full_label`
-  in the title. Warehouse nodes use the presenter's `search_text` for matching;
-  direct-storage leaves stay in the selection model but are hidden as rows.
-  Chips use the canonical `label`; full paths belong in tooltips or selector
-  detail. Expansion controls retain their own touch target. Clearing selections
-  or search preserves tree expansion.
-- Hierarchy indentation is 10px per level, capped at 40px. Desktop expander
-  tracks are 28px with 16px checkboxes, 4px gaps and 32px minimum rows. Phone
-  rows and expanders remain 44px. Keep readable name tracks and allow actions
-  to wrap below identity rather than forcing tall single-character columns.
-- Card geometry uses `--p-card-min-width`, `--p-card-gap` and `--p-card-pad`.
-  Compact/balanced/spacious preferred widths are 160/200/280px with 8/16/24px
-  gaps. Available width and text scale determine the rendered desktop column
-  count.
-- Below 1024px, Stock defaults to list rows with a 64px square contain thumbnail,
-  a two-line name, one muted code/category line and right-aligned quantities.
-  Rows are at least 72px high; the checkbox, row activation and image lightbox
-  have independent targets. Stock cards use two equal columns with a 10px gap,
-  square contain images, a two-line name and one quantity line. Desktop cards
-  retain square contain artwork and density-driven sizing; DataTable image slots
-  remain compact and fixed.
-- Mobile Movement and Loan Item groups use a list row with a 56px thumbnail,
-  Item name, `明细条数 N` and up to two quantity summaries plus `+N`. The expand
-  control remains available and nested history keeps its existing behavior.
-- Dashboard scope controls sit with the page header on desktop and wrap on
-  narrow surfaces. Quick actions sit directly below the header.
-
-### Desktop browse density and header
-
-- At `(min-width: 1024px) and (pointer: fine)`, page gutters, header spacing,
-  card padding, editor padding and gaps use the density-specific `--p-*`
-  tokens. Balanced browse table rows target 40–44px with 32px artwork. Coarse
-  pointers and phones keep 44px targets and their normal page gutters.
-- Browse headers keep the title, view tabs, search/chips, scan, filter count,
-  sidebar icon and page actions visible. The toolbar never collapses and has no
-  收起工具 control. At narrow desktop widths, controls wrap without horizontal
-  page overflow. `/` focuses the mounted page search unless focus is in an
-  editable field. Escape retains each editor's existing clear/close behavior.
-- Create actions use a split button: the main face starts the page's default
-  operation; its menu lists other permitted kinds. Export, drafts and secondary
-  actions use the `⋯` overflow menu. Icon-only controls have an accessible name
-  and a visible tooltip.
-- The count and quantity preview share one line above results. Show up to two
-  unit values inline; represent more as `+N 单位`. A disclosure button opens
-  the complete shared `QuantitySummary` in a full-width panel below that line.
-- The browse header sticks below the measured app bar. Show its hairline/shadow
-  only while stuck. Table headings stick inside the table's own scrollport.
-- A visible hierarchy sidebar is one flat panel aligned with the result top.
-  Its section dividers are hairlines; the rail owns the only vertical scroll.
-  Desktop fine-pointer hierarchy rows are 28–32px and remove nested bordered
-  boxes. Phone tree semantics and touch targets remain unchanged.
-- Desktop table row actions appear on row hover or keyboard focus without
-  changing row height; touch surfaces retain visible actions. Wide-screen
-  defaults may add secondary columns at 1440px, with column preferences for
-  narrower viewports.
-- **2026-10-24 supersession:** hierarchy filter rails always sit outside the
-  white result card and align with its top edge. Damaged row actions use quiet
-  Repair and danger-tone text Disposal buttons; details and export stay in the
-  row overflow menu. Warehouses uses `BrowseToolbar`, with its node count in the
-  subtitle and secondary refresh/export actions in overflow. PWA update notices
-  use a persistent, dismissible `ToastHost` toast with an 更新 action; dismissal
-  lasts for the session and a newer worker version can show a new notice.
-- Off switches use `--p-switch-off` (or its semantic fallback) for the track;
-  it must contrast at least 3:1 against the surface. A visible thumb remains
-  distinct from the track in both states.
-- More tiles use a compact icon-left layout at 64–72px on desktop. Editors use
-  the shared desktop card padding tokens and avoid reserved blank space below
-  their final section.
-
-## Images and identity
-
-- `AsyncImage` reserves the requested square thumbnail slot with contain fit.
-  Its loading, missing and error placeholders must fit that slot without
-  minimum dimensions or extra row padding. Use one scalable SVG placeholder at
-  every size; center compact artwork and preserve the Item's accessible name.
-  Long fallback labels wrap only when the slot can support them.
-- Table/detail movement thumbnails use 24px artwork when space permits and
-  share the Item lightbox. Keep enlargement hit areas distinct and nonoverlap;
-  do not increase row height. Existing editor/picker artwork remains larger.
-- Current readable Item names and images are display metadata for native lines.
-  Keep native Item codes and stored names for audit history; if the Item is no
-  longer readable, fall back to its stored name and then code. Images must come
-  through permission-filtered Item and File access, never a raw native image URL.
-- `Item.image` is the only primary-image identity. Other private Item Files are
-  attachments, including images; attachment previews use the shared lightbox
-  but never become the main image automatically. Photos sit directly on the
-  card or page surface, framed by the surrounding border; a subtle fill is
-  reserved for empty, loading and error states so missing-image slots stay
-  visible. Image buttons keep a transparent background and show an accent ring
-  on hover and keyboard focus. The crop overlay uses
-  Cropper.js with a square draggable selection and keyboard movement. Exported
-  thumbnail WebP is quality 0.85, capped at 800px, and never upscaled. Keep
-  original-as-main and original-as-attachment choices available; attachments
-  preserve source bytes.
-
-## Async presentation
-
-- `AsyncRegion` and `SkeletonBlock` are the only data-loading presentation mechanism. Use `DataTable` for table results; `DocumentLoadingState` remains the editor-specific skeleton.
-- Initial requests use shape-matched skeletons. A refresh retains the last
-  successful snapshot, layout, scroll and selection; dim only the affected
-  result region and show one compact accessible status. Headings and controls
-  remain usable. Disable stale-result actions only.
-- Refresh errors retain stale results and show retry. Load-more uses a local
-  indicator. Initial errors and successful empty results stay distinct; never
-  show false zeros or empties before the first successful response.
-- Card requests affect that card. Page refresh affects each result region.
-  Retain generation/account abort guards. While a grouped query changes, bind
-  the prior display to its prior query until new rows arrive. Do not change
-  mutation save/conflict semantics.
-- Every pending action shows its state on the triggering control with a concise
-  action-specific label; keep sibling actions disabled. Option lists that are
-  still loading show shape-matched skeleton rows. Route changes show a thin
-  delayed progress bar so fast navigations do not flash.
-- Related export projections are cached separately from base projections so
-  toggling supplementary sheets can reuse the matching result.
-
-## Multi-unit quantities
-
-- Render multi-unit dashboard and browse values with the shared quantity
-  presentation. Keep each value and unit together, align values consistently,
-  and separate units with spacing and a subtle divider rather than text glyphs.
-
-## Draft labels
-
-- `草稿单据` and `浏览器暂存` use compact pill tags with their document and
-  device icons. Keep both labels readable without color; the icon and text carry
-  the distinction. On the combined drafts page, summaries, relative timestamps
-  and row actions remain visible at phone widths. Full recovery detail stays
-  inside the browser row's disclosure.
-- A pristine new movement or count form has no status chip or record tag. Once
-  edited, show one plain status; a saved document name is secondary text.
-
-## Overlays, reports and fixed geometry
-
-- `Overlay` owns focus containment, background inertness, Escape, scroll lock
-  and focus return. It adds a same-URL history marker on open so system Back
-  closes the topmost dismissible overlay. Route navigation replaces the current
-  marker entry, and ordinary close defers Back until no route transition is
-  pending. A dialog opened inside another stacks above it as its own layer.
-  Adaptive creation uses a bounded desktop dialog and full mobile sheet.
-  ItemPicker uses a wide bounded desktop dialog and full-height mobile sheet;
-  keep its header/search and footer fixed while category/warehouse rails,
-  results, scan stage and item-creation stage use internal scroll surfaces. Its
-  browse toolbar is static inside the dialog, outside the result scrollport.
-- `ReportTable` distinguishes initial loading/error, successful empty and
-  retained refresh. Dense content stays in an internal scrollport; Load more
-  follows 30 rows for full reports. Quick Report previews are explicitly
-  bounded to five rows. Exports are never truncated by preview limits.
-- A quantity omits its suffix only when the matching unit column is visible.
-  `entered_qty` follows `entered_uom`; stock quantities follow `stock_uom`.
-  Mixed-unit group summaries use the unit attached to each quantity entry.
-- Grouped browse tables keep the same `width: 100%` sizing as flat tables.
-  Quantity summaries show the two largest values and then `+N 项`; the cell
-  title and accessible name retain the complete breakdown. Cap wide quantity
-  columns at 16rem and allow their contents to wrap.
-- Horizontally overflowing tables measure both edges. On desktop they expose
-  paired 80%-page scroll hints with accessible left/right names, kept clear of
-  pinned columns, tracking the visible table area and rendered only while the
-  table is displayed. Phones show no hint buttons: an in-frame edge fade marks
-  each side with more columns and swiping scrolls. On phones, pinned groups
-  wider than about a third of the scrollport are unpinned, the column-settings
-  trigger moves out of the table body, and a pointer tap never changes the
-  horizontal scroll position. Edge shades are clipped to the
-  rounded frame and stop before pinned end columns. On fine-pointer desktop, a
-  viewport-bottom proxy scrollbar appears only while the table's native bar is
-  below the viewport; it stays synchronized with the table. Hide cues in print
-  and honor reduced motion. Vertical wheel input continues to scroll the page.
-- `QuantitySummary` uses text-relative minimum tracks and keeps units/statuses
-  separate. History links and metadata wrap or scroll inside their own surface.
-- Fixed bounds are reserved for overlays, internal scrolling, artwork/icons,
-  touch targets, page widths and measured shell obstructions. They express
-  geometry, not typography.
-
-## Operation picker and workspace geometry
-
-- Browse filter rails use a 28px collapsed edge column with a 12px visual rail,
-  at least a 24px hit area, a one-pixel divider, chevron and vertical `筛选`
-  label. An accent dot marks active hierarchy filters. The open rail owns its
-  collapse control at the heading; expanding and collapsing moves focus to the
-  newly visible control. The desktop preference remains page-scoped.
-
-- The operation picker keeps search, scan, filter chips and persistent actions
-  in its header; results scroll independently and the selection/create footer
-  remains fixed. Desktop category and warehouse rails use shared BrowseFilters.
-- Scanner video uses a centered square cover viewport capped at min(100%,
-  42dvh, 420px), with the camera requesting ideal 1920×1080 dimensions and
-  gracefully accepting browser-selected dimensions. Decode the centered square
-  visible through cover, scaling frames above 1000px down. A centered square
-  corner-bracket aim frame dims its surround and says 将条码或二维码对准取景框;
-  it is guidance, not a decode boundary. Show the 手电筒 control only when the active track advertises torch
-  support; failures hide it. Accepted camera scans briefly flash the aim box
-  with --p-success and vibrate where supported; reduced motion removes the
-  flash transition. Scanner lookups drain in FIFO order. Successful decoded
-  frames report barcode presence; errors never count as empty frames. Re-arm a
-  held barcode after 500ms of successful empty frames. Repeated manual Enter
-  stays deliberate.
-- Scan feedback, ambiguity resolution and undo stay visible in the picker scan
-  stage. Each accepted scan adds one stock unit and brings the changed row and
-  group forward through presentation ordering only. Native child order and row
-  identities remain stable; closing the stage cancels scans still in flight.
-- Desktop preview collapse uses a 12px edge rail with a 24px hit area, divider,
-  chevron and vertical `确认前检查` label when collapsed. The collapsed grid
-  column and panel are both 28px. The full-workspace icon sits in the right side
-  of the `操作物资` heading row, including display mode; exiting restores the
-  previous preview state and focus returns to the rail. Mobile has no rail and
-  uses the normal disclosure flow.
-- Picker results use DataTable with flattened Item/warehouse row identity;
-  canonical warehouse label, full-path tooltip, stock quantity and row selection
-  stay in the same compact row for outbound, damaged and count. Inbound shows
-  only the category rail and omits the warehouse column; its quantity heading
-  is the receiving location label plus `现有`. Newly created selection preview
-  stays above filtered results. The receive target selector is a compact inline
-  control in the lines toolbar and lists storable physical leaves.
-- ToastHost renders one body-level stack below the app header (phones: below
-  the top bar) above every overlay and exposes polite feedback. Success feedback
-  uses the normal surface; save/server failures use the danger background and
-  border while retaining their inline error detail.
-
-## Notifications and install cards
-
-- `NotificationCenter` owns the bell, count badge, running-export ring and
-  responsive inbox surface. Keep the bell target at least 44px, cap visible
-  count text at `99+`, and include `通知，N 条未读` in its accessible name.
-- The desktop panel is a bounded popover with focus containment and Escape and
-  outside-pointer dismissal. Phone presentation uses the shared `Overlay` as a
-  full-height sheet. Inbox rows use a 30px kind icon, stronger subject weight
-  and a colored dot while unread, then relative time and any export action.
-- Notification loading uses shape-matched skeletons before the first result;
-  empty state appears only after a successful response. Keep grouping headings
-  (`今天`, `更早`) and load-more feedback local to the inbox surface.
-- More-grid actions share the `.more-card.surface` grid structure, icon tile,
-  padding and minimum height. Interactive cards use a native button element so
-  button internals do not change card alignment.
+- `frontend/src/lib/kindIcons.ts` is the canonical map for movement/count kind labels and icons. Use it across menus, filters, rows, records, notifications, drafts, editor headings and More tiles. Registry paths have distinct glyphs; aliases point to canonical keys.
+- Use `outside` for 外部, `export` for 导出, `report` for 报表; reserve `download` for file downloads. Icon-only controls need accessible names and visible tooltips.
+- Definition lists (`.ti-fields`) label mixed-value summaries; `·` separates values of the same kind. Use consistent label/quantity alignment, tabular numerals and focus rings.
 
 ## Verification contract
 
-Before visual browser inspection, run the browser command through
-`scripts/ui-visual-preflight` (see [AGENTS.md](AGENTS.md)). Inspect the routed
-production app with realistic Chinese text, long names, 1024px boundary,
-desktop/phone surfaces, all densities and enlarged text. Focus checks on
-alignment, skeleton/refresh retention, image placeholders, scroll containment,
-keyboard access and overlapping touch targets. Fixture-based browser results
-are client evidence; live-service/device evidence must be named separately.
-Source review or automated tests alone do not establish visual acceptance.
+Before visual browser inspection, run the browser under `scripts/ui-visual-preflight` (procedure in [docs/agents/visual-review.md](docs/agents/visual-review.md)). Inspect realistic Chinese text, long names, 1024px boundary, desktop/phone, all densities and enlarged text. Check alignment, skeleton/refresh retention, image placeholders, scroll containment, keyboard access and overlapping touch targets. Fixture browser evidence is client evidence; name live-service/device evidence separately. Source review or automated tests alone do not establish visual acceptance.
 
-## Data clarity components
+## Changelog
 
-- `RecordRef` is the shared cross-document chip. It combines a kind icon, an
-  explicit kind name in its accessible label, readable identity or a kind-aware
-  count, optional status and secondary document name. It emits `open` and stays
-  generic enough for records, notifications and recovery links.
-- `LocationEndpoint` presents a movement source or destination. Physical
-  locations use their canonical label in primary ink and the full path as the
-  tooltip. Leased and damaged system leaves are detected from the settings
-  pointers, then shown with their dedicated icon and muted/warning label. Empty
-  endpoints use the outward icon and `外部`, with kind-specific tooltip text.
-  Exports retain native raw values.
-- `ItemLine` pairs the compact shared `ItemImage` and lightbox with the Item
-  name. A secondary slot carries one related identity, such as code or batch.
-  Use it wherever an Item is presented without artwork.
-- Use `.ti-fields` definition lists when a compact summary combines different
-  kinds of values. Keep `·` for lists of the same kind, including quantities
-  with their units.
+- 2026-10-28: current table, editor, picker and image geometry; separate filter, picker and review rails.
+- 2026-10-27: semantic DataTable columns, units and shared editor grid.
+- 2026-10-25: layer scale, phone sheets, browse density and keyboard focus.

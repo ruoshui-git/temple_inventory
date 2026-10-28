@@ -9,7 +9,7 @@ Tags are for discovery; deployments and recovery use digests.
 |---|---|---|---|
 | sample | non-production, `40.160.91.166` | `https://sample.kufang.online` | every push to main |
 | staging | same non-production host, separate project | `https://staging.kufang.online` | manual refresh and promote |
-| production | separate new VPS; address not assigned yet | `https://kufang.org` | manual, staging verification, production approval |
+| production | its own VPS | `https://kufang.org` | manual, staging verification, production approval |
 
 The non-production edge redirects `kufang.online` to sample with HTTP 302.
 Production redirects `www.kufang.org` to `https://kufang.org` with HTTP 301,
@@ -211,6 +211,8 @@ Staging and production set Administrator to `ADMIN_PASSWORD` from their `.env`
 (bootstrap refuses an empty value) and record it in `credentials.txt` (0600).
 Never commit that password: this repository is public.
 `sample_install.py` explicitly allows this opt-in without developer mode.
+Seeding sample data on a non-development site requires site config
+`temple_inventory_sample_site=1`; the bootstrap sets this opt-in for sample.
 Staging restores the latest complete production backup, mutes email, sets its
 own host name and disables scheduler delivery before exposing the restored
 site. It does not create fresh sample data.

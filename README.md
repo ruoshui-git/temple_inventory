@@ -63,7 +63,7 @@ It permanently removes all database records, does not create a backup, and must
 never be used on a production site. Progress, server errors, and tracebacks are
 shown directly in the terminal and written to `logs/temple-sample-reset-*.log`.
 The script accepts only `development.localhost`. The public sample site is created
-once by [deploy/sample/bootstrap.sh](deploy/sample/bootstrap.sh); see
+once by [deploy/stack/bootstrap.sh](deploy/stack/bootstrap.sh); see
 [deploy/README.md](deploy/README.md).
 
 ### Development environment and deployment
@@ -76,25 +76,17 @@ every push to `main` triggers.
 The development site may set `temple_inventory_environment` in its site config
 to `development`, `sample`, `staging` or `production` for runtime branding. If
 the key is missing, `developer_mode` selects `development`; otherwise the safe
-default is `production`.
+default is `production`. An unset System Settings timezone is set to
+`America/New_York` during migrate.
 
 ### Running the app locally
 
 Run these from this app's directory in a WSL terminal (VS Code opened on the WSL
 folder, not "Reopen in Container").
 
-1. **Start the stack.** This starts MariaDB, Redis, `bench serve` (the `web`
-   service, port 8000) and `bench worker`. They restart on their own after a
-   reboot, so you only need this after `docker compose ... down`:
-
-   ```bash
-   docker compose -f dev/compose.yaml up -d
-   ```
-
-   Python changes reload automatically. Run
-   `docker compose -f dev/compose.yaml restart web worker` after changing hooks or
-   if the server looks stuck. Server logs:
-   `docker compose -f dev/compose.yaml logs -f web worker`.
+1. **Start the stack.** Start, restart and inspect services using the
+   [Development environment commands in AGENTS.md](AGENTS.md#development-environment).
+   The web service serves the built frontend on port 8000.
 
 2. **Frontend with hot reload (optional).** Port 8000 serves the last
    `pnpm build`. For live editing, run the Vite dev server in the container. It
