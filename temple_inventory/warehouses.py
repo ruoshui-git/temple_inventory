@@ -14,6 +14,7 @@ from temple_inventory.native_topology import (
 	_visible_warehouses,
 	present_locations,
 )
+from temple_inventory.warehouse_names import derive_local_label, native_name
 
 
 def _context():
@@ -32,6 +33,13 @@ def _protected(settings):
 	return _system_warehouse_names(settings) | {
 		settings.get(field) for field in POINTERS if settings.get(field)
 	}
+
+
+def _write_name(label, short_label, parent, physical_root, *, direct=False):
+	value = native_name(label, short_label, parent, physical_root, direct=direct)
+	if len(value) > 140:
+		frappe.throw("生成的仓库路径超过 140 字，请缩短名称或简称")
+	return value
 
 
 @frappe.whitelist()
@@ -64,18 +72,6 @@ def _referenced(names):
 	)
 
 
-def _native_name(label, short_label, parent, physical_root, *, direct=False):
-	if direct:
-		value = f"{parent.warehouse_name} · 直接存放"
-	else:
-		segment = str(short_label or label).strip()
-		prefix = "" if parent.name == physical_root else parent.warehouse_name
-		value = f"{prefix} / {segment}" if prefix else segment
-	if len(value) > 140:
-		frappe.throw("生成的仓库路径超过 140 字，请缩短名称或简称")
-	return value
-
-
 def _cascade_warehouse_names(doc, method=None):
 	previous = doc.get_doc_before_save()
 	if doc.is_new() or not previous or doc.warehouse_name == previous.warehouse_name:
@@ -103,7 +99,7 @@ def _cascade_warehouse_names(doc, method=None):
 			name=child.parent_warehouse,
 			warehouse_name=warehouse_names.get(child.parent_warehouse, ""),
 		)
-		value = _native_name(
+		value = _write_name(
 			child.ti_label,
 			child.ti_short_label,
 			parent,
@@ -112,28 +108,6 @@ def _cascade_warehouse_names(doc, method=None):
 		)
 		warehouse_names[child.name] = value
 		frappe.db.set_value("Warehouse", child.name, "warehouse_name", value, update_modified=False)
-
-
-def _derive_label(doc):
-	if doc.get("ti_label"):
-		return
-	value = str(doc.get("warehouse_name") or "").strip()
-	if doc.get("parent_warehouse"):
-		parent = frappe.db.get_value(
-			"Warehouse", doc.parent_warehouse, ["warehouse_name", "ti_label", "ti_short_label"], as_dict=True
-		)
-		parent_name = parent.warehouse_name if parent else ""
-		if cint(doc.get("ti_direct_storage")) and parent and value == f"{parent_name} · 直接存放":
-			doc.ti_label = parent.ti_label or parent.ti_short_label or parent_name
-			if not doc.ti_short_label and parent.ti_short_label:
-				doc.ti_short_label = parent.ti_short_label
-			return
-		prefix = f"{parent_name} / " if parent_name else ""
-		if prefix and value.startswith(prefix):
-			value = value[len(prefix) :]
-	if value.endswith(" · 直接存放"):
-		value = value.removesuffix(" · 直接存放").strip()
-	doc.ti_label = value
 
 
 def validate_native_warehouse(doc, method=None):
@@ -147,7 +121,21 @@ def validate_native_warehouse(doc, method=None):
 			and frappe.db.get_value("Warehouse", doc.parent_warehouse, "company") != doc.company
 		):
 			frappe.throw("仓库上级必须属于同一公司")
-		_derive_label(doc)
+		parent = None
+		if not doc.get("ti_label") and doc.get("parent_warehouse"):
+			parent = frappe.db.get_value(
+				"Warehouse",
+				doc.parent_warehouse,
+				["warehouse_name", "ti_label", "ti_short_label"],
+				as_dict=True,
+			)
+		doc.ti_label, doc.ti_short_label = derive_local_label(
+			doc.get("warehouse_name"),
+			parent,
+			direct=bool(cint(doc.get("ti_direct_storage"))),
+			label=doc.get("ti_label"),
+			short_label=doc.get("ti_short_label"),
+		)
 		if doc.warehouse_type in ("Area", "Room") and not cint(doc.is_group):
 			frappe.throw("区域和房间必须是分组仓库")
 		if doc.ti_label:
@@ -155,7 +143,7 @@ def validate_native_warehouse(doc, method=None):
 				"Warehouse", doc.parent_warehouse, ["name", "warehouse_name"], as_dict=True
 			)
 			if parent:
-				doc.warehouse_name = _native_name(
+				doc.warehouse_name = _write_name(
 					doc.ti_label,
 					doc.ti_short_label,
 					parent,
@@ -287,7 +275,7 @@ def _insert_location(kind, label, parent, short_label=None):
 				"ti_label": label,
 				"ti_short_label": short_label,
 				"ti_direct_storage": int(direct),
-				"warehouse_name": _native_name(
+				"warehouse_name": _write_name(
 					label, short_label, node_parent, settings.physical_root_warehouse, direct=direct
 				),
 			}
@@ -374,7 +362,7 @@ def subdivide_shelf(name, version):
 			"ti_label": doc.ti_label,
 			"ti_short_label": doc.ti_short_label,
 			"ti_direct_storage": 1,
-			"warehouse_name": _native_name(
+			"warehouse_name": _write_name(
 				doc.ti_label, doc.ti_short_label, doc, settings.physical_root_warehouse, direct=True
 			),
 		}
@@ -421,7 +409,7 @@ def repair_direct_storage(name, version):
 			"ti_label": doc.ti_label,
 			"ti_short_label": doc.ti_short_label,
 			"ti_direct_storage": 1,
-			"warehouse_name": _native_name(
+			"warehouse_name": _write_name(
 				doc.ti_label, doc.ti_short_label, doc, settings.physical_root_warehouse, direct=True
 			),
 		}

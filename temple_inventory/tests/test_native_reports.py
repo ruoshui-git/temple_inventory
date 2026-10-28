@@ -18,6 +18,7 @@ from temple_inventory import activities, browse, catalog, counts, exports, nativ
 from temple_inventory.projections import Projection, group_page, report_page
 from temple_inventory.report_query import DEFINITIONS, validate_query
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
+from temple_inventory.warehouse_names import DIRECT_STORAGE_SUFFIX
 
 
 class NativeReportTests(NativeDocumentTests):
@@ -289,7 +290,7 @@ class NativeReportTests(NativeDocumentTests):
 			),
 			"DIRECT-1": frappe._dict(
 				name="DIRECT-1",
-				warehouse_name="T1 / A14 · 直接存放",
+				warehouse_name=f"T1 / A14{DIRECT_STORAGE_SUFFIX}",
 				ti_label="A14",
 				parent_warehouse="ROOM-1",
 				warehouse_type="",
@@ -298,7 +299,7 @@ class NativeReportTests(NativeDocumentTests):
 			),
 			"DIRECT-2": frappe._dict(
 				name="DIRECT-2",
-				warehouse_name="T2 / A14 · 直接存放",
+				warehouse_name=f"T2 / A14{DIRECT_STORAGE_SUFFIX}",
 				ti_label="A14",
 				parent_warehouse="ROOM-2",
 				warehouse_type="",

@@ -3,6 +3,8 @@
 import frappe
 from frappe.utils import cint
 
+from temple_inventory.warehouse_names import build_paths, full_label, local_label
+
 SYSTEM_POINTERS = (
 	"root_warehouse",
 	"physical_root_warehouse",
@@ -123,10 +125,6 @@ def _allowed_warehouses(settings=None):
 	}
 
 
-def _label(row):
-	return str(row.get("ti_short_label") or row.get("ti_label") or row.get("warehouse_name") or row.name)
-
-
 def _derived_kind(row, direct_by_parent, rows, systems):
 	if row.name in systems or row.warehouse_type == "System":
 		return "system"
@@ -159,24 +157,16 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		rows = {row.get("name"): frappe._dict(row) for row in rows if row.get("name")}
 	systems = _system_warehouse_names(settings)
 	direct_by_parent = {}
-	paths = {}
 	owners = {}
 	for name, row in rows.items():
 		if cint(row.get("ti_direct_storage")):
 			owners[name] = row.parent_warehouse
 			direct_by_parent.setdefault(row.parent_warehouse, []).append(row)
-	for name, row in rows.items():
-		parts, seen, cursor = [], set(), row
-		while cursor and cursor.name not in seen:
-			seen.add(cursor.name)
-			if cursor.name not in (physical_root, settings.root_warehouse, settings.system_root_warehouse):
-				if not cint(cursor.get("ti_direct_storage")):
-					parts.insert(0, _label(cursor))
-			cursor = rows.get(cursor.parent_warehouse)
-		if name in owners:
-			owner = rows.get(owners[name])
-			parts = paths.get(owner.name, [_label(owner)] if owner else [])
-		paths[name] = parts
+	paths = build_paths(
+		rows,
+		excluded_roots=(physical_root, settings.root_warehouse, settings.system_root_warehouse),
+		direct_owners=owners,
+	)
 
 	items = []
 	for name, row in rows.items():
@@ -187,14 +177,12 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		direct = direct_by_parent.get(name, [])
 		missing_direct = kind in {"room", "shelf"} and cint(row.is_group) and not direct
 		path = paths[name]
-		local = _label(row)
+		local = local_label(row)
 		if is_direct:
-			local = _label(rows.get(owner_name) or row)
+			local = local_label(rows.get(owner_name) or row)
 			kind = _derived_kind(rows.get(owner_name) or row, direct_by_parent, rows, systems)
 			path = paths.get(owner_name, path)
-		full_label = str(row.get("ti_label") or row.get("warehouse_name") or row.name)
-		if is_direct and owner_name in rows:
-			full_label = str(rows[owner_name].get("ti_label") or rows[owner_name].warehouse_name)
+		full = full_label(row, rows, owner_name if is_direct else "")
 		ancestor_terms = []
 		ancestor = rows.get(row.parent_warehouse)
 		while ancestor:
@@ -204,7 +192,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 			ancestor = rows.get(ancestor.parent_warehouse)
 		search_terms = [
 			" / ".join(path),
-			full_label,
+			full,
 			str(row.warehouse_name or ""),
 			str(row.get("ti_short_label") or ""),
 			str(row.get("ti_label") or ""),
@@ -216,16 +204,16 @@ def present_locations(rows, *, physical_root=None, settings=None):
 			storable = False
 		label = local
 		if is_direct and owner_name in rows:
-			label = _label(rows[owner_name])
+			label = local_label(rows[owner_name])
 		elif kind == "shelf" and parent and parent.name not in (physical_root, settings.root_warehouse):
-			label = f"{_label(parent)} / {local}"
+			label = f"{local_label(parent)} / {local}"
 		items.append(
 			{
 				"name": name,
 				"label": label,
 				"local_label": str(row.get("ti_label") or ""),
 				"short_label": str(row.get("ti_short_label") or ""),
-				"full_label": full_label,
+				"full_label": full,
 				"path": " / ".join(path),
 				"search_text": search_text,
 				"kind": kind,
