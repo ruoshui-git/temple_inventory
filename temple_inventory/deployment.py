@@ -34,6 +34,9 @@ def after_install():
 
 def _ensure_uom_property_setters():
 	"""Keep Desk UOM links searchable and display the app-owned title field."""
+	if not frappe.get_meta("UOM").has_field("ti_label"):
+		# A fresh install runs before fixtures add ti_label; after_migrate applies these.
+		return
 	for field, prop, value, prop_type in (
 		(None, "title_field", "ti_label", "Data"),
 		(None, "show_title_field_in_link", "1", "Check"),
