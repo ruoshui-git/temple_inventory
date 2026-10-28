@@ -4,6 +4,7 @@ import { nativeUiSession } from "./fixtures/nativeUi";
 
 for (const [width, textScale] of [
   [375, 100],
+  [375, 200],
   [1024, 200],
   [1440, 100],
 ] as const) {
@@ -104,11 +105,35 @@ for (const [width, textScale] of [
         (route) => route.fulfill({ json: { message: [] } }),
       );
       await page.goto("/inventory/movements/" + encodeURIComponent(doc.name));
-      const summary = page.locator(".form-main .preview-allocation-summary");
-      await expect(summary.locator("[data-summary-line-id]")).toHaveCount(1);
-      await expect(summary).toContainText("批次甲/A,1 2 Nos");
-      await expect(summary).toContainText("批次乙/B,2 3 Nos");
-      await expect(summary).toContainText("1 箱 × 5 Nos/箱 = 5 Nos");
+      const summary =
+        width < 1024
+          ? page.locator(".form-main .allocation-phone-list")
+          : page.locator(".form-main .allocation-summary-table");
+      await expect(summary).toBeVisible();
+      const lineRows =
+        width < 1024
+          ? summary.locator(".allocation-phone-row")
+          : summary.locator(
+              "tbody > tr:not(.data-table-group-row):not(.data-table-group-detail-row)",
+            );
+      await expect(lineRows).toHaveCount(1);
+      const allocations = lineRows.locator(".allocation-batch-entry");
+      await expect(allocations).toHaveCount(2);
+      await expect(allocations.nth(0)).toContainText("批次甲/A,1");
+      await expect(allocations.nth(0)).toContainText("2 Nos");
+      await expect(allocations.nth(1)).toContainText("批次乙/B,2");
+      await expect(allocations.nth(1)).toContainText("3 Nos");
+      if (width < 1024) {
+        await expect(allocations.nth(0)).toContainText("2026-10-20");
+        await expect(allocations.nth(1)).toContainText("2026-11-20");
+      } else {
+        const expiries = lineRows.locator(".allocation-expiry-entry");
+        await expect(expiries).toHaveCount(2);
+        await expect(expiries.nth(0)).toHaveText("2026-10-20");
+        await expect(expiries.nth(1)).toHaveText("2026-11-20");
+      }
+      await expect(lineRows).toContainText("1 箱 = 5 Nos");
+      await expect(lineRows).not.toContainText("（1 箱 = 5 Nos）");
       await expect(summary).not.toContainText("自动生成");
       await expect(page.locator("[role=alert]")).toHaveCount(0);
       if (process.env.AUDIT_CJK_FONT) {
@@ -128,21 +153,9 @@ for (const [width, textScale] of [
           () => document.documentElement.scrollWidth <= innerWidth + 1,
         ),
       ).toBe(true);
-      expect(
-        await page.locator(".form-review").evaluate((element) => {
-          const style = getComputedStyle(element);
-          const available =
-            element.clientWidth -
-            parseFloat(style.paddingLeft) -
-            parseFloat(style.paddingRight);
-          return (
-            element
-              .querySelector(".preview-allocation-summary")!
-              .getBoundingClientRect().width >=
-            available - 1
-          );
-        }),
-      ).toBe(true);
+      expect((await summary.boundingBox())!.width).toBeLessThanOrEqual(
+        await page.evaluate(() => innerWidth + 1),
+      );
       await page.screenshot({
         path: testInfo.outputPath("batch-" + width + "-" + textScale + ".png"),
         fullPage: true,

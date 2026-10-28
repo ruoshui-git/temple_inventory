@@ -5,6 +5,36 @@ behavior is in [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md); agent and architecture
 rules are in [AGENTS.md](AGENTS.md). Historical preview and migration detail is
 kept in Git.
 
+## Supersession — 2026-10-28: group rows, document tables, units and images
+
+- DataTable group identity cells opt out of the primary-column clamp: image,
+  disclosure, single-line ellipsized label (full text in `title`), count and
+  metrics stay on one no-wrap row. A group detail row renders only when the
+  entry sets `detailRow`.
+- Read-only movement lines reuse DataTable location groups with semantic
+  column kinds; phones mount one compact list surface (thumbnail, two-line
+  clamped name, right-aligned quantity, muted batch/expiry line). Totals are
+  per stock unit.
+- Units: `unitOption()` (`lib/units.ts`) builds every unit choice (label,
+  native name, `1 X = n Y`); `UnitText` renders standalone units with the
+  native name in `title`; `formatConversion()` (`lib/conversionText.ts`) is
+  the only conversion wording. Editor line grids reserve aligned cells for
+  batch, dates and the muted stock total on every row.
+- `ItemImage` requests the 160px or 640px WebP derivative from
+  `item_images.thumbnail` by rendered CSS size × device pixel ratio; full-size
+  viewers use the private original. The crop stage fits the image aspect
+  within 512px × 65vh.
+- Dashboard and Activity kind tiles are links; `+N 单位`/`收起` is a quiet
+  inline text control on the record-count line, outside the link. Browse row
+  links show hover underline and focus rings; base `code` uses the app font
+  with tabular numerals; `LocationEndpoint` uses one 16px icon aligned to the
+  text.
+- Filter facets stay inside the filter disclosure pattern; autocomplete facets
+  (人员, 借用方) reuse the shared remote select with the person role select
+  beside the name. Period presets use native `<optgroup>`s.
+- Unavailable menu actions keep their label on one line and the reason on a
+  muted second line.
+
 ## Supersession — 2026-10-27: column kinds, units, sections and dialogs
 
 - `DataColumn.kind` (`number`, `unit`, `code`, `date`, `datetime`, `status`,

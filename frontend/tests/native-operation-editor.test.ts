@@ -266,7 +266,7 @@ describe("native movement editor integration", () => {
         .at(-1)
         ?.get("tr:not(.data-table-group-row) td.data-column-code")
         .text(),
-    ).toBe("BATCH-A");
+    ).toBe("BATCH-A · 24 Nos");
     expect(
       wrappers
         .at(-1)
@@ -312,8 +312,14 @@ describe("native movement editor integration", () => {
               {
                 name: "BATCH-PHONE-LINE",
                 batch_no: "BATCH-PHONE",
-                stock_qty: 24,
+                stock_qty: 12,
                 expiry_date: "2027-10-16",
+              },
+              {
+                name: "BATCH-PHONE-LINE-2",
+                batch_no: "BATCH-PHONE-2",
+                stock_qty: 12,
+                expiry_date: "2027-11-16",
               },
             ],
           },
@@ -345,8 +351,17 @@ describe("native movement editor integration", () => {
       longItemName,
     );
     expect(wrapper.text()).toContain("2 Box = 24 Nos（1 Box = 12 Nos）");
-    expect(wrapper.text()).toContain("BATCH-PHONE");
-    expect(wrapper.text()).toContain("效期 2027-10-16");
+    expect(wrapper.findAll(".allocation-phone-row")).toHaveLength(1);
+    const phoneAllocations = wrapper.findAll(
+      ".allocation-phone-row .allocation-batch-entry",
+    );
+    expect(phoneAllocations).toHaveLength(2);
+    expect(phoneAllocations[0]!.text().replace(/\s+/g, " ").trim()).toBe(
+      "BATCH-PHONE · 12 Nos · 2027-10-16",
+    );
+    expect(phoneAllocations[1]!.text().replace(/\s+/g, " ").trim()).toBe(
+      "BATCH-PHONE-2 · 12 Nos · 2027-11-16",
+    );
     await wrapper.get(".allocation-phone-group-toggle").trigger("click");
     expect(
       wrapper.get(".allocation-phone-group-toggle").attributes("aria-expanded"),
@@ -520,13 +535,14 @@ describe("native movement editor integration", () => {
     const wrapper = wrappers.at(-1)!;
     expect(wrapper.text()).toContain("BATCH-A");
     expect(wrapper.text()).toContain("BATCH-B");
+    const batchEntries = wrapper.findAll(".allocation-batch-entry");
+    expect(batchEntries).toHaveLength(2);
     expect(
-      wrapper
-        .findAll("tr:not(.data-table-group-row) td.data-column-code")
-        .map((cell) => cell.text()),
-    ).toEqual(["BATCH-A · BATCH-B"]);
-    expect(wrapper.text()).not.toContain("BATCH-A 2 Nos");
+      batchEntries.map((entry) => entry.text().replace(/\s+/g, " ").trim()),
+    ).toEqual(["BATCH-A · 2 Nos", "BATCH-B · 3 Nos"]);
+    expect(wrapper.findAll(".allocation-expiry-entry")).toHaveLength(2);
     expect(wrapper.text()).toContain("2026-10-20");
+    expect(wrapper.text()).toContain("2026-11-20");
     expect(wrapper.text()).not.toContain("自动生成");
     expect(c.issues.value).toEqual([]);
     c.draft.value.note = "保留原批次分配";

@@ -512,8 +512,21 @@ for (const width of [390, 1440]) {
     );
     expect(metrics.imageWidth).toBeLessThanOrEqual(metrics.frameWidth + 1);
     expect(metrics.imageHeight).toBeLessThanOrEqual(metrics.frameHeight + 1);
+    expect(Math.abs(metrics.imageWidth - metrics.frameWidth)).toBeLessThan(1);
+    expect(Math.abs(metrics.imageHeight - metrics.frameHeight)).toBeLessThan(1);
+    const naturalAspect = metrics.naturalWidth / metrics.naturalHeight;
+    expect(metrics.naturalWidth).not.toBe(metrics.naturalHeight);
+    expect(metrics.frameWidth / metrics.frameHeight).toBeCloseTo(
+      naturalAspect,
+      2,
+    );
+    expect(metrics.imageWidth / metrics.imageHeight).toBeCloseTo(
+      naturalAspect,
+      2,
+    );
+    expect(metrics.fit).toBe("contain");
     const box = await image.boundingBox();
-    expect(Math.abs(box!.width - box!.height)).toBeLessThan(1);
+    expect(box!.width / box!.height).toBeCloseTo(naturalAspect, 2);
     await page.screenshot({ path: info.outputPath("square-attachment.png") });
   });
 }

@@ -177,9 +177,10 @@ function groupLines(group: DataTableGroup) {
 	return sections.value.find(([location]) => location === place)?.[1] || [];
 }
 function phoneDetails(line: AllocationLine) {
-	const details = batchIds(line);
-	if (!details.length && lineBatch(line)) details.push(lineBatch(line));
-	const expiry = lineExpiry(line);
+	const hasBatchAllocations = Boolean(line.batchAllocations?.length);
+	const details = hasBatchAllocations ? [] : batchIds(line);
+	if (!hasBatchAllocations && !details.length && lineBatch(line)) details.push(lineBatch(line));
+	const expiry = hasBatchAllocations ? "" : lineExpiry(line);
 	if (expiry) details.push(`效期 ${expiry}`);
 	const manufacturingDate = lineManufacturingDate(line);
 	if (manufacturingDate) details.push(`生产 ${manufacturingDate}`);
@@ -272,7 +273,25 @@ function itemFor(row: Record<string, unknown>) {
 								quantityText(line)
 							}}</strong>
 						</div>
-						<div v-if="phoneDetails(line).length" class="allocation-phone-meta">
+						<div
+							v-if="line.batchAllocations?.length || phoneDetails(line).length"
+							class="allocation-phone-meta"
+						>
+							<div
+								v-for="allocation in line.batchAllocations"
+								:key="allocation.name || allocation.batch"
+								class="allocation-batch-entry"
+							>
+								<RouterLink
+									v-if="allocation.batch"
+									:to="routeTarget('batch-detail', { name: allocation.batch })"
+									>{{ allocation.batch }}</RouterLink
+								>
+								<span v-else>无批次</span>
+								<span> · </span>
+								<UnitText :name="line.uom" :qty="Number(allocation.qty || 0)" />
+								<span v-if="allocation.expiry"> · {{ allocation.expiry }}</span>
+							</div>
 							<template
 								v-for="(detail, index) in phoneDetails(line)"
 								:key="`${line.id}:${detail}`"
@@ -327,17 +346,19 @@ function itemFor(row: Record<string, unknown>) {
 			<template v-else-if="column.id === 'batch'">
 				<template v-if="lineFor(row).batchAllocations?.length">
 					<span
-						v-for="(allocation, index) in lineFor(row).batchAllocations"
+						v-for="allocation in lineFor(row).batchAllocations"
 						:key="allocation.name || allocation.batch"
-						class="allocation-batch-values"
+						class="allocation-batch-entry"
 					>
-						<span v-if="index"> · </span>
 						<RouterLink
 							v-if="allocation.batch"
 							class="allocation-batch-link"
 							:to="routeTarget('batch-detail', { name: allocation.batch })"
 							>{{ allocation.batch }}</RouterLink
 						>
+						<span v-else>无批次</span>
+						<span> · </span>
+						<UnitText :name="lineFor(row).uom" :qty="Number(allocation.qty || 0)" />
 					</span>
 				</template>
 				<RouterLink
@@ -348,23 +369,16 @@ function itemFor(row: Record<string, unknown>) {
 				>
 				<template v-else>{{ String(row.batch || "") }}</template>
 			</template>
-			<template v-else-if="column.id === 'quantity'">
-				<span class="allocation-quantity"
-					><UnitText
-						:name="lineFor(row).entryUom || lineFor(row).uom"
-						:qty="enteredQty(lineFor(row))"
-					/><template
-						v-if="(lineFor(row).entryUom || lineFor(row).uom) !== lineFor(row).uom"
-					>
-						=
-						<UnitText
-							:name="lineFor(row).uom"
-							:qty="Number(lineFor(row).qty || 0)"
-						/>（1 <UnitText :name="lineFor(row).entryUom || lineFor(row).uom" /> =
-						{{ formatQuantity(Number(lineFor(row).conversionFactor || 1)) }}
-						<UnitText :name="lineFor(row).uom" />）</template
-					></span
+			<template v-else-if="column.id === 'expiry' && lineFor(row).batchAllocations?.length">
+				<span
+					v-for="allocation in lineFor(row).batchAllocations"
+					:key="allocation.name || allocation.batch"
+					class="allocation-expiry-entry"
+					>{{ allocation.expiry || lineFor(row).expiry || "—" }}</span
 				>
+			</template>
+			<template v-else-if="column.id === 'quantity'">
+				<span class="allocation-quantity">{{ quantityText(lineFor(row)) }}</span>
 			</template>
 			<template v-else-if="column.id === 'destination'">
 				<LocationEndpoint
@@ -425,25 +439,26 @@ function itemFor(row: Record<string, unknown>) {
 	display: inline-block;
 	white-space: nowrap;
 }
+.allocation-batch-entry,
+.allocation-expiry-entry {
+	display: block;
+}
+.allocation-batch-entry {
+	width: max-content;
+	max-width: none;
+	white-space: nowrap;
+}
 .allocation-summary-table :deep(.data-table-group-count) {
 	display: none;
 }
 .allocation-batch-link {
 	white-space: nowrap;
 }
-.allocation-summary-table :deep(td.data-column-code > .allocation-batch-link) {
+.allocation-summary-table :deep(td.data-column-code > .allocation-batch-entry) {
 	width: max-content;
 	max-width: none;
 	overflow: visible;
 	text-overflow: clip;
-}
-.allocation-summary-table :deep(td.data-column-code > .allocation-batch-values) {
-	display: inline-block;
-	width: max-content;
-	max-width: none;
-	overflow: visible;
-	text-overflow: clip;
-	white-space: nowrap;
 }
 .allocation-phone-list {
 	display: grid;
@@ -528,6 +543,11 @@ function itemFor(row: Record<string, unknown>) {
 .allocation-phone-meta {
 	margin-top: 2px;
 	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+.allocation-phone-meta .allocation-batch-entry {
+	width: auto;
+	white-space: normal;
 	overflow-wrap: anywhere;
 }
 </style>

@@ -4,6 +4,52 @@ This is the current product decision record. Retired mockups, preview-only
 proposals and implementation chronology belong in Git history. Add a dated
 supersession below when a durable user-facing decision changes.
 
+## Supersession — 2026-10-28: filters, documents, images and units
+
+- **Dates:** the period dropdown groups 相对 presets (including 本季度/上季度),
+  日历 presets (第1–4季度 of the current year, 去年) and 自定义. The separate
+  year/quarter shortcut rows are retired; fixed quarters are real period keys
+  whose summaries show their resolved dates.
+- **Filters:** 物品追踪 (全部/按批次管理/记录效期/不按批次管理) is a shared item
+  scope. One 人员 field with a role select (任一角色/记录人/经手人/鉴证人) and
+  permission-scoped name suggestions finds every record a person touched;
+  names on read-only documents link to that filter. Loans add 借用方 and
+  归还结果; Inventory and Reports add 物品状态 (default 启用). Activity dates
+  match activities whose start–end range overlaps the period. The inbox
+  filters by notification type.
+- **Read-only documents:** lines are one row each in a location-grouped table
+  (compact list rows on phones); optional columns appear only when used. A
+  line split across batches lists each batch with its quantity and expiry
+  inside that one row. Group
+  headers and 操作汇总 use canonical stock-unit totals. The read-only aside
+  shows aggregates only; the editor aside shows aggregates plus line checks;
+  the review dialog keeps the table and folds empty optional fields into one
+  `未填写：…` line. Loan detail shows only 原存放.
+- **Conversions:** state the result first, `2 箱 = 24 个（1 箱 = 12 个）`, drop
+  the rate when one unit was entered and omit conversion text when the unit is
+  the stock unit. Editor rows show the muted stock total after the unit. Unit choices show the label, native name
+  and conversion; standalone units show the native name as a tooltip.
+- **Editors:** line headers mark required columns with `*` and 生产日期 with a
+  muted `可选`. 添加物品 is the visible section action; adding a location is
+  quiet. Image paste decodes only inside an open scanner surface and never
+  replaces a text paste.
+- **Browse and dashboard:** group headers stay on one line. Stock-effect text
+  (`可用库存增加 N 单位`) is title/sr-only. Item tables show thumbnails.
+  Dashboard movement tiles and recent records are links with an in-tile
+  `+N 单位` disclosure; 效期概览 rows are one line on desktop. Draft rows show
+  a visible open link and 继续编辑 inline, summarized as `首个物品 等 N 种物品 →
+  位置` with site-timezone relative times. Clickable elements show a pointer;
+  nothing else does. The tab title is `<app title> | <page>`.
+- **Images:** primary images get private 160px and 640px WebP derivatives
+  (system Files with `attached_to_field = ti_image_variant`, never shown as
+  attachments) used by size; lightboxes use the original. The crop stage
+  follows the image's aspect; the selection stays 1:1.
+- **Units:** `/stock/units` (更多 → 管理与设置 → 单位) lists every UOM with
+  label, whole-number rule, status and usage. Native names are fixed; labels,
+  whole-number and enabled state are editable, and only unreferenced units can
+  be deleted. Barcode types are not stored: ERPNext only uses them for EAN/UPC
+  check digits, which the decoder already verifies.
+
 ## Supersession — 2026-10-27: units, tables, editors, scanner and browse links
 
 - **Units:** ERPNext UOM names stay the native identity, link and filter key.
@@ -210,8 +256,8 @@ supersession below when a durable user-facing decision changes.
   one persistent toolbar. Category and warehouse restrictions may also appear
   in a synchronized sidebar; hiding it never changes selected values. Filter
   editors are viewport-bounded dialogs on desktop and sheets on phones. Date
-  edits stage until Apply, use inclusive site-date bounds and support editable
-  year/quarter shortcuts. Chips summarize fields; editors retain each selected
+  edits stage until Apply and use inclusive site-date bounds (presets per the
+  2026-10-28 supersession). Chips summarize fields; editors retain each selected
   value. Grouping is zero to two ordered levels from the active view contract.
 - Activity detail, drafts and Reports use the canonical browse toolbar for
   search, filters and applied chips. Browse URLs omit default query state and
