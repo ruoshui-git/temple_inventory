@@ -14,19 +14,8 @@ bench install-app temple_inventory
 
 ### Contributing
 
-This app uses `pre-commit` for code formatting and linting. Please [install pre-commit](https://pre-commit.com/#installation) and enable it for this repository:
-
-```bash
-cd apps/temple_inventory
-pre-commit install
-```
-
-Pre-commit is configured to use the following tools for checking and formatting your code:
-
-- ruff
-- eslint
-- prettier
-- pyupgrade
+Validation commands (Ruff, Prettier, type-check, tests) are listed in
+[AGENTS.md](AGENTS.md#validation); CI runs the same checks on every push.
 
 ### License
 

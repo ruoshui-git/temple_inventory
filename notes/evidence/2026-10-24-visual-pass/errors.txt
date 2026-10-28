@@ -1,2 +1,0 @@
-activity-detail@390 horizontal page overflow 739px
-activity-detail@1024 horizontal page overflow 113px

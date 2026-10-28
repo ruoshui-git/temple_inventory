@@ -1,4 +1,0 @@
-[
-  {"family":"movements","groups":5,"endpoint":"movement_history_many","status":200,"durationMs":4967,"requestCount":1,"results":5,"rowCounts":[2,5,5,7,6],"parity":[true,true,true,true,true],"errors":[]},
-  {"family":"loans","groups":5,"endpoint":"operation_contributions_many","status":200,"durationMs":1054,"requestCount":1,"results":5,"rowCounts":[3,2,2,2,1],"parity":[true,true,true,true,true],"errors":[]}
-]

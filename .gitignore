@@ -1,4 +1,3 @@
-temple_inventory/setup/
 
 credentials/
 
@@ -67,13 +66,12 @@ temple_inventory/www/inventory.html
 frontend/test-results/
 frontend/playwright-report/
 
-# Canonical clean-site sample installers are tracked; raw source images remain ignored.
-!temple_inventory/setup/
-!temple_inventory/setup/__init__.py
-!temple_inventory/setup/sample_inventory_data.py
-!temple_inventory/setup/import_costumes.py
+# Raw sample source images stay local; optimized sample assets are tracked.
 temple_inventory/setup/costumes-data/images/
 temple_inventory/setup/sample_images/
 
 /frontend/debug-storybook.log
 /frontend/storybook-static/
+
+# Ad hoc visual evidence (see docs/agents/visual-review.md)
+notes/evidence/
