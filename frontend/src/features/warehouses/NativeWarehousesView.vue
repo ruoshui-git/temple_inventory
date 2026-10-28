@@ -328,7 +328,7 @@ function parentLabel(name?: string) {
 								</button>
 							</PopupMenu>
 							<DisclosureSection title="ERPNext 信息" summary="系统字段与层级信息">
-								<dl>
+								<dl class="browse-detail-grid">
 									<div>
 										<dt>名称</dt>
 										<dd>

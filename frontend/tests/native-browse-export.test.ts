@@ -23,6 +23,7 @@ import {
   operationDestination,
 } from "../src/lib/nativeNavigation";
 import DashboardView from "../src/features/dashboard/DashboardView.vue";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -810,7 +811,9 @@ describe("native dashboard cards", () => {
         return () => h(view);
       },
     });
-    const wrapper = mount(root);
+    const wrapper = mount(root, {
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
     wrappers.push(wrapper);
     await flushPromises();
 
@@ -828,6 +831,17 @@ describe("native dashboard cards", () => {
     expect(
       inventoryCard.findAll(".dashboard-inventory-quantities strong"),
     ).toHaveLength(13);
+
+    const movementLink = wrapper.get(".dashboard-movement-tile");
+    expect(movementLink.element.tagName).toBe("A");
+    expect(movementLink.attributes("href")).toContain("/movements");
+    const movementDisclosure = wrapper.get(".dashboard-movement-disclosure");
+    expect(movementDisclosure.text()).toContain("+1 单位");
+    await movementDisclosure.trigger("click");
+    expect(movementDisclosure.text()).toBe("收起");
+    expect(
+      wrapper.findAll(".dashboard-movement-unit-line .stock-effect"),
+    ).toHaveLength(3);
 
     expect(wrapper.findAll('.dashboard-distribution [role="tab"]').length).toBe(
       2,

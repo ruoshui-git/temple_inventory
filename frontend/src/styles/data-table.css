@@ -496,8 +496,15 @@
 	white-space: nowrap;
 	vertical-align: middle;
 }
-.data-table-scroll td
-	:is(.record-ref-chip, .detail-popover-trigger, .location-endpoint, .browse-badge, .browse-active-chip) {
+.data-table-scroll
+	td
+	:is(
+		.record-ref-chip,
+		.detail-popover-trigger,
+		.location-endpoint,
+		.browse-badge,
+		.browse-active-chip
+	) {
 	display: inline-flex;
 	align-items: center;
 	flex-wrap: nowrap;
@@ -514,7 +521,9 @@
 	white-space: nowrap;
 	vertical-align: middle;
 }
-.data-table-scroll td.data-column-text > :first-child:is(
+.data-table-scroll
+	td.data-column-text
+	> :first-child:is(
 		.record-ref-chip,
 		.location-endpoint,
 		.browse-badge,
@@ -873,11 +882,61 @@
 
 .data-table-group-identity {
 	display: flex;
-	width: 100%;
+	width: max-content;
+	min-width: 100%;
 	max-width: 100%;
 	flex-wrap: nowrap;
 	align-items: center;
 	gap: 0 var(--p-space-2);
+	white-space: nowrap;
+}
+.data-table-scroll :is(th, td).data-table-group-identity-cell {
+	min-width: 0;
+	max-width: none;
+	white-space: nowrap;
+}
+.data-table-scroll td.data-table-group-identity-cell > .data-table-group-identity {
+	display: flex;
+	width: max-content;
+	min-width: 100%;
+	max-width: none;
+}
+.data-table-scroll td.data-table-group-identity-cell .data-table-group-toggle {
+	display: inline-flex;
+	width: max-content;
+	max-width: none;
+	flex: 0 1 auto;
+	align-items: center;
+	flex-wrap: nowrap;
+	overflow: visible;
+	white-space: nowrap;
+	-webkit-box-orient: initial;
+	-webkit-line-clamp: unset;
+}
+.data-table-scroll td.data-table-group-identity-cell .data-table-group-toggle > svg {
+	flex: 0 0 auto;
+}
+.data-table-group-identity .data-table-group-toggle {
+	flex: 0 1 auto;
+	min-width: 0;
+	width: auto;
+}
+.data-table-scroll td.data-column-primary .data-table-group-name {
+	display: block;
+	min-width: 0;
+	width: auto;
+	max-width: min(320px, 36vw);
+	flex: 0 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	-webkit-line-clamp: unset;
+	overflow-wrap: normal;
+}
+.data-table-group-identity .operation-group-metrics {
+	max-width: none;
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 .data-table-group-count {
 	flex: none;

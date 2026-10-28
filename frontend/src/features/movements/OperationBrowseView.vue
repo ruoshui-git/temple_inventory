@@ -62,6 +62,7 @@ import { newReportQuery } from "../../lib/reportContract";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
+import { stockEffectLabel } from "../../lib/stockEffectLabel";
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -814,14 +815,9 @@ function itemTotals(row: OperationGroup) {
 		})),
 	);
 }
-function effectLabel(effect: number, uom: string, status?: string) {
+function effectLabel(effect: number, _uom: string, status?: string) {
 	if (status === "草稿" || status === "已取消") effect = 0;
-	const unit = unitLabel(uom);
-	return effect > 0
-		? `可用库存增加 ${effect} ${unit}`
-		: effect < 0
-			? `可用库存减少 ${Math.abs(effect)} ${unit}`
-			: `可用库存不变 · ${uom}`;
+	return stockEffectLabel(effect);
 }
 function recordEffect(row: OperationGroup, uom: string) {
 	if (row.docstatus === 0 || row.docstatus === 2) return 0;
@@ -1098,26 +1094,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							class="preview-group preview-group--mobile-list browse-card"
 							:data-browse-row="group.id"
 						>
-							<div
-								class="preview-group-heading"
-								style="grid-template-columns: 56px minmax(0, 1fr) 24px"
-							>
+							<div class="preview-group-heading mobile-operation-group-heading">
 								<div
 									v-if="c.stockItem(groupItem(group))"
 									class="preview-group-thumbnail"
 								>
 									<ItemImage :item="c.stockItem(groupItem(group))!" />
 								</div>
-								<h2
-									style="
-										display: grid;
-										grid-column: 2;
-										grid-row: 1;
-										min-width: 0;
-									"
-								>
+								<h2>
 									<RouterLink
 										class="browse-row-link"
+										:title="group.label"
 										:to="
 											routeTarget('item-detail', {
 												code: String(
@@ -1128,20 +1115,20 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										>{{ group.label }}</RouterLink
 									>
 									<small>明细条数 {{ group.count }}</small>
-									<span class="preview-group-metrics">{{
-										groupSummaryDisplay(group).replace(/\+(\d+)\s+项/g, "+$1")
-									}}</span>
+									<span
+										class="preview-group-metrics"
+										:title="groupSummaryDisplay(group)"
+										>{{
+											groupSummaryDisplay(group).replace(
+												/\+(\d+)\s+项/g,
+												"+$1",
+											)
+										}}</span
+									>
 								</h2>
 								<button
 									type="button"
 									class="preview-group-trigger"
-									style="
-										grid-column: 3;
-										grid-row: 1;
-										width: 32px;
-										min-height: 44px;
-										padding: 0;
-									"
 									:aria-expanded="group.expanded"
 									:aria-controls="`mobile-operation-group-${group.id}`"
 									@click="toggleMobileItemGroup(group, !group.expanded)"
@@ -1457,16 +1444,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										}}
 										{{ unitLabel(String(row.stock_uom || "")) }}
 									</span>
-									<small
-										v-if="family === 'movements'"
-										class="history-effect-note"
-										>{{
-											recordEffectLabel(
-												operationRow(row),
-												String(row.stock_uom || ""),
-											)
-										}}</small
-									>
+									<span v-if="family === 'movements'" class="sr-only">{{
+										recordEffectLabel(
+											operationRow(row),
+											String(row.stock_uom || ""),
+										)
+									}}</span>
 								</template>
 								<NativeStatusBadge
 									v-else-if="column.id === 'docstatus'"

@@ -123,3 +123,174 @@ test("dashboard retains applied scope and its open filter across 1024px", async 
   ).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test("movement tiles are scoped browse links with a separate unit disclosure", async ({
+  page,
+}, info) => {
+  await nativeUiSession(page);
+  await page.route(
+    "**/api/method/temple_inventory.browse.dashboard_card",
+    async (route) => {
+      const args = route.request().postDataJSON();
+      const movement = args.card === "movement";
+      const query = newReportQuery(movement ? "movements" : "inventory");
+      query.scope = {
+        ...query.scope,
+        ...args.scope,
+        ...(movement ? { period: args.movement_period } : {}),
+      };
+      await route.fulfill({
+        json: {
+          message: {
+            query,
+            snapshot: "2026-10-16 12:00",
+            rows: [],
+            expiry_rows: { expired: [], upcoming: [] },
+            kind_counts: movement ? { Issue: 5 } : {},
+            totals: movement
+              ? ["Nos", "Box", "Set"].map((stock_uom, index) => ({
+                  kind: "Issue",
+                  stock_uom,
+                  stock_qty: 3 - index,
+                  available_effect: -(3 - index),
+                }))
+              : [],
+            buckets: [],
+            matched_count: 5,
+            item_count: 0,
+            empty_count: 0,
+            empty_labels: [],
+            expiry_preview_limit: 5,
+            expired_count: 0,
+            damaged_item_count: 0,
+          },
+        },
+      });
+    },
+  );
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.goto("/inventory/");
+    const link = page
+      .locator(".dashboard-movement-tile")
+      .filter({ hasText: "出库" })
+      .first();
+    await expect(link).toBeVisible();
+    const href = new URL((await link.getAttribute("href"))!, page.url());
+    expect(href.pathname).toBe("/inventory/movements");
+    const state = JSON.parse(href.searchParams.get("query") || "{}");
+    expect(state.scope.kinds).toEqual(["Issue"]);
+    expect(state.scope.period).toBeTruthy();
+    const card = link.locator("..");
+    const disclosure = card.locator(".dashboard-movement-disclosure");
+    await expect(disclosure).toContainText("+1 单位");
+    await expect(card.locator(".dashboard-movement-extra")).toHaveCount(0);
+    expect(
+      await card
+        .locator(".dashboard-movement-meta-line")
+        .evaluate((line) => line.contains(line.querySelector("button"))),
+    ).toBe(true);
+    const before = await card.boundingBox();
+    const buttonBefore = await disclosure.boundingBox();
+    expect(buttonBefore!.y).toBeGreaterThanOrEqual(before!.y);
+    expect(buttonBefore!.y + buttonBefore!.height).toBeLessThanOrEqual(
+      before!.y + before!.height,
+    );
+    await page.screenshot({
+      path: info.outputPath(`movement-tiles-${width}-collapsed.png`),
+      fullPage: true,
+    });
+    await disclosure.click();
+    await expect(disclosure).toHaveText("收起");
+    await expect(
+      card.locator(".dashboard-movement-unit-line .stock-effect"),
+    ).toHaveCount(3);
+    await expect(card.locator(".dashboard-movement-meta-line")).toContainText(
+      "5 笔记录",
+    );
+    await expect(card.locator(".dashboard-movement-unit-line")).toContainText(
+      "1 Set",
+    );
+    const after = await card.boundingBox();
+    expect(after!.height).toBeGreaterThan(before!.height);
+    const buttonAfter = await disclosure.boundingBox();
+    expect(buttonAfter!.y + buttonAfter!.height).toBeLessThanOrEqual(
+      after!.y + after!.height,
+    );
+    await page.screenshot({
+      path: info.outputPath(`movement-tiles-${width}-expanded.png`),
+      fullPage: true,
+    });
+    await disclosure.click();
+    await expect(disclosure).toHaveText("+1 单位");
+  }
+});
+
+test("activity movement kinds keep link and unit disclosure as siblings", async ({
+  page,
+}, info) => {
+  await nativeUiSession(page);
+  await page.route(
+    "**/api/method/temple_inventory.activities.load_activity",
+    (route) =>
+      route.fulfill({
+        json: {
+          message: {
+            name: "ACTIVITY-1",
+            title: "大型法会物资准备",
+            activity_type: "TYPE-A",
+            status: "Active",
+            start_date: "2026-10-01",
+            end_date: "2026-10-31",
+            description: "活动说明",
+            notes: "",
+            modified: "2026-10-16 12:00:00",
+            creation: "2026-10-16 10:00:00",
+            owner: "manager",
+            modified_by: "manager",
+            summary: { count_Issue: 4 },
+            movement_totals: [
+              { kind: "Issue", stock_uom: "Nos", stock_qty: 5 },
+              { kind: "Issue", stock_uom: "Box", stock_qty: 2 },
+              { kind: "Issue", stock_uom: "Set", stock_qty: 1 },
+              { kind: "Issue", stock_uom: "Kg", stock_qty: 3 },
+            ],
+            loan_totals: [],
+            outstanding_line_count: 0,
+          },
+        },
+      }),
+  );
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.goto("/inventory/activities/ACTIVITY-1");
+    const card = page.locator(".activity-movement-card").first();
+    const link = card.locator("a.activity-movement-tile");
+    const disclosure = card.locator(".activity-movement-disclosure");
+    await expect(link).toBeVisible();
+    const target = new URL((await link.getAttribute("href"))!, page.url());
+    expect(
+      JSON.parse(target.searchParams.get("query") || "{}").scope.activity,
+    ).toBe("ACTIVITY-1");
+    await expect(disclosure).toHaveText("+1 单位");
+    await expect(link.locator(".activity-movement-disclosure")).toHaveCount(0);
+    expect(
+      await card
+        .locator(".activity-movement-meta-line")
+        .evaluate((line) => line.contains(line.querySelector("button"))),
+    ).toBe(true);
+    await page.screenshot({
+      path: info.outputPath(`activity-kind-tiles-${width}-collapsed.png`),
+      fullPage: true,
+    });
+    await disclosure.click();
+    await expect(card.locator(".activity-movement-expanded-unit")).toHaveCount(
+      1,
+    );
+    await expect(disclosure).toHaveText("收起");
+    await page.screenshot({
+      path: info.outputPath(`activity-kind-tiles-${width}-expanded.png`),
+      fullPage: true,
+    });
+  }
+});

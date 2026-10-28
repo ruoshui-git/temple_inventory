@@ -26,6 +26,7 @@ import LocationEndpoint from "./LocationEndpoint.vue";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { unitLabel, sortByUnit } from "../../lib/units";
+import { stockEffectLabel } from "../../lib/stockEffectLabel";
 
 const props = withDefaults(
 	defineProps<{
@@ -102,28 +103,44 @@ const quantityColumns = new Set([
 	"entered_qty",
 	"quantity",
 ]);
+const hasItemIdentity = computed(() =>
+	props.table.rows.some((row) => Boolean(row.item_code || row.itemId)),
+);
 const columns = computed<DataColumn[]>(() => {
-	const sourceColumns =
+	const baseColumns =
 		props.grouped && props.groupPages?.leafColumns?.value.length
 			? props.groupPages.leafColumns.value
 			: props.table.columns;
+	const sourceColumns =
+		hasItemIdentity.value && !baseColumns.includes("image")
+			? ["image", ...baseColumns]
+			: baseColumns;
 	const data: DataColumn[] = sourceColumns
 		.filter(
 			(column) =>
 				column !== "id" &&
-				!props.hiddenColumns?.includes(column) &&
+				(!props.hiddenColumns?.includes(column) ||
+					(column === "image" && hasItemIdentity.value)) &&
 				(!props.grouped || !presentationOnlyLeafFields.has(column)),
 		)
 		.map((column) => ({
 			id: column,
-			label: columnLabel(column),
+			label: column === "image" ? "图片" : columnLabel(column),
 			defaultVisible: true,
-			required: ["item_code", "itemId", "document", "documentId"].includes(column),
+			required:
+				(column === "image" && hasItemIdentity.value) ||
+				["item_code", "itemId", "document", "documentId"].includes(column),
 			sortable: props.sortableColumns?.includes(column) || false,
 			sortField: column,
-			kind: quantityColumns.has(column)
-				? "number"
-				: dataColumnKind({ id: column, label: columnLabel(column) }),
+			kind:
+				column === "image"
+					? "thumb"
+					: quantityColumns.has(column)
+						? "number"
+						: dataColumnKind({
+								id: column,
+								label: column === "image" ? "图片" : columnLabel(column),
+							}),
 			className: [
 				quantityColumns.has(column) ? "report-quantity-cell" : "",
 				["batch", "batch_no"].includes(column) ? "report-batch-column" : "",
@@ -313,13 +330,7 @@ function quantityTone(column: string, row: Record<string, unknown>) {
 }
 
 function quantityEffectLabel(row: Record<string, unknown>) {
-	const effect = stockEffect(row);
-	const unit = unitLabel(String(row.stock_uom || ""));
-	return effect > 0
-		? `可用库存增加 ${effect} ${unit}`
-		: effect < 0
-			? `可用库存减少 ${Math.abs(effect)} ${unit}`
-			: `可用库存不变 · ${unit}`;
+	return stockEffectLabel(stockEffect(row));
 }
 
 function loadMore() {
@@ -478,6 +489,24 @@ function groupMetric(group: DataTableGroup, column: string) {
 		>
 			<template #cell="{ column, row, value, index }">
 				<slot v-if="column.id === '_actions'" name="actions" :row="row" :index="index" />
+				<span
+					v-else-if="column.id === 'image' && (row.item_code || row.itemId)"
+					class="report-item-image"
+					:title="String(row.item_name || row.itemName || row.item_code || row.itemId)"
+				>
+					<ItemImage
+						:item="{
+							code: String(row.item_code || row.itemId),
+							name: String(
+								row.item_name || row.itemName || row.item_code || row.itemId,
+							),
+							image: String(row.image || ''),
+						}"
+						:thumbnail-size="32"
+						:target-size="32"
+					/>
+				</span>
+				<span v-else-if="column.id === 'image'" aria-hidden="true"></span>
 				<RouterLink
 					v-else-if="column.id === 'item_name' && row.item_code"
 					:to="routeTarget('item-detail', { code: String(row.item_code) })"
@@ -564,3 +593,10 @@ function groupMetric(group: DataTableGroup, column: string) {
 		</DataTable>
 	</div>
 </template>
+
+<style scoped>
+.report-item-image {
+	display: flex;
+	align-items: center;
+}
+</style>

@@ -826,6 +826,7 @@ describe("shared data table", () => {
       },
     });
     wrappers.push(wrapper);
+    expect(wrapper.get(".data-table-group-identity-cell").exists()).toBe(true);
     await wrapper.get(".data-table-sort").trigger("click");
     await wrapper.get(".data-table-group-toggle").trigger("click");
     await wrapper.get('input[aria-label="选择记录 item-1"]').setValue(true);

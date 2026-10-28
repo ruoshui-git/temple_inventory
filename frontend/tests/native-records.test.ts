@@ -26,6 +26,7 @@ const nativeRow = {
   id: "native-one",
   doctype: "Stock Entry",
   document: "STE/A,1",
+  item_name: "法会供灯",
   kind: "Receive",
   docstatus: 0,
   date: "2026-10-16",
@@ -183,8 +184,21 @@ describe("native drafts and count records", () => {
       "browse.native_drafts",
       { query: { statuses: [0], sortBy: "modified", view: "records" } },
     ]);
-    expect(wrapper.text()).toContain("2 种物品");
+    expect(wrapper.text()).toContain("法会供灯 等 2 种物品");
     expect(wrapper.text()).toContain("草稿单据");
+    expect(wrapper.get(".draft-title-link").text()).toBe("入库 · STE/A,1");
+    expect(
+      wrapper.get(".draft-title-link").attributes("disabled"),
+    ).toBeUndefined();
+    expect(
+      wrapper
+        .get(".draft-entry .browse-row-actions")
+        .find("button")
+        .attributes("disabled"),
+    ).toBeUndefined();
+    expect(wrapper.get(".draft-entry .browse-row-actions").text()).toContain(
+      "继续编辑",
+    );
     await wrapper.find(".draft-entry button").trigger("click");
     expect(page.emitted("openDocument")?.[0]).toEqual([
       "Stock Entry",
@@ -231,6 +245,7 @@ describe("native drafts and count records", () => {
       entries[0]?.find(".draft-entry-heading .draft-type-tag").exists(),
     ).toBe(true);
     expect(entries[0]?.find(".draft-entry-meta time").exists()).toBe(true);
+    expect(entries[0]?.find(".draft-title-link").exists()).toBe(true);
     expect(
       entries[0]?.find(".browse-row-actions .ui-button").attributes("class"),
     ).toContain("ui-button--compact");

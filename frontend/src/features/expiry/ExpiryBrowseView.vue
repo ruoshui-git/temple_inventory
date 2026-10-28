@@ -16,6 +16,7 @@ import { groupLabels } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
 import ItemImage from "../../components/ItemImage.vue";
+import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
@@ -84,6 +85,18 @@ function expiryKey(event: KeyboardEvent) {
 		document
 			.querySelector<HTMLElement>(`[data-expiry-choice="${choices[next]![0]}"]`)
 			?.focus(),
+	);
+}
+function expiryIcon(key: string) {
+	return (
+		(
+			{
+				period: "calendar",
+				expired: "warning",
+				unexpired: "select",
+				undated: "cancel",
+			} as Record<string, string>
+		)[key] || "calendar"
 	);
 }
 function expiryStatus(row: ReportRow) {
@@ -279,6 +292,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						aria-controls="expiry-results-panel"
 						@click="query.expiryWindow = key"
 					>
+						<InventoryIcon :name="expiryIcon(key)" aria-hidden="true" />
 						{{ label }} <small>{{ expiryCount(facet) }}</small>
 					</button>
 				</nav>
@@ -339,6 +353,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						aria-controls="expiry-results-panel"
 						@click="query.expiryWindow = key"
 					>
+						<InventoryIcon :name="expiryIcon(key)" aria-hidden="true" />
 						<span>{{ label }}</span
 						><small>{{ expiryCount(facet) }}</small>
 					</button>

@@ -7,6 +7,7 @@ import {
   type InjectionKey,
   type Ref,
 } from "vue";
+import { ref as createRef } from "vue";
 
 interface BreadcrumbLabelContext {
   value: Ref<string | undefined>;
@@ -14,6 +15,7 @@ interface BreadcrumbLabelContext {
 }
 export const routeBreadcrumbLabelKey: InjectionKey<BreadcrumbLabelContext> =
   Symbol("route-breadcrumb-label");
+export const activeRouteBreadcrumbLabel = createRef<string>();
 
 export function provideRouteBreadcrumbLabel(value: Ref<string | undefined>) {
   provide(routeBreadcrumbLabelKey, { value, owner: ref<symbol>() });
@@ -29,6 +31,7 @@ export function useRouteBreadcrumbLabel(label: () => string | undefined) {
         target.owner.value = owner;
         target.value.value = value?.trim() || undefined;
       }
+      activeRouteBreadcrumbLabel.value = value?.trim() || undefined;
     },
     { immediate: true },
   );
@@ -37,5 +40,6 @@ export function useRouteBreadcrumbLabel(label: () => string | undefined) {
       target.owner.value = undefined;
       target.value.value = undefined;
     }
+    activeRouteBreadcrumbLabel.value = undefined;
   });
 }

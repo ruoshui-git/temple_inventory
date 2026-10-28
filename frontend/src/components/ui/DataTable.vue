@@ -813,6 +813,16 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											`data-column-${columnKind(column)}`,
 											column.className,
 											'data-table-group-cell',
+											groupColumnIndex ===
+											Math.max(
+												0,
+												orderedColumns.findIndex(
+													(item) =>
+														String(item.id) === entry.labelColumn,
+												),
+											)
+												? 'data-table-group-identity-cell'
+												: undefined,
 										]"
 										:style="
 											groupColumnIndex ===
@@ -942,7 +952,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								</template>
 							</tr>
 							<tr
-								v-if="group(entry) && (entry.detailRow || entry.expanded)"
+								v-if="group(entry) && entry.detailRow"
 								class="data-table-group-detail-row"
 							>
 								<td

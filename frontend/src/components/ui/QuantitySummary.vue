@@ -4,6 +4,7 @@ import AsyncRegion from "./AsyncRegion.vue";
 import SkeletonBlock from "./SkeletonBlock.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { unitLabel } from "../../lib/units";
+import { stockEffectLabel } from "../../lib/stockEffectLabel";
 export type Quantity = { uom: string; qty: number; status?: string; effect?: number };
 export type QuantityMetric = {
 	key: string;
@@ -24,12 +25,7 @@ function effect(quantity: Quantity) {
 		: Number(quantity.effect || 0);
 }
 function effectLabel(quantity: Quantity) {
-	const value = effect(quantity);
-	return value > 0
-		? `可用库存增加 ${formatQuantity(value)} ${unitLabel(quantity.uom)}`
-		: value < 0
-			? `可用库存减少 ${formatQuantity(Math.abs(value))} ${unitLabel(quantity.uom)}`
-			: `可用库存不变 · ${unitLabel(quantity.uom)}`;
+	return stockEffectLabel(effect(quantity));
 }
 </script>
 

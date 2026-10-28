@@ -206,7 +206,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 			type: "server",
 			kind: String(row.kind || ""),
 			label: kind,
-			summary: `${summarizeItems([], row.whole.item_count)}${destination ? ` → ${destination}` : ""}`,
+			summary: `${summarizeItems(row.item_name ? [row.item_name] : [], row.whole.item_count)}${destination ? ` → ${destination}` : ""}`,
 			updatedAt: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			absolute: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			server: row,
@@ -557,33 +557,40 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 				<template #skeleton><SkeletonBlock variant="list" :rows="5" /></template>
 				<ul class="draft-entry-list">
 					<li v-for="entry in draftEntries" :key="entry.id" class="draft-entry">
-						<div class="draft-entry-main">
-							<div class="draft-entry-heading">
-								<span class="draft-type-tag" :class="`is-${entry.type}`"
-									><InventoryIcon
-										:name="entry.type === 'server' ? 'document' : 'device'"
-									/>{{
-										entry.type === "server" ? "草稿单据" : "浏览器暂存"
-									}}</span
-								>
-								<strong>{{ entry.label }}</strong>
-								<strong v-if="entry.server" class="draft-document-name">{{
-									entry.server.document
-								}}</strong>
-							</div>
-							<div class="draft-entry-meta">
-								<span>{{ entry.summary }}</span>
-								<time :datetime="entry.updatedAt" :title="entry.absolute">{{
-									relativeTime(entry.updatedAt)
-								}}</time>
-							</div>
-						</div>
-						<div class="draft-entry-recovery">
-							<DisclosureSection
-								v-if="entry.local"
-								title="查看详情"
-								summary="此浏览器暂存的输入"
+						<div class="draft-entry-heading">
+							<span class="draft-type-tag" :class="`is-${entry.type}`"
+								><InventoryIcon
+									:name="entry.type === 'server' ? 'document' : 'device'"
+								/>{{ entry.type === "server" ? "草稿单据" : "浏览器暂存" }}</span
 							>
+							<button
+								v-if="
+									entry.server || (entry.local && c.localSupported(entry.local))
+								"
+								type="button"
+								class="browse-row-link draft-title-link"
+								@click="
+									entry.server
+										? open(entry.server)
+										: emit('recover', entry.local!)
+								"
+							>
+								{{
+									entry.server
+										? `${entry.label} · ${entry.server.document}`
+										: entry.label
+								}}
+							</button>
+							<strong v-else>{{ entry.label }}</strong>
+						</div>
+						<div class="draft-entry-meta">
+							<span :title="entry.summary">{{ entry.summary }}</span>
+							<time :datetime="entry.updatedAt" :title="entry.absolute">{{
+								relativeTime(entry.updatedAt)
+							}}</time>
+						</div>
+						<div v-if="entry.local" class="draft-entry-recovery">
+							<DisclosureSection title="查看详情" summary="此浏览器暂存的输入">
 								<RecoverySummary
 									:kind="entry.local.editorKind"
 									:values="entry.local.values"
@@ -597,12 +604,16 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						<div class="browse-row-actions">
 							<UiButton
 								v-if="entry.server"
+								variant="secondary"
+								class="draft-continue-action"
 								size="compact"
 								@click="open(entry.server)"
 								>继续编辑</UiButton
 							>
 							<UiButton
 								v-else-if="entry.local && c.localSupported(entry.local)"
+								variant="secondary"
+								class="draft-continue-action"
 								size="compact"
 								@click="emit('recover', entry.local)"
 								>继续编辑</UiButton
@@ -855,20 +866,16 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 }
 .draft-entry {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, 1.4fr) minmax(9rem, 1fr) auto auto;
+	align-items: center;
 	gap: var(--p-space-2) var(--p-space-3);
 	padding: var(--p-space-3) 0;
 	border-top: 1px solid var(--p-border);
 }
-.draft-entry-main {
-	display: grid;
-	grid-template-columns: minmax(0, 1.2fr) minmax(160px, 1fr) auto;
-	align-items: center;
-	gap: 8px 16px;
+.draft-entry > * {
 	min-width: 0;
-	overflow-wrap: anywhere;
 }
-.draft-entry-main time {
+.draft-entry-meta time {
 	color: var(--p-muted);
 	font-size: var(--p-small);
 }
@@ -878,17 +885,40 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	flex-wrap: wrap;
 	gap: 8px;
 }
-.draft-entry-meta {
-	display: contents;
+.draft-title-link {
+	min-height: 0;
+	padding: 0;
+	color: var(--p-accent-strong);
+	font-size: 0.92rem;
+	font-weight: 650;
 }
-.draft-entry-meta time {
-	grid-column: 3;
+.draft-entry-meta > span {
+	display: block;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--p-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .draft-entry-recovery {
 	grid-column: 1 / -1;
 }
-.draft-document-name {
-	overflow-wrap: anywhere;
+.draft-entry > .browse-row-actions {
+	grid-column: 4;
+	grid-row: 1;
+	flex-wrap: nowrap;
+	white-space: nowrap;
+	opacity: 1;
+}
+.draft-entry > .browse-row-actions :deep(.ui-button--danger) {
+	color: var(--p-danger);
+	border-color: var(--p-danger);
+	background: var(--p-danger-bg);
+}
+.draft-entry > .browse-row-actions :deep(.draft-continue-action) {
+	color: var(--p-ink);
+	border-color: var(--p-control-border);
+	background: var(--p-surface);
 }
 .draft-type-tag {
 	display: inline-flex;
@@ -922,30 +952,17 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		gap: 8px;
 		padding-block: 10px;
 	}
-	.draft-entry-main {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 4px 8px;
+	.draft-entry-heading {
+		grid-column: 1 / -1;
 	}
-	.draft-entry-heading,
 	.draft-entry-meta {
 		display: flex;
 		align-items: center;
 		min-width: 0;
 		gap: 6px;
 	}
-	.draft-entry-heading {
-		grid-column: 1 / -1;
-	}
-	.draft-entry-meta {
-		display: contents;
-	}
-	.draft-entry-meta > span {
-		grid-column: 1;
-	}
 	.draft-entry-meta time {
-		grid-column: 2;
-		grid-row: 2;
+		flex: none;
 		white-space: nowrap;
 	}
 	.draft-entry-recovery {
@@ -966,11 +983,12 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		font-size: 0.78rem;
 	}
 	.draft-entry .browse-row-actions {
-		display: grid;
-		grid-template-columns: 1fr;
+		grid-column: 2;
+		grid-row: 2;
+		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 6px;
+		gap: 4px;
 	}
 }
 @media (max-width: 600px) {
@@ -978,9 +996,6 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 		min-height: 44px;
 		padding-inline: 8px;
 		font-size: 0.78rem;
-	}
-	.draft-entry .browse-row-actions :deep(.ui-button--danger) {
-		grid-row: 2;
 	}
 }
 </style>

@@ -2,6 +2,7 @@
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, useId } from "vue";
+import { RouterLink } from "vue-router";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DashboardSection from "../../components/DashboardSection.vue";
 import QuickExport from "../../components/QuickExport.vue";
@@ -16,8 +17,10 @@ import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { summarizeItems } from "../../lib/itemSummary";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { unitLabel } from "../../lib/units";
+import { stockEffectLabel } from "../../lib/stockEffectLabel";
 import {
 	browseDestination,
+	documentDestination,
 	countDestination,
 	operationDestination,
 } from "../../lib/nativeNavigation";
@@ -67,6 +70,7 @@ const {
 const distributionTop = computed(() => distribution.value.slice(0, 8));
 const distributionRest = computed(() => distribution.value.slice(8));
 const expandedInventoryMetrics = ref(new Set<string>());
+const expandedMovementTiles = ref(new Set<string>());
 const inventoryMetrics = computed(() =>
 	metrics.value.map((metric) => ({
 		...metric,
@@ -84,13 +88,25 @@ function toggleInventoryMetric(key: string) {
 	else next.add(key);
 	expandedInventoryMetrics.value = next;
 }
+function movementTileDestination(kind: string) {
+	const query = newReportQuery("movements");
+	query.scope = {
+		...query.scope,
+		...dashboardScope.value,
+		period: { ...filters.period },
+		kinds: [kind],
+	};
+	return browseDestination(query);
+}
+function toggleMovementTile(kind: string) {
+	const next = new Set(expandedMovementTiles.value);
+	if (next.has(kind)) next.delete(kind);
+	else next.add(kind);
+	expandedMovementTiles.value = next;
+}
 const showFilters = ref(false);
-function effectLabel(effect: number, uom: string) {
-	return effect > 0
-		? `可用库存增加 ${effect} ${uom}`
-		: effect < 0
-			? `可用库存减少 ${Math.abs(effect)} ${uom}`
-			: `可用库存不变 · ${uom}`;
+function effectLabel(effect: number, _uom: string) {
+	return stockEffectLabel(effect);
 }
 const distributionId = useId();
 const expiryId = useId();
@@ -604,7 +620,7 @@ function datasetChanged(dataset: ReportDataset) {
 								:disabled="blocked('expiry')"
 								@click="expiryPreviewDrill(filters.expiry)"
 							>
-								<div class="browse-grow">
+								<div class="dashboard-expiry-line">
 									<ItemLine
 										:item="{
 											code: String(row.item_code || ''),
@@ -612,30 +628,34 @@ function datasetChanged(dataset: ReportDataset) {
 											image: String(row.image || ''),
 										}"
 									/>
-									<dl class="ti-fields">
-										<div>
-											<dt>批次</dt>
-											<dd :title="row.batch_no">{{ row.batch_no }}</dd>
-										</div>
-										<div>
-											<dt>到期</dt>
-											<dd>{{ row.expiry_date }}</dd>
-										</div>
-										<div>
-											<dt>库位</dt>
-											<dd>
-												{{
-													warehouseLabel(
-														row.warehouse,
-														reference.warehouses,
-														row.warehouse_label,
-													)
-												}}
-											</dd>
-										</div>
-									</dl>
+									<span class="dashboard-expiry-field" :title="row.batch_no"
+										><small>批次</small>{{ row.batch_no }}</span
+									>
+									<span class="dashboard-expiry-field" :title="row.expiry_date"
+										><small>到期</small>{{ row.expiry_date }}</span
+									>
+									<span
+										class="dashboard-expiry-field"
+										:title="
+											warehouseLabel(
+												row.warehouse,
+												reference.warehouses,
+												row.warehouse_label,
+											)
+										"
+										><small>库位</small
+										>{{
+											warehouseLabel(
+												row.warehouse,
+												reference.warehouses,
+												row.warehouse_label,
+											)
+										}}</span
+									>
 								</div>
-								<b>{{ row.available }} {{ unitLabel(row.stock_uom) }}</b>
+								<b :title="`${row.available} ${unitLabel(row.stock_uom)}`"
+									>{{ row.available }} {{ unitLabel(row.stock_uom) }}</b
+								>
 							</button>
 						</div>
 						<p v-if="!expiryPreview.length">
@@ -684,57 +704,64 @@ function datasetChanged(dataset: ReportDataset) {
 						/><small>日期仅影响本卡片</small></template
 					>
 					<div class="preview-movement-summary">
-						<button
+						<div
 							v-for="row in movementSummary"
 							:key="row.kind"
-							class="dashboard-movement-tile"
-							:title="
-								row.quantities
-									.map(
-										(quantity) => `${quantity.qty} ${unitLabel(quantity.uom)}`,
-									)
-									.join(' · ') || row.label
-							"
-							:disabled="blocked('movement')"
-							@click="
-								drill('movement', {
-									scope: {
-										...sections.movement.result.query.scope,
-										kinds: [row.kind],
-									},
-								})
-							"
+							class="dashboard-movement-card"
 						>
-							<span>{{ row.label }}</span
-							><strong
-								v-for="quantity in row.quantities.slice(0, 2)"
-								:key="quantity.uom"
-								class="stock-effect"
-								:class="
-									quantity.effect > 0
-										? 'is-increase'
-										: quantity.effect < 0
-											? 'is-decrease'
-											: 'is-neutral'
-								"
-								>{{ quantity.qty }} {{ unitLabel(quantity.uom)
-								}}<span class="sr-only">{{
-									effectLabel(quantity.effect, quantity.uom)
-								}}</span></strong
-							><small v-if="row.quantities.length > 2"
-								>+{{ row.quantities.length - 2 }} 单位</small
+							<RouterLink
+								class="dashboard-movement-tile"
+								:to="movementTileDestination(row.kind)"
+								:aria-label="`${row.label}，${row.count} 笔记录`"
 							>
-							<small>{{ row.count }} 笔记录</small>
-						</button>
+								<span>{{ row.label }}</span>
+								<span class="dashboard-movement-unit-line">
+									<strong
+										v-for="quantity in expandedMovementTiles.has(row.kind)
+											? row.quantities
+											: row.quantities.slice(0, 2)"
+										:key="quantity.uom"
+										class="stock-effect"
+										:class="
+											quantity.effect > 0
+												? 'is-increase'
+												: quantity.effect < 0
+													? 'is-decrease'
+													: 'is-neutral'
+										"
+										:title="effectLabel(quantity.effect, quantity.uom)"
+										>{{ quantity.qty }} {{ unitLabel(quantity.uom)
+										}}<span class="sr-only">{{
+											effectLabel(quantity.effect, quantity.uom)
+										}}</span></strong
+									>
+								</span>
+							</RouterLink>
+							<div class="dashboard-movement-meta-line">
+								<small>{{ row.count }} 笔记录</small>
+								<button
+									v-if="row.quantities.length > 2"
+									type="button"
+									class="dashboard-movement-disclosure"
+									:aria-expanded="expandedMovementTiles.has(row.kind)"
+									@click="toggleMovementTile(row.kind)"
+								>
+									{{
+										expandedMovementTiles.has(row.kind)
+											? "收起"
+											: `+${row.quantities.length - 2} 单位`
+									}}
+								</button>
+							</div>
+						</div>
 					</div>
 					<h3>最近记录</h3>
 					<div class="browse-rank-list">
-						<button
+						<RouterLink
 							v-for="row in sections.movement.result.rows"
 							:key="`${row.doctype}/${row.document}`"
 							class="browse-rank-row"
-							:disabled="blocked('movement')"
-							@click="emit('openDocument', row.doctype!, row.document!)"
+							:to="documentDestination(row.doctype!, row.document!)"
 							:title="
 								row.item_names?.join('、') ||
 								row.item_name ||
@@ -772,7 +799,7 @@ function datasetChanged(dataset: ReportDataset) {
 									effectLabel(Number(quantity.effect || 0), quantity.uom)
 								}}</span></b
 							>
-						</button>
+						</RouterLink>
 					</div>
 					<p v-if="!sections.movement.result.rows.length">期间没有流动记录。</p>
 				</DashboardSection>

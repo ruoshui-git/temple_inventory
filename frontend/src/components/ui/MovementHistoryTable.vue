@@ -19,6 +19,7 @@ import { kindIcons } from "../../lib/kindIcons";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { unitLabel } from "../../lib/units";
+import { stockEffectLabel } from "../../lib/stockEffectLabel";
 
 const props = withDefaults(
 	defineProps<{
@@ -169,9 +170,7 @@ function effect(row: HistoryRow) {
 }
 
 function effectText(row: HistoryRow) {
-	const value = effect(row);
-	if (!value) return "可用库存无变化";
-	return `${value > 0 ? "增加" : "减少"}可用库存 ${formatQuantity(Math.abs(value))} ${unitLabel(String(row.stock_uom || ""))}`;
+	return stockEffectLabel(effect(row));
 }
 
 function rowClass(row: Record<string, unknown>) {
@@ -321,11 +320,23 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 					unitLabel(String(row.stock_uom || ""))
 				}}</template>
 				<template v-else-if="column.id === 'stock_qty'">
-					<span :class="quantityClass(history(row))">{{ quantity(history(row)) }}</span>
-					<small
+					<span
+						:class="quantityClass(history(row))"
+						:title="
+							['movement', 'handling'].includes(mode)
+								? effectText(history(row))
+								: undefined
+						"
+						:data-effect-value="
+							['movement', 'handling'].includes(mode) ? '' : undefined
+						"
+						>{{ quantity(history(row)) }}</span
+					>
+					<span
 						v-if="['movement', 'handling'].includes(mode)"
-						class="history-effect-note"
-						>{{ effectText(history(row)) }}</small
+						class="sr-only"
+						data-effect-label
+						>{{ effectText(history(row)) }}</span
 					>
 				</template>
 				<template
@@ -484,12 +495,6 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 .history-effect-quantity-down {
 	color: var(--p-danger);
 	font-weight: 650;
-}
-.history-effect-note {
-	display: block;
-	max-width: 14em;
-	color: var(--p-muted);
-	font-weight: 400;
 }
 @media (max-width: 1023px) {
 	.movement-history-surface :deep(.movement-history-table) {

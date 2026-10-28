@@ -217,6 +217,26 @@ for (const width of [390, 1440]) {
   });
 }
 
+test("expiry window exposes its selected icon and page title on desktop and phone", async ({
+  page,
+}, info) => {
+  await setup(page);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.goto("/inventory/stock/expiry");
+    const selected = page.locator(
+      '.expiry-window-switch [role="tab"][aria-selected="true"], .browse-expiry-window-switch [role="tab"][aria-selected="true"]',
+    );
+    await expect(selected).toHaveCount(1);
+    await expect(selected.locator("svg")).toBeVisible();
+    await expect(page).toHaveTitle(/物资管理.*效期批次/);
+    await page.screenshot({
+      path: info.outputPath(`expiry-selected-${width}.png`),
+      fullPage: true,
+    });
+  }
+});
+
 for (const [width, scale, density] of [
   [390, 200, "spacious"],
   [1024, 100, "balanced"],

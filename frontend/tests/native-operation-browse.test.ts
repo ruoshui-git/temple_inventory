@@ -414,7 +414,7 @@ describe("native operation browsing", () => {
     const controller = wrapper.getComponent(OperationBrowsePage).vm.controller;
     expect(controller.details["flat-history-scope"]?.rows).toHaveLength(1);
     expect(wrapper.text()).toContain("STE-MOVE-1");
-    expect(wrapper.text()).toContain("可用库存增加 7 Nos");
+    expect(wrapper.text()).toContain("可用库存增加 7 单位");
   });
   it("renders grouped native records in the shared table and loads whole-document leaves", async () => {
     const query = newReportQuery("loans");

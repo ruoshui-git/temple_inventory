@@ -98,3 +98,20 @@ const ariaLabel = computed(
 		<span>{{ endpoint.label }}</span>
 	</span>
 </template>
+
+<style scoped>
+.location-endpoint {
+	display: inline-flex;
+	align-items: center;
+	vertical-align: baseline;
+}
+.location-endpoint :deep(svg) {
+	width: 16px;
+	height: 16px;
+	flex: none;
+	vertical-align: middle;
+}
+.location-endpoint > span {
+	line-height: 1.4;
+}
+</style>

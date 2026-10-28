@@ -85,8 +85,73 @@
 	background: var(--p-soft);
 	color: var(--p-ink);
 }
-.preview-activities .activity-movement-tile-quantities {
+.preview-activities .activity-movement-card {
 	display: grid;
+	grid-template-rows: 1fr auto;
+	min-width: 0;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+	background: var(--p-soft);
+}
+.preview-activities .activity-movement-card .activity-movement-tile {
+	min-height: 0;
+	border: 0;
+	border-radius: inherit;
+	background: transparent;
+	color: var(--p-accent-strong);
+	text-decoration: none;
+	grid-template-rows: auto 1fr;
+}
+.preview-activities .activity-movement-card .activity-movement-tile:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: 2px;
+}
+@media (hover: hover) {
+	.preview-activities .activity-movement-card:hover {
+		border-color: color-mix(in srgb, var(--p-accent) 45%, var(--p-border));
+	}
+	.preview-activities .activity-movement-card .activity-movement-tile:hover {
+		color: var(--p-accent-strong);
+		text-decoration: underline;
+		text-underline-offset: 0.16em;
+	}
+}
+.preview-activities .activity-movement-disclosure {
+	position: relative;
+	z-index: 1;
+	display: inline-flex;
+	justify-self: start;
+	min-height: 24px;
+	margin: 0;
+	padding: 2px 4px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--p-accent-strong);
+	font-size: var(--p-small);
+	font-weight: 500;
+	line-height: 1.3;
+	white-space: nowrap;
+}
+.preview-activities .activity-movement-meta-line {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	min-height: 24px;
+	align-items: center;
+	gap: 4px;
+	padding-inline: var(--p-space-3);
+}
+.preview-activities
+	.activity-movement-tiles:has(.activity-movement-disclosure[aria-expanded="true"])
+	.activity-movement-card {
+	align-self: start;
+}
+.preview-activities .activity-movement-tile-quantities {
+	display: flex;
+	min-width: 0;
+	flex-wrap: wrap;
+	align-content: start;
 	gap: 2px;
 	font-variant-numeric: tabular-nums;
 }
@@ -97,6 +162,14 @@
 .preview-activities .activity-movement-tile-count {
 	color: var(--p-muted);
 	font-size: var(--p-small);
+}
+.preview-activities .activity-movement-expanded-unit {
+	font-weight: 700;
+}
+.preview-activities .activity-movement-disclosure:hover {
+	color: var(--p-accent);
+	text-decoration: underline;
+	text-underline-offset: 0.14em;
 }
 .preview-activities .activity-detail-links {
 	display: flex;
@@ -127,7 +200,7 @@
 	max-width: 100%;
 }
 .data-table-group-identity {
-	min-width: 0;
+	min-width: max-content;
 }
 .operation-group-metrics-leading {
 	max-width: min(35vw, 22rem);

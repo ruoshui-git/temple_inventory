@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ref } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import ReportTable from "../src/components/ui/ReportTable.vue";
+import { RouterLinkStub } from "./support/RouterLinkStub";
 const table = (length = 65) => ({
   id: "records",
   label: "原生记录",
@@ -18,6 +19,32 @@ const table = (length = 65) => ({
   })),
 });
 describe("shared native report table", () => {
+  it("renders an ItemImage thumbnail for image columns without exposing the path", () => {
+    const wrapper = mount(ReportTable, {
+      props: {
+        table: {
+          id: "damaged-items",
+          label: "损坏待处理",
+          columns: ["item_name"],
+          rows: [
+            {
+              id: "DAMAGED-1",
+              item_code: "ITEM-1",
+              item_name: "物品甲",
+              image: "/private/files/item.webp",
+            },
+          ],
+        },
+      },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
+    expect(wrapper.find("thead th.data-column-thumb").exists()).toBe(true);
+    expect(wrapper.find("thead th.data-column-thumb").text()).toBe("图片");
+    expect(wrapper.find(".item-image-button").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("/private/files/item.webp");
+    wrapper.unmount();
+  });
+
   it("keeps sortable report labels present beside their indicator", () => {
     const wrapper = mount(ReportTable, {
       props: {
@@ -362,6 +389,7 @@ describe("shared native report table", () => {
       },
     });
     expect(wrapper.findAll("thead th").map((header) => header.text())).toEqual([
+      "图片",
       "物品编号",
       "条码",
       "条码类型",
@@ -453,6 +481,7 @@ describe("shared native report table", () => {
           count: 2,
           countLabel: "原生单据",
           expanded: true,
+          detailRow: true,
           hasChildren: true,
           value: {
             stock_uom: "Nos",
@@ -473,6 +502,7 @@ describe("shared native report table", () => {
           count: 1,
           countLabel: "分配行",
           expanded: true,
+          detailRow: true,
           hasChildren: true,
           value: {
             stock_uom: "kg",

@@ -133,6 +133,26 @@ body {
 	font-size: var(--p-body);
 	line-height: var(--p-line);
 }
+code {
+	font-family: inherit;
+	font-variant-numeric: tabular-nums;
+}
+.count-allocation-detail-grid {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	align-items: baseline;
+	gap: var(--p-space-2) var(--p-space-3);
+	margin: var(--p-space-3) 0;
+}
+.count-allocation-detail-grid dt {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.count-allocation-detail-grid dd {
+	min-width: 0;
+	margin: 0;
+	font-variant-numeric: tabular-nums;
+}
 button,
 input,
 select,

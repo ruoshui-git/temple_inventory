@@ -144,7 +144,13 @@ describe("typed movement history table", () => {
     expect(wrapper.text()).toContain("记录");
     expect(wrapper.text()).toContain("已提交");
     expect(wrapper.get("tbody tr").attributes("aria-label")).toContain(
-      "增加可用库存",
+      "可用库存增加 5 单位",
+    );
+    expect(wrapper.get("[data-effect-value]").attributes("title")).toBe(
+      "可用库存增加 5 单位",
+    );
+    expect(wrapper.get("[data-effect-label]").text()).toBe(
+      "可用库存增加 5 单位",
     );
     expect(
       wrapper
@@ -365,7 +371,7 @@ describe("typed movement history table", () => {
     expect(quantityCell.text()).not.toContain("+3");
     expect(quantityCell.classes()).toContain("history-effect-quantity-up");
     expect(wrapper.get("tbody tr").attributes("aria-label")).toContain(
-      "增加可用库存",
+      "可用库存增加 3 单位",
     );
   });
 });

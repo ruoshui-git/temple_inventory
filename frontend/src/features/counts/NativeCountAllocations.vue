@@ -18,7 +18,7 @@ const allocations = computed(
 <template>
 	<div v-if="allocations.some((allocation) => allocation.batch_no)">
 		<p class="muted">已保存的批次明细</p>
-		<dl>
+		<dl class="count-allocation-detail-grid">
 			<template v-for="allocation in allocations" :key="allocation.batch_no">
 				<dt>{{ allocation.batch_no || "无批次" }}</dt>
 				<dd>
