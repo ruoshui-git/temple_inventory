@@ -25,6 +25,7 @@ import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import { showToast } from "../../services/toast";
 import { unitLabel } from "../../lib/units";
+import UnitText from "../../components/ui/UnitText.vue";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -321,9 +322,9 @@ const locationPrefs =
 								String(row.label || ""),
 							)
 						}}</template>
-						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'">{{
-							unitLabel(String(row[column.id] || ""))
-						}}</template>
+						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
+							><UnitText :name="row[column.id]"
+						/></template>
 						<template v-else>{{ row[column.id] ?? 0 }}</template>
 					</template>
 				</DataTable>
@@ -351,9 +352,9 @@ const locationPrefs =
 								String(row.label || ""),
 							)
 						}}</template>
-						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'">{{
-							unitLabel(String(row[column.id] || ""))
-						}}</template>
+						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
+							><UnitText :name="row[column.id]"
+						/></template>
 						<template v-else>{{ row[column.id] }}</template>
 					</template>
 				</DataTable>

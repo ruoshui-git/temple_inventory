@@ -1383,9 +1383,9 @@ describe("native operation browsing", () => {
     expect(wrapper.get(".mobile-item-group-list .browse-row-link").text()).toBe(
       "物品甲",
     );
-    expect(wrapper.get(".mobile-item-group-list h2 small").text()).toBe(
-      "明细条数 42",
-    );
+    const count = wrapper.get(".mobile-item-group-list h2 small");
+    expect(count.text()).toBe("42 条");
+    expect(count.attributes("title")).toBe("明细条数 42");
     expect(wrapper.get(".preview-group-metrics").text()).toMatch(
       /借出\s+2\s+Nos/,
     );

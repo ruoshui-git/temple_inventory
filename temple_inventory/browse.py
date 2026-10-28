@@ -201,6 +201,7 @@ def _native_record_page(query, start, page_length, refresh=False):
 		rows = list(projection.rows("native_records", offset=start, limit=size))
 		for row in rows:
 			row["whole"] = _whole_operation(projection.context, row["doctype"], row["document"])
+			row["item_name"] = row["whole"].get("item_name", "")
 		count = projection.count("native_records")
 		return {
 			"rows": rows,
@@ -712,12 +713,15 @@ def _whole_operation(context, doctype, name):
 	quantities = defaultdict(float)
 	available_effects = defaultdict(float)
 	branches, items, originals = set(), set(), set()
+	first_item_name = ""
 	kind = document_kind(doc)
 	for row in doc.items:
 		item = context.item(row.item_code)
 		if not item:
 			frappe.throw("原生记录包含无权访问的物品", frappe.PermissionError)
 		items.add(item.name)
+		if not first_item_name:
+			first_item_name = item.item_name or item.name
 		quantity = (
 			float(row.get("transfer_qty") or 0)
 			if doctype == "Stock Entry"
@@ -761,6 +765,7 @@ def _whole_operation(context, doctype, name):
 			{"uom": unit, "qty": quantity} for unit, quantity in sorted(available_effects.items())
 		],
 		"item_count": len(items),
+		"item_name": first_item_name,
 		"line_count": len(doc.items),
 		"branches": [
 			{"source": source, "destination": destination} for source, destination in sorted(branches)

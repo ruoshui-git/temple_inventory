@@ -45,6 +45,10 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { summarizeItems } from "../../lib/itemSummary";
 import { sortByUnit, unitLabel } from "../../lib/units";
+import { relativeTime } from "../notifications/model";
+import RemoteSelect from "../../components/ui/RemoteSelect.vue";
+import { useFilterChoices } from "../references/useFilterChoices";
+const filterChoices = useFilterChoices();
 const props = withDefaults(
 	defineProps<{
 		controller: NativeRecordsController;
@@ -163,9 +167,23 @@ function localSummary(entry: RecoverySnapshot) {
 				.filter(Boolean),
 		);
 		const first = lines[0] as Record<string, unknown> | undefined;
+		const firstName = String(
+			first?.item_name ||
+				first?.displayName ||
+				first?.name ||
+				first?.code ||
+				first?.item_code ||
+				"",
+		).trim();
 		const location =
 			first?.location || first?.warehouse || first?.t_warehouse || values.ti_warehouse;
-		return `${codes.size || lines.length} 种物品${location ? ` → ${warehouseLabel(location, c.reference.warehouses)}` : ""}`;
+		const count = codes.size || lines.length;
+		const summary = firstName
+			? count > 1
+				? `${firstName} 等 ${count} 种物品`
+				: firstName
+			: summarizeItems([], count);
+		return `${summary}${location ? ` → ${warehouseLabel(location, c.reference.warehouses)}` : ""}`;
 	}
 	if (entry.editorKind === "Stock Reconciliation") {
 		const lines = Array.isArray(values.ti_count_review) ? values.ti_count_review : [];
@@ -181,16 +199,16 @@ function localSummary(entry: RecoverySnapshot) {
 		return String(values.label || values.editingWarehouse || "仓库资料");
 	return "未完成输入";
 }
-function relativeTime(value: string) {
-	const timestamp = new Date(value).getTime();
-	if (!Number.isFinite(timestamp)) return value || "时间未知";
-	const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
-	if (minutes < 1) return "刚刚";
-	if (minutes < 60) return `${minutes} 分钟前`;
-	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours} 小时前`;
-	const days = Math.floor(hours / 24);
-	return `${days} 天前`;
+const personRoleLabels: Record<string, string> = {
+	any: "任一角色",
+	recorder: "记录人",
+	handler: "经手人",
+	reviewer: "鉴证人",
+};
+const loadPeople = (search: string, start: number, signal: AbortSignal) =>
+	filterChoices.loadPeople(search, start, signal, query.value.person.role);
+function setPersonName(name: string) {
+	query.value.person = { ...query.value.person, name, ...(name ? {} : { role: "any" }) };
 }
 const draftEntries = computed<DraftListEntry[]>(() => {
 	if (props.mode !== "drafts") return [];
@@ -206,7 +224,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 			type: "server",
 			kind: String(row.kind || ""),
 			label: kind,
-			summary: `${summarizeItems(row.item_name ? [row.item_name] : [], row.whole.item_count)}${destination ? ` → ${destination}` : ""}`,
+			summary: `${row.item_name ? (row.whole.item_count > 1 ? `${row.item_name} 等 ${row.whole.item_count} 种物品` : row.item_name) : summarizeItems([], row.whole.item_count)}${destination ? ` → ${destination}` : ""}`,
 			updatedAt: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			absolute: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			server: row,
@@ -447,6 +465,35 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					records
 					:hierarchy-in-rail="sidebarOpen && !isMobile"
 				/>
+				<details class="browse-filter-disclosure" data-filter-field="person">
+					<summary class="ti-disclosure">
+						<DisclosureIcon variant="inline" />人员<small>{{
+							query.person.name || "不限"
+						}}</small>
+					</summary>
+					<RemoteSelect
+						label="人员"
+						:model-value="query.person.name"
+						:context="query.person.role"
+						:load="loadPeople"
+						@update:model-value="setPersonName($event)"
+					/>
+					<label class="preview-field"
+						>角色<select
+							v-model="query.person.role"
+							aria-label="人员角色"
+							:disabled="!query.person.name"
+						>
+							<option
+								v-for="(label, role) in personRoleLabels"
+								:key="role"
+								:value="role"
+							>
+								{{ label }}
+							</option>
+						</select></label
+					>
+				</details>
 				<div data-filter-field="groupBy" tabindex="-1">
 					<GroupByFilter
 						v-model="query.groupBy"

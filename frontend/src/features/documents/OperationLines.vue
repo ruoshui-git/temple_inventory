@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
 import { unitLabel, unitOption, sortByUnit } from "../../lib/units";
+import UnitText from "../../components/ui/UnitText.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 import AllocationSummary from "./AllocationSummary.vue";
 import {
@@ -1796,8 +1797,8 @@ function receiveBatchChanged(line: AllocationLine) {
 									enteredQty(line) * Number(line.conversionFactor || 1),
 								)
 							}}
-							{{ unitLabel(line.uom) }}</span
-						>
+							<UnitText :name="line.uom"
+						/></span>
 						<span
 							v-else
 							class="operation-row-stock-total-empty"

@@ -2379,6 +2379,12 @@
 	display: grid;
 	gap: 2px;
 }
+.browse-action-menu :is(button, a, .ui-button):has(.menu-item-hint, .unit-delete-reason) {
+	flex-wrap: wrap;
+}
+.browse-action-menu .menu-item-label {
+	white-space: nowrap;
+}
 .browse-action-menu .menu-item-hint {
 	color: var(--p-muted);
 	font-size: var(--p-small);

@@ -15,6 +15,7 @@ import {
 describe("site timezone helpers", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it("converts site wall-time with the bootstrap timezone", () => {
@@ -58,5 +59,29 @@ describe("site timezone helpers", () => {
     });
     await renderToString(createSSRApp(Host));
     expect(result).toEqual({ groups: ["今天"], relative: "1 小时前" });
+  });
+
+  it("keeps a sixteen-minute draft at sixteen minutes in a non-UTC browser", async () => {
+    vi.stubEnv("TZ", "Pacific/Honolulu");
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-10-27T12:00:00Z"));
+    expect(new Date().getTimezoneOffset()).toBe(600);
+    const reference = createReferenceData();
+    reference.timezone = "America/New_York";
+    let result = "";
+    const Consumer = defineComponent({
+      setup() {
+        result = relativeTime("2026-10-27 07:44:00");
+        return () => h("div");
+      },
+    });
+    const Host = defineComponent({
+      setup() {
+        provideReferenceData(reference);
+        return () => h(Consumer);
+      },
+    });
+    await renderToString(createSSRApp(Host));
+    expect(result).toBe("16 分钟前");
   });
 });

@@ -14,7 +14,7 @@ import { dataColumnAlignment, dataColumnKind } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
-import { unitLabel } from "../../lib/units";
+import UnitText from "./UnitText.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -936,13 +936,12 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											:value="cellValue(entry, column)"
 											:index="index"
 										>
-											{{
-												columnKind(column) === "unit"
-													? unitLabel(
-															String(cellValue(entry, column) || ""),
-														)
-													: cellValue(entry, column)
-											}}
+											<template v-if="columnKind(column) === 'unit'"
+												><UnitText :name="cellValue(entry, column)"
+											/></template>
+											<template v-else>{{
+												cellValue(entry, column)
+											}}</template>
 										</slot>
 									</td>
 									<td

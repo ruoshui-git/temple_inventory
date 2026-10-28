@@ -17,6 +17,7 @@ import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { summarizeItems } from "../../lib/itemSummary";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { unitLabel } from "../../lib/units";
+import UnitText from "../../components/ui/UnitText.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 import {
 	browseDestination,
@@ -413,8 +414,7 @@ function datasetChanged(dataset: ReportDataset) {
 							<small>{{ metric.label }}</small>
 							<div class="dashboard-inventory-quantities">
 								<strong v-for="quantity in metric.quantities" :key="quantity.uom">
-									{{ formatQuantity(quantity.qty) }}
-									<span>{{ unitLabel(quantity.uom) }}</span>
+									<UnitText :name="quantity.uom" :qty="quantity.qty" />
 								</strong>
 							</div>
 							<button
@@ -730,10 +730,10 @@ function datasetChanged(dataset: ReportDataset) {
 													: 'is-neutral'
 										"
 										:title="effectLabel(quantity.effect, quantity.uom)"
-										>{{ quantity.qty }} {{ unitLabel(quantity.uom)
-										}}<span class="sr-only">{{
-											effectLabel(quantity.effect, quantity.uom)
-										}}</span></strong
+										><UnitText :name="quantity.uom" :qty="quantity.qty" /><span
+											class="sr-only"
+											>{{ effectLabel(quantity.effect, quantity.uom) }}</span
+										></strong
 									>
 								</span>
 							</RouterLink>
@@ -794,10 +794,12 @@ function datasetChanged(dataset: ReportDataset) {
 											: 'is-neutral'
 								"
 								:title="effectLabel(Number(quantity.effect || 0), quantity.uom)"
-								>{{ quantity.qty }} {{ unitLabel(quantity.uom)
-								}}<span class="sr-only">{{
-									effectLabel(Number(quantity.effect || 0), quantity.uom)
-								}}</span></b
+								><UnitText :name="quantity.uom" :qty="quantity.qty" /><span
+									class="sr-only"
+									>{{
+										effectLabel(Number(quantity.effect || 0), quantity.uom)
+									}}</span
+								></b
 							>
 						</RouterLink>
 					</div>

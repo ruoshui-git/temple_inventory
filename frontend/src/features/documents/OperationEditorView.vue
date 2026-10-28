@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import { RouterLink } from "vue-router";
+import { personDestination } from "../../lib/nativeNavigation";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
@@ -49,6 +51,11 @@ const emit = defineEmits<{
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller;
+function personRole(label: string): "recorder" | "handler" | "reviewer" | undefined {
+	return ({ 记录人: "recorder", 经手人: "handler", 鉴证人: "reviewer" } as const)[
+		label as "记录人" | "经手人" | "鉴证人"
+	];
+}
 const reference = useReferenceData();
 const {
 	draft,
@@ -1008,7 +1015,13 @@ async function lifecycle() {
 							:key="label"
 						>
 							<dt>{{ label }}</dt>
-							<dd>{{ value || "未填写" }}</dd>
+							<dd>
+								<RouterLink
+									v-if="value && personRole(label)"
+									:to="personDestination(String(value), personRole(label)!)"
+									>{{ value }}</RouterLink
+								><span v-else>{{ value || "未填写" }}</span>
+							</dd>
 						</div>
 					</dl>
 				</DisclosureSection>

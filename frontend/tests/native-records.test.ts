@@ -128,6 +128,38 @@ describe("native drafts and count records", () => {
         document.querySelector(`[data-filter-field="${field}"]`),
       ).toBeTruthy();
   });
+  it("opens the Counts tracking and person editors from their filter chips", async () => {
+    const query = newReportQuery("counts");
+    query.scope.tracking = "expiry";
+    query.person = { name: "张三", role: "handler" };
+    const { wrapper, c } = setup(
+      vi.fn(async () => response),
+      "counts",
+      query,
+    );
+    await flushPromises();
+    await wrapper.get('button[aria-haspopup="dialog"]').trigger("click");
+    await flushPromises();
+    expect(
+      document.querySelector('[data-filter-field="tracking"] select'),
+    ).toBeTruthy();
+    const person = document.querySelector<HTMLElement>(
+      '[data-filter-field="person"]',
+    );
+    expect(person).toBeTruthy();
+    expect(person?.querySelector('[aria-label="人员角色"]')).toHaveProperty(
+      "value",
+      "handler",
+    );
+    expect(
+      c.extraChips.value.find((chip) => chip.key === "person")?.field,
+    ).toBe("person");
+    const personChip = wrapper
+      .findAll(".browse-persistent-chips .browse-active-chip-label")
+      .find((chip) => chip.text().includes("张三"));
+    expect(personChip).toBeDefined();
+    expect(personChip?.text()).toContain("经手人：张三");
+  });
 
   it.each(["quantity", "name", "batch", "item_name"])(
     "resets retired sort field %s to the native records default while preserving filters",
@@ -250,7 +282,7 @@ describe("native drafts and count records", () => {
       entries[0]?.find(".browse-row-actions .ui-button").attributes("class"),
     ).toContain("ui-button--compact");
     expect(entries[0]?.text()).toContain("浏览器暂存");
-    expect(entries[0]?.text()).toContain("2 种物品");
+    expect(entries[0]?.text()).toContain("ITEM-A 等 2 种物品");
     expect(entries[1]?.text()).toContain("草稿单据");
     const kindSelect = document.querySelector<HTMLSelectElement>(
       '[data-filter-field="kindFilter"] select',

@@ -42,6 +42,7 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { unitLabel } from "../../lib/units";
+import UnitText from "../../components/ui/UnitText.vue";
 
 import type { StockItem } from "../../lib/stockPresentation";
 import type { useStockBrowseController } from "./useStockBrowseController";
@@ -195,9 +196,6 @@ function stockCode(row: StockTableRow) {
 }
 function stockName(row: StockTableRow) {
 	return String(row.name || row.item_name || stockCode(row));
-}
-function stockUnit(row: StockTableRow) {
-	return unitLabel(String(row.uom || row.stock_uom || ""));
 }
 function stockSelectionKey(row: StockTableRow) {
 	return stockCode(row) || String(row.id || "");
@@ -577,7 +575,7 @@ watch([() => props.active, isMobile], () => {
 									<div class="stock-number">
 										<span
 											><strong>{{ item.available }}</strong>
-											{{ unitLabel(item.uom) }}</span
+											<UnitText :name="item.uom" /></span
 										><small>可用库存</small>
 									</div>
 									<div class="stock-secondary">
@@ -636,8 +634,8 @@ watch([() => props.active, isMobile], () => {
 									</span>
 									<span class="stock-list-quantity">
 										<strong
-											>{{ item.available }} {{ unitLabel(item.uom) }}</strong
-										>
+											><UnitText :name="item.uom" :qty="item.available"
+										/></strong>
 										<span
 											v-if="item.loaned || item.damaged"
 											class="stock-list-status"
@@ -763,9 +761,9 @@ watch([() => props.active, isMobile], () => {
 								<template v-else-if="column.id === 'item_code'">{{
 									stockCode(row)
 								}}</template>
-								<template v-else-if="column.id === 'stock_uom'">{{
-									stockUnit(row)
-								}}</template>
+								<template v-else-if="column.id === 'stock_uom'"
+									><UnitText :name="row.uom || row.stock_uom"
+								/></template>
 								<template v-else-if="column.id === 'category'">{{
 									row.category || "未分类"
 								}}</template>

@@ -4,7 +4,9 @@ import { RouterLink } from "vue-router";
 import DataTable from "../../components/ui/DataTable.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+import UnitText from "../../components/ui/UnitText.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { formatConversion } from "../../lib/conversionText";
 import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
@@ -199,9 +201,14 @@ function phoneDetails(line: AllocationLine) {
 }
 function quantityText(line: AllocationLine) {
 	const enteredUnit = line.entryUom || line.uom;
-	const entered = `${formatQuantity(enteredQty(line))} ${unitLabel(enteredUnit)}`;
-	if (enteredUnit === line.uom) return entered;
-	return `${entered}（${formatQuantity(Number(line.qty || 0))} ${unitLabel(line.uom)}）`;
+	return (
+		formatConversion({
+			qty: enteredQty(line),
+			uom: enteredUnit,
+			factor: Number(line.conversionFactor || 1),
+			stockUom: line.uom,
+		}) || `${formatQuantity(enteredQty(line))} ${unitLabel(enteredUnit)}`
+	);
 }
 function lineFor(row: Record<string, unknown>) {
 	return row.line as AllocationLine;
@@ -342,7 +349,22 @@ function itemFor(row: Record<string, unknown>) {
 				<template v-else>{{ String(row.batch || "") }}</template>
 			</template>
 			<template v-else-if="column.id === 'quantity'">
-				<span class="allocation-quantity">{{ quantityText(lineFor(row)) }}</span>
+				<span class="allocation-quantity"
+					><UnitText
+						:name="lineFor(row).entryUom || lineFor(row).uom"
+						:qty="enteredQty(lineFor(row))"
+					/><template
+						v-if="(lineFor(row).entryUom || lineFor(row).uom) !== lineFor(row).uom"
+					>
+						=
+						<UnitText
+							:name="lineFor(row).uom"
+							:qty="Number(lineFor(row).qty || 0)"
+						/>（1 <UnitText :name="lineFor(row).entryUom || lineFor(row).uom" /> =
+						{{ formatQuantity(Number(lineFor(row).conversionFactor || 1)) }}
+						<UnitText :name="lineFor(row).uom" />）</template
+					></span
+				>
 			</template>
 			<template v-else-if="column.id === 'destination'">
 				<LocationEndpoint
@@ -493,9 +515,11 @@ function itemFor(row: Record<string, unknown>) {
 	-webkit-line-clamp: 2;
 }
 .allocation-phone-quantity {
-	flex: none;
+	flex: 0 1 50%;
+	min-width: 0;
 	text-align: right;
-	white-space: nowrap;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 .allocation-phone-quantity > span {
 	color: var(--p-text-muted);

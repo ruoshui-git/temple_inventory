@@ -32,6 +32,8 @@ import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useConfirm } from "../../services/confirm";
+import { RouterLink } from "vue-router";
+import { personDestination } from "../../lib/nativeNavigation";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -42,6 +44,8 @@ const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 }>();
 const c = props.controller;
+const personTo = (name: string, role: "recorder" | "handler" | "reviewer") =>
+	personDestination(name, role);
 const { isMobile } = useResponsiveLayout();
 const { confirm: confirmDialog } = useConfirm();
 const {
@@ -708,10 +712,19 @@ async function back() {
 					</div>
 					<div v-else>
 						<p>
-							记录人：{{ values.ti_recorder_name || "未填写" }} · 经手人：{{
-								values.ti_handler_name || "未填写"
-							}}
-							· 鉴证人：{{ values.ti_reviewer_name || "未填写" }}
+							记录人：<RouterLink
+								v-if="values.ti_recorder_name"
+								:to="personTo(values.ti_recorder_name, 'recorder')"
+								>{{ values.ti_recorder_name }}</RouterLink
+							><span v-else>未填写</span> · 经手人：<RouterLink
+								v-if="values.ti_handler_name"
+								:to="personTo(values.ti_handler_name, 'handler')"
+								>{{ values.ti_handler_name }}</RouterLink
+							><span v-else>未填写</span> · 鉴证人：<RouterLink
+								v-if="values.ti_reviewer_name"
+								:to="personTo(values.ti_reviewer_name, 'reviewer')"
+								>{{ values.ti_reviewer_name }}</RouterLink
+							><span v-else>未填写</span>
 						</p>
 					</div>
 				</DisclosureSection>

@@ -10,7 +10,7 @@ import type { DataColumn, DataTableRecord } from "../lib/dataTable";
 import { useColumnPreferences } from "../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../services/contracts";
 import { useArrayTableSort } from "../composables/useArrayTableSort";
-import { unitLabel } from "../lib/units";
+import UnitText from "./ui/UnitText.vue";
 const props = withDefaults(
 	defineProps<{ item: StockItem; loading?: boolean; initialized?: boolean; stale?: boolean }>(),
 	{ loading: false, initialized: true, stale: false },
@@ -26,14 +26,10 @@ const loanedTotal = computed(() =>
 const damagedTotal = computed(() =>
 	props.item.locations.reduce((total, row) => total + Number(row.damaged || 0), 0),
 );
-const otherStockSummary = computed(() =>
-	[
-		loanedTotal.value ? `借出 ${loanedTotal.value} ${unitLabel(props.item.uom)}` : "",
-		damagedTotal.value ? `损坏 ${damagedTotal.value} ${unitLabel(props.item.uom)}` : "",
-	]
-		.filter(Boolean)
-		.join(" · "),
-);
+const otherStockSummary = computed(() => [
+	...(loanedTotal.value ? [{ label: "借出", qty: loanedTotal.value }] : []),
+	...(damagedTotal.value ? [{ label: "损坏", qty: damagedTotal.value }] : []),
+]);
 const warehouseReference = useOptionalReferenceData();
 const services = useOptionalInventoryServices();
 const locationColumns: DataColumn[] = [
@@ -173,17 +169,21 @@ const batchPreferences =
 							String(row.label || ""),
 						)
 					}}</template>
-					<template v-else-if="column.id === 'uom'">{{
-						unitLabel(String(row.uom || ""))
-					}}</template>
+					<template v-else-if="column.id === 'uom'"
+						><UnitText :name="row.uom"
+					/></template>
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
-			<p v-if="otherStockSummary" class="stock-breakdown-other muted">
-				另有 {{ otherStockSummary }}
+			<p v-if="otherStockSummary.length" class="stock-breakdown-other muted">
+				另有
+				<template v-for="(summary, index) in otherStockSummary" :key="summary.label">
+					<span v-if="index"> · </span>{{ summary.label }}
+					<UnitText :name="item.uom" :qty="summary.qty" />
+				</template>
 			</p>
 			<p v-if="physicalLocations.length" class="stock-breakdown-total">
-				合计 {{ item.available }} {{ unitLabel(item.uom) }}
+				合计 {{ item.available }} <UnitText :name="item.uom" />
 			</p>
 		</DetailPopover>
 		<span v-else class="muted">暂无库存位置</span>
@@ -225,8 +225,12 @@ const batchPreferences =
 					<template v-else>{{ row[column.id] }}</template>
 				</template>
 			</DataTable>
-			<p v-if="otherStockSummary" class="stock-breakdown-other muted">
-				另有 {{ otherStockSummary }}
+			<p v-if="otherStockSummary.length" class="stock-breakdown-other muted">
+				另有
+				<template v-for="(summary, index) in otherStockSummary" :key="summary.label">
+					<span v-if="index"> · </span>{{ summary.label }}
+					<UnitText :name="item.uom" :qty="summary.qty" />
+				</template>
 			</p>
 		</DetailPopover>
 		<span v-else-if="item.tracksBatch" class="badge neutral">0 批次</span>

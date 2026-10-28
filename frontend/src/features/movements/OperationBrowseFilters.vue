@@ -146,7 +146,7 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 						}}</small>
 					</summary>
 					<label class="preview-field"
-						>归还结果<select v-model="query.loanOutcome" aria-label="归还结果">
+						><select v-model="query.loanOutcome" aria-label="归还结果">
 							<option value="all">全部</option>
 							<option value="returned">归还</option>
 							<option value="damaged">损坏</option>

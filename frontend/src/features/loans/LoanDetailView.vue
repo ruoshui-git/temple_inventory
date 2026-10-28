@@ -17,6 +17,9 @@ import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
 import { unitLabel } from "../../lib/units";
 import { formatConversion } from "../../lib/conversionText";
+import { RouterLink } from "vue-router";
+import { personDestination } from "../../lib/nativeNavigation";
+import UnitText from "../../components/ui/UnitText.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -38,6 +41,11 @@ const actions = [
 const deskLink = computed(() =>
 	loan.value ? `/app/stock-entry/${encodeURIComponent(loan.value.name)}` : "",
 );
+function personRole(label: string): "recorder" | "handler" | "reviewer" | undefined {
+	return ({ 记录人: "recorder", 经办人: "handler", 复核人: "reviewer" } as const)[
+		label as "记录人" | "经办人" | "复核人"
+	];
+}
 const initialLoad = computed(() => loading.value && !loan.value);
 function settle(action: SettlementAction) {
 	if (loan.value && c.canSettle(action)) emit("settle", loan.value.name, action);
@@ -135,9 +143,8 @@ function settle(action: SettlementAction) {
 					<span
 						>借出 {{ line.transfer_qty }} · 未结清 {{ line.outstanding_qty }} ·
 						完好归还 {{ line.outcomes.Returned }} · 损坏 {{ line.outcomes.Damaged }} ·
-						遗失 {{ line.outcomes.Lost }}
-						{{ unitLabel(String(line.stock_uom || "")) }}</span
-					>
+						遗失 {{ line.outcomes.Lost }} <UnitText :name="line.stock_uom"
+					/></span>
 					<DisclosureSection
 						title="存放明细与单位换算"
 						:summary="`按 ${unitLabel(String(line.stock_uom || ''))} 汇总`"
@@ -177,7 +184,7 @@ function settle(action: SettlementAction) {
 							{{ allocation.outstanding_qty }} · 完好归还
 							{{ allocation.outcomes.Returned }} · 损坏
 							{{ allocation.outcomes.Damaged }} · 遗失 {{ allocation.outcomes.Lost }}
-							{{ unitLabel(String(line.stock_uom || "")) }}
+							<UnitText :name="line.stock_uom" />
 						</div>
 					</DisclosureSection>
 				</div>
@@ -238,7 +245,13 @@ function settle(action: SettlementAction) {
 						:key="label"
 					>
 						<dt>{{ label }}</dt>
-						<dd class="preview-long-text">{{ value || "未填写" }}</dd>
+						<dd class="preview-long-text">
+							<RouterLink
+								v-if="value && personRole(label)"
+								:to="personDestination(String(value), personRole(label)!)"
+								>{{ value }}</RouterLink
+							><span v-else>{{ value || "未填写" }}</span>
+						</dd>
 					</div>
 				</dl>
 			</DisclosureSection>

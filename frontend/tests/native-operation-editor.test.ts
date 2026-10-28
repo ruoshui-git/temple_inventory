@@ -272,7 +272,7 @@ describe("native movement editor integration", () => {
         .at(-1)
         ?.get("tr:not(.data-table-group-row) td.data-column-number")
         .text(),
-    ).toBe("2 Box（24 Nos）");
+    ).toBe("2 Box = 24 Nos（1 Box = 12 Nos）");
     expect(
       call.mock.calls.some(([method]) => method === "catalog.operation_items"),
     ).toBe(false);
@@ -344,7 +344,7 @@ describe("native movement editor integration", () => {
     expect(wrapper.get(".allocation-item-link").attributes("title")).toBe(
       longItemName,
     );
-    expect(wrapper.text()).toContain("2 Box（24 Nos）");
+    expect(wrapper.text()).toContain("2 Box = 24 Nos（1 Box = 12 Nos）");
     expect(wrapper.text()).toContain("BATCH-PHONE");
     expect(wrapper.text()).toContain("效期 2027-10-16");
     await wrapper.get(".allocation-phone-group-toggle").trigger("click");

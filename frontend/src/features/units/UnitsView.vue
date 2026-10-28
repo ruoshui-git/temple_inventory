@@ -81,7 +81,7 @@ const tableRows = computed<DataTableRecord[]>(() =>
 						:title="row.deletable ? undefined : String(row.delete_reason)"
 						@click="c.remove(row as never)"
 					>
-						<span>删除</span
+						<span class="menu-item-label">删除</span
 						><small v-if="!row.deletable" class="unit-delete-reason">{{
 							row.delete_reason
 						}}</small>
@@ -114,7 +114,7 @@ const tableRows = computed<DataTableRecord[]>(() =>
 						:title="row.deletable ? undefined : row.delete_reason"
 						@click="c.remove(row)"
 					>
-						<span>删除</span
+						<span class="menu-item-label">删除</span
 						><small v-if="!row.deletable" class="unit-delete-reason">{{
 							row.delete_reason
 						}}</small>
@@ -186,10 +186,15 @@ const tableRows = computed<DataTableRecord[]>(() =>
 }
 .unit-delete-reason {
 	display: block;
-	max-width: 280px;
+	flex: 1 0 100%;
+	max-width: none;
+	padding-inline-start: 26px;
 	white-space: normal;
 	color: var(--p-muted);
 	font-weight: 400;
+}
+.menu-item-label {
+	white-space: nowrap;
 }
 .unit-form {
 	display: grid;

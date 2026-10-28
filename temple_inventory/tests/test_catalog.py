@@ -1396,6 +1396,8 @@ class CatalogTests(NativeDocumentTests):
 		self.assertIsNone(page["next_start"])
 		row = page["rows"][0]
 		self.assertEqual(row["whole"]["line_count"], 2)
+		self.assertTrue(row["item_name"])
+		self.assertEqual(row["whole"]["item_name"], row["item_name"])
 		self.assertEqual(row["whole"]["version"], draft.version)
 		self.assertEqual(row["whole"]["quantities"], [{"uom": "Kg", "qty": 3}, {"uom": "Nos", "qty": 2}])
 		self.assertTrue(row["whole"]["editable"])

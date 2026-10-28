@@ -21,6 +21,7 @@ import {
   countDestination,
   loanDestination,
   operationDestination,
+  personDestination,
 } from "../src/lib/nativeNavigation";
 import DashboardView from "../src/features/dashboard/DashboardView.vue";
 import { RouterLinkStub } from "./support/RouterLinkStub";
@@ -204,6 +205,14 @@ describe("scope and permission refresh boundaries", () => {
 });
 
 describe("native browse service controllers", () => {
+  it("builds person record routes from the shared browse destination", () => {
+    const target = personDestination("张三", "handler");
+    expect(target.name).toBe("movements");
+    expect(target.query?.view).toBe("records");
+    expect(JSON.parse(String(target.query?.query))).toMatchObject({
+      person: { name: "张三", role: "handler" },
+    });
+  });
   it("routes Loan links from batch movement history to the loan detail and back", () => {
     expect(loanDestination("Loan / 01", "/batches/BATCH-1")).toEqual({
       name: "loan-overview",

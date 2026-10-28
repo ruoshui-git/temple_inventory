@@ -177,7 +177,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 			:summary="trackingLabel"
 		>
 			<label class="preview-field"
-				>物品追踪<select
+				><select
 					:value="scope.tracking"
 					aria-label="物品追踪"
 					@change="

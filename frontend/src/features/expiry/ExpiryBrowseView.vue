@@ -36,6 +36,7 @@ import type {
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { unitLabel } from "../../lib/units";
+import UnitText from "../../components/ui/UnitText.vue";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -503,9 +504,8 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						<div class="expiry-phone-meta">
 							<span>{{ row.expiry_date || "无效期" }}</span>
 							<span
-								>{{ row.stock_qty }}
-								{{ unitLabel(String(row.stock_uom || "")) }}</span
-							>
+								><UnitText :name="row.stock_uom" :qty="Number(row.stock_qty || 0)"
+							/></span>
 							<span
 								class="browse-badge"
 								:class="expiryStatus(row as unknown as ReportRow).tone"
@@ -619,9 +619,9 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								>损坏</span
 							></template
 						>
-						<template v-else-if="column.id === 'stock_uom'">{{
-							unitLabel(row.stock_uom)
-						}}</template>
+						<template v-else-if="column.id === 'stock_uom'"
+							><UnitText :name="row.stock_uom"
+						/></template>
 						<template v-else-if="column.id === 'warehouse'">{{
 							warehouseLabel(
 								String(row.warehouse || ""),
@@ -662,9 +662,9 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							{{ group.value[String(column.id)] }}
 							{{ unitLabel(String(group.value.stock_uom || "")) }}
 						</span>
-						<span v-else-if="column.id === 'stock_uom'">{{
-							unitLabel(group.value?.stock_uom)
-						}}</span>
+						<span v-else-if="column.id === 'stock_uom'"
+							><UnitText :name="group.value?.stock_uom"
+						/></span>
 					</template>
 				</DataTable>
 				<p

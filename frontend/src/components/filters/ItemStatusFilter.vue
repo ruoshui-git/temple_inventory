@@ -16,7 +16,7 @@ const labels = { enabled: "启用", disabled: "停用", all: "全部" };
 			}}</small>
 		</summary>
 		<label class="preview-field">
-			物品状态<select
+			<select
 				:value="modelValue"
 				aria-label="物品状态"
 				@change="

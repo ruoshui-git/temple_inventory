@@ -502,8 +502,8 @@ function groupMetric(group: DataTableGroup, column: string) {
 							),
 							image: String(row.image || ''),
 						}"
-						:thumbnail-size="32"
-						:target-size="32"
+						:thumbnail-size="24"
+						:target-size="24"
 					/>
 				</span>
 				<span v-else-if="column.id === 'image'" aria-hidden="true"></span>

@@ -3,7 +3,7 @@ import InventoryIcon from "../InventoryIcon.vue";
 import AsyncRegion from "./AsyncRegion.vue";
 import SkeletonBlock from "./SkeletonBlock.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
-import { unitLabel } from "../../lib/units";
+import UnitText from "./UnitText.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 export type Quantity = { uom: string; qty: number; status?: string; effect?: number };
 export type QuantityMetric = {
@@ -65,7 +65,7 @@ function effectLabel(quantity: Quantity) {
 							"
 						>
 							{{ formatQuantity(quantity.qty) }}
-							<span>{{ unitLabel(quantity.uom) }}</span>
+							<UnitText :name="quantity.uom" />
 							<small v-if="quantity.status"> · {{ quantity.status }}</small>
 							<span v-if="quantity.effect !== undefined" class="sr-only">{{
 								effectLabel(quantity)

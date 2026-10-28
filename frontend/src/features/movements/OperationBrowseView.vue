@@ -62,6 +62,7 @@ import { newReportQuery } from "../../lib/reportContract";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
+import UnitText from "../../components/ui/UnitText.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 const props = withDefaults(
 	defineProps<{
@@ -1114,7 +1115,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										"
 										>{{ group.label }}</RouterLink
 									>
-									<small>明细条数 {{ group.count }}</small>
+									<small :title="`明细条数 ${group.count}`"
+										>{{ group.count }} 条</small
+									>
 									<span
 										class="preview-group-metrics"
 										:title="groupSummaryDisplay(group)"
@@ -1382,7 +1385,19 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 											),
 										)
 									}}
-									{{ unitLabel(String(row.stock_uom || "")) }}
+									<UnitText
+										:name="row.stock_uom"
+										:qty="
+											Math.abs(
+												Number(
+													row.quantity ??
+														row.stock_qty ??
+														row.borrowed ??
+														0,
+												),
+											)
+										"
+									/>
 								</template>
 								<template
 									v-else-if="
@@ -1391,8 +1406,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										row.outstanding != null
 									"
 								>
-									{{ formatQuantity(Number(row.outstanding)) }}
-									{{ unitLabel(String(row.stock_uom || "")) }}
+									<UnitText
+										:name="row.stock_uom"
+										:qty="Number(row.outstanding)"
+									/>
 								</template>
 								<LocationEndpoint
 									v-else-if="column.id === 'source'"
@@ -1442,7 +1459,14 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												),
 											)
 										}}
-										{{ unitLabel(String(row.stock_uom || "")) }}
+										<UnitText
+											:name="row.stock_uom"
+											:qty="
+												Math.abs(
+													Number(row.quantity ?? row.stock_qty ?? 0),
+												)
+											"
+										/>
 									</span>
 									<span v-if="family === 'movements'" class="sr-only">{{
 										recordEffectLabel(
@@ -1558,9 +1582,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 													)
 												: undefined
 										"
-										>{{ metric.label }} {{ metric.quantity.qty }}
-										{{ unitLabel(metric.quantity.uom)
-										}}<small v-if="metric.quantity.status">
+										>{{ metric.label }}
+										<UnitText
+											:name="metric.quantity.uom"
+											:qty="metric.quantity.qty"
+										/><small v-if="metric.quantity.status">
 											· {{ metric.quantity.status }}</small
 										></span
 									>

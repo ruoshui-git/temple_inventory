@@ -1,4 +1,4 @@
-import type { ReportQuery } from "./reportContract";
+import { newReportQuery, type ReportQuery } from "./reportContract";
 import type { LocationQueryRaw } from "vue-router";
 import {
   browseRouteTarget,
@@ -24,6 +24,16 @@ export function exportDestination(query: ReportQuery) {
 
 export function browseDestination(query: ReportQuery) {
   return browseRouteTarget(query);
+}
+
+export function personDestination(
+  name: string,
+  role: "recorder" | "handler" | "reviewer",
+) {
+  const query = newReportQuery("movements");
+  query.view = "records";
+  query.person = { name, role };
+  return browseDestination(query);
 }
 
 export function operationDestination(

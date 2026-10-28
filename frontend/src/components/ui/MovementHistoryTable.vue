@@ -18,7 +18,7 @@ import InventoryIcon from "../InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
-import { unitLabel } from "../../lib/units";
+import UnitText from "./UnitText.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 
 const props = withDefaults(
@@ -306,19 +306,23 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 					>
 				</div>
 				<span v-else-if="column.id === 'item_code'">{{ row.item_code }}</span>
-				<template v-else-if="column.id === 'borrowed'">{{
-					"borrowed" in row
-						? `${formatQuantity(Number(row.borrowed))} ${unitLabel(String(row.stock_uom || ""))}`
-						: ""
-				}}</template>
-				<template v-else-if="column.id === 'outstanding'">{{
-					"outstanding" in row
-						? `${formatQuantity(Number(row.outstanding))} ${unitLabel(String(row.stock_uom || ""))}`
-						: ""
-				}}</template>
-				<template v-else-if="column.id === 'stock_uom'">{{
-					unitLabel(String(row.stock_uom || ""))
-				}}</template>
+				<template v-else-if="column.id === 'borrowed'">
+					<UnitText
+						v-if="'borrowed' in row"
+						:name="row.stock_uom"
+						:qty="Number(row.borrowed)"
+					/>
+				</template>
+				<template v-else-if="column.id === 'outstanding'">
+					<UnitText
+						v-if="'outstanding' in row"
+						:name="row.stock_uom"
+						:qty="Number(row.outstanding)"
+					/>
+				</template>
+				<template v-else-if="column.id === 'stock_uom'"
+					><UnitText :name="row.stock_uom"
+				/></template>
 				<template v-else-if="column.id === 'stock_qty'">
 					<span
 						:class="quantityClass(history(row))"
@@ -345,9 +349,8 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 						row.kind === 'Loan' &&
 						row.outstanding != null
 					"
-					>{{ formatQuantity(Number(row.outstanding)) }}
-					{{ unitLabel(String(row.stock_uom || "")) }}</template
-				>
+					><UnitText :name="row.stock_uom" :qty="Number(row.outstanding)"
+				/></template>
 				<template v-else-if="column.id === 'loan_status'">{{ loanStatus(row) }}</template>
 				<slot v-else-if="column.id === '_actions'" name="actions" :row="history(row)" />
 			</template>
@@ -416,9 +419,8 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 						</span>
 					</div>
 					<strong :class="quantityClass(history(row.value))"
-						>{{ quantity(history(row.value)) }}
-						{{ unitLabel(String(row.value.stock_uom || "")) }}</strong
-					>
+						><UnitText :name="row.value.stock_uom" :qty="quantity(history(row.value))"
+					/></strong>
 				</div>
 			</article>
 			<p

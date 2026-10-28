@@ -6,7 +6,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import { useFormValidation } from "../../composables/useFormValidation";
 import type { ConversionLine } from "../../lib/quantityConversion";
 import type { StockItem } from "../../lib/stockPresentation";
-import { unitLabel } from "../../lib/units";
+import { unitLabel, unitOption } from "../../lib/units";
 import { formatConversion } from "../../lib/conversionText";
 import { useConversionEditor, type SavedItemConversions } from "./useConversionEditor";
 const props = defineProps<{
@@ -45,6 +45,8 @@ const {
 const {
 	creating,
 	name: newName,
+	displayLabel: newDisplayLabel,
+	existingUnit,
 	whole,
 	permitted: canCreateUnit,
 	create,
@@ -66,6 +68,12 @@ async function saveNewUnit() {
 	if (!unitValidation.validate().ok) return;
 	await create();
 }
+async function selectExistingUnit() {
+	const row = reference.units.find((entry) => entry.name === existingUnit.value);
+	if (!row) return;
+	unit.value = row.name;
+	await finishCreation(false);
+}
 </script>
 <template>
 	<section class="preview-conversion-editor">
@@ -80,9 +88,7 @@ async function saveNewUnit() {
 					v-model="unit"
 					:options="
 						reference.units.map((row) => ({
-							value: row.name,
-							label: unitLabel(row.name),
-							detail: row.category || undefined,
+							...unitOption(row.name, { ...row, stockUom: line.uom }),
 						}))
 					"
 					:disabled="disabled || busy"
@@ -114,11 +120,19 @@ async function saveNewUnit() {
 					/>
 				</template>
 			</FormField>
+			<FormField label="显示名称" hint="可选；留空时使用单位名称">
+				<template #default="{ fieldAttrs }"
+					><input v-model="newDisplayLabel" v-bind="fieldAttrs" :disabled="creationBusy"
+				/></template>
+			</FormField>
 			<label class="preview-choice-label">
 				<input v-model="whole" type="checkbox" :disabled="creationBusy" />
 				只允许整数数量
 			</label>
 			<p v-if="creationError" class="utility-error" role="alert">{{ creationError }}</p>
+			<UiButton v-if="existingUnit" :disabled="creationBusy" @click="selectExistingUnit"
+				>使用此单位</UiButton
+			>
 			<template #footer>
 				<UiButton :disabled="creationBusy" @click="closeCreation">取消</UiButton>
 				<UiButton

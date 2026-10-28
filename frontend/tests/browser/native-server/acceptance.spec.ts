@@ -618,7 +618,7 @@ test("native operation and count editors mount at mobile with large text", async
         '@font-face { font-family: NativeAudit; src: url("/__native-acceptance-font.otf") } body,button,input,select {font-family:NativeAudit,sans-serif!important}',
     });
   await page.evaluate(() => document.fonts.ready);
-  await expect(page.getByText(/箱 × 5 个\/箱 = \d+ 个/).first()).toBeVisible();
+  await expect(page.getByText(/1 箱 = 5 个/).first()).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth + 1,
   );
@@ -953,8 +953,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
       .first();
     await expect(card).toHaveCount(1);
     const destination = page.getByRole("combobox", {
-      name: "入库位置",
-      exact: true,
+      name: /入库位置/,
     });
     await chooseWarehouse(destination, source);
 
@@ -966,7 +965,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
       name: "输入单位",
     });
     await conversionUnit.fill(unit);
-    await page.getByRole("option", { name: unit, exact: true }).click();
+    await page.getByRole("option", { name: /^箱/ }).click();
     await expect(conversion.getByText(`1 ${unit} =`)).toBeVisible();
     await page.screenshot({
       path: test.info().outputPath("unit-conversion-dialog.png"),
@@ -994,7 +993,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     await expect(rows).toHaveCount(2);
     const secondUnit = rows.nth(1).getByRole("combobox", { name: "单位" });
     await secondUnit.fill("个");
-    await page.getByRole("option", { name: "个", exact: true }).click();
+    await page.getByRole("option", { name: /^个/ }).click();
     await rows.nth(1).locator(".operation-row-menu summary").click();
     const rowMove = rows.nth(1).getByRole("combobox", { name: "移到其他位置" });
     await rowMove.fill(warehouseLabel(target));
