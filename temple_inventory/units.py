@@ -1,0 +1,127 @@
+"""Native UOM management for the inventory frontend."""
+
+# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
+
+import frappe
+from frappe.utils import cint
+
+from temple_inventory.catalog import create_uom
+from temple_inventory.native_access import require_app
+
+
+def _clear_uom_cache():
+	frappe.local.temple_inventory_uom_labels = None
+
+
+def _transaction_units(names):
+	checks = (
+		("Stock Entry Detail", ("uom", "stock_uom")),
+		("Stock Reconciliation Item", ("uom", "stock_uom")),
+		("Bin", ("stock_uom",)),
+		("Stock Ledger Entry", ("stock_uom",)),
+	)
+	quoted_names = ", ".join(frappe.db.escape(name) for name in names)
+	queries = []
+	for doctype, fields in checks:
+		available = [field for field in fields if frappe.get_meta(doctype).has_field(field)]
+		for field in available:
+			queries.append(
+				f"select distinct `{field}` as uom from `tab{doctype}` where `{field}` in ({quoted_names})"
+			)
+	if not queries or not names:
+		return set()
+	return {row[0] for row in frappe.db.sql(" union ".join(queries))}
+
+
+def _unit_row(row, item_counts=None, conversion_counts=None, transaction_units=None):
+	item_counts = item_counts or {row.name: frappe.db.count("Item", {"stock_uom": row.name})}
+	conversion_counts = conversion_counts or {
+		row.name: frappe.db.count("UOM Conversion Detail", {"uom": row.name, "parenttype": "Item"})
+	}
+	transaction_units = transaction_units if transaction_units is not None else _transaction_units([row.name])
+	item_count = item_counts.get(row.name, 0)
+	conversion_count = conversion_counts.get(row.name, 0)
+	transaction_use = row.name in transaction_units
+	deletable = not (item_count or conversion_count or transaction_use)
+	return {
+		"name": row.name,
+		"label": row.ti_label or row.name,
+		"must_be_whole_number": bool(row.must_be_whole_number),
+		"enabled": bool(row.enabled),
+		"item_count": item_count,
+		"conversion_count": conversion_count,
+		"used_in_transactions": transaction_use,
+		"deletable": deletable,
+		"delete_reason": "已被物品、换算或库存单据引用，不能删除；可以停用" if not deletable else "",
+	}
+
+
+@frappe.whitelist()
+def list_units():
+	require_app()
+	frappe.has_permission("UOM", "read", throw=True)
+	rows = frappe.get_list(
+		"UOM",
+		fields=["name", "ti_label", "must_be_whole_number", "enabled"],
+		limit_page_length=0,
+	)
+	names = [row.name for row in rows]
+	if names:
+		quoted_names = ", ".join(frappe.db.escape(name) for name in names)
+		item_counts = dict(
+			frappe.db.sql(
+				f"select stock_uom, count(*) from `tabItem` where stock_uom in ({quoted_names}) "
+				"group by stock_uom"
+			)
+		)
+		conversion_counts = dict(
+			frappe.db.sql(
+				"select uom, count(*) from `tabUOM Conversion Detail` "
+				f"where parenttype='Item' and uom in ({quoted_names}) group by uom"
+			)
+		)
+		transaction_units = _transaction_units(names)
+	else:
+		item_counts, conversion_counts, transaction_units = {}, {}, set()
+	result = [_unit_row(row, item_counts, conversion_counts, transaction_units) for row in rows]
+	result.sort(key=lambda row: (-row["item_count"], row["name"].casefold()))
+	return result
+
+
+@frappe.whitelist(methods=["POST"])
+def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, enabled=True):
+	require_app()
+	if name:
+		doc = frappe.get_doc("UOM", name, for_update=True)
+		doc.check_permission("write")
+		if uom_name and str(uom_name).strip() != doc.name:
+			frappe.throw("单位名称是原生身份，不能重命名")
+		doc.ti_label = str(label or "").strip()
+		doc.must_be_whole_number = cint(must_be_whole_number)
+		doc.enabled = cint(enabled)
+		doc.save()
+	else:
+		frappe.has_permission("UOM", "create", throw=True)
+		uom_name = str(uom_name or "").strip()
+		if not uom_name:
+			frappe.throw("请填写单位名称")
+		created = create_uom(uom_name, must_be_whole_number, label)
+		doc = frappe.get_doc("UOM", created["name"], for_update=True)
+		doc.enabled = cint(enabled)
+		if not doc.enabled:
+			doc.save()
+	_clear_uom_cache()
+	return _unit_row(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_unit(name):
+	require_app()
+	doc = frappe.get_doc("UOM", name, for_update=True)
+	doc.check_permission("delete")
+	row = _unit_row(doc)
+	if not row["deletable"]:
+		frappe.throw(row["delete_reason"])
+	frappe.delete_doc("UOM", name)
+	_clear_uom_cache()
+	return {"name": name, "deleted": True}

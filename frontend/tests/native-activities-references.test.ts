@@ -187,9 +187,9 @@ describe("native supporting reference creation", () => {
     expect(controller.name.value).toBe("箱");
     expect(controller.error.value).toBe("没有权限");
     await controller.create();
-    expect(call).toHaveBeenLastCalledWith("catalog.create_uom", {
-      label: "箱",
-      display_label: "",
+    expect(call).toHaveBeenLastCalledWith("units.save_unit", {
+      uom_name: "箱",
+      label: "",
       must_be_whole_number: true,
     });
     expect(selected).toHaveBeenCalledWith("箱");

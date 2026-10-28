@@ -21,6 +21,7 @@ export type AppRouteName =
   | "warehouses"
   | "warehouse-detail"
   | "categories"
+  | "units"
   | "pending"
   | "movements"
   | "movement-new"
@@ -101,6 +102,7 @@ const pages = {
   Warehouses: () => import("../pages/Warehouses.vue"),
   WarehouseDetail: () => import("../pages/WarehouseDetail.vue"),
   Categories: () => import("../pages/Categories.vue"),
+  Units: () => import("../pages/Units.vue"),
   Pending: () => import("../pages/Pending.vue"),
   Movements: () => import("../pages/Movements.vue"),
   NativeOperation: () => import("../pages/NativeOperation.vue"),
@@ -252,6 +254,15 @@ export const routeRegistry: readonly AppRouteDefinition[] = [
     "inventory",
     ["browse", "create", "edit"],
     [root, inventory, { label: "分类" }],
+    "stock",
+  ),
+  route(
+    "units",
+    "/stock/units",
+    "Units",
+    "inventory",
+    ["browse", "create", "edit"],
+    [root, inventory, { label: "单位" }],
     "stock",
   ),
   route(
@@ -578,10 +589,12 @@ export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
         structuredClone(value);
     }
   }
+  if (dataset !== "expiry" && target.scope.tracking === "batch_only")
+    target.scope.tracking = "all";
   const sourceFields = source as unknown as Record<string, unknown>;
   const targetFields = target as unknown as Record<string, unknown>;
   const excludedFields: Partial<Record<ReportDataset, readonly string[]>> = {
-    movements: ["loanStatus", "loanOutcome", "outstandingOnly"],
+    movements: ["loanStatus", "loanOutcome", "outstandingOnly", "borrower"],
     inventory: [
       "loanStatus",
       "loanOutcome",
@@ -590,6 +603,8 @@ export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
       "typeId",
       "activityKind",
       "relatedPresence",
+      "borrower",
+      "person",
     ],
     expiry: [
       "loanStatus",
@@ -599,6 +614,8 @@ export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
       "typeId",
       "activityKind",
       "relatedPresence",
+      "person",
+      "borrower",
     ],
     loans: [
       "expiryWindow",
@@ -614,6 +631,9 @@ export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
       "damageOnly",
       "loanOutcome",
       "outstandingOnly",
+      "person",
+      "borrower",
+      "itemStatus",
     ],
     counts: [
       "expiryWindow",
@@ -625,6 +645,7 @@ export function sanitizeBrowseQuery(source: ReportQuery): ReportQuery {
       "typeId",
       "activityKind",
       "relatedPresence",
+      "borrower",
     ],
   };
   const excluded = new Set(excludedFields[dataset] || []);

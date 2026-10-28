@@ -13,6 +13,7 @@ import {
 } from "../../services/contracts";
 import { showToast } from "../../services/toast";
 import { useConfirm } from "../../services/confirm";
+import { saveUnit } from "../../services/units";
 export function useReferenceCreation(
   kind: "unit" | "category",
   selected: (name: string) => void,
@@ -182,26 +183,25 @@ export function useReferenceCreation(
           busy.value = false;
           return;
         }
-        const result = await services.call<{
-          name: string;
-          label: string;
-          must_be_whole_number: boolean;
-        }>("catalog.create_uom", {
-          label: name.value.trim(),
-          display_label: displayLabel.value.trim(),
+        const result = await saveUnit(services, {
+          uom_name: name.value.trim(),
+          label: displayLabel.value.trim(),
           must_be_whole_number: whole.value,
         });
         if (disposed || reference.user !== account) return;
         const previous = reference.units.find(
           (row) => row.name === result.name,
         );
-        if (previous) previous.whole = result.must_be_whole_number;
-        else
+        if (previous) {
+          previous.label = result.label || result.name;
+          previous.whole = result.must_be_whole_number;
+        } else {
           reference.units.push({
             name: result.name,
             label: result.label || result.name,
             whole: result.must_be_whole_number,
           });
+        }
         selected(result.name);
         showToast("库存单位已创建");
       } else {

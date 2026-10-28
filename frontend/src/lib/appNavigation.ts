@@ -99,6 +99,13 @@ export const moreNavigation = [
         description: "管理分类层级与物品归属",
       },
       {
+        key: "units",
+        label: "单位",
+        route: routeTarget("units"),
+        icon: "table",
+        description: "管理计量单位与显示名称",
+      },
+      {
         key: "setup",
         label: "配置与恢复",
         route: routeTarget("setup"),

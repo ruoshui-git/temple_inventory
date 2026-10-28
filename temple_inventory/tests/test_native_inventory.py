@@ -12,6 +12,7 @@ import frappe
 from temple_inventory.tests.test_catalog import CatalogTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_environment import EnvironmentTests
+from temple_inventory.tests.test_item_images import ItemImageTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 from temple_inventory.tests.test_native_reports import NativeReportTests
 from temple_inventory.tests.test_native_samples import (
@@ -24,6 +25,7 @@ from temple_inventory.tests.test_native_warehouses import NativeWarehouseTests
 from temple_inventory.tests.test_notifications import NotificationTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
 from temple_inventory.tests.test_table_preferences import TablePreferenceTests
+from temple_inventory.tests.test_units import UnitTests
 
 
 def _rollback_audit_snapshot():
@@ -44,12 +46,14 @@ def run(test_name=None):
 		NativeReportTests,
 		ConfigurationTests,
 		NativeWarehouseTests,
+		ItemImageTests,
 		SampleMediaTests,
 		SampleGeneratorUnitTests,
 		NativeSampleAttachmentTests,
 		NativeSampleTests,
 		TablePreferenceTests,
 		NotificationTests,
+		UnitTests,
 		EnvironmentTests,
 		SchemaAuditTests,
 	):
