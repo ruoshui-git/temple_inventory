@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from temple_inventory import notifications, push
 from temple_inventory.native_stock import MOVEMENT_LABELS, MOVEMENT_PURPOSES
-from temple_inventory.patches import fix_expiry_notification_links, set_site_timezone
+from temple_inventory.patches import align_user_time_zones, fix_expiry_notification_links, set_site_timezone
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
@@ -39,6 +39,26 @@ class NotificationTests(NativeDocumentTests):
 		):
 			set_site_timezone.execute()
 		set_value.assert_not_called()
+
+	def test_user_time_zone_patch_moves_install_users_to_the_site_zone(self):
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": f"tz-{frappe.generate_hash(length=8)}@example.com",
+				"first_name": "时区",
+				"time_zone": "Asia/Kolkata",
+				"send_welcome_email": 0,
+			}
+		).insert(ignore_permissions=True)
+		site_zone = frappe.db.get_single_value("System Settings", "time_zone")
+		self.assertNotEqual(site_zone, "Asia/Kolkata")
+		# Limit the run to the test user so other accounts' cached defaults stay untouched.
+		with patch.object(
+			frappe, "get_all", return_value=[frappe._dict(name=user.name, time_zone="Asia/Kolkata")]
+		):
+			align_user_time_zones.execute()
+		self.assertEqual(frappe.db.get_value("User", user.name, "time_zone"), site_zone)
+		self.assertEqual(frappe.defaults.get_user_default("time_zone", user.name), site_zone)
 
 	def test_expiry_notification_link_patch_rewrites_legacy_rows(self):
 		with patch.object(frappe.db, "sql") as sql:

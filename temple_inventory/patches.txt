@@ -4,3 +4,4 @@
 temple_inventory.patches.set_site_timezone
 temple_inventory.patches.fix_expiry_notification_links
 temple_inventory.patches.optimize_item_images
+temple_inventory.patches.align_user_time_zones

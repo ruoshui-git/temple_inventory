@@ -701,6 +701,9 @@ def prepare_development_sample_site(
 	_progress("ERPNext Company、会计科目与默认设置：开始")
 	setup_complete(args)
 	frappe.db.set_single_value("System Settings", "time_zone", "America/New_York")
+	from temple_inventory.patches.align_user_time_zones import align_user_time_zones
+
+	align_user_time_zones()
 	from temple_inventory.uom_labels import seed_labels
 
 	seed_labels()
