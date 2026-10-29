@@ -13,7 +13,7 @@ from frappe.utils import now_datetime
 
 CACHE_TTL = 300
 MAX_ENTRY_BYTES = 16 * 1024 * 1024
-IMPLEMENTATION_VERSION = "browse-v3"
+IMPLEMENTATION_VERSION = "browse-v5"
 GENERATION_KEY = "temple_inventory:browse:generation"
 LOCK_WAIT_SECONDS = 3
 CACHEABLE_METHODS = {
@@ -458,6 +458,7 @@ def _projection_identity(projection, generation, permission, configuration):
 	query.pop("sortBy", None)
 	query = {**query, "scope": dict(query.get("scope") or {})}
 	query["include_related"] = bool(getattr(projection, "related", False))
+	query["complete_records"] = bool(getattr(projection, "complete_records", True))
 	for field in ("statuses", "itemCodes", "itemLocationKeys", "allocationKeys"):
 		if isinstance(query.get(field), list):
 			query[field] = sorted(set(query[field]))
@@ -540,7 +541,11 @@ def acquire_projection_lock(projection):
 			captured["permission"],
 			captured["configuration"],
 		)
-		lock = raw.lock(_redis_key(raw, key + ":build-lock"), timeout=30, blocking_timeout=LOCK_WAIT_SECONDS)
+		lock = raw.lock(
+			_redis_key(raw, key + ":build-lock"),
+			timeout=30,
+			blocking_timeout=getattr(projection, "cache_wait_seconds", LOCK_WAIT_SECONDS),
+		)
 		return lock if lock.acquire(blocking=True) else None
 	except (redis.exceptions.RedisError, OSError, ValueError, TypeError):
 		return None

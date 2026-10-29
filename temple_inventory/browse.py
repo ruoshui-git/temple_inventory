@@ -1,5 +1,6 @@
 """Routed browse/bootstrap/dashboard services over the shared native projections."""
 
+import json
 from collections import defaultdict
 
 import frappe
@@ -10,7 +11,7 @@ from temple_inventory.activities import activity_types
 from temple_inventory.configuration import status as configuration_status
 from temple_inventory.native_access import require_app
 from temple_inventory.native_stock import warehouse_scopes
-from temple_inventory.projections import Projection, report_page
+from temple_inventory.projections import Projection, report_page  # noqa: F401
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import (
 	available_scope_leaves,
@@ -318,7 +319,13 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 		return _document_card(query, refresh=refresh)
 	if card in ("expiry", "reminders"):
 		query.update({"dataset": "expiry"})
-	with Projection(query, refresh=refresh) as projection:
+	with Projection(
+		query,
+		refresh=refresh,
+		load_item_attachments=False,
+		load_item_children=False,
+		cache_wait_seconds=15,
+	) as projection:
 		projection.build()
 		if card == "inventory":
 			return {
@@ -438,61 +445,129 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 			result["expired_count"] = sum(
 				len(values) for key, values in buckets.items() if key.startswith("expired_")
 			)
-			pending = report_page(
-				{"dataset": "inventory", "view": "summary", "scope": scope, "damageOnly": True}, page_length=1
-			)
-			result["damaged_item_count"] = pending["matched_count"]
+			pending_query = {
+				"dataset": "inventory",
+				"view": "summary",
+				"scope": scope,
+				"damageOnly": True,
+			}
+			with Projection(
+				pending_query,
+				load_item_attachments=False,
+				load_item_children=False,
+				cache_wait_seconds=15,
+			) as pending_projection:
+				pending_projection.build()
+				result["damaged_item_count"] = pending_projection.count("summary")
 		return result
 
 
 def _document_card(query, refresh=False):
 	"""One preview row per native record, with complete unit-separated totals."""
-	with Projection(query, refresh=refresh) as projection:
-		projection.build()
+	from temple_inventory.uom_labels import uom_label
+
+	scope = query["scope"]
+	compact_records = not any(
+		(
+			scope.get("item"),
+			scope.get("categories"),
+			scope.get("uncategorized"),
+			scope.get("warehouses"),
+			scope.get("sources"),
+			scope.get("destinations"),
+			scope.get("kinds"),
+			scope.get("activity"),
+			scope.get("tracking", "all") != "all",
+			query.get("search"),
+			query.get("batchNo"),
+			query.get("record"),
+			query.get("borrower"),
+		)
+	)
+	with Projection(
+		query,
+		refresh=refresh,
+		load_item_attachments=False,
+		load_item_children=False,
+		cache_wait_seconds=15,
+	) as projection:
+		projection.build(complete_records=not compact_records)
 		projection.group(
 			"records",
 			"card_units",
 			("stock_uom", "kind"),
 			("stock_qty", "outstanding", "available_effect"),
 		)
-		rows = []
-		for row in projection.rows("records"):
-			identity = (row["doctype"], row["document"])
-			current = next(
-				(value for value in rows if (value["doctype"], value["document"]) == identity), None
+		preview_documents = projection.db.execute(
+			"select json_extract(payload, '$.doctype'), json_extract(payload, '$.document') "
+			"from rows where table_id='records' "
+			"group by json_extract(payload, '$.doctype'), json_extract(payload, '$.document') "
+			"order by max(date) desc, max(identity) desc limit 5"
+		).fetchall()
+		if preview_documents:
+			conditions = " or ".join(
+				"(json_extract(payload, '$.doctype')=? and json_extract(payload, '$.document')=?)"
+				for _ in preview_documents
 			)
-			if current is None and len(rows) < 5:
-				current = {**row, "quantities": []}
-				rows.append(current)
-			if current is not None:
-				current["quantities"].append(
-					{
-						"qty": row.get("outstanding", row["stock_qty"]),
-						"uom": row["stock_uom"],
-						"effect": row.get("available_effect", 0),
-					}
+			parameters = tuple(value for document in preview_documents for value in document)
+			rows = [
+				json.loads(payload)
+				for (payload,) in projection.db.execute(
+					f"select payload from rows where table_id='records' and ({conditions}) "
+					"order by date desc, identity desc",
+					parameters,
 				)
-		for line in projection.rows("lines" if query["dataset"] == "movements" else "outcomes"):
-			current = next(
-				(
-					row
-					for row in rows
-					if row["doctype"] == line["doctype"] and row["document"] == line["document"]
-				),
-				None,
+			]
+		else:
+			conditions, parameters, rows = "", (), []
+		rows_by_document = {}
+		for row in rows:
+			identity = (row["doctype"], row["document"])
+			current = rows_by_document.get(identity)
+			if current is None:
+				current = {**row, "quantities": []}
+				rows_by_document[identity] = current
+			current["quantities"].append(
+				{
+					"qty": row.get("outstanding", row["stock_qty"]),
+					"uom": row["stock_uom"],
+					"effect": row.get("available_effect", 0),
+				}
 			)
-			if current is not None:
+		rows = list(rows_by_document.values())
+		for row in rows:
+			row.pop("document_count", None)
+			row.pop("row_count", None)
+			row.pop("loan_status", None)
+			if row.get("stock_uom"):
+				row["stock_uom_label"] = uom_label(row["stock_uom"])
+		if preview_documents:
+			lines = projection.db.execute(
+				f"select payload from rows where table_id=? and ({conditions}) order by date desc, identity desc",
+				("lines" if query["dataset"] == "movements" else "outcomes", *parameters),
+			)
+			for (payload,) in lines:
+				line = json.loads(payload)
+				current = rows_by_document[(line["doctype"], line["document"])]
+				codes = current.setdefault("item_codes", [])
+				if line["item_code"] not in codes:
+					codes.append(line["item_code"])
 				names = current.setdefault("item_names", [])
 				if line["item_name"] not in names:
 					names.append(line["item_name"])
 		for row in rows:
+			if "item_codes" in row:
+				row["item_codes"].sort()
 			row["item_count"] = len(row.get("item_names", []))
 			row["item_names"] = row.get("item_names", [])[:2]
-		kind_counts = dict(
-			projection.db.execute(
-				"select json_extract(payload, '$.kind'), count(distinct json_extract(payload, '$.document_id')) from rows where table_id='records' group by json_extract(payload, '$.kind')"
+		kind_counts = {
+			kind if kind is not None else "null": count
+			for kind, count in projection.db.execute(
+				"select json_extract(payload, '$.kind'), "
+				"count(distinct json_extract(payload, '$.document_id')) "
+				"from rows where table_id='records' group by json_extract(payload, '$.kind')"
 			).fetchall()
-		)
+		}
 
 		count = projection.db.execute(
 			"select count(distinct json_extract(payload, '$.document_id')) from rows where table_id='records'"

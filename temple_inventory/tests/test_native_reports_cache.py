@@ -109,6 +109,14 @@ class NativeReportsCacheTests(NativeReportTestCase):
 			read_cache._projection_identity(base_identity, *identity_args),
 			read_cache._projection_identity(related_identity, *identity_args),
 		)
+		lightweight_dashboard_identity = SimpleNamespace(
+			query=base_identity.query,
+			complete_records=False,
+		)
+		self.assertNotEqual(
+			read_cache._projection_identity(base_identity, *identity_args),
+			read_cache._projection_identity(lightweight_dashboard_identity, *identity_args),
+		)
 		with (
 			patch.object(read_cache, "_request_cacheable", return_value=True),
 			patch.object(read_cache, "_redis", return_value=cache),

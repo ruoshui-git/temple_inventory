@@ -686,11 +686,20 @@ def _loan_history_rows(projection):
 
 
 class Projection(AbstractContextManager):
-	def __init__(self, query, *, refresh=False, load_item_attachments=True, load_item_children=True):
+	def __init__(
+		self,
+		query,
+		*,
+		refresh=False,
+		load_item_attachments=True,
+		load_item_children=True,
+		cache_wait_seconds=3,
+	):
 		from frappe.utils import now_datetime
 
 		self.query = validate_query(query)
 		self.cache_bypass = refresh
+		self.cache_wait_seconds = cache_wait_seconds
 		self.hydrate_page_images = load_item_attachments and self.query["dataset"] in ("movements", "loans")
 		self.load_item_attachments = load_item_attachments and not self.hydrate_page_images
 		self.load_item_children = load_item_children
@@ -737,7 +746,7 @@ class Projection(AbstractContextManager):
 		self.db.close()
 		self.temp.cleanup()
 
-	def _rebuild_uncached_after_cache_failure(self, *, related=False):
+	def _rebuild_uncached_after_cache_failure(self, *, related=False, complete_records=True):
 		from frappe.utils import now_datetime
 
 		from temple_inventory.read_cache import restart_owned_read_snapshot
@@ -775,9 +784,9 @@ class Projection(AbstractContextManager):
 		self.summary_table = ""
 		self.sums = ()
 		self.column_names = {}
-		return self.build(related=related)
+		return self.build(related=related, complete_records=complete_records)
 
-	def put(self, table, row):
+	def _stored_row(self, table, row):
 		# Display fields accompany exact native identity, including paginated references.
 		row = dict(row)
 		for field in ("warehouse", "source_warehouse", "destination_warehouse", "origin_warehouse"):
@@ -793,23 +802,31 @@ class Projection(AbstractContextManager):
 		for field in row:
 			if field not in self.column_names[table]:
 				self.column_names[table].append(field)
+		return (
+			table,
+			identity,
+			str(posting),
+			str(row.get("modified") or ""),
+			str(row.get("item_name") or row.get("title") or identity),
+			float(row.get("stock_qty") or 0),
+			frappe.as_json(row, indent=None),
+		)
+
+	def put(self, table, row):
 		self.db.execute(
-			"insert or replace into rows values (?, ?, ?, ?, ?, ?, ?)",
-			(
-				table,
-				identity,
-				str(posting),
-				str(row.get("modified") or ""),
-				str(row.get("item_name") or row.get("title") or identity),
-				float(row.get("stock_qty") or 0),
-				frappe.as_json(row, indent=None),
-			),
+			"insert or replace into rows values (?, ?, ?, ?, ?, ?, ?)", self._stored_row(table, row)
 		)
 
 	def add(self, table, rows):
 		self.column_names.setdefault(table, list(FIXED_COLUMNS.get(table, [])))
+		batch = []
 		for row in rows:
-			self.put(table, row)
+			batch.append(self._stored_row(table, row))
+			if len(batch) == 500:
+				self.db.executemany("insert or replace into rows values (?, ?, ?, ?, ?, ?, ?)", batch)
+				batch.clear()
+		if batch:
+			self.db.executemany("insert or replace into rows values (?, ?, ?, ?, ?, ?, ?)", batch)
 
 	def rows(self, table, *, offset=0, limit=None):
 		if table not in self.column_names:
@@ -1011,12 +1028,72 @@ class Projection(AbstractContextManager):
 			row["id"] = json.dumps([target, *values[: len(fields)]], ensure_ascii=False)
 			self.put(target, row)
 
-	def build(self, *, related=False):
+	def _add_dashboard_record_rows(self, dataset):
+		"""Keep only fields needed for complete card aggregates and five previews."""
+		from temple_inventory.report_sources import loan_rows, movement_rows
+
+		if dataset == "movements":
+			source, table = movement_rows(self.context), "lines"
+			fields = (
+				"doctype",
+				"document",
+				"document_id",
+				"date",
+				"time",
+				"docstatus",
+				"kind",
+				"activity",
+				"activity_title",
+				"borrower",
+				"stock_uom",
+			)
+			sums = ("stock_qty", "available_effect")
+		else:
+			source, table = loan_rows(self.context), "outcomes"
+			fields = (
+				"doctype",
+				"document",
+				"document_id",
+				"date",
+				"time",
+				"docstatus",
+				"activity",
+				"activity_title",
+				"borrower",
+				"loan_status",
+				"stock_uom",
+			)
+			sums = LOAN_SUMS
+		header_fields = (
+			"kind",
+			"activity_type",
+			"source",
+			"purpose",
+			"recorded_by",
+			"recorder",
+			"handler",
+			"reviewer",
+			"notes",
+			"amended_from",
+			"posting_timestamp",
+			"modified",
+		)
+		preview_fields = (*fields, *sums, *header_fields, "id", "item_code", "item_name")
+		self.column_names[table] = list(FIXED_COLUMNS.get(table, []))
+		self.add(
+			table,
+			({field: row.get(field) for field in preview_fields} for row in source),
+		)
+		self.group(table, "records", fields, sums, maximums=header_fields)
+		self.main_table, self.summary_table, self.sums = "records", "records", tuple(sums)
+
+	def build(self, *, related=False, complete_records=True):
 		query, context = self.query, self.context
 		dataset, view = query["dataset"], query["view"]
 		from temple_inventory.read_cache import restore_projection, store_projection
 
 		self.related = related
+		self.complete_records = complete_records
 		restored = restore_projection(self)
 		if not restored and dataset == "inventory" and view == "historical":
 			self.column_names.update({key: list(FIXED_COLUMNS[key]) for key in ("balances", "ledger")})
@@ -1031,76 +1108,88 @@ class Projection(AbstractContextManager):
 				self.group("locations", "summary", ("item_code", "item_name", "category", "stock_uom"), sums)
 				self.main_table = view
 		elif not restored and dataset == "movements":
-			self.add("lines", movement_rows(context))
-			self.add("history", _movement_history_rows(self))
-			self.group(
-				"lines",
-				"records",
-				(
-					"doctype",
-					"document",
-					"document_id",
-					"date",
-					"time",
-					"docstatus",
-					"kind",
-					"activity",
-					"activity_title",
-					"borrower",
-					"stock_uom",
-				),
-				("stock_qty", "available_effect"),
-			)
-			if view == "records":
-				self.complete_native_records("movements")
-			self.group(
-				"lines",
-				"summary",
-				("item_code", "item_name", "category", "docstatus", "kind", "stock_uom"),
-				("stock_qty", "available_effect"),
-			)
-			self.main_table, sums = view, ("stock_qty", "available_effect")
-		elif not restored and dataset == "loans":
-			self.add("outcomes", loan_rows(context))
-			if view == "items":
-				self.add("linked_settlements", linked_settlement_rows(context))
-				self.add("loan_history", _loan_history_rows(self))
-				self.add(
-					"loan_item_page",
-					(row for row in self.rows("outcomes") if query["includeZero"] or row["outstanding"] > 0),
+			if view == "records" and not complete_records:
+				self._add_dashboard_record_rows("movements")
+				sums = ("stock_qty", "available_effect")
+			else:
+				self.add("lines", movement_rows(context))
+				self.add("history", _movement_history_rows(self))
+				self.group(
+					"lines",
+					"records",
+					(
+						"doctype",
+						"document",
+						"document_id",
+						"date",
+						"time",
+						"docstatus",
+						"kind",
+						"activity",
+						"activity_title",
+						"borrower",
+						"stock_uom",
+					),
+					("stock_qty", "available_effect"),
 				)
-			self.group(
-				"loan_item_page" if view == "items" else "outcomes",
-				"loan_items",
-				("item_code", "stock_uom"),
-				LOAN_SUMS,
-				maximums=("item_name", "category", "date", "posting_timestamp"),
-			)
-			self.group(
-				"outcomes",
-				"records",
-				(
-					"doctype",
-					"document",
-					"document_id",
-					"date",
-					"time",
-					"docstatus",
-					"activity",
-					"activity_title",
-					"borrower",
-					"loan_status",
-					"stock_uom",
-				),
-				LOAN_SUMS,
-			)
-			if view == "records":
-				self.complete_native_records("loans")
-			self.add("settlements", settlement_rows(context))
-			self.main_table, sums = (
-				("loan_items" if view == "items" else view),
-				LOAN_SUMS if view in ("items", "outcomes", "records") else ("stock_qty",),
-			)
+				if view == "records" and complete_records:
+					self.complete_native_records("movements")
+				self.group(
+					"lines",
+					"summary",
+					("item_code", "item_name", "category", "docstatus", "kind", "stock_uom"),
+					("stock_qty", "available_effect"),
+				)
+				self.main_table, sums = view, ("stock_qty", "available_effect")
+		elif not restored and dataset == "loans":
+			if view == "records" and not complete_records:
+				self._add_dashboard_record_rows("loans")
+				sums = LOAN_SUMS
+			else:
+				self.add("outcomes", loan_rows(context))
+				if view == "items":
+					self.add("linked_settlements", linked_settlement_rows(context))
+					self.add("loan_history", _loan_history_rows(self))
+					self.add(
+						"loan_item_page",
+						(
+							row
+							for row in self.rows("outcomes")
+							if query["includeZero"] or row["outstanding"] > 0
+						),
+					)
+				self.group(
+					"loan_item_page" if view == "items" else "outcomes",
+					"loan_items",
+					("item_code", "stock_uom"),
+					LOAN_SUMS,
+					maximums=("item_name", "category", "date", "posting_timestamp"),
+				)
+				self.group(
+					"outcomes",
+					"records",
+					(
+						"doctype",
+						"document",
+						"document_id",
+						"date",
+						"time",
+						"docstatus",
+						"activity",
+						"activity_title",
+						"borrower",
+						"loan_status",
+						"stock_uom",
+					),
+					LOAN_SUMS,
+				)
+				if view == "records" and complete_records:
+					self.complete_native_records("loans")
+				self.add("settlements", settlement_rows(context))
+				self.main_table, sums = (
+					("loan_items" if view == "items" else view),
+					LOAN_SUMS if view in ("items", "outcomes", "records") else ("stock_qty",),
+				)
 		elif not restored and dataset == "activities":
 			self.add("metadata", activity_rows(context))
 			self.add("records", activity_rows(context, metadata=False))
@@ -1261,9 +1350,13 @@ class Projection(AbstractContextManager):
 			if cache_status is False:
 				frappe.throw("数据正在更新，请刷新后重试")  # noqa: RUF001
 			if cache_status is None and restored:
-				return self._rebuild_uncached_after_cache_failure(related=related)
+				return self._rebuild_uncached_after_cache_failure(
+					related=related, complete_records=complete_records
+				)
 			if restored and not _fresh(self.context.snapshot):
-				return self._rebuild_uncached_after_cache_failure(related=related)
+				return self._rebuild_uncached_after_cache_failure(
+					related=related, complete_records=complete_records
+				)
 		return self
 
 	def complete_native_records(self, dataset):
