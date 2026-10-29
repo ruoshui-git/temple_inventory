@@ -67,6 +67,9 @@ const hasActions = computed(() => Boolean(slots.actions && props.rows.some(canSe
 const loadingMore = computed(() => props.loading && props.initialized && !props.stale);
 const columns = computed<DataColumn[]>(() => {
 	const result: DataColumn[] = [
+		...(props.includeItem
+			? [{ id: "image", label: "图片", kind: "thumb", defaultVisible: true } as DataColumn]
+			: []),
 		{ id: "document", label: "记录", required: true, sortable: true },
 		{
 			id: "date_time",
@@ -74,6 +77,7 @@ const columns = computed<DataColumn[]>(() => {
 			sortable: true,
 			sortField: "date",
 		},
+		{ id: "docstatus", label: "状态", defaultVisible: true },
 		...(props.mode === "loan-allocation"
 			? [
 					{
@@ -81,6 +85,7 @@ const columns = computed<DataColumn[]>(() => {
 						label: "借用方",
 						sortable: true,
 					} as DataColumn,
+					{ id: "activity_title", label: "活动", defaultVisible: true } as DataColumn,
 				]
 			: [{ id: "kind", label: "类型", sortable: true } as DataColumn]),
 		{ id: "source_warehouse", label: "来源位置", sortable: true },
@@ -97,6 +102,12 @@ const columns = computed<DataColumn[]>(() => {
 			{ id: "outstanding", label: "未归还数量", sortable: true },
 		);
 	} else {
+		result.push({
+			id: "available_effect",
+			label: "可用变化",
+			defaultVisible: false,
+			align: "end",
+		});
 		result.push(
 			{ id: "stock_qty", label: "数量", sortable: true },
 			{ id: "stock_uom", label: "库存单位", sortable: true },
@@ -113,6 +124,17 @@ const columns = computed<DataColumn[]>(() => {
 const columnPreferences = services
 	? useColumnPreferences(`history.${props.mode}`, columns, reference, services)
 	: undefined;
+const columnOrder = computed(
+	() => columnPreferences?.order.value || columns.value.map((column) => String(column.id)),
+);
+const visibleColumns = computed(() =>
+	columnPreferences?.visible.value.length
+		? columnPreferences.visible.value
+		: columns.value
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id)),
+);
+defineExpose({ columnOrder, visibleColumns });
 const rows = computed<DataTableRecord[]>(() =>
 	props.rows.map((row) => ({ kind: "record", id: row.id, value: row })),
 );
@@ -186,6 +208,14 @@ function rowLabel(row: Record<string, unknown>) {
 
 function quantityClass(row: HistoryRow) {
 	if (!["movement", "handling"].includes(props.mode)) return "";
+	return effect(row) > 0
+		? "history-effect-quantity-up"
+		: effect(row) < 0
+			? "history-effect-quantity-down"
+			: "";
+}
+
+function availableEffectClass(row: HistoryRow) {
 	return effect(row) > 0
 		? "history-effect-quantity-up"
 		: effect(row) < 0
@@ -268,11 +298,26 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'date_time'">{{
 					siteDateTime(row.date_time)
 				}}</template>
+				<NativeStatusBadge v-else-if="column.id === 'docstatus'" :status="row.docstatus" />
+				<template v-else-if="column.id === 'image'">
+					<ItemImage
+						:item="{
+							code: String(row.item_code || ''),
+							name: String(row.item_name || row.item_code || ''),
+							image: String(row.image || ''),
+						}"
+						:thumbnail-size="32"
+						:target-size="32"
+					/>
+				</template>
 				<template v-else-if="column.id === 'kind'">{{
 					movementLabels[String(row.kind || "")] || "其他类型"
 				}}</template>
 				<template v-else-if="column.id === 'borrower'">{{
 					"borrower" in row ? row.borrower : ""
+				}}</template>
+				<template v-else-if="column.id === 'activity_title'">{{
+					row.activity_title || ""
 				}}</template>
 				<LocationEndpoint
 					v-else-if="column.id === 'source_warehouse'"
@@ -322,6 +367,16 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'stock_uom'"
 					><UnitText :name="row.stock_uom"
 				/></template>
+				<template v-else-if="column.id === 'available_effect'">
+					<span
+						:class="availableEffectClass(history(row))"
+						:title="effectText(history(row))"
+					>
+						{{ effect(history(row)) > 0 ? "+" : effect(history(row)) < 0 ? "−" : ""
+						}}{{ formatQuantity(Math.abs(effect(history(row)))) }}
+						<UnitText :name="row.stock_uom" />
+					</span>
+				</template>
 				<template v-else-if="column.id === 'stock_qty'">
 					<span
 						:class="quantityClass(history(row))"

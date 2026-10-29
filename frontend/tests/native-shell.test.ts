@@ -6,6 +6,7 @@ import {
   primaryNavigation,
   mobilePrimaryNavigation,
   inventoryNavigation,
+  moreNavigation,
   destinationForRoute,
   inventorySectionForRoute,
 } from "../src/lib/appNavigation";
@@ -22,6 +23,15 @@ afterEach(() => {
 });
 
 describe("shared application frame", () => {
+  it("keeps reports under More instead of primary navigation", () => {
+    expect(primaryNavigation.map(({ label }) => label)).not.toContain("报表");
+    expect(mobilePrimaryNavigation.map(({ label }) => label)).not.toContain(
+      "报表",
+    );
+    expect(
+      moreNavigation.flatMap(({ items }) => items.map(({ label }) => label)),
+    ).toContain("报表");
+  });
   it("measures desktop and mobile navigation obstructions independently and observes responsive height changes", async () => {
     let change: ((event: { matches: boolean }) => void) | undefined;
     let observed: Element[] = [];
@@ -156,7 +166,7 @@ describe("shared application frame", () => {
       wrapper.get('.app-mobile-nav button[aria-current="page"]').text(),
     ).toContain("库存");
     expect(wrapper.find(".app-account-menu").exists()).toBe(false);
-    expect(wrapper.findAll(".app-mobile-nav button")).toHaveLength(6);
+    expect(wrapper.findAll(".app-mobile-nav button")).toHaveLength(5);
     await wrapper.find("input").setValue("保留输入");
     media.matches = true;
     change?.({ matches: true });
@@ -166,7 +176,7 @@ describe("shared application frame", () => {
     expect(wrapper.find(".app-account-menu").exists()).toBe(true);
     expect(
       wrapper.findAll(".app-sidebar > nav > .nav-group > button"),
-    ).toHaveLength(6);
+    ).toHaveLength(5);
     expect(wrapper.find(".inventory-menu").exists()).toBe(false);
     expect(wrapper.find("input").element.value).toBe("保留输入");
     await wrapper.find(".nav-group button").trigger("click");
@@ -239,7 +249,7 @@ describe("shared application frame", () => {
     expect(destinationForRoute("inventory")).toBe("inventory");
     expect(destinationForRoute("movements")).toBe("movements");
     expect(destinationForRoute("loans")).toBe("loans");
-    expect(destinationForRoute("reports")).toBe("reports");
+    expect(destinationForRoute("reports")).toBe("more");
     expect(destinationForRoute("more")).toBe("more");
     expect(inventorySectionForRoute("expiry")).toBe("expiry");
     expect(inventorySectionForRoute("pending")).toBe("pending");

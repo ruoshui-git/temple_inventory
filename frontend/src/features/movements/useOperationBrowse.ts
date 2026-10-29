@@ -105,7 +105,7 @@ export function useOperationBrowse(
         : "items";
     query.sortBy = records ? "date" : "item_name";
     query.sort = records ? "desc" : "asc";
-    if (!records) query.groupBy = ["item"];
+    if (!records) query.groupBy = [];
     if (props.family === "movements" && !records)
       query.includeAdjustments = false;
     if (props.family === "loans" && !records) {

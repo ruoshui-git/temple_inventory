@@ -350,10 +350,10 @@ for (const width of [1440, 390]) {
       fullPage: true,
     });
     await expect(
-      page.getByRole("button", { name: "按物品", exact: true }),
+      page.getByRole("button", { name: "明细", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "按记录", exact: true }),
+      page.getByRole("button", { name: "单据", exact: true }),
     ).toBeVisible();
     await reviewScreenshot(page, {
       path: info.outputPath("persistent-header.png"),
@@ -361,7 +361,7 @@ for (const width of [1440, 390]) {
     });
     if (width < 1024) {
       const nav = page.locator(".app-mobile-nav");
-      await expect(nav.getByRole("button")).toHaveCount(6);
+      await expect(nav.getByRole("button")).toHaveCount(5);
       expect(await nav.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
         true,
       );
@@ -369,6 +369,7 @@ for (const width of [1440, 390]) {
       await nav.getByRole("button", { name: "更多", exact: true }).click();
       await expect(page).toHaveURL(/\/more$/);
       await expect(nav.locator('[aria-current="page"]')).toHaveText("更多");
+      await expect(page.getByRole("button", { name: /报表/ })).toBeVisible();
     } else
       await expect(
         page
@@ -410,7 +411,7 @@ for (const width of [1440, 390]) {
         path: info.outputPath("loan-records.png"),
         fullPage: true,
       });
-      await page.getByRole("button", { name: "按物品", exact: true }).click();
+      await page.getByRole("button", { name: "明细", exact: true }).click();
       const summary = page.locator(".browse-result-summary-trigger");
       await expect(summary).toHaveAttribute("aria-label", /数量分析/);
       await summary.click();

@@ -13,7 +13,8 @@ const panelId = `browse-quantity-summary-${useId()}`;
 const entries = computed(() =>
 	props.metrics.flatMap((metric) =>
 		sortByUnit(metric.quantities, (quantity) => quantity.uom).map(
-			(quantity) => `${metric.label} ${formatQuantityWithUnit(quantity.qty, quantity.uom)}`,
+			(quantity) =>
+				`${metric.label} ${metric.key === "net" ? (quantity.qty > 0 ? "+" : quantity.qty < 0 ? "−" : "") : ""}${formatQuantityWithUnit(metric.key === "net" ? Math.abs(quantity.qty) : quantity.qty, quantity.uom)}`,
 		),
 	),
 );

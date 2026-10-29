@@ -86,7 +86,8 @@ const {
 	sortBy,
 	toggle,
 } = props.controller;
-const { isMobile } = useResponsiveLayout();
+const { isMobile, isSurface } = useResponsiveLayout();
+const desktopColumnsVisible = computed(() => !isMobile.value || isSurface("desktop"));
 const inventoryRoot = ref<HTMLElement>();
 const toolbar = ref<InstanceType<typeof BrowseToolbar>>();
 const browseHeader = computed(() => toolbar.value?.$el as HTMLElement | undefined);
@@ -130,7 +131,7 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 	},
 	{
 		id: "available",
-		label: "可用",
+		label: "可用数量",
 		defaultVisible: true,
 		sortable: true,
 		align: "end",
@@ -144,22 +145,35 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 	{
 		id: "category",
 		label: "类别",
-		defaultVisible: wideScreen.value,
+		defaultVisible: desktopColumnsVisible.value,
 		sortable: true,
 	},
-	{ id: "locations", label: "位置与批次", defaultVisible: wideScreen.value, kind: "chip" },
+	{
+		id: "locations",
+		label: "位置与批次",
+		defaultVisible: desktopColumnsVisible.value,
+		kind: "chip",
+	},
 	{
 		id: "loaned",
 		label: "借出",
-		defaultVisible: true,
+		defaultVisible: false,
 		sortable: true,
 		align: "end",
 	},
 	{
 		id: "damaged",
 		label: "损坏",
-		defaultVisible: true,
+		defaultVisible: false,
 		sortable: true,
+		align: "end",
+	},
+	{
+		id: "total",
+		label: "合计",
+		defaultVisible: false,
+		sortable: true,
+		sortField: "stock_qty",
 		align: "end",
 	},
 	{ id: "expiry", label: "效期", defaultVisible: true },
@@ -793,6 +807,9 @@ watch([() => props.active, isMobile], () => {
 								}}</template>
 								<template v-else-if="column.id === 'damaged'">{{
 									row.damaged
+								}}</template>
+								<template v-else-if="column.id === 'total'">{{
+									row.stock_qty
 								}}</template>
 								<span
 									v-else-if="column.id === 'expiry' && stockExpiryLabel(row)"

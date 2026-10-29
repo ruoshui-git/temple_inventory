@@ -34,7 +34,11 @@ describe("movement quantity summary", () => {
 
     const metrics = movementSummaryMetrics(rows);
 
-    expect(metrics.map((metric) => metric.key)).toEqual(["Receive", "Loss"]);
+    expect(metrics.map((metric) => metric.key)).toEqual([
+      "Receive",
+      "Loss",
+      "net",
+    ]);
     expect(metrics[0]?.quantities).toEqual([
       { uom: "袋", qty: 4, status: "已取消", effect: 0 },
       { uom: "袋", qty: 5, status: "已提交", effect: 0 },
@@ -81,6 +85,34 @@ describe("movement quantity summary", () => {
       tone: "success",
       quantities: [{ qty: 2, effect: 2 }],
     });
+    expect(metrics.find((metric) => metric.key === "net")).toMatchObject({
+      label: "可用净变化",
+      tone: "danger",
+      quantities: [{ uom: "Nos", qty: -5, effect: -5 }],
+    });
+  });
+
+  it("sums submitted available effects by unit and excludes drafts and cancellations", () => {
+    const metrics = movementSummaryMetrics([
+      { kind: "Receive", stock_uom: "个", available_effect: 8, docstatus: 1 },
+      { kind: "Issue", stock_uom: "个", available_effect: -3, docstatus: 1 },
+      { kind: "Issue", stock_uom: "箱", available_effect: -2, docstatus: 1 },
+      { kind: "Receive", stock_uom: "个", available_effect: 50, docstatus: 0 },
+      { kind: "Receive", stock_uom: "箱", available_effect: 70, docstatus: 2 },
+    ] as ReportRow[]);
+    expect(metrics.at(-1)).toMatchObject({
+      key: "net",
+      tone: "neutral",
+      quantities: [
+        { uom: "个", qty: 5, effect: 5 },
+        { uom: "箱", qty: -2, effect: -2 },
+      ],
+    });
+    expect(
+      movementSummaryMetrics([
+        { kind: "Issue", stock_uom: "个", available_effect: -1, docstatus: 0 },
+      ] as ReportRow[]).some((metric) => metric.key === "net"),
+    ).toBe(false);
   });
 
   it("groups loan item outcomes and record outstanding totals across units and statuses", () => {

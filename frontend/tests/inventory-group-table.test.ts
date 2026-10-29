@@ -238,9 +238,8 @@ describe("inventory grouped table", () => {
     expect(wrapper.get('[data-browse-row="ITEM-1"]').text()).toContain(
       "Noodles",
     );
-    // At the default 1024px test viewport, location and batch stay behind
-    // column settings as secondary detail.
-    expect(wrapper.text()).not.toContain("Main Warehouse · BATCH-1");
+    // At the desktop breakpoint, location and batch are visible by default.
+    expect(wrapper.text()).toContain("Main Warehouse · BATCH-1");
     expect(wrapper.find('[aria-label="选择Noodles"]').exists()).toBe(true);
     await wrapper.get('[aria-label="选择Noodles"]').setValue(true);
     expect(page.vm.controller.selected.value).toEqual(["ITEM-1"]);

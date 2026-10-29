@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import MovementHistoryTable from "../src/components/ui/MovementHistoryTable.vue";
 import {
   createReferenceData,
@@ -27,6 +27,62 @@ const row = {
   borrower: "",
 };
 describe("typed movement history table", () => {
+  it("shows image and status first with optional available change, and exposes ordered visibility", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, { user: "test" });
+    const Host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call: vi.fn(async () => null), report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(MovementHistoryTable, {
+            rows: [{ ...row, image: "/item.webp" }],
+            total: 1,
+            initialized: true,
+            includeItem: true,
+          });
+      },
+    });
+    const wrapper = mount(Host, { global: { stubs: { RouterLink: true } } });
+    await flushPromises();
+    const table = wrapper.findComponent(MovementHistoryTable);
+    const headers = wrapper.findAll("th").map((cell) => cell.text());
+    expect(headers[0]).toBe("图片");
+    expect(headers).toContain("状态");
+    expect(headers).not.toContain("可用变化");
+    expect(table.vm.columnOrder[0]).toBe("image");
+    expect(table.vm.visibleColumns).toContain("docstatus");
+    expect(table.vm.visibleColumns).not.toContain("available_effect");
+  });
+
+  it("shows loan allocation activity as a default column and renders missing titles empty", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, { user: "test" });
+    const Host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call: vi.fn(async () => null), report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(MovementHistoryTable, {
+            rows: [row as never],
+            total: 1,
+            initialized: true,
+            mode: "loan-allocation",
+          });
+      },
+    });
+    const wrapper = mount(Host, { global: { stubs: { RouterLink: true } } });
+    await flushPromises();
+    expect(wrapper.findAll("th").map((cell) => cell.text())).toContain("活动");
+    const table = wrapper.findComponent(MovementHistoryTable);
+    expect(table.vm.visibleColumns).toContain("activity_title");
+    expect(wrapper.find("tbody tr").text()).not.toContain("可用变化");
+  });
+
   it("renders expanded phone history as stacked records with sort, count and load-more", async () => {
     const longRow = { ...row, document: "SE-2026-00001124" };
     const reference = createReferenceData();
@@ -221,7 +277,10 @@ describe("typed movement history table", () => {
       .trigger("click");
     expect(table.emitted("openLoan")).toEqual([["SE-1"]]);
     expect(wrapper.get(".browse-row-link").text()).toBe("物品甲");
-    const itemCodeCell = wrapper.get("tbody tr td:nth-child(7)");
+    const itemCodeColumn = wrapper
+      .findAll("th")
+      .findIndex((cell) => cell.text().includes("物品编码"));
+    const itemCodeCell = wrapper.findAll("tbody tr td")[itemCodeColumn]!;
     expect(itemCodeCell.text()).toBe("A");
     expect(itemCodeCell.find("button").exists()).toBe(false);
     expect(

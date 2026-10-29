@@ -280,6 +280,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 	props.family === "movements"
 		? [
 				{
+					id: "image",
+					label: "图片",
+					kind: "thumb",
+					defaultVisible: true,
+				},
+				{
 					id: "document",
 					label: "记录",
 					kind: "primary",
@@ -300,6 +306,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					sortField: "date",
 				},
+				{ id: "docstatus", label: "状态", defaultVisible: true },
 				{
 					id: "source",
 					label: "来源位置",
@@ -319,7 +326,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortField: "stock_qty",
 					className: "operation-movement-quantity-column",
 				},
-				{ id: "docstatus", label: "状态", defaultVisible: true },
+				{
+					id: "available_effect",
+					label: "可用变化",
+					defaultVisible: false,
+					align: "end",
+				},
 				{
 					id: "related_loans",
 					label: "原借出",
@@ -327,6 +339,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 				},
 			]
 		: [
+				{
+					id: "image",
+					label: "图片",
+					kind: "thumb",
+					defaultVisible: true,
+				},
 				{
 					id: "document",
 					label: "记录",
@@ -351,6 +369,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortField: "date",
 				},
 				{
+					id: "activity_title",
+					label: "活动",
+					defaultVisible: true,
+				},
+				{ id: "status", label: "状态", defaultVisible: true },
+				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: wideScreen.value,
@@ -367,7 +391,6 @@ const itemColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 					sortField: "borrowed",
 				},
-				{ id: "status", label: "状态", defaultVisible: true },
 				{
 					id: "actions",
 					label: "操作",
@@ -397,6 +420,7 @@ function historyRecord(row: Record<string, unknown>, item: OperationGroup): Data
 			history_record: true,
 			item_code: item.item_code || row.item_code,
 			item_name: item.item_name || row.item_name,
+			image: item.image || row.image,
 			whole: {
 				...(row.whole as Record<string, unknown> | undefined),
 				quantities: [{ uom, qty: quantity }],
@@ -688,6 +712,22 @@ const operationPreferences = services
 const itemPreferences = services
 	? useColumnPreferences(`operations.${props.family}.items`, itemColumns, reference, services)
 	: undefined;
+const flatTable = ref<InstanceType<typeof DataTable>>();
+const flatColumns = computed(() => {
+	const columns = itemColumns.value;
+	const order = itemPreferences?.order.value.length
+		? itemPreferences.order.value
+		: columns.map((column) => String(column.id));
+	const visible = itemPreferences?.visible.value.length
+		? itemPreferences.visible.value
+		: columns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+	return order.filter(
+		(id) => visible.includes(id) && columns.some((column) => column.id === id),
+	);
+});
+defineExpose({ flatColumns });
 function sortTable(field: string) {
 	if (sortFields.value.some((option) => option.value === field)) sortRecords(field);
 }
@@ -776,6 +816,14 @@ const metrics = computed(() => {
 		return movementSummaryMetrics(result.totals);
 	}
 	return loanSummaryMetrics(result.totals, props.records);
+});
+const browseResultLabel = computed(() => {
+	if (props.records) return `${result.total} 笔记录`;
+	if (query.value.groupBy.length) return `${result.total} 种物品`;
+	const detailTotal = details["flat-history-scope"]?.initialized
+		? String(details["flat-history-scope"].total)
+		: "…";
+	return `${detailTotal} 条明细 · ${result.total} 种物品`;
 });
 function quantities(rows?: { uom: string; qty: number }[]) {
 	return sortByUnit(rows || [], (row) => row.uom)
@@ -896,12 +944,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:aria-current="!records ? 'page' : undefined"
 							@click="switchView(false)"
 						>
-							<InventoryIcon name="box" />按物品</button
+							<InventoryIcon name="box" />明细</button
 						><button
 							:aria-current="records ? 'page' : undefined"
 							@click="switchView(true)"
 						>
-							<InventoryIcon name="document" />按记录
+							<InventoryIcon name="document" />单据
 						</button>
 					</nav></template
 				>
@@ -964,7 +1012,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				aria-live="polite"
 			>
 				<BrowseResultSummary
-					:label="`${result.total} ${records ? '笔记录' : '种物品'}`"
+					:label="browseResultLabel"
 					:metrics="metrics"
 					:loading="result.loading && !result.initialized"
 				>
@@ -1219,7 +1267,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							c.expanded.has(flatHistoryItem.id) &&
 							historyScope === 'outstanding' &&
 							details[flatHistoryItem.id]?.initialized &&
-							!details[flatHistoryItem.id]?.rows.length
+							!details[flatHistoryItem.id]?.rows?.length
 						"
 						class="field-hint"
 					>
@@ -1227,6 +1275,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					</p>
 					<DataTable
 						v-if="!records && !showMobileItemCards"
+						ref="flatTable"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
 						table-class="browse-table"
@@ -1258,7 +1307,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							Boolean(
 								query.groupBy.length
 									? groupRoot?.rows.length && groupRoot.loading
-									: details[flatHistoryItem.id]?.rows.length &&
+									: details[flatHistoryItem.id]?.rows?.length &&
 											details[flatHistoryItem.id]?.loading,
 							)
 						"
@@ -1270,7 +1319,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						:loaded-count="
 							query.groupBy.length
 								? c.groups.progress().loaded
-								: details[flatHistoryItem.id]?.rows.length || 0
+								: details[flatHistoryItem.id]?.rows?.length || 0
 						"
 						:total-count="
 							query.groupBy.length
@@ -1281,7 +1330,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							query.groupBy.length
 								? Boolean(c.groups.pages.value['[[],null]']?.loading)
 								: details[flatHistoryItem.id]?.loading &&
-									details[flatHistoryItem.id]?.rows.length > 0
+									details[flatHistoryItem.id]?.rows?.length > 0
 						"
 						:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
 						:cell-class="
@@ -1324,6 +1373,16 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					>
 						<template #cell="{ column, row }">
 							<template v-if="row.history_record">
+								<ItemImage
+									v-if="column.id === 'image'"
+									:item="{
+										code: String(row.item_code || ''),
+										name: String(row.item_name || row.item_code || ''),
+										image: String(row.image || ''),
+									}"
+									:thumbnail-size="32"
+									:target-size="32"
+								/>
 								<button
 									v-if="column.id === 'document'"
 									class="browse-row-link"
@@ -1344,6 +1403,46 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								<template v-else-if="column.id === 'activity_title'">{{
 									row.activity_title || ""
 								}}</template>
+								<template v-else-if="column.id === 'available_effect'">
+									<span
+										:class="
+											recordEffectTone(
+												operationRow(row),
+												String(row.stock_uom || ''),
+											)
+										"
+										:title="
+											recordEffectLabel(
+												operationRow(row),
+												String(row.stock_uom || ''),
+											)
+										"
+									>
+										{{
+											recordEffect(
+												operationRow(row),
+												String(row.stock_uom || ""),
+											) > 0
+												? "+"
+												: recordEffect(
+															operationRow(row),
+															String(row.stock_uom || ""),
+													  ) < 0
+													? "−"
+													: ""
+										}}{{
+											formatQuantity(
+												Math.abs(
+													recordEffect(
+														operationRow(row),
+														String(row.stock_uom || ""),
+													),
+												),
+											)
+										}}
+										<UnitText :name="row.stock_uom" />
+									</span>
+								</template>
 								<template v-else-if="column.id === 'date'">{{
 									row.date
 								}}</template>
@@ -1371,19 +1470,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 											),
 										)
 									}}
-									<UnitText
-										:name="row.stock_uom"
-										:qty="
-											Math.abs(
-												Number(
-													row.quantity ??
-														row.stock_qty ??
-														row.borrowed ??
-														0,
-												),
-											)
-										"
-									/>
+									<UnitText :name="row.stock_uom" />
 								</template>
 								<template
 									v-else-if="
@@ -1445,14 +1532,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 												),
 											)
 										}}
-										<UnitText
-											:name="row.stock_uom"
-											:qty="
-												Math.abs(
-													Number(row.quantity ?? row.stock_qty ?? 0),
-												)
-											"
-										/>
+										<UnitText :name="row.stock_uom" />
 									</span>
 									<span v-if="family === 'movements'" class="sr-only">{{
 										recordEffectLabel(
@@ -1517,11 +1597,19 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								/>
 							</template>
 							<template v-else>
+								<ItemImage
+									v-if="column.id === 'image'"
+									:item="
+										c.stockItem(operationRow(row)) || {
+											code: String(row.item_code || ''),
+											name: String(row.item_name || row.item_code || ''),
+											image: String(row.image || ''),
+										}
+									"
+									:thumbnail-size="32"
+									:target-size="32"
+								/>
 								<div v-if="column.id === 'document'" class="browse-item-identity">
-									<ItemImage
-										v-if="c.stockItem(operationRow(row))"
-										:item="c.stockItem(operationRow(row))!"
-									/>
 									<RouterLink
 										class="browse-row-link"
 										:to="
@@ -1541,6 +1629,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								}}</template>
 								<template v-else-if="column.id === 'activity_title'">{{
 									row.activity_title || ""
+								}}</template>
+								<template v-else-if="column.id === 'available_effect'">{{
+									row.available_effect == null
+										? ""
+										: stockEffectLabel(Number(row.available_effect))
 								}}</template>
 								<div
 									v-else-if="column.id === 'quantities'"

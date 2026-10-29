@@ -11,6 +11,7 @@ import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
 import SortControl from "../src/components/ui/SortControl.vue";
 import BrowseResultSummary from "../src/components/ui/BrowseResultSummary.vue";
 import OperationBrowseFilters from "../src/features/movements/OperationBrowseFilters.vue";
+import GroupByFilter from "../src/components/filters/GroupByFilter.vue";
 import type { OperationBrowse } from "../src/features/movements/useOperationBrowse";
 import {
   createReferenceData,
@@ -19,6 +20,10 @@ import {
 import { newReportQuery } from "../src/lib/reportContract";
 
 const wrappers: VueWrapper[] = [];
+const originalWindowMatchMedia = Object.getOwnPropertyDescriptor(
+  window,
+  "matchMedia",
+);
 const button = (wrapper: VueWrapper, label: string) =>
   wrapper.findAll("button").find((node) => node.text().trim() === label)!;
 beforeEach(() => {
@@ -33,6 +38,9 @@ afterEach(() => {
   document.body.innerHTML = "";
   localStorage.clear();
   vi.unstubAllGlobals();
+  if (originalWindowMatchMedia)
+    Object.defineProperty(window, "matchMedia", originalWindowMatchMedia);
+  else Reflect.deleteProperty(window, "matchMedia");
   vi.restoreAllMocks();
 });
 
@@ -394,7 +402,20 @@ it("exposes every movement filter in the shared panel content", async () => {
   expect(wrapper.text()).toContain("状态");
 });
 
-function stock() {
+it.each([
+  ["movements", "summary"],
+  ["loans", "items"],
+] as const)("labels %s item grouping as a summary option", (dataset, view) => {
+  const wrapper = mount(GroupByFilter, {
+    props: { dataset, view, modelValue: [] },
+  });
+  wrappers.push(wrapper);
+  const option = wrapper.get('select:first-of-type option[value="item"]');
+  expect(option.text()).toBe("按物品汇总");
+  expect(option.attributes("value")).toBe("item");
+});
+
+function stock(site = "header-test") {
   const initialQuery = newReportQuery("inventory");
   initialQuery.scope.categories = ["food", "cloth"];
   initialQuery.scope.warehouses = ["ROOM"];
@@ -402,7 +423,7 @@ function stock() {
   const reference = createReferenceData();
   Object.assign(reference, {
     user: "manager",
-    site: "header-test",
+    site,
     operations: { Receive: true, Issue: true, Transfer: true },
     capabilities: { Item: { create: true } },
     categories: [
@@ -478,6 +499,28 @@ it("hydrates the shared Inventory hierarchies and clears inherited categories wi
   c.appliedChips.value.find((chip) => chip.field === "categories")!.remove();
   await flushPromises();
   expect(c.query.value.scope.categories).toEqual([]);
+});
+
+it("uses desktop stock column defaults and keeps optional totals hidden", async () => {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  });
+  const { wrapper } = stock("stock-columns-test");
+  await flushPromises();
+  const headers = wrapper.findAll("th").map((cell) => cell.text().trim());
+  expect(headers.some((header) => header.startsWith("可用数量"))).toBe(true);
+  expect(headers).toEqual(
+    expect.arrayContaining([expect.stringMatching(/^类别/)]),
+  );
+  expect(headers.some((header) => header.startsWith("位置与批次"))).toBe(true);
+  expect(headers).not.toContain("借出");
+  expect(headers).not.toContain("损坏");
+  expect(headers).not.toContain("合计");
 });
 
 it("offers new Item as the primary stock action and keeps selected actions available", async () => {

@@ -294,6 +294,8 @@ describe("native operation browsing", () => {
       throw new Error(`Unexpected ${endpoint}`);
     });
     const { c } = setup(call);
+    c.query.value.groupBy = ["item"];
+    await c.load();
     await flushPromises();
     expect(c.groups.entries.value).toHaveLength(30);
     await c.groups.loadMore();
@@ -345,11 +347,37 @@ describe("native operation browsing", () => {
       loan: "",
       restrictItems: false,
       itemCodes: [],
-      groupBy: ["item"],
+      groupBy: [],
       sortBy: "item_name",
       sort: "asc",
       includeZero: false,
     });
+  });
+  it("defaults both movement and loan detail views to ungrouped flat rows", async () => {
+    for (const family of ["movements", "loans"] as const) {
+      const props = reactive({ family, records: false });
+      const { c, wrapper } = setup(service(), props);
+      await flushPromises();
+      expect(c.query.value.groupBy).toEqual([]);
+      expect(c.viewQuery(false).groupBy).toEqual([]);
+      wrapper.unmount();
+      wrappers.splice(wrappers.indexOf(wrapper), 1);
+    }
+  });
+  it("keeps explicit item grouping from an incoming detail URL", async () => {
+    const query = newReportQuery("movements");
+    query.view = "summary";
+    query.groupBy = ["item"];
+    const { c } = setup(
+      service(),
+      reactive({
+        family: "movements" as const,
+        records: false,
+        routeQuery: JSON.stringify(query),
+      }),
+    );
+    await flushPromises();
+    expect(c.query.value.groupBy).toEqual(["item"]);
   });
   it("cancels outstanding operation and group reads and clears history state on view reset", async () => {
     const signals: AbortSignal[] = [];
@@ -415,6 +443,9 @@ describe("native operation browsing", () => {
     expect(controller.details["flat-history-scope"]?.rows).toHaveLength(1);
     expect(wrapper.text()).toContain("STE-MOVE-1");
     expect(wrapper.text()).toContain("可用库存增加 7 单位");
+    expect(wrapper.get(".browse-result-summary-label").text()).toBe(
+      "1 条明细 · 10 种物品",
+    );
   });
   it("renders grouped native records in the shared table and loads whole-document leaves", async () => {
     const query = newReportQuery("loans");
@@ -630,6 +661,8 @@ describe("native operation browsing", () => {
       call,
       reactive({ family: "movements" as const, records: false }),
     );
+    c.query.value.groupBy = ["item"];
+    await c.load();
     await flushPromises();
     const row = c.result.rows[0]!;
     c.toggle(row, true);
@@ -665,12 +698,14 @@ describe("native operation browsing", () => {
     const toolbar = wrapper.get(".refined-toolbar");
     const switcher = wrapper.get(".browse-view-switch");
     expect(switcher.element.closest(".app-page-title-row")).toBeTruthy();
+    expect(switcher.text()).toContain("明细");
+    expect(switcher.text()).toContain("单据");
     toolbar.element.classList.add("is-compact");
     await flushPromises();
-    expect(wrapper.get(".browse-view-switch").text()).toContain("按记录");
+    expect(wrapper.get(".browse-view-switch").text()).toContain("单据");
     await wrapper
       .findAll(".browse-view-switch button")
-      .find((button) => button.text() === "按记录")!
+      .find((button) => button.text() === "单据")!
       .trigger("click");
     expect(
       wrapper
@@ -715,6 +750,9 @@ describe("native operation browsing", () => {
     );
     await flushPromises();
     const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    c.query.value.groupBy = ["item"];
+    await c.load();
+    await flushPromises();
     expect(c.query.value.sortBy).toBe("item_name");
     expect(
       wrapper.find('button[aria-label="排序：物品名称，A→Z"]').exists(),
@@ -741,8 +779,18 @@ describe("native operation browsing", () => {
   });
 
   it("keeps complete server groups and totals independent of the loaded page, then loads contributions lazily", async () => {
-    const call = service(),
-      { c } = setup(call);
+    const call = service();
+    const groupedQuery = newReportQuery("loans");
+    groupedQuery.view = "items";
+    groupedQuery.groupBy = ["item"];
+    const { c } = setup(
+      call,
+      reactive({
+        family: "loans" as const,
+        records: false,
+        routeQuery: JSON.stringify(groupedQuery),
+      }),
+    );
     await flushPromises();
     expect(c.result.rows).toHaveLength(1);
     expect(c.result.total).toBe(10);
@@ -1370,6 +1418,9 @@ describe("native operation browsing", () => {
     );
     await flushPromises();
     const surface = wrapper.findComponent(OperationBrowsePage);
+    surface.vm.controller.query.value.groupBy = ["item"];
+    await surface.vm.controller.load();
+    await flushPromises();
     expect(wrapper.findAll(".browse-group")).toHaveLength(1);
     expect(wrapper.get(".mobile-item-group-list").classes()).toContain(
       "browse-card",
@@ -1454,6 +1505,10 @@ describe("native operation browsing", () => {
       reactive({ family: "loans" as const, records: false }),
       true,
     );
+    await flushPromises();
+    const controller = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    controller.query.value.groupBy = ["item"];
+    await controller.load();
     await flushPromises();
     await wrapper
       .get('.browse-filter-control button[aria-haspopup="dialog"]')

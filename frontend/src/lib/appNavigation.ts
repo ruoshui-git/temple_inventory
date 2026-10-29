@@ -29,12 +29,6 @@ export const primaryNavigation: (NavigationItem & { key: AppDestination })[] = [
     route: routeTarget("loans", {}, { view: "items" }),
     icon: kindIcons.Loan.icon,
   },
-  {
-    key: "reports",
-    label: "报表",
-    route: routeTarget("reports"),
-    icon: "report",
-  },
   { key: "more", label: "更多", route: routeTarget("more"), icon: "more" },
 ];
 
@@ -65,6 +59,13 @@ export const moreNavigation = [
   {
     label: "工作工具",
     items: [
+      {
+        key: "reports",
+        label: "报表",
+        route: routeTarget("reports"),
+        icon: "report",
+        description: "查看库存、流动与借用报表",
+      },
       {
         key: "activities",
         label: "活动",
@@ -125,9 +126,7 @@ export const moreNavigation = [
 
 export function destinationForRoute(owner?: string): AppDestination {
   return (
-    ["home", "inventory", "movements", "loans", "reports", "more"].includes(
-      owner || "",
-    )
+    ["home", "inventory", "movements", "loans", "more"].includes(owner || "")
       ? owner
       : "more"
   ) as AppDestination;

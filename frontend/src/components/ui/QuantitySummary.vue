@@ -64,7 +64,19 @@ function effectLabel(quantity: Quantity) {
 								quantity.effect === undefined ? undefined : effectLabel(quantity)
 							"
 						>
-							{{ formatQuantity(quantity.qty) }}
+							{{
+								metric.key === "net"
+									? quantity.qty > 0
+										? "+"
+										: quantity.qty < 0
+											? "−"
+											: ""
+									: ""
+							}}{{
+								formatQuantity(
+									metric.key === "net" ? Math.abs(quantity.qty) : quantity.qty,
+								)
+							}}
 							<UnitText :name="quantity.uom" />
 							<small v-if="quantity.status"> · {{ quantity.status }}</small>
 							<span v-if="quantity.effect !== undefined" class="sr-only">{{

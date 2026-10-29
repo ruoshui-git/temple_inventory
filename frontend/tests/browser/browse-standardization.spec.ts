@@ -285,7 +285,7 @@ for (const surface of [
         ).toBeVisible();
         if (surface.startsWith("movements")) {
           const summary = page.locator(".quantity-summary-metric");
-          await expect(summary).toHaveCount(2);
+          await expect(summary).toHaveCount(3);
           await expect(summary.first()).toContainText("入库");
           await expect(summary.first()).toContainText("3 套");
           await expect(summary.first()).toContainText("12 件");

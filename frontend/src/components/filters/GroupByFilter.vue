@@ -18,6 +18,15 @@ const secondGroups = computed(() =>
 	),
 );
 const groupSequences = computed(() => groupSequencesForView(props.dataset, props.view));
+function label(field: string) {
+	if (
+		field === "item" &&
+		((props.dataset === "movements" && props.view === "summary") ||
+			(props.dataset === "loans" && props.view === "items"))
+	)
+		return "按物品汇总";
+	return groupLabels[field] || field;
+}
 function set(index: number, value: string) {
 	emit(
 		"update:modelValue",
@@ -35,7 +44,7 @@ function set(index: number, value: string) {
 			>
 				<option value="">不分组</option>
 				<option v-for="group in groups" :key="group" :value="group">
-					{{ groupLabels[group] || group }}
+					{{ label(group) }}
 				</option>
 			</select></label
 		>
@@ -47,7 +56,7 @@ function set(index: number, value: string) {
 			>
 				<option value="">无</option>
 				<option v-for="group in secondGroups" :key="group" :value="group">
-					{{ groupLabels[group] || group }}
+					{{ label(group) }}
 				</option>
 			</select></label
 		>

@@ -82,6 +82,30 @@ async function inventory(rows: StockItem[]) {
   return wrapper;
 }
 describe("native quantity summaries and inventory cards", () => {
+  it("shows explicit plus and minus signs for net available movement", () => {
+    const metrics = [
+      {
+        key: "net",
+        label: "可用净变化",
+        quantities: [
+          { uom: "个", qty: 5, effect: 5 },
+          { uom: "箱", qty: -2, effect: -2 },
+        ],
+      },
+    ];
+    const summary = mount(QuantitySummary, { props: { metrics } });
+    wrappers.push(summary);
+    expect(summary.text()).toContain("+5");
+    expect(summary.text()).toContain("−2");
+
+    const browseSummary = mount(BrowseResultSummary, {
+      props: { label: "2 条明细", metrics },
+    });
+    wrappers.push(browseSummary);
+    expect(browseSummary.text()).toContain("可用净变化 +5 个");
+    expect(browseSummary.text()).toContain("可用净变化 −2 箱");
+  });
+
   it("places sort and view controls alongside the result count and quantity preview", () => {
     const wrapper = mount(BrowseResultSummary, {
       props: { label: "8 种物品", metrics: [] },

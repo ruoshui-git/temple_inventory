@@ -17,7 +17,7 @@ const MOVEMENT_ORDER = [
 ];
 
 export function movementSummaryMetrics(rows: ReportRow[]) {
-  return MOVEMENT_ORDER.flatMap((kind) => {
+  const byKind = MOVEMENT_ORDER.flatMap((kind) => {
     const matching = rows.filter((row) => row.kind === kind);
     if (!matching.length) return [];
     const quantities = new Map<
@@ -67,6 +67,35 @@ export function movementSummaryMetrics(rows: ReportRow[]) {
       },
     ];
   });
+  const submitted = rows.filter((row) => Number(row.docstatus) === 1);
+  if (!submitted.length) return byKind;
+  const net = new Map<
+    string,
+    { uom: string; qty: number; status?: string; effect: number }
+  >();
+  for (const row of submitted) {
+    const uom = String(row.stock_uom);
+    const value = net.get(uom) || { uom, qty: 0, status: undefined, effect: 0 };
+    value.qty += Number(row.available_effect || 0);
+    value.effect = value.qty;
+    net.set(uom, value);
+  }
+  const quantities = sortByUnit([...net.values()], (quantity) => quantity.uom);
+  const nonZero = quantities.filter((quantity) => quantity.qty !== 0);
+  return [
+    ...byKind,
+    {
+      key: "net",
+      label: "可用净变化",
+      quantities,
+      tone:
+        nonZero.length && nonZero.every((quantity) => quantity.qty > 0)
+          ? ("success" as const)
+          : nonZero.length && nonZero.every((quantity) => quantity.qty < 0)
+            ? ("danger" as const)
+            : ("neutral" as const),
+    },
+  ];
 }
 
 const OUTCOME_ORDER = ["outstanding", "returned", "damaged", "lost"];
