@@ -17,6 +17,15 @@ const validated = new Set<string>();
 const saveQueues = new Map<string, Promise<void>>();
 let activeScope = "";
 
+function removeLocal(key: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Browser storage is only the presentation fallback.
+  }
+}
+
 function scopeKey(site: string, account: string) {
   return `${encodeURIComponent(site)}:${encodeURIComponent(account)}`;
 }
@@ -158,6 +167,12 @@ export function useColumnPreferences(
       if (ownEpoch !== epoch) return;
       validated.add(currentKey.value);
       const saved = normalizedPreference(result);
+      if (!saved && revision === 0 && !dirty) {
+        // The account has no saved choice: a clean cached copy is stale, so show defaults.
+        memory.delete(currentKey.value);
+        removeLocal(currentKey.value);
+        apply(undefined);
+      }
       if (saved && revision === 0 && !dirty) {
         apply(saved);
         const reconciled = currentPreference();

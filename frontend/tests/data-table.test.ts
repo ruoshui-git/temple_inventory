@@ -1036,6 +1036,44 @@ describe("shared data table", () => {
     });
   });
 
+  it("drops a clean cached choice when the account has no saved preference", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, { site: "reset-test.local", user: "reset-user" });
+    const key =
+      "temple-inventory:table-columns:v1:reset-test.local:reset-user:reports.reset-test";
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        values: {
+          order: ["item", "quantity", "retired"],
+          hidden: ["quantity"],
+        },
+        dirty: false,
+      }),
+    );
+    const call = vi.fn(async (method: string) =>
+      method.endsWith("get_column_preferences") ? undefined : null,
+    );
+    let controller!: ReturnType<typeof useColumnPreferences>;
+    const root = defineComponent({
+      setup() {
+        controller = useColumnPreferences(
+          "reports.reset-test",
+          ref(columns),
+          reference,
+          { call, report: vi.fn(), upload: vi.fn() },
+        );
+        return () => h("div");
+      },
+    });
+    wrappers.push(mount(root));
+    await flushPromises();
+    expect(controller.visible.value).toEqual(["item", "quantity", "retired"]);
+    expect(window.localStorage.getItem(key)).toBeNull();
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a failed local choice visible and offers retry", async () => {
     vi.useFakeTimers();
     const reference = createReferenceData();
