@@ -180,6 +180,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 					align: "end",
 				},
 				{
+					id: "item_count",
+					label: "物品种数",
+					defaultVisible: true,
+					align: "end",
+				},
+				{
 					id: "source",
 					label: "来源位置",
 					defaultVisible: true,
@@ -232,6 +238,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 				{
 					id: "quantities",
 					label: "借出数量（按单位）",
+					defaultVisible: true,
+					align: "end",
+				},
+				{
+					id: "item_count",
+					label: "物品种数",
 					defaultVisible: true,
 					align: "end",
 				},
@@ -762,6 +774,7 @@ const loanExportMap: Record<string, string[]> = {
 };
 const recordExportMap: Record<string, string[]> = {
 	document: ["document"],
+	item_count: ["item_count"],
 	kind: ["kind"],
 	date: ["date", "time"],
 	quantities: ["stock_qty", "stock_uom"],
@@ -2036,6 +2049,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								row.activity_title || ""
 							}}</template>
 							<template v-else-if="column.id === 'date'">{{ row.date }}</template>
+							<template v-else-if="column.id === 'item_count'">{{
+								row.item_count ?? ""
+							}}</template>
 							<LocationEndpoint
 								v-else-if="column.id === 'source' && row.kind === 'Reconcile'"
 								:locations="countedLocations(row)"

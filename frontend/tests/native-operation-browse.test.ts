@@ -314,6 +314,9 @@ describe("native operation browsing", () => {
     });
     expect(recordsExport.props("columns")).toContain("document");
     expect(recordsExport.props("columns")).toContain("borrower");
+    // 流动记录（记录） lists how many Items each record holds.
+    expect(recordsExport.props("columns")).toContain("item_count");
+    expect(records.wrapper.text()).toContain("物品种数");
   });
 
   it("preserves an outstanding-only loan chooser query from dashboard navigation", async () => {
