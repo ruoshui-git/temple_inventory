@@ -4,6 +4,7 @@ import {
   useReferenceData,
 } from "../../services/contracts";
 import { movementLabels } from "../../lib/presentationLabels";
+import { detectInstallPlatform } from "../../lib/installGuidance";
 
 export const notificationEvents = [
   { key: "movement_submitted", label: "新货物流动" },
@@ -45,8 +46,40 @@ function decodeKey(value: string) {
     .padEnd(Math.ceil(value.length / 4) * 4, "=");
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
+/** Ask for permission when needed, subscribe this browser and register it for the account. */
+export async function subscribePushDevice(
+  services: ReturnType<typeof useInventoryServices>,
+  requestPermission: boolean,
+) {
+  const permission = requestPermission
+    ? await Notification.requestPermission()
+    : Notification.permission;
+  if (permission !== "granted")
+    throw new Error(
+      permission === "denied"
+        ? "浏览器已阻止通知，请在浏览器设置中允许。"
+        : "尚未允许通知权限。请重试开启。",
+    );
+  const publicKey = await services.call<string>("push.public_key");
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: decodeKey(publicKey),
+  });
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth)
+    throw new Error("浏览器未返回完整的推送信息");
+  const saved = await services.call<{ name: string }>("push.subscribe", {
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth,
+    user_agent: navigator.userAgent,
+  });
+  return { subscription, publicKey, name: saved.name };
+}
 export function resolvePushState(state: {
   supported: boolean;
+  secure?: boolean;
   dev?: boolean;
   ios: boolean;
   standalone: boolean;
@@ -54,6 +87,7 @@ export function resolvePushState(state: {
   subscribed: boolean;
 }) {
   if (!state.supported || state.dev) return "unsupported";
+  if (state.secure === false) return "insecure";
   if (state.ios && !state.standalone) return "install";
   if (state.permission === "denied") return "denied";
   return state.subscribed ? "subscribed" : "off";
@@ -73,6 +107,7 @@ export function useNotificationSettings() {
     initialized = ref(false);
   const pushBusy = ref(false),
     pushError = ref(""),
+    pushMessage = ref(""),
     localSubscription = ref<PushSubscription | null>(null),
     publicKey = ref("");
   const currentDeviceName = ref("");
@@ -81,7 +116,14 @@ export function useNotificationSettings() {
       window.matchMedia?.("(display-mode: standalone)").matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true,
   );
-  const ios = computed(() => /iphone|ipad|ipod/i.test(navigator.userAgent));
+  const ios = computed(
+    () =>
+      detectInstallPlatform(
+        navigator.userAgent,
+        navigator.platform,
+        navigator.maxTouchPoints,
+      ) === "ios",
+  );
   const pushSupported = computed(
     () =>
       !import.meta.env.DEV &&
@@ -92,6 +134,7 @@ export function useNotificationSettings() {
   const pushState = computed(() =>
     resolvePushState({
       supported: pushSupported.value,
+      secure: window.isSecureContext,
       dev: import.meta.env.DEV,
       ios: ios.value,
       standalone: standalone.value,
@@ -159,35 +202,15 @@ export function useNotificationSettings() {
       saving.value = false;
     }
   }
-  async function enablePush() {
+  async function subscribeDevice(requestPermission = false) {
     if (!pushSupported.value || pushBusy.value || pushState.value === "install")
       return;
     pushBusy.value = true;
     pushError.value = "";
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted")
-        throw new Error(
-          permission === "denied"
-            ? "浏览器已阻止通知，请在浏览器设置中允许。"
-            : "尚未允许通知权限。请重试开启。",
-        );
-      publicKey.value = await services.call<string>("push.public_key");
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: decodeKey(publicKey.value),
-      });
-      const json = subscription.toJSON();
-      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth)
-        throw new Error("浏览器未返回完整的推送信息");
-      const saved = await services.call<{ name: string }>("push.subscribe", {
-        endpoint: json.endpoint,
-        p256dh: json.keys.p256dh,
-        auth: json.keys.auth,
-        user_agent: navigator.userAgent,
-      });
-      localSubscription.value = subscription;
+      const saved = await subscribePushDevice(services, requestPermission);
+      publicKey.value = saved.publicKey;
+      localSubscription.value = saved.subscription;
       currentDeviceName.value = saved.name;
       await loadDevices();
     } catch (reason) {
@@ -197,6 +220,11 @@ export function useNotificationSettings() {
       pushBusy.value = false;
     }
   }
+  const enablePush = () =>
+    subscribeDevice(Notification.permission !== "granted");
+  async function recheckPermission() {
+    await subscribeDevice(false);
+  }
   async function loadDevices() {
     devices.value = await services.call<Device[]>("push.my_devices");
   }
@@ -204,7 +232,10 @@ export function useNotificationSettings() {
     pushBusy.value = true;
     pushError.value = "";
     try {
-      await services.call("push.send_test");
+      const result = await services.call<{ sent: number; failed: number }>(
+        "push.send_test",
+      );
+      pushMessage.value = `已发送 ${result.sent} 台，失败 ${result.failed} 台`;
     } catch (reason) {
       pushError.value =
         reason instanceof Error ? reason.message : "测试通知发送失败";
@@ -264,6 +295,7 @@ export function useNotificationSettings() {
     initialized,
     pushBusy,
     pushError,
+    pushMessage,
     pushSupported,
     pushState,
     standalone,
@@ -271,6 +303,7 @@ export function useNotificationSettings() {
     load,
     save,
     enablePush,
+    recheckPermission,
     testPush,
     disablePush,
     removeDevice,

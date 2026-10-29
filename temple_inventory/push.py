@@ -4,6 +4,7 @@ import json
 from urllib.parse import urlparse
 
 import frappe
+from frappe.rate_limiter import rate_limit
 from frappe.utils.password import get_decrypted_password
 
 from temple_inventory.native_access import require_app
@@ -115,30 +116,36 @@ def _send(subscription, payload):
 		frappe.db.set_value(
 			DOCTYPE, subscription.name, {"last_success": frappe.utils.now_datetime(), "last_error": ""}
 		)
+		return True
 	except WebPushException as error:
 		status = getattr(getattr(error, "response", None), "status_code", None)
 		if status in (404, 410):
 			frappe.delete_doc(DOCTYPE, subscription.name, ignore_permissions=True)
 		else:
 			frappe.db.set_value(DOCTYPE, subscription.name, "last_error", str(error)[:500])
+		return False
 
 
 @frappe.whitelist(methods=["POST"])
+@rate_limit(key="inventory_push_test", limit=10, seconds=60 * 60)
 def send_test():
 	require_app()
-	settings = _settings()
+	sent = failed = 0
 	for row in frappe.get_all(DOCTYPE, filters={"user": frappe.session.user}, pluck="name"):
-		_send(
+		if _send(
 			frappe.get_doc(DOCTYPE, row),
 			{
 				"title": "物资管理",
 				"body": "通知测试成功",
-				"url": "/inventory",
+				"url": "/inventory/notifications",
 				"tag": "ti-test",
 				"badge_count": 0,
 			},
-		)
-	return {"sent": True, "public_key": settings.ti_vapid_public_key}
+		):
+			sent += 1
+		else:
+			failed += 1
+	return {"sent": sent, "failed": failed}
 
 
 def notification_after_insert(doc, method=None):

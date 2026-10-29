@@ -52,6 +52,13 @@ function harness(
             },
             "mark",
           ),
+          "setPopoverOpen" in c
+            ? h(
+                "button",
+                { id: "open-list", onClick: () => c.setPopoverOpen(true) },
+                "open",
+              )
+            : null,
           settings
             ? null
             : h(
@@ -175,6 +182,43 @@ describe("notification controller flows", () => {
     expect(call).toHaveBeenCalledWith("notifications.mark_read", {
       names: '["N-1"]',
     });
+  });
+
+  it("reloads rows on open and when the unread count changes while open", async () => {
+    let unread = 1;
+    const call = vi.fn(async (endpoint: string) => {
+      if (endpoint === "notifications.inbox")
+        return {
+          items: [
+            {
+              name: `N-${unread}`,
+              type: "库存流动",
+              subject: "最新通知",
+              link: "/inventory",
+              read: 0,
+              creation: "2026-10-24 09:00:00",
+              email_content: "{}",
+            },
+          ],
+          unread_count: unread,
+          has_running_exports: false,
+        };
+      if (endpoint === "notifications.unread_count") return unread;
+      return {};
+    });
+    const wrapper = harness("inbox", call);
+    await flushPromises();
+    await wrapper.get("#open-list").trigger("click");
+    await flushPromises();
+    expect(
+      call.mock.calls.filter(([name]) => name === "notifications.inbox"),
+    ).toHaveLength(2);
+    unread = 2;
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(
+      call.mock.calls.filter(([name]) => name === "notifications.inbox"),
+    ).toHaveLength(4);
   });
 
   it("sends the selected notification type to the inbox endpoint", async () => {

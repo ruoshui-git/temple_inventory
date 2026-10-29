@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import AppFrame from "./AppFrame.vue";
 import NotificationCenter from "../features/notifications/NotificationCenter.vue";
+import PushPrompt from "../features/notifications/PushPrompt.vue";
 import RouteBreadcrumbs from "./RouteBreadcrumbs.vue";
 import { useResponsiveLayout } from "../composables/useResponsiveLayout";
 import { useReferenceData } from "../services/contracts";
@@ -58,6 +59,7 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 		@more="navigate"
 	>
 		<template #notifications><NotificationCenter /></template>
+		<PushPrompt />
 		<RouteBreadcrumbs v-if="!hidePhoneBreadcrumb" />
 		<nav
 			v-if="isMobile && active === 'inventory'"

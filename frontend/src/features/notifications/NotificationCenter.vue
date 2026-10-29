@@ -10,7 +10,7 @@ import { useNotifications } from "./useNotifications";
 import NotificationRows from "./NotificationRows.vue";
 import { badgeLabel } from "./model";
 import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
-const c = useNotifications(20);
+const c = useNotifications(20, false, true);
 const { isMobile } = useResponsiveLayout();
 const router = useRouter();
 const open = ref(false),
@@ -97,6 +97,7 @@ function otherTransient(event: Event) {
 	if ((event as CustomEvent).detail !== transientOwner) close();
 }
 watch(open, (value) => {
+	void c.setPopoverOpen(value);
 	if (value && !isMobile.value)
 		document.dispatchEvent(
 			new CustomEvent("browse-filter-panel-open", { detail: transientOwner }),
@@ -178,6 +179,9 @@ onBeforeUnmount(() => {
 			<p v-if="c.error.value" role="alert">
 				{{ c.error.value }} <UiButton @click="c.refresh">重试</UiButton>
 			</p>
+			<p v-if="c.loading.value && c.initialized.value" class="muted" role="status">
+				正在更新通知…
+			</p>
 			<SkeletonBlock
 				v-if="c.loading.value && !c.initialized.value"
 				variant="lines"
@@ -228,6 +232,9 @@ onBeforeUnmount(() => {
 				</header>
 				<p v-if="c.error.value" role="alert">
 					{{ c.error.value }} <UiButton @click="c.refresh">重试</UiButton>
+				</p>
+				<p v-if="c.loading.value && c.initialized.value" class="muted" role="status">
+					正在更新通知…
 				</p>
 				<SkeletonBlock
 					v-if="c.loading.value && !c.initialized.value"

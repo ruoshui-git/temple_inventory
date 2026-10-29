@@ -11,11 +11,15 @@ const router = useRouter();
 const isDev = import.meta.env.DEV;
 const states: Record<string, string> = {
 	unsupported: "此浏览器不支持",
+	insecure: "需要安全连接",
 	install: "需要安装到主屏幕",
 	denied: "浏览器已阻止",
 	subscribed: "已开启",
 	off: "未开启",
 };
+function permissionGranted() {
+	return typeof Notification !== "undefined" && Notification.permission === "granted";
+}
 </script>
 <template>
 	<section class="utility-page notification-settings-page">
@@ -101,11 +105,18 @@ const states: Record<string, string> = {
 			<section class="surface utility-panel push-settings">
 				<h2>本设备推送</h2>
 				<p role="status">
-					{{ states[c.pushState.value]
+					{{
+						c.pushState.value === "off" && permissionGranted()
+							? "系统通知已允许，本设备尚未订阅"
+							: states[c.pushState.value]
 					}}<span v-if="isDev"> · 开发环境未注册 Service Worker，推送不可用</span>
 				</p>
+				<p v-if="c.pushState.value === 'insecure'" class="muted">
+					系统通知需要 HTTPS 安全连接。
+				</p>
 				<p v-if="c.pushState.value === 'denied'" class="muted">
-					请在浏览器设置中允许此站点发送通知。
+					浏览器已阻止通知。点击地址栏锁形/网站信息图标（或应用窗口菜单）→ 网站设置/通知
+					→ 允许。Windows 已安装应用还需在 Windows 设置 → 系统 → 通知中允许浏览器/应用。
 				</p>
 				<p v-if="c.pushState.value === 'install'" class="muted">
 					请先将应用添加到主屏幕，再从主屏幕打开。
@@ -116,7 +127,13 @@ const states: Record<string, string> = {
 						variant="primary"
 						:loading="c.pushBusy.value"
 						@click="c.enablePush"
-						>开启推送</UiButton
+						>{{ permissionGranted() ? "订阅本设备" : "开启系统通知" }}</UiButton
+					>
+					<UiButton
+						v-if="c.pushState.value === 'denied'"
+						:loading="c.pushBusy.value"
+						@click="c.recheckPermission"
+						>重新检查</UiButton
 					>
 					<UiButton
 						v-if="c.pushState.value === 'subscribed'"
@@ -128,10 +145,11 @@ const states: Record<string, string> = {
 						v-if="c.pushState.value === 'subscribed'"
 						:disabled="c.pushBusy.value"
 						@click="c.disablePush"
-						>关闭推送</UiButton
+						>关闭本设备推送</UiButton
 					>
 				</div>
 				<p v-if="c.pushError.value" role="alert">{{ c.pushError.value }}</p>
+				<p v-if="c.pushMessage.value" role="status">{{ c.pushMessage.value }}</p>
 				<h3>此账户的其他设备</h3>
 				<p v-if="!c.devices.value.length" class="muted">暂无其它已开启推送的设备。</p>
 				<ul class="push-device-list">

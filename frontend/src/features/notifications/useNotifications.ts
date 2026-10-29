@@ -5,7 +5,11 @@ import {
 } from "../../services/contracts";
 import type { InventoryNotification, NotificationPage } from "./model";
 
-export function useNotifications(pageSize = 20, fullPage = false) {
+export function useNotifications(
+  pageSize = 20,
+  fullPage = false,
+  deferInitialLoad = false,
+) {
   const services = useInventoryServices();
   const reference = useReferenceData();
   const account = reference.user;
@@ -23,6 +27,8 @@ export function useNotifications(pageSize = 20, fullPage = false) {
   let generation = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
+  let popoverOpen = false;
+  let rowsStale = true;
   const active = () => !disposed && reference.user === account;
 
   async function refreshCount() {
@@ -35,9 +41,14 @@ export function useNotifications(pageSize = 20, fullPage = false) {
         }),
       ]);
       if (!active()) return;
+      const changed = count !== unreadCount.value;
       unreadCount.value = count;
       hasRunningExports.value = status.has_running_exports;
       updateAppBadge(count);
+      if (changed) {
+        if (popoverOpen) void load();
+        else rowsStale = true;
+      }
     } catch {
       /* Keep the last known badge while offline. */
     }
@@ -57,7 +68,6 @@ export function useNotifications(pageSize = 20, fullPage = false) {
     const current = reset ? ++generation : generation;
     if (reset) {
       loading.value = true;
-      rows.value = [];
       hasMore.value = true;
     } else loadingMore.value = true;
     error.value = "";
@@ -86,6 +96,17 @@ export function useNotifications(pageSize = 20, fullPage = false) {
         loading.value = false;
         loadingMore.value = false;
       }
+    }
+  }
+  async function setPopoverOpen(value: boolean) {
+    popoverOpen = value;
+    if (value) {
+      if (rowsStale || !initialized.value) {
+        rowsStale = false;
+        await load();
+      }
+    } else {
+      rowsStale = true;
     }
   }
   async function loadMore() {
@@ -120,7 +141,7 @@ export function useNotifications(pageSize = 20, fullPage = false) {
     void refreshCount();
   }
   onMounted(() => {
-    void load();
+    if (!deferInitialLoad) void load();
     if (fullPage)
       void services
         .call<{ value: string; label: string }[]>("notifications.inbox_types")
@@ -164,6 +185,7 @@ export function useNotifications(pageSize = 20, fullPage = false) {
     markRead,
     markAllRead,
     refreshCount,
+    setPopoverOpen,
     refresh: () => load(true),
   };
 }

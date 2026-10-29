@@ -13,6 +13,20 @@ THEMES = {"jade", "blue", "bronze"}
 DENSITIES = {"compact", "balanced", "spacious"}
 TEXT_SCALES = {100, 125, 150, 175, 200}
 DEFAULTS = {"theme": "jade", "density": "balanced", "textScale": 100}
+PUSH_PROMPT_KEY = "temple_inventory_push_prompt_dismissed_v1"
+
+
+@frappe.whitelist()
+def push_prompt_dismissed():
+	require_app()
+	return frappe.defaults.get_user_default(PUSH_PROMPT_KEY) == "1"
+
+
+@frappe.whitelist(methods=["POST"])
+def dismiss_push_prompt():
+	require_app()
+	frappe.defaults.set_user_default(PUSH_PROMPT_KEY, "1", user=frappe.session.user)
+	return True
 
 
 def _valid(values):

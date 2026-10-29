@@ -79,6 +79,15 @@ describe("push state selection", () => {
     expect(
       resolvePushState({
         supported: true,
+        secure: false,
+        ios: false,
+        standalone: false,
+        subscribed: false,
+      }),
+    ).toBe("insecure");
+    expect(
+      resolvePushState({
+        supported: true,
         ios: false,
         standalone: false,
         permission: "denied",
@@ -103,6 +112,15 @@ describe("push state selection", () => {
         subscribed: true,
       }),
     ).toBe("subscribed");
+    expect(
+      resolvePushState({
+        supported: true,
+        ios: false,
+        standalone: false,
+        permission: "granted",
+        subscribed: false,
+      }),
+    ).toBe("off");
   });
 });
 

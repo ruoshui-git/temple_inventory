@@ -87,6 +87,21 @@ class NotificationTests(NativeDocumentTests):
 		self.assertFalse(push.subscription_permission(doc, "read", user="other@example.com"))
 		self.assertFalse(push.subscription_permission(doc, "write", user="owner@example.com"))
 
+	def test_send_test_targets_only_callers_devices_and_reports_each_result(self):
+		caller = frappe.session.user
+		rows = ["CALLER-DEVICE", "ANOTHER-CALLER-DEVICE"]
+		with (
+			patch.object(push, "require_app"),
+			patch.object(frappe, "get_all", return_value=rows) as get_all,
+			patch.object(frappe, "get_doc", side_effect=lambda _doctype, name: frappe._dict(name=name)),
+			patch.object(push, "_send", side_effect=[True, False]) as send,
+		):
+			result = push.send_test.__wrapped__()
+		self.assertEqual(result, {"sent": 1, "failed": 1})
+		get_all.assert_called_once_with(push.DOCTYPE, filters={"user": caller}, pluck="name")
+		self.assertEqual([call.args[0].name for call in send.call_args_list], rows)
+		self.assertTrue(all(call.args[1]["tag"] == "ti-test" for call in send.call_args_list))
+
 	def test_recipient_filter_requires_app_role_master_event_and_notification_settings(self):
 		account = frappe._dict(enabled=1, user_type="System User")
 		prefs = dict(notifications.DEFAULTS)
