@@ -1,7 +1,10 @@
 """Report/export contracts exercised against real native stock and permissions."""
 
+# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
+
 import copy
 import csv
+import io
 import json
 import tempfile
 from pathlib import Path
@@ -12,13 +15,171 @@ import frappe
 from frappe.utils import nowdate
 from openpyxl import load_workbook
 
-from temple_inventory import counts, exports, native_api
+from temple_inventory import browse, counts, exports, native_api
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.tests.helpers import NativeReportTestCase
+from temple_inventory.uom_labels import uom_label
 
 
 class NativeReportsExportsTests(NativeReportTestCase):
+	def test_export_totals_are_per_unit_and_expiry_states_are_date_accurate(self):
+		stream = io.StringIO()
+		writer = csv.writer(stream)
+		count = exports._write_rows(
+			writer,
+			[
+				{"item_name": "甲", "stock_qty": 2, "stock_uom": "Nos"},
+				{"item_name": "乙", "stock_qty": 3, "stock_uom": "Nos"},
+				{"item_name": "丙", "stock_qty": 4, "stock_uom": "Box"},
+			],
+			["item_name", "stock_qty"],
+			"batches",
+			frappe._dict(query={"dataset": "inventory"}),
+		)
+		self.assertEqual(count, 3)
+		values = list(csv.reader(io.StringIO(stream.getvalue())))
+		self.assertEqual([row[1] for row in values[-2:]], ["5", "4"])
+		self.assertIn("合计", values[-2][0])
+		self.assertEqual(exports._display_cell({"expiry_date": "2000-01-01"}, "expiry_state"), "已过期")
+		self.assertEqual(exports._display_cell({"expiry_date": "2999-01-01"}, "expiry_state"), "未过期")
+		self.assertEqual(exports._display_cell({}, "expiry_state"), "无效期")
+
+	def test_grouped_movement_export_uses_flat_history_rows_and_readable_cells(self):
+		self.receipt(12)
+		query = self.query("movements", "summary", groupBy=["item"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			self.assertEqual(projection.count("history"), browse.movement_history(query)["matched_count"])
+			path = Path(directory) / "history.csv"
+			count = exports._write(
+				projection,
+				frappe._dict(
+					tables_json='["history"]',
+					columns_json=json.dumps(
+						["kind", "docstatus", "destination_warehouse", "stock_qty", "stock_uom"]
+					),
+					export_format="csv",
+				),
+				path,
+			)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+			self.assertEqual(count, 1)
+			self.assertEqual(rows[0], ["类型", "状态", "去向位置", "数量", "单位"])
+			self.assertEqual(rows[1][0], "入库")
+			self.assertEqual(rows[1][1], "已提交")
+			self.assertEqual(rows[1][2], projection.context.label(self.a))
+			self.assertNotEqual(rows[1][2], self.a)
+			self.assertEqual(rows[1][4], "个")
+			self.assertTrue(all(not any(isinstance(cell, (list, dict)) for cell in row) for row in rows))
+
+	def test_loan_history_export_lists_only_outstanding_submitted_loans(self):
+		partly = self.loan(5, borrower="部分归还")
+		self.submit(self.settlement(partly, 2))
+		settled = self.loan(3, borrower="全部归还")
+		self.submit(self.settlement(settled, 3))
+		query = self.query("loans", "items")
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "loans.csv"
+			exports._write(
+				projection,
+				frappe._dict(
+					tables_json='["loan_history"]',
+					columns_json=json.dumps(
+						[
+							"document",
+							"borrower",
+							"activity_title",
+							"source_warehouse",
+							"outstanding",
+							"stock_uom",
+						]
+					),
+					export_format="csv",
+				),
+				path,
+			)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+		self.assertEqual(rows[0], ["借出单号", "借用方", "活动", "原位置", "未归还", "单位"])
+		self.assertEqual([row[0] for row in rows[1:-1]], [partly.name])
+		self.assertEqual(rows[1][1:4], ["部分归还", self.activity.title, projection.context.label(self.a)])
+		self.assertEqual(float(rows[1][4]), 3)
+		self.assertTrue(rows[-1][0].startswith("合计"))
+
+	def test_export_api_rejects_internal_tables_and_disallowed_columns_and_saves_summary(self):
+		self.receipt(12)
+		query = self.query("movements", "summary")
+		for table in ("grouped", "items", "files"):
+			with self.assertRaises(frappe.ValidationError):
+				exports.request_export(query, table)
+		with self.assertRaises(frappe.ValidationError):
+			exports.request_export(query, "summary", columns=["document_id"])
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"summary",
+				columns=["item_name", "stock_qty"],
+				summary={"title": "月度库存", "filters": ["位置：供灯区"]},
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		self.assertEqual(result["table"], "summary")
+		self.assertEqual(json.loads(request.columns_json), ["item_name", "stock_qty"])
+		self.assertEqual(json.loads(request.summary_json), {"title": "月度库存", "filters": ["位置：供灯区"]})
+		self.assertTrue(request.file_label.startswith("月度库存-全部时间-"))
+		self.assertTrue(request.file_label.endswith(".xlsx"))
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / request.file_label
+			exports._write(projection, request, path)
+			workbook = load_workbook(path, read_only=True, data_only=True)
+			self.assertEqual(workbook.sheetnames[0], "汇总")
+			self.assertEqual(workbook.sheetnames[1], "导出说明")
+			info_rows = list(workbook["导出说明"].values)
+			workbook.close()
+			self.assertIn(("页面", "月度库存"), info_rows)
+			self.assertIn(("筛选", "位置：供灯区"), info_rows)
+			self.assertIn(("分组", "无"), info_rows)
+
+	def test_records_export_collapses_units_to_one_native_document_row_with_locations(self):
+		doc = self.submit(self.create(self.movement(quantity=2)))
+		query = self.query("movements", "records", record=doc.name, statuses=[1])
+		with Projection(query, refresh=True) as projection:
+			projection.build()
+			rows = list(exports._export_rows(projection, "records"))
+		self.assertEqual(len(rows), 1)
+		self.assertEqual(rows[0]["document"], doc.name)
+		self.assertTrue(rows[0]["source"])
+		self.assertTrue(rows[0]["destination"])
+		self.assertNotIn(self.a, rows[0]["source"] + rows[0]["destination"])
+
+	def test_mixed_unit_record_keeps_text_quantities_and_mapped_endpoints(self):
+		class Context:
+			@staticmethod
+			def label(name):
+				return {"source-warehouse": "来源库位", "destination-warehouse": "去向库位"}[name]
+
+		projection = frappe._dict(query={"dataset": "movements"}, context=Context())
+		row = exports._export_record_row(
+			projection,
+			lambda *_args: {
+				"branches": [{"source": "source-warehouse", "destination": "destination-warehouse"}]
+			},
+			{},
+			{
+				"doctype": "Stock Entry",
+				"document": "STE-1",
+				"_units": {"Nos": {"stock_qty": 12}, "Box": {"stock_qty": 3}},
+			},
+		)
+		self.assertIsNone(row["stock_qty"])
+		self.assertEqual(row["stock_uom"], "")
+		self.assertEqual(row["quantities"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
+		self.assertEqual(row["source"], "来源库位")
+		self.assertEqual(row["destination"], "去向库位")
+
 	def test_refinement_display_labels_preserve_native_identity_and_export_audit_values(self):
 		room = frappe.get_doc("Warehouse", self.room_a)
 		room.ti_label = "供灯-用品"
@@ -38,9 +199,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				values = next(csv.DictReader(stream))
 			self.assertEqual(values["状态"], "已提交")
-			self.assertEqual(values["状态值（ERPNext）"], "1")  # noqa: RUF001
-			self.assertEqual(values["目标位置"], "供灯-用品")
-			self.assertEqual(values["目标位置（ERPNext 名称）"], self.a)  # noqa: RUF001
+		self.assertEqual(values["去向位置"], "供灯-用品")
+		self.assertNotIn(self.a, values.values())
 
 	def test_saved_opening_export_uses_native_movement_quantities_and_excludes_counts(self):
 		doc = frappe.get_doc(
@@ -70,7 +230,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(page["rows"][0]["document"], doc.name)
 			self.assertEqual(page["rows"][0]["kind"], "Opening")
 			with Projection(query) as projection:
-				projection.build(related=True)
+				projection.build()
 				lines = list(projection.rows("lines"))
 				self.assertEqual(len(lines), 1)
 				self.assertEqual(lines[0]["stock_qty"], 7)
@@ -85,7 +245,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		query = self.query("movements", "lines")
 		with tempfile.TemporaryDirectory() as directory, Projection(query) as projection:
 			projection.build(related=True)
-			request = frappe._dict(tables_json='["lines"]', owner="Administrator", export_format="csv")
+			request = frappe._dict(
+				tables_json='["lines"]',
+				columns_json='["stock_qty"]',
+				owner="Administrator",
+				export_format="csv",
+			)
 			csv_path = Path(directory) / "report.csv"
 			csv_count = exports._write(projection, request, csv_path)
 			with csv_path.open(encoding="utf-8-sig") as source:
@@ -98,10 +263,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			workbook.close()
 			self.assertEqual(csv_count, xlsx_count)
 			self.assertEqual(len(csv_rows), len(rows) - 1)
-			self.assertEqual(float(csv_rows[0]["stock_qty"]), 12)
-			self.assertEqual(rows[1][rows[0].index("stock_qty")], 12)
-			self.assertEqual(projection.count("conversions"), 1)
-			self.assertEqual(projection.count("items"), 1)
+			self.assertEqual(float(csv_rows[0]["数量"]), 12)
+			self.assertEqual(rows[1][rows[0].index("数量")], 12)
 
 	def test_large_native_draft_export_preserves_all_1005_allocations_and_stable_order(self):
 		data = self.movement(quantity=1)
@@ -115,7 +278,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertEqual(len(preview["rows"]), 1)
 		with tempfile.TemporaryDirectory() as directory, Projection(query) as projection:
 			projection.build()
-			request = frappe._dict(tables_json='["lines"]', owner="Administrator", export_format="csv")
+			request = frappe._dict(
+				tables_json='["lines"]',
+				columns_json='["line_name", "stock_qty"]',
+				owner="Administrator",
+				export_format="csv",
+			)
 			csv_path = Path(directory) / "large.csv"
 			self.assertEqual(exports._write(projection, request, csv_path), 1005)
 			with csv_path.open(encoding="utf-8-sig") as source:
@@ -126,18 +294,36 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
 			rows = iter(workbook["库存明细"].values)
 			columns = next(rows)
-			ids = [row[columns.index("id")] for row in rows]
+			ids = [
+				row[columns.index("明细编号")]
+				for row in rows
+				if row[columns.index("明细编号")]
+				and not str(row[columns.index("明细编号")]).startswith("合计")
+			]
 			workbook.close()
-			self.assertEqual(ids, [row["id"] for row in csv_rows])
+			self.assertEqual(
+				ids,
+				[
+					row["明细编号"]
+					for row in csv_rows
+					if row["明细编号"] and not row["明细编号"].startswith("合计")
+				],
+			)
 			self.assertEqual(len(set(ids)), 1005)
-			self.assertEqual({row["line_name"] for row in csv_rows}, {row.name for row in doc["items"]})
-			self.assertEqual(sum(float(row["stock_qty"]) for row in csv_rows), 1005)
+			self.assertEqual(
+				{row["明细编号"] for row in csv_rows if not row["明细编号"].startswith("合计")},
+				{row.name for row in doc["items"]},
+			)
+			self.assertEqual(
+				sum(float(row["数量"]) for row in csv_rows if not row["明细编号"].startswith("合计")),
+				1005,
+			)
 
 	def test_export_request_is_owned_queued_and_failed_retry_retains_scope(self):
 		self.receipt()
 		query = self.query()
 		with patch("temple_inventory.exports._enqueue") as enqueue:
-			result = exports.request_export(query, "xlsx", ["summary", "locations"])
+			result = exports.request_export(query, "summary", export_format="xlsx")
 			self.assertEqual(result["status"], "Queued")
 			enqueue.assert_called_once()
 			doc = frappe.get_doc("Inventory Export Request", result["name"])
@@ -147,8 +333,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			retried = exports.retry_export(doc.name, str(doc.modified))
 			self.assertEqual(retried["attempt"], 2)
 			self.assertEqual(json.loads(doc.query_json), query)
+			self.assertEqual(json.loads(doc.tables_json), ["summary"])
 		with self.assertRaises(frappe.ValidationError):
-			exports.request_export(query, "csv", ["summary", "locations"])
+			exports.request_export(query, "summary,locations", export_format="csv")
 
 	def test_export_private_download_rechecks_current_warehouse_and_request_owner(self):
 		from frappe.cache_manager import clear_defaults_cache
@@ -168,7 +355,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		frappe.set_user(user.name)
 		query = self.query()
 		with patch("temple_inventory.exports._enqueue"):
-			result = exports.request_export(query, "csv", ["summary"])
+			result = exports.request_export(query, "summary", export_format="csv")
 		request = frappe.get_doc("Inventory Export Request", result["name"])
 		request.status = "Running"
 		exports._save(request)

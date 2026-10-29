@@ -14,8 +14,18 @@ from urllib.parse import quote
 import frappe
 import xlsxwriter
 
+from temple_inventory.export_columns import DEFAULT_COLUMNS, LABELS, allowed_columns, default_columns, label
 from temple_inventory.native_access import check_document_scope, check_version, require_app
-from temple_inventory.projections import INTERNAL_TABLES, TABLE_LABELS, Projection
+from temple_inventory.native_stock import MOVEMENT_LABELS
+from temple_inventory.projections import (
+	COUNT_SUMS,
+	HISTORY_SUMS,
+	INTERNAL_TABLES,
+	LOAN_SUMS,
+	STOCK_SUMS,
+	TABLE_LABELS,
+	Projection,
+)
 from temple_inventory.report_query import validate_query
 from temple_inventory.uom_labels import uom_label
 
@@ -52,8 +62,12 @@ def _save(doc):
 
 
 def _status(doc):
+	tables = _json_value(getattr(doc, "tables_json", None), [])
 	return {
 		"name": doc.name,
+		"table": tables[0] if tables else "",
+		"columns": _json_value(getattr(doc, "columns_json", None), []),
+		"file_label": getattr(doc, "file_label", "") or "",
 		"status": doc.status,
 		"progress": doc.progress,
 		"error": doc.error or "",
@@ -79,34 +93,57 @@ def _enqueue(doc):
 
 
 @frappe.whitelist(methods=["POST"])
-def request_export(query, export_format="xlsx", tables=None, include_related=False):
+def request_export(query, table=None, columns=None, export_format="xlsx", summary=None):
 	require_app()
 	if export_format not in ("xlsx", "csv"):
 		frappe.throw("请选择 XLSX 或 CSV 格式")
 	validated = validate_query(query)
-	selected = frappe.parse_json(tables)
-	if (
-		not isinstance(selected, list)
-		or not selected
-		or any(not isinstance(value, str) for value in selected)
+	if table is not None and not isinstance(table, str):
+		frappe.throw("请选择有效的数据表")
+	columns = frappe.parse_json(columns) if isinstance(columns, str) else columns
+	if columns is not None and (
+		not isinstance(columns, list) or any(not isinstance(c, str) for c in columns)
 	):
-		frappe.throw("请选择需要导出的数据表")
-	if export_format == "csv" and len(selected) != 1:
-		frappe.throw("CSV 只能导出一张明确选择的数据表")
-	if type(include_related) is not bool:
-		frappe.throw("请选择是否包含关联资料")
+		frappe.throw("请选择有效的导出列")
+	summary = frappe.parse_json(summary) if isinstance(summary, str) else (summary or {})
+	if not isinstance(summary, dict):
+		frappe.throw("导出说明格式无效")
+	if "title" in summary and not isinstance(summary["title"], str):
+		frappe.throw("导出页面名称无效")
+	title = _clean_text(summary.get("title", ""), 60)
+	filters = summary.get("filters", [])
+	if not isinstance(filters, list) or len(filters) > 20 or any(not isinstance(x, str) for x in filters):
+		frappe.throw("导出筛选说明无效")
+	summary = {"title": title, "filters": [_clean_text(x, 200) for x in filters]}
 	# Validate scope and table names before creating a durable job request.
 	with Projection(validated, refresh=True) as projection:
-		projection.build(related=include_related)
-		if any(table not in projection.column_names or table in INTERNAL_TABLES for table in selected):
+		projection.build()
+		# Grouping is presentation only: without an explicit table, export the line rows.
+		table = table or projection.line_table or projection.main_table
+		if table not in projection.column_names or table in INTERNAL_TABLES or table not in DEFAULT_COLUMNS:
 			frappe.throw("请选择有效的数据表")
+		allowed = set(projection.column_names[table]) & allowed_columns(validated["dataset"], table)
+		allowed.update(
+			{"expiry_state", "quantities"}
+			| ({"expiry_date", "remaining_days"} if table == "locations" else set())
+			| ({"source", "destination"} if table == "records" else set())
+		)
+		selected = columns or [
+			field for field in default_columns(validated["dataset"], table) if field in allowed
+		]
+		if not selected or any(field not in allowed or field not in LABELS for field in selected):
+			frappe.throw("请选择有效的导出列")
 	doc = frappe.get_doc(
 		{
 			"doctype": EXPORT_DOCTYPE,
 			"query_json": json.dumps(validated, ensure_ascii=False),
 			"export_format": export_format,
-			"tables_json": json.dumps(list(dict.fromkeys(selected))),
-			"include_related": include_related,
+			"tables_json": json.dumps([table]),
+			"columns_json": json.dumps(selected),
+			"summary_json": json.dumps(summary, ensure_ascii=False),
+			"file_label": _filename(
+				summary.get("title") or TABLE_LABELS.get(table, table), table, validated, export_format
+			),
 			"status": "Queued",
 			"attempt": 1,
 		}
@@ -117,7 +154,7 @@ def request_export(query, export_format="xlsx", tables=None, include_related=Fal
 	finally:
 		service_write.reset(token)
 	_enqueue(doc)
-	return _status(doc)
+	return {**_status(doc), "table": table, "columns": selected, "file_label": doc.file_label}
 
 
 @frappe.whitelist()
@@ -211,20 +248,19 @@ def _manifest(projection, path):
 			output.write(json.dumps([doctype, name], ensure_ascii=False) + "\n")
 
 
-def _column_label(field):
-	labels = {
-		"warehouse": "位置（ERPNext 名称）",
-		"source_warehouse": "来源位置（ERPNext 名称）",
-		"destination_warehouse": "目标位置（ERPNext 名称）",
-		"origin_warehouse": "原存放位置（ERPNext 名称）",
-		"warehouse_label": "位置",
-		"source_warehouse_label": "来源位置",
-		"destination_warehouse_label": "目标位置",
-		"origin_warehouse_label": "原存放位置",
-		"docstatus": "状态值（ERPNext）",
-		"docstatus_label": "状态",
-	}
-	return labels.get(field, field)
+def _clean_text(value, limit):
+	return re.sub(r"[\x00-\x1f\x7f]", "", str(value or ""))[:limit]
+
+
+def _filename(title, table, query, export_format):
+	from temple_inventory.report_query import resolved_period
+
+	period = resolved_period(query.get("scope", {}).get("period", {}))
+	period_label = f"{period['date_from']}至{period['date_to']}" if period.get("date_from") else "全部时间"
+	stamp = frappe.utils.now_datetime().strftime("%Y%m%d-%H%M")
+	base = f"{title or TABLE_LABELS.get(table, table)}-{period_label}-{stamp}"
+	base = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', "·", base).strip(" .")
+	return f"{base}.{export_format}"
 
 
 def _sheet_name(table, part):
@@ -235,54 +271,274 @@ def _sheet_name(table, part):
 
 def _write(projection, doc, path):
 	tables = json.loads(doc.tables_json)
-	if any(table not in projection.column_names for table in tables):
+	if len(tables) != 1 or tables[0] not in projection.column_names:
 		frappe.throw("数据表已变更，请重新选择导出范围")
+	table = tables[0]
+	dataset = projection.query["dataset"]
+	columns = _json_value(getattr(doc, "columns_json", None), default_columns(dataset, table))
+	rows = _export_rows(projection, table)
 	count = 0
 	if doc.export_format == "csv":
-		table = tables[0]
-		columns = projection.column_names[table]
 		with open(path, "w", encoding="utf-8-sig", newline="") as output:
 			writer = csv.writer(output)
-			writer.writerow([_column_label(field) for field in columns])
-			for row in projection.rows(table):
-				writer.writerow([_csv_value(_display_cell(row, field)) for field in columns])
-				count += 1
-	else:
-		with xlsxwriter.Workbook(
-			str(path), {"constant_memory": True, "strings_to_formulas": False, "strings_to_urls": False}
-		) as workbook:
-			info = workbook.add_worksheet("导出范围")
-			info.write_row(0, 0, ["生成时间", projection.context.snapshot])
-			info.write_row(1, 0, ["请求账户", doc.owner])
-			info.write_row(2, 0, ["查询", json.dumps(projection.query, ensure_ascii=False)])
-			for table in tables:
-				columns = projection.column_names[table]
-				worksheet = None
-				row_index = 1
-				part = 0
+			writer.writerow([label(dataset, field) for field in columns])
+			count = _write_rows(writer, rows, columns, table, projection)
+		return count
+	with xlsxwriter.Workbook(
+		str(path), {"constant_memory": True, "strings_to_formulas": False, "strings_to_urls": False}
+	) as workbook:
+		header = workbook.add_format({"bold": True, "bg_color": "#E9EDF2"})
+		summary = _json_value(getattr(doc, "summary_json", None), {})
+		filters = summary.get("filters", [])
+		period = projection.context.period
+		group_names = {
+			"item": "物品",
+			"category": "类别",
+			"location": "库位",
+			"kind": "类型",
+			"activityType": "活动类型",
+			"activity": "活动",
+			"borrower": "借用方",
+			"outcome": "结算结果",
+			"source": "来源位置",
+			"destination": "去向位置",
+			"month": "月份",
+			"status": "状态",
+		}
+		worksheet = None
+		row_index = 1
+		part = 0
 
-				def new_sheet():
-					nonlocal worksheet, row_index, part
-					part += 1
-					worksheet = workbook.add_worksheet(_sheet_name(table, part))
-					worksheet.write_row(0, 0, [_column_label(field) for field in columns])
-					worksheet.freeze_panes(1, 0)
-					row_index = 1
+		def new_sheet():
+			nonlocal worksheet, row_index, part
+			part += 1
+			worksheet = workbook.add_worksheet(_sheet_name(table, part))
+			worksheet.write_row(0, 0, [label(dataset, field) for field in columns], header)
+			worksheet.freeze_panes(1, 0)
+			for index, field in enumerate(columns):
+				worksheet.set_column(index, index, min(32, max(12, len(label(dataset, field)) * 2 + 2)))
+			row_index = 1
+			return worksheet, row_index
 
-				new_sheet()
-				for row in projection.rows(table):
-					if row_index >= 1048576:
-						new_sheet()
-					worksheet.write_row(row_index, 0, [_display_cell(row, field) for field in columns])
-					row_index += 1
-					count += 1
+		count = _write_rows(_XlsxRows(new_sheet), rows, columns, table, projection)
+		info = workbook.add_worksheet("导出说明")
+		info_rows = [
+			("页面", summary.get("title") or TABLE_LABELS.get(table, table)),
+			*(("筛选", value) for value in filters),
+			(
+				"分组",
+				"、".join(group_names.get(key, key) for key in projection.query.get("groupBy", [])) or "无",
+			),
+			("排序", _sort_label(projection.query)),
+			(
+				"期间",
+				f"{period['date_from']}至{period['date_to']}" if period.get("date_from") else "全部时间",
+			),
+			("生成时间", projection.context.snapshot),
+			("请求账户", doc.owner),
+			("行数", count),
+			("表格", TABLE_LABELS.get(table, table)),
+		]
+		for index, values in enumerate(info_rows):
+			info.write_row(index, 0, values)
+		info.set_column(0, 0, 16)
+		info.set_column(1, 1, 60)
 	return count
 
 
-def _display_cell(row, field):
+class _XlsxRows:
+	def __init__(self, new_sheet):
+		self.new_sheet = new_sheet
+		self.worksheet, self.row_index = new_sheet()
+
+	def writerow(self, values):
+		if self.row_index >= 1048576:
+			self.worksheet, self.row_index = self.new_sheet()
+		self.worksheet.write_row(self.row_index, 0, values)
+		self.row_index += 1
+
+
+def _export_rows(projection, table):
+	if table == "records":
+		from temple_inventory.report_sources import whole_operation
+
+		operation_cache = {}
+		sum_fields = _sum_fields(table, projection.query)
+
+		def rows():
+			# Records arrive one row per document and unit; a non-date sort need not keep
+			# a document's units adjacent, so collect in first-seen order.
+			groups = {}
+			for row in projection.rows(table):
+				key = (row.get("doctype"), row.get("document"))
+				group = groups.setdefault(key, {**row, "_units": {}})
+				unit = row.get("stock_uom") or ""
+				unit_values = group["_units"].setdefault(unit, {})
+				for field in sum_fields:
+					if isinstance(row.get(field), (int, float)):
+						unit_values[field] = float(unit_values.get(field, 0)) + float(row[field])
+			for group in groups.values():
+				yield _export_record_row(projection, whole_operation, operation_cache, group)
+
+		return rows()
+	return projection.rows(table)
+
+
+def _export_record_row(projection, whole_operation, operation_cache, row):
+	key = (row.get("doctype"), row.get("document"))
+	units = row["_units"]
+	single_unit = next(iter(units.values())) if len(units) == 1 else {}
+	quantity_fields = _sum_fields("records", projection.query)
+	aggregates = {field: single_unit.get(field) if len(units) == 1 else None for field in quantity_fields}
+	quantities = (
+		"；".join(f"{values.get('stock_qty', 0):g} {uom_label(unit)}" for unit, values in units.items())
+		if len(units) > 1
+		else ""
+	)
+	if key[0] not in ("Stock Entry", "Stock Reconciliation") or not key[1]:
+		return {
+			**row,
+			**aggregates,
+			"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
+			"stock_uom": next(iter(units)) if len(units) == 1 else "",
+			"quantities": quantities,
+			"source": "",
+			"destination": "",
+		}
+	if key not in operation_cache:
+		operation_cache[key] = whole_operation(projection.context, *key)
+	operation = operation_cache[key]
+	sources, destinations = set(), set()
+	for branch in operation["branches"]:
+		sources.add(projection.context.label(branch["source"]) if branch["source"] else "外部")
+		destinations.add(projection.context.label(branch["destination"]) if branch["destination"] else "外部")
+	return {
+		**row,
+		**aggregates,
+		"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
+		"stock_uom": next(iter(units)) if len(units) == 1 else "",
+		"quantities": quantities,
+		"source": "；".join(sorted(value for value in sources if value)),
+		"destination": "；".join(sorted(value for value in destinations if value)),
+	}
+
+
+def _sort_label(query):
+	field = query.get("sortBy") or "identity"
+	name = "默认" if field == "identity" else LABELS.get(field, field)
+	return f"{name} · {'升序' if query.get('sort') == 'asc' else '降序'}"
+
+
+def _json_value(value, default):
+	if not value:
+		return default
+	return frappe.parse_json(value) if isinstance(value, str) else value
+
+
+def _write_rows(writer, rows, columns, table, projection):
+	totals = {}
+	count = 0
+	for row in rows:
+		values = [_display_cell(row, field, projection) for field in columns]
+		writer.writerow([_csv_value(value) for value in values])
+		count += 1
+		unit = str(row.get("stock_uom") or "")
+		fields = [field for field in _sum_fields(table, projection.query) if field in columns]
+		if table == "records" and "stock_qty" in fields:
+			for unit, unit_values in row.get("_units", {}).items():
+				_totals_add(
+					totals, unit, {field: unit_values[field] for field in fields if field in unit_values}
+				)
+		elif fields:
+			_totals_add(
+				totals,
+				unit,
+				{field: row[field] for field in fields if isinstance(row.get(field), (int, float))},
+			)
+	for unit, sums in totals.items():
+		line = [""] * len(columns)
+		line[0] = (
+			f"合计（{uom_label(unit)}） · {sums['_count']} 行" if unit else f"合计 · {sums['_count']} 行"
+		)
+		for index, field in enumerate(columns):
+			if field in sums:
+				line[index] = sums[field]
+		writer.writerow(line)
+	return count
+
+
+def _totals_add(totals, unit, fields):
+	values = totals.setdefault(str(unit or ""), {"_count": 0})
+	values["_count"] += 1
+	for field, value in fields.items():
+		values[field] = values.get(field, 0) + value
+
+
+def _sum_fields(table, query):
+	dataset = query["dataset"]
+	if table in ("locations", "batches"):
+		return STOCK_SUMS if table == "locations" else ("stock_qty",)
+	if table == "summary":
+		return (
+			STOCK_SUMS
+			if dataset == "inventory"
+			else ("stock_qty", "available_effect")
+			if dataset == "movements"
+			else COUNT_SUMS
+		)
+	if table in ("records", "lines"):
+		return (
+			("stock_qty", "available_effect")
+			if dataset == "movements"
+			else LOAN_SUMS
+			if dataset == "loans"
+			else COUNT_SUMS
+		)
+	if table in ("outcomes", "loan_items"):
+		return LOAN_SUMS
+	if table in ("balances", "ledger"):
+		return HISTORY_SUMS
+	if table == "history":
+		return ("stock_qty", "available_effect")
+	if table == "loan_history":
+		return ("borrowed", "outstanding")
+	if table == "settlements":
+		return ("stock_qty",)
+	return ()
+
+
+def _display_cell(row, field, projection=None):
+	if field.endswith("_warehouse") or field == "warehouse":
+		label_field = f"{field}_label"
+		if row.get(label_field):
+			return row[label_field]
+		value = row.get(field)
+		if value == "" and field in ("source_warehouse", "destination_warehouse", "origin_warehouse"):
+			return "外部"
+		return (projection.context.label(value) if projection and value else "") or value
 	if field in ("stock_uom", "entered_uom", "uom"):
 		return uom_label(row.get(field))
-	return row.get(field)
+	if field == "kind":
+		return MOVEMENT_LABELS.get(
+			row.get(field),
+			{"Reconcile": "盘点调整", "Opening": "期初库存"}.get(row.get(field), row.get(field)),
+		)
+	if field == "docstatus":
+		return {0: "草稿", 1: "已提交", 2: "已取消"}.get(row.get(field), row.get(field))
+	if field == "category":
+		return row.get("category_label") or row.get(field)
+	if field in ("source", "destination"):
+		return row.get(f"{field}_label") or row.get(field)
+	if field == "expiry_state":
+		if not row.get("expiry_date"):
+			return "无效期"
+		return "已过期" if str(row["expiry_date"]) < frappe.utils.nowdate() else "未过期"
+	value = row.get(field)
+	if isinstance(value, list):
+		return "；".join(str(part) for part in value)
+	if isinstance(value, bool):
+		return "是" if value else "否"
+	return value
 
 
 def _csv_value(value):
@@ -309,11 +565,11 @@ def generate_export(request_name):
 		frappe.db.commit()
 		with tempfile.TemporaryDirectory(prefix="ti-export-") as output_dir:
 			with Projection(json.loads(request.query_json), refresh=True) as projection:
-				projection.build(related=bool(request.include_related))
+				projection.build()
 				request.progress = 60
 				_save(request)
 				frappe.db.commit()
-				path = Path(output_dir) / f"inventory.{request.export_format}"
+				path = Path(output_dir) / (request.file_label or f"inventory.{request.export_format}")
 				manifest_path = Path(output_dir) / "access.jsonl"
 				row_count = _write(projection, request, path)
 				_manifest(projection, manifest_path)
@@ -323,7 +579,7 @@ def generate_export(request_name):
 				# context before checking the manifest; keep the caller restoration.
 				frappe.set_user(request.owner)
 				_check_manifest_path(manifest_path)
-				request.output_file = _private_file(path, request, path.name)
+				request.output_file = _private_file(path, request, request.file_label or path.name)
 				request.access_manifest = _private_file(manifest_path, request, "access.jsonl")
 				request.generated_at = projection.context.snapshot
 				request.row_count = row_count

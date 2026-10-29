@@ -31,11 +31,15 @@ from temple_inventory.report_sources import (
 from temple_inventory.uom_labels import uom_label
 
 INTERNAL_TABLES = {"loan_item_page", "linked_settlements", "group_source"}
+# Page-shaped line tables built only for export; readable by explicit id, not listed.
+EXPORT_ONLY_TABLES = {"history", "loan_history"}
 
 TABLE_LABELS = {
 	"summary": "汇总",
 	"records": "单据记录",
 	"lines": "库存明细",
+	"history": "流动明细",
+	"loan_history": "借用明细",
 	"balances": "历史数量余额",
 	"ledger": "原生库存流水",
 	"locations": "库位 / 批次明细",
@@ -238,6 +242,42 @@ FIXED_COLUMNS = {
 	"conversions": ["id", "item_code", "uom", "conversion_factor", "stock_uom"],
 	"warehouses": ["id", "warehouse", "label", "parent", "warehouse_type", "is_group", "company"],
 	"files": ["id", "file_name", "parent_doctype", "parent"],
+	"history": [
+		"id",
+		"doctype",
+		"document",
+		"item_code",
+		"item_name",
+		"date",
+		"time",
+		"kind",
+		"source_warehouse",
+		"destination_warehouse",
+		"warehouse",
+		"stock_uom",
+		"docstatus",
+		"stock_qty",
+		"available_effect",
+		"borrower",
+	],
+	"loan_history": [
+		"id",
+		"doctype",
+		"document",
+		"date",
+		"time",
+		"kind",
+		"source_warehouse",
+		"destination_warehouse",
+		"stock_uom",
+		"docstatus",
+		"borrower",
+		"activity_title",
+		"borrowed",
+		"outstanding",
+		"item_code",
+		"item_name",
+	],
 }
 
 
@@ -594,6 +634,40 @@ def group_count_metadata(query, row):
 	}
 
 
+def _movement_history_rows(projection):
+	from temple_inventory.browse import movement_history_key
+
+	groups = {}
+	for row in projection.rows("lines"):
+		key, source, destination = movement_history_key(row)
+		group = groups.setdefault(key, {**row, "stock_qty": 0.0, "available_effect": 0.0})
+		group["stock_qty"] += float(row.get("stock_qty") or 0)
+		group["available_effect"] += float(row.get("available_effect") or 0)
+		group.update({"source_warehouse": source, "destination_warehouse": destination})
+	for key, row in groups.items():
+		row["id"] = json.dumps(key, ensure_ascii=False)
+		row["time"] = key[4]
+		yield row
+
+
+def _loan_history_rows(projection):
+	"""Outstanding submitted loan lines, keyed like the flat 借用 明细 table (借出清单)."""
+	from temple_inventory.browse import loan_contribution_key
+
+	groups = {}
+	for row in projection.rows("outcomes"):
+		if int(row.get("docstatus") or 0) != 1 or float(row.get("outstanding") or 0) <= 0:
+			continue
+		key = loan_contribution_key({**row, "kind": "Loan"})
+		group = groups.setdefault(key, {**row, "kind": "Loan", "borrowed": 0.0, "outstanding": 0.0})
+		group["borrowed"] += float(row.get("borrowed") or 0)
+		group["outstanding"] += float(row.get("outstanding") or 0)
+	for key, row in groups.items():
+		row["id"] = json.dumps(key, ensure_ascii=False)
+		row["time"] = key[3]
+		yield row
+
+
 class Projection(AbstractContextManager):
 	def __init__(self, query, *, refresh=False, load_item_attachments=True, load_item_children=True):
 		from frappe.utils import now_datetime
@@ -626,6 +700,7 @@ class Projection(AbstractContextManager):
 			quantity real, payload text, primary key(table_id, identity)
 		)""")
 		self.main_table = ""
+		self.line_table = ""
 		self.summary_table = ""
 		self.sums = ()
 		self.column_names = {}
@@ -679,6 +754,7 @@ class Projection(AbstractContextManager):
 			)"""
 		)
 		self.main_table = ""
+		self.line_table = ""
 		self.summary_table = ""
 		self.sums = ()
 		self.column_names = {}
@@ -939,6 +1015,7 @@ class Projection(AbstractContextManager):
 				self.main_table = view
 		elif not restored and dataset == "movements":
 			self.add("lines", movement_rows(context))
+			self.add("history", _movement_history_rows(self))
 			self.group(
 				"lines",
 				"records",
@@ -968,6 +1045,7 @@ class Projection(AbstractContextManager):
 			self.main_table, sums = view, ("stock_qty", "available_effect")
 		elif not restored and dataset == "loans":
 			self.add("outcomes", loan_rows(context))
+			self.add("loan_history", _loan_history_rows(self))
 			if view == "items":
 				self.add("linked_settlements", linked_settlement_rows(context))
 				self.add(
@@ -1064,6 +1142,7 @@ class Projection(AbstractContextManager):
 					if dataset == "inventory"
 					else source
 				)
+			self.line_table = "loan_items" if source == "loan_item_page" else source
 			# Month/location grouping keeps separate allocation/branch detail tables.
 			self.column_names["group_source"] = []
 			for row in self.rows(source):
@@ -1508,7 +1587,7 @@ def _report_page(query, start, page_length, table, include_related, refresh=Fals
 			"tables": [
 				{"id": key, "label": TABLE_LABELS.get(key, key), "count": projection.count(key)}
 				for key in projection.column_names
-				if key not in INTERNAL_TABLES
+				if key not in INTERNAL_TABLES and key not in EXPORT_ONLY_TABLES
 			],
 		}
 

@@ -8,7 +8,9 @@
     "query_json",
     "export_format",
     "tables_json",
-    "include_related",
+    "columns_json",
+    "summary_json",
+    "file_label",
     "status",
     "progress",
     "error",
@@ -41,12 +43,9 @@
       "reqd": 1,
       "read_only": 1
     },
-    {
-      "fieldname": "include_related",
-      "fieldtype": "Check",
-      "label": "包含关联资料",
-      "read_only": 1
-    },
+    {"fieldname": "columns_json", "fieldtype": "JSON", "label": "导出列", "read_only": 1},
+    {"fieldname": "summary_json", "fieldtype": "JSON", "label": "导出说明", "read_only": 1},
+    {"fieldname": "file_label", "fieldtype": "Data", "label": "下载文件名", "read_only": 1},
     {
       "fieldname": "status",
       "fieldtype": "Select",

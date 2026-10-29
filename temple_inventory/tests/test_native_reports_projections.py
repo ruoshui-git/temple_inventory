@@ -559,7 +559,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		self.addCleanup(clear_defaults_cache, user.name)
 		frappe.set_user(user.name)
 		with patch("temple_inventory.exports._enqueue"):
-			request = exports.request_export(self.query(), "csv", ["summary"])
+			request = exports.request_export(self.query(), "summary", export_format="csv")
 		frappe.set_user("Administrator")
 		write = exports._write
 

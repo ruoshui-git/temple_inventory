@@ -999,23 +999,14 @@ def operation_contributions(
 					groups = {}
 
 					def add_history(row, quantity, outstanding=0):
-						key = (
-							row["doctype"],
-							row["document"],
-							row["date"],
-							row.get("time", ""),
-							row["kind"],
-							row.get("source_warehouse", ""),
-							row.get("destination_warehouse", ""),
-							row["stock_uom"],
-							row.get("item_code", ""),
-						)
+						key = loan_contribution_key(row)
 						group = groups.setdefault(
 							key,
 							{
 								"quantity": 0.0,
 								"outstanding": 0.0,
 								"item_name": row.get("item_name", ""),
+								"activity_title": row.get("activity_title", ""),
 								"original_loans": set(),
 							},
 						)
@@ -1030,8 +1021,15 @@ def operation_contributions(
 							float(allocation["borrowed"]),
 							float(allocation["outstanding"]),
 						)
-					for (payload,) in projection.db.execute(
-						"select payload from rows where table_id='linked_settlements'"
+					# The ungrouped outstanding list is the 借出清单: open loan lines only. Returns
+					# stay in per-item histories and in 全部相关记录.
+					loan_list_only = history_scope == "outstanding" and not item_code
+					for (payload,) in (
+						()
+						if loan_list_only
+						else projection.db.execute(
+							"select payload from rows where table_id='linked_settlements'"
+						)
 					):
 						event = frappe.parse_json(payload)
 						link = (
@@ -1043,7 +1041,7 @@ def operation_contributions(
 						if link in selected:
 							add_history(event, -abs(float(event.get("stock_qty") or 0)))
 							observed_events[link] += abs(float(event.get("stock_qty") or 0))
-					history_complete = all(
+					history_complete = loan_list_only or all(
 						abs(observed_events[key] - expected) < 0.000001
 						for key, expected in expected_events.items()
 					)
@@ -1136,6 +1134,7 @@ def operation_contributions(
 								),
 								"item_code": key[8],
 								"item_name": values.get("item_name") or key[8],
+								"activity_title": values.get("activity_title", ""),
 								"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
 								"kind": key[4],
 								"source_warehouse": key[5],
@@ -1270,35 +1269,12 @@ def movement_history(
 				continue
 			if batch_no and row.get("batch_no") != batch_no:
 				continue
-			kind = row["kind"]
-			source = row.get("source_warehouse") or ""
-			destination = row.get("destination_warehouse") or ""
-			if kind == "Reconcile":
-				# A count adjustment describes where stock was counted, not a
-				# transfer between a warehouse and the outside world.
-				source, destination = row.get("warehouse") or "", ""
-			elif kind == "Opening":
-				location = row.get("warehouse") or ""
-				if float(row.get("stock_qty") or 0) >= 0:
-					source, destination = "", location
-				else:
-					source, destination = location, ""
+			key, source, destination = movement_history_key(row)
 			if warehouse and not warehouse_leaves.intersection(
 				{source, destination, row.get("warehouse") or ""}
 			):
 				continue
-			key = (
-				row["doctype"],
-				row["document"],
-				row["item_code"],
-				row["date"],
-				row.get("time", ""),
-				kind,
-				source,
-				destination,
-				row["stock_uom"],
-				int(row["docstatus"]),
-			)
+			kind = row["kind"]
 			group = groups.setdefault(
 				key, {"quantity": 0.0, "available_effect": 0.0, "loan_balance_effect": 0.0}
 			)
@@ -1427,6 +1403,49 @@ def movement_history(
 		}
 
 
+def movement_history_key(row):
+	"""Shared movement-history identity and canonical endpoint mapping."""
+	kind = row["kind"]
+	source = row.get("source_warehouse") or ""
+	destination = row.get("destination_warehouse") or ""
+	if kind == "Reconcile":
+		source, destination = row.get("warehouse") or "", ""
+	elif kind == "Opening":
+		location = row.get("warehouse") or ""
+		if float(row.get("stock_qty") or 0) >= 0:
+			source, destination = "", location
+		else:
+			source, destination = location, ""
+	key = (
+		row["doctype"],
+		row["document"],
+		row["item_code"],
+		row["date"],
+		row.get("time", ""),
+		kind,
+		source,
+		destination,
+		row["stock_uom"],
+		int(row["docstatus"]),
+	)
+	return key, source, destination
+
+
+def loan_contribution_key(row):
+	"""Shared row identity for the ungrouped loan contribution history."""
+	return (
+		row["doctype"],
+		row["document"],
+		row["date"],
+		row.get("time", ""),
+		row["kind"],
+		row.get("source_warehouse", ""),
+		row.get("destination_warehouse", ""),
+		row["stock_uom"],
+		row.get("item_code", ""),
+	)
+
+
 @frappe.whitelist()
 def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, sort=None):
 	"""Return original submitted loan allocations scoped to one Item, grouped before paging."""
@@ -1454,22 +1473,13 @@ def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, s
 			frappe.throw("物品不存在或无权访问", frappe.PermissionError)
 		groups = {}
 		for row in projection.rows("outcomes"):
-			key = (
-				row["doctype"],
-				row["document"],
-				row["date"],
-				row.get("time", ""),
-				row["borrower"],
-				row["source_warehouse"],
-				row["destination_warehouse"],
-				row["stock_uom"],
-				row["docstatus"],
-			)
+			key = loan_item_history_key(row)
 			group = groups.setdefault(key, {"borrowed": 0.0, "outstanding": 0.0})
 			group["borrowed"] += float(row["borrowed"])
 			group["outstanding"] += float(row["outstanding"])
 			group["item_code"] = row["item_code"]
 			group["item_name"] = row["item_name"]
+			group["activity_title"] = row.get("activity_title", "")
 			group["image"] = row.get("image") or ""
 		field = query["sortBy"]
 		allowed = {
@@ -1499,6 +1509,7 @@ def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, s
 				"document": key[1],
 				"doctype": key[0],
 				"item_name": values["item_name"],
+				"activity_title": values.get("activity_title", ""),
 				"item_code": values["item_code"],
 				"kind": "Loan",
 				"docstatus": key[8],
@@ -1522,6 +1533,7 @@ def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, s
 				"document": key[1],
 				"item_code": values["item_code"],
 				"item_name": values["item_name"],
+				"activity_title": values.get("activity_title", ""),
 				"image": values.get("image", ""),
 				"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
 				"kind": "Loan",
@@ -1540,6 +1552,21 @@ def loan_item_history(query, item_code, start=0, page_length=30, sort_by=None, s
 			"matched_count": count,
 			"next_start": start + size if start + size < count else None,
 		}
+
+
+def loan_item_history_key(row):
+	"""Shared loan detail identity used by item history and flat exports."""
+	return (
+		row["doctype"],
+		row["document"],
+		row["date"],
+		row.get("time", ""),
+		row.get("borrower", ""),
+		row.get("source_warehouse", ""),
+		row.get("destination_warehouse", ""),
+		row["stock_uom"],
+		row["docstatus"],
+	)
 
 
 @frappe.whitelist()
