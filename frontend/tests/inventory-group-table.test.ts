@@ -166,7 +166,9 @@ describe("inventory grouped table", () => {
                 group_depth: 1,
                 group_label: "Food",
                 has_children: true,
-                stock_uom: "Nos",
+                unit_totals: [
+                  { stock_uom: "Nos", available: 4, loaned: 0, damaged: 0 },
+                ],
                 item_count: 1,
                 row_count: 1,
                 available: 4,
@@ -190,7 +192,9 @@ describe("inventory grouped table", () => {
                 item_name: "Noodles",
                 image: "/files/noodles.png",
                 category: "Food",
-                stock_uom: "Nos",
+                unit_totals: [
+                  { stock_uom: "Nos", available: 4, loaned: 0, damaged: 0 },
+                ],
                 item_count: 1,
                 row_count: 1,
                 available: 4,
@@ -303,11 +307,11 @@ describe("inventory grouped table", () => {
     await flushPromises();
     expect(groupCalls[1]).toEqual({
       parent_path: ["Food"],
-      parent_unit: "Nos",
+      parent_unit: null,
     });
     const itemGroup = wrapper.findAll(".data-table-group-row")[1]!;
     expect(
-      itemGroup.find(".table-item-image .item-image-button").exists(),
+      itemGroup.find(".data-table-group-visual .item-image-button").exists(),
     ).toBe(true);
     expect(itemGroup.find(".data-table-group-identity").text()).toContain(
       "库存行数 1",
@@ -316,7 +320,7 @@ describe("inventory grouped table", () => {
     await flushPromises();
     expect(groupCalls[2]).toEqual({
       parent_path: ["Food", "ITEM-1"],
-      parent_unit: "Nos",
+      parent_unit: null,
     });
     expect(wrapper.get('[data-browse-row="ITEM-1"]').text()).toContain(
       "Noodles",

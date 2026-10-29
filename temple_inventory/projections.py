@@ -623,6 +623,7 @@ def group_count_grain(query):
 
 def group_count_metadata(query, row):
 	grain = group_count_grain(query)
+	count = row.get("document_count") if grain == "native_document" else row.get("row_count")
 	return {
 		"count_grain": grain,
 		"count_label": {
@@ -631,7 +632,7 @@ def group_count_metadata(query, row):
 			"native_document": "原生单据",
 			"allocation": "分配行",
 		}[grain],
-		"display_count": int(row.get("row_count") or 0),
+		"display_count": int(count or 0),
 	}
 
 
@@ -895,7 +896,7 @@ class Projection(AbstractContextManager):
 		)
 		return [json.loads(payload) for (payload,) in cursor], count
 
-	def group(self, source, target, fields, sums, *, maximums=()):
+	def group(self, source, target, fields, sums, *, maximums=(), unit_field=None):
 		self.column_names.setdefault(
 			target,
 			[
@@ -909,6 +910,8 @@ class Projection(AbstractContextManager):
 				"allocation_count",
 			],
 		)
+		if unit_field and "unit_totals" not in self.column_names[target]:
+			self.column_names[target].append("unit_totals")
 		# Fields are internal constants, never client-supplied SQL identifiers.
 		expressions = [f"json_extract(payload, '$.{field}')" for field in fields]
 		columns = [
@@ -964,11 +967,13 @@ class Projection(AbstractContextManager):
 		breakdowns = None
 		if source == "group_source" and self.query["dataset"] == "movements":
 			breakdowns = {}
+			unit_expression = f"json_extract(payload, '$.{unit_field or 'stock_uom'}')"
 			for values in self.db.execute(
 				"select "
 				+ ", ".join(
 					[
 						*keys,
+						unit_expression,
 						"json_extract(payload, '$.kind')",
 						"json_extract(payload, '$.docstatus')",
 						"sum(coalesce(json_extract(payload, '$.stock_qty'), 0))",
@@ -979,20 +984,52 @@ class Projection(AbstractContextManager):
 				)
 				+ " from rows where table_id=? group by "
 				+ ", ".join(
-					[*keys, "json_extract(payload, '$.kind')", "json_extract(payload, '$.docstatus')"]
+					[
+						*keys,
+						unit_expression,
+						"json_extract(payload, '$.kind')",
+						"json_extract(payload, '$.docstatus')",
+					]
 				)
-				+ " order by json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus')",
+				+ f" order by {unit_expression}, json_extract(payload, '$.kind'), json_extract(payload, '$.docstatus')",
 				(source,),
 			):
 				part = values[len(keys) :]
 				breakdowns.setdefault(tuple(values[: len(keys)]), []).append(
 					{
-						"kind": part[0],
-						"docstatus": part[1],
-						"stock_qty": part[2],
-						"available_effect": part[3],
-						"document_count": part[4],
-						"allocation_count": part[5],
+						"stock_uom": part[0],
+						"kind": part[1],
+						"docstatus": part[2],
+						"stock_qty": part[3],
+						"available_effect": part[4],
+						"document_count": part[5],
+						"allocation_count": part[6],
+					}
+				)
+		unit_totals = None
+		if unit_field:
+			unit_totals = {}
+			unit_expression = f"json_extract(payload, '$.{unit_field}')"
+			unit_query = self.db.execute(
+				"select "
+				+ ", ".join(
+					[
+						*keys,
+						unit_expression,
+						*(f"sum(coalesce(json_extract(payload, '$.{field}'), 0))" for field in sums),
+					]
+				)
+				+ " from rows where table_id=? group by "
+				+ ", ".join([*keys, unit_expression]),
+				(source,),
+			)
+			for values in unit_query:
+				key = tuple(values[: len(keys)])
+				unit = values[len(keys)]
+				unit_totals.setdefault(key, []).append(
+					{
+						"stock_uom": unit,
+						**dict(zip(sums, values[len(keys) + 1 :], strict=True)),
 					}
 				)
 		cursor = self.db.execute(
@@ -1025,6 +1062,11 @@ class Projection(AbstractContextManager):
 				# A total across different movement kinds/statuses has no meaningful native quantity.
 				if len(row["quantity_breakdown"]) > 1:
 					row["stock_qty"] = None
+			if unit_totals is not None:
+				row["unit_totals"] = sorted(
+					unit_totals.get(key, []),
+					key=lambda value: uom_label(value.get("stock_uom") or ""),
+				)
 			row["id"] = json.dumps([target, *values[: len(fields)]], ensure_ascii=False)
 			self.put(target, row)
 
@@ -1271,8 +1313,9 @@ class Projection(AbstractContextManager):
 			self.group(
 				"group_source",
 				"grouped",
-				(*group_fields, "stock_uom"),
+				group_fields,
 				sums,
+				unit_field="stock_uom",
 				maximums=tuple(
 					label
 					for group_field in group_fields
@@ -1291,8 +1334,9 @@ class Projection(AbstractContextManager):
 				self.group(
 					"group_source",
 					"group_roots",
-					(group_fields[0], "stock_uom"),
+					(group_fields[0],),
 					sums,
+					unit_field="stock_uom",
 					maximums=tuple(
 						label
 						for label in {
@@ -1316,7 +1360,7 @@ class Projection(AbstractContextManager):
 					row["row_grain"] = "group"
 					row["group_label"] = group_label(row, query, 1)
 					row.update(group_count_metadata(query, row))
-					row["id"] = json.dumps(["group", *path, row.get("stock_uom") or ""], ensure_ascii=False)
+					row["id"] = json.dumps(["group", *path], ensure_ascii=False)
 					self.db.execute(
 						"delete from rows where table_id='group_roots' and identity=?", (old_identity,)
 					)
@@ -1325,13 +1369,11 @@ class Projection(AbstractContextManager):
 			for row in list(self.rows("grouped")):
 				old_identity = str(row["id"])
 				path = [str(row.get(field) or "") for field in group_fields]
-				group_id = ["group", *path, row.get("stock_uom") or ""]
+				group_id = ["group", *path]
 				row["group_path"] = path
 				row["group_depth"] = len(path)
 				row["parent_group_id"] = (
-					json.dumps(["group", *path[:-1], row.get("stock_uom") or ""], ensure_ascii=False)
-					if len(path) > 1
-					else None
+					json.dumps(["group", *path[:-1]], ensure_ascii=False) if len(path) > 1 else None
 				)
 				row["has_children"] = True
 				row["row_grain"] = "group"
@@ -1753,6 +1795,43 @@ def _group_page(validated, path, parent_unit, start, size, refresh=False):
 			}
 		fields = [group_field_name(validated, key) for key in group_by]
 		source = projection.group_source_table
+		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
+			leaf_table = "group_leaf_records"
+			leaf_sums = (
+				("stock_qty", "available_effect") if validated["dataset"] == "movements" else LOAN_SUMS
+			)
+			leaf_fields = (*fields, "doctype", "document", "document_id")
+			leaf_maximums = tuple(
+				field
+				for field in (
+					"date",
+					"time",
+					"docstatus",
+					"kind",
+					"activity",
+					"activity_title",
+					"borrower",
+					"loan_status",
+				)
+				if field in projection.column_names.get(source, ()) and field not in leaf_fields
+			)
+			projection.group(
+				source,
+				leaf_table,
+				leaf_fields,
+				leaf_sums,
+				maximums=leaf_maximums,
+				unit_field="stock_uom",
+			)
+			for row in list(projection.rows(leaf_table)):
+				old_identity = str(row["id"])
+				row["id"] = frappe.as_json(["record", row["doctype"], row["document"]])
+				row["row_grain"] = "record"
+				projection.db.execute(
+					"delete from rows where table_id=? and identity=?", (leaf_table, old_identity)
+				)
+				projection.put(leaf_table, row)
+			source = leaf_table
 		rows, count = projection.matching_page(source, fields, path, parent_unit, start, size)
 		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
 			whole_rows = [

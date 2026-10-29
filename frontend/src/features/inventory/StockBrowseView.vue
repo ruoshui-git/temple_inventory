@@ -44,6 +44,8 @@ import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
+import DetailPopover from "../../components/ui/DetailPopover.vue";
+import { formatQuantity } from "../../lib/formatQuantity";
 
 import type { StockItem } from "../../lib/stockPresentation";
 import type { useStockBrowseController } from "./useStockBrowseController";
@@ -193,19 +195,36 @@ const browseTableRows = computed<DataTableEntry[]>(() =>
 	quickReportQuery.value.groupBy.length ? groupPages.entries.value : tableRows.value,
 );
 const groupRoot = computed(() => groupPages.pages.value["[[],null]"]);
+function groupNumber(value: unknown) {
+	const quantity = Number(value || 0);
+	return `${quantity < 0 ? "−" : ""}${formatQuantity(Math.abs(quantity))}`;
+}
 function groupSummary(group: DataTableGroup) {
-	const row = group.value || {};
-	const quantity = ["available", "loaned", "damaged", "stock_qty"]
-		.filter((key) => row[key] !== undefined)
-		.sort((a, b) => Number(row[b]) - Number(row[a]))
-		.map(
-			(key) =>
-				`${key === "available" ? "可用" : key === "loaned" ? "借出" : key === "damaged" ? "损坏" : "合计"} ${row[key]}${row.stock_uom ? ` ${unitLabel(String(row.stock_uom))}` : ""}`,
-		);
+	const units = Array.isArray(group.value?.unit_totals)
+		? (group.value.unit_totals as Record<string, unknown>[])
+		: [];
+	const quantity = ["available", "loaned", "damaged", "stock_qty"].flatMap((key) =>
+		units.map(
+			(row) =>
+				`${key === "available" ? "可用" : key === "loaned" ? "借出" : key === "damaged" ? "损坏" : "合计"} ${groupNumber(row[key])} ${unitLabel(String(row.stock_uom || ""))}`,
+		),
+	);
 	return quantity.join(" · ");
 }
 function groupSummaryDisplay(group: DataTableGroup) {
 	return compactGroupSummary(groupSummary(group));
+}
+function groupUnitValues(group: DataTableGroup, field: string) {
+	const totals = Array.isArray(group.value?.unit_totals)
+		? (group.value.unit_totals as Record<string, unknown>[])
+		: [];
+	return totals.map((row) =>
+		`${groupNumber(row[field])} ${unitLabel(String(row.stock_uom || ""))}`.trim(),
+	);
+}
+function groupUnitPreview(group: DataTableGroup, field: string) {
+	const values = groupUnitValues(group, field);
+	return values.slice(0, 2).join("；");
 }
 type StockTableRow = Record<string, unknown>;
 function stockCode(row: StockTableRow) {
@@ -729,6 +748,7 @@ watch([() => props.active, isMobile], () => {
 							table-class="data-table"
 							:columns="inventoryColumns"
 							:rows="browseTableRows"
+							:group-summary-columns="() => ['available', 'loaned', 'damaged']"
 							:column-preferences="tablePreferences"
 							:row-key="stockSelectionKey"
 							:selection-label="(row) => stockName(row)"
@@ -905,22 +925,52 @@ watch([() => props.active, isMobile], () => {
 									>
 								</div>
 							</template>
-							<template #group-column="{ group, column }">
-								<span v-if="column.id === 'image'" class="table-item-image">
+							<template #group-label="{ group }">
+								<span class="data-table-group-visual">
 									<ItemImage
 										v-if="group.value?.item_code || group.value?.code"
 										:item="stockIdentity(group.value || {})"
 									/>
 								</span>
+							</template>
+							<template #group-column="{ group, column }">
 								<span
 									v-if="
 										['available', 'loaned', 'damaged'].includes(
 											String(column.id),
 										) && group.value?.[String(column.id)] !== undefined
 									"
+									class="operation-unit-summary"
+									:title="groupUnitValues(group, String(column.id)).join('；')"
+									:aria-label="
+										groupUnitValues(group, String(column.id)).join('；')
+									"
 								>
-									{{ group.value[String(column.id)] }}
-									{{ unitLabel(String(group.value.stock_uom || "")) }}
+									{{ groupUnitPreview(group, String(column.id)) }}
+									<DetailPopover
+										v-if="groupUnitValues(group, String(column.id)).length > 2"
+										:label="`完整数量：${groupUnitValues(group, String(column.id)).join('；')}`"
+										trigger-class="operation-unit-more"
+									>
+										<template #trigger
+											>+{{
+												groupUnitValues(group, String(column.id)).length -
+												2
+											}}
+											单位</template
+										>
+										<ul>
+											<li
+												v-for="value in groupUnitValues(
+													group,
+													String(column.id),
+												)"
+												:key="value"
+											>
+												{{ value }}
+											</li>
+										</ul>
+									</DetailPopover>
 								</span>
 							</template>
 						</DataTable>

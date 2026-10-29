@@ -843,6 +843,48 @@ describe("shared data table", () => {
     expect(wrapper.text()).toContain("网络暂不可用");
   });
 
+  it("spans the group identity across leading columns and keeps the summary aligned", () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "分组列对齐",
+        columns: [
+          { id: "code", label: "编号" },
+          { id: "name", label: "名称" },
+          { id: "quantity", label: "数量" },
+        ],
+        rows: [
+          {
+            kind: "group",
+            id: "group-1",
+            label: "很长的分组名称",
+            labelColumn: "name",
+            depth: 1,
+            count: 4,
+            expanded: false,
+            hasChildren: true,
+            value: { quantity: 12 },
+          },
+        ],
+        groupSummaryColumns: () => ["quantity"],
+      },
+      slots: {
+        "group-column": ({ column }: { column: DataColumn }) =>
+          column.id === "quantity" ? "12 个" : "",
+      },
+    });
+    wrappers.push(wrapper);
+
+    const cells = wrapper.findAll("tbody tr.data-table-group-row td");
+    expect(cells).toHaveLength(2);
+    expect(cells[0]?.attributes("colspan")).toBe("2");
+    expect(cells[0]?.text()).toContain("很长的分组名称");
+    expect(cells[0]?.text()).toContain("记录数 4");
+    expect(cells[1]?.text()).toBe("12 个");
+    expect(
+      wrapper.get(".data-table-group-toggle").attributes("aria-expanded"),
+    ).toBe("false");
+  });
+
   it("does not prevent native Space behavior for a control inside a group row", async () => {
     const wrapper = mount(DataTable, {
       props: {

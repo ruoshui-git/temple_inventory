@@ -75,7 +75,6 @@ test("desktop stock and expiry table thumbnails keep the lightbox open", async (
     await expect(page.getByRole("dialog")).toHaveCount(0);
   }
 
-  await page.goto("/inventory/stock/expiry");
   const unexpired = page.getByRole("tab", { name: /未过期/ });
   await unexpired.click();
   await expect(unexpired).toHaveAttribute("aria-selected", "true");

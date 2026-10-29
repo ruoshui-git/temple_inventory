@@ -377,7 +377,8 @@ for (const width of [390, 1440]) {
       .filter({ hasText: /可用变化/ })
       .first();
     await expect(quantityHeader).toHaveClass(/align-end/);
-    const quantityCell = record.getByRole("cell", { name: /\+20 个/ });
+    const quantityCell = record.locator("td").nth(3);
+    await expect(quantityCell).toContainText("+20 个");
     await expect(quantityCell).toBeVisible();
     expect(
       await quantityCell.evaluate(

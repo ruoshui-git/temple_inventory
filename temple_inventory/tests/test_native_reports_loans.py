@@ -59,7 +59,7 @@ class NativeReportsLoansTests(NativeReportTestCase):
 			return_data["items"].append(line)
 		returned = self.submit(self.create(return_data))
 		query = self.query("movements", "records", statuses=[1], groupBy=["kind"], record=returned.name)
-		page = group_page(query, parent_path=["Return"], parent_unit="Nos")
+		page = group_page(query, parent_path=["Return"])
 		self.assertEqual(page["matched_count"], 1)
 		row = page["rows"][0]
 		expected = [
@@ -136,11 +136,9 @@ class NativeReportsLoansTests(NativeReportTestCase):
 			self.create(self.movement("Loan", 3, self.a, self.loan_leaf, ti_borrower="Grouped Loan"))
 		)
 		query = self.query("loans", "records", groupBy=["borrower"], loan=loan.name)
-		root = group_page(query, parent_path=[])
 		children = group_page(
 			query,
 			parent_path=["Grouped Loan"],
-			parent_unit=root["rows"][0]["stock_uom"],
 		)
 		self.assertEqual(children["row_grain"], "record")
 		self.assertEqual(len(children["rows"]), 1)

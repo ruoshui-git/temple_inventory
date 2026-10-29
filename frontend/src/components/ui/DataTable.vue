@@ -43,6 +43,7 @@ const props = withDefaults(
 		rowLabel?: (row: Record<string, unknown>) => string | undefined;
 		rowAttributes?: (row: Record<string, unknown>) => Record<string, string>;
 		cellClass?: (columnId: string, row: Record<string, unknown>) => string;
+		groupSummaryColumns?: (group: DataTableGroup) => string[];
 		tableClass?: string;
 		retryText?: string;
 		columnPreferences?: ColumnPreferencesController;
@@ -112,6 +113,16 @@ const focusedRowIndex = computed(() => {
 });
 const rowTabIndex = (row: DataTableEntry) =>
 	bodyRows.value.length && bodyRows.value[focusedRowIndex.value]?.id === row.id ? 0 : -1;
+function groupLabelSpan(group: DataTableGroup) {
+	const summaries = new Set([
+		...(props.groupSummaryColumns?.(group) || []),
+		...(group.countColumn ? [group.countColumn] : []),
+	]);
+	const firstSummary = orderedColumns.value.findIndex((column) =>
+		summaries.has(String(column.id)),
+	);
+	return firstSummary < 0 ? orderedColumns.value.length : Math.max(1, firstSummary);
+}
 
 watch(
 	bodyRows,
@@ -805,51 +816,39 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											/>
 										</div>
 									</td>
-									<td
+									<template
 										v-for="(column, groupColumnIndex) in orderedColumns"
 										:key="String(column.id)"
-										:class="[
-											`align-${dataColumnAlignment(column)}`,
-											`data-column-${columnKind(column)}`,
-											column.className,
-											'data-table-group-cell',
-											groupColumnIndex ===
-											Math.max(
-												0,
-												orderedColumns.findIndex(
-													(item) =>
-														String(item.id) === entry.labelColumn,
-												),
-											)
-												? 'data-table-group-identity-cell'
-												: undefined,
-										]"
-										:style="
-											groupColumnIndex ===
-											Math.max(
-												0,
-												orderedColumns.findIndex(
-													(item) =>
-														String(item.id) === entry.labelColumn,
-												),
-											)
-												? { '--group-depth': entry.depth }
-												: undefined
-										"
 									>
-										<template
+										<td
 											v-if="
-												groupColumnIndex ===
-												Math.max(
-													0,
-													orderedColumns.findIndex(
-														(item) =>
-															String(item.id) === entry.labelColumn,
-													),
-												)
+												groupColumnIndex === 0 ||
+												groupColumnIndex >= groupLabelSpan(entry)
+											"
+											:colspan="
+												groupColumnIndex === 0
+													? groupLabelSpan(entry)
+													: undefined
+											"
+											:class="[
+												`align-${dataColumnAlignment(column)}`,
+												`data-column-${columnKind(column)}`,
+												column.className,
+												'data-table-group-cell',
+												groupColumnIndex === 0
+													? 'data-table-group-identity-cell'
+													: undefined,
+											]"
+											:style="
+												groupColumnIndex === 0
+													? { '--group-depth': entry.depth }
+													: undefined
 											"
 										>
-											<div class="data-table-group-identity">
+											<div
+												v-if="groupColumnIndex === 0"
+												class="data-table-group-identity"
+											>
 												<slot name="group-label" :group="entry" />
 												<button
 													type="button"
@@ -858,7 +857,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 													:disabled="!entry.hasChildren"
 													@click.stop="emit('toggleGroup', entry.id)"
 												>
-													<DisclosureIcon variant="inline" />{{ " " }}
+													<DisclosureIcon variant="inline" />
 													<span
 														class="data-table-group-name"
 														:title="entry.label"
@@ -872,8 +871,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 															(item) =>
 																String(item.id) ===
 																entry.countColumn,
-														) ||
-														entry.countColumn === entry.labelColumn
+														)
 													"
 													class="data-table-group-count"
 													>{{ entry.countLabel || "记录数" }}
@@ -888,24 +886,33 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 														)
 													"
 												/>
+												<slot
+													v-if="
+														props
+															.groupSummaryColumns?.(entry)
+															.includes(String(column.id))
+													"
+													name="group-column"
+													:group="entry"
+													:column="column"
+												/>
 											</div>
-										</template>
-										<span
-											v-else-if="
-												String(column.id) === entry.countColumn &&
-												entry.countColumn !== entry.labelColumn
-											"
-											class="data-table-group-count"
-											>{{ entry.countLabel || "记录数" }}
-											{{ entry.count }}</span
-										>
-										<slot
-											v-else
-											name="group-column"
-											:group="entry"
-											:column="column"
-										/>
-									</td>
+											<template v-else>
+												<span
+													v-if="String(column.id) === entry.countColumn"
+													class="data-table-group-count"
+													>{{ entry.countLabel || "记录数" }}
+													{{ entry.count }}</span
+												>
+												<slot
+													v-else
+													name="group-column"
+													:group="entry"
+													:column="column"
+												/>
+											</template>
+										</td>
+									</template>
 									<td
 										v-if="preferences && !compact && !settingsOutlet"
 										class="data-table-settings-cell"

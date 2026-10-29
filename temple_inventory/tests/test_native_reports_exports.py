@@ -103,10 +103,29 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(worksheet.cell(4, 4).value, 12)
 			self.assertEqual(worksheet.cell(2, 1).fill.fgColor.rgb[-6:], "D9D9D9")
 			workbook.close()
+		if not frappe.db.exists("UOM", "Box"):
+			frappe.get_doc({"doctype": "UOM", "uom_name": "Box"}).insert()
+		other = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": "TI-BOX-" + self.token,
+				"item_name": "Native test item in boxes",
+				"stock_uom": "Box",
+				"item_group": "All Item Groups",
+				"is_stock_item": 1,
+			}
+		).insert()
+		data = self.movement(quantity=3)
+		data["items"][0].update({"item_code": other.name, "uom": "Box", "conversion_factor": 1})
+		self.submit(self.create(data))
 		category_query = self.query("movements", "lines", groupBy=["category"])
+		category_query["scope"]["item"] = ""
 		with patch("temple_inventory.exports._enqueue"):
 			result = exports.request_export(
-				category_query, "lines", columns=["item_name", "stock_qty"], grouped=True
+				category_query,
+				"lines",
+				columns=["item_name", "stock_qty", "stock_uom", "available_effect"],
+				grouped=True,
 			)
 		request = frappe.get_doc("Inventory Export Request", result["name"])
 		with (
@@ -115,10 +134,14 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		):
 			projection.build()
 			path = Path(directory) / "category.xlsx"
-			exports._write(projection, request, path)
+			self.assertEqual(exports._write(projection, request, path), 2)
 			workbook = load_workbook(path, data_only=True)
-			# Uncategorized Items read 无分类, as everywhere else in the app.
-			self.assertEqual(workbook.worksheets[0].cell(2, 1).value, "无分类 (1)")
+			worksheet = workbook.worksheets[0]
+			self.assertEqual(worksheet.cell(2, 1).value, "无分类 (2)")
+			self.assertIsNone(worksheet.cell(2, 2).value)
+			self.assertIn("3 箱", worksheet.cell(2, 3).value)
+			self.assertIn("12 个", worksheet.cell(2, 3).value)
+			self.assertEqual(worksheet.row_dimensions[2].outline_level, 0)
 			workbook.close()
 
 	def test_grouped_csv_rejected_empty_grouping_clears_flag_and_file_columns_drop(self):

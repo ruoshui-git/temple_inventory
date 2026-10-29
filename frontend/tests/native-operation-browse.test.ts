@@ -635,7 +635,9 @@ describe("native operation browsing", () => {
       { name: "Box", label: "箱", whole: true },
     );
     await flushPromises();
-    expect(wrapper.text()).toContain("−12 个；+3 箱");
+    expect(
+      wrapper.get(".operation-unit-summary").attributes("aria-label"),
+    ).toContain("−12 个；+3 箱");
   });
 
   it.each([1440, 1024])(
@@ -1555,18 +1557,20 @@ describe("native operation browsing", () => {
       wrapper.get(".mobile-item-group-list").element.children,
     ).toHaveLength(1);
     expect(wrapper.get(".mobile-item-group-list .browse-row-link").text()).toBe(
-      "物品甲",
+      "查看物品",
     );
-    const count = wrapper.get(".mobile-item-group-list h2 small");
-    expect(count.text()).toBe("42 条");
-    expect(count.attributes("title")).toBe("明细条数 42");
-    expect(wrapper.get(".browse-group-metrics").text()).toMatch(
-      /借出\s+2\s+Nos/,
+    const count = wrapper.get(
+      ".mobile-item-group-list .mobile-operation-group-identity small",
     );
+    expect(count.text()).toBe("42 条 · 借出 2 Nos · 未归还 1 Nos");
+    expect(count.attributes("title")).toBe(
+      "明细条数 42 · 借出 2 Nos · 未归还 1 Nos",
+    );
+    expect(count.text()).toMatch(/借出\s+2\s+Nos/);
     expect(wrapper.find(".browse-group-thumbnail").exists()).toBe(true);
     expect(
       wrapper.get(".browse-group-trigger").find(".ti-disclosure-icon").element,
-    ).toBe(wrapper.get(".browse-group-trigger").element.lastElementChild);
+    ).toBe(wrapper.get(".browse-group-trigger").element.firstElementChild);
     expect(
       wrapper.findAll('[data-browse-scroll="operation-items"]'),
     ).toHaveLength(0);

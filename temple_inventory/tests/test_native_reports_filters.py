@@ -120,7 +120,6 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 		children = group_page(
 			query,
 			parent_path=["Receive"],
-			parent_unit=groups["rows"][0]["stock_uom"],
 			page_length=1,
 		)
 		self.assertEqual(children["matched_count"], 2)

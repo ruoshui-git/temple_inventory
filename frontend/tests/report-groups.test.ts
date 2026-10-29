@@ -225,7 +225,7 @@ describe("lazy report groups", () => {
                 group_depth: 1,
                 group_label: "A",
                 has_children: true,
-                stock_uom: "each",
+                unit_totals: [{ stock_uom: "each", stock_qty: 4 }],
               },
             ],
             matched_count: 1,
@@ -247,13 +247,13 @@ describe("lazy report groups", () => {
               group_label: "物品甲",
               has_children: false,
               item_code: "ITEM-A",
-              stock_uom: "each",
+              unit_totals: [{ stock_uom: "each", stock_qty: 4 }],
             },
           ],
           matched_count: 1,
           next_start: null,
           parent_path: path,
-          parent_unit: "each",
+          parent_unit: null,
           row_grain: "group",
           query: args.query,
         } satisfies GroupPage;
@@ -492,14 +492,14 @@ describe("lazy report groups", () => {
                     group_label: Number(args.start) ? "Pencil" : "Paper",
                     parent_group_id: "category:a",
                     has_children: true,
-                    stock_uom: "each",
+                    unit_totals: [{ stock_uom: "each", stock_qty: 5 }],
                     row_count: 1,
                   },
                 ],
                 matched_count: 1,
                 next_start: Number(args.start) ? null : 30,
                 parent_path: path,
-                parent_unit: "each",
+                parent_unit: null,
                 row_grain: "group",
                 query: args.query as GroupPage["query"],
               }
@@ -512,7 +512,7 @@ describe("lazy report groups", () => {
                     group_depth: 1,
                     group_label: "A",
                     has_children: true,
-                    stock_uom: "each",
+                    unit_totals: [{ stock_uom: "each", stock_qty: 5 }],
                     row_count: 1,
                   },
                 ],
@@ -570,7 +570,7 @@ describe("lazy report groups", () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]?.args).toMatchObject({
       parent_path: ["A"],
-      parent_unit: "each",
+      parent_unit: null,
       start: 0,
       page_length: 30,
     });
@@ -579,7 +579,7 @@ describe("lazy report groups", () => {
     await flushPromises();
     expect(calls[2]?.args).toMatchObject({
       parent_path: ["A"],
-      parent_unit: "each",
+      parent_unit: null,
       start: 30,
     });
     expect(groups.entries.value.map((entry) => entry.id)).toEqual([

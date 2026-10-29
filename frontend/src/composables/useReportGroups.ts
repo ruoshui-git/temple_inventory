@@ -252,10 +252,24 @@ export function useReportGroups(
             activity: "activity_title",
             activityType: "activity_type_label",
             warehouse: "warehouse",
+            location: "warehouse",
             source_warehouse: "source_warehouse",
+            source: "source",
             destination_warehouse: "destination_warehouse",
+            destination: "destination",
+            category: "category",
             kind: "kind",
+            status: "status",
+            docstatus: "docstatus",
+            loan_status: "status",
             borrower: "borrower",
+            activity_title: "activity_title",
+            document: "document",
+            identity: "document",
+            date: "date",
+            month: "date",
+            outcome: "outcome",
+            outcome_key: "outcome_key",
           }[
             viewQuery.groupBy[(row.group_depth || parentPath.length + 1) - 1] ||
               ""
@@ -278,7 +292,13 @@ export function useReportGroups(
         hasChildren: Boolean(row.has_children),
         loading: children?.loading,
         error: children?.error,
-        detailRow: expanded.value.has(row.id),
+        detailRow:
+          expanded.value.has(row.id) &&
+          (viewQuery.view !== "records" ||
+            !children?.initialized ||
+            children.loading ||
+            Boolean(children.error) ||
+            children.next !== null),
         value: row as Record<string, unknown>,
       };
       return [

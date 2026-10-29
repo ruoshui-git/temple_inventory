@@ -39,6 +39,8 @@ import { exportFields } from "../../lib/exportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
+import DetailPopover from "../../components/ui/DetailPopover.vue";
+import { formatQuantity } from "../../lib/formatQuantity";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -179,23 +181,40 @@ const displayedRows = computed<DataTableEntry[]>(() =>
 	query.value.groupBy.length ? c.groups.entries.value : expiryRows.value,
 );
 const groupRoot = computed(() => c.groups.pages.value["[[],null]"]);
+function groupNumber(value: unknown) {
+	const quantity = Number(value || 0);
+	return `${quantity < 0 ? "−" : ""}${formatQuantity(Math.abs(quantity))}`;
+}
 function groupSummary(group: DataTableGroup) {
-	const row = group.value || {};
+	const units = Array.isArray(group.value?.unit_totals)
+		? (group.value.unit_totals as Record<string, unknown>[])
+		: [];
 	const quantities = [
 		["available", "可用"],
 		["loaned", "借出"],
 		["damaged", "损坏"],
 		["stock_qty", "库存数量"],
 	] as const;
-	return [
-		...quantities.flatMap(([key, label]) =>
-			row[key] === undefined
-				? []
-				: [
-						`${label} ${row[key]}${row.stock_uom ? ` ${unitLabel(String(row.stock_uom))}` : ""}`,
-					],
-		),
-	].join(" · ");
+	return quantities
+		.flatMap(([key, label]) =>
+			units.map(
+				(row) =>
+					`${label} ${groupNumber(row[key])} ${unitLabel(String(row.stock_uom || ""))}`,
+			),
+		)
+		.join(" · ");
+}
+function groupUnitValues(group: DataTableGroup, field: string) {
+	const totals = Array.isArray(group.value?.unit_totals)
+		? (group.value.unit_totals as Record<string, unknown>[])
+		: [];
+	return totals.map((row) =>
+		`${groupNumber(row[field])} ${unitLabel(String(row.stock_uom || ""))}`.trim(),
+	);
+}
+function groupUnitPreview(group: DataTableGroup, field: string) {
+	const values = groupUnitValues(group, field);
+	return values.slice(0, 2).join("；");
 }
 const services = useOptionalInventoryServices();
 const tablePreferences =
@@ -560,6 +579,7 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					table-class="browse-table"
 					:columns="expiryColumns"
 					:rows="displayedRows"
+					:group-summary-columns="() => ['available', 'loaned', 'damaged', 'stock_qty']"
 					:column-preferences="tablePreferences"
 					:sort-by="tableSortBy"
 					:sort-direction="query.sort"
@@ -683,22 +703,46 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 							>
 						</div>
 					</template>
-					<template #group-column="{ group, column }">
-						<span v-if="column.id === 'image'" class="table-item-image">
+					<template #group-label="{ group }">
+						<span class="data-table-group-visual">
 							<ItemImage
 								v-if="group.value?.item_code"
 								:item="c.item(group.value as unknown as ReportRow)"
 							/>
 						</span>
+					</template>
+					<template #group-column="{ group, column }">
 						<span
 							v-if="
 								['available', 'loaned', 'damaged', 'stock_qty'].includes(
 									String(column.id),
 								) && group.value?.[String(column.id)] !== undefined
 							"
+							class="operation-unit-summary"
+							:title="groupUnitValues(group, String(column.id)).join('；')"
+							:aria-label="groupUnitValues(group, String(column.id)).join('；')"
 						>
-							{{ group.value[String(column.id)] }}
-							{{ unitLabel(String(group.value.stock_uom || "")) }}
+							{{ groupUnitPreview(group, String(column.id)) }}
+							<DetailPopover
+								v-if="groupUnitValues(group, String(column.id)).length > 2"
+								:label="`完整数量：${groupUnitValues(group, String(column.id)).join('；')}`"
+								trigger-class="operation-unit-more"
+							>
+								<template #trigger
+									>+{{
+										groupUnitValues(group, String(column.id)).length - 2
+									}}
+									单位</template
+								>
+								<ul>
+									<li
+										v-for="value in groupUnitValues(group, String(column.id))"
+										:key="value"
+									>
+										{{ value }}
+									</li>
+								</ul>
+							</DetailPopover>
 						</span>
 						<span v-else-if="column.id === 'stock_uom'"
 							><UnitText :name="group.value?.stock_uom"

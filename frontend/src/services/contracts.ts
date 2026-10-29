@@ -67,6 +67,7 @@ export interface GroupedReportRow {
     | null
     | string[]
     | MovementQuantityBreakdown[]
+    | GroupedUnitTotal[]
     | GroupedNativeWhole
     | undefined;
   id: string;
@@ -85,10 +86,15 @@ export interface GroupedReportRow {
   document_count?: number;
   allocation_count?: number;
   stock_uom?: string;
+  unit_totals?: GroupedUnitTotal[];
   quantity_breakdown?: MovementQuantityBreakdown[];
   whole?: GroupedNativeWhole;
   original_loans?: string[];
   can_settle?: boolean;
+}
+export interface GroupedUnitTotal {
+  stock_uom: string;
+  [field: string]: string | number | null;
 }
 export interface GroupedNativeWhole {
   quantities: { uom: string; qty: number }[];

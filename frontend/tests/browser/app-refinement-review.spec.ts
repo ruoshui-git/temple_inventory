@@ -322,19 +322,24 @@ for (const width of [1440, 390]) {
     ).join(" ");
     const expectedHeaders =
       width >= 1024
-        ? ["编号", "类型", "日期", "来源位置", "去向位置", "数量", "状态"]
-        : ["编号", "类型", "日期", "数量", "状态"];
+        ? ["编号", "类型", "日期", "来源位置", "去向位置", "可用变化", "状态"]
+        : ["编号", "类型", "日期", "可用变化", "状态"];
     for (const label of expectedHeaders) expect(headers).toContain(label);
-    await expect(page.locator("tbody .stock-effect.is-increase")).toHaveCount(
-      1,
+    const effectColumnIndex = await page
+      .getByRole("columnheader", { name: "可用变化" })
+      .evaluate(
+        (header) =>
+          Array.from(header.parentElement!.children).indexOf(header) + 1,
+      );
+    const increaseEffect = page.locator(
+      `tbody tr td:nth-child(${effectColumnIndex}) .stock-effect.is-increase`,
     );
-    await expect(page.locator("tbody .stock-effect.is-decrease")).toHaveCount(
-      1,
+    const decreaseEffect = page.locator(
+      `tbody tr td:nth-child(${effectColumnIndex}) .stock-effect.is-decrease`,
     );
-    await expect(page.locator("tbody .stock-effect.is-decrease")).toHaveCSS(
-      "color",
-      "rgb(161, 50, 44)",
-    );
+    await expect(increaseEffect).toHaveCount(1);
+    await expect(decreaseEffect).toHaveCount(1);
+    await expect(decreaseEffect).toHaveCSS("color", "rgb(161, 50, 44)");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth + 1,

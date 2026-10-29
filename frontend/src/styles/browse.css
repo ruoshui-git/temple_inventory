@@ -1229,60 +1229,75 @@
 	text-align: right;
 }
 .mobile-item-group-list .mobile-operation-group-heading {
-	display: flex;
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr);
 	min-width: 0;
-	min-height: 36px;
-	align-items: center;
-	flex-wrap: nowrap;
-	gap: 6px;
+	min-height: 44px;
+	align-items: stretch;
+	gap: 8px;
 }
 .mobile-operation-group-heading .browse-group-thumbnail {
-	width: 32px;
-	height: 32px;
-	flex: 0 0 32px;
+	width: 40px;
+	height: 40px;
+	flex: 0 0 40px;
 	order: 0;
 }
-.mobile-operation-group-heading .browse-group-trigger {
-	display: grid;
-	width: 24px;
-	min-width: 24px;
-	min-height: 32px;
-	flex: 0 0 24px;
-	place-items: center;
+.browse-group--mobile-list .mobile-operation-group-heading .browse-group-trigger {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	min-height: 44px;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 8px;
 	order: 1;
 	margin: 0;
-	padding: 0;
+	padding: 4px 6px;
+	font: inherit;
+	text-align: left;
 }
-.mobile-operation-group-heading .browse-row-link {
-	display: block;
-	min-width: 3em;
-	min-height: 0;
-	flex: 1 1 6em;
-	order: 2;
-	padding: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.mobile-operation-group-heading h2 > small {
-	min-width: max-content;
+.mobile-operation-group-heading .browse-group-trigger > .ti-disclosure-icon {
 	flex: 0 0 auto;
-	order: 3;
+}
+.mobile-operation-group-identity {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	align-items: start;
+	gap: 3px;
+	min-width: 0;
+	flex: 1;
+}
+.mobile-operation-group-identity strong {
+	min-width: 0;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+.mobile-operation-group-identity small {
+	min-width: 0;
 	color: var(--p-muted);
 	font-size: var(--p-small);
 	font-weight: 400;
-	white-space: nowrap;
+	line-height: 1.3;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
-.mobile-operation-group-heading .browse-group-metrics {
-	min-width: 0;
-	max-width: 30%;
-	flex: 0 1 30%;
-	order: 4;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.mobile-operation-item-link {
+	margin-block-end: 8px;
+}
+.mobile-operation-unit-disclosure {
+	margin-block-end: 8px;
 	color: var(--p-muted);
 	font-size: var(--p-small);
+}
+.mobile-operation-unit-disclosure summary {
+	width: fit-content;
+	min-height: 32px;
+	color: var(--p-accent);
+	cursor: pointer;
+}
+.mobile-operation-unit-disclosure ul {
+	margin-block: 4px 0;
+	padding-inline-start: 1.25rem;
 }
 .browse-group--mobile-list .browse-group-content {
 	padding: 8px 0 4px 64px;

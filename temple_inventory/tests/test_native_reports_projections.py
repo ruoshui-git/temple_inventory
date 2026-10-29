@@ -8,7 +8,12 @@ import frappe
 from frappe.utils import nowdate
 
 from temple_inventory import browse, counts, exports, native_api, warehouses
-from temple_inventory.projections import Projection, group_page, report_page
+from temple_inventory.projections import (
+	Projection,
+	group_count_metadata,
+	group_page,
+	report_page,
+)
 from temple_inventory.report_query import validate_query
 from temple_inventory.tests.helpers import NativeReportTestCase
 from temple_inventory.warehouse_names import DIRECT_STORAGE_SUFFIX
@@ -252,6 +257,52 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		# Rows 0, 40 and 80 belong to G000: 0 and 80 are receipts, 40 is an issue.
 		self.assertEqual({part["kind"]: part["stock_qty"] for part in first}, {"Receive": 82, "Issue": 41})
 
+	def test_group_projection_merges_units_and_counts_native_documents_once(self):
+		query = self.query("movements", "records", groupBy=["kind"])
+		with Projection(query) as projection:
+			projection.add(
+				"group_source",
+				[
+					{
+						"id": "same-document-nos",
+						"item_code": self.item,
+						"document_id": "STE-GROUP-1",
+						"kind": "Receive",
+						"docstatus": 1,
+						"stock_uom": "Nos",
+						"stock_qty": 12,
+						"available_effect": 12,
+					},
+					{
+						"id": "same-document-box",
+						"item_code": self.item,
+						"document_id": "STE-GROUP-1",
+						"kind": "Receive",
+						"docstatus": 1,
+						"stock_uom": "Box",
+						"stock_qty": 3,
+						"available_effect": 3,
+					},
+				],
+			)
+			projection.group(
+				"group_source",
+				"grouped",
+				("kind",),
+				("stock_qty", "available_effect"),
+				unit_field="stock_uom",
+			)
+			rows = list(projection.rows("grouped"))
+			self.assertEqual(len(rows), 1)
+			row = rows[0]
+			self.assertEqual(row["row_count"], 2)
+			self.assertEqual(row["document_count"], 1)
+			self.assertEqual(group_count_metadata(query, row)["display_count"], 1)
+			self.assertEqual(
+				{unit["stock_uom"]: unit["available_effect"] for unit in row["unit_totals"]},
+				{"Nos": 12, "Box": 3},
+			)
+
 	def test_two_level_group_pages_include_full_authorized_groups_then_lazy_children(self):
 		self.receipt(4)
 		query = self.query("inventory", "summary", groupBy=["category", "item"])
@@ -268,14 +319,12 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		children = group_page(
 			query,
 			parent_path=[""],
-			parent_unit=roots["rows"][0]["stock_uom"],
 			page_length=1,
 		)
 		self.assertEqual(children["rows"][0]["group_path"], ["", self.item])
 		allocations = group_page(
 			query,
 			parent_path=["", self.item],
-			parent_unit=children["rows"][0]["stock_uom"],
 			page_length=1,
 		)
 		self.assertEqual(allocations["row_grain"], "stock")
@@ -295,7 +344,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		self.assertEqual(groups["rows"][0]["item_code"], self.item)
 		self.assertEqual(groups["rows"][0]["image"], image)
 
-	def test_group_page_keeps_same_group_path_separate_across_native_units(self):
+	def test_group_page_merges_same_group_path_across_native_units(self):
 		self.receipt(5)
 		uom_name = "TIUOM-" + self.token
 		frappe.get_doc({"doctype": "UOM", "uom_name": uom_name}).insert()
@@ -315,25 +364,15 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		query = self.query("inventory", "summary", groupBy=["category", "item"])
 		query["scope"]["item"] = ""
 		roots = group_page(query, parent_path=[], page_length=1)
-		self.assertEqual(roots["matched_count"], 2)
-		self.assertEqual(roots["next_start"], 1)
-		second_root = group_page(query, parent_path=[], start=1, page_length=1)["rows"][0]
-		self.assertNotEqual(roots["rows"][0]["stock_uom"], second_root["stock_uom"])
-		for root in (roots["rows"][0], second_root):
-			children = group_page(
-				query,
-				parent_path=root["group_path"],
-				parent_unit=root["stock_uom"],
-				page_length=10,
-			)
-			self.assertEqual(children["matched_count"], 1)
-			leaf = children["rows"][0]
-			allocations = group_page(
-				query,
-				parent_path=leaf["group_path"],
-				parent_unit=leaf["stock_uom"],
-				page_length=10,
-			)
+		self.assertEqual(roots["matched_count"], 1)
+		self.assertIsNone(roots["next_start"])
+		root = roots["rows"][0]
+		self.assertEqual(len(root["unit_totals"]), 2)
+		children = group_page(query, parent_path=root["group_path"], page_length=10)
+		self.assertEqual(children["matched_count"], 2)
+		self.assertEqual(len({row["group_label"] for row in children["rows"]}), 2)
+		for leaf in children["rows"]:
+			allocations = group_page(query, parent_path=leaf["group_path"], page_length=10)
 			self.assertEqual(allocations["matched_count"], 1)
 			self.assertEqual(allocations["rows"][0]["item_code"], leaf["item_code"])
 		item_class = type(frappe.get_doc("Item", other.name))
@@ -347,44 +386,58 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		with patch.object(item_class, "check_permission", denied_item):
 			restricted = group_page(query, parent_path=[], page_length=10)
 			self.assertEqual(restricted["matched_count"], 1)
-			self.assertNotEqual(restricted["rows"][0]["stock_uom"], uom_name)
+			self.assertNotIn(
+				uom_name,
+				[row["stock_uom"] for row in restricted["rows"][0]["unit_totals"]],
+			)
 
 	def test_grouped_native_records_keep_full_document_quantities_after_line_matching(self):
+		uom = "TI-RECORD-UOM-" + self.token
+		frappe.get_doc({"doctype": "UOM", "uom_name": uom}).insert()
 		other = frappe.get_doc(
 			{
 				"doctype": "Item",
 				"item_code": "TI-RECORD-" + self.token,
 				"item_name": "Second native record item",
-				"stock_uom": "Nos",
+				"stock_uom": uom,
 				"item_group": "All Item Groups",
 				"is_stock_item": 1,
 			}
 		).insert()
 		data = self.movement(quantity=5)
-		data["items"].append({**data["items"][0], "item_code": other.name, "qty": 7})
+		data["items"].append(
+			{
+				**data["items"][0],
+				"item_code": other.name,
+				"uom": uom,
+				"conversion_factor": 1,
+				"qty": 7,
+			}
+		)
 		doc = self.submit(self.create(data))
 		record_query = self.query("movements", "records", record=doc.name, statuses=[1])
+		record_query["scope"]["item"] = ""
 		records = report_page(record_query)
-		self.assertEqual(records["matched_count"], 1)
-		self.assertEqual(records["rows"][0]["stock_qty"], 12)
-		self.assertEqual(records["rows"][0]["allocation_count"], 2)
-		self.assertEqual(records["rows"][0]["item_count"], 2)
+		self.assertEqual(records["matched_count"], 2)
+		self.assertEqual(sum(row["allocation_count"] for row in records["rows"]), 2)
+		self.assertEqual(sum(row["item_count"] for row in records["rows"]), 2)
 		group_query = {**record_query, "groupBy": ["kind"]}
 		grouped = report_page(group_query)
-		self.assertEqual(grouped["rows"][0]["stock_qty"], 12)
+		self.assertIsNone(grouped["rows"][0]["stock_qty"])
 		self.assertEqual(grouped["rows"][0]["document_count"], 1)
-		child_records = group_page(group_query, parent_path=["Receive"], parent_unit="Nos")
+		self.assertEqual(len(grouped["rows"][0]["unit_totals"]), 2)
+		child_records = group_page(group_query, parent_path=["Receive"])
 		self.assertEqual(child_records["row_grain"], "record")
 		self.assertEqual(child_records["matched_count"], 1)
-		self.assertEqual(child_records["rows"][0]["stock_qty"], 12)
+		self.assertEqual(child_records["rows"][0]["item_count"], 2)
+		self.assertEqual(len(child_records["rows"][0]["unit_totals"]), 2)
 		matching_lines = report_page(self.query("movements", "lines", record=doc.name, statuses=[1]))
 		self.assertEqual(matching_lines["matched_count"], 1)
-		self.assertEqual(matching_lines["rows"][0]["stock_qty"], 5)
 		self.submit(self.create(self.movement(quantity=2)))
 		overlapping = report_page(self.query("movements", "records", statuses=[1], groupBy=["kind"]))
 		self.assertEqual(overlapping["rows"][0]["document_count"], 2)
 		self.assertEqual(overlapping["rows"][0]["item_count"], 2)
-		self.assertEqual(overlapping["rows"][0]["stock_qty"], 14)
+		self.assertEqual(len(overlapping["rows"][0]["unit_totals"]), 2)
 
 	def test_item_tracking_and_enabled_status_match_catalog_flags(self):
 		from types import SimpleNamespace

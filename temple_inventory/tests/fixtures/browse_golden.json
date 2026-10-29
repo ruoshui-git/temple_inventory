@@ -2451,8 +2451,15 @@
         "row_count": 4,
         "row_grain": "group",
         "stock_qty": 15.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available": 13.0,
+            "damaged": 1.0,
+            "loaned": 1.0,
+            "stock_qty": 15.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -2823,8 +2830,15 @@
         "row_count": 4,
         "row_grain": "group",
         "stock_qty": 15.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available": 13.0,
+            "damaged": 1.0,
+            "loaned": 1.0,
+            "stock_qty": 15.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -3202,8 +3216,17 @@
         "row_count": 4,
         "row_grain": "group",
         "stock_qty": 15.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "adjustment": 5.0,
+            "closing": 15.0,
+            "incoming": 20.0,
+            "opening": 0.0,
+            "outgoing": 10.0,
+            "stock_qty": 15.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -3566,8 +3589,15 @@
         "row_count": 4,
         "row_grain": "group",
         "stock_qty": 15.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available": 13.0,
+            "damaged": 1.0,
+            "loaned": 1.0,
+            "stock_qty": 15.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -4079,7 +4109,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Damage",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4087,7 +4118,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Issue",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4095,7 +4127,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Loan",
-            "stock_qty": 4.0
+            "stock_qty": 4.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4103,7 +4136,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Loss",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4111,7 +4145,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Receive",
-            "stock_qty": 12.0
+            "stock_qty": 12.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4119,7 +4154,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Reconcile",
-            "stock_qty": 5.0
+            "stock_qty": 5.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4127,7 +4163,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Return",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -4135,14 +4172,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Transfer",
-            "stock_qty": 2.0
+            "stock_qty": 2.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 8,
         "row_grain": "group",
         "stock_qty": null,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "available_effect": 15.0,
+            "stock_qty": 27.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
@@ -4801,14 +4844,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Damage",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": 0.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -4834,14 +4883,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Issue",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": -1.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -4867,14 +4922,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Loan",
-            "stock_qty": 4.0
+            "stock_qty": 4.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 4.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": 0.0,
+            "stock_qty": 4.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -4900,14 +4961,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Loss",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": -1.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -4933,14 +5000,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Receive",
-            "stock_qty": 12.0
+            "stock_qty": 12.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 12.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": 12.0,
+            "stock_qty": 12.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -4966,14 +5039,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Reconcile",
-            "stock_qty": 5.0
+            "stock_qty": 5.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 5.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": 5.0,
+            "stock_qty": 5.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -4999,14 +5078,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Return",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": 0.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 1,
@@ -5032,14 +5117,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Transfer",
-            "stock_qty": 2.0
+            "stock_qty": 2.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 2.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "available_effect": 0.0,
+            "stock_qty": 2.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 8,
@@ -5962,7 +6053,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Damage",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -5970,7 +6062,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Issue",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -5978,7 +6071,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Loan",
-            "stock_qty": 4.0
+            "stock_qty": 4.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -5986,7 +6080,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Loss",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -5994,7 +6089,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Receive",
-            "stock_qty": 12.0
+            "stock_qty": 12.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -6002,7 +6098,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Reconcile",
-            "stock_qty": 5.0
+            "stock_qty": 5.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -6010,7 +6107,8 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Return",
-            "stock_qty": 1.0
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
           },
           {
             "allocation_count": 1,
@@ -6018,14 +6116,20 @@
             "docstatus": 1,
             "document_count": 1,
             "kind": "Transfer",
-            "stock_qty": 2.0
+            "stock_qty": 2.0,
+            "stock_uom": "Nos"
           }
         ],
         "row_count": 8,
         "row_grain": "group",
         "stock_qty": null,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "available_effect": 15.0,
+            "stock_qty": 27.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
@@ -6361,8 +6465,17 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "borrowed": 4.0,
+            "damaged": 1.0,
+            "lost": 1.0,
+            "outstanding": 1.0,
+            "returned": 1.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -6665,8 +6778,17 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "borrowed": 4.0,
+            "damaged": 1.0,
+            "lost": 1.0,
+            "outstanding": 1.0,
+            "returned": 1.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
@@ -7034,8 +7156,17 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "borrowed": 4.0,
+            "damaged": 1.0,
+            "lost": 1.0,
+            "outstanding": 1.0,
+            "returned": 1.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
@@ -7552,8 +7683,12 @@
         "row_count": 3,
         "row_grain": "group",
         "stock_qty": 3.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "stock_qty": 3.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
@@ -7848,7 +7983,12 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 0,
-        "stock_uom": null
+        "unit_totals": [
+          {
+            "stock_qty": 0,
+            "stock_uom": null
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -8407,8 +8547,12 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 0,
@@ -8429,8 +8573,12 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 4.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "stock_qty": 4.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 0,
@@ -8451,8 +8599,12 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       },
       {
         "allocation_count": 0,
@@ -8473,8 +8625,12 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 4,
@@ -8825,8 +8981,17 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 1.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "borrowed": 4.0,
+            "damaged": 1.0,
+            "lost": 1.0,
+            "outstanding": 1.0,
+            "returned": 1.0,
+            "stock_qty": 1.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
@@ -9127,8 +9292,15 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 5.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个"
+        "unit_totals": [
+          {
+            "actual_qty": 10.0,
+            "baseline_qty": 5.0,
+            "difference": 5.0,
+            "stock_qty": 5.0,
+            "stock_uom": "Nos"
+          }
+        ]
       }
     ],
     "matched_count": 1,
@@ -9460,8 +9632,15 @@
         "row_count": 1,
         "row_grain": "group",
         "stock_qty": 5.0,
-        "stock_uom": "Nos",
-        "stock_uom_label": "个",
+        "unit_totals": [
+          {
+            "actual_qty": 10.0,
+            "baseline_qty": 5.0,
+            "difference": 5.0,
+            "stock_qty": 5.0,
+            "stock_uom": "Nos"
+          }
+        ],
         "image": ""
       }
     ],
