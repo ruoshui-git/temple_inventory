@@ -8,6 +8,7 @@ The caller owns commit/rollback. Ordinary hooks and permissions remain enabled.
 
 import random
 import re
+from collections import defaultdict
 from contextvars import ContextVar
 from datetime import timedelta
 from decimal import Decimal
@@ -1374,6 +1375,148 @@ def _volume_counts(company, rooms, items, *, count_item=None, submitted=17, draf
 	return created
 
 
+def _mixed_count(company, rooms, items):
+	settings = frappe.get_single("Temple Inventory Settings")
+	warehouses = [row.name for row in _physical_leaves(company, settings.physical_root_warehouse)]
+	posting_time = frappe.utils.now_datetime().strftime("%H:%M:%S")
+	stamp = _date(0) + " " + posting_time
+	codes = sorted({item["item_code"] for key, item in items.items() if not key.startswith("C-")})
+	baseline = counts.count_baseline(warehouses, stamp, "Selected", codes)
+	all_rows = baseline["rows"]
+	location_counts = defaultdict(set)
+	for row in all_rows:
+		if float(row["baseline_qty"]) > 0:
+			location_counts[row["warehouse"]].add(row["item_code"])
+	locations_by_coverage = sorted(
+		location_counts, key=lambda location: (-len(location_counts[location]), location)
+	)
+
+	def room_for(location):
+		current = location
+		while current:
+			if frappe.db.get_value("Warehouse", current, "warehouse_type") == "Room":
+				return current
+			current = frappe.db.get_value("Warehouse", current, "parent_warehouse")
+		return location
+
+	room_locations = []
+	seen_rooms = set()
+	for location in locations_by_coverage:
+		room = room_for(location)
+		if room not in seen_rooms:
+			seen_rooms.add(room)
+			room_locations.append(location)
+	if len(room_locations) < 3:
+		frappe.throw("混合盘点样例需要覆盖至少三个房间")
+	priority_locations = room_locations[:3] + [
+		location for location in locations_by_coverage if location not in room_locations[:3]
+	]
+	warehouses = []
+	rows_by_item = defaultdict(list)
+	for location_count in range(3, len(priority_locations) + 1):
+		warehouses = priority_locations[:location_count]
+		rows_by_item = defaultdict(list)
+		for row in all_rows:
+			if row["warehouse"] in warehouses and float(row["baseline_qty"]) > 0:
+				rows_by_item[row["item_code"]].append(row)
+		if len(rows_by_item) >= 40:
+			break
+	if len(rows_by_item) < 40:
+		frappe.throw("混合盘点样例需要在多个实体位置范围内覆盖至少 40 种有库存物品")
+	batch_stocked = [code for code in rows_by_item if frappe.db.get_value("Item", code, "has_batch_no")]
+	selected = list(dict.fromkeys(batch_stocked[:1] + sorted(rows_by_item)))[:40]
+	if len(selected) < 40:
+		frappe.throw("混合盘点样例需要至少 40 个有库存物品")
+	baseline = counts.count_baseline(warehouses, stamp, "Selected", selected)
+	rows = []
+	reviewed_stock_rows = 0
+	location_indices = {location: index for index, location in enumerate(warehouses)}
+	deltas = (-8, -5, -3, -1, 2, 4, 7, 12, 1, 3)
+	for row in baseline["rows"]:
+		copy = dict(row)
+		quantity = float(row["baseline_qty"])
+		if quantity <= 0:
+			copy.update(actual_qty=None, review_state="Unreviewed", reason="")
+		else:
+			reviewed_stock_rows += 1
+			if reviewed_stock_rows == 1 or reviewed_stock_rows % 13 == 0:
+				actual = quantity
+			else:
+				delta = deltas[(reviewed_stock_rows + location_indices[row["warehouse"]]) % len(deltas)]
+				if delta < 0 and quantity + delta < 0:
+					delta = -min(3, quantity)
+				actual = quantity + delta
+			copy.update(
+				actual_qty=actual,
+				review_state="Reviewed",
+				reason="样例混合盘点核对",
+			)
+		rows.append(copy)
+	draft = counts.save_count(
+		REQUEST_PREFIX + "mixed-count",
+		{
+			"company": company,
+			"posting_date": _date(0),
+			"posting_time": posting_time,
+			"ti_count_warehouses": warehouses,
+			"ti_count_scope": "Selected",
+			"ti_count_items": selected,
+			"ti_baseline_timestamp": baseline["timestamp"],
+			"ti_baseline_fingerprint": baseline["fingerprint"],
+			"ti_count_review": rows,
+			"ti_notes": "40 种以上物品，跨三个以上房间与货架，含多单位增减和无变化核对。",
+		},
+	)
+	doc = frappe.get_doc("Stock Reconciliation", draft["name"], for_update=True)
+	doc.check_permission("submit")
+	native_api.check_version(doc, draft["version"])
+	doc.ti_confirmation_version = str(draft["version"])
+	# ERPNext queues reconciliations over 100 lines; sample installation stays synchronous.
+	doc._submit()
+	return doc
+
+
+def _opening_reconciliation(company, rooms):
+	account = frappe.db.get_value(
+		"Account", {"company": company, "account_name": "Temporary Opening", "is_group": 0}, "name"
+	)
+	if not account:
+		frappe.throw("期初库存样例需要标准 Temporary Opening 科目")
+	items = []
+	for index, (name, unit) in enumerate(
+		(("新建期初盘点物品甲", "Nos"), ("新建期初盘点物品乙", "Box"), ("新建期初盘点物品丙", "Kg"))
+	):
+		item = catalog.save_item(
+			{
+				"item_code": allocate_item_code(),
+				"item_name": name,
+				"item_group": "餐具与耗材",
+				"stock_uom": unit,
+				"has_batch_no": 0,
+				"has_expiry_date": 0,
+			}
+		)
+		items.append((item, index))
+	doc = frappe.new_doc("Stock Reconciliation")
+	doc.company = company
+	doc.purpose = "Opening Stock"
+	doc.posting_date = _date(-600)
+	doc.posting_time = "08:00:00"
+	doc.set_posting_time = 1
+	doc.expense_account = account
+	doc.cost_center = frappe.get_cached_value("Company", company, "cost_center")
+	warehouses = [rooms["DEMO_A"], rooms["DEMO_SHELF"], rooms.get("DEMO_B", rooms["DEMO_A"])]
+	for (item, index), warehouse in zip(items, warehouses, strict=True):
+		line = doc.append("items", {})
+		line.item_code = item["item_code"]
+		line.warehouse = warehouse
+		line.qty = 12 + index
+		line.valuation_rate = 5 + index
+	doc.insert()
+	doc.submit()
+	return doc
+
+
 def _volume_posting_time(index):
 	seconds = index + 1
 	return f"{12 + seconds // 3600:02d}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
@@ -1915,6 +2058,7 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 		catalog_data, costumes, attach_images=attach_images, include_generated=include_generated
 	)
 	opening = _opening(company, catalog_data, costumes, items, rooms, include_generated=include_generated)
+	opening_reconciliation = _opening_reconciliation(company, rooms) if include_generated else None
 	if not include_generated:
 		return {
 			"items": len(items),
@@ -1963,6 +2107,7 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 	)
 	documents.append(depleted_batch_issue)
 	reconciliation = _count(company, rooms, items)
+	mixed_count = _mixed_count(company, rooms, items)
 	assert_balances(rooms, loans, items)
 	return {
 		"items": len(items),
@@ -1981,6 +2126,8 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 			*[doc.name for doc in documents],
 		],
 		"reconciliation": reconciliation.name,
+		"mixed_count": mixed_count.name,
+		"opening_reconciliation": opening_reconciliation.name if opening_reconciliation else None,
 		"loans": [loan.name for loan in loans],
 		"activity": activity,
 		"rooms": rooms,

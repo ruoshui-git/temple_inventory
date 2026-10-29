@@ -541,6 +541,58 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		rows = report_page(self.query("counts", "lines"))["rows"]
 		self.assertEqual(rows[0]["difference"], -1)
 		self.assertEqual(rows[0]["review_state"], "Reviewed")
+		movement = browse.operation_page(
+			self.query(
+				"movements",
+				"records",
+				record=doc.name,
+				recordDoctype="Stock Reconciliation",
+				statuses=[1],
+			),
+			records=True,
+		)["rows"][0]
+		self.assertEqual(movement["whole"]["available_effects"], [{"uom": "Nos", "qty": -1}])
+
+	def test_opening_reconciliation_available_effect_uses_opening_quantity(self):
+		account = frappe.db.get_value(
+			"Account", {"company": self.company, "account_name": "Temporary Opening"}, "name"
+		)
+		doc = frappe.get_doc(
+			{
+				"doctype": "Stock Reconciliation",
+				"company": self.company,
+				"purpose": "Opening Stock",
+				"expense_account": account,
+				"posting_date": nowdate(),
+				"items": [
+					{
+						"item_code": self.item,
+						"warehouse": self.a,
+						"qty": 7,
+						"valuation_rate": 10,
+					}
+				],
+			}
+		).insert()
+		doc.submit()
+		row = browse.operation_page(
+			self.query(
+				"movements",
+				"records",
+				record=doc.name,
+				recordDoctype="Stock Reconciliation",
+				statuses=[1],
+			),
+			records=True,
+		)["rows"][0]
+		self.assertEqual(row["whole"]["quantities"], [{"uom": "Nos", "qty": 7}])
+		self.assertEqual(row["whole"]["available_effects"], [{"uom": "Nos", "qty": 7}])
+		self.assertIn(self.a, row["whole"]["scope"])
+		count_page = browse.counts_page(self.query("counts", "records", statuses=[1]))
+		opening_row = next(row for row in count_page["rows"] if row["document"] == doc.name)
+		self.assertEqual(opening_row["kind"], "Opening")
+		self.assertEqual(opening_row["whole"]["gains"], [{"uom": "Nos", "qty": 7}])
+		self.assertEqual(opening_row["whole"]["quantities"], [{"uom": "Nos", "qty": 7}])
 
 	def test_worker_uses_request_owner_and_fails_if_account_is_disabled_during_generation(self):
 		from frappe.cache_manager import clear_defaults_cache

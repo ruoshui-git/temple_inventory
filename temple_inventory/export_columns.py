@@ -36,6 +36,9 @@ LABELS = {
 	"borrower": "借用方",
 	"activity_title": "活动",
 	"item_count": "物品种数",
+	"gains": "增加",
+	"losses": "减少",
+	"net": "净差异",
 	"available_effect": "可用变化",
 	"outstanding": "未归还",
 	"borrowed": "借出数量",
@@ -284,6 +287,9 @@ DATASET_DEFAULT_COLUMNS = {
 		"docstatus",
 		"count_scope",
 		"item_count",
+		"gains",
+		"losses",
+		"net",
 		"baseline_qty",
 		"actual_qty",
 		"difference",
@@ -361,9 +367,12 @@ def default_columns(dataset, table):
 
 
 def allowed_columns(dataset, table):
-	return (
+	columns = (
 		set(DEFAULT_COLUMNS[table]) | set(default_columns(dataset, table)) | EXTRA_COLUMNS.get(table, set())
 	)
+	if dataset == "counts" and table == "records":
+		columns.update({"gains", "losses", "net"})
+	return columns
 
 
 def label(dataset, field):

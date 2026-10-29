@@ -24,6 +24,11 @@ from temple_inventory import (
 
 
 class NativeDocumentTests(unittest.TestCase):
+	def test_stock_reconciliation_rejects_borrower_field(self):
+		doc = frappe.new_doc("Stock Reconciliation")
+		with self.assertRaises(frappe.ValidationError):
+			native_api._apply(doc, {"ti_borrower": "不应支持"})
+
 	def test_remembered_creation_locations_are_filtered_against_current_leaves(self):
 		with (
 			patch.object(preferences, "require_app"),

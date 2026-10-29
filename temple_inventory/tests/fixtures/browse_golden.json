@@ -1188,7 +1188,15 @@
               "destination": ""
             }
           ],
-          "original_loans": []
+          "original_loans": [],
+          "gains": [
+            {
+              "uom": "Nos",
+              "qty": 5.0
+            }
+          ],
+          "losses": [],
+          "scope": "[\n \"<fixture-7>\"\n]"
         },
         "item_name": "Native test item"
       }

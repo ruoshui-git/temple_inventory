@@ -2,27 +2,34 @@
 import { computed } from "vue";
 import { countSummary } from "./countModel";
 import type { CountRow } from "./countModel";
-const props = defineProps<{ rows: CountRow[] }>();
+import { formatQuantityWithUnit } from "../../lib/formatQuantity";
+const props = defineProps<{ rows: CountRow[]; compact?: boolean }>();
 const summary = computed(() => countSummary(props.rows));
 function quantities(values: [string, number][], signed = false) {
 	return (
-		values.map(([unit, qty]) => `${signed && qty > 0 ? "+" : ""}${qty} ${unit}`).join(" · ") ||
-		"—"
+		values
+			.map(
+				([unit, qty]) =>
+					`${signed && qty > 0 ? "+" : qty < 0 ? "−" : ""}${formatQuantityWithUnit(Math.abs(qty), unit)}`,
+			)
+			.join(" · ") || "—"
 	);
 }
 </script>
 
 <template>
 	<div class="count-summary-strip" role="status">
-		<strong>已核对 {{ summary.reviewed }} / {{ summary.total }} 行</strong>
-		<span>{{ summary.unreviewed }} 行未核对</span>
-		<span>账面合计：{{ quantities(summary.baseline) }}</span>
-		<span>已核对实点合计：{{ summary.reviewed ? quantities(summary.actual) : "—" }}</span>
-		<span
-			>本次调整差异：{{
-				summary.reviewed ? quantities(summary.difference, true) : "—"
-			}}</span
+		<strong v-if="!compact">已核对 {{ summary.reviewed }} / {{ summary.total }} 行</strong>
+		<span v-if="!compact">{{ summary.unreviewed }} 行未核对</span>
+		<span v-if="!compact">账面合计：{{ quantities(summary.baseline) }}</span>
+		<span v-if="!compact"
+			>已核对实点合计：{{ summary.reviewed ? quantities(summary.actual) : "—" }}</span
 		>
+		<span>增加：{{ summary.reviewed ? quantities(summary.gains, true) : "—" }}</span>
+		<span>减少：{{ summary.reviewed ? quantities(summary.losses, true) : "—" }}</span>
+		<span title="增加与减少相抵后的净值">
+			净差异：{{ summary.reviewed ? quantities(summary.difference, true) : "—" }}
+		</span>
 	</div>
 </template>
 

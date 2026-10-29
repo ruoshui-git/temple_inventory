@@ -76,6 +76,10 @@ function setup(
     user: "volunteer",
     site: "site",
     siteDate: "2026-10-16",
+    units: [
+      { name: "Nos", label: "个" },
+      { name: "Kg", label: "kg" },
+    ],
     capabilities: { "Stock Reconciliation": { create: true } },
   });
   const root = defineComponent({
@@ -94,6 +98,53 @@ function setup(
   return { wrapper, page, c: page.vm.controller, reference, call };
 }
 describe("native drafts and count records", () => {
+  it("shows independent count browse columns and gain, loss, and net values", async () => {
+    const count = {
+      ...nativeRow,
+      doctype: "Stock Reconciliation",
+      document: "COUNT-ROW",
+      kind: "Reconcile",
+      docstatus: 1,
+      whole: {
+        ...nativeRow.whole,
+        editable: false,
+        scope: '["ROOM-A"]',
+        gains: [{ uom: "Nos", qty: 1 }],
+        losses: [{ uom: "Nos", qty: -1 }],
+        quantities: [{ uom: "Nos", qty: 0 }],
+      },
+    };
+    const { wrapper } = setup(
+      vi.fn(async () => ({ ...response, rows: [count] })),
+      "counts",
+    );
+    await flushPromises();
+    const headers = wrapper.findAll("thead th").map((header) => header.text());
+    expect(headers.map((header) => header.replace(/[↓↑↕]/g, ""))).toEqual(
+      expect.arrayContaining([
+        "编号",
+        "类型",
+        "状态",
+        "盘点范围",
+        "物品种数",
+        "增加",
+        "减少",
+        "净差异",
+        "日期",
+        "活动",
+      ]),
+    );
+    const identity = wrapper.find("th.count-record-id-column");
+    expect(identity.exists()).toBe(true);
+    expect(identity.classes()).toContain("data-column-primary");
+    expect(wrapper.text()).toContain("+1 个");
+    expect(wrapper.text()).toContain("−1 个");
+    expect(wrapper.text()).toContain("0 个");
+    expect(wrapper.find('[title="增加与减少相抵后的净值"]').exists()).toBe(
+      true,
+    );
+  });
+
   it("starts Drafts with the records sort contract when the route has no query", async () => {
     const { c, call } = setup();
     await flushPromises();

@@ -265,20 +265,70 @@ const quantities = (row: NativeRecord) =>
 	sortByUnit(row.whole.quantities, (value) => value.uom)
 		.map((value) => formatQuantityWithUnit(Number(value.qty), value.uom))
 		.join(" · ");
+const aggregates = (row: NativeRecord, key: "gains" | "losses" | "quantities") => {
+	const values =
+		(
+			row.whole as typeof row.whole & {
+				gains?: { uom: string; qty: number }[];
+				losses?: { uom: string; qty: number }[];
+			}
+		)[key] || [];
+	return (
+		sortByUnit(values, (value) => value.uom)
+			.map((value) => {
+				const quantity = Number(value.qty);
+				const formatted = formatQuantityWithUnit(Math.abs(quantity), value.uom);
+				return `${quantity > 0 ? "+" : quantity < 0 ? "−" : ""}${formatted}`;
+			})
+			.join("；") || "—"
+	);
+};
+const countScope = (row: NativeRecord) => {
+	const raw = (row.whole as typeof row.whole & { scope?: string }).scope || "";
+	try {
+		const names = JSON.parse(raw) as string[];
+		return names.map((name) => warehouseLabel(name, c.reference.warehouses)).join("、") || "—";
+	} catch {
+		return raw || "—";
+	}
+};
 const services = useOptionalInventoryServices();
-const tableColumns = computed<DataColumn[]>(() => [
-	{ id: "document", label: "记录", required: true, defaultVisible: true },
-	{
-		id: "kind",
-		label: "类型 / 状态",
-		defaultVisible: true,
-		className: "native-record-kind-status",
-	},
-	{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true },
-	{ id: "summary", label: "整份记录", defaultVisible: true },
-	{ id: "date", label: "记账日期", defaultVisible: true, sortable: true },
-	{ id: "actions", label: "操作", required: true, defaultVisible: true },
-]);
+const tableColumns = computed<DataColumn[]>(() =>
+	props.mode === "counts"
+		? [
+				{
+					id: "document",
+					label: "编号",
+					required: true,
+					defaultVisible: true,
+					kind: "primary",
+					className: "count-record-id-column",
+				},
+				{ id: "count_kind", label: "类型", defaultVisible: true },
+				{ id: "status", label: "状态", defaultVisible: true, kind: "status" },
+				{ id: "count_scope", label: "盘点范围", defaultVisible: true },
+				{ id: "line_count", label: "行数", defaultVisible: false, align: "end" },
+				{ id: "item_count", label: "物品种数", defaultVisible: true, align: "end" },
+				{ id: "gains", label: "增加", defaultVisible: true },
+				{ id: "losses", label: "减少", defaultVisible: true },
+				{ id: "net", label: "净差异", defaultVisible: true },
+				{ id: "date", label: "日期", defaultVisible: true, sortable: true, kind: "date" },
+				{ id: "activity_title", label: "活动", defaultVisible: true },
+			]
+		: [
+				{ id: "document", label: "记录", required: true, defaultVisible: true },
+				{
+					id: "kind",
+					label: "类型 / 状态",
+					defaultVisible: true,
+					className: "native-record-kind-status",
+				},
+				{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true },
+				{ id: "summary", label: "整份记录", defaultVisible: true },
+				{ id: "date", label: "记账日期", defaultVisible: true, sortable: true },
+				{ id: "actions", label: "操作", required: true, defaultVisible: true },
+			],
+);
 const tableRows = computed<DataTableRecord[]>(() =>
 	rows.value.map((row) => ({
 		kind: "record",
@@ -303,6 +353,9 @@ const tablePrefs =
 		: undefined;
 function nativeRow(row: Record<string, unknown>): NativeRecord {
 	return row as unknown as NativeRecord;
+}
+function activityLabel(row: Record<string, unknown>) {
+	return row.activity_title || (props.mode === "drafts" ? row.borrower : "") || "—";
 }
 </script>
 <template>
@@ -713,7 +766,9 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 					<DataTable
 						data-browse-scroll="records"
 						ariaLabel="库存记录"
-						table-class="browse-table"
+						:table-class="
+							mode === 'counts' ? 'browse-table count-records-table' : 'browse-table'
+						"
 						:columns="tableColumns"
 						:rows="browseRows"
 						:column-preferences="tablePrefs"
@@ -766,12 +821,40 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								@click="open(nativeRow(row))"
 							>
 								<strong>{{ row.document }}</strong
-								><small>{{ enumPresentationLabel("doctype", row.doctype) }}</small>
+								><small v-if="mode !== 'counts'">{{
+									enumPresentationLabel("doctype", row.doctype)
+								}}</small>
 								<NativeStatusBadge
+									v-if="mode !== 'counts'"
 									class="native-record-mobile-status"
 									:status="Number(row.docstatus)"
 								/>
 							</button>
+							<template v-else-if="column.id === 'count_kind'">{{
+								row.kind === "Opening" ? "期初库存" : "盘点调整"
+							}}</template>
+							<NativeStatusBadge
+								v-else-if="column.id === 'status'"
+								:status="Number(row.docstatus)"
+							/>
+							<template v-else-if="column.id === 'count_scope'">{{
+								countScope(nativeRow(row))
+							}}</template>
+							<template v-else-if="column.id === 'line_count'">{{
+								nativeRow(row).whole.line_count
+							}}</template>
+							<template v-else-if="column.id === 'item_count'">{{
+								nativeRow(row).whole.item_count
+							}}</template>
+							<template v-else-if="column.id === 'gains'">{{
+								aggregates(nativeRow(row), "gains")
+							}}</template>
+							<template v-else-if="column.id === 'losses'">{{
+								aggregates(nativeRow(row), "losses")
+							}}</template>
+							<span v-else-if="column.id === 'net'" title="增加与减少相抵后的净值">
+								{{ aggregates(nativeRow(row), "quantities") }}
+							</span>
 							<template v-else-if="column.id === 'kind'">
 								<InventoryIcon
 									v-if="row.kind"
@@ -789,7 +872,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 								<NativeStatusBadge :status="Number(row.docstatus)" />
 							</template>
 							<template v-else-if="column.id === 'activity_title'">{{
-								row.activity_title || row.borrower || "—"
+								activityLabel(row)
 							}}</template>
 							<div v-else-if="column.id === 'summary'" class="native-record-summary">
 								{{ nativeRow(row).whole.line_count }} 行 ·
@@ -879,6 +962,39 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 .record-quantity {
 	display: block;
 	color: var(--p-muted);
+}
+:deep(.count-records-table :is(th, td).count-record-id-column) {
+	min-width: 240px;
+	white-space: nowrap;
+}
+:deep(.count-records-table td.count-record-id-column) {
+	overflow: visible;
+}
+:deep(.count-records-table td.count-record-id-column > :first-child) {
+	display: inline-flex;
+	width: max-content;
+	max-width: none;
+	overflow: visible;
+	text-overflow: clip;
+	white-space: nowrap;
+}
+:deep(.count-records-table td.count-record-id-column .browse-row-link) {
+	display: inline-flex;
+	width: max-content;
+	max-width: none;
+	overflow: visible;
+	text-overflow: clip;
+	white-space: nowrap;
+	-webkit-line-clamp: unset;
+}
+:deep(.count-records-table td.count-record-id-column .browse-row-link strong) {
+	display: inline;
+	width: auto;
+	max-width: none;
+	overflow: visible;
+	text-overflow: clip;
+	white-space: nowrap;
+	-webkit-line-clamp: unset;
 }
 .drafts-browser {
 	display: grid;

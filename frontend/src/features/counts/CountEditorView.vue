@@ -13,6 +13,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type { CountEditor } from "./useCountEditor";
 import CountWorkspace from "./CountWorkspace.vue";
 import CountSummary from "./CountSummary.vue";
+import type { CountRow } from "./countModel";
 import NativeCountAllocations from "./NativeCountAllocations.vue";
 import TransactionContext from "../documents/TransactionContext.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -175,6 +176,58 @@ const context = computed(() => ({
 	loanName: "",
 }));
 const reviewedRows = computed(() => rows.value.filter((row) => row.review_state === "Reviewed"));
+const unchangedReviewedCount = computed(
+	() =>
+		rows.value.filter(
+			(row) => row.review_state === "Reviewed" && row.actual_qty === row.baseline_qty,
+		).length,
+);
+const readOnlyLines = computed<Record<string, unknown>[]>(() =>
+	values.value.items
+		.filter((row) => Number(row.qty || 0) !== Number(row.current_qty || 0))
+		.map((line): Record<string, unknown> => {
+			const reviewed = rows.value.find(
+				(row) =>
+					row.item_code === line.item_code &&
+					row.warehouse === line.warehouse &&
+					(row.batch_no || "") === (line.batch_no || ""),
+			);
+			return { ...line, reason: String(line.reason || reviewed?.reason || "") };
+		}),
+);
+const readOnlyColumns: DataColumn[] = [
+	{ id: "item_name", label: "物品", kind: "primary", defaultVisible: true },
+	{ id: "warehouse", label: "位置", kind: "text", defaultVisible: true },
+	{ id: "batch_no", label: "批次", kind: "code", defaultVisible: true },
+	{ id: "current_qty", label: "账面", kind: "number", defaultVisible: true, align: "end" },
+	{ id: "qty", label: "实点", kind: "number", defaultVisible: true, align: "end" },
+	{ id: "difference", label: "差异", kind: "number", defaultVisible: true, align: "end" },
+	{ id: "stock_uom", label: "单位", kind: "unit", defaultVisible: true },
+	{ id: "reason", label: "原因 / 备注", kind: "text", defaultVisible: true },
+];
+const readOnlyTableRows = computed<DataTableRecord[]>(() =>
+	readOnlyLines.value.map((row, index) => ({
+		kind: "record",
+		id: String(row.name || index),
+		value: {
+			...row,
+			difference: Number(row.qty || 0) - Number(row.current_qty || 0),
+		},
+	})),
+);
+const readOnlySummaryRows = computed<CountRow[]>(() =>
+	readOnlyLines.value.map((row) => ({
+		item_code: String(row.item_code || ""),
+		item_name: String(row.item_name || ""),
+		warehouse: String(row.warehouse || ""),
+		batch_no: row.batch_no ? String(row.batch_no) : null,
+		stock_uom: String(row.stock_uom || ""),
+		baseline_qty: Number(row.current_qty || 0),
+		actual_qty: Number(row.qty || 0),
+		review_state: "Reviewed",
+		reason: String(row.reason || ""),
+	})),
+);
 const status = computed(
 	() =>
 		({
@@ -436,7 +489,7 @@ async function back() {
 			>
 		</div>
 		<div
-			v-if="!c.existingDocument.value || state.server"
+			v-if="writable && (!c.existingDocument.value || state.server)"
 			class="count-form-shell async-result-region"
 			:class="{ 'is-refreshing': loading && state.server }"
 			:aria-busy="loading && state.server ? 'true' : undefined"
@@ -733,6 +786,50 @@ async function back() {
 				</p>
 			</form>
 		</div>
+		<section v-if="state.server && !writable" class="count-readonly surface">
+			<TransactionContext :draft="context" :activity-label="activityLabel" mode="display" />
+			<CountSummary :rows="readOnlySummaryRows" compact />
+			<p v-if="unchangedReviewedCount" class="muted count-readonly-unchanged">
+				另有 {{ unchangedReviewedCount }} 个物品核对无变化
+			</p>
+			<DataTable
+				ariaLabel="盘点差异明细"
+				:columns="readOnlyColumns"
+				:rows="readOnlyTableRows"
+				compact
+				empty-text="此记录没有差异明细。"
+				table-class="count-readonly-table"
+			>
+				<template #cell="{ column, row }">
+					<div v-if="column.id === 'item_name'" class="count-readonly-item">
+						<strong>{{
+							row.ti_display_item_name ||
+							row.item_name ||
+							c.names[String(row.item_code)] ||
+							row.item_code
+						}}</strong>
+						<small>{{ row.item_code }}</small>
+					</div>
+					<template v-else-if="column.id === 'warehouse'">{{
+						warehouseLabel(String(row.warehouse || ""), c.reference.warehouses)
+					}}</template>
+					<template v-else-if="column.id === 'batch_no'">{{
+						row.batch_no || "—"
+					}}</template>
+					<template v-else-if="column.id === 'current_qty'">{{
+						row.current_qty ?? 0
+					}}</template>
+					<template v-else-if="column.id === 'qty'">{{ row.qty ?? 0 }}</template>
+					<template v-else-if="column.id === 'difference'"
+						>{{ Number(row.difference) > 0 ? "+" : "−"
+						}}{{ Math.abs(Number(row.difference)) }}</template
+					>
+					<template v-else-if="column.id === 'reason'">{{
+						row.reason || row.ti_notes || "—"
+					}}</template>
+				</template>
+			</DataTable>
+		</section>
 		<Overlay v-if="reviewOpen" title="核对并确认盘点" @close="!busy && (reviewOpen = false)"
 			><CountSummary v-if="!deskOrigin" :rows="rows" />
 			<p v-if="!deskOrigin" class="count-confirmation-note">
@@ -796,6 +893,20 @@ async function back() {
 		>
 	</section>
 </template>
+
+<style scoped>
+.count-readonly {
+	min-width: 0;
+	padding: var(--p-card-pad);
+}
+.count-readonly-unchanged {
+	margin: 12px 0 0;
+}
+.count-readonly-item small {
+	display: block;
+	color: var(--p-muted);
+}
+</style>
 
 <style scoped>
 .count-form-shell {

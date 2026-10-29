@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-location-model-v9"
+VERSION = "2026.10.native-location-model-v10"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -487,10 +487,12 @@ def verify_development_sample(*, require_images=True, data="full"):
 	if frappe.db.sql("select name from `tabStock Entry` where coalesce(ti_movement_kind, '')='' limit 1"):
 		raise AssertionError("Every sample Stock Entry must have a native movement kind")
 	if (
-		frappe.db.count("Stock Reconciliation", {"docstatus": 1}) < 18
+		frappe.db.count("Stock Reconciliation", {"docstatus": 1}) < 20
 		or frappe.db.count("Stock Reconciliation", {"docstatus": 0}) < 2
 	):
-		raise AssertionError("Full seed must contain 18 submitted counts and two count drafts")
+		raise AssertionError("Full seed must contain 20 submitted counts and two count drafts")
+	if not frappe.db.exists("Stock Reconciliation", {"purpose": "Opening Stock", "docstatus": 1}):
+		raise AssertionError("Full seed must contain a submitted Opening Stock reconciliation")
 	if frappe.db.count("Stock Entry", {"docstatus": 2}) < 10:
 		raise AssertionError("Full seed must contain ten cancelled typed movements")
 	if len(frappe.db.sql("select name from `tabStock Entry` where amended_from is not null limit 4")) < 4:
@@ -533,6 +535,39 @@ def verify_development_sample(*, require_images=True, data="full"):
 		raise AssertionError("Native sample count must include positive and negative adjustments")
 	if not any(row.get("review_state") == "Reviewed" and row.get("difference") == 0 for row in count_rows):
 		raise AssertionError("Native sample count must include a reviewed matching row")
+	mixed_count = frappe.get_doc(
+		"Stock Reconciliation",
+		{
+			"ti_request_key": _request_key(
+				"Stock Reconciliation", native_samples.REQUEST_PREFIX + "mixed-count"
+			)
+		},
+	)
+	mixed_rows = mixed_count.ti_count_review
+	mixed_differences = [float(row.difference) for row in mixed_rows if row.review_state == "Reviewed"]
+	if (
+		len({row.item_code for row in mixed_rows}) < 40
+		or len({row.warehouse for row in mixed_rows}) < 3
+		or not any(value >= 7 for value in mixed_differences)
+		or not any(value <= -3 for value in mixed_differences)
+	):
+		raise AssertionError("Mixed sample count must span rooms with varied increases and decreases")
+	room_ids = set()
+	for row in mixed_rows:
+		current = row.warehouse
+		while current:
+			if frappe.db.get_value("Warehouse", current, "warehouse_type") == "Room":
+				room_ids.add(current)
+				break
+			current = frappe.db.get_value("Warehouse", current, "parent_warehouse")
+	if len(room_ids) < 3:
+		raise AssertionError("Mixed sample count must cover at least three rooms")
+	net_by_unit = {}
+	for row in mixed_rows:
+		if row.review_state == "Reviewed":
+			net_by_unit[row.stock_uom] = net_by_unit.get(row.stock_uom, 0) + float(row.difference)
+	if not any(net_by_unit.values()):
+		raise AssertionError("Mixed sample count must have a non-zero net difference")
 	from temple_inventory import browse
 
 	dashboard_inventory = browse.dashboard_card("inventory")

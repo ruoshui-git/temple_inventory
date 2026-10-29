@@ -60,7 +60,7 @@ function setup(
     siteDate: "2026-10-16",
     siteTime: "2026-10-16 10:00:00",
     physicalLeaves: ["ROOM-A", "ROOM-B"],
-    units: [{ name: "Nos", whole: true }],
+    units: [{ name: "Nos", label: "个", whole: true }],
     capabilities: { "Stock Reconciliation": { create: true, submit: true } },
   });
   const child = defineComponent({
@@ -270,6 +270,8 @@ describe("native count form integration", () => {
       ["Nos", -10],
       ["Kg", 0.5],
     ]);
+    expect(totals.gains).toEqual([["Kg", 0.5]]);
+    expect(totals.losses).toEqual([["Nos", -10]]);
   });
   it("finishes matching counts without creating or submitting any native document and clears only on explicit finish", async () => {
     const call = service(),

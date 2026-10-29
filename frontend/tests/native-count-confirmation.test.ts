@@ -81,7 +81,7 @@ function setup(mobile = false, submittedNative = false) {
         rgt: 4,
       },
     ],
-    units: [{ name: "Nos", whole: true }],
+    units: [{ name: "Nos", label: "个", whole: true }],
     capabilities: { "Stock Reconciliation": { create: true, submit: true } },
   });
   const call = vi.fn(async (method: string, args: Record<string, unknown>) => {
@@ -144,13 +144,16 @@ function setup(mobile = false, submittedNative = false) {
 }
 
 describe("count confirmation summary", () => {
-  it("renders submitted native count cards as read-only on phones", async () => {
+  it("renders submitted native count differences in the read-only table on phones", async () => {
     const { wrapper } = setup(true, true);
     await flushPromises();
-    expect(wrapper.findAll(".native-count-card")).toHaveLength(1);
+    expect(wrapper.findAll(".native-count-card")).toHaveLength(0);
     expect(wrapper.findAll(".native-count-card-input")).toHaveLength(0);
-    expect(wrapper.find(".native-count-card").text()).toContain("已提交物品");
-    expect(wrapper.find(".native-count-card").text()).toContain("3 Nos");
+    expect(wrapper.find(".count-readonly").text()).toContain("已提交物品");
+    expect(
+      wrapper.find(".count-readonly tbody tr td:nth-child(5)").text(),
+    ).toBe("3");
+    expect(wrapper.find(".count-readonly").text()).toContain("净差异：+1 个");
   });
 
   it("opens count review with Meta+Enter from a text field without submitting", async () => {
@@ -203,9 +206,9 @@ describe("count confirmation summary", () => {
     expect(text).toContain("核对相同数量");
     expect(text).toContain("核对差异数量");
     expect(text).not.toContain("UNREVIEWED-000");
-    expect(text).toContain("实点 0 Nos · 差异 -5");
-    expect(text).toContain("实点 7 Nos · 差异 0");
-    expect(text).toContain("实点 3 Nos · 差异 1");
+    expect(text).toContain("实点 0 个 · 差异 -5");
+    expect(text).toContain("实点 7 个 · 差异 0");
+    expect(text).toContain("实点 3 个 · 差异 1");
     expect(
       dialog!.querySelectorAll(".count-confirmation-rows > p"),
     ).toHaveLength(3);

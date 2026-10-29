@@ -723,6 +723,8 @@ def whole_operation(context, doctype, name):
 	if not doc:
 		frappe.throw("原生记录不存在或无权访问", frappe.PermissionError)
 	quantities = defaultdict(float)
+	gains = defaultdict(float)
+	losses = defaultdict(float)
 	available_effects = defaultdict(float)
 	branches, items, originals = set(), set(), set()
 	first_item_name = ""
@@ -740,6 +742,11 @@ def whole_operation(context, doctype, name):
 			else float(row.qty) - (float(row.current_qty or 0) if doc.purpose != "Opening Stock" else 0)
 		)
 		quantities[item.stock_uom] += quantity
+		if doctype == "Stock Reconciliation":
+			if quantity > 0:
+				gains[item.stock_uom] += quantity
+			elif quantity < 0:
+				losses[item.stock_uom] += quantity
 		if doctype == "Stock Entry":
 			available_effects[item.stock_uom] += available_stock_effect(
 				context,
@@ -750,15 +757,13 @@ def whole_operation(context, doctype, name):
 				destination_warehouse=row.get("t_warehouse") or "",
 			)
 		else:
-			for allocation in reconciliation_allocations(row):
-				quantity = allocation["actual_qty"] if kind == "Opening" else allocation["difference"]
-				available_effects[item.stock_uom] += available_stock_effect(
-					context,
-					docstatus=doc.docstatus,
-					kind=kind,
-					quantity=quantity,
-					warehouse=row.get("warehouse") or "",
-				)
+			available_effects[item.stock_uom] += available_stock_effect(
+				context,
+				docstatus=doc.docstatus,
+				kind=kind,
+				quantity=quantity,
+				warehouse=row.get("warehouse") or "",
+			)
 		branches.add((row.get("s_warehouse") or row.get("warehouse") or "", row.get("t_warehouse") or ""))
 		if row.get("ti_original_loan"):
 			originals.add(row.ti_original_loan)
@@ -803,6 +808,17 @@ def whole_operation(context, doctype, name):
 			if any(outstanding.values())
 			else "Settled"
 		)
+	if doctype == "Stock Reconciliation":
+		# gains/losses are signed per-unit aggregates; losses stay negative.
+		result["gains"] = [{"uom": unit, "qty": quantity} for unit, quantity in sorted(gains.items())]
+		result["losses"] = [{"uom": unit, "qty": quantity} for unit, quantity in sorted(losses.items())]
+		warehouses = doc.get("ti_count_warehouses") or json.dumps(
+			sorted(
+				{str(row.get("warehouse")) for row in doc.items if row.get("warehouse") in context.physical}
+			),
+			ensure_ascii=False,
+		)
+		result["scope"] = warehouses
 	return result
 
 
@@ -1211,7 +1227,7 @@ def count_rows(context):
 		doc = context.parent("Stock Reconciliation", value.name)
 		if (
 			not doc
-			or doc.purpose != "Stock Reconciliation"
+			or doc.purpose not in ("Stock Reconciliation", "Opening Stock")
 			or not in_period(doc.posting_date, context.period)
 		):
 			continue
@@ -1256,6 +1272,12 @@ def count_rows(context):
 					bundle_loader=context.bundle,
 				)
 			for allocation in allocations:
+				if doc.purpose == "Opening Stock":
+					allocation = {
+						**allocation,
+						"baseline_qty": 0.0,
+						"difference": float(allocation["actual_qty"] or 0),
+					}
 				row = {**base, **allocation, "stock_qty": allocation["difference"] or 0}
 				if allocation["batch_no"]:
 					row["id"] += ":" + allocation["batch_no"]

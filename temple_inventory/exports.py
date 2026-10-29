@@ -146,6 +146,11 @@ def request_export(
 			{"expiry_state", "quantities"}
 			| ({"expiry_date", "remaining_days"} if table == "locations" else set())
 			| ({"source", "destination"} if table == "records" else set())
+			| (
+				{"gains", "losses", "net"}
+				if validated["dataset"] == "counts" and table == "records"
+				else set()
+			)
 		)
 		if "item_code" in projection.column_names[table]:
 			allowed.add("image_file")
@@ -685,7 +690,17 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 						amount = unit_row.get(sum_field)
 						if isinstance(amount, (int, float)):
 							unit_values[unit][sum_field] = unit_values[unit].get(sum_field, 0) + amount
-			if len(unit_values) == 1:
+			if projection.query["dataset"] == "counts" and table == "records":
+				for index, column in enumerate(columns):
+					if column in ("gains", "losses", "net"):
+						values[index] = _format_count_quantities(
+							{unit: sums.get(column, 0) for unit, sums in unit_values.items()},
+							signed=True,
+							omit_zero=column != "net",
+						)
+					elif column == "stock_uom":
+						values[index] = "；".join(uom_label(unit) for unit in sorted(unit_values) if unit)
+			elif len(unit_values) == 1:
 				unit, unit_sums = next(iter(unit_values.items()))
 				for index, column in enumerate(columns):
 					if column in unit_sums:
@@ -723,7 +738,17 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 		)
 		for index, field in enumerate(columns):
 			if field in sums:
-				line[index] = sums[field]
+				line[index] = (
+					_format_count_quantities(
+						{unit: sums[field]},
+						signed=True,
+						omit_zero=field != "net",
+					)
+					if projection.query["dataset"] == "counts"
+					and table == "records"
+					and field in ("gains", "losses", "net")
+					else sums[field]
+				)
 		writer.writerow(line)
 	writer.worksheet.outline_settings(True, False, True, False)
 	return count
@@ -789,6 +814,20 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 	if key not in operation_cache:
 		operation_cache[key] = whole_operation(projection.context, *key)
 	operation = operation_cache[key]
+	if projection.query["dataset"] == "counts":
+		by_unit = {
+			field: {str(value["uom"]): float(value["qty"]) for value in operation.get(field, [])}
+			for field in ("quantities", "gains", "losses")
+		}
+		for unit in set().union(*(set(values) for values in by_unit.values())):
+			values = units.setdefault(unit, {})
+			values["net"] = by_unit["quantities"].get(unit, 0)
+			values["gains"] = by_unit["gains"].get(unit, 0)
+			values["losses"] = by_unit["losses"].get(unit, 0)
+		row["gains"] = _format_count_quantities(by_unit["gains"], signed=True)
+		row["losses"] = _format_count_quantities(by_unit["losses"], signed=True)
+		row["net"] = _format_count_quantities(by_unit["quantities"], signed=True)
+		aggregates.update(gains=row["gains"], losses=row["losses"], net=row["net"])
 	sources, destinations = set(), set()
 	# A count adjustment names the checked locations; it is not a move to or from outside.
 	reconcile = row.get("kind") == "Reconcile"
@@ -860,7 +899,17 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None):
 		)
 		for index, field in enumerate(columns):
 			if field in sums:
-				line[index] = sums[field]
+				line[index] = (
+					_format_count_quantities(
+						{unit: sums[field]},
+						signed=True,
+						omit_zero=field != "net",
+					)
+					if projection.query["dataset"] == "counts"
+					and table == "records"
+					and field in ("gains", "losses", "net")
+					else sums[field]
+				)
 		writer.writerow(line if isinstance(writer, _XlsxRows) else [_csv_value(value) for value in line])
 	return count
 
@@ -890,6 +939,8 @@ def _sum_fields(table, query):
 			if dataset == "movements"
 			else LOAN_SUMS
 			if dataset == "loans"
+			else (*COUNT_SUMS, "gains", "losses", "net")
+			if dataset == "counts" and table == "records"
 			else COUNT_SUMS
 		)
 	if table in ("outcomes", "loan_items"):
@@ -903,6 +954,18 @@ def _sum_fields(table, query):
 	if table == "settlements":
 		return ("stock_qty",)
 	return ()
+
+
+def _format_count_quantities(values, *, signed, omit_zero=False):
+	formatted = []
+	for unit, value in sorted(values.items()):
+		quantity = float(value or 0)
+		if omit_zero and not quantity:
+			continue
+		sign = "+" if signed and quantity > 0 else "−" if quantity < 0 else ""
+		amount = f"{abs(quantity):,.6f}".rstrip("0").rstrip(".")
+		formatted.append(f"{sign}{amount} {uom_label(unit)}".strip())
+	return "；".join(formatted) or "—"
 
 
 def _display_cell(row, field, projection=None):

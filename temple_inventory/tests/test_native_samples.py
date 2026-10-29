@@ -372,6 +372,25 @@ class NativeSampleTests(NativeDocumentTests):
 			)
 			self.assertEqual({row.qty for row in count.items}, {68, 7})
 			self.assertEqual(count.items[0].valuation_rate, 10)
+			mixed_count = frappe.get_doc("Stock Reconciliation", result["mixed_count"])
+			mixed_rows = mixed_count.ti_count_review
+			self.assertGreaterEqual(len({row.item_code for row in mixed_rows}), 40)
+			self.assertTrue(any(row.difference > 0 for row in mixed_rows))
+			self.assertTrue(any(row.difference < 0 for row in mixed_rows))
+			self.assertTrue(any(row.difference == 0 for row in mixed_rows))
+			self.assertGreaterEqual(len({row.warehouse for row in mixed_rows}), 3)
+			differences = [row.difference for row in mixed_rows if row.review_state == "Reviewed"]
+			self.assertGreaterEqual(max(differences), 7)
+			self.assertLessEqual(min(differences), -3)
+			net_by_unit = {}
+			for row in mixed_rows:
+				if row.review_state == "Reviewed":
+					net_by_unit[row.stock_uom] = net_by_unit.get(row.stock_uom, 0) + row.difference
+			self.assertTrue(any(net_by_unit.values()))
+			opening_count = frappe.get_doc("Stock Reconciliation", result["opening_reconciliation"])
+			self.assertEqual(opening_count.purpose, "Opening Stock")
+			self.assertEqual(opening_count.docstatus, 1)
+			self.assertEqual(len(opening_count.items), 3)
 			self.assertEqual(len(result["loans"]), 4)
 			self.assertEqual(len(result["activity"]), 3)
 			bundle_request_keys = {
@@ -434,7 +453,16 @@ class NativeSampleTests(NativeDocumentTests):
 				actual_batches = [row for row in batch_rows if row.item == code]
 				self.assertEqual(len(actual_batches), len(source_batches))
 				self.assertGreaterEqual(len({row.manufacturing_date for row in actual_batches}), 2)
-				remaining = sum(row["quantity"] for row in source_batches) - (6 if key == "G-000001" else 0)
+				mixed_adjustment = sum(
+					row.difference
+					for row in mixed_rows
+					if row.item_code == code and row.review_state == "Reviewed"
+				)
+				remaining = (
+					sum(row["quantity"] for row in source_batches)
+					- (6 if key == "G-000001" else 0)
+					+ mixed_adjustment
+				)
 				warehouses = {
 					warehouse
 					for placement_key, placements in result["rooms"]["BATCH_PLACEMENTS"].items()

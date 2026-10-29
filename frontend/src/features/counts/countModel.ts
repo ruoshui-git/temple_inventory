@@ -39,7 +39,9 @@ export function countKey(row: CountRow) {
 export function countSummary(rows: CountRow[]) {
   const baseline = new Map<string, number>(),
     actual = new Map<string, number>(),
-    difference = new Map<string, number>();
+    difference = new Map<string, number>(),
+    gains = new Map<string, number>(),
+    losses = new Map<string, number>();
   let reviewed = 0;
   for (const row of rows) {
     const unit = row.stock_uom;
@@ -47,10 +49,10 @@ export function countSummary(rows: CountRow[]) {
     if (row.review_state === "Unreviewed" || row.actual_qty === null) continue;
     reviewed++;
     actual.set(unit, (actual.get(unit) || 0) + row.actual_qty);
-    difference.set(
-      unit,
-      (difference.get(unit) || 0) + row.actual_qty - row.baseline_qty,
-    );
+    const delta = row.actual_qty - row.baseline_qty;
+    difference.set(unit, (difference.get(unit) || 0) + delta);
+    if (delta > 0) gains.set(unit, (gains.get(unit) || 0) + delta);
+    else if (delta < 0) losses.set(unit, (losses.get(unit) || 0) + delta);
   }
   return {
     total: rows.length,
@@ -59,6 +61,8 @@ export function countSummary(rows: CountRow[]) {
     baseline: [...baseline],
     actual: [...actual],
     difference: [...difference],
+    gains: [...gains],
+    losses: [...losses],
   };
 }
 export function countIssues(

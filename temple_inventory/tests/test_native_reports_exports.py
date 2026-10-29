@@ -88,6 +88,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertNotIn("attachments", json.loads(request.columns_json))
 
 	def test_zip_export_includes_primary_image_attachments_hyperlink_and_manifest_files(self):
+		# Files stay on disk after rollback, and Frappe renames a clashing upload.
+		notes = f"notes-{uuid4().hex[:8]}"
 		self.receipt(12)
 		primary = frappe.get_doc(
 			{
@@ -107,7 +109,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			frappe.get_doc(
 				{
 					"doctype": "File",
-					"file_name": "notes.txt",
+					"file_name": f"{notes}.txt",
 					"content": b"attachment",
 					"is_private": 1,
 					"attached_to_doctype": "Item",
@@ -136,8 +138,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			with zipfile.ZipFile(path) as archive:
 				names = set(archive.namelist())
 				self.assertIn(f"images/{self.item}.webp", names)
-				self.assertIn(f"attachments/items/{self.item}/notes.txt", names)
-				self.assertIn(f"attachments/items/{self.item}/notes (2).txt", names)
+				self.assertIn(f"attachments/items/{self.item}/{notes}.txt", names)
+				self.assertIn(f"attachments/items/{self.item}/{notes} (2).txt", names)
 				book = load_workbook(io.BytesIO(archive.read(request.file_label.rsplit(".", 1)[0] + ".xlsx")))
 				worksheet = book["汇总"]
 				self.assertEqual(worksheet.cell(2, 2).value, f"images/{self.item}.webp")
@@ -150,7 +152,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			frappe.get_doc(
 				{
 					"doctype": "File",
-					"file_name": "record.txt",
+					"file_name": f"{notes}-record.txt",
 					"content": b"record attachment",
 					"is_private": 1,
 					"attached_to_doctype": "Stock Entry",
@@ -173,7 +175,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				record_projection.build()
 				exports._write(record_projection, record_request, record_path)
 				with zipfile.ZipFile(record_path) as archive:
-					self.assertIn(f"attachments/records/{record.name}/record.txt", archive.namelist())
+					self.assertIn(f"attachments/records/{record.name}/{notes}-record.txt", archive.namelist())
 				with patch(
 					"temple_inventory.item_images._authorized_original", side_effect=frappe.PermissionError
 				):
@@ -434,6 +436,29 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertTrue(rows[1][1])
 		self.assertEqual(rows[1][2], "")
 
+	def test_count_record_export_shows_gains_losses_net_and_per_unit_totals(self):
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		completed = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		query = self.query("counts", "records", record=completed.name, statuses=[1])
+		columns = ["document", "gains", "losses", "net"]
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(query, "records", columns=columns, export_format="csv")
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "count-totals.csv"
+			exports._write(projection, request, path)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+		self.assertEqual(rows[0], ["盘点编号", "增加", "减少", "净差异"])
+		self.assertEqual(rows[1], [completed.name, "—", "−2 个", "−2 个"])
+		self.assertEqual(rows[2][1:], ["—", "−2 个", "−2 个"])
+		self.assertEqual(
+			exports._format_count_quantities({"Nos": 3, "Box": 1}, signed=True),
+			"+1 箱；+3 个",
+		)
+
 	def test_records_export_collapses_units_to_one_native_document_row_with_locations(self):
 		doc = self.submit(self.create(self.movement(quantity=2)))
 		query = self.query("movements", "records", record=doc.name, statuses=[1])
@@ -445,6 +470,11 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertTrue(rows[0]["source"])
 		self.assertTrue(rows[0]["destination"])
 		self.assertNotIn(self.a, rows[0]["source"] + rows[0]["destination"])
+
+	def test_archive_names_number_repeated_file_names(self):
+		used = set()
+		names = [exports._unique_archive_name(name, used) for name in ("notes.txt", "NOTES.txt", "notes.txt")]
+		self.assertEqual(names, ["notes.txt", "NOTES (2).txt", "notes (3).txt"])
 
 	def test_record_export_adds_item_counts_across_unit_rows(self):
 		unit_rows = [
@@ -528,7 +558,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertEqual(values["去向位置"], "供灯-用品")
 		self.assertNotIn(self.a, values.values())
 
-	def test_saved_opening_export_uses_native_movement_quantities_and_excludes_counts(self):
+	def test_saved_opening_export_uses_native_movement_quantities_and_counts_opening_stock(self):
 		doc = frappe.get_doc(
 			{
 				"doctype": "Stock Reconciliation",
@@ -563,7 +593,11 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				self.assertEqual(lines[0]["actual_qty"], 7)
 				self.assertEqual(lines[0]["doctype"], doc.doctype)
 				self.assertEqual(lines[0]["line_name"], doc.items[0].name)
-			self.assertEqual(report_page({**query, "dataset": "counts"})["matched_count"], 0)
+			count_page = report_page({**query, "dataset": "counts"}, page_length=5)
+			self.assertEqual(count_page["matched_count"], 1)
+			self.assertEqual(count_page["rows"][0]["document"], doc.name)
+			self.assertEqual(count_page["rows"][0]["baseline_qty"], 0)
+			self.assertEqual(count_page["rows"][0]["actual_qty"], 7)
 			self.assertEqual(report_page({**query, "recordDoctype": "Stock Entry"})["matched_count"], 0)
 
 	def test_xlsx_and_csv_keep_identical_selected_numeric_table_scope(self):
