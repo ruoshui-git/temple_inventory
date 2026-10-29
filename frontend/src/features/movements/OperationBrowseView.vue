@@ -182,12 +182,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 				{
 					id: "source",
 					label: "来源位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "destination",
 					label: "去向位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "docstatus",
@@ -244,12 +244,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 				{
 					id: "source",
 					label: "来源位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "destination",
 					label: "去向位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "status",
@@ -320,12 +320,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 				{
 					id: "source",
 					label: "来源位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "destination",
 					label: "去向位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "quantities",
@@ -397,12 +397,12 @@ const itemColumns = computed<DataColumn[]>(() =>
 				{
 					id: "source",
 					label: "来源位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "destination",
 					label: "去向位置",
-					defaultVisible: wideScreen.value,
+					defaultVisible: true,
 				},
 				{
 					id: "borrowed",

@@ -297,6 +297,12 @@ class CatalogBatchesTests(NativeDocumentTests):
 		self.assertEqual([row["stock_uom"] for row in history["rows"]], ["Nos", "Nos"])
 		self.assertEqual(history["rows"][0]["signed"], True)
 		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Return"])
+		# The ungrouped outstanding list is the 借出清单: open loan lines only, with borrower.
+		loan_list = browse.operation_contributions(item_query, history_sort="asc")
+		self.assertTrue(loan_list["history_complete"])
+		self.assertEqual([row["kind"] for row in loan_list["rows"]], ["Loan"])
+		self.assertEqual(loan_list["rows"][0]["borrower"], loan.ti_borrower)
+		self.assertEqual(loan_list["rows"][0]["outstanding"], 2.0)
 		all_item_history = browse.operation_contributions(
 			item_query, item_code=self.item, history_scope="all", history_sort="asc"
 		)

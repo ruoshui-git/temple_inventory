@@ -51,6 +51,23 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(worksheet.cell(4, 1).value, f"合计（{uom_label('Nos')}） · 1 行")
 			self.assertEqual(worksheet.cell(2, 1).fill.fgColor.rgb[-6:], "D9D9D9")
 			workbook.close()
+		category_query = self.query("movements", "lines", groupBy=["category"])
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				category_query, "lines", columns=["item_name", "stock_qty"], grouped=True
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		with (
+			Projection(category_query, refresh=True) as projection,
+			tempfile.TemporaryDirectory() as directory,
+		):
+			projection.build()
+			path = Path(directory) / "category.xlsx"
+			exports._write(projection, request, path)
+			workbook = load_workbook(path, data_only=True)
+			# Uncategorized Items read 无分类, as everywhere else in the app.
+			self.assertEqual(workbook.worksheets[0].cell(2, 1).value, "无分类 (1)")
+			workbook.close()
 
 	def test_grouped_csv_rejected_empty_grouping_clears_flag_and_file_columns_drop(self):
 		query = self.query("movements", "lines")
@@ -254,6 +271,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(rows[1][2], projection.context.label(self.a))
 			self.assertNotEqual(rows[1][2], self.a)
 			self.assertEqual(rows[1][4], "个")
+			# Whole quantities stay whole in CSV, in data and total rows.
+			self.assertEqual(rows[1][3], "12")
+			self.assertEqual(rows[-1][3], "12")
 			self.assertTrue(all(not any(isinstance(cell, (list, dict)) for cell in row) for row in rows))
 
 	def test_loan_history_export_lists_only_outstanding_submitted_loans(self):
@@ -324,6 +344,29 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertIn(("页面", "月度库存"), info_rows)
 			self.assertIn(("筛选", "位置：供灯区"), info_rows)
 			self.assertIn(("分组", "无"), info_rows)
+
+	def test_count_record_export_names_checked_locations_without_outside_destination(self):
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		completed = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		query = self.query("movements", "records", record=completed.name)
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "count.csv"
+			exports._write(
+				projection,
+				frappe._dict(
+					tables_json='["records"]',
+					columns_json=json.dumps(["kind", "source", "destination"]),
+					export_format="csv",
+				),
+				path,
+			)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+		self.assertEqual(rows[1][0], "盘点调整")
+		self.assertTrue(rows[1][1])
+		self.assertEqual(rows[1][2], "")
 
 	def test_records_export_collapses_units_to_one_native_document_row_with_locations(self):
 		doc = self.submit(self.create(self.movement(quantity=2)))

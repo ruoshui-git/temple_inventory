@@ -267,6 +267,9 @@ describe("native operation browsing", () => {
     expect(movementExport.props("columns")).toContain("item_code");
     expect(movementExport.props("columns")).toContain("image_file");
     expect(movementExport.props("columns")).not.toContain("available_effect");
+    // Locations are matrix fields, visible by default at every desktop width.
+    expect(movementExport.props("columns")).toContain("source_warehouse");
+    expect(movementExport.props("columns")).toContain("destination_warehouse");
 
     const loanQuery = newReportQuery("loans");
     loanQuery.view = "outcomes";
@@ -288,6 +291,7 @@ describe("native operation browsing", () => {
     expect(loanExport.props("columns")).toContain("item_code");
     expect(loanExport.props("columns")).toContain("borrower");
     expect(loanExport.props("columns")).toContain("outstanding");
+    expect(loanExport.props("columns")).toContain("source_warehouse");
     expect(loan.wrapper.text()).toContain("物品编号");
     expect(loan.wrapper.text()).toContain("借用方");
 

@@ -1007,6 +1007,7 @@ def operation_contributions(
 								"outstanding": 0.0,
 								"item_name": row.get("item_name", ""),
 								"activity_title": row.get("activity_title", ""),
+								"borrower": row.get("borrower", ""),
 								"original_loans": set(),
 							},
 						)
@@ -1135,6 +1136,7 @@ def operation_contributions(
 								"item_code": key[8],
 								"item_name": values.get("item_name") or key[8],
 								"activity_title": values.get("activity_title", ""),
+								"borrower": values.get("borrower", ""),
 								"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),
 								"kind": key[4],
 								"source_warehouse": key[5],

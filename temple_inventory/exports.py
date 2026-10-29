@@ -667,7 +667,7 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 			if key == "month":
 				label_row[field] = group_value
 			if group_value in (None, ""):
-				label_text = "未指定"
+				label_text = "无分类" if key == "category" else "未指定"
 			elif key == "kind":
 				label_text = MOVEMENT_LABELS.get(
 					group_value,
@@ -772,9 +772,14 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		operation_cache[key] = whole_operation(projection.context, *key)
 	operation = operation_cache[key]
 	sources, destinations = set(), set()
+	# A count adjustment names the checked locations; it is not a move to or from outside.
+	reconcile = row.get("kind") == "Reconcile"
 	for branch in operation["branches"]:
 		sources.add(projection.context.label(branch["source"]) if branch["source"] else "外部")
-		destinations.add(projection.context.label(branch["destination"]) if branch["destination"] else "外部")
+		if not reconcile:
+			destinations.add(
+				projection.context.label(branch["destination"]) if branch["destination"] else "外部"
+			)
 	return {
 		**row,
 		**aggregates,
@@ -834,7 +839,7 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None):
 		for index, field in enumerate(columns):
 			if field in sums:
 				line[index] = sums[field]
-		writer.writerow(line)
+		writer.writerow(line if isinstance(writer, _XlsxRows) else [_csv_value(value) for value in line])
 	return count
 
 
@@ -916,6 +921,8 @@ def _display_cell(row, field, projection=None):
 def _csv_value(value):
 	# Keep numeric cells numeric and prevent spreadsheet formula interpretation
 	# of free-text fields without changing their scope or allocation identity.
+	if isinstance(value, float) and value.is_integer():
+		return int(value)
 	if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
 		return "'" + value
 	return value

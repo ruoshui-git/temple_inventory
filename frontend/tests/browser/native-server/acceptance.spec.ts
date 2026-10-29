@@ -646,8 +646,7 @@ test("queued native CSV/XLSX jobs export the complete catalog into private downl
     const job = await call(page.request, "exports.request_export", {
       query,
       export_format: format,
-      tables: ["summary"],
-      include_related: false,
+      table: "summary",
     });
     jobs.push({ format, name: job.name });
   }
@@ -687,7 +686,9 @@ test("queued native CSV/XLSX jobs export the complete catalog into private downl
         })
       ).results[0].item_code;
       expect(text).toContain(zeroItem);
-      expect(text.trimEnd().split(/\r?\n/)).toHaveLength(
+      // Header, one line per matching row, then per-unit 合计 rows.
+      const lines = text.trimEnd().split(/\r?\n/);
+      expect(lines.filter((line) => !line.startsWith("合计"))).toHaveLength(
         preview.matched_count + 1,
       );
     } else {
@@ -700,7 +701,7 @@ test("queued native CSV/XLSX jobs export the complete catalog into private downl
         process.env.NATIVE_PYTHON || resolve("../../../env/bin/python"),
         [
           "-c",
-          "import sys,zipfile,xml.etree.ElementTree as E; z=zipfile.ZipFile(sys.argv[1]); print(len(E.fromstring(z.read('xl/worksheets/sheet2.xml')).findall('.//{*}sheetData/{*}row')))",
+          "import sys,openpyxl; ws=openpyxl.load_workbook(sys.argv[1], read_only=True).worksheets[0]; print(sum(1 for row in ws.iter_rows(values_only=True) if not str(row[0] or '').startswith('合计')))",
           path,
         ],
         { encoding: "utf8" },
