@@ -226,14 +226,14 @@ const tableRows = computed<DataTableRecord[]>(() =>
 }
 .units-phone-identity code {
 	color: var(--p-muted);
-	font-size: var(--p-text-sm);
+	font-size: var(--p-small);
 }
 .units-phone-details {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 5px 12px;
 	color: var(--p-muted);
-	font-size: var(--p-text-sm);
+	font-size: var(--p-small);
 }
 .units-phone-actions {
 	position: absolute;

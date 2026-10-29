@@ -53,7 +53,7 @@ select {
 	width: 20px;
 	height: 20px;
 	margin-inline-end: 8px;
-	color: var(--p-accent-quiet, var(--p-muted));
+	color: var(--p-muted);
 	vertical-align: -3px;
 }
 .form-page .form-record-tag {
@@ -441,7 +441,7 @@ select {
 	cursor: pointer;
 }
 .operation-add-item-action:hover {
-	background: var(--p-surface-muted);
+	background: var(--p-soft);
 }
 .operation-add-section-quiet {
 	padding: 4px 0;
@@ -452,7 +452,7 @@ select {
 	cursor: pointer;
 }
 .operation-add-section-quiet:hover {
-	color: var(--p-text);
+	color: var(--p-ink);
 }
 .operation-row-stock-total,
 .operation-row-stock-total-empty {
@@ -612,7 +612,7 @@ select {
 	position: absolute;
 	right: 0;
 	top: calc(100% + 4px);
-	z-index: var(--p-z-popover, 30);
+	z-index: var(--p-z-menu);
 	display: grid;
 	width: 280px;
 	min-width: 260px;
@@ -620,7 +620,7 @@ select {
 	background: var(--p-surface);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
-	box-shadow: var(--p-shadow-popover);
+	box-shadow: var(--p-shadow-menu);
 }
 .operation-row-menu-content .search-select,
 .operation-row-menu-content .search-select-input {
@@ -633,10 +633,10 @@ select {
 	border: 0;
 	background: transparent;
 	text-align: start;
-	color: var(--p-text);
+	color: var(--p-ink);
 }
 .operation-row-menu-content > button:hover {
-	background: var(--p-surface-muted);
+	background: var(--p-soft);
 }
 .operation-add-section {
 	padding-block: var(--p-space-2);
@@ -836,7 +836,7 @@ select {
 }
 .workspace-expanded .form-actions {
 	position: sticky;
-	bottom: var(--p-mobile-nav-height, 0px);
+	bottom: 0;
 	z-index: var(--p-z-sticky-content);
 	background: var(--p-surface);
 }
@@ -1090,7 +1090,7 @@ select {
 }
 .ti-fields dt {
 	color: var(--p-muted);
-	font-size: var(--p-text-xs);
+	font-size: var(--p-small);
 }
 .ti-fields dd {
 	margin: 0;

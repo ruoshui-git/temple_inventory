@@ -143,7 +143,6 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 
 ## Open items
 
-- The desktop thumbnail lightbox regression test failed once inside one full browser run, then passed 8/8 repeated and in the final full run; watch for an open-then-close report.
 - Push notifications cannot be verified on `development.localhost`; verify on the sample site after deploy with 通知设置 → 发送测试通知.
 - 明细 can group only by 物品 or 类别 + 物品, so per-type subtotals in a file come from 单据 grouped by 类型; the 明细 page header already shows per-type totals and 可用净变化.
 - XLSX image links are relative paths that resolve after the ZIP is extracted.

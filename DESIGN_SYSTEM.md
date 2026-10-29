@@ -4,7 +4,7 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 
 ## Foundations
 
-- Shared semantic `--p-*` tokens own palette, status, spacing, density, type, shape, shadows, scrims and layer scale. Themes use `data-ti-theme`; artwork, photos, camera content and theme swatches retain their intended colors.
+- Shared semantic `--p-*` tokens own palette, status, spacing, density, type, shape, shadows, scrims and layer scale. Themes use `data-ti-theme`; artwork, photos, camera content and theme swatches retain their intended colors. Every `var(--p-*)` used must be defined in `foundation.css`; reuse an existing token (ink, small, soft, control radius, menu shadow/layer) rather than adding a synonym.
 - Jade, bronze and blue are the app palettes. Non-production environment badge colors are sample amber `#8a4b08`, staging violet `#593d8c`, development blue `#245b9e`, all with white text. Production uses jade `#28684e` chrome and no badge.
 - AppFrame owns navigation and measured mobile obstruction. ApplicationShell supplies route/account context and registry breadcrumbs. Shared breakpoint is 1024px; coordinators mount one surface at a time.
 - Text scale is independent of density, including teleported content. Use semantic HTML, explicit labels, visible focus, reduced motion and 44px mobile/coarse-pointer targets.

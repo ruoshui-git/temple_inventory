@@ -34,8 +34,10 @@
 	--p-surface: #fff;
 	--p-on-accent: #fff;
 	--p-on-ink: #fff;
+	--p-on-danger: #fff;
 	--p-switch-off: color-mix(in srgb, var(--p-ink) 65%, var(--p-surface));
 	--p-border: color-mix(in srgb, var(--p-ink) 14%, var(--p-surface));
+	--p-border-soft: color-mix(in srgb, var(--p-ink) 8%, var(--p-surface));
 	--p-shadow-color: color-mix(in srgb, var(--p-ink) 14%, transparent);
 	--p-shadow-subtle: 0 2px 8px color-mix(in srgb, var(--p-ink) 6%, transparent);
 	--p-shadow-raised: 0 8px 24px color-mix(in srgb, var(--p-ink) 13%, transparent);
@@ -52,6 +54,8 @@
 	--p-focus: 0 0 0 3px var(--p-surface), 0 0 0 5px var(--p-accent);
 	--p-shadow: 0 16px 48px var(--p-shadow-color);
 	--p-motion: 140ms;
+	--p-motion-fast: 90ms;
+	--p-touch-target: 44px;
 	--p-z-sticky-content: 10;
 	--p-z-sticky: 20;
 	--p-z-fab: 25;
@@ -65,10 +69,12 @@
 	--p-space-4: 16px;
 	--p-space-6: 24px;
 	--p-space-8: 32px;
+	--p-text-scale: 1;
 	--p-body: calc(14px * var(--p-text-scale, 1));
 	--p-small: calc(12px * var(--p-text-scale, 1));
 	--p-heading: calc(24px * var(--p-text-scale, 1));
 	--p-section: calc(18px * var(--p-text-scale, 1));
+	--p-mobile-heading: calc(20px * var(--p-text-scale, 1));
 	--p-line: 1.6;
 	--p-page-gutter: 24px;
 	--p-header-gap: 12px;
@@ -633,7 +639,7 @@ strong {
 	margin: 0;
 	padding: 8px;
 	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-md, 10px);
+	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
 	box-shadow: var(--p-shadow-menu);
 	z-index: var(--p-z-menu, 50);
@@ -1425,7 +1431,7 @@ strong {
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-soft);
-	color: var(--p-text);
+	color: var(--p-ink);
 	font: inherit;
 }
 .ui-dialog:focus {
@@ -2542,7 +2548,7 @@ button {
 }
 .quick-export-content .related-help {
 	margin: 0;
-	font-size: var(--p-text-sm);
+	font-size: var(--p-small);
 }
 .quick-export-content .report-table-wrap {
 	min-width: 0;

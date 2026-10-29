@@ -80,7 +80,7 @@ withDefaults(
 	width: 40px;
 	height: 40px;
 	margin: 0;
-	border-radius: var(--p-radius-md);
+	border-radius: var(--p-radius-control);
 	flex: none;
 }
 .skeleton-block__list-copy {
@@ -161,7 +161,7 @@ withDefaults(
 	gap: var(--p-space-2);
 	padding: var(--p-space-3);
 	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-md);
+	border-radius: var(--p-radius-control);
 }
 .skeleton-block__detail-cell .skeleton {
 	display: block;

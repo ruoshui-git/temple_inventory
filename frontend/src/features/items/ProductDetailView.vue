@@ -429,8 +429,8 @@ const locationPrefs =
 	display: inline-flex;
 	border-radius: 999px;
 	padding: 2px 8px;
-	color: var(--p-color-warning-800);
-	background: var(--p-color-warning-100);
+	color: var(--p-warning);
+	background: var(--p-warning-bg);
 	font-size: 0.8rem;
 }
 @media (max-width: 1023px) {

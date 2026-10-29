@@ -1139,7 +1139,7 @@ async function selectExisting(code: string, warehouse: string) {
 	width: 22px;
 	height: 22px;
 	place-items: center;
-	border: 1px solid var(--p-border-strong, var(--p-border));
+	border: 1px solid var(--p-control-border);
 	border-radius: 5px;
 	color: white;
 	font-size: 15px;

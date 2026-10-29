@@ -73,6 +73,11 @@ test("desktop stock and expiry table thumbnails keep the lightbox open", async (
     await page.screenshot({ path: info.outputPath(filename), fullPage: true });
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    // Closing pops the overlay's history entry asynchronously; navigating
+    // before that settles aborts the next page.goto.
+    await page.waitForFunction(
+      () => !(history.state as { tiOverlay?: string } | null)?.tiOverlay,
+    );
   }
 
   const unexpired = page.getByRole("tab", { name: /未过期/ });
