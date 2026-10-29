@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import tempfile
+import zipfile
 from contextvars import ContextVar
 from pathlib import Path
 from urllib.parse import quote
@@ -67,6 +68,8 @@ def _status(doc):
 		"name": doc.name,
 		"table": tables[0] if tables else "",
 		"columns": _json_value(getattr(doc, "columns_json", None), []),
+		"grouped": bool(getattr(doc, "grouped", False)),
+		"include_files": getattr(doc, "include_files", "none") or "none",
 		"file_label": getattr(doc, "file_label", "") or "",
 		"status": doc.status,
 		"progress": doc.progress,
@@ -93,10 +96,26 @@ def _enqueue(doc):
 
 
 @frappe.whitelist(methods=["POST"])
-def request_export(query, table=None, columns=None, export_format="xlsx", summary=None):
+def request_export(
+	query,
+	table=None,
+	columns=None,
+	export_format="xlsx",
+	summary=None,
+	grouped=False,
+	include_files="none",
+	sort_by=None,
+	sort=None,
+):
 	require_app()
 	if export_format not in ("xlsx", "csv"):
 		frappe.throw("请选择 XLSX 或 CSV 格式")
+	if type(grouped) is not bool:
+		frappe.throw("请选择有效的分组导出选项")
+	if include_files not in ("none", "images", "all"):
+		frappe.throw("请选择有效的附件导出范围")
+	if grouped and export_format == "csv":
+		frappe.throw("CSV 不支持分组导出")
 	validated = validate_query(query)
 	if table is not None and not isinstance(table, str):
 		frappe.throw("请选择有效的数据表")
@@ -128,9 +147,47 @@ def request_export(query, table=None, columns=None, export_format="xlsx", summar
 			| ({"expiry_date", "remaining_days"} if table == "locations" else set())
 			| ({"source", "destination"} if table == "records" else set())
 		)
+		if "item_code" in projection.column_names[table]:
+			allowed.add("image_file")
+		if "item_code" in projection.column_names[table] or "document" in projection.column_names[table]:
+			allowed.add("attachments")
+		if table not in ("history", "loan_history"):
+			sort_by = sort = None
+		if sort_by is not None:
+			allowed_sort = {
+				"date",
+				"document",
+				"item_name",
+				"item_code",
+				"kind",
+				"docstatus",
+				"source_warehouse",
+				"destination_warehouse",
+				"stock_uom",
+				"borrower",
+				"stock_qty",
+				"borrowed",
+				"outstanding",
+				"quantity",
+			}
+			if not isinstance(sort_by, str) or sort_by not in allowed_sort:
+				frappe.throw("请选择有效的排序", frappe.ValidationError)
+		if sort is not None and (not isinstance(sort, str) or sort not in ("asc", "desc")):
+			frappe.throw("请选择有效的排序", frappe.ValidationError)
+		if table in ("history", "loan_history"):
+			sort_by = sort_by or "date"
+			sort = sort or "desc"
+		if not projection.query.get("groupBy"):
+			grouped = False
 		selected = columns or [
 			field for field in default_columns(validated["dataset"], table) if field in allowed
 		]
+		if include_files == "none":
+			selected = [field for field in selected if field not in ("image_file", "attachments")]
+			if not selected:
+				selected = [
+					field for field in default_columns(validated["dataset"], table) if field in allowed
+				]
 		if not selected or any(field not in allowed or field not in LABELS for field in selected):
 			frappe.throw("请选择有效的导出列")
 	doc = frappe.get_doc(
@@ -142,8 +199,15 @@ def request_export(query, table=None, columns=None, export_format="xlsx", summar
 			"columns_json": json.dumps(selected),
 			"summary_json": json.dumps(summary, ensure_ascii=False),
 			"file_label": _filename(
-				summary.get("title") or TABLE_LABELS.get(table, table), table, validated, export_format
+				summary.get("title") or TABLE_LABELS.get(table, table),
+				table,
+				validated,
+				"zip" if include_files != "none" else export_format,
 			),
+			"grouped": grouped,
+			"include_files": include_files,
+			"export_sort_by": sort_by or "",
+			"export_sort": sort or "",
 			"status": "Queued",
 			"attempt": 1,
 		}
@@ -243,6 +307,8 @@ def _manifest(projection, path):
 				references.append(("File", row["id"]))
 			for reference in references:
 				projection.db.execute("insert or ignore into access values (?, ?)", reference)
+	for name in getattr(projection, "export_file_ids", ()):
+		projection.db.execute("insert or ignore into access values (?, ?)", ("File", name))
 	with open(path, "w", encoding="utf-8") as output:
 		for doctype, name in projection.db.execute("select doctype, name from access order by doctype, name"):
 			output.write(json.dumps([doctype, name], ensure_ascii=False) + "\n")
@@ -270,19 +336,127 @@ def _sheet_name(table, part):
 
 
 def _write(projection, doc, path):
+	include_files = getattr(doc, "include_files", "none") or "none"
+	if include_files == "none":
+		return _write_data(projection, doc, path)
+	table = json.loads(doc.tables_json)[0]
+	rows = list(_export_rows(projection, table))
+	file_entries, row_files = _collect_export_files(projection, table, rows, include_files)
+	projection.export_file_ids = {entry[2].name for entry in file_entries}
+	total_size = sum(Path(file.get_full_path()).stat().st_size for _, _, file in file_entries)
+	if total_size > 2 * 1024 * 1024 * 1024:
+		frappe.throw("附带文件超过 2 GB，请缩小筛选范围")
+	inner_name = (getattr(doc, "file_label", "") or path.stem + ".xlsx").rsplit(".", 1)[0]
+	inner_name += "." + doc.export_format
+	with tempfile.TemporaryDirectory(prefix="ti-export-content-") as work:
+		inner_path = Path(work) / inner_name
+		_write_data(projection, doc, inner_path, rows=rows, row_files=row_files)
+		with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
+			archive.write(inner_path, inner_name)
+			for archive_name, _parent, file in file_entries:
+				archive.write(file.get_full_path(), archive_name)
+	return len(rows)
+
+
+def _collect_export_files(projection, table, rows, include_files):
+	from temple_inventory.item_images import _authorized_original
+	from temple_inventory.native_files import attachments
+
+	images, parent_attachments, row_files = {}, {}, {}
+	file_entries, seen = [], set()
+	for row in rows:
+		item_code = row.get("item_code")
+		if item_code and item_code not in images:
+			item = projection.context.item(item_code)
+			original = _authorized_original(item) if item else None
+			if original:
+				ext = Path(original.file_name or original.get_full_path()).suffix
+				images[item_code] = (f"images/{_safe_archive_name(item_code)}{ext}", original)
+				_add_archive_file(file_entries, seen, images[item_code][0], item_code, original)
+			else:
+				images[item_code] = None
+		if include_files != "all":
+			continue
+		if (
+			table in ("history", "loan_history", "lines", "outcomes", "records", "settlements")
+			and row.get("doctype")
+			and row.get("document")
+		):
+			parent = (row["doctype"], row["document"])
+			folder = f"attachments/records/{_safe_archive_name(row['document'])}/"
+		elif item_code:
+			parent = ("Item", item_code)
+			folder = f"attachments/items/{_safe_archive_name(item_code)}/"
+		else:
+			continue
+		if parent not in parent_attachments:
+			items = attachments(*parent)
+			primary = images.get(item_code, (None, None))
+			primary_name = primary[1].name if primary and primary[1] else None
+			parent_attachments[parent] = []
+			used = set()
+			for value in items:
+				if value.name == primary_name:
+					continue
+				file_doc = frappe.get_doc("File", value.name)
+				archive_name = folder + _unique_archive_name(value.file_name, used)
+				parent_attachments[parent].append((archive_name, file_doc))
+				_add_archive_file(file_entries, seen, archive_name, parent[1], file_doc)
+		row_files[id(row)] = folder if parent_attachments[parent] else ""
+	for row in rows:
+		row_files.setdefault(id(row), "")
+		if row.get("item_code") in images and images[row["item_code"]]:
+			row_files[id(row)] = {
+				"image_file": images[row["item_code"]][0],
+				"attachments": row_files[id(row)],
+			}
+		else:
+			row_files[id(row)] = {"image_file": "", "attachments": row_files[id(row)]}
+	return file_entries, row_files
+
+
+def _safe_archive_name(value):
+	return re.sub(r"[^A-Za-z0-9._-]", "_", str(value or "")) or "unknown"
+
+
+def _unique_archive_name(filename, used):
+	name = Path(filename).name
+	stem, ext = Path(name).stem, Path(name).suffix
+	candidate, index = name, 2
+	while candidate.casefold() in used:
+		candidate, index = f"{stem} ({index}){ext}", index + 1
+	used.add(candidate.casefold())
+	return candidate
+
+
+def _add_archive_file(entries, seen, archive_name, parent, file_doc):
+	key = (archive_name, file_doc.name)
+	if key not in seen:
+		seen.add(key)
+		entries.append((archive_name, parent, file_doc))
+
+
+def _write_data(projection, doc, path, *, rows=None, row_files=None):
 	tables = json.loads(doc.tables_json)
 	if len(tables) != 1 or tables[0] not in projection.column_names:
 		frappe.throw("数据表已变更，请重新选择导出范围")
 	table = tables[0]
 	dataset = projection.query["dataset"]
 	columns = _json_value(getattr(doc, "columns_json", None), default_columns(dataset, table))
-	rows = _export_rows(projection, table)
+	rows = rows if rows is not None else _export_rows(projection, table)
+	if table in ("history", "loan_history") and getattr(doc, "export_sort_by", None):
+		rows = list(rows)
+		rows.sort(key=lambda row: _history_identity(row, table))
+		rows.sort(
+			key=lambda row: _history_sort_value(row, doc.export_sort_by),
+			reverse=(getattr(doc, "export_sort", "") or "desc") == "desc",
+		)
 	count = 0
 	if doc.export_format == "csv":
 		with open(path, "w", encoding="utf-8-sig", newline="") as output:
 			writer = csv.writer(output)
 			writer.writerow([label(dataset, field) for field in columns])
-			count = _write_rows(writer, rows, columns, table, projection)
+			count = _write_rows(writer, rows, columns, table, projection, row_files=row_files)
 		return count
 	with xlsxwriter.Workbook(
 		str(path), {"constant_memory": True, "strings_to_formulas": False, "strings_to_urls": False}
@@ -320,7 +494,17 @@ def _write(projection, doc, path):
 			row_index = 1
 			return worksheet, row_index
 
-		count = _write_rows(_XlsxRows(new_sheet), rows, columns, table, projection)
+		if bool(getattr(doc, "grouped", False)) and projection.query.get("groupBy"):
+			rows = list(rows)
+			if len(rows) > 1_048_575:
+				frappe.throw("分组导出超过 Excel 单表行数限制，请缩小筛选范围")
+			count = _write_grouped_rows(
+				_XlsxRows(new_sheet, workbook), rows, columns, table, projection, row_files=row_files
+			)
+		else:
+			count = _write_rows(
+				_XlsxRows(new_sheet, workbook), rows, columns, table, projection, row_files=row_files
+			)
 		info = workbook.add_worksheet("导出说明")
 		info_rows = [
 			("页面", summary.get("title") or TABLE_LABELS.get(table, table)),
@@ -338,6 +522,10 @@ def _write(projection, doc, path):
 			("请求账户", doc.owner),
 			("行数", count),
 			("表格", TABLE_LABELS.get(table, table)),
+			(
+				"分组输出",
+				"是" if bool(getattr(doc, "grouped", False)) and projection.query.get("groupBy") else "否",
+			),
 		]
 		for index, values in enumerate(info_rows):
 			info.write_row(index, 0, values)
@@ -347,15 +535,190 @@ def _write(projection, doc, path):
 
 
 class _XlsxRows:
-	def __init__(self, new_sheet):
+	def __init__(self, new_sheet, workbook):
 		self.new_sheet = new_sheet
+		self.workbook = workbook
 		self.worksheet, self.row_index = new_sheet()
 
-	def writerow(self, values):
+	def writerow(self, values, columns=None, file_values=None, outline_level=None, fmt=None):
 		if self.row_index >= 1048576:
 			self.worksheet, self.row_index = self.new_sheet()
-		self.worksheet.write_row(self.row_index, 0, values)
+		if outline_level is not None:
+			self.worksheet.set_row(self.row_index, None, None, {"level": outline_level})
+		for column, value in enumerate(values):
+			if columns and file_values and columns[column] == "image_file" and value:
+				self.worksheet.write_url(self.row_index, column, "external:" + value, string=value)
+			else:
+				self.worksheet.write(self.row_index, column, value, fmt)
 		self.row_index += 1
+
+
+def _history_sort_value(row, field):
+	from frappe.utils import get_datetime
+
+	if field == "quantity":
+		field = "stock_qty"
+	if field == "date":
+		return get_datetime(f"{row.get('date') or ''} {row.get('time') or ''}")
+	return row.get(field) or ""
+
+
+def _history_identity(row, table):
+	if table == "loan_history":
+		values = (
+			row.get("doctype"),
+			row.get("document"),
+			row.get("date"),
+			row.get("time"),
+			"Loan",
+			row.get("source_warehouse"),
+			row.get("destination_warehouse"),
+			row.get("stock_uom"),
+			row.get("item_code"),
+		)
+	else:
+		values = (
+			row.get("doctype"),
+			row.get("document"),
+			row.get("item_code"),
+			row.get("date"),
+			row.get("time"),
+			row.get("kind"),
+			row.get("source_warehouse"),
+			row.get("destination_warehouse"),
+			row.get("stock_uom"),
+			row.get("docstatus"),
+		)
+	return ":".join(str(value or "") for value in values)
+
+
+def _group_units(row, fields):
+	if row.get("_units"):
+		return row["_units"]
+	unit = row.get("stock_uom") or ""
+	return {unit: {field: row.get(field) for field in fields if row.get(field) is not None}}
+
+
+def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None):
+	from temple_inventory.projections import group_field_name, group_label
+
+	group_by = projection.query["groupBy"][:2]
+
+	def value(row, key):
+		field = group_field_name(projection.query, key)
+		if key == "month" and not row.get(field):
+			return str(row.get("date") or "")[:7]
+		return row.get(field) or ""
+
+	rows.sort(
+		key=lambda row: tuple(
+			str(
+				group_label(
+					{**row, group_field_name(projection.query, key): value(row, key)},
+					projection.query,
+					depth + 1,
+				)
+				or "未指定"
+			).casefold()
+			for depth, key in enumerate(group_by)
+		)
+	)
+	count = 0
+	totals = {}
+	styles = [
+		writer.workbook.add_format({"bold": True, "bg_color": "#D9D9D9"}),
+		writer.workbook.add_format({"bold": True, "bg_color": "#EDEDED"}),
+	]
+
+	def emit(subset, depth):
+		nonlocal count
+		if depth == len(group_by):
+			for row in subset:
+				values = [
+					(row_files or {}).get(id(row), {}).get(field, "")
+					if field in ("image_file", "attachments")
+					else _display_cell(row, field, projection)
+					for field in columns
+				]
+				writer.writerow(values, columns, (row_files or {}).get(id(row)), len(group_by))
+				fields = [field for field in _sum_fields(table, projection.query) if field in columns]
+				if table == "records" and "stock_qty" in fields:
+					for unit, unit_values in row.get("_units", {}).items():
+						_totals_add(
+							totals,
+							unit,
+							{field: unit_values[field] for field in fields if field in unit_values},
+						)
+				elif fields:
+					_totals_add(
+						totals,
+						row.get("stock_uom"),
+						{field: row[field] for field in fields if isinstance(row.get(field), (int, float))},
+					)
+				count += 1
+			return
+		key = group_by[depth]
+		field = group_field_name(projection.query, key)
+		buckets = {}
+		for row in subset:
+			buckets.setdefault(value(row, key), []).append(row)
+		for group_value, children in sorted(buckets.items(), key=lambda pair: str(pair[0]).casefold()):
+			label_row = dict(children[0])
+			if key == "month":
+				label_row[field] = group_value
+			if group_value in (None, ""):
+				label_text = "未指定"
+			elif key == "kind":
+				label_text = MOVEMENT_LABELS.get(
+					group_value,
+					{"Reconcile": "盘点调整", "Opening": "期初库存"}.get(group_value, str(group_value)),
+				)
+			else:
+				label_text = group_label(label_row, projection.query, depth + 1) or "未指定"
+			values = [""] * len(columns)
+			values[0] = f"{label_text} ({len(children)})"
+			unit_values = {}
+			for row in children:
+				for unit, unit_row in _group_units(row, _sum_fields(table, projection.query)).items():
+					unit_values.setdefault(unit, {})
+					for sum_field in _sum_fields(table, projection.query):
+						amount = unit_row.get(sum_field)
+						if isinstance(amount, (int, float)):
+							unit_values[unit][sum_field] = unit_values[unit].get(sum_field, 0) + amount
+			if len(unit_values) == 1:
+				unit, unit_sums = next(iter(unit_values.items()))
+				for index, column in enumerate(columns):
+					if column in unit_sums:
+						values[index] = unit_sums[column]
+					elif column == "stock_uom":
+						values[index] = uom_label(unit)
+			else:
+				quantity_field = next(
+					(field for field in ("stock_qty", "borrowed", "outstanding") if field in columns),
+					"stock_qty",
+				)
+				unit_text = "；".join(
+					f"{unit_sums.get(quantity_field, 0):g} {uom_label(unit)}"
+					for unit, unit_sums in unit_values.items()
+				)
+				for index, column in enumerate(columns):
+					if column == "stock_uom":
+						values[index] = unit_text
+			writer.writerow(values, fmt=styles[depth], outline_level=depth)
+			emit(children, depth + 1)
+
+	emit(rows, 0)
+	for unit, sums in totals.items():
+		line = [""] * len(columns)
+		line[0] = (
+			f"合计（{uom_label(unit)}） · {sums['_count']} 行" if unit else f"合计 · {sums['_count']} 行"
+		)
+		for index, field in enumerate(columns):
+			if field in sums:
+				line[index] = sums[field]
+		writer.writerow(line)
+	writer.worksheet.outline_settings(True, False, True, False)
+	return count
 
 
 def _export_rows(projection, table):
@@ -400,7 +763,7 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 			**row,
 			**aggregates,
 			"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
-			"stock_uom": next(iter(units)) if len(units) == 1 else "",
+			"stock_uom": next(iter(units)) if len(units) == 1 else quantities,
 			"quantities": quantities,
 			"source": "",
 			"destination": "",
@@ -416,7 +779,7 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		**row,
 		**aggregates,
 		"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
-		"stock_uom": next(iter(units)) if len(units) == 1 else "",
+		"stock_uom": next(iter(units)) if len(units) == 1 else quantities,
 		"quantities": quantities,
 		"source": "；".join(sorted(value for value in sources if value)),
 		"destination": "；".join(sorted(value for value in destinations if value)),
@@ -435,12 +798,20 @@ def _json_value(value, default):
 	return frappe.parse_json(value) if isinstance(value, str) else value
 
 
-def _write_rows(writer, rows, columns, table, projection):
+def _write_rows(writer, rows, columns, table, projection, row_files=None):
 	totals = {}
 	count = 0
 	for row in rows:
-		values = [_display_cell(row, field, projection) for field in columns]
-		writer.writerow([_csv_value(value) for value in values])
+		values = [
+			(row_files or {}).get(id(row), {}).get(field, "")
+			if field in ("image_file", "attachments")
+			else _display_cell(row, field, projection)
+			for field in columns
+		]
+		if isinstance(writer, _XlsxRows):
+			writer.writerow(values, columns, (row_files or {}).get(id(row)))
+		else:
+			writer.writerow([_csv_value(value) for value in values])
 		count += 1
 		unit = str(row.get("stock_uom") or "")
 		fields = [field for field in _sum_fields(table, projection.query) if field in columns]
@@ -517,7 +888,8 @@ def _display_cell(row, field, projection=None):
 			return "外部"
 		return (projection.context.label(value) if projection and value else "") or value
 	if field in ("stock_uom", "entered_uom", "uom"):
-		return uom_label(row.get(field))
+		value = row.get(field)
+		return value if isinstance(value, str) and "；" in value else uom_label(value)
 	if field == "kind":
 		return MOVEMENT_LABELS.get(
 			row.get(field),
@@ -598,11 +970,13 @@ def generate_export(request_name):
 		request = frappe.get_doc(EXPORT_DOCTYPE, request_name)
 		if request.owner != frappe.session.user:
 			raise
-		request.status, request.error = (
-			"Failed",
+		request.status = "Failed"
+		request.error = (
 			"导出失败，请重新登录并检查权限后重试"
 			if isinstance(error, (frappe.PermissionError, frappe.AuthenticationError))
-			else "导出生成失败，请重试",
+			else "附带文件超过 2 GB，请缩小筛选范围"
+			if "附带文件超过 2 GB，请缩小筛选范围" in str(error)
+			else "导出生成失败，请重试"
 		)
 		request.progress = 0
 		# A revoked role must still leave a truthful failed state for this owner.

@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import tempfile
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -15,7 +16,7 @@ import frappe
 from frappe.utils import nowdate
 from openpyxl import load_workbook
 
-from temple_inventory import browse, counts, exports, native_api
+from temple_inventory import browse, counts, exports, native_api, native_files
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.tests.helpers import NativeReportTestCase
@@ -23,6 +24,187 @@ from temple_inventory.uom_labels import uom_label
 
 
 class NativeReportsExportsTests(NativeReportTestCase):
+	def test_grouped_xlsx_writes_labeled_headers_subtotals_and_outline_levels(self):
+		self.receipt(12)
+		query = self.query("movements", "lines", groupBy=["item"])
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"lines",
+				columns=["item_name", "stock_qty", "stock_uom"],
+				grouped=True,
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		self.assertTrue(request.grouped)
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "grouped.xlsx"
+			self.assertEqual(exports._write(projection, request, path), 1)
+			workbook = load_workbook(path, data_only=True)
+			worksheet = workbook["库存明细"]
+			self.assertEqual(worksheet.cell(2, 1).value, "Native test item (1)")
+			self.assertEqual(worksheet.cell(2, 2).value, 12)
+			self.assertEqual(worksheet.cell(2, 3).value, uom_label("Nos"))
+			self.assertEqual(worksheet.row_dimensions[2].outline_level, 0)
+			self.assertEqual(worksheet.row_dimensions[3].outline_level, 1)
+			self.assertFalse(worksheet.row_dimensions[3].hidden)
+			self.assertEqual(worksheet.cell(4, 1).value, f"合计（{uom_label('Nos')}） · 1 行")
+			self.assertEqual(worksheet.cell(2, 1).fill.fgColor.rgb[-6:], "D9D9D9")
+			workbook.close()
+
+	def test_grouped_csv_rejected_empty_grouping_clears_flag_and_file_columns_drop(self):
+		query = self.query("movements", "lines")
+		with self.assertRaises(frappe.ValidationError):
+			exports.request_export(query, "lines", export_format="csv", grouped=True)
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"lines",
+				columns=["image_file", "attachments"],
+				grouped=True,
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		self.assertFalse(request.grouped)
+		self.assertNotIn("image_file", json.loads(request.columns_json))
+		self.assertNotIn("attachments", json.loads(request.columns_json))
+
+	def test_zip_export_includes_primary_image_attachments_hyperlink_and_manifest_files(self):
+		self.receipt(12)
+		primary = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "primary.webp",
+				"content": b"image bytes",
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+				"attached_to_field": "image",
+			}
+		).insert()
+		item = frappe.get_doc("Item", self.item)
+		item.image = primary.file_url
+		item.save()
+		for _ in range(2):
+			frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": "notes.txt",
+					"content": b"attachment",
+					"is_private": 1,
+					"attached_to_doctype": "Item",
+					"attached_to_name": self.item,
+				}
+			).insert()
+		record = self.create(self.movement(quantity=3))
+		query = self.query("movements", "lines")
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"summary",
+				columns=["item_code", "image_file", "attachments"],
+				include_files="all",
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		self.assertTrue(request.file_label.endswith(".zip"))
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / request.file_label
+			exports._write(projection, request, path)
+			self.assertEqual(
+				projection.export_file_ids,
+				{file.name for file in native_files.attachments("Item", self.item)},
+			)
+			with zipfile.ZipFile(path) as archive:
+				names = set(archive.namelist())
+				self.assertIn(f"images/{self.item}.webp", names)
+				self.assertIn(f"attachments/items/{self.item}/notes.txt", names)
+				self.assertIn(f"attachments/items/{self.item}/notes (2).txt", names)
+				book = load_workbook(io.BytesIO(archive.read(request.file_label.rsplit(".", 1)[0] + ".xlsx")))
+				worksheet = book["汇总"]
+				self.assertEqual(worksheet.cell(2, 2).value, f"images/{self.item}.webp")
+				self.assertIn(
+					self.item,
+					worksheet.cell(2, 2).hyperlink.target if worksheet.cell(2, 2).hyperlink else "",
+				)
+				self.assertEqual(worksheet.cell(2, 3).value, f"attachments/items/{self.item}/")
+				book.close()
+			frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": "record.txt",
+					"content": b"record attachment",
+					"is_private": 1,
+					"attached_to_doctype": "Stock Entry",
+					"attached_to_name": record.name,
+				}
+			).insert()
+			record_query = self.query("movements", "lines", record=record.name, statuses=[0])
+			with patch("temple_inventory.exports._enqueue"):
+				record_request = frappe.get_doc(
+					"Inventory Export Request",
+					exports.request_export(
+						record_query,
+						"lines",
+						columns=["document", "attachments"],
+						include_files="all",
+					)["name"],
+				)
+			record_path = Path(directory) / record_request.file_label
+			with Projection(record_query, refresh=True) as record_projection:
+				record_projection.build()
+				exports._write(record_projection, record_request, record_path)
+				with zipfile.ZipFile(record_path) as archive:
+					self.assertIn(f"attachments/records/{record.name}/record.txt", archive.namelist())
+				with patch(
+					"temple_inventory.item_images._authorized_original", side_effect=frappe.PermissionError
+				):
+					with self.assertRaises(frappe.PermissionError):
+						exports._write(record_projection, record_request, record_path)
+
+	def test_history_sort_matches_browse_and_retry_preserves_export_options(self):
+		self.receipt(12)
+		query = self.query("movements", "lines", groupBy=["item"])
+		expected = browse.movement_history(query, sort_by="document", sort="asc")["rows"]
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"history",
+				columns=["document", "attachments"],
+				grouped=True,
+				include_files="images",
+				sort_by="document",
+				sort="asc",
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		self.assertTrue(request.grouped)
+		self.assertEqual(request.include_files, "images")
+		self.assertEqual(request.export_sort_by, "document")
+		self.assertEqual(request.export_sort, "asc")
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / request.file_label
+			exports._write(projection, request, path)
+			with zipfile.ZipFile(path) as archive:
+				workbook = load_workbook(
+					io.BytesIO(archive.read(request.file_label.rsplit(".", 1)[0] + ".xlsx")), data_only=True
+				)
+				worksheet = workbook["流动明细"]
+				expected_names = {row["document"] for row in expected}
+				data_rows = [row for row in list(worksheet.values)[1:] if row[0] in expected_names]
+				values = [row[0] for row in data_rows]
+				self.assertEqual(values, [row["document"] for row in expected])
+				self.assertTrue(all(not row[1] for row in data_rows))
+				workbook.close()
+		request.status = "Failed"
+		exports._save(request)
+		with patch("temple_inventory.exports._enqueue"):
+			retried = exports.retry_export(request.name, str(request.modified))
+		self.assertEqual(retried["attempt"], 2)
+		self.assertTrue(retried["grouped"])
+		self.assertEqual(retried["include_files"], "images")
+		self.assertEqual(request.export_sort_by, "document")
+		self.assertEqual(request.export_sort, "asc")
+
 	def test_export_totals_are_per_unit_and_expiry_states_are_date_accurate(self):
 		stream = io.StringIO()
 		writer = csv.writer(stream)
@@ -175,7 +357,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			},
 		)
 		self.assertIsNone(row["stock_qty"])
-		self.assertEqual(row["stock_uom"], "")
+		self.assertEqual(row["stock_uom"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
 		self.assertEqual(row["quantities"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
 		self.assertEqual(row["source"], "来源库位")
 		self.assertEqual(row["destination"], "去向库位")

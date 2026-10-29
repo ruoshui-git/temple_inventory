@@ -70,6 +70,8 @@ LABELS = {
 	"posting_timestamp": "过账时间",
 	"modified": "更新时间",
 	"ledger_entry": "流水编号",
+	"image_file": "图片文件",
+	"attachments": "附件",
 }
 
 # Labels that read differently on one dataset's pages.
