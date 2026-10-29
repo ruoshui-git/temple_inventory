@@ -254,6 +254,7 @@ function setGroup(index: number, value: string) {
 										<option value="next_90">未来90天（含今日）</option>
 										<option value="next_365">未来365天（含今日）</option>
 										<option value="expired">已过期</option>
+										<option value="unexpired">未过期</option>
 										<option value="undated">无效期</option>
 									</select></label
 								>

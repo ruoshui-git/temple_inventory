@@ -180,6 +180,7 @@ export function reportFilterChips(
       next_90: "未来90天",
       next_365: "未来365天",
       expired: "已过期",
+      unexpired: "未过期",
       undated: "无效期",
     };
     add(

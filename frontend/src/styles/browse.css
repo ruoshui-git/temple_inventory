@@ -440,7 +440,7 @@
 					env(safe-area-inset-bottom)
 			);
 	}
-	
+
 	.browse-warehouse-layout {
 		grid-template-columns: minmax(0, 1fr);
 	}
@@ -3128,12 +3128,6 @@
 .dashboard-inventory-quantities strong {
 	font-size: var(--p-section);
 	font-variant-numeric: tabular-nums;
-}
-.dashboard-inventory-quantities span {
-	margin-inline-start: 4px;
-	color: var(--p-muted);
-	font-size: var(--p-small);
-	font-weight: 400;
 }
 .dashboard-unit-disclosure {
 	display: inline-flex;

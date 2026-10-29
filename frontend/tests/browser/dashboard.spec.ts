@@ -57,6 +57,77 @@ test("phone dashboard keeps create actions in four columns and secondary actions
   await expect(page.locator(".app-page-actions")).toContainText("刷新");
 });
 
+test("dashboard inventory quantities keep section typography on desktop and phone", async ({
+  page,
+}, info) => {
+  await nativeUiSession(page);
+  await page.route(
+    "**/api/method/temple_inventory.browse.dashboard_card",
+    (route) =>
+      route.fulfill({
+        json: {
+          message: {
+            query: newReportQuery("inventory"),
+            snapshot: "2026-10-16 12:00",
+            rows: [],
+            expiry_rows: { expired: [], upcoming: [] },
+            kind_counts: {},
+            totals: [
+              {
+                stock_uom: "Nos",
+                available: 12,
+                stock_qty: 12,
+                loaned: 0,
+                damaged: 0,
+              },
+            ],
+            buckets: [],
+            matched_count: 1,
+            item_count: 1,
+            expired_count: 0,
+            damaged_item_count: 0,
+          },
+        },
+      }),
+  );
+  await page.goto("/inventory/");
+  const quantity = page
+    .locator(".dashboard-inventory-quantities strong")
+    .first();
+  await expect(quantity).toContainText("12 Nos");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    const typography = await quantity.evaluate((element) => {
+      const strong = getComputedStyle(element);
+      const unit = getComputedStyle(element.querySelector("span")!);
+      const expected = document.createElement("span");
+      expected.style.fontSize = "var(--p-section)";
+      document.body.append(expected);
+      const expectedSize = getComputedStyle(expected).fontSize;
+      expected.remove();
+      return {
+        expectedSize,
+        size: strong.fontSize,
+        weight: strong.fontWeight,
+        color: strong.color,
+        unitSize: unit.fontSize,
+        unitColor: unit.color,
+        expectedColor: getComputedStyle(
+          document.querySelector(".dashboard-inventory-metric")!,
+        ).color,
+      };
+    });
+    expect(typography.size).toBe(typography.expectedSize);
+    expect(Number(typography.weight)).toBeGreaterThanOrEqual(600);
+    expect(typography.unitSize).toBe(typography.size);
+    expect(typography.unitColor).toBe(typography.expectedColor);
+    await page.screenshot({
+      path: info.outputPath(`dashboard-inventory-${width}.png`),
+      fullPage: true,
+    });
+  }
+});
+
 // Production coordinator/transport with controlled native card responses.
 test("dashboard retains applied scope and its open filter across 1024px", async ({
   page,
