@@ -118,6 +118,85 @@ class NativeWarehouseTests(NativeDocumentTests):
 			"name",
 		)
 
+	def test_delete_location_removes_unused_shelf(self):
+		shelf = self._create("Shelf", "Delete shelf " + self.token, self.room_a)
+		self.assertTrue(frappe.db.exists("Temple Inventory Allowed Warehouse", {"warehouse": shelf}))
+		version = str(frappe.db.get_value("Warehouse", shelf, "modified"))
+		result = warehouses.delete_location(shelf, version)
+		self.assertFalse(frappe.db.exists("Warehouse", shelf))
+		self.assertFalse(frappe.db.exists("Temple Inventory Allowed Warehouse", {"warehouse": shelf}))
+		self.assertNotIn(shelf, {row["name"] for row in result["rows"]})
+
+	def test_delete_location_removes_room_and_its_direct_leaf(self):
+		room = self._create("Room", "Delete room " + self.token, self.physical)
+		leaf = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		result = warehouses.delete_location(room, str(frappe.db.get_value("Warehouse", room, "modified")))
+		self.assertFalse(frappe.db.exists("Warehouse", room))
+		self.assertFalse(frappe.db.exists("Warehouse", leaf))
+		self.assertNotIn(room, {row["name"] for row in result["rows"]})
+
+	def test_delete_location_rejects_stock_without_deleting(self):
+		shelf = self._create("Shelf", "Stocked shelf " + self.token, self.room_a)
+		self.submit(self.create(self.movement(target=shelf)))
+		with self.assertRaises(frappe.LinkExistsError):
+			warehouses.delete_location(shelf, str(frappe.db.get_value("Warehouse", shelf, "modified")))
+		self.assertTrue(frappe.db.exists("Warehouse", shelf))
+
+	def test_delete_location_rejects_draft_stock_entry_line_without_deleting(self):
+		shelf = self._create("Shelf", "Draft shelf " + self.token, self.room_a)
+		self.create(self.movement(target=shelf))
+		with self.assertRaises(frappe.LinkExistsError):
+			warehouses.delete_location(shelf, str(frappe.db.get_value("Warehouse", shelf, "modified")))
+		self.assertTrue(frappe.db.exists("Warehouse", shelf))
+
+	def test_delete_location_rejects_user_permission_link_without_deleting(self):
+		room = self._create("Room", "Permitted room " + self.token, self.physical)
+		leaf = frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
+		permission = frappe.get_doc(
+			{
+				"doctype": "User Permission",
+				"user": frappe.session.user,
+				"allow": "Warehouse",
+				"for_value": room,
+			}
+		).insert(ignore_permissions=True)
+		with self.assertRaises(frappe.LinkExistsError):
+			warehouses.delete_location(room, str(frappe.db.get_value("Warehouse", room, "modified")))
+		self.assertTrue(frappe.db.exists("Warehouse", room))
+		self.assertTrue(frappe.db.exists("Warehouse", leaf))
+		frappe.delete_doc("User Permission", permission.name, ignore_permissions=True, force=True)
+
+	def test_delete_location_failure_keeps_allowed_warehouse_row(self):
+		shelf = self._create("Shelf", "Allowed shelf " + self.token, self.room_a)
+		self.create(self.movement(target=shelf))
+		with self.assertRaises(frappe.LinkExistsError):
+			warehouses.delete_location(shelf, str(frappe.db.get_value("Warehouse", shelf, "modified")))
+		self.assertTrue(frappe.db.exists("Warehouse", shelf))
+		self.assertTrue(frappe.db.exists("Temple Inventory Allowed Warehouse", {"warehouse": shelf}))
+
+	def test_delete_location_rejects_non_direct_child_without_deleting(self):
+		shelf = self._create("Shelf", "Parent shelf " + self.token, self.room_a)
+		warehouses.subdivide_shelf(shelf, str(frappe.db.get_value("Warehouse", shelf, "modified")))
+		child = self._create("Shelf", "N" + self.token[:4], shelf)
+		with self.assertRaises(frappe.ValidationError):
+			warehouses.delete_location(shelf, str(frappe.db.get_value("Warehouse", shelf, "modified")))
+		self.assertTrue(frappe.db.exists("Warehouse", shelf))
+		self.assertTrue(frappe.db.exists("Warehouse", child))
+
+	def test_delete_location_rejects_protected_warehouses(self):
+		for warehouse in (self.root, self.physical, self.system_root, self.loan_leaf, self.damaged):
+			with self.subTest(warehouse=warehouse), self.assertRaises(frappe.PermissionError):
+				warehouses.delete_location(
+					warehouse, str(frappe.db.get_value("Warehouse", warehouse, "modified"))
+				)
+			self.assertTrue(frappe.db.exists("Warehouse", warehouse))
+
+	def test_delete_location_rejects_stale_version_without_deleting(self):
+		shelf = self._create("Shelf", "Stale shelf " + self.token, self.room_a)
+		with self.assertRaises(frappe.ValidationError):
+			warehouses.delete_location(shelf, "2000-01-01 00:00:00")
+		self.assertTrue(frappe.db.exists("Warehouse", shelf))
+
 	def test_area_room_shelf_and_direct_storage_model(self):
 		area = self._create("Area", "Area " + self.token, self.physical, "A")
 		room = self._create("Room", "Room " + self.token, area)

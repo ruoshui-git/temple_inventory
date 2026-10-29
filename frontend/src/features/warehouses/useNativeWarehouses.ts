@@ -41,6 +41,7 @@ export function useNativeWarehouses(
   },
   changed: (name: string, search: string) => void,
   saved: () => void = () => undefined,
+  deleted: (parent: string) => void = () => undefined,
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
@@ -53,6 +54,8 @@ export function useNativeWarehouses(
   const expanded = ref(new Set<string>()),
     dialogOpen = ref(false),
     busy = ref(false),
+    deleteBusy = ref(false),
+    deleteError = ref(""),
     formError = ref("");
   const editing = ref<NativeWarehouse>(),
     action = ref<"create" | "rename" | "move">("create"),
@@ -530,6 +533,43 @@ export function useNativeWarehouses(
       "直接存放位置已补建",
     );
   }
+  async function deleteLocation(row: NativeWarehouse) {
+    if (!active() || deleteBusy.value || !row.can_edit || row.protected) return;
+    const accepted = await useConfirm().confirm({
+      title: `删除位置「${row.full_label || row.label}」？`,
+      message: "此操作不能撤销。仅未使用的位置可以删除。",
+      confirmLabel: "删除",
+      cancelLabel: "取消",
+      tone: "danger",
+    });
+    if (!accepted || !active()) return;
+    deleteBusy.value = true;
+    deleteError.value = "";
+    try {
+      const value = await services.call<WarehouseTree>(
+        "warehouses.delete_location",
+        {
+          name: row.name,
+          version: row.version,
+        },
+      );
+      if (!active()) return;
+      tree.value = value;
+      selectedName.value = row.parent || value.physical_root;
+      changed(selectedName.value, search.value);
+      if (props.name) deleted(selectedName.value);
+      showToast("已删除位置");
+      saved();
+    } catch (reason) {
+      if (active()) {
+        deleteError.value =
+          reason instanceof Error ? reason.message : "位置删除失败";
+        showToast(deleteError.value, "danger");
+      }
+    } finally {
+      if (active()) deleteBusy.value = false;
+    }
+  }
   watch([selectedName, search], () => {
     if (active()) changed(selectedName.value, search.value);
   });
@@ -618,6 +658,9 @@ export function useNativeWarehouses(
     toggleDisabled,
     subdivide,
     repair,
+    deleteBusy,
+    deleteError,
+    deleteLocation,
   };
 }
 export type NativeWarehouses = ReturnType<typeof useNativeWarehouses>;

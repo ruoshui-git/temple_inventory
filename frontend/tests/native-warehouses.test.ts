@@ -12,9 +12,11 @@ import { warehouseLabel, warehousePath } from "../src/lib/warehouseLabel";
 import type { ReportQuery } from "../src/lib/reportContract";
 import { fixtureServices } from "./support/fixtureServices";
 import { provideGalleryReference } from "./support/fixtureReference";
+import { resolveConfirm, useConfirm } from "../src/services/confirm";
 const wrappers: VueWrapper[] = [];
 beforeEach(() => localStorage.clear());
 afterEach(() => {
+  resolveConfirm(false);
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
   document.body.innerHTML = "";
@@ -332,6 +334,61 @@ describe("native location workspace", () => {
     expect(node({}).can_edit).toBe(false);
     expect(c.visibleRows.value.map((row) => row.name)).toContain("SYSTEM");
     expect(c.visibleRows.value.map((row) => row.name)).toContain("LEASED");
+  });
+
+  it("shows delete only for editable locations and confirms before deleting", async () => {
+    const call = vi.fn(async (endpoint: string) =>
+      endpoint === "configuration.status" ? { needs_first_room: false } : tree,
+    );
+    const { c, wrapper } = setup(call);
+    await flushPromises();
+    c.select("SHELF");
+    await flushPromises();
+    await wrapper.get('[aria-label="更多位置操作"]').trigger("click");
+    await flushPromises();
+    expect(
+      document.querySelector('[role="menu"][aria-label="更多位置操作"]')
+        ?.textContent,
+    ).toContain("删除");
+    c.select("ROOT");
+    await flushPromises();
+    expect(wrapper.find(".warehouse-action-menu").exists()).toBe(false);
+    c.select("SHELF");
+    await flushPromises();
+    const deleting = c.deleteLocation(shelf);
+    await flushPromises();
+    expect(useConfirm().state.pending?.options).toMatchObject({
+      title: "删除位置「演示架1」？",
+      message: "此操作不能撤销。仅未使用的位置可以删除。",
+      tone: "danger",
+    });
+    resolveConfirm(true);
+    await deleting;
+    expect(call).toHaveBeenCalledWith("warehouses.delete_location", {
+      name: "SHELF",
+      version: "v1",
+    });
+    expect(c.selectedName.value).toBe("ROOM");
+  });
+
+  it("shows a server deletion error in the danger callout", async () => {
+    const call = vi.fn(async (endpoint: string) => {
+      if (endpoint === "configuration.status")
+        return { needs_first_room: false };
+      if (endpoint === "warehouses.delete_location")
+        throw new Error("已有库存或记录引用此位置");
+      return tree;
+    });
+    const { c, wrapper } = setup(call);
+    await flushPromises();
+    const deleting = c.deleteLocation(shelf);
+    await flushPromises();
+    resolveConfirm(true);
+    await deleting;
+    expect(c.deleteError.value).toBe("已有库存或记录引用此位置");
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      "已有库存或记录引用此位置",
+    );
   });
 
   it("retains edits made during a native metadata save with the new native base version", async () => {

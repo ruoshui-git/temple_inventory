@@ -9,6 +9,7 @@ from temple_inventory.configuration import POINTERS
 from temple_inventory.native_access import check_version, require_app
 from temple_inventory.native_topology import (
 	_physical_tree,
+	_remove_allowed_warehouse,
 	_settings,
 	_system_warehouse_names,
 	_visible_warehouses,
@@ -65,8 +66,8 @@ def _referenced(names):
 		for doctype, filters in (
 			("Stock Ledger Entry", {"warehouse": values}),
 			("Bin", {"warehouse": values, "actual_qty": ["!=", 0]}),
-			("Stock Entry Detail", {"s_warehouse": values}),
-			("Stock Entry Detail", {"t_warehouse": values}),
+			("Stock Entry Detail", {"s_warehouse": values, "docstatus": ["in", [0, 1]]}),
+			("Stock Entry Detail", {"t_warehouse": values, "docstatus": ["in", [0, 1]]}),
 			("Stock Reconciliation Item", {"warehouse": values}),
 		)
 	)
@@ -417,3 +418,54 @@ def repair_direct_storage(name, version):
 	leaf.check_permission("create")
 	leaf.insert()
 	return tree()
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_location(name, version):
+	_, physical, doc = _lock_location(name, version)
+	children = frappe.get_all(
+		"Warehouse",
+		filters={"parent_warehouse": doc.name},
+		fields=["name", "ti_direct_storage", "is_group"],
+		order_by="name asc",
+	)
+	direct_leaf = []
+	if children:
+		allowed_container = doc.is_group and doc.warehouse_type in ("Room", "Shelf")
+		if (
+			len(children) != 1
+			or not allowed_container
+			or not cint(children[0].ti_direct_storage)
+			or cint(children[0].is_group)
+			or children[0].name not in physical
+		):
+			frappe.throw("请先删除下级位置")
+		direct_leaf = [children[0].name]
+		leaf = frappe.get_doc("Warehouse", direct_leaf[0], for_update=True)
+		leaf.check_permission("delete")
+	if not frappe.has_permission("Warehouse", "delete", doc=doc):
+		frappe.throw("无权删除仓库", frappe.PermissionError)
+	doc.check_permission("delete")
+	names = [*direct_leaf, doc.name]
+	# User Permissions are administrator access rules, not app bookkeeping; keep them explicit.
+	if _referenced(names) or frappe.db.exists(
+		"User Permission", {"allow": "Warehouse", "for_value": ["in", names]}
+	):
+		frappe.throw("已有库存或记录引用此位置，不能删除，可改为停用", frappe.LinkExistsError)
+	savepoint = "ti_delete_location"
+	frappe.db.savepoint(savepoint)
+	try:
+		# New physical leaves join the app's allowlist automatically; that row is not a
+		# user reference and would otherwise block every deletion.
+		allowlist = frappe.get_single("Temple Inventory Settings")
+		for warehouse in names:
+			_remove_allowed_warehouse(allowlist, warehouse)
+		for warehouse in names:
+			frappe.delete_doc("Warehouse", warehouse)
+		return tree()
+	except Exception as error:
+		frappe.db.rollback(save_point=savepoint)
+		frappe.clear_document_cache("Temple Inventory Settings", "Temple Inventory Settings")
+		if isinstance(error, frappe.LinkExistsError):
+			frappe.throw("已有库存或记录引用此位置，不能删除，可改为停用", frappe.LinkExistsError)
+		raise

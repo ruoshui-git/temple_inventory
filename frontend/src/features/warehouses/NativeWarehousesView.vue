@@ -60,6 +60,8 @@ const {
 	form,
 	recoveryError,
 	editing,
+	deleteBusy,
+	deleteError,
 } = c;
 const stockTable = c.stock.mainTable;
 const services = useOptionalInventoryServices();
@@ -196,6 +198,7 @@ function parentLabel(name?: string) {
 		</div>
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" class="utility-error" role="alert">{{ recoveryError }}</p>
+		<p v-if="deleteError" class="notice-bar danger" role="alert">{{ deleteError }}</p>
 		<template v-if="tree && !error">
 			<div :class="{ 'browse-warehouse-layout': !detail }">
 				<div v-if="!detail" class="browse-warehouse-tree">
@@ -268,6 +271,9 @@ function parentLabel(name?: string) {
 							<p v-if="selected.short_label">简称 {{ selected.short_label }}</p>
 						</div>
 						<div class="warehouse-detail-actions">
+							<UiButton v-if="deleteBusy" variant="danger" :loading="true" disabled
+								>正在删除位置…</UiButton
+							>
 							<UiButton
 								v-if="selected.kind === 'area' && tree.can_create"
 								variant="primary"
@@ -322,6 +328,15 @@ function parentLabel(name?: string) {
 								<button type="button" @click="c.toggleDisabled(selected)">
 									<InventoryIcon class="menu-item-icon" name="adjust" />
 									{{ selected.disabled ? "启用" : "停用" }}
+								</button>
+								<button
+									type="button"
+									class="is-danger-text"
+									:disabled="deleteBusy"
+									@click="c.deleteLocation(selected)"
+								>
+									<InventoryIcon class="menu-item-icon" name="trash" />
+									{{ deleteBusy ? "正在删除…" : "删除" }}
 								</button>
 							</PopupMenu>
 							<DisclosureSection title="ERPNext 信息" summary="系统字段与层级信息">

@@ -31,6 +31,7 @@ const controller = useNativeWarehouses(
 	props,
 	(name, search) => emit("selection", name, search),
 	() => emit("saved"),
+	(name) => emit("warehouse", name),
 );
 defineExpose({ controller });
 </script>
