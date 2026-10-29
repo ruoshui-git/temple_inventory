@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import frappe
-from frappe.utils import add_days, nowdate
+from frappe.utils import add_days, getdate, nowdate
 
 from temple_inventory import browse, catalog, counts, native_api
 from temple_inventory.projections import group_page, report_page
@@ -189,6 +189,13 @@ class BrowseGoldenTests(NativeDocumentTests):
 
 
 def _normalize(value, token, document_names, batch, item, root, *warehouses):
+	# Fixture dates are relative to the run date; keep the offset so the golden holds on any day.
+	today = getdate(nowdate())
+
+	def relative_date(match):
+		offset = (getdate(match.group(0)) - today).days
+		return f"<today{offset:+d}>" if offset else "<today>"
+
 	generated = {}
 	for index, name in enumerate((item, root, *warehouses, batch), start=1):
 		generated[name] = f"<fixture-{index}>"
@@ -220,12 +227,14 @@ def _normalize(value, token, document_names, batch, item, root, *warehouses):
 				r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?", item_value
 			):
 				return "<date> <time>"
-			if re.fullmatch(r"\d{2}:\d{2}:\d{2}(\.\d+)?", item_value) and key == "time":
+			# Native times are unpadded before 10:00 ("4:09:19").
+			if re.fullmatch(r"\d{1,2}:\d{2}:\d{2}(\.\d+)?", item_value) and key == "time":
 				return "<time>"
 			for source, replacement in generated.items():
 				item_value = item_value.replace(source, replacement)
 			item_value = re.sub(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?", "<timestamp>", item_value)
-			item_value = re.sub(r"\d{2}:\d{2}:\d{2}(?:\.\d+)?", "<time>", item_value)
+			item_value = re.sub(r"\d{1,2}:\d{2}:\d{2}(?:\.\d+)?", "<time>", item_value)
+			item_value = re.sub(r"\d{4}-\d{2}-\d{2}", relative_date, item_value)
 			return item_value.replace(token, "<fixture-token>")
 		return item_value
 
