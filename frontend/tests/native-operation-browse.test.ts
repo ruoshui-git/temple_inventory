@@ -15,6 +15,7 @@ import OperationBrowsePage from "../src/features/movements/OperationBrowsePage.v
 import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { createRecoveryStore } from "../src/lib/browserRecovery";
+import QuickExport from "../src/components/QuickExport.vue";
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => {
@@ -243,6 +244,74 @@ function service(operationPage = page()) {
   });
 }
 describe("native operation browsing", () => {
+  it("wires flat movement and loan exports to visible screen columns", async () => {
+    const movementQuery = newReportQuery("movements");
+    movementQuery.view = "lines";
+    const movement = setup(
+      service(),
+      reactive({
+        family: "movements" as const,
+        records: false,
+        initialQuery: movementQuery,
+      }),
+      true,
+    );
+    await flushPromises();
+    const movementExport = movement.wrapper.getComponent(QuickExport);
+    expect(movementExport.props()).toMatchObject({
+      title: "货物流动 · 明细",
+      table: "history",
+      sortBy: "date",
+      sort: "desc",
+    });
+    expect(movementExport.props("columns")).toContain("item_code");
+    expect(movementExport.props("columns")).toContain("image_file");
+    expect(movementExport.props("columns")).not.toContain("available_effect");
+
+    const loanQuery = newReportQuery("loans");
+    loanQuery.view = "outcomes";
+    const loan = setup(
+      service(),
+      reactive({
+        family: "loans" as const,
+        records: false,
+        initialQuery: loanQuery,
+      }),
+      true,
+    );
+    await flushPromises();
+    const loanExport = loan.wrapper.getComponent(QuickExport);
+    expect(loanExport.props()).toMatchObject({
+      title: "借用 · 明细",
+      table: "loan_history",
+    });
+    expect(loanExport.props("columns")).toContain("item_code");
+    expect(loanExport.props("columns")).toContain("borrower");
+    expect(loanExport.props("columns")).toContain("outstanding");
+    expect(loan.wrapper.text()).toContain("物品编号");
+    expect(loan.wrapper.text()).toContain("借用方");
+
+    const recordsQuery = newReportQuery("loans");
+    recordsQuery.view = "records";
+    const records = setup(
+      service(),
+      reactive({
+        family: "loans" as const,
+        records: true,
+        initialQuery: recordsQuery,
+      }),
+      true,
+    );
+    await flushPromises();
+    const recordsExport = records.wrapper.getComponent(QuickExport);
+    expect(recordsExport.props()).toMatchObject({
+      title: "借用 · 单据",
+      table: "records",
+    });
+    expect(recordsExport.props("columns")).toContain("document");
+    expect(recordsExport.props("columns")).toContain("borrower");
+  });
+
   it("preserves an outstanding-only loan chooser query from dashboard navigation", async () => {
     const query = newReportQuery("loans");
     query.view = "items";

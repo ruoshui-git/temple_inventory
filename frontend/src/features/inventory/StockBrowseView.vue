@@ -38,6 +38,7 @@ import type {
 	DataTableRecord,
 } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { exportFields } from "../../lib/exportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
@@ -238,6 +239,41 @@ const services = useOptionalInventoryServices();
 const tablePreferences = services
 	? useColumnPreferences("stock.summary", inventoryColumns, reference, services)
 	: undefined;
+const stockExportMap: Record<string, string[]> = {
+	image: ["image_file"],
+	item_name: ["item_name"],
+	item_code: ["item_code"],
+	available: ["available"],
+	stock_uom: ["stock_uom"],
+	category: ["category"],
+	locations: ["warehouse_label", "batch_no"],
+	loaned: ["loaned"],
+	damaged: ["damaged"],
+	total: ["stock_qty"],
+	expiry: ["expiry_date", "remaining_days", "expiry_state"],
+	actions: [],
+};
+const stockExportVisible = computed(() => {
+	const columns = inventoryColumns.value;
+	return tablePreferences?.visible.value.length
+		? tablePreferences.visible.value
+		: columns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+});
+const stockExportOrder = computed(() =>
+	tablePreferences?.order.value.length
+		? tablePreferences.order.value
+		: inventoryColumns.value.map((column) => String(column.id)),
+);
+const stockExportTable = computed(() =>
+	stockExportVisible.value.some((id) => id === "locations" || id === "expiry")
+		? "locations"
+		: "summary",
+);
+const stockExportColumns = computed(() =>
+	exportFields(stockExportMap, stockExportOrder.value, stockExportVisible.value),
+);
 function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
 	if (checked !== isSelected) props.controller.toggle(code);
@@ -363,8 +399,10 @@ watch([() => props.active, isMobile], () => {
 				<BrowseOverflowMenu>
 					<QuickExport
 						:query="quickReportQuery"
+						title="库存列表"
+						:table="stockExportTable"
+						:columns="stockExportColumns"
 						:active="active"
-						@open-full="emit('openExport', $event)"
 					/>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton

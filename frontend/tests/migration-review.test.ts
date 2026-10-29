@@ -129,19 +129,10 @@ describe("migration review saved details", () => {
         });
         expect(document.body.textContent).not.toContain("hidden-key");
         const dialog = document.body.querySelector('[role="dialog"]')!;
-        expect(dialog.textContent).toContain("2026-10-17 14:34");
-        expect(dialog.textContent).not.toContain(".267486");
-        expect(dialog.querySelector("tbody button")).toBeNull();
-        expect(dialog.querySelector("tbody")?.textContent).toContain(doc.name);
-        (
-          Array.from(dialog.querySelectorAll("button")).find(
-            (button) => button.textContent === "打开报表",
-          ) as HTMLButtonElement
-        ).click();
-        await flushPromises();
-        expect(quick.emitted("openFull")?.[0]?.[0]).toEqual(
-          quick.props("query"),
-        );
+        expect(dialog.textContent).toContain("范围：");
+        expect(dialog.textContent).toContain("共 1 行");
+        expect(dialog.querySelector(".report-table")).toBeNull();
+        expect(dialog.textContent).not.toContain("打开报表");
         expect(
           decodeReportQuery(JSON.stringify(quick.props("query"))).query
             .recordDoctype,
@@ -276,7 +267,7 @@ it("formats site wall time without changing exact concurrency tokens", () => {
 });
 
 describe("migration follow-up", () => {
-  it("routes Opening Stock through movements in quick and full export", async () => {
+  it("keeps Opening Stock scoped to movements in the page export", async () => {
     const doc = {
       ...record("Stock Reconciliation"),
       purpose: "Opening Stock",
@@ -297,11 +288,7 @@ describe("migration follow-up", () => {
     await quick.get("button").trigger("click");
     await flushPromises();
     expect(report.mock.calls[0]?.[0]).toEqual(quick.props("query"));
-    Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent === "打开报表")!
-      .click();
-    await flushPromises();
-    expect(quick.emitted("openFull")?.[0]?.[0]).toEqual(quick.props("query"));
+    expect(document.body.textContent).not.toContain("打开报表");
     expect(
       savedDocumentExport(
         { ...doc, purpose: "Stock Reconciliation" },

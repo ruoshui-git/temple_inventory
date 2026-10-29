@@ -533,8 +533,8 @@ async function lifecycle() {
 						<QuickExport
 							v-if="!loading && c.savedExportQuery.value"
 							:query="c.savedExportQuery.value"
+							title="货物流动单据"
 							:active="active"
-							@open-full="emit('openExport', $event)"
 						/><UiButton
 							v-if="state.identity && state.server?.docstatus === 0"
 							icon="disposal"

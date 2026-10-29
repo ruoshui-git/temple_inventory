@@ -231,8 +231,8 @@ const activityPrefs = services
 				><QuickExport
 					v-if="page !== 'activity-form'"
 					:query="report"
+					title="活动"
 					:active="active"
-					@open-full="emit('openExport', $event)"
 				/>
 				<UiButton v-if="page === 'activity-list'" variant="primary" @click="newActivity"
 					>新建活动</UiButton
@@ -255,11 +255,7 @@ const activityPrefs = services
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
-					<QuickExport
-						:query="report"
-						:active="active"
-						@open-full="emit('openExport', $event)"
-					/>
+					<QuickExport :query="report" title="活动" :active="active" />
 				</BrowseOverflowMenu>
 				<UiButton variant="primary" @click="newActivity">新建活动</UiButton>
 			</template>

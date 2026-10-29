@@ -166,7 +166,7 @@ describe("interactive preview", () => {
     expect(wrapper.findAll(".operation-compact-row")).toHaveLength(1);
     expect(wrapper.text()).toContain("GALLERY-RECEIVE");
   });
-  it("preserves the active filters when opening contextual export", async () => {
+  it("opens contextual export without rendering a preview table", async () => {
     const wrapper = render(PreviewInventory, { pattern: "current" });
     await flushPromises();
     await wrapper.get('input[aria-label="搜索库存"]').setValue("珍珠米");
@@ -179,11 +179,9 @@ describe("interactive preview", () => {
     await nextTick();
     await flushPromises();
     expect(document.querySelector(".ui-dialog")?.textContent).toContain(
-      "1 行完整结果",
+      "共 1 行",
     );
-    expect(document.querySelector(".ui-dialog")?.textContent).toContain(
-      "珍珠米",
-    );
+    expect(document.querySelector(".ui-dialog .report-table")).toBeNull();
     document
       .querySelector<HTMLButtonElement>(
         '.ui-dialog button[aria-label="关闭对话框"]',

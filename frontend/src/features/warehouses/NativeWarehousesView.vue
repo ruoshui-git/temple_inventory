@@ -12,6 +12,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { exportFields } from "../../lib/exportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -93,6 +94,33 @@ const stockPreferences = services
 			services,
 		)
 	: undefined;
+const warehouseExportMap: Record<string, string[]> = {
+	image: ["image_file"],
+	item_name: ["item_name"],
+	item_code: ["item_code"],
+	warehouse_label: ["warehouse_label"],
+	batch_no: ["batch_no"],
+	stock_qty: ["stock_qty", "stock_uom"],
+	stock_uom: ["stock_uom"],
+};
+const warehouseExportVisible = computed(() =>
+	stockPreferences?.visible.value.length
+		? stockPreferences.visible.value
+		: stockColumns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id)),
+);
+const warehouseExportOrder = computed(() =>
+	stockPreferences?.order.value.length
+		? stockPreferences.order.value
+		: stockColumns.map((column) => String(column.id)),
+);
+const warehouseExportColumns = computed(() =>
+	exportFields(warehouseExportMap, warehouseExportOrder.value, warehouseExportVisible.value),
+);
+const warehouseExportTitle = computed(
+	() => `库房清单 · ${selected.value?.full_label || selected.value?.label || "实体仓库"}`,
+);
 const stockRows = computed<DataTableRecord[]>(() => {
 	const values = [...(stockTable.value?.rows || [])].sort((a, b) => {
 		const left = a[stockSort.value.field],
@@ -154,8 +182,10 @@ function parentLabel(name?: string) {
 				<QuickExport
 					v-if="c.canUseSelection.value"
 					:query="c.stockQuery.value"
+					:title="warehouseExportTitle"
+					table="locations"
+					:columns="warehouseExportColumns"
 					:active="active"
-					@open-full="emit('openExport', $event)"
 				/> </template
 		></PageHeader>
 		<BrowseToolbar
@@ -173,8 +203,10 @@ function parentLabel(name?: string) {
 					<QuickExport
 						v-if="c.canUseSelection.value"
 						:query="c.stockQuery.value"
+						:title="warehouseExportTitle"
+						table="locations"
+						:columns="warehouseExportColumns"
 						:active="active"
-						@open-full="emit('openExport', $event)"
 					/>
 				</BrowseOverflowMenu>
 				<UiButton

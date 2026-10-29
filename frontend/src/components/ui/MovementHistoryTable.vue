@@ -124,17 +124,6 @@ const columns = computed<DataColumn[]>(() => {
 const columnPreferences = services
 	? useColumnPreferences(`history.${props.mode}`, columns, reference, services)
 	: undefined;
-const columnOrder = computed(
-	() => columnPreferences?.order.value || columns.value.map((column) => String(column.id)),
-);
-const visibleColumns = computed(() =>
-	columnPreferences?.visible.value.length
-		? columnPreferences.visible.value
-		: columns.value
-				.filter((column) => column.defaultVisible !== false || column.required)
-				.map((column) => String(column.id)),
-);
-defineExpose({ columnOrder, visibleColumns });
 const rows = computed<DataTableRecord[]>(() =>
 	props.rows.map((row) => ({ kind: "record", id: row.id, value: row })),
 );

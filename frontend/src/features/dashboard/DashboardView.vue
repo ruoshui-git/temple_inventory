@@ -199,12 +199,12 @@ function datasetChanged(dataset: ReportDataset) {
 				<UiButton icon="refresh" @click="refresh">刷新</UiButton>
 				<QuickExport
 					:query="quickReportQuery"
+					title="首页"
 					:query-for-dataset="queryForDataset"
 					:initial-dataset="reportDataset"
 					allow-dataset-selection
 					:active="active"
 					@commit-dataset="datasetChanged"
-					@open-full="emit('openExport', $event)"
 				/>
 			</template>
 			<template #trailing>
@@ -374,12 +374,12 @@ function datasetChanged(dataset: ReportDataset) {
 			>
 			<QuickExport
 				:query="quickReportQuery"
+				title="首页"
 				:query-for-dataset="queryForDataset"
 				:initial-dataset="reportDataset"
 				allow-dataset-selection
 				:active="active"
 				@commit-dataset="datasetChanged"
-				@open-full="emit('openExport', $event)"
 			/>
 		</div>
 		<p class="sr-only" aria-live="polite">{{ announcement }}</p>

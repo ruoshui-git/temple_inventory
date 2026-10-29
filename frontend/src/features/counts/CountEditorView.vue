@@ -335,8 +335,8 @@ async function back() {
 				<QuickExport
 					v-if="!loading && c.savedExportQuery.value"
 					:query="c.savedExportQuery.value"
+					title="盘点记录"
 					:active="active"
-					@open-full="emit('openExport', $event)"
 				/>
 			</template>
 		</PageHeader>

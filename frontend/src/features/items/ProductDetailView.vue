@@ -191,8 +191,8 @@ const locationPrefs =
 				><QuickExport
 					v-if="item"
 					:query="c.exportQuery.value"
-					:active="active"
-					@open-full="emit('openExport', $event)" /></template
+					title="物品详情"
+					:active="active" /></template
 		></PageHeader>
 		<SkeletonBlock v-if="loading && !item" variant="detail" :count="3" :rows="4" />
 		<p v-if="error" class="notice-bar danger" role="alert">

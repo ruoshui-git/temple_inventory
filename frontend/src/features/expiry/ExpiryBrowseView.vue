@@ -35,6 +35,7 @@ import type {
 	DataTableRecord,
 } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { exportFields } from "../../lib/exportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
@@ -204,6 +205,33 @@ const tablePreferences =
 				services,
 			)
 		: undefined;
+const expiryExportMap: Record<string, string[]> = {
+	image: ["image_file"],
+	item_name: ["item_name"],
+	item_code: ["item_code"],
+	category: ["category"],
+	batch_no: ["batch_no"],
+	expiry_date: ["expiry_date", "expiry_state"],
+	remaining_days: ["remaining_days"],
+	stock_qty: ["stock_qty"],
+	stock_uom: ["stock_uom"],
+	warehouse: ["warehouse"],
+};
+const expiryExportVisible = computed(() =>
+	tablePreferences?.visible.value.length
+		? tablePreferences.visible.value
+		: expiryColumns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id)),
+);
+const expiryExportOrder = computed(() =>
+	tablePreferences?.order.value.length
+		? tablePreferences.order.value
+		: expiryColumns.map((column) => String(column.id)),
+);
+const expiryExportColumns = computed(() =>
+	exportFields(expiryExportMap, expiryExportOrder.value, expiryExportVisible.value),
+);
 const tableSortBy = computed(() => query.value.sortBy);
 function openItem(row: ReportRow) {
 	if (!result.stale) emit("item", String(row.item_code));
@@ -301,8 +329,10 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					<QuickExport
 						v-if="!routeError"
 						:query="query"
+						title="效期批次"
+						table="batches"
+						:columns="expiryExportColumns"
 						:active="active"
-						@open-full="emit('openExport', $event)"
 					/>
 					<UiButton
 						v-if="reference.operations.Receive"

@@ -339,7 +339,7 @@ describe("native browse service controllers", () => {
 });
 
 describe("background quick export", () => {
-  it("starts a compact export without requesting a preview", async () => {
+  it("counts the selected page table and exports one table with page options", async () => {
     const service = services();
     vi.mocked(service.call).mockResolvedValue(job());
     const child = defineComponent({
@@ -348,12 +348,9 @@ describe("background quick export", () => {
         return () =>
           h(QuickExport, {
             query: query(),
-            preview: false,
-            matchedCount: 205,
-            tables: [
-              { id: "summary", label: "汇总", count: 205 },
-              { id: "locations", label: "位置明细", count: 410 },
-            ],
+            title: "库存列表",
+            table: "locations",
+            columns: ["item_code", "stock_qty"],
           });
       },
     });
@@ -361,15 +358,17 @@ describe("background quick export", () => {
     wrappers.push(wrapper);
     await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
-    expect(vi.mocked(service.report)).not.toHaveBeenCalled();
-    const dialog = document.body.querySelector(".quick-export-dialog")!;
-    expect(dialog.textContent).toContain("205 条匹配结果");
-    expect(dialog.querySelector(".report-table")).toBeNull();
-    expect(dialog.textContent).not.toContain("预览表");
-    const checkboxes = dialog.querySelectorAll(
-      'fieldset input[type="checkbox"]',
+    expect(vi.mocked(service.report)).toHaveBeenCalledWith(
+      expect.anything(),
+      { table: "locations", page_length: 1 },
+      expect.any(AbortSignal),
     );
-    expect(checkboxes).toHaveLength(2);
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    expect(dialog.textContent).toContain("共 205 行");
+    expect(dialog.querySelector(".report-table")).toBeNull();
+    expect(dialog.textContent).not.toContain("打开报表");
+    expect(dialog.textContent).not.toContain("预览");
+    expect(dialog.textContent).toContain("图片以物品编号命名");
     Array.from(dialog.querySelectorAll("button"))
       .find((button) => button.textContent?.trim() === "开始导出")!
       .click();
@@ -378,122 +377,35 @@ describe("background quick export", () => {
       "exports.request_export",
       expect.objectContaining({
         export_format: "xlsx",
-        tables: ["summary", "locations"],
+        table: "locations",
+        columns: ["item_code", "stock_qty"],
+        include_files: "none",
+        summary: { title: "库存列表", filters: [] },
       }),
     );
   });
-  it("shows stale preview feedback and related-sheet skeletons, then disables generation after a refresh error", async () => {
+
+  it("sends grouping only for grouped XLSX, plus file choice and visible filter labels", async () => {
     const service = services();
-    let reject!: (reason: Error) => void;
-    const relatedPending = new Promise<ReportPage>((_resolve, no) => {
-      reject = no;
-    });
-    vi.mocked(service.report)
-      .mockResolvedValueOnce(page())
-      .mockResolvedValueOnce(page())
-      .mockReturnValueOnce(relatedPending);
-    const child = defineComponent({
-      setup() {
-        provideInventoryServices(service, createReferenceData());
-        return () => h(QuickExport, { query: query() });
-      },
-    });
-    const wrapper = mount(child);
-    wrappers.push(wrapper);
-    await wrapper.get(".quick-report").trigger("click");
+    const groupedQuery = query();
+    groupedQuery.groupBy = ["kind"];
+    vi.mocked(service.call).mockResolvedValue(job());
+    const controller = setup(service, () => useQuickExport(ref(groupedQuery)));
+    controller.open.value = true;
     await flushPromises();
-    const dialog = document.body.querySelector(".quick-export-dialog")!;
-    const relatedCheckbox = Array.from(
-      dialog.querySelectorAll<HTMLInputElement>("input[type=checkbox]"),
-    ).find((input) =>
-      input.parentElement?.textContent?.includes("包含相关资料表"),
-    )!;
-    relatedCheckbox.click();
+    controller.includeFiles.value = "images";
+    await controller.generate();
+    expect(vi.mocked(service.call).mock.calls[0]).toEqual([
+      "exports.request_export",
+      expect.objectContaining({ grouped: true, include_files: "images" }),
+    ]);
+    controller.format.value = "csv";
     await flushPromises();
-    const generate = Array.from(dialog.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("正在更新预览…"),
-    )!;
-    expect(generate).toBeTruthy();
-    expect(
-      dialog
-        .querySelector(".async-result-region.is-refreshing")
-        ?.hasAttribute("inert"),
-    ).toBe(true);
-    expect(
-      dialog.querySelectorAll("fieldset .skeleton-block").length,
-    ).toBeGreaterThan(0);
-    expect(dialog.textContent).toContain(
-      "另加 物品资料、条码、物品常用换算、位置层级、私有附件引用 5 张工作表",
+    expect(controller.job.value).toBeUndefined();
+    await controller.generate();
+    expect(vi.mocked(service.call).mock.calls[1]?.[1]).not.toHaveProperty(
+      "grouped",
     );
-    reject(new Error("预览刷新失败"));
-    await flushPromises();
-    const generateButton = Array.from(dialog.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("开始导出"),
-    )!;
-    expect(generateButton.disabled).toBe(true);
-  });
-
-  it("labels loaded activity metadata statuses in the QuickExport preview", async () => {
-    const service = services();
-    const activityQuery = newReportQuery("activities");
-    activityQuery.view = "metadata";
-    vi.mocked(service.report).mockImplementation(async (selected) =>
-      page({
-        query: structuredClone(selected),
-        table: "metadata",
-        columns: ["title", "status", "start_date", "end_date"],
-        rows: [
-          {
-            id: "ACT-1",
-            title: "法会筹备",
-            status: "Active",
-            start_date: "2026-10-21",
-            end_date: "2026-10-22",
-          },
-          {
-            id: "ACT-2",
-            title: "春季义工",
-            status: "Archived",
-            start_date: "2026-10-23",
-            end_date: "2026-10-24",
-          },
-          {
-            id: "ACT-3",
-            title: "灯会复盘",
-            status: "Completed",
-            start_date: "2026-10-25",
-            end_date: "2026-10-26",
-          },
-        ],
-        matched_count: 3,
-      }),
-    );
-    const reference = createReferenceData();
-    const wrapper = mount(
-      defineComponent({
-        setup() {
-          provideInventoryServices(service, reference);
-          return () => h(QuickExport, { query: activityQuery });
-        },
-      }),
-    );
-    wrappers.push(wrapper);
-
-    await wrapper.get(".quick-report").trigger("click");
-    await flushPromises();
-
-    const dialog = document.body.querySelector(".ui-dialog")!;
-    expect(dialog.textContent).toContain("进行中");
-    expect(dialog.textContent).toContain("已归档");
-    expect(dialog.textContent).toContain("已完成");
-    expect(dialog.textContent).not.toContain("状态未知");
-    // Column widths come from semantic kind classes, not inline minimums.
-    const headers = Array.from(dialog.querySelectorAll("thead th")).slice(0, 4);
-    expect(headers).toHaveLength(4);
-    for (const header of headers) {
-      expect(header.className).toMatch(/data-column-[a-z]+/);
-      expect((header as HTMLElement).style.minWidth).toBe("");
-    }
   });
 
   it("previews and exports a dashboard-selected dataset without committing on cancel", async () => {
@@ -522,6 +434,7 @@ describe("background quick export", () => {
         return () =>
           h(QuickExport, {
             query: baseQuery,
+            title: "首页",
             queryForDataset,
             initialDataset: "inventory",
             allowDatasetSelection: true,
@@ -544,11 +457,12 @@ describe("background quick export", () => {
       document.body.querySelector('select[aria-label="数据范围"]'),
     ).not.toBeNull();
     expect(
-      document.body.querySelector('select[aria-label="文件格式"]'),
+      document.body.querySelector('select[aria-label="格式"]'),
     ).not.toBeNull();
+    expect(document.body.querySelector(".report-table")).toBeNull();
     expect(
       document.body.querySelector('select[aria-label="XLSX 预览表"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     const dataset = document.body.querySelector(".ui-dialog select")!;
     await setNativeSelect(dataset, "movements");
     await flushPromises();
@@ -577,6 +491,8 @@ describe("background quick export", () => {
       .mock.calls.find(([method]) => method === "exports.request_export");
     expect(exportRequest?.[1]).toMatchObject({
       query: { dataset: "movements" },
+      include_files: "none",
+      summary: { title: "首页" },
     });
     expect(committed).toHaveBeenCalledWith("movements");
     await setNativeSelect(
@@ -631,7 +547,7 @@ describe("background quick export", () => {
     await controller.generate();
     expect(vi.mocked(service.call).mock.calls[1]).toEqual([
       "exports.request_export",
-      expect.objectContaining({ export_format: "csv", tables: ["summary"] }),
+      expect.objectContaining({ export_format: "csv", include_files: "none" }),
     ]);
   });
   it("ignores late polling after closing and resumes the same job on reopening", async () => {

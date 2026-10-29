@@ -44,6 +44,7 @@ import type {
 	DataTableRecord,
 } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { exportFields } from "../../lib/exportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import type { MovementHistoryPage } from "../../lib/reportContract";
 import type { ReportRow } from "../../lib/reportContract";
@@ -280,6 +281,15 @@ const itemColumns = computed<DataColumn[]>(() =>
 	props.family === "movements"
 		? [
 				{
+					id: "item_code",
+					label: "物品编号",
+					defaultVisible: true,
+					sortable: sortableColumnsForView(props.family, query.value.view).includes(
+						"item_code",
+					),
+					sortField: "item_code",
+				},
+				{
 					id: "image",
 					label: "图片",
 					kind: "thumb",
@@ -340,6 +350,15 @@ const itemColumns = computed<DataColumn[]>(() =>
 			]
 		: [
 				{
+					id: "item_code",
+					label: "物品编号",
+					defaultVisible: true,
+					sortable: sortableColumnsForView(props.family, query.value.view).includes(
+						"item_code",
+					),
+					sortField: "item_code",
+				},
+				{
 					id: "image",
 					label: "图片",
 					kind: "thumb",
@@ -373,6 +392,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 					label: "活动",
 					defaultVisible: true,
 				},
+				{ id: "borrower", label: "借用方", defaultVisible: true },
 				{ id: "status", label: "状态", defaultVisible: true },
 				{
 					id: "source",
@@ -712,22 +732,113 @@ const operationPreferences = services
 const itemPreferences = services
 	? useColumnPreferences(`operations.${props.family}.items`, itemColumns, reference, services)
 	: undefined;
-const flatTable = ref<InstanceType<typeof DataTable>>();
-const flatColumns = computed(() => {
-	const columns = itemColumns.value;
-	const order = itemPreferences?.order.value.length
-		? itemPreferences.order.value
-		: columns.map((column) => String(column.id));
-	const visible = itemPreferences?.visible.value.length
-		? itemPreferences.visible.value
+const movementExportMap: Record<string, string[]> = {
+	image: ["image_file"],
+	document: ["document", "item_name"],
+	item_code: ["item_code"],
+	kind: ["kind"],
+	date: ["date", "time"],
+	docstatus: ["docstatus"],
+	source: ["source_warehouse"],
+	destination: ["destination_warehouse"],
+	quantities: ["stock_qty", "stock_uom"],
+	available_effect: ["available_effect"],
+	related_loans: [],
+};
+const loanExportMap: Record<string, string[]> = {
+	image: ["image_file"],
+	document: ["document", "item_name"],
+	item_code: ["item_code"],
+	date: ["date"],
+	borrower: ["borrower"],
+	activity_title: ["activity_title"],
+	status: ["docstatus"],
+	source: ["source_warehouse"],
+	borrowed: ["borrowed", "stock_uom"],
+	outstanding: ["outstanding", "stock_uom"],
+	kind: [],
+	destination: [],
+	actions: [],
+};
+const recordExportMap: Record<string, string[]> = {
+	document: ["document"],
+	kind: ["kind"],
+	date: ["date", "time"],
+	quantities: ["stock_qty", "stock_uom"],
+	source: ["source"],
+	destination: ["destination"],
+	docstatus: ["docstatus"],
+	status: ["docstatus"],
+	borrower: ["borrower"],
+	activity_title: ["activity_title"],
+	outstanding: ["outstanding"],
+	borrowed: ["borrowed"],
+	returned: ["returned"],
+	lost: ["lost"],
+	related_loans: [],
+	actions: [],
+};
+function visibleExportColumns(columns: DataColumn[], order: string[], visible: string[]) {
+	return visible.length
+		? visible
 		: columns
 				.filter((column) => column.defaultVisible !== false || column.required)
 				.map((column) => String(column.id));
-	return order.filter(
-		(id) => visible.includes(id) && columns.some((column) => column.id === id),
-	);
-});
-defineExpose({ flatColumns });
+}
+const operationExportOrder = computed(() =>
+	operationPreferences?.order.value.length
+		? operationPreferences.order.value
+		: operationColumns.value.map((column) => String(column.id)),
+);
+const operationExportVisible = computed(() =>
+	visibleExportColumns(
+		operationColumns.value,
+		operationExportOrder.value,
+		operationPreferences?.visible.value || [],
+	),
+);
+const itemExportOrder = computed(() =>
+	itemPreferences?.order.value.length
+		? itemPreferences.order.value
+		: itemColumns.value.map((column) => String(column.id)),
+);
+const itemExportVisible = computed(() =>
+	visibleExportColumns(
+		itemColumns.value,
+		itemExportOrder.value,
+		itemPreferences?.visible.value || [],
+	),
+);
+const operationExportColumns = computed(() =>
+	exportFields(recordExportMap, operationExportOrder.value, operationExportVisible.value),
+);
+const itemExportColumns = computed(() =>
+	exportFields(
+		props.family === "movements" ? movementExportMap : loanExportMap,
+		itemExportOrder.value,
+		itemExportVisible.value,
+	),
+);
+const exportTable = computed(() =>
+	props.records ? "records" : props.family === "movements" ? "history" : "loan_history",
+);
+const exportTitle = computed(
+	() =>
+		`${props.family === "movements" ? "货物流动" : "借用"} · ${props.records ? "单据" : "明细"}`,
+);
+const exportColumns = computed(() =>
+	props.records ? operationExportColumns.value : itemExportColumns.value,
+);
+const exportSortBy = computed(() =>
+	!props.records && !query.value.groupBy.length
+		? c.detailSortBy(flatHistoryItem.value)
+		: undefined,
+);
+const exportSort = computed(() =>
+	!props.records && !query.value.groupBy.length
+		? c.detailSortDirection(flatHistoryItem.value)
+		: undefined,
+);
 function sortTable(field: string) {
 	if (sortFields.value.some((option) => option.value === field)) sortRecords(field);
 }
@@ -906,8 +1017,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					<BrowseOverflowMenu>
 						<QuickExport
 							:query="query"
+							:title="exportTitle"
+							:table="exportTable"
+							:columns="exportColumns"
+							:sort-by="exportSortBy"
+							:sort="exportSort"
 							:active="active"
-							@open-full="emit('openExport', $event)"
 						/>
 						<RouterLink
 							v-if="family === 'movements'"
@@ -1275,7 +1390,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					</p>
 					<DataTable
 						v-if="!records && !showMobileItemCards"
-						ref="flatTable"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
 						table-class="browse-table"

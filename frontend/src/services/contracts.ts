@@ -124,6 +124,11 @@ export interface ExportJob {
   generated_at: string;
   row_count: number;
   download_url: string | null;
+  table?: string;
+  columns?: string[];
+  file_label?: string;
+  grouped?: boolean;
+  include_files?: "none" | "images" | "all";
 }
 export interface InventoryServices {
   fileDisplayUrl?(file: { name: string; file_url: string }): string;

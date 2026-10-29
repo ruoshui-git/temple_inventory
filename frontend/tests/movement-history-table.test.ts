@@ -27,7 +27,7 @@ const row = {
   borrower: "",
 };
 describe("typed movement history table", () => {
-  it("shows image and status first with optional available change, and exposes ordered visibility", async () => {
+  it("shows image and status first with optional available change hidden", async () => {
     const reference = createReferenceData();
     Object.assign(reference, { user: "test" });
     const Host = defineComponent({
@@ -47,14 +47,10 @@ describe("typed movement history table", () => {
     });
     const wrapper = mount(Host, { global: { stubs: { RouterLink: true } } });
     await flushPromises();
-    const table = wrapper.findComponent(MovementHistoryTable);
     const headers = wrapper.findAll("th").map((cell) => cell.text());
     expect(headers[0]).toBe("图片");
     expect(headers).toContain("状态");
     expect(headers).not.toContain("可用变化");
-    expect(table.vm.columnOrder[0]).toBe("image");
-    expect(table.vm.visibleColumns).toContain("docstatus");
-    expect(table.vm.visibleColumns).not.toContain("available_effect");
   });
 
   it("shows loan allocation activity as a default column and renders missing titles empty", async () => {
@@ -78,8 +74,6 @@ describe("typed movement history table", () => {
     const wrapper = mount(Host, { global: { stubs: { RouterLink: true } } });
     await flushPromises();
     expect(wrapper.findAll("th").map((cell) => cell.text())).toContain("活动");
-    const table = wrapper.findComponent(MovementHistoryTable);
-    expect(table.vm.visibleColumns).toContain("activity_title");
     expect(wrapper.find("tbody tr").text()).not.toContain("可用变化");
   });
 

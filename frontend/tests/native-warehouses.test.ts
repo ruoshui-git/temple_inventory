@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import NativeWarehousesPage from "../src/features/warehouses/NativeWarehousesPage.vue";
+import QuickExport from "../src/components/QuickExport.vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -204,6 +205,22 @@ function setup(
   };
 }
 describe("native location workspace", () => {
+  it("exports a selected warehouse stock table using its page column order", async () => {
+    const { wrapper } = setup(undefined, { initialWarehouse: "SHELF" });
+    await flushPromises();
+    const quickExport = wrapper.getComponent(QuickExport);
+    expect(quickExport.props()).toMatchObject({ table: "locations" });
+    expect(quickExport.props("title")).toContain("库房清单 ·");
+    expect(quickExport.props("columns")).toEqual([
+      "image_file",
+      "item_name",
+      "item_code",
+      "warehouse_label",
+      "batch_no",
+      "stock_qty",
+      "stock_uom",
+    ]);
+  });
   it("reads the presenter labels and hides direct-storage leaves from the selectable tree", async () => {
     const { c } = setup();
     await flushPromises();

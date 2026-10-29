@@ -448,11 +448,7 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 						icon="refresh"
 						>刷新</UiButton
 					>
-					<QuickExport
-						:query="query"
-						:active="active"
-						@open-full="emit('openExport', $event)"
-					/>
+					<QuickExport :query="query" title="单据" :active="active" />
 				</BrowseOverflowMenu>
 				<UiButton variant="primary" icon="count" @click="emit('newCount')"
 					>新建盘点</UiButton

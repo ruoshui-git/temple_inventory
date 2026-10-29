@@ -75,11 +75,7 @@ watch([() => props.active, isMobile], () => {
 			sidebar-available
 			:filter-count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
 			><template #actions
-				><QuickExport
-					v-if="!routeError"
-					:query="query"
-					:active="active"
-					@open-full="emit('openExport', $event)"
+				><QuickExport v-if="!routeError" :query="query" title="待处理" :active="active"
 			/></template>
 			<template #filters>
 				<BrowseFilters
@@ -268,8 +264,8 @@ watch([() => props.active, isMobile], () => {
 								<QuickExport
 									:disabled="c.report.result.stale"
 									:query="c.rowQuery(row as ReportRow)"
+									title="待处理"
 									:active="active"
-									@open-full="emit('openExport', $event)"
 								/>
 							</PopupMenu>
 						</div>

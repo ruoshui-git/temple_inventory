@@ -1,52 +1,41 @@
 <script setup lang="ts">
-import { siteDateTime } from "../lib/nativeTime";
 import { computed, ref, watch } from "vue";
-import UiButton from "./ui/UiButton.vue";
-import SkeletonBlock from "./ui/SkeletonBlock.vue";
-import AsyncRegion from "./ui/AsyncRegion.vue";
-import Overlay from "./ui/Overlay.vue";
-import ReportTable from "./ui/ReportTable.vue";
-import InventoryIcon from "./InventoryIcon.vue";
-import {
-	relatedSheetsHelp,
-	useQuickExport,
-	type ExportTableChoice,
-} from "../features/export/useQuickExport";
-import { markExportWatched } from "../features/export/watchedExport";
-import { useInventoryServices } from "../services/contracts";
-import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
+import { siteDateTime } from "../lib/nativeTime";
 import { scopeFilterChips } from "../lib/filterPresentation";
 import { reportFilterChips } from "../lib/reportFilters";
-import { useReferenceData } from "../services/contracts";
+import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
+import { markExportWatched } from "../features/export/watchedExport";
+import { useQuickExport } from "../features/export/useQuickExport";
+import { useInventoryServices, useReferenceData } from "../services/contracts";
 import { showToast } from "../services/toast";
+import UiButton from "./ui/UiButton.vue";
+import SkeletonBlock from "./ui/SkeletonBlock.vue";
+import Overlay from "./ui/Overlay.vue";
+import InventoryIcon from "./InventoryIcon.vue";
+
 const props = withDefaults(
 	defineProps<{
 		query: ReportQuery;
+		table?: string;
+		columns?: string[];
+		title: string;
+		sortBy?: string;
+		sort?: "asc" | "desc";
 		active?: boolean;
 		disabled?: boolean;
-		allowDatasetSelection?: boolean;
-		showOpenReport?: boolean;
 		showTrigger?: boolean;
-		preview?: boolean;
-		matchedCount?: number;
-		tables?: ExportTableChoice[];
-		initialDataset?: ReportDataset;
+		allowDatasetSelection?: boolean;
 		queryForDataset?: (dataset: ReportDataset) => ReportQuery;
+		initialDataset?: ReportDataset;
 	}>(),
 	{
 		active: true,
 		disabled: false,
-		allowDatasetSelection: false,
-		showOpenReport: true,
 		showTrigger: true,
-		preview: true,
-		tables: () => [],
+		allowDatasetSelection: false,
 	},
 );
-const emit = defineEmits<{
-	openFull: [query: ReportQuery];
-	commitDataset: [dataset: ReportDataset];
-}>();
+const emit = defineEmits<{ commitDataset: [dataset: ReportDataset] }>();
 const reference = useReferenceData();
 const services = useInventoryServices();
 const watchedJobs = new Set<string>();
@@ -56,37 +45,38 @@ const query = computed(() =>
 		? props.queryForDataset(selectedDataset.value)
 		: props.query,
 );
-const controller = useQuickExport(
-	query,
-	() => props.preview,
-	() => props.tables,
+const title = computed(() => props.title);
+const table = computed(() => (props.allowDatasetSelection ? undefined : props.table));
+const columns = computed(() => (props.allowDatasetSelection ? undefined : props.columns));
+const sortBy = computed(() => props.sortBy);
+const sort = computed(() => props.sort);
+const filterLabels = computed(() =>
+	[
+		...scopeFilterChips(query.value.scope, reference),
+		...reportFilterChips(query.value, reference),
+	].map((chip) => chip.label),
 );
+const controller = useQuickExport(query, table, columns, title, sortBy, sort, filterLabels);
 const {
 	open,
 	format,
-	related,
-	selectedTable,
-	selectedSheets,
-	page,
+	grouped,
+	includeFiles,
+	matchedCount,
 	error,
 	loading,
 	generating,
 	job,
-	generate,
-	preview,
+	count,
 	status,
+	generate,
 	canGenerate,
 } = controller;
-const hasRelatedTables = computed(
-	() =>
-		(page.value?.tables || props.tables).some((table) =>
-			["items", "barcodes", "conversions", "warehouses", "files"].includes(table.id),
-		) ?? false,
-);
+const hasGrouping = computed(() => query.value.groupBy.length > 0);
 watch(
 	() => props.active,
 	(value) => {
-		if (value === false) open.value = false;
+		if (!value) open.value = false;
 	},
 );
 watch(open, (value) => {
@@ -129,11 +119,6 @@ watch(
 function commitDataset() {
 	if (props.allowDatasetSelection) emit("commitDataset", selectedDataset.value);
 }
-function full() {
-	commitDataset();
-	emit("openFull", JSON.parse(JSON.stringify(query.value)));
-	open.value = false;
-}
 function generateSelected() {
 	commitDataset();
 	void generate();
@@ -157,39 +142,22 @@ defineExpose({ open: openDialog });
 		<div class="quick-export-intro form-fields">
 			<p v-if="!job" class="muted">文件将在后台生成，完成后会发送通知并提供下载。</p>
 			<p class="content-long-text">
-				范围：{{ reportDefinitions[query.dataset].label }} ·
-				{{
-					reportDefinitions[query.dataset].views.find((view) => view.id === query.view)
-						?.label
-				}}
-				·
-				{{
-					[
-						...scopeFilterChips(query.scope, reference),
-						...reportFilterChips(query, reference),
-					]
-						.map((chip) => chip.label)
-						.join("；") || "全部有权查看的结果"
-				}}
+				范围：{{ title }} · {{ filterLabels.join("；") || "全部有权查看的结果" }}
 			</p>
-			<p v-if="props.preview && page">
-				当前预览表共 {{ page.matched_count }} 条匹配结果；文件包含所选表的完整结果。
-			</p>
-			<p v-if="props.preview && page" class="muted">
-				范围快照（站点时间） {{ siteDateTime(page.snapshot) }} ·
-				{{
-					page.period.date_from
-						? `${page.period.date_from} 至 ${page.period.date_to}`
-						: "全部时间"
-				}}
+			<p class="quick-export-match-count" aria-live="polite">
+				<SkeletonBlock
+					v-if="loading && matchedCount === undefined"
+					variant="lines"
+					:count="1"
+				/>
+				<template v-else>共 {{ matchedCount ?? "—" }} 行</template>
 			</p>
 		</div>
-		<SkeletonBlock v-if="props.preview && loading && !page" variant="lines" :count="4" />
 		<p v-if="error" role="alert">
-			{{ error }} <UiButton @click="job ? status() : preview()">重试读取</UiButton>
-		</p>
-		<p v-if="!props.preview" class="quick-export-match-count">
-			{{ matchedCount ?? 0 }} 条匹配结果
+			{{ error }}
+			<UiButton @click="job && matchedCount !== undefined ? status() : count()"
+				>重试读取</UiButton
+			>
 		</p>
 		<div class="quick-export-options form-fields">
 			<label v-if="allowDatasetSelection" class="form-field"
@@ -200,111 +168,51 @@ defineExpose({ open: openDialog });
 				</select></label
 			>
 			<label class="form-field"
-				>文件格式<select v-model="format" aria-label="文件格式" :disabled="generating">
-					<option value="xlsx">XLSX · 汇总与明细表</option>
-					<option value="csv">CSV · 单一平面表</option>
+				>格式<select v-model="format" aria-label="格式" :disabled="generating">
+					<option value="xlsx">XLSX</option>
+					<option value="csv">CSV</option>
 				</select></label
 			>
-			<div class="quick-export-related">
+			<div v-if="hasGrouping" class="quick-export-related">
+				<label class="form-choice-label">
+					<input
+						v-model="grouped"
+						type="checkbox"
+						:disabled="format === 'csv' || generating"
+					/>
+					按当前分组输出
+				</label>
+				<p v-if="format === 'csv'" class="muted">CSV 只输出明细行</p>
+			</div>
+			<fieldset>
+				<legend>附带文件</legend>
 				<label class="form-choice-label"
 					><input
-						type="checkbox"
-						v-model="related"
+						v-model="includeFiles"
+						type="radio"
+						value="none"
 						:disabled="generating"
-					/>包含相关资料表</label
+					/>无</label
 				>
-				<p v-if="related" class="muted related-help">{{ relatedSheetsHelp }}</p>
-			</div>
-			<AsyncRegion
-				v-if="props.preview"
-				:loading="loading"
-				:initialized="!!page"
-				:stale="true"
-				label="正在更新预览…"
-			>
-				<div class="quick-export-options form-fields">
-					<label class="form-field"
-						>{{
-							format === "csv"
-								? "CSV 导出表（仅一张表）"
-								: "XLSX 预览表（不改变工作表选择）"
-						}}<select
-							v-model="selectedTable"
-							:aria-label="format === 'csv' ? 'CSV 导出表' : 'XLSX 预览表'"
-							:disabled="generating"
-						>
-							<option
-								v-for="table in page?.tables || []"
-								:key="table.id"
-								:value="table.id"
-							>
-								{{ table.label }}（{{ table.count }}）
-							</option>
-						</select></label
-					>
-					<fieldset v-if="format === 'xlsx' && page">
-						<legend>工作表</legend>
-						<SkeletonBlock
-							v-if="loading && related && !hasRelatedTables"
-							variant="lines"
-							:count="5"
-						/>
-						<label
-							v-for="table in page.tables"
-							:key="table.id"
-							class="form-choice-label"
-							><input
-								type="checkbox"
-								v-model="selectedSheets"
-								:value="table.id"
-								:disabled="generating"
-							/>{{ table.label }}（{{ table.count }}）</label
-						>
-					</fieldset>
-					<ReportTable
-						v-if="page"
-						:preference-id="`quick-export.${query.dataset}.${query.view}.${page.table}`"
-						:table="{
-							id: page.table,
-							label:
-								page.tables.find((table) => table.id === page!.table)?.label || '',
-							columns: page.columns,
-							rows: page.rows,
-						}"
-						:document-links="false"
-						:limit="5"
-						:total="page.matched_count"
-					/>
-				</div>
-				<template #skeleton><SkeletonBlock variant="lines" :count="4" /></template>
-			</AsyncRegion>
-			<div v-else class="quick-export-options form-fields">
-				<label v-if="format === 'csv'" class="form-field">
-					CSV 导出表
-					<select v-model="selectedTable" aria-label="CSV 导出表" :disabled="generating">
-						<option v-for="table in props.tables" :key="table.id" :value="table.id">
-							{{ table.label }}（{{ table.count }}）
-						</option>
-					</select>
-				</label>
-				<fieldset v-if="format === 'xlsx'">
-					<legend>工作表</legend>
-					<label v-for="table in props.tables" :key="table.id" class="form-choice-label">
-						<input
-							type="checkbox"
-							v-model="selectedSheets"
-							:value="table.id"
-							:disabled="generating"
-						/>
-						{{ table.label }}（{{ table.count }}）
-					</label>
-				</fieldset>
-			</div>
+				<label class="form-choice-label"
+					><input
+						v-model="includeFiles"
+						type="radio"
+						value="images"
+						:disabled="generating"
+					/>物品图片</label
+				>
+				<label class="form-choice-label"
+					><input
+						v-model="includeFiles"
+						type="radio"
+						value="all"
+						:disabled="generating"
+					/>图片和附件</label
+				>
+				<p class="muted">选择后打包为 ZIP；图片以物品编号命名</p>
+			</fieldset>
 		</div>
-		<p v-if="props.preview" class="muted">
-			最多预览 5 行。XLSX 工作表在上方单独选择，导出全部匹配结果；CSV
-			只导出所选的一张表。附件仅包含有权限的文件及记录引用，不含文件内容或临时链接。
-		</p>
 		<p v-if="generating" class="muted">可以关闭此窗口继续工作，完成后会通知你。</p>
 		<p v-if="job" role="status">
 			{{
@@ -317,16 +225,15 @@ defineExpose({ open: openDialog });
 		</p>
 		<p v-if="job?.error" role="alert">{{ job.error }}；选择已保留。</p>
 		<a v-if="job?.download_url" :href="job.download_url"
-			>下载 {{ format.toUpperCase() }} · {{ job.row_count }} 行</a
+			>下载 {{ job.file_label || format.toUpperCase() }} · {{ job.row_count }} 行</a
 		>
 		<template #footer
-			><UiButton v-if="showOpenReport" @click="full">打开报表</UiButton
 			><UiButton @click="open = false">关闭</UiButton
 			><UiButton
 				variant="primary"
 				:disabled="!canGenerate"
 				:loading="loading || generating"
-				:loading-label="loading ? '正在更新预览…' : '正在生成…'"
+				:loading-label="loading ? '正在读取数量…' : '正在生成…'"
 				@click="generateSelected"
 				>{{ job?.status === "Failed" ? "重试生成" : "开始导出" }}</UiButton
 			></template

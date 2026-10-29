@@ -60,8 +60,8 @@ function settle(action: SettlementAction) {
 				><QuickExport
 					v-if="loan && !loading"
 					:query="c.exportQuery.value"
-					:active="active"
-					@open-full="emit('openExport', $event)" /></template
+					title="借用详情"
+					:active="active" /></template
 		></PageHeader>
 		<SkeletonBlock v-if="initialLoad" variant="detail" :count="3" :rows="5" />
 		<p v-if="error" class="notice-bar danger" role="alert">

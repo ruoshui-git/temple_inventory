@@ -14,6 +14,7 @@ import { newReportQuery } from "../src/lib/reportContract";
 import { createRouter, createMemoryHistory, RouterView } from "vue-router";
 import PreviewExpiryBrowse from "./support/FixtureHostExpiryBrowse.vue";
 import ExpiryBrowsePage from "../src/features/expiry/ExpiryBrowsePage.vue";
+import QuickExport from "../src/components/QuickExport.vue";
 import { routeRecords } from "../src/lib/routeRegistry";
 import { resetReviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
@@ -87,6 +88,32 @@ function setup(
   return { c, call, reference, props, changed, wrapper };
 }
 describe("native expiry browser", () => {
+  it("exports the visible expiry batch columns in screen order", async () => {
+    const { wrapper } = setup(
+      vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),
+      reactive({}),
+      true,
+    );
+    await flushPromises();
+    const quickExport = wrapper.getComponent(QuickExport);
+    expect(quickExport.props()).toMatchObject({
+      title: "效期批次",
+      table: "batches",
+    });
+    expect(quickExport.props("columns")).toEqual([
+      "image_file",
+      "item_name",
+      "item_code",
+      "category",
+      "batch_no",
+      "expiry_date",
+      "expiry_state",
+      "remaining_days",
+      "stock_qty",
+      "stock_uom",
+      "warehouse",
+    ]);
+  });
   it("renders all expiry windows as one in-page segmented switch with counts", async () => {
     const { wrapper } = setup(
       vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),

@@ -1,59 +1,51 @@
 import { computed, onBeforeUnmount, ref, watch, type Ref } from "vue";
-import {
-  useInventoryServices,
-  type ExportJob,
-  type ReportPage,
-} from "../../services/contracts";
+import { useInventoryServices, type ExportJob } from "../../services/contracts";
 import type { ReportQuery } from "../../lib/reportContract";
 
-export interface ExportTableChoice {
-  id: string;
-  label: string;
-  count: number;
-}
-
-const relatedTables = new Set([
-  "files",
-  "items",
-  "barcodes",
-  "conversions",
-  "warehouses",
-]);
-export const relatedSheetsHelp =
-  "另加 物品资料、条码、物品常用换算、位置层级、私有附件引用 5 张工作表";
+export type ExportFormat = "xlsx" | "csv";
+export type IncludeFiles = "none" | "images" | "all";
 
 export function useQuickExport(
-  query: Ref<ReportQuery>,
-  previewEnabled: () => boolean = () => true,
-  tableChoices: () => ExportTableChoice[] = () => [],
+  query: Readonly<Ref<ReportQuery>>,
+  table?: Readonly<Ref<string | undefined>>,
+  columns?: Readonly<Ref<string[] | undefined>>,
+  title?: Readonly<Ref<string>>,
+  sortBy?: Readonly<Ref<string | undefined>>,
+  sort?: Readonly<Ref<"asc" | "desc" | undefined>>,
+  filterLabels: Readonly<Ref<string[]>> = ref([]),
 ) {
   const services = useInventoryServices();
-  const open = ref(false),
-    format = ref<"xlsx" | "csv">("xlsx"),
-    related = ref(false);
-  const selectedTable = ref(""),
-    selectedSheets = ref<string[]>([]);
-  const page = ref<ReportPage>(),
-    error = ref(""),
-    loading = ref(false),
-    generating = ref(false),
-    job = ref<ExportJob>();
-  let previewRequest: AbortController | undefined;
+  const open = ref(false);
+  const format = ref<ExportFormat>("xlsx");
+  const grouped = ref(true);
+  const includeFiles = ref<IncludeFiles>("none");
+  const matchedCount = ref<number>();
+  const error = ref("");
+  const loading = ref(false);
+  const generating = ref(false);
+  const job = ref<ExportJob>();
+  let countRequest: AbortController | undefined;
   let statusRequest: AbortController | undefined;
-  let previewGeneration = 0;
+  let generation = 0;
   let jobGeneration = 0;
   let disposed = false;
   let poll: ReturnType<typeof setTimeout> | undefined;
   let jobConfiguration = "";
+
   const configuration = computed(() =>
     JSON.stringify({
       query: query.value,
+      table: table?.value,
+      columns: columns?.value,
+      title: title?.value,
       format: format.value,
-      related: related.value,
-      tables:
-        format.value === "csv"
-          ? [selectedTable.value]
-          : [...selectedSheets.value].sort(),
+      grouped:
+        format.value === "xlsx" &&
+        query.value.groupBy.length > 0 &&
+        grouped.value,
+      includeFiles: includeFiles.value,
+      sortBy: sortBy?.value,
+      sort: sort?.value,
     }),
   );
 
@@ -62,6 +54,7 @@ export function useQuickExport(
     statusRequest?.abort();
     statusRequest = undefined;
   }
+
   function invalidateJob() {
     jobGeneration++;
     stopPolling();
@@ -69,67 +62,32 @@ export function useQuickExport(
     jobConfiguration = "";
     generating.value = false;
   }
-  async function preview() {
-    if (!previewEnabled() || !open.value || disposed) return;
-    const current = ++previewGeneration;
-    previewRequest?.abort();
-    previewRequest = new AbortController();
+
+  async function count() {
+    if (!open.value || disposed) return;
+    const current = ++generation;
+    countRequest?.abort();
+    countRequest = new AbortController();
     loading.value = true;
     error.value = "";
+    matchedCount.value = undefined;
     try {
       const result = await services.report(
         query.value,
-        {
-          page_length: 5,
-          include_related: related.value,
-          ...(selectedTable.value ? { table: selectedTable.value } : {}),
-        },
-        previewRequest.signal,
+        { ...(table?.value ? { table: table.value } : {}), page_length: 1 },
+        countRequest.signal,
       );
-      if (current !== previewGeneration || disposed) return;
-      page.value = result;
-      if (!result.tables.some((table) => table.id === selectedTable.value))
-        selectedTable.value = result.table;
-      const valid = new Set(result.tables.map((table) => table.id));
-      selectedSheets.value = selectedSheets.value.filter((id) => valid.has(id));
-      if (!selectedSheets.value.length)
-        selectedSheets.value = result.tables
-          .filter((table) => !relatedTables.has(table.id))
-          .map((table) => table.id);
-      if (related.value)
-        for (const table of result.tables)
-          if (
-            relatedTables.has(table.id) &&
-            !selectedSheets.value.includes(table.id)
-          )
-            selectedSheets.value.push(table.id);
+      if (current === generation && !disposed)
+        matchedCount.value = result.matched_count;
     } catch (reason) {
-      if (current === previewGeneration && !disposed)
+      if (current === generation && !disposed)
         error.value =
-          reason instanceof Error ? reason.message : "导出预览读取失败";
+          reason instanceof Error ? reason.message : "读取匹配数量失败";
     } finally {
-      if (current === previewGeneration && !disposed) loading.value = false;
+      if (current === generation && !disposed) loading.value = false;
     }
   }
-  function syncTableChoices() {
-    if (previewEnabled() || page.value) return;
-    const choices = tableChoices();
-    const valid = new Set(choices.map((table) => table.id));
-    selectedSheets.value = selectedSheets.value.filter((id) => valid.has(id));
-    if (!selectedSheets.value.length)
-      selectedSheets.value = choices
-        .filter((table) => !relatedTables.has(table.id))
-        .map((table) => table.id);
-    if (!valid.has(selectedTable.value))
-      selectedTable.value = choices[0]?.id || "";
-    if (related.value)
-      for (const table of choices)
-        if (
-          relatedTables.has(table.id) &&
-          !selectedSheets.value.includes(table.id)
-        )
-          selectedSheets.value.push(table.id);
-  }
+
   async function status(current = jobGeneration) {
     if (!job.value || !open.value || disposed || current !== jobGeneration)
       return;
@@ -163,10 +121,10 @@ export function useQuickExport(
       // locked until its state is known, so a retry cannot create a duplicate job.
     }
   }
+
   async function generate() {
-    if (generating.value || (previewEnabled() && !page.value) || disposed)
+    if (generating.value || matchedCount.value === undefined || disposed)
       return;
-    syncTableChoices();
     const current = ++jobGeneration;
     const chosenConfiguration = configuration.value;
     const failed =
@@ -177,26 +135,28 @@ export function useQuickExport(
     generating.value = true;
     error.value = "";
     stopPolling();
+    const args: Record<string, unknown> = {
+      query: JSON.parse(JSON.stringify(query.value)),
+      export_format: format.value,
+      include_files: includeFiles.value,
+      summary: {
+        title: title?.value || "导出",
+        filters: [...filterLabels.value],
+      },
+    };
+    if (table?.value) args.table = table.value;
+    if (columns?.value) args.columns = columns.value;
+    if (sortBy?.value) args.sort_by = sortBy.value;
+    if (sort?.value) args.sort = sort.value;
+    if (format.value === "xlsx" && query.value.groupBy.length)
+      args.grouped = grouped.value;
     try {
       const result = failed
         ? await services.call<ExportJob>("exports.retry_export", {
             name: failed.name,
             version: failed.version,
           })
-        : await services.call<ExportJob>("exports.request_export", {
-            query: JSON.parse(JSON.stringify(query.value)),
-            export_format: format.value,
-            tables:
-              format.value === "csv"
-                ? [selectedTable.value]
-                : selectedSheets.value.filter((id) =>
-                    (previewEnabled()
-                      ? page.value?.tables || []
-                      : tableChoices()
-                    ).some((table) => table.id === id),
-                  ),
-            include_related: related.value,
-          });
+        : await services.call<ExportJob>("exports.request_export", args);
       if (current !== jobGeneration || disposed) return;
       job.value = result;
       jobConfiguration = chosenConfiguration;
@@ -210,73 +170,46 @@ export function useQuickExport(
         reason instanceof Error ? reason.message : "导出请求失败，请重试";
     }
   }
-  watch([selectedTable, related], () => {
-    if (previewEnabled()) void preview();
-    else syncTableChoices();
-  });
-  watch(tableChoices, syncTableChoices, { deep: true });
+
   watch(configuration, () => {
     if (jobConfiguration && jobConfiguration !== configuration.value)
       invalidateJob();
+    if (open.value) void count();
   });
-  watch(
-    () => JSON.stringify(query.value),
-    () => {
-      invalidateJob();
-      selectedTable.value = "";
-      selectedSheets.value = [];
-      page.value = undefined;
-      if (previewEnabled()) void preview();
-      else syncTableChoices();
-    },
-  );
   watch(open, (value) => {
     if (!value) {
-      previewGeneration++;
-      previewRequest?.abort();
+      generation++;
+      countRequest?.abort();
       loading.value = false;
       stopPolling();
     } else {
-      if (previewEnabled()) void preview();
-      else syncTableChoices();
+      void count();
       if (job.value) void status();
     }
   });
   onBeforeUnmount(() => {
     disposed = true;
-    previewGeneration++;
+    generation++;
     jobGeneration++;
-    previewRequest?.abort();
+    countRequest?.abort();
     stopPolling();
   });
   return {
     open,
     format,
-    related,
-    selectedTable,
-    selectedSheets,
-    page,
+    grouped,
+    includeFiles,
+    matchedCount,
     error,
     loading,
     generating,
     job,
-    preview,
+    count,
     status,
     generate,
     canGenerate: computed(
       () =>
-        (previewEnabled()
-          ? !!page.value && !loading.value && !error.value
-          : true) &&
-        !generating.value &&
-        (format.value === "csv"
-          ? !!selectedTable.value
-          : selectedSheets.value.some((id) =>
-              (previewEnabled()
-                ? page.value?.tables || []
-                : tableChoices()
-              ).some((table) => table.id === id),
-            )),
+        matchedCount.value !== undefined && !loading.value && !generating.value,
     ),
   };
 }

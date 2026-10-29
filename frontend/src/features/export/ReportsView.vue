@@ -179,17 +179,9 @@ function setGroup(index: number, value: string) {
 				<QuickExport
 					ref="quickExport"
 					:query="query"
+					:title="`${definition.label} · ${viewName}`"
+					:table="result.main"
 					:active="active"
-					:preview="false"
-					:matched-count="result.total"
-					:tables="
-						result.tables.map((table) => ({
-							id: table.id,
-							label: table.label,
-							count: table.total,
-						}))
-					"
-					:show-open-report="false"
 					:show-trigger="false"
 				/>
 				<UiButton variant="primary" icon="export" @click="quickExport?.open()"

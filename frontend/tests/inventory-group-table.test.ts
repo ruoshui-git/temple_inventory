@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import StockBrowsePage from "../src/features/inventory/StockBrowsePage.vue";
+import QuickExport from "../src/components/QuickExport.vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -40,6 +41,88 @@ afterEach(() => {
 });
 
 describe("inventory grouped table", () => {
+  it("switches the stock export line table when location and expiry columns are hidden", async () => {
+    const render = async (hidden: string[]) => {
+      localStorage.clear();
+      localStorage.setItem(
+        "temple-inventory:table-columns:v1:test:manager:stock.summary",
+        JSON.stringify({
+          version: 1,
+          values: {
+            order: [
+              "image",
+              "item_name",
+              "item_code",
+              "available",
+              "stock_uom",
+              "category",
+              "locations",
+              "loaned",
+              "damaged",
+              "total",
+              "expiry",
+              "actions",
+            ],
+            hidden,
+          },
+          dirty: false,
+        }),
+      );
+      const wrapper = mount(
+        defineComponent({
+          setup() {
+            const reference = createReferenceData();
+            reference.user = "manager";
+            reference.site = "test";
+            provideInventoryServices(
+              {
+                call: vi.fn(async (endpoint: string) =>
+                  endpoint === "browse.inventory_page"
+                    ? {
+                        rows: [
+                          {
+                            code: "ITEM-A",
+                            name: "物品甲",
+                            available: 2,
+                            locations: [],
+                          },
+                        ],
+                        matched_count: 1,
+                        next_start: null,
+                        summary: [],
+                        snapshot: "now",
+                        analysis: { category: [], location: [] },
+                      }
+                    : undefined,
+                ) as never,
+                report: vi.fn(),
+                upload: vi.fn(),
+              },
+              reference,
+            );
+            return () => h(StockBrowsePage);
+          },
+        }),
+        {
+          attachTo: document.body,
+          global: { stubs: { RouterLink: RouterLinkStub } },
+        },
+      );
+      wrappers.push(wrapper);
+      await flushPromises();
+      return wrapper.getComponent(QuickExport).props();
+    };
+
+    const locations = await render([]);
+    expect(locations).toMatchObject({ table: "locations", title: "库存列表" });
+    expect(locations.columns).toContain("expiry_state");
+    expect(locations.columns).toContain("warehouse_label");
+    const summary = await render(["locations", "expiry"]);
+    expect(summary).toMatchObject({ table: "summary", title: "库存列表" });
+    expect(summary.columns).not.toContain("expiry_state");
+    expect(summary.columns).not.toContain("warehouse_label");
+  });
+
   it("loads category, Item, and stock leaves lazily using projection row fields", async () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
     const groupCalls: Array<{

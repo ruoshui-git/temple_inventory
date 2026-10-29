@@ -94,14 +94,12 @@ for (const width of [375, 1440]) {
     await expect(page.locator(".form-page")).toContainText(title);
     await page.getByRole("button", { name: "导出", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "导出", exact: true });
-    await expect(dialog.locator("tbody")).toContainText("OPENING-1");
-    await expect(dialog.locator("tbody")).toContainText("7");
-    await expect(dialog.locator("tbody button")).toHaveCount(0);
-    await dialog.getByRole("button", { name: "打开报表", exact: true }).focus();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/inventory\/reports/);
-    await expect(page.locator("tbody").first()).toContainText("OPENING-1");
-    expect(queries.length).toBeGreaterThanOrEqual(2);
+    await expect(dialog).toContainText("共 1 行");
+    await expect(dialog.locator(".report-table")).toHaveCount(0);
+    await expect(
+      dialog.getByRole("button", { name: "打开报表", exact: true }),
+    ).toHaveCount(0);
+    expect(queries.length).toBeGreaterThanOrEqual(1);
     await page.goto("/inventory/counts/OPENING-1");
     denied = true;
     await page.reload();
