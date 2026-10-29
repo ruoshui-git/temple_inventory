@@ -8,23 +8,26 @@ import { detectInstallPlatform } from "../../lib/installGuidance";
 import { subscribePushDevice } from "../settings/useNotificationSettings";
 
 const services = useInventoryServices();
-const account = useReferenceData().user;
+const reference = useReferenceData();
+const account = reference.user;
 const route = useRoute();
 const { isMobile } = useResponsiveLayout();
 const ready = ref(false);
 const dismissed = ref(true);
 const busy = ref(false);
 const error = ref("");
+const pushAvailable = () =>
+	!import.meta.env.DEV &&
+	window.isSecureContext &&
+	"Notification" in window &&
+	"serviceWorker" in navigator &&
+	"PushManager" in window &&
+	Notification.permission === "default";
 const visible = computed(
 	() =>
 		ready.value &&
 		!dismissed.value &&
-		!import.meta.env.DEV &&
-		window.isSecureContext &&
-		"Notification" in window &&
-		"serviceWorker" in navigator &&
-		"PushManager" in window &&
-		Notification.permission === "default" &&
+		pushAvailable() &&
 		!(
 			detectInstallPlatform(
 				navigator.userAgent,
@@ -37,6 +40,7 @@ const visible = computed(
 		!(isMobile.value && route.meta.taskEditor),
 );
 onMounted(async () => {
+	if (!pushAvailable()) return;
 	try {
 		const [wasDismissed, subscription] = await Promise.all([
 			services.call<boolean>("preferences.push_prompt_dismissed"),
@@ -48,7 +52,7 @@ onMounted(async () => {
 	} catch {
 		dismissed.value = true;
 	} finally {
-		ready.value = useReferenceData().user === account;
+		ready.value = reference.user === account;
 	}
 });
 async function dismiss() {

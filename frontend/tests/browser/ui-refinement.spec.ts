@@ -82,6 +82,7 @@ async function setup(page: Page, scale = 100, density = "balanced") {
               item_count: 2,
               line_count: 36,
               quantities: [{ qty: 20, uom: "个" }],
+              available_effects: [{ qty: 20, uom: "个" }],
               branches: [{ source: "ROOM-A", destination: "ROOM-B" }],
               original_loans: ["L1", "L2"],
             },
@@ -370,13 +371,13 @@ for (const width of [390, 1440]) {
     await setup(page);
     await page.goto("/inventory/movements?view=records");
     const record = page.locator(".browse-table tbody tr").first();
-    await expect(record).toContainText("20 个");
+    await expect(record).toContainText("+20 个");
     const quantityHeader = page
       .locator(".browse-table thead th")
-      .filter({ hasText: /数量/ })
+      .filter({ hasText: /可用变化/ })
       .first();
     await expect(quantityHeader).toHaveClass(/align-end/);
-    const quantityCell = record.getByRole("cell", { name: /20 个/ });
+    const quantityCell = record.getByRole("cell", { name: /\+20 个/ });
     await expect(quantityCell).toBeVisible();
     expect(
       await quantityCell.evaluate(

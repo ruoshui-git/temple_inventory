@@ -46,8 +46,11 @@ export function usePendingController(
       damageOnly: true,
       includeZero: false,
     };
-    if (!props.initialQuery && !props.routeQuery)
-      Object.assign(value, browseDefaults("inventory", "locations"));
+    if (!props.initialQuery && !props.routeQuery) {
+      const defaults = browseDefaults("inventory", "locations");
+      value.sortBy = defaults.sortBy;
+      value.sort = defaults.sort;
+    }
     if (JSON.stringify(query.value) !== JSON.stringify(value))
       query.value = value;
   }
