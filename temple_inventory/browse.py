@@ -1095,9 +1095,6 @@ def operation_contributions(
 								"quantity": 0.0,
 								"outstanding": 0.0,
 								"item_name": row.get("item_name", ""),
-								"image": projection.context.item_fields(
-									projection.context.item(row["item_code"])
-								).get("image", ""),
 								"activity_title": row.get("activity_title", ""),
 								"borrower": row.get("borrower", ""),
 								"original_loans": set(),
@@ -1203,6 +1200,8 @@ def operation_contributions(
 					)
 					count = len(ordered)
 					page = ordered[start : start + size]
+					projection.context.preload_primary_item_images(key[8] for key, _values in page)
+					projection.context._item_fields.cache_clear()
 					columns = [
 						"document",
 						"date_time",
@@ -1227,6 +1226,9 @@ def operation_contributions(
 								),
 								"item_code": key[8],
 								"item_name": values.get("item_name") or key[8],
+								"image": projection.context.item_fields(projection.context.item(key[8])).get(
+									"image", ""
+								),
 								"activity_title": values.get("activity_title", ""),
 								"borrower": values.get("borrower", ""),
 								"date_time": " ".join(str(value or "") for value in key[2:4]).strip(),

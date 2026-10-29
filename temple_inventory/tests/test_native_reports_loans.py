@@ -39,6 +39,33 @@ class NativeReportsLoansTests(NativeReportTestCase):
 		missing = browse.movement_history(query, item_code=self.item)
 		self.assertEqual(missing["rows"][0]["image"], "")
 
+	def test_flat_loan_history_rows_carry_readable_primary_images(self):
+		self.receipt(3)
+		self.submit(self.create(self.movement("Loan", 1, self.a, self.loan_leaf, ti_borrower="演出团队")))
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"loan-history-{self.token}.png",
+				"content": base64.b64decode(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+				),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+				"attached_to_field": "image",
+			}
+		).insert()
+		item = frappe.get_doc("Item", self.item)
+		catalog.set_item_image(self.item, str(item.modified), file.name)
+		query = {**self.query("loans", "items"), "itemCodes": [self.item], "restrictItems": True}
+		for scope in ("outstanding", "all"):
+			rows = browse.operation_contributions(query, loan_scope=scope)["rows"]
+			self.assertTrue(rows)
+			self.assertEqual({row["image"] for row in rows}, {file.file_url})
+		with patch("frappe.core.doctype.file.file.File.has_permission", return_value=False):
+			denied = browse.operation_contributions(query, loan_scope="all")["rows"]
+		self.assertEqual({row["image"] for row in denied}, {""})
+
 	def test_return_record_page_includes_original_loan_identity_for_multiple_loans(self):
 		self.receipt(10)
 		loans = [
