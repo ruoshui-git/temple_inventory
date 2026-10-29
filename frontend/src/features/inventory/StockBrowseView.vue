@@ -155,6 +155,8 @@ const inventoryColumns = computed<DataColumn[]>(() => [
 		defaultVisible: desktopColumnsVisible.value,
 		kind: "chip",
 	},
+	{ id: "warehouse_path", label: "完整位置", defaultVisible: false },
+	{ id: "warehouse_native_name", label: "ERPNext 库位", defaultVisible: false },
 	{
 		id: "loaned",
 		label: "借出",
@@ -193,12 +195,12 @@ const browseTableRows = computed<DataTableEntry[]>(() =>
 const groupRoot = computed(() => groupPages.pages.value["[[],null]"]);
 function groupSummary(group: DataTableGroup) {
 	const row = group.value || {};
-	const quantity = ["available", "loaned", "damaged"]
+	const quantity = ["available", "loaned", "damaged", "stock_qty"]
 		.filter((key) => row[key] !== undefined)
 		.sort((a, b) => Number(row[b]) - Number(row[a]))
 		.map(
 			(key) =>
-				`${key === "available" ? "可用" : key === "loaned" ? "借出" : "损坏"} ${row[key]}${row.stock_uom ? ` ${unitLabel(String(row.stock_uom))}` : ""}`,
+				`${key === "available" ? "可用" : key === "loaned" ? "借出" : key === "damaged" ? "损坏" : "合计"} ${row[key]}${row.stock_uom ? ` ${unitLabel(String(row.stock_uom))}` : ""}`,
 		);
 	return quantity.join(" · ");
 }
@@ -230,6 +232,14 @@ function stockLocationLabel(row: StockTableRow) {
 	const batch = String(row.batch_no || "");
 	return [location, batch].filter(Boolean).join(" · ") || "—";
 }
+function stockLocationDetail(row: StockTableRow, field: "path" | "nativeName") {
+	if (!isStockItemRow(row))
+		return String(row[field === "path" ? "warehouse_path" : "warehouse_native_name"] || "");
+	return row.locations
+		.map((location) => location[field])
+		.filter(Boolean)
+		.join("；");
+}
 function stockExpiryLabel(row: StockTableRow) {
 	if (isStockItemRow(row)) return expiryStatus(row);
 	const date = String(row.expiry_date || "");
@@ -247,6 +257,8 @@ const stockExportMap: Record<string, string[]> = {
 	stock_uom: ["stock_uom"],
 	category: ["category"],
 	locations: ["warehouse_label", "batch_no"],
+	warehouse_path: ["warehouse_path"],
+	warehouse_native_name: ["warehouse_native_name"],
 	loaned: ["loaned"],
 	damaged: ["damaged"],
 	total: ["stock_qty"],
@@ -267,7 +279,9 @@ const stockExportOrder = computed(() =>
 		: inventoryColumns.value.map((column) => String(column.id)),
 );
 const stockExportTable = computed(() =>
-	stockExportVisible.value.some((id) => id === "locations" || id === "expiry")
+	stockExportVisible.value.some((id) =>
+		["locations", "expiry", "warehouse_path", "warehouse_native_name"].includes(id),
+	)
 		? "locations"
 		: "summary",
 );
@@ -837,6 +851,12 @@ watch([() => props.active, isMobile], () => {
 										>{{ stockLocationLabel(row) }}</span
 									></template
 								>
+								<template v-else-if="column.id === 'warehouse_path'">{{
+									stockLocationDetail(row, "path") || "—"
+								}}</template>
+								<template v-else-if="column.id === 'warehouse_native_name'">{{
+									stockLocationDetail(row, "nativeName") || "—"
+								}}</template>
 								<template v-else-if="column.id === 'available'">{{
 									row.available
 								}}</template>

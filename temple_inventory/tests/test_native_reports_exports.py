@@ -9,7 +9,7 @@ import json
 import tempfile
 import zipfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 import frappe
@@ -17,12 +17,62 @@ from frappe.utils import nowdate
 from openpyxl import load_workbook
 
 from temple_inventory import browse, counts, exports, native_api, native_files
+from temple_inventory.export_columns import label as export_label
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.tests.helpers import NativeReportTestCase
 from temple_inventory.uom_labels import uom_label
 
 
 class NativeReportsExportsTests(NativeReportTestCase):
+	def test_browse_export_headers_match_page_column_labels(self):
+		contracts = {
+			("inventory", "summary"): {"stock_qty": "合计", "stock_uom": "库存单位"},
+			("expiry", "batches"): {
+				"stock_qty": "库存数量",
+				"warehouse": "位置",
+				"warehouse_path": "完整位置",
+				"warehouse_native_name": "ERPNext 库位",
+			},
+			("inventory", "locations"): {
+				"warehouse_label": "库位",
+				"warehouse_path": "完整位置",
+				"warehouse_native_name": "ERPNext 库位",
+			},
+			("movements", "records"): {
+				"document": "编号",
+				"source": "来源位置",
+				"destination": "去向位置",
+				"source_warehouse_path": "来源完整位置",
+				"destination_warehouse_native_name": "去向 ERPNext 库位",
+			},
+			("loans", "records"): {
+				"document": "借出单号",
+				"date": "借出日期",
+				"borrowed": "借出数量",
+				"outstanding": "未归还数量",
+				"loan_status": "借用状态",
+			},
+			("loans", "loan_history"): {
+				"document": "编号",
+				"date": "日期",
+				"kind": "类型",
+				"source_warehouse": "来源位置",
+				"destination_warehouse": "去向位置",
+				"quantity": "数量（借出为正，归还为负）",
+			},
+			("counts", "lines"): {"difference": "差异量", "warehouse_path": "完整位置"},
+		}
+		for (dataset, table), fields in contracts.items():
+			for field, expected in fields.items():
+				self.assertEqual(export_label(dataset, field, table), expected)
+
+	def test_stock_browse_returns_total_for_rows_and_location_summaries(self):
+		self.receipt(12)
+		result = browse._inventory_page(self.query(), 0, 30)
+		row = next(value for value in result["rows"] if value["code"] == self.item)
+		self.assertEqual(row["stock_qty"], 12)
+		self.assertEqual(sum(location["stock_qty"] for location in row["locations"]), 12)
+
 	def test_grouped_xlsx_writes_labeled_headers_subtotals_and_outline_levels(self):
 		self.receipt(12)
 		query = self.query("movements", "lines", groupBy=["item"])
@@ -322,7 +372,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
 		self.assertEqual(
-			rows[0], ["借出单号", "类型", "物品名称", "借用方", "活动", "原位置", "数量", "单位"]
+			rows[0],
+			["编号", "类型", "物品名称", "借用方", "活动", "来源位置", "数量（借出为正，归还为负）", "单位"],
 		)
 		self.assertEqual([row[0] for row in rows[1:-1]], [partly.name])
 		self.assertEqual(rows[1][3:6], ["部分归还", self.activity.title, projection.context.label(self.a)])
@@ -371,7 +422,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			)
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
-		self.assertEqual(rows[0], ["借出单号", "类型", "物品名称", "数量", "单位"])
+		self.assertEqual(rows[0], ["编号", "类型", "物品名称", "数量（借出为正，归还为负）", "单位"])
 		self.assertEqual({row[1] for row in rows[1:-1]}, {"借出", "归还"})
 		self.assertEqual(
 			{row[0] for row in rows[1:-1]},
@@ -510,6 +561,19 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			def label(name):
 				return {"source-warehouse": "来源库位", "destination-warehouse": "去向库位"}[name]
 
+			@staticmethod
+			def location_fields(name):
+				return {
+					"source-warehouse": {
+						"warehouse_path": "来源路径",
+						"warehouse_native_name": "ERP 来源",
+					},
+					"destination-warehouse": {
+						"warehouse_path": "去向路径",
+						"warehouse_native_name": "ERP 去向",
+					},
+				}.get(name, {})
+
 		projection = frappe._dict(query={"dataset": "movements"}, context=Context())
 		row = exports._export_record_row(
 			projection,
@@ -549,6 +613,14 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(row["docstatus_label"], "已提交")
 			self.assertEqual(row["destination_warehouse"], self.a)
 			self.assertEqual(row["destination_warehouse_label"], "供灯-用品")
+			self.assertEqual(
+				row["destination_warehouse_path"],
+				projection.context.location_fields(self.a)["warehouse_path"],
+			)
+			self.assertEqual(
+				row["destination_warehouse_native_name"],
+				frappe.db.get_value("Warehouse", self.a, "warehouse_name"),
+			)
 			self.assertEqual(projection.context.label("inaccessible-warehouse"), "")
 			path = Path(directory) / "labels.csv"
 			exports._write(projection, frappe._dict(tables_json='["lines"]', export_format="csv"), path)
@@ -623,8 +695,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			workbook.close()
 			self.assertEqual(csv_count, xlsx_count)
 			self.assertEqual(len(csv_rows), len(rows) - 1)
-			self.assertEqual(float(csv_rows[0]["数量"]), 12)
-			self.assertEqual(rows[1][rows[0].index("数量")], 12)
+			self.assertEqual(float(csv_rows[0]["库存数量"]), 12)
+			self.assertEqual(rows[1][rows[0].index("库存数量")], 12)
 
 	def test_large_native_draft_export_preserves_all_1005_allocations_and_stable_order(self):
 		data = self.movement(quantity=1)
@@ -675,7 +747,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				{row.name for row in doc["items"]},
 			)
 			self.assertEqual(
-				sum(float(row["数量"]) for row in csv_rows if not row["明细编号"].startswith("合计")),
+				sum(float(row["库存数量"]) for row in csv_rows if not row["明细编号"].startswith("合计")),
 				1005,
 			)
 
@@ -732,7 +804,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.addCleanup(Path(file.get_full_path()).unlink, missing_ok=True)
 		request.status = "Completed"
 		exports._save(request)
-		exports.validate_download(request)
+		with patch.object(exports, "validate_download", wraps=exports.validate_download) as validate:
+			response = exports.download_export(request.name)
+			validate.assert_called_once()
+		self.assertEqual(response.status_code, 200)
+		self.assertIn("attachment;", response.headers["Content-Disposition"])
+		response.close()
 		output_file = frappe.get_doc("File", request.output_file)
 		self.assertTrue(output_file.is_downloadable())
 		self.assertFalse(frappe.get_doc("File", request.access_manifest).is_downloadable())
@@ -747,6 +824,35 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			exports.validate_download(request)
 		self.assertFalse(output_file.is_downloadable())
+
+	def test_export_manifest_rechecks_names_in_bounded_doctype_batches(self):
+		from types import SimpleNamespace
+
+		names = [f"ITEM-{index}" for index in range(401)]
+		with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as manifest:
+			for name in names:
+				manifest.write(json.dumps(["Item", name]) + "\n")
+			manifest.flush()
+			with (
+				patch("temple_inventory.exports.require_app"),
+				patch("temple_inventory.exports.frappe.db.get_value", return_value=1),
+				patch(
+					"temple_inventory.native_topology._settings",
+					return_value=SimpleNamespace(company="Company"),
+				),
+				patch("temple_inventory.native_topology._visible_warehouses", return_value=set()),
+				patch("temple_inventory.exports.frappe.get_doc") as get_doc,
+				patch(
+					"temple_inventory.exports.frappe.get_list",
+					side_effect=lambda _doctype, filters, **_kwargs: filters["name"][1],
+				) as get_list,
+			):
+				get_doc.return_value.check_permission = Mock()
+				exports._check_manifest_path(manifest.name)
+		self.assertEqual(get_list.call_count, 3)
+		self.assertEqual(
+			[len(call.kwargs["filters"]["name"][1]) for call in get_list.call_args_list], [200, 200, 1]
+		)
 
 	def test_movement_browse_always_includes_reconciliation_adjustments(self):
 		self.receipt(10)

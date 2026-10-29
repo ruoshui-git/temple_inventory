@@ -668,14 +668,10 @@ test("queued native CSV/XLSX jobs export the complete catalog into private downl
       )
       .toBe("Completed");
     expect(completed.row_count).toBe(preview.matched_count);
-    const redirect = await page.request.get(completed.download_url, {
-      maxRedirects: 0,
-    });
-    expect(redirect.status()).toBe(302);
-    const location = redirect.headers()["location"]!;
-    expect(location).toMatch(/^\/private\/files\//);
-    const download = await page.request.get(location);
+    const download = await page.request.get(completed.download_url);
     expect(download.ok()).toBe(true);
+    expect(download.status()).toBe(200);
+    expect(download.headers()["content-disposition"]).toContain("attachment");
     const bytes = await download.body();
     if (format === "csv") {
       const text = bytes.toString("utf-8");
@@ -710,13 +706,81 @@ test("queued native CSV/XLSX jobs export the complete catalog into private downl
     }
     const guest = await browser.newContext();
     const denied = await guest.request.get(
-      new URL(location, process.env.NATIVE_BASE_URL || "http://127.0.0.1:8101")
-        .href,
+      new URL(
+        completed.download_url,
+        process.env.NATIVE_BASE_URL || "http://127.0.0.1:8101",
+      ).href,
       { maxRedirects: 0 },
     );
     expect(denied.status()).toBeGreaterThanOrEqual(400);
     await guest.close();
   }
+});
+
+test("measure movement detail and loan image export phases", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const { newReportQuery } = await import("../../../src/lib/reportContract");
+
+  async function measure(query, table, export_format, include_files) {
+    const requestStarted = Date.now();
+    const job = await call(page.request, "exports.request_export", {
+      query,
+      table,
+      export_format,
+      include_files,
+    });
+    const requestMs = Date.now() - requestStarted;
+    const phases = {};
+    const details = [];
+    let activeStage = "";
+    let phaseStarted = Date.now();
+    let status;
+    const workerStarted = Date.now();
+    while (Date.now() - workerStarted < 150_000) {
+      status = await call(page.request, "exports.export_status", {
+        name: job.name,
+      });
+      const now = Date.now();
+      if (status.stage && status.stage !== activeStage) {
+        if (activeStage) phases[activeStage] = now - phaseStarted;
+        activeStage = status.stage;
+        phaseStarted = now;
+      }
+      if (status.progress_detail) details.push(status.progress_detail);
+      if (status.status === "Failed") throw new Error(status.error);
+      if (status.status === "Completed") break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    expect(status?.status).toBe("Completed");
+    if (activeStage) phases[activeStage] = Date.now() - phaseStarted;
+    const workerMs = Date.now() - workerStarted;
+    const downloadStarted = Date.now();
+    const response = await page.request.get(status.download_url);
+    expect(response.ok()).toBe(true);
+    const bytes = await response.body();
+    return {
+      request_ms: requestMs,
+      worker_ms: workerMs,
+      phase_observations_ms: phases,
+      row_count: status.row_count,
+      download_ms: Date.now() - downloadStarted,
+      download_bytes: bytes.length,
+      attachment_detail: details.find((detail) => detail.includes("个文件")),
+    };
+  }
+
+  const movements = newReportQuery("movements");
+  movements.view = "lines";
+  const movement = await measure(movements, "lines", "csv", "none");
+  expect(movement.row_count).toBeGreaterThan(2000);
+
+  const loans = newReportQuery("loans");
+  loans.view = "items";
+  const loan = await measure(loans, "loan_items", "xlsx", "images");
+  expect(loan.attachment_detail).toContain("个文件");
+  console.log(`EXPORT_TIMINGS ${JSON.stringify({ movement, loan })}`);
 });
 
 test("real frontend draft survives a Desk edit, rejects stale input and preserves native children", async ({

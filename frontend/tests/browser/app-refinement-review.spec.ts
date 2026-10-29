@@ -322,8 +322,8 @@ for (const width of [1440, 390]) {
     ).join(" ");
     const expectedHeaders =
       width >= 1024
-        ? ["记录", "类型", "日期", "来源位置", "去向位置", "数量", "状态"]
-        : ["记录", "类型", "日期", "数量", "状态"];
+        ? ["编号", "类型", "日期", "来源位置", "去向位置", "数量", "状态"]
+        : ["编号", "类型", "日期", "数量", "状态"];
     for (const label of expectedHeaders) expect(headers).toContain(label);
     await expect(page.locator("tbody .stock-effect.is-increase")).toHaveCount(
       1,

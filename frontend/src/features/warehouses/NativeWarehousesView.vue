@@ -80,11 +80,13 @@ const stockColumns: DataColumn[] = [
 	{ id: "batch_no", label: "批次", sortable: true },
 	{
 		id: "stock_qty",
-		label: "数量",
+		label: "合计",
 		sortable: true,
 		align: "end",
 		className: "tabular-nums",
 	},
+	{ id: "warehouse_path", label: "完整位置", defaultVisible: false },
+	{ id: "warehouse_native_name", label: "ERPNext 库位", defaultVisible: false },
 ];
 const stockPreferences = services
 	? useColumnPreferences(
@@ -99,6 +101,8 @@ const warehouseExportMap: Record<string, string[]> = {
 	item_name: ["item_name"],
 	item_code: ["item_code"],
 	warehouse_label: ["warehouse_label"],
+	warehouse_path: ["warehouse_path"],
+	warehouse_native_name: ["warehouse_native_name"],
 	batch_no: ["batch_no"],
 	stock_qty: ["stock_qty", "stock_uom"],
 	stock_uom: ["stock_uom"],
@@ -538,6 +542,12 @@ function parentLabel(name?: string) {
 										)
 									}}</span
 								>
+								<span v-else-if="column.id === 'warehouse_path'">{{
+									row.warehouse_path || "—"
+								}}</span>
+								<span v-else-if="column.id === 'warehouse_native_name'">{{
+									row.warehouse_native_name || "—"
+								}}</span>
 								<span v-else-if="column.id === 'batch_no'">{{
 									row.batch_no || "—"
 								}}</span>

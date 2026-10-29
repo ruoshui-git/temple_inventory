@@ -731,7 +731,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     const headers = wrapper.findAll("thead th");
     const statusIndex = headers.findIndex((header) =>
-      header.text().startsWith("当前结清状态"),
+      header.text().startsWith("借用状态"),
     );
     expect(statusIndex).toBeGreaterThanOrEqual(0);
     const status = wrapper

@@ -173,11 +173,7 @@ test("live XLSX exports include loan scopes and movement available-effect totals
         { timeout: 90000, intervals: [250, 500, 1000] },
       )
       .toBe("Completed");
-    const redirect = await page.request.get(status.download_url, {
-      maxRedirects: 0,
-    });
-    expect(redirect.status()).toBe(302);
-    const download = await page.request.get(redirect.headers().location!);
+    const download = await page.request.get(status.download_url);
     expect(download.ok()).toBe(true);
     const path = test.info().outputPath(name);
     writeFileSync(path, await download.body());
@@ -234,9 +230,9 @@ test("live XLSX exports include loan scopes and movement available-effect totals
     "movements-records.xlsx",
   );
 
-  expect(openRows[0]).toContain("借出单号");
+  expect(openRows[0]).toContain("编号");
   expect(openRows[0]).toContain("物品名称");
-  expect(openRows[0]).toContain("数量");
+  expect(openRows[0]).toContain("数量（借出为正，归还为负）");
   expect(allRows.length).toBeGreaterThan(openRows.length);
   expect(groupedLoanRows.some((row) => String(row[0]).startsWith("合计"))).toBe(
     true,

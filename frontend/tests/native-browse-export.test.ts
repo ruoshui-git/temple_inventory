@@ -29,6 +29,7 @@ import { RouterLinkStub } from "./support/RouterLinkStub";
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 function deferred<T>() {
@@ -100,7 +101,10 @@ const job = (status: ExportJob["status"] = "Queued"): ExportJob => ({
   attempt: 1,
   generated_at: "",
   row_count: 205,
-  download_url: status === "Completed" ? "/private/files/result.xlsx" : null,
+  download_url:
+    status === "Completed"
+      ? "/api/method/temple_inventory.exports.download_export?name=EXPORT-1"
+      : null,
 });
 
 const stockPage = (code: string, overrides: Record<string, unknown> = {}) => ({
@@ -523,13 +527,93 @@ describe("background quick export", () => {
     await controller.generate();
     await controller.status();
     expect(controller.job.value?.download_url).toBe(
-      "/private/files/result.xlsx",
+      "/api/method/temple_inventory.exports.download_export?name=EXPORT-1",
     );
     expect(
       vi
         .mocked(service.call)
         .mock.calls.filter(([method]) => method === "exports.request_export"),
     ).toHaveLength(1);
+  });
+  it("backs off export polling from 500 ms to 750 ms and displays worker progress", async () => {
+    vi.useFakeTimers();
+    const service = services();
+    vi.mocked(service.call)
+      .mockResolvedValueOnce(job())
+      .mockResolvedValueOnce({
+        ...job(),
+        stage: "读取数据",
+        progress_detail: "已读取 250 行",
+      })
+      .mockResolvedValueOnce({ ...job("Completed"), stage: "完成" });
+    const controller = setup(service, () => useQuickExport(ref(query())));
+    controller.open.value = true;
+    await flushPromises();
+    await controller.generate();
+    await flushPromises();
+    expect(controller.job.value?.stage).toBe("读取数据");
+    await vi.advanceTimersByTimeAsync(499);
+    expect(vi.mocked(service.call)).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await flushPromises();
+    expect(vi.mocked(service.call)).toHaveBeenCalledTimes(3);
+    expect(controller.job.value?.status).toBe("Completed");
+  });
+
+  it("streams a completed export, uses the UTF-8 server filename, and blocks duplicate downloads", async () => {
+    const service = services();
+    const controller = setup(service, () => useQuickExport(ref(query())));
+    controller.job.value = {
+      ...job("Completed"),
+      download_url:
+        "/api/method/temple_inventory.exports.download_export?name=EXPORT-1",
+      file_label: "库存明细.xlsx",
+    };
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => (release = resolve));
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({ done: false, value: new Uint8Array([1, 2, 3]) })
+      .mockImplementationOnce(async () => {
+        await pending;
+        return { done: true, value: undefined };
+      });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        headers: {
+          get: (name: string) =>
+            name === "content-disposition"
+              ? "attachment; filename*=UTF-8''%E5%BA%93%E5%AD%98%E6%98%8E%E7%BB%86.xlsx"
+              : name === "content-length"
+                ? "3"
+                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+        body: { getReader: () => ({ read }) },
+      })),
+    );
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:export"),
+      revokeObjectURL: vi.fn(),
+    });
+    let downloadedFilename = "";
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function () {
+        downloadedFilename = this.download;
+      });
+    const downloading = controller.download();
+    await flushPromises();
+    expect(controller.downloading.value).toBe(true);
+    await controller.download();
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    release();
+    await downloading;
+    expect(click).toHaveBeenCalledOnce();
+    expect(downloadedFilename).toBe("库存明细.xlsx");
+    expect(controller.downloading.value).toBe(false);
   });
   it("drops a completed or failed job when format changes and makes a new request", async () => {
     const service = services();

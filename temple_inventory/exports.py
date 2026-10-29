@@ -16,7 +16,7 @@ import frappe
 import xlsxwriter
 
 from temple_inventory.export_columns import DEFAULT_COLUMNS, LABELS, allowed_columns, default_columns, label
-from temple_inventory.native_access import check_document_scope, check_version, require_app
+from temple_inventory.native_access import check_document_scope, check_item, check_version, require_app
 from temple_inventory.native_stock import MOVEMENT_LABELS
 from temple_inventory.projections import (
 	COUNT_SUMS,
@@ -64,6 +64,7 @@ def _save(doc):
 
 def _status(doc):
 	tables = _json_value(getattr(doc, "tables_json", None), [])
+	progress = frappe.cache.get_value(f"ti-export-progress:{doc.name}") or {}
 	return {
 		"name": doc.name,
 		"table": tables[0] if tables else "",
@@ -72,7 +73,9 @@ def _status(doc):
 		"include_files": getattr(doc, "include_files", "none") or "none",
 		"file_label": getattr(doc, "file_label", "") or "",
 		"status": doc.status,
-		"progress": doc.progress,
+		"progress": progress.get("percent", doc.progress) if isinstance(progress, dict) else doc.progress,
+		"stage": progress.get("stage", "") if isinstance(progress, dict) else "",
+		"progress_detail": progress.get("detail", "") if isinstance(progress, dict) else "",
 		"error": doc.error or "",
 		"version": str(doc.modified),
 		"attempt": doc.attempt,
@@ -135,8 +138,14 @@ def request_export(
 		frappe.throw("导出筛选说明无效")
 	summary = {"title": title, "filters": [_clean_text(x, 200) for x in filters]}
 	# Validate scope and table names before creating a durable job request.
-	with Projection(validated, refresh=True) as projection:
-		projection.build()
+	with Projection(
+		validated,
+		load_item_attachments=False,
+		load_item_children=False,
+	) as projection:
+		# Reuse a permission-scoped report projection when available. Request-time
+		# validation only needs the row count and column contract, not export hydration.
+		projection.build(complete_records=False)
 		# Grouping is presentation only: without an explicit table, export the line rows.
 		table = table or projection.line_table or projection.main_table
 		if table not in projection.column_names or table in INTERNAL_TABLES or table not in DEFAULT_COLUMNS:
@@ -347,6 +356,7 @@ def _write(projection, doc, path):
 	table = json.loads(doc.tables_json)[0]
 	rows = list(_export_rows(projection, table))
 	file_entries, row_files = _collect_export_files(projection, table, rows, include_files)
+	_progress(doc, "打包附件", f"已找到 {len(file_entries)} 个文件", 82)
 	projection.export_file_ids = {entry[2].name for entry in file_entries}
 	total_size = sum(Path(file.get_full_path()).stat().st_size for _, _, file in file_entries)
 	if total_size > 2 * 1024 * 1024 * 1024:
@@ -358,8 +368,11 @@ def _write(projection, doc, path):
 		_write_data(projection, doc, inner_path, rows=rows, row_files=row_files)
 		with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
 			archive.write(inner_path, inner_name)
-			for archive_name, _parent, file in file_entries:
+			for index, (archive_name, _parent, file) in enumerate(file_entries, 1):
 				archive.write(file.get_full_path(), archive_name)
+				if index % 10 == 0 or index == len(file_entries):
+					percent = 82 + int(16 * index / max(len(file_entries), 1))
+					_progress(doc, "打包附件", f"已打包 {index}/{len(file_entries)} 个文件", percent)
 	return len(rows)
 
 
@@ -460,8 +473,10 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 	if doc.export_format == "csv":
 		with open(path, "w", encoding="utf-8-sig", newline="") as output:
 			writer = csv.writer(output)
-			writer.writerow([label(dataset, field) for field in columns])
-			count = _write_rows(writer, rows, columns, table, projection, row_files=row_files)
+			writer.writerow([label(dataset, field, table) for field in columns])
+			count = _write_rows(
+				writer, rows, columns, table, projection, row_files=row_files, progress_doc=doc
+			)
 		return count
 	with xlsxwriter.Workbook(
 		str(path), {"constant_memory": True, "strings_to_formulas": False, "strings_to_urls": False}
@@ -492,10 +507,12 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 			nonlocal worksheet, row_index, part
 			part += 1
 			worksheet = workbook.add_worksheet(_sheet_name(table, part))
-			worksheet.write_row(0, 0, [label(dataset, field) for field in columns], header)
+			worksheet.write_row(0, 0, [label(dataset, field, table) for field in columns], header)
 			worksheet.freeze_panes(1, 0)
 			for index, field in enumerate(columns):
-				worksheet.set_column(index, index, min(32, max(12, len(label(dataset, field)) * 2 + 2)))
+				worksheet.set_column(
+					index, index, min(32, max(12, len(label(dataset, field, table)) * 2 + 2))
+				)
 			row_index = 1
 			return worksheet, row_index
 
@@ -508,7 +525,13 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 			)
 		else:
 			count = _write_rows(
-				_XlsxRows(new_sheet, workbook), rows, columns, table, projection, row_files=row_files
+				_XlsxRows(new_sheet, workbook),
+				rows,
+				columns,
+				table,
+				projection,
+				row_files=row_files,
+				progress_doc=doc,
 			)
 		info = workbook.add_worksheet("导出说明")
 		info_rows = [
@@ -814,6 +837,10 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 	if key not in operation_cache:
 		operation_cache[key] = whole_operation(projection.context, *key)
 	operation = operation_cache[key]
+	if projection.query["dataset"] == "loans":
+		quantities = "；".join(
+			f"{float(value['qty']):g} {uom_label(value['uom'])}" for value in operation.get("quantities", [])
+		)
 	if projection.query["dataset"] == "counts":
 		by_unit = {
 			field: {str(value["uom"]): float(value["qty"]) for value in operation.get(field, [])}
@@ -837,6 +864,19 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 			destinations.add(
 				projection.context.label(branch["destination"]) if branch["destination"] else "外部"
 			)
+
+	def endpoint_values(endpoint, field):
+		values = set()
+		for branch in operation["branches"]:
+			name = branch[endpoint]
+			if not name:
+				value = "" if reconcile else "外部"
+			else:
+				value = projection.context.location_fields(name).get(field, "")
+			if value:
+				values.add(value)
+		return "；".join(sorted(values))
+
 	return {
 		**row,
 		**aggregates,
@@ -846,6 +886,11 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		"available_effect": available_effect_text or row.get("available_effect"),
 		"source": "；".join(sorted(value for value in sources if value)),
 		"destination": "；".join(sorted(value for value in destinations if value)),
+		"loan_status": operation.get("loan_status") or row.get("loan_status"),
+		"source_warehouse_path": endpoint_values("source", "warehouse_path"),
+		"source_warehouse_native_name": endpoint_values("source", "warehouse_native_name"),
+		"destination_warehouse_path": endpoint_values("destination", "warehouse_path"),
+		"destination_warehouse_native_name": endpoint_values("destination", "warehouse_native_name"),
 	}
 
 
@@ -861,7 +906,7 @@ def _json_value(value, default):
 	return frappe.parse_json(value) if isinstance(value, str) else value
 
 
-def _write_rows(writer, rows, columns, table, projection, row_files=None):
+def _write_rows(writer, rows, columns, table, projection, row_files=None, progress_doc=None):
 	totals = {}
 	count = 0
 	for row in rows:
@@ -876,6 +921,8 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None):
 		else:
 			writer.writerow([_csv_value(value) for value in values])
 		count += 1
+		if progress_doc and count % 250 == 0:
+			_progress(progress_doc, "写入文件", f"已写入 {count} 行", 45 + min(34, count // 250))
 		unit = str(row.get("stock_uom") or "")
 		fields = [field for field in _sum_fields(table, projection.query) if field in columns]
 		if table == "records" and row.get("_units"):
@@ -1014,6 +1061,18 @@ def _csv_value(value):
 	return value
 
 
+def _progress(doc, stage, detail, percent, *, persist=False):
+	doc.progress = min(99, max(1, int(percent)))
+	frappe.cache.set_value(
+		f"ti-export-progress:{doc.name}",
+		{"stage": stage, "detail": detail, "percent": doc.progress},
+		expires_in_sec=86400,
+	)
+	if persist:
+		_save(doc)
+		frappe.db.commit()
+
+
 def generate_export(request_name):
 	original_user = frappe.session.user
 	request = frappe.get_doc(EXPORT_DOCTYPE, request_name)
@@ -1028,15 +1087,24 @@ def generate_export(request_name):
 		request.status, request.progress, request.error = "Running", 1, ""
 		_save(request)
 		frappe.db.commit()
+		_progress(request, "读取数据", "正在读取并检查权限", 3, persist=True)
 		with tempfile.TemporaryDirectory(prefix="ti-export-") as output_dir:
-			with Projection(json.loads(request.query_json), refresh=True) as projection:
+			with Projection(
+				json.loads(request.query_json),
+				refresh=True,
+				load_item_attachments=False,
+				load_item_children=False,
+			) as projection:
 				projection.build()
-				request.progress = 60
-				_save(request)
-				frappe.db.commit()
+				selected_table = json.loads(request.tables_json)[0]
+				row_total = projection.count(selected_table)
+				_progress(request, "读取数据", f"已读取 {row_total} 行", 40, persist=True)
 				path = Path(output_dir) / (request.file_label or f"inventory.{request.export_format}")
 				manifest_path = Path(output_dir) / "access.jsonl"
+				_progress(request, "写入文件", f"准备写入 {row_total} 行", 45, persist=True)
 				row_count = _write(projection, request, path)
+				if request.include_files == "none":
+					_progress(request, "写入文件", f"已写入 {row_count} 行", 80)
 				_manifest(projection, manifest_path)
 				# Recheck the user's authorization after the potentially long write.
 				# Role/User Permission changes invalidate Redis but cannot invalidate
@@ -1049,6 +1117,11 @@ def generate_export(request_name):
 				request.generated_at = projection.context.snapshot
 				request.row_count = row_count
 				request.status, request.progress = "Completed", 100
+				frappe.cache.set_value(
+					f"ti-export-progress:{request.name}",
+					{"stage": "完成", "detail": f"已生成 {row_count} 行", "percent": 100},
+					expires_in_sec=86400,
+				)
 				_save(request)
 				from temple_inventory.notifications import export_result
 
@@ -1094,16 +1167,70 @@ def _check_manifest_path(path):
 	if not frappe.db.get_value("User", frappe.session.user, "enabled"):
 		frappe.throw("请求账户已停用", frappe.PermissionError)
 	visible = _visible_warehouses()
-	frappe.get_doc("Company", _settings().company).check_permission("read")
+	company = _settings().company
+	frappe.get_doc("Company", company).check_permission("read")
+
+	def checked_company(doc):
+		if not doc.company or doc.company != company:
+			frappe.throw("记录不属于当前库存公司", frappe.PermissionError)
+
+	# Records share Items, Batches and locations; check each once per download.
+	items, batches, warehouses, bundle_cache = {}, set(), set(), {}
+
+	def checked_item(name):
+		if name not in items:
+			items[name] = check_item(name)
+		return items[name]
+
+	def checked_batch(name):
+		if name not in batches:
+			frappe.get_doc("Batch", name).check_permission("read")
+			batches.add(name)
+
+	def checked_warehouse(name):
+		if name not in warehouses:
+			frappe.get_doc("Warehouse", name).check_permission("read")
+			warehouses.add(name)
+
+	references = {}
 	with open(path, encoding="utf-8") as source:
 		for line in source:
 			doctype, name = json.loads(line)
-			doc = frappe.get_doc(doctype, name)
-			doc.check_permission("read")
-			if doctype in ("Stock Entry", "Stock Reconciliation"):
-				check_document_scope(doc)
-			elif doctype == "Warehouse" and name not in visible:
-				frappe.throw("导出包含当前无权查看的位置", frappe.PermissionError)
+			references.setdefault(doctype, set()).add(name)
+	for doctype, names in references.items():
+		if doctype == "Warehouse" and not names.issubset(visible):
+			frappe.throw("导出包含当前无权查看的位置", frappe.PermissionError)
+		allowed = set()
+		ordered = sorted(names)
+		for start in range(0, len(ordered), 200):
+			allowed.update(
+				frappe.get_list(
+					doctype,
+					filters={"name": ["in", ordered[start : start + 200]]},
+					pluck="name",
+					limit_page_length=200,
+				)
+			)
+		if allowed != names:
+			frappe.throw("导出包含当前无权查看的资料", frappe.PermissionError)
+		# The batched read check above already covers these names for record scope.
+		if doctype == "Item":
+			items.update(dict.fromkeys(names, True))
+		elif doctype == "Batch":
+			batches.update(names)
+		elif doctype == "Warehouse":
+			warehouses.update(names)
+	for doctype in ("Stock Entry", "Stock Reconciliation"):
+		for name in sorted(references.get(doctype, ())):
+			check_document_scope(
+				frappe.get_doc(doctype, name),
+				visible_warehouses=visible,
+				company_checker=checked_company,
+				item_checker=checked_item,
+				batch_checker=checked_batch,
+				warehouse_checker=checked_warehouse,
+				bundle_cache=bundle_cache,
+			)
 
 
 def validate_download(doc):
@@ -1139,13 +1266,20 @@ def export_file_permission(doc, ptype=None, user=None):
 
 @frappe.whitelist()
 def download_export(name):
+	from werkzeug.utils import send_file
+
 	require_app()
 	doc = _get(name)
 	validate_download(doc)
 	file = frappe.get_doc("File", doc.output_file)
 	if not file.is_private or (file.attached_to_doctype, file.attached_to_name) != (EXPORT_DOCTYPE, name):
 		frappe.throw("导出文件不可用", frappe.PermissionError)
-	# Send through Frappe's native private-file route; that route repeats File
-	# authorization and the manifest check. No public copy or raw binary API cache.
-	frappe.local.response["type"] = "redirect"
-	frappe.local.response["location"] = file.file_url
+	response = send_file(
+		file.get_full_path(),
+		environ=getattr(getattr(frappe.local, "request", None), "environ", None) or {"REQUEST_METHOD": "GET"},
+		as_attachment=True,
+		download_name=file.file_name,
+		conditional=True,
+	)
+	response.headers["Cache-Control"] = "private, no-store"
+	return response

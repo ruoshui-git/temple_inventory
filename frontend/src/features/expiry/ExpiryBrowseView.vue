@@ -169,6 +169,8 @@ const expiryColumns: DataColumn[] = [
 	},
 	{ id: "stock_uom", label: "库存单位", defaultVisible: true, sortable: true },
 	{ id: "warehouse", label: "位置", defaultVisible: true, sortable: true },
+	{ id: "warehouse_path", label: "完整位置", defaultVisible: false },
+	{ id: "warehouse_native_name", label: "ERPNext 库位", defaultVisible: false },
 ];
 const expiryRows = computed<DataTableRecord[]>(() =>
 	result.rows.map((row) => ({ kind: "record", id: String(row.id), value: row })),
@@ -216,6 +218,8 @@ const expiryExportMap: Record<string, string[]> = {
 	stock_qty: ["stock_qty"],
 	stock_uom: ["stock_uom"],
 	warehouse: ["warehouse"],
+	warehouse_path: ["warehouse_path"],
+	warehouse_native_name: ["warehouse_native_name"],
 };
 const expiryExportVisible = computed(() =>
 	tablePreferences?.visible.value.length
@@ -656,6 +660,12 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								reference.warehouses,
 								String(row.warehouse_label || ""),
 							)
+						}}</template>
+						<template v-else-if="column.id === 'warehouse_path'">{{
+							row.warehouse_path || "—"
+						}}</template>
+						<template v-else-if="column.id === 'warehouse_native_name'">{{
+							row.warehouse_native_name || "—"
 						}}</template>
 					</template>
 					<template #group="{ group }">

@@ -33,6 +33,7 @@ for (const width of [375, 1440]) {
     };
     let title = "已归档的关联活动";
     let denied = false;
+    let exportMode: "running" | "completed" = "running";
     const queries: Record<string, unknown>[] = [];
     await page.route("**/api/method/temple_inventory.**", async (route) => {
       const method = new URL(route.request().url()).pathname
@@ -81,6 +82,50 @@ for (const width of [375, 1440]) {
           summary: [],
           tables: [{ id: "records", label: "记录", count: 1 }],
         };
+      } else if (method === "exports.request_export") {
+        message = {
+          name: "EXPORT-1",
+          status: "Queued",
+          progress: 1,
+          error: "",
+          version: "v1",
+          attempt: 1,
+          generated_at: "",
+          row_count: 1,
+          download_url:
+            "/api/method/temple_inventory.exports.download_export?name=EXPORT-1",
+          file_label: "期初明细.xlsx",
+        };
+      } else if (method === "exports.export_status") {
+        message = {
+          name: "EXPORT-1",
+          status: exportMode === "completed" ? "Completed" : "Running",
+          progress: exportMode === "completed" ? 100 : 52,
+          stage: exportMode === "completed" ? "完成" : "写入文件",
+          progress_detail:
+            exportMode === "completed" ? "已生成 1 行" : "已写入 1 行",
+          error: "",
+          version: "v1",
+          attempt: 1,
+          generated_at: "2026-10-17 12:00:00",
+          row_count: 1,
+          download_url:
+            "/api/method/temple_inventory.exports.download_export?name=EXPORT-1",
+          file_label: "期初明细.xlsx",
+        };
+      } else if (method === "exports.download_export") {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await route.fulfill({
+          status: 200,
+          body: "export bytes",
+          headers: {
+            "content-type":
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "content-disposition":
+              "attachment; filename*=UTF-8''%E6%9C%9F%E5%88%9D%E6%98%8E%E7%BB%86.xlsx",
+          },
+        });
+        return;
       }
       await route.fulfill({ json: { message } });
     });
@@ -99,6 +144,27 @@ for (const width of [375, 1440]) {
       dialog.getByRole("button", { name: "打开报表", exact: true }),
     ).toHaveCount(0);
     expect(queries.length).toBeGreaterThanOrEqual(1);
+    if (width === 1440) {
+      await dialog
+        .getByRole("button", { name: "开始导出", exact: true })
+        .click();
+      await expect(dialog).toContainText("写入文件 · 52% · 已写入 1 行");
+      await page.screenshot({
+        path: test.info().outputPath("export-generating.png"),
+      });
+      exportMode = "completed";
+      await expect(dialog).toContainText("已生成", { timeout: 3000 });
+      const downloadButton = dialog.getByRole("button", {
+        name: /下载 期初明细/,
+      });
+      const downloadFinished = page.waitForEvent("download");
+      await downloadButton.click();
+      await expect(dialog).toContainText("正在准备下载…");
+      await page.screenshot({
+        path: test.info().outputPath("export-downloading.png"),
+      });
+      await downloadFinished;
+    }
     await page.goto("/inventory/counts/OPENING-1");
     denied = true;
     await page.reload();

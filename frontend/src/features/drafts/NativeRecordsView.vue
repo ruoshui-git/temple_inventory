@@ -316,7 +316,7 @@ const tableColumns = computed<DataColumn[]>(() =>
 				{ id: "activity_title", label: "活动", defaultVisible: true },
 			]
 		: [
-				{ id: "document", label: "记录", required: true, defaultVisible: true },
+				{ id: "document", label: "编号", required: true, defaultVisible: true },
 				{
 					id: "kind",
 					label: "类型 / 状态",

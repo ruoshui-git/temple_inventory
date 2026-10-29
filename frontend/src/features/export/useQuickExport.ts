@@ -4,6 +4,10 @@ import type { ReportQuery } from "../../lib/reportContract";
 
 export type ExportFormat = "xlsx" | "csv";
 export type IncludeFiles = "none" | "images" | "all";
+type ExportProgressJob = ExportJob & {
+  stage?: string;
+  progress_detail?: string;
+};
 
 export function useQuickExport(
   query: Readonly<Ref<ReportQuery>>,
@@ -23,7 +27,10 @@ export function useQuickExport(
   const error = ref("");
   const loading = ref(false);
   const generating = ref(false);
-  const job = ref<ExportJob>();
+  const job = ref<ExportProgressJob>();
+  const downloading = ref(false);
+  const downloadProgress = ref("");
+  const downloadError = ref("");
   let countRequest: AbortController | undefined;
   let statusRequest: AbortController | undefined;
   let generation = 0;
@@ -31,6 +38,7 @@ export function useQuickExport(
   let disposed = false;
   let poll: ReturnType<typeof setTimeout> | undefined;
   let jobConfiguration = "";
+  let pollDelay = 500;
 
   const configuration = computed(() =>
     JSON.stringify({
@@ -51,6 +59,7 @@ export function useQuickExport(
 
   function stopPolling() {
     clearTimeout(poll);
+    pollDelay = 500;
     statusRequest?.abort();
     statusRequest = undefined;
   }
@@ -96,7 +105,7 @@ export function useQuickExport(
     const request = new AbortController();
     statusRequest = request;
     try {
-      const result = await services.call<ExportJob>(
+      const result = await services.call<ExportProgressJob>(
         "exports.export_status",
         { name },
         request.signal,
@@ -111,7 +120,10 @@ export function useQuickExport(
       job.value = result;
       generating.value =
         result.status === "Queued" || result.status === "Running";
-      if (generating.value) poll = setTimeout(() => void status(current), 1000);
+      if (generating.value) {
+        poll = setTimeout(() => void status(current), pollDelay);
+        pollDelay = Math.min(2000, pollDelay + 250);
+      }
     } catch (reason) {
       if (request.signal.aborted || current !== jobGeneration || disposed)
         return;
@@ -152,11 +164,14 @@ export function useQuickExport(
       args.grouped = grouped.value;
     try {
       const result = failed
-        ? await services.call<ExportJob>("exports.retry_export", {
+        ? await services.call<ExportProgressJob>("exports.retry_export", {
             name: failed.name,
             version: failed.version,
           })
-        : await services.call<ExportJob>("exports.request_export", args);
+        : await services.call<ExportProgressJob>(
+            "exports.request_export",
+            args,
+          );
       if (current !== jobGeneration || disposed) return;
       job.value = result;
       jobConfiguration = chosenConfiguration;
@@ -168,6 +183,92 @@ export function useQuickExport(
       generating.value = false;
       error.value =
         reason instanceof Error ? reason.message : "导出请求失败，请重试";
+    }
+  }
+
+  function contentDispositionFilename(value: string | null) {
+    if (!value) return "";
+    const encoded = value.match(/filename\*=(?:UTF-8'')?([^;]+)/i)?.[1]?.trim();
+    if (encoded) {
+      try {
+        return decodeURIComponent(encoded.replace(/^"|"$/g, ""));
+      } catch {
+        // Fall through to the quoted filename if the server header is malformed.
+      }
+    }
+    return value.match(/filename="?([^";]+)"?/i)?.[1]?.trim() || "";
+  }
+
+  async function download() {
+    const url = job.value?.download_url;
+    if (!url || downloading.value) return;
+    downloading.value = true;
+    downloadProgress.value = "正在准备下载…";
+    downloadError.value = "";
+    try {
+      const response = await fetch(url, { credentials: "same-origin" });
+      if (!response.ok) {
+        const body = await response.text();
+        let message = "下载失败，请重试";
+        try {
+          const payload = JSON.parse(body) as {
+            message?: string;
+            _server_messages?: string;
+          };
+          message = payload.message || message;
+        } catch {
+          if (body && body.length < 300) message = body;
+        }
+        throw new Error(message);
+      }
+      const total = Number(response.headers.get("content-length") || 0);
+      const reader = response.body?.getReader();
+      const chunks: BlobPart[] = [];
+      let received = 0;
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value) continue;
+          const chunk = new Uint8Array(value.byteLength);
+          chunk.set(value);
+          chunks.push(chunk.buffer);
+          received += value.byteLength;
+          const current = (received / 1024 / 1024).toFixed(1);
+          downloadProgress.value = total
+            ? `已下载 ${current} / ${(total / 1024 / 1024).toFixed(1)} MB`
+            : `已下载 ${current} MB`;
+        }
+      } else {
+        const blob = await response.blob();
+        chunks.push(await blob.arrayBuffer());
+        received = blob.size;
+      }
+      const blob = new Blob(chunks, {
+        type:
+          response.headers.get("content-type") || "application/octet-stream",
+      });
+      const filename =
+        contentDispositionFilename(
+          response.headers.get("content-disposition"),
+        ) ||
+        job.value?.file_label ||
+        "inventory-export";
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      downloadProgress.value = `已下载 ${(received / 1024 / 1024).toFixed(1)} MB`;
+    } catch (reason) {
+      downloadError.value =
+        reason instanceof Error ? reason.message : "下载失败，请重试";
+      downloadProgress.value = "";
+    } finally {
+      downloading.value = false;
     }
   }
 
@@ -204,6 +305,10 @@ export function useQuickExport(
     loading,
     generating,
     job,
+    downloading,
+    downloadProgress,
+    downloadError,
+    download,
     count,
     status,
     generate,

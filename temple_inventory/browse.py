@@ -622,13 +622,16 @@ def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 				{
 					"location": warehouse,
 					"label": row.get("warehouse_label") or warehouse,
+					"path": row.get("warehouse_path") or "",
+					"nativeName": row.get("warehouse_native_name") or "",
 					"available": 0,
 					"loaned": 0,
 					"damaged": 0,
+					"stock_qty": 0,
 					"batches": [],
 				},
 			)
-			for field in ("available", "loaned", "damaged"):
+			for field in ("available", "loaned", "damaged", "stock_qty"):
 				location[field] += row[field]
 			if row["batch_no"]:
 				location["batches"].append(
@@ -666,6 +669,7 @@ def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 					"available": row["available"],
 					"loaned": row["loaned"],
 					"damaged": row["damaged"],
+					"stock_qty": row["available"] + row["loaned"] + row["damaged"],
 				}
 			)
 		projection.group(

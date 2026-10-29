@@ -9,10 +9,10 @@ LABELS = {
 	"available": "可用数量",
 	"loaned": "借出",
 	"damaged": "损坏",
-	"stock_qty": "数量",
+	"stock_qty": "库存数量",
 	"quantity": "数量",
 	"quantities": "数量（按单位）",
-	"stock_uom": "单位",
+	"stock_uom": "库存单位",
 	"uom": "单位",
 	"entered_uom": "录入单位",
 	"entered_qty": "录入数量",
@@ -20,14 +20,22 @@ LABELS = {
 	"activity": "活动编号",
 	"warehouse": "库位",
 	"warehouse_label": "库位",
+	"warehouse_path": "完整位置",
+	"warehouse_native_name": "ERPNext 库位",
+	"origin_warehouse_path": "原位置完整位置",
+	"origin_warehouse_native_name": "原位置 ERPNext 库位",
 	"source_warehouse": "来源位置",
+	"source_warehouse_path": "来源完整位置",
+	"source_warehouse_native_name": "来源 ERPNext 库位",
 	"destination_warehouse": "去向位置",
+	"destination_warehouse_path": "去向完整位置",
+	"destination_warehouse_native_name": "去向 ERPNext 库位",
 	"origin_warehouse": "原位置",
 	"batch_no": "批次编号",
 	"expiry_date": "过期日期",
 	"remaining_days": "剩余天数",
 	"expiry_state": "到期状态",
-	"document": "流动编号",
+	"document": "编号",
 	"line_name": "明细编号",
 	"date": "日期",
 	"time": "时间",
@@ -40,7 +48,7 @@ LABELS = {
 	"losses": "减少",
 	"net": "净差异",
 	"available_effect": "可用变化",
-	"outstanding": "未归还",
+	"outstanding": "未归还数量",
 	"borrowed": "借出数量",
 	"returned": "已归还",
 	"lost": "遗失",
@@ -49,8 +57,8 @@ LABELS = {
 	"reviewer": "鉴证人",
 	"notes": "备注",
 	"reason": "原因",
-	"source": "来源",
-	"destination": "去向",
+	"source": "来源位置",
+	"destination": "去向位置",
 	"opening": "期初",
 	"incoming": "入库",
 	"outgoing": "出库",
@@ -58,7 +66,7 @@ LABELS = {
 	"closing": "期末",
 	"baseline_qty": "基准数量",
 	"actual_qty": "实盘数量",
-	"difference": "差异",
+	"difference": "差异量",
 	"document_count": "单据数",
 	"allocation_count": "明细数",
 	"title": "活动名称",
@@ -80,8 +88,46 @@ LABELS = {
 
 # Labels that read differently on one dataset's pages.
 DATASET_LABELS = {
-	"loans": {"document": "借出单号", "date": "借出日期", "source_warehouse": "原位置"},
-	"counts": {"document": "盘点编号", "warehouse": "盘点库位"},
+	"inventory": {"stock_qty": "合计", "stock_uom": "库存单位"},
+	"loans": {"document": "编号", "source_warehouse": "来源位置"},
+	"counts": {"document": "盘点编号", "warehouse": "盘点库位", "difference": "差异量"},
+}
+
+TABLE_LABELS = {
+	("loans", "loan_history"): {
+		"date": "日期",
+		"document": "编号",
+		"source_warehouse": "来源位置",
+		"destination_warehouse": "去向位置",
+		"quantity": "数量（借出为正，归还为负）",
+		"stock_uom": "单位",
+		"kind": "类型",
+	},
+	("movements", "history"): {"stock_qty": "数量", "stock_uom": "单位"},
+	("loans", "outcomes"): {
+		"outstanding": "未归还数量",
+		"borrowed": "借出数量",
+		"date": "借出日期",
+		"document": "借出单号",
+		"source_warehouse": "原位置",
+		"loan_status": "借用状态",
+	},
+	("loans", "records"): {
+		"document": "借出单号",
+		"date": "借出日期",
+		"outstanding": "未归还数量",
+		"borrowed": "借出数量",
+		"loan_status": "借用状态",
+		"quantities": "借出数量（按单位）",
+	},
+	("loans", "lines"): {
+		"document": "借出单号",
+		"date": "借出日期",
+		"outstanding": "未归还数量",
+		"borrowed": "借出数量",
+		"loan_status": "借用状态",
+	},
+	("expiry", "batches"): {"stock_qty": "库存数量", "warehouse": "位置", "stock_uom": "库存单位"},
 }
 
 DEFAULT_COLUMNS = {
@@ -316,8 +362,16 @@ DATASET_DEFAULT_COLUMNS = {
 # identifiers carried by the native projection are never accepted from a client.
 EXTRA_COLUMNS = {
 	"summary": {"document_count"},
-	"locations": {"manufacturing_date", "warehouse"},
-	"batches": {"manufacturing_date", "warehouse_label", "available", "loaned", "damaged"},
+	"locations": {"manufacturing_date", "warehouse", "warehouse_path", "warehouse_native_name"},
+	"batches": {
+		"manufacturing_date",
+		"warehouse_label",
+		"warehouse_path",
+		"warehouse_native_name",
+		"available",
+		"loaned",
+		"damaged",
+	},
 	"records": {
 		"borrowed",
 		"returned",
@@ -334,6 +388,14 @@ EXTRA_COLUMNS = {
 		"recorder",
 		"reviewer",
 		"purpose",
+		"warehouse_path",
+		"warehouse_native_name",
+		"source_warehouse_path",
+		"source_warehouse_native_name",
+		"destination_warehouse_path",
+		"destination_warehouse_native_name",
+		"origin_warehouse_path",
+		"origin_warehouse_native_name",
 	},
 	"lines": {
 		"category",
@@ -350,14 +412,62 @@ EXTRA_COLUMNS = {
 		"recorder",
 		"reviewer",
 		"time",
+		"warehouse_path",
+		"warehouse_native_name",
+		"source_warehouse_path",
+		"source_warehouse_native_name",
+		"destination_warehouse_path",
+		"destination_warehouse_native_name",
 	},
-	"history": {"category", "activity_title", "notes", "handler", "recorder", "reviewer", "warehouse"},
-	"loan_history": {"category", "time", "destination_warehouse", "docstatus"},
-	"outcomes": {"category", "batch_no", "loan_status", "destination_warehouse", "time"},
+	"history": {
+		"category",
+		"activity_title",
+		"notes",
+		"handler",
+		"recorder",
+		"reviewer",
+		"warehouse",
+		"source_warehouse_path",
+		"source_warehouse_native_name",
+		"destination_warehouse_path",
+		"destination_warehouse_native_name",
+	},
+	"loan_history": {
+		"category",
+		"time",
+		"destination_warehouse",
+		"docstatus",
+		"source_warehouse_path",
+		"source_warehouse_native_name",
+		"destination_warehouse_path",
+		"destination_warehouse_native_name",
+		"origin_warehouse_path",
+		"origin_warehouse_native_name",
+	},
+	"outcomes": {
+		"category",
+		"batch_no",
+		"loan_status",
+		"destination_warehouse",
+		"time",
+		"source_warehouse_path",
+		"source_warehouse_native_name",
+		"destination_warehouse_path",
+		"destination_warehouse_native_name",
+		"origin_warehouse_path",
+		"origin_warehouse_native_name",
+	},
 	"loan_items": {"category", "document_count"},
 	"balances": {"batch_no"},
 	"ledger": set(),
-	"settlements": {"docstatus", "category"},
+	"settlements": {
+		"docstatus",
+		"category",
+		"source_warehouse_path",
+		"source_warehouse_native_name",
+		"destination_warehouse_path",
+		"destination_warehouse_native_name",
+	},
 	"metadata": {"activity"},
 }
 
@@ -375,5 +485,9 @@ def allowed_columns(dataset, table):
 	return columns
 
 
-def label(dataset, field):
-	return DATASET_LABELS.get(dataset, {}).get(field) or LABELS[field]
+def label(dataset, field, table=None):
+	return (
+		TABLE_LABELS.get((dataset, table), {}).get(field)
+		or DATASET_LABELS.get(dataset, {}).get(field)
+		or LABELS[field]
+	)

@@ -39,6 +39,8 @@ async function prepare(page: Page, textScale: number) {
         {
           location: "A01",
           label: "礼堂储物室第一层",
+          path: "T2 / A02 / S1",
+          nativeName: "T2 / A02 / S1",
           available: 4,
           loaned: 0,
           damaged: 0,
@@ -46,6 +48,8 @@ async function prepare(page: Page, textScale: number) {
         {
           location: "A02",
           label: "礼堂储物室第二层",
+          path: "T2 / A02",
+          nativeName: "T2 / A02 · 直接存放",
           available: 4,
           loaned: 0,
           damaged: 0,
@@ -61,6 +65,12 @@ async function prepare(page: Page, textScale: number) {
       expiry_date: "2026-11-18",
       remaining_days: 31,
       warehouse: "DEFAULT-A14",
+      source_warehouse: "SHELF-1",
+      destination_warehouse: "A02-DIRECT",
+      source_warehouse_path: "T2 / A02 / 演示架1",
+      source_warehouse_native_name: "T2 / A02 / 演示架1",
+      destination_warehouse_path: "T2 / A02",
+      destination_warehouse_native_name: "T2 / A02 · 直接存放",
       document_count: 1,
       allocation_count: 1,
       totals: [
@@ -69,7 +79,16 @@ async function prepare(page: Page, textScale: number) {
       whole: {
         item_count: 1,
         quantities: [{ uom: "件", qty: 11 }],
-        branches: [],
+        branches: [
+          {
+            source: "SHELF-1",
+            destination: "A02-DIRECT",
+            source_path: "T2 / A02 / 演示架1",
+            source_native_name: "T2 / A02 / 演示架1",
+            destination_path: "T2 / A02",
+            destination_native_name: "T2 / A02 · 直接存放",
+          },
+        ],
         original_loans: [],
         loan_status: "Open",
       },
@@ -188,6 +207,92 @@ async function prepare(page: Page, textScale: number) {
   );
   return release;
 }
+
+test("stock and movement browse show exported full-location columns at 1440px", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.addInitScript(() => {
+    const preference = (order: string[]) =>
+      JSON.stringify({
+        version: 1,
+        values: { order, hidden: [] },
+        dirty: true,
+      });
+    localStorage.setItem(
+      "temple-inventory:table-columns:v1:native-ui-test:manager:stock.summary",
+      preference([
+        "image",
+        "item_name",
+        "item_code",
+        "available",
+        "stock_uom",
+        "category",
+        "locations",
+        "warehouse_path",
+        "warehouse_native_name",
+        "loaned",
+        "damaged",
+        "total",
+        "expiry",
+        "actions",
+      ]),
+    );
+    localStorage.setItem(
+      "temple-inventory:table-columns:v1:native-ui-test:manager:operations.movements.items",
+      preference([
+        "item_code",
+        "image",
+        "item_name",
+        "document",
+        "kind",
+        "date",
+        "docstatus",
+        "source",
+        "destination",
+        "source_warehouse_path",
+        "source_warehouse_native_name",
+        "destination_warehouse_path",
+        "destination_warehouse_native_name",
+        "available_effect",
+        "quantities",
+        "related_loans",
+      ]),
+    );
+  });
+  const release = await prepare(page, 100);
+  await page.goto("/inventory/stock");
+  release();
+  await expect(page.locator("[data-browse-row]")).toHaveCount(24);
+  await expect(page.getByRole("columnheader", { name: /合计/ })).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /完整位置/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /ERPNext 库位/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("stock-total-full-location.png"),
+  });
+
+  await page.goto("/inventory/movements?view=items");
+  await expect(page.locator(".browse-results")).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /来源完整位置/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /去向完整位置/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /来源 ERPNext 库位/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /去向 ERPNext 库位/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("movement-full-location.png"),
+  });
+});
 
 for (const surface of [
   "stock",
@@ -362,13 +467,13 @@ for (const scenario of [
   {
     name: "movements records",
     path: "/inventory/movements?view=records",
-    label: "记录",
+    label: "编号",
   },
   { name: "stock total", path: "/inventory/stock", label: "合计" },
   {
     name: "loans records",
     path: "/inventory/loans?view=records",
-    label: "记录",
+    label: "借出单号",
   },
 ]) {
   test(`${scenario.name} sort round trips through the URL`, async ({

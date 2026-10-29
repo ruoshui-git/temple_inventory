@@ -67,9 +67,13 @@ const {
 	loading,
 	generating,
 	job,
+	downloading,
+	downloadProgress,
+	downloadError,
 	count,
 	status,
 	generate,
+	download,
 	canGenerate,
 } = controller;
 const hasGrouping = computed(() => query.value.groupBy.length > 0);
@@ -96,8 +100,7 @@ watch(
 			showToast("导出文件已准备好", "success", {
 				label: "下载",
 				action: () => {
-					const url = job.value?.download_url;
-					if (url) window.open(url, "_blank", "noopener");
+					void download();
 				},
 			});
 		const watchedKey = `${job.value?.name}:${job.value?.attempt}:${value}`;
@@ -220,13 +223,31 @@ defineExpose({ open: openDialog });
 					? "已生成"
 					: job.status === "Failed"
 						? "生成失败"
-						: `后台生成中 · ${job.progress}%`
+						: `${job.stage || "后台生成中"} · ${job.progress}%${job.progress_detail ? ` · ${job.progress_detail}` : ""}`
 			}}<span v-if="job.generated_at"> · {{ siteDateTime(job.generated_at) }}</span>
 		</p>
+		<progress
+			v-if="generating && job"
+			class="quick-export-progress"
+			:max="100"
+			:value="job.progress"
+			:aria-label="job.stage || '导出进度'"
+		/>
 		<p v-if="job?.error" role="alert">{{ job.error }}；选择已保留。</p>
-		<a v-if="job?.download_url" :href="job.download_url"
-			>下载 {{ job.file_label || format.toUpperCase() }} · {{ job.row_count }} 行</a
+		<UiButton
+			v-if="job?.status === 'Completed' && job.download_url"
+			:loading="downloading"
+			:loading-label="downloadProgress || '正在准备下载…'"
+			:disabled="downloading"
+			@click="download"
+			>下载 {{ job.file_label || format.toUpperCase() }} · {{ job.row_count }} 行</UiButton
 		>
+		<p v-if="downloadError" class="notice-bar danger" role="alert">
+			{{ downloadError }}
+			<UiButton v-if="job?.download_url && !downloading" size="compact" @click="download"
+				>重试下载</UiButton
+			>
+		</p>
 		<template #footer
 			><UiButton @click="open = false">关闭</UiButton
 			><UiButton
@@ -240,3 +261,12 @@ defineExpose({ open: openDialog });
 		>
 	</Overlay>
 </template>
+
+<style scoped>
+.quick-export-progress {
+	display: block;
+	width: 100%;
+	margin-block: var(--p-space-2);
+	accent-color: var(--p-accent);
+}
+</style>

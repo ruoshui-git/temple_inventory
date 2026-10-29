@@ -103,6 +103,10 @@ class NativeWarehouseTests(NativeDocumentTests):
 		self.assertIn(self.system_root, presented)
 		self.assertEqual(presented[self.loan_leaf]["local_label"], "Native Test Lease Leaf " + self.token)
 		self.assertNotIn("System Locations", presented[self.loan_leaf]["path"])
+		self.assertEqual(
+			presented[self.loan_leaf]["native_name"],
+			frappe.db.get_value("Warehouse", self.loan_leaf, "warehouse_name"),
+		)
 		self.assertNotIn("System Locations", presented[self.damaged]["path"])
 
 	def _create(self, kind, label, parent, short_label=None):

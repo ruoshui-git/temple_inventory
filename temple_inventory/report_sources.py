@@ -91,12 +91,12 @@ class ReportContext:
 		self.settings, self.warehouses, self.physical, self.leased, self.damaged = warehouse_scopes()
 		from temple_inventory.native_topology import present_locations
 
-		self.location_labels = {
-			row["name"]: row["label"]
-			for row in present_locations(
-				self.warehouses, physical_root=self.settings.physical_root_warehouse, settings=self.settings
-			)
-		}
+		presented = present_locations(
+			self.warehouses, physical_root=self.settings.physical_root_warehouse, settings=self.settings
+		)
+		self.location_labels = {row["name"]: row["label"] for row in presented}
+		self.location_paths = {row["name"]: row["path"] for row in presented}
+		self.native_location_names = {row["name"]: row["native_name"] for row in presented}
 		self.settings.check_permission("read")
 		self.company = self.settings.company
 		if not self.company:
@@ -481,6 +481,16 @@ class ReportContext:
 	def label(self, warehouse):
 		return self.location_labels.get(warehouse, "")
 
+	def location_fields(self, warehouse, prefix=""):
+		"""Return local and ERPNext names only for Warehouses in this request's visible scope."""
+		visible = warehouse in self.warehouses
+		return {
+			f"{prefix}warehouse_path": self.location_paths.get(warehouse, "") if visible else "",
+			f"{prefix}warehouse_native_name": self.native_location_names.get(warehouse, "")
+			if visible
+			else "",
+		}
+
 	def matches_item(self, code, warehouse=None):
 		query = self.query
 		if query["restrictItems"] and code not in query["itemCodes"]:
@@ -695,6 +705,7 @@ def stock_rows(context, *, item_codes=None):
 				**context.item_fields(item),
 				"warehouse": warehouse,
 				"warehouse_label": context.label(warehouse),
+				**context.location_fields(warehouse),
 				"batch_no": batch_name or "",
 				"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
 				"expiry_date": expiry,
@@ -785,7 +796,15 @@ def whole_operation(context, doctype, name):
 		"item_name": first_item_name,
 		"line_count": len(doc.items),
 		"branches": [
-			{"source": source, "destination": destination} for source, destination in sorted(branches)
+			{
+				"source": source,
+				"destination": destination,
+				"source_path": context.location_fields(source)["warehouse_path"],
+				"source_native_name": context.location_fields(source)["warehouse_native_name"],
+				"destination_path": context.location_fields(destination)["warehouse_path"],
+				"destination_native_name": context.location_fields(destination)["warehouse_native_name"],
+			}
+			for source, destination in sorted(branches)
 		],
 		"original_loans": sorted(originals),
 	}
@@ -966,6 +985,9 @@ def movement_rows(
 						"source_warehouse": line.get("s_warehouse") or "",
 						"destination_warehouse": line.get("t_warehouse") or "",
 						"warehouse": line.get("warehouse") or "",
+						**context.location_fields(line.get("s_warehouse") or "", "source_"),
+						**context.location_fields(line.get("t_warehouse") or "", "destination_"),
+						**context.location_fields(line.get("warehouse") or ""),
 						"batch_no": batch,
 						"entered_qty": float(line.qty or 0),
 						"entered_uom": line.get("uom") or item.stock_uom,
@@ -975,6 +997,7 @@ def movement_rows(
 						"original_loan": line.get("ti_original_loan") or "",
 						"original_loan_line": line.get("ti_original_loan_line") or "",
 						"origin_warehouse": line.get("ti_origin_warehouse") or "",
+						**context.location_fields(line.get("ti_origin_warehouse") or "", "origin_"),
 						"outcome": line.get("ti_settlement_outcome") or "",
 						"reason": line.get("ti_allocation_note") or "",
 					}
@@ -1060,6 +1083,8 @@ def loan_rows(context):
 					"original_loan_line": line.name,
 					"source_warehouse": line.s_warehouse,
 					"destination_warehouse": line.t_warehouse,
+					**context.location_fields(line.s_warehouse or "", "source_"),
+					**context.location_fields(line.t_warehouse or "", "destination_"),
 					"batch_no": batch,
 					"entered_qty": borrowed / float(line.conversion_factor),
 					"native_line_entered_qty": float(line.qty),
@@ -1323,6 +1348,7 @@ def historical_rows(context):
 			**context.item_fields(item),
 			"warehouse": warehouse,
 			"warehouse_label": context.label(warehouse),
+			**context.location_fields(warehouse),
 			"period_from": start,
 			"period_to": end,
 			"snapshot": context.snapshot,

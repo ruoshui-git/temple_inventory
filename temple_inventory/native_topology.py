@@ -215,6 +215,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 				"short_label": str(row.get("ti_short_label") or ""),
 				"full_label": full,
 				"path": " / ".join(path),
+				"native_name": str(row.get("warehouse_name") or ""),
 				"search_text": search_text,
 				"kind": kind,
 				"owner": owner_name,

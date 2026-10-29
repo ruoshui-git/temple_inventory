@@ -17,9 +17,12 @@ export interface StockBatch {
 export interface StockLocation {
   location: string;
   label?: string;
+  path?: string;
+  nativeName?: string;
   available: number;
   loaned: number;
   damaged: number;
+  stock_qty?: number;
   batches?: StockBatch[];
 }
 export interface StockItem {
@@ -37,6 +40,7 @@ export interface StockItem {
   available: number;
   loaned: number;
   damaged: number;
+  stock_qty?: number;
   alternateUnits?: { uom: string; factor: number }[];
   files?: InventoryAttachment[];
   version?: string;

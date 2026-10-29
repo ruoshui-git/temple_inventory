@@ -154,7 +154,7 @@ const operationColumns = computed<DataColumn[]>(() =>
 		? [
 				{
 					id: "document",
-					label: "记录",
+					label: "编号",
 					kind: "primary",
 					required: true,
 					defaultVisible: true,
@@ -201,6 +201,18 @@ const operationColumns = computed<DataColumn[]>(() =>
 					label: "去向位置",
 					defaultVisible: true,
 				},
+				{ id: "source_warehouse_path", label: "来源完整位置", defaultVisible: false },
+				{
+					id: "source_warehouse_native_name",
+					label: "来源 ERPNext 库位",
+					defaultVisible: false,
+				},
+				{ id: "destination_warehouse_path", label: "去向完整位置", defaultVisible: false },
+				{
+					id: "destination_warehouse_native_name",
+					label: "去向 ERPNext 库位",
+					defaultVisible: false,
+				},
 				{
 					id: "docstatus",
 					label: "状态",
@@ -216,7 +228,7 @@ const operationColumns = computed<DataColumn[]>(() =>
 		: [
 				{
 					id: "document",
-					label: "记录",
+					label: props.family === "loans" ? "借出单号" : "编号",
 					kind: "primary",
 					required: true,
 					defaultVisible: true,
@@ -243,7 +255,7 @@ const operationColumns = computed<DataColumn[]>(() =>
 				},
 				{
 					id: "outstanding",
-					label: "未归还数量（按单位）",
+					label: "未归还数量",
 					defaultVisible: true,
 					align: "end",
 				},
@@ -269,9 +281,21 @@ const operationColumns = computed<DataColumn[]>(() =>
 					label: "去向位置",
 					defaultVisible: true,
 				},
+				{ id: "source_warehouse_path", label: "来源完整位置", defaultVisible: false },
+				{
+					id: "source_warehouse_native_name",
+					label: "来源 ERPNext 库位",
+					defaultVisible: false,
+				},
+				{ id: "destination_warehouse_path", label: "去向完整位置", defaultVisible: false },
+				{
+					id: "destination_warehouse_native_name",
+					label: "去向 ERPNext 库位",
+					defaultVisible: false,
+				},
 				{
 					id: "status",
-					label: "当前结清状态",
+					label: "借用状态",
 					required: true,
 					defaultVisible: true,
 					sortable: true,
@@ -324,7 +348,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 				},
 				{
 					id: "document",
-					label: "记录",
+					label: "编号",
 					kind: "primary",
 					required: true,
 					defaultVisible: true,
@@ -353,6 +377,18 @@ const itemColumns = computed<DataColumn[]>(() =>
 					id: "destination",
 					label: "去向位置",
 					defaultVisible: true,
+				},
+				{ id: "source_warehouse_path", label: "来源完整位置", defaultVisible: false },
+				{
+					id: "source_warehouse_native_name",
+					label: "来源 ERPNext 库位",
+					defaultVisible: false,
+				},
+				{ id: "destination_warehouse_path", label: "去向完整位置", defaultVisible: false },
+				{
+					id: "destination_warehouse_native_name",
+					label: "去向 ERPNext 库位",
+					defaultVisible: false,
 				},
 				{
 					id: "available_effect",
@@ -402,7 +438,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 				},
 				{
 					id: "document",
-					label: "记录",
+					label: "编号",
 					kind: "primary",
 					required: true,
 					defaultVisible: true,
@@ -452,9 +488,21 @@ const itemColumns = computed<DataColumn[]>(() =>
 					label: "去向位置",
 					defaultVisible: true,
 				},
+				{ id: "source_warehouse_path", label: "来源完整位置", defaultVisible: false },
+				{
+					id: "source_warehouse_native_name",
+					label: "来源 ERPNext 库位",
+					defaultVisible: false,
+				},
+				{ id: "destination_warehouse_path", label: "去向完整位置", defaultVisible: false },
+				{
+					id: "destination_warehouse_native_name",
+					label: "去向 ERPNext 库位",
+					defaultVisible: false,
+				},
 				{
 					id: "outstanding",
-					label: "未归还数量",
+					label: "未归还数量（按单位）",
 					defaultVisible: true,
 					sortable: true,
 					sortField: "outstanding",
@@ -462,7 +510,7 @@ const itemColumns = computed<DataColumn[]>(() =>
 				},
 				{
 					id: "borrowed",
-					label: "数量",
+					label: "数量（借出为正，归还为负）",
 					defaultVisible: true,
 					sortable: true,
 					sortField: "borrowed",
@@ -503,6 +551,24 @@ function historyRecord(row: Record<string, unknown>, item: OperationGroup): Data
 			},
 		} as unknown as Record<string, unknown>,
 	};
+}
+function operationLocationDetail(row: Record<string, any>, column: string) {
+	const field = column;
+	if (row[field]) return String(row[field]);
+	const branches = row.whole?.branches || [];
+	const branchField =
+		column === "source_warehouse_path"
+			? "source_path"
+			: column === "source_warehouse_native_name"
+				? "source_native_name"
+				: column === "destination_warehouse_path"
+					? "destination_path"
+					: "destination_native_name";
+	return [
+		...new Set(
+			branches.map((branch: Record<string, string>) => branch[branchField]).filter(Boolean),
+		),
+	].join("；");
 }
 function itemHistoryRows(item: OperationGroup): DataTableEntry[] {
 	if (!c.expanded.has(item.id)) return [];
@@ -791,30 +857,38 @@ const itemPreferences = services
 	: undefined;
 const movementExportMap: Record<string, string[]> = {
 	image: ["image_file"],
-	document: ["document", "item_name"],
+	document: ["document"],
 	item_code: ["item_code"],
 	kind: ["kind"],
 	date: ["date", "time"],
 	docstatus: ["docstatus"],
 	source: ["source_warehouse"],
 	destination: ["destination_warehouse"],
+	source_warehouse_path: ["source_warehouse_path"],
+	source_warehouse_native_name: ["source_warehouse_native_name"],
+	destination_warehouse_path: ["destination_warehouse_path"],
+	destination_warehouse_native_name: ["destination_warehouse_native_name"],
 	quantities: ["stock_qty", "stock_uom"],
 	available_effect: ["available_effect"],
 	related_loans: [],
 };
 const loanExportMap: Record<string, string[]> = {
 	image: ["image_file"],
-	document: ["document", "item_name"],
+	document: ["document"],
 	item_code: ["item_code"],
 	date: ["date"],
 	borrower: ["borrower"],
 	activity_title: ["activity_title"],
 	status: ["docstatus"],
 	source: ["source_warehouse"],
-	borrowed: ["borrowed", "stock_uom"],
+	borrowed: ["quantity", "stock_uom"],
 	outstanding: ["outstanding", "stock_uom"],
 	kind: [],
-	destination: [],
+	destination: ["destination_warehouse"],
+	source_warehouse_path: ["source_warehouse_path"],
+	source_warehouse_native_name: ["source_warehouse_native_name"],
+	destination_warehouse_path: ["destination_warehouse_path"],
+	destination_warehouse_native_name: ["destination_warehouse_native_name"],
 	actions: [],
 };
 const recordExportMap: Record<string, string[]> = {
@@ -822,11 +896,15 @@ const recordExportMap: Record<string, string[]> = {
 	item_count: ["item_count"],
 	kind: ["kind"],
 	date: ["date", "time"],
-	quantities: ["stock_qty", "stock_uom"],
+	quantities: ["quantities"],
 	source: ["source"],
 	destination: ["destination"],
+	source_warehouse_path: ["source_warehouse_path"],
+	source_warehouse_native_name: ["source_warehouse_native_name"],
+	destination_warehouse_path: ["destination_warehouse_path"],
+	destination_warehouse_native_name: ["destination_warehouse_native_name"],
 	docstatus: ["docstatus"],
-	status: ["docstatus"],
+	status: ["loan_status"],
 	borrower: ["borrower"],
 	activity_title: ["activity_title"],
 	outstanding: ["outstanding"],
@@ -1553,7 +1631,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 					>
 						<template #cell="{ column, row }">
-							<template v-if="row.history_record">
+							<template v-if="String(column.id).includes('_warehouse_')">{{
+								operationLocationDetail(row, String(column.id)) || "—"
+							}}</template>
+							<template v-else-if="row.history_record">
 								<ItemImage
 									v-if="column.id === 'image'"
 									:item="{
@@ -2058,8 +2139,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</span>
 						</template>
 						<template #cell="{ column, row }">
+							<template v-if="String(column.id).includes('_warehouse_')">{{
+								operationLocationDetail(row, String(column.id)) || "—"
+							}}</template>
 							<button
-								v-if="column.id === 'document'"
+								v-else-if="column.id === 'document'"
 								class="browse-row-link"
 								:disabled="result.stale"
 								@click="openedRecord(row as unknown as OperationGroup)"
