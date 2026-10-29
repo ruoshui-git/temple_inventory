@@ -4,7 +4,7 @@ Launch acceptance for viewing, exporting and editing inventory data. Browse page
 
 Legend: ✅ verified · ⚠️ works with a caveat (see 说明) · ❌ missing · 🆕 added after the first matrix · — not applicable.
 
-Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 390×844, from generated XLSX/CSV/ZIP files, and by the backend, unit, browser and live acceptance suites. Column visibility follows each account's saved column choices; the statuses below describe the defaults, and the column menu’s 恢复默认 returns a table to them.
+Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 390×844, from generated XLSX/CSV/ZIP files, and by the backend, unit, browser and live acceptance suites; re-verified the same day after the feedback round (rows marked 🔁). Column visibility follows each account's saved column choices; the statuses below describe the defaults, and the column menu’s 恢复默认 returns a table to them.
 
 ## Reports
 
@@ -17,7 +17,8 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 编号 | ✅ | ✅ | |
 | 类别 | ✅ | ✅ | |
 | 库存位置 | ✅ | ✅ | 位置与批次 column; when shown, the export has one row per item × 库位 × 批次 |
-| 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default |
+| 🔁 完整位置 / ERPNext 库位 | ✅ | ✅ | Hidden by default. 完整位置 is the app path ("T2 / A02 / S1"); ERPNext 库位 is the native warehouse_name without the company suffix ("T2 / A02 · 直接存放") |
+| 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default. 🔁 合计 now shows a value and exports as 合计 (was blank / 数量) |
 | 单位 | ✅ | ✅ | |
 | 可选：批次编号、过期日期、剩余时间 | ✅ | ✅ | 效期 column → 过期日期、剩余天数、到期状态 |
 | 汇总：物品数量 | ✅ | ✅ | 🆕 "N 种物品" + per-unit 可用 totals; export ends with 合计（单位） rows |
@@ -29,9 +30,9 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 图片 | ✅ | ✅ | ZIP option |
 | 物品名称 / 物品编号 / 批次编号 | ✅ | ✅ | |
 | 过期日期 / 剩余时间 | ✅ | ✅ | |
-| 🆕 到期状态 | ✅ | ✅ | Page: 已过期 / 未过期 / 无效期 tabs and colored dates; export: 已过期 / 未过期 (无效期 for undated) |
+| 🆕 到期状态 | ✅ | ✅ | Page: 已过期 / 未过期 / 无效期 tabs and colored dates; export: 已过期 / 未过期 (无效期 for undated). 🔁 The 未过期 filter chip reads 到期窗口：未过期 |
 | 数量 / 单位 | ✅ | ✅ | |
-| 位置 | ✅ | ✅ | Canonical label, not the ERPNext name |
+| 位置 | ✅ | ✅ | Canonical label, not the ERPNext name; 🔁 完整位置 / ERPNext 库位 optional |
 | 汇总：物品数量 | ✅ | ✅ | "N 个批次 · M 种物品" + per-unit totals |
 
 ### 库房清单 — 仓库 → a location (or 库存 filtered by location)
@@ -48,13 +49,13 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
-| 图片 / 物品名称 / 物品编号 | ✅ | ✅ | |
-| 数量（未归还） | ✅ | ✅ | 🆕 Default 未结清借用 lists open loan lines only (returns stay in 全部相关记录 and per-item history) |
-| 原位置 | ✅ | ✅ | 来源位置 of the loan |
+| 图片 / 物品名称 / 物品编号 | ✅ | ✅ | 🔁 Thumbnails load on every 明细 row (were placeholders) |
+| 数量（未归还） | ✅ | ✅ | 🔁 筛选 → 范围: 记录范围 仅未归还借出 (default, the 借出清单) or 借出与归还全部记录 (every loan line plus its return / damage / loss lines); 包括已结清物品 adds fully returned loans. Both are in the URL and the export follows them. Quantity is signed: loan +, return − |
+| 来源位置 | ✅ | ✅ | 🔁 Neutral labels (日期 / 编号 / 来源位置) because 明细 may list returns; 完整位置 / ERPNext 库位 optional |
 | 借出人 | ✅ | ✅ | 借用方 |
 | 借出活动 | ✅ | ✅ | |
 | 借出时间 | ✅ | ✅ | |
-| 🆕 借出单号 | ✅ | ✅ | Opens the loan; returns start there |
+| 🆕 借出单号 / 编号 | ✅ | ✅ | Opens the record; returns start from the loan. 🔁 未归还数量 precedes 借出数量 in both loan views |
 | 汇总：物品数量 | ✅ | ✅ | "N 条明细 · M 种物品" + 未归还 per unit |
 
 ### 流动记录（物品） — 货物流动 → 明细 (default, ungrouped)
@@ -62,15 +63,16 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
 | 图片 / 物品名称 / 物品编号 | ✅ | ✅ | |
-| 🆕 流动编号 | ✅ | ✅ | |
+| 🆕 流动编号 | ✅ | ✅ | 🔁 编号 column holds only the record; 物品名称 is its own column |
 | 日期 | ✅ | ✅ | |
-| 移动类型 | ✅ | ✅ | 入库 / 出库 / 调拨 / 借出 / 归还 … |
-| 来源位置 / 去向位置 | ✅ | ✅ | Empty endpoint = 外部 |
-| 数量 | ✅ | ✅ | |
+| 移动类型 | ✅ | ✅ | 入库 / 出库 / 调拨 / 借出 / 归还 … 🔁 盘点调整 and 期初库存 are always listed and selectable in 流动类型 (the 包括盘点调整 switch is gone) |
+| 来源位置 / 去向位置 | ✅ | ✅ | Empty endpoint = 外部; a 盘点调整 names the checked location and leaves the other end blank. 🔁 来源/去向 完整位置 and ERPNext 库位 optional |
+| 🔁 可用变化 | ✅ | ✅ | Default quantity column (signed, per unit); 数量（按单位） is optional |
+| 数量 | ✅ | ✅ | Optional |
 | 🆕 单位 | ✅ | ✅ | |
 | 可选：状态 | ✅ | ✅ | |
 | 🆕 次数 | ✅ | ✅ | 按物品汇总 grouping shows record counts per item; grouped XLSX keeps "物品 (N)" |
-| 汇总 | ✅ | ⚠️ | 🆕 Page: per-type totals + 可用净变化 per unit. Export: per-unit 合计 rows; per-type subtotals need 单据 grouped by 类型 (明细 groups only by 物品 / 类别) |
+| 汇总 | ✅ | ⚠️ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). Per-type subtotals in a file need 单据 grouped by 类型 (明细 groups only by 物品 / 类别) |
 
 ### 流动记录（记录） — 货物流动 → 单据
 
@@ -78,10 +80,10 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 |---|---|---|---|
 | 流动编号 | ✅ | ✅ | |
 | 类型 | ✅ | ✅ | |
-| 物品类数 | ✅ | ✅ | 物品种数 |
-| 具体数量 | ✅ | ✅ | One row per record; mixed units read "12 个；3 箱" |
+| 物品类数 | ✅ | ✅ | 物品种数 (🔁 fixed: a mixed-unit record exported the first unit's count) |
+| 具体数量 | ✅ | ✅ | 🔁 可用变化 by default (盘点调整 included); 数量（按单位） optional. Cells show two units plus "+N 单位"; files read "12 个；3 箱" |
 | 日期 | ✅ | ✅ | |
-| 来源位置 / 去向位置 | ✅ | ✅ | A 盘点调整 names the checked locations only |
+| 来源位置 / 去向位置 | ✅ | ✅ | A 盘点调整 names the checked locations only. 🔁 Many locations show the first plus "等 N 处" with a list (e.g. MAT-STE-2026-00056: 25 destinations); files join all with "；" |
 | 状态 | ✅ | ✅ | 草稿 / 已提交 / 已取消 |
 | 🆕 活动 / 借用方 | ✅ | ✅ | |
 
@@ -89,8 +91,9 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
-| 盘点编号 / 日期 / 状态 / 盘点范围 | ✅ | ✅ | |
-| 账面 / 实点 / 差异 | ✅ | ✅ | |
+| 盘点编号 / 日期 / 状态 / 盘点范围 | ✅ | ✅ | 🔁 One value per column (编号, 类型, 状态, 盘点范围, 行数, 物品种数, 日期, 活动); 期初库存 records listed; no 借用人 |
+| 🔁 增加 / 减少 / 净差异 | ✅ | ✅ | Per unit; 净差异 is the offset net (MAT-RECO-2026-00021: +1 / −1 / 0) |
+| 账面 / 实点 / 差异 | ✅ | ✅ | 🔁 Submitted counts show changed lines only, with "另有 N 个物品核对无变化"; no filters or baseline controls |
 
 ### 🆕 Export behavior (all pages)
 
@@ -98,12 +101,13 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 |---|---|---|
 | Columns follow the page's visible columns, in screen order | ✅ | |
 | All matching rows, not only loaded rows | ✅ | e.g. 2,651 movement lines from a page showing 30 |
-| Chinese headers and display labels (no ERPNext names, `Receive`, `1`) | ✅ | |
+| Chinese headers and display labels (no ERPNext names, `Receive`, `1`) | ✅ | 🔁 Headers equal the page's column labels (checked per page by a parity test) |
 | Per-unit 合计 rows | ✅ | |
 | 导出说明 sheet: page, filters, grouping, sort, period, time, account, row count | ✅ | XLSX only |
 | Readable filename: page–period–time | ✅ | e.g. `货物流动 · 明细-2026-10-01至2026-10-29-20261029-0019.xlsx` |
 | Grouped XLSX: grey "[group] (N)" rows, subtotals, collapsible outline | ✅ | Opens expanded; CSV stays flat |
 | 附带文件: images / images + attachments as ZIP, de-duplicated by reference | ✅ | `images/<物品编号>.*`, `attachments/items/<物品编号>/`, `attachments/records/<编号>/` |
+| 🔁 Progress and download feedback | ✅ | Stages 读取数据 / 写入文件 / 打包附件 with a progress bar; 下载 shows 正在准备下载… then byte progress. Permission check for a 2,285-line movements download: 7.3s → 1.7s |
 
 ## Data entry
 
@@ -139,5 +143,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 
 ## Open items
 
+- The desktop thumbnail lightbox regression test failed once inside one full browser run, then passed 8/8 repeated and in the final full run; watch for an open-then-close report.
+- Push notifications cannot be verified on `development.localhost`; verify on the sample site after deploy with 通知设置 → 发送测试通知.
 - 明细 can group only by 物品 or 类别 + 物品, so per-type subtotals in a file come from 单据 grouped by 类型; the 明细 page header already shows per-type totals and 可用净变化.
 - XLSX image links are relative paths that resolve after the ZIP is extracted.
