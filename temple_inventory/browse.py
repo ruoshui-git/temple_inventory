@@ -794,6 +794,12 @@ def operation_page(query, records=False, start=0, page_length=20):
 	start, size = max(0, cint(start)), min(50, max(1, cint(page_length)))
 	with _operation_projection(query, records) as projection:
 		projection.build()
+		if not records:
+			image_table = "lines" if projection.query["dataset"] == "movements" else "outcomes"
+			projection.context.preload_primary_item_images(
+				row["item_code"] for row in projection.rows(image_table)
+			)
+			projection.context._item_fields.cache_clear()
 		source = _operation_source(projection, records=records)
 		fields = (
 			(
@@ -831,8 +837,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 					doctype, [row["document"] for row in rows if row["doctype"] == doctype]
 				)
 		if not records and rows:
-			projection.context.load_item_attachments = True
-			projection.context.preload_item_attachments(row["item_code"] for row in rows)
+			projection.context.preload_primary_item_images(row["item_code"] for row in rows)
 			projection.context._item_fields.cache_clear()
 			page_totals = _operation_page_totals(projection, source, rows)
 		if records and rows:
@@ -924,7 +929,7 @@ def operation_contributions(
 	records=False,
 	item_code=None,
 	outcome=None,
-	history_scope="outstanding",
+	loan_scope=None,
 	doctype=None,
 	name=None,
 	history_sort_by=None,
@@ -963,6 +968,7 @@ def operation_contributions(
 					conditions.append("json_extract(payload, '$.outcome_key')=?")
 					params.append(outcome)
 				if projection.query["view"] == "items":
+					history_scope = loan_scope or projection.query["loanScope"]
 					if history_scope not in ("outstanding", "all"):
 						frappe.throw("请选择有效的借用明细范围")
 					allocations = []
@@ -974,7 +980,11 @@ def operation_contributions(
 						allocation = frappe.parse_json(payload)
 						if allocation["docstatus"] != 1:
 							continue
-						if history_scope == "outstanding" and allocation["outstanding"] <= 0:
+						if (
+							history_scope == "outstanding"
+							and allocation["outstanding"] <= 0
+							and not projection.query["includeZero"]
+						):
 							continue
 						allocations.append(allocation)
 					selected = {
@@ -1006,6 +1016,9 @@ def operation_contributions(
 								"quantity": 0.0,
 								"outstanding": 0.0,
 								"item_name": row.get("item_name", ""),
+								"image": projection.context.item_fields(
+									projection.context.item(row["item_code"])
+								).get("image", ""),
 								"activity_title": row.get("activity_title", ""),
 								"borrower": row.get("borrower", ""),
 								"original_loans": set(),
@@ -1262,6 +1275,8 @@ def movement_history(
 			projection.context.selected = warehouse_leaves
 			projection.context.scope["warehouses"] = sorted(warehouse_leaves)
 		projection.build()
+		projection.context.preload_primary_item_images(row["item_code"] for row in projection.rows("lines"))
+		projection.context._item_fields.cache_clear()
 		groups = {}
 		loan_link_cache = {}
 		history_complete = True
@@ -1282,7 +1297,8 @@ def movement_history(
 			)
 			group["borrower"] = row.get("borrower") or ""
 			group["item_name"] = row.get("item_name") or row["item_code"]
-			group["image"] = row.get("image") or ""
+			item = projection.context.item(row["item_code"])
+			group["image"] = projection.context.item_fields(item).get("image") or ""
 			quantity = float(row.get("stock_qty") or 0)
 			group["quantity"] += quantity
 			group["available_effect"] += float(row.get("available_effect") or 0)

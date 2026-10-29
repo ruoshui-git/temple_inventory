@@ -544,8 +544,6 @@ class ReportContext:
 			return False
 		if self.scope["destinations"] and target not in self.destinations:
 			return False
-		if not query["includeAdjustments"] and row.get("kind") in ("Opening", "Reconcile"):
-			return False
 		if self.scope["kinds"] and row.get("kind") not in self.scope["kinds"]:
 			return False
 		if apply_activity and self.scope["activity"] and row.get("activity") != self.scope["activity"]:
@@ -1151,7 +1149,7 @@ def linked_settlement_rows(context):
 	query["relatedPeriod"] = {"key": "all", "from": "", "to": ""}
 	query["relatedSearch"], query["relatedPresence"] = "", "all"
 	query["activityKind"], query["activityStatus"] = "", "all"
-	query["includeAdjustments"], query["damageOnly"] = True, False
+	query["damageOnly"] = False
 	query["scope"] = copy.deepcopy(query["scope"])
 	query["scope"].update(
 		{

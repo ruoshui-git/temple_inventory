@@ -316,8 +316,8 @@ QUERY_DEFAULT = {
 	"sort": "asc",
 	"sortBy": "identity",
 	"statuses": [1],
-	"includeAdjustments": True,
 	"includeZero": False,
+	"loanScope": "outstanding",
 	"includeUndated": True,
 	"activityStatus": "all",
 	"typeId": "",
@@ -456,6 +456,7 @@ def validate_query(value):
 	for field, allowed in {
 		"activityStatus": ("all", "active", "archived"),
 		"loanStatus": ("all", "outstanding", "open", "settled"),
+		"loanScope": ("outstanding", "all"),
 		"loanOutcome": ("all", "outstanding", "returned", "damaged", "lost"),
 		"itemStatus": ("enabled", "disabled", "all"),
 		"countReviewed": ("all", "reviewed", "unreviewed", "difference"),

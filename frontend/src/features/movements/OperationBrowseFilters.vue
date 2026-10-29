@@ -33,7 +33,7 @@ function setPersonName(name: string) {
 	};
 }
 
-const { query, scope, status, statusChoices, extraChips, historyScope } = props.controller;
+const { query, scope, status, statusChoices, extraChips } = props.controller;
 </script>
 <template>
 	<div class="operation-browse-filters browse-filter-dense">
@@ -41,23 +41,32 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 			<section class="browse-filter-mega-section">
 				<FilterDisclosure
 					v-if="family === 'loans' && !records"
-					label="物品历史记录范围"
-					field="historyScope"
-					:summary="historyScope === 'all' ? '全部相关记录' : '未结清借用'"
+					label="范围"
+					field="loanScope"
+					:summary="query.loanScope === 'all' ? '借出与归还全部记录' : '仅未归还借出'"
 				>
-					<div class="segmented" role="group" aria-label="物品历史记录范围">
+					<div class="segmented" role="group" aria-label="记录范围">
 						<UiButton
 							v-for="[value, label] in [
-								['outstanding', '未结清借用'],
-								['all', '全部相关记录'],
+								['outstanding', '仅未归还借出'],
+								['all', '借出与归还全部记录'],
 							]"
 							:key="value"
-							:aria-pressed="historyScope === value"
-							:variant="historyScope === value ? 'primary' : 'ghost'"
+							:aria-pressed="query.loanScope === value"
+							:variant="query.loanScope === value ? 'primary' : 'ghost'"
 							@click="controller.setHistoryScope(value as 'outstanding' | 'all')"
 							>{{ label }}</UiButton
 						>
 					</div>
+					<p class="form-field-hint">
+						仅未归还借出：只列仍有未还数量的借出行。借出与归还全部记录：列出全部借出行，以及它们的归还、损坏、遗失行。
+					</p>
+					<label class="form-choice-label form-check"
+						><input v-model="query.includeZero" type="checkbox" />包括已结清物品</label
+					>
+					<p class="form-field-hint">
+						也列出已全部归还的借出行和物品（未归还余额为零）。
+					</p>
 				</FilterDisclosure>
 				<BrowseFilters
 					v-model="scope"
@@ -161,29 +170,6 @@ const { query, scope, status, statusChoices, extraChips, historyScope } = props.
 							</option>
 						</select>
 					</label>
-				</FilterDisclosure>
-				<FilterDisclosure
-					v-if="family === 'movements'"
-					label="盘点调整"
-					field="includeAdjustments"
-					:summary="query.includeAdjustments ? '包括' : '不包括'"
-				>
-					<label class="form-choice-label form-check"
-						><input
-							v-model="query.includeAdjustments"
-							type="checkbox"
-						/>包括盘点调整</label
-					>
-				</FilterDisclosure>
-				<FilterDisclosure
-					v-if="family === 'loans' && !records"
-					label="已结清物品"
-					field="includeZero"
-					:summary="query.includeZero ? '显示' : '隐藏'"
-				>
-					<label class="form-choice-label form-check"
-						><input v-model="query.includeZero" type="checkbox" />显示已结清物品</label
-					>
 				</FilterDisclosure>
 				<UiButton class="browse-filter-clear" @click="controller.clearFilters"
 					>清空筛选</UiButton

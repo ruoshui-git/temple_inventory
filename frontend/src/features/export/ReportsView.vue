@@ -394,19 +394,6 @@ function setGroup(index: number, value: string) {
 						<h3>其他筛选与视图</h3>
 						<div class="browse-filter-fields">
 							<FilterDisclosure
-								v-if="dataset === 'movements'"
-								label="盘点调整"
-								field="includeAdjustments"
-								:summary="query.includeAdjustments ? '包括' : '不包括'"
-							>
-								<label class="form-choice-label"
-									><input
-										type="checkbox"
-										v-model="query.includeAdjustments"
-									/>包含期初与盘点调整</label
-								>
-							</FilterDisclosure>
-							<FilterDisclosure
 								v-if="hasReportStatuses(query)"
 								label="单据状态"
 								field="status"

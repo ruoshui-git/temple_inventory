@@ -283,7 +283,6 @@ describe("migration follow-up", () => {
       record: doc.name,
       recordDoctype: doc.doctype,
       statuses: [1],
-      includeAdjustments: true,
     });
     await quick.get("button").trigger("click");
     await flushPromises();

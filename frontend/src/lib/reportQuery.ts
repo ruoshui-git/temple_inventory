@@ -135,6 +135,7 @@ export function decodeReportQuery(
       activityStatus: ["all", "active", "archived"],
       loanStatus: ["all", "outstanding", "open", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],
+      loanScope: ["outstanding", "all"],
       itemStatus: ["enabled", "disabled", "all"],
       countReviewed: ["all", "reviewed", "unreviewed", "difference"],
       relatedPresence: ["all", "yes", "no", "with", "without"],

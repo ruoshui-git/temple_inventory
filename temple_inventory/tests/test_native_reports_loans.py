@@ -1,16 +1,44 @@
 """Report/export contracts exercised against real native stock and permissions."""
 
+import base64
 from unittest.mock import patch
 
 import frappe
 
-from temple_inventory import activities, browse, native_api
+from temple_inventory import activities, browse, catalog, native_api
 from temple_inventory.projections import group_page, report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.tests.helpers import NativeReportTestCase
 
 
 class NativeReportsLoansTests(NativeReportTestCase):
+	def test_movement_history_preloads_only_permission_readable_primary_images(self):
+		self.receipt(3)
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"history-primary-{self.token}.png",
+				"content": base64.b64decode(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+				),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+				"attached_to_field": "image",
+			}
+		).insert()
+		item = frappe.get_doc("Item", self.item)
+		catalog.set_item_image(self.item, str(item.modified), file.name)
+		query = self.query("movements", "lines", statuses=[1])
+		page = browse.movement_history(query, item_code=self.item)
+		self.assertEqual(page["rows"][0]["image"], file.file_url)
+		with patch("frappe.core.doctype.file.file.File.has_permission", return_value=False):
+			denied = browse.movement_history(query, item_code=self.item)
+		self.assertEqual(denied["rows"][0]["image"], "")
+		frappe.db.set_value("Item", self.item, "image", "", update_modified=False)
+		missing = browse.movement_history(query, item_code=self.item)
+		self.assertEqual(missing["rows"][0]["image"], "")
+
 	def test_return_record_page_includes_original_loan_identity_for_multiple_loans(self):
 		self.receipt(10)
 		loans = [
@@ -65,7 +93,7 @@ class NativeReportsLoansTests(NativeReportTestCase):
 		page = browse.operation_contributions(
 			query,
 			item_code=self.item,
-			history_scope="all",
+			loan_scope="all",
 			history_sort_by="document",
 			history_sort="asc",
 			page_length=1,
@@ -76,7 +104,7 @@ class NativeReportsLoansTests(NativeReportTestCase):
 		all_item_query = {**query, "scope": {**query["scope"], "item": ""}}
 		all_items = browse.operation_contributions(
 			all_item_query,
-			history_scope="all",
+			loan_scope="all",
 			history_sort_by="document",
 			history_sort="asc",
 		)
@@ -95,7 +123,7 @@ class NativeReportsLoansTests(NativeReportTestCase):
 			browse.operation_contributions(
 				query,
 				item_code=self.item,
-				history_scope="all",
+				loan_scope="all",
 				history_sort_by="unsupported",
 			)
 		outcome_query = {**query, "view": "outcomes"}

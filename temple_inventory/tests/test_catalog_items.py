@@ -161,14 +161,14 @@ class CatalogItemsTests(NativeDocumentTests):
 		loss = self.submit(self.create(loss_data))
 		query = {"dataset": "loans", "view": "items", "loan": loan.name}
 		history = browse.operation_contributions(
-			query, item_code=self.item, history_scope="all", history_sort="asc"
+			query, item_code=self.item, loan_scope="all", history_sort="asc"
 		)
 		self.assertTrue(history["history_complete"])
 		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Loss", "Damage"])
 		self.assertEqual([row["quantity"] for row in history["rows"]], [4.0, -1.0, -1.0])
 		frappe.get_doc("Stock Entry", loss.name).cancel()
 		updated = browse.operation_contributions(
-			query, item_code=self.item, history_scope="all", history_sort="asc"
+			query, item_code=self.item, loan_scope="all", history_sort="asc"
 		)
 		self.assertTrue(updated["history_complete"])
 		self.assertEqual([row["kind"] for row in updated["rows"]], ["Loan", "Damage"])
@@ -213,7 +213,7 @@ class CatalogItemsTests(NativeDocumentTests):
 			return original_parent(context, doctype, name)
 
 		with patch.object(ReportContext, "parent", hide_damage):
-			incomplete = browse.operation_contributions(query, item_code=self.item, history_scope="all")
+			incomplete = browse.operation_contributions(query, item_code=self.item, loan_scope="all")
 			incomplete_movement_history = browse.movement_history(
 				{
 					"dataset": "movements",

@@ -227,7 +227,6 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				<fieldset tabindex="-1">
 					<label
 						v-for="(entry, kind) in kindIcons"
-						v-show="records || !['Opening', 'Reconcile'].includes(kind)"
 						:key="kind"
 						class="form-choice-label form-check"
 						><input

@@ -146,8 +146,6 @@ function movementLines(
         (!query.scope.activity ||
           related ||
           row.activity === query.scope.activity) &&
-        (query.includeAdjustments ||
-          !["Opening", "Reconcile"].includes(row.kind)) &&
         (!query.scope.kinds.length || query.scope.kinds.includes(row.kind)) &&
         (!query.record || row.name === query.record) &&
         (!query.loan ||

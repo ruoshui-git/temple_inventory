@@ -24,8 +24,6 @@ function enter(applyVariant = false) {
 	const query = JSON.parse(
 		JSON.stringify(queries[key()] || newReportQuery(family.value)),
 	) as ReportQuery;
-	if (!queries[key()] && props.family === "movement" && !props.records)
-		query.includeAdjustments = false;
 	query.scope = JSON.parse(
 		JSON.stringify(
 			props.family === "movement"

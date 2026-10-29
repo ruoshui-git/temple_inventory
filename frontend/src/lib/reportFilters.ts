@@ -93,7 +93,6 @@ export function reportFilterChips(
       statuses: "status",
       includeZero: "includeZero",
       includeUndated: "includeUndated",
-      includeAdjustments: "includeAdjustments",
       activityStatus: "activityStatus",
       typeId: "typeId",
       countReviewed: "countReviewed",
@@ -153,10 +152,6 @@ export function reportFilterChips(
       { includeUndated: true },
       query.includeUndated,
     );
-  if (!query.includeAdjustments)
-    add("includeAdjustments", "不含期初与盘点调整", {
-      includeAdjustments: true,
-    });
   if (query.activityStatus !== "all")
     add(
       "activityStatus",

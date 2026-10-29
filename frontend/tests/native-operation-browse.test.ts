@@ -266,7 +266,7 @@ describe("native operation browsing", () => {
     });
     expect(movementExport.props("columns")).toContain("item_code");
     expect(movementExport.props("columns")).toContain("image_file");
-    expect(movementExport.props("columns")).not.toContain("available_effect");
+    expect(movementExport.props("columns")).toContain("available_effect");
     // Locations are matrix fields, visible by default at every desktop width.
     expect(movementExport.props("columns")).toContain("source_warehouse");
     expect(movementExport.props("columns")).toContain("destination_warehouse");
@@ -518,7 +518,7 @@ describe("native operation browsing", () => {
     const controller = wrapper.getComponent(OperationBrowsePage).vm.controller;
     expect(controller.details["flat-history-scope"]?.rows).toHaveLength(1);
     expect(wrapper.text()).toContain("STE-MOVE-1");
-    expect(wrapper.text()).toContain("可用库存增加 7 单位");
+    expect(wrapper.text()).toContain("+7 Nos");
     expect(wrapper.get(".browse-result-summary-label").text()).toBe(
       "1 条明细 · 10 种物品",
     );
@@ -590,6 +590,52 @@ describe("native operation browsing", () => {
     expect(wrapper.findAll(".data-table table")).toHaveLength(1);
     expect(wrapper.get(".browse-row-link").text()).toBe("SE-1");
     expect(wrapper.find("tbody").text()).not.toContain("借用数量与结余");
+  });
+
+  it("renders record available effects as signed per-unit quantities", async () => {
+    const query = newReportQuery("movements");
+    query.view = "records";
+    const recordPage = {
+      ...page(),
+      query,
+      rows: [
+        {
+          id: "Stock Entry:SE-MIXED:Nos",
+          document: "SE-MIXED",
+          doctype: "Stock Entry",
+          kind: "Transfer",
+          date: "2026-10-20",
+          docstatus: 1,
+          item_count: 2,
+          document_count: 1,
+          whole: {
+            quantities: [
+              { uom: "Nos", qty: 12 },
+              { uom: "Box", qty: 3 },
+            ],
+            available_effects: [
+              { uom: "Nos", qty: -12 },
+              { uom: "Box", qty: 3 },
+            ],
+            item_count: 2,
+            line_count: 2,
+            branches: [{ source: "ROOM-A", destination: "ROOM-B" }],
+            original_loans: [],
+          },
+        },
+      ],
+    };
+    const { wrapper, reference } = setup(
+      service(recordPage),
+      reactive({ family: "movements" as const, records: true }),
+      true,
+    );
+    reference.units.push(
+      { name: "Nos", label: "个", whole: true },
+      { name: "Box", label: "箱", whole: true },
+    );
+    await flushPromises();
+    expect(wrapper.text()).toContain("−12 个；+3 箱");
   });
 
   it.each([1440, 1024])(
@@ -885,7 +931,7 @@ describe("native operation browsing", () => {
       expect.objectContaining({
         query: expect.objectContaining({ view: "items" }),
         item_code: "ITEM-A",
-        history_scope: "outstanding",
+        loan_scope: "outstanding",
         history_sort_by: "date",
         history_sort: "desc",
         records: false,
@@ -897,12 +943,14 @@ describe("native operation browsing", () => {
     expect(c.details[row.id]?.rows).toHaveLength(2);
     c.setHistoryScope("all");
     await flushPromises();
-    expect(call).toHaveBeenLastCalledWith(
-      "browse.operation_contributions",
-      expect.objectContaining({ item_code: "ITEM-A", history_scope: "all" }),
-      expect.any(AbortSignal),
+    expect(call.mock.calls).toContainEqual(
+      expect.arrayContaining([
+        "browse.operation_contributions",
+        expect.objectContaining({ item_code: "ITEM-A", loan_scope: "all" }),
+        expect.any(AbortSignal),
+      ]),
     );
-    expect(c.historyScope.value).toBe("all");
+    expect(c.query.value.loanScope).toBe("all");
   });
   it("loads ungrouped Loan Item history for the entire filtered Item scope", async () => {
     const query = newReportQuery("loans");
@@ -925,7 +973,7 @@ describe("native operation browsing", () => {
     );
     expect(request?.[1]).toMatchObject({
       query: expect.objectContaining({ view: "items", groupBy: [] }),
-      history_scope: "outstanding",
+      loan_scope: "outstanding",
       history_sort_by: "date",
       history_sort: "desc",
     });
@@ -933,7 +981,7 @@ describe("native operation browsing", () => {
     expect(c.details["flat-history-scope"]?.rows).toHaveLength(2);
     c.setHistoryScope("all");
     await flushPromises();
-    expect(call.mock.calls.at(-1)?.[1]).toMatchObject({ history_scope: "all" });
+    expect(call.mock.calls.at(-1)?.[1]).toMatchObject({ loan_scope: "all" });
     c.setDetailSort(
       { id: "flat-history-scope", document_count: 0, item_count: 0 },
       "document",
@@ -1030,7 +1078,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     const outstandingIndex = wrapper
       .findAll("thead th")
-      .findIndex((header) => header.text().includes("未还数量"));
+      .findIndex((header) => header.text().includes("未归还数量"));
     expect(outstandingIndex).toBeGreaterThanOrEqual(0);
     const loanRow = wrapper
       .findAll("tbody tr")
@@ -1112,12 +1160,12 @@ describe("native operation browsing", () => {
     const row = c.result.rows[0]!;
     c.toggle(row, true);
     await flushPromises();
-    expect(c.historyScope.value).toBe("outstanding");
+    expect(c.query.value.loanScope).toBe("outstanding");
     expect(call).toHaveBeenLastCalledWith(
       "browse.operation_contributions",
       expect.objectContaining({
         item_code: "ITEM-A",
-        history_scope: "outstanding",
+        loan_scope: "outstanding",
       }),
       expect.any(AbortSignal),
     );
@@ -1129,8 +1177,7 @@ describe("native operation browsing", () => {
     const call = vi.fn((endpoint, args, signal) => {
       if (endpoint === "browse.operation_contributions")
         return new Promise((resolve) => {
-          if (args.history_scope === "outstanding")
-            resolveOutstanding = resolve;
+          if (args.loan_scope === "outstanding") resolveOutstanding = resolve;
           else resolveAll = resolve;
         });
       return base(endpoint, args, signal);
@@ -1185,12 +1232,12 @@ describe("native operation browsing", () => {
     const row = c.result.rows[0]!;
     c.toggle(row, true);
     await flushPromises();
-    expect(c.historyScope.value).toBe("outstanding");
+    expect(c.query.value.loanScope).toBe("outstanding");
     await c.load();
     await flushPromises();
-    expect(c.historyScope.value).toBe("outstanding");
+    expect(c.query.value.loanScope).toBe("outstanding");
     expect(call.mock.calls.at(-1)?.[1]).toEqual(
-      expect.objectContaining({ history_scope: "outstanding" }),
+      expect.objectContaining({ loan_scope: "outstanding" }),
     );
   });
   it("shows a settled-item hint under the outstanding history scope", async () => {
@@ -1202,7 +1249,7 @@ describe("native operation browsing", () => {
       }
       if (
         endpoint === "browse.operation_contributions" &&
-        args.history_scope === "outstanding"
+        args.loan_scope === "outstanding"
       )
         return {
           ...(await base(endpoint, args, signal)),
@@ -1222,7 +1269,7 @@ describe("native operation browsing", () => {
     const row = controller.result.rows[0]!;
     controller.toggle(row, true);
     await flushPromises();
-    expect(controller.historyScope.value).toBe("outstanding");
+    expect(controller.query.value.loanScope).toBe("outstanding");
     expect(wrapper.text()).toContain("当前范围没有未结清借用记录");
     expect(wrapper.find(".loan-history-scope").exists()).toBe(false);
   });
@@ -1261,7 +1308,7 @@ describe("native operation browsing", () => {
     const call = vi.fn(async (endpoint, args) => {
       if (endpoint === "browse.operation_page") return page();
       if (endpoint === "browse.operation_contributions") {
-        if (args.history_scope === "outstanding")
+        if (args.loan_scope === "outstanding")
           return new Promise((resolve) => (resolveOutstanding = resolve));
         return {
           rows: [{ id: "ALL-SCOPE" }],
@@ -1541,7 +1588,7 @@ describe("native operation browsing", () => {
       "browse.operation_contributions",
       expect.objectContaining({
         query: expect.objectContaining({ view: "items", groupBy: [] }),
-        history_scope: "outstanding",
+        loan_scope: "outstanding",
       }),
       expect.any(AbortSignal),
     );

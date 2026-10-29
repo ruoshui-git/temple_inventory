@@ -59,7 +59,6 @@ for (const width of [375, 1440]) {
           record: doc.name,
           recordDoctype: doc.doctype,
           statuses: [1],
-          includeAdjustments: true,
         });
         message = {
           query: args.query,

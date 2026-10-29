@@ -448,7 +448,7 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 		rows = list(rows)
 		rows.sort(key=lambda row: _history_identity(row, table))
 		rows.sort(
-			key=lambda row: _history_sort_value(row, doc.export_sort_by),
+			key=lambda row: _history_sort_value(row, doc.export_sort_by, table),
 			reverse=(getattr(doc, "export_sort", "") or "desc") == "desc",
 		)
 	count = 0
@@ -553,10 +553,10 @@ class _XlsxRows:
 		self.row_index += 1
 
 
-def _history_sort_value(row, field):
+def _history_sort_value(row, field, table=None):
 	from frappe.utils import get_datetime
 
-	if field == "quantity":
+	if field == "quantity" and table != "loan_history":
 		field = "stock_qty"
 	if field == "date":
 		return get_datetime(f"{row.get('date') or ''} {row.get('time') or ''}")
@@ -642,7 +642,7 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 				]
 				writer.writerow(values, columns, (row_files or {}).get(id(row)), len(group_by))
 				fields = [field for field in _sum_fields(table, projection.query) if field in columns]
-				if table == "records" and "stock_qty" in fields:
+				if table == "records" and row.get("_units"):
 					for unit, unit_values in row.get("_units", {}).items():
 						_totals_add(
 							totals,
@@ -693,14 +693,19 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 					elif column == "stock_uom":
 						values[index] = uom_label(unit)
 			else:
-				quantity_field = next(
-					(field for field in ("stock_qty", "borrowed", "outstanding") if field in columns),
-					"stock_qty",
+				quantity_field = (
+					"available_effect"
+					if projection.query["dataset"] == "movements"
+					else next(
+						(field for field in ("stock_qty", "borrowed", "outstanding") if field in columns),
+						"stock_qty",
+					)
 				)
 				unit_text = "；".join(
-					f"{unit_sums.get(quantity_field, 0):g} {uom_label(unit)}"
+					f"{unit_sums.get(quantity_field, 0):+g} {uom_label(unit)}"
 					for unit, unit_sums in unit_values.items()
 				)
+				unit_text = unit_text.replace("+0 ", "0 ").replace("-", "−")
 				for index, column in enumerate(columns):
 					if column == "stock_uom":
 						values[index] = unit_text
@@ -710,8 +715,11 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 	emit(rows, 0)
 	for unit, sums in totals.items():
 		line = [""] * len(columns)
+		prefix = "合计可用变化" if projection.query["dataset"] == "movements" else "合计"
 		line[0] = (
-			f"合计（{uom_label(unit)}） · {sums['_count']} 行" if unit else f"合计 · {sums['_count']} 行"
+			f"{prefix}（{uom_label(unit)}） · {sums['_count']} 行"
+			if unit
+			else f"{prefix} · {sums['_count']} 行"
 		)
 		for index, field in enumerate(columns):
 			if field in sums:
@@ -734,10 +742,14 @@ def _export_rows(projection, table):
 			groups = {}
 			for row in projection.rows(table):
 				key = (row.get("doctype"), row.get("document"))
-				group = groups.setdefault(key, {**row, "_units": {}})
+				group = groups.setdefault(key, {**row, "item_count": 0, "_units": {}})
+				# An Item has one stock unit, so per-unit item counts add up to the record's.
+				group["item_count"] += int(row.get("item_count") or 0)
 				unit = row.get("stock_uom") or ""
 				unit_values = group["_units"].setdefault(unit, {})
-				for field in sum_fields:
+				for field in set(sum_fields) | (
+					{"stock_qty"} if projection.query["dataset"] == "movements" else set()
+				):
 					if isinstance(row.get(field), (int, float)):
 						unit_values[field] = float(unit_values.get(field, 0)) + float(row[field])
 			for group in groups.values():
@@ -758,6 +770,11 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		if len(units) > 1
 		else ""
 	)
+	available_effect_text = "；".join(
+		f"{float(values.get('available_effect') or 0):+g} {uom_label(unit)}".replace("-", "−")
+		for unit, values in units.items()
+		if "available_effect" in values
+	)
 	if key[0] not in ("Stock Entry", "Stock Reconciliation") or not key[1]:
 		return {
 			**row,
@@ -765,6 +782,7 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 			"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
 			"stock_uom": next(iter(units)) if len(units) == 1 else quantities,
 			"quantities": quantities,
+			"available_effect": available_effect_text or row.get("available_effect"),
 			"source": "",
 			"destination": "",
 		}
@@ -786,6 +804,7 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
 		"stock_uom": next(iter(units)) if len(units) == 1 else quantities,
 		"quantities": quantities,
+		"available_effect": available_effect_text or row.get("available_effect"),
 		"source": "；".join(sorted(value for value in sources if value)),
 		"destination": "；".join(sorted(value for value in destinations if value)),
 	}
@@ -820,7 +839,7 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None):
 		count += 1
 		unit = str(row.get("stock_uom") or "")
 		fields = [field for field in _sum_fields(table, projection.query) if field in columns]
-		if table == "records" and "stock_qty" in fields:
+		if table == "records" and row.get("_units"):
 			for unit, unit_values in row.get("_units", {}).items():
 				_totals_add(
 					totals, unit, {field: unit_values[field] for field in fields if field in unit_values}
@@ -833,8 +852,11 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None):
 			)
 	for unit, sums in totals.items():
 		line = [""] * len(columns)
+		prefix = "合计可用变化" if projection.query["dataset"] == "movements" else "合计"
 		line[0] = (
-			f"合计（{uom_label(unit)}） · {sums['_count']} 行" if unit else f"合计 · {sums['_count']} 行"
+			f"{prefix}（{uom_label(unit)}） · {sums['_count']} 行"
+			if unit
+			else f"{prefix} · {sums['_count']} 行"
 		)
 		for index, field in enumerate(columns):
 			if field in sums:
@@ -858,13 +880,13 @@ def _sum_fields(table, query):
 		return (
 			STOCK_SUMS
 			if dataset == "inventory"
-			else ("stock_qty", "available_effect")
+			else ("available_effect",)
 			if dataset == "movements"
 			else COUNT_SUMS
 		)
 	if table in ("records", "lines"):
 		return (
-			("stock_qty", "available_effect")
+			("available_effect",)
 			if dataset == "movements"
 			else LOAN_SUMS
 			if dataset == "loans"
@@ -875,9 +897,9 @@ def _sum_fields(table, query):
 	if table in ("balances", "ledger"):
 		return HISTORY_SUMS
 	if table == "history":
-		return ("stock_qty", "available_effect")
+		return ("available_effect",)
 	if table == "loan_history":
-		return ("borrowed", "outstanding")
+		return ("quantity",)
 	if table == "settlements":
 		return ("stock_qty",)
 	return ()
@@ -890,7 +912,8 @@ def _display_cell(row, field, projection=None):
 			return row[label_field]
 		value = row.get(field)
 		if value == "" and field in ("source_warehouse", "destination_warehouse", "origin_warehouse"):
-			return "外部"
+			# A count adjustment names the checked location; its other end is not outside stock.
+			return "" if row.get("kind") in ("Reconcile", "Opening") else "外部"
 		return (projection.context.label(value) if projection and value else "") or value
 	if field in ("stock_uom", "entered_uom", "uom"):
 		value = row.get(field)

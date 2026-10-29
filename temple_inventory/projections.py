@@ -275,6 +275,7 @@ FIXED_COLUMNS = {
 		"activity_title",
 		"borrowed",
 		"outstanding",
+		"quantity",
 		"item_code",
 		"item_name",
 	],
@@ -651,17 +652,33 @@ def _movement_history_rows(projection):
 
 
 def _loan_history_rows(projection):
-	"""Outstanding submitted loan lines, keyed like the flat 借用 明细 table (借出清单)."""
+	"""Loan and settlement lines keyed like the 借用 明细 history list."""
 	from temple_inventory.browse import loan_contribution_key
 
 	groups = {}
 	for row in projection.rows("outcomes"):
-		if int(row.get("docstatus") or 0) != 1 or float(row.get("outstanding") or 0) <= 0:
+		if int(row.get("docstatus") or 0) != 1:
+			continue
+		if (
+			projection.query["loanScope"] == "outstanding"
+			and not projection.query["includeZero"]
+			and float(row.get("outstanding") or 0) <= 0
+		):
 			continue
 		key = loan_contribution_key({**row, "kind": "Loan"})
-		group = groups.setdefault(key, {**row, "kind": "Loan", "borrowed": 0.0, "outstanding": 0.0})
+		group = groups.setdefault(
+			key, {**row, "kind": "Loan", "borrowed": 0.0, "outstanding": 0.0, "quantity": 0.0}
+		)
 		group["borrowed"] += float(row.get("borrowed") or 0)
 		group["outstanding"] += float(row.get("outstanding") or 0)
+		group["quantity"] += float(row.get("borrowed") or 0)
+	if projection.query["loanScope"] == "all":
+		for row in projection.rows("linked_settlements"):
+			key = loan_contribution_key(row)
+			group = groups.setdefault(key, {**row, "borrowed": 0.0, "outstanding": 0.0, "quantity": 0.0})
+			group["borrowed"] -= abs(float(row.get("stock_qty") or 0))
+			group["outstanding"] = 0.0
+			group["quantity"] -= abs(float(row.get("stock_qty") or 0))
 	for key, row in groups.items():
 		row["id"] = json.dumps(key, ensure_ascii=False)
 		row["time"] = key[3]
@@ -1045,9 +1062,9 @@ class Projection(AbstractContextManager):
 			self.main_table, sums = view, ("stock_qty", "available_effect")
 		elif not restored and dataset == "loans":
 			self.add("outcomes", loan_rows(context))
-			self.add("loan_history", _loan_history_rows(self))
 			if view == "items":
 				self.add("linked_settlements", linked_settlement_rows(context))
+				self.add("loan_history", _loan_history_rows(self))
 				self.add(
 					"loan_item_page",
 					(row for row in self.rows("outcomes") if query["includeZero"] or row["outstanding"] > 0),
@@ -1392,7 +1409,6 @@ class Projection(AbstractContextManager):
 				query.get("restrictAllocations"),
 				query.get("itemLocationKeys"),
 				query.get("allocationKeys"),
-				not query.get("includeAdjustments", True),
 			)
 		):
 			return False

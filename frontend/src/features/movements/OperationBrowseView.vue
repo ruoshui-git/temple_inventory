@@ -53,6 +53,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import RecordRef from "../../components/ui/RecordRef.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+import MultiLocationEndpoint from "./MultiLocationEndpoint.vue";
 import { loanReferenceIdentity } from "../../lib/relatedLoanPresentation";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { createRecoveryStore } from "../../lib/browserRecovery";
@@ -89,7 +90,6 @@ const {
 	reference,
 	scope,
 	search,
-	historyScope,
 	extraChips,
 	dimension,
 	analysis,
@@ -174,9 +174,15 @@ const operationColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 				},
 				{
+					id: "available_effect",
+					label: "可用变化",
+					defaultVisible: true,
+					align: "end",
+				},
+				{
 					id: "quantities",
 					label: "数量（按单位）",
-					defaultVisible: true,
+					defaultVisible: false,
 					align: "end",
 				},
 				{
@@ -236,6 +242,12 @@ const operationColumns = computed<DataColumn[]>(() =>
 					sortable: true,
 				},
 				{
+					id: "outstanding",
+					label: "未归还数量（按单位）",
+					defaultVisible: true,
+					align: "end",
+				},
+				{
 					id: "quantities",
 					label: "借出数量（按单位）",
 					defaultVisible: true,
@@ -244,12 +256,6 @@ const operationColumns = computed<DataColumn[]>(() =>
 				{
 					id: "item_count",
 					label: "物品种数",
-					defaultVisible: true,
-					align: "end",
-				},
-				{
-					id: "outstanding",
-					label: "未归还数量（按单位）",
 					defaultVisible: true,
 					align: "end",
 				},
@@ -308,6 +314,15 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 				},
 				{
+					id: "item_name",
+					label: "物品名称",
+					defaultVisible: true,
+					sortable: sortableColumnsForView(props.family, query.value.view).includes(
+						"item_name",
+					),
+					sortField: "item_name",
+				},
+				{
 					id: "document",
 					label: "记录",
 					kind: "primary",
@@ -340,19 +355,19 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 				},
 				{
+					id: "available_effect",
+					label: "可用变化",
+					defaultVisible: true,
+					align: "end",
+				},
+				{
 					id: "quantities",
 					label: "数量（按单位）",
-					defaultVisible: true,
+					defaultVisible: false,
 					align: "end",
 					sortable: true,
 					sortField: "stock_qty",
 					className: "operation-movement-quantity-column",
-				},
-				{
-					id: "available_effect",
-					label: "可用变化",
-					defaultVisible: false,
-					align: "end",
 				},
 				{
 					id: "related_loans",
@@ -377,6 +392,15 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 				},
 				{
+					id: "item_name",
+					label: "物品名称",
+					defaultVisible: true,
+					sortable: sortableColumnsForView(props.family, query.value.view).includes(
+						"item_name",
+					),
+					sortField: "item_name",
+				},
+				{
 					id: "document",
 					label: "记录",
 					kind: "primary",
@@ -384,6 +408,18 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 					sortable: true,
 					sortField: "document",
+				},
+				{
+					id: "available_effect",
+					label: "可用变化",
+					defaultVisible: false,
+					align: "end",
+				},
+				{
+					id: "quantities",
+					label: "数量（按单位）",
+					defaultVisible: false,
+					align: "end",
 				},
 				{
 					id: "kind",
@@ -417,6 +453,14 @@ const itemColumns = computed<DataColumn[]>(() =>
 					defaultVisible: true,
 				},
 				{
+					id: "outstanding",
+					label: "未归还数量",
+					defaultVisible: true,
+					sortable: true,
+					sortField: "outstanding",
+					className: "operation-loan-outstanding-column",
+				},
+				{
 					id: "borrowed",
 					label: "数量",
 					defaultVisible: true,
@@ -427,14 +471,6 @@ const itemColumns = computed<DataColumn[]>(() =>
 					id: "actions",
 					label: "操作",
 					defaultVisible: wideScreen.value,
-				},
-				{
-					id: "outstanding",
-					label: "未还数量",
-					defaultVisible: true,
-					sortable: true,
-					sortField: "outstanding",
-					className: "operation-loan-outstanding-column",
 				},
 			],
 );
@@ -612,6 +648,10 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 		const unit = unitLabel(String(row.stock_uom || ""));
 		if (row.borrowed !== undefined) parts.push(`借出 ${row.borrowed} ${unit}`.trim());
 		if (row.outstanding !== undefined) parts.push(`未归还 ${row.outstanding} ${unit}`.trim());
+	} else if (row.available_effect !== undefined && row.available_effect !== null) {
+		parts.push(
+			`可用变化 ${signedEffect(Number(row.available_effect), String(row.stock_uom || ""))}`,
+		);
 	} else if (Array.isArray(row.quantity_breakdown)) {
 		const breakdown = sortByUnit(
 			row.quantity_breakdown as Record<string, unknown>[],
@@ -685,7 +725,12 @@ function hiddenGroupMetrics(group: DataTableGroup, visibleColumns: string[]) {
 			parts.push(groupLoanMetric(group, "outstanding"));
 		return parts.filter(Boolean).join(" · ");
 	}
-	return visibleColumns.includes("quantities") ? "" : groupSummaryDisplay(group);
+	return visibleColumns.includes("available_effect") ? "" : groupSummaryDisplay(group);
+}
+function groupEffect(group: DataTableGroup) {
+	const row = group.value || {};
+	if (row.available_effect === undefined || row.available_effect === null) return "";
+	return signedEffect(Number(row.available_effect), String(row.stock_uom || ""));
 }
 function openHistoryDocument(row: Record<string, unknown>) {
 	if (row.kind === "Loan") emit("openLoan", String(row.document));
@@ -953,6 +998,15 @@ function quantities(rows?: { uom: string; qty: number }[]) {
 	return sortByUnit(rows || [], (row) => row.uom)
 		.map((row) => formatQuantityWithUnit(row.qty, row.uom))
 		.join(" | ");
+}
+function signedEffect(qty: number, uom: string) {
+	const sign = qty > 0 ? "+" : qty < 0 ? "−" : "";
+	return `${sign}${formatQuantity(Math.abs(qty))} ${unitLabel(uom)}`;
+}
+function recordAvailableEffect(row: Record<string, unknown>) {
+	return sortByUnit(operationRow(row).whole?.available_effects || [], (entry) => entry.uom)
+		.map((effect) => signedEffect(effect.qty, effect.uom))
+		.join("；");
 }
 function itemContext(row: OperationGroup) {
 	const values = [row.item_code];
@@ -1333,13 +1387,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								<p
 									v-if="
 										family === 'loans' &&
-										historyScope === 'outstanding' &&
+										query.loanScope === 'outstanding' &&
 										details[groupItem(group).id]?.initialized &&
 										!details[groupItem(group).id]?.rows.length
 									"
 									class="field-hint"
 								>
-									当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+									当前范围没有未结清借用记录。可在筛选中切换到“借出与归还全部记录”查看历史。
 								</p>
 								<MovementHistoryTable
 									v-else-if="
@@ -1393,13 +1447,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							!records &&
 							!query.groupBy.length &&
 							c.expanded.has(flatHistoryItem.id) &&
-							historyScope === 'outstanding' &&
+							query.loanScope === 'outstanding' &&
 							details[flatHistoryItem.id]?.initialized &&
 							!details[flatHistoryItem.id]?.rows?.length
 						"
 						class="field-hint"
 					>
-						当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+						当前范围没有未结清借用记录。可在筛选中切换到“借出与归还全部记录”查看历史。
 					</p>
 					<DataTable
 						v-if="!records && !showMobileItemCards"
@@ -1518,9 +1572,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								>
 									{{ row.document }}
 								</button>
-								<small v-if="column.id === 'document'" class="muted">{{
+								<template v-else-if="column.id === 'item_name'">{{
 									row.item_name || row.item_code
-								}}</small>
+								}}</template>
 								<template v-else-if="column.id === 'kind'">{{
 									enumPresentationLabel("kind", row.kind)
 								}}</template>
@@ -1863,8 +1917,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								class="operation-group-metrics"
 								:title="groupSummary(group)"
 								:aria-label="groupSummary(group)"
-								v-else-if="family === 'movements' && column.id === 'quantities'"
-								>{{ groupSummaryDisplay(group) }}</span
+								v-else-if="
+									family === 'movements' && column.id === 'available_effect'
+								"
+								>{{ groupEffect(group) }}</span
 							>
 						</template>
 						<template #group="{ group }">
@@ -1875,13 +1931,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								<p
 									v-if="
 										family === 'loans' &&
-										historyScope === 'outstanding' &&
+										query.loanScope === 'outstanding' &&
 										details[groupItem(group).id]?.initialized &&
 										!details[groupItem(group).id]?.rows.length
 									"
 									class="field-hint"
 								>
-									当前范围没有未结清借用记录。可在筛选中切换到“全部相关记录”查看历史。
+									当前范围没有未结清借用记录。可在筛选中切换到“借出与归还全部记录”查看历史。
 								</p>
 								<UiButton
 									v-if="details[groupItem(group).id]?.error"
@@ -2049,6 +2105,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								row.activity_title || ""
 							}}</template>
 							<template v-else-if="column.id === 'date'">{{ row.date }}</template>
+							<template v-else-if="column.id === 'available_effect'">{{
+								recordAvailableEffect(row)
+							}}</template>
 							<template v-else-if="column.id === 'item_count'">{{
 								row.item_count ?? ""
 							}}</template>
@@ -2058,29 +2117,33 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								kind="Reconcile"
 								role="来源位置"
 							/>
-							<template v-else-if="column.id === 'source'"
-								><LocationEndpoint
-									v-for="branch in operationRow(row).whole?.branches || []"
-									:key="JSON.stringify(branch)"
-									:warehouse="branch.source"
-									:kind="String(row.kind || '')"
-									:borrower="String(row.borrower || '')"
-									role="来源位置"
-							/></template>
+							<MultiLocationEndpoint
+								v-else-if="column.id === 'source'"
+								:locations="
+									(operationRow(row).whole?.branches || []).map(
+										(branch) => branch.source,
+									)
+								"
+								:kind="String(row.kind || '')"
+								:borrower="String(row.borrower || '')"
+								role="来源位置"
+							/>
 							<LocationEndpoint
 								v-else-if="column.id === 'destination' && row.kind === 'Reconcile'"
 								kind="Reconcile"
 								role="去向位置"
 							/>
-							<template v-else-if="column.id === 'destination'"
-								><LocationEndpoint
-									v-for="branch in operationRow(row).whole?.branches || []"
-									:key="JSON.stringify(branch)"
-									:warehouse="branch.destination"
-									:kind="String(row.kind || '')"
-									:borrower="String(row.borrower || '')"
-									role="去向位置"
-							/></template>
+							<MultiLocationEndpoint
+								v-else-if="column.id === 'destination'"
+								:locations="
+									(operationRow(row).whole?.branches || []).map(
+										(branch) => branch.destination,
+									)
+								"
+								:kind="String(row.kind || '')"
+								:borrower="String(row.borrower || '')"
+								role="去向位置"
+							/>
 							<template v-else-if="column.id === 'quantities'"
 								><span
 									v-for="quantity in sortByUnit(

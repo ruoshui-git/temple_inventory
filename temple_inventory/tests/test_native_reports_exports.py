@@ -18,7 +18,6 @@ from openpyxl import load_workbook
 
 from temple_inventory import browse, counts, exports, native_api, native_files
 from temple_inventory.projections import Projection, report_page
-from temple_inventory.report_query import validate_query
 from temple_inventory.tests.helpers import NativeReportTestCase
 from temple_inventory.uom_labels import uom_label
 
@@ -31,7 +30,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			result = exports.request_export(
 				query,
 				"lines",
-				columns=["item_name", "stock_qty", "stock_uom"],
+				columns=["item_name", "stock_qty", "stock_uom", "available_effect"],
 				grouped=True,
 			)
 		request = frappe.get_doc("Inventory Export Request", result["name"])
@@ -43,12 +42,15 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			workbook = load_workbook(path, data_only=True)
 			worksheet = workbook["库存明细"]
 			self.assertEqual(worksheet.cell(2, 1).value, "Native test item (1)")
-			self.assertEqual(worksheet.cell(2, 2).value, 12)
+			self.assertIsNone(worksheet.cell(2, 2).value)
 			self.assertEqual(worksheet.cell(2, 3).value, uom_label("Nos"))
+			self.assertEqual(worksheet.cell(2, 4).value, 12)
 			self.assertEqual(worksheet.row_dimensions[2].outline_level, 0)
 			self.assertEqual(worksheet.row_dimensions[3].outline_level, 1)
 			self.assertFalse(worksheet.row_dimensions[3].hidden)
-			self.assertEqual(worksheet.cell(4, 1).value, f"合计（{uom_label('Nos')}） · 1 行")
+			self.assertEqual(worksheet.cell(4, 1).value, f"合计可用变化（{uom_label('Nos')}） · 1 行")
+			self.assertIsNone(worksheet.cell(4, 2).value)
+			self.assertEqual(worksheet.cell(4, 4).value, 12)
 			self.assertEqual(worksheet.cell(2, 1).fill.fgColor.rgb[-6:], "D9D9D9")
 			workbook.close()
 		category_query = self.query("movements", "lines", groupBy=["category"])
@@ -256,7 +258,14 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				frappe._dict(
 					tables_json='["history"]',
 					columns_json=json.dumps(
-						["kind", "docstatus", "destination_warehouse", "stock_qty", "stock_uom"]
+						[
+							"kind",
+							"docstatus",
+							"destination_warehouse",
+							"stock_qty",
+							"stock_uom",
+							"available_effect",
+						]
 					),
 					export_format="csv",
 				),
@@ -265,15 +274,17 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
 			self.assertEqual(count, 1)
-			self.assertEqual(rows[0], ["类型", "状态", "去向位置", "数量", "单位"])
+			self.assertEqual(rows[0], ["类型", "状态", "去向位置", "数量", "单位", "可用变化"])
 			self.assertEqual(rows[1][0], "入库")
 			self.assertEqual(rows[1][1], "已提交")
 			self.assertEqual(rows[1][2], projection.context.label(self.a))
 			self.assertNotEqual(rows[1][2], self.a)
 			self.assertEqual(rows[1][4], "个")
-			# Whole quantities stay whole in CSV, in data and total rows.
+			# Quantity stays separate; per-unit totals sum the available-effect column.
 			self.assertEqual(rows[1][3], "12")
-			self.assertEqual(rows[-1][3], "12")
+			self.assertEqual(rows[-1][0], f"合计可用变化（{uom_label('Nos')}） · 1 行")
+			self.assertEqual(rows[-1][3], "")
+			self.assertEqual(rows[-1][5], "12")
 			self.assertTrue(all(not any(isinstance(cell, (list, dict)) for cell in row) for row in rows))
 
 	def test_loan_history_export_lists_only_outstanding_submitted_loans(self):
@@ -284,6 +295,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		query = self.query("loans", "items")
 		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
 			projection.build()
+			self.assertEqual(len(list(projection.rows("loan_history"))), 1)
 			path = Path(directory) / "loans.csv"
 			exports._write(
 				projection,
@@ -292,10 +304,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 					columns_json=json.dumps(
 						[
 							"document",
+							"kind",
+							"item_name",
 							"borrower",
 							"activity_title",
 							"source_warehouse",
-							"outstanding",
+							"quantity",
 							"stock_uom",
 						]
 					),
@@ -305,11 +319,63 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			)
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
-		self.assertEqual(rows[0], ["借出单号", "借用方", "活动", "原位置", "未归还", "单位"])
+		self.assertEqual(
+			rows[0], ["借出单号", "类型", "物品名称", "借用方", "活动", "原位置", "数量", "单位"]
+		)
 		self.assertEqual([row[0] for row in rows[1:-1]], [partly.name])
-		self.assertEqual(rows[1][1:4], ["部分归还", self.activity.title, projection.context.label(self.a)])
-		self.assertEqual(float(rows[1][4]), 3)
+		self.assertEqual(rows[1][3:6], ["部分归还", self.activity.title, projection.context.label(self.a)])
+		self.assertEqual(float(rows[1][6]), 5)
 		self.assertTrue(rows[-1][0].startswith("合计"))
+		inclusive_query = self.query("loans", "items", includeZero=True)
+		with (
+			Projection(inclusive_query, refresh=True) as inclusive_projection,
+			tempfile.TemporaryDirectory() as directory,
+		):
+			inclusive_projection.build()
+			inclusive_path = Path(directory) / "loans-including-zero.csv"
+			exports._write(
+				inclusive_projection,
+				frappe._dict(
+					tables_json='["loan_history"]',
+					columns_json=json.dumps(["document", "quantity", "stock_uom"]),
+					export_format="csv",
+				),
+				inclusive_path,
+			)
+			with inclusive_path.open(encoding="utf-8-sig", newline="") as stream:
+				inclusive_rows = list(csv.reader(stream))
+		self.assertEqual(
+			{row[0] for row in inclusive_rows[1:-1]},
+			{partly.name, settled.name},
+		)
+
+	def test_all_scope_loan_export_contains_loan_and_settlement_lines(self):
+		partly = self.loan(5, borrower="部分归还")
+		partly_return = self.submit(self.settlement(partly, 2))
+		settled = self.loan(3, borrower="全部归还")
+		settled_return = self.submit(self.settlement(settled, 3))
+		query = self.query("loans", "items", loanScope="all")
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "loans-all.csv"
+			exports._write(
+				projection,
+				frappe._dict(
+					tables_json='["loan_history"]',
+					columns_json=json.dumps(["document", "kind", "item_name", "quantity", "stock_uom"]),
+					export_format="csv",
+				),
+				path,
+			)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+		self.assertEqual(rows[0], ["借出单号", "类型", "物品名称", "数量", "单位"])
+		self.assertEqual({row[1] for row in rows[1:-1]}, {"借出", "归还"})
+		self.assertEqual(
+			{row[0] for row in rows[1:-1]},
+			{partly.name, partly_return.name, settled.name, settled_return.name},
+		)
+		self.assertEqual(len(rows[1:-1]), 4)
 
 	def test_export_api_rejects_internal_tables_and_disallowed_columns_and_saves_summary(self):
 		self.receipt(12)
@@ -380,6 +446,34 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertTrue(rows[0]["destination"])
 		self.assertNotIn(self.a, rows[0]["source"] + rows[0]["destination"])
 
+	def test_record_export_adds_item_counts_across_unit_rows(self):
+		unit_rows = [
+			{
+				"doctype": "Draft",
+				"document": "STE-1",
+				"stock_uom": "Kg",
+				"item_count": 1,
+				"available_effect": 2,
+			},
+			{
+				"doctype": "Draft",
+				"document": "STE-1",
+				"stock_uom": "Nos",
+				"item_count": 65,
+				"available_effect": 9,
+			},
+		]
+		projection = frappe._dict(query={"dataset": "movements"}, rows=lambda _table: iter(unit_rows))
+		rows = list(exports._export_rows(projection, "records"))
+		self.assertEqual(len(rows), 1)
+		self.assertEqual(rows[0]["item_count"], 66)
+
+	def test_line_export_leaves_a_count_adjustments_unnamed_end_blank(self):
+		count_line = {"kind": "Reconcile", "source_warehouse": self.a, "destination_warehouse": ""}
+		receipt_line = {"kind": "Receive", "source_warehouse": "", "destination_warehouse": self.a}
+		self.assertEqual(exports._display_cell(count_line, "destination_warehouse"), "")
+		self.assertEqual(exports._display_cell(receipt_line, "source_warehouse"), "外部")
+
 	def test_mixed_unit_record_keeps_text_quantities_and_mapped_endpoints(self):
 		class Context:
 			@staticmethod
@@ -396,12 +490,19 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			{
 				"doctype": "Stock Entry",
 				"document": "STE-1",
-				"_units": {"Nos": {"stock_qty": 12}, "Box": {"stock_qty": 3}},
+				"_units": {
+					"Nos": {"stock_qty": 12, "available_effect": -12},
+					"Box": {"stock_qty": 3, "available_effect": 3},
+				},
 			},
 		)
 		self.assertIsNone(row["stock_qty"])
 		self.assertEqual(row["stock_uom"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
 		self.assertEqual(row["quantities"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
+		self.assertEqual(
+			row["available_effect"],
+			f"−12 {uom_label('Nos')}；+3 {uom_label('Box')}",
+		)
 		self.assertEqual(row["source"], "来源库位")
 		self.assertEqual(row["destination"], "去向库位")
 
@@ -613,12 +714,11 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			exports.validate_download(request)
 		self.assertFalse(output_file.is_downloadable())
 
-	def test_adjustment_exclusion_is_canonical_in_browse_and_export_queries(self):
+	def test_movement_browse_always_includes_reconciliation_adjustments(self):
 		self.receipt(10)
 		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
 		completed = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
 		query = self.query("movements", "lines", record=completed.name)
 		self.assertEqual(report_page(query)["matched_count"], 1)
-		self.assertEqual(report_page({**query, "includeAdjustments": False})["matched_count"], 0)
-		with self.assertRaises(frappe.ValidationError):
-			validate_query({**query, "includeAdjustments": "false"})
+		self.assertEqual(report_page({**query, "includeAdjustments": False})["matched_count"], 1)
+		self.assertEqual(report_page({**query, "includeAdjustments": "false"})["matched_count"], 1)

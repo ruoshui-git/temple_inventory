@@ -443,7 +443,7 @@ export const sortableColumnLabels: Record<string, string> = {
   item_count: "物品数",
   period_from: "期间开始",
   period_to: "期间结束",
-  available_effect: "可用量变化",
+  available_effect: "可用变化",
   baseline_qty: "盘点基准",
   actual_qty: "实际数量",
   difference: "差异量",
@@ -465,8 +465,8 @@ export interface ReportQuery {
   sort: "asc" | "desc";
   sortBy: string;
   statuses: number[];
-  includeAdjustments: boolean;
   includeZero: boolean;
+  loanScope: "outstanding" | "all";
   includeUndated: boolean;
   activityStatus: "all" | "active" | "archived";
   typeId: string;
@@ -507,8 +507,8 @@ export function newReportQuery(
     sort: "asc",
     sortBy: "identity",
     statuses: [1],
-    includeAdjustments: true,
     includeZero: false,
+    loanScope: "outstanding",
     includeUndated: true,
     activityStatus: "all",
     typeId: "",

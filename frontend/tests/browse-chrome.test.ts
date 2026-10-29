@@ -398,7 +398,7 @@ it("exposes every movement filter in the shared panel content", async () => {
   expect(titles).toContain("来源位置");
   expect(titles).toContain("去向位置");
   expect(wrapper.text()).toContain("流动日期");
-  expect(wrapper.text()).toContain("包括盘点调整");
+  expect(wrapper.text()).not.toContain("包括盘点调整");
   expect(wrapper.text()).toContain("状态");
 });
 

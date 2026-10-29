@@ -106,8 +106,6 @@ export function useOperationBrowse(
     query.sortBy = records ? "date" : "item_name";
     query.sort = records ? "desc" : "asc";
     if (!records) query.groupBy = [];
-    if (props.family === "movements" && !records)
-      query.includeAdjustments = false;
     if (props.family === "loans" && !records) {
       query.loanOutcome = "all";
       query.outstandingOnly = false;
@@ -136,7 +134,6 @@ export function useOperationBrowse(
     detailSorts = reactive<
       Record<string, { field: string; direction: "asc" | "desc" }>
     >({}),
-    historyScope = ref<"outstanding" | "all">("outstanding"),
     sharedHistorySort = reactive({
       field: "date",
       direction: "desc" as "asc" | "desc",
@@ -144,6 +141,7 @@ export function useOperationBrowse(
     expanded = reactive(new Set<string>()),
     dimension = ref("category");
   let restoring = false,
+    skipNextQueryLoad = false,
     generation = 0,
     disposed = false,
     retryMore = false;
@@ -242,13 +240,11 @@ export function useOperationBrowse(
     () => ({
       expanded: [...expanded],
       dimension: dimension.value,
-      historyScope: historyScope.value,
     }),
     (value) => {
       expanded.clear();
       for (const id of (value.expanded || []) as string[]) expanded.add(id);
       dimension.value = String(value.dimension || "category");
-      historyScope.value = value.historyScope === "all" ? "all" : "outstanding";
     },
     () =>
       result.initialized &&
@@ -347,6 +343,10 @@ export function useOperationBrowse(
     () => JSON.stringify(query.value),
     () => {
       if (!restoring) changed(JSON.parse(JSON.stringify(query.value)));
+      if (skipNextQueryLoad) {
+        skipNextQueryLoad = false;
+        return;
+      }
       void load();
     },
     { immediate: true },
@@ -430,7 +430,7 @@ export function useOperationBrowse(
                       ...(props.family === "loans" &&
                       query.value.view === "items"
                         ? {
-                            history_scope: historyScope.value,
+                            loan_scope: query.value.loanScope,
                           }
                         : {}),
                     }),
@@ -552,8 +552,9 @@ export function useOperationBrowse(
     } else expanded.delete(row.id);
   }
   function setHistoryScope(value: "outstanding" | "all") {
-    if (historyScope.value === value) return;
-    historyScope.value = value;
+    if (query.value.loanScope === value) return;
+    skipNextQueryLoad = true;
+    query.value.loanScope = value;
     for (const [id, table] of Object.entries(details)) {
       detailRequests.get(id)?.abort();
       detailRequests.delete(id);
@@ -629,11 +630,27 @@ export function useOperationBrowse(
     props.family === "movements"
       ? props.records && key === "statuses"
       : props.records && key === "loanStatus";
-  const extraChips = computed(() =>
-    reportFilterChips(query.value, reference).filter(
-      (chip) => !chip.fixed && !primaryChip(chip.key),
-    ),
-  );
+  const extraChips = computed(() => [
+    ...reportFilterChips(query.value, reference)
+      .filter((chip) => !chip.fixed && !primaryChip(chip.key))
+      .map((chip) =>
+        props.family === "loans" && chip.key === "includeZero"
+          ? { ...chip, label: "包括已结清物品", summary: "包括已结清物品" }
+          : chip,
+      ),
+    ...(props.family === "loans" &&
+    !props.records &&
+    query.value.loanScope === "all"
+      ? [
+          {
+            key: "loanScope",
+            label: "记录范围：借出与归还全部记录",
+            field: "loanScope",
+            reset: { loanScope: "outstanding" as const },
+          },
+        ]
+      : []),
+  ]);
   const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
   function clearFilters() {
     const routeScope = {
@@ -712,7 +729,6 @@ export function useOperationBrowse(
       return JSON.parse(JSON.stringify(query.value));
     cancel();
     groups.cancel();
-    historyScope.value = "outstanding";
     sharedHistorySort.field = "date";
     sharedHistorySort.direction = "desc";
     dimension.value = "category";
@@ -748,7 +764,6 @@ export function useOperationBrowse(
     routeError,
     result,
     details,
-    historyScope,
     analyses,
     dimension,
     analysis,

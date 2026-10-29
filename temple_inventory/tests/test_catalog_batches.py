@@ -304,12 +304,12 @@ class CatalogBatchesTests(NativeDocumentTests):
 		self.assertEqual(loan_list["rows"][0]["borrower"], loan.ti_borrower)
 		self.assertEqual(loan_list["rows"][0]["outstanding"], 2.0)
 		all_item_history = browse.operation_contributions(
-			item_query, item_code=self.item, history_scope="all", history_sort="asc"
+			item_query, item_code=self.item, loan_scope="all", history_sort="asc"
 		)
 		self.assertEqual([row["quantity"] for row in all_item_history["rows"]], [5.0, -3.0])
 		all_query = {**item_query, "includeZero": True}
 		all_history = browse.operation_contributions(
-			all_query, item_code=self.item, history_scope="all", history_sort="asc"
+			all_query, item_code=self.item, loan_scope="all", history_sort="asc"
 		)
 		self.assertEqual([row["quantity"] for row in all_history["rows"]], [5.0, -3.0])
 
