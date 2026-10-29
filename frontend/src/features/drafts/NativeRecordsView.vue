@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
+import UnitValues from "../../components/ui/UnitValues.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { computed, ref, watch } from "vue";
@@ -265,7 +266,7 @@ const quantities = (row: NativeRecord) =>
 	sortByUnit(row.whole.quantities, (value) => value.uom)
 		.map((value) => formatQuantityWithUnit(Number(value.qty), value.uom))
 		.join(" · ");
-const aggregates = (row: NativeRecord, key: "gains" | "losses" | "quantities") => {
+const aggregateEntries = (row: NativeRecord, key: "gains" | "losses" | "quantities") => {
 	const values =
 		(
 			row.whole as typeof row.whole & {
@@ -273,15 +274,10 @@ const aggregates = (row: NativeRecord, key: "gains" | "losses" | "quantities") =
 				losses?: { uom: string; qty: number }[];
 			}
 		)[key] || [];
-	return (
-		sortByUnit(values, (value) => value.uom)
-			.map((value) => {
-				const quantity = Number(value.qty);
-				const formatted = formatQuantityWithUnit(Math.abs(quantity), value.uom);
-				return `${quantity > 0 ? "+" : quantity < 0 ? "−" : ""}${formatted}`;
-			})
-			.join("；") || "—"
-	);
+	return sortByUnit(values, (value) => value.uom).map((value) => ({
+		uom: value.uom,
+		qty: Number(value.qty),
+	}));
 };
 const countScope = (row: NativeRecord) => {
 	const raw = (row.whole as typeof row.whole & { scope?: string }).scope || "";
@@ -846,15 +842,37 @@ function activityLabel(row: Record<string, unknown>) {
 							<template v-else-if="column.id === 'item_count'">{{
 								nativeRow(row).whole.item_count
 							}}</template>
-							<template v-else-if="column.id === 'gains'">{{
-								aggregates(nativeRow(row), "gains")
-							}}</template>
-							<template v-else-if="column.id === 'losses'">{{
-								aggregates(nativeRow(row), "losses")
-							}}</template>
-							<span v-else-if="column.id === 'net'" title="增加与减少相抵后的净值">
-								{{ aggregates(nativeRow(row), "quantities") }}
-							</span>
+							<UnitValues
+								v-if="
+									column.id === 'gains' &&
+									aggregateEntries(nativeRow(row), 'gains').length
+								"
+								:entries="aggregateEntries(nativeRow(row), 'gains')"
+								label="增加"
+								signed
+							/>
+							<UnitValues
+								v-else-if="
+									column.id === 'losses' &&
+									aggregateEntries(nativeRow(row), 'losses').length
+								"
+								:entries="aggregateEntries(nativeRow(row), 'losses')"
+								label="减少"
+								signed
+							/>
+							<UnitValues
+								v-else-if="
+									column.id === 'net' &&
+									aggregateEntries(nativeRow(row), 'quantities').length
+								"
+								:entries="aggregateEntries(nativeRow(row), 'quantities')"
+								label="增加与减少相抵后的净值"
+								signed
+							/>
+							<span
+								v-else-if="['gains', 'losses', 'net'].includes(String(column.id))"
+								>—</span
+							>
 							<template v-else-if="column.id === 'kind'">
 								<InventoryIcon
 									v-if="row.kind"

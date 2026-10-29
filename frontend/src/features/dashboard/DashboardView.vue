@@ -18,6 +18,7 @@ import { summarizeItems } from "../../lib/itemSummary";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
+import UnitValues from "../../components/ui/UnitValues.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 import {
 	browseDestination,
@@ -69,6 +70,19 @@ const {
 	queryForDataset,
 } = props.controller;
 const distributionTop = computed(() => distribution.value.slice(0, 8));
+function dashboardUnitEntries(row: {
+	quantities?: { uom: string; qty: number; effect?: number }[];
+}) {
+	return (row.quantities || []).map((quantity) => {
+		const effect = Number(quantity.effect || 0);
+		return {
+			uom: quantity.uom,
+			qty: Number(quantity.qty),
+			tone: `stock-effect ${effect > 0 ? "is-increase" : effect < 0 ? "is-decrease" : "is-neutral"}`,
+			title: effectLabel(effect, quantity.uom),
+		};
+	});
+}
 const distributionRest = computed(() => distribution.value.slice(8));
 const expandedInventoryMetrics = ref(new Set<string>());
 const expandedMovementTiles = ref(new Set<string>());
@@ -782,25 +796,11 @@ function datasetChanged(dataset: ReportDataset) {
 									{{ row.activity_title || "未关联活动" }}</small
 								></span
 							>
-							<b
-								v-for="quantity in row.quantities || []"
-								:key="quantity.uom"
-								class="stock-effect"
-								:class="
-									Number(quantity.effect || 0) > 0
-										? 'is-increase'
-										: Number(quantity.effect || 0) < 0
-											? 'is-decrease'
-											: 'is-neutral'
-								"
-								:title="effectLabel(Number(quantity.effect || 0), quantity.uom)"
-								><UnitText :name="quantity.uom" :qty="quantity.qty" /><span
-									class="sr-only"
-									>{{
-										effectLabel(Number(quantity.effect || 0), quantity.uom)
-									}}</span
-								></b
-							>
+							<UnitValues
+								:entries="dashboardUnitEntries(row)"
+								label="最近记录数量"
+								class="dashboard-record-values"
+							/>
 						</RouterLink>
 					</div>
 					<p v-if="!sections.movement.result.rows.length">期间没有流动记录。</p>

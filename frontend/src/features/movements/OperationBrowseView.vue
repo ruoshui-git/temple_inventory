@@ -62,6 +62,7 @@ import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
+import UnitValues from "../../components/ui/UnitValues.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 const props = withDefaults(
 	defineProps<{
@@ -796,7 +797,7 @@ function relatedLoanDetails(row: Record<string, unknown>) {
 		];
 	return [];
 }
-function groupMetricRows(group: DataTableGroup, column: string) {
+function groupMetricEntries(group: DataTableGroup, column: string) {
 	const row = group.value || {};
 	const unitTotals = Array.isArray(row.unit_totals)
 		? (row.unit_totals as Record<string, unknown>[])
@@ -822,22 +823,26 @@ function groupMetricRows(group: DataTableGroup, column: string) {
 				? []
 				: [{ qty: raw, uom: row.stock_uom }];
 	return sortByUnit(values, (entry) => String(entry.uom || entry.stock_uom || "")).map(
-		(entry) => {
-			const quantity = Number(entry.qty ?? entry.stock_qty ?? 0);
-			const uom = String(entry.uom || entry.stock_uom || row.stock_uom || "");
-			const sign =
-				column === "available_effect"
-					? quantity > 0
-						? "+"
-						: quantity < 0
-							? "−"
-							: ""
-					: quantity < 0
-						? "−"
-						: "";
-			return `${sign}${formatQuantity(Math.abs(quantity))} ${unitLabel(uom)}`.trim();
-		},
+		(entry) => ({
+			uom: String(entry.uom || entry.stock_uom || row.stock_uom || ""),
+			qty: Number(entry.qty ?? entry.stock_qty ?? 0),
+		}),
 	);
+}
+function groupMetricRows(group: DataTableGroup, column: string) {
+	return groupMetricEntries(group, column).map((entry) => {
+		const sign =
+			column === "available_effect"
+				? entry.qty > 0
+					? "+"
+					: entry.qty < 0
+						? "−"
+						: ""
+				: entry.qty < 0
+					? "−"
+					: "";
+		return `${sign}${formatQuantity(Math.abs(entry.qty))} ${unitLabel(entry.uom)}`.trim();
+	});
 }
 function groupMetricText(group: DataTableGroup, column: string, includeDisclosure = true) {
 	const values = groupMetricRows(group, column);
@@ -1164,32 +1169,23 @@ function quantities(rows?: { uom: string; qty: number }[]) {
 		)
 		.join(" | ");
 }
-function signedEffect(qty: number, uom: string) {
-	const sign = qty > 0 ? "+" : qty < 0 ? "−" : "";
-	return `${sign}${formatQuantity(Math.abs(qty))} ${unitLabel(uom)}`;
-}
 function recordUnitRows(
 	row: Record<string, unknown>,
 	key: "quantities" | "available_effects" | "outstanding",
 ) {
 	const values = operationRow(row).whole?.[key] || [];
-	return sortByUnit(values, (entry) => entry.uom).map((entry) => {
-		const sign =
+	return sortByUnit(values, (entry) => entry.uom).map((entry) => ({
+		uom: entry.uom,
+		qty: Number(entry.qty),
+		tone:
 			key === "available_effects" || (key === "quantities" && props.family === "movements")
-				? entry.qty > 0
-					? "+"
-					: entry.qty < 0
-						? "−"
-						: ""
-				: "";
-		return {
-			uom: entry.uom,
-			text: `${sign}${formatQuantity(Math.abs(entry.qty))} ${unitLabel(entry.uom)}`,
-		};
-	});
-}
-function fullUnitText(values: { text: string }[]) {
-	return values.map((entry) => entry.text).join("；");
+				? recordEffectTone(operationRow(row), entry.uom)
+				: undefined,
+		title:
+			key === "available_effects" || (key === "quantities" && props.family === "movements")
+				? recordEffectLabel(operationRow(row), entry.uom)
+				: undefined,
+	}));
 }
 function itemContext(row: OperationGroup) {
 	const values = [row.item_code];
@@ -2112,60 +2108,32 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							<span
 								v-if="
 									family === 'loans' &&
-									['borrowed', 'quantities'].includes(String(column.id))
+									['borrowed', 'quantities', 'outstanding'].includes(
+										String(column.id),
+									)
 								"
-								role="note"
-								class="operation-group-metrics"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupMetricText(group, String(column.id), false) }}</span
+								>{{ column.id === "outstanding" ? "未归还 " : "借出 " }}</span
 							>
-							<span
-								v-else-if="family === 'loans' && column.id === 'outstanding'"
-								role="note"
-								class="operation-group-metrics"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupMetricText(group, String(column.id), false) }}</span
-							>
-							<span
-								v-else-if="
-									family === 'movements' && column.id === 'available_effect'
-								"
-								role="note"
-								class="operation-group-metrics"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupEffect(group) }}</span
-							>
-							<DetailPopover
+							<UnitValues
 								v-if="
-									((family === 'loans' &&
+									(family === 'loans' &&
 										['borrowed', 'quantities', 'outstanding'].includes(
 											String(column.id),
 										)) ||
-										(family === 'movements' &&
-											column.id === 'available_effect')) &&
-									groupMetricRows(group, String(column.id)).length > 2
+									(family === 'movements' && column.id === 'available_effect')
 								"
-								:label="`完整数量：${groupMetricRows(group, String(column.id)).join('；')}`"
-								trigger-class="operation-unit-more"
-							>
-								<template #trigger
-									>+{{
-										groupMetricRows(group, String(column.id)).length - 2
-									}}
-									单位</template
-								>
-								<ul>
-									<li
-										v-for="metric in groupMetricRows(group, String(column.id))"
-										:key="metric"
-									>
-										{{ metric }}
-									</li>
-								</ul>
-							</DetailPopover>
+								:entries="groupMetricEntries(group, String(column.id))"
+								:label="
+									column.id === 'outstanding'
+										? '未归还数量'
+										: family === 'movements'
+											? '可用变化'
+											: '借出数量'
+								"
+								:title="groupSummary(group)"
+								:signed="family === 'movements'"
+								class="operation-group-metrics"
+							/>
 						</template>
 						<template #group="{ group }">
 							<div
@@ -2314,60 +2282,32 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							<span
 								v-if="
 									family === 'loans' &&
-									['borrowed', 'quantities'].includes(String(column.id))
+									['borrowed', 'quantities', 'outstanding'].includes(
+										String(column.id),
+									)
 								"
-								role="note"
-								class="operation-group-metrics"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupMetricText(group, String(column.id), false) }}</span
+								>{{ column.id === "outstanding" ? "未归还 " : "借出 " }}</span
 							>
-							<span
-								v-else-if="family === 'loans' && column.id === 'outstanding'"
-								role="note"
-								class="operation-group-metrics"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupMetricText(group, String(column.id), false) }}</span
-							>
-							<span
-								v-else-if="
-									family === 'movements' && column.id === 'available_effect'
-								"
-								role="note"
-								class="operation-group-metrics"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupEffect(group) }}</span
-							>
-							<DetailPopover
+							<UnitValues
 								v-if="
-									((family === 'loans' &&
+									(family === 'loans' &&
 										['borrowed', 'quantities', 'outstanding'].includes(
 											String(column.id),
 										)) ||
-										(family === 'movements' &&
-											column.id === 'available_effect')) &&
-									groupMetricRows(group, String(column.id)).length > 2
+									(family === 'movements' && column.id === 'available_effect')
 								"
-								:label="`完整数量：${groupMetricRows(group, String(column.id)).join('；')}`"
-								trigger-class="operation-unit-more"
-							>
-								<template #trigger
-									>+{{
-										groupMetricRows(group, String(column.id)).length - 2
-									}}
-									单位</template
-								>
-								<ul>
-									<li
-										v-for="metric in groupMetricRows(group, String(column.id))"
-										:key="metric"
-									>
-										{{ metric }}
-									</li>
-								</ul>
-							</DetailPopover>
+								:entries="groupMetricEntries(group, String(column.id))"
+								:label="
+									column.id === 'outstanding'
+										? '未归还数量'
+										: family === 'movements'
+											? '可用变化'
+											: '借出数量'
+								"
+								:title="groupSummary(group)"
+								:signed="family === 'movements'"
+								class="operation-group-metrics"
+							/>
 						</template>
 						<template #group="{ group }">
 							<UiButton v-if="group.error" @click="c.groups.retry(group.id)"
@@ -2432,50 +2372,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								row.activity_title || ""
 							}}</template>
 							<template v-else-if="column.id === 'date'">{{ row.date }}</template>
-							<div
+							<UnitValues
 								v-else-if="column.id === 'available_effect'"
+								:entries="recordUnitRows(row, 'available_effects')"
+								label="可用变化"
+								signed
 								class="operation-unit-summary"
-								:aria-label="
-									recordUnitRows(row, 'available_effects')
-										.map((entry) => entry.text)
-										.join('；')
-								"
-								:title="fullUnitText(recordUnitRows(row, 'available_effects'))"
-							>
-								<span
-									v-for="entry in recordUnitRows(row, 'available_effects').slice(
-										0,
-										2,
-									)"
-									:key="entry.uom"
-									:class="recordEffectTone(operationRow(row), entry.uom)"
-									:title="recordEffectLabel(operationRow(row), entry.uom)"
-									>{{ entry.text }}</span
-								>
-								<DetailPopover
-									v-if="recordUnitRows(row, 'available_effects').length > 2"
-									:label="`可用变化：${fullUnitText(recordUnitRows(row, 'available_effects'))}`"
-									trigger-class="operation-unit-more"
-								>
-									<template #trigger
-										>+{{
-											recordUnitRows(row, "available_effects").length - 2
-										}}
-										单位</template
-									>
-									<ul>
-										<li
-											v-for="entry in recordUnitRows(
-												row,
-												'available_effects',
-											)"
-											:key="entry.uom"
-										>
-											{{ entry.text }}
-										</li>
-									</ul>
-								</DetailPopover>
-							</div>
+							/>
 							<template v-else-if="column.id === 'item_count'">{{
 								row.item_count ?? ""
 							}}</template>
@@ -2512,81 +2415,19 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								:borrower="String(row.borrower || '')"
 								role="去向位置"
 							/>
-							<div
+							<UnitValues
 								v-else-if="column.id === 'quantities'"
+								:entries="recordUnitRows(row, 'quantities')"
+								label="数量（按单位）"
+								:signed="family === 'movements'"
 								class="operation-unit-summary"
-								:aria-label="fullUnitText(recordUnitRows(row, 'quantities'))"
-								:title="fullUnitText(recordUnitRows(row, 'quantities'))"
-							>
-								<span
-									v-for="entry in recordUnitRows(row, 'quantities').slice(0, 2)"
-									:key="entry.uom"
-									class="operation-total"
-									:class="
-										family === 'movements'
-											? recordEffectTone(operationRow(row), entry.uom)
-											: undefined
-									"
-									:title="
-										family === 'movements'
-											? recordEffectLabel(operationRow(row), entry.uom)
-											: undefined
-									"
-									>{{ entry.text }}</span
-								>
-								<DetailPopover
-									v-if="recordUnitRows(row, 'quantities').length > 2"
-									:label="`数量（按单位）：${fullUnitText(recordUnitRows(row, 'quantities'))}`"
-									trigger-class="operation-unit-more"
-								>
-									<template #trigger
-										>+{{
-											recordUnitRows(row, "quantities").length - 2
-										}}
-										单位</template
-									>
-									<ul>
-										<li
-											v-for="entry in recordUnitRows(row, 'quantities')"
-											:key="entry.uom"
-										>
-											{{ entry.text }}
-										</li>
-									</ul>
-								</DetailPopover>
-							</div>
-							<div
+							/>
+							<UnitValues
 								v-else-if="column.id === 'outstanding' && row.docstatus === 1"
+								:entries="recordUnitRows(row, 'outstanding')"
+								label="未归还数量（按单位）"
 								class="operation-unit-summary"
-								:aria-label="fullUnitText(recordUnitRows(row, 'outstanding'))"
-								:title="fullUnitText(recordUnitRows(row, 'outstanding'))"
-							>
-								<span
-									v-for="entry in recordUnitRows(row, 'outstanding').slice(0, 2)"
-									:key="entry.uom"
-									>{{ entry.text }}</span
-								>
-								<DetailPopover
-									v-if="recordUnitRows(row, 'outstanding').length > 2"
-									:label="`未归还数量（按单位）：${fullUnitText(recordUnitRows(row, 'outstanding'))}`"
-									trigger-class="operation-unit-more"
-								>
-									<template #trigger
-										>+{{
-											recordUnitRows(row, "outstanding").length - 2
-										}}
-										单位</template
-									>
-									<ul>
-										<li
-											v-for="entry in recordUnitRows(row, 'outstanding')"
-											:key="entry.uom"
-										>
-											{{ entry.text }}
-										</li>
-									</ul>
-								</DetailPopover>
-							</div>
+							/>
 							<div v-else-if="column.id === 'docstatus'" class="loan-record-status">
 								<NativeStatusBadge :status="row.docstatus" />
 							</div>

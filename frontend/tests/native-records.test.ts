@@ -111,7 +111,11 @@ describe("native drafts and count records", () => {
         scope: '["ROOM-A"]',
         gains: [{ uom: "Nos", qty: 1 }],
         losses: [{ uom: "Nos", qty: -1 }],
-        quantities: [{ uom: "Nos", qty: 0 }],
+        quantities: [
+          { uom: "Nos", qty: 0 },
+          { uom: "Kg", qty: 0 },
+          { uom: "Box", qty: 0 },
+        ],
       },
     };
     const { wrapper } = setup(
@@ -140,9 +144,9 @@ describe("native drafts and count records", () => {
     expect(wrapper.text()).toContain("+1 个");
     expect(wrapper.text()).toContain("−1 个");
     expect(wrapper.text()).toContain("0 个");
-    expect(wrapper.find('[title="增加与减少相抵后的净值"]').exists()).toBe(
-      true,
-    );
+    const net = wrapper.find('[aria-label^="增加与减少相抵后的净值："]');
+    expect(net.exists()).toBe(true);
+    expect(net.text()).toContain("+1 单位");
   });
 
   it("starts Drafts with the records sort contract when the route has no query", async () => {
