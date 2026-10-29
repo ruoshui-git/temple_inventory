@@ -5,6 +5,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { browseDefaults } from "../../lib/browseDefaults";
 import {
   clearScopeField,
   scopeFilterFieldChips,
@@ -24,7 +25,7 @@ export function usePendingController(
 ) {
   const reference = useReferenceData(),
     account = reference.user,
-    query = ref(newReportQuery("inventory")),
+    query = ref(browseDefaults("inventory", "locations")),
     routeError = ref(""),
     analysisOpen = ref(false),
     dimension = ref("category");
@@ -45,7 +46,8 @@ export function usePendingController(
       damageOnly: true,
       includeZero: false,
     };
-    if (!props.initialQuery && !props.routeQuery) value.sortBy = "item_name";
+    if (!props.initialQuery && !props.routeQuery)
+      Object.assign(value, browseDefaults("inventory", "locations"));
     if (JSON.stringify(query.value) !== JSON.stringify(value))
       query.value = value;
   }
@@ -130,7 +132,7 @@ export function usePendingController(
     query.value.includeZero = false;
   }
   function reset() {
-    const value = newReportQuery("inventory");
+    const value = browseDefaults("inventory", "locations");
     value.view = "locations";
     value.damageOnly = true;
     value.includeZero = false;

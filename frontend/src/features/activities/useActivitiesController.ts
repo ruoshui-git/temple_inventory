@@ -6,13 +6,10 @@ import {
   ref,
   watch,
 } from "vue";
-import {
-  newReportQuery,
-  type ReportQuery,
-  type ReportRow,
-} from "../../lib/reportContract";
+import { type ReportQuery, type ReportRow } from "../../lib/reportContract";
 import type { DatePeriod } from "../../lib/browseQuery";
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { browseDefaults } from "../../lib/browseDefaults";
 import {
   clearScopeField,
   scopeFilterFieldChips,
@@ -72,7 +69,7 @@ export function useActivitiesController(
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData();
-  const inherited = ref(newReportQuery("activities"));
+  const inherited = ref(browseDefaults("activities", "metadata"));
   const scopeError = ref("");
   const state = reactive({
     search: "",
@@ -97,7 +94,7 @@ export function useActivitiesController(
     () => props.routeQuery,
     (value) => {
       if (!value) return;
-      const decoded = decodeReportQuery(value, "activities");
+      const decoded = decodeReportQuery(value, "activities", "metadata");
       const query = decoded.query;
       inherited.value = query;
       scopeError.value =
@@ -258,7 +255,7 @@ export function useActivitiesController(
   }
   function clear() {
     clearSecondary();
-    inherited.value = newReportQuery("activities");
+    inherited.value = browseDefaults("activities", "metadata");
     scopeError.value = "";
     state.status = "active";
     state.typeId = "";
@@ -356,7 +353,7 @@ export function useActivitiesController(
     remove,
     clear,
     resetScope: () => {
-      inherited.value = newReportQuery("activities");
+      inherited.value = browseDefaults("activities", "metadata");
       Object.assign(state, {
         search: "",
         status: "active",

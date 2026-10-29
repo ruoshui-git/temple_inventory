@@ -357,3 +357,49 @@ for (const surface of [
     });
   }
 }
+
+for (const scenario of [
+  {
+    name: "movements records",
+    path: "/inventory/movements?view=records",
+    label: "记录",
+  },
+  { name: "stock total", path: "/inventory/stock", label: "合计" },
+  {
+    name: "loans records",
+    path: "/inventory/loans?view=records",
+    label: "记录",
+  },
+]) {
+  test(`${scenario.name} sort round trips through the URL`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const release = await prepare(page, 100);
+    await page.goto(scenario.path);
+    release();
+    await expect(page.locator("[data-browse-row]").first()).toBeVisible();
+
+    if (scenario.name === "stock total") {
+      await page.getByRole("button", { name: "设置列" }).click();
+      await page
+        .getByRole("group", { name: "设置表格列" })
+        .getByRole("checkbox", { name: "合计" })
+        .check();
+    }
+
+    const header = page.getByRole("columnheader", {
+      name: new RegExp(scenario.label),
+    });
+    await header.getByRole("button").click();
+    await expect(header).toHaveAttribute("aria-sort", "ascending");
+    await expect(page).toHaveURL(/query=/);
+    const urlAfterSort = page.url();
+    await page.reload();
+    await expect(page.locator("[data-browse-row]").first()).toBeVisible();
+    await expect(page).toHaveURL(urlAfterSort);
+    await expect(
+      page.getByRole("columnheader", { name: new RegExp(scenario.label) }),
+    ).toHaveAttribute("aria-sort", "ascending");
+  });
+}

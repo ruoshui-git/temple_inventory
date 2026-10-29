@@ -1,6 +1,5 @@
 import { computed, onBeforeUnmount, reactive, ref, watch, type Ref } from "vue";
 import {
-  newReportQuery,
   groupsForView,
   reportDefinitions,
   sortableColumnsForView,
@@ -16,6 +15,7 @@ import {
 } from "../../services/contracts";
 
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { browseDefaults } from "../../lib/browseDefaults";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
@@ -293,7 +293,7 @@ export function useExportWorkspaceController(
     Object.fromEntries(
       (Object.keys(reportDefinitions) as ReportDataset[]).map((id) => [
         id,
-        newReportQuery(id),
+        browseDefaults(id),
       ]),
     ) as Record<ReportDataset, ReportQuery>,
   );
@@ -380,7 +380,10 @@ export function useExportWorkspaceController(
   }
   function clear() {
     routeError.value = "";
-    states[dataset.value] = newReportQuery(dataset.value);
+    states[dataset.value] = browseDefaults(
+      dataset.value,
+      states[dataset.value].view,
+    );
   }
   return {
     ...report,

@@ -5,6 +5,7 @@ import {
   type ReportQuery,
   type ReportRow,
 } from "../../lib/reportContract";
+import { browseDefaults } from "../../lib/browseDefaults";
 import {
   clearScopeField,
   scopeFilterFieldChips,
@@ -64,7 +65,7 @@ export function useStockBrowseController(
     selected = ref<string[]>([]),
     inStockOnly = ref(true),
     analysisDimension = ref<"category" | "location">("category");
-  const scope = ref(newReportQuery("inventory").scope);
+  const scope = ref(browseDefaults("inventory", "summary").scope);
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (!scope.value.categories.includes(oldName)) return;
     scope.value.categories = [
@@ -75,7 +76,7 @@ export function useStockBrowseController(
       ),
     ];
   });
-  const constraints = ref(newReportQuery("inventory"));
+  const constraints = ref(browseDefaults("inventory", "summary"));
   const data = reactive({
     rows: [] as StockItem[],
     total: 0,
@@ -117,6 +118,7 @@ export function useStockBrowseController(
         "available",
         "loaned",
         "damaged",
+        "stock_qty",
       ].includes(incoming.sortBy)
         ? incoming.sortBy
         : "item_name";
@@ -273,9 +275,12 @@ export function useStockBrowseController(
       record: constraints.value.record,
       recordDoctype: constraints.value.recordDoctype,
     };
-    constraints.value = Object.assign(newReportQuery("inventory"), routeScope);
+    constraints.value = Object.assign(
+      browseDefaults("inventory", "summary"),
+      routeScope,
+    );
     inStockOnly.value = true;
-    scope.value = newReportQuery("inventory").scope;
+    scope.value = browseDefaults("inventory", "summary").scope;
   }
   function setItemStatus(value: ReportQuery["itemStatus"]) {
     constraints.value.itemStatus = value;

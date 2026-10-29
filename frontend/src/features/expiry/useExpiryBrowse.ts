@@ -9,6 +9,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { browseDefaults } from "../../lib/browseDefaults";
 import {
   reportFilterChips,
   clearReportSecondaryFilters,
@@ -39,7 +40,7 @@ export function useExpiryBrowse(
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user;
-  const query = ref(newReportQuery("expiry")),
+  const query = ref(browseDefaults("expiry", "batches")),
     routeError = ref("");
   const groups = useReportGroups(query, services);
   const result = reactive({
@@ -89,9 +90,7 @@ export function useExpiryBrowse(
     for (const key of Object.keys(analyses)) delete analyses[key];
   }
   function defaults() {
-    const value = newReportQuery("expiry");
-    value.sortBy = "expiry_date";
-    return value;
+    return browseDefaults("expiry", "batches");
   }
   watch(
     () => JSON.stringify(props.initialQuery || props.routeQuery),

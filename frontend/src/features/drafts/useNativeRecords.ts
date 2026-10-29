@@ -9,6 +9,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { browseDefaults } from "../../lib/browseDefaults";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import {
   createRecoveryStore,
@@ -47,7 +48,7 @@ export function useNativeRecords(
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user;
-  const query = ref(newReportQuery("movements")),
+  const query = ref(browseDefaults("movements", "records")),
     routeError = ref("");
   const groups = useReportGroups(query, services);
   const rows = ref<NativeRecord[]>([]),
@@ -80,7 +81,13 @@ export function useNativeRecords(
     source: unknown,
     dataset: "movements" | "counts",
   ) {
-    let candidate = source ?? newReportQuery(dataset);
+    let candidate =
+      source ??
+      browseDefaults(
+        dataset,
+        "records",
+        props.mode === "drafts" ? "drafts" : "browse",
+      );
     if (typeof source === "string") {
       try {
         candidate = JSON.parse(source);
@@ -99,14 +106,21 @@ export function useNativeRecords(
         ...(candidate as Record<string, unknown>),
         view: "records",
       };
+      const defaults = browseDefaults(
+        dataset,
+        "records",
+        props.mode === "drafts" ? "drafts" : "browse",
+      );
       if (
         typeof normalized.sortBy !== "string" ||
         !sortableColumnsForView(dataset, "records").includes(normalized.sortBy)
-      )
-        normalized.sortBy = "date";
+      ) {
+        normalized.sortBy = defaults.sortBy;
+        normalized.sort = defaults.sort;
+      }
       candidate = normalized;
     }
-    return decodeReportQuery(candidate, dataset);
+    return decodeReportQuery(candidate, dataset, "records");
   }
   function readLocal() {
     if (!active()) return;
@@ -129,11 +143,15 @@ export function useNativeRecords(
       value.sortBy = "modified";
       value.sort = "desc";
     }
-    if (!props.initialQuery && !props.routeQuery) {
-      value.sortBy = props.mode === "drafts" ? "modified" : "date";
-      value.sort = "desc";
-      if (props.mode === "counts") value.statuses = [0, 1, 2];
-    }
+    if (!props.initialQuery && !props.routeQuery)
+      Object.assign(
+        value,
+        browseDefaults(
+          dataset,
+          "records",
+          props.mode === "drafts" ? "drafts" : "browse",
+        ),
+      );
     if (JSON.stringify(value) !== JSON.stringify(query.value))
       query.value = value;
   }
@@ -242,7 +260,11 @@ export function useNativeRecords(
   }
   function reset() {
     const dataset = props.mode === "counts" ? "counts" : "movements";
-    query.value = newReportQuery(dataset);
+    query.value = browseDefaults(
+      dataset,
+      "records",
+      props.mode === "drafts" ? "drafts" : "browse",
+    );
     query.value.view = "records";
     routeError.value = "";
   }

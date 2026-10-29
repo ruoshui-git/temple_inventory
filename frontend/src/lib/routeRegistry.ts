@@ -13,6 +13,7 @@ import {
   normalizeBrowseQueryPayload,
   normalizeReportQuery,
 } from "./reportQuery";
+import { browseDefaults } from "./browseDefaults";
 
 type AppRouteName =
   | "home"
@@ -595,7 +596,7 @@ function deepDifference(initial: unknown, actual: unknown): unknown {
 }
 
 export function serializeBrowseQuery(query: ReportQuery): string | undefined {
-  const defaults = newReportQuery(query.dataset);
+  const defaults = browseDefaults(query.dataset, query.view);
   const { dataset: _dataset, view: _view, ...state } = query;
   const {
     dataset: _defaultDataset,

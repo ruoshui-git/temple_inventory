@@ -8,6 +8,7 @@ import {
   type ReportDataset,
   type ReportQuery,
 } from "./reportContract";
+import { browseDefaults } from "./browseDefaults";
 const own = (value: object, key: PropertyKey) =>
   Object.prototype.hasOwnProperty.call(value, key);
 function record(value: unknown): value is Record<string, unknown> {
@@ -51,9 +52,16 @@ function period(value: unknown): DatePeriod {
 export function decodeReportQuery(
   value: unknown,
   fallback: ReportDataset = "inventory",
+  targetView?: string,
 ): { query: ReportQuery; error: string } {
+  const fallbackDataset = reportDefinitions[fallback] ? fallback : "inventory";
   if (value === undefined || value === null || value === "")
-    return { query: newReportQuery(fallback), error: "" };
+    return { query: browseDefaults(fallbackDataset, targetView), error: "" };
+  let fallbackView = reportDefinitions[fallbackDataset].views.some(
+    (view) => view.id === targetView,
+  )
+    ? targetView
+    : undefined;
   try {
     const candidate: unknown =
       typeof value === "string" ? JSON.parse(value) : value;
@@ -69,7 +77,16 @@ export function decodeReportQuery(
       candidate.dataset === undefined ? fallback : candidate.dataset;
     if (typeof dataset !== "string" || !own(reportDefinitions, dataset))
       throw new Error("数据集无效");
-    const query = newReportQuery(dataset as ReportDataset);
+    const requestedView =
+      targetView ??
+      (typeof candidate.view === "string" ? candidate.view : undefined);
+    if (
+      reportDefinitions[fallbackDataset].views.some(
+        (view) => view.id === requestedView,
+      )
+    )
+      fallbackView = requestedView;
+    const query = browseDefaults(dataset as ReportDataset, requestedView);
     query.groupBy = [];
     const target = query as unknown as Record<string, unknown>;
     for (const [field, initial] of Object.entries(query)) {
@@ -189,7 +206,7 @@ export function decodeReportQuery(
     return { query, error: "" };
   } catch (reason) {
     return {
-      query: newReportQuery(fallback),
+      query: browseDefaults(fallbackDataset, fallbackView),
       error: "链接中的筛选条件无效，已显示默认结果",
     };
   }
@@ -208,7 +225,7 @@ export function normalizeBrowseQueryPayload(
     const state: unknown = JSON.parse(source);
     if (!record(state)) return source;
     const { dataset: _dataset, view: _view, ...filters } = state;
-    const defaults = newReportQuery(dataset);
+    const base = newReportQuery(dataset);
     const view =
       dataset === "movements"
         ? browserView === "records"
@@ -220,7 +237,8 @@ export function normalizeBrowseQueryPayload(
             : "items"
           : typeof browserView === "string" && browserView
             ? browserView
-            : defaults.view;
+            : base.view;
+    const defaults = browseDefaults(dataset, view);
     const scope =
       filters.scope === undefined
         ? defaults.scope

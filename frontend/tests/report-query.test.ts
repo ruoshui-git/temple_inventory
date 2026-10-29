@@ -1,6 +1,7 @@
 import { decodeItemSelection } from "../src/lib/routeSelection";
 import { describe, expect, it } from "vitest";
 import { decodeReportQuery } from "../src/lib/reportQuery";
+import { browseDefaults } from "../src/lib/browseDefaults";
 import { resolveSitePeriod, sitePeriodSummary } from "../src/lib/sitePeriod";
 import {
   newReportQuery,
@@ -11,7 +12,9 @@ import {
 
 describe("canonical routed report queries", () => {
   it("uses ordinary navigation defaults only when no query was supplied", () => {
-    expect(decodeReportQuery(undefined).query).toEqual(newReportQuery());
+    expect(decodeReportQuery(undefined).query).toEqual(
+      browseDefaults("inventory", "summary"),
+    );
     expect(decodeReportQuery(undefined).error).toBe("");
   });
   it("round trips all dataset views, explicit empty restrictions and relative dates", () => {
@@ -44,7 +47,7 @@ describe("canonical routed report queries", () => {
       const result = decodeReportQuery(value);
       expect(result.error).not.toBe("");
       expect(result.error).toBe("链接中的筛选条件无效，已显示默认结果");
-      expect(result.query).toEqual(newReportQuery());
+      expect(result.query).toEqual(browseDefaults("inventory", "summary"));
     }
   });
   it("round trips independent category subtrees and direct root assignments", () => {

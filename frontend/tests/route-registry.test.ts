@@ -25,6 +25,9 @@ import {
 import { newReportQuery } from "../src/lib/reportContract";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { serializeBrowseQuery } from "../src/lib/routeRegistry";
+import { serializeReportRouteQuery } from "../src/lib/routeRegistry";
+import { browseDefaults } from "../src/lib/browseDefaults";
+import { sortableColumnsForView } from "../src/lib/reportContract";
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -33,6 +36,53 @@ const router = createRouter({
 router.beforeEach(guardReservedRoute);
 
 describe("canonical application route registry", () => {
+  it("round trips every sortable field and direction against each browse view default", () => {
+    const surfaces = [
+      ["inventory", "summary"],
+      ["inventory", "locations"],
+      ["expiry", "batches"],
+      ["movements", "summary"],
+      ["movements", "records"],
+      ["movements", "lines"],
+      ["loans", "records"],
+      ["loans", "items"],
+      ["loans", "outcomes"],
+      ["loans", "settlements"],
+      ["activities", "metadata"],
+      ["activities", "records"],
+      ["activities", "loans"],
+      ["counts", "records"],
+      ["counts", "lines"],
+    ] as const;
+    for (const [dataset, view] of surfaces) {
+      for (const sortBy of sortableColumnsForView(dataset, view)) {
+        for (const sort of ["asc", "desc"] as const) {
+          const state = browseDefaults(dataset, view);
+          state.sortBy = sortBy;
+          state.sort = sort;
+          const decoded = decodeReportQuery(
+            serializeBrowseQuery(state),
+            dataset,
+            view,
+          ).query;
+          expect(decoded).toEqual(state);
+        }
+      }
+    }
+  });
+  it("serializes Reports against its target view defaults", () => {
+    const state = browseDefaults("movements", "records");
+    state.sortBy = "identity";
+    state.sort = "asc";
+    const serialized = serializeReportRouteQuery(state);
+    expect(JSON.parse(serialized)).toMatchObject({
+      dataset: "movements",
+      view: "records",
+      sortBy: "identity",
+      sort: "asc",
+    });
+    expect(decodeReportQuery(serialized).query).toEqual(state);
+  });
   it("contains only named canonical routes and resolves retired paths as not found", async () => {
     const names = routeRegistry.map(({ name }) => name);
     expect(new Set(names).size).toBe(names.length);
@@ -123,7 +173,7 @@ describe("canonical application route registry", () => {
       ),
     ).toMatchObject({ dataset: "movements", view: "records", search: "rice" });
 
-    const loans = newReportQuery("loans");
+    const loans = browseDefaults("loans", "items");
     const loanTarget = browseStateDestination("loans", "items", loans);
     expect(loanTarget.query?.view).toBe("items");
     expect(loanTarget.query).not.toHaveProperty("query");
@@ -153,13 +203,13 @@ describe("canonical application route registry", () => {
   });
 
   it("round trips default, single-filter, and deeply changed browse queries compactly", () => {
-    const defaults = newReportQuery("inventory");
+    const defaults = browseDefaults("inventory", "summary");
     const defaultTarget = browseRouteTarget(defaults);
     expect(defaultTarget.query).not.toHaveProperty("query");
     expect(serializeBrowseQuery(defaults)).toBeUndefined();
     expect(decodeReportQuery(undefined, "inventory").query).toEqual(defaults);
 
-    const oneFilter = newReportQuery("inventory");
+    const oneFilter = browseDefaults("inventory", "summary");
     oneFilter.search = "rice";
     const onePayload = serializeBrowseQuery(oneFilter);
     expect(JSON.parse(onePayload!)).toEqual({ search: "rice" });
@@ -171,8 +221,7 @@ describe("canonical application route registry", () => {
       ).query,
     ).toEqual(oneFilter);
 
-    const severalFilters = newReportQuery("movements");
-    severalFilters.view = "records";
+    const severalFilters = browseDefaults("movements", "records");
     severalFilters.search = "rice";
     severalFilters.sort = "desc";
     severalFilters.statuses = [0];
@@ -186,7 +235,6 @@ describe("canonical application route registry", () => {
     const severalPayload = serializeBrowseQuery(severalFilters);
     expect(JSON.parse(severalPayload!)).toMatchObject({
       search: "rice",
-      sort: "desc",
       statuses: [0],
       groupBy: ["kind"],
       scope: {

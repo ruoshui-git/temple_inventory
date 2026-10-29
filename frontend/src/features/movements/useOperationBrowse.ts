@@ -11,6 +11,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
+import { browseDefaults } from "../../lib/browseDefaults";
 import { reportFilterChips } from "../../lib/reportFilters";
 import type { CatalogItem } from "../../lib/catalogPresentation";
 import { presentCatalogItem } from "../../lib/catalogPresentation";
@@ -97,14 +98,12 @@ export function useOperationBrowse(
     reference = useReferenceData(),
     account = reference.user;
   function defaults(records = props.records) {
-    const query = newReportQuery(props.family);
-    query.view = records
+    const view = records
       ? "records"
       : props.family === "movements"
         ? "summary"
         : "items";
-    query.sortBy = records ? "date" : "item_name";
-    query.sort = records ? "desc" : "asc";
+    const query = browseDefaults(props.family, view);
     if (!records) query.groupBy = [];
     if (props.family === "loans" && !records) {
       query.loanOutcome = "all";
