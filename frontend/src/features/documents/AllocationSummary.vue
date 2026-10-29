@@ -413,7 +413,7 @@ function itemFor(row: Record<string, unknown>) {
 }
 .allocation-group-metrics {
 	margin-inline-start: var(--p-space-2);
-	color: var(--p-text-muted);
+	color: var(--p-muted);
 	font-size: var(--p-small);
 }
 .allocation-summary-table.is-collapsible .allocation-group-metrics {
@@ -492,7 +492,7 @@ function itemFor(row: Record<string, unknown>) {
 }
 .allocation-phone-group-heading > span,
 .allocation-phone-meta {
-	color: var(--p-text-muted);
+	color: var(--p-muted);
 	font-size: var(--p-small);
 }
 .allocation-phone-chevron {
@@ -537,7 +537,7 @@ function itemFor(row: Record<string, unknown>) {
 	overflow-wrap: anywhere;
 }
 .allocation-phone-quantity > span {
-	color: var(--p-text-muted);
+	color: var(--p-muted);
 	font-weight: 400;
 }
 .allocation-phone-meta {

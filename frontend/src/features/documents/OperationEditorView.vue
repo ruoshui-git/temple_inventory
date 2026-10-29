@@ -1263,7 +1263,7 @@ async function lifecycle() {
 }
 
 .review-location-totals li > span {
-	color: var(--p-text-muted);
+	color: var(--p-muted);
 	font-size: var(--p-small);
 }
 

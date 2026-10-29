@@ -53,7 +53,7 @@ select {
 	width: 20px;
 	height: 20px;
 	margin-inline-end: 8px;
-	color: var(--p-accent-quiet, var(--p-text-muted));
+	color: var(--p-accent-quiet, var(--p-muted));
 	vertical-align: -3px;
 }
 .form-page .form-record-tag {

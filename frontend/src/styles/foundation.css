@@ -2360,7 +2360,7 @@ button {
 .form-choice-label > svg {
 	width: 16px;
 	height: 16px;
-	color: var(--p-text-muted);
+	color: var(--p-muted);
 }
 .form-choice-label > input {
 	flex: none;
